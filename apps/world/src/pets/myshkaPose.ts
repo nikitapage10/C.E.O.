@@ -34,6 +34,8 @@ export const MYSHKA_BONES = {
   head: "Bone_036",
   face: "Bone_035",
   jaw: "Bone_069",
+  /** The ruff under his chin. The export models it jutting forward; see MYSHKA_RUFF. */
+  ruff: "Bone_034",
   earL: "Bone_062",
   earR: "Bone_064",
   /** Shoulder, elbow, forearm, paw, toes, toe tips. */
@@ -45,6 +47,9 @@ export const MYSHKA_BONES = {
   /** Base to tip. */
   tail: ["Bone_021", "Bone_020", "Bone_019", "Bone_018", "Bone_017", "Bone_016"],
 } as const;
+
+/** The ruff is pulled in: shrunk about its root and tipped back toward the chest, so it sits like fur, not a bib. */
+export const MYSHKA_RUFF = { scale: 0.6, tuck: 0.45 };
 
 /** Clip names as baked, and how fast each gait plays at its natural pace, in model units a second. */
 export const MYSHKA_CLIPS = { walk: "Walk", run: "Run", groom: "Groom", sit: "Sit" } as const;
@@ -135,6 +140,7 @@ export class MyshkaRig {
     });
     this.rest = new Map(this.order.map((b) => [b, b.quaternion.clone()]));
     this.root = bones.get(MYSHKA_BONES.root)!;
+    bones.get(MYSHKA_BONES.ruff)?.scale.setScalar(MYSHKA_RUFF.scale);
     this.rootRest = this.root.position.clone();
     this.mixer = new AnimationMixer(model);
     for (const [key, name] of Object.entries(MYSHKA_CLIPS) as [keyof typeof MYSHKA_CLIPS, string][]) {
@@ -218,6 +224,7 @@ export class MyshkaRig {
     // --- procedural layers
     this.fidget(t, dt, mode);
     const p: Pose = { turns: new Map(), lift: 0 };
+    add(p, MYSHKA_BONES.ruff, MYSHKA_RUFF.tuck);
     const clipW = this.w.walk + this.w.run + this.w.groom + this.w.sit;
     const life = 1 - this.w.run * 0.8 - this.w.groom;
     this.life(p, t, Math.max(0, life), mode);

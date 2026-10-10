@@ -15,6 +15,19 @@ import { chainLengths, solveChain } from "./ik.ts";
 
 /** Every number the gait is built from, in body heights and seconds. The motion lab edits these live. */
 export const ROCKY_GAIT = {
+  /** Parts of the motion that can be switched off one at a time (the motion lab's layers). */
+  layers: {
+    /** Feet step; off, they stay planted and slide. */
+    step: true,
+    /** The body bobs twice a cycle. */
+    bob: true,
+    /** The body leans into travel and sways. */
+    lean: true,
+    /** The front pair rise as arms when not scuttling. */
+    arms: true,
+    /** A slow breath, so it's never quite still. */
+    breathe: true,
+  },
   /** How far a foot travels per step. */
   stride: 0.56,
   /** Share of a cycle a foot spends on the floor. */
@@ -158,7 +171,7 @@ export function poseRocky(ground: Object3D, body: Object3D, rig: RockyRig, mode:
 
   // What the front pair are doing: feet while scuttling, arms otherwise.
   const scuttle = mode === "walking";
-  rig.arms = smooth(rig.arms, scuttle || mode === "napping" ? 0 : 1, 0.1);
+  rig.arms = smooth(rig.arms, scuttle || mode === "napping" || !G.layers.arms ? 0 : 1, 0.1);
   rig.sink = smooth(rig.sink, mode === "napping" ? 1 : mode === "slumped" ? 0.45 : 0, 0.05);
   rig.bounce = smooth(rig.bounce, mode === "celebrating" ? 1 : 0, 0.1);
   rig.bump = smooth(rig.bump, mode === "waiting" ? 1 : 0, 0.07);
@@ -170,11 +183,11 @@ export function poseRocky(ground: Object3D, body: Object3D, rig: RockyRig, mode:
   const stepTime = Math.min(G.maxStep, Math.max(G.minStep, ((1 - G.duty) * cycle) / Math.max(speed, 0.01)));
 
   // Body: bob twice a cycle while walking, lean into travel, bounce to celebrate, settle to sleep.
-  const walkBob = moving ? Math.abs(Math.sin(rig.clock * Math.PI * 2)) * G.bob : 0;
+  const walkBob = moving && G.layers.bob ? Math.abs(Math.sin(rig.clock * Math.PI * 2)) * G.bob : 0;
   body.position.y = walkBob + rig.bounce * Math.abs(Math.sin(t * 9)) * 0.12 - rig.sink * G.settle;
-  rig.lean = smooth(rig.lean, Math.min(G.maxLean, speed * G.lean), 0.1);
-  body.rotation.x = rig.lean + Math.sin(t * 1.3 + phase) * 0.012;
-  body.rotation.z = moving ? Math.sin(rig.clock * Math.PI * 2 + 0.7) * 0.025 : 0;
+  rig.lean = smooth(rig.lean, G.layers.lean ? Math.min(G.maxLean, speed * G.lean) : 0, 0.1);
+  body.rotation.x = rig.lean + (G.layers.breathe ? Math.sin(t * 1.3 + phase) * 0.012 : 0);
+  body.rotation.z = moving && G.layers.lean ? Math.sin(rig.clock * Math.PI * 2 + 0.7) * 0.025 : 0;
   body.updateWorldMatrix(true, true);
 
   const feet = rig.legs.filter((l) => !(armsUp && l.front));
@@ -194,9 +207,9 @@ export function poseRocky(ground: Object3D, body: Object3D, rig: RockyRig, mode:
     } else {
       const order = scuttle ? (G.scuttleOrder[rig.legs.indexOf(leg) % G.scuttleOrder.length] ?? 0) : k / Math.max(1, feet.length);
       const c = rig.clock + order;
-      const due = moving && c - Math.floor(c) < 1 - G.duty && Math.floor(c) !== leg.stepped;
+      const due = G.layers.step && moving && c - Math.floor(c) < 1 - G.duty && Math.floor(c) !== leg.stepped;
       const strayed = leg.foot.distanceTo(homeW) > (moving ? G.stride * 1.1 : G.restep);
-      if (due || (strayed && (moving || !swinging))) {
+      if (due || (G.layers.step && strayed && (moving || !swinging))) {
         leg.stepped = Math.floor(c);
         // Land ahead of home by half the ground covered while planted, so the foot passes under the hip mid-stance.
         const ahead = v.copy(rig.velocity).multiplyScalar(stepTime + (G.duty * cycle) / Math.max(speed, 0.01) / 2);

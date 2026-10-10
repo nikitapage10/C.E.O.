@@ -38,7 +38,7 @@ const SEEDS: Record<string, Seed> = {
   odds: {
     look: lookFromPreset("gestral"),
     traits: ["smug", "competitive", "flirty"],
-    bio: "Prices everything, including feelings. Wears a Gestral, crimson crest and all, and challenges everyone to a duel at least once a shift. 63% sure Hedge likes them back. Market disagrees.",
+    bio: "Prices everything, including feelings. Wears Noco, a Gestral, crimson crest and all, and challenges everyone to a duel at least once a shift. 63% sure Hedge likes them back. Market disagrees.",
     catchphrase: "I'd put that at sixty-three percent.",
   },
   hedge: {

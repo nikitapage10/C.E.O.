@@ -44,7 +44,7 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
   - **Pick a costume:** plain avatars or *legally distinct* icons from the Syntherion's memories, one per work and never the hero (with one four-legged exception):
     - the Engineer from a Rocky Planet, a stone crawler who speaks in chords
     - Blasto, Hanar Spectre, a floating jellyfish who calls itself "this one"
-    - the Gestral
+    - Noco, a Gestral
     - the Grey Wanderer
     - the Barefoot Burglar
     - the Monolith Unit, humour setting 75%

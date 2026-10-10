@@ -260,9 +260,9 @@ export const LOOK_PRESETS: LookPreset[] = [
   },
   {
     id: "gestral",
-    name: "Gestral",
+    name: "Noco, a Gestral",
     kind: "icon",
-    disclaimer: "A small, competitive wooden fellow with a crimson bristle crest who will duel you for sport. Gestrals are a people, not a trademark. Counsel.exe is checking.",
+    disclaimer: "Noco: a small, competitive wooden fellow with a crimson bristle crest who will duel you for sport. Gestrals are a people, not a trademark. Counsel.exe is checking.",
     look: makeLook({ body: "gestral", shell: "#d81e4a", accent: "#ff6b8b", trim: "#3d6a8f" }),
   },
   {

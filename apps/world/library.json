@@ -196,7 +196,14 @@
     "scifi-essentials/Prop_Desk_Small": {},
     "scifi-essentials/Prop_Mug": {},
     "custom/Blasto": {},
-    "custom/Rocky": {}
+    "custom/Rocky": {},
+    "custom/Heimerdinger": {
+      "clips": [
+        "Walking",
+        "Running"
+      ]
+    },
+    "fantasy-props/Workbench": {}
   },
   "anims": {
     "humans": {

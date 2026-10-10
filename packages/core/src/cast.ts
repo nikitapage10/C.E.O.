@@ -15,7 +15,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "hanar", "rocky", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
+  "gestral", "yordle", "hanar", "rocky", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -42,6 +42,7 @@ export const BODY_LABEL: Record<Body, string> = {
   knight: "Knight",
   barbarian: "Barbarian",
   gestral: "Gestral",
+  yordle: "Yordle professor",
   hanar: "Hanar",
   rocky: "Eridian",
   crawler: "Stone crawler",
@@ -205,7 +206,7 @@ export interface LookPreset {
   /** What Counsel.exe insists this is. */
   disclaimer?: string;
   /** How they talk (see the world's voices). */
-  voice?: "chords" | "emotive" | "monolith" | "migraine" | "thisone";
+  voice?: "chords" | "emotive" | "monolith" | "migraine" | "thisone" | "professor";
   look: Omit<Look, "preset">;
 }
 
@@ -264,6 +265,14 @@ export const LOOK_PRESETS: LookPreset[] = [
     kind: "icon",
     disclaimer: "Noco: a small, competitive wooden fellow with a crimson bristle crest who will duel you for sport. Gestrals are a people, not a trademark. Counsel.exe is checking.",
     look: makeLook({ body: "gestral", shell: "#d81e4a", accent: "#ff6b8b", trim: "#3d6a8f" }),
+  },
+  {
+    id: "professor",
+    name: "Heimerdinger, Professor Emeritus",
+    kind: "icon",
+    voice: "professor",
+    disclaimer: "A very small, very old professor with a magnificent moustache and a great deal of patience, most of which he spends on other people. Has been studying caution for three centuries and recommends it.",
+    look: makeLook({ body: "yordle", shell: "#232b5c", accent: "#f2b84b", trim: "#c9a25c" }),
   },
   {
     id: "grey-wanderer",

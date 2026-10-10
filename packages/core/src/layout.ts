@@ -136,6 +136,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("dice-table", "Dice table", 3, 2.2, Math.PI),
       s("shrine", "Cease & Desist shrine", 5.8, -3.2, 0),
       s("reading", "Reading nook", -4.4, 3, Math.PI),
+      // Faces his workbench, side-on to the room.
+      s("lab", "Professor's workbench", -1.4, 4.2, -Math.PI / 2),
       toward("seat-w", "Seat at the dice table", 1.75, 3.15, 3, 3.15),
       toward("seat-e", "Seat at the dice table", 4.25, 3.15, 3, 3.15),
       toward("seat-sw", "Seat at the dice table", 2.2, 4.2, 3, 3.15),

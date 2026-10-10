@@ -77,6 +77,12 @@ const SEEDS: Record<string, Seed> = {
     bio: "A small, round wizard in a pointed hat who keeps the Archive and the Tide's canon. Never late, nor early; arrives precisely when the footnote requires. Mentor to D20, who keeps rolling for 'canon' and getting a 1.",
     catchphrase: "That's provisional canon at best.",
   },
+  heimerdinger: {
+    look: lookFromPreset("professor"),
+    traits: ["wise", "fussy", "kind", "cautious"],
+    bio: "A very small, very old professor with a magnificent moustache, who has been studying for longer than the Archive has had shelves. Brilliant, patient and a little pompous, he tests every piece of lore at his workbench before anyone is allowed to believe it. Stands on a stack of books to reach things. Warns every young genius about haste, then cannot resist helping them with it.",
+    catchphrase: "Haste, my dear colleague, is the mother of explosions.",
+  },
   d20: {
     look: lookFromPreset("burglar"),
     traits: ["nerdy", "dramatic", "earnest"],
@@ -120,6 +126,10 @@ export function defaultCast(): Cast {
       { a: "memo", b: "kevin", kind: "friend", note: "Break buddies. Memo floats; Kevin lies down. Same energy." },
       { a: "hedge", b: "gridiron", kind: "ex", note: "Disagreed about risk. Mostly about a kicker." },
       { a: "odds", b: "ledger", kind: "nemesis", note: "Ledger audited Noco's stall once. Noco challenged the audit to a duel." },
+      { a: "heimerdinger", b: "loremaster", kind: "friend", note: "Colleagues for longer than either will admit. They argue whether lore is history or science, and agree it needs more footnotes." },
+      { a: "heimerdinger", b: "d20", kind: "mentor", note: "Grades D20's dice rolls for rigour. D20 has never passed. D20 has never stopped trying." },
+      { a: "heimerdinger", b: "caret", kind: "friend", note: "Rocky built it in an afternoon. Heimerdinger has studied it for a year and still has questions. Mutual awe, in chords and footnotes." },
+      { a: "heimerdinger", b: "kevin", kind: "friend", note: "Kevin has never once hurried. Heimerdinger finds this scientifically fascinating, and a little enviable." },
       { a: "caret", b: "kevin", kind: "friend", note: "Rocky watches Kevin sleep. Kevin is always asleep. Rocky has never been happier." },
     ],
   };

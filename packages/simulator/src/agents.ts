@@ -24,6 +24,7 @@ export const SAMPLE_AGENTS: SimAgent[] = [
   { id: "postmaster", name: "Blasto", lineage: "claudari", provider: "claude-agent-sdk", role: "Correspondence", home: { room: "relay", station: "tubes" }, script: "relayClerk", breakChance: 0.08 },
   { id: "dialtone", name: "Dialtone", lineage: "manusi", provider: "manus", role: "Switchboard", home: { room: "relay", station: "switchboard" }, script: "relaySwitchboard", breakChance: 0.15 },
   { id: "loremaster", name: "Loremaster", lineage: "gepetti", provider: "openai", role: "Scribe", home: { room: "archive", station: "shelves" }, script: "archiveScribe", breakChance: 0.08 },
+  { id: "heimerdinger", name: "Heimerdinger", lineage: "claudari", provider: "claude-agent-sdk", role: "Researcher", home: { room: "archive", station: "lab" }, script: "archiveResearcher", breakChance: 0.1 },
   { id: "d20", name: "D20", lineage: "manusi", provider: "manus", role: "Game master's hands", home: { room: "archive", station: "dice-table" }, script: "archiveDiceRoller", breakChance: 0.15 },
   { id: "kevin", name: "Kevin", lineage: "unforked", provider: "simulated", role: "On break", home: { room: "breakroom", station: "couch" }, script: "breakroomRegular", breakChance: 0 },
 ];

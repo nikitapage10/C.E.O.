@@ -24,6 +24,13 @@ describe("voices", () => {
     expect(voiced("thisone", "Hello there.").text).toBe("Hello there.");
   });
 
+  it("the professor fusses first and cautions after", () => {
+    expect(voiceOf(lookFromPreset("professor"))).toBe("professor");
+    expect(["Oh dear. Back to the drawing board.", "Hm. A most educational failure.", "Too hasty. Far too hasty."]).toContain(voiced("professor", "The experiment failed.").post);
+    expect(voiced("professor", "Calibrating the lens.").text).toBe("Calibrating the lens.");
+    expect(voiced("professor", "It works!")).toEqual(voiced("professor", "It works!"));
+  });
+
   it("the emotive voice says how it feels first, and it's stable for a given line", () => {
     const a = voiced("emotive", "Sorry, that failed.");
     expect(a.pre).toMatch(/:$/);

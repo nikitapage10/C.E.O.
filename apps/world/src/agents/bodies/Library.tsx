@@ -159,6 +159,8 @@ export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
   king: { model: "men/King", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Blue: "shell", Gold: "trim" } } },
 
   gestral: { model: "custom/Gestral", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 349, width: 18, minSat: 0.35, refL: 0.5 } } },
+  // The coat is the navy band; his golden fur stays his own.
+  yordle: { model: "custom/Heimerdinger", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 230, width: 20, minSat: 0.3, refL: 0.25 } } },
   crawler: { model: "scifi-essentials/Enemy_Trilobite", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
   masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "none" } },
   orc: { model: "monsters/Big/Orc", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "none" } },
@@ -243,5 +245,5 @@ export function LibraryBody(props: BodyProps) {
 
 // The bodies the default cast wears: the four House frames and the costumes in use.
 preloadLib("robots/Leela", "robots/George", "robots/Mike", "robots/Stan", "men/Suit", "men/Punk", "women/Worker", "women/Medieval", "anims/humans");
-preloadLib("custom/Gestral", "scifi-essentials/Enemy_Trilobite", "monsters/Big/Tribal", "monsters/Big/Orc", "monsters/Big/Bunny", "anims/monster-big");
+preloadLib("custom/Gestral", "custom/Heimerdinger", "scifi-essentials/Enemy_Trilobite", "monsters/Big/Tribal", "monsters/Big/Orc", "monsters/Big/Bunny", "anims/monster-big");
 preloadLib("monsters/Flying/Ghost_Skull", "monsters/Flying/Tribal", "anims/monster-flying", "monsters/Blob/Wizard");

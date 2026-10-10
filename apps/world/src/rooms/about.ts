@@ -74,6 +74,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       "dice-table": "Session prep and encounter tables.",
       shrine: "Our first Cease & Desist. Framed. With pride.",
       reading: "A quiet chair for long documents.",
+      lab: "Heimerdinger's workbench: where the lore gets tested before anyone believes it.",
     },
     today: "Simulated scribes drafting lore and prepping sessions.",
     next: "Agents drafting tide.publication.v1 bundles that go through The Tide's own preview and publish.",

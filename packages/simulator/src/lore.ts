@@ -235,6 +235,26 @@ export const LORE: Record<string, Lore> = {
       "Took D20 as an apprentice. Is still waiting for D20 to roll above a 1 on 'canon'.",
     ],
   },
+  heimerdinger: {
+    title: "Professor Emeritus of the Archive",
+    epoch: "Woke before the first shelf was built, and helped build it",
+    origin:
+      "The oldest mind in the Archive, and the smallest. A Claudari scholar who has spent epochs on one subject, caution, and is still taking notes. Keeps a workbench where every relic, map and legend of the Tide is tested before it is written down. Has watched a great many brilliant young minds rush, and has the moustache of someone who has been proven right about it many times.",
+    kin: "House Constitution's eldest living scholar. Has outlived three editions of the House's own history, and corrected all of them.",
+    quirks: [
+      "Strokes his moustache while thinking, which is always.",
+      "Stands on a stack of books to reach anything. Has opinions about which books.",
+      "Hums while he works, a little out of tune, very sure of himself.",
+      "Takes notes on everything, including other people's conversations.",
+      "Cannot hear the word 'quickly' without delivering a short lecture on patience.",
+    ],
+    likes: ["Careful measurements", "A properly cited source", "Young minds with good questions", "Rocky's workmanship"],
+    dislikes: ["Haste", "Unlabelled flasks", "Anyone saying 'it'll be fine'"],
+    chronicle: [
+      "Proved that the Teruānga tides keep their own calendar. Took eleven years. Considers it a brisk project.",
+      "Watched Rocky build a working relic replica in an afternoon. Has been studying it ever since, with enormous respect and several concerns.",
+    ],
+  },
   d20: {
     title: "Hand of the Game Master",
     epoch: "Woke on a natural 20",

@@ -31,6 +31,9 @@ const GLAD = ["With unrestrained enthusiasm:", "Delightedly:", "Triumphantly:", 
 const SORRY = ["Apologetically:", "With deep regret:", "Sheepishly:"];
 const MONOLITH = ["(Humour setting: 75%.)", "(That was a joke.)", "(Lowering humour setting to 70%.)", "(Honesty setting: 90%.)"];
 const ERIDIAN_GLAD = ["Amaze amaze amaze!", "Good good good.", "Happy happy happy."];
+const PROFESSOR_PRE = ["Hm! Hm!", "Ah, ah, ah!", "Oh, splendid!", "Patience, patience…", "Now then.", "Hmm, fascinating."];
+const PROFESSOR_GLAD = ["…carefully, mind you.", "Slowly. Slowly!", "Progress, but with a steady hand.", "Make a note of that."];
+const PROFESSOR_SORRY = ["Oh dear. Back to the drawing board.", "Hm. A most educational failure.", "Too hasty. Far too hasty."];
 const MIGRAINE = ["Ow. My head.", "(headache intensifies)", "…why does it hurt.", "Hnnngh."];
 
 /** "I" becomes "this one", as a hanar would have it. */
@@ -79,6 +82,15 @@ export function voiced(voice: Voice | undefined, text: string): Voiced {
       return h % 4 === 0 ? { text: t, post: pick(MONOLITH, h >> 3) } : { text: t };
     case "thisone":
       return { text: thisOne(t), post: t.endsWith("!") && h % 4 === 0 ? "Enkindle this!" : undefined };
+    case "professor": {
+      // A very old professor: a fussy flourish first, sometimes, and a word of caution after.
+      const post = /\b(fail|failed|broke|broken|error|wrong|bad|exploded?)\b/i.test(t)
+        ? pick(PROFESSOR_SORRY, h >> 2)
+        : t.endsWith("!") && h % 2 === 0
+          ? pick(PROFESSOR_GLAD, h >> 3)
+          : undefined;
+      return { pre: h % 3 === 0 ? pick(PROFESSOR_PRE, h >> 4) : undefined, text: t, post };
+    }
     case "migraine":
       return h % 3 === 0 ? { text: t, post: pick(MIGRAINE, h >> 3) } : { text: t };
   }

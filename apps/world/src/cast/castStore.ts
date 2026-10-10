@@ -45,8 +45,10 @@ function load(): Cast {
         const seed = base.profiles[id]?.lore;
         if (seed && !p.lore.title && !p.lore.origin && !p.lore.chronicle.length) profiles[id] = { ...p, lore: seed };
       }
-      let relationships = parsed.relationships;
-      let migrated = false;
+      // ...and the default relationships of agents that are new since the cast was saved.
+      const added = base.relationships.filter((r) => !(r.a in parsed.profiles) || !(r.b in parsed.profiles));
+      let relationships = [...parsed.relationships, ...added];
+      let migrated = added.length > 0;
       if (readRev(LORE_KEY) < LORE_REV) {
         migrated = true;
         for (const [id, p] of Object.entries(base.profiles)) {

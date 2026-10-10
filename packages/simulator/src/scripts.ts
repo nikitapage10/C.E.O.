@@ -259,6 +259,30 @@ export const archiveScribe: Script = ({ rng }) => {
   return steps;
 };
 
+const RESEARCH_TASKS = [
+  "Test whether the relic's glow is plausible",
+  "Peer-review the encounter tables",
+  "Fact-check the calendar of the Teruānga tides",
+  "Recalibrate the resonance lens",
+  "Measure the loom's tension (again)",
+  "Footnote the footnotes' sources",
+];
+
+/** Heimerdinger: experiments at his workbench, fetches a book, and now and then lectures the dice table on patience. */
+export const archiveResearcher: Script = ({ rng }) => {
+  const steps: Step[] = [
+    { kind: "go", station: "lab" },
+    { kind: "task", title: rng.pick(RESEARCH_TASKS) },
+    ...grind(rng, rng.int(7000, 11000), rng.chance(0.5) ? "working" : "typing", ["Calibrating", "Taking meticulous notes", "Double-checking the double-check", "Hm, hm"]),
+    { kind: "finish", failRate: 0.12 },
+    { kind: "quip", chance: 0.4 },
+    { kind: "set", activity: "idle", prop: null },
+  ];
+  if (rng.chance(0.35)) steps.push({ kind: "go", station: "shelves" }, { kind: "do", activity: "working", ms: 2200, prop: "book" }, { kind: "go", station: "lab" }, { kind: "do", activity: "idle", ms: 2500, prop: "book" }, { kind: "set", activity: "idle", prop: null });
+  if (rng.chance(0.2)) steps.push({ kind: "go", station: "seat-w" }, { kind: "do", activity: "waiting", ms: 3000 }, { kind: "quip", text: "A natural twenty is not a method, my dear colleague." });
+  return steps;
+};
+
 export const archiveDiceRoller: Script = ({ rng }) => [
   { kind: "go", station: "dice-table" },
   { kind: "task", title: "Roll for initiative (simulate a session)" },
@@ -307,6 +331,7 @@ export const SCRIPTS = {
   relaySwitchboard,
   archiveScribe,
   archiveDiceRoller,
+  archiveResearcher,
   breakroomRegular,
 } as const;
 export type ScriptId = keyof typeof SCRIPTS;

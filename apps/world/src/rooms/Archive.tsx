@@ -2,10 +2,11 @@ import { getStation } from "@ceo/core";
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, type Mesh } from "three";
+import { BufferGeometry, Float32BufferAttribute, type Group, LineBasicMaterial, LineSegments, MeshStandardMaterial, type Mesh } from "three";
 import { kernelMaterial } from "../fx/materials.ts";
 import { Model, ModelInstances, type Placement } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
+import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";
 
@@ -28,6 +29,58 @@ function shelfRows() {
         else rows[k % rows.length]!.push({ position: [x, y, -6.12], rotation: k % 2 ? 0 : Math.PI });
       }
   return { rows, stacks };
+}
+
+/** Heimerdinger's bench height: low, for a small professor. */
+const BENCH = 0.62;
+
+/**
+ * The resonance engine: a blue crystal in a brass cradle, two rings turning slowly round it. It hums brighter while
+ * Heimerdinger is at work.
+ */
+function ResonanceEngine({ position }: { position: [number, number, number] }) {
+  const glow = useMemo(() => new MeshStandardMaterial({ color: "#000", emissive: "#5fc8ff", emissiveIntensity: 1.5, toneMapped: false }), []);
+  const rings = useRef<Group>(null);
+  const crystal = useRef<Mesh>(null);
+  const busy = useWorld((s) => {
+    const a = s.lattice.agents.heimerdinger?.activity;
+    return a === "working" || a === "typing";
+  });
+  useFrame(({ clock }, dt) => {
+    const t = clock.elapsedTime;
+    const target = busy ? 3.2 + Math.sin(t * 6) * 0.6 : 1.4 + Math.sin(t * 1.2) * 0.2;
+    glow.emissiveIntensity += (target - glow.emissiveIntensity) * 0.06;
+    if (rings.current) {
+      rings.current.children[0]!.rotation.x += dt * (busy ? 1.6 : 0.4);
+      rings.current.children[1]!.rotation.z += dt * (busy ? 1.1 : 0.3);
+    }
+    if (crystal.current) {
+      crystal.current.rotation.y = t * 0.5;
+      crystal.current.position.y = 0.2 + Math.sin(t * 1.5) * 0.015;
+    }
+  });
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.03, 0]} material={PBR.brass()} castShadow>
+        <cylinderGeometry args={[0.09, 0.11, 0.06, 24]} />
+      </mesh>
+      <mesh position={[0, 0.1, 0]} material={PBR.brass()}>
+        <cylinderGeometry args={[0.012, 0.012, 0.14, 8]} />
+      </mesh>
+      <mesh ref={crystal} position={[0, 0.2, 0]} material={glow}>
+        <octahedronGeometry args={[0.06, 0]} />
+      </mesh>
+      <group ref={rings} position={[0, 0.2, 0]}>
+        <mesh material={PBR.brass()}>
+          <torusGeometry args={[0.12, 0.006, 8, 48]} />
+        </mesh>
+        <mesh material={PBR.brass()}>
+          <torusGeometry args={[0.15, 0.006, 8, 48]} />
+        </mesh>
+      </group>
+      <pointLight position={[0, 0.25, 0]} color="#7fd4ff" intensity={busy ? 2.5 : 1} distance={2.5} decay={2} />
+    </group>
+  );
 }
 
 /** Floor-to-ceiling walnut bookcases, filled with rows of library books. */
@@ -88,6 +141,7 @@ export function Archive() {
   const dice = ahead(getStation("archive", "dice-table"), 0.95);
   const shrine = ahead(getStation("archive", "shrine"), 0.95);
   const reading = getStation("archive", "reading");
+  const lab = ahead(getStation("archive", "lab"), 0.75);
   const walnut = PBR.wood("walnut");
 
   useFrame(({ clock }) => {
@@ -182,6 +236,18 @@ export function Archive() {
           OUR FIRST C&amp;D · RECEIVED WITH PRIDE · PLEASE DO NOT SEND ANOTHER
         </Text>
         <spotLight position={[0, 4.2, 1.2]} angle={0.35} penumbra={0.6} intensity={30} distance={6} color="#ffe6c4" />
+      </group>
+
+      {/* Heimerdinger's workbench: flasks, notes and the resonance engine */}
+      <group position={[lab.pos[0], 0, lab.pos[1]]} rotation={[0, lab.yaw, 0]}>
+        <Model id="fantasy-props/Workbench" fit={{ height: BENCH }} cast />
+        <ResonanceEngine position={[0.45, BENCH, -0.05]} />
+        <Model id="fantasy-props/Potion_1" fit={{ scale: 1.1 }} position={[-0.25, BENCH, -0.1]} />
+        <Model id="fantasy-props/Potion_4" fit={{ scale: 1.1 }} position={[-0.42, BENCH, 0.02]} />
+        <Model id="fantasy-props/Scroll_2" fit={{ scale: 1.2 }} position={[0.05, BENCH, 0.1]} rotation={0.3} />
+        <Model id="fantasy-props/Candle_1" fit={{ scale: 1.1 }} position={[-0.6, BENCH, -0.12]} />
+        {/* The stack he stands on to reach things */}
+        <Model id="fantasy-props/Book_Stack_2" fit={{ scale: 1.2 }} position={[0.95, 0, 0.35]} rotation={0.6} />
       </group>
 
       {/* Reading nook: leather armchair and a floor lamp */}

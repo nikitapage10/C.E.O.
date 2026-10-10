@@ -9,20 +9,21 @@ import { create } from "zustand";
 const KEY = "ceo.cast.v2";
 /** Bumped when the default looks are re-cast: saved casts take the new looks once, keeping names and personalities. */
 const LOOKS_KEY = "ceo.cast.looks";
-const LOOKS_REV = 5;
+const LOOKS_REV = 6;
 /** Default names that were changed: a saved cast still using the old one takes the new one. */
 const RENAMED: Record<string, [string, string]> = {
   caret: ["Caret", "Rocky"],
   odds: ["Odds", "Noco"],
   postmaster: ["Postmaster", "Blasto"],
   semicolon: ["Semicolon", "Rivet"],
+  tessellate: ["Tessellate", "Rusty"],
 };
 /**
  * Bumped when the default characters are rewritten: saved casts take the new roles, personalities, dossiers and
  * relationships once, keeping their looks (and any name you chose yourself).
  */
 const LORE_KEY = "ceo.cast.lore";
-const LORE_REV = 1;
+const LORE_REV = 3;
 
 function readRev(key: string) {
   try {

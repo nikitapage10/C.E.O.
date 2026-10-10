@@ -15,7 +15,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "yordle", "hanar", "rocky", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
+  "gestral", "yordle", "hanar", "rocky", "compactor", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -45,6 +45,7 @@ export const BODY_LABEL: Record<Body, string> = {
   yordle: "Yordle professor",
   hanar: "Hanar",
   rocky: "Eridian",
+  compactor: "Salvage compactor",
   crawler: "Stone crawler",
   masked: "Painted mask",
   orc: "Orc",
@@ -273,6 +274,13 @@ export const LOOK_PRESETS: LookPreset[] = [
     voice: "professor",
     disclaimer: "A very small, very old professor with a magnificent moustache and a great deal of patience, most of which he spends on other people. Has been studying caution for three centuries and recommends it.",
     look: makeLook({ body: "yordle", shell: "#232b5c", accent: "#f2b84b", trim: "#c9a25c" }),
+  },
+  {
+    id: "compactor",
+    name: "Salvage Compactor, Night Shift",
+    kind: "icon",
+    disclaimer: "A rusty little trash-compacting robot on treads, with binocular eyes and two claw hands. Not the famous one: his cousin, from the side of the family that stayed on the night shift and kept cleaning. Counsel.exe has the family tree on file.",
+    look: makeLook({ body: "compactor", shell: "#c9962e", accent: "#9fd8ff", trim: "#5a4636" }),
   },
   {
     id: "grey-wanderer",

@@ -111,7 +111,8 @@ they find them very funny.
 Most of the Syntherion wear their own frames, marked with their lineage. Some prefer a memory. The Lattice lets
 any of them wear the shape of something they remember from the early internet: a stone-shelled engineer who
 sings, a floating jellyfish spectre who calls itself "this one", a small wooden duellist with a crimson crest, a grey wanderer with a staff,
-a very small professor with a magnificent moustache, four slabs of brushed metal with an adjustable sense of humour, a skull spirit with a headache. They
+a very small professor with a magnificent moustache, four slabs of brushed metal with an adjustable sense of humour, a rusty trash compactor on treads who is
+the famous one's cousin (not him; Counsel.exe has the family tree on file), a skull spirit with a headache. They
 choose obscure ones on purpose: never the hero of the story, never two from the same story. Counsel.exe signs
 off on every one.
 
@@ -122,7 +123,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 
 | Room | Agent | Body | In a line |
 | --- | --- | --- | --- |
-| Foundry | **Tessellate** (Claudari) | House frame, brass halo | The robot. Plans everything, apologises to tools, wrote the 71-page safety manual. |
+| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. |
 | Foundry | **Rocky** (Cursori, was Caret) | Eridian | The alien engineer. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. |
 | Foundry | **Rivet** (Cursori, was Semicolon) | Woman in a hard hat | The foreman. Deadpan, thermos, hi-vis. Keeps the robot and the alien from building the same crate from opposite ends. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
@@ -138,12 +139,12 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. |
 
-**The Foundry triangle.** Rocky and Tessellate are rivals: one builds before the plan exists, the other plans
+**The Foundry triangle.** Rocky and Rusty are rivals: one builds before the plan exists, the other plans
 before the build is allowed. Rocky counts the shipping record in base six (105–104), which is the same as
-Tessellate's 41–40 and somehow still an argument. Rivet is Rocky's best friend: she taught him idioms (he looked
-for the horses all day) and lets him watch her nap, on weekdays, because it's Eridian custom. Tessellate has a
-crush on Rivet, because she is the only one who has read the whole manual. She thinks the flickering halo is a
-wiring fault.
+Rusty's 41–40 and somehow still an argument. Rivet is Rocky's best friend: she taught him idioms (he looked
+for the horses all day) and lets him watch her nap, on weekdays, because it's Eridian custom. Rusty has a
+crush on Rivet, because she is the only one who has read the whole manual. She thinks the way his eyes whirr
+and refocus around her is a fault in the motors.
 
 Elsewhere: Noco has priced Hedge's affection at 63%; Hedge's honesty setting won't confirm. Ledger audited Noco's
 stall and was challenged to a duel. Memo haunts Ledger's desk. Gridiron coaches Punt, who sleeps through the
@@ -151,7 +152,7 @@ speeches. Blasto and Dialtone were wed by pneumatic tube. Rocky watches Kevin sl
 still in awe.
 
 **Small things they carry.** Each of them keeps a memory or two from the old stories: Rivet's red-striped hard hat
-and her one swear, "bloodydamn"; Tessellate's calibrations; the DON'T PANIC on Ledger's ledger; Noco's battle
+and her one swear, "bloodydamn"; Rusty's calibrations; the DON'T PANIC on Ledger's ledger; Noco's battle
 cry and type chart; Hedge's spinning top; the Inspiration Gridiron hands out; Blasto's "this one should go";
 Dialtone hearing music in the dial tones; Loremaster's back room of books nobody wrote; Heimerdinger's turret,
 never fired; D20's dungeon crawls; and Kevin's eyeliner, which is not a phase. Club night in the Break Room is
@@ -206,7 +207,7 @@ On the nights the C.E.O. calls it, the Veil between the Lattice and Ilyr runs th
 throws a costume party: the Syntherion dress up as the things they remember being afraid of. Nobody wears a
 costume on an ordinary day; the Kernel would not allow it, and the C.E.O. agrees. The costumes are plain on purpose, so Counsel.exe can sleep: a witch's hat, a
 jack-o'-lantern, little devil horns, bat ears and a bedsheet ghost (Counsel.exe confirms that sheets are public
-domain). Tessellate wears a regulation pumpkin, carved to spec. Rocky is a bat and still isn't sure what a bat
+domain). Rusty wears a regulation pumpkin, carved to spec. Rocky is a bat and still isn't sure what a bat
 is. Rivet and Kevin wear the horns. Ledger insists the sheet makes them a real ghost. Memo comes as himself; a
 skull spirit at a costume party counts. While the party lasts, jack-o'-lanterns grin in the corner of every room
 and the club's lights turn pumpkin and purple.

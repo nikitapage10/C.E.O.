@@ -7,8 +7,9 @@ type Seed = { look?: Look; traits: string[]; bio: string; catchphrase: string };
 /** Who the sample agents are, as people. Edit them all in the Agent Studio; this is just where they start. */
 const SEEDS: Record<string, Seed> = {
   tessellate: {
+    look: lookFromPreset("compactor"),
     traits: ["earnest", "pedantic", "wholesome", "anxious"],
-    bio: "The Foundry's robot, in a polished House frame with a little brass halo. Plans everything, apologises to tools, and wrote the 71-page safety manual. Has been butting heads with Rocky since the day an alien engineer welded a crate shut while Tessellate was still reading the risk assessment aloud.",
+    bio: "The Foundry's robot: a rusty salvage compactor on treads, with binocular eyes and two claw hands. Plans everything, apologises to tools, and wrote the 71-page safety manual. Has been butting heads with Rocky since the day an alien engineer welded a crate shut while Rusty was still reading the risk assessment aloud.",
     catchphrase: "Happy to help! Before we start, eleven caveats.",
   },
   caret: {
@@ -114,9 +115,9 @@ export function defaultCast(): Cast {
     version: 1,
     profiles,
     relationships: [
-      { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Tessellate plans first. The shipping record is disputed: Rocky counts in sixes." },
+      { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Rusty plans first. The shipping record is disputed: Rocky counts in sixes." },
       { a: "semicolon", b: "caret", kind: "best-friend", note: "She taught him idioms. He watches her sleep. Both are working on it." },
-      { a: "tessellate", b: "semicolon", kind: "crush", note: "She read all 71 pages. Tessellate has not recovered. She thinks the halo is flickering from a fault." },
+      { a: "tessellate", b: "semicolon", kind: "crush", note: "She read all 71 pages. Rusty has not recovered. She thinks his eyes keep refocusing from a fault." },
       { a: "ledger", b: "memo", kind: "sibling", note: "Memo haunts Ledger's desk. Ledger has filed a complaint with Memo, who forwarded it." },
       { a: "odds", b: "hedge", kind: "crush", note: "Sixty-three percent mutual. Hedge's honesty setting refuses to comment." },
       { a: "gridiron", b: "punt", kind: "mentor", note: "Gridiron roars the plays. Punt naps through them, then wins anyway." },

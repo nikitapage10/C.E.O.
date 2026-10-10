@@ -64,6 +64,7 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
     ["Score is 105 to 104. Rocky wins.", "That's base six. In base ten it's 41 to 40. You still win. I hate it."],
     ["Robot is alive, question?", "It's complicated. Ask again after my briefing."],
     ["Rocky watch you sleep tonight?", "I don't sleep. Please stop asking."],
+    ["Robot has no legs now! Rocky has five. Rocky share, question?", "They're treads, Rocky. They're very safe. There's a chapter."],
   ],
   "semicolon|caret": [
     ["Rocky. Hard hat.", "Which leg, question?"],
@@ -74,7 +75,7 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
   ],
   "tessellate|semicolon": [
     ["Did you really read all 71 pages?", "Every one. Page 43 is a cry for help, by the way."],
-    ["Your halo's flickering again.", "It's the wiring! Sorry. It's the wiring."],
+    ["Your eyes are doing the whirring thing again.", "It's the focus motors! Sorry. It's the motors."],
     ["Could you ask Rocky to stop welding during my briefing?", "I could. He'd hear 'stop' three times and weld faster."],
   ],
   "odds|hedge": [

@@ -2326,3 +2326,19 @@ button {
   opacity: 0.5;
   cursor: default;
 }
+
+/* Shown for a few seconds after the scene rebuilds itself. */
+.guard-note {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(10, 12, 20, 0.8);
+  color: #e9e6dc;
+  font-size: 11px;
+  z-index: 50;
+  pointer-events: none;
+}

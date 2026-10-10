@@ -21,6 +21,12 @@ import { Lighting } from "./Lighting.tsx";
 import { SceneReady } from "./SceneReady.tsx";
 import { Streams } from "./Streams.tsx";
 import { Wardrobe } from "./Wardrobe.tsx";
+import {
+  GuardNote,
+  SceneGuard,
+  watchContext,
+  watchLoopErrors,
+} from "./SceneGuard.tsx";
 import { LetterFlight } from "../letters/LetterFlight.tsx";
 import { Pumpkins } from "../veil/Pumpkins.tsx";
 import { COSTUME_PARTY, VEIL } from "../veil/veil.ts";
@@ -40,10 +46,17 @@ function RenderInfo() {
   const gl = useThree((s) => s.gl);
   useEffect(() => {
     gl.info.autoReset = false;
-    const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
-    api.renderInfo = () => ({ ...gl.info.render, ...gl.info.memory, programs: gl.info.programs?.length ?? 0 });
+    const api = ((
+      window as unknown as { __ceo?: Record<string, unknown> }
+    ).__ceo ??= {});
+    api.renderInfo = () => ({
+      ...gl.info.render,
+      ...gl.info.memory,
+      programs: gl.info.programs?.length ?? 0,
+    });
     // Every compiled shader program, to spot what compiles late (and stalls a frame) after boot.
-    api.programs = () => (gl.info.programs ?? []).map((p) => `${p.name} ${p.cacheKey}`);
+    api.programs = () =>
+      (gl.info.programs ?? []).map((p) => `${p.name} ${p.cacheKey}`);
   }, [gl]);
   useFrame(() => gl.info.reset(), -1000);
   return null;
@@ -52,46 +65,60 @@ function RenderInfo() {
 export function Scene() {
   const quality = useWorld((s) => s.quality);
   // Jack-o'-lanterns only while the C.E.O.'s costume party is on.
-  const party = useWorld((s) => s.gatherings.some((g) => g.id === COSTUME_PARTY));
+  const party = useWorld((s) =>
+    s.gatherings.some((g) => g.id === COSTUME_PARTY),
+  );
   const setFocus = useWorld((s) => s.setFocus);
   const selectAgent = useWorld((s) => s.selectAgent);
+  useEffect(watchLoopErrors, []);
   return (
-    <Canvas
-      dpr={quality === "high" ? [1, 2] : [1, 1.25]}
-      camera={{ position: [0, 66, 96], fov: 38, near: 0.5, far: 600 }}
-      shadows="soft"
-      gl={{ antialias: false, powerPreference: "high-performance", toneMapping: NoToneMapping, outputColorSpace: SRGBColorSpace }}
-      onPointerMissed={() => {
-        if (useWorld.getState().selectedAgent) selectAgent(null);
-        else setFocus(null);
-      }}
-    >
-      <color attach="background" args={[PALETTE.void]} />
-      <fogExp2 attach="fog" args={[PALETTE.void, 0.0055]} />
-      <Lighting />
-      <Heartbeat />
-      <RenderInfo />
-      <Suspense fallback={null}>
-        <Kernel />
-        <Streams />
-        <Rooms />
-        <Agents />
-        <Pets />
-        <GlitchStage />
-        <LetterFlight />
-        {(VEIL || party) && <Pumpkins />}
-        <Callouts />
-        <Floor />
-        <FloorRings />
-        <Motes count={quality === "high" ? 1600 : 600} />
-        <Wardrobe />
-        <SceneReady />
-      </Suspense>
-      <CameraRig />
-      <DetailLevels />
-      <ShadowFocus />
-      <PostFX />
-      {PARAMS.debug && <Stats />}
-    </Canvas>
+    <>
+      <SceneGuard>
+        <Canvas
+          dpr={quality === "high" ? [1, 2] : [1, 1.25]}
+          camera={{ position: [0, 66, 96], fov: 38, near: 0.5, far: 600 }}
+          shadows="soft"
+          gl={{
+            antialias: false,
+            powerPreference: "high-performance",
+            toneMapping: NoToneMapping,
+            outputColorSpace: SRGBColorSpace,
+          }}
+          onCreated={({ gl }) => watchContext(gl.domElement)}
+          onPointerMissed={() => {
+            if (useWorld.getState().selectedAgent) selectAgent(null);
+            else setFocus(null);
+          }}
+        >
+          <color attach="background" args={[PALETTE.void]} />
+          <fogExp2 attach="fog" args={[PALETTE.void, 0.0055]} />
+          <Lighting />
+          <Heartbeat />
+          <RenderInfo />
+          <Suspense fallback={null}>
+            <Kernel />
+            <Streams />
+            <Rooms />
+            <Agents />
+            <Pets />
+            <GlitchStage />
+            <LetterFlight />
+            {(VEIL || party) && <Pumpkins />}
+            <Callouts />
+            <Floor />
+            <FloorRings />
+            <Motes count={quality === "high" ? 1600 : 600} />
+            <Wardrobe />
+            <SceneReady />
+          </Suspense>
+          <CameraRig />
+          <DetailLevels />
+          <ShadowFocus />
+          <PostFX />
+          {PARAMS.debug && <Stats />}
+        </Canvas>
+      </SceneGuard>
+      <GuardNote />
+    </>
   );
 }

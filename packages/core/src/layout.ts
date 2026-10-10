@@ -36,6 +36,8 @@ export interface RoomDef {
 }
 
 export const RING_RADIUS = 34;
+/** Height of the benches at the Archive's long table, which the players stand on. */
+const BENCH_TOP = 0.49;
 export const ROOM_HALF_W = 8;
 export const ROOM_HALF_D = 6.5;
 export const KERNEL_PORT_RADIUS = 4.2;
@@ -144,12 +146,17 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       // Faces his workbench, side-on to the room.
       s("lab", "Professor's workbench", -1.4, 4.2, -Math.PI / 2),
       // Players down both sides of the long table: the back row faces the room, the front row has its back to it.
-      s("seat-w", "Seat at the long table", 1.1, 1.3, Math.PI, { exact: true }),
-      s("seat-e", "Seat at the long table", 3.7, 1.3, Math.PI, { exact: true }),
-      s("seat-sw", "Seat at the long table", 1.1, 3.3, 0, { exact: true }),
-      s("seat-se", "Seat at the long table", 3.7, 3.3, 0, { exact: true }),
-      s("seat-nm", "Seat at the long table", 2.4, 1.3, Math.PI, { exact: true }),
-      s("seat-sm", "Seat at the long table", 2.4, 3.3, 0, { exact: true }),
+      // They stand on the benches, so the small ones (a yordle, a little wizard) can be seen over the table.
+      ...(
+        [
+          ["seat-w", 1.1, 1.3, Math.PI],
+          ["seat-e", 3.7, 1.3, Math.PI],
+          ["seat-sw", 1.1, 3.3, 0],
+          ["seat-se", 3.7, 3.3, 0],
+          ["seat-nm", 2.4, 1.3, Math.PI],
+          ["seat-sm", 2.4, 3.3, 0],
+        ] as const
+      ).map(([id, x, z, facing]) => s(id, "On the bench at the long table", x, z, facing, { exact: true, y: BENCH_TOP })),
       // The Kernel's loot box, by the C.E.O.'s trophy case. Nobody opens it. Myshka sits in it.
       s("loot-box", "The loot box", -6.75, 2.6, Math.PI / 2, { y: 0.06, exact: true }),
     ],

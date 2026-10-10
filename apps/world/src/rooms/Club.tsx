@@ -34,6 +34,8 @@ const BPM = CLUB_BPM;
 const PALETTES = {
   dj: ["#ff3d9a", "#7a5cff", "#29c7ff", "#ffb347"],
   concert: ["#ffb347", "#ff6a3d", "#ffe2b0", "#ff3d9a"],
+  // The Hallowed Veil: pumpkin, witch's purple, a sickly green.
+  party: ["#ff7a1a", "#8a3dff", "#5aff6a", "#ff9e3d"],
   idle: ["#5a3d8a", "#2a4a7a", "#7a2a5a", "#3a2a6a"],
 };
 
@@ -63,12 +65,12 @@ function useShowDriver() {
     show.act =
       here?.id === "concert"
         ? "concert"
-        : here?.id === "club-night" || deck.playing
+        : here?.id === "club-night" || here?.id === "costume-party" || deck.playing
           ? "dj"
           : null;
     const target = deck.playing ? 1 : here ? (here.live ? 1 : 0.55) : 0.15;
     show.level += (target - show.level) * Math.min(1, dt * 1.2);
-    show.palette = show.act ? PALETTES[show.act] : PALETTES.idle;
+    show.palette = here?.id === "costume-party" ? PALETTES.party : show.act ? PALETTES[show.act] : PALETTES.idle;
     show.beat = (clock.elapsedTime * BPM) / 60;
     tickDeck(dt, clock.elapsedTime, show.beat, show.act === "dj" && show.level > 0.6);
     // A build strobes the kick at double time; a drop hits everything at once.

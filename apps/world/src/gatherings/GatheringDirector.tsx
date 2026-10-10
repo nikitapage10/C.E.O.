@@ -62,6 +62,8 @@ export function GatheringDirector() {
       const everyone = [who.host, ...who.guests];
       world.setGathering({ id: def.id, room: def.room, host: who.host, guests: who.guests, since: performance.now(), live: false });
       if (costumes.length) world.setCostumes(Object.fromEntries(who.guests.map((id, i) => [id, costumes[i]!])));
+      const dressed = def.dressAll ? Object.fromEntries(everyone.flatMap((id) => (def.dressAll!(id) ? [[id, def.dressAll!(id)!]] : []))) : null;
+      if (dressed) world.setCostumes(dressed);
       everyone.forEach((id, i) => {
         const host = i === 0;
         const activity = def.seatActivities?.[i] ?? (host ? def.hostActivity : def.guestActivity);
@@ -121,7 +123,7 @@ export function GatheringDirector() {
           running = null;
           const w = useWorld.getState();
           if (w.gathering?.id === def.id) w.setGathering(null);
-          if (costumes.length) w.setCostumes({});
+          if (costumes.length || def.dressAll) w.setCostumes({});
         }, t + 4000);
       };
       later(begin, 1500);
@@ -134,7 +136,7 @@ export function GatheringDirector() {
         if (document.visibilityState === "visible") {
           const focus = useWorld.getState().focus;
           // Prefer a gathering in the room you're looking at.
-          const options = shuffle(GATHERINGS).sort((a, b) => Number(b.room === focus) - Number(a.room === focus));
+          const options = shuffle(GATHERINGS.filter((g) => !g.manual)).sort((a, b) => Number(b.room === focus) - Number(a.room === focus));
           for (const def of options) if (start(def)) break;
         }
         schedule(EVERY[0] + Math.random() * (EVERY[1] - EVERY[0]));

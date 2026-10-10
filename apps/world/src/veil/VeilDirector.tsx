@@ -5,8 +5,9 @@ import { VEIL, VEIL_KERNEL, VEIL_LINES, veilCostumeFor } from "./veil.ts";
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
 
 /**
- * The Hallowed Veil: the Kernel (and Counsel.exe) say their piece once, and now and then someone in the room
- * you're watching explains their costume. Renders nothing; only runs in October.
+ * With `?veil=on` everyone is in costume all visit: the Kernel (and Counsel.exe) say their piece once, and now
+ * and then someone in the room you're watching explains their costume. Renders nothing. (The costume party
+ * itself is a gathering; see gatherings.ts.)
  */
 export function VeilDirector() {
   useEffect(() => {

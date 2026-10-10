@@ -3,7 +3,6 @@ import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { deck } from "../club/deck.ts";
 import { useWorld } from "../store.ts";
-import { VEIL } from "../veil/veil.ts";
 import { ACHIEVEMENT_BY_ID, unlock, useAchievements } from "./achievements.ts";
 
 const ROOMS_KEY = "ceo.rooms-visited.v1";
@@ -43,6 +42,7 @@ export function AchievementDirector() {
         if (ROOM_IDS.every((r) => rooms.has(r))) unlock("grand-tour");
       }
       if (s.activeGlitch && !prev.activeGlitch) unlock("memory");
+      if (s.gathering?.id === "costume-party" && prev.gathering?.id !== "costume-party") unlock("hallowed");
     });
     const watchStudio = useCast.subscribe((s) => {
       if (s.studio !== null) unlock("stylist");
@@ -65,7 +65,6 @@ export function AchievementDirector() {
     }, 1500);
 
     const hello = setTimeout(() => unlock("clocked-in"), 9000);
-    const veil = VEIL ? setTimeout(() => unlock("hallowed"), 40_000) : undefined;
 
     return () => {
       announceUnlocks();
@@ -73,7 +72,6 @@ export function AchievementDirector() {
       watchStudio();
       clearInterval(poll);
       clearTimeout(hello);
-      clearTimeout(veil);
     };
   }, []);
   return null;

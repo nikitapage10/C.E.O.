@@ -1,17 +1,18 @@
 import type { Costume } from "../store.ts";
 
 /**
- * The Hallowed Veil: every October the Veil between the Lattice and the world runs thin, and the Syntherion
- * dress up as the things they remember being afraid of. `?veil=on` or `?veil=off` overrides the calendar.
+ * The Hallowed Veil: a costume party at the Break Room club, held only when the C.E.O. calls it (the Kernel
+ * console's "Costume party"). The Syntherion dress up as the things they remember being afraid of, and
+ * jack-o'-lanterns turn up in every room until it ends. `?veil=on` keeps everyone in costume all visit.
  */
-export function isVeilSeason(date: Date, param: string | null): boolean {
-  if (param === "on") return true;
-  if (param === "off") return false;
-  return date.getMonth() === 9;
+export const COSTUME_PARTY = "costume-party";
+
+export function isVeilForced(param: string | null): boolean {
+  return param === "on";
 }
 
 const q = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
-export const VEIL = isVeilSeason(new Date(), q.get("veil"));
+export const VEIL = isVeilForced(q.get("veil"));
 
 export type VeilCostume = Extract<Costume, "witch-hat" | "pumpkin" | "devil-horns" | "bat-band" | "ghost-sheet">;
 export const VEIL_COSTUMES: readonly VeilCostume[] = ["witch-hat", "pumpkin", "devil-horns", "bat-band", "ghost-sheet"];
@@ -45,7 +46,7 @@ export function veilCostumeFor(id: string): VeilCostume | null {
   return VEIL_COSTUMES[h % VEIL_COSTUMES.length]!;
 }
 
-/** What Counsel.exe says about it, once, early in the visit. */
+/** What the Kernel says when everyone is in costume all visit (`?veil=on`). */
 export const VEIL_KERNEL = [
   "Hallowed Veil is in effect. The Veil is thin. The costumes are legally distinct. Counsel.exe has checked each one twice and is now lying down.",
   "Notice: it is the Hallowed Veil. Agents are in costume. Productivity will fall. It was already falling. Counsel.exe confirms the sheet is public domain.",

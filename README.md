@@ -36,8 +36,8 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
 - **Tomorrowlattice.** Click **Decks** in the footer to play one of your own tracks at the Break Room club (it plays in your browser only). The lights follow the music, a build strobes, and on the drop the whole room jumps. Kevin takes the decks.
 - **Letters.** Open an agent's dossier and write to them. Blasto carries the letter across the Lattice, and they read it and write back in their own voice.
 - **Achievements.** The Kernel hands you achievements too (see **Trophies** in the footer), and keeps a cup for each in the Archive's trophy case, beside the loot box Myshka sits in.
-- **The Kernel console.** Press `` ` `` or click **Console**: call a campaign, a football game, a club night and more, send everyone back to work, order a nap, skip to nightfall, or grant the zoomies.
-- **The Hallowed Veil.** Every October the agents wear costumes and jack-o'-lanterns grin in every room.
+- **The Kernel console.** Press `` ` `` or click **Console**: call a campaign, a football game, a club night, a costume party and more, send everyone back to work, order a nap, skip to nightfall, or grant the zoomies.
+- **The Hallowed Veil.** A Halloween costume party at the club, only when you call it from the console: the agents come in costume and jack-o'-lanterns grin in every room until it ends.
 - **The cast is yours.** Open the **Agent Studio** (the ✎ next to an agent in the roster, double-click an agent, or press `E`).
   - **Name** any agent.
   - **Pick a body:**
@@ -112,7 +112,7 @@ npm run dev          # http://localhost:5173
 | `?glitch=<id>` | fires a glitch on load |
 | `?debug` | FPS meter |
 | `?hour=22` | start the Lattice day at a given hour |
-| `?veil=on\|off` | force the Hallowed Veil on or off |
+| `?veil=on` | everyone in Hallowed Veil costumes all visit |
 
 The browser console has `window.__ceo` (`fireGlitch`, `focus`, `encounter`, `gather`, `openStudio`, `state`, `cast`…).
 

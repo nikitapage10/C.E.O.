@@ -22,7 +22,7 @@ import { SceneReady } from "./SceneReady.tsx";
 import { Streams } from "./Streams.tsx";
 import { LetterFlight } from "../letters/LetterFlight.tsx";
 import { Pumpkins } from "../veil/Pumpkins.tsx";
-import { VEIL } from "../veil/veil.ts";
+import { COSTUME_PARTY, VEIL } from "../veil/veil.ts";
 
 /** Advances Lattice time, runs the simulator and animates every shader, once per frame. */
 function Heartbeat() {
@@ -48,6 +48,8 @@ function RenderInfo() {
 
 export function Scene() {
   const quality = useWorld((s) => s.quality);
+  // Jack-o'-lanterns only while the C.E.O.'s costume party is on.
+  const party = useWorld((s) => s.gathering?.id === COSTUME_PARTY);
   const setFocus = useWorld((s) => s.setFocus);
   const selectAgent = useWorld((s) => s.selectAgent);
   return (
@@ -74,7 +76,7 @@ export function Scene() {
         <Pets />
         <GlitchStage />
         <LetterFlight />
-        {VEIL && <Pumpkins />}
+        {(VEIL || party) && <Pumpkins />}
         <Callouts />
         <Floor />
         <FloorRings />

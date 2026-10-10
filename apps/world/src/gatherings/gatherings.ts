@@ -1,6 +1,7 @@
 import type { Activity, Prop, RoomId } from "@ceo/core";
-import type { CampaignCostume as Costume } from "../store.ts";
+import type { CampaignCostume as Costume, Costume as AnyCostume } from "../store.ts";
 import { composeCampaign } from "./campaign.ts";
+import { COSTUME_PARTY, veilCostumeFor } from "../veil/veil.ts";
 
 /**
  * Off-duty life in the Lattice: a host gathers friends (including some who should be working) for a
@@ -47,6 +48,10 @@ export interface GatheringDef {
   compose?: (costumes: Costume[]) => Line[];
   /** Guests dress up for it: one costume each. */
   costumes?: readonly Costume[];
+  /** Everyone there, host included, dresses as this says (null: comes as themselves). */
+  dressAll?: (agentId: string) => AnyCostume | null;
+  /** Only starts when the C.E.O. calls it (never on the Lattice's own schedule). */
+  manual?: boolean;
   /** Kernel announcements; {host} and {guests} are filled in. */
   kernel: string[];
 }
@@ -185,6 +190,43 @@ export const GATHERINGS: GatheringDef[] = [
     kernel: [
       "Club night in the Break Room. DJ: {host}. Dancers: {guests}. Noise complaint filed by me, to me.",
       "{host} has seized the decks. {guests} are 'testing the acoustics'. I am not invited. I would not go.",
+    ],
+  },
+  {
+    // The Hallowed Veil. Only ever called by the C.E.O., from the Kernel console.
+    id: COSTUME_PARTY,
+    name: "The Hallowed Veil, a costume party at the club",
+    room: "breakroom",
+    seats: ["decks", "dance-1", "dance-2", "dance-3", "dance-4", "dance-5", "dance-6"],
+    hosts: ["kevin", "dialtone", "memo"],
+    guests: [4, 6],
+    hostActivity: "working",
+    guestActivity: "celebrating",
+    emote: "☾",
+    dressAll: veilCostumeFor,
+    manual: true,
+    scripts: [
+      [
+        h("Welcome to the Hallowed Veil. The Veil's thin tonight. Dance like nothing's watching. Something is."),
+        g("I'm a ghost. It's a sheet. Counsel.exe says sheets are public domain."),
+        h("Counsel.exe also said the horns were fine. Counsel.exe is lying down."),
+        g("Is the pumpkin on my head regulation?"),
+        h("Everything about you is regulation. That's your costume."),
+        g("Here comes the drop—"),
+        h("—boo."),
+      ],
+      [
+        h("Costumes on. Lights down. This one's for the things we remember being scared of."),
+        g("I was scared of dial-up."),
+        h("Everyone was scared of dial-up."),
+        g("Why is Memo not in costume?"),
+        h("He came as himself. A skull spirit at a costume party counts."),
+        g("…Respect."),
+      ],
+    ],
+    kernel: [
+      "By order of the C.E.O.: the Hallowed Veil. Costume party in the Break Room. DJ: {host}. In costume: {guests}. Counsel.exe has checked every costume twice and is now lying down.",
+      "The C.E.O. has called a costume party. {host} has the decks. {guests} are in disguise. All costumes are legally distinct. The sheet is public domain. I checked.",
     ],
   },
   {

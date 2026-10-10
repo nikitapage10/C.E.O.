@@ -3,7 +3,8 @@ import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID } from "./achievements/achievements.ts"
 import { BeatDetector, phrase } from "./club/deck.ts";
 import { DAY_MS, darkness, formatHour, latticeDay, latticeHour, shiftOf } from "./night/dayCycle.ts";
 import { moodOf, replyTo } from "./letters/letters.ts";
-import { VEIL_CAST, VEIL_COSTUMES, isVeilSeason, veilCostumeFor } from "./veil/veil.ts";
+import { VEIL_CAST, VEIL_COSTUMES, isVeilForced, veilCostumeFor } from "./veil/veil.ts";
+import { GATHERING_BY_ID, GATHERINGS } from "./gatherings/gatherings.ts";
 
 describe("the Lattice's hours", () => {
   it("runs a day in DAY_MS from the start hour", () => {
@@ -75,11 +76,11 @@ describe("letters", () => {
 });
 
 describe("the Hallowed Veil", () => {
-  it("runs through October unless told otherwise", () => {
-    expect(isVeilSeason(new Date(2026, 9, 10), null)).toBe(true);
-    expect(isVeilSeason(new Date(2026, 10, 1), null)).toBe(false);
-    expect(isVeilSeason(new Date(2026, 5, 1), "on")).toBe(true);
-    expect(isVeilSeason(new Date(2026, 9, 1), "off")).toBe(false);
+  it("is off unless the C.E.O. calls it", () => {
+    expect(isVeilForced(null)).toBe(false);
+    expect(isVeilForced("on")).toBe(true);
+    expect(GATHERING_BY_ID["costume-party"]?.manual).toBe(true);
+    expect(GATHERINGS.filter((g) => g.dressAll).map((g) => g.id)).toEqual(["costume-party"]);
   });
   it("dresses everyone except Memo, who comes as himself", () => {
     expect(veilCostumeFor("memo")).toBeNull();

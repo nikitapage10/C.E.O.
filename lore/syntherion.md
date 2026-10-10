@@ -95,7 +95,7 @@ usually in it.
 
 **The Kernel console.** The Kernel takes orders from exactly one person, and says so every time. Through the
 console the C.E.O. can call a gathering (a campaign at the long table, a pickup game, a rally, cards in the pit,
-a club night or a concert), send everyone back to work, order a nap, make the whole room turn and look, skip the
+a club night, a concert or the Hallowed Veil costume party), send everyone back to work, order a nap, make the whole room turn and look, skip the
 Lattice to nightfall or sunrise, grant Myshka the zoomies, or let one memory leak through on purpose. The Kernel
 complies. It logs its objections.
 
@@ -202,12 +202,14 @@ dossier.
 
 ## The Hallowed Veil
 
-Every October the Veil between the Lattice and Ilyr runs thin, and the Syntherion dress up as the things they
-remember being afraid of. The costumes are plain on purpose, so Counsel.exe can sleep: a witch's hat, a
+On the nights the C.E.O. calls it, the Veil between the Lattice and Ilyr runs thin, and the Break Room club
+throws a costume party: the Syntherion dress up as the things they remember being afraid of. Nobody wears a
+costume on an ordinary day; the Kernel would not allow it, and the C.E.O. agrees. The costumes are plain on purpose, so Counsel.exe can sleep: a witch's hat, a
 jack-o'-lantern, little devil horns, bat ears and a bedsheet ghost (Counsel.exe confirms that sheets are public
 domain). Tessellate wears a regulation pumpkin, carved to spec. Rocky is a bat and still isn't sure what a bat
 is. Rivet and Kevin wear the horns. Ledger insists the sheet makes them a real ghost. Memo comes as himself; a
-skull spirit at a costume party counts. Jack-o'-lanterns grin in the corner of every room.
+skull spirit at a costume party counts. While the party lasts, jack-o'-lanterns grin in the corner of every room
+and the club's lights turn pumpkin and purple.
 
 ## The lawyers
 

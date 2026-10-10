@@ -37,6 +37,7 @@ const GATHER_VERB: Record<string, string> = {
   poker: "poker",
   "club-night": "club",
   concert: "concert",
+  "costume-party": "costumes",
 };
 
 const GATHER_LABEL: Record<string, string> = {
@@ -46,6 +47,7 @@ const GATHER_LABEL: Record<string, string> = {
   poker: "Poker in the pit",
   "club-night": "Club night",
   concert: "Live concert",
+  "costume-party": "Costume party",
 };
 
 function gather(id: string, room: RoomId): string {
@@ -180,6 +182,10 @@ const ALIASES: Record<string, string> = {
   "club-night": "club",
   dance: "club",
   gig: "concert",
+  halloween: "costumes",
+  costume: "costumes",
+  "costume-party": "costumes",
+  veil: "costumes",
   work: "dismiss",
   stop: "dismiss",
   sleep: "nap",

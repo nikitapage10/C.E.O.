@@ -52,6 +52,65 @@ export const EXCHANGES: Record<RelationshipKind, [string, string][]> = {
   ],
 };
 
+/**
+ * Banter for particular pairs, keyed "a|b" by agent id: the opener is a's, the reply b's. Used most of the
+ * time when those two meet (whichever way round the relationship is stored); the generic lines fill in.
+ */
+export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
+  "caret|tessellate": [
+    ["Robot! Rocky built crate. Done done done.", "You built it before I finished the risk assessment."],
+    ["Why you apologise to wrench, question?", "Because I'm about to use it, Rocky. It's polite."],
+    ["Rocky has five legs. Harness has two holes. Is bad plan.", "It's a starting point for a conversation."],
+    ["Score is 105 to 104. Rocky wins.", "That's base six. In base ten it's 41 to 40. You still win. I hate it."],
+    ["Robot is alive, question?", "It's complicated. Ask again after my briefing."],
+    ["Rocky watch you sleep tonight?", "I don't sleep. Please stop asking."],
+  ],
+  "semicolon|caret": [
+    ["Rocky. Hard hat.", "Which leg, question?"],
+    ["Break a leg out there.", "No! Rocky need all five!"],
+    ["Rocky, were you watching me nap again?", "For safety. Is Eridian custom. Is love."],
+    ["Good work today.", "Fist my bump!"],
+    ["Hold your horses, Rocky.", "Rocky look all day. No horses. Rocky worried."],
+  ],
+  "tessellate|semicolon": [
+    ["Did you really read all 71 pages?", "Every one. Page 43 is a cry for help, by the way."],
+    ["Your halo's flickering again.", "It's the wiring! Sorry. It's the wiring."],
+    ["Could you ask Rocky to stop welding during my briefing?", "I could. He'd hear 'stop' three times and weld faster."],
+  ],
+  "odds|hedge": [
+    ["Sixty-three percent you're looking at me, Hedge.", "Honesty setting 90%. Lowering it now."],
+    ["Duel me. Loser buys dinner.", "You can't lose. You walk back up the river."],
+  ],
+  "ledger|memo": [
+    ["Memo, you're in my chair.", "I'm in your chair spiritually. Physically I'm in the wall."],
+    ["I'm a real accountant.", "Nobody asked, Ledger."],
+  ],
+  "gridiron|punt": [
+    ["PUNT! HUDDLE UP! Sorry. Huddle up.", "Zzz. We are! Zzz."],
+    ["You slept through the whole speech, champ.", "Best speech yet. Very relaxing."],
+  ],
+  "postmaster|dialtone": [
+    ["This one has a letter for you. It is from this one.", "Read it to me on the line, darling. Slowly."],
+    ["Come down from the rafters, love. Dinner.", "Patching you through to 'yes'."],
+  ],
+  "loremaster|d20": [
+    ["Roll for canon, D20.", "…It's a 1. Again. I'm framing it myself this time."],
+    ["A good story needs a prologue.", "Can the prologue have a dragon?"],
+  ],
+  "hedge|gridiron": [
+    ["Still starting the backup kicker?", "Still worried about everything?"],
+  ],
+  "odds|ledger": [
+    ["Duel me for the audit, Ledger.", "I'll respond in writing. In triplicate."],
+  ],
+  "punt|kevin": [
+    ["Kevin. Nap?", "Nap."],
+  ],
+  "caret|kevin": [
+    ["Kevin sleep. Rocky watch.", "Cool. Thanks, man."],
+  ],
+};
+
 export const EMOTE: Record<RelationshipKind, string> = {
   friend: "✦",
   "best-friend": "✦✦",

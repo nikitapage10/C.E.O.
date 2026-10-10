@@ -11,7 +11,26 @@ const KEY = "ceo.cast.v2";
 const LOOKS_KEY = "ceo.cast.looks";
 const LOOKS_REV = 5;
 /** Default names that were changed: a saved cast still using the old one takes the new one. */
-const RENAMED: Record<string, [string, string]> = { caret: ["Caret", "Rocky"], odds: ["Odds", "Noco"], postmaster: ["Postmaster", "Blasto"] };
+const RENAMED: Record<string, [string, string]> = {
+  caret: ["Caret", "Rocky"],
+  odds: ["Odds", "Noco"],
+  postmaster: ["Postmaster", "Blasto"],
+  semicolon: ["Semicolon", "Rivet"],
+};
+/**
+ * Bumped when the default characters are rewritten: saved casts take the new roles, personalities, dossiers and
+ * relationships once, keeping their looks (and any name you chose yourself).
+ */
+const LORE_KEY = "ceo.cast.lore";
+const LORE_REV = 1;
+
+function readRev(key: string) {
+  try {
+    return Number(localStorage.getItem(key) ?? 0);
+  } catch {
+    return 0; // Unreadable: treat as old.
+  }
+}
 
 function load(): Cast {
   try {
@@ -26,22 +45,25 @@ function load(): Cast {
         const seed = base.profiles[id]?.lore;
         if (seed && !p.lore.title && !p.lore.origin && !p.lore.chronicle.length) profiles[id] = { ...p, lore: seed };
       }
-      let rev = 0;
-      try {
-        rev = Number(localStorage.getItem(LOOKS_KEY) ?? 0);
-      } catch {
-        /* Unreadable: treat as old. */
+      let relationships = parsed.relationships;
+      let migrated = false;
+      if (readRev(LORE_KEY) < LORE_REV) {
+        migrated = true;
+        for (const [id, p] of Object.entries(base.profiles)) {
+          if (profiles[id]) profiles[id] = { ...profiles[id], role: p.role, personality: p.personality, lore: p.lore };
+        }
+        for (const [id, [was, now]] of Object.entries(RENAMED)) if (profiles[id]?.name === was) profiles[id] = { ...profiles[id], name: now };
+        relationships = base.relationships;
       }
-      if (rev < LOOKS_REV) {
+      if (readRev(LOOKS_KEY) < LOOKS_REV) {
+        migrated = true;
         for (const [id, p] of Object.entries(base.profiles)) if (profiles[id]) profiles[id] = { ...profiles[id], look: p.look };
         for (const [id, [was, now]] of Object.entries(RENAMED)) if (profiles[id]?.name === was) profiles[id] = { ...profiles[id], name: now };
-        try {
-          localStorage.setItem(LOOKS_KEY, String(LOOKS_REV));
-        } catch {
-          /* Private mode: re-cast again next time, harmlessly. */
-        }
       }
-      return { ...parsed, profiles };
+      const cast = { ...parsed, profiles, relationships };
+      // Keep the migrated cast, so the rewrite isn't undone on the next visit. (Private mode: it reruns, harmlessly.)
+      if (migrated) save(cast);
+      return cast;
     }
   } catch {
     /* Storage unavailable or corrupt: start fresh. */
@@ -54,6 +76,7 @@ function save(cast: Cast) {
     localStorage.setItem(KEY, JSON.stringify(cast));
     // A cast saved now already has the current looks.
     localStorage.setItem(LOOKS_KEY, String(LOOKS_REV));
+    localStorage.setItem(LORE_KEY, String(LORE_REV));
   } catch {
     /* Private mode etc.: edits last for this session only. */
   }

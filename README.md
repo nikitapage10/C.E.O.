@@ -41,12 +41,11 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
     - a creature (the Gestral, a hanar, a stone crawler, a painted mask, an orc, a big bunny, a skull spirit, a painted flyer, a little wizard, a big bird, a great grey beast, the Monolith)
     - the classic figure
   - **Dress it:** colours and size for any body, or head, face, hat, outfit and prop for the classic figure.
-  - **Pick a costume:** plain avatars or *legally distinct* icons from the Syntherion's memories, one per work and never the hero (with one four-legged exception):
+  - **Pick a costume:** plain avatars or *legally distinct* icons from the Syntherion's memories, one per work and never the hero (with one five-legged exception):
     - the Engineer from a Rocky Planet, a stone crawler who speaks in chords
     - Blasto, Hanar Spectre, a floating jellyfish who calls itself "this one"
     - Noco, a Gestral
     - the Grey Wanderer
-    - the Barefoot Burglar
     - the Monolith Unit, humour setting 75%
     - the Migraine Spirit, a skull spirit with a headache
   - **Give it a personality:** traits, a bio and a catchphrase.

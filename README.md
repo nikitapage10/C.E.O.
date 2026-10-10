@@ -94,6 +94,12 @@ The browser console has `window.__ceo` (`fireGlitch`, `focus`, `encounter`, `ope
 | End-to-end (Playwright) | `npm run test:e2e` (set `PLAYWRIGHT_CHROMIUM_PATH` to use a preinstalled Chromium) |
 | Production build | `npm run build` |
 
+## Deploy (Vercel)
+
+`vercel.json` holds the settings: install with `npm ci`, build with `npm run build`, and serve `apps/world/dist`. In the
+Vercel dashboard, keep the project's Root Directory at the repo root (not `apps/world`) so the workspace packages
+resolve.
+
 ## Layout
 
 ```

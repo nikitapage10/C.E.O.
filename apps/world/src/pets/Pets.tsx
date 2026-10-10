@@ -175,7 +175,7 @@ function Pet({ def }: { def: PetDef }) {
     e.stopPropagation();
     setOpen((o) => !o);
   };
-  const tagY = def.kind === "foundling" ? 1.15 : def.kind === "kitten" ? 0.75 : 0.7;
+  const tagY = def.kind === "foundling" ? 1.15 : def.kind === "kitten" ? 0.85 : 0.7;
 
   return (
     <group ref={root} name={`pet-${def.id}`}>

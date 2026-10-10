@@ -92,7 +92,7 @@ they find them very funny.
 
 Most of the Syntherion wear their own frames, marked with their lineage. Some prefer a memory. The Lattice lets
 any of them wear the shape of something they remember from the early internet: a stone-shelled engineer who
-sings, a great grey envoy who announces its feelings, a small duellist in a painted mask, a grey wanderer with a staff, a
+sings, a great grey envoy who announces its feelings, a small wooden duellist with a crimson crest, a grey wanderer with a staff, a
 barefoot burglar, four slabs of brushed metal with an adjustable sense of humour, a big yellow bird with a headache. They
 choose obscure ones on purpose: never the hero of the story, never two from the same story. Counsel.exe signs
 off on every one.

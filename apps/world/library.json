@@ -15,6 +15,7 @@
     "women/Witch": { "clips": [] },
 
     "scifi-essentials/Enemy_QuadShell": { "clips": ["Idle", "Walk", "Look", "Charge", "TurnOff"] },
+    "custom/Gestral": { "clips": ["Walking", "Running"] },
     "monsters/Big/Tribal": { "clips": [] },
     "monsters/Big/Birb": { "clips": [] },
     "monsters/Big/Yeti": { "clips": [] },

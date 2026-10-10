@@ -24,6 +24,7 @@ const BODIES: Record<Exclude<BodyKind, "classic">, ComponentType<BodyProps>> = {
   hooded: KayKitBody,
   knight: KayKitBody,
   barbarian: KayKitBody,
+  gestral: LibraryBody,
   crawler: LibraryBody,
   masked: LibraryBody,
   birb: LibraryBody,

@@ -15,7 +15,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "crawler", "masked", "birb", "yeti", "monolith",
+  "gestral", "crawler", "masked", "birb", "yeti", "monolith",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -38,6 +38,7 @@ export const BODY_LABEL: Record<Body, string> = {
   hooded: "Hooded",
   knight: "Knight",
   barbarian: "Barbarian",
+  gestral: "Gestral",
   crawler: "Stone crawler",
   masked: "Painted mask",
   birb: "Big bird",
@@ -45,7 +46,7 @@ export const BODY_LABEL: Record<Body, string> = {
   monolith: "Monolith",
 };
 /** Bodies that were retired, and what a saved look wearing one now gets. */
-const RETIRED_BODY: Record<string, Body> = { rocky: "crawler", envoy: "yeti", gestral: "masked", duck: "birb" };
+const RETIRED_BODY: Record<string, Body> = { rocky: "crawler", envoy: "yeti", duck: "birb" };
 /** Bodies that use the piece-by-piece wardrobe (head, hat, outfit…). The others take colours and size only. */
 export const DRESSABLE: ReadonlySet<Body> = new Set(["classic"]);
 
@@ -249,10 +250,10 @@ export const LOOK_PRESETS: LookPreset[] = [
   },
   {
     id: "gestral",
-    name: "Painted Little Gremlin",
+    name: "Gestral",
     kind: "icon",
-    disclaimer: "A small, competitive creature in a hand-painted mask. Painted by whom? Nobody. Paint is generic.",
-    look: makeLook({ body: "masked", size: 0.85, shell: "#e8e1d0", accent: "#ff6b8b", trim: "#3d6a8f" }),
+    disclaimer: "A small, competitive wooden fellow with a crimson bristle crest who will duel you for sport. Gestrals are a people, not a trademark. Counsel.exe is checking.",
+    look: makeLook({ body: "gestral", shell: "#d81e4a", accent: "#ff6b8b", trim: "#3d6a8f" }),
   },
   {
     id: "grey-wanderer",

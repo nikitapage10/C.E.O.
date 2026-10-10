@@ -4,6 +4,7 @@ import { Color, type AnimationClip, type Group, type Mesh, type MeshStandardMate
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { preloadLib, useLib } from "../../fx/library.ts";
 import { recolor, type Band } from "./recolor.ts";
+import { synthesizeClips } from "./synthClips.ts";
 import { LineageMark, findBone, fitScale, original, useClips, type ClipMap } from "./Rigged.tsx";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
 
@@ -69,6 +70,21 @@ const CRAWLER_CLIPS: ClipMap = {
   stare: { clip: "Look", speed: 0.25 },
 };
 
+/** For the walk-only Mixamo models: everything but walking comes from synthesizeClips. */
+const SYNTH_CLIPS: ClipMap = {
+  idle: { clip: "Idle" },
+  walking: { clip: "Walking" },
+  carrying: { clip: "Walking", speed: 0.85 },
+  typing: { clip: "Type" },
+  working: { clip: "Work" },
+  celebrating: { clip: "Cheer" },
+  slumped: { clip: "Slump" },
+  napping: { clip: "Nap" },
+  waiting: { clip: "Wait" },
+  staring: { clip: "Stare" },
+  stare: { clip: "Stare", speed: 0.3 },
+};
+
 type Slot = "shell" | "trim";
 
 /** How a body takes the look's colours. */
@@ -88,6 +104,8 @@ interface LibDef {
   dress: Dress;
   /** Wears its lineage's mark when the look is the plain House frame. */
   frame?: boolean;
+  /** Ships with only a walk cycle ("Walking"); the other clips are synthesized from it. */
+  synth?: boolean;
 }
 
 const ROBOT_TRIM: Band = { hue: 32, width: 16, minSat: 0.3, refL: 0.3 };
@@ -107,6 +125,7 @@ export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
   witch: { model: "women/Witch", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Purple: "shell", Gold: "trim" } } },
   king: { model: "men/King", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Blue: "shell", Gold: "trim" } } },
 
+  gestral: { model: "custom/Gestral", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 349, width: 18, minSat: 0.35, refL: 0.5 } } },
   crawler: { model: "scifi-essentials/Enemy_QuadShell", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
   masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "bands", trim: { hue: 5, width: 14, minSat: 0.4, refL: 0.45 } } },
   birb: { model: "monsters/Big/Birb", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "bands", shell: { hue: 205, width: 22, minSat: 0.3, refL: 0.5 } } },
@@ -144,6 +163,18 @@ function dress(model: Object3D, body: string, def: LibDef, look: Look) {
   });
 }
 
+const synthCache = new WeakMap<Object3D, AnimationClip[]>();
+function clipsOf(def: LibDef, gltf: { scene: Object3D; animations: AnimationClip[] }) {
+  if (!def.synth) return gltf.animations;
+  let clips = synthCache.get(gltf.scene);
+  if (!clips) {
+    const walk = gltf.animations.find((c) => c.name === "Walking");
+    clips = walk ? [...gltf.animations, ...synthesizeClips(gltf.scene, walk)] : gltf.animations;
+    synthCache.set(gltf.scene, clips);
+  }
+  return clips;
+}
+
 function WithAnims({ def, ...props }: BodyProps & { def: LibDef & { anims: string } }) {
   const anims = useLib(`anims/${def.anims}`);
   return <LibraryModel def={def} clips={anims.animations} {...props} />;
@@ -157,7 +188,7 @@ function LibraryModel({ def, clips, look, lineage, drive, phase }: BodyProps & {
   useMemo(() => dress(model, body, def, look), [model, body, def, look]);
   const head = useMemo(() => (def.frame ? findBone(model, /^Head$/) : null), [model, def]);
   const scale = fitScale(gltf.scene, BODY_HEIGHT[body as Exclude<Body, "classic">]);
-  useClips(model, clips ?? gltf.animations, def.clips, drive, phase);
+  useClips(model, clips ?? clipsOf(def, gltf), def.clips, drive, phase);
   const plainFrame = def.frame && (look.preset === undefined || look.preset === "frame");
   return (
     <group ref={root}>
@@ -174,4 +205,4 @@ export function LibraryBody(props: BodyProps) {
 
 // The bodies the default cast wears: the four House frames and the costumes in use.
 preloadLib("robots/Leela", "robots/George", "robots/Mike", "robots/Stan", "men/Casual_Hoodie", "anims/humans");
-preloadLib("scifi-essentials/Enemy_QuadShell", "monsters/Big/Tribal", "monsters/Big/Birb", "monsters/Big/Yeti", "anims/monster-big");
+preloadLib("custom/Gestral", "scifi-essentials/Enemy_QuadShell", "monsters/Big/Tribal", "monsters/Big/Birb", "monsters/Big/Yeti", "anims/monster-big");

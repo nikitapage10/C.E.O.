@@ -34,16 +34,21 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
 - **Pets.** Myshka, a grey Maine Coon kitten with root access, wanders every room (he's a good boy, and the Kernel says so on the record). The Foundling floats about the Break Room and the Green in its pod. Biscuit, a Shiba Inu on the org chart, patrols the Green and the snack shelf. Spore, a mushroom familiar, dances in the Archive. Hover or click one to meet it.
 - **The cast is yours.** Open the **Agent Studio** (the ✎ next to an agent in the roster, double-click an agent, or press `E`).
   - **Name** any agent.
-  - **Pick a body:** the native Syntherion frame (wearing its lineage's mark: halo, marionette strings, caret, orbiting hands or antenna), rigged and animated adventurers (robed, rogue, hooded, knight, barbarian), hand-built creatures, or the classic figure.
+  - **Pick a body:**
+    - a House frame (four robots; the plain frame wears its lineage's mark: halo, marionette strings, caret, orbiting hands or antenna)
+    - a human disguise (suit, formal dress, hoodie, hard hat, flight suit, spacesuit, witch, monarch)
+    - a rigged adventurer (robed, rogue, hooded, knight, barbarian)
+    - a creature (the Gestral, a stone crawler, a painted mask, a big bird, a great grey beast, the Monolith)
+    - the classic figure
   - **Dress it:** colours and size for any body, or head, face, hat, outfit and prop for the classic figure.
-  - **Pick a costume:** plain avatars or *legally distinct* icons from the Syntherion's memories, one per work and never the hero (with one five-legged exception):
-    - the Engineer from a Rocky Planet, who speaks in chords
-    - the Emotive Pachyderm Envoy, who says how it feels first
-    - the Painted Little Gremlin
+  - **Pick a costume:** plain avatars or *legally distinct* icons from the Syntherion's memories, one per work and never the hero (with one four-legged exception):
+    - the Engineer from a Rocky Planet, a stone crawler who speaks in chords
+    - the Emotive Pachyderm Envoy, a great grey beast who says how it feels first
+    - the Gestral
     - the Grey Wanderer
     - the Barefoot Burglar
     - the Monolith Unit, humour setting 75%
-    - the Migraine Duck
+    - the Migraine Duck, a big yellow bird
   - **Give it a personality:** traits, a bio and a catchphrase.
   - **Write its lore:** title, origin, kin, quirks, likes, dislikes and chronicle.
   - **Set relationships:** friends, best friends, rivals, nemeses, crushes, partners, mentors, siblings or exes.

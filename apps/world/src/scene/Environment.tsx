@@ -15,7 +15,7 @@ export function Floor() {
       <planeGeometry args={[420, 420]} />
       {quality === "high" ? (
         <MeshReflectorMaterial
-          resolution={1024}
+          resolution={512}
           mirror={0.6}
           blur={[400, 120]}
           mixBlur={1.2}

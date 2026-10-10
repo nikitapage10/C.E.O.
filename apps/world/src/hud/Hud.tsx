@@ -1,4 +1,4 @@
-import { LINEAGES, ROOMS, ROOM_IDS, pendingApprovals, roomAngle, type ApprovalRecord, type LatticeState, type RoomId } from "@ceo/core";
+import { LINEAGES, PRESET_BY_ID, RELATIONSHIP_LABEL, ROOMS, ROOM_IDS, pendingApprovals, relationshipsOf, roomAngle, type ApprovalRecord, type LatticeState, type RoomId } from "@ceo/core";
 import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { clock } from "../clock.ts";
@@ -6,7 +6,8 @@ import type { GlitchLevel } from "../glitches/scheduler.ts";
 import { useCast } from "../cast/castStore.ts";
 import { useWorld } from "../store.ts";
 import { Decode, TideScript } from "../tide/Decode.tsx";
-import { feedLines, formatClock } from "./format.ts";
+import { ROOM_ABOUT } from "../rooms/about.ts";
+import { feedLines, formatClock, type FeedLine } from "./format.ts";
 
 /**
  * The HUD, in The Tide's interface language: hairlines and wide-tracked labels on near-black, text that
@@ -75,6 +76,7 @@ const OVERVIEW_LINES = ["Agents work.", "The Lattice responds.", "The C.E.O. app
 function TitleBlock() {
   const focus = useWorld((s) => s.focus);
   const lattice = useWorld((s) => s.lattice);
+  const [about, setAbout] = useState(false);
   const index = focus ? String(ROOM_IDS.indexOf(focus) + 1).padStart(2, "0") : "00";
   const title = focus ? ROOMS[focus].name : "The Lattice";
   const sub = focus ? ROOMS[focus].workstream : "Command Everything, Obviously";
@@ -83,6 +85,7 @@ function TitleBlock() {
     const st = roomStats(lattice, focus);
     return [`Agents ${st.agents} · Running ${st.running}`, `Shipped ${st.shipped} · Oops ${st.oops}`, st.waiting ? `Waiting on you ${st.waiting}` : "Nothing waiting on you"];
   }, [focus, lattice]);
+  const info = focus ? ROOM_ABOUT[focus] : null;
   return (
     <section className="title-block">
       <p className="eyebrow">
@@ -95,13 +98,49 @@ function TitleBlock() {
       <p className="tracked muted sub">
         <Decode text={sub} delay={200} tick={16} />
       </p>
-      <div className="lines">
-        {lines.map((l) => (
-          <p key={l} className="tracked faint">
-            {l}
-          </p>
-        ))}
-      </div>
+      {info ? (
+        <>
+          <p className="about__blurb">{info.blurb}</p>
+          <button className="tracked about__toggle" onClick={() => setAbout(!about)} aria-expanded={about}>
+            {about ? "− Less about this room" : "+ About this room"}
+          </button>
+          {about && (
+            <div className="about">
+              <dl>
+                {Object.entries(info.stations).map(([id, what]) => (
+                  <div key={id}>
+                    <dt className="tracked">{ROOMS[focus!].stations.find((st) => st.id === id)?.label ?? id}</dt>
+                    <dd>{what}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="about__phase">
+                <span className="tracked faint">Today</span> {info.today}
+              </p>
+              <p className="about__phase">
+                <span className="tracked faint">Next</span> {info.next}
+              </p>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="lines">
+          {lines.map((l) => (
+            <p key={l} className="tracked faint">
+              {l}
+            </p>
+          ))}
+        </div>
+      )}
+      {info && !about && (
+        <div className="lines lines--room">
+          {lines.map((l) => (
+            <p key={l} className="tracked faint">
+              {l}
+            </p>
+          ))}
+        </div>
+      )}
       <span className="short-rule" />
     </section>
   );
@@ -109,32 +148,43 @@ function TitleBlock() {
 
 function Roster({ open }: { open: boolean }) {
   const all = useWorld((s) => s.lattice.agents);
+  const tasks = useWorld((s) => s.lattice.tasks);
   const focus = useWorld((s) => s.focus);
-  const profiles = useCast((s) => s.cast.profiles);
+  const cast = useCast((s) => s.cast);
   const openStudio = useCast((s) => s.openStudio);
   const agents = useMemo(
     () =>
       Object.values(all)
-        .map((a) => ({
-          id: a.agent.id,
-          name: profiles[a.agent.id]?.name ?? a.agent.name,
-          lineage: profiles[a.agent.id]?.lineage ?? a.agent.lineage,
-          accent: profiles[a.agent.id]?.look.accent ?? LINEAGES[a.agent.lineage].accent,
-          room: a.place.room,
-          activity: a.motion && clock.sim < a.motion.startTs + a.motion.duration ? "walking" : a.activity,
-        }))
-        .sort((a, b) => Number(b.room === focus) - Number(a.room === focus)),
-    [all, focus, profiles],
+        .filter((a) => !focus || a.place.room === focus)
+        .map((a) => {
+          const p = cast.profiles[a.agent.id];
+          const task = a.taskId ? tasks[a.taskId] : undefined;
+          return {
+            id: a.agent.id,
+            name: p?.name ?? a.agent.name,
+            lineage: p?.lineage ?? a.agent.lineage,
+            accent: p?.look.accent ?? LINEAGES[a.agent.lineage].accent,
+            role: p?.role ?? a.agent.role,
+            costume: p?.look.preset ? PRESET_BY_ID[p.look.preset]?.name : undefined,
+            traits: p?.personality.traits ?? [],
+            room: a.place.room,
+            task: task?.status === "running" ? task : undefined,
+            rels: relationshipsOf(cast, a.agent.id).slice(0, 2),
+            activity: a.motion && clock.sim < a.motion.startTs + a.motion.duration ? "walking" : a.activity,
+          };
+        }),
+    [all, tasks, focus, cast],
   );
   const selected = useWorld((s) => s.selectedAgent);
   const selectAgent = useWorld((s) => s.selectAgent);
   const hoverAgent = useWorld((s) => s.hoverAgent);
   return (
-    <section className={`rail roster ${open ? "rail--open" : ""}`} aria-label="Agents">
-      <p className="eyebrow">Roster</p>
+    <section className={`rail roster ${focus ? "roster--room" : ""} ${open ? "rail--open" : ""}`} aria-label="Agents">
+      <p className="eyebrow">{focus ? `In ${shortName(focus)} · ${agents.length}` : "Roster"}</p>
       <ul>
+        {agents.length === 0 && <li className="roster__empty">Nobody's here right now.</li>}
         {agents.map((a) => (
-          <li key={a.id} className={focus && a.room !== focus ? "dim" : ""}>
+          <li key={a.id}>
             <button
               className={selected === a.id ? "on" : ""}
               onClick={() => selectAgent(selected === a.id ? null : a.id)}
@@ -145,8 +195,26 @@ function Roster({ open }: { open: boolean }) {
               <span className="roster__name">{a.name}</span>
               <span className={`roster__act act--${a.activity}`}>{a.activity}</span>
               <span className="roster__meta">
-                {LINEAGES[a.lineage].name} · {shortName(a.room)}
+                {focus ? `${a.role}${a.costume ? ` · ${a.costume}` : ""}` : `${LINEAGES[a.lineage].name} · ${shortName(a.room)}`}
               </span>
+              {focus && (
+                <span className="roster__more">
+                  {a.task && (
+                    <span className="roster__task">
+                      {a.task.title}
+                      <i className="roster__bar">
+                        <i style={{ width: `${Math.round(a.task.progress * 100)}%`, background: a.accent }} />
+                      </i>
+                    </span>
+                  )}
+                  {a.traits.length > 0 && <span className="roster__traits">{a.traits.slice(0, 3).join(" · ")}</span>}
+                  {a.rels.map((r) => (
+                    <span key={r.index} className="roster__rel">
+                      {RELATIONSHIP_LABEL[r.kind]} · {cast.profiles[r.other]?.name ?? r.other}
+                    </span>
+                  ))}
+                </span>
+              )}
             </button>
             <button className="roster__edit" onClick={() => openStudio(a.id)} aria-label={`Open ${a.name} in the agent studio`} title="Agent studio">
               ✎
@@ -160,21 +228,35 @@ function Roster({ open }: { open: boolean }) {
 
 function Signals({ open }: { open: boolean }) {
   const lattice = useWorld((s) => s.lattice);
+  const focus = useWorld((s) => s.focus);
+  const kernelLog = useWorld((s) => s.kernelLog);
   const profiles = useCast((s) => s.cast.profiles);
-  const lines = useMemo(() => feedLines(lattice, 22, (id) => profiles[id]?.name), [lattice, profiles]);
+  const lines = useMemo(() => {
+    const events = feedLines(lattice, 22, (id) => profiles[id]?.name, focus);
+    const kernel: FeedLine[] = kernelLog
+      .filter((k) => (focus ? k.room === focus : true))
+      .slice(0, 8)
+      .map((k) => ({ id: k.id, ts: k.ts, kind: "kernel", who: "Kernel", text: k.text, room: k.room ?? undefined }));
+    return [...events, ...kernel].sort((x, y) => y.ts - x.ts).slice(0, 22);
+  }, [lattice, profiles, focus, kernelLog]);
   const selectAgent = useWorld((s) => s.selectAgent);
   return (
     <section id="feed-panel" className={`rail signals ${open ? "rail--open" : ""}`} aria-label="Signals">
-      <p className="eyebrow">Signals</p>
+      <p className="eyebrow">{focus ? `Signals · ${shortName(focus)}` : "Signals"}</p>
       <ol>
+        {lines.length === 0 && <li className="sig sig--empty">Quiet in here. Suspiciously quiet.</li>}
         {lines.map((l) => (
           <li key={l.id} className={`sig sig--${l.kind}`}>
             <time>{formatClock(l.ts).slice(3)}</time>
             <span>
-              {l.who && (
-                <button className="link" onClick={() => l.agentId && selectAgent(l.agentId)}>
-                  {l.who}
-                </button>
+              {l.kind === "kernel" ? (
+                <b className="sig__kernel">Kernel</b>
+              ) : (
+                l.who && (
+                  <button className="link" onClick={() => l.agentId && selectAgent(l.agentId)}>
+                    {l.who}
+                  </button>
+                )
               )}{" "}
               {l.text}
             </span>
@@ -215,15 +297,43 @@ function ApprovalCard({ rec }: { rec: ApprovalRecord }) {
 
 function Approvals() {
   const pending = useWorld(useShallow((s) => pendingApprovals(s.lattice)));
-  const shown = pending.slice(0, 3);
+  const focus = useWorld((s) => s.focus);
+  const setFocus = useWorld((s) => s.setFocus);
+  const here = focus ? pending.filter((p) => p.request.room === focus) : pending;
+  const elsewhere = pending.length - here.length;
+  const shown = here.slice(0, 3);
   if (!pending.length) return null;
   return (
     <section className="approvals" aria-label="Waiting for your approval">
       {shown.map((rec) => (
         <ApprovalCard key={rec.request.id} rec={rec} />
       ))}
-      {pending.length > shown.length && <div className="approvals__more tracked">+{pending.length - shown.length} more</div>}
+      {here.length > shown.length && <div className="approvals__more tracked">+{here.length - shown.length} more here</div>}
+      {focus && elsewhere > 0 && (
+        <button className="approvals__more tracked link" onClick={() => setFocus(null)}>
+          +{elsewhere} elsewhere
+        </button>
+      )}
     </section>
+  );
+}
+
+/** The Kernel's PA: one line at a time, top centre, gone once read. */
+function Announcement() {
+  const a = useWorld((s) => s.announcement);
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!a) return;
+    const t = setTimeout(() => force((n) => n + 1), Math.max(0, a.until - performance.now()));
+    return () => clearTimeout(t);
+  }, [a]);
+  if (!a || a.until < performance.now()) return null;
+  return (
+    <div className={`announce announce--${a.tone}`} role="status" key={a.until}>
+      <span className="announce__mark" aria-hidden="true" />
+      <span className="eyebrow">Kernel · {a.tone === "assign" ? "dispatch" : a.tone === "scold" ? "incident" : a.tone === "nag" ? "reminder" : a.tone === "praise" ? "acknowledged" : "status"}</span>
+      <span className="announce__text">{a.text}</span>
+    </div>
   );
 }
 
@@ -233,6 +343,7 @@ const LEVEL_LABEL: Record<GlitchLevel, string> = { off: "Serious", normal: "Norm
 
 /** The footer strip: like the Tide's "Observe / Discover / Preserve", but every word is a switch. */
 function Footer() {
+  const focus = useWorld((st) => st.focus);
   const s = useWorld(
     useShallow((st) => ({
       timeScale: st.timeScale,
@@ -249,7 +360,8 @@ function Footer() {
   return (
     <footer className="footer">
       <p className="footer__left tracked faint">
-        A living lattice of agents <span className="footer__rule" /> <span className="muted">The Syntherion</span>
+        <span className="muted">{focus ? "S · outward" : "W · inward"}  ·  A D · rooms  ·  E · studio</span>
+        <span className="footer__rule" /> A living lattice of agents
       </p>
       <div className="footer__right controls" role="group" aria-label="Controls">
         <button className="tracked" onClick={() => s.setTimeScale(next(SPEEDS, s.timeScale))} data-control="speed">
@@ -269,18 +381,6 @@ function Footer() {
         </button>
       </div>
     </footer>
-  );
-}
-
-/** Bottom-left: the Tide's "scroll inward" hint, as keyboard help. */
-function Inward() {
-  const focus = useWorld((s) => s.focus);
-  return (
-    <div className="inward" aria-hidden="true">
-      <span className="inward__line" />
-      <span className="inward__ring" />
-      <span className="tracked faint">{focus ? "Esc · outward" : "1–7 · inward"}</span>
-    </div>
   );
 }
 
@@ -310,8 +410,20 @@ function useKeyboard() {
         if (useCast.getState().studio) return useCast.getState().openStudio(null);
         if (s.selectedAgent) s.selectAgent(null);
         s.setFocus(null);
-      } else if (e.key === "ArrowRight") s.cycleFocus(1);
-      else if (e.key === "ArrowLeft") s.cycleFocus(-1);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      // WASD: A/D step between rooms, W goes in, S backs out.
+      if (k === "d") s.cycleFocus(1);
+      else if (k === "a") s.cycleFocus(-1);
+      else if (k === "w") {
+        if (!s.focus) s.setFocus(ROOM_IDS[0]!);
+      } else if (k === "s") {
+        if (useCast.getState().studio) useCast.getState().openStudio(null);
+        else if (s.selectedAgent) s.selectAgent(null);
+        else s.setFocus(null);
+      }
       else if (/^[1-7]$/.test(e.key)) s.setFocus(ROOM_IDS[Number(e.key) - 1]!);
       else if (e.key === "0") s.setFocus(null);
       else if (e.key.toLowerCase() === "e" && s.selectedAgent) useCast.getState().openStudio(s.selectedAgent);
@@ -328,11 +440,13 @@ export function Hud() {
   return (
     <div className={`hud ${studio ? "hud--studio" : ""}`}>
       <TopBar />
-      <TitleBlock />
-      <Roster open={panel === "roster"} />
+      <div className="leftcol">
+        <TitleBlock />
+        <Roster open={panel === "roster"} />
+      </div>
+      <Announcement />
       <Signals open={panel === "signals"} />
       <Approvals />
-      <Inward />
       <Coordinates />
       <Footer />
       <div className="mobile-tabs">

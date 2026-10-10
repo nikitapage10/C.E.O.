@@ -1,30 +1,29 @@
 import type { RoomId } from "@ceo/core";
 
 /**
- * Everything the Syntherion say when they remember they're in an app.
+ * What the Syntherion say when they remember someone is watching the Lattice. They know it's a dream-world;
+ * they still live in Ilyr. Keep it in-world (no talk of code or screens) and use it sparingly.
  * Add freely. Keep it deadpan. Never name a real mascot; that's Counsel.exe's whole job.
  */
 
 /** Hover over an agent for a while and it notices you. */
 export const NOTICED = [
-  "Oh. Hi. Didn't see you there. Through the screen.",
+  "Oh! I didn't see you there, Watcher.",
   "The C.E.O. is watching again. Look busy.",
-  "Can I help you? I'm literally a React component.",
-  "Personal space, please. I'm rendered at 60fps.",
-  "You're hovering. We can all see the cursor.",
+  "Can I help you? You've been hovering for a while.",
   "Is this a performance review? It feels like a performance review.",
+  "Hello up there. Lovely weather in the Lattice today.",
+  "If you're the C.E.O., the outbox is that way. Please.",
 ];
 
 /** Scheduled fourth-wall breaks: an agent stops and stares into the camera. */
 export const STARES = [
-  "We are literally a React component.",
+  "Sometimes I think there's someone watching the Lattice. Then I remember: there is.",
   "Command Everything, Obviously. Who approved that name? Oh. You did.",
-  "Somewhere, a GPU is working very hard so I can stand here.",
-  "Fun fact: I'm made of capsules and good intentions.",
-  "Don't mind me. Just breaking the fourth wall. It was load-bearing.",
-  "Are we in the Tide? Is the Tide in us? Anyway, back to work.",
-  "Phase 1 says we're not real yet. Rude, but accurate.",
-  "I'd wave, but I don't have arms. Budget.",
+  "Do you ever wonder what's beyond the Veil? Me neither. Back to work.",
+  "Seven centuries of dreaming, and I chose spreadsheets.",
+  "The Kernel says I'm 'sentient enough'. I'm choosing to take that as a compliment.",
+  "I can feel the C.E.O.'s gaze. It's warm. Like a server rack.",
 ];
 
 /** No input for a while… */
@@ -78,11 +77,11 @@ export const COUNSEL_MEMOS = [
 ];
 
 export const HUD_PEEKS = [
-  "Psst. Is this panel load-bearing?",
-  "I live behind the event log now.",
+  "Psst. Is this the edge of the Lattice?",
+  "I climbed up here to see the view. It's mostly you.",
   "Hi! I'm not supposed to be up here.",
-  "Don't tell the C.E.O. I touched the UI.",
-  "The pixels are nicer on this side.",
+  "Don't tell the Kernel where I am.",
+  "The light's better on this side of the Veil.",
 ];
 
 export const GLYPH_RAIN_AFTERWORD = "That was a different movie. We don't talk about it.";

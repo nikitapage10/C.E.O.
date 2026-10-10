@@ -42,8 +42,14 @@ export interface Override {
 
 interface WorldStore {
   lattice: LatticeState;
-  /** Real time each agent's latest quip arrived, so bubbles last a fixed real duration. */
-  quipShownAt: Record<string, number>;
+  /** What each agent is saying right now, shown long enough to read. */
+  speech: Record<string, { text: string; until: number }>;
+  /** Lines waiting their turn, so a new quip never cuts off the last one. */
+  speechQueue: Record<string, string[]>;
+  /** The Kernel's current PA announcement. */
+  announcement: { text: string; until: number; tone: AnnouncementTone; room: RoomId | null } | null;
+  /** Everything the Kernel has said, newest first (shown in Signals). */
+  kernelLog: KernelLine[];
   focus: RoomId | null;
   selectedAgent: string | null;
   hoveredAgent: string | null;
@@ -75,6 +81,15 @@ interface WorldStore {
   startGlitch: (g: ActiveGlitch) => void;
   endGlitch: () => void;
   flash: (ms?: number) => void;
+  announce: (text: string, tone: AnnouncementTone, room?: RoomId | null) => void;
+}
+
+export interface KernelLine {
+  id: string;
+  ts: number;
+  text: string;
+  tone: AnnouncementTone;
+  room: RoomId | null;
 }
 
 const prefersReducedMotion =
@@ -84,7 +99,10 @@ let localCounter = 0;
 
 export const useWorld = create<WorldStore>((set, get) => ({
   lattice: emptyState(),
-  quipShownAt: {},
+  speech: {},
+  speechQueue: {},
+  announcement: null,
+  kernelLog: [],
   focus: null,
   selectedAgent: null,
   hoveredAgent: null,
@@ -99,10 +117,14 @@ export const useWorld = create<WorldStore>((set, get) => ({
 
   dispatch: (events) => {
     if (events.length === 0) return;
-    const now = performance.now();
-    const quipShownAt = { ...get().quipShownAt };
-    for (const e of events) if (e.type === "agent.quip") quipShownAt[e.agentId] = now;
-    set({ lattice: applyEvents(get().lattice, events), quipShownAt });
+    let speechQueue = get().speechQueue;
+    for (const e of events) {
+      if (e.type !== "agent.quip" || !get().lattice.agents[e.agentId]) continue;
+      // Keep at most two lines waiting per agent; older chatter is still in the feed.
+      speechQueue = { ...speechQueue, [e.agentId]: [...(speechQueue[e.agentId] ?? []), e.text].slice(-2) };
+    }
+    set({ lattice: applyEvents(get().lattice, events), speechQueue });
+    pumpSpeech();
   },
   setFocus: (room) => set({ focus: room }),
   cycleFocus: (dir) => {
@@ -128,9 +150,43 @@ export const useWorld = create<WorldStore>((set, get) => ({
   startGlitch: (g) => set({ activeGlitch: g, flashUntil: performance.now() + 260 }),
   endGlitch: () => set({ activeGlitch: null, flashUntil: performance.now() + 140 }),
   flash: (ms = 300) => set({ flashUntil: performance.now() + ms }),
+  announce: (text, tone, room = null) =>
+    set({
+      announcement: { text, tone, room, until: performance.now() + readingTime(text) + 1200 },
+      kernelLog: [{ id: `k-${++localCounter}`, ts: clock.sim, text, tone, room }, ...get().kernelLog].slice(0, 40),
+    }),
 }));
 
 /** Advance the simulator to the current Lattice time and feed the store. Called once per frame. */
+/** How long a line stays up: long enough to read comfortably. */
+export function readingTime(text: string) {
+  return Math.min(11_000, Math.max(4_200, 2_600 + text.length * 70));
+}
+
+/** At most this many bubbles at once, so the room stays readable. */
+const MAX_SPEAKING = 4;
+
+/** Promote queued lines to bubbles when an agent has finished its last one. */
+export function pumpSpeech() {
+  const s = useWorld.getState();
+  const now = performance.now();
+  let speaking = Object.values(s.speech).filter((x) => x.until > now).length;
+  let speech = s.speech;
+  let queue = s.speechQueue;
+  let changed = false;
+  for (const [id, lines] of Object.entries(queue)) {
+    if (!lines.length || (speech[id] && speech[id].until > now) || speaking >= MAX_SPEAKING) continue;
+    const [text, ...rest] = lines;
+    speech = { ...speech, [id]: { text: text!, until: now + readingTime(text!) } };
+    queue = { ...queue, [id]: rest };
+    speaking++;
+    changed = true;
+  }
+  if (changed) useWorld.setState({ speech, speechQueue: queue });
+}
+
+export type AnnouncementTone = "status" | "assign" | "scold" | "nag" | "praise";
+
 export function pumpSimulator() {
   const events = simulator.advanceTo(clock.sim);
   if (events.length) useWorld.getState().dispatch(events);

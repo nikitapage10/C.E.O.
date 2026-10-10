@@ -84,19 +84,20 @@ export function Decode({ text, tick = 28, delay = 0 }: { text: string; tick?: nu
   const [step, setStep] = useState(reduced() ? total : -1);
   useEffect(() => {
     if (reduced()) return;
-    let raf = 0;
-    const start = window.setTimeout(() => {
-      const t0 = performance.now();
-      const frame = () => {
-        const s = Math.min(total, Math.floor((performance.now() - t0) / tick));
-        setStep(s);
-        if (s < total) raf = requestAnimationFrame(frame);
-      };
-      raf = requestAnimationFrame(frame);
-    }, delay);
+    // Driven by a timer, not animation frames: when the 3D scene is busy, rAF can starve and leave a title
+    // half-decoded. A final timeout guarantees it always lands on readable English.
+    let timer = 0;
+    const t0 = performance.now() + delay;
+    const tickFn = () => {
+      const s = Math.min(total, Math.floor((performance.now() - t0) / tick));
+      setStep(s < 0 ? -1 : s);
+      if (s < total) timer = window.setTimeout(tickFn, tick);
+    };
+    timer = window.setTimeout(tickFn, delay);
+    const done = window.setTimeout(() => setStep(total), delay + total * tick + 400);
     return () => {
-      window.clearTimeout(start);
-      cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+      window.clearTimeout(done);
       setStep(-1);
     };
   }, [text, tick, delay, total]);

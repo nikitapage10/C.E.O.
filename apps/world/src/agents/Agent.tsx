@@ -1,8 +1,8 @@
-import { LINEAGES, RELATIONSHIP_LABEL, getStation, placeToWorld, relationshipsOf, roomAngle, routeBetween, sampleRoute, type Look } from "@ceo/core";
+import { LINEAGES, PRESET_BY_ID, RELATIONSHIP_LABEL, getStation, placeToWorld, relationshipsOf, roomAngle, routeBetween, sampleRoute, type Look } from "@ceo/core";
 import { Html } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BufferGeometry, Float32BufferAttribute, LatheGeometry, LineBasicMaterial, LineSegments, MeshPhysicalMaterial, Vector2, Vector3, type Group, type Mesh } from "three";
+import { BufferGeometry, CylinderGeometry, Float32BufferAttribute, Quaternion, LatheGeometry, LineBasicMaterial, LineSegments, MeshPhysicalMaterial, Vector2, Vector3, type Group, type Mesh } from "three";
 import { useCast } from "../cast/castStore.ts";
 import { agentPositions, clock } from "../clock.ts";
 import { Flare } from "../fx/Flare.tsx";
@@ -10,7 +10,7 @@ import { emissive } from "../fx/materials.ts";
 import { PBR } from "../fx/pbr.ts";
 import { Block, facingDir } from "../rooms/primitives.tsx";
 import { useWorld } from "../store.ts";
-import { BackProp, Face, HandProp, Hat, Head, Outfit, shellMaterial } from "./Avatar.tsx";
+import { BUILD, BackProp, Face, HandProp, Hair, Hat, Head, Outfit, shellMaterial, sleeveMaterial } from "./Avatar.tsx";
 import { poseFor, type PoseMode } from "./behavior.ts";
 import { PropMesh } from "./Props.tsx";
 
@@ -49,10 +49,23 @@ function lerpAngle(a: number, b: number, t: number) {
   return a + d * t;
 }
 
-const BUBBLE_MS = 5200;
 const tmp = new Vector3();
+const UP = new Vector3(0, 1, 0);
+const shoulder = new Vector3();
+const handPos = new Vector3();
+const armQ = new Quaternion();
 
-/** The figure itself: torso, head, face, hat, outfit, props and lineage signature. */
+export interface Limbs {
+  armL: React.RefObject<Mesh | null>;
+  armR: React.RefObject<Mesh | null>;
+  legL: React.RefObject<Group | null>;
+  legR: React.RefObject<Group | null>;
+}
+
+const ARM = new CylinderGeometry(0.052, 0.045, 1, 12);
+const SHOE = PBR.lacquer("#1a1715", 0.35);
+
+/** The figure itself: build, torso, head, hair, face, hat, outfit, limbs, props and lineage signature. */
 function Figure({
   look,
   lineage,
@@ -62,6 +75,7 @@ function Figure({
   core,
   caret,
   extraHands,
+  limbs,
 }: {
   look: Look;
   lineage: keyof typeof LINEAGES;
@@ -71,31 +85,50 @@ function Figure({
   core: React.RefObject<Mesh | null>;
   caret: React.RefObject<Mesh | null>;
   extraHands: React.RefObject<Group | null>;
+  limbs: Limbs;
 }) {
-  const shell = shellMaterial(look.shell);
-  const hand = handMaterial(look.shell);
+  const b = BUILD[look.build];
+  const shell = b.limbs ? PBR.fabric(look.shell) : shellMaterial(look.shell);
+  const hand = b.limbs ? shellMaterial(look.skin) : handMaterial(look.shell);
+  const hipY = b.lift + 0.34 * b.h;
+  const legLen = hipY - 0.07;
+  const legMat = PBR.fabric(look.lower);
   return (
     <>
-      {look.extra !== "hoverboard" && (
+      {!b.limbs && look.extra !== "hoverboard" && (
         <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} material={PBR.light(look.accent, 2.2)}>
           <torusGeometry args={[0.17, 0.012, 8, 40]} />
         </mesh>
       )}
-      <mesh geometry={TORSO} material={shell} castShadow receiveShadow />
-      <mesh position={[0, 0.58, 0]} material={PBR.light(look.accent, 2.6)}>
-        <torusGeometry args={[0.215, 0.008, 6, 48]} />
-      </mesh>
-      <mesh ref={core} position={[0, 0.86, 0.2]} material={PBR.light(look.accent, 3)}>
-        <circleGeometry args={[0.045, 24]} />
-      </mesh>
-      <mesh position={[0, 1.13, 0]} material={PBR.chrome()}>
-        <cylinderGeometry args={[0.055, 0.07, 0.12, 20]} />
-      </mesh>
-      <Outfit look={look} />
-      <BackProp look={look} />
-      <group ref={headRef} position={[0, 1.36, 0]}>
+      {b.limbs &&
+        [-1, 1].map((side) => (
+          <group key={side} ref={side < 0 ? limbs.legL : limbs.legR} position={[side * 0.1 * b.w, hipY, 0]}>
+            <mesh position={[0, -legLen / 2, 0]} material={legMat} castShadow>
+              <capsuleGeometry args={[0.07 * Math.max(1, b.w * 0.9), legLen - 0.1, 6, 12]} />
+            </mesh>
+            <Block size={[0.13 * b.w, 0.07, 0.22]} position={[0, -legLen + 0.01, 0.04]} material={SHOE} radius={0.03} />
+          </group>
+        ))}
+      <group position={[0, b.lift, 0]} scale={[b.w, b.h, b.w]}>
+        <mesh geometry={TORSO} material={shell} castShadow receiveShadow />
+        {!b.limbs && (
+          <mesh position={[0, 0.58, 0]} material={PBR.light(look.accent, 2.6)}>
+            <torusGeometry args={[0.215, 0.008, 6, 48]} />
+          </mesh>
+        )}
+        <mesh ref={core} position={[0, 0.86, 0.2]} material={PBR.light(look.accent, b.limbs ? 1.6 : 3)}>
+          <circleGeometry args={[b.limbs ? 0.03 : 0.045, 24]} />
+        </mesh>
+        <mesh position={[0, 1.13, 0]} material={b.limbs ? hand : PBR.chrome()}>
+          <cylinderGeometry args={[0.055, 0.07, 0.12, 20]} />
+        </mesh>
+        <Outfit look={look} floor={-b.lift / b.h + 0.06} />
+        <BackProp look={look} />
+      </group>
+      <group ref={headRef} position={[0, b.lift + 1.36 * b.h, 0]}>
         <Head look={look} />
         <Face look={look} />
+        <Hair look={look} />
         <Hat look={look} />
         {lineage === "cursori" && (
           <mesh ref={caret} position={[0.3, 0, 0.06]} material={PBR.light(look.accent, 4)}>
@@ -103,7 +136,13 @@ function Figure({
           </mesh>
         )}
       </group>
-      {/* Hands: floating, armless. Budget. */}
+      {b.limbs && (
+        <>
+          <mesh ref={limbs.armL} geometry={ARM} material={sleeveMaterial(look)} castShadow />
+          <mesh ref={limbs.armR} geometry={ARM} material={sleeveMaterial(look)} castShadow />
+        </>
+      )}
+      {/* Hands. The native Syntherion's float, armless. Budget. */}
       <mesh ref={handL} material={hand} castShadow>
         <sphereGeometry args={[0.065, 20, 16]} />
         <HandProp look={look} hand="left" />
@@ -113,7 +152,7 @@ function Figure({
         <HandProp look={look} hand="right" />
       </mesh>
       {lineage === "manusi" && (
-        <group ref={extraHands} position={[0, 0.95, 0]}>
+        <group ref={extraHands} position={[0, b.lift + 0.95 * b.h, 0]}>
           {[0, 1, 2, 3].map((i) => (
             <mesh key={i} position={[Math.cos((i * Math.PI) / 2) * 0.5, Math.sin(i) * 0.1, Math.sin((i * Math.PI) / 2) * 0.5]} material={hand} castShadow>
               <sphereGeometry args={[0.05, 16, 12]} />
@@ -128,7 +167,7 @@ function Figure({
 /** One Syntherion. Reads its state from the store and its identity from the cast; animates itself every frame. */
 export function Agent({ id }: { id: string }) {
   const rt = useWorld((s) => s.lattice.agents[id]);
-  const shownAt = useWorld((s) => s.quipShownAt[id] ?? 0);
+  const speech = useWorld((s) => s.speech[id]);
   const focus = useWorld((s) => s.focus);
   const selected = useWorld((s) => s.selectedAgent === id);
   const hovered = useWorld((s) => s.hoveredAgent === id);
@@ -152,6 +191,7 @@ export function Agent({ id }: { id: string }) {
   const caret = useRef<Mesh>(null);
   const extraHands = useRef<Group>(null);
   const ring = useRef<Mesh>(null);
+  const limbs: Limbs = { armL: useRef<Mesh>(null), armR: useRef<Mesh>(null), legL: useRef<Group>(null), legR: useRef<Group>(null) };
   const yaw = useRef(0);
   const visibility = useRef(1);
   const phase = useMemo(() => hashPhase(id), [id]);
@@ -173,16 +213,16 @@ export function Agent({ id }: { id: string }) {
     return new LineSegments(g, m);
   }, [lineage, accent]);
 
-  // Hide the speech bubble a fixed real time after it appeared.
+  // Hide the speech bubble once its reading time is up.
   const [bubbleOn, setBubbleOn] = useState(false);
   useEffect(() => {
-    if (!shownAt) return;
-    const left = shownAt + BUBBLE_MS - performance.now();
+    if (!speech) return;
+    const left = speech.until - performance.now();
     if (left <= 0) return;
     setBubbleOn(true);
     const timer = setTimeout(() => setBubbleOn(false), left);
     return () => clearTimeout(timer);
-  }, [shownAt]);
+  }, [speech]);
 
   const [emoteOn, setEmoteOn] = useState(false);
   useEffect(() => {
@@ -250,15 +290,39 @@ export function Agent({ id }: { id: string }) {
     const p = poseFor(mode, t, phase);
     figure.current.position.y = p.bob + p.lie * 0.3;
     figure.current.rotation.set(p.lean - p.lie * (Math.PI / 2), 0, p.roll);
+    const b = BUILD[look?.build ?? "hover"];
     if (head.current) {
-      head.current.position.y = 1.36 + p.headLift;
+      head.current.position.y = b.lift + 1.36 * b.h + p.headLift;
       head.current.rotation.set(p.headPitch, p.headYaw, 0);
     }
-    handL.current?.position.set(...p.handL);
-    handR.current?.position.set(...p.handR);
+    // Bodies with arms keep their hands lower and closer, hanging from the shoulders.
+    const hx = b.limbs ? 0.82 : 1;
+    handL.current?.position.set(p.handL[0] * b.w * hx, b.lift + p.handL[1] * b.h, p.handL[2]);
+    handR.current?.position.set(p.handR[0] * b.w * hx, b.lift + p.handR[1] * b.h, p.handR[2]);
+    if (b.limbs) {
+      ([
+        [limbs.armL.current, handL.current, -1],
+        [limbs.armR.current, handR.current, 1],
+      ] as const).forEach(([arm, hnd, side]) => {
+        if (!arm || !hnd) return;
+        shoulder.set(side * 0.24 * b.w, b.lift + 1.02 * b.h, 0);
+        handPos.copy(hnd.position);
+        tmp.copy(handPos).sub(shoulder);
+        const len = Math.max(0.05, tmp.length() - 0.04);
+        arm.position.copy(shoulder).addScaledVector(tmp, 0.5);
+        armQ.setFromUnitVectors(UP, tmp.normalize());
+        arm.quaternion.copy(armQ);
+        arm.scale.set(1, len, 1);
+      });
+      const walking = mode === "walking" || mode === "carrying";
+      const stride = walking ? Math.sin(t * 9 + phase) * 0.5 : mode === "celebrating" ? Math.sin(t * 14) * 0.15 : 0;
+      if (limbs.legL.current) limbs.legL.current.rotation.x += (stride - limbs.legL.current.rotation.x) * 0.4;
+      if (limbs.legR.current) limbs.legR.current.rotation.x += (-stride - limbs.legR.current.rotation.x) * 0.4;
+    }
     if (core.current) core.current.scale.setScalar(0.8 + p.core * 0.25);
-    if (propRef.current) {
-      propRef.current.position.set((p.handL[0] + p.handR[0]) / 2, (p.handL[1] + p.handR[1]) / 2 + 0.05, (p.handL[2] + p.handR[2]) / 2);
+    if (propRef.current && handL.current && handR.current) {
+      propRef.current.position.copy(handL.current.position).add(handR.current.position).multiplyScalar(0.5);
+      propRef.current.position.y += 0.05;
     }
     if (caret.current) caret.current.visible = Math.floor(t * 2.2 + phase) % 2 === 0;
     if (extraHands.current) extraHands.current.rotation.y = t * 1.6 + phase;
@@ -278,10 +342,13 @@ export function Agent({ id }: { id: string }) {
   if (!rt || !look) return null;
 
   const inFocus = focus === null || focus === rt.place.room;
-  const showBubble = bubbleOn && rt.lastQuip && inFocus;
+  const showBubble = bubbleOn && speech && inFocus;
   const showTag = (selected || hovered) && inFocus && !studioOpen;
   // Fixed-size labels in the studio close-up, distance-scaled ones in a room.
-  const df = focus && !studioOpen ? 14 : undefined;
+  const df = focus && !studioOpen ? 16 : undefined;
+  const b = BUILD[look.build];
+  const nameY = b.lift + 1.36 * b.h + 0.62;
+  const costume = look.preset ? PRESET_BY_ID[look.preset]?.name : undefined;
 
   const onOver = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
@@ -305,7 +372,7 @@ export function Agent({ id }: { id: string }) {
   return (
     <group ref={root} name={`agent-${id}`}>
       <group ref={figure}>
-        <Figure look={look} lineage={lineage} headRef={head} handL={handL} handR={handR} core={core} caret={caret} extraHands={extraHands} />
+        <Figure look={look} lineage={lineage} headRef={head} handL={handL} handR={handR} core={core} caret={caret} extraHands={extraHands} limbs={limbs} />
         {lineage === "gepetti" && strings && (
           <>
             <primitive object={strings} />
@@ -342,19 +409,27 @@ export function Agent({ id }: { id: string }) {
       </mesh>
 
       {emoteOn && emote && inFocus && (
-        <Html position={[0, 2.95, 0]} center zIndexRange={[35, 0]}>
+        <Html position={[0.45, nameY + 0.25, 0]} center zIndexRange={[35, 0]}>
           <div className="emote">{emote.glyph}</div>
         </Html>
       )}
+      {focus === rt.place.room && !showBubble && !showTag && !studioOpen && (
+        <Html position={[0, nameY, 0]} center distanceFactor={16} zIndexRange={[25, 0]}>
+          <div className="nameplate">
+            <span style={{ color: accent }}>●</span> {name}
+            {costume && <small>{costume}</small>}
+          </div>
+        </Html>
+      )}
       {showBubble && (
-        <Html position={[0, 2.3, 0]} center distanceFactor={df} zIndexRange={[30, 0]}>
+        <Html position={[0, nameY + 0.1, 0]} center distanceFactor={df} zIndexRange={[30, 0]}>
           <div className={`bubble ${df ? "" : "bubble--far"}`} style={{ borderLeftColor: accent }}>
-            <b style={{ color: accent }}>{name}</b> {rt.lastQuip!.text}
+            <b style={{ color: accent }}>{name}</b> {speech!.text}
           </div>
         </Html>
       )}
       {showTag && !showBubble && (
-        <Html position={[0, 2.3, 0]} center distanceFactor={df} zIndexRange={[40, 0]}>
+        <Html position={[0, nameY + 0.1, 0]} center distanceFactor={df} zIndexRange={[40, 0]}>
           <div className="tag" style={{ borderLeftColor: accent, borderLeftWidth: 2 }}>
             <div className="tag__name">
               {name} <span style={{ color: accent }}>{LINEAGES[lineage].name}</span>

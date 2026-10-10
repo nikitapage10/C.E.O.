@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { agentPositions, clock } from "../clock.ts";
-import { useWorld } from "../store.ts";
+import { readingTime, useWorld } from "../store.ts";
 import { EMOTE, EXCHANGES } from "./lines.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -43,12 +43,15 @@ export function SocialDirector() {
       const nameA = cast.profiles[r.a]?.name ?? r.a;
       const nameB = cast.profiles[r.b]?.name ?? r.b;
       const [opener, reply] = pick(EXCHANGES[r.kind]);
-      world.override(r.a, "face", 6000, r.b);
-      world.override(r.b, "face", 6000, r.a);
-      world.emote(r.a, EMOTE[r.kind], 5000);
-      world.emote(r.b, EMOTE[r.kind], 5000);
+      world.emote(r.a, EMOTE[r.kind], 6000);
+      world.emote(r.b, EMOTE[r.kind], 6000);
       world.say(r.a, opener.replaceAll("{other}", nameB));
-      setTimeout(() => useWorld.getState().say(r.b, reply.replaceAll("{other}", nameA)), 2200);
+      const total = readingTime(opener) + readingTime(reply) + 1500;
+      world.override(r.a, "face", total, r.b);
+      world.override(r.b, "face", total, r.a);
+      // The reply waits until the opener has been read.
+      const opening = opener.replaceAll("{other}", nameB);
+      setTimeout(() => useWorld.getState().say(r.b, reply.replaceAll("{other}", nameA)), readingTime(opening) * 0.8);
       return true;
     };
     const catchphrase = () => {

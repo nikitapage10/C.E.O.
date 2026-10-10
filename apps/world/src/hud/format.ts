@@ -1,10 +1,12 @@
-import { ROOMS, type AgentEvent, type LatticeState } from "@ceo/core";
+import { ROOMS, type AgentEvent, type LatticeState, type RoomId } from "@ceo/core";
 
 export interface FeedLine {
   id: string;
   ts: number;
-  kind: "quip" | "task" | "done" | "fail" | "approval" | "resolved";
+  kind: "quip" | "task" | "done" | "fail" | "approval" | "resolved" | "kernel";
   agentId?: string;
+  /** The room the line is about, so a room view can show only its own signals. */
+  room?: RoomId;
   who?: string;
   text: string;
 }
@@ -21,12 +23,17 @@ const ACTION_VERB: Record<string, string> = {
 };
 
 /** Turn raw events into the few lines worth reading. Movement and pose changes stay in the world. */
-export function feedLines(state: LatticeState, limit = 40, nameOf?: (id: string) => string | undefined): FeedLine[] {
+export function feedLines(
+  state: LatticeState,
+  limit = 40,
+  nameOf?: (id: string) => string | undefined,
+  room?: RoomId | null,
+): FeedLine[] {
   const out: FeedLine[] = [];
   const name = (id: string) => nameOf?.(id) ?? state.agents[id]?.agent.name ?? id;
   for (const e of state.feed) {
     const line = toLine(e, state, name);
-    if (line) out.push(line);
+    if (line && (!room || line.room === room)) out.push(line);
     if (out.length >= limit) break;
   }
   return out;
@@ -35,9 +42,9 @@ export function feedLines(state: LatticeState, limit = 40, nameOf?: (id: string)
 function toLine(e: AgentEvent, state: LatticeState, name: (id: string) => string): FeedLine | null {
   switch (e.type) {
     case "agent.quip":
-      return { id: e.id, ts: e.ts, kind: "quip", agentId: e.agentId, who: name(e.agentId), text: `“${e.text}”` };
+      return { id: e.id, ts: e.ts, kind: "quip", agentId: e.agentId, who: name(e.agentId), text: `“${e.text}”`, room: state.agents[e.agentId]?.place.room };
     case "task.started":
-      return { id: e.id, ts: e.ts, kind: "task", agentId: e.agentId, who: name(e.agentId), text: `started ${e.title} · ${ROOMS[e.room].name}` };
+      return { id: e.id, ts: e.ts, kind: "task", agentId: e.agentId, who: name(e.agentId), text: `started ${e.title} · ${ROOMS[e.room].name}`, room: e.room };
     case "task.completed": {
       const t = state.tasks[e.taskId];
       if (!t) return null;
@@ -48,6 +55,7 @@ function toLine(e: AgentEvent, state: LatticeState, name: (id: string) => string
         agentId: t.agentId,
         who: name(t.agentId),
         text: e.outcome === "success" ? `finished ${t.title}` : `failed ${t.title}`,
+        room: t.room,
       };
     }
     case "approval.requested":
@@ -58,6 +66,7 @@ function toLine(e: AgentEvent, state: LatticeState, name: (id: string) => string
         agentId: e.approval.agentId,
         who: name(e.approval.agentId),
         text: `${ACTION_VERB[e.approval.action] ?? "needs you"}: ${e.approval.summary}`,
+        room: e.approval.room,
       };
     case "approval.resolved": {
       const a = state.approvals[e.approvalId];
@@ -66,6 +75,7 @@ function toLine(e: AgentEvent, state: LatticeState, name: (id: string) => string
         ts: e.ts,
         kind: "resolved",
         text: `C.E.O. ${e.decision} “${a?.request.summary ?? e.approvalId}”`,
+        room: a?.request.room,
       };
     }
     default:

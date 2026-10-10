@@ -28,7 +28,7 @@ export function Lighting() {
         intensity={1.6}
         color="#f2f5ff"
         castShadow
-        shadow-mapSize={high ? [4096, 4096] : [1024, 1024]}
+        shadow-mapSize={high ? [2048, 2048] : [1024, 1024]}
         shadow-camera-left={-50}
         shadow-camera-right={50}
         shadow-camera-top={50}

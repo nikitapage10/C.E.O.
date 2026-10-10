@@ -1301,6 +1301,298 @@ button {
   }
 }
 
+/* ── Kernel PA, room "about", room roster ─────────── */
+.announce {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  translate: -50% 0;
+  display: grid;
+  grid-template-columns: 14px auto;
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: center;
+  max-width: min(620px, calc(100vw - 640px));
+  padding: 10px 16px 11px;
+  border-top: 1px solid var(--hair-strong);
+  border-bottom: 1px solid var(--hair);
+  background: linear-gradient(180deg, rgba(5, 5, 6, 0.85), rgba(5, 5, 6, 0.55));
+  pointer-events: none;
+  animation: rise 0.45s ease-out;
+}
+.announce__mark {
+  grid-row: span 2;
+  width: 11px;
+  height: 11px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.6), inset 0 0 0 3px var(--bg), inset 0 0 0 5px #fff;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.announce__text {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--text);
+}
+.announce--scold .eyebrow {
+  color: var(--danger);
+}
+.announce--nag .eyebrow {
+  color: var(--amber);
+}
+.announce--praise .eyebrow {
+  color: var(--mint);
+}
+.about__blurb {
+  margin: 16px 0 0;
+  max-width: 380px;
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.about__toggle {
+  margin-top: 10px;
+  font-size: 9px;
+  color: var(--faint);
+  pointer-events: auto;
+}
+.about__toggle:hover {
+  color: var(--text);
+}
+.about {
+  margin-top: 12px;
+  padding: 12px 14px;
+  max-width: 380px;
+  border-left: 1px solid var(--hair);
+  background: rgba(5, 5, 6, 0.6);
+  pointer-events: auto;
+}
+.about dl {
+  margin: 0;
+}
+.about dl div {
+  margin-bottom: 8px;
+}
+.about dt {
+  font-size: 8.5px;
+  color: var(--text);
+}
+.about dd {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--faint);
+}
+.about__phase {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.lines--room {
+  margin-top: 14px;
+}
+.title-block {
+  pointer-events: none;
+}
+.roster--room {
+  top: 420px;
+}
+.roster__more {
+  grid-column: 2 / span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+.roster__task {
+  font-size: 10px;
+  color: var(--muted);
+}
+.roster__bar {
+  display: block;
+  height: 1px;
+  margin-top: 3px;
+  background: var(--hair);
+}
+.roster__bar i {
+  display: block;
+  height: 100%;
+}
+.roster__traits {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--faint);
+}
+.roster__rel {
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.roster--room li > button:first-child {
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.roster__empty,
+.sig--empty {
+  padding: 6px 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--faint);
+}
+.sig--kernel span {
+  color: var(--text);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12.5px;
+}
+.sig__kernel {
+  font-family: var(--mono);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.nameplate {
+  width: max-content;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-align: center;
+  text-shadow: 0 0 6px #000, 0 0 12px #000;
+  pointer-events: none;
+}
+.nameplate small {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--muted);
+}
+.bubble {
+  font-size: 15px;
+  max-width: 260px;
+}
+
+/* ── Frosted glass: just enough behind the text to read it over a busy world ── */
+:root {
+  --glass: rgba(8, 9, 12, 0.34);
+  --glass-edge: rgba(255, 255, 255, 0.08);
+}
+.topbar,
+.title-block,
+.rail,
+.footer,
+.coords,
+.inward {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--glass-edge);
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+.topbar {
+  top: 14px;
+  left: 18px;
+  right: 18px;
+  padding: 9px 16px;
+}
+.title-block {
+  top: 82px;
+  left: 18px;
+  padding: 18px 22px 16px;
+}
+.rail {
+  padding: 14px 16px 12px;
+}
+.roster {
+  left: 18px;
+  width: 262px;
+}
+.signals {
+  right: 18px;
+  top: 82px;
+  width: 300px;
+}
+.footer {
+  left: 18px;
+  right: 18px;
+  bottom: 14px;
+  padding: 8px 16px;
+}
+.coords {
+  right: 18px;
+  bottom: 62px;
+  padding: 10px 14px;
+}
+.inward {
+  left: 18px;
+  bottom: 62px;
+  padding: 10px 14px;
+}
+.announce {
+  top: 72px;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-radius: 6px;
+  border: 1px solid var(--glass-edge);
+  background: rgba(8, 9, 12, 0.5);
+}
+.hud :is(p, h1) {
+  text-shadow: none;
+}
+
+/* Left column: the title block and the roster stack, so an expanded "about" pushes the roster down. */
+.leftcol {
+  position: absolute;
+  top: 82px;
+  left: 18px;
+  bottom: 118px;
+  width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+}
+.leftcol > * {
+  pointer-events: auto;
+}
+.leftcol .title-block,
+.leftcol .roster {
+  position: relative;
+  top: auto;
+  left: auto;
+  bottom: auto;
+}
+.leftcol .title-block {
+  max-width: 400px;
+  flex-shrink: 0;
+}
+.leftcol .roster {
+  width: 290px;
+  flex: 1 1 auto;
+  min-height: 90px;
+  max-height: 100%;
+}
+.leftcol .roster ul {
+  flex: 1;
+  min-height: 0;
+}
+
 /* ── Small screens ───────────────────────────────────── */
 @media (max-width: 1280px) {
   .nav {
@@ -1423,5 +1715,43 @@ button {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  .announce {
+    max-width: calc(100vw - 360px);
+  }
+}
+@media (max-width: 760px) {
+  .leftcol {
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    bottom: 120px;
+    width: auto;
+  }
+  .leftcol .title-block,
+  .leftcol .roster {
+    width: 100%;
+    max-width: none;
+  }
+  .about__blurb {
+    display: none;
+  }
+  .announce {
+    top: auto;
+    bottom: 110px;
+    max-width: calc(100vw - 24px);
+  }
+  .topbar {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+  }
+  .footer {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
   }
 }

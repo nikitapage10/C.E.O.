@@ -162,8 +162,8 @@ export const GLITCHES: GlitchDef[] = [
     kind: "fourth_wall",
     where: "anywhere",
     durationMs: 5000,
-    weight: 4,
-    cooldownMs: 60_000,
+    weight: 1,
+    cooldownMs: 240_000,
   },
   {
     id: "hud-peek",
@@ -171,8 +171,8 @@ export const GLITCHES: GlitchDef[] = [
     kind: "fourth_wall",
     where: "hud",
     durationMs: 6000,
-    weight: 3,
-    cooldownMs: 120_000,
+    weight: 1,
+    cooldownMs: 300_000,
     overlay: true,
   },
 ];

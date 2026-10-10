@@ -28,8 +28,11 @@ function GlyphRain({ g }: { g: ActiveGlitch }) {
         setAfter(true);
         return;
       }
-      ctx.fillStyle = "rgba(4, 6, 11, 0.18)";
+      // Fade the previous frame's glyphs toward transparent (not black), so the world stays visible.
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
       ctx.fillRect(0, 0, c.width, c.height);
+      ctx.globalCompositeOperation = "source-over";
       ctx.font = `${size}px 'IBM Plex Mono', monospace`;
       drops.forEach((y, i) => {
         const ch = GLYPHS[Math.floor(Math.random() * GLYPHS.length)]!;

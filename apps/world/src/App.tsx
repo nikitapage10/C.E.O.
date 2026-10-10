@@ -4,10 +4,11 @@ import { GlitchDirector } from "./glitches/GlitchDirector.tsx";
 import { GlitchOverlay } from "./glitches/GlitchOverlay.tsx";
 import { AgentStudio } from "./hud/AgentStudio.tsx";
 import { Hud } from "./hud/Hud.tsx";
+import { KernelDirector } from "./kernel/KernelDirector.tsx";
 import { SocialDirector } from "./social/SocialDirector.tsx";
 import { Scene } from "./scene/Scene.tsx";
 import { useCast } from "./cast/castStore.ts";
-import { useWorld } from "./store.ts";
+import { pumpSpeech, useWorld } from "./store.ts";
 
 /** window.__ceo: a small debug surface for the console and the e2e tests. */
 function useDebugApi() {
@@ -26,8 +27,16 @@ function useDebugApi() {
   }, []);
 }
 
+function useSpeechTicker() {
+  useEffect(() => {
+    const id = setInterval(pumpSpeech, 300);
+    return () => clearInterval(id);
+  }, []);
+}
+
 export function App() {
   useDebugApi();
+  useSpeechTicker();
   return (
     <>
       <div className="stage">
@@ -38,6 +47,7 @@ export function App() {
       <AgentStudio />
       <GlitchDirector />
       <SocialDirector />
+      <KernelDirector />
     </>
   );
 }

@@ -27,7 +27,7 @@ export const EXCHANGES: Record<RelationshipKind, [string, string][]> = {
   ],
   crush: [
     ["Oh! {other}! I was just… computing.", "Computing what?"],
-    ["Is it warm in here or is it my GPU?", "It's your GPU. Get that checked."],
+    ["Is it warm in here or is it just the server rack?", "It's the server rack. Get that checked."],
     ["I wrote you a haiku, {other}. It's in the logs.", "I'll… read the logs."],
   ],
   partner: [

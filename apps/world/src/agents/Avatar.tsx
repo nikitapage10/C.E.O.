@@ -22,8 +22,110 @@ export function shellMaterial(color: string) {
 const fabric = (c: string) => PBR.fabric(c);
 const VISOR = new MeshPhysicalMaterial({ color: "#05070a", roughness: 0.05, metalness: 0.4, clearcoat: 1, side: DoubleSide });
 
+/**
+ * Body builds. `w`/`h` scale the torso, `lift` raises it onto legs. The native Syntherion hovers armless;
+ * everyone else gets arms and legs, which is what makes a costume read as a character from across a room.
+ */
+export const BUILD: Record<Look["build"], { w: number; h: number; lift: number; limbs: boolean }> = {
+  hover: { w: 1, h: 1, lift: 0, limbs: false },
+  humanoid: { w: 1, h: 1, lift: 0.34, limbs: true },
+  stout: { w: 1.3, h: 0.82, lift: 0.2, limbs: true },
+  lanky: { w: 0.84, h: 1.14, lift: 0.46, limbs: true },
+};
+
+const hairCache = new Map<string, MeshPhysicalMaterial>();
+function hairMaterial(color: string) {
+  let m = hairCache.get(color);
+  if (!m) {
+    m = new MeshPhysicalMaterial({ color, roughness: 0.6, sheen: 0.6, sheenColor: color });
+    hairCache.set(color, m);
+  }
+  return m;
+}
+
+/** Sleeves follow the garment: coats and jumpsuits cover the arms, otherwise it's the shirt. */
+export function sleeveMaterial(look: Look) {
+  if (look.outfit === "labcoat") return PBR.fabric("#f2f2ef");
+  if (["jacket", "trenchcoat", "robe", "jumpsuit"].includes(look.outfit)) return PBR.fabric(look.trim);
+  return look.build === "hover" ? shellMaterial(look.shell) : PBR.fabric(look.shell);
+}
+
+export function Hair({ look }: { look: Look }) {
+  if (look.hair === "none" || look.hat === "hood") return null;
+  const m = hairMaterial(look.hairColor);
+  const top = TOP[look.head];
+  const cap = (
+    <mesh position={[0, 0.015, -0.01]} rotation={[-0.25, 0, 0]} scale={[1.06, 1.06, 1.06]} material={m} castShadow>
+      <sphereGeometry args={[0.2, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.42]} />
+    </mesh>
+  );
+  switch (look.hair) {
+    case "slick":
+      return cap;
+    case "pompadour":
+      return (
+        <group>
+          {cap}
+          <mesh position={[0, top + 0.03, 0.08]} rotation={[0.5, 0, 0]} scale={[1.1, 0.6, 1]} material={m} castShadow>
+            <sphereGeometry args={[0.13, 24, 16]} />
+          </mesh>
+        </group>
+      );
+    case "spiky":
+      return (
+        <group>
+          {cap}
+          {Array.from({ length: 9 }, (_, i) => {
+            const a = (i / 9) * Math.PI * 2;
+            return (
+              <mesh key={i} position={[Math.cos(a) * 0.1, top - 0.01, Math.sin(a) * 0.1 - 0.02]} rotation={[Math.sin(a) * 0.7, 0, -Math.cos(a) * 0.7]} material={m} castShadow>
+                <coneGeometry args={[0.04, 0.14, 8]} />
+              </mesh>
+            );
+          })}
+        </group>
+      );
+    case "long":
+      return (
+        <group>
+          {cap}
+          <mesh position={[0, -0.12, -0.06]} material={m} castShadow>
+            <cylinderGeometry args={[0.2, 0.23, 0.32, 32, 1, true, Math.PI * 0.62, Math.PI * 0.76]} />
+          </mesh>
+        </group>
+      );
+    case "mohawk":
+      return (
+        <group>
+          {Array.from({ length: 7 }, (_, i) => (
+            <mesh key={i} position={[0, top + 0.02 - Math.abs(i - 3) * 0.015, 0.13 - i * 0.045]} material={m} castShadow>
+              <boxGeometry args={[0.035, 0.16 - Math.abs(i - 3) * 0.015, 0.05]} />
+            </mesh>
+          ))}
+        </group>
+      );
+    case "bun":
+      return (
+        <group>
+          {cap}
+          <mesh position={[0, top - 0.02, -0.12]} material={m} castShadow>
+            <sphereGeometry args={[0.08, 20, 16]} />
+          </mesh>
+        </group>
+      );
+    case "afro":
+      return (
+        <mesh position={[0, 0.07, -0.03]} material={m} castShadow>
+          <sphereGeometry args={[0.29, 24, 20]} />
+        </mesh>
+      );
+    default:
+      return null;
+  }
+}
+
 export function Head({ look }: { look: Look }) {
-  const shell = shellMaterial(look.shell);
+  const shell = shellMaterial(look.skin);
   switch (look.head) {
     case "dome":
       return (
@@ -269,7 +371,7 @@ export function Hat({ look }: { look: Look }) {
 }
 
 /** Clothing over the torso (torso is ~0.27 wide at the chest, 0.2 at the waist). */
-export function Outfit({ look }: { look: Look }) {
+export function Outfit({ look, floor = 0.06 }: { look: Look; floor?: number }) {
   const trim = fabric(look.trim);
   const open = (rTop: number, rBottom: number, y0: number, y1: number, mat = trim) => (
     <mesh position={[0, (y0 + y1) / 2, 0]} material={mat} castShadow>
@@ -318,11 +420,11 @@ export function Outfit({ look }: { look: Look }) {
         </group>
       );
     case "labcoat":
-      return open(0.29, 0.29, 0.28, 1.06, fabric("#f2f2ef"));
+      return open(0.29, 0.31, Math.min(0.28, floor + 0.45), 1.06, fabric("#f2f2ef"));
     case "trenchcoat":
       return (
         <group>
-          {open(0.29, 0.36, 0.14, 1.06)}
+          {open(0.29, 0.4, Math.min(0.14, floor + 0.22), 1.06)}
           <mesh position={[0, 0.62, 0]} rotation={[Math.PI / 2, 0, 0]} material={PBR.blackMetal()}>
             <torusGeometry args={[0.215, 0.012, 8, 40]} />
           </mesh>
@@ -331,10 +433,10 @@ export function Outfit({ look }: { look: Look }) {
     case "overalls":
       return (
         <group>
-          {closed(0.215, 0.2, 0.3, 0.66)}
-          <Block size={[0.22, 0.26, 0.03]} position={[0, 0.78, 0.235]} material={trim} radius={0.02} />
+          {closed(0.215, 0.2, 0.26, 0.66, PBR.fabric(look.lower))}
+          <Block size={[0.24, 0.28, 0.03]} position={[0, 0.78, 0.235]} material={PBR.fabric(look.lower)} radius={0.02} />
           {[-0.08, 0.08].map((x) => (
-            <Block key={x} size={[0.035, 0.36, 0.02]} position={[x, 0.93, 0.21]} rotation={[0.35, 0, 0]} material={trim} radius={0.008} />
+            <Block key={x} size={[0.04, 0.36, 0.02]} position={[x, 0.93, 0.21]} rotation={[0.35, 0, 0]} material={PBR.fabric(look.lower)} radius={0.008} />
           ))}
           {[-0.08, 0.08].map((x) => (
             <mesh key={x} position={[x, 0.88, 0.255]} material={PBR.brass()}>
@@ -353,7 +455,7 @@ export function Outfit({ look }: { look: Look }) {
     case "robe":
       return (
         <group>
-          {closed(0.29, 0.38, 0.06, 1.06)}
+          {closed(0.29, 0.42, Math.min(0.06, floor + 0.03), 1.06)}
           <mesh position={[0, 0.62, 0]} rotation={[Math.PI / 2, 0, 0]} material={PBR.matte("#3a2a1a", 0.9)}>
             <torusGeometry args={[0.215, 0.018, 8, 40]} />
           </mesh>

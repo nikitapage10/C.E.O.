@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, type Group, type Mesh } from "three";
 import { Flare } from "../fx/Flare.tsx";
 import { emissive, kernelMaterial } from "../fx/materials.ts";
+import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 
 const HEIGHT = 18;
@@ -29,6 +30,7 @@ export function Kernel() {
   const shards = useRef<Group>(null);
   const sigil = useRef<Group>(null);
   const monolith = useRef<Mesh>(null);
+  const voice = useRef<Group>(null);
   const shardData = useMemo(
     () =>
       Array.from({ length: 14 }, (_, i) => ({
@@ -57,6 +59,13 @@ export function Kernel() {
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (monolith.current) monolith.current.rotation.y = t * 0.05;
+    if (voice.current) {
+      // The Kernel's port flares while it's on the PA.
+      const a = useWorld.getState().announcement;
+      const speaking = a && a.until > performance.now();
+      const target = speaking ? 1.5 + Math.abs(Math.sin(t * 9)) * 0.5 : 1;
+      voice.current.scale.setScalar(voice.current.scale.x + (target - voice.current.scale.x) * 0.15);
+    }
     if (sigil.current) {
       sigil.current.rotation.y = t * 0.12;
       sigil.current.position.y = 8 + Math.sin(t * 0.4) * 0.4;
@@ -95,7 +104,9 @@ export function Kernel() {
       <mesh position={[0, KERNEL_PORT_Y - 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={emissive(PALETTE.ice, 0.25)}>
         <ringGeometry args={[KERNEL_PORT_RADIUS - 0.08, KERNEL_PORT_RADIUS + 0.08, 128]} />
       </mesh>
-      <Flare position={[0, KERNEL_PORT_Y + 0.3, 0]} size={7} intensity={1.1} pulse={1} color={PALETTE.silver} />
+      <group ref={voice} position={[0, KERNEL_PORT_Y + 0.3, 0]}>
+        <Flare size={7} intensity={1.1} pulse={1} color={PALETTE.silver} />
+      </group>
       <Flare position={[0, HEIGHT * 0.72, 0]} size={4} intensity={0.9} color={PALETTE.violet} />
       <pointLight position={[0, 6, 0]} color={PALETTE.silver} intensity={60} distance={40} decay={1.6} />
     </group>

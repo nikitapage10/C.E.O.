@@ -165,8 +165,15 @@ Five creatures in the Lattice belong to no House and do no work:
 - **Myshka**, a grey Maine Coon kitten. He arrived one morning on the Kernel's warm side and was granted root
   access before anyone could object. He goes everywhere. The Kernel, which complains about everything, has never
   once complained about Myshka. He's a good boy. It is on file.
-- **The Foundling**, small, green and about fifty, found in a floating pod in the lost-and-found. It eats the
-  Break Room's snacks without touching them.
+- **Brogu**, small, green and about fifty, found in a floating pod in the lost-and-found. For a long time he
+  rode the pod everywhere. Then one night shift he climbed out and walked, and he has not stopped since: he
+  toddles from room to room on legs nobody has actually seen, arms out for balance, ears flopping a beat behind.
+  He does no work and was never asked to. He eats the Break Room's snacks without touching them, keeps hobbit
+  hours (breakfast, second breakfast, elevenses, and so on until the snacks run out), and says exactly one word,
+  his name, which is how he got it. Now and then he stops, raises one small hand at something across the room,
+  and screws his eyes shut; usually it's a biscuit, and usually it moves. Noco has him down as Psychic type and
+  will not hear otherwise. Rocky thinks he is the best small one. The pod is still in the lost-and-found, in
+  case he wants it back.
 - **Biscuit**, a Shiba Inu who wandered in through the Green's turnstile and was put on the org chart before
   anyone noticed. Supervises the pitch and the snack shelf.
 - **Spore**, a mushroom familiar that grew out of a footnote in the Archive. Dances on a natural 20.

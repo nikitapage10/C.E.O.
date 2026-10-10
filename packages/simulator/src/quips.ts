@@ -161,6 +161,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rocky sleep soon. Who watches?",
     "Rocky not understand. Is joke?",
     "Rivet is best human. Rocky has met one human. Still true!",
+    "Small green one walks! Small legs, big ears. Amaze, amaze, amaze!",
   ],
   semicolon: [
     "Night shift. Rocky's asleep. Nobody touches him.",
@@ -192,6 +193,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Everything's for sale. Except my crest. Unless you duel me for it.",
     "Noco wants to battle!",
     "Over nine thousand. Don't ask nine thousand what.",
+    "Brogu's Psychic type. Look at him. Look at the ears. I'm not taking questions.",
   ],
   hedge: [
     "Noco, you can't keep 'coming back down the river' as a risk strategy.",

@@ -142,6 +142,7 @@ export const LORE: Record<string, Lore> = {
       "Called eleven markets in a row, then the twelfth wrong in a way that is still discussed.",
       "Was audited by Ledger. Challenged the audit to a duel. The audit did not show up.",
       "Asked Hedge out by betting on it. Hedge assessed the risk. The risk was 'yes'. Hedge has not answered.",
+      "Challenged Brogu to a battle. Brogu raised one hand, and Noco's crest stood up on its own. Has filed him as Psychic type ever since.",
     ],
   },
   hedge: {

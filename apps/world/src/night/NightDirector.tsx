@@ -16,7 +16,7 @@ export const NIGHT_KERNEL: Record<Shift | "zoomies", string[]> = {
     "Evening. Lights to night levels. Anyone found napping will be logged. Everyone will be found napping.",
   ],
   night: [
-    "Night shift. Productivity: theoretical. Snacks: missing. The Foundling: suspiciously well fed.",
+    "Night shift. Productivity: theoretical. Snacks: missing. Brogu: suspiciously well fed.",
     "It is night. I do not sleep. I am not sentient. Those facts are related.",
   ],
   dawn: [

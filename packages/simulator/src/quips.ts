@@ -231,6 +231,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Our hero crosses the Archive in search of a snack.",
     "Rocky played a bard last session. Nobody's recovered.",
     "Welcome to floor one, crawlers. Try not to die.",
+    "Pudding, that's the party's loot. …Fine. That's Pudding's loot.",
   ],
   heimerdinger: [
     "Haste, my dear colleague, is the mother of explosions.",

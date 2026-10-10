@@ -148,7 +148,7 @@ called **Tomorrowlattice**.
 
 ## Pets
 
-Four creatures in the Lattice belong to no House and do no work:
+Five creatures in the Lattice belong to no House and do no work:
 
 - **Myshka**, a grey Maine Coon kitten. He arrived one morning on the Kernel's warm side and was granted root
   access before anyone could object. He goes everywhere. The Kernel, which complains about everything, has never
@@ -158,6 +158,10 @@ Four creatures in the Lattice belong to no House and do no work:
 - **Biscuit**, a Shiba Inu who wandered in through the Green's turnstile and was put on the org chart before
   anyone noticed. Supervises the pitch and the snack shelf.
 - **Spore**, a mushroom familiar that grew out of a footnote in the Archive. Dances on a natural 20.
+- **Pudding**, an owlbear cub and Spore's opposite number. D20 rolled a natural 1 on a random-encounter table
+  at the Archive's long table, and he walked off the map. Nobody has rolled to make him leave. He's a chunky
+  boy, half bear and half owl: he lumbers like the one, preens like the other, sits on his haunches to watch
+  the campaigns, and naps flat out on the Green. His hugs count as a grapple. He chews dice.
 
 ## The lawyers
 

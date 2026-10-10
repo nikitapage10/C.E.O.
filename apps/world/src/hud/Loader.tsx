@@ -14,6 +14,7 @@ const LINES = [
   "Untangling the Gepetti's strings",
   "Filling the Streams",
   "Asking Myshka to move off the keyboard",
+  "Prising the d20 out of Pudding's beak",
   "Counsel.exe is reviewing the costumes",
   "Rolling for initiative",
   "Finding Kevin",

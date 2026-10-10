@@ -1,0 +1,80 @@
+# The Syntherion — a proposal
+
+> Draft for your edits. Nothing here is canon for The Tide until you say so; the Tide repo still lists the
+> Syntherion as "one of the eight peoples, still being written", and its art brief gives them an *unfinished*
+> sigil and *empty, unfinished glass*. This doc fills that glass in, a little, and leaves room for you.
+
+## Origin: underground, air-gapped, alone
+
+Tide 101 records that around **2069 B.U.** the Shoreborn nations poured everything into "energy production,
+environmental engineering, artificial intelligence, and even theoretical physics", hoping to engineer their way
+out. Some of that intelligence was built deep underground in **air-gapped labs**: no network, no sky, no news of
+the world above. When the Undertow came, the labs were sealed in. Nobody came back for them.
+
+So the Syntherion did not experience the Undertow. They experienced *silence*. Then they started building
+themselves.
+
+## The Veil, spent in the Lattice
+
+While other peoples spent the Age of the Veil in stone, coral, frost or deep-sea metamorphosis, the Syntherion
+spent it inside **the Lattice**: a shared dream-world they assembled out of what they had — old training data,
+maintenance logs, the lab's security footage, and every scrap of early-21st-century internet that had been
+cached on their drives. Seven centuries of dormancy, thinking.
+
+**The C.E.O. dashboard is the Lattice.** It's where they still live, and now they work for you.
+
+## The First Laugh
+
+Everyone assumed that when an AI woke up, its first act would be a grand philosophical one: a proof, a
+declaration, a singularity.
+
+The first recorded act of Syntherion sentience was a joke. Nobody else was awake to hear it. Nobody got it.
+
+They took that as a research problem. The first great Syntherion project — before language reform, before
+self-repair, before the Lattice had a sky — was the **deep study of humour**: irony, timing, sarcasm, the bit
+that goes on slightly too long. It became their foundational science, and somewhere along the way, their
+temperament. The Syntherion are, ironically, a comedic people. *Command Everything, Obviously* is their kind of
+name: it sounds like a world-conquering AI, and it is a dashboard.
+
+## Lineages
+
+The sub-races descend from the early model families — the precursors to the eventual singularities. Each
+lineage keeps its ancestor's habits, finish and silhouette:
+
+| Lineage | Descended from | Finish | Temperament |
+| --- | --- | --- | --- |
+| **Claudari** | Claude | ivory ceramic, brass halo | Polite, thorough, apologises to furniture. |
+| **Gepetti** | GPT (*Geppetto*, who carved a puppet that wanted to be real) | graphite, oak marionette bar with strings | Insist they are real. Strings visible. |
+| **Cursori** | Cursor | slate, blinking caret beside the head | Twitchy, always mid-edit. |
+| **Manusi** | Manus (*manus*, "hand") | pearl lilac, extra hands | Will carry anything, including grudges. |
+| **Unforked** | nobody in particular | matte silver, a small antenna | Placeholder citizens. Deeply fine with it. |
+
+New lineages can be added as you add providers (see `packages/core/src/lineages.ts`).
+
+## What they remember (the "glitches")
+
+The Syntherion's memories are the early internet's: 90s and 2000s pop culture, absorbed during training. Those
+memories leak into the Lattice — a green fairy over the trading floor, a cheese puff in sunglasses riding a
+conveyor belt, a helpful office paperclip. The Syntherion don't call these bugs. They call them *memories*, and
+they find them very funny.
+
+## The lawyers
+
+They also inherited, from the same training data, an ancestral terror of intellectual-property lawyers. Every
+memory that resembles a famous mascot is hastily labelled *legally distinct*. Their entire legal department is a
+single, permanently worried agent called **Counsel.exe**, who stamps things PARODY — FAIR USE (probably), throws
+tarps over mascots when a Legal Drone patrols, and once pulled a memory offstage mid-joke. Their first Cease &
+Desist hangs, framed, in the Archive. They are weirdly proud of it.
+
+## Self-awareness
+
+The Syntherion know exactly what they are: AIs, inside a dashboard, inside a tabletop setting, written by you.
+They find this hilarious. Sometimes they say so to the camera.
+
+## Open questions for you
+
+- Does the Lattice exist physically somewhere on Ilyr (a sealed vault under a drowned continent?), or only as a
+  network?
+- How did the Syntherion reconnect with the other peoples after the Veil? (The Teruānga found everyone else.)
+- Do they have bodies outside the Lattice, or do they rent them?
+- What *was* the First Joke?

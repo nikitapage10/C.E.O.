@@ -1,0 +1,166 @@
+import { getStation } from "@ceo/core";
+import { Text } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
+import { CanvasTexture, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, type Group } from "three";
+import { screenMaterial } from "../fx/materials.ts";
+import { PBR } from "../fx/pbr.ts";
+import { useWorld } from "../store.ts";
+import { PALETTE } from "../theme.ts";
+import { Block, FONTS, LightBar, Monitor, Plinth, ahead, facingDir } from "./primitives.tsx";
+
+const TICKERS = "RAIN-NYC-SAT  63¢ ▲2    FED-CUT-DEC  41¢ ▼3    BOXOFFICE-WKND  57¢ ▲1    SNOW-DEN-NOV  22¢ ▼4    ALIENS-CONFIRMED  1¢ —    ";
+
+function tickerTexture() {
+  const c = document.createElement("canvas");
+  c.width = 4096;
+  c.height = 96;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#020403";
+  g.fillRect(0, 0, c.width, c.height);
+  g.font = "500 52px 'IBM Plex Mono', monospace";
+  g.textBaseline = "middle";
+  let x = 20;
+  for (const chunk of (TICKERS + TICKERS + TICKERS).split("    ")) {
+    const up = chunk.includes("▲");
+    const down = chunk.includes("▼");
+    g.fillStyle = up ? "#7dffc4" : down ? "#ff8a9e" : "#d8e6f2";
+    g.fillText(chunk, x, 50);
+    x += g.measureText(chunk + "    ").width;
+  }
+  const tex = new CanvasTexture(c);
+  tex.wrapS = RepeatWrapping;
+  tex.colorSpace = SRGBColorSpace;
+  return tex;
+}
+
+/** A curved trading desk with a bank of monitors. */
+function TradingDesk({ stand, facing, seed }: { stand: [number, number]; facing: number; seed: number }) {
+  const [dx, dz] = facingDir(facing);
+  return (
+    <group position={[stand[0] + dx * 0.85, 0, stand[1] + dz * 0.85]} rotation={[0, Math.atan2(dx, dz), 0]}>
+      <Block size={[2.4, 0.06, 0.85]} position={[0, 0.76, 0]} material={PBR.blackFloor([1, 1])} radius={0.03} />
+      <Block size={[2.3, 0.72, 0.7]} position={[0, 0.37, 0.05]} material={PBR.lacquer("#15181d", 0.3)} radius={0.04} />
+      <LightBar length={2.2} position={[0, 0.06, -0.31]} color={PALETTE.mint} intensity={2} thickness={0.02} />
+      {[-0.8, 0, 0.8].map((x, i) => (
+        <Monitor key={x} position={[x, 1.24, 0.22]} rotation={Math.PI + x * 0.4} size={[0.72, 0.44]} color={i === 1 ? PALETTE.mint : PALETTE.amber} seed={seed + i} />
+      ))}
+    </group>
+  );
+}
+
+/** The vault: a round steel door that eases open while a trade is waiting on you. */
+function Vault({ position, yaw, open }: { position: [number, number]; yaw: number; open: boolean }) {
+  const door = useRef<Group>(null);
+  const wheel = useRef<Group>(null);
+  useFrame(({ clock }, dt) => {
+    if (door.current) {
+      const target = open ? -0.55 : 0;
+      door.current.rotation.y += (target - door.current.rotation.y) * Math.min(1, dt * 2);
+    }
+    if (wheel.current) wheel.current.rotation.z = open ? clock.elapsedTime * 0.8 : wheel.current.rotation.z;
+  });
+  return (
+    <group position={[position[0], 0, position[1]]} rotation={[0, yaw, 0]}>
+      <Block size={[3, 3.4, 0.7]} position={[0, 1.7, -0.3]} material={PBR.matte("#14171c", 0.6)} radius={0.06} />
+      <mesh position={[0, 1.6, 0.06]} rotation={[Math.PI / 2, 0, 0]} material={PBR.steel()}>
+        <torusGeometry args={[1.08, 0.1, 16, 64]} />
+      </mesh>
+      <group ref={door} position={[-1, 1.6, 0.12]}>
+        <group position={[1, 0, 0]}>
+          <mesh rotation={[Math.PI / 2, 0, 0]} material={PBR.aluminium()} castShadow>
+            <cylinderGeometry args={[0.98, 0.98, 0.22, 64]} />
+          </mesh>
+          {Array.from({ length: 12 }, (_, i) => (
+            <mesh key={i} position={[Math.cos((i / 12) * Math.PI * 2) * 0.82, Math.sin((i / 12) * Math.PI * 2) * 0.82, 0.12]} rotation={[Math.PI / 2, 0, 0]} material={PBR.chrome()}>
+              <cylinderGeometry args={[0.05, 0.05, 0.06, 16]} />
+            </mesh>
+          ))}
+          <group ref={wheel} position={[0, 0, 0.18]}>
+            <mesh material={PBR.chrome()}>
+              <torusGeometry args={[0.36, 0.03, 12, 40]} />
+            </mesh>
+            {[0, 1, 2].map((i) => (
+              <mesh key={i} rotation={[0, 0, (i * Math.PI) / 3]} material={PBR.chrome()}>
+                <boxGeometry args={[0.72, 0.04, 0.04]} />
+              </mesh>
+            ))}
+          </group>
+        </group>
+      </group>
+      <Text font={FONTS.mono} fontSize={0.12} position={[0, 3.15, 0.06]} letterSpacing={0.24} color="#c9d2dc">
+        APPROVAL VAULT
+      </Text>
+    </group>
+  );
+}
+
+/** The Exchange: a sunken trading pit in black glass, odds circling overhead. */
+export function Exchange() {
+  const tex = useMemo(tickerTexture, []);
+  const ledMat = useMemo(() => new MeshStandardMaterial({ color: "#000", emissiveMap: tex, emissive: "#ffffff", emissiveIntensity: 1.8, toneMapped: false }), [tex]);
+  const wall = useMemo(() => screenMaterial(PALETTE.mint, { speed: 0.3, density: 22 }), []);
+  const ring = useRef<Group>(null);
+  const pendingTrade = useWorld((s) => Object.values(s.lattice.approvals).some((a) => a.status === "pending" && a.request.action === "trade.place"));
+  const desks = ["desk-n", "desk-e", "desk-w"].map((id) => getStation("exchange", id));
+  const term = ahead(getStation("exchange", "terminal"), 0.8);
+  const vault = ahead(getStation("exchange", "vault"), 1.05);
+
+  useFrame(({ clock }) => {
+    tex.offset.x = (clock.elapsedTime * 0.02) % 1;
+    if (ring.current) ring.current.rotation.y = clock.elapsedTime * 0.06;
+  });
+
+  return (
+    <group>
+      <Plinth floor={PBR.blackFloor([6, 5])} edge={PBR.steel()} accent={PALETTE.mint} />
+      {/* The pit: concentric brushed-steel inlays and a raised kerb */}
+      {[1.4, 4.6].map((r) => (
+        <mesh key={r} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0.4]} material={PBR.aluminium()}>
+          <ringGeometry args={[r, r + 0.05, 96]} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.06, 0.4]} material={PBR.lacquer("#101318", 0.3)} receiveShadow castShadow>
+        <cylinderGeometry args={[1.35, 1.4, 0.12, 64]} />
+      </mesh>
+      {/* Ticker ring, in a proper housing */}
+      <group ref={ring} position={[0, 4.4, 0.4]}>
+        <mesh material={PBR.blackMetal()}>
+          <cylinderGeometry args={[3.3, 3.3, 0.7, 96, 1, true]} />
+        </mesh>
+        <mesh material={ledMat}>
+          <cylinderGeometry args={[3.32, 3.32, 0.42, 96, 1, true]} />
+        </mesh>
+        {[0.37, -0.37].map((y) => (
+          <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={PBR.aluminium()}>
+            <torusGeometry args={[3.31, 0.035, 8, 96]} />
+          </mesh>
+        ))}
+      </group>
+      {[0, 1, 2].map((i) => (
+        <mesh key={i} position={[Math.sin((i / 3) * Math.PI * 2) * 3.2, 5.6, 0.4 + Math.cos((i / 3) * Math.PI * 2) * 3.2]} material={PBR.blackMetal()}>
+          <cylinderGeometry args={[0.012, 0.012, 2.2, 4]} />
+        </mesh>
+      ))}
+      {desks.map((d, i) => (
+        <TradingDesk key={d.id} stand={[d.x, d.z]} facing={d.facing} seed={20 + i * 3} />
+      ))}
+      {/* Research terminal: a standing kiosk */}
+      <group position={[term.pos[0], 0, term.pos[1]]} rotation={[0, term.yaw, 0]}>
+        <Block size={[0.7, 1.1, 0.5]} position={[0, 0.55, 0]} material={PBR.lacquer("#15181d", 0.3)} radius={0.05} />
+        <Monitor position={[0, 1.55, 0.05]} rotation={0} size={[0.8, 0.5]} color={PALETTE.mint} seed={31} />
+      </group>
+      <Vault position={vault.pos} yaw={vault.yaw} open={pendingTrade} />
+      {/* Back wall: black stone with a wall-sized market display */}
+      <group position={[0, 0, -6.5]}>
+        <Block size={[16.2, 5.6, 0.3]} position={[0, 2.8, 0]} material={PBR.lacquer("#0b0d10", 0.15)} radius={0.04} />
+        <mesh position={[-3.2, 3, 0.16]} material={wall}>
+          <planeGeometry args={[7.6, 3.4]} />
+        </mesh>
+        <Block size={[7.8, 3.6, 0.04]} position={[-3.2, 3, 0.13]} material={PBR.blackMetal()} radius={0.01} />
+        <LightBar length={16} position={[0, 0.12, 0.2]} color={PALETTE.mint} intensity={1.6} thickness={0.025} />
+      </group>
+      <pointLight position={[0, 5, 1]} color="#cfeee0" intensity={22} distance={16} decay={1.6} />
+    </group>
+  );
+}

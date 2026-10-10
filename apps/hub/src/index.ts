@@ -1,0 +1,27 @@
+import type { AgentEvent, ApprovalRequest, AutonomyPolicy } from "@ceo/core";
+
+/**
+ * Phase 2+: the always-on hub. Not implemented yet — this file pins down the seams so the world and
+ * future adapters agree on them. See README.md and docs/AGENT_STACK.md.
+ */
+
+/** Something that produces AgentEvents: Claude Code hooks, an OpenAI agent loop, BlueBubbles webhooks… */
+export interface EventSource {
+  id: string;
+  start(emit: (event: AgentEvent) => void): Promise<void>;
+  stop(): Promise<void>;
+}
+
+/** Something that can carry out an approved action in the outside world. */
+export interface ActionExecutor {
+  /** Which actions this executor handles, e.g. ["message.send"]. */
+  handles: ApprovalRequest["action"][];
+  execute(request: ApprovalRequest): Promise<{ ok: boolean; note?: string }>;
+}
+
+export interface HubConfig {
+  port: number;
+  policy: AutonomyPolicy;
+  sources: EventSource[];
+  executors: ActionExecutor[];
+}

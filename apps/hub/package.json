@@ -1,0 +1,13 @@
+{
+  "name": "@ceo/hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Phase 2+: the always-on hub that runs on the MacBook. Stub only in phase 1.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ceo/core": "0.1.0"
+  }
+}

@@ -52,6 +52,7 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
   yordle: 0.95,
   hanar: 2.1,
   rocky: 1.0,
+  compactor: 1.3,
   crawler: 1.0,
   masked: 1.45,
   orc: 1.9,
@@ -68,4 +69,5 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
 export const CARRY_AT: Partial<Record<Exclude<Body, "classic">, [number, number]>> = {
   hanar: [0.95, 0.3],
   rocky: [0.55, 0.42],
+  compactor: [0.62, 0.5],
 };

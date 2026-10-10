@@ -20,6 +20,7 @@ import { Kernel } from "./Kernel.tsx";
 import { Lighting } from "./Lighting.tsx";
 import { SceneReady } from "./SceneReady.tsx";
 import { Streams } from "./Streams.tsx";
+import { Wardrobe } from "./Wardrobe.tsx";
 import { LetterFlight } from "../letters/LetterFlight.tsx";
 import { Pumpkins } from "../veil/Pumpkins.tsx";
 import { COSTUME_PARTY, VEIL } from "../veil/veil.ts";
@@ -41,6 +42,8 @@ function RenderInfo() {
     gl.info.autoReset = false;
     const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
     api.renderInfo = () => ({ ...gl.info.render, ...gl.info.memory, programs: gl.info.programs?.length ?? 0 });
+    // Every compiled shader program, to spot what compiles late (and stalls a frame) after boot.
+    api.programs = () => (gl.info.programs ?? []).map((p) => `${p.name} ${p.cacheKey}`);
   }, [gl]);
   useFrame(() => gl.info.reset(), -1000);
   return null;
@@ -49,7 +52,7 @@ function RenderInfo() {
 export function Scene() {
   const quality = useWorld((s) => s.quality);
   // Jack-o'-lanterns only while the C.E.O.'s costume party is on.
-  const party = useWorld((s) => s.gathering?.id === COSTUME_PARTY);
+  const party = useWorld((s) => s.gatherings.some((g) => g.id === COSTUME_PARTY));
   const setFocus = useWorld((s) => s.setFocus);
   const selectAgent = useWorld((s) => s.selectAgent);
   return (
@@ -81,6 +84,7 @@ export function Scene() {
         <Floor />
         <FloorRings />
         <Motes count={quality === "high" ? 1600 : 600} />
+        <Wardrobe />
         <SceneReady />
       </Suspense>
       <CameraRig />

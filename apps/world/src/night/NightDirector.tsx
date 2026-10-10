@@ -4,7 +4,7 @@ import { unlock } from "../achievements/achievements.ts";
 import { clock } from "../clock.ts";
 import { petOrders } from "../pets/pets.ts";
 import { useCast } from "../cast/castStore.ts";
-import { useWorld } from "../store.ts";
+import { gatheringMembers, useWorld } from "../store.ts";
 import { daySkip, hourNow, latticeDay, shiftOf, type Shift } from "./dayCycle.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -49,7 +49,7 @@ export function NightDirector() {
     const idleAgents = () => {
       const s = useWorld.getState();
       const waiting = new Set(pendingApprovals(s.lattice).map((p) => p.request.agentId));
-      const busy = new Set(s.gathering ? [s.gathering.host, ...s.gathering.guests] : []);
+      const busy = gatheringMembers(s);
       const now = performance.now();
       return Object.values(s.lattice.agents).filter(
         (a) =>

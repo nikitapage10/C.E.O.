@@ -17,7 +17,7 @@ import {
 import { CLUB_BPM, deck, tickDeck } from "../club/deck.ts";
 import { Beam, Haze, LaserFan, Smoke } from "../fx/atmos.tsx";
 import { PBR } from "../fx/pbr.ts";
-import { useWorld } from "../store.ts";
+import { gatheringIn, useWorld } from "../store.ts";
 import { Block, FONTS } from "./primitives.tsx";
 import { skylineMaterial } from "./skyline.ts";
 
@@ -59,8 +59,7 @@ function paletteColor(i: number, out = col) {
 
 function useShowDriver() {
   useFrame(({ clock }, dt) => {
-    const g = useWorld.getState().gathering;
-    const here = g?.room === "breakroom" ? g : null;
+    const here = gatheringIn(useWorld.getState(), "breakroom");
     // A track from the C.E.O. turns the club on by itself, whoever is (or isn't) on the decks.
     show.act =
       here?.id === "concert"

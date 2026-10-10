@@ -42,7 +42,7 @@ export function AchievementDirector() {
         if (ROOM_IDS.every((r) => rooms.has(r))) unlock("grand-tour");
       }
       if (s.activeGlitch && !prev.activeGlitch) unlock("memory");
-      if (s.gathering?.id === "costume-party" && prev.gathering?.id !== "costume-party") unlock("hallowed");
+      if (s.gatherings.some((g) => g.id === "costume-party") && !prev.gatherings.some((g) => g.id === "costume-party")) unlock("hallowed");
     });
     const watchStudio = useCast.subscribe((s) => {
       if (s.studio !== null) unlock("stylist");

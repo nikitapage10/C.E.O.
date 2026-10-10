@@ -5,7 +5,7 @@ import { useMemo, useRef } from "react";
 import { MeshStandardMaterial, type Group, type Mesh } from "three";
 import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
-import { useWorld } from "../store.ts";
+import { gatheringIn, useWorld } from "../store.ts";
 import { Block, FONTS, facingDir } from "./primitives.tsx";
 
 /**
@@ -31,9 +31,9 @@ function SeatDie({ station, color }: { station: Station; color: string }) {
   const shown = useRef(-1);
   useFrame(({ clock }) => {
     const s = useWorld.getState();
-    const g = s.gathering;
+    const g = gatheringIn(s, "archive");
     let roll = null;
-    if (g?.room === "archive" && g.live) {
+    if (g?.live) {
       const who = [g.host, ...g.guests].find((id) => s.lattice.agents[id]?.place.station === station.id);
       roll = who ? s.rolls[who] : undefined;
     }
@@ -108,8 +108,7 @@ function Miniatures() {
   const colors = ["#c94a4a", "#4a7ac9", "#4ac98a", "#c9a24a", "#9a4ac9"];
   const glow = useMemo(() => new MeshStandardMaterial({ color: "#2a1a10", emissive: "#ff6b3a", emissiveIntensity: 0, roughness: 0.6 }), []);
   useFrame(({ clock }) => {
-    const g = useWorld.getState().gathering;
-    const live = g?.room === "archive" && g.live;
+    const live = !!gatheringIn(useWorld.getState(), "archive")?.live;
     glow.emissiveIntensity += ((live ? 1.6 + Math.sin(clock.elapsedTime * 3) * 0.4 : 0) - glow.emissiveIntensity) * 0.05;
     minis.current?.children.forEach((m, i) => {
       if (i < colors.length) m.position.y = live ? Math.abs(Math.sin(clock.elapsedTime * 1.5 + i)) * 0.015 : 0;

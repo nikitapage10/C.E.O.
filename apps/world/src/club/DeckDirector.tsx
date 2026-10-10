@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { unlock } from "../achievements/achievements.ts";
 import { useCast } from "../cast/castStore.ts";
 import { gatheringControl } from "../gatherings/GatheringDirector.tsx";
-import { useWorld } from "../store.ts";
+import { gatheringIn, useWorld } from "../store.ts";
 import { deck, onDeckChange } from "./deck.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -25,11 +25,11 @@ export function DeckDirector() {
       w.setFocus("breakroom");
       const dj = useCast.getState().cast.profiles.kevin?.name ?? "Kevin";
       w.announce(pick(DECK_KERNEL).replace("{title}", deck.title).replace("Kevin", dj), "status", "breakroom");
-      if (!w.gathering) gatheringControl.start("club-night");
+      if (!gatheringIn(w, "breakroom")) gatheringControl.start("club-night");
     });
     const keepOpen = setInterval(() => {
       const w = useWorld.getState();
-      if (deck.playing && !w.gathering) gatheringControl.start("club-night");
+      if (deck.playing && !gatheringIn(w, "breakroom")) gatheringControl.start("club-night");
     }, 6000);
     return () => {
       off();

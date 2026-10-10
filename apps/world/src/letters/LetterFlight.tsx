@@ -61,6 +61,15 @@ export function LetterFlight() {
   if (!inFlight) return null;
   return (
     <group ref={env} name="letter">
+      <LetterEnvelope />
+    </group>
+  );
+}
+
+/** A sealed letter with a faint glow. */
+export function LetterEnvelope() {
+  return (
+    <>
       <mesh material={PBR.matte("#f4ecd8", 0.7)} castShadow>
         <boxGeometry args={[0.36, 0.24, 0.03]} />
       </mesh>
@@ -71,7 +80,7 @@ export function LetterFlight() {
         <octahedronGeometry args={[0.2, 0]} />
         <meshBasicMaterial color="#ffe2a0" transparent opacity={0.12} depthWrite={false} />
       </mesh>
-    </group>
+    </>
   );
 }
 

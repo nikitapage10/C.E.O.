@@ -5,7 +5,7 @@ import { gatheringControl } from "../gatherings/GatheringDirector.tsx";
 import { GATHERINGS } from "../gatherings/gatherings.ts";
 import { skipTo } from "../night/dayCycle.ts";
 import { petOrders } from "../pets/pets.ts";
-import { useWorld } from "../store.ts";
+import { gatheringMembers, useWorld } from "../store.ts";
 
 /**
  * The Kernel console: the C.E.O.'s terminal into the Lattice. The Kernel takes orders from exactly one person,
@@ -26,7 +26,7 @@ const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.lengt
 /** Agents standing about (not walking, not in a gathering). */
 function free() {
   const s = useWorld.getState();
-  const busy = new Set(s.gathering ? [s.gathering.host, ...s.gathering.guests] : []);
+  const busy = gatheringMembers(s);
   return Object.values(s.lattice.agents).filter((a) => !busy.has(a.agent.id) && (!a.motion || clock.sim >= a.motion.startTs + a.motion.duration));
 }
 
@@ -52,12 +52,15 @@ const GATHER_LABEL: Record<string, string> = {
 
 function gather(id: string, room: RoomId): string {
   const w = useWorld.getState();
-  // One gathering at a time: whatever is on breaks up first.
-  const was = w.gathering ? ROOMS[w.gathering.room].name : null;
-  if (was) gatheringControl.end();
-  if (!gatheringControl.start(id)) return "Nobody is free to go. They are all waiting on your approvals. Coincidence is not a supported explanation.";
+  // Two at once, one per room: a second in the same room replaces the first; a third ends the oldest.
+  const { ok, ended } = gatheringControl.start(id);
+  if (!ok) {
+    if (w.gatherings.some((g) => g.id === id)) return "That is already happening. I checked. Twice.";
+    return "Nobody is free to go. They are all busy or waiting on your approvals. Coincidence is not a supported explanation.";
+  }
   w.setFocus(room);
-  if (was) return `Breaking up the party in ${was}. Sending the cast to ${ROOMS[room].name} instead. I do not run two parties at once. I barely run one.`;
+  const label = (g: string) => GATHER_LABEL[g] ?? g;
+  if (ended.length) return `Ending ${ended.map(label).join(" and ")} to make room. Sending the cast to ${ROOMS[room].name}. I run two parties at once, at most. I barely run one.`;
   return pick([`Done. Sending the cast to ${ROOMS[room].name}. Productivity has been suspended by executive order.`, `Executing. ${ROOMS[room].name}, incoming. I have logged this as "team building".`]);
 }
 
@@ -74,9 +77,12 @@ export const COMMANDS: Command[] = [
   {
     verb: "dismiss",
     label: "Back to work",
-    about: "End whatever gathering is on and send everyone back to their routine.",
+    about: "End every gathering that's on and send everyone back to their routine.",
     group: "gather",
-    run: () => (gatheringControl.end() ? "Gathering dismissed. Everyone back to work. The groans have been logged." : "Nothing to dismiss. Everyone is already pretending to work."),
+    run: () => {
+      const n = gatheringControl.end();
+      return n ? `${n === 1 ? "Gathering" : "Both gatherings"} dismissed. Everyone back to work. The groans have been logged.` : "Nothing to dismiss. Everyone is already pretending to work.";
+    },
   },
   {
     verb: "celebrate",

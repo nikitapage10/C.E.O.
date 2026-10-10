@@ -13,13 +13,17 @@ const EVERY = [110_000, 190_000] as const;
 const LAZY_MS = readingTime("x".repeat(80));
 const lineMs = (l: Line) => (typeof l.text === "string" ? readingTime(l.text) : LAZY_MS) + (l.roll ? 1400 : 0) + 700;
 
+/** At most this many gatherings at once. Starting another ends the oldest. */
+export const MAX_GATHERINGS = 2;
+
 /** Who's in: a host who likes this, then the host's friends (wherever they are), then whoever's free. */
-function castFor(def: GatheringDef): { host: string; guests: string[] } | null {
+function castFor(def: GatheringDef, busy: Set<string>): { host: string; guests: string[] } | null {
   const { lattice } = useWorld.getState();
   const { cast } = useCast.getState();
   const waiting = new Set(pendingApprovals(lattice).map((p) => p.request.agentId));
-  const free = Object.keys(lattice.agents).filter((id) => !waiting.has(id));
-  const host = def.hosts.find((id) => free.includes(id)) ?? shuffle(free.filter((id) => lattice.agents[id]?.place.room === def.room))[0];
+  const free = Object.keys(lattice.agents).filter((id) => !waiting.has(id) && !busy.has(id));
+  const local = shuffle(free.filter((id) => lattice.agents[id]?.place.room === def.room));
+  const host = def.hosts.find((id) => free.includes(id)) ?? local[0] ?? shuffle(free)[0];
   if (!host) return null;
   const friends = cast.relationships
     .filter((r) => (r.a === host || r.b === host) && r.kind !== "nemesis" && r.kind !== "ex")
@@ -30,28 +34,68 @@ function castFor(def: GatheringDef): { host: string; guests: string[] } | null {
   return guests.length >= def.guests[0] ? { host, guests } : null;
 }
 
-/** Lets the rest of the world (the Kernel console, the decks) start or end a gathering. Set by the director. */
+export interface StartResult {
+  ok: boolean;
+  /** Gatherings that were ended to make room (same room, or the oldest when two were already on). */
+  ended: string[];
+}
+
+/** Lets the rest of the world (the Kernel console, the decks) start or end gatherings. Set by the director. */
 export const gatheringControl = {
-  start: (_id: string): boolean => false,
-  /** Break up whatever is on and send everyone back to their routine. */
-  end: (): boolean => false,
+  start: (_id: string): StartResult => ({ ok: false, ended: [] }),
+  /** End one gathering, or all of them, and send everyone back to their routine. Returns how many ended. */
+  end: (_id?: string): number => 0,
 };
+
+interface Running {
+  def: GatheringDef;
+  members: string[];
+  timers: ReturnType<typeof setTimeout>[];
+}
 
 /**
  * Starts gatherings now and then: sends the cast to their seats through the simulator, plays the scene's
- * script once they've arrived, and lets the Kernel have its say. Renders nothing.
+ * script once they've arrived, and lets the Kernel have its say. Up to two can run at once, one per room; the
+ * Lattice only starts one on its own when nothing else is on. Renders nothing.
  */
 export function GatheringDirector() {
   useEffect(() => {
-    let running: string | null = null;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const later = (fn: () => void, ms: number) => timers.push(setTimeout(fn, ms));
+    const running = new Map<string, Running>();
 
-    const start = (def: GatheringDef): boolean => {
-      if (running) return false;
-      const who = castFor(def);
-      if (!who) return false;
-      running = def.id;
+    /** End a gathering: cancel its scene, undress and release its cast. `release` sends them back to work. */
+    const stop = (id: string, release: boolean) => {
+      const r = running.get(id);
+      if (!r) return false;
+      r.timers.forEach(clearTimeout);
+      running.delete(id);
+      const w = useWorld.getState();
+      if (release) for (const a of r.members) simulator.assign(a, [{ kind: "set", activity: "idle", prop: null }], clock.sim);
+      w.dropGathering(id);
+      w.undress(r.members);
+      return true;
+    };
+
+    const start = (def: GatheringDef): StartResult => {
+      const ended: string[] = [];
+      if (running.has(def.id)) return { ok: false, ended };
+      // One per room, and at most two at once: make room before casting, so the freed agents can join.
+      const toEnd = [...running.values()].filter((r) => r.def.room === def.room).map((r) => r.def.id);
+      const others = [...running.keys()].filter((id) => !toEnd.includes(id));
+      // Map keeps insertion order, so the first left over is the oldest.
+      while (others.length >= MAX_GATHERINGS) toEnd.push(others.shift()!);
+      const busyOf = () => new Set(others.flatMap((id) => running.get(id)!.members));
+      let who = castFor(def, busyOf());
+      // Still short of players: the oldest gathering breaks up too, and its people come along.
+      while (!who && others.length) {
+        toEnd.push(others.shift()!);
+        who = castFor(def, busyOf());
+      }
+      if (!who) return { ok: false, ended };
+      for (const id of toEnd) if (stop(id, true)) ended.push(id);
+      const r: Running = { def, members: [who.host, ...who.guests], timers: [] };
+      running.set(def.id, r);
+      const later = (fn: () => void, ms: number) => r.timers.push(setTimeout(fn, ms));
+
       const world = useWorld.getState();
       const name = (id: string) => useCast.getState().cast.profiles[id]?.name ?? id;
       const costumes: CampaignCostume[] = def.costumes ? shuffle([...def.costumes]).slice(0, who.guests.length) : [];
@@ -59,11 +103,10 @@ export function GatheringDirector() {
       // Hold long enough for the whole scene, in Lattice time.
       const sceneMs = script.reduce((sum, l) => sum + lineMs(l), 0);
       const holdSim = (sceneMs + 25_000) * world.timeScale;
-      const everyone = [who.host, ...who.guests];
-      world.setGathering({ id: def.id, room: def.room, host: who.host, guests: who.guests, since: performance.now(), live: false });
-      if (costumes.length) world.setCostumes(Object.fromEntries(who.guests.map((id, i) => [id, costumes[i]!])));
-      const dressed = def.dressAll ? Object.fromEntries(everyone.flatMap((id) => (def.dressAll!(id) ? [[id, def.dressAll!(id)!]] : []))) : null;
-      if (dressed) world.setCostumes(dressed);
+      const everyone = r.members;
+      world.putGathering({ id: def.id, room: def.room, host: who.host, guests: who.guests, since: performance.now(), live: false });
+      if (costumes.length) world.dress(Object.fromEntries(who.guests.map((id, i) => [id, costumes[i]!])));
+      if (def.dressAll) world.dress(Object.fromEntries(everyone.flatMap((id) => (def.dressAll!(id) ? [[id, def.dressAll!(id)!]] : []))));
       everyone.forEach((id, i) => {
         const host = i === 0;
         const activity = def.seatActivities?.[i] ?? (host ? def.hostActivity : def.guestActivity);
@@ -98,8 +141,7 @@ export function GatheringDirector() {
           later(begin, 1000);
           return;
         }
-        const g = useWorld.getState().gathering;
-        if (g?.id === def.id) useWorld.getState().setGathering({ ...g, live: true });
+        useWorld.getState().putGathering({ ...useWorld.getState().gatherings.find((g) => g.id === def.id)!, live: true });
         const ctx: PlayCtx = { host: who.host, guests: who.guests, rolls: {}, name };
         let t = 0;
         let turn = 0;
@@ -119,15 +161,11 @@ export function GatheringDirector() {
           }, t);
           t += lineMs(line) - (line.roll ? 1400 : 0);
         }
-        later(() => {
-          running = null;
-          const w = useWorld.getState();
-          if (w.gathering?.id === def.id) w.setGathering(null);
-          if (costumes.length || def.dressAll) w.setCostumes({});
-        }, t + 4000);
+        // The scene is over; the simulator walks them home when their hold runs out.
+        later(() => stop(def.id, false), t + 4000);
       };
       later(begin, 1500);
-      return true;
+      return { ok: true, ended };
     };
 
     let cadence: ReturnType<typeof setTimeout>;
@@ -137,43 +175,33 @@ export function GatheringDirector() {
           const focus = useWorld.getState().focus;
           // Prefer a gathering in the room you're looking at.
           const options = shuffle(GATHERINGS.filter((g) => !g.manual)).sort((a, b) => Number(b.room === focus) - Number(a.room === focus));
-          for (const def of options) if (start(def)) break;
+          // The Lattice starts its own only when nothing else is on.
+          if (running.size === 0) for (const def of options) if (start(def).ok) break;
         }
         schedule(EVERY[0] + Math.random() * (EVERY[1] - EVERY[0]));
       }, ms);
     };
     schedule(FIRST_AFTER);
 
-    const end = () => {
-      const w = useWorld.getState();
-      const g = w.gathering;
-      if (!running || !g) return false;
-      timers.splice(0).forEach(clearTimeout);
-      running = null;
-      for (const id of [g.host, ...g.guests]) simulator.assign(id, [{ kind: "set", activity: "idle", prop: null }], clock.sim);
-      w.setGathering(null);
-      w.setCostumes({});
-      return true;
-    };
     gatheringControl.start = (id) => {
       const def = GATHERING_BY_ID[id];
-      return def ? start(def) : false;
+      return def ? start(def) : { ok: false, ended: [] };
     };
-    gatheringControl.end = end;
+    gatheringControl.end = (id) => (id ? [id] : [...running.keys()]).filter((g) => stop(g, true)).length;
 
     const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
     api.gather = (id: string) => {
       const def = GATHERING_BY_ID[id];
       if (!def) throw new Error(`Unknown gathering "${id}". Try: ${Object.keys(GATHERING_BY_ID).join(", ")}`);
-      return start(def);
+      return start(def).ok;
     };
     api.gatheringIds = Object.keys(GATHERING_BY_ID);
 
     return () => {
       clearTimeout(cadence);
-      timers.forEach(clearTimeout);
-      gatheringControl.start = () => false;
-      gatheringControl.end = () => false;
+      running.forEach((r) => r.timers.forEach(clearTimeout));
+      gatheringControl.start = () => ({ ok: false, ended: [] });
+      gatheringControl.end = () => 0;
     };
   }, []);
   return null;

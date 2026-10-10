@@ -63,8 +63,8 @@ interface WorldStore {
   overrides: Record<string, Override>;
   /** Little floating symbols over an agent's head (hearts, sparks…), from the social life of the Lattice. */
   emotes: Record<string, { glyph: string; until: number }>;
-  /** The gathering under way (a club night, a one-shot…), so its room can dress up for it. */
-  gathering: Gathering | null;
+  /** The gatherings under way (a club night, a one-shot…; at most two, one per room), so rooms can dress up. */
+  gatherings: Gathering[];
   /** Costume pieces worn for a gathering (a wizard's hat at the D&D table), by agent. */
   costumes: Record<string, Costume>;
   /** Dice on the table: the latest roll by each agent. */
@@ -88,11 +88,21 @@ interface WorldStore {
   endGlitch: () => void;
   flash: (ms?: number) => void;
   announce: (text: string, tone: AnnouncementTone, room?: RoomId | null) => void;
-  setGathering: (g: Gathering | null) => void;
-  setCostumes: (c: Record<string, Costume>) => void;
+  /** Add a gathering, or update it in place (by id). */
+  putGathering: (g: Gathering) => void;
+  dropGathering: (id: string) => void;
+  /** Put costumes on (merged with whatever others are wearing). */
+  dress: (c: Record<string, Costume>) => void;
+  undress: (agentIds: string[]) => void;
   /** Roll a die for an agent (shown on the table), returning the result. */
   roll: (agentId: string, sides?: number) => number;
 }
+
+/** The gathering in a room, if any. */
+export const gatheringIn = (s: { gatherings: Gathering[] }, room: RoomId) => s.gatherings.find((g) => g.room === room) ?? null;
+
+/** Everyone taking part in a gathering right now. */
+export const gatheringMembers = (s: { gatherings: Gathering[] }) => new Set(s.gatherings.flatMap((g) => [g.host, ...g.guests]));
 
 export interface Gathering {
   id: string;
@@ -146,7 +156,7 @@ export const useWorld = create<WorldStore>((set, get) => ({
   flashUntil: 0,
   overrides: {},
   emotes: {},
-  gathering: null,
+  gatherings: [],
   costumes: {},
   rolls: {},
 
@@ -181,8 +191,17 @@ export const useWorld = create<WorldStore>((set, get) => ({
     get().dispatch([{ id: `world-${++localCounter}`, ts: clock.sim, source: "simulated", type: "agent.quip", agentId, text }]),
   override: (agentId, mode, ms, target) =>
     set({ overrides: { ...get().overrides, [agentId]: { mode, until: performance.now() + ms, target } } }),
-  setGathering: (gathering) => set({ gathering }),
-  setCostumes: (costumes) => set({ costumes }),
+  putGathering: (g) => {
+    const list = get().gatherings;
+    set({ gatherings: list.some((x) => x.id === g.id) ? list.map((x) => (x.id === g.id ? g : x)) : [...list, g] });
+  },
+  dropGathering: (id) => set({ gatherings: get().gatherings.filter((g) => g.id !== id) }),
+  dress: (c) => set({ costumes: { ...get().costumes, ...c } }),
+  undress: (ids) => {
+    const costumes = { ...get().costumes };
+    for (const id of ids) delete costumes[id];
+    set({ costumes });
+  },
   roll: (agentId, sides = 20) => {
     const value = 1 + Math.floor(Math.random() * sides);
     set({ rolls: { ...get().rolls, [agentId]: { sides, value, at: performance.now() } } });

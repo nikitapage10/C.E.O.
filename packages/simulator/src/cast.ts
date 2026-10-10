@@ -14,7 +14,7 @@ const SEEDS: Record<string, Seed> = {
   caret: {
     look: lookFromPreset("rock-engineer"),
     traits: ["competitive", "chaotic", "cheerful"],
-    bio: "Wears the stone-shelled engineer from a memory of a rocky planet: four legs (Counsel.exe negotiated one off), no eyes, perfect pitch, speaks in chords. Openly competes with Tessellate for the shipping record.",
+    bio: "Wears an Eridian engineer from a memory of a hot, heavy planet: five stone legs, no eyes, perfect pitch, speaks in chords. Fixes anything. Calls everyone 'friend', says important things three times, and falls asleep mid-sentence. Openly competes with Tessellate for the shipping record.",
     catchphrase: "Fist my bump.",
   },
   semicolon: {

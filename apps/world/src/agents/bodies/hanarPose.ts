@@ -50,8 +50,11 @@ export interface HanarState {
   tilt: number;
   /** 0..1: how far the front pair has left the drift to do something. */
   reach: number;
+  /** The drift's own clock, advanced at the current wave speed, so changing speed never makes the wave jump. */
+  wave: number;
+  last: number | null;
 }
-export const hanarState = (): HanarState => ({ amp: 0.12, freq: 0.9, sink: 0, tilt: 0, reach: 0 });
+export const hanarState = (): HanarState => ({ amp: 0.18, freq: 1, sink: 0, tilt: 0, reach: 0, wave: 0, last: null });
 
 const smooth = (a: number, b: number, k: number) => a + (b - a) * k;
 
@@ -100,10 +103,10 @@ function handPose(mode: HanarMode, s: number, t: number, phase: number, n: numbe
       });
     }
     case "carrying":
-      // Forward and curled up underneath, a cradle.
+      // Down in front of the body, then curled back up underneath: a cradle close to the chest.
       return Array.from({ length: n }, (_, i) => {
         const f = seg(i);
-        return f < 0.4 ? [0.22 * s, -0.75, 0.6] : f < 0.7 ? [0.05 * s, -0.1, 1] : [-0.25 * s, 0.9, 0.3];
+        return f < 0.35 ? [0.25 * s, -0.92, 0.32] : f < 0.6 ? [0.12 * s, -0.55, 0.8] : [-0.3 * s, 0.75, 0.2];
       });
     case "celebrating": {
       const wave = Math.sin(t * 6 + (s > 0 ? 0 : Math.PI)) * 0.5;
@@ -139,8 +142,11 @@ export function poseHanar(
 ): { y: number; tilt: number } {
   const gliding = mode === "walking" || mode === "carrying";
   const hands = mode === "typing" || mode === "working" || mode === "carrying" || mode === "celebrating" || mode === "waiting";
-  st.amp = smooth(st.amp, gliding ? 0.24 : mode === "celebrating" ? 0.3 : mode === "napping" ? 0.05 : mode === "slumped" ? 0.06 : 0.12, 0.05);
-  st.freq = smooth(st.freq, gliding ? 1.5 : mode === "celebrating" ? 2.4 : 0.75, 0.05);
+  st.amp = smooth(st.amp, gliding ? 0.24 : mode === "celebrating" ? 0.3 : mode === "napping" ? 0.09 : mode === "slumped" ? 0.1 : 0.18, 0.05);
+  st.freq = smooth(st.freq, gliding ? 1.5 : mode === "celebrating" ? 2.4 : mode === "napping" ? 0.5 : 1, 0.05);
+  const dt = st.last === null ? 0 : Math.min(Math.max(t - st.last, 0), 0.1);
+  st.last = t;
+  st.wave += dt * st.freq;
   st.sink = smooth(st.sink, mode === "napping" ? 1 : mode === "slumped" ? 0.35 : 0, 0.03);
   st.tilt = smooth(st.tilt, gliding ? 0.1 : mode === "slumped" ? 0.2 : mode === "typing" ? 0.08 : 0, 0.05);
   st.reach = smooth(st.reach, hands ? 1 : 0, 0.08);
@@ -149,7 +155,7 @@ export function poseHanar(
   chains.forEach((chain, k) => {
     chain.forEach(({ bone, rest }, i) => {
       const along = (i + 1) / chain.length;
-      const w = t * st.freq - i * 0.65 + k * 1.05 + phase;
+      const w = st.wave - i * 0.65 + k * 1.05 + phase;
       const amp = st.amp * (0.35 + along);
       e.set(Math.sin(w) * amp + st.sink * 0.22, Math.sin(w * 0.7 + k) * amp * 0.3, Math.cos(w) * amp * 0.6);
       bone.quaternion.copy(rest).multiply(q.setFromEuler(e));

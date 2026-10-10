@@ -44,6 +44,7 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
   barbarian: 1.9,
   gestral: 1.3,
   hanar: 2.1,
+  rocky: 1.0,
   crawler: 1.0,
   masked: 1.45,
   orc: 1.9,
@@ -54,4 +55,10 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
   birb: 1.45,
   yeti: 2.1,
   monolith: 1.78,
+};
+
+/** Where a body holds what it carries, [height, distance in front], before `size`. Default: half its height, 0.42 out. */
+export const CARRY_AT: Partial<Record<Exclude<Body, "classic">, [number, number]>> = {
+  hanar: [0.95, 0.3],
+  rocky: [0.55, 0.42],
 };

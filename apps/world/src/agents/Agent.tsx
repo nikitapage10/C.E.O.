@@ -13,7 +13,7 @@ import { useWorld } from "../store.ts";
 import { BUILD, BackProp, Face, HandProp, Hair, Hat, Head, Outfit, shellMaterial, sleeveMaterial } from "./Avatar.tsx";
 import { poseFor, type PoseMode } from "./behavior.ts";
 import { Body, topOf } from "./bodies/Body.tsx";
-import type { Drive } from "./bodies/types.ts";
+import { CARRY_AT, type Drive } from "./bodies/types.ts";
 import { PropMesh } from "./Props.tsx";
 import { voiced, voiceOf } from "./voices.ts";
 
@@ -311,7 +311,8 @@ export function Agent({ id }: { id: string }) {
       // Other bodies animate themselves from `drive`; just carry the prop in front of them.
       figure.current.position.y = 0;
       figure.current.rotation.set(0, 0, 0);
-      if (propRef.current) propRef.current.position.set(0, topOf(look, 0) * 0.5, 0.42 * look.size);
+      const at = CARRY_AT[look.body];
+      if (propRef.current) propRef.current.position.set(0, at ? at[0] * look.size : topOf(look, 0) * 0.5, (at ? at[1] : 0.42) * look.size);
       return;
     }
 

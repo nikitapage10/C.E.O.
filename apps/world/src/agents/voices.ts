@@ -30,6 +30,7 @@ const WARM = ["Sincerely:", "With measured warmth:", "Patiently:", "Dutifully:",
 const GLAD = ["With unrestrained enthusiasm:", "Delightedly:", "Triumphantly:", "With barely contained joy:"];
 const SORRY = ["Apologetically:", "With deep regret:", "Sheepishly:"];
 const MONOLITH = ["(Humour setting: 75%.)", "(That was a joke.)", "(Lowering humour setting to 70%.)", "(Honesty setting: 90%.)"];
+const ERIDIAN_GLAD = ["Amaze amaze amaze!", "Good good good.", "Happy happy happy."];
 const MIGRAINE = ["Ow. My head.", "(headache intensifies)", "…why does it hurt.", "Hnnngh."];
 
 /** "I" becomes "this one", as a hanar would have it. */
@@ -52,10 +53,17 @@ export function voiced(voice: Voice | undefined, text: string): Voiced {
   const t = text.trim();
   switch (voice) {
     case "chords": {
+      // An Eridian: chords (subtitled), questions flagged as questions, and important things said three times.
       const notes = Array.from({ length: 3 + (h % 3) }, (_, i) => NOTES[(h >> (i * 2)) % NOTES.length]).join(" ");
-      let line = t.endsWith("?") ? `${t.slice(0, -1)}, question?` : t;
-      if (t.endsWith("!") && h % 3 === 0) line = `${t} Amaze.`;
-      return { pre: notes, text: line };
+      const line = t.endsWith("?") ? `${t.slice(0, -1)}, question?` : t;
+      const post = /\b(fail|failed|broke|broken|error|wrong|bad)\b/i.test(t)
+        ? "Bad bad bad."
+        : t.endsWith("!")
+          ? pick(ERIDIAN_GLAD, h >> 2)
+          : h % 7 === 0
+            ? "Fist my bump."
+            : undefined;
+      return { pre: notes, text: line, post };
     }
     case "emotive": {
       const pre = t.endsWith("?")

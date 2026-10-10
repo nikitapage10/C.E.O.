@@ -1,6 +1,7 @@
 import type { Body as BodyKind } from "@ceo/core";
 import { Suspense, type ComponentType } from "react";
 import { Hanar } from "./Hanar.tsx";
+import { Rocky } from "./Rocky.tsx";
 import { LibraryBody } from "./Library.tsx";
 import { Monolith } from "./Monolith.tsx";
 import { KayKitBody, RobotBody } from "./Rigged.tsx";
@@ -30,6 +31,7 @@ const BODIES: Record<Exclude<BodyKind, "classic">, ComponentType<BodyProps>> = {
   barbarian: KayKitBody,
   gestral: LibraryBody,
   hanar: Hanar,
+  rocky: Rocky,
   crawler: LibraryBody,
   masked: LibraryBody,
   orc: LibraryBody,

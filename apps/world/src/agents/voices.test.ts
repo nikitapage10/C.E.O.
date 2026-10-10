@@ -14,6 +14,8 @@ describe("voices", () => {
     const v = voiced("chords", "Is it lunch?");
     expect(v.pre).toMatch(/^[♩♪♫♬ ]+$/);
     expect(v.text).toBe("Is it lunch, question?");
+    expect(voiced("chords", "The build broke.").post).toBe("Bad bad bad.");
+    expect(["Amaze amaze amaze!", "Good good good.", "Happy happy happy."]).toContain(voiced("chords", "Shipped it!").post);
   });
 
   it("the hanar speaks of itself as this one", () => {

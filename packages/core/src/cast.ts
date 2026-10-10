@@ -15,7 +15,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "hanar", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
+  "gestral", "hanar", "rocky", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -43,6 +43,7 @@ export const BODY_LABEL: Record<Body, string> = {
   barbarian: "Barbarian",
   gestral: "Gestral",
   hanar: "Hanar",
+  rocky: "Eridian",
   crawler: "Stone crawler",
   masked: "Painted mask",
   orc: "Orc",
@@ -55,7 +56,7 @@ export const BODY_LABEL: Record<Body, string> = {
   monolith: "Monolith",
 };
 /** Bodies that were retired, and what a saved look wearing one now gets. */
-const RETIRED_BODY: Record<string, Body> = { rocky: "crawler", envoy: "yeti", duck: "birb" };
+const RETIRED_BODY: Record<string, Body> = { envoy: "yeti", duck: "birb" };
 /** Bodies that use the piece-by-piece wardrobe (head, hat, outfit…). The others take colours and size only. */
 export const DRESSABLE: ReadonlySet<Body> = new Set(["classic"]);
 
@@ -212,7 +213,7 @@ const SKIN = { light: "#f2cfb3", warm: "#d9a882", tan: "#b9825b", deep: "#7a4e33
 
 /**
  * Avatar presets. "icon" ones are Ready-Player-One-style costumes from the Syntherion's memories: one per
- * work, never the protagonist (one exception, and he has four legs now), always legally distinct. Counsel.exe has
+ * work, never the protagonist (one exception, and he has five legs), always legally distinct. Counsel.exe has
  * reviewed all of them and would like to stop being asked.
  */
 export const LOOK_PRESETS: LookPreset[] = [
@@ -246,8 +247,8 @@ export const LOOK_PRESETS: LookPreset[] = [
     name: "Engineer from a Rocky Planet",
     kind: "icon",
     voice: "chords",
-    disclaimer: "A generic stone-shelled engineer who speaks in chords. It has a sensible number of legs, which Counsel.exe has certified as legally distinct. Rocks are public domain. Fist my bump.",
-    look: makeLook({ body: "crawler", shell: "#5b5148", accent: "#ffb36b", trim: "#3a332d" }),
+    disclaimer: "A generic five-legged stone engineer from a hot, heavy planet, who speaks in chords and sleeps without warning. Rocks are public domain. Fist my bump.",
+    look: makeLook({ body: "rocky", shell: "#5b5148", accent: "#ffb36b", trim: "#3a332d" }),
   },
   {
     id: "envoy",

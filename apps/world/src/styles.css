@@ -2126,3 +2126,203 @@ button {
     animation: none;
   }
 }
+
+/* ── The C.E.O.'s own tools: the Lattice's hour, the decks, the Kernel console, trophies and letters ── */
+.dayclock {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+  border-right: 1px solid var(--hair);
+}
+.dayclock__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber);
+}
+.dayclock--dusk .dayclock__dot,
+.dayclock--dawn .dayclock__dot {
+  background: #ff9e7a;
+  box-shadow: 0 0 8px #ff9e7a;
+}
+.dayclock--night .dayclock__dot {
+  background: #9fb6ff;
+  box-shadow: 0 0 8px #9fb6ff;
+}
+.dayclock__veil {
+  color: #ffa55a;
+}
+.controls button.on,
+.controls button.on b,
+.controls .deck--on b {
+  color: var(--text);
+}
+.controls .deck--on b {
+  text-shadow: 0 0 8px rgba(255, 61, 154, 0.8);
+}
+@media (max-width: 1440px) {
+  .footer__left {
+    display: none;
+  }
+}
+
+.console {
+  position: absolute;
+  left: 50%;
+  bottom: 62px;
+  translate: -50% 0;
+  z-index: 30;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(62vh, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  background: rgba(8, 9, 12, 0.82);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  animation: rise 0.35s ease-out;
+}
+.console__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.console__head .eyebrow {
+  margin: 0;
+}
+.console__group .tracked {
+  margin: 0 0 6px;
+  font-size: 8.5px;
+}
+.console__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.console__buttons .smoky {
+  letter-spacing: 0.14em;
+}
+.console__log {
+  flex: 1;
+  min-height: 70px;
+  margin: 0;
+  padding: 8px 10px;
+  list-style: none;
+  overflow-y: auto;
+  border-top: 1px solid var(--hair);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.console__line--you {
+  color: var(--faint);
+}
+.console__line--kernel {
+  color: var(--mint);
+  margin-bottom: 6px;
+}
+.console__prompt {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  color: var(--mint);
+}
+.console__prompt input {
+  flex: 1;
+  background: none;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.trophies__note {
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--muted);
+}
+.trophies__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+}
+.trophy {
+  display: grid;
+  gap: 2px;
+  padding: 6px 0 7px;
+  border-bottom: 1px solid var(--hair);
+}
+.trophy__title {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.trophy--got .trophy__title {
+  color: var(--amber);
+}
+.trophy__line {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--faint);
+}
+.trophy--got .trophy__line {
+  color: var(--muted);
+}
+
+.letters .letter {
+  margin: 0 0 8px;
+}
+.letter__mine {
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--muted);
+}
+.letter__reply {
+  margin: 2px 0 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.letter__write {
+  font-size: 10px;
+}
+.letter__form textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: 15px;
+}
+.letter__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+.letter__actions .smoky:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

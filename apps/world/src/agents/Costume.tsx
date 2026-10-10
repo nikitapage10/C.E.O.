@@ -97,4 +97,85 @@ const PIECES: Record<Costume, () => React.ReactElement> = {
       </mesh>
     </group>
   ),
+  // ── The Hallowed Veil ──
+  // A wide-brimmed witch's hat, bent at the tip, with a purple band.
+  "witch-hat": () => (
+    <group>
+      <mesh position={[0, 0.01, 0]} material={PBR.fabric("#16121c")} castShadow>
+        <cylinderGeometry args={[0.34, 0.34, 0.02, 32]} />
+      </mesh>
+      <mesh position={[0, 0.2, 0]} material={PBR.fabric("#16121c")} castShadow>
+        <coneGeometry args={[0.15, 0.4, 24]} />
+      </mesh>
+      <mesh position={[0.05, 0.42, 0]} rotation={[0, 0, -0.9]} material={PBR.fabric("#16121c")}>
+        <coneGeometry args={[0.05, 0.14, 12]} />
+      </mesh>
+      <mesh position={[0, 0.05, 0]} material={PBR.fabric("#6a2aa8")}>
+        <cylinderGeometry args={[0.152, 0.152, 0.05, 24]} />
+      </mesh>
+    </group>
+  ),
+  // A small jack-o'-lantern worn like a hat, its grin lit from inside.
+  pumpkin: () => (
+    <group position={[0, 0.13, 0]}>
+      <mesh scale={[1, 0.8, 1]} material={PBR.lacquer("#e8701e", 0.45)} castShadow>
+        <sphereGeometry args={[0.17, 16, 12]} />
+      </mesh>
+      <mesh position={[0, 0.15, 0]} rotation={[0, 0, 0.2]} material={PBR.matte("#3d5a1e", 0.8)}>
+        <cylinderGeometry args={[0.018, 0.026, 0.08, 8]} />
+      </mesh>
+      {[-1, 1].map((x) => (
+        <mesh key={x} position={[x * 0.055, 0.03, 0.155]} rotation={[0, 0, Math.PI]} material={PBR.light("#ffb54a", 3)}>
+          <coneGeometry args={[0.025, 0.04, 3]} />
+        </mesh>
+      ))}
+      <mesh position={[0, -0.04, 0.158]} scale={[1, 0.35, 0.3]} material={PBR.light("#ffb54a", 3)}>
+        <sphereGeometry args={[0.07, 12, 6]} />
+      </mesh>
+    </group>
+  ),
+  // Two little red horns on a band.
+  "devil-horns": () => (
+    <group>
+      <mesh position={[0, 0.02, 0]} rotation={[Math.PI / 2, 0, 0]} material={PBR.matte("#1a1a1a", 0.6)}>
+        <torusGeometry args={[0.15, 0.012, 6, 24, Math.PI]} />
+      </mesh>
+      {[-1, 1].map((x) => (
+        <mesh key={x} position={[x * 0.1, 0.09, 0.03]} rotation={[0.1, 0, -x * 0.35]} material={PBR.lacquer("#c8221e", 0.25)} castShadow>
+          <coneGeometry args={[0.035, 0.14, 12]} />
+        </mesh>
+      ))}
+    </group>
+  ),
+  // Bat ears and folded wings on a headband.
+  "bat-band": () => (
+    <group>
+      <mesh position={[0, 0.02, 0]} rotation={[Math.PI / 2, 0, 0]} material={PBR.matte("#1a1a1a", 0.6)}>
+        <torusGeometry args={[0.15, 0.012, 6, 24, Math.PI]} />
+      </mesh>
+      {[-1, 1].map((x) => (
+        <group key={x} position={[x * 0.11, 0.08, 0]} rotation={[0, 0, -x * 0.5]}>
+          <mesh scale={[1, 1, 0.25]} material={PBR.matte("#241a2e", 0.7)} castShadow>
+            <coneGeometry args={[0.06, 0.16, 3]} />
+          </mesh>
+          <mesh position={[x * 0.09, -0.02, -0.02]} rotation={[0, 0, -x * 0.9]} scale={[1.6, 0.6, 0.15]} material={PBR.matte("#241a2e", 0.7)}>
+            <coneGeometry args={[0.06, 0.16, 3]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  ),
+  // A bedsheet ghost hood with two eye holes.
+  "ghost-sheet": () => (
+    <group>
+      <mesh position={[0, -0.04, 0]} scale={[1, 1.2, 1]} material={PBR.fabric("#f2f0ea")} castShadow>
+        <sphereGeometry args={[0.23, 24, 14, 0, Math.PI * 2, 0, Math.PI / 1.6]} />
+      </mesh>
+      {[-1, 1].map((x) => (
+        <mesh key={x} position={[x * 0.07, 0.02, 0.215]} scale={[1, 1.4, 0.4]} material={PBR.matte("#0b0b0b", 0.9)}>
+          <sphereGeometry args={[0.032, 10, 8]} />
+        </mesh>
+      ))}
+    </group>
+  ),
 };

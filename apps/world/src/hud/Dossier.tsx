@@ -2,6 +2,7 @@ import { HOUSES, LINEAGES, RELATIONSHIP_LABEL, relationshipsOf } from "@ceo/core
 import { useState, type ReactNode } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { useWorld } from "../store.ts";
+import { LetterBox } from "./Extras.tsx";
 
 /**
  * The dossier on whoever you've selected: their House, their family, their habits and their history.
@@ -101,6 +102,8 @@ export function Dossier({ id, open }: { id: string; open: boolean }) {
             </ul>
           </div>
         )}
+
+        <LetterBox id={id} />
 
         {lore.chronicle.length > 0 && (
           <div className="dossier__field">

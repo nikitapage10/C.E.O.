@@ -8,6 +8,8 @@ import { useWorld } from "../store.ts";
 import { Decode, TideScript } from "../tide/Decode.tsx";
 import { ROOM_ABOUT } from "../rooms/about.ts";
 import { Dossier } from "./Dossier.tsx";
+import { DayClock, DeckButton, KernelConsole, PanelButtons, TrophyPanel, usePanels } from "./Extras.tsx";
+import { unlock } from "../achievements/achievements.ts";
 import { feedLines, formatClock, type FeedLine } from "./format.ts";
 
 /**
@@ -62,6 +64,7 @@ function TopBar() {
         ))}
       </nav>
       <div className="topbar__right">
+        <DayClock />
         <span className="tracked faint">Lattice time</span>
         <span className="tracked">{time}</span>
         <span className={`ring-count ${pending ? "ring-count--hot" : ""}`} title="Waiting on the C.E.O.">
@@ -285,10 +288,22 @@ function ApprovalCard({ rec }: { rec: ApprovalRecord }) {
       {r.detail && <p className="approval__detail">{r.detail}</p>}
       <footer>
         <span className="approval__policy">{r.action} · approve</span>
-        <button className="smoky" onClick={() => resolve(r.id, "denied")}>
+        <button
+          className="smoky"
+          onClick={() => {
+            unlock("no-boss");
+            resolve(r.id, "denied");
+          }}
+        >
           Deny
         </button>
-        <button className="smoky smoky--bright" onClick={() => resolve(r.id, "approved")}>
+        <button
+          className="smoky smoky--bright"
+          onClick={() => {
+            unlock("yes-boss");
+            resolve(r.id, "approved");
+          }}
+        >
           Approve
         </button>
       </footer>
@@ -365,6 +380,10 @@ function Footer() {
         <span className="footer__rule" /> A living lattice of agents
       </p>
       <div className="footer__right controls" role="group" aria-label="Controls">
+        <PanelButtons />
+        <span className="slash">/</span>
+        <DeckButton />
+        <span className="slash">/</span>
         <button className="tracked" onClick={() => s.setTimeScale(next(SPEEDS, s.timeScale))} data-control="speed">
           Speed <b>{s.timeScale}×</b>
         </button>
@@ -407,7 +426,12 @@ function useKeyboard() {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       const s = useWorld.getState();
+      if (e.key === "`") {
+        e.preventDefault();
+        return usePanels.getState().toggle("console");
+      }
       if (e.key === "Escape") {
+        if (usePanels.getState().open) return usePanels.getState().close();
         if (useCast.getState().studio) return useCast.getState().openStudio(null);
         if (s.selectedAgent) s.selectAgent(null);
         s.setFocus(null);
@@ -449,6 +473,8 @@ export function Hud() {
       <Announcement />
       {selected && !studio ? <Dossier key={selected} id={selected} open={panel === "signals"} /> : <Signals open={panel === "signals"} />}
       <Approvals />
+      <KernelConsole />
+      <TrophyPanel />
       <Coordinates />
       <Footer />
       <div className="mobile-tabs">

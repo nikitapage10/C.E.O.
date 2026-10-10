@@ -104,7 +104,10 @@ export interface Gathering {
   live: boolean;
 }
 
-export type Costume = "wizard-hat" | "helm" | "hood" | "crown" | "horns" | "feather-cap";
+/** The long table's costumes (a campaign's classes). */
+export type CampaignCostume = "wizard-hat" | "helm" | "hood" | "crown" | "horns" | "feather-cap";
+/** Any costume piece: the campaign's, or the Hallowed Veil's. */
+export type Costume = CampaignCostume | "witch-hat" | "pumpkin" | "devil-horns" | "bat-band" | "ghost-sheet";
 
 export interface DiceRoll {
   sides: number;

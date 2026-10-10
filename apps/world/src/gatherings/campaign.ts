@@ -1,4 +1,4 @@
-import type { Costume } from "../store.ts";
+import type { CampaignCostume as Costume } from "../store.ts";
 import type { Line, PlayCtx } from "./gatherings.ts";
 
 /**

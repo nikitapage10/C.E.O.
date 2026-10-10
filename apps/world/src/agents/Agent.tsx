@@ -1,6 +1,7 @@
 import { LINEAGES, PRESET_BY_ID, RELATIONSHIP_LABEL, getStation, placeToWorld, relationshipsOf, roomAngle, routeBetween, sampleRoute, type Look } from "@ceo/core";
 import { Html } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
+import { hop } from "../club/deck.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BufferGeometry, CylinderGeometry, Float32BufferAttribute, Quaternion, LatheGeometry, LineBasicMaterial, LineSegments, MeshPhysicalMaterial, Vector2, Vector3, type Group, type Mesh } from "three";
 import { useCast } from "../cast/castStore.ts";
@@ -17,6 +18,7 @@ import { CostumePiece } from "./Costume.tsx";
 import { CARRY_AT, type Drive } from "./bodies/types.ts";
 import { PropMesh } from "./Props.tsx";
 import { voiced, voiceOf } from "./voices.ts";
+import { VEIL, veilCostumeFor } from "../veil/veil.ts";
 
 /** A turned torso profile: narrow waist, rounded chest and shoulders. */
 const TORSO = new LatheGeometry(
@@ -191,7 +193,8 @@ export function Agent({ id }: { id: string }) {
   const handR = useRef<Mesh>(null);
   const core = useRef<Mesh>(null);
   const propRef = useRef<Group>(null);
-  const outfit = useWorld((s) => s.costumes[id]);
+  // A gathering's costume first; in October, the Hallowed Veil's.
+  const outfit = useWorld((s) => s.costumes[id]) ?? (VEIL ? (veilCostumeFor(id) ?? undefined) : undefined);
   const orb = useRef<Group>(null);
   const caret = useRef<Mesh>(null);
   const extraHands = useRef<Group>(null);
@@ -309,9 +312,11 @@ export function Agent({ id }: { id: string }) {
       ring.current.visible = selected || hovered;
       ring.current.rotation.z = t * 0.8;
     }
+    // On a drop at the club, everyone on the Break Room floor jumps.
+    const dance = !moving && rt.place.room === "breakroom" ? hop(t, phase) : 0;
     if (look && look.body !== "classic") {
       // Other bodies animate themselves from `drive`; just carry the prop in front of them.
-      figure.current.position.y = 0;
+      figure.current.position.y = dance;
       figure.current.rotation.set(0, 0, 0);
       const at = CARRY_AT[look.body];
       const held = dr.hold;
@@ -323,7 +328,7 @@ export function Agent({ id }: { id: string }) {
     }
 
     const p = poseFor(mode, t, phase);
-    figure.current.position.y = p.bob + p.lie * 0.3;
+    figure.current.position.y = p.bob + p.lie * 0.3 + dance;
     figure.current.rotation.set(p.lean - p.lie * (Math.PI / 2), 0, p.roll);
     const b = BUILD[look?.build ?? "hover"];
     if (head.current) {

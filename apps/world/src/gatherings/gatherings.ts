@@ -1,5 +1,5 @@
 import type { Activity, Prop, RoomId } from "@ceo/core";
-import type { Costume } from "../store.ts";
+import type { CampaignCostume as Costume } from "../store.ts";
 import { composeCampaign } from "./campaign.ts";
 
 /**

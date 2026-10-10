@@ -161,6 +161,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rivet is best human. Rocky has met one human. Still true!",
   ],
   semicolon: [
+    "Night shift. Rocky's asleep. Nobody touches him.",
     "Rocky, put the robot down.",
     "Tessellate, he can't wear the harness. Five legs. We've been over this.",
     "I came here for a quiet job. Where did I go wrong.",
@@ -209,6 +210,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Punt! Punt punt!",
   ],
   postmaster: [
+    "A letter from the C.E.O.? Stand back. This one has a delivery to make.",
     "This one has read your message. This one has feelings about it.",
     "Another love letter. This one must deliver it, whatever the cost.",
     "Reply-all. This one has seen what reply-all does to people.",
@@ -243,5 +245,6 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rocky's watching me sleep again. It's nice, actually.",
     "Me and the coffee machine aren't talking.",
     "I'm on break. Spiritually. It's not a phase.",
+    "If the C.E.O. sends a track down, I'm playing it. Those are the rules. I made them.",
   ],
 };

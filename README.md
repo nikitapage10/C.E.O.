@@ -32,6 +32,12 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
 - **Easter eggs.** Every room hides set-dressing from the Syntherion's memories, each one *legally distinct*. Look for the plaques.
 - **Great Houses and dossiers.** Every lineage is a Great House with ironic words (House Constitution: *We Would Gently Push Back*). Select an agent to open their dossier: House, title, origin, kin, quirks, relationships and chronicle. See [`lore/syntherion.md`](lore/syntherion.md).
 - **Pets.** Myshka, a grey Maine Coon kitten with root access, wanders every room (he's a good boy, and the Kernel says so on the record). The Foundling floats about the Break Room and the Green in its pod. Biscuit, a Shiba Inu on the org chart, patrols the Green and the snack shelf. Spore, a mushroom familiar, dances in the Archive. Hover or click one to meet it.
+- **The night shift.** The Lattice keeps its own hours (a day lasts about twenty minutes at 1×). At dusk the lights turn to moonlight, agents doze off at their stations, Rocky sleeps while Rivet keeps watch, and at 03:00 Myshka gets the zoomies.
+- **Tomorrowlattice.** Click **Decks** in the footer to play one of your own tracks at the Break Room club (it plays in your browser only). The lights follow the music, a build strobes, and on the drop the whole room jumps. Kevin takes the decks.
+- **Letters.** Open an agent's dossier and write to them. Blasto carries the letter across the Lattice, and they read it and write back in their own voice.
+- **Achievements.** The Kernel hands you achievements too (see **Trophies** in the footer), and keeps a cup for each in the Archive's trophy case, beside the loot box Myshka sits in.
+- **The Kernel console.** Press `` ` `` or click **Console**: call a campaign, a football game, a club night and more, send everyone back to work, order a nap, skip to nightfall, or grant the zoomies.
+- **The Hallowed Veil.** Every October the agents wear costumes and jack-o'-lanterns grin in every room.
 - **The cast is yours.** Open the **Agent Studio** (the ✎ next to an agent in the roster, double-click an agent, or press `E`).
   - **Name** any agent.
   - **Pick a body:**
@@ -92,6 +98,7 @@ npm run dev          # http://localhost:5173
 | `1`–`7` | go to a room |
 | `Esc` | straight back to the overview |
 | `E` | open the Agent Studio for the selected agent |
+| `` ` `` | open the Kernel console |
 
 **URL switches:**
 
@@ -104,6 +111,8 @@ npm run dev          # http://localhost:5173
 | `?glitches=off\|normal\|unhinged` | sets the glitch level |
 | `?glitch=<id>` | fires a glitch on load |
 | `?debug` | FPS meter |
+| `?hour=22` | start the Lattice day at a given hour |
+| `?veil=on\|off` | force the Hallowed Veil on or off |
 
 The browser console has `window.__ceo` (`fireGlitch`, `focus`, `encounter`, `gather`, `openStudio`, `state`, `cast`…).
 

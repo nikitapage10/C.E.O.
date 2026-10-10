@@ -150,6 +150,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("seat-se", "Seat at the long table", 3.7, 3.3, 0, { exact: true }),
       s("seat-nm", "Seat at the long table", 2.4, 1.3, Math.PI, { exact: true }),
       s("seat-sm", "Seat at the long table", 2.4, 3.3, 0, { exact: true }),
+      // The Kernel's loot box, by the C.E.O.'s trophy case. Nobody opens it. Myshka sits in it.
+      s("loot-box", "The loot box", -6.75, 2.6, Math.PI / 2, { y: 0.06, exact: true }),
     ],
   },
   breakroom: {

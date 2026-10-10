@@ -19,6 +19,9 @@ import { Kernel } from "./Kernel.tsx";
 import { Lighting } from "./Lighting.tsx";
 import { SceneReady } from "./SceneReady.tsx";
 import { Streams } from "./Streams.tsx";
+import { LetterFlight } from "../letters/LetterFlight.tsx";
+import { Pumpkins } from "../veil/Pumpkins.tsx";
+import { VEIL } from "../veil/veil.ts";
 
 /** Advances Lattice time, runs the simulator and animates every shader, once per frame. */
 function Heartbeat() {
@@ -69,6 +72,8 @@ export function Scene() {
         <Agents />
         <Pets />
         <GlitchStage />
+        <LetterFlight />
+        {VEIL && <Pumpkins />}
         <Callouts />
         <Floor />
         <FloorRings />

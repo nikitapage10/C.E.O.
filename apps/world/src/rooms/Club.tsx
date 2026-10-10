@@ -14,6 +14,7 @@ import {
   type Mesh,
   type PointLight,
 } from "three";
+import { CLUB_BPM, deck, tickDeck } from "../club/deck.ts";
 import { Beam, Haze, LaserFan, Smoke } from "../fx/atmos.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
@@ -29,7 +30,7 @@ import { skylineMaterial } from "./skyline.ts";
 
 export const STAGE = { x0: -3.6, x1: 3.6, z0: -6.25, z1: -3.45, h: 0.45 };
 const FLOOR = { x0: -3.1, z0: -3.15, cols: 10, rows: 7, tile: 0.62 };
-const BPM = 124;
+const BPM = CLUB_BPM;
 const PALETTES = {
   dj: ["#ff3d9a", "#7a5cff", "#29c7ff", "#ffb347"],
   concert: ["#ffb347", "#ff6a3d", "#ffe2b0", "#ff3d9a"],
@@ -58,18 +59,21 @@ function useShowDriver() {
   useFrame(({ clock }, dt) => {
     const g = useWorld.getState().gathering;
     const here = g?.room === "breakroom" ? g : null;
+    // A track from the C.E.O. turns the club on by itself, whoever is (or isn't) on the decks.
     show.act =
       here?.id === "concert"
         ? "concert"
-        : here?.id === "club-night"
+        : here?.id === "club-night" || deck.playing
           ? "dj"
           : null;
-    const target = here ? (here.live ? 1 : 0.55) : 0.15;
+    const target = deck.playing ? 1 : here ? (here.live ? 1 : 0.55) : 0.15;
     show.level += (target - show.level) * Math.min(1, dt * 1.2);
     show.palette = show.act ? PALETTES[show.act] : PALETTES.idle;
     show.beat = (clock.elapsedTime * BPM) / 60;
-    const f = show.beat % 1;
-    show.kick = Math.exp(-f * 6);
+    tickDeck(dt, clock.elapsedTime, show.beat, show.act === "dj" && show.level > 0.6);
+    // A build strobes the kick at double time; a drop hits everything at once.
+    const strobe = deck.build > 0 ? Math.exp(-((show.beat * 2) % 1) * 8) * deck.build : 0;
+    show.kick = Math.min(1, Math.max(deck.kick, strobe, deck.drop * 0.8));
   });
 }
 
@@ -892,11 +896,11 @@ function FloorLights() {
     const lvl = show.level;
     if (a.current) {
       paletteColor(Math.floor(show.beat / 2), a.current.color);
-      a.current.intensity = 2 + lvl * (14 + show.kick * 10);
+      a.current.intensity = 2 + lvl * (14 + show.kick * 10 + deck.drop * 12);
     }
     if (b.current) {
       paletteColor(Math.floor(show.beat / 2) + 2, b.current.color);
-      b.current.intensity = 2 + lvl * (12 + show.kick * 8);
+      b.current.intensity = 2 + lvl * (12 + show.kick * 8 + deck.drop * 12);
     }
   });
   return (
@@ -951,7 +955,7 @@ export function Club() {
               on={() =>
                 show.act === "dj" && show.level > 0.6
                   ? Math.min(1, (show.level - 0.6) * 3) *
-                    (0.7 + show.kick * 0.3)
+                    (0.7 + show.kick * 0.3 + deck.drop * 0.3)
                   : 0
               }
             />

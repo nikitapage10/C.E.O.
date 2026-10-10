@@ -10,6 +10,7 @@ import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { Dust } from "../fx/atmos.tsx";
 import { LongTable } from "./LongTable.tsx";
+import { TrophyCase } from "../achievements/TrophyCase.tsx";
 import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";
 
 const SHELVES = 6;
@@ -156,6 +157,7 @@ export function Archive() {
         <planeGeometry args={[9, 6.5]} />
       </mesh>
       <Bookcases />
+      <TrophyCase />
 
       {/* Glass vitrine of storm-filled volumes: The Tide's own lore, kept apart */}
       <group position={[shelves.pos[0] - 1.8, 0, shelves.pos[1] + 1.4]} rotation={[0, Math.PI / 2, 0]}>

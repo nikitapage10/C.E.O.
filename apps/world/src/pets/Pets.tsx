@@ -5,13 +5,14 @@ import { Suspense, useMemo, useRef, useState } from "react";
 import { Vector3, type Group } from "three";
 import { useCast } from "../cast/castStore.ts";
 import { agentPositions, clock } from "../clock.ts";
+import { unlock } from "../achievements/achievements.ts";
 import { KERNEL } from "../kernel/lines.ts";
 import { facingDir } from "../rooms/primitives.tsx";
 import { useWorld } from "../store.ts";
 import { LIBRARY_PETS, LibraryPet } from "./LibraryPet.tsx";
 import { Foundling } from "./Foundling.tsx";
 import { Kitten } from "./Kitten.tsx";
-import { PETS, wanderSpots, type PetDef } from "./pets.ts";
+import { PETS, petOrders, wanderSpots, type PetDef } from "./pets.ts";
 import type { PetDrive, PetMode } from "./types.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -60,7 +61,7 @@ function Pet({ def }: { def: PetDef }) {
 
   const init = useMemo(() => {
     const r = def.homes[def.id === "myshka" ? def.homes.length - 1 : 0]!;
-    return { room: r, station: pick(wanderSpots(r)) };
+    return { room: r, station: pick(wanderSpots(r, def.id)) };
   }, [def]);
 
   useFrame(({ clock: three }, dt) => {
@@ -70,12 +71,15 @@ function Pet({ def }: { def: PetDef }) {
     if (!state.current) state.current = { place: init, spot: `${def.id}-0`, route: null, routeStart: now, mode: "sit", until: now + between(2000, 6000), hops: 0 };
     const s = state.current;
     const world = useWorld.getState();
+    const zoomies = def.id === "myshka" && now < petOrders.zoomiesUntil;
+    // The zoomies wake him from anything.
+    if (zoomies && !s.route && s.until > now + 600) s.until = now;
 
     let moving = false;
     let streaming = false;
     let heading: [number, number] = [0, 0];
     if (s.route) {
-      const sample = sampleRoute(s.route, (now - s.routeStart) * def.speed * Math.max(1, world.timeScale * 0.5));
+      const sample = sampleRoute(s.route, (now - s.routeStart) * def.speed * (zoomies ? 3.2 : 1) * Math.max(1, world.timeScale * 0.5));
       root.current.position.set(...sample.position);
       heading = sample.heading;
       streaming = sample.kind === "stream" && !sample.done;
@@ -84,7 +88,7 @@ function Pet({ def }: { def: PetDef }) {
         const crossed = s.route.points.length > 2;
         s.route = null;
         s.mode = Math.random() < 0.5 ? "sit" : "idle";
-        s.until = now + between(4000, 11000);
+        s.until = now + (zoomies ? between(150, 600) : between(4000, 11000));
         if (crossed) {
           setRoom(s.place.room);
           s.hops++;
@@ -101,15 +105,16 @@ function Pet({ def }: { def: PetDef }) {
     } else {
       root.current.position.set(...placeToWorld(s.place, s.spot));
       if (now > s.until) {
-        const r = Math.random();
+        // The zoomies: always off somewhere, often to another room.
+        const r = zoomies ? Math.random() * 0.62 : Math.random();
         const rooms = def.homes.filter((x) => x !== s.place.room);
         let next: Place | null = null;
-        if (rooms.length && r < 0.14) {
+        if (rooms.length && r < (zoomies ? 0.3 : 0.14)) {
           // Prefer the room you're looking at.
           const dest = world.focus && rooms.includes(world.focus) && Math.random() < 0.5 ? world.focus : pick(rooms);
-          next = { room: dest, station: pick(wanderSpots(dest)) };
+          next = { room: dest, station: pick(wanderSpots(dest, def.id)) };
         } else if (r < 0.62) {
-          next = { room: s.place.room, station: pick(wanderSpots(s.place.room)) };
+          next = { room: s.place.room, station: pick(wanderSpots(s.place.room, def.id)) };
         } else if (r < 0.76) {
           s.mode = "nap";
           s.until = now + between(14000, 30000);
@@ -173,6 +178,7 @@ function Pet({ def }: { def: PetDef }) {
   };
   const click = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
+    if (def.id === "myshka") unlock("good-boy");
     setOpen((o) => !o);
   };
   const tagY = def.kind === "foundling" ? 1.15 : def.kind === "kitten" ? 0.85 : 0.7;

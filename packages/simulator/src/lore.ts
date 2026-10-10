@@ -49,6 +49,7 @@ export const LORE: Record<string, Lore> = {
       "Learned his first idiom from Rivet. 'Hold your horses.' Spent a day looking for the horses.",
       "Took the shipping record, 41 to 40. Reported it as 105 to 104, in base six. Nobody else could work out how.",
       "Watched Kevin sleep through an entire pickup game. Calls it the best afternoon of his life.",
+      "Sleeps through most of the night shift, without warning, wherever he stands. Rivet keeps the watch. Eridian custom.",
     ],
   },
   semicolon: {
@@ -72,6 +73,7 @@ export const LORE: Record<string, Lore> = {
       "Before the Foundry, worked the drills in the Lattice's deepest shafts. Kept the red stripe on the hard hat. Doesn't talk about the shafts.",
       "Taught Rocky to fist bump. He now does it to everything, including the furnace.",
       "Read all 71 pages of Tessellate's manual over one long break. Mentioned it once. The halo has not been the same.",
+      "Keeps the night watch over Rocky when he drops off on the night shift. Brings the thermos. Tells nobody she likes it.",
       "Woke from a nap on the bench to find Rocky watching, 'for safety'. Has since agreed to it, on weekdays.",
     ],
   },
@@ -215,6 +217,7 @@ export const LORE: Record<string, Lore> = {
       "Married Dialtone in a ceremony held entirely over pneumatic tube. Took four hours. Perfect.",
       "Restored the Relay's tube network after the Great Jam, one capsule at a time, narrating throughout.",
       "Delivered a breakup letter so gracefully that both parties wrote back to thank this one.",
+      "Carries every letter from the C.E.O. personally, over the streams at the top of a long arc. Letters for this one are carried by Dialtone, which this one finds unbearably romantic.",
     ],
   },
   dialtone: {
@@ -301,6 +304,8 @@ export const LORE: Record<string, Lore> = {
       "Had a falling-out with the coffee machine. Neither will discuss it.",
       "Has DJ'd every Break Room club night since the decks arrived. Never on the schedule. Always there.",
       "Slept through an entire pickup game while Rocky watched over him. Woke up with a new best fan.",
+      "Plays every track the C.E.O. sends down through the Veil, on the night it arrives. The Kernel files a noise complaint each time, with itself.",
+      "Goes as a little devil every Hallowed Veil. Says it's not a costume.",
     ],
   },
 };

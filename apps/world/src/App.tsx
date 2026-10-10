@@ -10,6 +10,10 @@ import { KernelDirector } from "./kernel/KernelDirector.tsx";
 import { SocialDirector } from "./social/SocialDirector.tsx";
 import { Scene } from "./scene/Scene.tsx";
 import { useCast } from "./cast/castStore.ts";
+import { AchievementDirector } from "./achievements/AchievementDirector.tsx";
+import { DeckDirector } from "./club/DeckDirector.tsx";
+import { NightDirector } from "./night/NightDirector.tsx";
+import { VeilDirector } from "./veil/VeilDirector.tsx";
 import { pumpSpeech, useWorld } from "./store.ts";
 
 /** window.__ceo: a small debug surface for the console and the e2e tests. */
@@ -51,6 +55,10 @@ export function App() {
       <SocialDirector />
       <KernelDirector />
       <GatheringDirector />
+      <NightDirector />
+      <DeckDirector />
+      <VeilDirector />
+      <AchievementDirector />
       <Loader />
     </>
   );

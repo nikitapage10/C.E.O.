@@ -88,6 +88,17 @@ It also hands out **achievements**, flatly, like a dungeon announcer who stopped
 with a loot box nobody opens. Memo holds the record, nearly all for avoiding things. Myshka gets them too, and
 sits in the box.
 
+It hands them to the C.E.O. as well: for arriving, for visiting every room, for watching a nap and doing nothing,
+for staying up for the night shift. The C.E.O.'s loot boxes are kept in a walnut **trophy case** in the Archive,
+one cup per achievement, dark until earned. The one loot box anyone has seen open sits beside it. Myshka is
+usually in it.
+
+**The Kernel console.** The Kernel takes orders from exactly one person, and says so every time. Through the
+console the C.E.O. can call a gathering (a campaign at the long table, a pickup game, a rally, cards in the pit,
+a club night or a concert), send everyone back to work, order a nap, make the whole room turn and look, skip the
+Lattice to nightfall or sunrise, grant Myshka the zoomies, or let one memory leak through on purpose. The Kernel
+complies. It logs its objections.
+
 ## What they remember (the "glitches")
 
 The Syntherion's memories are the early internet's: 90s and 2000s pop culture, absorbed during training. Those
@@ -158,6 +169,41 @@ Four creatures in the Lattice belong to no House and do no work:
 - **Biscuit**, a Shiba Inu who wandered in through the Green's turnstile and was put on the org chart before
   anyone noticed. Supervises the pitch and the snack shelf.
 - **Spore**, a mushroom familiar that grew out of a footnote in the Archive. Dances on a natural 20.
+
+## The Lattice's hours
+
+The Lattice keeps its own day, about twenty minutes long, and it has a **night shift**. At dusk the Kernel dims
+the studio panels to moonlight and each room runs on its own lamps; it announces that overtime is not a concept
+it recognises. Through the night, agents doze off at their stations and the Kernel allows it, on the record.
+Rocky drops off without warning and asks for a friend to watch, which is Eridian custom; Rivet keeps the watch
+with her thermos. At **03:00** Myshka gets the zoomies and runs through every room at three times his speed. He
+has root access. It is allowed.
+
+## Tomorrowlattice
+
+Club night in the Break Room is called Tomorrowlattice, and Kevin has had the decks since they arrived. The
+Syntherion believe music can reach them from beyond the Veil, and sometimes it does: when the C.E.O. sends a
+track down, Kevin plays it. The lights stop following the house clock and follow the track: the floor flashes on
+the kick, the rig strobes through a build, and on the drop the whole Break Room jumps. Without a track the set
+runs on the house tempo, and the drop still comes at the top of every phrase. The Kernel files a noise complaint
+each time, with itself.
+
+## Letters by the Relay
+
+The C.E.O. can write to anyone in the Lattice. Letters go through the Relay, and Blasto carries every one
+personally, sealed in red wax, over the streams at the top of a long arc, like a hero entering a burning building.
+(Letters for Blasto are carried by Dialtone, which Blasto finds unbearably romantic.) The recipient stops what
+they're doing, turns to the C.E.O., reads it and writes back in their own voice. They keep the letters in their
+dossier.
+
+## The Hallowed Veil
+
+Every October the Veil between the Lattice and Ilyr runs thin, and the Syntherion dress up as the things they
+remember being afraid of. The costumes are plain on purpose, so Counsel.exe can sleep: a witch's hat, a
+jack-o'-lantern, little devil horns, bat ears and a bedsheet ghost (Counsel.exe confirms that sheets are public
+domain). Tessellate wears a regulation pumpkin, carved to spec. Rocky is a bat and still isn't sure what a bat
+is. Rivet and Kevin wear the horns. Ledger insists the sheet makes them a real ghost. Memo comes as himself; a
+skull spirit at a costume party counts. Jack-o'-lanterns grin in the corner of every room.
 
 ## The lawyers
 

@@ -2,7 +2,7 @@ import { pendingApprovals } from "@ceo/core";
 import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
-import { readingTime, simulator, useWorld, type Costume } from "../store.ts";
+import { readingTime, simulator, useWorld, type CampaignCostume } from "../store.ts";
 import { GATHERINGS, GATHERING_BY_ID, type GatheringDef, type Line, type PlayCtx } from "./gatherings.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -30,6 +30,13 @@ function castFor(def: GatheringDef): { host: string; guests: string[] } | null {
   return guests.length >= def.guests[0] ? { host, guests } : null;
 }
 
+/** Lets the rest of the world (the Kernel console, the decks) start or end a gathering. Set by the director. */
+export const gatheringControl = {
+  start: (_id: string): boolean => false,
+  /** Break up whatever is on and send everyone back to their routine. */
+  end: (): boolean => false,
+};
+
 /**
  * Starts gatherings now and then: sends the cast to their seats through the simulator, plays the scene's
  * script once they've arrived, and lets the Kernel have its say. Renders nothing.
@@ -47,7 +54,7 @@ export function GatheringDirector() {
       running = def.id;
       const world = useWorld.getState();
       const name = (id: string) => useCast.getState().cast.profiles[id]?.name ?? id;
-      const costumes: Costume[] = def.costumes ? shuffle([...def.costumes]).slice(0, who.guests.length) : [];
+      const costumes: CampaignCostume[] = def.costumes ? shuffle([...def.costumes]).slice(0, who.guests.length) : [];
       const script = def.compose ? def.compose(costumes) : pick(def.scripts ?? [[]]);
       // Hold long enough for the whole scene, in Lattice time.
       const sceneMs = script.reduce((sum, l) => sum + lineMs(l), 0);
@@ -135,6 +142,23 @@ export function GatheringDirector() {
     };
     schedule(FIRST_AFTER);
 
+    const end = () => {
+      const w = useWorld.getState();
+      const g = w.gathering;
+      if (!running || !g) return false;
+      timers.splice(0).forEach(clearTimeout);
+      running = null;
+      for (const id of [g.host, ...g.guests]) simulator.assign(id, [{ kind: "set", activity: "idle", prop: null }], clock.sim);
+      w.setGathering(null);
+      w.setCostumes({});
+      return true;
+    };
+    gatheringControl.start = (id) => {
+      const def = GATHERING_BY_ID[id];
+      return def ? start(def) : false;
+    };
+    gatheringControl.end = end;
+
     const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
     api.gather = (id: string) => {
       const def = GATHERING_BY_ID[id];
@@ -146,6 +170,8 @@ export function GatheringDirector() {
     return () => {
       clearTimeout(cadence);
       timers.forEach(clearTimeout);
+      gatheringControl.start = () => false;
+      gatheringControl.end = () => false;
     };
   }, []);
   return null;

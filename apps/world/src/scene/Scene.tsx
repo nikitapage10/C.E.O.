@@ -14,6 +14,7 @@ import { pumpSimulator, useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { Callouts } from "./Callouts.tsx";
 import { CameraRig } from "./CameraRig.tsx";
+import { DetailLevels, ShadowFocus } from "./DetailLevels.tsx";
 import { Floor, FloorRings, Motes } from "./Environment.tsx";
 import { Kernel } from "./Kernel.tsx";
 import { Lighting } from "./Lighting.tsx";
@@ -81,6 +82,8 @@ export function Scene() {
         <SceneReady />
       </Suspense>
       <CameraRig />
+      <DetailLevels />
+      <ShadowFocus />
       <PostFX />
       {PARAMS.debug && <Stats />}
     </Canvas>

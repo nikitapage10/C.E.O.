@@ -289,6 +289,7 @@ export const LORE: Record<string, Lore> = {
       "Rolled a 1 on 'canon' seventeen times in a row. Loremaster has framed the record.",
       "Let Rocky play a bard. Rocky sang every line. The table wept.",
       "Runs one-shots as dungeon crawls with numbered floors and a bored announcer. The Kernel recognised the voice and declined to comment.",
+      "Rolled a natural 1 on a random-encounter table and an owlbear cub walked off the map. Named him Pudding, and has not rolled to make him leave.",
     ],
   },
   kevin: {

@@ -1,6 +1,6 @@
 import { ROOMS, ROOM_IDS, type RoomId } from "@ceo/core";
 
-export type PetKind = "kitten" | "foundling" | "shiba" | "mushnub";
+export type PetKind = "kitten" | "foundling" | "shiba" | "mushnub" | "owlbear";
 
 export interface PetDef {
   id: string;
@@ -75,6 +75,22 @@ export const PETS: PetDef[] = [
       "Spore is dancing again. Did someone crit?",
       "Morning, Spore. Please stop sprouting on the first editions.",
       "Spore, that's a primary source. Do not sit on it.",
+    ],
+  },
+  {
+    id: "pudding",
+    name: "Pudding",
+    kind: "owlbear",
+    title: "Owlbear cub · Archive · a natural 1, kept",
+    blurb: "D20 rolled a natural 1 on a random-encounter table at the Archive's long table, and he walked off the map. Nobody has rolled to make him leave. Chunky, soft, and his hugs count as a grapple.",
+    homes: ["archive", "green"],
+    speed: 0.75,
+    greetings: [
+      "Pudding! Who's a chunky boy? …Yes. All of you. Every feather.",
+      "Careful, Pudding's hugs count as a grapple. Don't start one you can't escape.",
+      "Pudding, the dice are not food. Spit out the d20. …Thank you.",
+      "Is that Pudding, or a random encounter? Same thing, really.",
+      "Hoo. Hoo. That's all the owl I speak. He seems satisfied.",
     ],
   },
 ];

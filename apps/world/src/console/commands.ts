@@ -116,6 +116,7 @@ export const COMMANDS: Command[] = [
       const here = free().filter((a) => !w.focus || a.place.room === w.focus);
       here.forEach((a) => w.override(a.agent.id, "stare", 4000 + Math.random() * 1500));
       if (here[0]) w.say(here[0].agent.id, pick(["Oh! I didn't see you there.", "Hi! Hello. We were all working.", "Everyone act natural."]));
+      if (!here.length) return "Nobody here is standing still long enough to notice you. They are busy. Allegedly.";
       return `${here.length} agents have noticed you. They are pretending they hadn't.`;
     },
   },

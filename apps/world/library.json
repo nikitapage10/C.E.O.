@@ -198,6 +198,14 @@
     "custom/Blasto": {},
     "custom/Rocky": {},
     "custom/Owlbear": {},
+    "custom/Myshka": {
+      "clips": [
+        "Walk",
+        "Run",
+        "Groom",
+        "Sit"
+      ]
+    },
     "custom/Heimerdinger": {
       "clips": [
         "Walking",

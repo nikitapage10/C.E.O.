@@ -1,4 +1,7 @@
 import {
+  BODIES,
+  BODY_LABEL,
+  DRESSABLE,
   EXTRAS,
   FACES,
   HATS,
@@ -78,7 +81,11 @@ export function AgentStudio() {
   const others = Object.entries(cast.profiles).filter(([k]) => k !== id);
   const rels = relationshipsOf(cast, id);
   const preset = p.look.preset ? PRESET_BY_ID[p.look.preset] : undefined;
-  const look = (patch: Partial<Look>) => setLook(id, { ...patch, preset: undefined });
+  // Recolouring or resizing keeps the costume (and its voice); changing what it's made of doesn't.
+  const look = (patch: Partial<Look>) => {
+    const cosmetic = Object.keys(patch).every((k) => k === "shell" || k === "accent" || k === "trim" || k === "size");
+    setLook(id, { ...patch, preset: cosmetic ? p.look.preset : undefined });
+  };
   const toggleTrait = (t: string) => {
     const has = p.personality.traits.includes(t);
     const traits = has ? p.personality.traits.filter((x) => x !== t) : [...p.personality.traits, t].slice(-6);
@@ -145,12 +152,32 @@ export function AgentStudio() {
             </div>
             {preset?.disclaimer && <p className="sticky-note studio__sticky">{preset.disclaimer}</p>}
             <div className="grid2">
-              <Choice name="Head" value={p.look.head} options={HEADS} onChange={(v) => look({ head: v })} />
-              <Choice name="Face" value={p.look.face} options={FACES} onChange={(v) => look({ face: v })} />
-              <Choice name="Hat" value={p.look.hat} options={HATS} onChange={(v) => look({ hat: v })} />
-              <Choice name="Outfit" value={p.look.outfit} options={OUTFITS} onChange={(v) => look({ outfit: v })} />
-              <Choice name="Prop" value={p.look.extra} options={EXTRAS} onChange={(v) => look({ extra: v })} />
+              <label className="field">
+                <span className="eyebrow">Body</span>
+                <select value={p.look.body} onChange={(e) => look({ body: e.target.value as Look["body"] })}>
+                  {BODIES.map((b) => (
+                    <option key={b} value={b}>
+                      {BODY_LABEL[b]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="eyebrow">Size · {Math.round(p.look.size * 100)}%</span>
+                <input type="range" min={0.6} max={1.3} step={0.02} value={p.look.size} onChange={(e) => look({ size: Number(e.target.value) })} />
+              </label>
             </div>
+            {DRESSABLE.has(p.look.body) ? (
+              <div className="grid2">
+                <Choice name="Head" value={p.look.head} options={HEADS} onChange={(v) => look({ head: v })} />
+                <Choice name="Face" value={p.look.face} options={FACES} onChange={(v) => look({ face: v })} />
+                <Choice name="Hat" value={p.look.hat} options={HATS} onChange={(v) => look({ hat: v })} />
+                <Choice name="Outfit" value={p.look.outfit} options={OUTFITS} onChange={(v) => look({ outfit: v })} />
+                <Choice name="Prop" value={p.look.extra} options={EXTRAS} onChange={(v) => look({ extra: v })} />
+              </div>
+            ) : (
+              <p className="studio__note">This body takes colours and size. Pick the classic figure to dress it piece by piece.</p>
+            )}
             <div className="grid3">
               <Colour name="Shell" value={p.look.shell} onChange={(v) => look({ shell: v })} />
               <Colour name="Glow" value={p.look.accent} onChange={(v) => look({ accent: v })} />

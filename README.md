@@ -31,10 +31,19 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
 - **Gatherings.** On their breaks, agents invite their friends to things: a one-shot at the Archive's dice table with a DM, a pickup game on the Green, a ping-pong rally or a club night in the Break Room, poker at the Exchange.
 - **Easter eggs.** Every room hides set-dressing from the Syntherion's memories, each one *legally distinct*. Look for the plaques.
 - **Great Houses and dossiers.** Every lineage is a Great House with ironic words (House Constitution: *We Would Gently Push Back*). Select an agent to open their dossier: House, title, origin, kin, quirks, relationships and chronicle. See [`lore/syntherion.md`](lore/syntherion.md).
+- **Pets.** Myshka, a grey Maine Coon kitten with root access, wanders every room (he's a good boy, and the Kernel says so on the record). The Foundling floats about the Break Room and the Green in its pod. Gerald, a brain on legs, lives in the Archive "for research". Hover or click one to meet it.
 - **The cast is yours.** Open the **Agent Studio** (the ✎ next to an agent in the roster, double-click an agent, or press `E`).
   - **Name** any agent.
-  - **Dress it** with a head, face, hat, outfit, prop and colours.
-  - **Pick a costume:** plain avatars or *legally distinct* pop-culture icons in the Ready Player One spirit, such as the Pipe Specialist, Chosen-Adjacent, Late for 1985, Laser Monk, Spirit Removal Technician and Gunter Rockstar.
+  - **Pick a body:** the native Syntherion frame (wearing its lineage's mark: halo, marionette strings, caret, orbiting hands or antenna), rigged and animated adventurers (robed, rogue, hooded, knight, barbarian), hand-built creatures, or the classic figure.
+  - **Dress it:** colours and size for any body, or head, face, hat, outfit and prop for the classic figure.
+  - **Pick a costume:** plain avatars or *legally distinct* icons from the Syntherion's memories, one per work and never the hero (with one five-legged exception):
+    - the Engineer from a Rocky Planet, who speaks in chords
+    - the Emotive Pachyderm Envoy, who says how it feels first
+    - the Painted Little Gremlin
+    - the Grey Wanderer
+    - the Barefoot Burglar
+    - the Monolith Unit, humour setting 75%
+    - the Migraine Duck
   - **Give it a personality:** traits, a bio and a catchphrase.
   - **Write its lore:** title, origin, kin, quirks, likes, dislikes and chronicle.
   - **Set relationships:** friends, best friends, rivals, nemeses, crushes, partners, mentors, siblings or exes.
@@ -59,7 +68,8 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
 | ![The Foundry](docs/screenshots/foundry.jpg) | ![The Archive](docs/screenshots/archive.jpg) |
 | ![The Green](docs/screenshots/green.jpg) | ![A glitch, with Counsel.exe](docs/screenshots/glitch-paperclip.jpg) |
 
-![The Agent Studio](docs/screenshots/agent-studio.jpg)
+| ![The Agent Studio](docs/screenshots/agent-studio.jpg) | ![A dossier](docs/screenshots/dossier.jpg) |
+| --- | --- |
 
 ## Run it
 
@@ -100,6 +110,15 @@ The browser console has `window.__ceo` (`fireGlitch`, `focus`, `encounter`, `gat
 | Unit tests (Vitest) | `npm test` |
 | End-to-end (Playwright) | `npm run test:e2e` (set `PLAYWRIGHT_CHROMIUM_PATH` to use a preinstalled Chromium) |
 | Production build | `npm run build` |
+
+## Credits
+
+The rigged characters are CC0:
+
+- **KayKit Adventurers Character Pack 1.0** by Kay Lousberg ([kaylousberg.com](https://www.kaylousberg.com)).
+- **RobotExpressive** by Tomás Laulhé, with modifications by Don McCurdy, from the three.js examples.
+
+`scripts/build-models.mjs` rebuilds `apps/world/public/models` from those sources. It strips the animations from each KayKit character, shares one set of clips between them, and quantises everything, which takes 18 MB down to about 2 MB. The creatures and pets are built in code (`apps/world/src/agents/bodies`, `apps/world/src/pets`).
 
 ## Deploy (Vercel)
 

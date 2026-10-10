@@ -6,7 +6,7 @@ import { create } from "zustand";
  * The cast as you've customised it: names, looks, personalities, relationships. Saved in this browser
  * (localStorage) for now; in phase 2 the hub keeps it so it follows you between devices.
  */
-const KEY = "ceo.cast.v1";
+const KEY = "ceo.cast.v2";
 
 function load(): Cast {
   try {

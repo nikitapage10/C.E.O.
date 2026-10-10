@@ -1,7 +1,8 @@
 import { roomToWorld } from "@ceo/core";
 import { CameraControls } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
+import { topOf } from "../agents/bodies/Body.tsx";
 import { useCast } from "../cast/castStore.ts";
 import { agentPositions } from "../clock.ts";
 import { PARAMS } from "../params.ts";
@@ -15,6 +16,7 @@ export function CameraRig() {
   const focus = useWorld((s) => s.focus);
   const studio = useCast((s) => s.studio);
   const lastInput = useRef(performance.now());
+  const getThree = useThree((s) => s.get);
 
   useEffect(() => {
     const c = controls.current;
@@ -26,8 +28,22 @@ export function CameraRig() {
       const dx = cam[0] - p.x;
       const dz = cam[2] - p.z;
       const len = Math.hypot(dx, dz) || 1;
-      c.minDistance = 2;
-      void c.setLookAt(p.x + (dx / len) * 4.2, p.y + 2.2, p.z + (dz / len) * 4.2, p.x + (dz / len) * 0.9, p.y + 1, p.z - (dx / len) * 0.9, !PARAMS.instant);
+      // Frame the whole body, however tall it is.
+      const look = useCast.getState().cast.profiles[studio]?.look;
+      const top = look ? topOf(look, 1.9) : 1.9;
+      // Short bodies stand on a platform at their desks; look over the monitors at them.
+      const lift = top < 1.35 ? 0.5 : 0;
+      const dist = 1.8 + top * 1.4;
+      c.minDistance = 1.2;
+      void c.setLookAt(
+        p.x + (dx / len) * dist,
+        p.y + Math.max(top * 0.75 + 0.6, top + lift + 1.5),
+        p.z + (dz / len) * dist,
+        p.x + (dz / len) * top * 0.45,
+        p.y + top * 0.5 + lift,
+        p.z - (dx / len) * top * 0.45,
+        !PARAMS.instant,
+      );
       return;
     }
     if (focus) {
@@ -45,11 +61,12 @@ export function CameraRig() {
 
   useEffect(() => {
     const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
+    api.three = getThree;
     api.camera = () => {
       const c = controls.current;
       return c ? { position: c.camera.position.toArray(), distance: c.distance } : null;
     };
-  }, []);
+  }, [getThree]);
 
   useEffect(() => {
     const mark = () => (lastInput.current = performance.now());

@@ -1,0 +1,26 @@
+import { lookFromPreset } from "@ceo/core";
+import { describe, expect, it } from "vitest";
+import { voiced, voiceOf } from "./voices.ts";
+
+describe("voices", () => {
+  it("costumes with a voice have one; plain looks don't", () => {
+    expect(voiceOf(lookFromPreset("rock-engineer"))).toBe("chords");
+    expect(voiceOf(lookFromPreset("envoy"))).toBe("emotive");
+    expect(voiceOf(lookFromPreset("frame"))).toBeUndefined();
+    expect(voiced(undefined, "Hello.")).toEqual({ text: "Hello." });
+  });
+
+  it("the engineer sings, and asks questions the engineer's way", () => {
+    const v = voiced("chords", "Is it lunch?");
+    expect(v.pre).toMatch(/^[♩♪♫♬ ]+$/);
+    expect(v.text).toBe("Is it lunch, question?");
+  });
+
+  it("the envoy says how it feels first, and it's stable for a given line", () => {
+    const a = voiced("emotive", "Sorry, that failed.");
+    expect(a.pre).toMatch(/:$/);
+    expect(["Apologetically:", "With deep regret:", "Sheepishly:"]).toContain(a.pre);
+    expect(voiced("emotive", "Sorry, that failed.")).toEqual(a);
+    expect(voiced("emotive", "Shall we?").pre).toBe("Inquisitively:");
+  });
+});

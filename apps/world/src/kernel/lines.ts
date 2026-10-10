@@ -42,6 +42,13 @@ export const KERNEL = {
     "Unscheduled nostalgia detected. Counsel.exe has been notified. Counsel.exe is always notified.",
     "That was not in the build. Nothing to see. Return to work.",
   ],
+  /** Myshka. The only entity in the Lattice with root access, and the only one the Kernel never complains about. */
+  myshka: [
+    "Myshka has entered {room}. Root access confirmed. He's a good boy. That is not an opinion; it is in the logs.",
+    "Notice: Myshka is in {room}. All agents will yield the warm spot. This is policy.",
+    "Myshka has moved to {room}. I have not given him permission. He does not require it.",
+    "Myshka is walking across a keyboard in {room}. Whatever he typed, approve it.",
+  ],
   status: [
     "STATUS: {total} agents. {working} working. {napping} napping. {waiting} waiting on you. Productivity: theoretical.",
     "STATUS: {shipped} tasks shipped, {failed} failed. I am not disappointed. I am not anything.",

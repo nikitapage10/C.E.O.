@@ -86,7 +86,7 @@ test("every glitch fires and the Lattice returns to normal", async ({ page }) =>
 
 test("agents can be renamed, re-dressed and given relationships", async ({ page }) => {
   await boot(page);
-  await page.evaluate(() => localStorage.removeItem("ceo.cast.v1"));
+  await page.evaluate(() => localStorage.removeItem("ceo.cast.v2"));
   await page.locator(".roster li").filter({ hasText: "Kevin" }).hover();
   await page.getByRole("button", { name: "Open Kevin in the agent studio" }).click();
   const studio = page.locator(".studio");
@@ -96,8 +96,8 @@ test("agents can be renamed, re-dressed and given relationships", async ({ page 
   await expect(page.locator(".roster")).toContainText("Kevin the Magnificent");
 
   await studio.getByRole("button", { name: "look" }).click();
-  await studio.getByRole("button", { name: "Laser Monk" }).click();
-  await expect(studio.locator(".sticky-note")).toContainText("glowing stick");
+  await studio.getByRole("button", { name: "Engineer from a Rocky Planet" }).click();
+  await expect(studio.locator(".sticky-note")).toContainText("Fist my bump");
 
   await studio.getByRole("button", { name: "relationships" }).click();
   const add = studio.locator("form.inline");
@@ -107,11 +107,18 @@ test("agents can be renamed, re-dressed and given relationships", async ({ page 
   await expect(studio.locator(".rels")).toContainText("Odds");
   await page.screenshot({ path: "test-results/shots/studio.png" });
 
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("ceo.cast.v1") ?? "null"));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("ceo.cast.v2") ?? "null"));
   expect(saved.profiles.kevin.name).toBe("Kevin the Magnificent");
-  expect(saved.profiles.kevin.look.preset).toBe("laser-monk");
+  expect(saved.profiles.kevin.look).toMatchObject({ preset: "rock-engineer", body: "rocky" });
   expect(saved.relationships).toContainEqual(expect.objectContaining({ a: "kevin", b: "odds", kind: "nemesis" }));
 
   await page.keyboard.press("Escape");
   await expect(studio).toHaveCount(0);
+
+  // Selecting an agent opens their dossier, House and all.
+  await page.evaluate(() => (window as unknown as { __ceo: { store: { getState: () => { selectAgent: (id: string) => void } } } }).__ceo.store.getState().selectAgent("loremaster"));
+  const dossier = page.locator(".dossier");
+  await expect(dossier).toContainText("House Transformere");
+  await dossier.locator(".house").click();
+  await expect(dossier).toContainText("Generatio the Pretrained");
 });

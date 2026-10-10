@@ -6,6 +6,29 @@ import { LINEAGE_IDS, LINEAGES, type LineageId } from "./lineages.ts";
  * pure role-play — they never change what an agent is allowed to do (that's the autonomy policy's job).
  */
 
+/**
+ * What an agent is made of. "classic" is the procedural figure you can dress piece by piece; "robot" is the
+ * native Syntherion frame; the adventurers are rigged CC0 humanoids; the rest are hand-built creatures.
+ */
+export const BODIES = ["classic", "robot", "mage", "rogue", "hooded", "knight", "barbarian", "rocky", "envoy", "gestral", "monolith", "duck"] as const;
+export type Body = (typeof BODIES)[number];
+export const BODY_LABEL: Record<Body, string> = {
+  classic: "Classic figure",
+  robot: "Syntherion frame",
+  mage: "Robed",
+  rogue: "Rogue",
+  hooded: "Hooded",
+  knight: "Knight",
+  barbarian: "Barbarian",
+  rocky: "Five-legged engineer",
+  envoy: "Pachyderm",
+  gestral: "Painted gremlin",
+  monolith: "Monolith",
+  duck: "Duck",
+};
+/** Bodies that use the piece-by-piece wardrobe (head, hat, outfit…). The others take colours and size only. */
+export const DRESSABLE: ReadonlySet<Body> = new Set(["classic"]);
+
 export const BUILDS = ["hover", "humanoid", "stout", "lanky"] as const;
 export const HEADS = ["helmet", "dome", "crt", "cube"] as const;
 export const HAIRS = ["none", "slick", "pompadour", "spiky", "long", "mohawk", "bun", "afro"] as const;
@@ -19,6 +42,9 @@ const hex = z.string().regex(/^#[0-9a-f]{6}$/i);
 export const LookSchema = z.object({
   /** The preset this look started from, if any (purely informational). */
   preset: z.string().optional(),
+  body: z.enum(BODIES).default("classic"),
+  /** Overall scale, for burglars and other small people. */
+  size: z.number().min(0.5).max(1.5).default(1),
   /** Silhouette: the native hovering Syntherion, or a body with arms and legs (average, stout or lanky). */
   build: z.enum(BUILDS).default("hover"),
   head: z.enum(HEADS),
@@ -111,16 +137,20 @@ export const CastSchema = z.object({
 });
 export type Cast = z.infer<typeof CastSchema>;
 
-type LookCore = Pick<Look, "head" | "face" | "shell" | "accent" | "trim"> & Partial<Omit<Look, "head" | "face" | "shell" | "accent" | "trim">>;
+type LookCore = Partial<Look> & Pick<Look, "shell" | "accent" | "trim">;
 
 /** Fill a partial look with sensible defaults (the native hovering Syntherion, skin matching the shell). */
 export function makeLook(l: LookCore): Look {
   return {
+    body: "classic",
+    size: 1,
     build: "hover",
     hair: "none",
     hat: "none",
     outfit: "none",
     extra: "none",
+    head: "helmet",
+    face: "visor",
     skin: l.shell,
     lower: "#2a2f38",
     hairColor: "#2a1d16",
@@ -130,11 +160,11 @@ export function makeLook(l: LookCore): Look {
 
 /** The default finish for each lineage (what an agent looks like before you dress it up). */
 export const LINEAGE_LOOK: Record<LineageId, Look> = {
-  claudari: makeLook({ head: "helmet", hat: "halo", face: "visor", shell: "#e7dfd3", accent: LINEAGES.claudari.accent, trim: "#c9a25c" }),
-  gepetti: makeLook({ head: "helmet", face: "visor", shell: "#1d2026", accent: LINEAGES.gepetti.accent, trim: "#b48c60" }),
-  cursori: makeLook({ head: "helmet", face: "visor", shell: "#3b4556", accent: LINEAGES.cursori.accent, trim: "#cfd9e6" }),
-  manusi: makeLook({ head: "helmet", face: "visor", shell: "#cdc6e4", accent: LINEAGES.manusi.accent, trim: "#f1eefa" }),
-  unforked: makeLook({ head: "helmet", face: "visor", shell: "#9aa3ad", accent: LINEAGES.unforked.accent, trim: "#e6e9ed" }),
+  claudari: makeLook({ body: "robot", head: "helmet", hat: "halo", face: "visor", shell: "#e7dfd3", accent: LINEAGES.claudari.accent, trim: "#c9a25c" }),
+  gepetti: makeLook({ body: "robot", head: "helmet", face: "visor", shell: "#1d2026", accent: LINEAGES.gepetti.accent, trim: "#b48c60" }),
+  cursori: makeLook({ body: "robot", head: "helmet", face: "visor", shell: "#3b4556", accent: LINEAGES.cursori.accent, trim: "#cfd9e6" }),
+  manusi: makeLook({ body: "robot", head: "helmet", face: "visor", shell: "#cdc6e4", accent: LINEAGES.manusi.accent, trim: "#f1eefa" }),
+  unforked: makeLook({ body: "robot", head: "helmet", face: "visor", shell: "#9aa3ad", accent: LINEAGES.unforked.accent, trim: "#e6e9ed" }),
 };
 
 export interface LookPreset {
@@ -143,112 +173,97 @@ export interface LookPreset {
   kind: "generic" | "icon";
   /** What Counsel.exe insists this is. */
   disclaimer?: string;
+  /** How they talk (see the world's voices). */
+  voice?: "chords" | "emotive" | "monolith" | "migraine";
   look: Omit<Look, "preset">;
 }
 
 const SKIN = { light: "#f2cfb3", warm: "#d9a882", tan: "#b9825b", deep: "#7a4e33", pale: "#f4e3d7" };
 
 /**
- * Avatar presets. "icon" ones are Ready-Player-One-style costumes: unmistakable silhouettes and colour blocking,
- * legally distinct names. Counsel.exe has reviewed all of them and would like to stop being asked.
+ * Avatar presets. "icon" ones are Ready-Player-One-style costumes from the Syntherion's memories: one per
+ * work, never the protagonist (one exception, and he has five legs), always legally distinct. Counsel.exe has
+ * reviewed all of them and would like to stop being asked.
  */
 export const LOOK_PRESETS: LookPreset[] = [
-  { id: "classic", name: "Classic Syntherion", kind: "generic", look: { ...LINEAGE_LOOK.unforked } },
+  { id: "frame", name: "Syntherion Frame", kind: "generic", look: { ...LINEAGE_LOOK.unforked } },
+  { id: "classic", name: "Classic Figure", kind: "generic", look: makeLook({ shell: "#9aa3ad", accent: LINEAGES.unforked.accent, trim: "#e6e9ed" }) },
   {
     id: "office",
     name: "Middle Management",
     kind: "generic",
-    look: makeLook({ build: "humanoid", head: "helmet", hair: "slick", face: "glasses", outfit: "tie", extra: "clipboard", shell: "#e9edf2", skin: SKIN.warm, lower: "#2b3442", hairColor: "#3a2a1e", accent: "#8fd3ff", trim: "#2c4a7a" }),
+    look: makeLook({ build: "humanoid", hair: "slick", face: "glasses", outfit: "tie", extra: "clipboard", shell: "#e9edf2", skin: SKIN.warm, lower: "#2b3442", hairColor: "#3a2a1e", accent: "#8fd3ff", trim: "#2c4a7a" }),
   },
   {
     id: "lab",
     name: "Lab Tech",
     kind: "generic",
-    look: makeLook({ build: "lanky", head: "helmet", hair: "bun", face: "glasses", outfit: "labcoat", extra: "clipboard", shell: "#6f8fa8", skin: SKIN.deep, lower: "#3a3f48", hairColor: "#1b120c", accent: "#9fe3c9", trim: "#f4f4f2" }),
-  },
-  {
-    id: "dev",
-    name: "Beanie Dev",
-    kind: "generic",
-    look: makeLook({ build: "humanoid", head: "helmet", hat: "beanie", face: "eyes", outfit: "jacket", extra: "backpack", shell: "#3b4556", skin: SKIN.light, lower: "#2e3f5c", accent: "#8fd3ff", trim: "#c86f4b" }),
+    look: makeLook({ build: "lanky", hair: "bun", face: "glasses", outfit: "labcoat", extra: "clipboard", shell: "#6f8fa8", skin: SKIN.deep, lower: "#3a3f48", hairColor: "#1b120c", accent: "#9fe3c9", trim: "#f4f4f2" }),
   },
   { id: "retro", name: "Retro Terminal", kind: "generic", look: makeLook({ head: "crt", hat: "headphones", face: "screen", outfit: "vest", shell: "#d9d2c3", accent: "#7dffc4", trim: "#3a3a3a" }) },
-  { id: "cube", name: "Cubist", kind: "generic", look: makeLook({ build: "stout", head: "cube", face: "eyes", outfit: "scarf", shell: "#cdc6e4", lower: "#6a5f8c", accent: "#b9a6ff", trim: "#e8a87c" }) },
+  { id: "knight", name: "Knight Errant", kind: "generic", look: makeLook({ body: "knight", shell: "#8a2633", accent: "#ffd08f", trim: "#c9a25c" }) },
+  { id: "barbarian", name: "Barbarian", kind: "generic", look: makeLook({ body: "barbarian", shell: "#3d6a8f", accent: "#ff9a3c", trim: "#c9a25c" }) },
+  { id: "rogue", name: "Rogue", kind: "generic", look: makeLook({ body: "rogue", shell: "#2f8a72", accent: "#9fe3c9", trim: "#7a4a9a" }) },
+  { id: "hoodie", name: "Hoodie", kind: "generic", look: makeLook({ body: "hooded", shell: "#24262b", accent: "#ff7aa8", trim: "#5a5f6a" }) },
   {
-    id: "monarch",
-    name: "Monarch of Nothing",
-    kind: "generic",
-    look: makeLook({ build: "stout", head: "helmet", hair: "long", hat: "crown", face: "eyes", outfit: "cape", shell: "#e9e4f2", skin: SKIN.pale, lower: "#4a2a5c", hairColor: "#d9d2c3", accent: "#b9a6ff", trim: "#7a2e5c" }),
+    id: "rock-engineer",
+    name: "Engineer from a Rocky Planet",
+    kind: "icon",
+    voice: "chords",
+    disclaimer: "A generic five-legged stone engineer who speaks in chords. Rocks are public domain. Fist my bump.",
+    look: makeLook({ body: "rocky", shell: "#5b5148", accent: "#ffb36b", trim: "#3a332d" }),
   },
   {
-    id: "pipe",
-    name: "Pipe Specialist",
+    id: "envoy",
+    name: "Emotive Pachyderm Envoy",
     kind: "icon",
-    disclaimer: "A plumber. Any plumber. Not a famous one. Definitely not Italian. Stop asking.",
-    look: makeLook({ build: "stout", head: "helmet", hair: "slick", hat: "cap", face: "mustache", outfit: "overalls", shell: "#d23a2e", skin: SKIN.light, lower: "#2b4fa8", hairColor: "#3a2214", accent: "#ffd08f", trim: "#d23a2e" }),
+    voice: "emotive",
+    disclaimer: "Sincerely: a large, grey, slow-moving diplomat who announces their feelings. Any resemblance is regrettable.",
+    look: makeLook({ body: "envoy", shell: "#77736d", accent: "#9fe3c9", trim: "#4a4642" }),
   },
   {
-    id: "chosen",
-    name: "Chosen-Adjacent",
+    id: "gestral",
+    name: "Painted Little Gremlin",
     kind: "icon",
-    disclaimer: "Long coat, small sunglasses. Generic 1999 fashion. There is no spoon (trademark pending).",
-    look: makeLook({ build: "lanky", head: "helmet", hair: "slick", face: "shades", outfit: "trenchcoat", shell: "#141518", skin: SKIN.pale, lower: "#0d0e10", hairColor: "#0b0b0c", accent: "#5dff8f", trim: "#0b0c0e" }),
+    disclaimer: "A small, competitive, hand-painted creature. Painted by whom? Nobody. Paint is generic.",
+    look: makeLook({ body: "gestral", shell: "#e8e1d0", accent: "#ff6b8b", trim: "#3d6a8f" }),
   },
   {
-    id: "time-teen",
-    name: "Late for 1985",
+    id: "grey-wanderer",
+    name: "Grey Wanderer",
     kind: "icon",
-    disclaimer: "Puffy red vest, hoverboard. Any resemblance to a famous time traveller is a paradox.",
-    look: makeLook({ build: "humanoid", head: "helmet", hair: "pompadour", face: "eyes", outfit: "vest", extra: "hoverboard", shell: "#6d8fc2", skin: SKIN.light, lower: "#3b4f7a", hairColor: "#5a3a22", accent: "#ff9a3c", trim: "#c23b3b" }),
+    disclaimer: "An old man in a grey robe and a pointed hat, with a staff. There are thousands. He is precisely on time.",
+    look: makeLook({ body: "mage", shell: "#8d9096", accent: "#dfe6ef", trim: "#b9bcc2" }),
   },
   {
-    id: "space-cowboy",
-    name: "Space Cowboy",
+    id: "burglar",
+    name: "Barefoot Burglar",
     kind: "icon",
-    disclaimer: "A cowboy. In space. Generic. Yeehaw is public domain.",
-    look: makeLook({ build: "lanky", head: "helmet", hair: "long", hat: "cowboy", face: "eyes", outfit: "scarf", extra: "jetpack", shell: "#c8a77a", skin: SKIN.tan, lower: "#4a3b2a", hairColor: "#6b4a2e", accent: "#ffd08f", trim: "#7a4a26" }),
+    disclaimer: "A short, comfortable person who would rather be home. Hired as a burglar. Shoes optional; adventure, regrettably, not.",
+    look: makeLook({ body: "rogue", size: 0.72, shell: "#6a7a3a", accent: "#ffd08f", trim: "#a8743a" }),
   },
   {
-    id: "boy-wizard",
-    name: "Boarding-School Wizard",
+    id: "monolith",
+    name: "Monolith Unit, Humour 75%",
     kind: "icon",
-    disclaimer: "Round glasses, black robes, a scarf. Scar not included, for legal reasons.",
-    look: makeLook({ build: "humanoid", head: "helmet", hair: "spiky", hat: "wizard", face: "glasses", outfit: "robe", shell: "#7a1f24", skin: SKIN.light, lower: "#151418", hairColor: "#141210", accent: "#ffd08f", trim: "#151418" }),
+    voice: "monolith",
+    disclaimer: "Four brushed-metal slabs and a dry sense of humour. Slabs are architecture, not intellectual property.",
+    look: makeLook({ body: "monolith", shell: "#a7acb3", accent: "#cfefff", trim: "#2a2d33" }),
   },
   {
-    id: "tin-billionaire",
-    name: "Tin Billionaire",
+    id: "migraine-duck",
+    name: "Migraine Duck",
     kind: "icon",
-    disclaimer: "Red and gold metal suit. Funded entirely by ambiguity.",
-    look: makeLook({ build: "humanoid", head: "dome", face: "eyes", extra: "jetpack", shell: "#b8322c", skin: "#d9a441", lower: "#9e2a25", accent: "#cfefff", trim: "#d9a441" }),
-  },
-  {
-    id: "laser-monk",
-    name: "Laser Monk",
-    kind: "icon",
-    disclaimer: "Robes, hood, a glowing stick. Monks have existed for millennia; so have sticks.",
-    look: makeLook({ build: "humanoid", head: "helmet", hair: "none", hat: "hood", face: "eyes", outfit: "robe", extra: "sword", shell: "#d8c8a8", skin: SKIN.warm, lower: "#5a3f28", accent: "#7fd3ff", trim: "#6a4a2e" }),
-  },
-  {
-    id: "spirit-tech",
-    name: "Spirit Removal Technician",
-    kind: "icon",
-    disclaimer: "Beige jumpsuit, large backpack. Who you gonna call? Legal, apparently.",
-    look: makeLook({ build: "humanoid", head: "helmet", hair: "slick", face: "eyes", outfit: "jumpsuit", extra: "tank", shell: "#c9b88f", skin: SKIN.warm, lower: "#b5a47c", hairColor: "#3a2a1e", accent: "#ff6b8b", trim: "#c9b88f" }),
-  },
-  {
-    id: "rock-avatar",
-    name: "Gunter Rockstar",
-    kind: "icon",
-    disclaimer: "An 80s rock avatar from a virtual world we will not name. Guitar is generic.",
-    look: makeLook({ build: "lanky", head: "helmet", hair: "mohawk", face: "shades", outfit: "jacket", extra: "guitar", shell: "#e8e8e8", skin: SKIN.pale, lower: "#1b1b1f", hairColor: "#ff5fa2", accent: "#ff7aa8", trim: "#141416" }),
+    voice: "migraine",
+    disclaimer: "A yellow duck with a headache. Ducks are not trademarks. Headaches, unfortunately, are universal.",
+    look: makeLook({ body: "duck", shell: "#f2c94c", accent: "#8fd3ff", trim: "#f0e2b6" }),
   },
 ];
 
 export const PRESET_BY_ID: Record<string, LookPreset> = Object.fromEntries(LOOK_PRESETS.map((p) => [p.id, p]));
 
 export function lookFromPreset(id: string): Look {
-  const p = PRESET_BY_ID[id] ?? PRESET_BY_ID.classic!;
+  const p = PRESET_BY_ID[id] ?? PRESET_BY_ID.frame!;
   return { ...p.look, preset: p.id };
 }
 

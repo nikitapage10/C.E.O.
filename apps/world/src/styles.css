@@ -722,6 +722,18 @@ button {
   text-transform: uppercase;
   margin-bottom: 2px;
 }
+.bubble__pre {
+  display: block;
+  margin-bottom: 1px;
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.bubble__post {
+  color: var(--faint);
+}
 .bubble--far {
   max-width: 170px;
   font-size: 12px;
@@ -1965,4 +1977,23 @@ button {
     right: 16px;
     width: auto;
   }
+}
+
+/* ── Pets ── */
+.nameplate--pet {
+  opacity: 0.75;
+  font-size: 8px;
+}
+.tag--pet {
+  max-width: 240px;
+}
+.tag__blurb {
+  margin-top: 5px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+  color: var(--muted);
 }

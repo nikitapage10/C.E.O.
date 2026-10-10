@@ -3,6 +3,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Suspense } from "react";
 import { NoToneMapping, SRGBColorSpace } from "three";
 import { Agents } from "../agents/Agents.tsx";
+import { Pets } from "../pets/Pets.tsx";
 import { clock } from "../clock.ts";
 import { tickMaterials } from "../fx/materials.ts";
 import { PostFX } from "../fx/PostFX.tsx";
@@ -52,6 +53,7 @@ export function Scene() {
         <Streams />
         <Rooms />
         <Agents />
+        <Pets />
         <GlitchStage />
         <Callouts />
         <Floor />

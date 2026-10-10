@@ -12,7 +12,10 @@ import { Block, facingDir } from "../rooms/primitives.tsx";
 import { useWorld } from "../store.ts";
 import { BUILD, BackProp, Face, HandProp, Hair, Hat, Head, Outfit, shellMaterial, sleeveMaterial } from "./Avatar.tsx";
 import { poseFor, type PoseMode } from "./behavior.ts";
+import { Body, topOf } from "./bodies/Body.tsx";
+import type { Drive } from "./bodies/types.ts";
 import { PropMesh } from "./Props.tsx";
+import { voiced, voiceOf } from "./voices.ts";
 
 /** A turned torso profile: narrow waist, rounded chest and shoulders. */
 const TORSO = new LatheGeometry(
@@ -61,6 +64,9 @@ export interface Limbs {
   legL: React.RefObject<Group | null>;
   legR: React.RefObject<Group | null>;
 }
+
+/** The step stool's modelled height; it's scaled to suit whoever is standing on it. */
+const STOOL = 0.5;
 
 const ARM = new CylinderGeometry(0.052, 0.045, 1, 12);
 const SHOE = PBR.lacquer("#1a1715", 0.35);
@@ -193,6 +199,10 @@ export function Agent({ id }: { id: string }) {
   const ring = useRef<Mesh>(null);
   const limbs: Limbs = { armL: useRef<Mesh>(null), armR: useRef<Mesh>(null), legL: useRef<Group>(null), legR: useRef<Group>(null) };
   const yaw = useRef(0);
+  const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
+  const speaking = useRef(false);
+  const perch = useRef(0);
+  const stool = useRef<Group>(null);
   const visibility = useRef(1);
   const phase = useMemo(() => hashPhase(id), [id]);
 
@@ -220,7 +230,11 @@ export function Agent({ id }: { id: string }) {
     const left = speech.until - performance.now();
     if (left <= 0) return;
     setBubbleOn(true);
-    const timer = setTimeout(() => setBubbleOn(false), left);
+    speaking.current = true;
+    const timer = setTimeout(() => {
+      setBubbleOn(false);
+      speaking.current = false;
+    }, left);
     return () => clearTimeout(timer);
   }, [speech]);
 
@@ -234,7 +248,7 @@ export function Agent({ id }: { id: string }) {
     return () => clearTimeout(timer);
   }, [emote]);
 
-  useFrame(({ camera, clock: three }) => {
+  useFrame(({ camera, clock: three }, dt) => {
     if (!rt || !root.current || !figure.current) return;
     const t = three.elapsedTime;
     const now = clock.sim;
@@ -263,7 +277,8 @@ export function Agent({ id }: { id: string }) {
 
     let targetYaw = yaw.current;
     const faceTarget = live?.mode === "face" && live.target ? agentPositions.get(live.target) : undefined;
-    if (mode === "stare") {
+    const posing = !moving && useCast.getState().studio === id;
+    if (mode === "stare" || posing) {
       tmp.copy(camera.position).sub(root.current.position);
       targetYaw = Math.atan2(tmp.x, tmp.z);
     } else if (faceTarget && !moving) {
@@ -276,7 +291,8 @@ export function Agent({ id }: { id: string }) {
       const [dx, dz] = facingDir(st.facing);
       targetYaw = Math.atan2(dx, dz) + roomAngle(rt.place.room);
     }
-    yaw.current = lerpAngle(yaw.current, targetYaw, mode === "stare" ? 0.12 : 0.08);
+    // Frame-rate independent easing (~0.12 / ~0.08 per frame at 60 fps).
+    yaw.current = lerpAngle(yaw.current, targetYaw, 1 - Math.exp(-dt * (mode === "stare" || posing ? 7.7 : 5)));
     root.current.rotation.y = yaw.current;
 
     visibility.current += ((streaming ? 0 : 1) - visibility.current) * 0.2;
@@ -285,6 +301,32 @@ export function Agent({ id }: { id: string }) {
     if (orb.current) {
       orb.current.visible = v < 0.98;
       orb.current.scale.setScalar(Math.max(0.0001, 1 - v));
+    }
+
+    const dr = drive.current;
+    dr.mode = mode;
+    dr.moving = moving;
+    dr.t = t;
+    dr.speaking = speaking.current;
+    if (ring.current) {
+      ring.current.visible = selected || hovered;
+      ring.current.rotation.z = t * 0.8;
+    }
+    if (look && look.body !== "classic") {
+      // Other bodies animate themselves from `drive`; just carry the prop in front of them.
+      // Short people get a step stool at their desk.
+      const top = topOf(look, 0);
+      const perched = top < 1.35 && !moving && (mode === "typing" || mode === "working" || mode === "waiting" || mode === "idle");
+      const height = Math.min(0.6, Math.max(0.25, 1.5 - top));
+      perch.current += ((perched ? height : 0) - perch.current) * (1 - Math.exp(-dt * 8));
+      if (stool.current) {
+        stool.current.visible = perch.current > 0.02;
+        stool.current.scale.y = Math.max(0.001, perch.current / STOOL);
+      }
+      figure.current.position.y = perch.current;
+      figure.current.rotation.set(0, 0, 0);
+      if (propRef.current) propRef.current.position.set(0, topOf(look, 0) * 0.5, 0.42 * look.size);
+      return;
     }
 
     const p = poseFor(mode, t, phase);
@@ -326,10 +368,6 @@ export function Agent({ id }: { id: string }) {
     }
     if (caret.current) caret.current.visible = Math.floor(t * 2.2 + phase) % 2 === 0;
     if (extraHands.current) extraHands.current.rotation.y = t * 1.6 + phase;
-    if (ring.current) {
-      ring.current.visible = selected || hovered;
-      ring.current.rotation.z = t * 0.8;
-    }
     if (strings && head.current) {
       const pos = strings.geometry.attributes.position!.array as Float32Array;
       const barY = 2.35 + Math.sin(t * 1.3 + phase) * 0.05;
@@ -347,8 +385,10 @@ export function Agent({ id }: { id: string }) {
   // Fixed-size labels in the studio close-up, distance-scaled ones in a room.
   const df = focus && !studioOpen ? 16 : undefined;
   const b = BUILD[look.build];
-  const nameY = b.lift + 1.36 * b.h + 0.62;
+  const classic = look.body === "classic";
+  const nameY = classic ? b.lift + 1.36 * b.h + 0.62 : topOf(look, 0) + (topOf(look, 0) < 1.35 ? 0.8 : 0.32);
   const costume = look.preset ? PRESET_BY_ID[look.preset]?.name : undefined;
+  const line = showBubble ? voiced(voiceOf(look), speech!.text) : null;
 
   const onOver = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
@@ -372,8 +412,12 @@ export function Agent({ id }: { id: string }) {
   return (
     <group ref={root} name={`agent-${id}`}>
       <group ref={figure}>
-        <Figure look={look} lineage={lineage} headRef={head} handL={handL} handR={handR} core={core} caret={caret} extraHands={extraHands} limbs={limbs} />
-        {lineage === "gepetti" && strings && (
+        {classic ? (
+          <Figure look={look} lineage={lineage} headRef={head} handL={handL} handR={handR} core={core} caret={caret} extraHands={extraHands} limbs={limbs} />
+        ) : (
+          <Body look={look} lineage={lineage} drive={drive} phase={phase} />
+        )}
+        {classic && lineage === "gepetti" && strings && (
           <>
             <primitive object={strings} />
             <Block size={[0.8, 0.04, 0.04]} position={[0, 2.35, 0]} material={PBR.wood("oak")} radius={0.01} />
@@ -393,6 +437,11 @@ export function Agent({ id }: { id: string }) {
         )}
       </group>
 
+      <group ref={stool} visible={false}>
+        <Block size={[0.9, STOOL, 0.8]} position={[0, STOOL / 2, 0]} material={PBR.wood("oak")} radius={0.02} />
+        <Block size={[0.94, 0.03, 0.84]} position={[0, STOOL - 0.015, 0]} material={PBR.steel()} radius={0.01} />
+      </group>
+
       <group ref={orb} position={[0, 0.8, 0]} visible={false}>
         <mesh material={emissive(accent, 5)}>
           <sphereGeometry args={[0.22, 14, 14]} />
@@ -403,8 +452,8 @@ export function Agent({ id }: { id: string }) {
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} material={emissive("#ffffff", 2)} visible={false}>
         <ringGeometry args={[0.5, 0.515, 64, 1, 0, Math.PI * 1.7]} />
       </mesh>
-      <mesh position={[0, 0.9, 0]} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} onDoubleClick={onDouble} visible={false}>
-        <cylinderGeometry args={[0.55, 0.55, 2, 8]} />
+      <mesh position={[0, (nameY - 0.3) / 2, 0]} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} onDoubleClick={onDouble} visible={false}>
+        <cylinderGeometry args={[0.55, 0.55, nameY - 0.3, 8]} />
         <meshBasicMaterial />
       </mesh>
 
@@ -424,7 +473,9 @@ export function Agent({ id }: { id: string }) {
       {showBubble && (
         <Html position={[0, nameY + 0.1, 0]} center distanceFactor={df} zIndexRange={[30, 0]}>
           <div className={`bubble ${df ? "" : "bubble--far"}`} style={{ borderLeftColor: accent }}>
-            <b style={{ color: accent }}>{name}</b> {speech!.text}
+            <b style={{ color: accent }}>{name}</b>
+            {line?.pre && <span className="bubble__pre">{line.pre}</span>} {line?.text}
+            {line?.post && <span className="bubble__post"> {line.post}</span>}
           </div>
         </Html>
       )}

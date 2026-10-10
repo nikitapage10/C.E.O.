@@ -30,8 +30,8 @@ type Rigged = Extract<Body, "robot" | "mage" | "rogue" | "hooded" | "knight" | "
 export const RIGGED: ReadonlySet<Body> = new Set<Rigged>(["robot", "mage", "rogue", "hooded", "knight", "barbarian"]);
 
 /** A clip per mode, with playback speed. `once` clips play through and hold their last frame. */
-type ClipPlan = { clip: string; speed?: number; once?: boolean };
-type ClipMap = Record<PoseMode, ClipPlan> & { dance?: ClipPlan };
+export type ClipPlan = { clip: string; speed?: number; once?: boolean };
+export type ClipMap = Record<PoseMode, ClipPlan> & { dance?: ClipPlan };
 
 const KAYKIT_CLIPS: ClipMap = {
   idle: { clip: "Idle" },
@@ -88,7 +88,7 @@ const KAYKIT: Record<Exclude<Rigged, "robot">, KayKitDef> = {
 
 /** Scale that brings a model's bind pose to `height`. Cached per source scene. */
 const scaleCache = new WeakMap<Object3D, number>();
-function fitScale(scene: Object3D, height: number) {
+export function fitScale(scene: Object3D, height: number) {
   let s = scaleCache.get(scene);
   if (s === undefined) {
     const box = new Box3().setFromObject(scene, true);
@@ -99,7 +99,7 @@ function fitScale(scene: Object3D, height: number) {
 }
 
 /** Plays the clip for the current mode, cross-fading between them. */
-function useClips(model: Object3D, clips: AnimationClip[], map: ClipMap, drive: BodyProps["drive"], phase: number) {
+export function useClips(model: Object3D, clips: AnimationClip[], map: ClipMap, drive: BodyProps["drive"], phase: number) {
   const mixer = useMemo(() => new AnimationMixer(model), [model]);
   const actions = useMemo(() => {
     const byName = new Map(clips.map((c) => [c.name, c]));
@@ -138,7 +138,7 @@ function useClips(model: Object3D, clips: AnimationClip[], map: ClipMap, drive: 
 }
 
 /** The material a mesh was loaded with, remembered so a re-dress starts from the original. */
-function original<T>(m: Mesh): T {
+export function original<T>(m: Mesh): T {
   return (m.userData.orig ??= m.material) as T;
 }
 
@@ -190,7 +190,7 @@ function dressKayKit(model: Object3D, def: KayKitDef, body: string, look: Look) 
 const headWorld = new Vector3();
 
 /** The native Syntherion's lineage signature, worn on the frame: halo, strings, caret, orbiting hands, antenna. */
-function LineageMark({ lineage, accent, head, root }: { lineage: LineageId; accent: string; head: Object3D | null; root: React.RefObject<Group | null> }) {
+export function LineageMark({ lineage, accent, head, root }: { lineage: LineageId; accent: string; head: Object3D | null; root: React.RefObject<Group | null> }) {
   const mark = useRef<Group>(null);
   const caret = useRef<Mesh>(null);
   const hands = useRef<Group>(null);
@@ -253,7 +253,7 @@ function LineageMark({ lineage, accent, head, root }: { lineage: LineageId; acce
   );
 }
 
-function findBone(model: Object3D, re: RegExp) {
+export function findBone(model: Object3D, re: RegExp) {
   let hit: Object3D | null = null;
   model.traverse((o) => {
     if (!hit && (o as unknown as { isBone?: boolean }).isBone && re.test(o.name)) hit = o;

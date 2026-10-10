@@ -109,7 +109,7 @@ test("agents can be renamed, re-dressed and given relationships", async ({ page 
 
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("ceo.cast.v2") ?? "null"));
   expect(saved.profiles.kevin.name).toBe("Kevin the Magnificent");
-  expect(saved.profiles.kevin.look).toMatchObject({ preset: "rock-engineer", body: "rocky" });
+  expect(saved.profiles.kevin.look).toMatchObject({ preset: "rock-engineer", body: "crawler" });
   expect(saved.relationships).toContainEqual(expect.objectContaining({ a: "kevin", b: "odds", kind: "nemesis" }));
 
   await page.keyboard.press("Escape");

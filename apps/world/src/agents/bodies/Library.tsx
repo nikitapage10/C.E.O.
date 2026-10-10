@@ -1,0 +1,177 @@
+import type { Body, Look } from "@ceo/core";
+import { useMemo, useRef } from "react";
+import { Color, type AnimationClip, type Group, type Mesh, type MeshStandardMaterial, type Object3D } from "three";
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { preloadLib, useLib } from "../../fx/library.ts";
+import { recolor, type Band } from "./recolor.ts";
+import { LineageMark, findBone, fitScale, original, useClips, type ClipMap } from "./Rigged.tsx";
+import { BODY_HEIGHT, type BodyProps } from "./types.ts";
+
+/**
+ * Bodies from the model library: the House frames (Quaternius robots), human disguises (Ultimate Modular
+ * Men/Women, one shared clip file) and the creatures the icon costumes now wear (Ultimate Monsters, Sci-Fi
+ * Essentials). Each says how it takes the look's colours.
+ */
+
+const ROBOT_CLIPS: ClipMap = {
+  idle: { clip: "Idle" },
+  walking: { clip: "Walk" },
+  carrying: { clip: "Walk_Holding" },
+  typing: { clip: "Yes", speed: 0.5 },
+  working: { clip: "Pickup", speed: 0.6 },
+  celebrating: { clip: "Dance" },
+  slumped: { clip: "No", speed: 0.4 },
+  napping: { clip: "Death", speed: 0.6, once: true },
+  waiting: { clip: "Hello", speed: 0.7 },
+  staring: { clip: "Idle" },
+  stare: { clip: "Idle", speed: 0.25 },
+};
+
+const HUMAN_CLIPS: ClipMap = {
+  idle: { clip: "Idle" },
+  walking: { clip: "Walk" },
+  carrying: { clip: "Walk", speed: 0.9 },
+  typing: { clip: "Interact", speed: 0.7 },
+  working: { clip: "Interact", speed: 0.5 },
+  celebrating: { clip: "Wave" },
+  slumped: { clip: "HitRecieve_2", speed: 0.4, once: true },
+  napping: { clip: "Death", speed: 0.6, once: true },
+  waiting: { clip: "Idle_Neutral" },
+  staring: { clip: "Idle_Neutral" },
+  stare: { clip: "Idle_Neutral", speed: 0.3 },
+};
+
+const MONSTER_CLIPS: ClipMap = {
+  idle: { clip: "Idle" },
+  walking: { clip: "Walk" },
+  carrying: { clip: "Walk", speed: 0.85 },
+  typing: { clip: "Yes", speed: 0.7 },
+  working: { clip: "Punch", speed: 0.5 },
+  celebrating: { clip: "Jump" },
+  slumped: { clip: "Duck", speed: 0.5, once: true },
+  napping: { clip: "Death", speed: 0.6, once: true },
+  waiting: { clip: "Wave", speed: 0.7 },
+  staring: { clip: "Idle" },
+  stare: { clip: "Idle", speed: 0.3 },
+};
+
+const CRAWLER_CLIPS: ClipMap = {
+  idle: { clip: "Idle" },
+  walking: { clip: "Walk" },
+  carrying: { clip: "Walk", speed: 0.85 },
+  typing: { clip: "Look", speed: 0.8 },
+  working: { clip: "Charge", speed: 0.6 },
+  celebrating: { clip: "Charge", speed: 1.4 },
+  slumped: { clip: "TurnOff", speed: 0.5, once: true },
+  napping: { clip: "TurnOff", speed: 0.7, once: true },
+  waiting: { clip: "Look", speed: 0.5 },
+  staring: { clip: "Idle" },
+  stare: { clip: "Look", speed: 0.25 },
+};
+
+type Slot = "shell" | "trim";
+
+/** How a body takes the look's colours. */
+type Dress =
+  /** Flat-colour models: these named materials take these look colours. */
+  | { kind: "materials"; slots: Record<string, Slot> }
+  /** Textured models: hue bands of the texture are repainted (see recolor.ts). */
+  | { kind: "bands"; shell?: Band; trim?: Band }
+  /** Textured models: the texture is multiplied by the shell colour, for stone and fur. */
+  | { kind: "tint"; roughness?: number; metalness?: number };
+
+interface LibDef {
+  model: string;
+  /** A shared clip file (models/lib/anims/<name>.glb) when the model ships without its own. */
+  anims?: string;
+  clips: ClipMap;
+  dress: Dress;
+  /** Wears its lineage's mark when the look is the plain House frame. */
+  frame?: boolean;
+}
+
+const ROBOT_TRIM: Band = { hue: 32, width: 16, minSat: 0.3, refL: 0.3 };
+
+export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
+  leela: { model: "robots/Leela", clips: ROBOT_CLIPS, dress: { kind: "bands", trim: ROBOT_TRIM }, frame: true },
+  george: { model: "robots/George", clips: ROBOT_CLIPS, dress: { kind: "bands", trim: ROBOT_TRIM }, frame: true },
+  mike: { model: "robots/Mike", clips: ROBOT_CLIPS, dress: { kind: "bands", trim: ROBOT_TRIM }, frame: true },
+  stan: { model: "robots/Stan", clips: ROBOT_CLIPS, dress: { kind: "bands", shell: { hue: 165, width: 18, minSat: 0.25, refL: 0.34 }, trim: ROBOT_TRIM }, frame: true },
+
+  suit: { model: "men/Suit", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Suit: "shell", Tie: "trim" } } },
+  formal: { model: "women/Formal", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { LimeGreen: "shell", Gold: "trim" } } },
+  casual: { model: "men/Casual_Hoodie", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Purple: "shell", LightBlue: "trim" } } },
+  worker: { model: "men/Worker", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Worker_Vest: "shell", Worker_Yellow: "trim" } } },
+  scifi: { model: "women/SciFi", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { LightBlue: "shell", Blue: "trim" } } },
+  spacesuit: { model: "men/Spacesuit", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { SciFi_Light: "shell", SciFi_Light_Accent: "trim" } } },
+  witch: { model: "women/Witch", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Purple: "shell", Gold: "trim" } } },
+  king: { model: "men/King", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Blue: "shell", Gold: "trim" } } },
+
+  crawler: { model: "scifi-essentials/Enemy_QuadShell", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
+  masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "bands", trim: { hue: 5, width: 14, minSat: 0.4, refL: 0.45 } } },
+  birb: { model: "monsters/Big/Birb", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "bands", shell: { hue: 205, width: 22, minSat: 0.3, refL: 0.5 } } },
+  yeti: { model: "monsters/Big/Yeti", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "tint", roughness: 0.95 } },
+};
+
+function dress(model: Object3D, body: string, def: LibDef, look: Look) {
+  const mats = new Map<MeshStandardMaterial, MeshStandardMaterial>();
+  const colour = (slot: Slot) => (slot === "shell" ? look.shell : look.trim);
+  model.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh) return;
+    m.castShadow = true;
+    m.receiveShadow = true;
+    const src = original<MeshStandardMaterial>(m);
+    let mat = mats.get(src);
+    if (!mat) {
+      mat = src.clone();
+      const d = def.dress;
+      if (d.kind === "materials") {
+        const slot = d.slots[src.name];
+        if (slot) mat.color = new Color(colour(slot));
+      } else if (d.kind === "bands" && src.map) {
+        const swaps = [...(d.shell ? [{ band: d.shell, color: look.shell }] : []), ...(d.trim ? [{ band: d.trim, color: look.trim }] : [])];
+        if (swaps.length) mat.map = recolor(body, src.map, swaps);
+      } else if (d.kind === "tint") {
+        mat.color = new Color(look.shell).multiplyScalar(1.6);
+        if (d.roughness !== undefined) mat.roughness = d.roughness;
+        if (d.metalness !== undefined) mat.metalness = d.metalness;
+      }
+      mat.envMapIntensity = 0.9;
+      mats.set(src, mat);
+    }
+    m.material = mat;
+  });
+}
+
+function WithAnims({ def, ...props }: BodyProps & { def: LibDef & { anims: string } }) {
+  const anims = useLib(`anims/${def.anims}`);
+  return <LibraryModel def={def} clips={anims.animations} {...props} />;
+}
+
+function LibraryModel({ def, clips, look, lineage, drive, phase }: BodyProps & { def: LibDef; clips?: AnimationClip[] }) {
+  const body = look.body;
+  const gltf = useLib(def.model);
+  const root = useRef<Group>(null);
+  const model = useMemo(() => cloneSkinned(gltf.scene), [gltf.scene]);
+  useMemo(() => dress(model, body, def, look), [model, body, def, look]);
+  const head = useMemo(() => (def.frame ? findBone(model, /^Head$/) : null), [model, def]);
+  const scale = fitScale(gltf.scene, BODY_HEIGHT[body as Exclude<Body, "classic">]);
+  useClips(model, clips ?? gltf.animations, def.clips, drive, phase);
+  const plainFrame = def.frame && (look.preset === undefined || look.preset === "frame");
+  return (
+    <group ref={root}>
+      <primitive object={model} scale={scale} />
+      {plainFrame && <LineageMark lineage={lineage} accent={look.accent} head={head} root={root} />}
+    </group>
+  );
+}
+
+export function LibraryBody(props: BodyProps) {
+  const def = LIBRARY_BODIES[props.look.body]!;
+  return def.anims ? <WithAnims def={def as LibDef & { anims: string }} {...props} /> : <LibraryModel def={def} {...props} />;
+}
+
+// The bodies the default cast wears: the four House frames and the costumes in use.
+preloadLib("robots/Leela", "robots/George", "robots/Mike", "robots/Stan", "men/Casual_Hoodie", "anims/humans");
+preloadLib("scifi-essentials/Enemy_QuadShell", "monsters/Big/Tribal", "monsters/Big/Birb", "monsters/Big/Yeti", "anims/monster-big");

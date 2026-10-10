@@ -1,6 +1,6 @@
 import { ROOMS, ROOM_IDS, type RoomId } from "@ceo/core";
 
-export type PetKind = "kitten" | "foundling" | "brain";
+export type PetKind = "kitten" | "foundling" | "shiba" | "mushnub";
 
 export interface PetDef {
   id: string;
@@ -49,17 +49,32 @@ export const PETS: PetDef[] = [
     ],
   },
   {
-    id: "gerald",
-    name: "Gerald",
-    kind: "brain",
-    title: "Brain on legs · Archive research specimen",
-    blurb: "Kept in the Archive 'for research'. Wants very badly to be friends, specifically with your head. Leashed, emotionally. Loremaster insists it's 'mostly harmless'.",
-    homes: ["archive"],
-    speed: 1.3,
+    id: "biscuit",
+    name: "Biscuit",
+    kind: "shiba",
+    title: "Shiba Inu · office dog · unpaid",
+    blurb: "Wandered in through the Green's turnstile and was put on the org chart before HR noticed. Supervises the pitch and the snack shelf. Has opinions about the ping-pong ball.",
+    homes: ["green", "breakroom"],
+    speed: 1.1,
     greetings: [
-      "Gerald, no. We've talked about ears.",
-      "Gerald is skittering again. Everyone keep your helmets on.",
-      "Good morning, Gerald. No, you can't have my head. It's using it.",
+      "Biscuit! Who let you on the pitch? …Fine. You can be the backup kicker.",
+      "Biscuit is staring at my sandwich. I am staring back. We are at an impasse.",
+      "Good dog. Best dog. Please stop eating the depth chart.",
+      "Biscuit has been promoted again. I have not.",
+    ],
+  },
+  {
+    id: "spore",
+    name: "Spore",
+    kind: "mushnub",
+    title: "Mushroom familiar · Archive · damp",
+    blurb: "Grew out of a footnote in the Archive and refuses to be shelved. Dances when someone rolls a natural 20. Loremaster insists it's 'provisional canon'.",
+    homes: ["archive"],
+    speed: 0.8,
+    greetings: [
+      "Spore is dancing again. Did someone crit?",
+      "Morning, Spore. Please stop sprouting on the first editions.",
+      "Spore, that's a primary source. Do not sit on it.",
     ],
   },
 ];

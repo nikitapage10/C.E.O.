@@ -1,14 +1,14 @@
 import { ROOMS, getStation, placeToWorld, roomAngle, routeBetween, sampleRoute, type Place, type Route } from "@ceo/core";
 import { Html } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
-import { useMemo, useRef, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { Vector3, type Group } from "three";
 import { useCast } from "../cast/castStore.ts";
 import { agentPositions, clock } from "../clock.ts";
 import { KERNEL } from "../kernel/lines.ts";
 import { facingDir } from "../rooms/primitives.tsx";
 import { useWorld } from "../store.ts";
-import { Brain } from "./Brain.tsx";
+import { LIBRARY_PETS, LibraryPet } from "./LibraryPet.tsx";
 import { Foundling } from "./Foundling.tsx";
 import { Kitten } from "./Kitten.tsx";
 import { PETS, wanderSpots, type PetDef } from "./pets.ts";
@@ -182,7 +182,11 @@ function Pet({ def }: { def: PetDef }) {
       <group ref={model}>
         {def.kind === "kitten" && <Kitten drive={drive} />}
         {def.kind === "foundling" && <Foundling drive={drive} />}
-        {def.kind === "brain" && <Brain drive={drive} />}
+        {(def.kind === "shiba" || def.kind === "mushnub") && (
+          <Suspense fallback={null}>
+            <LibraryPet def={LIBRARY_PETS[def.kind]} drive={drive} />
+          </Suspense>
+        )}
       </group>
       <mesh position={[0, tagY / 2, 0]} visible={false} onPointerOver={over} onPointerOut={out} onClick={click}>
         <boxGeometry args={[0.7, tagY, 0.8]} />

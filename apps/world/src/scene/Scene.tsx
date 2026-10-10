@@ -1,6 +1,6 @@
 import { Stats } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Suspense } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Suspense, useEffect } from "react";
 import { NoToneMapping, SRGBColorSpace } from "three";
 import { Agents } from "../agents/Agents.tsx";
 import { Pets } from "../pets/Pets.tsx";
@@ -29,6 +29,18 @@ function Heartbeat() {
   return null;
 }
 
+/** Whole-frame renderer counts (shadow and post passes included) for window.__ceo.renderInfo(). */
+function RenderInfo() {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    gl.info.autoReset = false;
+    const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
+    api.renderInfo = () => ({ ...gl.info.render, ...gl.info.memory, programs: gl.info.programs?.length ?? 0 });
+  }, [gl]);
+  useFrame(() => gl.info.reset(), -1000);
+  return null;
+}
+
 export function Scene() {
   const quality = useWorld((s) => s.quality);
   const setFocus = useWorld((s) => s.setFocus);
@@ -48,6 +60,7 @@ export function Scene() {
       <fogExp2 attach="fog" args={[PALETTE.void, 0.0055]} />
       <Lighting />
       <Heartbeat />
+      <RenderInfo />
       <Suspense fallback={null}>
         <Kernel />
         <Streams />

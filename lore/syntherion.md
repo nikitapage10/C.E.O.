@@ -91,23 +91,24 @@ they find them very funny.
 ## Costumes
 
 Most of the Syntherion wear their own frames, marked with their lineage. Some prefer a memory. The Lattice lets
-any of them wear the shape of something they remember from the early internet: a five-legged stone engineer who
-sings, a great grey envoy who announces its feelings, a small painted duellist, a grey wanderer with a staff, a
-barefoot burglar, four slabs of brushed metal with an adjustable sense of humour, a duck with a headache. They
+any of them wear the shape of something they remember from the early internet: a stone-shelled engineer who
+sings, a great grey envoy who announces its feelings, a small duellist in a painted mask, a grey wanderer with a staff, a
+barefoot burglar, four slabs of brushed metal with an adjustable sense of humour, a big yellow bird with a headache. They
 choose obscure ones on purpose: never the hero of the story, never two from the same story. Counsel.exe signs
 off on every one.
 
 ## Pets
 
-Three creatures in the Lattice belong to no House and do no work:
+Four creatures in the Lattice belong to no House and do no work:
 
 - **Myshka**, a grey Maine Coon kitten. He arrived one morning on the Kernel's warm side and was granted root
   access before anyone could object. He goes everywhere. The Kernel, which complains about everything, has never
   once complained about Myshka. He's a good boy. It is on file.
 - **The Foundling**, small, green and about fifty, found in a floating pod in the lost-and-found. It eats the
   Break Room's snacks without touching them.
-- **Gerald**, a brain on four legs, kept in the Archive "for research". He would very much like to be friends,
-  specifically with your head.
+- **Biscuit**, a Shiba Inu who wandered in through the Green's turnstile and was put on the org chart before
+  anyone noticed. Supervises the pitch and the snack shelf.
+- **Spore**, a mushroom familiar that grew out of a footnote in the Archive. Dances on a natural 20.
 
 ## The lawyers
 

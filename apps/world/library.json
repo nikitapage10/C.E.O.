@@ -1,0 +1,29 @@
+{
+  "models": {
+    "robots/George": { "clips": ["Idle", "Walk", "Walk_Holding", "Dance", "Hello", "Yes", "No", "Pickup", "Death"] },
+    "robots/Leela": { "clips": ["Idle", "Walk", "Dance", "Hello", "Yes", "No", "Pickup", "Death"] },
+    "robots/Mike": { "clips": ["Idle", "Walk", "Walk_Holding", "Dance", "Hello", "Yes", "No", "Pickup", "Death"] },
+    "robots/Stan": { "clips": ["Idle", "Walk", "Walk_Holding", "Dance", "Hello", "Yes", "No", "Pickup", "Death"] },
+
+    "men/Suit": { "clips": [] },
+    "men/Casual_Hoodie": { "clips": [] },
+    "men/Worker": { "clips": [] },
+    "men/Spacesuit": { "clips": [] },
+    "men/King": { "clips": [] },
+    "women/Formal": { "clips": [] },
+    "women/SciFi": { "clips": [] },
+    "women/Witch": { "clips": [] },
+
+    "scifi-essentials/Enemy_QuadShell": { "clips": ["Idle", "Walk", "Look", "Charge", "TurnOff"] },
+    "monsters/Big/Tribal": { "clips": [] },
+    "monsters/Big/Birb": { "clips": [] },
+    "monsters/Big/Yeti": { "clips": [] },
+
+    "animals/ShibaInu": { "clips": ["Idle", "Idle_2", "Walk", "Gallop", "Eating"] },
+    "monsters/Blob/Mushnub": { "clips": ["Idle", "Walk", "Dance", "Yes"] }
+  },
+  "anims": {
+    "humans": { "from": "men/Suit", "clips": ["Idle", "Idle_Neutral", "Walk", "Interact", "Wave", "Death", "HitRecieve_2"] },
+    "monster-big": { "from": "monsters/Big/Tribal", "clips": ["Idle", "Walk", "Yes", "No", "Punch", "Wave", "Jump", "Duck", "Death"] }
+  }
+}

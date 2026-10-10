@@ -14,7 +14,7 @@ const SEEDS: Record<string, Seed> = {
   caret: {
     look: lookFromPreset("rock-engineer"),
     traits: ["competitive", "chaotic", "cheerful"],
-    bio: "Wears the five-legged engineer from a memory of a rocky planet: no eyes, perfect pitch, speaks in chords. Openly competes with Tessellate for the shipping record.",
+    bio: "Wears the stone-shelled engineer from a memory of a rocky planet: four legs (Counsel.exe negotiated one off), no eyes, perfect pitch, speaks in chords. Openly competes with Tessellate for the shipping record.",
     catchphrase: "Fist my bump.",
   },
   semicolon: {
@@ -30,13 +30,13 @@ const SEEDS: Record<string, Seed> = {
   memo: {
     look: lookFromPreset("migraine-duck"),
     traits: ["lazy", "cheerful", "sarcastic"],
-    bio: "Assistant to the assistant. Wears the yellow duck with the permanent headache, which they say is 'method'. Has delegated this bio to someone else.",
+    bio: "Assistant to the assistant. Wears the big yellow bird with the permanent headache, which they say is 'method'. Has delegated this bio to someone else.",
     catchphrase: "Circling back. My head hurts.",
   },
   odds: {
     look: lookFromPreset("gestral"),
     traits: ["smug", "competitive", "flirty"],
-    bio: "Prices everything, including feelings. Wears a small hand-painted gremlin and challenges everyone to a duel at least once a shift. 63% sure Hedge likes them back. Market disagrees.",
+    bio: "Prices everything, including feelings. Wears a small creature in a hand-painted mask and challenges everyone to a duel at least once a shift. 63% sure Hedge likes them back. Market disagrees.",
     catchphrase: "I'd put that at sixty-three percent.",
   },
   hedge: {
@@ -59,7 +59,7 @@ const SEEDS: Record<string, Seed> = {
   postmaster: {
     look: lookFromPreset("envoy"),
     traits: ["romantic", "pedantic", "nostalgic"],
-    bio: "Reads every message twice and every love letter three times, and announces how they feel about each one. Wears the great grey envoy. Married to Dialtone in a ceremony held entirely over pneumatic tube.",
+    bio: "Reads every message twice and every love letter three times, and announces how they feel about each one. Wears the great grey envoy, shaggy and sincere. Married to Dialtone in a ceremony held entirely over pneumatic tube.",
     catchphrase: "Signed, sealed, and drafted for approval.",
   },
   dialtone: {

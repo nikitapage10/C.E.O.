@@ -1,25 +1,34 @@
 import type { Body as BodyKind } from "@ceo/core";
 import { Suspense, type ComponentType } from "react";
-import { Duck } from "./Duck.tsx";
-import { Envoy } from "./Envoy.tsx";
-import { Gestral } from "./Gestral.tsx";
+import { LibraryBody } from "./Library.tsx";
 import { Monolith } from "./Monolith.tsx";
 import { KayKitBody, RobotBody } from "./Rigged.tsx";
-import { Rocky } from "./Rocky.tsx";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
 
 const BODIES: Record<Exclude<BodyKind, "classic">, ComponentType<BodyProps>> = {
   robot: RobotBody,
+  leela: LibraryBody,
+  george: LibraryBody,
+  mike: LibraryBody,
+  stan: LibraryBody,
+  suit: LibraryBody,
+  formal: LibraryBody,
+  casual: LibraryBody,
+  worker: LibraryBody,
+  scifi: LibraryBody,
+  spacesuit: LibraryBody,
+  witch: LibraryBody,
+  king: LibraryBody,
   mage: KayKitBody,
   rogue: KayKitBody,
   hooded: KayKitBody,
   knight: KayKitBody,
   barbarian: KayKitBody,
-  rocky: Rocky,
-  envoy: Envoy,
-  gestral: Gestral,
+  crawler: LibraryBody,
+  masked: LibraryBody,
+  birb: LibraryBody,
+  yeti: LibraryBody,
   monolith: Monolith,
-  duck: Duck,
 };
 
 /** Any body but the classic figure, at the look's size. Models stream in; until then there's nothing to see. */

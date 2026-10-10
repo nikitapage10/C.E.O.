@@ -265,10 +265,10 @@ export function Agent({ id }: { id: string }) {
     const override = useWorld.getState().overrides[id];
     const live = override && override.until > performance.now() ? override : null;
     let mode: PoseMode = live ? (live.mode === "face" ? "idle" : live.mode) : rt.activity;
-    if (!live) {
-      if (moving) mode = rt.prop ? "carrying" : "walking";
-      else if (mode === "walking") mode = "idle";
-    }
+    // Moving always walks: a chat, a glitch or a stare that outlasts the stop would otherwise slide them along
+    // in their last pose until it ends.
+    if (moving) mode = rt.prop ? "carrying" : "walking";
+    else if (!live && mode === "walking") mode = "idle";
 
     let targetYaw = yaw.current;
     const faceTarget = live?.mode === "face" && live.target ? agentPositions.get(live.target) : undefined;

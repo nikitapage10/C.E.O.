@@ -1,30 +1,238 @@
 {
   "models": {
-    "robots/George": { "clips": ["Idle", "Walk", "Walk_Holding", "Dance", "Hello", "Yes", "No", "Pickup", "Death"] },
-    "robots/Leela": { "clips": ["Idle", "Walk", "Dance", "Hello", "Yes", "No", "Pickup", "Death"] },
-    "robots/Mike": { "clips": ["Idle", "Walk", "Walk_Holding", "Dance", "Hello", "Yes", "No", "Pickup", "Death"] },
-    "robots/Stan": { "clips": ["Idle", "Walk", "Walk_Holding", "Dance", "Hello", "Yes", "No", "Pickup", "Death"] },
-
-    "men/Suit": { "clips": [] },
-    "men/Casual_Hoodie": { "clips": [] },
-    "men/Worker": { "clips": [] },
-    "men/Spacesuit": { "clips": [] },
-    "men/King": { "clips": [] },
-    "women/Formal": { "clips": [] },
-    "women/SciFi": { "clips": [] },
-    "women/Witch": { "clips": [] },
-
-    "scifi-essentials/Enemy_QuadShell": { "clips": ["Idle", "Walk", "Look", "Charge", "TurnOff"] },
-    "custom/Gestral": { "clips": ["Walking", "Running"] },
-    "monsters/Big/Tribal": { "clips": [] },
-    "monsters/Big/Birb": { "clips": [] },
-    "monsters/Big/Yeti": { "clips": [] },
-
-    "animals/ShibaInu": { "clips": ["Idle", "Idle_2", "Walk", "Gallop", "Eating"] },
-    "monsters/Blob/Mushnub": { "clips": ["Idle", "Walk", "Dance", "Yes"] }
+    "robots/George": {
+      "clips": [
+        "Idle",
+        "Walk",
+        "Walk_Holding",
+        "Dance",
+        "Hello",
+        "Yes",
+        "No",
+        "Pickup",
+        "Death"
+      ]
+    },
+    "robots/Leela": {
+      "clips": [
+        "Idle",
+        "Walk",
+        "Dance",
+        "Hello",
+        "Yes",
+        "No",
+        "Pickup",
+        "Death"
+      ]
+    },
+    "robots/Mike": {
+      "clips": [
+        "Idle",
+        "Walk",
+        "Walk_Holding",
+        "Dance",
+        "Hello",
+        "Yes",
+        "No",
+        "Pickup",
+        "Death"
+      ]
+    },
+    "robots/Stan": {
+      "clips": [
+        "Idle",
+        "Walk",
+        "Walk_Holding",
+        "Dance",
+        "Hello",
+        "Yes",
+        "No",
+        "Pickup",
+        "Death"
+      ]
+    },
+    "men/Suit": {
+      "clips": []
+    },
+    "men/Casual_Hoodie": {
+      "clips": []
+    },
+    "men/Worker": {
+      "clips": []
+    },
+    "men/Spacesuit": {
+      "clips": []
+    },
+    "men/King": {
+      "clips": []
+    },
+    "women/Formal": {
+      "clips": []
+    },
+    "women/SciFi": {
+      "clips": []
+    },
+    "women/Witch": {
+      "clips": []
+    },
+    "custom/Gestral": {
+      "clips": [
+        "Walking",
+        "Running"
+      ]
+    },
+    "monsters/Big/Tribal": {
+      "clips": []
+    },
+    "monsters/Big/Birb": {
+      "clips": []
+    },
+    "monsters/Big/Yeti": {
+      "clips": []
+    },
+    "animals/ShibaInu": {
+      "clips": [
+        "Idle",
+        "Idle_2",
+        "Walk",
+        "Gallop",
+        "Eating"
+      ]
+    },
+    "monsters/Blob/Mushnub": {
+      "clips": [
+        "Idle",
+        "Walk",
+        "Dance",
+        "Yes"
+      ]
+    },
+    "fantasy-props/BookGroup_Medium_1": {},
+    "fantasy-props/BookGroup_Medium_2": {},
+    "fantasy-props/BookGroup_Medium_3": {},
+    "fantasy-props/BookStand": {},
+    "fantasy-props/Book_Stack_1": {},
+    "fantasy-props/Book_Stack_2": {},
+    "fantasy-props/Cabinet": {},
+    "fantasy-props/CandleStick_Triple": {},
+    "fantasy-props/Candle_1": {},
+    "fantasy-props/Candle_2": {},
+    "fantasy-props/Chest_Wood": {},
+    "fantasy-props/Potion_1": {},
+    "fantasy-props/Potion_2": {},
+    "fantasy-props/Potion_4": {},
+    "fantasy-props/Scroll_1": {},
+    "fantasy-props/Scroll_2": {},
+    "fantasy-props/Stool": {},
+    "fantasy-props/Sword_Bronze": {},
+    "nature/Rock_Medium_1": {},
+    "animals/Bull": {
+      "clips": [
+        "Idle_Headlow"
+      ]
+    },
+    "downtown/Prop_Bollard": {},
+    "medieval/Prop_WoodenFence_Single": {},
+    "nature/Bush_Common_Flowers": {},
+    "nature/CommonTree_1": {},
+    "nature/CommonTree_2": {},
+    "nature/CommonTree_3": {},
+    "nature/Fern_1": {},
+    "nature/Flower_3_Group": {},
+    "nature/Flower_4_Group": {},
+    "nature/RockPath_Square_Wide": {},
+    "scifi-essentials/Enemy_Trilobite": {
+      "clips": [
+        "Idle",
+        "Walk",
+        "Look",
+        "AttackAuto",
+        "TurnOff"
+      ]
+    },
+    "women/Worker": {
+      "clips": []
+    },
+    "men/Punk": {
+      "clips": []
+    },
+    "women/Medieval": {
+      "clips": []
+    },
+    "monsters/Big/Orc": {
+      "clips": []
+    },
+    "monsters/Flying/Ghost_Skull": {
+      "clips": []
+    },
+    "monsters/Flying/Tribal": {
+      "clips": []
+    },
+    "monsters/Big/Bunny": {
+      "clips": [
+        "Idle",
+        "Walk",
+        "Yes",
+        "No",
+        "Punch",
+        "Wave",
+        "Jump",
+        "Duck",
+        "Death"
+      ]
+    },
+    "monsters/Blob/Wizard": {
+      "clips": [
+        "Idle",
+        "Walk",
+        "Dance",
+        "Yes",
+        "No",
+        "Death"
+      ]
+    },
+    "nature/Plant_1_Big": {},
+    "scifi-essentials/Prop_Chair": {},
+    "scifi-essentials/Prop_Desk_Small": {},
+    "scifi-essentials/Prop_Mug": {}
   },
   "anims": {
-    "humans": { "from": "men/Suit", "clips": ["Idle", "Idle_Neutral", "Walk", "Interact", "Wave", "Death", "HitRecieve_2"] },
-    "monster-big": { "from": "monsters/Big/Tribal", "clips": ["Idle", "Walk", "Yes", "No", "Punch", "Wave", "Jump", "Duck", "Death"] }
+    "humans": {
+      "from": "men/Suit",
+      "clips": [
+        "Idle",
+        "Idle_Neutral",
+        "Walk",
+        "Interact",
+        "Wave",
+        "Death",
+        "HitRecieve_2"
+      ]
+    },
+    "monster-big": {
+      "from": "monsters/Big/Tribal",
+      "clips": [
+        "Idle",
+        "Walk",
+        "Yes",
+        "No",
+        "Punch",
+        "Wave",
+        "Jump",
+        "Duck",
+        "Death"
+      ]
+    },
+    "monster-flying": {
+      "from": "monsters/Flying/Tribal",
+      "clips": [
+        "Flying_Idle",
+        "Fast_Flying",
+        "Yes",
+        "No",
+        "Punch",
+        "Death"
+      ]
+    }
   }
 }

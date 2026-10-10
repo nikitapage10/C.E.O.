@@ -11,10 +11,14 @@
  * What gets copied is apps/world/library.json:
  *   models: { "<pack>/<id>": { clips?: string[] } }   clips: keep only these (omit to keep all, [] for none)
  *   anims:  { "<name>": { from: "<pack>/<id>", clips } }  just the clips, no mesh, for characters sharing a rig
+ *
+ * Rigged or animated models get a file each. Static props are bundled one file per pack (lib/<pack>.glb, each
+ * model under a root node named by its id), so a kit's shared textures ship once. apps/world/src/fx/bundles.gen.json
+ * tells the app which ids live in which bundle.
  */
-import { NodeIO } from "@gltf-transform/core";
+import { Document, NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
-import { prune } from "@gltf-transform/functions";
+import { dedup, mergeDocuments, prune, unpartition } from "@gltf-transform/functions";
 import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
 import fs from "node:fs";
 import path from "node:path";
@@ -53,15 +57,47 @@ async function write(doc, rel) {
   return fs.statSync(file).size;
 }
 
+/** The node name a bundled model sits under. GLTFLoader strips "/" from names, so use "__". */
+const bundleKey = (id) => id.replace(/\//g, "__");
+
 fs.rmSync(out, { recursive: true, force: true });
 let total = 0;
+const bundles = new Map();
 for (const [id, opts] of Object.entries(manifest.models)) {
   const doc = await io.read(path.join(library, `${id}.glb`));
   keepClips(doc, opts.clips);
+  const root = doc.getRoot();
+  if (!root.listSkins().length && !root.listAnimations().length) {
+    const pack = id.split("/")[0];
+    if (!bundles.has(pack)) bundles.set(pack, []);
+    bundles.get(pack).push([id, doc]);
+    continue;
+  }
   const size = await write(doc, `${id}.glb`);
   total += size;
   console.log(`${id}.glb`.padEnd(48), `${(size / 1024).toFixed(0)} KB`);
 }
+const index = {};
+for (const [pack, docs] of bundles) {
+  const target = new Document();
+  const scene = target.createScene(pack);
+  for (const [id, doc] of docs) {
+    const map = mergeDocuments(target, doc);
+    const holder = target.createNode(bundleKey(id));
+    for (const s of doc.getRoot().listScenes()) {
+      const copy = map.get(s);
+      for (const child of copy.listChildren()) holder.addChild(child);
+      copy.dispose();
+    }
+    scene.addChild(holder);
+    index[id] = pack;
+  }
+  await target.transform(unpartition(), dedup());
+  const size = await write(target, `${pack}.glb`);
+  total += size;
+  console.log(`${pack}.glb (${docs.length} props)`.padEnd(48), `${(size / 1024).toFixed(0)} KB`);
+}
+fs.writeFileSync(path.join(repo, "apps/world/src/fx/bundles.gen.json"), JSON.stringify(index, null, 1) + "\n");
 for (const [name, opts] of Object.entries(manifest.anims ?? {})) {
   const doc = await io.read(path.join(library, `${opts.from}.glb`));
   keepClips(doc, opts.clips);

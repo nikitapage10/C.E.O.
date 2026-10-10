@@ -61,8 +61,8 @@ const CRAWLER_CLIPS: ClipMap = {
   walking: { clip: "Walk" },
   carrying: { clip: "Walk", speed: 0.85 },
   typing: { clip: "Look", speed: 0.8 },
-  working: { clip: "Charge", speed: 0.6 },
-  celebrating: { clip: "Charge", speed: 1.4 },
+  working: { clip: "AttackAuto", speed: 0.45 },
+  celebrating: { clip: "Look", speed: 1.6 },
   slumped: { clip: "TurnOff", speed: 0.5, once: true },
   napping: { clip: "TurnOff", speed: 0.7, once: true },
   waiting: { clip: "Look", speed: 0.5 },
@@ -85,6 +85,34 @@ const SYNTH_CLIPS: ClipMap = {
   stare: { clip: "Stare", speed: 0.3 },
 };
 
+const FLYING_CLIPS: ClipMap = {
+  idle: { clip: "Flying_Idle" },
+  walking: { clip: "Fast_Flying", speed: 0.7 },
+  carrying: { clip: "Fast_Flying", speed: 0.6 },
+  typing: { clip: "Yes", speed: 0.6 },
+  working: { clip: "Punch", speed: 0.5 },
+  celebrating: { clip: "Yes", speed: 1.5 },
+  slumped: { clip: "No", speed: 0.4 },
+  napping: { clip: "Death", speed: 0.6, once: true },
+  waiting: { clip: "Flying_Idle", speed: 0.7 },
+  staring: { clip: "Flying_Idle" },
+  stare: { clip: "Flying_Idle", speed: 0.3 },
+};
+
+const BLOB_CLIPS: ClipMap = {
+  idle: { clip: "Idle" },
+  walking: { clip: "Walk" },
+  carrying: { clip: "Walk", speed: 0.85 },
+  typing: { clip: "Yes", speed: 0.7 },
+  working: { clip: "Yes", speed: 0.45 },
+  celebrating: { clip: "Dance" },
+  slumped: { clip: "No", speed: 0.4 },
+  napping: { clip: "Death", speed: 0.6, once: true },
+  waiting: { clip: "Idle", speed: 0.7 },
+  staring: { clip: "Idle" },
+  stare: { clip: "Idle", speed: 0.3 },
+};
+
 type Slot = "shell" | "trim";
 
 /** How a body takes the look's colours. */
@@ -94,7 +122,9 @@ type Dress =
   /** Textured models: hue bands of the texture are repainted (see recolor.ts). */
   | { kind: "bands"; shell?: Band; trim?: Band }
   /** Textured models: the texture is multiplied by the shell colour, for stone and fur. */
-  | { kind: "tint"; roughness?: number; metalness?: number };
+  | { kind: "tint"; roughness?: number; metalness?: number }
+  /** Worn as made: the look's colours don't apply. */
+  | { kind: "none" };
 
 interface LibDef {
   model: string;
@@ -119,6 +149,9 @@ export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
   suit: { model: "men/Suit", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Suit: "shell", Tie: "trim" } } },
   formal: { model: "women/Formal", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { LimeGreen: "shell", Gold: "trim" } } },
   casual: { model: "men/Casual_Hoodie", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Purple: "shell", LightBlue: "trim" } } },
+  hardhat: { model: "women/Worker", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Worker_Vest: "shell", Worker_Yellow: "trim" } } },
+  punk: { model: "men/Punk", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Black: "shell", Red: "trim" } } },
+  medieval: { model: "women/Medieval", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { DarkBrown: "shell", Gold: "trim" } } },
   worker: { model: "men/Worker", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Worker_Vest: "shell", Worker_Yellow: "trim" } } },
   scifi: { model: "women/SciFi", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { LightBlue: "shell", Blue: "trim" } } },
   spacesuit: { model: "men/Spacesuit", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { SciFi_Light: "shell", SciFi_Light_Accent: "trim" } } },
@@ -126,8 +159,13 @@ export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
   king: { model: "men/King", anims: "humans", clips: HUMAN_CLIPS, dress: { kind: "materials", slots: { Blue: "shell", Gold: "trim" } } },
 
   gestral: { model: "custom/Gestral", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 349, width: 18, minSat: 0.35, refL: 0.5 } } },
-  crawler: { model: "scifi-essentials/Enemy_QuadShell", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
-  masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "bands", trim: { hue: 5, width: 14, minSat: 0.4, refL: 0.45 } } },
+  crawler: { model: "scifi-essentials/Enemy_Trilobite", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
+  masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "none" } },
+  orc: { model: "monsters/Big/Orc", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "none" } },
+  bunny: { model: "monsters/Big/Bunny", clips: MONSTER_CLIPS, dress: { kind: "none" } },
+  ghost: { model: "monsters/Flying/Ghost_Skull", anims: "monster-flying", clips: FLYING_CLIPS, dress: { kind: "none" } },
+  flyer: { model: "monsters/Flying/Tribal", anims: "monster-flying", clips: FLYING_CLIPS, dress: { kind: "none" } },
+  wizard: { model: "monsters/Blob/Wizard", clips: BLOB_CLIPS, dress: { kind: "none" } },
   birb: { model: "monsters/Big/Birb", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "bands", shell: { hue: 205, width: 22, minSat: 0.3, refL: 0.5 } } },
   yeti: { model: "monsters/Big/Yeti", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "tint", roughness: 0.95 } },
 };
@@ -204,5 +242,6 @@ export function LibraryBody(props: BodyProps) {
 }
 
 // The bodies the default cast wears: the four House frames and the costumes in use.
-preloadLib("robots/Leela", "robots/George", "robots/Mike", "robots/Stan", "men/Casual_Hoodie", "anims/humans");
-preloadLib("custom/Gestral", "scifi-essentials/Enemy_QuadShell", "monsters/Big/Tribal", "monsters/Big/Birb", "monsters/Big/Yeti", "anims/monster-big");
+preloadLib("robots/Leela", "robots/George", "robots/Mike", "robots/Stan", "men/Suit", "men/Punk", "women/Worker", "women/Medieval", "anims/humans");
+preloadLib("custom/Gestral", "scifi-essentials/Enemy_Trilobite", "monsters/Big/Tribal", "monsters/Big/Orc", "monsters/Big/Bunny", "anims/monster-big");
+preloadLib("monsters/Flying/Ghost_Skull", "monsters/Flying/Tribal", "anims/monster-flying", "monsters/Blob/Wizard");

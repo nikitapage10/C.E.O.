@@ -7,6 +7,9 @@ import { create } from "zustand";
  * (localStorage) for now; in phase 2 the hub keeps it so it follows you between devices.
  */
 const KEY = "ceo.cast.v2";
+/** Bumped when the default looks are re-cast: saved casts take the new looks once, keeping names and personalities. */
+const LOOKS_KEY = "ceo.cast.looks";
+const LOOKS_REV = 2;
 
 function load(): Cast {
   try {
@@ -21,6 +24,20 @@ function load(): Cast {
         const seed = base.profiles[id]?.lore;
         if (seed && !p.lore.title && !p.lore.origin && !p.lore.chronicle.length) profiles[id] = { ...p, lore: seed };
       }
+      let rev = 0;
+      try {
+        rev = Number(localStorage.getItem(LOOKS_KEY) ?? 0);
+      } catch {
+        /* Unreadable: treat as old. */
+      }
+      if (rev < LOOKS_REV) {
+        for (const [id, p] of Object.entries(base.profiles)) if (profiles[id]) profiles[id] = { ...profiles[id], look: p.look };
+        try {
+          localStorage.setItem(LOOKS_KEY, String(LOOKS_REV));
+        } catch {
+          /* Private mode: re-cast again next time, harmlessly. */
+        }
+      }
       return { ...parsed, profiles };
     }
   } catch {
@@ -32,6 +49,8 @@ function load(): Cast {
 function save(cast: Cast) {
   try {
     localStorage.setItem(KEY, JSON.stringify(cast));
+    // A cast saved now already has the current looks.
+    localStorage.setItem(LOOKS_KEY, String(LOOKS_REV));
   } catch {
     /* Private mode etc.: edits last for this session only. */
   }

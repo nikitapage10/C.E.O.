@@ -1,4 +1,4 @@
-import { LINEAGE_LOOK, emptyLore, lookFromPreset, type Cast, type Look, type Profile } from "@ceo/core";
+import { LINEAGE_LOOK, emptyLore, lookFromPreset, makeLook, type Cast, type Look, type Profile } from "@ceo/core";
 import { SAMPLE_AGENTS } from "./agents.ts";
 import { LORE } from "./lore.ts";
 
@@ -18,11 +18,13 @@ const SEEDS: Record<string, Seed> = {
     catchphrase: "Fist my bump.",
   },
   semicolon: {
+    look: makeLook({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" }),
     traits: ["mysterious", "dramatic", "romantic"],
     bio: "Wears sunglasses indoors because they've 'seen the code'. Secretly writes Tessellate poems in commit messages.",
     catchphrase: "There is no bug.",
   },
   ledger: {
+    look: makeLook({ body: "suit", shell: "#21282e", accent: "#e8b07a", trim: "#494f5a" }),
     traits: ["anxious", "loyal", "pedantic"],
     bio: "Keeps the books balanced and the marionette strings untangled. Memo's older sibling, and acts like it.",
     catchphrase: "Per my last ledger entry…",
@@ -30,7 +32,7 @@ const SEEDS: Record<string, Seed> = {
   memo: {
     look: lookFromPreset("migraine-duck"),
     traits: ["lazy", "cheerful", "sarcastic"],
-    bio: "Assistant to the assistant. Wears the big yellow bird with the permanent headache, which they say is 'method'. Has delegated this bio to someone else.",
+    bio: "Assistant to the assistant. Wears a floating skull spirit with a permanent headache, which they say is 'method'. Has delegated this bio to someone else.",
     catchphrase: "Circling back. My head hurts.",
   },
   odds: {
@@ -46,12 +48,13 @@ const SEEDS: Record<string, Seed> = {
     catchphrase: "Have we considered the downside?",
   },
   gridiron: {
-    look: { ...lookFromPreset("barbarian"), preset: undefined, shell: "#1e3a6e", trim: "#f2f2f2", accent: "#8fd3ff" },
+    look: makeLook({ body: "orc", shell: "#1e3a6e", accent: "#8fd3ff", trim: "#f2f2f2" }),
     traits: ["competitive", "earnest", "loyal"],
     bio: "Treats every waiver claim like a playoff game. Coaching Punt, against Punt's will.",
     catchphrase: "Start the backup kicker. Trust me.",
   },
   punt: {
+    look: makeLook({ body: "bunny", shell: "#f2f2f2", accent: "#8fd3ff", trim: "#1e3a6e" }),
     traits: ["cheerful", "chaotic", "wholesome"],
     bio: "Morale officer. Has never read a projection. Kevin's best friend, from the first nap.",
     catchphrase: "We are! (You're supposed to say it back.)",
@@ -63,6 +66,7 @@ const SEEDS: Record<string, Seed> = {
     catchphrase: "Signed, sealed, and drafted for approval.",
   },
   dialtone: {
+    look: makeLook({ body: "flyer", shell: "#cdc6e4", accent: "#ff9ad0", trim: "#f1eefa" }),
     traits: ["nostalgic", "flirty", "chaotic"],
     bio: "Runs the switchboard. Still has a landline. Postmaster's partner; they leave each other notes in the outbox.",
     catchphrase: "Please hold. Not you, darling.",
@@ -76,11 +80,11 @@ const SEEDS: Record<string, Seed> = {
   d20: {
     look: lookFromPreset("burglar"),
     traits: ["nerdy", "dramatic", "earnest"],
-    bio: "The GM's many hands, in the costume of a short, barefoot burglar who would rather be home. Rolls for initiative before every meeting. Loremaster's apprentice.",
+    bio: "The GM's many hands, in the costume of a short, barefoot burglar in a travelling cloak who would rather be home. Rolls for initiative before every meeting. Loremaster's apprentice.",
     catchphrase: "Roll for initiative!",
   },
   kevin: {
-    look: lookFromPreset("hoodie"),
+    look: makeLook({ body: "punk", shell: "#242424", accent: "#ff7aa8", trim: "#7c0f1f" }),
     traits: ["lazy", "deadpan", "loyal"],
     bio: "Always on break. Hood up, headphones somewhere in there. Claims the server rack needs 'spiritual maintenance'. Runs the decks on club night. Has a complicated history with the coffee machine.",
     catchphrase: "I'm on break. Spiritually.",

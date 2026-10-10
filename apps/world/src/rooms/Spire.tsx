@@ -4,9 +4,10 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Group } from "three";
 import { screenMaterial } from "../fx/materials.ts";
+import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { PALETTE } from "../theme.ts";
-import { Block, Chair, FONTS, GlassWall, LightBar, Plant, Plinth, Workstation, ahead } from "./primitives.tsx";
+import { Block, FONTS, GlassWall, LightBar, Plant, Plinth, Workstation, ahead } from "./primitives.tsx";
 
 const MOODS = ["NO.", "LATER.", "DECAF?", "…"];
 
@@ -57,7 +58,16 @@ export function Spire() {
       ))}
 
       {desks.map((d, i) => (
-        <Workstation key={d.id} stand={[d.x, d.z]} facing={d.facing} top={oak} color={PALETTE.ice} seed={10 + i} />
+        <Workstation
+          key={d.id}
+          stand={[d.x, d.z]}
+          facing={d.facing}
+          top={oak}
+          color={PALETTE.ice}
+          seed={10 + i}
+          desk={<Model id="scifi-essentials/Prop_Desk_Small" fit={{ height: 0.78 }} rotation={Math.PI} cast />}
+          seat={<Model id="scifi-essentials/Prop_Chair" fit={{ height: 1.15 }} cast />}
+        />
       ))}
 
       {/* KPI board on an easel */}
@@ -90,7 +100,7 @@ export function Spire() {
           <cylinderGeometry args={[0.05, 0.25, 0.74, 24]} />
         </mesh>
         {[0, 1, 2, 3].map((i) => (
-          <Chair key={i} position={[Math.sin(i * 1.57 + 0.6) * 1.3, 0, Math.cos(i * 1.57 + 0.6) * 1.3]} rotation={i * 1.57 + 0.6 + Math.PI} seat={PBR.fabric("#6a7280")} />
+          <Model key={i} id="scifi-essentials/Prop_Chair" fit={{ height: 1.15 }} position={[Math.sin(i * 1.57 + 0.6) * 1.3, 0, Math.cos(i * 1.57 + 0.6) * 1.3]} rotation={i * 1.57 + 0.6 + Math.PI} cast />
         ))}
       </group>
 
@@ -99,6 +109,8 @@ export function Spire() {
         <Block size={[1, 0.9, 0.6]} position={[0, 0.45, 0]} material={oak} radius={0.03} />
         <Block size={[0.6, 0.55, 0.45]} position={[0, 1.18, 0]} material={PBR.chrome()} radius={0.06} />
         <Block size={[0.3, 0.12, 0.02]} position={[0, 1.3, 0.235]} material={PBR.blackMetal()} radius={0.01} />
+        <Model id="scifi-essentials/Prop_Mug" fit={{ height: 0.11 }} position={[-0.32, 0.9, 0.12]} rotation={0.8} />
+        <Model id="scifi-essentials/Prop_Mug" fit={{ height: 0.11 }} position={[0.34, 0.9, 0.05]} rotation={2.2} />
         <Text font={FONTS.mono} fontSize={0.07} position={[0, 1.3, 0.25]}>
           {MOODS[mood]}
           <meshBasicMaterial color={[2.2, 0.7, 0.9]} toneMapped={false} />

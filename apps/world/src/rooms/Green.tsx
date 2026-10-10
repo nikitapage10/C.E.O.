@@ -3,6 +3,7 @@ import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { Color, DoubleSide, MeshStandardMaterial, Object3D, PlaneGeometry, type InstancedMesh, type Mesh } from "three";
+import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
 import { Block, FONTS, Plinth, ROOM_D, ROOM_W, ahead } from "./primitives.tsx";
@@ -59,32 +60,6 @@ function Grass() {
   });
 
   return <instancedMesh ref={ref} args={[geometry, material, BLADES]} receiveShadow frustumCulled={false} />;
-}
-
-function Tree({ position, scale = 1 }: { position: [number, number, number]; scale?: number }) {
-  const leaf = PBR.matte("#3e6b3c", 0.8);
-  const clusters = useMemo(
-    () => [
-      [0, 2.6, 0, 0.9],
-      [0.55, 2.3, 0.2, 0.65],
-      [-0.5, 2.25, -0.15, 0.7],
-      [0.1, 3.1, -0.3, 0.6],
-      [-0.2, 2.9, 0.45, 0.55],
-    ],
-    [],
-  );
-  return (
-    <group position={position} scale={scale}>
-      <mesh position={[0, 1.1, 0]} material={PBR.wood("walnut")} castShadow>
-        <cylinderGeometry args={[0.08, 0.14, 2.2, 12]} />
-      </mesh>
-      {clusters.map(([x, y, z, r], i) => (
-        <mesh key={i} position={[x!, y!, z!]} material={leaf} castShadow receiveShadow>
-          <icosahedronGeometry args={[r!, 2]} />
-        </mesh>
-      ))}
-    </group>
-  );
 }
 
 function LampPost({ position }: { position: [number, number, number] }) {
@@ -235,9 +210,30 @@ export function Green() {
         ))}
       </group>
 
-      <Tree position={[-6.8, 0, 4.6]} scale={1.05} />
-      <Tree position={[7, 0, 4.4]} scale={0.9} />
-      <Tree position={[6.9, 0, -5.4]} scale={0.8} />
+      {/* Planting: three park trees, flowering shrubs along the balustrade, a stone path to the bench */}
+      <Model id="nature/CommonTree_1" fit={{ height: 4.4 }} position={[-6.8, 0, 4.6]} rotation={0.6} cast />
+      <Model id="nature/CommonTree_2" fit={{ height: 4 }} position={[7, 0, 4.4]} rotation={2.1} cast />
+      <Model id="nature/CommonTree_3" fit={{ height: 3.8 }} position={[6.9, 0, -5.4]} rotation={4} cast />
+      <ModelInstances
+        id="nature/Bush_Common_Flowers"
+        fit={{ length: 1.2 }}
+        at={[{ position: [-7.5, 0, -4.4] }, { position: [-7.6, 0, 1.6], rotation: 1.4 }, { position: [7.5, 0, -2.6], rotation: 2.6 }, { position: [-2.8, 0, -6.1], rotation: 0.4, scale: 0.85 }, { position: [2.9, 0, -6.1], rotation: 3.3, scale: 0.85 }]}
+      />
+      <ModelInstances
+        id="nature/Flower_3_Group"
+        fit={{ height: 0.75 }}
+        at={[{ position: [-6.3, 0, 5.6] }, { position: [7.6, 0, 3.1], rotation: 1 }, { position: [-7.6, 0, -2.6], rotation: 2 }]}
+      />
+      <ModelInstances id="nature/Flower_4_Group" fit={{ height: 0.8 }} at={[{ position: [6.1, 0, 5.5], rotation: 0.5 }, { position: [-7.5, 0, 3.2], rotation: 2.4 }]} />
+      <ModelInstances id="nature/Fern_1" fit={{ length: 1.3 }} at={[{ position: [-4.3, 0, 4.5] }, { position: [7.6, 0, -4.4], rotation: 1.2 }]} />
+      <ModelInstances
+        id="nature/RockPath_Square_Wide"
+        fit={{ length: 1.25 }}
+        at={[{ position: [-6.9, 0.01, 2.2] }, { position: [-6.9, 0.01, 0.9], rotation: Math.PI / 2 }, { position: [-6.9, 0.01, -0.4] }, { position: [-6.9, 0.01, -1.7], rotation: Math.PI / 2 }]}
+      />
+      {/* A split-rail fence behind the waiver mailbox, and bollards at the gate */}
+      <ModelInstances id="medieval/Prop_WoodenFence_Single" fit={{ length: 1.7 }} at={[{ position: [4.75, 0, -5.75] }, { position: [6.5, 0, -5.75] }]} cast />
+      <ModelInstances id="downtown/Prop_Bollard" fit={{ height: 0.75 }} at={[{ position: [-0.9, 0, 6.15] }, { position: [0.9, 0, 6.15] }]} />
       <LampPost position={[-7.5, 0, -1]} />
       <LampPost position={[7.5, 0, 1.4]} />
       <pointLight position={[2, 5, 2]} color="#ffdcb0" intensity={24} distance={18} decay={1.6} />

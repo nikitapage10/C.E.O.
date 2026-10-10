@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ComponentType, type ReactNode } from "react";
 import { Color, MeshBasicMaterial, MeshStandardMaterial, Object3D, type Group, type InstancedMesh, type Mesh } from "three";
 import { kernelMaterial, screenMaterial } from "../fx/materials.ts";
+import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { Block, FONTS, ahead } from "./primitives.tsx";
 
@@ -132,23 +133,9 @@ function ExchangeEggs() {
         ))}
       </group>
       {/* A bull. Bronze. Charging, generically. */}
-      <group position={[-6.6, 0, -4.4]} rotation={[0, 0.7, 0]} scale={0.9}>
-        <Block size={[0.6, 0.7, 0.6]} position={[0, 0.35, 0]} material={PBR.matte("#26262a", 0.6)} radius={0.04} />
-        <Block size={[1.1, 0.42, 0.42]} position={[0, 1.0, 0]} rotation={[0, 0, 0.12]} material={gold} radius={0.16} />
-        <Block size={[0.32, 0.3, 0.3]} position={[0.62, 0.92, 0]} rotation={[0, 0, -0.4]} material={gold} radius={0.1} />
-        {[-1, 1].map((sd) => (
-          <mesh key={sd} position={[0.68, 1.08, sd * 0.15]} rotation={[sd * 0.9, 0, -0.6]} material={gold}>
-            <coneGeometry args={[0.035, 0.22, 10]} />
-          </mesh>
-        ))}
-        {[
-          [0.35, 0.18],
-          [0.35, -0.18],
-          [-0.35, 0.18],
-          [-0.35, -0.18],
-        ].map(([x, z], i) => (
-          <Block key={i} size={[0.1, 0.32, 0.1]} position={[x!, 0.72, z!]} rotation={[0, 0, i < 2 ? -0.4 : 0.3]} material={gold} radius={0.03} />
-        ))}
+      <group position={[-6.6, 0, -4.4]} rotation={[0, 0.7, 0]}>
+        <Block size={[0.75, 0.55, 1.6]} position={[0, 0.275, 0]} material={PBR.matte("#26262a", 0.6)} radius={0.04} />
+        <Model id="animals/Bull" fit={{ length: 1.55 }} position={[0, 0.55, 0]} pose="Idle_Headlow" material={gold} cast />
       </group>
       <Plaque position={[-5.6, 0, -3.6]} rotation={0.4}>
         {"A BULL · MARKET · (NOT THAT BULL)"}
@@ -278,10 +265,8 @@ function ArchiveEggs() {
       <group ref={candles}>
         {spots.map((s, i) => (
           <group key={i} position={[s.x, s.y, s.z]}>
-            <mesh material={PBR.matte("#efe6d4", 0.7)}>
-              <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
-            </mesh>
-            <mesh position={[0, 0.15, 0]} material={PBR.light("#ffcf8a", 4)}>
+            <Model id={i % 2 ? "fantasy-props/Candle_1" : "fantasy-props/Candle_2"} fit={{ scale: 1.2 }} position={[0, -0.12, 0]} rotation={i} />
+            <mesh position={[0, (i % 2 ? 0.05 : 0.2), 0]} material={PBR.light("#ffcf8a", 4)}>
               <sphereGeometry args={[0.025, 10, 8]} />
             </mesh>
           </group>
@@ -301,14 +286,8 @@ function ArchiveEggs() {
       })}
       {/* The sword in the stone */}
       <group position={[-6.6, 0, 1]}>
-        <mesh position={[0, 0.35, 0]} material={PBR.matte("#6f6a62", 0.95)} castShadow receiveShadow>
-          <dodecahedronGeometry args={[0.55, 0]} />
-        </mesh>
-        <group position={[0, 0.95, 0]} rotation={[0, 0, 0.05]}>
-          <Block size={[0.06, 0.9, 0.015]} position={[0, -0.05, 0]} material={PBR.chrome()} radius={0.005} />
-          <Block size={[0.32, 0.04, 0.05]} position={[0, 0.42, 0]} material={PBR.brass()} radius={0.01} />
-          <Block size={[0.04, 0.2, 0.04]} position={[0, 0.54, 0]} material={PBR.wood("walnut")} radius={0.01} />
-        </group>
+        <Model id="nature/Rock_Medium_1" fit={{ length: 1.3 }} rotation={0.4} cast />
+        <Model id="fantasy-props/Sword_Bronze" fit={{ height: 1.15 }} position={[0.05, 0.55, 0]} rotation={[0, 0.3, 0.06]} cast />
       </group>
       <Plaque position={[-5.6, 0, 1.7]} rotation={-0.6}>
         {"PULL AT YOUR OWN RISK · ARTHURIAN · PUBLIC DOMAIN (WE CHECKED)"}

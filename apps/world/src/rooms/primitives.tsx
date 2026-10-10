@@ -1,6 +1,7 @@
 import { RoundedBox } from "@react-three/drei";
 import { useMemo, type ReactNode } from "react";
 import type { Material } from "three";
+import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { screenMaterial } from "../fx/materials.ts";
 import { PALETTE } from "../theme.ts";
@@ -222,6 +223,8 @@ export function Workstation({
   seed,
   monitors = 1,
   chair = true,
+  desk,
+  seat,
 }: {
   stand: [number, number];
   facing: number;
@@ -230,46 +233,34 @@ export function Workstation({
   seed?: number;
   monitors?: number;
   chair?: boolean;
+  /** A model to use instead of the plain desk; its top should sit at 0.78. */
+  desk?: ReactNode;
+  /** A model to use instead of the office chair, placed where the chair goes. */
+  seat?: ReactNode;
 }) {
   const [dx, dz] = facingDir(facing);
   const yaw = Math.atan2(dx, dz);
   return (
     <group position={[stand[0] + dx * 0.8, 0, stand[1] + dz * 0.8]} rotation={[0, yaw, 0]}>
-      <Desk position={[0, 0, 0]} top={top} />
+      {desk ?? <Desk position={[0, 0, 0]} top={top} />}
       {Array.from({ length: monitors }, (_, i) => {
         const off = (i - (monitors - 1) / 2) * 0.82;
         return <Monitor key={i} position={[off, 1.22, 0.2]} rotation={Math.PI - off * 0.35} color={color} seed={(seed ?? 0) + i} size={[0.78, 0.46]} />;
       })}
       <Block size={[0.5, 0.02, 0.16]} position={[0, 0.8, -0.12]} material={PBR.blackMetal()} radius={0.008} />
-      {chair && <Chair position={[0.9, 0, -0.9]} rotation={0.5} />}
+      {chair && (seat ? <group position={[0.9, 0, -0.9]} rotation={[0, 0.5, 0]}>{seat}</group> : <Chair position={[0.9, 0, -0.9]} rotation={0.5} />)}
     </group>
   );
 }
 
-/** A potted plant: matte pot, layered leaves. */
+/** A potted plant: matte pot, a leafy library plant growing out of it. */
 export function Plant({ position, scale = 1, pot }: { position: V3; scale?: number; pot?: Material }) {
-  const leaves = useMemo(
-    () => Array.from({ length: 9 }, (_, i) => ({ a: (i / 9) * Math.PI * 2 + i, tilt: 0.35 + (i % 3) * 0.22, h: 0.5 + (i % 3) * 0.2 })),
-    [],
-  );
-  const leaf = PBR.lacquer("#3d6a4c", 0.55);
   return (
     <group position={position} scale={scale}>
       <mesh position={[0, 0.25, 0]} material={pot ?? PBR.matte("#d8d4cc")} castShadow receiveShadow>
         <cylinderGeometry args={[0.22, 0.17, 0.5, 24]} />
       </mesh>
-      {leaves.map((l, i) => (
-        <mesh
-          key={i}
-          position={[Math.cos(l.a) * 0.1, 0.5 + l.h * 0.5, Math.sin(l.a) * 0.1]}
-          rotation={[Math.sin(l.a) * l.tilt, 0, -Math.cos(l.a) * l.tilt]}
-          scale={[1, 1, 0.25]}
-          material={leaf}
-          castShadow
-        >
-          <sphereGeometry args={[0.13, 10, 8]} />
-        </mesh>
-      ))}
+      <Model id="nature/Plant_1_Big" fit={{ height: 0.75 }} position={[0, 0.44, 0]} rotation={position[0] + position[2]} cast />
     </group>
   );
 }

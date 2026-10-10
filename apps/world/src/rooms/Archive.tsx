@@ -1,48 +1,38 @@
 import { getStation } from "@ceo/core";
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
-import { BufferGeometry, Color, Float32BufferAttribute, LineBasicMaterial, LineSegments, Object3D, type InstancedMesh, type Mesh } from "three";
+import { useMemo, useRef } from "react";
+import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, type Mesh } from "three";
 import { kernelMaterial } from "../fx/materials.ts";
+import { Model, ModelInstances, type Placement } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { PALETTE } from "../theme.ts";
 import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";
 
-const dummy = new Object3D();
-const LEATHER = ["#4a1f1c", "#1f2f4a", "#2f3d2a", "#5a4326", "#3a2440", "#6b5a3a", "#232326", "#7a3a24"];
+const SHELVES = 6;
+const BAYS = 4;
+const BOOK_GROUPS = ["fantasy-props/BookGroup_Medium_1", "fantasy-props/BookGroup_Medium_2", "fantasy-props/BookGroup_Medium_3"];
 
-/** Floor-to-ceiling walnut bookcases, filled book by book. */
-function Bookcases() {
-  const books = useRef<InstancedMesh>(null);
-  const SHELVES = 6;
-  const BAYS = 4;
-  const PER = 15;
-  const count = SHELVES * BAYS * PER;
-  useEffect(() => {
-    const m = books.current;
-    if (!m) return;
-    const c = new Color();
-    let i = 0;
-    for (let b = 0; b < BAYS; b++)
-      for (let s = 0; s < SHELVES; s++) {
-        let x = -1.5;
-        for (let k = 0; k < PER; k++) {
-          const w = 0.07 + Math.random() * 0.06;
-          const h = 0.42 + Math.random() * 0.2;
-          const lean = k === PER - 1 ? 0.25 : 0;
-          dummy.position.set(-6 + b * 3.3 + x + w / 2, 0.55 + s * 0.78 + h / 2, -6.15);
-          dummy.rotation.set(0, 0, lean);
-          dummy.scale.set(w, h, 0.3 + Math.random() * 0.06);
-          dummy.updateMatrix();
-          m.setMatrixAt(i, dummy.matrix);
-          m.setColorAt(i, c.set(LEATHER[Math.floor(Math.random() * LEATHER.length)]!));
-          x += w + 0.008;
-          i++;
-        }
+/** Which book row goes in each half-bay: a fixed shuffle, with the odd gap where a short stack lies flat instead. */
+function shelfRows() {
+  const rows: Placement[][] = BOOK_GROUPS.map(() => []);
+  const stacks: Placement[] = [];
+  let k = 7;
+  for (let b = 0; b < BAYS; b++)
+    for (let sh = 0; sh < SHELVES; sh++)
+      for (const half of [-0.8, 0.8]) {
+        k = (k * 1103515245 + 12345) % 2147483648;
+        const x = -6.25 + b * 3.3 + half;
+        const y = 0.525 + sh * 0.78;
+        if (k % 9 === 0) stacks.push({ position: [x + 0.2, y, -6.12], rotation: (k % 5) * 0.3 });
+        else rows[k % rows.length]!.push({ position: [x, y, -6.12], rotation: k % 2 ? 0 : Math.PI });
       }
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  }, [count]);
+  return { rows, stacks };
+}
+
+/** Floor-to-ceiling walnut bookcases, filled with rows of library books. */
+function Bookcases() {
+  const { rows, stacks } = useMemo(shelfRows, []);
   const walnut = PBR.wood("walnut");
   return (
     <group>
@@ -53,9 +43,10 @@ function Bookcases() {
       {Array.from({ length: BAYS + 1 }, (_, b) => (
         <Block key={b} size={[0.08, 5.2, 0.44]} position={[-7.9 + b * 3.3, 2.75, -6.15]} material={walnut} radius={0.01} />
       ))}
-      <instancedMesh ref={books} args={[undefined, PBR.lacquer("#ffffff", 0.6), count]} castShadow receiveShadow>
-        <boxGeometry args={[1, 1, 1]} />
-      </instancedMesh>
+      {BOOK_GROUPS.map((id, i) => (
+        <ModelInstances key={id} id={id} fit={{ scale: 1.5 }} at={rows[i]!} />
+      ))}
+      <ModelInstances id="fantasy-props/Book_Stack_1" fit={{ scale: 1.5 }} at={stacks} />
       {/* Brass rail and rolling ladder */}
       <mesh position={[-1.25, 4.9, -5.8]} rotation={[0, 0, Math.PI / 2]} material={PBR.brass()}>
         <cylinderGeometry args={[0.025, 0.025, 13.4, 12]} />
@@ -140,6 +131,18 @@ export function Archive() {
         ))}
       </group>
 
+      {/* The lectern beside the loom, open at the chapter in progress */}
+      <Model id="fantasy-props/BookStand" fit={{ height: 1.35 }} position={[loom.pos[0] + 2.3, 0, loom.pos[1] + 0.4]} rotation={-0.5} cast />
+      <Model id="fantasy-props/Book_Stack_2" fit={{ scale: 1.3 }} position={[loom.pos[0] + 2.3, 0, loom.pos[1] + 1.1]} rotation={0.4} />
+
+      {/* Apothecary cabinet and the campaign chest along the east side */}
+      <Model id="fantasy-props/Cabinet" fit={{ scale: 1.25 }} position={[7.45, 0, -1.6]} rotation={-Math.PI / 2} cast />
+      <Model id="fantasy-props/Potion_2" fit={{ scale: 1.4 }} position={[7.45, 1.25, -2.1]} />
+      <Model id="fantasy-props/Potion_4" fit={{ scale: 1.4 }} position={[7.4, 1.25, -1.7]} />
+      <Model id="fantasy-props/Potion_1" fit={{ scale: 1.4 }} position={[7.5, 1.25, -1.35]} />
+      <Model id="fantasy-props/CandleStick_Triple" fit={{ scale: 1.2 }} position={[7.45, 1.25, -0.95]} rotation={Math.PI / 2} />
+      <Model id="fantasy-props/Chest_Wood" fit={{ scale: 1.05 }} position={[-7.1, 0, 4.9]} rotation={Math.PI / 2 - 0.2} cast pose="Chest_Closed" />
+
       {/* Dice table: walnut and green felt */}
       <group position={[dice.pos[0], 0, dice.pos[1]]}>
         <mesh position={[0, 0.76, 0]} material={walnut} castShadow receiveShadow>
@@ -154,6 +157,8 @@ export function Archive() {
         <mesh ref={d20} castShadow material={PBR.lacquer("#3a2a6a", 0.2)}>
           <icosahedronGeometry args={[0.14, 0]} />
         </mesh>
+        <Model id="fantasy-props/CandleStick_Triple" fit={{ scale: 1 }} position={[-0.45, 0.8, -0.35]} rotation={0.6} />
+        <Model id="fantasy-props/Scroll_2" fit={{ scale: 1.4 }} position={[0.4, 0.8, 0.35]} rotation={0.9} />
       </group>
 
       {/* The Cease & Desist shrine: marble plinth, gilt frame, museum light */}
@@ -186,6 +191,9 @@ export function Archive() {
         {[-0.5, 0.5].map((x) => (
           <Block key={x} size={[0.2, 0.6, 0.9]} position={[x, 0.45, 0]} material={PBR.lacquer("#4a2418", 0.55)} radius={0.08} />
         ))}
+        <Model id="fantasy-props/Stool" fit={{ scale: 1 }} position={[-0.95, 0, 0.1]} />
+        <Model id="fantasy-props/Book_Stack_1" fit={{ scale: 1.3 }} position={[-0.95, 0.59, 0.1]} rotation={0.7} />
+        <Model id="fantasy-props/Scroll_1" fit={{ scale: 1.4 }} position={[-0.9, 0.86, 0.12]} rotation={-0.4} />
         <group position={[0.9, 0, -0.3]}>
           <mesh position={[0, 0.8, 0]} material={PBR.brass()}>
             <cylinderGeometry args={[0.015, 0.015, 1.6, 8]} />

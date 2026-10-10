@@ -13,9 +13,9 @@ import { LINEAGE_IDS, LINEAGES, type LineageId } from "./lineages.ts";
  */
 export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
-  "suit", "formal", "casual", "worker", "scifi", "spacesuit", "witch", "king",
+  "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "crawler", "masked", "birb", "yeti", "monolith",
+  "gestral", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -29,6 +29,9 @@ export const BODY_LABEL: Record<Body, string> = {
   formal: "Human: formal dress",
   casual: "Human: hoodie",
   worker: "Human: hard hat",
+  hardhat: "Human: hard hat (woman)",
+  punk: "Human: punk",
+  medieval: "Human: medieval",
   scifi: "Human: flight suit",
   spacesuit: "Human: spacesuit",
   witch: "Human: witch",
@@ -41,6 +44,11 @@ export const BODY_LABEL: Record<Body, string> = {
   gestral: "Gestral",
   crawler: "Stone crawler",
   masked: "Painted mask",
+  orc: "Orc",
+  bunny: "Big bunny",
+  ghost: "Skull spirit",
+  flyer: "Painted flyer",
+  wizard: "Little wizard",
   birb: "Big bird",
   yeti: "Great grey beast",
   monolith: "Monolith",
@@ -237,7 +245,7 @@ export const LOOK_PRESETS: LookPreset[] = [
     name: "Engineer from a Rocky Planet",
     kind: "icon",
     voice: "chords",
-    disclaimer: "A generic stone-shelled engineer who speaks in chords. It has four legs, which Counsel.exe has certified as the legally distinct number. Rocks are public domain. Fist my bump.",
+    disclaimer: "A generic stone-shelled engineer who speaks in chords. It has a sensible number of legs, which Counsel.exe has certified as legally distinct. Rocks are public domain. Fist my bump.",
     look: makeLook({ body: "crawler", shell: "#5b5148", accent: "#ffb36b", trim: "#3a332d" }),
   },
   {
@@ -245,8 +253,8 @@ export const LOOK_PRESETS: LookPreset[] = [
     name: "Emotive Pachyderm Envoy",
     kind: "icon",
     voice: "emotive",
-    disclaimer: "Sincerely: a large, grey, shaggy, slow-moving diplomat who announces their feelings. Not a pachyderm. Any resemblance is regrettable.",
-    look: makeLook({ body: "yeti", shell: "#8a857e", accent: "#9fe3c9", trim: "#4a4642" }),
+    disclaimer: "Sincerely: a large, slow-moving diplomat in a painted mask who announces their feelings. Not a pachyderm. Any resemblance is regrettable.",
+    look: makeLook({ body: "masked", shell: "#8a857e", accent: "#9fe3c9", trim: "#4a4642" }),
   },
   {
     id: "gestral",
@@ -259,15 +267,15 @@ export const LOOK_PRESETS: LookPreset[] = [
     id: "grey-wanderer",
     name: "Grey Wanderer",
     kind: "icon",
-    disclaimer: "An old man in a grey robe and a pointed hat, with a staff. There are thousands. He is precisely on time.",
-    look: makeLook({ body: "mage", shell: "#8d9096", accent: "#dfe6ef", trim: "#b9bcc2" }),
+    disclaimer: "A small, round wizard in a pointed hat. There are thousands. He is precisely on time.",
+    look: makeLook({ body: "wizard", shell: "#8d9096", accent: "#dfe6ef", trim: "#b9bcc2" }),
   },
   {
     id: "burglar",
     name: "Barefoot Burglar",
     kind: "icon",
     disclaimer: "A short, comfortable person who would rather be home. Hired as a burglar. Shoes optional; adventure, regrettably, not.",
-    look: makeLook({ body: "rogue", size: 0.72, shell: "#6a7a3a", accent: "#ffd08f", trim: "#a8743a" }),
+    look: makeLook({ body: "medieval", size: 0.8, shell: "#492e18", accent: "#ffd08f", trim: "#af8749" }),
   },
   {
     id: "monolith",
@@ -279,11 +287,11 @@ export const LOOK_PRESETS: LookPreset[] = [
   },
   {
     id: "migraine-duck",
-    name: "Migraine Duck",
+    name: "Migraine Spirit",
     kind: "icon",
     voice: "migraine",
-    disclaimer: "A large yellow bird with a headache. Not a duck, legally. Birds are not trademarks. Headaches, unfortunately, are universal.",
-    look: makeLook({ body: "birb", shell: "#f2c94c", accent: "#8fd3ff", trim: "#f0e2b6" }),
+    disclaimer: "A floating skull-faced spirit with a permanent headache. It used to be a duck, legally speaking. Headaches, unfortunately, are universal.",
+    look: makeLook({ body: "ghost", shell: "#f2c94c", accent: "#8fd3ff", trim: "#f0e2b6" }),
   },
 ];
 

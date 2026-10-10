@@ -47,8 +47,6 @@ const BONES = [
   { name: "TreadL", parent: "Root", at: [0.52, 0.22, -0.1] },
   { name: "TreadR", parent: "Root", at: [-0.52, 0.22, -0.1] },
 ];
-const J = Object.fromEntries(BONES.map((b, i) => [b.name, i]));
-
 // Pieces: the triangles' connected islands, with coincident vertices welded so seams don't split a piece.
 const p = [];
 const weld = new Map();
@@ -88,18 +86,86 @@ function boneOf({ min, max, sum, verts }) {
   const [x, y, z] = sum.map((s) => s / verts.length);
   const side = x > 0 ? "L" : "R";
   // The treads and the rails along their tops (low, or as wide as a tread, or behind the shoulders).
-  if (Math.abs(x) > 0.36 && (max[1] < 0.5 || max[0] - min[0] > 0.25 || z < -0.08)) return `Tread${side}`;
+  if (Math.abs(x) > 0.36 && max[1] < 0.65 && (max[1] < 0.5 || max[0] - min[0] > 0.25 || z < -0.08)) return `Tread${side}`;
   if (y > 0.45 && y < 1.1 && (Math.abs(x) > 0.4 || (Math.abs(x) > 0.14 && z > 0.22))) return z > 0.38 ? `Hand${side}` : `Arm${side}`;
   if (y > 1.1 && y < 1.3 && Math.abs(x) < 0.1 && max[0] - min[0] < 0.16) return "Neck";
   if (y > 1.2) return "Head";
   return "Body";
 }
 
+/**
+ * Each tread is a loop of separate links round three wheels, so the links and wheels get bones of their own and
+ * the treads can really roll: a link is as wide as the tread and flat from the side, a wheel is round.
+ * Links are numbered round the loop in the direction the belt runs when rolling forward (over the top toward the
+ * front, back along the floor).
+ */
+const centre = (pc) => pc.min.map((v, i) => (v + pc.max[i]) / 2);
+const size = (pc) => pc.max.map((v, i) => v - pc.min[i]);
+/** How round a piece is from the side: 1 for a disc, near 0 for a plate (smaller over larger spread in Y-Z). */
+const roundness = (pc) => {
+  let [my, mz, yy, zz, yz] = [0, 0, 0, 0, 0];
+  for (const v of pc.verts) {
+    pos.getElement(v, p);
+    my += p[1];
+    mz += p[2];
+  }
+  [my, mz] = [my / pc.verts.length, mz / pc.verts.length];
+  for (const v of pc.verts) {
+    pos.getElement(v, p);
+    yy += (p[1] - my) ** 2;
+    zz += (p[2] - mz) ** 2;
+    yz += (p[1] - my) * (p[2] - mz);
+  }
+  const tr = yy + zz;
+  const gap = Math.sqrt((yy - zz) ** 2 + 4 * yz * yz);
+  return (tr - gap) / (tr + gap);
+};
+const kindOf = (pc) => {
+  const [w, h, d] = size(pc);
+  if (w > 0.25 && Math.max(h, d) < 0.2 && roundness(pc) < 0.5) return "link";
+  if (h > 0.09 && d > 0.09 && Math.abs(h - d) < 0.05 && w > 0.1 && roundness(pc) > 0.7) return "wheel";
+  return null;
+};
+const owner = new Map();
+for (const side of ["L", "R"]) {
+  const tread = [...pieces.values()].filter((pc) => boneOf(pc) === `Tread${side}`);
+  const links = tread.filter((pc) => kindOf(pc) === "link");
+  const lo = [9, 9];
+  const hi = [-9, -9];
+  for (const pc of links) {
+    const [, y, z] = centre(pc);
+    lo[0] = Math.min(lo[0], y);
+    lo[1] = Math.min(lo[1], z);
+    hi[0] = Math.max(hi[0], y);
+    hi[1] = Math.max(hi[1], z);
+  }
+  const [cy, cz] = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2];
+  // Round the loop from the top, toward the front.
+  const angle = (pc) => {
+    const [, y, z] = centre(pc);
+    return (Math.atan2(y - cy, z - cz) - Math.PI / 2 + 4 * Math.PI) % (2 * Math.PI);
+  };
+  links.sort((a, b) => angle(b) - angle(a));
+  links.forEach((pc, i) => {
+    const name = `Link${side}${String(i).padStart(2, "0")}`;
+    BONES.push({ name, parent: `Tread${side}`, at: centre(pc) });
+    owner.set(pc, name);
+  });
+  tread
+    .filter((pc) => kindOf(pc) === "wheel")
+    .forEach((pc, i) => {
+      const name = `Wheel${side}${i}`;
+      BONES.push({ name, parent: `Tread${side}`, at: centre(pc) });
+      owner.set(pc, name);
+    });
+}
+const J = Object.fromEntries(BONES.map((b, i) => [b.name, i]));
+
 const joints = new Uint8Array(count * 4);
 const weights = new Float32Array(count * 4);
 const tally = {};
 for (const piece of pieces.values()) {
-  const bone = boneOf(piece);
+  const bone = owner.get(piece) ?? boneOf(piece);
   tally[bone] = (tally[bone] ?? 0) + 1;
   for (const v of piece.verts) {
     joints[v * 4] = J[bone];
@@ -107,6 +173,7 @@ for (const piece of pieces.values()) {
   }
 }
 console.log("pieces per bone", tally);
+if (BONES.length > 255) throw new Error("too many bones for 8-bit joints");
 
 // Out with the old rig.
 const oldSkin = meshNode.getSkin();

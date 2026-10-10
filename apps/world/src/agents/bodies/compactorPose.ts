@@ -1,4 +1,4 @@
-import type { Object3D } from "three";
+import { Vector3, type Object3D } from "three";
 import type { PoseMode } from "../behavior.ts";
 import { smooth } from "./limbs.ts";
 
@@ -7,8 +7,9 @@ import { smooth } from "./limbs.ts";
  * a handful of angles: the box rocks on its treads, the neck folds, the head turns and tilts on top of it, and
  * each arm swings from the shoulder with its claw flexing at the wrist. Angles are from the rest pose, about
  * character axes (+Y up, +Z forward, +X the robot's left): a positive pitch tips a part forward and down.
- * - Rolling (walking, carrying): no legs to step with, so the treads judder and the box sways and leans in; the
- *   arms swing as it goes, or hold steady to carry.
+ * - Rolling (walking, carrying): the treads really roll. Each is a loop of separate links round its wheels, so
+ *   the links run round the loop and the wheels turn, as far as he actually travels. The treads judder, the box
+ *   sways and leans in, and the arms swing as he goes, or hold steady to carry.
  * - Working: compacting. Both arms pump together and the box bounces with each crush, head down to watch.
  * - Napping: folds up for the night, head down on the box and arms tucked in.
  */
@@ -147,6 +148,61 @@ export function compactorPose(mode: PoseMode, t: number, phase = 0, speaking = f
   return p;
 }
 
+/** One tread's belt: its links in the order they run, where each rests, and the loop they run round. */
+export interface Belt {
+  links: Object3D[];
+  rest: Vector3[];
+  /** The whole way round. */
+  length: number;
+  /** Direction of travel at each rest place, as an angle in the Y-Z plane. */
+  heading: number[];
+  /** How far the belt has run, within one link's length. */
+  run: number;
+}
+
+const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+/** A belt from its links, in running order. */
+export function beltOf(links: Object3D[]): Belt {
+  const rest = links.map((l) => l.position.clone());
+  const n = rest.length;
+  let length = 0;
+  for (let i = 0; i < n; i++) length += rest[i]!.distanceTo(rest[(i + 1) % n]!);
+  const heading = rest.map((_, i) => {
+    const a = rest[(i + n - 1) % n]!;
+    const b = rest[(i + 1) % n]!;
+    return Math.atan2(b.y - a.y, b.z - a.z);
+  });
+  return { links, rest, length, heading, run: 0 };
+}
+
+/**
+ * Run the belt `distance` along (model units; positive rolls forward, so the top run goes forward and the
+ * bottom run back). The links aren't identical (the modeller shaped each for its place on the loop), so none
+ * travels far: each slides toward the next one's place, turning to follow the loop, and steps back to its own
+ * as the next link arrives there, a link's length at a time. Every link moves together, so it reads as one
+ * belt rolling, the way a scrolling texture does.
+ */
+export function runBelt(belt: Belt, distance: number) {
+  const { links, rest, length, heading } = belt;
+  const n = links.length;
+  if (!n || length <= 0) return;
+  const pitch = length / n;
+  belt.run = (((belt.run + distance) % pitch) + pitch) % pitch;
+  const f = belt.run / pitch;
+  for (let j = 0; j < n; j++) {
+    const next = (j + 1) % n;
+    links[j]!.position.lerpVectors(rest[j]!, rest[next]!, f);
+    // A turn about +X by θ points +Z at angle -θ in the Y-Z plane.
+    links[j]!.rotation.x = -wrap(heading[next]! - heading[j]!) * f;
+  }
+}
+
+export interface Wheel {
+  bone: Object3D;
+  radius: number;
+}
+
 export interface CompactorRig {
   body: Object3D;
   neck: Object3D;
@@ -157,6 +213,8 @@ export interface CompactorRig {
   handR: Object3D;
   treadL: Object3D;
   treadR: Object3D;
+  belts: Belt[];
+  wheels: Wheel[];
   /** Rest heights of the box and treads, which the pose offsets. */
   bodyY: number;
   treadY: number;
@@ -168,11 +226,23 @@ export function rigCompactor(model: Object3D): CompactorRig | null {
   const get = (n: string) => model.getObjectByName(n);
   const [body, neck, head, armL, armR, handL, handR, treadL, treadR] = ["Body", "Neck", "Head", "ArmL", "ArmR", "HandL", "HandR", "TreadL", "TreadR"].map(get);
   if (!body || !neck || !head || !armL || !armR || !handL || !handR || !treadL || !treadR) return null;
-  return { body, neck, head, armL, armR, handL, handR, treadL, treadR, bodyY: body.position.y, treadY: treadL.position.y, now: { ...REST } };
+  const belts: Belt[] = [];
+  const wheels: Wheel[] = [];
+  for (const tread of [treadL, treadR]) {
+    const links = tread.children.filter((c) => c.name.startsWith("Link")).sort((a, b) => a.name.localeCompare(b.name));
+    const belt = beltOf(links);
+    if (links.length) belts.push(belt);
+    // A wheel's radius is how far it sits inside the belt.
+    for (const bone of tread.children.filter((c) => c.name.startsWith("Wheel"))) {
+      const radius = Math.min(...belt.rest.map((r) => r.distanceTo(bone.position)), 0.3);
+      wheels.push({ bone, radius: Math.max(0.04, radius) });
+    }
+  }
+  return { body, neck, head, armL, armR, handL, handR, treadL, treadR, belts, wheels, bodyY: body.position.y, treadY: treadL.position.y, now: { ...REST } };
 }
 
-/** One frame: ease toward the pose for `mode` and set the bones. */
-export function poseCompactor(rig: CompactorRig, mode: PoseMode, t: number, dt: number, phase: number, speaking: boolean) {
+/** One frame: ease toward the pose for `mode`, set the bones, and roll the treads `travel` (model units, forward). */
+export function poseCompactor(rig: CompactorRig, mode: PoseMode, t: number, dt: number, phase: number, speaking: boolean, travel = 0) {
   const want = compactorPose(mode, t, phase, speaking);
   // Frame-rate independent easing, quick enough that the rhythms (treads, crushes) still read.
   const k = 1 - Math.exp(-Math.min(Math.max(dt, 0), 0.1) * 12);
@@ -188,4 +258,8 @@ export function poseCompactor(rig: CompactorRig, mode: PoseMode, t: number, dt: 
   rig.handR.rotation.set(n.clawR, 0, 0);
   rig.treadL.position.y = rig.treadY + n.treadL;
   rig.treadR.position.y = rig.treadY + n.treadR;
+  if (travel) {
+    for (const belt of rig.belts) runBelt(belt, travel);
+    for (const w of rig.wheels) w.bone.rotation.x += travel / w.radius;
+  }
 }

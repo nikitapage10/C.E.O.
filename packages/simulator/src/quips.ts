@@ -165,7 +165,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
   semicolon: [
     "Night shift. Rocky's asleep. Nobody touches him.",
     "Rocky, put the robot down.",
-    "Tessellate, he can't wear the harness. Five legs. We've been over this.",
+    "Rusty, he can't wear the harness. Five legs. We've been over this.",
     "I came here for a quiet job. Where did I go wrong.",
     "Thermos is full. Shift can begin.",
     "Somebody's eyes are whirring again.",

@@ -16,13 +16,14 @@ const RENAMED: Record<string, [string, string]> = {
   odds: ["Odds", "Noco"],
   postmaster: ["Postmaster", "Blasto"],
   semicolon: ["Semicolon", "Rivet"],
+  tessellate: ["Tessellate", "Rusty"],
 };
 /**
  * Bumped when the default characters are rewritten: saved casts take the new roles, personalities, dossiers and
  * relationships once, keeping their looks (and any name you chose yourself).
  */
 const LORE_KEY = "ceo.cast.lore";
-const LORE_REV = 2;
+const LORE_REV = 3;
 
 function readRev(key: string) {
   try {

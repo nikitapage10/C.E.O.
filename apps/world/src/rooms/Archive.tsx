@@ -8,6 +8,8 @@ import { Model, ModelInstances, type Placement } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
+import { Dust } from "../fx/atmos.tsx";
+import { LongTable } from "./LongTable.tsx";
 import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";
 
 const SHELVES = 6;
@@ -135,10 +137,8 @@ function loomThreads() {
 export function Archive() {
   const threads = useMemo(loomThreads, []);
   const stormBooks = useMemo(() => kernelMaterial(1.2), []);
-  const d20 = useRef<Mesh>(null);
   const shelves = ahead(getStation("archive", "shelves"), 1);
   const loom = ahead(getStation("archive", "loom"), 0.95);
-  const dice = ahead(getStation("archive", "dice-table"), 0.95);
   const shrine = ahead(getStation("archive", "shrine"), 0.95);
   const reading = getStation("archive", "reading");
   const lab = ahead(getStation("archive", "lab"), 0.75);
@@ -146,11 +146,6 @@ export function Archive() {
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (d20.current) {
-      const roll = (t % 4) / 4;
-      d20.current.position.y = 0.95 + Math.abs(Math.sin(roll * Math.PI * 3)) * 0.35 * (1 - roll);
-      d20.current.rotation.set(t * 2 * (1 - roll), t * 1.3 * (1 - roll), 0);
-    }
     threads.material.opacity = 0.6 + Math.sin(t * 1.7) * 0.25;
   });
 
@@ -197,23 +192,10 @@ export function Archive() {
       <Model id="fantasy-props/CandleStick_Triple" fit={{ scale: 1.2 }} position={[7.45, 1.25, -0.95]} rotation={Math.PI / 2} />
       <Model id="fantasy-props/Chest_Wood" fit={{ scale: 1.05 }} position={[-7.1, 0, 4.9]} rotation={Math.PI / 2 - 0.2} cast pose="Chest_Closed" />
 
-      {/* Dice table: walnut and green felt */}
-      <group position={[dice.pos[0], 0, dice.pos[1]]}>
-        <mesh position={[0, 0.76, 0]} material={walnut} castShadow receiveShadow>
-          <cylinderGeometry args={[0.95, 0.95, 0.07, 64]} />
-        </mesh>
-        <mesh position={[0, 0.8, 0]} rotation={[-Math.PI / 2, 0, 0]} material={PBR.felt("#1f4a34")} receiveShadow>
-          <circleGeometry args={[0.82, 64]} />
-        </mesh>
-        <mesh position={[0, 0.38, 0]} material={walnut} castShadow>
-          <cylinderGeometry args={[0.08, 0.25, 0.76, 24]} />
-        </mesh>
-        <mesh ref={d20} castShadow material={PBR.lacquer("#3a2a6a", 0.2)}>
-          <icosahedronGeometry args={[0.14, 0]} />
-        </mesh>
-        <Model id="fantasy-props/CandleStick_Triple" fit={{ scale: 1 }} position={[-0.45, 0.8, -0.35]} rotation={0.6} />
-        <Model id="fantasy-props/Scroll_2" fit={{ scale: 1.4 }} position={[0.4, 0.8, 0.35]} rotation={0.9} />
-      </group>
+      {/* The long table, for campaigns */}
+      <LongTable />
+      {/* Dust in the lamplight, over the reading floor and the table */}
+      <Dust min={[-6, 0.6, -5]} size={[12, 3.2, 9.5]} count={70} />
 
       {/* The Cease & Desist shrine: marble plinth, gilt frame, museum light */}
       <group position={[shrine.pos[0], 0, shrine.pos[1]]} rotation={[0, shrine.yaw, 0]}>

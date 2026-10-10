@@ -19,6 +19,10 @@ export interface Station {
   z: number;
   /** Direction the agent faces while working here, in radians; 0 faces the back (-z), PI faces the camera. */
   facing: number;
+  /** Standing height above the floor (a stage, a dais). */
+  y?: number;
+  /** Stand exactly here: no per-agent shuffle (a DJ behind the decks, a player in their chair). */
+  exact?: boolean;
 }
 
 export interface RoomDef {
@@ -39,10 +43,10 @@ export const KERNEL_PORT_Y = 2;
 export const WALK_SPEED = 2.4;
 export const STREAM_SPEED = 18;
 
-const s = (id: string, label: string, x: number, z: number, facing = 0): Station => ({ id, label, x, z, facing });
+const s = (id: string, label: string, x: number, z: number, facing = 0, opts: { y?: number; exact?: boolean } = {}): Station => ({ id, label, x, z, facing, ...opts });
 /** A station that faces a point (a seat around a table, a spot on a pitch). */
-const toward = (id: string, label: string, x: number, z: number, tx: number, tz: number): Station =>
-  s(id, label, x, z, Math.atan2(-(tx - x), -(tz - z)));
+const toward = (id: string, label: string, x: number, z: number, tx: number, tz: number, opts: { y?: number; exact?: boolean } = {}): Station =>
+  s(id, label, x, z, Math.atan2(-(tx - x), -(tz - z)), opts);
 
 export const ROOMS: Record<RoomId, RoomDef> = {
   foundry: {
@@ -133,15 +137,19 @@ export const ROOMS: Record<RoomId, RoomDef> = {
     stations: [
       s("shelves", "Glass shelves", -5, -3, 0),
       s("loom", "Lore loom", 0, -2.6, 0),
-      s("dice-table", "Dice table", 3, 2.2, Math.PI),
+      // The DM's chair at the head of the long table, behind the screen.
+      s("dice-table", "The DM's chair", 5.05, 2.3, Math.PI / 2, { exact: true }),
       s("shrine", "Cease & Desist shrine", 5.8, -3.2, 0),
       s("reading", "Reading nook", -4.4, 3, Math.PI),
       // Faces his workbench, side-on to the room.
       s("lab", "Professor's workbench", -1.4, 4.2, -Math.PI / 2),
-      toward("seat-w", "Seat at the dice table", 1.75, 3.15, 3, 3.15),
-      toward("seat-e", "Seat at the dice table", 4.25, 3.15, 3, 3.15),
-      toward("seat-sw", "Seat at the dice table", 2.2, 4.2, 3, 3.15),
-      toward("seat-se", "Seat at the dice table", 3.8, 4.2, 3, 3.15),
+      // Players down both sides of the long table: the back row faces the room, the front row has its back to it.
+      s("seat-w", "Seat at the long table", 1.1, 1.3, Math.PI, { exact: true }),
+      s("seat-e", "Seat at the long table", 3.7, 1.3, Math.PI, { exact: true }),
+      s("seat-sw", "Seat at the long table", 1.1, 3.3, 0, { exact: true }),
+      s("seat-se", "Seat at the long table", 3.7, 3.3, 0, { exact: true }),
+      s("seat-nm", "Seat at the long table", 2.4, 1.3, Math.PI, { exact: true }),
+      s("seat-sm", "Seat at the long table", 2.4, 3.3, 0, { exact: true }),
     ],
   },
   breakroom: {
@@ -151,17 +159,27 @@ export const ROOMS: Record<RoomId, RoomDef> = {
     workstream: "Idle, morale, nonsense",
     y: 1,
     stations: [
-      s("couch", "Couch", -4, 2.6, Math.PI),
-      s("ping-pong", "Ping-pong table", 2, 0.4, Math.PI / 2),
-      s("coffee-machine", "Sentient coffee machine", -6, -3, 0),
-      s("server-rack", "Server rack (nap spot)", 5.4, -3, 0),
-      s("window", "Window to the Veil", 0, -4.4, 0),
-      s("pong-a", "Ping-pong (north end)", 0.6, -1.45, Math.PI),
-      s("pong-b", "Ping-pong (south end)", 0.6, 2.25, 0),
-      s("decks", "DJ booth", 5.55, 1.2, -Math.PI / 2),
-      toward("dance-1", "Dance floor", 3.3, 0.1, 5.55, 1.2),
-      toward("dance-2", "Dance floor", 4.3, 2.4, 5.55, 1.2),
-      toward("dance-3", "Dance floor", 2.8, 2.0, 5.55, 1.2),
+      // A club: the stage along the back wall under the skyline, the floor in front of it, a bar down the
+      // left wall, the lounge and the ping-pong table at the front.
+      s("couch", "Lounge", -4.6, 3.7, Math.PI),
+      s("ping-pong", "Ping-pong table", 4.6, 5.55, 0),
+      s("coffee-machine", "Sentient coffee machine", -6.4, -4.1, Math.PI / 2),
+      s("bar", "The bar", -6.3, -1.6, Math.PI / 2),
+      s("server-rack", "Server rack (nap spot)", 6.3, -1.2, -Math.PI / 2),
+      s("window", "The skyline", 5.4, -5.4, 0),
+      s("pong-a", "Ping-pong (west end)", 2.95, 4.3, -Math.PI / 2, { exact: true }),
+      s("pong-b", "Ping-pong (east end)", 6.25, 4.3, Math.PI / 2, { exact: true }),
+      // On stage (0.45 m up), all facing the floor.
+      s("decks", "DJ booth", 0, -5.25, Math.PI, { y: 0.45, exact: true }),
+      s("mic", "Microphone", 0, -4.05, Math.PI, { y: 0.45, exact: true }),
+      s("stage-l", "Drum riser", -2.2, -5.2, Math.PI, { y: 0.45, exact: true }),
+      s("stage-r", "Keys", 2.25, -4.6, Math.PI, { y: 0.45, exact: true }),
+      toward("dance-1", "Dance floor", -1.2, -2.2, 0, -5.25),
+      toward("dance-2", "Dance floor", 1.3, -1.9, 0, -5.25),
+      toward("dance-3", "Dance floor", 0.1, -0.9, 0, -5.25),
+      toward("dance-4", "Dance floor", -2.3, -0.6, 0, -5.25),
+      toward("dance-5", "Dance floor", 2.4, -0.4, 0, -5.25),
+      toward("dance-6", "Dance floor", -0.6, 0.6, 0, -5.25),
     ],
   },
 };
@@ -209,8 +227,8 @@ export interface Place {
 
 export function placeToWorld(place: Place, agentId: string): Vec3 {
   const st = getStation(place.room, place.station);
-  const [jx, jz] = agentJitter(agentId, place.station);
-  return roomToWorld(place.room, st.x + jx, 0, st.z + jz);
+  const [jx, jz] = st.exact ? [0, 0] : agentJitter(agentId, place.station);
+  return roomToWorld(place.room, st.x + jx, st.y ?? 0, st.z + jz);
 }
 
 export function gateWorld(room: RoomId): Vec3 {

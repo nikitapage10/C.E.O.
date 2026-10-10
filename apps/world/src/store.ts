@@ -63,6 +63,12 @@ interface WorldStore {
   overrides: Record<string, Override>;
   /** Little floating symbols over an agent's head (hearts, sparks…), from the social life of the Lattice. */
   emotes: Record<string, { glyph: string; until: number }>;
+  /** The gathering under way (a club night, a one-shot…), so its room can dress up for it. */
+  gathering: Gathering | null;
+  /** Costume pieces worn for a gathering (a wizard's hat at the D&D table), by agent. */
+  costumes: Record<string, Costume>;
+  /** Dice on the table: the latest roll by each agent. */
+  rolls: Record<string, DiceRoll>;
 
   dispatch: (events: AgentEvent[]) => void;
   setFocus: (room: RoomId | null) => void;
@@ -82,6 +88,29 @@ interface WorldStore {
   endGlitch: () => void;
   flash: (ms?: number) => void;
   announce: (text: string, tone: AnnouncementTone, room?: RoomId | null) => void;
+  setGathering: (g: Gathering | null) => void;
+  setCostumes: (c: Record<string, Costume>) => void;
+  /** Roll a die for an agent (shown on the table), returning the result. */
+  roll: (agentId: string, sides?: number) => number;
+}
+
+export interface Gathering {
+  id: string;
+  room: RoomId;
+  host: string;
+  guests: string[];
+  /** performance.now() when it started; `live` once the scene is playing (everyone seated). */
+  since: number;
+  live: boolean;
+}
+
+export type Costume = "wizard-hat" | "helm" | "hood" | "crown" | "horns" | "feather-cap";
+
+export interface DiceRoll {
+  sides: number;
+  value: number;
+  /** performance.now() of the throw. */
+  at: number;
 }
 
 export interface KernelLine {
@@ -114,6 +143,9 @@ export const useWorld = create<WorldStore>((set, get) => ({
   flashUntil: 0,
   overrides: {},
   emotes: {},
+  gathering: null,
+  costumes: {},
+  rolls: {},
 
   dispatch: (events) => {
     if (events.length === 0) return;
@@ -146,6 +178,13 @@ export const useWorld = create<WorldStore>((set, get) => ({
     get().dispatch([{ id: `world-${++localCounter}`, ts: clock.sim, source: "simulated", type: "agent.quip", agentId, text }]),
   override: (agentId, mode, ms, target) =>
     set({ overrides: { ...get().overrides, [agentId]: { mode, until: performance.now() + ms, target } } }),
+  setGathering: (gathering) => set({ gathering }),
+  setCostumes: (costumes) => set({ costumes }),
+  roll: (agentId, sides = 20) => {
+    const value = 1 + Math.floor(Math.random() * sides);
+    set({ rolls: { ...get().rolls, [agentId]: { sides, value, at: performance.now() } } });
+    return value;
+  },
   emote: (agentId, glyph, ms) => set({ emotes: { ...get().emotes, [agentId]: { glyph, until: performance.now() + ms } } }),
   startGlitch: (g) => set({ activeGlitch: g, flashUntil: performance.now() + 260 }),
   endGlitch: () => set({ activeGlitch: null, flashUntil: performance.now() + 140 }),

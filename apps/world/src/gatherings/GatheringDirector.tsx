@@ -2,13 +2,16 @@ import { pendingApprovals } from "@ceo/core";
 import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
-import { readingTime, simulator, useWorld } from "../store.ts";
-import { GATHERINGS, GATHERING_BY_ID, type GatheringDef } from "./gatherings.ts";
+import { readingTime, simulator, useWorld, type Costume } from "../store.ts";
+import { GATHERINGS, GATHERING_BY_ID, type GatheringDef, type Line, type PlayCtx } from "./gatherings.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
 const shuffle = <T,>(xs: T[]) => xs.map((x) => [Math.random(), x] as const).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
-const FIRST_AFTER = 50_000;
-const EVERY = [150_000, 240_000] as const;
+const FIRST_AFTER = 40_000;
+const EVERY = [110_000, 190_000] as const;
+/** Reading time for a line that's written when it's spoken (a dice result): assume a longish sentence. */
+const LAZY_MS = readingTime("x".repeat(80));
+const lineMs = (l: Line) => (typeof l.text === "string" ? readingTime(l.text) : LAZY_MS) + (l.roll ? 1400 : 0) + 700;
 
 /** Who's in: a host who likes this, then the host's friends (wherever they are), then whoever's free. */
 function castFor(def: GatheringDef): { host: string; guests: string[] } | null {
@@ -44,18 +47,22 @@ export function GatheringDirector() {
       running = def.id;
       const world = useWorld.getState();
       const name = (id: string) => useCast.getState().cast.profiles[id]?.name ?? id;
-      const script = pick(def.scripts);
+      const costumes: Costume[] = def.costumes ? shuffle([...def.costumes]).slice(0, who.guests.length) : [];
+      const script = def.compose ? def.compose(costumes) : pick(def.scripts ?? [[]]);
       // Hold long enough for the whole scene, in Lattice time.
-      const sceneMs = script.reduce((sum, l) => sum + readingTime(l.text) + 700, 0);
+      const sceneMs = script.reduce((sum, l) => sum + lineMs(l), 0);
       const holdSim = (sceneMs + 25_000) * world.timeScale;
       const everyone = [who.host, ...who.guests];
+      world.setGathering({ id: def.id, room: def.room, host: who.host, guests: who.guests, since: performance.now(), live: false });
+      if (costumes.length) world.setCostumes(Object.fromEntries(who.guests.map((id, i) => [id, costumes[i]!])));
       everyone.forEach((id, i) => {
         const host = i === 0;
+        const activity = def.seatActivities?.[i] ?? (host ? def.hostActivity : def.guestActivity);
         simulator.assign(
           id,
           [
             { kind: "go", station: def.seats[i]!, room: def.room },
-            { kind: "do", activity: host ? def.hostActivity : def.guestActivity, ms: holdSim, prop: host ? (def.hostProp ?? null) : null },
+            { kind: "do", activity, ms: holdSim, prop: host ? (def.hostProp ?? null) : null },
             { kind: "do", activity: "celebrating", ms: 1800, prop: null },
             { kind: "set", activity: "idle", prop: null },
           ],
@@ -82,18 +89,33 @@ export function GatheringDirector() {
           later(begin, 1000);
           return;
         }
+        const g = useWorld.getState().gathering;
+        if (g?.id === def.id) useWorld.getState().setGathering({ ...g, live: true });
+        const ctx: PlayCtx = { host: who.host, guests: who.guests, rolls: {}, name };
         let t = 0;
         let turn = 0;
         for (const line of script) {
-          const speaker = line.who === "host" ? who.host : who.guests[turn++ % who.guests.length]!;
+          const speaker = line.who === "host" ? who.host : who.guests[(line.guest ?? turn++) % who.guests.length]!;
+          // A roll lands first; the line that reacts to it is written once it has.
+          if (line.roll) {
+            later(() => {
+              ctx.rolls[speaker] = useWorld.getState().roll(speaker, line.roll);
+            }, t);
+            t += 1400;
+          }
           later(() => {
             const w = useWorld.getState();
-            w.say(speaker, line.text);
+            w.say(speaker, typeof line.text === "string" ? line.text : line.text(ctx));
             w.emote(speaker, def.emote, 3000);
           }, t);
-          t += readingTime(line.text) + 700;
+          t += lineMs(line) - (line.roll ? 1400 : 0);
         }
-        later(() => (running = null), t + 4000);
+        later(() => {
+          running = null;
+          const w = useWorld.getState();
+          if (w.gathering?.id === def.id) w.setGathering(null);
+          if (costumes.length) w.setCostumes({});
+        }, t + 4000);
       };
       later(begin, 1500);
       return true;

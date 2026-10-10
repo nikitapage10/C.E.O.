@@ -13,6 +13,7 @@ import { useWorld } from "../store.ts";
 import { BUILD, BackProp, Face, HandProp, Hair, Hat, Head, Outfit, shellMaterial, sleeveMaterial } from "./Avatar.tsx";
 import { poseFor, type PoseMode } from "./behavior.ts";
 import { Body, topOf } from "./bodies/Body.tsx";
+import { CostumePiece } from "./Costume.tsx";
 import { CARRY_AT, type Drive } from "./bodies/types.ts";
 import { PropMesh } from "./Props.tsx";
 import { voiced, voiceOf } from "./voices.ts";
@@ -190,6 +191,7 @@ export function Agent({ id }: { id: string }) {
   const handR = useRef<Mesh>(null);
   const core = useRef<Mesh>(null);
   const propRef = useRef<Group>(null);
+  const outfit = useWorld((s) => s.costumes[id]);
   const orb = useRef<Group>(null);
   const caret = useRef<Mesh>(null);
   const extraHands = useRef<Group>(null);
@@ -414,6 +416,11 @@ export function Agent({ id }: { id: string }) {
             <Block size={[0.8, 0.04, 0.04]} position={[0, 2.35, 0]} material={PBR.wood("oak")} radius={0.01} />
             <Block size={[0.04, 0.04, 0.5]} position={[0, 2.35, 0]} material={PBR.wood("oak")} radius={0.01} />
           </>
+        )}
+        {outfit && look && (
+          <group position={[0, classic ? b.lift + 1.36 * b.h + 0.2 : topOf(look, 0) - 0.05 * look.size, 0]}>
+            <CostumePiece kind={outfit} scale={classic ? 1 : Math.max(0.6, Math.min(1.4, look.size * 1.1))} />
+          </group>
         )}
         {rt.prop && (
           <group ref={propRef}>

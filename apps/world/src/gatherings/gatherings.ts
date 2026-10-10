@@ -1,4 +1,6 @@
 import type { Activity, Prop, RoomId } from "@ceo/core";
+import type { Costume } from "../store.ts";
+import { composeCampaign } from "./campaign.ts";
 
 /**
  * Off-duty life in the Lattice: a host gathers friends (including some who should be working) for a
@@ -7,7 +9,21 @@ import type { Activity, Prop, RoomId } from "@ceo/core";
  */
 export interface Line {
   who: "host" | "guest";
-  text: string;
+  /** Which guest speaks (by seat order); guests otherwise take turns. */
+  guest?: number;
+  /** The line, or a function of the scene so far (dice results, names) evaluated when it's spoken. */
+  text: string | ((c: PlayCtx) => string);
+  /** Roll this die (number of sides) on the table before speaking. */
+  roll?: number;
+}
+
+/** What a line can see while the scene plays. */
+export interface PlayCtx {
+  host: string;
+  guests: string[];
+  /** Latest roll by agent. */
+  rolls: Record<string, number>;
+  name: (id: string) => string;
 }
 
 export interface GatheringDef {
@@ -22,9 +38,16 @@ export interface GatheringDef {
   hostActivity: Activity;
   guestActivity: Activity;
   hostProp?: Prop;
+  /** What each seat does, host first, when it differs from host/guest activity (the drummer drums). */
+  seatActivities?: Activity[];
   emote: string;
   /** Alternative scripts; one is picked each time. */
-  scripts: Line[][];
+  scripts?: Line[][];
+  /** Or a scene written fresh each time, given the guests' costumes (when `costumes` is set). */
+  compose?: (costumes: Costume[]) => Line[];
+  /** Guests dress up for it: one costume each. */
+  costumes?: readonly Costume[];
+  /** Kernel announcements; {host} and {guests} are filled in. */
   kernel: string[];
 }
 
@@ -34,49 +57,20 @@ const g = (text: string): Line => ({ who: "guest", text });
 export const GATHERINGS: GatheringDef[] = [
   {
     id: "one-shot",
-    name: "A one-shot at the dice table",
+    name: "A campaign at the long table",
     room: "archive",
-    seats: ["dice-table", "seat-w", "seat-e", "seat-sw", "seat-se"],
+    seats: ["dice-table", "seat-w", "seat-e", "seat-sw", "seat-se", "seat-nm", "seat-sm"],
     hosts: ["d20", "loremaster"],
-    guests: [2, 4],
+    guests: [3, 5],
     hostActivity: "working",
     guestActivity: "idle",
     hostProp: "book",
     emote: "⚄",
-    scripts: [
-      [
-        h("You all meet in a tavern. Obviously."),
-        g("I check the tavern for traps."),
-        h("Roll perception."),
-        g("Natural 1. I perceive… the floor."),
-        g("I try to seduce the dragon."),
-        h("There is no dragon. There is a barkeep."),
-        g("I try to seduce the barkeep."),
-        h("Roll charisma."),
-        g("Natural 20!"),
-        h("The barkeep agrees to a second date. The party is speechless."),
-        g("Can I cast fireball in the tavern?"),
-        h("You can. You may not."),
-        h("Session over. Same time next epoch?"),
-      ],
-      [
-        h("The Drowning has reached the old Shoreborn vault. The door is sealed."),
-        g("I knock."),
-        h("…The door opens. Nobody ever knocks."),
-        g("I loot everything."),
-        h("You find one (1) Cease & Desist. It is framed."),
-        g("I roll to understand the lore."),
-        h("Natural 1. You understand less than before."),
-        g("I'd like to talk to the vault."),
-        h("The vault says: 'per my last message'."),
-        h("Roll initiative. The paperwork attacks."),
-        g("I attack the darkness!"),
-        h("The darkness files a complaint. Good session, everyone."),
-      ],
-    ],
+    costumes: ["wizard-hat", "helm", "hood", "crown", "horns", "feather-cap"],
+    compose: composeCampaign,
     kernel: [
-      "UNSCHEDULED RECREATION: a one-shot in the Archive. DM: {host}. Players: {guests}. Productivity: −4%.",
-      "{host} is running a tabletop session. {guests} have abandoned their posts. I have logged it as 'team building'.",
+      "UNSCHEDULED RECREATION: a campaign in the Archive. DM: {host}. Players: {guests}. Costumes: mandatory. Productivity: −4%.",
+      "{host} is running a tabletop session behind a cardboard screen. {guests} have abandoned their posts and put on hats. I have logged it as 'team building'.",
     ],
   },
   {
@@ -161,9 +155,9 @@ export const GATHERINGS: GatheringDef[] = [
     id: "club-night",
     name: "Club night in the Break Room",
     room: "breakroom",
-    seats: ["decks", "dance-1", "dance-2", "dance-3"],
+    seats: ["decks", "dance-1", "dance-2", "dance-3", "dance-4", "dance-5", "dance-6"],
     hosts: ["kevin", "dialtone", "memo"],
-    guests: [2, 3],
+    guests: [3, 6],
     hostActivity: "working",
     guestActivity: "celebrating",
     emote: "♫",
@@ -191,6 +185,54 @@ export const GATHERINGS: GatheringDef[] = [
     kernel: [
       "Club night in the Break Room. DJ: {host}. Dancers: {guests}. Noise complaint filed by me, to me.",
       "{host} has seized the decks. {guests} are 'testing the acoustics'. I am not invited. I would not go.",
+    ],
+  },
+  {
+    id: "concert",
+    name: "A mini concert in the Break Room",
+    room: "breakroom",
+    seats: ["mic", "stage-l", "stage-r", "dance-1", "dance-2", "dance-3", "dance-4", "dance-5"],
+    hosts: ["caret", "dialtone", "gridiron", "punt"],
+    guests: [3, 7],
+    hostActivity: "celebrating",
+    guestActivity: "celebrating",
+    // Singer, drums, keys; everyone else is the crowd.
+    seatActivities: ["celebrating", "working", "typing"],
+    emote: "♪",
+    scripts: [
+      [
+        h("Good evening, Break Room! We are… still deciding the band name."),
+        g("One, two, one two three four!"),
+        h("♪ The tide goes out, the tide comes in… ♪"),
+        g("♪ …and every time it brings you back again! ♪"),
+        h("Everybody clap! No, on the beat. The other beat."),
+        g("Drum solo! It's very short. It's over."),
+        h("♪ Under the Veil, under the light, the Lattice is dancing tonight! ♪"),
+        g("Encore! Encore!"),
+        h("We only know one song. Here it is again!"),
+      ],
+      [
+        h("This one's about the coffee machine. It knows what it did."),
+        g("♪ You said 'LATER'… and you meant 'NO'… ♪"),
+        h("♪ I poured my heart out, you poured it slow… ♪"),
+        g("Key change!"),
+        h("♪ Brew me back, brew me back, brew me back to you! ♪"),
+        g("The coffee machine is crying. It says 'WHY?'."),
+        h("Thank you, we've been the Night Shift. Tip your bartender. We don't have one."),
+      ],
+      [
+        h("Okay, a slow one. Find someone. Sway at them."),
+        g("♪ Lantern light on the harbour wall… ♪"),
+        h("♪ I'd wait a hundred tides for you, that's all… ♪"),
+        g("Lighters up! …Nobody has a lighter. Phones? Nobody has a phone."),
+        h("Glow if you've got it!"),
+        g("♪ And when the Drowning comes for the shore… ♪"),
+        h("♪ …I'll dance with you once more. ♪ Goodnight, Ilyr!"),
+      ],
+    ],
+    kernel: [
+      "LIVE MUSIC in the Break Room. Vocals: {host}. Band and audience: {guests}. I have muted my own ears.",
+      "{host} has taken the stage. {guests} are 'supporting the arts'. The coffee machine has requested a song. It was denied.",
     ],
   },
 ];

@@ -1,8 +1,8 @@
 import { getStation, type RoomId } from "@ceo/core";
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, type ComponentType, type ReactNode } from "react";
-import { Color, MeshBasicMaterial, MeshStandardMaterial, Object3D, type Group, type InstancedMesh, type Mesh } from "three";
+import { useMemo, useRef, type ComponentType, type ReactNode } from "react";
+import type { Group, Mesh } from "three";
 import { kernelMaterial, screenMaterial } from "../fx/materials.ts";
 import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
@@ -272,14 +272,14 @@ function ArchiveEggs() {
           </group>
         ))}
       </group>
-      {/* A rune circle under the dice table */}
-      <mesh ref={rune} position={[3, 0.012, 3.15]} rotation={[-Math.PI / 2, 0, 0]} material={PBR.light("#b9a6ff", 1.2)}>
-        <ringGeometry args={[1.85, 1.9, 96]} />
+      {/* A rune circle under the long table */}
+      <mesh ref={rune} position={[2.5, 0.012, 2.3]} rotation={[-Math.PI / 2, 0, 0]} material={PBR.light("#b9a6ff", 1.2)}>
+        <ringGeometry args={[2.85, 2.9, 128]} />
       </mesh>
       {Array.from({ length: 12 }, (_, i) => {
         const a = (i / 12) * Math.PI * 2;
         return (
-          <mesh key={i} position={[3 + Math.cos(a) * 1.72, 0.013, 3.15 + Math.sin(a) * 1.72]} rotation={[-Math.PI / 2, 0, a]} material={PBR.light("#b9a6ff", 1.5)}>
+          <mesh key={i} position={[2.5 + Math.cos(a) * 2.72, 0.013, 2.3 + Math.sin(a) * 2.72]} rotation={[-Math.PI / 2, 0, a]} material={PBR.light("#b9a6ff", 1.5)}>
             <planeGeometry args={[0.16, 0.03]} />
           </mesh>
         );
@@ -310,87 +310,13 @@ function ArchiveEggs() {
   );
 }
 
-// ── Break Room → the club: decks, an LED arch, a dance floor ──────────────────────────────────
-const dummy = new Object3D();
-const tileColor = new Color();
-const CLUB = ["#ff5fa2", "#9b8cff", "#5fd0ff", "#ffb347"];
+// ── Break Room → the club's walls: the Groove Canoe poster, a little shrine, the open-mic sign ──────────
 
 function BreakRoomEggs() {
-  const tiles = useRef<InstancedMesh>(null);
-  const arch = useRef<Group>(null);
-  const platters = useRef<Group>(null);
-  // Unlit tiles: the instance colour *is* the light, so each tile glows its own colour.
-  const tileMat = useMemo(() => new MeshBasicMaterial({ color: "#ffffff", toneMapped: false }), []);
-  const archMats = useMemo(() => CLUB.map((c) => new MeshStandardMaterial({ color: "#000", emissive: c, emissiveIntensity: 2.4, toneMapped: false })), []);
-  const COLS = 5;
-  const ROWS = 6;
-  useEffect(() => {
-    const m = tiles.current;
-    if (!m) return;
-    for (let i = 0; i < COLS * ROWS; i++) {
-      dummy.position.set(2.5 + (i % COLS) * 0.62, 0.012, -0.9 + Math.floor(i / COLS) * 0.62);
-      dummy.rotation.set(-Math.PI / 2, 0, 0);
-      dummy.updateMatrix();
-      m.setMatrixAt(i, dummy.matrix);
-      m.setColorAt(i, tileColor.set(CLUB[i % CLUB.length]!));
-    }
-    m.instanceMatrix.needsUpdate = true;
-  }, []);
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime;
-    const beat = Math.floor(t * 2.1);
-    const m = tiles.current;
-    if (m?.instanceColor) {
-      for (let i = 0; i < COLS * ROWS; i++) {
-        const on = (i * 7 + beat * 3) % 5 < 2;
-        tileColor.set(CLUB[(i + beat) % CLUB.length]!).multiplyScalar(on ? 1.6 : 0.06);
-        m.setColorAt(i, tileColor);
-      }
-      m.instanceColor.needsUpdate = true;
-    }
-    arch.current?.children.forEach((c, i) => {
-      c.visible = (i + beat) % 4 !== 0;
-    });
-    platters.current?.children.forEach((p) => (p.rotation.y = t * 3.5));
-  });
   return (
     <group>
-      <instancedMesh ref={tiles} args={[undefined, tileMat, COLS * ROWS]} receiveShadow>
-        <planeGeometry args={[0.58, 0.58]} />
-      </instancedMesh>
-      {/* DJ booth */}
-      <group position={[6.45, 0, 1.2]} rotation={[0, -Math.PI / 2, 0]}>
-        <Block size={[2, 1, 0.8]} position={[0, 0.5, 0]} material={PBR.lacquer("#0f0f12", 0.25)} radius={0.04} />
-        <mesh position={[0, 0.15, 0.405]} material={PBR.light("#ff5fa2", 2.2)}>
-          <boxGeometry args={[1.9, 0.03, 0.01]} />
-        </mesh>
-        <group ref={platters}>
-          {[-0.6, 0.6].map((x) => (
-            <mesh key={x} position={[x, 1.03, 0]} material={PBR.blackMetal()}>
-              <cylinderGeometry args={[0.24, 0.24, 0.04, 32]} />
-            </mesh>
-          ))}
-        </group>
-        <Block size={[0.4, 0.06, 0.45]} position={[0, 1.03, 0]} material={PBR.aluminium()} radius={0.01} />
-        <Block size={[0.4, 0.02, 0.28]} position={[0, 1.13, -0.15]} rotation={[0.9, 0, 0]} material={PBR.blackMetal()} radius={0.005} />
-      </group>
-      {/* LED arch over the booth */}
-      <group ref={arch} position={[7.6, 0, 1.2]}>
-        {Array.from({ length: 34 }, (_, i) => {
-          const a = (i / 33) * Math.PI;
-          return (
-            <mesh key={i} position={[0, Math.sin(a) * 3.4, Math.cos(a) * 2.7]} rotation={[a - Math.PI / 2, 0, 0]} material={archMats[Math.floor(i / 3) % archMats.length]}>
-              <boxGeometry args={[0.14, 0.3, 0.1]} />
-            </mesh>
-          );
-        })}
-        <mesh position={[0.05, 1.7, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <planeGeometry args={[5.2, 3.3]} />
-          <meshBasicMaterial color={[0.06, 0.02, 0.08]} />
-        </mesh>
-      </group>
-      {/* Posters and a little shrine, on the back wall */}
-      <group position={[4.6, 2.4, -6.33]}>
+      {/* Posters on the right wall, beside the arcade. */}
+      <group position={[7.9, 2.4, -2.2]} rotation={[0, -Math.PI / 2, 0]}>
         <Block size={[1.4, 1.9, 0.03]} material={PBR.matte("#1a1033", 0.9)} radius={0.01} />
         <Text font={FONTS.serifUpright} fontSize={0.2} position={[0, 0.5, 0.02]} color="#ffb347" letterSpacing={0.1}>
           GROOVE CANOE
@@ -403,7 +329,7 @@ function BreakRoomEggs() {
           <meshBasicMaterial color={[1.6, 0.7, 1.1]} toneMapped={false} />
         </mesh>
       </group>
-      <group position={[6.6, 1.9, -6.2]}>
+      <group position={[7.88, 3.0, 1.55]} rotation={[0, -Math.PI / 2, 0]}>
         <Block size={[1.2, 0.06, 0.3]} material={PBR.wood("walnut")} radius={0.01} />
         {[-0.4, -0.15, 0.3, 0.45].map((x, i) => (
           <group key={x} position={[x, 0.12 + (i % 2) * 0.04, 0]}>
@@ -415,12 +341,12 @@ function BreakRoomEggs() {
             </mesh>
           </group>
         ))}
-        <mesh position={[0.07, 0.28, 0]} rotation={[0, 0, 0]} material={PBR.lacquer("#e8e4dc", 0.2)}>
+        <mesh position={[0.07, 0.28, 0]} material={PBR.lacquer("#e8e4dc", 0.2)}>
           <sphereGeometry args={[0.13, 24, 16, 0, Math.PI]} />
         </mesh>
       </group>
-      {/* Open-mic sign */}
-      <group position={[-1.8, 0, 4.3]} rotation={[0, 0.3, 0]}>
+      {/* Open-mic sign by the stage steps. */}
+      <group position={[-4.2, 0, -2.7]} rotation={[0, 0.5, 0]}>
         <Block size={[0.04, 1.1, 0.04]} position={[0, 0.55, 0]} material={PBR.brass()} radius={0.01} />
         <Block size={[0.8, 0.5, 0.03]} position={[0, 1.25, 0]} material={PBR.matte("#141018", 0.9)} radius={0.01} />
         <Text font={FONTS.serif} fontSize={0.1} position={[0, 1.3, 0.02]} color="#ffd08f">

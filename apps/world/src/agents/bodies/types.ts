@@ -12,6 +12,11 @@ export interface Drive {
   /** A speech bubble is up. */
   speaking: boolean;
   /**
+   * How fast the body's animation clock runs: the Lattice's speed while walking (at 4× they cover ground four
+   * times as fast, so their feet must keep up), 1 otherwise.
+   */
+  rate?: number;
+  /**
    * Written back by bodies that hold things in their own limbs (a hanar's tentacles, an Eridian's hands): where the
    * carried thing should sit, in the body's frame before `size`. Null to use CARRY_AT.
    */

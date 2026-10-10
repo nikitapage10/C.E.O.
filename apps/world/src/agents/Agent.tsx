@@ -201,6 +201,8 @@ export function Agent({ id }: { id: string }) {
   const ring = useRef<Mesh>(null);
   const limbs: Limbs = { armL: useRef<Mesh>(null), armR: useRef<Mesh>(null), legL: useRef<Group>(null), legR: useRef<Group>(null) };
   const yaw = useRef(0);
+  /** The classic figure's own animation clock: runs at the Lattice's speed while walking, so strides keep up. */
+  const gait = useRef(0);
   const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
   const speaking = useRef(false);
   const visibility = useRef(1);
@@ -307,6 +309,8 @@ export function Agent({ id }: { id: string }) {
     dr.mode = mode;
     dr.moving = moving;
     dr.t = t;
+    dr.rate = moving ? Math.min(useWorld.getState().timeScale, 8) : 1;
+    gait.current += Math.min(dt, 0.1) * dr.rate;
     dr.speaking = speaking.current;
     if (ring.current) {
       ring.current.visible = selected || hovered;
@@ -327,7 +331,7 @@ export function Agent({ id }: { id: string }) {
       return;
     }
 
-    const p = poseFor(mode, t, phase);
+    const p = poseFor(mode, gait.current, phase);
     figure.current.position.y = p.bob + p.lie * 0.3 + dance;
     figure.current.rotation.set(p.lean - p.lie * (Math.PI / 2), 0, p.roll);
     const b = BUILD[look?.build ?? "hover"];
@@ -355,7 +359,7 @@ export function Agent({ id }: { id: string }) {
         arm.scale.set(1, len, 1);
       });
       const walking = mode === "walking" || mode === "carrying";
-      const stride = walking ? Math.sin(t * 9 + phase) * 0.5 : mode === "celebrating" ? Math.sin(t * 14) * 0.15 : 0;
+      const stride = walking ? Math.sin(gait.current * 9 + phase) * 0.5 : mode === "celebrating" ? Math.sin(t * 14) * 0.15 : 0;
       if (limbs.legL.current) limbs.legL.current.rotation.x += (stride - limbs.legL.current.rotation.x) * 0.4;
       if (limbs.legR.current) limbs.legR.current.rotation.x += (-stride - limbs.legR.current.rotation.x) * 0.4;
     }

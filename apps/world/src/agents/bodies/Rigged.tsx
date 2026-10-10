@@ -133,7 +133,8 @@ export function useClips(model: Object3D, clips: AnimationClip[], map: ClipMap, 
       }
       current.current = key;
     }
-    mixer.update(Math.min(dt, 0.1));
+    // Walk cycles keep pace with the ground covered, so feet don't skate when the Lattice runs fast.
+    mixer.update(Math.min(dt, 0.1) * (d.rate ?? 1));
   });
 }
 

@@ -162,9 +162,12 @@ called **Tomorrowlattice**.
 
 Five creatures in the Lattice belong to no House and do no work:
 
-- **Myshka**, a grey Maine Coon kitten. He arrived one morning on the Kernel's warm side and was granted root
-  access before anyone could object. He goes everywhere. The Kernel, which complains about everything, has never
-  once complained about Myshka. He's a good boy. It is on file.
+- **Myshka**, a silver tabby Maine Coon. He arrived one morning on the Kernel's warm side, a kitten, and was
+  granted root access before anyone could object. Then he grew. Nobody saw it happen; the logs show one morning he
+  simply had more cat, and the Kernel re-issued his credentials without being asked. He goes everywhere, tail up
+  like a flag. He sits in doorways, washes in the middle of meetings, loafs on anything warm, and gets up from a
+  nap with the long front stretch before he'll speak to anyone. The Kernel, which complains about everything,
+  has never once complained about Myshka. He's a good boy. It is on file.
 - **Brogu**, small, green and about fifty, found in a floating pod in the lost-and-found. For a long time he
   rode the pod everywhere. Then one night shift he climbed out and walked, and he has not stopped since: he
   toddles from room to room on legs nobody has actually seen, arms out for balance, ears flopping a beat behind.
@@ -188,7 +191,7 @@ The Lattice keeps its own day, about twenty minutes long, and it has a **night s
 the studio panels to moonlight and each room runs on its own lamps; it announces that overtime is not a concept
 it recognises. Through the night, agents doze off at their stations and the Kernel allows it, on the record.
 Rocky drops off without warning and asks for a friend to watch, which is Eridian custom; Rivet keeps the watch
-with her thermos. At **03:00** Myshka gets the zoomies and runs through every room at three times his speed. He
+with her thermos. At **03:00** Myshka gets the zoomies and gallops through every room at three times his speed, flat out, ears back. He
 has root access. It is allowed.
 
 ## Tomorrowlattice

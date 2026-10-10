@@ -53,6 +53,9 @@ export const KERNEL = {
     "Myshka has moved to {room}. I have not given him permission. He does not require it.",
     "Myshka is walking across a keyboard in {room}. Whatever he typed, approve it.",
     "Myshka has received a Celestial Box in {room}. He sat in it.",
+    "Myshka is washing in {room}. The meeting will wait. The meeting has always waited.",
+    "Myshka has entered {room} with his tail up. Morale is up. I have checked; they are correlated.",
+    "Myshka is loafing in {room}. Nothing under him is to be moved. Including the room.",
   ],
   status: [
     "STATUS: {total} agents. {working} working. {napping} napping. {waiting} waiting on you. Productivity: theoretical.",

@@ -8,11 +8,9 @@ A library of about 800 CC0 models (Quaternius packs) that can be used to build r
   - bounding `size` in source units
   - `rig` (models with the same rig share animations) and `anims`
 - **Thumbnails:** `assets/catalog/thumbs/<pack>/<id>.webp`.
-- **Raw files:** not in git. `scripts/fetch-assets.sh [dest]` downloads and unpacks them (about 1.5 GB zipped, 2.4 GB extracted) to `$CEO_ASSETS` or `~/.cache/ceo-assets`.
-- **Into the game:** optimise each model the way `scripts/build-models.mjs` does before it goes into `apps/world/public/models`:
-  - strip unused clips and share animations per rig
-  - shrink textures to at most 1024 px WebP
-  - meshopt or quantize
+- **Web-ready models:** all 812 live in [nikitapage10/models](https://github.com/nikitapage10/models) as meshopt GLBs (textures at most 1024 px WebP), at `<pack>/<id>.glb`.
+  - `scripts/vendor-models.mjs` copies the ones the app uses into `apps/world/public/models/lib/`.
+- **Raw files:** the original FBX/OBJ/Blender files and full-size textures are not in git. `scripts/fetch-assets.sh [dest]` downloads and unpacks them (about 1.5 GB zipped, 2.4 GB extracted) to `$CEO_ASSETS` or `~/.cache/ceo-assets`.
 
 ## Packs
 

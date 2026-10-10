@@ -9,7 +9,9 @@ import { create } from "zustand";
 const KEY = "ceo.cast.v2";
 /** Bumped when the default looks are re-cast: saved casts take the new looks once, keeping names and personalities. */
 const LOOKS_KEY = "ceo.cast.looks";
-const LOOKS_REV = 4;
+const LOOKS_REV = 5;
+/** Default names that were changed: a saved cast still using the old one takes the new one. */
+const RENAMED: Record<string, [string, string]> = { caret: ["Caret", "Rocky"], odds: ["Odds", "Noco"], postmaster: ["Postmaster", "Blasto"] };
 
 function load(): Cast {
   try {
@@ -32,6 +34,7 @@ function load(): Cast {
       }
       if (rev < LOOKS_REV) {
         for (const [id, p] of Object.entries(base.profiles)) if (profiles[id]) profiles[id] = { ...profiles[id], look: p.look };
+        for (const [id, [was, now]] of Object.entries(RENAMED)) if (profiles[id]?.name === was) profiles[id] = { ...profiles[id], name: now };
         try {
           localStorage.setItem(LOOKS_KEY, String(LOOKS_REV));
         } catch {

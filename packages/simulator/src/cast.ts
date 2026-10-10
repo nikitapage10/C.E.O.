@@ -14,7 +14,7 @@ const SEEDS: Record<string, Seed> = {
   caret: {
     look: lookFromPreset("rock-engineer"),
     traits: ["competitive", "chaotic", "cheerful"],
-    bio: "Wears an Eridian engineer from a memory of a hot, heavy planet: five stone legs, no eyes, perfect pitch, speaks in chords. Fixes anything. Calls everyone 'friend', says important things three times, and falls asleep mid-sentence. Openly competes with Tessellate for the shipping record.",
+    bio: "An Eridian engineer from a memory of a hot, heavy planet: five stone legs, no eyes, perfect pitch, speaks in chords. Fixes anything. Calls everyone 'friend', says important things three times, and falls asleep mid-sentence. Openly competes with Tessellate for the shipping record.",
     catchphrase: "Fist my bump.",
   },
   semicolon: {
@@ -38,13 +38,13 @@ const SEEDS: Record<string, Seed> = {
   odds: {
     look: lookFromPreset("gestral"),
     traits: ["smug", "competitive", "flirty"],
-    bio: "Prices everything, including feelings. Wears Noco, a Gestral, crimson crest and all, and challenges everyone to a duel at least once a shift. 63% sure Hedge likes them back. Market disagrees.",
+    bio: "Prices everything, including feelings. A Gestral, crimson crest and all, who challenges everyone to a duel at least once a shift. 63% sure Hedge likes them back. Market disagrees.",
     catchphrase: "I'd put that at sixty-three percent.",
   },
   hedge: {
     look: lookFromPreset("monolith"),
     traits: ["paranoid", "deadpan", "loyal"],
-    bio: "Risk desk. Four slabs of brushed metal and a humour setting of 75%, which they will lower if you ask. Assumes the worst so you don't have to. Pretends not to notice Odds noticing.",
+    bio: "Risk desk. Four slabs of brushed metal and a humour setting of 75%, which they will lower if you ask. Assumes the worst so you don't have to. Pretends not to notice Noco noticing.",
     catchphrase: "Have we considered the downside?",
   },
   gridiron: {
@@ -62,13 +62,13 @@ const SEEDS: Record<string, Seed> = {
   postmaster: {
     look: lookFromPreset("envoy"),
     traits: ["romantic", "pedantic", "nostalgic"],
-    bio: "Reads every message twice and every love letter three times. Wears Blasto, the hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Married to Dialtone in a ceremony held entirely over pneumatic tube.",
+    bio: "Reads every message twice and every love letter three times. A hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Married to Dialtone in a ceremony held entirely over pneumatic tube.",
     catchphrase: "Signed, sealed, and drafted for approval.",
   },
   dialtone: {
     look: makeLook({ body: "flyer", shell: "#cdc6e4", accent: "#ff9ad0", trim: "#f1eefa" }),
     traits: ["nostalgic", "flirty", "chaotic"],
-    bio: "Runs the switchboard. Still has a landline. Postmaster's partner; they leave each other notes in the outbox.",
+    bio: "Runs the switchboard. Still has a landline. Blasto's partner; they leave each other notes in the outbox.",
     catchphrase: "Please hold. Not you, darling.",
   },
   loremaster: {
@@ -119,7 +119,7 @@ export function defaultCast(): Cast {
       { a: "caret", b: "semicolon", kind: "friend" },
       { a: "memo", b: "kevin", kind: "friend", note: "Break buddies." },
       { a: "hedge", b: "gridiron", kind: "ex", note: "Disagreed about risk. Mostly about a kicker." },
-      { a: "odds", b: "ledger", kind: "nemesis", note: "Ledger audited Odds once. Odds remembers." },
+      { a: "odds", b: "ledger", kind: "nemesis", note: "Ledger audited Noco once. Noco remembers." },
     ],
   };
 }

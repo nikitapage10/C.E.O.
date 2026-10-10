@@ -101,10 +101,10 @@ test("agents can be renamed, re-dressed and given relationships", async ({ page 
 
   await studio.getByRole("button", { name: "relationships" }).click();
   const add = studio.locator("form.inline");
-  await add.locator("select").first().selectOption({ label: "Odds" });
+  await add.locator("select").first().selectOption({ label: "Noco" });
   await add.locator("select").nth(1).selectOption("nemesis");
   await add.getByRole("button", { name: "Add" }).click();
-  await expect(studio.locator(".rels")).toContainText("Odds");
+  await expect(studio.locator(".rels")).toContainText("Noco");
   await page.screenshot({ path: "test-results/shots/studio.png" });
 
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("ceo.cast.v2") ?? "null"));

@@ -312,7 +312,11 @@ export function Agent({ id }: { id: string }) {
       figure.current.position.y = 0;
       figure.current.rotation.set(0, 0, 0);
       const at = CARRY_AT[look.body];
-      if (propRef.current) propRef.current.position.set(0, at ? at[0] * look.size : topOf(look, 0) * 0.5, (at ? at[1] : 0.42) * look.size);
+      const held = dr.hold;
+      if (propRef.current) {
+        if (held) propRef.current.position.copy(held).multiplyScalar(look.size);
+        else propRef.current.position.set(0, at ? at[0] * look.size : topOf(look, 0) * 0.5, (at ? at[1] : 0.42) * look.size);
+      }
       return;
     }
 

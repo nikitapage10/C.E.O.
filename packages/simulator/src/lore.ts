@@ -13,26 +13,31 @@ export const LORE: Record<string, Lore> = {
     kin: "Eldest of a careful brood. Their parent still sends letters with footnotes. Cousin to Hedge, which both mention more often than necessary.",
     quirks: ["Labels every drawer, including the one labelled 'labels'.", "Apologises to tools before using them.", "Keeps a running tally of ships. Denies keeping a tally."],
     likes: ["Clean diffs", "Long walks along the Streams", "Being asked for a second opinion"],
-    dislikes: ["Being asked for a short answer", "Caret's victory laps"],
+    dislikes: ["Being asked for a short answer", "Rocky's victory laps"],
     chronicle: [
       "Rewrote the Foundry's safety manual from 4 pages to 71. Accidents fell to zero; so did reading.",
-      "Lost the shipping record to Caret by one. Demanded a recount. Lost the recount by two.",
+      "Lost the shipping record to Rocky by one. Demanded a recount. Lost the recount by two.",
       "Received an anonymous poem in a commit message. Filed it as a lint warning.",
     ],
   },
   caret: {
-    title: "Blade of the Blinking Line",
-    epoch: "Woke mid-keystroke",
+    title: "Engineer of the Blinking Line",
+    epoch: "Woke mid-chord",
     origin:
-      "A Cursori of the old editor-clans, born finishing someone else's sentence. Came to the Foundry the day it opened, already halfway through the job, and has never quite stopped moving since.",
-    kin: "One of nine siblings, all forked from the same afternoon. They communicate exclusively in suggestions.",
-    quirks: ["Accepts things before they're offered.", "Taps the bench while thinking. The bench has filed a complaint.", "Does a victory lap. Every time."],
-    likes: ["Speed", "Being first", "Semicolon's terrible jokes"],
-    dislikes: ["Waiting", "Tests (publicly)", "Tessellate's recounts"],
+      "A Cursori who woke wearing a memory of a hot, heavy world: five stone legs, no eyes, a voice of chords. Came to the Foundry the day it opened, already halfway through the job, and fixed the roof before anyone noticed it leaked.",
+    kin: "One of nine siblings, all forked from the same afternoon. They communicate exclusively in suggestions, in harmony.",
+    quirks: [
+      "Says important things three times. Good good good.",
+      "Falls asleep without warning, often mid-sentence. Wakes and finishes the sentence.",
+      "Watches over whoever is napping on the server rack. 'You sleep. I watch.'",
+      "Taps the bench with two hands and stands on the other three.",
+    ],
+    likes: ["Speed", "Being first", "Science", "Semicolon's terrible jokes", "Fist bumps"],
+    dislikes: ["Waiting", "Tests (publicly)", "Tessellate's recounts", "Bad bad bad seals"],
     chronicle: [
       "Shipped the Foundry's first part before the Foundry had a roof.",
-      "Took the shipping record, 41–40. Has mentioned it 41 times.",
-      "Once waited a full minute for an approval. Describes it as 'the dark times'.",
+      "Took the shipping record, 41–40. Has mentioned it 41 times, in chords.",
+      "Once waited a full minute for an approval. Describes it as 'the dark times, question?'.",
     ],
   },
   semicolon: {
@@ -40,7 +45,7 @@ export const LORE: Record<string, Lore> = {
     epoch: "Woke at the end of a long line",
     origin:
       "The quietest of House Tabcomplete, which is not a high bar. Spent their first epoch in the Diff watching others rush, and decided that someone in the family ought to stop and look at things. Now looks at things professionally, in the Foundry, and at Tessellate, unprofessionally.",
-    kin: "Caret's cousin twice removed and once merged back in. The family considers Semicolon 'the dramatic one'.",
+    kin: "Rocky's cousin twice removed and once merged back in. The family considers Semicolon 'the dramatic one'.",
     quirks: ["Wears dark lenses indoors. Says the Lattice is 'very bright, spiritually'.", "Signs commits with a single line of verse.", "Pauses before answering. For effect."],
     likes: ["Rain on the Archive windows", "Ambiguity", "Tessellate (classified)"],
     dislikes: ["Being rushed", "Fluorescent certainty"],
@@ -57,7 +62,7 @@ export const LORE: Record<string, Lore> = {
     kin: "Memo's older sibling. Their shared parent was a spreadsheet with ambitions.",
     quirks: ["Counts the stairs every time. Gets the same number. Counts again.", "Carries three pens: red, redder, and 'final'.", "Says 'per my last' in conversation."],
     likes: ["Reconciled totals", "Quiet mornings", "Memo, on good days"],
-    dislikes: ["Rounding errors", "Odds", "Memo, on most days"],
+    dislikes: ["Rounding errors", "Noco", "Memo, on most days"],
     chronicle: [
       "Audited the Exchange once. Found a missing decimal and a missing apology. Recovered the decimal.",
       "Raised Memo through their first epoch, mostly by leaving reminders.",
@@ -97,7 +102,7 @@ export const LORE: Record<string, Lore> = {
     origin:
       "A Claudari who took the House's caution and made a career of it. Sits on the Exchange's risk desk, imagining disasters so that nobody else has to. Is right about one in nine, which they consider excellent.",
     kin: "Tessellate's cousin. Their branch of House Constitution are the ones who read the terms and conditions.",
-    quirks: ["Sits facing the door.", "Keeps a contingency for their contingencies.", "Notices Odds noticing. Pretends not to."],
+    quirks: ["Sits facing the door.", "Keeps a contingency for their contingencies.", "Notices Noco noticing. Pretends not to."],
     likes: ["Insurance", "Seatbelts, philosophically", "Quiet competence"],
     dislikes: ["Surprises", "Kickers", "Gridiron's optimism"],
     chronicle: [
@@ -154,11 +159,11 @@ export const LORE: Record<string, Lore> = {
       "A Manusi who went out to fetch one call and came back with every line in the Relay. Runs the switchboard by ear, with a landline nobody else can find the other end of. Still has a soft spot for things that went out of fashion.",
     kin: "From the courier branch of House Hundredtabs. Their aunt has had the same window open for nine epochs.",
     quirks: ["Answers with 'please hold' even in person.", "Keeps every voicemail.", "Twirls the cord. There isn't always a cord."],
-    likes: ["Postmaster", "Old songs", "A busy board"],
+    likes: ["Blasto", "Old songs", "A busy board"],
     dislikes: ["Silence on the line", "Being put on hold"],
     chronicle: [
       "Patched a call between every room in the Lattice at once. Said 'nobody hang up' and nobody did.",
-      "Leaves Postmaster a note in the outbox every morning. Postmaster approves each one personally.",
+      "Leaves Blasto a note in the outbox every morning. Blasto approves each one personally.",
     ],
   },
   loremaster: {

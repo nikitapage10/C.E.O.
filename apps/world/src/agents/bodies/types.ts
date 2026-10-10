@@ -1,5 +1,6 @@
 import type { Body, LineageId, Look } from "@ceo/core";
 import type { RefObject } from "react";
+import type { Vector3 } from "three";
 import type { PoseMode } from "../behavior.ts";
 
 /** What the agent is doing right now, written by Agent every frame and read by whichever body it wears. */
@@ -10,6 +11,11 @@ export interface Drive {
   t: number;
   /** A speech bubble is up. */
   speaking: boolean;
+  /**
+   * Written back by bodies that hold things in their own limbs (a hanar's tentacles, an Eridian's hands): where the
+   * carried thing should sit, in the body's frame before `size`. Null to use CARRY_AT.
+   */
+  hold?: Vector3 | null;
 }
 
 export interface BodyProps {

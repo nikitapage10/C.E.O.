@@ -10,7 +10,7 @@ import { KERNEL } from "../kernel/lines.ts";
 import { facingDir } from "../rooms/primitives.tsx";
 import { useWorld } from "../store.ts";
 import { LIBRARY_PETS, LibraryPet } from "./LibraryPet.tsx";
-import { Foundling } from "./Foundling.tsx";
+import { Brogu } from "./Brogu.tsx";
 import { Kitten } from "./Kitten.tsx";
 import { Owlbear } from "./Owlbear.tsx";
 import { PETS, petOrders, wanderSpots, type PetDef } from "./pets.ts";
@@ -110,7 +110,7 @@ function Pet({ def }: { def: PetDef }) {
         const r = zoomies ? Math.random() * 0.62 : Math.random();
         const rooms = def.homes.filter((x) => x !== s.place.room);
         let next: Place | null = null;
-        if (rooms.length && r < (zoomies ? 0.3 : 0.14)) {
+        if (rooms.length && r < (zoomies ? 0.3 : (def.roam ?? 0.14))) {
           // Prefer the room you're looking at.
           const dest = world.focus && rooms.includes(world.focus) && Math.random() < 0.5 ? world.focus : pick(rooms);
           next = { room: dest, station: pick(wanderSpots(dest, def.id)) };
@@ -182,14 +182,13 @@ function Pet({ def }: { def: PetDef }) {
     if (def.id === "myshka") unlock("good-boy");
     setOpen((o) => !o);
   };
-  const tagY = def.kind === "foundling" || def.kind === "owlbear" ? 1.15 : def.kind === "kitten" ? 0.85 : 0.7;
+  const tagY = def.kind === "owlbear" ? 1.15 : def.kind === "brogu" || def.kind === "kitten" ? 0.9 : 0.7;
   const big = def.kind === "owlbear";
 
   return (
     <group ref={root} name={`pet-${def.id}`}>
       <group ref={model}>
         {def.kind === "kitten" && <Kitten drive={drive} />}
-        {def.kind === "foundling" && <Foundling drive={drive} />}
         {(def.kind === "shiba" || def.kind === "mushnub") && (
           <Suspense fallback={null}>
             <LibraryPet def={LIBRARY_PETS[def.kind]} drive={drive} />
@@ -198,6 +197,11 @@ function Pet({ def }: { def: PetDef }) {
         {def.kind === "owlbear" && (
           <Suspense fallback={null}>
             <Owlbear drive={drive} />
+          </Suspense>
+        )}
+        {def.kind === "brogu" && (
+          <Suspense fallback={null}>
+            <Brogu drive={drive} />
           </Suspense>
         )}
       </group>

@@ -1,6 +1,6 @@
 import { ROOMS, ROOM_IDS, type RoomId } from "@ceo/core";
 
-export type PetKind = "kitten" | "foundling" | "shiba" | "mushnub" | "owlbear";
+export type PetKind = "kitten" | "brogu" | "shiba" | "mushnub" | "owlbear";
 
 export interface PetDef {
   id: string;
@@ -13,6 +13,8 @@ export interface PetDef {
   homes: readonly RoomId[];
   /** Walking speed relative to an agent. */
   speed: number;
+  /** Chance, each time it gets up, that it heads for another of its rooms. */
+  roam?: number;
   /** What agents say when it turns up. {pet} is its name. */
   greetings: string[];
 }
@@ -35,17 +37,21 @@ export const PETS: PetDef[] = [
     ],
   },
   {
-    id: "foundling",
-    name: "The Foundling",
-    kind: "foundling",
-    title: "Small green foundling · age unknown (fifty?)",
-    blurb: "Found in a floating pod in the lost-and-found. Nobody knows where it's from. Eats the Break Room's snacks without touching them. Adored, slightly feared.",
-    homes: ["breakroom", "green"],
-    speed: 0.6,
+    id: "brogu",
+    name: "Brogu",
+    kind: "brogu",
+    title: "Small green foundling · age unknown (fifty?) · says one word",
+    blurb: "Found in a floating pod in the lost-and-found. One night he climbed out and walked, and he hasn't stopped. Toddles from room to room on very short legs, eats the snacks without touching them, and says one word: his name.",
+    homes: ROOM_IDS,
+    speed: 0.32,
+    roam: 0.4,
     greetings: [
-      "Did the Foundling just float my snack across the room? With its mind?",
-      "Hi, little one. No, the cookies are not for you. …They are now, apparently.",
-      "Don't make eye contact with the Foundling. You'll give it everything you own.",
+      "Brogu! Hello, little one. No, the cookies are not for you. …They are now, apparently.",
+      "Did Brogu just float my snack across the room? With his mind?",
+      "Don't make eye contact with Brogu. You'll give him everything you own.",
+      "Brogu. Brogu. …He only says the one word, but he means it.",
+      "Second breakfast? Brogu, you've had four breakfasts.",
+      "Who left the pod open? He's on another floor already.",
     ],
   },
   {

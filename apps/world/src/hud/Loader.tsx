@@ -15,6 +15,7 @@ const LINES = [
   "Filling the Streams",
   "Asking Myshka to move off the keyboard",
   "Prising the d20 out of Pudding's beak",
+  "Counting Brogu's breakfasts",
   "Counsel.exe is reviewing the costumes",
   "Rolling for initiative",
   "Finding Kevin",

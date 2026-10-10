@@ -65,9 +65,6 @@ export interface Limbs {
   legR: React.RefObject<Group | null>;
 }
 
-/** The step stool's modelled height; it's scaled to suit whoever is standing on it. */
-const STOOL = 0.5;
-
 const ARM = new CylinderGeometry(0.052, 0.045, 1, 12);
 const SHOE = PBR.lacquer("#1a1715", 0.35);
 
@@ -201,8 +198,6 @@ export function Agent({ id }: { id: string }) {
   const yaw = useRef(0);
   const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
   const speaking = useRef(false);
-  const perch = useRef(0);
-  const stool = useRef<Group>(null);
   const visibility = useRef(1);
   const phase = useMemo(() => hashPhase(id), [id]);
 
@@ -314,16 +309,7 @@ export function Agent({ id }: { id: string }) {
     }
     if (look && look.body !== "classic") {
       // Other bodies animate themselves from `drive`; just carry the prop in front of them.
-      // Short people get a step stool at their desk.
-      const top = topOf(look, 0);
-      const perched = top < 1.35 && !moving && (mode === "typing" || mode === "working" || mode === "waiting" || mode === "idle");
-      const height = Math.min(0.6, Math.max(0.25, 1.5 - top));
-      perch.current += ((perched ? height : 0) - perch.current) * (1 - Math.exp(-dt * 8));
-      if (stool.current) {
-        stool.current.visible = perch.current > 0.02;
-        stool.current.scale.y = Math.max(0.001, perch.current / STOOL);
-      }
-      figure.current.position.y = perch.current;
+      figure.current.position.y = 0;
       figure.current.rotation.set(0, 0, 0);
       if (propRef.current) propRef.current.position.set(0, topOf(look, 0) * 0.5, 0.42 * look.size);
       return;
@@ -386,7 +372,7 @@ export function Agent({ id }: { id: string }) {
   const df = focus && !studioOpen ? 16 : undefined;
   const b = BUILD[look.build];
   const classic = look.body === "classic";
-  const nameY = classic ? b.lift + 1.36 * b.h + 0.62 : topOf(look, 0) + (topOf(look, 0) < 1.35 ? 0.8 : 0.32);
+  const nameY = classic ? b.lift + 1.36 * b.h + 0.62 : topOf(look, 0) + 0.32;
   const costume = look.preset ? PRESET_BY_ID[look.preset]?.name : undefined;
   const line = showBubble ? voiced(voiceOf(look), speech!.text) : null;
 
@@ -435,11 +421,6 @@ export function Agent({ id }: { id: string }) {
             <span>Z</span>
           </Html>
         )}
-      </group>
-
-      <group ref={stool} visible={false}>
-        <Block size={[0.9, STOOL, 0.8]} position={[0, STOOL / 2, 0]} material={PBR.wood("oak")} radius={0.02} />
-        <Block size={[0.94, 0.03, 0.84]} position={[0, STOOL - 0.015, 0]} material={PBR.steel()} radius={0.01} />
       </group>
 
       <group ref={orb} position={[0, 0.8, 0]} visible={false}>

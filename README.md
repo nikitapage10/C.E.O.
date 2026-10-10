@@ -38,17 +38,17 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
     - a House frame (four robots; the plain frame wears its lineage's mark: halo, marionette strings, caret, orbiting hands or antenna)
     - a human disguise (suit, formal dress, hoodie, hard hat, flight suit, spacesuit, witch, monarch)
     - a rigged adventurer (robed, rogue, hooded, knight, barbarian)
-    - a creature (the Gestral, a stone crawler, a painted mask, a big bird, a great grey beast, the Monolith)
+    - a creature (the Gestral, a hanar, a stone crawler, a painted mask, an orc, a big bunny, a skull spirit, a painted flyer, a little wizard, a big bird, a great grey beast, the Monolith)
     - the classic figure
   - **Dress it:** colours and size for any body, or head, face, hat, outfit and prop for the classic figure.
   - **Pick a costume:** plain avatars or *legally distinct* icons from the Syntherion's memories, one per work and never the hero (with one four-legged exception):
     - the Engineer from a Rocky Planet, a stone crawler who speaks in chords
-    - the Emotive Pachyderm Envoy, a great grey beast who says how it feels first
+    - Blasto, Hanar Spectre, a floating jellyfish who calls itself "this one"
     - the Gestral
     - the Grey Wanderer
     - the Barefoot Burglar
     - the Monolith Unit, humour setting 75%
-    - the Migraine Duck, a big yellow bird
+    - the Migraine Spirit, a skull spirit with a headache
   - **Give it a personality:** traits, a bio and a catchphrase.
   - **Write its lore:** title, origin, kin, quirks, likes, dislikes and chronicle.
   - **Set relationships:** friends, best friends, rivals, nemeses, crushes, partners, mentors, siblings or exes.

@@ -5,7 +5,7 @@ import { voiced, voiceOf } from "./voices.ts";
 describe("voices", () => {
   it("costumes with a voice have one; plain looks don't", () => {
     expect(voiceOf(lookFromPreset("rock-engineer"))).toBe("chords");
-    expect(voiceOf(lookFromPreset("envoy"))).toBe("emotive");
+    expect(voiceOf(lookFromPreset("envoy"))).toBe("thisone");
     expect(voiceOf(lookFromPreset("frame"))).toBeUndefined();
     expect(voiced(undefined, "Hello.")).toEqual({ text: "Hello." });
   });
@@ -16,7 +16,13 @@ describe("voices", () => {
     expect(v.text).toBe("Is it lunch, question?");
   });
 
-  it("the envoy says how it feels first, and it's stable for a given line", () => {
+  it("the hanar speaks of itself as this one", () => {
+    expect(voiced("thisone", "I'm late, and my tea is cold.").text).toBe("This one is late, and this one's tea is cold.");
+    expect(voiced("thisone", "Give me a moment. I'll check.").text).toBe("Give this one a moment. This one will check.");
+    expect(voiced("thisone", "Hello there.").text).toBe("Hello there.");
+  });
+
+  it("the emotive voice says how it feels first, and it's stable for a given line", () => {
     const a = voiced("emotive", "Sorry, that failed.");
     expect(a.pre).toMatch(/:$/);
     expect(["Apologetically:", "With deep regret:", "Sheepishly:"]).toContain(a.pre);

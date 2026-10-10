@@ -62,7 +62,7 @@ const SEEDS: Record<string, Seed> = {
   postmaster: {
     look: lookFromPreset("envoy"),
     traits: ["romantic", "pedantic", "nostalgic"],
-    bio: "Reads every message twice and every love letter three times, and announces how they feel about each one. Wears the great grey envoy, shaggy and sincere. Married to Dialtone in a ceremony held entirely over pneumatic tube.",
+    bio: "Reads every message twice and every love letter three times. Wears Blasto, the hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Married to Dialtone in a ceremony held entirely over pneumatic tube.",
     catchphrase: "Signed, sealed, and drafted for approval.",
   },
   dialtone: {

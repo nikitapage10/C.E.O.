@@ -15,7 +15,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
+  "gestral", "hanar", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -42,6 +42,7 @@ export const BODY_LABEL: Record<Body, string> = {
   knight: "Knight",
   barbarian: "Barbarian",
   gestral: "Gestral",
+  hanar: "Hanar",
   crawler: "Stone crawler",
   masked: "Painted mask",
   orc: "Orc",
@@ -203,7 +204,7 @@ export interface LookPreset {
   /** What Counsel.exe insists this is. */
   disclaimer?: string;
   /** How they talk (see the world's voices). */
-  voice?: "chords" | "emotive" | "monolith" | "migraine";
+  voice?: "chords" | "emotive" | "monolith" | "migraine" | "thisone";
   look: Omit<Look, "preset">;
 }
 
@@ -250,11 +251,11 @@ export const LOOK_PRESETS: LookPreset[] = [
   },
   {
     id: "envoy",
-    name: "Emotive Pachyderm Envoy",
+    name: "Blasto, Hanar Spectre",
     kind: "icon",
-    voice: "emotive",
-    disclaimer: "Sincerely: a large, slow-moving diplomat in a painted mask who announces their feelings. Not a pachyderm. Any resemblance is regrettable.",
-    look: makeLook({ body: "masked", shell: "#8a857e", accent: "#9fe3c9", trim: "#4a4642" }),
+    voice: "thisone",
+    disclaimer: "A floating, bioluminescent jellyfish of great dignity who refers to itself as \"this one\". The star of a film this one has not seen. Enkindle responsibly.",
+    look: makeLook({ body: "hanar", shell: "#ff5fa2", accent: "#9fe3c9", trim: "#f4f1ea" }),
   },
   {
     id: "gestral",

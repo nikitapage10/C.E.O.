@@ -43,6 +43,7 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
   knight: 1.86,
   barbarian: 1.9,
   gestral: 1.3,
+  hanar: 2.1,
   crawler: 1.0,
   masked: 1.45,
   orc: 1.9,

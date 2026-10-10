@@ -9,7 +9,7 @@ import { create } from "zustand";
 const KEY = "ceo.cast.v2";
 /** Bumped when the default looks are re-cast: saved casts take the new looks once, keeping names and personalities. */
 const LOOKS_KEY = "ceo.cast.looks";
-const LOOKS_REV = 2;
+const LOOKS_REV = 3;
 
 function load(): Cast {
   try {

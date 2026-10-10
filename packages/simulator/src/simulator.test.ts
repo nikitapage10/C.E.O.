@@ -63,3 +63,15 @@ describe("simulator", () => {
     expect(after.approvals[target.id]?.status).toBe("approved");
   });
 });
+
+describe("assign", () => {
+  it("sends an agent somewhere after its current walk, closing its task", () => {
+    const sim = new Simulator({ seed: 5 });
+    sim.advanceTo(60_000);
+    const ok = sim.assign("kevin", [{ kind: "go", station: "seat-w", room: "archive" }, { kind: "do", activity: "idle", ms: 5000 }], 60_000);
+    expect(ok).toBe(true);
+    const events = sim.advanceTo(180_000);
+    expect(events.some((e) => e.type === "agent.moved" && e.agentId === "kevin" && e.to.station === "seat-w")).toBe(true);
+    expect(sim.assign("nobody", [])).toBe(false);
+  });
+});

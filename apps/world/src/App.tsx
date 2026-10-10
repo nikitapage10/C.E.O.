@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { agentPositions, clock } from "./clock.ts";
+import { GatheringDirector } from "./gatherings/GatheringDirector.tsx";
 import { GlitchDirector } from "./glitches/GlitchDirector.tsx";
 import { GlitchOverlay } from "./glitches/GlitchOverlay.tsx";
 import { AgentStudio } from "./hud/AgentStudio.tsx";
@@ -48,6 +49,7 @@ export function App() {
       <GlitchDirector />
       <SocialDirector />
       <KernelDirector />
+      <GatheringDirector />
     </>
   );
 }

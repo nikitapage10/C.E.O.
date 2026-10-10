@@ -214,7 +214,7 @@ export function Green() {
       <group position={[0, 0, -6]}>
         <Block size={[3.4, 1.3, 0.25]} position={[0, 3.2, 0]} material={PBR.blackMetal()} radius={0.05} />
         <Text font={FONTS.mono} fontSize={0.36} position={[0, 3.25, 0.14]} letterSpacing={0.1}>
-          HOME 24 · AWAY 17
+          WE ARE 24 · AWAY 17
           <meshBasicMaterial color={[2.2, 1.7, 0.8]} toneMapped={false} />
         </Text>
         {[-1.2, 1.2].map((x) => (

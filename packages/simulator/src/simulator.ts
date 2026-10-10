@@ -29,6 +29,8 @@ interface Actor {
   nextAt: number;
   taskId: string | null;
   pendingApprovalId: string | null;
+  /** When the agent's current walk ends (so an interruption never cuts a walk short). */
+  walkEnd: number;
 }
 
 export interface SimulatorOptions {
@@ -60,6 +62,7 @@ export class Simulator {
       nextAt: this.now + this.rng.int(200, 3000),
       taskId: null,
       pendingApprovalId: null,
+      walkEnd: 0,
     }));
     for (const actor of this.actors) {
       const { script: _s, breakChance: _b, ...agent } = actor.spec;
@@ -98,6 +101,29 @@ export class Simulator {
     });
     actor.queue.unshift({ kind: "do", activity: approved ? "celebrating" : "slumped", ms: 1800 });
     return this.flush();
+  }
+
+  /**
+   * Hand an agent a new routine right away (a gathering, an errand). The agent finishes any walk in
+   * progress, wraps up its current task, then starts `steps`; afterwards it returns to its own routine.
+   * Returns false for an unknown agent.
+   */
+  assign(agentId: string, steps: Step[], ts = this.now): boolean {
+    const actor = this.actors.find((a) => a.spec.id === agentId);
+    if (!actor) return false;
+    const at = Math.max(ts, actor.walkEnd);
+    if (actor.taskId) {
+      this.emit(at, { type: "task.completed", taskId: actor.taskId, outcome: "success", note: "Wrapped up early" }, actor.spec.provider);
+      actor.taskId = null;
+    }
+    actor.queue = [{ kind: "set", activity: "idle", prop: null }, ...steps];
+    actor.nextAt = at;
+    return true;
+  }
+
+  /** Where an agent is (or is heading). */
+  placeOf(agentId: string): Place | undefined {
+    return this.actors.find((a) => a.spec.id === agentId)?.place;
   }
 
   pendingApprovalIds(): string[] {
@@ -146,6 +172,7 @@ export class Simulator {
           this.emit(t, { type: "agent.moved", agentId: id, to });
           actor.place = to;
           actor.nextAt = t + duration;
+          actor.walkEnd = actor.nextAt;
           return;
         }
         case "do":

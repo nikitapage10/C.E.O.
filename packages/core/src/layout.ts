@@ -40,6 +40,9 @@ export const WALK_SPEED = 2.4;
 export const STREAM_SPEED = 18;
 
 const s = (id: string, label: string, x: number, z: number, facing = 0): Station => ({ id, label, x, z, facing });
+/** A station that faces a point (a seat around a table, a spot on a pitch). */
+const toward = (id: string, label: string, x: number, z: number, tx: number, tz: number): Station =>
+  s(id, label, x, z, Math.atan2(-(tx - x), -(tz - z)));
 
 export const ROOMS: Record<RoomId, RoomDef> = {
   foundry: {
@@ -84,6 +87,10 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("desk-w", "West desk", -3, 0.4, Math.PI / 2),
       s("vault", "Approval vault", 6, 3.4, -Math.PI / 2),
       s("terminal", "Research terminal", -5.8, 3.4, Math.PI / 2),
+      toward("poker-n", "Card table", 0, -1.25, 0, 0.4),
+      toward("poker-e", "Card table", 1.75, 0.4, 0, 0.4),
+      toward("poker-w", "Card table", -1.75, 0.4, 0, 0.4),
+      toward("poker-s", "Card table", 0, 2.05, 0, 0.4),
     ],
   },
   green: {
@@ -98,6 +105,10 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("sideline", "Sideline", 0, 4, Math.PI),
       s("huddle", "Huddle", 0, 0.6, 0),
       s("bench", "Park bench", -5.4, 3.6, Math.PI),
+      toward("play-1", "Pitch", -3, 0.6, 0, 0.6),
+      toward("play-2", "Pitch", 3, 0.6, 0, 0.6),
+      toward("play-3", "Pitch", -1.2, 2.6, 0, 0.6),
+      toward("play-4", "Pitch", 1.4, -1.2, 0, 0.6),
     ],
   },
   relay: {
@@ -125,6 +136,10 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("dice-table", "Dice table", 3, 2.2, Math.PI),
       s("shrine", "Cease & Desist shrine", 5.8, -3.2, 0),
       s("reading", "Reading nook", -4.4, 3, Math.PI),
+      toward("seat-w", "Seat at the dice table", 1.75, 3.15, 3, 3.15),
+      toward("seat-e", "Seat at the dice table", 4.25, 3.15, 3, 3.15),
+      toward("seat-sw", "Seat at the dice table", 2.2, 4.2, 3, 3.15),
+      toward("seat-se", "Seat at the dice table", 3.8, 4.2, 3, 3.15),
     ],
   },
   breakroom: {
@@ -139,6 +154,12 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("coffee-machine", "Sentient coffee machine", -6, -3, 0),
       s("server-rack", "Server rack (nap spot)", 5.4, -3, 0),
       s("window", "Window to the Veil", 0, -4.4, 0),
+      s("pong-a", "Ping-pong (north end)", 0.6, -1.45, Math.PI),
+      s("pong-b", "Ping-pong (south end)", 0.6, 2.25, 0),
+      s("decks", "DJ booth", 5.55, 1.2, -Math.PI / 2),
+      toward("dance-1", "Dance floor", 3.3, 0.1, 5.55, 1.2),
+      toward("dance-2", "Dance floor", 4.3, 2.4, 5.55, 1.2),
+      toward("dance-3", "Dance floor", 2.8, 2.0, 5.55, 1.2),
     ],
   },
 };

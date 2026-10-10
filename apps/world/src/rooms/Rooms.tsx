@@ -6,6 +6,7 @@ import { PALETTE } from "../theme.ts";
 import { Archive } from "./Archive.tsx";
 import { BreakRoom } from "./BreakRoom.tsx";
 import { Exchange } from "./Exchange.tsx";
+import { EASTER_EGGS } from "./EasterEggs.tsx";
 import { Foundry } from "./Foundry.tsx";
 import { Green } from "./Green.tsx";
 import { Relay } from "./Relay.tsx";
@@ -35,6 +36,7 @@ function Room({ id }: { id: RoomId }) {
   const setFocus = useWorld((s) => s.setFocus);
   const focused = useWorld((s) => s.focus === id);
   const Content = CONTENT[id];
+  const Eggs = EASTER_EGGS[id];
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     if (!focused) setFocus(id);
@@ -43,6 +45,7 @@ function Room({ id }: { id: RoomId }) {
     <group position={roomCenter(id)} rotation={[0, roomAngle(id), 0]} name={`room-${id}`}>
       <group onClick={onClick}>
         <Content />
+        <Eggs />
       </group>
     </group>
   );

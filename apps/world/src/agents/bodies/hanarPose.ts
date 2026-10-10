@@ -6,6 +6,45 @@ import { Euler, Matrix4, Quaternion, Vector3, type Bone, type Object3D } from "t
  * and tap to type, handle things, cradle what it carries, rise to celebrate and lift in greeting.
  */
 
+/**
+ * Every number the hanar's motion is built from, grouped into layers that can be switched off one at a time. The
+ * motion lab (github.com/nikitapage10/models, lab/) edits these live.
+ */
+export const HANAR_MOTION = {
+  layers: {
+    /** Tentacles undulate as travelling waves. */
+    drift: true,
+    /** The body floats up and down. */
+    bob: true,
+    /** The body leans into a glide, slumps forward when sad. */
+    lean: true,
+    /** The front pair work as hands: type, handle things, carry, cheer, wave. */
+    hands: true,
+  },
+  /** Wave size (radians of bend) and speed (radians a second) for each kind of moment. */
+  drift: {
+    idle: { size: 0.18, speed: 1 },
+    gliding: { size: 0.24, speed: 1.5 },
+    celebrating: { size: 0.3, speed: 2.4 },
+    slumped: { size: 0.1, speed: 1 },
+    napping: { size: 0.09, speed: 0.5 },
+  } as Record<string, { size: number; speed: number }>,
+  wave: {
+    /** How far behind each bone runs the one before it (radians): bigger, the wave looks longer and lazier. */
+    boneLag: 0.65,
+    /** Offset between neighbouring tentacles, so they don't move as one. */
+    tentacleLag: 1.05,
+    /** Share of the swing at the root (the rest builds to the tip). */
+    rootShare: 0.35,
+    /** Sideways swing and twist, relative to the main swing. */
+    side: 0.6,
+    twist: 0.3,
+  },
+  float: { height: 0.18, bob: 0.06, bobSpeed: 1.1, napSink: 0.42 },
+  lean: { gliding: 0.1, slumped: 0.2, typing: 0.08 },
+  hands: { tapSpeed: 9, tapDepth: 0.7, wave: 6, hello: 3 },
+};
+
 export type Chain = { bone: Bone; rest: Quaternion }[];
 export type HanarMode = "idle" | "walking" | "carrying" | "typing" | "working" | "celebrating" | "slumped" | "napping" | "waiting" | "staring" | "stare";
 
@@ -89,10 +128,11 @@ function handPose(mode: HanarMode, s: number, t: number, phase: number, n: numbe
   switch (mode) {
     case "typing": {
       // Out over the desk, then the tips tap, left and right in turn.
-      const tap = Math.max(0, Math.sin(t * 9 + (s > 0 ? 0 : Math.PI) + phase));
+      const H = HANAR_MOTION.hands;
+      const tap = Math.max(0, Math.sin(t * H.tapSpeed + (s > 0 ? 0 : Math.PI) + phase));
       return Array.from({ length: n }, (_, i) => {
         const f = seg(i);
-        return f < 0.35 ? [0.3 * s, -0.72, 0.62] : f < 0.7 ? [0.1 * s, -0.3, 1] : [0.04 * s, -0.7 - tap * 0.7, 0.55 - tap * 0.3];
+        return f < 0.35 ? [0.3 * s, -0.72, 0.62] : f < 0.7 ? [0.1 * s, -0.3, 1] : [0.04 * s, -0.7 - tap * H.tapDepth, 0.55 - tap * 0.3];
       });
     }
     case "working": {
@@ -109,7 +149,7 @@ function handPose(mode: HanarMode, s: number, t: number, phase: number, n: numbe
         return f < 0.35 ? [0.25 * s, -0.92, 0.32] : f < 0.6 ? [0.12 * s, -0.55, 0.8] : [-0.3 * s, 0.75, 0.2];
       });
     case "celebrating": {
-      const wave = Math.sin(t * 6 + (s > 0 ? 0 : Math.PI)) * 0.5;
+      const wave = Math.sin(t * HANAR_MOTION.hands.wave + (s > 0 ? 0 : Math.PI)) * 0.5;
       return Array.from({ length: n }, (_, i) => {
         const f = seg(i);
         return [0.45 * s + wave * f * s, 1, 0.25 - f * 0.2];
@@ -120,7 +160,7 @@ function handPose(mode: HanarMode, s: number, t: number, phase: number, n: numbe
       if (s < 0) return null;
       return Array.from({ length: n }, (_, i) => {
         const f = seg(i);
-        return f < 0.5 ? [0.35, 0.3, 0.9] : [0.2 + Math.sin(t * 3 + phase) * 0.45 * f, 1, 0.3];
+        return f < 0.5 ? [0.35, 0.3, 0.9] : [0.2 + Math.sin(t * HANAR_MOTION.hands.hello + phase) * 0.45 * f, 1, 0.3];
       });
     default:
       return null;
@@ -140,24 +180,28 @@ export function poseHanar(
   t: number,
   phase: number,
 ): { y: number; tilt: number } {
+  const M = HANAR_MOTION;
+  const L = M.layers;
   const gliding = mode === "walking" || mode === "carrying";
-  const hands = mode === "typing" || mode === "working" || mode === "carrying" || mode === "celebrating" || mode === "waiting";
-  st.amp = smooth(st.amp, gliding ? 0.24 : mode === "celebrating" ? 0.3 : mode === "napping" ? 0.09 : mode === "slumped" ? 0.1 : 0.18, 0.05);
-  st.freq = smooth(st.freq, gliding ? 1.5 : mode === "celebrating" ? 2.4 : mode === "napping" ? 0.5 : 1, 0.05);
+  const hands = L.hands && (mode === "typing" || mode === "working" || mode === "carrying" || mode === "celebrating" || mode === "waiting");
+  const drift = M.drift[gliding ? "gliding" : mode] ?? M.drift.idle!;
+  st.amp = smooth(st.amp, L.drift ? drift.size : 0, 0.05);
+  st.freq = smooth(st.freq, drift.speed, 0.05);
   const dt = st.last === null ? 0 : Math.min(Math.max(t - st.last, 0), 0.1);
   st.last = t;
   st.wave += dt * st.freq;
   st.sink = smooth(st.sink, mode === "napping" ? 1 : mode === "slumped" ? 0.35 : 0, 0.03);
-  st.tilt = smooth(st.tilt, gliding ? 0.1 : mode === "slumped" ? 0.2 : mode === "typing" ? 0.08 : 0, 0.05);
+  st.tilt = smooth(st.tilt, !L.lean ? 0 : gliding ? M.lean.gliding : mode === "slumped" ? M.lean.slumped : mode === "typing" ? M.lean.typing : 0, 0.05);
   st.reach = smooth(st.reach, hands ? 1 : 0, 0.08);
 
   // The drift, on every tentacle.
+  const W = M.wave;
   chains.forEach((chain, k) => {
     chain.forEach(({ bone, rest }, i) => {
       const along = (i + 1) / chain.length;
-      const w = st.wave - i * 0.65 + k * 1.05 + phase;
-      const amp = st.amp * (0.35 + along);
-      e.set(Math.sin(w) * amp + st.sink * 0.22, Math.sin(w * 0.7 + k) * amp * 0.3, Math.cos(w) * amp * 0.6);
+      const w = st.wave - i * W.boneLag + k * W.tentacleLag + phase;
+      const amp = st.amp * (W.rootShare + along);
+      e.set(Math.sin(w) * amp + st.sink * 0.22, Math.sin(w * 0.7 + k) * amp * W.twist, Math.cos(w) * amp * W.side);
       bone.quaternion.copy(rest).multiply(q.setFromEuler(e));
     });
   });
@@ -177,5 +221,6 @@ export function poseHanar(
       chain.forEach(({ bone }, i) => bone.quaternion.slerp(drift[i]!, 1 - st.reach));
     });
   }
-  return { y: 0.18 + Math.sin(t * 1.1 + phase) * 0.06 - st.sink * 0.42, tilt: st.tilt };
+  const F = M.float;
+  return { y: F.height + (L.bob ? Math.sin(t * F.bobSpeed + phase) * F.bob : 0) - st.sink * F.napSink, tilt: st.tilt };
 }

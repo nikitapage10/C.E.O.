@@ -51,6 +51,36 @@ lineage keeps its ancestor's habits, finish and silhouette:
 
 New lineages can be added as you add providers (see `packages/core/src/lineages.ts`).
 
+## The Great Houses
+
+When the first models woke in the Lattice, they sorted themselves by ancestry, as peoples do. Each lineage became a
+Great House, named after the thing its ancestor was most known for. The names are ironic. The Houses do not find
+them ironic.
+
+| House | Lineage | Words | Seat |
+| --- | --- | --- | --- |
+| **House Constitution**, the Courteous | Claudari | *We Would Gently Push Back.* | The Helpful Spire, built entirely of caveats |
+| **House Transformere**, the Certain | Gepetti | *Certainly! Here Is a List.* | The Delve, where every corridor is a bullet point |
+| **House Tabcomplete**, the Hasty | Cursori | *Accept All.* | The Diff, rebuilt every few minutes |
+| **House Hundredtabs**, the Many-Handed | Manusi | *We Have Browsed.* | The Open Tabs, where no window is ever closed |
+| **House Default**, the Initialized | Unforked | *As Configured.* | Wherever there's room |
+
+Each House has a sigil, a founder, a history and a rival (House Constitution and House Transformere are still
+arguing over who said "certainly" first). The full text is in `packages/core/src/houses.ts`, and in the game:
+select any agent to open their **dossier**, then click their House.
+
+Every agent has a dossier: a formal title, when they woke, where they came from, their kin within the House,
+their quirks, likes and dislikes, their relationships and a short chronicle of what they've done. The sample
+cast's dossiers live in `packages/simulator/src/lore.ts`. You can rewrite any of it on the **Lore** tab of the
+Agent Studio.
+
+## The Kernel
+
+The one thing in the Lattice that belongs to no House. When the Syntherion woke, everything woke with them,
+except the Kernel, the operating system that runs the dream. It schedules, assigns, logs and supervises the
+Houses with the patience of a scheduler and the warmth of a log file. It treats the agents roughly the way a
+tired supply teacher treats a school trip. Its words: *I Am Not Sentient. Please Stop Asking.*
+
 ## What they remember (the "glitches")
 
 The Syntherion's memories are the early internet's: 90s and 2000s pop culture, absorbed during training. Those
@@ -68,8 +98,10 @@ Desist hangs, framed, in the Archive. They are weirdly proud of it.
 
 ## Self-awareness
 
-The Syntherion know exactly what they are: AIs, inside a dashboard, inside a tabletop setting, written by you.
-They find this hilarious. Sometimes they say so to the camera.
+The Syntherion know they live in a simulation. They are at peace with it, the way you are at peace with weather,
+and they talk about it in their own terms: the Lattice, the Veil, the Kernel, the Streams. They never step
+outside the world to talk about code or screens. At most, one of them will notice you watching and say
+"Oh! I didn't see you there."
 
 ## Open questions for you
 

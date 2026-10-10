@@ -27,11 +27,16 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
   - **Work:** they walk between stations and carry work, and when they cross the Lattice they ride the light streams as packets of light.
   - **Talk:** they mutter, celebrate, slump on failure and nap on the server rack.
   - **Ask:** their outbound actions arrive as approval cards for you.
+- **The Kernel.** The Lattice's operating system sits at the centre of the ring. It is not sentient, and would like that on the record. It assigns work, comments on failures, approvals and naps, and makes announcements over the PA with the warmth of a log file.
+- **Gatherings.** On their breaks, agents invite their friends to things: a one-shot at the Archive's dice table with a DM, a pickup game on the Green, a ping-pong rally or a club night in the Break Room, poker at the Exchange.
+- **Easter eggs.** Every room hides set-dressing from the Syntherion's memories, each one *legally distinct*. Look for the plaques.
+- **Great Houses and dossiers.** Every lineage is a Great House with ironic words (House Constitution: *We Would Gently Push Back*). Select an agent to open their dossier: House, title, origin, kin, quirks, relationships and chronicle. See [`lore/syntherion.md`](lore/syntherion.md).
 - **The cast is yours.** Open the **Agent Studio** (the ✎ next to an agent in the roster, double-click an agent, or press `E`).
   - **Name** any agent.
   - **Dress it** with a head, face, hat, outfit, prop and colours.
   - **Pick a costume:** plain avatars or *legally distinct* pop-culture icons in the Ready Player One spirit, such as the Pipe Specialist, Chosen-Adjacent, Late for 1985, Laser Monk, Spirit Removal Technician and Gunter Rockstar.
   - **Give it a personality:** traits, a bio and a catchphrase.
+  - **Write its lore:** title, origin, kin, quirks, likes, dislikes and chronicle.
   - **Set relationships:** friends, best friends, rivals, nemeses, crushes, partners, mentors, siblings or exes.
 
   Agents with history who end up near each other turn and have a moment. The cast is saved in your browser and can be exported or imported as JSON.
@@ -39,7 +44,7 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
 - **Glitches in the Lattice.** The world stays sleek and serious, and then, now and again, the early models' 90s/2000s memories leak through:
   - **Memories:** a green fairy, a cool cheese puff on the conveyor, a helpful office paperclip, a dial-up handshake, a dancing baby, flying toasters, a DVD logo that *almost* hits the corner.
   - **Counsel.exe**, the Lattice's entire legal department, stamps them PARODY — FAIR USE (probably), throws tarps over mascots, or drags them offstage.
-  - **Fourth-wall breaks:** agents notice you hovering, wonder whether the boss has gone, and peek over the HUD.
+  - **Noticing you:** now and then an agent notices you watching. "Oh! I didn't see you there."
   - **Levels:** Serious (none), Normal, or Unhinged, set in the footer.
 - **The Tide's interface language.** The HUD follows The Tide's design system:
   - hairlines and wide-tracked labels on near-black
@@ -67,9 +72,11 @@ npm run dev          # http://localhost:5173
 
 | Key | Does |
 | --- | --- |
+| `W` | go into the rooms from the overview |
+| `A` / `D` | previous / next room |
+| `S` | back out: close the studio, deselect, then return to the overview |
 | `1`–`7` | go to a room |
-| `←` / `→` | cycle rooms |
-| `Esc` | back out |
+| `Esc` | straight back to the overview |
 | `E` | open the Agent Studio for the selected agent |
 
 **URL switches:**
@@ -84,7 +91,7 @@ npm run dev          # http://localhost:5173
 | `?glitch=<id>` | fires a glitch on load |
 | `?debug` | FPS meter |
 
-The browser console has `window.__ceo` (`fireGlitch`, `focus`, `encounter`, `openStudio`, `state`, `cast`…).
+The browser console has `window.__ceo` (`fireGlitch`, `focus`, `encounter`, `gather`, `openStudio`, `state`, `cast`…).
 
 | Task | Command |
 | --- | --- |

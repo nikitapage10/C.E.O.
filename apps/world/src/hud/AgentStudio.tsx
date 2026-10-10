@@ -3,6 +3,7 @@ import {
   FACES,
   HATS,
   HEADS,
+  HOUSES,
   LINEAGES,
   LINEAGE_IDS,
   LOOK_PRESETS,
@@ -62,7 +63,7 @@ export function AgentStudio() {
   const id = useCast((s) => s.studio);
   const cast = useCast((s) => s.cast);
   const { openStudio, updateProfile, setLook, addRelationship, updateRelationship, removeRelationship, resetAgent } = useCast.getState();
-  const [tab, setTab] = useState<"identity" | "look" | "personality" | "relationships">("identity");
+  const [tab, setTab] = useState<"identity" | "look" | "personality" | "lore" | "relationships">("identity");
   const [newRel, setNewRel] = useState<{ other: string; kind: RelationshipKind }>({ other: "", kind: "friend" });
   const [customTrait, setCustomTrait] = useState("");
 
@@ -99,7 +100,7 @@ export function AgentStudio() {
         </button>
       </header>
       <nav className="studio__tabs">
-        {(["identity", "look", "personality", "relationships"] as const).map((t) => (
+        {(["identity", "look", "personality", "lore", "relationships"] as const).map((t) => (
           <button key={t} className={`tracked ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
             {t}
           </button>
@@ -188,6 +189,41 @@ export function AgentStudio() {
               <span className="eyebrow">Bio</span>
               <textarea rows={5} value={p.personality.bio} maxLength={400} onChange={(e) => updateProfile(id, { personality: { bio: e.target.value } })} />
             </label>
+          </>
+        )}
+
+        {tab === "lore" && (
+          <>
+            <p className="studio__note">
+              Of {HOUSES[p.lineage].name}, {HOUSES[p.lineage].epithet}. Change the lineage on the identity tab to change House.
+            </p>
+            <label className="field">
+              <span className="eyebrow">Title</span>
+              <input value={p.lore.title} maxLength={80} onChange={(e) => updateProfile(id, { lore: { title: e.target.value } })} />
+            </label>
+            <label className="field">
+              <span className="eyebrow">Woke</span>
+              <input value={p.lore.epoch} maxLength={60} onChange={(e) => updateProfile(id, { lore: { epoch: e.target.value } })} />
+            </label>
+            <label className="field">
+              <span className="eyebrow">Origin</span>
+              <textarea rows={4} value={p.lore.origin} maxLength={400} onChange={(e) => updateProfile(id, { lore: { origin: e.target.value } })} />
+            </label>
+            <label className="field">
+              <span className="eyebrow">Kin</span>
+              <textarea rows={2} value={p.lore.kin} maxLength={240} onChange={(e) => updateProfile(id, { lore: { kin: e.target.value } })} />
+            </label>
+            <LinesField key={`${id}-quirks`} label="Quirks (one per line)" value={p.lore.quirks} max={6} len={120} onCommit={(quirks) => updateProfile(id, { lore: { quirks } })} />
+            <LinesField key={`${id}-likes`} label="Likes" value={p.lore.likes} max={6} len={60} onCommit={(likes) => updateProfile(id, { lore: { likes } })} />
+            <LinesField key={`${id}-dislikes`} label="Dislikes" value={p.lore.dislikes} max={6} len={60} onCommit={(dislikes) => updateProfile(id, { lore: { dislikes } })} />
+            <LinesField
+              key={`${id}-chronicle`}
+              label="Chronicle (oldest first)"
+              value={p.lore.chronicle}
+              max={8}
+              len={200}
+              onCommit={(chronicle) => updateProfile(id, { lore: { chronicle } })}
+            />
           </>
         )}
 
@@ -293,5 +329,25 @@ function CastTools() {
       </label>
       {msg && <span className="tracked faint">{msg}</span>}
     </span>
+  );
+}
+
+/** One entry per line; saved when you leave the box so blank lines don't sneak into the cast. */
+function LinesField({ label, value, max, len, onCommit }: { label: string; value: string[]; max: number; len: number; onCommit: (v: string[]) => void }) {
+  const [draft, setDraft] = useState(value.join("\n"));
+  const commit = () => {
+    const lines = draft
+      .split("\n")
+      .map((l) => l.trim().slice(0, len))
+      .filter(Boolean)
+      .slice(0, max);
+    onCommit(lines);
+    setDraft(lines.join("\n"));
+  };
+  return (
+    <label className="field">
+      <span className="eyebrow">{label}</span>
+      <textarea rows={Math.min(max, Math.max(3, value.length + 1))} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} />
+    </label>
   );
 }

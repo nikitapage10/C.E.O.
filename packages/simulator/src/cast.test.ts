@@ -1,4 +1,4 @@
-import { CastSchema, LOOK_PRESETS, LookSchema, lookFromPreset, parseCast, relationshipsOf } from "@ceo/core";
+import { CastSchema, HOUSES, LINEAGE_IDS, ProfileSchema, LOOK_PRESETS, LookSchema, lookFromPreset, parseCast, relationshipsOf } from "@ceo/core";
 import { describe, expect, it } from "vitest";
 import { SAMPLE_AGENTS } from "./agents.ts";
 import { defaultCast } from "./cast.ts";
@@ -9,6 +9,18 @@ describe("cast", () => {
     expect(CastSchema.safeParse(cast).success).toBe(true);
     expect(Object.keys(cast.profiles).sort()).toEqual(SAMPLE_AGENTS.map((a) => a.id).sort());
     for (const p of Object.values(cast.profiles)) expect(p.personality.catchphrase.length).toBeGreaterThan(0);
+  });
+
+  it("every sample agent has a dossier, every lineage a House, and old casts still parse", () => {
+    const cast = defaultCast();
+    for (const p of Object.values(cast.profiles)) {
+      expect(p.lore.title.length).toBeGreaterThan(0);
+      expect(p.lore.origin.length).toBeGreaterThan(0);
+      expect(p.lore.chronicle.length).toBeGreaterThan(0);
+    }
+    for (const l of LINEAGE_IDS) expect(HOUSES[l].lineage).toBe(l);
+    const { lore: _lore, ...old } = cast.profiles.kevin!;
+    expect(ProfileSchema.parse(old).lore).toMatchObject({ title: "", quirks: [] });
   });
 
   it("relationships only reference real agents, never themselves", () => {

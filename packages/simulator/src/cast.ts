@@ -1,5 +1,6 @@
-import { LINEAGE_LOOK, lookFromPreset, type Cast, type Look, type Profile } from "@ceo/core";
+import { LINEAGE_LOOK, emptyLore, lookFromPreset, type Cast, type Look, type Profile } from "@ceo/core";
 import { SAMPLE_AGENTS } from "./agents.ts";
+import { LORE } from "./lore.ts";
 
 type Seed = { look?: Look; traits: string[]; bio: string; catchphrase: string };
 
@@ -99,6 +100,7 @@ export function defaultCast(): Cast {
       role: a.role,
       look: seed?.look ?? { ...LINEAGE_LOOK[a.lineage] },
       personality: { traits: seed?.traits ?? [], bio: seed?.bio ?? "", catchphrase: seed?.catchphrase ?? "" },
+      lore: LORE[a.id] ?? emptyLore(),
     };
   }
   return {

@@ -1072,11 +1072,11 @@ button {
   color: var(--text);
 }
 
-.hud--studio :is(.title-block, .roster, .signals, .approvals, .inward, .coords) {
+.hud--studio :is(.title-block, .roster, .signals, .dossier, .approvals, .inward, .coords) {
   opacity: 0;
   pointer-events: none;
 }
-.hud :is(.title-block, .roster, .signals, .approvals, .inward, .coords) {
+.hud :is(.title-block, .roster, .signals, .dossier, .approvals, .inward, .coords) {
   transition: opacity 0.4s ease;
 }
 
@@ -1113,12 +1113,14 @@ button {
 }
 .studio__tabs {
   display: flex;
-  gap: 18px;
+  justify-content: space-between;
+  gap: 10px;
   padding: 10px 18px;
   border-bottom: 1px solid var(--hair);
 }
 .studio__tabs button {
   font-size: 9px;
+  letter-spacing: 0.16em;
   color: var(--faint);
 }
 .studio__tabs button.on {
@@ -1753,5 +1755,214 @@ button {
     left: 8px;
     right: 8px;
     bottom: 8px;
+  }
+}
+
+/* ── Dossier: who someone is, in place of Signals while they're selected ── */
+.dossier {
+  right: 18px;
+  top: 82px;
+  width: 330px;
+  max-height: calc(100vh - 270px);
+  display: flex;
+  flex-direction: column;
+  animation: rise 0.35s ease-out;
+}
+.dossier__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dossier__close {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--faint);
+}
+.dossier__close:hover {
+  color: var(--text);
+}
+.dossier__name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 2px;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 26px;
+  letter-spacing: 0.02em;
+}
+.dossier__title {
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--muted);
+}
+.dossier__meta {
+  margin: 4px 0 10px;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.dossier__body {
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+  border-top: 1px solid var(--hair);
+  scrollbar-width: thin;
+}
+.dossier__field {
+  margin-top: 12px;
+}
+.dossier__field .eyebrow {
+  margin: 0 0 4px;
+}
+.dossier__text {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.dossier__quote {
+  margin: 12px 0 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--text);
+}
+.dossier__traits {
+  margin: 4px 0 0;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.dossier__list,
+.dossier__rels,
+.dossier__chronicle {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.dossier__list li,
+.dossier__rels li {
+  padding: 2px 0 2px 12px;
+  position: relative;
+}
+.dossier__list li::before {
+  content: "·";
+  position: absolute;
+  left: 2px;
+  color: var(--faint);
+}
+.dossier__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.dossier__rels li {
+  padding-left: 0;
+  margin-bottom: 4px;
+}
+.dossier__relkind {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.dossier__relhouse {
+  font-size: 9.5px;
+  color: var(--faint);
+}
+.dossier__relnote {
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.dossier__chronicle {
+  counter-reset: chron;
+}
+.dossier__chronicle li {
+  counter-increment: chron;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  padding: 3px 0;
+}
+.dossier__chronicle li::before {
+  content: counter(chron, upper-roman);
+  font-size: 9px;
+  color: var(--faint);
+  padding-top: 1px;
+}
+.house {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+.house:hover,
+.house--open {
+  border-color: var(--hair-strong);
+}
+.house__name {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.house__words {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--text);
+}
+.house__lineage {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.house__more {
+  padding: 4px 12px 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.house__more p {
+  margin: 6px 0;
+}
+.house__more b {
+  font-weight: 400;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-right: 6px;
+}
+.dossier__edit {
+  margin-top: 10px;
+  padding: 7px 0 0;
+  border-top: 1px solid var(--hair);
+  text-align: left;
+  color: var(--muted);
+}
+.dossier__edit:hover {
+  color: var(--text);
+}
+@media (max-width: 760px) {
+  .dossier.rail--open {
+    left: 16px;
+    right: 16px;
+    width: auto;
   }
 }

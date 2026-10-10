@@ -15,7 +15,13 @@ function load(): Cast {
     if (parsed) {
       // New sample agents get their defaults; customised ones keep yours.
       const base = defaultCast();
-      return { ...parsed, profiles: { ...base.profiles, ...parsed.profiles } };
+      const profiles = { ...base.profiles, ...parsed.profiles };
+      // Casts saved before dossiers existed pick up the default lore.
+      for (const [id, p] of Object.entries(parsed.profiles)) {
+        const seed = base.profiles[id]?.lore;
+        if (seed && !p.lore.title && !p.lore.origin && !p.lore.chronicle.length) profiles[id] = { ...p, lore: seed };
+      }
+      return { ...parsed, profiles };
     }
   } catch {
     /* Storage unavailable or corrupt: start fresh. */
@@ -36,7 +42,10 @@ interface CastStore {
   /** The agent open in the Agent Studio. */
   studio: string | null;
   openStudio: (id: string | null) => void;
-  updateProfile: (id: string, patch: Partial<Omit<Profile, "look" | "personality">> & { personality?: Partial<Profile["personality"]> }) => void;
+  updateProfile: (
+    id: string,
+    patch: Partial<Omit<Profile, "look" | "personality" | "lore">> & { personality?: Partial<Profile["personality"]>; lore?: Partial<Profile["lore"]> },
+  ) => void;
   setLook: (id: string, look: Partial<Look>) => void;
   addRelationship: (r: Relationship) => void;
   updateRelationship: (index: number, patch: Partial<Relationship>) => void;
@@ -63,6 +72,7 @@ export const useCast = create<CastStore>((set, get) => {
         ...p,
         ...patch,
         personality: { ...p.personality, ...patch.personality },
+        lore: { ...p.lore, ...patch.lore },
         look: patch.lineage && patch.lineage !== p.lineage && !p.look.preset ? { ...LINEAGE_LOOK[patch.lineage] } : p.look,
       };
       commit({ ...cast, profiles: { ...cast.profiles, [id]: next } });

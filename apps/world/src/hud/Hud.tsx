@@ -7,6 +7,7 @@ import { useCast } from "../cast/castStore.ts";
 import { useWorld } from "../store.ts";
 import { Decode, TideScript } from "../tide/Decode.tsx";
 import { ROOM_ABOUT } from "../rooms/about.ts";
+import { Dossier } from "./Dossier.tsx";
 import { feedLines, formatClock, type FeedLine } from "./format.ts";
 
 /**
@@ -437,6 +438,7 @@ export function Hud() {
   useKeyboard();
   const [panel, setPanel] = useState<"roster" | "signals" | null>(null);
   const studio = useCast((s) => s.studio !== null);
+  const selected = useWorld((s) => s.selectedAgent);
   return (
     <div className={`hud ${studio ? "hud--studio" : ""}`}>
       <TopBar />
@@ -445,7 +447,7 @@ export function Hud() {
         <Roster open={panel === "roster"} />
       </div>
       <Announcement />
-      <Signals open={panel === "signals"} />
+      {selected && !studio ? <Dossier key={selected} id={selected} open={panel === "signals"} /> : <Signals open={panel === "signals"} />}
       <Approvals />
       <Coordinates />
       <Footer />

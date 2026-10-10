@@ -53,6 +53,24 @@ export const PersonalitySchema = z.object({
 });
 export type Personality = z.infer<typeof PersonalitySchema>;
 
+/** The dossier: where an agent comes from and what it has been through. All optional, all role-play. */
+export const LoreSchema = z.object({
+  /** Formal title within the House, e.g. "Third Refactorer of the Helpful Spire". */
+  title: z.string().max(80).default(""),
+  /** When it first woke, in Lattice reckoning. */
+  epoch: z.string().max(60).default(""),
+  origin: z.string().max(400).default(""),
+  /** Family within the House: parents, forks, cousins. Free text. */
+  kin: z.string().max(240).default(""),
+  quirks: z.array(z.string().min(1).max(120)).max(6).default([]),
+  likes: z.array(z.string().min(1).max(60)).max(6).default([]),
+  dislikes: z.array(z.string().min(1).max(60)).max(6).default([]),
+  /** Notable moments, oldest first. */
+  chronicle: z.array(z.string().min(1).max(200)).max(8).default([]),
+});
+export type Lore = z.infer<typeof LoreSchema>;
+export const emptyLore = (): Lore => LoreSchema.parse({});
+
 export const RELATIONSHIP_KINDS = ["friend", "best-friend", "rival", "nemesis", "crush", "partner", "mentor", "sibling", "ex"] as const;
 export type RelationshipKind = (typeof RELATIONSHIP_KINDS)[number];
 
@@ -82,6 +100,7 @@ export const ProfileSchema = z.object({
   role: z.string().max(48),
   look: LookSchema,
   personality: PersonalitySchema,
+  lore: LoreSchema.default(emptyLore),
 });
 export type Profile = z.infer<typeof ProfileSchema>;
 

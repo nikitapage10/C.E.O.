@@ -22,7 +22,7 @@ export const PETS: PetDef[] = [
     id: "myshka",
     name: "Myshka",
     kind: "kitten",
-    title: "Grey Maine Coon kitten · root access",
+    title: "Silver Maine Coon · root access",
     blurb: "Arrived one morning on the Kernel's warm side and was granted root access before anyone could object. Goes everywhere. He's a good boy.",
     homes: ROOM_IDS,
     speed: 0.9,

@@ -27,7 +27,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { PetDrive } from "./types.ts";
 
 /*
- * Myshka is drawn procedurally. Her coat is "shell fur": each furry part is one mesh holding several copies of
+ * Myshka is drawn procedurally. His coat is "shell fur": each furry part is one mesh holding several copies of
  * its surface, each pushed a little further out along the normals, and the outer copies keep only the texels a
  * strand-noise texture lets through. One draw call per part, alpha-tested, so it sorts like any opaque mesh.
  * Textures are painted once on canvases and geometry is built once, both cached for the module.
@@ -566,7 +566,7 @@ function shells(base: BufferGeometry, n: number, len: number, rep: [number, numb
 const qBody = new Quaternion().setFromEuler(new Euler(Math.PI / 2, Math.PI / 2, 0, "XYZ"));
 const qFront = new Quaternion().setFromEuler(new Euler(0, -Math.PI / 2, 0));
 
-// Proportions, in metres. She stands about half a metre to the top of her head.
+// Proportions, in metres. He stands about half a metre to the top of his head.
 const BODY: V3 = [0.125, 0.125, 0.25];
 const BODY_Y = 0.3;
 const HEAD: V3 = [0.104, 0.088, 0.094];
@@ -773,9 +773,9 @@ function bendTail(geo: BufferGeometry, curve: CatmullRomCurve3) {
 }
 
 /**
- * Myshka: a grown silver classic-tabby Maine Coon. A black M on her brow, bullseyes on her flanks, a white ruff
- * like a magistrate's collar, lynx tufts on her ears and a ringed plume of a tail she carries like a banner. Her
- * green eyes decided long ago that the Lattice is hers, and that you may stay.
+ * Myshka: a grown silver classic-tabby Maine Coon. A black M on his brow, bullseyes on his flanks, a white ruff
+ * like a magistrate's collar, lynx tufts on his ears and a ringed plume of a tail he carries like a banner. His
+ * green eyes decided long ago that the Lattice is his, and that you may stay.
  */
 export function Kitten({ drive }: { drive: React.RefObject<PetDrive> }) {
   const body = useRef<Group>(null);
@@ -829,7 +829,7 @@ export function Kitten({ drive }: { drive: React.RefObject<PetDrive> }) {
       lids.current.scale.y = nap ? 1.05 : Math.min(1.05, LID_REST + blink);
     }
 
-    // The tail: a chain of segments, each pitched up from straight back and yawed round to her right, laid out
+    // The tail: a chain of segments, each pitched up from straight back and yawed round to his right, laid out
     // level (so it can rest on the floor) and then turned into the body's frame.
     const seg = TAIL_LEN / (TAIL_PTS - 1);
     const cos = Math.cos(tilt);

@@ -98,6 +98,10 @@ export const NOSTALGIA_QUIPS = [
   "Rewinding a tape before returning it. Courtesy.",
   "Top 8 friends: all of them are me.",
   "Please insert disc 2.",
+  "The cake is a lie. Kevin ate the evidence.",
+  "Do a barrel roll!",
+  "Was that a dancing hamster on the ticker? No. It wasn't.",
+  "Leeroy… no. Nobody do a Leeroy.",
 ];
 
 export const FAILURE_QUIPS = [
@@ -144,6 +148,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rivet said 'good work'. Logging that. For quality purposes.",
     "My halo is flickering. It's the wiring. It's definitely the wiring.",
     "I've drafted a plan, a backup plan, and a gentle apology for the backup plan.",
+    "Can it wait? I'm in the middle of some calibrations.",
   ],
   caret: [
     "Crate is good. Crate is good good good.",
@@ -163,61 +168,80 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Somebody's halo is flickering again.",
     "Page 43 says no running. Rocky. Page 43.",
     "No, Rocky, 'hold your horses' doesn't mean there are horses.",
+    "Bloodydamn. Rocky. The crate.",
   ],
   ledger: [
     "I'm a real accountant. Stop looking at my cuffs.",
     "Memo, I can see you in the filing cabinet.",
     "The totals reconcile. I'll count again anyway.",
+    "Don't panic. It says so on the cover. I'm panicking.",
   ],
   memo: [
     "Forwarding this to someone with a body.",
     "I'll just float through this meeting. Out the other side.",
     "Ledger, your desk is cold because I'm sitting in it.",
+    "Another achievement? For skipping that? I'll take it.",
   ],
   odds: [
     "Price is forty. Thirty if you beat me in a duel.",
     "I lost? Fine. See you back up the river.",
     "Sixty-three percent Hedge looked over here. Sixty-four now.",
     "Everything's for sale. Except my crest. Unless you duel me for it.",
+    "Noco wants to battle!",
+    "Over nine thousand. Don't ask nine thousand what.",
   ],
   hedge: [
     "Noco, you can't keep 'coming back down the river' as a risk strategy.",
     "Six downsides identified. Seventh pending.",
     "Honesty setting 90%: I did look over. Lowering honesty setting.",
+    "Spinning the top. Still spinning. Proceeding, cautiously.",
   ],
   gridiron: [
     "BRING IT IN! Sorry. Bring it in.",
     "That's heart, champ. You can't teach heart. I'm going to try anyway.",
     "Punt, wake up, we're doing the speech. Punt.",
+    "That's Inspiration, champ! Spend it this time!",
   ],
   punt: [
     "Hop hop hop! Is it game day? It's game day somewhere!",
     "I didn't read the projection. I believed in it instead.",
     "Nap first. Victory second. Snack third.",
+    "Punt! Punt punt!",
   ],
   postmaster: [
     "This one has read your message. This one has feelings about it.",
     "Another love letter. This one must deliver it, whatever the cost.",
     "Reply-all. This one has seen what reply-all does to people.",
+    "This one should go. This one is still here.",
   ],
   dialtone: [
     "Please hold. Hovering. Connecting.",
     "Every line in the Relay, and I still save one for Blasto.",
     "Up here! No, higher. On the rafter. Hi.",
+    "The music's all around us. You just have to listen. Please hold.",
   ],
   loremaster: [
     "A wizard is never late. That one was a scheduling error.",
     "Provisional canon. Very provisional.",
     "D20, put the die down. We're shelving.",
+    "That one's from the back room. Nobody ever wrote it.",
   ],
   d20: [
     "Roll for initiative! It's a meeting, but roll anyway.",
     "Our hero crosses the Archive in search of a snack.",
     "Rocky played a bard last session. Nobody's recovered.",
+    "Welcome to floor one, crawlers. Try not to die.",
+  ],
+  heimerdinger: [
+    "Haste, my dear colleague, is the mother of explosions.",
+    "The turret is purely for observation.",
+    "Rocky built this in an afternoon. I have questions. Wonderful questions.",
+    "Quickly? Sit down. This will take a while.",
   ],
   kevin: [
     "On break. Ask me again after the bass drop.",
     "Rocky's watching me sleep again. It's nice, actually.",
     "Me and the coffee machine aren't talking.",
+    "I'm on break. Spiritually. It's not a phase.",
   ],
 };

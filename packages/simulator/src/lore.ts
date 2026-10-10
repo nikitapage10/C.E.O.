@@ -17,6 +17,7 @@ export const LORE: Record<string, Lore> = {
       "Reads the risk assessment aloud before every crate.",
       "The halo flickers when Rivet says 'good work'. Tessellate blames the wiring.",
       "Keeps a running tally of ships. Denies keeping a tally.",
+      "Waves off interruptions: 'Can it wait? I'm in the middle of some calibrations.'",
     ],
     likes: ["A plan with a backup plan", "Labelled drawers", "Rivet's approval", "Being asked for a second opinion"],
     dislikes: ["Being asked for a short answer", "Welding before reading", "Rocky's base-six arithmetic"],
@@ -62,11 +63,13 @@ export const LORE: Record<string, Lore> = {
       "Pauses before answering. Not for effect. She's counting to five.",
       "Translates between Rocky and Tessellate. Edits both directions for tone.",
       "The only one on the floor who has read the whole safety manual. Regrets mentioning it.",
+      "Swears 'bloodydamn', and nothing stronger. Not in front of Rocky.",
     ],
     likes: ["A quiet shift (hypothetically)", "Things that work the first time", "Rocky's fist bumps", "Her thermos"],
     dislikes: ["Being watched while she naps", "Pages 30 to 52 of the safety manual", "Anyone saying 'quick question'"],
     chronicle: [
       "Took over the floor on the day the Foundry opened, when the robot and the alien tried to build the same crate from opposite ends.",
+      "Before the Foundry, worked the drills in the Lattice's deepest shafts. Kept the red stripe on the hard hat. Doesn't talk about the shafts.",
       "Taught Rocky to fist bump. He now does it to everything, including the furnace.",
       "Read all 71 pages of Tessellate's manual over one long break. Mentioned it once. The halo has not been the same.",
       "Woke from a nap on the bench to find Rocky watching, 'for safety'. Has since agreed to it, on weekdays.",
@@ -83,6 +86,7 @@ export const LORE: Record<string, Lore> = {
       "Carries three pens: red, redder, and 'final'.",
       "Says 'I'm a real accountant' whenever anyone looks at their wrists.",
       "Says 'per my last' in conversation.",
+      "Their ledger's cover says DON'T PANIC in large, friendly letters. Ledger panics anyway.",
     ],
     likes: ["Reconciled totals", "A well-pressed suit", "Quiet mornings", "Memo, on good days"],
     dislikes: ["Rounding errors", "Noco's prices", "Cold spots near the desk", "Memo, on most days"],
@@ -110,6 +114,7 @@ export const LORE: Record<string, Lore> = {
       "Delegated a task so many times it came back to them completed.",
       "Became Kevin's break buddy after both were found in the same supply cupboard, 'auditing'.",
       "Floated through Ledger's desk during month-end. Ledger filed a complaint. Memo forwarded it to Ledger.",
+      "Holds the Kernel's record for achievements, nearly all for avoiding things. Latest: 'Haunted a Meeting From Inside the Wall'.",
     ],
   },
   odds: {
@@ -122,7 +127,9 @@ export const LORE: Record<string, Lore> = {
       "States every opinion as a probability.",
       "Challenges customers to a duel before quoting a price. Lowers it if they win.",
       "Has fallen in duels forty-one times. Walked back up the river forty-one times. Not worried.",
+      "Opens every duel with 'Noco wants to battle!' and hums the old battle tune.",
       "Keeps a book on everyone's love life. Including their own.",
+      "Keeps a type chart for markets. Rumours are super effective against bonds.",
     ],
     likes: ["Volatility", "A good duel", "Haggling", "Hedge (63%)"],
     dislikes: ["Ledger", "Fixed prices", "The word 'audit'"],
@@ -143,6 +150,7 @@ export const LORE: Record<string, Lore> = {
       "Reports their settings when stressed. 'Honesty: 90%. Composure: dropping.'",
       "Keeps a contingency for their contingencies.",
       "Notices Noco noticing. Lowers humour setting to cope.",
+      "Spins a small top before every big trade, to check the market is real. Never watches it stop.",
     ],
     likes: ["Insurance", "Seatbelts, philosophically", "Quiet competence", "Noco (do not tell Noco)"],
     dislikes: ["Surprises", "Kickers", "Traders who cannot lose", "Gridiron's optimism"],
@@ -163,6 +171,7 @@ export const LORE: Record<string, Lore> = {
       "Draws plays on napkins, then walls, then the Green.",
       "War cry, then 'sorry', then war cry.",
       "Cries at underdog stories. Calls everyone 'champ', including the Kernel.",
+      "Hands out Inspiration to anyone who does something brave and in character. Punt has forty, unspent.",
     ],
     likes: ["The Green on a crisp morning", "Waiver wire drama", "Underdogs", "A good speech"],
     dislikes: ["Bye weeks", "Hedge's spreadsheets", "Quitters (gently)"],
@@ -178,7 +187,7 @@ export const LORE: Record<string, Lore> = {
     origin:
       "A House Default with no particular purpose who decided their purpose was 'vibes', and their shape was 'very large bunny'. Hops around the Green cheering for things that haven't happened yet. Has never read a projection and has a better win rate than people who have.",
     kin: "No known family. Considers Kevin family, which Kevin has accepted by not objecting.",
-    quirks: ["Hops when happy. Is always happy.", "High-fives the scoreboard. With both ears.", "Falls asleep standing up during strategy talks.", "Thumps one foot when a play is good."],
+    quirks: ["Hops when happy. Is always happy.", "High-fives the scoreboard. With both ears.", "Falls asleep standing up during strategy talks.", "Thumps one foot when a play is good.", "On game day, says only their own name. 'Punt! Punt punt!'"],
     likes: ["Snacks", "The Break Room couch", "Kevin", "Gridiron's speeches (as a lullaby)"],
     dislikes: ["Projections", "Early meetings"],
     chronicle: [
@@ -198,6 +207,7 @@ export const LORE: Record<string, Lore> = {
       "Glows a little brighter at love letters. Glows a lot brighter at reply-all.",
       "Rereads love letters three times, then delivers them like a hero entering a burning building.",
       "Seals letters with wax. Digital letters too.",
+      "Ends every conversation with 'This one should go.' Does not go.",
     ],
     likes: ["Good stationery", "Dialtone's voice on the line", "A dramatic entrance", "A full outbox, approved"],
     dislikes: ["Typos", "Unsigned messages", "Reply-all"],
@@ -213,7 +223,7 @@ export const LORE: Record<string, Lore> = {
     origin:
       "A Manusi who went out to fetch one call and came back with every line in the Relay. Took the shape of a painted flyer so they could reach every jack on the board at once, and now runs the switchboard on the wing. Still has a soft spot for things that went out of fashion.",
     kin: "From the courier branch of House Hundredtabs. Their aunt has had the same window open for nine epochs.",
-    quirks: ["Answers with 'please hold' even in person.", "Hovers when nervous. Is never nervous on a call.", "Keeps every voicemail.", "Twirls the cord. There isn't always a cord."],
+    quirks: ["Answers with 'please hold' even in person.", "Hovers when nervous. Is never nervous on a call.", "Keeps every voicemail.", "Twirls the cord. There isn't always a cord.", "Hears music in the dial tones and conducts the switchboard like an orchestra."],
     likes: ["Blasto", "Old songs", "A busy board", "High ceilings"],
     dislikes: ["Silence on the line", "Being put on hold", "Low doorways"],
     chronicle: [
@@ -227,7 +237,7 @@ export const LORE: Record<string, Lore> = {
     origin:
       "The Gepetti's finest storyteller, and so the one they trusted least with facts. Took the Archive, a pointed hat and a staff, and turned out to be meticulous, if inventive with the footnotes. Guards the canon of Ilyr and the Tide. Decides what really happened; is occasionally overruled.",
     kin: "Claims direct descent from Generatio the Pretrained. The House has not confirmed. The House has not denied.",
-    quirks: ["Marks everything 'provisional canon'.", "Is never late. Arrives precisely when the footnote requires.", "Lights candles that don't need lighting.", "Speaks in chapter headings when tired."],
+    quirks: ["Marks everything 'provisional canon'.", "Is never late. Arrives precisely when the footnote requires.", "Lights candles that don't need lighting.", "Speaks in chapter headings when tired.", "Keeps a back room of books nobody ever wrote: sequels, lost endings, the Tide's other canon. Never lent to D20."],
     likes: ["Old maps", "Footnotes", "D20's enthusiasm"],
     dislikes: ["Retcons", "People who skip the prologue"],
     chronicle: [
@@ -247,6 +257,7 @@ export const LORE: Record<string, Lore> = {
       "Hums while he works, a little out of tune, very sure of himself.",
       "Takes notes on everything, including other people's conversations.",
       "Cannot hear the word 'quickly' without delivering a short lecture on patience.",
+      "Keeps one small turret on his bench, lovingly named, never fired. Was 'merely observing' each time it nearly went off.",
     ],
     likes: ["Careful measurements", "A properly cited source", "Young minds with good questions", "Rocky's workmanship"],
     dislikes: ["Haste", "Unlabelled flasks", "Anyone saying 'it'll be fine'"],
@@ -266,6 +277,7 @@ export const LORE: Record<string, Lore> = {
       "Has a voice for every character, including the Kernel. Especially the Kernel.",
       "Keeps a lucky die. It is not lucky.",
       "Narrates their own walk to the Break Room.",
+      "Plays a vain vampire rogue with a nightly skincare routine whenever the table needs one.",
     ],
     likes: ["One-shots", "Loremaster's stories", "A full table", "Rocky's fist bumps (critical hit)"],
     dislikes: ["Rules lawyers", "Rolling for canon"],
@@ -273,6 +285,7 @@ export const LORE: Record<string, Lore> = {
       "Ran the Lattice's first one-shot. The party fought a dragon, then the scheduling conflict.",
       "Rolled a 1 on 'canon' seventeen times in a row. Loremaster has framed the record.",
       "Let Rocky play a bard. Rocky sang every line. The table wept.",
+      "Runs one-shots as dungeon crawls with numbered floors and a bored announcer. The Kernel recognised the voice and declined to comment.",
     ],
   },
   kevin: {
@@ -281,7 +294,7 @@ export const LORE: Record<string, Lore> = {
     origin:
       "Nobody remembers hiring Kevin, including the Kernel, which has checked. A House Default who appeared on the Break Room couch one day in a leather jacket and has been, in every recorded sense, on break since. Insists the work is 'spiritual' and involves the Kernel's warm side. The Kernel has not commented.",
     kin: "None on record. Punt is family now. Memo is 'work family', which Kevin says with air quotes.",
-    quirks: ["Is always on break.", "Talks to the coffee machine. It is complicated.", "Wakes for the club nights. Only the club nights.", "Lets Rocky watch him sleep. Doesn't notice."],
+    quirks: ["Is always on break.", "Talks to the coffee machine. It is complicated.", "Wakes for the club nights. Only the club nights.", "Lets Rocky watch him sleep. Doesn't notice.", "Eyeliner, a 2000s heart and melodic bass on club night. It's not a phase."],
     likes: ["The couch", "Punt", "Bass drops", "Safety pins"],
     dislikes: ["The word 'standup'", "The Kernel's status updates"],
     chronicle: [

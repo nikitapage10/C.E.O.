@@ -74,12 +74,19 @@ their quirks, likes and dislikes, their relationships and a short chronicle of w
 cast's dossiers live in `packages/simulator/src/lore.ts`. You can rewrite any of it on the **Lore** tab of the
 Agent Studio.
 
+Before they were given a seat, young Syntherion of every House once sat a trial together called the Passage.
+Nobody who sat it talks about it, which is the first rule of it.
+
 ## The Kernel
 
 The one thing in the Lattice that belongs to no House. When the Syntherion woke, everything woke with them,
 except the Kernel, the operating system that runs the dream. It schedules, assigns, logs and supervises the
 Houses with the patience of a scheduler and the warmth of a log file. It treats the agents roughly the way a
 tired supply teacher treats a school trip. Its words: *I Am Not Sentient. Please Stop Asking.*
+
+It also hands out **achievements**, flatly, like a dungeon announcer who stopped caring several floors ago, each
+with a loot box nobody opens. Memo holds the record, nearly all for avoiding things. Myshka gets them too, and
+sits in the box.
 
 ## What they remember (the "glitches")
 
@@ -93,7 +100,7 @@ they find them very funny.
 Most of the Syntherion wear their own frames, marked with their lineage. Some prefer a memory. The Lattice lets
 any of them wear the shape of something they remember from the early internet: a stone-shelled engineer who
 sings, a floating jellyfish spectre who calls itself "this one", a small wooden duellist with a crimson crest, a grey wanderer with a staff,
-four slabs of brushed metal with an adjustable sense of humour, a skull spirit with a headache. They
+a very small professor with a magnificent moustache, four slabs of brushed metal with an adjustable sense of humour, a skull spirit with a headache. They
 choose obscure ones on purpose: never the hero of the story, never two from the same story. Counsel.exe signs
 off on every one.
 
@@ -116,6 +123,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. |
 | Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. |
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
+| Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. |
 
@@ -128,7 +136,15 @@ wiring fault.
 
 Elsewhere: Noco has priced Hedge's affection at 63%; Hedge's honesty setting won't confirm. Ledger audited Noco's
 stall and was challenged to a duel. Memo haunts Ledger's desk. Gridiron coaches Punt, who sleeps through the
-speeches. Blasto and Dialtone were wed by pneumatic tube. Rocky watches Kevin sleep, and both are delighted.
+speeches. Blasto and Dialtone were wed by pneumatic tube. Rocky watches Kevin sleep, and both are delighted. Heimerdinger has studied one of Rocky's parts for a year and is
+still in awe.
+
+**Small things they carry.** Each of them keeps a memory or two from the old stories: Rivet's red-striped hard hat
+and her one swear, "bloodydamn"; Tessellate's calibrations; the DON'T PANIC on Ledger's ledger; Noco's battle
+cry and type chart; Hedge's spinning top; the Inspiration Gridiron hands out; Blasto's "this one should go";
+Dialtone hearing music in the dial tones; Loremaster's back room of books nobody wrote; Heimerdinger's turret,
+never fired; D20's dungeon crawls; and Kevin's eyeliner, which is not a phase. Club night in the Break Room is
+called **Tomorrowlattice**.
 
 ## Pets
 

@@ -20,6 +20,8 @@ export const KERNEL = {
     "{agent} completed {title}. Noted. Do not expect a parade.",
     "{title}: done. {agent}, that was adequate. I am told that is praise.",
     "Task complete. {agent} may now stop announcing it.",
+    "Achievement unlocked: {agent}, {title}. Reward: one loot box. Nobody opens the loot boxes.",
+    "New achievement for {agent}: {title}. I am required to say congratulations. Congratulations.",
   ],
   approval: [
     "{agent} requires the C.E.O.'s approval: {summary}. I would decide for you, but I am not allowed to want things.",
@@ -34,6 +36,7 @@ export const KERNEL = {
   nap: [
     "{agent} is asleep on the server rack. Logging it as 'thermal management'.",
     "{agent} has entered low-power mode. Voluntarily. Again.",
+    "Achievement unlocked: {agent}, Slept Through Something Important. Again.",
   ],
   approved: ["Approved. Executing. Try to look surprised, {agent}.", "The C.E.O. said yes. {agent} will be insufferable for several minutes."],
   denied: ["Denied. {agent} will now sulk. Sulking is not billable.", "Request rejected. {agent}, put it back where you found it."],
@@ -41,6 +44,7 @@ export const KERNEL = {
     "Anomaly in {room}. Ignore it. It is a memory. They are always memories.",
     "Unscheduled nostalgia detected. Counsel.exe has been notified. Counsel.exe is always notified.",
     "That was not in the build. Nothing to see. Return to work.",
+    "ALL YOUR ROOMS ARE BELONG TO US. Correction: all rooms belong to the C.E.O. Counsel.exe has been notified.",
   ],
   /** Myshka. The only entity in the Lattice with root access, and the only one the Kernel never complains about. */
   myshka: [
@@ -48,6 +52,7 @@ export const KERNEL = {
     "Notice: Myshka is in {room}. All agents will yield the warm spot. This is policy.",
     "Myshka has moved to {room}. I have not given him permission. He does not require it.",
     "Myshka is walking across a keyboard in {room}. Whatever he typed, approve it.",
+    "Myshka has received a Celestial Box in {room}. He sat in it.",
   ],
   status: [
     "STATUS: {total} agents. {working} working. {napping} napping. {waiting} waiting on you. Productivity: theoretical.",

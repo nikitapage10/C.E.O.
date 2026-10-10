@@ -1,0 +1,283 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script type="importmap">
+      { "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      /*
+       * Carries one clip from a source cat rig onto the target (Meshy) rig, driven by scripts/retarget-cat.mjs.
+       * Both rigs are read in their bind pose. For every mapped bone the source's turn away from its bind pose, in a
+       * shared frame (Y up, facing +Z), is applied to the target bone's bind pose, so bone orientations and
+       * proportions never have to match. The root also carries the source root's travel, scaled by hip height.
+       */
+      import * as THREE from "three";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+      import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+      import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+
+      const q = new URLSearchParams(location.search);
+      const job = JSON.parse(decodeURIComponent(q.get("job")));
+
+      async function load(file) {
+        if (file.endsWith(".fbx")) {
+          const root = await new FBXLoader().loadAsync(file);
+          return { root, clips: root.animations };
+        }
+        const l = new GLTFLoader();
+        l.setMeshoptDecoder(MeshoptDecoder);
+        const g = await l.loadAsync(file);
+        return { root: g.scene, clips: g.animations };
+      }
+
+      /**
+       * Bones by name, and each bone's world matrix in the bind pose. three skins a vertex with
+       * boneWorld · boneInverse, so the mesh is undeformed exactly when boneWorld = inverse(boneInverse).
+       */
+      function rig(root) {
+        root.updateMatrixWorld(true);
+        const bones = new Map();
+        const bind = new Map();
+        const meshes = [];
+        root.traverse((o) => {
+          // Leaf helpers (a tail tip, an ear) often aren't skin joints, so any named node can be a source.
+          if (o.name && (o.isBone || !bones.has(o.name))) bones.set(o.name, o);
+          if (o.isSkinnedMesh) meshes.push(o);
+        });
+        // The biggest skin defines the bind pose; the others share the skeleton.
+        meshes.sort((a, b) => b.geometry.attributes.position.count - a.geometry.attributes.position.count);
+        for (const m of meshes) {
+          m.skeleton.bones.forEach((b, i) => {
+            if (bind.has(b.name)) return;
+            bind.set(b.name, new THREE.Matrix4().copy(m.skeleton.boneInverses[i]).invert());
+          });
+        }
+        // Bones no skin lists (a root above the joints, helpers) take their bind pose from their node transform.
+        const fill = [];
+        root.traverse((o) => { if (o.name && bones.get(o.name) === o && !bind.has(o.name)) fill.push(o); });
+        for (const b of fill) {
+          const par = b.parent;
+          const pb = par && par.name && bones.get(par.name) === par ? bind.get(par.name) : null;
+          bind.set(b.name, pb ? new THREE.Matrix4().multiplyMatrices(pb, b.matrix) : b.matrixWorld.clone());
+        }
+        return { root, bones, bind };
+      }
+
+      const pos = (m) => new THREE.Vector3().setFromMatrixPosition(m);
+      const rot = (m) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().extractRotation(m));
+
+      window.addEventListener("error", (e) => { window.__error = e.message; });
+      window.addEventListener("unhandledrejection", (e) => { window.__error = String(e.reason && e.reason.stack || e.reason); });
+      const T = rig((await load(job.target)).root);
+      const S0 = await load(job.source);
+      const S = rig(S0.root);
+      const clip = S0.clips[job.clip ?? 0];
+      if (!clip) throw new Error(`no clip ${job.clip} in ${job.source}; have ${S0.clips.map((c) => c.name)}`);
+
+      // Shared frame: turn each rig so its head is +Z of its root, and scale the source to the target's hip height.
+      function frame(R, rootName, headName, hipName) {
+        for (const n of [rootName, headName, hipName]) if (!R.bind.has(n)) throw new Error(`no bone ${n}; rig has ${[...R.bind.keys()].join(" ")}`);
+        const p0 = pos(R.bind.get(rootName));
+        const ph = pos(R.bind.get(headName));
+        const yaw = Math.atan2(ph.x - p0.x, ph.z - p0.z);
+        const qN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -yaw);
+        return { qN, hipY: pos(R.bind.get(hipName)).y, floorY: floor(R), yaw };
+      }
+      function floor(R) {
+        let y = Infinity;
+        for (const [name, m] of R.bind) if (R.bones.get(name).isBone) y = Math.min(y, pos(m).y);
+        return y;
+      }
+      const tf = frame(T, job.targetRoot, job.targetHead, job.targetHip);
+      const sf = frame(S, job.sourceRoot, job.sourceHead, job.sourceHip);
+      const scale = (tf.hipY - tf.floorY) / Math.max(1e-6, sf.hipY - sf.floorY);
+
+      // Side of a bone in the shared frame: +1 for the character's left (+X), -1 right.
+      const side = (R, f, name) => Math.sign(pos(R.bind.get(name)).applyQuaternion(f.qN).x) || 1;
+
+      // Resolve the mapping: target bone name -> source bone name. Entries are [targetRole, sourceName]; roles with
+      // sides are written "role:L"/"role:R" and swap if the two rigs disagree on which side is which.
+      const pairs = [];
+      for (const [role, src] of job.map) {
+        const targets = job.roles[role];
+        if (!targets) throw new Error(`unknown role ${role}`);
+        for (const t of [].concat(targets)) {
+          if (!T.bones.has(t)) throw new Error(`target bone ${t} missing`);
+          if (!S.bones.has(src)) throw new Error(`source bone ${src} missing`);
+          pairs.push([t, src]);
+        }
+      }
+      // Flip mirrored pairs: if a source bone sits on the other side from its target, swap with the role's mirror.
+      const sideFix = new Map();
+      for (const [t, s] of pairs) {
+        const ts = side(T, tf, t), ss = side(S, sf, s);
+        const tx = Math.abs(pos(T.bind.get(t)).applyQuaternion(tf.qN).x);
+        if (tx > job.sideThreshold && ts !== ss) sideFix.set(t, s);
+      }
+      const final = new Map();
+      for (const [t, s] of pairs) {
+        if (!sideFix.has(t)) { final.set(t, s); continue; }
+        // Find the pair whose target is this bone's mirror (same role, other side).
+        const mirrorT = job.mirror[t];
+        const other = pairs.find(([tt]) => tt === mirrorT);
+        final.set(t, other ? other[1] : s);
+      }
+
+      // Target hierarchy, parents first.
+      const order = [];
+      T.root.traverse((o) => { if (o.isBone) order.push(o); });
+      const parentOf = (b) => (b.parent && b.parent.isBone ? b.parent : null);
+      const restLocalQ = new Map(order.map((b) => [b, b.quaternion.clone()]));
+      const restLocalP = new Map(order.map((b) => [b, b.position.clone()]));
+      const bindWorldQ = new Map(order.map((b) => [b, rot(T.bind.get(b.name)).premultiply(tf.qN)]));
+
+      // Check the target's node pose is its bind pose (it is for Meshy exports); otherwise the local rest is wrong.
+      let worst = 0;
+      for (const b of order) worst = Math.max(worst, pos(b.matrixWorld).distanceTo(pos(T.bind.get(b.name))));
+
+      const mixer = new THREE.AnimationMixer(S.root);
+      const action = mixer.clipAction(clip);
+      action.play();
+      const fps = job.fps ?? 30;
+      const duration = job.end != null ? job.end - (job.start ?? 0) : clip.duration;
+      const n = Math.max(2, Math.round(duration * fps) + 1);
+      const times = [];
+      const tracks = {};
+      for (const b of order) tracks[b.name] = { q: [] };
+      tracks[job.targetRoot].p = [];
+      const feet = job.feet.map((f) => ({ name: f, pts: [] }));
+
+      const srcBindQ = new Map();
+      for (const [t, s] of final) srcBindQ.set(s, rot(S.bind.get(s)).premultiply(sf.qN));
+      // Travel is read off the hip joint: a rig's root node can sit at the origin in its bind pose and still carry
+      // the body in its clips.
+      const rootBindP = pos(S.bind.get(job.sourceHip)).applyQuaternion(sf.qN);
+
+      // Bones aimed along their source bone: [target next bone, source bone, source next bone, target bind direction].
+      const aims = new Map();
+      for (const [t, s] of final) {
+        const tn = job.aim[t];
+        const sn = tn && final.get(tn);
+        if (!sn || sn === s) continue;
+        const tdir = pos(T.bind.get(tn)).sub(pos(T.bind.get(t)));
+        const sdir = pos(S.bind.get(sn)).sub(pos(S.bind.get(s)));
+        if (tdir.length() < 1e-4 || sdir.length() < 1e-4) continue;
+        aims.set(t, { sn, tdir: tdir.applyQuaternion(tf.qN).normalize() });
+      }
+      const worldQ = new Map();
+      const worldP = new Map();
+      const restFeetY = Math.min(...job.targetFeet.map((f) => pos(T.bind.get(f)).y));
+      let lowestFoot = Infinity;
+      const tmpQ = new THREE.Quaternion();
+      const aimQ = new THREE.Quaternion();
+      const d0 = new THREE.Vector3();
+      const d1 = new THREE.Vector3();
+      const tmpP = new THREE.Vector3();
+      for (let i = 0; i < n; i++) {
+        const t = (job.start ?? 0) + (i / (n - 1)) * duration;
+        action.time = Math.min(t, clip.duration - 1e-4);
+        mixer.update(0);
+        S.root.updateMatrixWorld(true);
+        times.push(i / (n - 1) * duration);
+        for (const b of order) {
+          const par = parentOf(b);
+          const parentW = par ? worldQ.get(par) : new THREE.Quaternion();
+          const s = final.get(b.name);
+          if (b.name === job.targetRoot) {
+            const sp = pos(S.bones.get(job.sourceHip).matrixWorld).applyQuaternion(sf.qN).sub(rootBindP).multiplyScalar(scale);
+            // The root's parent is the armature, in the shared frame already.
+            tmpP.copy(restLocalP.get(b)).add(sp.applyQuaternion(tf.qN.clone().invert()));
+            tracks[b.name].p.push(tmpP.x, tmpP.y, tmpP.z);
+          }
+          let w;
+          if (s) {
+            const sb = S.bones.get(s);
+            const sw = rot(sb.matrixWorld).premultiply(sf.qN);
+            const delta = sw.multiply(tmpQ.copy(srcBindQ.get(s)).invert());
+            if (i === 0) (window.__deltas ??= {})[s] = +(2 * Math.acos(Math.min(1, Math.abs(delta.w))) * 180 / Math.PI).toFixed(1);
+            w = delta.clone().multiply(bindWorldQ.get(b));
+            const aim = aims.get(b.name);
+            if (aim) {
+              // Swing the bone so it points where the source bone points, keeping the twist from the turn above.
+              d0.copy(aim.tdir).applyQuaternion(delta);
+              d1.copy(pos(S.bones.get(aim.sn).matrixWorld)).sub(pos(sb.matrixWorld)).applyQuaternion(sf.qN).normalize();
+              w.premultiply(aimQ.setFromUnitVectors(d0, d1));
+            }
+          } else {
+            w = parentW.clone().multiply(restLocalQ.get(b));
+          }
+          worldQ.set(b, w);
+          // Where the bone lands, to find the floor afterwards.
+          const lp = b.name === job.targetRoot && tracks[b.name].p.length ? new THREE.Vector3().fromArray(tracks[b.name].p, tracks[b.name].p.length - 3) : restLocalP.get(b);
+          const wp = par ? worldP.get(par).clone().add(lp.clone().applyQuaternion(parentW)) : lp.clone();
+          worldP.set(b, wp);
+          if (job.targetFeet.includes(b.name)) lowestFoot = Math.min(lowestFoot, wp.y);
+          const local = tmpQ.copy(parentW).invert().multiply(w);
+          tracks[b.name].q.push(local.x, local.y, local.z, local.w);
+        }
+        for (const f of feet) f.pts.push(pos(S.bones.get(f.name).matrixWorld).applyQuaternion(sf.qN).multiplyScalar(scale));
+      }
+
+      // Travel: the root's drift over the clip, and how far the planted feet carry the body per cycle.
+      const rp = tracks[job.targetRoot].p;
+      const drift = [rp[rp.length - 3] - rp[0], rp[rp.length - 2] - rp[1], rp[rp.length - 1] - rp[2]];
+      if (job.loop) {
+        // Take the linear drift out so the clip loops in place; the runtime moves the cat.
+        for (let i = 0; i < n; i++) {
+          const k = i / (n - 1);
+          rp[i * 3] -= drift[0] * k;
+          rp[i * 3 + 2] -= drift[2] * k;
+        }
+      }
+      // Put the lowest paw of the clip on the floor, where the model's paws are at rest.
+      const lift = restFeetY - lowestFoot;
+      for (let i = 0; i < n; i++) rp[i * 3 + 1] += lift;
+      let stride = 0;
+      for (const f of feet) {
+        const ys = f.pts.map((p) => p.y);
+        const lo = Math.min(...ys), hi = Math.max(...ys);
+        const planted = (p) => p.y < lo + (hi - lo) * 0.2;
+        let back = 0;
+        for (let i = 1; i < f.pts.length; i++) {
+          if (planted(f.pts[i]) && planted(f.pts[i - 1])) {
+            const dz = f.pts[i].z - f.pts[i - 1].z - (drift[2] / (n - 1));
+            if (dz < 0) back -= dz;
+          }
+        }
+        stride += back / feet.length;
+      }
+      // Feet planted the whole clip pull it along; in-place clips have the body still and the feet sweeping back.
+      stride += Math.abs(drift[2]);
+      // A second reading: each paw's reach along the body over the clip, which is also one stride for a gait.
+      let reach = 0;
+      for (const f of feet) {
+        const zs = f.pts.map((p, i) => p.z - (drift[2] * i) / (n - 1));
+        reach += (Math.max(...zs) - Math.min(...zs)) / feet.length;
+      }
+      if (job.loop) stride = Math.max(stride, reach);
+
+      // Only keep bones that actually move, plus the root.
+      for (const [name, tr] of Object.entries(tracks)) {
+        if (name === job.targetRoot) continue;
+        const [x, y, z, w] = tr.q;
+        let still = true;
+        for (let i = 4; i < tr.q.length && still; i += 4) if (Math.abs(tr.q[i] - x) + Math.abs(tr.q[i + 1] - y) + Math.abs(tr.q[i + 2] - z) + Math.abs(tr.q[i + 3] - w) > 1e-5) still = false;
+        if (still && !final.has(name)) delete tracks[name];
+      }
+
+      window.__result = {
+        name: job.name,
+        times,
+        tracks,
+        stride,
+        drift,
+        lift,
+        scale,
+        notes: { deltas: window.__deltas, targetPoseVsBind: worst, sourceBind: Object.fromEntries([...final.values()].map((s) => [s, pos(S.bind.get(s)).applyQuaternion(sf.qN).multiplyScalar(scale).toArray().map((v) => +v.toFixed(2))])), sourceFrame0: Object.fromEntries([...final.values()].map((s) => [s, pos(S.bones.get(s).matrixWorld).applyQuaternion(sf.qN).multiplyScalar(scale).toArray().map((v) => +v.toFixed(2))])), sourceYaw: sf.yaw, targetYaw: tf.yaw, mapped: [...final], sideFixed: [...sideFix.keys()], clipDuration: clip.duration },
+      };
+    </script>
+  </body>
+</html>

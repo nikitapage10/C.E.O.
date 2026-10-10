@@ -199,6 +199,14 @@
     "custom/Rocky": {},
     "custom/Owlbear": {},
     "custom/Brogu": {},
+    "custom/Myshka": {
+      "clips": [
+        "Walk",
+        "Run",
+        "Groom",
+        "Sit"
+      ]
+    },
     "custom/Heimerdinger": {
       "clips": [
         "Walking",

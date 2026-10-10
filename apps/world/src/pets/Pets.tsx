@@ -11,7 +11,7 @@ import { facingDir } from "../rooms/primitives.tsx";
 import { useWorld } from "../store.ts";
 import { LIBRARY_PETS, LibraryPet } from "./LibraryPet.tsx";
 import { Brogu } from "./Brogu.tsx";
-import { Kitten } from "./Kitten.tsx";
+import { Myshka } from "./Myshka.tsx";
 import { Owlbear } from "./Owlbear.tsx";
 import { PETS, petOrders, wanderSpots, type PetDef } from "./pets.ts";
 import type { PetDrive, PetMode } from "./types.ts";
@@ -182,13 +182,17 @@ function Pet({ def }: { def: PetDef }) {
     if (def.id === "myshka") unlock("good-boy");
     setOpen((o) => !o);
   };
-  const tagY = def.kind === "owlbear" ? 1.15 : def.kind === "brogu" || def.kind === "kitten" ? 0.9 : 0.7;
+  const tagY = def.kind === "owlbear" ? 1.15 : def.kind === "brogu" ? 0.9 : def.kind === "kitten" ? 0.8 : 0.7;
   const big = def.kind === "owlbear";
 
   return (
     <group ref={root} name={`pet-${def.id}`}>
       <group ref={model}>
-        {def.kind === "kitten" && <Kitten drive={drive} />}
+        {def.kind === "kitten" && (
+          <Suspense fallback={null}>
+            <Myshka drive={drive} />
+          </Suspense>
+        )}
         {(def.kind === "shiba" || def.kind === "mushnub") && (
           <Suspense fallback={null}>
             <LibraryPet def={LIBRARY_PETS[def.kind]} drive={drive} />
@@ -206,7 +210,7 @@ function Pet({ def }: { def: PetDef }) {
         )}
       </group>
       <mesh position={[0, tagY / 2, 0]} visible={false} onPointerOver={over} onPointerOut={out} onClick={click}>
-        <boxGeometry args={big ? [0.9, tagY, 1.3] : [0.7, tagY, 0.8]} />
+        <boxGeometry args={big ? [0.9, tagY, 1.3] : def.kind === "kitten" ? [0.5, tagY, 1.2] : [0.7, tagY, 0.8]} />
         <meshBasicMaterial />
       </mesh>
       {inRoom && !showTag && !studioOpen && (

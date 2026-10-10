@@ -263,7 +263,7 @@ function idlePose(p: Pose, rig: BroguRig, t: number, w: number) {
   add(p, BONES.neck, 0, rig.look * 0.5 * w);
   // Something interesting: the head tips right over.
   const tip = Math.max(0, Math.sin(t * 0.31)) ** 8;
-  add(p, BONES.head, 0.04 * Math.sin(t * 0.8) * w, rig.look * 0.4 * w, 0.32 * tip * w);
+  add(p, BONES.head, 0.04 * Math.sin(t * 0.8) * w, rig.look * 0.4 * w, 0.22 * tip * w);
   // Ears ride up when he's curious, and twitch now and then.
   ear(p, 0, 0.12 * tip + 0.18 * Math.sin(t * 1.1) ** 30, 0, w);
   ear(p, 1, 0.12 * tip + 0.18 * Math.sin(t * 1.1 + 2.1) ** 30, 0, w);
@@ -300,7 +300,7 @@ function napPose(p: Pose, t: number, w: number) {
   const nod = 0.5 + 0.5 * Math.sin(t * 0.5);
   add(p, BONES.spine[2], 0.12 * w);
   add(p, BONES.neck, 0.3 * nod * w);
-  add(p, BONES.head, (0.25 + 0.2 * nod) * w, 0, 0.15 * w);
+  add(p, BONES.head, (0.15 + 0.15 * nod) * w);
   ear(p, 0, -0.35, 0.2, w);
   ear(p, 1, -0.35, 0.2, w);
 }

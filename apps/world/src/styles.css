@@ -2012,3 +2012,117 @@ button {
     width: auto;
   }
 }
+
+/* ── Loading screen ── */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: radial-gradient(ellipse at 50% 42%, #0b0d12 0%, var(--bg) 62%);
+  transition: opacity 0.9s ease, visibility 0.9s;
+}
+.loader--done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.loader__mark {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+}
+.loader__mark img {
+  width: 58px;
+  height: 58px;
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.35));
+  animation: loader-breathe 2.4s ease-in-out infinite;
+}
+.loader__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  border-top-color: var(--hair-strong);
+  border-right-color: var(--hair);
+  animation: loader-spin 2.8s linear infinite;
+}
+.loader__ring--inner {
+  inset: 16px;
+  border-top-color: transparent;
+  border-bottom-color: var(--hair-strong);
+  border-left-color: var(--hair);
+  animation-duration: 4.2s;
+  animation-direction: reverse;
+}
+.loader__title {
+  margin: 26px 0 0;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 34px;
+  letter-spacing: 0.42em;
+  margin-right: -0.42em;
+  color: var(--text);
+}
+.loader__sub {
+  margin: 10px 0 0;
+  color: var(--faint);
+  font-size: 9.5px;
+}
+.loader__bar {
+  width: min(280px, 70vw);
+  height: 1px;
+  margin-top: 30px;
+  background: var(--hair);
+  overflow: hidden;
+}
+.loader__bar i {
+  display: block;
+  height: 100%;
+  background: var(--text);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  transform-origin: left;
+  transition: transform 0.5s ease;
+}
+.loader__line {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  width: min(280px, 70vw);
+  margin: 10px 0 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--muted);
+}
+.loader__pct {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes loader-breathe {
+  50% {
+    opacity: 0.7;
+    transform: scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader__ring,
+  .loader__mark img {
+    animation: none;
+  }
+}

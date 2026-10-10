@@ -17,6 +17,7 @@ import { CameraRig } from "./CameraRig.tsx";
 import { Floor, FloorRings, Motes } from "./Environment.tsx";
 import { Kernel } from "./Kernel.tsx";
 import { Lighting } from "./Lighting.tsx";
+import { SceneReady } from "./SceneReady.tsx";
 import { Streams } from "./Streams.tsx";
 
 /** Advances Lattice time, runs the simulator and animates every shader, once per frame. */
@@ -59,6 +60,7 @@ export function Scene() {
         <Floor />
         <FloorRings />
         <Motes count={quality === "high" ? 1600 : 600} />
+        <SceneReady />
       </Suspense>
       <CameraRig />
       <PostFX />

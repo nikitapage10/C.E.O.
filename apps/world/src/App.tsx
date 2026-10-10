@@ -5,6 +5,7 @@ import { GlitchDirector } from "./glitches/GlitchDirector.tsx";
 import { GlitchOverlay } from "./glitches/GlitchOverlay.tsx";
 import { AgentStudio } from "./hud/AgentStudio.tsx";
 import { Hud } from "./hud/Hud.tsx";
+import { Loader } from "./hud/Loader.tsx";
 import { KernelDirector } from "./kernel/KernelDirector.tsx";
 import { SocialDirector } from "./social/SocialDirector.tsx";
 import { Scene } from "./scene/Scene.tsx";
@@ -50,6 +51,7 @@ export function App() {
       <SocialDirector />
       <KernelDirector />
       <GatheringDirector />
+      <Loader />
     </>
   );
 }

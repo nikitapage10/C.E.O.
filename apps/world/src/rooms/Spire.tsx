@@ -3,11 +3,13 @@ import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Group } from "three";
+import { Beam, Dust } from "../fx/atmos.tsx";
 import { screenMaterial } from "../fx/materials.ts";
 import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { PALETTE } from "../theme.ts";
 import { Block, FONTS, GlassWall, LightBar, Plant, Plinth, Workstation, ahead } from "./primitives.tsx";
+import { penthouseSkyMaterial } from "./sky.ts";
 
 const MOODS = ["NO.", "LATER.", "DECAF?", "…"];
 
@@ -127,10 +129,78 @@ export function Spire() {
         <Block size={[1.1, 0.05, 0.6]} position={[0, 0.38, -1.05]} material={oak} radius={0.02} />
         <Block size={[0.9, 0.34, 0.5]} position={[0, 0.17, -1.05]} material={PBR.blackMetal()} radius={0.02} />
       </group>
+      <SpireView />
+      <SpireFurnishings />
       <Plant position={[-7.2, 0, 4.8]} scale={1.6} />
       <Plant position={[6.8, 0, -5.4]} scale={1.3} />
       <Plant position={[-7.2, 0, -5.4]} scale={1.1} pot={PBR.lacquer("#2b2f36", 0.4)} />
       <pointLight position={[0, 5, 1]} color="#f4f1ea" intensity={26} distance={18} decay={1.6} />
+    </group>
+  );
+}
+
+/** Above the clouds: the sky behind the curtain wall, sunbeams through the glass, dust turning in them. */
+function SpireView() {
+  const sky = useMemo(penthouseSkyMaterial, []);
+  useFrame(({ clock }) => {
+    sky.uniforms.uTime!.value = clock.elapsedTime;
+  });
+  return (
+    <group>
+      <mesh position={[0, 3, -6.75]} material={sky}>
+        <planeGeometry args={[16.2, 6]} />
+      </mesh>
+      {[-4.8, -0.6, 3.6].map((x, i) => (
+        <group key={x} position={[x + 1.2, 5.6, -6.3]} rotation={[-0.62, 0, -0.32 + i * 0.04]}>
+          <Beam length={8} radius={1.1} color="#fff1d8" opacity={0.07} />
+        </group>
+      ))}
+      <Dust min={[-7, 0.5, -5.8]} size={[14, 4.5, 6]} count={60} color="#fff4dc" opacity={0.4} />
+    </group>
+  );
+}
+
+/** Shelving, planters, a rug under the desks, a printer and a water cooler: an office people actually use. */
+function SpireFurnishings() {
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-2, 0.006, -1.6]} material={PBR.carpet("#5a6270", [3, 1])} receiveShadow>
+        <planeGeometry args={[9, 2.8]} />
+      </mesh>
+      {[-4.6, 2.9].map((z) => (
+        <group key={z}>
+          <Model id="scifi-essentials/Prop_Shelves_ThinTall" fit={{ height: 2.3 }} position={[-7.65, 0, z]} rotation={Math.PI / 2} cast />
+          <Model id="fantasy-props/Book_Stack_1" fit={{ scale: 1 }} position={[-7.65, 1.18, z - 0.15]} rotation={0.3} />
+        </group>
+      ))}
+      {[-6.4, -1.8, 2.8].map((x) => (
+        <group key={x} position={[x, 0, -5.95]}>
+          <Model id="downtown/Prop_Planter_Single" fit={{ height: 0.5 }} cast />
+          <Model id="nature/Plant_1_Big" fit={{ height: 0.8 }} position={[0, 0.42, 0]} />
+        </group>
+      ))}
+      {/* Printer and water cooler by the coffee corner. */}
+      <group position={[-7.35, 0, 0.9]}>
+        <Block size={[0.6, 0.7, 0.5]} position={[0, 0.35, 0]} material={PBR.lacquer("#d9d6cf", 0.4)} radius={0.04} />
+        <Block size={[0.5, 0.12, 0.45]} position={[0, 0.76, 0]} material={PBR.lacquer("#3a3f48", 0.4)} radius={0.03} />
+        <mesh position={[0.18, 0.72, 0.26]} material={PBR.light("#7dffc4", 2)}>
+          <boxGeometry args={[0.03, 0.03, 0.01]} />
+        </mesh>
+      </group>
+      <group position={[-7.35, 0, 1.8]}>
+        <Block size={[0.35, 1.0, 0.35]} position={[0, 0.5, 0]} material={PBR.lacquer("#eceae6", 0.4)} radius={0.04} />
+        <mesh position={[0, 1.25, 0]} material={PBR.glass("#9fd3ff", 0.45)}>
+          <cylinderGeometry args={[0.15, 0.15, 0.48, 20]} />
+        </mesh>
+      </group>
+      {/* A wall clock over the artwork wall. */}
+      <group position={[-7.88, 4.6, -0.8]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} material={PBR.lacquer("#f4f2ee", 0.3)}>
+          <cylinderGeometry args={[0.32, 0.32, 0.04, 40]} />
+        </mesh>
+        <Block size={[0.02, 0.2, 0.01]} position={[0, 0.08, 0.03]} material={PBR.blackMetal()} radius={0.003} />
+        <Block size={[0.15, 0.02, 0.01]} position={[0.06, 0, 0.03]} material={PBR.blackMetal()} radius={0.003} />
+      </group>
     </group>
   );
 }

@@ -4,6 +4,8 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { CatmullRomCurve3, Object3D, TubeGeometry, Vector3, type Group, type InstancedMesh, type Mesh } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { Dust, Haze } from "../fx/atmos.tsx";
+import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
 import { Block, Chair, FONTS, Plinth, ahead } from "./primitives.tsx";
@@ -225,7 +227,75 @@ export function Relay() {
           </mesh>
         </group>
       ))}
+      <SortingFloor />
       <pointLight position={[0, 4.5, 1]} color="#ffd29a" intensity={24} distance={16} decay={1.6} />
+    </group>
+  );
+}
+
+/** The sorting floor: a table heaped with letters and parcels, a mail cart, sacks waiting by the door, lanterns. */
+function SortingFloor() {
+  const paper = PBR.matte("#efe8d8", 0.9);
+  const letters = useMemo(
+    () =>
+      Array.from({ length: 18 }, (_, i) => ({
+        x: -1.1 + ((i * 37) % 22) / 10,
+        z: -0.35 + ((i * 53) % 7) / 10,
+        r: (i * 0.7) % Math.PI,
+        y: (i % 4) * 0.008,
+      })),
+    [],
+  );
+  return (
+    <group>
+      {/* Sorting table, front right. */}
+      <group position={[4.8, 0, 4.4]}>
+        <Model id="fantasy-props/Table_Large" fit={{ height: 0.8 }} rotation={Math.PI / 2} cast />
+        {letters.map((l, i) => (
+          <mesh key={i} position={[l.x, 0.81 + l.y, l.z]} rotation={[-Math.PI / 2, 0, l.r]} material={i % 5 ? paper : PBR.matte("#c9a25c", 0.8)}>
+            <planeGeometry args={[0.2, 0.12]} />
+          </mesh>
+        ))}
+        <Block size={[0.35, 0.22, 0.28]} position={[0.8, 0.92, 0.1]} material={PBR.matte("#a07a4a", 0.9)} radius={0.01} />
+        <Block size={[0.25, 0.16, 0.2]} position={[0.85, 1.11, 0.12]} rotation={[0, 0.4, 0]} material={PBR.matte("#b58c5a", 0.9)} radius={0.01} />
+        <Model id="fantasy-props/Chair_1" fit={{ height: 0.95 }} position={[-0.4, 0, 0.95]} rotation={Math.PI + 0.3} cast />
+      </group>
+      {/* A mail cart loaded with sacks. */}
+      <group position={[6.6, 0, 1.6]} rotation={[0, -0.5, 0]}>
+        <Model id="fantasy-props/Stall_Cart_Empty" fit={{ length: 1.8 }} cast />
+        <Model id="fantasy-props/Bag" fit={{ height: 0.55 }} position={[0.1, 0.55, 0]} rotation={0.6} cast />
+        <Model id="fantasy-props/Pouch_Large" fit={{ height: 0.45 }} position={[-0.35, 0.55, 0.1]} rotation={2} cast />
+      </group>
+      {/* Parcels and sacks stacked by the door, front left. */}
+      <ModelInstances id="fantasy-props/Crate_Wooden" fit={{ height: 0.55 }} at={[{ position: [-6.9, 0, 5.3], rotation: 0.2 }, { position: [-6.3, 0, 5.6], rotation: 1.1 }, { position: [-6.8, 0.55, 5.4], rotation: 0.7, scale: 0.8 }]} cast />
+      <ModelInstances id="fantasy-props/Bag" fit={{ height: 0.6 }} at={[{ position: [-7.3, 0, 4.4], rotation: 0.4 }, { position: [-5.7, 0, 5.8], rotation: 2.1 }]} cast />
+      <Model id="fantasy-props/Barrel" fit={{ height: 0.8 }} position={[-7.4, 0, 3.4]} cast />
+      {/* A free-standing pigeonhole cabinet, letters sticking out of some of the slots. */}
+      <group position={[-7.25, 0, 3.0]} rotation={[0, Math.PI / 2, 0]}>
+        <Block size={[1.8, 2.0, 0.45]} position={[0, 1.0, 0]} material={PBR.wood("walnut")} radius={0.03} />
+        {Array.from({ length: 24 }, (_, i) => (
+          <group key={i} position={[-0.72 + (i % 6) * 0.29, 1.15 + Math.floor(i / 6) * 0.22, 0.2]}>
+            <mesh material={PBR.matte("#1a120c", 0.9)}>
+              <boxGeometry args={[0.25, 0.18, 0.02]} />
+            </mesh>
+            {(i * 7) % 3 === 0 && (
+              <mesh position={[0, 0.02, 0.04]} rotation={[-0.3, 0, (i % 2) * 0.1]} material={paper}>
+                <planeGeometry args={[0.18, 0.12]} />
+              </mesh>
+            )}
+          </group>
+        ))}
+        <Model id="fantasy-props/Key_Gold" fit={{ length: 0.18 }} position={[0.6, 0.95, 0.24]} />
+      </group>
+      <Model id="fantasy-props/Pouch_Large" fit={{ height: 0.5 }} position={[-1.6, 0, -4.2]} rotation={1.2} cast />
+      <Model id="fantasy-props/Bag" fit={{ height: 0.55 }} position={[1.5, 0, -4.3]} rotation={-0.6} cast />
+      {/* Lanterns on the pilasters. */}
+      {[-7.6, 7.6].map((x) => (
+        <Model key={x} id="fantasy-props/Lantern_Wall" fit={{ height: 0.6 }} position={[x, 3.2, -5.9]} />
+      ))}
+      {/* Warm dust in the lamplight and a few flecks of paper drifting about. */}
+      <Dust min={[-7, 0.5, -5.5]} size={[14, 4, 11]} count={60} color="#ffd9a0" opacity={0.45} />
+      <Haze min={[-6, 0.6, -4]} size={[12, 3, 9]} count={18} puff={0.07} color="#f4ecdc" opacity={0.9} drift={0.6} />
     </group>
   );
 }

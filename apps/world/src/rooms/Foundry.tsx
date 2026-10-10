@@ -3,6 +3,8 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { MeshStandardMaterial, Object3D, type Group, type InstancedMesh, type Mesh } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { Beam, Haze, Smoke, Sparks } from "../fx/atmos.tsx";
+import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
@@ -265,7 +267,102 @@ export function Foundry() {
       <Block size={[1.4, 0.9, 0.9]} position={[3, 0.45, 4.4]} material={PBR.lacquer("#a83a2a", 0.4)} radius={0.06} />
       <Block size={[1.4, 0.05, 0.9]} position={[3, 0.62, 4.4]} material={PBR.blackMetal()} radius={0.01} shadows={false} />
 
+      <FoundryFloor />
+      <FoundryAir />
       <pointLight position={[0, 4, 1]} color="#ffc48a" intensity={30} distance={18} decay={1.6} />
+    </group>
+  );
+}
+
+/** A rotating amber beacon, the kind that lives on a crane. */
+function Beacon({ position }: { position: [number, number, number] }) {
+  const head = useRef<Group>(null);
+  useFrame((_, dt) => {
+    if (head.current) head.current.rotation.y += dt * 4;
+  });
+  return (
+    <group position={position}>
+      <mesh material={PBR.blackMetal()}>
+        <cylinderGeometry args={[0.09, 0.1, 0.06, 16]} />
+      </mesh>
+      <mesh position={[0, 0.1, 0]} material={PBR.glass("#ffb347", 0.55)}>
+        <cylinderGeometry args={[0.07, 0.07, 0.14, 16]} />
+      </mesh>
+      <group ref={head} position={[0, 0.1, 0]}>
+        <mesh position={[0.03, 0, 0]} material={PBR.light("#ffa23a", 5)}>
+          <boxGeometry args={[0.02, 0.08, 0.06]} />
+        </mesh>
+        <group rotation={[0, 0, -Math.PI / 2]}>
+          <Beam length={2.2} radius={0.45} color="#ffa23a" opacity={0.12} />
+        </group>
+      </group>
+    </group>
+  );
+}
+
+/** The working floor: stock, lockers, a workshop corner, cables and vents, so the hall looks lived in. */
+function FoundryFloor() {
+  return (
+    <group>
+      {/* Stock in the front corners: barrels, tarped crates. */}
+      <Model id="scifi-essentials/Prop_Crate_Tarp_Large" fit={{ height: 1.3 }} position={[-6.9, 0, 4.9]} rotation={0.2} cast />
+      <Model id="scifi-essentials/Prop_Barrel1" fit={{ height: 0.95 }} position={[-5.9, 0, 5.6]} cast />
+      <Model id="scifi-essentials/Prop_Barrel2_Closed" fit={{ height: 0.95 }} position={[-6.3, 0, 5.85]} rotation={1} cast />
+      <Model id="scifi-essentials/Prop_Barrel1" fit={{ height: 0.95 }} position={[-7.3, 0, 3.6]} rotation={2} cast />
+      <Model id="scifi-essentials/Prop_Crate_Large" fit={{ height: 1.0 }} position={[5.6, 0, 5.3]} rotation={-0.15} cast />
+      <Model id="scifi-essentials/Prop_Crate" fit={{ height: 0.55 }} position={[5.55, 1.0, 5.3]} rotation={0.4} cast />
+      <Model id="scifi-essentials/Prop_Crate_Tarp" fit={{ height: 0.9 }} position={[6.9, 0, 4.9]} rotation={-0.6} cast />
+      {/* Lockers and tall shelving against the side walls. */}
+      {[-0.4, 0.4, 1.2].map((z) => (
+        <Model key={z} id="scifi-essentials/Prop_Locker" fit={{ height: 2.0 }} position={[-7.75, 0, z]} rotation={Math.PI / 2} cast />
+      ))}
+      <Model id="scifi-essentials/Prop_Shelves_WideTall" fit={{ height: 2.6 }} position={[7.6, 0, -4.6]} rotation={-Math.PI / 2} cast />
+      <Model id="scifi-essentials/Prop_Shelves_WideTall" fit={{ height: 2.6 }} position={[7.6, 0, -2.4]} rotation={-Math.PI / 2} cast />
+      {/* Workshop corner by the pegboard: an anvil, a bucket, a coil of chain. */}
+      <Model id="fantasy-props/Anvil" fit={{ height: 0.7 }} position={[1.6, 0, 4.9]} rotation={0.4} cast />
+      <Model id="fantasy-props/Bucket_Metal" fit={{ height: 0.35 }} position={[2.1, 0, 5.4]} />
+      <Model id="fantasy-props/Chain_Coil" fit={{ scale: 1.2 }} position={[4.2, 0, 4.9]} rotation={1.2} />
+      {/* Pipes up the back corners, cables across the floor, vents on the back wall. */}
+      {[-7.7, 7.7].map((x) => (
+        <Model key={x} id="scifi-modular/Columns/Column_Pipes" fit={{ height: 5.4 }} position={[x, 0, -6.1]} cast />
+      ))}
+      <Model id="scifi-modular/Props/Prop_Cable_3" fit={{ scale: 1.4 }} position={[-3.4, 0.01, 1.3]} rotation={0.3} />
+      <Model id="scifi-modular/Props/Prop_Cable_1" fit={{ scale: 1.4 }} position={[2.4, 0.01, 1.0]} rotation={-0.8} />
+      {[-5, -2.5, 5].map((x) => (
+        <Model key={x} id="scifi-modular/Props/Prop_Vent_Big" fit={{ length: 1.2 }} position={[x, 3.6, -6.36]} />
+      ))}
+      {/* Floor lights along the walkway. */}
+      {[-6, -3, 0, 3, 6].map((x) => (
+        <Model key={x} id="scifi-modular/Props/Prop_Light_Floor" fit={{ length: 0.4 }} position={[x, 0, -0.4]} />
+      ))}
+      {/* Hazard stripes round the furnace. */}
+      {Array.from({ length: 9 }, (_, i) => (
+        <mesh key={i} rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[1.95 + i * 0.36, 0.009, -1.25]} material={PBR.matte(i % 2 ? "#1a1a1a" : SAFETY, 0.7)}>
+          <planeGeometry args={[0.24, 0.5]} />
+        </mesh>
+      ))}
+      <Beacon position={[-7.6, 6.05, 1.2]} />
+      <Beacon position={[7.6, 6.05, 1.2]} />
+    </group>
+  );
+}
+
+/**
+ * The air in the hall: furnace exhaust, sparks where the arm welds, a steam vent at the intake, a warm haze,
+ * and shafts of light from the clerestory.
+ */
+function FoundryAir() {
+  return (
+    <group>
+      <Smoke position={[4.0, 4.25, CONVEYOR_Z - 0.6]} count={26} rate={0.1} height={3.4} spread={1.1} sizes={[0.45, 2.2]} wind={[-1.2, 0, 0.6]} color="#6d6a66" opacity={0.42} />
+      <Sparks position={[-1.2, BELT_Y + 0.42, CONVEYOR_Z]} dir={[0.2, 1, 0.5]} count={46} rate={1.6} speed={2.2} cone={0.9} color="#ffb347" intensity={5} />
+      <Smoke position={[-6.2, 0.05, -0.7]} count={14} rate={0.22} height={1.6} spread={0.4} sizes={[0.2, 0.9]} wind={[0.4, 0, 0.2]} color="#d8dde4" opacity={0.25} />
+      <Haze min={[-7.5, 0.4, -6]} size={[15, 4.6, 11]} count={34} puff={2.8} color="#c4a588" opacity={0.045} />
+      {[-4.5, 0, 4.5].map((x) => (
+        <group key={x} position={[x, 5.1, -6.2]} rotation={[-0.75, 0, 0.12]}>
+          <Beam length={7} radius={0.9} color="#ffd9a8" opacity={0.09} />
+        </group>
+      ))}
     </group>
   );
 }

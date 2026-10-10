@@ -3,6 +3,7 @@ import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { Color, DoubleSide, MeshStandardMaterial, Object3D, PlaneGeometry, type InstancedMesh, type Mesh } from "three";
+import { Beam, Dust, Haze } from "../fx/atmos.tsx";
 import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
@@ -236,7 +237,47 @@ export function Green() {
       <ModelInstances id="downtown/Prop_Bollard" fit={{ height: 0.75 }} at={[{ position: [-0.9, 0, 6.15] }, { position: [0.9, 0, 6.15] }]} />
       <LampPost position={[-7.5, 0, -1]} />
       <LampPost position={[7.5, 0, 1.4]} />
+      <GreenEvening />
       <pointLight position={[2, 5, 2]} color="#ffdcb0" intensity={24} distance={18} decay={1.6} />
+    </group>
+  );
+}
+
+/** A floodlight tower: a lattice mast and a bank of lamps, throwing a beam down onto the pitch. */
+function Floodlight({ position, aim }: { position: [number, number, number]; aim: [number, number] }) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 3.1, 0]} material={PBR.steel()} castShadow>
+        <cylinderGeometry args={[0.07, 0.12, 6.2, 10]} />
+      </mesh>
+      <group position={[0, 6.2, 0]} rotation={[aim[0], aim[1], 0, "YXZ"]}>
+        <Block size={[1.0, 0.6, 0.12]} material={PBR.blackMetal()} radius={0.02} />
+        {Array.from({ length: 6 }, (_, i) => (
+          <mesh key={i} position={[-0.32 + (i % 3) * 0.32, i < 3 ? 0.14 : -0.14, 0.07]} material={PBR.light("#fff3dc", 5)}>
+            <circleGeometry args={[0.1, 16]} />
+          </mesh>
+        ))}
+        <group position={[0, 0, 0.1]} rotation={[-Math.PI / 2, 0, 0]}>
+          <Beam length={9} radius={2.2} color="#fff1d8" opacity={0.06} />
+        </group>
+      </group>
+    </group>
+  );
+}
+
+/** Evening on the Green: floodlights, mist settling on the grass, fireflies by the trees, pines behind the fence. */
+function GreenEvening() {
+  return (
+    <group>
+      <Floodlight position={[-7.7, 0, -6.0]} aim={[0.75, 0.75]} />
+      <Floodlight position={[7.7, 0, 6.0]} aim={[0.75, Math.PI + 0.75]} />
+      <Haze min={[-7.5, 0.02, -5.8]} size={[15, 0.5, 11.6]} count={30} puff={2.6} color="#dfe8ef" opacity={0.07} drift={0.5} />
+      <Dust min={[-7.6, 0.3, -5.8]} size={[15, 2.2, 11.6]} count={45} color="#e8ff8a" opacity={0.9} />
+      <ModelInstances id="nature/Pine_2" fit={{ height: 3.6 }} at={[{ position: [-6.4, 0, -6.1], rotation: 0.4 }, { position: [-4.9, 0, -6.2], rotation: 2, scale: 0.85 }, { position: [5.3, 0, 6.1], rotation: 1.1, scale: 0.9 }]} cast />
+      <ModelInstances id="nature/Rock_Medium_2" fit={{ length: 0.9 }} at={[{ position: [-7.3, 0, 5.6], rotation: 0.7 }, { position: [7.5, 0, -0.6], rotation: 2.2 }]} cast />
+      <ModelInstances id="nature/Rock_Medium_3" fit={{ length: 0.7 }} at={[{ position: [6.6, 0, 5.9], rotation: 1.5 }]} cast />
+      <ModelInstances id="nature/Mushroom_Common" fit={{ height: 0.25 }} at={[{ position: [-6.2, 0, 4.0], rotation: 0.3 }, { position: [-6.0, 0, 4.2], rotation: 1.9, scale: 0.7 }, { position: [6.6, 0, 3.8] }]} />
+      <ModelInstances id="nature/Grass_Wispy_Tall" fit={{ height: 0.6 }} at={[{ position: [-7.5, 0, 0.2] }, { position: [7.6, 0, 2.4], rotation: 1 }, { position: [-3.6, 0, -6.2], rotation: 2 }, { position: [3.8, 0, 6.2], rotation: 3 }]} />
     </group>
   );
 }

@@ -273,10 +273,10 @@ export const LOOK_PRESETS: LookPreset[] = [
     look: makeLook({ body: "wizard", shell: "#8d9096", accent: "#dfe6ef", trim: "#b9bcc2" }),
   },
   {
+    // Was the Barefoot Burglar; the Grey Wanderer already comes from that story. The id stays for saved casts.
     id: "burglar",
-    name: "Barefoot Burglar",
-    kind: "icon",
-    disclaimer: "A short, comfortable person who would rather be home. Hired as a burglar. Shoes optional; adventure, regrettably, not.",
+    name: "Travelling Adventurer",
+    kind: "generic",
     look: makeLook({ body: "medieval", size: 0.8, shell: "#492e18", accent: "#ffd08f", trim: "#af8749" }),
   },
   {

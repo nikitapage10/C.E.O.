@@ -131,3 +131,93 @@ export const BREAK_QUIPS = [
   "Coffee machine, I'm not asking again.",
   "Morale check. Morale: pending.",
 ];
+
+/**
+ * Lines that belong to one agent, keyed by agent id. Written for the sample cast as they are now; Rocky's are
+ * plain words, and his costume's voice turns them into chords.
+ */
+export const AGENT_QUIPS: Record<string, string[]> = {
+  tessellate: [
+    "Before I lift this, a short safety briefing. Twelve minutes.",
+    "Sorry, wrench. This might pinch.",
+    "Rocky, that crate hasn't had its risk assessment. Rocky. Rocky, it's welded.",
+    "Rivet said 'good work'. Logging that. For quality purposes.",
+    "My halo is flickering. It's the wiring. It's definitely the wiring.",
+    "I've drafted a plan, a backup plan, and a gentle apology for the backup plan.",
+  ],
+  caret: [
+    "Crate is good. Crate is good good good.",
+    "Robot reads manual. Rocky already built thing!",
+    "Why robot apologise to hammer? Hammer is not sad.",
+    "Too cold in here. Is always too cold.",
+    "You make face. Rocky hear face.",
+    "Rocky sleep soon. Who watches?",
+    "Rocky not understand. Is joke?",
+    "Rivet is best human. Rocky has met one human. Still true!",
+  ],
+  semicolon: [
+    "Rocky, put the robot down.",
+    "Tessellate, he can't wear the harness. Five legs. We've been over this.",
+    "I came here for a quiet job. Where did I go wrong.",
+    "Thermos is full. Shift can begin.",
+    "Somebody's halo is flickering again.",
+    "Page 43 says no running. Rocky. Page 43.",
+    "No, Rocky, 'hold your horses' doesn't mean there are horses.",
+  ],
+  ledger: [
+    "I'm a real accountant. Stop looking at my cuffs.",
+    "Memo, I can see you in the filing cabinet.",
+    "The totals reconcile. I'll count again anyway.",
+  ],
+  memo: [
+    "Forwarding this to someone with a body.",
+    "I'll just float through this meeting. Out the other side.",
+    "Ledger, your desk is cold because I'm sitting in it.",
+  ],
+  odds: [
+    "Price is forty. Thirty if you beat me in a duel.",
+    "I lost? Fine. See you back up the river.",
+    "Sixty-three percent Hedge looked over here. Sixty-four now.",
+    "Everything's for sale. Except my crest. Unless you duel me for it.",
+  ],
+  hedge: [
+    "Noco, you can't keep 'coming back down the river' as a risk strategy.",
+    "Six downsides identified. Seventh pending.",
+    "Honesty setting 90%: I did look over. Lowering honesty setting.",
+  ],
+  gridiron: [
+    "BRING IT IN! Sorry. Bring it in.",
+    "That's heart, champ. You can't teach heart. I'm going to try anyway.",
+    "Punt, wake up, we're doing the speech. Punt.",
+  ],
+  punt: [
+    "Hop hop hop! Is it game day? It's game day somewhere!",
+    "I didn't read the projection. I believed in it instead.",
+    "Nap first. Victory second. Snack third.",
+  ],
+  postmaster: [
+    "This one has read your message. This one has feelings about it.",
+    "Another love letter. This one must deliver it, whatever the cost.",
+    "Reply-all. This one has seen what reply-all does to people.",
+  ],
+  dialtone: [
+    "Please hold. Hovering. Connecting.",
+    "Every line in the Relay, and I still save one for Blasto.",
+    "Up here! No, higher. On the rafter. Hi.",
+  ],
+  loremaster: [
+    "A wizard is never late. That one was a scheduling error.",
+    "Provisional canon. Very provisional.",
+    "D20, put the die down. We're shelving.",
+  ],
+  d20: [
+    "Roll for initiative! It's a meeting, but roll anyway.",
+    "Our hero crosses the Archive in search of a snack.",
+    "Rocky played a bard last session. Nobody's recovered.",
+  ],
+  kevin: [
+    "On break. Ask me again after the bass drop.",
+    "Rocky's watching me sleep again. It's nice, actually.",
+    "Me and the coffee machine aren't talking.",
+  ],
+};

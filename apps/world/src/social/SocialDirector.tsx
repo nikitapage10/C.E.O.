@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { agentPositions, clock } from "../clock.ts";
 import { readingTime, useWorld } from "../store.ts";
-import { EMOTE, EXCHANGES } from "./lines.ts";
+import { EMOTE, EXCHANGES, PAIR_EXCHANGES } from "./lines.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
 const CLOSE = 7.5;
@@ -39,10 +39,15 @@ export function SocialDirector() {
       if (!candidates.length) return false;
       // Prefer the room you're looking at.
       const inFocus = candidates.filter((r) => world.lattice.agents[r.a]?.place.room === world.focus);
-      const r = pick(inFocus.length ? inFocus : candidates);
+      let r = pick(inFocus.length ? inFocus : candidates);
+      // Pairs with their own banter use it most of the time, speaking in the order it was written.
+      const forward = PAIR_EXCHANGES[`${r.a}|${r.b}`];
+      const own = forward ?? PAIR_EXCHANGES[`${r.b}|${r.a}`];
+      const useOwn = !!own && Math.random() < 0.75;
+      if (useOwn && !forward) r = { ...r, a: r.b, b: r.a };
       const nameA = cast.profiles[r.a]?.name ?? r.a;
       const nameB = cast.profiles[r.b]?.name ?? r.b;
-      const [opener, reply] = pick(EXCHANGES[r.kind]);
+      const [opener, reply] = useOwn ? pick(own) : pick(EXCHANGES[r.kind]);
       world.emote(r.a, EMOTE[r.kind], 6000);
       world.emote(r.b, EMOTE[r.kind], 6000);
       world.say(r.a, opener.replaceAll("{other}", nameB));

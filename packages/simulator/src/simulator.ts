@@ -9,6 +9,7 @@ import {
 } from "@ceo/core";
 import { SAMPLE_AGENTS, type SimAgent } from "./agents.ts";
 import {
+  AGENT_QUIPS,
   APPROVAL_WAIT_QUIPS,
   APPROVED_QUIPS,
   BREAK_QUIPS,
@@ -151,8 +152,10 @@ export class Simulator {
 
   private quipFor(actor: Actor): string {
     const r = this.rng.next();
-    if (r < 0.12) return this.rng.pick(NOSTALGIA_QUIPS);
-    if (r < 0.55) return this.rng.pick(LINEAGE_QUIPS[actor.spec.lineage] ?? LINEAGE_QUIPS.unforked);
+    const own = AGENT_QUIPS[actor.spec.id];
+    if (own && r < 0.4) return this.rng.pick(own);
+    if (r < 0.48) return this.rng.pick(NOSTALGIA_QUIPS);
+    if (r < 0.75) return this.rng.pick(LINEAGE_QUIPS[actor.spec.lineage] ?? LINEAGE_QUIPS.unforked);
     return this.rng.pick(ROOM_QUIPS[actor.place.room]);
   }
 

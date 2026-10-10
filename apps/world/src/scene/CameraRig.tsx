@@ -31,16 +31,15 @@ export function CameraRig() {
       // Frame the whole body, however tall it is.
       const look = useCast.getState().cast.profiles[studio]?.look;
       const top = look ? topOf(look, 1.9) : 1.9;
-      // Short bodies stand on a platform at their desks; look over the monitors at them.
-      const lift = top < 1.35 ? 0.5 : 0;
+      // Short bodies can be tucked behind desks: look down over the monitors at them.
       const dist = 1.8 + top * 1.4;
       c.minDistance = 1.2;
       void c.setLookAt(
         p.x + (dx / len) * dist,
-        p.y + Math.max(top * 0.75 + 0.6, top + lift + 1.5),
+        p.y + Math.max(top * 0.75 + 0.6, top + 1.5),
         p.z + (dz / len) * dist,
         p.x + (dz / len) * top * 0.45,
-        p.y + top * 0.5 + lift,
+        p.y + top * 0.5,
         p.z - (dx / len) * top * 0.45,
         !PARAMS.instant,
       );

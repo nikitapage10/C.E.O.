@@ -2,7 +2,7 @@ import type { AgentEvent, AgentEventBody } from "@ceo/core";
 import type { ScriptId } from "@ceo/simulator";
 import { useEffect } from "react";
 import { clock } from "../clock.ts";
-import { CREW, crewFor, crewWork, startFoundry, useFoundry, type Crate, type CrateState, type CrewId, type FoundryData } from "../foundry.ts";
+import { CREW, crewFor, crewWork, startFoundry, useFoundry, visibleUpkeep, type Crate, type CrateState, type CrewId, type FoundryData } from "../foundry.ts";
 import { simulator, useWorld } from "../store.ts";
 
 /**
@@ -16,9 +16,16 @@ import { simulator, useWorld } from "../store.ts";
 let counter = 0;
 const live = (body: AgentEventBody): AgentEvent => ({ ...body, id: `foundry-${++counter}`, ts: clock.sim, source: "claude-code" }) as AgentEvent;
 
-/** Which routine each crew member should be on for the crate they hold. */
-export function routineFor(who: CrewId, crate: Crate | null, openIdeas: number): ScriptId {
-  if (!crate) return who === "tessellate" && openIdeas > 0 ? "foundryIdeas" : "foundryIdle";
+/**
+ * Which routine each crew member should be on for the crate they hold. Rusty with nothing in hand stays at the
+ * upkeep from the latest tick until the next one (`keepingUpkeep`): the real job takes a minute every six hours,
+ * but in the room he is seen working it through, unless a fix, the ideas board or a break pulls him off.
+ */
+export function routineFor(who: CrewId, crate: Crate | null, openIdeas: number, keepingUpkeep = false): ScriptId {
+  if (!crate) {
+    if (who !== "tessellate") return "foundryIdle";
+    return openIdeas > 0 ? "foundryIdeas" : keepingUpkeep ? "foundryUpkeep" : "foundryIdle";
+  }
   if (crate.state === "stuck") return "foundryStuck";
   if (crate.state === "ready") return "foundryReady";
   if (crate.kind === "upkeep") return "foundryUpkeep";
@@ -68,15 +75,29 @@ export function FoundryDirector() {
       first = false;
       if (events.length) useWorld.getState().dispatch(events);
 
+      place(data);
+    };
+
+    /** Put each crew member on the routine for what they hold. */
+    const place = (data: FoundryData) => {
       const work = crewWork(data.crates);
       const openIdeas = data.crates.filter((c) => c.kind === "idea" && c.state === "queued").length;
-      for (const who of Object.keys(CREW) as CrewId[]) simulator.setScript(who, routineFor(who, work[who], openIdeas), clock.sim);
+      const keeping = visibleUpkeep(data.crates) !== null;
+      for (const who of Object.keys(CREW) as CrewId[]) simulator.setScript(who, routineFor(who, work[who], openIdeas, who === "tessellate" && keeping), clock.sim);
     };
 
     if (useFoundry.getState().connected) apply(useFoundry.getState().data);
-    return useFoundry.subscribe((s, prev) => {
+    const unsubscribe = useFoundry.subscribe((s, prev) => {
       if (s.data !== prev.data) apply(s.data);
     });
+    // An upkeep tick passing changes what Rusty is seen at even when GitHub hasn't changed.
+    const tick = setInterval(() => {
+      if (useFoundry.getState().connected) place(useFoundry.getState().data);
+    }, 60_000);
+    return () => {
+      unsubscribe();
+      clearInterval(tick);
+    };
   }, []);
   return null;
 }

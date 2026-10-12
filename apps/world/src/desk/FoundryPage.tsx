@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CREW, crewFor, crewWork, refreshFoundry, useFoundry, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { CREW, crewFor, crewWork, nextUpkeep, refreshFoundry, useFoundry, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -19,14 +19,6 @@ const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Sonnet Â
 const CHECKS_LABEL: Record<LinkState, string> = { off: "No run yet", ok: "Green", slow: "Running", down: "Red" };
 const LATELY = 6;
 const HOUR = 3_600_000;
-
-/** Upkeep runs at :57 past every sixth hour (UTC), per the "Foundry: upkeep" routine. */
-export function nextUpkeep(now: number): number {
-  const d = new Date(now);
-  d.setUTCMinutes(57, 0, 0);
-  while (d.getTime() <= now || d.getUTCHours() % 6 !== 0) d.setTime(d.getTime() + HOUR);
-  return d.getTime();
-}
 
 /** The morning ideas come at 9:00 Mountain time. */
 export function nextIdeas(now: number): number {

@@ -15,6 +15,10 @@ const API = `https://api.github.com/repos/${REPO}`;
 const POLL_MS = 3 * 60_000;
 /** Shipped crates stay on show this long. */
 const SHIPPED_FOR_MS = 24 * 3_600_000;
+const HOUR = 3_600_000;
+/** The "Foundry: upkeep" routine runs at :57 past every sixth hour, UTC. */
+const UPKEEP_MINUTE = 57;
+const UPKEEP_EVERY_HOURS = 6;
 
 export type CrateKind = "fix" | "idea" | "build" | "upkeep";
 export type CrateState = "queued" | "working" | "ready" | "stuck" | "shipped";
@@ -104,6 +108,28 @@ export function readBody(body: string): Pick<Crate, "pitch" | "size"> {
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
   return { pitch, size: size ?? null };
+}
+
+/** The next upkeep tick after `now`. */
+export function nextUpkeep(now: number): number {
+  const d = new Date(now);
+  d.setUTCMinutes(UPKEEP_MINUTE, 0, 0);
+  while (d.getTime() <= now || d.getUTCHours() % UPKEEP_EVERY_HOURS !== 0) d.setTime(d.getTime() + HOUR);
+  return d.getTime();
+}
+
+/** The last upkeep tick at or before `now`. */
+export function lastUpkeep(now: number): number {
+  return nextUpkeep(now) - UPKEEP_EVERY_HOURS * HOUR;
+}
+
+/**
+ * The upkeep Rusty is seen at in the Lattice: the job from the latest tick, kept in hand until the next tick even
+ * though the real work took a minute (Nikita's rule). The Desk shows the real state; only the room uses this.
+ */
+export function visibleUpkeep(crates: Crate[], now = Date.now()): Crate | null {
+  const since = lastUpkeep(now);
+  return crates.find((c) => c.kind === "upkeep" && c.updatedAt >= since) ?? null;
 }
 
 /** Who carries a crate: Skippy takes first tries at fixes, Rocky the harder rungs and approved builds, Rusty upkeep and ideas. */

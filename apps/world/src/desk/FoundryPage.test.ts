@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ideaTitle, nextIdeas, nextUpkeep } from "./FoundryPage.tsx";
+import { nextUpkeep } from "../foundry.ts";
+import { ideaTitle, nextIdeas } from "./FoundryPage.tsx";
 
 describe("the Foundry's clock", () => {
   it("finds the next upkeep tick at :57 on a sixth hour", () => {

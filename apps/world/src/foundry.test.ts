@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crewFor, crewWork, parseChecks, parseCrates, type GhIssue, readBody } from "./foundry.ts";
+import { crewFor, crewWork, lastUpkeep, parseChecks, parseCrates, type Crate, type GhIssue, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -86,5 +86,18 @@ describe("readBody", () => {
   });
   it("is empty for a plain issue", () => {
     expect(readBody("just words")).toEqual({ pitch: "", size: null });
+  });
+});
+
+describe("visibleUpkeep", () => {
+  const at = Date.UTC(2026, 9, 13, 3, 0); // between the 00:57 and 06:57 ticks
+  const crate = (over: Partial<Crate>): Crate => ({ number: 4, title: "Upkeep", kind: "upkeep", state: "shipped", rung: null, url: "", updatedAt: at - 60_000, pitch: "", size: null, revising: false, ...over });
+  it("keeps the latest tick's upkeep in Rusty's hands until the next tick", () => {
+    expect(lastUpkeep(at)).toBe(Date.UTC(2026, 9, 13, 0, 57));
+    expect(visibleUpkeep([crate({ updatedAt: Date.UTC(2026, 9, 13, 1, 2) })], at)?.number).toBe(4);
+  });
+  it("lets go of upkeep from before the latest tick", () => {
+    expect(visibleUpkeep([crate({ updatedAt: Date.UTC(2026, 9, 12, 23, 30) })], at)).toBeNull();
+    expect(visibleUpkeep([crate({ kind: "fix", updatedAt: at })], at)).toBeNull();
   });
 });

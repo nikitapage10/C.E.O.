@@ -19,6 +19,7 @@ export const DESK_ROOMS = {
   exchange: { name: "Exchange", accent: "#9fe3c9" },
   green: { name: "Green", accent: "#b8f28a" },
   archive: { name: "Archive", accent: "#b9a6ff" },
+  workshop: { name: "Workshop", accent: "#e07a5f" },
   boiler: { name: "Boiler Room", accent: "#ff9a4a" },
 } as const;
 export type DeskRoom = keyof typeof DESK_ROOMS;

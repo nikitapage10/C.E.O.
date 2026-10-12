@@ -56,6 +56,8 @@ const OPENERS: Record<string, string[]> = {
   loremaster: ["Into the canon it goes.", "I'll shelve this with the true things."],
   heimerdinger: ["A letter! I have tested it. It holds up.", "Remarkable. I'll study the penmanship later."],
   d20: ["Rolled to read it. Natural twenty.", "Best loot I've had this campaign."],
+  daub: ["A letter! Can I paint it? I'm going to paint it.", "Read it. Left a green paw-mark on it. That means I love it."],
+  chisel: ["A letter, darling. I've read it with all my fingers.", "Beautifully made. Who carved these words?"],
   kevin: ["Read it on my break. Which is always.", "Not a phase. This letter, I mean. It's forever."],
 };
 

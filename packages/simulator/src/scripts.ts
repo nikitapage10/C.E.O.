@@ -46,12 +46,13 @@ function grind(rng: Rng, totalMs: number, activity: Activity = "typing", notes: 
  * docs/FOUNDRY.md). The demo builder is retired; the world switches each crew member between these
  * routines to match what their real crate is doing, and the tasks themselves come from GitHub, not from here.
  */
-export const foundryIdle: Script = ({ rng }) => [
+export const foundryIdle: Script = ({ rng, agent }) => [
   { kind: "go", station: rng.pick(["bench-a", "bench-b", "intake"]) },
   { kind: "do", activity: rng.pick(["idle", "staring", "idle"]), ms: rng.int(5000, 9000), prop: null },
   { kind: "quip", chance: 0.2 },
   { kind: "go", station: rng.pick(["bench-a", "bench-b"]) },
-  { kind: "do", activity: rng.pick(["idle", "napping"]), ms: rng.int(4000, 8000) },
+  // Rocky dozes off between jobs (Eridian custom); Skippy keeps the watch and never sleeps; Rusty rarely does.
+  { kind: "do", activity: agent.id === "caret" ? rng.pick(["idle", "napping"]) : agent.id === "semicolon" ? rng.pick(["idle", "staring", "waiting"]) : rng.pick(["idle", "idle", "idle", "napping"]), ms: rng.int(4000, 8000) },
 ];
 
 /** A real fix or build in hand: crate from intake, through the arm, into the furnace, and round again. */
@@ -314,6 +315,46 @@ export const boilerKeeper: Script = ({ rng }) => [
   ...(rng.chance(0.25) ? [{ kind: "go", station: "boiler" } as const, { kind: "do", activity: "napping", ms: rng.int(6000, 10000) } as const] : []),
 ];
 
+/**
+ * Daub keeps the Workshop's first step: a new idea becomes a picture. Sketches at the easel, takes the finished
+ * canvas over to the mould for Chisel, and now and then checks a past figure on the shelves for reference.
+ */
+export const workshopPainter: Script = ({ rng }) => [
+  { kind: "go", station: "easel" },
+  { kind: "task", title: rng.pick(["Sketch a new figure", "Paint a costume study", "Colour the turnaround sheet", "Rough out a new pet"]) },
+  ...grind(rng, rng.int(9000, 14000), "working", ["Blocking in the shape", "Second wash", "Fixing the hands", "Signed it"]),
+  { kind: "quip", chance: 0.3 },
+  { kind: "finish", failRate: 0.05 },
+  { kind: "set", activity: "carrying", prop: "chart" },
+  { kind: "go", station: "mould" },
+  { kind: "do", activity: "idle", ms: rng.int(2000, 3500), prop: null },
+  { kind: "go", station: rng.pick(["shelves", "bench", "easel"]) },
+  { kind: "do", activity: rng.pick(["staring", "working", "idle"]), ms: rng.int(3000, 6000) },
+  { kind: "quip", chance: 0.2 },
+];
+
+/**
+ * Chisel runs the rest of the line: forms the figure in the mould, fits its frame on the turntable, walks it on
+ * the rehearsal stage, and packs it in the crate by the exit, ready to join the Lattice.
+ */
+export const workshopSculptor: Script = ({ rng }) => [
+  { kind: "go", station: "mould" },
+  { kind: "task", title: rng.pick(["Form a new figure", "Mould a costume", "Recast a maquette", "Form a pet"]) },
+  ...grind(rng, rng.int(8000, 12000), "working", ["Points gathering", "Wireframe holding", "Solid", "Lifted out"]),
+  { kind: "quip", chance: 0.25 },
+  { kind: "set", activity: "carrying", prop: "cube" },
+  { kind: "go", station: "fitting" },
+  work(rng.int(5000, 8000), "working", null),
+  { kind: "progress", progress: 0.97, note: "Frame fitted" },
+  { kind: "go", station: "stage" },
+  { kind: "do", activity: "staring", ms: rng.int(4000, 7000) },
+  { kind: "finish", failRate: 0.08 },
+  { kind: "quip", chance: 0.3 },
+  ...(rng.chance(0.5)
+    ? [{ kind: "set", activity: "carrying", prop: "crate" } as const, { kind: "go", station: "crate" } as const, { kind: "do", activity: "working", ms: rng.int(2000, 3500), prop: null } as const]
+    : [{ kind: "go", station: "bench" } as const, { kind: "do", activity: "working", ms: rng.int(3000, 5000) } as const]),
+];
+
 /** Kevin is always on break. Kevin is thriving. Sometimes he takes it on the warm side of the boiler. */
 export const breakroomRegular: Script = ({ rng }) => [
   { kind: "go", station: "couch" },
@@ -337,16 +378,29 @@ export const breakroomRegular: Script = ({ rng }) => [
     : []),
 ];
 
-/** Any agent, any time: a quick trip to the Break Room. */
-export const coffeeBreak: Script = ({ rng }) => [
-  { kind: "go", station: "coffee-machine", room: "breakroom" },
-  { kind: "do", activity: "waiting", ms: 2500, prop: "mug" },
-  { kind: "quip", chance: 0.6 },
-  rng.chance(0.4)
-    ? { kind: "do", activity: "napping", ms: 5000, prop: null }
-    : { kind: "do", activity: "idle", ms: 2500, prop: null },
-  { kind: "set", activity: "idle", prop: null },
-];
+/** Breaks taken without leaving the room (Nikita: agents stay in their own rooms about three quarters of the time). */
+export const STAY_ON_BREAK = 0.75;
+
+/** Any agent, any time: a breather. Usually at their own spot with a mug; now and then a trip to the Break Room. */
+export const coffeeBreak: Script = ({ rng, agent }) => {
+  const sleeps = agent.id !== "semicolon" && rng.chance(0.4);
+  if (rng.chance(STAY_ON_BREAK)) {
+    return [
+      { kind: "go", station: agent.home.station, room: agent.home.room },
+      { kind: "do", activity: "waiting", ms: 2500, prop: "mug" },
+      { kind: "quip", chance: 0.4 },
+      { kind: "do", activity: rng.pick(["idle", "staring"]), ms: 3000, prop: null },
+      { kind: "set", activity: "idle", prop: null },
+    ];
+  }
+  return [
+    { kind: "go", station: "coffee-machine", room: "breakroom" },
+    { kind: "do", activity: "waiting", ms: 2500, prop: "mug" },
+    { kind: "quip", chance: 0.6 },
+    sleeps ? { kind: "do", activity: "napping", ms: 5000, prop: null } : { kind: "do", activity: "idle", ms: 2500, prop: null },
+    { kind: "set", activity: "idle", prop: null },
+  ];
+};
 
 export const SCRIPTS = {
   foundryIdle,
@@ -366,5 +420,7 @@ export const SCRIPTS = {
   archiveResearcher,
   breakroomRegular,
   boilerKeeper,
+  workshopPainter,
+  workshopSculptor,
 } as const;
 export type ScriptId = keyof typeof SCRIPTS;

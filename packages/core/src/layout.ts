@@ -8,7 +8,7 @@
 
 export type Vec3 = readonly [number, number, number];
 
-export const ROOM_IDS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler"] as const;
+export const ROOM_IDS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop"] as const;
 export type RoomId = (typeof ROOM_IDS)[number];
 
 export interface Station {
@@ -207,6 +207,24 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("bench", "Tool bench", 3.2, 4.1, Math.PI),
       // Kevin's spiritual maintenance spot: the warm side of the boiler.
       s("warm-side", "The warm side of the boiler", 6.4, -1.0, -Math.PI / 2),
+    ],
+  },
+  workshop: {
+    id: "workshop",
+    name: "The Workshop",
+    theme: "maker's workshop",
+    workstream: "Making new things for the Lattice — concept, mould, fitting, rehearsal",
+    y: 0.2,
+    stations: [
+      // The making line runs left to right along the back: sketch it, mould it, fit it, rehearse it.
+      s("easel", "The concept easel", -5.5, -1.3, 0),
+      s("mould", "The mould", -1.85, -1.1, 0),
+      s("fitting", "The fitting stand", 1.85, -1.1, 0),
+      s("stage", "The rehearsal stage", 5.5, -0.9, 0),
+      // Front of the room: the long workbench, the shelves of past figures, the crate of finished pieces by the exit.
+      s("bench", "The workbench", -2.6, 3.0, Math.PI),
+      s("shelves", "Shelves of past figures", -6.7, 2.2, Math.PI / 2),
+      s("crate", "Crate of finished pieces", 6.2, 3.4, -Math.PI / 2),
     ],
   },
 };

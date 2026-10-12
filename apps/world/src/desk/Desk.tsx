@@ -5,6 +5,7 @@ import { useSystems, type LinkState } from "../systems.ts";
 import { SAMPLES, useDeskData } from "./deskData.ts";
 import { Decode, useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
+import { FoundryPage } from "./FoundryPage.tsx";
 import { Relay } from "./Relay.tsx";
 import { Systems } from "./Systems.tsx";
 import { Today } from "./Today.tsx";
@@ -21,6 +22,7 @@ type DeskTab = Exclude<Route, "lattice">;
 const TABS: { id: DeskTab; label: string }[] = [
   { id: "today", label: "Today" },
   { id: "relay", label: "Relay" },
+  { id: "foundry", label: "Foundry" },
   { id: "systems", label: "Systems" },
 ];
 
@@ -52,7 +54,7 @@ export function Desk({ route }: { route: DeskTab }) {
   }, []);
 
   useEffect(() => {
-    document.title = route === "relay" ? "Relay · C.E.O." : route === "systems" ? "Systems · C.E.O." : "C.E.O. — Desk";
+    document.title = route === "relay" ? "Relay · C.E.O." : route === "foundry" ? "Foundry · C.E.O." : route === "systems" ? "Systems · C.E.O." : "C.E.O. — Desk";
   }, [route]);
 
   const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
@@ -115,6 +117,8 @@ export function Desk({ route }: { route: DeskTab }) {
       <main className="desk__main" key={route}>
         {route === "relay" ? (
           <Relay data={data} now={now} connected={connected} />
+        ) : route === "foundry" ? (
+          <FoundryPage now={now} />
         ) : route === "systems" ? (
           <Systems now={now} />
         ) : (

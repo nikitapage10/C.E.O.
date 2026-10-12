@@ -459,7 +459,7 @@ function useKeyboard() {
         else if (s.selectedAgent) s.selectAgent(null);
         else s.setFocus(null);
       }
-      else if (/^[1-7]$/.test(e.key)) s.setFocus(ROOM_IDS[Number(e.key) - 1]!);
+      else if (/^[1-9]$/.test(e.key)) s.setFocus(ROOM_IDS[Number(e.key) - 1]!);
       else if (e.key === "0") s.setFocus(null);
       else if (e.key.toLowerCase() === "e" && s.selectedAgent) useCast.getState().openStudio(s.selectedAgent);
     };

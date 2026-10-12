@@ -87,6 +87,12 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Days since last incident: zero. As per tradition.",
     "Hot pipe, happy pipe.",
   ],
+  workshop: [
+    "Sketch, mould, fit, rehearse. In that order. Always that order.",
+    "Mind the clay dust. It gets everywhere. It gets into the Streams.",
+    "Another one off the stage and into the crate. Godspeed, little figure.",
+    "Every figure in the Lattice walked off that stage once.",
+  ],
   breakroom: [
     "Coffee machine said 'no' again.",
     "Five more minutes. Five more epochs.",
@@ -171,6 +177,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
   ],
   semicolon: [
     "Fixed. You're welcome. No, don't clap, it slows you down.",
+    "I ran a whole Lattice before this one. It had better monkeys.",
+    "The janitor found me in a scrap bin. Best thing he ever did. He agrees.",
     "I was there before it broke. Practically.",
     "Rocky's asleep. Nobody touches him, monkeys.",
     "Base six. Of course it's base six.",
@@ -219,6 +227,20 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "HONK. (That pipe is cold. Nobody touch that pipe.)",
     "Honk. (I have tape. I have always had tape.)",
     "Hoooonk. (The boiler is warm. Kevin is on it again.)",
+  ],
+  daub: [
+    "Hold still. You're my next canvas.",
+    "Second wash! That's the drop, that's the second wash.",
+    "Green paw-mark means I love it. Everything's green. I love everything.",
+    "Is it finished? Don't ask if it's finished. It's resting.",
+    "Chisel, the hands are meant to be like that. Chisel. Chisel.",
+  ],
+  chisel: [
+    "There you are. There you are. Hold that shape, darling.",
+    "Flesh is clay, darling. Clay is patience.",
+    "Again. From the top of the stage. Walk like you mean it.",
+    "Seven fingers today. A good number for detail work.",
+    "Rocky's watching again. Good. A sculptor needs a witness.",
   ],
   punt: [
     "Hop hop hop! Is it game day? It's game day somewhere!",

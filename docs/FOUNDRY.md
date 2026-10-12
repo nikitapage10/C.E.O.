@@ -71,6 +71,8 @@ The path for every change:
 `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`. GitHub Actions runs them on every push to
 `main`, on every pull request and nightly (`.github/workflows/checks.yml`). When they fail on `main`, the workflow opens (or comments on) a
 `foundry:fix` issue titled "Checks failing on main" and fires the Foundry's wake routine.
+To test the wake by hand, run the "Wake the Foundry" workflow (`.github/workflows/foundry-wake.yml`) from the
+Actions tab.
 
 ## Lane 1: Fix
 

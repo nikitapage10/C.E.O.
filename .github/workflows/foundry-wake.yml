@@ -1,0 +1,36 @@
+# A manual button that wakes the Foundry thread, to test the routine token without breaking main.
+# Run it from Actions → "Wake the Foundry" → Run workflow. See docs/FOUNDRY.md.
+name: Wake the Foundry
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: What to tell the Foundry
+        default: Test wake from GitHub Actions. No task, just confirm the wake arrived.
+
+permissions: {}
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake the Foundry thread
+        env:
+          ROUTINE_ID: ${{ secrets.FOUNDRY_ROUTINE_ID }}
+          ROUTINE_TOKEN: ${{ secrets.FOUNDRY_ROUTINE_TOKEN }}
+          NOTE: ${{ inputs.note }}
+        run: |
+          if [ -z "$ROUTINE_ID" ] || [ -z "$ROUTINE_TOKEN" ]; then
+            echo "::error::Add the FOUNDRY_ROUTINE_ID and FOUNDRY_ROUTINE_TOKEN repository secrets first."
+            exit 1
+          fi
+          body=$(jq -n --arg t "$NOTE" '{text: $t}')
+          curl -fsS -X POST "https://api.anthropic.com/v1/claude_code/routines/$ROUTINE_ID/fire" \
+            -H "Authorization: Bearer $ROUTINE_TOKEN" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d "$body" > /dev/null
+          echo "The Foundry is awake."

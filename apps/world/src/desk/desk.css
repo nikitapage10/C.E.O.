@@ -2681,11 +2681,6 @@ a.foundry-crew__on:hover {
 .foundry-page__open:hover {
   background: color-mix(in srgb, var(--tone) 14%, transparent);
 }
-.foundry-page__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 22px;
-}
 .foundry-page__hint {
   margin: 12px 0 0;
   font-size: 12.5px;
@@ -2694,31 +2689,378 @@ a.foundry-crew__on:hover {
 .foundry-page__hint a {
   color: var(--tone);
 }
-.foundry-page__schedule ul {
+/* Needs you: the morning's ideas as cards, and anything waiting for an OK. */
+.fy-needs {
+  display: grid;
+  gap: 16px;
+}
+.fy-calm {
+  padding: 22px;
+  border: 1px dashed var(--hair);
+  text-align: center;
+}
+.fy-decisions {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
 }
-.foundry-page__schedule li {
+.fy-decision {
   display: grid;
-  gap: 4px;
-  padding: 14px;
-  border: 1px solid var(--hair);
-  border-left: 2px solid var(--tone);
-  font-size: 12.5px;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "kind title btn" "kind what btn";
+  column-gap: 16px;
+  align-items: center;
+  padding: 14px 18px;
+  border: 1px solid var(--amber);
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
+}
+.fy-decision--stuck {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+}
+.fy-decision__kind {
+  grid-area: kind;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.fy-decision--stuck .fy-decision__kind {
+  color: var(--danger);
+}
+.fy-decision__title {
+  grid-area: title;
+  font-size: 14px;
+}
+.fy-decision__what {
+  grid-area: what;
+  font-size: 12px;
   color: var(--muted);
 }
-.foundry-page__when {
+.fy-decision .btn {
+  grid-area: btn;
+}
+.fy-ideas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.fy-idea {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--hair);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--tone) 12%, transparent), transparent 55%),
+    var(--panel);
+  transition: border-color 0.2s, transform 0.2s var(--ease);
+}
+.fy-idea:hover {
+  border-color: color-mix(in srgb, var(--tone) 60%, transparent);
+  transform: translateY(-2px);
+}
+.fy-idea--revising {
+  opacity: 0.7;
+  border-style: dashed;
+}
+.fy-idea__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fy-idea__n {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--tone);
+  border-radius: 50%;
+  color: var(--tone);
+  font-size: 13px;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--tone) 35%, transparent);
+}
+.fy-idea__size {
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 3px 8px;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+}
+.fy-idea__link {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dim);
+}
+.fy-idea__link:hover {
+  color: var(--tone);
+}
+.fy-idea__title {
+  margin: 0;
+  font: 500 22px/1.2 var(--serif);
+  color: var(--text);
+}
+.fy-idea__pitch {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.fy-idea__foot {
+  margin-top: auto;
+  padding-top: 6px;
+}
+.fy-idea__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fy-idea__note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tone);
+}
+.fy-idea__note a {
+  text-decoration: underline;
+}
+.fy-idea__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.fy-idea__form label {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  font-size: 11px;
+  color: var(--muted);
+}
+.fy-idea__form input,
+.fy-idea__form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--hair);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font: 13px var(--mono);
+  resize: vertical;
+}
+.fy-idea__form input:focus,
+.fy-idea__form textarea:focus {
+  outline: none;
+  border-color: var(--tone);
+}
+
+.fy-propose__open {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  border: 1px dashed var(--hair);
+  background: transparent;
+  color: var(--muted);
+  font: 12px var(--mono);
+  letter-spacing: 0.08em;
+  text-align: left;
+  cursor: pointer;
+}
+.fy-propose__open:hover {
+  border-color: var(--tone);
+  color: var(--text);
+}
+.fy-propose__open span {
+  color: var(--tone);
+  font-size: 18px;
+}
+.fy-propose__open em {
+  margin-left: auto;
+  font-style: normal;
+  color: var(--tone);
+}
+.fy-propose {
+  padding: 18px;
+  border: 1px solid var(--tone);
+}
+
+/* Right now: four tiles. */
+.fy-status {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.fy-tile {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 16px;
+  border: 1px solid var(--hair);
+  background: var(--panel);
+  min-width: 0;
+}
+a.fy-tile:hover {
+  border-color: var(--hair-strong);
+}
+.fy-tile__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--tone);
+  color: var(--faint);
 }
-.foundry-page .foundry-system {
-  margin-top: 0;
+.fy-tile__value {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fy-tile__value small {
+  font-size: 11px;
+  color: var(--dim);
+}
+.fy-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+.fy-dot--ok {
+  background: var(--mint);
+  box-shadow: 0 0 8px var(--mint);
+}
+.fy-dot--slow {
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber);
+}
+.fy-dot--down {
+  background: var(--danger);
+  box-shadow: 0 0 8px var(--danger);
+}
+
+/* The crew and the connections. */
+.fy-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.fy-crew,
+.fy-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.fy-crew__member {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "mark name" "mark on";
+  column-gap: 14px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--hair-soft);
+}
+.fy-crew__member:first-child,
+.fy-links li:first-child {
+  border-top: 0;
+}
+.fy-crew__mark {
+  grid-area: mark;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--dim);
+  font: 500 18px var(--serif);
+  color: var(--muted);
+}
+.fy-crew__mark--ok {
+  border-color: var(--mint);
+  color: var(--mint);
+}
+.fy-crew__mark--slow {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.fy-crew__mark--down {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.fy-crew__name {
+  grid-area: name;
+  font-size: 14px;
+}
+.fy-crew__name small {
+  margin-left: 10px;
+  font-size: 10.5px;
+  color: var(--dim);
+}
+.fy-crew__on {
+  grid-area: on;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fy-links li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "name pill" "what pill";
+  column-gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--hair-soft);
+}
+.fy-links__name {
+  grid-area: name;
+  font-size: 13.5px;
+}
+.fy-links__what {
+  grid-area: what;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.fy-links .pill {
+  grid-area: pill;
+  align-self: center;
+}
+@media (max-width: 860px) {
+  .foundry-page .page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .foundry-page__open {
+    display: block;
+    text-align: center;
+  }
+  .fy-ideas {
+    grid-template-columns: 1fr;
+  }
+  .fy-idea {
+    min-width: 0;
+  }
+  .fy-status {
+    grid-template-columns: 1fr 1fr;
+  }
+  .fy-row {
+    grid-template-columns: 1fr;
+  }
+  .fy-decision {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "kind btn" "title btn" "what what";
+  }
 }
 .crates {
   list-style: none;
@@ -2767,9 +3109,6 @@ a.foundry-crew__on:hover {
   grid-area: pill;
 }
 @media (max-width: 860px) {
-  .foundry-page__row {
-    grid-template-columns: 1fr;
-  }
   .crates__item {
     grid-template-columns: 1fr auto;
     grid-template-areas: "kind pill" "title title" "who who";

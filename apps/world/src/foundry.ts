@@ -37,6 +37,12 @@ export interface Crate {
   url: string;
   /** Date.now() of the last change. */
   updatedAt: number;
+  /** The issue's pitch line (ideas carry one), or "". */
+  pitch: string;
+  /** Small, medium or large, when the issue says. */
+  size: "small" | "medium" | "large" | null;
+  /** An idea Nikita sent back with notes; Rusty is rewriting it. */
+  revising: boolean;
 }
 
 export type ChecksState = "pass" | "fail" | "running" | "unknown";
@@ -54,6 +60,7 @@ export interface GhIssue {
   html_url: string;
   updated_at: string;
   closed_at?: string | null;
+  body?: string | null;
   labels: ({ name?: string } | string)[];
   pull_request?: unknown;
 }
@@ -87,9 +94,16 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
       state = labels.has("foundry:stuck") ? "stuck" : labels.has("foundry:ready") ? "ready" : labels.has("foundry:working") ? "working" : "queued";
     }
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
-    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt });
+    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, revising: labels.has("foundry:revise"), ...readBody(issue.body ?? "") });
   }
   return crates.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/** The pitch and size the Foundry writes into an issue ("**Pitch:** …", "**Size:** small"). */
+export function readBody(body: string): Pick<Crate, "pitch" | "size"> {
+  const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
+  const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
+  return { pitch, size: size ?? null };
 }
 
 /** Who carries a crate: Skippy takes first tries at fixes, Rocky the harder rungs and approved builds, Rusty upkeep and ideas. */

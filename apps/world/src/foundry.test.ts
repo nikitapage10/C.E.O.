@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crewFor, crewWork, parseChecks, parseCrates, type GhIssue } from "./foundry.ts";
+import { crewFor, crewWork, parseChecks, parseCrates, type GhIssue, readBody } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -77,5 +77,14 @@ describe("parseChecks", () => {
     expect(parseChecks([{ status: "in_progress", conclusion: null, html_url: "u", updated_at: "2026-10-12T21:00:00Z" }]).state).toBe("running");
     expect(parseChecks([{ status: "completed", conclusion: "failure", html_url: "u", updated_at: "2026-10-12T21:00:00Z" }]).state).toBe("fail");
     expect(parseChecks([{ status: "completed", conclusion: "success", html_url: "u", updated_at: "2026-10-12T21:00:00Z" }]).state).toBe("pass");
+  });
+});
+
+describe("readBody", () => {
+  it("reads the pitch and size the Foundry writes into an idea", () => {
+    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium" });
+  });
+  it("is empty for a plain issue", () => {
+    expect(readBody("just words")).toEqual({ pitch: "", size: null });
   });
 });

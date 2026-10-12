@@ -286,7 +286,7 @@ export function foundryDesk(f: FoundryData, now = Date.now()): { actions: DeskAc
     } else if (c.state === "stuck") {
       actions.push({ id, room: "foundry", agent, kind: "check", when: "now", live: true, title: `Stuck: ${c.title}`, detail: "Every model rung tried and the checks are still red. The notes on what was tried are on the issue.", choices: ["Read the notes"], hrefs: [c.url] });
     } else if (c.kind === "idea" && c.state === "queued") {
-      actions.push({ id, room: "foundry", agent, kind: "decide", when: "later", live: true, due: "This morning's ideas", title: c.title, choices: ["Pick in the Foundry thread", "Read it"], hrefs: [FOUNDRY_THREAD, c.url] });
+      actions.push({ id, room: "foundry", agent, kind: "decide", when: "later", live: true, due: "This morning's ideas", title: c.title, choices: ["Pick on the Foundry tab", "Read it"], hrefs: ["/foundry", c.url] });
     } else if (c.state === "shipped" && now - c.updatedAt < DAY_MS) {
       notes.push({ room: "foundry", live: true, text: `${agent} shipped “${c.title}”.` });
     }

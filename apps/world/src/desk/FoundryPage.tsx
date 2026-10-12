@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CREW, crewFor, crewWork, refreshFoundry, useFoundry, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
+import { useDictation } from "./dictate.ts";
 import { PageHead, Panel } from "./ui.tsx";
 
 /**
@@ -130,6 +131,7 @@ export function FoundryPage({ now }: { now: number }) {
           <span className="panel__rule" aria-hidden="true" />
           <span className="badge">{needs}</span>
         </header>
+        {setup !== null && !setup.buttons && <SetupNote wake={setup.wake} />}
         {decisions.length > 0 && (
           <ul className="fy-decisions">
             {decisions.map((c) => (
@@ -267,9 +269,17 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
             .
           </p>
         ) : !ready ? (
-          <a className="btn btn--sm" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
-            {setup ? "Pick in the Foundry thread" : "…"}
-          </a>
+          <div className="fy-idea__actions" title={setup ? "Set the Vercel variables to pick from here" : "Checking…"}>
+            <button type="button" className="btn btn--go btn--sm" disabled>
+              Build this
+            </button>
+            <button type="button" className="btn btn--sm" disabled>
+              Revise
+            </button>
+            <button type="button" className="btn btn--quiet btn--sm" disabled>
+              Not this one
+            </button>
+          </div>
         ) : mode === "key" ? (
           <form
             className="fy-idea__form"
@@ -326,14 +336,37 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
   );
 }
 
-/** Nikita's own idea: a few words, and Rusty shapes it into a card like the morning ones. */
+/** Shown until the Vercel function can write to GitHub: what unlocks the buttons, in one place. */
+function SetupNote({ wake }: { wake: boolean }) {
+  return (
+    <aside className="fy-setup" aria-label="One-time setup">
+      <strong>One-time setup, then everything happens here.</strong>
+      <p>
+        The buttons go through Vercel, which needs two variables (Project → Settings → Environment Variables, then redeploy): <code>FOUNDRY_DESK_KEY</code>, a passphrase you invent and type once per device, and{" "}
+        <code>FOUNDRY_GITHUB_TOKEN</code>, a fine-grained GitHub token for this repo with Issues read and write.
+        {wake ? " The wake routine is already set, so a pick reaches the Foundry at once." : (
+          <>
+            {" "}
+            Add <code>FOUNDRY_ROUTINE_ID</code> and <code>FOUNDRY_ROUTINE_TOKEN</code> too (the same values as the GitHub secrets) so a pick wakes the Foundry at once instead of at its next tick.
+          </>
+        )}
+      </p>
+    </aside>
+  );
+}
+
+/** Nikita's own idea: say it or type it, and Rusty shapes it into a card like the morning ones. */
 function Propose({ setup }: { setup: Setup }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [key, setKey] = useState(storedKey);
   const [state, setState] = useState<"idle" | "busy" | "done" | "failed" | "wrong-key">("idle");
-  if (!setup?.buttons) return null;
+  // What was typed before the mic started; dictation appends to it.
+  const typed = useRef("");
+  const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
+  const ready = setup?.buttons ?? false;
   const submit = async () => {
+    dictation.stop();
     setState("busy");
     const r = await send(null, "propose", key.trim(), note);
     if (r === "ok") {
@@ -343,11 +376,30 @@ function Propose({ setup }: { setup: Setup }) {
       void refreshFoundry();
     } else setState(r);
   };
+  const toggleMic = () => {
+    if (dictation.listening) dictation.stop();
+    else {
+      typed.current = note.trim();
+      dictation.start();
+    }
+  };
+  // Until the Vercel variables are set, the Desk can't write to GitHub: the idea gets copied, and the Foundry
+  // thread opens to paste it in.
+  const handOver = async () => {
+    dictation.stop();
+    try {
+      await navigator.clipboard.writeText(note.trim());
+    } catch {
+      // No clipboard (an http page, or denied): the text stays in the box to copy by hand.
+    }
+    window.open(FOUNDRY_THREAD, "_blank", "noopener");
+    setState("done");
+  };
   if (!open)
     return (
       <button type="button" className="fy-propose__open" onClick={() => (setOpen(true), setState("idle"))}>
         <span aria-hidden="true">+</span> Suggest an idea
-        {state === "done" && <em>Sent. Rusty is shaping it into a card.</em>}
+        {state === "done" && <em>{ready ? "Sent. Rusty is shaping it into a card." : "Copied. Paste it in the Foundry thread."}</em>}
       </button>
     );
   return (
@@ -355,24 +407,45 @@ function Propose({ setup }: { setup: Setup }) {
       className="fy-propose fy-idea__form"
       onSubmit={(e) => {
         e.preventDefault();
-        if (note.trim() && key.trim()) void submit().then(() => setOpen(false));
+        if (!note.trim()) return;
+        if (!ready) void handOver().then(() => setOpen(false));
+        else if (key.trim()) void submit().then(() => setOpen(false));
       }}
     >
       <label>
-        Your idea, in your own words. Rusty turns it into a card with a size and a builder.
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus maxLength={2000} />
+        {dictation.listening ? "Listening… say the idea, then press the mic again." : "Your idea, said or typed. Rusty turns it into a card with a size and a builder."}
+        <span className="fy-propose__box">
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus maxLength={2000} placeholder="What should the Foundry build?" />
+          {dictation.supported && (
+            <button
+              type="button"
+              className={`fy-mic${dictation.listening ? " fy-mic--live" : ""}`}
+              onClick={toggleMic}
+              aria-pressed={dictation.listening}
+              aria-label={dictation.listening ? "Stop listening" : "Say the idea"}
+              title={dictation.listening ? "Stop listening" : "Say the idea"}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
+                <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+        </span>
       </label>
-      {(!storedKey() || state === "wrong-key") && (
+      {dictation.error && <p className="fy-idea__note">{dictation.error}</p>}
+      {ready && (!storedKey() || state === "wrong-key") && (
         <label>
           {state === "wrong-key" ? "That key didn't match. Try again." : "Your Desk key (asked once on this device)"}
           <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="current-password" />
         </label>
       )}
       {state === "failed" && <p className="fy-idea__note">That didn't go through. Try again.</p>}
-      <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || !key.trim() || state === "busy"}>
-        Send to Rusty
+      {!ready && setup !== null && <p className="fy-idea__note fy-idea__note--quiet">Sending straight from here needs the Vercel variables above. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
+      <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || (ready && !key.trim()) || state === "busy" || setup === null}>
+        {ready ? "Send to Rusty" : "Copy and open the thread"}
       </button>
-      <button type="button" className="btn btn--quiet btn--sm" onClick={() => setOpen(false)}>
+      <button type="button" className="btn btn--quiet btn--sm" onClick={() => (dictation.stop(), setOpen(false))}>
         Cancel
       </button>
     </form>

@@ -2694,6 +2694,29 @@ a.foundry-crew__on:hover {
   display: grid;
   gap: 16px;
 }
+.fy-setup {
+  padding: 16px 18px;
+  border: 1px solid var(--amber);
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.fy-setup strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
+  font-weight: 500;
+}
+.fy-setup p {
+  margin: 0;
+}
+.fy-setup code {
+  padding: 1px 5px;
+  border: 1px solid var(--hair);
+  color: var(--amber);
+  font-size: 11.5px;
+}
 .fy-calm {
   padding: 22px;
   border: 1px dashed var(--hair);
@@ -2825,6 +2848,10 @@ a.foundry-crew__on:hover {
   font-size: 12px;
   color: var(--tone);
 }
+.fy-idea__note--quiet {
+  width: 100%;
+  color: var(--faint);
+}
 .fy-idea__note a {
   text-decoration: underline;
 }
@@ -2888,6 +2915,45 @@ a.foundry-crew__on:hover {
 .fy-propose {
   padding: 18px;
   border: 1px solid var(--tone);
+}
+.fy-propose__box {
+  position: relative;
+  display: block;
+}
+.fy-propose__box textarea {
+  padding-right: 52px;
+}
+.fy-mic {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--hair);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--muted);
+  cursor: pointer;
+}
+.fy-mic:hover {
+  border-color: var(--tone);
+  color: var(--text);
+}
+.fy-mic--live {
+  border-color: var(--tone);
+  color: var(--tone);
+  animation: fy-mic-pulse 1.4s ease-in-out infinite;
+}
+@keyframes fy-mic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--tone) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
+  }
 }
 
 /* Right now: four tiles. */

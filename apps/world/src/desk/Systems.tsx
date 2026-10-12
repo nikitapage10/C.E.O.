@@ -17,7 +17,7 @@ const AGENTS = [
     role: "Relay · Switchboard",
     job: "Keeps the list of who you owe a reply, and nudges you at half twelve and seven.",
     Glyph: DialtoneGlyph,
-    tone: "var(--violet)",
+    tone: "var(--viz-violet)",
   },
   {
     id: "postmaster",
@@ -25,7 +25,7 @@ const AGENTS = [
     role: "Relay · Postmaster",
     job: "Drafts your replies in your voice, and holds them until you say send.",
     Glyph: BlastoGlyph,
-    tone: "var(--ice)",
+    tone: "var(--viz-ice)",
   },
 ];
 
@@ -41,10 +41,10 @@ const PLANNED: { room: DeskRoom; what: string }[] = [
 export function Systems({ now }: { now: number }) {
   return (
     <div className="systems-page">
-      <PageHead eyebrow="Desk · Systems" title="Systems" lead="What's connected, what isn't, and what each agent depends on." />
+      <PageHead eyebrow="What the Desk runs on" title="Systems" lead="What's connected, what isn't, and what each agent depends on." />
 
       <Panel
-        eyebrow="Relay · iMessage and SMS"
+        eyebrow="Relay: iMessage and SMS"
         aside={<span className="panel__hint">MacBook → Hub → services → agents</span>}
         className="panel--systems"
       >
@@ -54,7 +54,6 @@ export function Systems({ now }: { now: number }) {
       <section className="agents" aria-label="Relay's agents">
         <header className="section-head">
           <h2>Relay's agents</h2>
-          <span className="panel__rule" aria-hidden="true" />
         </header>
         <div className="agents__grid">
           {AGENTS.map((a) => (
@@ -68,7 +67,6 @@ export function Systems({ now }: { now: number }) {
       <section className="planned" aria-label="Systems to come">
         <header className="section-head">
           <h2>Still to build</h2>
-          <span className="panel__rule" aria-hidden="true" />
         </header>
         <ul className="planned__grid">
           {PLANNED.map((p) => (
@@ -104,7 +102,7 @@ function AgentCard({ id, name, role, job, Glyph, tone }: (typeof AGENTS)[number]
             {LINK_STATE_LABEL[state]}
           </span>
           <ActivityMeter load={load} live={state === "ok" || state === "slow"} />
-          <span className="agent__seen">{seen ? `heard ${new Date(seen).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}` : "never heard from"}</span>
+          <span className="agent__seen">{seen ? `Heard ${new Date(seen).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}` : "Never heard from"}</span>
         </div>
       </div>
     </article>

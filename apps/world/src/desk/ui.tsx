@@ -1,18 +1,11 @@
-import { Decode } from "./motion.tsx";
-
-/** The Desk's HUD pieces: tracked eyebrows with a rule, hairline panels with corner ticks, decoded titles. */
+/** The Desk's shared pieces: a page head (date line, title, lead) and a titled section with a rule under its heading. */
 
 export function PageHead({ eyebrow, title, lead, aside }: { eyebrow: string; title: string; lead?: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <header className="page-head">
-      <div>
-        <p className="eyebrow">
-          <Decode text={eyebrow} delay={120} speed={18} />
-          <span className="eyebrow__rule" aria-hidden="true" />
-        </p>
-        <h1 className="desk__title" aria-label={title}>
-          <Decode text={title} speed={70} />
-        </h1>
+      <div className="page-head__text">
+        <p className="eyebrow">{eyebrow}</p>
+        <h1 className="desk__title">{title}</h1>
         {lead && <p className="page-head__lead">{lead}</p>}
       </div>
       {aside && <div className="page-head__aside">{aside}</div>}
@@ -35,11 +28,8 @@ export function Panel({
 }) {
   return (
     <section className={`panel ${className}`} aria-label={label ?? eyebrow}>
-      <i className="panel__tick panel__tick--tl" aria-hidden="true" />
-      <i className="panel__tick panel__tick--br" aria-hidden="true" />
       <header className="panel__head">
         <h2>{eyebrow}</h2>
-        <span className="panel__rule" aria-hidden="true" />
         {aside && <span className="panel__aside">{aside}</span>}
       </header>
       {children}

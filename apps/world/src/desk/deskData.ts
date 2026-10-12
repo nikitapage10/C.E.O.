@@ -11,16 +11,16 @@ import { CREW, crewOf, useFoundry, type FoundryData } from "../foundry.ts";
 /** Sample data on, unless `?real`. Nothing sample ever sends. */
 export const SAMPLES = typeof window === "undefined" ? false : !new URLSearchParams(window.location.search).has("real");
 
-/** The rooms, as the Desk names and colours them (kept here so the Desk imports nothing from the Lattice). */
+/** The rooms, as the Desk names and tints them; the tints are CSS variables set per theme in desk.css (kept here so the Desk imports nothing from the Lattice). */
 export const DESK_ROOMS = {
-  relay: { name: "Relay", accent: "#e8c27a" },
-  foundry: { name: "Foundry", accent: "#ffb067" },
-  spire: { name: "Spire", accent: "#cfd6e4" },
-  exchange: { name: "Exchange", accent: "#9fe3c9" },
-  green: { name: "Green", accent: "#b8f28a" },
-  archive: { name: "Archive", accent: "#b9a6ff" },
-  workshop: { name: "Workshop", accent: "#e07a5f" },
-  boiler: { name: "Boiler Room", accent: "#ff9a4a" },
+  relay: { name: "Relay", accent: "var(--room-relay)" },
+  foundry: { name: "Foundry", accent: "var(--room-foundry)" },
+  spire: { name: "Spire", accent: "var(--room-spire)" },
+  exchange: { name: "Exchange", accent: "var(--room-exchange)" },
+  green: { name: "Green", accent: "var(--room-green)" },
+  archive: { name: "Archive", accent: "var(--room-archive)" },
+  workshop: { name: "Workshop", accent: "var(--room-workshop)" },
+  boiler: { name: "Boiler Room", accent: "var(--room-boiler)" },
 } as const;
 export type DeskRoom = keyof typeof DESK_ROOMS;
 

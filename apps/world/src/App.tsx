@@ -18,6 +18,8 @@ import { NightDirector } from "./night/NightDirector.tsx";
 import { FoundryDirector } from "./rooms/FoundryDirector.tsx";
 import { VeilDirector } from "./veil/VeilDirector.tsx";
 import { pumpSpeech, useWorld } from "./store.ts";
+import "@fontsource/cormorant-garamond/300.css";
+import "@fontsource/cormorant-garamond/400-italic.css";
 import "./styles.css";
 
 /** window.__ceo: a small debug surface for the console and the e2e tests. */

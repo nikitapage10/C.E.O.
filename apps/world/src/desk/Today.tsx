@@ -36,18 +36,18 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
   return (
     <div className="today">
       <PageHead
-        eyebrow={`Desk · ${date}`}
+        eyebrow={date}
         title="Today"
         lead={
           <>
-            <em className="page-head__greet">{greeting(now)}</em>
+            <em className="page-head__greet">{greeting(now)}</em>{" "}
             <span className="today__summary">
               {todo ? `${todo} ${todo === 1 ? "thing needs" : "things need"} you now, about ${todo} minutes.` : "Nothing needs you right now."}
               {later.length + otherReplies > 0 && ` ${later.length + otherReplies} more can wait.`}
             </span>
           </>
         }
-        aside={<DayRing done={data.doneToday} total={total} />}
+        aside={<DayCount done={data.doneToday} total={total} />}
       />
 
       <Panel eyebrow="Do now" aside={<span className="badge">{todo}</span>} className="panel--now">
@@ -85,7 +85,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
               {otherReplies > 0 && (
                 <li style={{ "--tone": DESK_ROOMS.relay.accent } as React.CSSProperties}>
                   <span className="later-list__due">Any time</span>
-                  <a className="later-list__title" href="/relay" onClick={link("relay")}>
+                  <a className="later-list__title later-list__title--link" href="/relay" onClick={link("relay")}>
                     {otherReplies} more {otherReplies === 1 ? "reply" : "replies"} waiting in Relay →
                   </a>
                 </li>
@@ -102,7 +102,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
               {data.notes.map((n, i) => (
                 <li key={i} style={{ "--tone": DESK_ROOMS[n.room].accent } as React.CSSProperties}>
                   <span className="notes__room">{DESK_ROOMS[n.room].name}</span>
-                  {n.text}
+                  <span className="notes__text">{n.text}</span>
                 </li>
               ))}
             </ul>
@@ -121,7 +121,6 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
       <section className="rooms" aria-label="Your rooms">
         <header className="section-head">
           <h2>Your rooms</h2>
-          <span className="panel__rule" aria-hidden="true" />
         </header>
         <ul className="rooms__grid">
           {(Object.keys(DESK_ROOMS) as DeskRoom[]).map((r) => {
@@ -130,8 +129,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
               <li key={r} style={{ "--tone": DESK_ROOMS[r].accent } as React.CSSProperties}>
                 <a href={roomHref(r)} onClick={r === "relay" ? link("relay") : r === "foundry" ? link("foundry") : r === "boiler" ? link("systems") : undefined}>
                   <span className="rooms__name">{DESK_ROOMS[r].name}</span>
-                  <span className={`rooms__count ${waiting ? "rooms__count--on" : ""}`}>{waiting || "✓"}</span>
-                  <span className="rooms__cap">{waiting ? "waiting on you" : "all clear"}</span>
+                  <span className={`rooms__cap ${waiting ? "rooms__cap--on" : ""}`}>{waiting ? `${waiting} waiting on you` : "All clear"}</span>
                 </a>
               </li>
             );
@@ -142,38 +140,23 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
   );
 }
 
-/** How much of today is handled: a ring that fills as you clear things. */
-function DayRing({ done, total }: { done: number; total: number }) {
-  const f = total ? done / total : 1;
-  const r = 44;
-  const c = 2 * Math.PI * r;
+/** How much of today is handled, in a line. */
+function DayCount({ done, total }: { done: number; total: number }) {
   return (
-    <div className="dayring" aria-label={`${done} of ${total} done today`}>
-      <svg viewBox="-56 -56 112 112" aria-hidden="true">
-        <circle r={r} className="dayring__track" />
-        <circle r={r} className="dayring__fill" strokeDasharray={c} strokeDashoffset={c * (1 - f)} transform="rotate(-90)" />
-      </svg>
-      <span className="dayring__big">{done}</span>
-      <span className="dayring__cap">
-        {total ? (
-          <>
-            of {total}
-            <br />
-            done
-          </>
-        ) : (
-          "all clear"
-        )}
-      </span>
-    </div>
+    <p className="daycount" aria-label={`${done} of ${total} done today`}>
+      <span className="daycount__num">{done}</span>
+      <span className="daycount__cap">{total ? `of ${total} done today` : "all clear today"}</span>
+    </p>
   );
 }
 
 function RoomTag({ room, agent, live }: { room: DeskRoom; agent: string; live?: boolean }) {
   return (
-    <span className="roomtag">
+    <span className="roomtag" style={{ "--tone": DESK_ROOMS[room].accent } as React.CSSProperties}>
       <i aria-hidden="true" />
-      {DESK_ROOMS[room].name} · {agent}
+      <span>
+        {DESK_ROOMS[room].name} · {agent}
+      </span>
       {SAMPLES && !live && <em>sample</em>}
     </span>
   );
@@ -199,31 +182,41 @@ function Choice({ a, k, small }: { a: DeskAction; k: number; small?: boolean }) 
 function ReplyCard({ o, now, i }: { o: OwedReply; now: number; i: number }) {
   const { send, later, pick } = useDesk();
   return (
-    <li className="todo__item todo__item--reply" style={{ "--tone": DESK_ROOMS.relay.accent, animationDelay: `${i * 60}ms` } as React.CSSProperties}>
-      <div className="todo__top">
-        <RoomTag room="relay" agent="Blasto" />
-        <span className="todo__due">waiting {formatWait(now - o.since)}</span>
-      </div>
-      <h3 className="todo__title">Reply to {o.name}</h3>
-      <p className="todo__quote">“{o.preview}”</p>
-      {o.draft && <p className="todo__draft">{o.draft}</p>}
-      <div className="todo__actions">
-        <button type="button" className="btn btn--go" disabled={!o.draft} onClick={() => send(o.id)}>
-          Send
-        </button>
-        <a
-          className="btn"
-          href="/relay"
-          onClick={(e) => {
-            pick(o.id);
-            link("relay")(e);
-          }}
-        >
-          Edit
-        </a>
-        <button type="button" className="btn btn--quiet" onClick={() => later(o.id)}>
-          Later
-        </button>
+    <li className="todo__item todo__item--reply" style={{ "--tone": DESK_ROOMS.relay.accent } as React.CSSProperties}>
+      <span className="todo__n" aria-hidden="true">
+        {i + 1}
+      </span>
+      <div className="todo__body">
+        <div className="todo__top">
+          <RoomTag room="relay" agent="Blasto" />
+          <span className="todo__due">waiting {formatWait(now - o.since)}</span>
+        </div>
+        <h3 className="todo__title">Reply to {o.name}</h3>
+        <p className="todo__quote">“{o.preview}”</p>
+        {o.draft && (
+          <p className="todo__draft">
+            <span className="todo__draft-label">Draft</span>
+            {o.draft}
+          </p>
+        )}
+        <div className="todo__actions">
+          <button type="button" className="btn btn--go" disabled={!o.draft} onClick={() => send(o.id)}>
+            Send
+          </button>
+          <a
+            className="btn"
+            href="/relay"
+            onClick={(e) => {
+              pick(o.id);
+              link("relay")(e);
+            }}
+          >
+            Edit
+          </a>
+          <button type="button" className="btn btn--quiet" onClick={() => later(o.id)}>
+            Later
+          </button>
+        </div>
       </div>
     </li>
   );
@@ -231,17 +224,22 @@ function ReplyCard({ o, now, i }: { o: OwedReply; now: number; i: number }) {
 
 function DecisionCard({ a, i }: { a: DeskAction; i: number }) {
   return (
-    <li className="todo__item" style={{ "--tone": DESK_ROOMS[a.room].accent, animationDelay: `${i * 60}ms` } as React.CSSProperties}>
-      <div className="todo__top">
-        <RoomTag room={a.room} agent={a.agent} live={a.live} />
-        {a.due && <span className="todo__due">{a.due}</span>}
-      </div>
-      <h3 className="todo__title">{a.title}</h3>
-      {a.detail && <p className="todo__detail">{a.detail}</p>}
-      <div className="todo__actions">
-        {a.choices.map((c, k) => (
-          <Choice key={c} a={a} k={k} />
-        ))}
+    <li className="todo__item" style={{ "--tone": DESK_ROOMS[a.room].accent } as React.CSSProperties}>
+      <span className="todo__n" aria-hidden="true">
+        {i + 1}
+      </span>
+      <div className="todo__body">
+        <div className="todo__top">
+          <RoomTag room={a.room} agent={a.agent} live={a.live} />
+          {a.due && <span className="todo__due">{a.due}</span>}
+        </div>
+        <h3 className="todo__title">{a.title}</h3>
+        {a.detail && <p className="todo__detail">{a.detail}</p>}
+        <div className="todo__actions">
+          {a.choices.map((c, k) => (
+            <Choice key={c} a={a} k={k} />
+          ))}
+        </div>
       </div>
     </li>
   );

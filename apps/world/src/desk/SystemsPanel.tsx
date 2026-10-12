@@ -65,12 +65,6 @@ function Diagram({ layout, links, className }: { layout: Layout; links: Link[]; 
   const byId = new Map(links.map((l) => [l.id, l]));
   return (
     <svg viewBox={`0 0 ${layout.w} ${layout.h}`} className={`schematic ${className}`} role="img" aria-label="Diagram of the links Relay depends on">
-      <defs>
-        <pattern id={`grid-${className}`} width="20" height="20" patternUnits="userSpaceOnUse">
-          <path d="M 20 0 L 0 0 0 20" className="schematic__grid" />
-        </pattern>
-      </defs>
-      <rect width={layout.w} height={layout.h} fill={`url(#grid-${className})`} />
       {EDGES.map(([a, b], i) => {
         const pa = layout.nodes[a];
         const pb = layout.nodes[b];
@@ -122,7 +116,7 @@ export function SystemsPanel({ now }: { now: number }) {
   const lastIncident = useSystems((s) => s.lastIncident);
   const working = links.filter((l) => l.state === "ok").length;
   const days = Math.max(0, daysSinceIncident(lastIncident, now));
-  const digits = String(Math.min(999, days)).padStart(3, "0").split("");
+  const digits = String(Math.min(999, days)).split("");
   const anyDown = links.some((l) => l.state === "down");
 
   return (

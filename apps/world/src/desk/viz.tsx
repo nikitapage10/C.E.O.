@@ -9,7 +9,7 @@ const polar = (r: number, turn: number): [number, number] => [r * Math.sin(turn 
 
 /** The colour of a wait, from calm to urgent. */
 export function waitTone(fraction: number): string {
-  return fraction < 0.34 ? "var(--mint)" : fraction < 0.67 ? "var(--amber)" : "var(--rose)";
+  return fraction < 0.34 ? "var(--ok)" : fraction < 0.67 ? "var(--warn)" : "var(--bad)";
 }
 
 function arcPath(r: number, from: number, to: number) {
@@ -24,7 +24,7 @@ function arcPath(r: number, from: number, to: number) {
 const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 
 function minutesTone(m: number) {
-  return m <= 15 ? "var(--mint)" : m <= 60 ? "var(--ice)" : m <= 240 ? "var(--amber)" : "var(--rose)";
+  return m <= 15 ? "var(--ok)" : m <= 60 ? "var(--ink-2)" : m <= 240 ? "var(--warn)" : "var(--bad)";
 }
 
 export function ReplyStrip({ week }: { week: ReplyDay[] }) {
@@ -68,7 +68,7 @@ export function ReplyStrip({ week }: { week: ReplyDay[] }) {
           </svg>
         )}
       </div>
-      <figcaption className="strip__cap">{known.length ? `Median reply time · scale ${formatWait(top * 60_000)}` : "No replies tracked yet · the week fills in as you answer"}</figcaption>
+      <figcaption className="strip__cap">{known.length ? `Median reply time, on a scale of ${formatWait(top * 60_000)}` : "No replies tracked yet. The week fills in as you answer."}</figcaption>
     </figure>
   );
 }
@@ -168,9 +168,9 @@ export function DialtoneGlyph() {
     <svg viewBox="0 0 120 120" className="glyph glyph--dialtone" aria-hidden="true">
       <defs>
         <linearGradient id={`${id}-w`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#b9a6ff" />
-          <stop offset="0.6" stopColor="#ff8a9e" stopOpacity="0.85" />
-          <stop offset="1" stopColor="#ffd08f" stopOpacity="0.4" />
+          <stop offset="0" style={{ stopColor: "var(--viz-violet)" }} />
+          <stop offset="0.6" style={{ stopColor: "var(--viz-rose)" }} stopOpacity="0.85" />
+          <stop offset="1" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0.4" />
         </linearGradient>
       </defs>
       <circle cx="60" cy="60" r="54" className="glyph__halo" />
@@ -199,9 +199,9 @@ export function BlastoGlyph() {
     <svg viewBox="0 0 120 120" className="glyph glyph--blasto" aria-hidden="true">
       <defs>
         <radialGradient id={`${id}-b`} cx="0.5" cy="0.35" r="0.7">
-          <stop offset="0" stopColor="#8fe8ff" stopOpacity="0.95" />
-          <stop offset="0.55" stopColor="#8fe8ff" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#b9a6ff" stopOpacity="0.08" />
+          <stop offset="0" style={{ stopColor: "var(--viz-ice)" }} stopOpacity="0.95" />
+          <stop offset="0.55" style={{ stopColor: "var(--viz-ice)" }} stopOpacity="0.35" />
+          <stop offset="1" style={{ stopColor: "var(--viz-violet)" }} stopOpacity="0.08" />
         </radialGradient>
       </defs>
       <circle cx="60" cy="56" r="50" className="glyph__halo" />
@@ -223,7 +223,7 @@ export function BlastoGlyph() {
 /* ───────────────────────── Empty-state drawings ───────────────────────── */
 
 /** Sonar rings around an empty tray: listening, and nothing found. */
-export function Listening({ tone = "var(--mint)" }: { tone?: string }) {
+export function Listening({ tone = "var(--ink-3)" }: { tone?: string }) {
   return (
     <svg viewBox="-60 -60 120 120" className="listening" style={{ color: tone }} aria-hidden="true">
       <circle r="4" className="listening__core" />
@@ -243,12 +243,12 @@ export function Outbox() {
     <svg viewBox="0 0 240 180" className="outbox" aria-hidden="true">
       <defs>
         <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#e8c27a" stopOpacity="0.9" />
-          <stop offset="1" stopColor="#e8c27a" stopOpacity="0.25" />
+          <stop offset="0" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0.9" />
+          <stop offset="1" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0.25" />
         </linearGradient>
         <linearGradient id={`${id}-beam`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#e8c27a" stopOpacity="0.22" />
-          <stop offset="1" stopColor="#e8c27a" stopOpacity="0" />
+          <stop offset="0" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0.22" />
+          <stop offset="1" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d="M92 0 L 148 0 L 196 150 L 44 150 Z" fill={`url(#${id}-beam)`} className="outbox__beam" />

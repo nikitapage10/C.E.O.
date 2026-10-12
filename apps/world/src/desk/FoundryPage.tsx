@@ -15,7 +15,7 @@ import { PageHead, Panel } from "./ui.tsx";
 const KIND_LABEL: Record<CrateKind, string> = { fix: "Fix", build: "Build", upkeep: "Upkeep", idea: "Idea", chat: "From chat" };
 const CRATE_STATE: Record<CrateState, string> = { queued: "Queued", working: "Working", ready: "Waiting for your OK", stuck: "Stuck", shipped: "Shipped" };
 const CREW_STATE: Record<CrateState, LinkState> = { queued: "ok", working: "ok", ready: "slow", stuck: "down", shipped: "ok" };
-const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Sonnet · Opus", tessellate: "Cheapest that fits" };
+const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Sonnet, then Opus", tessellate: "Cheapest that fits" };
 const CHECKS_LABEL: Record<LinkState, string> = { off: "No run yet", ok: "Green", slow: "Running", down: "Red" };
 const LATELY = 6;
 const HOUR = 3_600_000;
@@ -109,7 +109,7 @@ export function FoundryPage({ now }: { now: number }) {
   return (
     <div className="foundry-page" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
       <PageHead
-        eyebrow="Desk · Foundry"
+        eyebrow="The coding crew"
         title="Foundry"
         lead={lead}
         aside={
@@ -122,7 +122,6 @@ export function FoundryPage({ now }: { now: number }) {
       <section className="fy-needs" aria-label="Needs you">
         <header className="section-head">
           <h2>Needs you</h2>
-          <span className="panel__rule" aria-hidden="true" />
           <span className="badge">{needs}</span>
         </header>
         {setup !== null && !setup.buttons && <SetupNote />}
@@ -560,8 +559,7 @@ export function FoundrySystem() {
   return (
     <section className="foundry-system" aria-label="The Foundry's system" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
       <header className="section-head">
-        <h2>Foundry · coding in Claude Code</h2>
-        <span className="panel__rule" aria-hidden="true" />
+        <h2>Foundry: coding in Claude Code</h2>
         <a className="panel__hint" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
           Open the Foundry thread →
         </a>

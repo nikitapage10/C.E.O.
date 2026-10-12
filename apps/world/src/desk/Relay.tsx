@@ -45,28 +45,25 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
   const hhmm = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
 
   const stats = [
-    { label: "Owed", value: String(owed.length), tone: owed.length ? "var(--amber)" : "var(--mint)", fill: Math.min(1, owed.length / 10), cap: owed.length ? "waiting on you" : "all caught up" },
-    { label: "Overdue", value: String(overdue), tone: overdue ? "var(--rose)" : "var(--mint)", fill: owed.length ? overdue / owed.length : 0, cap: `past ${OVERDUE_MS / 3_600_000}h` },
-    { label: "Avg reply", value: avg === null ? "—" : formatWait(avg * 60_000), tone: "var(--ice)", fill: avg === null ? 0 : Math.min(1, avg / 240), cap: avg === null ? "no replies tracked" : "median, 7 days" },
-    { label: "Sent today", value: String(data.sentToday), tone: "var(--relay)", fill: Math.min(1, data.sentToday / 20), cap: data.sentToday ? "replies out" : "nothing sent yet" },
+    { label: "Owed", value: String(owed.length), tone: owed.length ? "var(--warn)" : "var(--ok)", cap: owed.length ? "waiting on you" : "all caught up" },
+    { label: "Overdue", value: String(overdue), tone: overdue ? "var(--bad)" : "var(--ok)", cap: `past ${OVERDUE_MS / 3_600_000}h` },
+    { label: "Avg reply", value: avg === null ? "—" : formatWait(avg * 60_000), tone: "var(--ink-2)", cap: avg === null ? "no replies tracked" : "median, 7 days" },
+    { label: "Sent today", value: String(data.sentToday), tone: "var(--ink-2)", cap: data.sentToday ? "replies out" : "nothing sent yet" },
   ];
 
   return (
     <div className="relay-page">
       <PageHead
-        eyebrow="Room · Relay · the switchboard"
+        eyebrow="The switchboard"
         title="Relay"
         lead="Who you owe a reply, the ones to answer sooner first, each with a draft in your voice."
       />
 
       <section className="stats" aria-label="Relay at a glance">
-        {stats.map((s, i) => (
-          <div key={s.label} className="stat" style={{ "--tone": s.tone, animationDelay: `${i * 70}ms` } as React.CSSProperties}>
+        {stats.map((s) => (
+          <div key={s.label} className="stat" style={{ "--tone": s.tone } as React.CSSProperties}>
             <span className="stat__label">{s.label}</span>
             <span className="stat__value">{s.value}</span>
-            <span className="stat__bar" aria-hidden="true">
-              <b style={{ width: `${s.fill * 100}%` }} />
-            </span>
             <span className="stat__cap">{s.cap}</span>
           </div>
         ))}
@@ -90,9 +87,6 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                         </span>
                         <span className="owed__wait">{formatWait(wait)}</span>
                         <span className="owed__preview">{o.preview}</span>
-                        <span className="owed__bar" aria-hidden="true">
-                          <b style={{ width: `${Math.max(3, f * 100)}%` }} />
-                        </span>
                       </button>
                     </li>
                   );
@@ -103,11 +97,6 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                 <Listening />
                 <p className="empty__title">You're all caught up</p>
                 <p className="empty__text">{connected ? "Dialtone is listening. New threads you owe land here." : "Dialtone starts listening once the hub is connected."}</p>
-                <div className="owed__ghosts" aria-hidden="true">
-                  {[0.82, 0.56, 0.34].map((w, i) => (
-                    <span key={i} style={{ width: `${w * 100}%`, animationDelay: `${i * 0.4}s` }} />
-                  ))}
-                </div>
               </div>
             )}
             <div className="owed__muted">
@@ -117,7 +106,7 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
             </div>
           </Panel>
 
-          <Panel eyebrow="Nudges · 24h" aside={next === null ? undefined : <span className="panel__hint">next {hhmm(next)}</span>} className="panel--clock">
+          <Panel eyebrow="Nudges" aside={next === null ? undefined : <span className="panel__hint">next {hhmm(next)}</span>} className="panel--clock">
             <div className="clock-wrap">
               <NudgeClock nudges={data.nudges} now={now} next={next} />
               <div className="clock-wrap__text">
@@ -246,7 +235,7 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
       </div>
 
       <div className="habits">
-        <Panel eyebrow="Reply time · last 7 days" className="panel--strip">
+        <Panel eyebrow="Reply time, last 7 days" className="panel--strip">
           <ReplyStrip week={data.week} />
         </Panel>
         <Panel eyebrow="Streak">

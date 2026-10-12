@@ -21,6 +21,7 @@ const KIND: Record<CrateKind, { label: string; colour: string; ink: string }> = 
   build: { label: "BUILD", colour: "#1d2a3a", ink: "#7fc8ff" },
   upkeep: { label: "UPKEEP", colour: "#232b20", ink: "#a8d98a" },
   idea: { label: "IDEA", colour: "#33291a", ink: "#ffd27a" },
+  chat: { label: "ASKED", colour: "#2a1f33", ink: "#d7a8ff" },
 };
 
 const STAMP: Record<CrateState, { text: string; colour: string } | null> = {

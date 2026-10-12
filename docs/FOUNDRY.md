@@ -34,7 +34,7 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | Label | Meaning |
 | --- | --- |
 | `foundry` | Foundry work (required) |
-| `foundry:fix`, `foundry:idea`, `foundry:build`, `foundry:upkeep` | The kind (exactly one) |
+| `foundry:fix`, `foundry:idea`, `foundry:build`, `foundry:upkeep`, `foundry:chat` | The kind (exactly one) |
 | `foundry:working` | Someone is on it |
 | `foundry:ready` | Done and checked, waiting for Nikita's OK |
 | `foundry:stuck` | Rung 3 failed; Nikita needs to look |
@@ -44,6 +44,14 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | `rung:1`, `rung:2`, `rung:3` | Which model rung a fix is on |
 
 An issue with no state label is queued. Close an issue without `foundry:shipped` to drop it.
+
+`foundry:chat` is work Nikita asked for in chat (any thread, any model), built outside the lanes and pushed straight
+to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread starts such work opens a `foundry` +
+`foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, the branch), and
+labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists it under "In flight"
+with everything else, and in the Foundry room a free crew member (Skippy first, then Rusty, then Rocky) is seen
+working on it, since the lane crew have their own crates (Nikita, 2026-10-12: "any development-based idea should end
+up in the Foundry somewhere as well… one of the free agents can visually work on it").
 
 ## Branches and deploys
 

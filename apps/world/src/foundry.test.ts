@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crewFor, crewWork, lastUpkeep, parseChecks, parseCrates, type Crate, type GhIssue, readBody, visibleUpkeep } from "./foundry.ts";
+import { assignCrew, crewFor, crewOf, crewWork, lastUpkeep, parseChecks, parseCrates, type Crate, type GhIssue, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -99,5 +99,28 @@ describe("visibleUpkeep", () => {
   it("lets go of upkeep from before the latest tick", () => {
     expect(visibleUpkeep([crate({ updatedAt: Date.UTC(2026, 9, 12, 23, 30) })], at)).toBeNull();
     expect(visibleUpkeep([crate({ kind: "fix", updatedAt: at })], at)).toBeNull();
+  });
+});
+
+describe("assignCrew", () => {
+  const crate = (number: number, kind: Crate["kind"], state: Crate["state"], rung: Crate["rung"] = null): Crate => ({ number, title: `#${number}`, kind, state, rung, url: "", updatedAt: NOW, pitch: "", size: null, revising: false });
+
+  it("hands chat work to whoever is free, first responder first", () => {
+    const by = assignCrew([crate(1, "build", "working"), crate(2, "chat", "working")]);
+    expect(by.get(1)).toBe("caret");
+    expect(by.get(2)).toBe("semicolon");
+  });
+
+  it("moves on to Rusty when Skippy holds a fix, and rides with Skippy when everyone is busy", () => {
+    const busySkippy = assignCrew([crate(1, "fix", "working", 1), crate(2, "chat", "working")]);
+    expect(busySkippy.get(2)).toBe("tessellate");
+    const all = assignCrew([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")]);
+    expect(all.get(4)).toBe("semicolon");
+  });
+
+  it("leaves queued and shipped crates in nobody's hands", () => {
+    const by = assignCrew([crate(1, "chat", "queued"), crate(2, "fix", "shipped")]);
+    expect(by.size).toBe(0);
+    expect(crewOf(crate(1, "chat", "queued"), [])).toBe("semicolon");
   });
 });

@@ -61,7 +61,7 @@ Everything the Foundry codes on its own lands through a branch and a pull reques
 | Lane | Branch | Merges when |
 | --- | --- | --- |
 | Fix | `foundry/fix/<issue>-<slug>` | Small green fix: by itself once the PR's checks pass. Anything bigger: on Nikita's Ship. |
-| Build (approved idea) | `foundry/build/<issue>-<slug>` | On Nikita's Ship |
+| Build (approved idea) | `foundry/build/<issue>-<slug>` | By itself once the PR's checks pass: the approval was the decision (Nikita, 2026-10-12). Only a red check, a stuck rung or a question that needs a human stops it, and then it waits with `foundry:ready` or `foundry:stuck`. |
 | Upkeep | `foundry/upkeep/<issue>-<slug>` | By itself once the PR's checks pass |
 
 The path for every change:
@@ -127,7 +127,12 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   pitch and size, and leave it as a `foundry:idea`; `propose a new idea` with Nikita's words → open it as a
   `foundry:idea` issue with a pitch, size and builder. Post nothing unless a question needs Nikita.
 - On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
-  (Rocky's lane). It ships through the same PR, checks, preview and "Ship?" card as a bigger fix. Close the ideas that weren't picked after a week.
+  (Rocky's lane). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
+  approval on the Desk was the decision, so there is no "Ship?" card (Nikita, 2026-10-12: "when I approve an idea,
+  you don't need me to decide to ship it"). It stops for Nikita only when something needs a human: red checks after
+  every rung (`foundry:stuck`), a change that can't be checked by the checks (a look, a feel, a new model), or a
+  question the idea didn't answer; then it waits labelled `foundry:ready` with the preview link in the Foundry
+  thread. Close the ideas that weren't picked after a week.
 - Any new agent, room, pet, costume or model an idea adds ships with its lore (see the repo's CLAUDE.md).
 
 ## Lane 3: Upkeep

@@ -1,0 +1,63 @@
+# Skippy and the subminds: who decides what
+
+How work and decisions move through C.E.O. Nikita set this structure on 2026-10-12: Skippy, the Magnificent runs
+C.E.O. from the Kernel's seat, and a Skippy submind leads each room.
+
+## The three layers
+
+| Layer | Who | Decides | Runs on |
+| --- | --- | --- | --- |
+| Nikita | The C.E.O. | Anything Skippy hands up; approvals that change what Nikita sees or sends | The Desk, the project |
+| Skippy, the Magnificent | The "Skippy, the Kernel" thread in the C.E.O. project | Which room a task belongs to; any decision a submind can't settle; whether a decision needs Nikita | Claude Code, Opus |
+| Room subminds | One per room, its lead | Which agent, model, API or tool does a task in the room; how the work is run | The room's own machinery (below) |
+
+The room agents (Rocky, Rusty, Dialtone, Blasto and the rest) do the work their submind gives them.
+
+## The subminds
+
+| Room | Submind | Colour | Picks between |
+| --- | --- | --- | --- |
+| Foundry | Ember (also the first responder) | ember orange | Claude Code models: Haiku, Sonnet, Opus (the fix ladder in [FOUNDRY.md](FOUNDRY.md)) |
+| Spire | Gilt | gold | (simulated for now) |
+| Exchange | Ticker | mint | (simulated for now) |
+| Green | Turf | lime | (simulated for now) |
+| Relay | Static | signal blue | OpenAI models for sorting and drafting (Dialtone, Blasto); see `relay/macbook-setup.md` |
+| Archive | Vellum | violet | (simulated for now) |
+| Break Room | Fizz | pink | (simulated for now) |
+| Boiler Room | Soot | steam grey | (watches the links; no tasks of its own) |
+| Workshop | Putty | teal | Image model, Meshy, import (when the pipeline is real) |
+
+The choice of engine follows Nikita's provider rule: anything that needs a computer (code, files, a terminal, a
+browser) runs in Claude via Claude Code on Nikita's plan; writing and day-to-day work runs on OpenAI. A submind
+picks the cheapest model that will do the job and moves up only when it fails. APIs are for decisions and routing,
+never for writing code.
+
+## How a task flows
+
+1. **In.** A task arrives one of two ways:
+   - Nikita gives it to Skippy directly, in the "Skippy, the Kernel" thread (quick asks), or on the Desk.
+   - A room's own trigger fires (red checks, the 9 am ideas, upkeep, a new message for Relay).
+2. **Routed.** Skippy decides which room it belongs to and hands it to that room's submind. A room trigger is
+   already in its room and skips this step.
+3. **Run.** The submind picks the agent and engine and the work runs in that room's machinery (the Foundry's
+   lanes, Relay's hub). Work is listed where Nikita can see it: Foundry work as a GitHub issue labelled `foundry`
+   (FOUNDRY.md), and anything coding-related asked for in chat as a `foundry:chat` issue.
+4. **Decisions.** When the submind's rules don't settle something, it goes up to Skippy (below). Skippy decides,
+   or, when it needs Nikita, asks Nikita once with a decision card and the options.
+
+## Escalating to Skippy
+
+- From the Foundry thread (Ember): send Skippy's thread a message saying what's being decided, the options, what
+  Ember would pick and why, and the links. Skippy answers in his own thread. If Skippy decides, the Foundry thread
+  carries on. If it needs Nikita, Skippy posts the decision card in his thread and relays the answer back.
+- What always goes to Nikita, through Skippy: anything that sends a message outside C.E.O., spends money beyond
+  the set caps, deletes or rewrites history, changes what the agents can do on Nikita's machines, or an approval
+  Nikita has said is theirs. Everything else Skippy may decide.
+- What never needs escalating: anything a lane already allows (small green fixes, upkeep, approved builds once
+  green; see FOUNDRY.md).
+
+## In the Lattice
+
+Skippy hovers over the Kernel and speaks on the Lattice-wide PA (the old Kernel announcements). Each submind wears
+the admiral can in its room's colour, walks the room between the stations checking on whoever is working, and is
+sarcastic about it. The Foundry's submind, Ember, also does the first-try fixes.

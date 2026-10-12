@@ -22,7 +22,7 @@ moves them.
 
 | Agent | Job | Takes |
 | --- | --- | --- |
-| Tallboy (agent id `semicolon`) | First responder | Fixes on rung 1 |
+| Skippy (agent id `semicolon`) | First responder | Fixes on rung 1 |
 | Rocky (agent id `caret`) | Master builder | Fixes on rungs 2 and 3, approved builds |
 | Rusty (agent id `tessellate`) | Upkeep and ideas | Upkeep, the morning ideas |
 
@@ -43,10 +43,33 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 
 An issue with no state label is queued. Close an issue without `foundry:shipped` to drop it.
 
+## Branches and deploys
+
+Everything the Foundry codes on its own lands through a branch and a pull request, never a direct push to `main`.
+(Changes Nikita asks for in chat still go straight to `main`.)
+
+| Lane | Branch | Merges when |
+| --- | --- | --- |
+| Fix | `foundry/fix/<issue>-<slug>` | Small green fix: by itself once the PR's checks pass. Anything bigger: on Nikita's Ship. |
+| Build (approved idea) | `foundry/build/<issue>-<slug>` | On Nikita's Ship |
+| Upkeep | `foundry/upkeep/<issue>-<slug>` | By itself once the PR's checks pass |
+
+The path for every change:
+
+1. **Branch** from the latest `main`, named as above. One issue per branch, one branch per PR.
+2. **Pull request** into `main`, titled like the issue, with `Closes #<issue>` and the lane label (`foundry:fix`,
+   `foundry:build` or `foundry:upkeep`) on it.
+3. **Checks** run on the PR (`checks.yml`). Red means back to the ladder; never merge red.
+4. **Preview:** Vercel builds a preview site for the PR. Bigger fixes and builds put the preview link on the
+   "Ship?" card so Nikita can try it first.
+5. **Merge** with a squash commit, then delete the branch. Vercel deploys `main` to the site.
+6. **Watch:** the push to `main` runs the checks again. If they go red there, the merge is reverted with a
+   `git revert` commit through a `foundry/fix/` branch, and the fix starts over.
+
 ## The checks (the furnace)
 
 `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`. GitHub Actions runs them on every push to
-`main` and nightly (`.github/workflows/checks.yml`). When they fail on `main`, the workflow opens (or comments on) a
+`main`, on every pull request and nightly (`.github/workflows/checks.yml`). When they fail on `main`, the workflow opens (or comments on) a
 `foundry:fix` issue titled "Checks failing on main" and fires the Foundry's wake routine.
 
 ## Lane 1: Fix
@@ -59,11 +82,11 @@ An issue with no state label is queued. Close an issue without `foundry:shipped`
    - **Rung 3, `opus`:** one try. Change the label to `rung:3`.
    - Move up a rung when the checks are still red, or when the fix spreads past the failing area.
 4. When every check passes:
-   - **Small green fix** (rung 1, a few lines, no change Nikita would notice): this counts as upkeep. Commit it
-     to `main`, push, label `foundry:shipped`, close the issue, and say nothing unless asked.
-   - **Anything bigger:** push it to a branch `foundry/<issue>-<slug>`, label the issue `foundry:ready`, and post a
-     decision card in the Foundry thread (`ask_decision`: "Ship <the fix>?" with Ship / Hold). On Ship, merge the
-     branch into `main`, push, label `foundry:shipped` and close. On Hold, leave it labelled `foundry:ready`.
+   - **Small green fix** (rung 1, a few lines, no change Nikita would notice): this counts as upkeep. Open its PR
+     from `foundry/fix/…`, merge it once the PR's checks pass, label `foundry:shipped`, and say nothing unless asked.
+   - **Anything bigger:** open its PR from `foundry/fix/…`, label the issue `foundry:ready`, and post a decision
+     card in the Foundry thread (`ask_decision`: "Ship <the fix>?" with Ship / Hold, and the preview link). On Ship,
+     merge the PR, label `foundry:shipped`. On Hold, leave it labelled `foundry:ready`.
 5. If rung 3 fails: label `foundry:stuck`, comment on the issue with what was tried and the best lead, and reply
    once in the Foundry thread.
 
@@ -77,8 +100,8 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
 - Post one decision card in the Foundry thread listing all three, so Nikita can pick (Build 1 / Build 2 / Build 3 /
   None today).
 - Read the comments on ideas Nikita turned down before proposing, and don't repeat them.
-- On approval, relabel that issue `foundry:build` + `foundry:working` and build it (Rocky's lane). It ships through
-  the same checks and the same "Ship?" card as a bigger fix. Close the ideas that weren't picked after a week.
+- On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
+  (Rocky's lane). It ships through the same PR, checks, preview and "Ship?" card as a bigger fix. Close the ideas that weren't picked after a week.
 - Any new agent, room, pet, costume or model an idea adds ships with its lore (see the repo's CLAUDE.md).
 
 ## Lane 3: Upkeep
@@ -91,13 +114,14 @@ Only when no fix or build is open and unstuck. One change per tick, on the cheap
 - bump one dependency, with the checks as proof;
 - keep docs and setup notes in step with the code.
 
-Open a `foundry:upkeep` issue, do the work, and when every check passes, commit to `main` and push without asking,
-then label `foundry:shipped` and close. Upkeep never changes what Nikita sees or how the agents behave. If a change
+Open a `foundry:upkeep` issue, do the work on a `foundry/upkeep/…` branch, open its PR, and merge it without
+asking once the PR's checks pass, then label `foundry:shipped`. Upkeep never changes what Nikita sees or how the agents behave. If a change
 would, it becomes an idea instead.
 
 ## Rules that always hold
 
 - The checks pass before anything reaches `main`. Never skip, disable or weaken a test to get green.
-- Follow the repo's CLAUDE.md (in-world lore rules, costumes, pushing to `main`).
+- Follow the repo's CLAUDE.md for lore and costumes. Its "push to `main`" rule is for chat work; the Foundry uses
+  the branches above.
 - No secrets in the repo, issues or comments.
 - Keep replies in the Foundry thread to results, blockers and decisions. Routine progress lives in the issue labels.

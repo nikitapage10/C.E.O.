@@ -9,6 +9,7 @@ import { PBR } from "../fx/pbr.ts";
 import { useFoundry } from "../foundry.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
+import { WorkCrates, useHasWork } from "./WorkCrates.tsx";
 import { Block, LightBar, Plinth, Workstation } from "./primitives.tsx";
 
 const CONVEYOR_Z = -2.6;
@@ -211,11 +212,12 @@ function StuckAlarm() {
   );
 }
 
-/** The Foundry: an industrial hall. Code arrives as crates, the arm assembles it, the furnace tests it. */
+/** The Foundry: an industrial hall. Today's work arrives as labelled crates, the arm assembles it, the furnace tests it. */
 export function Foundry() {
   const crates = useRef<InstancedMesh>(null);
   const crateGeo = useMemo(() => new RoundedBoxGeometry(0.62, 0.48, 0.48, 2, 0.04), []);
   const trolley = useRef<Group>(null);
+  const hasWork = useHasWork();
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -303,7 +305,9 @@ export function Foundry() {
         {[-0.62, 0.62].map((z) => (
           <Block key={z} size={[14.2, 0.1, 0.05]} position={[0, BELT_Y + 0.18, z]} material={PBR.lacquer(SAFETY, 0.45)} radius={0.015} />
         ))}
-        <instancedMesh ref={crates} args={[crateGeo, PBR.wood("oak"), CRATES]} castShadow receiveShadow frustumCulled={false} />
+        {/* Today's real work rides the belt; plain crates only when there's none yet. */}
+        <instancedMesh ref={crates} args={[crateGeo, PBR.wood("oak"), CRATES]} visible={!hasWork} castShadow receiveShadow frustumCulled={false} />
+        <WorkCrates y={BELT_Y + 0.27} z={0} />
       </group>
 
       {/* Intake hopper */}

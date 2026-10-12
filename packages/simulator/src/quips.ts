@@ -151,7 +151,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Before I lift this, a short safety briefing. Twelve minutes.",
     "Sorry, wrench. This might pinch.",
     "Rocky, that crate hasn't had its risk assessment. Rocky. Rocky, it's welded.",
-    "Tallboy did not write the manual. I have the drafts. Dated.",
+    "Skippy did not write the manual. I have the drafts. Dated.",
     "My eyes are refocusing. It's the motors. It's definitely the motors.",
     "Compacted. Labelled. Filed. Lovely little cube.",
     "Treads are very safe, Rocky. There's a chapter.",
@@ -166,7 +166,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "You make face. Rocky hear face.",
     "Rocky sleep soon. Who watches?",
     "Rocky not understand. Is joke?",
-    "Tallboy says Rocky's maths is wrong. Tallboy counts in tens. Tallboy is wrong.",
+    "Skippy says Rocky's maths is wrong. Skippy counts in tens. Skippy is wrong.",
     "Small green one walks! Small legs, big ears. Amaze, amaze, amaze!",
   ],
   semicolon: [

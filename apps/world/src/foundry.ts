@@ -18,11 +18,11 @@ const SHIPPED_FOR_MS = 24 * 3_600_000;
 
 export type CrateKind = "fix" | "idea" | "build" | "upkeep";
 export type CrateState = "queued" | "working" | "ready" | "stuck" | "shipped";
-/** The Foundry crew, by agent id: Tallboy (semicolon) first responder, Rocky (caret) master builder, Rusty (tessellate) upkeep and ideas. */
+/** The Foundry crew, by agent id: Skippy (semicolon) first responder, Rocky (caret) master builder, Rusty (tessellate) upkeep and ideas. */
 export type CrewId = "semicolon" | "caret" | "tessellate";
 
 export const CREW: Record<CrewId, { name: string; job: string }> = {
-  semicolon: { name: "Tallboy", job: "First responder" },
+  semicolon: { name: "Skippy", job: "First responder" },
   caret: { name: "Rocky", job: "Master builder" },
   tessellate: { name: "Rusty", job: "Upkeep and ideas" },
 };
@@ -92,7 +92,7 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
   return crates.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** Who carries a crate: Tallboy takes first tries at fixes, Rocky the harder rungs and approved builds, Rusty upkeep and ideas. */
+/** Who carries a crate: Skippy takes first tries at fixes, Rocky the harder rungs and approved builds, Rusty upkeep and ideas. */
 export function crewFor(crate: Pick<Crate, "kind" | "rung">): CrewId {
   if (crate.kind === "fix") return crate.rung !== null && crate.rung >= 2 ? "caret" : "semicolon";
   if (crate.kind === "build") return "caret";

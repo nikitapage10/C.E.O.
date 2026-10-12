@@ -122,8 +122,8 @@ function FoundrySystem() {
   const steps: { name: string; what: string; state: LinkState; label: string }[] = [
     { name: "Checks", what: "Types, lint, tests and build on every push to main, on GitHub", state: checks, label: checks === "off" ? "No run yet" : LINK_STATE_LABEL[checks] },
     { name: "Wake routine", what: "A red check opens a fix and wakes the Foundry", state: connected ? "ok" : "off", label: connected ? "Watching" : "Not connected yet" },
-    { name: "Foundry thread", what: "Fixes, upkeep and builds, coded in Claude Code on your plan", state: connected ? "ok" : "off", label: connected ? "Ready" : "Not connected yet" },
-    { name: "main → the site", what: "Small fixes and upkeep ship on their own; bigger work waits for you", state: connected ? "ok" : "off", label: connected ? "Shipping" : "Not connected yet" },
+    { name: "Foundry thread", what: "Fixes, upkeep and builds, coded in Claude Code on your plan, each on its own branch and pull request", state: connected ? "ok" : "off", label: connected ? "Ready" : "Not connected yet" },
+    { name: "main → the site", what: "Small fixes and upkeep merge once green; bigger work gets a preview and waits for you", state: connected ? "ok" : "off", label: connected ? "Shipping" : "Not connected yet" },
   ];
   return (
     <section className="foundry-system" aria-label="The Foundry's system" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>

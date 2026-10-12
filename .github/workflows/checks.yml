@@ -1,10 +1,13 @@
-# The Foundry's furnace: typecheck, lint, tests and build on every push to main and nightly.
-# When they fail on main, open (or comment on) a Foundry fix issue and wake the Foundry thread.
+# The Foundry's furnace: typecheck, lint, tests and build on every push to main, every pull request (the
+# Foundry's lane branches land through these) and nightly. When they fail on main, open (or comment on) a
+# Foundry fix issue and wake the Foundry thread.
 # See docs/FOUNDRY.md.
 name: Checks
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   schedule:
     - cron: "17 9 * * *"

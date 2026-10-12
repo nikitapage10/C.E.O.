@@ -30,9 +30,9 @@ export const NIGHT_KERNEL: Record<Shift | "zoomies", string[]> = {
   ],
 };
 
-/** Rocky sleeps without warning and wants a friend to watch: Eridian custom. Tallboy watches, complaining. */
-const ROCKY_SLEEPS = ["Tired. Sleep now. Friend watch? Is custom.", "Eyes close soon. Tallboy watch, yes?"];
-const TALLBOY_WATCHES = [
+/** Rocky sleeps without warning and wants a friend to watch: Eridian custom. Skippy watches, complaining. */
+const ROCKY_SLEEPS = ["Tired. Sleep now. Friend watch? Is custom.", "Eyes close soon. Skippy watch, yes?"];
+const SKIPPY_WATCHES = [
   "Fine. Sleep. I'll watch. The monkeys would only lose you.",
   "Night, Rocky. Watch is mine. Nobody touches him, monkeys.",
   "Dimming the glow. Not for you. It's a power thing.",
@@ -40,7 +40,7 @@ const TALLBOY_WATCHES = [
 
 /**
  * The night shift: the Kernel calls dusk and dawn, agents doze off at their stations through the night, Rocky
- * sleeps while Tallboy keeps watch, and at three in the morning Myshka gets the zoomies. Renders nothing; the
+ * sleeps while Skippy keeps watch, and at three in the morning Myshka gets the zoomies. Renders nothing; the
  * lights themselves change in <Lighting>.
  */
 export function NightDirector() {
@@ -87,7 +87,7 @@ export function NightDirector() {
       if (shift !== "night") return;
       // Which night this is: the one that started on the evening before, after midnight.
       const day = latticeDay(clock.sim + daySkip.ms) - (hour < 12 ? 1 : 0);
-      // Once a night, after ten: Rocky sleeps and Tallboy watches.
+      // Once a night, after ten: Rocky sleeps and Skippy watches.
       if (hour >= 22 || hour < 3) {
         const rocky = w.lattice.agents.caret;
         const tallboy = w.lattice.agents.semicolon;
@@ -100,7 +100,7 @@ export function NightDirector() {
             s.override("caret", "napping", 60_000);
             s.emote("caret", "☾", 4000);
             s.override("semicolon", "face", 60_000, "caret");
-            s.say("semicolon", pick(TALLBOY_WATCHES));
+            s.say("semicolon", pick(SKIPPY_WATCHES));
           }, 2500);
           return;
         }

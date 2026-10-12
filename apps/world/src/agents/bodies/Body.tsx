@@ -36,6 +36,7 @@ const BODIES: Record<Exclude<BodyKind, "classic">, ComponentType<BodyProps>> = {
   hanar: Hanar,
   rocky: Rocky,
   compactor: Compactor,
+  skippy: LibraryBody,
   crawler: LibraryBody,
   masked: LibraryBody,
   orc: LibraryBody,

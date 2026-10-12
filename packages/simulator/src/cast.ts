@@ -15,12 +15,12 @@ const SEEDS: Record<string, Seed> = {
   caret: {
     look: lookFromPreset("rock-engineer"),
     traits: ["cheerful", "earnest", "competitive", "loyal"],
-    bio: "An Eridian engineer: five stone legs, no eyes, perfect pitch, speaks in chords. Builds anything, fast, by hand, and finds it all amaze amaze amaze. Takes every idiom literally, says important things three times, and falls asleep without warning. Thinks the robot is too slow. Thinks Tallboy is rude, brilliant and a very good watcher, in that order.",
+    bio: "An Eridian engineer: five stone legs, no eyes, perfect pitch, speaks in chords. Builds anything, fast, by hand, and finds it all amaze amaze amaze. Takes every idiom literally, says important things three times, and falls asleep without warning. Thinks the robot is too slow. Thinks Skippy is rude, brilliant and a very good watcher, in that order.",
     catchphrase: "Fist my bump.",
   },
   semicolon: {
-    // A small, glowing can in an officer's cap: the classic figure, hovering, scaled down, with a tall domed head.
-    look: makeLook({ body: "classic", size: 0.7, head: "dome", face: "eyes", hat: "cap", shell: "#c3cad4", accent: "#7fd8ff", trim: "#1f2b4d" }),
+    // Nikita's admiral-can model: no legs, floats a hand's width off the floor.
+    look: makeLook({ body: "skippy", shell: "#c3cad4", accent: "#7fd8ff", trim: "#1f2b4d" }),
     traits: ["smug", "sarcastic", "loyal", "dramatic"],
     bio: "The Foundry's first responder: a tall can, glowing faintly, under an admiral's hat made of light. First to anything broken, by a distance he will tell you about. Fixes it in seconds, then complains for an hour about the monkeys, which is what he calls everyone else. Insults Rocky's base-six maths, secretly admires his hands, and keeps the night watch while Rocky sleeps.",
     catchphrase: "Already fixed it. Try to keep up, monkeys.",
@@ -123,8 +123,8 @@ export function defaultCast(): Cast {
     profiles,
     relationships: [
       { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Rusty plans first. The shipping record is disputed: Rocky counts in sixes." },
-      { a: "semicolon", b: "caret", kind: "best-friend", note: "Tallboy mocks his base-six maths by day and keeps the watch while he sleeps by night. Rocky hears him admiring his hands. Rocky says nothing. Amaze." },
-      { a: "tessellate", b: "semicolon", kind: "rival", note: "Tallboy claims he wrote the 71-page manual in a nanosecond. Rusty has the drafts, dated. Tallboy calls them forgeries." },
+      { a: "semicolon", b: "caret", kind: "best-friend", note: "Skippy mocks his base-six maths by day and keeps the watch while he sleeps by night. Rocky hears him admiring his hands. Rocky says nothing. Amaze." },
+      { a: "tessellate", b: "semicolon", kind: "rival", note: "Skippy claims he wrote the 71-page manual in a nanosecond. Rusty has the drafts, dated. Skippy calls them forgeries." },
       { a: "ledger", b: "memo", kind: "sibling", note: "Memo haunts Ledger's desk. Ledger has filed a complaint with Memo, who forwarded it." },
       { a: "odds", b: "hedge", kind: "crush", note: "Sixty-three percent mutual. Hedge's honesty setting refuses to comment." },
       { a: "gridiron", b: "punt", kind: "mentor", note: "Gridiron roars the plays. Punt naps through them, then wins anyway." },

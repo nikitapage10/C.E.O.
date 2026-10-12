@@ -1,6 +1,7 @@
 import type { Body, Look } from "@ceo/core";
+import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { Color, type AnimationClip, type Group, type Mesh, type MeshStandardMaterial, type Object3D } from "three";
+import { AdditiveBlending, Color, type AnimationClip, type Group, type Mesh, type MeshBasicMaterial, type MeshStandardMaterial, type Object3D } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { preloadLib, useLib } from "../../fx/library.ts";
 import { recolor, type Band } from "./recolor.ts";
@@ -136,6 +137,13 @@ interface LibDef {
   frame?: boolean;
   /** Ships with only a walk cycle ("Walking"); the other clips are synthesized from it. */
   synth?: boolean;
+  /**
+   * Has no legs and floats this high (metres, before `size`): the leg and hip-bounce tracks are dropped so only
+   * the upper body animates, and the body bobs over a soft glow in the look's accent.
+   */
+  float?: number;
+  /** Model height for scaling, when BODY_HEIGHT (the label's height) also counts the float. */
+  height?: number;
 }
 
 const ROBOT_TRIM: Band = { hue: 32, width: 16, minSat: 0.3, refL: 0.3 };
@@ -160,6 +168,8 @@ export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
 
   gestral: { model: "custom/Gestral", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 349, width: 18, minSat: 0.35, refL: 0.5 } } },
   // The coat is the navy band; his golden fur stays his own.
+  // Nikita's admiral can: rigged with legs he doesn't have, so they stay still and he floats.
+  skippy: { model: "custom/Skippy", clips: SYNTH_CLIPS, synth: true, float: 0.18, height: 0.95, dress: { kind: "none" } },
   yordle: { model: "custom/Heimerdinger", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 230, width: 20, minSat: 0.3, refL: 0.25 } } },
   crawler: { model: "scifi-essentials/Enemy_Trilobite", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
   masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "none" } },
@@ -210,9 +220,53 @@ function clipsOf(def: LibDef, gltf: { scene: Object3D; animations: AnimationClip
   if (!clips) {
     const walk = gltf.animations.find((c) => c.name === "Walking");
     clips = walk ? [...gltf.animations, ...synthesizeClips(gltf.scene, walk)] : gltf.animations;
+    if (def.float) clips = clips.map(upperBody);
     synthCache.set(gltf.scene, clips);
   }
   return clips;
+}
+
+/** Everything above the waist: leg tracks and the hips' bounce go, so a legless body keeps a still base. */
+const LEGS = /(UpLeg|Leg|Foot|Toe)[^.]*\.|Hips\.position/;
+function upperBody(clip: AnimationClip) {
+  const c = clip.clone();
+  c.tracks = c.tracks.filter((t) => !LEGS.test(t.name));
+  return c;
+}
+
+/** The hover: a slow bob and sway, lower when resting, over a glow that breathes with it. */
+function Float({ height, accent, drive, phase, children }: { height: number; accent: string; drive: BodyProps["drive"]; phase: number; children: React.ReactNode }) {
+  const lift = useRef<Group>(null);
+  const glow = useRef<Mesh>(null);
+  const level = useRef(height);
+  useFrame((_, dt) => {
+    const d = drive.current;
+    const g = lift.current;
+    if (!d || !g) return;
+    const resting = d.mode === "napping" || d.mode === "slumped";
+    const target = resting ? height * 0.35 : d.mode === "celebrating" ? height * 1.6 : height;
+    level.current += (target - level.current) * Math.min(1, dt * 2.5);
+    const t = d.t + phase;
+    const bob = Math.sin(t * 2.1) * (resting ? 0.01 : 0.03);
+    g.position.y = level.current + bob;
+    g.rotation.z = Math.sin(t * 1.3) * 0.035;
+    g.rotation.x = d.moving ? 0.12 : Math.sin(t * 0.9) * 0.02;
+    const gl = glow.current;
+    if (gl) {
+      const near = 1 - (level.current + bob) / (height * 1.6);
+      gl.scale.setScalar(0.75 + near * 0.45);
+      (gl.material as MeshBasicMaterial).opacity = 0.18 + near * 0.32;
+    }
+  });
+  return (
+    <>
+      <mesh ref={glow} rotation-x={-Math.PI / 2} position-y={0.02}>
+        <circleGeometry args={[0.24, 32]} />
+        <meshBasicMaterial color={accent} transparent opacity={0.35} depthWrite={false} blending={AdditiveBlending} />
+      </mesh>
+      <group ref={lift}>{children}</group>
+    </>
+  );
 }
 
 function WithAnims({ def, ...props }: BodyProps & { def: LibDef & { anims: string } }) {
@@ -227,12 +281,19 @@ function LibraryModel({ def, clips, look, lineage, drive, phase }: BodyProps & {
   const model = useMemo(() => cloneSkinned(gltf.scene), [gltf.scene]);
   useMemo(() => dress(model, body, def, look), [model, body, def, look]);
   const head = useMemo(() => (def.frame ? findBone(model, /^Head$/) : null), [model, def]);
-  const scale = fitScale(gltf.scene, BODY_HEIGHT[body as Exclude<Body, "classic">]);
+  const scale = fitScale(gltf.scene, def.height ?? BODY_HEIGHT[body as Exclude<Body, "classic">]);
   useClips(model, clips ?? clipsOf(def, gltf), def.clips, drive, phase);
   const plainFrame = def.frame && (look.preset === undefined || look.preset === "frame");
+  const figure = <primitive object={model} scale={scale} />;
   return (
     <group ref={root}>
-      <primitive object={model} scale={scale} />
+      {def.float ? (
+        <Float height={def.float} accent={look.accent} drive={drive} phase={phase}>
+          {figure}
+        </Float>
+      ) : (
+        figure
+      )}
       {plainFrame && <LineageMark lineage={lineage} accent={look.accent} head={head} root={root} />}
     </group>
   );
@@ -245,5 +306,5 @@ export function LibraryBody(props: BodyProps) {
 
 // The bodies the default cast wears: the four House frames and the costumes in use.
 preloadLib("robots/Leela", "robots/George", "robots/Mike", "robots/Stan", "men/Suit", "men/Punk", "women/Worker", "women/Medieval", "anims/humans");
-preloadLib("custom/Gestral", "custom/Heimerdinger", "scifi-essentials/Enemy_Trilobite", "monsters/Big/Tribal", "monsters/Big/Orc", "monsters/Big/Bunny", "anims/monster-big");
+preloadLib("custom/Gestral", "custom/Heimerdinger", "custom/Skippy", "scifi-essentials/Enemy_Trilobite", "monsters/Big/Tribal", "monsters/Big/Orc", "monsters/Big/Bunny", "anims/monster-big");
 preloadLib("monsters/Flying/Ghost_Skull", "monsters/Flying/Tribal", "anims/monster-flying", "monsters/Blob/Wizard");

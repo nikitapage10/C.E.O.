@@ -15,7 +15,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "yordle", "hanar", "rocky", "compactor", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith", "powerbox",
+  "gestral", "yordle", "hanar", "rocky", "compactor", "skippy", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith", "powerbox",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -46,6 +46,7 @@ export const BODY_LABEL: Record<Body, string> = {
   hanar: "Hanar",
   rocky: "Eridian",
   compactor: "Salvage compactor",
+  skippy: "Admiral can",
   crawler: "Stone crawler",
   masked: "Painted mask",
   orc: "Orc",

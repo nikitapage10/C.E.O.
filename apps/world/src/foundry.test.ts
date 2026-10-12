@@ -44,7 +44,7 @@ describe("parseCrates", () => {
 });
 
 describe("crewFor", () => {
-  it("sends first-try fixes to Tallboy, harder rungs and builds to Rocky, the rest to Rusty", () => {
+  it("sends first-try fixes to Skippy, harder rungs and builds to Rocky, the rest to Rusty", () => {
     expect(crewFor({ kind: "fix", rung: null })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 1 })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 3 })).toBe("caret");

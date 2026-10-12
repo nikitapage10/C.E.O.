@@ -67,11 +67,11 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
     ["Robot has no legs now! Rocky has five. Rocky share, question?", "They're treads, Rocky. They're very safe. There's a chapter."],
   ],
   "semicolon|caret": [
-    ["Rocky, that's base six again. Count like a grown-up.", "Rocky count like Eridian. Tallboy count like small can."],
+    ["Rocky, that's base six again. Count like a grown-up.", "Rocky count like Eridian. Skippy count like small can."],
     ["Already fixed it. You can put the welder down.", "Rocky fix it better. Then fix your fix. Is teamwork."],
-    ["Go to sleep, Rocky. I'll watch. Somebody competent has to.", "Thank you, friend. Tallboy grumble very quiet. Is nice."],
-    ["How did you do that seam? Not that I care. Purely academic.", "With hands! Tallboy want to hold welder, question?"],
-    ["Hold your horses, Rocky.", "Rivet say same thing. Still no horses. Tallboy also lie, question?"],
+    ["Go to sleep, Rocky. I'll watch. Somebody competent has to.", "Thank you, friend. Skippy grumble very quiet. Is nice."],
+    ["How did you do that seam? Not that I care. Purely academic.", "With hands! Skippy want to hold welder, question?"],
+    ["Hold your horses, Rocky.", "Rivet say same thing. Still no horses. Skippy also lie, question?"],
   ],
   "tessellate|semicolon": [
     ["You did not write the manual in a nanosecond.", "Half a nanosecond. The other half was your typos."],

@@ -58,6 +58,8 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
   hanar: 2.1,
   rocky: 1.0,
   compactor: 1.3,
+  // The can is 0.95; the rest is the float.
+  skippy: 1.15,
   crawler: 1.0,
   masked: 1.45,
   orc: 1.9,

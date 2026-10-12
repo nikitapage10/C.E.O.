@@ -54,6 +54,8 @@ export type ChecksState = "pass" | "fail" | "running" | "unknown";
 export interface FoundryData {
   crates: Crate[];
   checks: { state: ChecksState; url: string | null; at: number | null };
+  /** Ideas Nikita passed on: closed and labelled `foundry:passed`, waiting on the shelf for a comeback. */
+  shelved: number;
 }
 
 /** The slice of GitHub's issue JSON we read. */
@@ -167,7 +169,12 @@ interface FoundryStore {
   set: (data: FoundryData) => void;
 }
 
-export const EMPTY_FOUNDRY: FoundryData = { crates: [], checks: { state: "unknown", url: null, at: null } };
+export const EMPTY_FOUNDRY: FoundryData = { crates: [], checks: { state: "unknown", url: null, at: null }, shelved: 0 };
+
+/** How many ideas are on the shelf. */
+export function countShelved(issues: GhIssue[]): number {
+  return issues.filter((i) => !i.pull_request && i.state === "closed" && i.labels.some((l) => (typeof l === "string" ? l : l.name) === "foundry:passed")).length;
+}
 
 export const useFoundry = create<FoundryStore>((set) => ({
   data: EMPTY_FOUNDRY,
@@ -188,7 +195,7 @@ export async function refreshFoundry(): Promise<void> {
       fetchJson<GhIssue[]>(`${API}/issues?labels=foundry&state=all&sort=updated&per_page=40`),
       fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/checks.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
     ]);
-    const data: FoundryData = { crates: parseCrates(issues), checks: parseChecks(runs.workflow_runs) };
+    const data: FoundryData = { crates: parseCrates(issues), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues) };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
     const { setLink } = useSystems.getState();

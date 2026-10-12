@@ -150,6 +150,11 @@ export function FoundryPage({ now }: { now: number }) {
           !decisions.length && connected && <p className="quiet fy-calm">All clear. The next three ideas arrive {inTime(nextIdeas(now) - now)}, at 9:00.</p>
         )}
         <Propose setup={setup} />
+        {data.shelved > 0 && (
+          <p className="quiet fy-shelf">
+            {data.shelved} {data.shelved === 1 ? "idea" : "ideas"} on the shelf: passed for now, and Rusty may bring one back in a new shape.
+          </p>
+        )}
       </section>
 
       <section className="fy-status" aria-label="Right now">
@@ -231,7 +236,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
       return;
     }
     storeKey(withKey);
-    setResult(choice === "build" ? "Approved. Rocky is starting on it." : choice === "pass" ? "Passed. It won't come back." : "Sent. Rusty is rewriting it.");
+    setResult(choice === "build" ? "Approved. Rocky is starting on it." : choice === "pass" ? "On the shelf. Rusty may bring it back another way." : "Sent. Rusty is rewriting it.");
     // Through the thread, the labels change a moment later; the next poll picks them up.
     setMode("done");
     void refreshFoundry();

@@ -40,6 +40,7 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | `foundry:stuck` | Rung 3 failed; Nikita needs to look |
 | `foundry:shipped` | Landed on `main` (add it, then close the issue) |
 | `foundry:revise` | An idea Nikita sent back with notes from the Desk, or proposed there; Rusty rewrites it |
+| `foundry:passed` | An idea Nikita passed on (closed, not planned): on the shelf, not in the bin |
 | `rung:1`, `rung:2`, `rung:3` | Which model rung a fix is on |
 
 An issue with no state label is queued. Close an issue without `foundry:shipped` to drop it.
@@ -102,7 +103,11 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   medium or large) and who would build it.
 - Post one decision card in the Foundry thread listing all three, so Nikita can pick (Build 1 / Build 2 / Build 3 /
   None today).
-- Read the comments on ideas Nikita turned down before proposing, and don't repeat them.
+- Passed ideas are shelved, not dropped (Nikita, 2026-10-12: "I might have just not been interested in it at the
+  time"). Before proposing, read the shelf (closed issues labelled `foundry:passed`). At most one of the morning's
+  three may be a shelved idea brought back in a genuinely different shape: a new angle, a smaller first step, or a
+  different room, with a line saying what it grew out of. Never the same pitch twice; an idea passed twice rests
+  for a month.
 - Write each idea's body with `**Pitch:** …` and `**Size:** small|medium|large`: the Desk's Foundry tab shows
   these on the idea cards.
 - Nikita picks on the Desk's Foundry tab (Build this / Revise / Not this one) or on the thread's card. The Desk's

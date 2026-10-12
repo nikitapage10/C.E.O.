@@ -2336,3 +2336,110 @@ body {
     display: none;
   }
 }
+
+/* ── Preview (?demo) and replying ── */
+.desk__notice-link {
+  margin-left: auto;
+  color: inherit;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  white-space: nowrap;
+}
+.owed__name em.later {
+  color: var(--violet);
+}
+.owed__name small {
+  margin-left: 8px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.bubble {
+  display: grid;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  animation: rise-in 0.45s var(--ease) both;
+}
+.bubble time {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+}
+.bubble--out {
+  justify-self: end;
+  border-radius: 14px 14px 2px 14px;
+  border-color: rgba(143, 232, 255, 0.3);
+  background: rgba(143, 232, 255, 0.05);
+}
+.draft {
+  width: min(85%, 460px);
+  box-shadow: 0 0 32px -12px rgba(232, 194, 122, 0.5);
+}
+.draft__edit {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  resize: vertical;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+.draft__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.draft__actions button,
+.approvals__actions button {
+  padding: 6px 14px;
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 10.5px var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.draft__actions .draft__send {
+  border-color: var(--relay);
+  color: #14110a;
+  background: var(--relay);
+}
+.draft__actions button:hover:not(:disabled),
+.approvals__actions button:hover {
+  border-color: var(--hair-strong);
+  color: var(--text);
+}
+.draft__actions .draft__send:hover:not(:disabled) {
+  color: #14110a;
+  background: #f6deaa;
+}
+.draft__actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.draft__note {
+  margin-left: auto;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+}
+.approvals__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.approvals__actions button:first-child {
+  border-color: var(--mint);
+  color: var(--mint);
+}

@@ -6,7 +6,7 @@ import { create } from "zustand";
  * so the Desk can load it alone.
  *
  * Phase 2: the hub on the MacBook reports these. Until it exists, every link is "off" (not connected yet).
- * `?boiler=demo` cycles them through every state, to preview the Boiler Room's gags.
+ * `?demo` (or `?boiler=demo`) cycles them through every state, to preview the Boiler Room's gags.
  */
 
 export type LinkState = "off" | "ok" | "slow" | "down";
@@ -67,7 +67,8 @@ export function daysSinceIncident(lastIncident: number | null, now = Date.now())
 }
 
 /** Preview mode: walk every link through every state so the gags can be seen before the hub exists. */
-if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("boiler") === "demo") {
+const demoQuery = typeof window === "undefined" ? null : new URLSearchParams(window.location.search);
+if (demoQuery && (demoQuery.has("demo") || demoQuery.get("boiler") === "demo")) {
   const states: LinkState[] = ["ok", "ok", "slow", "ok", "down", "ok"];
   let tick = 0;
   const step = () => {

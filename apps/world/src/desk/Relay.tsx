@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, type DeskData } from "./deskData.ts";
+import { averageReply, byWait, DEMO, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
 import { PageHead, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, waitTone } from "./viz.tsx";
 
@@ -10,8 +9,10 @@ const WAIT_SCALE = 12 * 3_600_000;
 
 export function Relay({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
   const owed = byWait(data.owed);
-  const [picked, setPicked] = useState<string | null>(null);
-  const current = owed.find((o) => o.id === picked) ?? null;
+  const { picked, pick, send, later, setDraft } = useDesk();
+  // The preview opens on the first conversation, so the thread view is never empty while reviewing.
+  const current = owed.find((o) => o.id === picked) ?? (DEMO ? (owed[0] ?? null) : null);
+  const canAct = DEMO || connected;
   const overdue = owed.filter((o) => now - o.since > OVERDUE_MS).length;
   const avg = averageReply(data.week);
   const next = nextNudge(data.nudges, now);
@@ -55,10 +56,11 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                   const f = Math.min(1, wait / WAIT_SCALE);
                   return (
                     <li key={o.id}>
-                      <button type="button" className={picked === o.id ? "on" : ""} onClick={() => setPicked(o.id)} style={{ "--tone": waitTone(f) } as React.CSSProperties}>
+                      <button type="button" className={current?.id === o.id ? "on" : ""} onClick={() => pick(o.id)} style={{ "--tone": waitTone(f) } as React.CSSProperties}>
                         <span className="owed__name">
                           {o.name}
-                          {o.urgency === "sooner" && <em>sooner</em>}
+                          {o.later ? <em className="later">later</em> : o.urgency === "sooner" && <em>sooner</em>}
+                          <small>{o.channel}</small>
                         </span>
                         <span className="owed__wait">{formatWait(wait)}</span>
                         <span className="owed__preview">{o.preview}</span>
@@ -119,10 +121,37 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                 <p className="thread__meta">
                   {current.channel} · waiting {formatWait(now - current.since)}
                 </p>
-                <p className="bubble bubble--in">{current.preview}</p>
+                {(current.thread ?? [{ from: "them" as const, text: current.preview, at: current.since }]).map((m, i) => (
+                  <p key={i} className={`bubble bubble--${m.from === "me" ? "out" : "in"}`}>
+                    {m.text}
+                    <time>{hhmm(m.at)}</time>
+                  </p>
+                ))}
                 <div className="draft">
-                  <span className="draft__eyebrow">Blasto's draft</span>
-                  <p>{current.draft ?? "Drafting…"}</p>
+                  <span className="draft__eyebrow">{current.draft ? "Blasto's draft · in your voice" : "Blasto is drafting…"}</span>
+                  {canAct ? (
+                    <textarea
+                      className="draft__edit"
+                      value={current.draft ?? ""}
+                      placeholder="Drafting… or write your own"
+                      rows={2}
+                      onChange={(e) => setDraft(current.id, e.target.value)}
+                      aria-label={`Reply to ${current.name}`}
+                    />
+                  ) : (
+                    <p>{current.draft ?? "Drafting…"}</p>
+                  )}
+                  {canAct && (
+                    <div className="draft__actions">
+                      <button type="button" className="draft__send" disabled={!current.draft} onClick={() => send(current.id)}>
+                        Send
+                      </button>
+                      <button type="button" className="draft__later" onClick={() => later(current.id)}>
+                        Later
+                      </button>
+                      {DEMO && <span className="draft__note">Preview: nothing actually sends</span>}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -135,7 +164,14 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
             <div className="dock">
               <div className="chips" role="group" aria-label="Quick replies">
                 {CHIPS.map((c) => (
-                  <button key={c} type="button" className="chip" disabled title="Quick replies arrive with the hub">
+                  <button
+                    key={c}
+                    type="button"
+                    className="chip"
+                    disabled={!canAct || !current}
+                    title={canAct ? "Use as the reply" : "Quick replies arrive with the hub"}
+                    onClick={() => current && setDraft(current.id, c)}
+                  >
                     {c}
                   </button>
                 ))}

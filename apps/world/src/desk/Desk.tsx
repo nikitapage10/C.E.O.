@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { loadLattice, navigate, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
-import { useDeskData } from "./deskData.ts";
+import { DEMO, useDeskData } from "./deskData.ts";
 import { Decode, useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
 import { Relay } from "./Relay.tsx";
@@ -30,7 +30,7 @@ const HUB_LINE: Record<LinkState, string> = {
 
 const HUB_PILL: Record<LinkState, string> = { off: "Hub offline", ok: "Hub live", slow: "Hub slow", down: "Hub down" };
 
-const PREVIEW = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("boiler") === "demo";
+const PREVIEW = DEMO;
 
 export function Desk({ route }: { route: DeskTab }) {
   const data = useDeskData();
@@ -101,7 +101,18 @@ export function Desk({ route }: { route: DeskTab }) {
       {(hub !== "ok" || PREVIEW) && (
         <p className={`desk__notice desk__notice--${PREVIEW ? "preview" : hub}`} role="status">
           <span className="desk__notice-dot" aria-hidden="true" />
-          {PREVIEW ? "Preview: the links are cycling through every state so you can see them. No real messages." : HUB_LINE[hub]}
+          {PREVIEW ? "Preview with sample texts from made-up people. Links cycle through every state; nothing sends." : HUB_LINE[hub]}
+          {PREVIEW ? (
+            <a className="desk__notice-link" href={window.location.pathname}>
+              Exit preview
+            </a>
+          ) : (
+            hub === "off" && (
+              <a className="desk__notice-link" href={`${window.location.pathname}?demo`}>
+                See it with sample texts →
+              </a>
+            )
+          )}
         </p>
       )}
 

@@ -1,5 +1,5 @@
 import { LINK_STATE_LABEL, useSystems } from "../systems.ts";
-import { byWait, formatWait, nextNudge, type DeskData } from "./deskData.ts";
+import { byWait, DEMO, formatWait, nextNudge, useDesk, type DeskData } from "./deskData.ts";
 import { link } from "./nav.ts";
 import { SystemsPanel } from "./SystemsPanel.tsx";
 import { PageHead, Panel } from "./ui.tsx";
@@ -78,7 +78,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
                 const tone = waitTone(Math.min(1, wait / (12 * 3_600_000)));
                 return (
                   <li key={o.id} style={{ "--tone": tone, animationDelay: `${i * 60}ms` } as React.CSSProperties}>
-                    <a href="/relay" onClick={link("relay")}>
+                    <a href="/relay" onClick={(e) => (useDesk.getState().pick(o.id), link("relay")(e))}>
                       <span className="needs__initial">{o.name.slice(0, 1)}</span>
                       <span className="needs__who">
                         {o.name}
@@ -119,6 +119,16 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
                     <span className="approvals__agent">{a.agent}</span>
                     <span className="approvals__title">{a.title}</span>
                     <span className="approvals__detail">{a.detail}</span>
+                    {DEMO && (
+                      <span className="approvals__actions">
+                        <button type="button" onClick={() => useDesk.getState().resolveApproval(a.id)}>
+                          Approve
+                        </button>
+                        <button type="button" onClick={() => useDesk.getState().resolveApproval(a.id)}>
+                          Not now
+                        </button>
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

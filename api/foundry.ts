@@ -11,10 +11,16 @@
  *
  * Environment (Vercel → Settings → Environment Variables):
  *   FOUNDRY_DESK_KEY       a passphrase Nikita types once on the Desk; without it nobody else can press the buttons
- *   FOUNDRY_GITHUB_TOKEN   a fine-grained token for this repo with Issues: read and write
- *   FOUNDRY_ROUTINE_ID     the Foundry's wake routine (same as the GitHub secret)
- *   FOUNDRY_ROUTINE_TOKEN  that routine's API token (same as the GitHub secret)
+ *   FOUNDRY_ROUTINE_TOKEN  the wake routine's API token (same as the GitHub secret)
+ *   FOUNDRY_ROUTINE_ID     the wake routine (same as the GitHub secret); defaults to the Foundry's routine
+ *   FOUNDRY_GITHUB_TOKEN   optional: a fine-grained token for this repo with Issues read and write. With it, a
+ *                          click changes the issue at once; without it, the click wakes the Foundry thread and the
+ *                          thread makes the change on GitHub itself a moment later.
+ *
+ * Every click is sent to the Foundry thread as a "Desk:" line in the wake text, which the thread reads as a task.
  */
+
+const DEFAULT_ROUTINE_ID = "trig_01StEu8pfVzyZpiRQjLDyTmP";
 
 import { timingSafeEqual } from "node:crypto";
 
@@ -45,9 +51,13 @@ async function github(path: string, init: RequestInit = {}): Promise<Response> {
   });
 }
 
+const routineId = () => env("FOUNDRY_ROUTINE_ID") || DEFAULT_ROUTINE_ID;
+const canWake = () => Boolean(env("FOUNDRY_ROUTINE_TOKEN"));
+const canWrite = () => Boolean(env("FOUNDRY_GITHUB_TOKEN"));
+
 async function wake(text: string): Promise<boolean> {
-  if (!env("FOUNDRY_ROUTINE_ID") || !env("FOUNDRY_ROUTINE_TOKEN")) return false;
-  const res = await fetch(`https://api.anthropic.com/v1/claude_code/routines/${env("FOUNDRY_ROUTINE_ID")}/fire`, {
+  if (!canWake()) return false;
+  const res = await fetch(`https://api.anthropic.com/v1/claude_code/routines/${routineId()}/fire`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env("FOUNDRY_ROUTINE_TOKEN")}`,
@@ -62,13 +72,16 @@ async function wake(text: string): Promise<boolean> {
 
 export function GET(): Response {
   return json({
-    buttons: Boolean(env("FOUNDRY_DESK_KEY") && env("FOUNDRY_GITHUB_TOKEN")),
-    wake: Boolean(env("FOUNDRY_ROUTINE_ID") && env("FOUNDRY_ROUTINE_TOKEN")),
+    /** The buttons work when the key is set and a click can reach GitHub, directly or through the thread. */
+    buttons: Boolean(env("FOUNDRY_DESK_KEY")) && (canWrite() || canWake()),
+    wake: canWake(),
+    /** True when clicks change the issue at once rather than through the thread. */
+    direct: canWrite(),
   });
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!env("FOUNDRY_DESK_KEY") || !env("FOUNDRY_GITHUB_TOKEN")) return json({ error: "not-set-up" }, 503);
+  if (!env("FOUNDRY_DESK_KEY") || !(canWrite() || canWake())) return json({ error: "not-set-up" }, 503);
   let body: { issue?: unknown; choice?: unknown; note?: unknown; key?: unknown };
   try {
     body = (await request.json()) as typeof body;
@@ -79,6 +92,20 @@ export async function POST(request: Request): Promise<Response> {
   if (typeof key !== "string" || !keyMatches(key)) return json({ error: "wrong-key" }, 401);
   const text = typeof note === "string" ? note.trim().slice(0, 2000) : "";
   if ((choice === "revise" || choice === "propose") && !text) return json({ error: "bad-request" }, 400);
+
+  if (!canWrite()) {
+    // No GitHub token: the thread does the GitHub side. Say exactly what was clicked.
+    const line =
+      choice === "propose" ? `Desk: propose a new idea. Nikita's words:\n${text}`
+      : typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 ? null
+      : choice === "build" ? `Desk: build idea #${issue} (approved).`
+      : choice === "pass" ? `Desk: pass on idea #${issue} (close it as not planned).`
+      : choice === "revise" ? `Desk: revise idea #${issue}. Nikita's notes:\n${text}`
+      : null;
+    if (!line) return json({ error: "bad-request" }, 400);
+    const woke = await wake(line).catch(() => false);
+    return woke ? json({ ok: true, woke, deferred: true }) : json({ error: "wake" }, 502);
+  }
 
   if (choice === "propose") {
     const first = text.split("\n")[0]!.trim();

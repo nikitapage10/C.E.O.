@@ -106,10 +106,13 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
 - Write each idea's body with `**Pitch:** …` and `**Size:** small|medium|large`: the Desk's Foundry tab shows
   these on the idea cards.
 - Nikita picks on the Desk's Foundry tab (Build this / Revise / Not this one) or on the thread's card. The Desk's
-  buttons go through `api/foundry.ts` on Vercel, which needs `FOUNDRY_DESK_KEY`, `FOUNDRY_GITHUB_TOKEN`,
-  `FOUNDRY_ROUTINE_ID` and `FOUNDRY_ROUTINE_TOKEN` set there. A "Revise" or a "Suggest an idea" from the Desk
-  labels the issue `foundry:revise` and wakes the thread: read Nikita's comment, rewrite the title, pitch and size,
-  drop the `foundry:revise` label, and post nothing unless a question needs Nikita.
+  buttons go through `api/foundry.ts` on Vercel, which needs `FOUNDRY_DESK_KEY` and `FOUNDRY_ROUTINE_TOKEN` set
+  there (`FOUNDRY_GITHUB_TOKEN` is optional: with it a click changes the issue at once; without it the click wakes
+  the thread with a `Desk:` line and the thread makes the change). On a wake whose text starts with `Desk:`, do
+  what the line says first: `build idea #n` → relabel `foundry:build` + `foundry:working` and build it; `pass on
+  idea #n` → comment and close as not planned; `revise idea #n` with notes → comment the notes, rewrite the title,
+  pitch and size, and leave it as a `foundry:idea`; `propose a new idea` with Nikita's words → open it as a
+  `foundry:idea` issue with a pitch, size and builder. Post nothing unless a question needs Nikita.
 - On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
   (Rocky's lane). It ships through the same PR, checks, preview and "Ship?" card as a bigger fix. Close the ideas that weren't picked after a week.
 - Any new agent, room, pet, costume or model an idea adds ships with its lore (see the repo's CLAUDE.md).

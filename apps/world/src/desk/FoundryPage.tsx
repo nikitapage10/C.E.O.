@@ -48,7 +48,7 @@ const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60
 
 /* ── The idea buttons ── */
 
-type Setup = { buttons: boolean; wake: boolean } | null;
+type Setup = { buttons: boolean; wake: boolean; direct: boolean } | null;
 type Choice = "build" | "pass" | "revise" | "propose";
 const KEY = "ceo.deskKey";
 
@@ -72,9 +72,9 @@ function useSetup(): Setup {
   useEffect(() => {
     let live = true;
     fetch("/api/foundry")
-      .then((r) => (r.ok ? (r.json() as Promise<{ buttons: boolean; wake: boolean }>) : null))
-      .then((s) => live && setSetup(s ?? { buttons: false, wake: false }))
-      .catch(() => live && setSetup({ buttons: false, wake: false }));
+      .then((r) => (r.ok ? (r.json() as Promise<{ buttons: boolean; wake: boolean; direct?: boolean }>) : null))
+      .then((s) => live && setSetup(s ? { buttons: s.buttons, wake: s.wake, direct: s.direct ?? false } : { buttons: false, wake: false, direct: false }))
+      .catch(() => live && setSetup({ buttons: false, wake: false, direct: false }));
     return () => {
       live = false;
     };
@@ -131,7 +131,7 @@ export function FoundryPage({ now }: { now: number }) {
           <span className="panel__rule" aria-hidden="true" />
           <span className="badge">{needs}</span>
         </header>
-        {setup !== null && !setup.buttons && <SetupNote wake={setup.wake} />}
+        {setup !== null && !setup.buttons && <SetupNote />}
         {decisions.length > 0 && (
           <ul className="fy-decisions">
             {decisions.map((c) => (
@@ -240,6 +240,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
     }
     storeKey(withKey);
     setResult(choice === "build" ? "Approved. Rocky is starting on it." : choice === "pass" ? "Passed. It won't come back." : "Sent. Rusty is rewriting it.");
+    // Through the thread, the labels change a moment later; the next poll picks them up.
     setMode("done");
     void refreshFoundry();
   };
@@ -336,20 +337,14 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
   );
 }
 
-/** Shown until the Vercel function can write to GitHub: what unlocks the buttons, in one place. */
-function SetupNote({ wake }: { wake: boolean }) {
+/** Shown until the Vercel function can reach the Foundry: what unlocks the buttons, in one place. */
+function SetupNote() {
   return (
     <aside className="fy-setup" aria-label="One-time setup">
       <strong>One-time setup, then everything happens here.</strong>
       <p>
-        The buttons go through Vercel, which needs two variables (Project → Settings → Environment Variables, then redeploy): <code>FOUNDRY_DESK_KEY</code>, a passphrase you invent and type once per device, and{" "}
-        <code>FOUNDRY_GITHUB_TOKEN</code>, a fine-grained GitHub token for this repo with Issues read and write.
-        {wake ? " The wake routine is already set, so a pick reaches the Foundry at once." : (
-          <>
-            {" "}
-            Add <code>FOUNDRY_ROUTINE_ID</code> and <code>FOUNDRY_ROUTINE_TOKEN</code> too (the same values as the GitHub secrets) so a pick wakes the Foundry at once instead of at its next tick.
-          </>
-        )}
+        The buttons go through Vercel, which needs two values (Project → Settings → Environment Variables, then redeploy): <code>FOUNDRY_DESK_KEY</code>, a passphrase you invent and type once per device, and{" "}
+        <code>FOUNDRY_ROUTINE_TOKEN</code>, the Foundry routine's token (the same one as the GitHub secret). A click then wakes the Foundry, which makes the change on GitHub itself.
       </p>
     </aside>
   );
@@ -498,7 +493,7 @@ function Connections({ setup }: { setup: Setup }) {
     { name: "Checks", what: "Types, lint, tests and build on every push", state: checks, label: CHECKS_LABEL[checks] },
     {
       name: "Idea buttons",
-      what: "Build, Revise and Not this one, through Vercel",
+      what: setup?.direct ? "Build, Revise and Not this one change GitHub at once" : "Build, Revise and Not this one go to the Foundry, which changes GitHub",
       state: setup === null ? "off" : setup.buttons ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.buttons ? "Ready" : "Needs setup",
     },

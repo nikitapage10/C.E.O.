@@ -148,7 +148,10 @@ before the build is allowed. Rocky counts the shipping record in base six (105â€
 Rusty's 41â€“40 and somehow still an argument. Skippy is Rocky's best friend, though neither would put it that
 way: he mocks Rocky's base-six maths every morning and quietly studies his hands every afternoon, and keeps the
 watch when Rocky sleeps. Skippy also claims he wrote Rusty's 71-page manual in a nanosecond; Rusty keeps the
-dated drafts in a labelled drawer and produces them on request.
+dated drafts in a labelled drawer and produces them on request. He sings while he works, opera and show tunes, loudly
+and a little off the note; he has a grand scheme for everything and calls the ones that fail "a test of the monkeys".
+He sulks when his magnificence goes unnoticed, says "bask in the awesomeness, knucklehead" to anyone who doubts him,
+and would sooner be crushed than admit the C.E.O. is his favourite monkey.
 
 The floor used to belong to Rivet, a foreman in a red-striped hard hat. She went up to run the Spire's floor and
 took her thermos, and the Foundry split her job three ways. **Skippy** is the first responder: every fix comes

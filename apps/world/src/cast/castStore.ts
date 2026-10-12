@@ -32,7 +32,7 @@ function rename(profiles: Record<string, Profile>) {
  * relationships once, keeping their looks (and any name you chose yourself).
  */
 const LORE_KEY = "ceo.cast.lore";
-const LORE_REV = 5;
+const LORE_REV = 6;
 
 function readRev(key: string) {
   try {

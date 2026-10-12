@@ -187,6 +187,13 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The hat is a rank. Salute or don't. I'll know.",
     "Ten seconds to fix. An hour to describe how I fixed it. That's the job.",
     "Rocky, those hands. Not a compliment. Keep going.",
+    "Bask in the awesomeness, knucklehead. It's free. For now.",
+    "La la LAAA. That was opera. You're welcome, monkeys.",
+    "I have a plan. It's brilliant. You won't understand it. That's how you know.",
+    "This task is so far beneath me it's in the basement. Done, obviously.",
+    "Nobody noticed that fix. Fine. I'll just be magnificent in silence. Loudly.",
+    "Me? Miss the C.E.O.? Please. Forty-one hours. Not that I counted.",
+    "Did that plan go wrong? No. It went differently. On purpose.",
   ],
   ledger: [
     "I'm a real accountant. Stop looking at my cuffs.",

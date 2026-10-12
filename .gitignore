@@ -7,3 +7,6 @@ test-results/
 .DS_Store
 .env*
 !.env.example
+
+# Claude Code worktrees for subagents
+.claude/worktrees/

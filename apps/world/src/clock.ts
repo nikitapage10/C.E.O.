@@ -1,4 +1,4 @@
-import { Vector3 } from "three";
+import type { Vector3 } from "three";
 
 /**
  * Per-frame values that would be wasteful to keep in React state.

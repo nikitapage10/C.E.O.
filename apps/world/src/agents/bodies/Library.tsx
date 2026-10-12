@@ -1,7 +1,7 @@
 import type { Body, Look } from "@ceo/core";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { AdditiveBlending, Color, type AnimationClip, type Group, type Mesh, type MeshBasicMaterial, type MeshStandardMaterial, type Object3D } from "three";
+import { AdditiveBlending, CanvasTexture, Color, type AnimationClip, type Group, type Mesh, type MeshBasicMaterial, type MeshStandardMaterial, type Object3D } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { preloadLib, useLib } from "../../fx/library.ts";
 import { recolor, type Band } from "./recolor.ts";
@@ -86,6 +86,9 @@ const SYNTH_CLIPS: ClipMap = {
   stare: { clip: "Stare", speed: 0.3 },
 };
 
+/** Skippy keeps the watch: he never lies down. Resting is a slow, low hover with his eyes on the room. */
+const SKIPPY_CLIPS: ClipMap = { ...SYNTH_CLIPS, slumped: { clip: "Wait", speed: 0.5 }, napping: { clip: "Stare", speed: 0.25 } };
+
 const FLYING_CLIPS: ClipMap = {
   idle: { clip: "Flying_Idle" },
   walking: { clip: "Fast_Flying", speed: 0.7 },
@@ -169,7 +172,7 @@ export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
   gestral: { model: "custom/Gestral", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 349, width: 18, minSat: 0.35, refL: 0.5 } } },
   // The coat is the navy band; his golden fur stays his own.
   // Nikita's admiral can: rigged with legs he doesn't have, so they stay still and he floats.
-  skippy: { model: "custom/Skippy", clips: SYNTH_CLIPS, synth: true, float: 0.18, height: 0.95, dress: { kind: "none" } },
+  skippy: { model: "custom/Skippy", clips: SKIPPY_CLIPS, synth: true, float: 0.18, height: 0.95, dress: { kind: "none" } },
   yordle: { model: "custom/Heimerdinger", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 230, width: 20, minSat: 0.3, refL: 0.25 } } },
   crawler: { model: "scifi-essentials/Enemy_Trilobite", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
   masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "none" } },
@@ -234,6 +237,22 @@ function upperBody(clip: AnimationClip) {
   return c;
 }
 
+/** A soft round falloff for the hover shimmer: bright in the middle, gone at the edge (no hard rim). */
+let haloTex: CanvasTexture | null = null;
+function halo() {
+  if (haloTex) return haloTex;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.35, "rgba(255,255,255,0.35)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  return (haloTex = new CanvasTexture(c));
+}
+
 /** The hover: a slow bob and sway, lower when resting, over a glow that breathes with it. */
 function Float({ height, accent, drive, phase, children }: { height: number; accent: string; drive: BodyProps["drive"]; phase: number; children: React.ReactNode }) {
   const lift = useRef<Group>(null);
@@ -254,15 +273,15 @@ function Float({ height, accent, drive, phase, children }: { height: number; acc
     const gl = glow.current;
     if (gl) {
       const near = 1 - (level.current + bob) / (height * 1.6);
-      gl.scale.setScalar(0.75 + near * 0.45);
-      (gl.material as MeshBasicMaterial).opacity = 0.18 + near * 0.32;
+      gl.scale.setScalar(0.8 + near * 0.3);
+      (gl.material as MeshBasicMaterial).opacity = 0.06 + near * 0.12;
     }
   });
   return (
     <>
       <mesh ref={glow} rotation-x={-Math.PI / 2} position-y={0.02}>
-        <circleGeometry args={[0.24, 32]} />
-        <meshBasicMaterial color={accent} transparent opacity={0.35} depthWrite={false} blending={AdditiveBlending} />
+        <planeGeometry args={[0.5, 0.5]} />
+        <meshBasicMaterial color={accent} map={halo()} transparent opacity={0.12} depthWrite={false} blending={AdditiveBlending} />
       </mesh>
       <group ref={lift}>{children}</group>
     </>

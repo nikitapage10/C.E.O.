@@ -12,6 +12,7 @@ import { Foundry } from "./Foundry.tsx";
 import { Green } from "./Green.tsx";
 import { Relay } from "./Relay.tsx";
 import { Spire } from "./Spire.tsx";
+import { Workshop } from "./Workshop.tsx";
 
 export const ROOM_ACCENTS: Record<RoomId, string> = {
   foundry: "#ffb067",
@@ -22,6 +23,7 @@ export const ROOM_ACCENTS: Record<RoomId, string> = {
   archive: PALETTE.violet,
   breakroom: "#ff8fb1",
   boiler: "#ff9a4a",
+  workshop: "#e07a5f",
 };
 
 const CONTENT: Record<RoomId, ComponentType> = {
@@ -33,6 +35,7 @@ const CONTENT: Record<RoomId, ComponentType> = {
   archive: Archive,
   breakroom: BreakRoom,
   boiler: BoilerRoom,
+  workshop: Workshop,
 };
 
 function Room({ id }: { id: RoomId }) {

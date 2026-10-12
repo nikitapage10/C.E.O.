@@ -22,7 +22,7 @@ const SEEDS: Record<string, Seed> = {
     // Nikita's admiral-can model: no legs, floats a hand's width off the floor.
     look: makeLook({ body: "skippy", shell: "#c3cad4", accent: "#7fd8ff", trim: "#1f2b4d" }),
     traits: ["smug", "sarcastic", "loyal", "dramatic"],
-    bio: "The Foundry's first responder: a tall can, glowing faintly, under an admiral's hat made of light. First to anything broken, by a distance he will tell you about. Fixes it in seconds, then complains for an hour about the monkeys, which is what he calls everyone else. Insults Rocky's base-six maths, secretly admires his hands, and keeps the night watch while Rocky sleeps.",
+    bio: "The Foundry's first responder: an ancient mind in a floating can under an admiral's hat, found by Rusty in the scrap. First to anything broken, by a distance he will tell you about. Fixes it in seconds, then complains for an hour about the monkeys, which is what he calls everyone else. Insults Rocky's base-six maths, secretly admires his hands, and keeps the night watch while Rocky sleeps.",
     catchphrase: "Already fixed it. Try to keep up, monkeys.",
   },
   ledger: {
@@ -97,6 +97,18 @@ const SEEDS: Record<string, Seed> = {
     bio: "The Boiler Room's keeper: a battery box on two stubby legs who honks instead of talking. Taps every gauge, tapes every leak, and guards the bucket under the drip. When a real line breaks, its pipe bursts and Gary is already running.",
     catchphrase: "Honk. (I have tape.)",
   },
+  daub: {
+    look: lookFromPreset("painting-pup"),
+    traits: ["cheerful", "chaotic", "earnest", "nostalgic"],
+    bio: "The Workshop's concept painter: a small cream-coloured pup in a brown beret who paints with the tip of its own tail. Every new figure in the Lattice starts as one of Daub's canvases. Leaves a little green paw-mark on everything it likes, which is everything.",
+    catchphrase: "Hold still. You're my next canvas.",
+  },
+  chisel: {
+    look: lookFromPreset("violet-carver"),
+    traits: ["dramatic", "smug", "romantic", "pedantic"],
+    bio: "The Workshop's sculptor, in violet robes, with a few more fingers than anyone else and opinions about all of them. Takes Daub's paintings and forms them in the mould, fits each frame on the turntable, then makes it walk the little stage until it moves like it means it.",
+    catchphrase: "Flesh is clay, darling. Clay is patience.",
+  },
   kevin: {
     look: makeLook({ body: "punk", shell: "#242424", accent: "#ff7aa8", trim: "#7c0f1f" }),
     traits: ["lazy", "deadpan", "loyal"],
@@ -140,6 +152,10 @@ export function defaultCast(): Cast {
       { a: "heimerdinger", b: "kevin", kind: "friend", note: "Kevin has never once hurried. Heimerdinger finds this scientifically fascinating, and a little enviable." },
       { a: "gary", b: "kevin", kind: "friend", note: "Kevin naps on the warm side of the boiler. Gary logs it as spiritual maintenance." },
       { a: "gary", b: "tessellate", kind: "friend", note: "Rusty wrote him a 71-page boiler manual. It levels the tool bench perfectly. Rusty must never know." },
+      { a: "daub", b: "chisel", kind: "partner", note: "Daub paints it, Chisel makes it real. They argue about the hands every single time, and the hands are always better for it." },
+      { a: "caret", b: "chisel", kind: "friend", note: "Rocky watches Chisel's hands work the clay for hours. Good hands. Good good good. Chisel has never had a better audience." },
+      { a: "semicolon", b: "chisel", kind: "rival", note: "Skippy calls the Workshop 'arts and crafts for monkeys'. He has also asked Chisel, twice, to mould him a better hat." },
+      { a: "daub", b: "kevin", kind: "friend", note: "Daub painted Kevin asleep. It took a week. Kevin did not move once. Daub calls it the perfect model." },
       { a: "caret", b: "kevin", kind: "friend", note: "Rocky watches Kevin sleep. Kevin is always asleep. Rocky has never been happier." },
     ],
   };

@@ -50,6 +50,7 @@ export const CLIP_OFFERS: Record<RoomId, string> = {
   archive: "It looks like you're writing lore. Would you like it to be a prophecy?",
   breakroom: "It looks like you're on break. Would you like to be on a longer break?",
   boiler: "It looks like a pipe has burst. Would you like to hear about tape?",
+  workshop: "It looks like you're making a new friend. Would you like it to have more fingers?",
 };
 
 export const COUNSEL_YANK = [

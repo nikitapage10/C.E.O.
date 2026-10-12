@@ -2664,6 +2664,118 @@ a.foundry-crew__on:hover {
   justify-self: start;
 }
 
+/* ── Foundry page ── */
+.foundry-page {
+  display: grid;
+  gap: 22px;
+}
+.foundry-page__open {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tone);
+  border: 1px solid var(--tone);
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+.foundry-page__open:hover {
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.foundry-page__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.foundry-page__hint {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.foundry-page__hint a {
+  color: var(--tone);
+}
+.foundry-page__schedule ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.foundry-page__schedule li {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--hair);
+  border-left: 2px solid var(--tone);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.foundry-page__when {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tone);
+}
+.foundry-page .foundry-system {
+  margin-top: 0;
+}
+.crates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.crates__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "kind title pill" "kind who pill";
+  column-gap: 14px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--hair);
+}
+.crates__item:first-child {
+  border-top: 0;
+}
+.crates__kind {
+  grid-area: kind;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tone);
+  min-width: 84px;
+}
+.crates__title {
+  grid-area: title;
+  font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crates__title:hover {
+  color: var(--tone);
+}
+.crates__who {
+  grid-area: who;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.crates__item .pill {
+  grid-area: pill;
+}
+@media (max-width: 860px) {
+  .foundry-page__row {
+    grid-template-columns: 1fr;
+  }
+  .crates__item {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "kind pill" "title title" "who who";
+  }
+}
+
 @media (max-width: 1080px) {
   .rooms__grid {
     grid-template-columns: repeat(4, 1fr);

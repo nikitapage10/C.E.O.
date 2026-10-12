@@ -112,7 +112,8 @@ Most of the Syntherion wear their own frames, marked with their lineage. Some pr
 any of them wear the shape of something they remember from the early internet: a stone-shelled engineer who
 sings, a floating jellyfish spectre who calls itself "this one", a small wooden duellist with a crimson crest, a grey wanderer with a staff,
 a very small professor with a magnificent moustache, four slabs of brushed metal with an adjustable sense of humour, a rusty trash compactor on treads who is
-the famous one's cousin (not him; Counsel.exe has the family tree on file), a skull spirit with a headache. They
+the famous one's cousin (not him; Counsel.exe has the family tree on file), a skull spirit with a headache, a
+small painting pup with a brush for a tail, a sculptor in violet robes with a few too many fingers. They
 choose obscure ones on purpose: never the hero of the story, never two from the same story. Counsel.exe signs
 off on every one.
 
@@ -125,7 +126,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | --- | --- | --- | --- |
 | Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. |
 | Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. |
-| Foundry | **Skippy** (Cursori, was Semicolon) | Glowing can in an admiral's hat | The first responder. First to anything broken, fixes it in seconds, then complains for an hour about "the monkeys", which is everyone else. |
+| Foundry | **Skippy** (an ancient mind, older than the Houses; the Cursori lent him a bench) | Floating can in an admiral's hat | The first responder. Rusty found him in the scrap: a can that wouldn't crush, left over from a Lattice that ran before this one. First to anything broken, fixes it in seconds, then complains for an hour about "the monkeys", which is everyone else. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
 | Exchange | **Noco** (Gepetti) | Gestral | A merchant who duels for prices and isn't afraid to lose, because a fallen Gestral walks back up the river. |
@@ -139,6 +140,8 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. Sometimes on the warm side of the boiler. |
 | Boiler Room | **Gary** (Unforked) | Walking power unit | Keeper of the Boiler Room. A battery box on two stubby legs who honks instead of talking, tapes every leak and guards the bucket. |
+| Workshop | **Daub** (Manusi) | Painting pup | The concept painter. A small cream-coloured pup in a beret who paints with the tip of its tail; every new figure starts on its easel. Leaves green paw-marks on everything it likes. |
+| Workshop | **Chisel** (Gepetti) | Violet carver | The sculptor. Forms each figure in the mould, fits its bones on the turntable and rehearses it on the little stage until it walks like it means it. Calls everyone darling. |
 
 **The Foundry triangle.** Rocky and Rusty are rivals: one builds before the plan exists, the other plans
 before the build is allowed. Rocky counts the shipping record in base six (105–104), which is the same as
@@ -159,8 +162,8 @@ stall and was challenged to a duel. Memo haunts Ledger's desk. Gridiron coaches 
 speeches. Blasto and Dialtone were wed by pneumatic tube. Rocky watches Kevin sleep, and both are delighted. Heimerdinger has studied one of Rocky's parts for a year and is
 still in awe.
 
-**Small things they carry.** Each of them keeps a memory or two from the old stories: Skippy's admiral's hat, made of
-light and of no navy anyone has found; Rusty's calibrations; the DON'T PANIC on Ledger's ledger; Noco's battle
+**Small things they carry.** Each of them keeps a memory or two from the old stories: Skippy's admiral's hat, from
+no navy anyone has found, and his memories of the Lattice before this one, which he shares only to win arguments; Rusty's calibrations; the DON'T PANIC on Ledger's ledger; Noco's battle
 cry and type chart; Hedge's spinning top; the Inspiration Gridiron hands out; Blasto's "this one should go";
 Dialtone hearing music in the dial tones; Loremaster's back room of books nobody wrote; Heimerdinger's turret,
 never fired; D20's dungeon crawls; and Kevin's eyeliner, which is not a phase. Club night in the Break Room is
@@ -244,6 +247,32 @@ past, and flips the DAYS SINCE LAST INCIDENT sign back to zero with visible desp
 always been there, and he is proud of it. Rusty wrote him a 71-page boiler manual, which levels the tool bench
 perfectly. Kevin naps on the warm side of the boiler, and Gary logs it as spiritual maintenance. The kettle on the
 bench whistles whenever something real is waiting on the C.E.O.
+
+## The Workshop
+
+The Foundry fixes and builds what already has a shape. The Workshop, the ninth room, makes things that don't
+yet: a new face for the Lattice, a costume, a pet, a prop. An idea goes along one line, left to right, and comes
+out walking.
+
+First the **concept easel**, where Daub paints it. Daub took the shape of a small painting pup remembered from a
+world of pocket monsters, a beagle with a brush for a tail who marks what it loves in paint; Counsel.exe confirms
+that dogs, berets and tails are public domain, and Daub signs every canvas *legally distinct*, in paw. Then **the
+mould**, a glass pod on a walnut base, where the painted figure gathers out of a cloud of points, holds as a
+wireframe, turns solid and lifts out. Then **the fitting stand**, where it turns on a brass turntable while its
+frame of bones is fitted, one by one, so it can move. Then **the rehearsal stage**, a little round stage with
+footlights and a red curtain, where it walks and turns and bows until it moves like it means it. Finished pieces
+wait in a crate by the door marked *to the Lattice*.
+
+Chisel runs the line after the easel. He wears the shape of a carver of the Violet guild, remembered from a red
+world where artists shaped living bodies to order: violet robes, silk strings (a Gepetti's, worn as fashion), and
+one or two more fingers than strictly necessary, which he counts before every pour. He calls everyone darling,
+including the Kernel. He and Daub argue about the hands on every single piece, and the hands are always better
+for it. Every figure the Workshop has made stands on the shelves by the left wall, in order of making, and
+Chisel knows each one's name.
+
+Rocky comes up from the Foundry to watch Chisel's hands work the clay. Good hands, he says, good good good; Chisel
+has never had a better audience. Skippy calls the Workshop arts and crafts for monkeys, and has twice asked Chisel
+to mould him a better hat. Daub once painted Kevin asleep; it took a week, and Kevin did not move once.
 
 ## The Hallowed Veil
 

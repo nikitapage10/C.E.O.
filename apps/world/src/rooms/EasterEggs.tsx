@@ -370,4 +370,6 @@ export const EASTER_EGGS: Record<RoomId, ComponentType> = {
   breakroom: BreakRoomEggs,
   // The Boiler Room is its own joke.
   boiler: () => null,
+  // The Workshop makes its own surprises.
+  workshop: () => null,
 };

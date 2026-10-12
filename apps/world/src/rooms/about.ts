@@ -105,4 +105,18 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     today: "Nothing is connected yet, so every pipe is cold. ?boiler=demo plays every state.",
     next: "The hub on your MacBook reports each link, and the pipes come alive.",
   },
+  workshop: {
+    blurb: "Where new things for the Lattice get made: a new character, a costume, a pet, a prop. An idea goes along the line left to right: Daub paints it, Chisel forms it in the mould, fits its frame on the turntable, and rehearses it on the little stage until it walks like it means it. Then it goes in the crate by the exit, ready to join the world.",
+    stations: {
+      easel: "Step one: the concept. Daub paints the idea until there's a picture to work from.",
+      mould: "Step two: the form. The figure gathers out of a cloud of points, holds as a wireframe, turns solid and lifts out.",
+      fitting: "Step three: the fitting. The figure turns on the stand while its frame of bones is fitted, so it can move.",
+      stage: "Step four: the rehearsal. The finished figure walks and turns under the lights before it joins the Lattice.",
+      bench: "The long workbench: tools, clay, tea, and Daub's spare beret.",
+      shelves: "Every figure the Workshop has made, in order of making. Chisel knows each one's name.",
+      crate: "Finished pieces wait here by the exit, ready to walk out into the world.",
+    },
+    today: "Simulated: Daub and Chisel run the line on their own, one made-up piece at a time.",
+    next: "Your own ideas go in at the easel: a picture is made, a model is formed from it, fitted with a frame, animated, and walks into the Lattice.",
+  },
 };

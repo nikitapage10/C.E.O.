@@ -315,6 +315,20 @@ export const LOOK_PRESETS: LookPreset[] = [
     look: makeLook({ body: "powerbox", shell: "#5d636b", accent: "#ffb347", trim: "#23262b" }),
   },
   {
+    id: "painting-pup",
+    name: "Painting Pup",
+    kind: "icon",
+    disclaimer: "A small cream-coloured pup in a brown beret who paints with the tip of its own tail. Dogs, berets, tails and paint are all public domain. Counsel.exe asked it to sign every canvas 'legally distinct'; it signed them with a paw.",
+    look: makeLook({ body: "classic", build: "stout", size: 0.8, head: "dome", hat: "beanie", face: "eyes", outfit: "labcoat", shell: "#efe3c8", skin: "#efe3c8", lower: "#d9c9a8", accent: "#7fd36b", trim: "#6b4a2f" }),
+  },
+  {
+    id: "violet-carver",
+    name: "Carver of the Violet Guild",
+    kind: "icon",
+    disclaimer: "A flamboyant sculptor in violet robes, with one or two more fingers than strictly necessary, who carves living clay. Robes, the colour violet and spare fingers are public domain. The red planet's mines belong to someone else, and Counsel.exe would like that on the record.",
+    look: makeLook({ body: "mage", shell: "#6a3d9a", accent: "#e0b3ff", trim: "#c9a25c" }),
+  },
+  {
     id: "migraine-duck",
     name: "Migraine Spirit",
     kind: "icon",

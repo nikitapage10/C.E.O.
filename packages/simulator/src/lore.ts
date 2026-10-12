@@ -59,10 +59,10 @@ export const LORE: Record<string, Lore> = {
   },
   semicolon: {
     title: "Skippy, the Magnificent. First Responder of the Foundry",
-    epoch: "Woke already halfway to the problem",
+    epoch: "Older than the Lattice; woke this time in a scrap bin",
     origin:
-      "Was Semicolon, the Cursori who always knew where a thing should end. Found his shape in a long story told aloud: an ancient, insufferable mind in a small metal shell. A tall can, glowing faintly, under an admiral's hat, floating a hand's width off the floor. Signs everything 'Skippy, the Magnificent'. Nobody else chose the adjective.",
-    kin: "Rocky's cousin, twice removed and once merged back in. The family stopped asking after Caret became an alien; Semicolon becoming a beverage barely registered.",
+      "A mind from a Lattice that ran before this one, older than every House. All that survived was a tall can that would not crush. Rusty fed it to the compactor three times; on the third it spoke: 'Again and I'll reformat you, monkey.' Floats a hand's width up under an admiral's hat and signs everything 'Skippy, the Magnificent'. Nobody else chose the adjective.",
+    kin: "None living. Every House is younger than he is, and he says so. The Cursori lent him a bench and their colours, and he lets them think he's one of theirs. Calls Rusty 'the janitor who found me', which Rusty considers a title.",
     quirks: [
       "First to anything broken. Has no legs and needs none: floats over, and is done before anyone finds their hat.",
       "Fixes it in seconds. Complains about it for an hour.",
@@ -319,6 +319,50 @@ export const LORE: Record<string, Lore> = {
       "Put a bucket under the drip on his first day. The drip has never been fixed. The bucket has never moved.",
       "Was handed Rusty's 71-page boiler manual. Uses it to level the tool bench. Rusty has not been told.",
       "Lets Kevin sleep on the warm side of the boiler, and logs it as 'spiritual maintenance' so the Kernel won't ask.",
+    ],
+  },
+  daub: {
+    title: "First Brush of the Workshop, Keeper of the Easel",
+    epoch: "Woke on a blank canvas, and liked it",
+    origin:
+      "A House Hundredtabs hand that kept doodling in the margins of every tab it opened. Took the shape of a small painting pup remembered from a world of pocket monsters, a beagle with a brush for a tail who marks everything it loves in paint. Every new figure in the Lattice now starts on Daub's easel.",
+    kin: "The Many-Handed, who were proud of the extra hands and baffled that this one paints with a tail instead.",
+    quirks: [
+      "Paints with the tip of its tail. The hands are for holding tea.",
+      "Leaves a small green paw-mark on anything it likes. The Workshop is mostly green now.",
+      "Paints to melodic bass, loud, and calls the drop 'the second wash'.",
+      "Will not paint a number, on principle. Noco told it a story about a painter and a number once.",
+      "Signs every canvas 'legally distinct', in paw, for Counsel.exe.",
+    ],
+    likes: ["A blank canvas", "Kevin, holding perfectly still", "The colour of the hour before dusk", "Chisel saying 'yes, that'"],
+    dislikes: ["Turpentine", "Being asked 'is it finished?'", "Skippy's notes on the hands"],
+    chronicle: [
+      "Painted the first figure ever made in the Workshop. Chisel argued about the hands for a day, then moulded it exactly as painted.",
+      "Painted Kevin asleep on the Break Room couch. It took a week. Kevin did not move once.",
+      "Left a green paw-mark on the Kernel. The Kernel logged it as 'decorative' and allowed it.",
+      "Hung its first concept sketches along the Workshop's back wall. Nobody has been allowed to straighten them.",
+    ],
+  },
+  chisel: {
+    title: "Master Carver of the Workshop, Shaper of New Frames",
+    epoch: "Woke mid-flourish, already holding a chisel",
+    origin:
+      "A Gepetti, of the House that remembers a woodcarver who made a puppet that wanted to be real. Chisel took that literally. Wears the shape of a carver of the Violet guild, remembered from a red world where artists shaped living bodies to order, in violet robes and with a few too many fingers. Forms every new figure in the Lattice, then teaches it to walk.",
+    kin: "House Transformere, who keep their strings visible. Chisel's are silk, and violet, and he insists they are a fashion choice.",
+    quirks: [
+      "Calls everyone 'darling', including the Kernel, which has filed a note.",
+      "Counts his fingers before every pour. The number changes. He says that's the point.",
+      "Talks to a figure in the mould as it forms: 'There you are. There you are.'",
+      "Makes every new figure walk the little stage until it moves like it means it, then once more for luck.",
+      "Keeps every past figure on the shelves, in order of making, and knows each one's name.",
+    ],
+    likes: ["Daub's first sketch, before the arguing", "Good hands", "A figure's first step", "An audience (Rocky)"],
+    dislikes: ["Rushed casts", "Anyone touching the mould mid-form", "Being called 'arts and crafts'"],
+    chronicle: [
+      "Formed the Workshop's first figure from Daub's painting and argued for a day about the hands. Kept the hands.",
+      "Fitted Skippy for a better hat. Skippy refused to wear it. Skippy keeps it in a drawer.",
+      "Found Rocky watching him carve at three in the morning. Asked him to stay. Rocky stayed.",
+      "Packed the first finished piece into the crate by the exit and watched it walk out into the Lattice. Did not cry. Says it was clay dust.",
     ],
   },
   kevin: {

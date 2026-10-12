@@ -18,9 +18,9 @@ function greeting(now: number) {
   return h < 5 ? "Still up, Nikita." : h < 12 ? "Good morning, Nikita." : h < 18 ? "Good afternoon, Nikita." : "Good evening, Nikita.";
 }
 
-/** "Lattice" pages for rooms without a Desk page yet; Relay and the Boiler Room have their own. */
+/** "Lattice" pages for rooms without a Desk page yet; Relay, the Foundry and the Boiler Room have their own. */
 function roomHref(room: DeskRoom) {
-  return room === "relay" ? "/relay" : room === "boiler" ? "/systems" : `/lattice?room=${room}`;
+  return room === "relay" ? "/relay" : room === "foundry" ? "/foundry" : room === "boiler" ? "/systems" : `/lattice?room=${room}`;
 }
 
 export function Today({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
@@ -128,7 +128,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
             const waiting = data.actions.filter((a) => a.room === r).length + (r === "relay" ? owed.length : 0);
             return (
               <li key={r} style={{ "--tone": DESK_ROOMS[r].accent } as React.CSSProperties}>
-                <a href={roomHref(r)} onClick={r === "relay" ? link("relay") : r === "boiler" ? link("systems") : undefined}>
+                <a href={roomHref(r)} onClick={r === "relay" ? link("relay") : r === "foundry" ? link("foundry") : r === "boiler" ? link("systems") : undefined}>
                   <span className="rooms__name">{DESK_ROOMS[r].name}</span>
                   <span className={`rooms__count ${waiting ? "rooms__count--on" : ""}`}>{waiting || "✓"}</span>
                   <span className="rooms__cap">{waiting ? "waiting on you" : "all clear"}</span>

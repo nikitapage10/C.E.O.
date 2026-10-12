@@ -107,6 +107,13 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
   "punt|kevin": [
     ["Kevin. Nap?", "Nap."],
   ],
+  "daub|chisel": [
+    ["The hands are meant to be like that, Chisel.", "Then they're meant to be wrong, darling. I'll fix them in the mould."],
+    ["Is it finished?", "Never ask a sculptor that."],
+  ],
+  "caret|chisel": [
+    ["Good hands. Good good good.", "Stay and watch, darling. I work better with a witness."],
+  ],
   "caret|kevin": [
     ["Kevin sleep. Rocky watch.", "Cool. Thanks, man."],
   ],

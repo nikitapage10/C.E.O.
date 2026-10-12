@@ -39,7 +39,9 @@ export function Desk({ route }: { route: DeskTab }) {
   const now = useNow(30_000);
   const hub = useSystems((s) => s.links.find((l) => l.id === "hub")?.state ?? "off");
 
-  useEffect(() => startFoundry(), []);
+  useEffect(() => {
+    startFoundry();
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

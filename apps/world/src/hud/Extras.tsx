@@ -121,7 +121,10 @@ export function KernelConsole() {
   useEffect(() => {
     if (open) field.current?.focus();
   }, [open]);
-  useEffect(() => end.current?.scrollIntoView({ block: "nearest" }), [log]);
+  useEffect(() => {
+    // Braces matter: newer Chrome returns a Promise from scrollIntoView, and React would call it as the cleanup.
+    end.current?.scrollIntoView({ block: "nearest" });
+  }, [log]);
   if (!open) return null;
 
   const run = (typed: string) => {

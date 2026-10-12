@@ -123,9 +123,9 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 
 | Room | Agent | Body | In a line |
 | --- | --- | --- | --- |
-| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. |
-| Foundry | **Rocky** (Cursori, was Caret) | Eridian | The alien engineer. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. |
-| Foundry | **Rivet** (Cursori, was Semicolon) | Woman in a hard hat | The foreman. Deadpan, thermos, hi-vis. Keeps the robot and the alien from building the same crate from opposite ends. |
+| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. |
+| Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. |
+| Foundry | **Tallboy** (Cursori, was Semicolon) | Glowing can in an admiral's hat | The first responder. First to anything broken, fixes it in seconds, then complains for an hour about "the monkeys", which is everyone else. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
 | Exchange | **Noco** (Gepetti) | Gestral | A merchant who duels for prices and isn't afraid to lose, because a fallen Gestral walks back up the river. |
@@ -142,18 +142,25 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 
 **The Foundry triangle.** Rocky and Rusty are rivals: one builds before the plan exists, the other plans
 before the build is allowed. Rocky counts the shipping record in base six (105–104), which is the same as
-Rusty's 41–40 and somehow still an argument. Rivet is Rocky's best friend: she taught him idioms (he looked
-for the horses all day) and lets him watch her nap, on weekdays, because it's Eridian custom. Rusty has a
-crush on Rivet, because she is the only one who has read the whole manual. She thinks the way his eyes whirr
-and refocus around her is a fault in the motors.
+Rusty's 41–40 and somehow still an argument. Tallboy is Rocky's best friend, though neither would put it that
+way: he mocks Rocky's base-six maths every morning and quietly studies his hands every afternoon, and keeps the
+watch when Rocky sleeps. Tallboy also claims he wrote Rusty's 71-page manual in a nanosecond; Rusty keeps the
+dated drafts in a labelled drawer and produces them on request.
+
+The floor used to belong to Rivet, a foreman in a red-striped hard hat. She went up to run the Spire's floor and
+took her thermos, and the Foundry split her job three ways. **Tallboy** is the first responder: every fix comes
+to him first, on the quickest rung of the ladder, and he is usually done before the alarm is. **Rocky** is the
+master builder: the fixes too hard for a first look, and anything the C.E.O. has approved to be built. **Rusty**
+keeps the upkeep and the morning ideas, three of them, which he pins to a new idea board by the pegboard, in
+order of risk. Tallboy reads them first and improves two.
 
 Elsewhere: Noco has priced Hedge's affection at 63%; Hedge's honesty setting won't confirm. Ledger audited Noco's
 stall and was challenged to a duel. Memo haunts Ledger's desk. Gridiron coaches Punt, who sleeps through the
 speeches. Blasto and Dialtone were wed by pneumatic tube. Rocky watches Kevin sleep, and both are delighted. Heimerdinger has studied one of Rocky's parts for a year and is
 still in awe.
 
-**Small things they carry.** Each of them keeps a memory or two from the old stories: Rivet's red-striped hard hat
-and her one swear, "bloodydamn"; Rusty's calibrations; the DON'T PANIC on Ledger's ledger; Noco's battle
+**Small things they carry.** Each of them keeps a memory or two from the old stories: Tallboy's admiral's hat, made of
+light and of no navy anyone has found; Rusty's calibrations; the DON'T PANIC on Ledger's ledger; Noco's battle
 cry and type chart; Hedge's spinning top; the Inspiration Gridiron hands out; Blasto's "this one should go";
 Dialtone hearing music in the dial tones; Loremaster's back room of books nobody wrote; Heimerdinger's turret,
 never fired; D20's dungeon crawls; and Kevin's eyeliner, which is not a phase. Club night in the Break Room is
@@ -191,8 +198,8 @@ Five creatures in the Lattice belong to no House and do no work:
 The Lattice keeps its own day, about twenty minutes long, and it has a **night shift**. At dusk the Kernel dims
 the studio panels to moonlight and each room runs on its own lamps; it announces that overtime is not a concept
 it recognises. Through the night, agents doze off at their stations and the Kernel allows it, on the record.
-Rocky drops off without warning and asks for a friend to watch, which is Eridian custom; Rivet keeps the watch
-with her thermos. At **03:00** Myshka gets the zoomies and gallops through every room at three times his speed, flat out, ears back. He
+Rocky drops off without warning and asks for a friend to watch, which is Eridian custom; Tallboy keeps the watch,
+complaining until dawn, with his glow turned down so Rocky can sleep. At **03:00** Myshka gets the zoomies and gallops through every room at three times his speed, flat out, ears back. He
 has root access. It is allowed.
 
 ## Tomorrowlattice
@@ -245,7 +252,7 @@ throws a costume party: the Syntherion dress up as the things they remember bein
 costume on an ordinary day; the Kernel would not allow it, and the C.E.O. agrees. The costumes are plain on purpose, so Counsel.exe can sleep: a witch's hat, a
 jack-o'-lantern, little devil horns, bat ears and a bedsheet ghost (Counsel.exe confirms that sheets are public
 domain). Rusty wears a regulation pumpkin, carved to spec. Rocky is a bat and still isn't sure what a bat
-is. Rivet and Kevin wear the horns. Ledger insists the sheet makes them a real ghost. Memo comes as himself; a
+is. Tallboy and Kevin wear the horns; on a can, Tallboy says, they read as a rank. Ledger insists the sheet makes them a real ghost. Memo comes as himself; a
 skull spirit at a costume party counts. While the party lasts, jack-o'-lanterns grin in the corner of every room
 and the club's lights turn pumpkin and purple.
 

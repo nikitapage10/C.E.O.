@@ -6,17 +6,17 @@ import type { RoomId } from "@ceo/core";
  */
 export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string, string>; today: string; next: string }> = {
   foundry: {
-    blurb: "Where code gets made. Every crate on the conveyor is a coding task: it's picked up, assembled by the arm, tested in the furnace, then shipped as a pull request.",
+    blurb: "Where code gets made, for real. Every crate is a real task for the C.E.O. repo, worked by the Foundry thread in Claude Code: Tallboy jumps on anything broken, Rocky takes the hard fixes and the builds you approve, Rusty does the upkeep and pins three ideas to his board each morning.",
     stations: {
-      intake: "New coding tasks arrive here as crates.",
-      assembler: "The agent writes and edits code.",
-      furnace: "Tests run. The window glows green for a pass, red for a fail.",
-      shipping: "Finished work leaves as a pull request; merges wait for your approval.",
-      "bench-a": "Workbench for background agents.",
-      "bench-b": "Workbench for background agents.",
+      intake: "New Foundry tasks arrive here as crates. A red light spins when one is stuck and needs you.",
+      assembler: "The crew writes and edits code.",
+      furnace: "The checks on main (types, lint, tests, build). The window glows green for a pass, red for a fail.",
+      shipping: "Finished work ships to the site from here. The lamp glows amber while something waits for your OK.",
+      "bench-a": "Rusty's upkeep bench: small fixes that make things run smoother.",
+      "bench-b": "Where Rusty works out the morning ideas before pinning them up.",
     },
-    today: "Simulated Claude Code and Cursor agents working on your repos.",
-    next: "Real Claude Code sessions (via hooks) and Cursor background agents.",
+    today: "Live: real fixes, upkeep and ideas from the Foundry thread in Claude Code, read from the repo's GitHub issues.",
+    next: "More repos, and builds you start from the Desk.",
   },
   spire: {
     blurb: "The front office for your small online businesses: inbox, orders, listings, invoices and the weekly numbers.",

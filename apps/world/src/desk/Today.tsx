@@ -169,13 +169,30 @@ function DayRing({ done, total }: { done: number; total: number }) {
   );
 }
 
-function RoomTag({ room, agent }: { room: DeskRoom; agent: string }) {
+function RoomTag({ room, agent, live }: { room: DeskRoom; agent: string; live?: boolean }) {
   return (
     <span className="roomtag">
       <i aria-hidden="true" />
       {DESK_ROOMS[room].name} · {agent}
-      {SAMPLES && <em>sample</em>}
+      {SAMPLES && !live && <em>sample</em>}
     </span>
+  );
+}
+
+/** An action's button: a link when it opens something (the Foundry thread, an issue), otherwise an answer. */
+function Choice({ a, k, small }: { a: DeskAction; k: number; small?: boolean }) {
+  const act = useDesk((s) => s.act);
+  const c = a.choices[k]!;
+  const cls = `btn ${small ? "btn--sm " : ""}${k === 0 ? "btn--go" : small ? "btn--quiet" : ""}`;
+  const href = a.hrefs?.[k];
+  return href ? (
+    <a className={cls} href={href} target="_blank" rel="noreferrer">
+      {c}
+    </a>
+  ) : (
+    <button type="button" className={cls} onClick={() => act(a.id)}>
+      {c}
+    </button>
   );
 }
 
@@ -213,20 +230,17 @@ function ReplyCard({ o, now, i }: { o: OwedReply; now: number; i: number }) {
 }
 
 function DecisionCard({ a, i }: { a: DeskAction; i: number }) {
-  const act = useDesk((s) => s.act);
   return (
     <li className="todo__item" style={{ "--tone": DESK_ROOMS[a.room].accent, animationDelay: `${i * 60}ms` } as React.CSSProperties}>
       <div className="todo__top">
-        <RoomTag room={a.room} agent={a.agent} />
+        <RoomTag room={a.room} agent={a.agent} live={a.live} />
         {a.due && <span className="todo__due">{a.due}</span>}
       </div>
       <h3 className="todo__title">{a.title}</h3>
       {a.detail && <p className="todo__detail">{a.detail}</p>}
       <div className="todo__actions">
         {a.choices.map((c, k) => (
-          <button key={c} type="button" className={`btn ${k === 0 ? "btn--go" : ""}`} onClick={() => act(a.id)}>
-            {c}
-          </button>
+          <Choice key={c} a={a} k={k} />
         ))}
       </div>
     </li>
@@ -234,7 +248,6 @@ function DecisionCard({ a, i }: { a: DeskAction; i: number }) {
 }
 
 function LaterRow({ a }: { a: DeskAction }) {
-  const act = useDesk((s) => s.act);
   return (
     <li style={{ "--tone": DESK_ROOMS[a.room].accent } as React.CSSProperties}>
       <span className="later-list__due">{a.due ?? "Later"}</span>
@@ -244,9 +257,7 @@ function LaterRow({ a }: { a: DeskAction }) {
       </span>
       <span className="later-list__actions">
         {a.choices.map((c, k) => (
-          <button key={c} type="button" className={`btn btn--sm ${k === 0 ? "btn--go" : "btn--quiet"}`} onClick={() => act(a.id)}>
-            {c}
-          </button>
+          <Choice key={c} a={a} k={k} small />
         ))}
       </span>
     </li>

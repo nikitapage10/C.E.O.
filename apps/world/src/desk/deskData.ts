@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { create } from "zustand";
+import { CREW, crewFor, useFoundry, type FoundryData } from "../foundry.ts";
 
 /**
  * What the Desk shows, as plain data. Phase 2: the hub on the MacBook fills this in. Until it does, the Desk
@@ -34,12 +36,17 @@ export interface DeskAction {
   due?: string;
   /** The buttons; the first is the suggested one. */
   choices: string[];
+  /** A link per button, where a button opens something instead of answering here. */
+  hrefs?: (string | null)[];
+  /** Real work (not a sample), even while samples are showing. */
+  live?: boolean;
 }
 
 /** One line of what happened while you were away. */
 export interface DeskNote {
   room: DeskRoom;
   text: string;
+  live?: boolean;
 }
 
 export type Urgency = "sooner" | "normal";
@@ -202,7 +209,7 @@ export function demoDesk(now = Date.now()): DeskData {
     streakDays: 3,
     sentToday: 3,
     actions: [
-      { id: "foundry-pr", room: "foundry", agent: "Rusty", kind: "decide", when: "now", title: "Ship the faster sign-in page?", detail: "Built and checked. Goes live on the site when you say so.", choices: ["Ship it", "Let me look"] },
+      { id: "foundry-pr", room: "foundry", agent: "Rocky", kind: "decide", when: "now", title: "Ship the faster sign-in page?", detail: "Built and checked. Goes live on the site when you say so.", choices: ["Ship it", "Let me look"] },
       { id: "spire-invoice", room: "spire", agent: "Ledger", kind: "decide", when: "now", title: "Send the October invoice to Harbor Bakery?", detail: "$1,240 for 31 hours. Same terms as September.", choices: ["Send", "Hold"] },
       { id: "green-lineup", room: "green", agent: "Gridiron", kind: "decide", when: "now", title: "Swap your flex before Sunday's lock?", detail: "Your WR3 is questionable. The bench back has the easier matchup.", due: "Locks Sun 13:00", choices: ["Swap", "Keep"] },
       { id: "exchange-fed", room: "exchange", agent: "Noco", kind: "decide", when: "later", title: "Hold the November Fed position?", detail: "Up 18% since Friday. Hedge says take half off.", due: "Market closes Wed", choices: ["Take half", "Hold"] },
@@ -210,7 +217,7 @@ export function demoDesk(now = Date.now()): DeskData {
       { id: "relay-dave", room: "relay", agent: "Dialtone", kind: "check", when: "later", title: "Remind you about Dave's plumber question", detail: "At the 19:00 nudge, unless you answer first.", due: "19:00", choices: ["OK", "Not needed"] },
     ],
     notes: [
-      { room: "foundry", text: "Rusty fixed the slow page load you mentioned." },
+      { room: "foundry", text: "Tallboy fixed the slow page load you mentioned." },
       { room: "relay", text: "Dialtone set aside 14 group chats and promo texts." },
       { room: "exchange", text: "Noco closed the rain market. +$22." },
       { room: "boiler", text: "Gary taped a pipe. All lines quiet." },
@@ -261,9 +268,49 @@ export const useDesk = create<DeskStore>((set, get) => ({
   },
 }));
 
-/** The Desk's data. Phase 2 swaps this for a subscription to the hub. */
+/** The Foundry thread in Nikita's C.E.O. project, where "Ship?" and the morning ideas are answered. */
+export const FOUNDRY_THREAD = "https://claude.ai/code/project/chan_01ADYmBcNXXQp2nFaBGX662Z?thread=cmsg_01ADYmBcNXXQp2nFaBGX662ZH5T27bzSjU4A8MHkVRmdcL";
+
+const DAY_MS = 86_400_000;
+
+/** The Foundry's real work, as Desk cards: things to ship, stuck crates, the morning ideas, and what shipped. */
+export function foundryDesk(f: FoundryData, now = Date.now()): { actions: DeskAction[]; notes: DeskNote[] } {
+  const actions: DeskAction[] = [];
+  const notes: DeskNote[] = [];
+  for (const c of f.crates) {
+    const agent = CREW[crewFor(c)].name;
+    const id = `foundry-${c.number}`;
+    if (c.state === "ready") {
+      actions.push({ id, room: "foundry", agent, kind: "decide", when: "now", live: true, title: `Ship “${c.title}”?`, detail: "Built and checked. Tap Ship on the card in the Foundry thread and it goes live.", choices: ["Open the Foundry thread", "See the work"], hrefs: [FOUNDRY_THREAD, c.url] });
+    } else if (c.state === "stuck") {
+      actions.push({ id, room: "foundry", agent, kind: "check", when: "now", live: true, title: `Stuck: ${c.title}`, detail: "Every model rung tried and the checks are still red. The notes on what was tried are on the issue.", choices: ["Read the notes"], hrefs: [c.url] });
+    } else if (c.kind === "idea" && c.state === "queued") {
+      actions.push({ id, room: "foundry", agent, kind: "decide", when: "later", live: true, due: "This morning's ideas", title: c.title, choices: ["Pick in the Foundry thread", "Read it"], hrefs: [FOUNDRY_THREAD, c.url] });
+    } else if (c.state === "shipped" && now - c.updatedAt < DAY_MS) {
+      notes.push({ room: "foundry", live: true, text: `${agent} shipped “${c.title}”.` });
+    }
+  }
+  if (f.checks.state === "fail" && !f.crates.some((c) => c.kind === "fix" && c.state !== "shipped")) {
+    notes.unshift({ room: "foundry", live: true, text: "The checks on main went red. Tallboy is on his way." });
+  }
+  return { actions, notes };
+}
+
+/** The Desk's data: the store (Relay's samples until the hub connects) plus the Foundry's real work from GitHub. */
 export function useDeskData(): DeskData {
-  return useDesk((s) => s.data);
+  const data = useDesk((s) => s.data);
+  const foundry = useFoundry((s) => s.data);
+  const connected = useFoundry((s) => s.connected);
+  return useMemo(() => {
+    if (!connected) return data;
+    const f = foundryDesk(foundry);
+    return {
+      ...data,
+      // Once the Foundry is connected its sample cards give way to the real ones.
+      actions: [...f.actions, ...data.actions.filter((a) => a.room !== "foundry")],
+      notes: [...f.notes, ...data.notes.filter((n) => n.room !== "foundry")],
+    };
+  }, [data, foundry, connected]);
 }
 
 /** Owed replies, oldest wait first. */

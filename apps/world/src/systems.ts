@@ -5,7 +5,8 @@ import { create } from "zustand";
  * agent line, the Systems tab) and the Lattice (the Boiler Room's pipes). Imports nothing from the 3D world,
  * so the Desk can load it alone.
  *
- * Phase 2: the hub on the MacBook reports these. Until it exists, every link is "off" (not connected yet).
+ * Relay's links come from the hub on the MacBook (phase 2); until it exists they are "off" (not connected yet).
+ * The Foundry's come from GitHub (see foundry.ts).
  * `?demo` (or `?boiler=demo`) cycles them through every state, to preview the Boiler Room's gags.
  */
 
@@ -17,6 +18,8 @@ export interface Link {
   /** What it is, in a few words. */
   what: string;
   kind: "agent" | "service" | "machine";
+  /** Which room's system it belongs to (the Systems page draws one schematic per room). */
+  room: "relay" | "foundry";
   state: LinkState;
   /** How busy, 0..1 (the pipe's gauge). */
   load: number;
@@ -33,13 +36,15 @@ export const LINK_STATE_LABEL: Record<LinkState, string> = {
 };
 
 const LINKS: Link[] = [
-  { id: "dialtone", label: "Dialtone", what: "Tracks who you owe a reply", kind: "agent", state: "off", load: 0, lastSeen: null },
-  { id: "postmaster", label: "Blasto", what: "Drafts replies in your voice", kind: "agent", state: "off", load: 0, lastSeen: null },
-  { id: "hub", label: "Hub", what: "The always-on service on the MacBook", kind: "service", state: "off", load: 0, lastSeen: null },
-  { id: "bluebubbles", label: "BlueBubbles", what: "Reads and sends iMessage and SMS", kind: "service", state: "off", load: 0, lastSeen: null },
-  { id: "messages", label: "Messages", what: "Signed in on the Mac", kind: "service", state: "off", load: 0, lastSeen: null },
-  { id: "openai", label: "OpenAI", what: "Sorting, drafting and voice", kind: "service", state: "off", load: 0, lastSeen: null },
-  { id: "mac", label: "MacBook", what: "Awake, on power, online", kind: "machine", state: "off", load: 0, lastSeen: null },
+  { id: "dialtone", label: "Dialtone", what: "Tracks who you owe a reply", kind: "agent", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "postmaster", label: "Blasto", what: "Drafts replies in your voice", kind: "agent", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "hub", label: "Hub", what: "The always-on service on the MacBook", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "bluebubbles", label: "BlueBubbles", what: "Reads and sends iMessage and SMS", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "messages", label: "Messages", what: "Signed in on the Mac", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "openai", label: "OpenAI", what: "Sorting, drafting and voice", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "mac", label: "MacBook", what: "Awake, on power, online", kind: "machine", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "checks", label: "Checks", what: "Types, lint, tests and build on main, on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
+  { id: "foundry", label: "Foundry", what: "The coding thread in Claude Code", kind: "agent", room: "foundry", state: "off", load: 0, lastSeen: null },
 ];
 
 interface SystemsStore {

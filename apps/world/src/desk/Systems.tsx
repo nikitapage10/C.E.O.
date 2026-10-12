@@ -1,12 +1,13 @@
-import { LINK_STATE_LABEL, useSystems } from "../systems.ts";
-import { DESK_ROOMS, type DeskRoom } from "./deskData.ts";
+import { CREW, crewWork, useFoundry, type CrateState, type CrewId } from "../foundry.ts";
+import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
+import { DESK_ROOMS, FOUNDRY_THREAD, type DeskRoom } from "./deskData.ts";
 import { SystemsPanel } from "./SystemsPanel.tsx";
 import { PageHead, Panel } from "./ui.tsx";
 import { ActivityMeter, BlastoGlyph, DialtoneGlyph } from "./viz.tsx";
 
 /**
- * Systems: what's connected and what isn't, one system per room as each becomes real. Relay is the first; the
- * others are listed as planned until their agents go live.
+ * Systems: what's connected and what isn't, one system per room as each becomes real: Relay and the Foundry so
+ * far; the others are listed as planned until their agents go live.
  */
 
 const AGENTS = [
@@ -30,7 +31,6 @@ const AGENTS = [
 
 /** Rooms whose real systems are still to come, in the order they're likely to be built. */
 const PLANNED: { room: DeskRoom; what: string }[] = [
-  { room: "foundry", what: "Coding agents on the Mac, through Claude" },
   { room: "spire", what: "Invoices, bookings and the business inbox" },
   { room: "exchange", what: "Kalshi and the portfolio" },
   { room: "green", what: "Sleeper fantasy football" },
@@ -61,6 +61,8 @@ export function Systems({ now }: { now: number }) {
           ))}
         </div>
       </section>
+
+      <FoundrySystem />
 
       <section className="planned" aria-label="Systems to come">
         <header className="section-head">
@@ -105,5 +107,67 @@ function AgentCard({ id, name, role, job, Glyph, tone }: (typeof AGENTS)[number]
         </div>
       </div>
     </article>
+  );
+}
+
+const CRATE_STATE: Record<CrateState, string> = { queued: "Queued", working: "Working", ready: "Waiting for your OK", stuck: "Stuck", shipped: "Shipped" };
+const CREW_STATE: Record<CrateState, LinkState> = { queued: "ok", working: "ok", ready: "slow", stuck: "down", shipped: "ok" };
+
+/** The Foundry's system: the checks on GitHub wake the Foundry thread in Claude Code, which ships to main. */
+function FoundrySystem() {
+  const connected = useFoundry((s) => s.connected);
+  const data = useFoundry((s) => s.data);
+  const checks = useSystems((s) => s.links.find((l) => l.id === "checks")?.state ?? "off");
+  const work = crewWork(data.crates);
+  const steps: { name: string; what: string; state: LinkState; label: string }[] = [
+    { name: "Checks", what: "Types, lint, tests and build on every push to main, on GitHub", state: checks, label: checks === "off" ? "No run yet" : LINK_STATE_LABEL[checks] },
+    { name: "Wake routine", what: "A red check opens a fix and wakes the Foundry", state: connected ? "ok" : "off", label: connected ? "Watching" : "Not connected yet" },
+    { name: "Foundry thread", what: "Fixes, upkeep and builds, coded in Claude Code on your plan", state: connected ? "ok" : "off", label: connected ? "Ready" : "Not connected yet" },
+    { name: "main → the site", what: "Small fixes and upkeep ship on their own; bigger work waits for you", state: connected ? "ok" : "off", label: connected ? "Shipping" : "Not connected yet" },
+  ];
+  return (
+    <section className="foundry-system" aria-label="The Foundry's system" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
+      <header className="section-head">
+        <h2>Foundry · coding in Claude Code</h2>
+        <span className="panel__rule" aria-hidden="true" />
+        <a className="panel__hint" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
+          Open the Foundry thread →
+        </a>
+      </header>
+      <ol className="foundry-flow">
+        {steps.map((st) => (
+          <li key={st.name}>
+            <span className="foundry-flow__name">{st.name}</span>
+            <span className="foundry-flow__what">{st.what}</span>
+            <span className={`pill pill--${st.state}`}>
+              <i aria-hidden="true" />
+              {st.label}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <ul className="foundry-crew">
+        {(Object.keys(CREW) as CrewId[]).map((id) => {
+          const crate = work[id];
+          return (
+            <li key={id}>
+              <span className="foundry-crew__job">{CREW[id].job}</span>
+              <span className="foundry-crew__name">{CREW[id].name}</span>
+              {crate ? (
+                <a className="foundry-crew__on" href={crate.url} target="_blank" rel="noreferrer">
+                  #{crate.number} {crate.title}
+                </a>
+              ) : (
+                <span className="foundry-crew__on foundry-crew__on--idle">Nothing in hand</span>
+              )}
+              <span className={`pill pill--${crate ? CREW_STATE[crate.state] : connected ? "ok" : "off"}`}>
+                <i aria-hidden="true" />
+                {crate ? CRATE_STATE[crate.state] : connected ? "Free" : "Not connected yet"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

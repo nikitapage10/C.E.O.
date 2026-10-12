@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { startFoundry } from "../foundry.ts";
 import { loadLattice, navigate, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
 import { SAMPLES, useDeskData } from "./deskData.ts";
@@ -37,6 +38,8 @@ export function Desk({ route }: { route: DeskTab }) {
   const data = useDeskData();
   const now = useNow(30_000);
   const hub = useSystems((s) => s.links.find((l) => l.id === "hub")?.state ?? "off");
+
+  useEffect(() => startFoundry(), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

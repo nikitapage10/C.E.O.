@@ -9,21 +9,30 @@ import { create } from "zustand";
 const KEY = "ceo.cast.v2";
 /** Bumped when the default looks are re-cast: saved casts take the new looks once, keeping names and personalities. */
 const LOOKS_KEY = "ceo.cast.looks";
-const LOOKS_REV = 6;
-/** Default names that were changed: a saved cast still using the old one takes the new one. */
-const RENAMED: Record<string, [string, string]> = {
-  caret: ["Caret", "Rocky"],
-  odds: ["Odds", "Noco"],
-  postmaster: ["Postmaster", "Blasto"],
-  semicolon: ["Semicolon", "Rivet"],
-  tessellate: ["Tessellate", "Rusty"],
+const LOOKS_REV = 7;
+/** Default names that were changed: a saved cast still using any of the old ones takes the new one. */
+const RENAMED: Record<string, [string[], string]> = {
+  caret: [["Caret"], "Rocky"],
+  odds: [["Odds"], "Noco"],
+  postmaster: [["Postmaster"], "Blasto"],
+  // Semicolon became Rivet, and Rivet handed the bench to Tallboy.
+  semicolon: [["Semicolon", "Rivet"], "Tallboy"],
+  tessellate: [["Tessellate"], "Rusty"],
 };
+
+/** Give every profile still wearing an old default name its new one. */
+function rename(profiles: Record<string, Profile>) {
+  for (const [id, [was, now]] of Object.entries(RENAMED)) {
+    const p = profiles[id];
+    if (p && was.includes(p.name)) profiles[id] = { ...p, name: now };
+  }
+}
 /**
  * Bumped when the default characters are rewritten: saved casts take the new roles, personalities, dossiers and
  * relationships once, keeping their looks (and any name you chose yourself).
  */
 const LORE_KEY = "ceo.cast.lore";
-const LORE_REV = 3;
+const LORE_REV = 4;
 
 function readRev(key: string) {
   try {
@@ -55,13 +64,13 @@ function load(): Cast {
         for (const [id, p] of Object.entries(base.profiles)) {
           if (profiles[id]) profiles[id] = { ...profiles[id], role: p.role, personality: p.personality, lore: p.lore };
         }
-        for (const [id, [was, now]] of Object.entries(RENAMED)) if (profiles[id]?.name === was) profiles[id] = { ...profiles[id], name: now };
+        rename(profiles);
         relationships = base.relationships;
       }
       if (readRev(LOOKS_KEY) < LOOKS_REV) {
         migrated = true;
         for (const [id, p] of Object.entries(base.profiles)) if (profiles[id]) profiles[id] = { ...profiles[id], look: p.look };
-        for (const [id, [was, now]] of Object.entries(RENAMED)) if (profiles[id]?.name === was) profiles[id] = { ...profiles[id], name: now };
+        rename(profiles);
       }
       const cast = { ...parsed, profiles, relationships };
       // Keep the migrated cast, so the rewrite isn't undone on the next visit. (Private mode: it reruns, harmlessly.)

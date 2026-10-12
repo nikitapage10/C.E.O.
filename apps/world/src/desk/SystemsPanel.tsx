@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { daysSinceIncident, LINK_STATE_LABEL, useSystems, type Link, type LinkState } from "../systems.ts";
 
 /**
@@ -116,7 +117,8 @@ function Diagram({ layout, links, className }: { layout: Layout; links: Link[]; 
 }
 
 export function SystemsPanel({ now }: { now: number }) {
-  const links = useSystems((s) => s.links);
+  const all = useSystems((s) => s.links);
+  const links = useMemo(() => all.filter((l) => l.room === "relay"), [all]);
   const lastIncident = useSystems((s) => s.lastIncident);
   const working = links.filter((l) => l.state === "ok").length;
   const days = Math.max(0, daysSinceIncident(lastIncident, now));

@@ -12,9 +12,9 @@ export interface SimAgent extends Agent {
  * (see docs/AGENT_STACK.md); in phase 1 they are all played by the simulator.
  */
 export const SAMPLE_AGENTS: SimAgent[] = [
-  { id: "tessellate", name: "Rusty", lineage: "claudari", provider: "claude-code", role: "Builder", home: { room: "foundry", station: "intake" }, script: "foundryBuilder", breakChance: 0.1 },
-  { id: "caret", name: "Rocky", lineage: "cursori", provider: "cursor", role: "Engineer", home: { room: "foundry", station: "bench-a" }, script: "foundryBuilder", breakChance: 0.08 },
-  { id: "semicolon", name: "Rivet", lineage: "cursori", provider: "cursor", role: "Foreman", home: { room: "foundry", station: "bench-b" }, script: "foundryBuilder", breakChance: 0.12 },
+  { id: "tessellate", name: "Rusty", lineage: "claudari", provider: "claude-code", role: "Upkeep and ideas", home: { room: "foundry", station: "intake" }, script: "foundryIdle", breakChance: 0.1 },
+  { id: "caret", name: "Rocky", lineage: "cursori", provider: "claude-code", role: "Master builder", home: { room: "foundry", station: "bench-a" }, script: "foundryIdle", breakChance: 0.08 },
+  { id: "semicolon", name: "Tallboy", lineage: "cursori", provider: "claude-code", role: "First responder", home: { room: "foundry", station: "bench-b" }, script: "foundryIdle", breakChance: 0.12 },
   { id: "ledger", name: "Ledger", lineage: "gepetti", provider: "openai", role: "Operations", home: { room: "spire", station: "desk-1" }, script: "spireOperator", breakChance: 0.12 },
   { id: "memo", name: "Memo", lineage: "unforked", provider: "simulated", role: "Assistant to the assistant", home: { room: "spire", station: "desk-3" }, script: "spireOperator", breakChance: 0.25 },
   { id: "odds", name: "Noco", lineage: "gepetti", provider: "openai", role: "Quant", home: { room: "exchange", station: "terminal" }, script: "exchangeQuant", breakChance: 0.08 },

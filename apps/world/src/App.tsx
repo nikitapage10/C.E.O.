@@ -15,6 +15,7 @@ import { useCast } from "./cast/castStore.ts";
 import { AchievementDirector } from "./achievements/AchievementDirector.tsx";
 import { DeckDirector } from "./club/DeckDirector.tsx";
 import { NightDirector } from "./night/NightDirector.tsx";
+import { FoundryDirector } from "./rooms/FoundryDirector.tsx";
 import { VeilDirector } from "./veil/VeilDirector.tsx";
 import { pumpSpeech, useWorld } from "./store.ts";
 import "./styles.css";
@@ -80,6 +81,7 @@ export function App() {
         <KernelDirector />
         <GatheringDirector />
         <NightDirector />
+        <FoundryDirector />
         <DeckDirector />
         <VeilDirector />
         <AchievementDirector />

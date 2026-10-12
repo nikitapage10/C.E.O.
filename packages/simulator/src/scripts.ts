@@ -41,44 +41,62 @@ function grind(rng: Rng, totalMs: number, activity: Activity = "typing", notes: 
   return steps;
 }
 
-const REPOS = ["the-tide", "c.e.o.", "npsite", "tempo", "storyline"];
-const CODE_TASKS = [
-  "Refactor publication pipeline",
-  "Fix flaky e2e test",
-  "Add dark mode to the dark mode",
-  "Upgrade dependencies (brave)",
-  "Rename variable 'thing2'",
-  "Write tests for untested tests",
-  "Delete dead code, respectfully",
+/**
+ * The Foundry is real now: its crates are GitHub issues worked by the Foundry thread in Claude Code (see
+ * docs/FOUNDRY.md). The demo builder is retired; the world switches each crew member between these
+ * routines to match what their real crate is doing, and the tasks themselves come from GitHub, not from here.
+ */
+export const foundryIdle: Script = ({ rng }) => [
+  { kind: "go", station: rng.pick(["bench-a", "bench-b", "intake"]) },
+  { kind: "do", activity: rng.pick(["idle", "staring", "idle"]), ms: rng.int(5000, 9000), prop: null },
+  { kind: "quip", chance: 0.2 },
+  { kind: "go", station: rng.pick(["bench-a", "bench-b"]) },
+  { kind: "do", activity: rng.pick(["idle", "napping"]), ms: rng.int(4000, 8000) },
 ];
 
-export const foundryBuilder: Script = ({ rng }) => {
-  const repo = rng.pick(REPOS);
-  const title = `${rng.pick(CODE_TASKS)} · ${repo}`;
-  const steps: Step[] = [
-    { kind: "go", station: "intake" },
-    work(1600, "working"),
-    { kind: "set", activity: "carrying", prop: "crate" },
-    { kind: "task", title },
-    { kind: "go", station: "assembler" },
-    ...grind(rng, rng.int(5000, 9000), "working", ["Assembling diff", "Reading the codebase (all of it)", "Arguing with the linter"]),
-    { kind: "quip", chance: 0.35 },
-    { kind: "go", station: "furnace" },
-    work(rng.int(2500, 4000), "working"),
-    { kind: "finish", failRate: 0.22 },
-  ];
-  if (rng.chance(0.35)) {
-    steps.push(
-      { kind: "go", station: "shipping" },
-      { kind: "approval", action: "code.merge", summary: `Merge PR into ${repo}`, detail: title, target: repo, risk: "low" },
-    );
-  } else {
-    steps.push({ kind: "go", station: "shipping" });
-  }
-  steps.push({ kind: "do", activity: "working", ms: 1200, prop: null }, { kind: "go", station: rng.pick(["bench-a", "bench-b"]) });
-  steps.push(work(rng.int(2000, 5000), "typing"));
-  return steps;
-};
+/** A real fix or build in hand: crate from intake, through the arm, into the furnace, and round again. */
+export const foundryFixing: Script = ({ rng }) => [
+  { kind: "go", station: "intake" },
+  { kind: "set", activity: "carrying", prop: "crate" },
+  { kind: "go", station: "assembler" },
+  work(rng.int(7000, 11000), "working"),
+  { kind: "quip", chance: 0.25 },
+  { kind: "go", station: "furnace" },
+  work(rng.int(3000, 5000), "working"),
+  { kind: "go", station: "assembler" },
+  work(rng.int(5000, 8000), "working"),
+];
+
+/** Done and checked: waiting at the dock for the C.E.O.'s OK. */
+export const foundryReady: Script = ({ rng }) => [
+  { kind: "go", station: "shipping" },
+  { kind: "do", activity: "waiting", ms: rng.int(8000, 12000), prop: "crate" },
+  { kind: "quip", chance: 0.2 },
+];
+
+/** Every rung tried and the furnace still red: slumped by it until the C.E.O. looks. */
+export const foundryStuck: Script = ({ rng }) => [
+  { kind: "go", station: "furnace" },
+  { kind: "do", activity: "slumped", ms: rng.int(6000, 10000), prop: null },
+  { kind: "do", activity: "staring", ms: rng.int(3000, 5000) },
+];
+
+/** Upkeep: slow, careful work at the bench. */
+export const foundryUpkeep: Script = ({ rng }) => [
+  { kind: "go", station: "bench-a" },
+  work(rng.int(8000, 12000), "typing"),
+  { kind: "quip", chance: 0.15 },
+  { kind: "go", station: "furnace" },
+  work(rng.int(2500, 4000), "working"),
+];
+
+/** Ideas are up on the board: pinning, re-pinning, standing back to look. */
+export const foundryIdeas: Script = ({ rng }) => [
+  { kind: "go", station: "bench-b" },
+  { kind: "do", activity: "working", ms: rng.int(5000, 8000), prop: "chart" },
+  { kind: "do", activity: "staring", ms: rng.int(3000, 5000), prop: null },
+  { kind: "quip", chance: 0.2 },
+];
 
 const BIZ_TASKS = [
   "Reconcile store orders",
@@ -331,7 +349,12 @@ export const coffeeBreak: Script = ({ rng }) => [
 ];
 
 export const SCRIPTS = {
-  foundryBuilder,
+  foundryIdle,
+  foundryFixing,
+  foundryReady,
+  foundryStuck,
+  foundryUpkeep,
+  foundryIdeas,
   spireOperator,
   exchangeQuant,
   greenCoach,

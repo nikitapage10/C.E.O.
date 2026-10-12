@@ -6,6 +6,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { Beam, Haze, Smoke, Sparks } from "../fx/atmos.tsx";
 import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
+import { useFoundry } from "../foundry.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { Block, LightBar, Plinth, Workstation } from "./primitives.tsx";
@@ -95,7 +96,7 @@ function RobotArm({ position }: { position: [number, number, number] }) {
   );
 }
 
-/** The test furnace. Its glow is the last test result in this room: cool green for pass, hot red for fail. */
+/** The test furnace. Its glow is the last test result in this room (the real checks on main): cool green for pass, hot red for fail. */
 function Furnace({ position }: { position: [number, number, number] }) {
   const glowMat = useMemo(() => new MeshStandardMaterial({ color: "#000", emissive: PALETTE.mint, emissiveIntensity: 3, toneMapped: false }), []);
   const core = useRef<Mesh>(null);
@@ -134,6 +135,78 @@ function Furnace({ position }: { position: [number, number, number] }) {
       <mesh ref={core} position={[0, 1.4, 0.6]} material={glowMat}>
         <octahedronGeometry args={[0.18, 0]} />
       </mesh>
+    </group>
+  );
+}
+
+const CARD_COLOURS = ["#f4e9c8", "#ffd9a8", "#d8ecf4"];
+
+/**
+ * Rusty's idea board, on top of the pegboard: one card for each idea waiting on the C.E.O. (the morning three),
+ * pinned with a brass tack. Empty cork when there are none.
+ */
+function IdeaBoard() {
+  const ideas = useFoundry((s) => s.data.crates.filter((c) => c.kind === "idea" && c.state === "queued").length);
+  return (
+    <group position={[3, 0.9, 4.4]}>
+      {[-0.55, 0.55].map((x) => (
+        <Block key={x} size={[0.05, 0.85, 0.05]} position={[x, 0.42, 0]} material={PBR.blackMetal()} radius={0.01} />
+      ))}
+      <Block size={[1.3, 0.72, 0.05]} position={[0, 0.5, 0]} material={PBR.matte("#9a7448", 0.9)} radius={0.02} />
+      {Array.from({ length: Math.min(ideas, 6) }, (_, i) => (
+        <group key={i} position={[-0.42 + (i % 3) * 0.42, i < 3 ? 0.62 : 0.34, 0.03]} rotation={[0, 0, ((i * 37) % 9) / 60 - 0.07]}>
+          <mesh material={PBR.matte(CARD_COLOURS[i % 3]!, 0.95)}>
+            <planeGeometry args={[0.32, 0.22]} />
+          </mesh>
+          <mesh position={[0, 0.08, 0.01]} material={PBR.light("#ffcf6a", 1.5)}>
+            <sphereGeometry args={[0.018, 8, 8]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** A lamp over the dock that glows amber while finished work waits for the C.E.O.'s OK. */
+function DockLamp() {
+  const waiting = useFoundry((s) => s.data.crates.some((c) => c.state === "ready"));
+  const mat = useMemo(() => new MeshStandardMaterial({ color: "#222", emissive: "#ffb347", emissiveIntensity: 0, toneMapped: false }), []);
+  useFrame(({ clock }) => {
+    mat.emissiveIntensity = waiting ? 3 + Math.sin(clock.elapsedTime * 3) * 1.2 : 0.05;
+  });
+  return (
+    <group position={[7.3, 3.7, 1.0]}>
+      <mesh material={PBR.blackMetal()}>
+        <cylinderGeometry args={[0.13, 0.15, 0.08, 16]} />
+      </mesh>
+      <mesh position={[0, -0.12, 0]} material={mat}>
+        <sphereGeometry args={[0.12, 16, 16]} />
+      </mesh>
+    </group>
+  );
+}
+
+/** A red alarm at the intake that spins only when a crate is stuck after every rung. */
+function StuckAlarm() {
+  const stuck = useFoundry((s) => s.data.crates.some((c) => c.state === "stuck"));
+  const head = useRef<Group>(null);
+  useFrame((_, dt) => {
+    if (head.current) head.current.rotation.y += dt * 6;
+  });
+  if (!stuck) return null;
+  return (
+    <group position={[-6.9, 2.95, CONVEYOR_Z]}>
+      <mesh material={PBR.glass("#ff4a3a", 0.5)}>
+        <cylinderGeometry args={[0.1, 0.1, 0.2, 16]} />
+      </mesh>
+      <group ref={head}>
+        <mesh position={[0.04, 0, 0]} material={PBR.light("#ff3b2f", 6)}>
+          <boxGeometry args={[0.03, 0.12, 0.08]} />
+        </mesh>
+        <group rotation={[0, 0, -Math.PI / 2]}>
+          <Beam length={2.6} radius={0.5} color="#ff3b2f" opacity={0.16} />
+        </group>
+      </group>
     </group>
   );
 }
@@ -266,6 +339,9 @@ export function Foundry() {
       {/* Pegboard of tools behind the benches (toward the camera, low) */}
       <Block size={[1.4, 0.9, 0.9]} position={[3, 0.45, 4.4]} material={PBR.lacquer("#a83a2a", 0.4)} radius={0.06} />
       <Block size={[1.4, 0.05, 0.9]} position={[3, 0.62, 4.4]} material={PBR.blackMetal()} radius={0.01} shadows={false} />
+      <IdeaBoard />
+      <DockLamp />
+      <StuckAlarm />
 
       <FoundryFloor />
       <FoundryAir />

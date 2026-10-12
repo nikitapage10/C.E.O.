@@ -24,7 +24,7 @@ wiring it up — these APIs change often.
 
 | Room | Job | Recommended | What to know |
 | --- | --- | --- | --- |
-| **Foundry** | Coding on The Tide and your other repos | **Claude Code** (hooks) and **Cursor background agents** | Claude Code hooks (e.g. on tool use and on stop) can `curl` the hub, so real sessions show up as agents walking crates through the Foundry. This is the easiest real data source, so it's the first adapter to build. |
+| **Foundry** | Fixes, morning ideas and upkeep for this repo | **Claude Code** (a project thread woken by routines) | Live now: the Foundry thread keeps its queue as `foundry`-labelled GitHub issues and GitHub Actions runs the checks; the Desk and the room read both from GitHub. See [FOUNDRY.md](FOUNDRY.md). |
 | **Spire** | Small-business ops: inbox, orders, listings, invoices | **Claude Agent SDK** agents with the relevant connectors (email, Shopify/Stripe, etc.) | Anything outbound (emails, refunds, purchases) goes through `email.send` / `purchase.make` approvals. |
 | **Exchange** | Kalshi markets and portfolio research | **Kalshi Trade API**, starting in Kalshi's **demo environment** | Research can be fully automatic; `trade.place` stays approval-gated, with per-trade and daily caps when you loosen it. Real money: start read-only. |
 | **Green** | Sleeper fantasy football | **Sleeper API** + projections | Sleeper's public API is read-only (rosters, matchups, players, transactions), so the agent recommends and you tap it in the Sleeper app. FantasyPros has no general public API (partner access only), so use free projection sources or request access. |

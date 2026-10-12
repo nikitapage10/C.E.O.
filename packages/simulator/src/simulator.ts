@@ -19,7 +19,7 @@ import {
   ROOM_QUIPS,
 } from "./quips.ts";
 import { createRng } from "./rng.ts";
-import { SCRIPTS, coffeeBreak, type Step } from "./scripts.ts";
+import { SCRIPTS, coffeeBreak, type ScriptId, type Step } from "./scripts.ts";
 
 
 interface Actor {
@@ -119,6 +119,23 @@ export class Simulator {
     actor.queue = [{ kind: "set", activity: "idle", prop: null }, ...steps];
     actor.nextAt = at;
     return true;
+  }
+
+  /**
+   * Switch an agent to a different routine (a room going live swaps its demo routine for real ones). The agent
+   * finishes any walk, wraps up a demo task, and starts the new routine. No-op when it is already on it.
+   */
+  setScript(agentId: string, script: ScriptId, ts = this.now): boolean {
+    const actor = this.actors.find((a) => a.spec.id === agentId);
+    if (!actor) return false;
+    if (actor.spec.script === script) return true;
+    actor.spec = { ...actor.spec, script };
+    return this.assign(agentId, [], ts);
+  }
+
+  /** The routine an agent is on. */
+  scriptOf(agentId: string): ScriptId | undefined {
+    return this.actors.find((a) => a.spec.id === agentId)?.spec.script;
   }
 
   /** Where an agent is (or is heading). */

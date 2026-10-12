@@ -44,7 +44,7 @@ const GENERIC: Record<LetterMood, string[]> = {
 const OPENERS: Record<string, string[]> = {
   tessellate: ["I have read your letter in full, including the margins.", "Received, filed and cross-referenced."],
   caret: ["Letter! Letter is amaze!", "Paper with words, from you! Good good."],
-  semicolon: ["Bloodydamn. A letter.", "Got your note. Put the thermos down for it."],
+  semicolon: ["A letter. From outside. Finally, someone who isn't a monkey.", "Read it before you finished sending it. Answering anyway, as a courtesy."],
   ledger: ["Letter received and audited.", "I have logged this as income. Emotional income."],
   memo: ["I'll delegate reading this to myself. Done.", "Oh. Someone wrote to the placeholder."],
   odds: ["I'd price this letter at a hundred percent.", "En garde! …Oh, it's a letter."],

@@ -5,7 +5,7 @@ import { hop } from "../club/deck.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BufferGeometry, CylinderGeometry, Float32BufferAttribute, Quaternion, LatheGeometry, LineBasicMaterial, LineSegments, MeshPhysicalMaterial, Vector2, Vector3, type Group, type Mesh } from "three";
 import { useCast } from "../cast/castStore.ts";
-import { agentPositions, clock } from "../clock.ts";
+import { agentPositions, clock, talkSteps } from "../clock.ts";
 import { Flare } from "../fx/Flare.tsx";
 import { emissive } from "../fx/materials.ts";
 import { PBR } from "../fx/pbr.ts";
@@ -201,6 +201,8 @@ export function Agent({ id }: { id: string }) {
   const ring = useRef<Mesh>(null);
   const limbs: Limbs = { armL: useRef<Mesh>(null), armR: useRef<Mesh>(null), legL: useRef<Group>(null), legR: useRef<Group>(null) };
   const yaw = useRef(0);
+  /** How far this agent has stepped from their spot to leave room for a chat. */
+  const step = useRef({ x: 0, z: 0 });
   /** The classic figure's own animation clock: runs at the Lattice's speed while walking, so strides keep up. */
   const gait = useRef(0);
   const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
@@ -267,6 +269,14 @@ export function Agent({ id }: { id: string }) {
     } else {
       root.current.position.set(...placeToWorld(rt.place, id));
     }
+    const wanted = talkSteps.get(id);
+    const live0 = wanted && wanted.until > performance.now() ? wanted : null;
+    const ease = 1 - Math.exp(-dt * 3);
+    step.current.x += ((live0?.x ?? 0) - step.current.x) * ease;
+    step.current.z += ((live0?.z ?? 0) - step.current.z) * ease;
+    if (!live0 && wanted) talkSteps.delete(id);
+    root.current.position.x += step.current.x;
+    root.current.position.z += step.current.z;
     agentPositions.set(id, (agentPositions.get(id) ?? new Vector3()).copy(root.current.position));
 
     const override = useWorld.getState().overrides[id];

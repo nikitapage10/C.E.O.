@@ -1,11 +1,9 @@
 import { useId } from "react";
-import { formatWait, type OwedReply, type ReplyDay } from "./deskData.ts";
+import { formatWait, type ReplyDay } from "./deskData.ts";
 
 /** The Desk's drawings: inline SVG and CSS only, no chart library. Each one has a designed empty state. */
 
 const TAU = Math.PI * 2;
-/** The dial's full scale: a reply twelve hours late fills the ring. */
-const DIAL_SPAN = 12 * 60 * 60 * 1000;
 
 const polar = (r: number, turn: number): [number, number] => [r * Math.sin(turn * TAU), -r * Math.cos(turn * TAU)];
 
@@ -19,89 +17,6 @@ function arcPath(r: number, from: number, to: number) {
   const [x1, y1] = polar(r, to);
   const large = to - from > 0.5 ? 1 : 0;
   return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
-}
-
-/* ───────────────────────── Reply pressure dial ───────────────────────── */
-
-export function PressureDial({ owed, now, connected }: { owed: OwedReply[]; now: number; connected: boolean }) {
-  const id = useId().replace(/:/g, "");
-  const oldest = owed.reduce((m, o) => Math.max(m, now - o.since), 0);
-  const fraction = Math.min(1, oldest / DIAL_SPAN);
-  const calm = owed.length === 0;
-  const tone = calm ? "var(--mint)" : waitTone(fraction);
-  const ticks = Array.from({ length: 96 }, (_, i) => i);
-
-  return (
-    <div className={`dial ${calm ? "dial--calm" : "dial--pressing"}`} style={{ "--tone": tone } as React.CSSProperties}>
-      <svg viewBox="-170 -170 340 340" className="dial__svg" aria-hidden="true">
-        <defs>
-          <radialGradient id={`${id}-glow`}>
-            <stop offset="55%" stopColor="currentColor" stopOpacity="0" />
-            <stop offset="78%" stopColor="currentColor" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id={`${id}-arc`} x1="0" y1="-1" x2="0" y2="1" gradientUnits="objectBoundingBox">
-            <stop offset="0" stopColor="var(--mint)" />
-            <stop offset="0.5" stopColor="var(--amber)" />
-            <stop offset="1" stopColor="var(--rose)" />
-          </linearGradient>
-        </defs>
-        <circle r="150" className="dial__glow" fill={`url(#${id}-glow)`} />
-        {/* the outer scale: one tick per 7.5 minutes of waiting, hours marked */}
-        <g className="dial__ticks">
-          {ticks.map((i) => {
-            const t = i / ticks.length;
-            const hour = i % 8 === 0;
-            const [x0, y0] = polar(hour ? 146 : 150, t);
-            const [x1, y1] = polar(158, t);
-            const lit = !calm && t <= fraction;
-            return (
-              <line
-                key={i}
-                x1={x0}
-                y1={y0}
-                x2={x1}
-                y2={y1}
-                className={lit ? "lit" : hour ? "hour" : ""}
-                style={lit ? { stroke: waitTone(t), animationDelay: `${i * 12}ms` } : undefined}
-              />
-            );
-          })}
-        </g>
-        {[0, 3, 6, 9].map((h) => {
-          const [x, y] = polar(134, h / 12);
-          return (
-            <text key={h} x={x} y={y + 3} className="dial__hour">
-              {h === 0 ? "12h" : `${h}h`}
-            </text>
-          );
-        })}
-        <circle r="120" className="dial__track" />
-        {calm ? (
-          <circle r="120" className="dial__breath" />
-        ) : (
-          <path d={arcPath(120, 0, Math.max(0.004, fraction))} className="dial__arc" stroke={`url(#${id}-arc)`} />
-        )}
-        <circle r="100" className="dial__inner" />
-        <g className="dial__orbit">
-          <circle r="120" fill="none" />
-          <circle cx="0" cy="-120" r="3.2" className="dial__runner" />
-        </g>
-        {owed.map((o, i) => {
-          const t = Math.min(1, (now - o.since) / DIAL_SPAN);
-          const [x, y] = polar(120, t);
-          return <circle key={o.id} cx={x} cy={y} r={o.urgency === "sooner" ? 6 : 4.5} className="dial__pip" style={{ fill: waitTone(t), animationDelay: `${i * 180}ms` }} />;
-        })}
-        {!connected && <circle r="88" className="dial__offline" />}
-      </svg>
-      <div className="dial__face">
-        <span className="dial__eyebrow">Reply pressure</span>
-        <span className="dial__count">{owed.length}</span>
-        <span className="dial__state">{calm ? "All caught up" : owed.length === 1 ? "person waiting" : "people waiting"}</span>
-        <span className="dial__sub">{calm ? (connected ? "Nobody is waiting on you" : "Listening for the hub") : `oldest ${formatWait(oldest)}`}</span>
-      </div>
-    </div>
-  );
 }
 
 /* ───────────────────────── Seven-day reply strip ───────────────────────── */

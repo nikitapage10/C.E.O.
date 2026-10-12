@@ -6,6 +6,7 @@
   "outputDirectory": "apps/world/dist",
   "rewrites": [
     { "source": "/relay", "destination": "/index.html" },
+    { "source": "/systems", "destination": "/index.html" },
     { "source": "/lattice", "destination": "/index.html" }
   ]
 }

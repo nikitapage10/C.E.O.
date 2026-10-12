@@ -1,203 +1,254 @@
-import { LINK_STATE_LABEL, useSystems } from "../systems.ts";
-import { byWait, DEMO, formatWait, nextNudge, useDesk, type DeskData } from "./deskData.ts";
+import { byWait, DESK_ROOMS, formatWait, SAMPLES, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { link } from "./nav.ts";
-import { SystemsPanel } from "./SystemsPanel.tsx";
 import { PageHead, Panel } from "./ui.tsx";
-import { ActivityMeter, BlastoGlyph, DialtoneGlyph, Listening, PressureDial, ReplyStrip, Streak, waitTone } from "./viz.tsx";
+import { Listening } from "./viz.tsx";
 
-/** Today: how much is pressing on you, what needs you, and whether the machinery behind it is up. */
+/**
+ * Today: what needs you, plainly. A short "Do now" list (replies with drafts ready, decisions with the answers
+ * as buttons), what can wait until later, what happened while you were away, and the rooms at a glance.
+ */
 
-const AGENTS = [
-  {
-    id: "dialtone",
-    name: "Dialtone",
-    role: "Relay · Switchboard",
-    job: "Keeps the list of who you owe a reply, and nudges you at half twelve and seven.",
-    Glyph: DialtoneGlyph,
-    tone: "var(--violet)",
-  },
-  {
-    id: "postmaster",
-    name: "Blasto",
-    role: "Relay · Postmaster",
-    job: "Drafts your replies in your voice, and holds them until you say send.",
-    Glyph: BlastoGlyph,
-    tone: "var(--ice)",
-  },
-];
+/** Replies that make "Do now": the ones marked sooner, and anything waiting longer than this. */
+const NOW_WAIT = 8 * 3_600_000;
+/** Never more than this many replies in "Do now"; the rest wait in Relay. */
+const NOW_REPLIES = 3;
 
 function greeting(now: number) {
   const h = new Date(now).getHours();
   return h < 5 ? "Still up, Nikita." : h < 12 ? "Good morning, Nikita." : h < 18 ? "Good afternoon, Nikita." : "Good evening, Nikita.";
 }
 
+/** "Lattice" pages for rooms without a Desk page yet; Relay and the Boiler Room have their own. */
+function roomHref(room: DeskRoom) {
+  return room === "relay" ? "/relay" : room === "boiler" ? "/systems" : `/lattice?room=${room}`;
+}
+
 export function Today({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
   const date = new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-  const next = nextNudge(data.nudges, now);
   const owed = byWait(data.owed);
+  const replies = owed.filter((o) => !o.later && (o.urgency === "sooner" || now - o.since > NOW_WAIT)).slice(0, NOW_REPLIES);
+  const otherReplies = owed.length - replies.length;
+  const decisions = data.actions.filter((a) => a.when === "now");
+  const later = data.actions.filter((a) => a.when === "later");
+  const todo = replies.length + decisions.length;
+  const total = todo + later.length + otherReplies + data.doneToday;
 
   return (
     <div className="today">
-      <PageHead eyebrow={`Desk · ${date}`} title="Today" lead={<em className="page-head__greet">{greeting(now)}</em>} />
+      <PageHead
+        eyebrow={`Desk · ${date}`}
+        title="Today"
+        lead={
+          <>
+            <em className="page-head__greet">{greeting(now)}</em>
+            <span className="today__summary">
+              {todo ? `${todo} ${todo === 1 ? "thing needs" : "things need"} you now, about ${todo} minutes.` : "Nothing needs you right now."}
+              {later.length + otherReplies > 0 && ` ${later.length + otherReplies} more can wait.`}
+            </span>
+          </>
+        }
+        aside={<DayRing done={data.doneToday} total={total} />}
+      />
 
-      <section className="hero" aria-label="Reply pressure">
-        <div className="hero__dial">
-          <PressureDial owed={owed} now={now} connected={connected} />
-        </div>
-        <div className="hero__side">
-          <Panel eyebrow="Reply time · last 7 days" className="panel--strip">
-            <ReplyStrip week={data.week} />
-          </Panel>
-          <div className="hero__pair">
-            <Panel eyebrow="Streak">
-              <Streak days={data.streakDays} />
-            </Panel>
-            <Panel eyebrow="Next nudge">
-              <div className="nudge-mini">
-                <span className="nudge-mini__time">{next === null ? "—" : new Date(next).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
-                <span className="nudge-mini__in">{next === null ? "No nudges set" : `in ${formatWait(next - now)}`}</span>
-                <div className="nudge-mini__track" aria-hidden="true">
-                  {data.nudges.map(([h, m]) => (
-                    <i key={`${h}${m}`} style={{ left: `${((h * 60 + m) / 1440) * 100}%` }} />
-                  ))}
-                  <b style={{ left: `${((new Date(now).getHours() * 60 + new Date(now).getMinutes()) / 1440) * 100}%` }} />
-                </div>
-                <span className="nudge-mini__cap">Dialtone · {data.nudges.map(([h, m]) => `${h}:${String(m).padStart(2, "0")}`).join(" & ")}</span>
-              </div>
-            </Panel>
+      <Panel eyebrow="Do now" aside={<span className="badge">{todo}</span>} className="panel--now">
+        {todo ? (
+          <ol className="todo">
+            {replies.map((o, i) => (
+              <ReplyCard key={o.id} o={o} now={now} i={i} />
+            ))}
+            {decisions.map((a, i) => (
+              <DecisionCard key={a.id} a={a} i={replies.length + i} />
+            ))}
+          </ol>
+        ) : (
+          <div className="empty empty--wide">
+            <Listening />
+            <div>
+              <p className="empty__title">Nothing needs you right now</p>
+              <p className="empty__text">
+                {connected
+                  ? "When an agent needs a reply sent or a decision made, it shows up here with the answer one tap away."
+                  : "Once the hub on your MacBook is connected, replies you owe and decisions from your agents land here."}
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        )}
+      </Panel>
 
       <div className="today__row">
-        <Panel eyebrow="Needs you now" aside={<span className="badge">{owed.length}</span>} className="panel--needs">
-          {owed.length ? (
-            <ul className="needs">
-              {owed.slice(0, 5).map((o, i) => {
-                const wait = now - o.since;
-                const tone = waitTone(Math.min(1, wait / (12 * 3_600_000)));
-                return (
-                  <li key={o.id} style={{ "--tone": tone, animationDelay: `${i * 60}ms` } as React.CSSProperties}>
-                    <a href="/relay" onClick={(e) => (useDesk.getState().pick(o.id), link("relay")(e))}>
-                      <span className="needs__initial">{o.name.slice(0, 1)}</span>
-                      <span className="needs__who">
-                        {o.name}
-                        {o.urgency === "sooner" && <em>sooner</em>}
-                      </span>
-                      <span className="needs__preview">{o.preview}</span>
-                      <span className="needs__wait">{formatWait(wait)}</span>
-                      <span className="needs__draft">{o.draft ? "Draft ready" : "Drafting…"}</span>
-                    </a>
-                  </li>
-                );
-              })}
+        <Panel eyebrow="Later today" aside={<span className="badge">{later.length + (otherReplies > 0 ? 1 : 0)}</span>}>
+          {later.length || otherReplies ? (
+            <ul className="later-list">
+              {later.map((a) => (
+                <LaterRow key={a.id} a={a} />
+              ))}
+              {otherReplies > 0 && (
+                <li style={{ "--tone": DESK_ROOMS.relay.accent } as React.CSSProperties}>
+                  <span className="later-list__due">Any time</span>
+                  <a className="later-list__title" href="/relay" onClick={link("relay")}>
+                    {otherReplies} more {otherReplies === 1 ? "reply" : "replies"} waiting in Relay →
+                  </a>
+                </li>
+              )}
             </ul>
           ) : (
-            <div className="empty empty--wide">
-              <Listening />
-              <div>
-                <p className="empty__title">Nobody is waiting on you</p>
-                <p className="empty__text">
-                  {connected
-                    ? "Replies you owe will appear here, the ones to answer sooner first, each with a draft ready to send."
-                    : "When the hub is connected, replies you owe land here, the ones to answer sooner first, each with Blasto's draft ready."}
-                </p>
-                <a className="empty__link" href="/relay" onClick={link("relay")}>
-                  Open Relay →
-                </a>
-              </div>
-            </div>
+            <p className="quiet">Nothing scheduled.</p>
           )}
         </Panel>
 
-        <div className="today__stack">
-          <Panel eyebrow="Waiting on you" aside={<span className="badge">{data.approvals.length}</span>}>
-            {data.approvals.length ? (
-              <ul className="approvals">
-                {data.approvals.map((a) => (
-                  <li key={a.id}>
-                    <span className="approvals__agent">{a.agent}</span>
-                    <span className="approvals__title">{a.title}</span>
-                    <span className="approvals__detail">{a.detail}</span>
-                    {DEMO && (
-                      <span className="approvals__actions">
-                        <button type="button" onClick={() => useDesk.getState().resolveApproval(a.id)}>
-                          Approve
-                        </button>
-                        <button type="button" onClick={() => useDesk.getState().resolveApproval(a.id)}>
-                          Not now
-                        </button>
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="empty empty--small">
-                <span className="empty__seal" aria-hidden="true">
-                  ✓
-                </span>
-                <p className="empty__text">Nothing to approve. Agents ask here before they act for you.</p>
-              </div>
-            )}
-          </Panel>
-          <Panel eyebrow="While you were away">
-            <p className="away">
-              <span className="away__line" aria-hidden="true" />
-              <span>
-                Quiet. The other rooms are still running drills, which you can watch in the{" "}
-                <a href="/lattice" onClick={link("lattice")}>
-                  Lattice
-                </a>
-                .
-              </span>
+        <Panel eyebrow="While you were away">
+          {data.notes.length ? (
+            <ul className="notes">
+              {data.notes.map((n, i) => (
+                <li key={i} style={{ "--tone": DESK_ROOMS[n.room].accent } as React.CSSProperties}>
+                  <span className="notes__room">{DESK_ROOMS[n.room].name}</span>
+                  {n.text}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="quiet">
+              Quiet. The rooms are still running drills, which you can watch in the{" "}
+              <a href="/lattice" onClick={link("lattice")}>
+                Lattice
+              </a>
+              .
             </p>
-          </Panel>
-        </div>
+          )}
+        </Panel>
       </div>
 
-      <Panel eyebrow="Systems" aside={<span className="panel__hint">MacBook → Hub → services → agents</span>} className="panel--systems">
-        <SystemsPanel now={now} />
-      </Panel>
-
-      <section className="agents" aria-label="Agents">
+      <section className="rooms" aria-label="Your rooms">
         <header className="section-head">
-          <h2>Agents on duty</h2>
+          <h2>Your rooms</h2>
           <span className="panel__rule" aria-hidden="true" />
         </header>
-        <div className="agents__grid">
-          {AGENTS.map((a) => (
-            <AgentCard key={a.id} {...a} />
-          ))}
-        </div>
+        <ul className="rooms__grid">
+          {(Object.keys(DESK_ROOMS) as DeskRoom[]).map((r) => {
+            const waiting = data.actions.filter((a) => a.room === r).length + (r === "relay" ? owed.length : 0);
+            return (
+              <li key={r} style={{ "--tone": DESK_ROOMS[r].accent } as React.CSSProperties}>
+                <a href={roomHref(r)} onClick={r === "relay" ? link("relay") : r === "boiler" ? link("systems") : undefined}>
+                  <span className="rooms__name">{DESK_ROOMS[r].name}</span>
+                  <span className={`rooms__count ${waiting ? "rooms__count--on" : ""}`}>{waiting || "✓"}</span>
+                  <span className="rooms__cap">{waiting ? "waiting on you" : "all clear"}</span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
       </section>
     </div>
   );
 }
 
-function AgentCard({ id, name, role, job, Glyph, tone }: (typeof AGENTS)[number]) {
-  const linkState = useSystems((s) => s.links.find((l) => l.id === id));
-  const state = linkState?.state ?? "off";
-  const load = linkState?.load ?? 0;
-  const seen = linkState?.lastSeen;
+/** How much of today is handled: a ring that fills as you clear things. */
+function DayRing({ done, total }: { done: number; total: number }) {
+  const f = total ? done / total : 1;
+  const r = 44;
+  const c = 2 * Math.PI * r;
   return (
-    <article className={`agent agent--${state}`} style={{ "--tone": tone } as React.CSSProperties}>
-      <div className="agent__portrait">
-        <Glyph />
+    <div className="dayring" aria-label={`${done} of ${total} done today`}>
+      <svg viewBox="-56 -56 112 112" aria-hidden="true">
+        <circle r={r} className="dayring__track" />
+        <circle r={r} className="dayring__fill" strokeDasharray={c} strokeDashoffset={c * (1 - f)} transform="rotate(-90)" />
+      </svg>
+      <span className="dayring__big">{done}</span>
+      <span className="dayring__cap">
+        {total ? (
+          <>
+            of {total}
+            <br />
+            done
+          </>
+        ) : (
+          "all clear"
+        )}
+      </span>
+    </div>
+  );
+}
+
+function RoomTag({ room, agent }: { room: DeskRoom; agent: string }) {
+  return (
+    <span className="roomtag">
+      <i aria-hidden="true" />
+      {DESK_ROOMS[room].name} · {agent}
+      {SAMPLES && <em>sample</em>}
+    </span>
+  );
+}
+
+function ReplyCard({ o, now, i }: { o: OwedReply; now: number; i: number }) {
+  const { send, later, pick } = useDesk();
+  return (
+    <li className="todo__item todo__item--reply" style={{ "--tone": DESK_ROOMS.relay.accent, animationDelay: `${i * 60}ms` } as React.CSSProperties}>
+      <div className="todo__top">
+        <RoomTag room="relay" agent="Blasto" />
+        <span className="todo__due">waiting {formatWait(now - o.since)}</span>
       </div>
-      <div className="agent__body">
-        <p className="agent__role">{role}</p>
-        <h3 className="agent__name">{name}</h3>
-        <p className="agent__job">{job}</p>
-        <div className="agent__foot">
-          <span className={`pill pill--${state}`}>
-            <i aria-hidden="true" />
-            {LINK_STATE_LABEL[state]}
-          </span>
-          <ActivityMeter load={load} live={state === "ok" || state === "slow"} />
-          <span className="agent__seen">{seen ? `heard ${new Date(seen).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}` : "never heard from"}</span>
-        </div>
+      <h3 className="todo__title">Reply to {o.name}</h3>
+      <p className="todo__quote">“{o.preview}”</p>
+      {o.draft && <p className="todo__draft">{o.draft}</p>}
+      <div className="todo__actions">
+        <button type="button" className="btn btn--go" disabled={!o.draft} onClick={() => send(o.id)}>
+          Send
+        </button>
+        <a
+          className="btn"
+          href="/relay"
+          onClick={(e) => {
+            pick(o.id);
+            link("relay")(e);
+          }}
+        >
+          Edit
+        </a>
+        <button type="button" className="btn btn--quiet" onClick={() => later(o.id)}>
+          Later
+        </button>
       </div>
-    </article>
+    </li>
+  );
+}
+
+function DecisionCard({ a, i }: { a: DeskAction; i: number }) {
+  const act = useDesk((s) => s.act);
+  return (
+    <li className="todo__item" style={{ "--tone": DESK_ROOMS[a.room].accent, animationDelay: `${i * 60}ms` } as React.CSSProperties}>
+      <div className="todo__top">
+        <RoomTag room={a.room} agent={a.agent} />
+        {a.due && <span className="todo__due">{a.due}</span>}
+      </div>
+      <h3 className="todo__title">{a.title}</h3>
+      {a.detail && <p className="todo__detail">{a.detail}</p>}
+      <div className="todo__actions">
+        {a.choices.map((c, k) => (
+          <button key={c} type="button" className={`btn ${k === 0 ? "btn--go" : ""}`} onClick={() => act(a.id)}>
+            {c}
+          </button>
+        ))}
+      </div>
+    </li>
+  );
+}
+
+function LaterRow({ a }: { a: DeskAction }) {
+  const act = useDesk((s) => s.act);
+  return (
+    <li style={{ "--tone": DESK_ROOMS[a.room].accent } as React.CSSProperties}>
+      <span className="later-list__due">{a.due ?? "Later"}</span>
+      <span className="later-list__title">{a.title}</span>
+      <span className="later-list__room">
+        {DESK_ROOMS[a.room].name} · {a.agent}
+      </span>
+      <span className="later-list__actions">
+        {a.choices.map((c, k) => (
+          <button key={c} type="button" className={`btn btn--sm ${k === 0 ? "btn--go" : "btn--quiet"}`} onClick={() => act(a.id)}>
+            {c}
+          </button>
+        ))}
+      </span>
+    </li>
   );
 }

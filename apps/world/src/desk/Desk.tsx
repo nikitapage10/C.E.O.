@@ -1,17 +1,18 @@
 import { useEffect } from "react";
 import { loadLattice, navigate, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
-import { DEMO, useDeskData } from "./deskData.ts";
+import { SAMPLES, useDeskData } from "./deskData.ts";
 import { Decode, useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
 import { Relay } from "./Relay.tsx";
+import { Systems } from "./Systems.tsx";
 import { Today } from "./Today.tsx";
 import "./desk.css";
 
 /**
- * The Desk: the plain, fast front page where the C.E.O. acts on what the real agents bring in. It shows only
- * real work (nothing from the demo) and never loads the 3D Lattice; "Enter the Lattice" fetches that on demand.
- * Phase 2 wires it to the hub on the MacBook; until then every list is honestly empty, drawn as such.
+ * The Desk: the plain, fast front page where the C.E.O. acts on what the agents bring in. It never loads the 3D
+ * Lattice; "Enter the Lattice" fetches that on demand. Phase 2 wires it to the hub on the MacBook; until then it
+ * shows a labelled sample day (`?real` hides it).
  */
 
 type DeskTab = Exclude<Route, "lattice">;
@@ -19,6 +20,7 @@ type DeskTab = Exclude<Route, "lattice">;
 const TABS: { id: DeskTab; label: string }[] = [
   { id: "today", label: "Today" },
   { id: "relay", label: "Relay" },
+  { id: "systems", label: "Systems" },
 ];
 
 const HUB_LINE: Record<LinkState, string> = {
@@ -30,7 +32,6 @@ const HUB_LINE: Record<LinkState, string> = {
 
 const HUB_PILL: Record<LinkState, string> = { off: "Hub offline", ok: "Hub live", slow: "Hub slow", down: "Hub down" };
 
-const PREVIEW = DEMO;
 
 export function Desk({ route }: { route: DeskTab }) {
   const data = useDeskData();
@@ -41,17 +42,17 @@ export function Desk({ route }: { route: DeskTab }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement | null)?.closest("input, textarea")) return;
       const i = Number(e.key) - 1;
-      if (TABS[i]) navigate(TABS[i].id);
+      if (TABS[i]) navigate(TABS[i].id, window.location.search);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   useEffect(() => {
-    document.title = route === "relay" ? "Relay · C.E.O." : "C.E.O. — Desk";
+    document.title = route === "relay" ? "Relay · C.E.O." : route === "systems" ? "Systems · C.E.O." : "C.E.O. — Desk";
   }, [route]);
 
-  const owed = data.owed.length;
+  const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
   const connected = hub !== "off";
 
   return (
@@ -88,7 +89,7 @@ export function Desk({ route }: { route: DeskTab }) {
             <i aria-hidden="true" />
             <span>{HUB_PILL[hub]}</span>
           </span>
-          <span className={`desk__count ${owed ? "desk__count--hot" : ""}`} title="Waiting on you">
+          <span className={`desk__count ${owed ? "desk__count--hot" : ""}`} title="Things that need you">
             {owed}
           </span>
           <a className="desk__enter" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
@@ -98,26 +99,24 @@ export function Desk({ route }: { route: DeskTab }) {
         </div>
       </header>
 
-      {(hub !== "ok" || PREVIEW) && (
-        <p className={`desk__notice desk__notice--${PREVIEW ? "preview" : hub}`} role="status">
+      {(hub !== "ok" || SAMPLES) && (
+        <p className={`desk__notice desk__notice--${SAMPLES ? "preview" : hub}`} role="status">
           <span className="desk__notice-dot" aria-hidden="true" />
-          {PREVIEW ? "Preview with sample texts from made-up people. Links cycle through every state; nothing sends." : HUB_LINE[hub]}
-          {PREVIEW ? (
-            <a className="desk__notice-link" href={window.location.pathname}>
-              Exit preview
-            </a>
-          ) : (
-            hub === "off" && (
-              <a className="desk__notice-link" href={`${window.location.pathname}?demo`}>
-                See it with sample texts →
-              </a>
-            )
-          )}
+          {SAMPLES ? "Sample day: examples of what your agents will bring you, from made-up people. Nothing here sends." : HUB_LINE[hub]}
+          <a className="desk__notice-link" href={SAMPLES ? `${window.location.pathname}?real` : window.location.pathname}>
+            {SAMPLES ? "Show only real" : "Show samples"}
+          </a>
         </p>
       )}
 
       <main className="desk__main" key={route}>
-        {route === "relay" ? <Relay data={data} now={now} connected={connected} /> : <Today data={data} now={now} connected={connected} />}
+        {route === "relay" ? (
+          <Relay data={data} now={now} connected={connected} />
+        ) : route === "systems" ? (
+          <Systems now={now} />
+        ) : (
+          <Today data={data} now={now} connected={connected} />
+        )}
       </main>
 
       <footer className="desk__foot">

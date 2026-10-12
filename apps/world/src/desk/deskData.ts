@@ -1,18 +1,46 @@
 import { create } from "zustand";
 
 /**
- * What the Desk shows, as plain data. Phase 2: the hub on the MacBook fills this in. Until then the Desk
- * renders `EMPTY_DESK`, which is honestly empty: no invented messages, only the shape of what will come.
- * `?demo` swaps in `demoDesk()`, a handful of sample texts (made-up people) to review the layout with.
+ * What the Desk shows, as plain data. Phase 2: the hub on the MacBook fills this in. Until it does, the Desk
+ * shows a sample day (`demoDesk()`: made-up people, every room) so the C.E.O. can see what it will look like,
+ * clearly labelled as samples; `?real` shows only real work, which today is honestly empty (`EMPTY_DESK`).
  */
 
-/** `?demo` (or the older `?boiler=demo`): sample texts on the Desk, links cycling in the Boiler Room. */
-export const DEMO =
-  typeof window !== "undefined" &&
-  (() => {
-    const q = new URLSearchParams(window.location.search);
-    return q.has("demo") || q.get("boiler") === "demo";
-  })();
+/** Sample data on, unless `?real`. Nothing sample ever sends. */
+export const SAMPLES = typeof window === "undefined" ? false : !new URLSearchParams(window.location.search).has("real");
+
+/** The rooms, as the Desk names and colours them (kept here so the Desk imports nothing from the Lattice). */
+export const DESK_ROOMS = {
+  relay: { name: "Relay", accent: "#e8c27a" },
+  foundry: { name: "Foundry", accent: "#ffb067" },
+  spire: { name: "Spire", accent: "#cfd6e4" },
+  exchange: { name: "Exchange", accent: "#9fe3c9" },
+  green: { name: "Green", accent: "#b8f28a" },
+  archive: { name: "Archive", accent: "#b9a6ff" },
+  boiler: { name: "Boiler Room", accent: "#ff9a4a" },
+} as const;
+export type DeskRoom = keyof typeof DESK_ROOMS;
+
+/** Something an agent needs from you: a decision or a quick check, with the answers as buttons. */
+export interface DeskAction {
+  id: string;
+  room: DeskRoom;
+  agent: string;
+  kind: "decide" | "check";
+  title: string;
+  detail?: string;
+  /** "now" sits in Do now; "later" waits further down with when it's due. */
+  when: "now" | "later";
+  due?: string;
+  /** The buttons; the first is the suggested one. */
+  choices: string[];
+}
+
+/** One line of what happened while you were away. */
+export interface DeskNote {
+  room: DeskRoom;
+  text: string;
+}
 
 export type Urgency = "sooner" | "normal";
 
@@ -29,6 +57,8 @@ export interface OwedReply {
   /** Blasto's draft, if one is ready. */
   draft?: string;
   /** The recent messages, oldest first; the last one from them is `preview`. */
+  /** A sample voice note: what you said, before Blasto put it in your style (the styled version is `draft`). */
+  voice?: string;
   /** Pushed to the next nudge with "Later". */
   later?: boolean;
   thread?: { from: "them" | "me"; text: string; at: number }[];
@@ -43,14 +73,6 @@ export interface ReplyDay {
   sent: number;
 }
 
-export interface Approval {
-  id: string;
-  title: string;
-  /** Which agent is asking. */
-  agent: string;
-  detail: string;
-}
-
 export interface DeskData {
   owed: OwedReply[];
   /** Threads Dialtone looked at and decided need nothing (group chats, codes, promos). */
@@ -60,7 +82,10 @@ export interface DeskData {
   /** Days in a row with nobody left waiting past their window. */
   streakDays: number;
   sentToday: number;
-  approvals: Approval[];
+  actions: DeskAction[];
+  notes: DeskNote[];
+  /** Things handled today, for the "done" count. */
+  doneToday: number;
   /** Dialtone's daily nudges, as [hour, minute]. */
   nudges: [number, number][];
 }
@@ -88,7 +113,9 @@ export const EMPTY_DESK: DeskData = {
   week: emptyWeek(),
   streakDays: 0,
   sentToday: 0,
-  approvals: [],
+  actions: [],
+  notes: [],
+  doneToday: 0,
   nudges: [
     [12, 30],
     [19, 0],
@@ -113,6 +140,7 @@ export function demoDesk(now = Date.now()): DeskData {
         since: ago(26 * HOUR),
         urgency: "sooner",
         channel: "iMessage",
+        voice: "tell her yes I'm coming sunday and tell dad to do the grill and I'll bring dessert",
         draft: "yes!! coming sunday, tell dad grill for sure. I'll bring dessert",
         thread: [
           { from: "me", text: "made it home, thanks for dinner", at: ago(4 * 24 * HOUR) },
@@ -127,6 +155,7 @@ export function demoDesk(now = Date.now()): DeskData {
         since: ago(9 * HOUR),
         urgency: "sooner",
         channel: "iMessage",
+        voice: "no still stuck on that boss, it's attacking me personally, I'll finish this weekend",
         draft: "still stuck lmao. that boss is personally attacking me. this weekend for sure",
         thread: [
           { from: "them", text: "the soundtrack in act 2 though", at: ago(10 * HOUR) },
@@ -140,6 +169,7 @@ export function demoDesk(now = Date.now()): DeskData {
         since: ago(5 * HOUR + 40 * MIN),
         urgency: "normal",
         channel: "iMessage",
+        voice: "yeah thursday works, grab them and I'll venmo you",
         draft: "thursday works! grab them and I'll venmo you",
         thread: [
           { from: "me", text: "that set was insane", at: ago(3 * 24 * HOUR) },
@@ -153,6 +183,7 @@ export function demoDesk(now = Date.now()): DeskData {
         since: ago(2 * HOUR + 15 * MIN),
         urgency: "normal",
         channel: "iMessage",
+        voice: "send them all but I'm deleting the bad ones of me",
         draft: "omg send them all. deleting the bad ones of me though",
         thread: [{ from: "them", text: "sending you the photos from saturday, some of these are rough 😂", at: ago(2 * HOUR + 15 * MIN) }],
       },
@@ -170,10 +201,21 @@ export function demoDesk(now = Date.now()): DeskData {
     week: medians.map((m, i) => ({ day: today - (6 - i) * DAY, medianMinutes: m, sent: sent[i]! })),
     streakDays: 3,
     sentToday: 3,
-    approvals: [
-      { id: "ap-mom", title: "Send Mom's reply", agent: "Blasto", detail: "Draft ready: yes to Sunday, bringing dessert." },
-      { id: "ap-later", title: "Remind you about Dave tonight", agent: "Dialtone", detail: "Plumber question, at the 19:00 nudge." },
+    actions: [
+      { id: "foundry-pr", room: "foundry", agent: "Rusty", kind: "decide", when: "now", title: "Ship the faster sign-in page?", detail: "Built and checked. Goes live on the site when you say so.", choices: ["Ship it", "Let me look"] },
+      { id: "spire-invoice", room: "spire", agent: "Ledger", kind: "decide", when: "now", title: "Send the October invoice to Harbor Bakery?", detail: "$1,240 for 31 hours. Same terms as September.", choices: ["Send", "Hold"] },
+      { id: "green-lineup", room: "green", agent: "Gridiron", kind: "decide", when: "now", title: "Swap your flex before Sunday's lock?", detail: "Your WR3 is questionable. The bench back has the easier matchup.", due: "Locks Sun 13:00", choices: ["Swap", "Keep"] },
+      { id: "exchange-fed", room: "exchange", agent: "Noco", kind: "decide", when: "later", title: "Hold the November Fed position?", detail: "Up 18% since Friday. Hedge says take half off.", due: "Market closes Wed", choices: ["Take half", "Hold"] },
+      { id: "archive-recap", room: "archive", agent: "Loremaster", kind: "check", when: "later", title: "Read the Session 14 recap for The Tide", detail: "Two pages. Flagged one continuity slip about the lighthouse.", due: "Before Friday's session", choices: ["Read it", "Skip"] },
+      { id: "relay-dave", room: "relay", agent: "Dialtone", kind: "check", when: "later", title: "Remind you about Dave's plumber question", detail: "At the 19:00 nudge, unless you answer first.", due: "19:00", choices: ["OK", "Not needed"] },
     ],
+    notes: [
+      { room: "foundry", text: "Rusty fixed the slow page load you mentioned." },
+      { room: "relay", text: "Dialtone set aside 14 group chats and promo texts." },
+      { room: "exchange", text: "Noco closed the rain market. +$22." },
+      { room: "boiler", text: "Gary taped a pipe. All lines quiet." },
+    ],
+    doneToday: 3,
     nudges: [
       [12, 30],
       [19, 0],
@@ -191,17 +233,18 @@ interface DeskStore {
   /** Push a reply to the next nudge: it drops to the bottom until then. */
   later: (id: string) => void;
   setDraft: (id: string, draft: string) => void;
-  resolveApproval: (id: string) => void;
+  /** Answer an action (any choice clears it and counts as done). */
+  act: (id: string) => void;
 }
 
 export const useDesk = create<DeskStore>((set, get) => ({
-  data: DEMO ? demoDesk() : EMPTY_DESK,
+  data: SAMPLES ? demoDesk() : EMPTY_DESK,
   picked: null,
   pick: (picked) => set({ picked }),
   send: (id) => {
     const { data } = get();
     const owed = data.owed.filter((o) => o.id !== id);
-    set({ data: { ...data, owed, sentToday: data.sentToday + 1 }, picked: owed[0]?.id ?? null });
+    set({ data: { ...data, owed, sentToday: data.sentToday + 1, doneToday: data.doneToday + 1 }, picked: owed[0]?.id ?? null });
   },
   later: (id) => {
     const { data } = get();
@@ -212,9 +255,9 @@ export const useDesk = create<DeskStore>((set, get) => ({
     const { data } = get();
     set({ data: { ...data, owed: data.owed.map((o) => (o.id === id ? { ...o, draft } : o)) } });
   },
-  resolveApproval: (id) => {
+  act: (id) => {
     const { data } = get();
-    set({ data: { ...data, approvals: data.approvals.filter((a) => a.id !== id) } });
+    set({ data: { ...data, actions: data.actions.filter((a) => a.id !== id), doneToday: data.doneToday + 1 } });
   },
 }));
 

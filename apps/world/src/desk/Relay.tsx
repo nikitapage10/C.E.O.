@@ -1,6 +1,7 @@
-import { averageReply, byWait, DEMO, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
+import { useRef, useState } from "react";
+import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, SAMPLES, useDesk, type DeskData } from "./deskData.ts";
 import { PageHead, Panel } from "./ui.tsx";
-import { Listening, NudgeClock, Outbox, waitTone } from "./viz.tsx";
+import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
 
 /** Relay: who you owe a reply, the ones to answer sooner first, each with Blasto's draft in your voice. */
 
@@ -11,8 +12,33 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
   const owed = byWait(data.owed);
   const { picked, pick, send, later, setDraft } = useDesk();
   // The preview opens on the first conversation, so the thread view is never empty while reviewing.
-  const current = owed.find((o) => o.id === picked) ?? (DEMO ? (owed[0] ?? null) : null);
-  const canAct = DEMO || connected;
+  const current = owed.find((o) => o.id === picked) ?? (SAMPLES ? (owed[0] ?? null) : null);
+  const canAct = SAMPLES || connected;
+  // Voice: what you said, then Blasto's light pass in your style. The samples play it out on a timer; with the
+  // hub, the words stream from OpenAI speech-to-text and the styled version comes back from Blasto.
+  const [heard, setHeard] = useState<Record<string, string>>({});
+  const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "styling">("idle");
+  const timers = useRef<number[]>([]);
+  const speak = () => {
+    if (!current?.voice || voicePhase !== "idle") return;
+    const { id, voice } = current;
+    const styled = current.draft ?? "";
+    timers.current.forEach(clearTimeout);
+    setVoicePhase("listening");
+    setDraft(id, "");
+    timers.current = [
+      window.setTimeout(() => {
+        setHeard((h) => ({ ...h, [id]: voice }));
+        setVoicePhase("styling");
+      }, 1400),
+      window.setTimeout(() => {
+        setDraft(id, styled);
+        setVoicePhase("idle");
+      }, 2400),
+    ];
+  };
+  const said = current ? heard[current.id] : undefined;
+  const micReady = canAct && !!current?.voice;
   const overdue = owed.filter((o) => now - o.since > OVERDUE_MS).length;
   const avg = averageReply(data.week);
   const next = nextNudge(data.nudges, now);
@@ -128,7 +154,22 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                   </p>
                 ))}
                 <div className="draft">
-                  <span className="draft__eyebrow">{current.draft ? "Blasto's draft · in your voice" : "Blasto is drafting…"}</span>
+                  <span className="draft__eyebrow">
+                    {voicePhase === "listening"
+                      ? "Listening…"
+                      : voicePhase === "styling"
+                        ? "Putting it in your style…"
+                        : said
+                          ? "Your words, in your style"
+                          : current.draft
+                            ? "Blasto's draft · in your voice"
+                            : "Blasto is drafting…"}
+                  </span>
+                  {said && (
+                    <p className="draft__heard">
+                      <span>You said</span>“{said}”
+                    </p>
+                  )}
                   {canAct ? (
                     <textarea
                       className="draft__edit"
@@ -149,7 +190,7 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                       <button type="button" className="draft__later" onClick={() => later(current.id)}>
                         Later
                       </button>
-                      {DEMO && <span className="draft__note">Preview: nothing actually sends</span>}
+                      {SAMPLES && <span className="draft__note">Sample: nothing actually sends</span>}
                     </div>
                   )}
                 </div>
@@ -181,8 +222,15 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                   <span>Say what you mean…</span>
                   <i />
                 </div>
-                <span className="mic-wrap" data-tip="Voice arrives with the hub">
-                  <button type="button" className="mic" disabled aria-label="Hold to talk (voice arrives with the hub)" title="Voice arrives with the hub">
+                <span className="mic-wrap" data-tip={micReady ? "Say it your way; Blasto keeps your words and puts them in your style" : "Voice arrives with the hub"}>
+                  <button
+                    type="button"
+                    className={`mic ${voicePhase === "listening" ? "mic--live" : ""}`}
+                    disabled={!micReady}
+                    onClick={speak}
+                    aria-label={micReady ? "Talk: say your reply, and Blasto puts it in your style" : "Hold to talk (voice arrives with the hub)"}
+                    title={micReady ? "Say your reply" : "Voice arrives with the hub"}
+                  >
                     <span className="mic__ring" aria-hidden="true" />
                     <span className="mic__ring mic__ring--2" aria-hidden="true" />
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -194,6 +242,15 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
               </div>
             </div>
           </div>
+        </Panel>
+      </div>
+
+      <div className="habits">
+        <Panel eyebrow="Reply time · last 7 days" className="panel--strip">
+          <ReplyStrip week={data.week} />
+        </Panel>
+        <Panel eyebrow="Streak">
+          <Streak days={data.streakDays} />
         </Panel>
       </div>
     </div>

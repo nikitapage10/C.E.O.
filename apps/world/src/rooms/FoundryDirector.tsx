@@ -2,7 +2,7 @@ import type { AgentEvent, AgentEventBody } from "@ceo/core";
 import type { ScriptId } from "@ceo/simulator";
 import { useEffect } from "react";
 import { clock } from "../clock.ts";
-import { CREW, crewFor, crewWork, startFoundry, useFoundry, visibleUpkeep, type Crate, type CrateState, type CrewId, type FoundryData } from "../foundry.ts";
+import { CREW, assignCrew, crewFor, crewWork, startFoundry, useFoundry, visibleUpkeep, type Crate, type CrateState, type CrewId, type FoundryData } from "../foundry.ts";
 import { simulator, useWorld } from "../store.ts";
 
 /**
@@ -48,6 +48,7 @@ export function FoundryDirector() {
 
     const apply = (data: FoundryData) => {
       const events: AgentEvent[] = [];
+      const by = assignCrew(data.crates);
       for (const c of data.crates) {
         const before = seen.get(c.number);
         if (before === c.state) continue;
@@ -58,7 +59,7 @@ export function FoundryDirector() {
         const taskId = `gh-${c.number}`;
         if (!before || before === "queued") {
           if (c.state === "queued") continue;
-          events.push(live({ type: "task.started", taskId, agentId: crewFor(c), title: `#${c.number} ${c.title}`, room: "foundry" }));
+          events.push(live({ type: "task.started", taskId, agentId: by.get(c.number) ?? crewFor(c), title: `#${c.number} ${c.title}`, room: "foundry" }));
         }
         if (c.state === "shipped") events.push(live({ type: "task.completed", taskId, outcome: "success", note: "Shipped to main" }));
         else if (c.state === "stuck") events.push(live({ type: "task.completed", taskId, outcome: "failure", note: "Stuck after every rung: needs you" }));

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { create } from "zustand";
-import { CREW, crewFor, useFoundry, type FoundryData } from "../foundry.ts";
+import { CREW, crewOf, useFoundry, type FoundryData } from "../foundry.ts";
 
 /**
  * What the Desk shows, as plain data. Phase 2: the hub on the MacBook fills this in. Until it does, the Desk
@@ -279,7 +279,7 @@ export function foundryDesk(f: FoundryData, now = Date.now()): { actions: DeskAc
   const actions: DeskAction[] = [];
   const notes: DeskNote[] = [];
   for (const c of f.crates) {
-    const agent = CREW[crewFor(c)].name;
+    const agent = CREW[crewOf(c, f.crates)].name;
     const id = `foundry-${c.number}`;
     if (c.state === "ready") {
       actions.push({ id, room: "foundry", agent, kind: "decide", when: "now", live: true, title: `Ship “${c.title}”?`, detail: "Built and checked. Tap Ship on the card in the Foundry thread and it goes live.", choices: ["Open the Foundry thread", "See the work"], hrefs: [FOUNDRY_THREAD, c.url] });

@@ -34,15 +34,24 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | Label | Meaning |
 | --- | --- |
 | `foundry` | Foundry work (required) |
-| `foundry:fix`, `foundry:idea`, `foundry:build`, `foundry:upkeep` | The kind (exactly one) |
+| `foundry:fix`, `foundry:idea`, `foundry:build`, `foundry:upkeep`, `foundry:chat` | The kind (exactly one) |
 | `foundry:working` | Someone is on it |
 | `foundry:ready` | Done and checked, waiting for Nikita's OK |
 | `foundry:stuck` | Rung 3 failed; Nikita needs to look |
 | `foundry:shipped` | Landed on `main` (add it, then close the issue) |
 | `foundry:revise` | An idea Nikita sent back with notes from the Desk, or proposed there; Rusty rewrites it |
+| `foundry:passed` | An idea Nikita passed on (closed, not planned): on the shelf, not in the bin |
 | `rung:1`, `rung:2`, `rung:3` | Which model rung a fix is on |
 
 An issue with no state label is queued. Close an issue without `foundry:shipped` to drop it.
+
+`foundry:chat` is work Nikita asked for in chat (any thread, any model), built outside the lanes and pushed straight
+to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread starts such work opens a `foundry` +
+`foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, the branch), and
+labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists it under "In flight"
+with everything else, and in the Foundry room a free crew member (Skippy first, then Rusty, then Rocky) is seen
+working on it, since the lane crew have their own crates (Nikita, 2026-10-12: "any development-based idea should end
+up in the Foundry somewhere as well… one of the free agents can visually work on it").
 
 ## Branches and deploys
 
@@ -52,7 +61,7 @@ Everything the Foundry codes on its own lands through a branch and a pull reques
 | Lane | Branch | Merges when |
 | --- | --- | --- |
 | Fix | `foundry/fix/<issue>-<slug>` | Small green fix: by itself once the PR's checks pass. Anything bigger: on Nikita's Ship. |
-| Build (approved idea) | `foundry/build/<issue>-<slug>` | On Nikita's Ship |
+| Build (approved idea) | `foundry/build/<issue>-<slug>` | By itself once the PR's checks pass: the approval was the decision (Nikita, 2026-10-12). Only a red check, a stuck rung or a question that needs a human stops it, and then it waits with `foundry:ready` or `foundry:stuck`. |
 | Upkeep | `foundry/upkeep/<issue>-<slug>` | By itself once the PR's checks pass |
 
 The path for every change:
@@ -102,7 +111,11 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   medium or large) and who would build it.
 - Post one decision card in the Foundry thread listing all three, so Nikita can pick (Build 1 / Build 2 / Build 3 /
   None today).
-- Read the comments on ideas Nikita turned down before proposing, and don't repeat them.
+- Passed ideas are shelved, not dropped (Nikita, 2026-10-12: "I might have just not been interested in it at the
+  time"). Before proposing, read the shelf (closed issues labelled `foundry:passed`). At most one of the morning's
+  three may be a shelved idea brought back in a genuinely different shape: a new angle, a smaller first step, or a
+  different room, with a line saying what it grew out of. Never the same pitch twice; an idea passed twice rests
+  for a month.
 - Write each idea's body with `**Pitch:** …` and `**Size:** small|medium|large`: the Desk's Foundry tab shows
   these on the idea cards.
 - Nikita picks on the Desk's Foundry tab (Build this / Revise / Not this one) or on the thread's card. The Desk's
@@ -114,7 +127,12 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   pitch and size, and leave it as a `foundry:idea`; `propose a new idea` with Nikita's words → open it as a
   `foundry:idea` issue with a pitch, size and builder. Post nothing unless a question needs Nikita.
 - On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
-  (Rocky's lane). It ships through the same PR, checks, preview and "Ship?" card as a bigger fix. Close the ideas that weren't picked after a week.
+  (Rocky's lane). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
+  approval on the Desk was the decision, so there is no "Ship?" card (Nikita, 2026-10-12: "when I approve an idea,
+  you don't need me to decide to ship it"). It stops for Nikita only when something needs a human: red checks after
+  every rung (`foundry:stuck`), a change that can't be checked by the checks (a look, a feel, a new model), or a
+  question the idea didn't answer; then it waits labelled `foundry:ready` with the preview link in the Foundry
+  thread. Close the ideas that weren't picked after a week.
 - Any new agent, room, pet, costume or model an idea adds ships with its lore (see the repo's CLAUDE.md).
 
 ## Lane 3: Upkeep

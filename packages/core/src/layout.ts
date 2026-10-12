@@ -6,6 +6,8 @@
  * -z points back toward the Kernel (where its gate and light stream are) and +z faces the visitor's camera.
  */
 
+import { detour } from "./obstacles.ts";
+
 export type Vec3 = readonly [number, number, number];
 
 export const ROOM_IDS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop"] as const;
@@ -270,10 +272,26 @@ export interface Place {
   station: string;
 }
 
-export function placeToWorld(place: Place, agentId: string): Vec3 {
+/** Where an agent stands at a place, in the room's local frame. */
+export function placeLocal(place: Place, agentId: string): Vec3 {
   const st = getStation(place.room, place.station);
   const [jx, jz] = st.exact ? [0, 0] : agentJitter(agentId, place.station);
-  return roomToWorld(place.room, st.x + jx, st.y ?? 0, st.z + jz);
+  return [st.x + jx, st.y ?? 0, st.z + jz];
+}
+
+export function placeToWorld(place: Place, agentId: string): Vec3 {
+  return roomToWorld(place.room, ...placeLocal(place, agentId));
+}
+
+/** World (x, z) back to a room's local frame (x, z). */
+export function worldToRoom(room: RoomId, x: number, z: number): [number, number] {
+  const a = roomAngle(room);
+  const [cx, , cz] = roomCenter(room);
+  const dx = x - cx;
+  const dz = z - cz;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  return [dx * cos - dz * sin, dx * sin + dz * cos];
 }
 
 export function gateWorld(room: RoomId): Vec3 {
@@ -336,20 +354,34 @@ function dist(a: Vec3, b: Vec3): number {
 export function routeBetween(from: Place, to: Place, agentId: string): Route {
   const start = placeToWorld(from, agentId);
   const end = placeToWorld(to, agentId);
+  const gateLocal: Vec3 = [0, 0, -ROOM_HALF_D - 0.4];
   const points: Vec3[] = [start];
   const kinds: SegmentKind[] = [];
   const push = (p: Vec3, kind: SegmentKind) => {
     points.push(p);
     kinds.push(kind);
   };
+  /** Walk across a room from one local spot to another, around the furniture. The last point is `finish`. */
+  const walk = (room: RoomId, a: Vec3, c: Vec3, finish: Vec3) => {
+    const around = detour(room, [a[0], a[2]], [c[0], c[2]]);
+    // Spread the change in height (a stage, a dais) along the way.
+    const lengths = [a, ...around.map(([x, z]) => [x, 0, z] as const), c].map((p, i, all) => (i ? Math.hypot(p[0] - all[i - 1]![0], p[2] - all[i - 1]![2]) : 0));
+    const total = lengths.reduce((sum, l) => sum + l, 0) || 1;
+    let run = 0;
+    around.forEach(([x, z], i) => {
+      run += lengths[i + 1]!;
+      push(roomToWorld(room, x, a[1] + (c[1] - a[1]) * (run / total), z), "walk");
+    });
+    push(finish, "walk");
+  };
   if (from.room === to.room) {
-    push(end, "walk");
+    walk(from.room, placeLocal(from, agentId), placeLocal(to, agentId), end);
   } else {
-    push(gateWorld(from.room), "walk");
+    walk(from.room, placeLocal(from, agentId), gateLocal, gateWorld(from.room));
     for (const p of streamCurve(from.room).slice(1)) push(p, "stream");
     for (const p of kernelArc(from.room, to.room).slice(1)) push(p, "stream");
     for (const p of [...streamCurve(to.room)].reverse().slice(1)) push(p, "stream");
-    push(end, "walk");
+    walk(to.room, gateLocal, placeLocal(to, agentId), end);
   }
   const ends: number[] = [];
   let t = 0;

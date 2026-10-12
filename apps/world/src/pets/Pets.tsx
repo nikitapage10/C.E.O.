@@ -86,7 +86,7 @@ function Pet({ def }: { def: PetDef }) {
       streaming = sample.kind === "stream" && !sample.done;
       moving = !sample.done;
       if (sample.done) {
-        const crossed = s.route.points.length > 2;
+        const crossed = s.route.kinds.includes("stream");
         s.route = null;
         s.mode = Math.random() < 0.5 ? "sit" : "idle";
         s.until = now + (zoomies ? between(150, 600) : between(4000, 11000));

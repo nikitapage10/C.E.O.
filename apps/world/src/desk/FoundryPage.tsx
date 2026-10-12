@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CREW, crewFor, crewWork, nextUpkeep, refreshFoundry, useFoundry, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { CREW, crewOf, crewWork, expectChange, nextUpkeep, useFoundry, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -12,7 +12,7 @@ import { PageHead, Panel } from "./ui.tsx";
  * the idea buttons write through the Vercel function in api/foundry.ts.
  */
 
-const KIND_LABEL: Record<CrateKind, string> = { fix: "Fix", build: "Build", upkeep: "Upkeep", idea: "Idea" };
+const KIND_LABEL: Record<CrateKind, string> = { fix: "Fix", build: "Build", upkeep: "Upkeep", idea: "Idea", chat: "From chat" };
 const CRATE_STATE: Record<CrateState, string> = { queued: "Queued", working: "Working", ready: "Waiting for your OK", stuck: "Stuck", shipped: "Shipped" };
 const CREW_STATE: Record<CrateState, LinkState> = { queued: "ok", working: "ok", ready: "slow", stuck: "down", shipped: "ok" };
 const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Sonnet · Opus", tessellate: "Cheapest that fits" };
@@ -95,7 +95,9 @@ export function FoundryPage({ now }: { now: number }) {
   const decisions = data.crates.filter((c) => c.kind !== "idea" && (c.state === "ready" || c.state === "stuck"));
   const running = data.crates.filter((c) => c.kind !== "idea" && c.state === "working");
   const upkeep = data.crates.find((c) => c.kind === "upkeep");
-  const lately = data.crates.filter((c) => c.kind !== "idea" && c.state !== "ready" && c.state !== "stuck").slice(0, LATELY);
+  // Everything in flight: in hand first, then the queue. Chat work (a thread building what Nikita asked for) is in here too.
+  const inFlight = data.crates.filter((c) => c.kind !== "idea" && (c.state === "working" || c.state === "queued")).sort((a, b) => (a.state === b.state ? a.number - b.number : a.state === "working" ? -1 : 1));
+  const lately = data.crates.filter((c) => c.kind !== "idea" && c.state === "shipped").slice(0, LATELY);
   const toPick = ideas.filter((c) => !c.revising).length;
   const needs = decisions.length + (toPick ? 1 : 0);
 
@@ -150,6 +152,11 @@ export function FoundryPage({ now }: { now: number }) {
           !decisions.length && connected && <p className="quiet fy-calm">All clear. The next three ideas arrive {inTime(nextIdeas(now) - now)}, at 9:00.</p>
         )}
         <Propose setup={setup} />
+        {data.shelved > 0 && (
+          <p className="quiet fy-shelf">
+            {data.shelved} {data.shelved === 1 ? "idea" : "ideas"} on the shelf: passed for now, and Rusty may bring one back in a new shape.
+          </p>
+        )}
       </section>
 
       <section className="fy-status" aria-label="Right now">
@@ -178,8 +185,12 @@ export function FoundryPage({ now }: { now: number }) {
         </Panel>
       </div>
 
-      <Panel eyebrow="Lately" aside={<span className="badge">{lately.length}</span>}>
-        {lately.length ? <CrateList crates={lately} now={now} /> : <p className="quiet">Nothing yet. Fixes, builds and upkeep show here as the crew works.</p>}
+      <Panel eyebrow="In flight" aside={<span className="badge">{inFlight.length}</span>}>
+        {inFlight.length ? <CrateList crates={inFlight} all={data.crates} now={now} /> : <p className="quiet">Nothing in hand or queued. Fixes, builds, upkeep and work asked for in chat show here.</p>}
+      </Panel>
+
+      <Panel eyebrow="Shipped lately" aside={<span className="badge">{lately.length}</span>}>
+        {lately.length ? <CrateList crates={lately} all={data.crates} now={now} /> : <p className="quiet">Nothing shipped in the last day.</p>}
       </Panel>
     </div>
   );
@@ -231,10 +242,10 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
       return;
     }
     storeKey(withKey);
-    setResult(choice === "build" ? "Approved. Rocky is starting on it." : choice === "pass" ? "Passed. It won't come back." : "Sent. Rusty is rewriting it.");
-    // Through the thread, the labels change a moment later; the next poll picks them up.
+    setResult(choice === "build" ? "Approved. Rocky is starting on it." : choice === "pass" ? "On the shelf. Rusty may bring it back another way." : "Sent. Rusty is rewriting it.");
+    // Through the thread, the labels change a moment later; the quick polls pick them up.
     setMode("done");
-    void refreshFoundry();
+    expectChange();
   };
 
   return (
@@ -360,7 +371,7 @@ function Propose({ setup }: { setup: Setup }) {
       storeKey(key.trim());
       setNote("");
       setState("done");
-      void refreshFoundry();
+      expectChange();
     } else setState(r);
   };
   const toggleMic = () => {
@@ -512,7 +523,7 @@ function Connections({ setup }: { setup: Setup }) {
   );
 }
 
-function CrateList({ crates, now }: { crates: Crate[]; now: number }) {
+function CrateList({ crates, all, now }: { crates: Crate[]; all: Crate[]; now: number }) {
   return (
     <ul className="crates">
       {crates.map((c) => (
@@ -522,7 +533,7 @@ function CrateList({ crates, now }: { crates: Crate[]; now: number }) {
             {c.title}
           </a>
           <span className="crates__who">
-            {CREW[crewFor(c)].name} · {formatWait(now - c.updatedAt)} ago
+            {CREW[crewOf(c, all)].name} · {formatWait(now - c.updatedAt)} ago
           </span>
           <span className={`pill pill--${CREW_STATE[c.state]}`}>
             <i aria-hidden="true" />

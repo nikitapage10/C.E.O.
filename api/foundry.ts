@@ -99,7 +99,7 @@ export async function POST(request: Request): Promise<Response> {
       choice === "propose" ? `Desk: propose a new idea. Nikita's words:\n${text}`
       : typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 ? null
       : choice === "build" ? `Desk: build idea #${issue} (approved).`
-      : choice === "pass" ? `Desk: pass on idea #${issue} (close it as not planned).`
+      : choice === "pass" ? `Desk: pass on idea #${issue} (shelve it: label foundry:passed, close as not planned).`
       : choice === "revise" ? `Desk: revise idea #${issue}. Nikita's notes:\n${text}`
       : null;
     if (!line) return json({ error: "bad-request" }, 400);
@@ -133,8 +133,9 @@ export async function POST(request: Request): Promise<Response> {
   if (current.state !== "open" || !labels.includes("foundry") || !labels.includes("foundry:idea")) return json({ error: "not-an-open-idea" }, 409);
 
   if (choice === "pass") {
-    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "Not this one (picked on the Desk)." }) });
-    const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ state: "closed", state_reason: "not_planned" }) });
+    // Passed ideas go on the shelf, not in the bin: closed, labelled, and open to a comeback in a new shape.
+    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "Not this one, for now (passed on the Desk). On the shelf; Rusty may bring it back in a different shape." }) });
+    const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ state: "closed", state_reason: "not_planned", labels: [...new Set([...labels.filter((l) => l !== "foundry:revise"), "foundry:passed"])] }) });
     return res.ok ? json({ ok: true }) : json({ error: "github" }, 502);
   }
 

@@ -70,10 +70,10 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Waiver wire is open. Nobody panic. I'm panicking.",
   ],
   relay: [
-    "New message: 'k'. Deeply analysing tone.",
-    "Drafting a reply. Removing the third exclamation point.",
-    "You've got… a group chat. Condolences.",
-    "Translating 'lol' into 'I acknowledge your humor'.",
+    "The tubes are quiet. The practice post has stopped.",
+    "No more pretend letters. The next one through is real.",
+    "The line to the C.E.O.'s world is being strung. Any day now.",
+    "Outbox empty. Beacon dark. Waiting, properly.",
   ],
   archive: [
     "The Syntherion chapter is still blank. Rude.",
@@ -215,13 +215,13 @@ export const AGENT_QUIPS: Record<string, string[]> = {
   ],
   postmaster: [
     "A letter from the C.E.O.? Stand back. This one has a delivery to make.",
-    "This one has read your message. This one has feelings about it.",
-    "Another love letter. This one must deliver it, whatever the cost.",
+    "No practice letters today. This one is saving itself for the real thing.",
+    "This one polished every tube. Twice. The first real letter deserves it.",
     "Reply-all. This one has seen what reply-all does to people.",
     "This one should go. This one is still here.",
   ],
   dialtone: [
-    "Please hold. Hovering. Connecting.",
+    "Please hold. There's nobody on the line yet, but please hold.",
     "Every line in the Relay, and I still save one for Blasto.",
     "Up here! No, higher. On the rafter. Hi.",
     "The music's all around us. You just have to listen. Please hold.",

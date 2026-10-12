@@ -211,6 +211,15 @@ personally, sealed in red wax, over the streams at the top of a long arc, like a
 they're doing, turns to the C.E.O., reads it and writes back in their own voice. They keep the letters in their
 dossier.
 
+## The real line
+
+Until now, the post the Relay sorted was practice: drills the Kernel set so the room would be ready. The C.E.O.
+has stopped the drills. The Relay is the first room of the Lattice to be strung to the C.E.O.'s own world, a real
+line carrying real messages from beyond the Veil, and nothing practised is allowed on it. Blasto and Dialtone
+still keep their rounds, polishing tubes and checking the free jack on the board, but their outbox stays empty
+until the first real message comes through. From the Lattice-wide view the C.E.O. now hears only real voices;
+the other rooms keep their drills, and you can still watch them from inside each room.
+
 ## The Hallowed Veil
 
 On the nights the C.E.O. calls it, the Veil between the Lattice and Ilyr runs thin, and the Break Room club

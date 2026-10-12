@@ -44,7 +44,8 @@ export function roomStats(lattice: LatticeState, room: RoomId) {
 function TopBar() {
   const focus = useWorld((s) => s.focus);
   const setFocus = useWorld((s) => s.setFocus);
-  const pending = useWorld((s) => pendingApprovals(s.lattice).length);
+  // The C.E.O.'s count is real work only; the demo's approvals wait inside their rooms.
+  const pending = useWorld((s) => pendingApprovals(s.lattice, true).length);
   const time = useLatticeClock();
   return (
     <header className="topbar">
@@ -236,9 +237,9 @@ function Signals({ open }: { open: boolean }) {
   const kernelLog = useWorld((s) => s.kernelLog);
   const profiles = useCast((s) => s.cast.profiles);
   const lines = useMemo(() => {
-    const events = feedLines(lattice, 22, (id) => profiles[id]?.name, focus);
-    const kernel: FeedLine[] = kernelLog
-      .filter((k) => (focus ? k.room === focus : true))
+    // The Lattice-wide view hears only real agents; each room still shows its demo and the Kernel's calls.
+    const events = feedLines(lattice, 22, (id) => profiles[id]?.name, focus, !focus);
+    const kernel: FeedLine[] = (focus ? kernelLog.filter((k) => k.room === focus) : [])
       .slice(0, 8)
       .map((k) => ({ id: k.id, ts: k.ts, kind: "kernel", who: "Kernel", text: k.text, room: k.room ?? undefined }));
     return [...events, ...kernel].sort((x, y) => y.ts - x.ts).slice(0, 22);
@@ -248,7 +249,9 @@ function Signals({ open }: { open: boolean }) {
     <section id="feed-panel" className={`rail signals ${open ? "rail--open" : ""}`} aria-label="Signals">
       <p className="eyebrow">{focus ? `Signals · ${shortName(focus)}` : "Signals"}</p>
       <ol>
-        {lines.length === 0 && <li className="sig sig--empty">Quiet in here. Suspiciously quiet.</li>}
+        {lines.length === 0 && (
+          <li className="sig sig--empty">{focus ? "Quiet in here. Suspiciously quiet." : "No real agents on the line yet. The Relay is first."}</li>
+        )}
         {lines.map((l) => (
           <li key={l.id} className={`sig sig--${l.kind}`}>
             <time>{formatClock(l.ts).slice(3)}</time>
@@ -315,10 +318,11 @@ function Approvals() {
   const pending = useWorld(useShallow((s) => pendingApprovals(s.lattice)));
   const focus = useWorld((s) => s.focus);
   const setFocus = useWorld((s) => s.setFocus);
-  const here = focus ? pending.filter((p) => p.request.room === focus) : pending;
-  const elsewhere = pending.length - here.length;
+  // A room shows everything waiting in it; the Lattice-wide view shows only real agents' asks.
+  const here = focus ? pending.filter((p) => p.request.room === focus) : pending.filter((p) => p.live);
+  const elsewhere = pending.filter((p) => p.live).length - here.filter((p) => p.live).length;
   const shown = here.slice(0, 3);
-  if (!pending.length) return null;
+  if (!here.length && elsewhere <= 0) return null;
   return (
     <section className="approvals" aria-label="Waiting for your approval">
       {shown.map((rec) => (
@@ -337,13 +341,15 @@ function Approvals() {
 /** The Kernel's PA: one line at a time, top centre, gone once read. */
 function Announcement() {
   const a = useWorld((s) => s.announcement);
+  const focus = useWorld((s) => s.focus);
   const [, force] = useState(0);
   useEffect(() => {
     if (!a) return;
     const t = setTimeout(() => force((n) => n + 1), Math.max(0, a.until - performance.now()));
     return () => clearTimeout(t);
   }, [a]);
-  if (!a || a.until < performance.now()) return null;
+  // The Kernel's calls about a room's drills are heard in that room; the Lattice-wide view is for real work.
+  if (!a || a.until < performance.now() || (!focus && a.room)) return null;
   return (
     <div className={`announce announce--${a.tone}`} role="status" key={a.until}>
       <span className="announce__mark" aria-hidden="true" />

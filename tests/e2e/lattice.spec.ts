@@ -8,7 +8,7 @@ import { ROOM_IDS } from "@ceo/core";
  */
 
 type Api = {
-  state: () => { agents: Record<string, unknown>; approvals: Record<string, { status: string }> };
+  state: () => { agents: Record<string, unknown>; approvals: Record<string, { status: string; request: { room: string } }> };
   positions: () => Record<string, [number, number, number]>;
   time: () => number;
   focus: (room: string | null) => void;
@@ -57,6 +57,17 @@ test("boots, agents move, rooms are reachable", async ({ page }) => {
 
 test("the C.E.O. can approve a request", async ({ page }) => {
   await boot(page);
+  // The demo's approvals only show inside their room (the Lattice-wide view is for real agents).
+  await expect(page.locator("[data-approval]")).toHaveCount(0);
+  const room = await page.waitForFunction(
+    () => {
+      const w = window as unknown as { __ceo: Api };
+      return Object.values(w.__ceo.state().approvals).find((a) => a.status === "pending")?.request.room;
+    },
+    undefined,
+    { timeout: 100_000 },
+  );
+  await page.evaluate((r) => (window as unknown as { __ceo: Api }).__ceo.focus(r), (await room.jsonValue()) as string);
   const card = page.locator("[data-approval]").first();
   await expect(card).toBeVisible({ timeout: 100_000 });
   const id = await card.getAttribute("data-approval");

@@ -64,6 +64,24 @@ describe("simulator", () => {
   });
 });
 
+describe("the Relay's real line", () => {
+  it("gives the Relay no demo tasks or approvals, and stamps all demo events as simulated", () => {
+    const { events } = run(9, 3 * TEN_MINUTES);
+    const relay = new Set(SAMPLE_AGENTS.filter((a) => a.home.room === "relay").map((a) => a.id));
+    expect(relay.size).toBeGreaterThan(0);
+    for (const e of events) {
+      expect(e.source).toBe("simulated");
+      if (e.type === "task.started") expect(relay.has(e.agentId)).toBe(false);
+      if (e.type === "approval.requested") expect(e.approval.room).not.toBe("relay");
+    }
+    // Still around, still chatting.
+    expect(events.some((e) => e.type === "agent.quip" && relay.has(e.agentId))).toBe(true);
+    const state = applyEvents(emptyState(), events);
+    expect(state.liveFeed).toEqual([]);
+    expect(pendingApprovals(state, true)).toEqual([]);
+  });
+});
+
 describe("assign", () => {
   it("sends an agent somewhere after its current walk, closing its task", () => {
     const sim = new Simulator({ seed: 5 });

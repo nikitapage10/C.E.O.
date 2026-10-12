@@ -134,3 +134,11 @@ export type AgentEventBody = AgentEvent extends infer E
     ? Omit<E, "id" | "ts" | "source">
     : never
   : never;
+
+/**
+ * True for events from a real agent (through the hub). Everything the simulator or the world itself makes is
+ * stamped "simulated", so this is how the Lattice-wide view keeps the demo out.
+ */
+export function isLive(event: Pick<AgentEvent, "source">): boolean {
+  return event.source !== "simulated";
+}

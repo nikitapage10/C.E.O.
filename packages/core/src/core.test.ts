@@ -116,6 +116,20 @@ describe("reducer", () => {
     expect(s2.stats).toMatchObject({ approved: 1, denied: 0 });
   });
 
+  it("keeps real agents' events and approvals apart from the demo's", () => {
+    const approval: ApprovalRequest = { id: "ap2", agentId: "a1", action: "message.send", summary: "Reply", risk: "low", room: "relay" };
+    const s = applyEvents(emptyState(), [
+      ev({ type: "agent.spawned", ts: 0, agent }),
+      ev({ type: "agent.quip", ts: 1, agentId: "a1", text: "demo" }),
+      { ...ev({ type: "approval.requested", ts: 2, approval }), source: "claude-agent-sdk" } as AgentEvent,
+      ev({ type: "approval.requested", ts: 3, approval: { ...approval, id: "ap3" } }),
+    ]);
+    expect(s.feed).toHaveLength(4);
+    expect(s.liveFeed.map((e) => e.type)).toEqual(["approval.requested"]);
+    expect(pendingApprovals(s)).toHaveLength(2);
+    expect(pendingApprovals(s, true).map((a) => a.request.id)).toEqual(["ap2"]);
+  });
+
   it("ignores events for unknown agents and tasks", () => {
     const s = applyEvents(emptyState(), [
       ev({ type: "agent.quip", ts: 1, agentId: "ghost", text: "boo" }),

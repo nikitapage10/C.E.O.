@@ -5,7 +5,6 @@ import {
   type AgentEvent,
   type AgentEventBody,
   type Place,
-  type Provider,
 } from "@ceo/core";
 import { SAMPLE_AGENTS, type SimAgent } from "./agents.ts";
 import {
@@ -114,7 +113,7 @@ export class Simulator {
     if (!actor) return false;
     const at = Math.max(ts, actor.walkEnd);
     if (actor.taskId) {
-      this.emit(at, { type: "task.completed", taskId: actor.taskId, outcome: "success", note: "Wrapped up early" }, actor.spec.provider);
+      this.emit(at, { type: "task.completed", taskId: actor.taskId, outcome: "success", note: "Wrapped up early" });
       actor.taskId = null;
     }
     actor.queue = [{ kind: "set", activity: "idle", prop: null }, ...steps];
@@ -137,8 +136,9 @@ export class Simulator {
     return out;
   }
 
-  private emit(ts: number, body: AgentEventBody, source: Provider = "simulated") {
-    this.outbox.push({ ...body, id: `sim-${++this.counter}`, ts, source } as AgentEvent);
+  /** Everything the demo makes is "simulated", whoever the agent will one day be played by (see isLive). */
+  private emit(ts: number, body: AgentEventBody) {
+    this.outbox.push({ ...body, id: `sim-${++this.counter}`, ts, source: "simulated" } as AgentEvent);
   }
 
   private refill(actor: Actor) {
@@ -196,16 +196,16 @@ export class Simulator {
         case "task": {
           const taskId = `task-${++this.counter}`;
           actor.taskId = taskId;
-          this.emit(t, { type: "task.started", taskId, agentId: id, title: step.title, room: actor.place.room }, actor.spec.provider);
+          this.emit(t, { type: "task.started", taskId, agentId: id, title: step.title, room: actor.place.room });
           continue;
         }
         case "progress":
-          if (actor.taskId) this.emit(t, { type: "task.progress", taskId: actor.taskId, progress: step.progress, ...(step.note ? { note: step.note } : {}) }, actor.spec.provider);
+          if (actor.taskId) this.emit(t, { type: "task.progress", taskId: actor.taskId, progress: step.progress, ...(step.note ? { note: step.note } : {}) });
           continue;
         case "finish": {
           if (!actor.taskId) continue;
           const failed = this.rng.chance(step.failRate ?? 0);
-          this.emit(t, { type: "task.completed", taskId: actor.taskId, outcome: failed ? "failure" : "success" }, actor.spec.provider);
+          this.emit(t, { type: "task.completed", taskId: actor.taskId, outcome: failed ? "failure" : "success" });
           actor.taskId = null;
           if (failed) {
             this.emit(t, { type: "agent.quip", agentId: id, text: this.rng.pick(FAILURE_QUIPS) });
@@ -229,8 +229,7 @@ export class Simulator {
           const { kind: _k, ...rest } = step;
           this.emit(
             t,
-            { type: "approval.requested", approval: { id: approvalId, agentId: id, room: actor.place.room, ...rest } },
-            actor.spec.provider,
+            { type: "approval.requested", approval: { id: approvalId, agentId: id, room: actor.place.room, ...rest } }
           );
           this.emit(t, { type: "agent.activity", agentId: id, activity: "waiting" });
           actor.nextAt = t + 1500;

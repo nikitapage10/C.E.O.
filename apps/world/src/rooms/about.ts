@@ -63,7 +63,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       outbox: "Drafts waiting for your approval (the beacon lights up).",
       switchboard: "Routing: who's urgent, who can wait, who's the group chat.",
     },
-    today: "Simulated messages and drafts. Nothing is sent.",
+    today: "Quiet. The demo messages are gone; Blasto and Dialtone wait for the real line.",
     next: "BlueBubbles on your Mac for iMessage; draft-only at first, then allowlisted auto-replies.",
   },
   archive: {

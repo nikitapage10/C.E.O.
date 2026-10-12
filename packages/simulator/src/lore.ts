@@ -222,6 +222,7 @@ export const LORE: Record<string, Lore> = {
       "Restored the Relay's tube network after the Great Jam, one capsule at a time, narrating throughout.",
       "Delivered a breakup letter so gracefully that both parties wrote back to thank this one.",
       "Carries every letter from the C.E.O. personally, over the streams at the top of a long arc. Letters for this one are carried by Dialtone, which this one finds unbearably romantic.",
+      "Learned the Relay's post had been practice. Stopped the drills, polished every tube, and waits for the first real message from the C.E.O.'s world.",
     ],
   },
   dialtone: {
@@ -236,6 +237,7 @@ export const LORE: Record<string, Lore> = {
     chronicle: [
       "Patched a call between every room in the Lattice at once. Said 'nobody hang up' and nobody did.",
       "Leaves Blasto a note in the outbox every morning. Blasto approves each one personally, and glows.",
+      "Unplugged every practice line on the C.E.O.'s word. Keeps one jack free for the real line and checks it for a dial tone far too often.",
     ],
   },
   loremaster: {

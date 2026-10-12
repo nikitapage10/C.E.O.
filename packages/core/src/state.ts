@@ -1,4 +1,4 @@
-import type { Activity, Agent, AgentEvent, ApprovalRequest, Prop } from "./events.ts";
+import { isLive, type Activity, type Agent, type AgentEvent, type ApprovalRequest, type Prop } from "./events.ts";
 import { travelTime, type Place } from "./layout.ts";
 
 export interface Motion {
@@ -37,6 +37,8 @@ export interface ApprovalRecord {
   requestedTs: number;
   resolvedTs?: number;
   by?: "user" | "policy";
+  /** Raised by a real agent (through the hub), not the demo. */
+  live: boolean;
 }
 
 export interface LatticeState {
@@ -46,6 +48,8 @@ export interface LatticeState {
   approvals: Record<string, ApprovalRecord>;
   /** Most recent events first. */
   feed: AgentEvent[];
+  /** The same, real agents only, so the demo's chatter never pushes them out of the Lattice-wide view. */
+  liveFeed: AgentEvent[];
   stats: { tasksDone: number; tasksFailed: number; approved: number; denied: number };
 }
 
@@ -59,6 +63,7 @@ export function emptyState(): LatticeState {
     tasks: {},
     approvals: {},
     feed: [],
+    liveFeed: [],
     stats: { tasksDone: 0, tasksFailed: 0, approved: 0, denied: 0 },
   };
 }
@@ -87,6 +92,7 @@ export function applyEvent(prev: LatticeState, event: AgentEvent): LatticeState 
     ...prev,
     now: Math.max(prev.now, event.ts),
     feed: [event, ...prev.feed].slice(0, FEED_LIMIT),
+    liveFeed: isLive(event) ? [event, ...prev.liveFeed].slice(0, FEED_LIMIT) : prev.liveFeed,
   };
 
   switch (event.type) {
@@ -179,7 +185,7 @@ export function applyEvent(prev: LatticeState, event: AgentEvent): LatticeState 
         ...state,
         approvals: {
           ...state.approvals,
-          [event.approval.id]: { request: event.approval, status: "pending", requestedTs: event.ts },
+          [event.approval.id]: { request: event.approval, status: "pending", requestedTs: event.ts, live: isLive(event) },
         },
       };
       break;
@@ -217,8 +223,9 @@ export function settledPlace(rt: AgentRuntime, now: number): Place {
   return now >= rt.motion.startTs + rt.motion.duration ? rt.motion.to : rt.motion.from;
 }
 
-export function pendingApprovals(state: LatticeState): ApprovalRecord[] {
+/** What's waiting on the C.E.O.; `liveOnly` drops the demo's approvals (the Lattice-wide view). */
+export function pendingApprovals(state: LatticeState, liveOnly = false): ApprovalRecord[] {
   return Object.values(state.approvals)
-    .filter((a) => a.status === "pending")
+    .filter((a) => a.status === "pending" && (!liveOnly || a.live))
     .sort((a, b) => a.requestedTs - b.requestedTs);
 }

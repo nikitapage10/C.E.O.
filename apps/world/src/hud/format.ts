@@ -22,16 +22,20 @@ const ACTION_VERB: Record<string, string> = {
   "purchase.make": "wants to buy something",
 };
 
-/** Turn raw events into the few lines worth reading. Movement and pose changes stay in the world. */
+/**
+ * Turn raw events into the few lines worth reading. Movement and pose changes stay in the world.
+ * `liveOnly` keeps just the real agents' events (the Lattice-wide view); a room shows its demo too.
+ */
 export function feedLines(
   state: LatticeState,
   limit = 40,
   nameOf?: (id: string) => string | undefined,
   room?: RoomId | null,
+  liveOnly = false,
 ): FeedLine[] {
   const out: FeedLine[] = [];
   const name = (id: string) => nameOf?.(id) ?? state.agents[id]?.agent.name ?? id;
-  for (const e of state.feed) {
+  for (const e of liveOnly ? state.liveFeed : state.feed) {
     const line = toLine(e, state, name);
     if (line && (!room || line.room === room)) out.push(line);
     if (out.length >= limit) break;

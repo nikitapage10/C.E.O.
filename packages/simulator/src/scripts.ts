@@ -193,38 +193,24 @@ export const greenPlayer: Script = ({ rng }) => [
   { kind: "do", activity: "idle", ms: rng.int(2000, 4000), prop: null },
 ];
 
-const CONTACTS = ["Mom", "Group chat (8)", "Landlord", "Best friend", "Unknown number"];
-
-export const relayClerk: Script = ({ rng }) => {
-  const who = rng.pick(CONTACTS);
-  return [
-    { kind: "go", station: "tubes" },
-    work(1500, "working"),
-    { kind: "set", activity: "carrying", prop: "envelope" },
-    { kind: "task", title: `Draft reply to ${who}` },
-    { kind: "go", station: "draft-desk" },
-    ...grind(rng, rng.int(4000, 7000), "typing", ["Reading the thread", "Matching your tone", "Deleting 'per my last text'"]),
-    { kind: "finish", failRate: 0.04 },
-    { kind: "go", station: "outbox" },
-    {
-      kind: "approval",
-      action: "message.send",
-      summary: `Reply to ${who}`,
-      detail: rng.pick(["“Sounds good! See you at 7.”", "“Haha yes. Also no.”", "“On my way (I am not on my way).”"]),
-      target: who,
-      risk: who === "Unknown number" ? "medium" : "low",
-    },
-    { kind: "do", activity: "waiting", ms: 2000, prop: null },
-    { kind: "quip", chance: 0.3 },
-  ];
-};
+/**
+ * The Relay is off the demo: its practice post has stopped while the real line is wired in (Relay will be the
+ * first room played by a real agent). Blasto and Dialtone keep their rounds, with no tasks and no approvals.
+ */
+export const relayClerk: Script = ({ rng }) => [
+  { kind: "go", station: rng.pick(["tubes", "draft-desk", "outbox"]) },
+  { kind: "do", activity: rng.pick(["idle", "staring"]), ms: rng.int(4000, 8000), prop: null },
+  { kind: "quip", chance: 0.3 },
+  { kind: "go", station: "switchboard" },
+  { kind: "do", activity: "idle", ms: rng.int(3000, 6000) },
+];
 
 export const relaySwitchboard: Script = ({ rng }) => [
   { kind: "go", station: "switchboard" },
-  { kind: "do", activity: "typing", ms: rng.int(4000, 7000) },
+  { kind: "do", activity: rng.pick(["idle", "staring", "napping"]), ms: rng.int(4000, 8000) },
   { kind: "quip", chance: 0.25 },
-  { kind: "go", station: "tubes" },
-  { kind: "do", activity: "working", ms: 2000 },
+  { kind: "go", station: rng.pick(["tubes", "outbox"]) },
+  { kind: "do", activity: "idle", ms: rng.int(2000, 4000) },
 ];
 
 const LORE_TASKS = [

@@ -57,7 +57,7 @@ up in the Foundry somewhere as well… one of the free agents can visually work 
 
 Ember, the Foundry's submind, picks the model for each job (the fix ladder below). When a decision isn't settled by
 this playbook (a Ship on a bigger fix, a stuck rung, a question an idea didn't answer), it goes to Skippy's thread
-("Skippy, the Kernel") first, as [SKIPPY.md](SKIPPY.md) describes, and Skippy decides or asks Nikita. Anything this
+("Skippy, the Magnificent") first, as [SKIPPY.md](SKIPPY.md) describes, and Skippy decides or asks Nikita. Anything this
 playbook already allows needs no one.
 
 ## Branches and deploys

@@ -8,7 +8,7 @@ C.E.O. from the Kernel's seat, and a Skippy submind leads each room.
 | Layer | Who | Decides | Runs on |
 | --- | --- | --- | --- |
 | Nikita | The C.E.O. | Anything Skippy hands up; approvals that change what Nikita sees or sends | The Desk, the project |
-| Skippy, the Magnificent | The "Skippy, the Kernel" thread in the C.E.O. project | Which room a task belongs to; any decision a submind can't settle; whether a decision needs Nikita | Claude Code, Opus |
+| Skippy, the Magnificent | The "Skippy, the Magnificent" thread in the C.E.O. project | Which room a task belongs to; any decision a submind can't settle; whether a decision needs Nikita | Claude Code, Opus |
 | Room subminds | One per room, its lead | Which agent, model, API or tool does a task in the room; how the work is run | The room's own machinery (below) |
 
 The room agents (Rocky, Rusty, Dialtone, Blasto and the rest) do the work their submind gives them.
@@ -35,7 +35,7 @@ never for writing code.
 ## How a task flows
 
 1. **In.** A task arrives one of two ways:
-   - Nikita gives it to Skippy directly, in the "Skippy, the Kernel" thread (quick asks), or on the Desk.
+   - Nikita gives it to Skippy directly, in the "Skippy, the Magnificent" thread (quick asks), or on the Desk.
    - A room's own trigger fires (red checks, the 9 am ideas, upkeep, a new message for Relay).
 2. **Routed.** Skippy decides which room it belongs to and hands it to that room's submind. A room trigger is
    already in its room and skips this step.

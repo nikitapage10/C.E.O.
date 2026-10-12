@@ -1,7 +1,7 @@
 # The Foundry playbook
 
 The Foundry is the C.E.O. repo's coding crew. All of its coding happens in one Claude Code thread (the
-"Foundry" thread in Nikita's C.E.O. project), on Nikita's Claude Code plan. Routines wake that thread; this file
+"Skippy's Foundry Submind" thread (formerly "Foundry") in Nikita's C.E.O. project), on Nikita's Claude Code plan. Routines wake that thread; this file
 is what it follows. Nothing here uses the Claude API.
 
 Scope: this repository only (Nikita, 2026-10-12).

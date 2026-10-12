@@ -11,17 +11,47 @@ interface GuardStore {
   generation: number;
   /** What went wrong last, for the note on screen. */
   note: { text: string; at: number } | null;
+  /** Rebuilt three times in half a minute: stop trying and show the error instead. */
+  stuck: string | null;
   rebuild: (why: string) => void;
+}
+
+const recentRebuilds: number[] = [];
+
+/** Keep the last failure where a reload can still find it. */
+export function rememberCrash(text: string) {
+  try {
+    localStorage.setItem(
+      "ceo.lastCrash",
+      JSON.stringify({ text, at: new Date().toISOString() }),
+    );
+  } catch {
+    // Private window: the panel still shows it.
+  }
 }
 
 export const useGuard = create<GuardStore>((set, get) => ({
   generation: 0,
   note: null,
+  stuck: null,
   rebuild: (why) => {
+    if (get().stuck) return;
     console.error(`[lattice] rebuilding the scene: ${why}`);
-    const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
+    rememberCrash(why);
+    const api = ((
+      window as unknown as { __ceo?: Record<string, unknown> }
+    ).__ceo ??= {});
     api.lastFailure = why;
-    set({ generation: get().generation + 1, note: { text: why, at: Date.now() } });
+    const now = performance.now();
+    while (recentRebuilds.length && now - recentRebuilds[0]! > 30_000)
+      recentRebuilds.shift();
+    recentRebuilds.push(now);
+    if (recentRebuilds.length >= 3) set({ stuck: why });
+    else
+      set({
+        generation: get().generation + 1,
+        note: { text: why, at: Date.now() },
+      });
   },
 }));
 
@@ -31,20 +61,82 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
     return { failed: true };
   }
   componentDidCatch(error: unknown) {
-    const msg = error instanceof Error ? `${error.message}\n${error.stack ?? ""}` : String(error);
+    const msg = describe(error);
     // Rebuild on the next tick, so React finishes unwinding first.
-    setTimeout(() => useGuard.getState().rebuild(msg.split("\n")[0] ?? "render error"), 0);
-    console.error(msg);
+    setTimeout(() => useGuard.getState().rebuild(msg), 0);
+    console.error(error);
   }
   render() {
     return this.state.failed ? null : this.props.children;
   }
 }
 
+/** An error's message and the first few lines of where it came from. */
+export function describe(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const where = (error.stack ?? "")
+    .split("\n")
+    .filter((l) => l.trim().startsWith("at "))
+    .slice(0, 4)
+    .map((l) => l.trim());
+  return [error.message, ...where].join("\n");
+}
+
 /** Wraps the canvas: a fresh one (new key) after any crash. */
 export function SceneGuard({ children }: { children: ReactNode }) {
   const generation = useGuard((s) => s.generation);
+  const stuck = useGuard((s) => s.stuck);
+  if (stuck) return <CrashPanel text={stuck} />;
   return <Boundary key={generation}>{children}</Boundary>;
+}
+
+/** What's left on screen when the Lattice can't recover: the error, readable and copyable, and a way back. */
+export function CrashPanel({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="crash-panel" role="alert">
+      <div className="crash-panel__title tracked">The Lattice fell over</div>
+      <p>Send this to Claude and it can be fixed:</p>
+      <pre>{text}</pre>
+      <div className="crash-panel__buttons">
+        <button
+          className="smoky"
+          onClick={() => {
+            void navigator.clipboard
+              ?.writeText(text)
+              .then(() => setCopied(true));
+          }}
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <button className="smoky" onClick={() => window.location.reload()}>
+          Reload
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Around the whole Lattice: anything that breaks outside the canvas shows the panel, not a black page. */
+export class AppGuard extends Component<
+  { children: ReactNode },
+  { error: string | null }
+> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(error: unknown) {
+    return { error: describe(error) };
+  }
+  componentDidCatch(error: unknown) {
+    rememberCrash(describe(error));
+    console.error(error);
+  }
+  render() {
+    return this.state.error ? (
+      <CrashPanel text={this.state.error} />
+    ) : (
+      this.props.children
+    );
+  }
 }
 
 /**
@@ -59,11 +151,19 @@ export function watchContext(canvas: HTMLCanvasElement) {
   canvas.addEventListener("webglcontextlost", (e) => {
     if (!current()) return;
     e.preventDefault(); // Ask the browser to give it back.
-    timer = setTimeout(() => current() && useGuard.getState().rebuild("the graphics context was lost"), 2500);
+    timer = setTimeout(
+      () =>
+        current() &&
+        useGuard.getState().rebuild("the graphics context was lost"),
+      2500,
+    );
   });
   canvas.addEventListener("webglcontextrestored", () => {
     clearTimeout(timer);
-    if (current()) useGuard.getState().rebuild("the graphics context was lost and came back");
+    if (current())
+      useGuard
+        .getState()
+        .rebuild("the graphics context was lost and came back");
   });
 }
 
@@ -79,7 +179,7 @@ export function GuardNote() {
   if (!note || Date.now() - note.at > 8000) return null;
   return (
     <div className="guard-note tracked" role="status">
-      The Lattice blinked and rebuilt itself · {note.text}
+      The Lattice blinked and rebuilt itself · {note.text.split("\n")[0]}
     </div>
   );
 }
@@ -95,7 +195,7 @@ export function watchLoopErrors() {
     recent = [...recent.filter((t) => now - t < 2000), now];
     if (recent.length >= 3) {
       recent = [];
-      useGuard.getState().rebuild(e.message || "the scene stopped drawing");
+      useGuard.getState().rebuild(e.error ? describe(e.error) : e.message || "the scene stopped drawing");
     }
   };
   window.addEventListener("error", onError);

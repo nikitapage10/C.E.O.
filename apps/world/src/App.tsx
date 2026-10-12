@@ -1,5 +1,6 @@
 import { ROOM_IDS, type RoomId } from "@ceo/core";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
+import { AppGuard } from "./scene/SceneGuard.tsx";
 import { agentPositions, clock } from "./clock.ts";
 import { GatheringDirector } from "./gatherings/GatheringDirector.tsx";
 import { GlitchDirector } from "./glitches/GlitchDirector.tsx";
@@ -21,12 +22,19 @@ import "./styles.css";
 /** window.__ceo: a small debug surface for the console and the e2e tests. */
 function useDebugApi() {
   useEffect(() => {
-    const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
+    const api = ((
+      window as unknown as { __ceo?: Record<string, unknown> }
+    ).__ceo ??= {});
     Object.assign(api, {
       state: () => useWorld.getState().lattice,
       time: () => clock.sim,
-      positions: () => Object.fromEntries([...agentPositions].map(([id, v]) => [id, [v.x, v.y, v.z]])),
-      focus: (room: Parameters<ReturnType<typeof useWorld.getState>["setFocus"]>[0]) => useWorld.getState().setFocus(room),
+      positions: () =>
+        Object.fromEntries(
+          [...agentPositions].map(([id, v]) => [id, [v.x, v.y, v.z]]),
+        ),
+      focus: (
+        room: Parameters<ReturnType<typeof useWorld.getState>["setFocus"]>[0],
+      ) => useWorld.getState().setFocus(room),
       activeGlitch: () => useWorld.getState().activeGlitch,
       store: useWorld,
       cast: () => useCast.getState().cast,
@@ -46,7 +54,8 @@ function useSpeechTicker() {
 function useRoomLink() {
   useEffect(() => {
     const room = new URLSearchParams(window.location.search).get("room");
-    if (room && (ROOM_IDS as readonly string[]).includes(room)) useWorld.getState().setFocus(room as RoomId);
+    if (room && (ROOM_IDS as readonly string[]).includes(room))
+      useWorld.getState().setFocus(room as RoomId);
   }, []);
 }
 
@@ -55,22 +64,27 @@ export function App() {
   useRoomLink();
   useSpeechTicker();
   return (
-    <>
+    <AppGuard>
       <div className="stage">
-        <Scene />
+        {/* Anything that suspends here waits in place; it never blanks the page back to the boot screen. */}
+        <Suspense fallback={null}>
+          <Scene />
+        </Suspense>
       </div>
-      <Hud />
-      <GlitchOverlay />
-      <AgentStudio />
-      <GlitchDirector />
-      <SocialDirector />
-      <KernelDirector />
-      <GatheringDirector />
-      <NightDirector />
-      <DeckDirector />
-      <VeilDirector />
-      <AchievementDirector />
+      <Suspense fallback={null}>
+        <Hud />
+        <GlitchOverlay />
+        <AgentStudio />
+        <GlitchDirector />
+        <SocialDirector />
+        <KernelDirector />
+        <GatheringDirector />
+        <NightDirector />
+        <DeckDirector />
+        <VeilDirector />
+        <AchievementDirector />
+      </Suspense>
       <Loader />
-    </>
+    </AppGuard>
   );
 }

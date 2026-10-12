@@ -2355,3 +2355,30 @@ button {
   z-index: 50;
   pointer-events: none;
 }
+
+/* The last resort when the Lattice can't rebuild itself. */
+.crash-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(640px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  background: rgba(14, 14, 18, 0.96);
+  color: var(--text);
+  z-index: 100;
+}
+.crash-panel pre {
+  max-height: 40vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  color: #ffb4a8;
+}
+.crash-panel__buttons {
+  display: flex;
+  gap: 8px;
+}

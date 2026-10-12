@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
-import { agentPositions, clock } from "../clock.ts";
+import { blockedAt, talkingShift, worldToRoom } from "@ceo/core";
+import { agentPositions, clock, talkSteps } from "../clock.ts";
 import { readingTime, useWorld } from "../store.ts";
 import { EMOTE, EXCHANGES, PAIR_EXCHANGES } from "./lines.ts";
 
@@ -12,6 +13,36 @@ function settled(id: string) {
   if (!rt) return null;
   if (rt.motion && clock.sim < rt.motion.startTs + rt.motion.duration) return null;
   return rt;
+}
+
+/**
+ * Two agents who turn to talk shouldn't be standing on top of each other: nudge them apart to an arm's length
+ * (unless that would put someone inside a piece of furniture) for as long as the chat lasts.
+ */
+function makeRoomToTalk(idA: string, idB: string, duration: number) {
+  const lattice = useWorld.getState().lattice.agents;
+  const room = lattice[idA]?.place.room;
+  const pa = agentPositions.get(idA);
+  const pb = agentPositions.get(idB);
+  if (!room || !pa || !pb) return;
+  const [sa, sb] = talkingShift([pa.x, pa.z], [pb.x, pb.z]);
+  if (!sa[0] && !sa[1]) return;
+  const free = (p: { x: number; z: number }, s: [number, number]) => {
+    const [lx, lz] = worldToRoom(room, p.x + s[0], p.z + s[1]);
+    return !blockedAt(room, lx, lz, 0.15);
+  };
+  const okA = free(pa, sa);
+  const okB = free(pb, sb);
+  if (!okA && !okB) return;
+  // If one side is boxed in, the other takes the whole step.
+  const move = (id: string, s: [number, number], k: number) => {
+    const now = performance.now();
+    const cur = talkSteps.get(id);
+    const live = cur && cur.until > now ? cur : { x: 0, z: 0 };
+    talkSteps.set(id, { x: live.x + s[0] * k, z: live.z + s[1] * k, until: now + duration + 600 });
+  };
+  move(idA, sa, okA ? (okB ? 1 : 2) : 0);
+  move(idB, sb, okB ? (okA ? 1 : 2) : 0);
 }
 
 /**
@@ -54,6 +85,7 @@ export function SocialDirector() {
       const total = readingTime(opener) + readingTime(reply) + 1500;
       world.override(r.a, "face", total, r.b);
       world.override(r.b, "face", total, r.a);
+      makeRoomToTalk(r.a, r.b, total);
       // The reply waits until the opener has been read.
       const opening = opener.replaceAll("{other}", nameB);
       setTimeout(() => useWorld.getState().say(r.b, reply.replaceAll("{other}", nameA)), readingTime(opening) * 0.8);

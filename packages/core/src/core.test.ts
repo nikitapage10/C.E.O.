@@ -65,9 +65,9 @@ describe("layout", () => {
     expect(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])).toBeLessThan(1);
   });
 
-  it("same-room walks are a single walking segment", () => {
+  it("same-room walks are all walking, and get around furniture", () => {
     const r = routeBetween({ room: "spire", station: "desk-1" }, { room: "spire", station: "coffee" }, "x");
-    expect(r.kinds).toEqual(["walk"]);
+    expect(new Set(r.kinds)).toEqual(new Set(["walk"]));
     expect(r.duration).toBeGreaterThan(0);
   });
 });

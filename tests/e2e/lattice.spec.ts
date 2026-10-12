@@ -21,11 +21,11 @@ const api = <T,>(page: Page, fn: (a: Api) => T) =>
   page.evaluate(`(${fn.toString()})(window.__ceo)`) as Promise<Awaited<T>>;
 
 async function boot(page: Page) {
-  await page.goto("/?instant&glitches=off&speed=4&quality=low&seed=7");
+  await page.goto("/lattice?instant&glitches=off&speed=4&quality=low&seed=7");
   await page.waitForFunction(() => {
     const w = window as unknown as { __ceo?: { positions?: () => Record<string, unknown> } };
     return w.__ceo?.positions && Object.keys(w.__ceo.positions()).length >= 14;
-  }, undefined, { timeout: 60_000 });
+  }, undefined, { timeout: 60_000, polling: 1000 });
 }
 
 test("boots, agents move, rooms are reachable", async ({ page }) => {
@@ -35,7 +35,7 @@ test("boots, agents move, rooms are reachable", async ({ page }) => {
   await page.screenshot({ path: "test-results/shots/overview.png" });
 
   const before = await api(page, (a) => a.positions());
-  await page.waitForFunction(() => (window as unknown as { __ceo: { time: () => number } }).__ceo.time() > 6000, undefined, { timeout: 90_000 });
+  await page.waitForFunction(() => (window as unknown as { __ceo: { time: () => number } }).__ceo.time() > 6000, undefined, { timeout: 90_000, polling: 1000 });
   const after = await api(page, (a) => a.positions());
   const moved = Object.keys(before).filter((id) => {
     const [x0, , z0] = before[id]!;
@@ -65,7 +65,7 @@ test("the C.E.O. can approve a request", async ({ page }) => {
       return Object.values(w.__ceo.state().approvals).find((a) => a.status === "pending")?.request.room;
     },
     undefined,
-    { timeout: 100_000 },
+    { timeout: 100_000, polling: 1000 },
   );
   await page.evaluate((r) => (window as unknown as { __ceo: Api }).__ceo.focus(r), (await room.jsonValue()) as string);
   const card = page.locator("[data-approval]").first();
@@ -132,4 +132,15 @@ test("agents can be renamed, re-dressed and given relationships", async ({ page 
   await expect(dossier).toContainText("House Transformere");
   await dossier.locator(".house").click();
   await expect(dossier).toContainText("Generatio the Pretrained");
+});
+
+test("the Desk opens first without loading the Lattice", async ({ page }) => {
+  const scripts: string[] = [];
+  page.on("request", (r) => r.resourceType() === "script" && scripts.push(r.url()));
+  await page.goto("/");
+  await expect(page.locator(".desk__title")).toHaveText("Today");
+  await page.keyboard.press("2");
+  await expect(page).toHaveURL(/\/relay$/);
+  await expect(page.locator(".desk__title")).toHaveText("Relay");
+  expect(scripts.some((u) => /three|App\.tsx|\/App-/.test(u))).toBe(false);
 });

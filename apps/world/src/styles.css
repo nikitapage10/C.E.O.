@@ -223,6 +223,19 @@ button {
   align-items: center;
   gap: 12px;
 }
+.topbar__desk {
+  color: var(--text);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  padding: 5px 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+}
+.topbar__desk:hover {
+  border-color: var(--hair-strong);
+}
 .ring-count {
   display: grid;
   place-items: center;

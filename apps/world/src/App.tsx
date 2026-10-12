@@ -1,3 +1,4 @@
+import { ROOM_IDS, type RoomId } from "@ceo/core";
 import { useEffect } from "react";
 import { agentPositions, clock } from "./clock.ts";
 import { GatheringDirector } from "./gatherings/GatheringDirector.tsx";
@@ -15,6 +16,7 @@ import { DeckDirector } from "./club/DeckDirector.tsx";
 import { NightDirector } from "./night/NightDirector.tsx";
 import { VeilDirector } from "./veil/VeilDirector.tsx";
 import { pumpSpeech, useWorld } from "./store.ts";
+import "./styles.css";
 
 /** window.__ceo: a small debug surface for the console and the e2e tests. */
 function useDebugApi() {
@@ -40,8 +42,17 @@ function useSpeechTicker() {
   }, []);
 }
 
+/** `/lattice?room=relay` opens straight on a room (links from the Desk). */
+function useRoomLink() {
+  useEffect(() => {
+    const room = new URLSearchParams(window.location.search).get("room");
+    if (room && (ROOM_IDS as readonly string[]).includes(room)) useWorld.getState().setFocus(room as RoomId);
+  }, []);
+}
+
 export function App() {
   useDebugApi();
+  useRoomLink();
   useSpeechTicker();
   return (
     <>

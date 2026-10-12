@@ -2,13 +2,28 @@ import "@fontsource/cormorant-garamond/300.css";
 import "@fontsource/cormorant-garamond/400-italic.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App.tsx";
-import "./styles.css";
+import { Desk } from "./desk/Desk.tsx";
+import { loadLattice, useRoute } from "./route.ts";
+
+/** The 3D Lattice is its own download: nothing from it (three.js, models, the simulator) loads on the Desk. */
+const Lattice = lazy(() => loadLattice().then((m) => ({ default: m.App })));
+
+function Root() {
+  const route = useRoute();
+  if (route === "lattice") {
+    return (
+      <Suspense fallback={<div className="desk-boot" />}>
+        <Lattice />
+      </Suspense>
+    );
+  }
+  return <Desk route={route} />;
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <Root />
   </StrictMode>,
 );

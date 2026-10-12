@@ -3,5 +3,9 @@
   "framework": null,
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
-  "outputDirectory": "apps/world/dist"
+  "outputDirectory": "apps/world/dist",
+  "rewrites": [
+    { "source": "/relay", "destination": "/index.html" },
+    { "source": "/lattice", "destination": "/index.html" }
+  ]
 }

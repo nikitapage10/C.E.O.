@@ -11,6 +11,7 @@ import { Dossier } from "./Dossier.tsx";
 import { DayClock, DeckButton, KernelConsole, PanelButtons, TrophyPanel, usePanels } from "./Extras.tsx";
 import { unlock } from "../achievements/achievements.ts";
 import { feedLines, formatClock, type FeedLine } from "./format.ts";
+import { navigate } from "../route.ts";
 
 /**
  * The HUD, in The Tide's interface language: hairlines and wide-tracked labels on near-black, text that
@@ -65,6 +66,9 @@ function TopBar() {
         ))}
       </nav>
       <div className="topbar__right">
+        <a className="topbar__desk" href="/" onClick={(e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate("today"); }} title="Back to the Desk">
+          Desk
+        </a>
         <DayClock />
         <span className="tracked faint">Lattice time</span>
         <span className="tracked">{time}</span>

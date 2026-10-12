@@ -32,6 +32,11 @@ browser) runs in Claude via Claude Code on Nikita's plan; writing and day-to-day
 picks the cheapest model that will do the job and moves up only when it fails. APIs are for decisions and routing,
 never for writing code.
 
+Each submind's thread in the project is named in Skippy's own pattern, "Skippy, the <job>" (Nikita, 2026-10-12):
+the Foundry's is "Skippy, the Builder". Suggested for the rest when they get threads: the Broker (Spire), the
+Bookie (Exchange), the Coach (Green), the Messenger (Relay), the Archivist (Archive), the Bartender (Break Room),
+the Stoker (Boiler Room), the Maker (Workshop).
+
 ## How a task flows
 
 1. **In.** A task arrives one of two ways:

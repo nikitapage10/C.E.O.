@@ -90,6 +90,12 @@ const SEEDS: Record<string, Seed> = {
     bio: "The game master's many hands, dressed as a travelling adventurer who has never actually been anywhere. Rolls for initiative before every meeting and has a voice for everyone, especially the Kernel. Loremaster's apprentice.",
     catchphrase: "Roll for initiative!",
   },
+  gary: {
+    look: lookFromPreset("power-droid"),
+    traits: ["earnest", "loyal", "anxious", "wholesome"],
+    bio: "The Boiler Room's keeper: a battery box on two stubby legs who honks instead of talking. Taps every gauge, tapes every leak, and guards the bucket under the drip. When a real line breaks, its pipe bursts and Gary is already running.",
+    catchphrase: "Honk. (I have tape.)",
+  },
   kevin: {
     look: makeLook({ body: "punk", shell: "#242424", accent: "#ff7aa8", trim: "#7c0f1f" }),
     traits: ["lazy", "deadpan", "loyal"],
@@ -131,6 +137,8 @@ export function defaultCast(): Cast {
       { a: "heimerdinger", b: "d20", kind: "mentor", note: "Grades D20's dice rolls for rigour. D20 has never passed. D20 has never stopped trying." },
       { a: "heimerdinger", b: "caret", kind: "friend", note: "Rocky built it in an afternoon. Heimerdinger has studied it for a year and still has questions. Mutual awe, in chords and footnotes." },
       { a: "heimerdinger", b: "kevin", kind: "friend", note: "Kevin has never once hurried. Heimerdinger finds this scientifically fascinating, and a little enviable." },
+      { a: "gary", b: "kevin", kind: "friend", note: "Kevin naps on the warm side of the boiler. Gary logs it as spiritual maintenance." },
+      { a: "gary", b: "tessellate", kind: "friend", note: "Rusty wrote him a 71-page boiler manual. It levels the tool bench perfectly. Rusty must never know." },
       { a: "caret", b: "kevin", kind: "friend", note: "Rocky watches Kevin sleep. Kevin is always asleep. Rocky has never been happier." },
     ],
   };

@@ -5,6 +5,7 @@ import { Rocky } from "./Rocky.tsx";
 import { Compactor } from "./Compactor.tsx";
 import { LibraryBody } from "./Library.tsx";
 import { Monolith } from "./Monolith.tsx";
+import { PowerBox } from "./PowerBox.tsx";
 import { KayKitBody, RobotBody } from "./Rigged.tsx";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
 
@@ -45,6 +46,7 @@ const BODIES: Record<Exclude<BodyKind, "classic">, ComponentType<BodyProps>> = {
   birb: LibraryBody,
   yeti: LibraryBody,
   monolith: Monolith,
+  powerbox: PowerBox,
 };
 
 /** Any body but the classic figure, at the look's size. Models stream in; until then there's nothing to see. */

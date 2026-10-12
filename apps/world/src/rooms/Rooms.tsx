@@ -4,6 +4,7 @@ import type { ComponentType } from "react";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { Archive } from "./Archive.tsx";
+import { BoilerRoom } from "./BoilerRoom.tsx";
 import { BreakRoom } from "./BreakRoom.tsx";
 import { Exchange } from "./Exchange.tsx";
 import { EASTER_EGGS } from "./EasterEggs.tsx";
@@ -20,6 +21,7 @@ export const ROOM_ACCENTS: Record<RoomId, string> = {
   relay: "#e8c27a",
   archive: PALETTE.violet,
   breakroom: "#ff8fb1",
+  boiler: "#ff9a4a",
 };
 
 const CONTENT: Record<RoomId, ComponentType> = {
@@ -30,6 +32,7 @@ const CONTENT: Record<RoomId, ComponentType> = {
   relay: Relay,
   archive: Archive,
   breakroom: BreakRoom,
+  boiler: BoilerRoom,
 };
 
 function Room({ id }: { id: RoomId }) {

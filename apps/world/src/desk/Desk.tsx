@@ -1,11 +1,17 @@
 import { useEffect } from "react";
 import { loadLattice, navigate, type Route } from "../route.ts";
+import { useSystems, type LinkState } from "../systems.ts";
+import { useDeskData } from "./deskData.ts";
+import { Decode, useNow } from "./motion.tsx";
+import { link } from "./nav.ts";
+import { Relay } from "./Relay.tsx";
+import { Today } from "./Today.tsx";
 import "./desk.css";
 
 /**
  * The Desk: the plain, fast front page where the C.E.O. acts on what the real agents bring in. It shows only
  * real work (nothing from the demo) and never loads the 3D Lattice; "Enter the Lattice" fetches that on demand.
- * Phase 2 wires it to the hub on the MacBook; until then every list is honestly empty.
+ * Phase 2 wires it to the hub on the MacBook; until then every list is honestly empty, drawn as such.
  */
 
 type DeskTab = Exclude<Route, "lattice">;
@@ -15,16 +21,22 @@ const TABS: { id: DeskTab; label: string }[] = [
   { id: "relay", label: "Relay" },
 ];
 
-/** The real agents and what they do for you. Relay is the first room to go live. */
-const LIVE_AGENTS = [
-  { id: "dialtone", name: "Dialtone", room: "Relay", job: "Keeps the list of who you owe a reply, and nudges you" },
-  { id: "postmaster", name: "Blasto", room: "Relay", job: "Drafts your replies, in your voice" },
-];
+const HUB_LINE: Record<LinkState, string> = {
+  off: "Not connected to your hub yet. Once the MacBook is set up, Relay's work shows up here.",
+  ok: "",
+  slow: "The hub is answering slowly. Lists may lag a little.",
+  down: "The hub is down. What you see is from before it stopped.",
+};
 
-/** No hub yet: the MacBook side is phase 2. */
-const HUB_CONNECTED = false;
+const HUB_PILL: Record<LinkState, string> = { off: "Hub offline", ok: "Hub live", slow: "Hub slow", down: "Hub down" };
+
+const PREVIEW = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("boiler") === "demo";
 
 export function Desk({ route }: { route: DeskTab }) {
+  const data = useDeskData();
+  const now = useNow(30_000);
+  const hub = useSystems((s) => s.links.find((l) => l.id === "hub")?.state ?? "off");
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement | null)?.closest("input, textarea")) return;
@@ -39,11 +51,20 @@ export function Desk({ route }: { route: DeskTab }) {
     document.title = route === "relay" ? "Relay · C.E.O." : "C.E.O. — Desk";
   }, [route]);
 
+  const owed = data.owed.length;
+  const connected = hub !== "off";
+
   return (
     <div className="desk">
+      <div className="desk__sky" aria-hidden="true">
+        <span className="desk__aurora desk__aurora--a" />
+        <span className="desk__aurora desk__aurora--b" />
+        <span className="desk__stars" />
+        <span className="desk__stars desk__stars--far" />
+      </div>
       <header className="desk__bar">
-        <a className="desk__mark" href="/" onClick={link("today")}>
-          C.E.O.
+        <a className="desk__mark" href="/" onClick={link("today")} aria-label="C.E.O.">
+          <Decode text="C.E.O." speed={70} />
         </a>
         <nav className="desk__tabs" aria-label="Desk">
           {TABS.map((t, i) => (
@@ -55,99 +76,44 @@ export function Desk({ route }: { route: DeskTab }) {
               onClick={link(t.id)}
               title={`${t.label} (${i + 1})`}
             >
+              <span className="desk__tab-n" aria-hidden="true">
+                0{i + 1}
+              </span>
               {t.label}
             </a>
           ))}
         </nav>
         <div className="desk__right">
-          <span className="desk__count" title="Waiting on you">
-            0
+          <span className={`desk__hub desk__hub--${hub}`} title={`Hub: ${HUB_PILL[hub]}`}>
+            <i aria-hidden="true" />
+            <span>{HUB_PILL[hub]}</span>
+          </span>
+          <span className={`desk__count ${owed ? "desk__count--hot" : ""}`} title="Waiting on you">
+            {owed}
           </span>
           <a className="desk__enter" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
-            Enter the Lattice
+            <span>Enter the Lattice</span>
+            <i aria-hidden="true">→</i>
           </a>
         </div>
       </header>
 
-      {!HUB_CONNECTED && (
-        <p className="desk__notice" role="status">
-          Not connected to your hub yet. Once the MacBook is set up, Relay's work shows up here.
+      {(hub !== "ok" || PREVIEW) && (
+        <p className={`desk__notice desk__notice--${PREVIEW ? "preview" : hub}`} role="status">
+          <span className="desk__notice-dot" aria-hidden="true" />
+          {PREVIEW ? "Preview: the links are cycling through every state so you can see them. No real messages." : HUB_LINE[hub]}
         </p>
       )}
 
-      <main className="desk__main">{route === "relay" ? <Relay /> : <Today />}</main>
+      <main className="desk__main" key={route}>
+        {route === "relay" ? <Relay data={data} now={now} connected={connected} /> : <Today data={data} now={now} connected={connected} />}
+      </main>
+
+      <footer className="desk__foot">
+        <span>Command Everything, Obviously</span>
+        <span className="desk__foot-rule" aria-hidden="true" />
+        <span>Ilyr · the Syntherion Lattice</span>
+      </footer>
     </div>
-  );
-}
-
-/** In-app navigation for plain links (a new tab or a modified click still works as a normal link). */
-function link(to: Route) {
-  return (e: React.MouseEvent) => {
-    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    e.preventDefault();
-    navigate(to);
-  };
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="desk__section">
-      <h2>{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="desk__empty">{children}</p>;
-}
-
-function Today() {
-  return (
-    <>
-      <h1 className="desk__title">Today</h1>
-      <Section title="Needs you now">
-        <Empty>Nobody is waiting on a reply from you. Replies you owe will appear here, with a draft ready to send.</Empty>
-      </Section>
-      <Section title="Waiting on you">
-        <Empty>Nothing to approve.</Empty>
-      </Section>
-      <Section title="While you were away">
-        <Empty>Quiet. The other rooms are still running drills, which you can watch in the Lattice.</Empty>
-      </Section>
-      <Section title="Agents">
-        <ul className="desk__agents">
-          {LIVE_AGENTS.map((a) => (
-            <li key={a.id}>
-              <span className={`desk__dot ${HUB_CONNECTED ? "desk__dot--ok" : ""}`} aria-hidden="true" />
-              <span className="desk__agent-name">{a.name}</span>
-              <span className="desk__agent-room">{a.room}</span>
-              <span className="desk__agent-job">{a.job}</span>
-              <span className="desk__agent-state">{HUB_CONNECTED ? "Connected" : "Not connected yet"}</span>
-            </li>
-          ))}
-        </ul>
-      </Section>
-    </>
-  );
-}
-
-function Relay() {
-  return (
-    <>
-      <h1 className="desk__title">Relay</h1>
-      <p className="desk__lead">Who you owe a reply, the ones to answer sooner first, each with a draft in your voice.</p>
-      <div className="relay">
-        <section className="relay__list" aria-label="Owed replies">
-          <h2>Owed replies</h2>
-          <Empty>You're all caught up.</Empty>
-          <h2 className="relay__muted">Nothing owed</h2>
-          <Empty>Group chats, codes and promos land here. Nothing to clear.</Empty>
-        </section>
-        <section className="relay__thread" aria-label="Conversation">
-          <Empty>Pick a conversation to see the thread and Blasto's draft. Send it as is, nudge it, or hold the mic and say what you mean.</Empty>
-        </section>
-      </div>
-    </>
   );
 }

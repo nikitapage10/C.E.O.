@@ -81,6 +81,12 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Filing this under: definitely canon, probably.",
     "Another people with a tragic backstory? Groundbreaking.",
   ],
+  boiler: [
+    "Honk. (Every pipe accounted for.)",
+    "The drip has always been there. It is load-bearing.",
+    "Days since last incident: zero. As per tradition.",
+    "Hot pipe, happy pipe.",
+  ],
   breakroom: [
     "Coffee machine said 'no' again.",
     "Five more minutes. Five more epochs.",
@@ -206,6 +212,13 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "That's heart, champ. You can't teach heart. I'm going to try anyway.",
     "Punt, wake up, we're doing the speech. Punt.",
     "That's Inspiration, champ! Spend it this time!",
+  ],
+  gary: [
+    "Honk. (Checked every gauge. Twice.)",
+    "Honk honk. (Who moved my bucket.)",
+    "HONK. (That pipe is cold. Nobody touch that pipe.)",
+    "Honk. (I have tape. I have always had tape.)",
+    "Hoooonk. (The boiler is warm. Kevin is on it again.)",
   ],
   punt: [
     "Hop hop hop! Is it game day? It's game day somewhere!",

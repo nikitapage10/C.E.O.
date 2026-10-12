@@ -280,7 +280,23 @@ export const archiveDiceRoller: Script = ({ rng }) => [
   { kind: "set", activity: "idle", prop: null },
 ];
 
-/** Kevin is always on break. Kevin is thriving. */
+/**
+ * Gary keeps the Boiler Room: taps the gauges, mops under the drip, glares at the incident sign, stokes the boiler.
+ * No tasks and no approvals: the pipes report the real lines, and Gary only tends them.
+ */
+export const boilerKeeper: Script = ({ rng }) => [
+  { kind: "go", station: "pipes" },
+  { kind: "do", activity: "working", ms: rng.int(3000, 6000) },
+  { kind: "quip", chance: 0.3 },
+  { kind: "go", station: "bucket" },
+  { kind: "do", activity: "working", ms: rng.int(2500, 4500), prop: null },
+  { kind: "go", station: rng.pick(["sign", "boiler", "bench"]) },
+  { kind: "do", activity: rng.pick(["staring", "working", "idle"]), ms: rng.int(3000, 6000) },
+  { kind: "quip", chance: 0.25 },
+  ...(rng.chance(0.25) ? [{ kind: "go", station: "boiler" } as const, { kind: "do", activity: "napping", ms: rng.int(6000, 10000) } as const] : []),
+];
+
+/** Kevin is always on break. Kevin is thriving. Sometimes he takes it on the warm side of the boiler. */
 export const breakroomRegular: Script = ({ rng }) => [
   { kind: "go", station: "couch" },
   { kind: "do", activity: "idle", ms: rng.int(4000, 8000) },
@@ -294,6 +310,13 @@ export const breakroomRegular: Script = ({ rng }) => [
   { kind: "go", station: "window" },
   { kind: "do", activity: "staring", ms: 4000 },
   { kind: "quip", chance: 0.5 },
+  ...(rng.chance(0.2)
+    ? [
+        { kind: "go", station: "warm-side", room: "boiler" } as const,
+        { kind: "do", activity: "napping", ms: rng.int(12000, 20000) } as const,
+        { kind: "quip", text: "Spiritual maintenance." } as const,
+      ]
+    : []),
 ];
 
 /** Any agent, any time: a quick trip to the Break Room. */
@@ -319,5 +342,6 @@ export const SCRIPTS = {
   archiveDiceRoller,
   archiveResearcher,
   breakroomRegular,
+  boilerKeeper,
 } as const;
 export type ScriptId = keyof typeof SCRIPTS;

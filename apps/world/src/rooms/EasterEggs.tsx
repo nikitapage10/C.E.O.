@@ -368,4 +368,6 @@ export const EASTER_EGGS: Record<RoomId, ComponentType> = {
   relay: RelayEggs,
   archive: ArchiveEggs,
   breakroom: BreakRoomEggs,
+  // The Boiler Room is its own joke.
+  boiler: () => null,
 };

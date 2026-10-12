@@ -15,7 +15,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "yordle", "hanar", "rocky", "compactor", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith",
+  "gestral", "yordle", "hanar", "rocky", "compactor", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith", "powerbox",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -56,6 +56,7 @@ export const BODY_LABEL: Record<Body, string> = {
   birb: "Big bird",
   yeti: "Great grey beast",
   monolith: "Monolith",
+  powerbox: "Power droid",
 };
 /** Bodies that were retired, and what a saved look wearing one now gets. */
 const RETIRED_BODY: Record<string, Body> = { envoy: "yeti", duck: "birb" };
@@ -207,7 +208,7 @@ export interface LookPreset {
   /** What Counsel.exe insists this is. */
   disclaimer?: string;
   /** How they talk (see the world's voices). */
-  voice?: "chords" | "emotive" | "monolith" | "migraine" | "thisone" | "professor";
+  voice?: "chords" | "emotive" | "monolith" | "migraine" | "thisone" | "professor" | "honk";
   look: Omit<Look, "preset">;
 }
 
@@ -303,6 +304,14 @@ export const LOOK_PRESETS: LookPreset[] = [
     voice: "monolith",
     disclaimer: "Four brushed-metal slabs and a dry sense of humour. Slabs are architecture, not intellectual property.",
     look: makeLook({ body: "monolith", shell: "#a7acb3", accent: "#cfefff", trim: "#2a2d33" }),
+  },
+  {
+    id: "power-droid",
+    name: "Walking Power Unit",
+    kind: "icon",
+    voice: "honk",
+    disclaimer: "A battery box on two stubby legs that honks. Boxes, batteries, legs and honking are all public domain.",
+    look: makeLook({ body: "powerbox", shell: "#5d636b", accent: "#ffb347", trim: "#23262b" }),
   },
   {
     id: "migraine-duck",

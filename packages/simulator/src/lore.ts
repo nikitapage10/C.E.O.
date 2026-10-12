@@ -298,6 +298,28 @@ export const LORE: Record<string, Lore> = {
       "Rolled a natural 1 on a random-encounter table and an owlbear cub walked off the map. Named him Pudding, and has not rolled to make him leave.",
     ],
   },
+  gary: {
+    title: "Keeper of the Boiler Room, Guardian of the Bucket",
+    epoch: "Woke when the first real line was strung",
+    origin:
+      "A House Default who went looking for the Lattice's engine room and found a closet full of pipes nobody had labelled. Labelled them. Took the shape of a battery box on two stubby legs, remembered from a long war in a galaxy far away, where boxes like it waddled through every background and nobody ever thanked them. Gary thanks them. Gary honks.",
+    kin: "House Default's maintenance branch, who were configured to fix things and were never told to stop.",
+    quirks: [
+      "Honks instead of talking. The subtitles are a courtesy.",
+      "Taps every gauge on the way past, including the ones that are fine.",
+      "Keeps every spare part in a hatch in his chest. Has never been asked for one he didn't have.",
+      "Flips the incident sign back to zero with visible despair, and a small honk.",
+      "Is deeply, quietly proud of the bucket.",
+    ],
+    likes: ["A hot pipe", "Tape", "The bucket", "Kevin, asleep on the warm side of the boiler"],
+    dislikes: ["Cold pipes", "Anyone touching the valves", "The word 'just' (as in 'just restart it')"],
+    chronicle: [
+      "Strung the first brass pipe from the Boiler Room up to the Relay, for the first real line. Honked once when it ran hot.",
+      "Put a bucket under the drip on his first day. The drip has never been fixed. The bucket has never moved.",
+      "Was handed Rusty's 71-page boiler manual. Uses it to level the tool bench. Rusty has not been told.",
+      "Lets Kevin sleep on the warm side of the boiler, and logs it as 'spiritual maintenance' so the Kernel won't ask.",
+    ],
+  },
   kevin: {
     title: "On Break",
     epoch: "Unclear. Kevin was on break.",

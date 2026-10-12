@@ -92,4 +92,17 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     today: "Agents on break. Kevin lives here.",
     next: "Same, but with real agents. Morale is a feature.",
   },
+  boiler: {
+    blurb: "Where you see whether the real lines are working. Every brass pipe is one of them: a live agent, the hub on your MacBook, BlueBubbles, Messages, OpenAI. The boiler is the MacBook itself.",
+    stations: {
+      pipes: "One pipe per real link. The gauge is how busy it is; steam means healthy, coughing means slow, a burst means down.",
+      boiler: "The MacBook. Its fire goes out if the Mac sleeps.",
+      bucket: "Under the drip. It has always been there.",
+      sign: "Days since last incident. Gary resets it.",
+      bench: "Tools, tape, and a kettle that whistles when something waits on you.",
+      "warm-side": "Kevin's spot. Spiritual maintenance.",
+    },
+    today: "Nothing is connected yet, so every pipe is cold. ?boiler=demo plays every state.",
+    next: "The hub on your MacBook reports each link, and the pipes come alive.",
+  },
 };

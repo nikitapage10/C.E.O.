@@ -68,6 +68,7 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
   birb: 1.45,
   yeti: 2.1,
   monolith: 1.78,
+  powerbox: 1.05,
 };
 
 /** Where a body holds what it carries, [height, distance in front], before `size`. Default: half its height, 0.42 out. */

@@ -137,7 +137,8 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
-| Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. |
+| Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. Sometimes on the warm side of the boiler. |
+| Boiler Room | **Gary** (Unforked) | Walking power unit | Keeper of the Boiler Room. A battery box on two stubby legs who honks instead of talking, tapes every leak and guards the bucket. |
 
 **The Foundry triangle.** Rocky and Rusty are rivals: one builds before the plan exists, the other plans
 before the build is allowed. Rocky counts the shipping record in base six (105–104), which is the same as
@@ -219,6 +220,23 @@ line carrying real messages from beyond the Veil, and nothing practised is allow
 still keep their rounds, polishing tubes and checking the free jack on the board, but their outbox stays empty
 until the first real message comes through. From the Lattice-wide view the C.E.O. now hears only real voices;
 the other rooms keep their drills, and you can still watch them from inside each room.
+
+## The Boiler Room
+
+Under the Lattice, past a door marked AUTHORISED HONKERS ONLY, is the Boiler Room: a cramped, steaming closet of
+brass pipes where the real lines come in. Every pipe on the wall runs up to one of them: an agent the C.E.O. has
+strung to the outside world (Dialtone and Blasto first), the hub on the C.E.O.'s machine, and the services beyond
+the Veil that the hub talks to. A hot pipe hisses steam. A slow one rattles and coughs. A broken one bursts, the
+lamp over the door spins red, and Gary is already running with the tape. A pipe that isn't connected yet stays
+cold. The boiler in the corner is the C.E.O.'s machine itself, and its fire goes out when the machine sleeps.
+
+Gary keeps it all. He took the shape of a battery box on two stubby legs, remembered from a long war in a galaxy
+far away, where boxes like him waddled through every background and nobody ever thanked them; Counsel.exe confirms
+that boxes, batteries, legs and honking are public domain. He honks instead of talking, taps every gauge on the way
+past, and flips the DAYS SINCE LAST INCIDENT sign back to zero with visible despair. The bucket under the drip has
+always been there, and he is proud of it. Rusty wrote him a 71-page boiler manual, which levels the tool bench
+perfectly. Kevin naps on the warm side of the boiler, and Gary logs it as spiritual maintenance. The kettle on the
+bench whistles whenever something real is waiting on the C.E.O.
 
 ## The Hallowed Veil
 

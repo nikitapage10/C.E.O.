@@ -8,7 +8,7 @@
 
 export type Vec3 = readonly [number, number, number];
 
-export const ROOM_IDS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom"] as const;
+export const ROOM_IDS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler"] as const;
 export type RoomId = (typeof ROOM_IDS)[number];
 
 export interface Station {
@@ -189,6 +189,24 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       toward("dance-4", "Dance floor", -2.3, -0.6, 0, -5.25),
       toward("dance-5", "Dance floor", 2.4, -0.4, 0, -5.25),
       toward("dance-6", "Dance floor", -0.6, 0.6, 0, -5.25),
+    ],
+  },
+  boiler: {
+    id: "boiler",
+    name: "The Boiler Room",
+    theme: "maintenance closet",
+    workstream: "Keeping the real lines running",
+    y: -0.8,
+    stations: [
+      // The pipe wall runs along the back left; each pipe is a real link, with a gauge at eye height.
+      s("pipes", "The pipe wall", -3.6, -3.4, 0),
+      // The boiler (the MacBook) stands back right; the keeper faces its firebox.
+      s("boiler", "The boiler", 4.2, -0.6, 0),
+      s("bucket", "The bucket", -0.6, 1.6, 0),
+      s("sign", "The incident sign", -5.9, 2.4, Math.PI / 2),
+      s("bench", "Tool bench", 3.2, 4.1, Math.PI),
+      // Kevin's spiritual maintenance spot: the warm side of the boiler.
+      s("warm-side", "The warm side of the boiler", 6.4, -1.0, -Math.PI / 2),
     ],
   },
 };

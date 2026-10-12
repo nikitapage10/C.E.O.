@@ -49,6 +49,7 @@ export const CLIP_OFFERS: Record<RoomId, string> = {
   relay: "It looks like you're writing a text. Would you like to add a third exclamation point?",
   archive: "It looks like you're writing lore. Would you like it to be a prophecy?",
   breakroom: "It looks like you're on break. Would you like to be on a longer break?",
+  boiler: "It looks like a pipe has burst. Would you like to hear about tape?",
 };
 
 export const COUNSEL_YANK = [

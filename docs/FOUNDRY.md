@@ -12,8 +12,8 @@ Scope: this repository only (Nikita, 2026-10-12).
    a bug. Drop everything else.
 2. **Ideas** (every morning at 9:00 Mountain). Propose exactly three ideas. Never code an idea before Nikita
    approves it.
-3. **Upkeep** (slow, every six hours, only when nothing above is open). One small change that makes things run
-   smoother without changing what Nikita sees.
+3. **Upkeep** (every five hours, lined up with Nikita's Claude usage reset; only when nothing above is open). Security
+   and compliance first, then one small change that makes things run smoother without changing what Nikita sees.
 
 ## The crew
 
@@ -244,8 +244,14 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
 
 ## Lane 3: Upkeep
 
-Only when no fix or build is open and unstuck. One change per tick, on the cheapest model that can do it:
+Only when no fix or build is open and unstuck. The tick runs every five hours, starting a minute after Nikita's
+Claude usage resets (Nikita, 2026-10-13); a cron can't say "every five hours", so each tick moves the routine's next
+run five hours on. One change per tick, on the cheapest model that can do it (design always on Opus):
 
+- **security and compliance first:** the most pressing open item on the Desk's Security and Compliance pages (risks
+  R1–R6 and the open OWASP LLM, NIST AI RMF and SAIF gaps in [THREAT-MODEL.md](THREAT-MODEL.md), or a failing scan).
+  A small, safe fix ships as upkeep, with the threat model and `apps/world/src/desk/security/model.ts` updated
+  together so the Desk shows it; anything bigger becomes an idea card for Nikita's pick;
 - make a flaky or slow test reliable;
 - shrink the bundle or the 3D assets so the world loads faster;
 - remove dead code, tidy types, clear lint warnings;

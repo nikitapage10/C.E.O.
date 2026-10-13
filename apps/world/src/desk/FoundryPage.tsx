@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
-import { assignCrew, ideaCounts, openIdeas, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -201,7 +201,7 @@ export function FoundryPage({ now }: { now: number }) {
         lead={lead}
         aside={
           <div className="page-head__crew">
-            {(Object.keys(CREW) as CrewId[]).map((id) => (
+            {CREW_ORDER.map((id) => (
               <Avatar key={id} agent={id} room="foundry" />
             ))}
             <a className="btn btn--go" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
@@ -799,7 +799,7 @@ function Crew({ now }: { now: number }) {
   return (
     <>
       <ul className="fy-crew">
-        {(Object.keys(CREW) as CrewId[]).map((id) => {
+        {CREW_ORDER.map((id) => {
           const jobs = crates.filter((c) => by.get(c.number) === id).sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || a.number - b.number);
           const tone: LinkState = jobs[0] ? CREW_STATE[jobs[0].state] : connected ? "ok" : "off";
           const held = jobs.filter((c) => c.state === "working" && !c.paused && !waiting.has(c.number)).length;
@@ -814,6 +814,7 @@ function Crew({ now }: { now: number }) {
                 </span>
                 <span className="fy-crew__name">
                   {CREW[id].name}
+                  <Rank id={id} />
                   <small>
                     {CREW[id].job} · {CREW_RUNG[id]}
                   </small>
@@ -891,6 +892,21 @@ function Crew({ now }: { now: number }) {
         )}
       </section>
     </>
+  );
+}
+
+/** A crew member's rank: three pips lit up to their tier, and the models they run on, in their model's colour. */
+function Rank({ id }: { id: CrewId }) {
+  const { tier, models } = CREW_RANK[id];
+  return (
+    <span className="fy-rank" style={{ "--c": MODEL[id].colour } as React.CSSProperties} title={`Tier ${tier} of 3 on the crew, on ${models.replace("/", " or ")}`}>
+      <span className="fy-rank__pips" aria-hidden="true">
+        {[1, 2, 3].map((n) => (
+          <i key={n} className={n <= tier ? "on" : undefined} />
+        ))}
+      </span>
+      Tier {tier} · {models}
+    </span>
   );
 }
 
@@ -1254,13 +1270,15 @@ export function FoundrySystem() {
         ))}
       </ol>
       <ul className="foundry-crew">
-        {(Object.keys(CREW) as CrewId[]).map((id) => {
+        {CREW_ORDER.map((id) => {
           const crate = work[id];
           return (
             <li key={id}>
               <Avatar agent={id} room="foundry" />
               <span className="foundry-crew__job">{CREW[id].job}</span>
-              <span className="foundry-crew__name">{CREW[id].name}</span>
+              <span className="foundry-crew__name">
+                {CREW[id].name} <Rank id={id} />
+              </span>
               {crate ? (
                 <a className="foundry-crew__on" href={crate.url} target="_blank" rel="noreferrer">
                   #{crate.number} {crate.title}

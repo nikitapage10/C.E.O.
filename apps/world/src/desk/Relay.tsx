@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
-import { Avatar, PageHead, Panel } from "./ui.tsx";
+import { RoomBanner } from "./RoomBanner.tsx";
+import { Avatar, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
 
 /** Relay: who you owe a reply, the ones to answer sooner first, each with Blasto's draft in your voice. */
@@ -52,10 +53,8 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
 
   return (
     <div className="relay-page">
-      <PageHead
-        eyebrow="The switchboard"
-        title="Relay"
-        room="relay"
+      <RoomBanner
+        page="relay"
         lead="Who you owe a reply, the ones to answer sooner first, each with a draft in your voice."
         aside={
           <div className="page-head__crew" aria-label="Relay's agents">

@@ -13,6 +13,7 @@ import { unlock } from "../achievements/achievements.ts";
 import { feedLines, formatClock, type FeedLine } from "./format.ts";
 import { navigate } from "../route.ts";
 import { noticeVisible } from "../kernel/notices.ts";
+import { pinned, useCatchup } from "../kernel/catchup.ts";
 import { enterEyes, useEyes } from "../eyes/eyes.ts";
 
 /**
@@ -242,14 +243,17 @@ function Signals({ open }: { open: boolean }) {
   const focus = useWorld((s) => s.focus);
   const kernelLog = useWorld((s) => s.kernelLog);
   const profiles = useCast((s) => s.cast.profiles);
+  const catchup = useCatchup((s) => s.catchup);
   const lines = useMemo(() => {
     // The Lattice-wide view hears only real agents; each room still shows its demo and the Kernel's calls.
     const events = feedLines(lattice, 22, (id) => profiles[id]?.name, focus, !focus);
     const kernel: FeedLine[] = (focus ? kernelLog.filter((k) => k.room === focus) : [])
       .slice(0, 8)
       .map((k) => ({ id: k.id, ts: k.ts, kind: "kernel", who: "Skippy", text: k.text, room: k.room ?? undefined }));
+    // The catch-up in full, in every view (the PA clamps it to two lines).
+    if (catchup) kernel.push({ id: `catchup-${catchup.step}`, ts: catchup.ts, kind: "kernel", who: "Skippy", text: `While you were away: ${catchup.text}` });
     return [...events, ...kernel].sort((x, y) => y.ts - x.ts).slice(0, 22);
-  }, [lattice, profiles, focus, kernelLog]);
+  }, [lattice, profiles, focus, kernelLog, catchup]);
   const selectAgent = useWorld((s) => s.selectAgent);
   return (
     <section id="feed-panel" className={`rail signals ${open ? "rail--open" : ""}`} aria-label="Signals">
@@ -344,7 +348,28 @@ function Approvals() {
   );
 }
 
-/** The Kernel's PA: one line at a time, top centre, gone once read. */
+/** The Kernel's PA, top centre: the catch-up pinned until read (#54), and after it one line at a time, gone once read. */
+function PA() {
+  const catchup = useCatchup((s) => pinned(s.catchup));
+  const markRead = useCatchup((s) => s.read);
+  return (
+    <div className="pa">
+      {catchup && (
+        <div className="announce announce--pinned" role="status">
+          <span className="eyebrow">Skippy · while you were away</span>
+          <span className="announce__text" title={catchup.text}>
+            {catchup.text}
+          </span>
+          <button className="announce__read tracked" onClick={markRead} aria-label="Mark “While you were away” as read">
+            Read
+          </button>
+        </div>
+      )}
+      <Announcement />
+    </div>
+  );
+}
+
 function Announcement() {
   const a = useWorld((s) => s.announcement);
   const focus = useWorld((s) => s.focus);
@@ -489,7 +514,7 @@ export function Hud() {
         <TitleBlock />
         <Roster open={panel === "roster"} />
       </div>
-      <Announcement />
+      <PA />
       {selected && !studio ? <Dossier key={selected} id={selected} open={panel === "signals"} /> : <Signals open={panel === "signals"} />}
       <Approvals />
       <KernelConsole />

@@ -69,7 +69,9 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
 ## Where it shows
 
 - **The Lattice** (`apps/world/src/world/WorldDirector.tsx`) loads the latest state on open: relationships the world
-  changed are taken on (the Agent Studio and dossiers show them), the PA reads "While you were away: …", and the latest
+  changed are taken on (the Agent Studio and dossiers show them), the PA pins "While you were away: …" as one calm
+  line (two lines at most, the full text in Signals) with a Read button until you read it, other announcements showing
+  after it; once read, that step's line doesn't pin again (`apps/world/src/kernel/catchup.ts`). The latest
   hour's conversations and builders' remarks play out as speech bubbles, speakers facing each other.
 - **The Desk's Chronicle** (`/chronicle`, `apps/world/src/desk/Chronicle.tsx`): the hours since you were last here,
   then a page per day (newest first) with the day in Ilyr, each hour's summary, real events, scenes, remarks and

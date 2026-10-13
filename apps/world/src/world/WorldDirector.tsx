@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
+import { clock } from "../clock.ts";
+import { useCatchup } from "../kernel/catchup.ts";
 import { playbackOf, useChronicle, type Playback } from "../chronicle.ts";
 import { readingTime, useWorld } from "../store.ts";
 
@@ -9,8 +11,8 @@ const SETTLE_MS = 6_000;
 /**
  * The living Lattice, on open (docs/WORLD.md): load the saved world, take on how relationships have moved while
  * nobody was looking, and let the agents carry on where they left off: the latest hour's conversations play out as
- * speech, its builders say their piece about what shipped, and the Kernel's PA reads the hour's summary. Renders
- * nothing.
+ * speech, its builders say their piece about what shipped, and the Kernel's PA pins the hour's summary until it
+ * is read (#54). Renders nothing.
  */
 export function WorldDirector() {
   useEffect(() => {
@@ -29,7 +31,7 @@ export function WorldDirector() {
         if (!latest) return;
         later(() => {
           const world = useWorld.getState();
-          world.announce(`While you were away: ${latest.summary}`, "status", null, "lattice");
+          useCatchup.getState().arrive(latest.step, latest.summary, clock.sim);
           play(playbackOf(latest, (id) => id in useWorld.getState().lattice.agents, world.focus), later);
         }, SETTLE_MS);
       });

@@ -28,11 +28,14 @@ let banner: Placed[] = [];
 function bannerBox(canvas: HTMLElement, now: number): Placed[] {
   if (now - bannerRead < 100) return banner;
   bannerRead = now;
-  const el = document.querySelector(".announce");
-  if (!el) return (banner = []);
-  const r = el.getBoundingClientRect();
+  // The pinned catch-up (#54) and the current line can both be up.
+  const els = document.querySelectorAll(".announce");
+  if (!els.length) return (banner = []);
   const c = canvas.getBoundingClientRect();
-  return (banner = r.width ? [{ x: r.left - c.left + r.width / 2, w: r.width, top: r.top - c.top, bottom: r.bottom - c.top }] : []);
+  return (banner = [...els]
+    .map((el) => el.getBoundingClientRect())
+    .filter((r) => r.width)
+    .map((r) => ({ x: r.left - c.left + r.width / 2, w: r.width, top: r.top - c.top, bottom: r.bottom - c.top })));
 }
 
 function phaseOf(id: string) {

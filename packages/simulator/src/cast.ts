@@ -21,7 +21,7 @@ const SEEDS: Record<string, Seed> = {
   semicolon: {
     look: makeLook({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" }),
     traits: ["deadpan", "grumpy", "loyal", "sarcastic"],
-    bio: "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, went up to the Spire, came back the day Skippy left for the Kernel. Keeps the alarm post, reads each new idea first and asks one question if it is unclear, hands the big jobs to Rocky. Reports to the Builder, unimpressed.",
+    bio: "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, came back the day Skippy left for the Kernel. Keeps the alarm post, reads each new idea first, hands the big jobs to Rocky, and walks the rooms after every ship with a far-sight lens the Geminae lent her. Reports to the Builder, unimpressed.",
     catchphrase: "Hard hats on. Yes, you too, Rocky. On the… just pick a leg.",
   },
   caret: {

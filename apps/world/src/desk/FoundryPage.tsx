@@ -5,7 +5,8 @@ import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
-import { Avatar, PageHead, Panel } from "./ui.tsx";
+import { RoomBanner } from "./RoomBanner.tsx";
+import { Avatar, Panel } from "./ui.tsx";
 import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
@@ -195,10 +196,8 @@ export function FoundryPage({ now }: { now: number }) {
 
   return (
     <div className="foundry-page" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
-      <PageHead
-        eyebrow="The coding crew"
-        title="Foundry"
-        room="foundry"
+      <RoomBanner
+        page="foundry"
         lead={lead}
         aside={
           <div className="page-head__crew">

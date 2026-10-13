@@ -1,6 +1,7 @@
 import { ago } from "../foundryGraph.ts";
 import { SystemsNav } from "../SystemsNav.tsx";
-import { Avatar, PageHead, Panel, Pill, type Tone } from "../ui.tsx";
+import { RoomBanner } from "../RoomBanner.tsx";
+import { Avatar, Panel, Pill, type Tone } from "../ui.tsx";
 import { useSecurityFeed, type FeedState, type SecurityFeed } from "./feed.ts";
 import { EVAL_AREAS, EVALS, OWASP_LLM, ROADMAP, owaspTally, refsOf } from "./model.ts";
 import { ALERT_EXPLAIN, EVAL_EXPLAIN, ROADMAP_EXPLAIN, SCAN_EXPLAIN, STAT_EXPLAIN, featureExplain, scorecardExplain, type ScanId, type StatId } from "./explain.ts";
@@ -25,10 +26,8 @@ export function SecurityPage({ now }: { now: number }) {
 
   return (
     <div className="sec-page">
-      <PageHead
-        eyebrow="The Boiler Room"
-        title="Security"
-        room="boiler"
+      <RoomBanner
+        page="security"
         lead="The scans every change goes through, live from GitHub, and the threat model they answer to."
         aside={
           <div className="page-head__crew">

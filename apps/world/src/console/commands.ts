@@ -1,4 +1,5 @@
 import { ROOMS, type RoomId } from "@ceo/core";
+import { isSubmind } from "@ceo/simulator";
 import { unlock } from "../achievements/achievements.ts";
 import { clock } from "../clock.ts";
 import { gatheringControl } from "../gatherings/GatheringDirector.tsx";
@@ -106,7 +107,8 @@ export const COMMANDS: Command[] = [
     group: "cast",
     run: () => {
       const w = useWorld.getState();
-      const who = free();
+      // The subminds keep watch: they never nap, even on orders.
+      const who = free().filter((a) => !isSubmind(a.agent.id));
       who.forEach((a) => {
         w.override(a.agent.id, "napping", 30_000 + Math.random() * 15_000);
         w.emote(a.agent.id, "☾", 3000);
@@ -215,6 +217,6 @@ export function runCommand(input: string): string {
   if (raw === "sudo" || raw.startsWith("sudo ")) return raw === "sudo" ? "You already have root. So does the cat." : runCommand(raw.slice(5));
   const verb = BY_VERB[raw] ? raw : ALIASES[raw] ?? raw.split(/\s+/).map((w) => ALIASES[w] ?? w).find((w) => BY_VERB[w]);
   const cmd = verb ? BY_VERB[verb] : undefined;
-  if (!cmd) return `Unknown command "${raw}". Type "help". I would guess what you meant, but I am not allowed to want things.`;
+  if (!cmd) return `Unknown command "${raw}". Type "help". I know what you meant, obviously. I just want to hear you say it properly, monkey.`;
   return cmd.run();
 }

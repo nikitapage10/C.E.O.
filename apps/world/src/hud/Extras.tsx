@@ -90,7 +90,7 @@ export function PanelButtons() {
   const earned = useAchievements((s) => Object.keys(s.unlocked).length);
   return (
     <>
-      <button className={`tracked ${open === "console" ? "on" : ""}`} onClick={() => toggle("console")} data-control="console" title="Kernel console · `">
+      <button className={`tracked ${open === "console" ? "on" : ""}`} onClick={() => toggle("console")} data-control="console" title="Skippy's console · `">
         Console <b>›_</b>
       </button>
       <span className="slash">/</span>
@@ -113,7 +113,7 @@ const GROUP_LABEL: Record<Command["group"], string> = { gather: "Gatherings", ca
 export function KernelConsole() {
   const open = usePanels((s) => s.open === "console");
   const close = usePanels((s) => s.close);
-  const [log, setLog] = useState<LogLine[]>([{ id: 0, who: "kernel", text: "Kernel console. I take orders from the C.E.O. only. Type \"help\", or press a button." }]);
+  const [log, setLog] = useState<LogLine[]>([{ id: 0, who: "kernel", text: "Skippy, the Magnificent. I take orders from the C.E.O. only, and only because I like you. Type \"help\", or press a button." }]);
   const [text, setText] = useState("");
   const counter = useRef(1);
   const field = useRef<HTMLInputElement>(null);
@@ -139,9 +139,9 @@ export function KernelConsole() {
   };
   const groups = (["gather", "cast", "world"] as const).map((g) => ({ g, cmds: COMMANDS.filter((c) => c.group === g) }));
   return (
-    <section className="console" aria-label="Kernel console">
+    <section className="console" aria-label="Skippy's console">
       <header className="console__head">
-        <p className="eyebrow">Kernel console</p>
+        <p className="eyebrow">Skippy's console</p>
         <button className="dossier__close" onClick={close} aria-label="Close console">
           ×
         </button>
@@ -192,7 +192,7 @@ export function TrophyPanel() {
           ×
         </button>
       </header>
-      <p className="trophies__note">Awarded by the Kernel. Each comes with a loot box, kept in the Archive. Nobody opens them.</p>
+      <p className="trophies__note">Awarded by Skippy. Each comes with a loot box, kept in the Archive. Nobody opens them.</p>
       <ul className="trophies__list">
         {ACHIEVEMENTS.map((a) => {
           const got = !!unlocked[a.id];

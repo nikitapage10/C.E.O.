@@ -245,7 +245,7 @@ function Signals({ open }: { open: boolean }) {
     const events = feedLines(lattice, 22, (id) => profiles[id]?.name, focus, !focus);
     const kernel: FeedLine[] = (focus ? kernelLog.filter((k) => k.room === focus) : [])
       .slice(0, 8)
-      .map((k) => ({ id: k.id, ts: k.ts, kind: "kernel", who: "Kernel", text: k.text, room: k.room ?? undefined }));
+      .map((k) => ({ id: k.id, ts: k.ts, kind: "kernel", who: "Skippy", text: k.text, room: k.room ?? undefined }));
     return [...events, ...kernel].sort((x, y) => y.ts - x.ts).slice(0, 22);
   }, [lattice, profiles, focus, kernelLog]);
   const selectAgent = useWorld((s) => s.selectAgent);
@@ -261,7 +261,7 @@ function Signals({ open }: { open: boolean }) {
             <time>{formatClock(l.ts).slice(3)}</time>
             <span>
               {l.kind === "kernel" ? (
-                <b className="sig__kernel">Kernel</b>
+                <b className="sig__kernel">Skippy</b>
               ) : (
                 l.who && (
                   <button className="link" onClick={() => l.agentId && selectAgent(l.agentId)}>
@@ -357,7 +357,7 @@ function Announcement() {
   return (
     <div className={`announce announce--${a.tone}`} role="status" key={a.until}>
       <span className="announce__mark" aria-hidden="true" />
-      <span className="eyebrow">Kernel · {a.tone === "assign" ? "dispatch" : a.tone === "scold" ? "incident" : a.tone === "nag" ? "reminder" : a.tone === "praise" ? "acknowledged" : "status"}</span>
+      <span className="eyebrow">Skippy · {a.tone === "assign" ? "dispatch" : a.tone === "scold" ? "incident" : a.tone === "nag" ? "reminder" : a.tone === "praise" ? "acknowledged" : "status"}</span>
       <span className="announce__text">{a.text}</span>
     </div>
   );

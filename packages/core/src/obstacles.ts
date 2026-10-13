@@ -6,6 +6,7 @@
  * A station's own furniture is fine to overlap: an agent that starts or ends inside a box is allowed through it.
  */
 import type { RoomId } from "./layout.ts";
+import { POSTS, POST_HALF } from "./posts.ts";
 
 /** An axis-aligned footprint: centre and half extents. */
 export interface Box {
@@ -24,7 +25,7 @@ export const TALK_DISTANCE = 1.25;
 /** No agent is nudged further than this to make room for a chat. */
 export const MAX_TALK_SHIFT = 0.9;
 
-export const OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = {
+const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
   foundry: [
     b(0, -2.6, 7.2, 0.65), // conveyor belt
     b(3.4, -2.8, 1.15, 1), // test furnace
@@ -85,6 +86,11 @@ export const OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = {
     b(-6.5, 5.8, 0.4, 0.4),
   ],
 };
+
+/** Every room's furniture, plus the conductor's podium in its corner. */
+export const OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = Object.fromEntries(
+  (Object.keys(POSTS) as RoomId[]).map((room) => [room, [...(FURNITURE[room] ?? []), b(POSTS[room][0], POSTS[room][1], POST_HALF, POST_HALF)]]),
+);
 
 const EPS = 1e-4;
 

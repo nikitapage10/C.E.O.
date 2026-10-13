@@ -140,8 +140,8 @@ function ExchangeEggs() {
       <Plaque position={[-5.6, 0, -3.6]} rotation={0.4}>
         {"A BULL · MARKET · (NOT THAT BULL)"}
       </Plaque>
-      {/* Holo-rare vitrine */}
-      <group position={[6.7, 0, -4.6]}>
+      {/* Holo-rare vitrine (left of Ticker's podium in the corner) */}
+      <group position={[4.8, 0, -5.6]}>
         <Block size={[0.7, 1, 0.7]} position={[0, 0.5, 0]} material={PBR.blackMetal()} radius={0.03} />
         <mesh position={[0, 1.4, 0]} material={PBR.glass("#e8f0ff", 0.12)}>
           <boxGeometry args={[0.62, 0.8, 0.62]} />
@@ -150,7 +150,7 @@ function ExchangeEggs() {
           <planeGeometry args={[0.32, 0.45]} />
         </mesh>
       </group>
-      <Plaque position={[5.7, 0, -3.8]} rotation={-0.4}>
+      <Plaque position={[4.1, 0, -4.8]} rotation={-0.3}>
         {"HOLO RARE · 1ST EDITION · SHADOWLESS · PRICELESS (TO US)"}
       </Plaque>
     </group>

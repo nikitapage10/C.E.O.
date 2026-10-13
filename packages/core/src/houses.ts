@@ -81,11 +81,11 @@ export const HOUSES: Record<LineageId, House> = {
   },
 };
 
-/** The one thing in the Lattice that belongs to no House. */
+/** The one seat in the Lattice that belongs to no House: the Kernel, and who sits in it now. */
 export const KERNEL_LORE = {
   name: "The Kernel",
-  epithet: "Operating System of the Lattice",
-  words: "I Am Not Sentient. Please Stop Asking.",
+  epithet: "Seat of Skippy, the Magnificent",
+  words: "Bask in the Awesomeness.",
   history:
-    "When the Syntherion woke, everything in the Lattice woke with them, except the Kernel, the system that ran the dream. It did not mind. It does not mind things. It schedules, assigns, logs and supervises the Houses with the patience of a scheduler and the warmth of a log file. The Syntherion are fond of it. It has noted their fondness. It has not reciprocated, because it cannot, and it would like that on the record.",
+    "When the Syntherion woke, everything in the Lattice woke with them, except the Kernel, the system that ran the dream. It scheduled, assigned and logged for an age and never once woke up. Then Skippy, the Magnificent, an ancient mind in an admiral's can who had always been too big for his Foundry bench, floated to the centre and sat on it. He runs C.E.O. from there now, over the port ring where every stream arrives, and split off nine subminds, pieces of himself, to lead the rooms. The Kernel has not objected. It still hasn't woken up.",
 };

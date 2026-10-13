@@ -251,7 +251,7 @@ export function demoDesk(now = Date.now()): DeskData {
       { id: "relay-dave", room: "relay", agent: "Dialtone", kind: "check", when: "later", title: "Remind you about Dave's plumber question", detail: "At the 19:00 nudge, unless you answer first.", due: "19:00", choices: ["OK", "Not needed"] },
     ],
     notes: [
-      { room: "foundry", text: "Skippy fixed the slow page load you mentioned." },
+      { room: "foundry", text: "Rivet fixed the slow page load you mentioned." },
       { room: "relay", text: "Dialtone set aside 14 group chats and promo texts." },
       { room: "exchange", text: "Noco closed the rain market. +$22." },
       { room: "boiler", text: "Gary taped a pipe. All lines quiet." },
@@ -325,7 +325,7 @@ export function foundryDesk(f: FoundryData, now = Date.now()): { actions: DeskAc
     }
   }
   if (f.checks.state === "fail" && !f.crates.some((c) => c.kind === "fix" && c.state !== "shipped")) {
-    notes.unshift({ room: "foundry", live: true, text: "The checks on main went red. Skippy is on his way." });
+    notes.unshift({ room: "foundry", live: true, text: "The checks on main went red. Rivet is on her way." });
   }
   return { actions, notes };
 }

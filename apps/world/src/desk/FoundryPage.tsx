@@ -167,7 +167,7 @@ export function FoundryPage({ now }: { now: number }) {
 
       <section className="fy-status" aria-label="Right now">
         <Tile label="Checks" tone={data.checks.state === "pass" ? "ok" : data.checks.state === "fail" ? "down" : data.checks.state === "running" ? "slow" : "off"} href={data.checks.url ?? undefined}>
-          {data.checks.state === "pass" ? "All green" : data.checks.state === "fail" ? "Red, Skippy is on it" : data.checks.state === "running" ? "Running" : "No run yet"}
+          {data.checks.state === "pass" ? "All green" : data.checks.state === "fail" ? "Red, Rivet is on it" : data.checks.state === "running" ? "Running" : "No run yet"}
         </Tile>
         <Tile label="Work running" tone={running.length ? "ok" : "off"} href={running[0]?.url}>
           {running.length ? `${running.length} · ${running[0]!.title}` : "Nothing right now"}

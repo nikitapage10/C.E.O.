@@ -1,12 +1,14 @@
 import { ROOMS, pendingApprovals, type AgentEvent, type RoomId } from "@ceo/core";
+import { SKIPPY_QUIPS, isSubmind } from "@ceo/simulator";
 import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
 import { useWorld, type AnnouncementTone } from "../store.ts";
-import { KERNEL } from "./lines.ts";
+import { KERNEL, SKIPPY_HELLO } from "./lines.ts";
+import { SubmindDirector } from "./SubmindDirector.tsx";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
-/** The Kernel speaks at most this often (real ms), so it runs the place without drowning it. */
+/** Skippy speaks at most this often (real ms), so it runs the place without drowning it. */
 const MIN_GAP = 11_000;
 const STATUS_EVERY = [55_000, 85_000] as const;
 
@@ -15,8 +17,8 @@ function fill(template: string, vars: Record<string, string | number>) {
 }
 
 /**
- * The Kernel runs the Lattice: it hands out work, calls out failures and assigns help, nags about approvals,
- * notices naps and glitches, and broadcasts status. Deadpan, never sentient. Renders nothing.
+ * Skippy, the Magnificent runs the Lattice from the Kernel: he hands out work, calls out failures and sends help, nags about approvals,
+ * notices naps and glitches, and broadcasts status. Theatrical, fond of the monkeys, denies it. Renders nothing.
  */
 export function KernelDirector() {
   useEffect(() => {
@@ -30,7 +32,10 @@ export function KernelDirector() {
     const helperFor = (id: string, room: RoomId) => {
       const { lattice } = useWorld.getState();
       const { cast } = useCast.getState();
-      const here = Object.values(lattice.agents).filter((a) => a.place.room === room && a.agent.id !== id).map((a) => a.agent.id);
+      // The room's submind stays at its post conducting; it sends someone rather than going itself.
+      const here = Object.values(lattice.agents)
+        .filter((a) => a.place.room === room && a.agent.id !== id && !isSubmind(a.agent.id))
+        .map((a) => a.agent.id);
       const friends = cast.relationships
         .filter((r) => (r.a === id || r.b === id) && ["friend", "best-friend", "mentor", "partner", "sibling"].includes(r.kind))
         .map((r) => (r.a === id ? r.b : r.a))
@@ -115,7 +120,7 @@ export function KernelDirector() {
               say(fill(pick(KERNEL.nap), { agent: name(napper.agent.id) }), "scold", napper.place.room);
             } else {
               say(
-                fill(pick(KERNEL.status), {
+                fill(pick(Math.random() < 0.3 ? SKIPPY_QUIPS : KERNEL.status), {
                   total: agents.length,
                   working: agents.filter((a) => ["working", "typing", "carrying"].includes(a.activity)).length,
                   napping: agents.filter((a) => a.activity === "napping").length,
@@ -135,7 +140,7 @@ export function KernelDirector() {
     };
     status();
     // A first word shortly after boot, so you know who's in charge.
-    const hello = setTimeout(() => say("Kernel online. I am not sentient. They are. Supervising accordingly.", "status", null, true), 4000);
+    const hello = setTimeout(() => say(pick(SKIPPY_HELLO), "status", null, true), 4000);
 
     return () => {
       unsub();
@@ -143,5 +148,6 @@ export function KernelDirector() {
       clearTimeout(hello);
     };
   }, []);
-  return null;
+  // His subminds walk the rooms on his behalf.
+  return <SubmindDirector />;
 }

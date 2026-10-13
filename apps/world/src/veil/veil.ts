@@ -24,7 +24,7 @@ export const VEIL_COSTUMES: readonly VeilCostume[] = ["witch-hat", "pumpkin", "d
 export const VEIL_CAST: Record<string, VeilCostume | null> = {
   tessellate: "pumpkin",
   caret: "bat-band",
-  semicolon: "devil-horns",
+  semicolon: "witch-hat",
   ledger: "ghost-sheet",
   memo: null,
   odds: "witch-hat",
@@ -37,6 +37,16 @@ export const VEIL_CAST: Record<string, VeilCostume | null> = {
   heimerdinger: "witch-hat",
   d20: "ghost-sheet",
   kevin: "devil-horns",
+  // The subminds: horns read as a rank on the admiral can, Skippy says. Fizz insists on the bat ears.
+  ember: "devil-horns",
+  gilt: "witch-hat",
+  ticker: "ghost-sheet",
+  turf: "pumpkin",
+  static: "bat-band",
+  vellum: "witch-hat",
+  fizz: "bat-band",
+  soot: "ghost-sheet",
+  putty: "pumpkin",
 };
 
 export function veilCostumeFor(id: string): VeilCostume | null {

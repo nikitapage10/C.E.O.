@@ -4,7 +4,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/dist/**", "playwright-report/**", "test-results/**"] },
+  { ignores: ["**/node_modules/**", "**/dist/**", "playwright-report/**", "test-results/**", ".claude/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   // A Node script (the others declare their globals inline); the browser-side code inside page.evaluate reaches the page through globalThis.

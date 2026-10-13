@@ -10,6 +10,7 @@ import { Exchange } from "./Exchange.tsx";
 import { EASTER_EGGS } from "./EasterEggs.tsx";
 import { Foundry } from "./Foundry.tsx";
 import { Green } from "./Green.tsx";
+import { Podium } from "./Podium.tsx";
 import { Relay } from "./Relay.tsx";
 import { Spire } from "./Spire.tsx";
 import { Workshop } from "./Workshop.tsx";
@@ -51,6 +52,7 @@ function Room({ id }: { id: RoomId }) {
     <group position={roomCenter(id)} rotation={[0, roomAngle(id), 0]} name={`room-${id}`}>
       <group onClick={onClick}>
         <Content />
+        <Podium room={id} />
         <Eggs />
       </group>
     </group>

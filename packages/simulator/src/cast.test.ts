@@ -1,7 +1,9 @@
-import { CastSchema, HOUSES, LINEAGE_IDS, ProfileSchema, LOOK_PRESETS, LookSchema, lookFromPreset, parseCast, relationshipsOf } from "@ceo/core";
+import { CastSchema, HOUSES, LoreSchema, LINEAGE_IDS, ProfileSchema, LOOK_PRESETS, LookSchema, lookFromPreset, parseCast, relationshipsOf } from "@ceo/core";
 import { describe, expect, it } from "vitest";
-import { SAMPLE_AGENTS } from "./agents.ts";
+import { SAMPLE_AGENTS, SUBMINDS } from "./agents.ts";
 import { defaultCast } from "./cast.ts";
+import { SKIPPY_LORE } from "./lore.ts";
+import { AGENT_QUIPS, SUBMIND_CONDUCT } from "./quips.ts";
 
 describe("cast", () => {
   it("the default cast validates and covers every sample agent", () => {
@@ -21,6 +23,41 @@ describe("cast", () => {
     for (const l of LINEAGE_IDS) expect(HOUSES[l].lineage).toBe(l);
     const { lore: _lore, ...old } = cast.profiles.kevin!;
     expect(ProfileSchema.parse(old).lore).toMatchObject({ title: "", quirks: [] });
+  });
+
+  it("Skippy, who sits in the Kernel now, has a dossier that would pass as anyone's", () => {
+    expect(LoreSchema.safeParse(SKIPPY_LORE).success).toBe(true);
+    expect(SAMPLE_AGENTS.some((a) => a.name.startsWith("Skippy"))).toBe(false);
+  });
+
+  it("Rivet is back on the Foundry bench as first responder, in her hard hat", () => {
+    const rivet = SAMPLE_AGENTS.find((a) => a.id === "semicolon")!;
+    expect(rivet).toMatchObject({ name: "Rivet", role: "First responder", home: { room: "foundry", station: "bench-b" } });
+    const p = defaultCast().profiles.semicolon!;
+    expect(p.name).toBe("Rivet");
+    expect(p.look).toMatchObject({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" });
+    expect(p.personality.traits).toEqual(["deadpan", "grumpy", "loyal", "sarcastic"]);
+  });
+
+  it("each submind is its own character: own colour on the admiral can, traits, catchphrase, lines and friends", () => {
+    const cast = defaultCast();
+    const traitSets = new Set<string>();
+    const catchphrases = new Set<string>();
+    for (const m of SUBMINDS) {
+      const p = cast.profiles[m.id]!;
+      expect(p.role, m.id).toBe("Room lead");
+      expect(p.look, m.id).toMatchObject({ body: "skippy", shell: m.colour, accent: m.colour });
+      traitSets.add([...p.personality.traits].sort().join(","));
+      catchphrases.add(p.personality.catchphrase);
+      expect(p.lore.title, m.id).toContain(`Skippy the ${m.job}`);
+      expect(AGENT_QUIPS[m.id]?.length ?? 0, m.id).toBeGreaterThanOrEqual(5);
+      expect(SUBMIND_CONDUCT[m.id]?.length ?? 0, m.id).toBeGreaterThanOrEqual(3);
+      expect(relationshipsOf(cast, m.id).length, m.id).toBeGreaterThanOrEqual(1);
+    }
+    expect(traitSets.size).toBe(SUBMINDS.length);
+    expect(catchphrases.size).toBe(SUBMINDS.length);
+    // Ember leads the Foundry; it never takes Rivet's place on the bench.
+    expect(SUBMINDS.find((m) => m.room === "foundry")?.id).toBe("ember");
   });
 
   it("relationships only reference real agents, never themselves", () => {

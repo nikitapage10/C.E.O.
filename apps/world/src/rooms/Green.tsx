@@ -226,7 +226,7 @@ export function Green() {
         at={[{ position: [-6.3, 0, 5.6] }, { position: [7.6, 0, 3.1], rotation: 1 }, { position: [-7.6, 0, -2.6], rotation: 2 }]}
       />
       <ModelInstances id="nature/Flower_4_Group" fit={{ height: 0.8 }} at={[{ position: [6.1, 0, 5.5], rotation: 0.5 }, { position: [-7.5, 0, 3.2], rotation: 2.4 }]} />
-      <ModelInstances id="nature/Fern_1" fit={{ length: 1.3 }} at={[{ position: [-4.3, 0, 4.5] }, { position: [7.6, 0, -4.4], rotation: 1.2 }]} />
+      <ModelInstances id="nature/Fern_1" fit={{ length: 1.3 }} at={[{ position: [-4.3, 0, 4.5] }, { position: [7.6, 0, -3.1], rotation: 1.2 }]} />
       <ModelInstances
         id="nature/RockPath_Square_Wide"
         fit={{ length: 1.25 }}

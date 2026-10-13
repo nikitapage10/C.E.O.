@@ -390,11 +390,11 @@ function Beacon({ position }: { position: [number, number, number] }) {
 function FoundryFloor() {
   return (
     <group>
-      {/* Stock in the front corners. Only short crates sit on the left, so the dock against the left wall stays in
-          view; the big tarped crate stands in the right corner, clear of it. */}
-      <Model id="scifi-essentials/Prop_Crate" fit={{ height: 0.55 }} position={[-6.95, 0, 5.9]} rotation={0.4} cast />
-      <Model id="scifi-essentials/Prop_Crate_Large" fit={{ height: 0.8 }} position={[-6.0, 0, 5.85]} rotation={-0.15} cast />
-      <Model id="scifi-essentials/Prop_Crate_Tarp" fit={{ height: 0.9 }} position={[-5.0, 0, 5.8]} rotation={-0.6} cast />
+      {/* Stock along the front wall on the right, beside the big tarped crate. Nothing stands in the front left
+          corner, so the dock against the left wall is in full view (Nikita, 2026-10-13). */}
+      <Model id="scifi-essentials/Prop_Crate_Tarp" fit={{ height: 0.9 }} position={[3.9, 0, 5.85]} rotation={-0.6} cast />
+      <Model id="scifi-essentials/Prop_Crate_Large" fit={{ height: 0.8 }} position={[4.9, 0, 5.85]} rotation={-0.15} cast />
+      <Model id="scifi-essentials/Prop_Crate" fit={{ height: 0.55 }} position={[5.65, 0, 5.9]} rotation={0.4} cast />
       <Model id="scifi-essentials/Prop_Crate_Tarp_Large" fit={{ height: 1.3 }} position={[6.6, 0, 5.45]} rotation={-0.2} cast />
       {/* Lockers and tall shelving against the side walls. */}
       {[-0.4, 0.4, 1.2].map((z) => (

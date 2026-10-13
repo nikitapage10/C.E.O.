@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,7 +18,9 @@ type Rewrite = { source: string; destination: string };
 export const vercelConfig = JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8")) as { headers: Rule[]; rewrites: Rewrite[] };
 
 // Vercel sources are path-to-regexp patterns; the ones in use are literals and "(.*)" groups.
-const matcher = (source: string) => new RegExp(`^${source.replace(/\(\.\*\)/g, "@@ANY@@").replace(/\./g, "\\.").replace(/@@ANY@@/g, "(.*)")}$`);
+// Every other character is escaped, so a source can only ever match itself plus those groups.
+const escape = (text: string) => text.replace(/[\\^$.*+?()[\]{}|/]/g, "\\$&");
+const matcher = (source: string) => new RegExp(`^${source.split("(.*)").map(escape).join("(.*)")}$`);
 
 /** Every header Vercel would add to this request, later rules winning over earlier ones for the same key. */
 export function headersFor(pathname: string, query: URLSearchParams): Record<string, string> {
@@ -54,11 +56,20 @@ export function startDistServer(port: number): Promise<Server> {
     if (rewrite) pathname = rewrite.destination;
     const file = normalize(join(DIST, pathname === "/" ? "/index.html" : pathname));
     const headers = headersFor(url.pathname, url.searchParams);
-    if (!file.startsWith(DIST) || !existsSync(file) || !statSync(file).isFile()) {
+    // Read in one step (no check-then-read): a missing file or a folder answers 404.
+    let body: Buffer | null = null;
+    if (file.startsWith(DIST)) {
+      try {
+        body = readFileSync(file);
+      } catch {
+        body = null;
+      }
+    }
+    if (!body) {
       res.writeHead(404, headers).end("not found");
       return;
     }
-    res.writeHead(200, { ...headers, "Content-Type": TYPES[extname(file)] ?? "application/octet-stream" }).end(readFileSync(file));
+    res.writeHead(200, { ...headers, "Content-Type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
   });
   return new Promise((resolve) => server.listen(port, () => resolve(server)));
 }

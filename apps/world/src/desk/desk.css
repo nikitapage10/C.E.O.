@@ -3447,6 +3447,51 @@ a.fy-chip:hover {
   text-transform: uppercase;
   color: var(--faint);
 }
+/* A crew member's rank: three pips lit to their tier, then the tier and models, in their model's colour (issue #83). */
+.fy-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 10px;
+  padding: 2px 8px 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 10%, transparent);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  line-height: 1.5;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: 0.2em;
+  color: var(--c);
+}
+.fy-rank__pips {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.fy-rank__pips i {
+  width: 3px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--c) 25%, transparent);
+}
+.fy-rank__pips i:nth-child(1) {
+  height: 5px;
+}
+.fy-rank__pips i:nth-child(2) {
+  height: 8px;
+}
+.fy-rank__pips i:nth-child(3) {
+  height: 11px;
+}
+.fy-rank__pips i.on {
+  background: var(--c);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.foundry-crew__name .fy-rank {
+  margin-left: 6px;
+}
 .fy-crew__load {
   font-family: var(--mono);
   font-size: 10.5px;

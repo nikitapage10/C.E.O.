@@ -56,6 +56,19 @@ export const CREW: Record<CrewId, { name: string; job: string }> = {
 };
 
 /**
+ * The order the Desk lists the crew in, by the weight of work each takes (Nikita, 2026-10-13, issue #83): Rivet
+ * (Haiku), then Rusty (Sonnet or Opus), then Rocky (Opus).
+ */
+export const CREW_ORDER: readonly CrewId[] = ["semicolon", "tessellate", "caret"];
+
+/** Each crew member's tier in that order and the models they run on (docs/FOUNDRY.md, "The crew"). */
+export const CREW_RANK: Record<CrewId, { tier: 1 | 2 | 3; models: string }> = {
+  semicolon: { tier: 1, models: "Haiku" },
+  tessellate: { tier: 2, models: "Sonnet/Opus" },
+  caret: { tier: 3, models: "Opus" },
+};
+
+/**
  * The model each crew member runs on, and the colour its bench's work light shows (Nikita, 2026-10-13: who's working
  * on what model, visible at a glance). Rusty's dock crew run on his model.
  */

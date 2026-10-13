@@ -391,11 +391,11 @@ function FoundryFloor() {
   return (
     <group>
       {/* Stock in the front corners: barrels, tarped crates. */}
-      <Model id="scifi-essentials/Prop_Crate_Tarp_Large" fit={{ height: 1.3 }} position={[-6.9, 0, 4.9]} rotation={0.2} cast />
+      <Model id="scifi-essentials/Prop_Crate_Tarp_Large" fit={{ height: 1.3 }} position={[-6.9, 0, 5.35]} rotation={0.2} cast />
       <Model id="scifi-essentials/Prop_Barrel1" fit={{ height: 0.95 }} position={[-5.9, 0, 5.6]} cast />
       <Model id="scifi-essentials/Prop_Barrel2_Closed" fit={{ height: 0.95 }} position={[-6.3, 0, 5.85]} rotation={1} cast />
-      <Model id="scifi-essentials/Prop_Barrel1" fit={{ height: 0.95 }} position={[-7.3, 0, 3.6]} rotation={2} cast />
-      {/* Stock behind the spare bench, kept low so the spares at work show over it. */}
+      <Model id="scifi-essentials/Prop_Barrel1" fit={{ height: 0.95 }} position={[-5.0, 0, 6.0]} rotation={2} cast />
+      {/* Stock in the front corner, kept low. */}
       <Model id="scifi-essentials/Prop_Crate_Large" fit={{ height: 0.8 }} position={[5.0, 0, 5.75]} rotation={-0.15} cast />
       <Model id="scifi-essentials/Prop_Crate" fit={{ height: 0.55 }} position={[5.85, 0, 5.95]} rotation={0.4} cast />
       <Model id="scifi-essentials/Prop_Crate_Tarp" fit={{ height: 0.9 }} position={[6.7, 0, 5.75]} rotation={-0.6} cast />

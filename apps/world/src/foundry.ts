@@ -30,8 +30,9 @@ export type CrateKind = "fix" | "idea" | "build" | "upkeep" | "chat";
 export type CrateState = "queued" | "working" | "ready" | "stuck" | "shipped";
 /**
  * The Foundry crew, by agent id and model (Nikita, 2026-10-13): Rivet (semicolon, Haiku) first responder, Rusty
- * (tessellate, Sonnet) simple work plus upkeep and ideas, Rocky (caret, Opus) anything complex or big-picture. Each can
- * run clones of itself for jobs at the same time. The Foundry's submind leads them and isn't crew.
+ * (tessellate, Sonnet) simple work plus upkeep and ideas, Rocky (caret, Opus) anything complex or big-picture. Rivet
+ * can run clones of herself for jobs at the same time; Rusty has his dock crew (four jobs at once at most); Rocky
+ * takes one at a time (`MAX_RUNNING`). The Foundry's submind leads them and isn't crew.
  */
 export type CrewId = "semicolon" | "caret" | "tessellate";
 export type Model = "Haiku" | "Sonnet" | "Opus";
@@ -56,7 +57,7 @@ export const CREW: Record<CrewId, { name: string; job: string }> = {
 
 /**
  * The model each crew member runs on, and the colour its bench's work light shows (Nikita, 2026-10-13: who's working
- * on what model, visible at a glance). Clones run on their original's model.
+ * on what model, visible at a glance). Rusty's dock crew run on his model.
  */
 export const MODEL: Record<CrewId, { name: "Haiku" | "Sonnet" | "Opus"; colour: string }> = {
   semicolon: { name: "Haiku", colour: "#6fe3c1" },
@@ -82,6 +83,8 @@ export interface Crate {
   size: "small" | "medium" | "large" | null;
   /** An idea Nikita sent back with notes; Rusty is rewriting it. */
   revising: boolean;
+  /** An idea build paused for a fix (`foundry:paused`): its branch is pushed as work in progress, and it resumes when the fix ships. */
+  paused?: boolean;
   /** Who an idea's card says builds it ("**Builder:** Rusty"), when it says. */
   builder?: CrewId | null;
   /** The model its Builder line names ("**Builder:** Rusty (Opus)"), when it names one. */
@@ -234,7 +237,7 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
       state = labels.has("foundry:stuck") ? "stuck" : labels.has("foundry:ready") ? "ready" : labels.has("foundry:working") ? "working" : "queued";
     }
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
-    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), revising: labels.has("foundry:revise"), ...readBody(issue.body ?? "") });
+    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), revising: labels.has("foundry:revise"), paused: state === "working" && labels.has("foundry:paused"), ...readBody(issue.body ?? "") });
   }
   return crates.sort((a, b) => b.updatedAt - a.updatedAt);
 }
@@ -246,7 +249,7 @@ export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"
   const named = /\*\*Builder:\*\*\s*(Rivet|Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
   const builder: CrewId | null = named === "rivet" ? "semicolon" : named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
   const images = [...body.matchAll(/!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/g)].map((m) => m[1]!).slice(0, 4);
-  const said = /\*\*Builder:\*\*\s*(?:Rivet|Rusty|Rocky)\s*\((Haiku|Sonnet|Opus)\)/i.exec(body)?.[1]?.toLowerCase();
+  const said = /\*\*Builder:\*\*\s*(?:Rivet|Rusty|Rocky)\s*\(\s*(Haiku|Sonnet|Opus)\b[^)]*\)/i.exec(body)?.[1]?.toLowerCase();
   const model: Model | null = said === "haiku" ? "Haiku" : said === "sonnet" ? "Sonnet" : said === "opus" ? "Opus" : null;
   return { pitch, size: size ?? null, builder, images, model };
 }
@@ -294,7 +297,7 @@ function inHand(c: Crate): boolean {
 
 /**
  * Who holds each crate in hand: whoever's model is really doing it (`crewFor`). When one crew member holds several,
- * the rest are clones of them working alongside (`crewLoad`).
+ * the rest are worked alongside them, up to their cap (`crewLoad`, `shifts`).
  */
 export function assignCrew(crates: Crate[]): Map<number, CrewId> {
   const out = new Map<number, CrewId>();
@@ -314,22 +317,92 @@ export function parseChecks(runs: GhRun[]): FoundryData["checks"] {
   return { state, url: run.html_url, at: Date.parse(run.updated_at) };
 }
 
-/** How many jobs each crew member has in hand; past one, the rest are clones of them (same model) working alongside. */
+/** How many jobs each crew member has in hand (working, waiting on Nikita or stuck). */
 export function crewLoad(crates: Crate[]): Record<CrewId, number> {
   const out: Record<CrewId, number> = { semicolon: 0, caret: 0, tessellate: 0 };
   for (const who of assignCrew(crates).values()) out[who] += 1;
   return out;
 }
 
-/** How many spare Rusty units wait on the dock in the Foundry. */
+/** How many spare units wait on Rusty's dock in the Foundry: Dusty, Gusty and Musty, his dock crew. */
 export const SPARE_BAYS = 3;
 
 /**
- * How many of Rusty's spare units are awake: one for each job he has in hand past the first, as many as the dock
- * holds. Rusty works the job that matters most himself; each spare rolls out to a spare bench and takes another.
+ * Rusty's dock crew, one to a bay in this order: frames Rusty pulled out of the same scrapheap and patched up
+ * himself, each in its own paint so they can be told apart on the line (Nikita, 2026-10-13).
+ */
+export const DOCK_CREW = [
+  { name: "Dusty", colour: "#ecc66a" },
+  { name: "Gusty", colour: "#3f8fea" },
+  { name: "Musty", colour: "#6fae4a" },
+] as const;
+
+/**
+ * How many jobs run at once across the whole crew (Nikita, 2026-10-13): four. Rusty can take all four, himself and
+ * his dock crew; Rocky takes one at a time. Urgent work (a fix) never waits: Rivet's jobs are the emergency slot,
+ * outside the four, and a fix in Rusty's hands goes ahead of his other work. Anything past the cap waits its turn.
+ */
+export const MAX_AT_ONCE = 4;
+/** The most jobs each crew member runs at once. */
+export const MAX_RUNNING: Record<CrewId, number> = { semicolon: Infinity, caret: 1, tessellate: SPARE_BAYS + 1 };
+
+/** Urgent work: a fix (red checks on main, a bug, an alert). It never waits for the cap. */
+function urgent(c: Crate): boolean {
+  return c.kind === "fix";
+}
+
+/**
+ * Which jobs really run, and which wait their turn. Only jobs labelled working count (not queued, not waiting on
+ * Nikita, not stuck, not paused for a fix). Urgent work goes first, then the oldest; a job runs while its crew
+ * member has a free hand and, unless it's urgent or Rivet's, while fewer than four others are running.
+ */
+export function runningNow(crates: Crate[]): { running: Map<number, CrewId>; waiting: Map<number, CrewId> } {
+  const by = assignCrew(crates);
+  const working = crates.filter((c) => c.state === "working" && !c.paused && by.has(c.number)).sort((a, b) => Number(urgent(b)) - Number(urgent(a)) || a.number - b.number);
+  const hands: Record<CrewId, number> = { semicolon: 0, caret: 0, tessellate: 0 };
+  let counted = 0;
+  const out = { running: new Map<number, CrewId>(), waiting: new Map<number, CrewId>() };
+  for (const c of working) {
+    const who = by.get(c.number)!;
+    const outside = who === "semicolon" || urgent(c);
+    if (hands[who] >= MAX_RUNNING[who] || (!outside && counted >= MAX_AT_ONCE)) {
+      out.waiting.set(c.number, who);
+      continue;
+    }
+    hands[who] += 1;
+    if (!outside) counted += 1;
+    out.running.set(c.number, who);
+  }
+  return out;
+}
+
+/** One crew member's running jobs (urgent first, then oldest) and the ones waiting their turn. */
+export function shifts(crates: Crate[], who: CrewId): { running: Crate[]; waiting: Crate[] } {
+  const { running: run, waiting } = runningNow(crates);
+  const of = (m: Map<number, CrewId>) => [...m].filter(([, w]) => w === who).map(([n]) => crates.find((c) => c.number === n)!);
+  return { running: of(run), waiting: of(waiting) };
+}
+
+/** Every job that is working but waiting its turn, because the crew or its crew member is at the cap. */
+export function waitingTurn(crates: Crate[]): Set<number> {
+  return new Set(runningNow(crates).waiting.keys());
+}
+
+/**
+ * Who has hands on each of Rusty's running jobs: Rusty on the oldest, then Dusty, Gusty and Musty. Jobs waiting
+ * their turn are left out.
+ */
+export function rustyHands(crates: Crate[]): Map<number, string> {
+  const names = ["Rusty", ...DOCK_CREW.map((d) => d.name)];
+  return new Map(shifts(crates, "tessellate").running.map((c, i) => [c.number, names[i]!]));
+}
+
+/**
+ * How many of Rusty's dock crew are awake: one for each job really running past his own. One job, just Rusty;
+ * three, Rusty plus Dusty and Gusty. Each awake one works the assembly line alongside him.
  */
 export function sparesAwake(crates: Crate[]): number {
-  return Math.max(0, Math.min(SPARE_BAYS, crewLoad(crates).tessellate - 1));
+  return Math.max(0, shifts(crates, "tessellate").running.length - 1);
 }
 
 const SIZE_RANK = { large: 3, medium: 2, small: 1 } as const;

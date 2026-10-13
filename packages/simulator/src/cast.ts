@@ -15,7 +15,7 @@ const SEEDS: Record<string, Seed> = {
   tessellate: {
     look: lookFromPreset("compactor"),
     traits: ["earnest", "pedantic", "wholesome", "anxious"],
-    bio: "The Foundry's robot: a rusty salvage compactor on treads, with binocular eyes and two claw hands. Plans everything, apologises to tools, and wrote the 71-page safety manual. Butts heads with Rocky, who welds before reading. Keeps three spare frames of his own asleep on a dock in the hall; when two jobs land at once, one wakes and rolls out to help.",
+    bio: "The Foundry's robot: a rusty salvage compactor on treads, with binocular eyes and two claw hands. Plans everything, apologises to tools, and wrote the 71-page safety manual. Butts heads with Rocky. Patched up his dock crew from his own scrapheap: Dusty (ochre, unflappable), Gusty (sky blue, in a hurry) and Musty (moss green, slow and thorough), who wake to work the line beside him.",
     catchphrase: "Happy to help! Before we start, eleven caveats.",
   },
   semicolon: {
@@ -195,7 +195,7 @@ export function defaultCast(): Cast {
     version: 1,
     profiles,
     relationships: [
-      { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Rusty plans first. Rocky fist bumps Rusty's sleeping spares ('small brothers'); Rusty has asked him not to wake them." },
+      { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Rusty plans first. Rocky fist bumps Rusty's sleeping dock crew ('small brothers'); Rusty has asked him not to wake them." },
       { a: "semicolon", b: "caret", kind: "best-friend", note: "She taught him to fist bump; he does it to everything, the furnace too. She keeps the watch while he sleeps now, as Skippy did. Quieter, Rocky says. Amaze." },
       { a: "ember", b: "caret", kind: "friend", note: "The Builder barks at him from its can-throne all day and calls his welds 'adequate'. It has kept every offcut, labelled. Rocky knows. Amaze amaze." },
       { a: "ember", b: "semicolon", kind: "rival", note: "The Builder conducts; Rivet ran this floor before the Builder existed. The Builder points the baton. Rivet finishes her coffee first." },

@@ -30,7 +30,7 @@ export const LORE: Record<string, Lore> = {
       "Handed first response to Skippy and took the upkeep and the morning ideas. Pins them to a new board by the pegboard, in order of risk.",
       "The House filed him as Tessellate. The Foundry took one look at the rust and called him Rusty. He filed a form contesting it, and signed it Rusty.",
       "Rolled onto the floor in the compactor. Rocky asked where the legs went. Rusty gave him a briefing on treads. Rocky fell asleep on slide three.",
-      "Docked three spare frames of his own. Two jobs at once, and a copy of him wakes in a spare and rolls out to help. They call him 'the original'. He asked them not to. They apologised, at length.",
+      "Patched up three frames from his own scrapheap: Dusty (ochre), Gusty (sky blue), Musty (moss green). One wakes per job past his own and works the line beside him. Four at once; the rest wait.",
     ],
   },
   semicolon: {
@@ -82,7 +82,7 @@ export const LORE: Record<string, Lore> = {
       "Watched Kevin sleep through an entire pickup game. Calls it the best afternoon of his life.",
       "Sleeps through most of the night shift, without warning, wherever he stands. Rivet keeps the watch now, quietly, and Skippy hums down from the Kernel. Eridian custom.",
       "Pins the biggest idea coming to his drafting table. No eyes, so he reads the plan by the pencil grooves, and draws so hard the table needs a new top every month.",
-      "Calls Rusty's sleeping spares 'the small brothers' and fist bumps each one on the way past. Rusty has asked him not to wake them.",
+      "Fist bumps Rusty's dock crew, 'the small brothers', asleep or not. Favourite: Musty, the slow green one. 'Thinks before welding. Strange. Good.'",
     ],
   },
   ledger: {

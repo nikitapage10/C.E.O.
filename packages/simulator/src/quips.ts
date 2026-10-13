@@ -163,10 +163,14 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Treads are very safe, Rocky. There's a chapter.",
     "I've drafted a plan, a backup plan, and a gentle apology for the backup plan.",
     "Can it wait? I'm in the middle of some calibrations.",
-    "Two jobs at once. Waking a spare. Good morning, me. Caveats are on page one.",
-    "The spares and I agree on everything. It's very unsettling.",
+    "Two jobs at once. Dusty, you're up. Caveats are on page one.",
     "Back in your bay, please. Reverse in. Mind the ring. Lovely parking.",
-    "Rocky, please stop fist bumping the spares. They're asleep. They're me.",
+    "Rocky, please stop fist bumping the dock crew. They're asleep. They need it.",
+    "Gusty, the belt goes at belt speed. You can't hurry the belt. Gusty. Gusty, that's the off switch.",
+    "Musty's still checking the first crate. It's very well checked. It's also lunchtime.",
+    "Dusty hasn't said a word all shift. Best colleague I've ever patched together.",
+    "Same scrapheap, same treads, same manual. Three very different readings of chapter one.",
+    "Four jobs at once. That's the dock and me. Number five can have a seat and a pamphlet.",
   ],
   caret: [
     "Crate is good. Crate is good good good.",
@@ -181,6 +185,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Big plan on table. Rocky feels lines. Good lines. Big big big.",
     "Rivet brings crate. Rocky takes crate. Teamwork, question? Teamwork!",
     "Small brothers sleep on shelf. Rocky bump them anyway. Is polite.",
+    "Blue small brother fast fast fast. Green small brother... still on first crate. Rocky likes green one.",
   ],
   semicolon: [
     "Hard hat. Thermos. Let's see what's broken.",
@@ -194,7 +199,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Lamp's amber. Nobody talk to me until it isn't.",
     "Green. Good. I'll have my coffee now.",
     "One for you, Rocky. Big one. Don't read it walking.",
-    "Rusty's woken a spare again. That's two of him. I've read both manuals.",
+    "Rusty's woken Dusty again. Dusty doesn't talk. Finally, someone on this floor I get.",
+    "Gusty, walk. We walk to the line. Running is how you get a second crate on the floor.",
   ],
   // The subminds: each its own voice (docs/SKIPPY.md, "Voices").
   ember: [

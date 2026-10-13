@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
-import { assignCrew, CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { assignCrew, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -18,7 +18,14 @@ import { Avatar, PageHead, Panel } from "./ui.tsx";
 const KIND_LABEL: Record<CrateKind, string> = { fix: "Fix", build: "Build", upkeep: "Upkeep", idea: "Idea", chat: "From chat" };
 const CRATE_STATE: Record<CrateState, string> = { queued: "Queued", working: "Working", ready: "Waiting for your OK", stuck: "Stuck", shipped: "Shipped" };
 const CREW_STATE: Record<CrateState, LinkState> = { queued: "ok", working: "ok", ready: "slow", stuck: "down", shipped: "ok" };
-const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Opus", tessellate: "Sonnet or Opus" };
+/** Each crew member's models and how many jobs they run at once (Nikita, 2026-10-13; docs/FOUNDRY.md, "The crew"). */
+const CREW_RUNG: Record<CrewId, string> = {
+  semicolon: "Haiku · the emergency slot, never waits",
+  caret: "Opus, up to high effort for big design · one job at a time",
+  tessellate: "Sonnet, or Opus at medium · four jobs at once with the dock crew",
+};
+/** The colour each of Rusty's hands wears on the Desk: the dock crew in their paint. */
+const DOCK_COLOUR = new Map<string, string>(DOCK_CREW.map((d) => [d.name, d.colour]));
 const CHECKS_LABEL: Record<LinkState, string> = { off: "No run yet", ok: "Green", slow: "Running", down: "Red" };
 const HOUR = 3_600_000;
 /** Each model in the colour its bench light shows in the Foundry room. */
@@ -713,22 +720,27 @@ function StatusStrip({ now, running, upkeep }: { now: number; running: Crate[]; 
 const STATE_ORDER: Record<CrateState, number> = { stuck: 0, working: 1, ready: 2, queued: 3, shipped: 9 };
 
 /**
- * The crew and what is in flight, together: each member with every job they hold (past the first, clones of them on
- * the same model), then the queue nobody has picked up yet.
+ * The crew and what is in flight, together: each member with every job they hold, then the queue nobody has picked up
+ * yet. Rusty's jobs past his own are tagged with whichever of his dock crew has them (Dusty, Gusty, Musty); past four
+ * jobs across the crew (one for Rocky), the rest are tagged as waiting their turn; Rivet's extra fixes run as clones.
  */
 function Crew({ now }: { now: number }) {
   const connected = useFoundry((s) => s.connected);
   const crates = useFoundry((s) => s.data.crates);
   const by = assignCrew(crates);
-  const load = crewLoad(crates);
   const queue = upNext(crates);
+  const hands = rustyHands(crates);
+  const waiting = waitingTurn(crates);
+  const awake = sparesAwake(crates);
   return (
     <>
       <ul className="fy-crew">
         {(Object.keys(CREW) as CrewId[]).map((id) => {
           const jobs = crates.filter((c) => by.get(c.number) === id).sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || a.number - b.number);
           const tone: LinkState = jobs[0] ? CREW_STATE[jobs[0].state] : connected ? "ok" : "off";
-          const clones = Math.max(0, load[id] - 1);
+          const held = jobs.filter((c) => c.state === "working" && !c.paused && !waiting.has(c.number)).length;
+          const extra = id === "tessellate" ? (awake ? ` · ${awake} of the dock crew out` : "") : id === "semicolon" && held > 1 ? ` · ${held - 1} ${held === 2 ? "clone" : "clones"}` : "";
+          const queued = jobs.filter((c) => waiting.has(c.number)).length;
           return (
             <li key={id} className={`fy-crew__member fy-crew__member--${tone}`}>
               <div className="fy-crew__head">
@@ -743,29 +755,39 @@ function Crew({ now }: { now: number }) {
                   </small>
                 </span>
                 <span className="fy-crew__load">
-                  {jobs.length ? `${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}${clones ? ` · ${clones} ${clones === 1 ? "clone" : "clones"}` : ""}` : connected ? "Free" : "Not connected yet"}
+                  {jobs.length ? `${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}${extra}${queued ? ` · ${queued} waiting` : ""}` : connected ? "Free" : "Not connected yet"}
                 </span>
               </div>
               {jobs.length > 0 && (
                 <ul className="fy-jobs">
-                  {jobs.map((c, n) => (
-                    <li key={c.number} className={`fy-job fy-job--${c.state}`}>
-                      <a className="fy-job__n" href={c.url} target="_blank" rel="noreferrer">
-                        #{c.number}
-                      </a>
-                      <a className="fy-job__title" href={c.url} target="_blank" rel="noreferrer">
-                        {c.title}
-                      </a>
-                      <span className="fy-job__meta">
-                        {n > 0 && <b className="fy-job__clone">Clone</b>}
-                        {KIND_LABEL[c.kind]} · {modelOf(c, id)} · {formatWait(now - c.updatedAt)} ago
-                      </span>
-                      <span className={`pill pill--${CREW_STATE[c.state]}`}>
-                        <i aria-hidden="true" />
-                        {CRATE_STATE[c.state]}
-                      </span>
-                    </li>
-                  ))}
+                  {jobs.map((c, n) => {
+                    const hand = id === "tessellate" ? hands.get(c.number) : undefined;
+                    const colour = hand ? DOCK_COLOUR.get(hand) : undefined;
+                    const held = waiting.has(c.number) ? { tone: "off" as LinkState, label: "Waiting its turn" } : c.paused ? { tone: "slow" as LinkState, label: "Paused for a fix" } : null;
+                    return (
+                      <li key={c.number} className={`fy-job fy-job--${c.state}`}>
+                        <a className="fy-job__n" href={c.url} target="_blank" rel="noreferrer">
+                          #{c.number}
+                        </a>
+                        <a className="fy-job__title" href={c.url} target="_blank" rel="noreferrer">
+                          {c.title}
+                        </a>
+                        <span className="fy-job__meta">
+                          {hand && colour && (
+                            <b className="fy-job__tag" style={{ "--tone": colour } as React.CSSProperties} title={`${hand}, of Rusty's dock crew, has this one`}>
+                              {hand}
+                            </b>
+                          )}
+                          {id === "semicolon" && n > 0 && !held && <b className="fy-job__tag">Clone</b>}
+                          {KIND_LABEL[c.kind]} · {modelOf(c, id)} · {formatWait(now - c.updatedAt)} ago
+                        </span>
+                        <span className={`pill pill--${held ? held.tone : CREW_STATE[c.state]}`}>
+                          <i aria-hidden="true" />
+                          {held ? held.label : CRATE_STATE[c.state]}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </li>

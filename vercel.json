@@ -5,6 +5,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "apps/world/dist",
   "git": { "deploymentEnabled": { "claude/*": false } },
+  "functions": { "api/world-step.ts": { "maxDuration": 60 } },
   "headers": [
     {
       "source": "/assets/(.*)",
@@ -20,6 +21,7 @@
     { "source": "/relay", "destination": "/index.html" },
     { "source": "/foundry", "destination": "/index.html" },
     { "source": "/systems", "destination": "/index.html" },
+    { "source": "/chronicle", "destination": "/index.html" },
     { "source": "/lattice", "destination": "/index.html" }
   ]
 }

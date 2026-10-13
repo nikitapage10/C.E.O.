@@ -9,8 +9,10 @@ import { link } from "./nav.ts";
 import { FoundryPage } from "./FoundryPage.tsx";
 import { Relay } from "./Relay.tsx";
 import { Systems } from "./Systems.tsx";
+import { Chronicle } from "./Chronicle.tsx";
 import { Today } from "./Today.tsx";
 import "./desk.css";
+import "./chronicle.css";
 
 /**
  * The Desk: the Lattice's control room as a flat, fast page, where the C.E.O. acts on what the agents bring in.
@@ -26,6 +28,7 @@ const TABS: { id: DeskTab; label: string }[] = [
   { id: "relay", label: "Relay" },
   { id: "foundry", label: "Foundry" },
   { id: "systems", label: "Systems" },
+  { id: "chronicle", label: "Chronicle" },
 ];
 
 const HUB_LINE: Record<LinkState, string> = {
@@ -58,7 +61,7 @@ export function Desk({ route }: { route: DeskTab }) {
   }, []);
 
   useEffect(() => {
-    document.title = route === "relay" ? "Relay · C.E.O." : route === "foundry" ? "Foundry · C.E.O." : route === "systems" ? "Systems · C.E.O." : "C.E.O. — Desk";
+    document.title = route === "relay" ? "Relay · C.E.O." : route === "foundry" ? "Foundry · C.E.O." : route === "systems" ? "Systems · C.E.O." : route === "chronicle" ? "Chronicle · C.E.O." : "C.E.O. — Desk";
   }, [route]);
 
   const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
@@ -125,10 +128,12 @@ export function Desk({ route }: { route: DeskTab }) {
           <Relay data={data} now={now} connected={connected} />
         ) : route === "foundry" ? (
           <FoundryPage now={now} />
+        ) : route === "chronicle" ? (
+          <Chronicle now={now} awaySince={awaySince} />
         ) : route === "systems" ? (
           <Systems now={now} />
         ) : (
-          <Today data={data} now={now} connected={connected} />
+          <Today data={data} now={now} connected={connected} awaySince={awaySince} />
         )}
       </main>
 

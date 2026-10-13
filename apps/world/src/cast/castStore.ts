@@ -42,7 +42,7 @@ function rename(profiles: Record<string, Profile>) {
  * relationships once, keeping their looks (and any name you chose yourself).
  */
 const LORE_KEY = "ceo.cast.lore";
-const LORE_REV = 9;
+const LORE_REV = 10;
 
 function readRev(key: string) {
   try {
@@ -119,6 +119,11 @@ interface CastStore {
   removeRelationship: (index: number) => void;
   resetAgent: (id: string) => void;
   resetAll: () => void;
+  /**
+   * Take on how the living world has moved relationships on while nobody was looking (the hourly step, docs/WORLD.md):
+   * each pair the world changed takes its new kind and note. Pairs it never touched keep whatever you set.
+   */
+  adoptWorld: (changed: Relationship[]) => void;
   importCast: (json: string) => boolean;
 }
 
@@ -171,6 +176,11 @@ export const useCast = create<CastStore>((set, get) => {
       if (p) commit({ ...cast, profiles: { ...cast.profiles, [id]: p } });
     },
     resetAll: () => commit(defaultCast()),
+    adoptWorld: (changed) => {
+      const { cast } = get();
+      const next = adoptRelationships(cast.relationships, changed, (id) => id in cast.profiles);
+      if (next !== cast.relationships) commit({ ...cast, relationships: next });
+    },
     importCast: (json) => {
       try {
         const parsed = parseCast(JSON.parse(json));
@@ -183,6 +193,21 @@ export const useCast = create<CastStore>((set, get) => {
     },
   };
 });
+
+/**
+ * The relationships with the world's changes taken on (a changed pair updated in place, a new pair added); the same
+ * array when nothing differs, so nothing is saved for nothing.
+ */
+export function adoptRelationships(current: Relationship[], changed: Relationship[], known: (id: string) => boolean): Relationship[] {
+  let out = current;
+  for (const c of changed) {
+    if (c.a === c.b || !known(c.a) || !known(c.b)) continue;
+    const i = out.findIndex((r) => (r.a === c.a && r.b === c.b) || (r.a === c.b && r.b === c.a));
+    if (i >= 0 && out[i]!.kind === c.kind && (out[i]!.note ?? "") === (c.note ?? "")) continue;
+    out = i >= 0 ? out.map((r, j) => (j === i ? { ...r, kind: c.kind, note: c.note } : r)) : [...out, { a: c.a, b: c.b, kind: c.kind, note: c.note }];
+  }
+  return out;
+}
 
 /** An agent's display name: your name for it if you've given one. */
 export function nameOf(id: string): string {

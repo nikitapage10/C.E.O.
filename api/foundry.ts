@@ -17,7 +17,8 @@
  *   FOUNDRY_GITHUB_TOKEN   a fine-grained token for this repo with Issues read and write: the buttons need it
  *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): Rusty shapes a proposed or revised idea on the spot
  *                          (a pitch, a size and a builder, in a second or two, on Claude Haiku) instead of at the
- *                          queue check. Shaping only, never code (code runs on Claude Code); capped at $10 a month.
+ *                          queue check. Shaping only, never code (code runs on Claude Code); capped at $10 a month,
+ *                          shared with the living Lattice's hourly step (docs/WORLD.md).
  *
  * What each shaping call costs is written on the idea's trail ("**Trail · Shaped:** … Used 812 tokens in and 140
  * out, $0.000151."), from the call's own token use; the Desk's Usage panel adds up this month's (api/foundry-usage.ts).

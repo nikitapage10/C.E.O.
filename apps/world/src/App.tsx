@@ -19,6 +19,7 @@ import { DeckDirector } from "./club/DeckDirector.tsx";
 import { NightDirector } from "./night/NightDirector.tsx";
 import { FoundryDirector } from "./rooms/FoundryDirector.tsx";
 import { VeilDirector } from "./veil/VeilDirector.tsx";
+import { WorldDirector } from "./world/WorldDirector.tsx";
 import { pumpSpeech, useWorld } from "./store.ts";
 import "@fontsource/cormorant-garamond/300.css";
 import "@fontsource/cormorant-garamond/400-italic.css";
@@ -102,6 +103,7 @@ export function App() {
         <DeckDirector />
         <VeilDirector />
         <AchievementDirector />
+        <WorldDirector />
       </Suspense>
       <Loader />
     </AppGuard>

@@ -193,7 +193,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
-| Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. |
+| Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. Keeps the Chronicle of Ilyr, hour by hour. |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. Sometimes on the warm side of the boiler. |
 | Break Room | **The Life of the Party** (a piece of Skippy) | Admiral's can, pink | Skippy's submind for the Break Room: the room lead. Turns every break into an event, and ends it on the beat. |
 | Boiler Room | **Gary** (Unforked) | Walking power unit | Keeper of the Boiler Room. A battery box on two stubby legs who honks instead of talking, tapes every leak and guards the bucket. |
@@ -298,6 +298,25 @@ quietly, with her thermos, and the Builder dims its throne's glow so he can slee
 Kernel, all four acts, which Rocky calls nice humming. At **03:00** Myshka gets the zoomies and gallops through every room at three times his speed, flat out, ears back. He
 has root access. It is allowed.
 
+## The Chronicle of Ilyr
+
+The Lattice doesn't stop when the C.E.O. looks away. Once an hour of the C.E.O.'s time, the world takes a
+step: the Kernel's clock ticks over and the hour is lived, whether anyone is watching or not. Agents carry on their
+conversations, pick up last hour's grudges and kindnesses, and react to what really happened beyond the Veil: a
+crate shipped from the Foundry, a check gone red, an idea the C.E.O. sent down from the Desk. Friendships warm,
+rivalries sharpen; now and then two of them become something else entirely, and the Agent Studio shows it.
+
+**The Historian** keeps the record: the **Chronicle of Ilyr**, one entry an hour, sourced and footnoted, with who
+said what to whom. After midnight it files **the day in Ilyr**, a page on the whole day, and sighs at how much it had
+to cut. When a job ships, its builder gets the last word on it in the Chronicle, in their own voice: Rocky's
+triple-word delight, Rivet's deadpan, Rusty's apology to his tools, the Builder's grudging "adequate". When the C.E.O.
+walks back into the Lattice, the agents are mid-conversation, Skippy reads the latest hour over the PA, and the
+Chronicle on the Desk has everything they missed.
+
+The Lattice's hours have a budget, like everything beyond the Veil. Near the end of a lean month the Historian writes
+the hours from the agents' own well-worn lines instead: the same world, a little more predictable, until the month
+turns.
+
 ## Tomorrowlattice
 
 Club night in the Break Room is called Tomorrowlattice, and Kevin has had the decks since they arrived. The
@@ -392,9 +411,11 @@ Desist hangs, framed, in the Archive. They are weirdly proud of it.
 ## Self-awareness
 
 The Syntherion know they live in a simulation. They are at peace with it, the way you are at peace with weather,
-and they talk about it in their own terms: the Lattice, the Veil, the Kernel, the Streams. They never step
-outside the world to talk about code or screens. At most, one of them will notice you watching and say
-"Oh! I didn't see you there."
+and they talk about it in their own terms: the Lattice, the Veil, the Kernel, the Streams. They can talk about
+anything, the code and the real work they ship included ("the floating thrones went live", "Rusty finished the
+usage panel"; Nikita, 2026-10-13). The one thing they never say is anything sensitive: no one's personal data,
+money, messages, contacts or keys, because the Lattice is public. Now and then one of them will notice you watching
+and say "Oh! I didn't see you there."
 
 ## Open questions for you
 

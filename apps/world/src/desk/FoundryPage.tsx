@@ -6,6 +6,9 @@ import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
 import { Avatar, PageHead, Panel } from "./ui.tsx";
+import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
+import { link } from "./nav.ts";
+import { PORTRAITS } from "./portraits.ts";
 
 /**
  * The Foundry's own Desk page. Top to bottom: what needs you (the morning's ideas as cards you can build, pass on or
@@ -185,6 +188,8 @@ export function FoundryPage({ now }: { now: number }) {
   if (toPick) parts.push(`${toPick} ${toPick === 1 ? "idea is" : "ideas are"} waiting for your pick`);
   if (decisions.length) parts.push(`${decisions.length} ${decisions.length === 1 ? "thing needs" : "things need"} your OK`);
   const lead = !connected ? "Connecting to GitHub…" : parts.length ? `${parts.join(", and ")}.` : "Nothing needs you. The crew handles small fixes and upkeep on its own.";
+  // The living Lattice: the builders' remarks for the Changelog, and the world's spend for the Usage panel.
+  const world = useWorldFeed();
 
   return (
     <div className="foundry-page" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
@@ -252,7 +257,7 @@ export function FoundryPage({ now }: { now: number }) {
       </Panel>
 
       <Panel eyebrow="Usage" className="fy-usage" aside={<a className="panel__hint" href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer">Claude plan limits →</a>} label="Usage: API spend and work by model">
-        <Usage now={now} setup={setup} />
+        <Usage now={now} setup={setup} world={world} />
       </Panel>
 
       <Panel eyebrow="Connections" className="fy-connections">
@@ -260,7 +265,7 @@ export function FoundryPage({ now }: { now: number }) {
       </Panel>
 
       <Panel eyebrow="Changelog" aside={<span className="badge">{data.changelog.length}</span>}>
-        {data.changelog.length ? <Changelog changes={data.changelog} now={now} /> : <p className="quiet">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
+        {data.changelog.length ? <Changelog changes={data.changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} /> :<p className="quiet">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
         <p className="quiet changelog__all">
           Every commit on main, one-offs included, is on{" "}
           <a href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
@@ -867,8 +872,10 @@ function savedPeriod(): Period {
  * model used, all counted from the issue trails (usage.ts). The plan's own session and weekly limits are on Claude's
  * usage page, which the Desk can't read, so it links there.
  */
-function Usage({ now, setup }: { now: number; setup: Setup }) {
+function Usage({ now, setup, world }: { now: number; setup: Setup; world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
   const { feed, failed } = useUsage();
+  // The cap is shared with the living Lattice's hourly steps (docs/WORLD.md), so the meter counts both.
+  const worldUsd = world.feed?.spend.usd ?? 0;
   const [period, setPeriodState] = useState<Period>(savedPeriod);
   const setPeriod = (p: Period) => {
     setPeriodState(p);
@@ -884,7 +891,8 @@ function Usage({ now, setup }: { now: number; setup: Setup }) {
   const spend = feed ? windowSpend(feed.trails, period, now) : null;
   const work = feed ? workByModel(foundryJobs(feed.issues, feed.trails), period, now) : null;
   const code = feed ? codeTokensByModel(feed.trails, period, now) : null;
-  const share = month ? Math.min(1, month.usd / SPEND_CAP_USD) : 0;
+  const capUsed = month ? month.usd + worldUsd : 0;
+  const share = month ? Math.min(1, capUsed / SPEND_CAP_USD) : 0;
   const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
   const most = work ? Math.max(1, ...MODELS.map((m) => work[m].ms)) : 1;
   const hasWork = work ? MODELS.some((m) => work[m].jobs > 0 || code?.[m] != null) : false;
@@ -929,14 +937,15 @@ function Usage({ now, setup }: { now: number; setup: Setup }) {
                 role="meter"
                 aria-valuemin={0}
                 aria-valuemax={SPEND_CAP_USD}
-                aria-valuenow={Number(month.usd.toFixed(4))}
-                aria-label={`${formatUsd(month.usd)} of the $${SPEND_CAP_USD} monthly cap`}
+                aria-valuenow={Number(capUsed.toFixed(4))}
+                aria-label={`${formatUsd(capUsed)} of the $${SPEND_CAP_USD} monthly cap`}
                 title={`${(share * 100).toFixed(share < 0.01 ? 2 : 0)}% of the $${SPEND_CAP_USD} cap`}
               >
-                <i style={{ width: `${month.usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
+                <i style={{ width: `${capUsed > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
               </div>
               <p className="fy-spend__calls">
-                {formatUsd(month.usd)} of ${SPEND_CAP_USD} cap · {month.month}
+                {formatUsd(capUsed)} of ${SPEND_CAP_USD} cap · {month.month}
+                {worldUsd > 0 && ` · shaping ${formatUsd(month.usd)}, the living Lattice ${formatUsd(worldUsd)}`}
               </p>
               <p className="quiet fy-usage__note">Counted from each call's own token use, written on its idea's trail.</p>
             </>
@@ -993,8 +1002,50 @@ function Usage({ now, setup }: { now: number; setup: Setup }) {
             , which the Desk can't read.
           </p>
         </section>
+
+        <WorldSpend now={now} world={world} />
       </div>
     </>
+  );
+}
+
+/**
+ * The living Lattice's hourly steps (docs/WORLD.md): this month's Claude API spend on writing the world, how many hours
+ * Claude wrote and how many came from the scripted lines, and the guard that keeps it inside the shared cap.
+ */
+function WorldSpend({ now, world }: { now: number; world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
+  const f = world.feed;
+  const month = f ? new Date(`${f.spend.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
+  return (
+    <section className="fy-world" aria-label="Claude API spend on the living Lattice, this month">
+      <h3 className="fy-usage__head">The living Lattice · Claude API · this month</h3>
+      {!f ? (
+        <p className="quiet">
+          {world.status === "off" ? "The hourly world step isn't saving yet." : world.status === "failed" ? "Can't reach the world right now." : "Reading the world…"}
+        </p>
+      ) : (
+        <>
+          <div className="fy-world__row">
+            <p className="fy-spend__figure">
+              <b>{formatUsd(f.spend.usd)}</b>
+              <span>{month}</span>
+            </p>
+            <p className="fy-spend__calls">
+              {f.spend.calls} {f.spend.calls === 1 ? "hour" : "hours"} written by Claude Haiku · {f.spend.scripted} scripted · {f.spend.tokensIn.toLocaleString()} tokens in · {f.spend.tokensOut.toLocaleString()} out
+            </p>
+          </div>
+          <p className="fy-world__line">
+            {!f.claude
+              ? "No Claude key is set, so every hour comes from the agents' scripted lines, for free."
+              : `Guard: the world stops calling Claude at ${formatUsd(f.spend.budget)} a month and writes from scripted lines until the month turns.`}{" "}
+            {f.at ? `Last step ${formatSpan(now - Date.parse(f.at))} ago.` : "No step yet."}{" "}
+            <a href="/chronicle" onClick={link("chronicle")}>
+              Read the Chronicle →
+            </a>
+          </p>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1055,7 +1106,7 @@ function dayLabel(at: number, now: number): string {
 }
 
 /** Every shipped change, newest first, grouped by day: what it was, who did it, and links to its issue and code. */
-function Changelog({ changes, now }: { changes: Change[]; now: number }) {
+function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; remarks: Map<number, Remark> }) {
   const days: { label: string; items: Change[] }[] = [];
   for (const c of changes) {
     const label = dayLabel(c.at, now);
@@ -1073,6 +1124,8 @@ function Changelog({ changes, now }: { changes: Change[]; now: number }) {
           <ul className="crates">
             {d.items.map((c) => {
               const who = crewFor({ kind: c.kind, rung: null });
+              // The builder's own word on it, from the living Lattice's hourly step (docs/WORLD.md).
+              const said = c.issue ? remarks.get(c.issue.number) : undefined;
               return (
                 <li key={c.key} className="crates__item crates__item--shipped">
                   <Avatar agent={who} size="sm" room="foundry" />
@@ -1095,6 +1148,11 @@ function Changelog({ changes, now }: { changes: Change[]; now: number }) {
                       </a>
                     )}
                   </span>
+                  {said && (
+                    <p className="changelog__remark">
+                      <b>{PORTRAITS[said.who]?.name ?? said.who}</b>“{said.text}”
+                    </p>
+                  )}
                 </li>
               );
             })}

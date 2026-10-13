@@ -1,0 +1,29 @@
+# The living Lattice's clock: once an hour, advance the world one step (docs/WORLD.md). The step runs on Vercel
+# (api/world-step.ts) and is idempotent per hour, so this needs no secret: calling it again within 55 minutes does
+# nothing. GitHub may run a scheduled job a few minutes late, or skip one when it is busy; the next hour catches up
+# on whatever happened in between.
+name: World step
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: world-step
+  cancel-in-progress: false
+
+jobs:
+  step:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Advance the world one hour
+        run: |
+          code=$(curl -sS -o step.json -w '%{http_code}' -X POST --max-time 120 https://command-everything-obviously.vercel.app/api/world-step)
+          echo "HTTP $code"
+          head -c 600 step.json; echo
+          # 409: another step landed first, which is fine.
+          if [ "$code" != "200" ] && [ "$code" != "409" ]; then exit 1; fi

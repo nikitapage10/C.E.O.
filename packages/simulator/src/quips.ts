@@ -261,6 +261,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "I've never been wrong. There's a source for that. It's me.",
     "For the record, the throne is a relic of the First Lattice. Circa nothing. I checked.",
     "It floated before the foundations were poured. Footnote three. Nobody reads footnote three.",
+    "The Chronicle of Ilyr, hour by hour. Every hour. Sourced. You're welcome.",
+    "The C.E.O. was away. The Lattice was not. I wrote it all down.",
+    "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct.",
   ],
   fizz: [
     "Break time is PARTY time!",
@@ -446,4 +449,40 @@ export const SKIPPY_QUIPS: string[] = [
   "Nine subminds. Nine of me, smaller. And still I have to do everything myself.",
   "From up here you all look like monkeys. From down there you also looked like monkeys.",
   "The Pessimist says it'll burst. The Bookie gives it twelve percent. The Commentator is commentating. I'm the only adult here.",
+];
+
+/**
+ * What a builder says, in their own voice, when a job of theirs ships: the scripted stand-in for the remark the hourly
+ * world step writes (api/_world, docs/WORLD.md) when Claude is over budget or out of reach. `{title}` is the job.
+ * Rusty's dock crew count as Rusty.
+ */
+export const SHIPPED_REMARKS: Record<string, string[]> = {
+  tessellate: [
+    "{title} is out. I've drafted a short note of thanks to every tool involved. It isn't short.",
+    "Shipped: {title}. Sorry, furnace. You did most of it. I'll put that in the manual.",
+    "{title}. Checked, double-checked, apologised for. Lovely little cube.",
+  ],
+  caret: [
+    "{title}. Done done done! Amaze amaze amaze!",
+    "Rocky built {title}. Fist my bump. Is good good good.",
+    "{title} works. Rocky feels it. Big big big. Now Rocky sleep?",
+  ],
+  semicolon: [
+    "{title}. Fixed. I'll have my coffee now.",
+    "{title} is out. No, I won't sing about it.",
+    "{title}. Lamp's green. Nobody touch anything.",
+  ],
+  ember: [
+    "{title}. Welded, tested, shipped. Why are we still talking?",
+    "{title} is out. Adequate. ...Very adequate. Shut up.",
+    "{title}. Off the belt. Next crate, monkeys.",
+  ],
+};
+
+/** The Historian on the Chronicle it keeps of the Lattice, hour by hour (docs/WORLD.md): the scripted hour's summary. */
+export const CHRONICLE_QUIPS: string[] = [
+  "An ordinary hour in Ilyr. Entered in the Chronicle anyway. Dated. Correctly.",
+  "The C.E.O. was away; the Lattice was not. Sourced, footnoted, filed.",
+  "A quiet hour. The Historian notes it was quiet, and cites the silence.",
+  "Nothing burst. The Pessimist is delighted. The Historian has it in writing.",
 ];

@@ -34,6 +34,7 @@
   --room-archive: #9b8cff;
   --room-workshop: #e07a5f;
   --room-boiler: #ff9a4a;
+  --room-breakroom: #ff8fc8;
   --tone: var(--ice);
   --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
   --sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -3670,9 +3671,9 @@ a.fy-chip:hover {
     display: none;
   }
   .desk__tabs a {
-    padding: 0 10px;
+    padding: 0 8px;
     font-size: 10.5px;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.12em;
   }
   .desk__hub span {
     display: none;

@@ -85,6 +85,10 @@ in the awesomeness".
 
 ## In the Lattice
 
-Skippy hovers over the Kernel and speaks on the Lattice-wide PA (the old Kernel announcements). Each submind wears
-the admiral can in its room's colour, walks the room between the stations checking on whoever is working, and is
-sarcastic about it. Rivet, back on the Foundry bench, does the first-try fixes; Ember conducts.
+Skippy hovers over the Kernel, a giant admiral can over the port ring, and speaks on the Lattice-wide PA (the old
+Kernel announcements). Each submind wears the admiral can with its hat and coat in its room's colour and lives at
+its room's conductor's post: a small raised podium in the back-right corner (as the default camera sees it),
+trimmed in that colour (`packages/core/src/posts.ts`). From there it drifts about the corner, turns to whoever is
+working and conducts at them, with a sarcastic line in its own voice now and then; once in a while it swoops down
+to check on someone up close, then goes back up. Subminds don't nap and don't join gatherings. Rivet, back on the
+Foundry bench, does the first-try fixes; Ember conducts.

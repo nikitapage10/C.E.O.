@@ -79,7 +79,7 @@ body {
 .desk :where(button:disabled) {
   cursor: default;
 }
-.desk :where(.desk__title, .hero__stats, .stat__value, .incident__digits, .streak__num, .clock-wrap__big, .systems__tally, .todo__title, .fy-idea__title, .fy-tile__value) {
+.desk :where(.desk__title, .hero__stats, .stat__value, .incident__digits, .streak__num, .clock-wrap__big, .systems__tally, .todo__title, .fy-idea__title) {
   font-variant-numeric: lining-nums tabular-nums;
 }
 .desk :focus-visible {
@@ -2811,47 +2811,39 @@ a.panel__hint:hover {
 .fy-shelf {
   margin-top: 10px;
 }
-.fy-status {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 0 0 20px;
-}
-.fy-tile {
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  padding: 16px 18px;
-  border: 1px solid var(--hair);
-  border-radius: 6px;
-  background: var(--panel);
-  min-width: 0;
-}
-a.fy-tile:hover {
-  border-color: var(--hair-strong);
-}
-.fy-tile__label {
+.fy-strip {
+  list-style: none;
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 0;
+}
+.fy-chip {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--faint);
+  min-height: 34px;
+  padding: 0 14px 0 11px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  transition:
+    border-color 0.2s var(--ease),
+    color 0.2s var(--ease);
 }
-.fy-tile__value {
-  display: grid;
-  gap: 4px;
-  font-family: var(--serif);
-  font-size: 19px;
-  line-height: 1.25;
+.fy-chip svg {
+  flex: none;
+  color: var(--tone);
+}
+a.fy-chip:hover {
+  border-color: var(--hair-strong);
   color: var(--text);
-}
-.fy-tile__value small {
-  font-family: var(--sans);
-  font-size: 12px;
-  color: var(--faint);
 }
 .fy-dot {
   --c: var(--faint);
@@ -2879,84 +2871,177 @@ a.fy-tile:hover {
 .fy-dot--down {
   animation: blink 1.2s steps(2) infinite;
 }
-.fy-row {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 20px;
-}
 .fy-crew {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 2px;
 }
 .fy-crew__member {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas: "mark name" "mark on";
-  column-gap: 16px;
-  row-gap: 2px;
-  align-items: center;
   padding: 12px 0;
   border-bottom: 1px solid var(--hair-soft);
 }
-.fy-crew__member:last-child {
-  border-bottom: 0;
+.fy-crew__member:first-child {
+  padding-top: 4px;
+}
+.fy-crew__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 14px;
+  align-items: center;
 }
 .fy-crew__mark {
-  grid-area: mark;
   position: relative;
+  display: inline-flex;
 }
 .fy-crew__mark .fy-dot {
   position: absolute;
-  right: 2px;
-  bottom: 4px;
-  width: 11px;
-  height: 11px;
+  right: 0;
+  bottom: 1px;
+  width: 10px;
+  height: 10px;
   box-shadow:
     0 0 0 2px var(--panel-solid),
     0 0 8px var(--c);
 }
 .fy-crew__name {
-  grid-area: name;
+  min-width: 0;
   font-family: var(--serif);
-  font-size: 22px;
+  font-size: 21px;
   line-height: 1.1;
 }
 .fy-crew__name small {
   display: block;
-  margin-top: 2px;
+  margin-top: 3px;
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--faint);
 }
-.fy-crew__on {
-  grid-area: on;
-  font-size: 13px;
+.fy-crew__load {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--muted);
+  text-align: right;
 }
-.fy-crew__on a:hover {
+.fy-crew__member--off .fy-crew__load {
+  color: var(--faint);
+}
+.fy-jobs {
+  list-style: none;
+  margin: 8px 0 0 58px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.fy-job {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "n title pill" ". meta pill";
+  column-gap: 10px;
+  row-gap: 1px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--hair-soft);
+  border-left: 2px solid color-mix(in srgb, var(--tone) 55%, transparent);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+.fy-job--stuck {
+  border-left-color: var(--rose);
+}
+.fy-job--ready {
+  border-left-color: var(--amber);
+}
+.fy-job--queued {
+  border-left-color: var(--hair);
+}
+.fy-job__n {
+  grid-area: n;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--tone);
+}
+.fy-job__title {
+  grid-area: title;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fy-job__n:hover,
+.fy-job__title:hover {
   color: var(--ice);
+}
+.fy-job__meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+  color: var(--faint);
+}
+.fy-job__clone {
+  padding: 1px 6px;
+  border: 1px dashed color-mix(in srgb, var(--tone) 60%, transparent);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tone);
+}
+.fy-job .pill {
+  grid-area: pill;
+}
+.fy-next {
+  padding-top: 14px;
+}
+.fy-next__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fy-next .fy-jobs {
+  margin-left: 0;
+}
+.fy-next .quiet {
+  margin: 4px 0 0;
+}
+.fy-connections {
+  margin-top: 20px;
 }
 .fy-links {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  column-gap: 28px;
 }
 .fy-links li {
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas: "name pill" "what pill";
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name pill" "what what";
   column-gap: 12px;
+  row-gap: 2px;
   align-items: center;
-  padding: 11px 0;
+  padding: 9px 0;
   border-bottom: 1px solid var(--hair-soft);
-}
-.fy-links li:last-child {
-  border-bottom: 0;
+  min-width: 0;
 }
 .fy-links__name {
   grid-area: name;
@@ -3182,7 +3267,6 @@ a.fy-tile:hover {
 /* ── Smaller screens ── */
 @media (max-width: 1100px) {
   .rooms__grid,
-  .fy-status,
   .foundry-flow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3214,7 +3298,6 @@ a.fy-tile:hover {
     min-height: 0;
   }
   .today__row,
-  .fy-row,
   .habits,
   .agents__grid {
     grid-template-columns: 1fr;
@@ -3292,7 +3375,7 @@ a.fy-tile:hover {
   .fy-idea__link,
   .crates__title,
   .fy-decision__title,
-  .fy-crew__on a,
+  .fy-job__title,
   .foundry-crew__on,
   .later-list__title--link,
   .section-head__link,
@@ -3303,7 +3386,7 @@ a.fy-tile:hover {
   .fy-idea__link,
   .crates__title,
   .fy-decision__title,
-  .fy-crew__on a,
+  .fy-job__title,
   .foundry-crew__on,
   .later-list__title--link,
   .section-head__link,
@@ -3435,7 +3518,6 @@ a.fy-tile:hover {
     justify-content: center;
   }
   .fy-ideas,
-  .fy-status,
   .foundry-flow,
   .foundry-crew,
   .planned__grid {
@@ -3455,10 +3537,29 @@ a.fy-tile:hover {
   .crates__title {
     white-space: normal;
   }
-  .fy-links li {
-    grid-template-columns: 1fr;
-    grid-template-areas: "name" "what" "pill";
-    row-gap: 3px;
+  .fy-jobs {
+    margin-left: 0;
+  }
+  .fy-crew__head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .fy-crew__mark {
+    grid-row: span 2;
+  }
+  .fy-crew__load {
+    margin-top: 4px;
+    text-align: left;
+  }
+  .fy-job {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "n title" "meta meta" "pill pill";
+    row-gap: 4px;
+  }
+  .fy-job__title {
+    white-space: normal;
+  }
+  .fy-job .pill {
+    justify-self: start;
   }
   .incident__digits span {
     height: 64px;

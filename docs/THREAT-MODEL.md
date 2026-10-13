@@ -7,6 +7,11 @@ trust boundaries are, what each AI risk looks like here, which control answers i
 This page describes controls and residual risk. Holes that are still open get one plain line and a tracking
 reference, never a recipe. To report a vulnerability, use the repo's Security tab (see [SECURITY.md](SECURITY.md)).
 
+The Desk shows this page as data on Systems > Security and Systems > Compliance (`/systems/security`,
+`/systems/compliance`, #82), next to the live scan results. The Desk reads its tables from
+`apps/world/src/desk/security/model.ts`, which copies them word for word; a test fails when the two drift apart, so
+change both together.
+
 ## What C.E.O. is, in one paragraph
 
 C.E.O. is a web app on Vercel with two faces: **the Desk**, Nikita's dashboard, and **the Lattice**, a public 3D
@@ -32,7 +37,7 @@ flowchart LR
     site["Static site<br/>Lattice and Desk"]
     fFoundry["api/foundry<br/>Desk buttons, Rivet"]
     fImage["api/foundry-image"]
-    fFeed["api/foundry-feed<br/>api/foundry-usage"]
+    fFeed["api/foundry-feed<br/>api/foundry-usage<br/>api/security-feed"]
     fStep["api/world-step<br/>api/world"]
   end
   blob[("Vercel Blob<br/>world state, pictures")]
@@ -79,7 +84,7 @@ flowchart LR
 | **TB3** Functions to GitHub | Issue writes with the Foundry token | Token lives only in Vercel; label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`) |
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account and the Checks bot (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
 | **TB5** Issues to the builder | Work descriptions | `scripts/foundry-issue.sh` (#59): owner and CI text in data blocks with a random tag per read, everything else withheld by name, exit 3 when anything was withheld; worker briefs carry issue text only inside a data block (docs/FOUNDRY.md, "Trusted input") |
-| **TB6** The public Lattice | World history, Foundry feed, spend totals | Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63) |
+| **TB6** The public Lattice | World history, Foundry feed, spend totals, security posture | Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63); the security feed (`api/security-feed.ts`, #82) returns only pass or fail states, scores, dates and counts, never an open alert's details |
 | **TB7** Relay to the site (planned) | Counts and states, never message text | Design rules in docs/DELIVERY.md, "Environments"; the full privacy spec is roadmap R5 |
 
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's
@@ -152,7 +157,9 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 ## The injection eval suite
 
 Two files under `api/_security/`, run by `npm test` on every build with no network and no API calls. The models
-are stubbed; the payloads go through the real code around them.
+are stubbed; the payloads go through the real code around them. `npm run security:evals` counts the cases in each
+area into `apps/world/src/desk/security/evals.json` for the Desk; a test fails when the counts below or that file
+fall behind the suite.
 
 | Area | File | Cases | What it proves |
 | --- | --- | --- | --- |

@@ -32,6 +32,8 @@
     { "source": "/relay", "destination": "/index.html" },
     { "source": "/foundry", "destination": "/index.html" },
     { "source": "/systems", "destination": "/index.html" },
+    { "source": "/systems/security", "destination": "/index.html" },
+    { "source": "/systems/compliance", "destination": "/index.html" },
     { "source": "/chronicle", "destination": "/index.html" },
     { "source": "/lattice", "destination": "/index.html" }
   ]

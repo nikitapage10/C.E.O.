@@ -74,8 +74,8 @@ page.on("pageerror", (e) => console.log("pageerror:", e.message));
 await page.goto(`${base}/lattice?instant&glitches=off&quality=high&seed=7`, { waitUntil: "load" });
 await page.waitForFunction(() => globalThis.__ceo?.positions && Object.keys(globalThis.__ceo.positions()).length >= 14, undefined, { timeout: 180_000, polling: 1000 });
 await page.waitForTimeout(4000);
-// Clean renders: no HUD, loader, studio panel, callouts, name tags or speech.
-await page.addStyleTag({ content: ".hud, .loader, .studio, .callout, .tag, .bubble, .announce { display: none !important }" });
+// Clean renders: no HUD, loader, studio panel, callouts, name tags, nameplates or speech.
+await page.addStyleTag({ content: ".hud, .loader, .studio, .callout, .tag, .nameplate, .bubble, .announce { display: none !important }" });
 
 if (only === "all" || only === "hero") {
   await page.evaluate(() => globalThis.__ceo.focus(null));

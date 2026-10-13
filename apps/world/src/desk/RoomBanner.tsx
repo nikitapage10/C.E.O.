@@ -5,16 +5,21 @@ import { PORTRAITS } from "./portraits.ts";
  * The banner over each Desk page past Today: a wide still of the room the page belongs to, rendered from the Lattice
  * (scripts/desk-images.mjs, 2x for retina), in the room's colour, with the page's title, a line in the room's own
  * voice (its keeper's catchphrase, from the cast) and the page's lead, built from real data by the page. Shorter
- * than Today's hero, so the work stays near the top.
+ * than Today's hero, so the work stays near the top. Systems, Security and Compliance share the Boiler Room's banner,
+ * with the hub's sub-navigation (SystemsNav) right under it.
  */
 
-export type BannerPage = "relay" | "foundry" | "systems" | "chronicle";
+/** The Desk's pages past Today, and the Systems hub's subpages (all three in the Boiler Room). */
+export type BannerPage = "relay" | "foundry" | "systems" | "security" | "compliance" | "chronicle";
 
 export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; title: string; voice: { id: string; line: string } }> = {
   relay: { room: "relay", eyebrow: "The switchboard", title: "Relay", voice: { id: "dialtone", line: "Please hold. Not you, darling." } },
   foundry: { room: "foundry", eyebrow: "The coding crew", title: "Foundry", voice: { id: "ember", line: "Weld it. Test it. Ship it. Why are we still talking?" } },
   // The Boiler Room carries the Systems links: Gary keeps the gauges.
   systems: { room: "boiler", eyebrow: "The Boiler Room", title: "Systems", voice: { id: "gary", line: "Honk. (I have tape.)" } },
+  // The Pessimist reads the gauges like omens, and is delighted to be wrong: the scans, said its way.
+  security: { room: "boiler", eyebrow: "The Boiler Room", title: "Security", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
+  compliance: { room: "boiler", eyebrow: "The Boiler Room", title: "Compliance", voice: { id: "gary", line: "Honk. (I have tape.)" } },
   // The Archive, where the Historian writes the Chronicle up.
   chronicle: { room: "archive", eyebrow: "Ilyr, hour by hour", title: "Chronicle", voice: { id: "vellum", line: "Citation needed. I'll wait." } },
 };

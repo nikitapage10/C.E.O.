@@ -5,12 +5,15 @@ import { PATHS } from "../route.ts";
 import { DESK_ROOMS, roomImage } from "./deskData.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { BANNERS, roomImage2x } from "./RoomBanner.tsx";
+import { systemsPageOf } from "./SystemsNav.tsx";
 
 const file = (src: string) => new URL(`../../public${src}`, import.meta.url);
 
 describe("room banners", () => {
-  it("gives every Desk page past Today a banner from one of the Lattice's rooms", () => {
-    const pages = (Object.keys(PATHS) as (keyof typeof PATHS)[]).filter((r) => r !== "today" && r !== "lattice");
+  it("gives every Desk page past Today, and each Systems subpage, a banner from one of the Lattice's rooms", () => {
+    const pages: string[] = (Object.keys(PATHS) as (keyof typeof PATHS)[]).filter((r) => r !== "today" && r !== "lattice");
+    // The Systems hub's subpages each carry the banner too.
+    for (const sub of ["/systems/security", "/systems/compliance"]) pages.push(systemsPageOf(sub));
     expect(Object.keys(BANNERS).sort()).toEqual(pages.sort());
     for (const { room } of Object.values(BANNERS)) expect(DESK_ROOMS[room]).toBeDefined();
   });

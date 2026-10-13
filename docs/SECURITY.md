@@ -16,6 +16,12 @@ Applications (2025) risk is handled here, the mapping to Google SAIF and the NIS
 Its injection eval suite (`api/_security/`) throws known prompt-injection and exfiltration payloads at Rivet's
 shaping, the world step and the builder's issue reader on every `npm test`, offline.
 
+The Desk shows all of this without a trip to GitHub, on Systems > Security (`/systems/security`: each scan's last
+result, the security switches, alert counts, the Scorecard score, the trust boundaries, the open risks and the eval
+counts) and Systems > Compliance (`/systems/compliance`: the OWASP, NIST AI RMF and SAIF mappings). The Desk is
+public to read, so its feed (`api/security-feed.ts`) carries posture only: states, scores, dates and counts, never
+an open alert's details.
+
 ## What scans the code, and when
 
 | Check | Runs on | What it looks for | Where findings show |

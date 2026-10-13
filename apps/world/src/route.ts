@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * The app's few addresses. The Desk lives at `/`, `/relay`, `/foundry`, `/systems` and `/chronicle`; the 3D Lattice at `/lattice`. Kept free of
+ * The app's few addresses. The Desk lives at `/`, `/relay`, `/foundry`, `/systems` (and its subpages) and `/chronicle`; the 3D Lattice at `/lattice`. Kept free of
  * imports on purpose: the Desk loads this, and must not pull in anything from the Lattice.
  */
 export type Route = "today" | "relay" | "foundry" | "systems" | "chronicle" | "lattice";
@@ -31,9 +31,18 @@ export function useRoute(): Route {
   return useSyncExternalStore(subscribe, () => routeOf(window.location.pathname));
 }
 
+/** The current path, kept in step with in-app navigation: Systems reads its subpage (`/systems/security`) from it. */
+export function usePathname(): string {
+  return useSyncExternalStore(subscribe, () => window.location.pathname);
+}
+
 /** Go somewhere without reloading the page (keeps the query string when staying inside the Lattice). */
 export function navigate(route: Route, search = "") {
-  const path = PATHS[route] + search;
+  navigateTo(PATHS[route] + search);
+}
+
+/** Go to any path inside the app (a subpage) without reloading the page. */
+export function navigateTo(path: string) {
   if (window.location.pathname + window.location.search === path) return;
   window.history.pushState(null, "", path);
   for (const fn of listeners) fn();

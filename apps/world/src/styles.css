@@ -1538,17 +1538,27 @@ button {
 }
 
 /* ── Kernel PA, room "about", room roster ─────────── */
-.announce {
+/* The PA's place: the pinned catch-up (#54) first, the current line after it. */
+.pa {
   position: absolute;
   top: 74px;
   left: 50%;
   translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: min(620px, calc(100vw - 640px));
+  pointer-events: none;
+}
+.announce {
   display: grid;
   grid-template-columns: 14px auto;
   column-gap: 12px;
   row-gap: 4px;
   align-items: center;
-  max-width: min(620px, calc(100vw - 640px));
+  max-width: 100%;
   padding: 10px 16px 11px;
   border-top: 1px solid var(--hair-strong);
   border-bottom: 1px solid var(--hair);
@@ -1571,6 +1581,39 @@ button {
   font-size: 17px;
   line-height: 1.35;
   color: var(--text);
+}
+/* The catch-up: calm (no pulse), two lines at most, and a Read button. The whole line is in Signals. */
+.announce--pinned {
+  grid-template-columns: minmax(0, 1fr) auto;
+  pointer-events: auto;
+}
+.announce--pinned :is(.eyebrow, .announce__text) {
+  grid-column: 1;
+}
+.announce--pinned .announce__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 15px;
+  color: var(--muted);
+}
+.announce__read {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  padding: 6px 10px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.announce__read:hover,
+.announce__read:focus-visible {
+  border-color: var(--text);
+  outline: none;
 }
 .announce--scold .eyebrow {
   color: var(--danger);
@@ -1938,8 +1981,10 @@ button {
   bottom: 62px;
   padding: 10px 14px;
 }
-.announce {
+.pa {
   top: 72px;
+}
+.announce {
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   border-radius: 6px;
@@ -2114,7 +2159,7 @@ button {
 }
 
 @media (max-width: 1100px) {
-  .announce {
+  .pa {
     max-width: calc(100vw - 360px);
   }
 }
@@ -2134,7 +2179,7 @@ button {
   .about__blurb {
     display: none;
   }
-  .announce {
+  .pa {
     top: auto;
     bottom: 110px;
     /* Use the phone's width rather than the half right of centre, so a long notice runs wide, not tall. */
@@ -2754,10 +2799,10 @@ button {
 }
 
 /* ── Brogu's eyes (#47): first person at toddler height ── */
-.hud--eyes > :not(.announce) {
+.hud--eyes > :not(.pa) {
   display: none;
 }
-.hud--eyes .announce {
+.hud--eyes .pa {
   top: 92px;
   max-width: min(620px, calc(100vw - 32px));
 }
@@ -2908,7 +2953,7 @@ button {
   .eyes__room {
     font-size: 21px;
   }
-  .hud--eyes .announce {
+  .hud--eyes .pa {
     top: 80px;
   }
   .eyes__note,

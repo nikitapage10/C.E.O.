@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { LINK_STATE_LABEL, useSystems } from "../systems.ts";
 import { DESK_ROOMS, roomImage, type DeskRoom } from "./deskData.ts";
+import { FoundryDiagram } from "./FoundryDiagram.tsx";
 import { FoundrySystem } from "./FoundryPage.tsx";
 import { SystemsPanel } from "./SystemsPanel.tsx";
 import { Avatar, PageHead, Panel, Pill } from "./ui.tsx";
@@ -36,7 +38,61 @@ const PLANNED: { room: DeskRoom; what: string }[] = [
   { room: "workshop", what: "New models: an image, then Meshy, then imported and animated here" },
 ];
 
+/** The rooms whose systems are drawn here; the rest show in the picker as not set up yet. */
+type SystemRoom = "relay" | "foundry";
+const LIVE_ROOMS: SystemRoom[] = ["relay", "foundry"];
+const ROOM_KEY = "ceo.systemsRoom";
+
+/** The room to show: `?room=foundry` first, then the last one picked on this device, then Relay. */
+function firstRoom(): SystemRoom {
+  try {
+    const asked = new URLSearchParams(window.location.search).get("room") ?? localStorage.getItem(ROOM_KEY);
+    return LIVE_ROOMS.find((r) => r === asked) ?? "relay";
+  } catch {
+    return "relay";
+  }
+}
+
+function RoomPicker({ room, onPick }: { room: SystemRoom; onPick: (r: SystemRoom) => void }) {
+  return (
+    <nav className="room-pick" aria-label="Rooms">
+      <span className="room-pick__label">Rooms</span>
+      <div className="room-pick__list">
+        {LIVE_ROOMS.map((r) => (
+          <button
+            key={r}
+            type="button"
+            aria-pressed={room === r}
+            className={`room-pick__tab ${room === r ? "is-on" : ""}`}
+            style={{ "--tone": DESK_ROOMS[r].accent } as React.CSSProperties}
+            onClick={() => onPick(r)}
+          >
+            <i aria-hidden="true" />
+            {DESK_ROOMS[r].name}
+          </button>
+        ))}
+        {PLANNED.map((p) => (
+          <span key={p.room} className="room-pick__tab room-pick__tab--off" style={{ "--tone": DESK_ROOMS[p.room].accent } as React.CSSProperties} title={p.what}>
+            <i aria-hidden="true" />
+            {DESK_ROOMS[p.room].name}
+            <small>Not set up yet</small>
+          </span>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export function Systems({ now }: { now: number }) {
+  const [room, setRoom] = useState<SystemRoom>(firstRoom);
+  const pick = (r: SystemRoom) => {
+    setRoom(r);
+    try {
+      localStorage.setItem(ROOM_KEY, r);
+    } catch {
+      // Private window: the pick lasts for this visit.
+    }
+  };
   return (
     <div className="systems-page">
       <PageHead
@@ -52,26 +108,44 @@ export function Systems({ now }: { now: number }) {
         }
       />
 
-      <Panel
-        eyebrow="Relay: iMessage and SMS"
-        aside={<span className="panel__hint">MacBook → Hub → services → agents</span>}
-        className="panel--systems"
-      >
-        <SystemsPanel now={now} />
-      </Panel>
+      <RoomPicker room={room} onPick={pick} />
 
-      <section className="agents" aria-label="Relay's agents">
-        <header className="section-head">
-          <h2>Relay's agents</h2>
-        </header>
-        <div className="agents__grid">
-          {AGENTS.map((a) => (
-            <AgentCard key={a.id} {...a} />
-          ))}
-        </div>
-      </section>
+      {room === "relay" && (
+        <>
+          <Panel
+            eyebrow="Relay: iMessage and SMS"
+            aside={<span className="panel__hint">MacBook → Hub → services → agents</span>}
+            className="panel--systems"
+          >
+            <SystemsPanel now={now} />
+          </Panel>
 
-      <FoundrySystem />
+          <section className="agents" aria-label="Relay's agents">
+            <header className="section-head">
+              <h2>Relay's agents</h2>
+            </header>
+            <div className="agents__grid">
+              {AGENTS.map((a) => (
+                <AgentCard key={a.id} {...a} />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      {room === "foundry" && (
+        <>
+          <Panel
+            eyebrow="Foundry: from an idea to the live site"
+            aside={<span className="panel__hint">Desk → issues → Builder → crew → checks → main</span>}
+            className="panel--systems panel--foundry-system"
+          >
+            <FoundryDiagram now={now} />
+          </Panel>
+
+          <FoundrySystem />
+        </>
+      )}
 
       <section className="planned" aria-label="Systems to come">
         <header className="section-head">

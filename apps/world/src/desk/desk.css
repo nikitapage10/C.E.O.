@@ -2319,6 +2319,284 @@ a.panel__hint:hover {
   color: var(--rose);
 }
 
+/* ── Systems: the room picker ── */
+.room-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 0 0 18px;
+}
+.room-pick__label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.room-pick__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.room-pick__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--muted);
+  transition:
+    border-color 0.3s,
+    color 0.3s,
+    box-shadow 0.3s;
+}
+.room-pick__tab i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone);
+  opacity: 0.85;
+}
+button.room-pick__tab:hover {
+  color: var(--text);
+  border-color: var(--hair-strong);
+}
+.room-pick__tab.is-on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--tone) 60%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--tone) 25%, transparent) inset,
+    0 0 18px color-mix(in srgb, var(--tone) 18%, transparent);
+}
+.room-pick__tab.is-on i {
+  box-shadow: 0 0 8px var(--tone);
+}
+.room-pick__tab--off {
+  color: var(--faint);
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--hair-soft);
+  cursor: default;
+}
+.room-pick__tab--off i {
+  background: transparent;
+  border: 1px solid var(--tone);
+  opacity: 0.6;
+}
+.room-pick__tab small {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ── Systems: the Foundry's schematic ── */
+.panel--foundry-system {
+  border-color: rgba(255, 176, 103, 0.22);
+}
+.fsys {
+  display: grid;
+  gap: 20px;
+}
+.fsys__map {
+  min-width: 0;
+}
+.fsys__schematic .node__sub {
+  fill: var(--faint);
+  font: 9px var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #070b14;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.fsys__node,
+.fsys__wire {
+  cursor: pointer;
+  outline: none;
+}
+.fsys__ring {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.fsys__node:hover .fsys__ring,
+.fsys__node:focus-visible .fsys__ring {
+  opacity: 0.35;
+}
+.fsys__node.is-picked .fsys__ring {
+  opacity: 0.8;
+  stroke-dasharray: 3 4;
+}
+.fsys__node.is-picked .node__label {
+  fill: var(--ice);
+}
+.fsys__hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  stroke-linecap: round;
+}
+.fsys__wire:hover .wire__track,
+.fsys__wire:focus-visible .wire__track,
+.fsys__wire.is-picked .wire__track {
+  stroke: rgba(143, 232, 255, 0.16);
+  stroke-width: 9;
+}
+.fsys__under {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.fsys__readouts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  border: 1px solid var(--hair-soft);
+  border-radius: var(--radius);
+  background: var(--hair-soft);
+  overflow: hidden;
+}
+.fsys__readouts > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--panel-solid);
+}
+.fsys__readouts dt {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fsys__readouts dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.fsys__readouts b {
+  font: 400 22px/1 var(--mono);
+  color: var(--text);
+  margin-right: 2px;
+}
+.fsys__detail {
+  --c: var(--faint);
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--hair);
+  border-left: 2px solid var(--c);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(143, 232, 255, 0.04), transparent 60%), rgba(4, 6, 11, 0.45);
+  animation: rise-in 0.3s var(--ease) both;
+}
+.fsys__detail--ok {
+  --c: var(--mint);
+}
+.fsys__detail--slow {
+  --c: var(--amber);
+}
+.fsys__detail--down {
+  --c: var(--rose);
+}
+.fsys__detail--empty {
+  border-left-color: var(--hair-strong);
+}
+.fsys__eyebrow {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fsys__title {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.15;
+  color: var(--text);
+}
+.fsys__what {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.fsys__source {
+  margin: 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--faint);
+}
+.fsys__link {
+  justify-self: start;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ice) !important;
+}
+.fsys__legend {
+  margin: 0;
+}
+.fsys__legend .fsys__key::before {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--muted);
+  border-top: 1px solid var(--muted);
+}
+.fsys__legend .fsys__key--agent::before {
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--muted);
+  border: 0;
+}
+.fsys__legend .fsys__key--service::before {
+  border-radius: 50%;
+}
+.fsys__legend .fsys__key--store::before {
+  transform: rotate(45deg) scale(0.85);
+}
+@media (max-width: 860px) {
+  .fsys__under {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .room-pick {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .room-pick__tab {
+    padding: 6px 11px;
+    font-size: 12.5px;
+  }
+  .fsys__readouts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .panel--foundry-system .panel__hint {
+    white-space: normal;
+    line-height: 1.7;
+  }
+}
+
 /* ── Systems: the agents ── */
 .agents,
 .planned,

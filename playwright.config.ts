@@ -4,7 +4,7 @@ const PORT = 5179;
 
 export default defineConfig({
   testDir: "tests/e2e",
-  timeout: 120_000,
+  timeout: 240_000, // room for the 150 s Lattice boot wait (#56) plus the test itself
   expect: { timeout: 20_000 },
   fullyParallel: false,
   workers: 1,

@@ -34,6 +34,19 @@ export type CrateState = "queued" | "working" | "ready" | "stuck" | "shipped";
  * run clones of itself for jobs at the same time. The Foundry's submind leads them and isn't crew.
  */
 export type CrewId = "semicolon" | "caret" | "tessellate";
+export type Model = "Haiku" | "Sonnet" | "Opus";
+
+/**
+ * The model a crate is being worked on: what its Builder line names, else its fix rung, else the crew member's usual
+ * one (Rivet Haiku, Rocky Opus, Rusty Sonnet).
+ */
+export function modelOf(crate: Pick<Crate, "rung"> & Pick<Partial<Crate>, "model">, who: CrewId): Model {
+  if (crate.model) return crate.model;
+  if (crate.rung === 1) return "Haiku";
+  if (crate.rung === 3) return "Opus";
+  if (crate.rung === 2) return "Sonnet";
+  return who === "semicolon" ? "Haiku" : who === "caret" ? "Opus" : "Sonnet";
+}
 
 export const CREW: Record<CrewId, { name: string; job: string }> = {
   semicolon: { name: "Rivet", job: "First responder" },
@@ -59,6 +72,8 @@ export interface Crate {
   revising: boolean;
   /** Who an idea's card says builds it ("**Builder:** Rusty"), when it says. */
   builder?: CrewId | null;
+  /** The model its Builder line names ("**Builder:** Rusty (Opus)"), when it names one. */
+  model?: Model | null;
   /** Pictures Nikita attached to an idea (public image links from the issue body). */
   images?: string[];
 }
@@ -211,13 +226,15 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
 }
 
 /** The pitch, size and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small", "**Builder:** Rusty"). */
-export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { images: string[] } {
+export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { images: string[]; model: Model | null } {
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
   const named = /\*\*Builder:\*\*\s*(Rivet|Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
   const builder: CrewId | null = named === "rivet" ? "semicolon" : named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
   const images = [...body.matchAll(/!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/g)].map((m) => m[1]!).slice(0, 4);
-  return { pitch, size: size ?? null, builder, images };
+  const said = /\*\*Builder:\*\*\s*(?:Rivet|Rusty|Rocky)\s*\((Haiku|Sonnet|Opus)\)/i.exec(body)?.[1]?.toLowerCase();
+  const model: Model | null = said === "haiku" ? "Haiku" : said === "sonnet" ? "Sonnet" : said === "opus" ? "Opus" : null;
+  return { pitch, size: size ?? null, builder, images, model };
 }
 
 /** The next upkeep tick after `now`. */

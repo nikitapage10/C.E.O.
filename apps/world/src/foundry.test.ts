@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignCrew, crewFor, crewLoad, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { assignCrew, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -57,6 +57,16 @@ describe("crewFor", () => {
   });
 });
 
+describe("modelOf", () => {
+  it("reads the model from the Builder line, else the rung, else the crew member's usual one", () => {
+    expect(readBody("**Builder:** Rusty (Opus)").model).toBe("Opus");
+    expect(modelOf({ rung: null, model: "Opus" }, "tessellate")).toBe("Opus");
+    expect(modelOf({ rung: 2 }, "tessellate")).toBe("Sonnet");
+    expect(modelOf({ rung: null }, "caret")).toBe("Opus");
+    expect(modelOf({ rung: null }, "tessellate")).toBe("Sonnet");
+  });
+});
+
 describe("crewWork", () => {
   it("gives each crew member the crate that matters most and ignores waiting ideas", () => {
     const crates = parseCrates(
@@ -85,13 +95,13 @@ describe("parseChecks", () => {
 
 describe("readBody", () => {
   it("reads the pitch and size the Foundry writes into an idea", () => {
-    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [] });
+    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [], model: null });
   });
   it("reads attached pictures from the markdown", () => {
     expect(readBody("**Pitch:** Look.\n\n![Picture 1](https://x.public.blob.vercel-storage.com/a.jpg)\n![Picture 2](https://x.public.blob.vercel-storage.com/b.png)\n![bad](http://no.tls/c.png)").images).toEqual(["https://x.public.blob.vercel-storage.com/a.jpg", "https://x.public.blob.vercel-storage.com/b.png"]);
   });
   it("is empty for a plain issue", () => {
-    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, images: [] });
+    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, images: [], model: null });
   });
 });
 

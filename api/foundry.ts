@@ -139,6 +139,16 @@ async function shapeInto(issue: number, text: string, labels: string[], current?
   await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, words) + extra, labels }) }).catch(() => null);
 }
 
+/** The first steps of an idea's trail (docs/FOUNDRY.md): where it came from, and who shaped it on what. */
+async function trail(issue: number, shape: Shape | null, took: number, pictures: number): Promise<void> {
+  const when = new Date().toLocaleString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
+  const origin = `**Trail · Origin:** Nikita on the Desk (${when} MT)${pictures ? `, with ${pictures} ${pictures === 1 ? "picture" : "pictures"}` : ""}.`;
+  const shaped = shape
+    ? `**Trail · Shaped:** Rusty on Claude Haiku (${SHAPE_MODEL}), ${(took / 1000).toFixed(1)} s. Suggested builder: ${shape.builder} (${shape.model}); the Builder confirms it when the job is picked.`
+    : "**Trail · Shaped:** waiting for the Builder's hourly check (quick shaping didn't answer).";
+  await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `${origin}\n\n${shaped}` }) }).catch(() => null);
+}
+
 function shapedBody(shape: Shape, words: string, images: string[] = []): string {
   return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n**Builder:** ${shape.builder} (${shape.model})\n\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
 }
@@ -192,12 +202,18 @@ export async function POST(request: Request): Promise<Response> {
       async start(controller) {
         const line = (value: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(value)}\n`));
         line({ ok: true, shaping: canShape() });
-        const shapeSent = shaping.then((shape) => shape && line({ shape }));
+        const started = Date.now();
+        let took = 0;
+        const shapeSent = shaping.then((shape) => {
+          took = Date.now() - started;
+          if (shape) line({ shape });
+        });
         const made = await filing;
         line(made === null ? { error: "github" } : { issue: made });
         await shapeSent;
         controller.close();
         const shape = await shaping;
+        if (made !== null) waitUntil(trail(made, shape, took, images.length));
         if (made !== null && shape) waitUntil(github(`/issues/${made}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text, images), labels: ["foundry", "foundry:idea"] }) }).catch(() => null));
       },
     });
@@ -214,7 +230,7 @@ export async function POST(request: Request): Promise<Response> {
 
   if (choice === "pass") {
     // Passed ideas go on the shelf, not in the bin: closed, labelled, and open to a comeback in a new shape.
-    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "Not this one, for now (passed on the Desk). On the shelf; Rusty may bring it back in a different shape." }) });
+    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "**Trail · Decision:** Not this one, for now (passed by Nikita on the Desk). On the shelf; Rusty may bring it back in a different shape." }) });
     const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ state: "closed", state_reason: "not_planned", labels: [...new Set([...labels.filter((l) => l !== "foundry:revise"), "foundry:passed"])] }) });
     return res.ok ? json({ ok: true }) : json({ error: "github" }, 502);
   }
@@ -223,7 +239,7 @@ export async function POST(request: Request): Promise<Response> {
     const quoted = text.split("\n").map((line) => `> ${line}`).join("\n");
     const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: [...new Set([...labels, "foundry:revise"])] }) });
     if (!res.ok) return json({ error: "github" }, 502);
-    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `Nikita's notes from the Desk:\n\n${quoted}` }) });
+    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `**Trail · Decision:** Sent back by Nikita on the Desk with notes:\n\n${quoted}` }) });
     if (canShape()) {
       const words = /\*\*From Nikita \(on the Desk\):\*\*\n\n([\s\S]*?)\n\n(?:_Shaped|Rusty shapes)/.exec(current.body ?? "")?.[1] ?? "";
       const extra = `\n\n**Revised with Nikita's notes:**\n\n${quoted}`;
@@ -235,6 +251,6 @@ export async function POST(request: Request): Promise<Response> {
   const next = [...labels.filter((l) => l !== "foundry:idea" && l !== "foundry:revise"), "foundry:build"];
   const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: next }) });
   if (!res.ok) return json({ error: "github" }, 502);
-  await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "Approved for building (picked on the Desk)." }) });
+  await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "**Trail · Decision:** Approved for building by Nikita on the Desk. The Builder assigns it next." }) });
   return json({ ok: true });
 }

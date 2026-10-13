@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
-import { CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, nextUpkeep, pendingIdea, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, modelOf, nextUpkeep, pendingIdea, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -770,7 +770,7 @@ function CrateList({ crates, all, now }: { crates: Crate[]; all: Crate[]; now: n
             {c.title}
           </a>
           <span className="crates__who">
-            {CREW[crewOf(c, all)].name} · {formatWait(now - c.updatedAt)} ago
+            #{c.number} · {CREW[crewOf(c, all)].name} on {modelOf(c, crewOf(c, all))} · {formatWait(now - c.updatedAt)} ago
           </span>
           <span className={`pill pill--${CREW_STATE[c.state]}`}>
             <i aria-hidden="true" />

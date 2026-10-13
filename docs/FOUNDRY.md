@@ -172,6 +172,26 @@ Open a `foundry:upkeep` issue, do the work on a `foundry/upkeep/…` branch, ope
 asking once the PR's checks pass, then label `foundry:shipped`. Upkeep never changes what Nikita sees or how the agents behave. If a change
 would, it becomes an idea instead.
 
+## The trail on every issue
+
+Every change the Foundry makes, whatever started it (a Desk idea, a morning idea, a chat ask, a red check, an upkeep
+tick, an alert), has its own issue, and the issue tells its story so Nikita can see the logic (Nikita, 2026-10-13).
+Each step is one short comment that starts with `**Trail ·`, newest last:
+
+| Step | Says | Example |
+| --- | --- | --- |
+| Origin | Where it came from, with a link | `**Trail · Origin:** Nikita on the Desk (04:02 MT).` / `Red check on main, run <link>.` / `Nikita in the Foundry thread: "…"` |
+| Shaped | Who wrote the card, on which model | `**Trail · Shaped:** Rusty on Claude Haiku (claude-haiku-5-5), 1.2 s.` |
+| Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Small green fix: ships as upkeep, no approval needed.` |
+| Assigned | Who builds it, on which model, and why (the Builder's call) | `**Trail · Assigned:** Rusty on Opus: it's design and animation.` |
+| Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |
+| Checks | The result, with a link | `**Trail · Checks:** green (run <link>).` |
+| Shipped | The commit or PR on main | `**Trail · Shipped:** 661cef7 on main, live on the site.` |
+
+The Desk's function writes Origin, Shaped and Decision for clicks on the Desk; the checks workflow writes Origin for
+red checks; the Builder writes Assigned, Work, Checks and Shipped, and Origin for chat work. A step that didn't
+happen is left out, never invented. Skip none that did.
+
 ## Rules that always hold
 
 - The checks pass before anything reaches `main`. Never skip, disable or weaken a test to get green.

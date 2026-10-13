@@ -1,6 +1,7 @@
+import { roomCenter } from "@ceo/core";
 import { BoxGeometry, Mesh, MeshBasicMaterial } from "three";
 import { describe, expect, it } from "vitest";
-import { DETAIL_LAYER, HIDDEN_LAYER, layerMask, trackable } from "./DetailLevels.tsx";
+import { DETAIL_LAYER, HIDDEN_LAYER, hideCutoff, layerMask, trackable } from "./DetailLevels.tsx";
 
 const mesh = () => new Mesh(new BoxGeometry(), new MeshBasicMaterial());
 
@@ -32,5 +33,22 @@ describe("level of detail", () => {
     const out = mesh();
     out.userData.lod = false;
     expect(trackable(out)).toBe(false);
+  });
+});
+
+describe("far rooms while inside a room (#115)", () => {
+  const room = roomCenter("foundry");
+  it("keeps the normal cut-off on the overview and inside the viewed room", () => {
+    expect(hideCutoff("high", null, 0, 0, 120)).toBe(1.5);
+    // The viewed room's back corner, further than 40 units from the camera: still the normal cut-off.
+    expect(hideCutoff("high", room, room[0] + 8, room[2] + 6.5, 45)).toBe(1.5);
+  });
+
+  it("drops small props sooner in rooms beyond 40 units", () => {
+    const [x, , z] = roomCenter("workshop");
+    expect(hideCutoff("high", room, x, z, 60)).toBeGreaterThan(1.5);
+    expect(hideCutoff("low", room, x, z, 60)).toBeGreaterThan(2.5);
+    // ...but not when they're close to the camera.
+    expect(hideCutoff("high", room, x, z, 30)).toBe(1.5);
   });
 });

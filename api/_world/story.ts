@@ -2,7 +2,7 @@
  * The day's story (issue #95, docs/WORLD.md; livelier in #102): the Historian's quick "today in Ilyr" update, read
  * aloud. Once a day's recap is written, the day's already-scrubbed Chronicle (the recap, the hours, the real Foundry
  * events and the builders' remarks) becomes a 30 to 45 second script, which Gemini's text-to-speech reads in one
- * bright presenter's voice.
+ * plain, friendly voice at a natural pace (#107).
  * The audio and the script are kept in the private Blob store, once per day, and served from our own origin
  * (api/day-story.ts).
  *
@@ -18,12 +18,18 @@
  *     sample_rate }`, `generation_config.speech_config: [{ voice }]` for one speaker. The audio comes back base64 in
  *     `steps[type=model_output].content[type=audio].data`; `audio/l16` is headerless 16-bit little-endian mono PCM,
  *     which we wrap as WAV ourselves (no dependencies).
+ *   - Sample rate (#107): the guide gives the default output as 24 kHz mono 16-bit (unary `audio/wav` with a RIFF
+ *     header, streaming `audio/l16` headerless) and shows `sample_rate` only by example ("24000, 16000, or 8000");
+ *     the Interactions reference gives each audio block its own `mime_type` and `sample_rate`. Headerless PCM
+ *     carries no rate of its own, so labelling 24 kHz samples as 16 kHz plays them at two-thirds speed and a fifth
+ *     lower: the deep, slow, distorted voice of #95 and #102. So we ask for the native 24 kHz and always take the rate
+ *     from what comes back (the block's `sample_rate`, a `rate=` in its mime type, or a RIFF header), else 24 kHz.
  *   - The response's `usage` (total_input_tokens, total_output_tokens): https://ai.google.dev/api/interactions-api
  *   - Prices: https://ai.google.dev/gemini-api/docs/pricing (Gemini 3.8 Flash TTS, paid tier: $0.50 per million text
  *     tokens in and $9.00 per million audio tokens out through 31 December 2026, then $1.00 and $18.00; audio is 25
  *     tokens a second). A 40-second story is about 1,000 audio tokens: about a cent, two from 2027.
- *   - Pace: the API has no speaking-rate setting; the guide steers pace with the style note ("speaking rapidly"), so
- *     the style note asks for a brisk, slightly faster than usual delivery.
+ *   - Pace: the API has no speaking-rate setting; the guide steers pace with the style note and suggests keeping it
+ *     short, so the style note asks only for a natural, clear, conversational pace.
  */
 
 import { BlobNotFoundError, BlobPreconditionFailedError, del, get, head, put } from "@vercel/blob";
@@ -38,21 +44,36 @@ import type { DayPage, StepCost, WorldCast } from "./types.js";
 export const TTS_MODEL = "gemini-3.8-flash-tts";
 export const TTS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 /**
- * "Puck" is Gemini's "Upbeat" prebuilt voice: lighter and brighter than the deep, slow "Gacrux" of #95, which Nikita
- * found weird and too slow. A friendly presenter with today's news, not an archivist by the fire (#102).
+ * "Achird" is Gemini's "Friendly" prebuilt voice: an ordinary, clear, mid-pitched speaker, the way a colleague would
+ * read out a short daily update (#107). Gacrux ("Mature", #95) and Puck ("Upbeat", #102) both came out deep and
+ * distorted, most likely because their 24 kHz audio was played back as 16 kHz; with the rate fixed, a plain voice is
+ * what "something that makes sense" asks for, rather than a character.
  */
-export const TTS_VOICE = "Puck";
+export const TTS_VOICE = "Achird";
 /** Kept short, as the docs ask: the text itself is read verbatim. Pace is set here (the API has no rate control). */
-export const TTS_STYLE =
-  "a bright, friendly presenter giving today's quick update: brisk, warm and conversational, speaking a little faster than usual, natural energy, no long pauses";
+export const TTS_STYLE = "a friendly, natural speaker reading a short daily update: clear and conversational, at a normal pace";
 /**
  * The story's style version. A story made with an older one (the slow Gacrux readings of #95 carry none, so 1) may be
  * remade once from the Desk's "Make it now"; the claims carry the version, so each version is paid for at most once
  * per day and kind.
  */
-export const STORY_STYLE = 2;
-/** 16 kHz mono 16-bit: 32 KB a second, so even a long story fits in one function response (Vercel's cap is 4.5 MB). */
-export const SAMPLE_RATE = 16_000;
+export const STORY_STYLE = 3;
+/**
+ * Gemini's native rate, asked for and assumed when a response doesn't say (#107). 24 kHz mono 16-bit is 48 KB a
+ * second: a 45-second story is about 2.2 MB, and the route serves ranges, so even a long one stays under Vercel's
+ * 4.5 MB response cap per request.
+ */
+export const SAMPLE_RATE = 24_000;
+
+/** A sane rate, or undefined: rejects zero, negatives, fractions and nonsense. */
+const rateOk = (n: unknown): number | undefined =>
+  typeof n === "number" && Number.isInteger(n) && n >= 4_000 && n <= 192_000 ? n : undefined;
+
+/** The rate in a mime type's parameters (`audio/L16;codec=pcm;rate=24000`), or undefined when it names none. */
+export function rateOfMime(mime: string | undefined): number | undefined {
+  const m = /;\s*(?:rate|sample_rate|samplerate)\s*=\s*"?(\d+)/i.exec(mime ?? "");
+  return m ? rateOk(Number(m[1])) : undefined;
+}
 export const AUDIO_TOKENS_PER_SECOND = 25;
 
 /** Dollars per million tokens: text in, audio out. The launch price runs to the end of 2026. */
@@ -461,16 +482,20 @@ export function wavOf(pcm: Uint8Array, sampleRate = SAMPLE_RATE): Uint8Array {
   return out;
 }
 
-/** The samples inside a WAV (if Gemini sends one) or the bytes as they are (raw L16), with the WAV's own rate. */
-export function pcmOf(bytes: Uint8Array): { pcm: Uint8Array; sampleRate: number } {
+/**
+ * The samples inside a WAV (if Gemini sends one) or the bytes as they are (raw L16). A WAV's own rate wins; raw PCM
+ * takes the rate the response reported (`declared`), else Gemini's native 24 kHz, never a guess of 16 kHz.
+ */
+export function pcmOf(bytes: Uint8Array, declared?: number): { pcm: Uint8Array; sampleRate: number } {
+  const fallback = rateOk(declared) ?? SAMPLE_RATE;
   const text = (at: number) => String.fromCharCode(...bytes.subarray(at, at + 4));
-  if (bytes.length < 12 || text(0) !== "RIFF" || text(8) !== "WAVE") return { pcm: bytes, sampleRate: SAMPLE_RATE };
+  if (bytes.length < 12 || text(0) !== "RIFF" || text(8) !== "WAVE") return { pcm: bytes, sampleRate: fallback };
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  let rate = SAMPLE_RATE;
+  let rate = fallback;
   for (let at = 12; at + 8 <= bytes.length; ) {
     const id = text(at);
     const size = v.getUint32(at + 4, true);
-    if (id === "fmt " && at + 16 <= bytes.length) rate = v.getUint32(at + 12, true);
+    if (id === "fmt " && at + 16 <= bytes.length) rate = rateOk(v.getUint32(at + 12, true)) ?? fallback;
     if (id === "data") return { pcm: bytes.subarray(at + 8, Math.min(bytes.length, at + 8 + size)), sampleRate: rate };
     at += 8 + size + (size % 2);
   }
@@ -496,7 +521,7 @@ export function speechRequest(text: string) {
 
 type Interaction = {
   status?: string;
-  steps?: { type?: string; content?: { type?: string; data?: string }[] }[];
+  steps?: { type?: string; content?: { type?: string; data?: string; mime_type?: string; sample_rate?: number }[] }[];
   usage?: { total_input_tokens?: number; total_output_tokens?: number };
 };
 
@@ -525,7 +550,8 @@ export async function speak(text: string, key: string, fetcher: typeof fetch = f
     .filter((c) => c.type === "audio" && typeof c.data === "string")
     .at(-1);
   if (!audio?.data) return null;
-  const { pcm, sampleRate } = pcmOf(new Uint8Array(Buffer.from(audio.data, "base64")));
+  const declared = rateOk(audio.sample_rate) ?? rateOfMime(audio.mime_type);
+  const { pcm, sampleRate } = pcmOf(new Uint8Array(Buffer.from(audio.data, "base64")), declared);
   if (pcm.length < 2) return null;
   const seconds = pcm.length / (sampleRate * 2);
   return {

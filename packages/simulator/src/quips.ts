@@ -502,6 +502,8 @@ export const CHRONICLE_QUIPS: string[] = [
   "The C.E.O. was away; the Lattice was not. Sourced, footnoted, filed.",
   "A quiet hour. The Historian notes it was quiet, and cites the silence.",
   "Nothing burst. The Pessimist is delighted. The Historian has it in writing.",
+  "Today's update, read at the right speed this time. Erratum filed for the slow ones.",
+  "A plain voice, a clear minute. The C.E.O. asked for sense; the Historian has cited it.",
 ];
 
 /**

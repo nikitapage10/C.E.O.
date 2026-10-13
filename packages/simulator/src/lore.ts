@@ -510,7 +510,7 @@ export const LORE: Record<string, Lore> = {
       "Sighs at sloppy dates, audibly, from across the room.",
       "Has never once been wrong, and has a footnote saying so.",
       "Picks the tool for a lore task by its citation record, which only the Historian keeps.",
-      "Writes up every hour in the Chronicle, then reads the day's update aloud: bright, brisk, under a minute.",
+      "Writes up every hour in the Chronicle, then reads the day's update aloud: clear, friendly, under a minute.",
     ],
     likes: ["Primary sources", "Heimerdinger's rigour", "A well-kept index", "Being asked 'are you sure?' (it is)", "An hour with something real in it"],
     dislikes: ["'Circa'", "D20's dice", "Unsourced legends", "Anyone who calls the canon 'vibes'"],
@@ -520,6 +520,7 @@ export const LORE: Record<string, Lore> = {
       "Peer-reviews Heimerdinger weekly. Heimerdinger peer-reviews it back. Neither has passed the other on the first try.",
       "Opened the Chronicle of Ilyr the night the C.E.O. asked for a world that keeps living when nobody looks. First entry: 'An ordinary hour. Dated. Correctly.'",
       "Read the first day aloud in a deep, borrowed voice: one minute forty. The C.E.O. said too slow. Cited, swapped for a brighter voice, now under forty-five seconds.",
+      "The second voice warbled too: the Veil played every voice back at two-thirds speed. Speed corrected, a plain, friendly reader picked, old recordings filed under 'see erratum'.",
     ],
   },
   fizz: {

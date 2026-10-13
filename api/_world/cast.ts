@@ -1204,7 +1204,9 @@ export const WORLD_CAST: WorldCast = {
       "An ordinary hour in Ilyr. Entered in the Chronicle anyway. Dated. Correctly.",
       "The C.E.O. was away; the Lattice was not. Sourced, footnoted, filed.",
       "A quiet hour. The Historian notes it was quiet, and cites the silence.",
-      "Nothing burst. The Pessimist is delighted. The Historian has it in writing."
+      "Nothing burst. The Pessimist is delighted. The Historian has it in writing.",
+      "Today's update, read at the right speed this time. Erratum filed for the slow ones.",
+      "A plain voice, a clear minute. The C.E.O. asked for sense; the Historian has cited it."
     ]
   }
 };

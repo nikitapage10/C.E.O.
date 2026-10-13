@@ -58,7 +58,7 @@ export const CONNECTIONS: Connection[] = [
     serves: "The day's story",
     kinds: ["REST API"],
     status: "live",
-    how: "Once a day's recap is filed, a Vercel function sends that day's script, written from the public Chronicle and scrubbed, to Gemini's text to speech (gemini-3.8-flash-tts, the upbeat Puck voice, a 30 to 45 second update) over plain HTTPS. The audio is kept in the private Blob store and served from our own site.",
+    how: "Once a day's recap is filed, a Vercel function sends that day's script, written from the public Chronicle and scrubbed, to Gemini's text to speech (gemini-3.8-flash-tts, the plain, friendly Achird voice at a natural pace, a 30 to 45 second update) over plain HTTPS. The audio is kept in the private Blob store and served from our own site.",
     auth: "A server-side key in Vercel's environment (GEMINI_API_KEY). It never reaches the browser.",
     when: "Once a day after midnight, plus Make it now on the Chronicle (Desk key). Capped by GEMINI_BUDGET_USD, $5 a month by default.",
   },

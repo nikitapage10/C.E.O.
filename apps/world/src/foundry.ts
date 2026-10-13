@@ -59,6 +59,8 @@ export interface Crate {
   revising: boolean;
   /** Who an idea's card says builds it ("**Builder:** Rusty"), when it says. */
   builder?: CrewId | null;
+  /** Pictures Nikita attached to an idea (public image links from the issue body). */
+  images?: string[];
 }
 
 export type ChecksState = "pass" | "fail" | "running" | "unknown";
@@ -209,12 +211,13 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
 }
 
 /** The pitch, size and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small", "**Builder:** Rusty"). */
-export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> {
+export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { images: string[] } {
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
   const named = /\*\*Builder:\*\*\s*(Rivet|Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
   const builder: CrewId | null = named === "rivet" ? "semicolon" : named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
-  return { pitch, size: size ?? null, builder };
+  const images = [...body.matchAll(/!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/g)].map((m) => m[1]!).slice(0, 4);
+  return { pitch, size: size ?? null, builder, images };
 }
 
 /** The next upkeep tick after `now`. */
@@ -341,9 +344,9 @@ export const useFoundry = create<FoundryStore>((set) => ({
 }));
 
 /** The card the Desk shows the moment Nikita sends an idea, in their own words. */
-export function pendingIdea(words: string, now: number): Crate {
+export function pendingIdea(words: string, now: number, images: string[] = []): Crate {
   const first = words.split("\n")[0]!.trim();
-  return { number: -now, title: `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`, kind: "idea", state: "queued", rung: null, url: "", updatedAt: now, pitch: "", size: null, revising: true };
+  return { number: -now, title: `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`, kind: "idea", state: "queued", rung: null, url: "", updatedAt: now, pitch: "", size: null, revising: true, images };
 }
 
 /** The last answer per URL with its ETag, so an unchanged answer costs nothing against the rate limit. */

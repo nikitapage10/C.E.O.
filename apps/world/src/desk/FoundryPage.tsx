@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
 import { CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, nextUpkeep, pendingIdea, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
@@ -39,7 +40,7 @@ const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60
 
 /* ── The idea buttons ── */
 
-type Setup = { buttons: boolean; direct: boolean; shape: boolean } | null;
+type Setup = { buttons: boolean; direct: boolean; shape: boolean; images: boolean } | null;
 type Choice = "build" | "pass" | "revise" | "propose";
 const KEY = "ceo.deskKey";
 
@@ -63,9 +64,9 @@ function useSetup(): Setup {
   useEffect(() => {
     let live = true;
     fetch("/api/foundry")
-      .then((r) => (r.ok ? (r.json() as Promise<{ buttons: boolean; direct?: boolean; shape?: boolean }>) : null))
-      .then((s) => live && setSetup(s ? { buttons: s.buttons, direct: s.direct ?? false, shape: s.shape ?? false } : { buttons: false, direct: false, shape: false }))
-      .catch(() => live && setSetup({ buttons: false, direct: false, shape: false }));
+      .then((r) => (r.ok ? (r.json() as Promise<{ buttons: boolean; direct?: boolean; shape?: boolean; images?: boolean }>) : null))
+      .then((s) => live && setSetup(s ? { buttons: s.buttons, direct: s.direct ?? false, shape: s.shape ?? false, images: s.images ?? false } : { buttons: false, direct: false, shape: false, images: false }))
+      .catch(() => live && setSetup({ buttons: false, direct: false, shape: false, images: false }));
     return () => {
       live = false;
     };
@@ -110,9 +111,9 @@ type Shaped = Pick<Crate, "title" | "pitch" | "size" | "builder">;
  * A new idea: the function streams back Rusty's shaping (straight from Claude) and the GitHub issue as each is ready,
  * so the card rewrites itself in about a second, whatever GitHub's pace.
  */
-async function propose(key: string, note: string, onShape: (shape: Shaped) => void, onIssue: (issue: number) => void): Promise<Sent> {
+async function propose(key: string, note: string, images: string[], onShape: (shape: Shaped) => void, onIssue: (issue: number) => void): Promise<Sent> {
   try {
-    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: "propose", key, note }) });
+    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: "propose", key, note, images }) });
     if (res.status === 401) return "wrong-key";
     if (!res.ok || !res.body) return "failed";
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -344,6 +345,17 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
       </header>
       <h3 className="fy-idea__title">{ideaTitle(crate.title)}</h3>
       {crate.pitch && <p className="fy-idea__pitch">{crate.pitch}</p>}
+      {crate.images && crate.images.length > 0 && (
+        <ul className="fy-idea__pics">
+          {crate.images.map((u, n) => (
+            <li key={u}>
+              <a href={u} target="_blank" rel="noreferrer" title="Open the picture">
+                <img src={u} alt={`Picture ${n + 1}`} loading="lazy" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
       <footer className="fy-idea__foot">
         {crate.number < 0 && !crate.revising ? (
           <p className="fy-idea__note">Shaped. Saving it to GitHub…</p>
@@ -441,6 +453,8 @@ function SetupNote() {
 }
 
 /** Nikita's own idea: say it or type it, and Rusty shapes it into a card like the morning ones. */
+type Pic = { id: string; file: File; preview: string; status: "wait" | "up" | "done" | "failed"; url?: string };
+
 function Propose({ setup }: { setup: Setup }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -450,20 +464,65 @@ function Propose({ setup }: { setup: Setup }) {
   const typed = useRef("");
   const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
   const ready = setup?.buttons ?? false;
+  const canPic = ready && (setup?.images ?? false);
+  const [pics, setPics] = useState<Pic[]>([]);
+  const [picNote, setPicNote] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const pickFiles = useRef<HTMLInputElement>(null);
+  const uploading = pics.some((p) => p.status === "up");
+  const known = key.trim() || storedKey();
+  const upload = async (pic: Pic, withKey: string) => {
+    setPics((l) => l.map((p) => (p.id === pic.id ? { ...p, status: "up" } : p)));
+    const url = await uploadImage(pic.file, withKey);
+    setPics((l) => l.map((p) => (p.id === pic.id ? { ...p, status: url ? "done" : "failed", url: url ?? undefined } : p)));
+    return url;
+  };
+  const addFiles = (files: File[]) => {
+    const found = files.filter(isImage);
+    if (!canPic || !found.length) return;
+    const room = Math.max(0, MAX_IMAGES - pics.length);
+    setPicNote(found.length > room ? `Up to ${MAX_IMAGES} pictures on an idea.` : "");
+    const fresh: Pic[] = found.slice(0, room).map((file) => ({ id: Math.random().toString(36).slice(2), file, preview: URL.createObjectURL(file), status: known ? "up" : "wait" }));
+    if (!fresh.length) return;
+    setPics((l) => [...l, ...fresh]);
+    if (known) for (const p of fresh) void upload(p, known).then((u) => !u && setPicNote("That picture didn't upload. Try again."));
+  };
+  const dropPic = (id: string) => {
+    setPicNote("");
+    setPics((l) => {
+      const gone = l.find((p) => p.id === id);
+      if (gone) URL.revokeObjectURL(gone.preview);
+      return l.filter((p) => p.id !== id);
+    });
+  };
   const submit = async () => {
     dictation.stop();
     setState("busy");
+    // Pictures not uploaded yet (no key was known when they were added) go up now.
+    const urls: string[] = [];
+    for (const p of pics) {
+      const url = p.status === "done" ? p.url! : await upload(p, key.trim());
+      if (!url) {
+        setPicNote("That picture didn't upload. Try again.");
+        setState("idle");
+        return;
+      }
+      urls.push(url);
+    }
     // The card goes on the board at once, in Nikita's words; GitHub's copy replaces it when the feed brings it.
-    const card = pendingIdea(note, Date.now());
+    const card = pendingIdea(note, Date.now(), urls);
     const { addPending, settlePending, shapePending } = useFoundry.getState();
     addPending(card);
     setOpen(false);
     const words = note;
+    const kept = pics;
     setNote("");
+    setPics([]);
     let number = card.number;
     const r = await propose(
       key.trim(),
       words,
+      urls,
       (shape) => shapePending(number, shape),
       (issue) => {
         settlePending(number, issue);
@@ -478,6 +537,7 @@ function Propose({ setup }: { setup: Setup }) {
     } else {
       settlePending(number, null);
       setNote(words);
+      setPics(kept.map((p, n) => ({ ...p, status: "done" as const, url: urls[n] })));
       setOpen(true);
       setState(r);
     }
@@ -512,7 +572,19 @@ function Propose({ setup }: { setup: Setup }) {
     );
   return (
     <form
-      className="fy-propose fy-idea__form"
+      className={`fy-propose fy-idea__form${dragging ? " fy-propose--drop" : ""}`}
+      onDragOver={(e) => {
+        if (!canPic || !Array.from(e.dataTransfer.types).includes("Files")) return;
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setDragging(false)}
+      onDrop={(e) => {
+        setDragging(false);
+        if (!canPic) return;
+        e.preventDefault();
+        addFiles(Array.from(e.dataTransfer.files));
+      }}
       onSubmit={(e) => {
         e.preventDefault();
         if (!note.trim()) return;
@@ -523,7 +595,31 @@ function Propose({ setup }: { setup: Setup }) {
       <label>
         {dictation.listening ? "Listening… say the idea, then press the mic again." : "Your idea, said or typed. Rusty turns it into a card with a size and a builder."}
         <span className="fy-propose__box">
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus maxLength={2000} placeholder="What should the Foundry build?" />
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onPaste={(e) => {
+              // Pictures on the clipboard become attachments; plain text pastes as usual.
+              const files = Array.from(e.clipboardData.files).filter(isImage);
+              if (!canPic || !files.length) return;
+              if (!e.clipboardData.getData("text/plain")) e.preventDefault();
+              addFiles(files);
+            }}
+            rows={3}
+            autoFocus
+            maxLength={2000}
+            placeholder={canPic ? "What should the Foundry build? Paste or drop pictures too." : "What should the Foundry build?"}
+          />
+          {canPic && (
+            <>
+              <input ref={pickFiles} type="file" accept="image/*" multiple hidden onChange={(e) => (addFiles(Array.from(e.target.files ?? [])), (e.target.value = ""))} />
+              <button type="button" className="fy-mic fy-mic--attach" onClick={() => pickFiles.current?.click()} disabled={pics.length >= MAX_IMAGES} aria-label="Attach pictures" title="Attach pictures">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path d="M20 11.5l-7.6 7.6a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-7.6 7.6a1.7 1.7 0 0 1-2.4-2.4l7-7" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </>
+          )}
           {dictation.supported && (
             <button
               type="button"
@@ -542,6 +638,21 @@ function Propose({ setup }: { setup: Setup }) {
         </span>
       </label>
       {dictation.error && <p className="fy-idea__note">{dictation.error}</p>}
+      {pics.length > 0 && (
+        <ul className="fy-pics">
+          {pics.map((p) => (
+            <li key={p.id} className={`fy-pics__item${p.status === "up" ? " fy-pics__item--up" : ""}${p.status === "failed" ? " fy-pics__item--failed" : ""}`}>
+              <img src={p.preview} alt="" />
+              {p.status === "up" && <span className="fy-pics__state">Uploading…</span>}
+              {p.status === "failed" && <span className="fy-pics__state">Not sent</span>}
+              <button type="button" className="fy-pics__x" onClick={() => dropPic(p.id)} aria-label="Remove picture">
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {picNote && <p className="fy-idea__note">{picNote}</p>}
       {ready && (!storedKey() || state === "wrong-key") && (
         <label>
           {state === "wrong-key" ? "That key didn't match. Try again." : "Your Desk key (asked once on this device)"}
@@ -550,7 +661,7 @@ function Propose({ setup }: { setup: Setup }) {
       )}
       {state === "failed" && <p className="fy-idea__note">That didn't go through. Try again.</p>}
       {!ready && setup !== null && <p className="fy-idea__note fy-idea__note--quiet">Sending straight from here needs the Vercel variables above. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
-      <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || (ready && !key.trim()) || state === "busy" || setup === null}>
+      <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || (ready && !key.trim()) || state === "busy" || uploading || setup === null}>
         {ready ? "Send to Rusty" : "Copy and open the thread"}
       </button>
       <button type="button" className="btn btn--quiet btn--sm" onClick={() => (dictation.stop(), setOpen(false))}>
@@ -612,6 +723,12 @@ function Connections({ setup }: { setup: Setup }) {
       what: "Build, Revise and Not this one change GitHub at once",
       state: setup === null ? "off" : setup.buttons ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.buttons ? "Ready" : "Needs setup",
+    },
+    {
+      name: "Pictures on ideas",
+      what: setup?.images ? "Paste, attach or drop pictures on an idea" : "Needs a Vercel Blob store connected to the project (Vercel → Storage → Create → Blob → connect to this project, then redeploy)",
+      state: setup === null ? "off" : setup.images ? "ok" : "slow",
+      label: setup === null ? "Checking…" : setup.images ? "Ready" : "Needs setup",
     },
     {
       name: "Quick shaping",

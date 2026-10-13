@@ -44,7 +44,7 @@ export const PETS: PetDef[] = [
     name: "Brogu",
     kind: "brogu",
     title: "Small green foundling · age unknown (fifty?) · says one word",
-    blurb: "Found in a floating pod in the lost-and-found. One night he climbed out and walked, and he hasn't stopped. Toddles from room to room on very short legs, eats the snacks without touching them, and says one word: his name.",
+    blurb: "Found in a floating pod in the lost-and-found. One night he climbed out and walked, and he hasn't stopped. Toddles from room to room on very short legs, eats the snacks without touching them, and says one word: his name. Press B and the C.E.O. can ride along behind his eyes.",
     homes: ROOM_IDS,
     speed: 0.32,
     roam: 0.4,

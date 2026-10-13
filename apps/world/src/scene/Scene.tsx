@@ -4,6 +4,8 @@ import { Suspense, useEffect } from "react";
 import { NoToneMapping, SRGBColorSpace } from "three";
 import { Agents } from "../agents/Agents.tsx";
 import { Pets } from "../pets/Pets.tsx";
+import { BroguEyes } from "../eyes/BroguEyes.tsx";
+import { useEyes } from "../eyes/eyes.ts";
 import { clock } from "../clock.ts";
 import { tickMaterials } from "../fx/materials.ts";
 import { PostFX } from "../fx/PostFX.tsx";
@@ -86,6 +88,7 @@ export function Scene() {
           }}
           onCreated={({ gl }) => watchContext(gl.domElement)}
           onPointerMissed={() => {
+            if (useEyes.getState().active) return;
             if (useWorld.getState().selectedAgent) selectAgent(null);
             else setFocus(null);
           }}
@@ -112,6 +115,7 @@ export function Scene() {
             <SceneReady />
           </Suspense>
           <CameraRig />
+          <BroguEyes />
           <DetailLevels />
           <ShadowFocus />
           <PostFX />

@@ -7,6 +7,10 @@ import { useCast } from "../cast/castStore.ts";
 import { agentPositions } from "../clock.ts";
 import { PARAMS } from "../params.ts";
 import { useWorld } from "../store.ts";
+import { useEyes } from "../eyes/eyes.ts";
+import { Vector3 } from "three";
+
+const ahead = new Vector3();
 
 const OVERVIEW = { pos: [0, 66, 96] as const, target: [0, -2, 4] as const };
 
@@ -15,12 +19,26 @@ export function CameraRig() {
   const controls = useRef<CameraControls>(null);
   const focus = useWorld((s) => s.focus);
   const studio = useCast((s) => s.studio);
+  // Behind Brogu's eyes the camera is his head (eyes/BroguEyes.tsx); the orbit controls step aside until he's let go.
+  const eyes = useEyes((s) => s.active);
+  const wasEyes = useRef(false);
   const lastInput = useRef(performance.now());
   const getThree = useThree((s) => s.get);
 
   useEffect(() => {
     const c = controls.current;
+    if (eyes) {
+      wasEyes.current = true;
+      return;
+    }
     if (!c) return;
+    if (wasEyes.current) {
+      // Back out of his eyes: start the flight from where he was looking, not from wherever the controls last were.
+      wasEyes.current = false;
+      const cam = c.camera;
+      cam.getWorldDirection(ahead);
+      void c.setLookAt(cam.position.x, cam.position.y, cam.position.z, cam.position.x + ahead.x * 3, cam.position.y + ahead.y * 3, cam.position.z + ahead.z * 3, false);
+    }
     const p = studio ? agentPositions.get(studio) : undefined;
     if (studio && p && focus) {
       // A portrait framing for the Agent Studio, from the room's camera side, offset to clear the panel.
@@ -56,14 +74,15 @@ export function CameraRig() {
       c.maxDistance = 140;
       void c.setLookAt(...OVERVIEW.pos, ...OVERVIEW.target, !PARAMS.instant);
     }
-  }, [focus, studio]);
+  }, [focus, studio, eyes]);
 
   useEffect(() => {
     const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
     api.three = getThree;
     api.camera = () => {
       const c = controls.current;
-      return c ? { position: c.camera.position.toArray(), distance: c.distance } : null;
+      // Behind Brogu's eyes there are no orbit controls: report the camera itself.
+      return c ? { position: c.camera.position.toArray(), distance: c.distance } : { position: getThree().camera.position.toArray(), distance: 0 };
     };
   }, [getThree]);
 
@@ -83,6 +102,7 @@ export function CameraRig() {
     if (performance.now() - lastInput.current > 6000) c.azimuthAngle += dt * 0.025;
   });
 
+  if (eyes) return null;
   return (
     <CameraControls
       ref={controls}

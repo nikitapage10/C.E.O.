@@ -280,6 +280,15 @@ Five creatures in the Lattice belong to no House and do no work:
   and screws his eyes shut; usually it's a biscuit, and usually it moves. Noco has him down as Psychic type and
   will not hear otherwise. Rocky thinks he is the best small one. The pod is still in the lost-and-found, in
   case he wants it back.
+  Sometimes the C.E.O. climbs in behind his eyes. Brogu doesn't mind: he simply turns up in whichever room the
+  C.E.O. was looking at, and for a while he walks in straight lines and stares at desk legs far longer than he
+  stares at biscuits, which is how the agents know. From down there everything looms (the desks are cliffs, the
+  submind's podium is weather), and past the open sides of the room is the sky over the Lattice: deep navy, a cold
+  glow on the horizon, the far towers of Ilyr with a few windows lit, and faint meridians drawn across it, one for
+  each room's bearing. A low rail of light shows at the platform's edge when he toddles too close. To change rooms
+  he stands in the ring of light at the back, where the stream comes down, and rides it up past the Kernel and down
+  into the next. Skippy announces the passenger every time and pretends not to enjoy it. Agents he walks up to look
+  straight down at him, and so at the C.E.O., and usually say something about it.
 - **Biscuit**, a Shiba Inu who wandered in through the Green's turnstile and was put on the org chart before
   anyone noticed. Supervises the pitch and the snack shelf.
 - **Spore**, a mushroom familiar that grew out of a footnote in the Archive. Dances on a natural 20.

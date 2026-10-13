@@ -10,6 +10,8 @@ import { GlitchOverlay } from "./glitches/GlitchOverlay.tsx";
 import { AgentStudio } from "./hud/AgentStudio.tsx";
 import { Hud } from "./hud/Hud.tsx";
 import { Loader } from "./hud/Loader.tsx";
+import { EyesHud } from "./eyes/EyesHud.tsx";
+import { brogu, enterEyes, useEyes } from "./eyes/eyes.ts";
 import { KernelDirector } from "./kernel/KernelDirector.tsx";
 import { SocialDirector } from "./social/SocialDirector.tsx";
 import { Scene } from "./scene/Scene.tsx";
@@ -46,6 +48,14 @@ function useDebugApi() {
       cast: () => useCast.getState().cast,
       openStudio: (id: string | null) => useCast.getState().openStudio(id),
       boot: () => ({ ...bootMarks }),
+      // Brogu's eyes: in and out, and where he is (room-local x, z, yaw).
+      eyes: {
+        enter: enterEyes,
+        leave: () => useEyes.getState().leave(),
+        state: () => ({ ...useEyes.getState(), brogu: { x: brogu.x, z: brogu.z, yaw: brogu.yaw, pitch: brogu.pitch } }),
+        /** Put him somewhere (room-local) and point his eyes, without walking there. */
+        pose: (p: { x?: number; z?: number; yaw?: number; pitch?: number }) => Object.assign(brogu, p),
+      },
     });
   }, []);
 }
@@ -92,6 +102,7 @@ export function App() {
       </div>
       <Suspense fallback={null}>
         <Hud />
+        <EyesHud />
         <GlitchOverlay />
         <AgentStudio />
         <GlitchDirector />

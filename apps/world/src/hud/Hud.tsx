@@ -13,6 +13,7 @@ import { unlock } from "../achievements/achievements.ts";
 import { feedLines, formatClock, type FeedLine } from "./format.ts";
 import { navigate } from "../route.ts";
 import { noticeVisible } from "../kernel/notices.ts";
+import { enterEyes, useEyes } from "../eyes/eyes.ts";
 
 /**
  * The HUD, in The Tide's interface language: hairlines and wide-tracked labels on near-black, text that
@@ -387,10 +388,14 @@ function Footer() {
   return (
     <footer className="footer">
       <p className="footer__left tracked faint">
-        <span className="muted">{focus ? "S · outward" : "W · inward"}  ·  A D · rooms  ·  E · studio</span>
+        <span className="muted">{focus ? "S · outward" : "W · inward"}  ·  A D · rooms  ·  E · studio  ·  B · Brogu's eyes</span>
         <span className="footer__rule" /> A living lattice of agents
       </p>
       <div className="footer__right controls" role="group" aria-label="Controls">
+        <button className="tracked" onClick={enterEyes} data-control="eyes" title="Walk Brogu round the room you're looking at, and see it through his eyes (B)">
+          Brogu's <b>eyes</b>
+        </button>
+        <span className="slash">/</span>
         <PanelButtons />
         <span className="slash">/</span>
         <DeckButton />
@@ -435,6 +440,8 @@ function Coordinates() {
 function useKeyboard() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Behind Brogu's eyes the keys walk him (eyes/EyesHud.tsx); B and Esc in and out are handled there too.
+      if (e.defaultPrevented || useEyes.getState().active) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       const s = useWorld.getState();
       if (e.key === "`") {
@@ -474,8 +481,9 @@ export function Hud() {
   const [panel, setPanel] = useState<"roster" | "signals" | null>(null);
   const studio = useCast((s) => s.studio !== null);
   const selected = useWorld((s) => s.selectedAgent);
+  const eyes = useEyes((s) => s.active);
   return (
-    <div className={`hud ${studio ? "hud--studio" : ""}`}>
+    <div className={`hud ${studio ? "hud--studio" : ""} ${eyes ? "hud--eyes" : ""}`}>
       <TopBar />
       <div className="leftcol">
         <TitleBlock />

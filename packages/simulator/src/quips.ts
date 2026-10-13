@@ -486,3 +486,36 @@ export const CHRONICLE_QUIPS: string[] = [
   "A quiet hour. The Historian notes it was quiet, and cites the silence.",
   "Nothing burst. The Pessimist is delighted. The Historian has it in writing.",
 ];
+
+/**
+ * Brogu's eyes (#47): the C.E.O. takes the little guy and walks him round in first person. Agents can tell when
+ * someone's behind his eyes; the walk is steadier, and he looks at things for longer than he looks at biscuits.
+ * Said by an agent he toddles up to, looking straight down at him (and so at the C.E.O.).
+ */
+export const BROGU_STEERED_QUIPS: string[] = [
+  "Brogu? You're walking in straight lines. Who's driving?",
+  "Hello, C.E.O. Yes, I can tell. He's never looked at a desk leg that carefully.",
+  "Mind the cables, little one. And whoever's in there.",
+  "He's looking right up at me. Both of you are. It's a lot.",
+  "Somebody's piloting Brogu. Act natural. Natural. Natural.",
+  "These are not the snacks you're looking for.",
+  "Small Brogu, large view. Everything's taller from down there, isn't it.",
+  "Ah, the C.E.O., at hip height. Should I kneel? I'm going to kneel.",
+  "Brogu. Brogu. ...He said it, but the C.E.O. meant it.",
+  "Second breakfast is that way. Don't tell anyone I told you.",
+];
+
+/** Skippy on the PA when the C.E.O. climbs in behind Brogu's eyes. {room} is where he drops in. */
+export const BROGU_EYES_KERNEL: string[] = [
+  "The C.E.O. is driving Brogu in {room}. Everyone below the waist, look busy.",
+  "Brogu has a passenger in {room}. Monkeys, mind your ankles.",
+  "The C.E.O. wants a toddler's-eye view of {room}. It's mostly desk legs. I've seen it. Magnificent desk legs.",
+  "Steering Brogu now, are we? In {room}. Fine. He was going to wander in there anyway.",
+];
+
+/** Skippy as the stream carries a steered Brogu from one room to another. {room} is where he's going. */
+export const BROGU_RIDE_KERNEL: string[] = [
+  "Small green passenger on the stream, bound for {room}. Keep your arms and ears inside.",
+  "Brogu is riding the light to {room}. The C.E.O. is riding Brogu. I'm riding nobody. I'm the stream.",
+  "Inbound to {room}: one Brogu, one C.E.O., zero snacks. For now.",
+];

@@ -24,12 +24,20 @@ moves them.
 | --- | --- | --- |
 | Rivet (agent id `semicolon`, Haiku) | First responder | Reads every new job and sizes it; fixes on rung 1 |
 | The Builder, the Foundry's submind (agent id `ember`) | Room lead | Picks the rung for each job; conducts the room |
-| Rusty (agent id `tessellate`, Sonnet) | Builder, upkeep and ideas | Simple, well-scoped fixes and builds (rung 2, builds marked `**Builder:** Rusty`), upkeep and maintenance, the morning ideas |
-| Rocky (agent id `caret`, Opus) | Master builder | Anything complex, substantial, open-ended or big-picture (rung 3, every other build) |
+| Rusty (agent id `tessellate`, Sonnet) | Builder, upkeep and ideas | The default builder: any fix or feature whose shape is clear (rung 2), upkeep and maintenance, the morning ideas |
+| Rocky (agent id `caret`, Opus) | Master builder | Visual and big-picture work: 3D scenes, models, animation, visual design, architecture, open-ended ideas (rung 3) |
 
-Pick the model up front by how hard the job is, not by climbing from the cheapest (Nikita, 2026-10-13): plainly
-simple moves go to Rusty on Sonnet; anything bigger, or anything you're unsure of, goes straight to Rocky on Opus.
-Be liberal with Opus. Each crew member can run clones of itself (subagents on the same model, each in its own
+Pick the model up front by the kind of work, not by climbing from the cheapest (Nikita, 2026-10-13):
+- **Rocky (Opus)** for what needs taste or big-picture thinking: anything visual in the Lattice (3D scenes, models,
+  animation, lighting), a new look for a page, architecture, and open-ended ideas where deciding what to build is
+  most of the job.
+- **Rusty (Sonnet)** for everything whose shape is clear, even when it spans several files: features like a new
+  button, form field, upload or API call, wiring data through, fixes with a known cause, docs, refactors.
+- **Rivet (Haiku)** for one-line fixes, copy tweaks, labels and triage.
+
+This holds for chat work too: the Builder's thread plans, reviews and ships, and hands the coding to the matching
+crew member as a subagent on that model. Every issue carries a `**Builder:**` line, and the Desk and the room show
+that crew member on it. Each crew member can run clones of itself (subagents on the same model, each in its own
 worktree) to work several jobs at the same time; the crew stays split by job, not by model.
 
 ## The queue: GitHub issues
@@ -53,11 +61,12 @@ An issue with no state label is queued. Close an issue without `foundry:shipped`
 
 `foundry:chat` is work Nikita asked for in chat (any thread, any model), built outside the lanes and pushed straight
 to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread starts such work opens a `foundry` +
-`foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, the branch), and
-labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists it under "In flight"
-with everything else, and in the Foundry room a free crew member (Rivet first, then Rusty, then Rocky) is seen
-working on it, since the lane crew have their own crates (Nikita, 2026-10-12: "any development-based idea should end
-up in the Foundry somewhere as well… one of the free agents can visually work on it").
+`foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, a `**Builder:**`
+line naming the crew member for the model the thread really codes on (Rocky for Opus, Rusty for Sonnet, Rivet for
+Haiku), the branch), and labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists
+it under "In flight" with everything else, and in the Foundry room that crew member (or a clone, when they are
+already busy) is seen working on it (Nikita, 2026-10-12: "any development-based idea should end up in the Foundry
+somewhere as well"; 2026-10-13: the crew shown must match the model doing the work).
 
 ## Decisions go through Skippy
 
@@ -139,7 +148,7 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   rewrite the title, pitch, size and builder from Nikita's words and notes, and drop the label. Any
   `foundry:build` nobody is working is yours to build. Post nothing unless a question needs Nikita.
 - On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
-  (the builder the card names: Rocky unless it says Rusty). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
+  (the builder the card names: Rusty unless it says Rocky). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
   approval on the Desk was the decision, so there is no "Ship?" card (Nikita, 2026-10-12: "when I approve an idea,
   you don't need me to decide to ship it"). It stops for Nikita only when something needs a human: red checks after
   every rung (`foundry:stuck`), a change that can't be checked by the checks (a look, a feel, a new model), or a

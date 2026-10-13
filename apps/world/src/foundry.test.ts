@@ -44,12 +44,12 @@ describe("parseCrates", () => {
 });
 
 describe("crewFor", () => {
-  it("sends fixes by rung (Rivet, Rusty, Rocky), builds to the named builder or Rocky, the rest to Rusty", () => {
+  it("sends fixes by rung (Rivet, Rusty, Rocky), builds to the named builder or Rusty, the rest to Rusty", () => {
     expect(crewFor({ kind: "fix", rung: null })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 1 })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 2 })).toBe("tessellate");
     expect(crewFor({ kind: "fix", rung: 3 })).toBe("caret");
-    expect(crewFor({ kind: "build", rung: null })).toBe("caret");
+    expect(crewFor({ kind: "build", rung: null })).toBe("tessellate");
     expect(crewFor({ kind: "build", rung: null, builder: "tessellate" })).toBe("tessellate");
     expect(crewFor({ kind: "build", rung: null, builder: "caret" })).toBe("caret");
     expect(crewFor({ kind: "upkeep", rung: null })).toBe("tessellate");
@@ -108,24 +108,21 @@ describe("visibleUpkeep", () => {
 describe("assignCrew", () => {
   const crate = (number: number, kind: Crate["kind"], state: Crate["state"], rung: Crate["rung"] = null): Crate => ({ number, title: `#${number}`, kind, state, rung, url: "", updatedAt: NOW, pitch: "", size: null, revising: false });
 
-  it("hands chat work to whoever is free, first responder first", () => {
-    const by = assignCrew([crate(1, "build", "working"), crate(2, "chat", "working")]);
-    expect(by.get(1)).toBe("caret");
-    expect(by.get(2)).toBe("semicolon");
+  it("hands builds and chat work to the builder their issue names, Rusty when it names none", () => {
+    const by = assignCrew([crate(1, "build", "working"), crate(2, "chat", "working"), { ...crate(3, "chat", "working"), builder: "caret" }]);
+    expect(by.get(1)).toBe("tessellate");
+    expect(by.get(2)).toBe("tessellate");
+    expect(by.get(3)).toBe("caret");
   });
 
-  it("moves on to Rusty when Rivet holds a fix, and sends a Rusty clone when everyone is busy", () => {
-    const busyRivet = assignCrew([crate(1, "fix", "working", 1), crate(2, "chat", "working")]);
-    expect(busyRivet.get(2)).toBe("tessellate");
-    const all = assignCrew([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")]);
-    expect(all.get(4)).toBe("tessellate");
-    expect(crewLoad([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")])).toEqual({ semicolon: 1, caret: 1, tessellate: 2 });
+  it("counts the extra jobs a crew member holds as clones", () => {
+    expect(crewLoad([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")])).toEqual({ semicolon: 1, caret: 0, tessellate: 3 });
   });
 
   it("leaves queued and shipped crates in nobody's hands", () => {
     const by = assignCrew([crate(1, "chat", "queued"), crate(2, "fix", "shipped")]);
     expect(by.size).toBe(0);
-    expect(crewOf(crate(1, "chat", "queued"), [])).toBe("semicolon");
+    expect(crewOf(crate(1, "chat", "queued"), [])).toBe("tessellate");
   });
 });
 

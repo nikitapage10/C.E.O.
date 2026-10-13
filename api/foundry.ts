@@ -39,6 +39,14 @@ function keyMatches(given: string): boolean {
   return want.length > 0 && want.length === got.length && timingSafeEqual(want, got);
 }
 
+/** Pictures from the Desk: only links our own Blob store handed out, a few per idea. */
+function readImages(given: unknown): string[] {
+  if (!Array.isArray(given)) return [];
+  return given.filter((u): u is string => typeof u === "string" && /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/[\w./-]+$/i.test(u)).slice(0, 4);
+}
+
+const imagesMarkdown = (images: string[]): string => (images.length ? `\n\n${images.map((u, i) => `![Picture ${i + 1}](${u})`).join("\n")}` : "");
+
 async function github(path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${GH}${path}`, {
     ...init,
@@ -81,12 +89,13 @@ const SHAPE_PROMPT = `You shape feature ideas for C.E.O., Nikita's web app: a De
 - title: "Idea: " plus a short plain name for it (under 70 characters), in Nikita's own words where possible.
 - pitch: two or three plain sentences: what changes and what Nikita will see. Keep every request Nikita made; add nothing they didn't ask for.
 - size: small (one area, an hour or so), medium (a few files or one feature), or large (several systems).
-- builder: "Rusty" (Sonnet) for simple, well-scoped work like moving, renaming or restyling things; "Rocky" (Opus) for anything substantial, open-ended or design-heavy, or that would clearly benefit from the stronger model. Lean towards Rocky when unsure.
+- builder: "Rusty" (Sonnet) is the default: any feature or fix whose shape is clear, even across several files, like adding a button, a form field, an upload, an API call, a setting, wiring data through, or moving, renaming or restyling things. "Rocky" (Opus) only for work that needs taste or big-picture thinking: new 3D scenes, models, animation or visual design, a new look for a page, architecture, or an open-ended idea where deciding what to build is most of the job.
 Nikita often dictates, so fix obvious speech-to-text slips using C.E.O.'s own words: subminds (Skippy's room leads), Skippy, Rivet, Rusty, Rocky, the Desk, the Lattice, the Foundry, Relay, the Spire, the Exchange, the Green, the Archive, the Break Room, the Boiler Room, the Workshop.
+Nikita may attach pictures (sketches, screenshots, references) to show what they mean: use them to understand the idea and say in the pitch what they show when it matters.
 Reply with the card as JSON: title, pitch, size, builder.`;
 
 /** Rusty shapes the idea in a few seconds; null when Claude isn't set up or doesn't answer in time. */
-export async function shapeIdea(words: string, current?: string): Promise<Shape | null> {
+export async function shapeIdea(words: string, current?: string, images: string[] = []): Promise<Shape | null> {
   if (!canShape()) return null;
   const input = current ? `The idea as it stands:\n${current}\n\nNikita's notes to revise it with:\n${words}` : words;
   const client = new Anthropic({ apiKey: claudeKey(), timeout: 12_000, maxRetries: 1 });
@@ -97,7 +106,7 @@ export async function shapeIdea(words: string, current?: string): Promise<Shape 
       thinking: { type: "disabled" },
       output_config: { effort: "low", format: { type: "json_schema", schema: SHAPE_SCHEMA } },
       system: SHAPE_PROMPT,
-      messages: [{ role: "user", content: input }],
+      messages: [{ role: "user", content: [...images.map((url) => ({ type: "image" as const, source: { type: "url" as const, url } })), { type: "text" as const, text: input }] }],
     });
     const text = res.content.find((block) => block.type === "text");
     if (!text || text.type !== "text") return null;
@@ -125,8 +134,8 @@ async function shapeInto(issue: number, text: string, labels: string[], current?
   await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, words) + extra, labels }) }).catch(() => null);
 }
 
-function shapedBody(shape: Shape, words: string): string {
-  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n**Builder:** ${shape.builder}\n\n**From Nikita (on the Desk):**\n\n${words}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
+function shapedBody(shape: Shape, words: string, images: string[] = []): string {
+  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n**Builder:** ${shape.builder}\n\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
 }
 
 export function GET(): Response {
@@ -136,18 +145,21 @@ export function GET(): Response {
     direct: canWrite(),
     /** True when Rusty shapes proposed and revised ideas on the spot. */
     shape: canShape(),
+    /** True when pictures can be added to ideas (a Vercel Blob store is connected). */
+    images: Boolean(env("BLOB_READ_WRITE_TOKEN")),
   });
 }
 
 export async function POST(request: Request): Promise<Response> {
   if (!env("FOUNDRY_DESK_KEY") || !canWrite()) return json({ error: "not-set-up" }, 503);
-  let body: { issue?: unknown; choice?: unknown; note?: unknown; key?: unknown };
+  let body: { issue?: unknown; choice?: unknown; note?: unknown; key?: unknown; images?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return json({ error: "bad-request" }, 400);
   }
   const { issue, choice, note, key } = body;
+  const images = readImages(body.images);
   if (typeof key !== "string" || !keyMatches(key)) return json({ error: "wrong-key" }, 401);
   const text = typeof note === "string" ? note.trim().slice(0, 2000) : "";
   if ((choice === "revise" || choice === "propose") && !text) return json({ error: "bad-request" }, 400);
@@ -159,12 +171,12 @@ export async function POST(request: Request): Promise<Response> {
     // shapes it.
     const first = text.split("\n")[0]!.trim();
     const title = `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`;
-    const shaping = canShape() ? shapeIdea(text) : Promise.resolve(null);
+    const shaping = canShape() ? shapeIdea(text, undefined, images) : Promise.resolve(null);
     const filing = github("/issues", {
       method: "POST",
       body: JSON.stringify({
         title,
-        body: `**From Nikita (on the Desk):**\n\n${text}\n\nRusty shapes this into a pitch, a size and a builder, then it waits for Nikita's pick like any idea.`,
+        body: `**From Nikita (on the Desk):**\n\n${text}${imagesMarkdown(images)}\n\nRusty shapes this into a pitch, a size and a builder, then it waits for Nikita's pick like any idea.`,
         labels: ["foundry", "foundry:idea", "foundry:revise"],
       }),
     })
@@ -181,7 +193,7 @@ export async function POST(request: Request): Promise<Response> {
         await shapeSent;
         controller.close();
         const shape = await shaping;
-        if (made !== null && shape) waitUntil(github(`/issues/${made}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text), labels: ["foundry", "foundry:idea"] }) }).catch(() => null));
+        if (made !== null && shape) waitUntil(github(`/issues/${made}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text, images), labels: ["foundry", "foundry:idea"] }) }).catch(() => null));
       },
     });
     return new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" } });

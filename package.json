@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
+    "@vercel/blob": "^2.8.1",
     "@vercel/functions": "^3.9.11"
   }
 }

@@ -212,8 +212,8 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
 export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> {
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
-  const named = /\*\*Builder:\*\*\s*(Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
-  const builder: CrewId | null = named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
+  const named = /\*\*Builder:\*\*\s*(Rivet|Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
+  const builder: CrewId | null = named === "rivet" ? "semicolon" : named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
   return { pitch, size: size ?? null, builder };
 }
 
@@ -241,19 +241,15 @@ export function visibleUpkeep(crates: Crate[], now = Date.now()): Crate | null {
 
 /**
  * Whose lane a crate is in. Fixes go by rung: Rivet (Haiku) on rung 1, Rusty (Sonnet) on rung 2, Rocky (Opus) on
- * rung 3. Approved builds go to the builder the card names, Rocky when it names none: Opus is the default for
- * anything that isn't plainly simple. Rusty also keeps upkeep and ideas. Chat work has no lane; `assignCrew` hands
- * it to whoever is free.
+ * rung 3. Approved builds and chat work go to the builder their issue names ("**Builder:** Rocky" for Opus, Rusty
+ * for Sonnet, Rivet for Haiku), Rusty when it names none: Sonnet is the default, Opus is for visual and big-picture
+ * work. Rusty also keeps upkeep and ideas.
  */
 export function crewFor(crate: Pick<Crate, "kind" | "rung"> & Pick<Partial<Crate>, "builder">): CrewId {
   if (crate.kind === "fix") return crate.rung === 3 ? "caret" : crate.rung === 2 ? "tessellate" : "semicolon";
-  if (crate.kind === "build") return crate.builder === "tessellate" ? "tessellate" : "caret";
-  if (crate.kind === "chat") return "semicolon";
+  if (crate.kind === "build" || crate.kind === "chat") return crate.builder ?? "tessellate";
   return "tessellate";
 }
-
-/** Who picks up work from outside the lanes: the first responder first, then Rusty, then Rocky. */
-const SPARE_HANDS: CrewId[] = ["semicolon", "tessellate", "caret"];
 
 const RANK: Record<CrateState, number> = { stuck: 0, working: 1, ready: 2, queued: 3, shipped: 9 };
 
@@ -263,24 +259,12 @@ function inHand(c: Crate): boolean {
 }
 
 /**
- * Who holds each crate in hand. Lane work goes to its owner. Chat work (a thread building what Nikita asked for in
- * chat) goes to whoever has nothing in hand, so the room shows it being worked on; when everyone is busy a Rusty
- * clone takes it.
+ * Who holds each crate in hand: whoever's model is really doing it (`crewFor`). When one crew member holds several,
+ * the rest are clones of them working alongside (`crewLoad`).
  */
 export function assignCrew(crates: Crate[]): Map<number, CrewId> {
   const out = new Map<number, CrewId>();
-  const busy = new Set<CrewId>();
-  const lane = crates.filter((c) => inHand(c) && c.kind !== "chat");
-  for (const c of lane) {
-    out.set(c.number, crewFor(c));
-    busy.add(crewFor(c));
-  }
-  const chat = crates.filter((c) => inHand(c) && c.kind === "chat").sort((a, b) => a.number - b.number);
-  for (const c of chat) {
-    const free = SPARE_HANDS.find((who) => !busy.has(who)) ?? "tessellate";
-    out.set(c.number, free);
-    busy.add(free);
-  }
+  for (const c of crates) if (inHand(c)) out.set(c.number, crewFor(c));
   return out;
 }
 

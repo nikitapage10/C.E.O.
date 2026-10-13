@@ -1,26 +1,27 @@
 /**
  * Pictures for Nikita's ideas on the Desk, as a Vercel function. The Desk shrinks a pasted, attached or dropped
- * image in the browser, then posts it here with the Desk key; it lands in Vercel Blob and the public link goes into
- * the idea's issue, where the card, GitHub and Rusty's shaping can all see it.
+ * image in the browser, then posts it here with the Desk key; it lands in the project's private Vercel Blob store,
+ * and this function serves it back at its own link, which goes into the idea's issue so the card, GitHub and
+ * Rusty's shaping can all see it.
  *
  * POST (raw image body, `Content-Type: image/…`, header `x-desk-key`) → { url }.
+ * GET  ?p=foundry/ideas/… → the picture.
  *
  * Environment (Vercel → Settings → Environment Variables):
  *   FOUNDRY_DESK_KEY        the Desk's passphrase (as in api/foundry.ts)
- *   BLOB_READ_WRITE_TOKEN   added by Vercel when a Blob store is connected to the project (Storage → Blob)
+ *   BLOB_STORE_ID           set by Vercel when the Blob store is connected to the project; the function signs in
+ *                           with Vercel's own OIDC token (a BLOB_READ_WRITE_TOKEN works too)
  */
 
-import { put } from "@vercel/blob";
+import { get, put } from "@vercel/blob";
 import { timingSafeEqual } from "node:crypto";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+const PATH = /^foundry\/ideas\/[\w.-]+$/;
 
 const env = (name: string): string => process.env[name] ?? "";
-
-/** The Blob store's token. Vercel names it BLOB_READ_WRITE_TOKEN unless the store was connected with its own prefix. */
-const blobToken = (): string =>
-  env("BLOB_READ_WRITE_TOKEN") || (Object.entries(process.env).find(([k, v]) => k.endsWith("_READ_WRITE_TOKEN") && v)?.[1] ?? "");
+const canStore = () => Boolean(env("BLOB_STORE_ID") || env("BLOB_READ_WRITE_TOKEN"));
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -32,8 +33,21 @@ function keyMatches(given: string): boolean {
   return want.length > 0 && want.length === got.length && timingSafeEqual(want, got);
 }
 
+export async function GET(request: Request): Promise<Response> {
+  const path = new URL(request.url).searchParams.get("p") ?? "";
+  if (!PATH.test(path) || !canStore()) return json({ error: "not-found" }, 404);
+  try {
+    const found = await get(path, { access: "private" });
+    if (!found || !found.stream) return json({ error: "not-found" }, 404);
+    // Each picture's name is unique and never changes, so it can be cached for good.
+    return new Response(found.stream, { headers: { "Content-Type": found.blob.contentType || "image/jpeg", "Cache-Control": "public, max-age=31536000, immutable" } });
+  } catch {
+    return json({ error: "blob" }, 502);
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
-  if (!env("FOUNDRY_DESK_KEY") || !blobToken()) return json({ error: "not-set-up" }, 503);
+  if (!env("FOUNDRY_DESK_KEY") || !canStore()) return json({ error: "not-set-up" }, 503);
   if (!keyMatches(request.headers.get("x-desk-key") ?? "")) return json({ error: "wrong-key" }, 401);
   const type = (request.headers.get("content-type") ?? "").split(";")[0]!.trim();
   const ext = TYPES[type];
@@ -41,8 +55,8 @@ export async function POST(request: Request): Promise<Response> {
   const body = await request.arrayBuffer();
   if (body.byteLength === 0 || body.byteLength > MAX_BYTES) return json({ error: "too-big" }, 413);
   try {
-    const blob = await put(`foundry/ideas/${Date.now()}.${ext}`, body, { access: "public", contentType: type, addRandomSuffix: true, token: blobToken() });
-    return json({ url: blob.url });
+    const blob = await put(`foundry/ideas/${Date.now()}.${ext}`, body, { access: "private", contentType: type, addRandomSuffix: true });
+    return json({ url: `${new URL(request.url).origin}/api/foundry-image?p=${encodeURIComponent(blob.pathname)}` });
   } catch {
     return json({ error: "blob" }, 502);
   }

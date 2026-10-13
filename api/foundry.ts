@@ -39,10 +39,11 @@ function keyMatches(given: string): boolean {
   return want.length > 0 && want.length === got.length && timingSafeEqual(want, got);
 }
 
-/** Pictures from the Desk: only links our own Blob store handed out, a few per idea. */
-function readImages(given: unknown): string[] {
+/** Pictures from the Desk: only links our own picture function handed out (api/foundry-image.ts), a few per idea. */
+function readImages(given: unknown, origin: string): string[] {
   if (!Array.isArray(given)) return [];
-  return given.filter((u): u is string => typeof u === "string" && /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/[\w./-]+$/i.test(u)).slice(0, 4);
+  const prefix = `${origin}/api/foundry-image?p=`;
+  return given.filter((u): u is string => typeof u === "string" && u.startsWith(prefix) && /^foundry(%2F|\/)ideas(%2F|\/)[\w.-]+$/i.test(u.slice(prefix.length))).slice(0, 4);
 }
 
 const imagesMarkdown = (images: string[]): string => (images.length ? `\n\n${images.map((u, i) => `![Picture ${i + 1}](${u})`).join("\n")}` : "");
@@ -150,7 +151,7 @@ export function GET(): Response {
     /** True when Rusty shapes proposed and revised ideas on the spot. */
     shape: canShape(),
     /** True when pictures can be added to ideas (a Vercel Blob store is connected). */
-    images: Boolean(env("BLOB_READ_WRITE_TOKEN") || Object.entries(process.env).some(([k, v]) => k.endsWith("_READ_WRITE_TOKEN") && v)),
+    images: Boolean(env("BLOB_STORE_ID") || env("BLOB_READ_WRITE_TOKEN")),
   });
 }
 
@@ -163,7 +164,7 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: "bad-request" }, 400);
   }
   const { issue, choice, note, key } = body;
-  const images = readImages(body.images);
+  const images = readImages(body.images, new URL(request.url).origin);
   if (typeof key !== "string" || !keyMatches(key)) return json({ error: "wrong-key" }, 401);
   const text = typeof note === "string" ? note.trim().slice(0, 2000) : "";
   if ((choice === "revise" || choice === "propose") && !text) return json({ error: "bad-request" }, 400);

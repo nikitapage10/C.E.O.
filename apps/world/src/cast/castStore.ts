@@ -15,8 +15,8 @@ const RENAMED: Record<string, [string[], string]> = {
   caret: [["Caret"], "Rocky"],
   odds: [["Odds"], "Noco"],
   postmaster: [["Postmaster"], "Blasto"],
-  // Semicolon became Rivet, who handed the bench to Tallboy, then Skippy; Skippy took the Kernel and Rivet came back.
-  semicolon: [["Semicolon", "Tallboy", "Skippy"], "Rivet"],
+  // Semicolon became Rivet, who handed the bench to Tallboy, then Skippy; Skippy took the Kernel and Rivet came back (an early cut of the change called the bench Ember).
+  semicolon: [["Semicolon", "Tallboy", "Skippy", "Ember"], "Rivet"],
   tessellate: [["Tessellate"], "Rusty"],
 };
 

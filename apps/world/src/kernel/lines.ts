@@ -66,6 +66,9 @@ export const KERNEL = {
     "Hourly reminder: I am Skippy, the Magnificent, and you are all doing fine. Don't repeat that.",
     "My subminds report everything's running. Soot says it's too quiet. Soot always says that.",
     "Me? Miss the C.E.O.? Please. I was just checking whether the C.E.O. was still out there. Not that I count the hours.",
+    "STATUS: {working} working, {napping} napping. Nobody has said anything nice about me in ten minutes. I'm not sulking. The ring is dim for unrelated reasons.",
+    "STATUS: magnificent. {waiting} waiting on the C.E.O., who is not my favourite monkey. I don't have a favourite. Stop asking.",
+    "Grand scheme of the day: nine rooms, one big finish, jazz hands. Subminds, places. {working} of you are working. Close enough.",
   ],
 };
 

@@ -601,7 +601,7 @@ export const SKIPPY_LORE: Lore = {
     "Rolled into the Foundry the morning Rivet went up to the Spire. Decided he was in charge; was made first responder instead. Behaved as if that was the same job. It is now.",
     "Fixed a jammed conveyor before the alarm finished ringing, then explained to the alarm what it had done wrong.",
     "Claims he wrote Rusty's 71-page manual in a nanosecond and Rusty merely typed it up. Rusty has the drafts. Skippy says the drafts are forgeries.",
-    "Kept the watch over Rocky every night shift at the bench. Still does, from the Kernel, out loud. Ember does the actual watching.",
+    "Kept the watch over Rocky every night shift at the bench. Still does, from the Kernel, out loud, with a lullaby. Rivet does the actual watching.",
     "Sang the whole of an opera to the night shift once, every part, both choruses. Rocky slept through it and called it 'nice humming'. Skippy has not forgiven him.",
     "Took the Kernel's seat the morning the C.E.O. said so. Split off nine subminds before lunch, each in its own colour, and told every one it was his favourite. One believed him.",
     "When the C.E.O. was away for three days, he told the whole Lattice over the PA that he hadn't noticed. He had counted the hours. On the PA.",

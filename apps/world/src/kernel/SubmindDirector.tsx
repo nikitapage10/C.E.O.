@@ -28,15 +28,30 @@ export function SubmindDirector() {
 
     for (const m of SUBMINDS) {
       let nextDrift = 0;
+      /** The station it last swooped down to, so it has its word there once per visit. */
+      let checkedAt: string | null = null;
       const tick = () => {
         timers.push(setTimeout(tick, EVERY[0] + Math.random() * (EVERY[1] - EVERY[0])));
         if (document.visibilityState !== "visible") return;
         const w = useWorld.getState();
         const me = w.lattice.agents[m.id];
-        if (!me || me.place.room !== m.room || me.place.station !== "post") return;
+        if (!me || me.place.room !== m.room) return;
         if (me.motion && clock.sim < me.motion.startTs + me.motion.duration) return;
         const now = performance.now();
         if (gatheringMembers(w).has(m.id) || (w.overrides[m.id]?.until ?? 0) > now) return;
+
+        if (me.place.station !== "post") {
+          // Down on the floor checking on someone up close: turn to whoever is at that station and have a word, once.
+          if (checkedAt === me.place.station) return;
+          checkedAt = me.place.station;
+          const there = Object.values(w.lattice.agents).find((a) => a.agent.id !== m.id && a.place.room === m.room && a.place.station === me.place.station);
+          if (!there) return;
+          w.override(m.id, "face", 4500, there.agent.id, "idle");
+          const lines = SUBMIND_CONDUCT[m.id];
+          if (lines && !((w.speech[m.id]?.until ?? 0) > now)) w.say(m.id, pick(lines).replaceAll("{other}", nameOf(there.agent.id)));
+          return;
+        }
+        checkedAt = null;
 
         // A little drift about the podium, so it's never a statue.
         if (now > nextDrift) {

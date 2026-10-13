@@ -152,8 +152,8 @@ interface LibDef {
   height?: number;
 }
 
-/** The admiral can's navy: hat and coat. Its gold braid and the silver can keep their own colours. */
-const SKIPPY_NAVY: Band = { hue: 216, width: 26, minSat: 0.25, refL: 0.21 };
+/** The admiral can's navy (hue ~212 in its texture): hat and coat. Its gold braid and the silver can keep their own colours. */
+const SKIPPY_NAVY: Band = { hue: 212, width: 24, minSat: 0.25, refL: 0.21 };
 
 const ROBOT_TRIM: Band = { hue: 32, width: 16, minSat: 0.3, refL: 0.3 };
 

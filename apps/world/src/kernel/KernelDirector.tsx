@@ -1,5 +1,5 @@
 import { ROOMS, pendingApprovals, type AgentEvent, type RoomId } from "@ceo/core";
-import { SKIPPY_QUIPS } from "@ceo/simulator";
+import { SKIPPY_QUIPS, isSubmind } from "@ceo/simulator";
 import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
@@ -32,7 +32,10 @@ export function KernelDirector() {
     const helperFor = (id: string, room: RoomId) => {
       const { lattice } = useWorld.getState();
       const { cast } = useCast.getState();
-      const here = Object.values(lattice.agents).filter((a) => a.place.room === room && a.agent.id !== id).map((a) => a.agent.id);
+      // The room's submind stays at its post conducting; it sends someone rather than going itself.
+      const here = Object.values(lattice.agents)
+        .filter((a) => a.place.room === room && a.agent.id !== id && !isSubmind(a.agent.id))
+        .map((a) => a.agent.id);
       const friends = cast.relationships
         .filter((r) => (r.a === id || r.b === id) && ["friend", "best-friend", "mentor", "partner", "sibling"].includes(r.kind))
         .map((r) => (r.a === id ? r.b : r.a))

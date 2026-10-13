@@ -10,8 +10,8 @@ import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 
 const HEIGHT = 18;
-/** How many times life size Skippy hovers over the Kernel: about ten metres of can. */
-const SKIPPY_SIZE = 9;
+/** How many times life size Skippy hovers over the Kernel: about ten metres of can, the old monolith's presence. */
+const SKIPPY_SIZE = 11;
 /** Skippy as made: navy hat and coat, gold braid. */
 const SKIPPY_LOOK = makeLook({ body: "skippy", shell: "#0a2e62", accent: "#7fd8ff", trim: "#e8b84a" });
 

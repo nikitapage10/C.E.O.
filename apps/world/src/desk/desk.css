@@ -2480,15 +2480,9 @@ button.room-pick__tab:hover {
   stroke: rgba(143, 232, 255, 0.16);
   stroke-width: 9;
 }
-.fsys__under {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
 .fsys__readouts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   margin: 0;
   border: 1px solid var(--hair-soft);
@@ -2519,31 +2513,6 @@ button.room-pick__tab:hover {
   font: 400 22px/1 var(--mono);
   color: var(--text);
   margin-right: 2px;
-}
-.fsys__detail {
-  --c: var(--faint);
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  min-height: 100%;
-  padding: 14px 16px;
-  border: 1px solid var(--hair);
-  border-left: 2px solid var(--c);
-  border-radius: var(--radius);
-  background: linear-gradient(135deg, rgba(143, 232, 255, 0.04), transparent 60%), rgba(4, 6, 11, 0.45);
-  animation: rise-in 0.3s var(--ease) both;
-}
-.fsys__detail--ok {
-  --c: var(--mint);
-}
-.fsys__detail--slow {
-  --c: var(--amber);
-}
-.fsys__detail--down {
-  --c: var(--rose);
-}
-.fsys__detail--empty {
-  border-left-color: var(--hair-strong);
 }
 .fsys__eyebrow {
   font-family: var(--mono);
@@ -2582,6 +2551,31 @@ button.room-pick__tab:hover {
 .fsys__legend {
   margin: 0;
 }
+.fsys__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--faint);
+  text-align: center;
+}
+
+/* A part or wire's pop-over (FlowPop.tsx, #94): the state's colour down its left edge, like a gauge's tag. */
+.conn-pop.flow-pop {
+  gap: 8px;
+  border-left: 2px solid var(--tone);
+}
+.flow-pop .pill {
+  justify-self: start;
+}
+.flow-pop .fsys__title {
+  font-size: 20px;
+}
+.conn-pop__facts.flow-pop__ties div {
+  grid-template-columns: 56px 1fr;
+}
+/* While it follows the mouse it never sits under the pointer, so it can't steal the hover. */
+.conn-pop.is-following {
+  pointer-events: none;
+}
 .fsys__legend .fsys__key::before {
   width: 10px;
   height: 10px;
@@ -2599,9 +2593,9 @@ button.room-pick__tab:hover {
 .fsys__legend .fsys__key--store::before {
   transform: rotate(45deg) scale(0.85);
 }
-@media (max-width: 860px) {
-  .fsys__under {
-    grid-template-columns: 1fr;
+@media (max-width: 1100px) {
+  .fsys__readouts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {

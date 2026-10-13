@@ -106,6 +106,10 @@ export interface Change {
   issue: { number: number; url: string } | null;
   /** Where the code landed: its pull request, or the commit on main. */
   landed: { label: string; url: string } | null;
+  /** Who built it, from the issue's Builder line (fixes by rung); Rusty's dock crew count as Rusty. Null for a pull request with no issue. */
+  by: CrewId | null;
+  /** The issue's `**Short:**` line, or "". */
+  short: string;
 }
 
 export interface FoundryData {
@@ -188,6 +192,8 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
     const pr = merged.find((p) => branchIssue(p.head.ref) === issue.number || mentions(`${p.title}\n${p.body ?? ""}`).has(issue.number));
     const commit = pr ? undefined : commits.find((c) => mentions(c.commit.message).has(issue.number));
     if (pr) used.add(pr.number);
+    const body = readBody(issue.body ?? "");
+    const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
     out.push({
       key: `issue-${issue.number}`,
       at: Date.parse(issue.closed_at ?? issue.updated_at),
@@ -196,6 +202,8 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
       kind: kind === "idea" ? "build" : kind,
       issue: { number: issue.number, url: issue.html_url },
       landed: pr ? { label: `PR #${pr.number}`, url: pr.html_url } : commit ? { label: commit.sha.slice(0, 7), url: commit.html_url } : null,
+      by: crewFor({ kind, rung, builder: body.builder }),
+      short: body.short,
     });
   }
   // A pull request for an issue already listed (or still open) is that issue's, not a change of its own.
@@ -205,7 +213,7 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
     const refs = [branchIssue(p.head.ref), ...mentions(`${p.title}\n${p.body ?? ""}`)];
     if (refs.some((n) => n !== null && tracked.has(n))) continue;
     const lane = /^foundry\/(fix|upkeep|build|idea)\//.exec(p.head.ref)?.[1] as CrateKind | undefined;
-    out.push({ key: `pr-${p.number}`, at: Date.parse(p.merged_at!), title: p.title, kind: lane === "idea" ? "build" : (lane ?? "chat"), issue: null, landed: { label: `PR #${p.number}`, url: p.html_url } });
+    out.push({ key: `pr-${p.number}`, at: Date.parse(p.merged_at!), title: p.title, kind: lane === "idea" ? "build" : (lane ?? "chat"), issue: null, landed: { label: `PR #${p.number}`, url: p.html_url }, by: null, short: "" });
   }
   return out.sort((a, b) => b.at - a.at);
 }
@@ -243,7 +251,7 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
 }
 
 /** The pitch, size and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small", "**Builder:** Rusty"). */
-export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { images: string[]; model: Model | null } {
+export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { images: string[]; model: Model | null; short: string } {
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
   const named = /\*\*Builder:\*\*\s*(Rivet|Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
@@ -251,7 +259,17 @@ export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"
   const images = [...body.matchAll(/!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/g)].map((m) => m[1]!).slice(0, 4);
   const said = /\*\*Builder:\*\*\s*(?:Rivet|Rusty|Rocky)\s*\(\s*(Haiku|Sonnet|Opus)\b[^)]*\)/i.exec(body)?.[1]?.toLowerCase();
   const model: Model | null = said === "haiku" ? "Haiku" : said === "sonnet" ? "Sonnet" : said === "opus" ? "Opus" : null;
-  return { pitch, size: size ?? null, builder, images, model };
+  const short = /\*\*Short:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
+  return { pitch, size: size ?? null, builder, images, model, short };
+}
+
+/** A crew member's last few shipped jobs, newest first: each with the issue's Short line (else its title). */
+export function recentWork(changelog: Change[], who: CrewId, limit = 3): { number: number; url: string; name: string; at: number }[] {
+  return changelog
+    .filter((c) => c.by === who && c.issue)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, limit)
+    .map((c) => ({ number: c.issue!.number, url: c.issue!.url, name: c.short || c.title.trim(), at: c.at }));
 }
 
 /** The next upkeep tick after `now`. */

@@ -2942,6 +2942,37 @@ a.fy-chip:hover {
 .fy-crew__member--off .fy-crew__load {
   color: var(--faint);
 }
+.fy-recent {
+  margin: 6px 0 0 58px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  align-items: baseline;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--faint);
+}
+.fy-recent__label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.fy-recent__item {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  text-decoration: none;
+}
+.fy-recent__item:hover {
+  text-decoration: underline;
+}
+.fy-recent__item span {
+  color: var(--faint);
+}
 .fy-jobs {
   list-style: none;
   margin: 8px 0 0 58px;
@@ -3549,7 +3580,8 @@ a.fy-chip:hover {
   .crates__title {
     white-space: normal;
   }
-  .fy-jobs {
+  .fy-jobs,
+  .fy-recent {
     margin-left: 0;
   }
   .fy-crew__head {

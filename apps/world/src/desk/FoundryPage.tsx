@@ -85,7 +85,8 @@ function useSetup(): Setup {
   return setup;
 }
 
-/** The Foundry thread checks the queue every 15 minutes (:06, :21, :36, :51); Desk clicks wait for the next check. */
+/** The Foundry thread's watcher sees Desk clicks within a minute (scripts/foundry-watch.sh); the queue checks every
+ *  15 minutes (:06, :21, :36, :51) back it up when the watcher isn't running. */
 const CHECK_MINUTES = [6, 21, 36, 51];
 export function nextCheck(now: number): number {
   const d = new Date(now);
@@ -97,9 +98,9 @@ export function nextCheck(now: number): number {
   return d.getTime() + HOUR;
 }
 
-/** "by 9:06 pm": when the crew will have picked a click up. */
-function byCheck(): string {
-  return `by ${new Date(nextCheck(Date.now())).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+/** "within a minute or two (by 9:06 pm at the latest)": when the crew will have picked a click up. */
+function soon(): string {
+  return `within a minute or two (by ${new Date(nextCheck(Date.now())).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} at the latest)`;
 }
 
 /** Rusty's background shaping takes a second or two; past this, an idea still marked for rewriting waits for the check. */
@@ -301,10 +302,10 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
     }
     storeKey(withKey);
     setResult(
-      choice === "build" ? `Approved. The crew picks it up at the next check, ${byCheck()}.`
+      choice === "build" ? `Approved. The crew picks it up ${soon()}.`
       : choice === "pass" ? "On the shelf. Rusty may bring it back another way."
       : r === "shaping" ? "Rusty is rewriting it with your notes now."
-      : `Sent. Rusty rewrites it at the next check, ${byCheck()}.`,
+      : `Sent. Rusty rewrites it ${soon()}.`,
     );
     // Rusty's rewrite lands a moment later; the quick polls pick it up.
     setMode("done");
@@ -340,7 +341,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
         {crate.number < 0 && !crate.revising ? (
           <p className="fy-idea__note">Shaped. Saving it to GitHub…</p>
         ) : crate.revising ? (
-          <p className="fy-idea__note">{setup?.shape && Date.now() - crate.updatedAt < SHAPING_MS ? "Rusty is shaping this now…" : `Waiting for Rusty: he picks up your notes at the next check, ${byCheck()}.`}</p>
+          <p className="fy-idea__note">{setup?.shape && Date.now() - crate.updatedAt < SHAPING_MS ? "Rusty is shaping this now…" : `Waiting for Rusty: he picks up your notes ${soon()}.`}</p>
         ) : mode === "done" ? (
           <p className="fy-idea__note">{result}</p>
         ) : mode === "failed" ? (
@@ -547,7 +548,7 @@ function Propose({ setup }: { setup: Setup }) {
         <span aria-hidden="true">+</span> Suggest an idea
         {state === "busy" && <em>On the board. Sending it to GitHub…</em>}
         {state === "shaping" && <em>On the board. Rusty is shaping it now.</em>}
-        {state === "done" && <em>{ready ? `Sent. Rusty shapes it into a card at the next check, ${byCheck()}.` : "Copied. Paste it in the Foundry thread."}</em>}
+        {state === "done" && <em>{ready ? `Sent. Rusty shapes it into a card ${soon()}.` : "Copied. Paste it in the Foundry thread."}</em>}
       </button>
     );
   return (
@@ -1024,9 +1025,9 @@ function Connections({ setup }: { setup: Setup }) {
     },
     {
       name: "Queue check",
-      what: "The Foundry thread picks up approved builds and red checks every 15 minutes",
+      what: "The Foundry thread picks up approved builds and red checks within a minute or two; a check every 15 minutes backs it up",
       state: setup === null ? "off" : "ok",
-      label: setup === null ? "Checking…" : "Every 15 min",
+      label: setup === null ? "Checking…" : "About a minute",
     },
   ];
   return (
@@ -1113,7 +1114,7 @@ export function FoundrySystem() {
   const work = crewWork(data.crates);
   const steps: { name: string; what: string; state: LinkState; label: string }[] = [
     { name: "Checks", what: "Types, lint, tests and build on every push to main, on GitHub", state: checks, label: checks === "off" ? "No run yet" : LINK_STATE_LABEL[checks] },
-    { name: "Queue check", what: "A red check opens a fix; the Foundry picks it up within 15 minutes", state: connected ? "ok" : "off", label: connected ? "Every 15 min" : "Not connected yet" },
+    { name: "Queue check", what: "A red check opens a fix; the Foundry picks it up within a minute or two", state: connected ? "ok" : "off", label: connected ? "About a minute" : "Not connected yet" },
     { name: "Foundry thread", what: "Fixes, upkeep and builds, coded in Claude Code on your plan, each on its own branch and pull request", state: connected ? "ok" : "off", label: connected ? "Ready" : "Not connected yet" },
     { name: "main → the site", what: "Small fixes and upkeep merge once green; bigger work gets a preview and waits for you", state: connected ? "ok" : "off", label: connected ? "Shipping" : "Not connected yet" },
   ];

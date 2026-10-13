@@ -232,11 +232,11 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
     {
       id: "queue",
       label: "Queue check",
-      sub: "Every 15 min",
+      sub: "Within a minute",
       kind: "service",
       ...(connected ? { state: "ok" as LinkState, status: `Next ${clock(nextCheck)}` } : { state: "off" as LinkState, status: "Not reached" }),
       load: Math.min(1, Math.max(0, (now - lastCheck) / CHECK_EVERY_MS)),
-      what: `Four routine checks an hour (:06, :21, :36, :51 UTC) pick up approved builds, unshaped ideas and red checks, and hand them to the Builder. Last one due ${clock(lastCheck)}, next ${inMinutes(nextCheck, now)}.`,
+      what: `The Builder's watcher looks at the queue every 30 seconds and wakes him the moment an approved build, an unshaped idea or a red check lands. Four routine checks an hour (:06, :21, :36, :51 UTC) back it up. Last one due ${clock(lastCheck)}, next ${inMinutes(nextCheck, now)}.`,
       source: "From the schedule: the Desk can't see the routine itself, so it can't say whether a check actually ran.",
     },
     {

@@ -126,6 +126,14 @@ The path for every change:
 minutes; a routine can't fire more often than hourly). Routines fired from outside the thread open a
 fresh session instead of reaching it, so nothing wakes the thread from GitHub or the Desk.
 
+**The doorbell (#50).** What can wake the thread is a command it started itself. At the end of every turn the Builder
+keeps `scripts/foundry-watch.sh` running in the background: it looks at the queue every 30 seconds (GitHub reads, no
+plan usage) and exits the moment a new `foundry:build`, `foundry:revise` or `foundry:fix` appears, which gives the
+thread a turn at once. The Builder works it, then starts the watcher again. A watcher that times out (after two hours)
+is simply restarted. When the thread's machine is recycled the watcher goes with it, and the 15-minute checks carry
+on as the fallback until the next one restarts it. So the Desk says "within a minute or two", with the next check as
+the latest.
+
 ## Lane 1: Fix
 
 1. Label the issue `foundry:working` and `rung:1`.

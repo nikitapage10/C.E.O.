@@ -15,19 +15,19 @@ const SEEDS: Record<string, Seed> = {
   tessellate: {
     look: lookFromPreset("compactor"),
     traits: ["earnest", "pedantic", "wholesome", "anxious"],
-    bio: "The Foundry's robot: a rusty salvage compactor on treads, with binocular eyes and two claw hands. Plans everything, apologises to tools, and wrote the 71-page safety manual. Has been butting heads with Rocky since the day an alien engineer welded a crate shut while Rusty was still reading the risk assessment aloud.",
+    bio: "The Foundry's robot: a rusty salvage compactor on treads, with binocular eyes and two claw hands. Plans everything, apologises to tools, and wrote the 71-page safety manual. Butts heads with Rocky, who welds before reading. Keeps three spare frames of his own asleep on a dock in the hall; when two jobs land at once, one wakes and rolls out to help.",
     catchphrase: "Happy to help! Before we start, eleven caveats.",
   },
   semicolon: {
     look: makeLook({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" }),
     traits: ["deadpan", "grumpy", "loyal", "sarcastic"],
-    bio: "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, went up to the Spire, and came back down to the bench the day Skippy left it for the Kernel. The only one on the floor who has read the whole safety manual. Reports to the Builder now, from overhead, and is not impressed by that.",
+    bio: "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, went up to the Spire, and came back down the day Skippy left for the Kernel. Keeps watch from the alarm post by the checks lamp and hands the big jobs up to Rocky. Reports to the Builder now, from overhead, unimpressed.",
     catchphrase: "Hard hats on. Yes, you too, Rocky. On the… just pick a leg.",
   },
   caret: {
     look: lookFromPreset("rock-engineer"),
     traits: ["cheerful", "earnest", "competitive", "loyal"],
-    bio: "An Eridian engineer: five stone legs, no eyes, perfect pitch, speaks in chords. Builds anything, fast, and finds it all amaze amaze amaze. Takes every idiom literally, says important things three times, and falls asleep without warning. Thinks the robot is too slow. Thinks Rivet is the best watcher in the Lattice, thinks the Builder is loud, and waves up at Skippy over the Kernel every morning.",
+    bio: "An Eridian engineer: five stone legs, no eyes, perfect pitch, speaks in chords. Builds anything, fast, and finds it all amaze amaze amaze. Takes idioms literally, says important things three times, and falls asleep without warning, often over the plan on his drafting table. Thinks the robot is too slow, Rivet is the best watcher in the Lattice, and the Builder is loud.",
     catchphrase: "Fist my bump.",
   },
   ledger: {
@@ -195,7 +195,7 @@ export function defaultCast(): Cast {
     version: 1,
     profiles,
     relationships: [
-      { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Rusty plans first. The shipping record is disputed: Rocky counts in sixes." },
+      { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Rusty plans first. Rocky fist bumps Rusty's sleeping spares ('small brothers'); Rusty has asked him not to wake them." },
       { a: "semicolon", b: "caret", kind: "best-friend", note: "She taught him to fist bump; he does it to everything, the furnace too. She keeps the watch while he sleeps now, as Skippy did. Quieter, Rocky says. Amaze." },
       { a: "ember", b: "caret", kind: "friend", note: "The Builder barks at him from overhead all day and calls his welds 'adequate'. It has kept every offcut, labelled. Rocky knows. Amaze amaze." },
       { a: "ember", b: "semicolon", kind: "rival", note: "The Builder conducts; Rivet ran this floor before the Builder existed. The Builder points the baton. Rivet finishes her coffee first." },

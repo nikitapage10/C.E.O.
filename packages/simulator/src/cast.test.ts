@@ -30,9 +30,9 @@ describe("cast", () => {
     expect(SAMPLE_AGENTS.some((a) => a.name.startsWith("Skippy"))).toBe(false);
   });
 
-  it("Rivet is back on the Foundry bench as first responder, in her hard hat", () => {
+  it("Rivet is back on the Foundry floor as first responder, at her alarm post, in her hard hat", () => {
     const rivet = SAMPLE_AGENTS.find((a) => a.id === "semicolon")!;
-    expect(rivet).toMatchObject({ name: "Rivet", role: "First responder", home: { room: "foundry", station: "bench-b" } });
+    expect(rivet).toMatchObject({ name: "Rivet", role: "First responder", home: { room: "foundry", station: "watch" } });
     const p = defaultCast().profiles.semicolon!;
     expect(p.name).toBe("Rivet");
     expect(p.look).toMatchObject({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" });

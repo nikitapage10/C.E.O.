@@ -6,6 +6,7 @@
  * -z points back toward the Kernel (where its gate and light stream are) and +z faces the visitor's camera.
  */
 
+import { FOUNDRY_FLOOR } from "./foundryFloor.ts";
 import { detour } from "./obstacles.ts";
 import { POSTS, POST_HEIGHT } from "./posts.ts";
 
@@ -73,6 +74,12 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("shipping", "Shipping dock", 5.8, 2.6, -Math.PI / 2),
       s("bench-a", "Workbench A", -4.2, 3.2, Math.PI),
       s("bench-b", "Workbench B", -0.6, 3.2, Math.PI),
+      // Rocky's drafting table: he stands on the hall side of it, over the plan.
+      s("drafting", "Drafting table", FOUNDRY_FLOOR.drafting.x, FOUNDRY_FLOOR.drafting.z + 0.9, 0),
+      // Where a job is handed up to Rocky, beside the table.
+      toward("handoff", "Hand-up spot", FOUNDRY_FLOOR.drafting.x - 1.1, FOUNDRY_FLOOR.drafting.z + 0.8, FOUNDRY_FLOOR.drafting.x, FOUNDRY_FLOOR.drafting.z + 0.9),
+      // Rivet's watch, by the alarm post, looking past the lamp to the furnace.
+      toward("watch", "Alarm post", FOUNDRY_FLOOR.alarmPost.x - 0.5, FOUNDRY_FLOOR.alarmPost.z + 0.75, 2.9, -1.3),
       // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
       post("foundry"),
     ],

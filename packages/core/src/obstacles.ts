@@ -5,8 +5,8 @@
  * The footprints are rough boxes around the free-standing pieces in each room's scene; wall furniture is left out.
  * A station's own furniture is fine to overlap: an agent that starts or ends inside a box is allowed through it.
  */
+import { FOUNDRY_FLOOR } from "./foundryFloor.ts";
 import type { RoomId } from "./layout.ts";
-
 
 /** An axis-aligned footprint: centre and half extents. */
 export interface Box {
@@ -17,6 +17,7 @@ export interface Box {
 }
 
 const b = (x: number, z: number, hw: number, hd: number): Box => ({ x, z, hw, hd });
+const box = ({ x, z, hw, hd }: Box): Box => b(x, z, hw, hd);
 
 /** Clearance kept between an agent and a footprint. */
 export const WALK_CLEARANCE = 0.3;
@@ -36,9 +37,14 @@ const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
     b(-6.9, 4.9, 0.7, 0.7),
     b(-5.9, 5.6, 0.4, 0.4),
     b(-6.3, 5.85, 0.4, 0.4),
-    b(5.6, 5.3, 0.7, 0.7),
-    b(6.9, 4.9, 0.5, 0.5),
+    b(5.0, 5.75, 0.5, 0.5), // stock behind the spare bench
+    b(5.85, 5.95, 0.3, 0.3),
+    b(6.7, 5.75, 0.5, 0.5),
     b(1.6, 4.9, 0.4, 0.4), // anvil
+    box(FOUNDRY_FLOOR.dock), // Rusty's dock of spare units
+    box(FOUNDRY_FLOOR.spareBench),
+    box(FOUNDRY_FLOOR.drafting), // Rocky's drafting table
+    box(FOUNDRY_FLOOR.alarmPost), // Rivet's alarm post
   ],
   spire: [
     b(-5, -2.05, 1.2, 0.45), // desks

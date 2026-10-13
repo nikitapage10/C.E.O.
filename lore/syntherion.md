@@ -168,9 +168,9 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 
 | Room | Agent | Body | In a line |
 | --- | --- | --- | --- |
-| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. |
-| Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. |
-| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the bench since Skippy left it for the Kernel. First to anything broken, at a walk. A thermos older than the Kernel, and the only one who has read the whole safety manual. Reports to the Builder now, unimpressed. |
+| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. Keeps three spare units of his own frame asleep on a dock; when he has more than one job, a spare wakes and rolls out to help. |
+| Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. Between jobs, stands at his drafting table over the plan of the biggest idea coming. |
+| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reports to the Builder now, unimpressed. |
 | Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from overhead and picks the rung for every fix. Never runs a crate itself. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
@@ -211,6 +211,23 @@ singing. **Rivet** is the first responder again: every fix comes to her first, o
 and she walks to it ("running is how you get a second thing broken"). **Rocky** is the master builder: the fixes
 too hard for a first look, and anything the C.E.O. has approved to be built. **Rusty** keeps the upkeep and the
 morning ideas, three of them, which he pins to a new idea board by the pegboard, in order of risk.
+
+**What the crew does when it's quiet.** Every one of them has a corner now, so the floor shows who is doing what
+even between jobs. **Rusty's dock** stands in the middle of the hall: three bays under a shelf of labelled spare
+parts, and in each bay a spare unit of his own frame, parked nose-out, powered down, its charging ring glowing a dim
+red. When Rusty has more than one job in hand, he sends a copy of himself into a spare (same mind, same manual,
+same eleven caveats), its ring turns amber, it unfolds, rolls off the dock to the spare bench and takes the job.
+When the job is done it rolls back, reverses into its bay with exactly the right clearance, and powers down. The
+spares call him "the original" and are very polite to each other, which takes a while. Rocky calls them "the
+small brothers" and fist bumps each one on the way past. **Rocky's drafting table** stands by the shipping dock,
+tilted to the hall, with the plan of the biggest idea that's open or coming pinned to it in blueprint blue. He has
+no eyes and reads it by running a claw over the pencil grooves, so he draws hard. When a job is handed up to him,
+Rivet carries the crate over from the intake and he takes it at the table. **Rivet's alarm post** is a yellow pole
+by the furnace with a caged lamp on top that shows the checks on main: green for a pass, a red flash for a fail, a
+turning amber while they run (she leans in and doesn't blink), slate grey when there's no word. Her thermos has a
+shelf on it. And every bench has a work light that glows in the verse its worker thinks in: the short mint light
+of a Haiku for Rivet, the blue of a Sonnet for Rusty and his spares, the long amber of an Opus for Rocky, so anyone
+can tell from the door who is at which bench.
 
 Over all three, hovering high above the floor, is **The Builder**, Skippy's Foundry submind: a hot-tempered
 foreman in an ember-orange admiral's coat who conducts the crew with short jabs of the baton, picks the rung for

@@ -7,3 +7,4 @@ export * from "./cast.ts";
 export * from "./houses.ts";
 export * from "./obstacles.ts";
 export * from "./posts.ts";
+export * from "./foundryFloor.ts";

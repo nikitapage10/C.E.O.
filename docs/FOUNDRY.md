@@ -32,7 +32,8 @@ Who and which model is the Builder's call (the Foundry's submind, on Opus), made
 picks the job up, it confirms or changes it and updates the line. The Builder's rules of thumb:
 - **Rusty** builds almost everything. He picks his model per job: **Sonnet** when the shape is clear (a button, a
   form field, an upload, an API call, wiring data through, a fix with a known cause, docs, refactors), **Opus** when
-  it needs taste or judgement (3D scenes, models, animation, lighting, visual polish, tricky fixes). Extra jobs go to
+  it needs taste or judgement (tricky fixes, and always anything with design or animation in it: 3D scenes, models,
+  animation, lighting, layout and visual polish). Extra jobs go to
   Rusty clones: spare units come off the dock in the room, each a subagent on the model its job needs.
 - **Rocky (Opus)** is held for the high-level work: architecture, big-picture design and open-ended ideas.
 - **Rivet (Haiku)** answers first: triage, one-line fixes, copy tweaks, labels.

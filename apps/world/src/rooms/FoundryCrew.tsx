@@ -195,7 +195,7 @@ function paint(mat: MeshStandardMaterial, colour: string): void {
       .replace("#include <common>", "#include <common>\nuniform vec3 uPaint;")
       .replace(
         "#include <map_fragment>",
-        "#include <map_fragment>\n{ float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)); diffuseColor.rgb = mix(diffuseColor.rgb, uPaint * l * 2.4, 0.82); }",
+        "#include <map_fragment>\n{ float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)); diffuseColor.rgb = mix(diffuseColor.rgb, uPaint * l * 2.3, 0.9); }",
       );
   };
   mat.customProgramCacheKey = () => "dock-crew-paint";
@@ -401,14 +401,19 @@ export function SpareDock() {
         {/* A base plate, a back wall, bay dividers, and a shelf of spare parts on top. */}
         <Block size={[len, 0.08, depth]} position={[0, 0.04, 0]} material={PBR.gratingFloor([3, 1])} radius={0.01} />
         <Block size={[len, 1.8, 0.1]} position={[0, 0.9, back]} material={panel} radius={0.02} />
+        {/* Open bays, so the hall can see who's asleep in them: low plates between the bays, and a narrow shelf on
+            brackets along the wall. */}
         {[-1.5, -0.5, 0.5, 1.5].map((u) => (
-          <Block key={u} size={[0.06, 1.55, depth - 0.1]} position={[u * (len / 3), 0.78, back + (depth - 0.1) / 2]} material={frame} radius={0.01} />
+          <group key={u}>
+            <Block size={[0.05, 0.32, depth - 0.2]} position={[u * (len / 3), 0.2, back + (depth - 0.2) / 2]} material={frame} radius={0.01} />
+            <Block size={[0.05, 0.3, 0.42]} position={[u * (len / 3), 1.7, back + 0.24]} material={frame} radius={0.01} />
+          </group>
         ))}
-        <Block size={[len + 0.1, 0.06, depth - 0.05]} position={[0, 1.86, back + (depth - 0.05) / 2 - 0.03]} material={frame} radius={0.01} />
+        <Block size={[len + 0.1, 0.06, 0.5]} position={[0, 1.86, back + 0.25]} material={frame} radius={0.01} />
         {/* Stock on the shelf: treads, a claw, cans of oil, a labelled box. */}
         <Block size={[0.5, 0.16, 0.3]} position={[-1.0, 1.97, back + 0.3]} material={PBR.blackMetal()} radius={0.05} />
         <Block size={[0.34, 0.24, 0.28]} position={[-0.2, 2.01, back + 0.32]} material={PBR.wood("oak")} radius={0.02} />
-        <Block size={[0.3, 0.2, 0.3]} position={[0.25, 1.99, back + 0.4]} material={PBR.lacquer("#c9962e", 0.6)} radius={0.03} />
+        <Block size={[0.3, 0.2, 0.3]} position={[0.25, 1.99, back + 0.3]} material={PBR.lacquer("#c9962e", 0.6)} radius={0.03} />
         {[0, 1, 2].map((i) => (
           <mesh key={i} position={[0.8 + i * 0.16, 2.0, back + 0.35]} material={PBR.lacquer(DOCK_CREW[i]!.colour, 0.4)}>
             <cylinderGeometry args={[0.06, 0.06, 0.22, 14]} />

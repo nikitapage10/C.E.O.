@@ -328,8 +328,8 @@ export const SPARE_BAYS = 3;
  * himself, each in its own paint so they can be told apart on the line (Nikita, 2026-10-13).
  */
 export const DOCK_CREW = [
-  { name: "Dusty", colour: "#d9a441" },
-  { name: "Gusty", colour: "#5fb4ff" },
+  { name: "Dusty", colour: "#ecc66a" },
+  { name: "Gusty", colour: "#3f8fea" },
   { name: "Musty", colour: "#6fae4a" },
 ] as const;
 

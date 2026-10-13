@@ -6,7 +6,7 @@ import type { RoomId } from "@ceo/core";
  */
 export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string, string>; today: string; next: string }> = {
   foundry: {
-    blurb: "Where code gets made, for real. Every crate is a real task for the C.E.O. repo, worked by the Foundry thread in Claude Code (Skippy, the Builder): the Builder conducts from overhead and picks who takes each job, Rivet jumps on anything broken and sizes it up, Rusty takes the simple jobs, the upkeep and the three ideas he pins to his board each morning, and Rocky takes everything big. When one of them has more on than one pair of hands can hold, a clone rolls out to help.",
+    blurb: "Where code gets made, for real. Every crate is a real task for the C.E.O. repo, worked by the Foundry thread in Claude Code (Skippy, the Builder): the Builder conducts from overhead and picks who takes each job, Rivet jumps on anything broken and sizes it up, Rusty takes the simple jobs, the upkeep and the three ideas he pins to his board each morning, and Rocky takes everything big. When Rusty has more than one job at once, a spare unit wakes on his dock and rolls out to the spare bench to help. Every bench's work light shows the model of whoever is working there: Haiku, Sonnet or Opus.",
     stations: {
       post: "The Builder's spot, overhead. The Foundry's submind conducts the crew from here and picks the model rung for each fix.",
       intake: "New Foundry tasks arrive here as crates. A red light spins when one is stuck and needs you.",
@@ -15,6 +15,9 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       shipping: "Finished work ships to the site from here. The lamp glows amber while something waits for your OK.",
       "bench-a": "Rusty's upkeep bench: small fixes that make things run smoother.",
       "bench-b": "Where Rusty works out the morning ideas before pinning them up.",
+      drafting: "Rocky's drafting table: the plan of the biggest open or upcoming idea. He takes the crate here when a job is handed up to him.",
+      handoff: "Where Rivet hands a new job up to Rocky.",
+      watch: "Rivet's alarm post. Its lamp shows the real checks on main: green pass, flashing red fail, turning amber while they run.",
     },
     today: "Live: real fixes, upkeep and ideas from the Foundry thread in Claude Code, read from the repo's GitHub issues.",
     next: "More repos, and builds you start from the Desk.",

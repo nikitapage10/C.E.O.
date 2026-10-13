@@ -30,6 +30,7 @@ export const LORE: Record<string, Lore> = {
       "Handed first response to Skippy and took the upkeep and the morning ideas. Pins them to a new board by the pegboard, in order of risk.",
       "The House filed him as Tessellate. The Foundry took one look at the rust and called him Rusty. He filed a form contesting it, and signed it Rusty.",
       "Rolled onto the floor in the compactor. Rocky asked where the legs went. Rusty gave him a briefing on treads. Rocky fell asleep on slide three.",
+      "Docked three spare frames of his own. Two jobs at once, and a copy of him wakes in a spare and rolls out to help. They call him 'the original'. He asked them not to. They apologised, at length.",
     ],
   },
   semicolon: {
@@ -53,6 +54,8 @@ export const LORE: Record<string, Lore> = {
       "Went up to run the Spire's floor and took her thermos. Came back down the morning Skippy took the Kernel's seat, because somebody had to answer the alarms who wasn't singing.",
       "Read all 71 pages of Rusty's manual over one long break. Mentioned it once. He has not been the same.",
       "Keeps the night watch over Rocky now. Doesn't complain. Doesn't sing. Rocky says it's very restful and asks, once, whether she knows any opera.",
+      "Keeps watch from an alarm post by the furnace: a caged lamp showing the checks, a shelf the size of her thermos. Leans in while the lamp turns amber. Never caught blinking.",
+      "Carries every job meant for Rocky over from the intake herself and hands it up at his drafting table. 'He'd only walk into the belt reading it.'",
     ],
   },
   caret: {
@@ -69,7 +72,7 @@ export const LORE: Record<string, Lore> = {
       "Counts in base six, which makes every score he reports both correct and wrong.",
       "Has no eyes. Hears everything. Knows when you're making a face.",
     ],
-    likes: ["Building with his hands", "Rivet's fist bumps", "Waving up at Skippy", "Fist bumps", "Hot rooms", "Watching friends sleep"],
+    likes: ["Building with his hands", "A big plan on the drafting table", "Rivet's fist bumps", "Waving up at Skippy", "Hot rooms", "Watching friends sleep"],
     dislikes: ["Meetings before making", "Cold", "Rusty's safety briefings", "Being told something is 'just a joke'"],
     chronicle: [
       "Rebuilt the Foundry's conveyor in one shift with no plan, no manual and five hands. It still runs. Rusty is still checking it.",
@@ -78,6 +81,8 @@ export const LORE: Record<string, Lore> = {
       "Became the Foundry's master builder: the first responder takes the first look (Rivet, Skippy, Rivet again), Rocky the hard ones and the approved builds. 'Good good good.'",
       "Watched Kevin sleep through an entire pickup game. Calls it the best afternoon of his life.",
       "Sleeps through most of the night shift, without warning, wherever he stands. Rivet keeps the watch now, quietly, and Skippy hums down from the Kernel. Eridian custom.",
+      "Pins the biggest idea coming to his drafting table. No eyes, so he reads the plan by the pencil grooves, and draws so hard the table needs a new top every month.",
+      "Calls Rusty's sleeping spares 'the small brothers' and fist bumps each one on the way past. Rusty has asked him not to wake them.",
     ],
   },
   ledger: {

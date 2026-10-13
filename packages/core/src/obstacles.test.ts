@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OBSTACLES, ROOMS, ROOM_IDS, TALK_DISTANCE, blockedAt, detour, placeToWorld, routeBetween, talkingShift, worldToRoom, roomToWorld, type RoomId } from "./index.ts";
+import { FOUNDRY_FLOOR, OBSTACLES, ROOMS, ROOM_IDS, TALK_DISTANCE, blockedAt, detour, placeToWorld, routeBetween, talkingShift, worldToRoom, roomToWorld, type RoomId } from "./index.ts";
 
 describe("walking around furniture", () => {
   it("goes straight when nothing is in the way", () => {
@@ -91,5 +91,29 @@ describe("talking distance", () => {
   it("separates two agents standing on the very same spot", () => {
     const [a, b] = talkingShift([1, 1], [1, 1]);
     expect(Math.hypot(b[0] - a[0], b[1] - a[1])).toBeGreaterThan(TALK_DISTANCE - 0.01);
+  });
+});
+
+describe("the Foundry's spare units", () => {
+  it("roll from the dock to the spare bench and back without driving through furniture", () => {
+    FOUNDRY_FLOOR.bays.forEach(([bx, bz], i) => {
+      const apron: [number, number] = [bx, bz + 1.05];
+      const spot = FOUNDRY_FLOOR.spareSpots[i]!;
+      expect(blockedAt("foundry", apron[0], apron[1])).toBe(false);
+      expect(blockedAt("foundry", spot[0], spot[1])).toBe(false);
+      for (const [a, c] of [
+        [apron, spot],
+        [spot, apron],
+      ] as const) {
+        const path: (readonly [number, number])[] = [a, ...detour("foundry", a, c), c];
+        for (let k = 1; k < path.length; k++) {
+          for (let t = 0; t <= 1; t += 0.05) {
+            const x = path[k - 1]![0] + (path[k]![0] - path[k - 1]![0]) * t;
+            const z = path[k - 1]![1] + (path[k]![1] - path[k - 1]![1]) * t;
+            expect(blockedAt("foundry", x, z), `bay ${i} at ${x.toFixed(2)},${z.toFixed(2)}`).toBe(false);
+          }
+        }
+      }
+    });
   });
 });

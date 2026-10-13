@@ -41,6 +41,16 @@ export const CREW: Record<CrewId, { name: string; job: string }> = {
   tessellate: { name: "Rusty", job: "Builder, upkeep and ideas" },
 };
 
+/**
+ * The model each crew member runs on, and the colour its bench's work light shows (Nikita, 2026-10-13: who's working
+ * on what model, visible at a glance). Clones run on their original's model.
+ */
+export const MODEL: Record<CrewId, { name: "Haiku" | "Sonnet" | "Opus"; colour: string }> = {
+  semicolon: { name: "Haiku", colour: "#6fe3c1" },
+  tessellate: { name: "Sonnet", colour: "#7fb0ff" },
+  caret: { name: "Opus", colour: "#ffb04a" },
+};
+
 export interface Crate {
   number: number;
   title: string;
@@ -296,7 +306,6 @@ export function parseChecks(runs: GhRun[]): FoundryData["checks"] {
   return { state, url: run.html_url, at: Date.parse(run.updated_at) };
 }
 
-/** What each crew member is doing: the crate they hold that matters most (stuck, then working, then ready). */
 /** How many jobs each crew member has in hand; past one, the rest are clones of them (same model) working alongside. */
 export function crewLoad(crates: Crate[]): Record<CrewId, number> {
   const out: Record<CrewId, number> = { semicolon: 0, caret: 0, tessellate: 0 };
@@ -304,6 +313,33 @@ export function crewLoad(crates: Crate[]): Record<CrewId, number> {
   return out;
 }
 
+/** How many spare Rusty units wait on the dock in the Foundry. */
+export const SPARE_BAYS = 3;
+
+/**
+ * How many of Rusty's spare units are awake: one for each job he has in hand past the first, as many as the dock
+ * holds. Rusty works the job that matters most himself; each spare rolls out to a spare bench and takes another.
+ */
+export function sparesAwake(crates: Crate[]): number {
+  return Math.max(0, Math.min(SPARE_BAYS, crewLoad(crates).tessellate - 1));
+}
+
+const SIZE_RANK = { large: 3, medium: 2, small: 1 } as const;
+
+/**
+ * The plan on Rocky's drafting table: the biggest idea that is open (an approved build not yet shipped) or upcoming
+ * (an idea waiting on the C.E.O.). Biggest by its size; then one already being built; then the newest. Null when
+ * there is none.
+ */
+export function blueprintCrate(crates: Crate[]): Crate | null {
+  const open = crates.filter((c) => c.state !== "shipped" && (c.kind === "build" || c.kind === "idea"));
+  const score = (c: Crate) => (c.size ? SIZE_RANK[c.size] : 0) * 10 + (c.kind === "build" || c.state === "working" ? 1 : 0);
+  let best: Crate | null = null;
+  for (const c of open) if (!best || score(c) > score(best) || (score(c) === score(best) && c.updatedAt > best.updatedAt)) best = c;
+  return best;
+}
+
+/** What each crew member is doing: the crate they hold that matters most (stuck, then working, then ready). */
 export function crewWork(crates: Crate[]): Record<CrewId, Crate | null> {
   const out: Record<CrewId, Crate | null> = { semicolon: null, caret: null, tessellate: null };
   const by = assignCrew(crates);

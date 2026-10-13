@@ -54,7 +54,7 @@ export const foundryIdle: Script = ({ rng, agent }) => [
   { kind: "do", activity: rng.pick(["idle", "staring", "idle"]), ms: rng.int(5000, 9000), prop: null },
   { kind: "quip", chance: 0.2 },
   { kind: "go", station: rng.pick(["bench-a", "bench-b"]) },
-  // Rocky dozes off between jobs (Eridian custom); Rivet and Rusty rarely do.
+  // Rocky dozes off between jobs (Eridian custom); the others rarely do. (Rusty idles here; Rocky has his drafting table, Rivet her post.)
   { kind: "do", activity: agent.id === "caret" ? rng.pick(["idle", "napping"]) : rng.pick(["idle", "idle", "idle", "napping"]), ms: rng.int(4000, 8000) },
 ];
 
@@ -92,6 +92,66 @@ export const foundryUpkeep: Script = ({ rng }) => [
   { kind: "quip", chance: 0.15 },
   { kind: "go", station: "furnace" },
   work(rng.int(2500, 4000), "working"),
+];
+
+/**
+ * Rivet between fixes: keeping watch from the alarm post, beside the lamp that shows the checks on main. Coffee,
+ * a look at the lamp, a look at the furnace.
+ */
+export const foundryWatch: Script = ({ rng }) => [
+  { kind: "go", station: "watch" },
+  { kind: "do", activity: rng.pick(["idle", "waiting", "idle"]), ms: rng.int(6000, 10000), prop: rng.chance(0.4) ? "mug" : null },
+  { kind: "do", activity: "staring", ms: rng.int(3000, 5000), prop: null },
+  { kind: "quip", chance: 0.15 },
+];
+
+/** The checks are running: Rivet leans in at the post and doesn't take her eyes off the lamp. */
+export const foundryWatchClose: Script = ({ rng }) => [
+  { kind: "go", station: "watch" },
+  { kind: "do", activity: "working", ms: rng.int(6000, 9000), prop: null },
+  { kind: "do", activity: "staring", ms: rng.int(2500, 4000) },
+  { kind: "quip", chance: 0.1 },
+];
+
+/** Rivet hands a job up to Rocky: picks the crate up at the intake and carries it over to his table. */
+export const foundryHandUp: Script = ({ rng }) => [
+  { kind: "go", station: "intake" },
+  { kind: "set", activity: "carrying", prop: "crate" },
+  { kind: "go", station: "handoff" },
+  { kind: "do", activity: "waiting", ms: rng.int(3500, 4500), prop: "crate" },
+  { kind: "set", activity: "idle", prop: null },
+  { kind: "quip", chance: 0.5 },
+  { kind: "go", station: "watch" },
+  { kind: "do", activity: "idle", ms: rng.int(6000, 9000) },
+];
+
+/**
+ * Rocky between jobs: at the drafting table over the plan of the biggest idea coming, tracing it by touch, and now
+ * and then dozing off over it (Eridian custom; Rivet keeps the watch).
+ */
+export const foundryDrafting: Script = ({ rng }) => [
+  { kind: "go", station: "drafting" },
+  { kind: "do", activity: "working", ms: rng.int(7000, 11000), prop: null },
+  { kind: "do", activity: rng.pick(["staring", "idle"]), ms: rng.int(3000, 5000) },
+  { kind: "quip", chance: 0.15 },
+  { kind: "do", activity: rng.pick(["working", "working", "napping"]), ms: rng.int(5000, 9000) },
+];
+
+/**
+ * A job in Rocky's hands: he takes the crate at the drafting table (where it's handed up to him), builds it at the
+ * arm, tests it in the furnace, and goes back to the plan between passes.
+ */
+export const foundryBuilding: Script = ({ rng }) => [
+  { kind: "go", station: "drafting" },
+  { kind: "do", activity: "working", ms: rng.int(1500, 2500), prop: null },
+  { kind: "set", activity: "carrying", prop: "crate" },
+  { kind: "go", station: "assembler" },
+  work(rng.int(7000, 11000), "working"),
+  { kind: "quip", chance: 0.25 },
+  { kind: "go", station: "furnace" },
+  work(rng.int(3000, 5000), "working"),
+  { kind: "go", station: "assembler" },
+  work(rng.int(5000, 8000), "working"),
 ];
 
 /** Ideas are up on the board: pinning, re-pinning, standing back to look. */
@@ -433,6 +493,11 @@ export const SCRIPTS = {
   foundryStuck,
   foundryUpkeep,
   foundryIdeas,
+  foundryWatch,
+  foundryWatchClose,
+  foundryHandUp,
+  foundryDrafting,
+  foundryBuilding,
   submindConduct,
   spireOperator,
   exchangeQuant,

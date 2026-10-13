@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignCrew, crewFor, crewLoad, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { SPARE_BAYS, assignCrew, blueprintCrate, sparesAwake, crewFor, crewLoad, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -126,6 +126,33 @@ describe("assignCrew", () => {
     const by = assignCrew([crate(1, "chat", "queued"), crate(2, "fix", "shipped")]);
     expect(by.size).toBe(0);
     expect(crewOf(crate(1, "chat", "queued"), [])).toBe("semicolon");
+  });
+
+  it("wakes one spare Rusty for each job past his first, as many as the dock holds", () => {
+    expect(sparesAwake([])).toBe(0);
+    expect(sparesAwake([crate(1, "upkeep", "working")])).toBe(0);
+    expect(sparesAwake([crate(1, "upkeep", "working"), crate(2, "fix", "working", 2)])).toBe(1);
+    const lots = [1, 2, 3, 4, 5, 6].map((n) => crate(n, "fix", "working", 2));
+    expect(sparesAwake(lots)).toBe(SPARE_BAYS);
+  });
+});
+
+describe("blueprintCrate", () => {
+  const crate = (number: number, kind: Crate["kind"], state: Crate["state"], size: Crate["size"], updatedAt = NOW): Crate => ({ number, title: `#${number}`, kind, state, rung: null, url: "", updatedAt, pitch: "", size, revising: false });
+
+  it("is empty with nothing open or upcoming", () => {
+    expect(blueprintCrate([])).toBeNull();
+    expect(blueprintCrate([crate(1, "fix", "working", "large"), crate(2, "build", "shipped", "large")])).toBeNull();
+  });
+
+  it("picks the biggest open build or upcoming idea", () => {
+    const picked = blueprintCrate([crate(1, "idea", "queued", "small"), crate(2, "idea", "queued", "large"), crate(3, "build", "working", "medium")]);
+    expect(picked?.number).toBe(2);
+  });
+
+  it("breaks a tie by the one being built, then the newest", () => {
+    expect(blueprintCrate([crate(1, "idea", "queued", "medium", NOW + 5), crate(2, "build", "working", "medium")])?.number).toBe(2);
+    expect(blueprintCrate([crate(1, "idea", "queued", null, NOW), crate(2, "idea", "queued", null, NOW + 1)])?.number).toBe(2);
   });
 });
 

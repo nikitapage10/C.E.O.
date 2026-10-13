@@ -10,6 +10,7 @@ import { useFoundry } from "../foundry.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { WorkCrates, useHasWork } from "./WorkCrates.tsx";
+import { AlarmPost, BenchLight, DraftingTable, SpareDock } from "./FoundryCrew.tsx";
 import { Block, LightBar, Plinth, Workstation } from "./primitives.tsx";
 
 const CONVEYOR_Z = -2.6;
@@ -338,8 +339,13 @@ export function Foundry() {
       {benches.map((b, i) => (
         <group key={b.id}>
           <Workstation stand={[b.x, b.z]} facing={b.facing} top={bench} color={PALETTE.ice} seed={i * 3} monitors={2} chair={false} />
+          {/* The bench's work light, in the model of whoever is working here. */}
+          <BenchLight station={b.id} position={[b.x + 0.74, 0.785, b.z + 0.62]} />
         </group>
       ))}
+      <SpareDock />
+      <DraftingTable />
+      <AlarmPost />
       {/* Pegboard of tools behind the benches (toward the camera, low) */}
       <Block size={[1.4, 0.9, 0.9]} position={[3, 0.45, 4.4]} material={PBR.lacquer("#a83a2a", 0.4)} radius={0.06} />
       <Block size={[1.4, 0.05, 0.9]} position={[3, 0.62, 4.4]} material={PBR.blackMetal()} radius={0.01} shadows={false} />
@@ -389,9 +395,10 @@ function FoundryFloor() {
       <Model id="scifi-essentials/Prop_Barrel1" fit={{ height: 0.95 }} position={[-5.9, 0, 5.6]} cast />
       <Model id="scifi-essentials/Prop_Barrel2_Closed" fit={{ height: 0.95 }} position={[-6.3, 0, 5.85]} rotation={1} cast />
       <Model id="scifi-essentials/Prop_Barrel1" fit={{ height: 0.95 }} position={[-7.3, 0, 3.6]} rotation={2} cast />
-      <Model id="scifi-essentials/Prop_Crate_Large" fit={{ height: 1.0 }} position={[5.6, 0, 5.3]} rotation={-0.15} cast />
-      <Model id="scifi-essentials/Prop_Crate" fit={{ height: 0.55 }} position={[5.55, 1.0, 5.3]} rotation={0.4} cast />
-      <Model id="scifi-essentials/Prop_Crate_Tarp" fit={{ height: 0.9 }} position={[6.9, 0, 4.9]} rotation={-0.6} cast />
+      {/* Stock behind the spare bench, kept low so the spares at work show over it. */}
+      <Model id="scifi-essentials/Prop_Crate_Large" fit={{ height: 0.8 }} position={[5.0, 0, 5.75]} rotation={-0.15} cast />
+      <Model id="scifi-essentials/Prop_Crate" fit={{ height: 0.55 }} position={[5.85, 0, 5.95]} rotation={0.4} cast />
+      <Model id="scifi-essentials/Prop_Crate_Tarp" fit={{ height: 0.9 }} position={[6.7, 0, 5.75]} rotation={-0.6} cast />
       {/* Lockers and tall shelving against the side walls. */}
       {[-0.4, 0.4, 1.2].map((z) => (
         <Model key={z} id="scifi-essentials/Prop_Locker" fit={{ height: 2.0 }} position={[-7.75, 0, z]} rotation={Math.PI / 2} cast />
@@ -401,7 +408,7 @@ function FoundryFloor() {
       {/* Workshop corner by the pegboard: an anvil, a bucket, a coil of chain. */}
       <Model id="fantasy-props/Anvil" fit={{ height: 0.7 }} position={[1.6, 0, 4.9]} rotation={0.4} cast />
       <Model id="fantasy-props/Bucket_Metal" fit={{ height: 0.35 }} position={[2.1, 0, 5.4]} />
-      <Model id="fantasy-props/Chain_Coil" fit={{ scale: 1.2 }} position={[4.2, 0, 4.9]} rotation={1.2} />
+      <Model id="fantasy-props/Chain_Coil" fit={{ scale: 1.2 }} position={[3.9, 0, 5.7]} rotation={1.2} />
       {/* Pipes up the back corners, cables across the floor, vents on the back wall. */}
       {[-7.7, 7.7].map((x) => (
         <Model key={x} id="scifi-modular/Columns/Column_Pipes" fit={{ height: 5.4 }} position={[x, 0, -6.1]} cast />

@@ -163,6 +163,10 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Treads are very safe, Rocky. There's a chapter.",
     "I've drafted a plan, a backup plan, and a gentle apology for the backup plan.",
     "Can it wait? I'm in the middle of some calibrations.",
+    "Two jobs at once. Waking a spare. Good morning, me. Caveats are on page one.",
+    "The spares and I agree on everything. It's very unsettling.",
+    "Back in your bay, please. Reverse in. Mind the ring. Lovely parking.",
+    "Rocky, please stop fist bumping the spares. They're asleep. They're me.",
   ],
   caret: [
     "Crate is good. Crate is good good good.",
@@ -174,6 +178,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rocky not understand. Is joke?",
     "Skippy says Rocky's maths is wrong. Skippy counts in tens. Skippy is wrong.",
     "Small green one walks! Small legs, big ears. Amaze, amaze, amaze!",
+    "Big plan on table. Rocky feels lines. Good lines. Big big big.",
+    "Rivet brings crate. Rocky takes crate. Teamwork, question? Teamwork!",
+    "Small brothers sleep on shelf. Rocky bump them anyway. Is polite.",
   ],
   semicolon: [
     "Hard hat. Thermos. Let's see what's broken.",
@@ -184,6 +191,10 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rocky. Leg. Hat. Any leg. Thank you.",
     "I ran this floor before that hat existed. Just saying.",
     "Fixed. No, I won't sing about it. Ask upstairs.",
+    "Lamp's amber. Nobody talk to me until it isn't.",
+    "Green. Good. I'll have my coffee now.",
+    "One for you, Rocky. Big one. Don't read it walking.",
+    "Rusty's woken a spare again. That's two of him. I've read both manuals.",
   ],
   // The subminds: each its own voice (docs/SKIPPY.md, "Voices").
   ember: [

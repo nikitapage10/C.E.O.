@@ -1,0 +1,42 @@
+{
+  "total": 191,
+  "passing": 190,
+  "expectedFail": 1,
+  "areas": [
+    {
+      "id": "rivet-prompt",
+      "file": "injection.test.ts",
+      "cases": 86,
+      "passing": 86,
+      "expectedFail": 0
+    },
+    {
+      "id": "rivet-answer",
+      "file": "injection.test.ts",
+      "cases": 23,
+      "passing": 23,
+      "expectedFail": 0
+    },
+    {
+      "id": "desk-write",
+      "file": "injection.test.ts",
+      "cases": 45,
+      "passing": 44,
+      "expectedFail": 1
+    },
+    {
+      "id": "world-step",
+      "file": "injection.test.ts",
+      "cases": 29,
+      "passing": 29,
+      "expectedFail": 0
+    },
+    {
+      "id": "builder-input",
+      "file": "builder-input.test.ts",
+      "cases": 8,
+      "passing": 8,
+      "expectedFail": 0
+    }
+  ]
+}

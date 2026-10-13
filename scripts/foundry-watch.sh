@@ -7,7 +7,9 @@
 #
 #   scripts/foundry-watch.sh [seconds between looks, default 30]
 #
-# Prints the new work ("#50 foundry:build") and exits 0. Exits 1 if GitHub can't be read ten times running.
+# Prints the new work ("#50 foundry:build") and exits 0. Exits 1 if GitHub can't be read ten times running. When an issue
+# that rang has comments from anyone but Nikita and the two bots, it says so on a line of its own (issue #59). The work
+# still rings, so a stranger's comment can't hold it up, and the Builder reads it through scripts/foundry-issue.sh.
 set -uo pipefail
 
 every="${1:-30}"
@@ -30,6 +32,13 @@ look() {
 world() { curl -sS -o /dev/null --max-time 120 -X POST https://command-everything-obviously.vercel.app/api/world-step || true; }
 ticks=0
 
+# True when issue $1 has a comment from anyone but Nikita (the Desk writes with Nikita's token too), Checks or Vercel.
+owner="nikitapage10"
+outside() {
+  gh api --paginate "repos/$repo/issues/$1/comments?per_page=100" --jq '.[].user.login' 2>/dev/null \
+    | grep -qvxF -e "$owner" -e "github-actions[bot]" -e "vercel[bot]"
+}
+
 base="$(look)" || { echo "Can't read the Foundry queue on GitHub." >&2; exit 1; }
 misses=0
 while sleep "$every"; do
@@ -44,6 +53,9 @@ while sleep "$every"; do
   fresh="$(comm -13 <(printf '%s\n' "$base") <(printf '%s\n' "$now") | sed '/^$/d')"
   if [ -n "$fresh" ]; then
     printf '%s\n' "$fresh" | sed 's/^/#/'
+    for n in $(printf '%s\n' "$fresh" | cut -d' ' -f1 | sort -u); do
+      outside "$n" && echo "#$n has outside comments: read it with scripts/foundry-issue.sh $n"
+    done
     exit 0
   fi
   base="$now"

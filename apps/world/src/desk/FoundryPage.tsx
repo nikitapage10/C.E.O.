@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CREW, crewFor, crewOf, crewWork, expectChange, nextUpkeep, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, nextUpkeep, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -15,7 +15,7 @@ import { Avatar, PageHead, Panel } from "./ui.tsx";
 const KIND_LABEL: Record<CrateKind, string> = { fix: "Fix", build: "Build", upkeep: "Upkeep", idea: "Idea", chat: "From chat" };
 const CRATE_STATE: Record<CrateState, string> = { queued: "Queued", working: "Working", ready: "Waiting for your OK", stuck: "Stuck", shipped: "Shipped" };
 const CREW_STATE: Record<CrateState, LinkState> = { queued: "ok", working: "ok", ready: "slow", stuck: "down", shipped: "ok" };
-const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Sonnet, then Opus", tessellate: "Cheapest that fits" };
+const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Opus", tessellate: "Sonnet" };
 const CHECKS_LABEL: Record<LinkState, string> = { off: "No run yet", ok: "Green", slow: "Running", down: "Red" };
 const HOUR = 3_600_000;
 
@@ -39,7 +39,7 @@ const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60
 
 /* ── The idea buttons ── */
 
-type Setup = { buttons: boolean; wake: boolean; direct: boolean; shape: boolean } | null;
+type Setup = { buttons: boolean; direct: boolean; shape: boolean } | null;
 type Choice = "build" | "pass" | "revise" | "propose";
 const KEY = "ceo.deskKey";
 
@@ -63,9 +63,9 @@ function useSetup(): Setup {
   useEffect(() => {
     let live = true;
     fetch("/api/foundry")
-      .then((r) => (r.ok ? (r.json() as Promise<{ buttons: boolean; wake: boolean; direct?: boolean; shape?: boolean }>) : null))
-      .then((s) => live && setSetup(s ? { buttons: s.buttons, wake: s.wake, direct: s.direct ?? false, shape: s.shape ?? false } : { buttons: false, wake: false, direct: false, shape: false }))
-      .catch(() => live && setSetup({ buttons: false, wake: false, direct: false, shape: false }));
+      .then((r) => (r.ok ? (r.json() as Promise<{ buttons: boolean; direct?: boolean; shape?: boolean }>) : null))
+      .then((s) => live && setSetup(s ? { buttons: s.buttons, direct: s.direct ?? false, shape: s.shape ?? false } : { buttons: false, direct: false, shape: false }))
+      .catch(() => live && setSetup({ buttons: false, direct: false, shape: false }));
     return () => {
       live = false;
     };
@@ -86,13 +86,16 @@ function byCheck(): string {
   return `by ${new Date(nextCheck(Date.now())).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
 }
 
-async function send(issue: number | null, choice: Choice, key: string, note = ""): Promise<"ok" | "shaped" | "wrong-key" | "failed"> {
+/** Rusty's background shaping takes a second or two; past this, an idea still marked for rewriting waits for the check. */
+const SHAPING_MS = 45_000;
+
+async function send(issue: number | null, choice: Choice, key: string, note = ""): Promise<"ok" | "shaping" | "wrong-key" | "failed"> {
   try {
     const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issue, choice, key, note }) });
     if (res.status === 401) return "wrong-key";
     if (!res.ok) return "failed";
-    const body = (await res.json().catch(() => ({}))) as { shaped?: boolean };
-    return body.shaped ? "shaped" : "ok";
+    const body = (await res.json().catch(() => ({}))) as { shaping?: boolean };
+    return body.shaping ? "shaping" : "ok";
   } catch {
     return "failed";
   }
@@ -271,10 +274,10 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
     setResult(
       choice === "build" ? `Approved. The crew picks it up at the next check, ${byCheck()}.`
       : choice === "pass" ? "On the shelf. Rusty may bring it back another way."
-      : r === "shaped" ? "Rewritten with your notes."
+      : r === "shaping" ? "Rusty is rewriting it with your notes now."
       : `Sent. Rusty rewrites it at the next check, ${byCheck()}.`,
     );
-    // Through the thread, the labels change a moment later; the quick polls pick them up.
+    // Rusty's rewrite lands a moment later; the quick polls pick it up.
     setMode("done");
     expectChange();
   };
@@ -293,7 +296,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
       {crate.pitch && <p className="fy-idea__pitch">{crate.pitch}</p>}
       <footer className="fy-idea__foot">
         {crate.revising ? (
-          <p className="fy-idea__note">Waiting for Rusty: he picks up your notes at the next check, {byCheck()}.</p>
+          <p className="fy-idea__note">{setup?.shape && Date.now() - crate.updatedAt < SHAPING_MS ? "Rusty is shaping this now…" : `Waiting for Rusty: he picks up your notes at the next check, ${byCheck()}.`}</p>
         ) : mode === "done" ? (
           <p className="fy-idea__note">{result}</p>
         ) : mode === "failed" ? (
@@ -379,7 +382,7 @@ function SetupNote() {
       <strong>One-time setup, then everything happens here.</strong>
       <p>
         The buttons go through Vercel, which needs two values (Project → Settings → Environment Variables, then redeploy): <code>FOUNDRY_DESK_KEY</code>, a passphrase you invent and type once per device, and{" "}
-        <code>FOUNDRY_ROUTINE_TOKEN</code>, the Foundry routine's token (the same one as the GitHub secret). A click then wakes the Foundry, which makes the change on GitHub itself.
+        <code>FOUNDRY_GITHUB_TOKEN</code>, a GitHub token for this repo with Issues read and write. A click then changes GitHub at once.
       </p>
     </aside>
   );
@@ -390,7 +393,7 @@ function Propose({ setup }: { setup: Setup }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [key, setKey] = useState(storedKey);
-  const [state, setState] = useState<"idle" | "busy" | "done" | "shaped" | "failed" | "wrong-key">("idle");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "shaping" | "failed" | "wrong-key">("idle");
   // What was typed before the mic started; dictation appends to it.
   const typed = useRef("");
   const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
@@ -399,10 +402,10 @@ function Propose({ setup }: { setup: Setup }) {
     dictation.stop();
     setState("busy");
     const r = await send(null, "propose", key.trim(), note);
-    if (r === "ok" || r === "shaped") {
+    if (r === "ok" || r === "shaping") {
       storeKey(key.trim());
       setNote("");
-      setState(r === "shaped" ? "shaped" : "done");
+      setState(r === "shaping" ? "shaping" : "done");
       expectChange();
     } else setState(r);
   };
@@ -429,7 +432,7 @@ function Propose({ setup }: { setup: Setup }) {
     return (
       <button type="button" className="fy-propose__open" onClick={() => (setOpen(true), setState("idle"))}>
         <span aria-hidden="true">+</span> Suggest an idea
-        {state === "shaped" && <em>Shaped. Your card is on the board.</em>}
+        {state === "shaping" && <em>On the board. Rusty is shaping it now.</em>}
         {state === "done" && <em>{ready ? `Sent. Rusty shapes it into a card at the next check, ${byCheck()}.` : "Copied. Paste it in the Foundry thread."}</em>}
       </button>
     );
@@ -487,6 +490,7 @@ function Crew() {
   const connected = useFoundry((s) => s.connected);
   const data = useFoundry((s) => s.data);
   const work = crewWork(data.crates);
+  const load = crewLoad(data.crates);
   return (
     <ul className="fy-crew">
       {(Object.keys(CREW) as CrewId[]).map((id) => {
@@ -502,6 +506,7 @@ function Crew() {
               {CREW[id].name}
               <small>
                 {CREW[id].job} · {CREW_RUNG[id]}
+                {load[id] > 1 && ` · ${load[id] - 1} ${load[id] === 2 ? "clone" : "clones"} helping`}
               </small>
             </span>
             <span className="fy-crew__on">
@@ -530,21 +535,21 @@ function Connections({ setup }: { setup: Setup }) {
     { name: "Checks", what: "Types, lint, tests and build on every push", state: checks, label: CHECKS_LABEL[checks] },
     {
       name: "Idea buttons",
-      what: setup?.direct ? "Build, Revise and Not this one change GitHub at once" : "Build, Revise and Not this one go to the Foundry, which changes GitHub",
+      what: "Build, Revise and Not this one change GitHub at once",
       state: setup === null ? "off" : setup.buttons ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.buttons ? "Ready" : "Needs setup",
     },
     {
       name: "Quick shaping",
-      what: setup?.shape ? "Rusty shapes your ideas in a few seconds" : "Add CLAUDE_API_KEY in Vercel so Rusty shapes ideas in seconds",
+      what: setup?.shape ? "Your idea goes up at once and Rusty shapes it in a second or two" : "Add CLAUDE_API_KEY in Vercel so Rusty shapes ideas on the spot",
       state: setup === null ? "off" : setup.shape ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.shape ? "Ready" : "Needs setup",
     },
     {
-      name: "Wake routine",
-      what: "Your clicks on the Desk wake the Foundry thread",
-      state: setup === null ? "off" : setup.wake ? "ok" : "slow",
-      label: setup === null ? "Checking…" : setup.wake ? "Ready" : "Needs setup",
+      name: "Queue check",
+      what: "The Foundry thread picks up approved builds and red checks at six past every hour",
+      state: setup === null ? "off" : "ok",
+      label: setup === null ? "Checking…" : "Hourly",
     },
   ];
   return (
@@ -646,7 +651,7 @@ function Changelog({ changes, now }: { changes: Change[]; now: number }) {
   );
 }
 
-/** The Foundry's system: the checks on GitHub wake the Foundry thread in Claude Code, which ships to main. */
+/** The Foundry's system: a red check on GitHub opens a fix, the Foundry thread in Claude Code picks it up, and ships to main. */
 export function FoundrySystem() {
   const connected = useFoundry((s) => s.connected);
   const data = useFoundry((s) => s.data);
@@ -654,7 +659,7 @@ export function FoundrySystem() {
   const work = crewWork(data.crates);
   const steps: { name: string; what: string; state: LinkState; label: string }[] = [
     { name: "Checks", what: "Types, lint, tests and build on every push to main, on GitHub", state: checks, label: checks === "off" ? "No run yet" : LINK_STATE_LABEL[checks] },
-    { name: "Wake routine", what: "A red check opens a fix and wakes the Foundry", state: connected ? "ok" : "off", label: connected ? "Watching" : "Not connected yet" },
+    { name: "Queue check", what: "A red check opens a fix; the Foundry picks it up at six past every hour", state: connected ? "ok" : "off", label: connected ? "Hourly" : "Not connected yet" },
     { name: "Foundry thread", what: "Fixes, upkeep and builds, coded in Claude Code on your plan, each on its own branch and pull request", state: connected ? "ok" : "off", label: connected ? "Ready" : "Not connected yet" },
     { name: "main → the site", what: "Small fixes and upkeep merge once green; bigger work gets a preview and waits for you", state: connected ? "ok" : "off", label: connected ? "Shipping" : "Not connected yet" },
   ];

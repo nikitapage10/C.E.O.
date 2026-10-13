@@ -1,6 +1,6 @@
 # The Foundry's furnace: typecheck, lint, tests and build on every push to main, every pull request (the
 # Foundry's lane branches land through these) and nightly. When they fail on main, open (or comment on) a
-# Foundry fix issue and wake the Foundry thread.
+# Foundry fix issue; the Foundry thread picks it up at its hourly queue check.
 # See docs/FOUNDRY.md.
 name: Checks
 
@@ -25,8 +25,6 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      HAS_ROUTINE: ${{ secrets.FOUNDRY_ROUTINE_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -67,19 +65,3 @@ jobs:
               core.setOutput("number", String(created.number));
               core.setOutput("fresh", "true");
             }
-
-      - name: Wake the Foundry
-        if: failure() && steps.issue.outputs.fresh == 'true' && env.HAS_ROUTINE == 'true'
-        env:
-          ROUTINE_ID: ${{ secrets.FOUNDRY_ROUTINE_ID }}
-          ROUTINE_TOKEN: ${{ secrets.FOUNDRY_ROUTINE_TOKEN }}
-          ISSUE: ${{ steps.issue.outputs.number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          body=$(jq -n --arg t "Checks failing on main: issue #$ISSUE, run $RUN_URL" '{text: $t}')
-          curl -fsS -X POST "https://api.anthropic.com/v1/claude_code/routines/$ROUTINE_ID/fire" \
-            -H "Authorization: Bearer $ROUTINE_TOKEN" \
-            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
-            -H "anthropic-version: 2023-06-01" \
-            -H "Content-Type: application/json" \
-            -d "$body"

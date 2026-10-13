@@ -22,10 +22,15 @@ moves them.
 
 | Agent | Job | Takes |
 | --- | --- | --- |
-| Rivet (agent id `semicolon`) | First responder | Fixes on rung 1 |
+| Rivet (agent id `semicolon`, Haiku) | First responder | Reads every new job and sizes it; fixes on rung 1 |
 | Ember, the Foundry's submind (agent id `ember`) | Room lead | Picks the rung for each job; conducts the room |
-| Rocky (agent id `caret`) | Master builder | Fixes on rungs 2 and 3, approved builds |
-| Rusty (agent id `tessellate`) | Upkeep and ideas | Upkeep, the morning ideas |
+| Rusty (agent id `tessellate`, Sonnet) | Builder, upkeep and ideas | Simple, well-scoped fixes and builds (rung 2, builds marked `**Builder:** Rusty`), upkeep and maintenance, the morning ideas |
+| Rocky (agent id `caret`, Opus) | Master builder | Anything complex, substantial, open-ended or big-picture (rung 3, every other build) |
+
+Pick the model up front by how hard the job is, not by climbing from the cheapest (Nikita, 2026-10-13): plainly
+simple moves go to Rusty on Sonnet; anything bigger, or anything you're unsure of, goes straight to Rocky on Opus.
+Be liberal with Opus. Each crew member can run clones of itself (subagents on the same model, each in its own
+worktree) to work several jobs at the same time; the crew stays split by job, not by model.
 
 ## The queue: GitHub issues
 
@@ -88,9 +93,9 @@ The path for every change:
 
 `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`. GitHub Actions runs them on every push to
 `main`, on every pull request and nightly (`.github/workflows/checks.yml`). When they fail on `main`, the workflow opens (or comments on) a
-`foundry:fix` issue titled "Checks failing on main" and fires the Foundry's wake routine.
-To test the wake by hand, run the "Wake the Foundry" workflow (`.github/workflows/foundry-wake.yml`) from the
-Actions tab.
+`foundry:fix` issue titled "Checks failing on main". The Foundry thread picks it up at its hourly queue check
+(the "Foundry: hourly queue check" routine, six past every hour). Routines fired from outside the thread open a
+fresh session instead of reaching it, so nothing wakes the thread from GitHub or the Desk.
 
 ## Lane 1: Fix
 
@@ -127,15 +132,14 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
 - Write each idea's body with `**Pitch:** …` and `**Size:** small|medium|large`: the Desk's Foundry tab shows
   these on the idea cards.
 - Nikita picks on the Desk's Foundry tab (Build this / Revise / Not this one) or on the thread's card. The Desk's
-  buttons go through `api/foundry.ts` on Vercel, which needs `FOUNDRY_DESK_KEY` and `FOUNDRY_ROUTINE_TOKEN` set
-  there (`FOUNDRY_GITHUB_TOKEN` is optional: with it a click changes the issue at once; without it the click wakes
-  the thread with a `Desk:` line and the thread makes the change). On a wake whose text starts with `Desk:`, do
-  what the line says first: `build idea #n` → relabel `foundry:build` + `foundry:working` and build it; `pass on
-  idea #n` → comment and close as not planned; `revise idea #n` with notes → comment the notes, rewrite the title,
-  pitch and size, and leave it as a `foundry:idea`; `propose a new idea` with Nikita's words → open it as a
-  `foundry:idea` issue with a pitch, size and builder. Post nothing unless a question needs Nikita.
+  buttons go through `api/foundry.ts` on Vercel, which needs `FOUNDRY_DESK_KEY` and `FOUNDRY_GITHUB_TOKEN` set
+  there; a click changes the issue at once. A proposed or revised idea goes up straight away in Nikita's words,
+  labelled `foundry:revise`, and Rusty shapes it in the background on Claude Haiku (`CLAUDE_API_KEY`), which
+  drops the label. At the hourly check, any `foundry:idea` still labelled `foundry:revise` is yours to shape:
+  rewrite the title, pitch, size and builder from Nikita's words and notes, and drop the label. Any
+  `foundry:build` nobody is working is yours to build. Post nothing unless a question needs Nikita.
 - On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
-  (Rocky's lane). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
+  (the builder the card names: Rocky unless it says Rusty). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
   approval on the Desk was the decision, so there is no "Ship?" card (Nikita, 2026-10-12: "when I approve an idea,
   you don't need me to decide to ship it"). It stops for Nikita only when something needs a human: red checks after
   every rung (`foundry:stuck`), a change that can't be checked by the checks (a look, a feel, a new model), or a

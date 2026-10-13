@@ -16,8 +16,8 @@ const API = `https://api.github.com/repos/${REPO}`;
  * for a minute after a click on the Desk) without running GitHub's rate limit dry.
  */
 const POLL_MS = 30_000;
-const QUICK_MS = 5_000;
-const QUICK_FOR_MS = 60_000;
+const QUICK_MS = 2_000;
+const QUICK_FOR_MS = 30_000;
 /** Shipped crates stay on show this long. */
 const SHIPPED_FOR_MS = 24 * 3_600_000;
 const HOUR = 3_600_000;
@@ -29,15 +29,16 @@ const UPKEEP_EVERY_HOURS = 6;
 export type CrateKind = "fix" | "idea" | "build" | "upkeep" | "chat";
 export type CrateState = "queued" | "working" | "ready" | "stuck" | "shipped";
 /**
- * The Foundry crew, by agent id: Rivet (semicolon) first responder, Rocky (caret) master builder, Rusty (tessellate)
- * upkeep and ideas. Ember, the Foundry's submind, leads them from the conductor's post and isn't crew.
+ * The Foundry crew, by agent id and model (Nikita, 2026-10-13): Rivet (semicolon, Haiku) first responder, Rusty
+ * (tessellate, Sonnet) simple work plus upkeep and ideas, Rocky (caret, Opus) anything complex or big-picture. Each can
+ * run clones of itself for jobs at the same time. The Foundry's submind leads them and isn't crew.
  */
 export type CrewId = "semicolon" | "caret" | "tessellate";
 
 export const CREW: Record<CrewId, { name: string; job: string }> = {
   semicolon: { name: "Rivet", job: "First responder" },
   caret: { name: "Rocky", job: "Master builder" },
-  tessellate: { name: "Rusty", job: "Upkeep and ideas" },
+  tessellate: { name: "Rusty", job: "Builder, upkeep and ideas" },
 };
 
 export interface Crate {
@@ -45,7 +46,7 @@ export interface Crate {
   title: string;
   kind: CrateKind;
   state: CrateState;
-  /** The model rung a fix is on: 1 Haiku, 2 Sonnet, 3 Opus. */
+  /** The model rung a fix is on: 1 Haiku (Rivet), 2 Sonnet (Rusty), 3 Opus (Rocky). */
   rung: 1 | 2 | 3 | null;
   url: string;
   /** Date.now() of the last change. */
@@ -56,6 +57,8 @@ export interface Crate {
   size: "small" | "medium" | "large" | null;
   /** An idea Nikita sent back with notes; Rusty is rewriting it. */
   revising: boolean;
+  /** Who an idea's card says builds it ("**Builder:** Rusty"), when it says. */
+  builder?: CrewId | null;
 }
 
 export type ChecksState = "pass" | "fail" | "running" | "unknown";
@@ -205,11 +208,13 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
   return crates.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** The pitch and size the Foundry writes into an issue ("**Pitch:** …", "**Size:** small"). */
-export function readBody(body: string): Pick<Crate, "pitch" | "size"> {
+/** The pitch, size and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small", "**Builder:** Rusty"). */
+export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> {
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
-  return { pitch, size: size ?? null };
+  const named = /\*\*Builder:\*\*\s*(Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
+  const builder: CrewId | null = named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
+  return { pitch, size: size ?? null, builder };
 }
 
 /** The next upkeep tick after `now`. */
@@ -235,12 +240,14 @@ export function visibleUpkeep(crates: Crate[], now = Date.now()): Crate | null {
 }
 
 /**
- * Whose lane a crate is in: Rivet takes first tries at fixes, Rocky the harder rungs and approved builds, Rusty
- * upkeep and ideas. Chat work has no lane; `assignCrew` hands it to whoever is free.
+ * Whose lane a crate is in. Fixes go by rung: Rivet (Haiku) on rung 1, Rusty (Sonnet) on rung 2, Rocky (Opus) on
+ * rung 3. Approved builds go to the builder the card names, Rocky when it names none: Opus is the default for
+ * anything that isn't plainly simple. Rusty also keeps upkeep and ideas. Chat work has no lane; `assignCrew` hands
+ * it to whoever is free.
  */
-export function crewFor(crate: Pick<Crate, "kind" | "rung">): CrewId {
-  if (crate.kind === "fix") return crate.rung !== null && crate.rung >= 2 ? "caret" : "semicolon";
-  if (crate.kind === "build") return "caret";
+export function crewFor(crate: Pick<Crate, "kind" | "rung"> & Pick<Partial<Crate>, "builder">): CrewId {
+  if (crate.kind === "fix") return crate.rung === 3 ? "caret" : crate.rung === 2 ? "tessellate" : "semicolon";
+  if (crate.kind === "build") return crate.builder === "tessellate" ? "tessellate" : "caret";
   if (crate.kind === "chat") return "semicolon";
   return "tessellate";
 }
@@ -257,8 +264,8 @@ function inHand(c: Crate): boolean {
 
 /**
  * Who holds each crate in hand. Lane work goes to its owner. Chat work (a thread building what Nikita asked for in
- * chat) goes to whoever has nothing in hand, so the room shows it being worked on; when everyone is busy it rides
- * with the first responder.
+ * chat) goes to whoever has nothing in hand, so the room shows it being worked on; when everyone is busy a Rusty
+ * clone takes it.
  */
 export function assignCrew(crates: Crate[]): Map<number, CrewId> {
   const out = new Map<number, CrewId>();
@@ -270,7 +277,7 @@ export function assignCrew(crates: Crate[]): Map<number, CrewId> {
   }
   const chat = crates.filter((c) => inHand(c) && c.kind === "chat").sort((a, b) => a.number - b.number);
   for (const c of chat) {
-    const free = SPARE_HANDS.find((who) => !busy.has(who)) ?? "semicolon";
+    const free = SPARE_HANDS.find((who) => !busy.has(who)) ?? "tessellate";
     out.set(c.number, free);
     busy.add(free);
   }
@@ -290,6 +297,13 @@ export function parseChecks(runs: GhRun[]): FoundryData["checks"] {
 }
 
 /** What each crew member is doing: the crate they hold that matters most (stuck, then working, then ready). */
+/** How many jobs each crew member has in hand; past one, the rest are clones of them (same model) working alongside. */
+export function crewLoad(crates: Crate[]): Record<CrewId, number> {
+  const out: Record<CrewId, number> = { semicolon: 0, caret: 0, tessellate: 0 };
+  for (const who of assignCrew(crates).values()) out[who] += 1;
+  return out;
+}
+
 export function crewWork(crates: Crate[]): Record<CrewId, Crate | null> {
   const out: Record<CrewId, Crate | null> = { semicolon: null, caret: null, tessellate: null };
   const by = assignCrew(crates);
@@ -349,7 +363,9 @@ interface Feed {
 
 /** The Desk's own feed (api/foundry-feed.ts): one request, read with the Foundry's token and shared by every tab. */
 async function readFeed(): Promise<Feed> {
-  const res = await fetch("/api/foundry-feed", { headers: { Accept: "application/json" } });
+  // Right after a Desk click, skip the few seconds of edge cache so the change shows at once.
+  const url = Date.now() < quickUntil ? `/api/foundry-feed?fresh=${Date.now()}` : "/api/foundry-feed";
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) throw new Error(`${res.status} feed`);
   return (await res.json()) as Feed;
 }

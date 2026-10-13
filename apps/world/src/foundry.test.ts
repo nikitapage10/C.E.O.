@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignCrew, crewFor, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { assignCrew, crewFor, crewLoad, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -44,11 +44,14 @@ describe("parseCrates", () => {
 });
 
 describe("crewFor", () => {
-  it("sends first-try fixes to Rivet, harder rungs and builds to Rocky, the rest to Rusty", () => {
+  it("sends fixes by rung (Rivet, Rusty, Rocky), builds to the named builder or Rocky, the rest to Rusty", () => {
     expect(crewFor({ kind: "fix", rung: null })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 1 })).toBe("semicolon");
+    expect(crewFor({ kind: "fix", rung: 2 })).toBe("tessellate");
     expect(crewFor({ kind: "fix", rung: 3 })).toBe("caret");
     expect(crewFor({ kind: "build", rung: null })).toBe("caret");
+    expect(crewFor({ kind: "build", rung: null, builder: "tessellate" })).toBe("tessellate");
+    expect(crewFor({ kind: "build", rung: null, builder: "caret" })).toBe("caret");
     expect(crewFor({ kind: "upkeep", rung: null })).toBe("tessellate");
     expect(crewFor({ kind: "idea", rung: null })).toBe("tessellate");
   });
@@ -82,10 +85,10 @@ describe("parseChecks", () => {
 
 describe("readBody", () => {
   it("reads the pitch and size the Foundry writes into an idea", () => {
-    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium" });
+    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret" });
   });
   it("is empty for a plain issue", () => {
-    expect(readBody("just words")).toEqual({ pitch: "", size: null });
+    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null });
   });
 });
 
@@ -111,11 +114,12 @@ describe("assignCrew", () => {
     expect(by.get(2)).toBe("semicolon");
   });
 
-  it("moves on to Rusty when Rivet holds a fix, and rides with Rivet when everyone is busy", () => {
+  it("moves on to Rusty when Rivet holds a fix, and sends a Rusty clone when everyone is busy", () => {
     const busyRivet = assignCrew([crate(1, "fix", "working", 1), crate(2, "chat", "working")]);
     expect(busyRivet.get(2)).toBe("tessellate");
     const all = assignCrew([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")]);
-    expect(all.get(4)).toBe("semicolon");
+    expect(all.get(4)).toBe("tessellate");
+    expect(crewLoad([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")])).toEqual({ semicolon: 1, caret: 1, tessellate: 2 });
   });
 
   it("leaves queued and shipped crates in nobody's hands", () => {

@@ -3,29 +3,25 @@
  * an idea writes, so it comes through here, where the tokens live in Vercel's environment and never reach the
  * browser.
  *
- * GET  → which pieces are set up: { buttons, wake }.
+ * GET  → which pieces are set up: { buttons, direct, shape }.
  * POST → { issue, choice: "build" | "pass" | "revise", note?, key }: "build" approves a morning idea (labels it
- *        `foundry:build`) and wakes the Foundry thread; "pass" closes it as not planned; "revise" posts Nikita's note
- *        on the idea, labels it `foundry:revise` and wakes the Foundry to rewrite it. Only open `foundry:idea` issues.
+ *        `foundry:build`); "pass" shelves it (closed as not planned); "revise" posts Nikita's note on the idea and
+ *        labels it `foundry:revise` for Rusty to rewrite. Only open `foundry:idea` issues.
  *        { choice: "propose", note, key } opens a new idea from Nikita's words for Rusty to shape.
+ *        The answer comes back as soon as GitHub has the change; Rusty's shaping finishes in the background.
+ *
+ * The Foundry thread picks up approved builds and unshaped ideas at its hourly queue check (docs/FOUNDRY.md).
  *
  * Environment (Vercel → Settings → Environment Variables):
  *   FOUNDRY_DESK_KEY       a passphrase Nikita types once on the Desk; without it nobody else can press the buttons
- *   FOUNDRY_ROUTINE_TOKEN  the wake routine's API token (same as the GitHub secret)
- *   FOUNDRY_ROUTINE_ID     the wake routine (same as the GitHub secret); defaults to the Foundry's routine
- *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): lets Rusty shape a proposed or revised idea on the spot (a pitch, a size and a
- *                          builder, in a few seconds, on Claude Haiku), instead of waiting for the hourly check.
- *                          Shaping only, never code (code runs on Claude Code); capped at $10 a month.
- *   FOUNDRY_GITHUB_TOKEN   optional: a fine-grained token for this repo with Issues read and write. With it, a
- *                          click changes the issue at once; without it, the click wakes the Foundry thread and the
- *                          thread makes the change on GitHub itself a moment later.
- *
- * Every click is sent to the Foundry thread as a "Desk:" line in the wake text, which the thread reads as a task.
+ *   FOUNDRY_GITHUB_TOKEN   a fine-grained token for this repo with Issues read and write: the buttons need it
+ *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): Rusty shapes a proposed or revised idea on the spot
+ *                          (a pitch, a size and a builder, in a second or two, on Claude Haiku) instead of at the
+ *                          hourly check. Shaping only, never code (code runs on Claude Code); capped at $10 a month.
  */
 
-const DEFAULT_ROUTINE_ID = "trig_01StEu8pfVzyZpiRQjLDyTmP";
-
 import Anthropic from "@anthropic-ai/sdk";
+import { waitUntil } from "@vercel/functions";
 import { timingSafeEqual } from "node:crypto";
 
 const REPO = "nikitapage10/C.E.O.";
@@ -55,8 +51,6 @@ async function github(path: string, init: RequestInit = {}): Promise<Response> {
   });
 }
 
-const routineId = () => env("FOUNDRY_ROUTINE_ID") || DEFAULT_ROUTINE_ID;
-const canWake = () => Boolean(env("FOUNDRY_ROUTINE_TOKEN"));
 const canWrite = () => Boolean(env("FOUNDRY_GITHUB_TOKEN"));
 const claudeKey = () => env("CLAUDE_API_KEY") || env("ANTHROPIC_API_KEY");
 const canShape = () => Boolean(claudeKey());
@@ -99,7 +93,7 @@ export async function shapeIdea(words: string, current?: string): Promise<Shape 
   try {
     const res = await client.messages.create({
       model: SHAPE_MODEL,
-      max_tokens: 1024,
+      max_tokens: 400,
       thinking: { type: "disabled" },
       output_config: { effort: "low", format: { type: "json_schema", schema: SHAPE_SCHEMA } },
       system: SHAPE_PROMPT,
@@ -121,31 +115,24 @@ export async function shapeIdea(words: string, current?: string): Promise<Shape 
   }
 }
 
+/**
+ * Rusty's background pass: shape the idea and rewrite the issue as a card. When shaping fails the issue keeps
+ * `foundry:revise` and the hourly check shapes it instead.
+ */
+async function shapeInto(issue: number, text: string, labels: string[], current?: string, words = text, extra = ""): Promise<void> {
+  const shape = await shapeIdea(text, current);
+  if (!shape) return;
+  await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, words) + extra, labels }) }).catch(() => null);
+}
+
 function shapedBody(shape: Shape, words: string): string {
   return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n**Builder:** ${shape.builder}\n\n**From Nikita (on the Desk):**\n\n${words}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
 }
 
-async function wake(text: string): Promise<boolean> {
-  if (!canWake()) return false;
-  const res = await fetch(`https://api.anthropic.com/v1/claude_code/routines/${routineId()}/fire`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env("FOUNDRY_ROUTINE_TOKEN")}`,
-      "anthropic-beta": "experimental-cc-routine-2026-04-01",
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ text }),
-  });
-  return res.ok;
-}
-
 export function GET(): Response {
   return json({
-    /** The buttons work when the key is set and a click can reach GitHub, directly or through the thread. */
-    buttons: Boolean(env("FOUNDRY_DESK_KEY")) && (canWrite() || canWake()),
-    wake: canWake(),
-    /** True when clicks change the issue at once rather than through the thread. */
+    /** The buttons work when the key is set and a click can reach GitHub. */
+    buttons: Boolean(env("FOUNDRY_DESK_KEY")) && canWrite(),
     direct: canWrite(),
     /** True when Rusty shapes proposed and revised ideas on the spot. */
     shape: canShape(),
@@ -153,7 +140,7 @@ export function GET(): Response {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!env("FOUNDRY_DESK_KEY") || !(canWrite() || canWake())) return json({ error: "not-set-up" }, 503);
+  if (!env("FOUNDRY_DESK_KEY") || !canWrite()) return json({ error: "not-set-up" }, 503);
   let body: { issue?: unknown; choice?: unknown; note?: unknown; key?: unknown };
   try {
     body = (await request.json()) as typeof body;
@@ -165,29 +152,9 @@ export async function POST(request: Request): Promise<Response> {
   const text = typeof note === "string" ? note.trim().slice(0, 2000) : "";
   if ((choice === "revise" || choice === "propose") && !text) return json({ error: "bad-request" }, 400);
 
-  if (!canWrite()) {
-    // No GitHub token: the thread does the GitHub side. Say exactly what was clicked.
-    const line =
-      choice === "propose" ? `Desk: propose a new idea. Nikita's words:\n${text}`
-      : typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 ? null
-      : choice === "build" ? `Desk: build idea #${issue} (approved).`
-      : choice === "pass" ? `Desk: pass on idea #${issue} (shelve it: label foundry:passed, close as not planned).`
-      : choice === "revise" ? `Desk: revise idea #${issue}. Nikita's notes:\n${text}`
-      : null;
-    if (!line) return json({ error: "bad-request" }, 400);
-    const woke = await wake(line).catch(() => false);
-    return woke ? json({ ok: true, woke, deferred: true }) : json({ error: "wake" }, 502);
-  }
-
   if (choice === "propose") {
-    // Rusty shapes it here and now when OpenAI is set up; otherwise the thread shapes it after the wake.
-    const shape = await shapeIdea(text);
-    if (shape) {
-      const res = await github("/issues", { method: "POST", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text), labels: ["foundry", "foundry:idea"] }) });
-      if (!res.ok) return json({ error: "github" }, 502);
-      const made = (await res.json()) as { number: number };
-      return json({ ok: true, issue: made.number, shaped: true });
-    }
+    // The card goes up in Nikita's words at once; Rusty shapes it in the background when Claude is set up, and the
+    // hourly check shapes it otherwise.
     const first = text.split("\n")[0]!.trim();
     const title = `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`;
     const res = await github("/issues", {
@@ -200,8 +167,8 @@ export async function POST(request: Request): Promise<Response> {
     });
     if (!res.ok) return json({ error: "github" }, 502);
     const made = (await res.json()) as { number: number };
-    const woke = await wake(`Nikita proposed idea #${made.number} on the Desk.`).catch(() => false);
-    return json({ ok: true, issue: made.number, woke });
+    if (canShape()) waitUntil(shapeInto(made.number, text, ["foundry", "foundry:idea"]));
+    return json({ ok: true, issue: made.number, shaping: canShape() });
   }
 
   if (typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 || (choice !== "build" && choice !== "pass" && choice !== "revise")) return json({ error: "bad-request" }, 400);
@@ -221,24 +188,20 @@ export async function POST(request: Request): Promise<Response> {
 
   if (choice === "revise") {
     const quoted = text.split("\n").map((line) => `> ${line}`).join("\n");
-    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `Nikita's notes from the Desk:\n\n${quoted}` }) });
-    const shape = await shapeIdea(text, `${current.title}\n\n${current.body ?? ""}`);
-    if (shape) {
-      const words = /\*\*From Nikita \(on the Desk\):\*\*\n\n([\s\S]*?)\n\n(?:_Shaped|Rusty shapes)/.exec(current.body ?? "")?.[1] ?? "";
-      const body = `${shapedBody(shape, words || "(from the morning ideas)")}\n\n**Revised with Nikita's notes:**\n\n${quoted}`;
-      const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body, labels: labels.filter((l) => l !== "foundry:revise") }) });
-      return res.ok ? json({ ok: true, shaped: true }) : json({ error: "github" }, 502);
-    }
     const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: [...new Set([...labels, "foundry:revise"])] }) });
     if (!res.ok) return json({ error: "github" }, 502);
-    const woke = await wake(`Idea #${issue} has revision notes from the Desk.`).catch(() => false);
-    return json({ ok: true, woke });
+    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `Nikita's notes from the Desk:\n\n${quoted}` }) });
+    if (canShape()) {
+      const words = /\*\*From Nikita \(on the Desk\):\*\*\n\n([\s\S]*?)\n\n(?:_Shaped|Rusty shapes)/.exec(current.body ?? "")?.[1] ?? "";
+      const extra = `\n\n**Revised with Nikita's notes:**\n\n${quoted}`;
+      waitUntil(shapeInto(issue, text, labels.filter((l) => l !== "foundry:revise"), `${current.title}\n\n${current.body ?? ""}`, words || "(from the morning ideas)", extra));
+    }
+    return json({ ok: true, shaping: canShape() });
   }
 
   const next = [...labels.filter((l) => l !== "foundry:idea" && l !== "foundry:revise"), "foundry:build"];
   const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: next }) });
   if (!res.ok) return json({ error: "github" }, 502);
   await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "Approved for building (picked on the Desk)." }) });
-  const woke = await wake(`Idea #${issue} was approved on the Desk.`).catch(() => false);
-  return json({ ok: true, woke });
+  return json({ ok: true });
 }

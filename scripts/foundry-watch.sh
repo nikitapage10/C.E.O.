@@ -14,11 +14,12 @@ every="${1:-30}"
 repo="nikitapage10/C.E.O."
 
 # One line per open foundry issue and work label: "50 foundry:build". A new line means new work: an approved idea, a
-# Revise click, a red check, or a job that has just lost its foundry:working label.
+# Revise click, a red check, or a job that has just lost its foundry:working label (unless it has shipped: the Builder
+# labels a job foundry:shipped before taking foundry:working off and closing it).
 look() {
   gh api "repos/$repo/issues?labels=foundry&state=open&per_page=100" --jq '
     .[] | . as $i | [.labels[].name] as $l
-    | select(($l | index("foundry:working")) | not)
+    | select(($l | index("foundry:working")) | not) | select(($l | index("foundry:shipped")) | not)
     | $l[] | select(. == "foundry:build" or . == "foundry:revise" or . == "foundry:fix")
     | "\($i.number) \(.)"' | sort
 }

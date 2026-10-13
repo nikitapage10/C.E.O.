@@ -104,8 +104,9 @@ The path for every change:
 
 `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`. GitHub Actions runs them on every push to
 `main`, on every pull request and nightly (`.github/workflows/checks.yml`). When they fail on `main`, the workflow opens (or comments on) a
-`foundry:fix` issue titled "Checks failing on main". The Foundry thread picks it up at its hourly queue check
-(the "Foundry: hourly queue check" routine, six past every hour). Routines fired from outside the thread open a
+`foundry:fix` issue titled "Checks failing on main". The Foundry thread picks it up at its queue check (every 15 minutes)
+(four staggered hourly routines, "Foundry: queue check", at :06, :21, :36 and :51, so nothing waits more than 15
+minutes; a routine can't fire more often than hourly). Routines fired from outside the thread open a
 fresh session instead of reaching it, so nothing wakes the thread from GitHub or the Desk.
 
 ## Lane 1: Fix
@@ -146,7 +147,7 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   buttons go through `api/foundry.ts` on Vercel, which needs `FOUNDRY_DESK_KEY` and `FOUNDRY_GITHUB_TOKEN` set
   there; a click changes the issue at once. A proposed or revised idea goes up straight away in Nikita's words,
   labelled `foundry:revise`, and Rusty shapes it in the background on Claude Haiku (`CLAUDE_API_KEY`), which
-  drops the label. At the hourly check, any `foundry:idea` still labelled `foundry:revise` is yours to shape:
+  drops the label. At each queue check, any `foundry:idea` still labelled `foundry:revise` is yours to shape:
   rewrite the title, pitch, size and builder from Nikita's words and notes, and drop the label. Any
   `foundry:build` nobody is working is yours to build. Post nothing unless a question needs Nikita.
 - On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch

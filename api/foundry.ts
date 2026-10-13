@@ -10,14 +10,14 @@
  *        { choice: "propose", note, key } opens a new idea from Nikita's words for Rusty to shape.
  *        The answer comes back as soon as GitHub has the change; Rusty's shaping finishes in the background.
  *
- * The Foundry thread picks up approved builds and unshaped ideas at its hourly queue check (docs/FOUNDRY.md).
+ * The Foundry thread picks up approved builds and unshaped ideas at its queue check, every 15 minutes (docs/FOUNDRY.md).
  *
  * Environment (Vercel → Settings → Environment Variables):
  *   FOUNDRY_DESK_KEY       a passphrase Nikita types once on the Desk; without it nobody else can press the buttons
  *   FOUNDRY_GITHUB_TOKEN   a fine-grained token for this repo with Issues read and write: the buttons need it
  *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): Rusty shapes a proposed or revised idea on the spot
  *                          (a pitch, a size and a builder, in a second or two, on Claude Haiku) instead of at the
- *                          hourly check. Shaping only, never code (code runs on Claude Code); capped at $10 a month.
+ *                          queue check. Shaping only, never code (code runs on Claude Code); capped at $10 a month.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -131,7 +131,7 @@ export async function shapeIdea(words: string, current?: string, images: string[
 
 /**
  * Rusty's background pass: shape the idea and rewrite the issue as a card. When shaping fails the issue keeps
- * `foundry:revise` and the hourly check shapes it instead.
+ * `foundry:revise` and the next queue check shapes it instead.
  */
 async function shapeInto(issue: number, text: string, labels: string[], current?: string, words = text, extra = ""): Promise<void> {
   const shape = await shapeIdea(text, current);
@@ -145,7 +145,7 @@ async function trail(issue: number, shape: Shape | null, took: number, pictures:
   const origin = `**Trail · Origin:** Nikita on the Desk (${when} MT)${pictures ? `, with ${pictures} ${pictures === 1 ? "picture" : "pictures"}` : ""}.`;
   const shaped = shape
     ? `**Trail · Shaped:** Rusty on Claude Haiku (${SHAPE_MODEL}), ${(took / 1000).toFixed(1)} s. Suggested builder: ${shape.builder} (${shape.model}); the Builder confirms it when the job is picked.`
-    : "**Trail · Shaped:** waiting for the Builder's hourly check (quick shaping didn't answer).";
+    : "**Trail · Shaped:** waiting for the Builder's next queue check (quick shaping didn't answer).";
   await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `${origin}\n\n${shaped}` }) }).catch(() => null);
 }
 
@@ -182,7 +182,7 @@ export async function POST(request: Request): Promise<Response> {
   if (choice === "propose") {
     // Two things at once, streamed back as lines of JSON so the Desk never waits on the slower one: Rusty's shaping
     // straight from Claude ({"shape": …}, about a second) and the issue on GitHub ({"issue": n}). The issue goes up in
-    // Nikita's words first; once both are in, it is rewritten as the shaped card. Without Claude, the hourly check
+    // Nikita's words first; once both are in, it is rewritten as the shaped card. Without Claude, the next queue check
     // shapes it.
     const first = text.split("\n")[0]!.trim();
     const title = `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`;

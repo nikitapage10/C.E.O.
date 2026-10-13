@@ -1,6 +1,6 @@
 # The Foundry's furnace: typecheck, lint, tests and build on every push to main, every pull request (the
 # Foundry's lane branches land through these) and nightly. When they fail on main, open (or comment on) a
-# Foundry fix issue; the Foundry thread picks it up at its hourly queue check.
+# Foundry fix issue; the Foundry thread picks it up at its next queue check (every 15 minutes).
 # See docs/FOUNDRY.md.
 name: Checks
 

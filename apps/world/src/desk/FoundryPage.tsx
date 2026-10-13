@@ -74,12 +74,16 @@ function useSetup(): Setup {
   return setup;
 }
 
-/** The Foundry thread checks the queue at six past every hour; Desk clicks wait for that check. */
+/** The Foundry thread checks the queue every 15 minutes (:06, :21, :36, :51); Desk clicks wait for the next check. */
+const CHECK_MINUTES = [6, 21, 36, 51];
 export function nextCheck(now: number): number {
   const d = new Date(now);
-  d.setUTCMinutes(6, 0, 0);
-  if (d.getTime() <= now) d.setTime(d.getTime() + HOUR);
-  return d.getTime();
+  for (const m of CHECK_MINUTES) {
+    d.setUTCMinutes(m, 0, 0);
+    if (d.getTime() > now) return d.getTime();
+  }
+  d.setUTCMinutes(CHECK_MINUTES[0]!, 0, 0);
+  return d.getTime() + HOUR;
 }
 
 /** "by 9:06 pm": when the crew will have picked a click up. */
@@ -738,9 +742,9 @@ function Connections({ setup }: { setup: Setup }) {
     },
     {
       name: "Queue check",
-      what: "The Foundry thread picks up approved builds and red checks at six past every hour",
+      what: "The Foundry thread picks up approved builds and red checks every 15 minutes",
       state: setup === null ? "off" : "ok",
-      label: setup === null ? "Checking…" : "Hourly",
+      label: setup === null ? "Checking…" : "Every 15 min",
     },
   ];
   return (
@@ -850,7 +854,7 @@ export function FoundrySystem() {
   const work = crewWork(data.crates);
   const steps: { name: string; what: string; state: LinkState; label: string }[] = [
     { name: "Checks", what: "Types, lint, tests and build on every push to main, on GitHub", state: checks, label: checks === "off" ? "No run yet" : LINK_STATE_LABEL[checks] },
-    { name: "Queue check", what: "A red check opens a fix; the Foundry picks it up at six past every hour", state: connected ? "ok" : "off", label: connected ? "Hourly" : "Not connected yet" },
+    { name: "Queue check", what: "A red check opens a fix; the Foundry picks it up within 15 minutes", state: connected ? "ok" : "off", label: connected ? "Every 15 min" : "Not connected yet" },
     { name: "Foundry thread", what: "Fixes, upkeep and builds, coded in Claude Code on your plan, each on its own branch and pull request", state: connected ? "ok" : "off", label: connected ? "Ready" : "Not connected yet" },
     { name: "main → the site", what: "Small fixes and upkeep merge once green; bigger work gets a preview and waits for you", state: connected ? "ok" : "off", label: connected ? "Shipping" : "Not connected yet" },
   ];

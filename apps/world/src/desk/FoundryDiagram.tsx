@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MAX_AT_ONCE, useFoundry } from "../foundry.ts";
 import { LINK_STATE_LABEL } from "../systems.ts";
 import { FlowTies, StatePill, useFlowPop } from "./FlowPop.tsx";
+import { HowItWorks } from "./HowItWorks.tsx";
 import { ago, capUse, foundryGraph, type FoundrySetup, type GraphEdge, type GraphKind, type GraphNode, type GraphNodeId } from "./foundryGraph.ts";
 import { nextCheck } from "./FoundryPage.tsx";
 import { routesOf } from "./popover.ts";
@@ -196,6 +197,7 @@ function Part({ popId, layout, node: n, edges, byId }: { popId: string; layout: 
           <p className="fsys__what">{n.what}</p>
           <p className="fsys__source">{n.source}</p>
           <FlowTies from={names(ties.from)} to={names(ties.to)} />
+          <HowItWorks system="foundry" part={n.id} />
           {n.url && (
             <a className="fsys__link" href={n.url} target="_blank" rel="noreferrer">
               Open →

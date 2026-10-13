@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { daysSinceIncident, LINK_STATE_LABEL, useSystems, type Link, type LinkState } from "../systems.ts";
 import { FlowTies, StatePill, useFlowPop } from "./FlowPop.tsx";
+import { HowItWorks } from "./HowItWorks.tsx";
 import { routesOf } from "./popover.ts";
 import { PopScope } from "./Popovers.tsx";
 
@@ -167,6 +168,7 @@ function Part({ popId, at, link: l, tall, byId }: { popId: string; at: Pt; link:
           <p className="fsys__source">{l.lastSeen ? `Heard ${new Date(l.lastSeen).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}` : "Never heard from"}</p>
           {l.note && <p className="fsys__what">{l.note}</p>}
           <FlowTies from={names(ties.from)} to={names(ties.to)} />
+          <HowItWorks system="relay" part={l.id} />
         </>,
       )}
     </g>

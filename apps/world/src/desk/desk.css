@@ -2748,114 +2748,68 @@ button.room-pick__tab:hover {
   padding: 0 4px;
 }
 
-/* ── Systems: how it connects (issues #69, #80) ── */
-.conn {
-  margin: 0 0 24px;
-}
-.conn__grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 10px;
-}
-.conn__item {
-  min-width: 0;
-}
+/* ── Systems: a part's "How it works" (issue #99, from the old How it connects list of #69 and #80) ── */
 /* A pop-over scope (Popovers.tsx) adds no box of its own. */
 .pop-scope {
   display: contents;
 }
-.conn__chip {
-  position: relative;
+.how {
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas:
-    "serves dot"
-    "name name";
-  grid-template-rows: auto 1fr;
-  gap: 4px 10px;
-  align-items: start;
-  width: 100%;
-  height: 100%;
-  min-height: 72px;
-  padding: 12px 14px 12px 18px;
-  border: 1px solid var(--hair);
-  border-radius: 6px;
-  background: var(--panel);
-  backdrop-filter: blur(8px);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  overflow: hidden;
-  transition:
-    border-color 0.2s var(--ease),
-    background-color 0.2s var(--ease),
-    box-shadow 0.2s var(--ease);
+  gap: 10px;
 }
-.conn__chip::before {
-  content: "";
-  position: absolute;
-  inset: 12px auto 12px 0;
-  width: 2px;
-  border-radius: 0 2px 2px 0;
-  background: var(--tone);
-  opacity: 0.75;
+.how__item {
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hair-soft);
 }
-.conn__chip:hover,
-.conn__chip.is-open {
-  border-color: color-mix(in srgb, var(--tone) 55%, transparent);
-  background: color-mix(in srgb, var(--tone) 7%, var(--panel));
-  box-shadow: 0 0 18px color-mix(in srgb, var(--tone) 14%, transparent);
-}
-.conn__chip:focus-visible {
-  outline: 1px solid var(--tone);
-  outline-offset: 2px;
-}
-.conn__item--planned .conn__chip {
+.how__item--planned .conn__kinds li {
   border-style: dashed;
-  border-color: var(--hair-soft);
 }
-.conn__item--planned .conn__chip::before {
-  opacity: 0.3;
+.how__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
 }
-.conn__item--planned .conn__chip:hover,
-.conn__item--planned .conn__chip.is-open {
-  border-color: color-mix(in srgb, var(--tone) 40%, transparent);
-}
-.conn__serves {
-  grid-area: serves;
+.how__eyebrow {
   min-width: 0;
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  line-height: 1.5;
+  color: var(--ice);
+}
+.conn-pop__facts.how__facts {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 0;
+}
+/* The world clock's "How it works" button. */
+.how-chip {
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--hair));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 6%, transparent);
   color: var(--tone);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    background-color 0.2s var(--ease);
 }
-.conn__name {
-  grid-area: name;
-  align-self: end;
-  min-width: 0;
-  font-family: var(--serif);
-  font-size: 19px;
-  line-height: 1.15;
+.how-chip:hover,
+.how-chip.is-open {
+  border-color: color-mix(in srgb, var(--tone) 70%, transparent);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
 }
-.conn__dot {
-  grid-area: dot;
-  margin-top: 5px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-.conn__dot--live {
-  background: var(--mint);
-  box-shadow: 0 0 8px var(--mint);
-}
-.conn__dot--planned {
-  border: 1px solid var(--faint);
+.how-chip:focus-visible {
+  outline: 1px solid var(--tone);
+  outline-offset: 2px;
 }
 .conn__kinds {
   list-style: none;
@@ -2912,9 +2866,6 @@ button.room-pick__tab:hover {
 .conn-pop--above {
   transform-origin: var(--arrow) bottom;
 }
-.conn-pop--planned {
-  border-style: dashed;
-}
 @keyframes conn-pop-in {
   from {
     opacity: 0;
@@ -2966,20 +2917,9 @@ button.room-pick__tab:hover {
   color: var(--muted);
 }
 @media (max-width: 640px) {
-  .conn__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .conn__name {
-    font-size: 17px;
-  }
   .conn-pop__facts div {
     grid-template-columns: 1fr;
     gap: 2px;
-  }
-}
-@media (max-width: 380px) {
-  .conn__grid {
-    grid-template-columns: 1fr;
   }
 }
 @media (prefers-reduced-motion: reduce) {

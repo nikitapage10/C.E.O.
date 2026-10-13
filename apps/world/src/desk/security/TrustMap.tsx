@@ -47,7 +47,7 @@ export function TrustMap() {
   const rootRef = useRef<HTMLDivElement>(null);
   const b = BOUNDARIES.find((x) => x.id === picked) ?? BOUNDARIES[0]!;
 
-  // Like the How it connects cards (#80): the floating detail lives at the Desk's root, out of the page's transform.
+  // Like the Desk's pop-over cards (#80): the floating detail lives at the Desk's root, out of the page's transform.
   useEffect(() => {
     setHost(rootRef.current?.closest<HTMLElement>(".desk") ?? document.body);
   }, []);

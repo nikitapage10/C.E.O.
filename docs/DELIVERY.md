@@ -201,7 +201,7 @@ fixes what they find or explains why not on the pull request, and adds the resul
 - **Auto-merge when green.** The builder enables GitHub's auto-merge on the pull request (Claude Code sessions use
   `PUT /repos/{owner}/{repo}/pulls/{n}/ccr/auto_merge`) and GitHub merges it the moment the required checks pass.
   Nobody polls, nobody merges red. Needs "Allow auto-merge" on in the repo settings.
-- **Which merge by themselves:** small green fixes, upkeep, approved builds, and chat work if Nikita picks PRs.
+- **Which merge by themselves:** small green fixes, upkeep, approved builds, and chat work (Decision 1 = B).
   Bigger fixes wait for Ship. Anything waiting for a human is not set to auto-merge.
 - **No strict "up to date" rule.** Without a merge queue (GitHub offers it only to organisations) it would make
   every parallel PR rebase and re-run. The checks on `main` after each merge catch the rare clash, and red `main`
@@ -411,7 +411,9 @@ Claude Code tokens per shipped change (already on the Shipped step).
   two to four minutes slower to go live, and a red check holds the change until it is fixed (which is the point).
   In return `main` can require pull requests and green checks for every account today, before any identity work,
   and every chat change gets a preview and a squash commit.
-- **Recommendation: B.** It is the single step that turns "never merge red" from a promise into a rule, and it
+- **Decided: B** (Nikita, 2026-10-13, on the Foundry thread's card; #71). The step after: Nikita turns on "Allow
+  auto-merge" and imports `.github/rulesets/main-gated.json` in place of `main-now.json`.
+- **Recommendation was B.** It is the single step that turns "never merge red" from a promise into a rule, and it
   costs a few minutes, not clicks. Saying yes means: CLAUDE.md's chat rule is rewritten to "open a PR and let it
   auto-merge", approved builds go back to squash-merged PRs, and Nikita swaps in the gated ruleset.
 

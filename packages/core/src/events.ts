@@ -1,3 +1,4 @@
+import "./zodConfig.ts";
 import { z } from "zod";
 import { LINEAGE_IDS } from "./lineages.ts";
 import { ROOM_IDS } from "./layout.ts";

@@ -15,7 +15,7 @@ import { Avatar, PageHead, Panel } from "./ui.tsx";
 const KIND_LABEL: Record<CrateKind, string> = { fix: "Fix", build: "Build", upkeep: "Upkeep", idea: "Idea", chat: "From chat" };
 const CRATE_STATE: Record<CrateState, string> = { queued: "Queued", working: "Working", ready: "Waiting for your OK", stuck: "Stuck", shipped: "Shipped" };
 const CREW_STATE: Record<CrateState, LinkState> = { queued: "ok", working: "ok", ready: "slow", stuck: "down", shipped: "ok" };
-const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Opus", tessellate: "Sonnet" };
+const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Opus", tessellate: "Sonnet or Opus" };
 const CHECKS_LABEL: Record<LinkState, string> = { off: "No run yet", ok: "Green", slow: "Running", down: "Red" };
 const HOUR = 3_600_000;
 

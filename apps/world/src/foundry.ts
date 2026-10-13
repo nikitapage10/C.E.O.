@@ -46,7 +46,7 @@ export interface Crate {
   title: string;
   kind: CrateKind;
   state: CrateState;
-  /** The model rung a fix is on: 1 Haiku (Rivet), 2 Sonnet (Rusty), 3 Opus (Rocky). */
+  /** The model rung a fix is on: 1 Haiku (Rivet), 2 Sonnet (Rusty), 3 Opus (Rusty). */
   rung: 1 | 2 | 3 | null;
   url: string;
   /** Date.now() of the last change. */
@@ -240,13 +240,13 @@ export function visibleUpkeep(crates: Crate[], now = Date.now()): Crate | null {
 }
 
 /**
- * Whose lane a crate is in. Fixes go by rung: Rivet (Haiku) on rung 1, Rusty (Sonnet) on rung 2, Rocky (Opus) on
- * rung 3. Approved builds and chat work go to the builder their issue names ("**Builder:** Rocky" for Opus, Rusty
- * for Sonnet, Rivet for Haiku), Rusty when it names none: Sonnet is the default, Opus is for visual and big-picture
+ * Whose lane a crate is in. The Builder decides who takes each job and on which model, and writes it on the issue
+ * ("**Builder:** Rusty (Opus)"). Fixes go by rung: Rivet (Haiku) on rung 1, Rusty on rungs 2 (Sonnet) and 3 (Opus).
+ * Builds and chat work go to the builder their issue names, Rusty when it names none; Rocky is held for high-level
  * work. Rusty also keeps upkeep and ideas.
  */
 export function crewFor(crate: Pick<Crate, "kind" | "rung"> & Pick<Partial<Crate>, "builder">): CrewId {
-  if (crate.kind === "fix") return crate.rung === 3 ? "caret" : crate.rung === 2 ? "tessellate" : "semicolon";
+  if (crate.kind === "fix") return crate.rung === 2 || crate.rung === 3 ? "tessellate" : "semicolon";
   if (crate.kind === "build" || crate.kind === "chat") return crate.builder ?? "tessellate";
   return "tessellate";
 }

@@ -44,11 +44,11 @@ describe("parseCrates", () => {
 });
 
 describe("crewFor", () => {
-  it("sends fixes by rung (Rivet, Rusty, Rocky), builds to the named builder or Rusty, the rest to Rusty", () => {
+  it("sends tiny fixes to Rivet, other fixes and unnamed builds to Rusty, and named builds to their builder", () => {
     expect(crewFor({ kind: "fix", rung: null })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 1 })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 2 })).toBe("tessellate");
-    expect(crewFor({ kind: "fix", rung: 3 })).toBe("caret");
+    expect(crewFor({ kind: "fix", rung: 3 })).toBe("tessellate");
     expect(crewFor({ kind: "build", rung: null })).toBe("tessellate");
     expect(crewFor({ kind: "build", rung: null, builder: "tessellate" })).toBe("tessellate");
     expect(crewFor({ kind: "build", rung: null, builder: "caret" })).toBe("caret");

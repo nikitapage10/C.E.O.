@@ -69,6 +69,7 @@ export interface Shape {
   pitch: string;
   size: "small" | "medium" | "large";
   builder: "Rusty" | "Rocky";
+  model: "Sonnet" | "Opus";
 }
 
 const SHAPE_MODEL = "claude-haiku-5-5";
@@ -80,8 +81,9 @@ const SHAPE_SCHEMA = {
     pitch: { type: "string" },
     size: { type: "string", enum: ["small", "medium", "large"] },
     builder: { type: "string", enum: ["Rusty", "Rocky"] },
+    model: { type: "string", enum: ["Sonnet", "Opus"] },
   },
-  required: ["title", "pitch", "size", "builder"],
+  required: ["title", "pitch", "size", "builder", "model"],
   additionalProperties: false,
 } as const;
 
@@ -89,10 +91,11 @@ const SHAPE_PROMPT = `You shape feature ideas for C.E.O., Nikita's web app: a De
 - title: "Idea: " plus a short plain name for it (under 70 characters), in Nikita's own words where possible.
 - pitch: two or three plain sentences: what changes and what Nikita will see. Keep every request Nikita made; add nothing they didn't ask for.
 - size: small (one area, an hour or so), medium (a few files or one feature), or large (several systems).
-- builder: "Rusty" (Sonnet) is the default: any feature or fix whose shape is clear, even across several files, like adding a button, a form field, an upload, an API call, a setting, wiring data through, or moving, renaming or restyling things. "Rocky" (Opus) only for work that needs taste or big-picture thinking: new 3D scenes, models, animation or visual design, a new look for a page, architecture, or an open-ended idea where deciding what to build is most of the job.
+- builder: "Rusty" builds almost everything. "Rocky" only for high-level work: architecture, big-picture design, or an open-ended idea where deciding what to build is most of the job.
+- model: for Rusty, "Sonnet" when the shape is clear, even across several files (a button, a form field, an upload, an API call, a setting, wiring data through, moving, renaming or restyling things), "Opus" when it needs taste or judgement (3D scenes, models, animation, lighting, visual polish). Rocky is always "Opus". This is a suggestion: the Builder confirms or changes it when the job is picked up.
 Nikita often dictates, so fix obvious speech-to-text slips using C.E.O.'s own words: subminds (Skippy's room leads), Skippy, Rivet, Rusty, Rocky, the Desk, the Lattice, the Foundry, Relay, the Spire, the Exchange, the Green, the Archive, the Break Room, the Boiler Room, the Workshop.
 Nikita may attach pictures (sketches, screenshots, references) to show what they mean: use them to understand the idea and say in the pitch what they show when it matters.
-Reply with the card as JSON: title, pitch, size, builder.`;
+Reply with the card as JSON: title, pitch, size, builder, model.`;
 
 /** Rusty shapes the idea in a few seconds; null when Claude isn't set up or doesn't answer in time. */
 export async function shapeIdea(words: string, current?: string, images: string[] = []): Promise<Shape | null> {
@@ -117,7 +120,8 @@ export async function shapeIdea(words: string, current?: string, images: string[
       title: title.slice(0, 90),
       pitch: raw.pitch.trim(),
       size: raw.size === "small" || raw.size === "large" ? raw.size : "medium",
-      builder: raw.builder === "Rusty" ? "Rusty" : "Rocky",
+      builder: raw.builder === "Rocky" ? "Rocky" : "Rusty",
+      model: raw.builder === "Rocky" || raw.model === "Opus" ? "Opus" : "Sonnet",
     };
   } catch {
     return null;
@@ -135,7 +139,7 @@ async function shapeInto(issue: number, text: string, labels: string[], current?
 }
 
 function shapedBody(shape: Shape, words: string, images: string[] = []): string {
-  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n**Builder:** ${shape.builder}\n\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
+  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n**Builder:** ${shape.builder} (${shape.model})\n\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
 }
 
 export function GET(): Response {

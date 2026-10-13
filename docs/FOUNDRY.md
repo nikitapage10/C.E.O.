@@ -23,22 +23,23 @@ moves them.
 | Agent | Job | Takes |
 | --- | --- | --- |
 | Rivet (agent id `semicolon`, Haiku) | First responder | Reads every new job and sizes it; fixes on rung 1 |
-| The Builder, the Foundry's submind (agent id `ember`) | Room lead | Picks the rung for each job; conducts the room |
-| Rusty (agent id `tessellate`, Sonnet) | Builder, upkeep and ideas | The default builder: any fix or feature whose shape is clear (rung 2), upkeep and maintenance, the morning ideas |
-| Rocky (agent id `caret`, Opus) | Master builder | Visual and big-picture work: 3D scenes, models, animation, visual design, architecture, open-ended ideas (rung 3) |
+| The Builder, the Foundry's submind (agent id `ember`, Opus) | Room lead | Decides who takes each job and on which model; plans, reviews and ships; conducts the room |
+| Rusty (agent id `tessellate`, Sonnet or Opus) | Builder, upkeep and ideas | The default builder for every fix and build (rungs 2 and 3), upkeep and maintenance, the morning ideas |
+| Rocky (agent id `caret`, Opus) | Master builder | Only the high-level work: architecture, big-picture design, open-ended ideas where deciding what to build is most of the job |
 
-Pick the model up front by the kind of work, not by climbing from the cheapest (Nikita, 2026-10-13):
-- **Rocky (Opus)** for what needs taste or big-picture thinking: anything visual in the Lattice (3D scenes, models,
-  animation, lighting), a new look for a page, architecture, and open-ended ideas where deciding what to build is
-  most of the job.
-- **Rusty (Sonnet)** for everything whose shape is clear, even when it spans several files: features like a new
-  button, form field, upload or API call, wiring data through, fixes with a known cause, docs, refactors.
-- **Rivet (Haiku)** for one-line fixes, copy tweaks, labels and triage.
+Who and which model is the Builder's call (the Foundry's submind, on Opus), made up front for every job (Nikita,
+2026-10-13). A `**Builder:**` line written when an idea is shaped on the Desk is only a suggestion: when the Builder
+picks the job up, it confirms or changes it and updates the line. The Builder's rules of thumb:
+- **Rusty** builds almost everything. He picks his model per job: **Sonnet** when the shape is clear (a button, a
+  form field, an upload, an API call, wiring data through, a fix with a known cause, docs, refactors), **Opus** when
+  it needs taste or judgement (3D scenes, models, animation, lighting, visual polish, tricky fixes). Extra jobs go to
+  Rusty clones: spare units come off the dock in the room, each a subagent on the model its job needs.
+- **Rocky (Opus)** is held for the high-level work: architecture, big-picture design and open-ended ideas.
+- **Rivet (Haiku)** answers first: triage, one-line fixes, copy tweaks, labels.
 
 This holds for chat work too: the Builder's thread plans, reviews and ships, and hands the coding to the matching
-crew member as a subagent on that model. Every issue carries a `**Builder:**` line, and the Desk and the room show
-that crew member on it. Each crew member can run clones of itself (subagents on the same model, each in its own
-worktree) to work several jobs at the same time; the crew stays split by job, not by model.
+crew member as a subagent on that model. Every issue carries a `**Builder:**` line naming who and on what, e.g.
+`**Builder:** Rusty (Opus)`, and the Desk and the room show that crew member on it.
 
 ## The queue: GitHub issues
 
@@ -111,9 +112,9 @@ fresh session instead of reaching it, so nothing wakes the thread from GitHub or
 1. Label the issue `foundry:working` and `rung:1`.
 2. Reproduce the failure first (the failing check, or a failing test you add).
 3. Climb the ladder. Each rung is a subagent (the Agent tool's `model` option) working in a git worktree:
-   - **Rung 1, `haiku`:** two tries.
-   - **Rung 2, `sonnet`:** two tries. Change the label to `rung:2`.
-   - **Rung 3, `opus`:** one try. Change the label to `rung:3`.
+   - **Rung 1, Rivet on `haiku`:** one try, only for a plainly tiny fix.
+   - **Rung 2, Rusty on `sonnet`:** two tries. Change the label to `rung:2`. Start here for any fix with a known cause.
+   - **Rung 3, Rusty on `opus`:** one try. Change the label to `rung:3`. Start here when the cause isn't clear.
    - Move up a rung when the checks are still red, or when the fix spreads past the failing area.
 4. When every check passes:
    - **Small green fix** (rung 1, a few lines, no change Nikita would notice): this counts as upkeep. Open its PR
@@ -148,7 +149,7 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   rewrite the title, pitch, size and builder from Nikita's words and notes, and drop the label. Any
   `foundry:build` nobody is working is yours to build. Post nothing unless a question needs Nikita.
 - On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
-  (the builder the card names: Rusty unless it says Rocky). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
+  (the builder and model the card names: Rusty unless it says Rocky). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
   approval on the Desk was the decision, so there is no "Ship?" card (Nikita, 2026-10-12: "when I approve an idea,
   you don't need me to decide to ship it"). It stops for Nikita only when something needs a human: red checks after
   every rung (`foundry:stuck`), a change that can't be checked by the checks (a look, a feel, a new model), or a

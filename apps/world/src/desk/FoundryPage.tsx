@@ -73,11 +73,26 @@ function useSetup(): Setup {
   return setup;
 }
 
-async function send(issue: number | null, choice: Choice, key: string, note = ""): Promise<"ok" | "wrong-key" | "failed"> {
+/** The Foundry thread checks the queue at six past every hour; Desk clicks wait for that check. */
+export function nextCheck(now: number): number {
+  const d = new Date(now);
+  d.setUTCMinutes(6, 0, 0);
+  if (d.getTime() <= now) d.setTime(d.getTime() + HOUR);
+  return d.getTime();
+}
+
+/** "by 9:06 pm": when the crew will have picked a click up. */
+function byCheck(): string {
+  return `by ${new Date(nextCheck(Date.now())).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+}
+
+async function send(issue: number | null, choice: Choice, key: string, note = ""): Promise<"ok" | "shaped" | "wrong-key" | "failed"> {
   try {
     const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issue, choice, key, note }) });
     if (res.status === 401) return "wrong-key";
-    return res.ok ? "ok" : "failed";
+    if (!res.ok) return "failed";
+    const body = (await res.json().catch(() => ({}))) as { shaped?: boolean };
+    return body.shaped ? "shaped" : "ok";
   } catch {
     return "failed";
   }
@@ -253,7 +268,12 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
       return;
     }
     storeKey(withKey);
-    setResult(choice === "build" ? "Approved. Rocky is starting on it." : choice === "pass" ? "On the shelf. Rusty may bring it back another way." : "Sent. Rusty is rewriting it.");
+    setResult(
+      choice === "build" ? `Approved. The crew picks it up at the next check, ${byCheck()}.`
+      : choice === "pass" ? "On the shelf. Rusty may bring it back another way."
+      : r === "shaped" ? "Rewritten with your notes."
+      : `Sent. Rusty rewrites it at the next check, ${byCheck()}.`,
+    );
     // Through the thread, the labels change a moment later; the quick polls pick them up.
     setMode("done");
     expectChange();
@@ -273,7 +293,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
       {crate.pitch && <p className="fy-idea__pitch">{crate.pitch}</p>}
       <footer className="fy-idea__foot">
         {crate.revising ? (
-          <p className="fy-idea__note">Rusty is rewriting this with your notes.</p>
+          <p className="fy-idea__note">Waiting for Rusty: he picks up your notes at the next check, {byCheck()}.</p>
         ) : mode === "done" ? (
           <p className="fy-idea__note">{result}</p>
         ) : mode === "failed" ? (
@@ -370,7 +390,7 @@ function Propose({ setup }: { setup: Setup }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [key, setKey] = useState(storedKey);
-  const [state, setState] = useState<"idle" | "busy" | "done" | "failed" | "wrong-key">("idle");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "shaped" | "failed" | "wrong-key">("idle");
   // What was typed before the mic started; dictation appends to it.
   const typed = useRef("");
   const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
@@ -379,10 +399,10 @@ function Propose({ setup }: { setup: Setup }) {
     dictation.stop();
     setState("busy");
     const r = await send(null, "propose", key.trim(), note);
-    if (r === "ok") {
+    if (r === "ok" || r === "shaped") {
       storeKey(key.trim());
       setNote("");
-      setState("done");
+      setState(r === "shaped" ? "shaped" : "done");
       expectChange();
     } else setState(r);
   };
@@ -409,7 +429,8 @@ function Propose({ setup }: { setup: Setup }) {
     return (
       <button type="button" className="fy-propose__open" onClick={() => (setOpen(true), setState("idle"))}>
         <span aria-hidden="true">+</span> Suggest an idea
-        {state === "done" && <em>{ready ? "Sent. Rusty is shaping it into a card." : "Copied. Paste it in the Foundry thread."}</em>}
+        {state === "shaped" && <em>Shaped. Your card is on the board.</em>}
+        {state === "done" && <em>{ready ? `Sent. Rusty shapes it into a card at the next check, ${byCheck()}.` : "Copied. Paste it in the Foundry thread."}</em>}
       </button>
     );
   return (

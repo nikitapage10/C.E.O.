@@ -547,6 +547,19 @@ export const useFoundry = create<FoundryStore>((set) => ({
   shapePending: (number, shape) => set((s) => ({ pending: s.pending.map((p) => (p.number === number ? { ...p, ...shape, revising: false, asking: Boolean(shape.question), updatedAt: Date.now() } : p)) })),
 }));
 
+/** The ideas on the Desk's cards, in the thread's numbering (Build 1, 2, 3): GitHub's open ideas, then any just sent from the Desk until GitHub numbers them. */
+export function openIdeas(crates: Crate[], pending: Crate[]): Crate[] {
+  const open = crates.filter((c) => c.kind === "idea" && c.state !== "shipped" && !pending.some((p) => p.number === c.number));
+  return [...open, ...pending].sort((a, b) => (a.number < 0 ? Infinity : a.number) - (b.number < 0 ? Infinity : b.number));
+}
+
+/** Rivet's questions waiting on Nikita (an answer being shaped no longer counts) and the other ideas waiting for a pick, kept apart. */
+export function ideaCounts(ideas: Crate[]): { questions: Crate[]; toPick: number } {
+  const waiting = ideas.filter((c) => !c.revising);
+  const questions = waiting.filter((c) => c.asking && c.question);
+  return { questions, toPick: waiting.length - questions.length };
+}
+
 /** The card the Desk shows the moment Nikita sends an idea, in their own words. */
 export function pendingIdea(words: string, now: number, images: string[] = []): Crate {
   const first = words.split("\n")[0]!.trim();

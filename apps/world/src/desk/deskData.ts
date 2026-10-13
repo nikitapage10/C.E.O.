@@ -223,7 +223,8 @@ export function foundryDesk(f: FoundryData, now = Date.now(), awaySince = now - 
       actions.push({ id, room: "foundry", agent, kind: "decide", when: "now", live: true, title: `Ship “${c.title}”?`, detail: "Built and checked. Tap Ship on the card in the Foundry thread and it goes live.", choices: ["Open the Foundry thread", "See the work"], hrefs: [FOUNDRY_THREAD, c.url] });
     } else if (c.state === "stuck") {
       actions.push({ id, room: "foundry", agent, kind: "check", when: "now", live: true, title: `Stuck: ${c.title}`, detail: "Every model rung tried and the checks are still red. The notes on what was tried are on the issue.", choices: ["Read the notes"], hrefs: [c.url] });
-    } else if (c.kind === "idea" && c.state === "queued") {
+    } else if (c.kind === "idea" && c.state === "queued" && !(c.asking && c.question && !c.revising)) {
+      // Rivet's open questions lead Today with the answer box (Today.tsx), so they are not also a "later" row.
       actions.push({ id, room: "foundry", agent, kind: "decide", when: "later", live: true, due: "This morning's ideas", title: c.title, choices: ["Pick on the Foundry tab", "Read it"], hrefs: ["/foundry", c.url] });
     } else if (c.state === "shipped") {
       // The ship time is when the issue closed; updatedAt also moves when a comment lands later.

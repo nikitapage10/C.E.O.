@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -70,6 +70,31 @@ describe("ideas Rivet asks about first", () => {
     expect(useFoundry.getState().pending).toHaveLength(1);
     store.set({ ...EMPTY_FOUNDRY, crates: parseCrates([issue(9, ["foundry", "foundry:idea", "foundry:question"], { body })], NOW) });
     expect(useFoundry.getState().pending).toHaveLength(0);
+  });
+});
+
+describe("questions apart from ideas waiting for a pick", () => {
+  const ask = "**Pitch:** p\n**Question:** Which page?";
+  const crates = parseCrates(
+    [
+      issue(3, ["foundry", "foundry:idea", "foundry:question"], { body: ask }),
+      issue(1, ["foundry", "foundry:idea"], { body: "**Pitch:** p" }),
+      issue(2, ["foundry", "foundry:idea", "foundry:question", "foundry:revise"], { body: ask }),
+      issue(4, ["foundry", "foundry:build"], { body: "**Pitch:** p" }),
+    ],
+    NOW,
+  );
+  it("lists open ideas by issue number, pending cards last", () => {
+    const sent = { ...crates[0]!, number: -5 };
+    expect(openIdeas(crates, [sent]).map((c) => c.number)).toEqual([1, 2, 3, -5]);
+  });
+  it("counts questions apart from picks, and skips ideas being reshaped", () => {
+    const { questions, toPick } = ideaCounts(openIdeas(crates, []));
+    expect(questions.map((c) => c.number)).toEqual([3]);
+    expect(toPick).toBe(1);
+  });
+  it("has no questions when nothing asks", () => {
+    expect(ideaCounts([])).toEqual({ questions: [], toPick: 0 });
   });
 });
 

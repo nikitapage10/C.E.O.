@@ -1065,6 +1065,18 @@ a.panel__hint:hover {
 .notes li:last-child {
   border-bottom: 0;
 }
+/* Five lines at most; the rest scroll inside the panel, so the rooms below stay put. */
+.notes {
+  --note-h: 60px;
+  max-height: calc(var(--note-h) * 5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.notes[data-more="true"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+}
 .notes__body {
   display: grid;
   gap: 2px;

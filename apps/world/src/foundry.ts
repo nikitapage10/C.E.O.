@@ -74,6 +74,8 @@ export interface Crate {
   url: string;
   /** Date.now() of the last change. */
   updatedAt: number;
+  /** Date.now() the issue was closed, for shipped crates; unlike `updatedAt` a later comment never moves it. */
+  closedAt?: number;
   /** The issue's pitch line (ideas carry one), or "". */
   pitch: string;
   /** Small, medium or large, when the issue says. */
@@ -222,15 +224,17 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
     if (!kind) continue;
     const updatedAt = Date.parse(issue.updated_at);
     let state: CrateState;
+    let closedAt: number | undefined;
     if (issue.state === "closed") {
       if (!labels.has("foundry:shipped")) continue;
-      if (now - Date.parse(issue.closed_at ?? issue.updated_at) > SHIPPED_FOR_MS) continue;
+      closedAt = Date.parse(issue.closed_at ?? issue.updated_at);
+      if (now - closedAt > SHIPPED_FOR_MS) continue;
       state = "shipped";
     } else {
       state = labels.has("foundry:stuck") ? "stuck" : labels.has("foundry:ready") ? "ready" : labels.has("foundry:working") ? "working" : "queued";
     }
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
-    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, revising: labels.has("foundry:revise"), ...readBody(issue.body ?? "") });
+    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), revising: labels.has("foundry:revise"), ...readBody(issue.body ?? "") });
   }
   return crates.sort((a, b) => b.updatedAt - a.updatedAt);
 }

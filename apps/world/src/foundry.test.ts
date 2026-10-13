@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -100,13 +100,13 @@ describe("parseChecks", () => {
 
 describe("readBody", () => {
   it("reads the pitch and size the Foundry writes into an idea", () => {
-    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [], model: null });
+    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [], model: null, short: "" });
   });
   it("reads attached pictures from the markdown", () => {
     expect(readBody("**Pitch:** Look.\n\n![Picture 1](https://x.public.blob.vercel-storage.com/a.jpg)\n![Picture 2](https://x.public.blob.vercel-storage.com/b.png)\n![bad](http://no.tls/c.png)").images).toEqual(["https://x.public.blob.vercel-storage.com/a.jpg", "https://x.public.blob.vercel-storage.com/b.png"]);
   });
   it("is empty for a plain issue", () => {
-    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, images: [], model: null });
+    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, images: [], model: null, short: "" });
   });
 });
 
@@ -252,7 +252,35 @@ describe("the changelog", () => {
 
   it("counts what shipped since midnight", () => {
     const now = new Date(2026, 9, 13, 15).getTime();
-    const at = (h: number) => ({ key: `${h}`, at: new Date(2026, 9, 13, h).getTime(), title: "", kind: "chat" as const, issue: null, landed: null });
+    const at = (h: number) => ({ key: `${h}`, at: new Date(2026, 9, 13, h).getTime(), title: "", kind: "chat" as const, issue: null, landed: null, by: null, short: "" });
     expect(shippedToday([at(9), at(1), { ...at(0), at: new Date(2026, 9, 12, 23).getTime() }], now)).toBe(2);
+  });
+});
+
+describe("recentWork", () => {
+  const shipped = (n: number, labels: string[], closed: string, body = ""): GhIssue => ({ number: n, title: ` Title ${n} `, state: "closed", html_url: `https://x/issues/${n}`, updated_at: closed, closed_at: closed, body, labels: ["foundry", "foundry:shipped", ...labels].map((name) => ({ name })) });
+  const log = parseChangelog(
+    [
+      shipped(1, ["foundry:build"], "2026-10-12T01:00:00Z", "**Builder:** Rocky (Opus)"),
+      shipped(2, ["foundry:build"], "2026-10-12T02:00:00Z", "**Short:** Crew recents\n**Builder:** Rusty (Sonnet)"),
+      shipped(3, ["foundry:fix", "rung:1"], "2026-10-12T03:00:00Z"),
+      shipped(4, ["foundry:fix", "rung:1"], "2026-10-12T04:00:00Z"),
+      shipped(5, ["foundry:fix", "rung:1"], "2026-10-12T05:00:00Z"),
+      shipped(6, ["foundry:fix", "rung:1"], "2026-10-12T06:00:00Z"),
+      shipped(7, ["foundry:chat"], "2026-10-12T07:00:00Z"),
+    ],
+    [],
+    [],
+  );
+
+  it("reads the Short line and attributes by Builder line, fix rung and Rusty by default", () => {
+    expect(readBody("**Short:** Hi there").short).toBe("Hi there");
+    expect(recentWork(log, "caret")).toEqual([{ number: 1, url: "https://x/issues/1", name: "Title 1", at: Date.parse("2026-10-12T01:00:00Z") }]);
+    expect(recentWork(log, "tessellate").map((r) => [r.number, r.name])).toEqual([[7, "Title 7"], [2, "Crew recents"]]);
+  });
+
+  it("lists the newest three, newest first, and is empty with nothing shipped", () => {
+    expect(recentWork(log, "semicolon").map((r) => r.number)).toEqual([6, 5, 4]);
+    expect(recentWork([], "caret")).toEqual([]);
   });
 });

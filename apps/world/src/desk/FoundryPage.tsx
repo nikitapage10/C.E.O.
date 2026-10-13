@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
-import { assignCrew, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { assignCrew, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -727,6 +727,7 @@ const STATE_ORDER: Record<CrateState, number> = { stuck: 0, working: 1, ready: 2
 function Crew({ now }: { now: number }) {
   const connected = useFoundry((s) => s.connected);
   const crates = useFoundry((s) => s.data.crates);
+  const changelog = useFoundry((s) => s.data.changelog);
   const by = assignCrew(crates);
   const queue = upNext(crates);
   const hands = rustyHands(crates);
@@ -790,6 +791,7 @@ function Crew({ now }: { now: number }) {
                   })}
                 </ul>
               )}
+              <RecentLine items={recentWork(changelog, id)} now={now} />
             </li>
           );
         })}
@@ -826,6 +828,24 @@ function Crew({ now }: { now: number }) {
         )}
       </section>
     </>
+  );
+}
+
+/** One muted row under a crew member: the last few things they shipped. */
+function RecentLine({ items, now }: { items: ReturnType<typeof recentWork>; now: number }) {
+  return (
+    <p className="fy-recent">
+      <span className="fy-recent__label">Recently</span>
+      {items.length ? (
+        items.map((r) => (
+          <a key={r.number} className="fy-recent__item" href={r.url} target="_blank" rel="noreferrer" title={r.name}>
+            #{r.number} {r.name} <span>{formatWait(now - r.at)} ago</span>
+          </a>
+        ))
+      ) : (
+        <span className="fy-recent__none">Nothing shipped yet</span>
+      )}
+    </p>
   );
 }
 

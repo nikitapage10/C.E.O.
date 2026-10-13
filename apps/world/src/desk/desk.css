@@ -2890,6 +2890,7 @@ a.fy-chip:hover {
   display: grid;
 }
 .fy-crew__member {
+  min-width: 0;
   padding: 12px 0;
   border-bottom: 1px solid var(--hair-soft);
 }

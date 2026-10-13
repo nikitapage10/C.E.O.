@@ -708,49 +708,245 @@ button {
   background: rgba(255, 255, 255, 0.15);
 }
 
-.bubble {
-  max-width: 230px;
+/* Speech: a compact bubble riding above the speaker on a stem (agents/SpeechBubble.tsx). */
+.speech {
+  --lift: 0px;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  translate: -50% 0;
   width: max-content;
-  padding: 7px 10px;
-  border: 1px solid var(--hair-strong);
-  border-left-width: 2px;
-  border-radius: var(--radius);
-  background: rgba(5, 5, 6, 0.86);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  transform-origin: 50% 100%;
+  animation: speech-pop 0.46s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+.speech--out {
+  animation: speech-out 0.38s cubic-bezier(0.5, 0, 0.9, 0.4) both;
+}
+.speech__bob {
+  position: relative;
+  z-index: 1;
+  animation: speech-bob 3.4s ease-in-out var(--bob, 0s) infinite alternate;
+}
+.speech__card {
+  position: relative;
+  padding: 4px 9px 5px;
+  border: 1px solid var(--hair);
+  border-top-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 7px;
+  background: rgba(9, 10, 13, 0.8);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.45),
+    0 0 14px color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--text);
   font-family: var(--serif);
   font-style: italic;
   font-size: 14px;
-  line-height: 1.3;
-  white-space: normal;
-  pointer-events: none;
-  animation: rise 0.3s ease-out;
+  line-height: 1.22;
+  transform-origin: 50% 100%;
+  transition:
+    opacity 0.28s ease,
+    transform 0.34s cubic-bezier(0.2, 1.3, 0.4, 1);
 }
-.bubble b {
-  display: block;
-  font-family: var(--mono);
-  font-style: normal;
-  font-weight: 400;
-  font-size: 8.5px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  margin-bottom: 2px;
+/* No room in the crowd: the card folds down into a pip of dots over its speaker until there is. */
+.speech__pip {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  padding: 5px 7px;
+  translate: -50% 0;
+  border: 1px solid var(--hair);
+  border-top-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 999px;
+  background: rgba(9, 10, 13, 0.8);
+  opacity: 0;
+  transform: scale(0.4);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 0.22s ease,
+    transform 0.3s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
-.bubble__pre {
-  display: block;
+.speech__pip i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: speech-pip 1.1s ease-in-out infinite;
+}
+.speech__pip i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.speech__pip i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.speech[data-tucked] .speech__card {
+  opacity: 0;
+  transform: scale(0.3);
+}
+.speech[data-tucked] .speech__pip {
+  opacity: 1;
+  transform: none;
+}
+/* The tail: a small point under the card, aimed at the speaker. */
+.speech__card::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  translate: -50% 0;
+  rotate: 45deg;
+  border-right: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  background: rgb(12, 13, 16);
+}
+.speech__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 1px;
   font-family: var(--mono);
   font-style: normal;
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: 8px;
+  line-height: 1.6;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+.speech__head b {
+  font-weight: 400;
+  color: var(--accent);
+}
+.speech__pre {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: none;
   color: var(--muted);
 }
-.bubble__post {
+.speech__dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: auto;
+}
+.speech__dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--hair-strong);
+  transition: background 0.3s;
+}
+.speech__dots i.on {
+  background: var(--accent);
+}
+.speech__dots i.done {
+  background: var(--faint);
+}
+/* Pages share one cell, so the card keeps the size of its longest page and never jumps while it types. */
+.speech__pages {
+  display: grid;
+}
+.speech__page {
+  grid-area: 1 / 1;
+  transition:
+    opacity 0.32s ease,
+    transform 0.32s ease;
+}
+.speech__page.is-gone {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+.speech__page.is-next {
+  opacity: 0;
+  transform: translateY(5px);
+}
+.speech__line {
+  display: block;
+  white-space: nowrap;
+}
+.speech__line--aside {
   color: var(--faint);
 }
-.bubble--far {
-  max-width: 170px;
+.speech__ghost {
+  color: transparent;
+}
+.speech__caret {
+  display: inline-block;
+  width: 1px;
+  height: 0.85em;
+  margin: 0 1px -0.08em;
+  background: var(--accent);
+  animation: speech-caret 0.7s steps(1) infinite;
+}
+.speech__stem {
+  position: relative;
+  width: 1px;
+  height: calc(12px + var(--lift));
+  margin-top: -2px;
+  background: linear-gradient(color-mix(in srgb, var(--accent) 70%, transparent), color-mix(in srgb, var(--accent) 15%, transparent));
+}
+.speech__stem::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  width: 4px;
+  height: 4px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.speech--far .speech__card {
+  padding: 3px 7px 4px;
   font-size: 12px;
-  padding: 5px 8px;
+}
+.speech--far .speech__head {
+  font-size: 7px;
+}
+.speech--far .speech__stem {
+  height: calc(8px + var(--lift));
+}
+@keyframes speech-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.35);
+  }
+  60% {
+    opacity: 1;
+  }
+}
+@keyframes speech-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.85);
+  }
+}
+@keyframes speech-bob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-3px);
+  }
+}
+@keyframes speech-pip {
+  50% {
+    opacity: 0.35;
+    transform: translateY(-2px);
+  }
+}
+@keyframes speech-caret {
+  50% {
+    opacity: 0;
+  }
 }
 .tag {
   width: max-content;
@@ -1507,10 +1703,6 @@ button {
   letter-spacing: 0.02em;
   text-transform: none;
   color: var(--muted);
-}
-.bubble {
-  font-size: 15px;
-  max-width: 260px;
 }
 
 /* ── Frosted glass: just enough behind the text to read it over a busy world ── */

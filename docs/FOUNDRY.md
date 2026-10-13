@@ -253,6 +253,10 @@ The Desk's function writes Origin, Shaped and Decision for clicks on the Desk; t
 red checks; the Builder writes Assigned, Work, Checks and Shipped, and Origin for chat work. A step that didn't
 happen is left out, never invented. Skip none that did.
 
+The Desk's feeds (`api/foundry-feed.ts`, `api/foundry-usage.ts`) always come from Vercel's edge cache and never take a
+query string: any query is redirected (308) to the bare URL, so outside traffic can't miss the cache and use up the
+token's GitHub allowance, and a warm function also keeps its last answer for the cache time (`api/_feedcache.ts`).
+
 The Desk's Usage panel counts from these steps: this month's quick-shaping spend from the "Used … $…" part of each
 Shaped step (against the $10 cap), and the crew's jobs and hours by model from Assigned (who, on which model) to
 Shipped, and the Claude Code column (tokens per model) from the `Claude Code:` lines on Shipped steps, each dated by its

@@ -6,8 +6,10 @@
  *
  * GET → { issues, trails }: slim issues ({ number, title, state, created_at, closed_at, body, labels }) and trail
  * comments ({ issue, at, body }), newest first; `at` is the comment's created_at, which dates each tab's numbers. Shipped
- * steps keep up to 3000 characters so their "Claude Code: 291k tokens on Opus, 1 h 50 min." lines survive. Cached at Vercel's edge for a minute; the panel asks every minute.
+ * steps keep up to 3000 characters so their "Claude Code: 291k tokens on Opus, 1 h 50 min." lines survive. Cached at Vercel's edge for a minute; the panel asks every minute. A request with any query string is redirected to the bare URL so it hits that cache, and a warm function keeps its last answer for the same minute (api/_feedcache.ts).
  */
+
+import { canonical, memo } from "./_feedcache.js";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -65,19 +67,27 @@ interface Comment {
 /** The comments the panel reads: the trail steps, and the older "Approved for building" note from before the trail. */
 const TRAIL = /^(\*\*Trail ·|Approved for building)/;
 
-export async function GET(): Promise<Response> {
+/** Cache lifetime in seconds, for both the edge header and the in-function memo. */
+const TTL = 60;
+
+const usage = memo(TTL * 1000, async () => {
+  const [issues, comments] = await Promise.all([readAll<Issue>("/issues?labels=foundry&state=all&sort=created&direction=desc", ISSUE_PAGES), readAll<Comment>("/issues/comments?sort=created&direction=desc", COMMENT_PAGES)]);
+  return JSON.stringify({
+    issues: issues
+      .filter((i) => !i.pull_request)
+      .map((i) => ({ number: i.number, title: i.title, state: i.state, created_at: i.created_at, closed_at: i.closed_at, body: (i.body ?? "").slice(0, 2000), labels: i.labels.map((l) => (typeof l === "string" ? l : (l.name ?? ""))) })),
+    trails: comments
+      .filter((c) => TRAIL.test(c.body ?? ""))
+      .map((c) => ({ issue: Number(/\/issues\/(\d+)$/.exec(c.issue_url)?.[1] ?? 0), at: c.created_at, body: (c.body ?? "").slice(0, (c.body ?? "").startsWith("**Trail · Shipped:**") ? 3000 : 1200) })),
+  });
+});
+
+export async function GET(req: Request): Promise<Response> {
+  const redirect = canonical(req);
+  if (redirect) return redirect;
   try {
-    const [issues, comments] = await Promise.all([readAll<Issue>("/issues?labels=foundry&state=all&sort=created&direction=desc", ISSUE_PAGES), readAll<Comment>("/issues/comments?sort=created&direction=desc", COMMENT_PAGES)]);
-    const body = {
-      issues: issues
-        .filter((i) => !i.pull_request)
-        .map((i) => ({ number: i.number, title: i.title, state: i.state, created_at: i.created_at, closed_at: i.closed_at, body: (i.body ?? "").slice(0, 2000), labels: i.labels.map((l) => (typeof l === "string" ? l : (l.name ?? ""))) })),
-      trails: comments
-        .filter((c) => TRAIL.test(c.body ?? ""))
-        .map((c) => ({ issue: Number(/\/issues\/(\d+)$/.exec(c.issue_url)?.[1] ?? 0), at: c.created_at, body: (c.body ?? "").slice(0, (c.body ?? "").startsWith("**Trail · Shipped:**") ? 3000 : 1200) })),
-    };
-    return new Response(JSON.stringify(body), {
-      headers: { "Content-Type": "application/json", "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
+    return new Response(await usage(), {
+      headers: { "Content-Type": "application/json", "Cache-Control": `public, s-maxage=${TTL}, stale-while-revalidate=300` },
     });
   } catch {
     return new Response(JSON.stringify({ error: "github" }), { status: 502, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });

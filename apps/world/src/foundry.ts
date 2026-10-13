@@ -591,9 +591,8 @@ interface Feed {
 
 /** The Desk's own feed (api/foundry-feed.ts): one request, read with the Foundry's token and shared by every tab. */
 async function readFeed(): Promise<Feed> {
-  // Right after a Desk click, skip the few seconds of edge cache so the change shows at once.
-  const url = Date.now() < quickUntil ? `/api/foundry-feed?fresh=${Date.now()}` : "/api/foundry-feed";
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  // No cache-busting query: the feed redirects any query to the bare URL, and the few seconds of edge cache are short enough.
+  const res = await fetch("/api/foundry-feed", { headers: { Accept: "application/json" } });
   if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) throw new Error(`${res.status} feed`);
   return (await res.json()) as Feed;
 }

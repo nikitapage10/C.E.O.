@@ -2745,6 +2745,10 @@ button.room-pick__tab:hover {
 .conn__item {
   min-width: 0;
 }
+/* A pop-over scope (Popovers.tsx) adds no box of its own. */
+.pop-scope {
+  display: contents;
+}
 .conn__chip {
   position: relative;
   display: grid;

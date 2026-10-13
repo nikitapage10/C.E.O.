@@ -5,7 +5,7 @@ import { BOUNDARIES, ZONES, partsOf, type Boundary, type ZoneId } from "./model.
 import { Rich } from "./parts.tsx";
 
 /**
- * The trust boundaries from docs/THREAT-MODEL.md as a map: the zones the data passes through and the seven
+ * The trust boundaries from docs/THREAT-MODEL.md as a map: the zones the data passes through and the eight
  * boundaries between them. Pick a boundary (hover, focus or tap) to see what crosses it and the controls on it. The
  * map is for wide screens; the row of boundary buttons and the detail carry the same facts everywhere. On the map the
  * detail also floats at the mouse (or beside the focused chip), since the one below the map can be off screen.
@@ -38,6 +38,8 @@ const EDGE: Record<string, { d: string; cx: number; cy: number }> = {
   TB5: { d: "M840 140 L840 180", cx: 840, cy: 160 },
   TB6: { d: "M240 110 L330 110", cx: 285, cy: 110 },
   TB7: { d: "M240 335 L330 335", cx: 285, cy: 335 },
+  // Actions (in GitHub, top right) out to Gemini in the model APIs' box (bottom right), round the right of the column.
+  TB8: { d: "M980 115 C 1040 115, 1040 345, 980 345", cx: 1025, cy: 230 },
 };
 
 export function TrustMap() {
@@ -70,7 +72,7 @@ export function TrustMap() {
 
   return (
     <div className="tmap" ref={rootRef}>
-      <svg className="tmap__svg" viewBox="0 -34 1000 424" role="group" aria-label="Trust boundaries: the zones C.E.O.'s data passes through and the seven boundaries between them">
+      <svg className="tmap__svg" viewBox="0 -34 1060 424" role="group" aria-label="Trust boundaries: the zones C.E.O.'s data passes through and the eight boundaries between them">
         <defs>
           <marker id="tmap-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0 L10 5 L0 10 z" className="tmap__head" />

@@ -18,6 +18,7 @@ import { CostumePiece } from "./Costume.tsx";
 import { Nameplate } from "./Nameplate.tsx";
 import { CARRY_AT, type Drive } from "./bodies/types.ts";
 import { PropMesh } from "./Props.tsx";
+import { SpeechBubble } from "./SpeechBubble.tsx";
 import { voiced, voiceOf } from "./voices.ts";
 import { VEIL, veilCostumeFor } from "../veil/veil.ts";
 
@@ -500,15 +501,7 @@ export function Agent({ id }: { id: string }) {
       {focus === rt.place.room && !showBubble && !showTag && !studioOpen && (
         <Nameplate id={id} name={name} accent={accent} y={nameY} />
       )}
-      {showBubble && (
-        <Html position={[0, nameY + 0.1, 0]} center distanceFactor={df} zIndexRange={[30, 0]}>
-          <div className={`bubble ${df ? "" : "bubble--far"}`} style={{ borderLeftColor: accent }}>
-            <b style={{ color: accent }}>{name}</b>
-            {line?.pre && <span className="bubble__pre">{line.pre}</span>} {line?.text}
-            {line?.post && <span className="bubble__post"> {line.post}</span>}
-          </div>
-        </Html>
-      )}
+      {showBubble && line && <SpeechBubble key={speech!.until} id={id} name={name} accent={accent} line={line} until={speech!.until} y={nameY - 0.1} far={!df} />}
       {showTag && !showBubble && (
         <Html position={[0, nameY + 0.1, 0]} center distanceFactor={df} zIndexRange={[40, 0]}>
           <div className="tag" style={{ borderLeftColor: accent, borderLeftWidth: 2 }}>

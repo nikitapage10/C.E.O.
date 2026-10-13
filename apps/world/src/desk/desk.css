@@ -481,7 +481,8 @@ a.panel__hint:hover {
 .banner__pic {
   position: absolute;
   inset: 0;
-  z-index: -1;
+  /* Under the shade (::before), which comes first in the box: words over the room stay legible. */
+  z-index: -2;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -495,8 +496,8 @@ a.panel__hint:hover {
   z-index: -1;
   background:
     radial-gradient(90% 120% at 0% 100%, color-mix(in srgb, var(--tone) 16%, transparent) 0%, transparent 60%),
-    linear-gradient(90deg, rgba(4, 6, 11, 0.95) 0%, rgba(4, 6, 11, 0.86) 32%, rgba(4, 6, 11, 0.5) 54%, rgba(4, 6, 11, 0.22) 76%, rgba(4, 6, 11, 0.22) 100%),
-    linear-gradient(0deg, rgba(4, 6, 11, 0.92) 0%, rgba(4, 6, 11, 0.2) 60%, rgba(4, 6, 11, 0.32) 100%);
+    linear-gradient(90deg, rgba(4, 6, 11, 0.92) 0%, rgba(4, 6, 11, 0.72) 36%, rgba(4, 6, 11, 0.22) 66%, rgba(4, 6, 11, 0.12) 100%),
+    linear-gradient(0deg, rgba(4, 6, 11, 0.85) 0%, rgba(4, 6, 11, 0.1) 60%, rgba(4, 6, 11, 0.2) 100%);
 }
 .banner::after {
   content: "";

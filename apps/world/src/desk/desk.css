@@ -3679,6 +3679,50 @@ a.fy-chip:hover {
 }
 
 /* ── Foundry usage: API spend against the cap, and the crew's work by model ── */
+.fy-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0 0 16px;
+}
+.fy-tabs__tab {
+  padding: 4px 11px;
+  border: 1px solid var(--hair-soft);
+  border-radius: 999px;
+  background: rgba(14, 22, 44, 0.55);
+  backdrop-filter: blur(8px);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s var(--ease), border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+.fy-tabs__tab:hover {
+  color: var(--text);
+  border-color: var(--hair);
+}
+.fy-tabs__tab[aria-selected="true"] {
+  color: var(--text);
+  border-color: var(--mint);
+  background: rgba(159, 227, 201, 0.12);
+}
+.fy-tabs__tab:focus-visible {
+  outline: 1px solid var(--mint);
+  outline-offset: 2px;
+}
+.fy-tabs__note {
+  flex-basis: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--faint);
+}
+.fy-work__table td.fy-work__tokens b {
+  font-family: var(--mono);
+  font-weight: 500;
+}
 .fy-usage__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));

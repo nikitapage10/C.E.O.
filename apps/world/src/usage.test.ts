@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { costOf, usageLine } from "../../../api/foundry.ts";
-import { assignedModel, formatSpan, formatUsd, foundryJobs, monthSpend, readSpend, weekStart, workByModel, type Trail, type UsageIssue } from "./usage.ts";
+import { assignedModel, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, monthSpend, periodStart, readClaudeCode, readDuration, readSpend, weekStart, windowSpend, workByModel, type Job, type Trail, type UsageIssue } from "./usage.ts";
 
 const H = 3_600_000;
 
@@ -94,18 +94,82 @@ describe("Foundry work by model", () => {
     const monday = weekStart(now);
     expect(new Date(monday).getDay()).toBe(1);
     expect(new Date(monday).getHours()).toBe(0);
-    const work = workByModel(
-      [
-        { issue: 1, model: "Opus", start: monday - 2 * H, end: monday + 1 * H }, // straddles Monday: 1h this week
-        { issue: 2, model: "Opus", start: monday - 10 * H, end: monday - 5 * H }, // last week only
-        { issue: 3, model: "Sonnet", start: now - 3 * H, end: null }, // running
-      ],
-      now,
-    );
-    expect(work.Opus.all).toEqual({ jobs: 2, ms: 8 * H, running: 0 });
-    expect(work.Opus.week).toEqual({ jobs: 1, ms: 1 * H, running: 0 });
-    expect(work.Sonnet.week).toEqual({ jobs: 1, ms: 3 * H, running: 1 });
-    expect(work.Haiku.all.jobs).toBe(0);
+    const jobs: Job[] = [
+      { issue: 1, model: "Opus", start: monday - 2 * H, end: monday + 1 * H }, // straddles Monday: 1h this week
+      { issue: 2, model: "Opus", start: monday - 10 * H, end: monday - 5 * H }, // last week only
+      { issue: 3, model: "Sonnet", start: now - 3 * H, end: null }, // running
+    ];
+    const all = workByModel(jobs, "all", now);
+    const week = workByModel(jobs, "week", now);
+    expect(all.Opus).toEqual({ jobs: 2, ms: 8 * H, running: 0 });
+    expect(week.Opus).toEqual({ jobs: 1, ms: 1 * H, running: 0 });
+    expect(week.Sonnet).toEqual({ jobs: 1, ms: 3 * H, running: 1 });
+    expect(all.Haiku.jobs).toBe(0);
+  });
+});
+
+describe("the tabs' windows", () => {
+  const now = new Date(2026, 9, 14, 12).getTime(); // Wednesday noon, local
+  it("starts each window where the tab says", () => {
+    expect(periodStart("5h", now)).toBe(now - 5 * H);
+    expect(periodStart("today", now)).toBe(new Date(2026, 9, 14).getTime());
+    expect(periodStart("week", now)).toBe(new Date(2026, 9, 12).getTime()); // Monday
+    expect(periodStart("all", now)).toBe(-Infinity);
+  });
+  it("counts a job's time only inside each window", () => {
+    const jobs: Job[] = [
+      { issue: 1, model: "Opus", start: now - 8 * H, end: now - 4 * H }, // 4h ago..8h ago: 1h in the last 5h, 4h today
+      { issue: 2, model: "Haiku", start: now - 30 * H, end: now - 29 * H }, // yesterday
+    ];
+    expect(workByModel(jobs, "5h", now).Opus).toEqual({ jobs: 1, ms: 1 * H, running: 0 });
+    expect(workByModel(jobs, "5h", now).Haiku.jobs).toBe(0);
+    expect(workByModel(jobs, "today", now).Opus.ms).toBe(4 * H);
+    expect(workByModel(jobs, "today", now).Haiku.jobs).toBe(0);
+    expect(workByModel(jobs, "week", now).Haiku.jobs).toBe(1);
+  });
+  it("windows the shaping spend by each comment's date", () => {
+    const shaped = (at: number, usd: string): Trail => ({ issue: 1, at: new Date(at).toISOString(), body: `**Trail · Shaped:** Rusty. Used 100 tokens in and 10 out, $${usd}.` });
+    const trails = [shaped(now - 1 * H, "0.01"), shaped(now - 6 * H, "0.02"), shaped(now - 40 * H, "0.04")];
+    expect(windowSpend(trails, "5h", now).usd).toBeCloseTo(0.01, 9);
+    expect(windowSpend(trails, "today", now).calls).toBe(2);
+    expect(windowSpend(trails, "all", now).usd).toBeCloseTo(0.07, 9);
+  });
+});
+
+describe("Claude Code lines on Shipped steps", () => {
+  it("reads tokens, model and run time in the formats the Builder writes", () => {
+    expect(readClaudeCode("**Trail · Shipped:** abc on main.\nClaude Code: 291k tokens on Opus, 1 h 50 min.")).toEqual([{ model: "Opus", tokens: 291_000, ms: 110 * 60_000 }]);
+    expect(readClaudeCode("Claude Code: 64k tokens on Haiku, 3 min.")).toEqual([{ model: "Haiku", tokens: 64_000, ms: 3 * 60_000 }]);
+    expect(readClaudeCode("Claude Code: 89k tokens on Sonnet, 5 min.")[0]).toMatchObject({ model: "Sonnet", tokens: 89_000 });
+    expect(readClaudeCode("Claude Code: 1.2M tokens on opus")).toEqual([{ model: "Opus", tokens: 1_200_000, ms: null }]);
+    expect(readClaudeCode("Claude Code: 12,345 tokens on Sonnet, 45 s.")).toEqual([{ model: "Sonnet", tokens: 12_345, ms: 45_000 }]);
+    expect(readClaudeCode("**Trail · Shipped:** abc on main.")).toEqual([]);
+    expect(readClaudeCode("Claude Code: lots of tokens on Opus")).toEqual([]);
+  });
+  it("reads durations", () => {
+    expect(readDuration("1 h 50 min.")).toBe(110 * 60_000);
+    expect(readDuration("3 min")).toBe(180_000);
+    expect(readDuration("nothing")).toBeNull();
+  });
+  it("shows tokens short, and a dash where none are recorded", () => {
+    expect(formatTokens(291_000)).toBe("291k");
+    expect(formatTokens(1_200_000)).toBe("1.2M");
+    expect(formatTokens(64_500)).toBe("64.5k");
+    expect(formatTokens(850)).toBe("850");
+    expect(formatTokens(null)).toBe("\u2014");
+  });
+  it("sums every line on every Shipped comment inside the window, by the comment's date", () => {
+    const now = new Date(2026, 9, 14, 12).getTime();
+    const at = (ms: number) => new Date(ms).toISOString();
+    const trails: Trail[] = [
+      { issue: 1, at: at(now - 1 * H), body: "**Trail · Shipped:** a1 on main.\nClaude Code: 100k tokens on Opus, 20 min.\nClaude Code: 50k tokens on Sonnet, 5 min." },
+      { issue: 1, at: at(now - 2 * H), body: "**Trail · Shipped:** a2 follow-up.\nClaude Code: 91k tokens on Opus, 9 min." },
+      { issue: 2, at: at(now - 30 * H), body: "**Trail · Shipped:** b on main.\nClaude Code: 64k tokens on Haiku, 3 min." },
+      { issue: 3, at: at(now - 1 * H), body: "**Trail · Work:** Claude Code: 999k tokens on Opus" }, // not a Shipped step
+    ];
+    expect(codeTokensByModel(trails, "5h", now)).toEqual({ Haiku: null, Sonnet: 50_000, Opus: 191_000 });
+    expect(codeTokensByModel(trails, "all", now)).toEqual({ Haiku: 64_000, Sonnet: 50_000, Opus: 191_000 });
+    expect(codeTokensByModel([], "all", now)).toEqual({ Haiku: null, Sonnet: null, Opus: null });
   });
 });
 

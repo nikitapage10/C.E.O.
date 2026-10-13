@@ -4,7 +4,7 @@ import { assignCrew, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, M
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
-import { CLAUDE_USAGE_URL, formatSpan, formatUsd, foundryJobs, MODELS, monthSpend, SPEND_CAP_USD, useUsage, workByModel } from "../usage.ts";
+import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
 import { Avatar, PageHead, Panel } from "./ui.tsx";
 
 /**
@@ -829,104 +829,152 @@ function Crew({ now }: { now: number }) {
   );
 }
 
+const PERIOD_KEY = "ceo.usagePeriod";
+
+/** The tab last chosen on the Usage panel; the last 5 hours when nothing is remembered or storage is blocked. */
+function savedPeriod(): Period {
+  try {
+    const v = localStorage.getItem(PERIOD_KEY);
+    return PERIODS.some((p) => p.id === v) ? (v as Period) : "5h";
+  } catch {
+    return "5h";
+  }
+}
+
 /**
- * What the Foundry uses: this month's Claude API spend on quick shaping against the cap, and the crew's work by model
- * this week and all time, both counted from the issue trails (usage.ts). The plan's own session and weekly limits are
- * on Claude's usage page, which the Desk can't read, so it links there.
+ * What the Foundry uses, over a tab's window (last 5 hours, today, this week, all time): the Claude API spend on quick
+ * shaping (with this month's total against the cap), and the crew's work by model with the Claude Code tokens each
+ * model used, all counted from the issue trails (usage.ts). The plan's own session and weekly limits are on Claude's
+ * usage page, which the Desk can't read, so it links there.
  */
 function Usage({ now, setup }: { now: number; setup: Setup }) {
   const { feed, failed } = useUsage();
+  const [period, setPeriodState] = useState<Period>(savedPeriod);
+  const setPeriod = (p: Period) => {
+    setPeriodState(p);
+    try {
+      localStorage.setItem(PERIOD_KEY, p);
+    } catch {
+      /* storage blocked: the tab just isn't remembered */
+    }
+  };
+  const label = PERIODS.find((p) => p.id === period)!.label;
   const waiting = failed ? "Can't reach GitHub right now; trying again every minute." : "Waiting for the issue trails from GitHub…";
-  const spend = feed ? monthSpend(feed.trails, now) : null;
-  const work = feed ? workByModel(foundryJobs(feed.issues, feed.trails), now) : null;
-  const share = spend ? Math.min(1, spend.usd / SPEND_CAP_USD) : 0;
+  const month = feed ? monthSpend(feed.trails, now) : null;
+  const spend = feed ? windowSpend(feed.trails, period, now) : null;
+  const work = feed ? workByModel(foundryJobs(feed.issues, feed.trails), period, now) : null;
+  const code = feed ? codeTokensByModel(feed.trails, period, now) : null;
+  const share = month ? Math.min(1, month.usd / SPEND_CAP_USD) : 0;
   const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
-  const most = work ? Math.max(1, ...MODELS.map((m) => work[m].all.ms)) : 1;
-  const hasWork = work ? MODELS.some((m) => work[m].all.jobs > 0) : false;
+  const most = work ? Math.max(1, ...MODELS.map((m) => work[m].ms)) : 1;
+  const hasWork = work ? MODELS.some((m) => work[m].jobs > 0 || code?.[m] != null) : false;
+  const onKey = (e: React.KeyboardEvent) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = PERIODS[(PERIODS.findIndex((p) => p.id === period) + step + PERIODS.length) % PERIODS.length]!.id;
+    setPeriod(next);
+    requestAnimationFrame(() => document.getElementById(`fy-tab-${next}`)?.focus());
+  };
   return (
-    <div className="fy-usage__grid">
-      <section className="fy-spend" aria-label="Claude API spend on idea shaping this month">
-        <h3 className="fy-usage__head">Idea shaping · Claude API</h3>
-        {!spend ? (
-          <p className="quiet">{waiting}</p>
-        ) : (
-          <>
-            <p className="fy-spend__figure">
-              <b>{formatUsd(spend.usd)}</b>
-              <span>of ${SPEND_CAP_USD} cap · {spend.month}</span>
-            </p>
-            <div
-              className={`fy-meter fy-meter--${tone}`}
-              role="meter"
-              aria-valuemin={0}
-              aria-valuemax={SPEND_CAP_USD}
-              aria-valuenow={Number(spend.usd.toFixed(4))}
-              aria-label={`${formatUsd(spend.usd)} of the $${SPEND_CAP_USD} monthly cap`}
-              title={`${(share * 100).toFixed(share < 0.01 ? 2 : 0)}% of the $${SPEND_CAP_USD} cap`}
-            >
-              <i style={{ width: `${spend.usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
-            </div>
-            <p className="fy-spend__calls">
-              {spend.calls
-                ? `${spend.calls} ${spend.calls === 1 ? "call" : "calls"} on Claude Haiku · ${spend.tokensIn.toLocaleString()} tokens in · ${spend.tokensOut.toLocaleString()} out`
-                : setup?.shape === false
-                  ? "Quick shaping isn't connected yet (CLAUDE_API_KEY in Vercel), so nothing is spent."
-                  : "No shaping calls yet this month."}
-            </p>
-            <p className="quiet fy-usage__note">Counted from each call's own token use, written on its idea's trail.</p>
-          </>
-        )}
-      </section>
+    <>
+      <div className="fy-tabs" role="tablist" aria-label="Usage time span" onKeyDown={onKey}>
+        {PERIODS.map((p) => (
+          <button key={p.id} id={`fy-tab-${p.id}`} type="button" role="tab" aria-selected={period === p.id} tabIndex={period === p.id ? 0 : -1} className="fy-tabs__tab" onClick={() => setPeriod(p.id)}>
+            {p.label}
+          </button>
+        ))}
+        {period === "5h" && <span className="fy-tabs__note">Foundry work only — your plan's own meter is on Claude's usage page</span>}
+      </div>
+      <div className="fy-usage__grid" role="tabpanel" aria-label={`Usage: ${label}`}>
+        <section className="fy-spend" aria-label={`Claude API spend on idea shaping, ${label.toLowerCase()}`}>
+          <h3 className="fy-usage__head">Idea shaping · Claude API</h3>
+          {!spend || !month ? (
+            <p className="quiet">{waiting}</p>
+          ) : (
+            <>
+              <p className="fy-spend__figure">
+                <b>{formatUsd(spend.usd)}</b>
+                <span>{label.toLowerCase()}</span>
+              </p>
+              <p className="fy-spend__calls">
+                {spend.calls
+                  ? `${spend.calls} ${spend.calls === 1 ? "call" : "calls"} on Claude Haiku · ${spend.tokensIn.toLocaleString()} tokens in · ${spend.tokensOut.toLocaleString()} out`
+                  : setup?.shape === false
+                    ? "Quick shaping isn't connected yet (CLAUDE_API_KEY in Vercel), so nothing is spent."
+                    : "No shaping calls in this span."}
+              </p>
+              <div
+                className={`fy-meter fy-meter--${tone}`}
+                role="meter"
+                aria-valuemin={0}
+                aria-valuemax={SPEND_CAP_USD}
+                aria-valuenow={Number(month.usd.toFixed(4))}
+                aria-label={`${formatUsd(month.usd)} of the $${SPEND_CAP_USD} monthly cap`}
+                title={`${(share * 100).toFixed(share < 0.01 ? 2 : 0)}% of the $${SPEND_CAP_USD} cap`}
+              >
+                <i style={{ width: `${month.usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
+              </div>
+              <p className="fy-spend__calls">
+                {formatUsd(month.usd)} of ${SPEND_CAP_USD} cap · {month.month}
+              </p>
+              <p className="quiet fy-usage__note">Counted from each call's own token use, written on its idea's trail.</p>
+            </>
+          )}
+        </section>
 
-      <section className="fy-work" aria-label="Foundry work by model">
-        <h3 className="fy-usage__head">Foundry work by model · Claude Code</h3>
-        {!work ? (
-          <p className="quiet">{waiting}</p>
-        ) : !hasWork ? (
-          <p className="quiet">No jobs on the trails yet. They count from the Builder's Assigned and Shipped steps.</p>
-        ) : (
-          <table className="fy-work__table">
-            <thead>
-              <tr>
-                <th scope="col">Model</th>
-                <th scope="col">This week</th>
-                <th scope="col">All time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MODELS.map((m) => {
-                const row = work[m];
-                const live = row.all.running ? ` · ${row.all.running} running` : "";
-                return (
-                  <tr key={m} style={{ "--c": MODEL_COLOUR[m] } as React.CSSProperties}>
-                    <th scope="row">
-                      <i className="fy-work__swatch" aria-hidden="true" />
-                      {m}
-                    </th>
-                    <td title={`${m} this week: ${row.week.jobs} ${row.week.jobs === 1 ? "job" : "jobs"}, ${formatSpan(row.week.ms)} of work`}>
-                      <b>{row.week.jobs}</b> {row.week.jobs === 1 ? "job" : "jobs"} <span>{formatSpan(row.week.ms)}</span>
-                    </td>
-                    <td title={`${m} all time: ${row.all.jobs} ${row.all.jobs === 1 ? "job" : "jobs"}, ${formatSpan(row.all.ms)} of work${live}`}>
-                      <b>{row.all.jobs}</b> {row.all.jobs === 1 ? "job" : "jobs"} <span>{formatSpan(row.all.ms)}{live}</span>
-                      <span className="fy-work__bar" aria-hidden="true">
-                        <i style={{ width: `${row.all.ms > 0 ? Math.max(2, (row.all.ms / most) * 100) : 0}%` }} />
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-        <p className="quiet fy-usage__note">
-          Time runs from when the Builder assigns a job to when it ships. Your plan's session and weekly limits are on{" "}
-          <a href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer">
-            Claude's usage page
-          </a>
-          , which the Desk can't read.
-        </p>
-      </section>
-    </div>
+        <section className="fy-work" aria-label="Foundry work by model">
+          <h3 className="fy-usage__head">Foundry work by model · Claude Code</h3>
+          {!work || !code ? (
+            <p className="quiet">{waiting}</p>
+          ) : !hasWork ? (
+            <p className="quiet">No jobs in this span. They count from the Builder's Assigned and Shipped steps.</p>
+          ) : (
+            <table className="fy-work__table">
+              <thead>
+                <tr>
+                  <th scope="col">Model</th>
+                  <th scope="col">{label}</th>
+                  <th scope="col">Claude Code</th>
+                </tr>
+              </thead>
+              <tbody>
+                {MODELS.map((m) => {
+                  const row = work[m];
+                  const live = row.running ? ` · ${row.running} running` : "";
+                  return (
+                    <tr key={m} style={{ "--c": MODEL_COLOUR[m] } as React.CSSProperties}>
+                      <th scope="row">
+                        <i className="fy-work__swatch" aria-hidden="true" />
+                        {m}
+                      </th>
+                      <td title={`${m}, ${label.toLowerCase()}: ${row.jobs} ${row.jobs === 1 ? "job" : "jobs"}, ${formatSpan(row.ms)} of work${live}`}>
+                        <b>{row.jobs}</b> {row.jobs === 1 ? "job" : "jobs"} <span>{formatSpan(row.ms)}{live}</span>
+                        <span className="fy-work__bar" aria-hidden="true">
+                          <i style={{ width: `${row.ms > 0 ? Math.max(2, (row.ms / most) * 100) : 0}%` }} />
+                        </span>
+                      </td>
+                      <td className="fy-work__tokens" title={code[m] === null ? `No Claude Code tokens recorded on ${m} in this span` : `${m}: ${code[m]!.toLocaleString()} tokens`}>
+                        <b>{formatTokens(code[m])}</b>
+                        {code[m] !== null && <span> tokens</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          <p className="quiet fy-usage__note">Foundry crew only: the Builder thread's own use and your other Claude sessions aren't counted.</p>
+          <p className="quiet fy-usage__note">
+            Time runs from when the Builder assigns a job to when it ships; tokens come from its Shipped step. Your plan's session and weekly limits are on{" "}
+            <a href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer">
+              Claude's usage page
+            </a>
+            , which the Desk can't read.
+          </p>
+        </section>
+      </div>
+    </>
   );
 }
 

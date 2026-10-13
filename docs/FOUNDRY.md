@@ -225,6 +225,14 @@ Shipped, and the Claude Code column (tokens per model) from the `Claude Code:` l
 comment (several Shipped comments on one issue all count). The panel's tabs (Last 5 hours, Today, This week, All time)
 switch both halves. So the Assigned step names the model ("Rusty on Opus") and the Shipped step is written when the work lands.
 
+## The living Lattice
+
+Every hour a GitHub Actions run takes the Lattice one step forward ([WORLD.md](WORLD.md)): one Claude Haiku call
+writes the hour for the whole world from the cast and the hour's real Foundry events, and each job that shipped that
+hour gets a one-line remark from its builder, shown under the job on the Desk's Changelog. Its spend shares the $10
+cap with quick shaping (the world stops calling Claude at $6 a month) and shows on the Usage panel. The crew needs to
+do nothing for it; after changing the cast, run `npm run world:cast` (a test reminds you).
+
 ## Rules that always hold
 
 - The checks pass before anything reaches `main`. Never skip, disable or weaken a test to get green.

@@ -1,20 +1,21 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * The app's few addresses. The Desk lives at `/`, `/relay`, `/foundry` and `/systems`; the 3D Lattice at `/lattice`. Kept free of
+ * The app's few addresses. The Desk lives at `/`, `/relay`, `/foundry`, `/systems` and `/chronicle`; the 3D Lattice at `/lattice`. Kept free of
  * imports on purpose: the Desk loads this, and must not pull in anything from the Lattice.
  */
-export type Route = "today" | "relay" | "foundry" | "systems" | "lattice";
+export type Route = "today" | "relay" | "foundry" | "systems" | "chronicle" | "lattice";
 
 export function routeOf(pathname: string): Route {
   if (pathname.startsWith("/lattice")) return "lattice";
   if (pathname.startsWith("/relay")) return "relay";
   if (pathname.startsWith("/foundry")) return "foundry";
   if (pathname.startsWith("/systems")) return "systems";
+  if (pathname.startsWith("/chronicle")) return "chronicle";
   return "today";
 }
 
-export const PATHS: Record<Route, string> = { today: "/", relay: "/relay", foundry: "/foundry", systems: "/systems", lattice: "/lattice" };
+export const PATHS: Record<Route, string> = { today: "/", relay: "/relay", foundry: "/foundry", systems: "/systems", chronicle: "/chronicle", lattice: "/lattice" };
 
 const listeners = new Set<() => void>();
 const subscribe = (fn: () => void) => {

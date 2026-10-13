@@ -19,7 +19,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "world:cast": "node scripts/world-cast.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

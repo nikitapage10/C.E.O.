@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { shippedToday, useFoundry } from "../foundry.ts";
+import { sinceAway, useWorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening } from "./viz.tsx";
@@ -26,7 +27,11 @@ function roomHref(room: DeskRoom) {
   return room === "relay" ? "/relay" : room === "foundry" ? "/foundry" : room === "boiler" ? "/systems" : `/lattice?room=${room}`;
 }
 
-export function Today({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
+export function Today({ data, now, connected, awaySince }: { data: DeskData; now: number; connected: boolean; awaySince: number }) {
+  // The living Lattice (docs/WORLD.md): the latest hour in Ilyr, and how many have passed since you were here.
+  const world = useWorldFeed().feed;
+  const ilyr = world ? sinceAway(world.recent, awaySince) : [];
+  const latest = world?.recent.at(-1) ?? null;
   const date = new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const owed = byWait(data.owed);
   const replies = owed.filter((o) => !o.later && (o.urgency === "sooner" || now - o.since > NOW_WAIT)).slice(0, NOW_REPLIES);
@@ -155,6 +160,16 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
             </ul>
           ) : (
             <p className="quiet">Nothing new since you were last here.</p>
+          )}
+          {latest && (
+            <p className="today-world">
+              <b>In Ilyr</b>
+              {ilyr.length > 1 ? `${ilyr.length} hours passed. Latest: ` : ""}
+              {latest.summary}{" "}
+              <a href="/chronicle" onClick={link("chronicle")}>
+                Read the Chronicle →
+              </a>
+            </p>
           )}
         </Panel>
       </div>

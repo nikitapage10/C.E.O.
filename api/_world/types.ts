@@ -1,0 +1,152 @@
+/**
+ * The living Lattice's saved world (docs/WORLD.md): the state the hourly step carries forward, and the history it
+ * writes. Shared by the step (api/world-step.ts), the read feed (api/world.ts) and the Desk and the Lattice, which only
+ * import these types. Plain data, no imports, so the Vercel functions and the browser bundle both take it as is.
+ */
+
+export type RoomId = "foundry" | "spire" | "exchange" | "green" | "relay" | "archive" | "breakroom" | "boiler" | "workshop";
+export type RelationshipKind = "friend" | "best-friend" | "rival" | "nemesis" | "crush" | "partner" | "mentor" | "sibling" | "ex";
+
+/** The cast as the step sees it (generated into api/_world/cast.ts from packages/simulator/src/worldCast.ts). */
+export interface WorldCast {
+  rooms: { id: RoomId; name: string }[];
+  kinds: RelationshipKind[];
+  members: {
+    id: string;
+    name: string;
+    role: string;
+    room: RoomId;
+    lead: boolean;
+    traits: string[];
+    bio: string;
+    catchphrase: string;
+    voice: string[];
+  }[];
+  relationships: { a: string; b: string; kind: RelationshipKind; note: string }[];
+  scripted: {
+    quips: Record<string, string[]>;
+    conduct: Record<string, string[]>;
+    shipped: Record<string, string[]>;
+    summaries: string[];
+  };
+}
+
+/** A relationship as the world has it now. `since` is when a step last changed it (absent for the cast's own). */
+export interface WorldRelationship {
+  a: string;
+  b: string;
+  kind: RelationshipKind;
+  note: string;
+  since?: string;
+}
+
+/** One line of a scene: who says it (an agent id) and what. */
+export interface SceneLine {
+  who: string;
+  text: string;
+}
+
+/** A moment in one room: a short conversation. */
+export interface Scene {
+  room: RoomId;
+  title: string;
+  lines: SceneLine[];
+}
+
+/** A relationship a step changed, with what it was before. */
+export interface RelationshipChange {
+  a: string;
+  b: string;
+  kind: RelationshipKind;
+  note: string;
+  was: RelationshipKind | null;
+}
+
+/** A builder's one line on a job of theirs that shipped this hour. */
+export interface Remark {
+  issue: number;
+  title: string;
+  who: string;
+  text: string;
+}
+
+/** The token use and cost of a step's Claude call. */
+export interface StepCost {
+  usd: number;
+  tokensIn: number;
+  tokensOut: number;
+}
+
+/** One step of the world: an hour in Ilyr. */
+export interface HistoryEntry {
+  step: number;
+  /** ISO time the step ran. */
+  at: string;
+  /** Its day in Mountain time, "2026-10-13": the Chronicle's pages. */
+  day: string;
+  /** Who wrote it: Claude, or the scripted stand-in (over budget, no key, or Claude didn't answer). */
+  source: "claude" | "scripted";
+  summary: string;
+  scenes: Scene[];
+  changes: RelationshipChange[];
+  remarks: Remark[];
+  /** The hour's real events, as fed to the step (public Foundry work only). */
+  events: string[];
+  /** The day in Ilyr: the previous day's recap, written by the first step after midnight. */
+  recap?: { day: string; text: string };
+  cost: StepCost | null;
+}
+
+/** The world's spend in one calendar month (UTC, as the API bills it). */
+export interface MonthTotals {
+  usd: number;
+  tokensIn: number;
+  tokensOut: number;
+  /** Claude calls made (one per step that asked). */
+  calls: number;
+  /** Steps the scripted stand-in wrote. */
+  scripted: number;
+}
+
+/** What the step carries from one hour to the next. */
+export interface WorldState {
+  version: 1;
+  /** Steps taken so far. */
+  step: number;
+  /** ISO time of the last step; null before the first. */
+  at: string | null;
+  relationships: WorldRelationship[];
+  /** The latest entries, oldest first: the step's memory and what the Lattice plays on open. */
+  recent: HistoryEntry[];
+  /** Days with history, newest first. */
+  days: string[];
+  /** The last day whose recap was written. */
+  recapped: string | null;
+  /** Spend by month ("2026-10"), the last few months. */
+  spend: Record<string, MonthTotals>;
+  /** Builder remarks, newest first: the Foundry tab's Changelog shows them by issue. */
+  remarks: (Remark & { at: string })[];
+}
+
+/** A page of the Chronicle: one day. */
+export interface DayPage {
+  day: string;
+  entries: HistoryEntry[];
+  recap: string | null;
+}
+
+/** What GET /api/world answers. */
+export interface WorldFeed {
+  ok: true;
+  at: string | null;
+  step: number;
+  /** When the next step is due (ISO), or null before the first. */
+  nextAt: string | null;
+  relationships: WorldRelationship[];
+  recent: HistoryEntry[];
+  days: string[];
+  remarks: (Remark & { at: string })[];
+  spend: { month: string; budget: number } & MonthTotals;
+  /** Whether Claude is set up for the step (else every hour is scripted). */
+  claude: boolean;
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
-import { CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, modelOf, nextUpkeep, pendingIdea, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { assignCrew, CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, modelOf, nextUpkeep, pendingIdea, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -8,8 +8,9 @@ import { Avatar, PageHead, Panel } from "./ui.tsx";
 
 /**
  * The Foundry's own Desk page. Top to bottom: what needs you (the morning's ideas as cards you can build, pass on or
- * send back with notes, plus anything waiting for your OK), how things stand right now (checks, work running,
- * upkeep, the next ideas), the crew, and whether every connection is up. GitHub is read directly (see foundry.ts);
+ * send back with notes, plus anything waiting for your OK), how things stand right now (a strip of icons: checks, work
+ * running, upkeep, the next ideas), the crew with every job each holds and the queue after them, and whether every
+ * connection is up. GitHub is read directly (see foundry.ts);
  * the idea buttons write through the Vercel function in api/foundry.ts.
  */
 
@@ -165,8 +166,8 @@ export function FoundryPage({ now }: { now: number }) {
   const decisions = data.crates.filter((c) => c.kind !== "idea" && (c.state === "ready" || c.state === "stuck"));
   const running = data.crates.filter((c) => c.kind !== "idea" && c.state === "working");
   const upkeep = data.crates.find((c) => c.kind === "upkeep");
-  // Everything in flight: in hand first, then the queue. Chat work (a thread building what Nikita asked for) is in here too.
-  const inFlight = data.crates.filter((c) => c.kind !== "idea" && (c.state === "working" || c.state === "queued")).sort((a, b) => (a.state === b.state ? a.number - b.number : a.state === "working" ? -1 : 1));
+  // Everything in flight: what the crew holds plus the queue nobody holds yet. Chat work is in here too.
+  const inFlight = assignCrew(data.crates).size + upNext(data.crates).length;
   const toPick = ideas.filter((c) => !c.revising).length;
   const needs = decisions.length + (toPick ? 1 : 0);
 
@@ -234,34 +235,14 @@ export function FoundryPage({ now }: { now: number }) {
         )}
       </section>
 
-      <section className="fy-status" aria-label="Right now">
-        <Tile label="Checks" tone={data.checks.state === "pass" ? "ok" : data.checks.state === "fail" ? "down" : data.checks.state === "running" ? "slow" : "off"} href={data.checks.url ?? undefined}>
-          {data.checks.state === "pass" ? "All green" : data.checks.state === "fail" ? "Red, Rivet is on it" : data.checks.state === "running" ? "Running" : "No run yet"}
-        </Tile>
-        <Tile label="Work running" tone={running.length ? "ok" : "off"} href={running[0]?.url}>
-          {running.length ? `${running.length} · ${running[0]!.title}` : "Nothing right now"}
-        </Tile>
-        <Tile label="Upkeep" tone={upkeep?.state === "working" ? "ok" : "off"} href={upkeep?.url}>
-          {upkeep?.state === "working" ? `Working: ${upkeep.title}` : upkeep ? `Last: ${upkeep.title}` : "None yet"}
-          <small>Next run {inTime(nextUpkeep(now) - now)}</small>
-        </Tile>
-        <Tile label="Next ideas" tone="off">
-          9:00 Mountain
-          <small>{inTime(nextIdeas(now) - now)}</small>
-        </Tile>
-      </section>
+      <StatusStrip now={now} running={running} upkeep={upkeep} />
 
-      <div className="fy-row">
-        <Panel eyebrow="The crew">
-          <Crew />
-        </Panel>
-        <Panel eyebrow="Connections">
-          <Connections setup={setup} />
-        </Panel>
-      </div>
+      <Panel eyebrow="The crew" className="fy-crewpanel" aside={<span className="badge">{inFlight}</span>} label="The crew and what is in flight">
+        <Crew now={now} />
+      </Panel>
 
-      <Panel eyebrow="In flight" aside={<span className="badge">{inFlight.length}</span>}>
-        {inFlight.length ? <CrateList crates={inFlight} all={data.crates} now={now} /> : <p className="quiet">Nothing in hand or queued. Fixes, builds, upkeep and work asked for in chat show here.</p>}
+      <Panel eyebrow="Connections" className="fy-connections">
+        <Connections setup={setup} />
       </Panel>
 
       <Panel eyebrow="Changelog" aside={<span className="badge">{data.changelog.length}</span>}>
@@ -275,25 +256,6 @@ export function FoundryPage({ now }: { now: number }) {
         </p>
       </Panel>
     </div>
-  );
-}
-
-function Tile({ label, tone, href, children }: { label: string; tone: LinkState; href?: string; children: React.ReactNode }) {
-  const body = (
-    <>
-      <span className="fy-tile__label">
-        <i className={`fy-dot fy-dot--${tone}`} aria-hidden="true" />
-        {label}
-      </span>
-      <span className="fy-tile__value">{children}</span>
-    </>
-  );
-  return href ? (
-    <a className="fy-tile" href={href} target="_blank" rel="noreferrer">
-      {body}
-    </a>
-  ) : (
-    <div className="fy-tile">{body}</div>
   );
 }
 
@@ -675,44 +637,166 @@ function Propose({ setup }: { setup: Setup }) {
   );
 }
 
-function Crew() {
-  const connected = useFoundry((s) => s.connected);
-  const data = useFoundry((s) => s.data);
-  const work = crewWork(data.crates);
-  const load = crewLoad(data.crates);
+/** Queued work nobody holds yet (ideas waiting for a pick are the cards above, not this). */
+function upNext(crates: Crate[]): Crate[] {
+  return crates.filter((c) => c.kind !== "idea" && c.state === "queued").sort((a, b) => a.number - b.number);
+}
+
+const ICONS = {
+  checks: "M5 12.5l4.2 4.2L19 7",
+  running: "M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+  upkeep: "M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.4-.6-.6-2.4z",
+  ideas: "M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z",
+} as const;
+
+function Chip({ icon, tone, label, title, href }: { icon: keyof typeof ICONS; tone: LinkState; label: string; title: string; href?: string }) {
+  const body = (
+    <>
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <path d={ICONS[icon]} stroke="currentColor" strokeWidth="1.7" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <i className={`fy-dot fy-dot--${tone}`} aria-hidden="true" />
+      <span>{label}</span>
+    </>
+  );
   return (
-    <ul className="fy-crew">
-      {(Object.keys(CREW) as CrewId[]).map((id) => {
-        const crate = work[id];
-        const tone: LinkState = crate ? CREW_STATE[crate.state] : connected ? "ok" : "off";
-        return (
-          <li key={id} className={`fy-crew__member fy-crew__member--${tone}`}>
-            <span className="fy-crew__mark">
-              <Avatar agent={id} size="lg" room="foundry" />
-              <i className={`fy-dot fy-dot--${tone}`} aria-hidden="true" />
-            </span>
-            <span className="fy-crew__name">
-              {CREW[id].name}
-              <small>
-                {CREW[id].job} · {CREW_RUNG[id]}
-                {load[id] > 1 && ` · ${load[id] - 1} ${load[id] === 2 ? "clone" : "clones"} helping`}
-              </small>
-            </span>
-            <span className="fy-crew__on">
-              {crate ? (
-                <a href={crate.url} target="_blank" rel="noreferrer">
-                  {CRATE_STATE[crate.state]}: {crate.title}
-                </a>
-              ) : connected ? (
-                "Free"
-              ) : (
-                "Not connected yet"
-              )}
-            </span>
-          </li>
-        );
-      })}
+    <li>
+      {href ? (
+        <a className="fy-chip" href={href} target="_blank" rel="noreferrer" title={title} aria-label={title}>
+          {body}
+        </a>
+      ) : (
+        <span className="fy-chip" title={title} aria-label={title}>
+          {body}
+        </span>
+      )}
+    </li>
+  );
+}
+
+/** How things stand, at icon level: checks, work running, upkeep, the next ideas. The details sit in each tooltip. */
+function StatusStrip({ now, running, upkeep }: { now: number; running: Crate[]; upkeep: Crate | undefined }) {
+  const checks = useFoundry((s) => s.data.checks);
+  const tone: LinkState = checks.state === "pass" ? "ok" : checks.state === "fail" ? "down" : checks.state === "running" ? "slow" : "off";
+  const checksLong = checks.state === "pass" ? "All green" : checks.state === "fail" ? "Red, Rivet is on it" : checks.state === "running" ? "Running" : "No run yet";
+  const upkeepNow = upkeep?.state === "working";
+  const upkeepLine = upkeepNow ? `Working: ${upkeep.title}` : upkeep ? `Last: ${upkeep.title}` : "None yet";
+  return (
+    <ul className="fy-strip" aria-label="Right now">
+      <Chip icon="checks" tone={tone} label={CHECKS_LABEL[tone]} title={`Checks on main: ${checksLong}`} href={checks.url ?? undefined} />
+      <Chip
+        icon="running"
+        tone={running.length ? "ok" : "off"}
+        label={running.length ? `${running.length} running` : "Idle"}
+        title={running.length ? `Work running: ${running.map((c) => `#${c.number} ${c.title}`).join("; ")}` : "Work running: nothing right now"}
+        href={running.length === 1 ? running[0]!.url : undefined}
+      />
+      <Chip
+        icon="upkeep"
+        tone={upkeepNow ? "ok" : "off"}
+        label={upkeepNow ? "Upkeep now" : `Upkeep ${inTime(nextUpkeep(now) - now)}`}
+        title={`Upkeep. ${upkeepLine}. Next run ${inTime(nextUpkeep(now) - now)}.`}
+        href={upkeep?.url}
+      />
+      <Chip icon="ideas" tone="off" label="Ideas 9:00" title={`Next ideas at 9:00 Mountain, ${inTime(nextIdeas(now) - now)}`} />
     </ul>
+  );
+}
+
+const STATE_ORDER: Record<CrateState, number> = { stuck: 0, working: 1, ready: 2, queued: 3, shipped: 9 };
+
+/**
+ * The crew and what is in flight, together: each member with every job they hold (past the first, clones of them on
+ * the same model), then the queue nobody has picked up yet.
+ */
+function Crew({ now }: { now: number }) {
+  const connected = useFoundry((s) => s.connected);
+  const crates = useFoundry((s) => s.data.crates);
+  const by = assignCrew(crates);
+  const load = crewLoad(crates);
+  const queue = upNext(crates);
+  return (
+    <>
+      <ul className="fy-crew">
+        {(Object.keys(CREW) as CrewId[]).map((id) => {
+          const jobs = crates.filter((c) => by.get(c.number) === id).sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || a.number - b.number);
+          const tone: LinkState = jobs[0] ? CREW_STATE[jobs[0].state] : connected ? "ok" : "off";
+          const clones = Math.max(0, load[id] - 1);
+          return (
+            <li key={id} className={`fy-crew__member fy-crew__member--${tone}`}>
+              <div className="fy-crew__head">
+                <span className="fy-crew__mark">
+                  <Avatar agent={id} room="foundry" />
+                  <i className={`fy-dot fy-dot--${tone}`} aria-hidden="true" />
+                </span>
+                <span className="fy-crew__name">
+                  {CREW[id].name}
+                  <small>
+                    {CREW[id].job} · {CREW_RUNG[id]}
+                  </small>
+                </span>
+                <span className="fy-crew__load">
+                  {jobs.length ? `${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}${clones ? ` · ${clones} ${clones === 1 ? "clone" : "clones"}` : ""}` : connected ? "Free" : "Not connected yet"}
+                </span>
+              </div>
+              {jobs.length > 0 && (
+                <ul className="fy-jobs">
+                  {jobs.map((c, n) => (
+                    <li key={c.number} className={`fy-job fy-job--${c.state}`}>
+                      <a className="fy-job__n" href={c.url} target="_blank" rel="noreferrer">
+                        #{c.number}
+                      </a>
+                      <a className="fy-job__title" href={c.url} target="_blank" rel="noreferrer">
+                        {c.title}
+                      </a>
+                      <span className="fy-job__meta">
+                        {n > 0 && <b className="fy-job__clone">Clone</b>}
+                        {KIND_LABEL[c.kind]} · {modelOf(c, id)} · {formatWait(now - c.updatedAt)} ago
+                      </span>
+                      <span className={`pill pill--${CREW_STATE[c.state]}`}>
+                        <i aria-hidden="true" />
+                        {CRATE_STATE[c.state]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <section className="fy-next" aria-label="Up next">
+        <h3 className="fy-next__head">
+          Up next <span className="badge">{queue.length}</span>
+        </h3>
+        {queue.length ? (
+          <ul className="fy-jobs">
+            {queue.map((c) => {
+              const who = crewFor(c);
+              return (
+                <li key={c.number} className="fy-job fy-job--queued">
+                  <a className="fy-job__n" href={c.url} target="_blank" rel="noreferrer">
+                    #{c.number}
+                  </a>
+                  <a className="fy-job__title" href={c.url} target="_blank" rel="noreferrer">
+                    {c.title}
+                  </a>
+                  <span className="fy-job__meta">
+                    {KIND_LABEL[c.kind]} · for {CREW[who].name} on {modelOf(c, who)} · {formatWait(now - c.updatedAt)} ago
+                  </span>
+                  <span className="pill pill--off">
+                    <i aria-hidden="true" />
+                    {CRATE_STATE[c.state]}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="quiet">{connected ? "Nothing queued. Fixes, builds, upkeep and work asked for in chat show here." : "Not connected yet."}</p>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -756,29 +840,6 @@ function Connections({ setup }: { setup: Setup }) {
           <span className={`pill pill--${r.state}`}>
             <i aria-hidden="true" />
             {r.label}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function CrateList({ crates, all, now }: { crates: Crate[]; all: Crate[]; now: number }) {
-  return (
-    <ul className="crates">
-      {crates.map((c) => (
-        <li key={c.number} className={`crates__item crates__item--${c.state}`}>
-          <Avatar agent={crewOf(c, all)} size="sm" room="foundry" />
-          <span className="crates__kind">{KIND_LABEL[c.kind]}</span>
-          <a className="crates__title" href={c.url} target="_blank" rel="noreferrer">
-            {c.title}
-          </a>
-          <span className="crates__who">
-            #{c.number} · {CREW[crewOf(c, all)].name} on {modelOf(c, crewOf(c, all))} · {formatWait(now - c.updatedAt)} ago
-          </span>
-          <span className={`pill pill--${CREW_STATE[c.state]}`}>
-            <i aria-hidden="true" />
-            {CRATE_STATE[c.state]}
           </span>
         </li>
       ))}

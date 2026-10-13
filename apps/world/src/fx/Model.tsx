@@ -15,6 +15,7 @@ import {
 } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import bundles from "./bundles.gen.json";
+import { useStreamedIn } from "../scene/roomScope.ts";
 import { useLib } from "./library.ts";
 
 const BUNDLED = bundles as Record<string, string>;
@@ -115,8 +116,12 @@ function ModelInner({ id, fit = { scale: 1 }, position, rotation = 0, cast = fal
   );
 }
 
-/** One library model, sat on the floor at `position`. Streams in on its own; the room doesn't wait for it. */
+/**
+ * One library model, sat on the floor at `position`. Streams in on its own; the room doesn't wait for it. In a room
+ * that isn't loading yet (another was opened first, scene/streaming.ts), it waits its turn.
+ */
 export function Model(props: ModelProps) {
+  if (!useStreamedIn()) return null;
   return (
     <Suspense fallback={null}>
       <ModelInner {...props} />
@@ -178,8 +183,9 @@ function InstancesInner({ id, fit = { scale: 1 }, at, cast = false, material }: 
   );
 }
 
-/** Many copies of one static library model, one draw call per mesh in it. */
+/** Many copies of one static library model, one draw call per mesh in it. Waits its turn like Model. */
 export function ModelInstances(props: { id: string; fit?: Fit; at: Placement[]; cast?: boolean; material?: Material }) {
+  if (!useStreamedIn()) return null;
   return (
     <Suspense fallback={null}>
       <InstancesInner {...props} />

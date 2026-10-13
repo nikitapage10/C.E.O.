@@ -7,7 +7,7 @@ import { fitScale } from "./Rigged.tsx";
 import { legsOf, poseRocky, rigRocky, type RockyRig } from "./rockyPose.ts";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
 
-const MODEL = "custom/Rocky";
+export const MODEL = "custom/Rocky";
 
 /**
  * An Eridian engineer: a stone carapace on five legs, the front pair doubling as hands. The model ships without

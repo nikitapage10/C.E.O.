@@ -7,7 +7,7 @@ import { fitScale } from "../agents/bodies/Rigged.tsx";
 import { poseBrogu, rigBrogu, type BroguRig } from "./broguPose.ts";
 import type { PetDrive } from "./types.ts";
 
-const MODEL = "custom/Brogu";
+export const MODEL = "custom/Brogu";
 /** Head to the floor, in metres. He comes up to an agent's hip, ears and all. */
 export const BROGU_HEIGHT = 0.8;
 

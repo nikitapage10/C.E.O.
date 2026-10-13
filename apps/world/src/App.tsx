@@ -1,6 +1,8 @@
 import { ROOM_IDS, type RoomId } from "@ceo/core";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { bootMarks, markBoot } from "./boot.ts";
 import { AppGuard } from "./scene/SceneGuard.tsx";
+import { bootStreaming } from "./scene/streaming.ts";
 import { agentPositions, clock } from "./clock.ts";
 import { GatheringDirector } from "./gatherings/GatheringDirector.tsx";
 import { GlitchDirector } from "./glitches/GlitchDirector.tsx";
@@ -42,6 +44,7 @@ function useDebugApi() {
       store: useWorld,
       cast: () => useCast.getState().cast,
       openStudio: (id: string | null) => useCast.getState().openStudio(id),
+      boot: () => ({ ...bootMarks }),
     });
   }, []);
 }
@@ -53,12 +56,24 @@ function useSpeechTicker() {
   }, []);
 }
 
-/** `/lattice?room=relay` opens straight on a room (links from the Desk). */
+const roomLink = () => {
+  const room = new URLSearchParams(window.location.search).get("room");
+  return room && (ROOM_IDS as readonly string[]).includes(room) ? (room as RoomId) : null;
+};
+
+/**
+ * `/lattice?room=relay` opens straight on a room (links from the Desk), and loads that room first. The fetching
+ * starts here, as the Lattice mounts, before the scene renders (scene/streaming.ts).
+ */
 function useRoomLink() {
+  useState(() => {
+    markBoot("lattice");
+    bootStreaming(roomLink());
+    return null;
+  });
   useEffect(() => {
-    const room = new URLSearchParams(window.location.search).get("room");
-    if (room && (ROOM_IDS as readonly string[]).includes(room))
-      useWorld.getState().setFocus(room as RoomId);
+    const room = roomLink();
+    if (room) useWorld.getState().setFocus(room);
   }, []);
 }
 

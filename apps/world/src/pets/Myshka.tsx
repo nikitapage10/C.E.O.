@@ -7,7 +7,7 @@ import { preloadLib, useLib } from "../fx/library.ts";
 import { MyshkaRig } from "./myshkaPose.ts";
 import type { PetDrive } from "./types.ts";
 
-const MODEL = "custom/Myshka";
+export const MODEL = "custom/Myshka";
 /** Ear tips to the floor, in metres. A Maine Coon, so a big cat: his back comes up to an agent's knee. */
 export const MYSHKA_HEIGHT = 0.72;
 

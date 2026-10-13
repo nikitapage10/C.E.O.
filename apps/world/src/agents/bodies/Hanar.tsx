@@ -7,7 +7,7 @@ import { chainsOf, frontPair, hanarState, poseHanar } from "./hanarPose.ts";
 import { fitScale } from "./Rigged.tsx";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
 
-const MODEL = "custom/Blasto";
+export const MODEL = "custom/Blasto";
 const a = new Vector3();
 const b = new Vector3();
 

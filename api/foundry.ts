@@ -153,22 +153,38 @@ export async function POST(request: Request): Promise<Response> {
   if ((choice === "revise" || choice === "propose") && !text) return json({ error: "bad-request" }, 400);
 
   if (choice === "propose") {
-    // The card goes up in Nikita's words at once; Rusty shapes it in the background when Claude is set up, and the
-    // hourly check shapes it otherwise.
+    // Two things at once, streamed back as lines of JSON so the Desk never waits on the slower one: Rusty's shaping
+    // straight from Claude ({"shape": …}, about a second) and the issue on GitHub ({"issue": n}). The issue goes up in
+    // Nikita's words first; once both are in, it is rewritten as the shaped card. Without Claude, the hourly check
+    // shapes it.
     const first = text.split("\n")[0]!.trim();
     const title = `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`;
-    const res = await github("/issues", {
+    const shaping = canShape() ? shapeIdea(text) : Promise.resolve(null);
+    const filing = github("/issues", {
       method: "POST",
       body: JSON.stringify({
         title,
         body: `**From Nikita (on the Desk):**\n\n${text}\n\nRusty shapes this into a pitch, a size and a builder, then it waits for Nikita's pick like any idea.`,
         labels: ["foundry", "foundry:idea", "foundry:revise"],
       }),
+    })
+      .then(async (res) => (res.ok ? ((await res.json()) as { number: number }).number : null))
+      .catch(() => null);
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const line = (value: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(value)}\n`));
+        line({ ok: true, shaping: canShape() });
+        const shapeSent = shaping.then((shape) => shape && line({ shape }));
+        const made = await filing;
+        line(made === null ? { error: "github" } : { issue: made });
+        await shapeSent;
+        controller.close();
+        const shape = await shaping;
+        if (made !== null && shape) waitUntil(github(`/issues/${made}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text), labels: ["foundry", "foundry:idea"] }) }).catch(() => null));
+      },
     });
-    if (!res.ok) return json({ error: "github" }, 502);
-    const made = (await res.json()) as { number: number };
-    if (canShape()) waitUntil(shapeInto(made.number, text, ["foundry", "foundry:idea"]));
-    return json({ ok: true, issue: made.number, shaping: canShape() });
+    return new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" } });
   }
 
   if (typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 || (choice !== "build" && choice !== "pass" && choice !== "revise")) return json({ error: "bad-request" }, 400);

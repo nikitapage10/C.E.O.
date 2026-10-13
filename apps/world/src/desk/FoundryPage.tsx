@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, nextUpkeep, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { CREW, crewFor, crewLoad, crewOf, crewWork, expectChange, nextUpkeep, pendingIdea, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -89,16 +89,62 @@ function byCheck(): string {
 /** Rusty's background shaping takes a second or two; past this, an idea still marked for rewriting waits for the check. */
 const SHAPING_MS = 45_000;
 
-async function send(issue: number | null, choice: Choice, key: string, note = ""): Promise<"ok" | "shaping" | "wrong-key" | "failed"> {
+type Sent = "ok" | "shaping" | "wrong-key" | "failed";
+
+/** One click to the Foundry function: how it went, and the issue it made (for a proposed idea). */
+async function post(issue: number | null, choice: Choice, key: string, note = ""): Promise<{ r: Sent; made: number | null }> {
   try {
     const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issue, choice, key, note }) });
+    if (res.status === 401) return { r: "wrong-key", made: null };
+    if (!res.ok) return { r: "failed", made: null };
+    const body = (await res.json().catch(() => ({}))) as { shaping?: boolean; issue?: number };
+    return { r: body.shaping ? "shaping" : "ok", made: typeof body.issue === "number" ? body.issue : null };
+  } catch {
+    return { r: "failed", made: null };
+  }
+}
+
+type Shaped = Pick<Crate, "title" | "pitch" | "size" | "builder">;
+
+/**
+ * A new idea: the function streams back Rusty's shaping (straight from Claude) and the GitHub issue as each is ready,
+ * so the card rewrites itself in about a second, whatever GitHub's pace.
+ */
+async function propose(key: string, note: string, onShape: (shape: Shaped) => void, onIssue: (issue: number) => void): Promise<Sent> {
+  try {
+    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: "propose", key, note }) });
     if (res.status === 401) return "wrong-key";
-    if (!res.ok) return "failed";
-    const body = (await res.json().catch(() => ({}))) as { shaping?: boolean };
-    return body.shaping ? "shaping" : "ok";
+    if (!res.ok || !res.body) return "failed";
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    let result: Sent = "ok";
+    let filed = false;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (value) buffer += value;
+      const lines = buffer.split("\n");
+      buffer = done ? "" : lines.pop()!;
+      for (const raw of lines) {
+        if (!raw.trim()) continue;
+        const msg = JSON.parse(raw) as { shaping?: boolean; shape?: { title: string; pitch: string; size: Crate["size"]; builder: "Rusty" | "Rocky" }; issue?: number; error?: string };
+        if (msg.shaping) result = "shaping";
+        if (msg.shape) onShape({ title: msg.shape.title, pitch: msg.shape.pitch, size: msg.shape.size, builder: msg.shape.builder === "Rusty" ? "tessellate" : "caret" });
+        if (typeof msg.issue === "number") {
+          filed = true;
+          onIssue(msg.issue);
+        }
+        if (msg.error) return "failed";
+      }
+      if (done) break;
+    }
+    return filed ? result : "failed";
   } catch {
     return "failed";
   }
+}
+
+async function send(issue: number | null, choice: Choice, key: string, note = ""): Promise<Sent> {
+  return (await post(issue, choice, key, note)).r;
 }
 
 /* ── The page ── */
@@ -106,9 +152,11 @@ async function send(issue: number | null, choice: Choice, key: string, note = ""
 export function FoundryPage({ now }: { now: number }) {
   const connected = useFoundry((s) => s.connected);
   const data = useFoundry((s) => s.data);
+  const pending = useFoundry((s) => s.pending);
   const setup = useSetup();
-  // The cards keep the thread's numbering (Build 1, 2, 3), so they go by issue number, not by last change.
-  const ideas = data.crates.filter((c) => c.kind === "idea" && c.state !== "shipped").sort((a, b) => a.number - b.number);
+  // The cards keep the thread's numbering (Build 1, 2, 3), so they go by issue number, not by last change; a card
+  // just sent from the Desk goes last until GitHub numbers it.
+  const ideas = [...data.crates.filter((c) => c.kind === "idea" && c.state !== "shipped" && !pending.some((p) => p.number === c.number)), ...pending].sort((a, b) => (a.number < 0 ? Infinity : a.number) - (b.number < 0 ? Infinity : b.number));
   const decisions = data.crates.filter((c) => c.kind !== "idea" && (c.state === "ready" || c.state === "stuck"));
   const running = data.crates.filter((c) => c.kind !== "idea" && c.state === "working");
   const upkeep = data.crates.find((c) => c.kind === "upkeep");
@@ -288,14 +336,18 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
         <Avatar agent="Rusty" size="sm" room="foundry" />
         <span className="fy-idea__n">Idea {index}</span>
         {crate.size && <span className="fy-idea__size">{crate.size}</span>}
-        <a className="fy-idea__link" href={crate.url} target="_blank" rel="noreferrer">
-          #{crate.number}
-        </a>
+        {crate.number > 0 && (
+          <a className="fy-idea__link" href={crate.url} target="_blank" rel="noreferrer">
+            #{crate.number}
+          </a>
+        )}
       </header>
       <h3 className="fy-idea__title">{ideaTitle(crate.title)}</h3>
       {crate.pitch && <p className="fy-idea__pitch">{crate.pitch}</p>}
       <footer className="fy-idea__foot">
-        {crate.revising ? (
+        {crate.number < 0 && !crate.revising ? (
+          <p className="fy-idea__note">Shaped. Saving it to GitHub…</p>
+        ) : crate.revising ? (
           <p className="fy-idea__note">{setup?.shape && Date.now() - crate.updatedAt < SHAPING_MS ? "Rusty is shaping this now…" : `Waiting for Rusty: he picks up your notes at the next check, ${byCheck()}.`}</p>
         ) : mode === "done" ? (
           <p className="fy-idea__note">{result}</p>
@@ -401,13 +453,34 @@ function Propose({ setup }: { setup: Setup }) {
   const submit = async () => {
     dictation.stop();
     setState("busy");
-    const r = await send(null, "propose", key.trim(), note);
+    // The card goes on the board at once, in Nikita's words; GitHub's copy replaces it when the feed brings it.
+    const card = pendingIdea(note, Date.now());
+    const { addPending, settlePending, shapePending } = useFoundry.getState();
+    addPending(card);
+    setOpen(false);
+    const words = note;
+    setNote("");
+    let number = card.number;
+    const r = await propose(
+      key.trim(),
+      words,
+      (shape) => shapePending(number, shape),
+      (issue) => {
+        settlePending(number, issue);
+        number = issue;
+        expectChange();
+      },
+    );
     if (r === "ok" || r === "shaping") {
       storeKey(key.trim());
-      setNote("");
       setState(r === "shaping" ? "shaping" : "done");
       expectChange();
-    } else setState(r);
+    } else {
+      settlePending(number, null);
+      setNote(words);
+      setOpen(true);
+      setState(r);
+    }
   };
   const toggleMic = () => {
     if (dictation.listening) dictation.stop();
@@ -432,6 +505,7 @@ function Propose({ setup }: { setup: Setup }) {
     return (
       <button type="button" className="fy-propose__open" onClick={() => (setOpen(true), setState("idle"))}>
         <span aria-hidden="true">+</span> Suggest an idea
+        {state === "busy" && <em>On the board. Sending it to GitHub…</em>}
         {state === "shaping" && <em>On the board. Rusty is shaping it now.</em>}
         {state === "done" && <em>{ready ? `Sent. Rusty shapes it into a card at the next check, ${byCheck()}.` : "Copied. Paste it in the Foundry thread."}</em>}
       </button>
@@ -443,7 +517,7 @@ function Propose({ setup }: { setup: Setup }) {
         e.preventDefault();
         if (!note.trim()) return;
         if (!ready) void handOver().then(() => setOpen(false));
-        else if (key.trim()) void submit().then(() => setOpen(false));
+        else if (key.trim()) void submit();
       }}
     >
       <label>

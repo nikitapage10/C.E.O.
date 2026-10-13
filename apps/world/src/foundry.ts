@@ -321,7 +321,14 @@ interface FoundryStore {
   /** True once GitHub has answered at least once. */
   connected: boolean;
   lastFetch: number | null;
+  /** Ideas Nikita just sent from the Desk, shown at once until GitHub's copy arrives (numbered below zero until then). */
+  pending: Crate[];
   set: (data: FoundryData) => void;
+  addPending: (crate: Crate) => void;
+  /** GitHub answered: the pending card now has its real issue number (or `null` when sending failed). */
+  settlePending: (temp: number, issue: number | null) => void;
+  /** Rusty's shaping came straight back from Claude: the pending card takes it before GitHub has it. */
+  shapePending: (number: number, shape: Pick<Crate, "title" | "pitch" | "size" | "builder">) => void;
 }
 
 export const EMPTY_FOUNDRY: FoundryData = { crates: [], changelog: [], checks: { state: "unknown", url: null, at: null }, shelved: 0 };
@@ -335,8 +342,25 @@ export const useFoundry = create<FoundryStore>((set) => ({
   data: EMPTY_FOUNDRY,
   connected: false,
   lastFetch: null,
-  set: (data) => set({ data, connected: true, lastFetch: Date.now() }),
+  pending: [],
+  // A pending card stays until the feed carries its issue in at least the same shape, so the board never flickers
+  // back to empty or back to the unshaped words.
+  set: (data) => set((s) => ({ data, connected: true, lastFetch: Date.now(), pending: s.pending.filter((p) => !data.crates.some((c) => c.number === p.number && (p.revising || !c.revising))) })),
+  addPending: (crate) => set((s) => ({ pending: [...s.pending, crate] })),
+  settlePending: (temp, issue) =>
+    set((s) => ({
+      pending:
+        issue === null ? s.pending.filter((p) => p.number !== temp)
+        : s.pending.map((p) => (p.number === temp ? { ...p, number: issue, url: `https://github.com/${REPO}/issues/${issue}` } : p)),
+    })),
+  shapePending: (number, shape) => set((s) => ({ pending: s.pending.map((p) => (p.number === number ? { ...p, ...shape, revising: false, updatedAt: Date.now() } : p)) })),
 }));
+
+/** The card the Desk shows the moment Nikita sends an idea, in their own words. */
+export function pendingIdea(words: string, now: number): Crate {
+  const first = words.split("\n")[0]!.trim();
+  return { number: -now, title: `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`, kind: "idea", state: "queued", rung: null, url: "", updatedAt: now, pitch: "", size: null, revising: true };
+}
 
 /** The last answer per URL with its ETag, so an unchanged answer costs nothing against the rate limit. */
 const cache = new Map<string, { etag: string; body: unknown }>();

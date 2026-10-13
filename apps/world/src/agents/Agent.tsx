@@ -16,7 +16,7 @@ import { BUILD, BackProp, Face, HandProp, Hair, Hat, Head, Outfit, shellMaterial
 import { poseFor, type PoseMode } from "./behavior.ts";
 import { Body, topOf } from "./bodies/Body.tsx";
 import { CostumePiece } from "./Costume.tsx";
-import { Nameplate } from "./Nameplate.tsx";
+import { Nameplate, useTaskCard } from "./Nameplate.tsx";
 import { CARRY_AT, type Drive } from "./bodies/types.ts";
 import { PropMesh } from "./Props.tsx";
 import { SpeechBubble } from "./SpeechBubble.tsx";
@@ -291,6 +291,7 @@ export function Agent({ id }: { id: string }) {
 
   // Hide the speech bubble once its reading time is up.
   const [bubbleOn, setBubbleOn] = useState(false);
+  const cardOpen = useTaskCard((s) => s.open === id);
   useEffect(() => {
     if (!speech) return;
     const left = speech.until - performance.now();
@@ -428,7 +429,8 @@ export function Agent({ id }: { id: string }) {
   if (!rt || !look) return null;
 
   const inFocus = focus === null || focus === rt.place.room;
-  const showBubble = bubbleOn && speech && inFocus;
+  // While their task card is open, the agent holds their tongue, so the plate (and the card on it) stays put.
+  const showBubble = bubbleOn && speech && inFocus && !cardOpen;
   const showTag = (selected || hovered) && inFocus && !studioOpen;
   // Fixed-size labels in the studio close-up, distance-scaled ones in a room.
   const df = focus && !studioOpen ? 16 : undefined;

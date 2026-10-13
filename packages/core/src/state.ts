@@ -26,6 +26,8 @@ export interface TaskRecord {
   room: Place["room"];
   progress: number;
   status: "running" | "success" | "failure";
+  /** Started by a real agent (through the hub or a room's director), not the demo. */
+  live?: boolean;
   note?: string;
   startedTs: number;
   endedTs?: number;
@@ -141,6 +143,7 @@ export function applyEvent(prev: LatticeState, event: AgentEvent): LatticeState 
             room: event.room,
             progress: 0,
             status: "running",
+            live: isLive(event),
             startedTs: event.ts,
           },
         },

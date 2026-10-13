@@ -73,6 +73,8 @@ export interface Shape {
   title: string;
   pitch: string;
   size: "small" | "medium" | "large";
+  /** What's being built in two to four words, an -ing phrase ("Speeding up the Lattice"): the agent's task line in the Lattice. */
+  short: string;
   builder: "Rusty" | "Rocky";
   model: "Sonnet" | "Opus";
 }
@@ -115,10 +117,11 @@ const SHAPE_SCHEMA = {
     title: { type: "string" },
     pitch: { type: "string" },
     size: { type: "string", enum: ["small", "medium", "large"] },
+    short: { type: "string" },
     builder: { type: "string", enum: ["Rusty", "Rocky"] },
     model: { type: "string", enum: ["Sonnet", "Opus"] },
   },
-  required: ["title", "pitch", "size", "builder", "model"],
+  required: ["title", "pitch", "size", "short", "builder", "model"],
   additionalProperties: false,
 } as const;
 
@@ -126,11 +129,19 @@ const SHAPE_PROMPT = `You shape feature ideas for C.E.O., Nikita's web app: a De
 - title: "Idea: " plus a short plain name for it (under 70 characters), in Nikita's own words where possible.
 - pitch: two or three plain sentences: what changes and what Nikita will see. Keep every request Nikita made; add nothing they didn't ask for.
 - size: small (one area, an hour or so), medium (a few files or one feature), or large (several systems).
+- short: what's being built in two to four words, an -ing phrase in sentence case, no full stop, e.g. "Speeding up the Lattice" or "Adding a podium". It is the line under the builder's name in the Lattice while they work on it.
 - builder: "Rusty" builds almost everything. "Rocky" only for high-level work: architecture, big-picture design, or an open-ended idea where deciding what to build is most of the job.
 - model: for Rusty, "Sonnet" when the shape is clear, even across several files (a button, a form field, an upload, an API call, a setting, wiring data through, moving, renaming or restyling things), "Opus" when it needs taste or judgement, and always when it involves design or animation (3D scenes, models, animation, lighting, a new layout or look, visual polish). Rocky is always "Opus". This is a suggestion: the Builder confirms or changes it when the job is picked up.
 Nikita often dictates, so fix obvious speech-to-text slips using C.E.O.'s own words: subminds (Skippy's room leads), Skippy, Rivet, Rusty, Rocky, the Desk, the Lattice, the Foundry, Relay, the Spire, the Exchange, the Green, the Archive, the Break Room, the Boiler Room, the Workshop.
 Nikita may attach pictures (sketches, screenshots, references) to show what they mean: use them to understand the idea and say in the pitch what they show when it matters.
-Reply with the card as JSON: title, pitch, size, builder, model.`;
+Reply with the card as JSON: title, pitch, size, short, builder, model.`;
+
+/** A Short line as the Lattice shows it: one line, sentence case, no full stop, at most four words. */
+export function tidyShort(raw: string): string {
+  const words = raw.replace(/\s+/g, " ").trim().replace(/[.!]+$/, "").split(" ").filter(Boolean).slice(0, 4);
+  const text = words.join(" ");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+}
 
 /** One shaping call: the card (null when Claude's answer wasn't usable) and what the call used (null when it never answered). */
 export interface Shaping {
@@ -165,6 +176,7 @@ export async function shapeIdea(words: string, current?: string, images: string[
         title: title.slice(0, 90),
         pitch: raw.pitch.trim(),
         size: raw.size === "small" || raw.size === "large" ? raw.size : "medium",
+        short: tidyShort(typeof raw.short === "string" ? raw.short : ""),
         builder: raw.builder === "Rocky" ? "Rocky" : "Rusty",
         model: raw.builder === "Rocky" || raw.model === "Opus" ? "Opus" : "Sonnet",
       },
@@ -203,8 +215,9 @@ function shapedLine(shape: Shape | null, took: number, usage: Usage | null, resh
     : `**Trail · Shaped:** waiting for the Builder's next queue check (quick shaping didn't answer).${used}`;
 }
 
-function shapedBody(shape: Shape, words: string, images: string[] = []): string {
-  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n**Builder:** ${shape.builder} (${shape.model})\n\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
+export function shapedBody(shape: Shape, words: string, images: string[] = []): string {
+  const short = shape.short ? `**Short:** ${shape.short}\n` : "";
+  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n${short}**Builder:** ${shape.builder} (${shape.model})\n\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
 }
 
 export function GET(): Response {

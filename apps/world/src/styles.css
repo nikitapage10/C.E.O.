@@ -1733,6 +1733,122 @@ button {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* A line with a card behind it takes the pointer: hover (or tap) it for the detail. */
+.nameplate {
+  position: relative;
+}
+.nameplate__task--more {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.25s, border-color 0.15s, background 0.15s;
+}
+.nameplate__task--more:hover,
+.nameplate__task--more:focus-visible,
+.nameplate__task--more.is-open {
+  border-color: var(--glass-edge-strong, rgba(255, 255, 255, 0.28));
+  background: rgba(12, 13, 17, 0.72);
+  outline: none;
+}
+/* The card: frosted glass anchored over the plate, opening upwards so the agent below stays in view. */
+.taskcard {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 250px;
+  padding-bottom: 8px;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  text-align: left;
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: none;
+  animation: taskcard-in 0.16s ease-out;
+}
+.taskcard__body {
+  padding: 10px 12px 9px;
+  border: 1px solid var(--glass-edge);
+  border-top: 2px solid;
+  border-top-color: inherit;
+  border-radius: 6px;
+  background: rgba(8, 9, 12, 0.62);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.taskcard__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.taskcard__num {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+.taskcard__title {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.taskcard__pitch {
+  margin: 6px 0 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.taskcard__note {
+  margin-top: 5px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--faint);
+}
+.taskcard__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--hair);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.taskcard__foot em {
+  font-style: normal;
+  color: var(--faint);
+}
+.taskcard__foot a {
+  flex: none;
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hair-strong);
+}
+.taskcard__foot a:hover {
+  border-bottom-color: currentColor;
+}
+@keyframes taskcard-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .taskcard {
+    animation: none;
+  }
+}
 
 /* ── Frosted glass: just enough behind the text to read it over a busy world ── */
 :root {

@@ -79,6 +79,13 @@ export interface Crate {
   closedAt?: number;
   /** The issue's pitch line (ideas carry one), or "". */
   pitch: string;
+  /**
+   * What's being built in two to four words, an -ing phrase ("Speeding up the Lattice"), from the issue's
+   * `**Short:**` line; "" when it has none. The Lattice shows it under the builder's name.
+   */
+  short?: string;
+  /** Date.now() the issue was opened. */
+  createdAt?: number;
   /** Small, medium or large, when the issue says. */
   size: "small" | "medium" | "large" | null;
   /** An idea Nikita sent back with notes; Rusty is rewriting it. */
@@ -146,6 +153,7 @@ export interface GhIssue {
   state: "open" | "closed";
   html_url: string;
   updated_at: string;
+  created_at?: string;
   closed_at?: string | null;
   body?: string | null;
   labels: ({ name?: string } | string)[];
@@ -263,22 +271,25 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
       state = labels.has("foundry:stuck") ? "stuck" : labels.has("foundry:ready") ? "ready" : labels.has("foundry:working") ? "working" : "queued";
     }
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
-    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), revising: labels.has("foundry:revise"), paused: state === "working" && labels.has("foundry:paused"), ...readBody(issue.body ?? "") });
+    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), ...(issue.created_at && { createdAt: Date.parse(issue.created_at) }), revising: labels.has("foundry:revise"), paused: state === "working" && labels.has("foundry:paused"), ...readBody(issue.body ?? "") });
   }
   return crates.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** The pitch, size and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small", "**Builder:** Rusty"). */
-export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { images: string[]; model: Model | null; short: string } {
+/**
+ * The pitch, size, short line and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small",
+ * "**Short:** Speeding up the Lattice", "**Builder:** Rusty (Opus)").
+ */
+export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { short: string; images: string[]; model: Model | null } {
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
+  const short = (/\*\*Short:\*\*[ \t]*([^\n]*)/.exec(body)?.[1] ?? "").replace(/[*_`]+/g, "").trim().replace(/[.!]+$/, "");
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
   const named = /\*\*Builder:\*\*\s*(Rivet|Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
   const builder: CrewId | null = named === "rivet" ? "semicolon" : named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
   const images = [...body.matchAll(/!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/g)].map((m) => m[1]!).slice(0, 4);
   const said = /\*\*Builder:\*\*\s*(?:Rivet|Rusty|Rocky)\s*\(\s*(Haiku|Sonnet|Opus)\b[^)]*\)/i.exec(body)?.[1]?.toLowerCase();
   const model: Model | null = said === "haiku" ? "Haiku" : said === "sonnet" ? "Sonnet" : said === "opus" ? "Opus" : null;
-  const short = /\*\*Short:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
-  return { pitch, size: size ?? null, builder, images, model, short };
+  return { pitch, size: size ?? null, short, builder, images, model };
 }
 
 /** A crew member's last few shipped jobs, newest first: each with the issue's Short line (else its title). */
@@ -456,6 +467,28 @@ export function blueprintCrate(crates: Crate[]): Crate | null {
   return best;
 }
 
+/**
+ * The job a crew member's name plate in the Lattice shows: what their routine in the room is about. A stuck or
+ * ready crate first (they're slumped by it, or waiting at the dock with it); then the job in their own hands
+ * (Rusty's oldest running one; the newer ones are his dock crew's, `dockJobs`); then anything else they hold. Rusty
+ * with nothing in hand shows the latest upkeep while he's seen working it through (`visibleUpkeep`), unless ideas
+ * are waiting on the board. Null when they hold nothing.
+ */
+export function crewJob(crates: Crate[], who: CrewId, now = Date.now()): Crate | null {
+  const held = crewWork(crates)[who];
+  if (held && held.state !== "working") return held;
+  const own = shifts(crates, who).running[0];
+  if (own) return own;
+  if (held) return held;
+  if (who === "tessellate" && !crates.some((c) => c.kind === "idea" && c.state === "queued")) return visibleUpkeep(crates, now);
+  return null;
+}
+
+/** The jobs Rusty's dock crew are on, one per awake unit in bay order (Dusty, Gusty, Musty). */
+export function dockJobs(crates: Crate[]): Crate[] {
+  return shifts(crates, "tessellate").running.slice(1, 1 + SPARE_BAYS);
+}
+
 /** What each crew member is doing: the crate they hold that matters most (stuck, then working, then ready). */
 export function crewWork(crates: Crate[]): Record<CrewId, Crate | null> {
   const out: Record<CrewId, Crate | null> = { semicolon: null, caret: null, tessellate: null };
@@ -481,7 +514,7 @@ interface FoundryStore {
   /** GitHub answered: the pending card now has its real issue number (or `null` when sending failed). */
   settlePending: (temp: number, issue: number | null) => void;
   /** Rusty's shaping came straight back from Claude: the pending card takes it before GitHub has it. */
-  shapePending: (number: number, shape: Pick<Crate, "title" | "pitch" | "size" | "builder">) => void;
+  shapePending: (number: number, shape: Pick<Crate, "title" | "pitch" | "size" | "short" | "builder">) => void;
 }
 
 export const EMPTY_FOUNDRY: FoundryData = { crates: [], changelog: [], checks: { state: "unknown", url: null, at: null }, shelved: 0, lastCommit: null };

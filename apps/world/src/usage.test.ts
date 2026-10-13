@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { costOf, usageLine } from "../../../api/foundry.ts";
+import { costOf, shapedBody, tidyShort, usageLine } from "../../../api/foundry.ts";
 import { assignedModel, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, monthSpend, periodStart, readClaudeCode, readDuration, readSpend, weekStart, windowSpend, workByModel, type Job, type Trail, type UsageIssue } from "./usage.ts";
+
+describe("shaping writes the Short line", () => {
+  it("tidies Haiku's short line: one line, sentence case, four words at most, no full stop", () => {
+    expect(tidyShort("speeding up the Lattice.")).toBe("Speeding up the Lattice");
+    expect(tidyShort("  Adding   a podium  ")).toBe("Adding a podium");
+    expect(tidyShort("Making the whole Desk load much faster")).toBe("Making the whole Desk");
+    expect(tidyShort("")).toBe("");
+  });
+  it("writes it under the size", () => {
+    const body = shapedBody({ title: "Idea: x", pitch: "Faster.", size: "small", short: "Speeding up the Lattice", builder: "Rusty", model: "Sonnet" }, "make it fast");
+    expect(body).toMatch(/^\*\*Pitch:\*\* Faster\.\n\*\*Size:\*\* small\n\*\*Short:\*\* Speeding up the Lattice\n\*\*Builder:\*\* Rusty \(Sonnet\)/);
+    expect(shapedBody({ title: "Idea: x", pitch: "P.", size: "small", short: "", builder: "Rusty", model: "Sonnet" }, "w")).not.toContain("**Short:**");
+  });
+});
 
 const H = 3_600_000;
 

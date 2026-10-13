@@ -124,7 +124,7 @@ async function post(issue: number | null, choice: Choice, key: string, note = ""
   }
 }
 
-type Shaped = Pick<Crate, "title" | "pitch" | "size" | "builder">;
+type Shaped = Pick<Crate, "title" | "pitch" | "size" | "short" | "builder">;
 
 /**
  * A new idea: the function streams back Rusty's shaping (straight from Claude) and the GitHub issue as each is ready,
@@ -146,9 +146,9 @@ async function propose(key: string, note: string, images: string[], onShape: (sh
       buffer = done ? "" : lines.pop()!;
       for (const raw of lines) {
         if (!raw.trim()) continue;
-        const msg = JSON.parse(raw) as { shaping?: boolean; shape?: { title: string; pitch: string; size: Crate["size"]; builder: "Rusty" | "Rocky" }; issue?: number; error?: string };
+        const msg = JSON.parse(raw) as { shaping?: boolean; shape?: { title: string; pitch: string; size: Crate["size"]; short?: string; builder: "Rusty" | "Rocky" }; issue?: number; error?: string };
         if (msg.shaping) result = "shaping";
-        if (msg.shape) onShape({ title: msg.shape.title, pitch: msg.shape.pitch, size: msg.shape.size, builder: msg.shape.builder === "Rusty" ? "tessellate" : "caret" });
+        if (msg.shape) onShape({ title: msg.shape.title, pitch: msg.shape.pitch, size: msg.shape.size, short: msg.shape.short ?? "", builder: msg.shape.builder === "Rusty" ? "tessellate" : "caret" });
         if (typeof msg.issue === "number") {
           filed = true;
           onIssue(msg.issue);

@@ -1,9 +1,12 @@
 import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Vector3, type Group } from "three";
+import { create } from "zustand";
+import { CREW, crewJob, useFoundry, waitingTurn, type CrewId } from "../foundry.ts";
 import { useWorld } from "../store.ts";
-import { taskLine, type TaskIcon } from "./taskLine.ts";
+import { crateCard, recordCard, type TaskCard } from "./taskCard.ts";
+import { taskLine, type TaskIcon, type TaskLine } from "./taskLine.ts";
 
 /** Small line icons for the task line, drawn on a 16-unit grid in the agent's colour. */
 const ICON: Record<TaskIcon, React.ReactNode> = {
@@ -87,23 +90,126 @@ const ICON: Record<TaskIcon, React.ReactNode> = {
 /** Camera distance (world units) where the task line starts to fade, and where it is gone. The name stays. */
 const FADE_FROM = 34;
 const FADE_TO = 46;
+/** How long the card waits after the pointer leaves before it closes, so the pointer can cross to it. */
+const CLOSE_MS = 180;
+/** An open card's layer: over every plate, tag and bubble in the scene. */
+const OPEN_Z = "90";
 
 const at = new Vector3();
 
+/** The card over the task line: the real job behind it, or a note that a demo room's work is a drill. */
+function TaskCardView({ card, accent }: { card: TaskCard; accent: string }) {
+  if (card.kind !== "real")
+    return (
+      <div className="taskcard__body">
+        <div className="taskcard__title">{card.title}</div>
+        {card.kind === "drill" ? <div className="taskcard__note">A drill — this room isn't live yet</div> : <div className="taskcard__note">Live, straight from the room</div>}
+      </div>
+    );
+  return (
+    <div className="taskcard__body">
+      <div className="taskcard__head">
+        <span className="taskcard__num" style={{ color: accent }}>
+          #{card.number}
+        </span>
+        <span className="taskcard__status">{card.status}</span>
+      </div>
+      <div className="taskcard__title">{card.title}</div>
+      {card.pitch && <p className="taskcard__pitch">{card.pitch}</p>}
+      <div className="taskcard__foot">
+        <span>
+          {card.builder}
+          {card.hands && <em> · {card.hands}'s hands</em>}
+        </span>
+        <a href={card.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+          Open issue ↗
+        </a>
+      </div>
+    </div>
+  );
+}
+
+const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+
+/** Whose task card is open, so the agent's speech bubble waits and doesn't swap the plate (and the card) away. */
+export const useTaskCard = create<{ open: string | null }>(() => ({ open: null }));
+
+/** Pass a wheel turn over the plate on to the scene, so zooming isn't stopped by a label under the pointer. */
+function passWheel(e: React.WheelEvent) {
+  const canvas = document.querySelector("canvas");
+  if (canvas) canvas.dispatchEvent(new WheelEvent("wheel", e.nativeEvent));
+}
+
 /**
- * The plate over an agent in a room: their name, and under it what they are doing right now (a task line with
- * an icon; see taskLine.ts). The task line fades as the camera pulls back so a crowd of plates stays readable.
+ * A name plate in the scene: the name, the task line under it (fading as the camera pulls back), and, when there is
+ * more to say, a card that opens above the plate on hover or a tap and closes on mouse-out, a tap elsewhere or Esc.
+ * The card opens upwards, so it never covers the agent below; closed, nothing of it is in the page.
  */
-export function Nameplate({ id, name, accent, y }: { id: string; name: string; accent: string; y: number }) {
-  const rt = useWorld((s) => s.lattice.agents[id]);
-  const task = useWorld((s) => (rt?.taskId ? s.lattice.tasks[rt.taskId] : undefined));
+export function Plate({ y, name, accent, line, card, owner }: { y: number; name: string; accent: string; line: TaskLine | null; card: TaskCard | null; owner?: string }) {
   const anchor = useRef<Group>(null);
+  const plateRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<HTMLDivElement>(null);
   const shown = useRef(-1);
+  const closeTimer = useRef<number | null>(null);
+  const lastPointer = useRef("mouse");
+  const [open, setOpen] = useState(false);
+  const isOpen = open && card !== null;
 
-  const line = rt ? taskLine({ activity: rt.activity, place: rt.place, prop: rt.prop, task }) : null;
+  const cancelClose = () => {
+    if (closeTimer.current !== null) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  const closeSoon = () => {
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => setOpen(false), CLOSE_MS);
+  };
+  useEffect(() => cancelClose, []);
+
+  // Open, the plate's layer goes over every other plate (and stays there; see the frame loop). Closed, it goes back.
+  useEffect(() => {
+    const host = plateRef.current?.parentElement?.parentElement;
+    if (!isOpen || !host) return;
+    const was = host.style.zIndex;
+    host.style.zIndex = OPEN_Z;
+    return () => {
+      host.style.zIndex = was;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !owner) return;
+    useTaskCard.setState({ open: owner });
+    return () => {
+      if (useTaskCard.getState().open === owner) useTaskCard.setState({ open: null });
+    };
+  }, [isOpen, owner]);
+
+  // Open: a tap or click outside the plate, or Esc, closes it.
+  useEffect(() => {
+    if (!isOpen) return;
+    const down = (e: PointerEvent) => {
+      if (!plateRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    // Esc closes the card and nothing else: it doesn't also back the camera out of the room.
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      document.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [isOpen]);
 
   useFrame(({ camera }) => {
+    // Open, keep the plate's layer over the others: the scene restacks plates every frame their agent moves.
+    if (isOpen) {
+      const host = plateRef.current?.parentElement?.parentElement;
+      if (host && host.style.zIndex !== OPEN_Z) host.style.zIndex = OPEN_Z;
+    }
     const el = lineRef.current;
     if (!el || !anchor.current) return;
     anchor.current.getWorldPosition(at);
@@ -114,15 +220,68 @@ export function Nameplate({ id, name, accent, y }: { id: string; name: string; a
     shown.current = q;
     el.style.opacity = String(q);
     el.style.visibility = q === 0 ? "hidden" : "";
+    if (q === 0) setOpen(false);
   });
+
+  const hover = card
+    ? {
+        onPointerEnter: (e: React.PointerEvent) => {
+          lastPointer.current = e.pointerType;
+          if (e.pointerType !== "mouse") return;
+          cancelClose();
+          setOpen(true);
+        },
+        onPointerLeave: (e: React.PointerEvent) => {
+          if (e.pointerType === "mouse") closeSoon();
+        },
+        // The scene listens on the same layer as the plates: keep the pointer over a line or card from hovering
+        // or picking the agent behind it (which would swap the plate for the agent's tag).
+        onPointerMove: stop,
+        onPointerUp: stop,
+        onWheel: passWheel,
+      }
+    : {};
 
   return (
     <group ref={anchor} position={[0, y, 0]}>
       <Html center distanceFactor={16} zIndexRange={[25, 0]}>
-        <div className="nameplate">
+        <div ref={plateRef} className="nameplate">
+          {isOpen && card && (
+            <div className="taskcard" role="dialog" aria-label={`What ${name} is working on`} {...hover} onPointerDown={stop} onClick={stop} style={{ borderTopColor: accent }}>
+              <TaskCardView card={card} accent={accent} />
+            </div>
+          )}
           <span style={{ color: accent }}>●</span> {name}
           {line && (
-            <div ref={lineRef} className="nameplate__task" data-icon={line.icon}>
+            <div
+              ref={lineRef}
+              className={`nameplate__task${card ? " nameplate__task--more" : ""}${isOpen ? " is-open" : ""}`}
+              data-icon={line.icon}
+              {...(card
+                ? {
+                    ...hover,
+                    role: "button",
+                    tabIndex: 0,
+                    "aria-expanded": isOpen,
+                    onPointerDown: (e: React.PointerEvent) => {
+                      e.stopPropagation();
+                      lastPointer.current = e.pointerType;
+                    },
+                    // A tap (touch or pen) toggles the card; a mouse opens it by hovering.
+                    onClick: (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (lastPointer.current !== "mouse") setOpen((o) => !o);
+                      else setOpen(true);
+                    },
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setOpen((o) => !o);
+                      }
+                    },
+                  }
+                : {})}
+            >
               <svg viewBox="0 0 16 16" aria-hidden="true" style={{ color: accent }}>
                 {ICON[line.icon]}
               </svg>
@@ -133,4 +292,24 @@ export function Nameplate({ id, name, accent, y }: { id: string; name: string; a
       </Html>
     </group>
   );
+}
+
+/**
+ * The plate over an agent in a room: their name, and under it what they are doing right now (a task line with
+ * an icon; see taskLine.ts), with a card of the detail on hover. The Foundry crew's lines come from the real
+ * job each one holds (`crewJob`), so a line that would only say where they stand names the work instead; everyone
+ * else's from the task the Lattice has them on.
+ */
+export function Nameplate({ id, name, accent, y }: { id: string; name: string; accent: string; y: number }) {
+  const rt = useWorld((s) => s.lattice.agents[id]);
+  const task = useWorld((s) => (rt?.taskId ? s.lattice.tasks[rt.taskId] : undefined));
+  const crew = id in CREW ? (id as CrewId) : null;
+  const crates = useFoundry((s) => (crew && s.connected ? s.data.crates : null));
+  const crate = crew && crates ? crewJob(crates, crew) : null;
+
+  const lineTask = crate ? { title: `#${crate.number} ${crate.title}`, status: "running", number: crate.number, short: crate.short } : task;
+  const line = rt ? taskLine({ activity: rt.activity, place: rt.place, prop: rt.prop, task: lineTask }) : null;
+  const card = crate && crew && crates ? crateCard(crate, crew, { waiting: waitingTurn(crates).has(crate.number) }) : recordCard(task);
+
+  return <Plate y={y} name={name} accent={accent} line={line} card={card} owner={id} />;
 }

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { startFoundry } from "../foundry.ts";
 import { loadLattice, navigate, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
-import { SAMPLES, useDeskData } from "./deskData.ts";
+import { useDeskData } from "./deskData.ts";
 import { useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
 import { FoundryPage } from "./FoundryPage.tsx";
@@ -14,8 +14,8 @@ import "./desk.css";
 /**
  * The Desk: the Lattice's control room as a flat, fast page, where the C.E.O. acts on what the agents bring in.
  * Same world as the 3D Lattice (its colours, its stills, its cast) but it never loads it; "Enter the Lattice"
- * fetches that on demand. Phase 2 wires it to the hub on the MacBook; until then it shows a labelled sample day
- * (`?real` hides it).
+ * fetches that on demand. It shows only real work: the Foundry from GitHub now, Relay and the rooms once the hub
+ * on the MacBook is connected.
  */
 
 type DeskTab = Exclude<Route, "lattice">;
@@ -112,14 +112,9 @@ export function Desk({ route }: { route: DeskTab }) {
         </div>
       </header>
 
-      {(hub !== "ok" || SAMPLES) && (
-        <p className={`desk__notice desk__notice--${SAMPLES ? "preview" : hub}`} role="status">
-          <span className="desk__notice-text">
-            {SAMPLES ? "Sample day: examples of what your agents will bring you, from made-up people. Nothing here sends." : HUB_LINE[hub]}
-          </span>
-          <a className="desk__notice-link" href={SAMPLES ? `${window.location.pathname}?real` : window.location.pathname}>
-            {SAMPLES ? "Show only real" : "Show samples"}
-          </a>
+      {hub !== "ok" && (
+        <p className={`desk__notice desk__notice--${hub}`} role="status">
+          <span className="desk__notice-text">{HUB_LINE[hub]}</span>
         </p>
       )}
 

@@ -1,4 +1,4 @@
-import { byWait, DESK_ROOMS, formatWait, roomImage, SAMPLES, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
+import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { link } from "./nav.ts";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening } from "./viz.tsx";
@@ -180,14 +180,13 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
   );
 }
 
-function RoomTag({ room, agent, live }: { room: DeskRoom; agent: string; live?: boolean }) {
+function RoomTag({ room, agent }: { room: DeskRoom; agent: string }) {
   return (
     <span className="roomtag" style={{ "--tone": DESK_ROOMS[room].accent } as React.CSSProperties}>
       <i aria-hidden="true" />
       <span>
         {DESK_ROOMS[room].name} · {agent}
       </span>
-      {SAMPLES && !live && <em>sample</em>}
     </span>
   );
 }
@@ -256,7 +255,7 @@ function DecisionCard({ a }: { a: DeskAction }) {
       <Avatar agent={a.agent} room={a.room} />
       <div className="todo__body">
         <div className="todo__top">
-          <RoomTag room={a.room} agent={a.agent} live={a.live} />
+          <RoomTag room={a.room} agent={a.agent} />
           {a.due && <span className="todo__due">{a.due}</span>}
         </div>
         <h3 className="todo__title">{a.title}</h3>

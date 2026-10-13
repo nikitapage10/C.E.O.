@@ -5,7 +5,7 @@ export function link(to: Route) {
   return (e: React.MouseEvent) => {
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    // Desk pages keep the query (?real), so moving between tabs doesn't flip the samples on or off.
+    // Desk pages keep the query, so moving between tabs keeps any flags.
     navigate(to, to === "lattice" ? "" : window.location.search);
   };
 }

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, SAMPLES, useDesk, type DeskData } from "./deskData.ts";
+import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
 import { Avatar, PageHead, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
 
@@ -11,11 +11,10 @@ const WAIT_SCALE = 12 * 3_600_000;
 export function Relay({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
   const owed = byWait(data.owed);
   const { picked, pick, send, later, setDraft } = useDesk();
-  // The preview opens on the first conversation, so the thread view is never empty while reviewing.
-  const current = owed.find((o) => o.id === picked) ?? (SAMPLES ? (owed[0] ?? null) : null);
-  const canAct = SAMPLES || connected;
-  // Voice: what you said, then Blasto's light pass in your style. The samples play it out on a timer; with the
-  // hub, the words stream from OpenAI speech-to-text and the styled version comes back from Blasto.
+  const current = owed.find((o) => o.id === picked) ?? null;
+  const canAct = connected;
+  // Voice: what you said, then Blasto's light pass in your style. The words stream from OpenAI speech-to-text
+  // through the hub and the styled version comes back from Blasto.
   const [heard, setHeard] = useState<Record<string, string>>({});
   const [voicePhase, setVoicePhase] = useState<"idle" | "listening" | "styling">("idle");
   const timers = useRef<number[]>([]);
@@ -191,7 +190,6 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                       <button type="button" className="draft__later" onClick={() => later(current.id)}>
                         Later
                       </button>
-                      {SAMPLES && <span className="draft__note">Sample: nothing actually sends</span>}
                     </div>
                   )}
                 </div>

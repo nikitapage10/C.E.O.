@@ -6,18 +6,18 @@ import type { RoomId } from "./layout.ts";
  * clear of the room's furniture and well away from the gate at (0, -6.9).
  */
 export const POSTS: Record<RoomId, readonly [number, number]> = {
-  foundry: [5.8, -4.9],
-  spire: [5.6, -4.6],
-  exchange: [6.0, -4.9],
-  green: [5.0, -5.0],
-  relay: [6.0, -4.9],
-  archive: [6.9, -5.3],
-  breakroom: [6.5, -3.5],
+  foundry: [6.3, -4.9],
+  spire: [7.0, -4.3],
+  exchange: [6.3, -5.3],
+  green: [6.6, -4.35],
+  relay: [6.3, -4.9],
+  archive: [7.1, -5.2],
+  breakroom: [6.4, -4.8],
   boiler: [6.3, -5.0],
-  workshop: [5.8, -5.0],
+  workshop: [7.3, -4.6],
 };
 
 /** The podium's top, above the room's floor: the submind hovers higher than everyone else. */
-export const POST_HEIGHT = 0.3;
+export const POST_HEIGHT = 0.8;
 /** The podium's footprint, as a half extent either way. */
 export const POST_HALF = 0.6;

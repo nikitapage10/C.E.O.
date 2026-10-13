@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Renders the Desk's imagery from the Lattice itself: the overview as a hero and each room, written as WebP under
- * apps/world/public/desk/. The Desk shows them as static files, so three.js never loads with it. The agents'
+ * apps/world/public/desk/. The page renders at twice its CSS size (deviceScaleFactor 2), so the hero comes out as
+ * lattice.webp (1440 wide, also the "Enter the Lattice" thumbnail) and lattice@2x.webp (2880 wide, for retina screens). The Desk shows them as static files, so three.js never loads with it. The agents'
  * portraits are taken separately, each model alone in the portrait studio: scripts/portraits.mjs.
  *
  * Usage: node scripts/desk-images.mjs [base-url] [--only=rooms|hero]
@@ -24,6 +25,8 @@ const tmp = mkdtempSync(join(tmpdir(), "desk-images-"));
 
 const W = 1440;
 const H = 900;
+/** Device pixels per CSS pixel: crops are given in CSS pixels and scaled by this. */
+const SCALE = 2;
 /** The Desk's rooms, in its order. */
 const ROOMS = ["relay", "foundry", "spire", "exchange", "green", "archive", "workshop", "boiler"];
 
@@ -35,21 +38,25 @@ try {
   console.warn("ImageMagick `convert` not found: writing JPEG instead of WebP.");
 }
 
-/** Crop + resize + encode. `crop` is {x, y, w, h} on the full render; `width` the output width. */
+/** Crop + resize + encode. `crop` is {x, y, w, h} in CSS pixels on the full render; `width` the output width. */
 function encode(src, name, crop, width, quality) {
   if (!hasConvert) return name + ".jpg";
   const out = join(OUT, `${name}.webp`);
-  execFileSync("convert", [src, "-crop", `${crop.w}x${crop.h}+${crop.x}+${crop.y}`, "+repage", "-resize", String(width), "-quality", String(quality), "-define", "webp:method=6", out]);
+  const c = { x: crop.x * SCALE, y: crop.y * SCALE, w: crop.w * SCALE, h: crop.h * SCALE };
+  execFileSync("convert", [src, "-crop", `${c.w}x${c.h}+${c.x}+${c.y}`, "+repage", "-resize", String(width), "-quality", String(quality), "-define", "webp:method=6", out]);
   const kb = Math.round(statSync(out).size / 1024);
   console.log(`${name}.webp  ${kb} KB`);
   return out;
 }
 
-async function shoot(page, name, crop, width, quality) {
+/** `outputs` is a list of [name, width, quality], all cut from one screenshot. */
+async function shoot(page, outputs, crop) {
+  const [name, , quality] = outputs[0];
   if (hasConvert) {
     const png = join(tmp, `${name}.png`);
-    await page.screenshot({ path: png });
-    encode(png, name, crop, width, quality);
+    // At 2x, SwiftShader can take a while to hand over a frame.
+    await page.screenshot({ path: png, timeout: 180_000 });
+    for (const [n, width, q] of outputs) encode(png, n, crop, width, q);
   } else {
     await page.screenshot({ path: join(OUT, `${name}.jpg`), type: "jpeg", quality, clip: { x: crop.x, y: crop.y, width: crop.w, height: crop.h } });
   }
@@ -59,7 +66,7 @@ const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH,
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
-const page = await browser.newPage({ viewport: { width: W, height: H } });
+const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: SCALE });
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
 // A fixed seed so the cast is in its usual places; cuts instead of flights so each shot settles quickly.
 await page.goto(`${base}/lattice?instant&glitches=off&quality=high&seed=7`, { waitUntil: "load" });
@@ -71,14 +78,14 @@ await page.addStyleTag({ content: ".hud, .loader, .studio, .callout, .tag, .bubb
 if (only === "all" || only === "hero") {
   await page.evaluate(() => globalThis.__ceo.focus(null));
   await page.waitForTimeout(3000);
-  await shoot(page, "lattice", { x: 0, y: 0, w: W, h: H }, 1440, 68);
+  await shoot(page, [["lattice", W, 78], ["lattice@2x", W * 2, 74]], { x: 0, y: 0, w: W, h: H });
 }
 
 if (only === "all" || only === "rooms") {
   for (const room of ROOMS) {
     await page.evaluate((r) => globalThis.__ceo.focus(r), room);
     await page.waitForTimeout(2500);
-    await shoot(page, `room-${room}`, { x: 0, y: 60, w: W, h: 810 }, 960, 68);
+    await shoot(page, [[`room-${room}`, 960, 68]], { x: 0, y: 60, w: W, h: 810 });
   }
 }
 

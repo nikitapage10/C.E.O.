@@ -60,7 +60,14 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   return (
     <div className="today">
       <section className="hero" aria-label="Today at a glance">
-        <img className="hero__pic" src="/desk/lattice.webp" alt="" decoding="async" />
+        <img
+          className="hero__pic"
+          src="/desk/lattice.webp"
+          srcSet="/desk/lattice.webp 1440w, /desk/lattice@2x.webp 2880w"
+          sizes="(max-width: 1280px) 100vw, 1280px"
+          alt=""
+          decoding="async"
+        />
         <div className="hero__text">
           <p className="eyebrow">{date}</p>
           <h1 className="desk__title hero__title">Today</h1>

@@ -156,3 +156,7 @@ Every action an agent wants to take in the outside world goes through `evaluate(
 `packages/core/src/policy.ts`. Every agent starts at **approve**: it drafts, and you tap. Automation is added later as
 rules with limits, such as a per-trade cap, a daily cap or a contact allowlist. Personality and relationships are
 role-play only and never change what an agent is allowed to do.
+
+The trust boundaries, how each AI risk (OWASP LLM Top 10, Google SAIF, NIST AI RMF) is handled, and the injection
+tests that run on every build are in [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md); scanning and reporting are in
+[docs/SECURITY.md](docs/SECURITY.md).

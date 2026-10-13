@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -395,5 +395,14 @@ describe("crewJob", () => {
     expect(crewJob([upkeep, crate(5, "idea", "queued")], "tessellate", at)).toBeNull();
     expect(crewJob([upkeep], "semicolon", at)).toBeNull();
     expect(crewJob([], "caret", at)).toBeNull();
+  });
+});
+
+describe("crew order and rank", () => {
+  it("lists Rivet, then Rusty, then Rocky, each a tier up", () => {
+    expect(CREW_ORDER.map((id) => CREW[id].name)).toEqual(["Rivet", "Rusty", "Rocky"]);
+    expect(CREW_ORDER.map((id) => CREW_RANK[id].tier)).toEqual([1, 2, 3]);
+    expect(CREW_ORDER.map((id) => CREW_RANK[id].models)).toEqual(["Haiku", "Sonnet/Opus", "Opus"]);
+    expect([...CREW_ORDER].sort()).toEqual(Object.keys(CREW).sort());
   });
 });

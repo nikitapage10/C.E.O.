@@ -34,9 +34,9 @@ const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
     b(-6.9, -2.6, 0.8, 0.8), // crate intake machine
     b(7.6, 2.6, 0.5, 1.5), // shipping rack
     b(3, 4.4, 0.7, 0.45), // toolbox
-    b(-6.95, 5.9, 0.3, 0.3), // short crates in the front left corner, past the dock
-    b(-6.0, 5.85, 0.5, 0.5),
-    b(-5.0, 5.8, 0.5, 0.5),
+    b(3.9, 5.85, 0.5, 0.5), // stock along the front wall on the right; the front left stays clear for the dock
+    b(4.9, 5.85, 0.5, 0.5),
+    b(5.65, 5.9, 0.3, 0.3),
     b(6.6, 5.45, 0.7, 0.7), // the big tarped crate in the front right corner
     b(1.6, 4.9, 0.4, 0.4), // anvil
     box(FOUNDRY_FLOOR.dock), // Rusty's dock, against the left wall

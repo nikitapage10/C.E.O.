@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { LINK_STATE_LABEL, useSystems } from "../systems.ts";
-import { CONNECTIONS, type Connection } from "./connections.ts";
 import { DESK_ROOMS, roomImage, type DeskRoom } from "./deskData.ts";
 import { FoundryDiagram } from "./FoundryDiagram.tsx";
 import { FoundrySystem } from "./FoundryPage.tsx";
 import { SystemsPanel } from "./SystemsPanel.tsx";
-import { Avatar, PageHead, Panel, Pill } from "./ui.tsx";
+import { RoomBanner } from "./RoomBanner.tsx";
+import { SystemsNav } from "./SystemsNav.tsx";
+import { VisualQaPanel } from "./visualqa/VisualQaPanel.tsx";
+import { Avatar, Panel, Pill } from "./ui.tsx";
 import { ActivityMeter } from "./viz.tsx";
 import { WorldClockPanel } from "./WorldClockPanel.tsx";
 
@@ -98,10 +100,8 @@ export function Systems({ now }: { now: number }) {
   };
   return (
     <div className="systems-page">
-      <PageHead
-        eyebrow="The Boiler Room"
-        title="Systems"
-        room="boiler"
+      <RoomBanner
+        page="systems"
         lead="What's connected, what isn't, and what each agent depends on."
         aside={
           <div className="page-head__crew">
@@ -110,6 +110,8 @@ export function Systems({ now }: { now: number }) {
           </div>
         }
       />
+
+      <SystemsNav />
 
       <WorldClockPanel now={now} />
 
@@ -149,10 +151,10 @@ export function Systems({ now }: { now: number }) {
           </Panel>
 
           <FoundrySystem />
+
+          <VisualQaPanel />
         </>
       )}
-
-      <Connections />
 
       <section className="planned" aria-label="Systems to come">
         <header className="section-head">
@@ -175,52 +177,6 @@ export function Systems({ now }: { now: number }) {
         </ul>
       </section>
     </div>
-  );
-}
-
-/** The distinct connections and how each is called (issue #69): the ones in use first, then Relay's planned ones. */
-function Connections() {
-  const list = [...CONNECTIONS].sort((a, b) => (a.status === b.status ? 0 : a.status === "live" ? -1 : 1));
-  return (
-    <section className="conn" aria-label="How it connects">
-      <header className="section-head">
-        <h2>How it connects</h2>
-        <span className="panel__hint">The notable links, and how each is called</span>
-      </header>
-      <ul className="conn__grid">
-        {list.map((c) => (
-          <ConnectionCard key={c.id} {...c} />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function ConnectionCard({ name, room, serves, kinds, status, how, auth, when }: Connection) {
-  return (
-    <li className={`conn__card conn__card--${status}`} style={{ "--tone": DESK_ROOMS[room].accent } as React.CSSProperties}>
-      <div className="conn__top">
-        <span className="conn__serves">{serves}</span>
-        <Pill tone={status === "live" ? "ok" : "off"}>{status === "live" ? "In use" : "Planned"}</Pill>
-      </div>
-      <h3 className="conn__name">{name}</h3>
-      <ul className="conn__kinds" aria-label="Kind">
-        {kinds.map((k) => (
-          <li key={k}>{k}</li>
-        ))}
-      </ul>
-      <p className="conn__how">{how}</p>
-      <dl className="conn__facts">
-        <div>
-          <dt>Signs in</dt>
-          <dd>{auth}</dd>
-        </div>
-        <div>
-          <dt>How often</dt>
-          <dd>{when}</dd>
-        </div>
-      </dl>
-    </li>
   );
 }
 

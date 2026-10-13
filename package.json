@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "world:cast": "node scripts/world-cast.mjs"
+    "world:cast": "node scripts/world-cast.mjs",
+    "security:evals": "node scripts/security-evals.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { startFoundry } from "../foundry.ts";
-import { loadLattice, navigate, type Route } from "../route.ts";
+import { loadLattice, navigate, usePathname, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
 import { startWorldClock } from "../worldClock.ts";
 import { useAwaySince } from "./awaySince.ts";
@@ -9,7 +9,8 @@ import { useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
 import { FoundryPage } from "./FoundryPage.tsx";
 import { Relay } from "./Relay.tsx";
-import { Systems } from "./Systems.tsx";
+import { SystemsHub } from "./SystemsHub.tsx";
+import { systemsTitle } from "./SystemsNav.tsx";
 import { Chronicle } from "./Chronicle.tsx";
 import { Today } from "./Today.tsx";
 import "./desk.css";
@@ -62,9 +63,10 @@ export function Desk({ route }: { route: DeskTab }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const pathname = usePathname();
   useEffect(() => {
-    document.title = route === "relay" ? "Relay · C.E.O." : route === "foundry" ? "Foundry · C.E.O." : route === "systems" ? "Systems · C.E.O." : route === "chronicle" ? "Chronicle · C.E.O." : "C.E.O. — Desk";
-  }, [route]);
+    document.title = route === "relay" ? "Relay · C.E.O." : route === "foundry" ? "Foundry · C.E.O." : route === "systems" ? systemsTitle(pathname) : route === "chronicle" ? "Chronicle · C.E.O." : "C.E.O. — Desk";
+  }, [route, pathname]);
 
   const owed = data.owed.length + data.actions.filter((a) => a.when === "now").length;
   const connected = hub !== "off";
@@ -133,7 +135,7 @@ export function Desk({ route }: { route: DeskTab }) {
         ) : route === "chronicle" ? (
           <Chronicle now={now} awaySince={awaySince} />
         ) : route === "systems" ? (
-          <Systems now={now} />
+          <SystemsHub now={now} />
         ) : (
           <Today data={data} now={now} connected={connected} awaySince={awaySince} />
         )}

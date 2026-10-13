@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
-import { assignCrew, ideaCounts, openIdeas, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
-import { Avatar, PageHead, Panel } from "./ui.tsx";
+import { RoomBanner } from "./RoomBanner.tsx";
+import { Avatar, Panel } from "./ui.tsx";
 import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
@@ -195,14 +196,12 @@ export function FoundryPage({ now }: { now: number }) {
 
   return (
     <div className="foundry-page" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
-      <PageHead
-        eyebrow="The coding crew"
-        title="Foundry"
-        room="foundry"
+      <RoomBanner
+        page="foundry"
         lead={lead}
         aside={
           <div className="page-head__crew">
-            {(Object.keys(CREW) as CrewId[]).map((id) => (
+            {CREW_ORDER.map((id) => (
               <Avatar key={id} agent={id} room="foundry" />
             ))}
             <a className="btn btn--go" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
@@ -800,7 +799,7 @@ function Crew({ now }: { now: number }) {
   return (
     <>
       <ul className="fy-crew">
-        {(Object.keys(CREW) as CrewId[]).map((id) => {
+        {CREW_ORDER.map((id) => {
           const jobs = crates.filter((c) => by.get(c.number) === id).sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || a.number - b.number);
           const tone: LinkState = jobs[0] ? CREW_STATE[jobs[0].state] : connected ? "ok" : "off";
           const held = jobs.filter((c) => c.state === "working" && !c.paused && !waiting.has(c.number)).length;
@@ -815,6 +814,7 @@ function Crew({ now }: { now: number }) {
                 </span>
                 <span className="fy-crew__name">
                   {CREW[id].name}
+                  <Rank id={id} />
                   <small>
                     {CREW[id].job} · {CREW_RUNG[id]}
                   </small>
@@ -895,6 +895,21 @@ function Crew({ now }: { now: number }) {
   );
 }
 
+/** A crew member's rank: three pips lit up to their tier, and the models they run on, in their model's colour. */
+function Rank({ id }: { id: CrewId }) {
+  const { tier, models } = CREW_RANK[id];
+  return (
+    <span className="fy-rank" style={{ "--c": MODEL[id].colour } as React.CSSProperties} title={`Tier ${tier} of 3 on the crew, on ${models.replace("/", " or ")}`}>
+      <span className="fy-rank__pips" aria-hidden="true">
+        {[1, 2, 3].map((n) => (
+          <i key={n} className={n <= tier ? "on" : undefined} />
+        ))}
+      </span>
+      Tier {tier} · {models}
+    </span>
+  );
+}
+
 /** One muted row under a crew member: the last few things they shipped. */
 function RecentLine({ items, now }: { items: ReturnType<typeof recentWork>; now: number }) {
   return (
@@ -934,7 +949,8 @@ function savedPeriod(): Period {
 function Usage({ now, setup, world }: { now: number; setup: Setup; world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
   const { feed, failed } = useUsage();
   // The cap is shared with the living Lattice's hourly steps (docs/WORLD.md), so the meter counts both.
-  const worldUsd = world.feed?.spend.usd ?? 0;
+  // The day's story scripts (Claude Haiku) count against the same cap, with the world's hours.
+  const worldUsd = (world.feed?.spend.usd ?? 0) + (world.feed?.story?.scriptUsd ?? 0);
   const [period, setPeriodState] = useState<Period>(savedPeriod);
   const setPeriod = (p: Period) => {
     setPeriodState(p);
@@ -1063,6 +1079,7 @@ function Usage({ now, setup, world }: { now: number; setup: Setup; world: { stat
         </section>
 
         <WorldSpend now={now} world={world} />
+        <StorySpend world={world} />
       </div>
     </>
   );
@@ -1100,6 +1117,55 @@ function WorldSpend({ now, world }: { now: number; world: { status: ChronicleSta
             {f.at ? `Last step ${formatSpan(now - Date.parse(f.at))} ago.` : "No step yet."}{" "}
             <a href="/chronicle" onClick={link("chronicle")}>
               Read the Chronicle →
+            </a>
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The day's story (issue #95, docs/WORLD.md): this month's Gemini speech spend against its own cap
+ * (GEMINI_BUDGET_USD), next to the world's. Over the cap or without a key there is no audio, and this says so.
+ */
+function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
+  const s = world.feed?.story;
+  const month = s ? new Date(`${s.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
+  const share = s && s.budget > 0 ? Math.min(1, s.usd / s.budget) : 0;
+  const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
+  return (
+    <section className="fy-world" aria-label="Gemini speech spend on the day's story, this month">
+      <h3 className="fy-usage__head">The day's story · Gemini speech · this month</h3>
+      {!s ? (
+        <p className="quiet">{world.status === "off" ? "The world isn't saving yet, so there are no stories." : world.status === "failed" ? "Can't reach the world right now." : "Reading the ledger…"}</p>
+      ) : (
+        <>
+          <div className="fy-world__row">
+            <p className="fy-spend__figure">
+              <b>{formatUsd(s.usd)}</b>
+              <span>{month}</span>
+            </p>
+            <p className="fy-spend__calls">
+              {s.stories} {s.stories === 1 ? "story" : "stories"} read aloud · {s.tokensOut.toLocaleString()} audio tokens · scripts on Claude Haiku {formatUsd(s.scriptUsd)}
+            </p>
+          </div>
+          <div
+            className={`fy-meter fy-meter--${tone}`}
+            role="meter"
+            aria-valuemin={0}
+            aria-valuemax={s.budget}
+            aria-valuenow={Number(s.usd.toFixed(4))}
+            aria-label={`${formatUsd(s.usd)} of Gemini's $${s.budget} monthly cap`}
+          >
+            <i style={{ width: `${s.usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
+          </div>
+          <p className="fy-world__line">
+            {!s.gemini
+              ? "No Gemini key is set (GEMINI_API_KEY in Vercel), so the Historian doesn't read the day aloud."
+              : `Guard: no more stories once one more could pass ${formatUsd(s.budget)} this month; the Chronicle says so until the month turns.`}{" "}
+            <a href="/chronicle" onClick={link("chronicle")}>
+              Hear it in the Chronicle →
             </a>
           </p>
         </>
@@ -1255,13 +1321,15 @@ export function FoundrySystem() {
         ))}
       </ol>
       <ul className="foundry-crew">
-        {(Object.keys(CREW) as CrewId[]).map((id) => {
+        {CREW_ORDER.map((id) => {
           const crate = work[id];
           return (
             <li key={id}>
               <Avatar agent={id} room="foundry" />
               <span className="foundry-crew__job">{CREW[id].job}</span>
-              <span className="foundry-crew__name">{CREW[id].name}</span>
+              <span className="foundry-crew__name">
+                {CREW[id].name} <Rank id={id} />
+              </span>
               {crate ? (
                 <a className="foundry-crew__on" href={crate.url} target="_blank" rel="noreferrer">
                   #{crate.number} {crate.title}

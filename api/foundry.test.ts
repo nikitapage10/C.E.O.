@@ -72,13 +72,16 @@ describe("the issue body and labels", () => {
 });
 
 describe("the shaping input", () => {
-  it("is just Nikita's words for a new idea", () => {
-    expect(shapeInput("add a thing")).toBe("add a thing");
+  it("is just Nikita's words for a new idea, in the idea block", () => {
+    expect(shapeInput("add a thing")).toBe("<idea>\nadd a thing\n</idea>");
   });
   it("hands the answer to the question over with the idea as it stands", () => {
     const input = shapeInput("The Foundry page", "Idea: x", { answer: { question: "Which page?", reply: "The Foundry page" } });
-    expect(input).toContain("The idea as it stands:\nIdea: x");
-    expect(input).toContain('Nikita\'s answer to your question ("Which page?"):\nThe Foundry page');
+    expect(input).toContain("<current_card>\nIdea: x\n</current_card>");
+    expect(input).toContain("<rivet_question>\nWhich page?\n</rivet_question>\n<answer>\nThe Foundry page\n</answer>");
+  });
+  it("puts revise notes in their own block", () => {
+    expect(shapeInput("make it blue", "Idea: x")).toContain("<notes>\nmake it blue\n</notes>");
   });
   it("tells Rivet to finish after the last allowed question", () => {
     expect(shapeInput("a", "b", { mayAsk: false })).toContain("Do not ask another question");

@@ -29,9 +29,9 @@ const FEED: Feed = {
     { number: 51, title: "Message from Mum: call me back at 555-867-5309", state: "open", created_at: inHour, closed_at: null, body: "Dinner with Sam at 7", labels: ["relay"] },
   ],
   comments: [
-    { issue_url: "https://api.github.com/repos/nikitapage10/C.E.O./issues/50", created_at: inHour, body: "**Trail · Decision:** Sent back by Nikita on the Desk with notes:\n\n> Dinner with Sam at 7, call me back" },
-    { issue_url: "https://api.github.com/repos/nikitapage10/C.E.O./issues/41", created_at: inHour, body: "**Trail · Assigned:** Rocky on Opus. Key: sk-ant-api03-SECRETSECRETSECRET" },
-    { issue_url: "https://api.github.com/repos/nikitapage10/C.E.O./issues/51", created_at: inHour, body: "**Trail · Decision:** Mum: call me back" },
+    { issue_url: "https://api.github.com/repos/nikitapage10/C.E.O./issues/50", created_at: inHour, body: "**Trail · Decision:** Sent back by Nikita on the Desk with notes:\n\n> Dinner with Sam at 7, call me back", user: { login: "nikitapage10" } },
+    { issue_url: "https://api.github.com/repos/nikitapage10/C.E.O./issues/41", created_at: inHour, body: "**Trail · Assigned:** Rocky on Opus. Key: sk-ant-api03-SECRETSECRETSECRET", user: { login: "nikitapage10" } },
+    { issue_url: "https://api.github.com/repos/nikitapage10/C.E.O./issues/51", created_at: inHour, body: "**Trail · Decision:** Mum: call me back", user: { login: "nikitapage10" } },
   ],
   runs: [{ status: "completed", conclusion: "success", created_at: inHour, updated_at: inHour }],
 };

@@ -9,6 +9,36 @@ security policy: GitHub reads `SECURITY.md` from the root, `docs/` or `.github/`
 Please report it privately through the repo's Security tab, "Report a vulnerability". Don't open a public issue
 for it. We'll reply there.
 
+## Threat model and AI risks
+
+[THREAT-MODEL.md](THREAT-MODEL.md) has the data flow and trust boundaries, how each OWASP Top 10 for LLM
+Applications (2025) risk is handled here, the mapping to Google SAIF and the NIST AI RMF, and what is still open.
+Its injection eval suite (`api/_security/`) throws known prompt-injection and exfiltration payloads at Rivet's
+shaping, the world step and the builder's issue reader on every `npm test`, offline.
+
+The Desk shows all of this without a trip to GitHub, on Systems > Security (`/systems/security`: each scan's last
+result, the security switches, alert counts, the Scorecard score, the trust boundaries, the open risks and the eval
+counts) and Systems > Compliance (`/systems/compliance`: the OWASP, NIST AI RMF and SAIF mappings). The Desk is
+public to read, so its feed (`api/security-feed.ts`) carries posture only: states, scores, dates and counts, never
+an open alert's details.
+
+## Keys and settings in Vercel
+
+Every secret lives only in Vercel's environment (Project, Settings, Environment Variables), never in the repo or the
+browser, and no function logs or returns one. Which environments get each is in [DELIVERY.md](DELIVERY.md),
+"Environments".
+
+| Variable | What it is for | Without it |
+| --- | --- | --- |
+| `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script | Shaping is off; hours and scripts come from the agents' own lines |
+| `GEMINI_API_KEY` | Gemini's text to speech: the day's story, read aloud (#95). Sent only in a request header, with only the day's scrubbed script | No audio; the Chronicle says so |
+| `GEMINI_BUDGET_USD` | Gemini's monthly cap, enforced in code (`api/_world/story.ts`); default 5, never above 10 | $5 |
+| `FOUNDRY_GITHUB_TOKEN` | The Desk's buttons write issues; the feeds read with it | Buttons say "not set up" |
+| `FOUNDRY_DESK_KEY` | The Desk's passphrase, compared in constant time | Buttons and the story backfill say "not set up" |
+| `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
+| `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
+| `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved |
+
 ## What scans the code, and when
 
 | Check | Runs on | What it looks for | Where findings show |
@@ -18,11 +48,21 @@ for it. We'll reply there.
 | Dependency review (`.github/workflows/dependency-review.yml`) | Every pull request | Packages or actions the change adds or bumps that carry a known vulnerability; fails on high or critical | The pull request's checks, with a summary of what changed |
 | OpenSSF Scorecard (`.github/workflows/scorecard.yml`) | Pushes to `main`, weekly | How the repo is run: pinned actions, workflow permissions, branch protection, dependency updates | Security tab, Code scanning (category `scorecard`) |
 | Dependabot (`.github/dependabot.yml`) | Weekly, and at once for a security fix | Out-of-date or vulnerable npm packages and GitHub Actions | Pull requests labelled `dependencies`; alerts in the Security tab |
+| Visual QA (`.github/workflows/visual-qa.yml`) | Every push to `main` | Not a security scan: Gemini watches a clip of each Lattice room for visual bugs. Listed because it is the one workflow that sends data out (renders of the public Lattice only) and holds an outside key | A `foundry:fix` issue per room with a blocker; the run's summary; Systems > Foundry on the Desk |
 | Secret scanning | Every push | Keys and tokens committed by mistake; push protection blocks the push | Security tab, Secret scanning |
 
 Every action in the workflows is pinned to a full commit SHA with its version in a comment, so a moved tag can't
 change what runs. Dependabot proposes the bumps. Each workflow starts with read-only permissions and grants write
 access only to the job that needs it.
+
+## Keys in GitHub Actions
+
+One secret lives in the repo's Actions secrets (Settings > Secrets and variables > Actions) rather than in Vercel,
+because only a workflow uses it. Workflows never print it, and the job that holds it has read-only permissions.
+
+| Secret | What it is for | Without it |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91): clips of the public Lattice go to Gemini. Sent only to Google's API host in a header, never printed; spend capped in code at $0.50 a run and eight pushed runs a day. The same name in Vercel is the separate key for the day's story (above) | The tour still records; the review is skipped |
 
 ## Why these tools
 
@@ -65,3 +105,7 @@ Agents can't change repo settings, so these are clicks for Nikita, once. In the 
 8. **Optional, make the scans required:** Settings > Branches (or Rules > Rulesets) > the rule for `main` >
    Require status checks to pass > add "checks", "Analyze (javascript-typescript)", "Analyze (actions)" and
    "Dependency review".
+9. **Visual QA's key (optional):** Settings > Secrets and variables > Actions > New repository secret, named
+   `GEMINI_API_KEY`, with a key from Google AI Studio on a paid-tier project (the free tier lets Google use what it is
+   sent to improve its products). Until it is set, Visual QA records the clips and skips the review. Setting a
+   budget alert on that Google project backs up the caps in code.

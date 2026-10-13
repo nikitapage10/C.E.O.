@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { MAX_AT_ONCE, useFoundry } from "../foundry.ts";
-import { LINK_STATE_LABEL, type LinkState } from "../systems.ts";
+import { LINK_STATE_LABEL } from "../systems.ts";
+import { FlowTies, StatePill, useFlowPop } from "./FlowPop.tsx";
+import { HowItWorks } from "./HowItWorks.tsx";
 import { ago, capUse, foundryGraph, type FoundrySetup, type GraphEdge, type GraphKind, type GraphNode, type GraphNodeId } from "./foundryGraph.ts";
 import { nextCheck } from "./FoundryPage.tsx";
+import { routesOf } from "./popover.ts";
+import { PopScope } from "./Popovers.tsx";
 
 /**
  * The Foundry's system, drawn like Relay's: an idea's route from Nikita to the live site, each part lit by its real
- * state. Every part and every wire can be hovered, focused or tapped to say what it is and where its reading comes
- * from. The states are worked out in foundryGraph.ts.
+ * state. Every part and every wire can be hovered, focused or tapped to say what it is, where its reading comes from
+ * and how it connects, in a pop-over at the mouse (FlowPop.tsx, issue #94). The states are worked out in
+ * foundryGraph.ts.
  */
 
 type Pt = [number, number];
@@ -87,32 +92,10 @@ function Shape({ kind }: { kind: GraphKind }) {
   return <circle r="21" className="node__shape" />;
 }
 
-/** What's picked: a part, or a wire by its two ends. */
-type Pick = { node: GraphNodeId } | { edge: string } | null;
 const edgeKey = (e: GraphEdge) => `${e.from}-${e.to}`;
 
-function Diagram({
-  layout,
-  nodes,
-  edges,
-  pick,
-  onPick,
-  className,
-}: {
-  layout: Layout;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  pick: Pick;
-  onPick: (p: Pick) => void;
-  className: string;
-}) {
-  const picked = (p: Pick) => JSON.stringify(p) === JSON.stringify(pick);
-  const keys = (p: Pick) => (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onPick(p);
-    }
-  };
+function Diagram({ layout, nodes, edges, className, keyPrefix }: { layout: Layout; nodes: GraphNode[]; edges: GraphEdge[]; className: string; keyPrefix: string }) {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
   return (
     <svg
       viewBox={`0 0 ${layout.w} ${layout.h}`}
@@ -120,74 +103,109 @@ function Diagram({
       role="group"
       aria-label="Diagram of the Foundry's system: an idea's route from you to the live site"
     >
-      {edges.map((e, i) => {
-        const pa = layout.nodes[e.from];
-        const pb = layout.nodes[e.to];
-        const d = curve(pa, pb);
-        const mid: Pt = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2];
-        const p: Pick = { edge: edgeKey(e) };
-        const name = nodes.find((n) => n.id === e.from)!.label + " to " + nodes.find((n) => n.id === e.to)!.label;
-        return (
-          <g
-            key={edgeKey(e)}
-            className={`wire wire--${e.state} fsys__wire ${picked(p) ? "is-picked" : ""}`}
-            tabIndex={0}
-            role="button"
-            aria-label={`${name}: ${e.label}, ${LINK_STATE_LABEL[e.state]}`}
-            onMouseEnter={() => onPick(p)}
-            onFocus={() => onPick(p)}
-            onClick={() => onPick(p)}
-            onKeyDown={keys(p)}
-          >
-            <path d={d} className="wire__track" />
-            <path d={d} className="wire__flow" style={{ animationDelay: `${-i * 0.37}s` }} />
-            <path d={d} className="fsys__hit" />
-            {e.state === "down" && (
-              <g transform={`translate(${mid[0]} ${mid[1]})`} className="wire__break">
-                <circle r="9" />
-                <path d="M -4 -4 L 4 4 M 4 -4 L -4 4" />
-              </g>
-            )}
-          </g>
-        );
-      })}
-      {nodes.map((n) => {
-        const pt = layout.nodes[n.id];
-        const load = Math.max(0, Math.min(1, n.load));
-        const c = 2 * Math.PI * 30;
-        const p: Pick = { node: n.id };
-        return (
-          <g
-            key={n.id}
-            transform={`translate(${pt[0]} ${pt[1]})`}
-            className={`node node--${n.state} ${n.kind === "agent" ? "node--agent" : ""} fsys__node ${picked(p) ? "is-picked" : ""}`}
-            tabIndex={0}
-            role="button"
-            aria-label={`${n.label}, ${n.sub}: ${n.status}`}
-            onMouseEnter={() => onPick(p)}
-            onFocus={() => onPick(p)}
-            onClick={() => onPick(p)}
-            onKeyDown={keys(p)}
-          >
-            <circle r="40" className="fsys__ring" />
-            <circle r="34" className="node__aura" />
-            <circle r="30" className="node__gauge-track" />
-            <circle r="30" className="node__gauge" strokeDasharray={`${(c * load).toFixed(1)} ${c.toFixed(1)}`} transform="rotate(-90)" />
-            <Shape kind={n.kind} />
-            <circle r="4" className="node__core" />
-            <text y={52} className="node__label">
-              {n.label}
-            </text>
-            <text y={65} className="node__sub">
-              {n.sub}
-            </text>
-            <text y={78} className="node__state">
-              {n.status}
-            </text>
-          </g>
-        );
-      })}
+      {edges.map((e, i) => (
+        <Wire key={edgeKey(e)} popId={`${keyPrefix}-${edgeKey(e)}`} layout={layout} edge={e} from={byId.get(e.from)!} to={byId.get(e.to)!} index={i} />
+      ))}
+      {nodes.map((n) => (
+        <Part key={n.id} popId={`${keyPrefix}-${n.id}`} layout={layout} node={n} edges={edges} byId={byId} />
+      ))}
     </svg>
+  );
+}
+
+/** A wire, which explains what travels along it and how it's routed. */
+function Wire({ popId, layout, edge: e, from, to, index }: { popId: string; layout: Layout; edge: GraphEdge; from: GraphNode; to: GraphNode; index: number }) {
+  const pop = useFlowPop(popId, e.state);
+  const pa = layout.nodes[e.from];
+  const pb = layout.nodes[e.to];
+  const d = curve(pa, pb);
+  const mid: Pt = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2];
+  return (
+    <g className={`wire wire--${e.state} fsys__wire ${pop.open ? "is-picked" : ""}`} aria-label={`${from.label} to ${to.label}: ${e.label}, ${LINK_STATE_LABEL[e.state]}`} {...pop.props}>
+      <path d={d} className="wire__track" />
+      <path d={d} className="wire__flow" style={{ animationDelay: `${-index * 0.37}s` }} />
+      <path d={d} className="fsys__hit" />
+      {e.state === "down" && (
+        <g transform={`translate(${mid[0]} ${mid[1]})`} className="wire__break">
+          <circle r="9" />
+          <path d="M -4 -4 L 4 4 M 4 -4 L -4 4" />
+        </g>
+      )}
+      {pop.card(
+        <>
+          <span className="fsys__eyebrow">
+            Route · {from.label} → {to.label}
+          </span>
+          <h3 className="fsys__title">{e.label}</h3>
+          <StatePill state={e.state} text={LINK_STATE_LABEL[e.state]} />
+          <p className="fsys__what">{e.what}</p>
+          <dl className="conn-pop__facts flow-pop__ties">
+            <div>
+              <dt>From</dt>
+              <dd>
+                {from.label} · {from.status}
+              </dd>
+            </div>
+            <div>
+              <dt>To</dt>
+              <dd>
+                {to.label} · {to.status}
+              </dd>
+            </div>
+          </dl>
+        </>,
+      )}
+    </g>
+  );
+}
+
+/** A part, which explains what it is, its live reading, where that comes from, and what it's wired to. */
+function Part({ popId, layout, node: n, edges, byId }: { popId: string; layout: Layout; node: GraphNode; edges: GraphEdge[]; byId: Map<GraphNodeId, GraphNode> }) {
+  const pop = useFlowPop(popId, n.state);
+  const pt = layout.nodes[n.id];
+  const load = Math.max(0, Math.min(1, n.load));
+  const c = 2 * Math.PI * 30;
+  const ties = routesOf(edges, n.id);
+  const names = (ids: GraphNodeId[]) => ids.map((id) => byId.get(id)?.label ?? id);
+  return (
+    <g
+      transform={`translate(${pt[0]} ${pt[1]})`}
+      className={`node node--${n.state} ${n.kind === "agent" ? "node--agent" : ""} fsys__node ${pop.open ? "is-picked" : ""}`}
+      aria-label={`${n.label}, ${n.sub}: ${n.status}`}
+      {...pop.props}
+    >
+      <circle r="40" className="fsys__ring" />
+      <circle r="34" className="node__aura" />
+      <circle r="30" className="node__gauge-track" />
+      <circle r="30" className="node__gauge" strokeDasharray={`${(c * load).toFixed(1)} ${c.toFixed(1)}`} transform="rotate(-90)" />
+      <Shape kind={n.kind} />
+      <circle r="4" className="node__core" />
+      <text y={52} className="node__label">
+        {n.label}
+      </text>
+      <text y={65} className="node__sub">
+        {n.sub}
+      </text>
+      <text y={78} className="node__state">
+        {n.status}
+      </text>
+      {pop.card(
+        <>
+          <span className="fsys__eyebrow">Part · {n.sub}</span>
+          <h3 className="fsys__title">{n.label}</h3>
+          <StatePill state={n.state} text={n.status} />
+          <p className="fsys__what">{n.what}</p>
+          <p className="fsys__source">{n.source}</p>
+          <FlowTies from={names(ties.from)} to={names(ties.to)} />
+          <HowItWorks system="foundry" part={n.id} />
+          {n.url && (
+            <a className="fsys__link" href={n.url} target="_blank" rel="noreferrer">
+              Open →
+            </a>
+          )}
+        </>,
+      )}
+    </g>
   );
 }
 
@@ -227,73 +245,24 @@ function useSetup(): FoundrySetup {
   return setup;
 }
 
-function Detail({ pick, nodes, edges }: { pick: Pick; nodes: GraphNode[]; edges: GraphEdge[] }) {
-  const node = pick && "node" in pick ? nodes.find((n) => n.id === pick.node) : undefined;
-  const edge = pick && "edge" in pick ? edges.find((e) => edgeKey(e) === pick.edge) : undefined;
-  if (node) {
-    return (
-      <div className={`fsys__detail fsys__detail--${node.state}`} aria-live="polite">
-        <span className="fsys__eyebrow">Part · {node.sub}</span>
-        <h3 className="fsys__title">{node.label}</h3>
-        <StatePill state={node.state} text={node.status} />
-        <p className="fsys__what">{node.what}</p>
-        <p className="fsys__source">{node.source}</p>
-        {node.url && (
-          <a className="fsys__link" href={node.url} target="_blank" rel="noreferrer">
-            Open →
-          </a>
-        )}
-      </div>
-    );
-  }
-  if (edge) {
-    const from = nodes.find((n) => n.id === edge.from)!;
-    const to = nodes.find((n) => n.id === edge.to)!;
-    return (
-      <div className={`fsys__detail fsys__detail--${edge.state}`} aria-live="polite">
-        <span className="fsys__eyebrow">
-          Route · {from.label} → {to.label}
-        </span>
-        <h3 className="fsys__title">{edge.label}</h3>
-        <StatePill state={edge.state} text={LINK_STATE_LABEL[edge.state]} />
-        <p className="fsys__what">{edge.what}</p>
-      </div>
-    );
-  }
-  return (
-    <div className="fsys__detail fsys__detail--empty">
-      <span className="fsys__eyebrow">How to read it</span>
-      <p className="fsys__what">Hover or tap any part or wire to see what it is, how work is routed through it, and where its reading comes from.</p>
-    </div>
-  );
-}
-
-function StatePill({ state, text }: { state: LinkState; text: string }) {
-  return (
-    <span className={`pill pill--${state}`}>
-      <i aria-hidden="true" />
-      {text}
-    </span>
-  );
-}
-
 export function FoundryDiagram({ now }: { now: number }) {
   const connected = useFoundry((s) => s.connected);
   const data = useFoundry((s) => s.data);
   const setup = useSetup();
   const next = nextCheck(now);
   const { nodes, edges } = useMemo(() => foundryGraph({ now, connected, data, setup, nextCheck: next }), [now, connected, data, setup, next]);
-  const [pick, setPick] = useState<Pick>(null);
   const cap = capUse(data.crates);
   const working = nodes.filter((n) => n.state === "ok").length;
 
   return (
     <div className="fsys">
       <div className="fsys__map">
-        <Diagram layout={WIDE} nodes={nodes} edges={edges} pick={pick} onPick={setPick} className="schematic--wide" />
-        <Diagram layout={TALL} nodes={nodes} edges={edges} pick={pick} onPick={setPick} className="schematic--tall" />
+        <PopScope prefix="fsys">
+          <Diagram layout={WIDE} nodes={nodes} edges={edges} className="schematic--wide" keyPrefix="wide" />
+          <Diagram layout={TALL} nodes={nodes} edges={edges} className="schematic--tall" keyPrefix="tall" />
+        </PopScope>
+        <p className="fsys__hint">Hover or tap any part or wire to see what it is, how work is routed through it, and where its reading comes from.</p>
       </div>
-      <div className="fsys__under">
         <dl className="fsys__readouts">
           <div>
             <dt>Jobs at once</dt>
@@ -328,8 +297,6 @@ export function FoundryDiagram({ now }: { now: number }) {
             </dd>
           </div>
         </dl>
-        <Detail pick={pick} nodes={nodes} edges={edges} />
-      </div>
       <ul className="systems__legend fsys__legend" aria-label="Legend">
         <li className="ok">Working</li>
         <li className="slow">Busy or waiting</li>

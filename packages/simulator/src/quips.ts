@@ -172,6 +172,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Dusty hasn't said a word all shift. Best colleague I've ever patched together.",
     "Same scrapheap, same treads, same manual. Three very different readings of chapter one.",
     "Four jobs at once. That's the dock and me. Number five can have a seat and a pamphlet.",
+    "The lens found barrels on my dock. They were not my barrels. I've moved them anyway, and filed a note.",
+    "I've asked for the far-sight lens's manual. It hasn't got one. Chapter one is going very well.",
   ],
   caret: [
     "Crate is good. Crate is good good good.",
@@ -187,6 +189,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rivet brings crate. Rocky takes crate. Teamwork, question? Teamwork!",
     "Small brothers sleep on shelf. Rocky bump them anyway. Is polite.",
     "Blue small brother fast fast fast. Green small brother... still on first crate. Rocky likes green one.",
+    "Rivet's glass has two eyes. Rocky has none. Rocky holds tripod. Teamwork!",
   ],
   semicolon: [
     "Hard hat. Thermos. Let's see what's broken.",
@@ -204,6 +207,10 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Gusty, walk. We walk to the line. Running is how you get a second crate on the floor.",
     "Idea at the window. One question before it goes in the belt. Just the one.",
     "Rewrote the card. Nothing added. Nothing lost. Ask me if it's unclear.",
+    "Lens is humming. Who put barrels on the dock? ...Rusty, they're yours. Move them.",
+    "Far-sight lens says the banner's bigger than the room. The lens isn't wrong. Red tag.",
+    "One barrel watches, one remembers. When they argue, I write a tag.",
+    "No, Rocky, the lens doesn't see you. You're not the problem. You're never the problem.",
   ],
   // The subminds: each its own voice (docs/SKIPPY.md, "Voices").
   ember: [
@@ -266,6 +273,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "It floated before the foundations were poured. Footnote three. Nobody reads footnote three.",
     "The Chronicle of Ilyr, hour by hour. Every hour. Sourced. You're welcome.",
     "The C.E.O. was away. The Lattice was not. I wrote it all down.",
+    "Today in Ilyr, in under a minute. Sourced. Brisk. Me.",
+    "New voice, same footnotes. Forty-five seconds, and not one of them slow.",
+    "Hook, what shipped, who built it, sign-off. The C.E.O. asked for brisk. Brisk is filed.",
     "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct.",
   ],
   fizz: [
@@ -492,6 +502,8 @@ export const CHRONICLE_QUIPS: string[] = [
   "The C.E.O. was away; the Lattice was not. Sourced, footnoted, filed.",
   "A quiet hour. The Historian notes it was quiet, and cites the silence.",
   "Nothing burst. The Pessimist is delighted. The Historian has it in writing.",
+  "Today's update, read at the right speed this time. Erratum filed for the slow ones.",
+  "A plain voice, a clear minute. The C.E.O. asked for sense; the Historian has cited it.",
 ];
 
 /**

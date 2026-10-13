@@ -43,6 +43,36 @@ describe("parseCrates", () => {
   });
 });
 
+describe("ideas Rivet asks about first", () => {
+  const body = "**Pitch:** Add a thing.\n**Size:** small\n**Builder:** Rusty (Sonnet)\n**Question:** Which page?\n\n**From Nikita (on the Desk):**\n\nadd a thing";
+  it("marks an idea with foundry:question as asking, with its question", () => {
+    const [c] = parseCrates([issue(9, ["foundry", "foundry:idea", "foundry:question"], { body })], NOW);
+    expect(c).toMatchObject({ kind: "idea", asking: true, revising: false, question: "Which page?" });
+  });
+  it("is not asking without the label, and is never build work", () => {
+    const [c] = parseCrates([issue(9, ["foundry", "foundry:idea"], { body })], NOW);
+    expect(c!.asking).toBe(false);
+    expect(c!.kind).toBe("idea");
+  });
+  it("only ideas ask", () => {
+    const [c] = parseCrates([issue(9, ["foundry", "foundry:build", "foundry:question"], { body })], NOW);
+    expect(c!.asking).toBe(false);
+  });
+  it("the pending card holds until the feed carries the question", async () => {
+    const { useFoundry, pendingIdea, EMPTY_FOUNDRY } = await import("./foundry.ts");
+    const card = { ...pendingIdea("add a thing", NOW), number: 9 };
+    const store = useFoundry.getState();
+    store.addPending(card);
+    store.shapePending(9, { title: "Idea: Add a thing", pitch: "p", size: "small", short: "", builder: "tessellate", question: "Which page?" });
+    expect(useFoundry.getState().pending[0]).toMatchObject({ asking: true, revising: false });
+    // The feed has the issue, shaped but without the question label yet: the card stays.
+    store.set({ ...EMPTY_FOUNDRY, crates: parseCrates([issue(9, ["foundry", "foundry:idea"], { body: "**Pitch:** p" })], NOW) });
+    expect(useFoundry.getState().pending).toHaveLength(1);
+    store.set({ ...EMPTY_FOUNDRY, crates: parseCrates([issue(9, ["foundry", "foundry:idea", "foundry:question"], { body })], NOW) });
+    expect(useFoundry.getState().pending).toHaveLength(0);
+  });
+});
+
 describe("crewFor", () => {
   it("sends tiny fixes to Rivet, other fixes and unnamed builds to Rusty, and named builds to their builder", () => {
     expect(crewFor({ kind: "fix", rung: null })).toBe("semicolon");
@@ -100,13 +130,19 @@ describe("parseChecks", () => {
 
 describe("readBody", () => {
   it("reads the pitch and size the Foundry writes into an idea", () => {
-    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [], model: null, short: "" });
+    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [], model: null, short: "", question: "" });
   });
   it("reads attached pictures from the markdown", () => {
     expect(readBody("**Pitch:** Look.\n\n![Picture 1](https://x.public.blob.vercel-storage.com/a.jpg)\n![Picture 2](https://x.public.blob.vercel-storage.com/b.png)\n![bad](http://no.tls/c.png)").images).toEqual(["https://x.public.blob.vercel-storage.com/a.jpg", "https://x.public.blob.vercel-storage.com/b.png"]);
   });
+  it("reads Rivet's question line", () => {
+    const body = "**Pitch:** Add a thing.\n**Size:** small\n**Builder:** Rusty (Sonnet)\n**Question:** Should it also work on the phone?\n\n**From Nikita (on the Desk):**\n\nadd a thing";
+    expect(readBody(body).question).toBe("Should it also work on the phone?");
+    expect(readBody(body).pitch).toBe("Add a thing.");
+    expect(readBody("**Pitch:** No question here.").question).toBe("");
+  });
   it("is empty for a plain issue", () => {
-    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, images: [], model: null, short: "" });
+    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, images: [], model: null, short: "", question: "" });
   });
 });
 

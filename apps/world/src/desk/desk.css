@@ -4165,3 +4165,26 @@ a.fy-chip:hover {
 .fy-work__table td > span:not(.fy-work__bar) {
   white-space: nowrap;
 }
+
+/* Rivet's question on an idea card: asked before the idea goes to the build queue. */
+.fy-idea__ask {
+  padding: 10px 12px;
+  border: 1px solid var(--tone);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+}
+.fy-idea__ask b {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--tone);
+}
+.fy-idea__ask p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}

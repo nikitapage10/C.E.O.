@@ -56,6 +56,7 @@ export const LORE: Record<string, Lore> = {
       "Keeps the night watch over Rocky now. Doesn't complain. Doesn't sing. Rocky says it's very restful and asks, once, whether she knows any opera.",
       "Keeps watch from an alarm post by the furnace: a caged lamp showing the checks, a shelf the size of her thermos. Leans in while the lamp turns amber. Never caught blinking.",
       "Carries every job meant for Rocky over from the intake herself and hands it up at his drafting table. 'He'd only walk into the belt reading it.'",
+      "Reads each idea from the Desk before it reaches the queue, rewrites it onto a card, and asks one question at the window if something is missing. 'Weld once. Ask once.'",
     ],
   },
   caret: {

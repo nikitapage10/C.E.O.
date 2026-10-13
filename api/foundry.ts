@@ -6,16 +6,19 @@
  * GET  → which pieces are set up: { buttons, direct, shape }.
  * POST → { issue, choice: "build" | "pass" | "revise", note?, key }: "build" approves a morning idea (labels it
  *        `foundry:build`); "pass" shelves it (closed as not planned); "revise" posts Nikita's note on the idea and
- *        labels it `foundry:revise` for Rusty to rewrite. Only open `foundry:idea` issues.
- *        { choice: "propose", note, key } opens a new idea from Nikita's words for Rusty to shape.
- *        The answer comes back as soon as GitHub has the change; Rusty's shaping finishes in the background.
+ *        labels it `foundry:revise` for Rivet to rewrite. Only open `foundry:idea` issues.
+ *        { choice: "answer", issue, note, key } answers the question Rivet asked before the idea went to the queue
+ *        (the issue's `**Question:**` line, label `foundry:question`): the answer goes on the issue and Rivet shapes
+ *        the card again with it.
+ *        { choice: "propose", note, key } opens a new idea from Nikita's words for Rivet to shape.
+ *        The answer comes back as soon as GitHub has the change; Rivet's shaping finishes in the background.
  *
  * The Foundry thread picks up approved builds and unshaped ideas at its queue check, every 15 minutes (docs/FOUNDRY.md).
  *
  * Environment (Vercel → Settings → Environment Variables):
  *   FOUNDRY_DESK_KEY       a passphrase Nikita types once on the Desk; without it nobody else can press the buttons
  *   FOUNDRY_GITHUB_TOKEN   a fine-grained token for this repo with Issues read and write: the buttons need it
- *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): Rusty shapes a proposed or revised idea on the spot
+ *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): Rivet (the Haiku first responder) shapes a proposed or revised idea on the spot
  *                          (a pitch, a size and a builder, in a second or two, on Claude Haiku) instead of at the
  *                          queue check. Shaping only, never code (code runs on Claude Code); capped at $10 a month,
  *                          shared with the living Lattice's hourly step (docs/WORLD.md).
@@ -68,7 +71,7 @@ const canWrite = () => Boolean(env("FOUNDRY_GITHUB_TOKEN"));
 const claudeKey = () => env("CLAUDE_API_KEY") || env("ANTHROPIC_API_KEY");
 const canShape = () => Boolean(claudeKey());
 
-/** Rusty's quick pass on an idea: what the Desk card shows and who builds it. */
+/** Rivet's quick pass on an idea: what the Desk card shows, who builds it, and whether Nikita is asked something first. */
 export interface Shape {
   title: string;
   pitch: string;
@@ -77,6 +80,12 @@ export interface Shape {
   short: string;
   builder: "Rusty" | "Rocky";
   model: "Sonnet" | "Opus";
+  /**
+   * One short question (or a suggestion or correction to confirm) for Nikita, only when the idea is genuinely
+   * ambiguous, missing something a builder needs, or likely wrong. Absent for most ideas. While it is there the idea
+   * stays off the build queue.
+   */
+  question?: string;
 }
 
 const SHAPE_MODEL = "claude-haiku-5-5";
@@ -120,6 +129,7 @@ const SHAPE_SCHEMA = {
     short: { type: "string" },
     builder: { type: "string", enum: ["Rusty", "Rocky"] },
     model: { type: "string", enum: ["Sonnet", "Opus"] },
+    question: { type: "string" },
   },
   required: ["title", "pitch", "size", "short", "builder", "model"],
   additionalProperties: false,
@@ -134,7 +144,8 @@ const SHAPE_PROMPT = `You shape feature ideas for C.E.O., Nikita's web app: a De
 - model: for Rusty, "Sonnet" when the shape is clear, even across several files (a button, a form field, an upload, an API call, a setting, wiring data through, moving, renaming or restyling things), "Opus" when it needs taste or judgement, and always when it involves design or animation (3D scenes, models, animation, lighting, a new layout or look, visual polish). Rocky is always "Opus". This is a suggestion: the Builder confirms or changes it when the job is picked up.
 Nikita often dictates, so fix obvious speech-to-text slips using C.E.O.'s own words: subminds (Skippy's room leads), Skippy, Rivet, Rusty, Rocky, the Desk, the Lattice, the Foundry, Relay, the Spire, the Exchange, the Green, the Archive, the Break Room, the Boiler Room, the Workshop.
 Nikita may attach pictures (sketches, screenshots, references) to show what they mean: use them to understand the idea and say in the pitch what they show when it matters.
-Reply with the card as JSON: title, pitch, size, short, builder, model.`;
+Then decide whether Nikita should be asked something before this goes to the build queue. Add "question" only when the idea is genuinely ambiguous, is missing something a builder needs, or looks likely to be wrong or to clash with how C.E.O. works: one short plain question (or a suggestion or correction for Nikita to confirm), under 200 characters, in plain words. Most ideas need none: leave "question" out, and never ask to be polite or to confirm what was already said. If the input has an answer from Nikita to an earlier question, fold it into the card; ask again only if the answer leaves something a builder genuinely needs unclear.
+Reply with the card as JSON: title, pitch, size, short, builder, model, and question when you have one.`;
 
 /** A Short line as the Lattice shows it: one line, sentence case, no full stop, at most four words. */
 export function tidyShort(raw: string): string {
@@ -143,16 +154,58 @@ export function tidyShort(raw: string): string {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
 }
 
+/** How a shaping call is framed: Nikita's answer to an earlier question, and whether another question is still allowed. */
+export interface AskHow {
+  /** The question Rivet asked and what Nikita answered. */
+  answer?: { question: string; reply: string };
+  /** False after the second round of questions: the card has to come out ready. Default true. */
+  mayAsk?: boolean;
+}
+
+/** At most this many questions on one idea; after that the card is ready whatever Rivet thinks. */
+export const MAX_QUESTIONS = 2;
+
+/** What the shaping call is told: the idea, Nikita's notes or answer, and (when the cap is reached) not to ask again. */
+export function shapeInput(words: string, current?: string, how: AskHow = {}): string {
+  const note = how.answer ? `Nikita's answer to your question ("${how.answer.question}"):\n${how.answer.reply}` : `Nikita's notes to revise it with:\n${words}`;
+  const base = current ? `The idea as it stands:\n${current}\n\n${note}` : words;
+  return how.mayAsk === false ? `${base}\n\nDo not ask another question: finish the card with what you have.` : base;
+}
+
+/** A question as the card carries it: one line, trimmed, at most 240 characters; "" when there is none. */
+export function tidyQuestion(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const text = raw.replace(/\s+/g, " ").trim();
+  return text.length > 240 ? `${text.slice(0, 239).trimEnd()}…` : text;
+}
+
+/** Claude's structured answer as a Shape, or null when it isn't a card. `mayAsk` false drops any question. */
+export function readShape(parsed: unknown, mayAsk = true): Shape | null {
+  const raw = (parsed && typeof parsed === "object" ? parsed : {}) as Partial<Record<keyof Shape, unknown>>;
+  if (typeof raw.title !== "string" || typeof raw.pitch !== "string") return null;
+  const title = raw.title.startsWith("Idea:") ? raw.title : `Idea: ${raw.title}`;
+  const question = mayAsk ? tidyQuestion(raw.question) : "";
+  return {
+    title: title.slice(0, 90),
+    pitch: raw.pitch.trim(),
+    size: raw.size === "small" || raw.size === "large" ? raw.size : "medium",
+    short: tidyShort(typeof raw.short === "string" ? raw.short : ""),
+    builder: raw.builder === "Rocky" ? "Rocky" : "Rusty",
+    model: raw.builder === "Rocky" || raw.model === "Opus" ? "Opus" : "Sonnet",
+    ...(question && { question }),
+  };
+}
+
 /** One shaping call: the card (null when Claude's answer wasn't usable) and what the call used (null when it never answered). */
 export interface Shaping {
   shape: Shape | null;
   usage: Usage | null;
 }
 
-/** Rusty shapes the idea in a few seconds; no card when Claude isn't set up or doesn't answer in time. */
-export async function shapeIdea(words: string, current?: string, images: string[] = []): Promise<Shaping> {
+/** Rivet shapes the idea in a few seconds; no card when Claude isn't set up or doesn't answer in time. */
+export async function shapeIdea(words: string, current?: string, images: string[] = [], how: AskHow = {}): Promise<Shaping> {
   if (!canShape()) return { shape: null, usage: null };
-  const input = current ? `The idea as it stands:\n${current}\n\nNikita's notes to revise it with:\n${words}` : words;
+  const input = shapeInput(words, current, how);
   const client = new Anthropic({ apiKey: claudeKey(), timeout: 12_000, maxRetries: 1 });
   let usage: Usage | null = null;
   try {
@@ -167,36 +220,49 @@ export async function shapeIdea(words: string, current?: string, images: string[
     usage = res.usage;
     const text = res.content.find((block) => block.type === "text");
     if (!text || text.type !== "text") return { shape: null, usage };
-    const raw = JSON.parse(text.text) as Partial<Shape>;
-    if (typeof raw.title !== "string" || typeof raw.pitch !== "string") return { shape: null, usage };
-    const title = raw.title.startsWith("Idea:") ? raw.title : `Idea: ${raw.title}`;
-    return {
-      usage,
-      shape: {
-        title: title.slice(0, 90),
-        pitch: raw.pitch.trim(),
-        size: raw.size === "small" || raw.size === "large" ? raw.size : "medium",
-        short: tidyShort(typeof raw.short === "string" ? raw.short : ""),
-        builder: raw.builder === "Rocky" ? "Rocky" : "Rusty",
-        model: raw.builder === "Rocky" || raw.model === "Opus" ? "Opus" : "Sonnet",
-      },
-    };
+    return { usage, shape: readShape(JSON.parse(text.text), how.mayAsk !== false) };
   } catch {
     return { shape: null, usage };
   }
 }
 
 /**
- * Rusty's background pass: shape the idea and rewrite the issue as a card. When shaping fails the issue keeps
- * `foundry:revise` and the next queue check shapes it instead.
+ * Rivet's background pass: shape the idea and rewrite the issue as a card. When shaping fails the issue keeps
+ * `foundry:revise` and the next queue check shapes it instead (an answered question gets that label then, so the
+ * Builder picks it up). `labels` are the issue's labels without `foundry:revise` or `foundry:question`; a new
+ * question puts the second back.
  */
-async function shapeInto(issue: number, text: string, labels: string[], current?: string, words = text, extra = ""): Promise<void> {
+async function shapeInto(issue: number, text: string, labels: string[], current?: string, words = text, extra = "", how: AskHow = {}): Promise<void> {
   const started = Date.now();
-  const { shape, usage } = await shapeIdea(text, current);
+  const { shape, usage } = await shapeIdea(text, current, [], how);
   // The reshaping goes on the trail too, with what it cost, so every call counts against the month's cap.
-  if (shape || usage) await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: shapedLine(shape, Date.now() - started, usage, true) }) }).catch(() => null);
-  if (!shape) return;
-  await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, words) + extra, labels }) }).catch(() => null);
+  if (shape || usage) await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: shapedLine(shape, Date.now() - started, usage, how.answer ? "answer" : "notes") }) }).catch(() => null);
+  if (!shape) {
+    if (how.answer) await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: [...labels, "foundry:revise"] }) }).catch(() => null);
+    return;
+  }
+  await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, words, [], extra), labels: shapedLabels(labels, shape) }) }).catch(() => null);
+}
+
+/** The labels an idea carries once shaped: `foundry:question` while Rivet is asking, nothing extra when it is ready. */
+export function shapedLabels(base: string[], shape: Shape | null): string[] {
+  return [...new Set([...base.filter((l) => l !== "foundry:revise" && l !== "foundry:question"), ...(shape?.question ? ["foundry:question"] : [])])];
+}
+
+/** The Q and A rounds an issue body already carries (`**Question and answer:**` blocks), oldest first. */
+export function answeredRounds(body: string): string[] {
+  return [...body.matchAll(/\*\*Question and answer:\*\*\n\n(?:>.*(?:\n|$))+/g)].map((m) => m[0].trimEnd());
+}
+
+/** A round to carry on the issue body: Rivet's question and Nikita's answer, quoted. */
+export function answerBlock(question: string, reply: string): string {
+  const quote = (s: string) => s.split("\n").map((line) => `> ${line}`).join("\n");
+  return `**Question and answer:**\n\n${quote(`Rivet asked: ${question}`)}\n>\n${quote(`Nikita answered: ${reply}`)}`;
+}
+
+/** The `**Question:**` line of an issue body, or "". */
+export function questionOf(body: string): string {
+  return /^\*\*Question:\*\*[ \t]*(.*)$/m.exec(body)?.[1]?.trim() ?? "";
 }
 
 /** The first steps of an idea's trail (docs/FOUNDRY.md): where it came from, and who shaped it on what. */
@@ -207,17 +273,20 @@ async function trail(issue: number, shaping: Shaping, took: number, pictures: nu
 }
 
 /** The Shaped step: who shaped it on what, how long it took, and what the call cost. */
-function shapedLine(shape: Shape | null, took: number, usage: Usage | null, reshaped = false): string {
+export function shapedLine(shape: Shape | null, took: number, usage: Usage | null, reshaped: false | "notes" | "answer" = false): string {
   const used = usage ? ` ${usageLine(usage)}` : "";
-  const who = reshaped ? "Reshaped with Nikita's notes by Rusty" : "Rusty";
+  const who = reshaped === "answer" ? "Reshaped with Nikita's answer by Rivet" : reshaped ? "Reshaped with Nikita's notes by Rivet" : "Rivet";
+  const decided = shape?.question ? ` Decision: asking Nikita first (${shape.question})` : shape ? " Decision: ready for Nikita's pick." : "";
   return shape
-    ? `**Trail · Shaped:** ${who} on Claude Haiku (${SHAPE_MODEL}), ${(took / 1000).toFixed(1)} s. Suggested builder: ${shape.builder} (${shape.model}); the Builder confirms it when the job is picked.${used}`
+    ? `**Trail · Shaped:** ${who} on Claude Haiku (${SHAPE_MODEL}), ${(took / 1000).toFixed(1)} s. Suggested builder: ${shape.builder} (${shape.model}); the Builder confirms it when the job is picked.${decided}${used}`
     : `**Trail · Shaped:** waiting for the Builder's next queue check (quick shaping didn't answer).${used}`;
 }
 
-export function shapedBody(shape: Shape, words: string, images: string[] = []): string {
+export function shapedBody(shape: Shape, words: string, images: string[] = [], extra = ""): string {
   const short = shape.short ? `**Short:** ${shape.short}\n` : "";
-  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n${short}**Builder:** ${shape.builder} (${shape.model})\n\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
+  const ask = shape.question ? `**Question:** ${shape.question}\n` : "";
+  const waits = shape.question ? "It waits for Nikita's answer, then for the pick like any idea." : "It waits for Nikita's pick like any idea.";
+  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n${short}**Builder:** ${shape.builder} (${shape.model})\n${ask}\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rivet on the Desk (${SHAPE_MODEL}). ${waits}_${extra}`;
 }
 
 export function GET(): Response {
@@ -225,7 +294,7 @@ export function GET(): Response {
     /** The buttons work when the key is set and a click can reach GitHub. */
     buttons: Boolean(env("FOUNDRY_DESK_KEY")) && canWrite(),
     direct: canWrite(),
-    /** True when Rusty shapes proposed and revised ideas on the spot. */
+    /** True when Rivet shapes proposed and revised ideas on the spot. */
     shape: canShape(),
     /** True when pictures can be added to ideas (a Vercel Blob store is connected). */
     images: Boolean(env("BLOB_STORE_ID") || env("BLOB_READ_WRITE_TOKEN")),
@@ -244,10 +313,10 @@ export async function POST(request: Request): Promise<Response> {
   const images = readImages(body.images, new URL(request.url).origin);
   if (typeof key !== "string" || !keyMatches(key)) return json({ error: "wrong-key" }, 401);
   const text = typeof note === "string" ? note.trim().slice(0, 2000) : "";
-  if ((choice === "revise" || choice === "propose") && !text) return json({ error: "bad-request" }, 400);
+  if ((choice === "revise" || choice === "propose" || choice === "answer") && !text) return json({ error: "bad-request" }, 400);
 
   if (choice === "propose") {
-    // Two things at once, streamed back as lines of JSON so the Desk never waits on the slower one: Rusty's shaping
+    // Two things at once, streamed back as lines of JSON so the Desk never waits on the slower one: Rivet's shaping
     // straight from Claude ({"shape": …}, about a second) and the issue on GitHub ({"issue": n}). The issue goes up in
     // Nikita's words first; once both are in, it is rewritten as the shaped card. Without Claude, the next queue check
     // shapes it.
@@ -258,7 +327,7 @@ export async function POST(request: Request): Promise<Response> {
       method: "POST",
       body: JSON.stringify({
         title,
-        body: `**From Nikita (on the Desk):**\n\n${text}${imagesMarkdown(images)}\n\nRusty shapes this into a pitch, a size and a builder, then it waits for Nikita's pick like any idea.`,
+        body: `**From Nikita (on the Desk):**\n\n${text}${imagesMarkdown(images)}\n\nRivet shapes this into a pitch, a size and a builder, then it waits for Nikita's pick like any idea.`,
         labels: ["foundry", "foundry:idea", "foundry:revise"],
       }),
     })
@@ -282,13 +351,13 @@ export async function POST(request: Request): Promise<Response> {
         const shaped = await shaping;
         const shape = shaped.shape;
         if (made !== null) waitUntil(trail(made, shaped, took, images.length));
-        if (made !== null && shape) waitUntil(github(`/issues/${made}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text, images), labels: ["foundry", "foundry:idea"] }) }).catch(() => null));
+        if (made !== null && shape) waitUntil(github(`/issues/${made}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text, images), labels: shapedLabels(["foundry", "foundry:idea"], shape) }) }).catch(() => null));
       },
     });
     return new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" } });
   }
 
-  if (typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 || (choice !== "build" && choice !== "pass" && choice !== "revise")) return json({ error: "bad-request" }, 400);
+  if (typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 || (choice !== "build" && choice !== "pass" && choice !== "revise" && choice !== "answer")) return json({ error: "bad-request" }, 400);
 
   const found = await github(`/issues/${issue}`);
   if (!found.ok) return json({ error: "not-found" }, 404);
@@ -296,29 +365,52 @@ export async function POST(request: Request): Promise<Response> {
   const labels = current.labels.map((l) => l.name);
   if (current.state !== "open" || !labels.includes("foundry") || !labels.includes("foundry:idea")) return json({ error: "not-an-open-idea" }, 409);
 
+  const wordsOf = (body: string | null | undefined) => /\*\*From Nikita \(on the Desk\):\*\*\n\n([\s\S]*?)\n\n(?:_Shaped|Rusty shapes|Rivet shapes)/.exec(body ?? "")?.[1] ?? "";
+  const ready = labels.filter((l) => l !== "foundry:revise" && l !== "foundry:question");
+
+  if (choice === "answer") {
+    // Rivet asked first (docs/FOUNDRY.md, "Ask first"): the answer goes on the issue and Rivet shapes the card again.
+    const body = current.body ?? "";
+    const question = questionOf(body);
+    if (!labels.includes("foundry:question") || !question) return json({ error: "no-question" }, 409);
+    const rounds = answeredRounds(body);
+    const quoted = text.split("\n").map((line) => `> ${line}`).join("\n");
+    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `**Trail · Answered:** Nikita on the Desk answered Rivet's question (${question}):\n\n${quoted}` }) });
+    if (!canShape()) {
+      // No Claude here: the Builder shapes it at the next queue check, with the answer on the issue.
+      const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: [...ready, "foundry:revise"] }) });
+      return res.ok ? json({ ok: true, shaping: false }) : json({ error: "github" }, 502);
+    }
+    const extra = [...rounds, answerBlock(question, text)].map((r) => `\n\n${r}`).join("");
+    waitUntil(shapeInto(issue, text, ready, `${current.title}\n\n${body}`, wordsOf(body) || "(from the morning ideas)", extra, { answer: { question, reply: text }, mayAsk: rounds.length + 1 < MAX_QUESTIONS }));
+    return json({ ok: true, shaping: true });
+  }
+
   if (choice === "pass") {
     // Passed ideas go on the shelf, not in the bin: closed, labelled, and open to a comeback in a new shape.
     await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "**Trail · Decision:** Not this one, for now (passed by Nikita on the Desk). On the shelf; Rusty may bring it back in a different shape." }) });
-    const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ state: "closed", state_reason: "not_planned", labels: [...new Set([...labels.filter((l) => l !== "foundry:revise"), "foundry:passed"])] }) });
+    const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ state: "closed", state_reason: "not_planned", labels: [...new Set([...labels.filter((l) => l !== "foundry:revise" && l !== "foundry:question"), "foundry:passed"])] }) });
     return res.ok ? json({ ok: true }) : json({ error: "github" }, 502);
   }
 
   if (choice === "revise") {
     const quoted = text.split("\n").map((line) => `> ${line}`).join("\n");
-    const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: [...new Set([...labels, "foundry:revise"])] }) });
+    const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: [...new Set([...labels.filter((l) => l !== "foundry:question"), "foundry:revise"])] }) });
     if (!res.ok) return json({ error: "github" }, 502);
     await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `**Trail · Decision:** Sent back by Nikita on the Desk with notes:\n\n${quoted}` }) });
     if (canShape()) {
-      const words = /\*\*From Nikita \(on the Desk\):\*\*\n\n([\s\S]*?)\n\n(?:_Shaped|Rusty shapes)/.exec(current.body ?? "")?.[1] ?? "";
-      const extra = `\n\n**Revised with Nikita's notes:**\n\n${quoted}`;
-      waitUntil(shapeInto(issue, text, labels.filter((l) => l !== "foundry:revise"), `${current.title}\n\n${current.body ?? ""}`, words || "(from the morning ideas)", extra));
+      const extra = `${answeredRounds(current.body ?? "").map((r) => `\n\n${r}`).join("")}\n\n**Revised with Nikita's notes:**\n\n${quoted}`;
+      waitUntil(shapeInto(issue, text, ready, `${current.title}\n\n${current.body ?? ""}`, wordsOf(current.body) || "(from the morning ideas)", extra, { mayAsk: answeredRounds(current.body ?? "").length < MAX_QUESTIONS }));
     }
     return json({ ok: true, shaping: canShape() });
   }
 
-  const next = [...labels.filter((l) => l !== "foundry:idea" && l !== "foundry:revise"), "foundry:build"];
-  const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: next }) });
+  // Approving as is skips any open question: the question line comes off the card so the Builder doesn't wait on it.
+  const asked = labels.includes("foundry:question");
+  const next = [...labels.filter((l) => l !== "foundry:idea" && l !== "foundry:revise" && l !== "foundry:question"), "foundry:build"];
+  const unasked = asked ? (current.body ?? "").replace(/^\*\*Question:\*\*.*\n/m, "") : null;
+  const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: next, ...(unasked !== null && { body: unasked }) }) });
   if (!res.ok) return json({ error: "github" }, 502);
-  await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "**Trail · Decision:** Approved for building by Nikita on the Desk. The Builder assigns it next." }) });
+  await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `**Trail · Decision:** Approved for building by Nikita on the Desk${asked ? ", as is: Nikita skipped Rivet's question" : ""}. The Builder assigns it next.` }) });
   return json({ ok: true });
 }

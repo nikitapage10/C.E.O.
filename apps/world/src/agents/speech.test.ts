@@ -167,4 +167,21 @@ describe("arrangeBubbles", () => {
     // The pip can't clear a in 40px either, so it sits at the cap rather than flying off.
     expect(spots.b!.lift).toBe(40);
   });
+
+  it("tucks a bubble that would sit under the PA banner, and leaves the rest alone", () => {
+    const banner = [{ x: 400, w: 600, top: 74, bottom: 160 }];
+    // a's box runs 100–150 tall over x 20–180: under the banner (x 100–700, y 74–160).
+    const spots = arrangeBubbles([box("a", 100, 150, 1), box("b", 900, 150, 2), box("c", 400, 300, 3)], { pip, blocked: banner });
+    expect(spots.a!.tucked).toBe(true);
+    expect(spots.b).toEqual({ lift: 0, tucked: false });
+    expect(spots.c).toEqual({ lift: 0, tucked: false });
+  });
+
+  it("tucks a bubble lifted into the banner", () => {
+    const banner = [{ x: 400, w: 600, top: 74, bottom: 160 }];
+    // b would rise above a to y 244 - 50 = 194… then a third one higher still reaches the banner.
+    const spots = arrangeBubbles([box("a", 400, 300, 1), box("b", 410, 300, 2), box("c", 420, 300, 3)], { gap: 6, maxLift: 500, pip, blocked: banner });
+    expect(spots.b).toEqual({ lift: 56, tucked: false });
+    expect(spots.c!.tucked).toBe(true);
+  });
 });

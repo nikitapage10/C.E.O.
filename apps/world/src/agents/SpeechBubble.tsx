@@ -2,7 +2,8 @@ import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Vector3, type Group } from "three";
-import { FAR_PLAN, ROOM_PLAN, arrangeBubbles, pageAt, planSpeech, typedAt, typedPerLine, type BubbleBox } from "./speech.ts";
+import type { Rect } from "./declutter.ts";
+import { FAR_PLAN, ROOM_PLAN, arrangeBubbles, pageAt, planSpeech, typedAt, typedPerLine, type BubbleBox, type Placed } from "./speech.ts";
 import type { Voiced } from "./voices.ts";
 
 /** Every bubble on screen this frame, so overlapping ones can lift apart. */
@@ -17,6 +18,22 @@ const PIP_FAR = { w: 30, h: 23 };
 /** A tucked bubble stays tucked at least this long, so it doesn't flicker at the edge of fitting (ms). */
 const TUCK_HOLD = 900;
 const v = new Vector3();
+
+/** Where each bubble actually sits on screen this frame (lifted, or its pip when tucked), so plates and callouts can give way. */
+export const bubbleRects = new Map<string, Rect>();
+
+/** The Kernel's PA banner, if it is up: bubbles don't hide half-read behind it. Read at most every 100 ms. */
+let bannerRead = -Infinity;
+let banner: Placed[] = [];
+function bannerBox(canvas: HTMLElement, now: number): Placed[] {
+  if (now - bannerRead < 100) return banner;
+  bannerRead = now;
+  const el = document.querySelector(".announce");
+  if (!el) return (banner = []);
+  const r = el.getBoundingClientRect();
+  const c = canvas.getBoundingClientRect();
+  return (banner = r.width ? [{ x: r.left - c.left + r.width / 2, w: r.width, top: r.top - c.top, bottom: r.bottom - c.top }] : []);
+}
 
 function phaseOf(id: string) {
   let h = 0;
@@ -82,12 +99,13 @@ export function SpeechBubble({ id, name, accent, line, until, y, far }: {
     () => () => {
       watching.current?.ro?.disconnect();
       onScreen.delete(id);
+      bubbleRects.delete(id);
     },
     [id],
   );
 
   // Keep this bubble's screen box in the shared list, and ease its lift toward clear air.
-  useFrame(({ camera, size: view }, dt) => {
+  useFrame(({ camera, size: view, gl }, dt) => {
     if (!anchor.current || !outer.current || !card.current) return;
     if (watching.current?.el !== card.current) {
       const el = card.current;
@@ -106,8 +124,9 @@ export function SpeechBubble({ id, name, accent, line, until, y, far }: {
     } else {
       onScreen.set(id, { id, x: ((v.x + 1) / 2) * view.width, y: ((1 - v.y) / 2) * view.height, w: size.current.w, h: size.current.h, order: born });
     }
-    const spot = onScreen.has(id) ? arrangeBubbles([...onScreen.values()], { minTop: MIN_TOP, pip: far ? PIP_FAR : PIP })[id] : undefined;
     const now = performance.now();
+    const pip = far ? PIP_FAR : PIP;
+    const spot = onScreen.has(id) ? arrangeBubbles([...onScreen.values()], { minTop: MIN_TOP, pip, blocked: bannerBox(gl.domElement, now) })[id] : undefined;
     let tucked = spot?.tucked ?? false;
     if (tucked) tuck.current.at = now;
     else if (tuck.current.on && now - tuck.current.at < TUCK_HOLD) tucked = true;
@@ -122,6 +141,14 @@ export function SpeechBubble({ id, name, accent, line, until, y, far }: {
     if (Math.abs(next - lift.current) > 0.05 || (want === 0 && lift.current !== 0)) {
       lift.current = Math.abs(next - want) < 0.1 ? want : next;
       outer.current.style.setProperty("--lift", `${lift.current.toFixed(1)}px`);
+    }
+    const box = onScreen.get(id);
+    if (!box) bubbleRects.delete(id);
+    else {
+      const w = tucked ? pip.w : box.w;
+      const h = tucked ? pip.h : box.h;
+      const bottom = box.y - lift.current;
+      bubbleRects.set(id, { left: box.x - w / 2, right: box.x + w / 2, top: bottom - h, bottom });
     }
   });
 

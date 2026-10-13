@@ -1,6 +1,9 @@
 import { ROOMS, ROOM_IDS, roomToWorld, type RoomId } from "@ceo/core";
 import { Html } from "@react-three/drei";
-import { useMemo } from "react";
+import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
+import { intersects } from "../agents/declutter.ts";
+import { bubbleRects } from "../agents/SpeechBubble.tsx";
 import { roomStats } from "../hud/Hud.tsx";
 import { useWorld } from "../store.ts";
 import { Decode } from "../tide/Decode.tsx";
@@ -23,12 +26,31 @@ function Callout({
   onClick?: () => void;
   canon?: "confirmed" | "unverified";
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  const label = useRef<HTMLSpanElement>(null);
+  const next = useRef(0);
+  // A speech bubble over the label hushes it until the line is done, so the two never read on top of each other.
+  useFrame(({ gl }) => {
+    const now = performance.now();
+    if (now < next.current || !root.current || !label.current) return;
+    next.current = now + 150;
+    let hushed = false;
+    if (bubbleRects.size) {
+      const r = label.current.getBoundingClientRect();
+      const c = gl.domElement.getBoundingClientRect();
+      const box = { left: r.left - c.left, top: r.top - c.top, right: r.right - c.left, bottom: r.bottom - c.top };
+      for (const b of bubbleRects.values()) if (intersects(box, b, 2)) hushed = true;
+    }
+    if (hushed === "hushed" in root.current.dataset) return;
+    if (hushed) root.current.dataset.hushed = "";
+    else delete root.current.dataset.hushed;
+  });
   return (
     <Html position={position} zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
-      <div className="callout" data-canon={canon} onClick={onClick} role={onClick ? "button" : undefined} style={{ pointerEvents: onClick ? "auto" : "none" }}>
+      <div ref={root} className="callout" data-canon={canon} onClick={onClick} role={onClick ? "button" : undefined} style={{ pointerEvents: onClick ? "auto" : "none" }}>
         <span className="callout__ping" />
         <span className="callout__line" />
-        <span className="callout__label">
+        <span ref={label} className="callout__label">
           <span className="callout__title">
             <Decode text={title} tick={34} />
           </span>

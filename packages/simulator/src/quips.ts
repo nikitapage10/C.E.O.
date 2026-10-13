@@ -201,6 +201,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "One for you, Rocky. Big one. Don't read it walking.",
     "Rusty's woken Dusty again. Dusty doesn't talk. Finally, someone on this floor I get.",
     "Gusty, walk. We walk to the line. Running is how you get a second crate on the floor.",
+    "Idea at the window. One question before it goes in the belt. Just the one.",
+    "Rewrote the card. Nothing added. Nothing lost. Ask me if it's unclear.",
   ],
   // The subminds: each its own voice (docs/SKIPPY.md, "Voices").
   ember: [

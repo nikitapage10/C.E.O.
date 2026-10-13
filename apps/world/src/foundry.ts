@@ -88,8 +88,12 @@ export interface Crate {
   createdAt?: number;
   /** Small, medium or large, when the issue says. */
   size: "small" | "medium" | "large" | null;
-  /** An idea Nikita sent back with notes; Rusty is rewriting it. */
+  /** An idea Nikita sent back with notes; Rivet is rewriting it. */
   revising: boolean;
+  /** An idea Rivet asked Nikita something about first (`foundry:question`): it is off the build queue until answered or approved as is. */
+  asking?: boolean;
+  /** The issue's `**Question:**` line: what Rivet asks, or "". */
+  question?: string;
   /** An idea build paused for a fix (`foundry:paused`): its branch is pushed as work in progress, and it resumes when the fix ships. */
   paused?: boolean;
   /** Who an idea's card says builds it ("**Builder:** Rusty"), when it says. */
@@ -271,7 +275,7 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
       state = labels.has("foundry:stuck") ? "stuck" : labels.has("foundry:ready") ? "ready" : labels.has("foundry:working") ? "working" : "queued";
     }
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
-    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), ...(issue.created_at && { createdAt: Date.parse(issue.created_at) }), revising: labels.has("foundry:revise"), paused: state === "working" && labels.has("foundry:paused"), ...readBody(issue.body ?? "") });
+    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), ...(issue.created_at && { createdAt: Date.parse(issue.created_at) }), revising: labels.has("foundry:revise"), asking: kind === "idea" && labels.has("foundry:question"), paused: state === "working" && labels.has("foundry:paused"), ...readBody(issue.body ?? "") });
   }
   return crates.sort((a, b) => b.updatedAt - a.updatedAt);
 }
@@ -280,7 +284,8 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
  * The pitch, size, short line and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small",
  * "**Short:** Speeding up the Lattice", "**Builder:** Rusty (Opus)").
  */
-export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { short: string; images: string[]; model: Model | null } {
+export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { short: string; images: string[]; model: Model | null; question: string } {
+  const question = (/^\*\*Question:\*\*[ \t]*(.*)$/m.exec(body)?.[1] ?? "").trim();
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const short = (/\*\*Short:\*\*[ \t]*([^\n]*)/.exec(body)?.[1] ?? "").replace(/[*_`]+/g, "").trim().replace(/[.!]+$/, "");
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
@@ -289,7 +294,7 @@ export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"
   const images = [...body.matchAll(/!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/g)].map((m) => m[1]!).slice(0, 4);
   const said = /\*\*Builder:\*\*\s*(?:Rivet|Rusty|Rocky)\s*\(\s*(Haiku|Sonnet|Opus)\b[^)]*\)/i.exec(body)?.[1]?.toLowerCase();
   const model: Model | null = said === "haiku" ? "Haiku" : said === "sonnet" ? "Sonnet" : said === "opus" ? "Opus" : null;
-  return { pitch, size: size ?? null, short, builder, images, model };
+  return { pitch, size: size ?? null, short, builder, images, model, question };
 }
 
 /** A crew member's last few shipped jobs, newest first: each with the issue's Short line (else its title). */
@@ -513,8 +518,8 @@ interface FoundryStore {
   addPending: (crate: Crate) => void;
   /** GitHub answered: the pending card now has its real issue number (or `null` when sending failed). */
   settlePending: (temp: number, issue: number | null) => void;
-  /** Rusty's shaping came straight back from Claude: the pending card takes it before GitHub has it. */
-  shapePending: (number: number, shape: Pick<Crate, "title" | "pitch" | "size" | "short" | "builder">) => void;
+  /** Rivet's shaping came straight back from Claude: the pending card takes it before GitHub has it. */
+  shapePending: (number: number, shape: Pick<Crate, "title" | "pitch" | "size" | "short" | "builder"> & { question?: string }) => void;
 }
 
 export const EMPTY_FOUNDRY: FoundryData = { crates: [], changelog: [], checks: { state: "unknown", url: null, at: null }, shelved: 0, lastCommit: null };
@@ -531,7 +536,7 @@ export const useFoundry = create<FoundryStore>((set) => ({
   pending: [],
   // A pending card stays until the feed carries its issue in at least the same shape, so the board never flickers
   // back to empty or back to the unshaped words.
-  set: (data) => set((s) => ({ data, connected: true, lastFetch: Date.now(), pending: s.pending.filter((p) => !data.crates.some((c) => c.number === p.number && (p.revising || !c.revising))) })),
+  set: (data) => set((s) => ({ data, connected: true, lastFetch: Date.now(), pending: s.pending.filter((p) => !data.crates.some((c) => c.number === p.number && (p.revising || !c.revising) && (!p.asking || c.asking))) })),
   addPending: (crate) => set((s) => ({ pending: [...s.pending, crate] })),
   settlePending: (temp, issue) =>
     set((s) => ({
@@ -539,7 +544,7 @@ export const useFoundry = create<FoundryStore>((set) => ({
         issue === null ? s.pending.filter((p) => p.number !== temp)
         : s.pending.map((p) => (p.number === temp ? { ...p, number: issue, url: `https://github.com/${REPO}/issues/${issue}` } : p)),
     })),
-  shapePending: (number, shape) => set((s) => ({ pending: s.pending.map((p) => (p.number === number ? { ...p, ...shape, revising: false, updatedAt: Date.now() } : p)) })),
+  shapePending: (number, shape) => set((s) => ({ pending: s.pending.map((p) => (p.number === number ? { ...p, ...shape, revising: false, asking: Boolean(shape.question), updatedAt: Date.now() } : p)) })),
 }));
 
 /** The card the Desk shows the moment Nikita sends an idea, in their own words. */

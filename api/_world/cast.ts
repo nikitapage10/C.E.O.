@@ -90,7 +90,7 @@ export const WORLD_CAST: WorldCast = {
         "loyal",
         "sarcastic"
       ],
-      "bio": "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, went up to the Spire, and came back down the day Skippy left for the Kernel. Keeps watch from the alarm post by the checks lamp and hands the big jobs up to Rocky. Reports to the Builder now, a can on a throne in the corner, and is not impressed by that.",
+      "bio": "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, went up to the Spire, came back the day Skippy left for the Kernel. Keeps the alarm post, reads each new idea first and asks one question if it is unclear, hands the big jobs to Rocky. Reports to the Builder, unimpressed.",
       "catchphrase": "Hard hats on. Yes, you too, Rocky. On the… just pick a leg.",
       "voice": [
         "Hard hat. Thermos. Let's see what's broken.",
@@ -914,7 +914,9 @@ export const WORLD_CAST: WorldCast = {
         "Green. Good. I'll have my coffee now.",
         "One for you, Rocky. Big one. Don't read it walking.",
         "Rusty's woken Dusty again. Dusty doesn't talk. Finally, someone on this floor I get.",
-        "Gusty, walk. We walk to the line. Running is how you get a second crate on the floor."
+        "Gusty, walk. We walk to the line. Running is how you get a second crate on the floor.",
+        "Idea at the window. One question before it goes in the belt. Just the one.",
+        "Rewrote the card. Nothing added. Nothing lost. Ask me if it's unclear."
       ],
       "ember": [
         "Weld it. Test it. Ship it.",

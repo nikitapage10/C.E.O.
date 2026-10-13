@@ -55,7 +55,7 @@ const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60
 /* ── The idea buttons ── */
 
 type Setup = { buttons: boolean; direct: boolean; shape: boolean; images: boolean } | null;
-type Choice = "build" | "pass" | "revise" | "propose";
+type Choice = "build" | "pass" | "revise" | "propose" | "answer";
 const KEY = "ceo.deskKey";
 
 function storedKey(): string {
@@ -106,7 +106,7 @@ function soon(): string {
   return `within a minute or two (by ${new Date(nextCheck(Date.now())).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} at the latest)`;
 }
 
-/** Rusty's background shaping takes a second or two; past this, an idea still marked for rewriting waits for the check. */
+/** Rivet's background shaping takes a second or two; past this, an idea still marked for rewriting waits for the check. */
 const SHAPING_MS = 45_000;
 
 type Sent = "ok" | "shaping" | "wrong-key" | "failed";
@@ -124,10 +124,10 @@ async function post(issue: number | null, choice: Choice, key: string, note = ""
   }
 }
 
-type Shaped = Pick<Crate, "title" | "pitch" | "size" | "short" | "builder">;
+type Shaped = Pick<Crate, "title" | "pitch" | "size" | "short" | "builder"> & { question?: string };
 
 /**
- * A new idea: the function streams back Rusty's shaping (straight from Claude) and the GitHub issue as each is ready,
+ * A new idea: the function streams back Rivet's shaping (straight from Claude) and the GitHub issue as each is ready,
  * so the card rewrites itself in about a second, whatever GitHub's pace.
  */
 async function propose(key: string, note: string, images: string[], onShape: (shape: Shaped) => void, onIssue: (issue: number) => void): Promise<Sent> {
@@ -146,9 +146,9 @@ async function propose(key: string, note: string, images: string[], onShape: (sh
       buffer = done ? "" : lines.pop()!;
       for (const raw of lines) {
         if (!raw.trim()) continue;
-        const msg = JSON.parse(raw) as { shaping?: boolean; shape?: { title: string; pitch: string; size: Crate["size"]; short?: string; builder: "Rusty" | "Rocky" }; issue?: number; error?: string };
+        const msg = JSON.parse(raw) as { shaping?: boolean; shape?: { title: string; pitch: string; size: Crate["size"]; short?: string; builder: "Rusty" | "Rocky"; question?: string }; issue?: number; error?: string };
         if (msg.shaping) result = "shaping";
-        if (msg.shape) onShape({ title: msg.shape.title, pitch: msg.shape.pitch, size: msg.shape.size, short: msg.shape.short ?? "", builder: msg.shape.builder === "Rusty" ? "tessellate" : "caret" });
+        if (msg.shape) onShape({ title: msg.shape.title, pitch: msg.shape.pitch, size: msg.shape.size, short: msg.shape.short ?? "", builder: msg.shape.builder === "Rusty" ? "tessellate" : "caret", ...(msg.shape.question && { question: msg.shape.question }) });
         if (typeof msg.issue === "number") {
           filed = true;
           onIssue(msg.issue);
@@ -286,6 +286,29 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
   const [note, setNote] = useState("");
   const [result, setResult] = useState("");
   const ready = setup?.buttons ?? false;
+  const asking = Boolean(crate.asking && crate.question);
+  // What was typed before the mic started; dictation appends to it, as in the Suggest box.
+  const typed = useRef("");
+  const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
+  const toggleMic = () => {
+    if (dictation.listening) dictation.stop();
+    else {
+      typed.current = note.trim();
+      dictation.start();
+    }
+  };
+  // Once Rivet's rewrite (after an answer or notes) lands, the card is new: back to its buttons, or to the next question.
+  const shown = `${crate.title}|${crate.pitch}|${crate.question ?? ""}`;
+  const was = useRef(shown);
+  useEffect(() => {
+    if (was.current === shown) return;
+    was.current = shown;
+    if (mode === "done") {
+      setMode("idle");
+      setNote("");
+      setResult("");
+    }
+  }, [shown, mode]);
 
   const go = async (choice: Choice, withKey = key) => {
     if (!withKey) {
@@ -293,6 +316,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
       setMode("key");
       return;
     }
+    dictation.stop();
     setMode("busy");
     const r = await send(crate.number, choice, withKey, note);
     if (r === "wrong-key") {
@@ -307,12 +331,13 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
     }
     storeKey(withKey);
     setResult(
-      choice === "build" ? `Approved. The crew picks it up ${soon()}.`
+      choice === "build" ? `Approved${asking ? " as is" : ""}. The crew picks it up ${soon()}.`
       : choice === "pass" ? "On the shelf. Rusty may bring it back another way."
-      : r === "shaping" ? "Rusty is rewriting it with your notes now."
-      : `Sent. Rusty rewrites it ${soon()}.`,
+      : choice === "answer" ? (r === "shaping" ? "Sent. Rivet is reading your answer now." : `Sent. Rivet reads your answer ${soon()}.`)
+      : r === "shaping" ? "Rivet is rewriting it with your notes now."
+      : `Sent. Rivet rewrites it ${soon()}.`,
     );
-    // Rusty's rewrite lands a moment later; the quick polls pick it up.
+    // Rivet's rewrite lands a moment later; the quick polls pick it up.
     setMode("done");
     expectChange();
   };
@@ -320,7 +345,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
   return (
     <article className={`fy-idea${crate.revising ? " fy-idea--revising" : ""}`}>
       <header className="fy-idea__head">
-        <Avatar agent="Rusty" size="sm" room="foundry" />
+        <Avatar agent="Rivet" size="sm" room="foundry" />
         <span className="fy-idea__n">Idea {index}</span>
         {crate.size && <span className="fy-idea__size">{crate.size}</span>}
         {crate.number > 0 && (
@@ -331,6 +356,12 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
       </header>
       <h3 className="fy-idea__title">{ideaTitle(crate.title)}</h3>
       {crate.pitch && <p className="fy-idea__pitch">{crate.pitch}</p>}
+      {asking && (
+        <div className="fy-idea__ask" role="note">
+          <b>Rivet asks first</b>
+          <p>{crate.question}</p>
+        </div>
+      )}
       {crate.images && crate.images.length > 0 && (
         <ul className="fy-idea__pics">
           {crate.images.map((u, n) => (
@@ -346,7 +377,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
         {crate.number < 0 && !crate.revising ? (
           <p className="fy-idea__note">Shaped. Saving it to GitHub…</p>
         ) : crate.revising ? (
-          <p className="fy-idea__note">{setup?.shape && Date.now() - crate.updatedAt < SHAPING_MS ? "Rusty is shaping this now…" : `Waiting for Rusty: he picks up your notes ${soon()}.`}</p>
+          <p className="fy-idea__note">{setup?.shape && Date.now() - crate.updatedAt < SHAPING_MS ? "Rivet is shaping this now…" : `Waiting for Rivet: she picks up your notes ${soon()}.`}</p>
         ) : mode === "done" ? (
           <p className="fy-idea__note">{result}</p>
         ) : mode === "failed" ? (
@@ -360,10 +391,10 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
         ) : !ready ? (
           <div className="fy-idea__actions" title={setup ? "Set the Vercel variables to pick from here" : "Checking…"}>
             <button type="button" className="btn btn--go btn--sm" disabled>
-              Build this
+              {asking ? "Build as is" : "Build this"}
             </button>
             <button type="button" className="btn btn--sm" disabled>
-              Revise
+              {asking ? "Answer" : "Revise"}
             </button>
             <button type="button" className="btn btn--quiet btn--sm" disabled>
               Not this one
@@ -397,7 +428,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
             }}
           >
             <label>
-              What should change, or what should Rusty know?
+              What should change, or what should Rivet know?
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus maxLength={2000} />
             </label>
             <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim()}>
@@ -405,6 +436,32 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
             </button>
             <button type="button" className="btn btn--quiet btn--sm" onClick={() => setMode("idle")}>
               Cancel
+            </button>
+          </form>
+        ) : asking && (mode === "idle" || mode === "busy") ? (
+          <form
+            className="fy-idea__form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (note.trim()) void go("answer");
+            }}
+          >
+            <label>
+              {dictation.listening ? "Listening… say your answer, then press the mic again." : "Your answer, said or typed. Rivet shapes the card again with it."}
+              <span className="fy-propose__box">
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus maxLength={2000} placeholder="Answer Rivet's question" />
+                <Mic dictation={dictation} onToggle={toggleMic} label="Say your answer" />
+              </span>
+            </label>
+            {dictation.error && <p className="fy-idea__note">{dictation.error}</p>}
+            <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || mode === "busy"}>
+              Send answer
+            </button>
+            <button type="button" className="btn btn--sm" disabled={mode === "busy"} onClick={() => void go("build")} title="Skip the question and send the idea to the build queue as it is">
+              Build as is
+            </button>
+            <button type="button" className="btn btn--quiet btn--sm" disabled={mode === "busy"} onClick={() => void go("pass")}>
+              Not this one
             </button>
           </form>
         ) : (
@@ -438,7 +495,20 @@ function SetupNote() {
   );
 }
 
-/** Nikita's own idea: say it or type it, and Rusty shapes it into a card like the morning ones. */
+/** The mic in a text box: press to dictate, press again to stop. Nothing when the browser has no speech recognition. */
+function Mic({ dictation, onToggle, label }: { dictation: ReturnType<typeof useDictation>; onToggle: () => void; label: string }) {
+  if (!dictation.supported) return null;
+  return (
+    <button type="button" className={`fy-mic${dictation.listening ? " fy-mic--live" : ""}`} onClick={onToggle} aria-pressed={dictation.listening} aria-label={dictation.listening ? "Stop listening" : label} title={dictation.listening ? "Stop listening" : label}>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
+        <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
+/** Nikita's own idea: say it or type it, and Rivet shapes it into a card like the morning ones. */
 type Pic = { id: string; file: File; preview: string; status: "wait" | "up" | "done" | "failed"; url?: string };
 
 function Propose({ setup }: { setup: Setup }) {
@@ -552,8 +622,8 @@ function Propose({ setup }: { setup: Setup }) {
       <button type="button" className="fy-propose__open" onClick={() => (setOpen(true), setState("idle"))}>
         <span aria-hidden="true">+</span> Suggest an idea
         {state === "busy" && <em>On the board. Sending it to GitHub…</em>}
-        {state === "shaping" && <em>On the board. Rusty is shaping it now.</em>}
-        {state === "done" && <em>{ready ? `Sent. Rusty shapes it into a card ${soon()}.` : "Copied. Paste it in the Foundry thread."}</em>}
+        {state === "shaping" && <em>On the board. Rivet is shaping it now.</em>}
+        {state === "done" && <em>{ready ? `Sent. Rivet shapes it into a card ${soon()}.` : "Copied. Paste it in the Foundry thread."}</em>}
       </button>
     );
   return (
@@ -579,7 +649,7 @@ function Propose({ setup }: { setup: Setup }) {
       }}
     >
       <label>
-        {dictation.listening ? "Listening… say the idea, then press the mic again." : "Your idea, said or typed. Rusty turns it into a card with a size and a builder."}
+        {dictation.listening ? "Listening… say the idea, then press the mic again." : "Your idea, said or typed. Rivet turns it into a card with a size and a builder, and asks first if something is unclear."}
         <span className="fy-propose__box">
           <textarea
             value={note}
@@ -606,21 +676,7 @@ function Propose({ setup }: { setup: Setup }) {
               </button>
             </>
           )}
-          {dictation.supported && (
-            <button
-              type="button"
-              className={`fy-mic${dictation.listening ? " fy-mic--live" : ""}`}
-              onClick={toggleMic}
-              aria-pressed={dictation.listening}
-              aria-label={dictation.listening ? "Stop listening" : "Say the idea"}
-              title={dictation.listening ? "Stop listening" : "Say the idea"}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
-                <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-              </svg>
-            </button>
-          )}
+          <Mic dictation={dictation} onToggle={toggleMic} label="Say the idea" />
         </span>
       </label>
       {dictation.error && <p className="fy-idea__note">{dictation.error}</p>}
@@ -648,7 +704,7 @@ function Propose({ setup }: { setup: Setup }) {
       {state === "failed" && <p className="fy-idea__note">That didn't go through. Try again.</p>}
       {!ready && setup !== null && <p className="fy-idea__note fy-idea__note--quiet">Sending straight from here needs the Vercel variables above. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
       <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || (ready && !key.trim()) || state === "busy" || uploading || setup === null}>
-        {ready ? "Send to Rusty" : "Copy and open the thread"}
+        {ready ? "Send to Rivet" : "Copy and open the thread"}
       </button>
       <button type="button" className="btn btn--quiet btn--sm" onClick={() => (dictation.stop(), setOpen(false))}>
         Cancel
@@ -1070,7 +1126,7 @@ function Connections({ setup }: { setup: Setup }) {
     },
     {
       name: "Quick shaping",
-      what: setup?.shape ? "Your idea goes up at once and Rusty shapes it in a second or two" : "Add CLAUDE_API_KEY in Vercel so Rusty shapes ideas on the spot",
+      what: setup?.shape ? "Your idea goes up at once and Rivet shapes it in a second or two" : "Add CLAUDE_API_KEY in Vercel so Rivet shapes ideas on the spot",
       state: setup === null ? "off" : setup.shape ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.shape ? "Ready" : "Needs setup",
     },

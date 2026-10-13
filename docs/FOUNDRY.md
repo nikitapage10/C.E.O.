@@ -22,7 +22,7 @@ moves them.
 
 | Agent | Job | Takes |
 | --- | --- | --- |
-| Rivet (agent id `semicolon`, Haiku) | First responder | Reads every new job and sizes it; fixes on rung 1 |
+| Rivet (agent id `semicolon`, Haiku) | First responder | Reads every new job and sizes it; fixes on rung 1; shapes the ideas Nikita sends from the Desk into cards, and asks him first when one is unclear |
 | The Builder, the Foundry's submind (agent id `ember`, Opus) | Room lead | Decides who takes each job and on which model; plans, reviews and ships; conducts the room |
 | Rusty (agent id `tessellate`, Sonnet or Opus) | Builder, upkeep and ideas | The default builder for every fix and build (rungs 2 and 3), upkeep and maintenance, the morning ideas. His dock crew, Dusty, Gusty and Musty, take his extra jobs |
 | Rocky (agent id `caret`, Opus) | Master builder | Only the high-level work: architecture, big-picture design, open-ended ideas where deciding what to build is most of the job |
@@ -72,7 +72,8 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | `foundry:stuck` | Rung 3 failed; Nikita needs to look |
 | `foundry:paused` | An idea build paused for an urgent fix; its branch is pushed as work in progress and it resumes when the fix ships |
 | `foundry:shipped` | Landed on `main` (add it, then close the issue) |
-| `foundry:revise` | An idea Nikita sent back with notes from the Desk, or proposed there; Rusty rewrites it |
+| `foundry:revise` | An idea Nikita sent back with notes from the Desk, or proposed there; Rivet rewrites it |
+| `foundry:question` | An idea Rivet asked Nikita something about first (the issue has a `**Question:**` line). Off the build queue until Nikita answers or approves it as is |
 | `foundry:passed` | An idea Nikita passed on (closed, not planned): on the shelf, not in the bin |
 | `rung:1`, `rung:2`, `rung:3` | Which model rung a fix is on |
 
@@ -189,10 +190,24 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
 - Nikita picks on the Desk's Foundry tab (Build this / Revise / Not this one) or on the thread's card. The Desk's
   buttons go through `api/foundry.ts` on Vercel, which needs `FOUNDRY_DESK_KEY` and `FOUNDRY_GITHUB_TOKEN` set
   there; a click changes the issue at once. A proposed or revised idea goes up straight away in Nikita's words,
-  labelled `foundry:revise`, and Rusty shapes it in the background on Claude Haiku (`CLAUDE_API_KEY`), which
-  drops the label. At each queue check, any `foundry:idea` still labelled `foundry:revise` is yours to shape:
+  labelled `foundry:revise`, and **Rivet** (the Haiku first responder, not Rusty) shapes it in the background on
+  Claude Haiku (`CLAUDE_API_KEY`), which drops the label. Rusty is the builder; Rivet is who rewrites ideas. At each queue check, any `foundry:idea` still labelled `foundry:revise` is yours to shape:
   rewrite the title, pitch, size and builder from Nikita's words and notes, and drop the label. Any
   `foundry:build` nobody is working is yours to build. Post nothing unless a question needs Nikita.
+- **Ask first** (Nikita, 2026-10-13: "a decision process to decide whether you need more feedback, a suggestion or a
+  correction"). The same Haiku call that shapes the card also decides whether Nikita is asked something before the
+  idea goes to the queue: its structured answer has an optional `question` (one short question, or a suggestion or
+  correction to confirm), set only when the idea is genuinely ambiguous, missing something a builder needs, or likely
+  wrong. Most ideas get none and carry on as before. With a question the issue body gets a `**Question:**` line and
+  the label `foundry:question`, and the idea is **not build work**: it has no `foundry:build` or `foundry:revise`, so
+  the queue check and `scripts/foundry-watch.sh` (which watch `foundry:build`, `foundry:revise` and `foundry:fix`)
+  leave it alone. The Desk card shows the question with a reply box (typed or said). An answer goes on the issue as
+  `**Trail · Answered:**` and into the body as a `**Question and answer:**` block, then the same call shapes the card
+  again with it: either it is ready or Rivet asks once more (at most two questions per idea, then it must finish).
+  Nikita can skip the question with Build as is, which drops the `**Question:**` line and queues the idea as it
+  stands. If Claude isn't set up or doesn't answer, an answered idea gets `foundry:revise` and the Builder shapes it
+  at the next queue check, using the answer. When you shape an idea by hand you may ask the same way (a `**Question:**`
+  line and `foundry:question`), but only when a builder really couldn't proceed without it.
 - On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
   (the builder and model the card names: Rusty unless it says Rocky). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
   approval on the Desk was the decision, so there is no "Ship?" card (Nikita, 2026-10-12: "when I approve an idea,
@@ -225,7 +240,8 @@ Each step is one short comment that starts with `**Trail ·`, newest last:
 | Step | Says | Example |
 | --- | --- | --- |
 | Origin | Where it came from, with a link | `**Trail · Origin:** Nikita on the Desk (04:02 MT).` / `Red check on main, run <link>.` / `Nikita in the Foundry thread: "…"` |
-| Shaped | Who wrote the card, on which model, and what a Claude API call cost | `**Trail · Shaped:** Rusty on Claude Haiku (claude-haiku-5-5), 1.2 s. Used 812 tokens in and 140 out, $0.000151.` |
+| Shaped | Who wrote the card (Rivet, on Haiku), on which model, whether it asks Nikita first, and what a Claude API call cost | `**Trail · Shaped:** Rivet on Claude Haiku (claude-haiku-5-5), 1.2 s. Suggested builder: Rusty (Sonnet); the Builder confirms it when the job is picked. Decision: ready for Nikita's pick. Used 812 tokens in and 140 out, $0.000151.` |
+| Answered | Nikita's answer to Rivet's question | `**Trail · Answered:** Nikita on the Desk answered Rivet's question (…):` then the answer quoted |
 | Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Small green fix: ships as upkeep, no approval needed.` |
 | Assigned | Who builds it, on which model, and why (the Builder's call) | `**Trail · Assigned:** Rusty on Opus: it's design and animation.` |
 | Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |

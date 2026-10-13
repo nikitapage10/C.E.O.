@@ -24,9 +24,17 @@ look() {
     | "\($i.number) \(.)"' | sort
 }
 
+# The living Lattice's hourly step (docs/WORLD.md) also gets a nudge from here every ten minutes. GitHub's hourly
+# schedule for it is best-effort and has gone hours without firing; the step itself does nothing until an hour has
+# passed, so the extra nudges cost nothing.
+world() { curl -sS -o /dev/null --max-time 120 -X POST https://command-everything-obviously.vercel.app/api/world-step || true; }
+ticks=0
+
 base="$(look)" || { echo "Can't read the Foundry queue on GitHub." >&2; exit 1; }
 misses=0
 while sleep "$every"; do
+  ticks=$((ticks + 1))
+  [ $((ticks * every % 600)) -lt "$every" ] && world
   if ! now="$(look)"; then
     misses=$((misses + 1))
     [ "$misses" -ge 10 ] && { echo "Can't read the Foundry queue on GitHub." >&2; exit 1; }

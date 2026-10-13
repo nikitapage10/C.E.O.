@@ -8,6 +8,8 @@ Lattice the agents pick up where they left off, and the Desk's **Chronicle** has
 
 - **Trigger:** `.github/workflows/world-step.yml` runs at :05 every hour (GitHub Actions, free) and POSTs to
   `https://command-everything-obviously.vercel.app/api/world-step`. No secret: the step is idempotent per hour.
+  GitHub's schedule is best-effort (on 2026-10-13 it didn't fire at all for hours), so the Builder's doorbell
+  (`scripts/foundry-watch.sh`) also POSTs every ten minutes while it runs; the extra calls do nothing until the hour is up.
 - **Idempotent:** if the last step is under 55 minutes old, the call changes nothing and spends nothing, and
   returns the saved hour (`{ stepped: false, entry, nextAt }`). Two calls racing for the same hour can't both land:
   the state is saved with an ETag check (Blob `ifMatch`), and the loser gets a 409 and writes no history.

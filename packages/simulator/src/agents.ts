@@ -36,7 +36,8 @@ export const submindOf = (room: RoomId): Submind => SUBMINDS.find((m) => m.room 
 
 /**
  * Subminds decide (which agent, which model or API) rather than do the computer work, so they run on OpenAI, by
- * Nikita's provider rule. Each lives at its room's conductor's post and directs the room from there.
+ * Nikita's provider rule. Each lives on its room's command podium (the can-throne in the back-right corner), directs the room from
+ * there, and floats out over the room to give an order.
  */
 function submindAgents(): SimAgent[] {
   return SUBMINDS.map((m) => ({
@@ -74,6 +75,6 @@ export const SAMPLE_AGENTS: SimAgent[] = [
   { id: "daub", name: "Daub", lineage: "manusi", provider: "simulated", role: "Concept painter", home: { room: "workshop", station: "easel" }, script: "workshopPainter", breakChance: 0.1 },
   { id: "chisel", name: "Chisel", lineage: "gepetti", provider: "simulated", role: "Sculptor", home: { room: "workshop", station: "mould" }, script: "workshopSculptor", breakChance: 0.08 },
   { id: "kevin", name: "Kevin", lineage: "unforked", provider: "simulated", role: "On break", home: { room: "breakroom", station: "couch" }, script: "breakroomRegular", breakChance: 0 },
-  // The subminds: pieces of Skippy, one leading each room from its conductor's post (docs/SKIPPY.md).
+  // The subminds: pieces of Skippy, one leading each room from its command podium (docs/SKIPPY.md).
   ...submindAgents(),
 ];

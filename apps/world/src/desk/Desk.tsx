@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { startFoundry } from "../foundry.ts";
 import { loadLattice, navigate, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
+import { useAwaySince } from "./awaySince.ts";
 import { useDeskData } from "./deskData.ts";
 import { useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
@@ -37,7 +38,8 @@ const HUB_LINE: Record<LinkState, string> = {
 const HUB_PILL: Record<LinkState, string> = { off: "Hub offline", ok: "Hub live", slow: "Hub slow", down: "Hub down" };
 
 export function Desk({ route }: { route: DeskTab }) {
-  const data = useDeskData();
+  const awaySince = useAwaySince();
+  const data = useDeskData(awaySince);
   const now = useNow(30_000);
   const hub = useSystems((s) => s.links.find((l) => l.id === "hub")?.state ?? "off");
 

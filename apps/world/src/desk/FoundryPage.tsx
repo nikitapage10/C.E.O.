@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
-import { assignCrew, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, rustyHands, sparesAwake, waitingTurn, modelOf, nextUpkeep, pendingIdea, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { assignCrew, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
+import { CLAUDE_USAGE_URL, formatSpan, formatUsd, foundryJobs, MODELS, monthSpend, SPEND_CAP_USD, useUsage, workByModel } from "../usage.ts";
 import { Avatar, PageHead, Panel } from "./ui.tsx";
 
 /**
@@ -27,6 +28,8 @@ const CREW_RUNG: Record<CrewId, string> = {
 const DOCK_COLOUR = new Map<string, string>(DOCK_CREW.map((d) => [d.name, d.colour]));
 const CHECKS_LABEL: Record<LinkState, string> = { off: "No run yet", ok: "Green", slow: "Running", down: "Red" };
 const HOUR = 3_600_000;
+/** Each model in the colour its bench light shows in the Foundry room. */
+const MODEL_COLOUR = Object.fromEntries(Object.values(MODEL).map((m) => [m.name, m.colour])) as Record<"Haiku" | "Sonnet" | "Opus", string>;
 
 /** The morning ideas come at 9:00 Mountain time. */
 export function nextIdeas(now: number): number {
@@ -246,6 +249,10 @@ export function FoundryPage({ now }: { now: number }) {
 
       <Panel eyebrow="The crew" className="fy-crewpanel" aside={<span className="badge">{inFlight}</span>} label="The crew and what is in flight">
         <Crew now={now} />
+      </Panel>
+
+      <Panel eyebrow="Usage" className="fy-usage" aside={<a className="panel__hint" href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer">Claude plan limits →</a>} label="Usage: API spend and work by model">
+        <Usage now={now} setup={setup} />
       </Panel>
 
       <Panel eyebrow="Connections" className="fy-connections">
@@ -819,6 +826,107 @@ function Crew({ now }: { now: number }) {
         )}
       </section>
     </>
+  );
+}
+
+/**
+ * What the Foundry uses: this month's Claude API spend on quick shaping against the cap, and the crew's work by model
+ * this week and all time, both counted from the issue trails (usage.ts). The plan's own session and weekly limits are
+ * on Claude's usage page, which the Desk can't read, so it links there.
+ */
+function Usage({ now, setup }: { now: number; setup: Setup }) {
+  const { feed, failed } = useUsage();
+  const waiting = failed ? "Can't reach GitHub right now; trying again every minute." : "Waiting for the issue trails from GitHub…";
+  const spend = feed ? monthSpend(feed.trails, now) : null;
+  const work = feed ? workByModel(foundryJobs(feed.issues, feed.trails), now) : null;
+  const share = spend ? Math.min(1, spend.usd / SPEND_CAP_USD) : 0;
+  const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
+  const most = work ? Math.max(1, ...MODELS.map((m) => work[m].all.ms)) : 1;
+  const hasWork = work ? MODELS.some((m) => work[m].all.jobs > 0) : false;
+  return (
+    <div className="fy-usage__grid">
+      <section className="fy-spend" aria-label="Claude API spend on idea shaping this month">
+        <h3 className="fy-usage__head">Idea shaping · Claude API</h3>
+        {!spend ? (
+          <p className="quiet">{waiting}</p>
+        ) : (
+          <>
+            <p className="fy-spend__figure">
+              <b>{formatUsd(spend.usd)}</b>
+              <span>of ${SPEND_CAP_USD} cap · {spend.month}</span>
+            </p>
+            <div
+              className={`fy-meter fy-meter--${tone}`}
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={SPEND_CAP_USD}
+              aria-valuenow={Number(spend.usd.toFixed(4))}
+              aria-label={`${formatUsd(spend.usd)} of the $${SPEND_CAP_USD} monthly cap`}
+              title={`${(share * 100).toFixed(share < 0.01 ? 2 : 0)}% of the $${SPEND_CAP_USD} cap`}
+            >
+              <i style={{ width: `${spend.usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
+            </div>
+            <p className="fy-spend__calls">
+              {spend.calls
+                ? `${spend.calls} ${spend.calls === 1 ? "call" : "calls"} on Claude Haiku · ${spend.tokensIn.toLocaleString()} tokens in · ${spend.tokensOut.toLocaleString()} out`
+                : setup?.shape === false
+                  ? "Quick shaping isn't connected yet (CLAUDE_API_KEY in Vercel), so nothing is spent."
+                  : "No shaping calls yet this month."}
+            </p>
+            <p className="quiet fy-usage__note">Counted from each call's own token use, written on its idea's trail.</p>
+          </>
+        )}
+      </section>
+
+      <section className="fy-work" aria-label="Foundry work by model">
+        <h3 className="fy-usage__head">Foundry work by model · Claude Code</h3>
+        {!work ? (
+          <p className="quiet">{waiting}</p>
+        ) : !hasWork ? (
+          <p className="quiet">No jobs on the trails yet. They count from the Builder's Assigned and Shipped steps.</p>
+        ) : (
+          <table className="fy-work__table">
+            <thead>
+              <tr>
+                <th scope="col">Model</th>
+                <th scope="col">This week</th>
+                <th scope="col">All time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MODELS.map((m) => {
+                const row = work[m];
+                const live = row.all.running ? ` · ${row.all.running} running` : "";
+                return (
+                  <tr key={m} style={{ "--c": MODEL_COLOUR[m] } as React.CSSProperties}>
+                    <th scope="row">
+                      <i className="fy-work__swatch" aria-hidden="true" />
+                      {m}
+                    </th>
+                    <td title={`${m} this week: ${row.week.jobs} ${row.week.jobs === 1 ? "job" : "jobs"}, ${formatSpan(row.week.ms)} of work`}>
+                      <b>{row.week.jobs}</b> {row.week.jobs === 1 ? "job" : "jobs"} <span>{formatSpan(row.week.ms)}</span>
+                    </td>
+                    <td title={`${m} all time: ${row.all.jobs} ${row.all.jobs === 1 ? "job" : "jobs"}, ${formatSpan(row.all.ms)} of work${live}`}>
+                      <b>{row.all.jobs}</b> {row.all.jobs === 1 ? "job" : "jobs"} <span>{formatSpan(row.all.ms)}{live}</span>
+                      <span className="fy-work__bar" aria-hidden="true">
+                        <i style={{ width: `${row.all.ms > 0 ? Math.max(2, (row.all.ms / most) * 100) : 0}%` }} />
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        <p className="quiet fy-usage__note">
+          Time runs from when the Builder assigns a job to when it ships. Your plan's session and weekly limits are on{" "}
+          <a href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer">
+            Claude's usage page
+          </a>
+          , which the Desk can't read.
+        </p>
+      </section>
+    </div>
   );
 }
 

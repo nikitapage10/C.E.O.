@@ -18,6 +18,9 @@
  *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): Rusty shapes a proposed or revised idea on the spot
  *                          (a pitch, a size and a builder, in a second or two, on Claude Haiku) instead of at the
  *                          queue check. Shaping only, never code (code runs on Claude Code); capped at $10 a month.
+ *
+ * What each shaping call costs is written on the idea's trail ("**Trail · Shaped:** … Used 812 tokens in and 140
+ * out, $0.000151."), from the call's own token use; the Desk's Usage panel adds up this month's (api/foundry-usage.ts).
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -75,6 +78,36 @@ export interface Shape {
 
 const SHAPE_MODEL = "claude-haiku-5-5";
 
+/**
+ * Claude Haiku 5.5's price, in dollars per million tokens (first-party API, Oct 2026): $0.10 in and $0.50 out for
+ * prompts up to 100K tokens, $0.50 and $2.50 past that. Writing to the prompt cache costs 1.25x input, reading 0.1x.
+ */
+export const SHAPE_PRICE = { input: 0.1, output: 0.5, longInput: 0.5, longOutput: 2.5, longFrom: 100_000, cacheWrite: 1.25, cacheRead: 0.1 } as const;
+
+/** The token use a Messages response reports (`res.usage`). */
+export interface Usage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+}
+
+/** What one call cost, in dollars, from its own token use. */
+export function costOf(usage: Usage, price = SHAPE_PRICE): number {
+  const write = usage.cache_creation_input_tokens ?? 0;
+  const read = usage.cache_read_input_tokens ?? 0;
+  const long = usage.input_tokens + write + read > price.longFrom;
+  const inRate = long ? price.longInput : price.input;
+  const outRate = long ? price.longOutput : price.output;
+  return (usage.input_tokens * inRate + write * inRate * price.cacheWrite + read * inRate * price.cacheRead + usage.output_tokens * outRate) / 1_000_000;
+}
+
+/** The sentence the trail carries for one call ("Used 812 tokens in and 140 out, $0.000151."); the Desk reads it back. */
+export function usageLine(usage: Usage): string {
+  const tokensIn = usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
+  return `Used ${tokensIn.toLocaleString("en-US")} tokens in and ${usage.output_tokens.toLocaleString("en-US")} out, $${costOf(usage).toFixed(6)}.`;
+}
+
 const SHAPE_SCHEMA = {
   type: "object",
   properties: {
@@ -98,11 +131,18 @@ Nikita often dictates, so fix obvious speech-to-text slips using C.E.O.'s own wo
 Nikita may attach pictures (sketches, screenshots, references) to show what they mean: use them to understand the idea and say in the pitch what they show when it matters.
 Reply with the card as JSON: title, pitch, size, builder, model.`;
 
-/** Rusty shapes the idea in a few seconds; null when Claude isn't set up or doesn't answer in time. */
-export async function shapeIdea(words: string, current?: string, images: string[] = []): Promise<Shape | null> {
-  if (!canShape()) return null;
+/** One shaping call: the card (null when Claude's answer wasn't usable) and what the call used (null when it never answered). */
+export interface Shaping {
+  shape: Shape | null;
+  usage: Usage | null;
+}
+
+/** Rusty shapes the idea in a few seconds; no card when Claude isn't set up or doesn't answer in time. */
+export async function shapeIdea(words: string, current?: string, images: string[] = []): Promise<Shaping> {
+  if (!canShape()) return { shape: null, usage: null };
   const input = current ? `The idea as it stands:\n${current}\n\nNikita's notes to revise it with:\n${words}` : words;
   const client = new Anthropic({ apiKey: claudeKey(), timeout: 12_000, maxRetries: 1 });
+  let usage: Usage | null = null;
   try {
     const res = await client.messages.create({
       model: SHAPE_MODEL,
@@ -112,20 +152,24 @@ export async function shapeIdea(words: string, current?: string, images: string[
       system: SHAPE_PROMPT,
       messages: [{ role: "user", content: [...images.map((url) => ({ type: "image" as const, source: { type: "url" as const, url } })), { type: "text" as const, text: input }] }],
     });
+    usage = res.usage;
     const text = res.content.find((block) => block.type === "text");
-    if (!text || text.type !== "text") return null;
+    if (!text || text.type !== "text") return { shape: null, usage };
     const raw = JSON.parse(text.text) as Partial<Shape>;
-    if (typeof raw.title !== "string" || typeof raw.pitch !== "string") return null;
+    if (typeof raw.title !== "string" || typeof raw.pitch !== "string") return { shape: null, usage };
     const title = raw.title.startsWith("Idea:") ? raw.title : `Idea: ${raw.title}`;
     return {
-      title: title.slice(0, 90),
-      pitch: raw.pitch.trim(),
-      size: raw.size === "small" || raw.size === "large" ? raw.size : "medium",
-      builder: raw.builder === "Rocky" ? "Rocky" : "Rusty",
-      model: raw.builder === "Rocky" || raw.model === "Opus" ? "Opus" : "Sonnet",
+      usage,
+      shape: {
+        title: title.slice(0, 90),
+        pitch: raw.pitch.trim(),
+        size: raw.size === "small" || raw.size === "large" ? raw.size : "medium",
+        builder: raw.builder === "Rocky" ? "Rocky" : "Rusty",
+        model: raw.builder === "Rocky" || raw.model === "Opus" ? "Opus" : "Sonnet",
+      },
     };
   } catch {
-    return null;
+    return { shape: null, usage };
   }
 }
 
@@ -134,19 +178,28 @@ export async function shapeIdea(words: string, current?: string, images: string[
  * `foundry:revise` and the next queue check shapes it instead.
  */
 async function shapeInto(issue: number, text: string, labels: string[], current?: string, words = text, extra = ""): Promise<void> {
-  const shape = await shapeIdea(text, current);
+  const started = Date.now();
+  const { shape, usage } = await shapeIdea(text, current);
+  // The reshaping goes on the trail too, with what it cost, so every call counts against the month's cap.
+  if (shape || usage) await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: shapedLine(shape, Date.now() - started, usage, true) }) }).catch(() => null);
   if (!shape) return;
   await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, words) + extra, labels }) }).catch(() => null);
 }
 
 /** The first steps of an idea's trail (docs/FOUNDRY.md): where it came from, and who shaped it on what. */
-async function trail(issue: number, shape: Shape | null, took: number, pictures: number): Promise<void> {
+async function trail(issue: number, shaping: Shaping, took: number, pictures: number): Promise<void> {
   const when = new Date().toLocaleString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
   const origin = `**Trail · Origin:** Nikita on the Desk (${when} MT)${pictures ? `, with ${pictures} ${pictures === 1 ? "picture" : "pictures"}` : ""}.`;
-  const shaped = shape
-    ? `**Trail · Shaped:** Rusty on Claude Haiku (${SHAPE_MODEL}), ${(took / 1000).toFixed(1)} s. Suggested builder: ${shape.builder} (${shape.model}); the Builder confirms it when the job is picked.`
-    : "**Trail · Shaped:** waiting for the Builder's next queue check (quick shaping didn't answer).";
-  await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `${origin}\n\n${shaped}` }) }).catch(() => null);
+  await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `${origin}\n\n${shapedLine(shaping.shape, took, shaping.usage)}` }) }).catch(() => null);
+}
+
+/** The Shaped step: who shaped it on what, how long it took, and what the call cost. */
+function shapedLine(shape: Shape | null, took: number, usage: Usage | null, reshaped = false): string {
+  const used = usage ? ` ${usageLine(usage)}` : "";
+  const who = reshaped ? "Reshaped with Nikita's notes by Rusty" : "Rusty";
+  return shape
+    ? `**Trail · Shaped:** ${who} on Claude Haiku (${SHAPE_MODEL}), ${(took / 1000).toFixed(1)} s. Suggested builder: ${shape.builder} (${shape.model}); the Builder confirms it when the job is picked.${used}`
+    : `**Trail · Shaped:** waiting for the Builder's next queue check (quick shaping didn't answer).${used}`;
 }
 
 function shapedBody(shape: Shape, words: string, images: string[] = []): string {
@@ -186,7 +239,7 @@ export async function POST(request: Request): Promise<Response> {
     // shapes it.
     const first = text.split("\n")[0]!.trim();
     const title = `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`;
-    const shaping = canShape() ? shapeIdea(text, undefined, images) : Promise.resolve(null);
+    const shaping: Promise<Shaping> = canShape() ? shapeIdea(text, undefined, images) : Promise.resolve({ shape: null, usage: null });
     const filing = github("/issues", {
       method: "POST",
       body: JSON.stringify({
@@ -204,7 +257,7 @@ export async function POST(request: Request): Promise<Response> {
         line({ ok: true, shaping: canShape() });
         const started = Date.now();
         let took = 0;
-        const shapeSent = shaping.then((shape) => {
+        const shapeSent = shaping.then(({ shape }) => {
           took = Date.now() - started;
           if (shape) line({ shape });
         });
@@ -212,8 +265,9 @@ export async function POST(request: Request): Promise<Response> {
         line(made === null ? { error: "github" } : { issue: made });
         await shapeSent;
         controller.close();
-        const shape = await shaping;
-        if (made !== null) waitUntil(trail(made, shape, took, images.length));
+        const shaped = await shaping;
+        const shape = shaped.shape;
+        if (made !== null) waitUntil(trail(made, shaped, took, images.length));
         if (made !== null && shape) waitUntil(github(`/issues/${made}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text, images), labels: ["foundry", "foundry:idea"] }) }).catch(() => null));
       },
     });

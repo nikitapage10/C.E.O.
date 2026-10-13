@@ -212,9 +212,10 @@ export const FOUNDRY_THREAD = "https://claude.ai/code/project/chan_01ADYmBcNXXQp
 const DAY_MS = 86_400_000;
 
 /** The Foundry's real work, as Desk cards: things to ship, stuck crates, the morning ideas, and what shipped. */
-export function foundryDesk(f: FoundryData, now = Date.now()): { actions: DeskAction[]; notes: DeskNote[] } {
+export function foundryDesk(f: FoundryData, now = Date.now(), awaySince = now - DAY_MS): { actions: DeskAction[]; notes: DeskNote[] } {
   const actions: DeskAction[] = [];
   const notes: DeskNote[] = [];
+  const shipped: { at: number; note: DeskNote }[] = [];
   for (const c of f.crates) {
     const agent = CREW[crewOf(c, f.crates)].name;
     const id = `foundry-${c.number}`;
@@ -224,10 +225,13 @@ export function foundryDesk(f: FoundryData, now = Date.now()): { actions: DeskAc
       actions.push({ id, room: "foundry", agent, kind: "check", when: "now", live: true, title: `Stuck: ${c.title}`, detail: "Every model rung tried and the checks are still red. The notes on what was tried are on the issue.", choices: ["Read the notes"], hrefs: [c.url] });
     } else if (c.kind === "idea" && c.state === "queued") {
       actions.push({ id, room: "foundry", agent, kind: "decide", when: "later", live: true, due: "This morning's ideas", title: c.title, choices: ["Pick on the Foundry tab", "Read it"], hrefs: ["/foundry", c.url] });
-    } else if (c.state === "shipped" && now - c.updatedAt < DAY_MS) {
-      notes.push({ room: "foundry", live: true, text: `${agent} shipped “${c.title}”.` });
+    } else if (c.state === "shipped") {
+      // The ship time is when the issue closed; updatedAt also moves when a comment lands later.
+      const at = c.closedAt ?? c.updatedAt;
+      if (at > awaySince) shipped.push({ at, note: { room: "foundry", live: true, text: `${agent} shipped “${c.title}”.` } });
     }
   }
+  notes.push(...shipped.sort((a, b) => b.at - a.at).map((s) => s.note));
   if (f.checks.state === "fail" && !f.crates.some((c) => c.kind === "fix" && c.state !== "shipped")) {
     notes.unshift({ room: "foundry", live: true, text: "The checks on main went red. Rivet is on her way." });
   }
@@ -235,15 +239,15 @@ export function foundryDesk(f: FoundryData, now = Date.now()): { actions: DeskAc
 }
 
 /** The Desk's data: the store (empty until the hub connects) plus the Foundry's real work from GitHub. */
-export function useDeskData(): DeskData {
+export function useDeskData(awaySince?: number): DeskData {
   const data = useDesk((s) => s.data);
   const foundry = useFoundry((s) => s.data);
   const connected = useFoundry((s) => s.connected);
   return useMemo(() => {
     if (!connected) return data;
-    const f = foundryDesk(foundry);
+    const f = foundryDesk(foundry, Date.now(), awaySince);
     return { ...data, actions: [...f.actions, ...data.actions], notes: [...f.notes, ...data.notes] };
-  }, [data, foundry, connected]);
+  }, [data, foundry, connected, awaySince]);
 }
 
 /** Owed replies, oldest wait first. */

@@ -92,9 +92,12 @@ in the awesomeness".
 
 Skippy hovers over the Kernel, a giant admiral can over the port ring, and speaks on the Lattice-wide PA (the old
 Kernel announcements). Each submind wears the admiral can with its hat and coat in its room's colour and lives at
-its room's conductor's post: a hover spot high over the middle of the room (about three metres up, `packages/core/src/posts.ts`), with a soft glow
-and ring on the floor beneath in that colour (`apps/world/src/rooms/HoverGlow.tsx`; there is no podium). From there
-it looks down on everyone, drifts about, turns to whoever is
-working and conducts at them, with a sarcastic line in its own voice now and then; once in a while it swoops down
-to check on someone up close, then goes back up. Subminds don't nap and don't join gatherings. Rivet, back on the
+its room's command podium, the can-throne: a small raised dais in the back-right corner of the room
+(`packages/core/src/posts.ts`, drawn by `apps/world/src/rooms/Podium.tsx`, footprint in `obstacles.ts`). From there
+it turns to whoever is working and conducts at them, with a sarcastic line in its own voice now and then. It comes
+out only to give a command: when work starts in its room (a demo task, or a real one such as a Foundry crate) it
+floats out to the command spot high over the middle of the room, turns to whoever the order is for and gives it,
+conducts a moment, and glides back (`Simulator.command`, at most once every 45 seconds of Lattice time). While it is
+out, a soft glow and ring in its colour mark the floor beneath it (`apps/world/src/rooms/HoverGlow.tsx`). Once in
+a while it also swoops down to check on someone up close, then goes home. Subminds don't nap and don't join gatherings. Rivet, back on the
 Foundry bench, does the first-try fixes; the Builder conducts.

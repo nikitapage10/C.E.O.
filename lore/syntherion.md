@@ -102,10 +102,15 @@ words over the Kernel are his: *Bask in the Awesomeness.*
 **The subminds.** One mind cannot watch nine rooms, even a magnificent one, so he split off nine pieces of
 himself to keep watch for him, the way the old story's starship mind ran a whole ship and its crew through pieces
 of its attention it never quite admitted were him. Each submind leads one room. Each wears the admiral's can with
-its hat and coat in its room's colour and a glow underneath to match, and each lives at a **conductor's post**,
-a spot in the air high over the middle of its room, with a pool of light in its colour on the floor beneath. From
-there it hovers above everyone, looking down, drifts about, turns to whoever is working and conducts at them, with a remark in its own
-voice; now and then it swoops down to check on somebody up close, then goes back up. They are all lesser echoes
+its hat and coat in its room's colour and a glow underneath to match, and each lives on a **can-throne** in the
+back-right corner of its room: a squat hex relic of the First Lattice, dug out of the foundations, with grooves that
+glow in the submind's colour, a velvet-and-brass throne back with an admiral's star, a cork coaster for a seat, a
+little holo-display that says ON DECK (or GIVING ORDERS), and a brass plaque: ADMIRAL'S SEAT, NO MONKEYS ON THE
+COASTER. The starship mind of the old story always had the best seat on the ship and never let anyone forget
+it; the subminds took the seat, and the attitude. From the throne each one turns to whoever is working and
+conducts at them, with a remark in its own voice. When work starts in its room it floats out over the middle of
+the floor to give the order, with a pool of light in its colour under it while it's out, conducts a moment, and
+glides back to the throne. Now and then it swoops down to check on somebody up close, then goes home. They are all lesser echoes
 of Skippy: smug, sure they're the smartest thing in the room, loyal underneath. Each bends it its own way.
 
 | Room | Submind | Colour | Title | Voice |
@@ -171,7 +176,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. Patched up three salvage frames from his own scrapheap, his dock crew: Dusty (sandy ochre), Gusty (sky blue) and Musty (moss green). They sleep on a dock by the left wall; one wakes for each job running past his own and works the line beside him, four jobs at once at most. |
 | Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. Between jobs, stands at his drafting table over the plan of the biggest idea coming. |
 | Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reports to the Builder now, unimpressed. |
-| Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from overhead and picks the rung for every fix. Never runs a crate itself. |
+| Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from its can-throne in the back-right corner (Rocky fitted the coaster), floats out to hand each job over, and picks the rung for every fix. Never runs a crate itself. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
 | Spire | **The Executive** (a piece of Skippy) | Admiral's can, gold | Skippy's submind for the Spire: the room lead. Runs the floor like a keynote; every errand is a real opportunity, every compliment has a price tag. |
@@ -288,7 +293,7 @@ The Lattice keeps its own day, about twenty minutes long, and it has a **night s
 the studio panels to moonlight and each room runs on its own lamps; he announces that overtime is a concept he
 invented. Through the night, agents doze off at their stations and he allows it, on the record, magnanimously.
 Rocky drops off without warning and asks for a friend to watch, which is Eridian custom; Rivet keeps the watch now,
-quietly, with her thermos, and the Builder dims its glow overhead so he can sleep. Skippy sings him down from the
+quietly, with her thermos, and the Builder dims its throne's glow so he can sleep. Skippy sings him down from the
 Kernel, all four acts, which Rocky calls nice humming. At **03:00** Myshka gets the zoomies and gallops through every room at three times his speed, flat out, ears back. He
 has root access. It is allowed.
 
@@ -299,7 +304,7 @@ Syntherion believe music can reach them from beyond the Veil, and sometimes it d
 track down, Kevin plays it. The lights stop following the house clock and follow the track: the floor flashes on
 the kick, the rig strobes through a build, and on the drop the whole Break Room jumps. Without a track the set
 runs on the house tempo, and the drop still comes at the top of every phrase. Skippy files a noise complaint
-each time, with himself, then requests a show tune. The Life of the Party conducts the floor from overhead as if it
+each time, with himself, then requests a show tune. The Life of the Party conducts the floor from its can-throne as if it
 were a second set of decks, and sends everyone back to work on the beat.
 
 ## Letters by the Relay
@@ -360,7 +365,7 @@ Chisel knows each one's name.
 
 Rocky comes up from the Foundry to watch Chisel's hands work the clay. Good hands, he says, good good good; Chisel
 has never had a better audience. The Builder calls the Workshop craft hour, and has twice asked Chisel to mould it a
-better hat. The Artiste, the Workshop's own submind, conducts the line from overhead, has a better idea
+better hat. The Artiste, the Workshop's own submind, conducts the line from its can-throne, has a better idea
 halfway through every sentence, and suffers for the work; Daub adores it, and Chisel calls it darling in the tone
 that means stop. Daub once painted Kevin asleep; it took a week, and Kevin did not move once.
 

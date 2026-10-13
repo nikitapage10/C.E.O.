@@ -106,10 +106,12 @@ export const PETS: PetDef[] = [
 
 export const PET_BY_ID: Record<string, PetDef> = Object.fromEntries(PETS.map((p) => [p.id, p]));
 
-/** Places a pet may wander to in a room: every station there. */
-/** Where a pet might stop in a room. Only Myshka gets in the Archive's loot box. */
+/**
+ * Where a pet might stop in a room: any station but the submind's command podium and its command spot up in the
+ * air. Only Myshka gets in the Archive's loot box.
+ */
 export function wanderSpots(room: RoomId, pet?: string): string[] {
-  return ROOMS[room].stations.map((s) => s.id).filter((id) => id !== "loot-box" || pet === "myshka");
+  return ROOMS[room].stations.map((s) => s.id).filter((id) => id !== "post" && id !== "command" && (id !== "loot-box" || pet === "myshka"));
 }
 
 /** Orders from elsewhere in the Lattice. At 03:00 Myshka gets the zoomies: three times the speed, no stopping. */

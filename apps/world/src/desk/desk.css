@@ -1065,6 +1065,18 @@ a.panel__hint:hover {
 .notes li:last-child {
   border-bottom: 0;
 }
+/* Five lines at most; the rest scroll inside the panel, so the rooms below stay put. */
+.notes {
+  --note-h: 60px;
+  max-height: calc(var(--note-h) * 5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.notes[data-more="true"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+}
 .notes__body {
   display: grid;
   gap: 2px;
@@ -3664,4 +3676,136 @@ a.fy-chip:hover {
 }
 .fy-idea__pics li:hover {
   border-color: var(--text);
+}
+
+/* ── Foundry usage: API spend against the cap, and the crew's work by model ── */
+.fy-usage__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 22px 36px;
+}
+.fy-usage__grid > section {
+  min-width: 0;
+}
+.fy-usage__head {
+  margin: 0 0 12px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fy-usage__note {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.fy-spend__figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+}
+.fy-spend__figure b {
+  font-family: var(--serif);
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--text);
+}
+.fy-spend__figure span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.fy-meter {
+  --c: var(--mint);
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--hair-soft);
+  box-shadow: inset 0 0 0 1px var(--hair-soft);
+  overflow: hidden;
+}
+.fy-meter--slow {
+  --c: var(--amber);
+}
+.fy-meter--down {
+  --c: var(--rose);
+}
+.fy-meter i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--c);
+  box-shadow: 0 0 10px var(--c);
+  transition: width 0.6s var(--ease);
+}
+.fy-spend__calls {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.fy-work__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.fy-work__table th,
+.fy-work__table td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px solid var(--hair-soft);
+  text-align: left;
+  vertical-align: top;
+  font-weight: 400;
+}
+.fy-work__table thead th {
+  padding-top: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fy-work__table tbody th {
+  white-space: nowrap;
+  color: var(--text);
+}
+.fy-work__table td {
+  color: var(--muted);
+}
+.fy-work__table td b {
+  font-weight: 500;
+  color: var(--text);
+}
+.fy-work__table td span {
+  color: var(--faint);
+}
+.fy-work__swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+}
+.fy-work__table td .fy-work__bar {
+  display: block;
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--hair-soft);
+  overflow: hidden;
+}
+.fy-work__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--c);
+  opacity: 0.85;
+  transition: width 0.6s var(--ease);
+}
+.fy-work__table td > span:not(.fy-work__bar) {
+  white-space: nowrap;
 }

@@ -199,16 +199,21 @@ Each step is one short comment that starts with `**Trail ·`, newest last:
 | Step | Says | Example |
 | --- | --- | --- |
 | Origin | Where it came from, with a link | `**Trail · Origin:** Nikita on the Desk (04:02 MT).` / `Red check on main, run <link>.` / `Nikita in the Foundry thread: "…"` |
-| Shaped | Who wrote the card, on which model | `**Trail · Shaped:** Rusty on Claude Haiku (claude-haiku-5-5), 1.2 s.` |
+| Shaped | Who wrote the card, on which model, and what a Claude API call cost | `**Trail · Shaped:** Rusty on Claude Haiku (claude-haiku-5-5), 1.2 s. Used 812 tokens in and 140 out, $0.000151.` |
 | Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Small green fix: ships as upkeep, no approval needed.` |
 | Assigned | Who builds it, on which model, and why (the Builder's call) | `**Trail · Assigned:** Rusty on Opus: it's design and animation.` |
 | Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |
+| Pictures | Every screenshot, design sketch or test picture made along the way (before/after, what was checked), posted with `scripts/issue-shots.sh <issue> "<what they show>" <files…>`. The pictures live on the `foundry-shots` branch (never merged, never deployed) and show inline on the issue | `**Trail · Pictures:** the throne mid-command in the Spire, and the Foundry corner.` |
 | Checks | The result, with a link | `**Trail · Checks:** green (run <link>).` |
 | Shipped | The commit or PR on main | `**Trail · Shipped:** 661cef7 on main, live on the site.` |
 
 The Desk's function writes Origin, Shaped and Decision for clicks on the Desk; the checks workflow writes Origin for
 red checks; the Builder writes Assigned, Work, Checks and Shipped, and Origin for chat work. A step that didn't
 happen is left out, never invented. Skip none that did.
+
+The Desk's Usage panel counts from these steps: this month's quick-shaping spend from the "Used … $…" part of each
+Shaped step (against the $10 cap), and the crew's jobs and hours by model from Assigned (who, on which model) to
+Shipped. So the Assigned step names the model ("Rusty on Opus") and the Shipped step is written when the work lands.
 
 ## Rules that always hold
 

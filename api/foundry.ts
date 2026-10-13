@@ -13,6 +13,9 @@
  *   FOUNDRY_DESK_KEY       a passphrase Nikita types once on the Desk; without it nobody else can press the buttons
  *   FOUNDRY_ROUTINE_TOKEN  the wake routine's API token (same as the GitHub secret)
  *   FOUNDRY_ROUTINE_ID     the wake routine (same as the GitHub secret); defaults to the Foundry's routine
+ *   OPENAI_API_KEY         optional: lets Rusty shape a proposed or revised idea on the spot (a pitch, a size and a
+ *                          builder, in a few seconds, on a small OpenAI model), instead of waiting for the thread.
+ *                          Routing and shaping only, never code; the Foundry's API spend is capped at $10 a month.
  *   FOUNDRY_GITHUB_TOKEN   optional: a fine-grained token for this repo with Issues read and write. With it, a
  *                          click changes the issue at once; without it, the click wakes the Foundry thread and the
  *                          thread makes the change on GitHub itself a moment later.
@@ -54,6 +57,56 @@ async function github(path: string, init: RequestInit = {}): Promise<Response> {
 const routineId = () => env("FOUNDRY_ROUTINE_ID") || DEFAULT_ROUTINE_ID;
 const canWake = () => Boolean(env("FOUNDRY_ROUTINE_TOKEN"));
 const canWrite = () => Boolean(env("FOUNDRY_GITHUB_TOKEN"));
+const canShape = () => Boolean(env("OPENAI_API_KEY"));
+
+/** Rusty's quick pass on an idea: what the Desk card shows and who builds it. */
+export interface Shape {
+  title: string;
+  pitch: string;
+  size: "small" | "medium" | "large";
+  builder: "Rusty" | "Rocky";
+}
+
+const SHAPE_MODEL = "gpt-5.4-mini";
+
+const SHAPE_PROMPT = `You shape feature ideas for C.E.O., Nikita's web app: a Desk dashboard plus "the Lattice", a 3D world of rooms where AI agents (the Syntherion) work, with a coding crew in the Foundry room. Nikita describes an idea, often by voice, rambling. Turn it into a card:
+- title: "Idea: " plus a short plain name for it (under 70 characters), in Nikita's own words where possible.
+- pitch: two or three plain sentences: what changes and what Nikita will see. Keep every request Nikita made; add nothing they didn't ask for.
+- size: small (one area, an hour or so), medium (a few files or one feature), or large (several systems).
+- builder: "Rusty" (Sonnet) for simple, well-scoped work like moving, renaming or restyling things; "Rocky" (Opus) for anything substantial, open-ended or design-heavy, or that would clearly benefit from the stronger model. Lean towards Rocky when unsure.
+Nikita often dictates, so fix obvious speech-to-text slips using C.E.O.'s own words: subminds (Skippy's room leads), Skippy, Rivet, Rusty, Rocky, the Desk, the Lattice, the Foundry, Relay, the Spire, the Exchange, the Green, the Archive, the Break Room, the Boiler Room, the Workshop.
+Reply with JSON only: {"title": "...", "pitch": "...", "size": "...", "builder": "..."}.`;
+
+/** Rusty shapes the idea in a few seconds; null when OpenAI isn't set up or doesn't answer in time. */
+export async function shapeIdea(words: string, current?: string): Promise<Shape | null> {
+  if (!canShape()) return null;
+  const input = current ? `The idea as it stands:\n${current}\n\nNikita's notes to revise it with:\n${words}` : words;
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env("OPENAI_API_KEY")}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: SHAPE_MODEL, response_format: { type: "json_object" }, messages: [{ role: "system", content: SHAPE_PROMPT }, { role: "user", content: input }] }),
+    signal: AbortSignal.timeout(12_000),
+  }).catch(() => null);
+  if (!res?.ok) return null;
+  try {
+    const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const raw = JSON.parse(body.choices?.[0]?.message?.content ?? "") as Partial<Shape>;
+    if (typeof raw.title !== "string" || typeof raw.pitch !== "string") return null;
+    const title = raw.title.startsWith("Idea:") ? raw.title : `Idea: ${raw.title}`;
+    return {
+      title: title.slice(0, 90),
+      pitch: raw.pitch.trim(),
+      size: raw.size === "small" || raw.size === "large" ? raw.size : "medium",
+      builder: raw.builder === "Rusty" ? "Rusty" : "Rocky",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function shapedBody(shape: Shape, words: string): string {
+  return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n**Builder:** ${shape.builder}\n\n**From Nikita (on the Desk):**\n\n${words}\n\n_Shaped by Rusty on the Desk (${SHAPE_MODEL}). It waits for Nikita's pick like any idea._`;
+}
 
 async function wake(text: string): Promise<boolean> {
   if (!canWake()) return false;
@@ -77,6 +130,8 @@ export function GET(): Response {
     wake: canWake(),
     /** True when clicks change the issue at once rather than through the thread. */
     direct: canWrite(),
+    /** True when Rusty shapes proposed and revised ideas on the spot. */
+    shape: canShape(),
   });
 }
 
@@ -108,6 +163,14 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (choice === "propose") {
+    // Rusty shapes it here and now when OpenAI is set up; otherwise the thread shapes it after the wake.
+    const shape = await shapeIdea(text);
+    if (shape) {
+      const res = await github("/issues", { method: "POST", body: JSON.stringify({ title: shape.title, body: shapedBody(shape, text), labels: ["foundry", "foundry:idea"] }) });
+      if (!res.ok) return json({ error: "github" }, 502);
+      const made = (await res.json()) as { number: number };
+      return json({ ok: true, issue: made.number, shaped: true });
+    }
     const first = text.split("\n")[0]!.trim();
     const title = `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`;
     const res = await github("/issues", {
@@ -128,7 +191,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const found = await github(`/issues/${issue}`);
   if (!found.ok) return json({ error: "not-found" }, 404);
-  const current = (await found.json()) as { state: string; title: string; labels: { name: string }[] };
+  const current = (await found.json()) as { state: string; title: string; body?: string | null; labels: { name: string }[] };
   const labels = current.labels.map((l) => l.name);
   if (current.state !== "open" || !labels.includes("foundry") || !labels.includes("foundry:idea")) return json({ error: "not-an-open-idea" }, 409);
 
@@ -142,6 +205,13 @@ export async function POST(request: Request): Promise<Response> {
   if (choice === "revise") {
     const quoted = text.split("\n").map((line) => `> ${line}`).join("\n");
     await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: `Nikita's notes from the Desk:\n\n${quoted}` }) });
+    const shape = await shapeIdea(text, `${current.title}\n\n${current.body ?? ""}`);
+    if (shape) {
+      const words = /\*\*From Nikita \(on the Desk\):\*\*\n\n([\s\S]*?)\n\n(?:_Shaped|Rusty shapes)/.exec(current.body ?? "")?.[1] ?? "";
+      const body = `${shapedBody(shape, words || "(from the morning ideas)")}\n\n**Revised with Nikita's notes:**\n\n${quoted}`;
+      const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ title: shape.title, body, labels: labels.filter((l) => l !== "foundry:revise") }) });
+      return res.ok ? json({ ok: true, shaped: true }) : json({ error: "github" }, 502);
+    }
     const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: [...new Set([...labels, "foundry:revise"])] }) });
     if (!res.ok) return json({ error: "github" }, 502);
     const woke = await wake(`Idea #${issue} has revision notes from the Desk.`).catch(() => false);

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { useSystems, type LinkState } from "./systems.ts";
 
 /**
- * The Foundry's real work, read from GitHub. Shared by the Desk (cards, Systems) and the Lattice (the Foundry
+ * The Foundry's real work, read from GitHub through the Desk's feed (api/foundry-feed.ts). Shared by the Desk (cards, Systems) and the Lattice (the Foundry
  * room). Imports nothing from the 3D world, so the Desk can load it alone.
  *
  * The coding happens in the Foundry thread in Claude Code; it keeps its queue as GitHub issues labelled
@@ -12,9 +12,8 @@ import { useSystems, type LinkState } from "./systems.ts";
 export const REPO = "nikitapage10/C.E.O.";
 const API = `https://api.github.com/repos/${REPO}`;
 /**
- * Unauthenticated GitHub allows 60 requests an hour per visitor, but a conditional request answered "not modified"
- * is free, so the Desk can ask every half minute and only pay when something changed. After a click on the Desk it
- * asks every few seconds for a minute, so the change shows without a refresh.
+ * The feed is cached for a few seconds at Vercel's edge, so the Desk can ask every half minute (and every few seconds
+ * for a minute after a click on the Desk) without running GitHub's rate limit dry.
  */
 const POLL_MS = 30_000;
 const QUICK_MS = 5_000;
@@ -341,14 +340,34 @@ async function fetchJson<T>(url: string): Promise<T> {
   return body;
 }
 
+interface Feed {
+  issues: GhIssue[];
+  runs: { workflow_runs: GhRun[] };
+  pulls: GhPull[];
+  commits: GhCommit[];
+}
+
+/** The Desk's own feed (api/foundry-feed.ts): one request, read with the Foundry's token and shared by every tab. */
+async function readFeed(): Promise<Feed> {
+  const res = await fetch("/api/foundry-feed", { headers: { Accept: "application/json" } });
+  if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) throw new Error(`${res.status} feed`);
+  return (await res.json()) as Feed;
+}
+
+/** GitHub directly, for local previews where the feed isn't running. */
+async function readGitHub(): Promise<Feed> {
+  const [issues, runs, pulls, commits] = await Promise.all([
+    fetchJson<GhIssue[]>(`${API}/issues?labels=foundry&state=all&sort=updated&per_page=40`),
+    fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/checks.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
+    fetchJson<GhPull[]>(`${API}/pulls?state=closed&sort=updated&direction=desc&per_page=20`).catch(() => [] as GhPull[]),
+    fetchJson<GhCommit[]>(`${API}/commits?sha=main&per_page=40`).catch(() => [] as GhCommit[]),
+  ]);
+  return { issues, runs, pulls, commits };
+}
+
 export async function refreshFoundry(): Promise<void> {
   try {
-    const [issues, runs, pulls, commits] = await Promise.all([
-      fetchJson<GhIssue[]>(`${API}/issues?labels=foundry&state=all&sort=updated&per_page=40`),
-      fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/checks.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
-      fetchJson<GhPull[]>(`${API}/pulls?state=closed&sort=updated&direction=desc&per_page=20`).catch(() => [] as GhPull[]),
-      fetchJson<GhCommit[]>(`${API}/commits?sha=main&per_page=40`).catch(() => [] as GhCommit[]),
-    ]);
+    const { issues, runs, pulls, commits } = await readFeed().catch(readGitHub);
     const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues) };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.

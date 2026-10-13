@@ -39,7 +39,7 @@ const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60
 
 /* ── The idea buttons ── */
 
-type Setup = { buttons: boolean; wake: boolean; direct: boolean } | null;
+type Setup = { buttons: boolean; wake: boolean; direct: boolean; shape: boolean } | null;
 type Choice = "build" | "pass" | "revise" | "propose";
 const KEY = "ceo.deskKey";
 
@@ -63,9 +63,9 @@ function useSetup(): Setup {
   useEffect(() => {
     let live = true;
     fetch("/api/foundry")
-      .then((r) => (r.ok ? (r.json() as Promise<{ buttons: boolean; wake: boolean; direct?: boolean }>) : null))
-      .then((s) => live && setSetup(s ? { buttons: s.buttons, wake: s.wake, direct: s.direct ?? false } : { buttons: false, wake: false, direct: false }))
-      .catch(() => live && setSetup({ buttons: false, wake: false, direct: false }));
+      .then((r) => (r.ok ? (r.json() as Promise<{ buttons: boolean; wake: boolean; direct?: boolean; shape?: boolean }>) : null))
+      .then((s) => live && setSetup(s ? { buttons: s.buttons, wake: s.wake, direct: s.direct ?? false, shape: s.shape ?? false } : { buttons: false, wake: false, direct: false, shape: false }))
+      .catch(() => live && setSetup({ buttons: false, wake: false, direct: false, shape: false }));
     return () => {
       live = false;
     };
@@ -512,6 +512,12 @@ function Connections({ setup }: { setup: Setup }) {
       what: setup?.direct ? "Build, Revise and Not this one change GitHub at once" : "Build, Revise and Not this one go to the Foundry, which changes GitHub",
       state: setup === null ? "off" : setup.buttons ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.buttons ? "Ready" : "Needs setup",
+    },
+    {
+      name: "Quick shaping",
+      what: setup?.shape ? "Rusty shapes your ideas in a few seconds" : "Add OPENAI_API_KEY in Vercel so Rusty shapes ideas in seconds",
+      state: setup === null ? "off" : setup.shape ? "ok" : "slow",
+      label: setup === null ? "Checking…" : setup.shape ? "Ready" : "Needs setup",
     },
     {
       name: "Wake routine",

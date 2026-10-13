@@ -15,7 +15,8 @@ export function Floor() {
       <planeGeometry args={[420, 420]} />
       {quality === "high" ? (
         <MeshReflectorMaterial
-          resolution={512}
+          // The reflection is blurred to a soft glow anyway, so a 256 map looks the same as 512 at a quarter of the fill.
+          resolution={256}
           mirror={0.6}
           blur={[400, 120]}
           mixBlur={1.2}
@@ -115,8 +116,10 @@ export function Motes({ count = 1400 }: { count?: number }) {
     });
     return { geometry, material };
   }, [count]);
-  useFrame(({ clock }) => {
+  useFrame(({ clock, viewport }) => {
     material.uniforms.uTime!.value = clock.elapsedTime;
+    // Follow the canvas's pixel ratio (it drops while the frame rate is low), so motes keep their size on screen.
+    material.uniforms.uPixel!.value = Math.min(viewport.dpr, 2);
   });
   return <points ref={ref} geometry={geometry} material={material} frustumCulled={false} />;
 }

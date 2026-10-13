@@ -15,6 +15,7 @@ import { Rooms } from "../rooms/Rooms.tsx";
 import { pumpSimulator, useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { Callouts } from "./Callouts.tsx";
+import { AdaptiveResolution, canvasDpr } from "./AdaptiveResolution.tsx";
 import { CameraRig } from "./CameraRig.tsx";
 import { DetailLevels, ShadowFocus } from "./DetailLevels.tsx";
 import { Floor, FloorRings, Motes } from "./Environment.tsx";
@@ -77,7 +78,7 @@ export function Scene() {
     <>
       <SceneGuard>
         <Canvas
-          dpr={quality === "high" ? [1, 2] : [1, 1.25]}
+          dpr={canvasDpr(quality)}
           camera={{ position: [0, 66, 96], fov: 38, near: 0.5, far: 600 }}
           shadows="soft"
           gl={{
@@ -116,6 +117,7 @@ export function Scene() {
           </Suspense>
           <CameraRig />
           <BroguEyes />
+          <AdaptiveResolution quality={quality} />
           <DetailLevels />
           <ShadowFocus />
           <PostFX />

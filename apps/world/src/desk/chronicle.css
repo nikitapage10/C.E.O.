@@ -315,3 +315,103 @@
   color: var(--ice);
   white-space: nowrap;
 }
+
+/* The day's story (#95): the Historian reading the day aloud. A native player, tinted to the Archive. */
+.story {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(155, 140, 255, 0.28);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(155, 140, 255, 0.08), rgba(10, 15, 26, 0.55));
+  backdrop-filter: blur(6px);
+}
+.story--none {
+  padding: 12px 16px;
+}
+.story--compact {
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+.story__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.story__title {
+  display: grid;
+  gap: 2px;
+}
+.story__title b {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--room-archive);
+}
+.story__title small {
+  font-size: 12px;
+  color: var(--faint);
+}
+.story__audio {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: 40px;
+  color-scheme: dark;
+  border-radius: 20px;
+}
+.story__audio:focus-visible {
+  outline: 2px solid var(--room-archive);
+  outline-offset: 3px;
+}
+.story__script {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.story__script summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ice);
+}
+.story__script p {
+  margin: 10px 0 0;
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--silver);
+}
+.story__note {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+.story--none .story__note:first-child {
+  margin-top: 0;
+}
+.story__make {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+.story__key {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--faint);
+}
+.story__key input {
+  min-height: 40px;
+  width: min(240px, 100%);
+  padding: 0 10px;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius);
+  background: rgba(4, 6, 11, 0.6);
+  color: var(--text);
+}

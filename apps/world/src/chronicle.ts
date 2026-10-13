@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { create } from "zustand";
-import type { DayPage, HistoryEntry, Remark, RoomId, WorldFeed } from "../../../api/_world/types.ts";
+import type { DayPage, DayStoryView, HistoryEntry, Remark, RoomId, WorldFeed } from "../../../api/_world/types.ts";
 
 /**
  * The living Lattice as the browser sees it (docs/WORLD.md): the saved world from api/world.ts. The Lattice loads it
@@ -8,7 +8,7 @@ import type { DayPage, HistoryEntry, Remark, RoomId, WorldFeed } from "../../../
  * builders' remarks on the Changelog. Kept free of the Lattice's own code: the Desk imports this.
  */
 
-export type { DayPage, HistoryEntry, Remark, RoomId, WorldFeed };
+export type { DayPage, DayStoryView, HistoryEntry, Remark, RoomId, WorldFeed };
 
 /** "off": the world isn't saving yet (no store connected, or a local preview without the functions). */
 export type ChronicleStatus = "idle" | "loading" | "ready" | "off" | "failed";
@@ -74,6 +74,50 @@ export const useChronicle = create<ChronicleStore>((set, get) => ({
     }
   },
 }));
+
+/* ── The day's story (issue #95): the Historian reading the day aloud ── */
+
+/** A day's story as the Desk holds it: the answer, or where its read stands. */
+export type StoryState = DayStoryView | "loading" | "failed" | "off";
+
+interface StoryStore {
+  stories: Record<string, StoryState>;
+  loadStory: (day: string) => Promise<void>;
+  /** The Desk's "Make it now" (Desk key): says why not, when it wasn't made. */
+  makeStory: (day: string, key: string) => Promise<{ made: boolean; reason?: string; error?: string }>;
+}
+
+export const useDayStory = create<StoryStore>((set, get) => ({
+  stories: {},
+  loadStory: async (day) => {
+    const have = get().stories[day];
+    if (have && have !== "failed") return;
+    set({ stories: { ...get().stories, [day]: "loading" } });
+    try {
+      const got = await getJson<DayStoryView>(`/api/day-story?day=${encodeURIComponent(day)}`);
+      set({ stories: { ...get().stories, [day]: got } });
+    } catch {
+      set({ stories: { ...get().stories, [day]: "failed" } });
+    }
+  },
+  makeStory: async (day, key) => {
+    try {
+      const res = await fetch("/api/day-story", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ day, key }) });
+      const body = (await res.json().catch(() => ({}))) as { made?: boolean; reason?: string; error?: string; story?: DayStoryView | null };
+      if (!res.ok) return { made: false, error: body.error ?? `${res.status}` };
+      if (body.story) set({ stories: { ...get().stories, [day]: body.story } });
+      return { made: Boolean(body.made), reason: body.reason };
+    } catch {
+      return { made: false, error: "network" };
+    }
+  },
+}));
+
+/** "1:42": a story's length. */
+export function formatDuration(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
 
 /** The world feed, loaded once and refreshed every ten minutes while the page is showing (the world moves hourly). */
 export function useWorldFeed(): { status: ChronicleStatus; feed: WorldFeed | null } {

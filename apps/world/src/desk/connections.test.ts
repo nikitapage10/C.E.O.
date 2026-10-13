@@ -43,7 +43,7 @@ describe("each system's How it works", () => {
     expect(connectionsAt("relay", "hub").map((c) => c.id)).toEqual(["hub-socket"]);
     expect(connectionsAt("foundry", "builder").map((c) => c.id)).toEqual(["claude-code"]);
     expect(connectionsAt("foundry", "queue").map((c) => c.id)).toEqual(["doorbell"]);
-    expect(connectionsAt("world").map((c) => c.id)).toEqual(["claude-api", "world-trigger", "blob"]);
+    expect(connectionsAt("world").map((c) => c.id)).toEqual(["claude-api", "gemini-speech", "world-trigger", "blob"]);
     expect(connectionsAt("foundry", "main")).toEqual([]);
     for (const c of CONNECTIONS.filter((c) => c.room === "relay")) expect(c.at.every((p) => p.system === "relay"), c.id).toBe(true);
   });

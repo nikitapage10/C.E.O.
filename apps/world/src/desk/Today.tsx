@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
-import { sinceAway, useWorldFeed } from "../chronicle.ts";
+import { chronicleDay, sinceAway, useWorldFeed } from "../chronicle.ts";
+import { DayStory } from "./DayStory.tsx";
 import { link } from "./nav.ts";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening } from "./viz.tsx";
@@ -33,6 +34,9 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   const world = useWorldFeed().feed;
   const ilyr = world ? sinceAway(world.recent, awaySince) : [];
   const latest = world?.recent.at(-1) ?? null;
+  // The latest day the Historian has read aloud (issue #95): yesterday's, once its recap is filed.
+  const yesterday = chronicleDay(now - 86_400_000);
+  const storyDay = world?.days.includes(yesterday) ? yesterday : null;
   const date = new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const owed = byWait(data.owed);
   const replies = owed.filter((o) => !o.later && (o.urgency === "sooner" || now - o.since > NOW_WAIT)).slice(0, NOW_REPLIES);
@@ -191,6 +195,7 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
               </a>
             </p>
           )}
+          {storyDay && <DayStory day={storyDay} canMake={false} compact label="Hear yesterday in Ilyr" />}
         </Panel>
       </div>
 

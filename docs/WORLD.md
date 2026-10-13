@@ -55,6 +55,41 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
 - The Desk's **Usage** panel shows the world's spend this month, how many hours Claude wrote and how many were
   scripted, and counts it against the shared cap meter.
 
+## The day's story
+
+Once a day's recap is filed, **the Historian reads the day in Ilyr aloud** in the Archive (issue #95): one narrator,
+a storyteller presenting the day as a tale of Ilyr, not a podcast and not two hosts. `api/_world/story.ts`.
+
+- **Trigger:** the step that writes a recap (the first after midnight Mountain) makes that day's story after it has
+  answered (`waitUntil` in `api/world-step.ts`), so the step stays fast. The Chronicle also has **Make it now** for
+  today or yesterday (`POST /api/day-story` with the Desk key, compared in constant time): yesterday when its recap
+  is filed and it has no story yet, else **the day so far**. Each day gets at most two: one "so far" from the Desk,
+  and the recap's, which replaces it. Each is made once (a claim in the store, so a second call, or two racing,
+  spends nothing).
+- **The script:** Claude Haiku (the world's model and key, plain text out, about a tenth of a cent) writes 170 to 280
+  words, one to two minutes aloud, from the day's Chronicle page only: the recap, each hour's summary, the real
+  Foundry events (what shipped and who built it) and the builders' remarks. Those lines were scrubbed when the step
+  wrote them; they reach Claude fenced in tagged blocks, and the script is scrubbed again and stripped of markup and
+  bracketed cues (`cleanScript`). Without a Claude key, or when it doesn't answer, the script is put together from
+  the Chronicle's own lines. Never a demo: no key, no audio.
+- **The speech:** Gemini's text to speech over plain `fetch` (no SDK): `gemini-3.8-flash-tts`, the prebuilt voice
+  **Gacrux** ("Mature"), with a short style note ("a warm, unhurried storyteller reading a chronicle aloud by
+  lamplight"). It asks for raw 16-bit PCM at 16 kHz (`audio/l16`) and wraps it as WAV (32 KB a second, so a
+  two-minute story fits one function response). Sources are in the file's header: Google's speech generation guide,
+  the Interactions API reference and the pricing page.
+- **The budget:** $0.50 per million text tokens in and $9.00 per million audio tokens out (25 a second) through
+  2026, then $1.00 and $18.00: a two-minute story is about 3,000 audio tokens, under three cents (about six from
+  2027). Gemini has its **own cap**, `GEMINI_BUDGET_USD` (default **$5**, never above $10), kept in
+  `world/stories/spend.json`; no story is started once one more at its most (four minutes) could pass it. The
+  script's Claude cost is kept beside it and counted in the shared Claude cap on the Usage panel, where Gemini's spend
+  shows next to the world's.
+- **Kept and served:** `world/stories/<day>.json` (the script, its length, model and voice, what it cost) and
+  `world/stories/<day>.wav` in the private Blob store. `GET /api/day-story?day=…` answers the transcript and the
+  audio's link (or why there is none: `no-key`, `over-budget`, `not-yet`); `&audio=1` serves the WAV from our own
+  origin (the CSP's `media-src` is `'self'`), cached at the edge, versioned by when it was made.
+- **Where it shows:** on the Chronicle's day pages, "Hear the day in Ilyr" with its length, a native player and the
+  transcript (collapsed); on Today, yesterday's under "In Ilyr" once it is made.
+
 ## The storage layer
 
 `api/_world/store.ts` is one small interface: `loadState`, `saveState`, `appendHistory`, `putRecap`, `readDay`.
@@ -88,8 +123,10 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
 
 ## Reading it
 
-- `GET /api/world` → the feed (state, the last 12 hours, the day index, remarks, this month's spend), cached at the
-  edge for five minutes.
+- `GET /api/world` → the feed (state, the last 12 hours, the day index, remarks, this month's spend, and the day's
+  story's Gemini spend as `story`), cached at the edge for five minutes.
+- `GET /api/day-story?day=2026-10-13` → the day's story (transcript and audio link) or why there is none;
+  `&audio=1` → the WAV. `POST { key, day? }` → make today's or yesterday's now (Desk key).
 - `GET /api/world?day=2026-10-13` → one day's page.
 - `GET /api/world-step` → the world clock, without running a step: `{ at, step, nextAt, store, claude, source,
   spend: { month, usd, budget, calls, scripted } }` (`api/_world/clock.ts`), never cached. Only times, counts and

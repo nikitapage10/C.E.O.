@@ -222,6 +222,8 @@ fixes what they find or explains why not on the pull request, and adds the resul
 | Blob store (`BLOB_STORE_ID`) | Yes | Not connected | Previews must not write the real world |
 | `WORLD_STORE` | unset (`blob`) | `memory` | A preview's world step can't touch production state |
 | `WORLD_BUDGET_USD` | Yes | Yes | Harmless |
+| `GEMINI_API_KEY` | Yes | No | Spends money. Without it the day's story has no audio, and the Chronicle says so |
+| `GEMINI_BUDGET_USD` | Yes | Yes | Harmless (Gemini's own monthly cap, default 5, never above 10) |
 
   Nikita checks this in Vercel, Settings, Environment Variables (each variable's environments), and Storage (which
   environments the Blob store is connected to). Turn on Vercel Authentication for previews (Settings, Deployment

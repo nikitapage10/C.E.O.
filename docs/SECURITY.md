@@ -22,6 +22,23 @@ counts) and Systems > Compliance (`/systems/compliance`: the OWASP, NIST AI RMF 
 public to read, so its feed (`api/security-feed.ts`) carries posture only: states, scores, dates and counts, never
 an open alert's details.
 
+## Keys and settings in Vercel
+
+Every secret lives only in Vercel's environment (Project, Settings, Environment Variables), never in the repo or the
+browser, and no function logs or returns one. Which environments get each is in [DELIVERY.md](DELIVERY.md),
+"Environments".
+
+| Variable | What it is for | Without it |
+| --- | --- | --- |
+| `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script | Shaping is off; hours and scripts come from the agents' own lines |
+| `GEMINI_API_KEY` | Gemini's text to speech: the day's story, read aloud (#95). Sent only in a request header, with only the day's scrubbed script | No audio; the Chronicle says so |
+| `GEMINI_BUDGET_USD` | Gemini's monthly cap, enforced in code (`api/_world/story.ts`); default 5, never above 10 | $5 |
+| `FOUNDRY_GITHUB_TOKEN` | The Desk's buttons write issues; the feeds read with it | Buttons say "not set up" |
+| `FOUNDRY_DESK_KEY` | The Desk's passphrase, compared in constant time | Buttons and the story backfill say "not set up" |
+| `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
+| `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
+| `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved |
+
 ## What scans the code, and when
 
 | Check | Runs on | What it looks for | Where findings show |

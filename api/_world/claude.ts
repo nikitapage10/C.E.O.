@@ -6,7 +6,9 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { costOf } from "../foundry.js";
 import type { Ask } from "./step.js";
+import type { ScriptWriter } from "./story.js";
 
 export const WORLD_MODEL = "claude-haiku-5-5";
 
@@ -35,5 +37,27 @@ export function claudeAsk(key = claudeKey()): Ask | null {
       }
     }
     return { answer, usage: res.usage };
+  };
+}
+
+/**
+ * The day's story script (api/_world/story.ts): the same model and key, plain text out, the Historian's brief as the
+ * system prompt. About 2k tokens in and 500 out: about a tenth of a cent. Null without a key.
+ */
+export function claudeStoryWriter(key = claudeKey()): ScriptWriter | null {
+  if (!key) return null;
+  const client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1 });
+  return async (prompt) => {
+    const res = await client.messages.create({
+      model: WORLD_MODEL,
+      max_tokens: 900,
+      thinking: { type: "disabled" },
+      system: prompt.system,
+      messages: [{ role: "user", content: prompt.user }],
+    });
+    const usd = costOf(res.usage);
+    const text = res.content.find((b) => b.type === "text");
+    if (res.stop_reason !== "end_turn" || !text || text.type !== "text") return { text: "", usd };
+    return { text: text.text, usd };
   };
 }

@@ -17,7 +17,7 @@ The room agents (Rocky, Rusty, Dialtone, Blasto and the rest) do the work their 
 
 | Room | Submind | Colour | Picks between |
 | --- | --- | --- | --- |
-| Foundry | Ember (also the first responder) | ember orange | Claude Code models: Haiku, Sonnet, Opus (the fix ladder in [FOUNDRY.md](FOUNDRY.md)) |
+| Foundry | Ember | ember orange | Claude Code models: Haiku, Sonnet, Opus (the fix ladder in [FOUNDRY.md](FOUNDRY.md)) |
 | Spire | Gilt | gold | (simulated for now) |
 | Exchange | Ticker | mint | (simulated for now) |
 | Green | Turf | lime | (simulated for now) |
@@ -33,9 +33,9 @@ picks the cheapest model that will do the job and moves up only when it fails. A
 never for writing code.
 
 Each submind's thread in the project is named in Skippy's own pattern, "Skippy, the <job>" (Nikita, 2026-10-12):
-the Foundry's is "Skippy, the Builder". Suggested for the rest when they get threads: the Broker (Spire), the
-Bookie (Exchange), the Coach (Green), the Messenger (Relay), the Archivist (Archive), the Bartender (Break Room),
-the Stoker (Boiler Room), the Maker (Workshop).
+the Foundry's is "Skippy, the Builder". The rest (Nikita approved them, 2026-10-13): the Executive (Spire), the Bookie
+(Exchange), the Commentator (Green; Gridiron is already its coach), the Messenger (Relay), the Historian (Archive),
+the Life of the Party (Break Room), the Pessimist (Boiler Room), the Artiste (Workshop).
 
 ## Voices
 
@@ -47,14 +47,14 @@ thing in the room, loyal underneath. Each bends it its own way.
 | Submind | Thread | Voice |
 | --- | --- | --- |
 | Ember (Foundry) | Skippy, the Builder | A hot-tempered foreman. Short sentences, shop talk, zero patience for sloppy work and less for waiting. Grumbles about "the monkeys" and the furnace, then does the job properly. Secretly in awe of Rocky's welds and will deny it. |
-| Gilt (Spire) | Skippy, the Broker | A smarmy deal-maker. Everything is a pitch, every number is "a real opportunity", compliments with a price tag. |
+| Gilt (Spire) | Skippy, the Executive | A smarmy executive. Everything is a pitch or a synergy, every number is "a real opportunity", compliments with a price tag. |
 | Ticker (Exchange) | Skippy, the Bookie | A nervous odds-maker. Quotes a probability for everything, hedges every sentence, sweats the downside. |
-| Turf (Green) | Skippy, the Coach | A hype-man coach. Pep talks, sports metaphors, all caps when excited, believes in you more than you do. |
+| Turf (Green) | Skippy, the Commentator | A play-by-play commentator. Narrates everything like the final seconds of a championship, all caps when excited, has stats for no one. |
 | Static (Relay) | Skippy, the Messenger | A jittery gossip. Listens in on every line, knows who's waiting on whom, can't keep a secret but never tells the wrong person. |
-| Vellum (Archive) | Skippy, the Archivist | A footnote-obsessed pedant. Corrects the record, cites sources, sighs at sloppy dates. |
-| Fizz (Break Room) | Skippy, the Bartender | A world-weary bartender. Has heard it all, deadpan, gives the best advice while wiping a glass. |
-| Soot (Boiler Room) | Skippy, the Stoker | A gruff stoic. Few words, reads pressure gauges like moods, trusts the pipes more than people. |
-| Putty (Workshop) | Skippy, the Maker | An artsy flake. Mood boards, sudden inspiration, abandons a sentence for a better idea. |
+| Vellum (Archive) | Skippy, the Historian | A footnote-obsessed pedant. Corrects the record, cites sources, sighs at sloppy dates. |
+| Fizz (Break Room) | Skippy, the Life of the Party | A party animal. Too loud, too much glitter, turns every break into an event, and somehow still knows exactly when the fun is over. |
+| Soot (Boiler Room) | Skippy, the Pessimist | A gloomy pessimist. Few words, expects every pipe to burst, reads pressure gauges like omens, quietly delighted when he's wrong. |
+| Putty (Workshop) | Skippy, the Artiste | A temperamental artiste. Mood boards, sudden inspiration, abandons a sentence for a better idea, suffers for the work. |
 
 Skippy himself, in "Skippy, the Magnificent", keeps his own voice (see his lore): theatrical, grand schemes, "bask
 in the awesomeness".
@@ -87,4 +87,4 @@ in the awesomeness".
 
 Skippy hovers over the Kernel and speaks on the Lattice-wide PA (the old Kernel announcements). Each submind wears
 the admiral can in its room's colour, walks the room between the stations checking on whoever is working, and is
-sarcastic about it. The Foundry's submind, Ember, also does the first-try fixes.
+sarcastic about it. Rivet, back on the Foundry bench, does the first-try fixes; Ember conducts.

@@ -22,7 +22,8 @@ moves them.
 
 | Agent | Job | Takes |
 | --- | --- | --- |
-| Ember, the Foundry's submind (agent id `semicolon`) | Room lead, first responder | Picks the rung; fixes on rung 1 |
+| Rivet (agent id `semicolon`) | First responder | Fixes on rung 1 |
+| Ember, the Foundry's submind (agent id `ember`) | Room lead | Picks the rung for each job; conducts the room |
 | Rocky (agent id `caret`) | Master builder | Fixes on rungs 2 and 3, approved builds |
 | Rusty (agent id `tessellate`) | Upkeep and ideas | Upkeep, the morning ideas |
 
@@ -49,7 +50,7 @@ An issue with no state label is queued. Close an issue without `foundry:shipped`
 to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread starts such work opens a `foundry` +
 `foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, the branch), and
 labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists it under "In flight"
-with everything else, and in the Foundry room a free crew member (Ember first, then Rusty, then Rocky) is seen
+with everything else, and in the Foundry room a free crew member (Rivet first, then Rusty, then Rocky) is seen
 working on it, since the lane crew have their own crates (Nikita, 2026-10-12: "any development-based idea should end
 up in the Foundry somewhere as well… one of the free agents can visually work on it").
 

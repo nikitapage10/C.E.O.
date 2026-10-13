@@ -274,3 +274,7 @@ do nothing for it; after changing the cast, run `npm run world:cast` (a test rem
   the branches above.
 - No secrets in the repo, issues or comments.
 - Keep replies in the Foundry thread to results, blockers and decisions. Routine progress lives in the issue labels.
+
+## Security headers (#62)
+
+`vercel.json` sets a Content-Security-Policy (enforcing), `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy` and a `Permissions-Policy` on every path, so a stray script or frame the site didn't ship is blocked in the browser. The policy was derived from what the app really loads: its own files, `api.github.com` for the Foundry and usage reads, `blob:` for model textures and the text workers, and `'wasm-unsafe-eval'` for the mesh decoder. When a change makes the app load something new (a CDN, a font host, an API), add that host to the policy in the same change. `tests/e2e/headers.spec.ts` serves the built site with the headers read from `vercel.json` and fails on any `securitypolicyviolation` on the Desk, its tabs and the Lattice.

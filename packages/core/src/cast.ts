@@ -1,3 +1,4 @@
+import "./zodConfig.ts";
 import { z } from "zod";
 import { LINEAGE_IDS, LINEAGES, type LineageId } from "./lineages.ts";
 

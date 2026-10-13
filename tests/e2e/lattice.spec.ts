@@ -55,6 +55,27 @@ test("boots, agents move, rooms are reachable", async ({ page }) => {
   await expect(page.locator('[data-room="overview"]')).toHaveClass(/on/);
 });
 
+test("Brogu's eyes open in a room and Esc leaves them", async ({ page }) => {
+  await boot(page);
+  const room = ROOM_IDS[0]!;
+  await page.keyboard.press("1");
+  await expect(page.locator(`[data-room="${room}"]`)).toHaveClass(/on/);
+  await page.waitForTimeout(1500);
+
+  await page.keyboard.press("b");
+  const eyes = page.locator('[data-eyes="on"]');
+  await expect(eyes).toBeVisible({ timeout: 30_000 });
+  await expect(eyes.locator(".eyebrow").first()).toHaveText("Brogu's eyes");
+  await expect(eyes.locator(".eyes__room")).not.toBeEmpty();
+  await expect(eyes.locator('[data-eyes="leave"]')).toBeVisible();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: "test-results/shots/brogu-eyes.png" });
+
+  await page.keyboard.press("Escape");
+  await expect(eyes).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.locator(`[data-room="${room}"]`)).toHaveClass(/on/);
+});
+
 test("the C.E.O. can approve a request", async ({ page }) => {
   await boot(page);
   // The demo's approvals only show inside their room (the Lattice-wide view is for real agents).

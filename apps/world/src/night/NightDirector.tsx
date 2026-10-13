@@ -36,6 +36,7 @@ const SKIPPY_WATCHES = [
   "Fine. Sleep. I'll watch. The monkeys would only lose you.",
   "Night, Rocky. Watch is mine. Nobody touches him, monkeys.",
   "Dimming the glow. Not for you. It's a power thing.",
+  "Lullaby time. Opera, all four acts. Sleep fast, Rocky.",
 ];
 
 /**

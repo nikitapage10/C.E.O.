@@ -72,11 +72,13 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
     ["Go to sleep, Rocky. I'll watch. Somebody competent has to.", "Thank you, friend. Skippy grumble very quiet. Is nice."],
     ["How did you do that seam? Not that I care. Purely academic.", "With hands! Skippy want to hold welder, question?"],
     ["Hold your horses, Rocky.", "Rivet say same thing. Still no horses. Skippy also lie, question?"],
+    ["Want to hear me sing? Rhetorical. Here it comes.", "Skippy sing is like furnace leak. Rocky like anyway."],
   ],
   "tessellate|semicolon": [
     ["You did not write the manual in a nanosecond.", "Half a nanosecond. The other half was your typos."],
     ["Did you read the risk assessment before you fixed that?", "I fixed it before the risk existed, monkey. Assess that."],
     ["I pinned three ideas to the board this morning.", "I saw. I've improved two and I'm being kind about the third."],
+    ["Skippy, the compactor is playing a fanfare again.", "It's celebrating you, janitor. Bask in it."],
   ],
   "odds|hedge": [
     ["Sixty-three percent you're looking at me, Hedge.", "Honesty setting 90%. Lowering it now."],

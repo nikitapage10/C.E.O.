@@ -45,6 +45,7 @@ export const LORE: Record<string, Lore> = {
       "First to anything broken, at a walk. 'Running is how you get a second thing broken.'",
       "Pauses before answering. Not for effect. She's counting to five. The Builder is counting with her, loudly.",
       "The only one on the floor who has read the whole safety manual. Regrets mentioning it.",
+      "Walks the rooms after every ship with the far-sight lens the Geminae lent her. Checks whatever it points at.",
     ],
     likes: ["A quiet shift (hypothetically)", "Things that work the first time", "Rocky's fist bumps", "Her thermos", "Finishing her coffee before the Builder finishes pointing"],
     dislikes: ["Being conducted", "Pages 30 to 52 of the safety manual", "Anyone saying 'quick question'", "Skippy singing over the PA during a fix"],

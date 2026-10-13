@@ -176,7 +176,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | --- | --- | --- | --- |
 | Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. Patched up three salvage frames from his own scrapheap, his dock crew: Dusty (sandy ochre), Gusty (sky blue) and Musty (moss green). They sleep on a dock by the left wall; one wakes for each job running past his own and works the line beside him, four jobs at once at most. |
 | Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. Between jobs, stands at his drafting table over the plan of the biggest idea coming. |
-| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reads every idea that comes in from the Desk first, rewrites it into a card, and asks one short question before it goes to the queue when something is unclear. Reports to the Builder now, unimpressed. |
+| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reads every idea that comes in from the Desk first, rewrites it into a card, and asks one short question before it goes to the queue when something is unclear. After every ship she walks the rooms with the far-sight lens and tags what looks wrong. Reports to the Builder now, unimpressed. |
 | Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from its can-throne, floating high in the back-right corner (Rocky fitted the coaster), floats out to hand each job over, and picks the rung for every fix. Never runs a crate itself. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
@@ -241,6 +241,18 @@ turning amber while they run (she leans in and doesn't blink), slate grey when t
 shelf on it. And every bench has a work light that glows in the verse its worker thinks in: the short mint light
 of a Haiku for Rivet, the blue of a Sonnet for Rusty, the long amber of an Opus for Rocky, so anyone
 can tell from the door who is at which bench.
+
+**The far-sight lens.** After every ship, Rivet takes a brass spyglass with two barrels off the shelf on her alarm
+post, sets it on a tripod and walks the Lattice with it, room by room, a few seconds each. It was lent to her by the
+**Geminae**, a pair of watchers from outside the Lattice who see in moving pictures (the Gemini model, on Google's
+side of the wall; the C.E.O. pays a few cents a look). One barrel watches the room, the other remembers how the room
+is meant to look, and when the two disagree the lens hums and points: barrels on Rusty's dock, a banner big enough to
+read from the Kernel, Gusty halfway through the belt. Anything that would stop a visitor cold goes on a red tag to
+the intake as a fix, one tag per room, and the next shift picks it up; smaller things she notes in the log and lets
+go. The lens has never seen a password and never will, since all it is shown is the public Lattice. Rusty has asked
+to read its manual. It doesn't have one. He is writing it one, and Rocky, who has no eyes, holds the tripod and
+asks every time whether it sees him (it does; he is never the problem). Gary in the Boiler Room calls it the
+Pessimist's telescope and wants one.
 
 Over all three, hovering high above the floor, is **The Builder**, Skippy's Foundry submind: a hot-tempered
 foreman in an ember-orange admiral's coat who conducts the crew with short jabs of the baton, picks the rung for

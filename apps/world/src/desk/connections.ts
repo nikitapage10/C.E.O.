@@ -108,6 +108,17 @@ export const CONNECTIONS: Connection[] = [
     when: "Each world step, and each picture you upload.",
   },
   {
+    id: "gemini",
+    name: "Gemini API",
+    room: "foundry",
+    serves: "Visual QA",
+    kinds: ["REST API", "Scheduled"],
+    status: "planned",
+    how: "After every push to main, a GitHub Actions run records a few seconds of each Lattice room and uploads the clips to Gemini (gemini-3.8-flash) through the Files API, which answers in JSON with what looks wrong. Blockers open a fix issue. The site never calls it; the Desk reads the run from GitHub.",
+    auth: "A key kept as a GitHub Actions secret (GEMINI_API_KEY), used only by that run and never printed. Planned until the secret is set.",
+    when: "Once per push to main, at most eight a day, capped at $0.50 a run; a run is usually a few cents.",
+  },
+  {
     id: "bluebubbles",
     name: "BlueBubbles",
     room: "relay",

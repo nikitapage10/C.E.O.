@@ -31,11 +31,24 @@ an open alert's details.
 | Dependency review (`.github/workflows/dependency-review.yml`) | Every pull request | Packages or actions the change adds or bumps that carry a known vulnerability; fails on high or critical | The pull request's checks, with a summary of what changed |
 | OpenSSF Scorecard (`.github/workflows/scorecard.yml`) | Pushes to `main`, weekly | How the repo is run: pinned actions, workflow permissions, branch protection, dependency updates | Security tab, Code scanning (category `scorecard`) |
 | Dependabot (`.github/dependabot.yml`) | Weekly, and at once for a security fix | Out-of-date or vulnerable npm packages and GitHub Actions | Pull requests labelled `dependencies`; alerts in the Security tab |
+| Visual QA (`.github/workflows/visual-qa.yml`) | Every push to `main` | Not a security scan: Gemini watches a clip of each Lattice room for visual bugs. Listed because it is the one workflow that sends data out (renders of the public Lattice only) and holds an outside key | A `foundry:fix` issue per room with a blocker; the run's summary; Systems > Foundry on the Desk |
 | Secret scanning | Every push | Keys and tokens committed by mistake; push protection blocks the push | Security tab, Secret scanning |
 
 Every action in the workflows is pinned to a full commit SHA with its version in a comment, so a moved tag can't
 change what runs. Dependabot proposes the bumps. Each workflow starts with read-only permissions and grants write
 access only to the job that needs it.
+
+## Secrets, and where each one lives
+
+Names only; no value is ever in the repo, a log or the Desk.
+
+| Secret | Where it lives | Used by |
+| --- | --- | --- |
+| `CLAUDE_API_KEY` | Vercel environment | Rivet's shaping and the world step (Claude Haiku) |
+| `FOUNDRY_GITHUB_TOKEN` | Vercel environment | The Desk's buttons and the read feeds |
+| `FOUNDRY_DESK_KEY` | Vercel environment, Nikita's browser | The Desk's write buttons |
+| `BLOB_READ_WRITE_TOKEN` | Vercel environment (set by Vercel) | World state and idea pictures |
+| `GEMINI_API_KEY` | GitHub Actions secret (repo Settings > Secrets and variables > Actions) | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91). Sent only to Google's API host in a header, never printed; spend capped in code per run and per day. Without it the tour still records and the review is skipped |
 
 ## Why these tools
 
@@ -78,3 +91,7 @@ Agents can't change repo settings, so these are clicks for Nikita, once. In the 
 8. **Optional, make the scans required:** Settings > Branches (or Rules > Rulesets) > the rule for `main` >
    Require status checks to pass > add "checks", "Analyze (javascript-typescript)", "Analyze (actions)" and
    "Dependency review".
+9. **Visual QA's key (optional):** Settings > Secrets and variables > Actions > New repository secret, named
+   `GEMINI_API_KEY`, with a key from Google AI Studio on a paid-tier project (the free tier lets Google use what it is
+   sent to improve its products). Until it is set, Visual QA records the clips and skips the review. Setting a
+   budget alert on that Google project backs up the caps in code.

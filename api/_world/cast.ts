@@ -998,7 +998,9 @@ export const WORLD_CAST: WorldCast = {
         "Quiet line. Too quiet.",
         "Doomed. ...Fine, actually.",
         "Left the throne. Came back. Throne still there. Lucky.",
-        "Floating throne. Long drop. Noted."
+        "Floating throne. Long drop. Noted.",
+        "Clock pipe. Due at five past. Watch. ...Ticked. Hm.",
+        "Every hour, the world moves. Every hour, I expect it won't."
       ],
       "putty": [
         "Wait. No. Better idea.",
@@ -1046,7 +1048,9 @@ export const WORLD_CAST: WorldCast = {
         "Honk honk. (Who moved my bucket.)",
         "HONK. (That pipe is cold. Nobody touch that pipe.)",
         "Honk. (I have tape. I have always had tape.)",
-        "Hoooonk. (The boiler is warm. Kevin is on it again.)"
+        "Hoooonk. (The boiler is warm. Kevin is on it again.)",
+        "Honk. (World clock pipe: hot. The hour ticked. Logged it.)",
+        "HONK HONK. (Clock pipe's coughing. An hour's late. Fetching the tape.)"
       ],
       "daub": [
         "Hold still. You're my next canvas.",

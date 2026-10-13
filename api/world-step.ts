@@ -5,7 +5,9 @@
  * POST → { stepped: true, entry } after a step, or { stepped: false, entry, nextAt } when the last step is under 55
  *        minutes old (nothing changes, nothing is spent). That rule is what makes it safe to leave open: calling it
  *        more often does nothing, so it needs no secret.
- * GET  → { at, step, nextAt, store, claude }: when it last ran, without running it.
+ * GET  → WorldClock (api/_world/types.ts): when it last ran, when the next is due, who wrote the last hour (Claude or
+ *        scripted) and this month's world spend against its share, without running it. The Desk's world clock and the
+ *        Boiler Room's pipe poll it, so it is never cached. Only times, counts and dollars: nothing an hour says.
  *
  * Environment (Vercel → Settings → Environment Variables), all already set for the rest of the Desk:
  *   BLOB_STORE_ID          the private Blob store (set by Vercel; the function signs in with Vercel's OIDC token)
@@ -17,8 +19,9 @@
 
 import { worldBudget } from "./_world/budget.js";
 import { claudeAsk } from "./_world/claude.js";
+import { readClock } from "./_world/clock.js";
 import { readFeed } from "./_world/digest.js";
-import { nextAt, runStep } from "./_world/step.js";
+import { runStep } from "./_world/step.js";
 import { pickStore, StaleStateError } from "./_world/store.js";
 
 function json(body: unknown, status = 200): Response {
@@ -30,7 +33,8 @@ export async function GET(): Promise<Response> {
   if (!store) return json({ error: "not-set-up" }, 503);
   try {
     const state = await store.loadState();
-    return json({ at: state?.at ?? null, step: state?.step ?? 0, nextAt: state ? nextAt(state, Date.now()) : null, store: store.kind, claude: claudeAsk() !== null });
+    const clock = readClock(state, { store: store.kind, claude: claudeAsk() !== null, budget: worldBudget(process.env.WORLD_BUDGET_USD), now: Date.now() });
+    return json(clock);
   } catch {
     return json({ error: "store" }, 502);
   }

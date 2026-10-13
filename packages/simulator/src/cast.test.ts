@@ -1,7 +1,8 @@
-import { CastSchema, HOUSES, LINEAGE_IDS, ProfileSchema, LOOK_PRESETS, LookSchema, lookFromPreset, parseCast, relationshipsOf } from "@ceo/core";
+import { CastSchema, HOUSES, LoreSchema, LINEAGE_IDS, ProfileSchema, LOOK_PRESETS, LookSchema, lookFromPreset, parseCast, relationshipsOf } from "@ceo/core";
 import { describe, expect, it } from "vitest";
 import { SAMPLE_AGENTS } from "./agents.ts";
 import { defaultCast } from "./cast.ts";
+import { SKIPPY_LORE } from "./lore.ts";
 
 describe("cast", () => {
   it("the default cast validates and covers every sample agent", () => {
@@ -21,6 +22,11 @@ describe("cast", () => {
     for (const l of LINEAGE_IDS) expect(HOUSES[l].lineage).toBe(l);
     const { lore: _lore, ...old } = cast.profiles.kevin!;
     expect(ProfileSchema.parse(old).lore).toMatchObject({ title: "", quirks: [] });
+  });
+
+  it("Skippy, who sits in the Kernel now, has a dossier that would pass as anyone's", () => {
+    expect(LoreSchema.safeParse(SKIPPY_LORE).success).toBe(true);
+    expect(defaultCast().profiles.semicolon?.name).toBe("Rivet");
   });
 
   it("relationships only reference real agents, never themselves", () => {

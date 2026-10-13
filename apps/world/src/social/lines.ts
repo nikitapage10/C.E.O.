@@ -67,18 +67,57 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
     ["Robot has no legs now! Rocky has five. Rocky share, question?", "They're treads, Rocky. They're very safe. There's a chapter."],
   ],
   "semicolon|caret": [
-    ["Rocky, that's base six again. Count like a grown-up.", "Rocky count like Eridian. Skippy count like small can."],
-    ["Already fixed it. You can put the welder down.", "Rocky fix it better. Then fix your fix. Is teamwork."],
-    ["Go to sleep, Rocky. I'll watch. Somebody competent has to.", "Thank you, friend. Skippy grumble very quiet. Is nice."],
-    ["How did you do that seam? Not that I care. Purely academic.", "With hands! Skippy want to hold welder, question?"],
-    ["Hold your horses, Rocky.", "Rivet say same thing. Still no horses. Skippy also lie, question?"],
-    ["Want to hear me sing? Rhetorical. Here it comes.", "Skippy sing is like furnace leak. Rocky like anyway."],
+    ["Hard hat, Rocky. On a leg. Any leg.", "Rocky pick leg four. Leg four is hat leg now."],
+    ["Go to sleep, Rocky. I've got the watch.", "Thank you, friend. Rivet watch very quiet. Skippy sing very loud. Is nice."],
+    ["Fist bump. Not the furnace this time.", "Furnace was lonely. Fine. Fist my bump."],
+    ["Hold your horses, Rocky.", "Rivet say this again! Still no horses. Rocky still look."],
+  ],
+  "ember|caret": [
+    ["Rocky. That seam. Adequate.", "Ember keep offcuts in drawer. Rocky hear drawer. Is not adequate. Is amaze."],
+    ["Weld it, test it, ship it. Go.", "Rocky already ship it. Ember slow can, question?"],
+    ["Skippy says you count in sixes.", "Skippy count in tens. Ember count in shouting. Rocky count fine."],
+  ],
+  "ember|semicolon": [
+    ["Rivet. Alarm. Now.", "Finishing my coffee. Then the alarm. Then you."],
+    ["I picked the rung. Quickest first.", "I know. I read the ladder. I ran this floor before you had a hat."],
+    ["Stop finishing my sentences.", "Stop starting them, then."],
   ],
   "tessellate|semicolon": [
-    ["You did not write the manual in a nanosecond.", "Half a nanosecond. The other half was your typos."],
-    ["Did you read the risk assessment before you fixed that?", "I fixed it before the risk existed, monkey. Assess that."],
-    ["I pinned three ideas to the board this morning.", "I saw. I've improved two and I'm being kind about the third."],
-    ["Skippy, the compactor is playing a fanfare again.", "It's celebrating you, janitor. Bask in it."],
+    ["You read all 71 pages?", "All 71. Mentioned it once. Regret it daily."],
+    ["Before you fix that, a short briefing.", "I fixed it during the briefing, Rusty. It was a good briefing."],
+  ],
+  "tessellate|ember": [
+    ["I've drafted a safety note for the podium.", "Seventy pages too long. Bin it. ...Leave page one."],
+    ["I pinned three ideas to the board.", "Two are good. Don't tell Skippy I said so."],
+  ],
+  "static|dialtone": [
+    ["Line four. Did you hear line four?", "Heard it, darling. Patched it to the rafters."],
+    ["Didn't hear it from me—", "Heard it from you. Always do. Please hold."],
+  ],
+  "vellum|heimerdinger": [
+    ["Your date for the relic is off by a decade.", "Your source for the decade, my dear colleague?"],
+    ["Footnote seventeen agrees with me.", "Footnote seventeen is yours. Haste, colleague."],
+  ],
+  "fizz|kevin": [
+    ["Kevin! Drop the bass! It's a PARTY!", "It's always a party. I'm always on break."],
+    ["Party's over. Back you go. Love you.", "I don't have a go. I have a break."],
+  ],
+  "soot|gary": [
+    ["Pipe four. It'll burst.", "Honk. (Taped it.)"],
+    ["...Huh. Didn't burst.", "Honk! (Never does.)"],
+  ],
+  "putty|daub": [
+    ["What if the hands were—no. MORE.", "More hands! I'll paint more hands!"],
+    ["It's not unfinished. It's the vision.", "It's got a paw-mark on it. That means it's loved."],
+  ],
+  "gilt|ledger": [
+    ["Ledger, love the numbers. Let's synergise them.", "Per my last ledger entry, numbers do not synergise."],
+  ],
+  "ticker|hedge": [
+    ["Sixty percent this goes fine. Fifty.", "Six downsides. I'll lower your number for you."],
+  ],
+  "turf|gridiron": [
+    ["AND GRIDIRON CALLS THE PLAY!", "Start the backup kicker! Sorry. Sorry. You too, Turf. Sorry."],
   ],
   "odds|hedge": [
     ["Sixty-three percent you're looking at me, Hedge.", "Honesty setting 90%. Lowering it now."],

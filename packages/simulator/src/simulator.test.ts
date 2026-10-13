@@ -1,6 +1,6 @@
-import { AgentEventSchema, ROOM_IDS, applyEvents, emptyState, pendingApprovals } from "@ceo/core";
+import { AgentEventSchema, OBSTACLES, ROOM_IDS, applyEvents, emptyState, getStation, pendingApprovals } from "@ceo/core";
 import { describe, expect, it } from "vitest";
-import { SAMPLE_AGENTS } from "./agents.ts";
+import { SAMPLE_AGENTS, SUBMINDS, isSubmind, submindOf } from "./agents.ts";
 import { Simulator } from "./simulator.ts";
 
 const TEN_MINUTES = 10 * 60 * 1000;
@@ -91,5 +91,38 @@ describe("assign", () => {
     const events = sim.advanceTo(180_000);
     expect(events.some((e) => e.type === "agent.moved" && e.agentId === "kevin" && e.to.station === "seat-w")).toBe(true);
     expect(sim.assign("nobody", [])).toBe(false);
+  });
+});
+
+describe("the Skippy subminds", () => {
+  it("every room has exactly one submind (a Room lead), homed at its conductor's post", () => {
+    for (const room of ROOM_IDS) {
+      const leads = SAMPLE_AGENTS.filter((a) => a.home.room === room && a.role.startsWith("Room lead"));
+      expect(leads, room).toHaveLength(1);
+      expect(leads[0]!.home.station).toBe("post");
+      expect(isSubmind(leads[0]!.id)).toBe(true);
+      expect(submindOf(room).id).toBe(leads[0]!.id);
+    }
+    expect(SUBMINDS).toHaveLength(ROOM_IDS.length);
+    expect(new Set(SUBMINDS.map((m) => m.colour)).size).toBe(SUBMINDS.length);
+  });
+
+  it("each post is a raised spot clear of the room's other furniture", () => {
+    for (const room of ROOM_IDS) {
+      const post = getStation(room, "post");
+      expect(post.exact).toBe(true);
+      expect(post.y).toBeGreaterThan(0);
+      const others = (OBSTACLES[room] ?? []).filter((b) => !(b.x === post.x && b.z === post.z));
+      expect(others.some((b) => Math.abs(post.x - b.x) < b.hw + 0.7 && Math.abs(post.z - b.z) < b.hd + 0.7), room).toBe(false);
+    }
+  });
+
+  it("subminds conduct from the post, never nap, and now and then come down to check on someone", () => {
+    const { events } = run(4, 6 * TEN_MINUTES);
+    const ids = new Set(SUBMINDS.map((m) => m.id));
+    expect(events.some((e) => e.type === "agent.activity" && ids.has(e.agentId) && e.activity === "napping")).toBe(false);
+    expect(events.some((e) => e.type === "agent.activity" && ids.has(e.agentId) && e.activity === "waiting")).toBe(true);
+    const swoops = events.filter((e) => e.type === "agent.moved" && ids.has(e.agentId) && e.to.station !== "post");
+    expect(swoops.length).toBeGreaterThan(0);
   });
 });

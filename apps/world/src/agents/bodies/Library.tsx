@@ -86,8 +86,11 @@ const SYNTH_CLIPS: ClipMap = {
   stare: { clip: "Stare", speed: 0.3 },
 };
 
-/** Skippy keeps the watch: he never lies down. Resting is a slow, low hover with his eyes on the room. */
-const SKIPPY_CLIPS: ClipMap = { ...SYNTH_CLIPS, slumped: { clip: "Wait", speed: 0.5 }, napping: { clip: "Stare", speed: 0.25 } };
+/**
+ * The admiral can never lies down: resting is a slow, low hover with its eyes on the room. "waiting" is the
+ * conductor's beat: the subminds direct their rooms with it, and Skippy gestures with it on the PA.
+ */
+const SKIPPY_CLIPS: ClipMap = { ...SYNTH_CLIPS, waiting: { clip: "Conduct" }, slumped: { clip: "Wait", speed: 0.5 }, napping: { clip: "Stare", speed: 0.25 } };
 
 const FLYING_CLIPS: ClipMap = {
   idle: { clip: "Flying_Idle" },
@@ -149,6 +152,9 @@ interface LibDef {
   height?: number;
 }
 
+/** The admiral can's navy: hat and coat. Its gold braid and the silver can keep their own colours. */
+const SKIPPY_NAVY: Band = { hue: 216, width: 26, minSat: 0.25, refL: 0.21 };
+
 const ROBOT_TRIM: Band = { hue: 32, width: 16, minSat: 0.3, refL: 0.3 };
 
 export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
@@ -171,8 +177,10 @@ export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
 
   gestral: { model: "custom/Gestral", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 349, width: 18, minSat: 0.35, refL: 0.5 } } },
   // The coat is the navy band; his golden fur stays his own.
-  // Nikita's admiral can: rigged with legs he doesn't have, so they stay still and he floats.
-  skippy: { model: "custom/Skippy", clips: SKIPPY_CLIPS, synth: true, float: 0.18, height: 0.95, dress: { kind: "none" } },
+  // Nikita's admiral can: rigged with legs he doesn't have, so they stay still and he floats. The subminds wear it
+  // with the navy (the admiral's hat and coat) repainted in their room's colour; Skippy himself, over the Kernel,
+  // wears his own navy.
+  skippy: { model: "custom/Skippy", clips: SKIPPY_CLIPS, synth: true, float: 0.18, height: 0.95, dress: { kind: "bands", shell: SKIPPY_NAVY } },
   yordle: { model: "custom/Heimerdinger", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 230, width: 20, minSat: 0.3, refL: 0.25 } } },
   crawler: { model: "scifi-essentials/Enemy_Trilobite", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
   masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "none" } },

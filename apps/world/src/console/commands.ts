@@ -215,6 +215,6 @@ export function runCommand(input: string): string {
   if (raw === "sudo" || raw.startsWith("sudo ")) return raw === "sudo" ? "You already have root. So does the cat." : runCommand(raw.slice(5));
   const verb = BY_VERB[raw] ? raw : ALIASES[raw] ?? raw.split(/\s+/).map((w) => ALIASES[w] ?? w).find((w) => BY_VERB[w]);
   const cmd = verb ? BY_VERB[verb] : undefined;
-  if (!cmd) return `Unknown command "${raw}". Type "help". I would guess what you meant, but I am not allowed to want things.`;
+  if (!cmd) return `Unknown command "${raw}". Type "help". I know what you meant, obviously. I just want to hear you say it properly, monkey.`;
   return cmd.run();
 }

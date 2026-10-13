@@ -6,3 +6,4 @@ export * from "./policy.ts";
 export * from "./cast.ts";
 export * from "./houses.ts";
 export * from "./obstacles.ts";
+export * from "./posts.ts";

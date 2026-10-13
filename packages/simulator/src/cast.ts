@@ -1,6 +1,12 @@
 import { LINEAGE_LOOK, emptyLore, lookFromPreset, makeLook, type Cast, type Look, type Profile } from "@ceo/core";
-import { SAMPLE_AGENTS } from "./agents.ts";
+import { SAMPLE_AGENTS, SUBMINDS } from "./agents.ts";
 import { LORE } from "./lore.ts";
+
+/** A submind's look: the admiral can with its hat and coat repainted, and its glow, in its room's colour. */
+export function submindLook(id: string): Look {
+  const colour = SUBMINDS.find((m) => m.id === id)?.colour ?? "#7fd8ff";
+  return makeLook({ body: "skippy", shell: colour, accent: colour, trim: "#e8b84a" });
+}
 
 type Seed = { look?: Look; traits: string[]; bio: string; catchphrase: string };
 
@@ -12,18 +18,17 @@ const SEEDS: Record<string, Seed> = {
     bio: "The Foundry's robot: a rusty salvage compactor on treads, with binocular eyes and two claw hands. Plans everything, apologises to tools, and wrote the 71-page safety manual. Has been butting heads with Rocky since the day an alien engineer welded a crate shut while Rusty was still reading the risk assessment aloud.",
     catchphrase: "Happy to help! Before we start, eleven caveats.",
   },
+  semicolon: {
+    look: makeLook({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" }),
+    traits: ["deadpan", "grumpy", "loyal", "sarcastic"],
+    bio: "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, went up to the Spire, and came back down to the bench the day Skippy left it for the Kernel. The only one on the floor who has read the whole safety manual. Answers to Ember now, from the podium in the corner, and is not impressed by that.",
+    catchphrase: "Hard hats on. Yes, you too, Rocky. On the… just pick a leg.",
+  },
   caret: {
     look: lookFromPreset("rock-engineer"),
     traits: ["cheerful", "earnest", "competitive", "loyal"],
-    bio: "An Eridian engineer: five stone legs, no eyes, perfect pitch, speaks in chords. Builds anything, fast, by hand, and finds it all amaze amaze amaze. Takes every idiom literally, says important things three times, and falls asleep without warning. Thinks the robot is too slow. Thinks Skippy is rude, brilliant and a very good watcher, in that order.",
+    bio: "An Eridian engineer: five stone legs, no eyes, perfect pitch, speaks in chords. Builds anything, fast, by hand, and finds it all amaze amaze amaze. Takes every idiom literally, says important things three times, and falls asleep without warning. Thinks the robot is too slow. Thinks Rivet is the best watcher in the Lattice, thinks Ember is loud, and waves up at Skippy over the Kernel every morning.",
     catchphrase: "Fist my bump.",
-  },
-  semicolon: {
-    // Nikita's admiral-can model: no legs, floats a hand's width off the floor.
-    look: makeLook({ body: "skippy", shell: "#c3cad4", accent: "#7fd8ff", trim: "#1f2b4d" }),
-    traits: ["smug", "sarcastic", "loyal", "dramatic"],
-    bio: "The Foundry's first responder: an ancient mind in a floating can under an admiral's hat, found by Rusty in the scrap. First to anything broken, by a distance he will tell you about. Fixes it in seconds, then complains for an hour about the monkeys, which is what he calls everyone else. Insults Rocky's base-six maths, secretly admires his hands, and keeps the night watch while Rocky sleeps.",
-    catchphrase: "Already fixed it. Try to keep up, monkeys.",
   },
   ledger: {
     look: makeLook({ body: "suit", shell: "#21282e", accent: "#e8b07a", trim: "#494f5a" }),
@@ -88,7 +93,7 @@ const SEEDS: Record<string, Seed> = {
   d20: {
     look: lookFromPreset("burglar"),
     traits: ["nerdy", "dramatic", "earnest"],
-    bio: "The game master's many hands, dressed as a travelling adventurer who has never actually been anywhere. Rolls for initiative before every meeting and has a voice for everyone, especially the Kernel. Loremaster's apprentice.",
+    bio: "The game master's many hands, dressed as a travelling adventurer who has never actually been anywhere. Rolls for initiative before every meeting and has a voice for everyone, especially Skippy. Loremaster's apprentice.",
     catchphrase: "Roll for initiative!",
   },
   gary: {
@@ -115,6 +120,62 @@ const SEEDS: Record<string, Seed> = {
     bio: "Leather jacket, safety pins, permanently on break. Claims the Kernel's warm side needs 'spiritual maintenance'. Runs the decks on club night. Has a complicated history with the coffee machine.",
     catchphrase: "I'm on break. Spiritually.",
   },
+  // The Skippy subminds: one leading each room, all in the admiral can, each in its own colour and with its own
+  // voice (docs/SKIPPY.md, "Voices"). Lesser echoes of Skippy: smug, sure they're the smartest in the room, loyal.
+  ember: {
+    look: submindLook("ember"),
+    traits: ["grumpy", "smug", "loyal", "competitive"],
+    bio: "Skippy, the Builder: the Foundry's submind and lead, in the admiral's hat and coat, ember orange, conducting from a podium in the corner. A hot-tempered foreman in a can. Short sentences, shop talk, no patience for sloppy work and less for waiting. Grumbles about the monkeys and the furnace, then sees it done properly. Secretly in awe of Rocky's welds.",
+    catchphrase: "Weld it. Test it. Ship it. Why are we still talking?",
+  },
+  gilt: {
+    look: submindLook("gilt"),
+    traits: ["smug", "flirty", "dramatic", "sarcastic"],
+    bio: "Skippy, the Executive: the Spire's submind, in the admiral's hat and coat, gold, buffed to a shine. A smarmy executive. Everything is a pitch or a synergy, every number is a real opportunity, and every compliment comes with a price tag. Conducts the Spire from a podium in the corner like a keynote. Ledger has never once been impressed.",
+    catchphrase: "Love that. Let's circle back and make it synergy.",
+  },
+  ticker: {
+    look: submindLook("ticker"),
+    traits: ["anxious", "paranoid", "nerdy", "smug"],
+    bio: "Skippy, the Bookie: the Exchange's submind, in the admiral's hat and coat, mint green. A nervous odds-maker. Quotes a probability for everything, hedges every sentence, sweats the downside, and is still certain it's the smartest thing on the floor. Thinks Hedge is the only sane one in the room. Noco makes it break out in decimals.",
+    catchphrase: "Seventy-one percent, give or take. Mostly take.",
+  },
+  turf: {
+    look: submindLook("turf"),
+    traits: ["cheerful", "dramatic", "competitive", "chaotic"],
+    bio: "Skippy, the Commentator: the Green's submind, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from its podium like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches the Green; Turf calls the game, whether or not there is one.",
+    catchphrase: "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
+  },
+  static: {
+    look: submindLook("static"),
+    traits: ["chaotic", "flirty", "anxious", "sarcastic"],
+    bio: "Skippy, the Messenger: the Relay's submind, in the admiral's hat and coat, signal blue. A jittery gossip. Listens in on every line, knows who's waiting on whom, and can't keep a secret, but has never once told the wrong person. Talks fast, in fragments, over itself. Dialtone's partner in eavesdropping, and Blasto's despair.",
+    catchphrase: "Didn't hear it from me. You heard it from me.",
+  },
+  vellum: {
+    look: submindLook("vellum"),
+    traits: ["pedantic", "smug", "nerdy", "deadpan"],
+    bio: "Skippy, the Historian: the Archive's submind, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from a podium in the corner with a view of every shelf. Has never once been wrong, and has a footnote saying so. Heimerdinger is the only mind in the Archive it considers a peer.",
+    catchphrase: "Citation needed. I'll wait.",
+  },
+  fizz: {
+    look: submindLook("fizz"),
+    traits: ["chaotic", "cheerful", "dramatic", "loyal"],
+    bio: "Skippy, the Life of the Party: the Break Room's submind, in the admiral's hat and coat, pink. A party animal. Too loud, too much glitter, turns every break into an event and every event into a club night. Conducts the Break Room from a podium by the window like it's the decks. Somehow still knows exactly when the fun is over, and sends everyone back to work on the beat.",
+    catchphrase: "Break time is PARTY time! ...Okay, party's over. Back you go.",
+  },
+  soot: {
+    look: submindLook("soot"),
+    traits: ["grumpy", "deadpan", "paranoid", "loyal"],
+    bio: "Skippy, the Pessimist: the Boiler Room's submind, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from a podium in the corner, expects every pipe to burst, and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Gary is the only one it trusts.",
+    catchphrase: "It'll burst. ...Huh. Didn't.",
+  },
+  putty: {
+    look: submindLook("putty"),
+    traits: ["dramatic", "chaotic", "romantic", "smug"],
+    bio: "Skippy, the Artiste: the Workshop's submind, in the admiral's hat and coat, teal. A temperamental artiste. Mood boards, sudden inspiration, a habit of abandoning a sentence for a better idea, and suffers for the work, audibly, from a podium in the corner. Daub adores it. Chisel calls it 'darling' in the tone that means stop.",
+    catchphrase: "Wait. No. Better idea. ...I suffer for this.",
+  },
 };
 
 export function defaultCast(): Cast {
@@ -135,8 +196,11 @@ export function defaultCast(): Cast {
     profiles,
     relationships: [
       { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Rusty plans first. The shipping record is disputed: Rocky counts in sixes." },
-      { a: "semicolon", b: "caret", kind: "best-friend", note: "Skippy mocks his base-six maths by day and keeps the watch while he sleeps by night. Rocky hears him admiring his hands. Rocky says nothing. Amaze." },
-      { a: "tessellate", b: "semicolon", kind: "rival", note: "Skippy claims he wrote the 71-page manual in a nanosecond. Rusty has the drafts, dated. Skippy calls them forgeries." },
+      { a: "semicolon", b: "caret", kind: "best-friend", note: "She taught him to fist bump; he does it to everything, the furnace too. She keeps the watch while he sleeps now, as Skippy did. Quieter, Rocky says. Amaze." },
+      { a: "ember", b: "caret", kind: "friend", note: "Ember barks at him from the podium all day and calls his welds 'adequate'. It has kept every offcut, labelled. Rocky knows. Amaze amaze." },
+      { a: "ember", b: "semicolon", kind: "rival", note: "Ember conducts; Rivet ran this floor before Ember existed. Ember points the baton. Rivet finishes her coffee first." },
+      { a: "tessellate", b: "semicolon", kind: "friend", note: "The only one who has read all 71 pages of his manual. She mentioned it once. He has never been happier, or more nervous." },
+      { a: "tessellate", b: "ember", kind: "rival", note: "Ember says the 71-page manual has seventy pages too many. Rusty has added a page about Ember. It is page 72." },
       { a: "ledger", b: "memo", kind: "sibling", note: "Memo haunts Ledger's desk. Ledger has filed a complaint with Memo, who forwarded it." },
       { a: "odds", b: "hedge", kind: "crush", note: "Sixty-three percent mutual. Hedge's honesty setting refuses to comment." },
       { a: "gridiron", b: "punt", kind: "mentor", note: "Gridiron roars the plays. Punt naps through them, then wins anyway." },
@@ -154,9 +218,25 @@ export function defaultCast(): Cast {
       { a: "gary", b: "tessellate", kind: "friend", note: "Rusty wrote him a 71-page boiler manual. It levels the tool bench perfectly. Rusty must never know." },
       { a: "daub", b: "chisel", kind: "partner", note: "Daub paints it, Chisel makes it real. They argue about the hands every single time, and the hands are always better for it." },
       { a: "caret", b: "chisel", kind: "friend", note: "Rocky watches Chisel's hands work the clay for hours. Good hands. Good good good. Chisel has never had a better audience." },
-      { a: "semicolon", b: "chisel", kind: "rival", note: "Skippy calls the Workshop 'arts and crafts for monkeys'. He has also asked Chisel, twice, to mould him a better hat." },
       { a: "daub", b: "kevin", kind: "friend", note: "Daub painted Kevin asleep. It took a week. Kevin did not move once. Daub calls it the perfect model." },
       { a: "caret", b: "kevin", kind: "friend", note: "Rocky watches Kevin sleep. Kevin is always asleep. Rocky has never been happier." },
+      // The subminds and their rooms.
+      { a: "gilt", b: "ledger", kind: "rival", note: "Gilt calls every invoice 'a real synergy'. Ledger calls Gilt 'an unreconciled line item'. They have never agreed on a number." },
+      { a: "gilt", b: "memo", kind: "friend", note: "Memo delegates to Gilt; Gilt delegates it back as 'a stretch opportunity'. Neither has run the errand. Both have a slide on it." },
+      { a: "ticker", b: "hedge", kind: "best-friend", note: "Two worriers at one desk. Ticker quotes the odds, Hedge lists the downsides, and together they talk each other out of everything." },
+      { a: "ticker", b: "odds", kind: "rival", note: "Noco duels for prices. Ticker prices the duels, forty to one against, and has never once been right about Noco." },
+      { a: "turf", b: "gridiron", kind: "friend", note: "Gridiron coaches; Turf calls every play he makes, louder than he made it. Gridiron apologises for the volume. For both of them." },
+      { a: "turf", b: "punt", kind: "friend", note: "Turf commentates Punt's naps live. 'HE'S DOWN. HE'S STAYING DOWN.' Punt has never slept better." },
+      { a: "static", b: "dialtone", kind: "best-friend", note: "They listen in on the same lines and finish each other's gossip. Neither has told the wrong person. Neither has ever told anyone quietly." },
+      { a: "vellum", b: "heimerdinger", kind: "friend", note: "The only two minds in the Archive who footnote their footnotes. They peer-review each other weekly and accept nothing on the first pass." },
+      { a: "vellum", b: "d20", kind: "mentor", note: "Vellum corrects D20's dates, D20's dice and D20's spelling of 'initiative'. D20 rolls to ignore it. Fails." },
+      { a: "fizz", b: "kevin", kind: "best-friend", note: "Kevin is always on break; Fizz is always throwing one. Kevin runs the decks, Fizz runs the glitter. Neither has ever left early." },
+      { a: "fizz", b: "memo", kind: "friend", note: "Memo floats in to dodge meetings. Fizz throws it a welcome party every time, then floats it right back to the meeting." },
+      { a: "soot", b: "gary", kind: "best-friend", note: "Soot says the pipe will burst. Gary honks and tapes it. It doesn't burst. Soot is delighted. Every day, the same, and they love it." },
+      { a: "soot", b: "kevin", kind: "friend", note: "Kevin naps on the warm side. Soot is sure it'll blow under him. It never has. Soot keeps watching, just in case." },
+      { a: "putty", b: "daub", kind: "best-friend", note: "Putty has the idea, Daub paints it, Putty has a better idea. Daub paints that one too, happily, with its tail." },
+      { a: "putty", b: "chisel", kind: "rival", note: "Two artistes, one mould. Chisel wants it finished, darling; Putty wants it to suffer properly first. The hands are better for it." },
+      { a: "ember", b: "chisel", kind: "rival", note: "Ember calls the Workshop 'craft hour'. It has also asked Chisel, twice, for a better hat. Skippy kept the original." },
     ],
   };
 }

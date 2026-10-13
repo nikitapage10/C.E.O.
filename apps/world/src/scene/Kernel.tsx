@@ -1,13 +1,54 @@
-import { KERNEL_PORT_RADIUS, KERNEL_PORT_Y } from "@ceo/core";
+import { KERNEL_PORT_RADIUS, KERNEL_PORT_Y, makeLook } from "@ceo/core";
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
-import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, type Group, type Mesh } from "three";
+import { Suspense, useMemo, useRef } from "react";
+import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, type Group } from "three";
+import { LibraryBody } from "../agents/bodies/Library.tsx";
+import type { Drive } from "../agents/bodies/types.ts";
 import { Flare } from "../fx/Flare.tsx";
 import { emissive, kernelMaterial } from "../fx/materials.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 
 const HEIGHT = 18;
+/** How many times life size Skippy hovers over the Kernel: about ten metres of can. */
+const SKIPPY_SIZE = 9;
+/** Skippy as made: navy hat and coat, gold braid. */
+const SKIPPY_LOOK = makeLook({ body: "skippy", shell: "#0a2e62", accent: "#7fd8ff", trim: "#e8b84a" });
+
+/**
+ * Skippy, the Magnificent, enthroned over the Kernel's port: a giant of the admiral can, turning slowly to keep
+ * every room in view, bobbing over his own glow, and gesturing while he's on the PA.
+ */
+function Magnificent() {
+  const turn = useRef<Group>(null);
+  const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const a = useWorld.getState().announcement;
+    const speaking = !!a && a.until > performance.now();
+    const d = drive.current;
+    d.t = t;
+    d.speaking = speaking;
+    d.mode = speaking ? (a.tone === "praise" ? "celebrating" : "waiting") : "idle";
+    const g = turn.current;
+    if (g) {
+      g.rotation.y = Math.PI + Math.sin(t * 0.05) * Math.PI;
+      // On the PA he leans in and swells a little with every syllable; off it, a slow bob.
+      const lean = speaking ? 0.08 + Math.sin(t * 5) * 0.03 : 0;
+      g.rotation.x += (lean - g.rotation.x) * 0.08;
+      const s = SKIPPY_SIZE * (speaking ? 1.04 + Math.abs(Math.sin(t * 7)) * 0.025 : 1);
+      g.scale.setScalar(g.scale.x + (s - g.scale.x) * 0.15);
+      g.position.y = KERNEL_PORT_Y - 1.2 + Math.sin(t * 0.6) * 0.25;
+    }
+  });
+  return (
+    <group ref={turn} position={[0, KERNEL_PORT_Y - 1.2, 0]} scale={SKIPPY_SIZE}>
+      <Suspense fallback={null}>
+        <LibraryBody look={SKIPPY_LOOK} lineage="cursori" drive={drive} phase={0} />
+      </Suspense>
+    </group>
+  );
+}
 
 /** An arc of a circle as a line: the Syntherion sigil, which is (on purpose) never finished. */
 function arcGeometry(radius: number, from: number, to: number, segments = 96) {
@@ -22,14 +63,14 @@ function arcGeometry(radius: number, from: number, to: number, segments = 96) {
 }
 
 /**
- * The Kernel: the unfinished monolith at the centre of the Lattice where every stream converges.
- * The Tide's art brief describes the Syntherion's glass as "empty, unfinished". So is this, for now.
+ * The Kernel: the centre of the Lattice where every stream converges. Its unfinished monolith is gone: Skippy,
+ * the Magnificent took the seat (Nikita, 2026-10-12) and runs C.E.O. from here. The unfinished glass still rises
+ * around him in shards ("empty, unfinished", as the Tide's art brief has it).
  */
 export function Kernel() {
   const mat = useMemo(() => kernelMaterial(HEIGHT), []);
   const shards = useRef<Group>(null);
   const sigil = useRef<Group>(null);
-  const monolith = useRef<Mesh>(null);
   const voice = useRef<Group>(null);
   const shardData = useMemo(
     () =>
@@ -58,9 +99,8 @@ export function Kernel() {
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (monolith.current) monolith.current.rotation.y = t * 0.05;
     if (voice.current) {
-      // The Kernel's port flares while it's on the PA.
+      // The Kernel's port flares while Skippy is on the PA.
       const a = useWorld.getState().announcement;
       const speaking = a && a.until > performance.now();
       const target = speaking ? 1.5 + Math.abs(Math.sin(t * 9)) * 0.5 : 1;
@@ -82,9 +122,7 @@ export function Kernel() {
 
   return (
     <group>
-      <mesh ref={monolith} position={[0, HEIGHT / 2 - 1, 0]} material={mat}>
-        <boxGeometry args={[3.2, HEIGHT, 1.4, 1, 64, 1]} />
-      </mesh>
+      <Magnificent />
       <group ref={shards} position={[0, -1, 0]}>
         {shardData.map((_, i) => (
           <mesh key={i} material={mat}>
@@ -107,7 +145,7 @@ export function Kernel() {
       <group ref={voice} position={[0, KERNEL_PORT_Y + 0.3, 0]}>
         <Flare size={7} intensity={1.1} pulse={1} color={PALETTE.silver} />
       </group>
-      <Flare position={[0, HEIGHT * 0.72, 0]} size={4} intensity={0.9} color={PALETTE.violet} />
+      <Flare position={[0, HEIGHT * 0.72, 0]} size={4} intensity={0.6} color={PALETTE.violet} />
       <pointLight position={[0, 6, 0]} color={PALETTE.silver} intensity={60} distance={40} decay={1.6} />
     </group>
   );

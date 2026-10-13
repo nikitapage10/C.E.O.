@@ -38,6 +38,8 @@ export interface Override {
   until: number;
   /** For "face": the agent to turn toward. */
   target?: string;
+  /** For "face": what to do while facing them (a submind conducting at them); idle when unset. */
+  pose?: Activity;
 }
 
 interface WorldStore {
@@ -82,7 +84,7 @@ interface WorldStore {
   resolveApproval: (id: string, decision: "approved" | "denied") => void;
   /** A world-side line from an agent (fourth-wall material), shown and logged like any quip. */
   say: (agentId: string, text: string) => void;
-  override: (agentId: string, mode: Override["mode"], ms: number, target?: string) => void;
+  override: (agentId: string, mode: Override["mode"], ms: number, target?: string, pose?: Activity) => void;
   emote: (agentId: string, glyph: string, ms: number) => void;
   startGlitch: (g: ActiveGlitch) => void;
   endGlitch: () => void;
@@ -189,8 +191,8 @@ export const useWorld = create<WorldStore>((set, get) => ({
   resolveApproval: (id, decision) => get().dispatch(simulator.resolveApproval(id, decision, clock.sim)),
   say: (agentId, text) =>
     get().dispatch([{ id: `world-${++localCounter}`, ts: clock.sim, source: "simulated", type: "agent.quip", agentId, text }]),
-  override: (agentId, mode, ms, target) =>
-    set({ overrides: { ...get().overrides, [agentId]: { mode, until: performance.now() + ms, target } } }),
+  override: (agentId, mode, ms, target, pose) =>
+    set({ overrides: { ...get().overrides, [agentId]: { mode, until: performance.now() + ms, target, pose } } }),
   putGathering: (g) => {
     const list = get().gatherings;
     set({ gatherings: list.some((x) => x.id === g.id) ? list.map((x) => (x.id === g.id ? g : x)) : [...list, g] });

@@ -244,7 +244,7 @@ Only when no fix or build is open and unstuck. One change per tick, on the cheap
 - make a flaky or slow test reliable;
 - shrink the bundle or the 3D assets so the world loads faster;
 - remove dead code, tidy types, clear lint warnings;
-- bump one dependency, with the checks as proof;
+- bump one dependency, with the checks as proof (only packages already in `package.json`, and `npm audit signatures` must pass; see [SECURITY.md](SECURITY.md));
 - keep docs and setup notes in step with the code.
 
 Open a `foundry:upkeep` issue, do the work on a `foundry/upkeep/…` branch, open its PR, and merge it without

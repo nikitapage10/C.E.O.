@@ -1,0 +1,26 @@
+# Dependabot keeps C.E.O.'s packages and GitHub Actions current (docs/SECURITY.md). Security updates for a known
+# vulnerability open on their own whenever GitHub learns of one; the schedule below covers routine version bumps.
+# Every Dependabot pull request runs the same checks as everyone else's, npm audit signatures included.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [dependencies]
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [dependencies]
+    groups:
+      actions:
+        patterns: ["*"]

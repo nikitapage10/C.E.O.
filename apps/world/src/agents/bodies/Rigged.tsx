@@ -17,12 +17,13 @@ import {
   type Object3D,
 } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { modelUrl, preloadLater } from "../../fx/library.ts";
 import { PBR } from "../../fx/pbr.ts";
 import type { PoseMode } from "../behavior.ts";
 import { recolor, type Band } from "./recolor.ts";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
 
-const url = (file: string) => `${import.meta.env.BASE_URL}models/${file}`;
+export const url = (file: string) => modelUrl(file);
 export const ROBOT_URL = url("robot.glb");
 export const KAYKIT_ANIMS_URL = url("kaykit-anims.glb");
 
@@ -72,7 +73,7 @@ interface KayKitDef {
 }
 
 const ROGUE_BANDS = { primary: { hue: 163, width: 24, minSat: 0.45, refL: 0.25 }, secondary: { hue: 279, width: 16, minSat: 0.45, refL: 0.55 } };
-const KAYKIT: Record<Exclude<Rigged, "robot">, KayKitDef> = {
+export const KAYKIT: Record<Exclude<Rigged, "robot">, KayKitDef> = {
   mage: {
     file: "mage.glb",
     keep: /^(Mage_|2H_Staff)/,
@@ -291,6 +292,5 @@ export function KayKitBody({ look, drive, phase }: BodyProps) {
   return <primitive object={model} scale={scale} />;
 }
 
-useGLTF.preload(ROBOT_URL);
-useGLTF.preload(KAYKIT_ANIMS_URL);
-for (const d of Object.values(KAYKIT)) useGLTF.preload(url(d.file));
+// Warm, for a look change in the studio; what the cast wears loads first (scene/streaming.ts).
+preloadLater(ROBOT_URL, KAYKIT_ANIMS_URL, ...Object.values(KAYKIT).map((d) => url(d.file)));

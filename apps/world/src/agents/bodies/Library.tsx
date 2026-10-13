@@ -331,7 +331,8 @@ export function LibraryBody(props: BodyProps) {
   return def.anims ? <WithAnims def={def as LibDef & { anims: string }} {...props} /> : <LibraryModel def={def} {...props} />;
 }
 
-// The bodies the default cast wears: the four House frames and the costumes in use.
+// Warm, for a look change: the four House frames and the costumes. What the cast is wearing loads first
+// (scene/streaming.ts); these follow once the world on screen is in.
 preloadLib("robots/Leela", "robots/George", "robots/Mike", "robots/Stan", "men/Suit", "men/Punk", "women/Worker", "women/Medieval", "anims/humans");
 preloadLib("custom/Gestral", "custom/Heimerdinger", "custom/Skippy", "scifi-essentials/Enemy_Trilobite", "monsters/Big/Tribal", "monsters/Big/Orc", "monsters/Big/Bunny", "anims/monster-big");
 preloadLib("monsters/Flying/Ghost_Skull", "monsters/Flying/Tribal", "anims/monster-flying", "monsters/Blob/Wizard");

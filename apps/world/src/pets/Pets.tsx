@@ -13,7 +13,8 @@ import { LIBRARY_PETS, LibraryPet } from "./LibraryPet.tsx";
 import { Brogu } from "./Brogu.tsx";
 import { Myshka } from "./Myshka.tsx";
 import { Owlbear } from "./Owlbear.tsx";
-import { PETS, petOrders, wanderSpots, type PetDef } from "./pets.ts";
+import { useStreaming } from "../scene/roomScope.ts";
+import { PETS, petOrders, petStart, wanderSpots, type PetDef } from "./pets.ts";
 import type { PetDrive, PetMode } from "./types.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -56,12 +57,12 @@ function Pet({ def }: { def: PetDef }) {
   const [open, setOpen] = useState(false);
   const focus = useWorld((s) => s.focus);
   const studioOpen = useCast((s) => s.studio !== null);
-  const [room, setRoom] = useState(def.homes[def.id === "myshka" ? def.homes.length - 1 : 0]!);
+  const [room, setRoom] = useState(petStart(def));
   const state = useRef<PetState | null>(null);
   const spotKey = useRef(0);
 
   const init = useMemo(() => {
-    const r = def.homes[def.id === "myshka" ? def.homes.length - 1 : 0]!;
+    const r = petStart(def);
     return { room: r, station: pick(wanderSpots(r, def.id)) };
   }, [def]);
 
@@ -233,9 +234,11 @@ function Pet({ def }: { def: PetDef }) {
 
 /** The Lattice's pets. They aren't agents: nobody assigns them anything, and they wouldn't do it anyway. */
 export function Pets() {
+  // Opened on a room, only the pets starting there join at first; the rest follow once it's in (scene/streaming.ts).
+  const first = useStreaming((s) => (s.all ? null : s.first));
   return (
     <group>
-      {PETS.map((p) => (
+      {PETS.filter((p) => !first || petStart(p) === first).map((p) => (
         <Pet key={p.id} def={p} />
       ))}
     </group>

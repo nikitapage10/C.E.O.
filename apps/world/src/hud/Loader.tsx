@@ -1,6 +1,7 @@
 import { useProgress } from "@react-three/drei";
 import { useEffect, useState } from "react";
-import { useBoot } from "../boot.ts";
+import { markBoot, useBoot } from "../boot.ts";
+import { streamingReady } from "../scene/streaming.ts";
 import { Decode } from "../tide/Decode.tsx";
 
 const asset = (p: string) => `${import.meta.env.BASE_URL}tide/${p}`;
@@ -53,8 +54,16 @@ export function Loader() {
 
   const done = (sceneReady && !active && fonts && minDone) || failsafe;
   useEffect(() => {
+    if (sceneReady && !active) markBoot("models");
+  }, [sceneReady, active]);
+  useEffect(() => {
     if (!done) return;
-    const t = setTimeout(() => setGone(true), FADE_MS);
+    markBoot("curtain");
+    const t = setTimeout(() => {
+      setGone(true);
+      // The curtain is up: the rooms off screen stream in behind it (scene/streaming.ts).
+      streamingReady();
+    }, FADE_MS);
     return () => clearTimeout(t);
   }, [done]);
 

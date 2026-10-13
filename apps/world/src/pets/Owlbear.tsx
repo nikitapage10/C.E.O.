@@ -7,7 +7,7 @@ import { fitScale } from "../agents/bodies/Rigged.tsx";
 import { poseOwlbear, rigOwlbear, type OwlbearRig } from "./owlbearPose.ts";
 import type { PetDrive } from "./types.ts";
 
-const MODEL = "custom/Owlbear";
+export const MODEL = "custom/Owlbear";
 /** Ear tufts to the floor, in metres. A cub, but a chunky one: he comes up past an agent's waist. */
 export const OWLBEAR_HEIGHT = 1.0;
 

@@ -1,6 +1,7 @@
 import { ROOM_IDS, roomAngle, roomCenter, type RoomId } from "@ceo/core";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { ComponentType } from "react";
+import { RoomScope } from "../scene/roomScope.ts";
 import { useWorld } from "../store.ts";
 import { ROOM_ACCENTS } from "../theme.ts";
 import { Archive } from "./Archive.tsx";
@@ -40,15 +41,19 @@ function Room({ id }: { id: RoomId }) {
     e.stopPropagation();
     if (!focused) setFocus(id);
   };
+  // The scope lets the room's library models wait while another room loads first (scene/streaming.ts); everything
+  // built in code (walls, floor, furniture, lights) is always there.
   return (
-    <group position={roomCenter(id)} rotation={[0, roomAngle(id), 0]} name={`room-${id}`}>
-      <group onClick={onClick}>
-        <Content />
-        <Podium room={id} />
-        <HoverGlow room={id} />
-        <Eggs />
+    <RoomScope.Provider value={id}>
+      <group position={roomCenter(id)} rotation={[0, roomAngle(id), 0]} name={`room-${id}`}>
+        <group onClick={onClick}>
+          <Content />
+          <Podium room={id} />
+          <HoverGlow room={id} />
+          <Eggs />
+        </group>
       </group>
-    </group>
+    </RoomScope.Provider>
   );
 }
 

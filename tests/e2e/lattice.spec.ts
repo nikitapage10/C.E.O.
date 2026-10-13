@@ -4,7 +4,7 @@ import { ROOM_IDS } from "@ceo/core";
 /**
  * Smoke test for the whole Lattice: it boots, agents move, every room is reachable, an approval can be
  * granted, and every glitch fires and cleans up after itself. Screenshots land in test-results/shots.
- * Runs in headless Chromium on SwiftShader, which is slow, so waits are generous and the camera cuts.
+ * Runs in headless Chromium on SwiftShader, which is slow, so waits are generous (boot gets 150 s) and the camera cuts.
  */
 
 type Api = {
@@ -25,7 +25,7 @@ async function boot(page: Page) {
   await page.waitForFunction(() => {
     const w = window as unknown as { __ceo?: { positions?: () => Record<string, unknown> } };
     return w.__ceo?.positions && Object.keys(w.__ceo.positions()).length >= 14;
-  }, undefined, { timeout: 60_000, polling: 1000 });
+  }, undefined, { timeout: 150_000, polling: 1000 });
 }
 
 test("boots, agents move, rooms are reachable", async ({ page }) => {

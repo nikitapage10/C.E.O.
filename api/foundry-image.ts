@@ -18,6 +18,10 @@ const TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png",
 
 const env = (name: string): string => process.env[name] ?? "";
 
+/** The Blob store's token. Vercel names it BLOB_READ_WRITE_TOKEN unless the store was connected with its own prefix. */
+const blobToken = (): string =>
+  env("BLOB_READ_WRITE_TOKEN") || (Object.entries(process.env).find(([k, v]) => k.endsWith("_READ_WRITE_TOKEN") && v)?.[1] ?? "");
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 }
@@ -29,7 +33,7 @@ function keyMatches(given: string): boolean {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!env("FOUNDRY_DESK_KEY") || !env("BLOB_READ_WRITE_TOKEN")) return json({ error: "not-set-up" }, 503);
+  if (!env("FOUNDRY_DESK_KEY") || !blobToken()) return json({ error: "not-set-up" }, 503);
   if (!keyMatches(request.headers.get("x-desk-key") ?? "")) return json({ error: "wrong-key" }, 401);
   const type = (request.headers.get("content-type") ?? "").split(";")[0]!.trim();
   const ext = TYPES[type];
@@ -37,7 +41,7 @@ export async function POST(request: Request): Promise<Response> {
   const body = await request.arrayBuffer();
   if (body.byteLength === 0 || body.byteLength > MAX_BYTES) return json({ error: "too-big" }, 413);
   try {
-    const blob = await put(`foundry/ideas/${Date.now()}.${ext}`, body, { access: "public", contentType: type, addRandomSuffix: true });
+    const blob = await put(`foundry/ideas/${Date.now()}.${ext}`, body, { access: "public", contentType: type, addRandomSuffix: true, token: blobToken() });
     return json({ url: blob.url });
   } catch {
     return json({ error: "blob" }, 502);

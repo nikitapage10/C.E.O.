@@ -150,7 +150,7 @@ export function GET(): Response {
     /** True when Rusty shapes proposed and revised ideas on the spot. */
     shape: canShape(),
     /** True when pictures can be added to ideas (a Vercel Blob store is connected). */
-    images: Boolean(env("BLOB_READ_WRITE_TOKEN")),
+    images: Boolean(env("BLOB_READ_WRITE_TOKEN") || Object.entries(process.env).some(([k, v]) => k.endsWith("_READ_WRITE_TOKEN") && v)),
   });
 }
 

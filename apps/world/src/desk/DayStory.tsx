@@ -3,11 +3,11 @@ import { formatDuration, useDayStory } from "../chronicle.ts";
 import { Avatar } from "./ui.tsx";
 
 /**
- * The day's story (issue #95, livelier in #102; docs/WORLD.md): the Historian's quick "today in Ilyr" update, read
+ * The day's story (issue #95, livelier in #102, a normal voice in #107; docs/WORLD.md): the Historian's quick "today in Ilyr" update, read
  * aloud. A plain <audio controls> (served from our own origin, api/day-story.ts) and the script as a transcript. When
  * there is no audio it says why, plainly: no Gemini key, the month's speech budget spent, or not made yet. For today
  * and yesterday, "Make it now" asks for one with the Desk key (once per day; it doesn't spend twice), and remakes a
- * story read in the old, slow style once in the new voice.
+ * story read in an older style once in the current, clear voice.
  */
 
 const KEY = "ceo.deskKey";
@@ -140,7 +140,7 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
       {!compact && state.partial && <p className="quiet story__note">Read before the recap was filed. The full day's story replaces it after midnight.</p>}
       {!compact && canMake && state.stale && (
         <>
-          <p className="quiet story__note">Read in the old, slow voice. Make it now remakes it once, as a quick update in the new one.</p>
+          <p className="quiet story__note">Read in an older voice that came out deep and slow. Make it now remakes it once in a clear, natural one.</p>
           {makeControls}
         </>
       )}

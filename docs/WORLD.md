@@ -57,8 +57,8 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
 
 ## The day's story
 
-Once a day's recap is filed, **the Historian reads the day's update aloud** (issue #95, made livelier in #102): a
-quick, bright "today in Ilyr" in 30 to 45 seconds, one presenter, not a podcast and not two hosts.
+Once a day's recap is filed, **the Historian reads the day's update aloud** (issue #95, made livelier in #102, a
+normal voice in #107): a short "today in Ilyr" in 30 to 45 seconds, one clear speaker, not a podcast and not two hosts.
 `api/_world/story.ts`.
 
 - **Trigger:** the step that writes a recap (the first after midnight Mountain) makes that day's story after it has
@@ -67,10 +67,10 @@ quick, bright "today in Ilyr" in 30 to 45 seconds, one presenter, not a podcast 
   is filed and it has no story yet, else **the day so far**. Each day gets at most two: one "so far" from the Desk,
   and the recap's, which replaces it. Each is made once (a claim in the store, so a second call, or two racing,
   spends nothing).
-- **Style versions:** each story carries the style it was made with (`STORY_STYLE`, now 2; the first, slow Gacrux
+- **Style versions:** each story carries the style it was made with (`STORY_STYLE`, now 3; the first, slow Gacrux
   stories of #95 carry none and count as 1). A story in an older style shows on the Chronicle with **Make it now**,
   which remakes it once in the current style: still Desk-key gated, still inside `GEMINI_BUDGET_USD`, and the claims
-  carry the version (`world/stories/<day>.<kind>.v2.claim`), so each style is paid for at most once per day and kind,
+  carry the version (`world/stories/<day>.<kind>.v3.claim`), so each style is paid for at most once per day and kind,
   and two racing remakes spend once. The world step never remakes an old story by itself.
 - **The script:** Claude Haiku (the world's model and key, plain text out, about a tenth of a cent) writes 70 to 120
   words, 30 to 45 seconds aloud, from the day's Chronicle page only: the recap, each hour's summary, the real Foundry
@@ -82,12 +82,15 @@ quick, bright "today in Ilyr" in 30 to 45 seconds, one presenter, not a podcast 
   own lines in the same shape (`chronicleScript`: the hook, the recap's first sentence, the top three builds, one
   remark, the sign-off). Never a demo: no key, no audio.
 - **The speech:** Gemini's text to speech over plain `fetch` (no SDK): `gemini-3.8-flash-tts`, the prebuilt voice
-  **Puck** ("Upbeat"; lighter and brighter than the deep "Mature" Gacrux of #95, which Nikita found slow and odd),
-  with a short style note: a bright, friendly presenter giving today's quick update, brisk, warm and conversational,
-  a little faster than usual. The API has no speaking-rate setting; Google's guide steers pace through the style
-  note, so that is where the pace is set. It asks for raw 16-bit PCM at 16 kHz (`audio/l16`) and wraps it as WAV
-  (32 KB a second). Sources are in the file's header: Google's speech generation guide, the Interactions API
-  reference and the pricing page.
+  **Achird** ("Friendly": an ordinary, clear speaker, the way a colleague reads out a short update), with a short
+  style note: a friendly, natural speaker reading a short daily update, clear and conversational, at a normal pace.
+  The API has no speaking-rate setting; Google's guide steers pace through the style note, so that is where the pace
+  is set. It asks for raw 16-bit mono PCM (`audio/l16`) at **24 kHz**, Gemini's native rate, and wraps it as WAV (48
+  KB a second, a 45-second story about 2.2 MB). Headerless PCM carries no rate, so the rate is taken from what the
+  response says: the audio block's `sample_rate`, a `rate=` in its mime type, or a RIFF header, else 24 kHz. Until
+  #107 it was asked for and labelled as 16 kHz; if Gemini sent 24 kHz anyway, that plays at two-thirds speed and a
+  fifth lower, which is the deep, slow, distorted voice heard on Gacrux (#95) and Puck (#102). Sources are in the
+  file's header: Google's speech generation guide, the Interactions API reference and the pricing page.
 - **The budget:** $0.50 per million text tokens in and $9.00 per million audio tokens out (25 a second) through
   2026, then $1.00 and $18.00: a 40-second story is about 1,000 audio tokens, about a cent (two from 2027). Gemini
   has its **own cap**, `GEMINI_BUDGET_USD` (default **$5**, never above $10), kept in `world/stories/spend.json`; no

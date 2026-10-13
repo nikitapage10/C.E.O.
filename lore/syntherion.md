@@ -329,13 +329,16 @@ turns.
 ### The day, read aloud
 
 When the day's page is filed, the Historian drops down from its corner of the Archive and **reads the day's
-update**: one voice, quick and bright, "today in Ilyr" in under a minute. A hook, the two to four biggest things the
+update**: one clear, friendly voice, "today in Ilyr" in under a minute. A hook, the two to four biggest things the
 Foundry shipped and who built them, one bit of colour from the crew, and a cheerful sign-off. One presenter, no
 co-hosts, and the C.E.O. listening from beyond the Veil. The voice comes from beyond the Veil too. The first one the
 Historian borrowed was deep and patient ("Gacrux: mature, sourced, correctly pitched"), and it read the first days
 like a fireside epic until the C.E.O. said it was too slow and too long. The Historian filed the complaint, cited it,
-and swapped for a lighter, upbeat one ("Puck: brisk, bright, on time"), and offered to re-record the day once in the
-new voice. Like the hours, it has a budget: in a lean month the microphone stays off and the Archive says so.
+and swapped for a lighter, upbeat one ("Puck: brisk, bright, on time"). Puck came through the Veil deep and
+warbling too, and the C.E.O. asked for a normal voice, "just something that makes sense". The Historian traced it to
+the Veil itself: the voices crossed at one speed and were played back at two-thirds of it, so every reader sounded
+like a slowed-down record. With the speed corrected, it settled on a plain, friendly one ("Achird: clear, ordinary,
+sounds like a colleague"), and offered to re-record the day once in it. Like the hours, it has a budget: in a lean month the microphone stays off and the Archive says so.
 Heimerdinger times every update and was delighted when it came in under forty-five seconds. Loremaster checks the
 dates in it. D20 has asked for a dice roll in the middle twice and been refused twice. If the C.E.O. can't wait for
 midnight, the Historian will read **the day so far**, once, and say "more by midnight".

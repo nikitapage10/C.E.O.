@@ -9,6 +9,7 @@ import {
   makeStory,
   MemoryStoryStore,
   pcmOf,
+  rateOfMime,
   SAMPLE_RATE,
   speak,
   speechRequest,
@@ -51,11 +52,11 @@ async function worldWith(page: Partial<DayPage>) {
 
 /** Two seconds of silence-ish PCM, and Gemini's answer around it. */
 const PCM = new Uint8Array(SAMPLE_RATE * 2 * 2).map((_, i) => i % 7);
-const geminiAnswer = (bytes: Uint8Array = PCM) => ({
+const geminiAnswer = (bytes: Uint8Array = PCM, meta: { mime_type?: string; sample_rate?: number } = {}) => ({
   status: "completed",
   steps: [
     { type: "user_input", content: [{ type: "text", text: "ignored" }] },
-    { type: "model_output", content: [{ type: "audio", data: Buffer.from(bytes).toString("base64") }] },
+    { type: "model_output", content: [{ type: "audio", data: Buffer.from(bytes).toString("base64"), ...meta }] },
   ],
   usage: { total_input_tokens: 400, total_output_tokens: 2_500 },
 });
@@ -106,6 +107,51 @@ describe("the WAV wrapper", () => {
     expect(back.sampleRate).toBe(24_000);
     expect(back.pcm).toEqual(PCM);
     expect(pcmOf(PCM)).toEqual({ pcm: PCM, sampleRate: SAMPLE_RATE });
+  });
+});
+
+describe("the sample rate (#107)", () => {
+  it("defaults to Gemini's native 24 kHz, never 16 kHz", () => {
+    expect(SAMPLE_RATE).toBe(24_000);
+    expect(pcmOf(PCM).sampleRate).toBe(24_000);
+    expect(pcmOf(PCM, undefined).sampleRate).toBe(24_000);
+    expect(pcmOf(PCM, 0).sampleRate).toBe(24_000);
+    expect(pcmOf(PCM, Number.NaN).sampleRate).toBe(24_000);
+    expect(new DataView(wavOf(PCM).buffer).getUint32(24, true)).toBe(24_000);
+  });
+
+  it("reads the rate from a mime type's parameters", () => {
+    expect(rateOfMime("audio/L16;codec=pcm;rate=24000")).toBe(24_000);
+    expect(rateOfMime("audio/l16; rate=16000")).toBe(16_000);
+    expect(rateOfMime('audio/L16; codec=pcm; RATE="8000"')).toBe(8_000);
+    expect(rateOfMime("audio/pcm;sample_rate=44100")).toBe(44_100);
+    expect(rateOfMime("audio/l16")).toBeUndefined();
+    expect(rateOfMime("audio/l16;rate=0")).toBeUndefined();
+    expect(rateOfMime("audio/l16;rate=99999999")).toBeUndefined();
+    expect(rateOfMime(undefined)).toBeUndefined();
+  });
+
+  it("lets raw PCM take the declared rate, and a WAV header win over it", () => {
+    expect(pcmOf(PCM, 16_000).sampleRate).toBe(16_000);
+    expect(pcmOf(wavOf(PCM, 22_050), 16_000)).toEqual({ pcm: PCM, sampleRate: 22_050 });
+  });
+
+  it("takes the rate the answer reports, and times the story by it", async () => {
+    const at = async (meta: { mime_type?: string; sample_rate?: number }) =>
+      (await speak("Today.", KEY, geminiFetch({ ...geminiAnswer(PCM, meta), usage: undefined })))!;
+    // PCM is two seconds at 24 kHz.
+    expect(await at({})).toMatchObject({ sampleRate: 24_000, tokensOut: 50 });
+    expect(await at({ mime_type: "audio/L16;codec=pcm;rate=24000" })).toMatchObject({ sampleRate: 24_000 });
+    expect(await at({ mime_type: "audio/L16;codec=pcm;rate=16000" })).toMatchObject({ sampleRate: 16_000, tokensOut: 75 });
+    expect(await at({ mime_type: "audio/l16;rate=16000", sample_rate: 24_000 })).toMatchObject({ sampleRate: 24_000 });
+  });
+
+  it("labels the saved WAV with the rate the audio came in", async () => {
+    const d = await deps({ fetcher: geminiFetch(geminiAnswer(PCM, { mime_type: "audio/L16;codec=pcm;rate=24000" })) });
+    const made = await makeStory(d);
+    expect(made.made && made.story.durationSec).toBe(2);
+    const wav = d.stories.audio.get(DAY)!;
+    expect(new DataView(wav.buffer, wav.byteOffset).getUint32(24, true)).toBe(24_000);
   });
 });
 
@@ -310,14 +356,16 @@ describe("the script's prompt and cleaning", () => {
   });
 });
 
-describe("the livelier style (#102)", () => {
-  it("asks for an upbeat voice at a brisk pace, not the slow storyteller", () => {
+describe("the normal voice (#107)", () => {
+  it("asks for a plain, friendly voice at a natural pace, at the native rate", () => {
     const body = speechRequest("Today in Ilyr.");
-    expect(TTS_VOICE).toBe("Puck");
-    expect(body.generation_config.speech_config).toEqual([{ voice: "Puck" }]);
+    expect(TTS_VOICE).toBe("Achird");
+    expect(body.generation_config.speech_config).toEqual([{ voice: "Achird" }]);
+    expect(body.response_format.sample_rate).toBe(24_000);
     const style = body.input[0]!.content[0]!.annotations[0]!.style;
-    expect(style).toContain("faster than usual");
-    expect(style).not.toMatch(/unhurried|lamplight/);
+    expect(style).toMatch(/natural/);
+    expect(style).not.toMatch(/faster|brisk|unhurried|lamplight/);
+    expect(STORY_STYLE).toBe(3);
   });
 
   /** Make a story, then store it as #95 did: Gacrux, and no style version. */
@@ -339,10 +387,22 @@ describe("the livelier style (#102)", () => {
     expect(d.fetcher).toHaveBeenCalledTimes(1);
     // The Desk's "Make it now" does, once.
     const remade = await makeStory({ ...d, now: NOW + 120_000, allowPartial: true, allowRemake: true });
-    expect(remade.made && remade.story).toMatchObject({ partial: false, voice: "Puck", style: STORY_STYLE });
+    expect(remade.made && remade.story).toMatchObject({ partial: false, voice: "Achird", style: STORY_STYLE });
     expect(await makeStory({ ...d, now: NOW + 180_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists" });
     expect(d.fetcher).toHaveBeenCalledTimes(2);
     expect(d.stories.spend["2026-10"]!.calls).toBe(2);
+  });
+
+  it("remakes #102's Puck story (style 2) once in the normal voice", async () => {
+    const d = await deps();
+    const made = await makeStory(d);
+    if (!made.made) throw new Error("setup");
+    d.stories.stories.set(DAY, { ...made.story, voice: "Puck", style: 2 });
+    d.stories.claims.clear();
+    const remade = await makeStory({ ...d, now: NOW + 60_000, allowPartial: true, allowRemake: true });
+    expect(remade.made && remade.story).toMatchObject({ voice: "Achird", style: 3 });
+    expect(await makeStory({ ...d, now: NOW + 120_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists" });
+    expect(d.fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("remakes an old day-so-far once too, and lets only one of two racing remakes spend", async () => {

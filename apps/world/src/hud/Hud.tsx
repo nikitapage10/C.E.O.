@@ -12,6 +12,7 @@ import { DayClock, DeckButton, KernelConsole, PanelButtons, TrophyPanel, usePane
 import { unlock } from "../achievements/achievements.ts";
 import { feedLines, formatClock, type FeedLine } from "./format.ts";
 import { navigate } from "../route.ts";
+import { noticeVisible } from "../kernel/notices.ts";
 
 /**
  * The HUD, in The Tide's interface language: hairlines and wide-tracked labels on near-black, text that
@@ -352,8 +353,8 @@ function Announcement() {
     const t = setTimeout(() => force((n) => n + 1), Math.max(0, a.until - performance.now()));
     return () => clearTimeout(t);
   }, [a]);
-  // The Kernel's calls about a room's drills are heard in that room; the Lattice-wide view is for real work.
-  if (!a || a.until < performance.now() || (!focus && a.room)) return null;
+  // A room's demo drills are heard in that room only; real events, achievements and night/day changes show anywhere.
+  if (!a || a.until < performance.now() || !noticeVisible(a, focus)) return null;
   return (
     <div className={`announce announce--${a.tone}`} role="status" key={a.until}>
       <span className="announce__mark" aria-hidden="true" />

@@ -5,6 +5,7 @@ import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
 import { useWorld, type AnnouncementTone } from "../store.ts";
 import { KERNEL, SKIPPY_HELLO } from "./lines.ts";
+import { scopeOf, type NoticeScope } from "./notices.ts";
 import { SubmindDirector } from "./SubmindDirector.tsx";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -44,11 +45,11 @@ export function KernelDirector() {
       return choice ? { id: choice, name: name(choice) } : null;
     };
 
-    const say = (text: string, tone: AnnouncementTone, room: RoomId | null, force = false) => {
+    const say = (text: string, tone: AnnouncementTone, room: RoomId | null, force = false, scope: NoticeScope = "room") => {
       const now = performance.now();
       if (!force && now - lastSpoke < MIN_GAP) return false;
       lastSpoke = now;
-      useWorld.getState().announce(text, tone, room);
+      useWorld.getState().announce(text, tone, room, scope);
       return true;
     };
 
@@ -62,26 +63,26 @@ export function KernelDirector() {
           if (e.outcome === "failure" && Math.random() < 0.7) {
             const help = helperFor(t.agentId, t.room);
             const text = fill(pick(KERNEL.fail), { agent: name(t.agentId), title: t.title, other: help?.name ?? "Anyone" });
-            if (say(text, "scold", t.room) && help) {
+            if (say(text, "scold", t.room, false, scopeOf(e)) && help) {
               // The Kernel actually sends someone over.
               useWorld.getState().override(help.id, "face", 6000, t.agentId);
             }
             return;
           }
           if (e.outcome === "success" && Math.random() < 0.12) {
-            if (say(fill(pick(KERNEL.success), { agent: name(t.agentId), title: t.title }), "praise", t.room)) return;
+            if (say(fill(pick(KERNEL.success), { agent: name(t.agentId), title: t.title }), "praise", t.room, false, scopeOf(e))) return;
           }
         } else if (e.type === "approval.requested" && Math.random() < 0.45) {
           const r = e.approval;
-          if (say(fill(pick(KERNEL.approval), { agent: name(r.agentId), summary: r.summary }), "nag", r.room)) return;
+          if (say(fill(pick(KERNEL.approval), { agent: name(r.agentId), summary: r.summary }), "nag", r.room, false, scopeOf(e))) return;
         } else if (e.type === "approval.resolved") {
           const r = lattice.approvals[e.approvalId]?.request;
           if (r && Math.random() < 0.5) {
             const lines = e.decision === "approved" ? KERNEL.approved : KERNEL.denied;
-            if (say(fill(pick(lines), { agent: name(r.agentId) }), e.decision === "approved" ? "praise" : "scold", r.room, true)) return;
+            if (say(fill(pick(lines), { agent: name(r.agentId) }), e.decision === "approved" ? "praise" : "scold", r.room, true, scopeOf(e))) return;
           }
         } else if (e.type === "task.started" && Math.random() < 0.22) {
-          if (say(fill(pick(KERNEL.assign), { agent: name(e.agentId), title: e.title }), "assign", e.room)) return;
+          if (say(fill(pick(KERNEL.assign), { agent: name(e.agentId), title: e.title }), "assign", e.room, false, scopeOf(e))) return;
         }
       }
     };

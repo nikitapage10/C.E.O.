@@ -1,5 +1,6 @@
 import { SystemsNav } from "../SystemsNav.tsx";
-import { Avatar, PageHead, Panel } from "../ui.tsx";
+import { RoomBanner } from "../RoomBanner.tsx";
+import { Avatar, Panel } from "../ui.tsx";
 import { NIST_AI_RMF, OWASP_LLM, RISK_STATUS_LABEL, ROADMAP, SAIF, owaspTally, partsOf, refsOf, statusOf, type RiskStatus } from "./model.ts";
 import { PopScope } from "../Popovers.tsx";
 import { FRAME_EXPLAIN, NIST_EXPLAIN, OWASP_EXPLAIN, SAIF_EXPLAIN, type Explain, type FrameId } from "./explain.ts";
@@ -17,10 +18,8 @@ export function CompliancePage() {
   const tally = owaspTally();
   return (
     <div className="sec-page">
-      <PageHead
-        eyebrow="The Boiler Room"
-        title="Compliance"
-        room="boiler"
+      <RoomBanner
+        page="compliance"
         lead="The frameworks the threat model maps C.E.O. to, every control in place, and what's still open."
         aside={
           <div className="page-head__crew">

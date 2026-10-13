@@ -2,7 +2,9 @@
 /**
  * Renders the Desk's imagery from the Lattice itself: the overview as a hero and each room, written as WebP under
  * apps/world/public/desk/. The page renders at twice its CSS size (deviceScaleFactor 2), so the hero comes out as
- * lattice.webp (1440 wide, also the "Enter the Lattice" thumbnail) and lattice@2x.webp (2880 wide, for retina screens). The Desk shows them as static files, so three.js never loads with it. The agents'
+ * lattice.webp (1440 wide, also the "Enter the Lattice" thumbnail) and lattice@2x.webp (2880 wide, for retina screens),
+ * and each room as room-<room>.webp (960 wide, Today's room cards) and room-<room>@2x.webp (2880 wide, the banner
+ * over that room's Desk page, see desk/RoomBanner.tsx). The Desk shows them as static files, so three.js never loads with it. The agents'
  * portraits are taken separately, each model alone in the portrait studio: scripts/portraits.mjs.
  *
  * Usage: node scripts/desk-images.mjs [base-url] [--only=rooms|hero]
@@ -72,8 +74,8 @@ page.on("pageerror", (e) => console.log("pageerror:", e.message));
 await page.goto(`${base}/lattice?instant&glitches=off&quality=high&seed=7`, { waitUntil: "load" });
 await page.waitForFunction(() => globalThis.__ceo?.positions && Object.keys(globalThis.__ceo.positions()).length >= 14, undefined, { timeout: 180_000, polling: 1000 });
 await page.waitForTimeout(4000);
-// Clean renders: no HUD, loader, studio panel, callouts, name tags or speech.
-await page.addStyleTag({ content: ".hud, .loader, .studio, .callout, .tag, .bubble, .announce { display: none !important }" });
+// Clean renders: no HUD, loader, studio panel, callouts, name tags, nameplates or speech.
+await page.addStyleTag({ content: ".hud, .loader, .studio, .callout, .tag, .nameplate, .bubble, .announce { display: none !important }" });
 
 if (only === "all" || only === "hero") {
   await page.evaluate(() => globalThis.__ceo.focus(null));
@@ -85,7 +87,8 @@ if (only === "all" || only === "rooms") {
   for (const room of ROOMS) {
     await page.evaluate((r) => globalThis.__ceo.focus(r), room);
     await page.waitForTimeout(2500);
-    await shoot(page, [[`room-${room}`, 960, 68]], { x: 0, y: 60, w: W, h: 810 });
+    // room-<room>.webp is the card still on Today; room-<room>@2x.webp the banner over that room's Desk page.
+    await shoot(page, [[`room-${room}`, 960, 68], [`room-${room}@2x`, W * 2, 70]], { x: 0, y: 60, w: W, h: 810 });
   }
 }
 

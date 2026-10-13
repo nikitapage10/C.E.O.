@@ -3,7 +3,8 @@ import { chronicleDay, dayTitle, hourLabel, sinceAway, useChronicle, useWorldFee
 import { formatWait } from "./deskData.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
-import { Avatar, PageHead, Panel } from "./ui.tsx";
+import { RoomBanner } from "./RoomBanner.tsx";
+import { Avatar, Panel } from "./ui.tsx";
 
 /**
  * The Chronicle: the Lattice, hour by hour, while you were away (docs/WORLD.md). Every hour the world takes a step and
@@ -65,10 +66,8 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
 
   return (
     <div className="chron" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
-      <PageHead
-        eyebrow="Ilyr, hour by hour"
-        title="Chronicle"
-        room="archive"
+      <RoomBanner
+        page="chronicle"
         lead={lead}
         aside={
           <div className="page-head__crew">

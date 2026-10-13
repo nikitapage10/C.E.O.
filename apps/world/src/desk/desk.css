@@ -462,45 +462,44 @@ a.panel__hint:hover {
   border-bottom: 1px solid rgba(143, 232, 255, 0.35);
 }
 
-/* ── Page head: the eyebrow, the title and the lead, over a still of the room ── */
-.page-head {
+/* ── Room banner: each page past Today, over a still of its room, in the room's colour (RoomBanner.tsx) ── */
+.banner {
   position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
+  min-height: 250px;
   margin: 0 0 20px;
-}
-.page-head--pic {
-  min-height: 236px;
-  padding: 28px 30px 26px;
+  padding: 28px 32px 24px;
   border: 1px solid var(--hair);
   border-radius: 6px;
   overflow: hidden;
   background: var(--panel-solid);
   isolation: isolate;
 }
-.page-head__pic {
+.banner__pic {
   position: absolute;
   inset: 0;
+  /* Under the shade (::before), which comes first in the box: words over the room stay legible. */
+  z-index: -2;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% 40%;
-  z-index: -1;
-  opacity: 0.9;
-  animation: ken 30s ease-in-out infinite alternate;
+  object-position: 50% 42%;
+  animation: ken 40s ease-in-out infinite alternate;
 }
-.page-head--pic::before {
+.banner::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(90deg, rgba(4, 6, 11, 0.92) 0%, rgba(4, 6, 11, 0.6) 48%, rgba(4, 6, 11, 0.2) 100%),
-    linear-gradient(0deg, rgba(4, 6, 11, 0.9) 0%, transparent 60%);
+    radial-gradient(90% 120% at 0% 100%, color-mix(in srgb, var(--tone) 16%, transparent) 0%, transparent 60%),
+    linear-gradient(90deg, rgba(4, 6, 11, 0.92) 0%, rgba(4, 6, 11, 0.72) 36%, rgba(4, 6, 11, 0.22) 66%, rgba(4, 6, 11, 0.12) 100%),
+    linear-gradient(0deg, rgba(4, 6, 11, 0.85) 0%, rgba(4, 6, 11, 0.1) 60%, rgba(4, 6, 11, 0.2) 100%);
 }
-.page-head--pic::after {
+.banner::after {
   content: "";
   position: absolute;
   left: 0;
@@ -511,19 +510,44 @@ a.panel__hint:hover {
   box-shadow: 0 0 12px var(--tone);
   opacity: 0.8;
 }
-.page-head__text {
-  max-width: 640px;
+.banner__text {
+  max-width: 620px;
+  text-shadow: 0 1px 12px rgba(4, 6, 11, 0.9);
 }
-.page-head--pic .eyebrow {
+.banner .eyebrow {
   color: var(--tone);
 }
-.page-head__lead {
-  margin: 14px 0 0;
+.banner__title {
+  text-shadow: 0 0 24px color-mix(in srgb, var(--tone) 30%, transparent);
+}
+.banner__voice {
+  margin: 12px 0 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.25;
+  color: var(--text);
+}
+.banner__voice cite {
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--tone);
+}
+.banner__voice cite::before {
+  content: "\2014\00a0";
+}
+.banner__lead {
+  margin: 8px 0 0;
   font-size: 15px;
   line-height: 1.55;
   color: var(--muted);
 }
-.page-head__aside {
+.banner__aside {
   flex: none;
 }
 .page-head__crew {
@@ -772,7 +796,7 @@ a.panel__hint:hover {
 .hero__pic {
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: -2; /* under the ::before shade, which is -1 */
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -3910,7 +3934,7 @@ a.fy-chip:hover {
   .agents__grid {
     grid-template-columns: 1fr;
   }
-  .page-head {
+  .banner {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -4011,23 +4035,23 @@ a.fy-chip:hover {
   }
   /* On a phone the still is a band above the words, fading into the panel, so nothing sits on the Kernel's glare. */
   .hero,
-  .page-head--pic {
+  .banner {
     padding: 150px 18px 18px;
     gap: 16px;
   }
   .hero::before,
-  .page-head--pic::before {
+  .banner::before {
     background: linear-gradient(0deg, rgba(4, 6, 11, 0.2) 0%, rgba(4, 6, 11, 0.2) 100%);
   }
   .hero__pic,
-  .page-head__pic {
+  .banner__pic {
     height: 240px;
     object-position: 50% 35%;
     mask-image: linear-gradient(#000 35%, transparent 100%);
     -webkit-mask-image: linear-gradient(#000 35%, transparent 100%);
     animation: none;
   }
-  .page-head--pic .page-head__text {
+  .banner__text {
     margin-top: -16px;
   }
   .hero__greet {
@@ -4046,8 +4070,11 @@ a.fy-chip:hover {
   .hero__foot span:last-child {
     white-space: normal;
   }
-  .page-head--pic {
+  .banner {
     min-height: 0;
+  }
+  .banner__voice {
+    font-size: 19px;
   }
   .page-head__crew {
     flex-wrap: wrap;

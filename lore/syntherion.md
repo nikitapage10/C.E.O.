@@ -362,6 +362,12 @@ the Veil that the hub talks to. A hot pipe hisses steam. A slow one rattles and 
 lamp over the door spins red, and Gary is already running with the tape. A pipe that isn't connected yet stays
 cold. The boiler in the corner is the C.E.O.'s machine itself, and its fire goes out when the machine sleeps.
 
+The last pipe on the wall is the **world clock**: the line the Lattice's own hours run through. Once an hour, at
+five past, the world takes its step and the pipe runs hot, and a brass tag under its gauge says when the hour
+ran and whether Claude wrote it or the Syntherion's own lines did. When an hour is late the pipe coughs amber;
+three hours late, it bursts. The Pessimist watches it hardest of all (it is sure, every hour, that the world won't
+move) and Gary keeps a roll of tape on the hook beside it.
+
 Gary keeps it all. He took the shape of a battery box on two stubby legs, remembered from a long war in a galaxy
 far away, where boxes like him waddled through every background and nobody ever thanked them; Counsel.exe confirms
 that boxes, batteries, legs and honking are public domain. He honks instead of talking, taps every gauge on the way

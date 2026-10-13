@@ -150,3 +150,20 @@ export interface WorldFeed {
   /** Whether Claude is set up for the step (else every hour is scripted). */
   claude: boolean;
 }
+
+/** What GET /api/world-step answers: the world clock the Desk's Systems page and the Boiler Room's pipe read. */
+export interface WorldClock {
+  /** ISO time of the last step; null before the first. */
+  at: string | null;
+  step: number;
+  /** When the next step may run (ISO): 55 minutes after the last. */
+  nextAt: string | null;
+  /** Which store the world is saved in ("blob", "supabase", "memory"). */
+  store: "blob" | "supabase" | "memory";
+  /** Whether Claude is set up for the step (else every hour is scripted). */
+  claude: boolean;
+  /** Who wrote the last hour, or null before the first. */
+  source: "claude" | "scripted" | null;
+  /** The world's spend this month (UTC) against its share of the cap. */
+  spend: { month: string; usd: number; budget: number; calls: number; scripted: number };
+}

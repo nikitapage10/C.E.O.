@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { startFoundry } from "../foundry.ts";
 import { loadLattice, navigate, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
+import { startWorldClock } from "../worldClock.ts";
 import { useAwaySince } from "./awaySince.ts";
 import { useDeskData } from "./deskData.ts";
 import { useNow } from "./motion.tsx";
@@ -48,6 +49,7 @@ export function Desk({ route }: { route: DeskTab }) {
 
   useEffect(() => {
     startFoundry();
+    startWorldClock();
   }, []);
 
   useEffect(() => {

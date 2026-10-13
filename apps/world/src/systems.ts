@@ -6,7 +6,8 @@ import { create } from "zustand";
  * so the Desk can load it alone.
  *
  * Relay's links come from the hub on the MacBook (phase 2); until it exists they are "off" (not connected yet).
- * The Foundry's come from GitHub (see foundry.ts).
+ * The Foundry's come from GitHub (see foundry.ts). The world clock comes from the living Lattice's hourly step
+ * (worldClock.ts).
  * `?demo` (or `?boiler=demo`) cycles them through every state, to preview the Boiler Room's gags.
  */
 
@@ -19,7 +20,7 @@ export interface Link {
   what: string;
   kind: "agent" | "service" | "machine";
   /** Which room's system it belongs to (the Systems page draws one schematic per room). */
-  room: "relay" | "foundry";
+  room: "relay" | "foundry" | "world";
   state: LinkState;
   /** How busy, 0..1 (the pipe's gauge). */
   load: number;
@@ -45,6 +46,7 @@ const LINKS: Link[] = [
   { id: "mac", label: "MacBook", what: "Awake, on power, online", kind: "machine", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "checks", label: "Checks", what: "Types, lint, tests and build on main, on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "foundry", label: "Foundry", what: "The coding thread in Claude Code", kind: "agent", room: "foundry", state: "off", load: 0, lastSeen: null },
+  { id: "world", label: "World clock", what: "The living Lattice's hourly step", kind: "service", room: "world", state: "off", load: 0, lastSeen: null },
 ];
 
 interface SystemsStore {

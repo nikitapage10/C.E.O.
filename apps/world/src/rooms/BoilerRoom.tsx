@@ -1,24 +1,30 @@
 import { getStation, pendingApprovals } from "@ceo/core";
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { MeshStandardMaterial, type Group, type Mesh, type PointLight } from "three";
 import { Dust, Haze, Smoke, Sparks } from "../fx/atmos.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
 import { daysSinceIncident, useSystems, type Link, type LinkState } from "../systems.ts";
+import { startWorldClock } from "../worldClock.ts";
 import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";
 
 /**
  * The Boiler Room: a cramped, steaming maintenance closet where every brass pipe is one of the C.E.O.'s real
  * links (an agent, the hub, a service) and the boiler is the MacBook. It is played for laughs, but every gag is a
  * real status: steam means healthy, a coughing, rattling pipe means slow, a burst pipe and the spinning lamp mean
- * down, a cold pipe means not connected yet. The kettle whistles when a real approval is waiting.
+ * down, a cold pipe means not connected yet. The kettle whistles when a real approval is waiting. The last pipe is
+ * the world clock: it runs hot while the living Lattice takes its hourly step, coughs once an hour is overdue, and
+ * bursts when the clock has stopped (worldClock.ts).
  */
 
 const LAMP: Record<LinkState, string> = { off: "#3a3d42", ok: "#9fe3c9", slow: "#ffd08f", down: "#ff5a6e" };
 const PIPE_Z = -5.55;
 const pipeX = (i: number) => -7 + i * 1.0;
+const WORDS: Record<LinkState, string> = { off: "COLD · NOT CONNECTED", ok: "HOT · WORKING", slow: "COUGHING · SLOW", down: "BURST · DOWN" };
+/** The world clock's pipe speaks in hours: on time, overdue (amber, over 70 min), stopped (over 3 h, or no answer). */
+const CLOCK_WORDS: Record<LinkState, string> = { off: "COLD · NOT RUNNING", ok: "HOT · ON TIME", slow: "COUGHING · OVERDUE", down: "BURST · STOPPED" };
 
 /** A pipe's live state, read every frame without re-rendering the room. */
 const stateOf = (id: string): LinkState => useSystems.getState().links.find((l) => l.id === id)?.state ?? "off";
@@ -94,8 +100,21 @@ function Pipe({ link, x }: { link: Link; x: number }) {
         {link.label.toUpperCase()}
       </Text>
       <Text font={FONTS.mono} fontSize={0.05} position={[0, 1.27, 0.16]} letterSpacing={0.1} color={LAMP[state] === LAMP.off ? "#8a8a93" : LAMP[state]} anchorX="center">
-        {state === "off" ? "COLD · NOT CONNECTED" : state === "ok" ? "HOT · WORKING" : state === "slow" ? "COUGHING · SLOW" : "BURST · DOWN"}
+        {(link.id === "world" ? CLOCK_WORDS : WORDS)[state]}
       </Text>
+      {/* The world clock's brass tag: when the last hour ran, and who wrote it (worldClock.ts). */}
+      {link.id === "world" && link.note && (
+        <group position={[0, 1.13, 0.26]}>
+          {/* Its bracket, off the pipe. */}
+          <mesh position={[0, 0, -0.07]} material={PBR.brass()}>
+            <boxGeometry args={[0.03, 0.03, 0.14]} />
+          </mesh>
+          <Block size={[0.78, 0.09, 0.02]} material={PBR.brass()} radius={0.008} />
+          <Text font={FONTS.mono} fontSize={0.042} position={[0, 0, 0.015]} letterSpacing={0.08} color="#2a1c10" anchorX="center" anchorY="middle">
+            {link.note}
+          </Text>
+        </group>
+      )}
       {state !== "off" && (
         <Smoke
           position={[0.22, 2.6, 0]}
@@ -343,6 +362,8 @@ function Bulb() {
 
 export function BoilerRoom() {
   const links = useSystems((s) => s.links);
+  // The world clock's pipe reads the hourly step live, as the Desk does.
+  useEffect(() => startWorldClock(), []);
   const boiler = ahead(getStation("boiler", "boiler"), 1.6);
   const bucket = ahead(getStation("boiler", "bucket"), 0.6);
   const sign = ahead(getStation("boiler", "sign"), 0.95);

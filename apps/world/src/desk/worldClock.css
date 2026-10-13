@@ -1,0 +1,181 @@
+/* The world clock on the Systems page (WorldClockPanel.tsx): a dial and four readings, amber when an hour is overdue. */
+.wclock {
+  --c: var(--faint);
+}
+.wclock--ok {
+  --c: var(--mint);
+}
+.wclock--slow {
+  --c: var(--amber);
+  border-color: rgba(255, 208, 143, 0.35);
+}
+.wclock--down {
+  --c: var(--rose);
+  border-color: rgba(255, 107, 139, 0.4);
+}
+.wclock__body {
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+}
+.wclock__dial {
+  flex: none;
+  width: 92px;
+  height: 92px;
+}
+.wclock__dial-track {
+  fill: none;
+  stroke: var(--hair-soft);
+  stroke-width: 5;
+}
+.wclock__dial-fill {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px var(--c));
+  transition: stroke-dasharray 0.6s ease;
+}
+.wclock__tick {
+  stroke: var(--hair-strong);
+  stroke-width: 1.2;
+}
+.wclock__dial-text {
+  fill: var(--text);
+  font-family: var(--mono);
+  font-size: 15px;
+  text-anchor: middle;
+}
+.wclock__dial--slow .wclock__dial-fill,
+.wclock__dial--down .wclock__dial-fill {
+  animation: wclock-pulse 1.6s ease-in-out infinite;
+}
+@keyframes wclock-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+.wclock__main {
+  flex: 1;
+  min-width: 0;
+}
+.wclock__head {
+  margin: 0 0 14px;
+  font-size: 17px;
+  color: var(--c);
+}
+.wclock--ok .wclock__head {
+  color: var(--text);
+}
+.wclock__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.wclock__cell {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hair-soft);
+  border-radius: 5px;
+}
+.wclock__cell--late {
+  border-color: var(--c);
+}
+.wclock__cell dt {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.wclock__cell dd {
+  margin: 4px 0 0;
+  display: grid;
+  gap: 3px;
+}
+.wclock__cell b {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+}
+.wclock__cell--late b,
+.wclock__cell--late small {
+  color: var(--c);
+}
+.wclock__cell small {
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.wclock__meter {
+  display: block;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--hair-soft);
+  overflow: hidden;
+}
+.wclock__meter i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  background: var(--mint);
+}
+.wclock__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+@media (max-width: 860px) {
+  .wclock__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  /* The dial sits beside the headline; the readings run full width under them. */
+  .wclock__body {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 12px 14px;
+  }
+  .wclock__main {
+    display: contents;
+  }
+  .wclock__dial {
+    width: 64px;
+    height: 64px;
+  }
+  .wclock__head {
+    align-self: center;
+    margin: 0;
+    font-size: 16px;
+  }
+  .wclock__grid,
+  .wclock__foot {
+    grid-column: 1 / -1;
+  }
+  .wclock__foot {
+    margin-top: 0;
+  }
+  .wclock__grid {
+    gap: 8px;
+  }
+  .wclock__cell {
+    padding: 8px 10px;
+  }
+  .wclock__cell b {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wclock__dial-fill {
+    animation: none;
+    transition: none;
+  }
+}

@@ -6,10 +6,12 @@ import { FoundrySystem } from "./FoundryPage.tsx";
 import { SystemsPanel } from "./SystemsPanel.tsx";
 import { Avatar, PageHead, Panel, Pill } from "./ui.tsx";
 import { ActivityMeter } from "./viz.tsx";
+import { WorldClockPanel } from "./WorldClockPanel.tsx";
 
 /**
  * Systems: what's connected and what isn't, one system per room as each becomes real: Relay and the Foundry so
- * far; the others are listed as planned until their agents go live.
+ * far; the others are listed as planned until their agents go live. The world clock (the living Lattice's hourly
+ * step) sits above them all, since every room lives by it.
  */
 
 const AGENTS = [
@@ -107,6 +109,8 @@ export function Systems({ now }: { now: number }) {
           </div>
         }
       />
+
+      <WorldClockPanel now={now} />
 
       <RoomPicker room={room} onPick={pick} />
 

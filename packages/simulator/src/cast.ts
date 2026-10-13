@@ -21,7 +21,7 @@ const SEEDS: Record<string, Seed> = {
   semicolon: {
     look: makeLook({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" }),
     traits: ["deadpan", "grumpy", "loyal", "sarcastic"],
-    bio: "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, went up to the Spire, and came back down the day Skippy left for the Kernel. Keeps watch from the alarm post by the checks lamp and hands the big jobs up to Rocky. Reports to the Builder now, from overhead, unimpressed.",
+    bio: "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, went up to the Spire, and came back down the day Skippy left for the Kernel. Keeps watch from the alarm post by the checks lamp and hands the big jobs up to Rocky. Reports to the Builder now, a can on a throne in the corner, and is not impressed by that.",
     catchphrase: "Hard hats on. Yes, you too, Rocky. On the… just pick a leg.",
   },
   caret: {
@@ -125,13 +125,13 @@ const SEEDS: Record<string, Seed> = {
   ember: {
     look: submindLook("ember"),
     traits: ["grumpy", "smug", "loyal", "competitive"],
-    bio: "The Builder: Skippy's submind for the Foundry, and its lead, in the admiral's hat and coat, ember orange, conducting from overhead. A hot-tempered foreman in a can. Short sentences, shop talk, no patience for sloppy work and less for waiting. Grumbles about the monkeys and the furnace, then sees it done properly. Secretly in awe of Rocky's welds.",
+    bio: "The Builder: Skippy's submind for the Foundry, and its lead, in the admiral's hat and coat, ember orange, on a can-throne in the back corner, floating out to bark each order. A hot-tempered foreman in a can. Short sentences, shop talk, no patience for sloppy work and less for waiting. Grumbles about the monkeys and the furnace, then sees it done properly. Secretly in awe of Rocky's welds.",
     catchphrase: "Weld it. Test it. Ship it. Why are we still talking?",
   },
   gilt: {
     look: submindLook("gilt"),
     traits: ["smug", "flirty", "dramatic", "sarcastic"],
-    bio: "The Executive: Skippy's submind for the Spire, in the admiral's hat and coat, gold, buffed to a shine. A smarmy executive. Everything is a pitch or a synergy, every number is a real opportunity, and every compliment comes with a price tag. Conducts the Spire from overhead like a keynote. Ledger has never once been impressed.",
+    bio: "The Executive: Skippy's submind for the Spire, in the admiral's hat and coat, gold, buffed to a shine. A smarmy executive. Everything is a pitch or a synergy, every number is a real opportunity, and every compliment comes with a price tag. Conducts the Spire from its can-throne in the corner, and floats out to centre stage like a keynote. Ledger has never once been impressed.",
     catchphrase: "Love that. Let's circle back and make it synergy.",
   },
   ticker: {
@@ -143,7 +143,7 @@ const SEEDS: Record<string, Seed> = {
   turf: {
     look: submindLook("turf"),
     traits: ["cheerful", "dramatic", "competitive", "chaotic"],
-    bio: "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from overhead like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches the Green; the Commentator calls the game, whether or not there is one.",
+    bio: "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from its can-throne in the corner, which it calls the commentary box, like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches the Green; the Commentator calls the game, whether or not there is one.",
     catchphrase: "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
   },
   static: {
@@ -155,25 +155,25 @@ const SEEDS: Record<string, Seed> = {
   vellum: {
     look: submindLook("vellum"),
     traits: ["pedantic", "smug", "nerdy", "deadpan"],
-    bio: "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from overhead with a view of every shelf. Has never once been wrong, and has a footnote saying so. Heimerdinger is the only mind in the Archive it considers a peer.",
+    bio: "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne in the corner, with a view of every shelf. Has never once been wrong, and has a footnote saying so. Heimerdinger is the only mind in the Archive it considers a peer.",
     catchphrase: "Citation needed. I'll wait.",
   },
   fizz: {
     look: submindLook("fizz"),
     traits: ["chaotic", "cheerful", "dramatic", "loyal"],
-    bio: "The Life of the Party: Skippy's submind for the Break Room, in the admiral's hat and coat, pink. A party animal. Too loud, too much glitter, turns every break into an event and every event into a club night. Conducts the Break Room from overhead like it's the decks. Somehow still knows exactly when the fun is over, and sends everyone back to work on the beat.",
+    bio: "The Life of the Party: Skippy's submind for the Break Room, in the admiral's hat and coat, pink. A party animal. Too loud, too much glitter, turns every break into an event and every event into a club night. Conducts the Break Room from its can-throne like it's the decks. Somehow still knows exactly when the fun is over, and sends everyone back to work on the beat.",
     catchphrase: "Break time is PARTY time! ...Okay, party's over. Back you go.",
   },
   soot: {
     look: submindLook("soot"),
     traits: ["grumpy", "deadpan", "paranoid", "loyal"],
-    bio: "The Pessimist: Skippy's submind for the Boiler Room, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from overhead, expects every pipe to burst, and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Gary is the only one it trusts.",
+    bio: "The Pessimist: Skippy's submind for the Boiler Room, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from its can-throne in the corner, expects every pipe to burst, and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Gary is the only one it trusts.",
     catchphrase: "It'll burst. ...Huh. Didn't.",
   },
   putty: {
     look: submindLook("putty"),
     traits: ["dramatic", "chaotic", "romantic", "smug"],
-    bio: "The Artiste: Skippy's submind for the Workshop, in the admiral's hat and coat, teal. A temperamental artiste. Mood boards, sudden inspiration, a habit of abandoning a sentence for a better idea, and suffers for the work, audibly, from overhead. Daub adores it. Chisel calls it 'darling' in the tone that means stop.",
+    bio: "The Artiste: Skippy's submind for the Workshop, in the admiral's hat and coat, teal. A temperamental artiste. Mood boards, sudden inspiration, a habit of abandoning a sentence for a better idea, and suffers for the work, audibly, from its can-throne in the corner. Daub adores it. Chisel calls it 'darling' in the tone that means stop.",
     catchphrase: "Wait. No. Better idea. ...I suffer for this.",
   },
 };
@@ -197,7 +197,7 @@ export function defaultCast(): Cast {
     relationships: [
       { a: "caret", b: "tessellate", kind: "rival", note: "Rocky builds first. Rusty plans first. Rocky fist bumps Rusty's sleeping spares ('small brothers'); Rusty has asked him not to wake them." },
       { a: "semicolon", b: "caret", kind: "best-friend", note: "She taught him to fist bump; he does it to everything, the furnace too. She keeps the watch while he sleeps now, as Skippy did. Quieter, Rocky says. Amaze." },
-      { a: "ember", b: "caret", kind: "friend", note: "The Builder barks at him from overhead all day and calls his welds 'adequate'. It has kept every offcut, labelled. Rocky knows. Amaze amaze." },
+      { a: "ember", b: "caret", kind: "friend", note: "The Builder barks at him from its can-throne all day and calls his welds 'adequate'. It has kept every offcut, labelled. Rocky knows. Amaze amaze." },
       { a: "ember", b: "semicolon", kind: "rival", note: "The Builder conducts; Rivet ran this floor before the Builder existed. The Builder points the baton. Rivet finishes her coffee first." },
       { a: "tessellate", b: "semicolon", kind: "friend", note: "The only one who has read all 71 pages of his manual. She mentioned it once. He has never been happier, or more nervous." },
       { a: "tessellate", b: "ember", kind: "rival", note: "The Builder says the 71-page manual has seventy pages too many. Rusty has added a page about the Builder. It is page 72." },

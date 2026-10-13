@@ -7,7 +7,7 @@ import {
   type LatticeState,
   type RoomId,
 } from "@ceo/core";
-import { Simulator } from "@ceo/simulator";
+import { Simulator, isSubmind } from "@ceo/simulator";
 import { create } from "zustand";
 import { clock } from "./clock.ts";
 import type { LegalFollowUp } from "./glitches/registry.ts";
@@ -166,6 +166,9 @@ export const useWorld = create<WorldStore>((set, get) => ({
     if (events.length === 0) return;
     let speechQueue = get().speechQueue;
     for (const e of events) {
+      // Real work starting in a room (the Foundry's crates, the Relay's lines) brings its submind out to give the
+      // order; the demo's own tasks do this inside the simulator.
+      if (e.type === "task.started" && e.source !== "simulated" && !isSubmind(e.agentId)) simulator.command(e.room, e.agentId, e.ts);
       if (e.type !== "agent.quip" || !get().lattice.agents[e.agentId]) continue;
       // Keep at most two lines waiting per agent; older chatter is still in the feed.
       speechQueue = { ...speechQueue, [e.agentId]: [...(speechQueue[e.agentId] ?? []), e.text].slice(-2) };

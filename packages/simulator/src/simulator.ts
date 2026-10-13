@@ -7,8 +7,9 @@ import {
   type AgentEvent,
   type AgentEventBody,
   type Place,
+  type RoomId,
 } from "@ceo/core";
-import { SAMPLE_AGENTS, type SimAgent } from "./agents.ts";
+import { SAMPLE_AGENTS, isSubmind, submindOf, type SimAgent } from "./agents.ts";
 import {
   AGENT_QUIPS,
   APPROVAL_WAIT_QUIPS,
@@ -25,6 +26,12 @@ import { SCRIPTS, coffeeBreak, type ScriptId, type Step } from "./scripts.ts";
 
 /** What counts as working, to a submind on its rounds. */
 const BUSY: ReadonlySet<Activity> = new Set(["working", "typing", "carrying"]);
+
+/**
+ * A submind gives at most one command per this long (Lattice ms, from when it last flew out), so a busy room
+ * doesn't keep it off its podium: it comes out for the order, not for every keystroke.
+ */
+export const COMMAND_COOLDOWN = 45_000;
 
 interface Actor {
   spec: SimAgent;
@@ -56,6 +63,8 @@ export class Simulator {
   private now: number;
   private readonly approvalOwners = new Map<string, Actor>();
   private outbox: AgentEvent[] = [];
+  /** Each submind's latest command: when it flew out, and who it was for. */
+  private readonly commands = new Map<string, { ts: number; target: string | null }>();
 
   constructor(options: SimulatorOptions = {}) {
     const seed = options.seed ?? 1;
@@ -138,6 +147,38 @@ export class Simulator {
     if (actor.spec.script === script) return true;
     actor.spec = { ...actor.spec, script };
     return this.assign(agentId, [], ts);
+  }
+
+  /**
+   * Work has started in a room (or its lead is handing work to `target`): the room's submind leaves its command
+   * podium, floats out over the middle of the room to give the order, conducts a moment, and glides back. Skipped
+   * (false) when the submind is not sitting on its podium (already out, checking on someone, away), or gave a
+   * command less than COMMAND_COOLDOWN ago. Cuts short its pose on the podium, never a flight.
+   */
+  command(room: RoomId, target: string | null = null, ts = this.now): boolean {
+    const lead = submindOf(room);
+    const actor = this.actors.find((a) => a.spec.id === lead.id);
+    if (!actor || actor.place.room !== room || actor.place.station !== "post") return false;
+    const last = this.commands.get(lead.id);
+    if (last && ts - last.ts < COMMAND_COOLDOWN) return false;
+    // It leaves once any flight it is on has landed; the cooldown runs from then.
+    const at = Math.max(ts, actor.walkEnd);
+    this.commands.set(lead.id, { ts: at, target });
+    actor.queue = [
+      { kind: "go", station: "command", room },
+      // "waiting" is the admiral can's conducting beat: the order, given with the baton.
+      { kind: "do", activity: "waiting", ms: this.rng.int(4500, 7000), prop: null },
+      { kind: "do", activity: "staring", ms: this.rng.int(1500, 2500) },
+      { kind: "go", station: "post", room },
+      ...actor.queue,
+    ];
+    actor.nextAt = at;
+    return true;
+  }
+
+  /** Who a submind's latest command was for (null when it was for the whole room, or it never gave one). */
+  commandTarget(submindId: string): string | null {
+    return this.commands.get(submindId)?.target ?? null;
   }
 
   /** The routine an agent is on. */
@@ -225,6 +266,8 @@ export class Simulator {
           const taskId = `task-${++this.counter}`;
           actor.taskId = taskId;
           this.emit(t, { type: "task.started", taskId, agentId: id, title: step.title, room: actor.place.room });
+          // Work starting in a room is its lead's cue to come out and give the order.
+          if (!isSubmind(id) && actor.place.room === actor.spec.home.room) this.command(actor.place.room, id, t);
           continue;
         }
         case "checkin": {

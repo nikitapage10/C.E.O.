@@ -27,7 +27,6 @@ const BOX: Record<ZoneId, { x: number; y: number; w: number; h: number }> = {
   github: { x: 700, y: 30, w: 280, h: 110 },
   builder: { x: 700, y: 180, w: 280, h: 80 },
   claude: { x: 700, y: 285, w: 280, h: 98 },
-  gemini: { x: 700, y: 415, w: 280, h: 80 },
 };
 
 /** Each boundary's line and where its chip sits. */
@@ -39,8 +38,8 @@ const EDGE: Record<string, { d: string; cx: number; cy: number }> = {
   TB5: { d: "M840 140 L840 180", cx: 840, cy: 160 },
   TB6: { d: "M240 110 L330 110", cx: 285, cy: 110 },
   TB7: { d: "M240 335 L330 335", cx: 285, cy: 335 },
-  // Actions (in GitHub, top right) out to Gemini (bottom right), round the right of the column.
-  TB8: { d: "M980 115 C 1040 115, 1040 455, 980 455", cx: 1025, cy: 285 },
+  // Actions (in GitHub, top right) out to Gemini in the model APIs' box (bottom right), round the right of the column.
+  TB8: { d: "M980 115 C 1040 115, 1040 345, 980 345", cx: 1025, cy: 230 },
 };
 
 export function TrustMap() {
@@ -50,7 +49,7 @@ export function TrustMap() {
   const rootRef = useRef<HTMLDivElement>(null);
   const b = BOUNDARIES.find((x) => x.id === picked) ?? BOUNDARIES[0]!;
 
-  // Like the How it connects cards (#80): the floating detail lives at the Desk's root, out of the page's transform.
+  // Like the Desk's pop-over cards (#80): the floating detail lives at the Desk's root, out of the page's transform.
   useEffect(() => {
     setHost(rootRef.current?.closest<HTMLElement>(".desk") ?? document.body);
   }, []);
@@ -73,7 +72,7 @@ export function TrustMap() {
 
   return (
     <div className="tmap" ref={rootRef}>
-      <svg className="tmap__svg" viewBox="0 -34 1060 534" role="group" aria-label="Trust boundaries: the zones C.E.O.'s data passes through and the eight boundaries between them">
+      <svg className="tmap__svg" viewBox="0 -34 1060 424" role="group" aria-label="Trust boundaries: the zones C.E.O.'s data passes through and the eight boundaries between them">
         <defs>
           <marker id="tmap-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0 0 L10 5 L0 10 z" className="tmap__head" />

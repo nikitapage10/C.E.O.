@@ -22,6 +22,23 @@ counts) and Systems > Compliance (`/systems/compliance`: the OWASP, NIST AI RMF 
 public to read, so its feed (`api/security-feed.ts`) carries posture only: states, scores, dates and counts, never
 an open alert's details.
 
+## Keys and settings in Vercel
+
+Every secret lives only in Vercel's environment (Project, Settings, Environment Variables), never in the repo or the
+browser, and no function logs or returns one. Which environments get each is in [DELIVERY.md](DELIVERY.md),
+"Environments".
+
+| Variable | What it is for | Without it |
+| --- | --- | --- |
+| `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script | Shaping is off; hours and scripts come from the agents' own lines |
+| `GEMINI_API_KEY` | Gemini's text to speech: the day's story, read aloud (#95). Sent only in a request header, with only the day's scrubbed script | No audio; the Chronicle says so |
+| `GEMINI_BUDGET_USD` | Gemini's monthly cap, enforced in code (`api/_world/story.ts`); default 5, never above 10 | $5 |
+| `FOUNDRY_GITHUB_TOKEN` | The Desk's buttons write issues; the feeds read with it | Buttons say "not set up" |
+| `FOUNDRY_DESK_KEY` | The Desk's passphrase, compared in constant time | Buttons and the story backfill say "not set up" |
+| `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
+| `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
+| `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved |
+
 ## What scans the code, and when
 
 | Check | Runs on | What it looks for | Where findings show |
@@ -38,17 +55,14 @@ Every action in the workflows is pinned to a full commit SHA with its version in
 change what runs. Dependabot proposes the bumps. Each workflow starts with read-only permissions and grants write
 access only to the job that needs it.
 
-## Secrets, and where each one lives
+## Keys in GitHub Actions
 
-Names only; no value is ever in the repo, a log or the Desk.
+One secret lives in the repo's Actions secrets (Settings > Secrets and variables > Actions) rather than in Vercel,
+because only a workflow uses it. Workflows never print it, and the job that holds it has read-only permissions.
 
-| Secret | Where it lives | Used by |
+| Secret | What it is for | Without it |
 | --- | --- | --- |
-| `CLAUDE_API_KEY` | Vercel environment | Rivet's shaping and the world step (Claude Haiku) |
-| `FOUNDRY_GITHUB_TOKEN` | Vercel environment | The Desk's buttons and the read feeds |
-| `FOUNDRY_DESK_KEY` | Vercel environment, Nikita's browser | The Desk's write buttons |
-| `BLOB_READ_WRITE_TOKEN` | Vercel environment (set by Vercel) | World state and idea pictures |
-| `GEMINI_API_KEY` | GitHub Actions secret (repo Settings > Secrets and variables > Actions) | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91). Sent only to Google's API host in a header, never printed; spend capped in code per run and per day. Without it the tour still records and the review is skipped |
+| `GEMINI_API_KEY` | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91): clips of the public Lattice go to Gemini. Sent only to Google's API host in a header, never printed; spend capped in code at $0.50 a run and eight pushed runs a day. The same name in Vercel is the separate key for the day's story (above) | The tour still records; the review is skipped |
 
 ## Why these tools
 

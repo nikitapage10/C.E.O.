@@ -28,9 +28,11 @@ look() {
 
 # The living Lattice's hourly step (docs/WORLD.md) also gets a nudge from here every ten minutes. GitHub's hourly
 # schedule for it is best-effort and has gone hours without firing; the step itself does nothing until an hour has
-# passed, so the extra nudges cost nothing.
+# passed, so the extra nudges cost nothing. It also nudges once on every start: the Builder restarts this script after
+# each ring, and on a busy day it never ran ten unbroken minutes, so the world went over an hour without a step.
 world() { curl -sS -o /dev/null --max-time 120 -X POST https://command-everything-obviously.vercel.app/api/world-step || true; }
 ticks=0
+world &
 
 # True when issue $1 has a comment from anyone but Nikita (the Desk writes with Nikita's token too), Checks or Vercel.
 owner="nikitapage10"

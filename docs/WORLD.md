@@ -55,6 +55,53 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
 - The Desk's **Usage** panel shows the world's spend this month, how many hours Claude wrote and how many were
   scripted, and counts it against the shared cap meter.
 
+## The day's story
+
+Once a day's recap is filed, **the Historian reads the day's update aloud** (issue #95, made livelier in #102): a
+quick, bright "today in Ilyr" in 30 to 45 seconds, one presenter, not a podcast and not two hosts.
+`api/_world/story.ts`.
+
+- **Trigger:** the step that writes a recap (the first after midnight Mountain) makes that day's story after it has
+  answered (`waitUntil` in `api/world-step.ts`), so the step stays fast. The Chronicle also has **Make it now** for
+  today or yesterday (`POST /api/day-story` with the Desk key, compared in constant time): yesterday when its recap
+  is filed and it has no story yet, else **the day so far**. Each day gets at most two: one "so far" from the Desk,
+  and the recap's, which replaces it. Each is made once (a claim in the store, so a second call, or two racing,
+  spends nothing).
+- **Style versions:** each story carries the style it was made with (`STORY_STYLE`, now 2; the first, slow Gacrux
+  stories of #95 carry none and count as 1). A story in an older style shows on the Chronicle with **Make it now**,
+  which remakes it once in the current style: still Desk-key gated, still inside `GEMINI_BUDGET_USD`, and the claims
+  carry the version (`world/stories/<day>.<kind>.v2.claim`), so each style is paid for at most once per day and kind,
+  and two racing remakes spend once. The world step never remakes an old story by itself.
+- **The script:** Claude Haiku (the world's model and key, plain text out, about a tenth of a cent) writes 70 to 120
+  words, 30 to 45 seconds aloud, from the day's Chronicle page only: the recap, each hour's summary, the real Foundry
+  events (what shipped and who built it) and the builders' remarks. Its shape: a one-line hook ("Today in Ilyr..."),
+  the two to four biggest things that shipped or happened and who built them, one bit of character colour, a quick
+  sign-off. Those lines were scrubbed when the step wrote them; they reach Claude fenced in tagged blocks, and the
+  script is scrubbed again, stripped of markup and bracketed cues, and capped at 140 words on a sentence
+  (`cleanScript`). Without a Claude key, or when it doesn't answer, the script is put together from the Chronicle's
+  own lines in the same shape (`chronicleScript`: the hook, the recap's first sentence, the top three builds, one
+  remark, the sign-off). Never a demo: no key, no audio.
+- **The speech:** Gemini's text to speech over plain `fetch` (no SDK): `gemini-3.8-flash-tts`, the prebuilt voice
+  **Puck** ("Upbeat"; lighter and brighter than the deep "Mature" Gacrux of #95, which Nikita found slow and odd),
+  with a short style note: a bright, friendly presenter giving today's quick update, brisk, warm and conversational,
+  a little faster than usual. The API has no speaking-rate setting; Google's guide steers pace through the style
+  note, so that is where the pace is set. It asks for raw 16-bit PCM at 16 kHz (`audio/l16`) and wraps it as WAV
+  (32 KB a second). Sources are in the file's header: Google's speech generation guide, the Interactions API
+  reference and the pricing page.
+- **The budget:** $0.50 per million text tokens in and $9.00 per million audio tokens out (25 a second) through
+  2026, then $1.00 and $18.00: a 40-second story is about 1,000 audio tokens, about a cent (two from 2027). Gemini
+  has its **own cap**, `GEMINI_BUDGET_USD` (default **$5**, never above $10), kept in `world/stories/spend.json`; no
+  story is started once one more at its most (a long prompt and two minutes of audio, about three cents) could pass
+  it. The script's Claude cost is kept beside it and counted in the shared Claude cap on the Usage panel, where
+  Gemini's spend shows next to the world's.
+- **Kept and served:** `world/stories/<day>.json` (the script, its length, model, voice and style, what it cost) and
+  `world/stories/<day>.wav` in the private Blob store. `GET /api/day-story?day=…` answers the transcript and the
+  audio's link, with `stale` for an older style (or why there is none: `no-key`, `over-budget`, `not-yet`);
+  `&audio=1` serves the WAV from our own origin (the CSP's `media-src` is `'self'`), cached at the edge, versioned by
+  when it was made.
+- **Where it shows:** on the Chronicle's day pages, "Hear the day in Ilyr" with its length, a native player and the
+  transcript (collapsed); on Today, yesterday's under "In Ilyr" once it is made.
+
 ## The storage layer
 
 `api/_world/store.ts` is one small interface: `loadState`, `saveState`, `appendHistory`, `putRecap`, `readDay`.
@@ -88,8 +135,10 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
 
 ## Reading it
 
-- `GET /api/world` → the feed (state, the last 12 hours, the day index, remarks, this month's spend), cached at the
-  edge for five minutes.
+- `GET /api/world` → the feed (state, the last 12 hours, the day index, remarks, this month's spend, and the day's
+  story's Gemini spend as `story`), cached at the edge for five minutes.
+- `GET /api/day-story?day=2026-10-13` → the day's story (transcript and audio link) or why there is none;
+  `&audio=1` → the WAV. `POST { key, day? }` → make today's or yesterday's now (Desk key).
 - `GET /api/world?day=2026-10-13` → one day's page.
 - `GET /api/world-step` → the world clock, without running a step: `{ at, step, nextAt, store, claude, source,
   spend: { month, usd, budget, calls, scripted } }` (`api/_world/clock.ts`), never cached. Only times, counts and

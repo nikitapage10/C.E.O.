@@ -1,22 +1,30 @@
 import type { DeskRoom } from "./deskData.ts";
 
 /**
- * How C.E.O.'s notable connections work, for the Systems page's "How it connects" section (issue #69): what kind
- * each one is (a REST API, an MCP server, a CLI, a scheduled job…), who calls whom, how it signs in and how often.
- * Only the distinct ones (Nikita, 2026-10-13: "call out the big ones… not the obvious ones"), so nothing like the
- * site loading its own files. Every line is backed by the code or the docs (api/, docs/FOUNDRY.md, docs/WORLD.md,
- * the Relay setup notes); Relay's are planned until the hub exists.
+ * How C.E.O.'s notable connections work: what kind each one is (a REST API, an MCP server, a CLI, a scheduled job…),
+ * who calls whom, how it signs in and how often. Only the distinct ones (Nikita, 2026-10-13: "call out the big ones…
+ * not the obvious ones"), so nothing like the site loading its own files. Every line is backed by the code or the
+ * docs (api/, docs/FOUNDRY.md, docs/WORLD.md, the Relay setup notes); Relay's are planned until the hub exists.
+ *
+ * Each one is explained where it belongs (issue #99): in the pop-over of the part it serves in its room's system
+ * diagram on the Systems page, or in the world clock's for the Boiler Room's hourly step. The two the Foundry and the
+ * world clock both lean on (the Claude API, Vercel Blob) show in both.
  *
  * The page is public: name env vars at most, never a value (connections.test.ts checks for anything key-like).
  */
 
 export type ConnectionKind = "REST API" | "SDK" | "MCP server" | "CLI" | "Scheduled" | "Webhook" | "Polling" | "Storage" | "WebSocket" | "Agent";
 
+/** Where a connection is explained: a part of Relay's or the Foundry's diagram, or the world clock. */
+export type ConnectionPlace = { system: "relay" | "foundry"; part: string } | { system: "world" };
+
 export interface Connection {
   id: string;
   name: string;
-  /** The room whose tint it wears: the World clock's connections wear the Boiler Room's. */
+  /** The room it belongs to: the world clock's belong to the Boiler Room. */
   room: DeskRoom;
+  /** Where it's explained on the Systems page. */
+  at: ConnectionPlace[];
   /** What it serves, in a couple of words. */
   serves: string;
   kinds: ConnectionKind[];
@@ -34,6 +42,7 @@ export const CONNECTIONS: Connection[] = [
     id: "claude-api",
     name: "Claude API",
     room: "boiler",
+    at: [{ system: "foundry", part: "shaping" }, { system: "world" }],
     serves: "Rivet and the world step",
     kinds: ["REST API", "SDK"],
     status: "live",
@@ -42,9 +51,22 @@ export const CONNECTIONS: Connection[] = [
     when: "Once an hour for the world step, and whenever Rivet shapes an idea. Capped at $10 a month between them.",
   },
   {
+    id: "gemini-speech",
+    name: "Gemini (speech)",
+    room: "archive",
+    at: [{ system: "world" }],
+    serves: "The day's story",
+    kinds: ["REST API"],
+    status: "live",
+    how: "Once a day's recap is filed, a Vercel function sends that day's script, written from the public Chronicle and scrubbed, to Gemini's text to speech (gemini-3.8-flash-tts, the upbeat Puck voice, a 30 to 45 second update) over plain HTTPS. The audio is kept in the private Blob store and served from our own site.",
+    auth: "A server-side key in Vercel's environment (GEMINI_API_KEY). It never reaches the browser.",
+    when: "Once a day after midnight, plus Make it now on the Chronicle (Desk key). Capped by GEMINI_BUDGET_USD, $5 a month by default.",
+  },
+  {
     id: "github-api",
     name: "GitHub REST API",
     room: "foundry",
+    at: [{ system: "foundry", part: "desk" }],
     serves: "The Desk and the Lattice",
     kinds: ["REST API"],
     status: "live",
@@ -56,6 +78,7 @@ export const CONNECTIONS: Connection[] = [
     id: "claude-code",
     name: "Claude Code",
     room: "foundry",
+    at: [{ system: "foundry", part: "builder" }],
     serves: "The Builder's thread",
     kinds: ["Agent", "Scheduled"],
     status: "live",
@@ -67,6 +90,7 @@ export const CONNECTIONS: Connection[] = [
     id: "github-builder",
     name: "GitHub, from the Builder",
     room: "foundry",
+    at: [{ system: "foundry", part: "issues" }],
     serves: "Issues and pull requests",
     kinds: ["MCP server", "CLI"],
     status: "live",
@@ -78,6 +102,7 @@ export const CONNECTIONS: Connection[] = [
     id: "doorbell",
     name: "The doorbell",
     room: "foundry",
+    at: [{ system: "foundry", part: "queue" }],
     serves: "Waking the Builder",
     kinds: ["Polling", "CLI"],
     status: "live",
@@ -89,6 +114,7 @@ export const CONNECTIONS: Connection[] = [
     id: "world-trigger",
     name: "World step trigger",
     room: "boiler",
+    at: [{ system: "world" }],
     serves: "The hourly step",
     kinds: ["Scheduled", "Webhook"],
     status: "live",
@@ -100,28 +126,32 @@ export const CONNECTIONS: Connection[] = [
     id: "blob",
     name: "Vercel Blob",
     room: "boiler",
-    serves: "The world and idea pictures",
+    at: [{ system: "foundry", part: "blob" }, { system: "world" }],
+    serves: "The world, its stories and idea pictures",
     kinds: ["Storage", "SDK"],
     status: "live",
-    how: "Vercel functions use the @vercel/blob SDK to keep the world's state and history, and the pictures you add to ideas, in a private store. Saves check an ETag, so two steps can't both land.",
+    how: "Vercel functions use the @vercel/blob SDK to keep the world's state and history, the day's stories (audio and script), and the pictures you add to ideas, in a private store. Saves check an ETag, so two steps can't both land.",
     auth: "Vercel's own OIDC sign-in. No key in the code.",
-    when: "Each world step, and each picture you upload.",
+    when: "Each world step, each day's story, and each picture you upload.",
   },
   {
-    id: "gemini",
-    name: "Gemini API",
+    id: "gemini-visual-qa",
+    name: "Gemini API, Visual QA",
     room: "foundry",
     serves: "Visual QA",
     kinds: ["REST API", "Scheduled"],
-    status: "planned",
+    status: "live",
+    // With the checks: the same push to main runs it, and its blockers come back as fix issues.
+    at: [{ system: "foundry", part: "checks" }],
     how: "After every push to main, a GitHub Actions run records a few seconds of each Lattice room and uploads the clips to Gemini (gemini-3.8-flash) through the Files API, which answers in JSON with what looks wrong. Blockers open a fix issue. The site never calls it; the Desk reads the run from GitHub.",
-    auth: "A key kept as a GitHub Actions secret (GEMINI_API_KEY), used only by that run and never printed. Planned until the secret is set.",
+    auth: "A key kept as a GitHub Actions secret (GEMINI_API_KEY), used only by that run and never printed.",
     when: "Once per push to main, at most eight a day, capped at $0.50 a run; a run is usually a few cents.",
   },
   {
     id: "bluebubbles",
     name: "BlueBubbles",
     room: "relay",
+    at: [{ system: "relay", part: "bluebubbles" }],
     serves: "iMessage and SMS",
     kinds: ["Webhook", "REST API"],
     status: "planned",
@@ -133,6 +163,7 @@ export const CONNECTIONS: Connection[] = [
     id: "openai",
     name: "OpenAI API",
     room: "relay",
+    at: [{ system: "relay", part: "openai" }],
     serves: "Dialtone and Blasto",
     kinds: ["REST API"],
     status: "planned",
@@ -144,6 +175,7 @@ export const CONNECTIONS: Connection[] = [
     id: "hub-socket",
     name: "Hub to the Lattice",
     room: "relay",
+    at: [{ system: "relay", part: "hub" }],
     serves: "Relay's live events",
     kinds: ["WebSocket"],
     status: "planned",
@@ -152,3 +184,8 @@ export const CONNECTIONS: Connection[] = [
     when: "Live, as things happen.",
   },
 ];
+
+/** The connections explained at one place on the Systems page: a part of a room's diagram, or the world clock. */
+export function connectionsAt(system: ConnectionPlace["system"], part?: string): Connection[] {
+  return CONNECTIONS.filter((c) => c.at.some((p) => p.system === system && (p.system === "world" || p.part === part)));
+}

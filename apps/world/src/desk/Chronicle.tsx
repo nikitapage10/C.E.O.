@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { chronicleDay, dayTitle, hourLabel, sinceAway, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
+import { DayStory } from "./DayStory.tsx";
 import { formatWait } from "./deskData.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
-import { Avatar, PageHead, Panel } from "./ui.tsx";
+import { RoomBanner } from "./RoomBanner.tsx";
+import { Avatar, Panel } from "./ui.tsx";
 
 /**
  * The Chronicle: the Lattice, hour by hour, while you were away (docs/WORLD.md). Every hour the world takes a step and
@@ -47,6 +49,8 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
   const fromPage = page && page !== "loading" && page !== "failed" ? page.entries : [];
   const entries = mergeEntries(fromPage, fromFeed).reverse();
   const recap = page && page !== "loading" && page !== "failed" ? page.recap : null;
+  // The Desk can ask for today's or yesterday's story now (api/day-story.ts); older days only ever get the step's.
+  const recent = shown === today || shown === chronicleDay(now - 86_400_000);
   const away = feed ? sinceAway(feed.recent, awaySince) : [];
   const changed = (feed?.relationships ?? []).filter((r) => r.since).sort((a, b) => Date.parse(b.since!) - Date.parse(a.since!)).slice(0, 8);
 
@@ -65,10 +69,8 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
 
   return (
     <div className="chron" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
-      <PageHead
-        eyebrow="Ilyr, hour by hour"
-        title="Chronicle"
-        room="archive"
+      <RoomBanner
+        page="chronicle"
         lead={lead}
         aside={
           <div className="page-head__crew">
@@ -107,13 +109,21 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
             ))}
           </nav>
 
-          {recap && (
+          {recap ? (
             <Panel eyebrow={`The day in Ilyr · ${dayTitle(shown, now)}`} className="chron-recap">
               <div className="chron-recap__body">
                 <Avatar agent="The Historian" size="sm" room="archive" />
                 <p>{recap}</p>
               </div>
+              {status === "ready" && <DayStory key={shown} day={shown} canMake={recent} />}
             </Panel>
+          ) : (
+            status === "ready" &&
+            entries.length > 0 && (
+              <Panel eyebrow={`The day in Ilyr, aloud · ${dayTitle(shown, now)}`} className="chron-recap">
+                <DayStory key={shown} day={shown} canMake={recent} label={shown === today ? "Hear the day so far" : "Hear the day in Ilyr"} />
+              </Panel>
+            )
           )}
 
           {entries.length ? (
@@ -157,7 +167,8 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
           <Panel eyebrow="How it works">
             <p className="quiet chron__how">
               Once an hour the Lattice takes a step: one Claude Haiku call writes the whole world's hour from the cast, how they stand, the last few hours and what really happened in
-              the Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. The Lattice plays the latest hour when you{" "}
+              the Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. Once the day's recap is filed, the Historian reads the day aloud
+              in the Archive: Gemini's speech, one voice, from the Chronicle's own public lines. The Lattice plays the latest hour when you{" "}
               <a href="/lattice" onClick={link("lattice")}>
                 walk in
               </a>

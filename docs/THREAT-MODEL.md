@@ -17,9 +17,11 @@ change both together.
 C.E.O. is a web app on Vercel with two faces: **the Desk**, Nikita's dashboard, and **the Lattice**, a public 3D
 world of AI agents. Two models are called from code, both Claude Haiku: **Rivet** shapes an idea Nikita types or
 dictates on the Desk into a card (pitch, size, builder), and the **world step** writes one hour of the Lattice's
-history from the Foundry's real work. A third model runs only in CI: **Visual QA** (#91) sends a few seconds of
-each room of the built Lattice to Google's Gemini after every push to `main`, and CI turns the blockers it flags
-into fix issues. Code is written by **the Foundry**, a Claude Code builder session (the Builder,
+history from the Foundry's real work (and, once a day, the script of **the day's story**). Google's Gemini is used
+twice: **Gemini's text to speech** (#95) turns that script into speech, getting only the script, written from the
+already-scrubbed public Chronicle, and returning audio; and **Visual QA** (#91), in CI only, sends a few seconds of
+each room of the built Lattice to Gemini after every push to `main`, and CI turns the blockers it flags into fix
+issues. Code is written by **the Foundry**, a Claude Code builder session (the Builder,
 Skippy's submind) and its workers (Rusty, Rocky), which read GitHub issues, open branches and pull requests, and
 ship to `main`, which Vercel deploys to production. **Relay**, a hub on an always-on MacBook that will read
 messages, is designed but not built yet.
@@ -40,10 +42,11 @@ flowchart LR
     fFoundry["api/foundry<br/>Desk buttons, Rivet"]
     fImage["api/foundry-image"]
     fFeed["api/foundry-feed<br/>api/foundry-usage<br/>api/security-feed<br/>api/visual-qa-feed"]
-    fStep["api/world-step<br/>api/world"]
+    fStep["api/world-step<br/>api/world<br/>api/day-story"]
   end
-  blob[("Vercel Blob<br/>world state, pictures")]
+  blob[("Vercel Blob<br/>world state, stories, pictures")]
   claude["Claude API<br/>Haiku"]
+  gemini["Gemini API<br/>speech, Visual QA"]
   subgraph GH["GitHub, public repo"]
     issues["Issues, comments, labels"]
     repo["Code and main"]
@@ -56,7 +59,6 @@ flowchart LR
     hub["Hub and BlueBubbles<br/>messages, contacts"]
   end
   openai["OpenAI API"]
-  gemini["Gemini API<br/>Visual QA"]
 
   desk -- "TB1: ideas, notes, pictures, key" --> fFoundry
   desk -- "TB1" --> fImage
@@ -72,6 +74,8 @@ flowchart LR
   actions -- "hourly POST" --> fStep
   issues -- "titles, trail kinds" --> fStep
   fStep -- "TB2: fenced digest" --> claude
+  fStep -- "TB2: scrubbed script" --> gemini
+  desk -- "TB1: story backfill, key" --> fStep
   fStep --> blob
   viewer -- "TB6: read only" --> site
   site --> fFeed
@@ -85,8 +89,8 @@ flowchart LR
 
 | Boundary | What crosses it | Controls |
 | --- | --- | --- |
-| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses | Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap |
-| **TB2** Code to Claude | Idea text, issue text, the hour's digest; JSON back | Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`) |
+| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses | Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap |
+| **TB2** Code to the model APIs | Idea text, issue text, the hour's digest, the day's story script; JSON, text or audio back | Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`); Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap |
 | **TB3** Functions to GitHub | Issue writes with the Foundry token | Token lives only in Vercel; label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`) |
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account and the Checks bot (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
 | **TB5** Issues to the builder | Work descriptions | `scripts/foundry-issue.sh` (#59): owner and CI text in data blocks with a random tag per read, everything else withheld by name, exit 3 when anything was withheld; worker briefs carry issue text only inside a data block (docs/FOUNDRY.md, "Trusted input") |
@@ -105,7 +109,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | --- | --- | --- |
 | Production code and `main` | GitHub, Vercel | Whatever lands on `main` is live in minutes |
 | Claude API key | Vercel environment | Spend (capped at $10 a month at the provider) |
-| Gemini API key | GitHub Actions secret (`GEMINI_API_KEY`) | Spend (capped in code at $0.50 a run and eight pushed runs a day) |
+| Gemini API key | Vercel environment (speech) and a GitHub Actions secret (Visual QA), both `GEMINI_API_KEY` | Speech spend (capped in code by `GEMINI_BUDGET_USD`, $5 a month by default, never above $10); Visual QA spend (capped in code at $0.50 a run and eight pushed runs a day) |
 | Foundry GitHub token | Vercel environment | Writes issues; its rate limit backs the Desk buttons and the world feed |
 | Desk key | Vercel environment, Nikita's browser | The human approval gate for builds |
 | The builder session's GitHub access | Claude Code environment | Pushes code, merges pull requests |
@@ -122,6 +126,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | The Builder and workers | Code, branches, pull requests, merges | Following FOUNDRY.md; their output is checked, not trusted |
 | Rivet (Haiku) | Proposes a card | Nothing: its answer is data, re-checked in code |
 | World step model (Haiku) | Proposes an hour | Nothing: its answer is data, re-checked in code |
+| Gemini speech | Reads the day's script aloud | Nothing: it gets only public, scrubbed text, and its audio is only stored and played |
 | Visual QA reviewer (Gemini) | Proposes findings about the Lattice's look | Nothing: its answer is data, re-checked in code; only CI writes the issue, in its own format |
 | CI bots | Post check results | Machine output, read as data |
 | Anyone on GitHub | Open issues, comment | Nothing |
@@ -141,7 +146,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | **LLM07 System Prompt Leakage** | Rivet's and the world step's prompts | Both prompts are public in this repo by design and hold no secrets, keys or private rules; the security comes from code checks, not from the prompt being secret | None beyond what is already public | Accepted |
 | **LLM08 Vector and Embedding Weaknesses** | Not used: no retrieval, no vector store | Not applicable today | If Relay adds retrieval over messages, this becomes live | Relay privacy spec (R5) |
 | **LLM09 Misinformation** | The Historian's hourly summaries; Rivet's pitches | The world step reads only real events and labels the Lattice as a story; Rivet's card is a suggestion that Nikita approves; the Builder confirms builder and model | Off-tone or wrong lines on the Lattice for an hour | Accepted |
-| **LLM10 Unbounded Consumption** | Claude spend; Gemini spend; GitHub token quota; function CPU | Coded budget guard for the world step (`api/_world/budget.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing) | The world step's trigger is open and its per-hour cap is a known gap | Open, tracked: world-step key (R6, #61, not picked) |
+| **LLM10 Unbounded Consumption** | Claude spend; Gemini speech and Visual QA spend; GitHub token quota; function CPU | Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing) | The world step's trigger is open and its per-hour cap is a known gap | Open, tracked: world-step key (R6, #61, not picked) |
 
 ## Google SAIF
 

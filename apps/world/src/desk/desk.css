@@ -462,45 +462,44 @@ a.panel__hint:hover {
   border-bottom: 1px solid rgba(143, 232, 255, 0.35);
 }
 
-/* ── Page head: the eyebrow, the title and the lead, over a still of the room ── */
-.page-head {
+/* ── Room banner: each page past Today, over a still of its room, in the room's colour (RoomBanner.tsx) ── */
+.banner {
   position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
+  min-height: 250px;
   margin: 0 0 20px;
-}
-.page-head--pic {
-  min-height: 236px;
-  padding: 28px 30px 26px;
+  padding: 28px 32px 24px;
   border: 1px solid var(--hair);
   border-radius: 6px;
   overflow: hidden;
   background: var(--panel-solid);
   isolation: isolate;
 }
-.page-head__pic {
+.banner__pic {
   position: absolute;
   inset: 0;
+  /* Under the shade (::before), which comes first in the box: words over the room stay legible. */
+  z-index: -2;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% 40%;
-  z-index: -1;
-  opacity: 0.9;
-  animation: ken 30s ease-in-out infinite alternate;
+  object-position: 50% 42%;
+  animation: ken 40s ease-in-out infinite alternate;
 }
-.page-head--pic::before {
+.banner::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(90deg, rgba(4, 6, 11, 0.92) 0%, rgba(4, 6, 11, 0.6) 48%, rgba(4, 6, 11, 0.2) 100%),
-    linear-gradient(0deg, rgba(4, 6, 11, 0.9) 0%, transparent 60%);
+    radial-gradient(90% 120% at 0% 100%, color-mix(in srgb, var(--tone) 16%, transparent) 0%, transparent 60%),
+    linear-gradient(90deg, rgba(4, 6, 11, 0.92) 0%, rgba(4, 6, 11, 0.72) 36%, rgba(4, 6, 11, 0.22) 66%, rgba(4, 6, 11, 0.12) 100%),
+    linear-gradient(0deg, rgba(4, 6, 11, 0.85) 0%, rgba(4, 6, 11, 0.1) 60%, rgba(4, 6, 11, 0.2) 100%);
 }
-.page-head--pic::after {
+.banner::after {
   content: "";
   position: absolute;
   left: 0;
@@ -511,19 +510,44 @@ a.panel__hint:hover {
   box-shadow: 0 0 12px var(--tone);
   opacity: 0.8;
 }
-.page-head__text {
-  max-width: 640px;
+.banner__text {
+  max-width: 620px;
+  text-shadow: 0 1px 12px rgba(4, 6, 11, 0.9);
 }
-.page-head--pic .eyebrow {
+.banner .eyebrow {
   color: var(--tone);
 }
-.page-head__lead {
-  margin: 14px 0 0;
+.banner__title {
+  text-shadow: 0 0 24px color-mix(in srgb, var(--tone) 30%, transparent);
+}
+.banner__voice {
+  margin: 12px 0 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.25;
+  color: var(--text);
+}
+.banner__voice cite {
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--tone);
+}
+.banner__voice cite::before {
+  content: "\2014\00a0";
+}
+.banner__lead {
+  margin: 8px 0 0;
   font-size: 15px;
   line-height: 1.55;
   color: var(--muted);
 }
-.page-head__aside {
+.banner__aside {
   flex: none;
 }
 .page-head__crew {
@@ -772,7 +796,7 @@ a.panel__hint:hover {
 .hero__pic {
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: -2; /* under the ::before shade, which is -1 */
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -2456,15 +2480,9 @@ button.room-pick__tab:hover {
   stroke: rgba(143, 232, 255, 0.16);
   stroke-width: 9;
 }
-.fsys__under {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
 .fsys__readouts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   margin: 0;
   border: 1px solid var(--hair-soft);
@@ -2495,31 +2513,6 @@ button.room-pick__tab:hover {
   font: 400 22px/1 var(--mono);
   color: var(--text);
   margin-right: 2px;
-}
-.fsys__detail {
-  --c: var(--faint);
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  min-height: 100%;
-  padding: 14px 16px;
-  border: 1px solid var(--hair);
-  border-left: 2px solid var(--c);
-  border-radius: var(--radius);
-  background: linear-gradient(135deg, rgba(143, 232, 255, 0.04), transparent 60%), rgba(4, 6, 11, 0.45);
-  animation: rise-in 0.3s var(--ease) both;
-}
-.fsys__detail--ok {
-  --c: var(--mint);
-}
-.fsys__detail--slow {
-  --c: var(--amber);
-}
-.fsys__detail--down {
-  --c: var(--rose);
-}
-.fsys__detail--empty {
-  border-left-color: var(--hair-strong);
 }
 .fsys__eyebrow {
   font-family: var(--mono);
@@ -2558,6 +2551,31 @@ button.room-pick__tab:hover {
 .fsys__legend {
   margin: 0;
 }
+.fsys__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--faint);
+  text-align: center;
+}
+
+/* A part or wire's pop-over (FlowPop.tsx, #94): the state's colour down its left edge, like a gauge's tag. */
+.conn-pop.flow-pop {
+  gap: 8px;
+  border-left: 2px solid var(--tone);
+}
+.flow-pop .pill {
+  justify-self: start;
+}
+.flow-pop .fsys__title {
+  font-size: 20px;
+}
+.conn-pop__facts.flow-pop__ties div {
+  grid-template-columns: 56px 1fr;
+}
+/* While it follows the mouse it never sits under the pointer, so it can't steal the hover. */
+.conn-pop.is-following {
+  pointer-events: none;
+}
 .fsys__legend .fsys__key::before {
   width: 10px;
   height: 10px;
@@ -2575,9 +2593,9 @@ button.room-pick__tab:hover {
 .fsys__legend .fsys__key--store::before {
   transform: rotate(45deg) scale(0.85);
 }
-@media (max-width: 860px) {
-  .fsys__under {
-    grid-template-columns: 1fr;
+@media (max-width: 1100px) {
+  .fsys__readouts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {
@@ -2730,110 +2748,68 @@ button.room-pick__tab:hover {
   padding: 0 4px;
 }
 
-/* ── Systems: how it connects (issues #69, #80) ── */
-.conn {
-  margin: 0 0 24px;
+/* ── Systems: a part's "How it works" (issue #99, from the old How it connects list of #69 and #80) ── */
+/* A pop-over scope (Popovers.tsx) adds no box of its own. */
+.pop-scope {
+  display: contents;
 }
-.conn__grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.how {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 10px;
 }
-.conn__item {
-  min-width: 0;
-}
-.conn__chip {
-  position: relative;
+.how__item {
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas:
-    "serves dot"
-    "name name";
-  grid-template-rows: auto 1fr;
-  gap: 4px 10px;
-  align-items: start;
-  width: 100%;
-  height: 100%;
-  min-height: 72px;
-  padding: 12px 14px 12px 18px;
-  border: 1px solid var(--hair);
-  border-radius: 6px;
-  background: var(--panel);
-  backdrop-filter: blur(8px);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  overflow: hidden;
-  transition:
-    border-color 0.2s var(--ease),
-    background-color 0.2s var(--ease),
-    box-shadow 0.2s var(--ease);
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hair-soft);
 }
-.conn__chip::before {
-  content: "";
-  position: absolute;
-  inset: 12px auto 12px 0;
-  width: 2px;
-  border-radius: 0 2px 2px 0;
-  background: var(--tone);
-  opacity: 0.75;
-}
-.conn__chip:hover,
-.conn__chip.is-open {
-  border-color: color-mix(in srgb, var(--tone) 55%, transparent);
-  background: color-mix(in srgb, var(--tone) 7%, var(--panel));
-  box-shadow: 0 0 18px color-mix(in srgb, var(--tone) 14%, transparent);
-}
-.conn__chip:focus-visible {
-  outline: 1px solid var(--tone);
-  outline-offset: 2px;
-}
-.conn__item--planned .conn__chip {
+.how__item--planned .conn__kinds li {
   border-style: dashed;
-  border-color: var(--hair-soft);
 }
-.conn__item--planned .conn__chip::before {
-  opacity: 0.3;
+.how__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
 }
-.conn__item--planned .conn__chip:hover,
-.conn__item--planned .conn__chip.is-open {
-  border-color: color-mix(in srgb, var(--tone) 40%, transparent);
-}
-.conn__serves {
-  grid-area: serves;
+.how__eyebrow {
   min-width: 0;
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  line-height: 1.5;
+  color: var(--ice);
+}
+.conn-pop__facts.how__facts {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 0;
+}
+/* The world clock's "How it works" button. */
+.how-chip {
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--hair));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 6%, transparent);
   color: var(--tone);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    background-color 0.2s var(--ease);
 }
-.conn__name {
-  grid-area: name;
-  align-self: end;
-  min-width: 0;
-  font-family: var(--serif);
-  font-size: 19px;
-  line-height: 1.15;
+.how-chip:hover,
+.how-chip.is-open {
+  border-color: color-mix(in srgb, var(--tone) 70%, transparent);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
 }
-.conn__dot {
-  grid-area: dot;
-  margin-top: 5px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-.conn__dot--live {
-  background: var(--mint);
-  box-shadow: 0 0 8px var(--mint);
-}
-.conn__dot--planned {
-  border: 1px solid var(--faint);
+.how-chip:focus-visible {
+  outline: 1px solid var(--tone);
+  outline-offset: 2px;
 }
 .conn__kinds {
   list-style: none;
@@ -2890,9 +2866,6 @@ button.room-pick__tab:hover {
 .conn-pop--above {
   transform-origin: var(--arrow) bottom;
 }
-.conn-pop--planned {
-  border-style: dashed;
-}
 @keyframes conn-pop-in {
   from {
     opacity: 0;
@@ -2944,20 +2917,9 @@ button.room-pick__tab:hover {
   color: var(--muted);
 }
 @media (max-width: 640px) {
-  .conn__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .conn__name {
-    font-size: 17px;
-  }
   .conn-pop__facts div {
     grid-template-columns: 1fr;
     gap: 2px;
-  }
-}
-@media (max-width: 380px) {
-  .conn__grid {
-    grid-template-columns: 1fr;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3906,7 +3868,7 @@ a.fy-chip:hover {
   .agents__grid {
     grid-template-columns: 1fr;
   }
-  .page-head {
+  .banner {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -4007,23 +3969,23 @@ a.fy-chip:hover {
   }
   /* On a phone the still is a band above the words, fading into the panel, so nothing sits on the Kernel's glare. */
   .hero,
-  .page-head--pic {
+  .banner {
     padding: 150px 18px 18px;
     gap: 16px;
   }
   .hero::before,
-  .page-head--pic::before {
+  .banner::before {
     background: linear-gradient(0deg, rgba(4, 6, 11, 0.2) 0%, rgba(4, 6, 11, 0.2) 100%);
   }
   .hero__pic,
-  .page-head__pic {
+  .banner__pic {
     height: 240px;
     object-position: 50% 35%;
     mask-image: linear-gradient(#000 35%, transparent 100%);
     -webkit-mask-image: linear-gradient(#000 35%, transparent 100%);
     animation: none;
   }
-  .page-head--pic .page-head__text {
+  .banner__text {
     margin-top: -16px;
   }
   .hero__greet {
@@ -4042,8 +4004,11 @@ a.fy-chip:hover {
   .hero__foot span:last-child {
     white-space: normal;
   }
-  .page-head--pic {
+  .banner {
     min-height: 0;
+  }
+  .banner__voice {
+    font-size: 19px;
   }
   .page-head__crew {
     flex-wrap: wrap;

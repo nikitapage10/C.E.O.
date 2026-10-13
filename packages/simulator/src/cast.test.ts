@@ -46,17 +46,19 @@ describe("cast", () => {
     for (const m of SUBMINDS) {
       const p = cast.profiles[m.id]!;
       expect(p.role, m.id).toBe("Room lead");
+      expect(p.name, m.id).toBe(`The ${m.job}`);
+      expect(p.personality.bio, m.id).toContain("Skippy's submind");
       expect(p.look, m.id).toMatchObject({ body: "skippy", shell: m.colour, accent: m.colour });
       traitSets.add([...p.personality.traits].sort().join(","));
       catchphrases.add(p.personality.catchphrase);
-      expect(p.lore.title, m.id).toContain(`Skippy the ${m.job}`);
+      expect(p.lore.title, m.id).toContain(`The ${m.job}`);
       expect(AGENT_QUIPS[m.id]?.length ?? 0, m.id).toBeGreaterThanOrEqual(5);
       expect(SUBMIND_CONDUCT[m.id]?.length ?? 0, m.id).toBeGreaterThanOrEqual(3);
       expect(relationshipsOf(cast, m.id).length, m.id).toBeGreaterThanOrEqual(1);
     }
     expect(traitSets.size).toBe(SUBMINDS.length);
     expect(catchphrases.size).toBe(SUBMINDS.length);
-    // Ember leads the Foundry; it never takes Rivet's place on the bench.
+    // the Builder leads the Foundry; it never takes Rivet's place on the bench.
     expect(SUBMINDS.find((m) => m.room === "foundry")?.id).toBe("ember");
   });
 

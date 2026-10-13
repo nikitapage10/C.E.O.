@@ -154,7 +154,7 @@ export const GATHERINGS: GatheringDef[] = [
       ],
       [h("Deal me in. Low stakes."), g("How low?"), h("Pride. Only pride."), g("Fold."), h("You always fold."), g("Folding is risk management."), h("Folding is a lifestyle.")],
     ],
-    kernel: ["Unlicensed card game on the trading floor. {host} is the house. {guests} are the liquidity.", "{host} has started a card game. I am not allowed to gamble. Ticker is. I am, however, allowed to judge."],
+    kernel: ["Unlicensed card game on the trading floor. {host} is the house. {guests} are the liquidity.", "{host} has started a card game. I am not allowed to gamble. The Bookie is. I am, however, allowed to judge."],
   },
   {
     id: "club-night",

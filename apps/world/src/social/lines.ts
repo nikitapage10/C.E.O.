@@ -73,9 +73,9 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
     ["Hold your horses, Rocky.", "Rivet say this again! Still no horses. Rocky still look."],
   ],
   "ember|caret": [
-    ["Rocky. That seam. Adequate.", "Ember keep offcuts in drawer. Rocky hear drawer. Is not adequate. Is amaze."],
-    ["Weld it, test it, ship it. Go.", "Rocky already ship it. Ember slow can, question?"],
-    ["Skippy says you count in sixes.", "Skippy count in tens. Ember count in shouting. Rocky count fine."],
+    ["Rocky. That seam. Adequate.", "The Builder keep offcuts in drawer. Rocky hear drawer. Is not adequate. Is amaze."],
+    ["Weld it, test it, ship it. Go.", "Rocky already ship it. The Builder slow can, question?"],
+    ["Skippy says you count in sixes.", "Skippy count in tens. The Builder count in shouting. Rocky count fine."],
   ],
   "ember|semicolon": [
     ["Rivet. Alarm. Now.", "Finishing my coffee. Then the alarm. Then you."],
@@ -117,7 +117,7 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
     ["Sixty percent this goes fine. Fifty.", "Six downsides. I'll lower your number for you."],
   ],
   "turf|gridiron": [
-    ["AND GRIDIRON CALLS THE PLAY!", "Start the backup kicker! Sorry. Sorry. You too, Turf. Sorry."],
+    ["AND GRIDIRON CALLS THE PLAY!", "Start the backup kicker! Sorry. Sorry. You too, the Commentator. Sorry."],
   ],
   "odds|hedge": [
     ["Sixty-three percent you're looking at me, Hedge.", "Honesty setting 90%. Lowering it now."],

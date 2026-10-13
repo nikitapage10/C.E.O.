@@ -8,16 +8,16 @@ const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.lengt
 
 /** How often each submind picks someone new to direct (real ms). */
 const EVERY = [3500, 6500] as const;
-/** How far a submind drifts about its post (metres), and how long it holds a spot. */
-const DRIFT = 0.4;
+/** How far a submind drifts about its hover spot (metres), and how long it holds a spot. */
+const DRIFT = 0.9;
 const DRIFT_HOLD = [3000, 6000] as const;
 /** Chance a direction comes with a remark. */
 const REMARK = 0.18;
 const WORKING = new Set(["working", "typing", "carrying"]);
 
 /**
- * Skippy's subminds lead the rooms from their conductor's posts (docs/SKIPPY.md). While one is up at its podium
- * it drifts a little about the corner, turns to whoever is working and conducts at them (the admiral can's baton
+ * Skippy's subminds lead the rooms from their conductor's posts (docs/SKIPPY.md). While one is up hovering over its room
+ * it drifts a little about its spot, turns to whoever is working and conducts at them (the admiral can's baton
  * beat, "waiting"), and now and then has a word. The swoop down to check on someone up close is in the submind's
  * own routine (submindConduct). Renders nothing.
  */
@@ -53,7 +53,7 @@ export function SubmindDirector() {
         }
         checkedAt = null;
 
-        // A little drift about the podium, so it's never a statue.
+        // A little drift about the hover spot, so it's never a statue.
         if (now > nextDrift) {
           const a = Math.random() * Math.PI * 2;
           const r = Math.random() * DRIFT;

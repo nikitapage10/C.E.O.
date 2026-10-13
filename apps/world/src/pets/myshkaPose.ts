@@ -14,6 +14,7 @@ import type { PetMode } from "./types.ts";
  * - Nap: a loaf, built on his own skeleton, legs tucked, chin down, tail wrapped round, slow breathing.
  * - Stretch: getting up from a nap he does the long front stretch first, chest down and rump up.
  * - Groom: the baked clip, sitting and washing a paw and his face.
+ * - Carriage: head up and chest in, mostly on the walk, whose source rig carries its head low (MYSHKA_CARRIAGE).
  * - On top of all of it a "life" layer: ear flicks, tail sway, looking at things, which runs through the clips too.
  *
  * Procedural turns are about the cat's own axes (+Y up, +Z forward, +X his left), applied after the mixer, so
@@ -36,6 +37,8 @@ export const MYSHKA_BONES = {
   jaw: "Bone_069",
   /** The ruff under his chin. The export models it jutting forward; see MYSHKA_RUFF. */
   ruff: "Bone_034",
+  /** The fur hanging off his chin down the front of his throat: from the side, it's what reads as his chest. */
+  bib: "Bone_071",
   earL: "Bone_062",
   earR: "Bone_064",
   /** Shoulder, elbow, forearm, paw, toes, toe tips. */
@@ -50,6 +53,20 @@ export const MYSHKA_BONES = {
 
 /** The ruff is pulled in: shrunk about its root and tipped back toward the chest, so it sits like fur, not a bib. */
 export const MYSHKA_RUFF = { scale: 0.6, tuck: 0.45 };
+
+/**
+ * How he carries his head and chest. The baked Walk comes from a rig that walks head-low, so on his body the neck
+ * runs flat out from the shoulders, the head drops to shoulder height and the bib under his chin juts out ahead of
+ * his forelegs like a ship's prow. `gait` lifts the shoulders and neck back up (the forelegs turn back by the same
+ * amount, so the paws land where the clip puts them), levels the head again and tucks the bib in under his chin.
+ * It is full on the walk and most of the way on the run; `rest` is a lighter tuck for everything else.
+ */
+export const MYSHKA_CARRIAGE = {
+  gait: { shoulders: -0.25, neck1: -0.25, neck2: -0.15, head: 0.4, bib: 0.35, ruff: 0 },
+  rest: { shoulders: 0, neck1: -0.06, neck2: 0, head: 0.06, bib: 0.15, ruff: 0.1 },
+  /** How much of `gait` the run gets. */
+  run: 0.6,
+};
 
 /** Clip names as baked, and how fast each gait plays at its natural pace, in model units a second. */
 export const MYSHKA_CLIPS = { walk: "Walk", run: "Run", groom: "Groom", sit: "Sit" } as const;
@@ -225,6 +242,7 @@ export class MyshkaRig {
     this.fidget(t, dt, mode);
     const p: Pose = { turns: new Map(), lift: 0 };
     add(p, MYSHKA_BONES.ruff, MYSHKA_RUFF.tuck);
+    this.carriage(p);
     const clipW = this.w.walk + this.w.run + this.w.groom + this.w.sit;
     const life = 1 - this.w.run * 0.8 - this.w.groom;
     this.life(p, t, Math.max(0, life), mode);
@@ -243,6 +261,23 @@ export class MyshkaRig {
       b.quaternion.premultiply(q);
     }
     this.root.position.y += p.lift;
+  }
+
+  /** Head up and chest in: a lot on the walk, a touch everywhere else (see MYSHKA_CARRIAGE). */
+  private carriage(p: Pose) {
+    const B = MYSHKA_BONES;
+    const c = MYSHKA_CARRIAGE;
+    const g = Math.min(1, this.w.walk + this.w.run * c.run);
+    const turn = (k: keyof typeof c.gait) => c.gait[k] * g + c.rest[k] * (1 - g);
+    const shoulders = turn("shoulders");
+    add(p, B.shoulders, shoulders);
+    add(p, B.foreL[0], -shoulders);
+    add(p, B.foreR[0], -shoulders);
+    add(p, B.neck1, turn("neck1"));
+    add(p, B.neck2, turn("neck2"));
+    add(p, B.head, turn("head"));
+    add(p, B.bib, turn("bib"));
+    add(p, B.ruff, turn("ruff"));
   }
 
   /** The slow, wandering attention, ear flicks and tail flicks, timed. */

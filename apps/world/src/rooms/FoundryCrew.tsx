@@ -2,13 +2,16 @@ import { FOUNDRY_FLOOR, detour, lookFromPreset, type Look } from "@ceo/core";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { CanvasTexture, Color, MeshBasicMaterial, MeshStandardMaterial, SRGBColorSpace, type Group, type Material, type Mesh } from "three";
-import { Body } from "../agents/bodies/Body.tsx";
+import { Body, topOf } from "../agents/bodies/Body.tsx";
+import { Plate } from "../agents/Nameplate.tsx";
+import { crateCard } from "../agents/taskCard.ts";
+import { onTask } from "../agents/taskLine.ts";
 import type { Drive } from "../agents/bodies/types.ts";
 import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
 import { Beam } from "../fx/atmos.tsx";
 import { PBR } from "../fx/pbr.ts";
-import { CREW, DOCK_CREW, MODEL, blueprintCrate, sparesAwake, useFoundry, type ChecksState, type Crate, type CrewId } from "../foundry.ts";
+import { CREW, DOCK_CREW, MODEL, blueprintCrate, dockJobs, sparesAwake, useFoundry, type ChecksState, type Crate, type CrewId } from "../foundry.ts";
 import { useWorld } from "../store.ts";
 import { Block } from "./primitives.tsx";
 
@@ -202,7 +205,19 @@ function paint(mat: MeshStandardMaterial, colour: string): void {
   mat.needsUpdate = true;
 }
 
-function SpareUnit({ index, active, look, state }: { index: number; active: boolean; look: Look; state: UnitState }) {
+/**
+ * A dock crew member's name plate while it's out on the line: its name, the job it's on ("#43 · Speeding up the
+ * Lattice") and the card with the detail on hover, the same as the crew's own plates.
+ */
+function DockPlate({ index, job, look }: { index: number; job: Crate; look: Look }) {
+  const inRoom = useWorld((s) => s.focus === "foundry");
+  const { name, colour } = DOCK_CREW[index]!;
+  const text = onTask({ title: `#${job.number} ${job.title}`, status: "running", number: job.number, short: job.short });
+  if (!inRoom || !text) return null;
+  return <Plate y={topOf(look, 0) + 0.32} name={name} accent={colour} line={{ icon: "work", text }} card={crateCard(job, "tessellate", { hands: name })} />;
+}
+
+function SpareUnit({ index, active, look, state, job }: { index: number; active: boolean; look: Look; state: UnitState; job: Crate | null }) {
   const [bx, bz] = FOUNDRY_FLOOR.bays[index]!;
   const [sx, sz] = FOUNDRY_FLOOR.lineSpots[index]!;
   const colour = DOCK_CREW[index]!.colour;
@@ -347,6 +362,7 @@ function SpareUnit({ index, active, look, state }: { index: number; active: bool
       </mesh>
       <group ref={root} position={[state.x, 0, state.z]} rotation={[0, state.yaw, 0]}>
         <Body look={look} lineage="claudari" drive={drive} phase={phase} />
+        {active && job && <DockPlate index={index} job={job} look={look} />}
       </group>
     </>
   );
@@ -384,6 +400,8 @@ function plaqueTexture(name: string, colour: string): CanvasTexture {
  */
 export function SpareDock() {
   const awake = useFoundry((s) => sparesAwake(s.data.crates));
+  const crates = useFoundry((s) => s.data.crates);
+  const jobs = useMemo(() => dockJobs(crates), [crates]);
   const look = useCast((s) => s.cast.profiles.tessellate?.look) ?? DEFAULT_LOOK;
   const states = useMemo<UnitState[]>(() => FOUNDRY_FLOOR.bays.map(([x, z]) => ({ phase: "docked", x, z, yaw: BAY_YAW, power: 0, path: [] })), []);
   const { dock } = FOUNDRY_FLOOR;
@@ -438,7 +456,7 @@ export function SpareDock() {
         </mesh>
       </group>
       {states.map((st, i) => (
-        <SpareUnit key={i} index={i} active={i < awake} look={look} state={st} />
+        <SpareUnit key={i} index={i} active={i < awake} look={look} state={st} job={jobs[i] ?? null} />
       ))}
     </group>
   );

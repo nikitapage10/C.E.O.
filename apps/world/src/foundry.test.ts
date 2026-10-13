@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -282,5 +282,57 @@ describe("recentWork", () => {
   it("lists the newest three, newest first, and is empty with nothing shipped", () => {
     expect(recentWork(log, "semicolon").map((r) => r.number)).toEqual([6, 5, 4]);
     expect(recentWork([], "caret")).toEqual([]);
+  });
+});
+
+describe("the Short line", () => {
+  it("reads the short line under the size", () => {
+    expect(readBody("**Pitch:** Faster.\n**Size:** small\n**Short:** Speeding up the Lattice\n**Builder:** Rusty (Sonnet)").short).toBe("Speeding up the Lattice");
+    expect(readBody("**Short:**   Adding a podium. ").short).toBe("Adding a podium");
+    expect(readBody("**Short:** *Fixing the furnace*").short).toBe("Fixing the furnace");
+    expect(readBody("**Short:**\n**Builder:** Rusty").short).toBe("");
+  });
+  it("carries it, and when the issue was opened, onto the crate", () => {
+    const [c] = parseCrates([issue(43, ["foundry", "foundry:chat", "foundry:working"], { body: "**Size:** small\n**Short:** Speeding up the Lattice", created_at: "2026-10-12T20:00:00Z" })], NOW);
+    expect(c).toMatchObject({ short: "Speeding up the Lattice", createdAt: Date.parse("2026-10-12T20:00:00Z") });
+  });
+});
+
+describe("crewJob", () => {
+  const crate = (number: number, kind: Crate["kind"], state: Crate["state"], over: Partial<Crate> = {}): Crate => ({ number, title: `#${number}`, kind, state, rung: null, url: "", updatedAt: NOW, pitch: "", size: null, revising: false, ...over });
+
+  it("shows each crew member the job in their own hands", () => {
+    const jobs = [crate(3, "build", "working"), crate(1, "chat", "working"), crate(2, "fix", "working", { rung: 1 }), crate(4, "build", "working", { builder: "caret" })];
+    expect(crewJob(jobs, "tessellate", NOW)?.number).toBe(1);
+    expect(crewJob(jobs, "semicolon", NOW)?.number).toBe(2);
+    expect(crewJob(jobs, "caret", NOW)?.number).toBe(4);
+  });
+
+  it("puts Rusty's newer running jobs in his dock crew's hands, in bay order", () => {
+    const jobs = [5, 1, 4, 2, 3].map((n) => crate(n, "build", "working"));
+    expect(crewJob(jobs, "tessellate", NOW)?.number).toBe(1);
+    expect(dockJobs(jobs).map((c) => c.number)).toEqual([2, 3, 4]);
+    expect(dockJobs([crate(1, "build", "working")])).toEqual([]);
+  });
+
+  it("puts a stuck or waiting job first: it's what their routine is about", () => {
+    const jobs = [crate(1, "build", "working"), crate(2, "fix", "stuck", { rung: 2 })];
+    expect(crewJob(jobs, "tessellate", NOW)?.number).toBe(2);
+    expect(crewJob([crate(6, "build", "ready")], "tessellate", NOW)?.number).toBe(6);
+  });
+
+  it("shows a job waiting its turn when it's the only one they hold", () => {
+    const rocky = [crate(7, "build", "working", { builder: "caret" }), crate(8, "build", "working", { builder: "caret" })];
+    expect(crewJob(rocky, "caret", NOW)?.number).toBe(7);
+    expect(crewJob([crate(9, "build", "working", { paused: true })], "tessellate", NOW)?.number).toBe(9);
+  });
+
+  it("keeps Rusty on the latest upkeep between ticks, unless ideas wait on the board", () => {
+    const at = Date.UTC(2026, 9, 13, 3, 0);
+    const upkeep = crate(4, "upkeep", "shipped", { updatedAt: Date.UTC(2026, 9, 13, 1, 2) });
+    expect(crewJob([upkeep], "tessellate", at)?.number).toBe(4);
+    expect(crewJob([upkeep, crate(5, "idea", "queued")], "tessellate", at)).toBeNull();
+    expect(crewJob([upkeep], "semicolon", at)).toBeNull();
+    expect(crewJob([], "caret", at)).toBeNull();
   });
 });

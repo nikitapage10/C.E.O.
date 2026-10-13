@@ -80,12 +80,30 @@ An issue with no state label is queued. Close an issue without `foundry:shipped`
 
 `foundry:chat` is work Nikita asked for in chat (any thread, any model), built outside the lanes and pushed straight
 to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread starts such work opens a `foundry` +
-`foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, a `**Builder:**`
+`foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, a `**Short:**` line, a `**Builder:**`
 line naming the crew member for the model the thread really codes on (Rocky for Opus, Rusty for Sonnet, Rivet for
 Haiku), the branch), and labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists
 it under "In flight" with everything else, and in the Foundry room that crew member (or one of Rusty's dock crew,
 when he is already busy) is seen working on it (Nikita, 2026-10-12: "any development-based idea should end up in the Foundry
 somewhere as well"; 2026-10-13: the crew shown must match the model doing the work).
+
+### The issue body
+
+Every Foundry issue, whatever its lane, opens with these lines, one to a line, in this order (the Desk and the
+Lattice read them; `readBody` in `apps/world/src/foundry.ts`):
+
+```
+**Pitch:** Two or three plain sentences: what changes and what Nikita will see.
+**Size:** small | medium | large
+**Short:** Speeding up the Lattice
+**Builder:** Rusty (Opus, medium effort)
+```
+
+`**Short:**` says what's being built in two to four words, an -ing phrase in sentence case with no full stop. While
+the job is in someone's hands, the Lattice shows it under their name as "#43 · Speeding up the Lattice", and hovering
+that line opens a card with the title, pitch, builder and model, and a link to the issue. Desk shaping writes it with
+the rest of the card (`api/foundry.ts`); the Builder writes it on chat, fix and upkeep issues, and adds it when it
+picks up an issue that has none. Without one, the line falls back to a trimmed title.
 
 ## Decisions go through Skippy
 
@@ -166,8 +184,8 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   three may be a shelved idea brought back in a genuinely different shape: a new angle, a smaller first step, or a
   different room, with a line saying what it grew out of. Never the same pitch twice; an idea passed twice rests
   for a month.
-- Write each idea's body with `**Pitch:** …` and `**Size:** small|medium|large`: the Desk's Foundry tab shows
-  these on the idea cards.
+- Write each idea's body with `**Pitch:** …`, `**Size:** small|medium|large` and `**Short:** …` (see "The issue
+  body" above): the Desk's Foundry tab shows these on the idea cards.
 - Nikita picks on the Desk's Foundry tab (Build this / Revise / Not this one) or on the thread's card. The Desk's
   buttons go through `api/foundry.ts` on Vercel, which needs `FOUNDRY_DESK_KEY` and `FOUNDRY_GITHUB_TOKEN` set
   there; a click changes the issue at once. A proposed or revised idea goes up straight away in Nikita's words,

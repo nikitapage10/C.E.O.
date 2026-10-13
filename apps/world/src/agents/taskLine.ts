@@ -2,7 +2,8 @@ import { ROOMS, type Activity, type Place, type Prop, type RoomId } from "@ceo/c
 
 /**
  * The line under an agent's name on the Lattice: what they are doing right now, in a few plain words, with an
- * icon. A running task's title says what they are on; otherwise the line comes from their activity and the
+ * icon. A running task says what they are on: a real Foundry job as its issue number and short line ("#43 ·
+ * Speeding up the Lattice"), anything else by its tidied title; otherwise the line comes from their activity and the
  * station they are at ("Testing in the furnace", "Keeping watch", "Heading to the bar"). Pure, so it can be
  * tested without the scene.
  */
@@ -33,8 +34,11 @@ export interface TaskLineInput {
   /** Where the agent is, or where they are heading while walking. */
   place: Place;
   prop: Prop | null;
-  /** The agent's current task, if any; only a running one is shown. */
-  task?: { title: string; status: string } | null;
+  /**
+   * The agent's current task, if any; only a running one is shown. A real job carries its issue number and its
+   * `**Short:**` line, and shows as "#43 · Speeding up the Lattice"; without a short line, its tidied title.
+   */
+  task?: { title: string; status: string; number?: number; short?: string } | null;
 }
 
 /** What doing a station's job looks like, in the station's own words. */
@@ -184,9 +188,18 @@ export function tidyTitle(title: string): string {
     .replace(/^(#\d+\s+)?(.)/, (_, num: string | undefined, c: string) => `${num ?? ""}${c.toUpperCase()}`);
 }
 
+/** What a running task reads as on the line: "#43 · Speeding up the Lattice", else its tidied title. Null when none runs. */
+export function onTask(task: TaskLineInput["task"]): string | null {
+  if (!task || task.status !== "running") return null;
+  if (task.number !== undefined && task.short) return shorten(`#${task.number} · ${task.short}`);
+  return shorten(tidyTitle(task.title));
+}
+
 /** The line under an agent's name: an icon for what they are doing and a few words for what it is. */
 export function taskLine({ activity, place, prop, task }: TaskLineInput): TaskLine {
-  const running = task && task.status === "running" ? shorten(tidyTitle(task.title)) : null;
+  const running = onTask(task);
+  // What they're stuck on, without the issue number: the short line ("speeding up the Lattice"), else the title.
+  const stuckOn = task?.short ? task.short.charAt(0).toLowerCase() + task.short.slice(1) : running?.replace(/^#\d+\s+/, "");
   const words = STATIONS[place.room]?.[place.station];
   const at = stationPhrase(place);
 
@@ -195,11 +208,11 @@ export function taskLine({ activity, place, prop, task }: TaskLineInput): TaskLi
     case "napping":
       return { icon: "nap", text: "Napping" };
     case "slumped":
-      return { icon: "stuck", text: running ? shorten(`Stuck on ${running.replace(/^#\d+\s+/, "")}`) : "Stuck: needs a hand" };
+      return { icon: "stuck", text: running ? shorten(`Stuck on ${stuckOn}`) : "Stuck: needs a hand" };
     case "celebrating":
       return { icon: "cheer", text: "Celebrating a win" };
     case "walking":
-      return { icon: "walk", text: running ?? shorten(`Heading to ${at}`) };
+      return { icon: "walk", text: running ?? (place.station === "command" ? "Coming out to give orders" : shorten(`Heading to ${at}`)) };
     case "carrying":
       return { icon: "carry", text: running ?? shorten(`Carrying ${prop ? PROP_NAME[prop] : "something"} to ${at}`) };
     default:
@@ -210,6 +223,8 @@ export function taskLine({ activity, place, prop, task }: TaskLineInput): TaskLi
     const busy = activity === "working" || activity === "typing";
     return { icon: "look", text: running ?? (busy ? "Conducting the room" : "Watching over the room") };
   }
+  // A room lead come down off the post to give an order.
+  if (place.station === "command") return { icon: "look", text: running ?? "Giving orders" };
   switch (activity) {
     case "waiting":
       return { icon: "wait", text: running ?? words?.wait ?? shorten(`Waiting at ${at}`) };

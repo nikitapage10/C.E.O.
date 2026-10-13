@@ -71,8 +71,65 @@ export interface Limbs {
 const ARM = new CylinderGeometry(0.052, 0.045, 1, 12);
 const SHOE = PBR.lacquer("#1a1715", 0.35);
 
+/** The classic figure's refs, posed every frame by poseClassic. */
+export interface ClassicRefs {
+  figure: React.RefObject<Group | null>;
+  head: React.RefObject<Group | null>;
+  handL: React.RefObject<Mesh | null>;
+  handR: React.RefObject<Mesh | null>;
+  core: React.RefObject<Mesh | null>;
+  caret: React.RefObject<Mesh | null>;
+  extraHands: React.RefObject<Group | null>;
+  limbs: Limbs;
+}
+
+/**
+ * Strikes the classic figure's pose for this frame: body, head, hands, arms and legs, core, caret and the Manusi's
+ * extra hands. Shared by the Lattice and the portrait studio. `lift` raises the whole figure (a hop on the dance floor).
+ */
+export function poseClassic(r: ClassicRefs, look: Look | undefined, mode: PoseMode, gait: number, t: number, phase: number, lift = 0) {
+  const p = poseFor(mode, gait, phase);
+  const fig = r.figure.current;
+  if (!fig) return p;
+  fig.position.y = p.bob + p.lie * 0.3 + lift;
+  fig.rotation.set(p.lean - p.lie * (Math.PI / 2), 0, p.roll);
+  const b = BUILD[look?.build ?? "hover"];
+  if (r.head.current) {
+    r.head.current.position.y = b.lift + 1.36 * b.h + p.headLift;
+    r.head.current.rotation.set(p.headPitch, p.headYaw, 0);
+  }
+  // Bodies with arms keep their hands lower and closer, hanging from the shoulders.
+  const hx = b.limbs ? 0.82 : 1;
+  r.handL.current?.position.set(p.handL[0] * b.w * hx, b.lift + p.handL[1] * b.h, p.handL[2]);
+  r.handR.current?.position.set(p.handR[0] * b.w * hx, b.lift + p.handR[1] * b.h, p.handR[2]);
+  if (b.limbs) {
+    ([
+      [r.limbs.armL.current, r.handL.current, -1],
+      [r.limbs.armR.current, r.handR.current, 1],
+    ] as const).forEach(([arm, hnd, side]) => {
+      if (!arm || !hnd) return;
+      shoulder.set(side * 0.24 * b.w, b.lift + 1.02 * b.h, 0);
+      handPos.copy(hnd.position);
+      tmp.copy(handPos).sub(shoulder);
+      const len = Math.max(0.05, tmp.length() - 0.04);
+      arm.position.copy(shoulder).addScaledVector(tmp, 0.5);
+      armQ.setFromUnitVectors(UP, tmp.normalize());
+      arm.quaternion.copy(armQ);
+      arm.scale.set(1, len, 1);
+    });
+    const walking = mode === "walking" || mode === "carrying";
+    const stride = walking ? Math.sin(gait * 9 + phase) * 0.5 : mode === "celebrating" ? Math.sin(t * 14) * 0.15 : 0;
+    if (r.limbs.legL.current) r.limbs.legL.current.rotation.x += (stride - r.limbs.legL.current.rotation.x) * 0.4;
+    if (r.limbs.legR.current) r.limbs.legR.current.rotation.x += (-stride - r.limbs.legR.current.rotation.x) * 0.4;
+  }
+  if (r.core.current) r.core.current.scale.setScalar(0.8 + p.core * 0.25);
+  if (r.caret.current) r.caret.current.visible = Math.floor(t * 2.2 + phase) % 2 === 0;
+  if (r.extraHands.current) r.extraHands.current.rotation.y = t * 1.6 + phase;
+  return p;
+}
+
 /** The figure itself: build, torso, head, hair, face, hat, outfit, limbs, props and lineage signature. */
-function Figure({
+export function Figure({
   look,
   lineage,
   headRef,
@@ -341,45 +398,11 @@ export function Agent({ id }: { id: string }) {
       return;
     }
 
-    const p = poseFor(mode, gait.current, phase);
-    figure.current.position.y = p.bob + p.lie * 0.3 + dance;
-    figure.current.rotation.set(p.lean - p.lie * (Math.PI / 2), 0, p.roll);
-    const b = BUILD[look?.build ?? "hover"];
-    if (head.current) {
-      head.current.position.y = b.lift + 1.36 * b.h + p.headLift;
-      head.current.rotation.set(p.headPitch, p.headYaw, 0);
-    }
-    // Bodies with arms keep their hands lower and closer, hanging from the shoulders.
-    const hx = b.limbs ? 0.82 : 1;
-    handL.current?.position.set(p.handL[0] * b.w * hx, b.lift + p.handL[1] * b.h, p.handL[2]);
-    handR.current?.position.set(p.handR[0] * b.w * hx, b.lift + p.handR[1] * b.h, p.handR[2]);
-    if (b.limbs) {
-      ([
-        [limbs.armL.current, handL.current, -1],
-        [limbs.armR.current, handR.current, 1],
-      ] as const).forEach(([arm, hnd, side]) => {
-        if (!arm || !hnd) return;
-        shoulder.set(side * 0.24 * b.w, b.lift + 1.02 * b.h, 0);
-        handPos.copy(hnd.position);
-        tmp.copy(handPos).sub(shoulder);
-        const len = Math.max(0.05, tmp.length() - 0.04);
-        arm.position.copy(shoulder).addScaledVector(tmp, 0.5);
-        armQ.setFromUnitVectors(UP, tmp.normalize());
-        arm.quaternion.copy(armQ);
-        arm.scale.set(1, len, 1);
-      });
-      const walking = mode === "walking" || mode === "carrying";
-      const stride = walking ? Math.sin(gait.current * 9 + phase) * 0.5 : mode === "celebrating" ? Math.sin(t * 14) * 0.15 : 0;
-      if (limbs.legL.current) limbs.legL.current.rotation.x += (stride - limbs.legL.current.rotation.x) * 0.4;
-      if (limbs.legR.current) limbs.legR.current.rotation.x += (-stride - limbs.legR.current.rotation.x) * 0.4;
-    }
-    if (core.current) core.current.scale.setScalar(0.8 + p.core * 0.25);
+    const p = poseClassic({ figure, head, handL, handR, core, caret, extraHands, limbs }, look, mode, gait.current, t, phase, dance);
     if (propRef.current && handL.current && handR.current) {
       propRef.current.position.copy(handL.current.position).add(handR.current.position).multiplyScalar(0.5);
       propRef.current.position.y += 0.05;
     }
-    if (caret.current) caret.current.visible = Math.floor(t * 2.2 + phase) % 2 === 0;
-    if (extraHands.current) extraHands.current.rotation.y = t * 1.6 + phase;
     if (strings && head.current) {
       const pos = strings.geometry.attributes.position!.array as Float32Array;
       const barY = 2.35 + Math.sin(t * 1.3 + phase) * 0.05;

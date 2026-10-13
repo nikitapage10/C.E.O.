@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Renders the Desk's imagery from the Lattice itself: the overview as a hero, each room, and a portrait of every
- * agent (the Agent Studio's framing), written as WebP under apps/world/public/desk/. The Desk shows them as static
- * files, so three.js never loads with it.
+ * Renders the Desk's imagery from the Lattice itself: the overview as a hero and each room, written as WebP under
+ * apps/world/public/desk/. The Desk shows them as static files, so three.js never loads with it. The agents'
+ * portraits are taken separately, each model alone in the portrait studio: scripts/portraits.mjs.
  *
- * Usage: node scripts/desk-images.mjs [base-url] [--only=rooms|agents|hero]
+ * Usage: node scripts/desk-images.mjs [base-url] [--only=rooms|hero]
  *   base-url defaults to http://localhost:5181 (a `vite preview` or `vite dev` of @ceo/world).
  * Needs Chromium for Playwright (PLAYWRIGHT_CHROMIUM_PATH, or Playwright's own) and ImageMagick's `convert`
  * (falls back to JPEG straight from Playwright when it is missing).
@@ -26,8 +26,6 @@ const W = 1440;
 const H = 900;
 /** The Desk's rooms, in its order. */
 const ROOMS = ["relay", "foundry", "spire", "exchange", "green", "archive", "workshop", "boiler"];
-/** Where the studio camera puts the agent on a 1440×900 render: left of centre, so the panel has room. */
-const PORTRAIT = { x: 150, y: 110, size: 700 };
 
 let hasConvert = true;
 try {
@@ -81,33 +79,6 @@ if (only === "all" || only === "rooms") {
     await page.evaluate((r) => globalThis.__ceo.focus(r), room);
     await page.waitForTimeout(2500);
     await shoot(page, `room-${room}`, { x: 0, y: 60, w: W, h: 810 }, 960, 68);
-  }
-}
-
-if (only === "all" || only === "agents") {
-  const roster = await page.evaluate(() =>
-    Object.entries(globalThis.__ceo.state().agents).map(([id, a]) => ({ id, room: a.agent.home?.room ?? a.place?.room ?? null, name: a.agent.name })),
-  );
-  for (const a of roster) {
-    if (!a.room) {
-      console.warn(`no room for ${a.id}, skipping`);
-      continue;
-    }
-    // The studio camera frames the agent only once it is in its room; an agent still walking over gets a few tries.
-    let framed = false;
-    for (let tries = 0; tries < 6 && !framed; tries++) {
-      await page.evaluate(([id, room]) => {
-        globalThis.__ceo.openStudio(null);
-        globalThis.__ceo.focus(room);
-        globalThis.__ceo.openStudio(id);
-      }, [a.id, a.room]);
-      await page.waitForTimeout(2500);
-      framed = await page.evaluate(() => (globalThis.__ceo.camera()?.distance ?? 99) < 9);
-      if (!framed) await page.waitForTimeout(4000);
-    }
-    if (!framed) console.warn(`${a.id}: the studio camera never reached them; portrait may be off`);
-    await shoot(page, `agent-${a.id}`, { x: PORTRAIT.x, y: PORTRAIT.y, w: PORTRAIT.size, h: PORTRAIT.size }, 480, 70);
-    await page.evaluate(() => globalThis.__ceo.openStudio(null));
   }
 }
 

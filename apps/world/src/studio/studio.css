@@ -1,0 +1,93 @@
+/* The portrait studio: a square sitting over its room's colours, deep navy glass, and a faint Lattice in the back. */
+html,
+body {
+  margin: 0;
+  background: #05070d;
+}
+
+.studio-frame {
+  --tone: #8fe8ff;
+  position: relative;
+  width: 512px;
+  height: 512px;
+  overflow: hidden;
+  background:
+    radial-gradient(48% 42% at 54% 36%, color-mix(in srgb, var(--tone) 42%, transparent), transparent 72%),
+    radial-gradient(90% 40% at 50% 104%, color-mix(in srgb, var(--tone) 26%, transparent), transparent 70%),
+    radial-gradient(70% 70% at 50% 45%, #13203c 0%, #0a1224 55%, #05080f 100%);
+}
+
+/* The Lattice: thin rings of light, as on its floor, fading out towards the edges. */
+.studio-frame__lattice {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-radial-gradient(circle at 50% 118%, transparent 0 46px, color-mix(in srgb, var(--tone) 16%, transparent) 47px 48px),
+    repeating-conic-gradient(from 0deg at 50% 118%, transparent 0 9deg, color-mix(in srgb, var(--tone) 7%, transparent) 9deg 9.3deg);
+  -webkit-mask-image: radial-gradient(60% 55% at 50% 60%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(60% 55% at 50% 60%, #000 0%, transparent 100%);
+  opacity: 0.9;
+}
+
+/* A whisper of grain over the gradients, so they don't band when the picture is made small. */
+.studio-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  opacity: 0.12;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.studio-frame canvas {
+  position: absolute !important;
+  inset: 0;
+  z-index: 1;
+}
+
+.studio-roster {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px 16px;
+  color: #dfe8f7;
+  font-family: "Inter Variable", system-ui, sans-serif;
+}
+.studio-roster h1 {
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 400;
+  font-size: 40px;
+  margin: 0 0 8px;
+}
+.studio-roster p {
+  color: #8c9bb4;
+  margin: 0 0 24px;
+}
+.studio-roster ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+.studio-roster a {
+  display: grid;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+.studio-roster img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 14px;
+  border: 1px solid #1c2a3d;
+}
+.studio-roster small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8c9bb4;
+}

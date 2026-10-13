@@ -1,4 +1,5 @@
 import { pendingApprovals, ROOMS } from "@ceo/core";
+import { isSubmind } from "@ceo/simulator";
 import { useEffect } from "react";
 import { unlock } from "../achievements/achievements.ts";
 import { clock } from "../clock.ts";
@@ -116,7 +117,8 @@ export function NightDirector() {
       // Through the night, someone dozes off at their station now and then.
       if (now > nextDoze) {
         nextDoze = now + 18_000 + Math.random() * 20_000;
-        const sleepy = idleAgents().filter((a) => a.agent.id !== "caret" && a.agent.id !== "semicolon");
+        // Rocky sleeps on his own schedule, Rivet keeps the watch, and the subminds never sleep (nor does Skippy).
+        const sleepy = idleAgents().filter((a) => a.agent.id !== "caret" && a.agent.id !== "semicolon" && !isSubmind(a.agent.id));
         if (sleepy.length) {
           const a = pick(sleepy);
           w.override(a.agent.id, "napping", 25_000 + Math.random() * 25_000);

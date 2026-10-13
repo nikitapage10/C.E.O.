@@ -1,4 +1,5 @@
 import { ROOMS, type RoomId } from "@ceo/core";
+import { isSubmind } from "@ceo/simulator";
 import { unlock } from "../achievements/achievements.ts";
 import { clock } from "../clock.ts";
 import { gatheringControl } from "../gatherings/GatheringDirector.tsx";
@@ -91,7 +92,8 @@ export const COMMANDS: Command[] = [
     group: "cast",
     run: () => {
       const w = useWorld.getState();
-      const who = free();
+      // The subminds keep watch: they never nap, even on orders.
+      const who = free().filter((a) => !isSubmind(a.agent.id));
       who.forEach((a) => {
         w.override(a.agent.id, "celebrating", 6000 + Math.random() * 3000);
         w.emote(a.agent.id, "✦", 3000);
@@ -106,7 +108,8 @@ export const COMMANDS: Command[] = [
     group: "cast",
     run: () => {
       const w = useWorld.getState();
-      const who = free();
+      // The subminds keep watch: they never nap, even on orders.
+      const who = free().filter((a) => !isSubmind(a.agent.id));
       who.forEach((a) => {
         w.override(a.agent.id, "napping", 30_000 + Math.random() * 15_000);
         w.emote(a.agent.id, "☾", 3000);

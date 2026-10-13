@@ -1,4 +1,5 @@
 import { pendingApprovals } from "@ceo/core";
+import { isSubmind } from "@ceo/simulator";
 import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
@@ -21,7 +22,8 @@ function castFor(def: GatheringDef, busy: Set<string>): { host: string; guests: 
   const { lattice } = useWorld.getState();
   const { cast } = useCast.getState();
   const waiting = new Set(pendingApprovals(lattice).map((p) => p.request.agentId));
-  const free = Object.keys(lattice.agents).filter((id) => !waiting.has(id) && !busy.has(id));
+  // The subminds stay at their posts keeping watch; they conduct a gathering, they don't join it.
+  const free = Object.keys(lattice.agents).filter((id) => !waiting.has(id) && !busy.has(id) && !isSubmind(id));
   const local = shuffle(free.filter((id) => lattice.agents[id]?.place.room === def.room));
   const host = def.hosts.find((id) => free.includes(id)) ?? local[0] ?? shuffle(free)[0];
   if (!host) return null;

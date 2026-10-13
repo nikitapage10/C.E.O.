@@ -41,7 +41,7 @@ export const EXCHANGES: Record<RelationshipKind, [string, string][]> = {
     ["Proud of you, {other}.", "Thank you. Can I have a raise?"],
   ],
   sibling: [
-    ["Mum said to check on you, {other}.", "We don't have a mum. We have a Kernel."],
+    ["Mum said to check on you, {other}.", "We don't have a mum. We have Skippy. Worse."],
     ["You used my mug again, {other}.", "Prove it."],
     ["Did you fill in your timesheet?", "Did YOU?"],
   ],

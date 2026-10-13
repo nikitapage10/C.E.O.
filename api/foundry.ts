@@ -13,9 +13,9 @@
  *   FOUNDRY_DESK_KEY       a passphrase Nikita types once on the Desk; without it nobody else can press the buttons
  *   FOUNDRY_ROUTINE_TOKEN  the wake routine's API token (same as the GitHub secret)
  *   FOUNDRY_ROUTINE_ID     the wake routine (same as the GitHub secret); defaults to the Foundry's routine
- *   OPENAI_API_KEY         optional: lets Rusty shape a proposed or revised idea on the spot (a pitch, a size and a
- *                          builder, in a few seconds, on a small OpenAI model), instead of waiting for the thread.
- *                          Routing and shaping only, never code; the Foundry's API spend is capped at $10 a month.
+ *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): lets Rusty shape a proposed or revised idea on the spot (a pitch, a size and a
+ *                          builder, in a few seconds, on Claude Haiku), instead of waiting for the hourly check.
+ *                          Shaping only, never code (code runs on Claude Code); capped at $10 a month.
  *   FOUNDRY_GITHUB_TOKEN   optional: a fine-grained token for this repo with Issues read and write. With it, a
  *                          click changes the issue at once; without it, the click wakes the Foundry thread and the
  *                          thread makes the change on GitHub itself a moment later.
@@ -25,6 +25,7 @@
 
 const DEFAULT_ROUTINE_ID = "trig_01StEu8pfVzyZpiRQjLDyTmP";
 
+import Anthropic from "@anthropic-ai/sdk";
 import { timingSafeEqual } from "node:crypto";
 
 const REPO = "nikitapage10/C.E.O.";
@@ -57,7 +58,8 @@ async function github(path: string, init: RequestInit = {}): Promise<Response> {
 const routineId = () => env("FOUNDRY_ROUTINE_ID") || DEFAULT_ROUTINE_ID;
 const canWake = () => Boolean(env("FOUNDRY_ROUTINE_TOKEN"));
 const canWrite = () => Boolean(env("FOUNDRY_GITHUB_TOKEN"));
-const canShape = () => Boolean(env("OPENAI_API_KEY"));
+const claudeKey = () => env("CLAUDE_API_KEY") || env("ANTHROPIC_API_KEY");
+const canShape = () => Boolean(claudeKey());
 
 /** Rusty's quick pass on an idea: what the Desk card shows and who builds it. */
 export interface Shape {
@@ -67,7 +69,19 @@ export interface Shape {
   builder: "Rusty" | "Rocky";
 }
 
-const SHAPE_MODEL = "gpt-5.4-mini";
+const SHAPE_MODEL = "claude-haiku-5-5";
+
+const SHAPE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    pitch: { type: "string" },
+    size: { type: "string", enum: ["small", "medium", "large"] },
+    builder: { type: "string", enum: ["Rusty", "Rocky"] },
+  },
+  required: ["title", "pitch", "size", "builder"],
+  additionalProperties: false,
+} as const;
 
 const SHAPE_PROMPT = `You shape feature ideas for C.E.O., Nikita's web app: a Desk dashboard plus "the Lattice", a 3D world of rooms where AI agents (the Syntherion) work, with a coding crew in the Foundry room. Nikita describes an idea, often by voice, rambling. Turn it into a card:
 - title: "Idea: " plus a short plain name for it (under 70 characters), in Nikita's own words where possible.
@@ -75,22 +89,25 @@ const SHAPE_PROMPT = `You shape feature ideas for C.E.O., Nikita's web app: a De
 - size: small (one area, an hour or so), medium (a few files or one feature), or large (several systems).
 - builder: "Rusty" (Sonnet) for simple, well-scoped work like moving, renaming or restyling things; "Rocky" (Opus) for anything substantial, open-ended or design-heavy, or that would clearly benefit from the stronger model. Lean towards Rocky when unsure.
 Nikita often dictates, so fix obvious speech-to-text slips using C.E.O.'s own words: subminds (Skippy's room leads), Skippy, Rivet, Rusty, Rocky, the Desk, the Lattice, the Foundry, Relay, the Spire, the Exchange, the Green, the Archive, the Break Room, the Boiler Room, the Workshop.
-Reply with JSON only: {"title": "...", "pitch": "...", "size": "...", "builder": "..."}.`;
+Reply with the card as JSON: title, pitch, size, builder.`;
 
-/** Rusty shapes the idea in a few seconds; null when OpenAI isn't set up or doesn't answer in time. */
+/** Rusty shapes the idea in a few seconds; null when Claude isn't set up or doesn't answer in time. */
 export async function shapeIdea(words: string, current?: string): Promise<Shape | null> {
   if (!canShape()) return null;
   const input = current ? `The idea as it stands:\n${current}\n\nNikita's notes to revise it with:\n${words}` : words;
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env("OPENAI_API_KEY")}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: SHAPE_MODEL, response_format: { type: "json_object" }, messages: [{ role: "system", content: SHAPE_PROMPT }, { role: "user", content: input }] }),
-    signal: AbortSignal.timeout(12_000),
-  }).catch(() => null);
-  if (!res?.ok) return null;
+  const client = new Anthropic({ apiKey: claudeKey(), timeout: 12_000, maxRetries: 1 });
   try {
-    const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const raw = JSON.parse(body.choices?.[0]?.message?.content ?? "") as Partial<Shape>;
+    const res = await client.messages.create({
+      model: SHAPE_MODEL,
+      max_tokens: 1024,
+      thinking: { type: "disabled" },
+      output_config: { effort: "low", format: { type: "json_schema", schema: SHAPE_SCHEMA } },
+      system: SHAPE_PROMPT,
+      messages: [{ role: "user", content: input }],
+    });
+    const text = res.content.find((block) => block.type === "text");
+    if (!text || text.type !== "text") return null;
+    const raw = JSON.parse(text.text) as Partial<Shape>;
     if (typeof raw.title !== "string" || typeof raw.pitch !== "string") return null;
     const title = raw.title.startsWith("Idea:") ? raw.title : `Idea: ${raw.title}`;
     return {

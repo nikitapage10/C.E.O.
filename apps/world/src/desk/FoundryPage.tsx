@@ -536,7 +536,7 @@ function Connections({ setup }: { setup: Setup }) {
     },
     {
       name: "Quick shaping",
-      what: setup?.shape ? "Rusty shapes your ideas in a few seconds" : "Add OPENAI_API_KEY in Vercel so Rusty shapes ideas in seconds",
+      what: setup?.shape ? "Rusty shapes your ideas in a few seconds" : "Add CLAUDE_API_KEY in Vercel so Rusty shapes ideas in seconds",
       state: setup === null ? "off" : setup.shape ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.shape ? "Ready" : "Needs setup",
     },

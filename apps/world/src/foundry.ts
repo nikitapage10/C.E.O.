@@ -61,8 +61,23 @@ export interface Crate {
 
 export type ChecksState = "pass" | "fail" | "running" | "unknown";
 
+/** One shipped change for the changelog: a Foundry issue that shipped, or a merged pull request with no issue. */
+export interface Change {
+  key: string;
+  /** Date.now() style: when it shipped. */
+  at: number;
+  title: string;
+  kind: CrateKind;
+  /** The issue that tracked it, when there is one. */
+  issue: { number: number; url: string } | null;
+  /** Where the code landed: its pull request, or the commit on main. */
+  landed: { label: string; url: string } | null;
+}
+
 export interface FoundryData {
   crates: Crate[];
+  /** Every shipped change GitHub still lists, newest first. */
+  changelog: Change[];
   checks: { state: ChecksState; url: string | null; at: number | null };
   /** Ideas Nikita passed on: closed and labelled `foundry:passed`, waiting on the shelf for a comeback. */
   shelved: number;
@@ -89,14 +104,90 @@ export interface GhRun {
   updated_at: string;
 }
 
+/** The slice of GitHub's pull request JSON we read. */
+export interface GhPull {
+  number: number;
+  title: string;
+  html_url: string;
+  merged_at: string | null;
+  body?: string | null;
+  head: { ref: string };
+}
+
+/** The slice of GitHub's commit JSON we read. */
+export interface GhCommit {
+  sha: string;
+  html_url: string;
+  commit: { message: string; committer?: { date?: string } | null };
+}
+
 const KINDS: CrateKind[] = ["fix", "idea", "build", "upkeep", "chat"];
+
+function labelSet(issue: GhIssue): Set<string> {
+  return new Set(issue.labels.map((l) => (typeof l === "string" ? l : (l.name ?? ""))));
+}
+
+/** The issue numbers a text points at ("Closes #13", "(#5)"). */
+function mentions(text: string): Set<number> {
+  return new Set([...text.matchAll(/#(\d+)\b/g)].map((m) => Number(m[1])));
+}
+
+/** The issue number in a lane branch name ("foundry/upkeep/11-lint-ignore-worktrees"). */
+function branchIssue(ref: string): number | null {
+  const n = /(?:^|\/)(\d+)-/.exec(ref)?.[1];
+  return n ? Number(n) : null;
+}
+
+/**
+ * The changelog: every Foundry issue that shipped (lanes and chat work alike), each with the pull request or commit
+ * that landed it, plus merged pull requests that had no issue. Newest first.
+ */
+export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCommit[]): Change[] {
+  const merged = pulls.filter((p) => p.merged_at);
+  const used = new Set<number>();
+  const out: Change[] = [];
+  for (const issue of issues) {
+    if (issue.pull_request || issue.state !== "closed") continue;
+    const labels = labelSet(issue);
+    if (!labels.has("foundry") || !labels.has("foundry:shipped")) continue;
+    const kind = KINDS.find((k) => labels.has(`foundry:${k}`)) ?? "chat";
+    const pr = merged.find((p) => branchIssue(p.head.ref) === issue.number || mentions(`${p.title}\n${p.body ?? ""}`).has(issue.number));
+    const commit = pr ? undefined : commits.find((c) => mentions(c.commit.message).has(issue.number));
+    if (pr) used.add(pr.number);
+    out.push({
+      key: `issue-${issue.number}`,
+      at: Date.parse(issue.closed_at ?? issue.updated_at),
+      title: issue.title,
+      // A built idea is a build by the time it ships.
+      kind: kind === "idea" ? "build" : kind,
+      issue: { number: issue.number, url: issue.html_url },
+      landed: pr ? { label: `PR #${pr.number}`, url: pr.html_url } : commit ? { label: commit.sha.slice(0, 7), url: commit.html_url } : null,
+    });
+  }
+  // A pull request for an issue already listed (or still open) is that issue's, not a change of its own.
+  const tracked = new Set(issues.map((i) => i.number));
+  for (const p of merged) {
+    if (used.has(p.number)) continue;
+    const refs = [branchIssue(p.head.ref), ...mentions(`${p.title}\n${p.body ?? ""}`)];
+    if (refs.some((n) => n !== null && tracked.has(n))) continue;
+    const lane = /^foundry\/(fix|upkeep|build|idea)\//.exec(p.head.ref)?.[1] as CrateKind | undefined;
+    out.push({ key: `pr-${p.number}`, at: Date.parse(p.merged_at!), title: p.title, kind: lane === "idea" ? "build" : (lane ?? "chat"), issue: null, landed: { label: `PR #${p.number}`, url: p.html_url } });
+  }
+  return out.sort((a, b) => b.at - a.at);
+}
+
+/** How many changes shipped since local midnight. */
+export function shippedToday(changelog: Change[], now = Date.now()): number {
+  const midnight = new Date(now).setHours(0, 0, 0, 0);
+  return changelog.filter((c) => c.at >= midnight).length;
+}
 
 /** Issues labelled `foundry` become crates; pull requests, untyped issues and closed-unshipped ones drop out. */
 export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
   const crates: Crate[] = [];
   for (const issue of issues) {
     if (issue.pull_request) continue;
-    const labels = new Set(issue.labels.map((l) => (typeof l === "string" ? l : (l.name ?? ""))));
+    const labels = labelSet(issue);
     if (!labels.has("foundry")) continue;
     const kind = KINDS.find((k) => labels.has(`foundry:${k}`));
     if (!kind) continue;
@@ -220,7 +311,7 @@ interface FoundryStore {
   set: (data: FoundryData) => void;
 }
 
-export const EMPTY_FOUNDRY: FoundryData = { crates: [], checks: { state: "unknown", url: null, at: null }, shelved: 0 };
+export const EMPTY_FOUNDRY: FoundryData = { crates: [], changelog: [], checks: { state: "unknown", url: null, at: null }, shelved: 0 };
 
 /** How many ideas are on the shelf. */
 export function countShelved(issues: GhIssue[]): number {
@@ -252,11 +343,13 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 export async function refreshFoundry(): Promise<void> {
   try {
-    const [issues, runs] = await Promise.all([
+    const [issues, runs, pulls, commits] = await Promise.all([
       fetchJson<GhIssue[]>(`${API}/issues?labels=foundry&state=all&sort=updated&per_page=40`),
       fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/checks.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
+      fetchJson<GhPull[]>(`${API}/pulls?state=closed&sort=updated&direction=desc&per_page=20`).catch(() => [] as GhPull[]),
+      fetchJson<GhCommit[]>(`${API}/commits?sha=main&per_page=40`).catch(() => [] as GhCommit[]),
     ]);
-    const data: FoundryData = { crates: parseCrates(issues), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues) };
+    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues) };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
     const { setLink } = useSystems.getState();

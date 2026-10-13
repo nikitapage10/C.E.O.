@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CREW, crewOf, crewWork, expectChange, nextUpkeep, useFoundry, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { CREW, crewFor, crewOf, crewWork, expectChange, nextUpkeep, REPO, useFoundry, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -17,7 +17,6 @@ const CRATE_STATE: Record<CrateState, string> = { queued: "Queued", working: "Wo
 const CREW_STATE: Record<CrateState, LinkState> = { queued: "ok", working: "ok", ready: "slow", stuck: "down", shipped: "ok" };
 const CREW_RUNG: Record<CrewId, string> = { semicolon: "Haiku", caret: "Sonnet, then Opus", tessellate: "Cheapest that fits" };
 const CHECKS_LABEL: Record<LinkState, string> = { off: "No run yet", ok: "Green", slow: "Running", down: "Red" };
-const LATELY = 6;
 const HOUR = 3_600_000;
 
 /** The morning ideas come at 9:00 Mountain time. */
@@ -97,7 +96,6 @@ export function FoundryPage({ now }: { now: number }) {
   const upkeep = data.crates.find((c) => c.kind === "upkeep");
   // Everything in flight: in hand first, then the queue. Chat work (a thread building what Nikita asked for) is in here too.
   const inFlight = data.crates.filter((c) => c.kind !== "idea" && (c.state === "working" || c.state === "queued")).sort((a, b) => (a.state === b.state ? a.number - b.number : a.state === "working" ? -1 : 1));
-  const lately = data.crates.filter((c) => c.kind !== "idea" && c.state === "shipped").slice(0, LATELY);
   const toPick = ideas.filter((c) => !c.revising).length;
   const needs = decisions.length + (toPick ? 1 : 0);
 
@@ -195,8 +193,15 @@ export function FoundryPage({ now }: { now: number }) {
         {inFlight.length ? <CrateList crates={inFlight} all={data.crates} now={now} /> : <p className="quiet">Nothing in hand or queued. Fixes, builds, upkeep and work asked for in chat show here.</p>}
       </Panel>
 
-      <Panel eyebrow="Shipped lately" aside={<span className="badge">{lately.length}</span>}>
-        {lately.length ? <CrateList crates={lately} all={data.crates} now={now} /> : <p className="quiet">Nothing shipped in the last day.</p>}
+      <Panel eyebrow="Changelog" aside={<span className="badge">{data.changelog.length}</span>}>
+        {data.changelog.length ? <Changelog changes={data.changelog} now={now} /> : <p className="quiet">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
+        <p className="quiet changelog__all">
+          Every commit on main, one-offs included, is on{" "}
+          <a href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+          .
+        </p>
       </Panel>
     </div>
   );
@@ -551,6 +556,66 @@ function CrateList({ crates, all, now }: { crates: Crate[]; all: Crate[]; now: n
         </li>
       ))}
     </ul>
+  );
+}
+
+/** "Today", "Yesterday", or "Mon 12 Oct". */
+function dayLabel(at: number, now: number): string {
+  const day = (t: number) => new Date(t).setHours(0, 0, 0, 0);
+  const d = (day(now) - day(at)) / 86_400_000;
+  if (d < 1) return "Today";
+  if (d < 2) return "Yesterday";
+  return new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
+/** Every shipped change, newest first, grouped by day: what it was, who did it, and links to its issue and code. */
+function Changelog({ changes, now }: { changes: Change[]; now: number }) {
+  const days: { label: string; items: Change[] }[] = [];
+  for (const c of changes) {
+    const label = dayLabel(c.at, now);
+    const last = days.at(-1);
+    if (last?.label === label) last.items.push(c);
+    else days.push({ label, items: [c] });
+  }
+  return (
+    <div className="changelog">
+      {days.map((d) => (
+        <section key={d.label} className="changelog__day">
+          <h3 className="changelog__date">
+            {d.label} <span className="badge">{d.items.length}</span>
+          </h3>
+          <ul className="crates">
+            {d.items.map((c) => {
+              const who = crewFor({ kind: c.kind, rung: null });
+              return (
+                <li key={c.key} className="crates__item crates__item--shipped">
+                  <Avatar agent={who} size="sm" room="foundry" />
+                  <span className="crates__kind">{KIND_LABEL[c.kind]}</span>
+                  <a className="crates__title" href={c.issue?.url ?? c.landed?.url} target="_blank" rel="noreferrer">
+                    {c.title}
+                  </a>
+                  <span className="crates__who">
+                    {CREW[who].name} · {new Date(c.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                  <span className="changelog__links">
+                    {c.issue && (
+                      <a href={c.issue.url} target="_blank" rel="noreferrer">
+                        #{c.issue.number}
+                      </a>
+                    )}
+                    {c.landed && (
+                      <a href={c.landed.url} target="_blank" rel="noreferrer">
+                        {c.landed.label}
+                      </a>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 

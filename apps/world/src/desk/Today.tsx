@@ -1,4 +1,5 @@
 import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
+import { shippedToday, useFoundry } from "../foundry.ts";
 import { link } from "./nav.ts";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening } from "./viz.tsx";
@@ -33,6 +34,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
   const later = data.actions.filter((a) => a.when === "later");
   const todo = replies.length + decisions.length;
   const canWait = later.length + otherReplies;
+  const shipped = shippedToday(useFoundry((s) => s.data.changelog), now);
   const total = todo + canWait + data.doneToday;
   const working = (Object.keys(DESK_ROOMS) as DeskRoom[]).filter((r) => data.notes.some((n) => n.room === r) || data.actions.some((a) => a.room === r));
 
@@ -122,7 +124,16 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
           )}
         </Panel>
 
-        <Panel eyebrow="While you were away">
+        <Panel
+          eyebrow="While you were away"
+          aside={
+            shipped > 0 && (
+              <a className="section-head__link" href="/foundry" onClick={link("foundry")}>
+                Shipped today: {shipped}
+              </a>
+            )
+          }
+        >
           {data.notes.length ? (
             <ul className="notes">
               {data.notes.map((n, i) => (

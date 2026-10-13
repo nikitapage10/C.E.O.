@@ -85,10 +85,13 @@ describe("parseChecks", () => {
 
 describe("readBody", () => {
   it("reads the pitch and size the Foundry writes into an idea", () => {
-    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret" });
+    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [] });
+  });
+  it("reads attached pictures from the markdown", () => {
+    expect(readBody("**Pitch:** Look.\n\n![Picture 1](https://x.public.blob.vercel-storage.com/a.jpg)\n![Picture 2](https://x.public.blob.vercel-storage.com/b.png)\n![bad](http://no.tls/c.png)").images).toEqual(["https://x.public.blob.vercel-storage.com/a.jpg", "https://x.public.blob.vercel-storage.com/b.png"]);
   });
   it("is empty for a plain issue", () => {
-    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null });
+    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, images: [] });
   });
 });
 

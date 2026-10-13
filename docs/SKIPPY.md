@@ -92,12 +92,16 @@ in the awesomeness".
 
 Skippy hovers over the Kernel, a giant admiral can over the port ring, and speaks on the Lattice-wide PA (the old
 Kernel announcements). Each submind wears the admiral can with its hat and coat in its room's colour and lives at
-its room's command podium, the can-throne: a small raised dais in the back-right corner of the room
-(`packages/core/src/posts.ts`, drawn by `apps/world/src/rooms/Podium.tsx`, footprint in `obstacles.ts`). From there
+its room's command podium, the can-throne: a hex platform that levitates high in the back-right corner of the
+room, about 2.6 m up, above every head and clear of the furniture, bobbing and drifting a little on a soft wash of
+light in its colour (`packages/core/src/posts.ts`, drawn by `apps/world/src/rooms/Podium.tsx`). It touches nothing,
+so the corner under it is free for everyone to walk through. From there
 it turns to whoever is working and conducts at them, with a sarcastic line in its own voice now and then. It comes
 out only to give a command: when work starts in its room (a demo task, or a real one such as a Foundry crate) it
-floats out to the command spot high over the middle of the room, turns to whoever the order is for and gives it,
-conducts a moment, and glides back (`Simulator.command`, at most once every 45 seconds of Lattice time). While it is
+glides out to the command spot high over the middle of the room, in a straight line through the air with an
+easy start and finish (both ends are above every head, so it needs no path round the furniture: `routeBetween`'s
+"fly" leg), turns to whoever the order is for and gives it, conducts a moment, and glides back
+(`Simulator.command`, at most once every 45 seconds of Lattice time, never cutting a flight short). While it is
 out, a soft glow and ring in its colour mark the floor beneath it (`apps/world/src/rooms/HoverGlow.tsx`). Once in
 a while it also swoops down to check on someone up close, then goes home. Subminds don't nap and don't join gatherings. Rivet, back on the
 Foundry bench, does the first-try fixes; the Builder conducts.

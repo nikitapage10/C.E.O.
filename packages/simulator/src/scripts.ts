@@ -419,7 +419,7 @@ export const workshopSculptor: Script = ({ rng }) => [
 ];
 
 /**
- * A Skippy submind conducts its room from its command podium in the back-right corner (the can-throne): sits there
+ * A Skippy submind conducts its room from its command podium floating high in the back-right corner (the can-throne): sits there
  * looking the room over, directs whoever is working (the world turns it toward them and gives it the baton, see
  * SubmindDirector), passes remarks, and once in a few minutes swoops down to check on someone up close before going
  * back to the podium. It floats out over the middle of the room to give an order when work starts there

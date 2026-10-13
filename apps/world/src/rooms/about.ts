@@ -6,9 +6,9 @@ import type { RoomId } from "@ceo/core";
  */
 export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string, string>; today: string; next: string }> = {
   foundry: {
-    blurb: "Where code gets made, for real. Every crate is a real task for the C.E.O. repo, worked by the Foundry thread in Claude Code (Skippy, the Builder): the Builder conducts from its command podium in the corner, picks who takes each job and floats out to hand it over, Rivet jumps on anything broken and sizes it up, Rusty takes the simple jobs, the upkeep and the three ideas he pins to his board each morning, and Rocky takes everything big. When Rusty has more than one job at once, a spare unit wakes on his dock and rolls out to help. Every bench's work light shows the model of whoever is working there: Haiku, Sonnet or Opus.",
+    blurb: "Where code gets made, for real. Every crate is a real task for the C.E.O. repo, worked by the Foundry thread in Claude Code (Skippy, the Builder): the Builder conducts from its podium floating high in the corner, picks who takes each job and floats out to hand it over, Rivet jumps on anything broken and sizes it up, Rusty takes the simple jobs, the upkeep and the three ideas he pins to his board each morning, and Rocky takes everything big. When Rusty has more than one job at once, a spare unit wakes on his dock and rolls out to help. Every bench's work light shows the model of whoever is working there: Haiku, Sonnet or Opus.",
     stations: {
-      post: "The Builder's command podium, in the back-right corner. The Foundry's submind conducts the crew from here and picks the model rung for each fix. It floats out over the room when it gives an order.",
+      post: "The Builder's floating command podium, high in the back-right corner. The Foundry's submind conducts the crew from here and picks the model rung for each fix. It glides out over the room when it gives an order.",
       intake: "New Foundry tasks arrive here as crates. A red light spins when one is stuck and needs you.",
       assembler: "The crew writes and edits code.",
       furnace: "The checks on main (types, lint, tests, build). The window glows green for a pass, red for a fail.",
@@ -25,7 +25,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
   spire: {
     blurb: "The front office for your small online businesses: inbox, orders, listings, invoices and the weekly numbers.",
     stations: {
-      post: "The Executive's command podium, in the back-right corner. The Spire's submind runs the floor from here like a keynote. It floats out over the room when it gives an order.",
+      post: "The Executive's floating command podium, high in the back-right corner. The Spire's submind runs the floor from here like a keynote. It glides out over the room when it gives an order.",
       "desk-1": "Customer email and support.",
       "desk-2": "Orders and listings.",
       "desk-3": "Admin, invoices, the boring heroic stuff.",
@@ -39,7 +39,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
   exchange: {
     blurb: "The trading floor for Kalshi and portfolio research. Agents research markets, price them, and bring trade ideas to the vault.",
     stations: {
-      post: "The Bookie's command podium, in the back-right corner. The Exchange's submind prices every trade from here, nervously. It floats out over the room when it gives an order.",
+      post: "The Bookie's floating command podium, high in the back-right corner. The Exchange's submind prices every trade from here, nervously. It glides out over the room when it gives an order.",
       terminal: "Market research.",
       "desk-n": "Pricing desk.",
       "desk-e": "Risk desk.",
@@ -52,7 +52,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
   green: {
     blurb: "Fantasy football HQ. Agents read your Sleeper league, projections and injury reports, then suggest waiver claims and lineup changes.",
     stations: {
-      post: "The Commentator's command podium, in the back-right corner. The Green's submind calls the play by play from here. It floats out over the room when it gives an order.",
+      post: "The Commentator's floating command podium, high in the back-right corner. The Green's submind calls the play by play from here. It glides out over the room when it gives an order.",
       "depth-chart": "Projections and injury reports.",
       mailbox: "Waiver claims. The flag goes up when one is waiting on you.",
       sideline: "Lineup suggestions.",
@@ -65,7 +65,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
   relay: {
     blurb: "Your messages. Texts arrive by pneumatic tube, an agent drafts a reply in your voice, and it waits in the outbox until you approve it.",
     stations: {
-      post: "The Messenger's command podium, in the back-right corner. The Relay's submind listens in on every line from here and picks who drafts what. It floats out over the room when it gives an order.",
+      post: "The Messenger's floating command podium, high in the back-right corner. The Relay's submind listens in on every line from here and picks who drafts what. It glides out over the room when it gives an order.",
       tubes: "Incoming messages.",
       "draft-desk": "Replies get drafted here.",
       outbox: "Drafts waiting for your approval (the beacon lights up).",
@@ -77,7 +77,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
   archive: {
     blurb: "The Tide's library: worldbuilding, lore and D&D campaign prep. Half arcane library, half research lab, like the world it keeps.",
     stations: {
-      post: "The Historian's command podium, in the back-right corner. The Archive's submind corrects the record from here, with footnotes. It floats out over the room when it gives an order.",
+      post: "The Historian's floating command podium, high in the back-right corner. The Archive's submind corrects the record from here, with footnotes. It glides out over the room when it gives an order.",
       shelves: "The lore, shelved by people, place and age.",
       loom: "Lore gets woven and cross-checked against canon.",
       "dice-table": "Session prep and encounter tables.",
@@ -92,7 +92,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
   breakroom: {
     blurb: "Where agents go between tasks: coffee, naps on the server rack, ping-pong, and a window onto the Age of the Veil.",
     stations: {
-      post: "The Life of the Party's command podium, in the back-right corner. The Break Room's submind runs the party from here, and ends it on time. It floats out over the room when it gives an order.",
+      post: "The Life of the Party's floating command podium, high in the back-right corner. The Break Room's submind runs the party from here, and ends it on time. It glides out over the room when it gives an order.",
       couch: "Strategic resting.",
       "ping-pong": "Ping. Pong.",
       "coffee-machine": "Sentient. Unmotivated. Will not make you coffee.",
@@ -105,7 +105,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
   boiler: {
     blurb: "Where you see whether the real lines are working. Every brass pipe is one of them: a live agent, the hub on your MacBook, BlueBubbles, Messages, OpenAI. The boiler is the MacBook itself.",
     stations: {
-      post: "The Pessimist's command podium, in the back-right corner. The Boiler Room's submind watches the pipe wall from here, expecting the worst. It floats out over the room when it gives an order.",
+      post: "The Pessimist's floating command podium, high in the back-right corner. The Boiler Room's submind watches the pipe wall from here, expecting the worst. It glides out over the room when it gives an order.",
       pipes: "One pipe per real link. The gauge is how busy it is; steam means healthy, coughing means slow, a burst means down.",
       boiler: "The MacBook. Its fire goes out if the Mac sleeps.",
       bucket: "Under the drip. It has always been there.",
@@ -119,7 +119,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
   workshop: {
     blurb: "Where new things for the Lattice get made: a new character, a costume, a pet, a prop. An idea goes along the line left to right: Daub paints it, Chisel forms it in the mould, fits its frame on the turntable, and rehearses it on the little stage until it walks like it means it. Then it goes in the crate by the exit, ready to join the world.",
     stations: {
-      post: "The Artiste's command podium, in the back-right corner. The Workshop's submind conducts the making line from here, and suffers for it. It floats out over the room when it gives an order.",
+      post: "The Artiste's floating command podium, high in the back-right corner. The Workshop's submind conducts the making line from here, and suffers for it. It glides out over the room when it gives an order.",
       easel: "Step one: the concept. Daub paints the idea until there's a picture to work from.",
       mould: "Step two: the form. The figure gathers out of a cloud of points, holds as a wireframe, turns solid and lifts out.",
       fitting: "Step three: the fitting. The figure turns on the stand while its frame of bones is fitted, so it can move.",

@@ -10,6 +10,7 @@ import { Flare } from "../fx/Flare.tsx";
 import { emissive } from "../fx/materials.ts";
 import { PBR } from "../fx/pbr.ts";
 import { Block, facingDir } from "../rooms/primitives.tsx";
+import { podiumSwayWorld } from "../rooms/podiumFloat.ts";
 import { useWorld } from "../store.ts";
 import { BUILD, BackProp, Face, HandProp, Hair, Hat, Head, Outfit, shellMaterial, sleeveMaterial } from "./Avatar.tsx";
 import { poseFor, type PoseMode } from "./behavior.ts";
@@ -260,6 +261,8 @@ export function Agent({ id }: { id: string }) {
   const yaw = useRef(0);
   /** How far this agent has stepped from their spot to leave room for a chat. */
   const step = useRef({ x: 0, z: 0 });
+  /** How far this agent is riding the floating podium's sway (0 off it, 1 sat on it). */
+  const aboard = useRef(0);
   /** The classic figure's own animation clock: runs at the Lattice's speed while walking, so strides keep up. */
   const gait = useRef(0);
   const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
@@ -334,6 +337,14 @@ export function Agent({ id }: { id: string }) {
     if (!live0 && wanted) talkSteps.delete(id);
     root.current.position.x += step.current.x;
     root.current.position.z += step.current.z;
+    // Sitting on the floating podium, ride its bob and drift (faded in and out, so landing and leaving never jump).
+    aboard.current += ((!moving && rt.place.station === "post" ? 1 : 0) - aboard.current) * ease;
+    if (aboard.current > 0.001) {
+      const [bx, by, bz] = podiumSwayWorld(rt.place.room, t);
+      root.current.position.x += bx * aboard.current;
+      root.current.position.y += by * aboard.current;
+      root.current.position.z += bz * aboard.current;
+    }
     agentPositions.set(id, (agentPositions.get(id) ?? new Vector3()).copy(root.current.position));
 
     const override = useWorld.getState().overrides[id];

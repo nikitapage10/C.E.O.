@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { shippedToday, useFoundry } from "../foundry.ts";
 import { link } from "./nav.ts";
@@ -35,6 +36,12 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
   const todo = replies.length + decisions.length;
   const canWait = later.length + otherReplies;
   const shipped = shippedToday(useFoundry((s) => s.data.changelog), now);
+  const notesRef = useRef<HTMLUListElement>(null);
+  const fadeNotes = () => {
+    const el = notesRef.current;
+    if (el) el.dataset.more = String(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+  };
+  useLayoutEffect(fadeNotes, [data.notes]);
   const total = todo + canWait + data.doneToday;
   const working = (Object.keys(DESK_ROOMS) as DeskRoom[]).filter((r) => data.notes.some((n) => n.room === r) || data.actions.some((a) => a.room === r));
 
@@ -135,7 +142,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
           }
         >
           {data.notes.length ? (
-            <ul className="notes">
+            <ul className="notes" ref={notesRef} onScroll={fadeNotes}>
               {data.notes.map((n, i) => (
                 <li key={i} style={{ "--tone": DESK_ROOMS[n.room].accent } as React.CSSProperties}>
                   <Avatar agent={DESK_ROOMS[n.room].lead} size="sm" room={n.room} />
@@ -147,13 +154,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
               ))}
             </ul>
           ) : (
-            <p className="quiet">
-              Quiet. The rooms are still running drills, which you can watch in the{" "}
-              <a href="/lattice" onClick={link("lattice")}>
-                Lattice
-              </a>
-              .
-            </p>
+            <p className="quiet">Nothing new since you were last here.</p>
           )}
         </Panel>
       </div>

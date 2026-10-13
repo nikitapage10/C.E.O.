@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { byWait, EMPTY_DESK, useDesk, type DeskData } from "./deskData.ts";
+import { EMPTY_FOUNDRY, type Crate, type FoundryData } from "../foundry.ts";
+import { awaySinceOnReturn, initialAwaySince } from "./awaySince.ts";
+import { byWait, EMPTY_DESK, foundryDesk, useDesk, type DeskData } from "./deskData.ts";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -137,5 +139,47 @@ describe("Today's actions", () => {
     expect(after.actions.find((a) => a.id === "spire-invoice")).toBeUndefined();
     expect(after.doneToday).toBe(before.doneToday + 1);
     useDesk.setState({ data: EMPTY_DESK, picked: null });
+  });
+});
+
+describe("foundryDesk: while you were away", () => {
+  const NOW = Date.UTC(2026, 9, 13, 12, 0);
+  const crate = (number: number, over: Partial<Crate>): Crate => ({ number, title: `Change ${number}`, kind: "fix", state: "shipped", rung: null, url: "", updatedAt: NOW, pitch: "", size: null, revising: false, ...over });
+  const desk = (crates: Crate[]): FoundryData => ({ ...EMPTY_FOUNDRY, crates });
+  const texts = (crates: Crate[], awaySince?: number) => foundryDesk(desk(crates), NOW, awaySince).notes.map((n) => n.text);
+
+  it("lists only what shipped after awaySince, newest first", () => {
+    const away = NOW - 3 * HOUR;
+    const notes = texts([crate(1, { closedAt: NOW - 5 * HOUR }), crate(2, { closedAt: NOW - 2 * HOUR }), crate(3, { closedAt: NOW - 1 * HOUR })], away);
+    expect(notes).toHaveLength(2);
+    expect(notes[0]).toContain("Change 3");
+    expect(notes[1]).toContain("Change 2");
+  });
+
+  it("judges by closedAt, not updatedAt", () => {
+    const away = NOW - 3 * HOUR;
+    // shipped long ago, a comment just bumped updatedAt
+    expect(texts([crate(1, { closedAt: NOW - 10 * HOUR, updatedAt: NOW - MIN })], away)).toEqual([]);
+    // shipped just now while updatedAt is old: closedAt wins
+    expect(texts([crate(2, { closedAt: NOW - MIN, updatedAt: NOW - 10 * HOUR })], away)).toHaveLength(1);
+  });
+
+  it("says nothing when nothing is new, and defaults to the last day", () => {
+    expect(texts([crate(1, { closedAt: NOW - HOUR })], NOW)).toEqual([]);
+    expect(texts([crate(1, { closedAt: NOW - 2 * HOUR }), crate(2, { closedAt: NOW - 30 * HOUR })])).toHaveLength(1);
+  });
+});
+
+describe("awaySince", () => {
+  const T = Date.UTC(2026, 9, 13, 12, 0);
+  it("falls back to twelve hours without a stored stamp", () => {
+    expect(initialAwaySince(null, T)).toBe(T - 12 * HOUR);
+    expect(initialAwaySince(T - 2 * HOUR, T)).toBe(T - 2 * HOUR);
+    expect(initialAwaySince(T + HOUR, T)).toBe(T - 12 * HOUR);
+  });
+  it("moves forward only after a long hidden spell", () => {
+    expect(awaySinceOnReturn(T - 5 * HOUR, T - 5 * MIN, T)).toBe(T - 5 * HOUR);
+    expect(awaySinceOnReturn(T - 5 * HOUR, T - 30 * MIN, T)).toBe(T - 30 * MIN);
+    expect(awaySinceOnReturn(T - 5 * HOUR, null, T)).toBe(T - 5 * HOUR);
   });
 });

@@ -24,7 +24,7 @@ function arcPath(r: number, from: number, to: number) {
 const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 
 function minutesTone(m: number) {
-  return m <= 15 ? "var(--ok)" : m <= 60 ? "var(--ink-2)" : m <= 240 ? "var(--warn)" : "var(--bad)";
+  return m <= 15 ? "var(--ok)" : m <= 60 ? "var(--ice)" : m <= 240 ? "var(--warn)" : "var(--bad)";
 }
 
 export function ReplyStrip({ week }: { week: ReplyDay[] }) {
@@ -159,71 +159,10 @@ export function ActivityMeter({ load, live }: { load: number; live: boolean }) {
   );
 }
 
-/* ───────────────────────── Portraits ───────────────────────── */
-
-/** Dialtone: a painted flyer who runs a switchboard, wings like brushstrokes, a headset and a trailing cord. */
-export function DialtoneGlyph() {
-  const id = useId().replace(/:/g, "");
-  return (
-    <svg viewBox="0 0 120 120" className="glyph glyph--dialtone" aria-hidden="true">
-      <defs>
-        <linearGradient id={`${id}-w`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" style={{ stopColor: "var(--viz-violet)" }} />
-          <stop offset="0.6" style={{ stopColor: "var(--viz-rose)" }} stopOpacity="0.85" />
-          <stop offset="1" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0.4" />
-        </linearGradient>
-      </defs>
-      <circle cx="60" cy="60" r="54" className="glyph__halo" />
-      <g className="glyph__wing glyph__wing--l">
-        <path d="M54 58 C 34 40, 14 34, 6 42 C 18 46, 26 52, 30 58 C 20 56, 12 60, 10 66 C 24 62, 36 64, 54 66 Z" fill={`url(#${id}-w)`} />
-        <path d="M50 60 C 36 50, 22 46, 12 46" className="glyph__stroke" />
-      </g>
-      <g className="glyph__wing glyph__wing--r">
-        <path d="M66 58 C 86 40, 106 34, 114 42 C 102 46, 94 52, 90 58 C 100 56, 108 60, 110 66 C 96 62, 84 64, 66 66 Z" fill={`url(#${id}-w)`} />
-        <path d="M70 60 C 84 50, 98 46, 108 46" className="glyph__stroke" />
-      </g>
-      <path d="M52 64 L 60 92 L 68 64 Z" className="glyph__body" />
-      <circle cx="60" cy="50" r="10" className="glyph__head" />
-      <path d="M48 50 A 12 12 0 0 1 72 50" className="glyph__headset" />
-      <circle cx="48.5" cy="52" r="2.6" className="glyph__ear" />
-      <path d="M48 54 C 46 70, 40 84, 48 96 C 54 104, 66 100, 72 106" className="glyph__cord" />
-      <rect x="70" y="103" width="8" height="5" rx="1" className="glyph__jack" />
-    </svg>
-  );
-}
-
-/** Blasto: a floating postmaster, a glowing bell with an envelope inside and long drifting trails. */
-export function BlastoGlyph() {
-  const id = useId().replace(/:/g, "");
-  return (
-    <svg viewBox="0 0 120 120" className="glyph glyph--blasto" aria-hidden="true">
-      <defs>
-        <radialGradient id={`${id}-b`} cx="0.5" cy="0.35" r="0.7">
-          <stop offset="0" style={{ stopColor: "var(--viz-ice)" }} stopOpacity="0.95" />
-          <stop offset="0.55" style={{ stopColor: "var(--viz-ice)" }} stopOpacity="0.35" />
-          <stop offset="1" style={{ stopColor: "var(--viz-violet)" }} stopOpacity="0.08" />
-        </radialGradient>
-      </defs>
-      <circle cx="60" cy="56" r="50" className="glyph__halo" />
-      <g className="glyph__float">
-        <g className="glyph__trails">
-          {[36, 48, 60, 72, 84].map((x, i) => (
-            <path key={x} d={`M${x} 62 C ${x - 6} 76, ${x + 6} 88, ${x - 2} ${104 - (i % 2) * 6}`} style={{ animationDelay: `${i * 0.35}s` }} />
-          ))}
-        </g>
-        <path d="M28 62 C 28 30, 92 30, 92 62 C 86 58, 80 66, 74 61 C 68 66, 62 58, 60 62 C 56 58, 50 66, 46 61 C 40 66, 34 58, 28 62 Z" fill={`url(#${id}-b)`} className="glyph__bell" />
-        <rect x="49" y="42" width="22" height="14" rx="1.5" className="glyph__letter" />
-        <path d="M49 43 L 60 51 L 71 43" className="glyph__letter-flap" />
-        <circle cx="44" cy="38" r="1.6" className="glyph__spark" />
-      </g>
-    </svg>
-  );
-}
-
 /* ───────────────────────── Empty-state drawings ───────────────────────── */
 
 /** Sonar rings around an empty tray: listening, and nothing found. */
-export function Listening({ tone = "var(--ink-3)" }: { tone?: string }) {
+export function Listening({ tone = "var(--ice)" }: { tone?: string }) {
   return (
     <svg viewBox="-60 -60 120 120" className="listening" style={{ color: tone }} aria-hidden="true">
       <circle r="4" className="listening__core" />
@@ -243,12 +182,12 @@ export function Outbox() {
     <svg viewBox="0 0 240 180" className="outbox" aria-hidden="true">
       <defs>
         <linearGradient id={`${id}-brass`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0.9" />
-          <stop offset="1" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0.25" />
+          <stop offset="0" style={{ stopColor: "var(--room-relay)" }} stopOpacity="0.9" />
+          <stop offset="1" style={{ stopColor: "var(--room-relay)" }} stopOpacity="0.25" />
         </linearGradient>
         <linearGradient id={`${id}-beam`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0.22" />
-          <stop offset="1" style={{ stopColor: "var(--viz-gold)" }} stopOpacity="0" />
+          <stop offset="0" style={{ stopColor: "var(--room-relay)" }} stopOpacity="0.22" />
+          <stop offset="1" style={{ stopColor: "var(--room-relay)" }} stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d="M92 0 L 148 0 L 196 150 L 44 150 Z" fill={`url(#${id}-beam)`} className="outbox__beam" />

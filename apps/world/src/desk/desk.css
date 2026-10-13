@@ -67,7 +67,7 @@ body {
 .desk *::after {
   box-sizing: border-box;
 }
-.desk a {
+.desk :where(a) {
   color: inherit;
   text-decoration: none;
 }
@@ -1385,6 +1385,9 @@ a.panel__hint:hover {
   gap: 20px;
   align-items: center;
 }
+.clock {
+  padding: 0 16px;
+}
 .clock svg {
   width: 100%;
   overflow: visible;
@@ -2199,7 +2202,7 @@ a.panel__hint:hover {
   height: 76px;
   display: grid;
   place-items: center;
-  font: 300 58px/1 var(--serif);
+  font: 400 44px/1 var(--mono);
   background: linear-gradient(#121a2b 0 49.5%, #04060b 49.5% 50.5%, #0d1424 50.5%);
   border: 1px solid var(--hair);
   border-radius: 3px;
@@ -2234,7 +2237,7 @@ a.panel__hint:hover {
   color: var(--faint);
 }
 .systems__tally b {
-  font: 300 26px var(--serif);
+  font: 400 22px var(--mono);
   color: var(--text);
   margin-right: 4px;
 }
@@ -3254,16 +3257,26 @@ a.fy-tile:hover {
     font-size: 30px;
     letter-spacing: 0.2em;
   }
-  .hero {
-    padding: 22px 18px 18px;
+  /* On a phone the still is a band above the words, fading into the panel, so nothing sits on the Kernel's glare. */
+  .hero,
+  .page-head--pic {
+    padding: 150px 18px 18px;
     gap: 16px;
   }
-  .hero::before {
-    background:
-      linear-gradient(0deg, rgba(4, 6, 11, 0.96) 0%, rgba(4, 6, 11, 0.85) 45%, rgba(4, 6, 11, 0.35) 100%);
+  .hero::before,
+  .page-head--pic::before {
+    background: linear-gradient(0deg, rgba(4, 6, 11, 0.2) 0%, rgba(4, 6, 11, 0.2) 100%);
   }
-  .hero__pic {
-    object-position: 50% 30%;
+  .hero__pic,
+  .page-head__pic {
+    height: 240px;
+    object-position: 50% 35%;
+    mask-image: linear-gradient(#000 35%, transparent 100%);
+    -webkit-mask-image: linear-gradient(#000 35%, transparent 100%);
+    animation: none;
+  }
+  .page-head--pic .page-head__text {
+    margin-top: -16px;
   }
   .hero__greet {
     font-size: 22px;
@@ -3283,7 +3296,6 @@ a.fy-tile:hover {
   }
   .page-head--pic {
     min-height: 0;
-    padding: 20px 18px 18px;
   }
   .page-head__crew {
     flex-wrap: wrap;

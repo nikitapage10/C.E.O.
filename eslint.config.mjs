@@ -7,8 +7,8 @@ export default tseslint.config(
   { ignores: ["**/node_modules/**", "**/dist/**", "playwright-report/**", "test-results/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  // Node scripts; the browser-side code inside page.evaluate reaches the page through globalThis.
-  { files: ["scripts/**/*.mjs"], languageOptions: { globals: { ...globals.node } } },
+  // A Node script (the others declare their globals inline); the browser-side code inside page.evaluate reaches the page through globalThis.
+  { files: ["scripts/desk-images.mjs"], languageOptions: { globals: { ...globals.node } } },
   {
     files: ["**/*.{ts,tsx}"],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },

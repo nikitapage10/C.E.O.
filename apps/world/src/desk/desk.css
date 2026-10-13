@@ -2730,6 +2730,132 @@ button.room-pick__tab:hover {
   padding: 0 4px;
 }
 
+/* ── Systems: how it connects (issue #69) ── */
+.conn {
+  margin: 0 0 24px;
+}
+.conn__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.conn__card {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  padding: 14px 16px 14px 18px;
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+.conn__card::before {
+  content: "";
+  position: absolute;
+  inset: 12px auto 12px 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--tone);
+  opacity: 0.75;
+}
+.conn__card--planned {
+  border-style: dashed;
+  border-color: var(--hair-soft);
+}
+.conn__card--planned::before {
+  opacity: 0.3;
+}
+.conn__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.conn__serves {
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tone);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conn__name {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 21px;
+  line-height: 1.15;
+}
+.conn__kinds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.conn__kinds li {
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--ice) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ice) 8%, transparent);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ice);
+}
+.conn__how {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.conn__facts {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--hair-soft);
+}
+.conn__facts div {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 10px;
+}
+.conn__facts dt {
+  padding-top: 2px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.conn__facts dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--faint);
+}
+@media (max-width: 640px) {
+  .conn__grid {
+    grid-template-columns: 1fr;
+  }
+  .conn__facts div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
 /* ── The Foundry's system (on Systems) ── */
 .foundry-flow {
   list-style: none;

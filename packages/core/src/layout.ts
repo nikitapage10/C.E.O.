@@ -7,7 +7,7 @@
  */
 
 import { detour } from "./obstacles.ts";
-import { POSTS, POST_HEIGHT } from "./posts.ts";
+import { COMMAND_HEIGHT, COMMAND_SPOTS, POSTS, POST_HEIGHT } from "./posts.ts";
 
 export type Vec3 = readonly [number, number, number];
 
@@ -53,10 +53,17 @@ const s = (id: string, label: string, x: number, z: number, facing = 0, opts: { 
 const toward = (id: string, label: string, x: number, z: number, tx: number, tz: number, opts: { y?: number; exact?: boolean } = {}): Station =>
   s(id, label, x, z, Math.atan2(-(tx - x), -(tz - z)), opts);
 
-/** The conductor's post in a room (posts.ts): high overhead, exact, and turned to look down over the room. */
-const post = (room: RoomId): Station => {
+/**
+ * The room lead's two spots (posts.ts): its command podium in the back-right corner, raised and turned to look over
+ * the room, and the command spot high over the middle, where it floats out to when it starts a command.
+ */
+const post = (room: RoomId): Station[] => {
   const [x, z] = POSTS[room];
-  return toward("post", "The conductor's post", x, z, 0, 0.5, { y: POST_HEIGHT, exact: true });
+  const [cx, cz] = COMMAND_SPOTS[room];
+  return [
+    toward("post", "The command podium", x, z, 0, 0.5, { y: POST_HEIGHT, exact: true }),
+    toward("command", "Out in the room, giving orders", cx, cz, 0, 1.5, { y: COMMAND_HEIGHT, exact: true }),
+  ];
 };
 
 export const ROOMS: Record<RoomId, RoomDef> = {
@@ -73,8 +80,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("shipping", "Shipping dock", 5.8, 2.6, -Math.PI / 2),
       s("bench-a", "Workbench A", -4.2, 3.2, Math.PI),
       s("bench-b", "Workbench B", -0.6, 3.2, Math.PI),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("foundry"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("foundry"),
     ],
   },
   spire: {
@@ -90,8 +97,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("whiteboard", "KPI whiteboard", 4.8, -2.6, 0),
       s("meeting", "Meeting pod", 4, 2.6, Math.PI),
       s("coffee", "Coffee machine", -6, 3.4, Math.PI / 2),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("spire"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("spire"),
     ],
   },
   exchange: {
@@ -110,8 +117,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       toward("poker-e", "Card table", 1.75, 0.4, 0, 0.4),
       toward("poker-w", "Card table", -1.75, 0.4, 0, 0.4),
       toward("poker-s", "Card table", 0, 2.05, 0, 0.4),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("exchange"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("exchange"),
     ],
   },
   green: {
@@ -130,8 +137,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       toward("play-2", "Pitch", 3, 0.6, 0, 0.6),
       toward("play-3", "Pitch", -1.2, 2.6, 0, 0.6),
       toward("play-4", "Pitch", 1.4, -1.2, 0, 0.6),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("green"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("green"),
     ],
   },
   relay: {
@@ -145,8 +152,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("draft-desk", "Draft desk", -3, 1, 0),
       s("outbox", "Outbox (needs approval)", 4, 1, 0),
       s("switchboard", "Switchboard", -6, -2.6, Math.PI / 2),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("relay"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("relay"),
     ],
   },
   archive: {
@@ -178,8 +185,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       ).map(([id, x, z, facing]) => s(id, "On the bench at the long table", x, z, facing, { exact: true, y: BENCH_TOP })),
       // The Kernel's loot box, by the C.E.O.'s trophy case. Nobody opens it. Myshka sits in it.
       s("loot-box", "The loot box", -6.75, 2.6, Math.PI / 2, { y: 0.06, exact: true }),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("archive"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("archive"),
     ],
   },
   breakroom: {
@@ -210,8 +217,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       toward("dance-4", "Dance floor", -2.3, -0.6, 0, -5.25),
       toward("dance-5", "Dance floor", 2.4, -0.4, 0, -5.25),
       toward("dance-6", "Dance floor", -0.6, 0.6, 0, -5.25),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("breakroom"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("breakroom"),
     ],
   },
   boiler: {
@@ -230,8 +237,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("bench", "Tool bench", 3.2, 4.1, Math.PI),
       // Kevin's spiritual maintenance spot: the warm side of the boiler.
       s("warm-side", "The warm side of the boiler", 6.4, -1.0, -Math.PI / 2),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("boiler"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("boiler"),
     ],
   },
   workshop: {
@@ -250,8 +257,8 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("bench", "The workbench", -2.6, 3.0, Math.PI),
       s("shelves", "Shelves of past figures", -6.7, 2.2, Math.PI / 2),
       s("crate", "Crate of finished pieces", 6.2, 3.4, -Math.PI / 2),
-      // The room lead's conductor's post: the submind hovers overhead, looking down on the room.
-      post("workshop"),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("workshop"),
     ],
   },
 };

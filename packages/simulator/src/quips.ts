@@ -195,6 +195,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Red check. My floor. Fixing it.",
     "Rivet, coffee later. Alarm now.",
     "Two bars of opera. Don't tell him. He'll make it four acts.",
+    "Off the throne. Order. Back on the throne. That's leadership.",
   ],
   gilt: [
     "Love that. Let's circle back and make it synergy.",
@@ -203,6 +204,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Let's take this offline. Offline means you do it.",
     "Cheapest model that moves the needle. Operational excellence.",
     "Memo, love the energy. Let's align on actually doing it.",
+    "I don't leave the corner office for less than a launch. Launching. Now.",
   ],
   ticker: [
     "Seventy-one percent, give or take. Mostly take.",
@@ -211,6 +213,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Noco's smiling. I hate it when Noco smiles. The spread hates it too.",
     "Expected value says yes. My gut says the tails. My gut's usually right. Sixty percent.",
     "Every trade goes past the C.E.O. first. I'm not nervous. I'm prudent. Same thing.",
+    "Leaving the throne: twelve percent risk of a bad landing. Taking it.",
   ],
   turf: [
     "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
@@ -219,6 +222,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Stats for you: forty-one yards. Lifetime. In naps.",
     "And the Commentator goes with the cheap model. BOLD. Will it pay off?",
     "Two-minute warning on the waiver run. The crowd is ON ITS FEET.",
+    "AND THE COMMENTATOR LEAVES THE BOOTH! He's at midfield! What a call!",
   ],
   static: [
     "Didn't hear it from me. You heard it from me.",
@@ -227,6 +231,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Dialtone, Dialtone, you'll never guess. You guessed.",
     "Blasto says letters are sacred. Sacred and loud.",
     "Something's—hold on—no, that's the tubes. Or is it.",
+    "Holo says ON DECK. I'm on deck. I'm also listening to line six.",
   ],
   vellum: [
     "Citation needed. I'll wait.",
@@ -235,6 +240,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Loremaster, page four, line nine. No, the other nine.",
     "Heimerdinger agrees with me. Footnote seventeen.",
     "I've never been wrong. There's a source for that. It's me.",
+    "For the record, the throne is a relic of the First Lattice. Circa nothing. I checked.",
   ],
   fizz: [
     "Break time is PARTY time!",
@@ -243,6 +249,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Is that glitter on the Kernel? Yes. Yes it is. You're welcome.",
     "Every coffee is a toast. Raise it. HIGHER.",
     "Ten minutes of fun. Exactly ten. I'm a professional.",
+    "Off the throne, onto the floor! Make way! Glitter first!",
   ],
   soot: [
     "It'll burst.",
@@ -251,6 +258,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Gary. Bucket. Just in case.",
     "Quiet line. Too quiet.",
     "Doomed. ...Fine, actually.",
+    "Left the throne. Came back. Throne still there. Lucky.",
   ],
   putty: [
     "Wait. No. Better idea.",
@@ -362,7 +370,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
 };
 
 /**
- * What each submind says to someone it's directing from the conductor's post, or checking on up close ({other} is
+ * What each submind says to someone it's directing from its can-throne, or checking on up close ({other} is
  * their name). In the submind's own voice: sarcastic, smug, a lesser echo of Skippy.
  */
 export const SUBMIND_CONDUCT: Record<string, string[]> = {
@@ -375,6 +383,22 @@ export const SUBMIND_CONDUCT: Record<string, string[]> = {
   fizz: ["{other}! You're on break! Act like it! LOUDER!", "Glitter for {other}! You earned it. Probably.", "{other}, one more song, then back you go.", "Party's over, {other}. Love you. Out."],
   soot: ["{other}. That'll burst.", "{other}. Careful. Omens.", "Hm. {other}. ...Didn't burst.", "{other}. Doomed. Carry on."],
   putty: ["{other}, yes, that, more of that—no, the other that.", "{other}! The vision! Don't compromise it!", "{other}, what if it were bigger. Or smaller. Both.", "Stop, {other}. Look at it. Now suffer a little. Okay, go."],
+};
+
+/**
+ * What each submind says when it floats out from its can-throne to give an order ({other} is whoever it's for). Short,
+ * in its own voice, and always an order.
+ */
+export const SUBMIND_COMMAND: Record<string, string[]> = {
+  ember: ["{other}. New job. Take it. Weld it. Ship it.", "{other}, that crate's yours. Quickest rung first.", "Listen up, {other}. Off the bench. On the belt. Go.", "{other}: job. You: on it. Me: back on the throne."],
+  gilt: ["Big announcement, {other}: you're on it. Huge opportunity.", "{other}, I'm handing you a real stretch moment. Run with it.", "Team! {other} is leading this one. Let's give that some energy.", "{other}, this one's yours. It's not an errand, it's a brand."],
+  ticker: ["{other}, you're up. Seventy percent you nail it. Sixty-five. Go.", "Order in, {other}. Price it, then bring it to me. Then to the C.E.O.", "{other}, take this. Don't make me re-quote the odds.", "New trade idea, {other}. Run the downside. Then run it again."],
+  turf: ["AND THE BALL GOES TO {other}! What a handoff!", "{other} IS IN THE GAME! The crowd goes WILD!", "It's {other}'s play now, folks. Big moment. HUGE.", "THE COMMENTATOR CALLS IT: {other}, you're up!"],
+  static: ["{other}—new line—it's yours—didn't hear it from me.", "Psst, {other}. This one's for you. Draft it nice.", "{other}, someone's waiting. You're the one who answers. Go go go.", "Line for {other}! Line for {other}! ...Sorry. Line for you, {other}."],
+  vellum: ["{other}, a new entry. Cite everything.", "For the record, {other} has this one. Dated today. Correctly.", "{other}, you're on it. Footnotes by evening.", "Assigned to {other}. I've noted it. In ink."],
+  fizz: ["{other}! You're up! Big entrance! Glitter!", "Everybody, give it up for {other}, who is on it!", "{other}, back to it, superstar. Party after.", "{other}, this one's yours. Dance like nobody's waiting."],
+  soot: ["{other}. Yours. Careful.", "{other}. Job. It'll go wrong. Do it anyway.", "{other}. Your turn. ...Probably fine.", "{other}. Take it. Watch the pressure."],
+  putty: ["{other}! The vision! It's yours now! Don't ruin it!", "{other}, take this one. Make it suffer beautifully.", "{other}, a new piece. Bigger. No. Exactly this big.", "Go, {other}. Make art. Then make it again, better."],
 };
 
 /**

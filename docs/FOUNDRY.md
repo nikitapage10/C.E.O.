@@ -205,7 +205,7 @@ Each step is one short comment that starts with `**Trail ·`, newest last:
 | Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |
 | Pictures | Every screenshot, design sketch or test picture made along the way (before/after, what was checked), posted with `scripts/issue-shots.sh <issue> "<what they show>" <files…>`. The pictures live on the `foundry-shots` branch (never merged, never deployed) and show inline on the issue | `**Trail · Pictures:** the throne mid-command in the Spire, and the Foundry corner.` |
 | Checks | The result, with a link | `**Trail · Checks:** green (run <link>).` |
-| Shipped | The commit or PR on main | `**Trail · Shipped:** 661cef7 on main, live on the site.` |
+| Shipped | The commit or PR on main | `**Trail · Shipped:** 661cef7 on main, live on the site.` then one line per job: `Claude Code: 291k tokens on Opus, 1 h 50 min.` (or `64k tokens on Haiku, 3 min.`) |
 
 The Desk's function writes Origin, Shaped and Decision for clicks on the Desk; the checks workflow writes Origin for
 red checks; the Builder writes Assigned, Work, Checks and Shipped, and Origin for chat work. A step that didn't
@@ -213,7 +213,9 @@ happen is left out, never invented. Skip none that did.
 
 The Desk's Usage panel counts from these steps: this month's quick-shaping spend from the "Used … $…" part of each
 Shaped step (against the $10 cap), and the crew's jobs and hours by model from Assigned (who, on which model) to
-Shipped. So the Assigned step names the model ("Rusty on Opus") and the Shipped step is written when the work lands.
+Shipped, and the Claude Code column (tokens per model) from the `Claude Code:` lines on Shipped steps, each dated by its
+comment (several Shipped comments on one issue all count). The panel's tabs (Last 5 hours, Today, This week, All time)
+switch both halves. So the Assigned step names the model ("Rusty on Opus") and the Shipped step is written when the work lands.
 
 ## Rules that always hold
 

@@ -5,7 +5,8 @@
  * ("**Trail · Assigned:**", "**Trail · Shipped:**"). The Desk adds them up (apps/world/src/usage.ts).
  *
  * GET → { issues, trails }: slim issues ({ number, title, state, created_at, closed_at, body, labels }) and trail
- * comments ({ issue, at, body }), newest first. Cached at Vercel's edge for a minute; the panel asks every minute.
+ * comments ({ issue, at, body }), newest first; `at` is the comment's created_at, which dates each tab's numbers. Shipped
+ * steps keep up to 3000 characters so their "Claude Code: 291k tokens on Opus, 1 h 50 min." lines survive. Cached at Vercel's edge for a minute; the panel asks every minute.
  */
 
 const REPO = "nikitapage10/C.E.O.";
@@ -73,7 +74,7 @@ export async function GET(): Promise<Response> {
         .map((i) => ({ number: i.number, title: i.title, state: i.state, created_at: i.created_at, closed_at: i.closed_at, body: (i.body ?? "").slice(0, 2000), labels: i.labels.map((l) => (typeof l === "string" ? l : (l.name ?? ""))) })),
       trails: comments
         .filter((c) => TRAIL.test(c.body ?? ""))
-        .map((c) => ({ issue: Number(/\/issues\/(\d+)$/.exec(c.issue_url)?.[1] ?? 0), at: c.created_at, body: (c.body ?? "").slice(0, 1200) })),
+        .map((c) => ({ issue: Number(/\/issues\/(\d+)$/.exec(c.issue_url)?.[1] ?? 0), at: c.created_at, body: (c.body ?? "").slice(0, (c.body ?? "").startsWith("**Trail · Shipped:**") ? 3000 : 1200) })),
     };
     return new Response(JSON.stringify(body), {
       headers: { "Content-Type": "application/json", "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },

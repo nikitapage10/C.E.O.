@@ -66,7 +66,11 @@ export function monthSpend(trails: Trail[], now = Date.now()): MonthSpend {
   const d = new Date(now);
   const from = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
   const to = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
-  const out: MonthSpend = { month: d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }), calls: 0, tokensIn: 0, tokensOut: 0, usd: 0 };
+  return sumSpend(trails, from, to, d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }));
+}
+
+function sumSpend(trails: Trail[], from: number, to: number, month: string): MonthSpend {
+  const out: MonthSpend = { month, calls: 0, tokensIn: 0, tokensOut: 0, usd: 0 };
   for (const t of trails) {
     if (!t.body.startsWith("**Trail · Shaped:**")) continue;
     const at = Date.parse(t.at);
@@ -149,6 +153,27 @@ export function weekStart(now: number): number {
   return d.getTime();
 }
 
+/** The tabs on the Usage panel. "5h" is the last five hours of Foundry work, not the plan's own session meter. */
+export type Period = "5h" | "today" | "week" | "all";
+export const PERIODS: { id: Period; label: string }[] = [
+  { id: "5h", label: "Last 5 hours" },
+  { id: "today", label: "Today" },
+  { id: "week", label: "This week" },
+  { id: "all", label: "All time" },
+];
+
+/** Where a tab's window starts: five hours back, local midnight, local Monday midnight, or the beginning of time. */
+export function periodStart(period: Period, now: number): number {
+  if (period === "5h") return now - 5 * 3_600_000;
+  if (period === "today") {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  if (period === "week") return weekStart(now);
+  return -Infinity;
+}
+
 export interface Tally {
   jobs: number;
   /** Milliseconds of work. */
@@ -157,29 +182,83 @@ export interface Tally {
   running: number;
 }
 
-export type ModelWork = Record<Model, { week: Tally; all: Tally }>;
-
-/**
- * Jobs and hours by model, all time and this week. A job counts in the week when any of its time falls in it, and
- * only that part of its time counts there; a running job counts up to `now`.
- */
-export function workByModel(jobs: Job[], now = Date.now()): ModelWork {
-  const blank = (): Tally => ({ jobs: 0, ms: 0, running: 0 });
-  const out = Object.fromEntries(MODELS.map((m) => [m, { week: blank(), all: blank() }])) as ModelWork;
-  const monday = weekStart(now);
+/** Jobs and hours by model in a window. A job counts when any of its time falls in it, and only that part of its time counts; a running job counts up to `now`. */
+export function workByModel(jobs: Job[], period: Period, now = Date.now()): Record<Model, Tally> {
+  const out = Object.fromEntries(MODELS.map((m) => [m, { jobs: 0, ms: 0, running: 0 }])) as Record<Model, Tally>;
+  const from = periodStart(period, now);
   for (const job of jobs) {
     const end = Math.min(job.end ?? now, now);
+    if (end < from || job.start > now) continue;
     const row = out[job.model];
-    row.all.jobs += 1;
-    row.all.ms += Math.max(0, end - job.start);
-    if (job.end === null) row.all.running += 1;
-    if (end >= monday && job.start <= now) {
-      row.week.jobs += 1;
-      row.week.ms += Math.max(0, end - Math.max(job.start, monday));
-      if (job.end === null) row.week.running += 1;
-    }
+    row.jobs += 1;
+    row.ms += Math.max(0, end - Math.max(job.start, from));
+    if (job.end === null) row.running += 1;
   }
   return out;
+}
+
+/** One "Claude Code: 291k tokens on Opus, 1 h 50 min." line, from a Shipped step. */
+export interface CodeUse {
+  model: Model;
+  tokens: number;
+  /** Milliseconds, when the line gives a run time. */
+  ms: number | null;
+}
+
+/** "291k" -> 291000, "1.2M" -> 1200000, "64,500" -> 64500. */
+function readCount(num: string, suffix: string | undefined): number {
+  const n = Number(num.replace(/,/g, ""));
+  const k = suffix?.toLowerCase() === "m" ? 1e6 : suffix?.toLowerCase() === "k" ? 1e3 : 1;
+  return Math.round(n * k);
+}
+
+/** "1 h 50 min", "3 min", "2h", "45 s" -> milliseconds; null when there is no run time. */
+export function readDuration(text: string): number | null {
+  let ms = 0;
+  let found = false;
+  for (const m of text.matchAll(/(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|m|mins?|minutes?|s|secs?|seconds?)\b/gi)) {
+    const unit = m[2]!.toLowerCase()[0];
+    ms += Number(m[1]) * (unit === "h" ? 3_600_000 : unit === "m" ? 60_000 : 1000);
+    found = true;
+  }
+  return found ? Math.round(ms) : null;
+}
+
+/** Every Claude Code line in a Shipped step's text; a Shipped step may hold several, and a comment may have none. */
+export function readClaudeCode(body: string): CodeUse[] {
+  const out: CodeUse[] = [];
+  for (const m of body.matchAll(/Claude Code:\s*(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?\s*tokens?\s+on\s+(Haiku|Sonnet|Opus)\b([^\n]*)/gi)) {
+    const model = m[3]!.toLowerCase();
+    const tail = (m[4] ?? "").replace(/^\s*[,;:·-]\s*/, "");
+    out.push({ model: model === "haiku" ? "Haiku" : model === "sonnet" ? "Sonnet" : "Opus", tokens: readCount(m[1]!, m[2]), ms: readDuration(tail) });
+  }
+  return out;
+}
+
+/** Claude Code tokens per model in a window, from the "Claude Code:" lines on Shipped steps, each dated by its comment. null for a model with none recorded. */
+export function codeTokensByModel(trails: Trail[], period: Period, now = Date.now()): Record<Model, number | null> {
+  const out: Record<Model, number | null> = { Haiku: null, Sonnet: null, Opus: null };
+  const from = periodStart(period, now);
+  for (const t of trails) {
+    if (!t.body.startsWith("**Trail · Shipped:**")) continue;
+    const at = Date.parse(t.at);
+    if (!(at >= from && at <= now)) continue;
+    for (const use of readClaudeCode(t.body)) out[use.model] = (out[use.model] ?? 0) + use.tokens;
+  }
+  return out;
+}
+
+/** "291k", "1.2M", "850"; an em dash where nothing is recorded. */
+export function formatTokens(n: number | null): string {
+  if (n === null) return "—";
+  if (n >= 1e6) return `${+(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${n >= 1e5 ? Math.round(n / 1e3) : +(n / 1e3).toFixed(1)}k`;
+  return String(n);
+}
+
+/** Quick shaping's spend with comments dated inside a tab's window. */
+export function windowSpend(trails: Trail[], period: Period, now = Date.now()): MonthSpend {
+  return sumSpend(trails, periodStart(period, now), now + 1, "");
 }
 
 /** "45m", "3h 20m", "2d 5h". */

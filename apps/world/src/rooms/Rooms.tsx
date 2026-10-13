@@ -2,7 +2,7 @@ import { ROOM_IDS, roomAngle, roomCenter, type RoomId } from "@ceo/core";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { ComponentType } from "react";
 import { useWorld } from "../store.ts";
-import { PALETTE } from "../theme.ts";
+import { ROOM_ACCENTS } from "../theme.ts";
 import { Archive } from "./Archive.tsx";
 import { BoilerRoom } from "./BoilerRoom.tsx";
 import { BreakRoom } from "./BreakRoom.tsx";
@@ -15,17 +15,8 @@ import { Relay } from "./Relay.tsx";
 import { Spire } from "./Spire.tsx";
 import { Workshop } from "./Workshop.tsx";
 
-export const ROOM_ACCENTS: Record<RoomId, string> = {
-  foundry: "#ffb067",
-  spire: PALETTE.silver,
-  exchange: PALETTE.mint,
-  green: "#b8f28a",
-  relay: "#e8c27a",
-  archive: PALETTE.violet,
-  breakroom: "#ff8fb1",
-  boiler: "#ff9a4a",
-  workshop: "#e07a5f",
-};
+/** Each room's accent (its plinth's glow); kept in theme.ts so the portrait studio can use it without the rooms. */
+export { ROOM_ACCENTS };
 
 const CONTENT: Record<RoomId, ComponentType> = {
   foundry: Foundry,

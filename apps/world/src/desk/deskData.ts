@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 import { CREW, crewOf, useFoundry, type FoundryData } from "../foundry.ts";
+import { PORTRAITS } from "./portraits.ts";
 
 /**
  * What the Desk shows, as plain data. Only real work, never samples (Nikita, 2026-10-13): the hub on the MacBook
@@ -11,7 +12,8 @@ import { CREW, crewOf, useFoundry, type FoundryData } from "../foundry.ts";
 /**
  * The rooms, as the Desk names and tints them. The tints are the rooms' own plinth colours from the Lattice (kept
  * here as CSS variables, so the Desk imports nothing from it); each room has a still from the Lattice under
- * public/desk/ (scripts/desk-images.mjs renders them) and the agent who leads it.
+ * public/desk/ (scripts/desk-images.mjs renders them) and the agent who leads it. Agents' portraits come from
+ * scripts/portraits.mjs.
  */
 export const DESK_ROOMS = {
   relay: { name: "Relay", accent: "var(--room-relay)", lead: "dialtone", what: "Messages and replies" },
@@ -49,9 +51,13 @@ export const AGENTS: Record<string, { id: string; room: DeskRoom; job: string }>
   Chisel: { id: "chisel", room: "workshop", job: "Sculptor" },
 };
 
-/** An agent's portrait by name (or by id), or null for a name the cast doesn't know. */
+/**
+ * An agent's portrait by name or id, or null for someone the cast doesn't know. Every agent has one, subminds
+ * included: scripts/portraits.mjs photographs each model alone in the portrait studio and lists them in
+ * portraits.ts. The Desk's own names (Rusty, Noco…) come first, then the cast's ids and names.
+ */
 export function portrait(agent: string): string | null {
-  const id = AGENTS[agent]?.id ?? (Object.values(AGENTS).some((a) => a.id === agent) ? agent : null);
+  const id = AGENTS[agent]?.id ?? (Object.hasOwn(PORTRAITS, agent) ? agent : Object.keys(PORTRAITS).find((k) => PORTRAITS[k]!.name === agent));
   return id ? `/desk/agent-${id}.webp` : null;
 }
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { DESK_ROOMS, portrait, roomImage, type DeskRoom } from "./deskData.ts";
 
 /**
@@ -64,13 +65,17 @@ export function Panel({
   );
 }
 
-/** An agent's portrait, by name or id; an initial in a ring when the cast doesn't know them. */
+/**
+ * An agent's portrait (its model, photographed in the portrait studio), by name or id; an initial in a ring when the
+ * cast doesn't know them or the picture won't load.
+ */
 export function Avatar({ agent, size = "md", room }: { agent: string; size?: "sm" | "md" | "lg"; room?: DeskRoom }) {
   const src = portrait(agent);
+  const [failed, setFailed] = useState<string | null>(null);
   const style = room ? ({ "--tone": DESK_ROOMS[room].accent } as React.CSSProperties) : undefined;
   return (
     <span className={`avatar avatar--${size}`} style={style} title={agent}>
-      {src ? <img src={src} alt="" loading="lazy" decoding="async" /> : <b aria-hidden="true">{agent.charAt(0)}</b>}
+      {src && failed !== src ? <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(src)} /> : <b aria-hidden="true">{agent.charAt(0)}</b>}
     </span>
   );
 }

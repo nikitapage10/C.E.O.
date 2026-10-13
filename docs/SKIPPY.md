@@ -33,7 +33,7 @@ picks the cheapest model that will do the job and moves up only when it fails. A
 never for writing code.
 
 Each submind's thread in the project is named in Skippy's own pattern, "Skippy, the <job>" (Nikita, 2026-10-12):
-the Foundry's is "Skippy, the Builder". Proposed for the rest (Nikita hasn't picked yet): the Executive (Spire), the Bookie
+the Foundry's is "Skippy, the Builder". The rest (Nikita approved them, 2026-10-13): the Executive (Spire), the Bookie
 (Exchange), the Commentator (Green; Gridiron is already its coach), the Messenger (Relay), the Historian (Archive),
 the Life of the Party (Break Room), the Pessimist (Boiler Room), the Artiste (Workshop).
 

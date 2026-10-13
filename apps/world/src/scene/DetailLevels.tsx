@@ -46,13 +46,23 @@ type Tracked = {
 
 const tmp = new Vector3();
 
-function trackable(o: Object3D): o is Mesh {
+/**
+ * A layer's mask as three.js stores it: unsigned. (`1 << 31` alone is negative in JavaScript, so it never equals the
+ * mask `layers.set(31)` leaves behind; comparing against it stopped tracking every mesh the moment it was hidden, and
+ * the mesh stayed hidden for good. That is how Gary and his bucket vanished from the Boiler Room, #111.)
+ */
+export const layerMask = (layer: number) => (1 << layer) >>> 0;
+const OUR_MASKS = new Set([layerMask(0), layerMask(DETAIL_LAYER), layerMask(HIDDEN_LAYER)]);
+
+/** Whether level of detail manages this mesh: a plain mesh on the default layer, or one this module moved. */
+export function trackable(o: Object3D): o is Mesh {
   const m = o as Mesh;
   if (!m.isMesh || (m as unknown as { isInstancedMesh?: boolean }).isInstancedMesh) return false;
   if ((m as unknown as { isSkinnedMesh?: boolean }).isSkinnedMesh) return false;
   if (m.userData.lod === false) return false;
-  // Only meshes on the default layer: anything placed on another layer on purpose is left alone.
-  return m.layers.mask === 1 || m.layers.mask === 1 << DETAIL_LAYER || m.layers.mask === 1 << HIDDEN_LAYER;
+  // Only meshes on the default layer (or the two this module moves them to): anything placed on another layer on
+  // purpose is left alone.
+  return OUR_MASKS.has(m.layers.mask >>> 0);
 }
 
 export function DetailLevels() {

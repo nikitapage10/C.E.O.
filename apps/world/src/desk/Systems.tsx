@@ -5,6 +5,7 @@ import { DESK_ROOMS, roomImage, type DeskRoom } from "./deskData.ts";
 import { FoundryDiagram } from "./FoundryDiagram.tsx";
 import { FoundrySystem } from "./FoundryPage.tsx";
 import { SystemsPanel } from "./SystemsPanel.tsx";
+import { SystemsNav } from "./SystemsNav.tsx";
 import { Avatar, PageHead, Panel, Pill } from "./ui.tsx";
 import { ActivityMeter } from "./viz.tsx";
 import { WorldClockPanel } from "./WorldClockPanel.tsx";
@@ -110,6 +111,8 @@ export function Systems({ now }: { now: number }) {
           </div>
         }
       />
+
+      <SystemsNav />
 
       <WorldClockPanel now={now} />
 

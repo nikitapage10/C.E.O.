@@ -1,0 +1,24 @@
+# Dependency review: on every pull request, compare the packages and actions before and after the change and fail
+# if it brings in a known vulnerability rated high or critical. Agent dependency bumps pass through this too.
+# See docs/SECURITY.md.
+name: Dependency review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high

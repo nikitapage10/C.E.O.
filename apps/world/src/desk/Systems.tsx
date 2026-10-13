@@ -5,8 +5,9 @@ import { DESK_ROOMS, roomImage, type DeskRoom } from "./deskData.ts";
 import { FoundryDiagram } from "./FoundryDiagram.tsx";
 import { FoundrySystem } from "./FoundryPage.tsx";
 import { SystemsPanel } from "./SystemsPanel.tsx";
+import { RoomBanner } from "./RoomBanner.tsx";
 import { SystemsNav } from "./SystemsNav.tsx";
-import { Avatar, PageHead, Panel, Pill } from "./ui.tsx";
+import { Avatar, Panel, Pill } from "./ui.tsx";
 import { ActivityMeter } from "./viz.tsx";
 import { WorldClockPanel } from "./WorldClockPanel.tsx";
 
@@ -99,10 +100,8 @@ export function Systems({ now }: { now: number }) {
   };
   return (
     <div className="systems-page">
-      <PageHead
-        eyebrow="The Boiler Room"
-        title="Systems"
-        room="boiler"
+      <RoomBanner
+        page="systems"
         lead="What's connected, what isn't, and what each agent depends on."
         aside={
           <div className="page-head__crew">

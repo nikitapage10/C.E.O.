@@ -253,37 +253,84 @@
   text-transform: uppercase;
   color: var(--ice);
 }
-.scan__what,
-.bar__tip {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  top: calc(100% + 6px);
-  z-index: 5;
-  padding: 8px 10px;
-  border: 1px solid var(--hair);
-  border-radius: 4px;
-  background: var(--panel-solid);
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
+/* ── What am I looking at (#90): every item explains itself in a pop-over (Popovers.tsx, .conn-pop in desk.css) ── */
+.has-pop {
+  cursor: help;
+  outline: none;
   transition:
-    opacity 0.2s,
-    transform 0.2s,
-    visibility 0.2s;
-  pointer-events: none;
+    border-color 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s;
 }
-.scan:hover .scan__what,
-.scan:focus-visible .scan__what,
-.scan:focus-within .scan__what,
-.bar:hover .bar__tip,
-.bar:focus-visible .bar__tip {
-  opacity: 1;
-  visibility: visible;
-  transform: none;
+summary.has-pop {
+  cursor: pointer;
+}
+.has-pop:focus-visible {
+  box-shadow: 0 0 0 1px rgba(143, 232, 255, 0.55);
+  border-radius: 4px;
+}
+.scan.has-pop:hover,
+.scan.is-open,
+.sec-stat.has-pop:hover,
+.sec-stat.is-open,
+.frame.has-pop:hover,
+.frame.is-open {
+  border-color: rgba(143, 232, 255, 0.35);
+  background-color: rgba(143, 232, 255, 0.04);
+}
+.bar.is-open .bar__name,
+.guards__list li.is-open > span:first-child,
+.roadmap__row.is-open .roadmap__what,
+.fn.is-open .fn__name,
+.alerts.is-open .alerts__name {
+  color: var(--ice);
+}
+.exp-pop {
+  --tone: var(--room-boiler);
+}
+.exp-pop__kicker {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.exp-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.exp-facts div {
+  display: grid;
+  gap: 2px;
+}
+.exp-facts dt {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ice);
+}
+.exp-facts dd {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+/* Inside an opened risk or eval area, for touch screens, which have no hover to show the pop-over. */
+.exp-inline {
+  display: none;
+}
+@media (hover: none) {
+  .exp-inline {
+    display: block;
+    margin: 6px 0 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--hair-soft);
+    border-radius: 6px;
+    background: rgba(11, 18, 32, 0.6);
+  }
 }
 
 /* ── Scorecard ── */

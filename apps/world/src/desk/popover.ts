@@ -30,6 +30,22 @@ export function placePopover(anchor: Box, pop: { width: number; height: number }
   return { left, top, side, arrow };
 }
 
+/**
+ * The box a card is placed around when it follows the mouse (issue #94): a little taller than the cursor's arrow, so
+ * a card below sits clear of the arrow and one above sits just over the hotspot.
+ */
+export function pointerBox(x: number, y: number): Box {
+  return { left: x - 8, top: y - 10, width: 16, height: 32 };
+}
+
+/** What feeds a part and what it feeds, from a diagram's wires (issue #94), in the wires' order. */
+export function routesOf<Id extends string>(wires: readonly { from: Id; to: Id }[], id: Id): { from: Id[]; to: Id[] } {
+  return {
+    from: wires.filter((w) => w.to === id).map((w) => w.from),
+    to: wires.filter((w) => w.from === id).map((w) => w.to),
+  };
+}
+
 function clamp(n: number, lo: number, hi: number): number {
   return Math.min(Math.max(n, lo), hi);
 }

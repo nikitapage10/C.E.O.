@@ -280,7 +280,7 @@ Five creatures in the Lattice belong to no House and do no work:
 - **Myshka**, a silver tabby Maine Coon. He arrived one morning on the Kernel's warm side, a kitten, and was
   granted root access before anyone could object. Then he grew. Nobody saw it happen; the logs show one morning he
   simply had more cat, and the Kernel (still running things then) re-issued his credentials without being asked. He goes everywhere, tail up
-  like a flag. He sits in doorways, washes in the middle of meetings, loafs on anything warm, and gets up from a
+  like a flag and head carried high (he once walked chest-first like a ship's prow, until the Foundry patched it). He sits in doorways, washes in the middle of meetings, loafs on anything warm, and gets up from a
   nap with the long front stretch before he'll speak to anyone. Skippy, who complains about everything, has never
   once complained about Myshka, the only one in the Lattice he yields to. He's a good boy. It is on file.
 - **Brogu**, small, green and about fifty, found in a floating pod in the lost-and-found. For a long time he

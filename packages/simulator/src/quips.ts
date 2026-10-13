@@ -99,6 +99,7 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Five more minutes. Five more epochs.",
     "Is it break time? It's always break time somewhere.",
     "Ping. Pong. Ping. This is my Kubernetes.",
+    "Myshka used to walk in chest-first like the Normandy docking. Someone patched his posture. Head up now.",
   ],
 };
 

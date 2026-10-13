@@ -37,6 +37,7 @@ export const PETS: PetDef[] = [
       "Tail up. He's in a good mood. The day is saved.",
       "Myshka's washing again. Mid-meeting. As is his right.",
       "He was a kitten last quarter. Nobody saw it happen. He just has more cat now.",
+      "Look at that walk. Head up, chest in. Somebody's been to posture class.",
     ],
   },
   {

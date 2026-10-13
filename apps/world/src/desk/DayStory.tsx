@@ -55,8 +55,13 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
     void useDayStory.getState().loadStory(day);
   }, [day]);
 
-  if (!state || state === "off" || state === "loading") return compact ? null : state === "loading" ? <p className="quiet story__note">Finding the Historian's reading…</p> : null;
-  if (state === "failed") return compact ? null : <p className="quiet story__note">Can't reach the day's story right now.</p>;
+  if (state === "loading") {
+    return compact ? null : <p className="quiet story__note">Finding the Historian&apos;s reading…</p>;
+  }
+  if (!state || state === "off") return null;
+  if (state === "failed") {
+    return compact ? null : <p className="quiet story__note">Can&apos;t reach the day&apos;s story right now.</p>;
+  }
 
   const make = async () => {
     const k = key || readKey();

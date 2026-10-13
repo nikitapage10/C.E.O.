@@ -115,6 +115,24 @@ export interface FoundryData {
   checks: { state: ChecksState; url: string | null; at: number | null };
   /** Ideas Nikita passed on: closed and labelled `foundry:passed`, waiting on the shelf for a comeback. */
   shelved: number;
+  /** The newest commit on main (Vercel builds the live site from it), when GitHub listed one. */
+  lastCommit?: LastCommit | null;
+}
+
+/** The newest commit on main: its short sha, link, first line and when it landed. */
+export interface LastCommit {
+  sha: string;
+  url: string;
+  title: string;
+  at: number;
+}
+
+/** The newest commit on main from GitHub's list (newest first), or null when there is none or it has no date. */
+export function parseLastCommit(commits: GhCommit[]): LastCommit | null {
+  const c = commits[0];
+  const at = Date.parse(c?.commit.committer?.date ?? "");
+  if (!c || Number.isNaN(at)) return null;
+  return { sha: c.sha.slice(0, 7), url: c.html_url, title: c.commit.message.split("\n")[0]!.trim(), at };
 }
 
 /** The slice of GitHub's issue JSON we read. */
@@ -448,7 +466,7 @@ interface FoundryStore {
   shapePending: (number: number, shape: Pick<Crate, "title" | "pitch" | "size" | "builder">) => void;
 }
 
-export const EMPTY_FOUNDRY: FoundryData = { crates: [], changelog: [], checks: { state: "unknown", url: null, at: null }, shelved: 0 };
+export const EMPTY_FOUNDRY: FoundryData = { crates: [], changelog: [], checks: { state: "unknown", url: null, at: null }, shelved: 0, lastCommit: null };
 
 /** How many ideas are on the shelf. */
 export function countShelved(issues: GhIssue[]): number {
@@ -525,7 +543,7 @@ async function readGitHub(): Promise<Feed> {
 export async function refreshFoundry(): Promise<void> {
   try {
     const { issues, runs, pulls, commits } = await readFeed().catch(readGitHub);
-    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues) };
+    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits) };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
     const { setLink } = useSystems.getState();

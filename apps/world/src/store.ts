@@ -12,6 +12,7 @@ import { create } from "zustand";
 import { clock } from "./clock.ts";
 import type { LegalFollowUp } from "./glitches/registry.ts";
 import type { GlitchLevel } from "./glitches/scheduler.ts";
+import type { NoticeScope } from "./kernel/notices.ts";
 import { PARAMS } from "./params.ts";
 
 /** Phase 1's only event source. Phase 2 swaps this for a hub connection that speaks the same events. */
@@ -49,7 +50,7 @@ interface WorldStore {
   /** Lines waiting their turn, so a new quip never cuts off the last one. */
   speechQueue: Record<string, string[]>;
   /** The Kernel's current PA announcement. */
-  announcement: { text: string; until: number; tone: AnnouncementTone; room: RoomId | null } | null;
+  announcement: { text: string; until: number; tone: AnnouncementTone; room: RoomId | null; scope: NoticeScope } | null;
   /** Everything the Kernel has said, newest first (shown in Signals). */
   kernelLog: KernelLine[];
   focus: RoomId | null;
@@ -89,7 +90,7 @@ interface WorldStore {
   startGlitch: (g: ActiveGlitch) => void;
   endGlitch: () => void;
   flash: (ms?: number) => void;
-  announce: (text: string, tone: AnnouncementTone, room?: RoomId | null) => void;
+  announce: (text: string, tone: AnnouncementTone, room?: RoomId | null, scope?: NoticeScope) => void;
   /** Add a gathering, or update it in place (by id). */
   putGathering: (g: Gathering) => void;
   dropGathering: (id: string) => void;
@@ -216,9 +217,9 @@ export const useWorld = create<WorldStore>((set, get) => ({
   startGlitch: (g) => set({ activeGlitch: g, flashUntil: performance.now() + 260 }),
   endGlitch: () => set({ activeGlitch: null, flashUntil: performance.now() + 140 }),
   flash: (ms = 300) => set({ flashUntil: performance.now() + ms }),
-  announce: (text, tone, room = null) =>
+  announce: (text, tone, room = null, scope = "room") =>
     set({
-      announcement: { text, tone, room, until: performance.now() + readingTime(text) + 1200 },
+      announcement: { text, tone, room, scope, until: performance.now() + readingTime(text) + 1200 },
       kernelLog: [{ id: `k-${++localCounter}`, ts: clock.sim, text, tone, room }, ...get().kernelLog].slice(0, 40),
     }),
 }));

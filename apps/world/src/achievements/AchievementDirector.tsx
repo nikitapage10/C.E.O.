@@ -28,7 +28,7 @@ export function AchievementDirector() {
       if (!s.latest || s.latest === prev.latest) return;
       const a = ACHIEVEMENT_BY_ID[s.latest.id];
       if (!a) return;
-      useWorld.getState().announce(`Achievement unlocked for the C.E.O.: ${a.title}. ${a.line} Reward: one loot box.`, "praise", null);
+      useWorld.getState().announce(`Achievement unlocked for the C.E.O.: ${a.title}. ${a.line} Reward: one loot box.`, "praise", null, "lattice");
     });
 
     const watchWorld = useWorld.subscribe((s, prev) => {

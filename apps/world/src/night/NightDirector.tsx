@@ -81,13 +81,13 @@ export function NightDirector() {
       const next = shiftOf(hour);
       if (next !== shift) {
         shift = next;
-        w.announce(pick(NIGHT_KERNEL[next]), "status", null);
+        w.announce(pick(NIGHT_KERNEL[next]), "status", null, "lattice");
         if (next === "night" && visible) unlock("night-owl");
       }
       // Three in the morning: the zoomies.
       if (lastHour < 3 && hour >= 3 && hour < 4) {
         petOrders.zoomiesUntil = now + 30_000;
-        w.announce(pick(NIGHT_KERNEL.zoomies), "status", null);
+        w.announce(pick(NIGHT_KERNEL.zoomies), "status", null, "lattice");
         if (visible) unlock("zoomies");
       }
       lastHour = hour;

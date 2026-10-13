@@ -149,7 +149,17 @@ export interface WorldFeed {
   spend: { month: string; budget: number } & MonthTotals;
   /** Whether Claude is set up for the step (else every hour is scripted). */
   claude: boolean;
+  /**
+   * The day's story (api/_world/story.ts): Gemini's speech spend this month against its own cap, and the Claude cost
+   * of the scripts (part of the shared Claude cap). `gemini` says whether the key is set.
+   */
+  story?: { month: string; budget: number; gemini: boolean; usd: number; calls: number; stories: number; tokensIn: number; tokensOut: number; scriptUsd: number };
 }
+
+/** What GET /api/day-story?day=… answers (api/day-story.ts): the day's story, or why there isn't one. */
+export type DayStoryView =
+  | { day: string; ready: true; script: string; durationSec: number; partial: boolean; writer: "claude" | "chronicle"; at: string; audio: string }
+  | { day: string; ready: false; reason: "no-key" | "over-budget" | "not-yet" };
 
 /** What GET /api/world-step answers: the world clock the Desk's Systems page and the Boiler Room's pipe read. */
 export interface WorldClock {

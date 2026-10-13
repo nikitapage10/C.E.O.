@@ -20,9 +20,9 @@ export const ZONES: Record<ZoneId, { name: string; trust: string; holds: string[
   vercel: {
     name: "Vercel production",
     trust: "Built from main",
-    holds: ["Static site: Lattice and Desk", "api/foundry: Desk buttons, Rivet", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world", "Vercel Blob: world state, pictures"],
+    holds: ["Static site: Lattice and Desk", "api/foundry: Desk buttons, Rivet", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world state, stories, pictures"],
   },
-  claude: { name: "Claude API", trust: "Haiku, no tools", holds: ["Rivet", "The world step"] },
+  claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet and the world step (Haiku)", "The day's story (Gemini speech)"] },
   github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks and scans"] },
   builder: { name: "Claude Code sessions", trust: "Checked, not trusted", holds: ["The Builder and workers"] },
 };
@@ -45,16 +45,16 @@ export const BOUNDARIES: Boundary[] = [
     name: "Desk to functions",
     crosses: "Nikita's ideas, notes, answers, pictures, button presses",
     controls:
-      "Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap",
+      "Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each; notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap",
     from: "browser",
     to: "vercel",
   },
   {
     id: "TB2",
-    name: "Code to Claude",
-    crosses: "Idea text, issue text, the hour's digest; JSON back",
+    name: "Code to the model APIs",
+    crosses: "Idea text, issue text, the hour's digest, the day's story script; JSON, text or audio back",
     controls:
-      "Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`)",
+      "Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`); Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap",
     from: "vercel",
     to: "claude",
   },
@@ -225,9 +225,9 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM10",
     name: "Unbounded Consumption",
-    where: "Claude spend; GitHub token quota; function CPU",
+    where: "Claude spend; Gemini speech spend; GitHub token quota; function CPU",
     controls:
-      "Coded budget guard for the world step (`api/_world/budget.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
+      "Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
     residual: "The world step's trigger is open and its per-hour cap is a known gap",
     tracking: "Open, tracked: world-step key (R6, #61, not picked)",
   },

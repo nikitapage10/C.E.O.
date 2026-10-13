@@ -15,14 +15,31 @@
  *   FOUNDRY_GITHUB_TOKEN   optional: reads the hour's Foundry events with the Foundry's token instead of anonymously
  *   WORLD_STORE            optional: "blob" (default) or "supabase" once it is connected (api/_world/store.ts)
  *   WORLD_BUDGET_USD       optional: the world's share of the $10 monthly Claude API cap (default 6)
+ *   GEMINI_API_KEY         optional: the day's story, read aloud once the recap is filed (api/_world/story.ts)
+ *   GEMINI_BUDGET_USD      optional: Gemini's own monthly cap (default 5, never above 10)
  */
 
+import { waitUntil } from "@vercel/functions";
 import { worldBudget } from "./_world/budget.js";
-import { claudeAsk } from "./_world/claude.js";
+import { claudeAsk, claudeStoryWriter } from "./_world/claude.js";
 import { readClock } from "./_world/clock.js";
 import { readFeed } from "./_world/digest.js";
 import { runStep } from "./_world/step.js";
-import { pickStore, StaleStateError } from "./_world/store.js";
+import { geminiBudget, geminiKey, makeStory, pickStoryStore } from "./_world/story.js";
+import { pickStore, StaleStateError, type WorldStore } from "./_world/store.js";
+
+/**
+ * Once the day's recap is filed, the Historian reads the day aloud (api/_world/story.ts): after the answer has gone,
+ * so the step stays fast. Without GEMINI_API_KEY, or past GEMINI_BUDGET_USD, nothing is called.
+ */
+function tellTheDay(world: WorldStore, day: string): void {
+  const stories = pickStoryStore();
+  const key = geminiKey();
+  if (!stories || !key) return;
+  waitUntil(
+    makeStory({ world, stories, day, now: Date.now(), key, budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write: claudeStoryWriter() }).catch(() => undefined),
+  );
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -45,6 +62,7 @@ export async function POST(): Promise<Response> {
   if (!store) return json({ error: "not-set-up" }, 503);
   try {
     const result = await runStep({ store, now: Date.now(), readFeed: (since) => readFeed(since), ask: claudeAsk(), budget: worldBudget(process.env.WORLD_BUDGET_USD) });
+    if (result.stepped && result.entry.recap) tellTheDay(store, result.entry.recap.day);
     return json(result.stepped ? { stepped: true, entry: result.entry } : result);
   } catch (e) {
     // Another step landed first: this hour is already written.

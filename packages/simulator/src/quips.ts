@@ -266,6 +266,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "It floated before the foundations were poured. Footnote three. Nobody reads footnote three.",
     "The Chronicle of Ilyr, hour by hour. Every hour. Sourced. You're welcome.",
     "The C.E.O. was away. The Lattice was not. I wrote it all down.",
+    "Lamp on. Settle in. The day in Ilyr, read aloud. One narrator. Me.",
+    "It's a story, not a show. There are no hosts. There is a footnote.",
     "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct.",
   ],
   fizz: [

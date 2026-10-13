@@ -25,7 +25,15 @@ export interface FeedComment {
   issue_url: string;
   created_at: string;
   body?: string | null;
+  /** Who wrote it. Only Nikita's account and the Checks workflow write trail steps; anyone else's is skipped. */
+  user?: { login?: string } | null;
 }
+
+/**
+ * The accounts whose comments count as trail steps, as in scripts/foundry-issue.sh (#59): the repo is public, so
+ * anyone can post a comment that starts "**Trail · Assigned:**", and that mustn't become an event in the Lattice.
+ */
+export const TRAIL_AUTHORS: ReadonlySet<string> = new Set(["nikitapage10", "github-actions[bot]"]);
 
 export interface FeedRun {
   conclusion: string | null;
@@ -68,7 +76,13 @@ const MAX_LINES = 12;
  */
 export function scrub(text: string): string {
   return text
-    .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[private]")
+    // Invisible characters and full-width look-alikes first, so "ｎｉｋｉｔａ＠…" or a key split by a zero-width space
+    // is caught like the plain one; then emails spelled out as "name [at] host [dot] com". The name part is bounded
+    // (an address's local part is at most 64 characters), so a long run of letters costs linear time, not quadratic.
+    .replace(/\p{Cf}/gu, "")
+    .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/\b[\w.+-]{1,64}\s*[[(]\s*at\s*[\])]\s*[\w-]{1,64}(\s*[[(]\s*dot\s*[\])]\s*[\w-]{1,64})+/gi, "[private]")
+    .replace(/[\w.+-]{1,64}@[\w-]+(\.[\w-]+)+/g, "[private]")
     .replace(/https?:\/\/\S+/g, "[link]")
     .replace(/\b(sk|pk|ghp|gho|github_pat|xox[abp]|AKIA)[-_A-Za-z0-9]{8,}/g, "[key]")
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "[key]")
@@ -89,7 +103,9 @@ export function builderOf(issue: FeedIssue): string {
 
 const issueNumber = (url: string) => Number(/\/issues\/(\d+)$/.exec(url)?.[1] ?? 0);
 const short = (title: string) => {
-  const t = scrub(title.replace(/^Idea:\s*/i, ""));
+  // No angle brackets: the prompt fences the hour's input in tags (prompt.ts), and a title mustn't close one.
+  // Only the start is ever shown, so only the start is scrubbed (with room for a secret that runs past the cut).
+  const t = scrub(title.replace(/^Idea:\s*/i, "").slice(0, 400).replace(/[<>\uFF1C\uFF1E]/g, ""));
   return t.length > 80 ? `${t.slice(0, 77)}…` : t;
 };
 
@@ -116,7 +132,7 @@ export function digestEvents(feed: Feed, from: number, to: number): Digest {
   }
 
   for (const c of feed.comments) {
-    if (!inWindow(c.created_at)) continue;
+    if (!inWindow(c.created_at) || !TRAIL_AUTHORS.has(c.user?.login ?? "")) continue;
     const issue = issues.get(issueNumber(c.issue_url));
     if (!issue) continue;
     const body = c.body ?? "";

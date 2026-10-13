@@ -8,8 +8,10 @@ import { GATHERINGS, GATHERING_BY_ID, type GatheringDef, type Line, type PlayCtx
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
 const shuffle = <T,>(xs: T[]) => xs.map((x) => [Math.random(), x] as const).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
-const FIRST_AFTER = 40_000;
-const EVERY = [110_000, 190_000] as const;
+/** The first gathering after opening the Lattice: soon enough to see one, not right away. */
+const FIRST_AFTER = 3 * 60_000;
+/** Gap between the Lattice's own gatherings: 30-36 minutes, so never more than two an hour. */
+const EVERY = [30 * 60_000, 36 * 60_000] as const;
 /** Reading time for a line that's written when it's spoken (a dice result): assume a longish sentence. */
 const LAZY_MS = readingTime("x".repeat(80));
 const lineMs = (l: Line) => (typeof l.text === "string" ? readingTime(l.text) : LAZY_MS) + (l.roll ? 1400 : 0) + 700;

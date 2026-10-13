@@ -172,11 +172,22 @@ export interface ArrangeOptions {
   minTop?: number;
   /** A tucked bubble's size (px), stem included. */
   pip?: { w: number; h: number };
+  /**
+   * Screen boxes no bubble may cover (px), such as the Kernel's PA banner. A bubble that would sit under one tucks
+   * into its pip instead of hiding behind it half read; pips don't avoid them (a pip under the banner is no loss).
+   */
+  blocked?: readonly Placed[];
 }
 
-const ARRANGE: Required<ArrangeOptions> = { gap: 6, maxLift: 150, minTop: 0, pip: { w: 30, h: 26 } };
+const ARRANGE: Required<ArrangeOptions> = { gap: 6, maxLift: 150, minTop: 0, pip: { w: 30, h: 26 }, blocked: [] };
 
-type Placed = { x: number; w: number; top: number; bottom: number };
+/** A box already on screen: `x` its centre, `top` and `bottom` its edges (px). */
+export type Placed = { x: number; w: number; top: number; bottom: number };
+
+/** Whether a box of width `w` centred on `x`, from `top` to `bottom`, comes within `gap` of `p`. */
+function overlaps(x: number, top: number, bottom: number, w: number, p: Placed, gap: number) {
+  return Math.abs(x - p.x) < (w + p.w) / 2 + gap && top < p.bottom + gap && bottom > p.top - gap;
+}
 
 /** How far a box of `w`×`h` with its bottom centre at (`x`, `y`) must rise to clear everything already placed. */
 function riseClear(x: number, y: number, w: number, h: number, placed: readonly Placed[], gap: number): number {
@@ -208,13 +219,14 @@ function riseClear(x: number, y: number, w: number, h: number, placed: readonly 
  * the air clears.
  */
 export function arrangeBubbles(boxes: readonly BubbleBox[], options: ArrangeOptions = {}): Record<string, BubbleSpot> {
-  const { gap, maxLift, minTop, pip } = { ...ARRANGE, ...options };
+  const { gap, maxLift, minTop, pip, blocked } = { ...ARRANGE, ...options };
   const sorted = [...boxes].sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const placed: Placed[] = [];
   const out: Record<string, BubbleSpot> = {};
   for (const b of sorted) {
     const l = riseClear(b.x, b.y, b.w, b.h, placed, gap);
-    if (l === 0 || (l <= maxLift && b.y - l - b.h >= minTop)) {
+    const covered = blocked.some((k) => overlaps(b.x, b.y - l - b.h, b.y - l, b.w, k, 0));
+    if (!covered && (l === 0 || (l <= maxLift && b.y - l - b.h >= minTop))) {
       out[b.id] = { lift: l, tucked: false };
       placed.push({ x: b.x, w: b.w, top: b.y - l - b.h, bottom: b.y - l });
       continue;

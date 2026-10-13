@@ -707,6 +707,19 @@ button {
 .callout:hover .callout__ping {
   background: rgba(255, 255, 255, 0.15);
 }
+/* A speech bubble over a room's label: the label steps back while the line is up (scene/Callouts.tsx). */
+.callout__label {
+  transition: opacity 0.35s;
+}
+.callout[data-hushed] .callout__label {
+  opacity: 0.15;
+}
+/* On a phone the nine labels and their readouts overlap: keep the names, and only a readout that needs you. */
+@media (max-width: 760px) {
+  .callout__read:not(:has(b)) {
+    display: none;
+  }
+}
 
 /* Speech: a compact bubble riding above the speaker on a stem (agents/SpeechBubble.tsx). */
 .speech {
@@ -1736,6 +1749,15 @@ button {
 /* A line with a card behind it takes the pointer: hover (or tap) it for the detail. */
 .nameplate {
   position: relative;
+  transition: opacity 0.3s;
+}
+/* Crowded (agents/declutter.ts): a plate that would sit on a nearer label or a bubble keeps its name only, or
+   fades right back. Hovering the agent still brings up its full tag. */
+.nameplate[data-crowd] .nameplate__task {
+  visibility: hidden;
+}
+.nameplate[data-crowd="dim"] {
+  opacity: 0.15;
 }
 .nameplate__task--more {
   pointer-events: auto;
@@ -2115,7 +2137,18 @@ button {
   .announce {
     top: auto;
     bottom: 110px;
+    /* Use the phone's width rather than the half right of centre, so a long notice runs wide, not tall. */
+    width: max-content;
     max-width: calc(100vw - 24px);
+  }
+  /* At most four lines over the scene; the whole notice stays in Signals. */
+  .announce__text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    overflow: hidden;
+    font-size: 15px;
   }
   .topbar {
     top: 8px;

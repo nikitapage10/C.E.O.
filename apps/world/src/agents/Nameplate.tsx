@@ -5,6 +5,8 @@ import { Vector3, type Group } from "three";
 import { create } from "zustand";
 import { CREW, crewJob, useFoundry, waitingTurn, type CrewId } from "../foundry.ts";
 import { useWorld } from "../store.ts";
+import { declutterPlates, settleLevel, stepsForward, type PlateBox, type PlateLevel, type Rect } from "./declutter.ts";
+import { bubbleRects } from "./SpeechBubble.tsx";
 import { crateCard, recordCard, type TaskCard } from "./taskCard.ts";
 import { taskLine, type TaskIcon, type TaskLine } from "./taskLine.ts";
 
@@ -97,6 +99,17 @@ const OPEN_Z = "90";
 
 const at = new Vector3();
 
+/** Every plate on screen, refreshed every MEASURE_MS, so plates that bunch up can step back (declutter.ts). */
+const plates = new Map<string, PlateBox & { at: number }>();
+const MEASURE_MS = 120;
+/** A plate that stepped back waits this long in clear air before it shows more again, so it doesn't flicker (ms). */
+const SETTLE_MS = 600;
+let plateSeq = 0;
+
+function relRect(r: DOMRect, c: DOMRect): Rect {
+  return { left: r.left - c.left, top: r.top - c.top, right: r.right - c.left, bottom: r.bottom - c.top };
+}
+
 /** The card over the task line: the real job behind it, or a note that a demo room's work is a drill. */
 function TaskCardView({ card, accent }: { card: TaskCard; accent: string }) {
   if (card.kind !== "real")
@@ -152,8 +165,17 @@ export function Plate({ y, name, accent, line, card, owner }: { y: number; name:
   const shown = useRef(-1);
   const closeTimer = useRef<number | null>(null);
   const lastPointer = useRef("mouse");
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const [key] = useState(() => `plate-${++plateSeq}`);
+  const crowd = useRef<{ level: PlateLevel; crowdedAt: number; next: number }>({ level: "full", crowdedAt: 0, next: 0 });
   const [open, setOpen] = useState(false);
   const isOpen = open && card !== null;
+  useEffect(
+    () => () => {
+      plates.delete(key);
+    },
+    [key],
+  );
 
   const cancelClose = () => {
     if (closeTimer.current !== null) clearTimeout(closeTimer.current);
@@ -204,24 +226,54 @@ export function Plate({ y, name, accent, line, card, owner }: { y: number; name:
     };
   }, [isOpen]);
 
-  useFrame(({ camera }) => {
+  useFrame(({ camera, gl }) => {
     // Open, keep the plate's layer over the others: the scene restacks plates every frame their agent moves.
     if (isOpen) {
       const host = plateRef.current?.parentElement?.parentElement;
       if (host && host.style.zIndex !== OPEN_Z) host.style.zIndex = OPEN_Z;
     }
-    const el = lineRef.current;
-    if (!el || !anchor.current) return;
+    if (!anchor.current) return;
     anchor.current.getWorldPosition(at);
     const d = camera.position.distanceTo(at);
-    const o = Math.min(1, Math.max(0, (FADE_TO - d) / (FADE_TO - FADE_FROM)));
-    const q = Math.round(o * 20) / 20;
-    if (q === shown.current) return;
-    shown.current = q;
-    el.style.opacity = String(q);
-    el.style.visibility = q === 0 ? "hidden" : "";
-    if (q === 0) setOpen(false);
+    const el = lineRef.current;
+    if (el) {
+      const o = Math.min(1, Math.max(0, (FADE_TO - d) / (FADE_TO - FADE_FROM)));
+      const q = Math.round(o * 20) / 20;
+      if (q !== shown.current) {
+        shown.current = q;
+        el.style.opacity = String(q);
+        el.style.visibility = q === 0 ? "hidden" : "";
+        if (q === 0) setOpen(false);
+      }
+    }
+    declutter(d, gl.domElement);
   });
+
+  /** Now and then, measure this plate and step it back (or forward) against the plates and bubbles around it. */
+  function declutter(depth: number, canvas: HTMLElement) {
+    const now = performance.now();
+    const c = crowd.current;
+    const plate = plateRef.current;
+    if (now < c.next || !plate || !nameRef.current) return;
+    c.next = now + MEASURE_MS;
+    const name = nameRef.current.getBoundingClientRect();
+    if (!name.width) {
+      plates.delete(key);
+      return;
+    }
+    const box = canvas.getBoundingClientRect();
+    const line = lineRef.current && shown.current > 0.05 ? relRect(lineRef.current.getBoundingClientRect(), box) : null;
+    plates.set(key, { id: key, depth, name: relRect(name, box), line, pinned: isOpen, at: now });
+    for (const [k, p] of plates) if (now - p.at > MEASURE_MS * 4) plates.delete(k);
+    const want = declutterPlates([...plates.values()], [...bubbleRects.values()])[key] ?? "full";
+    if (!stepsForward(c.level, want)) c.crowdedAt = now;
+    const level = settleLevel(c.level, want, c.crowdedAt, now, SETTLE_MS);
+    if (level === c.level) return;
+    c.level = level;
+    // A data attribute, not a class: React owns className and would wipe it on the next render.
+    if (level === "full") delete plate.dataset.crowd;
+    else plate.dataset.crowd = level;
+  }
 
   const hover = card
     ? {
@@ -251,7 +303,9 @@ export function Plate({ y, name, accent, line, card, owner }: { y: number; name:
               <TaskCardView card={card} accent={accent} />
             </div>
           )}
-          <span style={{ color: accent }}>●</span> {name}
+          <span ref={nameRef} className="nameplate__name">
+            <span style={{ color: accent }}>●</span> {name}
+          </span>
           {line && (
             <div
               ref={lineRef}

@@ -1,7 +1,11 @@
 # The Foundry's furnace: typecheck, lint, tests and build on every push to main, every pull request (the
 # Foundry's lane branches land through these) and nightly. When they fail on main, open (or comment on) a
 # Foundry fix issue; the Foundry thread picks it up at its next queue check (every 15 minutes).
-# See docs/FOUNDRY.md.
+# See docs/DELIVERY.md and docs/FOUNDRY.md. The browser tests run from e2e.yml.
+#
+# The job name "checks" is the status check a ruleset on main can require (docs/DELIVERY.md, "The ruleset for
+# main"): rename it only together with that ruleset. No path filters here, on purpose: a required check that never
+# runs leaves a pull request waiting forever.
 name: Checks
 
 on:
@@ -13,13 +17,15 @@ on:
     - cron: "17 9 * * *"
   workflow_dispatch:
 
+# Least privilege: jobs only read the code, unless a job says otherwise below.
 permissions:
   contents: read
-  issues: write
 
+# A newer push to the same pull request cancels the older run. Runs on main are never cancelled, so every commit
+# that reaches production gets its own result.
 concurrency:
-  group: checks-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   checks:
@@ -27,6 +33,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -45,9 +53,17 @@ jobs:
       - name: Build
         run: npm run build
 
+  report:
+    # The only job that may write: it opens (or comments on) the "Checks failing on main" fix issue.
+    needs: checks
+    if: failure() && github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
       - name: Open a Foundry fix
         id: issue
-        if: failure() && github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |

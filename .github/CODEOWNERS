@@ -1,0 +1,13 @@
+# The trust boundary: files that decide what the agents may do, what CI checks, what ships and what is spent.
+# Everything else has no code owner, so the Foundry's approved work still merges by itself once green.
+# This only takes effect when the ruleset on main turns on "require review from code owners", which waits for the
+# agents' own GitHub identity (docs/DELIVERY.md, "Who the agents are"). Until then it requests no reviews: the
+# agents open their pull requests as Nikita, and nobody is asked to review their own work.
+/.github/                   @nikitapage10
+/.claude/                   @nikitapage10
+/CLAUDE.md                  @nikitapage10
+/vercel.json                @nikitapage10
+/package.json               @nikitapage10
+/package-lock.json          @nikitapage10
+/api/_world/budget.ts       @nikitapage10
+/scripts/foundry-watch.sh   @nikitapage10

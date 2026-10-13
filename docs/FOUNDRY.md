@@ -300,6 +300,12 @@ do nothing for it; after changing the cast, run `npm run world:cast` (a test rem
 - Follow the repo's CLAUDE.md for lore and costumes. Chat work and the Foundry both reach `main` only through the
   branches and pull requests above.
 - No secrets in the repo, issues or comments.
+- **Keep Nikita's inbox quiet** (Nikita, 2026-10-13: "review those yourself and only send to me when there's a big
+  issue"). The agents act through Nikita's GitHub account, so every PR comment and failed run can become an email.
+  The Builder reads CI, bot and preview results himself; PR comments are kept to what a reviewer must see (a
+  red-circle answer, a standing-down note), never routine status, which goes in the issue's Trail. The Vercel bot
+  doesn't comment on PRs (`github.silent` in vercel.json). Nikita hears only about a blocker, a decision or a
+  finished result, in the Foundry thread.
 - Keep replies in the Foundry thread to results, blockers and decisions. Routine progress lives in the issue labels.
 
 ## Security headers (#62)

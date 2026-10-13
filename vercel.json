@@ -5,6 +5,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "apps/world/dist",
   "git": { "deploymentEnabled": { "claude/*": false } },
+  "github": { "silent": true },
   "functions": { "api/world-step.ts": { "maxDuration": 60 } },
   "headers": [
     {

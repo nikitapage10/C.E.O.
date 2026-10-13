@@ -350,7 +350,7 @@ body {
 }
 .desk__notice-link {
   flex: none;
-  min-height: 32px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   padding: 0 10px;
@@ -1703,7 +1703,7 @@ a.panel__hint:hover {
   gap: 8px;
 }
 .chip {
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 14px;
   border: 1px solid var(--hair);
   border-radius: 18px;
@@ -3206,6 +3206,11 @@ a.fy-tile:hover {
   .desk-boot {
     --gutter: 16px;
   }
+  .panel__head,
+  .section-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
   .desk__bar-row {
     flex-wrap: wrap;
     gap: 8px 12px;
@@ -3249,6 +3254,30 @@ a.fy-tile:hover {
     align-items: flex-start;
     gap: 8px;
     font-size: 12px;
+  }
+  .desk__notice-link,
+  .later-list__actions .btn,
+  .fy-idea__link,
+  .crates__title,
+  .fy-decision__title,
+  .fy-crew__on a,
+  .foundry-crew__on,
+  .later-list__title--link,
+  .section-head__link,
+  a.panel__hint,
+  .desk__mark {
+    min-height: 40px;
+  }
+  .fy-idea__link,
+  .crates__title,
+  .fy-decision__title,
+  .fy-crew__on a,
+  .foundry-crew__on,
+  .later-list__title--link,
+  .section-head__link,
+  a.panel__hint {
+    display: inline-flex;
+    align-items: center;
   }
   .desk__main {
     padding-top: 12px;

@@ -186,6 +186,7 @@ Each step is one short comment that starts with `**Trail ·`, newest last:
 | Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Small green fix: ships as upkeep, no approval needed.` |
 | Assigned | Who builds it, on which model, and why (the Builder's call) | `**Trail · Assigned:** Rusty on Opus: it's design and animation.` |
 | Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |
+| Pictures | Every screenshot, design sketch or test picture made along the way (before/after, what was checked), posted with `scripts/issue-shots.sh <issue> "<what they show>" <files…>`. The pictures live on the `foundry-shots` branch (never merged, never deployed) and show inline on the issue | `**Trail · Pictures:** the throne mid-command in the Spire, and the Foundry corner.` |
 | Checks | The result, with a link | `**Trail · Checks:** green (run <link>).` |
 | Shipped | The commit or PR on main | `**Trail · Shipped:** 661cef7 on main, live on the site.` |
 

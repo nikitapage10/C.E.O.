@@ -2719,3 +2719,171 @@ button {
   display: flex;
   gap: 8px;
 }
+
+/* ── Brogu's eyes (#47): first person at toddler height ── */
+.hud--eyes > :not(.announce) {
+  display: none;
+}
+.hud--eyes .announce {
+  top: 92px;
+  max-width: min(620px, calc(100vw - 32px));
+}
+.eyes {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+}
+.eyes > * {
+  pointer-events: auto;
+}
+.eyes__glass {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+}
+.eyes__glass:active {
+  cursor: grabbing;
+}
+.eyes__bar {
+  position: absolute;
+  top: 22px;
+  left: 28px;
+  right: 28px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+.eyes__bar > * {
+  pointer-events: auto;
+}
+.eyes__bar .eyebrow {
+  margin: 0 0 6px;
+  color: var(--ice);
+}
+.eyes__room {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 12px var(--bg);
+}
+.eyes__leave {
+  padding: 8px 16px;
+  background: rgba(8, 9, 12, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.eyes__reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border: 1px solid rgba(143, 232, 255, 0.6);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.eyes__note,
+.eyes__gate {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  translate: -50% 0;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px));
+  margin: 0;
+  padding: 10px 16px;
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  background: rgba(8, 9, 12, 0.6);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  animation: fade 0.4s ease-out both;
+}
+.eyes__note {
+  pointer-events: none;
+}
+.eyes__gate .eyebrow {
+  margin: 0 0 8px;
+  color: var(--ice);
+}
+.eyes__rooms {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.eyes__key {
+  color: var(--faint);
+  margin-right: 2px;
+}
+.eyes__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  translate: -50% 0;
+  width: max-content;
+  max-width: calc(100vw - 56px);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: rgba(8, 9, 12, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  font-size: 9px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+.eyes__stick {
+  position: absolute;
+  left: 24px;
+  bottom: 64px;
+  width: 112px;
+  height: 112px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(143, 232, 255, 0.08), rgba(8, 9, 12, 0.35) 70%);
+  touch-action: none;
+  display: grid;
+  place-items: center;
+}
+.eyes__stick i {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(143, 232, 255, 0.7);
+  background: rgba(143, 232, 255, 0.16);
+  box-shadow: 0 0 14px rgba(143, 232, 255, 0.25);
+}
+@media (max-width: 760px) {
+  .eyes__bar {
+    top: 14px;
+    left: 16px;
+    right: 16px;
+  }
+  .eyes__room {
+    font-size: 21px;
+  }
+  .hud--eyes .announce {
+    top: 80px;
+  }
+  .eyes__note,
+  .eyes__gate {
+    bottom: 196px;
+  }
+  .eyes__hint {
+    max-width: calc(100vw - 32px);
+    bottom: 14px;
+  }
+}

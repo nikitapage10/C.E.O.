@@ -53,8 +53,8 @@ function modelsFor(rooms: ReadonlySet<RoomId>): string[] {
   return [...urls];
 }
 
-/** Let the other rooms in, and fetch what they need. */
-function release() {
+/** Let the other rooms in, and fetch what they need. (Brogu's eyes calls it too: he can walk anywhere.) */
+export function release() {
   if (useStreaming.getState().all) return;
   useStreaming.setState({ all: true });
   preloadNow(...modelsFor(new Set(ROOM_IDS)));

@@ -20,6 +20,7 @@ import { PBR } from "../fx/pbr.ts";
 import { gatheringIn, useWorld } from "../store.ts";
 import { Block, FONTS } from "./primitives.tsx";
 import { skylineMaterial } from "./skyline.ts";
+import { CLUB_STAGE } from "../eyes/walk.ts";
 
 /**
  * The Break Room's club: a stage under a window onto the city at night, a DJ booth facing the floor, a drum
@@ -28,7 +29,8 @@ import { skylineMaterial } from "./skyline.ts";
  * mic (a "club-night" or "concert" gathering).
  */
 
-export const STAGE = { x0: -3.6, x1: 3.6, z0: -6.25, z1: -3.45, h: 0.45 };
+/** The stage's footprint and height (eyes/walk.ts owns it, so a steered Brogu can climb it). */
+export const STAGE = CLUB_STAGE;
 const FLOOR = { x0: -3.1, z0: -3.15, cols: 10, rows: 7, tile: 0.62 };
 const BPM = CLUB_BPM;
 const PALETTES = {

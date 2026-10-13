@@ -157,7 +157,10 @@ export function ShadowFocus() {
     const l = light.current;
 
     // Where the camera is looking and how far away it is.
-    const target = (controls as { getTarget?: (out: Vector3) => Vector3 } | null)?.getTarget?.(tmp) ?? tmp.set(0, 0, 0);
+    // With no orbit controls (behind Brogu's eyes), a few metres ahead of the camera.
+    const target =
+      (controls as { getTarget?: (out: Vector3) => Vector3 } | null)?.getTarget?.(tmp) ??
+      camera.getWorldDirection(tmp).multiplyScalar(5).add(camera.position);
     const distance = camera.position.distanceTo(target);
     const k = 1 - Math.exp(-dt * 4);
     center.current.lerp(target, k);

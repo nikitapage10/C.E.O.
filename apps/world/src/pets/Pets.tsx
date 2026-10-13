@@ -1,4 +1,4 @@
-import { ROOMS, getStation, placeToWorld, roomAngle, routeBetween, sampleRoute, type Place, type Route } from "@ceo/core";
+import { ROOMS, WALK_SPEED, getStation, placeToWorld, roomAngle, roomToWorld, routeBetween, sampleRoute, worldToRoom, type Place, type RoomId, type Route } from "@ceo/core";
 import { Html } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Suspense, useMemo, useRef, useState } from "react";
@@ -14,6 +14,8 @@ import { Brogu } from "./Brogu.tsx";
 import { Myshka } from "./Myshka.tsx";
 import { Owlbear } from "./Owlbear.tsx";
 import { useStreaming } from "../scene/roomScope.ts";
+import { brogu, useEyes } from "../eyes/eyes.ts";
+import { floorAt } from "../eyes/walk.ts";
 import { PETS, petOrders, petStart, wanderSpots, type PetDef } from "./pets.ts";
 import type { PetDrive, PetMode } from "./types.ts";
 
@@ -60,11 +62,56 @@ function Pet({ def }: { def: PetDef }) {
   const [room, setRoom] = useState(petStart(def));
   const state = useRef<PetState | null>(null);
   const spotKey = useRef(0);
+  // Brogu's eyes (#47): while Nikita steers him, he goes where he's walked and the camera is his head.
+  const steering = useEyes((e) => e.active) && def.id === "brogu";
+  const steeredIn = useRef<RoomId | null>(null);
 
   const init = useMemo(() => {
     const r = petStart(def);
     return { room: r, station: pick(wanderSpots(r, def.id)) };
   }, [def]);
+
+  /** Steered: follow the eyes, hidden (the camera is inside him). Handed back: toddle off to the nearest spot. */
+  const steer = (s: PetState, now: number, t: number): boolean => {
+    const eyes = useEyes.getState();
+    const r = root.current!;
+    if (eyes.active && eyes.room) {
+      const pos =
+        eyes.riding && brogu.route
+          ? sampleRoute(brogu.route, now - brogu.routeStart).position
+          : roomToWorld(eyes.room, brogu.x, floorAt(eyes.room, brogu.x, brogu.z), brogu.z);
+      r.position.set(...pos);
+      r.rotation.y = yaw.current = brogu.yaw + roomAngle(eyes.room) + Math.PI;
+      model.current!.scale.setScalar(0.0001);
+      drive.current.mode = brogu.speed > 0.05 ? "walk" : "idle";
+      drive.current.t = t;
+      if (steeredIn.current !== eyes.room) {
+        steeredIn.current = eyes.room;
+        setRoom(eyes.room);
+      }
+      return true;
+    }
+    const last = steeredIn.current;
+    if (!last) return false;
+    steeredIn.current = null;
+    // Handed back: off to the nearest spot he'd have stopped at anyway, from wherever he was left.
+    const [lx, lz] = worldToRoom(last, r.position.x, r.position.z);
+    const near = wanderSpots(last, def.id)
+      .map((id) => getStation(last, id))
+      .sort((a, c) => Math.hypot(a.x - lx, a.z - lz) - Math.hypot(c.x - lx, c.z - lz))[0]!;
+    const spot = `${def.id}-${++spotKey.current}`;
+    const next: Place = { room: last, station: near.id };
+    const from: [number, number, number] = [r.position.x, r.position.y, r.position.z];
+    const to = placeToWorld(next, spot);
+    // Timed at an agent's pace, like routeBetween: the frame loop below scales it by the pet's own speed.
+    const ms = (Math.hypot(to[0] - from[0], to[2] - from[2]) / WALK_SPEED) * 1000;
+    s.route = { points: [from, to], kinds: ["walk"], ends: [ms], duration: ms };
+    s.routeStart = now;
+    s.place = next;
+    s.spot = spot;
+    s.mode = "walk";
+    return false;
+  };
 
   useFrame(({ clock: three }, dt) => {
     if (!root.current || !model.current) return;
@@ -73,6 +120,7 @@ function Pet({ def }: { def: PetDef }) {
     if (!state.current) state.current = { place: init, spot: `${def.id}-0`, route: null, routeStart: now, mode: "sit", until: now + between(2000, 6000), hops: 0 };
     const s = state.current;
     const world = useWorld.getState();
+    if (def.id === "brogu" && steer(s, now, t)) return;
     const zoomies = def.id === "myshka" && now < petOrders.zoomiesUntil;
     // The zoomies wake him from anything.
     if (zoomies && !s.route && s.until > now + 600) s.until = now;
@@ -167,7 +215,7 @@ function Pet({ def }: { def: PetDef }) {
     drive.current.t = t;
   });
 
-  const inRoom = focus === room;
+  const inRoom = focus === room && !steering;
   const showTag = (hovered || open) && inRoom && !studioOpen;
   const over = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();

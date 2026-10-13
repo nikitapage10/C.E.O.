@@ -61,6 +61,23 @@ describe("the backfill (POST /api/day-story) is gated by the Desk key", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("remakes a story read in the old, slow style once, in the new voice (#102)", async () => {
+    const { deps, stories, fetcher } = setup();
+    await handlePost(post({ key: DESK, day: YESTERDAY }), deps);
+    const made = (await stories.readStory(YESTERDAY))!;
+    const old = { ...made, voice: "Gacrux" };
+    delete old.style;
+    stories.stories.set(YESTERDAY, old);
+    stories.claims.clear();
+    expect(await (await handleGet(get(`day=${YESTERDAY}`), deps)).json()).toMatchObject({ ready: true, stale: true });
+    const remade = (await (await handlePost(post({ key: DESK, day: YESTERDAY }), { ...deps, now: NOW + 60_000 })).json()) as { made: boolean; story: { stale: boolean } };
+    expect(remade).toMatchObject({ made: true, story: { stale: false } });
+    const again = (await (await handlePost(post({ key: DESK, day: YESTERDAY }), { ...deps, now: NOW + 120_000 })).json()) as { made: boolean; reason: string };
+    expect(again).toMatchObject({ made: false, reason: "exists" });
+    expect((await handlePost(post({ key: "wrong", day: YESTERDAY }), deps)).status).toBe(401);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it("only for today or yesterday", async () => {
     const { deps, fetcher } = setup();
     expect((await handlePost(post({ key: DESK, day: "2026-10-01" }), deps)).status).toBe(400);
@@ -91,7 +108,7 @@ describe("reading a story (GET)", () => {
     const { deps } = setup();
     await handlePost(post({ key: DESK, day: YESTERDAY }), deps);
     const view = (await (await handleGet(get(`day=${YESTERDAY}`), deps)).json()) as { ready: boolean; script: string; durationSec: number; audio: string };
-    expect(view).toMatchObject({ ready: true, durationSec: 1 });
+    expect(view).toMatchObject({ ready: true, durationSec: 1, stale: false });
     expect(view.script.length).toBeGreaterThan(20);
     const audio = await handleGet(new Request(`https://ceo.test${view.audio}`), deps);
     expect(audio.status).toBe(200);

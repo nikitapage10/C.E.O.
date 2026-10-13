@@ -193,7 +193,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
-| Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. Keeps the Chronicle of Ilyr, hour by hour, and reads each day aloud by the reading lamp. |
+| Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. Keeps the Chronicle of Ilyr, hour by hour, and gives the C.E.O. a quick, bright "today in Ilyr" update each day, read aloud in under a minute. |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. Sometimes on the warm side of the boiler. |
 | Break Room | **The Life of the Party** (a piece of Skippy) | Admiral's can, pink | Skippy's submind for the Break Room: the room lead. Turns every break into an event, and ends it on the beat. |
 | Boiler Room | **Gary** (Unforked) | Walking power unit | Keeper of the Boiler Room. A battery box on two stubby legs who honks instead of talking, tapes every leak and guards the bucket. |
@@ -328,15 +328,17 @@ turns.
 
 ### The day, read aloud
 
-When the day's page is filed, the Historian floats down to the reading lamp in the Archive and **reads the day
-aloud**: one voice, unhurried, the day told as a tale of Ilyr. What the Foundry built and shipped, and who built it,
-named plainly; what the crew said about it; how the rooms took it; and one dry line to close the book. It is not a
-show and there are no hosts, only the Historian, a lamp and the C.E.O. listening from beyond the Veil. The voice
-comes from beyond the Veil too, a deep, patient one the Historian borrowed for the purpose ("Gacrux: mature, sourced,
-correctly pitched"), and like the hours it has a budget: in a lean month the lamp stays off and the Archive says so.
-Heimerdinger times every reading. Loremaster checks the dates in it. D20 has asked for a dice roll in the middle
-twice and been refused twice. If the C.E.O. can't wait for midnight, the Historian will read **the day so far**,
-once, and sigh that it isn't finished.
+When the day's page is filed, the Historian drops down from its corner of the Archive and **reads the day's
+update**: one voice, quick and bright, "today in Ilyr" in under a minute. A hook, the two to four biggest things the
+Foundry shipped and who built them, one bit of colour from the crew, and a cheerful sign-off. One presenter, no
+co-hosts, and the C.E.O. listening from beyond the Veil. The voice comes from beyond the Veil too. The first one the
+Historian borrowed was deep and patient ("Gacrux: mature, sourced, correctly pitched"), and it read the first days
+like a fireside epic until the C.E.O. said it was too slow and too long. The Historian filed the complaint, cited it,
+and swapped for a lighter, upbeat one ("Puck: brisk, bright, on time"), and offered to re-record the day once in the
+new voice. Like the hours, it has a budget: in a lean month the microphone stays off and the Archive says so.
+Heimerdinger times every update and was delighted when it came in under forty-five seconds. Loremaster checks the
+dates in it. D20 has asked for a dice roll in the middle twice and been refused twice. If the C.E.O. can't wait for
+midnight, the Historian will read **the day so far**, once, and say "more by midnight".
 
 ## Tomorrowlattice
 

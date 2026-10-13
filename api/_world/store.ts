@@ -7,7 +7,7 @@
  * Moving from Blob to Supabase is that setting plus a copy of the history (the days listed in the state).
  */
 
-import { BlobPreconditionFailedError, get, put } from "@vercel/blob";
+import { BlobNotFoundError, BlobPreconditionFailedError, get, head, put } from "@vercel/blob";
 import type { DayPage, HistoryEntry, WorldState } from "./types.js";
 
 export interface WorldStore {
@@ -68,8 +68,16 @@ export class BlobStore implements WorldStore {
   private etag: string | null = null;
 
   async loadState(): Promise<WorldState | null> {
-    const found = await readJson<WorldState>(STATE_PATH);
-    this.etag = found?.etag ?? null;
+    // The ETag that put's ifMatch compares against is the store's own, from head(). The one on a download's response
+    // header is the CDN's and never matches, which left every step after the first refused as "already stepped".
+    const etag = await head(STATE_PATH)
+      .then((b) => b.etag)
+      .catch((e: unknown) => {
+        if (e instanceof BlobNotFoundError) return null;
+        throw e;
+      });
+    const found = etag ? await readJson<WorldState>(STATE_PATH) : null;
+    this.etag = found ? etag : null;
     return found?.value ?? null;
   }
 

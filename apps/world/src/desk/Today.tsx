@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef } from "react";
 import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
-import { shippedToday, useFoundry } from "../foundry.ts";
+import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
 import { sinceAway, useWorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening } from "./viz.tsx";
+import { IdeaCard, useSetup } from "./FoundryPage.tsx";
 
 /**
  * Today: what needs you, plainly, in the Lattice's own light. A hero over the Lattice with the day's count, a
@@ -38,7 +39,13 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   const otherReplies = owed.length - replies.length;
   const decisions = data.actions.filter((a) => a.when === "now");
   const later = data.actions.filter((a) => a.when === "later");
-  const todo = replies.length + decisions.length;
+  // Rivet's questions about ideas wait on you too: answered right here with the Foundry's own card.
+  const crates = useFoundry((s) => s.data.crates);
+  const pendingIdeas = useFoundry((s) => s.pending);
+  const setup = useSetup();
+  const ideas = openIdeas(crates, pendingIdeas);
+  const questions = ideaCounts(ideas).questions;
+  const todo = replies.length + decisions.length + questions.length;
   const canWait = later.length + otherReplies;
   const shipped = shippedToday(useFoundry((s) => s.data.changelog), now);
   const notesRef = useRef<HTMLUListElement>(null);
@@ -59,6 +66,7 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
           <h1 className="desk__title hero__title">Today</h1>
           <p className="hero__greet">{greeting(now)}</p>
           <p className="hero__lead">
+            {questions.length > 0 && `${questions.length === 1 ? "Rivet has a question" : `Rivet has ${questions.length} questions`}. `}
             {todo ? `${todo} ${todo === 1 ? "thing needs" : "things need"} you now, about ${todo} ${todo === 1 ? "minute" : "minutes"}.` : "Nothing needs you right now."}
             {canWait > 0 && ` ${canWait} more can wait.`}
           </p>
@@ -92,6 +100,11 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
       <Panel eyebrow="Do now" aside={<span className="badge badge--hot">{todo}</span>} className="panel--now">
         {todo ? (
           <ol className="todo">
+            {questions.map((c) => (
+              <li key={c.number} className="todo__item todo__item--question" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
+                <IdeaCard crate={c} index={ideas.indexOf(c) + 1} setup={setup} focus={false} />
+              </li>
+            ))}
             {replies.map((o) => (
               <ReplyCard key={o.id} o={o} now={now} />
             ))}

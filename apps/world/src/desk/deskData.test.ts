@@ -170,6 +170,19 @@ describe("foundryDesk: while you were away", () => {
   });
 });
 
+describe("foundryDesk: ideas", () => {
+  const NOW = Date.UTC(2026, 9, 13, 12, 0);
+  const idea = (number: number, over: Partial<Crate> = {}): Crate => ({ number, title: `Idea ${number}`, kind: "idea", state: "queued", rung: null, url: "", updatedAt: NOW, pitch: "", size: null, revising: false, ...over });
+  const later = (crates: Crate[]) => foundryDesk({ ...EMPTY_FOUNDRY, crates }, NOW).actions.map((a) => a.title);
+
+  it("lists ideas waiting for a pick, but not a question (Today shows it with its answer box)", () => {
+    expect(later([idea(1), idea(2, { asking: true, question: "Which page?" })])).toEqual(["Idea 1"]);
+  });
+  it("lists an asking idea again once its answer is being shaped", () => {
+    expect(later([idea(2, { asking: true, question: "Which page?", revising: true })])).toEqual(["Idea 2"]);
+  });
+});
+
 describe("awaySince", () => {
   const T = Date.UTC(2026, 9, 13, 12, 0);
   it("falls back to twelve hours without a stored stamp", () => {

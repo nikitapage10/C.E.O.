@@ -4188,3 +4188,17 @@ a.fy-chip:hover {
   font-size: 14px;
   color: var(--text);
 }
+
+/* Rivet's question on Today: the Foundry's own idea card, inline in "Do now". */
+.todo__item--question {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.todo__item--question::before {
+  display: none;
+}
+.todo__item--question .fy-idea {
+  height: 100%;
+}

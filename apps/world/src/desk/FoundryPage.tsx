@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
-import { assignCrew, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { assignCrew, ideaCounts, openIdeas, CREW, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -73,7 +73,7 @@ function storeKey(key: string) {
   }
 }
 
-function useSetup(): Setup {
+export function useSetup(): Setup {
   const [setup, setSetup] = useState<Setup>(null);
   useEffect(() => {
     let live = true;
@@ -176,16 +176,17 @@ export function FoundryPage({ now }: { now: number }) {
   const setup = useSetup();
   // The cards keep the thread's numbering (Build 1, 2, 3), so they go by issue number, not by last change; a card
   // just sent from the Desk goes last until GitHub numbers it.
-  const ideas = [...data.crates.filter((c) => c.kind === "idea" && c.state !== "shipped" && !pending.some((p) => p.number === c.number)), ...pending].sort((a, b) => (a.number < 0 ? Infinity : a.number) - (b.number < 0 ? Infinity : b.number));
+  const ideas = openIdeas(data.crates, pending);
   const decisions = data.crates.filter((c) => c.kind !== "idea" && (c.state === "ready" || c.state === "stuck"));
   const running = data.crates.filter((c) => c.kind !== "idea" && c.state === "working");
   const upkeep = data.crates.find((c) => c.kind === "upkeep");
   // Everything in flight: what the crew holds plus the queue nobody holds yet. Chat work is in here too.
   const inFlight = assignCrew(data.crates).size + upNext(data.crates).length;
-  const toPick = ideas.filter((c) => !c.revising).length;
-  const needs = decisions.length + (toPick ? 1 : 0);
+  const { questions, toPick } = ideaCounts(ideas);
+  const needs = decisions.length + (toPick ? 1 : 0) + (questions.length ? 1 : 0);
 
   const parts: string[] = [];
+  if (questions.length) parts.push(questions.length === 1 ? "Rivet has a question" : `Rivet has ${questions.length} questions`);
   if (toPick) parts.push(`${toPick} ${toPick === 1 ? "idea is" : "ideas are"} waiting for your pick`);
   if (decisions.length) parts.push(`${decisions.length} ${decisions.length === 1 ? "thing needs" : "things need"} your OK`);
   const lead = !connected ? "Connecting to GitHub…" : parts.length ? `${parts.join(", and ")}.` : "Nothing needs you. The crew handles small fixes and upkeep on its own.";
@@ -279,7 +280,8 @@ export function FoundryPage({ now }: { now: number }) {
   );
 }
 
-function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup: Setup }) {
+/** An idea card with its buttons; the Foundry tab lists them all and Today shows the ones Rivet is asking about. */
+export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; index: number; setup: Setup; focus?: boolean }) {
   const [mode, setMode] = useState<"idle" | "key" | "revise" | "busy" | "done" | "failed">("idle");
   const [pending, setPending] = useState<Choice | null>(null);
   const [key, setKey] = useState(storedKey);
@@ -449,7 +451,7 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
             <label>
               {dictation.listening ? "Listening… say your answer, then press the mic again." : "Your answer, said or typed. Rivet shapes the card again with it."}
               <span className="fy-propose__box">
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus maxLength={2000} placeholder="Answer Rivet's question" />
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus={focus} maxLength={2000} placeholder="Answer Rivet's question" />
                 <Mic dictation={dictation} onToggle={toggleMic} label="Say your answer" />
               </span>
             </label>

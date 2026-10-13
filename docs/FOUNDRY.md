@@ -24,19 +24,35 @@ moves them.
 | --- | --- | --- |
 | Rivet (agent id `semicolon`, Haiku) | First responder | Reads every new job and sizes it; fixes on rung 1 |
 | The Builder, the Foundry's submind (agent id `ember`, Opus) | Room lead | Decides who takes each job and on which model; plans, reviews and ships; conducts the room |
-| Rusty (agent id `tessellate`, Sonnet or Opus) | Builder, upkeep and ideas | The default builder for every fix and build (rungs 2 and 3), upkeep and maintenance, the morning ideas |
+| Rusty (agent id `tessellate`, Sonnet or Opus) | Builder, upkeep and ideas | The default builder for every fix and build (rungs 2 and 3), upkeep and maintenance, the morning ideas. His dock crew, Dusty, Gusty and Musty, take his extra jobs |
 | Rocky (agent id `caret`, Opus) | Master builder | Only the high-level work: architecture, big-picture design, open-ended ideas where deciding what to build is most of the job |
 
 Who and which model is the Builder's call (the Foundry's submind, on Opus), made up front for every job (Nikita,
 2026-10-13). A `**Builder:**` line written when an idea is shaped on the Desk is only a suggestion: when the Builder
 picks the job up, it confirms or changes it and updates the line. The Builder's rules of thumb:
-- **Rusty** builds almost everything. He picks his model per job: **Sonnet** when the shape is clear (a button, a
-  form field, an upload, an API call, wiring data through, a fix with a known cause, docs, refactors), **Opus** when
-  it needs taste or judgement (tricky fixes, and always anything with design or animation in it: 3D scenes, models,
-  animation, lighting, layout and visual polish). Extra jobs go to
-  Rusty clones: spare units come off the dock in the room, each a subagent on the model its job needs.
-- **Rocky (Opus)** is held for the high-level work: architecture, big-picture design and open-ended ideas.
+- **Rusty** builds almost everything. **Sonnet** when the shape is clear (a button, a form field, an upload, an API
+  call, wiring data through, a fix with a known cause, docs, refactors), **Opus at medium effort** for smaller visual
+  tweaks and the tricky fixes that need judgement. Opus at medium is his ceiling. His extra jobs go to **Rusty's dock
+  crew**, Dusty, Gusty and Musty: each is a subagent on the model its job needs, under the same ceiling, and in the
+  room one wakes on his dock and works the assembly line beside him.
+- **Rocky** is held for the high-level work: architecture, big-picture design, open-ended ideas, and the big design
+  and animation jobs (3D scenes, models, animation, lighting, layout), on **Opus up to high effort** when needed.
 - **Rivet (Haiku)** answers first: triage, one-line fixes, copy tweaks, labels.
+- **Opus at extra-high effort, or Fable, needs Nikita's approval first.** The Builder asks with a decision card in
+  the Foundry thread (`ask_decision`) before starting the job, and waits for the answer.
+
+**How many run at once** (Nikita, 2026-10-13). The room and the Desk show these rules (`runningNow` in
+`apps/world/src/foundry.ts`):
+- At most **four jobs run at once across the whole crew**. Rusty runs at most four jobs at once; the rest wait their
+  turn. He can take all four himself, with Dusty, Gusty and Musty. **Rocky takes one job at a time**; anything else
+  for him waits. A job past the cap stays labelled `foundry:working` and shows as "waiting its turn" on the Desk and
+  on its crate on the line.
+- The Builder doesn't start a job that changes the same files or the same room as a job already running; it waits in
+  the queue until that one ships.
+- **Urgent work never waits** (red checks on main, a bug, an alert). There is one emergency slot outside the four,
+  normally Rivet. If a second urgent job lands while that slot is busy, the newest idea build pauses: it pushes its
+  branch as work in progress, takes the `foundry:paused` label (its card and crate show "paused for a fix"), and
+  resumes, label dropped, when the fix ships.
 
 This holds for chat work too: the Builder's thread plans, reviews and ships, and hands the coding to the matching
 crew member as a subagent on that model. Every issue carries a `**Builder:**` line naming who and on what, e.g.
@@ -54,6 +70,7 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | `foundry:working` | Someone is on it |
 | `foundry:ready` | Done and checked, waiting for Nikita's OK |
 | `foundry:stuck` | Rung 3 failed; Nikita needs to look |
+| `foundry:paused` | An idea build paused for an urgent fix; its branch is pushed as work in progress and it resumes when the fix ships |
 | `foundry:shipped` | Landed on `main` (add it, then close the issue) |
 | `foundry:revise` | An idea Nikita sent back with notes from the Desk, or proposed there; Rusty rewrites it |
 | `foundry:passed` | An idea Nikita passed on (closed, not planned): on the shelf, not in the bin |
@@ -66,8 +83,8 @@ to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread sta
 `foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, a `**Builder:**`
 line naming the crew member for the model the thread really codes on (Rocky for Opus, Rusty for Sonnet, Rivet for
 Haiku), the branch), and labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists
-it under "In flight" with everything else, and in the Foundry room that crew member (or a clone, when they are
-already busy) is seen working on it (Nikita, 2026-10-12: "any development-based idea should end up in the Foundry
+it under "In flight" with everything else, and in the Foundry room that crew member (or one of Rusty's dock crew,
+when he is already busy) is seen working on it (Nikita, 2026-10-12: "any development-based idea should end up in the Foundry
 somewhere as well"; 2026-10-13: the crew shown must match the model doing the work).
 
 ## Decisions go through Skippy

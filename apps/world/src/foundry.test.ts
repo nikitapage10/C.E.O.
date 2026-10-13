@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SPARE_BAYS, assignCrew, blueprintCrate, sparesAwake, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, parseChecks, parseCrates, shippedToday, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -60,6 +60,11 @@ describe("crewFor", () => {
 describe("modelOf", () => {
   it("reads the model from the Builder line, else the rung, else the crew member's usual one", () => {
     expect(readBody("**Builder:** Rusty (Opus)").model).toBe("Opus");
+    // Extra words in the brackets, like the effort, don't hide the model.
+    expect(readBody("**Builder:** Rusty (Opus, medium effort)").model).toBe("Opus");
+    expect(readBody("**Builder:** Rocky (Opus high)").model).toBe("Opus");
+    expect(readBody("**Builder:** Rusty ( sonnet )").model).toBe("Sonnet");
+    expect(readBody("**Builder:** Rusty (Opusly)").model).toBeNull();
     expect(modelOf({ rung: null, model: "Opus" }, "tessellate")).toBe("Opus");
     expect(modelOf({ rung: 2 }, "tessellate")).toBe("Sonnet");
     expect(modelOf({ rung: null }, "caret")).toBe("Opus");
@@ -128,7 +133,7 @@ describe("assignCrew", () => {
     expect(by.get(3)).toBe("caret");
   });
 
-  it("counts the extra jobs a crew member holds as clones", () => {
+  it("counts every job a crew member holds", () => {
     expect(crewLoad([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")])).toEqual({ semicolon: 1, caret: 0, tessellate: 3 });
   });
 
@@ -138,12 +143,76 @@ describe("assignCrew", () => {
     expect(crewOf(crate(1, "chat", "queued"), [])).toBe("tessellate");
   });
 
-  it("wakes one spare Rusty for each job past his first, as many as the dock holds", () => {
+  it("wakes one of the dock crew for each job really running past Rusty's first", () => {
     expect(sparesAwake([])).toBe(0);
     expect(sparesAwake([crate(1, "upkeep", "working")])).toBe(0);
     expect(sparesAwake([crate(1, "upkeep", "working"), crate(2, "fix", "working", 2)])).toBe(1);
+    // Three jobs on the line: Rusty plus Dusty and Gusty.
+    expect(sparesAwake([1, 2, 3].map((n) => crate(n, "build", "working")))).toBe(2);
     const lots = [1, 2, 3, 4, 5, 6].map((n) => crate(n, "fix", "working", 2));
     expect(sparesAwake(lots)).toBe(SPARE_BAYS);
+    expect(DOCK_CREW.map((d) => d.name)).toEqual(["Dusty", "Gusty", "Musty"]);
+  });
+
+  it("keeps the dock crew asleep for jobs that aren't really running", () => {
+    // Queued work, ideas waiting for a pick, jobs waiting on Nikita and stuck ones don't wake anybody.
+    const idle = [crate(1, "build", "working"), crate(2, "chat", "queued"), crate(3, "idea", "queued"), crate(4, "build", "ready"), crate(5, "fix", "stuck", 2), crate(6, "upkeep", "shipped")];
+    expect(sparesAwake(idle)).toBe(0);
+    expect(crewLoad(idle).tessellate).toBe(3);
+  });
+
+  it("runs Rusty's four oldest jobs and leaves a fifth waiting its turn", () => {
+    const five = [5, 1, 4, 2, 3].map((n) => crate(n, "build", "working"));
+    const { running, waiting } = shifts(five, "tessellate");
+    expect(MAX_RUNNING.tessellate).toBe(4);
+    expect(running.map((c) => c.number)).toEqual([1, 2, 3, 4]);
+    expect(waiting.map((c) => c.number)).toEqual([5]);
+    expect(sparesAwake(five)).toBe(3);
+    expect([...waitingTurn(five)]).toEqual([5]);
+    expect([...rustyHands(five)]).toEqual([
+      [1, "Rusty"],
+      [2, "Dusty"],
+      [3, "Gusty"],
+      [4, "Musty"],
+    ]);
+  });
+
+  it("gives Rocky one job at a time; his second waits", () => {
+    const rocky = (n: number): Crate => ({ ...crate(n, "build", "working"), builder: "caret" });
+    const { running, waiting } = shifts([rocky(8), rocky(7)], "caret");
+    expect(MAX_RUNNING.caret).toBe(1);
+    expect(running.map((c) => c.number)).toEqual([7]);
+    expect(waiting.map((c) => c.number)).toEqual([8]);
+  });
+
+  it("runs at most four jobs across the crew: Rocky's one counts against Rusty's", () => {
+    const jobs = [{ ...crate(1, "build", "working"), builder: "caret" as const }, ...[2, 3, 4, 5].map((n) => crate(n, "build", "working"))];
+    expect(MAX_AT_ONCE).toBe(4);
+    expect(shifts(jobs, "caret").running.map((c) => c.number)).toEqual([1]);
+    expect(shifts(jobs, "tessellate").running.map((c) => c.number)).toEqual([2, 3, 4]);
+    expect([...waitingTurn(jobs)]).toEqual([5]);
+    expect(sparesAwake(jobs)).toBe(2);
+  });
+
+  it("never holds back urgent work: Rivet's fixes sit outside the four, and a fix of Rusty's goes ahead of his newest build", () => {
+    const fixes = [1, 2, 3, 4, 5, 6].map((n) => crate(n, "fix", "working", 1));
+    expect(shifts(fixes, "semicolon").waiting).toEqual([]);
+    const busy = [...[1, 2, 3, 4].map((n) => crate(n, "build", "working")), ...fixes.map((c) => ({ ...c, number: c.number + 10 }))];
+    expect(waitingTurn(busy).size).toBe(0);
+    const rustyFix = [...[1, 2, 3, 4].map((n) => crate(n, "build", "working")), crate(9, "fix", "working", 2)];
+    expect([...rustyHands(rustyFix)]).toEqual([
+      [9, "Rusty"],
+      [1, "Dusty"],
+      [2, "Gusty"],
+      [3, "Musty"],
+    ]);
+    expect([...waitingTurn(rustyFix)]).toEqual([4]);
+  });
+
+  it("counts a build paused for a fix as not running", () => {
+    const jobs = [crate(1, "build", "working"), { ...crate(2, "build", "working"), paused: true }];
+    expect(sparesAwake(jobs)).toBe(0);
+    expect(waitingTurn(jobs).size).toBe(0);
   });
 });
 

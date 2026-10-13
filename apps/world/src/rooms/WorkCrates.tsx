@@ -2,7 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { CanvasTexture, MeshStandardMaterial, SRGBColorSpace, type Group } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
-import { useFoundry, type Crate, type CrateKind, type CrateState } from "../foundry.ts";
+import { useFoundry, waitingTurn, type Crate, type CrateKind, type CrateState } from "../foundry.ts";
 import { PBR } from "../fx/pbr.ts";
 
 /**
@@ -32,6 +32,13 @@ const STAMP: Record<CrateState, { text: string; colour: string } | null> = {
   shipped: { text: "SHIPPED", colour: "#6fe08a" },
 };
 
+/** A working crate nobody has hands on yet: past the four the crew runs at once, or an idea build paused for a fix. */
+type Held = "waiting" | "paused" | null;
+const HELD_STAMP: Record<Exclude<Held, null>, { text: string; colour: string }> = {
+  waiting: { text: "WAITING ITS TURN", colour: "#9aa3b2" },
+  paused: { text: "PAUSED FOR A FIX", colour: "#ffb347" },
+};
+
 /** Syntax colours for the little page of code. */
 const SYNTAX = ["#c792ea", "#82aaff", "#c3e88d", "#f78c6c", "#89ddff", "#eeffff"];
 
@@ -52,7 +59,7 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, lines:
 }
 
 /** A crate's label: kind and number, the title, then a picture of the work. Seeded by the issue number. */
-function drawLabel(crate: Crate): CanvasTexture {
+function drawLabel(crate: Crate, held: Held = null): CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 512;
   c.height = 384;
@@ -111,7 +118,7 @@ function drawLabel(crate: Crate): CanvasTexture {
     }
   }
 
-  const stamp = STAMP[crate.state];
+  const stamp = held ? HELD_STAMP[held] : STAMP[crate.state];
   if (stamp) {
     ctx.save();
     ctx.translate(380, 320);
@@ -138,12 +145,12 @@ export function beltCrates(crates: Crate[]): Crate[] {
   return crates.filter((c) => c.state !== "queued");
 }
 
-function WorkCrate({ crate, index, slots, y, z }: { crate: Crate; index: number; slots: number; y: number; z: number }) {
+function WorkCrate({ crate, held, index, slots, y, z }: { crate: Crate; held: Held; index: number; slots: number; y: number; z: number }) {
   const ref = useRef<Group>(null);
   const geo = useMemo(() => new RoundedBoxGeometry(0.62, 0.48, 0.48, 2, 0.04), []);
-  const key = `${crate.number}:${crate.state}:${crate.title}`;
+  const key = `${crate.number}:${crate.state}:${crate.title}:${held}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- redraw only when what the label shows changes
-  const tex = useMemo(() => drawLabel(crate), [key]);
+  const tex = useMemo(() => drawLabel(crate, held), [key]);
   const label = useMemo(() => new MeshStandardMaterial({ map: tex, roughness: 0.7, emissive: "#ffffff", emissiveMap: tex, emissiveIntensity: 0.35 }), [tex]);
   useEffect(
     () => () => {
@@ -177,12 +184,13 @@ function WorkCrate({ crate, index, slots, y, z }: { crate: Crate; index: number;
 export function WorkCrates({ y, z }: { y: number; z: number }) {
   const crates = useFoundry((s) => s.data.crates);
   const today = useMemo(() => beltCrates(crates).slice(0, MAX_SLOTS), [crates]);
+  const waiting = useMemo(() => waitingTurn(crates), [crates]);
   if (!today.length) return null;
   const list = Array.from({ length: today.length * Math.ceil(MIN_SLOTS / today.length) }, (_, i) => today[i % today.length]!);
   return (
     <>
       {list.map((c, i) => (
-        <WorkCrate key={`${c.number}-${i}`} crate={c} index={i} slots={list.length} y={y} z={z} />
+        <WorkCrate key={`${c.number}-${i}`} crate={c} held={waiting.has(c.number) ? "waiting" : c.paused ? "paused" : null} index={i} slots={list.length} y={y} z={z} />
       ))}
     </>
   );

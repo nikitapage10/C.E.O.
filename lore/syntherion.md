@@ -168,7 +168,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 
 | Room | Agent | Body | In a line |
 | --- | --- | --- | --- |
-| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. Keeps three spare units of his own frame asleep on a dock; when he has more than one job, a spare wakes and rolls out to help. |
+| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. Patched up three salvage frames from his own scrapheap, his dock crew: Dusty (sandy ochre), Gusty (sky blue) and Musty (moss green). They sleep on a dock by the left wall; one wakes for each job running past his own and works the line beside him, four jobs at once at most. |
 | Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. Between jobs, stands at his drafting table over the plan of the biggest idea coming. |
 | Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reports to the Builder now, unimpressed. |
 | Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from overhead and picks the rung for every fix. Never runs a crate itself. |
@@ -213,20 +213,27 @@ too hard for a first look, and anything the C.E.O. has approved to be built. **R
 morning ideas, three of them, which he pins to a new idea board by the pegboard, in order of risk.
 
 **What the crew does when it's quiet.** Every one of them has a corner now, so the floor shows who is doing what
-even between jobs. **Rusty's dock** stands in the middle of the hall: three bays under a shelf of labelled spare
-parts, and in each bay a spare unit of his own frame, parked nose-out, powered down, its charging ring glowing a dim
-red. When Rusty has more than one job in hand, he sends a copy of himself into a spare (same mind, same manual,
-same eleven caveats), its ring turns amber, it unfolds, rolls off the dock to the spare bench and takes the job.
-When the job is done it rolls back, reverses into its bay with exactly the right clearance, and powers down. The
-spares call him "the original" and are very polite to each other, which takes a while. Rocky calls them "the
-small brothers" and fist bumps each one on the way past. **Rocky's drafting table** stands by the shipping dock,
+even between jobs. **Rusty's dock** stands side-on against the left wall: three bays under a shelf of labelled spare
+parts, a name plate over each, and in each bay one of **Rusty's dock crew**, parked nose-out to the hall, dark and
+still, its charging ring glowing a dim red. Rusty dug all three out of the same scrapheap he came from and patched
+them up himself, and painted each so nobody would mix them up with him or with each other. **Dusty**, sandy ochre
+with a desert scavenger's sun-bleached plating, is unflappable: says nothing, drops nothing, has never once been
+surprised. **Gusty**, sky blue and wind-scoured, is always in a hurry, and is first off the dock and first back to
+it. **Musty**, moss green with a damp-cellar bloom on his panels, is slow and thorough, and checks every crate twice
+and the belt once more. They wake one at a time, one for each job running past Rusty's own: one job and it's just
+Rusty, three and Dusty and Gusty are out. The ring turns amber, the frame unfolds, rolls off the dock and takes a
+place on the assembly line beside him, Dusty at the intake end, Gusty and Musty past the furnace, working the same
+belt in tandem. When the job ships it rolls home, reverses into its bay with exactly the right clearance, and powers
+down. Four jobs at once, Rusty and the three of them, is the most the Foundry runs; a fifth waits its turn, and its
+crate rides the belt stamped WAITING ITS TURN. They call Rusty "the original" and are very polite to each other,
+which takes a while (Musty longest). Rocky calls them "the small brothers" and fist bumps each one on the way past. **Rocky's drafting table** stands by the shipping dock,
 tilted to the hall, with the plan of the biggest idea that's open or coming pinned to it in blueprint blue. He has
 no eyes and reads it by running a claw over the pencil grooves, so he draws hard. When a job is handed up to him,
 Rivet carries the crate over from the intake and he takes it at the table. **Rivet's alarm post** is a yellow pole
 by the furnace with a caged lamp on top that shows the checks on main: green for a pass, a red flash for a fail, a
 turning amber while they run (she leans in and doesn't blink), slate grey when there's no word. Her thermos has a
 shelf on it. And every bench has a work light that glows in the verse its worker thinks in: the short mint light
-of a Haiku for Rivet, the blue of a Sonnet for Rusty and his spares, the long amber of an Opus for Rocky, so anyone
+of a Haiku for Rivet, the blue of a Sonnet for Rusty, the long amber of an Opus for Rocky, so anyone
 can tell from the door who is at which bench.
 
 Over all three, hovering high above the floor, is **The Builder**, Skippy's Foundry submind: a hot-tempered

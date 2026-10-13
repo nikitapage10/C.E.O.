@@ -94,11 +94,11 @@ describe("talking distance", () => {
   });
 });
 
-describe("the Foundry's spare units", () => {
-  it("roll from the dock to the spare bench and back without driving through furniture", () => {
+describe("Rusty's dock crew", () => {
+  it("roll from the dock to their spots on the line and back without driving through furniture", () => {
     FOUNDRY_FLOOR.bays.forEach(([bx, bz], i) => {
-      const apron: [number, number] = [bx, bz + 1.05];
-      const spot = FOUNDRY_FLOOR.spareSpots[i]!;
+      const apron: [number, number] = [bx + 1.05, bz];
+      const spot = FOUNDRY_FLOOR.lineSpots[i]!;
       expect(blockedAt("foundry", apron[0], apron[1])).toBe(false);
       expect(blockedAt("foundry", spot[0], spot[1])).toBe(false);
       for (const [a, c] of [
@@ -114,6 +114,17 @@ describe("the Foundry's spare units", () => {
           }
         }
       }
+    });
+  });
+
+  it("work the line spread out, clear of each other and of the stretch Rusty walks", () => {
+    const line = ROOMS.foundry.stations.filter((s) => ["intake", "assembler", "furnace"].includes(s.id));
+    const [lo, hi] = [Math.min(...line.map((s) => s.x)), Math.max(...line.map((s) => s.x))];
+    const spots = FOUNDRY_FLOOR.lineSpots;
+    spots.forEach(([x, z], i) => {
+      for (const [ox, oz] of spots.slice(i + 1)) expect(Math.hypot(ox - x, oz - z)).toBeGreaterThan(1.2);
+      for (const s of line) expect(Math.hypot(s.x - x, s.z - z)).toBeGreaterThan(1);
+      expect(x < lo || x > hi).toBe(true);
     });
   });
 });

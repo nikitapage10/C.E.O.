@@ -8,14 +8,15 @@ import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
 import { Beam } from "../fx/atmos.tsx";
 import { PBR } from "../fx/pbr.ts";
-import { CREW, MODEL, blueprintCrate, sparesAwake, useFoundry, type ChecksState, type Crate, type CrewId } from "../foundry.ts";
+import { CREW, DOCK_CREW, MODEL, blueprintCrate, sparesAwake, useFoundry, type ChecksState, type Crate, type CrewId } from "../foundry.ts";
 import { useWorld } from "../store.ts";
 import { Block } from "./primitives.tsx";
 
 /**
  * The Foundry crew's own corners, so the room shows what each of them is really doing even when it's quiet:
- * - Rusty's dock of spare units. When he has more than one job in hand, a spare wakes, rolls off the dock to the
- *   spare bench and takes a job, then rolls back and powers down when it's done (`sparesAwake`).
+ * - Rusty's dock against the left wall, where his dock crew (Dusty, Gusty, Musty) sleep. One wakes for each job really
+ *   running past his own, rolls out to the assembly line and works it alongside him, then rolls home and powers
+ *   down when it's done (`sparesAwake`).
  * - Rocky's drafting table, with the plan of the biggest open or upcoming idea on it (`blueprintCrate`).
  * - Rivet's alarm post, with a lamp that shows the real state of the checks on main.
  * - A work light on every bench in the model of whoever is working there: Haiku, Sonnet or Opus.
@@ -149,17 +150,21 @@ export function BenchLight({ station, position }: { station: string; position: [
   return <WorkLight position={position} read={read} />;
 }
 
-/* ------------------------------------------------------------------ the dock and the spares */
+/* ------------------------------------------------------------------ the dock and the dock crew */
 
 type Phase = "docked" | "waking" | "out" | "working" | "back" | "parking";
 type Waypoint = { x: number; z: number; reverse?: boolean };
 
-/** How the spares move: a careful roll, slower than a walk. */
+/** How the dock crew move: a careful roll, slower than a walk. */
 const ROLL_SPEED = 1.1;
 const WAKE_S = 1.6;
 const SLEEP_S = 1.8;
-/** How far in front of its bay a spare rolls before it turns for the bench. */
+/** How far out of its bay (into the hall, +x) one of the dock crew rolls before it turns for the line. */
 const BAY_APRON = 1.05;
+/** Parked in the bay, facing into the hall (+x). */
+const BAY_YAW = Math.PI / 2;
+/** At the line, facing the belt (-z). */
+const LINE_YAW = Math.PI;
 
 function lerpAngle(a: number, b: number, t: number): number {
   const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -175,27 +180,51 @@ interface UnitState {
   path: Waypoint[];
 }
 
-/** Captured materials of one spare's body, so it can be dimmed while powered down without dimming Rusty himself. */
+/** Captured materials of one of the dock crew's bodies, so it can be painted and dimmed without touching Rusty himself. */
 type Dimmable = { mat: MeshStandardMaterial; color: Color; intensity: number; env: number };
+
+/**
+ * Its own paint: the rust frame's texture greyed down and washed in the crew member's colour, so Dusty, Gusty and
+ * Musty read as three different salvage robots and none of them as Rusty.
+ */
+function paint(mat: MeshStandardMaterial, colour: string): void {
+  const tint = { value: new Color(colour) };
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uPaint = tint;
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform vec3 uPaint;")
+      .replace(
+        "#include <map_fragment>",
+        "#include <map_fragment>\n{ float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)); diffuseColor.rgb = mix(diffuseColor.rgb, uPaint * l * 2.4, 0.82); }",
+      );
+  };
+  mat.customProgramCacheKey = () => "dock-crew-paint";
+  mat.needsUpdate = true;
+}
 
 function SpareUnit({ index, active, look, state }: { index: number; active: boolean; look: Look; state: UnitState }) {
   const [bx, bz] = FOUNDRY_FLOOR.bays[index]!;
-  const [sx, sz] = FOUNDRY_FLOOR.spareSpots[index]!;
+  const [sx, sz] = FOUNDRY_FLOOR.lineSpots[index]!;
+  const colour = DOCK_CREW[index]!.colour;
   const root = useRef<Group>(null);
   const drive = useRef<Drive>({ mode: "napping", moving: false, t: 0, speaking: false });
   const dims = useRef<{ list: Dimmable[]; seen: WeakSet<Mesh>; checked: number }>({ list: [], seen: new WeakSet(), checked: -1 });
   const pad = useMemo(() => new MeshStandardMaterial({ color: "#111", emissive: "#ff5a4a", emissiveIntensity: 0.5, toneMapped: false }), []);
+  /** The body's own clock, held still while it sleeps on the dock. */
+  const bodyT = useRef(0);
   const phase = index * 2.3 + 0.7;
   useEffect(() => () => pad.dispose(), [pad]);
 
+  const apron: [number, number] = [bx + BAY_APRON, bz];
   const outPath = (fx: number, fz: number): Waypoint[] => {
-    const start: [number, number] = fz < bz + BAY_APRON - 0.05 && Math.abs(fx - bx) < 0.3 ? [bx, bz + BAY_APRON] : [fx, fz];
+    // From the bay, roll straight out into the hall first, then find the way to the line.
+    const start: [number, number] = fx < apron[0] - 0.05 && Math.abs(fz - bz) < 0.3 ? apron : [fx, fz];
     const lead: Waypoint[] = start[0] === fx && start[1] === fz ? [] : [{ x: start[0], z: start[1] }];
     return [...lead, ...detour("foundry", start, [sx, sz]).map(([x, z]) => ({ x, z })), { x: sx, z: sz }];
   };
   const backPath = (fx: number, fz: number): Waypoint[] => [
-    ...detour("foundry", [fx, fz], [bx, bz + BAY_APRON]).map(([x, z]) => ({ x, z })),
-    { x: bx, z: bz + BAY_APRON },
+    ...detour("foundry", [fx, fz], apron).map(([x, z]) => ({ x, z })),
+    { x: apron[0], z: apron[1] },
     // Backs into the bay, facing the hall, the way a careful robot parks.
     { x: bx, z: bz, reverse: true },
   ];
@@ -203,7 +232,7 @@ function SpareUnit({ index, active, look, state }: { index: number; active: bool
   useFrame(({ clock: three }, dt) => {
     const s = state;
     const step = Math.min(dt, 1);
-    // What it wants: out and working, or home and asleep.
+    // What it wants: out and working the line, or home and asleep.
     if (active) {
       if (s.phase === "docked" || s.phase === "parking") s.phase = "waking";
       else if (s.phase === "back") {
@@ -222,12 +251,12 @@ function SpareUnit({ index, active, look, state }: { index: number; active: bool
     switch (s.phase) {
       case "docked":
         s.power = 0;
-        wantYaw = 0;
+        wantYaw = BAY_YAW;
         break;
       case "waking":
         s.power = Math.min(1, s.power + step / WAKE_S);
         mode = s.power > 0.6 ? "waiting" : "napping";
-        wantYaw = 0;
+        wantYaw = BAY_YAW;
         if (s.power >= 1) {
           s.path = outPath(s.x, s.z);
           s.phase = "out";
@@ -236,12 +265,12 @@ function SpareUnit({ index, active, look, state }: { index: number; active: bool
       case "parking":
         s.power = Math.max(0, s.power - step / SLEEP_S);
         mode = s.power > 0.5 ? "idle" : "napping";
-        wantYaw = 0;
+        wantYaw = BAY_YAW;
         if (s.power <= 0) s.phase = "docked";
         break;
       case "working":
-        mode = "typing";
-        wantYaw = 0;
+        mode = "working";
+        wantYaw = LINE_YAW;
         break;
       case "out":
       case "back": {
@@ -274,19 +303,22 @@ function SpareUnit({ index, active, look, state }: { index: number; active: bool
       g.position.set(s.x, 0, s.z);
       g.rotation.y = s.yaw;
     }
-    drive.current = { mode, moving, t: three.elapsedTime, speaking: false, rate: 1 };
+    // Dark and still on the dock: its clock only runs while it has power.
+    if (s.phase !== "docked") bodyT.current += step;
+    drive.current = { mode, moving, t: bodyT.current, speaking: false, rate: 1 };
 
-    // The bay's charging pad: dim red with a sleeper on it, amber while it wakes, the Sonnet blue while it's out.
+    // The bay's charging pad: dim red with a sleeper on it, amber while it wakes, its own colour while it's out.
     const out = s.phase === "out" || s.phase === "working" || s.phase === "back";
-    if (out) pad.emissive.set(MODEL.tessellate.colour);
+    if (out) pad.emissive.set(colour);
     else if (s.phase === "docked") pad.emissive.set("#ff5a4a");
     else pad.emissive.set("#ffb347");
     pad.emissiveIntensity = out ? 1.6 : s.phase === "docked" ? 0.35 + Math.sin(three.elapsedTime * 1.2 + phase) * 0.15 : 1.4 + Math.sin(three.elapsedTime * 8) * 0.6;
 
-    // Powered down on the dock: the frame's paint goes dull and its lights go out.
+    // Its own paint, and powered down on the dock: the paint goes dull and the lights go out.
     const dim = dims.current;
-    if (g && Math.floor(three.elapsedTime) !== dim.checked) {
-      dim.checked = Math.floor(three.elapsedTime);
+    const tick = Math.floor(three.elapsedTime * 4);
+    if (g && tick !== dim.checked) {
+      dim.checked = tick;
       g.traverse((o) => {
         const mesh = o as Mesh;
         if (!mesh.isMesh || dim.seen.has(mesh)) return;
@@ -294,11 +326,12 @@ function SpareUnit({ index, active, look, state }: { index: number; active: bool
         const src = mesh.material as Material | Material[];
         if (Array.isArray(src) || !(src as MeshStandardMaterial).isMeshStandardMaterial) return;
         const mat = (src as MeshStandardMaterial).clone();
+        paint(mat, colour);
         mesh.material = mat;
         dim.list.push({ mat, color: mat.color.clone(), intensity: mat.emissiveIntensity, env: mat.envMapIntensity });
       });
     }
-    const k = 0.18 + 0.82 * s.power;
+    const k = 0.14 + 0.86 * s.power;
     for (const d of dim.list) {
       d.mat.color.copy(d.color).multiplyScalar(k);
       d.mat.emissiveIntensity = d.intensity * s.power;
@@ -312,82 +345,96 @@ function SpareUnit({ index, active, look, state }: { index: number; active: bool
       <mesh position={[bx, 0.045, bz]} rotation={[-Math.PI / 2, 0, 0]} material={pad}>
         <ringGeometry args={[0.36, 0.42, 32]} />
       </mesh>
-      <group ref={root} position={[state.x, 0, state.z]}>
+      <group ref={root} position={[state.x, 0, state.z]} rotation={[0, state.yaw, 0]}>
         <Body look={look} lineage="claudari" drive={drive} phase={phase} />
       </group>
     </>
   );
 }
 
-/** The spare bench's light for one spot: Sonnet blue while that spot's spare is at work. */
-function spareReader(state: UnitState): () => CrewId | null {
-  return () => (state.phase === "working" ? "tessellate" : null);
+const plaqueCache = new Map<string, CanvasTexture>();
+
+/** The name plate over a bay, stencilled in its crew member's colour (Rusty labels everything). */
+function plaqueTexture(name: string, colour: string): CanvasTexture {
+  const had = plaqueCache.get(name);
+  if (had) return had;
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 80;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#14161a";
+  ctx.fillRect(0, 0, 256, 80);
+  ctx.fillStyle = colour;
+  ctx.fillRect(0, 0, 256, 10);
+  ctx.fillRect(0, 70, 256, 10);
+  ctx.font = "bold 42px ui-monospace, Menlo, Consolas, monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(name.toUpperCase(), 128, 42);
+  const tex = new CanvasTexture(c);
+  tex.colorSpace = SRGBColorSpace;
+  plaqueCache.set(name, tex);
+  return tex;
 }
 
 /**
- * Rusty's dock: three bays under a parts shelf, each with a spare unit of Rusty's frame parked in it, powered
- * down. The spare bench across the hall is where they work.
+ * Rusty's dock, against the left wall and side-on to the hall: three bays under a parts shelf, each with one of his
+ * dock crew (Dusty, Gusty, Musty) parked in it, powered down. One wakes for each job really running past Rusty's
+ * own, rolls out to the assembly line and works it alongside him, then rolls home and powers down when it's done.
  */
 export function SpareDock() {
   const awake = useFoundry((s) => sparesAwake(s.data.crates));
   const look = useCast((s) => s.cast.profiles.tessellate?.look) ?? DEFAULT_LOOK;
-  const states = useMemo<UnitState[]>(() => FOUNDRY_FLOOR.bays.map(([x, z]) => ({ phase: "docked", x, z, yaw: 0, power: 0, path: [] })), []);
-  const readers = useMemo(() => states.map(spareReader), [states]);
-  const { dock, spareBench, spareSpots } = FOUNDRY_FLOOR;
+  const states = useMemo<UnitState[]>(() => FOUNDRY_FLOOR.bays.map(([x, z]) => ({ phase: "docked", x, z, yaw: BAY_YAW, power: 0, path: [] })), []);
+  const { dock } = FOUNDRY_FLOOR;
   const frame = PBR.steel();
   const panel = PBR.matte("#23272e", 0.75);
-  const back = dock.z - dock.hd + 0.08;
+  // The dock is drawn in its own frame, turned to face into the hall (+x): along it is local x (world -z), and
+  // local +z is out of the bays.
+  const len = dock.hd * 2;
+  const depth = dock.hw * 2;
+  const back = -depth / 2 + 0.06;
+  const along = (bz: number) => dock.z - bz;
   return (
     <group>
-      {/* The dock: a base plate, a back wall, bay dividers, and a shelf of spare parts on top. */}
-      <Block size={[dock.hw * 2, 0.08, dock.hd * 2]} position={[dock.x, 0.04, dock.z]} material={PBR.gratingFloor([3, 1])} radius={0.01} />
-      <Block size={[dock.hw * 2, 1.8, 0.1]} position={[dock.x, 0.9, back]} material={panel} radius={0.02} />
-      {[-1.5, -0.5, 0.5, 1.5].map((u) => (
-        <Block key={u} size={[0.06, 1.55, 0.9]} position={[dock.x + u, 0.78, back + 0.45]} material={frame} radius={0.01} />
-      ))}
-      <Block size={[dock.hw * 2 + 0.1, 0.06, 0.95]} position={[dock.x, 1.86, back + 0.42]} material={frame} radius={0.01} />
-      {/* Stock on the shelf: treads, a claw, cans of oil, a labelled box (Rusty labels everything). */}
-      <Block size={[0.5, 0.16, 0.3]} position={[dock.x - 1.1, 1.97, back + 0.3]} material={PBR.blackMetal()} radius={0.05} />
-      <Block size={[0.34, 0.24, 0.28]} position={[dock.x - 0.2, 2.01, back + 0.32]} material={PBR.wood("oak")} radius={0.02} />
-      <Block size={[0.3, 0.2, 0.3]} position={[dock.x + 0.25, 1.99, back + 0.4]} material={PBR.lacquer("#c9962e", 0.6)} radius={0.03} />
-      {[0, 1, 2].map((i) => (
-        <mesh key={i} position={[dock.x + 0.85 + i * 0.16, 2.0, back + 0.35]} material={PBR.lacquer(i === 1 ? "#a83a2a" : "#3a6a8a", 0.4)}>
-          <cylinderGeometry args={[0.06, 0.06, 0.22, 14]} />
+      <group position={[dock.x, 0, dock.z]} rotation={[0, Math.PI / 2, 0]}>
+        {/* A base plate, a back wall, bay dividers, and a shelf of spare parts on top. */}
+        <Block size={[len, 0.08, depth]} position={[0, 0.04, 0]} material={PBR.gratingFloor([3, 1])} radius={0.01} />
+        <Block size={[len, 1.8, 0.1]} position={[0, 0.9, back]} material={panel} radius={0.02} />
+        {[-1.5, -0.5, 0.5, 1.5].map((u) => (
+          <Block key={u} size={[0.06, 1.55, depth - 0.1]} position={[u * (len / 3), 0.78, back + (depth - 0.1) / 2]} material={frame} radius={0.01} />
+        ))}
+        <Block size={[len + 0.1, 0.06, depth - 0.05]} position={[0, 1.86, back + (depth - 0.05) / 2 - 0.03]} material={frame} radius={0.01} />
+        {/* Stock on the shelf: treads, a claw, cans of oil, a labelled box. */}
+        <Block size={[0.5, 0.16, 0.3]} position={[-1.0, 1.97, back + 0.3]} material={PBR.blackMetal()} radius={0.05} />
+        <Block size={[0.34, 0.24, 0.28]} position={[-0.2, 2.01, back + 0.32]} material={PBR.wood("oak")} radius={0.02} />
+        <Block size={[0.3, 0.2, 0.3]} position={[0.25, 1.99, back + 0.4]} material={PBR.lacquer("#c9962e", 0.6)} radius={0.03} />
+        {[0, 1, 2].map((i) => (
+          <mesh key={i} position={[0.8 + i * 0.16, 2.0, back + 0.35]} material={PBR.lacquer(DOCK_CREW[i]!.colour, 0.4)}>
+            <cylinderGeometry args={[0.06, 0.06, 0.22, 14]} />
+          </mesh>
+        ))}
+        {FOUNDRY_FLOOR.bays.map(([, bz], i) => (
+          <group key={i}>
+            {/* A cable to each bay from the back wall. */}
+            <mesh position={[along(bz) + 0.3, 0.65, back + 0.08]} material={PBR.blackMetal()}>
+              <cylinderGeometry args={[0.02, 0.02, 1.2, 6]} />
+            </mesh>
+            {/* Its name over the bay, and a stripe of its colour on the wall. */}
+            <mesh position={[along(bz), 1.5, back + 0.06]}>
+              <planeGeometry args={[0.62, 0.19]} />
+              <meshBasicMaterial map={plaqueTexture(DOCK_CREW[i]!.name, DOCK_CREW[i]!.colour)} toneMapped={false} />
+            </mesh>
+          </group>
+        ))}
+        {/* Hazard stripe across the front of the bays. */}
+        <mesh position={[0, 0.085, depth / 2 - 0.06]} rotation={[-Math.PI / 2, 0, 0]} material={PBR.matte("#c9a227", 0.7)}>
+          <planeGeometry args={[len, 0.08]} />
         </mesh>
-      ))}
-      {/* A cable to each bay from the back wall. */}
-      {FOUNDRY_FLOOR.bays.map(([x], i) => (
-        <mesh key={i} position={[x + 0.3, 0.65, back + 0.08]} material={PBR.blackMetal()}>
-          <cylinderGeometry args={[0.02, 0.02, 1.2, 6]} />
-        </mesh>
-      ))}
-      {/* Hazard stripe across the front of the bays. */}
-      <mesh position={[dock.x, 0.085, dock.z + dock.hd - 0.06]} rotation={[-Math.PI / 2, 0, 0]} material={PBR.matte("#c9a227", 0.7)}>
-        <planeGeometry args={[dock.hw * 2, 0.08]} />
-      </mesh>
+      </group>
       {states.map((st, i) => (
         <SpareUnit key={i} index={i} active={i < awake} look={look} state={st} />
       ))}
-
-      {/* The spare bench: one long steel bench, a spot and a work light for each spare. */}
-      <group>
-        <Block size={[spareBench.hw * 2, 0.06, spareBench.hd * 2]} position={[spareBench.x, 0.8, spareBench.z]} material={PBR.lacquer("#2c333d", 0.5)} radius={0.02} />
-        <Block size={[spareBench.hw * 2 - 0.1, 0.04, spareBench.hd * 2 - 0.1]} position={[spareBench.x, 0.3, spareBench.z]} material={frame} radius={0.01} />
-        {[-1, 1].map((sxn) =>
-          [-1, 1].map((szn) => (
-            <Block key={`${sxn}${szn}`} size={[0.06, 0.78, 0.06]} position={[spareBench.x + sxn * (spareBench.hw - 0.08), 0.39, spareBench.z + szn * (spareBench.hd - 0.08)]} material={frame} radius={0.01} />
-          )),
-        )}
-        {/* A vice, a parts tray and a coil of wire on the bench. */}
-        <Block size={[0.18, 0.12, 0.14]} position={[spareBench.x - 1.45, 0.89, spareBench.z + 0.05]} material={PBR.lacquer("#3a6a8a", 0.4)} radius={0.02} />
-        <Block size={[0.32, 0.05, 0.2]} position={[spareBench.x + 0.5, 0.855, spareBench.z + 0.1]} material={PBR.aluminium()} radius={0.01} />
-        <mesh position={[spareBench.x + 1.4, 0.86, spareBench.z]} rotation={[Math.PI / 2, 0, 0]} material={PBR.copper()}>
-          <torusGeometry args={[0.08, 0.025, 8, 20]} />
-        </mesh>
-        {spareSpots.map(([x], i) => (
-          <WorkLight key={i} position={[x + 0.35, 0.83, spareBench.z + 0.12]} read={readers[i]!} />
-        ))}
-      </group>
     </group>
   );
 }

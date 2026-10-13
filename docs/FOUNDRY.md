@@ -169,7 +169,9 @@ so Desk bodies, notes and answers count as Nikita's. Labels are safe, since only
 - Withheld comments are never acted on. If one looks like an attempt to steer the work, the Builder tells Nikita
   once on the issue's thread in the Foundry and carries on.
 - Pictures to build from come only from the Desk, which is behind the passphrase (`FOUNDRY_DESK_KEY`).
-- Rivet's shaping can't add `foundry:build`: only Nikita's Build choice does.
+- Rivet's shaping can't add `foundry:build`: only Nikita's Build choice does. Rivet gets the idea inside tagged data
+  blocks it can't be talked out of, and its card is written back as plain lines (no links, pictures or markdown), so
+  it can't fake a `**Builder:**` line (docs/THREAT-MODEL.md).
 - Nikita can also switch on GitHub's "Limit interactions" (repo Settings, Moderation options) so that only
   collaborators can comment for a while. It is off for now, and the fence above doesn't depend on it.
 

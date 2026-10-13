@@ -9,6 +9,13 @@ security policy: GitHub reads `SECURITY.md` from the root, `docs/` or `.github/`
 Please report it privately through the repo's Security tab, "Report a vulnerability". Don't open a public issue
 for it. We'll reply there.
 
+## Threat model and AI risks
+
+[THREAT-MODEL.md](THREAT-MODEL.md) has the data flow and trust boundaries, how each OWASP Top 10 for LLM
+Applications (2025) risk is handled here, the mapping to Google SAIF and the NIST AI RMF, and what is still open.
+Its injection eval suite (`api/_security/`) throws known prompt-injection and exfiltration payloads at Rivet's
+shaping, the world step and the builder's issue reader on every `npm test`, offline.
+
 ## What scans the code, and when
 
 | Check | Runs on | What it looks for | Where findings show |

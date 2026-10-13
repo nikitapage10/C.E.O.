@@ -16,7 +16,9 @@ Lattice the agents pick up where they left off, and the Desk's **Chronicle** has
 - **What it reads:** the world's saved state (relationships, the last 24 hours) and a digest of the hour's real
   events from GitHub: Foundry jobs shipped and started, ideas and decisions on the Desk, the checks on main
   (`api/_world/digest.ts`). Only Foundry issues, and only their titles, numbers and the kind of each trail step,
-  never an issue body or a comment's words.
+  never an issue body or a comment's words. Trail steps count only from Nikita's account and the Checks bot, since
+  anyone can comment on the public repo, and the hour's input reaches Claude inside tagged data blocks
+  (docs/THREAT-MODEL.md).
 - **One Claude call for the whole Lattice** (`api/_world/claude.ts`): Claude Haiku (`claude-haiku-5-5`, the same
   `CLAUDE_API_KEY` as idea shaping), structured JSON out. The rules and the cast are the static part of the prompt,
   cached for an hour; the hour's relationships, last hours and events follow. It returns:

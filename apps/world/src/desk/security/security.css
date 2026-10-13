@@ -570,6 +570,28 @@
   border-radius: 4px;
   background: rgba(143, 232, 255, 0.03);
 }
+/* The detail floating at the mouse over the map. */
+.tmap__float {
+  position: fixed;
+  z-index: 60;
+  width: min(380px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(11, 18, 32, 0.95);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(143, 232, 255, 0.1);
+  pointer-events: none;
+  visibility: hidden;
+}
+.tmap__float.is-placed {
+  visibility: visible;
+  animation: conn-pop-in 0.16s var(--ease) both;
+}
+.tmap__float .tmap__detail {
+  margin: 0;
+  border-color: rgba(143, 232, 255, 0.25);
+}
 .tmap__detail.is-planned {
   border-left-color: var(--amber);
 }
@@ -1043,6 +1065,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .tmap__edge.is-on path,
+  .tmap__float.is-placed,
   .scan--down .scan__ring {
     animation: none;
   }

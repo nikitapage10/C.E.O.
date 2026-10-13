@@ -1,12 +1,23 @@
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { placePopover, type Placement } from "../popover.ts";
 import { BOUNDARIES, ZONES, partsOf, type Boundary, type ZoneId } from "./model.ts";
 import { Rich } from "./parts.tsx";
 
 /**
  * The trust boundaries from docs/THREAT-MODEL.md as a map: the zones the data passes through and the seven
  * boundaries between them. Pick a boundary (hover, focus or tap) to see what crosses it and the controls on it. The
- * map is for wide screens; the row of boundary buttons and the detail carry the same facts everywhere.
+ * map is for wide screens; the row of boundary buttons and the detail carry the same facts everywhere. On the map the
+ * detail also floats at the mouse (or beside the focused chip), since the one below the map can be off screen.
  */
+
+/** Where the floating detail points: the mouse, or the chip for keyboard and touch. */
+type Tip = { left: number; top: number; width: number; height: number };
+const at = (x: number, y: number): Tip => ({ left: x - 6, top: y - 6, width: 12, height: 12 });
+const around = (el: Element): Tip => {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+};
 
 const BOX: Record<ZoneId, { x: number; y: number; w: number; h: number }> = {
   public: { x: 20, y: 30, w: 220, h: 120 },
@@ -31,9 +42,34 @@ const EDGE: Record<string, { d: string; cx: number; cy: number }> = {
 
 export function TrustMap() {
   const [picked, setPicked] = useState<string>("TB1");
+  const [tip, setTip] = useState<Tip | null>(null);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const b = BOUNDARIES.find((x) => x.id === picked) ?? BOUNDARIES[0]!;
+
+  // Like the How it connects cards (#80): the floating detail lives at the Desk's root, out of the page's transform.
+  useEffect(() => {
+    setHost(rootRef.current?.closest<HTMLElement>(".desk") ?? document.body);
+  }, []);
+
+  // Escape, a press elsewhere, or scrolling puts it away.
+  useEffect(() => {
+    if (!tip) return;
+    const close = () => setTip(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    const onDown = (e: PointerEvent) => !(e.target as Element | null)?.closest?.(".tmap__chip") && close();
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [tip]);
+
   return (
-    <div className="tmap">
+    <div className="tmap" ref={rootRef}>
       <svg className="tmap__svg" viewBox="0 -34 1000 424" role="group" aria-label="Trust boundaries: the zones C.E.O.'s data passes through and the seven boundaries between them">
         <defs>
           <marker id="tmap-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -55,13 +91,26 @@ export function TrustMap() {
                 tabIndex={0}
                 aria-pressed={on}
                 aria-label={`${x.id}: ${x.name}`}
-                onMouseEnter={() => setPicked(x.id)}
-                onFocus={() => setPicked(x.id)}
-                onClick={() => setPicked(x.id)}
+                onPointerEnter={(ev) => {
+                  setPicked(x.id);
+                  if (ev.pointerType === "mouse") setTip(at(ev.clientX, ev.clientY));
+                }}
+                onPointerMove={(ev) => ev.pointerType === "mouse" && setTip(at(ev.clientX, ev.clientY))}
+                onPointerLeave={(ev) => ev.pointerType === "mouse" && setTip(null)}
+                onFocus={(ev) => {
+                  setPicked(x.id);
+                  setTip(around(ev.currentTarget));
+                }}
+                onBlur={() => setTip(null)}
+                onClick={(ev) => {
+                  setPicked(x.id);
+                  setTip((ev.nativeEvent as PointerEvent).pointerType === "mouse" ? at(ev.clientX, ev.clientY) : around(ev.currentTarget));
+                }}
                 onKeyDown={(ev) => {
                   if (ev.key === "Enter" || ev.key === " ") {
                     ev.preventDefault();
                     setPicked(x.id);
+                    setTip(around(ev.currentTarget));
                   }
                 }}
               >
@@ -84,6 +133,23 @@ export function TrustMap() {
       </div>
 
       <BoundaryDetail b={b} />
+      {host && tip && createPortal(<FloatingDetail b={b} tip={tip} />, host)}
+    </div>
+  );
+}
+
+/** The same detail, floating at the mouse; the one under the map stays for screen readers and phones. */
+function FloatingDetail({ b, tip }: { b: Boundary; tip: Tip }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<Placement | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setPlace(placePopover(tip, { width: el.offsetWidth, height: el.offsetHeight }, { width: document.documentElement.clientWidth, height: window.innerHeight }));
+  }, [tip, b]);
+  return (
+    <div ref={ref} className={`tmap__float ${place ? "is-placed" : ""}`} aria-hidden="true" style={{ left: place?.left ?? 0, top: place?.top ?? 0 }}>
+      <BoundaryDetail b={b} live={false} />
     </div>
   );
 }
@@ -109,10 +175,10 @@ function Zone({ id, active }: { id: ZoneId; active: boolean }) {
   );
 }
 
-function BoundaryDetail({ b }: { b: Boundary }) {
+function BoundaryDetail({ b, live = true }: { b: Boundary; live?: boolean }) {
   const controls = partsOf(b.controls);
   return (
-    <div className={`tmap__detail ${b.planned ? "is-planned" : ""}`} aria-live="polite">
+    <div className={`tmap__detail ${b.planned ? "is-planned" : ""}`} aria-live={live ? "polite" : undefined}>
       <p className="tmap__route">
         <span>{ZONES[b.from].name}</span>
         <i aria-hidden="true">→</i>

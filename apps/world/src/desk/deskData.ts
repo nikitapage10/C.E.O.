@@ -11,18 +11,51 @@ import { CREW, crewOf, useFoundry, type FoundryData } from "../foundry.ts";
 /** Sample data on, unless `?real`. Nothing sample ever sends. */
 export const SAMPLES = typeof window === "undefined" ? false : !new URLSearchParams(window.location.search).has("real");
 
-/** The rooms, as the Desk names and tints them; the tints are CSS variables set per theme in desk.css (kept here so the Desk imports nothing from the Lattice). */
+/**
+ * The rooms, as the Desk names and tints them. The tints are the rooms' own plinth colours from the Lattice (kept
+ * here as CSS variables, so the Desk imports nothing from it); each room has a still from the Lattice under
+ * public/desk/ (scripts/desk-images.mjs renders them) and the agent who leads it.
+ */
 export const DESK_ROOMS = {
-  relay: { name: "Relay", accent: "var(--room-relay)" },
-  foundry: { name: "Foundry", accent: "var(--room-foundry)" },
-  spire: { name: "Spire", accent: "var(--room-spire)" },
-  exchange: { name: "Exchange", accent: "var(--room-exchange)" },
-  green: { name: "Green", accent: "var(--room-green)" },
-  archive: { name: "Archive", accent: "var(--room-archive)" },
-  workshop: { name: "Workshop", accent: "var(--room-workshop)" },
-  boiler: { name: "Boiler Room", accent: "var(--room-boiler)" },
+  relay: { name: "Relay", accent: "var(--room-relay)", lead: "dialtone", what: "Messages and replies" },
+  foundry: { name: "Foundry", accent: "var(--room-foundry)", lead: "semicolon", what: "The coding crew" },
+  spire: { name: "Spire", accent: "var(--room-spire)", lead: "ledger", what: "Books and bookings" },
+  exchange: { name: "Exchange", accent: "var(--room-exchange)", lead: "odds", what: "Markets and the portfolio" },
+  green: { name: "Green", accent: "var(--room-green)", lead: "gridiron", what: "Fantasy football" },
+  archive: { name: "Archive", accent: "var(--room-archive)", lead: "loremaster", what: "The Tide's canon" },
+  workshop: { name: "Workshop", accent: "var(--room-workshop)", lead: "daub", what: "New models" },
+  boiler: { name: "Boiler Room", accent: "var(--room-boiler)", lead: "gary", what: "Systems and upkeep" },
 } as const;
 export type DeskRoom = keyof typeof DESK_ROOMS;
+
+/** The still of a room, from the Lattice. */
+export const roomImage = (room: DeskRoom) => `/desk/room-${room}.webp`;
+
+/** The cast by name, so a card can show who is asking: the portrait id, the room and the job. */
+export const AGENTS: Record<string, { id: string; room: DeskRoom; job: string }> = {
+  Rusty: { id: "tessellate", room: "foundry", job: "Upkeep and ideas" },
+  Rocky: { id: "caret", room: "foundry", job: "Master builder" },
+  Skippy: { id: "semicolon", room: "foundry", job: "First responder" },
+  Ledger: { id: "ledger", room: "spire", job: "Operations" },
+  Memo: { id: "memo", room: "spire", job: "Assistant to the assistant" },
+  Noco: { id: "odds", room: "exchange", job: "Quant" },
+  Hedge: { id: "hedge", room: "exchange", job: "Risk desk" },
+  Gridiron: { id: "gridiron", room: "green", job: "Coach" },
+  Punt: { id: "punt", room: "green", job: "Morale" },
+  Blasto: { id: "postmaster", room: "relay", job: "Correspondence" },
+  Dialtone: { id: "dialtone", room: "relay", job: "Switchboard" },
+  Loremaster: { id: "loremaster", room: "archive", job: "Scribe" },
+  Heimerdinger: { id: "heimerdinger", room: "archive", job: "Researcher" },
+  Gary: { id: "gary", room: "boiler", job: "Maintenance" },
+  Daub: { id: "daub", room: "workshop", job: "Concept painter" },
+  Chisel: { id: "chisel", room: "workshop", job: "Sculptor" },
+};
+
+/** An agent's portrait by name (or by id), or null for a name the cast doesn't know. */
+export function portrait(agent: string): string | null {
+  const id = AGENTS[agent]?.id ?? (Object.values(AGENTS).some((a) => a.id === agent) ? agent : null);
+  return id ? `/desk/agent-${id}.webp` : null;
+}
 
 /** Something an agent needs from you: a decision or a quick check, with the answers as buttons. */
 export interface DeskAction {

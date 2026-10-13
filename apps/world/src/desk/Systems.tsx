@@ -1,9 +1,9 @@
 import { LINK_STATE_LABEL, useSystems } from "../systems.ts";
-import { DESK_ROOMS, type DeskRoom } from "./deskData.ts";
+import { DESK_ROOMS, roomImage, type DeskRoom } from "./deskData.ts";
 import { FoundrySystem } from "./FoundryPage.tsx";
 import { SystemsPanel } from "./SystemsPanel.tsx";
-import { PageHead, Panel } from "./ui.tsx";
-import { ActivityMeter, BlastoGlyph, DialtoneGlyph } from "./viz.tsx";
+import { Avatar, PageHead, Panel, Pill } from "./ui.tsx";
+import { ActivityMeter } from "./viz.tsx";
 
 /**
  * Systems: what's connected and what isn't, one system per room as each becomes real: Relay and the Foundry so
@@ -16,16 +16,14 @@ const AGENTS = [
     name: "Dialtone",
     role: "Relay · Switchboard",
     job: "Keeps the list of who you owe a reply, and nudges you at half twelve and seven.",
-    Glyph: DialtoneGlyph,
-    tone: "var(--viz-violet)",
+    tone: "var(--violet)",
   },
   {
     id: "postmaster",
     name: "Blasto",
     role: "Relay · Postmaster",
     job: "Drafts your replies in your voice, and holds them until you say send.",
-    Glyph: BlastoGlyph,
-    tone: "var(--viz-ice)",
+    tone: "var(--ice)",
   },
 ];
 
@@ -41,7 +39,18 @@ const PLANNED: { room: DeskRoom; what: string }[] = [
 export function Systems({ now }: { now: number }) {
   return (
     <div className="systems-page">
-      <PageHead eyebrow="What the Desk runs on" title="Systems" lead="What's connected, what isn't, and what each agent depends on." />
+      <PageHead
+        eyebrow="The Boiler Room"
+        title="Systems"
+        room="boiler"
+        lead="What's connected, what isn't, and what each agent depends on."
+        aside={
+          <div className="page-head__crew">
+            <Avatar agent="Gary" room="boiler" />
+            <span>Gary keeps the gauges</span>
+          </div>
+        }
+      />
 
       <Panel
         eyebrow="Relay: iMessage and SMS"
@@ -71,9 +80,15 @@ export function Systems({ now }: { now: number }) {
         <ul className="planned__grid">
           {PLANNED.map((p) => (
             <li key={p.room} style={{ "--tone": DESK_ROOMS[p.room].accent } as React.CSSProperties}>
-              <span className="planned__name">{DESK_ROOMS[p.room].name}</span>
-              <span className="planned__what">{p.what}</span>
-              <span className="planned__state">Not built yet</span>
+              <img className="planned__pic" src={roomImage(p.room)} alt="" loading="lazy" decoding="async" />
+              <span className="planned__text">
+                <span className="planned__name">{DESK_ROOMS[p.room].name}</span>
+                <span className="planned__what">{p.what}</span>
+              </span>
+              <span className="planned__foot">
+                <Avatar agent={DESK_ROOMS[p.room].lead} size="sm" room={p.room} />
+                <Pill tone="off">Not built yet</Pill>
+              </span>
             </li>
           ))}
         </ul>
@@ -82,7 +97,7 @@ export function Systems({ now }: { now: number }) {
   );
 }
 
-function AgentCard({ id, name, role, job, Glyph, tone }: (typeof AGENTS)[number]) {
+function AgentCard({ id, name, role, job, tone }: (typeof AGENTS)[number]) {
   const linkState = useSystems((s) => s.links.find((l) => l.id === id));
   const state = linkState?.state ?? "off";
   const load = linkState?.load ?? 0;
@@ -90,7 +105,7 @@ function AgentCard({ id, name, role, job, Glyph, tone }: (typeof AGENTS)[number]
   return (
     <article className={`agent agent--${state}`} style={{ "--tone": tone } as React.CSSProperties}>
       <div className="agent__portrait">
-        <Glyph />
+        <Avatar agent={name} size="lg" />
       </div>
       <div className="agent__body">
         <p className="agent__role">{role}</p>

@@ -1,11 +1,12 @@
-import { byWait, DESK_ROOMS, formatWait, SAMPLES, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
+import { byWait, DESK_ROOMS, formatWait, roomImage, SAMPLES, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { link } from "./nav.ts";
-import { PageHead, Panel } from "./ui.tsx";
+import { Avatar, Panel } from "./ui.tsx";
 import { Listening } from "./viz.tsx";
 
 /**
- * Today: what needs you, plainly. A short "Do now" list (replies with drafts ready, decisions with the answers
- * as buttons), what can wait until later, what happened while you were away, and the rooms at a glance.
+ * Today: what needs you, plainly, in the Lattice's own light. A hero over the Lattice with the day's count, a
+ * "Do now" board (replies with drafts ready, decisions with the answers as buttons, each with the agent asking),
+ * what can wait, what happened while you were away, and the rooms as pictures.
  */
 
 /** Replies that make "Do now": the ones marked sooner, and anything waiting longer than this. */
@@ -31,33 +32,57 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
   const decisions = data.actions.filter((a) => a.when === "now");
   const later = data.actions.filter((a) => a.when === "later");
   const todo = replies.length + decisions.length;
-  const total = todo + later.length + otherReplies + data.doneToday;
+  const canWait = later.length + otherReplies;
+  const total = todo + canWait + data.doneToday;
+  const working = (Object.keys(DESK_ROOMS) as DeskRoom[]).filter((r) => data.notes.some((n) => n.room === r) || data.actions.some((a) => a.room === r));
 
   return (
     <div className="today">
-      <PageHead
-        eyebrow={date}
-        title="Today"
-        lead={
-          <>
-            <em className="page-head__greet">{greeting(now)}</em>{" "}
-            <span className="today__summary">
-              {todo ? `${todo} ${todo === 1 ? "thing needs" : "things need"} you now, about ${todo} minutes.` : "Nothing needs you right now."}
-              {later.length + otherReplies > 0 && ` ${later.length + otherReplies} more can wait.`}
-            </span>
-          </>
-        }
-        aside={<DayCount done={data.doneToday} total={total} />}
-      />
+      <section className="hero" aria-label="Today at a glance">
+        <img className="hero__pic" src="/desk/lattice.webp" alt="" decoding="async" />
+        <div className="hero__text">
+          <p className="eyebrow">{date}</p>
+          <h1 className="desk__title hero__title">Today</h1>
+          <p className="hero__greet">{greeting(now)}</p>
+          <p className="hero__lead">
+            {todo ? `${todo} ${todo === 1 ? "thing needs" : "things need"} you now, about ${todo} ${todo === 1 ? "minute" : "minutes"}.` : "Nothing needs you right now."}
+            {canWait > 0 && ` ${canWait} more can wait.`}
+          </p>
+        </div>
+        <dl className="hero__stats">
+          <div className={todo ? "hot" : ""}>
+            <dd>{todo}</dd>
+            <dt>{todo === 1 ? "needs you" : "need you"}</dt>
+          </div>
+          <div>
+            <dd>{canWait}</dd>
+            <dt>can wait</dt>
+          </div>
+          <div>
+            <dd>{data.doneToday}</dd>
+            <dt>done today</dt>
+          </div>
+          <div>
+            <dd>{working.length}</dd>
+            <dt>rooms busy</dt>
+          </div>
+        </dl>
+        <p className="hero__foot" aria-label={`${data.doneToday} of ${total} done today`}>
+          <span className="hero__bar" aria-hidden="true">
+            <b style={{ width: `${total ? (data.doneToday / total) * 100 : 100}%` }} />
+          </span>
+          <span>{total ? `${data.doneToday} of ${total} handled today` : "All clear today"}</span>
+        </p>
+      </section>
 
-      <Panel eyebrow="Do now" aside={<span className="badge">{todo}</span>} className="panel--now">
+      <Panel eyebrow="Do now" aside={<span className="badge badge--hot">{todo}</span>} className="panel--now">
         {todo ? (
           <ol className="todo">
-            {replies.map((o, i) => (
-              <ReplyCard key={o.id} o={o} now={now} i={i} />
+            {replies.map((o) => (
+              <ReplyCard key={o.id} o={o} now={now} />
             ))}
-            {decisions.map((a, i) => (
-              <DecisionCard key={a.id} a={a} i={replies.length + i} />
+            {decisions.map((a) => (
+              <DecisionCard key={a.id} a={a} />
             ))}
           </ol>
         ) : (
@@ -84,6 +109,7 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
               ))}
               {otherReplies > 0 && (
                 <li style={{ "--tone": DESK_ROOMS.relay.accent } as React.CSSProperties}>
+                  <Avatar agent="Blasto" size="sm" room="relay" />
                   <span className="later-list__due">Any time</span>
                   <a className="later-list__title later-list__title--link" href="/relay" onClick={link("relay")}>
                     {otherReplies} more {otherReplies === 1 ? "reply" : "replies"} waiting in Relay →
@@ -101,8 +127,11 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
             <ul className="notes">
               {data.notes.map((n, i) => (
                 <li key={i} style={{ "--tone": DESK_ROOMS[n.room].accent } as React.CSSProperties}>
-                  <span className="notes__room">{DESK_ROOMS[n.room].name}</span>
-                  <span className="notes__text">{n.text}</span>
+                  <Avatar agent={DESK_ROOMS[n.room].lead} size="sm" room={n.room} />
+                  <span className="notes__body">
+                    <span className="notes__room">{DESK_ROOMS[n.room].name}</span>
+                    <span className="notes__text">{n.text}</span>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -121,15 +150,26 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
       <section className="rooms" aria-label="Your rooms">
         <header className="section-head">
           <h2>Your rooms</h2>
+          <a className="section-head__link" href="/lattice" onClick={link("lattice")}>
+            Walk the Lattice →
+          </a>
         </header>
         <ul className="rooms__grid">
           {(Object.keys(DESK_ROOMS) as DeskRoom[]).map((r) => {
             const waiting = data.actions.filter((a) => a.room === r).length + (r === "relay" ? owed.length : 0);
+            const room = DESK_ROOMS[r];
             return (
-              <li key={r} style={{ "--tone": DESK_ROOMS[r].accent } as React.CSSProperties}>
+              <li key={r} className={`room ${waiting ? "room--hot" : ""}`} style={{ "--tone": room.accent } as React.CSSProperties}>
                 <a href={roomHref(r)} onClick={r === "relay" ? link("relay") : r === "foundry" ? link("foundry") : r === "boiler" ? link("systems") : undefined}>
-                  <span className="rooms__name">{DESK_ROOMS[r].name}</span>
-                  <span className={`rooms__cap ${waiting ? "rooms__cap--on" : ""}`}>{waiting ? `${waiting} waiting on you` : "All clear"}</span>
+                  <img className="room__pic" src={roomImage(r)} alt="" loading="lazy" decoding="async" />
+                  <span className="room__text">
+                    <span className="room__name">{room.name}</span>
+                    <span className="room__what">{room.what}</span>
+                  </span>
+                  <span className="room__foot">
+                    <Avatar agent={room.lead} size="sm" room={r} />
+                    <span className="room__cap">{waiting ? `${waiting} waiting on you` : "All clear"}</span>
+                  </span>
                 </a>
               </li>
             );
@@ -137,16 +177,6 @@ export function Today({ data, now, connected }: { data: DeskData; now: number; c
         </ul>
       </section>
     </div>
-  );
-}
-
-/** How much of today is handled, in a line. */
-function DayCount({ done, total }: { done: number; total: number }) {
-  return (
-    <p className="daycount" aria-label={`${done} of ${total} done today`}>
-      <span className="daycount__num">{done}</span>
-      <span className="daycount__cap">{total ? `of ${total} done today` : "all clear today"}</span>
-    </p>
   );
 }
 
@@ -179,13 +209,11 @@ function Choice({ a, k, small }: { a: DeskAction; k: number; small?: boolean }) 
   );
 }
 
-function ReplyCard({ o, now, i }: { o: OwedReply; now: number; i: number }) {
+function ReplyCard({ o, now }: { o: OwedReply; now: number }) {
   const { send, later, pick } = useDesk();
   return (
     <li className="todo__item todo__item--reply" style={{ "--tone": DESK_ROOMS.relay.accent } as React.CSSProperties}>
-      <span className="todo__n" aria-hidden="true">
-        {i + 1}
-      </span>
+      <Avatar agent="Blasto" room="relay" />
       <div className="todo__body">
         <div className="todo__top">
           <RoomTag room="relay" agent="Blasto" />
@@ -195,7 +223,7 @@ function ReplyCard({ o, now, i }: { o: OwedReply; now: number; i: number }) {
         <p className="todo__quote">“{o.preview}”</p>
         {o.draft && (
           <p className="todo__draft">
-            <span className="todo__draft-label">Draft</span>
+            <span className="todo__draft-label">Blasto's draft</span>
             {o.draft}
           </p>
         )}
@@ -222,12 +250,10 @@ function ReplyCard({ o, now, i }: { o: OwedReply; now: number; i: number }) {
   );
 }
 
-function DecisionCard({ a, i }: { a: DeskAction; i: number }) {
+function DecisionCard({ a }: { a: DeskAction }) {
   return (
     <li className="todo__item" style={{ "--tone": DESK_ROOMS[a.room].accent } as React.CSSProperties}>
-      <span className="todo__n" aria-hidden="true">
-        {i + 1}
-      </span>
+      <Avatar agent={a.agent} room={a.room} />
       <div className="todo__body">
         <div className="todo__top">
           <RoomTag room={a.room} agent={a.agent} live={a.live} />
@@ -248,6 +274,7 @@ function DecisionCard({ a, i }: { a: DeskAction; i: number }) {
 function LaterRow({ a }: { a: DeskAction }) {
   return (
     <li style={{ "--tone": DESK_ROOMS[a.room].accent } as React.CSSProperties}>
+      <Avatar agent={a.agent} size="sm" room={a.room} />
       <span className="later-list__due">{a.due ?? "Later"}</span>
       <span className="later-list__title">{a.title}</span>
       <span className="later-list__room">

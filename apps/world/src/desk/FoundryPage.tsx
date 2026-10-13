@@ -3,7 +3,7 @@ import { CREW, crewOf, crewWork, expectChange, nextUpkeep, useFoundry, type Crat
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
-import { PageHead, Panel } from "./ui.tsx";
+import { Avatar, PageHead, Panel } from "./ui.tsx";
 
 /**
  * The Foundry's own Desk page. Top to bottom: what needs you (the morning's ideas as cards you can build, pass on or
@@ -111,11 +111,17 @@ export function FoundryPage({ now }: { now: number }) {
       <PageHead
         eyebrow="The coding crew"
         title="Foundry"
+        room="foundry"
         lead={lead}
         aside={
-          <a className="foundry-page__open" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
-            Open the Foundry thread →
-          </a>
+          <div className="page-head__crew">
+            {(Object.keys(CREW) as CrewId[]).map((id) => (
+              <Avatar key={id} agent={id} room="foundry" />
+            ))}
+            <a className="btn btn--go" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
+              Open the Foundry thread →
+            </a>
+          </div>
         }
       />
 
@@ -129,6 +135,7 @@ export function FoundryPage({ now }: { now: number }) {
           <ul className="fy-decisions">
             {decisions.map((c) => (
               <li key={c.number} className={`fy-decision fy-decision--${c.state}`}>
+                <Avatar agent={crewOf(c, data.crates)} room="foundry" />
                 <span className="fy-decision__kind">{KIND_LABEL[c.kind]}</span>
                 <a href={c.url} target="_blank" rel="noreferrer" className="fy-decision__title">
                   {c.title}
@@ -250,7 +257,8 @@ function IdeaCard({ crate, index, setup }: { crate: Crate; index: number; setup:
   return (
     <article className={`fy-idea${crate.revising ? " fy-idea--revising" : ""}`}>
       <header className="fy-idea__head">
-        <span className="fy-idea__n">{index}</span>
+        <Avatar agent="Rusty" size="sm" room="foundry" />
+        <span className="fy-idea__n">Idea {index}</span>
         {crate.size && <span className="fy-idea__size">{crate.size}</span>}
         <a className="fy-idea__link" href={crate.url} target="_blank" rel="noreferrer">
           #{crate.number}
@@ -459,9 +467,10 @@ function Crew() {
         const crate = work[id];
         const tone: LinkState = crate ? CREW_STATE[crate.state] : connected ? "ok" : "off";
         return (
-          <li key={id} className="fy-crew__member">
-            <span className={`fy-crew__mark fy-crew__mark--${tone}`} aria-hidden="true">
-              {CREW[id].name[0]}
+          <li key={id} className={`fy-crew__member fy-crew__member--${tone}`}>
+            <span className="fy-crew__mark">
+              <Avatar agent={id} size="lg" room="foundry" />
+              <i className={`fy-dot fy-dot--${tone}`} aria-hidden="true" />
             </span>
             <span className="fy-crew__name">
               {CREW[id].name}
@@ -527,6 +536,7 @@ function CrateList({ crates, all, now }: { crates: Crate[]; all: Crate[]; now: n
     <ul className="crates">
       {crates.map((c) => (
         <li key={c.number} className={`crates__item crates__item--${c.state}`}>
+          <Avatar agent={crewOf(c, all)} size="sm" room="foundry" />
           <span className="crates__kind">{KIND_LABEL[c.kind]}</span>
           <a className="crates__title" href={c.url} target="_blank" rel="noreferrer">
             {c.title}
@@ -581,6 +591,7 @@ export function FoundrySystem() {
           const crate = work[id];
           return (
             <li key={id}>
+              <Avatar agent={id} room="foundry" />
               <span className="foundry-crew__job">{CREW[id].job}</span>
               <span className="foundry-crew__name">{CREW[id].name}</span>
               {crate ? (

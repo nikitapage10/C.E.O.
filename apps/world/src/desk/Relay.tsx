@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, SAMPLES, useDesk, type DeskData } from "./deskData.ts";
-import { PageHead, Panel } from "./ui.tsx";
+import { Avatar, PageHead, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
 
 /** Relay: who you owe a reply, the ones to answer sooner first, each with Blasto's draft in your voice. */
@@ -45,10 +45,10 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
   const hhmm = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
 
   const stats = [
-    { label: "Owed", value: String(owed.length), tone: owed.length ? "var(--warn)" : "var(--ok)", cap: owed.length ? "waiting on you" : "all caught up" },
-    { label: "Overdue", value: String(overdue), tone: overdue ? "var(--bad)" : "var(--ok)", cap: `past ${OVERDUE_MS / 3_600_000}h` },
-    { label: "Avg reply", value: avg === null ? "—" : formatWait(avg * 60_000), tone: "var(--ink-2)", cap: avg === null ? "no replies tracked" : "median, 7 days" },
-    { label: "Sent today", value: String(data.sentToday), tone: "var(--ink-2)", cap: data.sentToday ? "replies out" : "nothing sent yet" },
+    { label: "Owed", value: String(owed.length), tone: owed.length ? "var(--warn)" : "var(--ok)", fill: Math.min(1, owed.length / 10), cap: owed.length ? "waiting on you" : "all caught up" },
+    { label: "Overdue", value: String(overdue), tone: overdue ? "var(--bad)" : "var(--ok)", fill: owed.length ? overdue / owed.length : 0, cap: `past ${OVERDUE_MS / 3_600_000}h` },
+    { label: "Avg reply", value: avg === null ? "—" : formatWait(avg * 60_000), tone: "var(--ice)", fill: avg === null ? 0 : Math.min(1, avg / 240), cap: avg === null ? "no replies tracked" : "median, 7 days" },
+    { label: "Sent today", value: String(data.sentToday), tone: "var(--room-relay)", fill: Math.min(1, data.sentToday / 20), cap: data.sentToday ? "replies out" : "nothing sent yet" },
   ];
 
   return (
@@ -56,7 +56,15 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
       <PageHead
         eyebrow="The switchboard"
         title="Relay"
+        room="relay"
         lead="Who you owe a reply, the ones to answer sooner first, each with a draft in your voice."
+        aside={
+          <div className="page-head__crew" aria-label="Relay's agents">
+            <Avatar agent="Dialtone" room="relay" />
+            <Avatar agent="Blasto" room="relay" />
+            <span>Dialtone keeps the list; Blasto drafts</span>
+          </div>
+        }
       />
 
       <section className="stats" aria-label="Relay at a glance">
@@ -64,6 +72,9 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
           <div key={s.label} className="stat" style={{ "--tone": s.tone } as React.CSSProperties}>
             <span className="stat__label">{s.label}</span>
             <span className="stat__value">{s.value}</span>
+            <span className="stat__bar" aria-hidden="true">
+              <b style={{ width: `${Math.max(2, s.fill * 100)}%` }} />
+            </span>
             <span className="stat__cap">{s.cap}</span>
           </div>
         ))}
@@ -143,6 +154,7 @@ export function Relay({ data, now, connected }: { data: DeskData; now: number; c
                   </p>
                 ))}
                 <div className="draft">
+                  <Avatar agent="Blasto" size="sm" room="relay" />
                   <span className="draft__eyebrow">
                     {voicePhase === "listening"
                       ? "Listening…"

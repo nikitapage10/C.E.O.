@@ -65,20 +65,20 @@ const page = await browser.newPage({ viewport: { width: W, height: H } });
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
 // A fixed seed so the cast is in its usual places; cuts instead of flights so each shot settles quickly.
 await page.goto(`${base}/lattice?instant&glitches=off&quality=high&seed=7`, { waitUntil: "load" });
-await page.waitForFunction(() => window.__ceo?.positions && Object.keys(window.__ceo.positions()).length >= 14, undefined, { timeout: 180_000, polling: 1000 });
+await page.waitForFunction(() => globalThis.__ceo?.positions && Object.keys(globalThis.__ceo.positions()).length >= 14, undefined, { timeout: 180_000, polling: 1000 });
 await page.waitForTimeout(4000);
 // Clean renders: no HUD, loader, studio panel, callouts, name tags or speech.
 await page.addStyleTag({ content: ".hud, .loader, .studio, .callout, .tag, .bubble, .announce { display: none !important }" });
 
 if (only === "all" || only === "hero") {
-  await page.evaluate(() => window.__ceo.focus(null));
+  await page.evaluate(() => globalThis.__ceo.focus(null));
   await page.waitForTimeout(3000);
   await shoot(page, "lattice", { x: 0, y: 0, w: W, h: H }, 1440, 68);
 }
 
 if (only === "all" || only === "rooms") {
   for (const room of ROOMS) {
-    await page.evaluate((r) => window.__ceo.focus(r), room);
+    await page.evaluate((r) => globalThis.__ceo.focus(r), room);
     await page.waitForTimeout(2500);
     await shoot(page, `room-${room}`, { x: 0, y: 60, w: W, h: 810 }, 960, 68);
   }
@@ -86,7 +86,7 @@ if (only === "all" || only === "rooms") {
 
 if (only === "all" || only === "agents") {
   const roster = await page.evaluate(() =>
-    Object.entries(window.__ceo.state().agents).map(([id, a]) => ({ id, room: a.agent.home?.room ?? a.place?.room ?? null, name: a.agent.name })),
+    Object.entries(globalThis.__ceo.state().agents).map(([id, a]) => ({ id, room: a.agent.home?.room ?? a.place?.room ?? null, name: a.agent.name })),
   );
   for (const a of roster) {
     if (!a.room) {
@@ -97,17 +97,17 @@ if (only === "all" || only === "agents") {
     let framed = false;
     for (let tries = 0; tries < 6 && !framed; tries++) {
       await page.evaluate(([id, room]) => {
-        window.__ceo.openStudio(null);
-        window.__ceo.focus(room);
-        window.__ceo.openStudio(id);
+        globalThis.__ceo.openStudio(null);
+        globalThis.__ceo.focus(room);
+        globalThis.__ceo.openStudio(id);
       }, [a.id, a.room]);
       await page.waitForTimeout(2500);
-      framed = await page.evaluate(() => (window.__ceo.camera()?.distance ?? 99) < 9);
+      framed = await page.evaluate(() => (globalThis.__ceo.camera()?.distance ?? 99) < 9);
       if (!framed) await page.waitForTimeout(4000);
     }
     if (!framed) console.warn(`${a.id}: the studio camera never reached them; portrait may be off`);
     await shoot(page, `agent-${a.id}`, { x: PORTRAIT.x, y: PORTRAIT.y, w: PORTRAIT.size, h: PORTRAIT.size }, 480, 70);
-    await page.evaluate(() => window.__ceo.openStudio(null));
+    await page.evaluate(() => globalThis.__ceo.openStudio(null));
   }
 }
 

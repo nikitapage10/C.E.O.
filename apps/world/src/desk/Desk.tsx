@@ -12,9 +12,10 @@ import { Today } from "./Today.tsx";
 import "./desk.css";
 
 /**
- * The Desk: the plain, fast front page where the C.E.O. acts on what the agents bring in. It never loads the 3D
- * Lattice; "Enter the Lattice" fetches that on demand. Phase 2 wires it to the hub on the MacBook; until then it
- * shows a labelled sample day (`?real` hides it).
+ * The Desk: the Lattice's control room as a flat, fast page, where the C.E.O. acts on what the agents bring in.
+ * Same world as the 3D Lattice (its colours, its stills, its cast) but it never loads it; "Enter the Lattice"
+ * fetches that on demand. Phase 2 wires it to the hub on the MacBook; until then it shows a labelled sample day
+ * (`?real` hides it).
  */
 
 type DeskTab = Exclude<Route, "lattice">;
@@ -62,11 +63,21 @@ export function Desk({ route }: { route: DeskTab }) {
   const connected = hub !== "off";
 
   return (
-    <div className="desk">
+    <div className="desk" data-route={route}>
+      <div className="desk__sky" aria-hidden="true">
+        <span className="desk__glow desk__glow--a" />
+        <span className="desk__glow desk__glow--b" />
+        <span className="desk__stars" />
+      </div>
+
       <header className="desk__bar">
         <div className="desk__bar-row">
           <a className="desk__mark" href="/" onClick={link("today")} aria-label="C.E.O.">
-            C.E.O.
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <path d="M16 3v26M9 9a7 7 0 0 1 14 0M10 23a6 6 0 0 0 12 0" />
+              <circle cx="16" cy="16" r="2.4" />
+            </svg>
+            <span>C.E.O.</span>
           </a>
           <nav className="desk__tabs" aria-label="Desk">
             {TABS.map((t, i) => (
@@ -93,6 +104,7 @@ export function Desk({ route }: { route: DeskTab }) {
               <span>{HUB_PILL[hub]}</span>
             </span>
             <a className="desk__enter" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
+              <img src="/desk/lattice.webp" alt="" aria-hidden="true" decoding="async" />
               <span>Enter the Lattice</span>
               <i aria-hidden="true">→</i>
             </a>
@@ -125,6 +137,7 @@ export function Desk({ route }: { route: DeskTab }) {
 
       <footer className="desk__foot">
         <span>Command Everything, Obviously</span>
+        <span className="desk__foot-rule" aria-hidden="true" />
         <span>Ilyr · the Syntherion Lattice</span>
       </footer>
     </div>

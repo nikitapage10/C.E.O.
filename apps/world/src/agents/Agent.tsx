@@ -1,4 +1,4 @@
-import { LINEAGES, PRESET_BY_ID, RELATIONSHIP_LABEL, getStation, placeToWorld, relationshipsOf, roomAngle, routeBetween, sampleRoute, type Look } from "@ceo/core";
+import { LINEAGES, RELATIONSHIP_LABEL, getStation, placeToWorld, relationshipsOf, roomAngle, routeBetween, sampleRoute, type Look } from "@ceo/core";
 import { Html } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { hop } from "../club/deck.ts";
@@ -15,6 +15,7 @@ import { BUILD, BackProp, Face, HandProp, Hair, Hat, Head, Outfit, shellMaterial
 import { poseFor, type PoseMode } from "./behavior.ts";
 import { Body, topOf } from "./bodies/Body.tsx";
 import { CostumePiece } from "./Costume.tsx";
+import { Nameplate } from "./Nameplate.tsx";
 import { CARRY_AT, type Drive } from "./bodies/types.ts";
 import { PropMesh } from "./Props.tsx";
 import { voiced, voiceOf } from "./voices.ts";
@@ -422,7 +423,6 @@ export function Agent({ id }: { id: string }) {
   const b = BUILD[look.build];
   const classic = look.body === "classic";
   const nameY = classic ? b.lift + 1.36 * b.h + 0.62 : topOf(look, 0) + 0.32;
-  const costume = look.preset ? PRESET_BY_ID[look.preset]?.name : undefined;
   const line = showBubble ? voiced(voiceOf(look), speech!.text) : null;
 
   const onOver = (e: ThreeEvent<PointerEvent>) => {
@@ -498,12 +498,7 @@ export function Agent({ id }: { id: string }) {
         </Html>
       )}
       {focus === rt.place.room && !showBubble && !showTag && !studioOpen && (
-        <Html position={[0, nameY, 0]} center distanceFactor={16} zIndexRange={[25, 0]}>
-          <div className="nameplate">
-            <span style={{ color: accent }}>●</span> {name}
-            {costume && <small>{costume}</small>}
-          </div>
-        </Html>
+        <Nameplate id={id} name={name} accent={accent} y={nameY} />
       )}
       {showBubble && (
         <Html position={[0, nameY + 0.1, 0]} center distanceFactor={df} zIndexRange={[30, 0]}>

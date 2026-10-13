@@ -1498,15 +1498,44 @@ button {
   text-shadow: 0 0 6px #000, 0 0 12px #000;
   pointer-events: none;
 }
-.nameplate small {
-  display: block;
-  margin-top: 2px;
+/* What the agent is doing right now: an icon in their colour and a few words, under the name. */
+.nameplate__task {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 4px auto 0;
+  padding: 2px 8px 2px 6px;
+  width: max-content;
+  max-width: 230px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: rgba(5, 5, 6, 0.55);
   font-family: var(--serif);
   font-style: italic;
-  font-size: 11px;
-  letter-spacing: 0.02em;
+  font-size: 12.5px;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
   text-transform: none;
-  color: var(--muted);
+  color: var(--text);
+  text-shadow: 0 0 4px #000;
+  transition: opacity 0.25s;
+}
+.nameplate__task svg {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+.nameplate__task span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .bubble {
   font-size: 15px;

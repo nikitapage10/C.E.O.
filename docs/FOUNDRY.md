@@ -116,7 +116,7 @@ playbook already allows needs no one.
 ## Branches and deploys
 
 Everything the Foundry codes on its own lands through a branch and a pull request, never a direct push to `main`.
-(Changes Nikita asks for in chat still go straight to `main`.) The whole pipeline, from intake to rollback, with the
+Changes Nikita asks for in chat take the same path from a `chat/<issue>-<slug>` branch (Nikita, 2026-10-13); nothing is pushed to `main` directly. The whole pipeline, from intake to rollback, with the
 pull request template, the CI gates and the ruleset for `main`, is in [DELIVERY.md](DELIVERY.md).
 
 | Lane | Branch | Merges when |
@@ -124,6 +124,7 @@ pull request template, the CI gates and the ruleset for `main`, is in [DELIVERY.
 | Fix | `foundry/fix/<issue>-<slug>` | Small green fix: by itself once the PR's checks pass. Anything bigger: on Nikita's Ship. |
 | Build (approved idea) | `foundry/build/<issue>-<slug>` | By itself once the PR's checks pass: the approval was the decision (Nikita, 2026-10-12). Only a red check, a stuck rung or a question that needs a human stops it, and then it waits with `foundry:ready` or `foundry:stuck`. |
 | Upkeep | `foundry/upkeep/<issue>-<slug>` | By itself once the PR's checks pass |
+| Chat | `chat/<issue>-<slug>` | By itself once the PR's checks pass |
 
 The path for every change:
 
@@ -133,7 +134,8 @@ The path for every change:
 3. **Checks** run on the PR (`checks.yml`). Red means back to the ladder; never merge red.
 4. **Preview:** Vercel builds a preview site for the PR. Bigger fixes and builds put the preview link on the
    "Ship?" card so Nikita can try it first.
-5. **Merge** with a squash commit, then delete the branch. Vercel deploys `main` to the site.
+5. **Merge** with a squash commit through GitHub's auto-merge, turned on when the PR opens (until "Allow auto-merge"
+   and the gated ruleset are on, the Builder squash-merges it once `checks` is green), then delete the branch. Vercel deploys `main` to the site.
 6. **Watch:** the push to `main` runs the checks again. If they go red there, the merge is reverted with a
    `git revert` commit through a `foundry/fix/` branch, and the fix starts over.
 
@@ -295,7 +297,7 @@ do nothing for it; after changing the cast, run `npm run world:cast` (a test rem
 ## Rules that always hold
 
 - The checks pass before anything reaches `main`. Never skip, disable or weaken a test to get green.
-- Follow the repo's CLAUDE.md for lore and costumes. Its "push to `main`" rule is for chat work; the Foundry uses
-  the branches above.
+- Follow the repo's CLAUDE.md for lore and costumes. Chat work and the Foundry both reach `main` only through the
+  branches and pull requests above.
 - No secrets in the repo, issues or comments.
 - Keep replies in the Foundry thread to results, blockers and decisions. Routine progress lives in the issue labels.

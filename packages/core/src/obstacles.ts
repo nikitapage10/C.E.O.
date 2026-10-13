@@ -5,7 +5,7 @@
  * The footprints are rough boxes around the free-standing pieces in each room's scene; wall furniture is left out.
  * A station's own furniture is fine to overlap: an agent that starts or ends inside a box is allowed through it.
  */
-import { FOUNDRY_FLOOR } from "./foundryFloor.ts";
+import { FOUNDRY_FLOOR, benchDesks } from "./foundryFloor.ts";
 import type { RoomId } from "./layout.ts";
 
 /** An axis-aligned footprint: centre and half extents. */
@@ -42,6 +42,7 @@ const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
     box(FOUNDRY_FLOOR.dock), // Rusty's dock, against the left wall
     box(FOUNDRY_FLOOR.drafting), // Rocky's drafting table
     box(FOUNDRY_FLOOR.alarmPost), // Rivet's alarm post
+    ...benchDesks().map(box), // Rusty's two workbenches, front and centre
   ],
   spire: [
     b(-5, -2.05, 1.2, 0.45), // desks

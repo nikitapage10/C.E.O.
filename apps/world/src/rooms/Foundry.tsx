@@ -336,6 +336,7 @@ export function Foundry() {
         </group>
       </group>
 
+      {/* Rusty's two workbenches, front and centre: the front left stays clear so the dock is in full view (#110). */}
       {benches.map((b, i) => (
         <group key={b.id}>
           <Workstation stand={[b.x, b.z]} facing={b.facing} top={bench} color={PALETTE.ice} seed={i * 3} monitors={2} chair={false} />

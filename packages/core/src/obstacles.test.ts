@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { FOUNDRY_FLOOR, OBSTACLES, ROOMS, ROOM_IDS, TALK_DISTANCE, blockedAt, detour, placeToWorld, routeBetween, talkingShift, worldToRoom, roomToWorld, type RoomId } from "./index.ts";
+import { FOUNDRY_FLOOR, OBSTACLES, ROOMS, benchDesks, ROOM_IDS, TALK_DISTANCE, blockedAt, detour, placeToWorld, routeBetween, talkingShift, worldToRoom, roomToWorld, type RoomId } from "./index.ts";
 
 describe("walking around furniture", () => {
   it("goes straight when nothing is in the way", () => {
-    expect(detour("foundry", [-5, 4], [0, 4.5])).toEqual([]);
+    expect(detour("foundry", [-5, 2.2], [0, 2.4])).toEqual([]);
     expect(detour("spire", [0, 0], [1, 1])).toEqual([]);
   });
 
@@ -115,6 +115,27 @@ describe("Rusty's dock crew", () => {
         }
       }
     });
+  });
+
+  it("keep the front left clear: no furniture in front of the dock, workbenches and crates included (#68, #110)", () => {
+    // From the dock's face out toward the middle of the hall, and from the dock's back end up to the front wall.
+    const { dock } = FOUNDRY_FLOOR;
+    const front = { x0: dock.x - dock.hw, x1: -3.5, z0: dock.z - dock.hd, z1: 6.6 };
+    const others = (OBSTACLES.foundry ?? []).filter((f) => !(f.x === dock.x && f.z === dock.z));
+    expect(others.length).toBe((OBSTACLES.foundry ?? []).length - 1);
+    for (const f of others) {
+      const overlaps = f.x - f.hw < front.x1 && f.x + f.hw > front.x0 && f.z - f.hd < front.z1 && f.z + f.hd > front.z0;
+      expect(overlaps, `furniture at ${f.x},${f.z} stands in front of the dock`).toBe(false);
+    }
+  });
+
+  it("count the workbenches' desks as furniture, with each bench's standing spot just behind its desk", () => {
+    for (const desk of benchDesks()) expect(OBSTACLES.foundry).toContainEqual(desk);
+    for (const id of ["bench-a", "bench-b"]) {
+      const st = ROOMS.foundry.stations.find((s) => s.id === id)!;
+      expect(blockedAt("foundry", st.x, st.z)).toBe(false);
+      expect(benchDesks().some((d) => Math.abs(d.x - st.x) < 0.01 && d.z > st.z)).toBe(true);
+    }
   });
 
   it("work the line spread out, clear of each other and of the stretch Rusty walks", () => {

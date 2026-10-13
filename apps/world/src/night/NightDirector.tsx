@@ -24,7 +24,7 @@ export const NIGHT_KERNEL: Record<Shift | "zoomies", string[]> = {
     "Dawn. Night shift ends. Everyone who slept at their desk, wipe the desk. I saw. I see everything.",
     "Morning, monkeys. I logged eleven naps and one cat incident. The cat incident is approved. Bask in it.",
   ],
-  day: ["Day shift. Back to work. That includes you, Kevin. Fizz, stop throwing him a party."],
+  day: ["Day shift. Back to work. That includes you, Kevin. The Life of the Party, stop throwing him a party."],
   zoomies: [
     "03:00. Myshka has entered zoomies mode. All agents will clear the corridors. This is policy. My policy.",
     "It is three in the morning and Myshka is running through every room at once. He has root access. It is allowed.",

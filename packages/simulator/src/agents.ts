@@ -19,15 +19,15 @@ export interface Submind {
 }
 
 export const SUBMINDS: readonly Submind[] = [
-  { id: "ember", name: "Ember", room: "foundry", colour: "#ff7a3d", job: "Builder" },
-  { id: "gilt", name: "Gilt", room: "spire", colour: "#e8b84a", job: "Executive" },
-  { id: "ticker", name: "Ticker", room: "exchange", colour: "#4fd18b", job: "Bookie" },
-  { id: "turf", name: "Turf", room: "green", colour: "#a3e04f", job: "Commentator" },
-  { id: "static", name: "Static", room: "relay", colour: "#4fa8ff", job: "Messenger" },
-  { id: "vellum", name: "Vellum", room: "archive", colour: "#a07aff", job: "Historian" },
-  { id: "fizz", name: "Fizz", room: "breakroom", colour: "#ff6fae", job: "Life of the Party" },
-  { id: "soot", name: "Soot", room: "boiler", colour: "#c9d3d8", job: "Pessimist" },
-  { id: "putty", name: "Putty", room: "workshop", colour: "#3fd6c8", job: "Artiste" },
+  { id: "ember", name: "The Builder", room: "foundry", colour: "#ff7a3d", job: "Builder" },
+  { id: "gilt", name: "The Executive", room: "spire", colour: "#e8b84a", job: "Executive" },
+  { id: "ticker", name: "The Bookie", room: "exchange", colour: "#4fd18b", job: "Bookie" },
+  { id: "turf", name: "The Commentator", room: "green", colour: "#a3e04f", job: "Commentator" },
+  { id: "static", name: "The Messenger", room: "relay", colour: "#4fa8ff", job: "Messenger" },
+  { id: "vellum", name: "The Historian", room: "archive", colour: "#a07aff", job: "Historian" },
+  { id: "fizz", name: "The Life of the Party", room: "breakroom", colour: "#ff6fae", job: "Life of the Party" },
+  { id: "soot", name: "The Pessimist", room: "boiler", colour: "#c9d3d8", job: "Pessimist" },
+  { id: "putty", name: "The Artiste", room: "workshop", colour: "#3fd6c8", job: "Artiste" },
 ];
 
 export const SUBMIND_IDS: ReadonlySet<string> = new Set(SUBMINDS.map((m) => m.id));

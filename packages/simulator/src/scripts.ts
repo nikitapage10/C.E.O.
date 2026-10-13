@@ -359,7 +359,7 @@ export const workshopSculptor: Script = ({ rng }) => [
 ];
 
 /**
- * A Skippy submind conducts its room from the podium in the corner: hovers there looking the room over, directs
+ * A Skippy submind conducts its room from high overhead: hovers there looking the room over, directs
  * whoever is working (the world turns it toward them and gives it the baton, see SubmindDirector), passes remarks,
  * and once in a few minutes swoops down to check on someone up close before going back up. Never naps: subminds
  * don't, like the mind they came from. ("waiting" is the conducting pose on the admiral can.)

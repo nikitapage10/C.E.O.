@@ -6,7 +6,7 @@
  * A station's own furniture is fine to overlap: an agent that starts or ends inside a box is allowed through it.
  */
 import type { RoomId } from "./layout.ts";
-import { POSTS, POST_HALF } from "./posts.ts";
+
 
 /** An axis-aligned footprint: centre and half extents. */
 export interface Box {
@@ -87,10 +87,8 @@ const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
   ],
 };
 
-/** Every room's furniture, plus the conductor's podium in its corner. */
-export const OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = Object.fromEntries(
-  (Object.keys(POSTS) as RoomId[]).map((room) => [room, [...(FURNITURE[room] ?? []), b(POSTS[room][0], POSTS[room][1], POST_HALF, POST_HALF)]]),
-);
+/** Every room's furniture (the submind hovers overhead, so it has no footprint). */
+export const OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = FURNITURE;
 
 const EPS = 1e-4;
 

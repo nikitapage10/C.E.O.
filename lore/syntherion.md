@@ -102,23 +102,23 @@ words over the Kernel are his: *Bask in the Awesomeness.*
 **The subminds.** One mind cannot watch nine rooms, even a magnificent one, so he split off nine pieces of
 himself to keep watch for him, the way the old story's starship mind ran a whole ship and its crew through pieces
 of its attention it never quite admitted were him. Each submind leads one room. Each wears the admiral's can with
-its hat and coat in its room's colour and a glow underneath to match, and each lives at a **conductor's post**, a
-small raised podium in the back-right corner of its room, trimmed in its colour. From there it hovers above
-everyone, drifts about the corner, turns to whoever is working and conducts at them, with a remark in its own
+its hat and coat in its room's colour and a glow underneath to match, and each lives at a **conductor's post**,
+a spot in the air high over the middle of its room, with a pool of light in its colour on the floor beneath. From
+there it hovers above everyone, looking down, drifts about, turns to whoever is working and conducts at them, with a remark in its own
 voice; now and then it swoops down to check on somebody up close, then goes back up. They are all lesser echoes
 of Skippy: smug, sure they're the smartest thing in the room, loyal underneath. Each bends it its own way.
 
 | Room | Submind | Colour | Title | Voice |
 | --- | --- | --- | --- | --- |
-| Foundry | **Ember** | ember orange | Skippy, the Builder | A hot-tempered foreman. Short shop-talk sentences, no patience, grumbles about the monkeys and the furnace, secretly in awe of Rocky's welds. |
-| Spire | **Gilt** | gold | Skippy, the Executive | A smarmy executive. Everything is a pitch or a synergy; every compliment has a price tag. |
-| Exchange | **Ticker** | mint | Skippy, the Bookie | A nervous odds-maker. A probability for everything, a hedge on every sentence, sweats the downside. |
-| Green | **Turf** | lime | Skippy, the Commentator | Play-by-play, like the final seconds of a championship. Gridiron coaches; Turf calls it. |
-| Relay | **Static** | signal blue | Skippy, the Messenger | A jittery gossip on every line. Knows who's waiting on whom; never tells the wrong person. |
-| Archive | **Vellum** | violet | Skippy, the Historian | A footnote-obsessed pedant who corrects the record. |
-| Break Room | **Fizz** | pink | Skippy, the Life of the Party | Too loud, too much glitter, and knows exactly when the fun is over. |
-| Boiler Room | **Soot** | steam grey | Skippy, the Pessimist | Expects every pipe to burst, reads gauges like omens, quietly delighted to be wrong. |
-| Workshop | **Putty** | teal | Skippy, the Artiste | Mood boards, sudden better ideas mid-sentence, suffers for the work. |
+| Foundry | **The Builder** | ember orange | Skippy's submind for the Foundry | A hot-tempered foreman. Short shop-talk sentences, no patience, grumbles about the monkeys and the furnace, secretly in awe of Rocky's welds. |
+| Spire | **The Executive** | gold | Skippy's submind for the Spire | A smarmy executive. Everything is a pitch or a synergy; every compliment has a price tag. |
+| Exchange | **The Bookie** | mint | Skippy's submind for the Exchange | A nervous odds-maker. A probability for everything, a hedge on every sentence, sweats the downside. |
+| Green | **The Commentator** | lime | Skippy's submind for the Green | Play-by-play, like the final seconds of a championship. Gridiron coaches; the Commentator calls it. |
+| Relay | **The Messenger** | signal blue | Skippy's submind for the Relay | A jittery gossip on every line. Knows who's waiting on whom; never tells the wrong person. |
+| Archive | **The Historian** | violet | Skippy's submind for the Archive | A footnote-obsessed pedant who corrects the record. |
+| Break Room | **The Life of the Party** | pink | Skippy's submind for the Break Room | Too loud, too much glitter, and knows exactly when the fun is over. |
+| Boiler Room | **The Pessimist** | steam grey | Skippy's submind for the Boiler Room | Expects every pipe to burst, reads gauges like omens, quietly delighted to be wrong. |
+| Workshop | **The Artiste** | teal | Skippy's submind for the Workshop | Mood boards, sudden better ideas mid-sentence, suffers for the work. |
 
 **How decisions flow.** A task comes to Skippy, from the C.E.O. or from a room's own bell. Skippy decides which
 room it belongs to and hands it to that room's submind. The submind picks who in the room does it and with which
@@ -170,31 +170,31 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | --- | --- | --- | --- |
 | Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. |
 | Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. |
-| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the bench since Skippy left it for the Kernel. First to anything broken, at a walk. A thermos older than the Kernel, and the only one who has read the whole safety manual. Answers to Ember now, unimpressed. |
-| Foundry | **Ember** (a piece of Skippy) | Admiral's can, ember orange | Skippy, the Builder: the room lead. Conducts the crew from the podium in the corner and picks the rung for every fix. Never runs a crate itself. |
+| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the bench since Skippy left it for the Kernel. First to anything broken, at a walk. A thermos older than the Kernel, and the only one who has read the whole safety manual. Reports to the Builder now, unimpressed. |
+| Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from overhead and picks the rung for every fix. Never runs a crate itself. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
-| Spire | **Gilt** (a piece of Skippy) | Admiral's can, gold | Skippy, the Executive: the room lead. Runs the floor like a keynote; every errand is a real opportunity, every compliment has a price tag. |
+| Spire | **The Executive** (a piece of Skippy) | Admiral's can, gold | Skippy's submind for the Spire: the room lead. Runs the floor like a keynote; every errand is a real opportunity, every compliment has a price tag. |
 | Exchange | **Noco** (Gepetti) | Gestral | A merchant who duels for prices and isn't afraid to lose, because a fallen Gestral walks back up the river. |
 | Exchange | **Hedge** (Claudari) | Monolith | Risk desk. Honesty 90%, humour 75%. Sits two desks from the one trader who can't lose. |
-| Exchange | **Ticker** (a piece of Skippy) | Admiral's can, mint | Skippy, the Bookie: the room lead. Prices everything, hedges everything, and sweats every trade until the C.E.O. nods. |
+| Exchange | **The Bookie** (a piece of Skippy) | Admiral's can, mint | Skippy's submind for the Exchange: the room lead. Prices everything, hedges everything, and sweats every trade until the C.E.O. nods. |
 | Green | **Gridiron** (Claudari) | Orc | Seven-foot coach. Roars the plays, then apologises for the volume. |
 | Green | **Punt** (Unforked) | Big bunny | Morale. Hops, naps, wins anyway. |
-| Green | **Turf** (a piece of Skippy) | Admiral's can, lime | Skippy, the Commentator: the room lead. Calls every play Gridiron makes, louder, with stats for no one. |
+| Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. |
 | Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. |
 | Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. |
-| Relay | **Static** (a piece of Skippy) | Admiral's can, signal blue | Skippy, the Messenger: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. |
+| Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. |
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
-| Archive | **Vellum** (a piece of Skippy) | Admiral's can, violet | Skippy, the Historian: the room lead. Nothing goes into the canon without a source, and the source needs a source. |
+| Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. Sometimes on the warm side of the boiler. |
-| Break Room | **Fizz** (a piece of Skippy) | Admiral's can, pink | Skippy, the Life of the Party: the room lead. Turns every break into an event, and ends it on the beat. |
+| Break Room | **The Life of the Party** (a piece of Skippy) | Admiral's can, pink | Skippy's submind for the Break Room: the room lead. Turns every break into an event, and ends it on the beat. |
 | Boiler Room | **Gary** (Unforked) | Walking power unit | Keeper of the Boiler Room. A battery box on two stubby legs who honks instead of talking, tapes every leak and guards the bucket. |
-| Boiler Room | **Soot** (a piece of Skippy) | Admiral's can, steam grey | Skippy, the Pessimist: the room lead. Watches the pipe wall, sure every pipe will burst. None have. |
+| Boiler Room | **The Pessimist** (a piece of Skippy) | Admiral's can, steam grey | Skippy's submind for the Boiler Room: the room lead. Watches the pipe wall, sure every pipe will burst. None have. |
 | Workshop | **Daub** (Manusi) | Painting pup | The concept painter. A small cream-coloured pup in a beret who paints with the tip of its tail; every new figure starts on its easel. Leaves green paw-marks on everything it likes. |
 | Workshop | **Chisel** (Gepetti) | Violet carver | The sculptor. Forms each figure in the mould, fits its bones on the turntable and rehearses it on the little stage until it walks like it means it. Calls everyone darling. |
-| Workshop | **Putty** (a piece of Skippy) | Admiral's can, teal | Skippy, the Artiste: the room lead. Conducts the making line, changes its mind twice, suffers for it. |
+| Workshop | **The Artiste** (a piece of Skippy) | Admiral's can, teal | Skippy's submind for the Workshop: the room lead. Conducts the making line, changes its mind twice, suffers for it. |
 
 **The Foundry triangle.** Rocky and Rusty are rivals: one builds before the plan exists, the other plans
 before the build is allowed. Rocky counts the shipping record in base six (105–104), which is the same as
@@ -212,11 +212,11 @@ and she walks to it ("running is how you get a second thing broken"). **Rocky** 
 too hard for a first look, and anything the C.E.O. has approved to be built. **Rusty** keeps the upkeep and the
 morning ideas, three of them, which he pins to a new idea board by the pegboard, in order of risk.
 
-Over all three, from the podium in the back-right corner, is **Ember**, Skippy's Foundry submind: a hot-tempered
+Over all three, hovering high above the floor, is **The Builder**, Skippy's Foundry submind: a hot-tempered
 foreman in an ember-orange admiral's coat who conducts the crew with short jabs of the baton, picks the rung for
-every fix, and never touches a crate itself. Ember calls Rocky's welds "adequate" and keeps every offcut in a
-drawer, labelled. Rivet ran this floor before Ember existed, finishes her coffee before Ember finishes pointing,
-and calls her new boss "a hat with opinions". Rusty has added a page to the manual about Ember. It is page 72.
+every fix, and never touches a crate itself. The Builder calls Rocky's welds "adequate" and keeps every offcut in a
+drawer, labelled. Rivet ran this floor before the Builder existed, finishes her coffee before the Builder finishes pointing,
+and calls her new boss "a hat with opinions". Rusty has added a page to the manual about the Builder. It is page 72.
 
 Elsewhere: Noco has priced Hedge's affection at 63%; Hedge's honesty setting won't confirm. Ledger audited Noco's
 stall and was challenged to a duel. Memo haunts Ledger's desk. Gridiron coaches Punt, who sleeps through the
@@ -264,7 +264,7 @@ The Lattice keeps its own day, about twenty minutes long, and it has a **night s
 the studio panels to moonlight and each room runs on its own lamps; he announces that overtime is a concept he
 invented. Through the night, agents doze off at their stations and he allows it, on the record, magnanimously.
 Rocky drops off without warning and asks for a friend to watch, which is Eridian custom; Rivet keeps the watch now,
-quietly, with her thermos, and Ember dims its glow on the podium so he can sleep. Skippy sings him down from the
+quietly, with her thermos, and the Builder dims its glow overhead so he can sleep. Skippy sings him down from the
 Kernel, all four acts, which Rocky calls nice humming. At **03:00** Myshka gets the zoomies and gallops through every room at three times his speed, flat out, ears back. He
 has root access. It is allowed.
 
@@ -275,7 +275,7 @@ Syntherion believe music can reach them from beyond the Veil, and sometimes it d
 track down, Kevin plays it. The lights stop following the house clock and follow the track: the floor flashes on
 the kick, the rig strobes through a build, and on the drop the whole Break Room jumps. Without a track the set
 runs on the house tempo, and the drop still comes at the top of every phrase. Skippy files a noise complaint
-each time, with himself, then requests a show tune. Fizz conducts the floor from the podium by the window as if it
+each time, with himself, then requests a show tune. The Life of the Party conducts the floor from overhead as if it
 were a second set of decks, and sends everyone back to work on the beat.
 
 ## Letters by the Relay
@@ -335,8 +335,8 @@ for it. Every figure the Workshop has made stands on the shelves by the left wal
 Chisel knows each one's name.
 
 Rocky comes up from the Foundry to watch Chisel's hands work the clay. Good hands, he says, good good good; Chisel
-has never had a better audience. Ember calls the Workshop craft hour, and has twice asked Chisel to mould it a
-better hat. Putty, the Workshop's own submind, conducts the line from the podium in the corner, has a better idea
+has never had a better audience. The Builder calls the Workshop craft hour, and has twice asked Chisel to mould it a
+better hat. The Artiste, the Workshop's own submind, conducts the line from overhead, has a better idea
 halfway through every sentence, and suffers for the work; Daub adores it, and Chisel calls it darling in the tone
 that means stop. Daub once painted Kevin asleep; it took a week, and Kevin did not move once.
 
@@ -347,7 +347,7 @@ throws a costume party: the Syntherion dress up as the things they remember bein
 costume on an ordinary day; the Kernel would not allow it, and the C.E.O. agrees. The costumes are plain on purpose, so Counsel.exe can sleep: a witch's hat, a
 jack-o'-lantern, little devil horns, bat ears and a bedsheet ghost (Counsel.exe confirms that sheets are public
 domain). Rusty wears a regulation pumpkin, carved to spec. Rocky is a bat and still isn't sure what a bat
-is. Ember and Kevin wear the horns; on a can, Skippy says, they read as a rank. Fizz insists on the bat ears. Ledger insists the sheet makes them a real ghost. Memo comes as himself; a
+is. The Builder and Kevin wear the horns; on a can, Skippy says, they read as a rank. The Life of the Party insists on the bat ears. Ledger insists the sheet makes them a real ghost. Memo comes as himself; a
 skull spirit at a costume party counts. While the party lasts, jack-o'-lanterns grin in the corner of every room
 and the club's lights turn pumpkin and purple.
 

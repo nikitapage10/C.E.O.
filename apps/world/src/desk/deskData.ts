@@ -33,7 +33,7 @@ export const AGENTS: Record<string, { id: string; room: DeskRoom; job: string }>
   Rusty: { id: "tessellate", room: "foundry", job: "Upkeep and ideas" },
   Rocky: { id: "caret", room: "foundry", job: "Master builder" },
   Rivet: { id: "semicolon", room: "foundry", job: "First responder" },
-  Ember: { id: "ember", room: "foundry", job: "Room lead" },
+  "The Builder": { id: "ember", room: "foundry", job: "Room lead" },
   Ledger: { id: "ledger", room: "spire", job: "Operations" },
   Memo: { id: "memo", room: "spire", job: "Assistant to the assistant" },
   Noco: { id: "odds", room: "exchange", job: "Quant" },

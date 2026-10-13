@@ -23,7 +23,7 @@ moves them.
 | Agent | Job | Takes |
 | --- | --- | --- |
 | Rivet (agent id `semicolon`) | First responder | Fixes on rung 1 |
-| Ember, the Foundry's submind (agent id `ember`) | Room lead | Picks the rung for each job; conducts the room |
+| The Builder, the Foundry's submind (agent id `ember`) | Room lead | Picks the rung for each job; conducts the room |
 | Rocky (agent id `caret`) | Master builder | Fixes on rungs 2 and 3, approved builds |
 | Rusty (agent id `tessellate`) | Upkeep and ideas | Upkeep, the morning ideas |
 
@@ -56,7 +56,7 @@ up in the Foundry somewhere as well… one of the free agents can visually work 
 
 ## Decisions go through Skippy
 
-Ember, the Foundry's submind, picks the model for each job (the fix ladder below). When a decision isn't settled by
+The Builder, the Foundry's submind, picks the model for each job (the fix ladder below). When a decision isn't settled by
 this playbook (a Ship on a bigger fix, a stuck rung, a question an idea didn't answer), it goes to Skippy's thread
 ("Skippy, the Magnificent") first, as [SKIPPY.md](SKIPPY.md) describes, and Skippy decides or asks Nikita. Anything this
 playbook already allows needs no one.

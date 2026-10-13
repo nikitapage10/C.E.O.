@@ -31,7 +31,7 @@ export type CrateKind = "fix" | "idea" | "build" | "upkeep" | "chat";
 export type CrateState = "queued" | "working" | "ready" | "stuck" | "shipped";
 /**
  * The Foundry crew, by agent id: Rivet (semicolon) first responder, Rocky (caret) master builder, Rusty (tessellate)
- * upkeep and ideas. Ember, the Foundry's submind, leads them from the conductor's post and isn't crew.
+ * upkeep and ideas. The Builder, the Foundry's submind, leads them from the conductor's post and isn't crew.
  */
 export type CrewId = "semicolon" | "caret" | "tessellate";
 

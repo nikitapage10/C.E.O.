@@ -37,7 +37,7 @@ export const VEIL_CAST: Record<string, VeilCostume | null> = {
   heimerdinger: "witch-hat",
   d20: "ghost-sheet",
   kevin: "devil-horns",
-  // The subminds: horns read as a rank on the admiral can, Skippy says. Fizz insists on the bat ears.
+  // The subminds: horns read as a rank on the admiral can, Skippy says. The Life of the Party insists on the bat ears.
   ember: "devil-horns",
   gilt: "witch-hat",
   ticker: "ghost-sheet",

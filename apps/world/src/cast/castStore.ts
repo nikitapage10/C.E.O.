@@ -18,6 +18,16 @@ const RENAMED: Record<string, [string[], string]> = {
   // Semicolon became Rivet, who handed the bench to Tallboy, then Skippy; Skippy took the Kernel and Rivet came back (an early cut of the change called the bench Ember).
   semicolon: [["Semicolon", "Tallboy", "Skippy", "Ember"], "Rivet"],
   tessellate: [["Tessellate"], "Rusty"],
+  // The Skippy subminds went from code names to titles (the ids stay, so saved state still lines up).
+  ember: [["Ember"], "The Builder"],
+  gilt: [["Gilt"], "The Executive"],
+  ticker: [["Ticker"], "The Bookie"],
+  turf: [["Turf"], "The Commentator"],
+  static: [["Static"], "The Messenger"],
+  vellum: [["Vellum"], "The Historian"],
+  fizz: [["Fizz"], "The Life of the Party"],
+  soot: [["Soot"], "The Pessimist"],
+  putty: [["Putty"], "The Artiste"],
 };
 
 /** Give every profile still wearing an old default name its new one. */
@@ -32,7 +42,7 @@ function rename(profiles: Record<string, Profile>) {
  * relationships once, keeping their looks (and any name you chose yourself).
  */
 const LORE_KEY = "ceo.cast.lore";
-const LORE_REV = 7;
+const LORE_REV = 8;
 
 function readRev(key: string) {
   try {

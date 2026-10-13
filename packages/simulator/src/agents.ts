@@ -36,7 +36,7 @@ export const submindOf = (room: RoomId): Submind => SUBMINDS.find((m) => m.room 
 
 /**
  * Subminds decide (which agent, which model or API) rather than do the computer work, so they run on OpenAI, by
- * Nikita's provider rule. Each lives on its room's command podium (the can-throne in the back-right corner), directs the room from
+ * Nikita's provider rule. Each lives on its room's command podium (the can-throne floating high in the back-right corner), directs the room from
  * there, and floats out over the room to give an order.
  */
 function submindAgents(): SimAgent[] {

@@ -17,11 +17,12 @@ const ORDER = 0.8;
 const WORKING = new Set(["working", "typing", "carrying"]);
 
 /**
- * Skippy's subminds lead the rooms (docs/SKIPPY.md). Each sits on its command podium in the room's back-right corner,
+ * Skippy's subminds lead the rooms (docs/SKIPPY.md). Each sits on its podium floating high in the back-right corner,
  * turning to whoever is working and conducting at them from there (the admiral can's baton beat, "waiting"), with
  * the odd remark. When work starts in the room the simulator flies it out over the middle to give the order
  * (Simulator.command): out there it turns to whoever the order is for, barks it, and drifts a little while it
- * conducts, then glides home. The swoop down to check on someone up close is in its own routine (submindConduct).
+ * conducts, then glides home, straight through the air (layout.ts, the "fly" leg). The swoop down to check on
+ * someone up close is in its own routine (submindConduct).
  * Renders nothing.
  */
 export function SubmindDirector() {

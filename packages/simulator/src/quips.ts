@@ -213,6 +213,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Rivet, coffee later. Alarm now.",
     "Two bars of opera. Don't tell him. He'll make it four acts.",
     "Off the throne. Order. Back on the throne. That's leadership.",
+    "Throne's up high so I see every weld. Every. Weld.",
   ],
   gilt: [
     "Love that. Let's circle back and make it synergy.",
@@ -240,6 +241,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "And the Commentator goes with the cheap model. BOLD. Will it pay off?",
     "Two-minute warning on the waiver run. The crowd is ON ITS FEET.",
     "AND THE COMMENTATOR LEAVES THE BOOTH! He's at midfield! What a call!",
+    "Live from the floating booth, high above the action, folks!",
   ],
   static: [
     "Didn't hear it from me. You heard it from me.",
@@ -258,6 +260,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Heimerdinger agrees with me. Footnote seventeen.",
     "I've never been wrong. There's a source for that. It's me.",
     "For the record, the throne is a relic of the First Lattice. Circa nothing. I checked.",
+    "It floated before the foundations were poured. Footnote three. Nobody reads footnote three.",
   ],
   fizz: [
     "Break time is PARTY time!",
@@ -267,6 +270,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Every coffee is a toast. Raise it. HIGHER.",
     "Ten minutes of fun. Exactly ten. I'm a professional.",
     "Off the throne, onto the floor! Make way! Glitter first!",
+    "Best seat in the house, and it HOVERS. Iconic.",
   ],
   soot: [
     "It'll burst.",
@@ -276,6 +280,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Quiet line. Too quiet.",
     "Doomed. ...Fine, actually.",
     "Left the throne. Came back. Throne still there. Lucky.",
+    "Floating throne. Long drop. Noted.",
   ],
   putty: [
     "Wait. No. Better idea.",

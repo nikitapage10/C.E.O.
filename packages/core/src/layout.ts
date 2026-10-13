@@ -8,7 +8,7 @@
 
 import { FOUNDRY_FLOOR } from "./foundryFloor.ts";
 import { detour } from "./obstacles.ts";
-import { COMMAND_HEIGHT, COMMAND_SPOTS, POSTS, POST_HEIGHT } from "./posts.ts";
+import { AIR_HEIGHT, COMMAND_HEIGHT, COMMAND_SPOTS, FLY_LIFT, FLY_SPEED, POSTS, POST_HEIGHT } from "./posts.ts";
 
 export type Vec3 = readonly [number, number, number];
 
@@ -55,14 +55,14 @@ const toward = (id: string, label: string, x: number, z: number, tx: number, tz:
   s(id, label, x, z, Math.atan2(-(tx - x), -(tz - z)), opts);
 
 /**
- * The room lead's two spots (posts.ts): its command podium in the back-right corner, raised and turned to look over
- * the room, and the command spot high over the middle, where it floats out to when it starts a command.
+ * The room lead's two spots (posts.ts): its command podium floating high in the back-right corner, turned to look over
+ * the room, and the command spot high over the middle, where it glides out to when it starts a command.
  */
 const post = (room: RoomId): Station[] => {
   const [x, z] = POSTS[room];
   const [cx, cz] = COMMAND_SPOTS[room];
   return [
-    toward("post", "The command podium", x, z, 0, 0.5, { y: POST_HEIGHT, exact: true }),
+    toward("post", "The floating podium", x, z, 0, 0.5, { y: POST_HEIGHT, exact: true }),
     toward("command", "Out in the room, giving orders", cx, cz, 0, 1.5, { y: COMMAND_HEIGHT, exact: true }),
   ];
 };
@@ -375,7 +375,8 @@ function kernelArc(from: RoomId, to: RoomId, samples = 10): Vec3[] {
   return pts;
 }
 
-export type SegmentKind = "walk" | "stream";
+/** "fly": a straight glide through the air between two spots up there (see sampleRoute). */
+export type SegmentKind = "walk" | "stream" | "fly";
 
 export interface Route {
   points: Vec3[];
@@ -413,7 +414,10 @@ export function routeBetween(from: Place, to: Place, agentId: string): Route {
     });
     push(finish, "walk");
   };
-  if (from.room === to.room) {
+  if (from.room === to.room && inAir(from) && inAir(to)) {
+    // Both ends are above every head (the floating podium, the command spot): straight there through the air.
+    push(end, "fly");
+  } else if (from.room === to.room) {
     walk(from.room, placeLocal(from, agentId), placeLocal(to, agentId), end);
   } else {
     walk(from.room, placeLocal(from, agentId), gateLocal, gateWorld(from.room));
@@ -425,11 +429,16 @@ export function routeBetween(from: Place, to: Place, agentId: string): Route {
   const ends: number[] = [];
   let t = 0;
   for (let i = 0; i < kinds.length; i++) {
-    const speed = kinds[i] === "walk" ? WALK_SPEED : STREAM_SPEED;
+    const speed = kinds[i] === "walk" ? WALK_SPEED : kinds[i] === "fly" ? FLY_SPEED : STREAM_SPEED;
     t += (dist(points[i]!, points[i + 1]!) / speed) * 1000;
     ends.push(t);
   }
   return { points, kinds, ends, duration: t };
+}
+
+/** Whether a place is up in the air (the floating podium, the command spot), where nobody walks. */
+export function inAir(place: Place): boolean {
+  return (getStation(place.room, place.station).y ?? 0) >= AIR_HEIGHT;
 }
 
 export interface RouteSample {
@@ -452,11 +461,15 @@ export function sampleRoute(route: Route, elapsed: number): RouteSample {
   while (i < route.ends.length - 1 && route.ends[i]! < t) i++;
   const segStart = i === 0 ? 0 : route.ends[i - 1]!;
   const segLen = route.ends[i]! - segStart;
-  const f = segLen <= 0 ? 1 : (t - segStart) / segLen;
+  const raw = segLen <= 0 ? 1 : (t - segStart) / segLen;
   const a = route.points[i]!;
   const b = route.points[i + 1]!;
+  // A glide eases in and out and bows up a little in the middle; everything else moves at a steady pace.
+  const fly = route.kinds[i] === "fly";
+  const f = fly ? raw * raw * (3 - 2 * raw) : raw;
+  const lift = fly ? Math.sin(Math.PI * f) * FLY_LIFT : 0;
   return {
-    position: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f],
+    position: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f + lift, a[2] + (b[2] - a[2]) * f],
     kind: route.kinds[i]!,
     heading: headingOf(a, b),
     done: false,

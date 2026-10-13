@@ -1,10 +1,10 @@
 import type { RoomId } from "./layout.ts";
 
 /**
- * Each room's command podium: where the room's Skippy submind sits by default, on a small raised dais in the
- * back-right corner (as the default camera sees it: +x, -z), directing the room from there (docs/SKIPPY.md).
- * Room-local (x, z); each spot is clear of the room's furniture and well away from the gate at (0, -6.9). The
- * podium's footprint is in obstacles.ts, so everyone walks round it.
+ * Each room's command podium: where the room's Skippy submind sits by default, on a hex platform that floats high in
+ * the back-right corner (as the default camera sees it: +x, -z), directing the room from there (docs/SKIPPY.md).
+ * Room-local (x, z); each spot is clear of the room's furniture and well away from the gate at (0, -6.9). It floats
+ * over everyone's heads, so the floor under it is free: agents and pets walk under it.
  */
 export const POSTS: Record<RoomId, readonly [number, number]> = {
   foundry: [6.3, -4.9],
@@ -18,9 +18,12 @@ export const POSTS: Record<RoomId, readonly [number, number]> = {
   workshop: [7.3, -4.6],
 };
 
-/** The podium's top, above the room's floor: the submind sits there, higher than everyone else in the room. */
-export const POST_HEIGHT = 0.8;
-/** The podium's footprint, as a half extent either way. */
+/**
+ * The floating podium's seat, above the room's floor: higher than the tallest head in the room and clear of the
+ * furniture, below the walls' tops, so the default camera sees it against the room rather than the sky.
+ */
+export const POST_HEIGHT = 2.6;
+/** How far the podium's hex platform reaches either way from its centre (it touches nothing; this is just its size). */
 export const POST_HALF = 0.55;
 
 /**
@@ -41,3 +44,13 @@ export const COMMAND_SPOTS: Record<RoomId, readonly [number, number]> = {
 
 /** How high the submind hovers at the command spot: well clear of every agent and every piece of furniture. */
 export const COMMAND_HEIGHT = 2.6;
+
+/**
+ * A station at least this high is in the air (the floating podium, the command spot): nobody walks there, and a
+ * trip between two of them in one room is a straight glide (layout.ts routeBetween), not a walk round the furniture.
+ */
+export const AIR_HEIGHT = 2;
+/** How fast a submind glides between two spots in the air, on average (m/s); it eases in and out. */
+export const FLY_SPEED = 2;
+/** How far a glide bows upward at its middle (metres). */
+export const FLY_LIFT = 0.45;

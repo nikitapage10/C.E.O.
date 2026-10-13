@@ -7,9 +7,9 @@ import { useWorld } from "../store.ts";
 
 const R = 0.9;
 
-/** A soft round glow, bright in the middle and gone at the edge. Shared by every hover glow. */
+/** A soft round glow, bright in the middle and gone at the edge. Shared by every hover glow (and the podiums). */
 let glowTex: CanvasTexture | null = null;
-function glowMap() {
+export function glowMap() {
   if (glowTex) return glowTex;
   const c = document.createElement("canvas");
   c.width = c.height = 64;

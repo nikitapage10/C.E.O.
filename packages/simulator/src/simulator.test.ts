@@ -8,12 +8,15 @@ import {
   ROOM_HALF_D,
   ROOM_HALF_W,
   ROOM_IDS,
-  WALK_CLEARANCE,
   applyEvents,
+  blockedAt,
   emptyState,
   getStation,
+  inAir,
   pendingApprovals,
-  type Box,
+  placeToWorld,
+  routeBetween,
+  sampleRoute,
 } from "@ceo/core";
 import { describe, expect, it } from "vitest";
 import { SAMPLE_AGENTS, SUBMINDS, isSubmind, submindOf } from "./agents.ts";
@@ -123,28 +126,49 @@ describe("the Skippy subminds", () => {
     expect(new Set(SUBMINDS.map((m) => m.colour)).size).toBe(SUBMINDS.length);
   });
 
-  it("each post is a raised command podium in the back-right corner, outside every obstacle, blocking no station", () => {
-    const overlap = (a: Box, b: Box) => Math.abs(a.x - b.x) < a.hw + b.hw && Math.abs(a.z - b.z) < a.hd + b.hd;
+  it("each post is a podium floating high in the back-right corner, over a floor left clear for everyone", () => {
     for (const room of ROOM_IDS) {
       const post = getStation(room, "post");
       expect(post.exact, room).toBe(true);
+      // Mid-to-upper height: over every head and every piece of furniture, below the walls' tops.
       expect(post.y ?? 0, room).toBe(POST_HEIGHT);
+      expect(POST_HEIGHT).toBeGreaterThanOrEqual(2.4);
+      expect(POST_HEIGHT).toBeLessThanOrEqual(2.8);
+      expect(inAir({ room, station: "post" }), room).toBe(true);
       // Back-right as the default camera sees it (+x, -z), inside the walls, well clear of the gate at (0, -6.9).
       expect(post.x, room).toBeGreaterThan(5.5);
       expect(post.z, room).toBeLessThan(-4);
       expect(post.x + POST_HALF, room).toBeLessThanOrEqual(ROOM_HALF_W);
       expect(post.z - POST_HALF, room).toBeGreaterThanOrEqual(-ROOM_HALF_D);
-      // The podium's footprint is an obstacle, so agents walk round it...
-      const podium: Box = { x: post.x, z: post.z, hw: POST_HALF, hd: POST_HALF };
-      const all = OBSTACLES[room] ?? [];
-      expect(all.filter((b) => b.x === post.x && b.z === post.z && b.hw === POST_HALF), room).toHaveLength(1);
-      const furniture = all.filter((b) => !(b.x === post.x && b.z === post.z));
-      // ...it stands clear of the furniture, with room to walk round it...
-      expect(furniture.some((b) => Math.abs(post.x - b.x) < b.hw + WALK_CLEARANCE && Math.abs(post.z - b.z) < b.hd + WALK_CLEARANCE), room).toBe(false);
-      expect(furniture.some((b) => overlap(podium, b)), room).toBe(false);
-      // ...and no other station is on it.
+      // It floats, so it leaves no footprint: the corner under it is free to walk through.
+      expect(OBSTACLES[room]?.some((b) => b.x === post.x && b.z === post.z) ?? false, room).toBe(false);
+      expect(blockedAt(room, post.x, post.z), room).toBe(false);
+      // Nobody but the submind stands up there.
       for (const st of ROOMS[room].stations) {
-        if (st.id !== "post") expect(Math.abs(st.x - post.x) < POST_HALF + WALK_CLEARANCE && Math.abs(st.z - post.z) < POST_HALF + WALK_CLEARANCE, `${room}/${st.id}`).toBe(false);
+        if (st.id !== "post" && st.id !== "command") expect(inAir({ room, station: st.id }), `${room}/${st.id}`).toBe(false);
+      }
+    }
+  });
+
+  it("a submind glides straight between its podium and the command spot, through the air", () => {
+    for (const room of ROOM_IDS) {
+      const id = submindOf(room).id;
+      const post = { room, station: "post" } as const;
+      const command = { room, station: "command" } as const;
+      for (const [a, b] of [[post, command], [command, post]] as const) {
+        const r = routeBetween(a, b, id);
+        // One straight leg, no detours round the furniture, ...
+        expect(r.kinds, room).toEqual(["fly"]);
+        expect(r.points[0]).toEqual(placeToWorld(a, id));
+        expect(r.points[1]).toEqual(placeToWorld(b, id));
+        // ...easing in and out (slow off the mark, quickest in the middle), bowed up a little, landing exactly.
+        const at = (f: number) => sampleRoute(r, r.duration * f).position;
+        const span = Math.hypot(r.points[1]![0] - r.points[0]![0], r.points[1]![2] - r.points[0]![2]);
+        const moved = (f0: number, f1: number) => Math.hypot(at(f1)[0] - at(f0)[0], at(f1)[2] - at(f0)[2]);
+        expect(moved(0, 0.1), room).toBeLessThan(moved(0.45, 0.55) * 0.5);
+        expect(moved(0, 0.5), room).toBeCloseTo(span / 2, 5);
+        expect(at(0.5)[1], room).toBeGreaterThan(Math.max(r.points[0]![1], r.points[1]![1]) + 0.2);
+        expect(sampleRoute(r, r.duration + 1).position).toEqual(r.points[1]);
       }
     }
   });

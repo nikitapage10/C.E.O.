@@ -7,7 +7,6 @@
  */
 import { FOUNDRY_FLOOR } from "./foundryFloor.ts";
 import type { RoomId } from "./layout.ts";
-import { POSTS, POST_HALF } from "./posts.ts";
 
 /** An axis-aligned footprint: centre and half extents. */
 export interface Box {
@@ -93,10 +92,8 @@ const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
   ],
 };
 
-/** Every room's furniture, plus the submind's command podium in its back-right corner. */
-export const OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = Object.fromEntries(
-  (Object.keys(POSTS) as RoomId[]).map((room) => [room, [...(FURNITURE[room] ?? []), b(POSTS[room][0], POSTS[room][1], POST_HALF, POST_HALF)]]),
-);
+/** Every room's furniture. (The submind's podium floats high over the back-right corner, so it blocks nobody.) */
+export const OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = FURNITURE;
 
 const EPS = 1e-4;
 

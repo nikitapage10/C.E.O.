@@ -44,7 +44,7 @@ describe("parseCrates", () => {
 });
 
 describe("crewFor", () => {
-  it("sends first-try fixes to Skippy, harder rungs and builds to Rocky, the rest to Rusty", () => {
+  it("sends first-try fixes to Ember, harder rungs and builds to Rocky, the rest to Rusty", () => {
     expect(crewFor({ kind: "fix", rung: null })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 1 })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 3 })).toBe("caret");
@@ -111,9 +111,9 @@ describe("assignCrew", () => {
     expect(by.get(2)).toBe("semicolon");
   });
 
-  it("moves on to Rusty when Skippy holds a fix, and rides with Skippy when everyone is busy", () => {
-    const busySkippy = assignCrew([crate(1, "fix", "working", 1), crate(2, "chat", "working")]);
-    expect(busySkippy.get(2)).toBe("tessellate");
+  it("moves on to Rusty when Ember holds a fix, and rides with Ember when everyone is busy", () => {
+    const busyEmber = assignCrew([crate(1, "fix", "working", 1), crate(2, "chat", "working")]);
+    expect(busyEmber.get(2)).toBe("tessellate");
     const all = assignCrew([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")]);
     expect(all.get(4)).toBe("semicolon");
   });

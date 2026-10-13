@@ -27,7 +27,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "no-boss", title: "Pushed Back", line: "You denied a request. House Constitution would be proud. Gently.", hint: "Deny something." },
   { id: "memory", title: "Unscheduled Nostalgia", line: "You saw a memory leak through. It was not a bug. It was 2003.", hint: "Witness a glitch." },
   { id: "stylist", title: "Stylist", line: "You opened the Agent Studio. Counsel.exe is reviewing your choices.", hint: "Open the studio." },
-  { id: "root", title: "sudo", line: "You used the Kernel console. I let you. Do not make it weird.", hint: "Open the console." },
+  { id: "root", title: "sudo", line: "You used my console. I let you. Do not make it weird, monkey.", hint: "Open the console." },
   { id: "hallowed", title: "The Veil Runs Thin", line: "You threw the Hallowed Veil. Every costume was legally distinct. Mostly.", hint: "Throw a costume party." },
 ];
 

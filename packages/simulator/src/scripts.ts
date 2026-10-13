@@ -1,4 +1,5 @@
 import type { ActionKind, Activity, Agent, Prop, RoomId } from "@ceo/core";
+import { isSubmind } from "./agents.ts";
 import type { Rng } from "./rng.ts";
 
 /** One beat of an agent's routine. Timed steps (go, do, wait) take Lattice time; the rest are instant. */
@@ -51,9 +52,40 @@ export const foundryIdle: Script = ({ rng, agent }) => [
   { kind: "do", activity: rng.pick(["idle", "staring", "idle"]), ms: rng.int(5000, 9000), prop: null },
   { kind: "quip", chance: 0.2 },
   { kind: "go", station: rng.pick(["bench-a", "bench-b"]) },
-  // Rocky dozes off between jobs (Eridian custom); Skippy keeps the watch and never sleeps; Rusty rarely does.
-  { kind: "do", activity: agent.id === "caret" ? rng.pick(["idle", "napping"]) : agent.id === "semicolon" ? rng.pick(["idle", "staring", "waiting"]) : rng.pick(["idle", "idle", "idle", "napping"]), ms: rng.int(4000, 8000) },
+  // Rocky dozes off between jobs (Eridian custom); Ember keeps the watch and never sleeps; Rusty rarely does.
+  { kind: "do", activity: agent.id === "caret" ? rng.pick(["idle", "napping"]) : isSubmind(agent.id) ? rng.pick(["idle", "staring", "waiting"]) : rng.pick(["idle", "idle", "idle", "napping"]), ms: rng.int(4000, 8000) },
 ];
+
+/** Where each room's submind walks its rounds: the working stations, not the card tables and dance floor. */
+const ROUNDS: Record<RoomId, string[]> = {
+  foundry: ["intake", "assembler", "furnace", "shipping", "bench-a", "bench-b"],
+  spire: ["desk-1", "desk-2", "desk-3", "whiteboard", "meeting", "coffee"],
+  exchange: ["desk-n", "desk-e", "desk-w", "vault", "terminal"],
+  green: ["depth-chart", "mailbox", "sideline", "huddle", "bench"],
+  relay: ["tubes", "draft-desk", "outbox", "switchboard"],
+  archive: ["shelves", "loom", "dice-table", "shrine", "reading", "lab"],
+  breakroom: ["couch", "ping-pong", "coffee-machine", "bar", "server-rack", "window"],
+  boiler: ["pipes", "boiler", "bucket", "sign", "bench"],
+  workshop: ["easel", "mould", "fitting", "stage", "bench", "shelves", "crate"],
+};
+
+/**
+ * A submind's rounds: float from station to station in its own room, hover over whoever's there, say something
+ * cutting, move on. The world turns it to face the worker it's checking on (SubmindDirector). Never naps.
+ */
+export const submindPatrol: Script = ({ rng, agent }) => {
+  const stops = ROUNDS[agent.home.room];
+  const steps: Step[] = [];
+  for (let i = rng.int(2, 4); i > 0; i--) {
+    steps.push(
+      { kind: "go", station: rng.pick(stops) },
+      { kind: "do", activity: rng.pick(["staring", "waiting", "idle"]), ms: rng.int(3500, 7000), prop: null },
+      { kind: "quip", chance: 0.3 },
+    );
+  }
+  steps.push({ kind: "go", station: agent.home.station }, { kind: "do", activity: "idle", ms: rng.int(3000, 6000) });
+  return steps;
+};
 
 /** A real fix or build in hand: crate from intake, through the arm, into the furnace, and round again. */
 export const foundryFixing: Script = ({ rng }) => [
@@ -383,7 +415,7 @@ export const STAY_ON_BREAK = 0.75;
 
 /** Any agent, any time: a breather. Usually at their own spot with a mug; now and then a trip to the Break Room. */
 export const coffeeBreak: Script = ({ rng, agent }) => {
-  const sleeps = agent.id !== "semicolon" && rng.chance(0.4);
+  const sleeps = !isSubmind(agent.id) && rng.chance(0.4);
   if (rng.chance(STAY_ON_BREAK)) {
     return [
       { kind: "go", station: agent.home.station, room: agent.home.room },
@@ -409,6 +441,7 @@ export const SCRIPTS = {
   foundryStuck,
   foundryUpkeep,
   foundryIdeas,
+  submindPatrol,
   spireOperator,
   exchangeQuant,
   greenCoach,

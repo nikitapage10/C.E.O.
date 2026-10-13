@@ -6,7 +6,7 @@ import {
   type AgentEventBody,
   type Place,
 } from "@ceo/core";
-import { SAMPLE_AGENTS, type SimAgent } from "./agents.ts";
+import { SAMPLE_AGENTS, isSubmind, type SimAgent } from "./agents.ts";
 import {
   AGENT_QUIPS,
   APPROVAL_WAIT_QUIPS,
@@ -170,7 +170,8 @@ export class Simulator {
   private quipFor(actor: Actor): string {
     const r = this.rng.next();
     const own = AGENT_QUIPS[actor.spec.id];
-    if (own && r < 0.4) return this.rng.pick(own);
+    // Subminds are pieces of Skippy, so they mostly speak for themselves.
+    if (own && r < (isSubmind(actor.spec.id) ? 0.8 : 0.4)) return this.rng.pick(own);
     if (r < 0.48) return this.rng.pick(NOSTALGIA_QUIPS);
     if (r < 0.75) return this.rng.pick(LINEAGE_QUIPS[actor.spec.lineage] ?? LINEAGE_QUIPS.unforked);
     return this.rng.pick(ROOM_QUIPS[actor.place.room]);

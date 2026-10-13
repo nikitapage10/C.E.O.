@@ -23,6 +23,8 @@ const live = (body: AgentEventBody): AgentEvent => ({ ...body, id: `foundry-${++
  */
 export function routineFor(who: CrewId, crate: Crate | null, openIdeas: number, keepingUpkeep = false): ScriptId {
   if (!crate) {
+    // Ember, the room's submind, walks the floor between fixes.
+    if (who === "semicolon") return "submindPatrol";
     if (who !== "tessellate") return "foundryIdle";
     return openIdeas > 0 ? "foundryIdeas" : keepingUpkeep ? "foundryUpkeep" : "foundryIdle";
   }

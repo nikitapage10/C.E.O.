@@ -1,4 +1,5 @@
 import { pendingApprovals, ROOMS } from "@ceo/core";
+import { isSubmind } from "@ceo/simulator";
 import { useEffect } from "react";
 import { unlock } from "../achievements/achievements.ts";
 import { clock } from "../clock.ts";
@@ -9,7 +10,7 @@ import { daySkip, hourNow, latticeDay, shiftOf, type Shift } from "./dayCycle.ts
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
 
-/** The Kernel's shift announcements. */
+/** Skippy's shift announcements, from the Kernel. */
 export const NIGHT_KERNEL: Record<Shift | "zoomies", string[]> = {
   dusk: [
     "Dusk in the Lattice. The night shift begins. Overtime is not a concept I recognise.",
@@ -17,7 +18,7 @@ export const NIGHT_KERNEL: Record<Shift | "zoomies", string[]> = {
   ],
   night: [
     "Night shift. Productivity: theoretical. Snacks: missing. Brogu: suspiciously well fed.",
-    "It is night. I do not sleep. I am not sentient. Those facts are related.",
+    "Night. I never sleep. Somebody has to be magnificent at all hours.",
   ],
   dawn: [
     "Dawn. Night shift ends. Everyone who slept at their desk, please wipe the desk.",
@@ -30,18 +31,18 @@ export const NIGHT_KERNEL: Record<Shift | "zoomies", string[]> = {
   ],
 };
 
-/** Rocky sleeps without warning and wants a friend to watch: Eridian custom. Skippy watches, complaining. */
-const ROCKY_SLEEPS = ["Tired. Sleep now. Friend watch? Is custom.", "Eyes close soon. Skippy watch, yes?"];
-const SKIPPY_WATCHES = [
+/** Rocky sleeps without warning and wants a friend to watch: Eridian custom. Ember watches, complaining, as Skippy did. */
+const ROCKY_SLEEPS = ["Tired. Sleep now. Friend watch? Is custom.", "Eyes close soon. Ember watch, yes?"];
+const EMBER_WATCHES = [
   "Fine. Sleep. I'll watch. The monkeys would only lose you.",
   "Night, Rocky. Watch is mine. Nobody touches him, monkeys.",
   "Dimming the glow. Not for you. It's a power thing.",
-  "Lullaby time. Opera, all four acts. Sleep fast, Rocky.",
+  "Skippy used to sing you to sleep. I won't. Sleep anyway.",
 ];
 
 /**
- * The night shift: the Kernel calls dusk and dawn, agents doze off at their stations through the night, Rocky
- * sleeps while Skippy keeps watch, and at three in the morning Myshka gets the zoomies. Renders nothing; the
+ * The night shift: Skippy calls dusk and dawn from the Kernel, agents doze off at their stations through the night,
+ * Rocky sleeps while Ember keeps watch, and at three in the morning Myshka gets the zoomies. Renders nothing; the
  * lights themselves change in <Lighting>.
  */
 export function NightDirector() {
@@ -88,12 +89,12 @@ export function NightDirector() {
       if (shift !== "night") return;
       // Which night this is: the one that started on the evening before, after midnight.
       const day = latticeDay(clock.sim + daySkip.ms) - (hour < 12 ? 1 : 0);
-      // Once a night, after ten: Rocky sleeps and Skippy watches.
+      // Once a night, after ten: Rocky sleeps and Ember watches.
       if (hour >= 22 || hour < 3) {
         const rocky = w.lattice.agents.caret;
-        const tallboy = w.lattice.agents.semicolon;
+        const ember = w.lattice.agents.semicolon;
         const free = idleAgents().map((a) => a.agent.id);
-        if (rockyNight !== day && rocky && tallboy && free.includes("caret") && free.includes("semicolon")) {
+        if (rockyNight !== day && rocky && ember && free.includes("caret") && free.includes("semicolon")) {
           rockyNight = day;
           w.say("caret", pick(ROCKY_SLEEPS));
           setTimeout(() => {
@@ -101,7 +102,7 @@ export function NightDirector() {
             s.override("caret", "napping", 60_000);
             s.emote("caret", "☾", 4000);
             s.override("semicolon", "face", 60_000, "caret");
-            s.say("semicolon", pick(SKIPPY_WATCHES));
+            s.say("semicolon", pick(EMBER_WATCHES));
           }, 2500);
           return;
         }
@@ -109,7 +110,8 @@ export function NightDirector() {
       // Through the night, someone dozes off at their station now and then.
       if (now > nextDoze) {
         nextDoze = now + 18_000 + Math.random() * 20_000;
-        const sleepy = idleAgents().filter((a) => a.agent.id !== "caret" && a.agent.id !== "semicolon");
+        // Rocky sleeps on his own schedule; Skippy's subminds never sleep.
+        const sleepy = idleAgents().filter((a) => a.agent.id !== "caret" && !isSubmind(a.agent.id));
         if (sleepy.length) {
           const a = pick(sleepy);
           w.override(a.agent.id, "napping", 25_000 + Math.random() * 25_000);

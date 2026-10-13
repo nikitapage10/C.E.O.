@@ -149,6 +149,9 @@ interface LibDef {
   height?: number;
 }
 
+/** The admiral can's navy hat and coat (sampled from the texture). */
+export const SKIPPY_NAVY: Band = { hue: 212, width: 20, minSat: 0.28, refL: 0.21 };
+
 const ROBOT_TRIM: Band = { hue: 32, width: 16, minSat: 0.3, refL: 0.3 };
 
 export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
@@ -171,8 +174,9 @@ export const LIBRARY_BODIES: Partial<Record<Body, LibDef>> = {
 
   gestral: { model: "custom/Gestral", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 349, width: 18, minSat: 0.35, refL: 0.5 } } },
   // The coat is the navy band; his golden fur stays his own.
-  // Nikita's admiral can: rigged with legs he doesn't have, so they stay still and he floats.
-  skippy: { model: "custom/Skippy", clips: SKIPPY_CLIPS, synth: true, float: 0.18, height: 0.95, dress: { kind: "none" } },
+  // Nikita's admiral can: rigged with legs he doesn't have, so they stay still and he floats. The navy of the hat
+  // and coat takes the shell colour, so each of Skippy's subminds wears its room's (the gold braid stays gold).
+  skippy: { model: "custom/Skippy", clips: SKIPPY_CLIPS, synth: true, float: 0.18, height: 0.95, dress: { kind: "bands", shell: SKIPPY_NAVY } },
   yordle: { model: "custom/Heimerdinger", clips: SYNTH_CLIPS, synth: true, dress: { kind: "bands", shell: { hue: 230, width: 20, minSat: 0.3, refL: 0.25 } } },
   crawler: { model: "scifi-essentials/Enemy_Trilobite", clips: CRAWLER_CLIPS, dress: { kind: "tint", roughness: 0.92, metalness: 0.05 } },
   masked: { model: "monsters/Big/Tribal", anims: "monster-big", clips: MONSTER_CLIPS, dress: { kind: "none" } },

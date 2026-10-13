@@ -29,11 +29,11 @@ const UPKEEP_EVERY_HOURS = 6;
 /** `chat` is work Nikita asked for in chat and a thread is building outside the lanes; it shows here so the Foundry lists everything in flight. */
 export type CrateKind = "fix" | "idea" | "build" | "upkeep" | "chat";
 export type CrateState = "queued" | "working" | "ready" | "stuck" | "shipped";
-/** The Foundry crew, by agent id: Skippy (semicolon) first responder, Rocky (caret) master builder, Rusty (tessellate) upkeep and ideas. */
+/** The Foundry crew, by agent id: Ember (semicolon), the room's submind, first responder, Rocky (caret) master builder, Rusty (tessellate) upkeep and ideas. */
 export type CrewId = "semicolon" | "caret" | "tessellate";
 
 export const CREW: Record<CrewId, { name: string; job: string }> = {
-  semicolon: { name: "Skippy", job: "First responder" },
+  semicolon: { name: "Ember", job: "First responder" },
   caret: { name: "Rocky", job: "Master builder" },
   tessellate: { name: "Rusty", job: "Upkeep and ideas" },
 };
@@ -142,7 +142,7 @@ export function visibleUpkeep(crates: Crate[], now = Date.now()): Crate | null {
 }
 
 /**
- * Whose lane a crate is in: Skippy takes first tries at fixes, Rocky the harder rungs and approved builds, Rusty
+ * Whose lane a crate is in: Ember takes first tries at fixes, Rocky the harder rungs and approved builds, Rusty
  * upkeep and ideas. Chat work has no lane; `assignCrew` hands it to whoever is free.
  */
 export function crewFor(crate: Pick<Crate, "kind" | "rung">): CrewId {

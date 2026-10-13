@@ -7,8 +7,8 @@ const asset = (p: string) => `${import.meta.env.BASE_URL}tide/${p}`;
 
 /** What the Lattice is doing while you wait. In-world, as ever. */
 const LINES = [
-  "Waking the Kernel",
-  "The Kernel would like it noted that it was already awake",
+  "Waking Skippy, the Magnificent",
+  "Skippy would like it noted that he was already awake",
   "Seating the Great Houses",
   "House Constitution is drafting a statement",
   "Untangling the Gepetti's strings",

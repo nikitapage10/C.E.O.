@@ -17,7 +17,7 @@ The room agents (Rocky, Rusty, Dialtone, Blasto and the rest) do the work their 
 
 | Room | Submind | Colour | Picks between |
 | --- | --- | --- | --- |
-| Foundry | Ember (also the first responder) | ember orange | Claude Code models: Haiku, Sonnet, Opus (the fix ladder in [FOUNDRY.md](FOUNDRY.md)) |
+| Foundry | Ember | ember orange | Claude Code models: Haiku, Sonnet, Opus (the fix ladder in [FOUNDRY.md](FOUNDRY.md)) |
 | Spire | Gilt | gold | (simulated for now) |
 | Exchange | Ticker | mint | (simulated for now) |
 | Green | Turf | lime | (simulated for now) |
@@ -87,4 +87,4 @@ in the awesomeness".
 
 Skippy hovers over the Kernel and speaks on the Lattice-wide PA (the old Kernel announcements). Each submind wears
 the admiral can in its room's colour, walks the room between the stations checking on whoever is working, and is
-sarcastic about it. The Foundry's submind, Ember, also does the first-try fixes.
+sarcastic about it. Rivet, back on the Foundry bench, does the first-try fixes; Ember conducts.

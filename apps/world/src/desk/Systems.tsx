@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { LINK_STATE_LABEL, useSystems } from "../systems.ts";
-import { Connections } from "./Connections.tsx";
 import { DESK_ROOMS, roomImage, type DeskRoom } from "./deskData.ts";
 import { FoundryDiagram } from "./FoundryDiagram.tsx";
 import { FoundrySystem } from "./FoundryPage.tsx";
@@ -153,8 +152,6 @@ export function Systems({ now }: { now: number }) {
           <FoundrySystem />
         </>
       )}
-
-      <Connections />
 
       <section className="planned" aria-label="Systems to come">
         <header className="section-head">

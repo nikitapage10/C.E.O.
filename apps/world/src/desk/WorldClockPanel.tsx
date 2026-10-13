@@ -1,6 +1,7 @@
 import type { LinkState } from "../systems.ts";
 import { formatUsd } from "../usage.ts";
 import { CLOCK_SLOW_MS, clockHeadline, clockState, clockTime, nextLine, span, useWorldClock } from "../worldClock.ts";
+import { WorldHowItWorks } from "./HowItWorks.tsx";
 import { link } from "./nav.ts";
 import { Panel, Pill } from "./ui.tsx";
 import "./worldClock.css";
@@ -8,7 +9,8 @@ import "./worldClock.css";
 /**
  * The world clock on the Systems page (issue #53): whether the living Lattice took its hourly step, when the next is
  * due, who wrote the last hour and the world's spend this month against its $6 share. Read live from
- * GET /api/world-step (worldClock.ts polls it every minute); `now` ticks the ages between reads.
+ * GET /api/world-step (worldClock.ts polls it every minute); `now` ticks the ages between reads. Its "How it works"
+ * pop-over explains the connections behind the step (issue #99).
  */
 
 const PILL: Record<LinkState, string> = { ok: "Ticking", slow: "Overdue", down: "Stopped", off: "Not running" };
@@ -100,9 +102,12 @@ export function WorldClockPanel({ now }: { now: number }) {
               Steps at :05 each hour. Amber past {Math.round(CLOCK_SLOW_MS / 60_000)} min, stopped past 3 h.
               {checkedAt ? ` Read ${clockTime(new Date(checkedAt).toISOString())}.` : ""}
             </span>
-            <a className="panel__hint" href="/chronicle" onClick={link("chronicle")}>
-              The Chronicle →
-            </a>
+            <span className="wclock__links">
+              <WorldHowItWorks />
+              <a className="panel__hint" href="/chronicle" onClick={link("chronicle")}>
+                The Chronicle →
+              </a>
+            </span>
           </p>
         </div>
       </div>

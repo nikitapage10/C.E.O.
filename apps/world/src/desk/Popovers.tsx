@@ -3,13 +3,14 @@ import { createPortal } from "react-dom";
 import { placePopover, pointerBox, type Box, type Placement } from "./popover.ts";
 
 /**
- * Pop-over cards that explain the thing under the pointer (issue #80, shared since #90): the Systems page's How it
- * connects and its system diagrams (#94), and every item on Security and Compliance. A scope holds at most one open
- * card. An item opens it on hover (after a short delay), on keyboard focus, or on a tap; a tap or click pins it until
- * Escape, a tap elsewhere, or another tap on the item. The card is a `role="tooltip"` the item names with
- * `aria-describedby`, portalled to the Desk's root (the page beneath animates in with a transform, which would trap a
- * fixed card), and placed by placePopover so it never leaves the screen. An item that `follow`s puts its card at the
- * mouse and moves it with the pointer while it's over the item; keyboard focus and taps put it beside the item.
+ * Pop-over cards that explain the thing under the pointer (issue #80, shared since #90): the Systems page's system
+ * diagrams (#94) and world clock, which carry each part's How it works (#99), and every item on Security and
+ * Compliance. A scope holds at most one open card. An item opens it on hover (after a short delay), on keyboard
+ * focus, or on a tap; a tap or click pins it until Escape, a tap elsewhere, or another tap on the item. The card is a
+ * `role="tooltip"` the item names with `aria-describedby`, portalled to the Desk's root (the page beneath animates in
+ * with a transform, which would trap a fixed card), and placed by placePopover so it never leaves the screen. An item
+ * that `follow`s puts its card at the mouse and moves it with the pointer while it's over the item; keyboard focus
+ * and taps put it beside the item.
  * Reduced motion drops its entrance (desk.css).
  */
 

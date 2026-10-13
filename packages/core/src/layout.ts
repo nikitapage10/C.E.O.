@@ -79,8 +79,9 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("assembler", "Assembly arm", -1.2, -1.6, 0),
       s("furnace", "Test furnace", 3.4, -1.6, 0),
       s("shipping", "Shipping dock", 5.8, 2.6, -Math.PI / 2),
-      s("bench-a", "Workbench A", -4.2, 3.2, Math.PI),
-      s("bench-b", "Workbench B", -0.6, 3.2, Math.PI),
+      // Rusty's workbenches, toward the front in the middle so the front left stays clear for the dock (#110).
+      s("bench-a", "Workbench A", FOUNDRY_FLOOR.benches[0][0], FOUNDRY_FLOOR.benches[0][1], Math.PI),
+      s("bench-b", "Workbench B", FOUNDRY_FLOOR.benches[1][0], FOUNDRY_FLOOR.benches[1][1], Math.PI),
       // Rocky's drafting table: he stands on the hall side of it, over the plan.
       s("drafting", "Drafting table", FOUNDRY_FLOOR.drafting.x, FOUNDRY_FLOOR.drafting.z + 0.9, 0),
       // Where a job is handed up to Rocky, beside the table.

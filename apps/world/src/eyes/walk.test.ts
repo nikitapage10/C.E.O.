@@ -134,7 +134,7 @@ describe("Brogu's eyes: walking", () => {
 
   it("bumps into the things no agent's route crosses, too: the boiler", () => {
     expect(blocked("boiler", 4.2, -2.2)).toBe(true);
-    expect(blocked("foundry", 0, 4.6)).toBe(false);
+    expect(blocked("foundry", -5, 4.6)).toBe(false);
   });
 
   it("can always walk out of somewhere he shouldn't be", () => {

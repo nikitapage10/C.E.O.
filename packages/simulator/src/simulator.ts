@@ -1,6 +1,8 @@
 import {
   LINEAGES,
   ROOMS,
+  getStation,
+  type Activity,
   travelTime,
   type AgentEvent,
   type AgentEventBody,
@@ -21,6 +23,8 @@ import {
 import { createRng } from "./rng.ts";
 import { SCRIPTS, coffeeBreak, type ScriptId, type Step } from "./scripts.ts";
 
+/** What counts as working, to a submind on its rounds. */
+const BUSY: ReadonlySet<Activity> = new Set(["working", "typing", "carrying"]);
 
 interface Actor {
   spec: SimAgent;
@@ -31,6 +35,8 @@ interface Actor {
   pendingApprovalId: string | null;
   /** When the agent's current walk ends (so an interruption never cuts a walk short). */
   walkEnd: number;
+  /** What it was last seen doing (for a submind looking for someone busy to check on). */
+  activity: Activity;
 }
 
 export interface SimulatorOptions {
@@ -63,6 +69,7 @@ export class Simulator {
       taskId: null,
       pendingApprovalId: null,
       walkEnd: 0,
+      activity: "idle" as Activity,
     }));
     for (const actor of this.actors) {
       const { script: _s, breakChance: _b, ...agent } = actor.spec;
@@ -155,6 +162,10 @@ export class Simulator {
 
   /** Everything the demo makes is "simulated", whoever the agent will one day be played by (see isLive). */
   private emit(ts: number, body: AgentEventBody) {
+    if (body.type === "agent.activity") {
+      const actor = this.actors.find((a) => a.spec.id === body.agentId);
+      if (actor) actor.activity = body.activity;
+    }
     this.outbox.push({ ...body, id: `sim-${++this.counter}`, ts, source: "simulated" } as AgentEvent);
   }
 
@@ -214,6 +225,15 @@ export class Simulator {
           const taskId = `task-${++this.counter}`;
           actor.taskId = taskId;
           this.emit(t, { type: "task.started", taskId, agentId: id, title: step.title, room: actor.place.room });
+          continue;
+        }
+        case "checkin": {
+          // Someone in the home room, at a station one can stand beside; the busiest first.
+          const room = actor.spec.home.room;
+          const here = this.actors.filter((o) => o !== actor && o.place.room === room && !getStation(room, o.place.station).exact);
+          const busy = here.filter((o) => o.taskId || BUSY.has(o.activity));
+          const pool = busy.length ? busy : here;
+          if (pool.length) actor.queue.unshift({ kind: "go", station: this.rng.pick(pool).place.station, room });
           continue;
         }
         case "progress":

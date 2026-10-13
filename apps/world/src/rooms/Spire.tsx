@@ -132,7 +132,7 @@ export function Spire() {
       <SpireView />
       <SpireFurnishings />
       <Plant position={[-7.2, 0, 4.8]} scale={1.6} />
-      <Plant position={[6.8, 0, -5.4]} scale={1.3} />
+      <Plant position={[7.3, 0, -5.9]} scale={1.3} />
       <Plant position={[-7.2, 0, -5.4]} scale={1.1} pot={PBR.lacquer("#2b2f36", 0.4)} />
       <pointLight position={[0, 5, 1]} color="#f4f1ea" intensity={26} distance={18} decay={1.6} />
     </group>

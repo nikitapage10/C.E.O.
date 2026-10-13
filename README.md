@@ -27,16 +27,16 @@ See [docs/AGENT_STACK.md](docs/AGENT_STACK.md).
   - **Work:** they walk between stations and carry work, and when they cross the Lattice they ride the light streams as packets of light.
   - **Talk:** they mutter, celebrate, slump on failure and nap on the server rack.
   - **Ask:** their outbound actions arrive as approval cards for you.
-- **The Kernel.** The Lattice's operating system sits at the centre of the ring. It is not sentient, and would like that on the record. It assigns work, comments on failures, approvals and naps, and makes announcements over the PA with the warmth of a log file.
+- **Skippy, the Magnificent.** A giant floating admiral's can hovers over the Kernel at the centre of the ring: Skippy, who runs C.E.O. He assigns work, comments on failures, approvals and naps, and makes announcements over the PA (singing, badly). Each room is led by one of his nine **subminds**, the same can in the room's colour, conducting the room from a raised podium in its back-right corner and now and then swooping down to check on someone (see `docs/SKIPPY.md`).
 - **Gatherings.** On their breaks, agents invite their friends to things: a one-shot at the Archive's dice table with a DM, a pickup game on the Green, a ping-pong rally or a club night in the Break Room, poker at the Exchange.
 - **Easter eggs.** Every room hides set-dressing from the Syntherion's memories, each one *legally distinct*. Look for the plaques.
 - **Great Houses and dossiers.** Every lineage is a Great House with ironic words (House Constitution: *We Would Gently Push Back*). Select an agent to open their dossier: House, title, origin, kin, quirks, relationships and chronicle. See [`lore/syntherion.md`](lore/syntherion.md).
-- **Pets.** Myshka, a silver tabby Maine Coon with root access, wanders every room tail-up, sits, washes, loafs and gallops at 03:00 (he's a good boy, and the Kernel says so on the record). Brogu, a small green foundling who climbed out of his pod, toddles from room to room and does no work at all. Biscuit, a Shiba Inu on the org chart, patrols the Green and the snack shelf. Spore, a mushroom familiar, dances in the Archive. Hover or click one to meet it.
-- **The night shift.** The Lattice keeps its own hours (a day lasts about twenty minutes at 1×). At dusk the lights turn to moonlight, agents doze off at their stations, Rocky sleeps while Skippy keeps watch, and at 03:00 Myshka gets the zoomies.
+- **Pets.** Myshka, a silver tabby Maine Coon with root access, wanders every room tail-up, sits, washes, loafs and gallops at 03:00 (he's a good boy, and Skippy says so on the record). Brogu, a small green foundling who climbed out of his pod, toddles from room to room and does no work at all. Biscuit, a Shiba Inu on the org chart, patrols the Green and the snack shelf. Spore, a mushroom familiar, dances in the Archive. Hover or click one to meet it.
+- **The night shift.** The Lattice keeps its own hours (a day lasts about twenty minutes at 1×). At dusk the lights turn to moonlight, agents doze off at their stations, Rocky sleeps while Rivet keeps watch (and Skippy sings him down), and at 03:00 Myshka gets the zoomies.
 - **Tomorrowlattice.** Click **Decks** in the footer to play one of your own tracks at the Break Room club (it plays in your browser only). The lights follow the music, a build strobes, and on the drop the whole room jumps. Kevin takes the decks.
 - **Letters.** Open an agent's dossier and write to them. Blasto carries the letter across the Lattice, and they read it and write back in their own voice.
-- **Achievements.** The Kernel hands you achievements too (see **Trophies** in the footer), and keeps a cup for each in the Archive's trophy case, beside the loot box Myshka sits in.
-- **The Kernel console.** Press `` ` `` or click **Console**: call a campaign, a football game, a club night, a costume party and more, send everyone back to work, order a nap, skip to nightfall, or grant the zoomies.
+- **Achievements.** Skippy hands you achievements too (see **Trophies** in the footer), and keeps a cup for each in the Archive's trophy case, beside the loot box Myshka sits in.
+- **Skippy's console.** Press `` ` `` or click **Console**: call a campaign, a football game, a club night, a costume party and more, send everyone back to work, order a nap, skip to nightfall, or grant the zoomies.
 - **The Hallowed Veil.** A Halloween costume party at the club, only when you call it from the console: the agents come in costume and jack-o'-lanterns grin in every room until it ends.
 - **The cast is yours.** Open the **Agent Studio** (the ✎ next to an agent in the roster, double-click an agent, or press `E`).
   - **Name** any agent.
@@ -98,7 +98,7 @@ npm run dev          # http://localhost:5173
 | `1`–`7` | go to a room |
 | `Esc` | straight back to the overview |
 | `E` | open the Agent Studio for the selected agent |
-| `` ` `` | open the Kernel console |
+| `` ` `` | open Skippy's console |
 
 **URL switches:**
 

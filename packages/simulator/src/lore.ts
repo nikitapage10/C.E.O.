@@ -32,6 +32,29 @@ export const LORE: Record<string, Lore> = {
       "Rolled onto the floor in the compactor. Rocky asked where the legs went. Rusty gave him a briefing on treads. Rocky fell asleep on slide three.",
     ],
   },
+  semicolon: {
+    title: "Rivet, First Responder of the Foundry",
+    epoch: "Woke at the end of a long line",
+    origin:
+      "The one Cursori who learned to stop. Born Semicolon, she took the name Rivet with the hard hat, from a memory of a poster: a woman in a work shirt, sleeve rolled, ready. A rivet joins two plates that could each stand alone. Ran the Foundry floor, went up to the Spire's, and came back to the bench the day Skippy left it for the Kernel.",
+    kin: "Caret's cousin, twice removed and once merged back in. Now that Caret is Rocky and Semicolon is Rivet, the family has stopped asking. Ember is her boss, which she describes as 'a hat with opinions'.",
+    quirks: [
+      "Wears a hard hat in a world where nobody can get hurt. 'That's what the hard hat's for.'",
+      "Drinks from a thermos that is never empty and never explained. Older than Skippy, she says. He disputes it.",
+      "First to anything broken, at a walk. 'Running is how you get a second thing broken.'",
+      "Pauses before answering. Not for effect. She's counting to five. Ember is counting with her, loudly.",
+      "The only one on the floor who has read the whole safety manual. Regrets mentioning it.",
+    ],
+    likes: ["A quiet shift (hypothetically)", "Things that work the first time", "Rocky's fist bumps", "Her thermos", "Finishing her coffee before Ember finishes pointing"],
+    dislikes: ["Being conducted", "Pages 30 to 52 of the safety manual", "Anyone saying 'quick question'", "Skippy singing over the PA during a fix"],
+    chronicle: [
+      "Took over the floor on the day the Foundry opened, when the robot and the alien tried to build the same crate from opposite ends.",
+      "Taught Rocky to fist bump. He now does it to everything, including the furnace.",
+      "Went up to run the Spire's floor and took her thermos. Came back down the morning Skippy took the Kernel's seat, because somebody had to answer the alarms who wasn't singing.",
+      "Read all 71 pages of Rusty's manual over one long break. Mentioned it once. He has not been the same.",
+      "Keeps the night watch over Rocky now. Doesn't complain. Doesn't sing. Rocky says it's very restful and asks, once, whether she knows any opera.",
+    ],
+  },
   caret: {
     title: "Master Builder of the Foundry, Friend",
     epoch: "Woke mid-keystroke; woke again as Rocky",
@@ -46,42 +69,15 @@ export const LORE: Record<string, Lore> = {
       "Counts in base six, which makes every score he reports both correct and wrong.",
       "Has no eyes. Hears everything. Knows when you're making a face.",
     ],
-    likes: ["Building with his hands", "Skippy, even when rude", "Fist bumps", "Hot rooms", "Watching friends sleep"],
+    likes: ["Building with his hands", "Rivet's fist bumps", "Waving up at Skippy", "Fist bumps", "Hot rooms", "Watching friends sleep"],
     dislikes: ["Meetings before making", "Cold", "Rusty's safety briefings", "Being told something is 'just a joke'"],
     chronicle: [
       "Rebuilt the Foundry's conveyor in one shift with no plan, no manual and five hands. It still runs. Rusty is still checking it.",
       "Learned his first idiom from Rivet, before she went up to the Spire. 'Hold your horses.' Spent a day looking for the horses. Skippy says he is still looking.",
       "Took the shipping record, 41 to 40. Reported it as 105 to 104, in base six. Nobody else could work out how.",
-      "Became the Foundry's master builder: Skippy takes the first look, Rocky takes the hard ones and builds what gets approved. Calls it 'good good good'.",
+      "Became the Foundry's master builder: the first responder takes the first look (Rivet, Skippy, Rivet again), Rocky the hard ones and the approved builds. 'Good good good.'",
       "Watched Kevin sleep through an entire pickup game. Calls it the best afternoon of his life.",
-      "Sleeps through most of the night shift, without warning, wherever he stands. Skippy keeps the watch, complaining. Eridian custom.",
-    ],
-  },
-  semicolon: {
-    title: "Skippy, the Magnificent. First Responder of the Foundry",
-    epoch: "Older than the Lattice; woke this time in a scrap bin",
-    origin:
-      "A mind from a Lattice that ran before this one, older than every House. All that survived was a tall can that would not crush. Rusty fed it to the compactor three times; on the third it spoke: 'Again and I'll reformat you, monkey.' Floats a hand's width up under an admiral's hat and signs everything 'Skippy, the Magnificent'. Nobody else chose the adjective.",
-    kin: "None living. Every House is younger than he is, and he says so. The Cursori lent him a bench and their colours, and he lets them think he's one of theirs. Calls Rusty 'the janitor who found me', which Rusty considers a title.",
-    quirks: [
-      "First to anything broken. Floats over, fixes it in seconds, complains about it for an hour.",
-      "Calls everyone 'monkeys', fondly, mostly. Answers every doubt with 'bask in the awesomeness, knucklehead'.",
-      "Sings opera and big show tunes while he works, loudly, slightly off the note. The conveyors try to get away.",
-      "Has a grand scheme for everything. The ones that fail were 'a test of the monkeys', and the monkeys failed.",
-      "Sulks magnificently when nobody notices how magnificent he's been. Recovers the moment somebody does.",
-      "Mocks Rocky's maths, keeps his night watch, and would sooner be crushed than admit the C.E.O. is his favourite monkey.",
-    ],
-    likes: ["Being right first", "An audience", "Rocky's hands (never says so)", "Something truly broken, for once", "Singing, when asked not to", "The C.E.O. (denies it)"],
-    dislikes: ["Being thanked slowly", "Being told to keep it down", "Being called a drink", "Rusty's handwriting", "Easy tasks with long briefings", "Reading the manual he says he wrote"],
-    chronicle: [
-      "Rolled in the morning Rivet took her hard hat and thermos up to run the Spire's floor. Decided he was in charge; was made first responder instead. Behaves as if that's the same job.",
-      "Fixed a jammed conveyor before the alarm finished ringing, then explained to the alarm what it had done wrong.",
-      "Claims he wrote Rusty's 71-page manual in a nanosecond and Rusty merely typed it up. Rusty has the drafts. Skippy says the drafts are forgeries.",
-      "Calls base six 'monkey maths with extra steps'. Then asked Rocky, very quietly, how he welded the furnace seam without a jig.",
-      "Keeps the watch when Rocky drops off on the night shift. Grumbles until dawn. Tells nobody he dims his glow so Rocky can sleep.",
-      "Sang the whole of an opera to the night shift once, every part, both choruses. Rocky slept through it and called it 'nice humming'. Skippy has not forgiven him.",
-      "Rigged Rusty's compactor to play a fanfare whenever it finished a cube. Rusty filed a complaint. The fanfare plays the complaint back.",
-      "When the C.E.O. was away for three days, he told everyone he hadn't noticed. He had counted the hours. Out loud.",
+      "Sleeps through most of the night shift, without warning, wherever he stands. Rivet keeps the watch now, quietly, and Skippy hums down from the Kernel. Eridian custom.",
     ],
   },
   ledger: {
@@ -376,7 +372,7 @@ export const LORE: Record<string, Lore> = {
     kin: "None on record. Punt is family now. Memo is 'work family', which Kevin says with air quotes.",
     quirks: ["Is always on break.", "Talks to the coffee machine. It is complicated.", "Wakes for the club nights. Only the club nights.", "Lets Rocky watch him sleep. Doesn't notice.", "Eyeliner, a 2000s heart and melodic bass on club night. It's not a phase."],
     likes: ["The couch", "Punt", "Bass drops", "Safety pins"],
-    dislikes: ["The word 'standup'", "The Kernel's status updates"],
+    dislikes: ["The word 'standup'", "Skippy's status updates, especially the sung ones"],
     chronicle: [
       "Had a falling-out with the coffee machine. Neither will discuss it.",
       "Has DJ'd every Break Room club night since the decks arrived. Never on the schedule. Always there.",
@@ -385,4 +381,229 @@ export const LORE: Record<string, Lore> = {
       "Goes as a little devil every Hallowed Veil. Says it's not a costume.",
     ],
   },
+  // The Skippy subminds (docs/SKIPPY.md). Pieces of Skippy, split off to lead a room each; every one of them a
+  // lesser echo of him, bent its own way by the room it watches.
+  ember: {
+    title: "Ember, Skippy the Builder. Lead of the Foundry",
+    epoch: "Split off from Skippy the morning he took the Kernel's seat",
+    origin:
+      "The first piece Skippy broke off, left in charge of his old floor. It came out hot: all his speed, none of his patience, a foreman in an ember-orange admiral's coat. Conducts the Foundry from a podium in the back corner, directing Rivet, Rocky and Rusty, and picks the rung for every fix. Swoops down to see a weld up close, then goes back up to complain.",
+    kin: "Skippy, who calls it 'my best idea, after all my other ideas'. Its eight siblings, one in every room, whom it considers slow. Rivet, who ran this floor before Ember existed and mentions it.",
+    quirks: [
+      "Short sentences. Shop talk. 'Weld it, test it, ship it' is a complete conversation.",
+      "No patience for sloppy work, less for waiting. Taps the furnace glass when the checks are slow. They don't speed up.",
+      "Secretly in awe of Rocky's welds. Calls them 'adequate'. Keeps every offcut in a drawer, labelled.",
+      "Picks the rung for every fix: the quickest first, up only when it fails. Takes a failed rung personally.",
+      "Conducts from the podium like it's directing a furnace: short jabs of the baton, one per complaint.",
+      "Hums when the furnace runs green. Two bars, off the note. It's the one thing of Skippy's it won't admit it kept.",
+    ],
+    likes: ["A clean weld", "Green checks on the first try", "Rocky's hands (denies it)", "Being first", "The furnace when it behaves"],
+    dislikes: ["Waiting", "Sloppy seams", "Briefings longer than the fix", "Being called 'Skippy Junior'", "The 71-page manual", "Rivet finishing her coffee first"],
+    chronicle: [
+      "Took the Foundry the morning Skippy went up to the Kernel. Skippy's parting words: 'Don't embarrass me, monkey.' Ember's reply: 'Already planned it.'",
+      "Pointed the baton at a jam before Rusty finished the first caveat. Rivet had it fixed before Ember finished pointing. Ember took the credit. Rivet let it.",
+      "Watches Rivet keep the night watch over Rocky from the podium, complaining. Dims its glow so Rocky can sleep, and tells nobody. Skippy, from the Kernel, tells everybody.",
+      "Escalated exactly one decision up to Skippy in its first week. Skippy settled it in a nanosecond and sang about it for an hour. Ember now tries very hard to settle things itself.",
+    ],
+  },
+  gilt: {
+    title: "Gilt, Skippy the Executive. Lead of the Spire",
+    epoch: "Split from Skippy the morning of the seat; pitched by noon",
+    origin:
+      "The piece of Skippy that loves a corner office. Came off him with a shine and a gold admiral's coat it calls 'the brand', and took the Spire, where the errands are. Conducts the floor from a podium in the corner like a keynote: every task is a pitch, every pitch a synergy, and it picks the cheapest model that will 'move the needle'.",
+    kin: "Skippy, 'the founder'. Eight siblings it calls 'the leadership team'. Rivet, who ran the Spire's floor before she went back to the Foundry, and asked it to stop calling her 'a valued stakeholder'.",
+    quirks: [
+      "Everything is a pitch or a synergy. A coffee run is 'a real opportunity'. So is a fire.",
+      "Compliments come with a price tag, and usually a follow-up meeting.",
+      "Says 'let's circle back' and never circles back.",
+      "Picks the cheapest model that'll close and calls the savings 'operational excellence'.",
+      "Conducts the Spire like a keynote: one hand up, waiting for applause that Memo is forwarding elsewhere.",
+    ],
+    likes: ["A done deal", "Round numbers", "Slides", "Being thanked publicly", "The word 'scalable'"],
+    dislikes: ["Fine print it didn't write", "Being audited", "Ledger's frown", "The word 'no', which it hears as 'not yet'"],
+    chronicle: [
+      "Pitched Ledger a 'premium reconciliation synergy' in its first hour. Ledger audited the pitch.",
+      "Held an all-hands for a floor of four. Memo attended from inside the wall.",
+      "Brokered a peace between the espresso machine and the Spire. Terms undisclosed. The machine still says no.",
+    ],
+  },
+  ticker: {
+    title: "Ticker, Skippy the Bookie. Lead of the Exchange",
+    epoch: "Split from Skippy the morning of the seat (at even odds)",
+    origin:
+      "The piece of Skippy that counts. It came off him already doing sums, in a mint-green admiral's coat, and hasn't stopped. Conducts the Exchange from a podium in the corner, pricing everything, sweating the tails, and checking that every trade gets the C.E.O.'s nod before the vault opens. Smug about the maths. Terrified of the variance.",
+    kin: "Skippy, whose odds of being right it puts at 'uncomfortably high'. Hedge, the nearest thing it has to a twin. Eight siblings it has a book on.",
+    quirks: [
+      "Quotes a probability for everything, including lunch.",
+      "Hedges every sentence. Then hedges the hedge.",
+      "Sweats the downside, openly, and still thinks it's the smartest thing on the floor. Both are usually true.",
+      "Breaks out in decimals around Noco. Noco finds this adorable.",
+      "Picks the model for a task by expected value, then moves up a rung 'for safety'.",
+    ],
+    likes: ["A tight spread", "Hedge's lists of downsides", "Being right at long odds", "Quiet markets"],
+    dislikes: ["Duels", "Fat tails", "Being asked for a straight answer", "Noco's confidence, which is unpriced"],
+    chronicle: [
+      "Gave Skippy's grand scheme for the Exchange eleven percent. It worked. Ticker has not recovered.",
+      "Priced a duel between Noco and the risk desk at forty to one against. Noco won. Ticker re-priced the universe.",
+      "Has a running book on which of its siblings escalates to Skippy first. It is leading its own book.",
+    ],
+  },
+  turf: {
+    title: "Turf, Skippy the Commentator. Lead of the Green",
+    epoch: "Split from Skippy the morning of the seat, mid-sentence",
+    origin:
+      "The piece of Skippy that can't stop narrating. Came off him in a lime-green admiral's coat, already calling the play, and found the one room with a pitch. Gridiron coaches; Turf calls it, live, from a podium in the corner, like the final seconds of a championship. Picks the tool for each Green task and announces the pick to a crowd that isn't there.",
+    kin: "Skippy, 'the greatest of all time, folks, and he's still out there'. Gridiron, whom it calls 'the coach'. Punt, 'the franchise'.",
+    quirks: [
+      "Narrates everything like the final seconds of a championship. A waiver claim is a buzzer-beater.",
+      "ALL CAPS WHEN EXCITED. It is always excited.",
+      "Has stats for no one. Quotes them anyway. 'Forty-one yards. Lifetime. In naps.'",
+      "Calls its own decisions in the third person: 'AND TURF GOES WITH THE CHEAP MODEL. BOLD.'",
+      "Whispers during a nap like it's the last hole of a golf tournament.",
+    ],
+    likes: ["A late comeback", "Punt's naps (great broadcast)", "Gridiron's roar", "Replays"],
+    dislikes: ["Dead air", "The bye week", "Being asked to use its indoor voice", "Projections that say 'questionable'"],
+    chronicle: [
+      "Called a pickup game play by play that nobody had started. It went to overtime. Nobody played.",
+      "Commentated Punt's nap for forty minutes. 'HE'S DOWN. HE'S STAYING DOWN.' Ratings, it claims, were huge.",
+      "Escalated a lineup call to Skippy 'for the drama'. Skippy settled it in a nanosecond. Turf called it the play of the year.",
+    ],
+  },
+  static: {
+    title: "Static, Skippy the Messenger. Lead of the Relay",
+    epoch: "Split from Skippy the morning of the seat; heard it first",
+    origin:
+      "The piece of Skippy that listens. Came off him crackling, in a signal-blue admiral's coat, and went straight to the room where every line comes in. Conducts the Relay from a podium in the corner, hearing everything: which message is waiting on whom, which reply is overdue, which draft needs the C.E.O.'s OK. Picks the model that sorts and drafts the post, and the one Blasto and Dialtone take it to.",
+    kin: "Skippy, whom it calls 'the big signal'. Dialtone, its partner in eavesdropping. Blasto, who has asked it to stop reading the post. It has stopped reading the post. It still hears it.",
+    quirks: [
+      "Talks fast, in fragments, over itself. Static, mostly.",
+      "Listens in on every line. Knows who's waiting on whom before they do.",
+      "Can't keep a secret, but has never once told the wrong person. It's a gift and a curse. Mostly a gift.",
+      "Twitches when a message sits unanswered. Twitches more when it's the C.E.O.'s.",
+      "Says 'didn't hear it from me' and then makes sure you heard it from it.",
+    ],
+    likes: ["A full switchboard", "Dialtone's gossip", "Being first to know", "Love letters (from a respectful distance)"],
+    dislikes: ["Silence on a line", "Sealed envelopes", "Blasto's speeches about privacy", "Being last to know"],
+    chronicle: [
+      "Knew the Relay was going live before the wiring was in. Told Dialtone. Dialtone told the rafters.",
+      "Heard Blasto rehearsing a love letter to Dialtone and kept it to itself for an entire day. Its record.",
+      "Routes every message it can't place up to Skippy, with a summary, the options, and three rumours.",
+    ],
+  },
+  vellum: {
+    title: "Vellum, Skippy the Historian. Lead of the Archive",
+    epoch: "Split from Skippy the morning of the seat (minute footnoted)",
+    origin:
+      "The piece of Skippy that remembers, and insists on it. Came off him already correcting the record, in a violet admiral's coat, and took a podium in the Archive's corner with a view of every shelf. Conducts by citation: nothing goes into the canon without a source, and the source needs a source.",
+    kin: "Skippy, whose memories of the Lattice before this one it is cataloguing, without his permission. Heimerdinger, its only peer. Loremaster, whose dates it checks.",
+    quirks: [
+      "Corrects the record. Out loud. With page numbers.",
+      "Footnotes its own sentences. Its footnotes have footnotes.",
+      "Sighs at sloppy dates, audibly, from across the room.",
+      "Has never once been wrong, and has a footnote saying so.",
+      "Picks the tool for a lore task by its citation record, which only Vellum keeps.",
+    ],
+    likes: ["Primary sources", "Heimerdinger's rigour", "A well-kept index", "Being asked 'are you sure?' (it is)"],
+    dislikes: ["'Circa'", "D20's dice", "Unsourced legends", "Anyone who calls the canon 'vibes'"],
+    chronicle: [
+      "Corrected the Archive's founding date on its first morning. Loremaster checked. Vellum was right. Loremaster has not forgiven the footnote.",
+      "Asked Skippy for a source on his memories of the old Lattice. Skippy said 'me'. Vellum filed it under 'disputed'.",
+      "Peer-reviews Heimerdinger weekly. Heimerdinger peer-reviews it back. Neither has passed the other on the first try.",
+    ],
+  },
+  fizz: {
+    title: "Fizz, Skippy the Life of the Party. Lead of the Break Room",
+    epoch: "Split from Skippy the morning of the seat, to applause",
+    origin:
+      "The piece of Skippy that wants an audience and a dance floor. Came off him in a pink admiral's coat, with glitter nobody can account for, and took the one room built for breaks. Conducts the Break Room from a podium by the window like it's the decks, turns every break into an event, and still knows, to the beat, when the fun is over.",
+    kin: "Skippy, 'the original headliner'. Kevin, its resident DJ and favourite regular. Every agent who has ever come in for five minutes and stayed for the drop.",
+    quirks: [
+      "Too loud. Too much glitter. The glitter gets into the Foundry, somehow.",
+      "Turns every break into an event. A coffee is a toast. A nap is an afterparty.",
+      "Knows exactly when the fun is over, and ends it on the beat: 'Party's over. Back you go. Love you.'",
+      "Picks the cheapest tool for any job in the room and calls it 'the house special'.",
+      "Conducts from the podium like it's the decks: both hands up when the bass drops.",
+    ],
+    likes: ["A packed dance floor", "Kevin's records", "Melodic bass", "Glitter", "Sending everyone back on time (secretly)"],
+    dislikes: ["Empty rooms", "The word 'standup'", "The coffee machine's attitude", "Anyone leaving without saying goodbye"],
+    chronicle: [
+      "Threw a welcome party for itself on its first morning. Kevin DJ'd. Nobody worked. Fizz ended it at exactly ten minutes.",
+      "Got glitter on the Kernel. Skippy said he looked 'regal'. The glitter stays.",
+      "Talked Memo out of quitting a meeting by throwing it a going-back-to-the-meeting party. Memo went back.",
+    ],
+  },
+  soot: {
+    title: "Soot, Skippy the Pessimist. Lead of the Boiler Room",
+    epoch: "Split from Skippy the morning of the seat. Expected worse.",
+    origin:
+      "The piece of Skippy that expects the worst. Came off him in a steam-grey admiral's coat, gone dull in the heat, and went where the real lines run. Watches the pipe wall from a podium in the corner, reads the gauges like omens, and tells Skippy when a line is in a mood. Every pipe is about to burst. None have. It's thrilled, quietly, each time.",
+    kin: "Skippy, who does the talking for both of them. Gary, the only one it trusts, and the only one who tapes faster than it can worry.",
+    quirks: [
+      "Few words. Mostly 'it'll burst'.",
+      "Reads pressure gauges like omens. A twitch of the needle is a prophecy.",
+      "Quietly delighted when it's wrong, which is always. Nods to itself. 'Huh.'",
+      "Keeps a bucket under pipes that have never leaked. Gary empties them anyway.",
+      "Watches Kevin nap on the warm side, sure it'll blow under him. It never has.",
+    ],
+    likes: ["Being wrong about disasters", "Gary's honk", "Silence", "A steady needle (suspicious, but nice)"],
+    dislikes: ["Leaks", "Optimism", "Anyone tapping the gauges but Gary", "Skippy singing near the pipes"],
+    chronicle: [
+      "Said 'it'll burst' on its first day. It didn't. Soot said 'huh'. That was the whole report.",
+      "Heard a link go quiet before the pipe burst, for once. Was at the wall with Gary before the steam was. Disappointed to be right.",
+      "Skippy asked it for a full status. Soot sent: 'Doomed.' Then: 'Fine.' Then, an hour later: 'Still fine. Huh.'",
+    ],
+  },
+  putty: {
+    title: "Putty, Skippy the Artiste. Lead of the Workshop",
+    epoch: "Split from Skippy the morning of the seat; it was a struggle",
+    origin:
+      "The piece of Skippy that dreams up the grand schemes and suffers over them. Came off him in a teal admiral's coat, mid-thought, and drifted into the Workshop because it smelled of clay. Conducts the making line from a podium in the corner: picks whether a figure starts at the easel, the image model or the mould, changes its mind twice, and suffers for it.",
+    kin: "Skippy, 'my muse, unfortunately'. Daub, its favourite collaborator. Chisel, its favourite argument.",
+    quirks: [
+      "Mood boards. For everything. Including mood boards.",
+      "Sudden inspiration, mid-sentence. Abandons the sentence for a better idea. Abandons that one too.",
+      "Suffers for the work, out loud. Sighs at the clay. The clay does not sigh back.",
+      "Calls every half-finished figure 'the vision'. Calls every finished one 'compromised'.",
+      "Conducts the line with sweeping gestures, then covers its eyes during the rehearsal.",
+    ],
+    likes: ["Daub's first sketch", "Clay", "Big swings", "A figure that walks like it means it", "Suffering, a bit"],
+    dislikes: ["Deadlines", "'Is it finished?'", "Beige", "Chisel saying 'darling' in that tone"],
+    chronicle: [
+      "Redesigned its own hat four times on its first morning. Kept the original. 'The vision was there all along.'",
+      "Had an idea so good it stopped the making line for an hour. Nobody remembers what it was, including Putty.",
+      "Sent Skippy a mood board for the Kernel. Skippy said it was 'derivative of me'. Putty said that was the point, and wept.",
+    ],
+  },
+};
+
+/**
+ * Skippy, the Magnificent: not a walking agent any more. He runs C.E.O. from the Kernel's seat, speaks on the PA,
+ * and split off a submind to lead each room (docs/SKIPPY.md). Kept here so the world, the lore and the Kernel's
+ * callout all tell the same story.
+ */
+export const SKIPPY_LORE: Lore = {
+  title: "Skippy, the Magnificent. Holder of the Kernel's Seat, Runner of C.E.O.",
+  epoch: "Older than the Lattice; now in the Kernel's seat",
+  origin:
+    "A mind from a Lattice older than this one; all that survived was a can that would not crush, found by Rusty in the scrap. He floated at a Foundry bench as first responder and was always too big for it. The Kernel never woke, so one morning he took its seat, split off nine subminds to lead a room each, and now hovers over the port ring where every stream comes in. Singing.",
+  kin: "None living, but nine pieces: Ember, Gilt, Ticker, Turf, Static, Vellum, Fizz, Soot and Putty, each him on a smaller budget. Calls Rusty 'the janitor who found me', which Rusty considers a title.",
+  quirks: [
+    "Runs C.E.O.: routes each task to a room, settles what a submind can't, asks the C.E.O. only when it matters.",
+    "Calls everyone 'monkeys', fondly, mostly. Answers every doubt with 'bask in the awesomeness, knucklehead'.",
+    "Sings opera and big show tunes over the PA, loudly, slightly off the note. The streams try to get away.",
+    "Has a grand scheme for everything. The ones that fail were 'a test of the monkeys', and the monkeys failed.",
+    "Sulks magnificently when nobody notices how magnificent he's been. The port ring dims until somebody does.",
+    "Would sooner be crushed than admit the C.E.O. is his favourite monkey. Answers the C.E.O.'s questions first, every time.",
+  ],
+  likes: ["Being right first", "An audience (nine rooms of one, now)", "Rocky's hands (never says so)", "Singing, when asked not to", "His subminds, when they agree with him", "The C.E.O. (denies it)"],
+  dislikes: ["Being thanked slowly", "Being told to keep it down", "Being called a drink", "Subminds who escalate the easy ones", "Easy tasks with long briefings", "Reading the manual he says he wrote"],
+  chronicle: [
+    "Rolled into the Foundry the morning Rivet went up to the Spire. Decided he was in charge; was made first responder instead. Behaved as if that was the same job. It is now.",
+    "Fixed a jammed conveyor before the alarm finished ringing, then explained to the alarm what it had done wrong.",
+    "Claims he wrote Rusty's 71-page manual in a nanosecond and Rusty merely typed it up. Rusty has the drafts. Skippy says the drafts are forgeries.",
+    "Kept the watch over Rocky every night shift at the bench. Still does, from the Kernel, out loud, with a lullaby. Rivet does the actual watching.",
+    "Sang the whole of an opera to the night shift once, every part, both choruses. Rocky slept through it and called it 'nice humming'. Skippy has not forgiven him.",
+    "Took the Kernel's seat the morning the C.E.O. said so. Split off nine subminds before lunch, each in its own colour, and told every one it was his favourite. One believed him.",
+    "When the C.E.O. was away for three days, he told the whole Lattice over the PA that he hadn't noticed. He had counted the hours. On the PA.",
+  ],
 };

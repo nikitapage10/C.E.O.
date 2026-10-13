@@ -1,6 +1,21 @@
-import { AgentEventSchema, ROOM_IDS, applyEvents, emptyState, pendingApprovals } from "@ceo/core";
+import {
+  AgentEventSchema,
+  OBSTACLES,
+  POST_HALF,
+  POST_HEIGHT,
+  ROOMS,
+  ROOM_HALF_D,
+  ROOM_HALF_W,
+  ROOM_IDS,
+  WALK_CLEARANCE,
+  applyEvents,
+  emptyState,
+  getStation,
+  pendingApprovals,
+  type Box,
+} from "@ceo/core";
 import { describe, expect, it } from "vitest";
-import { SAMPLE_AGENTS } from "./agents.ts";
+import { SAMPLE_AGENTS, SUBMINDS, isSubmind, submindOf } from "./agents.ts";
 import { Simulator } from "./simulator.ts";
 
 const TEN_MINUTES = 10 * 60 * 1000;
@@ -91,5 +106,53 @@ describe("assign", () => {
     const events = sim.advanceTo(180_000);
     expect(events.some((e) => e.type === "agent.moved" && e.agentId === "kevin" && e.to.station === "seat-w")).toBe(true);
     expect(sim.assign("nobody", [])).toBe(false);
+  });
+});
+
+describe("the Skippy subminds", () => {
+  it("every room has exactly one submind (a Room lead), homed at its conductor's post", () => {
+    for (const room of ROOM_IDS) {
+      const leads = SAMPLE_AGENTS.filter((a) => a.home.room === room && a.role === "Room lead");
+      expect(leads, room).toHaveLength(1);
+      expect(leads[0]!.home.station).toBe("post");
+      expect(isSubmind(leads[0]!.id)).toBe(true);
+      expect(submindOf(room).id).toBe(leads[0]!.id);
+    }
+    expect(SUBMINDS).toHaveLength(ROOM_IDS.length);
+    expect(new Set(SUBMINDS.map((m) => m.colour)).size).toBe(SUBMINDS.length);
+  });
+
+  it("each post is a raised spot in the back-right corner, outside every obstacle, and its podium blocks nothing", () => {
+    const overlap = (a: Box, b: Box) => Math.abs(a.x - b.x) < a.hw + b.hw && Math.abs(a.z - b.z) < a.hd + b.hd;
+    for (const room of ROOM_IDS) {
+      const post = getStation(room, "post");
+      expect(post.exact, room).toBe(true);
+      expect(post.y ?? 0, room).toBeGreaterThanOrEqual(POST_HEIGHT);
+      // Back-right as the default camera sees it (+x, -z), inside the walls, well clear of the gate at (0, -6.9).
+      expect(post.x, room).toBeGreaterThan(5.5);
+      expect(post.z, room).toBeLessThan(-4);
+      expect(post.x + POST_HALF, room).toBeLessThanOrEqual(ROOM_HALF_W);
+      expect(post.z - POST_HALF, room).toBeGreaterThanOrEqual(-ROOM_HALF_D);
+      const podium: Box = { x: post.x, z: post.z, hw: POST_HALF, hd: POST_HALF };
+      const furniture = (OBSTACLES[room] ?? []).filter((b) => !(b.x === post.x && b.z === post.z));
+      expect(furniture.length, room).toBe((OBSTACLES[room]?.length ?? 0) - 1);
+      // The post itself stands outside every other obstacle, with room to walk round it...
+      expect(furniture.some((b) => Math.abs(post.x - b.x) < b.hw + WALK_CLEARANCE && Math.abs(post.z - b.z) < b.hd + WALK_CLEARANCE), room).toBe(false);
+      // ...the podium's footprint overlaps no furniture...
+      expect(furniture.some((b) => overlap(podium, b)), room).toBe(false);
+      // ...and no other station is on it.
+      for (const st of ROOMS[room].stations) {
+        if (st.id !== "post") expect(Math.abs(st.x - post.x) < POST_HALF && Math.abs(st.z - post.z) < POST_HALF, `${room}/${st.id}`).toBe(false);
+      }
+    }
+  });
+
+  it("subminds conduct from the post, never nap, and now and then come down to check on someone", () => {
+    const { events } = run(4, 6 * TEN_MINUTES);
+    const ids = new Set(SUBMINDS.map((m) => m.id));
+    expect(events.some((e) => e.type === "agent.activity" && ids.has(e.agentId) && e.activity === "napping")).toBe(false);
+    expect(events.some((e) => e.type === "agent.activity" && ids.has(e.agentId) && e.activity === "waiting")).toBe(true);
+    const swoops = events.filter((e) => e.type === "agent.moved" && ids.has(e.agentId) && e.to.station !== "post");
+    expect(swoops.length).toBeGreaterThan(0);
   });
 });

@@ -72,7 +72,7 @@ export function Callouts() {
       {ROOM_IDS.map((id) => (
         <RoomCallout key={id} id={id} />
       ))}
-      <Callout position={[1.8, 14, 0]} title="The Kernel" canon="confirmed" reads={["Syntherion · unfinished", "Glass 0.78 · still being written"]} />
+      <Callout position={[1.8, 14, 0]} title="Skippy, the Magnificent" canon="confirmed" reads={["Runs C.E.O. from the Kernel", "Nine subminds · one per room"]} />
     </group>
   );
 }

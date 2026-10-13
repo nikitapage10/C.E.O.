@@ -9,14 +9,14 @@ import { create } from "zustand";
 const KEY = "ceo.cast.v2";
 /** Bumped when the default looks are re-cast: saved casts take the new looks once, keeping names and personalities. */
 const LOOKS_KEY = "ceo.cast.looks";
-const LOOKS_REV = 8;
+const LOOKS_REV = 9;
 /** Default names that were changed: a saved cast still using any of the old ones takes the new one. */
 const RENAMED: Record<string, [string[], string]> = {
   caret: [["Caret"], "Rocky"],
   odds: [["Odds"], "Noco"],
   postmaster: [["Postmaster"], "Blasto"],
-  // Semicolon became Rivet, and Rivet handed the bench to Tallboy.
-  semicolon: [["Semicolon", "Rivet", "Tallboy"], "Skippy"],
+  // Semicolon became Rivet, who handed the bench to Tallboy, then Skippy; Skippy took the Kernel and Rivet came back (an early cut of the change called the bench Ember).
+  semicolon: [["Semicolon", "Tallboy", "Skippy", "Ember"], "Rivet"],
   tessellate: [["Tessellate"], "Rusty"],
 };
 
@@ -32,7 +32,7 @@ function rename(profiles: Record<string, Profile>) {
  * relationships once, keeping their looks (and any name you chose yourself).
  */
 const LORE_KEY = "ceo.cast.lore";
-const LORE_REV = 6;
+const LORE_REV = 7;
 
 function readRev(key: string) {
   try {

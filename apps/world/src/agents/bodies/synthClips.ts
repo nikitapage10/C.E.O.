@@ -179,7 +179,16 @@ export function synthesizeClips(model: Object3D, walk: AnimationClip): Animation
         LeftForeArm: [i === 1 ? 0.6 : 0.1, 1, 0], RightForeArm: [i === 1 ? -0.1 : -0.6, 1, 0],
       },
     }))),
-    build(model, bones, base, "Slump", [0, 3].map((t, i) => ({
+    // A conductor's beat: the right hand up and forward like a baton, sweeping across the room; the left lifted to
+    // hold the section. (The Skippy subminds direct their rooms with it.)
+    build(model, bones, base, "Conduct", [
+      { t: 0, turns: { ...look(-0.2, -0.05), Spine2: [-0.04, -0.1, 0] }, aims: { LeftArm: [0.45, -0.25, 0.6], LeftForeArm: [0.1, 0.25, 1], RightArm: [-0.55, 0.35, 0.75], RightForeArm: [-0.35, 0.55, 1] } },
+      { t: 0.55, turns: { ...look(0.05, 0), Spine2: [-0.04, 0, 0] }, aims: { LeftArm: [0.45, -0.2, 0.6], LeftForeArm: [0.1, 0.3, 1], RightArm: [-0.2, 0.55, 0.8], RightForeArm: [-0.05, 0.9, 0.6] } },
+      { t: 1.1, turns: { ...look(0.25, -0.05), Spine2: [-0.04, 0.1, 0] }, aims: { LeftArm: [0.45, -0.25, 0.6], LeftForeArm: [0.1, 0.25, 1], RightArm: [0.05, 0.3, 0.85], RightForeArm: [0.35, 0.45, 1] } },
+      { t: 1.65, turns: { ...look(0.05, 0), Spine2: [-0.04, 0, 0] }, aims: { LeftArm: [0.45, -0.2, 0.6], LeftForeArm: [0.1, 0.3, 1], RightArm: [-0.2, 0.55, 0.8], RightForeArm: [-0.05, 0.9, 0.6] } },
+      { t: 2.2, turns: { ...look(-0.2, -0.05), Spine2: [-0.04, -0.1, 0] }, aims: { LeftArm: [0.45, -0.25, 0.6], LeftForeArm: [0.1, 0.25, 1], RightArm: [-0.55, 0.35, 0.75], RightForeArm: [-0.35, 0.55, 1] } },
+    ]),
+    build(model, bones, base, "Slump",[0, 3].map((t, i) => ({
       t,
       turns: { Spine1: [0.3 + i * 0.03, 0, 0], Spine2: [0.25, 0, 0], Neck: [0.45, 0, 0] },
       aims: { LeftArm: [0.1, -1, 0.3], RightArm: [-0.1, -1, 0.3], LeftForeArm: [0, -1, 0.3], RightForeArm: [0, -1, 0.3] },

@@ -832,7 +832,7 @@ export function Workshop() {
       <Model id="fantasy-props/Cabinet" fit={{ height: 1.9 }} position={[-7.5, 0, -4.4]} rotation={Math.PI / 2} cast />
       <Model id="fantasy-props/Scroll_1" fit={{ length: 0.4 }} position={[1.2, 0.95, 4.6]} rotation={0.4} />
       <Model id="fantasy-props/Lantern_Wall" fit={{ height: 0.45 }} position={[-7.75, 2.2, 0.4]} rotation={Math.PI / 2} />
-      <Model id="nature/Plant_1_Big" fit={{ height: 0.9 }} position={[7.3, 0, -4.8]} />
+      <Model id="nature/Plant_1_Big" fit={{ height: 0.9 }} position={[3.4, 0, -5.8]} />
 
       <Dust min={[-7.4, 0.4, -5.6]} size={[14.8, 3.8, 10]} count={46} color="#ffe2b0" opacity={0.4} />
       {[-3.5, 3.5].map((x) => (

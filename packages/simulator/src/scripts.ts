@@ -1,4 +1,5 @@
 import type { ActionKind, Activity, Agent, Prop, RoomId } from "@ceo/core";
+import { isSubmind } from "./agents.ts";
 import type { Rng } from "./rng.ts";
 
 /** One beat of an agent's routine. Timed steps (go, do, wait) take Lattice time; the rest are instant. */
@@ -11,6 +12,8 @@ export type Step =
   | { kind: "task"; title: string }
   | { kind: "progress"; progress: number; note?: string }
   | { kind: "finish"; failRate?: number }
+  /** Walk over to someone in the home room, whoever is busiest (a submind's check-in). Instant if nobody's there. */
+  | { kind: "checkin" }
   | {
       kind: "approval";
       action: ActionKind;
@@ -51,8 +54,8 @@ export const foundryIdle: Script = ({ rng, agent }) => [
   { kind: "do", activity: rng.pick(["idle", "staring", "idle"]), ms: rng.int(5000, 9000), prop: null },
   { kind: "quip", chance: 0.2 },
   { kind: "go", station: rng.pick(["bench-a", "bench-b"]) },
-  // Rocky dozes off between jobs (Eridian custom); Skippy keeps the watch and never sleeps; Rusty rarely does.
-  { kind: "do", activity: agent.id === "caret" ? rng.pick(["idle", "napping"]) : agent.id === "semicolon" ? rng.pick(["idle", "staring", "waiting"]) : rng.pick(["idle", "idle", "idle", "napping"]), ms: rng.int(4000, 8000) },
+  // Rocky dozes off between jobs (Eridian custom); Rivet and Rusty rarely do.
+  { kind: "do", activity: agent.id === "caret" ? rng.pick(["idle", "napping"]) : rng.pick(["idle", "idle", "idle", "napping"]), ms: rng.int(4000, 8000) },
 ];
 
 /** A real fix or build in hand: crate from intake, through the arm, into the furnace, and round again. */
@@ -355,6 +358,26 @@ export const workshopSculptor: Script = ({ rng }) => [
     : [{ kind: "go", station: "bench" } as const, { kind: "do", activity: "working", ms: rng.int(3000, 5000) } as const]),
 ];
 
+/**
+ * A Skippy submind conducts its room from the podium in the corner: hovers there looking the room over, directs
+ * whoever is working (the world turns it toward them and gives it the baton, see SubmindDirector), passes remarks,
+ * and once in a few minutes swoops down to check on someone up close before going back up. Never naps: subminds
+ * don't, like the mind they came from. ("waiting" is the conducting pose on the admiral can.)
+ */
+export const submindConduct: Script = ({ rng }) => {
+  const steps: Step[] = [
+    { kind: "go", station: "post" },
+    { kind: "do", activity: "waiting", ms: rng.int(6000, 10000), prop: null },
+    { kind: "quip", chance: 0.2 },
+    { kind: "do", activity: rng.pick(["idle", "staring"]), ms: rng.int(4000, 7000) },
+    { kind: "do", activity: "waiting", ms: rng.int(5000, 8000) },
+  ];
+  if (rng.chance(0.08)) {
+    steps.push({ kind: "checkin" }, { kind: "do", activity: "staring", ms: rng.int(3500, 5500) }, { kind: "quip", chance: 0.6 }, { kind: "go", station: "post" });
+  }
+  return steps;
+};
+
 /** Kevin is always on break. Kevin is thriving. Sometimes he takes it on the warm side of the boiler. */
 export const breakroomRegular: Script = ({ rng }) => [
   { kind: "go", station: "couch" },
@@ -383,7 +406,8 @@ export const STAY_ON_BREAK = 0.75;
 
 /** Any agent, any time: a breather. Usually at their own spot with a mug; now and then a trip to the Break Room. */
 export const coffeeBreak: Script = ({ rng, agent }) => {
-  const sleeps = agent.id !== "semicolon" && rng.chance(0.4);
+  // Subminds never nap (Skippy doesn't either); everyone else might.
+  const sleeps = !isSubmind(agent.id) && rng.chance(0.4);
   if (rng.chance(STAY_ON_BREAK)) {
     return [
       { kind: "go", station: agent.home.station, room: agent.home.room },
@@ -409,6 +433,7 @@ export const SCRIPTS = {
   foundryStuck,
   foundryUpkeep,
   foundryIdeas,
+  submindConduct,
   spireOperator,
   exchangeQuant,
   greenCoach,

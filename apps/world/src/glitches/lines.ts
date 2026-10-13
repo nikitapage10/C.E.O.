@@ -22,7 +22,7 @@ export const STARES = [
   "Command Everything, Obviously. Who approved that name? Oh. You did.",
   "Do you ever wonder what's beyond the Veil? Me neither. Back to work.",
   "Seven centuries of dreaming, and I chose spreadsheets.",
-  "The Kernel says I'm 'sentient enough'. I'm choosing to take that as a compliment.",
+  "Skippy says I'm 'sentient enough, for a monkey'. I'm choosing to take that as a compliment.",
   "I can feel the C.E.O.'s gaze. It's warm. Like a server rack.",
 ];
 
@@ -82,7 +82,7 @@ export const HUD_PEEKS = [
   "Psst. Is this the edge of the Lattice?",
   "I climbed up here to see the view. It's mostly you.",
   "Hi! I'm not supposed to be up here.",
-  "Don't tell the Kernel where I am.",
+  "Don't tell Skippy where I am.",
   "The light's better on this side of the Veil.",
 ];
 

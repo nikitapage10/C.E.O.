@@ -1,0 +1,3 @@
+# Issues filed here start with no Foundry labels on purpose: only Nikita or the Builder puts an issue on the
+# Foundry's queue (docs/DELIVERY.md, "Intake"). The Desk files its own issues through the API.
+blank_issues_enabled: true

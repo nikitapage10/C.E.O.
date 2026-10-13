@@ -116,7 +116,8 @@ playbook already allows needs no one.
 ## Branches and deploys
 
 Everything the Foundry codes on its own lands through a branch and a pull request, never a direct push to `main`.
-(Changes Nikita asks for in chat still go straight to `main`.)
+(Changes Nikita asks for in chat still go straight to `main`.) The whole pipeline, from intake to rollback, with the
+pull request template, the CI gates and the ruleset for `main`, is in [DELIVERY.md](DELIVERY.md).
 
 | Lane | Branch | Merges when |
 | --- | --- | --- |

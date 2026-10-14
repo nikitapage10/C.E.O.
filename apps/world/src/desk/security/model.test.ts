@@ -73,10 +73,10 @@ describe("statuses come from the doc's own words", () => {
     const by = Object.fromEntries(OWASP_LLM.map((r) => [r.id, statusOf(r.controls, r.tracking)]));
     expect(by).toEqual({
       LLM01: "tracked",
-      LLM02: "tracked",
+      LLM02: "covered",
       LLM03: "covered",
       LLM04: "accepted",
-      LLM05: "open",
+      LLM05: "covered",
       LLM06: "tracked",
       LLM07: "accepted",
       LLM08: "not-applicable",

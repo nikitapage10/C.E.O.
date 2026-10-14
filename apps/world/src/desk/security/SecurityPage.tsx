@@ -55,7 +55,7 @@ export function SecurityPage({ now }: { now: number }) {
             note={feed?.scorecard ? "out of 10, OpenSSF" : feed ? "Not reported yet" : "Waiting"}
             tone={feed?.scorecard ? scoreTone(feed.scorecard.score) : "off"}
           />
-          <Stat id="evals" label="Injection evals" value={String(EVALS.total)} note={`${EVALS.passing} pass · ${EVALS.expectedFail} known gap`} tone="ok" />
+          <Stat id="evals" label="Injection evals" value={String(EVALS.total)} note={EVALS.expectedFail ? `${EVALS.passing} pass · ${EVALS.expectedFail} known ${EVALS.expectedFail === 1 ? "gap" : "gaps"}` : `${EVALS.passing} pass · no known gaps`} tone="ok" />
           <Stat id="risks" label="LLM risks open" value={String(tally.open)} note={`of 10 · ${todo} on the roadmap`} tone={tally.open ? "slow" : "ok"} />
         </ul>
 

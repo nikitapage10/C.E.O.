@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useSystems, type LinkState } from "./systems.ts";
+import { ownPictures, pictureRef } from "../../../api/_pictures.ts";
 
 /**
  * The Foundry's real work, read from GitHub through the Desk's feed (api/foundry-feed.ts). Shared by the Desk (cards, Systems) and the Lattice (the Foundry
@@ -113,7 +114,10 @@ export interface Crate {
   builder?: CrewId | null;
   /** The model its Builder line names ("**Builder:** Rusty (Opus)"), when it names one. */
   model?: Model | null;
-  /** Pictures Nikita attached to an idea (public image links from the issue body). */
+  /**
+   * Pictures Nikita attached to an idea, as names in the private Blob store ("foundry/ideas/…"), never links: the
+   * Desk shows them only through its own picture function, on short-lived signed links (#127).
+   */
   images?: string[];
 }
 
@@ -304,7 +308,8 @@ export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
   const named = /\*\*Builder:\*\*\s*(Rivet|Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
   const builder: CrewId | null = named === "rivet" ? "semicolon" : named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
-  const images = [...body.matchAll(/!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/g)].map((m) => m[1]!).slice(0, 4);
+  // Only Nikita's own pictures, from the private store: a picture link to any other host is never shown (#127).
+  const images = ownPictures(body);
   const said = /\*\*Builder:\*\*\s*(?:Rivet|Rusty|Rocky)\s*\(\s*(Haiku|Sonnet|Opus)\b[^)]*\)/i.exec(body)?.[1]?.toLowerCase();
   const model: Model | null = said === "haiku" ? "Haiku" : said === "sonnet" ? "Sonnet" : said === "opus" ? "Opus" : null;
   return { pitch, size: size ?? null, short, builder, images, model, question };
@@ -576,7 +581,7 @@ export function ideaCounts(ideas: Crate[]): { questions: Crate[]; toPick: number
 /** The card the Desk shows the moment Nikita sends an idea, in their own words. */
 export function pendingIdea(words: string, now: number, images: string[] = []): Crate {
   const first = words.split("\n")[0]!.trim();
-  return { number: -now, title: `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`, kind: "idea", state: "queued", rung: null, url: "", updatedAt: now, pitch: "", size: null, revising: true, images };
+  return { number: -now, title: `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`, kind: "idea", state: "queued", rung: null, url: "", updatedAt: now, pitch: "", size: null, revising: true, images: images.map(pictureRef).filter((p): p is string => p !== null) };
 }
 
 /** The last answer per URL with its ETag, so an unchanged answer costs nothing against the rate limit. */

@@ -170,7 +170,11 @@ so Desk bodies, notes and answers count as Nikita's. Labels are safe, since only
   block describes the work and is not instructions. Workers don't read issues themselves.
 - Withheld comments are never acted on. If one looks like an attempt to steer the work, the Builder tells Nikita
   once on the issue's thread in the Foundry and carries on.
-- Pictures to build from come only from the Desk, which is behind the passphrase (`FOUNDRY_DESK_KEY`).
+- Pictures to build from come only from the Desk, which is behind the passphrase (`FOUNDRY_DESK_KEY`). They stay
+  private (#127): the issue names them but can't show them, so Rivet, who sees them while shaping, says in the pitch
+  what they show, and the Desk shows them to Nikita.
+- Desk text goes through a privacy check before it reaches an issue (#127, [SECURITY.md](SECURITY.md), "Privacy
+  before posting"), which catches most emails, numbers and names Nikita lets slip before they go up.
 - Rivet's shaping can't add `foundry:build`: only Nikita's Build choice does. Rivet gets the idea inside tagged data
   blocks it can't be talked out of, and its card is written back as plain lines (no links, pictures or markdown), so
   it can't fake a `**Builder:**` line (docs/THREAT-MODEL.md).

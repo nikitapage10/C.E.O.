@@ -70,17 +70,23 @@ const labelsOf = (i: FeedIssue) => i.labels.map((l) => (typeof l === "string" ? 
 const MAX_LINES = 12;
 
 /**
+ * Text with its disguises taken off: invisible format characters dropped and full-width look-alikes folded to plain
+ * ASCII, so "ｎｉｋｉｔａ＠…" or a key split by a zero-width space reads like the plain one. `scrub` and the Desk's
+ * privacy check (api/_privacy.ts) both start here.
+ */
+export function unmask(text: string): string {
+  return text.replace(/\p{Cf}/gu, "").replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+}
+
+/**
  * Hide anything sensitive that could slip into a line: email addresses, phone numbers, links, money, and anything that
  * looks like a key or token. Agents may talk about anything (Nikita, 2026-10-13); the Lattice is public, so this is
  * the one limit.
  */
 export function scrub(text: string): string {
-  return text
-    // Invisible characters and full-width look-alikes first, so "ｎｉｋｉｔａ＠…" or a key split by a zero-width space
-    // is caught like the plain one; then emails spelled out as "name [at] host [dot] com". The name part is bounded
-    // (an address's local part is at most 64 characters), so a long run of letters costs linear time, not quadratic.
-    .replace(/\p{Cf}/gu, "")
-    .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+  return unmask(text)
+    // Emails spelled out as "name [at] host [dot] com" first. The name part is bounded (an address's local part is at
+    // most 64 characters), so a long run of letters costs linear time, not quadratic.
     .replace(/\b[\w.+-]{1,64}\s*[[(]\s*at\s*[\])]\s*[\w-]{1,64}(\s*[[(]\s*dot\s*[\])]\s*[\w-]{1,64})+/gi, "[private]")
     .replace(/[\w.+-]{1,64}@[\w-]+(\.[\w-]+)+/g, "[private]")
     .replace(/https?:\/\/\S+/g, "[link]")

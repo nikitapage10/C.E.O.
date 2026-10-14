@@ -157,8 +157,9 @@ describe("readBody", () => {
   it("reads the pitch and size the Foundry writes into an idea", () => {
     expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [], model: null, short: "", question: "" });
   });
-  it("reads attached pictures from the markdown", () => {
-    expect(readBody("**Pitch:** Look.\n\n![Picture 1](https://x.public.blob.vercel-storage.com/a.jpg)\n![Picture 2](https://x.public.blob.vercel-storage.com/b.png)\n![bad](http://no.tls/c.png)").images).toEqual(["https://x.public.blob.vercel-storage.com/a.jpg", "https://x.public.blob.vercel-storage.com/b.png"]);
+  it("reads attached pictures as names in the private store, and only the Desk's own (#127)", () => {
+    const body = "**Pitch:** Look.\n\n![Picture 1](https://ceo.example/api/foundry-image?p=foundry%2Fideas%2Fold.jpg)\n![other](https://x.public.blob.vercel-storage.com/a.jpg)\n![bad](http://no.tls/c.png)\n\n**Pictures:** 1, kept private and shown only on the Desk (foundry/ideas/b.png)";
+    expect(readBody(body).images).toEqual(["foundry/ideas/old.jpg", "foundry/ideas/b.png"]);
   });
   it("reads Rivet's question line", () => {
     const body = "**Pitch:** Add a thing.\n**Size:** small\n**Builder:** Rusty (Sonnet)\n**Question:** Should it also work on the phone?\n\n**From Nikita (on the Desk):**\n\nadd a thing";

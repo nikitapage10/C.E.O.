@@ -1,7 +1,7 @@
 /**
  * The Foundry's read feed for the Desk and the Lattice, as a Vercel function. The browser used to ask GitHub
  * directly, but GitHub allows an anonymous visitor only 60 requests an hour, and a few reloads used that up, leaving
- * the Desk stuck on "Connecting to GitHub…". Here the four reads go out with the Foundry's token (5,000 an hour) and
+ * the Desk stuck on "Connecting to GitHub…". Here the four reads go out with the Foundry's token (5,000 an hour; api/_github.ts) and
  * the answer is cached at Vercel's edge for a few seconds, so every open tab shares one set of requests.
  *
  * A request with any query string is redirected to the bare URL so it hits the edge cache, and a warm function keeps
@@ -11,14 +11,13 @@
  */
 
 import { canonical, memo } from "./_feedcache.js";
+import { githubToken } from "./_github.js";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
 
-const env = (name: string): string => process.env[name] ?? "";
-
 async function read(path: string): Promise<unknown> {
-  const token = env("FOUNDRY_GITHUB_TOKEN");
+  const token = await githubToken("read");
   const res = await fetch(`${GH}${path}`, {
     headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });

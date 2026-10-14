@@ -314,9 +314,9 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "The builder's worst slips (wiping a folder, pushing to main, printing a key, changing the repo's protection) are now rules it can't break, not only rules it follows.",
   },
   R2: {
-    what: "A GitHub App for the agents, with short-lived tokens, so they act as themselves rather than as Nikita.",
-    connects: "The Foundry's branches, pull requests and merges.",
-    why: "Separate identities make the agents' actions auditable and let the repo's rules treat them differently.",
+    what: "A GitHub App for the crew, ceo-foundry, whose tokens last an hour and reach only this repo, so the Desk's buttons, the feeds and CI's fix issues act as the Foundry rather than as Nikita. It can't touch settings or workflows.",
+    connects: "The Desk's functions and CI today, once Nikita sets the App up. The Claude Code sessions' pushes and merges still use Nikita's access, which their environment sets, not the repo.",
+    why: "Separate identities make the agents' actions auditable and let the repo's rules treat them differently, and a token that leaks is useless within the hour.",
   },
   R3: {
     what: "A real sign-in for the Desk: a passkey, a short session and rate limits.",

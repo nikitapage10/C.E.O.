@@ -48,7 +48,9 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script | Shaping is off; hours and scripts come from the agents' own lines |
 | `GEMINI_API_KEY` | Gemini's text to speech: the day's story, read aloud (#95). Sent only in a request header, with only the day's scrubbed script | No audio; the Chronicle says so |
 | `GEMINI_BUDGET_USD` | Gemini's monthly cap, enforced in code (`api/_world/story.ts`); default 5, never above 10 | $5 |
-| `FOUNDRY_GITHUB_TOKEN` | The Desk's buttons write issues; the feeds read with it | Buttons say "not set up" |
+| `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below): every function mints its own hour-long token for this repo, as `ceo-foundry[bot]`. Production only | The functions use `FOUNDRY_GITHUB_TOKEN`, as before |
+| `FOUNDRY_APP_INSTALLATION_ID` | Optional: the App's installation, to skip one lookup | Looked up once per warm function |
+| `FOUNDRY_GITHUB_TOKEN` | The fallback until the App is set up: a fine-grained token that acts as Nikita. The Desk's buttons write issues with it; the feeds read with it | With the App set, nothing is lost; without either, buttons say "not set up" and the feeds read anonymously |
 | `FOUNDRY_DESK_KEY` | The Desk's passphrase, compared in constant time | Buttons and the story backfill say "not set up" |
 | `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
 | `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
@@ -72,12 +74,73 @@ access only to the job that needs it.
 
 ## Keys in GitHub Actions
 
-One secret lives in the repo's Actions secrets (Settings > Secrets and variables > Actions) rather than in Vercel,
-because only a workflow uses it. Workflows never print it, and the job that holds it has read-only permissions.
+These live in the repo's Actions secrets (Settings > Secrets and variables > Actions) rather than in Vercel, because
+only a workflow uses them. Workflows never print them.
 
 | Secret | What it is for | Without it |
 | --- | --- | --- |
+| `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below). Only the two `report` jobs (`checks.yml`, `visual-qa.yml`) use them, to open fix issues as `ceo-foundry[bot]` with a token that can only write issues and is revoked when the job ends | Those jobs write with the built-in token, as before |
 | `GEMINI_API_KEY` | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91): clips of the public Lattice go to Gemini. Sent only to Google's API host in a header, never printed; spend capped in code at $0.50 a run and eight pushed runs a day. The same name in Vercel is the separate key for the day's story (above) | The tour still records; the review is skipped |
+
+## The crew's own identity
+
+The crew has its own GitHub identity (#138, R2 in [THREAT-MODEL.md](THREAT-MODEL.md)): a GitHub App called
+`ceo-foundry`, installed on this repo only, that acts as `ceo-foundry[bot]`. Once it is set up:
+
+- **Every Vercel function that talks to GitHub** mints its own token from the App's key (`api/_github.ts`): a JSON Web
+  Token signed with the key, exchanged for an installation token for this repo only, kept until five minutes before
+  it expires (GitHub gives them an hour). The Desk's buttons get a token that can only write issues; the feeds and the
+  world step get one that can only read. Production only: previews get no App key.
+- **CI's fix issues** (`checks.yml` and `visual-qa.yml`, the `report` jobs) come from the App too, on a token that can
+  only write issues and is revoked when the job ends. No workflow's permissions changed.
+- **The Foundry's readers trust it like the Desk**: `scripts/foundry-issue.sh` shows its words in their own block,
+  and the world step counts its trail steps. Look-alike accounts are still withheld.
+- **Until then, and whenever GitHub won't mint a token**, everything works exactly as before, on
+  `FOUNDRY_GITHUB_TOKEN` in Vercel and the built-in token in CI. A failed mint is retried after a minute and logs
+  only GitHub's status code.
+
+What it doesn't change: the Foundry's Claude Code sessions push, open pull requests and merge with the GitHub
+access their environment gives them, which is Nikita's account today. That is set where the sessions run, not in this
+repo, so their work still shows as Nikita's (DELIVERY.md, section 10).
+
+**Setup, once (Nikita).** About five minutes on a Mac with the GitHub CLI (`gh`) signed in as `nikitapage10`.
+
+1. **Create the App.** Open https://github.com/settings/apps/new (your picture, top right > Settings > Developer
+   settings > GitHub Apps > New GitHub App).
+   - **GitHub App name:** `ceo-foundry`, exactly: the code trusts `ceo-foundry[bot]` by name. (If GitHub says the
+     name is taken, stop and tell the Foundry which name you picked; a small change follows it in `api/_github.ts` and the two
+     `scripts/foundry-*.sh` readers.)
+   - **Homepage URL:** `https://github.com/nikitapage10/C.E.O.`
+   - **Identifying and authorizing users:** leave every box unticked and the Callback URL empty.
+   - **Webhook:** untick **Active**.
+   - **Permissions > Repository permissions:** Actions: Read-only. Checks: Read-only. Code scanning alerts:
+     Read-only. Contents: Read and write. Dependabot alerts: Read-only. Issues: Read and write. Metadata: Read-only
+     (GitHub sets it). Pull requests: Read and write. Leave everything else on No access, **above all Administration
+     and Workflows**, so the App can't change settings, rulesets or CI. No Organization or Account permissions.
+   - **Where can this GitHub App be installed?** Only on this account.
+   - **Create GitHub App.**
+2. **Make its key.** On the page that opens, note the **App ID** near the top (a number). Scroll to
+   **Private keys** > **Generate a private key**. A file `ceo-foundry.<date>.private-key.pem` lands in Downloads.
+3. **Install it on this repo only.** Left sidebar > **Install App** > **Install** next to `nikitapage10` > **Only
+   select repositories** > `C.E.O.` > **Install**.
+4. **Paste 1, in Terminal on the MacBook** (it needs `gh` signed in there). Paste this, replace `000000` with the App ID, press Return. It sets both GitHub Actions
+   secrets and puts the two Vercel lines on your clipboard (the key as one base64 line); it prints neither.
+
+   ```sh
+   APP_ID=000000; KEY="$(ls -t ~/Downloads/ceo-foundry*.private-key.pem | head -1)"; gh secret set FOUNDRY_APP_ID -R nikitapage10/C.E.O. --body "$APP_ID" && gh secret set FOUNDRY_APP_PRIVATE_KEY -R nikitapage10/C.E.O. < "$KEY" && printf 'FOUNDRY_APP_ID=%s\nFOUNDRY_APP_PRIVATE_KEY=%s\n' "$APP_ID" "$(base64 < "$KEY" | tr -d '\n')" | pbcopy && echo "GitHub secrets set; the Vercel lines are on the clipboard."
+   ```
+
+5. **Paste 2, in Vercel.** The project > **Settings** > **Environment Variables**. Click into the first **Key** field
+   and press ⌘V: Vercel splits the two lines into two variables. Under **Environments**, tick **Production** only
+   (untick Preview and Development). **Save**. Then **Deployments** > the top Production deployment > **⋯** >
+   **Redeploy**, so the functions pick them up.
+6. **Check it, then retire the old token.** The next Desk button you press leaves its trail comment on GitHub as
+   `ceo-foundry[bot]` instead of you. Once it does, delete `FOUNDRY_GITHUB_TOKEN` in Vercel (Environment Variables > ⋯ >
+   Remove) and revoke it on GitHub (Settings > Developer settings > Personal access tokens > Fine-grained tokens), so
+   no long-lived token that acts as you is left. Delete the `.pem` from Downloads; GitHub can make a new key any time.
+
+To rotate the key: the App's page > Private keys > Generate a private key, run steps 4 and 5 again, then delete the
+old key on the same page.
 
 ## Why these tools
 

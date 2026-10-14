@@ -9,6 +9,7 @@
  */
 
 import { canonical, memo } from "./_feedcache.js";
+import { githubToken } from "./_github.js";
 import { readSummaryName, type ReviewState } from "./_visualqa/review.js";
 
 const REPO = "nikitapage10/C.E.O.";
@@ -60,7 +61,7 @@ export function latestOf(runs: unknown, artifacts: unknown): VisualQaRun | null 
 }
 
 async function read(path: string): Promise<unknown> {
-  const token = process.env.FOUNDRY_GITHUB_TOKEN ?? "";
+  const token = await githubToken("read");
   const res = await fetch(`${GH}${path}`, {
     headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });

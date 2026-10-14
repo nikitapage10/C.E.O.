@@ -10,6 +10,7 @@
  */
 
 import { canonical, memo } from "./_feedcache.js";
+import { githubToken } from "./_github.js";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -17,13 +18,11 @@ const GH = `https://api.github.com/repos/${REPO}`;
 const ISSUE_PAGES = 3;
 const COMMENT_PAGES = 5;
 
-const env = (name: string): string => process.env[name] ?? "";
-
 /** Answers by path with their ETag, kept while the function stays warm: an unchanged page costs GitHub nothing. */
 const seen = new Map<string, { etag: string; body: unknown }>();
 
 async function read<T>(path: string): Promise<T> {
-  const token = env("FOUNDRY_GITHUB_TOKEN");
+  const token = await githubToken("read");
   const had = seen.get(path);
   const res = await fetch(`${GH}${path}`, {
     headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(had ? { "If-None-Match": had.etag } : {}) },

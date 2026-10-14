@@ -90,13 +90,27 @@ jobs:
     timeout-minutes: 5
     permissions:
       issues: write
+    env:
+      # The crew's own identity (#138), as in checks.yml: the App's issues-only, hour-long token when its secrets are
+      # set and GitHub mints one, else the built-in token. Only whether they are set is read here.
+      HAS_APP: ${{ secrets.FOUNDRY_APP_ID != '' && secrets.FOUNDRY_APP_PRIVATE_KEY != '' }}
     steps:
+      - name: The crew's token
+        id: app
+        if: env.HAS_APP == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.FOUNDRY_APP_ID }}
+          private-key: ${{ secrets.FOUNDRY_APP_PRIVATE_KEY }}
+          permission-issues: write
       - name: Open or update the Foundry fixes
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
           # Passed as data, never pasted into the script: the text started as model output.
           ISSUES: ${{ needs.tour.outputs.issues }}
         with:
+          github-token: ${{ steps.app.outputs.token || github.token }}
           script: |
             const planned = JSON.parse(process.env.ISSUES || "[]");
             if (!Array.isArray(planned)) return;

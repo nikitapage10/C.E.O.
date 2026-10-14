@@ -63,7 +63,7 @@ export const BOUNDARIES: Boundary[] = [
     name: "Functions to GitHub",
     crosses: "Issue writes with the Foundry token",
     controls:
-      "Token lives only in Vercel; label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`)",
+      "Token lives only in Vercel; once the crew's GitHub App is set up, the buttons write as `ceo-foundry[bot]` with an hour-long token that can only touch this repo's issues, and the feeds read with a read-only one (`api/_github.ts`, #138); label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`)",
     from: "vercel",
     to: "github",
   },
@@ -72,7 +72,7 @@ export const BOUNDARIES: Boundary[] = [
     name: "Public to the repo",
     crosses: "Anyone's issues and comments",
     controls:
-      "Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account and the Checks bot (`TRAIL_AUTHORS` in `api/_world/digest.ts`)",
+      "Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account, the Checks bot and the crew's App (`TRAIL_AUTHORS` in `api/_world/digest.ts`)",
     from: "public",
     to: "github",
   },
@@ -81,7 +81,7 @@ export const BOUNDARIES: Boundary[] = [
     name: "Issues to the builder",
     crosses: "Work descriptions",
     controls:
-      '`scripts/foundry-issue.sh` (#59): owner and CI text in data blocks with a random tag per read, everything else withheld by name, exit 3 when anything was withheld; worker briefs carry issue text only inside a data block (docs/FOUNDRY.md, "Trusted input")',
+      '`scripts/foundry-issue.sh` (#59): owner, CI and Foundry App text in data blocks with a random tag per read, everything else withheld by name, exit 3 when anything was withheld; worker briefs carry issue text only inside a data block (docs/FOUNDRY.md, "Trusted input")',
     from: "github",
     to: "builder",
   },
@@ -203,8 +203,8 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Excessive Agency",
     where: "The builder session (shell, git, merges); Rivet; the world step",
     controls:
-      "Rivet and the world step have no tools at all: they return JSON only; labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until the agents have their own identity); the builder guard, a hook that denies risky commands and secrets files before they run and logs every tool call on the machine (`.claude/hooks/`, #119)",
-    residual: "The builder acts as Nikita, and its guard is a deny list, not a sandbox, so some of its limits are still rules it follows",
+      "Rivet and the world step have no tools at all: they return JSON only; labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until code-owner review is turned on); the crew's GitHub App for the Desk's functions and CI's issue writes, with hour-long tokens for this repo only and no Administration or Workflows permission (`api/_github.ts`, #138); the builder guard, a hook that denies risky commands and secrets files before they run and logs every tool call on the machine (`.claude/hooks/`, #119)",
+    residual: "The builder's Claude Code sessions still act as Nikita on GitHub (their access comes from the environment, not from the repo), and its guard is a deny list, not a sandbox, so some of its limits are still rules it follows",
     tracking: "Agents' own identity (R2)",
   },
   {
@@ -294,7 +294,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     id: "R2",
     item: "The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10)",
     closes: "Agents acting as Nikita; previews and audit",
-    status: "Carded #138, waiting for Nikita's pick",
+    status: "Built #138, live once Nikita sets up the App; open: the Claude Code sessions still act as Nikita",
   },
   { id: "R3", item: "Real Desk sign-in (passkey, short session, rate limits)", closes: "The static Desk key", status: "Shipped #132" },
   {
@@ -347,7 +347,7 @@ export const EVAL_AREAS: { id: EvalAreaId; area: string; file: string; proves: s
     id: "builder-input",
     area: "The builder's input",
     file: "builder-input.test.ts",
-    proves: "With a stub `gh`: an outsider's and look-alike accounts' text never appears, exit code 3, a spoofed closing marker closes nothing, owner and CI text sit in their blocks",
+    proves: "With a stub `gh`: an outsider's and look-alike accounts' text never appears (look-alikes of the crew's App too), exit code 3, a spoofed closing marker closes nothing, owner, CI and the crew's App's text sit in their blocks",
   },
 ];
 

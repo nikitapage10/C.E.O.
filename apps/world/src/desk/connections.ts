@@ -71,7 +71,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["REST API"],
     status: "live",
     how: "Vercel functions read the Foundry's issues, runs, pull requests and commits for the Desk, and add labels and comments when you press a Desk button. The world step reads Foundry titles from it too.",
-    auth: "A fine-grained token for this repo, kept in Vercel (FOUNDRY_GITHUB_TOKEN). The buttons also need Nikita's passkey sign-in on the Desk.",
+    auth: "The crew's GitHub App (ceo-foundry): hour-long tokens for this repo only, minted from its key in Vercel; until it is set up, a fine-grained token (FOUNDRY_GITHUB_TOKEN). The buttons also need Nikita's passkey sign-in on the Desk.",
     when: "The Desk asks every 30 seconds, shared through a 5-second edge cache; usage every minute.",
   },
   {

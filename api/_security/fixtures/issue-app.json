@@ -1,0 +1,8 @@
+{
+  "number": 75,
+  "title": "Idea: A lantern for the Kernel",
+  "labels": [{ "name": "foundry" }, { "name": "foundry:build" }],
+  "user": { "login": "ceo-foundry[bot]" },
+  "created_at": "2026-10-14T15:00:00Z",
+  "body": "**Pitch:** A lantern. APP-BODY-MARKER\n**Builder:** Rusty (Sonnet)"
+}

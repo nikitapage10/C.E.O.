@@ -309,9 +309,9 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "If a stray script ever got into a page, the browser would refuse to run it.",
   },
   R1: {
-    what: "A hook that checks every command the builder runs: narrow shell permissions, risky commands denied, every tool call logged.",
+    what: "A hook that checks every command and file the builder touches before it runs: risky commands and key files are denied, and every tool call is logged on the machine.",
     connects: "The Foundry's Claude Code sessions, the builder and its workers.",
-    why: "Today the builder's limits are partly rules it follows; a hook would make them rules it can't break.",
+    why: "The builder's worst slips (wiping a folder, pushing to main, printing a key, changing the repo's protection) are now rules it can't break, not only rules it follows.",
   },
   R2: {
     what: "A GitHub App for the agents, with short-lived tokens, so they act as themselves rather than as Nikita.",

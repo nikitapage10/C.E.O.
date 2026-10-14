@@ -10,3 +10,5 @@ test-results/
 
 # Claude Code worktrees for subagents
 .claude/worktrees/
+# The builder guard's local tool-call log (#119): stays on the machine
+.claude/logs/

@@ -4,7 +4,9 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/dist/**", "playwright-report/**", "test-results/**", ".claude/**"] },
+  { ignores: ["**/node_modules/**", "**/dist/**", "playwright-report/**", "test-results/**", ".claude/*", "!.claude/hooks/"] },
+  // The builder guard's hooks (#119): Node.
+  { files: [".claude/hooks/*.mjs"], languageOptions: { globals: { ...globals.node } } },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   // Node scripts (the others declare their globals inline); the browser-side code inside page.evaluate reaches the page through globalThis.

@@ -294,7 +294,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     id: "R2",
     item: "The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10)",
     closes: "Agents acting as Nikita; previews and audit",
-    status: "Not carded",
+    status: "Carded #138, waiting for Nikita's pick",
   },
   { id: "R3", item: "Real Desk sign-in (passkey, short session, rate limits)", closes: "The static Desk key", status: "Carded #132, waiting for Nikita's pick" },
   {

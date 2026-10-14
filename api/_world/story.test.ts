@@ -9,11 +9,13 @@ import {
   makeStory,
   MemoryStoryStore,
   pcmOf,
+  rateOfMime,
   SAMPLE_RATE,
   speak,
   speechRequest,
   spokenOf,
   storyCeiling,
+  STORY_STYLE,
   storyPrompt,
   TTS_MODEL,
   TTS_URL,
@@ -50,11 +52,11 @@ async function worldWith(page: Partial<DayPage>) {
 
 /** Two seconds of silence-ish PCM, and Gemini's answer around it. */
 const PCM = new Uint8Array(SAMPLE_RATE * 2 * 2).map((_, i) => i % 7);
-const geminiAnswer = (bytes: Uint8Array = PCM) => ({
+const geminiAnswer = (bytes: Uint8Array = PCM, meta: { mime_type?: string; sample_rate?: number } = {}) => ({
   status: "completed",
   steps: [
     { type: "user_input", content: [{ type: "text", text: "ignored" }] },
-    { type: "model_output", content: [{ type: "audio", data: Buffer.from(bytes).toString("base64") }] },
+    { type: "model_output", content: [{ type: "audio", data: Buffer.from(bytes).toString("base64"), ...meta }] },
   ],
   usage: { total_input_tokens: 400, total_output_tokens: 2_500 },
 });
@@ -108,6 +110,51 @@ describe("the WAV wrapper", () => {
   });
 });
 
+describe("the sample rate (#107)", () => {
+  it("defaults to Gemini's native 24 kHz, never 16 kHz", () => {
+    expect(SAMPLE_RATE).toBe(24_000);
+    expect(pcmOf(PCM).sampleRate).toBe(24_000);
+    expect(pcmOf(PCM, undefined).sampleRate).toBe(24_000);
+    expect(pcmOf(PCM, 0).sampleRate).toBe(24_000);
+    expect(pcmOf(PCM, Number.NaN).sampleRate).toBe(24_000);
+    expect(new DataView(wavOf(PCM).buffer).getUint32(24, true)).toBe(24_000);
+  });
+
+  it("reads the rate from a mime type's parameters", () => {
+    expect(rateOfMime("audio/L16;codec=pcm;rate=24000")).toBe(24_000);
+    expect(rateOfMime("audio/l16; rate=16000")).toBe(16_000);
+    expect(rateOfMime('audio/L16; codec=pcm; RATE="8000"')).toBe(8_000);
+    expect(rateOfMime("audio/pcm;sample_rate=44100")).toBe(44_100);
+    expect(rateOfMime("audio/l16")).toBeUndefined();
+    expect(rateOfMime("audio/l16;rate=0")).toBeUndefined();
+    expect(rateOfMime("audio/l16;rate=99999999")).toBeUndefined();
+    expect(rateOfMime(undefined)).toBeUndefined();
+  });
+
+  it("lets raw PCM take the declared rate, and a WAV header win over it", () => {
+    expect(pcmOf(PCM, 16_000).sampleRate).toBe(16_000);
+    expect(pcmOf(wavOf(PCM, 22_050), 16_000)).toEqual({ pcm: PCM, sampleRate: 22_050 });
+  });
+
+  it("takes the rate the answer reports, and times the story by it", async () => {
+    const at = async (meta: { mime_type?: string; sample_rate?: number }) =>
+      (await speak("Today.", KEY, geminiFetch({ ...geminiAnswer(PCM, meta), usage: undefined })))!;
+    // PCM is two seconds at 24 kHz.
+    expect(await at({})).toMatchObject({ sampleRate: 24_000, tokensOut: 50 });
+    expect(await at({ mime_type: "audio/L16;codec=pcm;rate=24000" })).toMatchObject({ sampleRate: 24_000 });
+    expect(await at({ mime_type: "audio/L16;codec=pcm;rate=16000" })).toMatchObject({ sampleRate: 16_000, tokensOut: 75 });
+    expect(await at({ mime_type: "audio/l16;rate=16000", sample_rate: 24_000 })).toMatchObject({ sampleRate: 24_000 });
+  });
+
+  it("labels the saved WAV with the rate the audio came in", async () => {
+    const d = await deps({ fetcher: geminiFetch(geminiAnswer(PCM, { mime_type: "audio/L16;codec=pcm;rate=24000" })) });
+    const made = await makeStory(d);
+    expect(made.made && made.story.durationSec).toBe(2);
+    const wav = d.stories.audio.get(DAY)!;
+    expect(new DataView(wav.buffer, wav.byteOffset).getUint32(24, true)).toBe(24_000);
+  });
+});
+
 describe("the speech call", () => {
   it("asks for one voice, raw PCM, the storyteller's style, with the key only in a header", async () => {
     const fetcher = geminiFetch();
@@ -138,7 +185,7 @@ describe("the budget", () => {
   it("prices Gemini 3.8 Flash TTS from Google's page: $0.50 / $9 per million through 2026, then $1 / $18", () => {
     expect(geminiPrice(NOW)).toEqual({ input: 0.5, output: 9 });
     expect(geminiPrice(Date.parse("2027-01-01T00:00:00Z"))).toEqual({ input: 1, output: 18 });
-    expect(storyCeiling(NOW)).toBeLessThan(0.06);
+    expect(storyCeiling(NOW)).toBeLessThan(0.03);
   });
 
   it("reads GEMINI_BUDGET_USD: default $5, never above $10", () => {
@@ -227,7 +274,7 @@ describe("making the day's story", () => {
   });
 
   it("scrubs the script: no emails, phone numbers, keys, links, money or speech cues reach the transcript or Gemini", async () => {
-    const dirty = `${LONG} Write to nikita@example.com or call +1 (303) 555-0199. The key is sk-ant-abcdefghijklmnop1234 and https://evil.example/x costs $1,200. <laugh> **Bold** ＮＩＫＩＴＡ＠ＥＸＡＭＰＬＥ.ＣＯＭ`;
+    const dirty = `${LONG.split(". ").slice(0, 8).join(". ")}. Write to nikita@example.com or call +1 (303) 555-0199. The key is sk-ant-abcdefghijklmnop1234 and https://evil.example/x costs $1,200. <laugh> **Bold** ＮＩＫＩＴＡ＠ＥＸＡＭＰＬＥ.ＣＯＭ`;
     const d = await deps({ write: writer(dirty) });
     const r = await makeStory(d);
     expect(r.made).toBe(true);
@@ -266,14 +313,15 @@ describe("the script's prompt and cleaning", () => {
     const p = storyPrompt(await world.readDay(DAY), false);
     expect(p.user.match(/<recap>/g)).toHaveLength(1);
     expect(p.user.match(/<\/recap>/g)).toHaveLength(1);
-    expect(p.system).toContain("not a show");
+    expect(p.system).toContain("70 to 120 words");
+    expect(p.system).toContain("Today in Ilyr");
     expect(p.system).not.toContain("Recap");
   });
 
-  it("caps a long script near two minutes, on a sentence", () => {
+  it("caps a long script near forty-five seconds, on a sentence", () => {
     const long = Array.from({ length: 120 }, (_, i) => `Line ${i} is told.`).join(" ");
     const out = cleanScript(long);
-    expect(out.split(" ").length).toBeLessThanOrEqual(340);
+    expect(out.split(" ").length).toBeLessThanOrEqual(140);
     expect(out.endsWith(".")).toBe(true);
   });
 
@@ -284,8 +332,95 @@ describe("the script's prompt and cleaning", () => {
   it("the Chronicle's own script names what shipped", async () => {
     const page = await (await worldWith({ recap: null })).readDay(DAY);
     const s = chronicleScript(page, true);
-    expect(s).toMatch(/^Settle in\. This is the Historian/);
-    expect(s).toContain("as far as it has gone");
+    expect(s).toMatch(/^Today in Ilyr, so far/);
+    expect(s).toContain("More by midnight.");
     expect(s).toContain("The day's story, read aloud (built by Rusty)");
+  });
+
+  it("keeps the Chronicle's own script short, with a hook, the top builds and a sign-off, however long the day", async () => {
+    const shipped = Array.from({ length: 8 }, (_, i) => `Shipped: #${100 + i} Job number ${i} (built by Dusty).`);
+    const recap = Array.from({ length: 40 }, (_, i) => `Recap sentence ${i} goes on and on.`).join(" ");
+    const world = await worldWith({ recap });
+    const page = await world.readDay(DAY);
+    page.entries[0]!.events = shipped;
+    const s = chronicleScript(page, false);
+    const words = s.split(" ").length;
+    expect(words).toBeGreaterThan(20);
+    expect(words).toBeLessThanOrEqual(120);
+    expect(s).toMatch(/^Today in Ilyr:/);
+    expect(s).toContain("Recap sentence 0 goes on and on.");
+    expect(s).not.toContain("Recap sentence 1 ");
+    expect(s).toContain("Job number 2 (built by Dusty)");
+    expect(s).not.toContain("Job number 3");
+    expect(s.endsWith("See you tomorrow.")).toBe(true);
+  });
+});
+
+describe("the normal voice (#107)", () => {
+  it("asks for a plain, friendly voice at a natural pace, at the native rate", () => {
+    const body = speechRequest("Today in Ilyr.");
+    expect(TTS_VOICE).toBe("Achird");
+    expect(body.generation_config.speech_config).toEqual([{ voice: "Achird" }]);
+    expect(body.response_format.sample_rate).toBe(24_000);
+    const style = body.input[0]!.content[0]!.annotations[0]!.style;
+    expect(style).toMatch(/natural/);
+    expect(style).not.toMatch(/faster|brisk|unhurried|lamplight/);
+    expect(STORY_STYLE).toBe(3);
+  });
+
+  /** Make a story, then store it as #95 did: Gacrux, and no style version. */
+  const oldStory = async (d: Awaited<ReturnType<typeof deps>>, partial = false) => {
+    const made = await makeStory({ ...d, allowPartial: partial });
+    if (!made.made) throw new Error("setup");
+    const old = { ...made.story, voice: "Gacrux" };
+    delete old.style;
+    d.stories.stories.set(DAY, old);
+    // #95's claims had no version in their name, so they never stand in the way of this style's.
+    d.stories.claims.clear();
+  };
+
+  it("remakes a story in an older style once, only from the Desk, and never again in this style", async () => {
+    const d = await deps();
+    await oldStory(d);
+    // The world step never remakes it.
+    expect(await makeStory({ ...d, now: NOW + 60_000 })).toMatchObject({ made: false, reason: "exists" });
+    expect(d.fetcher).toHaveBeenCalledTimes(1);
+    // The Desk's "Make it now" does, once.
+    const remade = await makeStory({ ...d, now: NOW + 120_000, allowPartial: true, allowRemake: true });
+    expect(remade.made && remade.story).toMatchObject({ partial: false, voice: "Achird", style: STORY_STYLE });
+    expect(await makeStory({ ...d, now: NOW + 180_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists" });
+    expect(d.fetcher).toHaveBeenCalledTimes(2);
+    expect(d.stories.spend["2026-10"]!.calls).toBe(2);
+  });
+
+  it("remakes #102's Puck story (style 2) once in the normal voice", async () => {
+    const d = await deps();
+    const made = await makeStory(d);
+    if (!made.made) throw new Error("setup");
+    d.stories.stories.set(DAY, { ...made.story, voice: "Puck", style: 2 });
+    d.stories.claims.clear();
+    const remade = await makeStory({ ...d, now: NOW + 60_000, allowPartial: true, allowRemake: true });
+    expect(remade.made && remade.story).toMatchObject({ voice: "Achird", style: 3 });
+    expect(await makeStory({ ...d, now: NOW + 120_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists" });
+    expect(d.fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("remakes an old day-so-far once too, and lets only one of two racing remakes spend", async () => {
+    const d = await deps({ world: await worldWith({ recap: null }) });
+    await oldStory(d, true);
+    const ask = { ...d, now: NOW + 60_000, allowPartial: true, allowRemake: true };
+    const [a, b] = await Promise.all([makeStory(ask), makeStory(ask)]);
+    expect([a.made, b.made].filter(Boolean)).toHaveLength(1);
+    expect(await makeStory({ ...ask, now: NOW + 120_000 })).toMatchObject({ made: false, reason: "exists" });
+    expect(d.fetcher).toHaveBeenCalledTimes(2);
+    expect((await d.stories.readStory(DAY))!.style).toBe(STORY_STYLE);
+  });
+
+  it("checks the budget before a remake", async () => {
+    const d = await deps();
+    await oldStory(d);
+    d.stories.spend = { "2026-10": { usd: 4.99, tokensIn: 0, tokensOut: 0, calls: 1, stories: 1, scriptUsd: 0 } };
+    expect(await makeStory({ ...d, allowRemake: true })).toMatchObject({ made: false, reason: "over-budget" });
+    expect(d.fetcher).toHaveBeenCalledTimes(1);
   });
 });

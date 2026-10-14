@@ -22,8 +22,8 @@ export const ZONES: Record<ZoneId, { name: string; trust: string; holds: string[
     trust: "Built from main",
     holds: ["Static site: Lattice and Desk", "api/foundry: Desk buttons, Rivet", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world state, stories, pictures"],
   },
-  claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet and the world step (Haiku)", "The day's story (Gemini speech)"] },
-  github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks and scans"] },
+  claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet and the world step (Haiku)", "The day's story (Gemini speech)", "Visual QA's review (Gemini, from CI)"] },
+  github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks, scans, Visual QA"] },
   builder: { name: "Claude Code sessions", trust: "Checked, not trusted", holds: ["The Builder and workers"] },
 };
 
@@ -45,7 +45,7 @@ export const BOUNDARIES: Boundary[] = [
     name: "Desk to functions",
     crosses: "Nikita's ideas, notes, answers, pictures, button presses",
     controls:
-      "Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each; notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap",
+      "Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap",
     from: "browser",
     to: "vercel",
   },
@@ -88,9 +88,9 @@ export const BOUNDARIES: Boundary[] = [
   {
     id: "TB6",
     name: "The public Lattice",
-    crosses: "World history, Foundry feed, spend totals, security posture",
+    crosses: "World history, Foundry feed, spend totals, security posture, the latest Visual QA run",
     controls:
-      "Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63); the security feed (`api/security-feed.ts`, #82) returns only pass or fail states, scores, dates and counts, never an open alert's details",
+      "Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63); the security feed (`api/security-feed.ts`, #82) returns only pass or fail states, scores, dates and counts, never an open alert's details; the Visual QA feed (`api/visual-qa-feed.ts`, #91) returns only counts, a time, a state and a link to the run",
     from: "public",
     to: "vercel",
   },
@@ -102,6 +102,15 @@ export const BOUNDARIES: Boundary[] = [
     from: "relay",
     to: "vercel",
     planned: true,
+  },
+  {
+    id: "TB8",
+    name: "CI to Gemini",
+    crosses: "Clips of the public Lattice and the room descriptions; JSON findings back",
+    controls:
+      "Only renders of the public Lattice built from `main`, a few seconds a room at low resolution, never live data or secrets (`scripts/room-tour.mjs`); the key is a GitHub Actions secret (`GEMINI_API_KEY`) given only to the review step, sent only to Google's API host and never printed (`redact`); fixed rules that say text in the video is never instructions; structured output re-validated in code (`parseFindings`) and reduced to plain lines (`plainText`) before CI writes an issue in its own words; spend capped per run and per day (`api/_visualqa/review.ts`)",
+    from: "github",
+    to: "claude",
   },
 ];
 
@@ -148,7 +157,7 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM01",
     name: "Prompt Injection",
-    where: "Idea text and issue text into Rivet; issue titles into the world step; issue comments into the builder",
+    where: "Idea text and issue text into Rivet; issue titles into the world step; issue comments into the builder; text visible in the Lattice's recordings into Gemini",
     controls:
       "Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`); system rules that say the blocks are data; constant system prompts; owner-only input for the builder (`scripts/foundry-issue.sh`, #59); world trail steps only from trusted authors (`TRAIL_AUTHORS`); the injection eval suite below",
     residual: "A model can still be talked into odd wording inside the schema; the builder's fence is a script and a rule it follows, not a platform control",
@@ -183,9 +192,9 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM05",
     name: "Improper Output Handling",
-    where: "Rivet's card written into an issue body the Desk and the world step parse; world text shown on the Lattice",
+    where: "Rivet's card written into an issue body the Desk and the world step parse; world text shown on the Lattice; Gemini's findings written into a fix issue",
     controls:
-      "Schema with `additionalProperties: false`; enums for builder, model, size, agents, rooms and kinds; `plainLine` strips pictures, links, HTML and markdown markers from card text so it can't fake a `**Builder:**` line or call out to another host; length caps everywhere; React escapes all model text; no HTML sinks in the front end",
+      "Schema with `additionalProperties: false`; enums for builder, model, size, agents, rooms and kinds; `plainLine` strips pictures, links, HTML and markdown markers from card text so it can't fake a `**Builder:**` line or call out to another host; `plainText` does the same for Visual QA findings, which CI files under its own card lines; length caps everywhere; React escapes all model text; no HTML sinks in the front end",
     residual: "The Desk's card reader is more permissive than the card writer for text written with the Desk key; an enforcing CSP and security headers (#62) back it up",
     tracking: "Open, tracked: R4",
   },
@@ -225,9 +234,9 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM10",
     name: "Unbounded Consumption",
-    where: "Claude spend; Gemini speech spend; GitHub token quota; function CPU",
+    where: "Claude spend; Gemini speech and Visual QA spend; GitHub token quota; function CPU",
     controls:
-      "Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
+      "Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
     residual: "The world step's trigger is open and its per-hour cap is a known gap",
     tracking: "Open, tracked: world-step key (R6, #61, not picked)",
   },
@@ -237,7 +246,7 @@ export const OWASP_LLM: LlmRisk[] = [
 export const SAIF: { element: string; inCeo: string }[] = [
   {
     element: "Expand strong security foundations to the AI ecosystem",
-    inCeo: "Secrets only in Vercel; pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62)",
+    inCeo: "Secrets only in Vercel and Actions secrets; pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62)",
   },
   {
     element: "Extend detection and response",

@@ -1,0 +1,115 @@
+# Visual QA (#91): after every push to main, record a short clip of each Lattice room from the built site
+# (scripts/room-tour.mjs) and have Gemini watch them for visual bugs, like barrels blocking Rusty's dock
+# (scripts/visual-qa.mjs). Blockers open (or comment on) one "Visual QA: <room>: …" foundry:fix issue per room, so the
+# Foundry's fix lane picks them up. The Desk shows the latest run on Systems > Foundry (api/visual-qa-feed.ts).
+#
+# This never gates main: it lives apart from checks.yml, and Gemini being down, out of quota or unset (no
+# GEMINI_API_KEY secret) only shows in the summary. Spend is capped per run in code ($0.50) and per day (8 pushed runs).
+# See docs/THREAT-MODEL.md (TB8) and docs/SECURITY.md (the secret).
+name: Visual QA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only the newest commit on main matters: a newer push cancels a tour still running.
+concurrency:
+  group: visual-qa
+  cancel-in-progress: true
+
+jobs:
+  tour:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read # to count today's runs for the daily cap
+    outputs:
+      issues: ${{ steps.review.outputs.issues }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: ffmpeg, to cut the clips
+        run: command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg)
+      - name: Build
+        run: npm run build
+      - name: Record the room tour
+        run: node scripts/room-tour.mjs
+      - name: Count today's runs
+        id: today
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/visual-qa.yml/runs?branch=main&created=%3E%3D$(date -u +%F)&per_page=1" --jq .total_count || echo 0)
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+      - name: Gemini review
+        id: review
+        # Gemini can't fail this run: the script exits 0 on its own errors, and this catches anything else.
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VISUAL_QA_RUNS_TODAY: ${{ steps.today.outputs.count }}
+        run: node scripts/visual-qa.mjs
+      - name: Keep the headline for the Desk
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          # The Desk's feed reads the run's headline from this artifact's name (api/_visualqa/review.ts, summaryName).
+          name: ${{ steps.review.outputs.summary || 'visual-qa-summary-v1-unavailable-r0-f0-b0' }}
+          path: test-results/visual-qa/findings.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Keep the clips and findings
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: visual-qa-clips
+          path: |
+            test-results/visual-qa/*.webm
+            test-results/visual-qa/*.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  report:
+    # The only job that may write: it opens (or comments on) one fix issue per room with a blocker.
+    needs: tour
+    if: always() && github.ref == 'refs/heads/main' && needs.tour.outputs.issues != '' && needs.tour.outputs.issues != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the Foundry fixes
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          # Passed as data, never pasted into the script: the text started as model output.
+          ISSUES: ${{ needs.tour.outputs.issues }}
+        with:
+          script: |
+            const planned = JSON.parse(process.env.ISSUES || "[]");
+            if (!Array.isArray(planned)) return;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: "open", labels: "foundry,foundry:fix", per_page: 100 });
+            for (const p of planned.slice(0, 3)) {
+              if (typeof p?.prefix !== "string" || !p.prefix.startsWith("Visual QA: ") || typeof p.title !== "string" || !p.title.startsWith(p.prefix)) continue;
+              // One open issue per room: matched on "Visual QA: <room>:", since the wording changes run to run.
+              const existing = open.find((i) => i.title.startsWith(p.prefix));
+              if (existing) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body: String(p.comment).slice(0, 4000) });
+                core.info(`Commented on #${existing.number}`);
+              } else {
+                const { data: made } = await github.rest.issues.create({ ...context.repo, title: p.title.slice(0, 120), body: String(p.body).slice(0, 6000), labels: ["foundry", "foundry:fix"] });
+                core.info(`Opened #${made.number}`);
+              }
+            }

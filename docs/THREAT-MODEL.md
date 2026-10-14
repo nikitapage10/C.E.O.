@@ -17,9 +17,11 @@ change both together.
 C.E.O. is a web app on Vercel with two faces: **the Desk**, Nikita's dashboard, and **the Lattice**, a public 3D
 world of AI agents. Two models are called from code, both Claude Haiku: **Rivet** shapes an idea Nikita types or
 dictates on the Desk into a card (pitch, size, builder), and the **world step** writes one hour of the Lattice's
-history from the Foundry's real work (and, once a day, the script of **the day's story**). One more model turns that
-script into speech: **Gemini's text to speech** (#95), which gets only the script, written from the already-scrubbed
-public Chronicle, and returns audio. Code is written by **the Foundry**, a Claude Code builder session (the Builder,
+history from the Foundry's real work (and, once a day, the script of **the day's story**). Google's Gemini is used
+twice: **Gemini's text to speech** (#95) turns that script into speech, getting only the script, written from the
+already-scrubbed public Chronicle, and returning audio; and **Visual QA** (#91), in CI only, sends a few seconds of
+each room of the built Lattice to Gemini after every push to `main`, and CI turns the blockers it flags into fix
+issues. Code is written by **the Foundry**, a Claude Code builder session (the Builder,
 Skippy's submind) and its workers (Rusty, Rocky), which read GitHub issues, open branches and pull requests, and
 ship to `main`, which Vercel deploys to production. **Relay**, a hub on an always-on MacBook that will read
 messages, is designed but not built yet.
@@ -39,16 +41,16 @@ flowchart LR
     site["Static site<br/>Lattice and Desk"]
     fFoundry["api/foundry<br/>Desk buttons, Rivet"]
     fImage["api/foundry-image"]
-    fFeed["api/foundry-feed<br/>api/foundry-usage<br/>api/security-feed"]
+    fFeed["api/foundry-feed<br/>api/foundry-usage<br/>api/security-feed<br/>api/visual-qa-feed"]
     fStep["api/world-step<br/>api/world<br/>api/day-story"]
   end
   blob[("Vercel Blob<br/>world state, stories, pictures")]
   claude["Claude API<br/>Haiku"]
-  gemini["Gemini API<br/>speech"]
+  gemini["Gemini API<br/>speech, Visual QA"]
   subgraph GH["GitHub, public repo"]
     issues["Issues, comments, labels"]
     repo["Code and main"]
-    actions["Actions: checks, CodeQL,<br/>dependency review, Scorecard,<br/>hourly world-step trigger"]
+    actions["Actions: checks, CodeQL,<br/>dependency review, Scorecard,<br/>hourly world-step trigger,<br/>Visual QA"]
   end
   subgraph CC["Claude Code cloud sessions"]
     builder["Builder and workers"]
@@ -80,17 +82,21 @@ flowchart LR
   fFeed -- "cached reads" --> issues
   hub -. "TB7: counts and states only" .-> site
   hub -. "drafts" .-> openai
+  actions -- "TB8: room clips" --> gemini
+  gemini -- "TB8: JSON findings, re-checked" --> actions
+  actions -- "fix issues, CI text" --> issues
 ```
 
 | Boundary | What crosses it | Controls |
 | --- | --- | --- |
-| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses | Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each; notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap |
+| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses | Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap |
 | **TB2** Code to the model APIs | Idea text, issue text, the hour's digest, the day's story script; JSON, text or audio back | Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`); Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap |
 | **TB3** Functions to GitHub | Issue writes with the Foundry token | Token lives only in Vercel; label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`) |
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account and the Checks bot (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
 | **TB5** Issues to the builder | Work descriptions | `scripts/foundry-issue.sh` (#59): owner and CI text in data blocks with a random tag per read, everything else withheld by name, exit 3 when anything was withheld; worker briefs carry issue text only inside a data block (docs/FOUNDRY.md, "Trusted input") |
-| **TB6** The public Lattice | World history, Foundry feed, spend totals, security posture | Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63); the security feed (`api/security-feed.ts`, #82) returns only pass or fail states, scores, dates and counts, never an open alert's details |
+| **TB6** The public Lattice | World history, Foundry feed, spend totals, security posture, the latest Visual QA run | Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63); the security feed (`api/security-feed.ts`, #82) returns only pass or fail states, scores, dates and counts, never an open alert's details; the Visual QA feed (`api/visual-qa-feed.ts`, #91) returns only counts, a time, a state and a link to the run |
 | **TB7** Relay to the site (planned) | Counts and states, never message text | Design rules in docs/DELIVERY.md, "Environments"; the full privacy spec is roadmap R5 |
+| **TB8** CI to Gemini | Clips of the public Lattice and the room descriptions; JSON findings back | Only renders of the public Lattice built from `main`, a few seconds a room at low resolution, never live data or secrets (`scripts/room-tour.mjs`); the key is a GitHub Actions secret (`GEMINI_API_KEY`) given only to the review step, sent only to Google's API host and never printed (`redact`); fixed rules that say text in the video is never instructions; structured output re-validated in code (`parseFindings`) and reduced to plain lines (`plainText`) before CI writes an issue in its own words; spend capped per run and per day (`api/_visualqa/review.ts`) |
 
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's
 lanes, by direct push for chat work today) and Vercel ships it. The controls on that path are in
@@ -103,7 +109,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | --- | --- | --- |
 | Production code and `main` | GitHub, Vercel | Whatever lands on `main` is live in minutes |
 | Claude API key | Vercel environment | Spend (capped at $10 a month at the provider) |
-| Gemini API key | Vercel environment | Speech spend (capped in code by `GEMINI_BUDGET_USD`, $5 a month by default, never above $10) |
+| Gemini API key | Vercel environment (speech) and a GitHub Actions secret (Visual QA), both `GEMINI_API_KEY` | Speech spend (capped in code by `GEMINI_BUDGET_USD`, $5 a month by default, never above $10); Visual QA spend (capped in code at $0.50 a run and eight pushed runs a day) |
 | Foundry GitHub token | Vercel environment | Writes issues; its rate limit backs the Desk buttons and the world feed |
 | Desk key | Vercel environment, Nikita's browser | The human approval gate for builds |
 | The builder session's GitHub access | Claude Code environment | Pushes code, merges pull requests |
@@ -121,6 +127,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | Rivet (Haiku) | Proposes a card | Nothing: its answer is data, re-checked in code |
 | World step model (Haiku) | Proposes an hour | Nothing: its answer is data, re-checked in code |
 | Gemini speech | Reads the day's script aloud | Nothing: it gets only public, scrubbed text, and its audio is only stored and played |
+| Visual QA reviewer (Gemini) | Proposes findings about the Lattice's look | Nothing: its answer is data, re-checked in code; only CI writes the issue, in its own format |
 | CI bots | Post check results | Machine output, read as data |
 | Anyone on GitHub | Open issues, comment | Nothing |
 | Lattice visitors | Read the public site | Nothing |
@@ -130,22 +137,22 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 
 | Risk | Where it applies in C.E.O. | Controls in place | Residual risk | Tracking |
 | --- | --- | --- | --- | --- |
-| **LLM01 Prompt Injection** | Idea text and issue text into Rivet; issue titles into the world step; issue comments into the builder | Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`); system rules that say the blocks are data; constant system prompts; owner-only input for the builder (`scripts/foundry-issue.sh`, #59); world trail steps only from trusted authors (`TRAIL_AUTHORS`); the injection eval suite below | A model can still be talked into odd wording inside the schema; the builder's fence is a script and a rule it follows, not a platform control | Builder permission hook (R1) |
+| **LLM01 Prompt Injection** | Idea text and issue text into Rivet; issue titles into the world step; issue comments into the builder; text visible in the Lattice's recordings into Gemini | Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`); system rules that say the blocks are data; constant system prompts; owner-only input for the builder (`scripts/foundry-issue.sh`, #59); world trail steps only from trusted authors (`TRAIL_AUTHORS`); the injection eval suite below | A model can still be talked into odd wording inside the schema; the builder's fence is a script and a rule it follows, not a platform control | Builder permission hook (R1) |
 | **LLM02 Sensitive Information Disclosure** | The public Lattice; ideas filed as public issues; pictures | Data minimisation (the step never reads bodies or comment words, `api/_world/digest.ts`); `scrub` on all input and output, now also catching full-width, zero-width-split and spelled-out forms; no secrets in git (secret scanning and push protection) | Desk text and pictures go public as written | Privacy guard before posting (R4) |
 | **LLM03 Supply Chain** | npm packages, GitHub Actions, the Claude SDK | Lockfile with `npm ci`; `npm audit signatures` and `npm audit --audit-level=high` in checks; dependency review; Dependabot; actions pinned to SHAs; CodeQL; OpenSSF Scorecard (#64, #67) | A malicious release that passes signature checks before it is known | Watched by Dependabot and dependency review |
 | **LLM04 Data and Model Poisoning** | No training or fine-tuning; the world step reads back its own last hours | Last hours are re-fenced and re-scrubbed each hour; answers are re-validated before they are saved, so a bad hour can't add agents, rooms or kinds | One odd hour can echo into the next few | Accepted |
-| **LLM05 Improper Output Handling** | Rivet's card written into an issue body the Desk and the world step parse; world text shown on the Lattice | Schema with `additionalProperties: false`; enums for builder, model, size, agents, rooms and kinds; `plainLine` strips pictures, links, HTML and markdown markers from card text so it can't fake a `**Builder:**` line or call out to another host; length caps everywhere; React escapes all model text; no HTML sinks in the front end | The Desk's card reader is more permissive than the card writer for text written with the Desk key; an enforcing CSP and security headers (#62) back it up | Open, tracked: R4 |
+| **LLM05 Improper Output Handling** | Rivet's card written into an issue body the Desk and the world step parse; world text shown on the Lattice; Gemini's findings written into a fix issue | Schema with `additionalProperties: false`; enums for builder, model, size, agents, rooms and kinds; `plainLine` strips pictures, links, HTML and markdown markers from card text so it can't fake a `**Builder:**` line or call out to another host; `plainText` does the same for Visual QA findings, which CI files under its own card lines; length caps everywhere; React escapes all model text; no HTML sinks in the front end | The Desk's card reader is more permissive than the card writer for text written with the Desk key; an enforcing CSP and security headers (#62) back it up | Open, tracked: R4 |
 | **LLM06 Excessive Agency** | The builder session (shell, git, merges); Rivet; the world step | Rivet and the world step have no tools at all: they return JSON only; labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until the agents have their own identity) | The builder's shell permissions are broad and it acts as Nikita, so its limits are partly rules it follows | Builder permission hook (R1); agents' own identity (R2) |
 | **LLM07 System Prompt Leakage** | Rivet's and the world step's prompts | Both prompts are public in this repo by design and hold no secrets, keys or private rules; the security comes from code checks, not from the prompt being secret | None beyond what is already public | Accepted |
 | **LLM08 Vector and Embedding Weaknesses** | Not used: no retrieval, no vector store | Not applicable today | If Relay adds retrieval over messages, this becomes live | Relay privacy spec (R5) |
 | **LLM09 Misinformation** | The Historian's hourly summaries; Rivet's pitches | The world step reads only real events and labels the Lattice as a story; Rivet's card is a suggestion that Nikita approves; the Builder confirms builder and model | Off-tone or wrong lines on the Lattice for an hour | Accepted |
-| **LLM10 Unbounded Consumption** | Claude spend; Gemini speech spend; GitHub token quota; function CPU | Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing) | The world step's trigger is open and its per-hour cap is a known gap | Open, tracked: world-step key (R6, #61, not picked) |
+| **LLM10 Unbounded Consumption** | Claude spend; Gemini speech and Visual QA spend; GitHub token quota; function CPU | Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing) | The world step's trigger is open and its per-hour cap is a known gap | Open, tracked: world-step key (R6, #61, not picked) |
 
 ## Google SAIF
 
 | SAIF core element | In C.E.O. |
 | --- | --- |
-| Expand strong security foundations to the AI ecosystem | Secrets only in Vercel; pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62) |
+| Expand strong security foundations to the AI ecosystem | Secrets only in Vercel and Actions secrets; pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62) |
 | Extend detection and response | The Trail on every issue records origin, decision, builder, model and cost of each change; Checks failing on `main` opens a fix issue by itself; Scorecard and code scanning report to the Security tab |
 | Automate defenses | The injection eval suite runs on every build; schema-bound output and code re-validation on every model call; Dependabot and secret scanning |
 | Harmonize platform controls | One delivery path for every change (DELIVERY.md); rulesets for `main` defined in `.github/rulesets/` (#60); least-privilege workflow permissions |

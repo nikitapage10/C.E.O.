@@ -8,7 +8,9 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   // Node scripts (the others declare their globals inline); the browser-side code inside page.evaluate reaches the page through globalThis.
-  { files: ["scripts/desk-images.mjs", "scripts/portraits.mjs"], languageOptions: { globals: { ...globals.node } } },
+  { files: ["scripts/desk-images.mjs", "scripts/portraits.mjs", "scripts/room-tour.mjs", "scripts/visual-qa.mjs"], languageOptions: { globals: { ...globals.node } } },
+  // The Lattice perf probe: Node, plus functions that run inside the page.
+  { files: ["scripts/perf-lattice.mjs"], languageOptions: { globals: { ...globals.node, ...globals.browser } } },
   {
     files: ["**/*.{ts,tsx}"],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },

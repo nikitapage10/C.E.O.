@@ -42,7 +42,8 @@ export function claudeAsk(key = claudeKey()): Ask | null {
 
 /**
  * The day's story script (api/_world/story.ts): the same model and key, plain text out, the Historian's brief as the
- * system prompt. About 2k tokens in and 500 out: about a tenth of a cent. Null without a key.
+ * system prompt. About 2k tokens in and under 200 out (a 70 to 120 word script): about a tenth of a cent. Null
+ * without a key.
  */
 export function claudeStoryWriter(key = claudeKey()): ScriptWriter | null {
   if (!key) return null;
@@ -50,7 +51,7 @@ export function claudeStoryWriter(key = claudeKey()): ScriptWriter | null {
   return async (prompt) => {
     const res = await client.messages.create({
       model: WORLD_MODEL,
-      max_tokens: 900,
+      max_tokens: 450,
       thinking: { type: "disabled" },
       system: prompt.system,
       messages: [{ role: "user", content: prompt.user }],

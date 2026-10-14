@@ -158,7 +158,7 @@ export interface WorldFeed {
 
 /** What GET /api/day-story?day=… answers (api/day-story.ts): the day's story, or why there isn't one. */
 export type DayStoryView =
-  | { day: string; ready: true; script: string; durationSec: number; partial: boolean; writer: "claude" | "chronicle"; at: string; audio: string }
+  | { day: string; ready: true; script: string; durationSec: number; partial: boolean; writer: "claude" | "chronicle"; /** Made in an older style (#102): "Make it now" may remake it once. */ stale: boolean; at: string; audio: string }
   | { day: string; ready: false; reason: "no-key" | "over-budget" | "not-yet" };
 
 /** What GET /api/world-step answers: the world clock the Desk's Systems page and the Boiler Room's pipe read. */

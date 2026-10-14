@@ -3,7 +3,7 @@ import { SystemsNav } from "../SystemsNav.tsx";
 import { RoomBanner } from "../RoomBanner.tsx";
 import { Avatar, Panel, Pill, type Tone } from "../ui.tsx";
 import { useSecurityFeed, type FeedState, type SecurityFeed } from "./feed.ts";
-import { EVAL_AREAS, EVALS, OWASP_LLM, ROADMAP, owaspTally, refsOf } from "./model.ts";
+import { EVAL_AREAS, EVALS, OWASP_LLM, ROADMAP, isShipped, owaspTally, refsOf } from "./model.ts";
 import { ALERT_EXPLAIN, EVAL_EXPLAIN, ROADMAP_EXPLAIN, SCAN_EXPLAIN, STAT_EXPLAIN, featureExplain, scorecardExplain, type ScanId, type StatId } from "./explain.ts";
 import { DOC_URL, ExplainInline, Out, REPO_URL, Rich, useExplain } from "./parts.tsx";
 import { PopScope } from "../Popovers.tsx";
@@ -22,7 +22,7 @@ export function SecurityPage({ now }: { now: number }) {
   const tally = owaspTally();
   const reported = feed?.workflows.filter((w) => w.state === "pass" || w.state === "fail") ?? [];
   const passing = reported.filter((w) => w.state === "pass").length;
-  const todo = ROADMAP.filter((r) => r.id !== "Shipped").length;
+  const todo = ROADMAP.filter((r) => !isShipped(r)).length;
 
   return (
     <div className="sec-page">
@@ -320,7 +320,7 @@ function Roadmap() {
 }
 
 function RoadmapRow({ r }: { r: (typeof ROADMAP)[number] }) {
-  const shipped = r.id === "Shipped";
+  const shipped = isShipped(r);
   const risks = OWASP_LLM.filter((x) => refsOf(x.tracking).includes(r.id)).map((x) => x.id);
   const pop = useExplain(`road-${r.id}`, r.item.split(/[:(]/)[0]!.trim(), ROADMAP_EXPLAIN[r.id]!, {
     kicker: shipped ? "Shipped" : `${r.id}${risks.length ? ` · follows up ${risks.join(", ")}` : ""}`,
@@ -335,7 +335,7 @@ function RoadmapRow({ r }: { r: (typeof ROADMAP)[number] }) {
       </span>
       <span className="roadmap__side">
         {risks.length > 0 && <span className="roadmap__risks">{risks.join(" · ")}</span>}
-        <Pill tone={shipped ? "ok" : "off"}>{shipped ? `Shipped ${r.status}` : r.status}</Pill>
+        <Pill tone={shipped ? "ok" : "off"}>{shipped && !/^Shipped\b/.test(r.status) ? `Shipped ${r.status}` : r.status}</Pill>
       </span>
     </li>
   );

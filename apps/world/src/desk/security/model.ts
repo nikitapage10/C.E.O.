@@ -159,9 +159,9 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Prompt Injection",
     where: "Idea text and issue text into Rivet; issue titles into the world step; issue comments into the builder; text visible in the Lattice's recordings into Gemini",
     controls:
-      "Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`); system rules that say the blocks are data; constant system prompts; owner-only input for the builder (`scripts/foundry-issue.sh`, #59); world trail steps only from trusted authors (`TRAIL_AUTHORS`); the injection eval suite below",
+      "Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`); system rules that say the blocks are data; constant system prompts; owner-only input for the builder (`scripts/foundry-issue.sh`, #59); world trail steps only from trusted authors (`TRAIL_AUTHORS`); the builder guard (`.claude/hooks/`, #119); the injection eval suite below",
     residual: "A model can still be talked into odd wording inside the schema; the builder's fence is a script and a rule it follows, not a platform control",
-    tracking: "Builder permission hook (R1)",
+    tracking: "Agents' own identity (R2)",
   },
   {
     id: "LLM02",
@@ -203,9 +203,9 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Excessive Agency",
     where: "The builder session (shell, git, merges); Rivet; the world step",
     controls:
-      "Rivet and the world step have no tools at all: they return JSON only; labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until the agents have their own identity)",
-    residual: "The builder's shell permissions are broad and it acts as Nikita, so its limits are partly rules it follows",
-    tracking: "Builder permission hook (R1); agents' own identity (R2)",
+      "Rivet and the world step have no tools at all: they return JSON only; labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until the agents have their own identity); the builder guard, a hook that denies risky commands and secrets files before they run and logs every tool call on the machine (`.claude/hooks/`, #119)",
+    residual: "The builder acts as Nikita, and its guard is a deny list, not a sandbox, so some of its limits are still rules it follows",
+    tracking: "Agents' own identity (R2)",
   },
   {
     id: "LLM07",
@@ -289,7 +289,7 @@ export const NIST_AI_RMF: { fn: "Govern" | "Map" | "Measure" | "Manage"; inCeo: 
 /** The residual risks and roadmap, as the doc lists them. */
 export const ROADMAP: { id: string; item: string; closes: string; status: string }[] = [
   { id: "Shipped", item: "Security headers and an enforcing CSP", closes: "Output handling defence in depth, clickjacking", status: "#62" },
-  { id: "R1", item: "Builder permission hook: narrow shell permissions, deny risky commands, log every tool call", closes: "Excessive agency (agent half)", status: "#119, waiting for Nikita's pick" },
+  { id: "R1", item: "Builder permission hook: narrow shell permissions, deny risky commands, log every tool call", closes: "Excessive agency (agent half)", status: "Shipped #119" },
   {
     id: "R2",
     item: "The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10)",
@@ -306,6 +306,11 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
   { id: "R5", item: "Relay privacy spec before the hub is built", closes: "Messages and contacts", status: "Not carded" },
   { id: "R6", item: "Key the world step and cap it per hour", closes: "World spend", status: "#61, not picked by Nikita" },
 ];
+
+/** Whether a roadmap row is done: the "Shipped" row, or a numbered item whose status reads "Shipped #…". */
+export function isShipped(r: { id: string; status: string }): boolean {
+  return r.id === "Shipped" || /^Shipped\b/.test(r.status);
+}
 
 export type EvalAreaId = "rivet-prompt" | "rivet-answer" | "desk-write" | "world-step" | "builder-input";
 

@@ -79,6 +79,39 @@ Agent work reaches `main` through the same gates as anyone's. The Foundry's lane
 request where Nikita reviews it. Work shipped straight from chat is scanned on its push to `main`, and its CodeQL
 findings show in the Security tab against that commit.
 
+## The builder guard
+
+Every Claude Code session in this repo (the Builder, Rusty, Rocky and chat work) runs two project hooks from
+`.claude/settings.json` (#119, R1 in [THREAT-MODEL.md](THREAT-MODEL.md)). They are a short deny list for slips and
+talked-into mistakes, not a sandbox; the PR gates above still decide what reaches `main`.
+
+**Before a tool runs** (`.claude/hooks/guard-hook.mjs`, rules in `.claude/hooks/guard.mjs`), the guard blocks:
+
+- `rm -r` on `/`, the home folder, the repo root or any folder above it
+- `git push` that lands on `main` or `master` (by name, `HEAD` while on it, a bare push from it, `--all`, `--mirror`)
+- code fetched with `curl` or `wget` and run by a shell or interpreter
+- dumping the environment (`env`, `printenv`, `export -p`), echoing a token-named variable, `gh auth token`
+- reading or writing key files from the shell or the file tools: `.env` files (not `.env.example`), `~/.ssh`,
+  `~/.aws`, private keys (`*.pem`, `id_*`), `.netrc`, `.npmrc`, the GitHub CLI's token file
+- `gh` or `curl` writes to GitHub that change repo settings, rulesets, branch protection, secrets and variables,
+  collaborators, deploy keys or webhooks, or move `main` directly
+- `npm publish` (and pnpm, yarn), and `chmod -R 777`
+
+Everything else passes: npm scripts, git on feature branches, merges, worktrees, `gh api` reads, issue and PR
+comments and labels, opening and squash-merging PRs, Playwright and node scripts. A blocked call gets its reason
+back, and the agent finds another way or asks Nikita. The guard fails open on its own bugs: if it crashes or can't
+read its input, the call goes ahead, so only a rule's decision can stop work.
+
+**After every tool call** (`.claude/hooks/log-tool.mjs`), one JSON line goes to `.claude/logs/tool-calls.jsonl` in
+the project folder: the time, the session's first eight characters, the tool, a short summary (the first 200
+characters of a command, or a path or pattern) and whether it worked; blocked calls are logged with their reason.
+Never file contents, edits, output or environment values, and anything that looks like a key or token is masked.
+The log is gitignored, stays on that machine, and is never published or sent anywhere. It rolls over at 5 MB.
+
+**To add a rule**, write a small function in `RULES` in `.claude/hooks/guard.mjs` that returns a reason to block,
+and add both blocked and allowed examples to `.claude/hooks/guard.test.mjs` (run by `npm test`), including the
+everyday commands it must not catch.
+
 ## How upkeep bumps packages
 
 The upkeep lane may bump one dependency at a time. It bumps only packages already in `package.json`; adding a new

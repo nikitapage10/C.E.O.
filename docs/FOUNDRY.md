@@ -176,6 +176,11 @@ so Desk bodies, notes and answers count as Nikita's. Labels are safe, since only
   it can't fake a `**Builder:**` line (docs/THREAT-MODEL.md).
 - Nikita can also switch on GitHub's "Limit interactions" (repo Settings, Moderation options) so that only
   collaborators can comment for a while. It is off for now, and the fence above doesn't depend on it.
+- The builder guard (#119) runs before every command and file tool in every session: it blocks a short list of
+  risky moves (wiping folders, pushing to `main`, printing or reading keys, changing the repo's protection or
+  settings, publishing) and logs each tool call to the local, gitignored `.claude/logs/tool-calls.jsonl`. A blocked
+  call says why; find another way or ask Nikita. The list and how to add a rule are in [SECURITY.md](SECURITY.md),
+  "The builder guard".
 
 ## Visual QA (the far-sight lens)
 

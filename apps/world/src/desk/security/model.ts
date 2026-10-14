@@ -289,7 +289,7 @@ export const NIST_AI_RMF: { fn: "Govern" | "Map" | "Measure" | "Manage"; inCeo: 
 /** The residual risks and roadmap, as the doc lists them. */
 export const ROADMAP: { id: string; item: string; closes: string; status: string }[] = [
   { id: "Shipped", item: "Security headers and an enforcing CSP", closes: "Output handling defence in depth, clickjacking", status: "#62" },
-  { id: "R1", item: "Builder permission hook: narrow shell permissions, deny risky commands, log every tool call", closes: "Excessive agency (agent half)", status: "Not carded" },
+  { id: "R1", item: "Builder permission hook: narrow shell permissions, deny risky commands, log every tool call", closes: "Excessive agency (agent half)", status: "#119, waiting for Nikita's pick" },
   {
     id: "R2",
     item: "The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10)",

@@ -194,7 +194,12 @@ camera's fixed view (`scripts/room-tour.mjs`), and sends each clip to Google's G
 the room-by-room description of what each should look like in `api/_visualqa/review.ts`). Gemini answers in a fixed
 JSON shape: per finding, a severity (`blocker` or `notice`), what is wrong, where in the frame and when in the clip.
 
-- **Blockers feed the fix lane.** For each room with a blocker, the workflow opens one `foundry` + `foundry:fix` issue
+- **A second look comes first (#137).** Before a finding can become a card, Gemini is asked once more about that one
+  finding, with the room's description and the later half of the same clip (a different moment), and must confirm it
+  ("confirmed"; "not_seen" and "expected", for things the room is meant to have, reject it). At most six second looks a
+  run, blockers first; they share the run's spend cap (a few more cents). Findings that aren't confirmed (rejected, an
+  unreadable answer, a failed call, or past the limit) stay in `findings.json` with the reason, and file nothing.
+- **Blockers feed the fix lane.** For each room with a confirmed blocker, the workflow opens one `foundry` + `foundry:fix` issue
   titled "Visual QA: <room>: <short>", in the usual card format (`**Pitch:**`, `**Size:**`, `**Short:**`,
   `**Builder:**`), or comments on the room's issue if one is already open (matched on "Visual QA: <room>:"). At most
   three a run. The doorbell and the queue check pick them up like any fix. Notices stay in the run's summary.
@@ -203,7 +208,7 @@ JSON shape: per finding, a severity (`blocker` or `notice`), what is wrong, wher
   and close the issue as not planned when the clip shows nothing wrong.
 - **It never gates `main`.** It is its own workflow, apart from `checks.yml`. Without the `GEMINI_API_KEY` Actions
   secret, or when Gemini is down or out of quota, the clips are still recorded and the review is marked skipped or
-  unavailable. Spend is capped in code at $0.50 a run and eight pushed runs a day (a run is usually a few cents).
+  unavailable. Spend is capped in code at $0.50 a run, second looks included, and eight pushed runs a day (a run is usually a few cents).
 - **The Desk** shows the latest run on Systems > Foundry: when, how many rooms were checked, the findings and
   blockers, and a link to the run (`api/visual-qa-feed.ts`, read from GitHub; the site never calls Gemini).
 - **Run it locally:** `npm run build`, then `node scripts/room-tour.mjs` (about four minutes on SwiftShader; needs ffmpeg, and

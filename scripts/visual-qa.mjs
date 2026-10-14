@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Visual QA's review (#91): sends each room's clip from scripts/room-tour.mjs to Gemini and writes what it found.
- * The logic (prompt, schema, parsing, spend cap, issue text) is api/_visualqa/review.ts; this file only does the I/O.
+ * The logic (prompt, schema, parsing, spend cap, the second look at each finding (#137), issue text) is api/_visualqa/review.ts; this file only does the I/O.
  *
  * Usage: node scripts/visual-qa.mjs   (after scripts/room-tour.mjs)
  * Reads test-results/visual-qa/manifest.json and the clips; writes findings.json and issues.json next to them.
@@ -56,6 +56,7 @@ report ??= {
   note: "The review stopped early; see the log.",
   rooms: [],
   findings: [],
+  confirmation: { asked: 0, limit: 0 },
   cost: { usd: 0, capUsd: 0, inputTokens: 0, outputTokens: 0 },
 };
 mkdirSync(DIR, { recursive: true });

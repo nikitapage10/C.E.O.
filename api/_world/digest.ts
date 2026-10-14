@@ -6,6 +6,8 @@
  * step). Every line still goes through `scrub` before it is used, as a second lock.
  */
 
+import { FOUNDRY_BOT, githubToken } from "../_github.js";
+
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
 
@@ -25,15 +27,17 @@ export interface FeedComment {
   issue_url: string;
   created_at: string;
   body?: string | null;
-  /** Who wrote it. Only Nikita's account and the Checks workflow write trail steps; anyone else's is skipped. */
+  /** Who wrote it. Only Nikita's account, the Checks workflow and the crew's App write trail steps; anyone else's is skipped. */
   user?: { login?: string } | null;
 }
 
 /**
  * The accounts whose comments count as trail steps, as in scripts/foundry-issue.sh (#59): the repo is public, so
  * anyone can post a comment that starts "**Trail · Assigned:**", and that mustn't become an event in the Lattice.
+ * The crew's App (#138) writes the Desk's steps and CI's issues once it is set up; only an App installed on this repo
+ * can post as `ceo-foundry[bot]`.
  */
-export const TRAIL_AUTHORS: ReadonlySet<string> = new Set(["nikitapage10", "github-actions[bot]"]);
+export const TRAIL_AUTHORS: ReadonlySet<string> = new Set(["nikitapage10", "github-actions[bot]", FOUNDRY_BOT]);
 
 export interface FeedRun {
   conclusion: string | null;
@@ -163,8 +167,9 @@ export function digestEvents(feed: Feed, from: number, to: number): Digest {
   return { lines: events.slice(-MAX_LINES).map((e) => scrub(e.line)), shipped };
 }
 
-/** Read the feed from GitHub (with the Foundry's token when it is set, else anonymously). */
-export async function readFeed(since: number, token = process.env.FOUNDRY_GITHUB_TOKEN ?? ""): Promise<Feed> {
+/** Read the feed from GitHub (with the Foundry's read-only token when there is one, else anonymously; api/_github.ts). */
+export async function readFeed(since: number, given?: string): Promise<Feed> {
+  const token = given ?? (await githubToken("read"));
   const read = async <T>(path: string, fallback: T): Promise<T> => {
     try {
       const res = await fetch(`${GH}${path}`, { headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(token ? { Authorization: `Bearer ${token}` } : {}) } });

@@ -20,7 +20,9 @@
  *
  * Environment (Vercel → Settings → Environment Variables):
  *   FOUNDRY_DESK_KEY       a passphrase Nikita types once on the Desk; without it nobody else can press the buttons
- *   FOUNDRY_GITHUB_TOKEN   a fine-grained token for this repo with Issues read and write: the buttons need it
+ *   FOUNDRY_APP_ID, FOUNDRY_APP_PRIVATE_KEY   the crew's GitHub App (#138): the buttons write as ceo-foundry[bot] with
+ *                          an hour-long token that can only touch this repo's issues (api/_github.ts)
+ *   FOUNDRY_GITHUB_TOKEN   the fallback until the App is set up: a fine-grained token for this repo, Issues read and write
  *   CLAUDE_API_KEY         optional (ANTHROPIC_API_KEY works too): Rivet (the Haiku first responder) shapes a proposed or revised idea on the spot
  *                          (a pitch, a size and a builder, in a second or two, on Claude Haiku) instead of at the
  *                          queue check. Shaping only, never code (code runs on Claude Code); capped at $10 a month,
@@ -33,6 +35,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { waitUntil } from "@vercel/functions";
 import { timingSafeEqual } from "node:crypto";
+import { canWriteGithub, githubToken } from "./_github.js";
 import { PICTURE_ROUTE, pictureLink, picturesLine, signPicture } from "./_pictures.js";
 import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
 
@@ -81,14 +84,14 @@ async function github(path: string, init: RequestInit = {}): Promise<Response> {
     ...init,
     headers: {
       Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${env("FOUNDRY_GITHUB_TOKEN")}`,
+      Authorization: `Bearer ${await githubToken("issues")}`,
       "X-GitHub-Api-Version": "2022-11-28",
       "Content-Type": "application/json",
     },
   });
 }
 
-const canWrite = () => Boolean(env("FOUNDRY_GITHUB_TOKEN"));
+const canWrite = () => canWriteGithub();
 const claudeKey = () => env("CLAUDE_API_KEY") || env("ANTHROPIC_API_KEY");
 const canShape = () => Boolean(claudeKey());
 

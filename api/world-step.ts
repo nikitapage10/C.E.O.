@@ -12,7 +12,9 @@
  * Environment (Vercel → Settings → Environment Variables), all already set for the rest of the Desk:
  *   BLOB_STORE_ID          the private Blob store (set by Vercel; the function signs in with Vercel's OIDC token)
  *   CLAUDE_API_KEY         Claude Haiku writes each hour (without it, every hour is scripted, for free)
- *   FOUNDRY_GITHUB_TOKEN   optional: reads the hour's Foundry events with the Foundry's token instead of anonymously
+ *   FOUNDRY_APP_ID, FOUNDRY_APP_PRIVATE_KEY   optional: reads the hour's Foundry events with a read-only token of the
+ *                          crew's GitHub App (api/_github.ts, #138) instead of anonymously
+ *   FOUNDRY_GITHUB_TOKEN   optional: the same with the older fine-grained token, until the App is set up
  *   WORLD_STORE            optional: "blob" (default) or "supabase" once it is connected (api/_world/store.ts)
  *   WORLD_BUDGET_USD       optional: the world's share of the $10 monthly Claude API cap (default 6)
  *   GEMINI_API_KEY         optional: the day's story, read aloud once the recap is filed (api/_world/story.ts)

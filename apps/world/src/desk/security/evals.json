@@ -1,6 +1,6 @@
 {
-  "total": 196,
-  "passing": 196,
+  "total": 198,
+  "passing": 198,
   "expectedFail": 0,
   "areas": [
     {
@@ -34,8 +34,8 @@
     {
       "id": "builder-input",
       "file": "builder-input.test.ts",
-      "cases": 8,
-      "passing": 8,
+      "cases": 10,
+      "passing": 10,
       "expectedFail": 0
     }
   ]

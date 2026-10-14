@@ -34,7 +34,7 @@ Honest status, 2026-10-13.
 | Checks before merge | Upkeep and fixes merge their PR when `checks` is green | Prose. `main` is unprotected |
 | Approved builds | Merged locally by the Builder with a merge commit and pushed to `main`; FOUNDRY.md says squash through a PR | Prose |
 | Chat work | Pushed straight to `main` by the session (Nikita's rule) | Nothing checks it before it is live |
-| Who acts | Every agent acts as `nikitapage10`, an admin. Commits are authored as Claude and signed | GitHub can't tell agent from human |
+| Who acts | Every Claude Code session acts as `nikitapage10`, an admin. Commits are authored as Claude and signed. The Desk's functions and CI's fix issues act as the crew's App once Nikita sets it up (#138) | GitHub can't tell a session from Nikita |
 | Checks | typecheck, lint, unit tests, build on PRs, on `main` and nightly (about 45 seconds) | GitHub Actions |
 | Browser tests | Run by hand only | Nothing |
 | Previews | Every non-`claude/*` branch gets a Vercel preview | Vercel |
@@ -217,7 +217,8 @@ fixes what they find or explains why not on the pull request, and adds the resul
 | Variable | Production | Preview | Why |
 | --- | --- | --- | --- |
 | `CLAUDE_API_KEY` | Yes | No | Spends money. Without it shaping is off and the world step writes scripted hours |
-| `FOUNDRY_GITHUB_TOKEN` | Yes | No (or a separate read-only token) | It can write issues as Nikita |
+| `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | Yes | No | The crew's App key mints write tokens (#138) |
+| `FOUNDRY_GITHUB_TOKEN` | Yes, until the App is set up; then deleted | No (or a separate read-only token) | It can write issues as Nikita |
 | `FOUNDRY_DESK_KEY` | Yes | No | Without it the Desk buttons say "not set up" |
 | Blob store (`BLOB_STORE_ID`) | Yes | Not connected | Previews must not write the real world |
 | `WORLD_STORE` | unset (`blob`) | `memory` | A preview's world step can't touch production state |
@@ -254,10 +255,10 @@ fixes what they find or explains why not on the pull request, and adds the resul
 | Environment | What runs | Secrets | How it updates |
 | --- | --- | --- | --- |
 | Local | `npm run dev` (Vite), unit and browser tests, the memory world store | None needed. A local `.env*` is ignored by git | By hand |
-| CI | GitHub Actions: `checks`, `e2e`, `report`, `world-step` | None. The built-in token, read-only except `report` | Every PR, push and night |
+| CI | GitHub Actions: `checks`, `e2e`, `report`, `world-step` | The built-in token, read-only except `report`; the two `report` jobs use the crew's App key for an issues-only token when it is set (#138) | Every PR, push and night |
 | The Foundry's sessions | Claude Code threads and their worktrees, with `.claude/settings.json` permissions | The session's GitHub access (today Nikita's) | Each job starts from the latest `main` |
 | Preview | Vercel, one per PR branch | No write secrets (above) | Every push to the branch |
-| Production | Vercel, from `main`; the hourly world step | Claude key, Foundry token, Desk key, Blob | Every merge to `main` |
+| Production | Vercel, from `main`; the hourly world step | Claude key, the crew's App key (or the Foundry token until it is set up), Desk key, Blob | Every merge to `main` |
 | The Relay MacBook | The hub (`apps/hub`, not built yet) under `launchd`, BlueBubbles | The OpenAI key and the hub's token, in the Keychain or a file only the hub's user can read | Pull, never push (below) |
 
 **The Relay MacBook** holds the most sensitive data in C.E.O. (messages and contacts), so it never runs code the
@@ -267,8 +268,8 @@ anything else and it stays where it was. FileVault stays on. The public site nev
 
 ## 10. Who the agents are (the identity problem)
 
-Every agent (the Builder, the crew, chat sessions, the Desk's functions) acts on GitHub as `nikitapage10`, an
-admin. Three things follow:
+Until #138, every agent (the Builder, the crew, chat sessions, the Desk's functions) acted on GitHub as
+`nikitapage10`, an admin. The Claude Code sessions still do. Three things follow while any agent does:
 
 - **A bypass is no exception.** A ruleset that lets admins bypass also lets every agent bypass. So the rulesets
   below have an empty bypass list: they bind Nikita and the agents alike.
@@ -281,29 +282,49 @@ outcome, but GitHub itself would have accepted it from the same account.
 
 **The fix: a separate identity for the agents.**
 
-1. **A GitHub App, "C.E.O. Foundry"** (recommended). Settings, Developer settings, GitHub Apps, New. No webhook.
-   Repository permissions: Contents, Issues and Pull requests read and write; Metadata, Checks and Actions read.
-   **No Administration and no Workflows**, so it can't change repo settings, rulesets or CI. Install it on
-   `nikitapage10/C.E.O.` only. Its tokens last an hour and act as `ceo-foundry[bot]`. The Vercel functions mint a
-   token per request from the App's key (Production only). The Claude Code sessions need their GitHub access
-   switched to the App (or, if the environment can't mint App tokens, to the fallback below).
+1. **A GitHub App, `ceo-foundry`** (chosen, #138). No webhook. Repository permissions: Contents, Issues and Pull
+   requests read and write; Metadata, Checks and Actions read; Code scanning alerts and Dependabot alerts read, so the
+   security feed can count alerts. **No Administration and no Workflows**, so it can't change repo settings,
+   rulesets or CI. Installed on `nikitapage10/C.E.O.` only. Its tokens last an hour and act as `ceo-foundry[bot]`.
+   Nikita's setup is in [SECURITY.md](SECURITY.md), "The crew's own identity": create it, install it, two pastes.
 2. **Fallback: a machine user**, e.g. `ceo-foundry-bot`, a collaborator with the Write role, using a fine-grained
    token for this repo only (Contents, Issues, Pull requests; no Administration, no Workflows), expiring in 90 days.
    Simpler to wire into a session; weaker, because the token lives longer.
 
+**What #138 wires to the App** (each falls back to how it worked before while the App isn't set up):
+
+- **The Vercel functions** (`api/foundry.ts`, the feeds, the world step) get their token from `api/_github.ts`,
+  which mints an installation token from the App's key (Production only), for this repo only and with only what the
+  call needs: the Desk's buttons can write issues and nothing else; the feeds and the world step can only read. It
+  is kept until five minutes before it expires. Without the App's variables it returns `FOUNDRY_GITHUB_TOKEN`.
+- **CI's fix issues** (the `report` jobs in `checks.yml` and `visual-qa.yml`) use
+  `actions/create-github-app-token` with Issues write only, when the App's Actions secrets exist; otherwise the
+  built-in token. No workflow's permissions grew.
+- **The readers** (`scripts/foundry-issue.sh`, `scripts/foundry-watch.sh`, the world step's `TRAIL_AUTHORS`) trust
+  `ceo-foundry[bot]` like the Desk, since the App's key lives only in Vercel's Production functions and CI.
+
+**What it can't change: the Claude Code sessions.** The Builder, the crew and chat sessions push, open pull
+requests and merge with the GitHub access their environment gives them. That is configured where the sessions run
+(the Claude Code environment's GitHub connection), not by anything in this repo, and today it is Nikita's account.
+So their commits, pull requests and merges still show as Nikita's, code-owner review still can't be required, and the
+break-glass bypass in section 11 must stay off. Switching them over means pointing the sessions' GitHub access at the
+App (or the machine user) in the environment's settings; when that's possible, it is the last step of R2
+([THREAT-MODEL.md](THREAT-MODEL.md)). The App must not be handed to the sessions as a key in the repo or in a prompt:
+`scripts/foundry-issue.sh` trusts its words because only the Desk and CI hold it.
+
 **What can be enforced, before and after:**
 
-| Control | Now (all agents are Nikita) | With PR-only chat work | With the agents' own identity |
-| --- | --- | --- | --- |
-| No force push, no deleting `main` | Yes | Yes | Yes |
-| Signed commits only | Yes (the last 100 commits on `main` are all signed) | Yes | Yes |
-| Changes only through a PR | No: chat work pushes to `main` | Yes, no bypass | Yes; Nikita may bypass, the bot can't |
-| Green `checks` before merge | No | Yes | Yes, plus `e2e` once it is steady |
-| Squash only, linear history | No: builds merge locally | Yes | Yes |
-| Nikita approves trust-boundary changes | No | No | Yes (CODEOWNERS) |
-| Agents can't change CI or settings | No | No | Yes (no Workflows or Administration permission) |
-| Audit log tells agent from human | No | No | Yes |
-| Short-lived tokens | No | No | Yes (App) |
+| Control | Before (all agents are Nikita) | With PR-only chat work | With the App (#138) | With every agent on its own identity |
+| --- | --- | --- | --- | --- |
+| No force push, no deleting `main` | Yes | Yes | Yes | Yes |
+| Signed commits only | Yes (the last 100 commits on `main` are all signed) | Yes | Yes | Yes |
+| Changes only through a PR | No: chat work pushes to `main` | Yes, no bypass | Yes, no bypass | Yes; Nikita may bypass, the bot can't |
+| Green `checks` before merge | No | Yes | Yes | Yes, plus `e2e` once it is steady |
+| Squash only, linear history | No: builds merge locally | Yes | Yes | Yes |
+| Nikita approves trust-boundary changes | No | No | No: the sessions still open PRs as Nikita | Yes (CODEOWNERS) |
+| Agents can't change CI or settings | No | No | The Desk's functions and CI can't; the sessions still can | Yes (no Workflows or Administration permission) |
+| Audit log tells agent from human | No | No | For the Desk's and CI's writes | Yes |
+| Short-lived tokens | No | No | The Desk's functions and CI (an hour) | Yes (App) |
 
 ## 11. The ruleset for `main` (#60)
 
@@ -375,6 +396,12 @@ the browser tests are steady; and give Nikita's admin role a bypass for merging 
 for an emergency revert: `"bypass_actors": [{ "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode":
 "pull_request" }]`. Add the bypass only when no agent acts as Nikita any more, or it is a bypass for the agents too.
 
+The first of the three is `.github/rulesets/main-own-identity.json`: the gated ruleset with code-owner review on and
+nothing else changed. Don't import it yet. The crew's App (#138) covers the Desk's functions and CI, but the Claude
+Code sessions still open their pull requests as Nikita (section 10), and with code-owner review required and no
+bypass, nobody could approve their trust-boundary changes. It waits for the sessions to move off Nikita's account;
+add `e2e` and the bypass by hand when their own conditions are met.
+
 **How to create one.** Either:
 - **Clicks:** the repo, Settings, Rules, Rulesets, New ruleset, Import a ruleset, and pick
   `.github/rulesets/main-now.json`. Or New branch ruleset by hand: name it, Enforcement status Active, leave the
@@ -423,6 +450,8 @@ Claude Code tokens per shipped change (already on the Shipped step).
 code-owner approval on the trust boundary and an honest audit log possible. The App is the stronger one
 (hour-long tokens, can't touch CI or settings); the machine user is quicker to wire into Claude Code sessions.
 Nikita creates either one; it is a follow-up job after this.
+- **Decided: the App** (Nikita approved #138). Built in #138 for the Desk's functions and CI; Nikita's setup is in
+  SECURITY.md, "The crew's own identity". The Claude Code sessions are the part still open (section 10).
 
 **3. Create the "keep history safe" ruleset now** (section 11)? It changes nothing about how anyone works today.
 Recommended: yes, today.
@@ -440,6 +469,7 @@ Preview column of the env var table above, and Deployment Protection on previews
 | Now | "keep history safe" ruleset; the settings above; preview env vars | Nikita's clicks |
 | On decision 1 = B | CLAUDE.md and FOUNDRY.md say "PR with auto-merge" for chat and builds; the gated ruleset | Nikita's yes, then one small job |
 | After two green weeks | `e2e` on every PR, then required | A small upkeep job |
-| On decision 2 | The App or machine user; Vercel functions mint App tokens; sessions use the bot; code-owner review and the break-glass bypass | Nikita creates the App |
+| Built (#138) | The App: Vercel functions mint App tokens; CI's fix issues come from the App; the readers trust it | Nikita creates the App, two pastes (SECURITY.md) |
+| After #138 | Sessions act as the App or a machine user; `main-own-identity.json` (code-owner review); the break-glass bypass | The sessions' environment allowing it |
 | With #64 | Pinned actions, dependency and code scanning, secret scanning | #64 |
 | Later | Daily releases; the DORA panel on the Desk; the Relay update tap | Ideas for the queue |

@@ -296,7 +296,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     closes: "Agents acting as Nikita; previews and audit",
     status: "Not carded",
   },
-  { id: "R3", item: "Real Desk sign-in (passkey, short session, rate limits)", closes: "The static Desk key", status: "Not carded" },
+  { id: "R3", item: "Real Desk sign-in (passkey, short session, rate limits)", closes: "The static Desk key", status: "Carded #132, waiting for Nikita's pick" },
   {
     id: "R4",
     item: "Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only)",

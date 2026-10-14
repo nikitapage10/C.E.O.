@@ -123,7 +123,7 @@ repo, so their work still shows as Nikita's (DELIVERY.md, section 10).
    **Private keys** > **Generate a private key**. A file `ceo-foundry.<date>.private-key.pem` lands in Downloads.
 3. **Install it on this repo only.** Left sidebar > **Install App** > **Install** next to `nikitapage10` > **Only
    select repositories** > `C.E.O.` > **Install**.
-4. **Paste 1, in Terminal.** Paste this, replace `000000` with the App ID, press Return. It sets both GitHub Actions
+4. **Paste 1, in Terminal on the MacBook** (it needs `gh` signed in there). Paste this, replace `000000` with the App ID, press Return. It sets both GitHub Actions
    secrets and puts the two Vercel lines on your clipboard (the key as one base64 line); it prints neither.
 
    ```sh

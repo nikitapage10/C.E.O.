@@ -33,9 +33,47 @@ Claude: the Desk says what kind of thing it found (never the words) and Nikita s
 check with no model call, so it is free and predictable, and a slip it can't see still goes public as written.
 
 Idea pictures stay in the private Vercel Blob store. The issue names them but never links them, and
-`api/foundry-image.ts` serves one only on a link signed with the Desk key that lasts minutes (`api/_pictures.ts`):
-the Desk signs its own links in the browser, and Rivet's shaping call gets one that lasts five. The Desk's idea cards
-show pictures only from that store, through that function, never from another host.
+`api/foundry-image.ts` serves one only on a link that lasts minutes, signed with a key derived from the Desk key
+(`api/_pictures.ts`): the function signs the Desk's own links for a signed-in Desk (#132), and Rivet's shaping call
+gets one that lasts five. The Desk's idea cards show pictures only from that store, through that function, never
+from another host.
+
+## Signing in to the Desk
+
+The Desk's buttons write to the public repo, so they need a real sign-in (#132, R3 in
+[THREAT-MODEL.md](THREAT-MODEL.md)). Reading the Desk stays public; writing needs a passkey.
+
+- **Passkeys.** Nikita signs in with a passkey: the device's own fingerprint, face or PIN (Windows Hello, Touch ID,
+  Face ID, an Android screen lock). The device keeps the private key; the Desk keeps only the public part (the
+  credential's id, its public key, its signature counter and the device's name) in the private Blob store, at
+  `desk/auth/passkeys.json`. `api/desk-auth.ts` checks every sign-in with SimpleWebAuthn
+  (`@simplewebauthn/server`), a widely used, maintained WebAuthn library: the site, the origin, a one-time
+  challenge, the signature, the user check and the counter.
+- **Sessions.** A sign-in sets one cookie, HttpOnly, Secure and SameSite=Strict, holding a signed token that names
+  the passkey. It lasts 30 minutes from its last use, renews quietly while the Desk is in use, and ends 12 hours after
+  the sign-in whatever happens, when a passkey is needed again. Every Desk write checks it
+  (`requireSession` in `api/_desk/session.ts`): the idea buttons (`api/foundry.ts`), picture uploads and the Desk's
+  own picture links (`api/foundry-image.ts`) and the day's story backfill (`api/day-story.ts`). Requests from another
+  site are refused. No caller outside the browser uses these, so nothing accepts the Desk key in their place.
+- **Keys.** Every signing key (sessions, sign-in challenges, picture links) is derived from `FOUNDRY_DESK_KEY`,
+  stretched with scrypt and split by purpose (`api/_desk/keys.ts`), so no new variable is needed and the Desk key
+  itself never signs anything. Make it long and random, like any password manager's suggestion: it is also what an
+  offline guess against a captured cookie would have to find.
+- **Wrong tries.** Failed sign-ins and enrolments are counted in the Blob store (`api/_desk/limits.ts`), per
+  address (as a keyed hash, never the address) and across all addresses. From one address: two free, then a 30 second
+  wait, then 2 minutes, then locked for 15 minutes. Across all addresses, enrolment locks for an hour after 8
+  failures and sign-in for 15 minutes after 22. The Desk says plainly when it is locked and for how long. A lockout
+  never ends a session that is already open.
+
+**Adding a device** (a new PC or phone): open the Desk on it, go to the Foundry tab, press **Add this device**,
+give it a name, type the Desk key once, and confirm with the device's fingerprint, face or PIN. It is signed in
+straight away, and from then on signs in with the passkey alone. A phone can also use a passkey saved on another
+device through the browser's own "use a phone or another device" prompt. Up to ten devices.
+
+**Removing a device:** signed in on any device, open **Devices** on the Foundry tab's sign-in bar and press
+**Remove** next to it. Its sessions end at once. (Then delete the passkey from that device's own password manager
+too, if you have it.) **If a device is lost or the Desk key may have leaked**, change `FOUNDRY_DESK_KEY` in Vercel
+and redeploy: every session and picture link ends, and enrolling needs the new key; then remove the lost device.
 
 ## Keys and settings in Vercel
 
@@ -48,13 +86,13 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script | Shaping is off; hours and scripts come from the agents' own lines |
 | `GEMINI_API_KEY` | Gemini's text to speech: the day's story, read aloud (#95). Sent only in a request header, with only the day's scrubbed script | No audio; the Chronicle says so |
 | `GEMINI_BUDGET_USD` | Gemini's monthly cap, enforced in code (`api/_world/story.ts`); default 5, never above 10 | $5 |
+| `FOUNDRY_DESK_KEY` | The Desk's enrolment secret: typed once per device to add its passkey, and the root every Desk signing key is derived from (#132). Long and random | Sign-in, the buttons and the story backfill say "not set up" |
 | `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below): every function mints its own hour-long token for this repo, as `ceo-foundry[bot]`. Production only | The functions use `FOUNDRY_GITHUB_TOKEN`, as before |
 | `FOUNDRY_APP_INSTALLATION_ID` | Optional: the App's installation, to skip one lookup | Looked up once per warm function |
 | `FOUNDRY_GITHUB_TOKEN` | The fallback until the App is set up: a fine-grained token that acts as Nikita. The Desk's buttons write issues with it; the feeds read with it | With the App set, nothing is lost; without either, buttons say "not set up" and the feeds read anonymously |
-| `FOUNDRY_DESK_KEY` | The Desk's passphrase, compared in constant time | Buttons and the story backfill say "not set up" |
 | `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
 | `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
-| `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved |
+| `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved, and the Desk can't sign in |
 
 ## What scans the code, and when
 

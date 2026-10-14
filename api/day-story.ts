@@ -7,8 +7,8 @@
  *                                  { day, ready: false, reason } ("no-key", "over-budget", "not-yet").
  * GET  ?day=2026-10-13&audio=1  → the WAV (audio/wav). Under 4 MB it is one cacheable 200; a longer one is served in
  *                                  ranges (206), since a function's response is capped at 4.5 MB.
- * POST { key, day? }            → make today's or yesterday's story now, once (the Desk's "Make it now"). Gated by the
- *                                  Desk key, compared in constant time as in api/foundry.ts. Without `day`: yesterday
+ * POST { day? }                 → make today's or yesterday's story now, once (the Desk's "Make it now"). Only in the
+ *                                  Desk's sign-in session (#132, api/desk-auth.ts). Without `day`: yesterday
  *                                  if its recap is written and it has no story yet, else today so far. A story made in an
  *                                  older style (`stale`) is remade once in the current one.
  *
@@ -17,12 +17,13 @@
  * Environment (Vercel → Settings → Environment Variables):
  *   GEMINI_API_KEY     Gemini's speech (without it there is no audio, and the Desk says so)
  *   GEMINI_BUDGET_USD  optional: Gemini's own monthly cap (default 5, never above 10)
- *   FOUNDRY_DESK_KEY   the Desk's passphrase, for POST
+ *   FOUNDRY_DESK_KEY   the root of the Desk's sign-in (api/_desk/keys.ts), for POST
  *   CLAUDE_API_KEY     optional: Claude Haiku writes the script (else it is put together from the Chronicle's lines)
  *   BLOB_STORE_ID      the private Blob store (Vercel's OIDC sign-in)
  */
 
-import { timingSafeEqual } from "node:crypto";
+import { requireSession, withCookie } from "./_desk/session.js";
+import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import { claudeStoryWriter } from "./_world/claude.js";
 import { backfillDays, canSpeak, geminiBudget, geminiKey, isCurrent, makeStory, pickStoryStore, type DayStory, type StoryStore } from "./_world/story.js";
 import { DAY, pickStore, type WorldStore } from "./_world/store.js";
@@ -33,13 +34,6 @@ export const MAX_BODY = 4_000_000;
 
 function json(body: unknown, status = 200, cache = "no-store"): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": status === 200 ? cache : "no-store" } });
-}
-
-function keyMatches(given: unknown, want = process.env.FOUNDRY_DESK_KEY ?? ""): boolean {
-  if (typeof given !== "string") return false;
-  const a = Buffer.from(want);
-  const b = Buffer.from(given);
-  return a.length > 0 && a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** What the Desk is told about a story: the transcript and where to hear it. */
@@ -80,9 +74,11 @@ export interface DayStoryEnv {
   env: Record<string, string | undefined>;
   now: number;
   fetcher?: typeof fetch;
+  /** Where the Desk's sign-in keeps its passkeys (#132). */
+  auth: AuthStore | null;
 }
 
-const live = (): DayStoryEnv => ({ world: pickStore(), stories: pickStoryStore(), env: process.env, now: Date.now() });
+const live = (): DayStoryEnv => ({ world: pickStore(), stories: pickStoryStore(), env: process.env, now: Date.now(), auth: pickAuthStore() });
 
 export async function handleGet(request: Request, deps: DayStoryEnv = live()): Promise<Response> {
   const url = new URL(request.url);
@@ -110,8 +106,14 @@ export async function handleGet(request: Request, deps: DayStoryEnv = live()): P
 
 export async function handlePost(request: Request, deps: DayStoryEnv = live()): Promise<Response> {
   if (!deps.env.FOUNDRY_DESK_KEY || !deps.world || !deps.stories) return json({ error: "not-set-up" }, 503);
-  const body = (await request.json().catch(() => null)) as { key?: unknown; day?: unknown } | null;
-  if (!keyMatches(body?.key, deps.env.FOUNDRY_DESK_KEY)) return json({ error: "wrong-key" }, 401);
+  const signed = await requireSession(request, { deskKey: deps.env.FOUNDRY_DESK_KEY, store: deps.auth, now: deps.now });
+  if (!signed.ok) return signed.response;
+  return withCookie(await make(request, { ...deps, world: deps.world, stories: deps.stories }), signed);
+}
+
+/** A signed-in "Make it now". */
+async function make(request: Request, deps: DayStoryEnv & { world: WorldStore; stories: StoryStore }): Promise<Response> {
+  const body = (await request.json().catch(() => null)) as { day?: unknown } | null;
   const [today, yesterday] = backfillDays(deps.now) as [string, string];
   let day = typeof body?.day === "string" ? body.day : "";
   if (day && day !== today && day !== yesterday) return json({ error: "bad-day" }, 400);

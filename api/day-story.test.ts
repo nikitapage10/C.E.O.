@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { audioResponse, handleGet, handlePost, MAX_BODY, type DayStoryEnv } from "./day-story.ts";
+import { SESSION_COOKIE } from "./_desk/session.ts";
+import { MemoryAuthStore } from "./_desk/store.ts";
+import { signedInCookie } from "./_desk/testing.ts";
 import { MemoryStore } from "./_world/store.ts";
 import { MemoryStoryStore, SAMPLE_RATE, wavOf } from "./_world/story.ts";
 
@@ -26,67 +29,97 @@ function setup(env: Record<string, string | undefined> = {}) {
   world.days.set(YESTERDAY, { day: YESTERDAY, entries: [hour(YESTERDAY, 1)], recap: "Yesterday, footnoted." });
   const stories = new MemoryStoryStore();
   const fetcher = geminiFetch();
-  const deps: DayStoryEnv = { world, stories, env: { GEMINI_API_KEY: GEMINI, FOUNDRY_DESK_KEY: DESK, ...env }, now: NOW, fetcher };
-  return { deps, stories, fetcher };
+  const auth = new MemoryAuthStore();
+  const deps: DayStoryEnv = { world, stories, env: { GEMINI_API_KEY: GEMINI, FOUNDRY_DESK_KEY: DESK, ...env }, now: NOW, fetcher, auth };
+  return { deps, stories, fetcher, auth };
 }
 
-const post = (body: unknown) => new Request("https://ceo.test/api/day-story", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+/** A signed-in Desk's cookie (#132), for the test device enrolled in this setup's store. */
+const signedIn = (s: ReturnType<typeof setup>) => signedInCookie(DESK, NOW, s.auth);
+
+const post = (body: unknown, cookie = "") =>
+  new Request("https://ceo.test/api/day-story", { method: "POST", headers: { "Content-Type": "application/json", ...(cookie && { Cookie: cookie }) }, body: JSON.stringify(body) });
 const get = (q: string, headers: Record<string, string> = {}) => new Request(`https://ceo.test/api/day-story?${q}`, { headers });
 
-describe("the backfill (POST /api/day-story) is gated by the Desk key", () => {
-  it("refuses a wrong, missing or differently sized key, and calls nothing", async () => {
-    const { deps, fetcher } = setup();
-    for (const key of ["wrong", "", DESK.slice(0, -1), `${DESK}!`, undefined, 42]) {
-      const res = await handlePost(post({ key }), deps);
-      expect(res.status, String(key)).toBe(401);
+describe("the backfill (POST /api/day-story) needs the Desk's sign-in (#132)", () => {
+  it("refuses a request with no session, a forged one, or the bare Desk key, and calls nothing", async () => {
+    const s = setup();
+    const good = await signedIn(s);
+    // The real token with its payload stretched to a longer life, keeping the old signature.
+    const [body, sig] = good.slice(SESSION_COOKIE.length + 1).split(".") as [string, string];
+    const longer = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(body, "base64url").toString()), e: NOW / 1000 + 86_400 })).toString("base64url");
+    for (const req of [post({}), post({ key: DESK }), post({}, `${SESSION_COOKIE}=forged.token`), post({}, `${SESSION_COOKIE}=${longer}.${sig}`)]) {
+      expect((await handlePost(req, s.deps)).status).toBe(401);
     }
-    expect(fetcher).not.toHaveBeenCalled();
+    expect(s.fetcher).not.toHaveBeenCalled();
+  });
+
+  it("refuses an expired session, and one for a removed device", async () => {
+    const s = setup();
+    const cookie = await signedIn(s);
+    expect((await handlePost(post({}, cookie), { ...s.deps, now: NOW + 31 * 60_000 })).status).toBe(401);
+    await s.auth.savePasskeys([]);
+    expect((await handlePost(post({}, cookie), s.deps)).status).toBe(401);
+    expect(s.fetcher).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request from another site", async () => {
+    const s = setup();
+    const req = new Request("https://ceo.test/api/day-story", { method: "POST", headers: { "Content-Type": "application/json", Cookie: await signedIn(s), Origin: "https://attacker.example" }, body: "{}" });
+    expect((await handlePost(req, s.deps)).status).toBe(403);
+    expect(s.fetcher).not.toHaveBeenCalled();
   });
 
   it("is not set up without a Desk key on the server", async () => {
     const { deps, fetcher } = setup({ FOUNDRY_DESK_KEY: "" });
-    expect((await handlePost(post({ key: "" }), deps)).status).toBe(503);
+    expect((await handlePost(post({}), deps)).status).toBe(503);
     expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it("makes yesterday's story first (its recap is filed), then today's so far, each once", async () => {
-    const { deps, fetcher } = setup();
-    const first = (await (await handlePost(post({ key: DESK }), deps)).json()) as { day: string; made: boolean; story: { partial: boolean; audio: string } };
+  it("makes yesterday's story first (its recap is filed), then today's so far, each once, renewing the session", async () => {
+    const s = setup();
+    const { deps, fetcher } = s;
+    const cookie = await signedIn(s);
+    const res = await handlePost(post({}, cookie), deps);
+    expect(res.headers.getSetCookie().some((c) => c.startsWith(`${SESSION_COOKIE}=`) && c.includes("HttpOnly"))).toBe(true);
+    const first = (await res.json()) as { day: string; made: boolean; story: { partial: boolean; audio: string } };
     expect(first).toMatchObject({ day: YESTERDAY, made: true, story: { partial: false } });
     expect(first.story.audio).toMatch(/^\/api\/day-story\?day=2026-10-12&audio=1&v=\d+$/);
-    const second = (await (await handlePost(post({ key: DESK }), deps)).json()) as { day: string; made: boolean; story: { partial: boolean } };
+    const second = (await (await handlePost(post({}, cookie), deps)).json()) as { day: string; made: boolean; story: { partial: boolean } };
     expect(second).toMatchObject({ day: TODAY, made: true, story: { partial: true } });
-    const third = (await (await handlePost(post({ key: DESK, day: TODAY }), deps)).json()) as { made: boolean; reason: string };
+    const third = (await (await handlePost(post({ day: TODAY }, cookie), deps)).json()) as { made: boolean; reason: string };
     expect(third).toMatchObject({ made: false, reason: "exists" });
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("remakes a story read in the old, slow style once, in the new voice (#102)", async () => {
-    const { deps, stories, fetcher } = setup();
-    await handlePost(post({ key: DESK, day: YESTERDAY }), deps);
+    const s = setup();
+    const { deps, stories, fetcher } = s;
+    const cookie = await signedIn(s);
+    await handlePost(post({ day: YESTERDAY }, cookie), deps);
     const made = (await stories.readStory(YESTERDAY))!;
     const old = { ...made, voice: "Gacrux" };
     delete old.style;
     stories.stories.set(YESTERDAY, old);
     stories.claims.clear();
     expect(await (await handleGet(get(`day=${YESTERDAY}`), deps)).json()).toMatchObject({ ready: true, stale: true });
-    const remade = (await (await handlePost(post({ key: DESK, day: YESTERDAY }), { ...deps, now: NOW + 60_000 })).json()) as { made: boolean; story: { stale: boolean } };
+    const remade = (await (await handlePost(post({ day: YESTERDAY }, cookie), { ...deps, now: NOW + 60_000 })).json()) as { made: boolean; story: { stale: boolean } };
     expect(remade).toMatchObject({ made: true, story: { stale: false } });
-    const again = (await (await handlePost(post({ key: DESK, day: YESTERDAY }), { ...deps, now: NOW + 120_000 })).json()) as { made: boolean; reason: string };
+    const again = (await (await handlePost(post({ day: YESTERDAY }, cookie), { ...deps, now: NOW + 120_000 })).json()) as { made: boolean; reason: string };
     expect(again).toMatchObject({ made: false, reason: "exists" });
-    expect((await handlePost(post({ key: "wrong", day: YESTERDAY }), deps)).status).toBe(401);
+    expect((await handlePost(post({ day: YESTERDAY }), deps)).status).toBe(401);
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("only for today or yesterday", async () => {
-    const { deps, fetcher } = setup();
-    expect((await handlePost(post({ key: DESK, day: "2026-10-01" }), deps)).status).toBe(400);
-    expect(fetcher).not.toHaveBeenCalled();
+    const s = setup();
+    expect((await handlePost(post({ day: "2026-10-01" }, await signedIn(s)), s.deps)).status).toBe(400);
+    expect(s.fetcher).not.toHaveBeenCalled();
   });
 
   it("never returns the Gemini key", async () => {
-    const { deps } = setup();
-    const res = await handlePost(post({ key: DESK }), deps);
+    const s = setup();
+    const res = await handlePost(post({}, await signedIn(s)), s.deps);
     expect(await res.text()).not.toContain(GEMINI);
   });
 });
@@ -105,8 +138,9 @@ describe("reading a story (GET)", () => {
   });
 
   it("serves the transcript, then the WAV from our own origin, cached when versioned", async () => {
-    const { deps } = setup();
-    await handlePost(post({ key: DESK, day: YESTERDAY }), deps);
+    const s = setup();
+    const { deps } = s;
+    await handlePost(post({ day: YESTERDAY }, await signedIn(s)), deps);
     const view = (await (await handleGet(get(`day=${YESTERDAY}`), deps)).json()) as { ready: boolean; script: string; durationSec: number; audio: string };
     expect(view).toMatchObject({ ready: true, durationSec: 1, stale: false });
     expect(view.script.length).toBeGreaterThan(20);

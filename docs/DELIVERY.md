@@ -217,9 +217,9 @@ fixes what they find or explains why not on the pull request, and adds the resul
 | Variable | Production | Preview | Why |
 | --- | --- | --- | --- |
 | `CLAUDE_API_KEY` | Yes | No | Spends money. Without it shaping is off and the world step writes scripted hours |
+| `FOUNDRY_DESK_KEY` | Yes | No | Enrols the Desk's passkeys and signs its sessions (#132); without it the Desk can't sign in and its buttons say "not set up" |
 | `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | Yes | No | The crew's App key mints write tokens (#138) |
 | `FOUNDRY_GITHUB_TOKEN` | Yes, until the App is set up; then deleted | No (or a separate read-only token) | It can write issues as Nikita |
-| `FOUNDRY_DESK_KEY` | Yes | No | Without it the Desk buttons say "not set up" |
 | Blob store (`BLOB_STORE_ID`) | Yes | Not connected | Previews must not write the real world |
 | `WORLD_STORE` | unset (`blob`) | `memory` | A preview's world step can't touch production state |
 | `WORLD_BUDGET_USD` | Yes | Yes | Harmless |

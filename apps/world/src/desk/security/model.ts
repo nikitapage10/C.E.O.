@@ -15,12 +15,12 @@ export type ZoneId = "public" | "browser" | "vercel" | "claude" | "github" | "bu
 /** The boxes of the data-flow diagram (docs/THREAT-MODEL.md, "Data flow and trust boundaries"). */
 export const ZONES: Record<ZoneId, { name: string; trust: string; holds: string[]; planned?: boolean }> = {
   public: { name: "Public internet", trust: "Untrusted", holds: ["Anyone on GitHub", "Lattice viewers"] },
-  browser: { name: "Nikita's browser", trust: "Holds the Desk key", holds: ["The Desk"] },
+  browser: { name: "Nikita's browser", trust: "Passkey session", holds: ["The Desk"] },
   relay: { name: "Relay MacBook", trust: "Planned", holds: ["Hub and BlueBubbles"], planned: true },
   vercel: {
     name: "Vercel production",
     trust: "Built from main",
-    holds: ["Static site: Lattice and Desk", "api/foundry: Desk buttons, Rivet", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world state, stories, pictures"],
+    holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/foundry: Desk buttons, Rivet", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world, stories, pictures, passkeys"],
   },
   claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet and the world step (Haiku)", "The day's story (Gemini speech)", "Visual QA's review (Gemini, from CI)"] },
   github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks, scans, Visual QA"] },
@@ -45,7 +45,7 @@ export const BOUNDARIES: Boundary[] = [
     name: "Desk to functions",
     crosses: "Nikita's ideas, notes, answers, pictures, button presses",
     controls:
-      "Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127)",
+      "A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127)",
     from: "browser",
     to: "vercel",
   },
@@ -296,7 +296,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     closes: "Agents acting as Nikita; previews and audit",
     status: "Built #138, live once Nikita sets up the App; open: the Claude Code sessions still act as Nikita",
   },
-  { id: "R3", item: "Real Desk sign-in (passkey, short session, rate limits)", closes: "The static Desk key", status: "Carded #132, waiting for Nikita's pick" },
+  { id: "R3", item: "Real Desk sign-in (passkey, short session, rate limits)", closes: "The static Desk key", status: "Shipped #132" },
   {
     id: "R4",
     item: "Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only)",
@@ -334,7 +334,7 @@ export const EVAL_AREAS: { id: EvalAreaId; area: string; file: string; proves: s
     area: "The Desk's write path",
     file: "injection.test.ts",
     proves:
-      "With GitHub and Claude stubbed: wrong keys touch nothing; a proposed or revised idea never gets `foundry:build`; foreign picture links are dropped, and the Desk shows only its own pictures; text that looks private is held back before GitHub or Claude hear of it; pictures go into the issue as names and reach Rivet only on short-lived signed links; oversized notes are capped; forged choices and issue numbers are refused; requests go only to the repo's API",
+      "With GitHub and Claude stubbed: clicks without a sign-in session touch nothing; a proposed or revised idea never gets `foundry:build`; foreign picture links are dropped, and the Desk shows only its own pictures; text that looks private is held back before GitHub or Claude hear of it; pictures go into the issue as names and reach Rivet only on short-lived signed links; oversized notes are capped; forged choices and issue numbers are refused; requests go only to the repo's API",
   },
   {
     id: "world-step",

@@ -4,22 +4,25 @@
  * browser.
  *
  * GET  → which pieces are set up: { buttons, direct, shape }.
- * POST → { issue, choice: "build" | "pass" | "revise", note?, key }: "build" approves a morning idea (labels it
+ * POST → { issue, choice: "build" | "pass" | "revise", note? }: "build" approves a morning idea (labels it
  *        `foundry:build`); "pass" shelves it (closed as not planned); "revise" posts Nikita's note on the idea and
  *        labels it `foundry:revise` for Rivet to rewrite. Only open `foundry:idea` issues.
- *        { choice: "answer", issue, note, key } answers the question Rivet asked before the idea went to the queue
+ *        { choice: "answer", issue, note } answers the question Rivet asked before the idea went to the queue
  *        (the issue's `**Question:**` line, label `foundry:question`): the answer goes on the issue and Rivet shapes
  *        the card again with it.
- *        { choice: "propose", note, key } opens a new idea from Nikita's words for Rivet to shape.
+ *        { choice: "propose", note } opens a new idea from Nikita's words for Rivet to shape.
  *        The answer comes back as soon as GitHub has the change; Rivet's shaping finishes in the background.
  *        Notes and ideas go through the privacy check first (api/_privacy.ts, #127): text that looks private (an
  *        email, a phone number, an address, a card or account number, a key, a person's name) is held back with
  *        422 { error: "private", held: ["an email address", …] } and nothing is sent to GitHub or Claude.
+ *        Every POST needs the Desk's sign-in session (#132, api/desk-auth.ts): without one, 401
+ *        { error: "signed-out" } and nothing is sent anywhere.
  *
  * The Foundry thread picks up approved builds and unshaped ideas at its queue check, every 15 minutes (docs/FOUNDRY.md).
  *
  * Environment (Vercel → Settings → Environment Variables):
- *   FOUNDRY_DESK_KEY       a passphrase Nikita types once on the Desk; without it nobody else can press the buttons
+ *   FOUNDRY_DESK_KEY       the Desk's enrolment secret and the root of its signing keys (api/_desk/keys.ts); the
+ *                          buttons work only in a passkey session (api/desk-auth.ts), and not at all without it
  *   FOUNDRY_APP_ID, FOUNDRY_APP_PRIVATE_KEY   the crew's GitHub App (#138): the buttons write as ceo-foundry[bot] with
  *                          an hour-long token that can only touch this repo's issues (api/_github.ts)
  *   FOUNDRY_GITHUB_TOKEN   the fallback until the App is set up: a fine-grained token for this repo, Issues read and write
@@ -34,7 +37,9 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { waitUntil } from "@vercel/functions";
-import { timingSafeEqual } from "node:crypto";
+import { pictureSecret } from "./_desk/keys.js";
+import { requireSession, withCookie } from "./_desk/session.js";
+import { pickAuthStore } from "./_desk/store.js";
 import { canWriteGithub, githubToken } from "./_github.js";
 import { PICTURE_ROUTE, pictureLink, picturesLine, signPicture } from "./_pictures.js";
 import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
@@ -46,12 +51,6 @@ const env = (name: string): string => process.env[name] ?? "";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
-}
-
-function keyMatches(given: string): boolean {
-  const want = Buffer.from(env("FOUNDRY_DESK_KEY"));
-  const got = Buffer.from(given);
-  return want.length > 0 && want.length === got.length && timingSafeEqual(want, got);
 }
 
 /** Pictures from the Desk: only links our own picture function handed out (api/foundry-image.ts), a few per idea. */
@@ -76,7 +75,8 @@ const SHAPING_LINK_S = 5 * 60;
 /** Signed links for Rivet's shaping call, good for a few minutes, so Claude can fetch the pictures and nobody else. */
 export async function shapingLinks(images: string[], origin: string, now = Date.now()): Promise<string[]> {
   const until = Math.floor(now / 1000) + SHAPING_LINK_S;
-  return Promise.all(images.map(async (u) => `${origin}${pictureLink(storeName(u), until, await signPicture(env("FOUNDRY_DESK_KEY"), storeName(u), until))}`));
+  const secret = await pictureSecret(env("FOUNDRY_DESK_KEY"));
+  return Promise.all(images.map(async (u) => `${origin}${pictureLink(storeName(u), until, await signPicture(secret, storeName(u), until))}`));
 }
 
 async function github(path: string, init: RequestInit = {}): Promise<Response> {
@@ -365,8 +365,8 @@ export function shapedBody(shape: Shape, words: string, images: string[] = [], e
 
 export function GET(): Response {
   return json({
-    /** The buttons work when the key is set and a click can reach GitHub. */
-    buttons: Boolean(env("FOUNDRY_DESK_KEY")) && canWrite(),
+    /** The buttons work when the Desk can sign in (its key and the Blob store) and a click can reach GitHub. */
+    buttons: Boolean(env("FOUNDRY_DESK_KEY")) && canWrite() && pickAuthStore() !== null,
     direct: canWrite(),
     /** True when Rivet shapes proposed and revised ideas on the spot. */
     shape: canShape(),
@@ -377,15 +377,22 @@ export function GET(): Response {
 
 export async function POST(request: Request): Promise<Response> {
   if (!env("FOUNDRY_DESK_KEY") || !canWrite()) return json({ error: "not-set-up" }, 503);
-  let body: { issue?: unknown; choice?: unknown; note?: unknown; key?: unknown; images?: unknown };
+  // Only in a passkey session (#132), checked before the body is even read: without one nothing goes anywhere.
+  const signed = await requireSession(request, { deskKey: env("FOUNDRY_DESK_KEY"), store: pickAuthStore(), now: Date.now() });
+  if (!signed.ok) return signed.response;
+  return withCookie(await act(request), signed);
+}
+
+/** A signed-in click. */
+async function act(request: Request): Promise<Response> {
+  let body: { issue?: unknown; choice?: unknown; note?: unknown; images?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return json({ error: "bad-request" }, 400);
   }
-  const { issue, choice, note, key } = body;
+  const { issue, choice, note } = body;
   const images = readImages(body.images, new URL(request.url).origin);
-  if (typeof key !== "string" || !keyMatches(key)) return json({ error: "wrong-key" }, 401);
   const text = typeof note === "string" ? note.trim().slice(0, 2000) : "";
   if ((choice === "revise" || choice === "propose" || choice === "answer") && !text) return json({ error: "bad-request" }, 400);
   // The privacy check (#127): whatever the Desk sends ends up in a public issue, so text that looks private is held

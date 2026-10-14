@@ -83,8 +83,8 @@ export type StoryState = DayStoryView | "loading" | "failed" | "off";
 interface StoryStore {
   stories: Record<string, StoryState>;
   loadStory: (day: string) => Promise<void>;
-  /** The Desk's "Make it now" (Desk key): says why not, when it wasn't made. */
-  makeStory: (day: string, key: string) => Promise<{ made: boolean; reason?: string; error?: string }>;
+  /** The Desk's "Make it now" (in its sign-in session, #132): says why not, when it wasn't made. */
+  makeStory: (day: string) => Promise<{ made: boolean; reason?: string; error?: string }>;
 }
 
 export const useDayStory = create<StoryStore>((set, get) => ({
@@ -100,9 +100,9 @@ export const useDayStory = create<StoryStore>((set, get) => ({
       set({ stories: { ...get().stories, [day]: "failed" } });
     }
   },
-  makeStory: async (day, key) => {
+  makeStory: async (day) => {
     try {
-      const res = await fetch("/api/day-story", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ day, key }) });
+      const res = await fetch("/api/day-story", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ day }), credentials: "same-origin" });
       const body = (await res.json().catch(() => ({}))) as { made?: boolean; reason?: string; error?: string; story?: DayStoryView | null };
       if (!res.ok) return { made: false, error: body.error ?? `${res.status}` };
       if (body.story) set({ stories: { ...get().stories, [day]: body.story } });

@@ -12,6 +12,9 @@
  *        the card again with it.
  *        { choice: "propose", note, key } opens a new idea from Nikita's words for Rivet to shape.
  *        The answer comes back as soon as GitHub has the change; Rivet's shaping finishes in the background.
+ *        Notes and ideas go through the privacy check first (api/_privacy.ts, #127): text that looks private (an
+ *        email, a phone number, an address, a card or account number, a key, a person's name) is held back with
+ *        422 { error: "private", held: ["an email address", …] } and nothing is sent to GitHub or Claude.
  *
  * The Foundry thread picks up approved builds and unshaped ideas at its queue check, every 15 minutes (docs/FOUNDRY.md).
  *
@@ -30,6 +33,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { waitUntil } from "@vercel/functions";
 import { timingSafeEqual } from "node:crypto";
+import { PICTURE_ROUTE, pictureLink, picturesLine, signPicture } from "./_pictures.js";
+import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -49,11 +54,27 @@ function keyMatches(given: string): boolean {
 /** Pictures from the Desk: only links our own picture function handed out (api/foundry-image.ts), a few per idea. */
 export function readImages(given: unknown, origin: string): string[] {
   if (!Array.isArray(given)) return [];
-  const prefix = `${origin}/api/foundry-image?p=`;
+  const prefix = `${origin}${PICTURE_ROUTE}?p=`;
   return given.filter((u): u is string => typeof u === "string" && u.startsWith(prefix) && /^foundry(%2F|\/)ideas(%2F|\/)[\w.-]+$/i.test(u.slice(prefix.length))).slice(0, 4);
 }
 
-const imagesMarkdown = (images: string[]): string => (images.length ? `\n\n${images.map((u, i) => `![Picture ${i + 1}](${u})`).join("\n")}` : "");
+/** A picture link's name in the store ("…?p=foundry%2Fideas%2Fa.jpg" → "foundry/ideas/a.jpg"). */
+const storeName = (link: string) => decodeURIComponent(link.slice(link.indexOf("?p=") + 3));
+
+/**
+ * The idea's pictures as the public issue carries them: their names in the private store on one line, never a link
+ * (#127). The Desk signs its own short-lived links to show them; GitHub and anyone reading the issue get nothing.
+ */
+const imagesMarkdown = (images: string[]): string => (images.length ? `\n\n${picturesLine(images.map(storeName))}` : "");
+
+/** How long the link Rivet's shaping call fetches a picture by stays good: a few minutes is plenty. */
+const SHAPING_LINK_S = 5 * 60;
+
+/** Signed links for Rivet's shaping call, good for a few minutes, so Claude can fetch the pictures and nobody else. */
+export async function shapingLinks(images: string[], origin: string, now = Date.now()): Promise<string[]> {
+  const until = Math.floor(now / 1000) + SHAPING_LINK_S;
+  return Promise.all(images.map(async (u) => `${origin}${pictureLink(storeName(u), until, await signPicture(env("FOUNDRY_DESK_KEY"), storeName(u), until))}`));
+}
 
 async function github(path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${GH}${path}`, {
@@ -364,6 +385,10 @@ export async function POST(request: Request): Promise<Response> {
   if (typeof key !== "string" || !keyMatches(key)) return json({ error: "wrong-key" }, 401);
   const text = typeof note === "string" ? note.trim().slice(0, 2000) : "";
   if ((choice === "revise" || choice === "propose" || choice === "answer") && !text) return json({ error: "bad-request" }, 400);
+  // The privacy check (#127): whatever the Desk sends ends up in a public issue, so text that looks private is held
+  // back whole, before it reaches GitHub or Claude, and the Desk asks Nikita to say it another way.
+  const held = choice === "revise" || choice === "propose" || choice === "answer" ? privateParts(text) : [];
+  if (held.length) return json({ error: "private", held: held.map((k) => PRIVATE_LABEL[k]) }, 422);
 
   if (choice === "propose") {
     // Two things at once, streamed back as lines of JSON so the Desk never waits on the slower one: Rivet's shaping
@@ -372,7 +397,7 @@ export async function POST(request: Request): Promise<Response> {
     // shapes it.
     const first = text.split("\n")[0]!.trim();
     const title = `Idea: ${first.length > 80 ? `${first.slice(0, 77)}…` : first}`;
-    const shaping: Promise<Shaping> = canShape() ? shapeIdea(text, undefined, images) : Promise.resolve({ shape: null, usage: null });
+    const shaping: Promise<Shaping> = canShape() ? shapingLinks(images, new URL(request.url).origin).then((links) => shapeIdea(text, undefined, links)) : Promise.resolve({ shape: null, usage: null });
     const filing = github("/issues", {
       method: "POST",
       body: JSON.stringify({

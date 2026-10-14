@@ -324,9 +324,9 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "The Desk is the approval gate for every build, so it deserves more than a shared key.",
   },
   R4: {
-    what: "A check on Desk text and pictures before they go public, with signed picture links.",
-    connects: "Ideas filed as public issues and the pictures attached to them.",
-    why: "What Nikita types or dictates goes public as written; this would catch a slip before it does.",
+    what: "A check that reads Desk text before it is posted and holds back emails, phone numbers, addresses, card and account numbers, keys and names. Idea pictures stay private, on links that last minutes.",
+    connects: "Ideas, notes and answers filed as public issues, the pictures attached to them, and the Desk's idea cards.",
+    why: "What Nikita types or dictates would otherwise go public as written; now a slip is caught before it does, and the Desk shows only Nikita's own pictures.",
   },
   R5: {
     what: "A privacy spec for Relay written before its hub is built.",

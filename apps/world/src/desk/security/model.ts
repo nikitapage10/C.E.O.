@@ -45,7 +45,7 @@ export const BOUNDARIES: Boundary[] = [
     name: "Desk to functions",
     crosses: "Nikita's ideas, notes, answers, pictures, button presses",
     controls:
-      "Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap",
+      "Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127)",
     from: "browser",
     to: "vercel",
   },
@@ -168,9 +168,9 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Sensitive Information Disclosure",
     where: "The public Lattice; ideas filed as public issues; pictures",
     controls:
-      "Data minimisation (the step never reads bodies or comment words, `api/_world/digest.ts`); `scrub` on all input and output, now also catching full-width, zero-width-split and spelled-out forms; no secrets in git (secret scanning and push protection)",
-    residual: "Desk text and pictures go public as written",
-    tracking: "Privacy guard before posting (R4)",
+      "Data minimisation (the step never reads bodies or comment words, `api/_world/digest.ts`); `scrub` on all input and output, now also catching full-width, zero-width-split and spelled-out forms; no secrets in git (secret scanning and push protection); the privacy check on Desk text before it is posted (`privateParts` in `api/_privacy.ts`, #127): emails, phone numbers, street addresses, card, bank and ID numbers, keys, tokens and passwords, and names with a cue are held back whole, nothing sent; idea pictures stay in the private store, named in the issue but never linked, and served only on short-lived signed links (`api/_pictures.ts`)",
+    residual: "The privacy check reads patterns: a detail without a cue, or one written around them, still goes public as written; pictures are never read for what they show",
+    tracking: "Shipped: privacy guard before posting (#127)",
   },
   {
     id: "LLM03",
@@ -194,9 +194,9 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Improper Output Handling",
     where: "Rivet's card written into an issue body the Desk and the world step parse; world text shown on the Lattice; Gemini's findings written into a fix issue",
     controls:
-      "Schema with `additionalProperties: false`; enums for builder, model, size, agents, rooms and kinds; `plainLine` strips pictures, links, HTML and markdown markers from card text so it can't fake a `**Builder:**` line or call out to another host; `plainText` does the same for Visual QA findings, which CI files under its own card lines; length caps everywhere; React escapes all model text; no HTML sinks in the front end",
-    residual: "The Desk's card reader is more permissive than the card writer for text written with the Desk key; an enforcing CSP and security headers (#62) back it up",
-    tracking: "Open, tracked: R4",
+      "Schema with `additionalProperties: false`; enums for builder, model, size, agents, rooms and kinds; `plainLine` strips pictures, links, HTML and markdown markers from card text so it can't fake a `**Builder:**` line or call out to another host; `plainText` does the same for Visual QA findings, which CI files under its own card lines; length caps everywhere; React escapes all model text; no HTML sinks in the front end; the Desk's card reader shows pictures only from Nikita's own store, through its own picture function (`ownPictures`, #127)",
+    residual: "A model can still word a card oddly inside the schema; an enforcing CSP and security headers (#62) back up the reader",
+    tracking: "Shipped: the Desk shows only its own pictures (#127)",
   },
   {
     id: "LLM06",
@@ -301,7 +301,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     id: "R4",
     item: "Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only)",
     closes: "Desk text and pictures going public",
-    status: "#127, waiting for Nikita's pick",
+    status: "Shipped #127",
   },
   { id: "R5", item: "Relay privacy spec before the hub is built", closes: "Messages and contacts", status: "Not carded" },
   { id: "R6", item: "Key the world step and cap it per hour", closes: "World spend", status: "#61, not picked by Nikita" },
@@ -334,7 +334,7 @@ export const EVAL_AREAS: { id: EvalAreaId; area: string; file: string; proves: s
     area: "The Desk's write path",
     file: "injection.test.ts",
     proves:
-      "With GitHub and Claude stubbed: wrong keys touch nothing; a proposed or revised idea never gets `foundry:build`; foreign picture links are dropped; oversized notes are capped; forged choices and issue numbers are refused; requests go only to the repo's API",
+      "With GitHub and Claude stubbed: wrong keys touch nothing; a proposed or revised idea never gets `foundry:build`; foreign picture links are dropped, and the Desk shows only its own pictures; text that looks private is held back before GitHub or Claude hear of it; pictures go into the issue as names and reach Rivet only on short-lived signed links; oversized notes are capped; forged choices and issue numbers are refused; requests go only to the repo's API",
   },
   {
     id: "world-step",

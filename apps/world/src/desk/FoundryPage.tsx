@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
+import { MAX_IMAGES, isImage, uploadImage, usePictureLinks } from "./ideaImages.ts";
 import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
@@ -110,13 +110,29 @@ function soon(): string {
 /** Rivet's background shaping takes a second or two; past this, an idea still marked for rewriting waits for the check. */
 const SHAPING_MS = 45_000;
 
-type Sent = "ok" | "shaping" | "wrong-key" | "failed";
+type Sent = "ok" | "shaping" | "wrong-key" | "failed" | "held";
+
+/**
+ * What the privacy check held back (api/_privacy.ts, #127), as the Desk tells Nikita: the function names the kinds
+ * ("an email address", "a phone number"), never the words it found.
+ */
+export function heldMessage(kinds: unknown): string {
+  const list = Array.isArray(kinds) ? kinds.filter((k): k is string => typeof k === "string" && k.length < 60) : [];
+  const what = list.length === 0 ? "something private" : list.length === 1 ? list[0]! : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
+  return `Held back, nothing was sent: this looks like it has ${what} in it, and it would go up on a public GitHub issue. Take it out or say it another way, then send again.`;
+}
+
+const readHeld = async (res: Response) => heldMessage(((await res.json().catch(() => ({}))) as { held?: unknown }).held);
 
 /** One click to the Foundry function: how it went, and the issue it made (for a proposed idea). */
-async function post(issue: number | null, choice: Choice, key: string, note = ""): Promise<{ r: Sent; made: number | null }> {
+async function post(issue: number | null, choice: Choice, key: string, note = "", onHeld?: (message: string) => void): Promise<{ r: Sent; made: number | null }> {
   try {
     const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issue, choice, key, note }) });
     if (res.status === 401) return { r: "wrong-key", made: null };
+    if (res.status === 422) {
+      onHeld?.(await readHeld(res));
+      return { r: "held", made: null };
+    }
     if (!res.ok) return { r: "failed", made: null };
     const body = (await res.json().catch(() => ({}))) as { shaping?: boolean; issue?: number };
     return { r: body.shaping ? "shaping" : "ok", made: typeof body.issue === "number" ? body.issue : null };
@@ -131,10 +147,14 @@ type Shaped = Pick<Crate, "title" | "pitch" | "size" | "short" | "builder"> & { 
  * A new idea: the function streams back Rivet's shaping (straight from Claude) and the GitHub issue as each is ready,
  * so the card rewrites itself in about a second, whatever GitHub's pace.
  */
-async function propose(key: string, note: string, images: string[], onShape: (shape: Shaped) => void, onIssue: (issue: number) => void): Promise<Sent> {
+async function propose(key: string, note: string, images: string[], onShape: (shape: Shaped) => void, onIssue: (issue: number) => void, onHeld: (message: string) => void): Promise<Sent> {
   try {
     const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: "propose", key, note, images }) });
     if (res.status === 401) return "wrong-key";
+    if (res.status === 422) {
+      onHeld(await readHeld(res));
+      return "held";
+    }
     if (!res.ok || !res.body) return "failed";
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = "";
@@ -164,8 +184,8 @@ async function propose(key: string, note: string, images: string[], onShape: (sh
   }
 }
 
-async function send(issue: number | null, choice: Choice, key: string, note = ""): Promise<Sent> {
-  return (await post(issue, choice, key, note)).r;
+async function send(issue: number | null, choice: Choice, key: string, note = "", onHeld?: (message: string) => void): Promise<Sent> {
+  return (await post(issue, choice, key, note, onHeld)).r;
 }
 
 /* ── The page ── */
@@ -286,8 +306,11 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
   const [key, setKey] = useState(storedKey);
   const [note, setNote] = useState("");
   const [result, setResult] = useState("");
+  const [held, setHeld] = useState("");
   const ready = setup?.buttons ?? false;
   const asking = Boolean(crate.asking && crate.question);
+  // Nikita's own pictures only, on short-lived links signed with the Desk key on this device (#127).
+  const pictures = usePictureLinks(crate.images, storedKey());
   // What was typed before the mic started; dictation appends to it, as in the Suggest box.
   const typed = useRef("");
   const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
@@ -319,7 +342,14 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
     }
     dictation.stop();
     setMode("busy");
-    const r = await send(crate.number, choice, withKey, note);
+    setHeld("");
+    const r = await send(crate.number, choice, withKey, note, setHeld);
+    if (r === "held") {
+      // The privacy check kept it back: the words stay in the box to rephrase, and nothing went to GitHub.
+      storeKey(withKey);
+      setMode(choice === "revise" ? "revise" : "idle");
+      return;
+    }
     if (r === "wrong-key") {
       setPending(choice);
       setMode("key");
@@ -363,9 +393,9 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
           <p>{crate.question}</p>
         </div>
       )}
-      {crate.images && crate.images.length > 0 && (
+      {pictures.length > 0 && (
         <ul className="fy-idea__pics">
-          {crate.images.map((u, n) => (
+          {pictures.map((u, n) => (
             <li key={u}>
               <a href={u} target="_blank" rel="noreferrer" title="Open the picture">
                 <img src={u} alt={`Picture ${n + 1}`} loading="lazy" />
@@ -432,6 +462,11 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
               What should change, or what should Rivet know?
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus maxLength={2000} />
             </label>
+            {held && (
+              <p className="fy-idea__note" role="alert">
+                {held}
+              </p>
+            )}
             <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim()}>
               Send notes
             </button>
@@ -455,6 +490,11 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
               </span>
             </label>
             {dictation.error && <p className="fy-idea__note">{dictation.error}</p>}
+            {held && (
+              <p className="fy-idea__note" role="alert">
+                {held}
+              </p>
+            )}
             <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || mode === "busy"}>
               Send answer
             </button>
@@ -516,7 +556,7 @@ function Propose({ setup }: { setup: Setup }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [key, setKey] = useState(storedKey);
-  const [state, setState] = useState<"idle" | "busy" | "done" | "shaping" | "failed" | "wrong-key">("idle");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "shaping" | "failed" | "wrong-key" | "held">("idle");
   // What was typed before the mic started; dictation appends to it.
   const typed = useRef("");
   const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
@@ -524,6 +564,7 @@ function Propose({ setup }: { setup: Setup }) {
   const canPic = ready && (setup?.images ?? false);
   const [pics, setPics] = useState<Pic[]>([]);
   const [picNote, setPicNote] = useState("");
+  const [held, setHeld] = useState("");
   const [dragging, setDragging] = useState(false);
   const pickFiles = useRef<HTMLInputElement>(null);
   const uploading = pics.some((p) => p.status === "up");
@@ -586,6 +627,7 @@ function Propose({ setup }: { setup: Setup }) {
         number = issue;
         expectChange();
       },
+      setHeld,
     );
     if (r === "ok" || r === "shaping") {
       storeKey(key.trim());
@@ -703,6 +745,11 @@ function Propose({ setup }: { setup: Setup }) {
         </label>
       )}
       {state === "failed" && <p className="fy-idea__note">That didn't go through. Try again.</p>}
+      {state === "held" && held && (
+        <p className="fy-idea__note" role="alert">
+          {held}
+        </p>
+      )}
       {!ready && setup !== null && <p className="fy-idea__note fy-idea__note--quiet">Sending straight from here needs the Vercel variables above. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
       <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || (ready && !key.trim()) || state === "busy" || uploading || setup === null}>
         {ready ? "Send to Rivet" : "Copy and open the thread"}

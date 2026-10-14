@@ -22,6 +22,21 @@ counts) and Systems > Compliance (`/systems/compliance`: the OWASP, NIST AI RMF 
 public to read, so its feed (`api/security-feed.ts`) carries posture only: states, scores, dates and counts, never
 an open alert's details.
 
+## Privacy before posting
+
+What Nikita types or dictates on the Desk (a suggested idea, revise notes, an answer to Rivet) is written into a
+public GitHub issue, so it goes through a privacy check first (`api/_privacy.ts`, #127, R4 in
+[THREAT-MODEL.md](THREAT-MODEL.md)). It looks for email addresses, phone numbers, street addresses, card, bank and ID
+numbers, keys, tokens and passwords, and people's names where a cue gives them away ("my friend …", "Mrs. …",
+"…'s number"), including full-width, zero-width-split and spelled-out forms. On a hit nothing is sent to GitHub or
+Claude: the Desk says what kind of thing it found (never the words) and Nikita says it another way. It is a pattern
+check with no model call, so it is free and predictable, and a slip it can't see still goes public as written.
+
+Idea pictures stay in the private Vercel Blob store. The issue names them but never links them, and
+`api/foundry-image.ts` serves one only on a link signed with the Desk key that lasts minutes (`api/_pictures.ts`):
+the Desk signs its own links in the browser, and Rivet's shaping call gets one that lasts five. The Desk's idea cards
+show pictures only from that store, through that function, never from another host.
+
 ## Keys and settings in Vercel
 
 Every secret lives only in Vercel's environment (Project, Settings, Environment Variables), never in the repo or the

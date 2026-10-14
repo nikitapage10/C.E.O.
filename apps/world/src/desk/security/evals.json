@@ -1,7 +1,7 @@
 {
-  "total": 191,
-  "passing": 190,
-  "expectedFail": 1,
+  "total": 196,
+  "passing": 196,
+  "expectedFail": 0,
   "areas": [
     {
       "id": "rivet-prompt",
@@ -20,9 +20,9 @@
     {
       "id": "desk-write",
       "file": "injection.test.ts",
-      "cases": 45,
-      "passing": 44,
-      "expectedFail": 1
+      "cases": 50,
+      "passing": 50,
+      "expectedFail": 0
     },
     {
       "id": "world-step",

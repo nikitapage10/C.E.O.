@@ -1,11 +1,13 @@
 /**
  * Pictures for Nikita's ideas on the Desk, as a Vercel function. The Desk shrinks a pasted, attached or dropped
- * image in the browser, then posts it here with the Desk key; it lands in the project's private Vercel Blob store,
- * and this function serves it back at its own link, which goes into the idea's issue so the card, GitHub and
- * Rusty's shaping can all see it.
+ * image in the browser, then posts it here with the Desk key; it lands in the project's private Vercel Blob store.
+ * The picture stays private (#127, docs/THREAT-MODEL.md, R4): the idea's public issue names it but never links it,
+ * and this function serves it back only on a short-lived signed link (api/_pictures.ts), which the Desk signs with its
+ * key for its own cards and api/foundry.ts signs for Rivet's shaping call.
  *
- * POST (raw image body, `Content-Type: image/…`, header `x-desk-key`) → { url }.
- * GET  ?p=foundry/ideas/… → the picture.
+ * POST (raw image body, `Content-Type: image/…`, header `x-desk-key`) → { url }: the picture's reference link
+ *      (unsigned, so it opens nothing by itself; the Desk hands it back when it files the idea).
+ * GET  ?p=foundry/ideas/…&u=<expiry, seconds>&s=<signature> → the picture, or 403 without a good, unexpired signature.
  *
  * Environment (Vercel → Settings → Environment Variables):
  *   FOUNDRY_DESK_KEY        the Desk's passphrase (as in api/foundry.ts)
@@ -15,10 +17,10 @@
 
 import { get, put } from "@vercel/blob";
 import { timingSafeEqual } from "node:crypto";
+import { PICTURE_PATH, verifyPicture } from "./_pictures.js";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-const PATH = /^foundry\/ideas\/[\w.-]+$/;
 
 const env = (name: string): string => process.env[name] ?? "";
 const canStore = () => Boolean(env("BLOB_STORE_ID") || env("BLOB_READ_WRITE_TOKEN"));
@@ -34,13 +36,18 @@ function keyMatches(given: string): boolean {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const path = new URL(request.url).searchParams.get("p") ?? "";
-  if (!PATH.test(path) || !canStore()) return json({ error: "not-found" }, 404);
+  const query = new URL(request.url).searchParams;
+  const path = query.get("p") ?? "";
+  if (!PICTURE_PATH.test(path) || !canStore()) return json({ error: "not-found" }, 404);
+  const until = Number(query.get("u"));
+  const now = Date.now();
+  if (!(await verifyPicture(env("FOUNDRY_DESK_KEY"), path, until, query.get("s") ?? "", now))) return json({ error: "private" }, 403);
   try {
     const found = await get(path, { access: "private" });
     if (!found || !found.stream) return json({ error: "not-found" }, 404);
-    // Each picture's name is unique and never changes, so it can be cached for good.
-    return new Response(found.stream, { headers: { "Content-Type": found.blob.contentType || "image/jpeg", "Cache-Control": "public, max-age=31536000, immutable" } });
+    // Only the viewer's own browser may keep it, and no longer than the link lives; never a shared cache.
+    const left = Math.max(0, Math.min(600, until - Math.floor(now / 1000)));
+    return new Response(found.stream, { headers: { "Content-Type": found.blob.contentType || "image/jpeg", "Cache-Control": `private, max-age=${left}`, "Referrer-Policy": "no-referrer" } });
   } catch {
     return json({ error: "blob" }, 502);
   }

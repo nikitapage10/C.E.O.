@@ -206,7 +206,7 @@ Desk key. Open, tracked (R4); its test is marked expected-fail.
 | R1 | Builder permission hook: narrow shell permissions, deny risky commands, log every tool call | Excessive agency (agent half) | Shipped #119 |
 | R2 | The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10) | Agents acting as Nikita; previews and audit | Not carded |
 | R3 | Real Desk sign-in (passkey, short session, rate limits) | The static Desk key | Not carded |
-| R4 | Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only) | Desk text and pictures going public | Not carded |
+| R4 | Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only) | Desk text and pictures going public | #127, waiting for Nikita's pick |
 | R5 | Relay privacy spec before the hub is built | Messages and contacts | Not carded |
 | R6 | Key the world step and cap it per hour | World spend | #61, not picked by Nikita |
 

@@ -68,7 +68,7 @@ export const ROOMS: RoomBrief[] = [
     id: "foundry",
     name: "Foundry",
     expect: [
-      "Rusty's dock stands against the LEFT wall, towards the front: three charging bays under a shelf, each with a small parked robot. The dock and the floor in front of it must be clear: no barrels, crates, stock or other props on it, in it or in front of it.",
+      "Rusty's dock stands against the LEFT wall, towards the front: three charging bays under a shelf, each with a small parked robot. Its dark back wall and see-through bay dividers can look like a glass case or tank from an angle: that is the dock itself, not a prop. The dock and the floor in front of it must be clear: no barrels, crates, stock or other props on it, in it or in front of it.",
       "Stock and the big tarped crate sit only along the FRONT RIGHT; the front left stays clear for the dock.",
       "Rusty's two workbenches (desks with two monitors each) stand side by side towards the front in the MIDDLE of the room, never in the front left in front of the dock.",
       "A long conveyor belt runs across the back, with the crate intake machine at its left end, the assembly arm, and the test furnace on the right.",

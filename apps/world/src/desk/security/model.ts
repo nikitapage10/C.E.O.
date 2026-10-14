@@ -301,7 +301,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     id: "R4",
     item: "Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only)",
     closes: "Desk text and pictures going public",
-    status: "Not carded",
+    status: "#127, waiting for Nikita's pick",
   },
   { id: "R5", item: "Relay privacy spec before the hub is built", closes: "Messages and contacts", status: "Not carded" },
   { id: "R6", item: "Key the world step and cap it per hour", closes: "World spend", status: "#61, not picked by Nikita" },

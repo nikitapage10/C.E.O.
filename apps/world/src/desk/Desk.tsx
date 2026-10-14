@@ -9,6 +9,7 @@ import { useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
 import { FoundryPage } from "./FoundryPage.tsx";
 import { Relay } from "./Relay.tsx";
+import { startDeskAuth } from "./signin.ts";
 import { SystemsHub } from "./SystemsHub.tsx";
 import { systemsTitle } from "./SystemsNav.tsx";
 import { Chronicle } from "./Chronicle.tsx";
@@ -51,6 +52,7 @@ export function Desk({ route }: { route: DeskTab }) {
   useEffect(() => {
     startFoundry();
     startWorldClock();
+    startDeskAuth();
   }, []);
 
   useEffect(() => {

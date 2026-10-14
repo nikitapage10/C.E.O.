@@ -63,7 +63,7 @@ normal voice in #107): a short "today in Ilyr" in 30 to 45 seconds, one clear sp
 
 - **Trigger:** the step that writes a recap (the first after midnight Mountain) makes that day's story after it has
   answered (`waitUntil` in `api/world-step.ts`), so the step stays fast. The Chronicle also has **Make it now** for
-  today or yesterday (`POST /api/day-story` with the Desk key, compared in constant time): yesterday when its recap
+  today or yesterday (`POST /api/day-story` in the Desk's passkey session, #132): yesterday when its recap
   is filed and it has no story yet, else **the day so far**. Each day gets at most two: one "so far" from the Desk,
   and the recap's, which replaces it. Each is made once (a claim in the store, so a second call, or two racing,
   spends nothing).
@@ -141,7 +141,7 @@ normal voice in #107): a short "today in Ilyr" in 30 to 45 seconds, one clear sp
 - `GET /api/world` → the feed (state, the last 12 hours, the day index, remarks, this month's spend, and the day's
   story's Gemini spend as `story`), cached at the edge for five minutes.
 - `GET /api/day-story?day=2026-10-13` → the day's story (transcript and audio link) or why there is none;
-  `&audio=1` → the WAV. `POST { key, day? }` → make today's or yesterday's now (Desk key).
+  `&audio=1` → the WAV. `POST { day? }` → make today's or yesterday's now (signed in on the Desk).
 - `GET /api/world?day=2026-10-13` → one day's page.
 - `GET /api/world-step` → the world clock, without running a step: `{ at, step, nextAt, store, claude, source,
   spend: { month, usd, budget, calls, scripted } }` (`api/_world/clock.ts`), never cached. Only times, counts and

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage, usePictureLinks } from "./ideaImages.ts";
+import { DeskSignIn } from "./SignIn.tsx";
+import { ensureSignedIn, useDeskAuth } from "./signin.ts";
 import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
@@ -57,22 +59,6 @@ const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60
 
 type Setup = { buttons: boolean; direct: boolean; shape: boolean; images: boolean } | null;
 type Choice = "build" | "pass" | "revise" | "propose" | "answer";
-const KEY = "ceo.deskKey";
-
-function storedKey(): string {
-  try {
-    return localStorage.getItem(KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-function storeKey(key: string) {
-  try {
-    localStorage.setItem(KEY, key);
-  } catch {
-    // Private window: the key lasts for this visit only.
-  }
-}
 
 export function useSetup(): Setup {
   const [setup, setSetup] = useState<Setup>(null);
@@ -110,7 +96,7 @@ function soon(): string {
 /** Rivet's background shaping takes a second or two; past this, an idea still marked for rewriting waits for the check. */
 const SHAPING_MS = 45_000;
 
-type Sent = "ok" | "shaping" | "wrong-key" | "failed" | "held";
+type Sent = "ok" | "shaping" | "signed-out" | "failed" | "held";
 
 /**
  * What the privacy check held back (api/_privacy.ts, #127), as the Desk tells Nikita: the function names the kinds
@@ -125,10 +111,13 @@ export function heldMessage(kinds: unknown): string {
 const readHeld = async (res: Response) => heldMessage(((await res.json().catch(() => ({}))) as { held?: unknown }).held);
 
 /** One click to the Foundry function: how it went, and the issue it made (for a proposed idea). */
-async function post(issue: number | null, choice: Choice, key: string, note = "", onHeld?: (message: string) => void): Promise<{ r: Sent; made: number | null }> {
+async function post(issue: number | null, choice: Choice, note = "", onHeld?: (message: string) => void): Promise<{ r: Sent; made: number | null }> {
   try {
-    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issue, choice, key, note }) });
-    if (res.status === 401) return { r: "wrong-key", made: null };
+    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issue, choice, note }), credentials: "same-origin" });
+    if (res.status === 401) {
+      useDeskAuth.getState().lost();
+      return { r: "signed-out", made: null };
+    }
     if (res.status === 422) {
       onHeld?.(await readHeld(res));
       return { r: "held", made: null };
@@ -147,10 +136,13 @@ type Shaped = Pick<Crate, "title" | "pitch" | "size" | "short" | "builder"> & { 
  * A new idea: the function streams back Rivet's shaping (straight from Claude) and the GitHub issue as each is ready,
  * so the card rewrites itself in about a second, whatever GitHub's pace.
  */
-async function propose(key: string, note: string, images: string[], onShape: (shape: Shaped) => void, onIssue: (issue: number) => void, onHeld: (message: string) => void): Promise<Sent> {
+async function propose(note: string, images: string[], onShape: (shape: Shaped) => void, onIssue: (issue: number) => void, onHeld: (message: string) => void): Promise<Sent> {
   try {
-    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: "propose", key, note, images }) });
-    if (res.status === 401) return "wrong-key";
+    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: "propose", note, images }), credentials: "same-origin" });
+    if (res.status === 401) {
+      useDeskAuth.getState().lost();
+      return "signed-out";
+    }
     if (res.status === 422) {
       onHeld(await readHeld(res));
       return "held";
@@ -184,8 +176,8 @@ async function propose(key: string, note: string, images: string[], onShape: (sh
   }
 }
 
-async function send(issue: number | null, choice: Choice, key: string, note = "", onHeld?: (message: string) => void): Promise<Sent> {
-  return (await post(issue, choice, key, note, onHeld)).r;
+async function send(issue: number | null, choice: Choice, note = "", onHeld?: (message: string) => void): Promise<Sent> {
+  return (await post(issue, choice, note, onHeld)).r;
 }
 
 /* ── The page ── */
@@ -237,6 +229,7 @@ export function FoundryPage({ now }: { now: number }) {
           <span className="badge">{needs}</span>
         </header>
         {setup !== null && !setup.buttons && <SetupNote />}
+        {setup?.buttons && <DeskSignIn />}
         {decisions.length > 0 && (
           <ul className="fy-decisions">
             {decisions.map((c) => (
@@ -301,16 +294,15 @@ export function FoundryPage({ now }: { now: number }) {
 
 /** An idea card with its buttons; the Foundry tab lists them all and Today shows the ones Rivet is asking about. */
 export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; index: number; setup: Setup; focus?: boolean }) {
-  const [mode, setMode] = useState<"idle" | "key" | "revise" | "busy" | "done" | "failed">("idle");
+  const [mode, setMode] = useState<"idle" | "signin" | "revise" | "busy" | "done" | "failed">("idle");
   const [pending, setPending] = useState<Choice | null>(null);
-  const [key, setKey] = useState(storedKey);
   const [note, setNote] = useState("");
   const [result, setResult] = useState("");
   const [held, setHeld] = useState("");
   const ready = setup?.buttons ?? false;
   const asking = Boolean(crate.asking && crate.question);
-  // Nikita's own pictures only, on short-lived links signed with the Desk key on this device (#127).
-  const pictures = usePictureLinks(crate.images, storedKey());
+  // Nikita's own pictures only, on short-lived links the picture function signs for a signed-in Desk (#127, #132).
+  const pictures = usePictureLinks(crate.images);
   // What was typed before the mic started; dictation appends to it, as in the Suggest box.
   const typed = useRef("");
   const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
@@ -334,33 +326,31 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
     }
   }, [shown, mode]);
 
-  const go = async (choice: Choice, withKey = key) => {
-    if (!withKey) {
-      setPending(choice);
-      setMode("key");
-      return;
-    }
+  const go = async (choice: Choice) => {
     dictation.stop();
     setMode("busy");
     setHeld("");
-    const r = await send(crate.number, choice, withKey, note, setHeld);
+    // Signed in already, or one passkey tap now; otherwise the sign-in step takes the buttons' place.
+    if ((await ensureSignedIn()) !== "ok") {
+      setPending(choice);
+      setMode("signin");
+      return;
+    }
+    const r = await send(crate.number, choice, note, setHeld);
     if (r === "held") {
       // The privacy check kept it back: the words stay in the box to rephrase, and nothing went to GitHub.
-      storeKey(withKey);
       setMode(choice === "revise" ? "revise" : "idle");
       return;
     }
-    if (r === "wrong-key") {
+    if (r === "signed-out") {
       setPending(choice);
-      setMode("key");
-      setResult("That key didn't match. Try again.");
+      setMode("signin");
       return;
     }
     if (r === "failed") {
       setMode("failed");
       return;
     }
-    storeKey(withKey);
     setResult(
       choice === "build" ? `Approved${asking ? " as is" : ""}. The crew picks it up ${soon()}.`
       : choice === "pass" ? "On the shelf. Rusty may bring it back another way."
@@ -431,25 +421,8 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
               Not this one
             </button>
           </div>
-        ) : mode === "key" ? (
-          <form
-            className="fy-idea__form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (pending) void go(pending, key.trim());
-            }}
-          >
-            <label>
-              {result || "Your Desk key (asked once on this device)"}
-              <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoFocus autoComplete="current-password" />
-            </label>
-            <button type="submit" className="btn btn--go btn--sm" disabled={!key.trim()}>
-              Go
-            </button>
-            <button type="button" className="btn btn--quiet btn--sm" onClick={() => setMode("idle")}>
-              Cancel
-            </button>
-          </form>
+        ) : mode === "signin" ? (
+          <DeskSignIn compact onDone={() => pending && void go(pending)} onCancel={() => setMode(pending === "revise" ? "revise" : "idle")} />
         ) : mode === "revise" ? (
           <form
             className="fy-idea__form"
@@ -529,8 +502,8 @@ function SetupNote() {
     <aside className="fy-setup" aria-label="One-time setup">
       <strong>One-time setup, then everything happens here.</strong>
       <p>
-        The buttons go through Vercel, which needs two values (Project → Settings → Environment Variables, then redeploy): <code>FOUNDRY_DESK_KEY</code>, a passphrase you invent and type once per device, and{" "}
-        <code>FOUNDRY_GITHUB_TOKEN</code>, a GitHub token for this repo with Issues read and write. A click then changes GitHub at once.
+        The buttons go through Vercel, which needs two values (Project → Settings → Environment Variables, then redeploy): <code>FOUNDRY_DESK_KEY</code>, a long passphrase you invent and type once per device to enrol its passkey, and{" "}
+        <code>FOUNDRY_GITHUB_TOKEN</code>, a GitHub token for this repo with Issues read and write, plus the private Blob store connected. A click then changes GitHub at once.
       </p>
     </aside>
   );
@@ -555,8 +528,7 @@ type Pic = { id: string; file: File; preview: string; status: "wait" | "up" | "d
 function Propose({ setup }: { setup: Setup }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
-  const [key, setKey] = useState(storedKey);
-  const [state, setState] = useState<"idle" | "busy" | "done" | "shaping" | "failed" | "wrong-key" | "held">("idle");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "shaping" | "failed" | "signed-out" | "held">("idle");
   // What was typed before the mic started; dictation appends to it.
   const typed = useRef("");
   const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
@@ -568,10 +540,11 @@ function Propose({ setup }: { setup: Setup }) {
   const [dragging, setDragging] = useState(false);
   const pickFiles = useRef<HTMLInputElement>(null);
   const uploading = pics.some((p) => p.status === "up");
-  const known = key.trim() || storedKey();
-  const upload = async (pic: Pic, withKey: string) => {
+  // Pictures go up as soon as they are added while signed in; otherwise when the idea is sent.
+  const known = useDeskAuth((s) => s.auth.status === "in");
+  const upload = async (pic: Pic) => {
     setPics((l) => l.map((p) => (p.id === pic.id ? { ...p, status: "up" } : p)));
-    const url = await uploadImage(pic.file, withKey);
+    const url = await uploadImage(pic.file);
     setPics((l) => l.map((p) => (p.id === pic.id ? { ...p, status: url ? "done" : "failed", url: url ?? undefined } : p)));
     return url;
   };
@@ -583,7 +556,7 @@ function Propose({ setup }: { setup: Setup }) {
     const fresh: Pic[] = found.slice(0, room).map((file) => ({ id: Math.random().toString(36).slice(2), file, preview: URL.createObjectURL(file), status: known ? "up" : "wait" }));
     if (!fresh.length) return;
     setPics((l) => [...l, ...fresh]);
-    if (known) for (const p of fresh) void upload(p, known).then((u) => !u && setPicNote("That picture didn't upload. Try again."));
+    if (known) for (const p of fresh) void upload(p).then((u) => !u && setPicNote("That picture didn't upload. Try again."));
   };
   const dropPic = (id: string) => {
     setPicNote("");
@@ -596,10 +569,15 @@ function Propose({ setup }: { setup: Setup }) {
   const submit = async () => {
     dictation.stop();
     setState("busy");
-    // Pictures not uploaded yet (no key was known when they were added) go up now.
+    // Signed in already, or one passkey tap now; otherwise the sign-in step shows under the idea.
+    if ((await ensureSignedIn()) !== "ok") {
+      setState("signed-out");
+      return;
+    }
+    // Pictures not uploaded yet (added while signed out) go up now.
     const urls: string[] = [];
     for (const p of pics) {
-      const url = p.status === "done" ? p.url! : await upload(p, key.trim());
+      const url = p.status === "done" ? p.url! : await upload(p);
       if (!url) {
         setPicNote("That picture didn't upload. Try again.");
         setState("idle");
@@ -618,7 +596,6 @@ function Propose({ setup }: { setup: Setup }) {
     setPics([]);
     let number = card.number;
     const r = await propose(
-      key.trim(),
       words,
       urls,
       (shape) => shapePending(number, shape),
@@ -630,7 +607,6 @@ function Propose({ setup }: { setup: Setup }) {
       setHeld,
     );
     if (r === "ok" || r === "shaping") {
-      storeKey(key.trim());
       setState(r === "shaping" ? "shaping" : "done");
       expectChange();
     } else {
@@ -670,6 +646,7 @@ function Propose({ setup }: { setup: Setup }) {
       </button>
     );
   return (
+    <>
     <form
       className={`fy-propose fy-idea__form${dragging ? " fy-propose--drop" : ""}`}
       onDragOver={(e) => {
@@ -688,7 +665,7 @@ function Propose({ setup }: { setup: Setup }) {
         e.preventDefault();
         if (!note.trim()) return;
         if (!ready) void handOver().then(() => setOpen(false));
-        else if (key.trim()) void submit();
+        else void submit();
       }}
     >
       <label>
@@ -738,12 +715,6 @@ function Propose({ setup }: { setup: Setup }) {
         </ul>
       )}
       {picNote && <p className="fy-idea__note">{picNote}</p>}
-      {ready && (!storedKey() || state === "wrong-key") && (
-        <label>
-          {state === "wrong-key" ? "That key didn't match. Try again." : "Your Desk key (asked once on this device)"}
-          <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="current-password" />
-        </label>
-      )}
       {state === "failed" && <p className="fy-idea__note">That didn't go through. Try again.</p>}
       {state === "held" && held && (
         <p className="fy-idea__note" role="alert">
@@ -751,13 +722,16 @@ function Propose({ setup }: { setup: Setup }) {
         </p>
       )}
       {!ready && setup !== null && <p className="fy-idea__note fy-idea__note--quiet">Sending straight from here needs the Vercel variables above. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
-      <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || (ready && !key.trim()) || state === "busy" || uploading || setup === null}>
+      <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || state === "busy" || state === "signed-out" || uploading || setup === null}>
         {ready ? "Send to Rivet" : "Copy and open the thread"}
       </button>
       <button type="button" className="btn btn--quiet btn--sm" onClick={() => (dictation.stop(), setOpen(false))}>
         Cancel
       </button>
     </form>
+    {/* Outside the form: the sign-in step has a form of its own. */}
+    {ready && state === "signed-out" && <DeskSignIn compact onDone={() => void submit()} onCancel={() => setState("idle")} />}
+    </>
   );
 }
 

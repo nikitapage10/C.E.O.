@@ -1,30 +1,16 @@
 import { useEffect, useState } from "react";
 import { formatDuration, useDayStory } from "../chronicle.ts";
+import { DeskSignIn } from "./SignIn.tsx";
+import { ensureSignedIn, useDeskAuth } from "./signin.ts";
 import { Avatar } from "./ui.tsx";
 
 /**
  * The day's story (issue #95, livelier in #102, a normal voice in #107; docs/WORLD.md): the Historian's quick "today in Ilyr" update, read
  * aloud. A plain <audio controls> (served from our own origin, api/day-story.ts) and the script as a transcript. When
  * there is no audio it says why, plainly: no Gemini key, the month's speech budget spent, or not made yet. For today
- * and yesterday, "Make it now" asks for one with the Desk key (once per day; it doesn't spend twice), and remakes a
- * story read in an older style once in the current, clear voice.
+ * and yesterday, "Make it now" asks for one in the Desk's sign-in session (#132; once per day, it doesn't spend
+ * twice), and remakes a story read in an older style once in the current, clear voice.
  */
-
-const KEY = "ceo.deskKey";
-const readKey = () => {
-  try {
-    return localStorage.getItem(KEY) ?? "";
-  } catch {
-    return "";
-  }
-};
-const keepKey = (key: string) => {
-  try {
-    localStorage.setItem(KEY, key);
-  } catch {
-    /* private window: the key lasts for this visit only */
-  }
-};
 
 const WHY: Record<string, string> = {
   "no-key": "No audio: Gemini's speech isn't connected (GEMINI_API_KEY in Vercel), so the Historian can't read the day aloud.",
@@ -50,7 +36,6 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
-  const [key, setKey] = useState("");
 
   useEffect(() => {
     void useDayStory.getState().loadStory(day);
@@ -65,36 +50,35 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
   }
 
   const make = async () => {
-    const k = key || readKey();
-    if (!k) {
-      setAsking(true);
-      return;
-    }
     setBusy(true);
-    setNote("The Historian is recording. Under a minute…");
-    const r = await useDayStory.getState().makeStory(day, k);
-    setBusy(false);
-    if (r.error === "wrong-key") {
-      setNote("That Desk key didn't match.");
+    // Signed in already, or one passkey tap now; otherwise the sign-in step shows here.
+    if ((await ensureSignedIn()) !== "ok") {
+      setBusy(false);
       setAsking(true);
       return;
     }
-    if (key) keepKey(key);
+    setNote("The Historian is recording. Under a minute…");
+    const r = await useDayStory.getState().makeStory(day);
+    setBusy(false);
+    if (r.error === "signed-out") {
+      useDeskAuth.getState().lost();
+      setNote(null);
+      setAsking(true);
+      return;
+    }
     setAsking(false);
     setNote(r.made ? null : r.error ? (r.error === "not-set-up" ? "The story isn't set up on the server yet." : "Couldn't make it right now; try again shortly.") : (WHY[r.reason ?? ""] ?? null));
   };
 
   const makeControls = (
     <div className="story__make">
-      {asking && (
-        <label className="story__key">
-          <span>Desk key</span>
-          <input type="password" autoComplete="current-password" value={key} onChange={(e) => setKey(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void make()} />
-        </label>
+      {asking ? (
+        <DeskSignIn compact onDone={() => void make()} onCancel={() => setAsking(false)} />
+      ) : (
+        <button type="button" className="btn btn--sm" disabled={busy} onClick={() => void make()}>
+          {busy ? "Recording…" : "Make it now"}
+        </button>
       )}
-      <button type="button" className="btn btn--sm" disabled={busy || (asking && !key)} onClick={() => void make()}>
-        {busy ? "Recording…" : "Make it now"}
-      </button>
     </div>
   );
   const noteLine = note && (

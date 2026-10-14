@@ -60,7 +60,7 @@ export const CONNECTIONS: Connection[] = [
     status: "live",
     how: "Once a day's recap is filed, a Vercel function sends that day's script, written from the public Chronicle and scrubbed, to Gemini's text to speech (gemini-3.8-flash-tts, the plain, friendly Achird voice at a natural pace, a 30 to 45 second update) over plain HTTPS. The audio is kept in the private Blob store and served from our own site.",
     auth: "A server-side key in Vercel's environment (GEMINI_API_KEY). It never reaches the browser.",
-    when: "Once a day after midnight, plus Make it now on the Chronicle (Desk key). Capped by GEMINI_BUDGET_USD, $5 a month by default.",
+    when: "Once a day after midnight, plus Make it now on the Chronicle (signed in with a passkey). Capped by GEMINI_BUDGET_USD, $5 a month by default.",
   },
   {
     id: "github-api",
@@ -71,7 +71,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["REST API"],
     status: "live",
     how: "Vercel functions read the Foundry's issues, runs, pull requests and commits for the Desk, and add labels and comments when you press a Desk button. The world step reads Foundry titles from it too.",
-    auth: "A fine-grained token for this repo, kept in Vercel (FOUNDRY_GITHUB_TOKEN). The buttons also need the Desk passphrase.",
+    auth: "A fine-grained token for this repo, kept in Vercel (FOUNDRY_GITHUB_TOKEN). The buttons also need Nikita's passkey sign-in on the Desk.",
     when: "The Desk asks every 30 seconds, shared through a 5-second edge cache; usage every minute.",
   },
   {

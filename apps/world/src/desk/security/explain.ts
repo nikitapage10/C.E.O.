@@ -319,9 +319,9 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "Separate identities make the agents' actions auditable and let the repo's rules treat them differently.",
   },
   R3: {
-    what: "A real sign-in for the Desk: a passkey, a short session and rate limits.",
-    connects: "The Desk's buttons, which today are guarded by one key.",
-    why: "The Desk is the approval gate for every build, so it deserves more than a shared key.",
+    what: "A real sign-in for the Desk: a passkey on Nikita's PC or phone, a session that lasts 30 minutes from its last use and 12 hours at most, and wrong tries slowed down, then locked out.",
+    connects: "The Desk's buttons, picture uploads and the day's story, which used to take one typed key and now need a passkey session.",
+    why: "The Desk is the approval gate for every build; the old key is now only for enrolling a new device, and never stays in the browser.",
   },
   R4: {
     what: "A check that reads Desk text before it is posted and holds back emails, phone numbers, addresses, card and account numbers, keys and names. Idea pictures stay private, on links that last minutes.",
@@ -355,7 +355,7 @@ export const EVAL_EXPLAIN: Record<EvalAreaId, Explain> = {
   "desk-write": {
     what: "Forged and oversized requests sent to the Desk's write path, with GitHub and Claude stubbed out.",
     connects: "The Desk's buttons and the function behind them.",
-    why: "It proves a wrong key touches nothing and an idea can't start a build without Nikita's choice.",
+    why: "It proves a click without a sign-in session touches nothing and an idea can't start a build without Nikita's choice.",
   },
   "world-step": {
     what: "Hostile issue titles, stranger comments and bad answers run through the hourly world step.",

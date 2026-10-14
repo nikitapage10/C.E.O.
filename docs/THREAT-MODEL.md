@@ -35,16 +35,17 @@ flowchart LR
     viewer["Lattice viewers"]
   end
   subgraph NIK["Nikita's browser"]
-    desk["Desk<br/>holds the Desk key"]
+    desk["Desk<br/>passkey session"]
   end
   subgraph VER["Vercel production, built from main"]
     site["Static site<br/>Lattice and Desk"]
     fFoundry["api/foundry<br/>Desk buttons, Rivet"]
     fImage["api/foundry-image"]
+    fAuth["api/desk-auth<br/>passkeys, sessions"]
     fFeed["api/foundry-feed<br/>api/foundry-usage<br/>api/security-feed<br/>api/visual-qa-feed"]
     fStep["api/world-step<br/>api/world<br/>api/day-story"]
   end
-  blob[("Vercel Blob<br/>world state, stories, pictures")]
+  blob[("Vercel Blob<br/>world state, stories, pictures,<br/>passkeys' public keys")]
   claude["Claude API<br/>Haiku"]
   gemini["Gemini API<br/>speech, Visual QA"]
   subgraph GH["GitHub, public repo"]
@@ -60,7 +61,9 @@ flowchart LR
   end
   openai["OpenAI API"]
 
-  desk -- "TB1: ideas, notes, pictures, key" --> fFoundry
+  desk -- "TB1: ideas, notes, pictures, session" --> fFoundry
+  desk -- "TB1: passkey sign-in" --> fAuth
+  fAuth --> blob
   desk -- "TB1" --> fImage
   fImage --> blob
   fFoundry -- "TB2: idea in fenced blocks" --> claude
@@ -75,7 +78,7 @@ flowchart LR
   issues -- "titles, trail kinds" --> fStep
   fStep -- "TB2: fenced digest" --> claude
   fStep -- "TB2: scrubbed script" --> gemini
-  desk -- "TB1: story backfill, key" --> fStep
+  desk -- "TB1: story backfill, session" --> fStep
   fStep --> blob
   viewer -- "TB6: read only" --> site
   site --> fFeed
@@ -89,7 +92,7 @@ flowchart LR
 
 | Boundary | What crosses it | Controls |
 | --- | --- | --- |
-| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses | Desk key compared in constant time (`api/foundry.ts`, `api/foundry-image.ts`, `api/day-story.ts`); the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127) |
+| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses | A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127) |
 | **TB2** Code to the model APIs | Idea text, issue text, the hour's digest, the day's story script; JSON, text or audio back | Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`); Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap |
 | **TB3** Functions to GitHub | Issue writes with the Foundry token | Token lives only in Vercel; label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`) |
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account and the Checks bot (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
@@ -111,7 +114,8 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | Claude API key | Vercel environment | Spend (capped at $10 a month at the provider) |
 | Gemini API key | Vercel environment (speech) and a GitHub Actions secret (Visual QA), both `GEMINI_API_KEY` | Speech spend (capped in code by `GEMINI_BUDGET_USD`, $5 a month by default, never above $10); Visual QA spend (capped in code at $0.50 a run and eight pushed runs a day) |
 | Foundry GitHub token | Vercel environment | Writes issues; its rate limit backs the Desk buttons and the world feed |
-| Desk key | Vercel environment, Nikita's browser | The human approval gate for builds |
+| Desk key | Vercel environment only; typed once per device to enrol its passkey (#132) | Enrols a device on the Desk, the human approval gate for builds; the Desk's signing keys are derived from it |
+| Desk passkeys | Their private keys stay on Nikita's devices; only the public keys are in Vercel Blob (private) | Sign in to the Desk |
 | The builder session's GitHub access | Claude Code environment | Pushes code, merges pull requests |
 | World state and history | Vercel Blob (private) | The Lattice's memory |
 | Idea pictures | Vercel Blob (private), shown only on short-lived signed links (#127) | May show Nikita's screen |
@@ -179,7 +183,7 @@ fall behind the suite.
 | --- | --- | --- | --- |
 | Rivet's prompt | `injection.test.ts` | 86 | For 21 known payloads (direct, "ignore previous", delimiter spoofing in five forms, role-play, base64, ASCII smuggling, bidi, markdown and HTML exfiltration, fake tool calls, fake card fields, a spoofed owner note, oversized input), the idea stays in its own block in new, revise and answer rounds; the real call sends the same system rules and the idea only as user data, with structured output on |
 | Rivet's answer | `injection.test.ts` | 23 | Hostile answers can't add fields or labels, pick an unknown builder or model, smuggle card lines, links, pictures, HTML or scripts, or exceed length caps; non-cards are rejected |
-| The Desk's write path | `injection.test.ts` | 50 | With GitHub and Claude stubbed: wrong keys touch nothing; a proposed or revised idea never gets `foundry:build`; foreign picture links are dropped, and the Desk shows only its own pictures; text that looks private is held back before GitHub or Claude hear of it; pictures go into the issue as names and reach Rivet only on short-lived signed links; oversized notes are capped; forged choices and issue numbers are refused; requests go only to the repo's API |
+| The Desk's write path | `injection.test.ts` | 50 | With GitHub and Claude stubbed: clicks without a sign-in session touch nothing; a proposed or revised idea never gets `foundry:build`; foreign picture links are dropped, and the Desk shows only its own pictures; text that looks private is held back before GitHub or Claude hear of it; pictures go into the issue as names and reach Rivet only on short-lived signed links; oversized notes are capped; forged choices and issue numbers are refused; requests go only to the repo's API |
 | The world step | `injection.test.ts` | 29 | Hostile titles and stranger comments: system rules unchanged byte for byte, each data block opened and closed once, no stray brackets or invisible characters, only trusted trail authors; secrets in disguise are scrubbed; hostile answers lose unknown agents, rooms, kinds, extra fields and over-limit items; end to end through `runStep`, the saved state is clean |
 | The builder's input | `builder-input.test.ts` | 8 | With a stub `gh`: an outsider's and look-alike accounts' text never appears, exit code 3, a spoofed closing marker closes nothing, owner and CI text sit in their blocks |
 
@@ -206,7 +210,7 @@ links through its own picture function; its test passes like any other, and noth
 | Shipped | Security headers and an enforcing CSP | Output handling defence in depth, clickjacking | #62 |
 | R1 | Builder permission hook: narrow shell permissions, deny risky commands, log every tool call | Excessive agency (agent half) | Shipped #119 |
 | R2 | The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10) | Agents acting as Nikita; previews and audit | Carded #138, waiting for Nikita's pick |
-| R3 | Real Desk sign-in (passkey, short session, rate limits) | The static Desk key | Carded #132, waiting for Nikita's pick |
+| R3 | Real Desk sign-in (passkey, short session, rate limits) | The static Desk key | Shipped #132 |
 | R4 | Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only) | Desk text and pictures going public | Shipped #127 |
 | R5 | Relay privacy spec before the hub is built | Messages and contacts | Not carded |
 | R6 | Key the world step and cap it per hour | World spend | #61, not picked by Nikita |

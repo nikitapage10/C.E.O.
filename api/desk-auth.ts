@@ -12,8 +12,9 @@
  * POST { action: "signin", response }    → checks the passkey's answer; opens a session.
  * POST { action: "enrol-options", key, label } → with the Desk key, the request for navigator.credentials.create().
  * POST { action: "enrol", response }     → checks the new passkey, stores its public part, opens a session.
- * POST { action: "remove", id }          → signed in: removes an enrolled device (and its sessions).
- * POST { action: "signout" }             → ends this browser's session.
+ * POST { action: "remove", id }          → signed in: removes an enrolled device (and its sessions and pings).
+ * POST { action: "signout", endpoint? }  → ends this browser's session, and drops this device's pings (#135) when
+ *                                          the Desk sends its push endpoint.
  *
  * Refusals: 401 { error: "wrong-key" | "failed" | "signed-out" }, 429 { error: "locked", wait } with Retry-After,
  * 403 from another site, 503 { error: "not-set-up" } without the Desk key or the Blob store.
@@ -37,6 +38,7 @@ import {
 import { deskKeyFor, keyMatches } from "./_desk/keys.js";
 import { addressOf, Gate, type Attempt } from "./_desk/limits.js";
 import { CHALLENGE_COOKIE, CHALLENGE_S, MAX_S, SESSION_COOKIE, challengeOf, clearSession, cookie, newSession, readCookie, renewed, requireSession, sameOrigin, sessionCookie, sessionOf, signToken, type Challenge, type DeskDeps } from "./_desk/session.js";
+import { dropEndpoint, dropPasskey } from "./_desk/pings.js";
 import { MAX_PASSKEYS, pickAuthStore, type AuthStore, type Passkey } from "./_desk/store.js";
 
 const RP_NAME = "C.E.O. Desk";
@@ -100,7 +102,7 @@ export async function handlePost(request: Request, deps: DeskDeps = live()): Pro
   if (!deps.deskKey || !deps.store) return json({ error: "not-set-up" }, 503);
   if (!sameOrigin(request)) return json({ error: "cross-site" }, 403);
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
-  const body = (await request.json().catch(() => null)) as { action?: unknown; key?: unknown; label?: unknown; response?: unknown; id?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { action?: unknown; key?: unknown; label?: unknown; response?: unknown; id?: unknown; endpoint?: unknown } | null;
   if (!body || typeof body !== "object") return json({ error: "bad-request" }, 400);
   const store = deps.store;
   const full = { ...deps, store };
@@ -113,6 +115,8 @@ export async function handlePost(request: Request, deps: DeskDeps = live()): Pro
 
   switch (body.action) {
     case "signout":
+      // Signing out of a device stops its pings (#135). The endpoint is the device's own: only it knows it.
+      await dropEndpoint(store, body.endpoint);
       return json({ ok: true }, 200, [clearSession()]);
 
     case "remove": {
@@ -121,6 +125,7 @@ export async function handlePost(request: Request, deps: DeskDeps = live()): Pro
       const list = await store.passkeys();
       if (typeof body.id !== "string" || !list.some((p) => p.id === body.id)) return json({ error: "not-found" }, 404, [signed.cookie]);
       await store.savePasskeys(list.filter((p) => p.id !== body.id));
+      await dropPasskey(store, body.id);
       // Removing the device in hand ends this session too; any other device's sessions end at their next use.
       return json({ ok: true }, 200, [body.id === signed.session.c ? clearSession() : signed.cookie]);
     }

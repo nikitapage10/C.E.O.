@@ -255,10 +255,10 @@ fixes what they find or explains why not on the pull request, and adds the resul
 | Environment | What runs | Secrets | How it updates |
 | --- | --- | --- | --- |
 | Local | `npm run dev` (Vite), unit and browser tests, the memory world store | None needed. A local `.env*` is ignored by git | By hand |
-| CI | GitHub Actions: `checks`, `e2e`, `report`, `world-step` | The built-in token, read-only except `report`; the two `report` jobs use the crew's App key for an issues-only token when it is set (#138) | Every PR, push and night |
+| CI | GitHub Actions: `checks`, `e2e`, `report`, `world-step`, `desk-pings` | The built-in token, read-only except `report`; the two `report` jobs use the crew's App key for an issues-only token when it is set (#138); `desk-pings` sends only `DESK_PINGS_SECRET`, to the site's own ping function (#135) | Every PR, push and night; `desk-pings` on Foundry issue events and hourly |
 | The Foundry's sessions | Claude Code threads and their worktrees, with `.claude/settings.json` permissions | The session's GitHub access (today Nikita's) | Each job starts from the latest `main` |
 | Preview | Vercel, one per PR branch | No write secrets (above) | Every push to the branch |
-| Production | Vercel, from `main`; the hourly world step | Claude key, the crew's App key (or the Foundry token until it is set up), Desk key, Blob | Every merge to `main` |
+| Production | Vercel, from `main`; the hourly world step | Claude key, the crew's App key (or the Foundry token until it is set up), Desk key, Blob, the Desk's push key pair and the pings secret (#135) | Every merge to `main` |
 | The Relay MacBook | The hub (`apps/hub`, not built yet) under `launchd`, BlueBubbles | The OpenAI key and the hub's token, in the Keychain or a file only the hub's user can read | Pull, never push (below) |
 
 **The Relay MacBook** holds the most sensitive data in C.E.O. (messages and contacts), so it never runs code the

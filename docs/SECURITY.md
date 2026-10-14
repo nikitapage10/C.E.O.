@@ -75,6 +75,44 @@ device through the browser's own "use a phone or another device" prompt. Up to t
 too, if you have it.) **If a device is lost or the Desk key may have leaked**, change `FOUNDRY_DESK_KEY` in Vercel
 and redeploy: every session and picture link ends, and enrolling needs the new key; then remove the lost device.
 
+## Pings on the phone
+
+The Desk can sit on a phone's home screen like an app and send one notification when something needs Nikita's call
+(#135), instead of an email.
+
+- **Installing.** `apps/world/public/manifest.webmanifest` and the icons in `apps/world/public/desk/` let a phone
+  add the Desk to its home screen; it opens straight to the Desk. On an iPhone or iPad: open the Desk in Safari,
+  Share, **Add to Home Screen**, then open it from there (iOS only offers notifications to a site on the home
+  screen). On Android: Chrome's menu, **Add to Home screen** (or **Install app**).
+- **The service worker keeps nothing.** `apps/world/public/sw.js` has no cache: every request goes to the network
+  as before, the 3D Lattice and anything private are never stored on the phone, and a page load without a network
+  gets a one-line "offline" page. It is registered for the whole site because the Desk lives at `/`.
+- **Turning pings on.** Signed in on the device, open the Foundry tab and switch on **Pings on this device**. The
+  browser asks to allow notifications and makes a Web Push subscription for the Desk's public key; the Desk sends
+  it to `api/desk-pings.ts`, which takes it only in a passkey session (`requireSession`, #132), only from a known
+  push service (Apple's, Google's, Mozilla's or Microsoft's), and sends one welcome ping.
+- **What is stored.** In the private Blob store beside the passkeys, at `desk/auth/pings.json`: each device's push
+  endpoint (a long, unguessable address at its push service), the two public keys the browser made to encrypt pings
+  for it, which passkey was signed in when it was turned on, and when; and, for "never twice", a short key per item
+  already pinged (`idea:#12`, `question:#12:<hash>`, `blocker:#12`), forgotten once the issue closes. No issue text,
+  nothing personal.
+- **What a ping says.** Only counts and who is asking, safe on a lock screen anyone might see: "Rivet has a
+  question", "3 ideas are waiting for your pick", "A job is blocked and needs you" (`pingText` in
+  `api/_desk/pings.ts`). Never a title, a body, a name, an issue number or a link. The words are encrypted for the
+  device (RFC 8291), so the push service only ever carries ciphertext. Tapping one opens the Desk's Foundry tab.
+- **Who sends.** `.github/workflows/desk-pings.yml` runs when a Foundry issue is opened or relabelled, and every
+  hour, and asks `api/desk-pings.ts` to scan with the shared `DESK_PINGS_SECRET`. The function reads the open
+  issues itself and decides; the workflow sends nothing about an issue. Pushes are signed with the Desk's VAPID key
+  (RFC 8292), which lives only in Vercel.
+- **Quiet hours.** None from 10pm to 7am Mountain (`QUIET_HOURS`): the first scan from 7am sends one summary of what
+  still needs Nikita, and whatever was handled overnight is dropped.
+
+**Turning pings off:** switch off **Pings on this device**, or sign out on that device: either drops its
+subscription on the server and in the browser. Removing a device under **Devices** drops its pings too, and pings
+only ever go to a device whose passkey is still enrolled. The phone's own settings (Settings, Notifications, C.E.O.
+on an iPhone) can mute them as well. **To stop all pings at once**, delete `DESK_PINGS_SECRET` (or the VAPID keys)
+in Vercel and redeploy.
+
 ## Keys and settings in Vercel
 
 Every secret lives only in Vercel's environment (Project, Settings, Environment Variables), never in the repo or the
@@ -93,6 +131,9 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
 | `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
 | `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved, and the Desk can't sign in |
+| `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Make them on the MacBook with `npx web-push generate-vapid-keys` and paste them straight into Vercel. Production only | The switch says pings aren't set up |
+| `DESK_VAPID_SUBJECT` | Optional: an `https:` or `mailto:` contact the push services may use about the pings | The site's address |
+| `DESK_PINGS_SECRET` | Shared with the Desk pings workflow (the same value as the Actions secret below): only a caller holding it can make the Desk scan and ping. Long and random. Production only | No scans, so no pings |
 
 ## What scans the code, and when
 
@@ -118,6 +159,7 @@ only a workflow uses them. Workflows never print them.
 | Secret | What it is for | Without it |
 | --- | --- | --- |
 | `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below). Only the two `report` jobs (`checks.yml`, `visual-qa.yml`) use them, to open fix issues as `ceo-foundry[bot]` with a token that can only write issues and is revoked when the job ends | Those jobs write with the built-in token, as before |
+| `DESK_PINGS_SECRET` | The Desk pings workflow (`.github/workflows/desk-pings.yml`, #135): sent only to the site's own `api/desk-pings` in a header, to ask it to scan. The same value as in Vercel; it can make the Desk look for things to ping, nothing else | The workflow skips quietly and no pings go out |
 | `GEMINI_API_KEY` | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91): clips of the public Lattice go to Gemini. Sent only to Google's API host in a header, never printed; spend capped in code at $0.50 a run and eight pushed runs a day. The same name in Vercel is the separate key for the day's story (above) | The tour still records; the review is skipped |
 
 ## The crew's own identity
@@ -187,6 +229,10 @@ packages and leaked keys, and they're free for a public repo. Where GitHub falls
 itself is run, so one outside scanner fills that gap: OpenSSF Scorecard, free and run by the Open Source Security
 Foundation, needing no secret. A separate secret scanner such as gitleaks would duplicate GitHub's secret scanning
 and push protection, so it isn't used.
+
+The Desk's pings use `web-push` (#135), the reference Web Push library for Node, kept by Mozilla's web-push-libs
+project and used by most Node servers that send browser notifications: it does the payload encryption (RFC 8291) and
+the VAPID signature (RFC 8292), both easy to get subtly wrong by hand. It only runs in `api/desk-pings.ts`.
 
 ## Agent-written code
 

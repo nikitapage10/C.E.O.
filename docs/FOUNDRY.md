@@ -69,7 +69,8 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | `foundry:fix`, `foundry:idea`, `foundry:build`, `foundry:upkeep`, `foundry:chat` | The kind (exactly one) |
 | `foundry:working` | Someone is on it |
 | `foundry:ready` | Done and checked, waiting for Nikita's OK |
-| `foundry:stuck` | Rung 3 failed; Nikita needs to look |
+| `foundry:stuck` | Rung 3 failed; Nikita needs to look (pings Nikita's phone) |
+| `foundry:blocked` | A blocker: the job can't go on until Nikita decides something (pings Nikita's phone; see "Pings and flagging a blocker") |
 | `foundry:paused` | An idea build paused for an urgent fix; its branch is pushed as work in progress and it resumes when the fix ships |
 | `foundry:shipped` | Landed on `main` (add it, then close the issue) |
 | `foundry:revise` | An idea Nikita sent back with notes from the Desk, or proposed there; Rivet rewrites it |
@@ -105,6 +106,30 @@ the job is in someone's hands, the Lattice shows it under their name as "#43 · 
 that line opens a card with the title, pitch, builder and model, and a link to the issue. Desk shaping writes it with
 the rest of the card (`api/foundry.ts`); the Builder writes it on chat, fix and upkeep issues, and adds it when it
 picks up an issue that has none. Without one, the line falls back to a trimmed title.
+
+### Pings and flagging a blocker
+
+Nikita's phone gets one notification, a ping, when something needs his call (#135; docs/SECURITY.md, "Pings on the
+phone"): a new idea waiting for the pick, a question from Rivet (`foundry:question`), and a blocker. The labels are
+the whole interface: `.github/workflows/desk-pings.yml` runs when a Foundry issue is opened or relabelled, and
+`api/desk-pings.ts` reads the labels and pings once per item, a burst as one ping, never between 10pm and 7am
+Mountain (one summary at 7am instead). Nothing else pings: work in flight, shipped jobs, checks and upkeep stay quiet.
+Ideas Nikita proposes on the Desk don't ping either (Rivet's question on one does).
+
+**Flagging a blocker.** When a job can't go on until Nikita decides something (a choice the card didn't settle,
+access only he can give, a secret only he can set), the Builder:
+
+1. comments on the issue with what is needed, as a Trail step (`**Trail · Blocked:** …`), in plain words and without
+   anything sensitive;
+2. adds the label `foundry:blocked` (with `gh issue edit <n> --add-label foundry:blocked`; the first time, create the
+   label with `gh label create foundry:blocked --color B60205 --description "Needs Nikita's call to go on"`). The job stays
+   `foundry:working`, shows as stuck on the Desk and in the Lattice, and Nikita's phone gets "A job is blocked and
+   needs you";
+3. once Nikita has answered, removes `foundry:blocked` and carries on. Flagging it again later pings again.
+
+A failed rung 3 (`foundry:stuck`) pings the same way. Don't use `foundry:blocked` for anything that can wait for the
+next thread reply, and never for routine status: a ping is a tap on Nikita's shoulder. The ping says only "a job is
+blocked"; what is needed lives on the issue and in the Foundry thread.
 
 ## Decisions go through Skippy
 
@@ -357,9 +382,10 @@ do nothing for it; after changing the cast, run `npm run world:cast` (a test rem
   The Builder reads CI, bot and preview results himself; PR comments are kept to what a reviewer must see (a
   red-circle answer, a standing-down note), never routine status, which goes in the issue's Trail. The Vercel bot
   doesn't comment on PRs (`github.silent` in vercel.json). Nikita hears only about a blocker, a decision or a
-  finished result, in the Foundry thread.
+  finished result, in the Foundry thread, and his phone pings only for the three things above (an idea waiting, a
+  question, a blocker).
 - Keep replies in the Foundry thread to results, blockers and decisions. Routine progress lives in the issue labels.
 
 ## Security headers (#62)
 
-`vercel.json` sets a Content-Security-Policy (enforcing), `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy` and a `Permissions-Policy` on every path, so a stray script or frame the site didn't ship is blocked in the browser. The policy was derived from what the app really loads: its own files, `api.github.com` for the Foundry and usage reads, `blob:` for model textures and the text workers, and `'wasm-unsafe-eval'` for the mesh decoder. When a change makes the app load something new (a CDN, a font host, an API), add that host to the policy in the same change. `tests/e2e/headers.spec.ts` serves the built site with the headers read from `vercel.json` and fails on any `securitypolicyviolation` on the Desk, its tabs and the Lattice.
+`vercel.json` sets a Content-Security-Policy (enforcing), `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy` and a `Permissions-Policy` on every path, so a stray script or frame the site didn't ship is blocked in the browser. The policy was derived from what the app really loads: its own files, `api.github.com` for the Foundry and usage reads, `blob:` for model textures and the text workers, and `'wasm-unsafe-eval'` for the mesh decoder. When a change makes the app load something new (a CDN, a font host, an API), add that host to the policy in the same change. `tests/e2e/headers.spec.ts` serves the built site with the headers read from `vercel.json` and fails on any `securitypolicyviolation` on the Desk, its tabs and the Lattice. The Desk's service worker and manifest (#135) are both same-origin, so `worker-src 'self'` and `default-src 'self'` (for the manifest) already cover them; the policy didn't change for them, and the same spec checks the Desk installs without a violation.

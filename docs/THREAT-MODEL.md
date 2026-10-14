@@ -42,16 +42,18 @@ flowchart LR
     fFoundry["api/foundry<br/>Desk buttons, Rivet"]
     fImage["api/foundry-image"]
     fAuth["api/desk-auth<br/>passkeys, sessions"]
+    fPings["api/desk-pings<br/>pings to the phone"]
     fFeed["api/foundry-feed<br/>api/foundry-usage<br/>api/security-feed<br/>api/visual-qa-feed"]
     fStep["api/world-step<br/>api/world<br/>api/day-story"]
   end
-  blob[("Vercel Blob<br/>world state, stories, pictures,<br/>passkeys' public keys")]
+  blob[("Vercel Blob<br/>world state, stories, pictures,<br/>passkeys' public keys, ping subscriptions")]
+  push["Push services<br/>Apple, Google, Mozilla, Microsoft"]
   claude["Claude API<br/>Haiku"]
   gemini["Gemini API<br/>speech, Visual QA"]
   subgraph GH["GitHub, public repo"]
     issues["Issues, comments, labels"]
     repo["Code and main"]
-    actions["Actions: checks, CodeQL,<br/>dependency review, Scorecard,<br/>hourly world-step trigger,<br/>Visual QA"]
+    actions["Actions: checks, CodeQL,<br/>dependency review, Scorecard,<br/>hourly world-step trigger,<br/>Desk pings trigger, Visual QA"]
   end
   subgraph CC["Claude Code cloud sessions"]
     builder["Builder and workers"]
@@ -88,11 +90,17 @@ flowchart LR
   actions -- "TB8: room clips" --> gemini
   gemini -- "TB8: JSON findings, re-checked" --> actions
   actions -- "fix issues, CI text" --> issues
+  desk -- "TB1: push subscription, session" --> fPings
+  actions -- "scan, shared secret" --> fPings
+  issues -- "labels, read in the function" --> fPings
+  fPings --> blob
+  fPings -- "encrypted counts only" --> push
+  push -- "ping" --> desk
 ```
 
 | Boundary | What crosses it | Controls |
 | --- | --- | --- |
-| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses | A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127) |
+| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses, a device's push subscription | A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127); a push subscription taken only in a passkey session and only for a known push service (`readSubscription`, #135), dropped on sign-out or when its device is removed, and pinged only while its passkey is enrolled; the scan that sends pings needs the workflow's shared secret (`DESK_PINGS_SECRET`), and a ping carries counts only, never issue text (`pingText` in `api/_desk/pings.ts`) |
 | **TB2** Code to the model APIs | Idea text, issue text, the hour's digest, the day's story script; JSON, text or audio back | Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`); Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap |
 | **TB3** Functions to GitHub | Issue writes with the Foundry token | Token lives only in Vercel; once the crew's GitHub App is set up, the buttons write as `ceo-foundry[bot]` with an hour-long token that can only touch this repo's issues, and the feeds read with a read-only one (`api/_github.ts`, #138); label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`) |
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account, the Checks bot and the crew's App (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
@@ -117,6 +125,9 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | The crew's App key | Vercel environment (Production only) and a GitHub Actions secret | Mints hour-long tokens for this repo only, as `ceo-foundry[bot]`: issues, pull requests and code, never settings or CI |
 | Desk key | Vercel environment only; typed once per device to enrol its passkey (#132) | Enrols a device on the Desk, the human approval gate for builds; the Desk's signing keys are derived from it |
 | Desk passkeys | Their private keys stay on Nikita's devices; only the public keys are in Vercel Blob (private) | Sign in to the Desk |
+| The Desk's push key (VAPID private key) | Vercel environment only (#135) | Signs pings; with a subscription too, it could put a notification on Nikita's phone, never read anything |
+| The pings secret | Vercel environment and a GitHub Actions secret, both `DESK_PINGS_SECRET` | Makes the Desk scan and ping; nothing else |
+| Ping subscriptions | Vercel Blob (private), beside the passkeys | Where Nikita's devices get pings; useless without the push key |
 | The builder session's GitHub access | Claude Code environment (Nikita's account; set by the environment, not the repo) | Pushes code, merges pull requests |
 | World state and history | Vercel Blob (private) | The Lattice's memory |
 | Idea pictures | Vercel Blob (private), shown only on short-lived signed links (#127) | May show Nikita's screen |

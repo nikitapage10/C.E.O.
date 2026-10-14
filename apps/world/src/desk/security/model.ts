@@ -20,7 +20,7 @@ export const ZONES: Record<ZoneId, { name: string; trust: string; holds: string[
   vercel: {
     name: "Vercel production",
     trust: "Built from main",
-    holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/foundry: Desk buttons, Rivet", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world, stories, pictures, passkeys"],
+    holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/desk-pings: pings to the phone", "api/foundry: Desk buttons, Rivet", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world, stories, pictures, passkeys"],
   },
   claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet and the world step (Haiku)", "The day's story (Gemini speech)", "Visual QA's review (Gemini, from CI)"] },
   github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks, scans, Visual QA"] },
@@ -43,9 +43,9 @@ export const BOUNDARIES: Boundary[] = [
   {
     id: "TB1",
     name: "Desk to functions",
-    crosses: "Nikita's ideas, notes, answers, pictures, button presses",
+    crosses: "Nikita's ideas, notes, answers, pictures, button presses, a device's push subscription",
     controls:
-      "A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127)",
+      "A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127); a push subscription taken only in a passkey session and only for a known push service (`readSubscription`, #135), dropped on sign-out or when its device is removed, and pinged only while its passkey is enrolled; the scan that sends pings needs the workflow's shared secret (`DESK_PINGS_SECRET`), and a ping carries counts only, never issue text (`pingText` in `api/_desk/pings.ts`)",
     from: "browser",
     to: "vercel",
   },

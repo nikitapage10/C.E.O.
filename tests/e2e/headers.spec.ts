@@ -11,7 +11,8 @@ import { headersFor, startDistServer, vercelConfig } from "./dist-server.ts";
  * this can't pass against a policy different from the one that ships.
  */
 
-const PORT = 5181;
+/** E2E_DIST_PORT picks another port, so two checkouts can run this side by side. */
+const PORT = Number(process.env.E2E_DIST_PORT ?? 5181);
 const BASE = `http://localhost:${PORT}`;
 let server: Server;
 
@@ -62,6 +63,24 @@ test("the Desk and each of its tabs raise no CSP violation", async ({ page }) =>
     await page.waitForTimeout(400);
   }
   await page.waitForTimeout(1000);
+  expect(seen).toEqual([]);
+});
+
+test("the Desk installs as an app under the policy: manifest, icons and its service worker (#135)", async ({ page, request }) => {
+  const seen = await watch(page);
+  const manifest = await request.get(BASE + "/manifest.webmanifest");
+  expect(manifest.ok()).toBe(true);
+  const body = (await manifest.json()) as { start_url: string; icons: { src: string }[] };
+  expect(body.start_url).toBe("/");
+  for (const icon of body.icons) expect((await request.get(BASE + icon.src)).ok(), icon.src).toBe(true);
+  expect((await request.get(BASE + "/sw.js")).headers()["cache-control"]).toBe("no-cache");
+  await page.goto(BASE + "/");
+  await expect(page.locator(".desk__title")).toHaveText("Today");
+  const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
+  expect(scope).toBe(BASE + "/");
+  // The worker keeps nothing: no cache is ever opened.
+  expect(await page.evaluate(async () => (await caches.keys()).length)).toBe(0);
+  await page.waitForTimeout(500);
   expect(seen).toEqual([]);
 });
 

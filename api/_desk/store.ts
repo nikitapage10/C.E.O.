@@ -1,6 +1,6 @@
 /**
  * Where the Desk's sign-in keeps what it must remember between function instances (#132): the enrolled passkeys and
- * the failed-attempt counters. Both live in the project's private Vercel Blob store, beside the world and the idea
+ * the failed-attempt counters, and the devices that turned pings on (#135). All live in the project's private Vercel Blob store, beside the world and the idea
  * pictures, never in the repo. A passkey record is public data only: the credential's id, its public key, its
  * signature counter, how it connects, a device label Nikita picks and two dates. No private key ever leaves the
  * device, and the counters keep a keyed hash of the address, never the address.
@@ -10,6 +10,7 @@
 
 import { get, put } from "@vercel/blob";
 import type { Limits } from "./limits.js";
+import type { PingState } from "./pings.js";
 
 export interface Passkey {
   /** The credential id, base64url, as the browser reports it. */
@@ -31,6 +32,9 @@ export interface AuthStore {
   savePasskeys(list: Passkey[]): Promise<void>;
   limits(): Promise<Limits>;
   saveLimits(limits: Limits): Promise<void>;
+  /** The devices that turned pings on, and what has been pinged already (#135, api/_desk/pings.ts). */
+  pings(): Promise<PingState>;
+  savePings(state: PingState): Promise<void>;
 }
 
 /** At most this many devices: enough for every PC, phone and key Nikita owns, and a bound on the record. */
@@ -38,6 +42,13 @@ export const MAX_PASSKEYS = 10;
 
 const PASSKEYS = "desk/auth/passkeys.json";
 const LIMITS = "desk/auth/limits.json";
+/** Beside the passkeys: each device's push subscription, and the keys of what was pinged (#135). */
+const PINGS = "desk/auth/pings.json";
+
+const pingsOf = (got: Partial<PingState> | null | undefined): PingState => ({
+  subs: Array.isArray(got?.subs) ? got.subs : [],
+  sent: got?.sent && typeof got.sent === "object" && !Array.isArray(got.sent) ? got.sent : {},
+});
 
 async function readJson<T>(path: string, empty: T): Promise<T> {
   // Straight from storage, never a cached copy: a removed device or a fresh failure must count at once.
@@ -65,6 +76,12 @@ export class BlobAuthStore implements AuthStore {
   async saveLimits(limits: Limits): Promise<void> {
     await writeJson(LIMITS, limits);
   }
+  async pings(): Promise<PingState> {
+    return pingsOf(await readJson<Partial<PingState>>(PINGS, {}));
+  }
+  async savePings(state: PingState): Promise<void> {
+    await writeJson(PINGS, state);
+  }
 }
 
 /** For tests and local runs: the same shape, in memory. */
@@ -82,6 +99,13 @@ export class MemoryAuthStore implements AuthStore {
   }
   async saveLimits(limits: Limits): Promise<void> {
     this.counters = structuredClone(limits);
+  }
+  pingState: PingState = { subs: [], sent: {} };
+  async pings(): Promise<PingState> {
+    return pingsOf(structuredClone(this.pingState));
+  }
+  async savePings(state: PingState): Promise<void> {
+    this.pingState = structuredClone(state);
   }
 }
 

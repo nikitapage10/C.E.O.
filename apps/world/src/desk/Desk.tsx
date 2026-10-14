@@ -9,6 +9,7 @@ import { useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
 import { FoundryPage } from "./FoundryPage.tsx";
 import { Relay } from "./Relay.tsx";
+import { startDeskWorker } from "./pings.ts";
 import { startDeskAuth } from "./signin.ts";
 import { SystemsHub } from "./SystemsHub.tsx";
 import { systemsTitle } from "./SystemsNav.tsx";
@@ -53,6 +54,8 @@ export function Desk({ route }: { route: DeskTab }) {
     startFoundry();
     startWorldClock();
     startDeskAuth();
+    // The Desk as a home-screen app, and its pings (#135).
+    void startDeskWorker();
   }, []);
 
   useEffect(() => {

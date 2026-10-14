@@ -1,0 +1,48 @@
+# The Desk's pings (#135): when a Foundry issue is opened or its labels change (a new idea, a question from Rivet,
+# a blocker the Builder flags), ask the Desk's ping function on Vercel to look. It decides what needs Nikita's call,
+# pings each phone that turned pings on once per item, and keeps quiet from 10pm to 7am Mountain
+# (api/_desk/pings.ts). The hourly run catches anything the events missed and sends the 7am summary.
+#
+# The runs share one queue and each waits a minute first, so a burst (the three morning ideas, a card and its
+# question) lands as one ping: a newer run replaces one still waiting. Nothing about an issue is sent; the function
+# reads GitHub itself. The only secret is DESK_PINGS_SECRET (the same value as in Vercel), never printed.
+name: Desk pings
+
+on:
+  issues:
+    types: [opened, reopened, labeled, edited]
+  schedule:
+    - cron: "2 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: desk-pings
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    # Only Foundry issues, only in this repo (not forks), and only once the secret is set.
+    if: github.repository == 'nikitapage10/C.E.O.' && (github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'foundry'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DESK_PINGS_SECRET: ${{ secrets.DESK_PINGS_SECRET }}
+    steps:
+      - name: Wait for the burst to settle
+        if: github.event_name == 'issues'
+        run: sleep 60
+      - name: Ask the Desk to look
+        run: |
+          if [ -z "$DESK_PINGS_SECRET" ]; then echo "DESK_PINGS_SECRET isn't set; pings are off."; exit 0; fi
+          code=$(curl -sS -o scan.json -w '%{http_code}' -X POST --max-time 60 \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $DESK_PINGS_SECRET" \
+            --data '{"action":"scan"}' \
+            https://command-everything-obviously.vercel.app/api/desk-pings)
+          echo "HTTP $code"
+          # Counts only: { pinged, held, devices }.
+          head -c 200 scan.json; echo
+          # 503: pings aren't set up on Vercel yet, which is fine.
+          if [ "$code" != "200" ] && [ "$code" != "503" ]; then exit 1; fi

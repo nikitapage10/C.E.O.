@@ -6,6 +6,7 @@
  */
 
 import { create } from "zustand";
+import { dropLocalPush, pushEndpoint } from "./pings.ts";
 
 export interface Device {
   id: string;
@@ -243,12 +244,18 @@ export const useDeskAuth = create<AuthStore>((set, get) => ({
     }
   },
   signOut: async () => {
-    await post({ action: "signout" }).catch(() => null);
+    // Signing out stops this device's pings too (#135): the server drops its subscription, and so does the browser.
+    const endpoint = await pushEndpoint();
+    await post({ action: "signout", ...(endpoint && { endpoint }) }).catch(() => null);
+    if (endpoint) await dropLocalPush();
     set({ auth: { status: "out" } });
     prepareSignIn();
   },
   remove: async (id) => {
+    const mine = get().auth.devices?.find((d) => d.id === id)?.current === true;
     const res = await post({ action: "remove", id }).catch(() => null);
+    // The server drops a removed device's pings; when it is this one, the browser lets go of its subscription too.
+    if (res?.ok && mine) await dropLocalPush();
     await get().check();
     return Boolean(res?.ok);
   },

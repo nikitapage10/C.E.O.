@@ -10,6 +10,13 @@ updates:
       day: monday
     open-pull-requests-limit: 3
     labels: [dependencies]
+    # Majors that can't land yet: TypeScript 7 fails the checks, and @types/node follows the Node 22 the site and CI
+    # run on. Minor and patch updates for both still come through.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: [minor, patch]

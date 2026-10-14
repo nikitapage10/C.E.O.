@@ -107,6 +107,17 @@ The Desk can sit on a phone's home screen like an app and send one notification 
 - **Quiet hours.** None from 10pm to 7am Mountain (`QUIET_HOURS`): the first scan from 7am sends one summary of what
   still needs Nikita, and whatever was handled overnight is dropped.
 
+**Setting up pings** (once, from the PC; nothing to install). In Chrome, open any page, press F12 > **Console**
+(type `allow pasting` if Chrome asks), paste this and press Enter. It makes the push key pair and the shared secret
+with the browser's own crypto and prints three lines:
+
+```js
+const k=await crypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign"]);const b=a=>btoa(String.fromCharCode(...a)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");console.log("DESK_VAPID_PUBLIC_KEY",b(new Uint8Array(await crypto.subtle.exportKey("raw",k.publicKey))));console.log("DESK_VAPID_PRIVATE_KEY",(await crypto.subtle.exportKey("jwk",k.privateKey)).d);console.log("DESK_PINGS_SECRET",b(crypto.getRandomValues(new Uint8Array(32))));
+```
+
+Add all three in Vercel (Settings > Environment Variables, Production only), add `DESK_PINGS_SECRET` with the same
+value as a GitHub Actions secret (Settings > Secrets and variables > Actions), redeploy, and close the console.
+
 **Turning pings off:** switch off **Pings on this device**, or sign out on that device: either drops its
 subscription on the server and in the browser. Removing a device under **Devices** drops its pings too, and pings
 only ever go to a device whose passkey is still enrolled. The phone's own settings (Settings, Notifications, C.E.O.
@@ -131,7 +142,7 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
 | `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
 | `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved, and the Desk can't sign in |
-| `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Make them on the MacBook with `npx web-push generate-vapid-keys` and paste them straight into Vercel. Production only | The switch says pings aren't set up |
+| `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Make them with the browser paste in "Setting up pings" below and paste them straight into Vercel. Production only | The switch says pings aren't set up |
 | `DESK_VAPID_SUBJECT` | Optional: an `https:` or `mailto:` contact the push services may use about the pings | The site's address |
 | `DESK_PINGS_SECRET` | Shared with the Desk pings workflow (the same value as the Actions secret below): only a caller holding it can make the Desk scan and ping. Long and random. Production only | No scans, so no pings |
 
@@ -203,17 +214,14 @@ repo, so their work still shows as Nikita's (DELIVERY.md, section 10).
    **Private keys** > **Generate a private key**. A file `ceo-foundry.<date>.private-key.pem` lands in Downloads.
 3. **Install it on this repo only.** Left sidebar > **Install App** > **Install** next to `nikitapage10` > **Only
    select repositories** > `C.E.O.` > **Install**.
-4. **Paste 1, in Terminal on the MacBook** (it needs `gh` signed in there). Paste this, replace `000000` with the App ID, press Return. It sets both GitHub Actions
-   secrets and puts the two Vercel lines on your clipboard (the key as one base64 line); it prints neither.
-
-   ```sh
-   APP_ID=000000; KEY="$(ls -t ~/Downloads/ceo-foundry*.private-key.pem | head -1)"; gh secret set FOUNDRY_APP_ID -R nikitapage10/C.E.O. --body "$APP_ID" && gh secret set FOUNDRY_APP_PRIVATE_KEY -R nikitapage10/C.E.O. < "$KEY" && printf 'FOUNDRY_APP_ID=%s\nFOUNDRY_APP_PRIVATE_KEY=%s\n' "$APP_ID" "$(base64 < "$KEY" | tr -d '\n')" | pbcopy && echo "GitHub secrets set; the Vercel lines are on the clipboard."
-   ```
-
-5. **Paste 2, in Vercel.** The project > **Settings** > **Environment Variables**. Click into the first **Key** field
-   and press ⌘V: Vercel splits the two lines into two variables. Under **Environments**, tick **Production** only
-   (untick Preview and Development). **Save**. Then **Deployments** > the top Production deployment > **⋯** >
-   **Redeploy**, so the functions pick them up.
+4. **GitHub secrets, in the browser.** Open the `.pem` from Downloads in Notepad and copy all of it. On GitHub:
+   C.E.O. > **Settings** > **Secrets and variables** > **Actions** > **New repository secret**. Add
+   `FOUNDRY_APP_ID` (the App ID) and `FOUNDRY_APP_PRIVATE_KEY` (paste the whole `.pem`, its BEGIN and END lines
+   included).
+5. **Vercel, in the browser.** The project > **Settings** > **Environment Variables**. Add the same two:
+   `FOUNDRY_APP_ID`, and `FOUNDRY_APP_PRIVATE_KEY` with the `.pem` pasted as is (several lines is fine). Under
+   **Environments**, tick **Production** only (untick Preview and Development). **Save**. Then **Deployments** >
+   the top Production deployment > **⋯** > **Redeploy**, so the functions pick them up.
 6. **Check it, then retire the old token.** The next Desk button you press leaves its trail comment on GitHub as
    `ceo-foundry[bot]` instead of you. Once it does, delete `FOUNDRY_GITHUB_TOKEN` in Vercel (Environment Variables > ⋯ >
    Remove) and revoke it on GitHub (Settings > Developer settings > Personal access tokens > Fine-grained tokens), so

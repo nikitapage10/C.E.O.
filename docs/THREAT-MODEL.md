@@ -205,7 +205,7 @@ links through its own picture function; its test passes like any other, and noth
 | --- | --- | --- | --- |
 | Shipped | Security headers and an enforcing CSP | Output handling defence in depth, clickjacking | #62 |
 | R1 | Builder permission hook: narrow shell permissions, deny risky commands, log every tool call | Excessive agency (agent half) | Shipped #119 |
-| R2 | The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10) | Agents acting as Nikita; previews and audit | Not carded |
+| R2 | The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10) | Agents acting as Nikita; previews and audit | Carded #138, waiting for Nikita's pick |
 | R3 | Real Desk sign-in (passkey, short session, rate limits) | The static Desk key | Carded #132, waiting for Nikita's pick |
 | R4 | Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only) | Desk text and pictures going public | Shipped #127 |
 | R5 | Relay privacy spec before the hub is built | Messages and contacts | Not carded |

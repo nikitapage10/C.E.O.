@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_QUESTIONS, autoEligible, riskLine, stoppedLabels, answerBlock, answeredRounds, questionOf, readShape, shapeInput, shapedBody, shapedLabels, shapedLine, tidyQuestion } from "./foundry.ts";
+import { GET, MAX_QUESTIONS, autoEligible, riskLine, stoppedLabels, answerBlock, answeredRounds, questionOf, readShape, shapeInput, shapedBody, shapedLabels, shapedLine, tidyQuestion } from "./foundry.ts";
 import { readBody } from "../apps/world/src/foundry.ts";
 
 const card = { title: "Idea: Ask first", pitch: "Ask before queuing.", size: "medium", short: "Asking first", builder: "Rusty", model: "Sonnet" } as const;
@@ -117,5 +117,13 @@ describe("Rivet's risk read (a suggestion; the Builder decides auto-approval)", 
   });
   it("puts a stopped auto-approved build back as an idea, out of everyone's hands", () => {
     expect(stoppedLabels(["foundry", "foundry:build", "foundry:auto", "foundry:working", "foundry:paused"])).toEqual(["foundry", "foundry:idea"]);
+  });
+});
+
+describe("the setup list (#164)", () => {
+  it("is for the signed-in Desk only: a visitor without a session gets no posture", async () => {
+    const res = await GET(new Request("https://ceo.example/api/foundry?setup"));
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(await res.text()).not.toMatch(/"items"/);
   });
 });

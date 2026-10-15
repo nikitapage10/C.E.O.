@@ -4,7 +4,7 @@
  * browser.
  *
  * GET  → which pieces are set up: { buttons, direct, shape, images }.
- * GET ?setup → the setup list on Today (#164, api/_desk/setup.ts): { items: { pings, app, devices, ruleset,
+ * GET ?setup → (signed in) the setup list on Today (#164, api/_desk/setup.ts): { items: { pings, app, devices, ruleset,
  *        automerge }, pings: { vercel, actions } }, each "done", "todo" or "unknown". States only, never a value.
  * POST → { issue, choice: "build" | "pass" | "revise", note? }: "build" approves a morning idea (labels it
  *        `foundry:build`); "pass" shelves it (closed as not planned); "revise" posts Nikita's note on the idea and
@@ -428,7 +428,12 @@ const setupList = memo<SetupStatus>(2 * 60_000, () =>
 );
 
 export async function GET(request?: Request): Promise<Response> {
-  if (request && new URL(request.url).searchParams.has("setup")) return json(await setupList());
+  if (request && new URL(request.url).searchParams.has("setup")) {
+    // Which protections are still off is posture, not for the public page: signed-in Desk only (the card hides on 401).
+    const signed = await requireSession(request, { deskKey: env("FOUNDRY_DESK_KEY"), store: pickAuthStore(), now: Date.now() });
+    if (!signed.ok) return signed.response;
+    return withCookie(json(await setupList()), signed);
+  }
   return json({
     /** The buttons work when the Desk can sign in (its key and the Blob store) and a click can reach GitHub. */
     buttons: Boolean(env("FOUNDRY_DESK_KEY")) && canWrite() && pickAuthStore() !== null,

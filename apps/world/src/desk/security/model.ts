@@ -303,7 +303,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     closes: "Desk text and pictures going public",
     status: "Shipped #127",
   },
-  { id: "R5", item: "Relay privacy spec before the hub is built", closes: "Messages and contacts", status: "Not carded" },
+  { id: "R5", item: "Relay privacy spec before the hub is built", closes: "Messages and contacts", status: "Carded #149, waiting for Nikita's pick" },
   { id: "R6", item: "Key the world step and cap it per hour", closes: "World spend", status: "#61, not picked by Nikita" },
 ];
 

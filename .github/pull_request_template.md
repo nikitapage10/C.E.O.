@@ -13,7 +13,7 @@ Closes #
 
 - [ ] `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` pass
 - [ ] Browser tests (`npm run test:e2e`) when the Lattice or the Desk changed
-- [ ] Pictures on the issue (`scripts/issue-shots.sh`) when something looks different
+- [ ] Pictures on the issue (`scripts/issue-shots.sh`): screenshots for a visual change, a change card (`scripts/change-card.mjs`) for anything else
 - [ ] Lore ships with any new agent, costume, body, pet or room (CLAUDE.md)
 - [ ] No secrets, personal data or message contents in the diff, the issue or this PR
 

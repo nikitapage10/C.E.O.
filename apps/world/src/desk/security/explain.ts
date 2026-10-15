@@ -286,7 +286,7 @@ export const OWASP_EXPLAIN: Record<string, Explain> = {
   },
   LLM08: {
     what: "Weaknesses in retrieval: the vector stores and embeddings that let a model look things up.",
-    connects: "Nothing yet. C.E.O. has no retrieval; Relay could add it over messages.",
+    connects: "Nothing yet. C.E.O. has no retrieval, and the Relay privacy spec keeps it off messages.",
     why: "If retrieval arrives over private messages, it becomes a way to leak or poison them.",
   },
   LLM09: {
@@ -329,9 +329,9 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "What Nikita types or dictates would otherwise go public as written; now a slip is caught before it does, and the Desk shows only Nikita's own pictures.",
   },
   R5: {
-    what: "A privacy spec for Relay written before its hub is built.",
-    connects: "Relay, the planned hub that will read messages and contacts.",
-    why: "Messages are the most sensitive data C.E.O. will touch, so the rules come first.",
+    what: "A privacy spec for Relay written before its hub is built: what stays on the Mac, what OpenAI and the site may see, how long anything is kept and how to wipe it, with a check that lets the site take counts and states only.",
+    connects: "Relay, the planned hub that will read messages and contacts, and the Desk's and the Lattice's Relay pages.",
+    why: "Messages are the most sensitive data C.E.O. will touch, so the rules come first, and a test holds the public site to counts.",
   },
   R6: {
     what: "A key on the world step's trigger and a cap on how often it can run each hour.",

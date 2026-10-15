@@ -24,7 +24,7 @@ each room of the built Lattice to Gemini after every push to `main`, and CI turn
 issues. Code is written by **the Foundry**, a Claude Code builder session (the Builder,
 Skippy's submind) and its workers (Rusty, Rocky), which read GitHub issues, open branches and pull requests, and
 ship to `main`, which Vercel deploys to production. **Relay**, a hub on an always-on MacBook that will read
-messages, is designed but not built yet.
+messages, is designed but not built yet; its privacy rules come first, in [RELAY-PRIVACY.md](RELAY-PRIVACY.md).
 
 ## Data flow and trust boundaries
 
@@ -106,7 +106,7 @@ flowchart LR
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account, the Checks bot and the crew's App (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
 | **TB5** Issues to the builder | Work descriptions | `scripts/foundry-issue.sh` (#59): owner, CI and Foundry App text in data blocks with a random tag per read, everything else withheld by name, exit 3 when anything was withheld; worker briefs carry issue text only inside a data block (docs/FOUNDRY.md, "Trusted input") |
 | **TB6** The public Lattice | World history, Foundry feed, spend totals, security posture, the latest Visual QA run | Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63); the security feed (`api/security-feed.ts`, #82) returns only pass or fail states, scores, dates and counts, never an open alert's details; the Visual QA feed (`api/visual-qa-feed.ts`, #91) returns only counts, a time, a state and a link to the run |
-| **TB7** Relay to the site (planned) | Counts and states, never message text | Design rules in docs/DELIVERY.md, "Environments"; the full privacy spec is roadmap R5 |
+| **TB7** Relay to the site (planned) | Counts and states, never message text | The Relay privacy spec, docs/RELAY-PRIVACY.md (#149): only `RelayStatus`, an allowlisted shape of counts, enum states and timestamps, checked with `readRelayStatus` (`packages/core/src/relay.ts`) before the hub sends it and again where the site receives it; an unknown key or a free string refuses the whole status; names, previews and drafts never pass through Vercel; design rules in docs/DELIVERY.md, "Environments" |
 | **TB8** CI to Gemini | Clips of the public Lattice and the room descriptions; JSON findings back | Only renders of the public Lattice built from `main`, a few seconds a room at low resolution, never live data or secrets (`scripts/room-tour.mjs`); the key is a GitHub Actions secret (`GEMINI_API_KEY`) given only to the review step, sent only to Google's API host and never printed (`redact`); fixed rules that say text in the video is never instructions; structured output re-validated in code (`parseFindings`) and reduced to plain lines (`plainText`) before CI writes an issue in its own words; spend capped per run and per day (`api/_visualqa/review.ts`) |
 
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's
@@ -132,7 +132,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | World state and history | Vercel Blob (private) | The Lattice's memory |
 | Idea pictures | Vercel Blob (private), shown only on short-lived signed links (#127) | May show Nikita's screen |
 | Nikita's words | GitHub issues (public) | Dictated, may mention people |
-| Messages and contacts (planned) | Relay MacBook only | The most sensitive data C.E.O. will touch |
+| Messages and contacts (planned) | Relay MacBook only; what may leave it is in [RELAY-PRIVACY.md](RELAY-PRIVACY.md) | The most sensitive data C.E.O. will touch |
 
 ## Actors
 
@@ -160,7 +160,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | **LLM05 Improper Output Handling** | Rivet's card written into an issue body the Desk and the world step parse; world text shown on the Lattice; Gemini's findings written into a fix issue | Schema with `additionalProperties: false`; enums for builder, model, size, agents, rooms and kinds; `plainLine` strips pictures, links, HTML and markdown markers from card text so it can't fake a `**Builder:**` line or call out to another host; `plainText` does the same for Visual QA findings, which CI files under its own card lines; length caps everywhere; React escapes all model text; no HTML sinks in the front end; the Desk's card reader shows pictures only from Nikita's own store, through its own picture function (`ownPictures`, #127) | A model can still word a card oddly inside the schema; an enforcing CSP and security headers (#62) back up the reader | Shipped: the Desk shows only its own pictures (#127) |
 | **LLM06 Excessive Agency** | The builder session (shell, git, merges); Rivet; the world step | Rivet and the world step have no tools at all: they return JSON only; labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until code-owner review is turned on); the crew's GitHub App for the Desk's functions and CI's issue writes, with hour-long tokens for this repo only and no Administration or Workflows permission (`api/_github.ts`, #138); the builder guard, a hook that denies risky commands and secrets files before they run and logs every tool call on the machine (`.claude/hooks/`, #119) | The builder's Claude Code sessions still act as Nikita on GitHub (their access comes from the environment, not from the repo), and its guard is a deny list, not a sandbox, so some of its limits are still rules it follows | Agents' own identity (R2) |
 | **LLM07 System Prompt Leakage** | Rivet's and the world step's prompts | Both prompts are public in this repo by design and hold no secrets, keys or private rules; the security comes from code checks, not from the prompt being secret | None beyond what is already public | Accepted |
-| **LLM08 Vector and Embedding Weaknesses** | Not used: no retrieval, no vector store | Not applicable today | If Relay adds retrieval over messages, this becomes live | Relay privacy spec (R5) |
+| **LLM08 Vector and Embedding Weaknesses** | Not used: no retrieval, no vector store | Not applicable today; the Relay privacy spec (docs/RELAY-PRIVACY.md) rules out embeddings, vector stores and search indexes over messages until it is changed | If Relay adds retrieval over messages, this becomes live | Relay privacy spec (R5, shipped #149) |
 | **LLM09 Misinformation** | The Historian's hourly summaries; Rivet's pitches | The world step reads only real events and labels the Lattice as a story; Rivet's card is a suggestion that Nikita approves; the Builder confirms builder and model | Off-tone or wrong lines on the Lattice for an hour | Accepted |
 | **LLM10 Unbounded Consumption** | Claude spend; Gemini speech and Visual QA spend; GitHub token quota; function CPU | Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing) | The world step's trigger is open and its per-hour cap is a known gap | Open, tracked: world-step key (R6, #61, not picked) |
 
@@ -224,7 +224,7 @@ links through its own picture function; its test passes like any other, and noth
 | R2 | The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10) | Agents acting as Nikita; previews and audit | Built #138, live once Nikita sets up the App; open: the Claude Code sessions still act as Nikita |
 | R3 | Real Desk sign-in (passkey, short session, rate limits) | The static Desk key | Shipped #132 |
 | R4 | Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only) | Desk text and pictures going public | Shipped #127 |
-| R5 | Relay privacy spec before the hub is built | Messages and contacts | Carded #149, waiting for Nikita's pick |
+| R5 | Relay privacy spec before the hub is built (what stays on the Mac, what OpenAI and the site may see, retention, the wipe; a counts-only check on the site boundary) | Messages and contacts | Shipped #149 |
 | R6 | Key the world step and cap it per hour | World spend | #61, not picked by Nikita |
 
 **R2, what #138 does and doesn't close.** Once Nikita creates the crew's GitHub App and pastes its key

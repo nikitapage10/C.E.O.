@@ -1,4 +1,4 @@
-import type { AgentEvent, ApprovalRequest, AutonomyPolicy } from "@ceo/core";
+import type { AgentEvent, ApprovalRequest, AutonomyPolicy, RelayStatus } from "@ceo/core";
 
 /**
  * Phase 2+: the always-on hub. Not implemented yet — this file pins down the seams so the world and
@@ -24,4 +24,14 @@ export interface HubConfig {
   policy: AutonomyPolicy;
   sources: EventSource[];
   executors: ActionExecutor[];
+}
+
+/**
+ * How Relay tells the site how it is doing: counts, enum states and timestamps only (docs/RELAY-PRIVACY.md, #149).
+ * An implementation checks every status with `readRelayStatus` from `@ceo/core` before it sends it and drops a
+ * refused one whole. Nothing else about Relay (names, handles, message text, drafts, summaries) ever leaves the Mac
+ * for the site, and Relay sends the site no AgentEvents of its own.
+ */
+export interface RelayReporter {
+  report(status: RelayStatus): Promise<void>;
 }

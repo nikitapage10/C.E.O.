@@ -82,7 +82,7 @@ export function CompliancePage() {
           <Frame id="regulation" off>
             <span className="frame__big">—</span>
             <span className="frame__sub">Not yet covered</span>
-            <span className="frame__legend">No law or standard is mapped in the repo yet. Relay's privacy spec (R5) is planned before the hub is built.</span>
+            <span className="frame__legend">No law or standard is mapped in the repo yet. Relay's privacy spec (R5, #149) is written, ahead of the hub.</span>
           </Frame>
         </ul>
 

@@ -98,7 +98,8 @@ export const BOUNDARIES: Boundary[] = [
     id: "TB7",
     name: "Relay to the site (planned)",
     crosses: "Counts and states, never message text",
-    controls: 'Design rules in docs/DELIVERY.md, "Environments"; the full privacy spec is roadmap R5',
+    controls:
+      'The Relay privacy spec, docs/RELAY-PRIVACY.md (#149): only `RelayStatus`, an allowlisted shape of counts, enum states and timestamps, checked with `readRelayStatus` (`packages/core/src/relay.ts`) before the hub sends it and again where the site receives it; an unknown key or a free string refuses the whole status; names, previews and drafts never pass through Vercel; design rules in docs/DELIVERY.md, "Environments"',
     from: "relay",
     to: "vercel",
     planned: true,
@@ -219,9 +220,9 @@ export const OWASP_LLM: LlmRisk[] = [
     id: "LLM08",
     name: "Vector and Embedding Weaknesses",
     where: "Not used: no retrieval, no vector store",
-    controls: "Not applicable today",
+    controls: "Not applicable today; the Relay privacy spec (docs/RELAY-PRIVACY.md) rules out embeddings, vector stores and search indexes over messages until it is changed",
     residual: "If Relay adds retrieval over messages, this becomes live",
-    tracking: "Relay privacy spec (R5)",
+    tracking: "Relay privacy spec (R5, shipped #149)",
   },
   {
     id: "LLM09",
@@ -303,7 +304,12 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     closes: "Desk text and pictures going public",
     status: "Shipped #127",
   },
-  { id: "R5", item: "Relay privacy spec before the hub is built", closes: "Messages and contacts", status: "Carded #149, waiting for Nikita's pick" },
+  {
+    id: "R5",
+    item: "Relay privacy spec before the hub is built (what stays on the Mac, what OpenAI and the site may see, retention, the wipe; a counts-only check on the site boundary)",
+    closes: "Messages and contacts",
+    status: "Shipped #149",
+  },
   { id: "R6", item: "Key the world step and cap it per hour", closes: "World spend", status: "#61, not picked by Nikita" },
 ];
 

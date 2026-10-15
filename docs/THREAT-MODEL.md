@@ -224,7 +224,7 @@ links through its own picture function; its test passes like any other, and noth
 | R2 | The agents' own identity (a GitHub App with short-lived tokens; DELIVERY.md, section 10) | Agents acting as Nikita; previews and audit | Built #138, live once Nikita sets up the App; open: the Claude Code sessions still act as Nikita |
 | R3 | Real Desk sign-in (passkey, short session, rate limits) | The static Desk key | Shipped #132 |
 | R4 | Privacy guard before posting (check Desk text before it goes public, signed picture links, Desk shows own pictures only) | Desk text and pictures going public | Shipped #127 |
-| R5 | Relay privacy spec before the hub is built | Messages and contacts | Not carded |
+| R5 | Relay privacy spec before the hub is built | Messages and contacts | Carded #149, waiting for Nikita's pick |
 | R6 | Key the world step and cap it per hour | World spend | #61, not picked by Nikita |
 
 **R2, what #138 does and doesn't close.** Once Nikita creates the crew's GitHub App and pastes its key

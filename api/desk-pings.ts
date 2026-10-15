@@ -127,7 +127,8 @@ export async function scan(deps: PingDeps & { store: AuthStore }): Promise<Respo
   const plan = planPings(needsOf(issues), state.sent, deps.now, open);
   const subs = liveSubs(state.subs, passkeys);
   // What is about to be pinged is written down first, so a second scan landing now doesn't ping it again.
-  await deps.store.savePings({ ...state, sent: plan.sent });
+  // The scan's own time too: it shows the Actions secret matches Vercel's (the setup list on Today, #164).
+  await deps.store.savePings({ ...state, sent: plan.sent, scanned: deps.now });
   if (!plan.ping.length || !subs.length) return json({ pinged: 0, held: plan.held, devices: subs.length });
   const took = await deliver(deps.store, subs, pingText(plan.ping, plan.morning), deps.send);
   return json({ pinged: plan.ping.length, held: 0, devices: took });

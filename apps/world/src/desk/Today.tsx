@@ -7,11 +7,13 @@ import { link } from "./nav.ts";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening } from "./viz.tsx";
 import { IdeaCard, useSetup } from "./FoundryPage.tsx";
+import { SetupCard, useSetupStatus } from "./SetupCard.tsx";
 
 /**
  * Today: what needs you, plainly, in the Lattice's own light. A hero over the Lattice with the day's count, a
  * "Do now" board (replies with drafts ready, decisions with the answers as buttons, each with the agent asking),
- * what can wait, what happened while you were away, and the rooms as pictures.
+ * the setup list (things only Nikita can do, once, until they're all done; #164), what can wait, what happened while
+ * you were away, and the rooms as pictures.
  */
 
 /** Replies that make "Do now": the ones marked sooner, and anything waiting longer than this. */
@@ -47,6 +49,7 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   const crates = useFoundry((s) => s.data.crates);
   const pendingIdeas = useFoundry((s) => s.pending);
   const setup = useSetup();
+  const setupList = useSetupStatus();
   const ideas = openIdeas(crates, pendingIdeas);
   const questions = ideaCounts(ideas).questions;
   const todo = replies.length + decisions.length + questions.length;
@@ -137,6 +140,8 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
           </div>
         )}
       </Panel>
+
+      <SetupCard status={setupList} />
 
       <div className="today__row">
         <Panel eyebrow="Later today" aside={<span className="badge">{later.length + (otherReplies > 0 ? 1 : 0)}</span>}>

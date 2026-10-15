@@ -11,6 +11,7 @@
 
 import { canonical, memo } from "./_feedcache.js";
 import { githubToken } from "./_github.js";
+import { TRAIL_AUTHORS } from "./_world/digest.js";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -57,14 +58,30 @@ interface Issue {
   pull_request?: unknown;
 }
 
-interface Comment {
+export interface Comment {
   issue_url: string;
   created_at: string;
   body?: string | null;
+  user?: { login?: string } | null;
 }
 
 /** The comments the panel reads: the trail steps, and the older "Approved for building" note from before the trail. */
 const TRAIL = /^(\*\*Trail ·|Approved for building)/;
+const PICTURES = "**Trail · Pictures:**";
+
+/**
+ * Whether the Desk may read a comment as a trail step. A Pictures step puts images on the Desk's Changelog, so it
+ * counts only from the trail's trusted authors (Nikita's account, the Checks workflow and the crew's App); the repo is
+ * public, and anyone could post one. The Desk still checks every picture link itself (`pictureUrl` in foundry.ts).
+ */
+export function isTrail(c: Comment): boolean {
+  const body = c.body ?? "";
+  if (!TRAIL.test(body)) return false;
+  return !body.startsWith(PICTURES) || TRAIL_AUTHORS.has(c.user?.login ?? "");
+}
+
+/** How much of a step to keep: Shipped steps carry long token lines, and Pictures steps a line per picture. */
+const keep = (body: string) => (body.startsWith("**Trail · Shipped:**") || body.startsWith(PICTURES) ? 3000 : 1200);
 
 /** Cache lifetime in seconds, for both the edge header and the in-function memo. */
 const TTL = 60;
@@ -76,8 +93,8 @@ const usage = memo(TTL * 1000, async () => {
       .filter((i) => !i.pull_request)
       .map((i) => ({ number: i.number, title: i.title, state: i.state, created_at: i.created_at, closed_at: i.closed_at, body: (i.body ?? "").slice(0, 2000), labels: i.labels.map((l) => (typeof l === "string" ? l : (l.name ?? ""))) })),
     trails: comments
-      .filter((c) => TRAIL.test(c.body ?? ""))
-      .map((c) => ({ issue: Number(/\/issues\/(\d+)$/.exec(c.issue_url)?.[1] ?? 0), at: c.created_at, body: (c.body ?? "").slice(0, (c.body ?? "").startsWith("**Trail · Shipped:**") ? 3000 : 1200) })),
+      .filter(isTrail)
+      .map((c) => ({ issue: Number(/\/issues\/(\d+)$/.exec(c.issue_url)?.[1] ?? 0), at: c.created_at, body: (c.body ?? "").slice(0, keep(c.body ?? "")) })),
   });
 });
 

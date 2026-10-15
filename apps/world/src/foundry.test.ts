@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeSource, withTrails, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -475,5 +475,95 @@ describe("changeSource (approval and origin on the Changelog)", () => {
     const [c] = parseCrates([issue(8, ["foundry", "foundry:build", "foundry:auto", "foundry:working"])], NOW);
     expect(c!.auto).toBe(true);
     expect(parseCrates([issue(9, ["foundry", "foundry:build"])], NOW)[0]).not.toHaveProperty("auto");
+  });
+});
+
+describe("Changelog pictures", () => {
+  const SHOT = "https://raw.githubusercontent.com/nikitapage10/C.E.O./foundry-shots/";
+  const shipped = (n: number, labels: string[]): GhIssue => ({ number: n, title: `T${n}`, state: "closed", html_url: `https://x/issues/${n}`, updated_at: "2026-10-12T01:00:00Z", closed_at: `2026-10-12T0${n}:00:00Z`, body: "", labels: ["foundry", "foundry:shipped", ...labels].map((name) => ({ name })) });
+  const step = (...lines: string[]) => ["**Trail · Pictures:** the Changelog with pictures, wide and phone.", "", ...lines].join("\n");
+
+  it("accepts only the foundry-shots branch of this repo, an issue folder and a JPEG or PNG", () => {
+    expect(pictureUrl(`${SHOT}162/20261015-101500-changelog-wide.jpg`)).toBe(`${SHOT}162/20261015-101500-changelog-wide.jpg`);
+    expect(pictureUrl(`${SHOT}9/card.jpeg`)).not.toBeNull();
+    expect(pictureUrl(`${SHOT}9/card.PNG`)).not.toBeNull();
+    for (const bad of [
+      "javascript:alert(1)",
+      "data:image/png;base64,iVBORw0KGgo=",
+      "data:image/svg+xml,<svg onload=alert(1)>",
+      `http://raw.githubusercontent.com/nikitapage10/C.E.O./foundry-shots/162/a.jpg`,
+      "https://raw.githubusercontent.com/nikitapage10/C.E.O./main/162/a.jpg",
+      "https://raw.githubusercontent.com/nikitapage10/C.E.O./foundry-shots-evil/162/a.jpg",
+      "https://raw.githubusercontent.com/someone-else/C.E.O./foundry-shots/162/a.jpg",
+      "https://raw.githubusercontent.com/nikitapage10/other/foundry-shots/162/a.jpg",
+      "https://raw.githubusercontent.com.evil.example/nikitapage10/C.E.O./foundry-shots/162/a.jpg",
+      "https://evil.example/https://raw.githubusercontent.com/nikitapage10/C.E.O./foundry-shots/162/a.jpg",
+      `${SHOT}162/a.gif`,
+      `${SHOT}162/a.svg`,
+      `${SHOT}162/a.jpg.html`,
+      `${SHOT}162/a.jpg?x=1`,
+      `${SHOT}162/a.jpg#x`,
+      `${SHOT}162/../../../main/a.jpg`,
+      `${SHOT}162/%2e%2e/a.jpg`,
+      `${SHOT}162/sub/a.jpg`,
+      `${SHOT}abc/a.jpg`,
+      `${SHOT}162/.jpg`,
+      `${SHOT}162/a b.jpg`,
+      ` ${SHOT}162/a.jpg`,
+      `JAVASCRIPT:${SHOT}162/a.jpg`,
+    ]) {
+      expect(pictureUrl(bad), bad).toBeNull();
+    }
+  });
+
+  it("reads the images on a Pictures step, dropping every other link", () => {
+    const pics = readPictures(
+      step(
+        `![changelog-wide](${SHOT}162/20261015-101500-changelog-wide.jpg)`,
+        "![x](javascript:alert(1))",
+        "![x](data:image/png;base64,AAAA)",
+        "![x](https://raw.githubusercontent.com/nikitapage10/C.E.O./main/162/a.jpg)",
+        "![x](https://raw.githubusercontent.com/attacker/C.E.O./foundry-shots/162/a.jpg)",
+        `![changelog-wide](${SHOT}162/20261015-101500-changelog-wide.jpg)`,
+        `![](${SHOT}162/20261015-101501-viewer_open.png)`,
+        `[not an image](${SHOT}162/link.jpg)`,
+      ),
+    );
+    expect(pics.map((p) => [p.src.slice(SHOT.length), p.alt])).toEqual([
+      ["162/20261015-101500-changelog-wide.jpg", "changelog wide"],
+      ["162/20261015-101501-viewer_open.png", "viewer open"],
+    ]);
+    expect(pics[0]!.note).toBe("the Changelog with pictures, wide and phone.");
+  });
+
+  it("keeps alt text and the note short and plain", () => {
+    const [p] = readPictures(`**Trail · Pictures:** <img src=x onerror=alert(1)> **bold** ‮evil\n\n![<script>alert(1)</script>${"a".repeat(150)}](${SHOT}1/a.jpg)`);
+    expect(p!.alt).not.toMatch(/[<>]/);
+    expect(p!.alt.length).toBeLessThanOrEqual(60);
+    expect(p!.note).not.toMatch(/[<>*‮]/);
+    // An alt the pattern can't read falls back to the file's name.
+    expect(readPictures(`**Trail · Pictures:** x\n![](${SHOT}1/20261015-101500-desk-phone.jpg)`)[0]!.alt).toBe("desk phone");
+  });
+
+  it("reads nothing from a comment that isn't a Pictures step", () => {
+    expect(readPictures(`**Trail · Work:** ![a](${SHOT}1/a.jpg)`)).toEqual([]);
+    expect(readPictures(`Look! **Trail · Pictures:** ![a](${SHOT}1/a.jpg)`)).toEqual([]);
+  });
+
+  it("caps how many pictures a change shows", () => {
+    const many = Array.from({ length: 30 }, (_, i) => `![p${i}](${SHOT}1/p${i}.jpg)`);
+    expect(readPictures(step(...many))).toHaveLength(MAX_PICTURES);
+  });
+
+  it("folds each issue's pictures into the changelog, oldest step first", () => {
+    const log = parseChangelog([shipped(1, ["foundry:build"]), shipped(2, ["foundry:upkeep"])], [], []);
+    const folded = withTrails(log, [
+      { issue: 1, at: "2026-10-15T12:00:00Z", body: step(`![after](${SHOT}1/after.jpg)`) },
+      { issue: 1, at: "2026-10-15T10:00:00Z", body: step(`![before](${SHOT}1/before.jpg)`, `![after](${SHOT}1/after.jpg)`) },
+      { issue: 2, at: "2026-10-15T10:00:00Z", body: step("![x](https://example.com/x.jpg)") },
+    ]);
+    const one = folded.find((c) => c.issue?.number === 1)!;
+    expect(one.pictures?.map((p) => p.alt)).toEqual(["before", "after"]);
+    expect(folded.find((c) => c.issue?.number === 2)).not.toHaveProperty("pictures");
   });
 });

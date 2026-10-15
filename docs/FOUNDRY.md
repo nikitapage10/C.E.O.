@@ -316,7 +316,7 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
 
 Low- and medium-risk ideas that won't make or break C.E.O. don't wait for Nikita's pick (Nikita, 2026-10-15, #152):
 maintenance, uptime, and smaller ideas, small visual and design ones included. Larger or product-critical work still
-waits for him.
+waits for Nikita.
 
 **What qualifies.** All of these:
 - size **small** or **medium**;
@@ -351,7 +351,7 @@ for Nikita's pick.
 
 **Nikita can stop it.** Until it ships, an auto-approved job shows an Auto marker and a **Stop** button on the
 Desk's Foundry tab (two taps). Stop takes `foundry:build`, `foundry:auto` and the work labels off, makes it a
-`foundry:idea` again, and writes `**Trail · Decision:** Stopped by Nikita on the Desk.` It then waits for his pick like
+`foundry:idea` again, and writes `**Trail · Decision:** Stopped by Nikita on the Desk.` It then waits for Nikita's pick like
 any idea (Build this / Revise / Not this one). At its next look the Builder stops work on it, turns off auto-merge and
 closes its pull request unmerged, keeping the branch. Before turning on auto-merge for an auto-approved build, the
 Builder checks the issue still has `foundry:auto`. Once shipped, undoing it is a revert through the fix lane. In chat,

@@ -506,11 +506,11 @@ async function act(request: Request): Promise<Response> {
 
   if (choice === "stop") {
     // Nikita stops a build the Builder approved itself (docs/FOUNDRY.md, "Auto-approval"): it goes back to an idea
-    // card waiting for his pick, and the Builder closes its pull request unmerged at its next look.
+    // card waiting for Nikita's pick, and the Builder closes its pull request unmerged at its next look.
     if (current.state !== "open" || !labels.includes("foundry") || !labels.includes(AUTO_STOP_FROM) || !labels.includes("foundry:build")) return json({ error: "not-auto" }, 409);
     const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: stoppedLabels(labels) }) });
     if (!res.ok) return json({ error: "github" }, 502);
-    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "**Trail · Decision:** Stopped by Nikita on the Desk. Back to an idea card waiting for his pick; the Builder closes its pull request unmerged." }) });
+    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "**Trail · Decision:** Stopped by Nikita on the Desk. Back to an idea card waiting for Nikita's pick; the Builder closes its pull request unmerged." }) });
     return json({ ok: true });
   }
   if (current.state !== "open" || !labels.includes("foundry") || !labels.includes("foundry:idea")) return json({ error: "not-an-open-idea" }, 409);

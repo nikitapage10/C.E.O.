@@ -166,7 +166,7 @@ function readTrails(trails: readonly string[]): { auto: boolean; byNikita: boole
   const decisions = trails.filter((t) => t.startsWith("**Trail · Decision:**") || t.startsWith("Approved for building")).map((t) => t.replace(/^\*\*Trail · Decision:\*\*\s*/, ""));
   return {
     auto: decisions.some((t) => /^Auto-approved by Skippy/i.test(t)),
-    // "Approved for building by Nikita on the Desk.", or a bigger fix he shipped ("Shipped by Nikita …").
+    // "Approved for building by Nikita on the Desk.", or a bigger fix Nikita shipped ("Shipped by Nikita …").
     byNikita: decisions.some((t) => /^(?:Approved|Shipped|Ship)\b[^\n]*\bby Nikita\b/i.test(t)),
     fromNikita: trails.some((t) => /^\*\*Trail · Origin:\*\*\s*Nikita\b/.test(t)),
   };
@@ -175,9 +175,9 @@ function readTrails(trails: readonly string[]): { auto: boolean; byNikita: boole
 /**
  * How a change was approved and where it came from, from its kind, its labels, its issue body and (when the Desk has
  * them) its trail steps. A built idea is Nikita's call (`manual`) unless it carries `foundry:auto` or an
- * "Auto-approved by Skippy" Decision, so every build from before the rule reads as his. Upkeep, fixes and chat need
+ * "Auto-approved by Skippy" Decision, so every build from before the rule reads as Nikita's. Upkeep, fixes and chat need
  * no approval (`none`) unless a Decision says Nikita signed one off (a bigger fix's Ship). An idea is Nikita's when
- * its body has his Desk words or its Origin step names him, else the Builder's (a morning idea, or one from upkeep).
+ * its body has Nikita's Desk words or its Origin step names Nikita, else the Builder's (a morning idea, or one from upkeep).
  */
 export function changeSource(kind: CrateKind, labels: Iterable<string>, body = "", trails: readonly string[] = []): { approval: Approval; origin: Origin } {
   const has = new Set(labels);

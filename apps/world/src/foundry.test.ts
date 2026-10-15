@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { changeSource, withTrails, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -319,7 +319,7 @@ describe("the changelog", () => {
 
   it("counts what shipped since midnight", () => {
     const now = new Date(2026, 9, 13, 15).getTime();
-    const at = (h: number) => ({ key: `${h}`, at: new Date(2026, 9, 13, h).getTime(), title: "", kind: "chat" as const, issue: null, landed: null, by: null, short: "" });
+    const at = (h: number) => ({ key: `${h}`, at: new Date(2026, 9, 13, h).getTime(), title: "", kind: "chat" as const, issue: null, landed: null, by: null, short: "", approval: "none" as const, origin: "chat" as const });
     expect(shippedToday([at(9), at(1), { ...at(0), at: new Date(2026, 9, 12, 23).getTime() }], now)).toBe(2);
   });
 });
@@ -410,5 +410,70 @@ describe("crew order and rank", () => {
     expect(CREW_ORDER.map((id) => CREW_RANK[id].tier)).toEqual([1, 2, 3]);
     expect(CREW_ORDER.map((id) => CREW_RANK[id].models)).toEqual(["Haiku", "Sonnet/Opus", "Opus"]);
     expect([...CREW_ORDER].sort()).toEqual(Object.keys(CREW).sort());
+  });
+});
+
+describe("changeSource (approval and origin on the Changelog)", () => {
+  const shipped = (n: number, labels: string[], body = ""): GhIssue => ({ number: n, title: `T${n}`, state: "closed", html_url: `https://x/issues/${n}`, updated_at: "2026-10-12T01:00:00Z", closed_at: `2026-10-12T0${n}:00:00Z`, body, labels: ["foundry", "foundry:shipped", ...labels].map((name) => ({ name })) });
+
+  it("reads an auto-approved build from foundry:auto, a Desk idea from Nikita's words, the rest from the kind", () => {
+    const log = parseChangelog(
+      [
+        shipped(1, ["foundry:build", "foundry:auto"], "**Pitch:** Tidy.\n**Builder:** Rusty (Sonnet)"),
+        shipped(2, ["foundry:build"], "**Pitch:** A podium.\n\n**From Nikita (on the Desk):**\n\nA podium."),
+        shipped(3, ["foundry:build", "foundry:auto"], "**From Nikita (on the Desk):**\n\nA smaller badge."),
+        shipped(4, ["foundry:upkeep"]),
+        shipped(5, ["foundry:fix", "rung:1"]),
+        shipped(6, ["foundry:chat"]),
+        shipped(7, ["foundry:idea"]),
+      ],
+      [],
+      [],
+    );
+    const by = Object.fromEntries(log.map((c) => [c.issue!.number, [c.approval, c.origin]]));
+    expect(by).toEqual({
+      1: ["auto", "builder"],
+      2: ["manual", "nikita"],
+      3: ["auto", "nikita"],
+      4: ["none", "upkeep"],
+      5: ["none", "fix"],
+      6: ["none", "chat"],
+      // An older build without foundry:auto was Nikita's call.
+      7: ["manual", "builder"],
+    });
+  });
+
+  it("reads the trail when it has one", () => {
+    expect(changeSource("build", [], "", ["**Trail · Decision:** Auto-approved by Skippy, the Builder (low risk: copy tweak)."])).toEqual({ approval: "auto", origin: "builder" });
+    expect(changeSource("build", [], "", ['**Trail · Origin:** Nikita in the Foundry thread: "a podium"', "**Trail · Decision:** Approved for building by Nikita on the Desk."])).toEqual({ approval: "manual", origin: "nikita" });
+    expect(changeSource("fix", ["rung:3"], "", ["**Trail · Decision:** Shipped by Nikita on the thread's card."])).toEqual({ approval: "manual", origin: "fix" });
+    expect(changeSource("fix", [], "", ["**Trail · Decision:** Small green fix: ships as upkeep, no approval needed."])).toEqual({ approval: "none", origin: "fix" });
+    // Only a step that starts the comment counts.
+    expect(changeSource("upkeep", [], "", ["Nice! **Trail · Decision:** Auto-approved by Skippy"])).toEqual({ approval: "none", origin: "upkeep" });
+  });
+
+  it("calls a merged pull request with no issue by its branch", () => {
+    const log = parseChangelog([], [{ number: 9, title: "x", html_url: "https://x/pull/9", merged_at: "2026-10-12T01:00:00Z", head: { ref: "foundry/upkeep/x" } }], []);
+    expect([log[0]!.approval, log[0]!.origin]).toEqual(["none", "upkeep"]);
+  });
+
+  it("folds trail steps into the changelog once the Desk has them", () => {
+    const log = parseChangelog([shipped(1, ["foundry:build"]), shipped(2, ["foundry:upkeep"])], [], []);
+    const folded = withTrails(log, [
+      { issue: 1, body: "**Trail · Origin:** Nikita on the Desk (04:02 MT)." },
+      { issue: 1, body: "**Trail · Decision:** Auto-approved by Skippy, the Builder (low risk: copy)." },
+      { issue: 2, body: "**Trail · Work:** foundry/upkeep/2-x" },
+    ]);
+    expect(folded.map((c) => [c.issue!.number, c.approval, c.origin])).toEqual([
+      [2, "none", "upkeep"],
+      [1, "auto", "nikita"],
+    ]);
+    expect(withTrails(log, [])).toBe(log);
+  });
+
+  it("marks an open auto-approved build so the Desk can offer Stop", () => {
+    const [c] = parseCrates([issue(8, ["foundry", "foundry:build", "foundry:auto", "foundry:working"])], NOW);
+    expect(c!.auto).toBe(true);
+    expect(parseCrates([issue(9, ["foundry", "foundry:build"])], NOW)[0]).not.toHaveProperty("auto");
   });
 });

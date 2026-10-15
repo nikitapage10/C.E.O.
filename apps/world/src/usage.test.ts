@@ -10,9 +10,9 @@ describe("shaping writes the Short line", () => {
     expect(tidyShort("")).toBe("");
   });
   it("writes it under the size", () => {
-    const body = shapedBody({ title: "Idea: x", pitch: "Faster.", size: "small", short: "Speeding up the Lattice", builder: "Rusty", model: "Sonnet" }, "make it fast");
+    const body = shapedBody({ title: "Idea: x", pitch: "Faster.", size: "small", short: "Speeding up the Lattice", builder: "Rusty", model: "Sonnet", risk: "low", touches: [] }, "make it fast");
     expect(body).toMatch(/^\*\*Pitch:\*\* Faster\.\n\*\*Size:\*\* small\n\*\*Short:\*\* Speeding up the Lattice\n\*\*Builder:\*\* Rusty \(Sonnet\)/);
-    expect(shapedBody({ title: "Idea: x", pitch: "P.", size: "small", short: "", builder: "Rusty", model: "Sonnet" }, "w")).not.toContain("**Short:**");
+    expect(shapedBody({ title: "Idea: x", pitch: "P.", size: "small", short: "", builder: "Rusty", model: "Sonnet", risk: "low", touches: [] }, "w")).not.toContain("**Short:**");
   });
 });
 

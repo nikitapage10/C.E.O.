@@ -10,8 +10,8 @@ Scope: this repository only (Nikita, 2026-10-12).
 
 1. **Fix** (top priority). Something broke: the checks on `main` went red, the site build fails, or Nikita flagged
    a bug. Drop everything else.
-2. **Ideas** (every morning at 9:00 Mountain). Propose exactly three ideas. Never code an idea before Nikita
-   approves it.
+2. **Ideas** (every morning at 9:00 Mountain). Propose exactly three ideas. Never code an idea before it is
+   approved: by Nikita, or by the Builder itself when it is low risk (see "Auto-approval").
 3. **Upkeep** (every five hours, lined up with Nikita's Claude usage reset; only when nothing above is open). Security
    and compliance first, then one small change that makes things run smoother without changing what Nikita sees.
 
@@ -67,6 +67,7 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | --- | --- |
 | `foundry` | Foundry work (required) |
 | `foundry:fix`, `foundry:idea`, `foundry:build`, `foundry:upkeep`, `foundry:chat` | The kind (exactly one) |
+| `foundry:auto` | Goes with `foundry:build`: the Builder approved this idea itself as low risk (see "Auto-approval"); Nikita can stop it from the Desk |
 | `foundry:working` | Someone is on it |
 | `foundry:ready` | Done and checked, waiting for Nikita's OK |
 | `foundry:stuck` | Rung 3 failed; Nikita needs to look (pings Nikita's phone) |
@@ -302,7 +303,7 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   stands. If Claude isn't set up or doesn't answer, an answered idea gets `foundry:revise` and the Builder shapes it
   at the next queue check, using the answer. When you shape an idea by hand you may ask the same way (a `**Question:**`
   line and `foundry:question`), but only when a builder really couldn't proceed without it.
-- On approval, relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
+- On approval (Nikita's, or the Builder's own under "Auto-approval" below), relabel that issue `foundry:build` + `foundry:working` and build it on a `foundry/build/…` branch
   (the builder and model the card names: Rusty unless it says Rocky). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
   approval on the Desk was the decision, so there is no "Ship?" card (Nikita, 2026-10-12: "when I approve an idea,
   you don't need me to decide to ship it"). It stops for Nikita only when something needs a human: red checks after
@@ -310,6 +311,56 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   question the idea didn't answer; then it waits labelled `foundry:ready` with the preview link in the Foundry
   thread. Close the ideas that weren't picked after a week.
 - Any new agent, room, pet, costume or model an idea adds ships with its lore (see the repo's CLAUDE.md).
+
+### Auto-approval
+
+Low- and medium-risk ideas that won't make or break C.E.O. don't wait for Nikita's pick (Nikita, 2026-10-15, #152):
+maintenance, uptime, and smaller ideas, small visual and design ones included. Larger or product-critical work still
+waits for him.
+
+**What qualifies.** All of these:
+- size **small** or **medium**;
+- low or medium risk: if it went wrong, a revert puts everything back and nobody loses anything;
+- nothing on the never-list.
+
+**The never-list.** Auto-approval never covers an idea that touches any of these, however small. They always wait
+for Nikita:
+- sign-in or auth (passkeys, sessions, the Desk's sign-in);
+- secrets or keys;
+- permissions, rulesets or CI trust (workflows, the App's access, the builder guard);
+- private data (Relay, messages, anything personal);
+- paid API spend going up (more calls, a costlier model, a higher cap);
+- deleting data or features (a room, an agent, a page, stored history);
+- size **large**.
+
+**Who decides.** Skippy, the Builder, and no one else: when it files a card (a morning idea, or an idea that grew out
+of upkeep), and at the queue check after Rivet shapes an idea Nikita sent from the Desk. Rivet's card carries her read
+as a suggestion (`**Risk:** low · could be auto-approved; the Builder decides`, from `risk` and `touches` in
+`api/foundry.ts`); nothing on the server approves anything. When in doubt, it waits for Nikita.
+
+**How.** The Builder labels the issue `foundry:build` + `foundry:auto` + `foundry:working` (no `foundry:idea`, so it
+doesn't ping as an idea waiting for the pick), writes the Decision step, and builds it like any approved idea:
+
+```
+**Trail · Decision:** Auto-approved by Skippy, the Builder (low risk: <reason>).
+```
+
+The first time, create the label: `gh label create foundry:auto --color FBCA04 --description "Auto-approved by the
+Builder as low risk"`. The morning card in the Foundry thread lists auto-approved ideas apart from the ones that wait
+for Nikita's pick.
+
+**Nikita can stop it.** Until it ships, an auto-approved job shows an Auto marker and a **Stop** button on the
+Desk's Foundry tab (two taps). Stop takes `foundry:build`, `foundry:auto` and the work labels off, makes it a
+`foundry:idea` again, and writes `**Trail · Decision:** Stopped by Nikita on the Desk.` It then waits for his pick like
+any idea (Build this / Revise / Not this one). At its next look the Builder stops work on it, turns off auto-merge and
+closes its pull request unmerged, keeping the branch. Before turning on auto-merge for an auto-approved build, the
+Builder checks the issue still has `foundry:auto`. Once shipped, undoing it is a revert through the fix lane. In chat,
+"Not this one" on an auto-approved card does the same.
+
+**On the Changelog.** Every shipped change carries two markers (`changeSource` in `apps/world/src/foundry.ts`):
+approval (**Auto**, **Your OK**, or **Routine** for upkeep, fixes and chat that need none) and source (**Your idea**,
+**Builder idea**, **Upkeep**, **Fix**, **Chat**), read from the labels, the issue body and the Origin and Decision steps.
+A build without `foundry:auto` counts as Nikita's OK, as every build before this rule was.
 
 ## Lane 3: Upkeep
 
@@ -342,7 +393,7 @@ Each step is one short comment that starts with `**Trail ·`, newest last:
 | Origin | Where it came from, with a link | `**Trail · Origin:** Nikita on the Desk (04:02 MT).` / `Red check on main, run <link>.` / `Nikita in the Foundry thread: "…"` |
 | Shaped | Who wrote the card (Rivet, on Haiku), on which model, whether it asks Nikita first, and what a Claude API call cost | `**Trail · Shaped:** Rivet on Claude Haiku (claude-haiku-5-5), 1.2 s. Suggested builder: Rusty (Sonnet); the Builder confirms it when the job is picked. Decision: ready for Nikita's pick. Used 812 tokens in and 140 out, $0.000151.` |
 | Answered | Nikita's answer to Rivet's question | `**Trail · Answered:** Nikita on the Desk answered Rivet's question (…):` then the answer quoted |
-| Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Small green fix: ships as upkeep, no approval needed.` |
+| Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Auto-approved by Skippy, the Builder (low risk: a colour tweak on the idea board).` / `Stopped by Nikita on the Desk.` / `Small green fix: ships as upkeep, no approval needed.` |
 | Assigned | Who builds it, on which model, and why (the Builder's call) | `**Trail · Assigned:** Rusty on Opus: it's design and animation.` |
 | Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |
 | Pictures | Every screenshot, design sketch or test picture made along the way (before/after, what was checked), posted with `scripts/issue-shots.sh <issue> "<what they show>" <files…>`. The pictures live on the `foundry-shots` branch (never merged, never deployed) and show inline on the issue | `**Trail · Pictures:** the throne mid-command in the Spire, and the Foundry corner.` |

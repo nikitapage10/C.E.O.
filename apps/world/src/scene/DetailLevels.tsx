@@ -20,9 +20,20 @@ import { useWorld } from "../store.ts";
  *   cut-off, so its picture doesn't change.
  * - Shadows follow the camera: the key light's shadow map covers what the camera is looking at, sized to the
  *   zoom, so a single room gets a tight, sharp shadow map and the rooms behind it cast nothing.
+ * - Merged still furniture (StillFurniture.tsx, #136) counts as its largest member at its nearest point: a merged
+ *   piece carries `userData.lodSphere` (that member's radius, and how far members sit from the piece's centre), so
+ *   it is drawn, casts a shadow and shows in the mirror whenever one of its members would on its own.
  *
- * Nothing here touches `visible`, so components that animate visibility keep working. Meshes can opt out with
- * `userData.lod = false`.
+ * Nothing here touches `visible`, so components that animate visibility keep working.
+ *
+ * Flags on a mesh's userData:
+ * - `lod = false`: level of detail leaves it alone; it always shows (and it is never merged).
+ * - `merge = false`: never baked into a room's merged still furniture (StillFurniture.tsx). Set it on a group and it
+ *   covers everything inside: characters' bodies carry it. Moving, hoverable, clickable, transparent, skinned and
+ *   morphing meshes are kept separate without it.
+ *
+ * Layers 1 (DETAIL_LAYER), 30 (MERGED_LAYER, stillFurniture.ts: originals of merged meshes) and 31 (HIDDEN_LAYER) are
+ * reserved. Compare masks with `layerMask()`.
  */
 
 /** Visible to the main camera, raycaster and shadows, but not to the floor reflection. */
@@ -48,6 +59,8 @@ const UPDATE_EVERY = 3;
 type Tracked = {
   mesh: Mesh;
   radius: number;
+  /** Merged pieces: how far their members sit from the centre (0 for a plain mesh). */
+  spread: number;
   center: Vector3;
   castShadow: boolean;
   hidden: boolean;
@@ -55,6 +68,19 @@ type Tracked = {
 };
 
 const tmp = new Vector3();
+
+/** Each tracked mesh's own shadow flag, which level of detail may have switched off for now. */
+const ownShadow = new WeakMap<Mesh, boolean>();
+/** Whether a mesh casts a shadow when level of detail isn't trimming it. */
+export const castsShadow = (m: Mesh) => ownShadow.get(m) ?? m.castShadow;
+
+/**
+ * Projected radius (CSS px) a tracked mesh is judged by. A merged piece (`lodSphere`) counts as its largest member
+ * at the piece's nearest point, so it shows whenever one of its members would.
+ */
+export function projectedPx(radius: number, spread: number, scale: number, d: number, pxPerUnit: number): number {
+  return ((radius * scale) / Math.max(0.01, d - spread * scale)) * pxPerUnit;
+}
 
 /**
  * The size (projected radius, CSS px) below which a mesh at world (x, z), `d` units from the camera, is hidden.
@@ -82,6 +108,13 @@ export function trackable(o: Object3D): o is Mesh {
   // Only meshes on the default layer (or the two this module moves them to): anything placed on another layer on
   // purpose is left alone.
   return OUR_MASKS.has(m.layers.mask >>> 0);
+}
+
+/** Stops tracking a mesh, with its own shadow flag back. Its layer is left as is: whoever took it sets that. */
+function untrack(map: Map<Mesh, Tracked>, t: Tracked) {
+  t.mesh.castShadow = t.castShadow;
+  ownShadow.delete(t.mesh);
+  map.delete(t.mesh);
 }
 
 export function DetailLevels() {
@@ -131,9 +164,19 @@ export function DetailLevels() {
         if (!geo.boundingSphere) geo.computeBoundingSphere();
         const bs = geo.boundingSphere;
         if (!bs || !Number.isFinite(bs.radius)) return;
-        map.set(o, { mesh: o, radius: bs.radius, center: bs.center.clone(), castShadow: o.castShadow, hidden: false, shadowOff: false });
+        const lod = o.userData.lodSphere as { radius: number; spread: number } | undefined;
+        ownShadow.set(o, o.castShadow);
+        map.set(o, {
+          mesh: o,
+          radius: lod?.radius ?? bs.radius,
+          spread: lod?.spread ?? 0,
+          center: bs.center.clone(),
+          castShadow: o.castShadow,
+          hidden: false,
+          shadowOff: false,
+        });
       });
-      for (const m of map.keys()) if (!seen.has(m)) map.delete(m);
+      for (const t of map.values()) if (!seen.has(t.mesh)) untrack(map, t);
     }
 
     if (frame.current++ % UPDATE_EVERY) return;
@@ -146,9 +189,14 @@ export function DetailLevels() {
 
     for (const t of map.values()) {
       const m = t.mesh;
+      // Moved off our layers since the last scan (merged into still furniture): hand it back as it was.
+      if (!trackable(m)) {
+        untrack(map, t);
+        continue;
+      }
       tmp.copy(t.center).applyMatrix4(m.matrixWorld);
       const d = Math.max(0.01, tmp.distanceTo(camera.position));
-      const px = ((t.radius * m.matrixWorld.getMaxScaleOnAxis()) / d) * pxPerUnit;
+      const px = projectedPx(t.radius, t.spread, m.matrixWorld.getMaxScaleOnAxis(), d, pxPerUnit);
 
       const cut = hideCutoff(quality, room, tmp.x, tmp.z, d);
       t.hidden = px < (t.hidden ? cut * BAND : cut);

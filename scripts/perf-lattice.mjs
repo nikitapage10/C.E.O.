@@ -11,7 +11,8 @@
  * - main-thread time per frame (ms), stepping frames by hand: median and lower quartile;
  * - how often a frame redoes whole-scene work: scene renders and full matrix updates per frame;
  * - JS heap allocated per frame (KB, sampled by the heap profiler);
- * - React commits per second, and the number of useFrame hooks.
+ * - React commits per second, and the number of useFrame hooks;
+ * - still furniture merged (#136): how many meshes, in how many pieces.
  *
  * Timing runs on ANGLE's null GL backend: the browser does all of its own and three.js's work, but nothing is
  * drawn, so a slow software GPU can't stall the frame being timed. Screenshots (--shots) come from a second
@@ -108,7 +109,37 @@ async function openLattice(browser) {
   );
   // Let late models, shaders and the first shadow and reflection passes settle.
   await page.waitForTimeout(8000);
+  await settleStill(page);
   return page;
+}
+
+/**
+ * Still furniture (#136) merges over a few seconds of frames, and a headless browser draws few of them on its own:
+ * step frames by hand until the merged count stops changing (at most two minutes), so every view is measured merged.
+ */
+async function settleStill(page) {
+  if (!(await page.evaluate(() => !!window.__ceo.still))) return;
+  await page.evaluate(async () => {
+    const st = window.__ceo.three();
+    st.setFrameloop("never");
+    const count = () => {
+      const s = window.__ceo.still();
+      return `${s.merged}/${s.pieces}`;
+    };
+    let last = "";
+    const end = performance.now() + 120_000;
+    while (performance.now() < end) {
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 30));
+        st.advance(performance.now());
+      }
+      const now = count();
+      if (now === last && !now.startsWith("0/")) break;
+      last = now;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    st.setFrameloop("always");
+  });
 }
 
 const VIEWS = [null, ...ROOMS];
@@ -163,8 +194,9 @@ async function measure(page, view) {
       times.push(performance.now() - t0);
     }
     const info = window.__ceo.renderInfo();
+    const still = window.__ceo.still?.() ?? null;
     st.setFrameloop("always");
-    return { times, renders: c.renders / frames, matrixUpdates: c.matrixUpdates / frames, info, hooks: st.internal.subscribers.length };
+    return { still, times, renders: c.renders / frames, matrixUpdates: c.matrixUpdates / frames, info, hooks: st.internal.subscribers.length };
   }, FRAMES);
   const { profile } = await cdp.send("HeapProfiler.stopSampling");
   let bytes = 0;
@@ -191,6 +223,8 @@ async function measure(page, view) {
     allocKBPerFrame: round(bytes / 1024 / FRAMES),
     commitsPerSec: round(commits / 3),
     frameHooks: step.hooks,
+    // Still furniture (#136): meshes merged, and the pieces they make.
+    merged: step.still ? `${step.still.merged} in ${step.still.pieces}` : "-",
   };
 }
 

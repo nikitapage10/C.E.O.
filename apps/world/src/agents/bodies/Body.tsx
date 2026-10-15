@@ -55,7 +55,7 @@ export function Body(props: BodyProps) {
   const kind = props.look.body as Exclude<BodyKind, "classic">;
   const Component = BODIES[kind];
   return (
-    <group scale={props.look.size}>
+    <group scale={props.look.size} userData={{ merge: false }}>
       <Suspense fallback={null}>
         <Component key={kind} {...props} />
       </Suspense>

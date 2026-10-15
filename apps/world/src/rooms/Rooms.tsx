@@ -42,11 +42,12 @@ function Room({ id }: { id: RoomId }) {
     if (!focused) setFocus(id);
   };
   // The scope lets the room's library models wait while another room loads first (scene/streaming.ts); everything
-  // built in code (walls, floor, furniture, lights) is always there.
+  // built in code (walls, floor, furniture, lights) is always there. The clickable group is where the room's still
+  // furniture is merged (scene/StillFurniture.tsx), so a click on a merged wall still focuses the room.
   return (
     <RoomScope.Provider value={id}>
       <group position={roomCenter(id)} rotation={[0, roomAngle(id), 0]} name={`room-${id}`}>
-        <group onClick={onClick}>
+        <group onClick={onClick} userData={{ stillRoot: id }}>
           <Content />
           <Podium room={id} />
           <HoverGlow room={id} />

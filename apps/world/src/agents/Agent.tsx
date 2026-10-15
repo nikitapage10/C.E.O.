@@ -240,7 +240,7 @@ export function Agent({ id }: { id: string }) {
   const emote = useWorld((s) => s.emotes[id]);
   const task = useWorld((s) => (rt?.taskId ? s.lattice.tasks[rt.taskId] : undefined));
   const hoverAgent = useWorld((s) => s.hoverAgent);
-  const selectAgent = useWorld((s) => s.selectAgent);
+  const toggleAgent = useWorld((s) => s.toggleAgent);
   const profile = useCast((s) => s.cast.profiles[id]);
   const cast = useCast((s) => s.cast);
   const openStudio = useCast((s) => s.openStudio);
@@ -431,7 +431,8 @@ export function Agent({ id }: { id: string }) {
   const inFocus = focus === null || focus === rt.place.room;
   // While their task card is open, the agent holds their tongue, so the plate (and the card on it) stays put.
   const showBubble = bubbleOn && speech && inFocus && !cardOpen;
-  const showTag = (selected || hovered) && inFocus && !studioOpen;
+  // The info card opens on a click (or tap), not on hover, so it never lands on top of the task's own hover.
+  const showTag = selected && inFocus && !studioOpen;
   // Fixed-size labels in the studio close-up, distance-scaled ones in a room.
   const df = focus && !studioOpen ? 16 : undefined;
   const b = BUILD[look.build];
@@ -450,7 +451,7 @@ export function Agent({ id }: { id: string }) {
   };
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    selectAgent(id);
+    toggleAgent(id);
   };
   const onDouble = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();

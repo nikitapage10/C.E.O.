@@ -22,6 +22,7 @@ import { Floor, FloorRings, Motes } from "./Environment.tsx";
 import { Kernel } from "./Kernel.tsx";
 import { Lighting } from "./Lighting.tsx";
 import { SceneReady } from "./SceneReady.tsx";
+import { StillFurniture } from "./StillFurniture.tsx";
 import { Streams } from "./Streams.tsx";
 import { Wardrobe } from "./Wardrobe.tsx";
 import {
@@ -118,6 +119,7 @@ export function Scene() {
           <CameraRig />
           <BroguEyes />
           <AdaptiveResolution quality={quality} />
+          <StillFurniture />
           <DetailLevels />
           <ShadowFocus />
           <PostFX />

@@ -360,7 +360,7 @@ function SpareUnit({ index, active, look, state, job }: { index: number; active:
       <mesh position={[bx, 0.045, bz]} rotation={[-Math.PI / 2, 0, 0]} material={pad}>
         <ringGeometry args={[0.36, 0.42, 32]} />
       </mesh>
-      <group ref={root} position={[state.x, 0, state.z]} rotation={[0, state.yaw, 0]}>
+      <group ref={root} position={[state.x, 0, state.z]} rotation={[0, state.yaw, 0]} userData={{ merge: false }}>
         <Body look={look} lineage="claudari" drive={drive} phase={phase} />
         {active && job && <DockPlate index={index} job={job} look={look} />}
       </group>

@@ -75,7 +75,8 @@ The Desk's buttons write to the public repo, so they need a real sign-in (#132, 
   failures and sign-in for 15 minutes after 22. The Desk says plainly when it is locked and for how long. A lockout
   never ends a session that is already open.
 
-**Adding a device** (a new PC or phone): open the Desk on it, go to the Foundry tab, press **Add this device**,
+**Adding a device** (a new PC or phone; the **Setup** card on Today lists it until two devices can sign in, #164):
+open the Desk on it, go to the Foundry tab, press **Add this device**,
 give it a name, type the Desk key once, and confirm with the device's fingerprint, face or PIN. It is signed in
 straight away, and from then on signs in with the passkey alone. A phone can also use a passkey saved on another
 device through the browser's own "use a phone or another device" prompt. Up to ten devices.
@@ -104,8 +105,9 @@ The Desk can sit on a phone's home screen like an app and send one notification 
 - **What is stored.** In the private Blob store beside the passkeys, at `desk/auth/pings.json`: each device's push
   endpoint (a long, unguessable address at its push service), the two public keys the browser made to encrypt pings
   for it, which passkey was signed in when it was turned on, and when; and, for "never twice", a short key per item
-  already pinged (`idea:#12`, `question:#12:<hash>`, `blocker:#12`), forgotten once the issue closes. No issue text,
-  nothing personal.
+  already pinged (`idea:#12`, `question:#12:<hash>`, `blocker:#12`), forgotten once the issue closes; and when the
+  workflow last scanned with the right secret, which is how the setup list sees the Actions secret (#164). No issue
+  text, nothing personal.
 - **What a ping says.** Only counts and who is asking, safe on a lock screen anyone might see: "Rivet has a
   question", "3 ideas are waiting for your pick", "A job is blocked and needs you" (`pingText` in
   `api/_desk/pings.ts`). Never a title, a body, a name, an issue number or a link. The words are encrypted for the
@@ -117,7 +119,9 @@ The Desk can sit on a phone's home screen like an app and send one notification 
 - **Quiet hours.** None from 10pm to 7am Mountain (`QUIET_HOURS`): the first scan from 7am sends one summary of what
   still needs Nikita, and whatever was handled overnight is dropped.
 
-**Setting up pings** (once, from the PC; nothing to install). In Chrome, open any page, press F12 > **Console**
+**Setting up pings** (once, from the PC; nothing to install). The **Setup** card on Today has these steps, the
+paste with a Copy button and both links, and ticks itself off once the keys are in Vercel and the next hourly scan
+gets through with the secret. In Chrome, open any page, press F12 > **Console**
 (type `allow pasting` if Chrome asks), paste this and press Enter. It makes the push key pair and the shared secret
 with the browser's own crypto and prints three lines:
 
@@ -204,7 +208,8 @@ What it doesn't change: the Foundry's Claude Code sessions push, open pull reque
 access their environment gives them, which is Nikita's account today. That is set where the sessions run, not in this
 repo, so their work still shows as Nikita's (DELIVERY.md, section 10).
 
-**Setup, once (Nikita).** About five minutes on a Mac with the GitHub CLI (`gh`) signed in as `nikitapage10`.
+**Setup, once (Nikita).** About five minutes, all in the browser. The **Setup** card on Today has the same steps
+with links, and ticks itself off once `FOUNDRY_APP_ID` and `FOUNDRY_APP_PRIVATE_KEY` are in Vercel.
 
 1. **Create the App.** Open https://github.com/settings/apps/new (your picture, top right > Settings > Developer
    settings > GitHub Apps > New GitHub App).

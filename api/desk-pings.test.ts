@@ -154,6 +154,17 @@ describe("the scan", () => {
     expect(sent).toEqual([]);
   });
 
+  it("notes when a scan with the right secret got through (the setup list on Today, #164)", async () => {
+    const { store, deps } = setup(NOON);
+    await handlePost(scanReq("wrong"), deps);
+    expect((await store.pings()).scanned).toBeUndefined();
+    await handlePost(scanReq(), deps);
+    expect((await store.pings()).scanned).toBe(NOON);
+    // Turning a device on afterwards keeps it.
+    await subscribed({ ...deps, now: NOON + 1000 }, store);
+    expect((await store.pings()).scanned).toBe(NOON);
+  });
+
   it("pings each new item once, all together, and never again", async () => {
     const { store, deps, sent, issues } = setup(NOON);
     await subscribed(deps, store);

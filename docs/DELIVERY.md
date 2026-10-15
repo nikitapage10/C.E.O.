@@ -333,7 +333,7 @@ account, agents included. The JSON is also in `.github/rulesets/`.
 
 **Create now: "main: keep history safe".** Changes nothing about how anyone works. It refuses force pushes and
 deleting `main`, and refuses unsigned commits (every commit on `main` today is signed: Claude Code's and GitHub's
-merges are). If Nikita ever pushes from his own machine without commit signing set up, GitHub will refuse it; he can
+merges are). If Nikita ever pushes from their own machine without commit signing set up, GitHub will refuse it; they can
 set up signing or go through a pull request. Drop `required_signatures` if that's not wanted.
 
 ```json
@@ -402,7 +402,8 @@ Code sessions still open their pull requests as Nikita (section 10), and with co
 bypass, nobody could approve their trust-boundary changes. It waits for the sessions to move off Nikita's account;
 add `e2e` and the bypass by hand when their own conditions are met.
 
-**How to create one.** Either:
+**How to create one.** The **Setup** card on Today (#164) walks through the clicks for `main-now.json`, with links,
+and ticks itself off once GitHub's rules for `main` block deletion and force pushes (either ruleset does). Either:
 - **Clicks:** the repo, Settings, Rules, Rulesets, New ruleset, Import a ruleset, and pick
   `.github/rulesets/main-now.json`. Or New branch ruleset by hand: name it, Enforcement status Active, leave the
   bypass list empty, Target branches, Add target, Include default branch, then tick Restrict deletions, Require
@@ -456,7 +457,8 @@ Nikita creates either one; it is a follow-up job after this.
 **3. Create the "keep history safe" ruleset now** (section 11)? It changes nothing about how anyone works today.
 Recommended: yes, today.
 
-**One-time settings for Nikita** (none change how anyone works): in GitHub, Settings, General, Pull Requests: allow
+**One-time settings for Nikita** (none change how anyone works; "Allow auto-merge" is on the **Setup** card on
+Today, which ticks it when GitHub shows the setting to the Desk's token, or lets Nikita tick it by hand): in GitHub, Settings, General, Pull Requests: allow
 squash merging only, allow auto-merge, automatically delete head branches. Settings, Actions, General: workflow
 permissions "Read repository contents", and don't let Actions create or approve pull requests. In Vercel: the
 Preview column of the env var table above, and Deployment Protection on previews.

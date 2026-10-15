@@ -48,6 +48,7 @@ const PINGS = "desk/auth/pings.json";
 const pingsOf = (got: Partial<PingState> | null | undefined): PingState => ({
   subs: Array.isArray(got?.subs) ? got.subs : [],
   sent: got?.sent && typeof got.sent === "object" && !Array.isArray(got.sent) ? got.sent : {},
+  ...(typeof got?.scanned === "number" && Number.isFinite(got.scanned) && { scanned: got.scanned }),
 });
 
 async function readJson<T>(path: string, empty: T): Promise<T> {

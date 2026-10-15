@@ -53,6 +53,8 @@ export interface PingState {
   subs: PingSub[];
   /** Key of each item pinged (see `Need.key`) → when (ms). */
   sent: Record<string, number>;
+  /** When the pings workflow last scanned with the right secret (ms): how the setup list sees the Actions secret (#164). */
+  scanned?: number;
 }
 
 export type NeedKind = "idea" | "question" | "blocker";

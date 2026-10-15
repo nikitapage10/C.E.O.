@@ -3,7 +3,9 @@
  * an idea writes, so it comes through here, where the tokens live in Vercel's environment and never reach the
  * browser.
  *
- * GET  → which pieces are set up: { buttons, direct, shape }.
+ * GET  → which pieces are set up: { buttons, direct, shape, images }.
+ * GET ?setup → (signed in) the setup list on Today (#164, api/_desk/setup.ts): { items: { pings, app, devices, ruleset,
+ *        automerge }, pings: { vercel, actions } }, each "done", "todo" or "unknown". States only, never a value.
  * POST → { issue, choice: "build" | "pass" | "revise", note? }: "build" approves a morning idea (labels it
  *        `foundry:build`); "pass" shelves it (closed as not planned); "revise" posts Nikita's note on the idea and
  *        labels it `foundry:revise` for Rivet to rewrite. Only open `foundry:idea` issues.
@@ -41,7 +43,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { waitUntil } from "@vercel/functions";
 import { pictureSecret } from "./_desk/keys.js";
 import { requireSession, withCookie } from "./_desk/session.js";
+import { loadSetup, type SetupStatus } from "./_desk/setup.js";
 import { pickAuthStore } from "./_desk/store.js";
+import { memo } from "./_feedcache.js";
 import { canWriteGithub, githubToken } from "./_github.js";
 import { PICTURE_ROUTE, pictureLink, picturesLine, signPicture } from "./_pictures.js";
 import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
@@ -418,7 +422,18 @@ export function shapedBody(shape: Shape, words: string, images: string[] = [], e
   return `**Pitch:** ${shape.pitch}\n**Size:** ${shape.size}\n${short}**Builder:** ${shape.builder} (${shape.model})\n${riskLine(shape)}\n${ask}\n**From Nikita (on the Desk):**\n\n${words}${imagesMarkdown(images)}\n\n_Shaped by Rivet on the Desk (${SHAPE_MODEL}). ${waits}_${extra}`;
 }
 
-export function GET(): Response {
+/** The setup list, kept for two minutes per warm function: two GitHub reads and a Blob read, not one per visit. */
+const setupList = memo<SetupStatus>(2 * 60_000, () =>
+  loadSetup({ env: process.env, store: pickAuthStore(), now: Date.now(), fetch, token: () => githubToken("read") }),
+);
+
+export async function GET(request?: Request): Promise<Response> {
+  if (request && new URL(request.url).searchParams.has("setup")) {
+    // Which protections are still off is posture, not for the public page: signed-in Desk only (the card hides on 401).
+    const signed = await requireSession(request, { deskKey: env("FOUNDRY_DESK_KEY"), store: pickAuthStore(), now: Date.now() });
+    if (!signed.ok) return signed.response;
+    return withCookie(json(await setupList()), signed);
+  }
   return json({
     /** The buttons work when the Desk can sign in (its key and the Blob store) and a click can reach GitHub. */
     buttons: Boolean(env("FOUNDRY_DESK_KEY")) && canWrite() && pickAuthStore() !== null,

@@ -4,10 +4,12 @@
  *
  * Coordinates: y is up. Rooms float on a ring around the Kernel at the origin. In a room's local frame,
  * -z points back toward the Kernel (where its gate and light stream are) and +z faces the visitor's camera.
+ * Agents don't walk to the gate: they step on the room's teleporter pad near the way in (pads.ts) and beam to it.
  */
 
 import { FOUNDRY_FLOOR } from "./foundryFloor.ts";
 import { detour } from "./obstacles.ts";
+import { placePad } from "./pads.ts";
 import { AIR_HEIGHT, COMMAND_HEIGHT, COMMAND_SPOTS, FLY_LIFT, FLY_SPEED, POSTS, POST_HEIGHT } from "./posts.ts";
 
 export type Vec3 = readonly [number, number, number];
@@ -334,6 +336,24 @@ export function worldToRoom(room: RoomId, x: number, z: number): [number, number
   return [dx * cos - dz * sin, dx * sin + dz * cos];
 }
 
+const pads = new Map<RoomId, readonly [number, number]>();
+/** Where a room's teleporter pad sits on its floor, room-local (x, z): one rule for every room (pads.ts). */
+export function padSpot(room: RoomId): [number, number] {
+  let spot = pads.get(room);
+  if (!spot) {
+    spot = placePad(room, ROOMS[room].stations);
+    pads.set(room, spot);
+  }
+  return [spot[0], spot[1]];
+}
+
+/** The teleporter pad in world space. */
+export function padWorld(room: RoomId): Vec3 {
+  const [x, z] = padSpot(room);
+  return roomToWorld(room, x, 0, z);
+}
+
+/** Where the light stream leaves the room: behind the back wall, toward the Kernel. The pad beams travellers here. */
 export function gateWorld(room: RoomId): Vec3 {
   return roomToWorld(room, 0, 0, -ROOM_HALF_D - 0.4);
 }
@@ -360,6 +380,20 @@ export function streamCurve(room: RoomId, samples = 24): Vec3[] {
     ]);
   }
   return pts;
+}
+
+/** How high the pad beams a traveller before it carries them over the back wall (the walls stand about 5.6 m). */
+export const BEAM_HEIGHT = 6.2;
+/** The stream sample the beam joins, a few metres out behind the back wall. */
+const BEAM_JOIN = 6;
+
+/**
+ * Leaving a room by its teleporter: from the pad straight up, over the back wall to above the stream's foot, and down
+ * onto the stream out past the wall, then on to the Kernel. World points after the pad itself (reverse them to arrive).
+ */
+export function beamOut(room: RoomId): Vec3[] {
+  const [px, pz] = padSpot(room);
+  return [roomToWorld(room, px, BEAM_HEIGHT, pz), roomToWorld(room, 0, BEAM_HEIGHT, -ROOM_HALF_D - 0.4), ...streamCurve(room).slice(BEAM_JOIN)];
 }
 
 /** Around the Kernel's base ring from one room's port to another's, the short way. */
@@ -395,7 +429,6 @@ function dist(a: Vec3, b: Vec3): number {
 export function routeBetween(from: Place, to: Place, agentId: string): Route {
   const start = placeToWorld(from, agentId);
   const end = placeToWorld(to, agentId);
-  const gateLocal: Vec3 = [0, 0, -ROOM_HALF_D - 0.4];
   const points: Vec3[] = [start];
   const kinds: SegmentKind[] = [];
   const push = (p: Vec3, kind: SegmentKind) => {
@@ -421,11 +454,15 @@ export function routeBetween(from: Place, to: Place, agentId: string): Route {
   } else if (from.room === to.room) {
     walk(from.room, placeLocal(from, agentId), placeLocal(to, agentId), end);
   } else {
-    walk(from.room, placeLocal(from, agentId), gateLocal, gateWorld(from.room));
-    for (const p of streamCurve(from.room).slice(1)) push(p, "stream");
+    // A few steps to the room's teleporter pad, beamed onto the stream, and the same the other way round.
+    const [fx, fz] = padSpot(from.room);
+    const [tx, tz] = padSpot(to.room);
+    walk(from.room, placeLocal(from, agentId), [fx, 0, fz], padWorld(from.room));
+    for (const p of beamOut(from.room)) push(p, "stream");
     for (const p of kernelArc(from.room, to.room).slice(1)) push(p, "stream");
-    for (const p of [...streamCurve(to.room)].reverse().slice(1)) push(p, "stream");
-    walk(to.room, gateLocal, placeLocal(to, agentId), end);
+    for (const p of [...beamOut(to.room)].reverse().slice(1)) push(p, "stream");
+    push(padWorld(to.room), "stream");
+    walk(to.room, [tx, 0, tz], placeLocal(to, agentId), end);
   }
   const ends: number[] = [];
   let t = 0;

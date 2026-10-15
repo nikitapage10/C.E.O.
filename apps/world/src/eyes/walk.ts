@@ -1,13 +1,14 @@
 import {
+  ENTRY_SPOT,
   KERNEL_PORT_RADIUS,
   KERNEL_PORT_Y,
   OBSTACLES,
-  ROOM_HALF_D,
   ROOM_IDS,
+  beamOut,
+  padSpot,
   roomAngle,
   roomCenter,
   roomToWorld,
-  streamCurve,
   type Box,
   type RoomId,
   type Route,
@@ -17,9 +18,9 @@ import {
 
 /**
  * Brogu's eyes: the pure part. Where he drops in, how he walks (sliding along the furniture, stopping at the
- * platform's edge), the stream that carries him between rooms, and the head bob. Everything is in a room's local
- * frame (packages/core/src/layout.ts): -z is the back of the room, where the light stream leaves for the Kernel;
- * +z faces the visitor's camera. A yaw of 0 looks at the back of the room; PI looks out at the camera side.
+ * platform's edge), the teleporter and the stream that carry him between rooms, and the head bob. Everything is in a
+ * room's local frame (packages/core/src/layout.ts): -z is the back of the room, where the light stream leaves for the
+ * Kernel; +z faces the visitor's camera, and the way in and the teleporter pad (packages/core/src/pads.ts) are there. A yaw of 0 looks at the back of the room; PI looks out at the camera side.
  */
 
 /** His eyes, above the floor. He comes up to an agent's hip (pets/Brogu.tsx), so everything looms. */
@@ -54,16 +55,14 @@ export const EYES_OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = {
   spire: [b(4.8, -3.5, 1.35, 0.15)],
 };
 
-/** Where each room's light stream meets the floor, at the back, on his side of the wall. */
-const GATES: Partial<Record<RoomId, readonly [number, number]>> = {
-  // The stage and the DJ booth fill the back of the club; the stream picks him up off the dance floor instead.
-  breakroom: [0, -3.0],
-};
+/**
+ * The room's teleporter pad, a few steps from where he drops in (packages/core/src/pads.ts): the same pad the agents
+ * use, so one rule places it in every room.
+ */
 export function gateSpot(room: RoomId): [number, number] {
-  const g = GATES[room] ?? [0, -5.5];
-  return [g[0], g[1]];
+  return padSpot(room);
 }
-/** Close enough to the stream's foot to ride it. */
+/** Close enough to the pad to ride it. */
 export const GATE_REACH = 1.1;
 
 export interface Pose {
@@ -106,12 +105,13 @@ export function yawToward(fx: number, fz: number, tx: number, tz: number): numbe
 }
 
 /**
- * Where Brogu drops in when Nikita takes him: the room in view, front and centre, where the overview camera
- * looks in from, facing into the room. If that spot has furniture on it, the nearest clear spot, searched outward
- * in rings; he always looks toward the middle of the room.
+ * Where Brogu drops in when Nikita takes him: the room in view, front and centre (the room's way in, ENTRY_SPOT),
+ * where the overview camera looks in from, facing into the room. If that spot has furniture on it, the nearest clear
+ * spot, searched outward in rings; he always looks toward the middle of the room. The teleporter pad is a few steps
+ * to one side.
  */
 export function entryPoint(room: RoomId): Pose {
-  const prefer: [number, number] = [0, 4.6];
+  const prefer: [number, number] = [ENTRY_SPOT[0], ENTRY_SPOT[1]];
   const step = 0.25;
   for (let ring = 0; ring < 60; ring++) {
     const found: [number, number][] = [];
@@ -219,7 +219,7 @@ export function seek(x: number, z: number, tx: number, tz: number): [number, num
   return [(dx / d) * speed, (dz / d) * speed];
 }
 
-/** Is he at the foot of the room's light stream? */
+/** Is he on the room's teleporter pad? */
 export function atGate(room: RoomId, x: number, z: number): boolean {
   const [gx, gz] = gateSpot(room);
   return Math.hypot(x - gx, z - gz) < GATE_REACH;
@@ -240,12 +240,13 @@ function kernelArc(from: RoomId, to: RoomId, samples = 10): Vec3[] {
 }
 
 /**
- * The ride between rooms, in world space: from where he stands to the room's gate, up the light stream to the
- * Kernel, round its base and down the other room's stream, then a few steps in onto its floor. A Route
- * (sampleRoute in @ceo/core plays it back), timed for the ride.
+ * The ride between rooms, in world space: from where he stands onto the room's teleporter pad, beamed up over the
+ * back wall onto the light stream to the Kernel, round its base and down the other room's stream to its pad, then a
+ * few steps off it onto its floor. A Route (sampleRoute in @ceo/core plays it back), timed for the ride.
  */
 export function rideRoute(from: RoomId, x: number, z: number, to: RoomId): Route {
-  const gateBack = -ROOM_HALF_D - 0.4;
+  const [fx, fz] = gateSpot(from);
+  const [tx, tz] = gateSpot(to);
   const land = arrival(to);
   const points: Vec3[] = [roomToWorld(from, x, 0, z)];
   const kinds: SegmentKind[] = [];
@@ -253,11 +254,11 @@ export function rideRoute(from: RoomId, x: number, z: number, to: RoomId): Route
     points.push(p);
     kinds.push(kind);
   };
-  push(roomToWorld(from, 0, 0, gateBack), "walk");
-  for (const p of streamCurve(from).slice(1)) push(p, "stream");
+  push(roomToWorld(from, fx, 0, fz), "walk");
+  for (const p of beamOut(from)) push(p, "stream");
   for (const p of kernelArc(from, to).slice(1)) push(p, "stream");
-  for (const p of [...streamCurve(to)].reverse().slice(1)) push(p, "stream");
-  push(roomToWorld(to, 0, 0, gateBack), "walk");
+  for (const p of [...beamOut(to)].reverse().slice(1)) push(p, "stream");
+  push(roomToWorld(to, tx, 0, tz), "stream");
   push(roomToWorld(to, land.x, 0, land.z), "walk");
   const ends: number[] = [];
   let t = 0;
@@ -271,19 +272,37 @@ export function rideRoute(from: RoomId, x: number, z: number, to: RoomId): Route
 }
 
 /**
- * Where the stream sets him down, facing into the room: a few steps in from its foot (so he isn't offered the ride
- * straight back), on clear floor (the Exchange has its desks right there).
+ * Where the teleporter sets him down, facing into the room: a few steps off the pad, into the room (so he isn't
+ * offered the ride straight back), on clear floor he can walk straight to from the pad.
  */
 export function arrival(room: RoomId): Pose {
   const [gx, gz] = gateSpot(room);
-  for (const ahead of [1.5, 1.3, 1.8, 2.2, 2.6]) {
-    for (const side of [0, 0.6, -0.6, 1.2, -1.2]) {
-      const x = gx + side;
-      const z = gz + ahead;
-      if (!blocked(room, x, z) && !atGate(room, x, z)) return { x, z, yaw: Math.PI };
+  // Aim a step and a half in from the pad, toward the back of the room; take the nearest clear spot to that.
+  const want: [number, number] = [gx, gz - 1.5];
+  let best: [number, number] | null = null;
+  let bestD = Infinity;
+  for (let i = -12; i <= 12; i++) {
+    for (let j = -12; j <= 12; j++) {
+      const x = gx + i * 0.2;
+      const z = gz + j * 0.2;
+      const d = Math.hypot(x - want[0], z - want[1]);
+      if (d >= bestD || blocked(room, x, z) || atGate(room, x, z) || !straightWalk(room, gx, gz, x, z)) continue;
+      best = [x, z];
+      bestD = d;
     }
   }
-  return { x: gx, z: gz + 1.5, yaw: Math.PI };
+  const [x, z] = best ?? want;
+  return { x, z, yaw: yawToward(x, z, 0, -1) };
+}
+
+/** Can he walk the straight line from one spot to another without bumping into anything? */
+export function straightWalk(room: RoomId, ax: number, az: number, bx: number, bz: number): boolean {
+  const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.05);
+  for (let k = 0; k <= n; k++) {
+    const t = n ? k / n : 0;
+    if (blocked(room, ax + (bx - ax) * t, az + (bz - az) * t)) return false;
+  }
+  return true;
 }
 
 /**

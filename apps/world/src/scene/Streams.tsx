@@ -1,7 +1,7 @@
-import { ROOM_IDS, streamCurve, type RoomId } from "@ceo/core";
+import { PAD_RADIUS, ROOM_IDS, padWorld, roomAngle, streamCurve, type RoomId } from "@ceo/core";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import { CatmullRomCurve3, InstancedMesh, Object3D, TubeGeometry, Vector3 } from "three";
+import { CatmullRomCurve3, InstancedMesh, Mesh, Object3D, TubeGeometry, Vector3 } from "three";
 import { emissive, streamMaterial } from "../fx/materials.ts";
 import { PALETTE } from "../theme.ts";
 
@@ -63,11 +63,37 @@ function Stream({ room, index }: { room: RoomId; index: number }) {
   );
 }
 
+/**
+ * A room's teleporter pad (#155): a ring of light on the floor by the way in, where travellers step on to be beamed
+ * onto the stream and step off coming in (packages/core/src/pads.ts places it).
+ */
+function Pad({ room }: { room: RoomId }) {
+  const ring = useRef<Mesh>(null);
+  useFrame(({ clock }) => {
+    if (ring.current) ring.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 2.2 + roomAngle(room)) * 0.04);
+  });
+  return (
+    <group position={padWorld(room)} rotation={[0, roomAngle(room), 0]}>
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} renderOrder={3}>
+        <ringGeometry args={[PAD_RADIUS - 0.07, PAD_RADIUS, 48]} />
+        <meshBasicMaterial color={[1.1, 1.7, 2.0]} transparent opacity={0.8} toneMapped={false} depthWrite={false} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]} renderOrder={3}>
+        <circleGeometry args={[PAD_RADIUS - 0.07, 48]} />
+        <meshBasicMaterial color={PALETTE.silver} transparent opacity={0.12} toneMapped={false} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
 export function Streams() {
   return (
     <group>
       {ROOM_IDS.map((r, i) => (
         <Stream key={r} room={r} index={i} />
+      ))}
+      {ROOM_IDS.map((r) => (
+        <Pad key={r} room={r} />
       ))}
     </group>
   );

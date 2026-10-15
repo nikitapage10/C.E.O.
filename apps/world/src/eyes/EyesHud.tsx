@@ -14,7 +14,7 @@ const TAP_PX = 8;
 const TAP_MS = 350;
 
 const NOTES: Record<Exclude<EyesNote, null>, string> = {
-  edge: "That's the edge, and a long way down to the mirror. Rooms only meet by the light stream at the back.",
+  edge: "That's the edge, and a long way down to the mirror. Rooms only meet by the teleporter, the ring of light by the way in.",
   gate: "",
   "tap-far": "Too far for small legs. Tap somewhere on this floor.",
 };
@@ -233,8 +233,8 @@ export function EyesHud() {
       )}
       <p className="eyes__hint tracked faint">
         {touch
-          ? "Stick walks · drag to look · tap the floor to toddle there · the ring of light at the back rides to other rooms"
-          : "WASD walk · Q E turn · Shift toddles faster · drag to look · click the floor to toddle there · the ring of light at the back rides to other rooms"}
+          ? "Stick walks · drag to look · tap the floor to toddle there · the ring of light by the way in rides to other rooms"
+          : "WASD walk · Q E turn · Shift toddles faster · drag to look · click the floor to toddle there · the ring of light by the way in rides to other rooms"}
       </p>
       {touch && !riding && <Stick />}
     </div>

@@ -130,7 +130,7 @@ function EyesController() {
     brogu.pitch = clampPitch(brogu.pitch + eyesInput.look.pitch);
     eyesInput.look.yaw = eyesInput.look.pitch = 0;
 
-    // The stream: from the gate, up to the Kernel and down into another room.
+    // The teleporter: from the pad, up onto the stream to the Kernel and down into another room.
     if (eyes.riding) {
       if (!brogu.route) {
         brogu.route = rideRoute(room, brogu.x, brogu.z, eyes.riding);
@@ -333,7 +333,7 @@ function Sky() {
 
 /**
  * Where he can't go: a low hologram rail round the platform that shows only near him, so the drop reads as an edge
- * before he's walked into it. And the foot of the light stream: a ring on the floor and a column of light, so he
+ * before he's walked into it. And the room's teleporter pad: a ring on the floor and a column of light, so he
  * can find his way to the other rooms.
  */
 function fenceMaterial() {

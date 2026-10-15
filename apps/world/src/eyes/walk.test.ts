@@ -1,4 +1,4 @@
-import { ROOM_IDS, ROOMS, roomCenter, roomToWorld, sampleRoute, type RoomId } from "@ceo/core";
+import { ROOM_IDS, ROOMS, entrySpot, padSpot, roomCenter, roomToWorld, sampleRoute, type RoomId } from "@ceo/core";
 import { describe, expect, it } from "vitest";
 import {
   BODY_RADIUS,
@@ -19,6 +19,7 @@ import {
   rightOf,
   roomInView,
   seek,
+  straightWalk,
   velocity,
   yawToward,
 } from "./walk.ts";
@@ -71,12 +72,31 @@ describe("Brogu's eyes: where he drops in", () => {
     expect(roomInView(0, 96)).toBe("foundry");
   });
 
-  it("can reach the light stream from where he starts, in every room", () => {
+  it("drops in at the room's way in, the spot the teleporter is placed by", () => {
+    for (const room of ROOM_IDS) {
+      const p = entryPoint(room);
+      expect([p.x, p.z], room).toEqual(entrySpot(room));
+    }
+  });
+
+  it("can reach the teleporter from where he starts, in every room", () => {
     for (const room of ROOM_IDS) {
       const p = entryPoint(room);
       const [gx, gz] = gateSpot(room);
       expect(blocked(room, gx, gz), `${room} gate`).toBe(false);
       expect(reachable(room, [p.x, p.z], [gx, gz]), room).toBe(true);
+    }
+  });
+
+  it("finds the teleporter a few steps away, in a straight line, without walking round the room (#155)", () => {
+    for (const room of ROOM_IDS) {
+      const p = entryPoint(room);
+      const [gx, gz] = gateSpot(room);
+      expect([gx, gz], room).toEqual(padSpot(room));
+      expect(Math.hypot(gx - p.x, gz - p.z), room).toBeLessThan(3.5);
+      expect(straightWalk(room, p.x, p.z, gx, gz), room).toBe(true);
+      // Not standing on it as he arrives, so he isn't offered a ride the moment he drops in.
+      expect(atGate(room, p.x, p.z), room).toBe(false);
     }
   });
 });
@@ -175,23 +195,28 @@ describe("Brogu's eyes: the stream between rooms", () => {
     for (const room of ROOM_IDS) {
       const [gx, gz] = gateSpot(room);
       expect(atGate(room, gx, gz + 0.5)).toBe(true);
-      expect(atGate(room, 0, 4.6)).toBe(false);
+      const p = entryPoint(room);
+      expect(atGate(room, p.x, p.z)).toBe(false);
     }
   });
 
-  it("sets him down on a clear floor, past the stream's foot, facing into the room", () => {
+  it("sets him down on a clear floor, a step off the pad, facing into the room", () => {
     for (const room of ROOM_IDS) {
       const land = arrival(room);
+      const [gx, gz] = gateSpot(room);
       expect(blocked(room, land.x, land.z), room).toBe(false);
       expect(atGate(room, land.x, land.z), room).toBe(false);
-      expect(forwardOf(land.yaw)[1], room).toBeGreaterThan(0.9);
+      expect(Math.hypot(land.x - gx, land.z - gz), room).toBeLessThan(2.6);
+      expect(straightWalk(room, gx, gz, land.x, land.z), room).toBe(true);
+      expect(forwardOf(land.yaw)[1], room).toBeLessThan(-0.5);
     }
   });
 
   it("carries him from one room's floor to another's, up through the Kernel", () => {
-    const route = rideRoute("foundry", 0, -5.2, "archive");
+    const [gx, gz] = gateSpot("foundry");
+    const route = rideRoute("foundry", gx, gz + 0.4, "archive");
     const start = sampleRoute(route, 0).position;
-    expect(start[0]).toBeCloseTo(roomToWorld("foundry", 0, 0, -5.2)[0]);
+    expect(start[0]).toBeCloseTo(roomToWorld("foundry", gx, 0, gz + 0.4)[0]);
     const end = sampleRoute(route, route.duration + 1);
     expect(end.done).toBe(true);
     const land = arrival("archive");

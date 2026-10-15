@@ -9,3 +9,4 @@ export * from "./obstacles.ts";
 export * from "./posts.ts";
 export * from "./foundryFloor.ts";
 export * from "./relay.ts";
+export * from "./pads.ts";

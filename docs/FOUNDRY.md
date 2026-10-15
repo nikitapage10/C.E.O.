@@ -110,7 +110,7 @@ picks up an issue that has none. Without one, the line falls back to a trimmed t
 
 ### Pings and flagging a blocker
 
-Nikita's phone gets one notification, a ping, when something needs his call (#135; docs/SECURITY.md, "Pings on the
+Nikita's phone gets one notification, a ping, when something needs Nikita's call (#135; docs/SECURITY.md, "Pings on the
 phone"): a new idea waiting for the pick, a question from Rivet (`foundry:question`), and a blocker. The labels are
 the whole interface: `.github/workflows/desk-pings.yml` runs when a Foundry issue is opened or relabelled, and
 `api/desk-pings.ts` reads the labels and pings once per item, a burst as one ping, never between 10pm and 7am
@@ -118,7 +118,7 @@ Mountain (one summary at 7am instead). Nothing else pings: work in flight, shipp
 Ideas Nikita proposes on the Desk don't ping either (Rivet's question on one does).
 
 **Flagging a blocker.** When a job can't go on until Nikita decides something (a choice the card didn't settle,
-access only he can give, a secret only he can set), the Builder:
+access or a secret only Nikita can give), the Builder:
 
 1. comments on the issue with what is needed, as a Trail step (`**Trail · Blocked:** …`), in plain words and without
    anything sensitive;
@@ -463,7 +463,7 @@ do nothing for it; after changing the cast, run `npm run world:cast` (a test rem
   The Builder reads CI, bot and preview results himself; PR comments are kept to what a reviewer must see (a
   red-circle answer, a standing-down note), never routine status, which goes in the issue's Trail. The Vercel bot
   doesn't comment on PRs (`github.silent` in vercel.json). Nikita hears only about a blocker, a decision or a
-  finished result, in the Foundry thread, and his phone pings only for the three things above (an idea waiting, a
+  finished result, in the Foundry thread, and Nikita's phone pings only for the three things above (an idea waiting, a
   question, a blocker).
 - Keep replies in the Foundry thread to results, blockers and decisions. Routine progress lives in the issue labels.
 

@@ -176,6 +176,10 @@ The path for every change:
 minutes; a routine can't fire more often than hourly). Routines fired from outside the thread open a
 fresh session instead of reaching it, so nothing wakes the thread from GitHub or the Desk.
 
+The nightly browser tests (`.github/workflows/e2e.yml`) report the same way: a red scheduled run on `main` opens (or comments on) a
+`foundry:fix` issue titled "Nightly browser tests failing on main", and the Desk's Systems page shows that run's light (green, red,
+amber while running, off until a run is read) next to the checks.
+
 **The doorbell (#50).** What can wake the thread is a command it started itself. At the end of every turn the Builder
 keeps `scripts/foundry-watch.sh` running in the background: it looks at the queue every 30 seconds (GitHub reads, no
 plan usage) and exits the moment a new `foundry:build`, `foundry:revise` or `foundry:fix` appears, which gives the

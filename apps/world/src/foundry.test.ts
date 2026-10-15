@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -146,6 +146,18 @@ describe("crewWork", () => {
     expect(work.semicolon?.number).toBe(2);
     expect(work.caret).toBeNull();
     expect(work.tessellate).toBeNull();
+  });
+});
+
+describe("parseE2e", () => {
+  const run = (event: string, conclusion: string | null, status = "completed") => ({ status, conclusion, html_url: event, updated_at: "2026-10-12T21:00:00Z", event });
+  it("reads the newest nightly run and ignores pull request runs", () => {
+    expect(parseE2e(undefined).state).toBe("unknown");
+    expect(parseE2e([]).state).toBe("unknown");
+    expect(parseE2e([run("pull_request", "failure"), run("schedule", "success")])).toMatchObject({ state: "pass", url: "schedule" });
+    expect(parseE2e([run("schedule", "failure")]).state).toBe("fail");
+    expect(parseE2e([run("workflow_dispatch", null, "in_progress")]).state).toBe("running");
+    expect(CHECKS_LINK.fail).toBe("down");
   });
 });
 

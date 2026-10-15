@@ -330,6 +330,8 @@ export interface GhRun {
   conclusion: string | null;
   html_url: string;
   updated_at: string;
+  /** What started the run (schedule, workflow_dispatch, pull_request); the nightly light skips pull_request runs. */
+  event?: string;
 }
 
 /** The slice of GitHub's pull request JSON we read. */
@@ -525,6 +527,14 @@ export function assignCrew(crates: Crate[]): Map<number, CrewId> {
 /** Who a crate is with, given everything else in flight. */
 export function crewOf(crate: Crate, crates: Crate[]): CrewId {
   return assignCrew(crates).get(crate.number) ?? crewFor(crate);
+}
+
+/** The light a workflow run shows on Systems: green, red, amber while running, off when no run was read. */
+export const CHECKS_LINK: Record<ChecksState, LinkState> = { pass: "ok", fail: "down", running: "slow", unknown: "off" };
+
+/** The newest run of the nightly browser tests on main (scheduled or by hand), ignoring labelled pull request runs. */
+export function parseE2e(runs: GhRun[] | undefined): FoundryData["checks"] {
+  return parseChecks((runs ?? []).filter((r) => r.event !== "pull_request").slice(0, 1));
 }
 
 export function parseChecks(runs: GhRun[]): FoundryData["checks"] {
@@ -750,6 +760,8 @@ async function fetchJson<T>(url: string): Promise<T> {
 interface Feed {
   issues: GhIssue[];
   runs: { workflow_runs: GhRun[] };
+  /** The nightly browser tests (e2e.yml); absent from an older cached feed. */
+  e2e?: { workflow_runs: GhRun[] };
   pulls: GhPull[];
   commits: GhCommit[];
 }
@@ -764,25 +776,28 @@ async function readFeed(): Promise<Feed> {
 
 /** GitHub directly, for local previews where the feed isn't running. */
 async function readGitHub(): Promise<Feed> {
-  const [issues, runs, pulls, commits] = await Promise.all([
+  const [issues, runs, e2e, pulls, commits] = await Promise.all([
     fetchJson<GhIssue[]>(`${API}/issues?labels=foundry&state=all&sort=updated&per_page=40`),
     fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/checks.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
+    fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/e2e.yml/runs?branch=main&per_page=5`).catch(() => ({ workflow_runs: [] })),
     fetchJson<GhPull[]>(`${API}/pulls?state=closed&sort=updated&direction=desc&per_page=20`).catch(() => [] as GhPull[]),
     fetchJson<GhCommit[]>(`${API}/commits?sha=main&per_page=40`).catch(() => [] as GhCommit[]),
   ]);
-  return { issues, runs, pulls, commits };
+  return { issues, runs, e2e, pulls, commits };
 }
 
 export async function refreshFoundry(): Promise<void> {
   try {
-    const { issues, runs, pulls, commits } = await readFeed().catch(readGitHub);
+    const { issues, runs, e2e, pulls, commits } = await readFeed().catch(readGitHub);
     const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits) };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
     const { setLink } = useSystems.getState();
     const now = Date.now();
-    const checks: Record<ChecksState, LinkState> = { pass: "ok", fail: "down", running: "slow", unknown: "off" };
+    const checks = CHECKS_LINK;
     setLink("checks", { state: checks[data.checks.state], load: data.checks.state === "running" ? 0.9 : 0.4, lastSeen: data.checks.at, note: data.checks.url ?? undefined });
+    const nightly = parseE2e(e2e?.workflow_runs);
+    setLink("e2e", { state: checks[nightly.state], load: nightly.state === "running" ? 0.9 : 0.4, lastSeen: nightly.at, note: nightly.url ?? undefined });
     const busy = data.crates.filter((c) => c.state === "working").length;
     const stuck = data.crates.some((c) => c.state === "stuck");
     setLink("foundry", { state: stuck ? "slow" : "ok", load: Math.min(1, 0.25 + busy * 0.3), lastSeen: now, note: stuck ? "A crate is stuck and needs you" : undefined });

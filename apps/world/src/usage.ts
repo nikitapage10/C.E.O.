@@ -20,6 +20,8 @@ export const MODELS: Model[] = ["Haiku", "Sonnet", "Opus"];
 
 const POLL_MS = 60_000;
 const API = `https://api.github.com/repos/${REPO}`;
+/** The trail's trusted authors, as `TRAIL_AUTHORS` in api/_world/digest.ts: only their Pictures steps are shown. */
+const PICTURE_AUTHORS: ReadonlySet<string> = new Set(["nikitapage10", "github-actions[bot]", "ceo-foundry[bot]"]);
 
 /** A Foundry issue, as the usage feed sends it. */
 export interface UsageIssue {
@@ -292,12 +294,14 @@ async function readGitHub(): Promise<UsageFeed> {
   };
   const [issues, comments] = await Promise.all([
     get<(Omit<UsageIssue, "labels"> & { labels: ({ name?: string } | string)[]; pull_request?: unknown })[]>("/issues?labels=foundry&state=all&per_page=100"),
-    get<{ issue_url: string; created_at: string; body?: string | null }[]>("/issues/comments?sort=created&direction=desc&per_page=100"),
+    get<{ issue_url: string; created_at: string; body?: string | null; user?: { login?: string } | null }[]>("/issues/comments?sort=created&direction=desc&per_page=100"),
   ]);
   return {
     issues: issues.filter((i) => !i.pull_request).map((i) => ({ ...i, labels: i.labels.map((l) => (typeof l === "string" ? l : (l.name ?? ""))) })),
     trails: comments
       .filter((c) => /^(\*\*Trail ·|Approved for building)/.test(c.body ?? ""))
+      // As the usage feed does: a Pictures step counts only from the trail's trusted authors.
+      .filter((c) => !(c.body ?? "").startsWith("**Trail · Pictures:**") || PICTURE_AUTHORS.has(c.user?.login ?? ""))
       .map((c) => ({ issue: Number(/\/issues\/(\d+)$/.exec(c.issue_url)?.[1] ?? 0), at: c.created_at, body: c.body ?? "" })),
   };
 }

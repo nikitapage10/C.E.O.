@@ -8,6 +8,7 @@ import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
 import { RoomBanner } from "./RoomBanner.tsx";
+import { ChangePictures } from "./ChangePictures.tsx";
 import { Avatar, Panel } from "./ui.tsx";
 import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
@@ -1368,7 +1369,8 @@ function ChangelogLegend({ changes }: { changes: Change[] }) {
 
 /**
  * Every shipped change, newest first, grouped by day. Each entry: who built it, what it was, when, where it came from
- * and whether it waited for Nikita (the two markers, keyed in the legend up top), and links to its issue and code.
+ * and whether it waited for Nikita (the two markers, keyed in the legend up top), links to its issue and code, and its
+ * pictures when its issue has a Pictures step.
  */
 function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; remarks: Map<number, Remark> }) {
   const days: { label: string; items: Change[] }[] = [];
@@ -1392,8 +1394,10 @@ function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; 
               // The builder's own word on it, from the living Lattice's hourly step (docs/WORLD.md).
               const said = c.issue ? remarks.get(c.issue.number) : undefined;
               return (
-                <li key={c.key} className={`cl-entry cl-origin--${c.origin}`}>
+                <li key={c.key} className={`cl-entry cl-origin--${c.origin}${c.pictures?.length ? " cl-entry--pics" : ""}`}>
                   <Avatar agent={who} size="sm" room="foundry" />
+                  {/* Its pictures from the issue's Pictures steps: the first as a thumbnail, all of them in the viewer. */}
+                  {c.pictures?.length ? <ChangePictures pictures={c.pictures} title={ideaTitle(c.title)} /> : null}
                   <a className="cl-entry__title" href={c.issue?.url ?? c.landed?.url} target="_blank" rel="noreferrer">
                     {/* The source marker already says it was an idea. */}
                     {ideaTitle(c.title)}

@@ -45,6 +45,7 @@ const LINKS: Link[] = [
   { id: "openai", label: "OpenAI", what: "Sorting, drafting and voice", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "mac", label: "MacBook", what: "Awake, on power, online", kind: "machine", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "checks", label: "Checks", what: "Types, lint, tests and build on main, on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
+  { id: "e2e", label: "Nightly browser tests", what: "The Lattice and Desk in a real browser, nightly on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "foundry", label: "Foundry", what: "The coding thread in Claude Code", kind: "agent", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "world", label: "World clock", what: "The living Lattice's hourly step", kind: "service", room: "world", state: "off", load: 0, lastSeen: null },
 ];

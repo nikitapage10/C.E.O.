@@ -144,6 +144,17 @@ export interface Change {
   approval: Approval;
   /** Where it came from: Nikita, a Builder idea, upkeep, a fix, or chat (`changeSource`). */
   origin: Origin;
+  /** The pictures on its issue's "**Trail · Pictures:**" steps, oldest first, once the Desk has the trails (`withTrails`). */
+  pictures?: Picture[];
+}
+
+/** One picture from a Pictures step: a JPEG or PNG on the `foundry-shots` branch (scripts/issue-shots.sh). */
+export interface Picture {
+  src: string;
+  /** Short plain text: the file's name made readable ("changelog wide"). */
+  alt: string;
+  /** What the step says they show, plain text and short; "" when it says nothing. */
+  note: string;
 }
 
 /**
@@ -189,20 +200,86 @@ export function changeSource(kind: CrateKind, labels: Iterable<string>, body = "
 }
 
 /**
- * The changelog with each issue's trail steps folded in, once the Desk has them (the usage feed): an Origin or
- * Decision step settles what the labels and body alone leave open.
+ * Where every Foundry picture lives: the `foundry-shots` branch of this repo, served raw by GitHub
+ * (scripts/issue-shots.sh). Nothing else is ever shown: a comment on a public repo is untrusted, so a picture from any
+ * other host, repo or branch, or any other kind of link, is dropped.
  */
-export function withTrails(changelog: Change[], trails: readonly { issue: number; body: string }[]): Change[] {
+export const PICTURE_ROOT = "https://raw.githubusercontent.com/nikitapage10/C.E.O./foundry-shots/";
+/** The most pictures one change shows. */
+export const MAX_PICTURES = 12;
+const PICTURE_STEP = "**Trail · Pictures:**";
+const PICTURE_PATH = /^\d{1,6}\/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(?:jpe?g|png)$/i;
+
+/**
+ * A picture link the Desk will show, or null: exactly `PICTURE_ROOT`, an issue's folder, and a plain file name ending
+ * in .jpg, .jpeg or .png. No query, fragment, escapes, dot segments or anything else that could steer it elsewhere.
+ */
+export function pictureUrl(raw: string): string | null {
+  if (!raw.startsWith(PICTURE_ROOT)) return null;
+  const rest = raw.slice(PICTURE_ROOT.length);
+  if (!PICTURE_PATH.test(rest) || rest.includes("..")) return null;
+  // A second lock: the browser's own reading of the link must land on the very same place.
+  try {
+    const u = new URL(raw);
+    return u.href === raw && u.origin === "https://raw.githubusercontent.com" ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Untrusted text made short and plain: no markup characters, no control or direction characters, one line. */
+function plain(text: string, max: number): string {
+  const kept = Array.from(text, (ch) => {
+    const c = ch.codePointAt(0) ?? 0;
+    const hidden = c < 0x20 || (c >= 0x7f && c <= 0x9f) || (c >= 0x200b && c <= 0x200f) || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069) || c === 0xfeff;
+    return hidden || "<>`*_[]()#|\\!".includes(ch) ? " " : ch;
+  }).join("");
+  const t = kept.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+/**
+ * The pictures on one trail comment, when it is a Pictures step: each markdown image `![alt](url)` whose url passes
+ * `pictureUrl`, in order, with no repeats. Anything else in the comment is ignored. The usage feed keeps only the
+ * Pictures steps written by the trail's trusted authors (`TRAIL_AUTHORS` in api/_world/digest.ts).
+ */
+export function readPictures(body: string): Picture[] {
+  if (!body.startsWith(PICTURE_STEP)) return [];
+  const note = plain(body.slice(PICTURE_STEP.length).split("\n", 1)[0] ?? "", 140);
+  const out: Picture[] = [];
+  for (const m of body.matchAll(/!\[([^\]\n]{0,200})\]\(\s*([^\s)]{1,400})\s*\)/g)) {
+    const src = pictureUrl(m[2]!);
+    if (!src || out.some((p) => p.src === src)) continue;
+    // issue-shots.sh names each file "<UTC stamp>-<original name>.jpg" and gives it the original name as its alt.
+    const name = src.slice(src.lastIndexOf("/") + 1).replace(/\.(?:jpe?g|png)$/i, "").replace(/^\d{8}-\d{6}-/, "");
+    const alt = plain((m[1] ?? "").replace(/[-_]+/g, " "), 60) || plain(name.replace(/[-_.]+/g, " "), 60) || "Picture";
+    out.push({ src, alt, note });
+    if (out.length >= MAX_PICTURES) break;
+  }
+  return out;
+}
+
+/**
+ * The changelog with each issue's trail steps folded in, once the Desk has them (the usage feed): an Origin or
+ * Decision step settles what the labels and body alone leave open, and its Pictures steps give it pictures, oldest
+ * step first.
+ */
+export function withTrails(changelog: Change[], trails: readonly { issue: number; body: string; at?: string }[]): Change[] {
   if (!trails.length) return changelog;
-  const byIssue = new Map<number, string[]>();
-  for (const t of trails) byIssue.set(t.issue, [...(byIssue.get(t.issue) ?? []), t.body]);
+  const byIssue = new Map<number, { body: string; at?: string }[]>();
+  for (const t of trails) byIssue.set(t.issue, [...(byIssue.get(t.issue) ?? []), t]);
   return changelog.map((c) => {
-    const steps = c.issue ? byIssue.get(c.issue.number) : undefined;
-    if (!steps) return c;
-    const t = readTrails(steps);
+    const found = c.issue ? byIssue.get(c.issue.number) : undefined;
+    if (!found) return c;
+    const t = readTrails(found.map((s) => s.body));
     const approval: Approval = c.approval === "auto" || t.auto ? "auto" : c.approval === "manual" || t.byNikita ? "manual" : "none";
     const origin: Origin = c.origin === "builder" && t.fromNikita ? "nikita" : c.origin;
-    return approval === c.approval && origin === c.origin ? c : { ...c, approval, origin };
+    const pictures: Picture[] = [];
+    for (const step of [...found].sort((a, b) => (Date.parse(a.at ?? "") || 0) - (Date.parse(b.at ?? "") || 0))) {
+      for (const p of readPictures(step.body)) if (pictures.length < MAX_PICTURES && !pictures.some((q) => q.src === p.src)) pictures.push(p);
+    }
+    if (approval === c.approval && origin === c.origin && !pictures.length) return c;
+    return { ...c, approval, origin, ...(pictures.length ? { pictures } : {}) };
   });
 }
 

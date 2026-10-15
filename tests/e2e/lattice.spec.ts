@@ -5,7 +5,18 @@ import { ROOM_IDS } from "@ceo/core";
  * Smoke test for the whole Lattice: it boots, agents move, every room is reachable, an approval can be
  * granted, and every glitch fires and cleans up after itself. Screenshots land in test-results/shots.
  * Runs in headless Chromium on SwiftShader, which is slow, so waits are generous (boot gets 150 s) and the camera cuts.
+ *
+ * How slow (#161): a frame of the full Lattice takes 2-5 s of wall time there, and the simulation advances at most
+ * 0.1 s x speed per frame (Scene.tsx), so 400 ms of simulated time at speed=4. A screenshot has to wait for a fresh
+ * frame or two, so each one costs 10-20 s. The tests that take many screenshots budget time per screenshot, and
+ * movement is measured over a fixed simulated window that starts when the first snapshot is taken.
  */
+
+/** Wall-clock budget for booting the Lattice (the boot wait below) and for one room or glitch screenshot step. */
+const BOOT_MS = 150_000;
+const STEP_MS = 60_000;
+/** Simulated time agents get to move between the two position snapshots: ten frames at the slowest. */
+const MOVE_WINDOW_MS = 4000;
 
 type Api = {
   state: () => { agents: Record<string, unknown>; approvals: Record<string, { status: string; request: { room: string } }> };
@@ -25,18 +36,28 @@ async function boot(page: Page) {
   await page.waitForFunction(() => {
     const w = window as unknown as { __ceo?: { positions?: () => Record<string, unknown> } };
     return w.__ceo?.positions && Object.keys(w.__ceo.positions()).length >= 14;
-  }, undefined, { timeout: 150_000, polling: 1000 });
+  }, undefined, { timeout: BOOT_MS, polling: 1000 });
 }
 
 test("boots, agents move, rooms are reachable", async ({ page }) => {
+  // Boot, the movement window, the overview and one screenshot step per room.
+  test.setTimeout(BOOT_MS + (ROOM_IDS.length + 2) * STEP_MS);
   await boot(page);
   await expect(page.locator(".mark__name")).toHaveText("C.E.O.");
   await expect(page.locator(".display .sr-only")).toHaveText("THE LATTICE");
   await page.screenshot({ path: "test-results/shots/overview.png" });
 
-  const before = await api(page, (a) => a.positions());
-  await page.waitForFunction(() => (window as unknown as { __ceo: { time: () => number } }).__ceo.time() > 6000, undefined, { timeout: 90_000, polling: 1000 });
-  const after = await api(page, (a) => a.positions());
+  // Both snapshots carry their simulated time, read in the same evaluate, so the window is exact. It used to end at
+  // a fixed time (6 s) that a slow boot had often already passed, leaving no frames between the two snapshots.
+  const snapshot = () => api(page, (a) => ({ t: a.time(), at: a.positions() }));
+  const { t: t0, at: before } = await snapshot();
+  await page.waitForFunction(
+    (until) => (window as unknown as { __ceo: { time: () => number } }).__ceo.time() >= until,
+    t0 + MOVE_WINDOW_MS,
+    { timeout: STEP_MS, polling: 500 },
+  );
+  const { t: t1, at: after } = await snapshot();
+  expect(t1 - t0).toBeGreaterThanOrEqual(MOVE_WINDOW_MS);
   const moved = Object.keys(before).filter((id) => {
     const [x0, , z0] = before[id]!;
     const [x1, , z1] = after[id]!;
@@ -102,11 +123,13 @@ test("the C.E.O. can approve a request", async ({ page }) => {
 });
 
 test("every glitch fires and the Lattice returns to normal", async ({ page }) => {
-  test.setTimeout(400_000);
+  test.setTimeout(BOOT_MS + STEP_MS);
   await boot(page);
   await api(page, (a) => a.focus("foundry"));
   const ids = await api(page, (a) => a.glitchIds);
   expect(ids.length).toBeGreaterThanOrEqual(14);
+  // One step per glitch: fire, hold, screenshot, and wait for it to clear.
+  test.setTimeout(BOOT_MS + (ids.length + 1) * STEP_MS);
   for (const id of ids) {
     await page.evaluate((g) => (window as unknown as { __ceo: Api }).__ceo.fireGlitch(g), id);
     await expect.poll(() => api(page, (a) => a.activeGlitch()?.id ?? null)).toBe(id);

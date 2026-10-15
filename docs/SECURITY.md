@@ -38,6 +38,16 @@ Idea pictures stay in the private Vercel Blob store. The issue names them but ne
 gets one that lasts five. The Desk's idea cards show pictures only from that store, through that function, never
 from another host.
 
+## Relay's privacy rules
+
+Relay, the planned hub on the MacBook that will read iMessage and SMS, has its privacy rules written before it is
+built: [RELAY-PRIVACY.md](RELAY-PRIVACY.md) (#149, R5 in [THREAT-MODEL.md](THREAT-MODEL.md)). Messages, contacts,
+drafts and summaries stay on the Mac and leave it only for one trimmed OpenAI call at a time, with names and numbers
+replaced by placeholders and `store: false`. The public site gets counts, enum states and timestamps only, in one
+allowlisted shape (`RelayStatus` and `readRelayStatus` in `packages/core/src/relay.ts`) that refuses an unknown key
+or any free string, and a test holds it to that. Logs hold no content, everything has an end date, and one command
+wipes it all.
+
 ## Signing in to the Desk
 
 The Desk's buttons write to the public repo, so they need a real sign-in (#132, R3 in

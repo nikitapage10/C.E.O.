@@ -10,3 +10,7 @@ The always-on service that will run on the MacBook and connect real agents to th
 
 `src/index.ts` defines the interfaces (`EventSource`, `ActionExecutor`, `HubConfig`). See
 [`docs/AGENT_STACK.md`](../../docs/AGENT_STACK.md) for which services plug in where.
+
+**Relay's privacy rules come first.** What Relay may read, keep, send to OpenAI and show on the site, how long it
+keeps anything and how to wipe it are in [`docs/RELAY-PRIVACY.md`](../../docs/RELAY-PRIVACY.md). The site gets
+counts and states only, in the allowlisted shape `RelayStatus` from `@ceo/core` (`packages/core/src/relay.ts`).

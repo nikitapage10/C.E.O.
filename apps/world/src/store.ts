@@ -78,6 +78,8 @@ interface WorldStore {
   cycleFocus: (dir: 1 | -1) => void;
   selectAgent: (id: string | null) => void;
   hoverAgent: (id: string | null) => void;
+  /** A click on a character: opens their info, or closes it when it is already open. */
+  toggleAgent: (id: string) => void;
   setTimeScale: (n: number) => void;
   setGlitchLevel: (level: GlitchLevel) => void;
   setSound: (on: boolean) => void;
@@ -188,6 +190,7 @@ export const useWorld = create<WorldStore>((set, get) => ({
     set({ selectedAgent: id, ...(rt ? { focus: rt.place.room } : {}) });
   },
   hoverAgent: (id) => set({ hoveredAgent: id }),
+  toggleAgent: (id) => get().selectAgent(get().selectedAgent === id ? null : id),
   setTimeScale: (n) => set({ timeScale: n }),
   setGlitchLevel: (glitchLevel) => set({ glitchLevel }),
   setSound: (sound) => set({ sound }),

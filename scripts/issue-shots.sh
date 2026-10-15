@@ -4,9 +4,18 @@
 # (orphan, never merged, never deployed) as small JPEGs under <issue>/, and a "Trail · Pictures" comment shows them.
 #
 #   scripts/issue-shots.sh <issue> "<what they show>" shot1.png [shot2.png ...]
+#
+# Any image ImageMagick reads works, PNG included: a change card from scripts/change-card.mjs goes in as it is.
 set -euo pipefail
 
+if [ "$#" -lt 3 ]; then
+  echo 'usage: scripts/issue-shots.sh <issue> "<what they show>" shot1.png [shot2.png ...]' >&2
+  exit 2
+fi
 issue="$1"; note="$2"; shift 2
+for f in "$@"; do
+  [ -f "$f" ] || { echo "issue-shots: no such file: $f" >&2; exit 1; }
+done
 repo="nikitapage10/C.E.O."
 branch="foundry-shots"
 root="$(git rev-parse --show-toplevel)"
@@ -28,7 +37,8 @@ body="**Trail · Pictures:** $note"$'\n'
 for f in "$@"; do
   name="$(date -u +%Y%m%d-%H%M%S)-$(basename "${f%.*}").jpg"
   # Shrink to 1600 px wide JPEGs: a picture history shouldn't weigh down the repo.
-  convert "$f" -resize '1600x>' -quality 82 "$work/$issue/$name"
+  # PNGs (screenshots, change cards) keep their look: any transparency lands on the Desk's dark ground, not black or white.
+  convert "$f" -background '#04060b' -flatten -resize '1600x>' -quality 82 "$work/$issue/$name"
   body+=$'\n'"![$(basename "${f%.*}")](https://raw.githubusercontent.com/$repo/$branch/$issue/$name)"
 done
 

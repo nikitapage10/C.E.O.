@@ -160,9 +160,11 @@ The path for every change:
 3. **Checks** run on the PR (`checks.yml`). Red means back to the ladder; never merge red.
 4. **Preview:** Vercel builds a preview site for the PR. Bigger fixes and builds put the preview link on the
    "Ship?" card so Nikita can try it first.
-5. **Merge** with a squash commit through GitHub's auto-merge, turned on when the PR opens (until "Allow auto-merge"
+5. **Pictures** on the issue before it ships: screenshots for a visual change, a change card for anything else
+   ("Pictures on every change" below). The Trail runs Work, Pictures, Checks, Shipped.
+6. **Merge** with a squash commit through GitHub's auto-merge, turned on when the PR opens (until "Allow auto-merge"
    and the gated ruleset are on, the Builder squash-merges it once `checks` is green), then delete the branch. Vercel deploys `main` to the site.
-6. **Watch:** the push to `main` runs the checks again. If they go red there, the merge is reverted with a
+7. **Watch:** the push to `main` runs the checks again. If they go red there, the merge is reverted with a
    `git revert` commit through a `foundry/fix/` branch, and the fix starts over.
 
 ## The checks (the furnace)
@@ -396,13 +398,41 @@ Each step is one short comment that starts with `**Trail ·`, newest last:
 | Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Auto-approved by Skippy, the Builder (low risk: a colour tweak on the idea board).` / `Stopped by Nikita on the Desk.` / `Small green fix: ships as upkeep, no approval needed.` |
 | Assigned | Who builds it, on which model, and why (the Builder's call) | `**Trail · Assigned:** Rusty on Opus: it's design and animation.` |
 | Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |
-| Pictures | Every screenshot, design sketch or test picture made along the way (before/after, what was checked), posted with `scripts/issue-shots.sh <issue> "<what they show>" <files…>`. The pictures live on the `foundry-shots` branch (never merged, never deployed) and show inline on the issue | `**Trail · Pictures:** the throne mid-command in the Spire, and the Foundry corner.` |
+| Pictures | Required before Shipped on every issue that ships a change, so it can be checked at a glance (Nikita, 2026-10-15, #158; "Pictures on every change" below). A visual change gets an after-screenshot, or a before/after pair when the difference matters, at wide and phone sizes where the layout changed; a non-visual change gets a change card (`scripts/change-card.mjs`); the Builder may add both. Posted with `scripts/issue-shots.sh <issue> "<what they show>" <files…>`; the pictures live on the `foundry-shots` branch (never merged, never deployed) and show inline on the issue | `**Trail · Pictures:** the throne mid-command in the Spire, before and after, wide and phone.` / `**Trail · Pictures:** change card: Docs · Scripts, checks green.` |
 | Checks | The result, with a link | `**Trail · Checks:** green (run <link>).` |
 | Shipped | The commit or PR on main | `**Trail · Shipped:** 661cef7 on main, live on the site.` then one line per job: `Claude Code: 291k tokens on Opus, 1 h 50 min.` (or `64k tokens on Haiku, 3 min.`) |
 
 The Desk's function writes Origin, Shaped and Decision for clicks on the Desk; the checks workflow writes Origin for
-red checks; the Builder writes Assigned, Work, Checks and Shipped, and Origin for chat work. A step that didn't
-happen is left out, never invented. Skip none that did.
+red checks; the Builder writes Assigned, Work, Pictures, Checks and Shipped, and Origin for chat work. A step that
+didn't happen is left out, never invented. Skip none that did, and Pictures always happens: an issue that ships a
+change has a Pictures step before its Shipped step, every time.
+
+### Pictures on every change
+
+Every issue that ships a change gets at least one picture before it is labelled `foundry:shipped` (Nikita, 2026-10-15,
+#158: "whatever it deems necessary"). Which picture is the Builder's call:
+
+- **A visual change** (the Lattice, the Desk, a room, a model, a costume): an after-screenshot, or a before/after pair
+  when the difference is the point (a fix, a restyle, a moved control). Where the layout changed, take it at wide
+  (1440 px) and phone (390 px) sizes.
+- **A non-visual change** (docs, CI, API, security, scripts, config): a change card, rendered with
+  `scripts/change-card.mjs`. It is a 1200×630 PNG in the Desk's look with the issue and title, a one to three line
+  summary, the areas the diff touched ("Desk · API · Docs", with file and line counts, read from
+  `git diff --numstat <base>...<head>`), the check results, and the builder and model. It never shows file contents,
+  keys, personal data or message text, and scrubs anything key-, email- or link-shaped from the words passed in.
+- **Both** when a change is partly visual, or the card says something a screenshot can't.
+
+```sh
+node scripts/change-card.mjs --issue=158 --title="Pictures on every change" \
+  --summary="Every shipped change now gets a picture on its issue." --summary="Non-visual changes get a change card." \
+  --builder=Dusty --model=Opus --checks=typecheck=pass,lint=pass,test=pass,build=pass --out=shots/158/card.png
+scripts/issue-shots.sh 158 "change card: Docs · Scripts, checks green." shots/158/card.png
+```
+
+The card's flags can come from a JSON file instead (`--json=card.json`, same keys; `summary` may be a list and
+`checks` an object); `--base` defaults to `origin/main` and `--head` to `HEAD`, so render it after the last commit.
+`node scripts/change-card.mjs --help` prints the rest. `issue-shots.sh` takes the card's PNG as it is and posts it as a
+JPEG like any other picture.
 
 The Desk's feeds (`api/foundry-feed.ts`, `api/foundry-usage.ts`, `api/security-feed.ts`) always come from Vercel's edge cache and never take a
 query string: any query is redirected (308) to the bare URL, so outside traffic can't miss the cache and use up the

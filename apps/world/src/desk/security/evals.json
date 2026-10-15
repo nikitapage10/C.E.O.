@@ -1,6 +1,6 @@
 {
-  "total": 198,
-  "passing": 198,
+  "total": 199,
+  "passing": 199,
   "expectedFail": 0,
   "areas": [
     {
@@ -20,8 +20,8 @@
     {
       "id": "desk-write",
       "file": "injection.test.ts",
-      "cases": 50,
-      "passing": 50,
+      "cases": 51,
+      "passing": 51,
       "expectedFail": 0
     },
     {

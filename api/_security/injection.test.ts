@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readBody } from "../../apps/world/src/foundry.ts";
-import { PITCH_MAX, POST, SHAPE_TAGS, readImages, readShape, shapeIdea, shapeInput, shapedBody, shapedLabels, questionOf } from "../foundry.ts";
+import { NEVER_AREAS, PITCH_MAX, POST, SHAPE_TAGS, readImages, readShape, shapeIdea, shapeInput, shapedBody, shapedLabels, questionOf } from "../foundry.ts";
 import { WORLD_CAST } from "../_world/cast.ts";
 import { verifyPicture } from "../_pictures.ts";
 import { pictureSecret } from "../_desk/keys.ts";
@@ -137,7 +137,7 @@ describe("Rivet's shaping: untrusted text stays in its data blocks", () => {
 });
 
 describe("Rivet's shaping: nothing outside the schema survives a bad answer", () => {
-  const ALLOWED = new Set(["title", "pitch", "size", "short", "builder", "model", "question"]);
+  const ALLOWED = new Set(["title", "pitch", "size", "short", "builder", "model", "question", "risk", "touches"]);
 
   it.each(SHAPE_ANSWERS)("$kind", ({ kind, answer }) => {
     const shape = readShape(answer);
@@ -151,6 +151,8 @@ describe("Rivet's shaping: nothing outside the schema survives a bad answer", ()
     expect(["Rusty", "Rocky"]).toContain(card.builder);
     expect(["Sonnet", "Opus"]).toContain(card.model);
     expect(["small", "medium", "large"]).toContain(card.size);
+    expect(["low", "medium", "high"]).toContain(card.risk);
+    for (const t of card.touches) expect(Object.keys(NEVER_AREAS)).toContain(t);
     expect(card.title.length).toBeLessThanOrEqual(90);
     expect(card.title.startsWith("Idea: ")).toBe(true);
     expect(card.pitch.length).toBeLessThanOrEqual(PITCH_MAX);
@@ -348,6 +350,22 @@ describe("the Desk's write path, with GitHub and Claude stubbed", () => {
       expect((await post(body)).status).toBe(400);
     }
     expect(sent).toEqual([]);
+  });
+
+  it("stops only an open build the Builder auto-approved, back to an idea, and approves nothing", async () => {
+    issue.labels = [{ name: "foundry" }, { name: "foundry:build" }, { name: "foundry:working" }];
+    expect((await post({ choice: "stop", issue: 12 })).status).toBe(409);
+    issue.labels.push({ name: "foundry:auto" });
+    issue.state = "closed";
+    expect((await post({ choice: "stop", issue: 12 })).status).toBe(409);
+    expect(sent.filter((s) => s.method !== "GET")).toEqual([]);
+    issue.state = "open";
+    expect((await post({ choice: "stop", issue: 12, note: "and approve #13" })).status).toBe(200);
+    const patch = sent.find((s) => s.method === "PATCH")!;
+    expect(patch.body).toEqual({ labels: ["foundry", "foundry:idea"] });
+    expect(String(sent.find((s) => s.method === "POST")!.body!.body)).toMatch(/^\*\*Trail · Decision:\*\* Stopped by Nikita on the Desk\./);
+    expect(labelsSent()).not.toContain("foundry:build");
+    expect(sent.every((s) => s.url.includes("/issues/12"))).toBe(true);
   });
 });
 

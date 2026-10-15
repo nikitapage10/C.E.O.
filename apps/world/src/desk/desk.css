@@ -3861,18 +3861,198 @@ a.fy-chip:hover {
   text-transform: uppercase;
   color: var(--faint);
 }
-.changelog__links {
-  grid-area: pill;
+/*
+ * The Changelog's two markers (docs/FOUNDRY.md, "Auto-approval"). Source: a coloured dot and word, and the same
+ * colour down the entry's left edge. Approval: an icon and a word, told apart by shape too (filled for auto, ruled
+ * for Nikita's OK, dashed for routine), so neither leans on colour alone.
+ */
+.cl-origin--nikita {
+  --src: var(--violet);
+}
+.cl-origin--builder {
+  --src: var(--room-foundry);
+}
+.cl-origin--upkeep {
+  --src: var(--mint);
+}
+.cl-origin--fix {
+  --src: var(--rose);
+}
+.cl-origin--chat {
+  --src: var(--ice);
+}
+.cl-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  line-height: 1;
+}
+.cl-mark--origin {
+  border: 1px solid color-mix(in srgb, var(--src) 38%, transparent);
+  background: color-mix(in srgb, var(--src) 9%, transparent);
+  color: var(--src);
+}
+.cl-mark--origin i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--src);
+}
+.cl-mark__icon {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cl-mark--auto {
+  border: 1px solid var(--amber);
+  background: var(--amber);
+  color: var(--panel-solid);
+  font-weight: 600;
+}
+.cl-mark--auto .cl-mark__icon {
+  fill: currentColor;
+  stroke-width: 0.6;
+}
+.cl-mark--manual {
+  border: 1px solid var(--hair-strong);
+  color: var(--silver);
+}
+.cl-mark--none {
+  border: 1px dashed var(--hair);
+  color: var(--faint);
+}
+.cl-legend {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--hair-soft);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+.cl-legend__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+}
+.cl-legend__name {
+  min-width: 64px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.cl-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cl-legend__n {
   font-family: var(--mono);
   font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
-.changelog__links a {
+.cl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.cl-entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "ava title time" "ava meta meta";
+  column-gap: 12px;
+  row-gap: 6px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--hair-soft);
+  border-left: 3px solid var(--src, var(--hair));
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+.cl-entry .avatar {
+  grid-area: ava;
+  align-self: start;
+}
+.cl-entry__title {
+  grid-area: title;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cl-entry__title:hover {
+  color: var(--ice);
+}
+.cl-entry__time {
+  grid-area: time;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.cl-entry__meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+.cl-entry__ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 2px;
+  white-space: nowrap;
+}
+.cl-entry__who {
+  color: var(--muted);
+}
+.cl-entry__link {
+  font-family: var(--mono);
+  font-size: 11px;
   color: var(--tone);
 }
-.changelog__links a:hover {
+.cl-entry__link:hover {
   color: var(--ice);
+}
+.cl-entry .changelog__remark {
+  grid-column: 2 / -1;
+  margin: 0;
+}
+.fy-stop {
+  display: inline-flex;
+  gap: 6px;
+}
+.fy-stop__btn {
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  color: var(--amber);
+}
+.fy-stop__note {
+  color: var(--amber);
 }
 .changelog__all {
   margin: 14px 0 0;
@@ -4283,6 +4463,24 @@ a.fy-chip:hover {
   }
   .crates__title {
     white-space: normal;
+  }
+  .cl-entry {
+    column-gap: 10px;
+    padding: 10px;
+  }
+  .cl-entry__title {
+    white-space: normal;
+    line-height: 1.35;
+  }
+  .cl-entry__time {
+    align-self: start;
+    padding-top: 2px;
+  }
+  .cl-legend {
+    padding: 10px;
+  }
+  .cl-legend__name {
+    flex-basis: 100%;
   }
   .fy-jobs,
   .fy-recent {

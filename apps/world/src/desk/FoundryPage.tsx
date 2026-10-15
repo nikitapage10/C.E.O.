@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, isImage, uploadImage, usePictureLinks } from "./ideaImages.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { ensureSignedIn, useDeskAuth } from "./signin.ts";
-import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, type Change, type Crate, type CrateKind, type CrateState, type CrewId } from "../foundry.ts";
+import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, withTrails, type Approval, type Change, type Crate, type CrateKind, type CrateState, type CrewId, type Origin } from "../foundry.ts";
 import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
@@ -58,7 +58,7 @@ const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60
 /* ── The idea buttons ── */
 
 type Setup = { buttons: boolean; direct: boolean; shape: boolean; images: boolean } | null;
-type Choice = "build" | "pass" | "revise" | "propose" | "answer";
+type Choice = "build" | "pass" | "revise" | "propose" | "answer" | "stop";
 
 export function useSetup(): Setup {
   const [setup, setSetup] = useState<Setup>(null);
@@ -205,6 +205,9 @@ export function FoundryPage({ now }: { now: number }) {
   const lead = !connected ? "Connecting to GitHub…" : parts.length ? `${parts.join(", and ")}.` : "Nothing needs you. The crew handles small fixes and upkeep on its own.";
   // The living Lattice: the builders' remarks for the Changelog, and the world's spend for the Usage panel.
   const world = useWorldFeed();
+  // The issue trails: the Usage panel counts from them, and the Changelog reads each change's Origin and Decision.
+  const usage = useUsage();
+  const changelog = withTrails(data.changelog, usage.feed?.trails ?? []);
 
   return (
     <div className="foundry-page" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
@@ -267,19 +270,19 @@ export function FoundryPage({ now }: { now: number }) {
       <StatusStrip now={now} running={running} upkeep={upkeep} />
 
       <Panel eyebrow="The crew" className="fy-crewpanel" aside={<span className="badge">{inFlight}</span>} label="The crew and what is in flight">
-        <Crew now={now} />
+        <Crew now={now} setup={setup} />
       </Panel>
 
       <Panel eyebrow="Usage" className="fy-usage" aside={<a className="panel__hint" href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer">Claude plan limits →</a>} label="Usage: API spend and work by model">
-        <Usage now={now} setup={setup} world={world} />
+        <Usage now={now} setup={setup} world={world} usage={usage} />
       </Panel>
 
       <Panel eyebrow="Connections" className="fy-connections">
         <Connections setup={setup} />
       </Panel>
 
-      <Panel eyebrow="Changelog" aside={<span className="badge">{data.changelog.length}</span>}>
-        {data.changelog.length ? <Changelog changes={data.changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} /> :<p className="quiet">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
+      <Panel eyebrow="Changelog" className="fy-changelog" aside={<span className="badge">{changelog.length}</span>}>
+        {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} /> : <p className="quiet">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
         <p className="quiet changelog__all">
           Every commit on main, one-offs included, is on{" "}
           <a href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
@@ -808,7 +811,7 @@ const STATE_ORDER: Record<CrateState, number> = { stuck: 0, working: 1, ready: 2
  * yet. Rusty's jobs past his own are tagged with whichever of his dock crew has them (Dusty, Gusty, Musty); past four
  * jobs across the crew (one for Rocky), the rest are tagged as waiting their turn; Rivet's extra fixes run as clones.
  */
-function Crew({ now }: { now: number }) {
+function Crew({ now, setup }: { now: number; setup: Setup }) {
   const connected = useFoundry((s) => s.connected);
   const crates = useFoundry((s) => s.data.crates);
   const changelog = useFoundry((s) => s.data.changelog);
@@ -865,7 +868,9 @@ function Crew({ now }: { now: number }) {
                             </b>
                           )}
                           {id === "semicolon" && n > 0 && !held && <b className="fy-job__tag">Clone</b>}
+                          {c.auto && <ApprovalMark approval="auto" />}
                           {KIND_LABEL[c.kind]} · {modelOf(c, id)} · {formatWait(now - c.updatedAt)} ago
+                          {c.auto && <StopAuto crate={c} setup={setup} />}
                         </span>
                         <span className={`pill pill--${held ? held.tone : CREW_STATE[c.state]}`}>
                           <i aria-hidden="true" />
@@ -898,7 +903,9 @@ function Crew({ now }: { now: number }) {
                     {c.title}
                   </a>
                   <span className="fy-job__meta">
+                    {c.auto && <ApprovalMark approval="auto" />}
                     {KIND_LABEL[c.kind]} · for {CREW[who].name} on {modelOf(c, who)} · {formatWait(now - c.updatedAt)} ago
+                    {c.auto && <StopAuto crate={c} setup={setup} />}
                   </span>
                   <span className="pill pill--off">
                     <i aria-hidden="true" />
@@ -913,6 +920,41 @@ function Crew({ now }: { now: number }) {
         )}
       </section>
     </>
+  );
+}
+
+/**
+ * Stop a build the Builder auto-approved (docs/FOUNDRY.md, "Auto-approval"): two taps, so a stray one never stops
+ * anything. It goes back to an idea card waiting for Nikita's pick.
+ */
+function StopAuto({ crate, setup }: { crate: Crate; setup: Setup }) {
+  const [mode, setMode] = useState<"idle" | "confirm" | "busy" | "done" | "failed" | "signin">("idle");
+  if (!setup?.buttons) return null;
+  const stop = async () => {
+    setMode("busy");
+    if ((await ensureSignedIn()) !== "ok") return setMode("signin");
+    const r = await send(crate.number, "stop");
+    if (r === "signed-out") return setMode("signin");
+    if (r === "failed" || r === "held") return setMode("failed");
+    setMode("done");
+    expectChange();
+  };
+  if (mode === "done") return <span className="fy-stop__note">Stopped. It's back with the ideas for your pick.</span>;
+  if (mode === "failed") return <span className="fy-stop__note">That didn't go through. Try again in a moment.</span>;
+  if (mode === "signin") return <span className="fy-stop__note">Sign in above to stop it.</span>;
+  return mode === "confirm" || mode === "busy" ? (
+    <span className="fy-stop">
+      <button type="button" className="btn btn--sm" disabled={mode === "busy"} onClick={() => void stop()}>
+        {mode === "busy" ? "Stopping…" : "Yes, stop it"}
+      </button>
+      <button type="button" className="btn btn--quiet btn--sm" disabled={mode === "busy"} onClick={() => setMode("idle")}>
+        Keep going
+      </button>
+    </span>
+  ) : (
+    <button type="button" className="btn btn--quiet btn--sm fy-stop__btn" onClick={() => setMode("confirm")} title="Auto-approved by the Builder. Stop it and send it back to you as an idea.">
+      Stop
+    </button>
   );
 }
 
@@ -967,8 +1009,8 @@ function savedPeriod(): Period {
  * model used, all counted from the issue trails (usage.ts). The plan's own session and weekly limits are on Claude's
  * usage page, which the Desk can't read, so it links there.
  */
-function Usage({ now, setup, world }: { now: number; setup: Setup; world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
-  const { feed, failed } = useUsage();
+function Usage({ now, setup, world, usage }: { now: number; setup: Setup; world: { status: ChronicleStatus; feed: WorldFeed | null }; usage: ReturnType<typeof useUsage> }) {
+  const { feed, failed } = usage;
   // The cap is shared with the living Lattice's hourly steps (docs/WORLD.md), so the meter counts both.
   // The day's story scripts (Claude Haiku) count against the same cap, with the world's hours.
   const worldUsd = (world.feed?.spend.usd ?? 0) + (world.feed?.story?.scriptUsd ?? 0);
@@ -1251,7 +1293,83 @@ function dayLabel(at: number, now: number): string {
   return new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
 
-/** Every shipped change, newest first, grouped by day: what it was, who did it, and links to its issue and code. */
+/**
+ * The Changelog's two markers (docs/FOUNDRY.md, "Auto-approval"). Each pairs its colour with a word and a shape, so
+ * none is told apart by colour alone: approval by its icon and outline (filled for auto, ruled for Nikita's OK,
+ * dashed for none), source by its label beside a coloured dot.
+ */
+const APPROVAL_MARK: Record<Approval, { label: string; long: string }> = {
+  auto: { label: "Auto", long: "Auto-approved by the Builder" },
+  manual: { label: "Your OK", long: "Approved by you" },
+  none: { label: "Routine", long: "Needed no approval" },
+};
+const ORIGIN_MARK: Record<Origin, { label: string; long: string }> = {
+  nikita: { label: "Your idea", long: "Your idea, from the Desk or chat" },
+  builder: { label: "Builder idea", long: "A morning idea or one the Builder filed" },
+  upkeep: { label: "Upkeep", long: "Upkeep and maintenance" },
+  fix: { label: "Fix", long: "A fix: red checks, a bug or an alert" },
+  chat: { label: "Chat", long: "Work you asked for in chat" },
+};
+const APPROVALS: Approval[] = ["auto", "manual", "none"];
+const ORIGINS: Origin[] = ["nikita", "builder", "upkeep", "fix", "chat"];
+
+function ApprovalIcon({ approval }: { approval: Approval }) {
+  return (
+    <svg className="cl-mark__icon" viewBox="0 0 12 12" aria-hidden="true">
+      {approval === "auto" ? <path d="M7 1 2.5 7H6l-1 4 4.5-6H6z" /> : approval === "manual" ? <path d="m2.5 6.2 2.3 2.3L9.5 3.6" /> : <path d="M3 6h6" />}
+    </svg>
+  );
+}
+
+function ApprovalMark({ approval }: { approval: Approval }) {
+  return (
+    <span className={`cl-mark cl-mark--approval cl-mark--${approval}`} title={APPROVAL_MARK[approval].long}>
+      <ApprovalIcon approval={approval} />
+      {APPROVAL_MARK[approval].label}
+    </span>
+  );
+}
+
+function OriginMark({ origin }: { origin: Origin }) {
+  return (
+    <span className={`cl-mark cl-mark--origin cl-origin--${origin}`} title={ORIGIN_MARK[origin].long}>
+      <i aria-hidden="true" />
+      {ORIGIN_MARK[origin].label}
+    </span>
+  );
+}
+
+/** The key to the markers, with how many of each the list holds. */
+function ChangelogLegend({ changes }: { changes: Change[] }) {
+  const count = <K extends string>(key: "approval" | "origin", v: K) => changes.filter((c) => c[key] === v).length;
+  return (
+    <div className="cl-legend" aria-label="What the markers mean">
+      <p className="cl-legend__row">
+        <span className="cl-legend__name">Approval</span>
+        {APPROVALS.map((a) => (
+          <span key={a} className="cl-legend__item" title={APPROVAL_MARK[a].long}>
+            <ApprovalMark approval={a} />
+            <span className="cl-legend__n">{count("approval", a)}</span>
+          </span>
+        ))}
+      </p>
+      <p className="cl-legend__row">
+        <span className="cl-legend__name">Source</span>
+        {ORIGINS.map((o) => (
+          <span key={o} className="cl-legend__item" title={ORIGIN_MARK[o].long}>
+            <OriginMark origin={o} />
+            <span className="cl-legend__n">{count("origin", o)}</span>
+          </span>
+        ))}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Every shipped change, newest first, grouped by day. Each entry: who built it, what it was, when, where it came from
+ * and whether it waited for Nikita (the two markers, keyed in the legend up top), and links to its issue and code.
+ */
 function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; remarks: Map<number, Remark> }) {
   const days: { label: string; items: Change[] }[] = [];
   for (const c of changes) {
@@ -1262,38 +1380,44 @@ function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; 
   }
   return (
     <div className="changelog">
+      <ChangelogLegend changes={changes} />
       {days.map((d) => (
         <section key={d.label} className="changelog__day">
           <h3 className="changelog__date">
             {d.label} <span className="badge">{d.items.length}</span>
           </h3>
-          <ul className="crates">
+          <ul className="cl-list">
             {d.items.map((c) => {
-              const who = crewFor({ kind: c.kind, rung: null });
+              const who = c.by ?? crewFor({ kind: c.kind, rung: null });
               // The builder's own word on it, from the living Lattice's hourly step (docs/WORLD.md).
               const said = c.issue ? remarks.get(c.issue.number) : undefined;
               return (
-                <li key={c.key} className="crates__item crates__item--shipped">
+                <li key={c.key} className={`cl-entry cl-origin--${c.origin}`}>
                   <Avatar agent={who} size="sm" room="foundry" />
-                  <span className="crates__kind">{KIND_LABEL[c.kind]}</span>
-                  <a className="crates__title" href={c.issue?.url ?? c.landed?.url} target="_blank" rel="noreferrer">
-                    {c.title}
+                  <a className="cl-entry__title" href={c.issue?.url ?? c.landed?.url} target="_blank" rel="noreferrer">
+                    {/* The source marker already says it was an idea. */}
+                    {ideaTitle(c.title)}
                   </a>
-                  <span className="crates__who">
-                    {CREW[who].name} · {new Date(c.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                  </span>
-                  <span className="changelog__links">
-                    {c.issue && (
-                      <a href={c.issue.url} target="_blank" rel="noreferrer">
-                        #{c.issue.number}
-                      </a>
-                    )}
-                    {c.landed && (
-                      <a href={c.landed.url} target="_blank" rel="noreferrer">
-                        {c.landed.label}
-                      </a>
-                    )}
-                  </span>
+                  <time className="cl-entry__time" dateTime={new Date(c.at).toISOString()}>
+                    {new Date(c.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                  </time>
+                  <p className="cl-entry__meta">
+                    <OriginMark origin={c.origin} />
+                    <ApprovalMark approval={c.approval} />
+                    <span className="cl-entry__ref">
+                      <span className="cl-entry__who">{CREW[who].name}</span>
+                      {c.issue && (
+                        <a className="cl-entry__link" href={c.issue.url} target="_blank" rel="noreferrer">
+                          #{c.issue.number}
+                        </a>
+                      )}
+                      {c.landed && (
+                        <a className="cl-entry__link" href={c.landed.url} target="_blank" rel="noreferrer">
+                          {c.landed.label}
+                        </a>
+                      )}
+                    </span>
+                  </p>
                   {said && (
                     <p className="changelog__remark">
                       <b>{PORTRAITS[said.who]?.name ?? said.who}</b>“{said.text}”

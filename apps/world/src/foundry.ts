@@ -110,6 +110,8 @@ export interface Crate {
   question?: string;
   /** An idea build paused for a fix (`foundry:paused`): its branch is pushed as work in progress, and it resumes when the fix ships. */
   paused?: boolean;
+  /** A build the Builder approved itself as low risk (`foundry:auto`, docs/FOUNDRY.md "Auto-approval"); Nikita can stop it from the Desk until it ships. */
+  auto?: boolean;
   /** Who an idea's card says builds it ("**Builder:** Rusty"), when it says. */
   builder?: CrewId | null;
   /** The model its Builder line names ("**Builder:** Rusty (Opus)"), when it names one. */
@@ -138,6 +140,70 @@ export interface Change {
   by: CrewId | null;
   /** The issue's `**Short:**` line, or "". */
   short: string;
+  /** Whether it waited for Nikita: auto-approved by the Builder, approved by Nikita, or work that needs no approval (`changeSource`). */
+  approval: Approval;
+  /** Where it came from: Nikita, a Builder idea, upkeep, a fix, or chat (`changeSource`). */
+  origin: Origin;
+}
+
+/**
+ * Whether a shipped change waited for Nikita (docs/FOUNDRY.md, "Auto-approval"): `auto`, the Builder approved a
+ * low-risk idea itself (`foundry:auto`); `manual`, Nikita approved it; `none`, upkeep, fixes and chat that need no
+ * approval.
+ */
+export type Approval = "auto" | "manual" | "none";
+/**
+ * Where a shipped change came from: `nikita`, an idea Nikita sent from the Desk (or asked for as an idea); `builder`,
+ * a morning idea or an idea the Builder filed from upkeep; `upkeep`; `fix`; `chat`, work Nikita asked for in chat.
+ */
+export type Origin = "nikita" | "builder" | "upkeep" | "fix" | "chat";
+
+/** The label the Builder adds, with `foundry:build`, to an idea it approved itself (docs/FOUNDRY.md, "Auto-approval"). */
+export const AUTO_LABEL = "foundry:auto";
+
+/** What an issue's trail steps say about its approval and origin. */
+function readTrails(trails: readonly string[]): { auto: boolean; byNikita: boolean; fromNikita: boolean } {
+  const decisions = trails.filter((t) => t.startsWith("**Trail · Decision:**") || t.startsWith("Approved for building")).map((t) => t.replace(/^\*\*Trail · Decision:\*\*\s*/, ""));
+  return {
+    auto: decisions.some((t) => /^Auto-approved by Skippy/i.test(t)),
+    // "Approved for building by Nikita on the Desk.", or a bigger fix Nikita shipped ("Shipped by Nikita …").
+    byNikita: decisions.some((t) => /^(?:Approved|Shipped|Ship)\b[^\n]*\bby Nikita\b/i.test(t)),
+    fromNikita: trails.some((t) => /^\*\*Trail · Origin:\*\*\s*Nikita\b/.test(t)),
+  };
+}
+
+/**
+ * How a change was approved and where it came from, from its kind, its labels, its issue body and (when the Desk has
+ * them) its trail steps. A built idea is Nikita's call (`manual`) unless it carries `foundry:auto` or an
+ * "Auto-approved by Skippy" Decision, so every build from before the rule reads as Nikita's. Upkeep, fixes and chat need
+ * no approval (`none`) unless a Decision says Nikita signed one off (a bigger fix's Ship). An idea is Nikita's when
+ * its body has Nikita's Desk words or its Origin step names Nikita, else the Builder's (a morning idea, or one from upkeep).
+ */
+export function changeSource(kind: CrateKind, labels: Iterable<string>, body = "", trails: readonly string[] = []): { approval: Approval; origin: Origin } {
+  const has = new Set(labels);
+  const trail = readTrails(trails);
+  const idea = kind === "build" || kind === "idea";
+  const origin: Origin = idea ? (/\*\*From Nikita\b/.test(body) || trail.fromNikita ? "nikita" : "builder") : kind;
+  const approval: Approval = has.has(AUTO_LABEL) || trail.auto ? "auto" : idea || trail.byNikita ? "manual" : "none";
+  return { approval, origin };
+}
+
+/**
+ * The changelog with each issue's trail steps folded in, once the Desk has them (the usage feed): an Origin or
+ * Decision step settles what the labels and body alone leave open.
+ */
+export function withTrails(changelog: Change[], trails: readonly { issue: number; body: string }[]): Change[] {
+  if (!trails.length) return changelog;
+  const byIssue = new Map<number, string[]>();
+  for (const t of trails) byIssue.set(t.issue, [...(byIssue.get(t.issue) ?? []), t.body]);
+  return changelog.map((c) => {
+    const steps = c.issue ? byIssue.get(c.issue.number) : undefined;
+    if (!steps) return c;
+    const t = readTrails(steps);
+    const approval: Approval = c.approval === "auto" || t.auto ? "auto" : c.approval === "manual" || t.byNikita ? "manual" : "none";
+    const origin: Origin = c.origin === "builder" && t.fromNikita ? "nikita" : c.origin;
+    return approval === c.approval && origin === c.origin ? c : { ...c, approval, origin };
+  });
 }
 
 export interface FoundryData {
@@ -241,16 +307,18 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
     if (pr) used.add(pr.number);
     const body = readBody(issue.body ?? "");
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
+    // A built idea is a build by the time it ships.
+    const shipped: CrateKind = kind === "idea" ? "build" : kind;
     out.push({
       key: `issue-${issue.number}`,
       at: Date.parse(issue.closed_at ?? issue.updated_at),
       title: issue.title,
-      // A built idea is a build by the time it ships.
-      kind: kind === "idea" ? "build" : kind,
+      kind: shipped,
       issue: { number: issue.number, url: issue.html_url },
       landed: pr ? { label: `PR #${pr.number}`, url: pr.html_url } : commit ? { label: commit.sha.slice(0, 7), url: commit.html_url } : null,
       by: crewFor({ kind, rung, builder: body.builder }),
       short: body.short,
+      ...changeSource(shipped, labels, issue.body ?? ""),
     });
   }
   // A pull request for an issue already listed (or still open) is that issue's, not a change of its own.
@@ -260,7 +328,8 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
     const refs = [branchIssue(p.head.ref), ...mentions(`${p.title}\n${p.body ?? ""}`)];
     if (refs.some((n) => n !== null && tracked.has(n))) continue;
     const lane = /^foundry\/(fix|upkeep|build|idea)\//.exec(p.head.ref)?.[1] as CrateKind | undefined;
-    out.push({ key: `pr-${p.number}`, at: Date.parse(p.merged_at!), title: p.title, kind: lane === "idea" ? "build" : (lane ?? "chat"), issue: null, landed: { label: `PR #${p.number}`, url: p.html_url }, by: null, short: "" });
+    const kind: CrateKind = lane === "idea" ? "build" : (lane ?? "chat");
+    out.push({ key: `pr-${p.number}`, at: Date.parse(p.merged_at!), title: p.title, kind, issue: null, landed: { label: `PR #${p.number}`, url: p.html_url }, by: null, short: "", ...changeSource(kind, []) });
   }
   return out.sort((a, b) => b.at - a.at);
 }
@@ -293,7 +362,7 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
       state = labels.has("foundry:stuck") || labels.has("foundry:blocked") ? "stuck" : labels.has("foundry:ready") ? "ready" : labels.has("foundry:working") ? "working" : "queued";
     }
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
-    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), ...(issue.created_at && { createdAt: Date.parse(issue.created_at) }), revising: labels.has("foundry:revise"), asking: kind === "idea" && labels.has("foundry:question"), paused: state === "working" && labels.has("foundry:paused"), ...readBody(issue.body ?? "") });
+    crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), ...(issue.created_at && { createdAt: Date.parse(issue.created_at) }), revising: labels.has("foundry:revise"), asking: kind === "idea" && labels.has("foundry:question"), paused: state === "working" && labels.has("foundry:paused"), ...(labels.has(AUTO_LABEL) && { auto: true }), ...readBody(issue.body ?? "") });
   }
   return crates.sort((a, b) => b.updatedAt - a.updatedAt);
 }

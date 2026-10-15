@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_QUESTIONS, answerBlock, answeredRounds, questionOf, readShape, shapeInput, shapedBody, shapedLabels, shapedLine, tidyQuestion } from "./foundry.ts";
+import { MAX_QUESTIONS, autoEligible, riskLine, stoppedLabels, answerBlock, answeredRounds, questionOf, readShape, shapeInput, shapedBody, shapedLabels, shapedLine, tidyQuestion } from "./foundry.ts";
 import { readBody } from "../apps/world/src/foundry.ts";
 
 const card = { title: "Idea: Ask first", pitch: "Ask before queuing.", size: "medium", short: "Asking first", builder: "Rusty", model: "Sonnet" } as const;
@@ -87,5 +87,35 @@ describe("the shaping input", () => {
     expect(shapeInput("a", "b", { mayAsk: false })).toContain("Do not ask another question");
     expect(shapeInput("a", "b")).not.toContain("Do not ask another question");
     expect(MAX_QUESTIONS).toBe(2);
+  });
+});
+
+describe("Rivet's risk read (a suggestion; the Builder decides auto-approval)", () => {
+  it("reads risk and the never-list areas, keeping only known ones", () => {
+    expect(readShape({ ...card, risk: "low", touches: [] })).toMatchObject({ risk: "low", touches: [] });
+    expect(readShape({ ...card, risk: "low", touches: ["secrets", "auth", "secrets", "root-access"] })).toMatchObject({ touches: ["auth", "secrets"] });
+  });
+  it("never reads a missing or odd risk as low", () => {
+    expect(readShape({ ...card })).toMatchObject({ risk: "medium", touches: [] });
+    expect(readShape({ ...card, risk: "none", touches: "auth" })).toMatchObject({ risk: "medium", touches: [] });
+  });
+  it("could auto-approve only small or medium, low or medium risk, nothing on the never-list", () => {
+    expect(autoEligible({ size: "small", risk: "low", touches: [] })).toBe(true);
+    expect(autoEligible({ size: "medium", risk: "medium", touches: [] })).toBe(true);
+    expect(autoEligible({ size: "large", risk: "low", touches: [] })).toBe(false);
+    expect(autoEligible({ size: "small", risk: "high", touches: [] })).toBe(false);
+    expect(autoEligible({ size: "small", risk: "low", touches: ["spend"] })).toBe(false);
+  });
+  it("writes a Risk line on the card and the Shaped step", () => {
+    const low = readShape({ ...card, size: "small", risk: "low", touches: [] })!;
+    const auth = readShape({ ...card, size: "small", risk: "low", touches: ["auth"] })!;
+    expect(riskLine(low)).toBe("**Risk:** low · could be auto-approved; the Builder decides");
+    expect(riskLine(auth)).toBe("**Risk:** low (touches sign-in or auth) · waits for Nikita");
+    expect(shapedBody(auth, "w")).toContain("**Builder:** Rusty (Sonnet)\n**Risk:** low (touches sign-in or auth) · waits for Nikita\n");
+    expect(shapedLine(low, 1000, null)).toContain("Risk: low (could be auto-approved; the Builder decides).");
+    expect(shapedLine(auth, 1000, null)).toContain("Risk: low, touches sign-in or auth (waits for Nikita).");
+  });
+  it("puts a stopped auto-approved build back as an idea, out of everyone's hands", () => {
+    expect(stoppedLabels(["foundry", "foundry:build", "foundry:auto", "foundry:working", "foundry:paused"])).toEqual(["foundry", "foundry:idea"]);
   });
 });

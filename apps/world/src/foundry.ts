@@ -289,7 +289,8 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
       if (now - closedAt > SHIPPED_FOR_MS) continue;
       state = "shipped";
     } else {
-      state = labels.has("foundry:stuck") ? "stuck" : labels.has("foundry:ready") ? "ready" : labels.has("foundry:working") ? "working" : "queued";
+      // `foundry:blocked` (#135): the Builder needs Nikita's call to go on; it shows as stuck, waiting on Nikita.
+      state = labels.has("foundry:stuck") || labels.has("foundry:blocked") ? "stuck" : labels.has("foundry:ready") ? "ready" : labels.has("foundry:working") ? "working" : "queued";
     }
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
     crates.push({ number: issue.number, title: issue.title, kind, state, rung, url: issue.html_url, updatedAt, ...(closedAt !== undefined && { closedAt }), ...(issue.created_at && { createdAt: Date.parse(issue.created_at) }), revising: labels.has("foundry:revise"), asking: kind === "idea" && labels.has("foundry:question"), paused: state === "working" && labels.has("foundry:paused"), ...readBody(issue.body ?? "") });

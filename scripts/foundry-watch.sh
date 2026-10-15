@@ -34,11 +34,12 @@ world() { curl -sS -o /dev/null --max-time 120 -X POST https://command-everythin
 ticks=0
 world &
 
-# True when issue $1 has a comment from anyone but Nikita (the Desk writes with Nikita's token too), Checks or Vercel.
+# True when issue $1 has a comment from anyone but Nikita, Checks, the crew's App (the Desk writes as ceo-foundry[bot]
+# once it is set up, #138; with Nikita's token until then) or Vercel.
 owner="nikitapage10"
 outside() {
   gh api --paginate "repos/$repo/issues/$1/comments?per_page=100" --jq '.[].user.login' 2>/dev/null \
-    | grep -qvxF -e "$owner" -e "github-actions[bot]" -e "vercel[bot]"
+    | grep -qvxF -e "$owner" -e "github-actions[bot]" -e "ceo-foundry[bot]" -e "vercel[bot]"
 }
 
 base="$(look)" || { echo "Can't read the Foundry queue on GitHub." >&2; exit 1; }

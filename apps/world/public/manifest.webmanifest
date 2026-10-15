@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "C.E.O. Desk",
+  "short_name": "C.E.O.",
+  "description": "The Desk: the Lattice's control room, where the C.E.O. acts on what the agents bring in.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#04060b",
+  "theme_color": "#04060b",
+  "icons": [
+    { "src": "/desk/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/desk/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/desk/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

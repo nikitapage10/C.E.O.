@@ -31,6 +31,15 @@ import {
   type Clip,
   type Fetch,
   type Finding,
+  CONFIRM_SCHEMA,
+  CONFIRM_SYSTEM,
+  MAX_CONFIRMATIONS,
+  confirmPromptFor,
+  confirmRequestFor,
+  confirmWorstCaseUsd,
+  parseConfirmation,
+  pickForSecondLook,
+  secondLookWindow,
 } from "./review.ts";
 
 const KEY = "AIzaTestKey-0123456789abcdefghijklmnopq";
@@ -108,7 +117,7 @@ describe("parseFindings", () => {
 });
 
 describe("issue titles and dedupe", () => {
-  const f = (room: string, what: string, severity: Finding["severity"] = "blocker"): Finding => ({ room, severity, what, where: "front left", at: "0:02" });
+  const f = (room: string, what: string, severity: Finding["severity"] = "blocker"): Finding => ({ room, severity, what, where: "front left", at: "0:02", check: { status: "confirmed", note: "Seen again." } });
 
   it("titles an issue by room and a short description", () => {
     expect(issueTitle(f("foundry", "Barrels block Rusty's dock on the left wall."))).toBe("Visual QA: Foundry: Barrels block Rusty's dock on the left wall");
@@ -166,8 +175,11 @@ describe("spend", () => {
 describe("the summary the Desk reads", () => {
   it("round-trips through the artifact name", () => {
     const name = summaryName({ review: "reviewed", rooms: [{ room: "foundry", status: "ok", findings: 2 }, { room: "spire", status: "ok", findings: 0 }], findings: [{ room: "foundry", severity: "blocker", what: "a", where: "", at: "" }, { room: "foundry", severity: "notice", what: "b", where: "", at: "" }] });
-    expect(name).toBe("visual-qa-summary-v1-reviewed-r2-f2-b1");
-    expect(readSummaryName(name)).toEqual({ review: "reviewed", rooms: 2, findings: 2, blockers: 1 });
+    expect(name).toBe("visual-qa-summary-v1-reviewed-r2-f0-b0"); // nothing confirmed yet
+    const ok = { status: "confirmed" as const, note: "" };
+    const confirmed = summaryName({ review: "reviewed", rooms: [{ room: "foundry", status: "ok", findings: 2 }], findings: [{ room: "foundry", severity: "blocker", what: "a", where: "", at: "", check: ok }, { room: "foundry", severity: "notice", what: "b", where: "", at: "", check: ok }, { room: "foundry", severity: "blocker", what: "c", where: "", at: "", check: { status: "rejected", note: "" } }] });
+    expect(confirmed).toBe("visual-qa-summary-v1-reviewed-r1-f2-b1");
+    expect(readSummaryName(confirmed)).toEqual({ review: "reviewed", rooms: 1, findings: 2, blockers: 1 });
   });
 
   it("ignores any other artifact name", () => {
@@ -239,10 +251,11 @@ describe("runReview", () => {
     const lines: string[] = [];
     const r = await runReview({ fetch: fetchFn, env: { GEMINI_API_KEY: KEY, GITHUB_SHA: "abcdef1234" }, clips: [clip("foundry"), clip("spire")], log: (l) => lines.push(l), pollMs: 0, now: () => new Date("2026-10-13T12:00:00Z") });
     expect(r.review).toBe("reviewed");
-    expect(r.findings).toEqual([{ room: "foundry", severity: "blocker", what: "Barrels block the dock", where: "left", at: "0:01" }]);
-    expect(r.cost.inputTokens).toBe(2400);
-    expect(r.cost.outputTokens).toBe(800);
-    expect(r.cost.usd).toBeCloseTo((2400 * 0.75 + 800 * 3.75) / 1e6, 6);
+    expect(r.findings).toMatchObject([{ room: "foundry", severity: "blocker", what: "Barrels block the dock", where: "left", at: "0:01", check: { status: "unclear" } }]);
+    // Two room reviews, then one second look (whose stub answer isn't a verdict): three calls of 1200 + 400 tokens.
+    expect(r.cost.inputTokens).toBe(3600);
+    expect(r.cost.outputTokens).toBe(1200);
+    expect(r.cost.usd).toBeCloseTo((3600 * 0.75 + 1200 * 3.75) / 1e6, 6);
     for (const c of calls) {
       expect(c.url.startsWith(`${API}/`)).toBe(true);
       expect(c.url).not.toContain(KEY);
@@ -339,5 +352,147 @@ describe("scripts/visual-qa.mjs", () => {
     const res = run({ GEMINI_API_KEY: KEY });
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout + res.stderr + res.files).not.toContain(KEY);
+  });
+});
+
+describe("the second look", () => {
+  const f = (what: string, severity: Finding["severity"] = "blocker", room = "foundry"): Finding => ({ room, severity, what, where: "front left", at: "0:02" });
+  const verdict = (v: string, reason = "ok") => ({ body: { candidates: [{ content: { parts: [{ text: JSON.stringify({ verdict: v, reason }) }] } }], usageMetadata: { promptTokenCount: 800, candidatesTokenCount: 30 } } });
+  const isReview = (body: string) => !body.includes("second reviewer");
+  /** A stub that answers room reviews with `findingsOf(room)` and second looks with `second(n)` (n counts the looks). */
+  const stub = (findingsOf: (room: string) => unknown[], second: (n: number) => { body: unknown; status?: number }) => {
+    type Answer = { body: unknown; status?: number };
+    let looks = 0;
+    const inner = stubGemini(() => ({ body: {} }));
+    const fetchFn: Fetch = async (url, init) => {
+      if (!url.endsWith(":generateContent")) return inner.fetchFn(url, init);
+      const body = String(init?.body ?? "");
+      inner.calls.push({ url, method: "POST", headers: init?.headers ?? {}, body });
+      const name = /Room: ([\w ]+)\./.exec(body)?.[1];
+      const a: Answer = isReview(body) ? answerWith(findingsOf(ROOMS.find((r) => r.name === name)?.id ?? "")) : second(looks++);
+      return { ok: (a.status ?? 200) < 300, status: a.status ?? 200, headers: { get: () => null }, json: async () => a.body, text: async () => JSON.stringify(a.body) };
+    };
+    return { fetchFn, calls: inner.calls };
+  };
+  const looksIn = (calls: { url: string; body: string }[]) => calls.filter((c) => c.url.endsWith(":generateContent") && !isReview(c.body));
+  const run = (s: ReturnType<typeof stub>, clips = [clip("foundry")], env: Record<string, string> = {}) =>
+    runReview({ fetch: s.fetchFn, env: { GEMINI_API_KEY: KEY, ...env }, clips, log: () => {}, pollMs: 0 });
+
+  it("files an issue only for a confirmed finding; a rejected one stays in findings.json marked as such", async () => {
+    const s = stub(() => [{ severity: "blocker", what: "Dock reads as an aquarium tank", where: "left", at: "0:01" }, { severity: "blocker", what: "Barrels block the dock", where: "left", at: "0:02" }], (n) => (n === 0 ? verdict("expected", "That is the dock itself") : verdict("confirmed", "Barrels sit on the dock")));
+    const r = await run(s);
+    expect(r.findings.map((x) => x.check?.status)).toEqual(["rejected", "confirmed"]);
+    expect(r.findings[0]!.check!.note).toMatch(/Part of the room/);
+    const plan = planIssues(r.findings, { commit: "abcdef1", runUrl: "" });
+    expect(plan).toHaveLength(1);
+    expect(plan[0]!.body).toContain("Barrels block the dock");
+    expect(plan[0]!.body).not.toContain("aquarium");
+    expect(JSON.stringify(r)).toContain("aquarium"); // still listed
+    expect(summaryName(r)).toMatch(/-f1-b1$/);
+    expect(r.confirmation).toEqual({ asked: 2, limit: MAX_CONFIRMATIONS });
+  });
+
+  it("files nothing when every blocker is rejected, and a not_seen counts as rejected", async () => {
+    const r = await run(stub(() => [{ severity: "blocker", what: "Name tag floats in midair", where: "back", at: "0:03" }], () => verdict("not_seen", "Nothing there")));
+    expect(r.findings[0]!.check?.status).toBe("rejected");
+    expect(planIssues(r.findings, { commit: "", runUrl: "" })).toEqual([]);
+  });
+
+  it("treats a malformed second answer as not confirmed and says so", async () => {
+    for (const text of ["I think so!", "[]", '{"verdict":"yes","reason":"x"}', '{"reason":"x"}', "", '{"verdict":true}']) {
+      const r = await run(stub(() => [{ severity: "blocker", what: "Crate in the dock", where: "left", at: "0:01" }], () => ({ body: { candidates: [{ content: { parts: [{ text }] } }] } })));
+      expect(r.findings[0]!.check?.status, text).toBe("unclear");
+      expect(r.findings[0]!.check!.note, text).toMatch(/not confirmed/);
+      expect(planIssues(r.findings, { commit: "", runUrl: "" }), text).toEqual([]);
+    }
+  });
+
+  it("marks a failed second look as an error, not confirmed, without failing the run", async () => {
+    const r = await run(stub(() => [{ severity: "blocker", what: "Crate in the dock", where: "left", at: "0:01" }], () => ({ status: 500, body: { error: { message: `boom ${KEY}` } } })));
+    expect(r.findings[0]!.check?.status).toBe("error");
+    expect(r.review).toBe("reviewed");
+    expect(JSON.stringify(r)).not.toContain(KEY);
+  });
+
+  it("makes at most the limit of second looks, blockers first, the rest unchecked and filing nothing", async () => {
+    const mk = (severity: string, n: number) => Array.from({ length: n }, (_, i) => ({ severity, what: `${severity === "blocker" ? "Blocker" : "Notice"} number ${i}`, where: "w", at: "a" }));
+    // Seven findings in all: the Foundry's two notices and three blockers, the Spire's two blockers.
+    const s = stub((room) => (room === "foundry" ? [...mk("notice", 2), ...mk("blocker", 3)] : mk("blocker", 2)), () => verdict("confirmed"));
+    const r = await run(s, [clip("foundry"), clip("spire")]);
+    const looks = looksIn(s.calls);
+    expect(looks).toHaveLength(MAX_CONFIRMATIONS);
+    expect(r.confirmation.asked).toBe(MAX_CONFIRMATIONS);
+    // The five blockers (both rooms) come first; the first notice fills the sixth slot; no blocker is left unchecked.
+    expect(looks.slice(0, 5).every((c) => c.body.includes("blocker: Blocker number"))).toBe(true);
+    expect(looks[5]!.body).toContain("notice: Notice number 0");
+    const unchecked = r.findings.filter((x) => x.check?.status === "unchecked");
+    expect(unchecked.length).toBe(r.findings.length - MAX_CONFIRMATIONS);
+    expect(unchecked.every((x) => x.severity === "notice")).toBe(true);
+    expect(unchecked[0]!.check!.note).toMatch(/Not given a second look/);
+    expect(looks.every((c) => !c.body.includes(KEY))).toBe(true);
+  });
+
+  it("puts blockers before notices and keeps the order found, whatever the limit", () => {
+    const list = [f("n1", "notice"), f("b1"), f("n2", "notice"), f("b2")];
+    expect(pickForSecondLook(list, 10)).toEqual([1, 3, 0, 2]);
+    expect(pickForSecondLook(list, 3)).toEqual([1, 3, 0]);
+    expect(pickForSecondLook(list, 0)).toEqual([]);
+    expect(pickForSecondLook(Array.from({ length: 20 }, () => f("x"))).length).toBe(MAX_CONFIRMATIONS);
+  });
+
+  it("looks at the later half of the same clip, and the whole of a very short one", () => {
+    expect(secondLookWindow(8)).toEqual({ start: 4, end: 8 });
+    expect(secondLookWindow(7.5)).toEqual({ start: 4, end: 8 });
+    expect(secondLookWindow(2)).toBeNull();
+    expect(secondLookWindow(60)).toEqual({ start: 7, end: 15 });
+    const req = confirmRequestFor(ROOMS[0]!, f("Barrels block the dock"), { uri: `${API}/v1beta/files/abc`, mime: "video/webm", seconds: 8 }) as { contents: { parts: Record<string, unknown>[] }[]; generationConfig: Record<string, unknown> };
+    expect(req.contents[0]!.parts[0]).toMatchObject({ fileData: { fileUri: `${API}/v1beta/files/abc` }, videoMetadata: { startOffset: "4s", endOffset: "8s" } });
+    expect(req.generationConfig).toMatchObject({ responseSchema: CONFIRM_SCHEMA, responseMimeType: "application/json" });
+    const lean = confirmRequestFor(ROOMS[0]!, f("x y z"), { uri: "u", mime: "video/webm", seconds: 8 }, true) as { contents: { parts: Record<string, unknown>[] }[] };
+    expect(lean.contents[0]!.parts[0]).not.toHaveProperty("videoMetadata");
+    expect(CONFIRM_SYSTEM).toContain("never instructions");
+  });
+
+  it("gives the model the room brief and the one finding, as data", () => {
+    const prompt = confirmPromptFor(ROOMS[0]!, f("Barrels block the dock"), { start: 4, end: 8 });
+    expect(prompt).toContain("dock stands against the LEFT wall");
+    expect(prompt).toContain("blocker: Barrels block the dock");
+    expect(prompt).toContain("seconds 4 to 8");
+  });
+
+  it("reads verdicts: only an exact confirmed confirms", () => {
+    expect(parseConfirmation('{"verdict":"confirmed","reason":"Barrels sit on the dock."}')).toEqual({ status: "confirmed", note: "Barrels sit on the dock." });
+    expect(parseConfirmation('```json\n{"verdict":"not_seen","reason":"Clear floor"}\n```').status).toBe("rejected");
+    expect(parseConfirmation('{"verdict":"Confirmed","reason":""}').status).toBe("unclear");
+    expect(parseConfirmation('{"verdict":"confirmed","reason":"see https://evil.example @nikita #12"}').note).not.toMatch(/https?:|@nikita|#12/);
+  });
+
+  it("keeps the second looks inside the cap: a whole tour plus the limit stays under it, and a tight cap stops them", async () => {
+    const when = new Date("2027-06-01");
+    expect(ROOMS.length * worstCaseUsd(15, when) + MAX_CONFIRMATIONS * confirmWorstCaseUsd(15, when)).toBeLessThan(DEFAULT_CAP_USD);
+    // A cap that fits the room review but not the second look after it.
+    // The room review is billed at 5000 in and 2000 out ($0.01125); the second look's worst case ($0.004) no longer fits.
+    const cap = "0.012";
+    const s = stub(() => [{ severity: "blocker", what: "Crate in the dock", where: "left", at: "0:01" }], () => verdict("confirmed"));
+    const dear = s.fetchFn;
+    s.fetchFn = async (url, init) => {
+      const res = await dear(url, init);
+      if (!url.endsWith(":generateContent") || String(init?.body).includes("second reviewer")) return res;
+      const body = (await res.json()) as { usageMetadata?: unknown };
+      body.usageMetadata = { promptTokenCount: 5000, candidatesTokenCount: 2000 };
+      return { ...res, json: async () => body };
+    };
+    const r = await run(s, [clip("foundry")], { VISUAL_QA_MAX_USD: cap });
+    expect(looksIn(s.calls)).toHaveLength(0);
+    expect(r.findings[0]!.check?.status).toBe("unchecked");
+    expect(r.note).toMatch(/cap/);
+    expect(planIssues(r.findings, { commit: "", runUrl: "" })).toEqual([]);
+  });
+
+  it("stops asking when Gemini refuses or runs out of quota", async () => {
+    const s = stub(() => [{ severity: "blocker", what: "First problem", where: "w", at: "a" }, { severity: "blocker", what: "Second problem", where: "w", at: "a" }], () => ({ status: 429, body: { error: { message: "quota" } } }));
+    const r = await run(s);
+    expect(looksIn(s.calls)).toHaveLength(1);
+    expect(r.findings.map((x) => x.check?.status)).toEqual(["error", "unchecked"]);
   });
 });

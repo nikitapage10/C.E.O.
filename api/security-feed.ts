@@ -6,7 +6,8 @@
  * one would be a map for an attacker (docs/THREAT-MODEL.md, TB6). Everything else from GitHub is dropped here, not
  * in the browser.
  *
- * GitHub reads go out with the Foundry's token (read-only calls only), and Scorecard's public API is read from here
+ * GitHub reads go out with the Foundry's token (read-only calls only; a read-only App token once the crew's App is
+ * set up, api/_github.ts), and Scorecard's public API is read from here
  * because the browser's CSP allows only this site and api.github.com. A read the token isn't allowed to make comes
  * back as "not reported" rather than failing the feed. Cached like the other feeds (api/_feedcache.ts): canonical
  * URL, a short memo with one read in flight, and the edge cache.
@@ -15,6 +16,7 @@
  */
 
 import { canonical, memo } from "./_feedcache.js";
+import { githubToken } from "./_github.js";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -62,8 +64,6 @@ const WORKFLOWS: { id: WorkflowState["id"]; name: string; file: string; scope: W
   { id: "e2e", name: "E2E", file: "e2e.yml", scope: "main" },
 ];
 
-const env = (name: string): string => process.env[name] ?? "";
-
 class ReadError extends Error {
   constructor(readonly status: number) {
     super(String(status));
@@ -71,7 +71,7 @@ class ReadError extends Error {
 }
 
 async function read(path: string): Promise<unknown> {
-  const token = env("FOUNDRY_GITHUB_TOKEN");
+  const token = await githubToken("read");
   const res = await fetch(`${GH}${path}`, {
     headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });

@@ -1,9 +1,10 @@
 /**
  * Idea pictures as short-lived private links (#127, docs/THREAT-MODEL.md, R4). The pictures live in the project's
  * private Vercel Blob store and only ever come back through the Desk's own picture function (api/foundry-image.ts),
- * and only on a link signed for a few minutes: an HMAC of the picture's name and an expiry time, keyed with the Desk
- * key. The Desk signs its own links in the browser (it holds the key), the function signs one for Rivet's shaping
- * call, and an unsigned or expired link gets nothing, so a picture in a public issue can't be opened by anyone.
+ * and only on a link signed for a few minutes: an HMAC of the picture's name and an expiry time, keyed with a secret
+ * derived from the Desk key (`pictureSecret` in api/_desk/keys.ts). Only the server signs (#132): the picture
+ * function signs the Desk's own links for a signed-in Desk, api/foundry.ts signs one for Rivet's shaping call, and an
+ * unsigned or expired link gets nothing, so a picture in a public issue can't be opened by anyone.
  *
  * Shared by the function and the Desk, so it uses only Web Crypto (Node 20+ and every browser), never `node:` APIs.
  * Underscore file: Vercel never serves it as a function.
@@ -17,6 +18,15 @@ export const PICTURE_PATH = /^foundry\/ideas\/[\w.-]+$/;
 export const LINK_MAX_S = 30 * 60;
 /** At most this many pictures on an idea. */
 export const MAX_PICTURES = 4;
+
+/** How far ahead the Desk's links are signed: to the end of the next ten-minute window, so a link stays put. */
+const WINDOW_S = 600;
+
+/** The expiry the Desk's links are signed with at `now` (ms): 10 to 20 minutes ahead, the same for a whole window. */
+export const linkUntil = (now: number) => (Math.floor(now / 1000 / WINDOW_S) + 2) * WINDOW_S;
+
+/** The window a time (ms) falls in: the Desk asks for fresh links when it changes. */
+export const linkWindow = (now: number) => Math.floor(now / 1000 / WINDOW_S);
 
 const enc = new TextEncoder();
 

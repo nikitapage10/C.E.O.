@@ -314,14 +314,14 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "The builder's worst slips (wiping a folder, pushing to main, printing a key, changing the repo's protection) are now rules it can't break, not only rules it follows.",
   },
   R2: {
-    what: "A GitHub App for the agents, with short-lived tokens, so they act as themselves rather than as Nikita.",
-    connects: "The Foundry's branches, pull requests and merges.",
-    why: "Separate identities make the agents' actions auditable and let the repo's rules treat them differently.",
+    what: "A GitHub App for the crew, ceo-foundry, whose tokens last an hour and reach only this repo, so the Desk's buttons, the feeds and CI's fix issues act as the Foundry rather than as Nikita. It can't touch settings or workflows.",
+    connects: "The Desk's functions and CI today, once Nikita sets the App up. The Claude Code sessions' pushes and merges still use Nikita's access, which their environment sets, not the repo.",
+    why: "Separate identities make the agents' actions auditable and let the repo's rules treat them differently, and a token that leaks is useless within the hour.",
   },
   R3: {
-    what: "A real sign-in for the Desk: a passkey, a short session and rate limits.",
-    connects: "The Desk's buttons, which today are guarded by one key.",
-    why: "The Desk is the approval gate for every build, so it deserves more than a shared key.",
+    what: "A real sign-in for the Desk: a passkey on Nikita's PC or phone, a session that lasts 30 minutes from its last use and 12 hours at most, and wrong tries slowed down, then locked out.",
+    connects: "The Desk's buttons, picture uploads and the day's story, which used to take one typed key and now need a passkey session.",
+    why: "The Desk is the approval gate for every build; the old key is now only for enrolling a new device, and never stays in the browser.",
   },
   R4: {
     what: "A check that reads Desk text before it is posted and holds back emails, phone numbers, addresses, card and account numbers, keys and names. Idea pictures stay private, on links that last minutes.",
@@ -355,7 +355,7 @@ export const EVAL_EXPLAIN: Record<EvalAreaId, Explain> = {
   "desk-write": {
     what: "Forged and oversized requests sent to the Desk's write path, with GitHub and Claude stubbed out.",
     connects: "The Desk's buttons and the function behind them.",
-    why: "It proves a wrong key touches nothing and an idea can't start a build without Nikita's choice.",
+    why: "It proves a click without a sign-in session touches nothing and an idea can't start a build without Nikita's choice.",
   },
   "world-step": {
     what: "Hostile issue titles, stranger comments and bad answers run through the hourly world step.",

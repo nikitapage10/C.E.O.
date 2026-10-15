@@ -41,6 +41,11 @@ describe("parseCrates", () => {
     const [c] = parseCrates([issue(7, ["foundry", "foundry:build", "foundry:working", "foundry:ready", "foundry:stuck"])], NOW);
     expect(c!.state).toBe("stuck");
   });
+
+  it("shows a job the Builder flagged as blocked (#135) as stuck, waiting on Nikita", () => {
+    const [c] = parseCrates([issue(8, ["foundry", "foundry:build", "foundry:working", "foundry:blocked"])], NOW);
+    expect(c!.state).toBe("stuck");
+  });
 });
 
 describe("ideas Rivet asks about first", () => {

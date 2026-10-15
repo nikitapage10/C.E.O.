@@ -33,9 +33,96 @@ Claude: the Desk says what kind of thing it found (never the words) and Nikita s
 check with no model call, so it is free and predictable, and a slip it can't see still goes public as written.
 
 Idea pictures stay in the private Vercel Blob store. The issue names them but never links them, and
-`api/foundry-image.ts` serves one only on a link signed with the Desk key that lasts minutes (`api/_pictures.ts`):
-the Desk signs its own links in the browser, and Rivet's shaping call gets one that lasts five. The Desk's idea cards
-show pictures only from that store, through that function, never from another host.
+`api/foundry-image.ts` serves one only on a link that lasts minutes, signed with a key derived from the Desk key
+(`api/_pictures.ts`): the function signs the Desk's own links for a signed-in Desk (#132), and Rivet's shaping call
+gets one that lasts five. The Desk's idea cards show pictures only from that store, through that function, never
+from another host.
+
+## Signing in to the Desk
+
+The Desk's buttons write to the public repo, so they need a real sign-in (#132, R3 in
+[THREAT-MODEL.md](THREAT-MODEL.md)). Reading the Desk stays public; writing needs a passkey.
+
+- **Passkeys.** Nikita signs in with a passkey: the device's own fingerprint, face or PIN (Windows Hello, Touch ID,
+  Face ID, an Android screen lock). The device keeps the private key; the Desk keeps only the public part (the
+  credential's id, its public key, its signature counter and the device's name) in the private Blob store, at
+  `desk/auth/passkeys.json`. `api/desk-auth.ts` checks every sign-in with SimpleWebAuthn
+  (`@simplewebauthn/server`), a widely used, maintained WebAuthn library: the site, the origin, a one-time
+  challenge, the signature, the user check and the counter.
+- **Sessions.** A sign-in sets one cookie, HttpOnly, Secure and SameSite=Strict, holding a signed token that names
+  the passkey. It lasts 30 minutes from its last use, renews quietly while the Desk is in use, and ends 12 hours after
+  the sign-in whatever happens, when a passkey is needed again. Every Desk write checks it
+  (`requireSession` in `api/_desk/session.ts`): the idea buttons (`api/foundry.ts`), picture uploads and the Desk's
+  own picture links (`api/foundry-image.ts`) and the day's story backfill (`api/day-story.ts`). Requests from another
+  site are refused. No caller outside the browser uses these, so nothing accepts the Desk key in their place.
+- **Keys.** Every signing key (sessions, sign-in challenges, picture links) is derived from `FOUNDRY_DESK_KEY`,
+  stretched with scrypt and split by purpose (`api/_desk/keys.ts`), so no new variable is needed and the Desk key
+  itself never signs anything. Make it long and random, like any password manager's suggestion: it is also what an
+  offline guess against a captured cookie would have to find.
+- **Wrong tries.** Failed sign-ins and enrolments are counted in the Blob store (`api/_desk/limits.ts`), per
+  address (as a keyed hash, never the address) and across all addresses. From one address: two free, then a 30 second
+  wait, then 2 minutes, then locked for 15 minutes. Across all addresses, enrolment locks for an hour after 8
+  failures and sign-in for 15 minutes after 22. The Desk says plainly when it is locked and for how long. A lockout
+  never ends a session that is already open.
+
+**Adding a device** (a new PC or phone): open the Desk on it, go to the Foundry tab, press **Add this device**,
+give it a name, type the Desk key once, and confirm with the device's fingerprint, face or PIN. It is signed in
+straight away, and from then on signs in with the passkey alone. A phone can also use a passkey saved on another
+device through the browser's own "use a phone or another device" prompt. Up to ten devices.
+
+**Removing a device:** signed in on any device, open **Devices** on the Foundry tab's sign-in bar and press
+**Remove** next to it. Its sessions end at once. (Then delete the passkey from that device's own password manager
+too, if you have it.) **If a device is lost or the Desk key may have leaked**, change `FOUNDRY_DESK_KEY` in Vercel
+and redeploy: every session and picture link ends, and enrolling needs the new key; then remove the lost device.
+
+## Pings on the phone
+
+The Desk can sit on a phone's home screen like an app and send one notification when something needs Nikita's call
+(#135), instead of an email.
+
+- **Installing.** `apps/world/public/manifest.webmanifest` and the icons in `apps/world/public/desk/` let a phone
+  add the Desk to its home screen; it opens straight to the Desk. On an iPhone or iPad: open the Desk in Safari,
+  Share, **Add to Home Screen**, then open it from there (iOS only offers notifications to a site on the home
+  screen). On Android: Chrome's menu, **Add to Home screen** (or **Install app**).
+- **The service worker keeps nothing.** `apps/world/public/sw.js` has no cache: every request goes to the network
+  as before, the 3D Lattice and anything private are never stored on the phone, and a page load without a network
+  gets a one-line "offline" page. It is registered for the whole site because the Desk lives at `/`.
+- **Turning pings on.** Signed in on the device, open the Foundry tab and switch on **Pings on this device**. The
+  browser asks to allow notifications and makes a Web Push subscription for the Desk's public key; the Desk sends
+  it to `api/desk-pings.ts`, which takes it only in a passkey session (`requireSession`, #132), only from a known
+  push service (Apple's, Google's, Mozilla's or Microsoft's), and sends one welcome ping.
+- **What is stored.** In the private Blob store beside the passkeys, at `desk/auth/pings.json`: each device's push
+  endpoint (a long, unguessable address at its push service), the two public keys the browser made to encrypt pings
+  for it, which passkey was signed in when it was turned on, and when; and, for "never twice", a short key per item
+  already pinged (`idea:#12`, `question:#12:<hash>`, `blocker:#12`), forgotten once the issue closes. No issue text,
+  nothing personal.
+- **What a ping says.** Only counts and who is asking, safe on a lock screen anyone might see: "Rivet has a
+  question", "3 ideas are waiting for your pick", "A job is blocked and needs you" (`pingText` in
+  `api/_desk/pings.ts`). Never a title, a body, a name, an issue number or a link. The words are encrypted for the
+  device (RFC 8291), so the push service only ever carries ciphertext. Tapping one opens the Desk's Foundry tab.
+- **Who sends.** `.github/workflows/desk-pings.yml` runs when a Foundry issue is opened or relabelled, and every
+  hour, and asks `api/desk-pings.ts` to scan with the shared `DESK_PINGS_SECRET`. The function reads the open
+  issues itself and decides; the workflow sends nothing about an issue. Pushes are signed with the Desk's VAPID key
+  (RFC 8292), which lives only in Vercel.
+- **Quiet hours.** None from 10pm to 7am Mountain (`QUIET_HOURS`): the first scan from 7am sends one summary of what
+  still needs Nikita, and whatever was handled overnight is dropped.
+
+**Setting up pings** (once, from the PC; nothing to install). In Chrome, open any page, press F12 > **Console**
+(type `allow pasting` if Chrome asks), paste this and press Enter. It makes the push key pair and the shared secret
+with the browser's own crypto and prints three lines:
+
+```js
+const k=await crypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign"]);const b=a=>btoa(String.fromCharCode(...a)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");console.log("DESK_VAPID_PUBLIC_KEY",b(new Uint8Array(await crypto.subtle.exportKey("raw",k.publicKey))));console.log("DESK_VAPID_PRIVATE_KEY",(await crypto.subtle.exportKey("jwk",k.privateKey)).d);console.log("DESK_PINGS_SECRET",b(crypto.getRandomValues(new Uint8Array(32))));
+```
+
+Add all three in Vercel (Settings > Environment Variables, Production only), add `DESK_PINGS_SECRET` with the same
+value as a GitHub Actions secret (Settings > Secrets and variables > Actions), redeploy, and close the console.
+
+**Turning pings off:** switch off **Pings on this device**, or sign out on that device: either drops its
+subscription on the server and in the browser. Removing a device under **Devices** drops its pings too, and pings
+only ever go to a device whose passkey is still enrolled. The phone's own settings (Settings, Notifications, C.E.O.
+on an iPhone) can mute them as well. **To stop all pings at once**, delete `DESK_PINGS_SECRET` (or the VAPID keys)
+in Vercel and redeploy.
 
 ## Keys and settings in Vercel
 
@@ -48,11 +135,16 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script | Shaping is off; hours and scripts come from the agents' own lines |
 | `GEMINI_API_KEY` | Gemini's text to speech: the day's story, read aloud (#95). Sent only in a request header, with only the day's scrubbed script | No audio; the Chronicle says so |
 | `GEMINI_BUDGET_USD` | Gemini's monthly cap, enforced in code (`api/_world/story.ts`); default 5, never above 10 | $5 |
-| `FOUNDRY_GITHUB_TOKEN` | The Desk's buttons write issues; the feeds read with it | Buttons say "not set up" |
-| `FOUNDRY_DESK_KEY` | The Desk's passphrase, compared in constant time | Buttons and the story backfill say "not set up" |
+| `FOUNDRY_DESK_KEY` | The Desk's enrolment secret: typed once per device to add its passkey, and the root every Desk signing key is derived from (#132). Long and random | Sign-in, the buttons and the story backfill say "not set up" |
+| `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below): every function mints its own hour-long token for this repo, as `ceo-foundry[bot]`. Production only | The functions use `FOUNDRY_GITHUB_TOKEN`, as before |
+| `FOUNDRY_APP_INSTALLATION_ID` | Optional: the App's installation, to skip one lookup | Looked up once per warm function |
+| `FOUNDRY_GITHUB_TOKEN` | The fallback until the App is set up: a fine-grained token that acts as Nikita. The Desk's buttons write issues with it; the feeds read with it | With the App set, nothing is lost; without either, buttons say "not set up" and the feeds read anonymously |
 | `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
 | `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
-| `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved |
+| `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved, and the Desk can't sign in |
+| `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Make them with the browser paste in "Setting up pings" below and paste them straight into Vercel. Production only | The switch says pings aren't set up |
+| `DESK_VAPID_SUBJECT` | Optional: an `https:` or `mailto:` contact the push services may use about the pings | The site's address |
+| `DESK_PINGS_SECRET` | Shared with the Desk pings workflow (the same value as the Actions secret below): only a caller holding it can make the Desk scan and ping. Long and random. Production only | No scans, so no pings |
 
 ## What scans the code, and when
 
@@ -72,12 +164,71 @@ access only to the job that needs it.
 
 ## Keys in GitHub Actions
 
-One secret lives in the repo's Actions secrets (Settings > Secrets and variables > Actions) rather than in Vercel,
-because only a workflow uses it. Workflows never print it, and the job that holds it has read-only permissions.
+These live in the repo's Actions secrets (Settings > Secrets and variables > Actions) rather than in Vercel, because
+only a workflow uses them. Workflows never print them.
 
 | Secret | What it is for | Without it |
 | --- | --- | --- |
+| `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below). Only the two `report` jobs (`checks.yml`, `visual-qa.yml`) use them, to open fix issues as `ceo-foundry[bot]` with a token that can only write issues and is revoked when the job ends | Those jobs write with the built-in token, as before |
+| `DESK_PINGS_SECRET` | The Desk pings workflow (`.github/workflows/desk-pings.yml`, #135): sent only to the site's own `api/desk-pings` in a header, to ask it to scan. The same value as in Vercel; it can make the Desk look for things to ping, nothing else | The workflow skips quietly and no pings go out |
 | `GEMINI_API_KEY` | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91): clips of the public Lattice go to Gemini. Sent only to Google's API host in a header, never printed; spend capped in code at $0.50 a run and eight pushed runs a day. The same name in Vercel is the separate key for the day's story (above) | The tour still records; the review is skipped |
+
+## The crew's own identity
+
+The crew has its own GitHub identity (#138, R2 in [THREAT-MODEL.md](THREAT-MODEL.md)): a GitHub App called
+`ceo-foundry`, installed on this repo only, that acts as `ceo-foundry[bot]`. Once it is set up:
+
+- **Every Vercel function that talks to GitHub** mints its own token from the App's key (`api/_github.ts`): a JSON Web
+  Token signed with the key, exchanged for an installation token for this repo only, kept until five minutes before
+  it expires (GitHub gives them an hour). The Desk's buttons get a token that can only write issues; the feeds and the
+  world step get one that can only read. Production only: previews get no App key.
+- **CI's fix issues** (`checks.yml` and `visual-qa.yml`, the `report` jobs) come from the App too, on a token that can
+  only write issues and is revoked when the job ends. No workflow's permissions changed.
+- **The Foundry's readers trust it like the Desk**: `scripts/foundry-issue.sh` shows its words in their own block,
+  and the world step counts its trail steps. Look-alike accounts are still withheld.
+- **Until then, and whenever GitHub won't mint a token**, everything works exactly as before, on
+  `FOUNDRY_GITHUB_TOKEN` in Vercel and the built-in token in CI. A failed mint is retried after a minute and logs
+  only GitHub's status code.
+
+What it doesn't change: the Foundry's Claude Code sessions push, open pull requests and merge with the GitHub
+access their environment gives them, which is Nikita's account today. That is set where the sessions run, not in this
+repo, so their work still shows as Nikita's (DELIVERY.md, section 10).
+
+**Setup, once (Nikita).** About five minutes on a Mac with the GitHub CLI (`gh`) signed in as `nikitapage10`.
+
+1. **Create the App.** Open https://github.com/settings/apps/new (your picture, top right > Settings > Developer
+   settings > GitHub Apps > New GitHub App).
+   - **GitHub App name:** `ceo-foundry`, exactly: the code trusts `ceo-foundry[bot]` by name. (If GitHub says the
+     name is taken, stop and tell the Foundry which name you picked; a small change follows it in `api/_github.ts` and the two
+     `scripts/foundry-*.sh` readers.)
+   - **Homepage URL:** `https://github.com/nikitapage10/C.E.O.`
+   - **Identifying and authorizing users:** leave every box unticked and the Callback URL empty.
+   - **Webhook:** untick **Active**.
+   - **Permissions > Repository permissions:** Actions: Read-only. Checks: Read-only. Code scanning alerts:
+     Read-only. Contents: Read and write. Dependabot alerts: Read-only. Issues: Read and write. Metadata: Read-only
+     (GitHub sets it). Pull requests: Read and write. Leave everything else on No access, **above all Administration
+     and Workflows**, so the App can't change settings, rulesets or CI. No Organization or Account permissions.
+   - **Where can this GitHub App be installed?** Only on this account.
+   - **Create GitHub App.**
+2. **Make its key.** On the page that opens, note the **App ID** near the top (a number). Scroll to
+   **Private keys** > **Generate a private key**. A file `ceo-foundry.<date>.private-key.pem` lands in Downloads.
+3. **Install it on this repo only.** Left sidebar > **Install App** > **Install** next to `nikitapage10` > **Only
+   select repositories** > `C.E.O.` > **Install**.
+4. **GitHub secrets, in the browser.** Open the `.pem` from Downloads in Notepad and copy all of it. On GitHub:
+   C.E.O. > **Settings** > **Secrets and variables** > **Actions** > **New repository secret**. Add
+   `FOUNDRY_APP_ID` (the App ID) and `FOUNDRY_APP_PRIVATE_KEY` (paste the whole `.pem`, its BEGIN and END lines
+   included).
+5. **Vercel, in the browser.** The project > **Settings** > **Environment Variables**. Add the same two:
+   `FOUNDRY_APP_ID`, and `FOUNDRY_APP_PRIVATE_KEY` with the `.pem` pasted as is (several lines is fine). Under
+   **Environments**, tick **Production** only (untick Preview and Development). **Save**. Then **Deployments** >
+   the top Production deployment > **⋯** > **Redeploy**, so the functions pick them up.
+6. **Check it, then retire the old token.** The next Desk button you press leaves its trail comment on GitHub as
+   `ceo-foundry[bot]` instead of you. Once it does, delete `FOUNDRY_GITHUB_TOKEN` in Vercel (Environment Variables > ⋯ >
+   Remove) and revoke it on GitHub (Settings > Developer settings > Personal access tokens > Fine-grained tokens), so
+   no long-lived token that acts as you is left. Delete the `.pem` from Downloads; GitHub can make a new key any time.
+
+To rotate the key: the App's page > Private keys > Generate a private key, run steps 4 and 5 again, then delete the
+old key on the same page.
 
 ## Why these tools
 
@@ -86,6 +237,10 @@ packages and leaked keys, and they're free for a public repo. Where GitHub falls
 itself is run, so one outside scanner fills that gap: OpenSSF Scorecard, free and run by the Open Source Security
 Foundation, needing no secret. A separate secret scanner such as gitleaks would duplicate GitHub's secret scanning
 and push protection, so it isn't used.
+
+The Desk's pings use `web-push` (#135), the reference Web Push library for Node, kept by Mozilla's web-push-libs
+project and used by most Node servers that send browser notifications: it does the payload encryption (RFC 8291) and
+the VAPID signature (RFC 8292), both easy to get subtly wrong by hand. It only runs in `api/desk-pings.ts`.
 
 ## Agent-written code
 

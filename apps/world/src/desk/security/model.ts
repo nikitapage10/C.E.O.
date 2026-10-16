@@ -238,8 +238,8 @@ export const OWASP_LLM: LlmRisk[] = [
     where: "Claude spend; Gemini speech and Visual QA spend; GitHub token quota; function CPU",
     controls:
       "Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
-    residual: "The world step's trigger is open and its per-hour cap is a known gap",
-    tracking: "Open, tracked: world-step key (R6, #61, not picked)",
+    residual: "The world step's trigger stays open on purpose: calling it more often changes nothing, so the 55-minute spacing and the monthly budget guard bound the spend, and a key was left out",
+    tracking: "Covered: 55-minute spacing and the monthly budget guard (closed #171)",
   },
 ];
 
@@ -310,7 +310,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
     closes: "Messages and contacts",
     status: "Shipped #149",
   },
-  { id: "R6", item: "Key the world step and cap it per hour", closes: "World spend", status: "#61, not picked by Nikita" },
+  { id: "R6", item: "Key the world step and cap it per hour", closes: "World spend", status: "Shipped #171: covered by the 55-minute spacing and the monthly budget guard; no key needed" },
 ];
 
 /** Whether a roadmap row is done: the "Shipped" row, or a numbered item whose status reads "Shipped #…". */

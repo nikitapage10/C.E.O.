@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { WORLD_CAST } from "./cast.ts";
 import type { Feed } from "./digest.ts";
+import { STEP_CEILING_USD } from "./budget.ts";
 import { dayOf, runStep, STEP_EVERY_MS, type Ask } from "./step.ts";
 import { MemoryStore, StaleStateError } from "./store.ts";
 
@@ -153,5 +154,42 @@ describe("the hourly world step", () => {
 
   it("only uses agents from the cast", () => {
     expect(WORLD_CAST.members.length).toBeGreaterThan(20);
+  });
+});
+
+describe("R6: the world step can't run up Claude spend", () => {
+  it("many rapid calls to the open trigger within an hour make at most one Claude call", async () => {
+    const store = new MemoryStore();
+    const ask = fakeClaude();
+    const results = [];
+    for (let i = 0; i < 200; i++) results.push(await runStep({ store, now: T0 + Math.floor((i * (STEP_EVERY_MS - 1)) / 199), readFeed: noFeed, ask }));
+    expect(results.filter((r) => r.stepped)).toHaveLength(1);
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(store.state!.step).toBe(1);
+  });
+
+  it("once the month's world budget is spent, no step calls Claude", async () => {
+    const store = new MemoryStore();
+    const ask = fakeClaude();
+    // A budget of nothing, which no step's worst case fits in: every hour is scripted, nothing is asked.
+    for (let i = 0; i < 5; i++) await runStep({ store, now: T0 + i * HOUR, readFeed: noFeed, ask, budget: 0 });
+    expect(ask).not.toHaveBeenCalled();
+    expect(store.state!.step).toBe(5);
+    expect(store.state!.recent.every((e) => e.source === "scripted")).toBe(true);
+  });
+
+  it("stops calling Claude partway through the month when the share runs out", async () => {
+    const store = new MemoryStore();
+    const ask = fakeClaude();
+    await runStep({ store, now: T0, readFeed: noFeed, ask });
+    const spent = store.state!.spend["2026-10"]!.usd;
+    // Room for the first call's cost plus one worst-case step, but not a second one.
+    const budget = spent + STEP_CEILING_USD + spent / 2;
+    await runStep({ store, now: T0 + HOUR, readFeed: noFeed, ask, budget });
+    expect(ask).toHaveBeenCalledTimes(2);
+    await runStep({ store, now: T0 + 2 * HOUR, readFeed: noFeed, ask, budget });
+    await runStep({ store, now: T0 + 3 * HOUR, readFeed: noFeed, ask, budget });
+    expect(ask).toHaveBeenCalledTimes(2);
+    expect(store.state!.recent.map((e) => e.source)).toEqual(["claude", "claude", "scripted", "scripted"]);
   });
 });

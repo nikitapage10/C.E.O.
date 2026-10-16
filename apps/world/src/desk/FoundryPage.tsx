@@ -201,7 +201,7 @@ export function FoundryPage({ now }: { now: number }) {
       </Panel>
 
       <Panel eyebrow="Changelog" className="fy-changelog" aside={<span className="badge">{changelog.length}</span>}>
-        {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} /> : <p className="quiet">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
+        {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} setup={setup} /> : <p className="quiet">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
         <p className="quiet changelog__all">
           Every commit on main, one-offs included, is on{" "}
           <a href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
@@ -1074,7 +1074,7 @@ function ChangelogLegend({ changes }: { changes: Change[] }) {
  * and whether it waited for Nikita (the two markers, keyed in the legend up top), links to its issue and code, and its
  * pictures when its issue has a Pictures step.
  */
-function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; remarks: Map<number, Remark> }) {
+function Changelog({ changes, now, remarks, setup }: { changes: Change[]; now: number; remarks: Map<number, Remark>; setup: Setup }) {
   const days: { label: string; items: Change[] }[] = [];
   for (const c of changes) {
     const label = dayLabel(c.at, now);
@@ -1096,7 +1096,7 @@ function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; 
               // The builder's own word on it, from the living Lattice's hourly step (docs/WORLD.md).
               const said = c.issue ? remarks.get(c.issue.number) : undefined;
               return (
-                <li key={c.key} className={`cl-entry cl-origin--${c.origin}${c.pictures?.length ? " cl-entry--pics" : ""}`}>
+                <li key={c.key} className={`cl-entry cl-origin--${c.origin}${c.pictures?.length ? " cl-entry--pics" : ""}${c.undo ? ` cl-entry--undo-${c.undo}` : ""}`}>
                   <Avatar agent={who} size="sm" room="foundry" />
                   {/* Its pictures from the issue's Pictures steps: the first as a thumbnail, all of them in the viewer. */}
                   {c.pictures?.length ? <ChangePictures pictures={c.pictures} title={ideaTitle(c.title)} /> : null}
@@ -1123,6 +1123,7 @@ function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; 
                         </a>
                       )}
                     </span>
+                    {c.undo ? <UndoMark change={c} /> : c.issue && <UndoChange issue={c.issue.number} setup={setup} />}
                   </p>
                   {said && (
                     <p className="changelog__remark">
@@ -1136,6 +1137,56 @@ function Changelog({ changes, now, remarks }: { changes: Change[]; now: number; 
         </section>
       ))}
     </div>
+  );
+}
+
+/** Where an Undo stands, from the issue's labels: the Builder is reverting it, or the revert has shipped. */
+function UndoMark({ change }: { change: Change }) {
+  const done = change.undo === "done";
+  return (
+    <span className={`cl-undo cl-undo--${change.undo}`} title={done ? "Taken back: the revert shipped through the fix lane." : "The Builder reverts it through the fix lane and ships the revert once its checks are green."}>
+      {done ? "Undone" : "Undo requested"}
+      {done && change.reverted && (
+        <a className="cl-entry__link" href={change.reverted.url} target="_blank" rel="noreferrer">
+          {change.reverted.label}
+        </a>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Take back a change that shipped (docs/FOUNDRY.md, "Undo"): two taps, like Stop, so a stray one undoes nothing. The
+ * issue opens again in the fix lane and the Builder ships a revert once its checks are green. Signed-in Desk only.
+ */
+function UndoChange({ issue, setup }: { issue: number; setup: Setup }) {
+  const [mode, setMode] = useState<"idle" | "confirm" | "busy" | "done" | "failed" | "signin">("idle");
+  if (!setup?.buttons) return null;
+  const undo = async () => {
+    setMode("busy");
+    if ((await ensureSignedIn()) !== "ok") return setMode("signin");
+    const r = await send(issue, "undo");
+    if (r === "signed-out") return setMode("signin");
+    if (r === "failed" || r === "held") return setMode("failed");
+    setMode("done");
+    expectChange();
+  };
+  if (mode === "done") return <span className="cl-undo cl-undo--requested">Undo requested</span>;
+  if (mode === "failed") return <span className="fy-stop__note cl-undo__note">That didn't go through. Try again in a moment.</span>;
+  if (mode === "signin") return <span className="fy-stop__note cl-undo__note">Sign in above to undo it.</span>;
+  return mode === "confirm" || mode === "busy" ? (
+    <span className="fy-stop cl-undo__ask">
+      <button type="button" className="btn btn--sm" disabled={mode === "busy"} onClick={() => void undo()}>
+        {mode === "busy" ? "Asking…" : "Yes, undo it"}
+      </button>
+      <button type="button" className="btn btn--quiet btn--sm" disabled={mode === "busy"} onClick={() => setMode("idle")}>
+        Keep it
+      </button>
+    </span>
+  ) : (
+    <button type="button" className="btn btn--quiet btn--sm fy-stop__btn cl-undo__btn" onClick={() => setMode("confirm")} title={`Take back #${issue}: the Builder reverts it through the fix lane and ships the revert once its checks are green.`}>
+      Undo
+    </button>
   );
 }
 

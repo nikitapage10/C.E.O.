@@ -144,6 +144,13 @@ export interface Change {
   approval: Approval;
   /** Where it came from: Nikita, a Builder idea, upkeep, a fix, or chat (`changeSource`). */
   origin: Origin;
+  /**
+   * Nikita's Undo from the Changelog (docs/FOUNDRY.md, "Undo"): `requested` while the issue carries `foundry:undo` and
+   * the Builder reverts it through the fix lane, `done` once the revert shipped (`foundry:undone`). Absent otherwise.
+   */
+  undo?: "requested" | "done";
+  /** The pull request that reverted it ("Undo #<n>: …"), once there is one. */
+  reverted?: { label: string; url: string };
   /** The pictures on its issue's "**Trail · Pictures:**" steps, oldest first, once the Desk has the trails (`withTrails`). */
   pictures?: Picture[];
 }
@@ -171,6 +178,10 @@ export type Origin = "nikita" | "builder" | "upkeep" | "fix" | "chat";
 
 /** The label the Builder adds, with `foundry:build`, to an idea it approved itself (docs/FOUNDRY.md, "Auto-approval"). */
 export const AUTO_LABEL = "foundry:auto";
+/** A shipped change Nikita asked to take back from the Changelog; the Builder reverts it (docs/FOUNDRY.md, "Undo"). */
+export const UNDO_LABEL = "foundry:undo";
+/** A shipped change whose revert has shipped too. */
+export const UNDONE_LABEL = "foundry:undone";
 
 /** What an issue's trail steps say about its approval and origin. */
 function readTrails(trails: readonly string[]): { auto: boolean; byNikita: boolean; fromNikita: boolean } {
@@ -377,13 +388,22 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
   const used = new Set<number>();
   const out: Change[] = [];
   for (const issue of issues) {
-    if (issue.pull_request || issue.state !== "closed") continue;
+    if (issue.pull_request) continue;
     const labels = labelSet(issue);
     if (!labels.has("foundry") || !labels.has("foundry:shipped")) continue;
-    const kind = KINDS.find((k) => labels.has(`foundry:${k}`)) ?? "chat";
-    const pr = merged.find((p) => branchIssue(p.head.ref) === issue.number || mentions(`${p.title}\n${p.body ?? ""}`).has(issue.number));
-    const commit = pr ? undefined : commits.find((c) => mentions(c.commit.message).has(issue.number));
-    if (pr) used.add(pr.number);
+    // An Undo reopens the issue as a fix (`foundry:undo`); it stays on the Changelog, marked, until the revert ships.
+    const undoing = labels.has(UNDO_LABEL);
+    if (issue.state !== "closed" && !undoing) continue;
+    const undo = undoing ? "requested" : labels.has(UNDONE_LABEL) ? "done" : undefined;
+    // The fix label an Undo adds isn't what the change was.
+    const kindIn = (ks: CrateKind[]) => ks.find((k) => labels.has(`foundry:${k}`));
+    const kind = (undo ? kindIn(KINDS.filter((k) => k !== "fix")) : undefined) ?? kindIn(KINDS) ?? "chat";
+    const ours = merged.filter((p) => branchIssue(p.head.ref) === issue.number || mentions(`${p.title}\n${p.body ?? ""}`).has(issue.number));
+    const isRevert = (p: GhPull) => /^Undo #\d+/i.test(p.title) || /^foundry\/fix\/\d+-undo-/.test(p.head.ref);
+    const pr = ours.find((p) => !isRevert(p));
+    const revert = ours.find(isRevert);
+    const commit = pr ? undefined : commits.find((c) => mentions(c.commit.message).has(issue.number) && !/^(?:Undo #|Revert ")/.test(c.commit.message));
+    for (const p of ours) used.add(p.number);
     const body = readBody(issue.body ?? "");
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
     // A built idea is a build by the time it ships.
@@ -398,6 +418,8 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
       by: crewFor({ kind, rung, builder: body.builder }),
       short: body.short,
       ...changeSource(shipped, labels, issue.body ?? ""),
+      ...(undo && { undo }),
+      ...(revert && { reverted: { label: `PR #${revert.number}`, url: revert.html_url } }),
     });
   }
   // A pull request for an issue already listed (or still open) is that issue's, not a change of its own.

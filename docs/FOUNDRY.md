@@ -74,6 +74,8 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | `foundry:blocked` | A blocker: the job can't go on until Nikita decides something (pings Nikita's phone; see "Pings and flagging a blocker") |
 | `foundry:paused` | An idea build paused for an urgent fix; its branch is pushed as work in progress and it resumes when the fix ships |
 | `foundry:shipped` | Landed on `main` (add it, then close the issue) |
+| `foundry:undo` | Nikita pressed Undo on a shipped change from the Desk's Changelog: the issue is open again with `foundry:fix`, and the Builder reverts it (see "Undo") |
+| `foundry:undone` | The revert of a shipped change has shipped too (closed again, `foundry:shipped` kept) |
 | `foundry:revise` | An idea Nikita sent back with notes from the Desk, or proposed there; Rivet rewrites it |
 | `foundry:question` | An idea Rivet asked Nikita something about first (the issue has a `**Question:**` line). Off the build queue until Nikita answers or approves it as is |
 | `foundry:passed` | An idea Nikita passed on (closed, not planned): on the shelf, not in the bin |
@@ -191,7 +193,8 @@ amber while running, off until a run is read) next to the checks.
 
 **The doorbell (#50).** What can wake the thread is a command it started itself. At the end of every turn the Builder
 keeps `scripts/foundry-watch.sh` running in the background: it looks at the queue every 30 seconds (GitHub reads, no
-plan usage) and exits the moment a new `foundry:build`, `foundry:revise` or `foundry:fix` appears, which gives the
+plan usage) and exits the moment a new `foundry:build`, `foundry:revise` or `foundry:fix` appears (a shipped issue
+only when it carries `foundry:undo`, see "Undo"), which gives the
 thread a turn at once. The Builder works it, then starts the watcher again. A watcher that times out (after two hours)
 is simply restarted. When the thread's machine is recycled the watcher goes with it, and the 15-minute checks carry
 on as the fallback until the next one restarts it. So the Desk says "within a minute or two", with the next check as
@@ -373,13 +376,46 @@ Desk's Foundry tab (two taps). Stop takes `foundry:build`, `foundry:auto` and th
 `foundry:idea` again, and writes `**Trail · Decision:** Stopped by Nikita on the Desk.` It then waits for Nikita's pick like
 any idea (Build this / Revise / Not this one). At its next look the Builder stops work on it, turns off auto-merge and
 closes its pull request unmerged, keeping the branch. Before turning on auto-merge for an auto-approved build, the
-Builder checks the issue still has `foundry:auto`. Once shipped, undoing it is a revert through the fix lane. In chat,
-"Not this one" on an auto-approved card does the same.
+Builder checks the issue still has `foundry:auto`. Once shipped, Nikita takes it back with **Undo** on the Changelog
+("Undo" below). In chat, "Not this one" on an auto-approved card does the same as Stop.
 
 **On the Changelog.** Every shipped change carries two markers (`changeSource` in `apps/world/src/foundry.ts`):
 approval (**Auto**, **Your OK**, or **Routine** for upkeep, fixes and chat that need none) and source (**Your idea**,
 **Builder idea**, **Upkeep**, **Fix**, **Chat**), read from the labels, the issue body and the Origin and Decision steps.
 A build without `foundry:auto` counts as Nikita's OK, as every build before this rule was.
+
+### Undo
+
+Auto-approved work can ship before Nikita sees it, so every shipped change on the Desk's Changelog that has an issue
+carries an **Undo** button (two taps: Undo, then "Yes, undo it"; signed-in Desk only, like Stop). It goes through
+`choice: "undo"` in `api/foundry.ts`, which works only on a closed issue labelled `foundry:shipped` that isn't already
+`foundry:undo` or `foundry:undone`. It reopens the issue, keeps `foundry:shipped` so the history reads clearly, adds
+`foundry:fix` and `foundry:undo` (taking off any leftover work label), and writes:
+
+```
+**Trail · Decision:** Undo requested by Nikita on the Desk. The Builder reverts it through the fix lane and ships the revert once its checks are green.
+```
+
+The Changelog keeps the entry, marked **Undo requested**, and marks it **Undone** (with the revert's PR) once the
+revert ships. `foundry:fix` is what rings the doorbell: `scripts/foundry-watch.sh` and the queue check treat an open
+issue with `foundry:undo` as new fix work even though it carries `foundry:shipped`. Nothing is reverted on the server.
+
+At its next look the Builder, top priority like any fix:
+
+1. labels it `foundry:working` and finds the squash commit of the pull request that closed the issue (the merged PR
+   with `Closes #<n>`, or the commit on `main` that names `#<n>`);
+2. branches `foundry/fix/<n>-undo-<slug>` from the latest `main` and runs `git revert <sha>` (a later change that
+   built on it may need a hand-resolved conflict; if it can't be undone cleanly, it labels the issue `foundry:blocked`
+   and asks Nikita, as a Trail · Blocked step);
+3. opens a pull request titled `Undo #<n>: <issue title>` with `Closes #<n>` and the `foundry:fix` label, and ships it
+   by itself once its checks are green, like a small green fix (the Undo was the decision);
+4. takes off `foundry:fix`, `foundry:undo` and `foundry:working`, adds `foundry:undone` (keeping `foundry:shipped`),
+   closes the issue, and writes the Pictures, Checks and Shipped steps, the Shipped step naming the revert
+   (`**Trail · Shipped:** Reverted by <sha> on main (PR #<m>), live on the site.`).
+
+The first time, create the labels: `gh label create foundry:undo --color D93F0B --description "Nikita asked to undo
+this shipped change from the Desk"` and `gh label create foundry:undone --color BFBFBF --description "Its revert has
+shipped"`.
 
 ## Lane 3: Upkeep
 
@@ -412,7 +448,7 @@ Each step is one short comment that starts with `**Trail ·`, newest last:
 | Origin | Where it came from, with a link | `**Trail · Origin:** Nikita on the Desk (04:02 MT).` / `Red check on main, run <link>.` / `Nikita in the Foundry thread: "…"` |
 | Shaped | Who wrote the card (Rivet, on Haiku), on which model, whether it asks Nikita first, and what a Claude API call cost | `**Trail · Shaped:** Rivet on Claude Haiku (claude-haiku-5-5), 1.2 s. Suggested builder: Rusty (Sonnet); the Builder confirms it when the job is picked. Decision: ready for Nikita's pick. Used 812 tokens in and 140 out, $0.000151.` |
 | Answered | Nikita's answer to Rivet's question | `**Trail · Answered:** Nikita on the Desk answered Rivet's question (…):` then the answer quoted |
-| Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Auto-approved by Skippy, the Builder (low risk: a colour tweak on the idea board).` / `Stopped by Nikita on the Desk.` / `Small green fix: ships as upkeep, no approval needed.` |
+| Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Auto-approved by Skippy, the Builder (low risk: a colour tweak on the idea board).` / `Stopped by Nikita on the Desk.` / `Undo requested by Nikita on the Desk. The Builder reverts it through the fix lane and ships the revert once its checks are green.` / `Small green fix: ships as upkeep, no approval needed.` |
 | Assigned | Who builds it, on which model, and why (the Builder's call) | `**Trail · Assigned:** Rusty on Opus: it's design and animation.` |
 | Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |
 | Pictures | Required before Shipped on every issue that ships a change, so it can be checked at a glance (Nikita, 2026-10-15, #158; "Pictures on every change" below). A visual change gets an after-screenshot, or a before/after pair when the difference matters, at wide and phone sizes where the layout changed; a non-visual change gets a change card (`scripts/change-card.mjs`); the Builder may add both. Posted with `scripts/issue-shots.sh <issue> "<what they show>" <files…>`; the pictures live on the `foundry-shots` branch (never merged, never deployed) and show inline on the issue | `**Trail · Pictures:** the throne mid-command in the Spire, before and after, wide and phone.` / `**Trail · Pictures:** change card: Docs · Scripts, checks green.` |

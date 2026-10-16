@@ -4054,6 +4054,40 @@ a.fy-chip:hover {
 .fy-stop__note {
   color: var(--amber);
 }
+/* Undo on the Changelog (docs/FOUNDRY.md, "Undo"): the button sits at the end of the meta row, Stop's look. */
+.cl-undo__btn,
+.cl-undo__ask,
+.cl-undo,
+.cl-undo__note {
+  margin-left: auto;
+}
+/* A slimmer button than Stop's so the entry stays one tidy row; still a 32px tap target. */
+.cl-undo__btn,
+.cl-undo__ask .btn {
+  min-height: 32px;
+  padding: 0 11px;
+}
+.cl-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--amber);
+  white-space: nowrap;
+}
+.cl-undo--done {
+  border-style: dashed;
+  border-color: var(--hair);
+  color: var(--muted);
+}
+.cl-entry--undo-done .cl-entry__title {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
+  color: var(--muted);
+}
 .changelog__all {
   margin: 14px 0 0;
   font-size: 12px;

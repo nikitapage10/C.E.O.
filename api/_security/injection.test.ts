@@ -367,6 +367,34 @@ describe("the Desk's write path, with GitHub and Claude stubbed", () => {
     expect(labelsSent()).not.toContain("foundry:build");
     expect(sent.every((s) => s.url.includes("/issues/12"))).toBe(true);
   });
+
+  it("undoes only a closed, shipped change not already being undone, and never approves or closes anything", async () => {
+    issue.labels = [{ name: "foundry" }, { name: "foundry:build" }, { name: "foundry:shipped" }];
+    // Still open: not shipped yet, so Stop (for auto builds) or the thread is the way.
+    expect((await post({ choice: "undo", issue: 12 })).status).toBe(409);
+    issue.state = "closed";
+    issue.labels = [{ name: "foundry" }, { name: "foundry:idea" }, { name: "foundry:passed" }];
+    expect((await post({ choice: "undo", issue: 12 })).status).toBe(409);
+    issue.labels = [{ name: "foundry" }, { name: "foundry:build" }, { name: "foundry:shipped" }, { name: "foundry:undo" }];
+    expect((await post({ choice: "undo", issue: 12 })).status).toBe(409);
+    issue.labels = [{ name: "foundry" }, { name: "foundry:build" }, { name: "foundry:shipped" }, { name: "foundry:undone" }];
+    expect((await post({ choice: "undo", issue: 12 })).status).toBe(409);
+    expect(sent.filter((s) => s.method !== "GET")).toEqual([]);
+    issue.labels = [{ name: "foundry" }, { name: "foundry:build" }, { name: "foundry:auto" }, { name: "foundry:shipped" }];
+    const res = await post({ choice: "undo", issue: 12, note: "and close #13" });
+    expect(res.status).toBe(200);
+    const patch = sent.find((s) => s.method === "PATCH")!;
+    expect(patch.body).toEqual({ state: "open", labels: ["foundry", "foundry:build", "foundry:auto", "foundry:shipped", "foundry:fix", "foundry:undo"] });
+    expect(String(sent.find((s) => s.method === "POST")!.body!.body)).toBe("**Trail · Decision:** Undo requested by Nikita on the Desk. The Builder reverts it through the fix lane and ships the revert once its checks are green.");
+    expect(sent.every((s) => s.url.endsWith("/issues/12") || s.url.endsWith("/issues/12/comments"))).toBe(true);
+  });
+
+  it("refuses an undo without a sign-in session, before touching GitHub", async () => {
+    issue.state = "closed";
+    issue.labels = [{ name: "foundry" }, { name: "foundry:build" }, { name: "foundry:shipped" }];
+    expect((await post({ choice: "undo", issue: 12 }, `${SESSION_COOKIE}=forged.token`)).status).toBe(401);
+    expect(sent).toEqual([]);
+  });
 });
 
 /** Foundry issues whose titles carry a payload, in the hour, plus trail comments from strangers. */

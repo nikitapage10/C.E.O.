@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GET, MAX_QUESTIONS, autoEligible, riskLine, stoppedLabels, answerBlock, answeredRounds, questionOf, readShape, shapeInput, shapedBody, shapedLabels, shapedLine, tidyQuestion } from "./foundry.ts";
+import { GET, MAX_QUESTIONS, autoEligible, riskLine, stoppedLabels, undoLabels, answerBlock, answeredRounds, questionOf, readShape, shapeInput, shapedBody, shapedLabels, shapedLine, tidyQuestion } from "./foundry.ts";
 import { readBody } from "../apps/world/src/foundry.ts";
 
 const card = { title: "Idea: Ask first", pitch: "Ask before queuing.", size: "medium", short: "Asking first", builder: "Rusty", model: "Sonnet" } as const;
@@ -117,6 +117,15 @@ describe("Rivet's risk read (a suggestion; the Builder decides auto-approval)", 
   });
   it("puts a stopped auto-approved build back as an idea, out of everyone's hands", () => {
     expect(stoppedLabels(["foundry", "foundry:build", "foundry:auto", "foundry:working", "foundry:paused"])).toEqual(["foundry", "foundry:idea"]);
+  });
+});
+
+describe("Undo from the Changelog", () => {
+  it("reopens a shipped change in the fix lane, keeps foundry:shipped, and drops leftover work labels", () => {
+    expect(undoLabels(["foundry", "foundry:build", "foundry:auto", "foundry:shipped", "foundry:working"])).toEqual(["foundry", "foundry:build", "foundry:auto", "foundry:shipped", "foundry:fix", "foundry:undo"]);
+  });
+  it("adds each label once", () => {
+    expect(undoLabels(["foundry", "foundry:fix", "foundry:shipped", "foundry:undo"])).toEqual(["foundry", "foundry:fix", "foundry:shipped", "foundry:undo"]);
   });
 });
 

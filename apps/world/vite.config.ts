@@ -65,8 +65,27 @@ function prefetchLattice(): Plugin {
   };
 }
 
+/**
+ * Fails the build when the `vendor` chunk imports anything but rolldown's runtime. Every page loads `vendor` first,
+ * so an import from an app chunk back into it is a cycle that can run React before what it needs exists, and the
+ * site stops at the boot screen while every unit test still passes (#169).
+ */
+function checkChunks(): Plugin {
+  return {
+    name: "ceo:check-chunks",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type !== "chunk" || chunk.name !== "vendor") continue;
+        const bad = chunk.imports.filter((f) => !/(^|\/)rolldown-runtime-[^/]*\.js$/.test(f));
+        if (bad.length) this.error(`vendor must import nothing but rolldown-runtime, but imports ${bad.join(", ")}`);
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), prefetchLattice()],
+  plugins: [react(), prefetchLattice(), checkChunks()],
   server: { host: true },
   define: { __MODEL_VERSIONS__: JSON.stringify(modelVersions()) },
   build: {
@@ -77,6 +96,14 @@ export default defineConfig({
         // `vendor` is what the Desk needs (React, zustand), `three` is three.js and everything the Lattice adds.
         // The Desk must load without three.js, so the groups take only what their test names, not a matched
         // module's dependencies (which would fold React into `three` and three.js into the Desk).
+        // Taking only what a group names can leave chunks importing each other, and rolldown's runtime helpers
+        // (`__commonJS`, `__toESM`) land in whatever app chunk is shared most. With the Desk tabs lazy (#169) that
+        // was a chunk that imports `vendor` while `vendor`, CommonJS React, imports the helpers from it: `vendor`
+        // ran first, called a helper that didn't exist yet ("t is not a function") and every page stopped at the
+        // boot screen. Strict execution order (rolldown's advice for `includeDependenciesRecursively: false`) runs
+        // each module only when it's first needed, puts the helpers in a `rolldown-runtime` chunk of their own and
+        // keeps any cycle between chunks harmless. checkChunks() fails the build if `vendor` ever imports app code.
+        strictExecutionOrder: true,
         advancedChunks: {
           includeDependenciesRecursively: false,
           groups: [

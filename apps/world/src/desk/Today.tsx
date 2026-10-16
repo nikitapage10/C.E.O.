@@ -6,7 +6,7 @@ import { DayStory } from "./DayStory.tsx";
 import { link } from "./nav.ts";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening } from "./viz.tsx";
-import { IdeaCard, useSetup } from "./IdeaCard.tsx";
+import { IdeaCard, useSetup } from "./FoundryPage.tsx";
 import { SetupCard, useSetupStatus } from "./SetupCard.tsx";
 
 /**

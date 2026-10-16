@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { useEffect } from "react";
 import { startFoundry } from "../foundry.ts";
 import { loadLattice, navigate, usePathname, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
@@ -7,38 +7,16 @@ import { useAwaySince } from "./awaySince.ts";
 import { useDeskData } from "./deskData.ts";
 import { useNow } from "./motion.tsx";
 import { link } from "./nav.ts";
+import { FoundryPage } from "./FoundryPage.tsx";
+import { Relay } from "./Relay.tsx";
 import { startDeskWorker } from "./pings.ts";
 import { startDeskAuth } from "./signin.ts";
+import { SystemsHub } from "./SystemsHub.tsx";
 import { systemsTitle } from "./SystemsNav.tsx";
+import { Chronicle } from "./Chronicle.tsx";
 import { Today } from "./Today.tsx";
 import "./desk.css";
 import "./chronicle.css";
-
-// Today is in the first load; every other tab loads the first time it is opened (and is fetched in the idle time
-// after the first paint, so switching stays instant).
-const loaders = {
-  relay: () => import("./Relay.tsx"),
-  foundry: () => import("./FoundryPage.tsx"),
-  systems: () => import("./SystemsHub.tsx"),
-  chronicle: () => import("./Chronicle.tsx"),
-};
-const Relay = lazy(() => loaders.relay().then((m) => ({ default: m.Relay })));
-const FoundryPage = lazy(() => loaders.foundry().then((m) => ({ default: m.FoundryPage })));
-const SystemsHub = lazy(() => loaders.systems().then((m) => ({ default: m.SystemsHub })));
-const Chronicle = lazy(() => loaders.chronicle().then((m) => ({ default: m.Chronicle })));
-
-/** Fetch the other tabs once the browser is idle after first paint. Failures are ignored: opening the tab retries. */
-function prefetchTabs() {
-  const run = () => Object.values(loaders).forEach((load) => void load().catch(() => {}));
-  const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number };
-  if (w.requestIdleCallback) w.requestIdleCallback(run, { timeout: 5000 });
-  else setTimeout(run, 2000);
-}
-
-/** What shows for the moment a tab's code is on its way: a quiet glass panel, no spinner. */
-function TabLoading() {
-  return <div className="desk__loading" role="status" aria-label="Loading" />;
-}
 
 /**
  * The Desk: the Lattice's control room as a flat, fast page, where the C.E.O. acts on what the agents bring in.
@@ -78,7 +56,6 @@ export function Desk({ route }: { route: DeskTab }) {
     startDeskAuth();
     // The Desk as a home-screen app, and its pings (#135).
     void startDeskWorker();
-    prefetchTabs();
   }, []);
 
   useEffect(() => {
@@ -156,19 +133,17 @@ export function Desk({ route }: { route: DeskTab }) {
       )}
 
       <main className="desk__main" key={route}>
-        <Suspense fallback={<TabLoading />}>
-          {route === "relay" ? (
-            <Relay data={data} now={now} connected={connected} />
-          ) : route === "foundry" ? (
-            <FoundryPage now={now} />
-          ) : route === "chronicle" ? (
-            <Chronicle now={now} awaySince={awaySince} />
-          ) : route === "systems" ? (
-            <SystemsHub now={now} />
-          ) : (
-            <Today data={data} now={now} connected={connected} awaySince={awaySince} />
-          )}
-        </Suspense>
+        {route === "relay" ? (
+          <Relay data={data} now={now} connected={connected} />
+        ) : route === "foundry" ? (
+          <FoundryPage now={now} />
+        ) : route === "chronicle" ? (
+          <Chronicle now={now} awaySince={awaySince} />
+        ) : route === "systems" ? (
+          <SystemsHub now={now} />
+        ) : (
+          <Today data={data} now={now} connected={connected} awaySince={awaySince} />
+        )}
       </main>
 
       <footer className="desk__foot">

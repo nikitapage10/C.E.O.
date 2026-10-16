@@ -334,9 +334,9 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "Messages are the most sensitive data C.E.O. will touch, so the rules come first, and a test holds the public site to counts.",
   },
   R6: {
-    what: "A key on the world step's trigger and a cap on how often it can run each hour.",
+    what: "A limit on how often the world step can call Claude: it can't run more than about once an hour, and it stops calling Claude near its monthly budget. A key on its trigger was left out because those two limits already bound it.",
     connects: "The hourly world step that writes the Lattice's history with Claude.",
-    why: "It bounds what the world step can spend.",
+    why: "However often anyone pokes the step, it can't run up the Claude bill.",
   },
 };
 

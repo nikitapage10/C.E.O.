@@ -81,7 +81,7 @@ describe("statuses come from the doc's own words", () => {
       LLM07: "accepted",
       LLM08: "not-applicable",
       LLM09: "accepted",
-      LLM10: "open",
+      LLM10: "covered",
     });
     const tally = owaspTally();
     expect(Object.values(tally).reduce((a, b) => a + b, 0)).toBe(10);

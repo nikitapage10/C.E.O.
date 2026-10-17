@@ -9,6 +9,8 @@
  *             on the same idea is a new question and pings again; the same one never does.
  *   blocker   the Builder can't go on without Nikita (`foundry:blocked`, docs/FOUNDRY.md) or a fix is stuck after
  *             rung 3 (`foundry:stuck`). Cleared and flagged again later, it pings again.
+ *   down      the live site didn't load (`foundry:down`, put on by the live watch, .github/workflows/live-watch.yml, #181).
+ *             Nikita needn't do anything (the Builder is on it), but should know. Back up and down again, it pings again.
  * Nothing else pings: work in flight, shipped jobs, checks and upkeep stay quiet.
  *
  * Each item pings once ("sent" remembers its key), and everything new at one scan goes out as one ping. Between
@@ -57,7 +59,7 @@ export interface PingState {
   scanned?: number;
 }
 
-export type NeedKind = "idea" | "question" | "blocker";
+export type NeedKind = "idea" | "question" | "blocker" | "down";
 
 export interface Need {
   kind: NeedKind;
@@ -78,8 +80,11 @@ export interface GhIssueLite {
 /** The label the Builder puts on a job it can't go on with until Nikita decides something (docs/FOUNDRY.md). */
 export const BLOCKED_LABEL = "foundry:blocked";
 
-/** Where a ping opens the Desk, per kind: all three are decided on the Foundry tab. */
-export const TAB_FOR: Record<NeedKind, string> = { idea: "/foundry", question: "/foundry", blocker: "/foundry" };
+/** The label the live watch puts on its fix issue while the live site isn't loading (#181). */
+export const DOWN_LABEL = "foundry:down";
+
+/** Where a ping opens the Desk, per kind: all of them are on the Foundry tab. */
+export const TAB_FOR: Record<NeedKind, string> = { idea: "/foundry", question: "/foundry", blocker: "/foundry", down: "/foundry" };
 
 /* ── Subscriptions ── */
 
@@ -151,6 +156,7 @@ export function needsOf(issues: GhIssueLite[]): Need[] {
     if (!labels.has("foundry")) continue;
     const n = issue.number;
     if (labels.has(BLOCKED_LABEL) || labels.has("foundry:stuck")) out.push({ kind: "blocker", issue: n, key: `blocker:#${n}` });
+    if (labels.has(DOWN_LABEL)) out.push({ kind: "down", issue: n, key: `down:#${n}` });
     if (!labels.has("foundry:idea")) continue;
     const body = issue.body ?? "";
     if (labels.has("foundry:question")) {
@@ -190,13 +196,13 @@ export interface Plan {
  * `open` is every open Foundry issue's number, so an item is forgotten once its issue closes.
  */
 export function planPings(needs: Need[], sent: Record<string, number>, now: number, open: Set<number>): Plan {
-  const flagged = new Set(needs.filter((n) => n.kind === "blocker").map((n) => n.key));
+  const flagged = new Set(needs.filter((n) => n.kind === "blocker" || n.kind === "down").map((n) => n.key));
   const kept: Record<string, number> = {};
   for (const [key, at] of Object.entries(sent)) {
     const issue = Number(/#(\d+)/.exec(key)?.[1]);
     if (now - at > SENT_KEEP_MS || !open.has(issue)) continue;
-    // A blocker that was cleared is forgotten, so flagging it again pings again.
-    if (key.startsWith("blocker:") && !flagged.has(key)) continue;
+    // A blocker that was cleared (or a site that came back up) is forgotten, so flagging it again pings again.
+    if ((key.startsWith("blocker:") || key.startsWith("down:")) && !flagged.has(key)) continue;
     kept[key] = at;
   }
   const fresh = needs.filter((n) => !(n.key in kept));
@@ -221,10 +227,11 @@ export function pingText(needs: Need[], morning = false): PingText {
   const questions = count("question");
   const blockers = count("blocker");
   const parts: string[] = [];
+  if (count("down")) parts.push("The live site isn't loading; the Foundry is on it");
   if (blockers) parts.push(blockers === 1 ? "A job is blocked and needs you" : `${blockers} jobs are blocked and need you`);
   if (questions) parts.push(questions === 1 ? "Rivet has a question" : `Rivet has ${questions} questions`);
   if (ideas) parts.push(ideas === 1 ? "An idea is waiting for your pick" : `${ideas} ideas are waiting for your pick`);
-  const first = needs.find((n) => n.kind === "blocker") ?? needs.find((n) => n.kind === "question") ?? needs[0];
+  const first = needs.find((n) => n.kind === "down") ?? needs.find((n) => n.kind === "blocker") ?? needs.find((n) => n.kind === "question") ?? needs[0];
   return {
     title: morning ? "Good morning from the Desk" : "C.E.O. Desk",
     body: parts.join(" · ") || "Something needs your call.",

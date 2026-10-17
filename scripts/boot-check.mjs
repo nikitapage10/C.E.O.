@@ -15,16 +15,25 @@
  *
  * Run it: `node scripts/boot-check.mjs [port]`. Set PLAYWRIGHT_CHROMIUM_PATH to use a preinstalled Chromium.
  * Wired into the required `checks` job (.github/workflows/checks.yml), after the build.
+ *
+ * The live watch (#181): `node scripts/boot-check.mjs --url=https://…` runs the same three pages against a deployed
+ * site instead of the local build (no build or server needed), hourly from .github/workflows/live-watch.yml.
  */
 import { chromium } from "@playwright/test";
 import { startDistServer } from "../tests/e2e/dist-server.ts";
 
-const PORT = Number(process.argv[2]) || 5184;
+const args = process.argv.slice(2);
+const live = args.find((a) => a.startsWith("--url="))?.slice("--url=".length).replace(/\/+$/, "");
+if (live !== undefined && !/^https:\/\/[^/]+$/.test(live)) {
+  console.error("boot-check: --url takes a site's https address, like --url=https://example.com");
+  process.exit(2);
+}
+const PORT = Number(args.find((a) => !a.startsWith("--"))) || 5184;
 const BOOT_MS = 60_000; // the Lattice on SwiftShader mounts in about 15 s
 const PAGE_MS = 20_000;
 
-const server = await startDistServer(PORT);
-const base = `http://localhost:${PORT}`;
+const server = live ? null : await startDistServer(PORT);
+const base = live ?? `http://localhost:${PORT}`;
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
@@ -81,11 +90,11 @@ try {
   );
 } finally {
   await browser.close();
-  server.close();
+  server?.close();
 }
 
 if (failures.length > 0) {
-  console.error(`boot-check: ${failures.length} problem(s). The built site does not boot; see docs/FOUNDRY.md ("The checks").`);
+  console.error(`boot-check: ${failures.length} problem(s). The ${live ? "live" : "built"} site does not boot; see docs/FOUNDRY.md ("The checks").`);
   process.exit(1);
 }
-console.log("boot-check: the built Desk and Lattice boot.");
+console.log(`boot-check: the ${live ? "live" : "built"} Desk and Lattice boot.`);

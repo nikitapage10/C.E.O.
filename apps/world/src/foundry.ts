@@ -784,6 +784,8 @@ interface Feed {
   runs: { workflow_runs: GhRun[] };
   /** The nightly browser tests (e2e.yml); absent from an older cached feed. */
   e2e?: { workflow_runs: GhRun[] };
+  /** The hourly live watch (live-watch.yml, #181); absent from an older cached feed. */
+  live?: { workflow_runs: GhRun[] };
   pulls: GhPull[];
   commits: GhCommit[];
 }
@@ -798,19 +800,20 @@ async function readFeed(): Promise<Feed> {
 
 /** GitHub directly, for local previews where the feed isn't running. */
 async function readGitHub(): Promise<Feed> {
-  const [issues, runs, e2e, pulls, commits] = await Promise.all([
+  const [issues, runs, e2e, live, pulls, commits] = await Promise.all([
     fetchJson<GhIssue[]>(`${API}/issues?labels=foundry&state=all&sort=updated&per_page=40`),
     fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/checks.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
     fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/e2e.yml/runs?branch=main&per_page=5`).catch(() => ({ workflow_runs: [] })),
+    fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/live-watch.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
     fetchJson<GhPull[]>(`${API}/pulls?state=closed&sort=updated&direction=desc&per_page=20`).catch(() => [] as GhPull[]),
     fetchJson<GhCommit[]>(`${API}/commits?sha=main&per_page=40`).catch(() => [] as GhCommit[]),
   ]);
-  return { issues, runs, e2e, pulls, commits };
+  return { issues, runs, e2e, live, pulls, commits };
 }
 
 export async function refreshFoundry(): Promise<void> {
   try {
-    const { issues, runs, e2e, pulls, commits } = await readFeed().catch(readGitHub);
+    const { issues, runs, e2e, live, pulls, commits } = await readFeed().catch(readGitHub);
     const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits) };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
@@ -820,6 +823,8 @@ export async function refreshFoundry(): Promise<void> {
     setLink("checks", { state: checks[data.checks.state], load: data.checks.state === "running" ? 0.9 : 0.4, lastSeen: data.checks.at, note: data.checks.url ?? undefined });
     const nightly = parseE2e(e2e?.workflow_runs);
     setLink("e2e", { state: checks[nightly.state], load: nightly.state === "running" ? 0.9 : 0.4, lastSeen: nightly.at, note: nightly.url ?? undefined });
+    const watch = parseChecks(live?.workflow_runs ?? []);
+    setLink("live", { state: checks[watch.state], load: watch.state === "running" ? 0.9 : 0.4, lastSeen: watch.at, note: watch.url ?? undefined });
     const busy = data.crates.filter((c) => c.state === "working").length;
     const stuck = data.crates.some((c) => c.state === "stuck");
     setLink("foundry", { state: stuck ? "slow" : "ok", load: Math.min(1, 0.25 + busy * 0.3), lastSeen: now, note: stuck ? "A crate is stuck and needs you" : undefined });

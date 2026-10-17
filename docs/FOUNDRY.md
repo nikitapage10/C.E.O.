@@ -191,6 +191,14 @@ The nightly browser tests (`.github/workflows/e2e.yml`) report the same way: a r
 `foundry:fix` issue titled "Nightly browser tests failing on main", and the Desk's Systems page shows that run's light (green, red,
 amber while running, off until a run is read) next to the checks.
 
+**The live watch (#181).** Every hour `.github/workflows/live-watch.yml` opens the live site the way the boot check
+opens a build (`node scripts/boot-check.mjs --url=https://command-everything-obviously.vercel.app`): the Desk's Today, a
+Desk tab and the Lattice. A miss is tried again a minute later; two in a row open one `foundry:fix` issue titled "Live
+site not loading", labelled `foundry:down`, which rings the doorbell and pings Nikita's phone ("The live site isn't
+loading; the Foundry is on it"). While it is open a later miss only comments on it. When the site loads again the run
+takes `foundry:down` off with a comment; the Builder still finds and fixes the cause (or, for a Vercel blip that left
+nothing to fix, closes it saying so). Systems shows the watch's light as "Live site".
+
 **The doorbell (#50).** What can wake the thread is a command it started itself. At the end of every turn the Builder
 keeps `scripts/foundry-watch.sh` running in the background: it looks at the queue every 30 seconds (GitHub reads, no
 plan usage) and exits the moment a new `foundry:build`, `foundry:revise` or `foundry:fix` appears (a shipped issue

@@ -142,7 +142,7 @@ export const CONNECTIONS: Connection[] = [
     serves: "A ping when the Desk needs your call",
     kinds: ["Webhook", "Scheduled", "REST API"],
     status: "live",
-    how: "When a Foundry issue is opened or relabelled, and every hour, a GitHub Actions run asks /api/desk-pings to look. The function reads the open issues itself and, for a new idea waiting for your pick, a question from Rivet or a blocker, sends one Web Push ping through your phone's push service (Apple's or Google's), encrypted for the phone. It says only how many, never what.",
+    how: "When a Foundry issue is opened or relabelled, and every hour, a GitHub Actions run asks /api/desk-pings to look. The function reads the open issues itself and, for a new idea waiting for your pick, a question from Rivet, a blocker or the live site not loading, sends one Web Push ping through your phone's push service (Apple's or Google's), encrypted for the phone. It says only how many, never what.",
     auth: "The run sends a shared secret (DESK_PINGS_SECRET); pings are signed with the Desk's VAPID key in Vercel. A phone joins only from a passkey session, and signing out drops it.",
     when: "Within a couple of minutes of something new, once per item, a burst as one ping; never 10pm to 7am Mountain, with one summary at 7am.",
   },

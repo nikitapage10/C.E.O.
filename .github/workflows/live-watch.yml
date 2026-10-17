@@ -1,0 +1,97 @@
+# The live watch (#181): every hour, open the live site in a browser, the same three pages the boot check opens on a
+# pull request (scripts/boot-check.mjs --url): the Desk's Today, a Desk tab, and the Lattice. On Oct 16 the live site
+# stayed blank for about four hours before anyone noticed (#173); the boot check now stops that kind of change before
+# it merges, and this catches what breaks only on Vercel.
+#
+# A miss is tried again a minute later, so one slow load doesn't raise an alarm. Two misses open one "Live site not
+# loading" Foundry fix issue labelled foundry:down, which wakes the Builder and pings Nikita's phone (api/_desk/pings.ts);
+# while it is open a later miss only comments on it. When the site loads again the label comes off, with a comment.
+# The Desk's Systems page shows this run's light.
+name: Live watch
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    if: github.repository == 'nikitapage10/C.E.O.'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SITE: https://command-everything-obviously.vercel.app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Open the live site
+        run: |
+          if node scripts/boot-check.mjs --url="$SITE"; then exit 0; fi
+          echo "Missed once; trying again in a minute."
+          sleep 60
+          node scripts/boot-check.mjs --url="$SITE"
+
+  report:
+    # The only job that may write: it opens (or comments on) the "Live site not loading" fix issue, and takes the
+    # foundry:down label off it once the site loads again.
+    needs: watch
+    if: always() && github.repository == 'nikitapage10/C.E.O.' && (needs.watch.result == 'success' || needs.watch.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      # The crew's own identity (#138), as in e2e.yml: the App's short-lived token when its secrets are set, the
+      # built-in token otherwise. Only whether they are set is read here, never their values.
+      HAS_APP: ${{ secrets.FOUNDRY_APP_ID != '' && secrets.FOUNDRY_APP_PRIVATE_KEY != '' }}
+      DOWN: ${{ needs.watch.result == 'failure' }}
+    steps:
+      - name: The crew's token
+        id: app
+        if: env.HAS_APP == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.FOUNDRY_APP_ID }}
+          private-key: ${{ secrets.FOUNDRY_APP_PRIVATE_KEY }}
+          permission-issues: write
+      - name: Open, update or clear the Foundry fix
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ steps.app.outputs.token || github.token }}
+          script: |
+            const title = "Live site not loading";
+            const down = process.env.DOWN === "true";
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: "open", labels: "foundry,foundry:fix", per_page: 50 });
+            const existing = open.find((i) => i.title === title);
+            const flagged = existing?.labels.some((l) => (typeof l === "string" ? l : l.name) === "foundry:down");
+            if (down && existing) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body: `Still not loading: ${run}` });
+              if (!flagged) await github.rest.issues.addLabels({ ...context.repo, issue_number: existing.number, labels: ["foundry:down"] });
+            } else if (down) {
+              await github.rest.issues.create({
+                ...context.repo,
+                title,
+                labels: ["foundry", "foundry:fix", "foundry:down"],
+                body: `The live site didn't load twice in a row, a minute apart (the Desk, a Desk tab or the Lattice threw or stayed blank).\n\nRun, with what each page threw: ${run}\n\nThe Foundry picks this up; see docs/FOUNDRY.md ("The live watch").`,
+              });
+            } else if (existing && flagged) {
+              await github.rest.issues.removeLabel({ ...context.repo, issue_number: existing.number, name: "foundry:down" });
+              await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body: `The live site loads again: ${run}` });
+            }

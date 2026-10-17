@@ -240,6 +240,10 @@ describe("what needs Nikita's call", () => {
     ).toEqual(["idea#1", "question#2", "blocker#3", "blocker#4"]);
   });
 
+  it("pings when the live watch says the site isn't loading (#181)", () => {
+    expect(kinds([issue(5, ["foundry", "foundry:fix", "foundry:down"]), issue(6, ["foundry", "foundry:fix"])])).toEqual(["down#5"]);
+  });
+
   it("stays quiet for everything else", () => {
     expect(
       kinds([
@@ -274,6 +278,17 @@ describe("what needs Nikita's call", () => {
     const cleared = planPings([], one.sent, NOON + 60_000, open);
     expect(cleared.sent).toEqual({});
     expect(planPings([need], cleared.sent, NOON + 120_000, open).ping).toEqual([need]);
+  });
+
+  it("a site that comes back up and goes down again pings again", () => {
+    const need: Need = { kind: "down", issue: 5, key: "down:#5" };
+    const open = new Set([5]);
+    const one = planPings([need], {}, NOON, open);
+    expect(one.ping).toEqual([need]);
+    expect(planPings([need], one.sent, NOON + 60_000, open).ping).toEqual([]);
+    const up = planPings([], one.sent, NOON + 120_000, open);
+    expect(up.sent).toEqual({});
+    expect(planPings([need], up.sent, NOON + 180_000, open).ping).toEqual([need]);
   });
 
   it("forgets an item once its issue closes", () => {
@@ -319,6 +334,7 @@ describe("what a ping says", () => {
     expect(all.body).toBe("A job is blocked and needs you · Rivet has a question · An idea is waiting for your pick");
     expect(all.body.length).toBeLessThan(160);
     expect(all.url).toBe("/foundry");
+    expect(pingText([n("down", 5), n("idea", 1)]).body).toBe("The live site isn't loading; the Foundry is on it · An idea is waiting for your pick");
   });
 
   it("never carries an issue's title, body, question or number", () => {

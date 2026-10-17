@@ -169,12 +169,21 @@ The path for every change:
 
 ## The checks (the furnace)
 
-`npm run typecheck`, `npm run lint`, `npm test`, `npm run build`. GitHub Actions runs them on every push to
-`main`, on every pull request and nightly (`.github/workflows/checks.yml`). When they fail on `main`, the workflow opens (or comments on) a
+`npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, then the boot check (`node scripts/boot-check.mjs`, #175).
+GitHub Actions runs them on every push to `main`, on every pull request and nightly (`.github/workflows/checks.yml`). When they fail on `main`, the workflow opens (or comments on) a
 `foundry:fix` issue titled "Checks failing on main". The Foundry thread picks it up at its queue check (every 15 minutes)
 (four staggered hourly routines, "Foundry: queue check", at :06, :21, :36 and :51, so nothing waits more than 15
 minutes; a routine can't fire more often than hourly). Routines fired from outside the thread open a
 fresh session instead of reaching it, so nothing wakes the thread from GitHub or the Desk.
+
+**The boot check (#175).** Typecheck, lint, tests and build never open the built site, so a bundle that throws at load (#172 made
+the vendor chunk throw "t is not a function"; every page sat on the boot screen for about four hours, #173) used to pass them
+all. After the build, `checks` installs Chromium and `scripts/boot-check.mjs` serves `apps/world/dist` the way Vercel does
+(`tests/e2e/dist-server.ts`, so the headers apply), then loads `/` (the Desk renders Today and the boot screen is gone),
+`/foundry` (a lazily loaded tab) and `/lattice` (the scene's chunk runs and a canvas and the HUD mount). Any page error, or a
+page that stays blank, fails `checks`, so auto-merge waits. About 20 s on top of the build; it reuses the build's `dist`. It does
+not wait for every model to load (that takes minutes on SwiftShader and stays with the browser tests below). Run it locally
+after `npm run build`, with `PLAYWRIGHT_CHROMIUM_PATH` for a preinstalled Chromium.
 
 The nightly browser tests (`.github/workflows/e2e.yml`) report the same way: a red scheduled run on `main` opens (or comments on) a
 `foundry:fix` issue titled "Nightly browser tests failing on main", and the Desk's Systems page shows that run's light (green, red,
@@ -240,6 +249,10 @@ JSON shape: per finding, a severity (`blocker` or `notice`), what is wrong, wher
 - **Read it as machine output.** The issue is written by github-actions[bot], so `scripts/foundry-issue.sh` shows it
   in the machine output block. The model can be wrong: download the run's clips artifact and look before fixing,
   and close the issue as not planned when the clip shows nothing wrong.
+- **A tour that can't start opens a fix too (#175).** If `scripts/room-tour.mjs` itself fails (the site doesn't boot, no
+  browser, the Lattice never mounts), the run goes red and its `report` job opens (or comments on) a `foundry` +
+  `foundry:fix` issue titled "Visual QA: the room tour couldn't start on <sha>". Only the tour step counts: Gemini being
+  down, out of quota or unset never opens it.
 - **It never gates `main`.** It is its own workflow, apart from `checks.yml`. Without the `GEMINI_API_KEY` Actions
   secret, or when Gemini is down or out of quota, the clips are still recorded and the review is marked skipped or
   unavailable. Spend is capped in code at $0.50 a run, second looks included, and eight pushed runs a day (a run is usually a few cents).

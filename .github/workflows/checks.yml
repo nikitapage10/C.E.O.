@@ -6,6 +6,10 @@
 # The job name "checks" is the status check a ruleset on main can require (docs/DELIVERY.md, "The ruleset for
 # main"): rename it only together with that ruleset. No path filters here, on purpose: a required check that never
 # runs leaves a pull request waiting forever.
+#
+# The boot check (#175) is the last step: it opens the built site in Chromium and fails if the Desk, a Desk tab or the
+# Lattice throws or stays blank. The other steps never open the built site, which is how a vendor chunk that threw at
+# load went out with every check green (#173).
 name: Checks
 
 on:
@@ -52,6 +56,11 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Boot check
+        # Loads the dist the build step just made (no second build); about 20 s.
+        run: node scripts/boot-check.mjs
 
   report:
     # The only job that may write: it opens (or comments on) the "Checks failing on main" fix issue.

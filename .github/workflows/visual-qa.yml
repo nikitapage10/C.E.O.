@@ -30,6 +30,7 @@ jobs:
       actions: read # to count today's runs for the daily cap
     outputs:
       issues: ${{ steps.review.outputs.issues }}
+      tour_failed: ${{ steps.tour_failed.outputs.failed }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -46,9 +47,18 @@ jobs:
       - name: Build
         run: npm run build
       - name: Record the room tour
+        id: tour
+        # Held open so a tour that can't start or boot is reported (the report job opens a fix issue) before this run
+        # fails, at "Fail the run if the tour failed" below. Only this step's outcome counts, never Gemini's.
+        continue-on-error: true
         run: node scripts/room-tour.mjs
+      - name: The tour failed
+        id: tour_failed
+        if: steps.tour.outcome == 'failure'
+        run: echo "failed=true" >> "$GITHUB_OUTPUT"
       - name: Count today's runs
         id: today
+        if: steps.tour.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -56,6 +66,7 @@ jobs:
           echo "count=$n" >> "$GITHUB_OUTPUT"
       - name: Gemini review
         id: review
+        if: steps.tour.outcome == 'success'
         # Gemini can't fail this run: the script exits 0 on its own errors, and this catches anything else.
         continue-on-error: true
         env:
@@ -82,10 +93,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Fail the run if the tour failed
+        if: steps.tour.outcome == 'failure'
+        run: |
+          echo "::error::The room tour failed to start or boot (scripts/room-tour.mjs)."
+          exit 1
+
   report:
-    # The only job that may write: it opens (or comments on) one fix issue per room with a blocker.
+    # The only job that may write: it opens (or comments on) one fix issue per room with a blocker, and one when the
+    # room tour itself couldn't start or boot.
     needs: tour
-    if: always() && github.ref == 'refs/heads/main' && needs.tour.outputs.issues != '' && needs.tour.outputs.issues != '[]'
+    if: always() && github.ref == 'refs/heads/main' && ((needs.tour.outputs.issues != '' && needs.tour.outputs.issues != '[]') || needs.tour.outputs.tour_failed == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -105,6 +123,7 @@ jobs:
           private-key: ${{ secrets.FOUNDRY_APP_PRIVATE_KEY }}
           permission-issues: write
       - name: Open or update the Foundry fixes
+        if: needs.tour.outputs.issues != '' && needs.tour.outputs.issues != '[]'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
           # Passed as data, never pasted into the script: the text started as model output.
@@ -126,4 +145,38 @@ jobs:
                 const { data: made } = await github.rest.issues.create({ ...context.repo, title: p.title.slice(0, 120), body: String(p.body).slice(0, 6000), labels: ["foundry", "foundry:fix"] });
                 core.info(`Opened #${made.number}`);
               }
+            }
+      - name: Open a fix when the tour couldn't start
+        # Not Gemini: only the tour step failing lands here. No model output is involved, the text is fixed.
+        if: needs.tour.outputs.tour_failed == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ steps.app.outputs.token || github.token }}
+          script: |
+            const prefix = "Visual QA: the room tour couldn't start";
+            const sha = context.sha.slice(0, 7);
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: "open", labels: "foundry,foundry:fix", per_page: 100 });
+            // One open issue for it, whatever the commit: matched on the prefix.
+            const existing = open.find((i) => i.title.startsWith(prefix));
+            if (existing) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body: `Still failing: ${run} (commit ${sha}).` });
+              core.info(`Commented on #${existing.number}`);
+            } else {
+              const { data: made } = await github.rest.issues.create({
+                ...context.repo,
+                title: `${prefix} on ${sha}`,
+                labels: ["foundry", "foundry:fix"],
+                body: [
+                  `**Pitch:** Visual QA records a clip of each Lattice room after every push to main, and today's run couldn't: the room tour (\`node scripts/room-tour.mjs\`) failed to start or boot at commit ${sha}, so no room was checked.`,
+                  `**Size:** small`,
+                  `**Short:** Fixing the room tour`,
+                  `**Builder:** Rusty (Sonnet), the fix lane`,
+                  ``,
+                  `Run: ${run}`,
+                  ``,
+                  `Open the "Record the room tour" step's log for the error. It is usually the built site not booting (the boot check in checks.yml should have caught that on the pull request), a missing browser or ffmpeg, or the Lattice taking longer than the tour waits. See docs/FOUNDRY.md ("Visual QA").`,
+                ].join("\n"),
+              });
+              core.info(`Opened #${made.number}`);
             }

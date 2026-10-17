@@ -26,4 +26,7 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
+  // ESLint 10's new no-useless-assignment flags the guard's `let reason = null` default. The guard is Nikita's to
+  // change (never-list, docs/FOUNDRY.md), so the rule stays off for that one file rather than editing it.
+  { files: [".claude/hooks/guard-hook.mjs"], rules: { "no-useless-assignment": "off" } },
 );

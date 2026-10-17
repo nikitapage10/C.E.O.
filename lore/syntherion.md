@@ -216,7 +216,12 @@ Skippy left the bench for the Kernel, she came back down, because somebody had t
 singing. **Rivet** is the first responder again: every fix comes to her first, on the quickest rung of the ladder,
 and she walks to it ("running is how you get a second thing broken"). **Rocky** is the master builder: the fixes
 too hard for a first look, and anything the C.E.O. has approved to be built. **Rusty** keeps the upkeep and the
-morning ideas, three of them, which he pins to a new idea board by the pegboard, in order of risk.
+morning ideas, three of them, which he pins to a new idea board by the pegboard, in order of risk. Beside it stands
+**the shipped wall**: a walnut board on blackened-steel legs with a brass plaque for every change the Foundry
+shipped this week, newest on top, engraved with its title and the day. Rusty polishes each one before it goes up
+and moves the older ones down a rail; past eight he engraves "and so many more" along the bottom and refuses to
+throw a plaque away, so the drawer under the board is full of last week's. Click a plaque and it tells you what
+shipped, who built it, and where the change landed.
 
 **What the crew does when it's quiet.** Every one of them has a corner now, so the floor shows who is doing what
 even between jobs. **Rusty's dock** stands side-on against the left wall: three bays under a shelf of labelled spare

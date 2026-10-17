@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, shippedThisWeek, plaqueTitle, type Change, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -359,6 +359,44 @@ describe("the changelog", () => {
     const now = new Date(2026, 9, 13, 15).getTime();
     const at = (h: number) => ({ key: `${h}`, at: new Date(2026, 9, 13, h).getTime(), title: "", kind: "chat" as const, issue: null, landed: null, by: null, short: "", approval: "none" as const, origin: "chat" as const });
     expect(shippedToday([at(9), at(1), { ...at(0), at: new Date(2026, 9, 12, 23).getTime() }], now)).toBe(2);
+  });
+});
+
+describe("the shipped wall (#182)", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.parse("2026-10-17T12:00:00Z");
+  const change = (key: string, daysAgo: number, extra: Partial<Change> = {}): Change => ({ key, at: now - daysAgo * DAY, title: key, kind: "chat", issue: null, landed: null, by: null, short: "", approval: "none", origin: "chat", ...extra });
+
+  it("hangs this week's changes, newest first, and leaves older ones off", () => {
+    const { plaques, more } = shippedThisWeek([change("b", 3), change("old", 8), change("a", 0.5), change("c", 6.9)], now);
+    expect(plaques.map((c) => c.key)).toEqual(["a", "b", "c"]);
+    expect(more).toBe(0);
+  });
+
+  it("caps the plaques and counts the rest", () => {
+    const log = Array.from({ length: 11 }, (_, i) => change(`c${i}`, i * 0.5));
+    const { plaques, more } = shippedThisWeek(log, now, 8);
+    expect(plaques).toHaveLength(8);
+    expect(plaques[0]!.key).toBe("c0");
+    expect(more).toBe(3);
+  });
+
+  it("gives no plaque to a change that was taken back", () => {
+    const { plaques } = shippedThisWeek([change("kept", 1), change("asked", 1, { undo: "requested" }), change("undone", 1, { undo: "done" })], now);
+    expect(plaques.map((c) => c.key)).toEqual(["kept"]);
+  });
+
+  it("is empty on a quiet week", () => {
+    expect(shippedThisWeek([], now)).toEqual({ plaques: [], more: 0 });
+  });
+
+  it("cuts a title to fit its plaque, without its tag", () => {
+    expect(plaqueTitle("Idea: Watch the live site every hour")).toBe("Watch the live site every hour");
+    expect(plaqueTitle("Short one")).toBe("Short one");
+    const long = plaqueTitle("Hang a shipped wall beside Rusty's idea board in the Foundry", 30);
+    expect(long.length).toBeLessThanOrEqual(30);
+    expect(long.endsWith("…")).toBe(true);
+    expect(long).toBe("Hang a shipped wall beside…");
   });
 });
 

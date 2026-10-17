@@ -65,7 +65,7 @@ export const SETUP_LIST: SetupItem[] = [
   {
     id: "pings",
     title: "Turn on phone pings",
-    why: "The Desk pings your phone when an idea, a question or a blocker needs your call.",
+    why: "The Desk pings your phone when an idea, a question or a blocker needs your call, or the live site stops loading.",
     ticks: "Ticks itself once the keys are in Vercel and the hourly ping check gets through with the secret.",
     links: [
       { label: "Vercel: Environment Variables", href: VERCEL_ENV },

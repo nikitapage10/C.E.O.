@@ -7,7 +7,7 @@
  * A request with any query string is redirected to the bare URL so it hits the edge cache, and a warm function keeps
  * its last answer for the same few seconds (api/_feedcache.ts).
  *
- * GET → { issues, runs, e2e, pulls, commits }: the raw GitHub JSON the Desk parses (apps/world/src/foundry.ts).
+ * GET → { issues, runs, e2e, live, pulls, commits }: the raw GitHub JSON the Desk parses (apps/world/src/foundry.ts).
  */
 
 import { canonical, memo } from "./_feedcache.js";
@@ -29,14 +29,15 @@ async function read(path: string): Promise<unknown> {
 const TTL = 5;
 
 const feed = memo(TTL * 1000, async () => {
-  const [issues, runs, e2e, pulls, commits] = await Promise.all([
+  const [issues, runs, e2e, live, pulls, commits] = await Promise.all([
     read("/issues?labels=foundry&state=all&sort=updated&per_page=40"),
     read("/actions/workflows/checks.yml/runs?branch=main&per_page=1").catch(() => ({ workflow_runs: [] })),
     read("/actions/workflows/e2e.yml/runs?branch=main&per_page=5").catch(() => ({ workflow_runs: [] })),
+    read("/actions/workflows/live-watch.yml/runs?branch=main&per_page=1").catch(() => ({ workflow_runs: [] })),
     read("/pulls?state=closed&sort=updated&direction=desc&per_page=20").catch(() => []),
     read("/commits?sha=main&per_page=40").catch(() => []),
   ]);
-  return JSON.stringify({ issues, runs, e2e, pulls, commits });
+  return JSON.stringify({ issues, runs, e2e, live, pulls, commits });
 });
 
 export async function GET(req: Request): Promise<Response> {

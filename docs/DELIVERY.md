@@ -154,6 +154,7 @@ Keep a pull request under about 400 changed lines, not counting the lockfile and
 | --- | --- | --- | --- |
 | `checks`: typecheck, lint, unit tests, build | `checks.yml` | Every PR, every push to `main`, nightly, on demand | Yes, from the gated ruleset (below) |
 | `e2e`: the Lattice in headless Chromium | `e2e.yml` | Nightly on `main`, on demand, and on a PR labelled `e2e` | After two green weeks it runs on every PR and becomes required |
+| Live watch: the live site opens in Chromium (#181) | `live-watch.yml` | Hourly, on demand | No: it watches production, not a change |
 | Vercel preview build | Vercel | Every PR branch except `claude/*` | Optional. `checks` already runs the same build |
 | Supply chain: pinned actions, dependency and code scanning | Issue #64 | | Joins once #64 lands |
 

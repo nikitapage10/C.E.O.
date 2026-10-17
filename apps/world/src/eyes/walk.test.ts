@@ -125,13 +125,13 @@ describe("Brogu's eyes: walking", () => {
 
   it("stops at the platform's edge and says so", () => {
     let x = 0;
-    let z = BOUNDS.z1 - 0.05;
+    const z = BOUNDS.z1 - 0.05;
     const step = move("green", x, z, 0, 0.2);
     expect(step.z).toBe(z);
     expect(step.bumped).toBe(true);
     expect(step.atEdge).toBe(true);
     // Walking along the edge still works.
-    ({ x, z } = move("green", x, z, 0.2, 0));
+    ({ x } = move("green", x, z, 0.2, 0));
     expect(x).toBeCloseTo(0.2);
   });
 

@@ -41,7 +41,7 @@ self.addEventListener("fetch", (event) => {
 
 /** A ping's words, kept short and plain whatever arrives. */
 function readPing(data) {
-  let got = {};
+  let got;
   try {
     got = data ? data.json() : {};
   } catch {

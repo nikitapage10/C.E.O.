@@ -15,6 +15,9 @@
  *        { choice: "propose", note } opens a new idea from Nikita's words for Rivet to shape.
  *        { choice: "stop", issue } stops a build the Builder auto-approved (`foundry:auto`, docs/FOUNDRY.md
  *        "Auto-approval"): it goes back to an idea waiting for Nikita's pick. Only open `foundry:auto` builds.
+ *        { choice: "undo", issue } takes back a change that already shipped (docs/FOUNDRY.md, "Undo"): the issue opens
+ *        again as `foundry:fix` + `foundry:undo`, and the Builder reverts it through the fix lane. Only closed
+ *        `foundry:shipped` issues not already being undone.
  *        The answer comes back as soon as GitHub has the change; Rivet's shaping finishes in the background.
  *        Notes and ideas go through the privacy check first (api/_privacy.ts, #127): text that looks private (an
  *        email, a phone number, an address, a card or account number, a key, a person's name) is held back with
@@ -381,6 +384,19 @@ export function stoppedLabels(labels: string[]): string[] {
   return [...new Set([...labels.filter((l) => !drop.has(l)), "foundry:idea"])];
 }
 
+/** The label on a shipped change Nikita asked to take back from the Desk's Changelog (docs/FOUNDRY.md, "Undo"). */
+export const UNDO_LABEL = "foundry:undo";
+
+/**
+ * A shipped change's labels once Nikita asks to undo it: still `foundry:shipped` (so its history reads clearly), plus
+ * `foundry:fix`, which rings the Builder's doorbell, and `foundry:undo`. Any leftover work label comes off so the
+ * doorbell sees it as new work.
+ */
+export function undoLabels(labels: string[]): string[] {
+  const drop = new Set(["foundry:working", "foundry:ready", "foundry:paused", "foundry:stuck", "foundry:blocked"]);
+  return [...new Set([...labels.filter((l) => !drop.has(l)), "foundry:fix", UNDO_LABEL])];
+}
+
 /** The Q and A rounds an issue body already carries (`**Question and answer:**` blocks), oldest first. */
 export function answeredRounds(body: string): string[] {
   return [...body.matchAll(/\*\*Question and answer:\*\*\n\n(?:>.*(?:\n|$))+/g)].map((m) => m[0].trimEnd());
@@ -512,7 +528,7 @@ async function act(request: Request): Promise<Response> {
     return new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" } });
   }
 
-  if (typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 || (choice !== "build" && choice !== "pass" && choice !== "revise" && choice !== "answer" && choice !== "stop")) return json({ error: "bad-request" }, 400);
+  if (typeof issue !== "number" || !Number.isInteger(issue) || issue < 1 || (choice !== "build" && choice !== "pass" && choice !== "revise" && choice !== "answer" && choice !== "stop" && choice !== "undo")) return json({ error: "bad-request" }, 400);
 
   const found = await github(`/issues/${issue}`);
   if (!found.ok) return json({ error: "not-found" }, 404);
@@ -526,6 +542,16 @@ async function act(request: Request): Promise<Response> {
     const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ labels: stoppedLabels(labels) }) });
     if (!res.ok) return json({ error: "github" }, 502);
     await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "**Trail · Decision:** Stopped by Nikita on the Desk. Back to an idea card waiting for Nikita's pick; the Builder closes its pull request unmerged." }) });
+    return json({ ok: true });
+  }
+  if (choice === "undo") {
+    // Nikita takes back a change that shipped (docs/FOUNDRY.md, "Undo"): the issue opens again in the fix lane and
+    // the Builder reverts its squash commit, shipping the revert once its checks are green. Nothing is reverted here.
+    if (current.state !== "closed" || !labels.includes("foundry") || !labels.includes("foundry:shipped")) return json({ error: "not-shipped" }, 409);
+    if (labels.includes(UNDO_LABEL) || labels.includes("foundry:undone")) return json({ error: "already-undoing" }, 409);
+    const res = await github(`/issues/${issue}`, { method: "PATCH", body: JSON.stringify({ state: "open", labels: undoLabels(labels) }) });
+    if (!res.ok) return json({ error: "github" }, 502);
+    await github(`/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: "**Trail · Decision:** Undo requested by Nikita on the Desk. The Builder reverts it through the fix lane and ships the revert once its checks are green." }) });
     return json({ ok: true });
   }
   if (current.state !== "open" || !labels.includes("foundry") || !labels.includes("foundry:idea")) return json({ error: "not-an-open-idea" }, 409);

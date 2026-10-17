@@ -329,6 +329,32 @@ describe("the changelog", () => {
     expect(log[2]!.landed?.label).toBe("PR #12");
   });
 
+  it("keeps a change Nikita asked to undo on the list, marked, as what it was, until the revert ships", () => {
+    const asked = { ...issue(30, ["foundry", "foundry:build", "foundry:auto", "foundry:shipped", "foundry:fix", "foundry:undo"], "2026-10-14T05:00:00Z"), state: "open" as const, closed_at: null };
+    const undone = issue(31, ["foundry", "foundry:build", "foundry:shipped", "foundry:undone"], "2026-10-14T06:00:00Z");
+    const open = { ...issue(32, ["foundry", "foundry:build", "foundry:shipped"], "2026-10-14T07:00:00Z"), state: "open" as const, closed_at: null };
+    const fixUndone = issue(33, ["foundry", "foundry:fix", "foundry:shipped", "foundry:undo"], "2026-10-14T08:00:00Z");
+    const pulls = [pull(40, "foundry/build/31-podium", "2026-10-13T00:00:00Z"), { ...pull(41, "foundry/fix/31-undo-podium", "2026-10-14T05:59:00Z"), title: "Undo #31: Podium" }];
+    const log = parseChangelog([asked, undone, open, fixUndone], pulls, []);
+    expect(log.map((c) => [c.key, c.kind, c.undo])).toEqual([
+      ["issue-33", "fix", "requested"],
+      ["issue-31", "build", "done"],
+      ["issue-30", "build", "requested"],
+    ]);
+    const done = log.find((c) => c.key === "issue-31")!;
+    expect(done.landed).toEqual({ label: "PR #40", url: "https://x/pull/40" });
+    expect(done.reverted).toEqual({ label: "PR #41", url: "https://x/pull/41" });
+    expect(log.find((c) => c.key === "issue-30")!.approval).toBe("auto");
+    // The revert PR is the issue's, not a change of its own.
+    expect(log.some((c) => c.key === "pr-41")).toBe(false);
+  });
+
+  it("shows an ordinary shipped change with no undo mark", () => {
+    const log = parseChangelog([issue(11, ["foundry", "foundry:upkeep", "foundry:shipped"], "2026-10-13T01:00:00Z")], [], []);
+    expect(log[0]).not.toHaveProperty("undo");
+    expect(log[0]).not.toHaveProperty("reverted");
+  });
+
   it("counts what shipped since midnight", () => {
     const now = new Date(2026, 9, 13, 15).getTime();
     const at = (h: number) => ({ key: `${h}`, at: new Date(2026, 9, 13, h).getTime(), title: "", kind: "chat" as const, issue: null, landed: null, by: null, short: "", approval: "none" as const, origin: "chat" as const });

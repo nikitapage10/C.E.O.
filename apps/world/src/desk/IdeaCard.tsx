@@ -23,7 +23,7 @@ export function ideaTitle(title: string): string {
 /* ── The idea buttons ── */
 
 export type Setup = { buttons: boolean; direct: boolean; shape: boolean; images: boolean } | null;
-export type Choice = "build" | "pass" | "revise" | "propose" | "answer" | "stop";
+export type Choice = "build" | "pass" | "revise" | "propose" | "answer" | "stop" | "undo";
 
 export function useSetup(): Setup {
   const [setup, setSetup] = useState<Setup>(null);

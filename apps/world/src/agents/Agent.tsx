@@ -378,7 +378,9 @@ export function Agent({ id }: { id: string }) {
     yaw.current = lerpAngle(yaw.current, targetYaw, 1 - Math.exp(-dt * (mode === "stare" || posing ? 7.7 : 5)));
     root.current.rotation.y = yaw.current;
 
-    visibility.current += ((streaming ? 0 : 1) - visibility.current) * 0.2;
+    // Fade out on the beam by time, not by frame (#184): at a slow frame rate a per-frame step left the figure whole
+    // all the way up to the ceiling. 13.4/s matches the old 0.2 per frame at 60 fps.
+    visibility.current += ((streaming ? 0 : 1) - visibility.current) * (1 - Math.exp(-dt * 13.4));
     const v = visibility.current;
     figure.current.scale.setScalar(Math.max(0.0001, v));
     if (orb.current) {

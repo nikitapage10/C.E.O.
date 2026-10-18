@@ -1,6 +1,6 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
-import { DirectionalLight, MathUtils, Matrix4, Mesh, Vector3, type Object3D } from "three";
+import { type BufferGeometry, DirectionalLight, MathUtils, Matrix4, Mesh, Vector3, type Object3D } from "three";
 import { roomCenter } from "@ceo/core";
 import { useWorld } from "../store.ts";
 
@@ -56,12 +56,19 @@ const BAND = 1.25;
 const RESCAN_MS = 1500;
 const UPDATE_EVERY = 3;
 
-type Tracked = {
-  mesh: Mesh;
+/** What a mesh was judged by: its size, and the geometry and bounds it was measured from. */
+export type Measure = {
   radius: number;
   /** Merged pieces: how far their members sit from the centre (0 for a plain mesh). */
   spread: number;
   center: Vector3;
+  geo: BufferGeometry;
+  bsRadius: number;
+  bsCenter: Vector3;
+};
+
+type Tracked = Measure & {
+  mesh: Mesh;
   castShadow: boolean;
   hidden: boolean;
   shadowOff: boolean;
@@ -108,6 +115,29 @@ export function trackable(o: Object3D): o is Mesh {
   // Only meshes on the default layer (or the two this module moves them to): anything placed on another layer on
   // purpose is left alone.
   return OUR_MASKS.has(m.layers.mask >>> 0);
+}
+
+/**
+ * A mesh's size for level of detail, or null if it has none yet. Pass the previous measure and it is kept while the
+ * mesh's geometry and bounding sphere are unchanged: text (troika) starts on placeholder geometry and gets its real
+ * bounds once the glyphs load, so a one-time measure would leave it tiny and hidden at a distance.
+ */
+export function measure(o: Mesh, prev?: Measure): Measure | null {
+  const geo = o.geometry;
+  if (!geo) return null;
+  if (!geo.boundingSphere) geo.computeBoundingSphere();
+  const bs = geo.boundingSphere;
+  if (!bs || !Number.isFinite(bs.radius)) return null;
+  if (prev && prev.geo === geo && prev.bsRadius === bs.radius && prev.bsCenter.equals(bs.center)) return prev;
+  const lod = o.userData.lodSphere as { radius: number; spread: number } | undefined;
+  return {
+    radius: lod?.radius ?? bs.radius,
+    spread: lod?.spread ?? 0,
+    center: bs.center.clone(),
+    geo,
+    bsRadius: bs.radius,
+    bsCenter: bs.center.clone(),
+  };
 }
 
 /** Stops tracking a mesh, with its own shadow flag back. Its layer is left as is: whoever took it sets that. */
@@ -158,23 +188,15 @@ export function DetailLevels() {
       scene.traverse((o) => {
         if (!trackable(o)) return;
         seen.add(o);
-        if (map.has(o)) return;
-        const geo = o.geometry;
-        if (!geo) return;
-        if (!geo.boundingSphere) geo.computeBoundingSphere();
-        const bs = geo.boundingSphere;
-        if (!bs || !Number.isFinite(bs.radius)) return;
-        const lod = o.userData.lodSphere as { radius: number; spread: number } | undefined;
+        const t = map.get(o);
+        const m = measure(o, t);
+        if (t) {
+          if (m && m !== t) Object.assign(t, m);
+          return;
+        }
+        if (!m) return;
         ownShadow.set(o, o.castShadow);
-        map.set(o, {
-          mesh: o,
-          radius: lod?.radius ?? bs.radius,
-          spread: lod?.spread ?? 0,
-          center: bs.center.clone(),
-          castShadow: o.castShadow,
-          hidden: false,
-          shadowOff: false,
-        });
+        map.set(o, { ...m, mesh: o, castShadow: o.castShadow, hidden: false, shadowOff: false });
       });
       for (const t of map.values()) if (!seen.has(t.mesh)) untrack(map, t);
     }

@@ -1,7 +1,7 @@
 import { roomCenter } from "@ceo/core";
-import { BoxGeometry, Mesh, MeshBasicMaterial } from "three";
+import { BoxGeometry, Mesh, MeshBasicMaterial, Sphere, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { DETAIL_LAYER, HIDDEN_LAYER, hideCutoff, layerMask, trackable } from "./DetailLevels.tsx";
+import { DETAIL_LAYER, HIDDEN_LAYER, hideCutoff, layerMask, measure, trackable } from "./DetailLevels.tsx";
 
 const mesh = () => new Mesh(new BoxGeometry(), new MeshBasicMaterial());
 
@@ -50,5 +50,35 @@ describe("far rooms while inside a room (#115)", () => {
     expect(hideCutoff("low", room, x, z, 60)).toBeGreaterThan(2.5);
     // ...but not when they're close to the camera.
     expect(hideCutoff("high", room, x, z, 30)).toBe(1.5);
+  });
+});
+
+describe("measuring a mesh (#188)", () => {
+  it("re-measures when the geometry's bounding sphere grows, as text does once its glyphs load", () => {
+    const m = mesh();
+    m.geometry.boundingSphere = new Sphere(new Vector3(), 0.01);
+    const first = measure(m)!;
+    expect(first.radius).toBe(0.01);
+    expect(measure(m, first)).toBe(first);
+    m.geometry.boundingSphere = new Sphere(new Vector3(1, 0, 0), 2);
+    const next = measure(m, first)!;
+    expect(next.radius).toBe(2);
+    expect(next.center.x).toBe(1);
+  });
+
+  it("re-measures when the geometry is swapped", () => {
+    const m = mesh();
+    const first = measure(m)!;
+    m.geometry = new BoxGeometry(10, 10, 10);
+    expect(measure(m, first)!.radius).toBeGreaterThan(first.radius);
+  });
+
+  it("lets a merged piece's lodSphere win", () => {
+    const m = mesh();
+    m.userData.lodSphere = { radius: 0.3, spread: 4 };
+    const first = measure(m)!;
+    expect(first).toMatchObject({ radius: 0.3, spread: 4 });
+    m.geometry = new BoxGeometry(10, 10, 10);
+    expect(measure(m, first)).toMatchObject({ radius: 0.3, spread: 4 });
   });
 });

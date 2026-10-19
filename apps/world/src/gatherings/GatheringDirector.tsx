@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useCast } from "../cast/castStore.ts";
 import { clock } from "../clock.ts";
 import { readingTime, simulator, useWorld, type CampaignCostume } from "../store.ts";
+import { COSTUME_PARTY, isHalloweenNight } from "../veil/veil.ts";
+import { chronicleDay } from "../chronicle.ts";
 import { GATHERINGS, GATHERING_BY_ID, type GatheringDef, type Line, type PlayCtx } from "./gatherings.ts";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -15,6 +17,9 @@ const EVERY = [30 * 60_000, 36 * 60_000] as const;
 /** Reading time for a line that's written when it's spoken (a dice result): assume a longish sentence. */
 const LAZY_MS = readingTime("x".repeat(80));
 const lineMs = (l: Line) => (typeof l.text === "string" ? readingTime(l.text) : LAZY_MS) + (l.roll ? 1400 : 0) + 700;
+
+/** How often the director checks whether Halloween night has begun or ended. */
+const VEIL_CHECK_MS = 60_000;
 
 /** At most this many gatherings at once. Starting another ends the oldest. */
 export const MAX_GATHERINGS = 2;
@@ -79,7 +84,7 @@ export function GatheringDirector() {
       return true;
     };
 
-    const start = (def: GatheringDef): StartResult => {
+    const start = (def: GatheringDef, auto = false): StartResult => {
       const ended: string[] = [];
       if (running.has(def.id)) return { ok: false, ended };
       // One per room, and at most two at once: make room before casting, so the freed agents can join.
@@ -126,7 +131,7 @@ export function GatheringDirector() {
         );
       });
       world.announce(
-        pick(def.kernel)
+        pick(auto && def.kernelAuto ? def.kernelAuto : def.kernel)
           .replace("{host}", name(who.host))
           .replace("{guests}", who.guests.map(name).join(", ")),
         "status",
@@ -187,11 +192,32 @@ export function GatheringDirector() {
     };
     schedule(FIRST_AFTER);
 
+    // Halloween night: the Hallowed Veil opens itself at dusk (Mountain time) and shuts at midnight. If the C.E.O.
+    // ends it from the console it stays shut for the rest of the night; the party restarts after each scene until then.
+    let veilOpened = false;
+    let dismissedOn: string | null = null;
+    const watchVeil = () => {
+      const now = new Date();
+      if (isHalloweenNight(now)) {
+        if (dismissedOn === chronicleDay(now.getTime()) || document.visibilityState !== "visible") return;
+        if (!running.has(COSTUME_PARTY) && start(GATHERING_BY_ID[COSTUME_PARTY]!, true).ok) veilOpened = true;
+      } else if (veilOpened) {
+        veilOpened = false;
+        stop(COSTUME_PARTY, true);
+      }
+    };
+    const veilWatch = setInterval(watchVeil, VEIL_CHECK_MS);
+    watchVeil();
+
     gatheringControl.start = (id) => {
       const def = GATHERING_BY_ID[id];
       return def ? start(def) : { ok: false, ended: [] };
     };
-    gatheringControl.end = (id) => (id ? [id] : [...running.keys()]).filter((g) => stop(g, true)).length;
+    gatheringControl.end = (id) => {
+      const ids = id ? [id] : [...running.keys()];
+      if (ids.includes(COSTUME_PARTY) && running.has(COSTUME_PARTY)) dismissedOn = chronicleDay(Date.now());
+      return ids.filter((g) => stop(g, true)).length;
+    };
 
     const api = ((window as unknown as { __ceo?: Record<string, unknown> }).__ceo ??= {});
     api.gather = (id: string) => {
@@ -203,6 +229,7 @@ export function GatheringDirector() {
 
     return () => {
       clearTimeout(cadence);
+      clearInterval(veilWatch);
       running.forEach((r) => r.timers.forEach(clearTimeout));
       gatheringControl.start = () => ({ ok: false, ended: [] });
       gatheringControl.end = () => 0;

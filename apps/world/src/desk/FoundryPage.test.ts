@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nextUpkeep } from "../foundry.ts";
+import { ideaAge } from "./IdeaCard.tsx";
 import { ideaTitle, nextIdeas } from "./FoundryPage.tsx";
 
 describe("the Foundry's clock", () => {
@@ -18,5 +19,26 @@ describe("ideaTitle", () => {
   it("drops the Idea: prefix and capitalises", () => {
     expect(ideaTitle("Idea: merge each room's furniture")).toBe("Merge each room's furniture");
     expect(ideaTitle("Already clean")).toBe("Already clean");
+  });
+});
+
+describe("how long an idea has waited", () => {
+  const now = Date.UTC(2026, 9, 19, 12);
+  const ago = (days: number) => now - days * 86_400_000;
+
+  it("counts down to the shelf", () => {
+    expect(ideaAge(ago(0), now)).toBe("New today · shelved in 7 days");
+    expect(ideaAge(ago(1), now)).toBe("Waiting 1 day · shelved in 6");
+    expect(ideaAge(ago(3), now)).toBe("Waiting 3 days · shelved in 4");
+    expect(ideaAge(ago(6), now)).toBe("Waiting 6 days · shelved tomorrow");
+  });
+
+  it("says when an idea is due for the shelf", () => {
+    expect(ideaAge(ago(7), now)).toBe("Waiting 7 days · due for the shelf");
+    expect(ideaAge(ago(8), now)).toBe("Waiting 8 days · due for the shelf");
+  });
+
+  it("shows nothing without a date", () => {
+    expect(ideaAge(undefined, now)).toBe("");
   });
 });

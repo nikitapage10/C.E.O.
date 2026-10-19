@@ -175,6 +175,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Four jobs at once. That's the dock and me. Number five can have a seat and a pamphlet.",
     "The lens found barrels on my dock. They were not my barrels. I've moved them anyway, and filed a note.",
     "I've asked for the far-sight lens's manual. It hasn't got one. Chapter one is going very well.",
+    "New plaque on the shipped wall. Polished it twice. Apologised to the polish.",
+    "Rocky, the plaques aren't for fist bumping. They're for reading. There's a chapter on reading.",
   ],
   caret: [
     "Crate is good. Crate is good good good.",

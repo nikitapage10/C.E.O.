@@ -12,6 +12,7 @@ import { PALETTE } from "../theme.ts";
 import { WorkCrates, useHasWork } from "./WorkCrates.tsx";
 import { AlarmPost, BenchLight, DraftingTable, SpareDock } from "./FoundryCrew.tsx";
 import { Block, LightBar, Plinth, Workstation } from "./primitives.tsx";
+import { ShippedWall } from "./ShippedWall.tsx";
 
 const CONVEYOR_Z = -2.6;
 const BELT_Y = 0.86;
@@ -351,6 +352,7 @@ export function Foundry() {
       <Block size={[1.4, 0.9, 0.9]} position={[3, 0.45, 4.4]} material={PBR.lacquer("#a83a2a", 0.4)} radius={0.06} />
       <Block size={[1.4, 0.05, 0.9]} position={[3, 0.62, 4.4]} material={PBR.blackMetal()} radius={0.01} shadows={false} />
       <IdeaBoard />
+      <ShippedWall />
       <DockLamp />
       <StuckAlarm />
 

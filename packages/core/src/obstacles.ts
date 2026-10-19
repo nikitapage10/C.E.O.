@@ -42,6 +42,7 @@ const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
     box(FOUNDRY_FLOOR.dock), // Rusty's dock, against the left wall
     box(FOUNDRY_FLOOR.drafting), // Rocky's drafting table
     box(FOUNDRY_FLOOR.alarmPost), // Rivet's alarm post
+    box(FOUNDRY_FLOOR.shippedWall), // the shipped wall, beside the pegboard
     ...benchDesks().map(box), // Rusty's two workbenches, front and centre
   ],
   spire: [

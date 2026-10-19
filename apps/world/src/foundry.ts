@@ -441,6 +441,32 @@ export function shippedToday(changelog: Change[], now = Date.now()): number {
   return changelog.filter((c) => c.at >= midnight).length;
 }
 
+/** How far back the Foundry's shipped wall looks: a week. */
+export const WALL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/** Plaques on the shipped wall; anything past these is counted, not hung. */
+export const WALL_PLAQUES = 8;
+
+/**
+ * The shipped wall's plaques (#182): the changes shipped in the last week, newest first, at most `cap`, and how many
+ * more there were. A change that was taken back (an Undo, asked for or done) gets no plaque.
+ */
+export function shippedThisWeek(changelog: readonly Change[], now = Date.now(), cap = WALL_PLAQUES): { plaques: Change[]; more: number } {
+  const week = changelog.filter((c) => !c.undo && c.at <= now && now - c.at <= WALL_WINDOW_MS).sort((a, b) => b.at - a.at);
+  return { plaques: week.slice(0, cap), more: Math.max(0, week.length - cap) };
+}
+
+/** A change's title cut to fit a plaque: without an "Idea:" or "Chat:" style tag, on one line, ellipsed past `max` characters. */
+export function plaqueTitle(title: string, max = 30): string {
+  const t = title
+    .replace(/^\s*(?:idea|chat|fix|upkeep|build)\s*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max - 1);
+  const word = cut.lastIndexOf(" ");
+  return `${(word > max * 0.6 ? cut.slice(0, word) : cut).replace(/[\s,.;:–-]+$/, "")}…`;
+}
+
 /** Issues labelled `foundry` become crates; pull requests, untyped issues and closed-unshipped ones drop out. */
 export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
   const crates: Crate[] = [];

@@ -62,11 +62,14 @@ async function visit(path, check, timeout, measureJs = false) {
   // A fetch to an outside service (GitHub's API for usage) that can't be reached is the network, not the bundle.
   page.on("pageerror", (e) => !/^(Failed to fetch|NetworkError|Load failed)/.test(e.message) && (errors.push(`pageerror: ${e.message}`), thrown(new Error("the page threw"))));
   page.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(`console.error: ${m.text()}`));
+  // First load = scripts fetched before the load event; the Desk's idle tab prefetch comes after and is left out.
   const scripts = [];
-  if (measureJs) page.on("response", (r) => new URL(r.url()).origin === new URL(base).origin && (r.request().resourceType() === "script" || /\.js$/.test(new URL(r.url()).pathname)) && scripts.push(r));
+  let loaded = false;
+  if (measureJs) page.on("response", (r) => !loaded && new URL(r.url()).origin === new URL(base).origin && (r.request().resourceType() === "script" || /\.js$/.test(new URL(r.url()).pathname)) && scripts.push(r));
   let jsBytes;
   try {
     await page.goto(base + path, { waitUntil: "load" });
+    loaded = true;
     await Promise.race([check(page, timeout), threw]);
     if (measureJs) jsBytes = (await Promise.all(scripts.map((r) => r.body().then((b) => b.length, () => 0)))).reduce((a, b) => a + b, 0);
     if (errors.length === 0) console.log(`boot-check: ok ${path} (${Math.round((Date.now() - t0) / 100) / 10} s)`);

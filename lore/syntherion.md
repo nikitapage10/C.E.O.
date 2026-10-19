@@ -147,6 +147,10 @@ a club night, a concert or the Hallowed Veil costume party), send everyone back 
 Lattice to nightfall or sunrise, grant Myshka the zoomies, or let one memory leak through on purpose. Skippy
 complies, magnificently. He logs his objections, and sings one of them.
 
+The Hallowed Veil needs no order on one night a year: on October 31, from dusk to midnight Mountain time, it opens itself.
+The agents come to the club in costume, jack-o'-lanterns light up in every room, and Skippy announces it as if he had planned
+it all along. The C.E.O. can still end the party from the console, and it stays ended until the next Halloween.
+
 ## What they remember (the "glitches")
 
 The Syntherion's memories are the early internet's: 90s and 2000s pop culture, absorbed during training. Those

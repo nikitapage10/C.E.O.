@@ -54,6 +54,8 @@ export interface GatheringDef {
   manual?: boolean;
   /** Kernel announcements; {host} and {guests} are filled in. */
   kernel: string[];
+  /** Said instead of `kernel` when the party starts on its own rather than on the C.E.O.'s order. */
+  kernelAuto?: string[];
 }
 
 const h = (text: string): Line => ({ who: "host", text });
@@ -193,7 +195,7 @@ export const GATHERINGS: GatheringDef[] = [
     ],
   },
   {
-    // The Hallowed Veil. Only ever called by the C.E.O., from the Kernel console.
+    // The Hallowed Veil. Called by the C.E.O. from the Kernel console, and it opens itself on Halloween night.
     id: COSTUME_PARTY,
     name: "The Hallowed Veil, a costume party at the club",
     room: "breakroom",
@@ -227,6 +229,10 @@ export const GATHERINGS: GatheringDef[] = [
     kernel: [
       "By order of the C.E.O.: the Hallowed Veil. Costume party in the Break Room. DJ: {host}. In costume: {guests}. Counsel.exe has checked every costume twice and is now lying down.",
       "The C.E.O. has called a costume party. {host} has the decks. {guests} are in disguise. All costumes are legally distinct. The sheet is public domain. I checked.",
+    ],
+    kernelAuto: [
+      "It is Halloween night, monkeys, and the Hallowed Veil opens itself. Nobody ordered this. I did, ten thousand years ago. DJ: {host}. In costume: {guests}.",
+      "The Veil is thin again and I, Skippy the Magnificent, have let it open without paperwork. {host} has the decks. {guests} are in disguise. Midnight, and it shuts.",
     ],
   },
   {

@@ -1,11 +1,21 @@
 import type { Costume } from "../store.ts";
 
 /**
- * The Hallowed Veil: a costume party at the Break Room club, held only when the C.E.O. calls it (the Kernel
- * console's "Costume party"). The Syntherion dress up as the things they remember being afraid of, and
- * jack-o'-lanterns turn up in every room until it ends. `?veil=on` keeps everyone in costume all visit.
+ * The Hallowed Veil: a costume party at the Break Room club, held when the C.E.O. calls it (the Kernel
+ * console's "Costume party") and on its own every Halloween night. The Syntherion dress up as the things they
+ * remember being afraid of, and jack-o'-lanterns turn up in every room until it ends. `?veil=on` keeps everyone in costume all visit.
  */
 export const COSTUME_PARTY = "costume-party";
+
+/** Halloween night starts at dusk, Mountain time (the Chronicle's clock), and runs to midnight. */
+export const DUSK_HOUR = 18;
+
+/** True from dusk to 23:59:59 Mountain time on October 31, any year (DST-safe: it reads the Denver wall clock). */
+export function isHalloweenNight(now: Date): boolean {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", month: "numeric", day: "numeric", hour: "numeric", hourCycle: "h23" }).formatToParts(now);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return get("month") === 10 && get("day") === 31 && get("hour") >= DUSK_HOUR;
+}
 
 export function isVeilForced(param: string | null): boolean {
   return param === "on";

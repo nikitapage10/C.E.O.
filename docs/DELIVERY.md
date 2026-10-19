@@ -187,8 +187,9 @@ fixes what they find or explains why not on the pull request, and adds the resul
 
 **What a human must see.**
 - Every idea before it is built (approval on the Desk), as today.
-- Every fix bigger than a small green one before it ships (the "Ship?" card with the preview link), as today.
-- Anything a check can't judge (a look, a feel, a new model) waits labelled `foundry:ready` with the preview.
+- Nothing before it ships: since 2026-10-19 every approved build, fix, upkeep and chat change ships by itself once
+  its checks pass (Nikita: "auto ship everything unless there are testing issues"). Only a testing issue the checks
+  can't settle waits, labelled `foundry:ready` with the preview.
 - **The trust boundary**, once the agents have their own identity: changes to CI and repo config (`.github/`), the
   agents' permissions and rules (`.claude/`, `CLAUDE.md`, `scripts/foundry-watch.sh`), deploy config (`vercel.json`),
   dependencies (`package.json`, `package-lock.json`) and the spend caps (`api/_world/budget.ts`). These are listed
@@ -212,8 +213,8 @@ fixes what they find or explains why not on the pull request, and adds the resul
 
 - **Production** is `main`, built by Vercel on every push (`npm ci`, `npm run build`, `apps/world/dist` plus
   `api/`). A change is live a minute or two after it merges.
-- **Previews.** Every pull request branch gets a preview deployment (except `claude/*`), linked on the PR and on the
-  "Ship?" card. Previews run code that hasn't been reviewed, so they get no write secrets:
+- **Previews.** Every pull request branch gets a preview deployment (except `claude/*`), linked on the PR and the
+  issue. Previews run code that hasn't been reviewed, so they get no write secrets:
 
 | Variable | Production | Preview | Why |
 | --- | --- | --- | --- |

@@ -3166,6 +3166,11 @@ button.room-pick__tab:hover {
 .fy-idea__note--quiet {
   color: var(--faint);
 }
+.fy-idea__age {
+  margin: 0;
+  font-size: 12px;
+  color: var(--faint);
+}
 .fy-idea__form {
   display: flex;
   flex-wrap: wrap;

@@ -13,6 +13,18 @@ import { Avatar } from "./ui.tsx";
  */
 
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+/** Ideas nobody picks go to the shelf after a week (docs/FOUNDRY.md). */
+const SHELF_DAYS = 7;
+
+/** "New today · shelved in 7 days", "Waiting 3 days · shelved in 4", "Waiting 8 days · due for the shelf"; "" without a date. */
+export function ideaAge(createdAt: number | undefined, now: number): string {
+  if (createdAt === undefined || !Number.isFinite(createdAt)) return "";
+  const days = Math.max(0, Math.floor((now - createdAt) / DAY));
+  const left = SHELF_DAYS - days;
+  const wait = days === 0 ? "New today" : `Waiting ${days} ${days === 1 ? "day" : "days"}`;
+  return `${wait} · ${left <= 0 ? "due for the shelf" : left === 1 ? "shelved tomorrow" : `shelved in ${left}${days === 0 ? " days" : ""}`}`;
+}
 
 /** "Idea: make it faster" → "Make it faster". */
 export function ideaTitle(title: string): string {
@@ -186,6 +198,7 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
       </header>
       <h3 className="fy-idea__title">{ideaTitle(crate.title)}</h3>
       {crate.pitch && <p className="fy-idea__pitch">{crate.pitch}</p>}
+      {!crate.revising && crate.number > 0 && ideaAge(crate.createdAt, Date.now()) && <p className="fy-idea__age">{ideaAge(crate.createdAt, Date.now())}</p>}
       {asking && (
         <div className="fy-idea__ask" role="note">
           <b>Rivet asks first</b>

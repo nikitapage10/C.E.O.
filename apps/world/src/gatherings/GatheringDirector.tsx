@@ -84,7 +84,8 @@ export function GatheringDirector() {
       return true;
     };
 
-    const start = (def: GatheringDef, auto = false): StartResult => {
+    /** `auto`: the party opened itself (Skippy's line); `again`: it is carrying on, so nobody announces it twice. */
+    const start = (def: GatheringDef, opened: "called" | "auto" | "again" = "called"): StartResult => {
       const ended: string[] = [];
       if (running.has(def.id)) return { ok: false, ended };
       // One per room, and at most two at once: make room before casting, so the freed agents can join.
@@ -130,13 +131,15 @@ export function GatheringDirector() {
           clock.sim,
         );
       });
-      world.announce(
-        pick(auto && def.kernelAuto ? def.kernelAuto : def.kernel)
-          .replace("{host}", name(who.host))
-          .replace("{guests}", who.guests.map(name).join(", ")),
-        "status",
-        def.room,
-      );
+      if (opened !== "again") {
+        world.announce(
+          pick(opened === "auto" && def.kernelAuto ? def.kernelAuto : def.kernel)
+            .replace("{host}", name(who.host))
+            .replace("{guests}", who.guests.map(name).join(", ")),
+          "status",
+          def.room,
+        );
+      }
 
       // Play the scene once the host has taken their seat (give up after a minute).
       const seated = (id: string, seat: string) => {
@@ -200,7 +203,7 @@ export function GatheringDirector() {
       const now = new Date();
       if (isHalloweenNight(now)) {
         if (dismissedOn === chronicleDay(now.getTime()) || document.visibilityState !== "visible") return;
-        if (!running.has(COSTUME_PARTY) && start(GATHERING_BY_ID[COSTUME_PARTY]!, true).ok) veilOpened = true;
+        if (!running.has(COSTUME_PARTY) && start(GATHERING_BY_ID[COSTUME_PARTY]!, veilOpened ? "again" : "auto").ok) veilOpened = true;
       } else if (veilOpened) {
         veilOpened = false;
         stop(COSTUME_PARTY, true);

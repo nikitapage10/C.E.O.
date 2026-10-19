@@ -2,8 +2,8 @@ import type { Costume } from "../store.ts";
 
 /**
  * The Hallowed Veil: a costume party at the Break Room club, held when the C.E.O. calls it (the Kernel
- * console's "Costume party") and on its own every Halloween night. The Syntherion dress up as the things they remember being afraid of, and
- * jack-o'-lanterns turn up in every room until it ends. `?veil=on` keeps everyone in costume all visit.
+ * console's "Costume party") and on its own every Halloween night. The Syntherion dress up as the things they
+ * remember being afraid of, and jack-o'-lanterns turn up in every room until it ends. `?veil=on` keeps everyone in costume all visit.
  */
 export const COSTUME_PARTY = "costume-party";
 

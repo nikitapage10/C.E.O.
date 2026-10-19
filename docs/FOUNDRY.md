@@ -184,7 +184,9 @@ all. After the build, `checks` installs Chromium and `scripts/boot-check.mjs` se
 (`tests/e2e/dist-server.ts`, so the headers apply), then loads `/` (the Desk renders Today and the boot screen is gone),
 `/foundry` (a lazily loaded tab) and `/lattice` (the scene's chunk runs and a canvas and the HUD mount). Any page error, or a
 page that stays blank, fails `checks`, so auto-merge waits. About 20 s on top of the build; it reuses the build's `dist`. It does
-not wait for every model to load (that takes minutes on SwiftShader and stays with the browser tests below). Run it locally
+not wait for every model to load (that takes minutes on SwiftShader and stays with the browser tests below). It also adds up
+the JavaScript the Desk downloads on first load of `/` and fails when it passes the budget kept in the script (#195, 480 kB
+uncompressed, about 15% over the size it was set at; the live watch only reports it). Run it locally
 after `npm run build`, with `PLAYWRIGHT_CHROMIUM_PATH` for a preinstalled Chromium.
 
 The nightly browser tests (`.github/workflows/e2e.yml`) report the same way: a red scheduled run on `main` opens (or comments on) a

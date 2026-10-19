@@ -69,7 +69,7 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | `foundry:fix`, `foundry:idea`, `foundry:build`, `foundry:upkeep`, `foundry:chat` | The kind (exactly one) |
 | `foundry:auto` | Goes with `foundry:build`: the Builder approved this idea itself as low risk (see "Auto-approval"); Nikita can stop it from the Desk |
 | `foundry:working` | Someone is on it |
-| `foundry:ready` | Done and checked, waiting for Nikita's OK |
+| `foundry:ready` | Done, but a testing issue needs Nikita before it can ship (nothing else waits for an OK since 2026-10-19) |
 | `foundry:stuck` | Rung 3 failed; Nikita needs to look (pings Nikita's phone) |
 | `foundry:blocked` | A blocker: the job can't go on until Nikita decides something (pings Nikita's phone; see "Pings and flagging a blocker") |
 | `foundry:paused` | An idea build paused for an urgent fix; its branch is pushed as work in progress and it resumes when the fix ships |
@@ -149,7 +149,7 @@ pull request template, the CI gates and the ruleset for `main`, is in [DELIVERY.
 
 | Lane | Branch | Merges when |
 | --- | --- | --- |
-| Fix | `foundry/fix/<issue>-<slug>` | Small green fix: by itself once the PR's checks pass. Anything bigger: on Nikita's Ship. |
+| Fix | `foundry/fix/<issue>-<slug>` | By itself once the PR's checks pass, whatever its size (Nikita, 2026-10-19: no ship approvals). |
 | Build (approved idea) | `foundry/build/<issue>-<slug>` | By itself once the PR's checks pass: the approval was the decision (Nikita, 2026-10-12). Only a red check, a stuck rung or a question that needs a human stops it, and then it waits with `foundry:ready` or `foundry:stuck`. |
 | Upkeep | `foundry/upkeep/<issue>-<slug>` | By itself once the PR's checks pass |
 | Chat | `chat/<issue>-<slug>` | By itself once the PR's checks pass |
@@ -160,8 +160,8 @@ The path for every change:
 2. **Pull request** into `main`, titled like the issue, with `Closes #<issue>` and the lane label (`foundry:fix`,
    `foundry:build` or `foundry:upkeep`) on it.
 3. **Checks** run on the PR (`checks.yml`). Red means back to the ladder; never merge red.
-4. **Preview:** Vercel builds a preview site for the PR. Bigger fixes and builds put the preview link on the
-   "Ship?" card so Nikita can try it first.
+4. **Preview:** Vercel builds a preview site for the PR, linked on the PR and the issue. Nothing waits on it: the
+   change ships once its checks pass.
 5. **Pictures** on the issue before it ships: screenshots for a visual change, a change card for anything else
    ("Pictures on every change" below). The Trail runs Work, Pictures, Checks, Shipped.
 6. **Merge** with a squash commit through GitHub's auto-merge, turned on when the PR opens (until "Allow auto-merge"
@@ -287,11 +287,9 @@ In the Lattice, this is Rivet walking the rooms with her far-sight lens after ev
    - **Rung 3, Rusty on `opus`:** one try. Change the label to `rung:3`. Start here when the cause isn't clear.
    - Move up a rung when the checks are still red, or when the fix spreads past the failing area.
 4. When every check passes:
-   - **Small green fix** (rung 1, a few lines, no change Nikita would notice): this counts as upkeep. Open its PR
-     from `foundry/fix/…`, merge it once the PR's checks pass, label `foundry:shipped`, and say nothing unless asked.
-   - **Anything bigger:** open its PR from `foundry/fix/…`, label the issue `foundry:ready`, and post a decision
-     card in the Foundry thread (`ask_decision`: "Ship <the fix>?" with Ship / Hold, and the preview link). On Ship,
-     merge the PR, label `foundry:shipped`. On Hold, leave it labelled `foundry:ready`.
+   - Open its PR from `foundry/fix/…`, merge it once the PR's checks pass and label `foundry:shipped`, whatever its
+     size: there is no "Ship?" card (Nikita, 2026-10-19: "auto ship everything unless there are testing issues").
+     A small green fix counts as upkeep and needs no word; a bigger one goes on the Changelog like any change.
 5. If rung 3 fails: label `foundry:stuck`, comment on the issue with what was tried and the best lead, and reply
    once in the Foundry thread.
 
@@ -339,9 +337,9 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
   (the builder and model the card names: Rusty unless it says Rocky). It goes through the same PR and checks as a fix, and merges by itself once they are green: the
   approval on the Desk was the decision, so there is no "Ship?" card (Nikita, 2026-10-12: "when I approve an idea,
   you don't need me to decide to ship it"). It stops for Nikita only when something needs a human: red checks after
-  every rung (`foundry:stuck`), a change that can't be checked by the checks (a look, a feel, a new model), or a
-  question the idea didn't answer; then it waits labelled `foundry:ready` with the preview link in the Foundry
-  thread. Close the ideas that weren't picked after a week.
+  every rung (`foundry:stuck`), a testing issue the checks can't settle on their own, or a question the idea didn't
+  answer; then it waits labelled `foundry:ready` with the preview link in the Foundry thread. A look, a feel or a new
+  model ships by itself like anything else once its checks pass (Nikita, 2026-10-19: no ship approvals). Close the ideas that weren't picked after a week.
 - Any new agent, room, pet, costume or model an idea adds ships with its lore (see the repo's CLAUDE.md).
 
 ### Auto-approval

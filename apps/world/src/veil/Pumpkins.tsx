@@ -1,4 +1,4 @@
-import { ROOM_IDS, roomAngle, roomToWorld } from "@ceo/core";
+import { ROOM_IDS, roomAngle, roomToWorld, type RoomId } from "@ceo/core";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { InstancedMesh, Object3D, SphereGeometry } from "three";
 import { PBR } from "../fx/pbr.ts";
@@ -10,11 +10,19 @@ const SPOTS: [number, number, number][] = [
   [7.25, 5.9, 1],
 ];
 
+/** One jack-o'-lantern: which room, where in it (room-local x, z), how big. */
+export type PumpkinSpot = readonly [RoomId, number, number, number];
+
+const VEIL_SPOTS: PumpkinSpot[] = ROOM_IDS.flatMap((room) => SPOTS.map(([x, z, s]) => [room, x, z, s] as const));
+
+/** The countdown's lone lantern, the week before Halloween: at the Break Room's front edge, where you walk into the club. */
+export const COUNTDOWN_SPOTS: PumpkinSpot[] = [["breakroom", -2.7, 5.95, 1.1]];
+
 /**
- * The Hallowed Veil's jack-o'-lanterns: three in each room, lit from inside. Three instanced meshes for the lot
- * (shells, stems, grins), and no lights: the grins glow through the bloom.
+ * The Hallowed Veil's jack-o'-lanterns: three in each room, lit from inside (or, with `spots`, just those). Three
+ * instanced meshes for the lot (shells, stems, grins), and no lights: the grins glow through the bloom.
  */
-export function Pumpkins() {
+export function Pumpkins({ spots = VEIL_SPOTS, name = "hallowed-veil" }: { spots?: readonly PumpkinSpot[]; name?: string }) {
   const shells = useRef<InstancedMesh>(null);
   const stems = useRef<InstancedMesh>(null);
   const grins = useRef<InstancedMesh>(null);
@@ -32,37 +40,35 @@ export function Pumpkins() {
     g.computeVertexNormals();
     return g;
   }, []);
-  const count = ROOM_IDS.length * SPOTS.length;
+  const count = spots.length;
 
   useLayoutEffect(() => {
     const o = new Object3D();
     let i = 0;
-    for (const room of ROOM_IDS) {
-      for (const [x, z, s] of SPOTS) {
-        const [wx, wy, wz] = roomToWorld(room, x, 0, z);
-        // Face the room's front, toward the camera, turned a little each.
-        const yaw = roomAngle(room) + (x < 0 ? 0.5 : -0.5);
-        o.position.set(wx, wy + 0.17 * s, wz);
-        o.rotation.set(0, yaw, 0);
-        o.scale.setScalar(s);
-        o.updateMatrix();
-        shells.current?.setMatrixAt(i, o.matrix);
-        o.position.set(wx, wy + 0.36 * s, wz);
-        o.updateMatrix();
-        stems.current?.setMatrixAt(i, o.matrix);
-        // The grin, just proud of the shell's face.
-        o.position.set(wx + Math.sin(yaw) * 0.2 * s, wy + 0.16 * s, wz + Math.cos(yaw) * 0.2 * s);
-        o.scale.set(s, s * 0.45, s * 0.3);
-        o.updateMatrix();
-        grins.current?.setMatrixAt(i, o.matrix);
-        i++;
-      }
+    for (const [room, x, z, s] of spots) {
+      const [wx, wy, wz] = roomToWorld(room, x, 0, z);
+      // Face the room's front, toward the camera, turned a little each.
+      const yaw = roomAngle(room) + (x < 0 ? 0.5 : -0.5);
+      o.position.set(wx, wy + 0.17 * s, wz);
+      o.rotation.set(0, yaw, 0);
+      o.scale.setScalar(s);
+      o.updateMatrix();
+      shells.current?.setMatrixAt(i, o.matrix);
+      o.position.set(wx, wy + 0.36 * s, wz);
+      o.updateMatrix();
+      stems.current?.setMatrixAt(i, o.matrix);
+      // The grin, just proud of the shell's face.
+      o.position.set(wx + Math.sin(yaw) * 0.2 * s, wy + 0.16 * s, wz + Math.cos(yaw) * 0.2 * s);
+      o.scale.set(s, s * 0.45, s * 0.3);
+      o.updateMatrix();
+      grins.current?.setMatrixAt(i, o.matrix);
+      i++;
     }
     for (const m of [shells, stems, grins]) if (m.current) m.current.instanceMatrix.needsUpdate = true;
-  }, []);
+  }, [spots]);
 
   return (
-    <group name="hallowed-veil">
+    <group name={name}>
       <instancedMesh ref={shells} args={[shellGeo, PBR.lacquer("#e8701e", 0.45), count]} castShadow receiveShadow />
       <instancedMesh ref={stems} args={[undefined, PBR.matte("#3d5a1e", 0.8), count]}>
         <cylinderGeometry args={[0.025, 0.035, 0.1, 8]} />

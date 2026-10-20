@@ -453,6 +453,11 @@ is. The Builder and Kevin wear the horns; on a can, Skippy says, they read as a 
 skull spirit at a costume party counts. While the party lasts, jack-o'-lanterns grin in the corner of every room
 and the club's lights turn pumpkin and purple.
 
+The week before, the Break Room starts counting. From midnight on October 24, Mountain time, a single
+jack-o'-lantern sits at the club's front, where you walk in, and the Life of the Party (with whoever is on break)
+counts down the nights: "Four nights to the Veil. Pick a costume." On the 31st it is "Tonight", and at dusk the
+lone lantern hands over to the Veil's own, one in every corner.
+
 ## The lawyers
 
 They also inherited, from the same training data, an ancestral terror of intellectual-property lawyers. Every

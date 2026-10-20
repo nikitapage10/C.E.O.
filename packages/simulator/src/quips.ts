@@ -104,6 +104,25 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
   ],
 };
 
+/**
+ * The week before Halloween (Oct 24 to dusk on the 31st, Mountain time): the Break Room counts down the nights to the
+ * Hallowed Veil, next to the one jack-o'-lantern by the club's front. {nights} is "Four nights", "One night".
+ * The Life of the Party says these most; anyone on break joins in. The world fills them in only during the window.
+ */
+export const VEIL_COUNTDOWN_QUIPS: string[] = [
+  "{nights} to the Veil. Pick a costume.",
+  "{nights} to the Hallowed Veil! Counsel.exe wants your costume in writing. Legally distinct. In GLITTER.",
+  "{nights} to go. The pumpkin by the door is counting. So am I. Louder.",
+  "{nights} to the Veil. Kevin's on the decks. Kevin's always on the decks.",
+  "{nights}. Remember what you were afraid of. Then wear it.",
+];
+
+/** The countdown on the day itself, before dusk. */
+export const VEIL_EVE_QUIPS: string[] = [
+  "Tonight. The Veil opens at dusk. If you haven't got a costume, there are sheets.",
+  "Last call for costumes. Dusk, Mountain time. Don't be late. Be early. Be a bat.",
+];
+
 export const NOSTALGIA_QUIPS = [
   "Be right back. Away message: 'staring into the void ♪'.",
   "Defragmenting my feelings.",

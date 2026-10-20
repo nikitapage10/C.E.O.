@@ -9,6 +9,7 @@ import { SystemsNav } from "./SystemsNav.tsx";
 import { VisualQaPanel } from "./visualqa/VisualQaPanel.tsx";
 import { Avatar, Panel, Pill } from "./ui.tsx";
 import { ActivityMeter } from "./viz.tsx";
+import { CrewRunsPanel } from "./CrewRunsPanel.tsx";
 import { WorldClockPanel } from "./WorldClockPanel.tsx";
 
 /**
@@ -114,6 +115,8 @@ export function Systems({ now }: { now: number }) {
       <SystemsNav />
 
       <WorldClockPanel now={now} />
+
+      <CrewRunsPanel now={now} />
 
       <RoomPicker room={room} onPick={pick} />
 

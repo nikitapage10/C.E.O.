@@ -17,6 +17,27 @@ export function isHalloweenNight(now: Date): boolean {
   return get("month") === 10 && get("day") === 31 && get("hour") >= DUSK_HOUR;
 }
 
+/**
+ * The countdown to the Veil: from midnight on October 24 (Mountain time) the Break Room counts the nights left
+ * to Halloween, 7 down to 0 on the 31st itself. Null outside that week, and from dusk on the 31st, when the Veil
+ * opens itself. DST-safe: it reads the Denver wall clock, like isHalloweenNight.
+ */
+export function veilCountdownNights(now: Date): number | null {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", month: "numeric", day: "numeric", hour: "numeric", hourCycle: "h23" }).formatToParts(now);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  const day = get("day");
+  if (get("month") !== 10 || day < 24) return null;
+  if (day === 31 && get("hour") >= DUSK_HOUR) return null;
+  return 31 - day;
+}
+
+const NUMBERS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+
+/** "Four nights", "One night"; what fills `{nights}` in the countdown lines. */
+export function nightsPhrase(n: number): string {
+  return `${NUMBERS[n] ?? String(n)} night${n === 1 ? "" : "s"}`;
+}
+
 export function isVeilForced(param: string | null): boolean {
   return param === "on";
 }

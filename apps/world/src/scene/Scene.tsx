@@ -32,7 +32,8 @@ import {
   watchLoopErrors,
 } from "./SceneGuard.tsx";
 import { LetterFlight } from "../letters/LetterFlight.tsx";
-import { Pumpkins } from "../veil/Pumpkins.tsx";
+import { COUNTDOWN_SPOTS, Pumpkins } from "../veil/Pumpkins.tsx";
+import { useVeilCountdown } from "../veil/useVeilCountdown.ts";
 import { COSTUME_PARTY, VEIL } from "../veil/veil.ts";
 
 /** Advances Lattice time, runs the simulator and animates every shader, once per frame. */
@@ -72,6 +73,8 @@ export function Scene() {
   const party = useWorld((s) =>
     s.gatherings.some((g) => g.id === COSTUME_PARTY),
   );
+  // The week before Halloween, one lantern by the club's front, counting down; the Veil's own take over when it opens.
+  const countdown = useVeilCountdown();
   const setFocus = useWorld((s) => s.setFocus);
   const selectAgent = useWorld((s) => s.selectAgent);
   useEffect(watchLoopErrors, []);
@@ -108,7 +111,7 @@ export function Scene() {
             <Pets />
             <GlitchStage />
             <LetterFlight />
-            {(VEIL || party) && <Pumpkins />}
+            {VEIL || party ? <Pumpkins key="veil" /> : countdown !== null && <Pumpkins key="countdown" spots={COUNTDOWN_SPOTS} name="veil-countdown" />}
             <Callouts />
             <Floor />
             <FloorRings />

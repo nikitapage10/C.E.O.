@@ -1,0 +1,65 @@
+# Nightly backup into the Azure copy's `ceo-backups` container, one folder per day (docs/AZURE.md, "Deploys and
+# backups"). The container keeps 90 days (a lifecycle rule in infra/resources.bicep), and blobs land in Cool tier.
+#
+# What it copies:
+#   vercel/     the production world as the public API serves it: /api/world and the last 7 days of /api/world?day=
+#               (no Vercel Blob token in GitHub: Vercel signs in to its store on its own, and these pages are public)
+#   ceo-state/  everything in the Azure copy's own state container
+#   models/     apps/world/public/models from main
+#
+# Signs in like deploy-azure.yml (OIDC, the `azure` environment, main only) and skips until Azure is set up.
+name: Back up to Azure
+
+on:
+  schedule:
+    - cron: "41 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-azure
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT }}
+      SITE: https://command-everything-obviously.vercel.app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: apps/world/public/models
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Fetch the production world
+        run: |
+          mkdir -p backup/vercel
+          curl -fsS --max-time 60 "$SITE/api/world" -o backup/vercel/world.json
+          for i in 0 1 2 3 4 5 6; do
+            day=$(TZ=America/Denver date -d "-$i day" +%F)
+            curl -fsS --max-time 60 "$SITE/api/world?day=$day" -o "backup/vercel/day-$day.json" || echo "no $day"
+          done
+      - name: Copy the Azure state
+        run: |
+          mkdir -p backup/ceo-state
+          az storage blob download-batch --auth-mode login --account-name "$ACCOUNT" -s ceo-state -d backup/ceo-state --no-progress -o none
+      - name: Upload to ceo-backups
+        run: |
+          stamp=$(date -u +%F)
+          cp -r apps/world/public/models backup/models
+          az storage blob upload-batch --auth-mode login --account-name "$ACCOUNT" -d ceo-backups \
+            --destination-path "$stamp" -s backup --tier Cool --overwrite --no-progress -o none
+          echo "Backed up to ceo-backups/$stamp"

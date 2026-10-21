@@ -17,8 +17,8 @@ In the resource group `rg-ceo-prod` (West US 3, the Static Web App in West US 2:
 | Key Vault `kv-ceo-…`, RBAC | Every secret the functions read, as Key Vault references in their app settings | under $1 |
 | Log Analytics `log-ceo` + Application Insights `appi-ceo` | Logs and traces, capped at 0.2 GB a day (the first 5 GB a month are free) | $0–3 |
 
-And on the subscription: a **$25 monthly budget** that emails the subscription's Owners and you at 80% of actual
-spend. Expect **about $10–15 a month** in all. No database.
+Optionally, on the subscription: a **$25 monthly budget** that emails the Owners and you at 80% of actual spend
+(`createBudget=true`; off by default, since C.E.O.'s Visual Studio subscription has its own spending limit). Expect **about $10–15 a month** in all. No database.
 
 **Backups:** blob and container soft delete keep anything deleted or overwritten for 14 days, and `ceo-backups`
 holds nightly copies of `ceo-state` in the Cool tier, deleted after 90 days by a lifecycle rule. The nightly copy
@@ -30,16 +30,18 @@ Contributor on the storage account (to look at or copy in the state).
 
 ## The paste
 
-Open [Cloud Shell](https://shell.azure.com) (Bash) in the subscription and paste this. It asks for the email for the
-budget alert, registers the services a new subscription doesn't have switched on yet, and deploys (5–10 minutes).
+Open [Cloud Shell](https://shell.azure.com) (Bash) in the subscription and paste this. It registers the services a new
+subscription doesn't have switched on yet and deploys (5–10 minutes). (The repo's name ends in a dot, so its clone URL
+is `C.E.O..git`, with two dots.)
 Running it again updates what is there.
 
 ```bash
-read -rp "Email for budget alerts: " EMAIL && for p in Microsoft.Web Microsoft.Storage Microsoft.KeyVault Microsoft.Insights Microsoft.OperationalInsights Microsoft.Consumption; do az provider register -n $p --wait; done && (git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O.git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId=$(az ad signed-in-user show --query id -o tsv) budgetEmail="$EMAIL" -o table
+for p in Microsoft.Web Microsoft.Storage Microsoft.KeyVault Microsoft.Insights Microsoft.OperationalInsights Microsoft.Consumption; do az provider register -n $p --wait; done && (git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId=$(az ad signed-in-user show --query id -o tsv) -o table
 ```
 
 The defaults are in [`infra/main.bicep`](../infra/main.bicep); add `-p name=value` to change one, for example
-`monthlyBudget=40` or `logDailyCapGb=0.5`. `az deployment sub show -n ceo --query properties.outputs` prints the
+`logDailyCapGb=0.5`. The budget alert is off by default because Visual Studio subscriptions refuse the Budgets API
+and cap spend themselves; on a pay-as-you-go subscription add `createBudget=true budgetEmail=you@example.com`. `az deployment sub show -n ceo --query properties.outputs` prints the
 names and URLs it made.
 
 ## After the paste
@@ -164,7 +166,7 @@ that commit and ships it. (Vercel rolls back on its own dashboard, as before.)
    GitHub's `azure` environment, re-runs the template to give it its roles, and prints the values for step 3:
 
 ```bash
-read -rp "Email for budget alerts: " EMAIL && APPID=$(az ad app create --display-name ceo-github-deploy --query appId -o tsv) && SPID=$(az ad sp create --id $APPID --query id -o tsv 2>/dev/null || az ad sp show --id $APPID --query id -o tsv) && az ad app federated-credential create --id $APPID --parameters '{"name":"github-azure-env","issuer":"https://token.actions.githubusercontent.com","subject":"repo:nikitapage10/C.E.O.:environment:azure","audiences":["api://AzureADTokenExchange"]}' -o none; (git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O.git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId=$(az ad signed-in-user show --query id -o tsv) budgetEmail="$EMAIL" githubPrincipalId=$SPID -o none && O=$(az deployment sub show -n ceo --query properties.outputs) && printf "AZURE_CLIENT_ID=%s\nAZURE_TENANT_ID=%s\nAZURE_SUBSCRIPTION_ID=%s\nAZURE_RG=rg-ceo-prod\nAZURE_SWA_NAME=%s\nAZURE_FUNCTIONAPP_NAME=%s\nAZURE_STORAGE_ACCOUNT=%s\n" "$APPID" "$(az account show --query tenantId -o tsv)" "$(az account show --query id -o tsv)" "$(echo $O | jq -r .staticSiteName.value)" "$(echo $O | jq -r .functionAppName.value)" "$(echo $O | jq -r .storageAccountName.value)"
+APPID=$(az ad app create --display-name ceo-github-deploy --query appId -o tsv) && SPID=$(az ad sp create --id $APPID --query id -o tsv 2>/dev/null || az ad sp show --id $APPID --query id -o tsv) && az ad app federated-credential create --id $APPID --parameters '{"name":"github-azure-env","issuer":"https://token.actions.githubusercontent.com","subject":"repo:nikitapage10/C.E.O.:environment:azure","audiences":["api://AzureADTokenExchange"]}' -o none; (git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId=$(az ad signed-in-user show --query id -o tsv) githubPrincipalId=$SPID -o none && O=$(az deployment sub show -n ceo --query properties.outputs) && printf "AZURE_CLIENT_ID=%s\nAZURE_TENANT_ID=%s\nAZURE_SUBSCRIPTION_ID=%s\nAZURE_RG=rg-ceo-prod\nAZURE_SWA_NAME=%s\nAZURE_FUNCTIONAPP_NAME=%s\nAZURE_STORAGE_ACCOUNT=%s\n" "$APPID" "$(az account show --query tenantId -o tsv)" "$(az account show --query id -o tsv)" "$(echo $O | jq -r .staticSiteName.value)" "$(echo $O | jq -r .functionAppName.value)" "$(echo $O | jq -r .storageAccountName.value)"
 ```
 
 2. On GitHub: the repo's **Settings → Environments → New environment**, name it `azure`. Under **Deployment branches

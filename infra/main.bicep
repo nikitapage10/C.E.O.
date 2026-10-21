@@ -26,11 +26,14 @@ param githubPrincipalId string = ''
 @secure()
 param repositoryToken string = ''
 
+@description('Create the monthly budget alert. Off by default: Visual Studio (MSDN) subscriptions, which C.E.O. runs on, reject the Budgets API ("doesn\'t have valid WebDirect/AIRS offer type") and have their own spending limit. Turn it on for a pay-as-you-go subscription.')
+param createBudget bool = false
+
 @description('Monthly budget for the subscription, in the billing currency.')
 param monthlyBudget int = 25
 
-@description('Email for the budget alert, on top of the subscription Owners. Required by Azure: a subscription budget needs at least one contact email.')
-param budgetEmail string
+@description('Email for the budget alert, on top of the subscription Owners. Needed with createBudget: a subscription budget needs at least one contact email.')
+param budgetEmail string = ''
 
 @description('First day of the budget, yyyy-MM-01. Defaults to the current month.')
 param budgetStartDate string = '${utcNow('yyyy-MM')}-01'
@@ -66,7 +69,7 @@ module resources 'resources.bicep' = {
 
 // The whole subscription's spend, not just this group: a fresh subscription holds only C.E.O. One alert at 80% of
 // actual spend, to the Owners and the given email.
-resource budget 'Microsoft.Consumption/budgets@2023-05-01' = {
+resource budget 'Microsoft.Consumption/budgets@2023-05-01' = if (createBudget) {
   name: 'ceo-monthly'
   properties: {
     category: 'Cost'

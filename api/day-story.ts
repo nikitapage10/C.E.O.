@@ -12,7 +12,12 @@
  *                                  if its recap is written and it has no story yet, else today so far. A story made in an
  *                                  older style (`stale`) is remade once in the current one.
  *
- * The world step makes each day's story by itself once the recap is written (api/world-step.ts, waitUntil).
+ * GET  ?week=2026-10-19        → { week, ready: true, script, durationSec, writer, at, audio } or { week, ready: false }:
+ *                                  the week in Ilyr (#211), by the week's Monday; `audio` is null when it wasn't read aloud.
+ * GET  ?week=2026-10-19&audio=1 → its WAV, served like a day's.
+ *
+ * The world step makes each day's story by itself once the recap is written, and the week's on Sunday evening
+ * (api/world-step.ts, waitUntil).
  *
  * Environment (Vercel → Settings → Environment Variables):
  *   GEMINI_API_KEY     Gemini's speech (without it there is no audio, and the Desk says so)
@@ -25,9 +30,9 @@
 import { requireSession, withCookie } from "./_desk/session.js";
 import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import { claudeStoryWriter } from "./_world/claude.js";
-import { backfillDays, canSpeak, geminiBudget, geminiKey, isCurrent, makeStory, pickStoryStore, type DayStory, type StoryStore } from "./_world/story.js";
+import { backfillDays, canSpeak, geminiBudget, geminiKey, isCurrent, makeStory, pickStoryStore, type DayStory, type StoryStore, type WeekStory } from "./_world/story.js";
 import { DAY, pickStore, type WorldStore } from "./_world/store.js";
-import type { DayStoryView } from "./_world/types.js";
+import type { DayStoryView, WeekStoryView } from "./_world/types.js";
 
 /** The largest body one response carries (Vercel's cap is 4.5 MB). */
 export const MAX_BODY = 4_000_000;
@@ -80,8 +85,31 @@ export interface DayStoryEnv {
 
 const live = (): DayStoryEnv => ({ world: pickStore(), stories: pickStoryStore(), env: process.env, now: Date.now(), auth: pickAuthStore() });
 
+/** What the Desk is told about a week's story: the transcript and, when it was read aloud, where to hear it. */
+export function weekView(s: WeekStory): WeekStoryView {
+  return { week: s.week, ready: true as const, script: s.script, durationSec: s.durationSec, writer: s.writer, at: s.at, audio: s.audio ? `/api/day-story?week=${s.week}&audio=1&v=${Date.parse(s.at)}` : null };
+}
+
+async function handleWeek(url: URL, request: Request, stories: StoryStore): Promise<Response> {
+  const week = url.searchParams.get("week") ?? "";
+  if (!DAY.test(week)) return json({ error: "bad-day" }, 400);
+  try {
+    if (url.searchParams.has("audio")) {
+      const wav = await stories.readWeekAudio(week);
+      if (!wav) return json({ error: "not-found" }, 404);
+      return audioResponse(wav, request.headers.get("range"), url.searchParams.has("v"));
+    }
+    const story = await stories.readWeek(week);
+    const view: WeekStoryView = story ? weekView(story) : { week, ready: false };
+    return json(view, 200, story ? "public, s-maxage=60, stale-while-revalidate=600" : "public, s-maxage=60");
+  } catch {
+    return json({ error: "store" }, 502);
+  }
+}
+
 export async function handleGet(request: Request, deps: DayStoryEnv = live()): Promise<Response> {
   const url = new URL(request.url);
+  if (url.searchParams.has("week")) return deps.stories ? handleWeek(url, request, deps.stories) : json({ error: "not-set-up" }, 503);
   const day = url.searchParams.get("day") ?? "";
   if (!DAY.test(day)) return json({ error: "bad-day" }, 400);
   if (!deps.stories) return json({ error: "not-set-up" }, 503);

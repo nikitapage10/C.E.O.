@@ -17,18 +17,22 @@
  *   FOUNDRY_GITHUB_TOKEN   optional: the same with the older fine-grained token, until the App is set up
  *   WORLD_STORE            optional: "blob" (default) or "supabase" once it is connected (api/_world/store.ts)
  *   WORLD_BUDGET_USD       optional: the world's share of the $10 monthly Claude API cap (default 6)
- *   GEMINI_API_KEY         optional: the day's story, read aloud once the recap is filed (api/_world/story.ts)
+ *   GEMINI_API_KEY         optional: the day's story, read aloud once the recap is filed (api/_world/story.ts), and the
+ *                          week in Ilyr on Sunday evening (api/_world/week.ts)
  *   GEMINI_BUDGET_USD      optional: Gemini's own monthly cap (default 5, never above 10)
  */
 
 import { waitUntil } from "@vercel/functions";
-import { worldBudget } from "./_world/budget.js";
+import { canSpend, worldBudget } from "./_world/budget.js";
 import { claudeAsk, claudeStoryWriter } from "./_world/claude.js";
 import { readClock } from "./_world/clock.js";
 import { readFeed } from "./_world/digest.js";
 import { runStep } from "./_world/step.js";
+import { makeWeekStory } from "./_world/week.js";
+import { weekDue } from "./_world/weeks.js";
 import { geminiBudget, geminiKey, makeStory, pickStoryStore } from "./_world/story.js";
 import { pickStore, StaleStateError, type WorldStore } from "./_world/store.js";
+import type { WorldState } from "./_world/types.js";
 
 /**
  * Once the day's recap is filed, the Historian reads the day aloud (api/_world/story.ts): after the answer has gone,
@@ -41,6 +45,19 @@ function tellTheDay(world: WorldStore, day: string): void {
   waitUntil(
     makeStory({ world, stories, day, now: Date.now(), key, budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write: claudeStoryWriter() }).catch(() => undefined),
   );
+}
+
+/**
+ * On Sunday evening (the first steps from 6 pm Mountain) the Historian tells the week (api/_world/week.ts, #211): one
+ * Claude write, only while the world's budget has room, else a script from the recaps, then one Gemini reading. Told
+ * once; the hours after retry only a reading that failed.
+ */
+function tellTheWeek(world: WorldStore, state: WorldState, now: number): void {
+  const week = weekDue(now);
+  const stories = pickStoryStore();
+  if (!week || !stories) return;
+  const claude = canSpend(state, now, worldBudget(process.env.WORLD_BUDGET_USD)) ? claudeStoryWriter() : null;
+  waitUntil(makeWeekStory({ world, stories, week, now, key: geminiKey(), budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write: claude }).catch(() => undefined));
 }
 
 function json(body: unknown, status = 200): Response {
@@ -65,6 +82,7 @@ export async function POST(): Promise<Response> {
   try {
     const result = await runStep({ store, now: Date.now(), readFeed: (since) => readFeed(since), ask: claudeAsk(), budget: worldBudget(process.env.WORLD_BUDGET_USD) });
     if (result.stepped && result.entry.recap) tellTheDay(store, result.entry.recap.day);
+    if (result.stepped) tellTheWeek(store, result.state, Date.parse(result.entry.at));
     return json(result.stepped ? { stepped: true, entry: result.entry } : result);
   } catch (e) {
     // Another step landed first: this hour is already written.

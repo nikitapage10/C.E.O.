@@ -155,14 +155,41 @@ export function addStorySpend(spend: StorySpend, now: number, add: Partial<Story
   return Object.fromEntries(Object.keys(all).sort().slice(-6).map((k) => [k, all[k]!]));
 }
 
+/** What a claim is for: a day's partial or final story, or the week's (#211). */
+export type ClaimKind = "partial" | "final" | "week";
+
+/**
+ * The week in Ilyr (#211): told on Sunday evening from the week's daily recaps, kept beside the day stories under the
+ * week's Monday. The script (Claude's, or put together from the recaps) is kept even when no audio could be made.
+ */
+export interface WeekStory {
+  /** The week's Monday, "2026-10-19". */
+  week: string;
+  script: string;
+  writer: "claude" | "chronicle";
+  /** Whether the script was read aloud (the audio is kept beside it). */
+  audio: boolean;
+  durationSec: number;
+  bytes: number;
+  model: string | null;
+  voice: string | null;
+  at: string;
+  cost: StepCost | null;
+  scriptUsd: number;
+}
+
 /** The story store: one story per day (and its audio), a claim so a day is made once, and Gemini's ledger. */
 export interface StoryStore {
   readStory(day: string): Promise<DayStory | null>;
   readAudio(day: string): Promise<Uint8Array | null>;
+  readWeek(week: string): Promise<WeekStory | null>;
+  readWeekAudio(week: string): Promise<Uint8Array | null>;
+  /** Keep the week's story; `wav` is null when it could not be read aloud (yet). */
+  putWeek(story: WeekStory, wav: Uint8Array | null): Promise<void>;
   /** Take the right to make a day's story ("partial" or "final"); false when someone already has it. */
-  claim(day: string, kind: "partial" | "final", now: number): Promise<boolean>;
+  claim(day: string, kind: ClaimKind, now: number): Promise<boolean>;
   /** Give a claim back after a failure, so a later call may try again. */
-  release(day: string, kind: "partial" | "final"): Promise<void>;
+  release(day: string, kind: ClaimKind): Promise<void>;
   putStory(story: DayStory, wav: Uint8Array): Promise<void>;
   loadSpend(): Promise<StorySpend>;
   /** Add to the ledger (read, change, write with an ETag check; retried once). */
@@ -174,7 +201,7 @@ export const styleOf = (s: Pick<DayStory, "style">) => s.style ?? 1;
 /** Whether a story was made with the current style (an older one may be remade once from the Desk). */
 export const isCurrent = (s: Pick<DayStory, "style">) => styleOf(s) >= STORY_STYLE;
 /** Whether a claim's work is done: the day has a current-style story of that kind (a final also covers "partial"). */
-const claimDone = (story: DayStory | null | undefined, kind: "partial" | "final") => !!story && isCurrent(story) && (kind === "partial" || !story.partial);
+const claimDone = (story: DayStory | null | undefined, kind: ClaimKind) => kind !== "week" && !!story && isCurrent(story) && (kind === "partial" || !story.partial);
 
 /** A claim older than this with no story behind it was a call that died: it may be taken again. */
 const CLAIM_STALE_MS = 10 * 60_000;
@@ -183,6 +210,8 @@ const storyPath = (day: string) => `world/stories/${day}.json`;
 const audioPath = (day: string) => `world/stories/${day}.wav`;
 /** Claims carry the style version, so a new style may make each day's story once more, and only once. */
 const claimPath = (day: string, kind: string) => `world/stories/${day}.${kind}.v${STORY_STYLE}.claim`;
+const weekPath = (week: string) => `world/stories/week-${week}.json`;
+const weekAudioPath = (week: string) => `world/stories/week-${week}.wav`;
 const SPEND_PATH = "world/stories/spend.json";
 
 async function readBlob(path: string): Promise<{ bytes: Uint8Array; etag: string } | null> {
@@ -215,7 +244,21 @@ export class BlobStoryStore implements StoryStore {
     if (!DAY.test(day)) return null;
     return (await readBlob(audioPath(day)))?.bytes ?? null;
   }
-  async claim(day: string, kind: "partial" | "final", now: number): Promise<boolean> {
+  async readWeek(week: string): Promise<WeekStory | null> {
+    if (!DAY.test(week)) return null;
+    const found = await readBlob(weekPath(week));
+    return found ? parse<WeekStory>(found.bytes) : null;
+  }
+  async readWeekAudio(week: string): Promise<Uint8Array | null> {
+    if (!DAY.test(week)) return null;
+    return (await readBlob(weekAudioPath(week)))?.bytes ?? null;
+  }
+  async putWeek(story: WeekStory, wav: Uint8Array | null): Promise<void> {
+    // The audio first, as for a day: a story file only ever points at audio that is already there.
+    if (wav) await put(weekAudioPath(story.week), Buffer.from(wav), { access: "private", contentType: "audio/wav", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+    await put(weekPath(story.week), JSON.stringify(story), { access: "private", contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+  }
+  async claim(day: string, kind: ClaimKind, now: number): Promise<boolean> {
     const path = claimPath(day, kind);
     const body = JSON.stringify({ at: now });
     try {
@@ -236,7 +279,7 @@ export class BlobStoryStore implements StoryStore {
       }
     }
   }
-  async release(day: string, kind: "partial" | "final"): Promise<void> {
+  async release(day: string, kind: ClaimKind): Promise<void> {
     await del(claimPath(day, kind)).catch(() => undefined);
   }
   async putStory(story: DayStory, wav: Uint8Array): Promise<void> {
@@ -280,14 +323,27 @@ export class MemoryStoryStore implements StoryStore {
   async readAudio(day: string) {
     return this.audio.get(day) ?? null;
   }
-  async claim(day: string, kind: "partial" | "final", now: number) {
+  weeks = new Map<string, WeekStory>();
+  weekAudio = new Map<string, Uint8Array>();
+  async readWeek(week: string) {
+    const s = this.weeks.get(week);
+    return s ? structuredClone(s) : null;
+  }
+  async readWeekAudio(week: string) {
+    return this.weekAudio.get(week) ?? null;
+  }
+  async putWeek(story: WeekStory, wav: Uint8Array | null) {
+    if (wav) this.weekAudio.set(story.week, wav);
+    this.weeks.set(story.week, structuredClone(story));
+  }
+  async claim(day: string, kind: ClaimKind, now: number) {
     const key = `${day}.${kind}.v${STORY_STYLE}`;
     const at = this.claims.get(key);
     if (at !== undefined && (claimDone(this.stories.get(day), kind) || now - at < CLAIM_STALE_MS)) return false;
     this.claims.set(key, now);
     return true;
   }
-  async release(day: string, kind: "partial" | "final") {
+  async release(day: string, kind: ClaimKind) {
     this.claims.delete(`${day}.${kind}.v${STORY_STYLE}`);
   }
   async putStory(story: DayStory, wav: Uint8Array) {
@@ -312,7 +368,7 @@ export function pickStoryStore(env: Record<string, string | undefined> = process
 /* ── The script ── */
 
 const MT = "America/Denver";
-const dayName = (day: string) => {
+export const dayName = (day: string) => {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(Date.UTC(y!, m! - 1, d!, 12)).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
 };
@@ -325,7 +381,7 @@ export const SCRIPT_WORDS = { min: 70, max: 120, hard: 140 };
 const SCRIPT_MIN_USABLE = 40;
 
 /** A script for the ear: scrubbed, no markup, no bracketed cues (the speech model would act them out), capped. */
-export function cleanScript(text: string): string {
+export function cleanScript(text: string, words = SCRIPT_WORDS): string {
   const plain = scrub(
     text
       .replace(/[<＜][^>＞]{0,80}[>＞]/g, " ")
@@ -333,9 +389,9 @@ export function cleanScript(text: string): string {
       .replace(/^#+\s*/gm, "")
       .replace(/[*_`~|]/g, ""),
   );
-  const words = plain.split(" ").filter(Boolean);
-  if (words.length <= SCRIPT_WORDS.hard) return plain;
-  const cut = words.slice(0, SCRIPT_WORDS.hard).join(" ");
+  const spoken = plain.split(" ").filter(Boolean);
+  if (spoken.length <= words.hard) return plain;
+  const cut = spoken.slice(0, words.hard).join(" ");
   const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
   return end > cut.length / 2 ? cut.slice(0, end + 1) : `${cut}.`;
 }
@@ -367,7 +423,7 @@ export function dayMaterial(page: DayPage, cast: WorldCast = WORLD_CAST) {
   return { recap: page.recap, hours, shipped, events, remarks };
 }
 
-const fence = (tag: string, lines: string[], max: number) => {
+export const fence = (tag: string, lines: string[], max: number) => {
   let out = "";
   for (const l of lines) {
     const line = `- ${l.replace(/[<>＜＞]/g, "")}\n`;
@@ -419,8 +475,8 @@ ${fence("remarks", m.remarks, 1200)}`);
   return { system: STORY_SYSTEM, user };
 }
 
-const wordCount = (text: string) => text.split(" ").filter(Boolean).length;
-const firstSentence = (text: string) => (/^.*?[.!?]["'”’)]*(?=\s|$)/.exec(text.trim())?.[0] ?? text.trim());
+export const wordCount = (text: string) => text.split(" ").filter(Boolean).length;
+export const firstSentence = (text: string) => (/^.*?[.!?]["'”’)]*(?=\s|$)/.exec(text.trim())?.[0] ?? text.trim());
 
 /**
  * A script from the Chronicle's own lines, without a model (no Claude key, or Claude not answering usably), in the

@@ -415,3 +415,6 @@
   background: rgba(4, 6, 11, 0.6);
   color: var(--text);
 }
+.story--week {
+  margin-top: 14px;
+}

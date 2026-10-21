@@ -439,6 +439,11 @@ run five hours on. One change per tick, on the cheapest model that can do it (de
 - shrink the bundle or the 3D assets so the world loads faster;
 - remove dead code, tidy types, clear lint warnings;
 - bump one dependency, with the checks as proof (only packages already in `package.json`, and `npm audit signatures` must pass; see [SECURITY.md](SECURITY.md));
+- take in Dependabot's grouped minor and patch update (Nikita, 2026-10-21, #204): when Dependabot's grouped
+  minor-and-patch PR is open and its `checks` and CodeQL are green, merge main into it locally, run typecheck, lint,
+  tests, build and `scripts/boot-check.mjs` on the result, and squash-merge it once all pass. Only Dependabot's own
+  grouped minor or patch PRs qualify; a major version, or anything adding a package, becomes an idea card for
+  Nikita's pick. A red run is left unmerged with one comment saying which check failed;
 - keep docs and setup notes in step with the code.
 
 Open a `foundry:upkeep` issue, do the work on a `foundry/upkeep/…` branch, open its PR, and merge it without

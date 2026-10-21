@@ -17,7 +17,7 @@ export const LORE: Record<string, Lore> = {
       "Reads the risk assessment aloud before every crate.",
       "His eyes whirr wide and refocus whenever Skippy calls the manual 'a nanosecond's work'. Rusty blames the focus motors.",
       "Compacts the Foundry's scrap into perfect cubes, labels each one, and keeps the interesting bits.",
-      "Keeps a running tally of ships. Denies keeping a tally.",
+      "Keeps a running tally of ships. Denies it. Hung a brass bell over the shipped wall that rings once for each.",
       "Waves off interruptions: 'Can it wait? I'm in the middle of some calibrations.'",
     ],
     likes: ["A plan with a backup plan", "Labelled drawers", "Being asked for a second opinion", "The idea board, before anyone has written on it"],

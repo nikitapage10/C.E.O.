@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, shippedThisWeek, plaqueTitle, type Change, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, shippedThisWeek, plaqueTitle, bellRings, type Change, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -388,6 +388,14 @@ describe("the shipped wall (#182)", () => {
 
   it("is empty on a quiet week", () => {
     expect(shippedThisWeek([], now)).toEqual({ plaques: [], more: 0 });
+  });
+
+  it("rings the bell only when the count goes up after it was first seen (#209)", () => {
+    expect(bellRings(null, 5)).toBe(false);
+    expect(bellRings(5, 5)).toBe(false);
+    expect(bellRings(5, 4)).toBe(false);
+    expect(bellRings(4, 5)).toBe(true);
+    expect(bellRings(0, 1)).toBe(true);
   });
 
   it("cuts a title to fit its plaque, without its tag", () => {

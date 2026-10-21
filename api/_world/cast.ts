@@ -888,7 +888,11 @@ export const WORLD_CAST: WorldCast = {
         "The lens found barrels on my dock. They were not my barrels. I've moved them anyway, and filed a note.",
         "I've asked for the far-sight lens's manual. It hasn't got one. Chapter one is going very well.",
         "New plaque on the shipped wall. Polished it twice. Apologised to the polish.",
-        "Rocky, the plaques aren't for fist bumping. They're for reading. There's a chapter on reading."
+        "Rocky, the plaques aren't for fist bumping. They're for reading. There's a chapter on reading.",
+        "That's the bell. New plaque. Everyone look up, nod, back to the belt. Lovely. Exactly that.",
+        "Gusty, you looked at the bell before it rang. That's not how bells work. Gusty.",
+        "Musty is still looking at the bell. It stopped ringing a while ago, Musty. It's fine. Take your time.",
+        "One ring per plaque. Not two. The bell and I have discussed it."
       ],
       "caret": [
         "Crate is good. Crate is good good good.",
@@ -903,6 +907,7 @@ export const WORLD_CAST: WorldCast = {
         "Big plan on table. Rocky feels lines. Good lines. Big big big.",
         "Rivet brings crate. Rocky takes crate. Teamwork, question? Teamwork!",
         "Small brothers sleep on shelf. Rocky bump them anyway. Is polite.",
+        "Bell sings! Thing is shipped! Rocky hear it with whole body. Good good good.",
         "Blue small brother fast fast fast. Green small brother... still on first crate. Rocky likes green one.",
         "Rivet's glass has two eyes. Rocky has none. Rocky holds tripod. Teamwork!"
       ],

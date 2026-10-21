@@ -14,6 +14,7 @@ import { PBR } from "../fx/pbr.ts";
 import { CREW, DOCK_CREW, MODEL, blueprintCrate, dockJobs, sparesAwake, useFoundry, type ChecksState, type Crate, type CrewId } from "../foundry.ts";
 import { useWorld } from "../store.ts";
 import { Block } from "./primitives.tsx";
+import { BELL, bell } from "./ShippedWall.tsx";
 
 /**
  * The Foundry crew's own corners, so the room shows what each of them is really doing even when it's quiet:
@@ -168,6 +169,9 @@ const BAY_APRON = 1.05;
 const BAY_YAW = Math.PI / 2;
 /** At the line, facing the belt (-z). */
 const LINE_YAW = Math.PI;
+/** The shipped bell (#209): how near the bell a line spot must be for its worker to hear it, and when they look up. */
+const BELL_REACH = 7;
+const GLANCE_MS: [number, number] = [250, 1900];
 
 function lerpAngle(a: number, b: number, t: number): number {
   const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -228,6 +232,8 @@ function SpareUnit({ index, active, look, state, job }: { index: number; active:
   /** The body's own clock, held still while it sleeps on the dock. */
   const bodyT = useRef(0);
   const phase = index * 2.3 + 0.7;
+  const nearBell = Math.hypot(BELL.x - sx, BELL.z - sz) < BELL_REACH;
+  const bellYaw = Math.atan2(BELL.x - sx, BELL.z - sz);
   useEffect(() => () => pad.dispose(), [pad]);
 
   const apron: [number, number] = [bx + BAY_APRON, bz];
@@ -283,10 +289,14 @@ function SpareUnit({ index, active, look, state, job }: { index: number; active:
         wantYaw = BAY_YAW;
         if (s.power <= 0) s.phase = "docked";
         break;
-      case "working":
-        mode = "working";
-        wantYaw = LINE_YAW;
+      case "working": {
+        // When the shipped bell rings, the nearest of the line look up at it for a beat, then back to the belt.
+        const since = performance.now() - bell.rang;
+        const glance = nearBell && since > GLANCE_MS[0] && since < GLANCE_MS[1];
+        mode = glance ? "stare" : "working";
+        wantYaw = glance ? bellYaw : LINE_YAW;
         break;
+      }
       case "out":
       case "back": {
         const next = s.path[0];

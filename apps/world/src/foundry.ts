@@ -455,6 +455,14 @@ export function shippedThisWeek(changelog: readonly Change[], now = Date.now(), 
   return { plaques: week.slice(0, cap), more: Math.max(0, week.length - cap) };
 }
 
+/**
+ * The shipped bell (#209): rings when the wall's count goes up while someone watches, never for the count first seen
+ * (`seen` is null until then), and not when old plaques simply age off the week.
+ */
+export function bellRings(seen: number | null, count: number): boolean {
+  return seen !== null && count > seen;
+}
+
 /** A change's title cut to fit a plaque: without an "Idea:" or "Chat:" style tag, on one line, ellipsed past `max` characters. */
 export function plaqueTitle(title: string, max = 30): string {
   const t = title

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { chronicleDay, dayTitle, hourLabel, sinceAway, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
+import { previousWeek, weekStartOf } from "../../../../api/_world/weeks.ts";
 import { DayStory } from "./DayStory.tsx";
+import { WeekStory } from "./WeekStory.tsx";
 import { formatWait } from "./deskData.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
@@ -51,6 +53,9 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
   const recap = page && page !== "loading" && page !== "failed" ? page.recap : null;
   // The Desk can ask for today's or yesterday's story now (api/day-story.ts); older days only ever get the step's.
   const recent = shown === today || shown === chronicleDay(now - 86_400_000);
+  // The week in Ilyr (#211) under the daily story: the shown day's week, and on today also the week just ended (Monday).
+  const week = weekStartOf(shown);
+  const weeks = shown === today ? [week, previousWeek(week)] : [week];
   const away = feed ? sinceAway(feed.recent, awaySince) : [];
   const changed = (feed?.relationships ?? []).filter((r) => r.since).sort((a, b) => Date.parse(b.since!) - Date.parse(a.since!)).slice(0, 8);
 
@@ -116,12 +121,14 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
                 <p>{recap}</p>
               </div>
               {status === "ready" && <DayStory key={shown} day={shown} canMake={recent} />}
+              {status === "ready" && <WeekStory key={weeks.join(",")} weeks={weeks} />}
             </Panel>
           ) : (
             status === "ready" &&
             entries.length > 0 && (
               <Panel eyebrow={`The day in Ilyr, aloud · ${dayTitle(shown, now)}`} className="chron-recap">
                 <DayStory key={shown} day={shown} canMake={recent} label={shown === today ? "Hear the day so far" : "Hear the day in Ilyr"} />
+                <WeekStory key={weeks.join(",")} weeks={weeks} />
               </Panel>
             )
           )}

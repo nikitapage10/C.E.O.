@@ -161,6 +161,14 @@ export type DayStoryView =
   | { day: string; ready: true; script: string; durationSec: number; partial: boolean; writer: "claude" | "chronicle"; /** Made in an older style (#102): "Make it now" may remake it once. */ stale: boolean; at: string; audio: string }
   | { day: string; ready: false; reason: "no-key" | "over-budget" | "not-yet" };
 
+/**
+ * What GET /api/day-story?week=… answers (#211): the week in Ilyr, told on Sunday evening. `audio` is null when the
+ * script is there but could not be read aloud (no Gemini key, or the month's speech budget spent).
+ */
+export type WeekStoryView =
+  | { week: string; ready: true; script: string; durationSec: number; writer: "claude" | "chronicle"; at: string; audio: string | null }
+  | { week: string; ready: false };
+
 /** What GET /api/world-step answers: the world clock the Desk's Systems page and the Boiler Room's pipe read. */
 export interface WorldClock {
   /** ISO time of the last step; null before the first. */

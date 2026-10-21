@@ -174,3 +174,35 @@ describe("serving a long story in ranges", () => {
     expect(audioResponse(big, `bytes=${big.length + 5}-`, false).status).toBe(416);
   });
 });
+
+describe("the week in Ilyr (#211)", () => {
+  const WEEK = "2026-10-12";
+  const week = (over = {}) => ({ week: WEEK, script: "This week in Ilyr, a lot.", writer: "claude" as const, audio: true, durationSec: 62, bytes: 10, model: "m", voice: "v", at: "2026-10-18T18:00:00.000Z", cost: null, scriptUsd: 0, ...over });
+
+  it("serves a told week with its audio link, and a week not told as not ready", async () => {
+    const s = setup();
+    await s.stories.putWeek(week(), wavOf(PCM));
+    const ok = await (await handleGet(new Request(`https://x.test/api/day-story?week=${WEEK}`), s.deps)).json();
+    expect(ok).toMatchObject({ week: WEEK, ready: true, script: "This week in Ilyr, a lot.", audio: expect.stringContaining(`week=${WEEK}&audio=1`) });
+    const none = await (await handleGet(new Request("https://x.test/api/day-story?week=2026-10-19"), s.deps)).json();
+    expect(none).toEqual({ week: "2026-10-19", ready: false });
+  });
+
+  it("gives no audio link for a week that was not read aloud, and never leaks the key", async () => {
+    const s = setup();
+    await s.stories.putWeek(week({ audio: false }), null);
+    const res = await handleGet(new Request(`https://x.test/api/day-story?week=${WEEK}`), s.deps);
+    const text = await res.text();
+    expect(JSON.parse(text).audio).toBeNull();
+    expect(text).not.toContain(GEMINI);
+  });
+
+  it("streams the week's WAV and rejects a bad week", async () => {
+    const s = setup();
+    await s.stories.putWeek(week(), wavOf(PCM));
+    const wav = await handleGet(new Request(`https://x.test/api/day-story?week=${WEEK}&audio=1`), s.deps);
+    expect(wav.headers.get("content-type")).toBe("audio/wav");
+    expect((await handleGet(new Request("https://x.test/api/day-story?week=2026-10-19&audio=1"), s.deps)).status).toBe(404);
+    expect((await handleGet(new Request("https://x.test/api/day-story?week=nope"), s.deps)).status).toBe(400);
+  });
+});

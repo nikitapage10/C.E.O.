@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { create } from "zustand";
-import type { DayPage, DayStoryView, HistoryEntry, Remark, RoomId, WorldFeed } from "../../../api/_world/types.ts";
+import type { DayPage, DayStoryView, HistoryEntry, Remark, RoomId, WeekStoryView, WorldFeed } from "../../../api/_world/types.ts";
 
 /**
  * The living Lattice as the browser sees it (docs/WORLD.md): the saved world from api/world.ts. The Lattice loads it
@@ -109,6 +109,28 @@ export const useDayStory = create<StoryStore>((set, get) => ({
       return { made: Boolean(body.made), reason: body.reason };
     } catch {
       return { made: false, error: "network" };
+    }
+  },
+}));
+
+/* ── The week in Ilyr (#211): Sunday evening's story, kept by the week's Monday ── */
+
+interface WeekStoreShape {
+  weeks: Record<string, WeekStoryView | "loading" | "failed">;
+  loadWeek: (week: string) => Promise<void>;
+}
+
+export const useWeekStory = create<WeekStoreShape>((set, get) => ({
+  weeks: {},
+  loadWeek: async (week) => {
+    const have = get().weeks[week];
+    if (have && have !== "failed") return;
+    set({ weeks: { ...get().weeks, [week]: "loading" } });
+    try {
+      const got = await getJson<WeekStoryView>(`/api/day-story?week=${encodeURIComponent(week)}`);
+      set({ weeks: { ...get().weeks, [week]: got === "off" ? { week, ready: false } : got } });
+    } catch {
+      set({ weeks: { ...get().weeks, [week]: "failed" } });
     }
   },
 }));

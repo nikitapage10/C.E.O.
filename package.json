@@ -9,7 +9,8 @@
   },
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "azure"
   ],
   "scripts": {
     "dev": "npm run dev -w @ceo/world",
@@ -21,7 +22,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "world:cast": "node scripts/world-cast.mjs",
-    "security:evals": "node scripts/security-evals.mjs"
+    "security:evals": "node scripts/security-evals.mjs",
+    "build:azure": "npm run build -w @ceo/azure"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -15,7 +15,20 @@ async function bytesOf(body: unknown): Promise<Uint8Array> {
   return new Uint8Array();
 }
 
+class BlobNotFoundError extends Error {}
+class BlobPreconditionFailedError extends Error {}
+
 export const fakeBlob = {
+  BlobNotFoundError,
+  BlobPreconditionFailedError,
+  head: async (path: string) => {
+    const found = blobFiles.get(path);
+    if (!found) throw new BlobNotFoundError(path);
+    return { etag: `"${found.body.length}"`, pathname: path };
+  },
+  del: async (path: string) => {
+    blobFiles.delete(path);
+  },
   get: async (path: string) => {
     const found = blobFiles.get(path);
     if (!found) return null;

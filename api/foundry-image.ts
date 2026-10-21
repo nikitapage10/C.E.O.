@@ -15,10 +15,11 @@
  * Environment (Vercel → Settings → Environment Variables):
  *   FOUNDRY_DESK_KEY        the root of the Desk's signing keys (as in api/foundry.ts)
  *   BLOB_STORE_ID           set by Vercel when the Blob store is connected to the project; the function signs in
- *                           with Vercel's own OIDC token (a BLOB_READ_WRITE_TOKEN works too)
+ *                           with Vercel's own OIDC token (a BLOB_READ_WRITE_TOKEN works too). On Azure,
+ *                           WORLD_STORE=azureblob and the storage account instead (api/_blob.ts)
  */
 
-import { get, put } from "@vercel/blob";
+import { pickBlob } from "./_blob.js";
 import { pictureSecret } from "./_desk/keys.js";
 import { requireSession, withCookie } from "./_desk/session.js";
 import { pickAuthStore } from "./_desk/store.js";
@@ -28,7 +29,8 @@ const MAX_BYTES = 4 * 1024 * 1024;
 const TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
 
 const env = (name: string): string => process.env[name] ?? "";
-const canStore = () => Boolean(env("BLOB_STORE_ID") || env("BLOB_READ_WRITE_TOKEN"));
+/** Vercel Blob here, Azure Blob Storage on Azure (WORLD_STORE=azureblob, api/_blob.ts): private either way. */
+const canStore = () => pickBlob() !== null;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -59,11 +61,11 @@ export async function GET(request: Request): Promise<Response> {
   const now = Date.now();
   if (!(await verifyPicture(await pictureSecret(env("FOUNDRY_DESK_KEY")), path, until, query.get("s") ?? "", now))) return json({ error: "private" }, 403);
   try {
-    const found = await get(path, { access: "private" });
-    if (!found || !found.stream) return json({ error: "not-found" }, 404);
+    const found = await pickBlob()!.get(path, { cached: true });
+    if (!found) return json({ error: "not-found" }, 404);
     // Only the viewer's own browser may keep it, and no longer than the link lives; never a shared cache.
     const left = Math.max(0, Math.min(600, until - Math.floor(now / 1000)));
-    return new Response(found.stream, { headers: { "Content-Type": found.blob.contentType || "image/jpeg", "Cache-Control": `private, max-age=${left}`, "Referrer-Policy": "no-referrer" } });
+    return new Response(found.stream, { headers: { "Content-Type": found.contentType || "image/jpeg", "Cache-Control": `private, max-age=${left}`, "Referrer-Policy": "no-referrer" } });
   } catch {
     return json({ error: "blob" }, 502);
   }
@@ -79,7 +81,7 @@ export async function POST(request: Request): Promise<Response> {
   const body = await request.arrayBuffer();
   if (body.byteLength === 0 || body.byteLength > MAX_BYTES) return withCookie(json({ error: "too-big" }, 413), signed);
   try {
-    const blob = await put(`foundry/ideas/${Date.now()}.${ext}`, body, { access: "private", contentType: type, addRandomSuffix: true });
+    const blob = await pickBlob()!.put(`foundry/ideas/${Date.now()}.${ext}`, body, { contentType: type, addRandomSuffix: true });
     return withCookie(json({ url: `${new URL(request.url).origin}/api/foundry-image?p=${encodeURIComponent(blob.pathname)}` }), signed);
   } catch {
     return withCookie(json({ error: "blob" }, 502), signed);

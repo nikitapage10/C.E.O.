@@ -22,7 +22,7 @@
  *   GEMINI_BUDGET_USD      optional: Gemini's own monthly cap (default 5, never above 10)
  */
 
-import { waitUntil } from "@vercel/functions";
+import { waitUntil } from "./_waitUntil.js";
 import { canSpend, worldBudget } from "./_world/budget.js";
 import { claudeAsk, claudeStoryWriter } from "./_world/claude.js";
 import { readClock } from "./_world/clock.js";

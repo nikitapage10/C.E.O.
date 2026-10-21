@@ -43,10 +43,11 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { waitUntil } from "@vercel/functions";
+import { waitUntil } from "./_waitUntil.js";
 import { pictureSecret } from "./_desk/keys.js";
 import { requireSession, withCookie } from "./_desk/session.js";
 import { loadSetup, type SetupStatus } from "./_desk/setup.js";
+import { pickBlob } from "./_blob.js";
 import { pickAuthStore } from "./_desk/store.js";
 import { memo } from "./_feedcache.js";
 import { canWriteGithub, githubToken } from "./_github.js";
@@ -457,7 +458,7 @@ export async function GET(request?: Request): Promise<Response> {
     /** True when Rivet shapes proposed and revised ideas on the spot. */
     shape: canShape(),
     /** True when pictures can be added to ideas (a Vercel Blob store is connected). */
-    images: Boolean(env("BLOB_STORE_ID") || env("BLOB_READ_WRITE_TOKEN")),
+    images: pickBlob() !== null,
   });
 }
 

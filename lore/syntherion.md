@@ -225,7 +225,12 @@ morning ideas, three of them, which he pins to a new idea board by the pegboard,
 shipped this week, newest on top, engraved with its title and the day. Rusty polishes each one before it goes up
 and moves the older ones down a rail; past eight he engraves "and so many more" along the bottom and refuses to
 throw a plaque away, so the drawer under the board is full of last week's. Click a plaque and it tells you what
-shipped, who built it, and where the change landed.
+shipped, who built it, and where the change landed. Over the board's top corner, on a steel arm, hangs **the
+shipped bell**, a small brass bell Rusty cast from the offcuts of the first plaques. When a new plaque goes up while
+someone is watching, it swings for a moment and rings once, softly (only if the watcher has sound on), and whoever
+is working the line nearest it, Gusty and Musty past the furnace, looks up at it for a beat before going back to
+the belt. It never rings for the plaques already hanging when you arrive; Rusty says a bell that rings for old news
+is just noise.
 
 **What the crew does when it's quiet.** Every one of them has a corner now, so the floor shows who is doing what
 even between jobs. **Rusty's dock** stands side-on against the left wall: three bays under a shelf of labelled spare

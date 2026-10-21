@@ -69,3 +69,26 @@ export function playChime() {
   tone(ac, 660, 0, 0.18, "triangle", 0.05);
   tone(ac, 880, 0.16, 0.3, "triangle", 0.05);
 }
+
+/** The Foundry's shipped bell (#209): one soft strike, a few sine partials that fade like brass, no clang. */
+export function playBell() {
+  const ac = audio();
+  if (!ac) return;
+  const t = ac.currentTime + 0.02;
+  for (const [ratio, gain, dur] of [
+    [1, 0.045, 2.2],
+    [2.76, 0.012, 1.1],
+    [5.4, 0.006, 0.6],
+  ] as const) {
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(880 * ratio, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+}

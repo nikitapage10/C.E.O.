@@ -19,6 +19,9 @@ param staticSiteLocation string = 'westus2'
 @description('Object ID of the person deploying (`az ad signed-in-user show --query id -o tsv`). Gets Key Vault Secrets Officer, so they can add the secrets in the portal, and read/write on the state blobs. Empty skips both.')
 param deployerPrincipalId string = ''
 
+@description('Object ID of the service principal GitHub Actions signs in as through OIDC (docs/AZURE.md, "Deploys and backups"). Gets Contributor on the resource group and blob data access for backups. Empty skips both.')
+param githubPrincipalId string = ''
+
 @description('Optional GitHub token (repo + workflow scope) to link the Static Web App to the repo at creation. Leave empty to create it unlinked and connect it later (docs/AZURE.md). Never commit one.')
 @secure()
 param repositoryToken string = ''
@@ -54,6 +57,7 @@ module resources 'resources.bicep' = {
     location: location
     staticSiteLocation: staticSiteLocation
     deployerPrincipalId: deployerPrincipalId
+    githubPrincipalId: githubPrincipalId
     repositoryToken: repositoryToken
     logDailyCapGb: logDailyCapGb
     tags: tags

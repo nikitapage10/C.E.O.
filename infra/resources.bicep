@@ -19,6 +19,9 @@ param staticSiteLocation string
 @description('Object ID of the person deploying; empty skips their roles.')
 param deployerPrincipalId string
 
+@description('Object ID of the service principal GitHub Actions signs in as (OIDC); empty skips its roles.')
+param githubPrincipalId string
+
 @description('Optional GitHub token to link the Static Web App to the repo at creation.')
 @secure()
 param repositoryToken string
@@ -63,6 +66,7 @@ var roles = {
   keyVaultSecretsUser: '4633458b-17de-408a-b874-0445c86b69e6'
   keyVaultSecretsOfficer: 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
   monitoringMetricsPublisher: '3913510d-42f4-4e42-8a64-420c390055eb'
+  contributor: 'b24988ac-6180-42a0-ab88-20f7382dd24c'
 }
 
 // --- Monitoring -------------------------------------------------------------------------------------------------
@@ -351,6 +355,27 @@ resource deployerState 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.storageBlobDataContributor)
     principalId: deployerPrincipalId
     principalType: 'User'
+  }
+}
+
+// GitHub Actions (deploy-azure.yml, backup-azure.yml), signed in through OIDC from main only: Contributor on this
+// group to ship the site and the functions, and blob data access for the nightly backup (shared keys are off).
+resource githubDeploy 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubPrincipalId)) {
+  name: guid(resourceGroup().id, githubPrincipalId, roles.contributor)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.contributor)
+    principalId: githubPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource githubBackup 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubPrincipalId)) {
+  name: guid(storage.id, githubPrincipalId, roles.storageBlobDataContributor)
+  scope: storage
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.storageBlobDataContributor)
+    principalId: githubPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 

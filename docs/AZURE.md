@@ -2,7 +2,7 @@
 
 C.E.O.'s Azure footprint, as Bicep in [`infra/`](../infra): a second working copy of the site alongside Vercel,
 which stays production and is untouched. One paste in Azure Cloud Shell creates all of it, and the app's code runs
-on both (see [The port](#the-port)); the deploy workflow and nightly backup come next (see [Next](#next-deploys-and-backups)).
+on both (see [The port](#the-port)); the deploy workflow and nightly backup are in [Deploys and backups](#deploys-and-backups).
 No Azure OpenAI or Speech: the functions keep calling Claude and Gemini as they do on Vercel.
 
 ## What gets created
@@ -64,10 +64,8 @@ names and URLs it made.
    `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_BLOB_ENDPOINT` and `AZURE_STORAGE_CONTAINER=ceo-state`.
 
 2. **Connect GitHub to the site.** The Static Web App is created unlinked, so Azure doesn't commit its own workflow
-   to `main` (nothing is pushed to `main` directly). A later pull request adds the deploy workflow: copy the
-   site's deployment token (Portal → the Static Web App → Manage deployment token, or
-   `az staticwebapp secrets list -n swa-ceo -g rg-ceo-prod --query properties.apiKey -o tsv`) into a GitHub Actions
-   secret, and the workflow builds from the repo root (`npm ci`, `npm run build`, output `apps/world/dist`).
+   to `main` (nothing is pushed to `main` directly). `deploy-azure.yml` ships it instead, once the one-time setup in
+   [Deploys and backups](#deploys-and-backups) is done; no deployment token is stored anywhere.
    (`repositoryToken` on the paste links the repo at creation instead; it still doesn't add a workflow.)
 
 ## The port
@@ -137,8 +135,42 @@ az functionapp deployment source config-zip -g rg-ceo-prod -n <functionAppName> 
 The unit tests for the adapter, the Key Vault guard and the store choice run with the rest (`npm test`, files in
 `azure/src/*.test.ts` and `api/_blob.test.ts`), with the Azure SDKs mocked.
 
-## Next: deploys and backups
+## Deploys and backups
 
-The deploy workflow (the site with the Static Web App's deployment token, the functions through OIDC, from `main`
-like Vercel) and the nightly backup of `ceo-state` into `ceo-backups` come next, once Nikita OKs letting GitHub sign
-in to Azure. Until then nothing deploys to Azure on its own, and the package above can be deployed by hand.
+Nikita OK'd GitHub signing in to Azure on 2026-10-21. Two workflows keep the Azure copy going; both skip themselves
+until the one-time setup below is done, so main stays green either way.
+
+- **`.github/workflows/deploy-azure.yml`**, on every push to `main` (and by hand from the Actions tab): one build, then
+  the site (prebuilt `apps/world/dist`, uploaded with no rebuild) and the functions (`azure/dist/functions.zip`,
+  zip-deployed to Flex Consumption) go out in parallel. Expect about 3 to 4 minutes from push to live.
+- **`.github/workflows/backup-azure.yml`**, nightly at 10:41 UTC: the production world from Vercel's public API
+  (`/api/world` and the last 7 days), everything in the Azure copy's `ceo-state`, and `apps/world/public/models`,
+  into `ceo-backups/<YYYY-MM-DD>/` in Cool tier. The container keeps 90 days.
+
+**How GitHub signs in:** OIDC only. GitHub gives each job a short-lived token, and Azure trusts it only for this
+repo's `azure` environment, which only `main` may use. No password or key is stored in GitHub; the Static Web App's
+deployment token is read at run time and masked. The identity has Contributor on `rg-ceo-prod` and blob data access on
+the storage account, and nothing outside the resource group.
+
+**Pull requests** don't deploy to Azure: that would give Azure credentials to pull request code in a public repo.
+Vercel's previews cover them.
+
+**Rolling back:** open Actions, "Deploy to Azure", pick the last good run and choose "Re-run all jobs". It rebuilds
+that commit and ships it. (Vercel rolls back on its own dashboard, as before.)
+
+### One-time setup
+
+1. In Azure Cloud Shell (Bash), after the first deployment has run. It makes the identity GitHub signs in as, trusts
+   GitHub's `azure` environment, re-runs the template to give it its roles, and prints the values for step 3:
+
+```bash
+read -rp "Email for budget alerts: " EMAIL && APPID=$(az ad app create --display-name ceo-github-deploy --query appId -o tsv) && SPID=$(az ad sp create --id $APPID --query id -o tsv 2>/dev/null || az ad sp show --id $APPID --query id -o tsv) && az ad app federated-credential create --id $APPID --parameters '{"name":"github-azure-env","issuer":"https://token.actions.githubusercontent.com","subject":"repo:nikitapage10/C.E.O.:environment:azure","audiences":["api://AzureADTokenExchange"]}' -o none; (git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O.git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId=$(az ad signed-in-user show --query id -o tsv) budgetEmail="$EMAIL" githubPrincipalId=$SPID -o none && O=$(az deployment sub show -n ceo --query properties.outputs) && printf "AZURE_CLIENT_ID=%s\nAZURE_TENANT_ID=%s\nAZURE_SUBSCRIPTION_ID=%s\nAZURE_RG=rg-ceo-prod\nAZURE_SWA_NAME=%s\nAZURE_FUNCTIONAPP_NAME=%s\nAZURE_STORAGE_ACCOUNT=%s\n" "$APPID" "$(az account show --query tenantId -o tsv)" "$(az account show --query id -o tsv)" "$(echo $O | jq -r .staticSiteName.value)" "$(echo $O | jq -r .functionAppName.value)" "$(echo $O | jq -r .storageAccountName.value)"
+```
+
+2. On GitHub: the repo's **Settings → Environments → New environment**, name it `azure`. Under **Deployment branches
+   and tags** pick **Selected branches and tags** and add `main`.
+3. On GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**, once for each of
+   the seven lines step 1 printed (name on the left of `=`, value on the right). None of them is a secret.
+4. Run "Deploy to Azure" once from the Actions tab (or push anything to `main`).
+
+From then on every push to `main` updates both Vercel and Azure.

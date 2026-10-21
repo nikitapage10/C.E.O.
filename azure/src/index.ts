@@ -1,0 +1,59 @@
+/**
+ * C.E.O.'s API as Azure Functions (Node, v4 programming model), beside Vercel (docs/AZURE.md). Every api/*.ts
+ * endpoint is registered at the same route it has on Vercel, /api/<name>, and runs the very same handler through
+ * the adapter (./adapter.ts). Vercel doesn't read this folder; nothing here changes the live site.
+ */
+
+// First: unresolved Key Vault references count as unset before any handler module reads a setting.
+import "./env.js";
+
+import { app, type HttpMethod } from "@azure/functions";
+import { registerAzureBlob } from "../../api/_blob.js";
+import * as daystory from "../../api/day-story.js";
+import * as deskauth from "../../api/desk-auth.js";
+import * as deskpings from "../../api/desk-pings.js";
+import * as foundryfeed from "../../api/foundry-feed.js";
+import * as foundryimage from "../../api/foundry-image.js";
+import * as foundryusage from "../../api/foundry-usage.js";
+import * as foundry from "../../api/foundry.js";
+import * as securityfeed from "../../api/security-feed.js";
+import * as visualqafeed from "../../api/visual-qa-feed.js";
+import * as worldstep from "../../api/world-step.js";
+import * as world from "../../api/world.js";
+import { adapt, type AdaptOptions, type WebHandler } from "./adapter.js";
+import { azureBlobFromEnv } from "./blob.js";
+
+// WORLD_STORE=azureblob: the world, stories, Desk sign-ins and pictures in the `ceo-state` container.
+registerAzureBlob(azureBlobFromEnv);
+
+type Module = Partial<Record<"GET" | "POST", WebHandler>>;
+
+/** Each endpoint, by its Vercel name (the file name in api/), with how long its waitUntil work may hold the answer. */
+export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions]> = [
+  ["day-story", daystory],
+  ["desk-auth", deskauth],
+  ["desk-pings", deskpings],
+  ["foundry-feed", foundryfeed],
+  ["foundry-image", foundryimage],
+  ["foundry-usage", foundryusage],
+  ["foundry", foundry],
+  ["security-feed", securityfeed],
+  ["visual-qa-feed", visualqafeed],
+  // Called on the Function App's own URL (no proxy cut), so the step waits for its day and week stories.
+  ["world-step", worldstep, { settleMs: Infinity }],
+  ["world", world],
+];
+
+for (const [name, mod, opts] of ENDPOINTS) {
+  const methods = (["GET", "POST"] as const).filter((m) => typeof mod[m] === "function");
+  app.http(name.replace(/-/g, "_"), {
+    route: name,
+    methods: methods as HttpMethod[],
+    authLevel: "anonymous",
+    handler: (req, context) => {
+      const handler = mod[req.method.toUpperCase() as "GET" | "POST"];
+      if (!handler) return Promise.resolve({ status: 405, headers: { Allow: methods.join(", ") } });
+      return adapt(handler, opts)(req, context);
+    },
+  });
+}

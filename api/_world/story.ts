@@ -32,11 +32,11 @@
  *     short, so the style note asks only for a natural, clear, conversational pace.
  */
 
-import { BlobNotFoundError, BlobPreconditionFailedError, del, get, head, put } from "@vercel/blob";
+import { BlobPreconditionError, pickBlob, vercelBlob, type BlobBackend } from "../_blob.js";
 import { monthOf } from "./budget.js";
 import { WORLD_CAST } from "./cast.js";
 import { scrub } from "./digest.js";
-import { blobReady, DAY, type WorldStore } from "./store.js";
+import { DAY, type WorldStore } from "./store.js";
 import type { DayPage, StepCost, WorldCast } from "./types.js";
 
 /* ── Gemini: the model, the voice, the price ── */
@@ -214,65 +214,55 @@ const weekPath = (week: string) => `world/stories/week-${week}.json`;
 const weekAudioPath = (week: string) => `world/stories/week-${week}.wav`;
 const SPEND_PATH = "world/stories/spend.json";
 
-async function readBlob(path: string): Promise<{ bytes: Uint8Array; etag: string } | null> {
-  try {
-    const found = await get(path, { access: "private", useCache: false });
-    if (!found || !found.stream) return null;
-    return { bytes: new Uint8Array(await new Response(found.stream).arrayBuffer()), etag: found.blob.etag };
-  } catch (e) {
-    if (e instanceof BlobNotFoundError) return null;
-    throw e;
-  }
+async function readBlob(blob: BlobBackend, path: string): Promise<{ bytes: Uint8Array; etag: string } | null> {
+  const found = await blob.get(path);
+  if (!found) return null;
+  return { bytes: new Uint8Array(await new Response(found.stream).arrayBuffer()), etag: found.etag };
 }
-const etagOf = (path: string) =>
-  head(path)
-    .then((b) => b.etag)
-    .catch((e: unknown) => {
-      if (e instanceof BlobNotFoundError) return null;
-      throw e;
-    });
 const parse = <T>(bytes: Uint8Array): T => JSON.parse(new TextDecoder().decode(bytes)) as T;
 
 /** The private Blob store, beside the world (api/_world/store.ts): Vercel's OIDC sign-in, no key in the code. */
 export class BlobStoryStore implements StoryStore {
+  /** Vercel Blob unless told otherwise (pickStoryStore hands it Azure's on Azure). */
+  constructor(private readonly blob: BlobBackend = vercelBlob) {}
   async readStory(day: string): Promise<DayStory | null> {
     if (!DAY.test(day)) return null;
-    const found = await readBlob(storyPath(day));
+    const found = await readBlob(this.blob, storyPath(day));
     return found ? parse<DayStory>(found.bytes) : null;
   }
   async readAudio(day: string): Promise<Uint8Array | null> {
     if (!DAY.test(day)) return null;
-    return (await readBlob(audioPath(day)))?.bytes ?? null;
+    return (await readBlob(this.blob, audioPath(day)))?.bytes ?? null;
   }
   async readWeek(week: string): Promise<WeekStory | null> {
     if (!DAY.test(week)) return null;
-    const found = await readBlob(weekPath(week));
+    const found = await readBlob(this.blob, weekPath(week));
     return found ? parse<WeekStory>(found.bytes) : null;
   }
   async readWeekAudio(week: string): Promise<Uint8Array | null> {
     if (!DAY.test(week)) return null;
-    return (await readBlob(weekAudioPath(week)))?.bytes ?? null;
+    return (await readBlob(this.blob, weekAudioPath(week)))?.bytes ?? null;
   }
   async putWeek(story: WeekStory, wav: Uint8Array | null): Promise<void> {
     // The audio first, as for a day: a story file only ever points at audio that is already there.
-    if (wav) await put(weekAudioPath(story.week), Buffer.from(wav), { access: "private", contentType: "audio/wav", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
-    await put(weekPath(story.week), JSON.stringify(story), { access: "private", contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+    if (wav) await this.blob.put(weekAudioPath(story.week), Buffer.from(wav), { contentType: "audio/wav", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+    await this.blob.put(weekPath(story.week), JSON.stringify(story), { contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
   }
   async claim(day: string, kind: ClaimKind, now: number): Promise<boolean> {
     const path = claimPath(day, kind);
     const body = JSON.stringify({ at: now });
     try {
       // No overwrite: of two calls racing for the same day, only one creates the claim.
-      await put(path, body, { access: "private", contentType: "application/json", addRandomSuffix: false, allowOverwrite: false });
+      await this.blob.put(path, body, { contentType: "application/json", addRandomSuffix: false, allowOverwrite: false });
       return true;
     } catch {
-      const etag = await etagOf(path);
+      const etag = await this.blob.etag(path);
       if (!etag) return false;
-      const was = await readBlob(path);
+      const was = await readBlob(this.blob, path);
       const at = was ? Number(parse<{ at?: number }>(was.bytes).at ?? 0) : 0;
       if (claimDone(await this.readStory(day), kind) || now - at < CLAIM_STALE_MS) return false;
       try {
-        await put(path, body, { access: "private", contentType: "application/json", addRandomSuffix: false, ifMatch: etag });
+        await this.blob.put(path, body, { contentType: "application/json", addRandomSuffix: false, ifMatch: etag });
         return true;
       } catch {
         return false;
@@ -280,31 +270,30 @@ export class BlobStoryStore implements StoryStore {
     }
   }
   async release(day: string, kind: ClaimKind): Promise<void> {
-    await del(claimPath(day, kind)).catch(() => undefined);
+    await this.blob.del(claimPath(day, kind)).catch(() => undefined);
   }
   async putStory(story: DayStory, wav: Uint8Array): Promise<void> {
     // The audio first: a story file only ever points at audio that is already there.
-    await put(audioPath(story.day), Buffer.from(wav), { access: "private", contentType: "audio/wav", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
-    await put(storyPath(story.day), JSON.stringify(story), { access: "private", contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+    await this.blob.put(audioPath(story.day), Buffer.from(wav), { contentType: "audio/wav", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+    await this.blob.put(storyPath(story.day), JSON.stringify(story), { contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
   }
   async loadSpend(): Promise<StorySpend> {
-    const found = await readBlob(SPEND_PATH);
+    const found = await readBlob(this.blob, SPEND_PATH);
     return found ? parse<StorySpend>(found.bytes) : {};
   }
   async addSpend(now: number, add: Partial<StoryMonth>): Promise<void> {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const etag = await etagOf(SPEND_PATH);
+      const etag = await this.blob.etag(SPEND_PATH);
       const cur = etag ? await this.loadSpend() : {};
       try {
-        await put(SPEND_PATH, JSON.stringify(addStorySpend(cur, now, add)), {
-          access: "private",
+        await this.blob.put(SPEND_PATH, JSON.stringify(addStorySpend(cur, now, add)), {
           contentType: "application/json",
           addRandomSuffix: false,
           ...(etag ? { ifMatch: etag } : { allowOverwrite: false }),
         });
         return;
       } catch (e) {
-        if (attempt === 1 || !(e instanceof BlobPreconditionFailedError || etag === null)) throw e;
+        if (attempt === 1 || !(e instanceof BlobPreconditionError || etag === null)) throw e;
       }
     }
   }
@@ -358,11 +347,15 @@ export class MemoryStoryStore implements StoryStore {
   }
 }
 
-/** The story store beside the world store: Blob when one is connected, memory for WORLD_STORE=memory, else none. */
+/**
+ * The story store beside the world store: Blob (Vercel's, or Azure's for WORLD_STORE=azureblob) when one is
+ * connected, memory for WORLD_STORE=memory, else none.
+ */
 export function pickStoryStore(env: Record<string, string | undefined> = process.env): StoryStore | null {
   const kind = (env.WORLD_STORE ?? "blob").trim().toLowerCase();
   if (kind === "memory") return new MemoryStoryStore();
-  return blobReady(env) ? new BlobStoryStore() : null;
+  const blob = pickBlob(env);
+  return blob ? new BlobStoryStore(blob) : null;
 }
 
 /* ── The script ── */

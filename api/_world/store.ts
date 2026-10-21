@@ -3,11 +3,13 @@
  * step changing. Picked by one setting, WORLD_STORE:
  *   blob      (default) the project's private Vercel Blob store, signed in the same way as the idea pictures
  *             (api/foundry-image.ts): Vercel's OIDC token, no key in the code.
+ *   azureblob the same files in Azure Blob Storage, when the code runs on Azure Functions (api/_blob.ts,
+ *             docs/AZURE.md): the Function App's own identity, no key either.
  *   supabase  C.E.O.'s own Supabase project, once it is connected (a skeleton for now: see SupabaseStore).
  * Moving from Blob to Supabase is that setting plus a copy of the history (the days listed in the state).
  */
 
-import { BlobNotFoundError, BlobPreconditionFailedError, get, head, put } from "@vercel/blob";
+import { BlobPreconditionError, blobReady, pickBlob, vercelBlob, type BlobBackend } from "../_blob.js";
 import type { DayPage, HistoryEntry, WorldState } from "./types.js";
 
 export interface WorldStore {
@@ -41,16 +43,15 @@ export const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const STATE_PATH = "world/state.json";
 const dayPath = (day: string) => `world/days/${day}.json`;
 
-async function readJson<T>(path: string): Promise<{ value: T; etag: string } | null> {
+async function readJson<T>(blob: BlobBackend, path: string): Promise<{ value: T; etag: string } | null> {
   // Straight from storage, never a cached copy: the step's idempotency depends on reading its own last write.
-  const found = await get(path, { access: "private", useCache: false });
-  if (!found || !found.stream) return null;
-  return { value: (await new Response(found.stream).json()) as T, etag: found.blob.etag };
+  const found = await blob.get(path);
+  if (!found) return null;
+  return { value: (await new Response(found.stream).json()) as T, etag: found.etag };
 }
 
-async function writeJson(path: string, value: unknown, ifMatch?: string): Promise<void> {
-  await put(path, JSON.stringify(value), {
-    access: "private",
+async function writeJson(blob: BlobBackend, path: string, value: unknown, ifMatch?: string): Promise<void> {
+  await blob.put(path, JSON.stringify(value), {
     contentType: "application/json",
     addRandomSuffix: false,
     allowOverwrite: true,
@@ -66,26 +67,23 @@ async function writeJson(path: string, value: unknown, ifMatch?: string): Promis
 export class BlobStore implements WorldStore {
   readonly kind = "blob" as const;
   private etag: string | null = null;
+  /** Vercel Blob unless told otherwise (pickStore hands it Azure's on Azure). */
+  constructor(private readonly blob: BlobBackend = vercelBlob) {}
 
   async loadState(): Promise<WorldState | null> {
     // The ETag that put's ifMatch compares against is the store's own, from head(). The one on a download's response
     // header is the CDN's and never matches, which left every step after the first refused as "already stepped".
-    const etag = await head(STATE_PATH)
-      .then((b) => b.etag)
-      .catch((e: unknown) => {
-        if (e instanceof BlobNotFoundError) return null;
-        throw e;
-      });
-    const found = etag ? await readJson<WorldState>(STATE_PATH) : null;
+    const etag = await this.blob.etag(STATE_PATH);
+    const found = etag ? await readJson<WorldState>(this.blob, STATE_PATH) : null;
     this.etag = found ? etag : null;
     return found?.value ?? null;
   }
 
   async saveState(state: WorldState): Promise<void> {
     try {
-      await writeJson(STATE_PATH, state, this.etag ?? undefined);
+      await writeJson(this.blob, STATE_PATH, state, this.etag ?? undefined);
     } catch (e) {
-      if (e instanceof BlobPreconditionFailedError) throw new StaleStateError();
+      if (e instanceof BlobPreconditionError) throw new StaleStateError();
       throw e;
     }
     this.etag = null;
@@ -93,17 +91,17 @@ export class BlobStore implements WorldStore {
 
   async appendHistory(entry: HistoryEntry): Promise<void> {
     const page = await this.readDay(entry.day);
-    await writeJson(dayPath(entry.day), { ...page, entries: [...page.entries.filter((e) => e.step !== entry.step), entry] });
+    await writeJson(this.blob, dayPath(entry.day), { ...page, entries: [...page.entries.filter((e) => e.step !== entry.step), entry] });
   }
 
   async putRecap(day: string, text: string): Promise<void> {
     const page = await this.readDay(day);
-    await writeJson(dayPath(day), { ...page, recap: text });
+    await writeJson(this.blob, dayPath(day), { ...page, recap: text });
   }
 
   async readDay(day: string): Promise<DayPage> {
     if (!DAY.test(day)) return { day, entries: [], recap: null };
-    const found = await readJson<DayPage>(dayPath(day));
+    const found = await readJson<DayPage>(this.blob, dayPath(day));
     return found?.value ?? { day, entries: [], recap: null };
   }
 }
@@ -188,12 +186,16 @@ export class MemoryStore implements WorldStore {
 /* ── Picking one ── */
 
 /** Whether a Blob store is connected to the project (Vercel sets BLOB_STORE_ID; a read-write token also works). */
-export const blobReady = (env: Record<string, string | undefined>) => Boolean(env.BLOB_STORE_ID || env.BLOB_READ_WRITE_TOKEN);
+export { blobReady };
 
-/** The store the WORLD_STORE setting names, or null when it isn't set up (no Blob store, no Supabase keys). */
+/**
+ * The store the WORLD_STORE setting names, or null when it isn't set up (no Blob store, no Supabase keys). `blob`
+ * (the default) and `azureblob` are the same store on Vercel Blob or Azure Blob Storage (api/_blob.ts).
+ */
 export function pickStore(env: Record<string, string | undefined> = process.env): WorldStore | null {
   const kind = (env.WORLD_STORE ?? "blob").trim().toLowerCase();
   if (kind === "supabase") return env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY ? new SupabaseStore(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY) : null;
   if (kind === "memory") return new MemoryStore();
-  return blobReady(env) ? new BlobStore() : null;
+  const blob = pickBlob(env);
+  return blob ? new BlobStore(blob) : null;
 }

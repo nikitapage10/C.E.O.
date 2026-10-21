@@ -1,6 +1,6 @@
 /**
  * Where the Desk's sign-in keeps what it must remember between function instances (#132): the enrolled passkeys and
- * the failed-attempt counters, and the devices that turned pings on (#135). All live in the project's private Vercel Blob store, beside the world and the idea
+ * the failed-attempt counters, and the devices that turned pings on (#135). All live in the project's private blob store (Vercel Blob, or Azure Blob Storage on Azure: api/_blob.ts), beside the world and the idea
  * pictures, never in the repo. A passkey record is public data only: the credential's id, its public key, its
  * signature counter, how it connects, a device label Nikita picks and two dates. No private key ever leaves the
  * device, and the counters keep a keyed hash of the address, never the address.
@@ -8,7 +8,7 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { get, put } from "@vercel/blob";
+import { pickBlob, vercelBlob, type BlobBackend } from "../_blob.js";
 import type { Limits } from "./limits.js";
 import type { PingState } from "./pings.js";
 
@@ -51,37 +51,39 @@ const pingsOf = (got: Partial<PingState> | null | undefined): PingState => ({
   ...(typeof got?.scanned === "number" && Number.isFinite(got.scanned) && { scanned: got.scanned }),
 });
 
-async function readJson<T>(path: string, empty: T): Promise<T> {
+async function readJson<T>(blob: BlobBackend, path: string, empty: T): Promise<T> {
   // Straight from storage, never a cached copy: a removed device or a fresh failure must count at once.
-  const found = await get(path, { access: "private", useCache: false });
-  if (!found || !found.stream) return empty;
+  const found = await blob.get(path);
+  if (!found) return empty;
   return ((await new Response(found.stream).json()) as T) ?? empty;
 }
 
-async function writeJson(path: string, value: unknown): Promise<void> {
-  await put(path, JSON.stringify(value), { access: "private", contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+async function writeJson(blob: BlobBackend, path: string, value: unknown): Promise<void> {
+  await blob.put(path, JSON.stringify(value), { contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
 }
 
 export class BlobAuthStore implements AuthStore {
+  /** Vercel Blob unless told otherwise (pickAuthStore hands it Azure's on Azure). */
+  constructor(private readonly blob: BlobBackend = vercelBlob) {}
   async passkeys(): Promise<Passkey[]> {
-    const got = await readJson<{ passkeys?: Passkey[] }>(PASSKEYS, {});
+    const got = await readJson<{ passkeys?: Passkey[] }>(this.blob, PASSKEYS, {});
     return Array.isArray(got.passkeys) ? got.passkeys : [];
   }
   async savePasskeys(list: Passkey[]): Promise<void> {
-    await writeJson(PASSKEYS, { passkeys: list.slice(0, MAX_PASSKEYS) });
+    await writeJson(this.blob, PASSKEYS, { passkeys: list.slice(0, MAX_PASSKEYS) });
   }
   async limits(): Promise<Limits> {
-    const got = await readJson<Limits>(LIMITS, {});
+    const got = await readJson<Limits>(this.blob, LIMITS, {});
     return got && typeof got === "object" ? got : {};
   }
   async saveLimits(limits: Limits): Promise<void> {
-    await writeJson(LIMITS, limits);
+    await writeJson(this.blob, LIMITS, limits);
   }
   async pings(): Promise<PingState> {
-    return pingsOf(await readJson<Partial<PingState>>(PINGS, {}));
+    return pingsOf(await readJson<Partial<PingState>>(this.blob, PINGS, {}));
   }
   async savePings(state: PingState): Promise<void> {
-    await writeJson(PINGS, state);
+    await writeJson(this.blob, PINGS, state);
   }
 }
 
@@ -110,7 +112,11 @@ export class MemoryAuthStore implements AuthStore {
   }
 }
 
-/** The private Blob store when it is connected (Vercel sets BLOB_STORE_ID), else nothing: no store, no sign-in. */
+/**
+ * The private Blob store when it is connected (Vercel sets BLOB_STORE_ID; on Azure, WORLD_STORE=azureblob and the
+ * storage account), else nothing: no store, no sign-in.
+ */
 export function pickAuthStore(env: Record<string, string | undefined> = process.env): AuthStore | null {
-  return env.BLOB_STORE_ID || env.BLOB_READ_WRITE_TOKEN ? new BlobAuthStore() : null;
+  const blob = pickBlob(env);
+  return blob ? new BlobAuthStore(blob) : null;
 }

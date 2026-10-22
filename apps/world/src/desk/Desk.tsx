@@ -10,7 +10,7 @@ import { link } from "./nav.ts";
 import { startDeskWorker } from "./pings.ts";
 import { startDeskAuth } from "./signin.ts";
 import { systemsTitle } from "./SystemsNav.tsx";
-import { SKIPPY_PORTRAIT, SkippyChat, useSkippy } from "./skippy/index.ts";
+import { SKIPPY_PORTRAIT, useSkippy } from "./skippy/index.ts";
 import { Today } from "./Today.tsx";
 import "./desk.css";
 import "./chronicle.css";
@@ -24,11 +24,15 @@ const loaders = {
   foundry: () => import("./FoundryPage.tsx"),
   systems: () => import("./SystemsHub.tsx"),
   chronicle: () => import("./Chronicle.tsx"),
+  // Not tabs, but kept out of the first load the same way: Skippy's open dialogue and the Council.
+  skippy: () => import("./skippy/SkippyDialog.tsx"),
+  council: () => import("./Council.tsx"),
 };
 const Relay = lazy(() => loaders.relay().then((m) => ({ default: m.Relay })));
 const FoundryPage = lazy(() => loaders.foundry().then((m) => ({ default: m.FoundryPage })));
 const SystemsHub = lazy(() => loaders.systems().then((m) => ({ default: m.SystemsHub })));
 const Chronicle = lazy(() => loaders.chronicle().then((m) => ({ default: m.Chronicle })));
+const SkippyChat = lazy(() => loaders.skippy().then((m) => ({ default: m.SkippyChat })));
 
 /** Fetch the other tabs once the browser is idle after first paint. Failures are ignored: opening the tab retries. */
 function prefetchTabs() {
@@ -226,7 +230,11 @@ export function Desk({ route }: { route: DeskTab }) {
 
       {/* Skippy's dialogue (#224), on every page: the bar's button, Today's avatar and the Ask box all open it. Focus goes
           back to whichever of them opened it. */}
-      <SkippyChat returnFocus={skippyOpener} />
+      {skippyOpen && (
+        <Suspense fallback={null}>
+          <SkippyChat returnFocus={skippyOpener} />
+        </Suspense>
+      )}
 
       <footer className="desk__foot">
         <span>Command Everything, Obviously</span>

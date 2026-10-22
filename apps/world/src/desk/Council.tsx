@@ -14,24 +14,6 @@ import { SKIPPY_PORTRAIT } from "./skippy/index.ts";
 
 const STATE_LABEL: Record<PulseState, string> = { busy: "Busy", steady: "Steady", waiting: "Waiting", down: "Needs a look", sim: "Simulated" };
 
-/** The compact control: Skippy's can with nine coloured sparks around it. */
-export function CouncilButton({ pulses, onOpen }: { pulses: RoomPulse[]; onOpen: () => void }) {
-  const hot = pulses.filter((p) => p.state === "busy" || p.state === "down").length;
-  return (
-    <button type="button" className="council-btn" onClick={onOpen} aria-haspopup="dialog" title="Hear the Council's rundown">
-      <span className="council-btn__ring" aria-hidden="true">
-        {pulses.map((p, i) => (
-          <i key={p.id} style={{ "--c": p.colour, "--a": `${(i / pulses.length) * 360}deg` } as React.CSSProperties} className={p.real ? "real" : ""} />
-        ))}
-      </span>
-      <span className="council-btn__text">
-        <b>The Council</b>
-        <small>{hot ? `${hot} ${hot === 1 ? "room" : "rooms"} with news` : "Nine rooms, one rundown"}</small>
-      </span>
-    </button>
-  );
-}
-
 export function Council({ pulses, open, onClose }: { pulses: RoomPulse[]; open: boolean; onClose: () => void }) {
   const [focus, setFocus] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);

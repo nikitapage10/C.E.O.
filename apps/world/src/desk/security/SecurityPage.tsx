@@ -1,112 +1,245 @@
+import { useMemo, useRef, useState } from "react";
 import { ago } from "../foundryGraph.ts";
 import { SystemsNav } from "../SystemsNav.tsx";
-import { RoomBanner } from "../RoomBanner.tsx";
-import { Avatar, Panel, Pill, type Tone } from "../ui.tsx";
+import { Pill, type Tone } from "../ui.tsx";
+import { useViz } from "../wvCanvas.ts";
 import { useSecurityFeed, type FeedState, type SecurityFeed } from "./feed.ts";
-import { EVAL_AREAS, EVALS, OWASP_LLM, ROADMAP, isShipped, owaspTally, refsOf } from "./model.ts";
-import { ALERT_EXPLAIN, EVAL_EXPLAIN, ROADMAP_EXPLAIN, SCAN_EXPLAIN, STAT_EXPLAIN, featureExplain, scorecardExplain, type ScanId, type StatId } from "./explain.ts";
+import { BOUNDARIES, EVAL_AREAS, EVALS, OWASP_LLM, ROADMAP, ZONES, isShipped, partsOf, refsOf, type ZoneId } from "./model.ts";
+import { beadsSpec, tmapSpec, type Bead } from "./secViz.ts";
+import { ALERT_EXPLAIN, EVAL_EXPLAIN, ROADMAP_EXPLAIN, SCAN_EXPLAIN, STAT_EXPLAIN, featureExplain, scorecardExplain, type ScanId } from "./explain.ts";
 import { DOC_URL, ExplainInline, Out, REPO_URL, Rich, useExplain } from "./parts.tsx";
 import { PopScope } from "../Popovers.tsx";
-import { TrustMap } from "./TrustMap.tsx";
 
 /**
- * Systems > Security (#82): how C.E.O. is defended, at a glance. Live from GitHub through api/security-feed.ts: the
- * last result of each scan, the repo's security switches, alert counts (never their details) and the Scorecard.
- * From the repo: the trust boundaries, the open risks and the injection eval suite (security/model.ts). Anything
- * without data yet says it's waiting.
+ * Systems > Security (#82), in the approved Weave (desk-concepts round five): a headline from the scans, a thread
+ * through every scan with a knot each, the trust map woven between its zones beside the Scorecard, and the counts.
+ * Live from GitHub through api/security-feed.ts: the last result of each scan, the repo's security switches, alert
+ * counts (never their details) and the Scorecard. From the repo: the trust boundaries, the open risks and the
+ * injection eval suite (security/model.ts). Anything without data yet says it's waiting.
  */
+
+const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 
 export function SecurityPage({ now }: { now: number }) {
   const state = useSecurityFeed();
   const feed = state.feed;
-  const tally = owaspTally();
   const reported = feed?.workflows.filter((w) => w.state === "pass" || w.state === "fail") ?? [];
-  const passing = reported.filter((w) => w.state === "pass").length;
+  const failing = reported.filter((w) => w.state === "fail");
   const todo = ROADMAP.filter((r) => !isShipped(r)).length;
+  const switches = feed?.features.filter((f) => f.state !== "unreported") ?? [];
+  const on = switches.filter((f) => f.state === "on").length;
 
   return (
-    <div className="sec-page">
-      <RoomBanner
-        page="security"
-        lead="The scans every change goes through, live from GitHub, and the threat model they answer to."
-        aside={
-          <div className="page-head__crew">
-            <Avatar agent="Gary" room="boiler" />
-            <FeedPill state={state} now={now} />
-          </div>
-        }
-      />
-
+    <div className="sec-page wv-page wv-sec">
       <SystemsNav />
+      <header className="wv-pghead">
+        <p className="wv-eyb">Threat model and scans</p>
+        <h1 className="wv-h1 desk__title">
+          {!feed || !reported.length ? (
+            <>
+              Waiting on <em>GitHub's scans.</em>
+            </>
+          ) : failing.length ? (
+            <>
+              {WORDS[failing.length] ?? failing.length} {failing.length === 1 ? "scan is" : "scans are"} <em style={{ color: "var(--wv-bad)" }}>failing.</em>
+            </>
+          ) : (
+            <>
+              Every scan is <em style={{ color: "var(--wv-ok)" }}>passing.</em>
+            </>
+          )}
+        </h1>
+        <p className="wv-sub">
+          Counts only here. The details of anything open stay with the crew. <FeedLine state={state} now={now} />
+        </p>
+      </header>
 
       <PopScope prefix="sec">
-        <ul className="sec-stats" aria-label="Security at a glance">
-          <Stat
-            id="passing"
-            label="Scans passing"
-            value={feed && reported.length ? `${passing}/${reported.length}` : "—"}
-            note={feed ? (reported.length ? "last run of each" : "No runs reported") : "Waiting for GitHub"}
-            tone={!feed || !reported.length ? "off" : passing === reported.length ? "ok" : "down"}
-          />
-          <Stat
-            id="scorecard"
-            label="Scorecard"
-            value={feed?.scorecard ? feed.scorecard.score.toFixed(1) : "—"}
-            note={feed?.scorecard ? "out of 10, OpenSSF" : feed ? "Not reported yet" : "Waiting"}
-            tone={feed?.scorecard ? scoreTone(feed.scorecard.score) : "off"}
-          />
-          <Stat id="evals" label="Injection evals" value={String(EVALS.total)} note={EVALS.expectedFail ? `${EVALS.passing} pass · ${EVALS.expectedFail} known ${EVALS.expectedFail === 1 ? "gap" : "gaps"}` : `${EVALS.passing} pass · no known gaps`} tone="ok" />
-          <Stat id="risks" label="LLM risks open" value={String(tally.open)} note={`of 10 · ${todo} on the roadmap`} tone={tally.open ? "slow" : "ok"} />
-        </ul>
+        <ScanBeads feed={feed} now={now} />
 
-        <Panel eyebrow="Scans" aside={<Out href={`${REPO_URL}/actions`}>All runs</Out>} className="sec-panel">
-          <Scans feed={feed} now={now} />
-        </Panel>
-
-        <div className="sec-two">
-          <Panel eyebrow="OpenSSF Scorecard" aside={<span className="panel__hint">How the repo is run</span>} className="sec-panel">
+        <div className="wv-sec2">
+          <section className="wv-panel wv-trust">
+            <div className="wv-sechead">
+              <div>
+                <p className="wv-eyb">Trust map</p>
+                <h2 className="wv-h2">{WORDS[BOUNDARIES.length] ?? BOUNDARIES.length} boundaries</h2>
+              </div>
+              <p className="wv-note">
+                {BOUNDARIES.filter((b) => !b.planned).length} guarded{BOUNDARIES.some((b) => b.planned) ? `, ${BOUNDARIES.filter((b) => b.planned).length} waits on the Mac` : ""}
+              </p>
+            </div>
+            <WovenTrust />
+          </section>
+          <section className="wv-panel wv-score">
             <Scorecard feed={feed} now={now} />
-          </Panel>
-          <Panel eyebrow="Guards" aside={<Out href={`${REPO_URL}/security`}>Security tab</Out>} className="sec-panel">
-            <Guards feed={feed} />
-          </Panel>
+          </section>
         </div>
 
-        <Panel eyebrow="Trust boundaries" aside={<Out href={DOC_URL}>Threat model</Out>} className="sec-panel">
-          <TrustMap />
-        </Panel>
+        <section className="wv-counts" aria-label="Counts">
+          <CountCell n={feed?.alerts.codeScanning ? String(feed.alerts.codeScanning.open) + (feed.alerts.codeScanning.more ? "+" : "") : "–"} what={feed?.alerts.codeScanning ? "code scanning alerts open" : "code scanning alerts, not reported"} />
+          <CountCell n={feed?.alerts.dependabot ? String(feed.alerts.dependabot.open) + (feed.alerts.dependabot.more ? "+" : "") : "–"} what={feed?.alerts.dependabot ? "dependency alerts open" : "dependency alerts, not reported"} />
+          <CountCell n={switches.length ? `${on} of ${switches.length}` : "–"} what={switches.length ? "security switches on" : "security switches, not reported"} />
+          <CountCell n={`${todo} of ${ROADMAP.length}`} what="roadmap items still to ship" />
+        </section>
 
-        <Panel eyebrow="Open risks and the roadmap" aside={<span className="panel__hint">What's left, in order</span>} className="sec-panel">
+        <div className="wv-sec2 wv-sec-more">
+          <section className="wv-panel">
+            <div className="wv-sechead">
+              <div>
+                <p className="wv-eyb">Guards</p>
+                <h2 className="wv-h2">The repo's switches</h2>
+              </div>
+              <Out href={`${REPO_URL}/security`}>Security tab</Out>
+            </div>
+            <Guards feed={feed} />
+          </section>
+          <section className="wv-panel">
+            <div className="wv-sechead">
+              <div>
+                <p className="wv-eyb">Injection eval suite</p>
+                <h2 className="wv-h2">
+                  {EVALS.passing} of {EVALS.total} pass
+                </h2>
+              </div>
+              <p className="wv-note">Runs on every build, offline</p>
+            </div>
+            <Evals />
+          </section>
+        </div>
+
+        <section className="wv-panel wv-sec-road">
+          <div className="wv-sechead">
+            <div>
+              <p className="wv-eyb">Open risks and the roadmap</p>
+              <h2 className="wv-h2">What's left, in order</h2>
+            </div>
+            <Out href={DOC_URL}>Threat model</Out>
+          </div>
           <Roadmap />
-        </Panel>
-
-        <Panel eyebrow="Injection eval suite" aside={<span className="panel__hint">Runs on every build, offline</span>} className="sec-panel">
-          <Evals />
-        </Panel>
+        </section>
       </PopScope>
     </div>
   );
 }
 
-function scoreTone(score: number): Tone {
-  return score >= 7 ? "ok" : score >= 4 ? "slow" : "down";
-}
-
-function FeedPill({ state, now }: { state: FeedState; now: number }) {
-  if (state.status === "waiting" || !state.fetchedAt) return <Pill tone="off">Waiting for GitHub</Pill>;
-  if (state.status === "stale") return <Pill tone="slow">From {ago(state.fetchedAt, now)}</Pill>;
-  return <Pill tone="ok">Live · {ago(state.fetchedAt, now)}</Pill>;
-}
-
-function Stat({ id, label, value, note, tone }: { id: StatId; label: string; value: string; note: string; tone: Tone }) {
-  const pop = useExplain(`stat-${id}`, label, STAT_EXPLAIN[id]);
+function CountCell({ n, what }: { n: string; what: string }) {
   return (
-    <li className={`sec-stat sec-stat--${tone} has-pop ${pop.open ? "is-open" : ""}`} tabIndex={0} {...pop.anchor}>
+    <div>
+      <b>{n}</b>
+      <span>{what}</span>
+    </div>
+  );
+}
+
+function FeedLine({ state, now }: { state: FeedState; now: number }) {
+  if (state.status === "waiting" || !state.fetchedAt) return null;
+  return <span className="wv-feedline">{state.status === "stale" ? `From ${ago(state.fetchedAt, now)}.` : `Live, ${ago(state.fetchedAt, now)}.`}</span>;
+}
+
+/** The scans as a thread with a knot each, then the eval suite and the Scorecard at its end. */
+function ScanBeads({ feed, now }: { feed: SecurityFeed | null; now: number }) {
+  const rows = SCAN_IDS.map((id) => {
+    const w = feed?.workflows.find((x) => x.id === id);
+    const word = !feed ? "Waiting" : !w ? "Not reported" : w.state === "other" ? (w.conclusion ? w.conclusion[0]!.toUpperCase() + w.conclusion.slice(1) : "Finished") : RUN_WORD[w.state];
+    const bead: Bead = w?.state === "pass" ? "ok" : w?.state === "fail" ? "bad" : "off";
+    return { id, w, word, bead };
+  });
+  const card = feed?.scorecard;
+  const beads: Bead[] = [...rows.map((r) => r.bead), EVALS.passing + EVALS.expectedFail === EVALS.total ? "ok" : "bad", card ? (card.score >= 4 ? "ok" : "bad") : "off"];
+  const spec = useMemo(() => beadsSpec(beads), [beads.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cv = useRef<HTMLCanvasElement>(null);
+  useViz(cv, spec);
+  return (
+    <section className="wv-scans" aria-label="Scans">
+      <canvas ref={cv} className="wv-cv" aria-hidden="true" />
+      <ul className="wv-scans-l">
+        {rows.map((r) => (
+          <Scan key={r.id} id={r.id} w={r.w} word={r.word} bead={r.bead} now={now} />
+        ))}
+        <EvalBead />
+        <li className={card ? "" : "is-off"}>
+          <b>Scorecard</b>
+          <span>{card ? `${card.score.toFixed(1)} of 10` : feed ? "Not reported" : "Waiting"}</span>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+function EvalBead() {
+  const pop = useExplain("stat-evals", "Injection evals", STAT_EXPLAIN.evals);
+  return (
+    <li className={`has-pop ${pop.open ? "is-open" : ""}`} tabIndex={0} {...pop.anchor}>
       {pop.card}
-      <span className="sec-stat__label">{label}</span>
-      <span className="sec-stat__value">{value}</span>
-      <span className="sec-stat__note">{note}</span>
+      <b>Injection evals</b>
+      <span>
+        {EVALS.passing} of {EVALS.total}
+        {EVALS.expectedFail ? `, ${EVALS.expectedFail} known` : ""}
+      </span>
     </li>
+  );
+}
+
+/** The trust boundaries as threads between the zones, columns from where you sit out to the public. */
+const TZ: { x: number; label: string; zones: ZoneId[] }[] = [
+  { x: 0, label: "You", zones: ["browser", "relay"] },
+  { x: 0.34, label: "Edge", zones: ["vercel"] },
+  { x: 0.68, label: "Services", zones: ["claude", "github", "builder"] },
+  { x: 1, label: "Public", zones: ["public"] },
+];
+const ZONE_SHORT: Record<ZoneId, string> = { browser: "The Desk", relay: "MacBook", vercel: "Vercel", claude: "Claude, Gemini", github: "GitHub", builder: "Claude Code", public: "The internet" };
+
+function WovenTrust() {
+  const [picked, setPicked] = useState<string | null>(null);
+  const hot = useRef<string | null>(null);
+  hot.current = picked;
+  const spec = useMemo(() => tmapSpec(BOUNDARIES.map((b) => ({ id: b.id, from: b.from, to: b.to, wait: Boolean(b.planned) })), hot), []);
+  const cv = useRef<HTMLCanvasElement>(null);
+  useViz(cv, spec);
+  const b = BOUNDARIES.find((x) => x.id === picked);
+  const ends = b ? [b.from, b.to] : [];
+  return (
+    <>
+      <div className="wv-tmap">
+        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
+        {TZ.map((z) => (
+          <div key={z.label} className="wv-tz" style={{ "--x": z.x } as React.CSSProperties}>
+            <p>{z.label}</p>
+            {z.zones.map((id) => (
+              <span key={id} data-tn={id} className={`${ZONES[id].planned ? "is-wait" : ""}${ends.includes(id) ? " is-on" : ""}`} title={`${ZONES[id].name}: ${ZONES[id].trust}`}>
+                {ZONE_SHORT[id]}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="wv-tb" role="group" aria-label="Pick a boundary">
+        {BOUNDARIES.map((x) => (
+          <button key={x.id} type="button" className={`${x.planned ? "is-wait" : ""}${picked === x.id ? " is-on" : ""}`} aria-pressed={picked === x.id} onClick={() => setPicked(picked === x.id ? null : x.id)} onMouseEnter={() => (hot.current = x.id)} onMouseLeave={() => (hot.current = picked)}>
+            {x.id}
+          </button>
+        ))}
+      </div>
+      {b ? (
+        <div className="wv-tb-d">
+          <p className="wv-tb-n">
+            <b>{b.name}</b> <span>{ZONES[b.from].name} to {ZONES[b.to].name}</span>
+          </p>
+          <p className="wv-note">
+            <i>What crosses:</i> {b.crosses}
+          </p>
+          <ul className="wv-tb-c">
+            {partsOf(b.controls).map((c) => (
+              <li key={c}>
+                <Rich text={c} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="wv-note wv-tb-hint">Pick a boundary to see what crosses it and every control on it.</p>
+      )}
+    </>
   );
 }
 
@@ -117,14 +250,6 @@ const RUN_WORD: Record<SecurityFeed["workflows"][number]["state"], string> = {
   none: "No runs yet",
   unreported: "Not reported",
 };
-const RUN_TONE: Record<SecurityFeed["workflows"][number]["state"], Tone> = {
-  pass: "ok",
-  fail: "down",
-  other: "slow",
-  none: "off",
-  unreported: "off",
-};
-
 export const SCAN_IDS: ScanId[] = ["checks", "codeql", "scorecard", "dependency-review", "e2e"];
 const SCAN_NAME: Record<ScanId, string> = {
   checks: "Checks",
@@ -134,83 +259,69 @@ const SCAN_NAME: Record<ScanId, string> = {
   e2e: "E2E",
 };
 
-function Scans({ feed, now }: { feed: SecurityFeed | null; now: number }) {
-  return (
-    <ul className="scans">
-      {SCAN_IDS.map((id) => (
-        <Scan key={id} id={id} feed={feed} now={now} />
-      ))}
-    </ul>
-  );
-}
-
-function Scan({ id, feed, now }: { id: ScanId; feed: SecurityFeed | null; now: number }) {
-  const pop = useExplain(`scan-${id}`, SCAN_NAME[id], SCAN_EXPLAIN[id], {
-    kicker: "Scan",
-  });
-  const w = feed?.workflows.find((x) => x.id === id);
-  const tone: Tone = w ? RUN_TONE[w.state] : "off";
-  const word = !feed ? "Waiting" : !w ? "Not reported" : w.state === "other" ? (w.conclusion ? w.conclusion[0]!.toUpperCase() + w.conclusion.slice(1) : "Finished") : RUN_WORD[w.state];
+function Scan({ id, w, word, bead, now }: { id: ScanId; w: SecurityFeed["workflows"][number] | undefined; word: string; bead: Bead; now: number }) {
+  const pop = useExplain(`scan-${id}`, SCAN_NAME[id], SCAN_EXPLAIN[id], { kicker: "Scan" });
   const at = w?.at ? Date.parse(w.at) : NaN;
   return (
-    <li className={`scan scan--${tone} has-pop ${pop.open ? "is-open" : ""}`} tabIndex={0} aria-label={`${SCAN_NAME[id]}: ${word}${Number.isFinite(at) ? `, ${ago(at, now)}` : ""}`} {...pop.anchor}>
+    <li className={`${bead === "bad" ? "is-bad" : bead === "off" ? "is-off" : ""} has-pop ${pop.open ? "is-open" : ""}`} tabIndex={0} aria-label={`${SCAN_NAME[id]}: ${word}${Number.isFinite(at) ? `, ${ago(at, now)}` : ""}`} {...pop.anchor}>
       {pop.card}
-      <span className="scan__ring" aria-hidden="true">
-        <i />
-      </span>
-      <span className="scan__name">{SCAN_NAME[id]}</span>
-      <span className="scan__state">{word}</span>
-      <span className="scan__when">
-        {Number.isFinite(at) ? ago(at, now) : "—"}
-        {w?.scope === "pull request" && <small> · latest pull request</small>}
-      </span>
-      {w?.url && (
-        <a className="scan__link" href={w.url} target="_blank" rel="noopener noreferrer">
-          Run <span aria-hidden="true">↗</span>
+      <b>{SCAN_NAME[id]}</b>
+      <span>{word}</span>
+      {w?.url ? (
+        <a className="wv-scan-a" href={w.url} target="_blank" rel="noopener noreferrer">
+          {Number.isFinite(at) ? ago(at, now) : "Run"}
+          {w.scope === "pull request" ? ", latest PR" : ""}
         </a>
+      ) : (
+        Number.isFinite(at) && <small>{ago(at, now)}</small>
       )}
     </li>
   );
 }
 
-function ScoreDial({ score }: { score: number }) {
-  const r = 46;
-  const c = 2 * Math.PI * r;
-  const frac = Math.max(0, Math.min(1, score / 10));
-  return (
-    <svg className={`dial dial--${scoreTone(score)}`} viewBox="0 0 120 120" role="img" aria-label={`Scorecard ${score.toFixed(1)} out of 10`}>
-      <circle className="dial__track" cx="60" cy="60" r={r} />
-      <circle className="dial__arc" cx="60" cy="60" r={r} strokeDasharray={`${c * frac} ${c}`} transform="rotate(-90 60 60)" />
-      <text className="dial__num" x="60" y="64" textAnchor="middle">
-        {score.toFixed(1)}
-      </text>
-      <text className="dial__of" x="60" y="82" textAnchor="middle">
-        / 10
-      </text>
-    </svg>
-  );
-}
-
+/** The Scorecard as bars: its three best and three weakest checks, and every check folded below. */
 function Scorecard({ feed, now }: { feed: SecurityFeed | null; now: number }) {
   const card = feed?.scorecard;
-  if (!card) return <p className="quiet">{feed ? "Scorecard hasn't published a result for the repo yet." : "Waiting for the Scorecard result."}</p>;
-  const checks = [...card.checks].sort((a, b) => b.score - a.score);
+  const head = (title: string) => (
+    <div className="wv-sechead">
+      <div>
+        <p className="wv-eyb">How the repo is run</p>
+        <h2 className="wv-h2">{title}</h2>
+      </div>
+    </div>
+  );
+  if (!card)
+    return (
+      <>
+        {head("Scorecard")}
+        <p className="wv-note">{feed ? "Scorecard hasn't published a result for the repo yet." : "Waiting for the Scorecard result."}</p>
+      </>
+    );
+  const scored = [...card.checks].filter((c) => c.score >= 0).sort((a, b) => b.score - a.score);
+  const pick = scored.length > 6 ? [...scored.slice(0, 3), ...scored.slice(-3)] : scored;
   const at = Date.parse(card.date);
   return (
-    <div className="scorecard">
-      <div className="scorecard__head">
-        <ScoreDial score={card.score} />
-        <p className="quiet">
-          OpenSSF Scorecard grades how the repo is run, check by check.
-          {Number.isFinite(at) && <> Scored {ago(at, now)}.</>} <Out href={`https://scorecard.dev/viewer/?uri=github.com/nikitapage10/C.E.O.`}>Full report</Out>
-        </p>
-      </div>
-      <ul className="bars" aria-label="Scorecard checks">
-        {checks.map((c) => (
+    <>
+      {head(`Scorecard, ${card.score.toFixed(1)}`)}
+      <ul className="wv-score-l" aria-label="Scorecard checks">
+        {pick.map((c) => (
           <ScoreBar key={c.name} c={c} />
         ))}
       </ul>
-    </div>
+      <details className="wv-more-d">
+        <summary>All {card.checks.length} checks</summary>
+        <ul className="wv-score-l">
+          {[...card.checks]
+            .sort((a, b) => b.score - a.score)
+            .map((c) => (
+              <ScoreBar key={c.name} c={c} />
+            ))}
+        </ul>
+      </details>
+      <p className="wv-note wv-score-n">
+        OpenSSF Scorecard{Number.isFinite(at) ? `, scored ${ago(at, now)}` : ""}. <Out href={`https://scorecard.dev/viewer/?uri=github.com/nikitapage10/C.E.O.`}>Full report</Out>
+      </p>
+    </>
   );
 }
 
@@ -221,13 +332,11 @@ function ScoreBar({ c }: { c: NonNullable<SecurityFeed["scorecard"]>["checks"][n
     kicker: na ? "Scorecard check · n/a" : `Scorecard check · ${c.score}/10`,
   });
   return (
-    <li className={`bar bar--${na ? "off" : scoreTone(c.score)} has-pop ${pop.open ? "is-open" : ""}`} tabIndex={0} {...pop.anchor}>
+    <li className={`${na || c.score === 0 ? "is-z" : ""} has-pop ${pop.open ? "is-open" : ""}`} style={{ "--v": na ? 0 : c.score / 10, "--c": na ? undefined : c.score >= 7 ? "var(--wv-ok)" : c.score >= 4 ? "var(--wv-warn, #e0b26b)" : "var(--wv-bad)" } as React.CSSProperties} tabIndex={0} {...pop.anchor}>
       {pop.card}
-      <span className="bar__name">{name}</span>
-      <span className="bar__track" aria-hidden="true">
-        <i style={{ width: `${na ? 0 : c.score * 10}%` }} />
-      </span>
-      <span className="bar__num">{na ? "n/a" : c.score}</span>
+      <b>{name}</b>
+      <i aria-hidden="true" />
+      <em>{na ? "n/a" : c.score}</em>
     </li>
   );
 }

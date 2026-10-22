@@ -1,11 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import { byWait, DESK_ROOMS, roomImage, type DeskData, type DeskRoom } from "./deskData.ts";
 import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
 import { chronicleDay, sinceAway, useWorldFeed } from "../chronicle.ts";
 import { loadLattice } from "../route.ts";
 import { useUsage } from "../usage.ts";
 import { nextLine, useWorldClock } from "../worldClock.ts";
-import { Council, CouncilButton } from "./Council.tsx";
+import { CouncilButton } from "./CouncilButton.tsx";
 import { useSetup } from "./IdeaCard.tsx";
 import { LatticeThreads, labelTop } from "./LatticeThreads.tsx";
 import { dailyOpening } from "./motion.tsx";
@@ -16,7 +16,10 @@ import { DecisionAct, IdeasAct, LaterAct, QuestionAct, ReplyAct } from "./TodayA
 import { ComingUp, LatticeToday, ShortVersion, shortVersion, WorthKnowing } from "./TodayWeave.tsx";
 import { Avatar } from "./ui.tsx";
 import { usePulses } from "./usePulses.ts";
-import { SkippyAsk, SkippyAvatar } from "./skippy/index.ts";
+import { SKIPPY_PORTRAIT, SkippyAsk, SkippyAvatar } from "./skippy/index.ts";
+
+/** The Council is its own download, fetched the first time it opens (and in the Desk's idle prefetch). */
+const Council = lazy(() => import("./Council.tsx").then((m) => ({ default: m.Council })));
 
 /**
  * Today, in the Weave (Nikita, 2026-10-22): Skippy, the Magnificent guiding the day. A hero first: the nine rooms as
@@ -80,7 +83,7 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
               <span>Needs you</span>
             </div>
             <div className="wv-act-body">
-              <SkippyAvatar size="sm" className="wv-act-pf wv-act-can" />
+              <img className="wv-act-pf" src={SKIPPY_PORTRAIT} alt="" width={44} height={44} decoding="async" />
               <div>
                 <h3 className="wv-h3">All quiet. Enjoy it; I arranged it.</h3>
                 <p className="wv-act-p">
@@ -211,7 +214,11 @@ function TodayHero({ now, pulses, todo }: { now: number; pulses: RoomPulse[]; to
           </li>
         ))}
       </ul>
-      <Council pulses={pulses} open={council} onClose={closeCouncil} />
+      {council && (
+        <Suspense fallback={null}>
+          <Council pulses={pulses} open onClose={closeCouncil} />
+        </Suspense>
+      )}
     </section>
   );
 }

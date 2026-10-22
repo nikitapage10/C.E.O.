@@ -3,6 +3,7 @@
  * is self-contained (its own styles in skippy.css, its own store in chat.ts), so a page only places them.
  */
 export { SkippyAvatar, SKIPPY_PORTRAIT, type SkippyAvatarProps } from "./SkippyAvatar.tsx";
-export { SkippyChat, SkippyComposer, type SkippyChatProps } from "./SkippyChat.tsx";
+export { SkippyComposer } from "./SkippyChat.tsx";
+export type { SkippyChatProps } from "./SkippyDialog.tsx";
 export { SkippyAsk } from "./SkippyAsk.tsx";
 export { useSkippy } from "./chat.ts";

@@ -41,6 +41,7 @@ describe("each system's How it works", () => {
     expect(connectionsAt("relay", "bluebubbles").map((c) => c.id)).toEqual(["bluebubbles"]);
     expect(connectionsAt("relay", "openai").map((c) => c.id)).toEqual(["openai"]);
     expect(connectionsAt("relay", "hub").map((c) => c.id)).toEqual(["hub-socket"]);
+    expect(connectionsAt("relay", "gmail").map((c) => c.id)).toEqual(["gmail"]);
     expect(connectionsAt("foundry", "builder").map((c) => c.id)).toEqual(["claude-code"]);
     expect(connectionsAt("foundry", "queue").map((c) => c.id)).toEqual(["doorbell"]);
     expect(connectionsAt("foundry", "checks").map((c) => c.id)).toEqual(["gemini-visual-qa"]);

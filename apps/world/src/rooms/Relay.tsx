@@ -7,6 +7,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { Dust, Haze } from "../fx/atmos.tsx";
 import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
+import { emailLine, startEmail, useEmail } from "../desk/email/email.ts";
 import { useWorld } from "../store.ts";
 import { Block, Chair, FONTS, Plinth, ahead } from "./primitives.tsx";
 
@@ -155,6 +156,44 @@ function BankersLamp({ position }: { position: [number, number, number] }) {
   );
 }
 
+/**
+ * The inbox board (#263): a brass telegraph board by the post-office boxes, driven by the email agent's live public
+ * counts (desk/email/email.ts, ?view=status): how many emails need the C.E.O., how many were FYI, and the agent's
+ * state. Counts only: no subject or sender ever reaches the Lattice. The lamp burns while something needs the C.E.O.
+ */
+function InboxBoard() {
+  const load = useEmail((s) => s.load);
+  const status = useEmail((s) => s.status);
+  const lamp = useRef<Mesh>(null);
+  useEffect(() => startEmail(), []);
+  const needs = status?.needsYou ?? 0;
+  useFrame(({ clock }) => {
+    if (lamp.current) lamp.current.scale.setScalar(needs > 0 ? 1 + Math.sin(clock.elapsedTime * 3) * 0.15 : 0.6);
+  });
+  const line = needs > 0 ? "NEED THE C.E.O." : emailLine(load, status).replace(/^Email(?: agent)?:?\s*/i, "").toUpperCase() || "ALL QUIET";
+  return (
+    <group position={[6.55, 0, -5.92]}>
+      <Block size={[1.7, 1.25, 0.12]} position={[0, 2.75, 0]} material={PBR.wood("walnut")} radius={0.03} />
+      <Block size={[1.5, 1.05, 0.02]} position={[0, 2.75, 0.07]} material={PBR.matte("#14100c", 0.8)} radius={0.01} />
+      <Text font={FONTS.mono} fontSize={0.07} position={[0, 3.18, 0.09]} letterSpacing={0.2} color="#c9a25c">
+        INBOX · BY TELEGRAPH
+      </Text>
+      <Text font={FONTS.serifUpright} fontSize={0.42} position={[0, 2.82, 0.09]} color={needs > 0 ? "#ffcf8a" : "#8a7a60"}>
+        {status ? String(needs) : "–"}
+      </Text>
+      <Text font={FONTS.mono} fontSize={0.06} maxWidth={1.4} textAlign="center" position={[0, 2.5, 0.09]} letterSpacing={0.12} color="#c9a25c">
+        {line}
+      </Text>
+      <Text font={FONTS.mono} fontSize={0.055} position={[0, 2.32, 0.09]} letterSpacing={0.12} color="#8a7a60">
+        {status ? `${status.fyi} FYI · ${status.newToday} TODAY` : " "}
+      </Text>
+      <mesh ref={lamp} position={[0.68, 3.28, 0.1]} material={PBR.light(needs > 0 ? "#ffb347" : "#5a4a30", needs > 0 ? 4 : 0.6)}>
+        <sphereGeometry args={[0.05, 16, 12]} />
+      </mesh>
+    </group>
+  );
+}
+
 /** The Relay: an art-deco post office, where messages arrive by tube and wait in the outbox for your nod. */
 export function Relay() {
   const beacon = useRef<Mesh>(null);
@@ -177,6 +216,7 @@ export function Relay() {
         <planeGeometry args={[3.2, 7.5]} />
       </mesh>
       <PostBoxes />
+      <InboxBoard />
       {/* Fluted brass pilasters */}
       {[-7.6, 7.6].map((x) => (
         <group key={x} position={[x, 0, -6.1]}>

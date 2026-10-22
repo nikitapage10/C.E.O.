@@ -14,8 +14,11 @@
 
 import { createHash, createHmac, scrypt, timingSafeEqual } from "node:crypto";
 
-/** "site": the site password's session cookies (api/_site/keys.ts, #236), when SITE_SESSION_SECRET isn't set. */
-export type KeyPurpose = "session" | "challenge" | "picture" | "client" | "site";
+/**
+ * "site": the site password's session cookies (api/_site/keys.ts, #236), when SITE_SESSION_SECRET isn't set.
+ * "gmail": the Connect Gmail state cookie (api/_email/route.ts, #263).
+ */
+export type KeyPurpose = "session" | "challenge" | "picture" | "client" | "site" | "gmail";
 
 const SALT = "ceo.desk.v1";
 /** scrypt's cost: N = 2^15, r = 8, p = 1 (32 MB, roughly 0.1 s on a function), the usual interactive setting. */

@@ -220,6 +220,18 @@ export const CONNECTIONS: Connection[] = [
     when: "At most seven calls every six hours, kept in the private store so every instance shares them.",
   },
   {
+    id: "gmail",
+    name: "Gmail",
+    room: "relay",
+    at: [{ system: "relay", part: "gmail" }],
+    serves: "The email agent: Dialtone sorts your inbox, Blasto advises",
+    kinds: ["REST API", "Polling", "Scheduled", "SDK"],
+    status: "live",
+    how: "An Azure timer function asks the Gmail API every minute what was added to your inbox since the last check (the history list, which costs nothing), and reads only the new mail, trimmed to a few KB with the links taken out. Claude Haiku sorts each one into needs you, FYI or noise with a one-line summary; for needs-you mail Claude Sonnet writes short advice and a draft for you to copy. The Desk's Relay page shows the list behind your passkey; the Lattice, Today and the world feed get counts only. Nothing is ever sent, archived or deleted.",
+    auth: "Google OAuth with the read-only Gmail scope (gmail.readonly), connected from the Desk with your passkey. The refresh token is sealed in the Azure copy's private store with GMAIL_TOKEN_KEY; the OAuth client (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET) and the Claude key (CLAUDE_API_KEY) are Key Vault secrets. Azure only: the Vercel copy shows it waiting.",
+    when: "Every minute; Claude only for new mail, under its own cap (EMAIL_BUDGET_USD, $10 a month). Past the cap it pauses and keeps counting.",
+  },
+  {
     id: "bluebubbles",
     name: "BlueBubbles",
     room: "relay",

@@ -322,9 +322,9 @@ describe("the locked site opens with the Desk passkey (#238)", () => {
     expect(await opens(site, phone.jar)).toBe(true);
   });
 
-  it("sets no site cookie while the site isn't locked, or with no site store in the deps", async () => {
+  it("sets no site cookie while the site is unlocked, or with no site store in the deps", async () => {
     const { site, deps } = locked();
-    site.record = null;
+    site.record = { v: 1, sv: "version-two", open: true };
     const open = new Browser(deps);
     await open.enrol(new SoftPasskey());
     expect(open.jar.has(SITE_COOKIE)).toBe(false);

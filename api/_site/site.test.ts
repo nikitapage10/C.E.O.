@@ -3,7 +3,7 @@ import { signToken } from "../_desk/session.ts";
 import { BYPASS_HEADER, GATE_HEADER, decide, gateRequest, isPasskeyPath, isStaticPath, secretMatches, withGate, type GateContext } from "./gate.ts";
 import { LOGIN_CSP, LOGIN_SCRIPT, LOGIN_SCRIPT_SRI, loginPage, safeNext } from "./page.ts";
 import { RENEW_AFTER_S, SITE_COOKIE, SITE_SESSION_S, newSiteSession, renewedSite, sessionFits, siteCookie, siteSessionOf } from "./session.ts";
-import { MemorySiteStore, STATE_TTL_MS, currentState, forgetCachedState, readRecord, siteKeys, stateOf, type Factor, type SiteKeys, type SiteRecord } from "./state.ts";
+import { DEFAULT_SV, MemorySiteStore, STATE_TTL_MS, currentState, forgetCachedState, readRecord, siteKeys, stateOf, type Factor, type SiteKeys, type SiteRecord } from "./state.ts";
 
 /**
  * The site lock (#236, #238): the session cookie, and the gate in front of every page and API route, with every
@@ -93,15 +93,17 @@ describe("the site session cookie (#236)", () => {
 });
 
 describe("the gate's state (#236)", () => {
-  it("is off until locked from the Desk, on with the passkey lock, and off with SITE_GATE=off", async () => {
-    expect(stateOf(null, {}).on).toBe(false);
-    expect(stateOf({ v: 1, sv: "only-a-version" }, {}).on).toBe(false);
+  it("is locked by default, off once unlocked on the Desk, on with the passkey lock, and off with SITE_GATE=off", async () => {
+    expect(stateOf(null, {})).toEqual({ on: true, source: "default", sv: DEFAULT_SV, factors: ["passkey"] });
+    expect(stateOf({ v: 1, sv: "only-a-version" }, {}).on).toBe(true);
+    expect(stateOf({ v: 1, sv: "only-a-version", open: true }, {})).toMatchObject({ on: false, source: "open" });
+    expect(readRecord({ v: 1, sv: "only-a-version", open: true, passkey: true })?.open).toBeUndefined();
     const r = await record();
     expect(stateOf(r, {})).toEqual({ on: true, source: "blob", sv: "version-one", factors: ["passkey"] });
     expect(stateOf(r, { SITE_GATE: "off" })).toMatchObject({ on: false, source: "off" });
     expect(stateOf({ ...r, second: "approval" }, {}).factors).toEqual(["passkey", "approval"]);
     // No password from Vercel's settings any more: the variable locks nothing.
-    expect(stateOf(null, { SITE_PASSWORD_HASH: "pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }).on).toBe(false);
+    expect(stateOf({ v: 1, sv: "only-a-version", open: true }, { SITE_PASSWORD_HASH: "pbkdf2-sha256$600000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }).on).toBe(false);
   });
 
   it("reads a #236 password record as a passkey lock, and keeps no hash (#238)", () => {
@@ -134,8 +136,8 @@ describe("the gate's state (#236)", () => {
 });
 
 describe("the gate (#236)", () => {
-  it("lets everything through while the site isn't locked", async () => {
-    const c = await ctx({ state: stateOf(null, {}) });
+  it("lets everything through once the site is unlocked", async () => {
+    const c = await ctx({ state: stateOf({ v: 1, sv: "version-two", open: true }, {}) });
     for (const path of ["/", "/lattice", "/api/world", "/api/foundry-feed"]) expect(decide(req(path), c)).toEqual({ allow: true, why: "off" });
   });
 

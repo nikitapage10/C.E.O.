@@ -3,9 +3,9 @@ import { BAD, bez, eOut, knot, Parts, Poly, RC, reducedMotion, RUN, TAU, weave, 
 import { GH, GL, type Flow, type FlowId, type GEdge, type GNode, type GState } from "./systemsGraph.ts";
 
 /**
- * The Systems graph in the Weave (85-graph.js): every part as a node on a spring and every connection as a thread of
- * light in its room's colour, dashed while it isn't connected yet. Picking a room re-weaves the graph into that room's
- * whole flow and opens a panel with every step: what travels, how it signs in, how often. The model is systemsGraph.ts.
+ * One room's whole flow in the Weave (85-graph.js), opened from its pipe on the rack (PipeRack.tsx): every part as a
+ * node on a spring and every connection as a thread of light in the room's colour, dashed while it isn't connected
+ * yet, with a panel of every step: what travels, how it signs in, how often. The model is systemsGraph.ts.
  */
 
 const BRASS = "198,150,84";
@@ -38,13 +38,12 @@ interface Live {
   gr: number;
 }
 
-export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Record<string, GNode>; over: GEdge[]; flows: Record<FlowId, Flow>; mode: "overview" | FlowId; setMode: (m: "overview" | FlowId) => void }) {
+export function SystemsGraph({ nodes, flows, mode, setMode }: { nodes: Record<string, GNode>; flows: Record<FlowId, Flow>; mode: FlowId; setMode: (m: "overview" | FlowId) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
   const [phone, setPhone] = useState(false);
   const [sel, setSel] = useState<{ edge?: number; node?: string } | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
-  const edges = mode === "overview" ? over : flows[mode].edges;
+  const edges = flows[mode].edges;
   const lay = GL[phone ? "p" : "d"][mode];
   const shown = Object.keys(lay).filter((id) => nodes[id]);
   // The engine's state: positions on springs, live threads (fading out the old ones), and what is selected.
@@ -60,7 +59,6 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
   }, []);
   useEffect(() => {
     setSel(null);
-    setHint(null);
   }, [mode]);
 
   // A new mode (or new states) re-weaves: the old threads fade, the new ones grow from the room's node.
@@ -69,7 +67,7 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
     const S = st.current;
     const changedMode = S.mode !== mode;
     if (changedMode) {
-      S.spawn = mode === "overview" ? null : flows[mode].room;
+      S.spawn = flows[mode].room;
       for (const l of S.live) {
         l.aT = 0;
         S.old.push(l);
@@ -92,7 +90,7 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
   const spec = useMemo<VizSpec>(() => {
     const place = (W: number, H: number, snap: boolean) => {
       const S = st.current;
-      const L = GL[W < 640 ? "p" : "d"][(S.mode || "overview") as "overview" | FlowId];
+      const L = GL[W < 640 ? "p" : "d"][(S.mode || "foundry") as FlowId];
       if (!S.lastW || Math.abs(W - S.lastW) > 2) snap = true;
       S.lastW = W;
       const spawn = S.spawn ? S.pos[S.spawn] : null;
@@ -233,37 +231,20 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
   const [chipsOn, setChipsOn] = useState(false);
   useEffect(() => {
     setChipsOn(false);
-    if (mode === "overview") return;
     const t = window.setTimeout(() => setChipsOn(true), reducedMotion() ? 0 : 700);
     return () => window.clearTimeout(t);
   }, [mode]);
 
-  const back = useCallback(() => {
-    if (mode !== "overview") setMode("overview");
-    else {
-      setSel(null);
-      setHint(null);
-    }
-  }, [mode, setMode]);
+  const back = useCallback(() => setMode("overview"), [setMode]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && (mode !== "overview" || sel) && back();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && back();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, sel, back]);
+  }, [back]);
 
-  const clickNode = (id: string) => {
-    const d = nodes[id]!;
-    if (mode === "overview") {
-      if (d.k === "room" && id in flows) return setMode(id as FlowId);
-      setSel({ node: id });
-      const used = new Set(over.filter((e) => e.a === id || e.b === id).map((e) => ROOM_NAME[e.room] ?? e.room));
-      setHint(`${d.l}, ${d.s}. ${used.size ? `Used by ${[...used].join(" and ")}.` : ""} ${STATE_WORD[d.state]}.`);
-      return;
-    }
-    setSel({ node: id });
-  };
+  const clickNode = (id: string) => setSel({ node: id });
   const onCanvas = (e: React.MouseEvent) => {
-    if (mode === "overview" || (e.target as HTMLElement).closest("button")) return;
+    if ((e.target as HTMLElement).closest("button")) return;
     const r = host.current!.getBoundingClientRect();
     const x = e.clientX - r.left;
     const y = e.clientY - r.top;
@@ -282,10 +263,10 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
   };
 
   const height = GH[phone ? "p" : "d"][mode];
-  const flow = mode === "overview" ? null : flows[mode];
+  const flow = flows[mode];
   return (
     <>
-      <div ref={host} className={`wv-graph${flow ? " is-focus" : ""}`} style={{ height } as React.CSSProperties} onClick={onCanvas}>
+      <div ref={host} className="wv-graph is-focus" style={{ height } as React.CSSProperties} onClick={onCanvas}>
         <canvas ref={cv} className="wv-cv" aria-hidden="true" />
         <div className="wv-gnodes">
           {Object.values(nodes).map((d) => {
@@ -310,8 +291,7 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
           })}
         </div>
         <div className="wv-gchips" aria-hidden="true">
-          {flow &&
-            edges.map((e, i) =>
+          {edges.map((e, i) =>
               e.kinds?.length ? (
                 <div key={`${mode}-${i}`} data-i={i} className={`wv-gchip${chipsOn ? " is-on" : ""}`} style={{ "--rc": RC[e.room] } as React.CSSProperties}>
                   <i>{e.kinds[0]}</i>
@@ -320,20 +300,19 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
             )}
         </div>
         <div className="wv-gtop">
-          <button className="wv-back wv-gback" type="button" onClick={back} tabIndex={flow ? 0 : -1}>
+          <button className="wv-back wv-gback" type="button" onClick={back} tabIndex={0}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M10 3 5 8l5 5" />
             </svg>
             All rooms<span className="wv-back-k">Esc</span>
           </button>
           <p className="wv-gtitle">
-            {flow?.t}
-            {flow && <span>{flow.sub}</span>}
+            {flow.t}
+            <span>{flow.sub}</span>
           </p>
         </div>
-        <p className="wv-ghint">{hint ?? "Threads run the way the data flows. Dashed ones aren't connected yet. Tap a room to see its whole flow."}</p>
       </div>
-      {flow && <FlowPanel flow={flow} nodes={nodes} sel={sel} onStep={(i) => setSel({ edge: i })} />}
+      <FlowPanel flow={flow} nodes={nodes} sel={sel} onStep={(i) => setSel({ edge: i })} />
     </>
   );
 }

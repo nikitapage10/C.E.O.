@@ -264,25 +264,86 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
   return { nodes, over, flows };
 }
 
+/** One fitting on a room's pipe: a part the room's data passes through, and the state of the connection to it. */
+export interface Fitting {
+  id: string;
+  l: string;
+  s: string;
+  k: GKind;
+  /** The connection's own state (the edge's), not just the part's. */
+  state: GState;
+  /** "in" feeds the room, "out" is fed by it. */
+  side: "in" | "out";
+}
+
+/** One straight pipe on the Boiler Room's rack: a room, what feeds it and what it feeds, in the order the data flows. */
+export interface PipeRow {
+  id: FlowId;
+  room: string;
+  name: string;
+  sub: string;
+  stc: GState;
+  steps: number;
+  ins: Fitting[];
+  outs: Fitting[];
+}
+
+const PIPE_NAME: Record<FlowId, string> = { foundry: "Foundry", boiler: "Boiler Room", archive: "Archive", relay: "Relay" };
+
+/**
+ * The overview as a pipe rack (#241): one straight pipe per room, in place of a web of crossing threads. Each room's
+ * overview connections become fittings along its pipe: what feeds it first (walking back along the chain, so Nikita
+ * comes before the Desk), then what it feeds, with the public Lattice always last, at the outlet. Every fitting keeps
+ * its connection's real state. A part two rooms use sits on both pipes.
+ */
+export function pipeRows(nodes: Record<string, GNode>, over: GEdge[], flows: Record<FlowId, Flow>): PipeRow[] {
+  return (Object.keys(flows) as FlowId[]).map((id) => {
+    const mine = over.filter((e) => e.room === id);
+    const fit = (nid: string, state: GState, side: Fitting["side"]): Fitting => {
+      const n = nodes[nid];
+      return { id: nid, l: n?.l ?? nid, s: n?.s ?? "", k: n?.k ?? "service", state, side };
+    };
+    const seen = new Set<string>([id]);
+    const ins: Fitting[] = [];
+    let cur: string = id;
+    for (let e = mine.find((x) => x.b === cur); e && !seen.has(e.a); e = mine.find((x) => x.b === cur)) {
+      seen.add(e.a);
+      ins.unshift(fit(e.a, e.state, "in"));
+      cur = e.a;
+    }
+    const outs: Fitting[] = [];
+    const queue: string[] = [id];
+    while (queue.length) {
+      const from = queue.shift()!;
+      for (const e of mine.filter((x) => x.a === from && !seen.has(x.b))) {
+        seen.add(e.b);
+        outs.push(fit(e.b, e.state, "out"));
+        queue.push(e.b);
+      }
+    }
+    outs.sort((a, b) => Number(a.id === "lattice") - Number(b.id === "lattice"));
+    const f = flows[id];
+    return { id, room: f.room, name: PIPE_NAME[id], sub: f.sub, stc: f.stc, steps: f.edges.length, ins, outs };
+  });
+}
+
 type Lay = Record<string, [number, number]>;
-/** Where each part sits, as fractions of the graph, on a desk and on a phone; and how tall each view is. */
-export const GL: Record<"d" | "p", Record<"overview" | FlowId, Lay>> = {
+/** Where each part of a room's flow sits, as fractions of the graph, on a desk and on a phone; and how tall each is. */
+export const GL: Record<"d" | "p", Record<FlowId, Lay>> = {
   d: {
-    overview: { you: [0.05, 0.46], desk: [0.17, 0.3], phone: [0.17, 0.68], mac: [0.08, 0.88], foundry: [0.36, 0.3], relay: [0.32, 0.8], github: [0.55, 0.12], claudecode: [0.55, 0.34], claude: [0.6, 0.56], bluebubbles: [0.5, 0.76], openai: [0.62, 0.9], boiler: [0.76, 0.4], archive: [0.78, 0.72], vercel: [0.92, 0.14], blob: [0.91, 0.46], gemini: [0.93, 0.7], lattice: [0.9, 0.9] },
     foundry: { you: [0.04, 0.5], desk: [0.14, 0.5], shaping: [0.26, 0.24], pictures: [0.26, 0.8], issues: [0.37, 0.5], pings: [0.45, 0.84], queue: [0.48, 0.5], builder: [0.58, 0.5], rivet: [0.69, 0.2], rusty: [0.69, 0.5], rocky: [0.69, 0.8], checks: [0.8, 0.5], vqa: [0.82, 0.84], main: [0.88, 0.3], deploy: [0.96, 0.52] },
     boiler: { cron: [0.1, 0.3], doorbell: [0.1, 0.74], step: [0.34, 0.52], claude: [0.58, 0.24], worldstate: [0.58, 0.78], clock: [0.84, 0.3], lattice: [0.86, 0.78] },
     archive: { midnight: [0.1, 0.28], history: [0.1, 0.74], script: [0.34, 0.52], speech: [0.56, 0.28], audio: [0.74, 0.66], chron: [0.92, 0.42] },
     relay: { mac: [0.06, 0.5], hub: [0.24, 0.5], lattice: [0.26, 0.86], bluebubbles: [0.46, 0.2], messages: [0.46, 0.5], openai: [0.46, 0.8], dialtone: [0.68, 0.32], blasto: [0.7, 0.7], you: [0.92, 0.5] },
   },
   p: {
-    overview: { you: [0.14, 0.05], desk: [0.5, 0.05], phone: [0.85, 0.07], foundry: [0.3, 0.21], github: [0.8, 0.2], claudecode: [0.64, 0.33], claude: [0.2, 0.38], vercel: [0.84, 0.45], boiler: [0.46, 0.5], blob: [0.16, 0.6], gemini: [0.82, 0.62], archive: [0.5, 0.7], lattice: [0.84, 0.78], mac: [0.14, 0.84], bluebubbles: [0.56, 0.84], relay: [0.32, 0.93], openai: [0.8, 0.94] },
     foundry: { you: [0.5, 0.03], desk: [0.5, 0.11], shaping: [0.2, 0.2], pictures: [0.8, 0.2], issues: [0.5, 0.29], pings: [0.84, 0.36], queue: [0.5, 0.39], builder: [0.5, 0.48], rivet: [0.16, 0.58], rusty: [0.5, 0.58], rocky: [0.84, 0.58], checks: [0.5, 0.68], vqa: [0.84, 0.76], main: [0.5, 0.8], deploy: [0.5, 0.92] },
     boiler: { cron: [0.25, 0.08], doorbell: [0.75, 0.08], step: [0.5, 0.3], claude: [0.22, 0.52], worldstate: [0.78, 0.52], clock: [0.22, 0.76], lattice: [0.78, 0.76] },
     archive: { midnight: [0.25, 0.08], history: [0.75, 0.08], script: [0.5, 0.3], speech: [0.5, 0.5], audio: [0.5, 0.7], chron: [0.5, 0.9] },
     relay: { mac: [0.5, 0.05], hub: [0.5, 0.19], lattice: [0.86, 0.2], bluebubbles: [0.16, 0.38], messages: [0.5, 0.38], openai: [0.84, 0.38], dialtone: [0.3, 0.6], blasto: [0.7, 0.6], you: [0.5, 0.84] },
   },
 };
-export const GH: Record<"d" | "p", Record<"overview" | FlowId, number>> = {
-  d: { overview: 600, foundry: 600, boiler: 520, archive: 520, relay: 560 },
-  p: { overview: 660, foundry: 1000, boiler: 640, archive: 640, relay: 760 },
+export const GH: Record<"d" | "p", Record<FlowId, number>> = {
+  d: { foundry: 600, boiler: 520, archive: 520, relay: 560 },
+  p: { foundry: 1000, boiler: 640, archive: 640, relay: 760 },
 };

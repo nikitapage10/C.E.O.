@@ -7,8 +7,9 @@ import { clockHeadline, clockState, nextLine, useWorldClock } from "../worldCloc
 import { foundryGraph } from "./foundryGraph.ts";
 import { nextCheck, useSetup } from "./IdeaCard.tsx";
 import { useSetupStatus } from "./SetupCard.tsx";
+import { PipeRack } from "./PipeRack.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
-import { systemsModel, type FlowId } from "./systemsGraph.ts";
+import { pipeRows, systemsModel, type FlowId } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
 import { roomLink } from "./hero/roomLink.ts";
 import { Home } from "./rooms/Home.tsx";
@@ -16,10 +17,10 @@ import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
 /**
- * Systems, in the approved Weave (desk-concepts round five): Gary's headline, then the whole system as threads, one
- * thread per real connection in the colour of the room that owns it (connections.ts, foundryGraph.ts), dashed while it
- * isn't connected. Pick a room and the graph re-weaves into its whole flow, with every step's sign-in and timing in a
- * panel beside it. Below: the rooms still to build, and the world clock every room lives by. Real states only.
+ * Systems, in the approved Weave (desk-concepts round five): Gary's headline, then the whole system as a pipe rack
+ * (#241), one straight pipe per room with every real connection a fitting on it (connections.ts, foundryGraph.ts),
+ * dashed while it isn't connected. Tap a pipe and it flows open into the room's whole flow, with every step's sign-in
+ * and timing in a panel beside it. Below: the rooms still to build, and the world clock every room lives by. Real states only.
  */
 
 /** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
@@ -69,6 +70,8 @@ export function Systems({ now }: { now: number }) {
   const building = working ? CREW[crewOf(working, data.crates)].name : null;
   const model = systemsModel({ links, foundry: fg, connected, building, clock: { state: cstate, headline }, world, pings, vqa: vqa ? (VQA_STATE[describeRun(vqa).tone] ?? "off") : "off" });
 
+  const rows = pipeRows(model.nodes, model.over, model.flows);
+
   const live = model.over.filter((e) => e.state === "ok" || e.state === "run").length;
   const waiting = model.over.filter((e) => e.state === "wait").length;
   const bad = Object.values(model.nodes)
@@ -97,26 +100,28 @@ export function Systems({ now }: { now: number }) {
           </h1>
           <p className="wv-sub">
             {WORDS[live] ?? live} {live === 1 ? "connection" : "connections"} live{waiting ? `, ${waiting} not connected yet` : ""}
-            {bad.length ? `, and ${bad.join(" and ")} ${bad.length === 1 ? "is" : "are"} down` : ""}. Every thread is a real connection, coloured by the room that owns it. Pick a room to see its whole flow.
+            {bad.length ? `, and ${bad.join(" and ")} ${bad.length === 1 ? "is" : "are"} down` : ""}. Every pipe is a room and every fitting on it a real connection. Tap a pipe to see its whole flow.
           </p>
         </div>
       </header>
 
-      <SystemsGraph nodes={model.nodes} over={model.over} flows={model.flows} mode={mode} setMode={setMode} />
+      {mode === "overview" ? <PipeRack rows={rows} onOpen={setMode} /> : <SystemsGraph nodes={model.nodes} flows={model.flows} mode={mode} setMode={setMode} />}
 
       <div className="wv-gpick">
-        <div className="wv-gpick-l" role="group" aria-label="Open a room's flow">
-          {FLOWS.map((f) => {
-            const fl = model.flows[f];
-            return (
-              <button key={f} type="button" data-room={fl.room} className={mode === f ? "is-on" : undefined} aria-pressed={mode === f} onClick={() => setMode(mode === f ? "overview" : f)}>
-                <i className={`wv-dot${fl.stc === "wait" ? " is-ring" : ""}`} />
-                {FLOW_ROOM[f]}
-                <span>{f === "foundry" ? `${fl.edges.length} steps` : fl.stc === "wait" ? "not connected yet" : fl.t.replace(/^The /, "the ")}</span>
-              </button>
-            );
-          })}
-        </div>
+        {mode !== "overview" && (
+          <div className="wv-gpick-l" role="group" aria-label="Open a room's flow">
+            {FLOWS.map((f) => {
+              const fl = model.flows[f];
+              return (
+                <button key={f} type="button" data-room={fl.room} className={mode === f ? "is-on" : undefined} aria-pressed={mode === f} onClick={() => setMode(mode === f ? "overview" : f)}>
+                  <i className={`wv-dot${fl.stc === "wait" ? " is-ring" : ""}`} />
+                  {FLOW_ROOM[f]}
+                  <span>{f === "foundry" ? `${fl.edges.length} steps` : fl.stc === "wait" ? "not connected yet" : fl.t.replace(/^The /, "the ")}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="wv-gkey">
           <span>
             <i className="is-live" />

@@ -1,211 +1,180 @@
-import { useState } from "react";
-import { LINK_STATE_LABEL, useSystems } from "../systems.ts";
-import { DESK_ROOMS, roomImage, type DeskRoom } from "./deskData.ts";
-import { FoundryDiagram } from "./FoundryDiagram.tsx";
-import { FoundrySystem } from "./FoundryPage.tsx";
-import { SystemsPanel } from "./SystemsPanel.tsx";
-import { RoomBanner } from "./RoomBanner.tsx";
+import { useMemo, useState } from "react";
+import { useWorldFeed } from "../chronicle.ts";
+import { CREW, crewOf, useFoundry } from "../foundry.ts";
+import { useSystems, type LinkState } from "../systems.ts";
+import { formatUsd } from "../usage.ts";
+import { clockHeadline, clockState, nextLine, useWorldClock } from "../worldClock.ts";
+import { foundryGraph } from "./foundryGraph.ts";
+import { nextCheck, useSetup } from "./IdeaCard.tsx";
+import { useSetupStatus } from "./SetupCard.tsx";
+import { SystemsGraph } from "./SystemsGraph.tsx";
+import { systemsModel, type FlowId } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
-import { VisualQaPanel } from "./visualqa/VisualQaPanel.tsx";
-import { Avatar, Panel, Pill } from "./ui.tsx";
-import { ActivityMeter } from "./viz.tsx";
-import { CrewRunsPanel } from "./CrewRunsPanel.tsx";
-import { WorldClockPanel } from "./WorldClockPanel.tsx";
+import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
 /**
- * Systems: what's connected and what isn't, one system per room as each becomes real: Relay and the Foundry so
- * far; the others are listed as planned until their agents go live. The world clock (the living Lattice's hourly
- * step) sits above them all, since every room lives by it.
+ * Systems, in the approved Weave (desk-concepts round five): Gary's headline, then the whole system as threads, one
+ * thread per real connection in the colour of the room that owns it (connections.ts, foundryGraph.ts), dashed while it
+ * isn't connected. Pick a room and the graph re-weaves into its whole flow, with every step's sign-in and timing in a
+ * panel beside it. Below: the rooms still to build, and the world clock every room lives by. Real states only.
  */
 
-const AGENTS = [
-  {
-    id: "dialtone",
-    name: "Dialtone",
-    role: "Relay · Switchboard",
-    job: "Keeps the list of who you owe a reply, and nudges you at half twelve and seven.",
-    tone: "var(--violet)",
-  },
-  {
-    id: "postmaster",
-    name: "Blasto",
-    role: "Relay · Postmaster",
-    job: "Drafts your replies in your voice, and holds them until you say send.",
-    tone: "var(--ice)",
-  },
-];
-
 /** Rooms whose real systems are still to come, in the order they're likely to be built. */
-const PLANNED: { room: DeskRoom; what: string }[] = [
-  { room: "spire", what: "Invoices, bookings and the business inbox" },
-  { room: "exchange", what: "Kalshi and the portfolio" },
-  { room: "green", what: "Sleeper fantasy football" },
-  { room: "archive", what: "The Tide's notes and campaign" },
-  { room: "workshop", what: "New models: an image, then Meshy, then imported and animated here" },
+const PLANNED: { room: string; name: string; what: string }[] = [
+  { room: "spire", name: "Spire", what: "Invoices, bookings and the business inbox" },
+  { room: "exchange", name: "Exchange", what: "Kalshi and the portfolio" },
+  { room: "green", name: "Green", what: "Sleeper fantasy football" },
+  { room: "workshop", name: "Workshop", what: "New models: an image, then Meshy, then imported and animated here" },
+  { room: "breakroom", name: "Break Room", what: "Off the clock; shows the Veil countdown" },
 ];
 
-/** The rooms whose systems are drawn here; the rest show in the picker as not set up yet. */
-type SystemRoom = "relay" | "foundry";
-const LIVE_ROOMS: SystemRoom[] = ["relay", "foundry"];
-const ROOM_KEY = "ceo.systemsRoom";
+const FLOWS: FlowId[] = ["foundry", "boiler", "archive", "relay"];
+const FLOW_ROOM: Record<FlowId, string> = { foundry: "Foundry", boiler: "Boiler Room", archive: "Archive", relay: "Relay" };
+const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
 
-/** The room to show: `?room=foundry` first, then the last one picked on this device, then Relay. */
-function firstRoom(): SystemRoom {
+/** The flow to open: `?room=foundry` first, else the overview. */
+function firstMode(): "overview" | FlowId {
   try {
-    const asked = new URLSearchParams(window.location.search).get("room") ?? localStorage.getItem(ROOM_KEY);
-    return LIVE_ROOMS.find((r) => r === asked) ?? "relay";
+    const asked = new URLSearchParams(window.location.search).get("room");
+    return FLOWS.find((r) => r === asked) ?? "overview";
   } catch {
-    return "relay";
+    return "overview";
   }
 }
 
-function RoomPicker({ room, onPick }: { room: SystemRoom; onPick: (r: SystemRoom) => void }) {
-  return (
-    <nav className="room-pick" aria-label="Rooms">
-      <span className="room-pick__label">Rooms</span>
-      <div className="room-pick__list">
-        {LIVE_ROOMS.map((r) => (
-          <button
-            key={r}
-            type="button"
-            aria-pressed={room === r}
-            className={`room-pick__tab ${room === r ? "is-on" : ""}`}
-            style={{ "--tone": DESK_ROOMS[r].accent } as React.CSSProperties}
-            onClick={() => onPick(r)}
-          >
-            <i aria-hidden="true" />
-            {DESK_ROOMS[r].name}
-          </button>
-        ))}
-        {PLANNED.map((p) => (
-          <span key={p.room} className="room-pick__tab room-pick__tab--off" style={{ "--tone": DESK_ROOMS[p.room].accent } as React.CSSProperties} title={p.what}>
-            <i aria-hidden="true" />
-            {DESK_ROOMS[p.room].name}
-            <small>Not set up yet</small>
-          </span>
-        ))}
-      </div>
-    </nav>
-  );
-}
+const VQA_STATE: Record<string, LinkState> = { ok: "ok", slow: "ok", down: "down", off: "off" };
 
 export function Systems({ now }: { now: number }) {
-  const [room, setRoom] = useState<SystemRoom>(firstRoom);
-  const pick = (r: SystemRoom) => {
-    setRoom(r);
-    try {
-      localStorage.setItem(ROOM_KEY, r);
-    } catch {
-      // Private window: the pick lasts for this visit.
-    }
-  };
-  return (
-    <div className="systems-page">
-      <RoomBanner
-        page="systems"
-        lead="What's connected, what isn't, and what each agent depends on."
-        aside={
-          <div className="page-head__crew">
-            <Avatar agent="Gary" room="boiler" />
-            <span>Gary keeps the gauges</span>
-          </div>
-        }
-      />
+  const [mode, setMode] = useState<"overview" | FlowId>(firstMode);
+  const linkList = useSystems((s) => s.links);
+  const links = useMemo(() => Object.fromEntries(linkList.map((l) => [l.id, l.state])) as Record<string, LinkState>, [linkList]);
+  const connected = useFoundry((s) => s.connected);
+  const data = useFoundry((s) => s.data);
+  const setup = useSetup();
+  const next = nextCheck(now);
+  const fg = useMemo(() => foundryGraph({ now, connected, data, setup: setup ? { direct: setup.direct, shape: setup.shape, images: setup.images } : null, nextCheck: next }), [now, connected, data, setup, next]);
+  const reading = useWorldClock((s) => s.reading);
+  const status = useWorldClock((s) => s.status);
+  const cstate = clockState(reading, status, now);
+  const headline = clockHeadline(reading, status, now);
+  const world = useWorldFeed().feed;
+  const setupList = useSetupStatus();
+  const pings = setupList?.pings.vercel === "done" && setupList.pings.actions === "done";
+  const vqa = useVisualQa().feed?.latest ?? null;
+  const working = data.crates.find((c) => c.state === "working");
+  const building = working ? CREW[crewOf(working, data.crates)].name : null;
+  const model = systemsModel({ links, foundry: fg, connected, building, clock: { state: cstate, headline }, world, pings, vqa: vqa ? (VQA_STATE[describeRun(vqa).tone] ?? "off") : "off" });
 
+  const live = model.over.filter((e) => e.state === "ok" || e.state === "run").length;
+  const waiting = model.over.filter((e) => e.state === "wait").length;
+  const bad = Object.values(model.nodes)
+    .filter((n) => n.state === "bad")
+    .map((n) => n.l);
+  const hour = reading?.step ?? null;
+  const today = world?.recent.filter((e) => new Date(e.at).toDateString() === new Date(now).toDateString()).length ?? 0;
+
+  return (
+    <div className={`systems-page wv-page wv-sys${mode !== "overview" ? " is-focus" : ""}`}>
       <SystemsNav />
+      <header className="wv-syshead">
+        <img className="wv-syshead-pf" src="/desk/agent-gary.webp" alt="" />
+        <div>
+          <p className="wv-eyb">What's connected</p>
+          <h1 className="wv-h1 desk__title">
+            {bad.length ? (
+              <>
+                Gary has his <em style={{ color: "var(--wv-bad)" }}>wrench out.</em>
+              </>
+            ) : (
+              <>
+                Gary says the pipes are <em style={{ color: "var(--wv-ok)" }}>steady.</em>
+              </>
+            )}
+          </h1>
+          <p className="wv-sub">
+            {WORDS[live] ?? live} {live === 1 ? "connection" : "connections"} live{waiting ? `, ${waiting} not connected yet` : ""}
+            {bad.length ? `, and ${bad.join(" and ")} ${bad.length === 1 ? "is" : "are"} down` : ""}. Every thread is a real connection, coloured by the room that owns it. Pick a room to see its whole flow.
+          </p>
+        </div>
+      </header>
 
-      <WorldClockPanel now={now} />
+      <SystemsGraph nodes={model.nodes} over={model.over} flows={model.flows} mode={mode} setMode={setMode} />
 
-      <CrewRunsPanel now={now} />
-
-      <RoomPicker room={room} onPick={pick} />
-
-      {room === "relay" && (
-        <>
-          <Panel
-            eyebrow="Relay: iMessage and SMS"
-            aside={<span className="panel__hint">MacBook → Hub → services → agents</span>}
-            className="panel--systems"
-          >
-            <SystemsPanel now={now} />
-          </Panel>
-
-          <section className="agents" aria-label="Relay's agents">
-            <header className="section-head">
-              <h2>Relay's agents</h2>
-            </header>
-            <div className="agents__grid">
-              {AGENTS.map((a) => (
-                <AgentCard key={a.id} {...a} />
-              ))}
-            </div>
-          </section>
-        </>
-      )}
-
-      {room === "foundry" && (
-        <>
-          <Panel
-            eyebrow="Foundry: from an idea to the live site"
-            aside={<span className="panel__hint">Desk → issues → Builder → crew → checks → main</span>}
-            className="panel--systems panel--foundry-system"
-          >
-            <FoundryDiagram now={now} />
-          </Panel>
-
-          <FoundrySystem />
-
-          <VisualQaPanel />
-        </>
-      )}
-
-      <section className="planned" aria-label="Systems to come">
-        <header className="section-head">
-          <h2>Still to build</h2>
-        </header>
-        <ul className="planned__grid">
-          {PLANNED.map((p) => (
-            <li key={p.room} style={{ "--tone": DESK_ROOMS[p.room].accent } as React.CSSProperties}>
-              <img className="planned__pic" src={roomImage(p.room)} alt="" loading="lazy" decoding="async" />
-              <span className="planned__text">
-                <span className="planned__name">{DESK_ROOMS[p.room].name}</span>
-                <span className="planned__what">{p.what}</span>
-              </span>
-              <span className="planned__foot">
-                <Avatar agent={DESK_ROOMS[p.room].lead} size="sm" room={p.room} />
-                <Pill tone="off">Not built yet</Pill>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function AgentCard({ id, name, role, job, tone }: (typeof AGENTS)[number]) {
-  const linkState = useSystems((s) => s.links.find((l) => l.id === id));
-  const state = linkState?.state ?? "off";
-  const load = linkState?.load ?? 0;
-  const seen = linkState?.lastSeen;
-  return (
-    <article className={`agent agent--${state}`} style={{ "--tone": tone } as React.CSSProperties}>
-      <div className="agent__portrait">
-        <Avatar agent={name} size="lg" />
-      </div>
-      <div className="agent__body">
-        <p className="agent__role">{role}</p>
-        <h3 className="agent__name">{name}</h3>
-        <p className="agent__job">{job}</p>
-        <div className="agent__foot">
-          <span className={`pill pill--${state}`}>
-            <i aria-hidden="true" />
-            {LINK_STATE_LABEL[state]}
+      <div className="wv-gpick">
+        <div className="wv-gpick-l" role="group" aria-label="Open a room's flow">
+          {FLOWS.map((f) => {
+            const fl = model.flows[f];
+            return (
+              <button key={f} type="button" data-room={fl.room} className={mode === f ? "is-on" : undefined} aria-pressed={mode === f} onClick={() => setMode(mode === f ? "overview" : f)}>
+                <i className={`wv-dot${fl.stc === "wait" ? " is-ring" : ""}`} />
+                {FLOW_ROOM[f]}
+                <span>{f === "foundry" ? `${fl.edges.length} steps` : fl.stc === "wait" ? "not connected yet" : fl.t.replace(/^The /, "the ")}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="wv-gkey">
+          <span>
+            <i className="is-live" />
+            Live
           </span>
-          <ActivityMeter load={load} live={state === "ok" || state === "slow"} />
-          <span className="agent__seen">{seen ? `Heard ${new Date(seen).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}` : "Never heard from"}</span>
+          <span>
+            <i className="is-run" />
+            Running now
+          </span>
+          <span>
+            <i className="is-wait" />
+            Not connected yet
+          </span>
         </div>
       </div>
-    </article>
+
+      <div className="wv-sysrow">
+        <section className="wv-tobuild">
+          <div className="wv-sechead">
+            <div>
+              <p className="wv-eyb">Still to build</p>
+              <h2 className="wv-h2">{WORDS[PLANNED.length]} rooms, no threads yet</h2>
+            </div>
+          </div>
+          <ul className="wv-tb-l">
+            {PLANNED.map((p) => (
+              <li key={p.room} data-room={p.room}>
+                <i className="wv-dot is-ring" />
+                <b>{p.name}</b>
+                <span>{p.what}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="wv-sysclock" data-room="boiler">
+          <p className="wv-eyb">World clock</p>
+          <h2 className="wv-h2">{hour !== null && cstate !== "off" ? `Hour ${hour}, ${headline.toLowerCase()}` : headline}</h2>
+          <p className="wv-note" style={{ marginTop: 8 }}>
+            The hourly step that moves Ilyr forward. Written by Claude, kept in the Blob store, read by the Lattice and this Desk.
+          </p>
+          <dl className="wv-facts">
+            <div>
+              <dt>Next step</dt>
+              <dd>{nextLine(reading, now)}</dd>
+            </div>
+            <div>
+              <dt>Hours written today</dt>
+              <dd>{world ? today : "–"}</dd>
+            </div>
+            <div>
+              <dt>This month</dt>
+              <dd>{world ? `${formatUsd(world.spend.usd)} of ${formatUsd(world.spend.budget)}` : "–"}</dd>
+            </div>
+          </dl>
+          <button className="wv-link" type="button" onClick={() => setMode("boiler")}>
+            See its flow
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+              <path d="M3 8h10M9 4l4 4-4 4" />
+            </svg>
+          </button>
+        </section>
+      </div>
+    </div>
   );
 }

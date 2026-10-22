@@ -4,8 +4,8 @@ export { heldMessage, IdeaCard, ideaTitle, nextCheck, useSetup };
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { ensureSignedIn, useDeskAuth } from "./signin.ts";
-import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, withTrails, type Approval, type Change, type Crate, type CrateKind, type CrateState, type CrewId, type Origin } from "../foundry.ts";
-import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
+import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, expectChange, MODEL, modelOf, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, withTrails, type Approval, type Change, type Crate, type CrateKind, type CrateState, type CrewId, type Origin } from "../foundry.ts";
+import { useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
@@ -1161,66 +1161,5 @@ function UndoChange({ issue, setup }: { issue: number; setup: Setup }) {
     <button type="button" className="wv-btn is-sm is-ghost fy-stop__btn cl-undo__btn" onClick={() => setMode("confirm")} title={`Take back #${issue}: the Builder reverts it through the fix lane and ships the revert once its checks are green.`}>
       Undo
     </button>
-  );
-}
-
-/** The Foundry's system: a red check on GitHub opens a fix, the Foundry thread in Claude Code picks it up, and ships to main. */
-export function FoundrySystem() {
-  const connected = useFoundry((s) => s.connected);
-  const data = useFoundry((s) => s.data);
-  const checks = useSystems((s) => s.links.find((l) => l.id === "checks")?.state ?? "off");
-  const work = crewWork(data.crates);
-  const steps: { name: string; what: string; state: LinkState; label: string }[] = [
-    { name: "Checks", what: "Types, lint, tests and build on every push to main, on GitHub", state: checks, label: checks === "off" ? "No run yet" : LINK_STATE_LABEL[checks] },
-    { name: "Queue check", what: "A red check opens a fix; the Foundry picks it up within a minute or two", state: connected ? "ok" : "off", label: connected ? "About a minute" : "Not connected yet" },
-    { name: "Foundry thread", what: "Fixes, upkeep and builds, coded in Claude Code on your plan, each on its own branch and pull request", state: connected ? "ok" : "off", label: connected ? "Ready" : "Not connected yet" },
-    { name: "main → the site", what: "Small fixes and upkeep merge once green; bigger work gets a preview and waits for you", state: connected ? "ok" : "off", label: connected ? "Shipping" : "Not connected yet" },
-  ];
-  return (
-    <section className="foundry-system" aria-label="The Foundry's system" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
-      <header className="section-head">
-        <h2>Foundry: coding in Claude Code</h2>
-        <a className="panel__hint" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
-          Open the Foundry thread →
-        </a>
-      </header>
-      <ol className="foundry-flow">
-        {steps.map((st) => (
-          <li key={st.name}>
-            <span className="foundry-flow__name">{st.name}</span>
-            <span className="foundry-flow__what">{st.what}</span>
-            <span className={`pill pill--${st.state}`}>
-              <i aria-hidden="true" />
-              {st.label}
-            </span>
-          </li>
-        ))}
-      </ol>
-      <ul className="foundry-crew">
-        {CREW_ORDER.map((id) => {
-          const crate = work[id];
-          return (
-            <li key={id}>
-              <Avatar agent={id} room="foundry" />
-              <span className="foundry-crew__job">{CREW[id].job}</span>
-              <span className="foundry-crew__name">
-                {CREW[id].name} <Rank id={id} />
-              </span>
-              {crate ? (
-                <a className="foundry-crew__on" href={crate.url} target="_blank" rel="noreferrer">
-                  #{crate.number} {crate.title}
-                </a>
-              ) : (
-                <span className="foundry-crew__on foundry-crew__on--idle">Nothing in hand</span>
-              )}
-              <span className={`pill pill--${crate ? CREW_STATE[crate.state] : connected ? "ok" : "off"}`}>
-                <i aria-hidden="true" />
-                {crate ? CRATE_STATE[crate.state] : connected ? "Free" : "Not connected yet"}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }

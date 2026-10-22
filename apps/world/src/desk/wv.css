@@ -524,10 +524,10 @@
 
 /* ---------- Systems ---------- */
 .desk .wv-subnav{display:inline-flex;gap:2px;padding:3px;border-radius:999px;border:1px solid var(--wv-line2);margin-bottom:28px;background:rgba(14,16,21,.6)}
-.desk .wv-subnav button{background:none;border:0;border-radius:999px;padding:7px 16px;font-size:13.5px;color:var(--wv-mute);cursor:pointer;transition:color .3s,background .3s}
-.desk .wv-subnav button:hover{color:var(--wv-ink)}
-.desk .wv-subnav button[aria-current="page"]{background:rgba(236,238,243,.1);color:var(--wv-ink)}
-.desk .wv-subnav button:focus-visible{outline:1px solid var(--wv-hot);outline-offset:2px}
+.desk .wv-subnav button,.desk .wv-subnav a{background:none;border:0;border-radius:999px;padding:7px 16px;font-size:13.5px;color:var(--wv-mute);cursor:pointer;transition:color .3s,background .3s}
+.desk .wv-subnav button:hover,.desk .wv-subnav a:hover{color:var(--wv-ink)}
+.desk .wv-subnav button[aria-current="page"],.desk .wv-subnav a[aria-current="page"]{background:rgba(236,238,243,.1);color:var(--wv-ink)}
+.desk .wv-subnav button:focus-visible,.desk .wv-subnav a:focus-visible{outline:1px solid var(--wv-hot);outline-offset:2px}
 .desk .wv-syshead{display:flex;gap:22px;align-items:flex-end;margin-bottom:26px}
 .desk .wv-syshead>div{min-width:0}
 .desk .wv-syshead-pf{width:84px;height:84px;border-radius:50%;object-fit:cover;flex:none;border:1px solid rgba(168,174,188,.4);box-shadow:0 0 30px rgba(168,174,188,.15);background:#15171d}
@@ -798,7 +798,7 @@
 
   /* systems */
   .desk .wv-subnav{margin-bottom:20px}
-  .desk .wv-subnav button{padding:7px 12px;font-size:13px}
+  .desk .wv-subnav button,.desk .wv-subnav a{padding:7px 12px;font-size:13px}
   .desk .wv-syshead{flex-direction:column;align-items:flex-start;gap:14px}
   .desk .wv-syshead-pf{width:60px;height:60px}
   .desk .wv-graph{height:640px;border-radius:18px}
@@ -950,7 +950,7 @@
   border: 1px solid var(--wv-line2);
   color: var(--wv-mute);
 }
-.desk .wv-act-parts li.is-ok {
+.desk .wv-act-parts li.is-done {
   color: var(--wv-ok);
   border-color: color-mix(in srgb, var(--wv-ok) 40%, transparent);
 }

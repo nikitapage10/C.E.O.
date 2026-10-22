@@ -33,11 +33,10 @@ export function SystemsNav() {
     navigateTo(path + window.location.search);
   };
   return (
-    <nav className="hub-nav" aria-label="Systems sections">
+    <nav className="wv-subnav" aria-label="Systems sections">
       {PAGES.map((p) => (
-        <a key={p.id} href={p.path} className={`hub-nav__tab ${current === p.id ? "is-on" : ""}`} aria-current={current === p.id ? "page" : undefined} onClick={go(p.path)}>
-          <span className="hub-nav__label">{p.label}</span>
-          <span className="hub-nav__hint">{p.hint}</span>
+        <a key={p.id} href={p.path} title={p.hint} aria-current={current === p.id ? "page" : undefined} onClick={go(p.path)}>
+          {p.label}
         </a>
       ))}
     </nav>

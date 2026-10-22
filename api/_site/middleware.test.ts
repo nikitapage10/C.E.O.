@@ -9,8 +9,8 @@ import { SITE_COOKIE, newSiteSession } from "./session.ts";
 import { RECORD_PATH, forgetCachedState, siteKeys } from "./state.ts";
 
 /**
- * Vercel's Routing Middleware itself (middleware.ts, #236, #238), with the blob store faked: off until the site
- * is locked, then the login page or a 401 for anyone without a session, and Vercel's "carry on" for everyone else.
+ * Vercel's Routing Middleware itself (middleware.ts, #236, #238), with the blob store faked: locked by default and
+ * off only once unlocked on the Desk; while locked, the login page or a 401 for anyone without a session, and Vercel's "carry on" for everyone else.
  */
 
 const ORIGIN = "https://ceo.test";
@@ -36,7 +36,10 @@ const store = async (sv = "version-one") => blobFiles.set(RECORD_PATH, { body: n
 const carriesOn = (res: Response) => res.headers.get("x-middleware-next") === "1";
 
 describe("the Vercel middleware (#236)", () => {
-  it("carries every request on while the site isn't locked", async () => {
+  it("locks with nothing stored (the default), and carries every request on once unlocked on the Desk", async () => {
+    expect((await middleware(new Request(`${ORIGIN}/lattice`))).status).toBe(401);
+    blobFiles.set(RECORD_PATH, { body: new TextEncoder().encode(JSON.stringify({ v: 1, sv: "version-two", open: true })), type: "application/json" });
+    forgetCachedState();
     for (const path of ["/", "/lattice", "/api/world"]) expect(carriesOn(await middleware(new Request(`${ORIGIN}${path}`)))).toBe(true);
   });
 

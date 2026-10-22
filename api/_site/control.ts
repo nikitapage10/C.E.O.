@@ -67,12 +67,13 @@ export async function handlePost(request: Request, deps: PasswordDeps = live()):
   const old = await deps.site.read();
   let record: SiteRecord;
   if (body.action === "lock") {
-    record = { ...(old ?? {}), v: 1, passkey: true, locked: old?.passkey && old.locked ? old.locked : new Date(deps.now).toISOString(), sv: newVersion() };
+    const { open: _open, ...kept } = old ?? {};
+    record = { ...kept, v: 1, passkey: true, locked: old?.passkey && old.locked ? old.locked : new Date(deps.now).toISOString(), sv: newVersion() };
   } else if (body.action === "signout-all") {
-    if (!old?.passkey) return withCookie(json({ error: "not-locked" }, 409), signed);
-    record = { ...old, v: 1, sv: newVersion() };
+    if (old?.open) return withCookie(json({ error: "not-locked" }, 409), signed);
+    record = { ...(old ?? {}), v: 1, passkey: true, sv: newVersion() };
   } else if (body.action === "off") {
-    record = { v: 1, sv: newVersion(), ...(old?.second && { second: old.second }) };
+    record = { v: 1, open: true, sv: newVersion(), ...(old?.second && { second: old.second }) };
   } else {
     return withCookie(json({ error: "bad-request" }, 400), signed);
   }

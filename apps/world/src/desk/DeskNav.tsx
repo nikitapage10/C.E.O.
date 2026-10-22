@@ -1,14 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadLattice, ROOM_ROUTES, type Route, type RoomRoute } from "../route.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { link } from "./nav.ts";
+import { DeskSignIn } from "./SignIn.tsx";
+import { useDeskAuth } from "./signin.ts";
 import { useSkippy } from "./skippy/chat.ts";
 
 /**
  * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the woven wordmark, then every page as a plain word
  * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
  * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Skippy and the way into the
- * Lattice, both quiet. Keys 1 to 9 open them in order.
+ * Lattice, both quiet, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
+ * Keys 1 to 9 open them in order. The Boiler Room comes last (Nikita, 05:35Z).
  */
 
 export const MAIN_TABS: { id: Exclude<Route, "lattice" | RoomRoute>; label: string }[] = [
@@ -74,6 +77,52 @@ function IlyrClock({ now }: { now: number }) {
   );
 }
 
+/** Sign-in, sign-out and the Site lock behind one button at the top right (Nikita, 2026-10-22 05:30Z). */
+function AccountMenu() {
+  const auth = useDeskAuth((s) => s.auth);
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  if (auth.status === "off") return null;
+  const signedIn = auth.status === "in";
+  const label = signedIn ? "Signed in" : auth.status === "checking" ? "Checking" : "Sign in";
+  return (
+    <div className="wv-acct" ref={box}>
+      <button type="button" className="wv-navbtn wv-acct__btn" data-in={signedIn || undefined} aria-expanded={open} aria-controls="wv-acct-menu" onClick={() => setOpen(!open)} title={signedIn ? `Signed in${auth.device ? ` on ${auth.device}` : ""}: sign out, devices and the Site lock` : "Sign in with your passkey"}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {signedIn ? (
+            <path d="M7 11V8a5 5 0 0 1 9.6-1.9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          ) : (
+            <path d="M7 11V8a5 5 0 0 1 10 0v3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          )}
+          <rect x="5" y="11" width="14" height="10" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <circle cx="12" cy="16" r="1.4" fill="currentColor" />
+        </svg>
+        <span>{label}</span>
+      </button>
+      {open && (
+        <div className="wv-acct__menu" id="wv-acct-menu" role="dialog" aria-label="Sign-in and site lock">
+          <DeskSignIn />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">; owed: number; now: number }) {
   const tabs = useRef<HTMLElement>(null);
   const skippyOpen = useSkippy((s) => s.open);
@@ -106,6 +155,7 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
       </nav>
       <div className="wv-navr">
         <IlyrClock now={now} />
+        <AccountMenu />
         <button type="button" className="wv-navbtn desk__skippy" onClick={() => setSkippy(!skippyOpen)} aria-expanded={skippyOpen} aria-controls="skippy-chat" title="Ask Skippy">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3.8 7.6C5.9 4.7 8.7 3.4 12 3.4s6.1 1.3 8.2 4.2c-2.5-.8-5.2-1.1-8.2-1.1s-5.7.3-8.2 1.1z" fill="currentColor" />

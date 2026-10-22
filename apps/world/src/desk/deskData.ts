@@ -32,8 +32,8 @@ export const roomImage = (room: DeskRoom) => `/desk/room-${room}.webp`;
 
 /** The cast by name, so a card can show who is asking: the portrait id, the room and the job. */
 export const AGENTS: Record<string, { id: string; room: DeskRoom; job: string }> = {
-  Rivet: { id: "semicolon", room: "foundry", job: "First responder" },
-  Rusty: { id: "tessellate", room: "foundry", job: "Builder, upkeep and ideas" },
+  Rivet: { id: "semicolon", room: "foundry", job: "First responder and upkeep" },
+  Rusty: { id: "tessellate", room: "foundry", job: "Builder and ideas" },
   Rocky: { id: "caret", room: "foundry", job: "Master builder" },
   "The Builder": { id: "ember", room: "foundry", job: "Room lead" },
   Ledger: { id: "ledger", room: "spire", job: "Operations" },

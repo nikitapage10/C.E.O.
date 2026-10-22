@@ -108,6 +108,10 @@ describe("live rooms (LIVE_ROOMS)", () => {
     for (const room of ["spire", "archive", "workshop"] as const) expect(isLiveRoom(room), room).toBe(false);
   });
 
+  it("every room whose submind is active (a real API integrated) is live, so it runs no demo", () => {
+    for (const m of SUBMINDS) if (m.active) expect(isLiveRoom(m.room), m.room).toBe(true);
+  });
+
   it("no agent of a live room starts a demo task, reports progress or asks for a demo approval; they still idle and banter", () => {
     const { events } = run(21, 3 * TEN_MINUTES);
     const home = new Map(SAMPLE_AGENTS.map((a) => [a.id, a.home.room]));

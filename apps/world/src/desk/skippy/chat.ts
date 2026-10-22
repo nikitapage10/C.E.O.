@@ -2,7 +2,9 @@ import { create } from "zustand";
 
 /**
  * Skippy's chat, browser side (#224; the function is api/skippy.ts). The conversation lives only in this tab's
- * memory: the last few turns go with each message so Skippy can follow along, and nothing is kept anywhere else.
+ * memory: the last few turns go with each message so Skippy can follow along. The function keeps each question and
+ * answer, without the history, under the room Skippy files it in (#273), for that room's "Asked Skippy" panel
+ * (asked.ts), readable only in a Desk session.
  * What he suggests comes back as buttons from a closed set, checked again here (`readActions`), and nothing runs until
  * Nikita taps one: ideas and answers then go through the Desk's own buttons (IdeaCard.tsx), pages open in place.
  */

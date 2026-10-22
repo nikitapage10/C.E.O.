@@ -2,13 +2,12 @@
  * The Green's predictions (#252), worked out on the server from what Sleeper (and FantasyPros, when its key is set)
  * said. Pure: no reads, no clock, so every call is testable.
  *
- *   Projection   FantasyPros' weekly projection in the league's scoring while those are live for this week (a player
- *                it doesn't project has none, never a form fallback); without them, the player's form here: his league scores this season, the last three games weighted over the season (weeks he
- *                didn't score are taken as byes or injuries and left out). Out, IR or suspended counts as zero,
+ *   Projection   FantasyPros' weekly projection in the league's scoring when it has one for the player; otherwise
+ *                his form here (#266): his league scores this season, the last three games weighted over the season
+ *                (weeks he didn't score are taken as byes or injuries and left out). Out, IR or suspended counts as zero,
  *                doubtful as 30% and questionable as 85%; a bye week as zero.
- *   Byes         Sleeper's schedule: a team with no game this week is on bye. And while FantasyPros' projections for
- *                this week are live, a team with no projection rows at all is on bye too. FantasyPros' rankings
- *                (each player's bye week) count only when the schedule can't say. A player on bye or out is
+ *   Byes         FantasyPros' bye week for the player (`player_bye_week`) and Sleeper's schedule (a team with no game
+ *                this week). Never inferred from rows missing in FantasyPros' answer, which can be partial (#266). A player on bye or out is
  *                never the one a call says to start.
  *   Win chance   The two lineups' expected finals (points scored plus projections for starters still to play), with a
  *                normal spread of about 45% of each unplayed projection (at least 3 points a player).
@@ -44,28 +43,14 @@ export interface ModelInput {
   at: string;
 }
 
-/** FantasyPros' projections count as covering the week once this many teams have rows (a bye week rests at most 8). */
-const FP_TEAMS_MIN = 20;
-
 /** Whether FantasyPros' weekly data (projections or this week's consensus) is in for this week. */
 export const fpLiveFor = (fp: FpData | null, week: number): boolean => fp !== null && fp.week === week && (fp.proj.length > 0 || (fp.weekly?.length ?? 0) > 0);
 
-/** The teams FantasyPros' projections for this week leave out entirely, once they cover the league; else null. */
-function projGap(fp: FpData | null, week: number): Set<string> | null {
-  if (!fp || fp.week !== week) return null;
-  const teams = new Set(fp.proj.map((p) => p.team).filter((t): t is string => t !== null && NFL_TEAMS.has(t)));
-  return teams.size >= FP_TEAMS_MIN ? new Set([...NFL_TEAMS].filter((t) => !teams.has(t))) : null;
-}
-
-/**
- * The teams FantasyPros puts on bye this week: those whose players' `player_bye_week` is this week, and (while its
- * projections cover the league) every team it projects nobody on. Null when FantasyPros has nothing for this week.
- */
+/** The teams FantasyPros puts on bye this week: those whose players' `player_bye_week` is this week. Null when it has nothing for this week. */
 export function fpByeTeams(fp: FpData | null, week: number): Set<string> | null {
   if (!fp || fp.week !== week) return null;
   const out = new Set<string>();
   for (const r of [...(fp.weekly ?? []), ...fp.ranks]) if (r.bye === week && r.team && NFL_TEAMS.has(r.team)) out.add(r.team);
-  for (const t of projGap(fp, week) ?? []) out.add(t);
   return out.size || fpLiveFor(fp, week) ? out : null;
 }
 
@@ -162,7 +147,6 @@ export function buildBoard(input: ModelInput): GreenBoard {
   const schedList = byesOf(schedule ?? null, week);
   const schedByes = schedList ? new Set(schedList) : null;
   const byes = byeTeams(schedule, fp, week);
-  const fpGap = projGap(fp, week);
 
   const cache = new Map<string, GreenPlayer>();
   const player = (id: string): GreenPlayer => {
@@ -175,23 +159,23 @@ export function buildBoard(input: ModelInput): GreenBoard {
     const team = slim?.team ?? (/^[A-Z]{2,3}$/.test(id) ? id : null);
     const fpBye = v?.bye ?? null;
     const inSet = (set: Set<string> | null | undefined) => team !== null && !!set?.has(team);
-    // FantasyPros' own bye week for him decides (or its projections leaving his whole team out); with nothing from
-    // FantasyPros on him, its byes by team and then Sleeper's schedule.
-    const onBye = fpBye !== null ? fpBye === week || inSet(fpGap) : inSet(fpByes) || inSet(schedByes);
+    // FantasyPros' own bye week for him decides; with nothing from FantasyPros on him, its byes by team and then
+    // Sleeper's schedule. A team missing from a partial answer is not a bye (#266).
+    const onBye = fpBye !== null ? fpBye === week : inSet(fpByes) || inSet(schedByes);
     const bye = onBye ? week : fpBye;
     let proj: number | null = null;
     let src: GreenPlayer["src"] = "none";
-    if (fpWeek) {
-      // FantasyPros decides this week. No projection from it means no projection: never his form here, which
-      // can't know about a bye, a benching or a game-day scratch.
-      if (v?.proj != null) proj = v.proj;
-      if (v?.proj != null || v?.wk != null) src = "fp";
+    if (fpWeek && v?.proj != null) {
+      proj = v.proj;
+      src = "fp";
     } else {
+      // FantasyPros' answer can leave players out (#266): his form here stands in, marked as form, and the start/sit
+      // calls still never start a player FantasyPros doesn't know this week (lineupSwaps, fpOnly).
       const f = formProjection(scores);
       if (f !== null) {
         proj = f;
         src = "form";
-      }
+      } else if (fpWeek && v?.wk != null) src = "fp";
     }
     if (onBye || (inj && OUT.has(inj))) proj = 0;
     else if (proj !== null && inj) proj = round1(proj * (INJ_FACTOR[inj] ?? 1));
@@ -364,7 +348,7 @@ export function lineupSwaps(slots: string[], current: GreenSlot[], bench: GreenP
     if (!hit) continue;
     const out = hit.c.player;
     const gain = round1((p.proj ?? 0) - Math.max(0, out?.proj ?? 0));
-    const forced = reasonOut(out, week, fpOnly);
+    const forced = reasonOut(out, week);
     if (gain < 0.5 && !forced) continue;
     taken.add(hit.k);
     const why = forced ?? (out ? `${p.name} projects ${(p.proj ?? 0).toFixed(1)}, ${out.name} ${(out.proj ?? 0).toFixed(1)}` : "the slot is empty");

@@ -50,6 +50,9 @@ param geminiBudgetUsd string = '2'
 @description('Monthly Claude budget for Skippy\'s chat on the Azure copy, in USD (SKIPPY_BUDGET_USD).')
 param skippyBudgetUsd string = '0.5'
 
+@description('The email agent\'s own monthly Claude cap on the Azure copy, in USD (EMAIL_BUDGET_USD, #263).')
+param emailBudgetUsd string = '10'
+
 @description('Tags on every resource.')
 param tags object = {
   app: 'ceo'
@@ -75,6 +78,7 @@ module resources 'resources.bicep' = {
     worldBudgetUsd: worldBudgetUsd
     geminiBudgetUsd: geminiBudgetUsd
     skippyBudgetUsd: skippyBudgetUsd
+    emailBudgetUsd: emailBudgetUsd
     tags: tags
   }
 }

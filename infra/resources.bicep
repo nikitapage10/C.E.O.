@@ -38,6 +38,9 @@ param geminiBudgetUsd string
 @description('The Azure copy\'s monthly Claude budget for Skippy\'s chat, in USD (SKIPPY_BUDGET_USD), as a string.')
 param skippyBudgetUsd string
 
+@description('The email agent\'s own monthly Claude cap, in USD (EMAIL_BUDGET_USD), as a string.')
+param emailBudgetUsd string
+
 param tags object
 
 // Globally unique names carry a hash of the resource group, so the same paste lands on the same names every time.
@@ -70,6 +73,12 @@ var secrets = [
   // board waits.
   { setting: 'POLYMARKET_US_KEY_ID', secret: 'polymarket-us-key-id' }
   { setting: 'POLYMARKET_US_SECRET_KEY', secret: 'polymarket-us-secret-key' }
+  // The email agent (#263, docs/GMAIL.md): Google's OAuth client for Connect Gmail (gmail.readonly), and 32 random
+  // bytes that seal the Gmail refresh token and the private mail list in `ceo-state` (api/_email/seal.ts). The
+  // functions only read these: the token is never written to the vault, so the identity stays Secrets User.
+  { setting: 'GMAIL_CLIENT_ID', secret: 'gmail-client-id' }
+  { setting: 'GMAIL_CLIENT_SECRET', secret: 'gmail-client-secret' }
+  { setting: 'GMAIL_TOKEN_KEY', secret: 'gmail-token-key' }
 ]
 
 // Built-in role IDs (the same in every tenant).
@@ -240,6 +249,8 @@ var plainSettings = [
   { name: 'WORLD_BUDGET_USD', value: worldBudgetUsd }
   { name: 'GEMINI_BUDGET_USD', value: geminiBudgetUsd }
   { name: 'SKIPPY_BUDGET_USD', value: skippyBudgetUsd }
+  // The email agent's own cap (#263; Nikita: $10 a month), separate from the three above.
+  { name: 'EMAIL_BUDGET_USD', value: emailBudgetUsd }
 ]
 
 resource functionApp 'Microsoft.Web/sites@2024-11-01' = {

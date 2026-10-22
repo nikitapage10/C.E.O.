@@ -513,6 +513,10 @@ a.panel__hint:hover {
     opacity 0.2s,
     transform 0.25s var(--ease);
 }
+/* A submind still played by the simulator: a dashed ring; an active one (its own thread) keeps the solid one. */
+.council__mind:not(.active) {
+  border-style: dashed;
+}
 .council__mind img {
   width: 100%;
   height: 100%;
@@ -592,6 +596,16 @@ a.panel__hint:hover {
   font-size: 11px;
   font-weight: 600;
   color: var(--dim);
+}
+.council__who small {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+  color: color-mix(in srgb, var(--c) 70%, #fff);
 }
 .council__report--busy .council__who em {
   color: var(--c);

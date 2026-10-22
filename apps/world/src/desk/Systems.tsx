@@ -11,11 +11,13 @@ import { PipeRack } from "./PipeRack.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
+import { startEmail } from "./email/email.ts";
 import { startPolymarket } from "./exchange/polymarket.ts";
 import { startGreen } from "./green/league.ts";
 import { roomLink } from "./hero/roomLink.ts";
 import { Private } from "./Private.tsx";
 import { Home } from "./rooms/Home.tsx";
+import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
@@ -56,6 +58,7 @@ export function Systems({ now }: { now: number }) {
   const [mode, setMode] = useState<"overview" | FlowId>(firstMode);
   // Polymarket's thread is real (#240): read its odds while this page is open, so the thread shows its true state.
   useEffect(() => startPolymarket(), []);
+  useEffect(() => startEmail(), []);
   // So are Sleeper and FantasyPros, through the Green's board (#252).
   useEffect(() => startGreen(), []);
   const linkList = useSystems((s) => s.links);
@@ -205,6 +208,8 @@ export function Systems({ now }: { now: number }) {
           </button>
         </section>
       </div>
+
+      <AskedSkippy room="boiler" />
 
       <Home />
     </div>

@@ -127,11 +127,13 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
    | `polymarket-us-key-id`, `polymarket-us-secret-key` | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` (optional, #253: the Exchange's read-only positions; Azure only) |
    | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
+   | `gmail-client-id`, `gmail-client-secret`, `gmail-token-key` (the email agent, #263; Azure only, set up as in [GMAIL.md](GMAIL.md)) | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_KEY` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings, lower than Vercel's because both copies
    use the same Claude and Gemini accounts, and each copy keeps its own ledger. `WORLD_BUDGET_USD=2` (Vercel: 6),
    `GEMINI_BUDGET_USD=2` (Vercel: 5) and `SKIPPY_BUDGET_USD=0.5` (Vercel: 1); change one with `-p worldBudgetUsd=3`
-   (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. Anything set by hand in the portal is reset by the next
+   (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. The email agent's own cap, `EMAIL_BUDGET_USD=10`
+   (`emailBudgetUsd`, #263), is separate from those and exists only here. Anything set by hand in the portal is reset by the next
    template run, so change them there.
    Vercel's `BLOB_*` settings have no counterpart: the Function App already has `WORLD_STORE=azureblob`,
    `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_BLOB_ENDPOINT` and `AZURE_STORAGE_CONTAINER=ceo-state`.
@@ -183,6 +185,9 @@ The same code runs on Vercel and on Azure; nothing here changes how Vercel runs 
   App's own URL (`az deployment sub show -n ceo --query properties.outputs.functionAppUrl.value -o tsv`), not the
   site's `/api`. The Function App allows 10 minutes (`azure/host.json`, `functionTimeout`). Linking adds an identity
   provider to the Function App; check its own URL still answers before pointing anything at it.
+- **The email agent (#263) is Azure only.** `azure/src/index.ts` also registers `/api/email` and `/api/gmail-callback`
+  (behind the same gate) and one timer function, `email_tick`, every minute. Vercel has neither, so its Desk shows the
+  email agent as living on the Azure copy. Setup, privacy and the cap: [GMAIL.md](GMAIL.md).
 - **Passkeys are per domain.** The Desk's passkeys are tied to the address they were made on, so signing in to the
   Desk on the Azure address needs its own passkey, enrolled there with the Desk key as on Vercel. Azure's store
   starts empty: Vercel's passkeys don't carry over, and neither do the world, the stories or the pictures until
@@ -241,12 +246,15 @@ until the one-time setup below is done, so main stays green either way.
   zip-deployed to Flex Consumption) go out in parallel. Expect about 3 to 4 minutes from push to live.
 - **`.github/workflows/world-step.yml`** and **`.github/workflows/desk-pings.yml`**, hourly (and pings on Foundry
   issue events): each has a second job, `azure`, beside the Vercel one. The world step calls the Function App's own
-  address (`az functionapp show … defaultHostName`), since a step can take minutes and the site's proxy may cut it;
-  if that address refuses callers (a linked Static Web App can do that), it goes through the site's `/api` instead.
+  address (`az resource show … properties.defaultHostName`; `az functionapp show` came back empty for the Flex app,
+  #271), since a step can take minutes and the site's proxy may cut it; if that address refuses callers (a linked
+  Static Web App can do that) or can't be found, it goes through the site's `/api` instead (`AZURE_SITE_HOST`, else
+  `az staticwebapp show`, else the site's known address), and a step that still fails fails the job. The steady
+  driver for both worlds is the Function App's own timer, `world_tick` (`azure/src/tick.ts`), at :05 and :35.
   The pings job reads `desk-pings-secret` from the vault at run time (masked in the log; GitHub keeps no copy, and
   it isn't Vercel's), which needs the Key Vault Secrets User role the template gives GitHub's identity. Until Azure
-  is set up the job is skipped; if sign-in, the vault read or the call fails it leaves a warning and the run stays
-  green, since Vercel is production. Each run shows as a deployment to the `azure` environment, like the backups.
+  is set up the job is skipped; if the pings job's sign-in, vault read or call fails it leaves a warning and the run
+  stays green, since Vercel is production. Each run shows as a deployment to the `azure` environment, like the backups.
 - **`.github/workflows/backup-azure.yml`**, nightly at 10:41 UTC: the production world from Vercel's public API
   (`/api/world` and the last 7 days), everything in the Azure copy's `ceo-state`, and `apps/world/public/models`,
   into `ceo-backups/<YYYY-MM-DD>/` in Cool tier. The container keeps 90 days.

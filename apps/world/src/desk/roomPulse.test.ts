@@ -34,6 +34,12 @@ describe("room pulses", () => {
     }
   });
 
+  it("marks the subminds of rooms with a real API active, from the one list in the simulator (docs/SKIPPY.md)", () => {
+    const active = roomPulses(input()).filter((p) => p.submind.active).map((p) => p.submind.title).sort();
+    expect(active).toEqual(["The Bookie", "The Builder", "The Commentator", "The Pessimist"]);
+    for (const m of SUBMINDS) expect(ROOM_META[m.room].submind.active, m.room).toBe(m.active);
+  });
+
   it("speaks from real data where a room is real, and says plainly when it is only simulated", () => {
     const data = { ...EMPTY_FOUNDRY, crates: [crate({})], changelog: [{ key: "a", at: NOW - 3_600_000, title: "Bell", kind: "build" as const, issue: null, landed: null, by: null, short: "", approval: "auto" as const, origin: "builder" as const }] };
     const pulses = roomPulses(input({ foundry: { connected: true, data, pending: [] } }));

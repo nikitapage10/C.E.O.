@@ -17,17 +17,18 @@ let counter = 0;
 const live = (body: AgentEventBody): AgentEvent => ({ ...body, id: `foundry-${++counter}`, ts: clock.sim, source: "claude-code" }) as AgentEvent;
 
 /**
- * Which routine each crew member should be on for the crate they hold. Rusty with nothing in hand stays at the
- * upkeep from the latest tick until the next one (`keepingUpkeep`): the real job takes a minute every six hours,
- * but in the room he is seen working it through, unless a fix, the ideas board or a break pulls him off.
+ * Which routine each crew member should be on for the crate they hold. Upkeep is Rivet's lane (Nikita, 2026-10-22):
+ * with nothing in hand she stays at the upkeep from the latest tick until the next one (`keepingUpkeep`). The real
+ * job takes a few minutes every five hours, but in the room she is seen working it through at the upkeep bench,
+ * unless a fix, a hand-up to Rocky, the checks running or a break pulls her off.
  */
 export function routineFor(who: CrewId, crate: Crate | null, openIdeas: number, keepingUpkeep = false, quiet: { checksRunning?: boolean; handingUp?: boolean } = {}): ScriptId {
   if (!crate) {
     // Quiet time still shows what each one is for: Rivet on watch at the alarm post (leaning in while the checks run,
     // or carrying a new job up to Rocky), Rocky over the plan at his drafting table.
-    if (who === "semicolon") return quiet.handingUp ? "foundryHandUp" : quiet.checksRunning ? "foundryWatchClose" : "foundryWatch";
+    if (who === "semicolon") return quiet.handingUp ? "foundryHandUp" : quiet.checksRunning ? "foundryWatchClose" : keepingUpkeep ? "foundryUpkeep" : "foundryWatch";
     if (who === "caret") return "foundryDrafting";
-    return openIdeas > 0 ? "foundryIdeas" : keepingUpkeep ? "foundryUpkeep" : "foundryIdle";
+    return openIdeas > 0 ? "foundryIdeas" : "foundryIdle";
   }
   // A new job on its way up to Rocky: he waits at his table until Rivet brings the crate over.
   if (who === "caret" && quiet.handingUp && crate.state === "working") return "foundryDrafting";
@@ -110,14 +111,14 @@ export function FoundryDirector() {
       const keeping = visibleUpkeep(data.crates) !== null;
       // Only a free Rivet carries the job up; when she has her own, Rocky just takes it at his table.
       const quiet = { checksRunning: data.checks.state === "running", handingUp: Date.now() < handUpUntil && !work.semicolon };
-      for (const who of Object.keys(CREW) as CrewId[]) simulator.setScript(who, routineFor(who, work[who], openIdeas, who === "tessellate" && keeping, quiet), clock.sim);
+      for (const who of Object.keys(CREW) as CrewId[]) simulator.setScript(who, routineFor(who, work[who], openIdeas, who === "semicolon" && keeping, quiet), clock.sim);
     };
 
     if (useFoundry.getState().connected) apply(useFoundry.getState().data);
     const unsubscribe = useFoundry.subscribe((s, prev) => {
       if (s.data !== prev.data) apply(s.data);
     });
-    // An upkeep tick passing changes what Rusty is seen at even when GitHub hasn't changed.
+    // An upkeep tick passing changes what Rivet is seen at even when GitHub hasn't changed.
     const tick = setInterval(() => {
       if (useFoundry.getState().connected) place(useFoundry.getState().data);
     }, 60_000);

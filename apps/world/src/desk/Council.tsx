@@ -38,6 +38,7 @@ export function Council({ pulses, open, onClose }: { pulses: RoomPulse[]; open: 
 
   if (!open) return null;
   const real = pulses.filter((p) => p.real);
+  const active = pulses.filter((p) => p.submind.active);
   const count = pulses.length;
   // Drawn at the Desk's root, so no animated section around the control can trap or clip it.
   return createPortal(
@@ -48,7 +49,7 @@ export function Council({ pulses, open, onClose }: { pulses: RoomPulse[]; open: 
             <p className="eyebrow">The Council</p>
             <h2>Skippy and his nine</h2>
             <p className="council__lead">
-              Each room's submind, reporting in. {real.length} of {count} rooms run real work today; the rest are still simulated, and they'll tell you so.
+              Each room's submind, reporting in. {real.length} of {count} rooms run real work today, and {active.length} subminds are active, each in its own thread; the rest are still simulated, and they'll tell you so.
             </p>
           </div>
           <button ref={closeRef} type="button" className="council__close" onClick={onClose} aria-label="Close the Council">
@@ -86,7 +87,7 @@ export function Council({ pulses, open, onClose }: { pulses: RoomPulse[]; open: 
               return (
                 <span
                   key={p.id}
-                  className={`council__mind ${focus && focus !== p.id ? "dim" : ""} ${focus === p.id ? "on" : ""}`}
+                  className={`council__mind ${p.submind.active ? "active" : ""} ${focus && focus !== p.id ? "dim" : ""} ${focus === p.id ? "on" : ""}`}
                   style={{ "--c": p.colour, "--x": `${(Math.cos(a) * 37.3).toFixed(2)}%`, "--y": `${(Math.sin(a) * 37.3).toFixed(2)}%`, "--i": i } as React.CSSProperties}
                 >
                   {src ? <img src={src} alt="" decoding="async" /> : <b>{p.submind.title.charAt(4)}</b>}
@@ -116,6 +117,11 @@ export function Council({ pulses, open, onClose }: { pulses: RoomPulse[]; open: 
                     <i aria-hidden="true" />
                     <b>{p.submind.title}</b>
                     <span>{p.name}</span>
+                    {p.submind.active ? (
+                      <small className="council__active" title="Active: the room has a real API, and its submind its own thread">
+                        Active
+                      </small>
+                    ) : null}
                     <em>{STATE_LABEL[p.state]}</em>
                   </span>
                   <span className="council__line">{p.report}</span>

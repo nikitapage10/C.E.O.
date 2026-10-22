@@ -173,8 +173,11 @@ export interface Usage {
   cache_read_input_tokens?: number | null;
 }
 
+/** A model's list price in dollars per million tokens. */
+export type Price = { readonly [K in keyof typeof SHAPE_PRICE]: number };
+
 /** What one call cost, in dollars, from its own token use. */
-export function costOf(usage: Usage, price = SHAPE_PRICE): number {
+export function costOf(usage: Usage, price: Price = SHAPE_PRICE): number {
   const write = usage.cache_creation_input_tokens ?? 0;
   const read = usage.cache_read_input_tokens ?? 0;
   const long = usage.input_tokens + write + read > price.longFrom;

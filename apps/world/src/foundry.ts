@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useSystems, type LinkState } from "./systems.ts";
+import { UPKEEP_ANCHOR_MS, UPKEEP_EVERY_MS } from "./desk/crewRuns.ts";
 import { ownPictures, pictureRef } from "../../../api/_pictures.ts";
 
 /**
@@ -21,29 +22,27 @@ const QUICK_MS = 2_000;
 const QUICK_FOR_MS = 30_000;
 /** Shipped crates stay on show this long. */
 const SHIPPED_FOR_MS = 24 * 3_600_000;
-const HOUR = 3_600_000;
-/** The "Foundry: upkeep" routine runs at :57 past every sixth hour, UTC. */
-const UPKEEP_MINUTE = 57;
-const UPKEEP_EVERY_HOURS = 6;
 
 /** `chat` is work Nikita asked for in chat and a thread is building outside the lanes; it shows here so the Foundry lists everything in flight. */
 export type CrateKind = "fix" | "idea" | "build" | "upkeep" | "chat";
 export type CrateState = "queued" | "working" | "ready" | "stuck" | "shipped";
 /**
- * The Foundry crew, by agent id and model (Nikita, 2026-10-13): Rivet (semicolon, Haiku) first responder, Rusty
- * (tessellate, Sonnet) simple work plus upkeep and ideas, Rocky (caret, Opus) anything complex or big-picture. Rivet
- * can run clones of herself for jobs at the same time; Rusty has his dock crew (four jobs at once at most); Rocky
+ * The Foundry crew, by agent id and model (Nikita, 2026-10-13): Rivet (semicolon) first responder on Haiku and, since
+ * 2026-10-22, the upkeep lane on Sonnet (Opus when a job needs it), Rusty (tessellate, Sonnet) simple work plus the
+ * ideas, Rocky (caret, Opus) anything complex or big-picture. Rivet can run clones of herself for jobs at the same
+ * time, outside Rusty's four slots; Rusty has his dock crew (four jobs at once at most); Rocky
  * takes one at a time (`MAX_RUNNING`). The Foundry's submind leads them and isn't crew.
  */
 export type CrewId = "semicolon" | "caret" | "tessellate";
 export type Model = "Haiku" | "Sonnet" | "Opus";
 
 /**
- * The model a crate is being worked on: what its Builder line names, else its fix rung, else the crew member's usual
- * one (Rivet Haiku, Rocky Opus, Rusty Sonnet).
+ * The model a crate is being worked on: what its Builder line names, else its fix rung, else Sonnet for upkeep
+ * (Rivet's maintenance default, docs/FOUNDRY.md), else the crew member's usual one (Rivet Haiku, Rocky Opus, Rusty Sonnet).
  */
-export function modelOf(crate: Pick<Crate, "rung"> & Pick<Partial<Crate>, "model">, who: CrewId): Model {
+export function modelOf(crate: Pick<Crate, "rung"> & Pick<Partial<Crate>, "model" | "kind">, who: CrewId): Model {
   if (crate.model) return crate.model;
+  if (crate.kind === "upkeep") return "Sonnet";
   if (crate.rung === 1) return "Haiku";
   if (crate.rung === 3) return "Opus";
   if (crate.rung === 2) return "Sonnet";
@@ -51,9 +50,9 @@ export function modelOf(crate: Pick<Crate, "rung"> & Pick<Partial<Crate>, "model
 }
 
 export const CREW: Record<CrewId, { name: string; job: string }> = {
-  semicolon: { name: "Rivet", job: "First responder" },
+  semicolon: { name: "Rivet", job: "First responder and upkeep" },
   caret: { name: "Rocky", job: "Master builder" },
-  tessellate: { name: "Rusty", job: "Builder, upkeep and ideas" },
+  tessellate: { name: "Rusty", job: "Builder and ideas" },
 };
 
 /**
@@ -64,7 +63,7 @@ export const CREW_ORDER: readonly CrewId[] = ["semicolon", "tessellate", "caret"
 
 /** Each crew member's tier in that order and the models they run on (docs/FOUNDRY.md, "The crew"). */
 export const CREW_RANK: Record<CrewId, { tier: 1 | 2 | 3; models: string }> = {
-  semicolon: { tier: 1, models: "Haiku" },
+  semicolon: { tier: 1, models: "Haiku/Sonnet" },
   tessellate: { tier: 2, models: "Sonnet/Opus" },
   caret: { tier: 3, models: "Opus" },
 };
@@ -529,21 +528,19 @@ export function recentWork(changelog: Change[], who: CrewId, limit = 3): { numbe
     .map((c) => ({ number: c.issue!.number, url: c.issue!.url, name: c.short || c.title.trim(), at: c.at }));
 }
 
-/** The next upkeep tick after `now`. */
+/** The next upkeep tick after `now`: every five hours from the routine's anchor (`crewRuns.ts`, docs/FOUNDRY.md). */
 export function nextUpkeep(now: number): number {
-  const d = new Date(now);
-  d.setUTCMinutes(UPKEEP_MINUTE, 0, 0);
-  while (d.getTime() <= now || d.getUTCHours() % UPKEEP_EVERY_HOURS !== 0) d.setTime(d.getTime() + HOUR);
-  return d.getTime();
+  const steps = Math.floor((now - UPKEEP_ANCHOR_MS) / UPKEEP_EVERY_MS) + 1;
+  return UPKEEP_ANCHOR_MS + steps * UPKEEP_EVERY_MS;
 }
 
 /** The last upkeep tick at or before `now`. */
 export function lastUpkeep(now: number): number {
-  return nextUpkeep(now) - UPKEEP_EVERY_HOURS * HOUR;
+  return nextUpkeep(now) - UPKEEP_EVERY_MS;
 }
 
 /**
- * The upkeep Rusty is seen at in the Lattice: the job from the latest tick, kept in hand until the next tick even
+ * The upkeep Rivet is seen at in the Lattice: the job from the latest tick, kept in hand until the next tick even
  * though the real work took a minute (Nikita's rule). The Desk shows the real state; only the room uses this.
  */
 export function visibleUpkeep(crates: Crate[], now = Date.now()): Crate | null {
@@ -555,11 +552,12 @@ export function visibleUpkeep(crates: Crate[], now = Date.now()): Crate | null {
  * Whose lane a crate is in. The Builder decides who takes each job and on which model, and writes it on the issue
  * ("**Builder:** Rusty (Opus)"). Fixes go by rung: Rivet (Haiku) on rung 1, Rusty on rungs 2 (Sonnet) and 3 (Opus).
  * Builds and chat work go to the builder their issue names, Rusty when it names none; Rocky is held for high-level
- * work. Rusty also keeps upkeep and ideas.
+ * work. Upkeep is Rivet's own lane (Nikita, 2026-10-22), whatever model she runs it on; Rusty keeps the ideas.
  */
 export function crewFor(crate: Pick<Crate, "kind" | "rung"> & Pick<Partial<Crate>, "builder">): CrewId {
   if (crate.kind === "fix") return crate.rung === 2 || crate.rung === 3 ? "tessellate" : "semicolon";
   if (crate.kind === "build" || crate.kind === "chat") return crate.builder ?? "tessellate";
+  if (crate.kind === "upkeep") return "semicolon";
   return "tessellate";
 }
 
@@ -622,8 +620,8 @@ export const DOCK_CREW = [
 
 /**
  * How many jobs run at once across the whole crew (Nikita, 2026-10-13): four. Rusty can take all four, himself and
- * his dock crew; Rocky takes one at a time. Urgent work (a fix) never waits: Rivet's jobs are the emergency slot,
- * outside the four, and a fix in Rusty's hands goes ahead of his other work. Anything past the cap waits its turn.
+ * his dock crew; Rocky takes one at a time. Urgent work (a fix) never waits: Rivet's jobs (her first responses and,
+ * since 2026-10-22, her upkeep lane) are outside the four, and a fix in Rusty's hands goes ahead of his other work. Anything past the cap waits its turn.
  */
 export const MAX_AT_ONCE = 4;
 /** The most jobs each crew member runs at once. */
@@ -706,9 +704,9 @@ export function blueprintCrate(crates: Crate[]): Crate | null {
 /**
  * The job a crew member's name plate in the Lattice shows: what their routine in the room is about. A stuck or
  * ready crate first (they're slumped by it, or waiting at the dock with it); then the job in their own hands
- * (Rusty's oldest running one; the newer ones are his dock crew's, `dockJobs`); then anything else they hold. Rusty
- * with nothing in hand shows the latest upkeep while he's seen working it through (`visibleUpkeep`), unless ideas
- * are waiting on the board. Null when they hold nothing.
+ * (Rusty's oldest running one; the newer ones are his dock crew's, `dockJobs`); then anything else they hold. Rivet
+ * with nothing in hand shows the latest upkeep while she's seen working it through (`visibleUpkeep`). Null when they
+ * hold nothing.
  */
 export function crewJob(crates: Crate[], who: CrewId, now = Date.now()): Crate | null {
   const held = crewWork(crates)[who];
@@ -716,7 +714,7 @@ export function crewJob(crates: Crate[], who: CrewId, now = Date.now()): Crate |
   const own = shifts(crates, who).running[0];
   if (own) return own;
   if (held) return held;
-  if (who === "tessellate" && !crates.some((c) => c.kind === "idea" && c.state === "queued")) return visibleUpkeep(crates, now);
+  if (who === "semicolon") return visibleUpkeep(crates, now);
   return null;
 }
 

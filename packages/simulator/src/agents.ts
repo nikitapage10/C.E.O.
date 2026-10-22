@@ -1,38 +1,14 @@
-import type { Agent, RoomId } from "@ceo/core";
+import type { Agent } from "@ceo/core";
 import type { ScriptId } from "./scripts.ts";
+import { SUBMINDS } from "./subminds.ts";
+
+export * from "./subminds.ts";
 
 export interface SimAgent extends Agent {
   script: ScriptId;
   /** Chance per routine of wandering to the Break Room first. */
   breakChance: number;
 }
-
-/** A Skippy submind: the lead of one room, in the admiral can, in its own colour. */
-export interface Submind {
-  id: string;
-  name: string;
-  room: RoomId;
-  /** The colour it is known by: its hat and coat, and the glow under it. */
-  colour: string;
-  /** Its thread's name in Skippy's pattern, "Skippy, the <job>". */
-  job: string;
-}
-
-export const SUBMINDS: readonly Submind[] = [
-  { id: "ember", name: "The Builder", room: "foundry", colour: "#ff7a3d", job: "Builder" },
-  { id: "gilt", name: "The Executive", room: "spire", colour: "#e8b84a", job: "Executive" },
-  { id: "ticker", name: "The Bookie", room: "exchange", colour: "#4fd18b", job: "Bookie" },
-  { id: "turf", name: "The Commentator", room: "green", colour: "#a3e04f", job: "Commentator" },
-  { id: "static", name: "The Messenger", room: "relay", colour: "#4fa8ff", job: "Messenger" },
-  { id: "vellum", name: "The Historian", room: "archive", colour: "#a07aff", job: "Historian" },
-  { id: "fizz", name: "The Life of the Party", room: "breakroom", colour: "#ff6fae", job: "Life of the Party" },
-  { id: "soot", name: "The Pessimist", room: "boiler", colour: "#c9d3d8", job: "Pessimist" },
-  { id: "putty", name: "The Artiste", room: "workshop", colour: "#3fd6c8", job: "Artiste" },
-];
-
-export const SUBMIND_IDS: ReadonlySet<string> = new Set(SUBMINDS.map((m) => m.id));
-export const isSubmind = (id: string) => SUBMIND_IDS.has(id);
-export const submindOf = (room: RoomId): Submind => SUBMINDS.find((m) => m.room === room)!;
 
 /**
  * Subminds decide (which agent, which model or API) rather than do the computer work, so they run on OpenAI, by
@@ -57,8 +33,8 @@ function submindAgents(): SimAgent[] {
  * (see docs/AGENT_STACK.md); in phase 1 they are all played by the simulator.
  */
 export const SAMPLE_AGENTS: SimAgent[] = [
-  { id: "tessellate", name: "Rusty", lineage: "claudari", provider: "claude-code", role: "Builder, upkeep and ideas", home: { room: "foundry", station: "intake" }, script: "foundryIdle", breakChance: 0.1 },
-  { id: "semicolon", name: "Rivet", lineage: "cursori", provider: "claude-code", role: "First responder", home: { room: "foundry", station: "watch" }, script: "foundryWatch", breakChance: 0.12 },
+  { id: "tessellate", name: "Rusty", lineage: "claudari", provider: "claude-code", role: "Builder and ideas", home: { room: "foundry", station: "intake" }, script: "foundryIdle", breakChance: 0.1 },
+  { id: "semicolon", name: "Rivet", lineage: "cursori", provider: "claude-code", role: "First responder and upkeep", home: { room: "foundry", station: "watch" }, script: "foundryWatch", breakChance: 0.12 },
   { id: "caret", name: "Rocky", lineage: "cursori", provider: "claude-code", role: "Master builder", home: { room: "foundry", station: "drafting" }, script: "foundryDrafting", breakChance: 0.08 },
   { id: "ledger", name: "Ledger", lineage: "gepetti", provider: "openai", role: "Operations", home: { room: "spire", station: "desk-1" }, script: "spireOperator", breakChance: 0.12 },
   { id: "memo", name: "Memo", lineage: "unforked", provider: "simulated", role: "Assistant to the assistant", home: { room: "spire", station: "desk-3" }, script: "spireOperator", breakChance: 0.25 },

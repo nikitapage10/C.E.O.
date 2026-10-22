@@ -6,10 +6,13 @@ Lattice the agents pick up where they left off, and the Desk's **Chronicle** has
 
 ## The hourly step
 
-- **Trigger:** `.github/workflows/world-step.yml` runs at :05 every hour (GitHub Actions, free) and POSTs to
-  `https://command-everything-obviously.vercel.app/api/world-step`. No secret: the step is idempotent per hour.
-  GitHub's schedule is best-effort (on 2026-10-13 it didn't fire at all for hours), so the Builder's doorbell
-  (`scripts/foundry-watch.sh`) also POSTs every ten minutes while it runs; the extra calls do nothing until the hour is up.
+- **Trigger:** the Azure Function App's timer `world_tick` (`azure/src/tick.ts`, #271) runs at :05 and :35 every
+  hour: it steps the Azure world in-process and POSTs to
+  `https://command-everything-obviously.vercel.app/api/world-step`. No secret: the step is idempotent per hour, and the
+  site gate lets that POST through. `.github/workflows/world-step.yml` still knocks at :05 (GitHub Actions, free), but
+  GitHub's schedule is best-effort (on 2026-10-13 it didn't fire for hours; on 2026-10-21/22 only every four to five
+  hours, which left the Boiler Room's world clock DOWN), and the Builder's doorbell (`scripts/foundry-watch.sh`) also
+  POSTs every ten minutes while it runs; the extra calls do nothing until the hour is up.
 - **Idempotent:** if the last step is under 55 minutes old, the call changes nothing and spends nothing, and
   says when the saved hour was written (`{ stepped: false, at, nextAt }`; never the hour's words, since the site lock
   lets this trigger through, #236). Two calls racing for the same hour can't both land:
@@ -53,7 +56,7 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
   cent each. Past that, and whenever there is no key or Claude doesn't answer usably, the hour is written from the
   agents' own scripted lines (`api/_world/scripted.ts`, from `quips.ts`), for free. The total resets when the month
   turns (UTC, as the API bills).
-- Skippy's chat on the Desk (#224) has its own share, **$1** by default (`SKIPPY_BUDGET_USD`), kept in its own
+- Skippy's chat on the Desk (#224) has its own share, **$2** by default (Claude Sonnet 5.5, Opus 5.5 for the hard ones, web lookups, since #264) (`SKIPPY_BUDGET_USD`), kept in its own
   ledger (`desk/skippy/spend.json`, `api/_skippy/budget.ts`). Before every call it checks both its share and the
   whole month: the world's spend plus the chat's plus one call must stay under $10 less $2 kept for idea shaping.
   Past that Skippy answers with a scripted line until the month turns.

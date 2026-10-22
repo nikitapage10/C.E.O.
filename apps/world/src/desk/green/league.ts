@@ -57,7 +57,8 @@ export function fpLine(b: GreenBoard): string {
   const head = `FantasyPros: ${fp === "live" ? "live" : fp === "failed" ? "not answering" : "waiting"}`;
   const p = b.sources.fpParts;
   if (!p) return head;
-  const bits = [`${p.proj} projections`, `${p.weekly} ranked this week`, `${p.ros} rest of season`, `${p.injuries} injuries`];
+  const by = p.projBy ? Object.entries(p.projBy).map(([k, n]) => `${k} ${n}`).join(" ") : "";
+  const bits = [`${p.proj} projections${by ? ` (${by})` : ""}`, `${p.weekly} ranked this week`, `${p.ros} rest of season`, `${p.injuries} injuries`];
   const errs = p.errors.map((e) => `${e.part} ${e.status}`);
   return [head, ...bits, ...(errs.length ? [`failed: ${errs.join(", ")}`] : [])].join(" · ");
 }

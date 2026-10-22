@@ -6,7 +6,7 @@
   "outputDirectory": "apps/world/dist",
   "git": { "deploymentEnabled": { "claude/*": false } },
   "github": { "silent": true },
-  "functions": { "api/world-step.ts": { "maxDuration": 180 }, "api/day-story.ts": { "maxDuration": 150 } },
+  "functions": { "api/skippy.ts": { "maxDuration": 60 }, "api/world-step.ts": { "maxDuration": 180 }, "api/day-story.ts": { "maxDuration": 150 } },
   "headers": [
     {
       "source": "/(.*)",
@@ -52,6 +52,7 @@
     { "source": "/api/site-password", "destination": "/api/desk-auth?site=password" },
     { "source": "/api/exchange-markets", "destination": "/api/world?exchange=markets" },
     { "source": "/api/exchange-positions", "destination": "/api/world?exchange=positions" },
-    { "source": "/api/green-league", "destination": "/api/world?green=league" }
+    { "source": "/api/green-league", "destination": "/api/world?green=league" },
+    { "source": "/api/skippy-log", "destination": "/api/skippy?log=1" }
   ]
 }

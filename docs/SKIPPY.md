@@ -15,17 +15,22 @@ The room agents (Rocky, Rusty, Dialtone, Blasto and the rest) do the work their 
 
 ## The subminds
 
-| Room | Submind | Colour | Picks between |
-| --- | --- | --- | --- |
-| Foundry | The Builder | ember orange | Claude Code models: Haiku, Sonnet, Opus (the fix ladder in [FOUNDRY.md](FOUNDRY.md)) |
-| Spire | The Executive | gold | (simulated for now) |
-| Exchange | The Bookie | mint | (simulated for now) |
-| Green | The Commentator | lime | (simulated for now) |
-| Relay | The Messenger | signal blue | OpenAI models for sorting and drafting (Dialtone, Blasto); see `relay/macbook-setup.md` |
-| Archive | The Historian | violet | (simulated for now) |
-| Break Room | The Life of the Party | pink | (simulated for now) |
-| Boiler Room | The Pessimist | steam grey | (watches the links; no tasks of its own) |
-| Workshop | The Artiste | teal | Image model, Meshy, import (when the pipeline is real) |
+Every time a room gets a real API integrated, it gets its own submind thread in the project and its submind goes
+**active** (Nikita, 2026-10-22). An active submind leads its room from its own "Skippy, the <job>" thread; the rest
+are still played by the simulator until their room goes real. The list lives in one place, `active` on `SUBMINDS` in
+`packages/simulator/src/agents.ts`, and the Desk and the Lattice read it from there.
+
+| Room | Submind | Colour | Status | Picks between |
+| --- | --- | --- | --- | --- |
+| Foundry | The Builder | ember orange | **Active**, its own thread | Claude Code models: Haiku, Sonnet, Opus (the fix ladder in [FOUNDRY.md](FOUNDRY.md)) |
+| Boiler Room | The Pessimist | steam grey | **Active**, its own thread | Which of the real links on the Desk's Systems page needs a look (`apps/world/src/systems.ts`) |
+| Green | The Commentator | lime | **Active**, its own thread | Which of the real league reads (Sleeper, FantasyPros: start/sit, pickups, the win chance) the Green shows and calls |
+| Exchange | The Bookie | mint | **Active**, its own thread | Which of Polymarket's real reads (the public odds board, Nikita's read-only book) the Exchange shows |
+| Spire | The Executive | gold | Simulated for now | (simulated for now) |
+| Relay | The Messenger | signal blue | Simulated for now | OpenAI models for sorting and drafting (Dialtone, Blasto); see `relay/macbook-setup.md` |
+| Archive | The Historian | violet | Simulated for now | (simulated for now) |
+| Break Room | The Life of the Party | pink | Simulated for now | (simulated for now) |
+| Workshop | The Artiste | teal | Simulated for now | Image model, Meshy, import (when the pipeline is real) |
 
 The choice of engine follows Nikita's provider rule: anything that needs a computer (code, files, a terminal, a
 browser) runs in Claude via Claude Code on Nikita's plan; writing and day-to-day work runs on OpenAI. A submind
@@ -76,6 +81,24 @@ in the awesomeness".
    (FOUNDRY.md), and anything coding-related asked for in chat as a `foundry:chat` issue.
 4. **Decisions.** When the submind's rules don't settle something, it goes up to Skippy (below). Skippy decides,
    or, when it needs Nikita, asks Nikita once with a decision card and the options.
+
+## Asks on the Desk, kept by room
+
+Nikita (2026-10-22): questions asked of Skippy, the Magnificent on the Desk are routed to the submind's room and kept
+there. Nothing server-side can post into a project thread, so the Desk keeps them (#273):
+
+- **Tagged in the same answer.** Skippy's closed answer schema has a required `room`: `green` (players, fantasy),
+  `exchange` (money, markets), `boiler` (systems), `foundry` (builds), `relay` (messages, email) or `none`. No extra
+  call; `readReply` files anything outside the set under `none` (`api/_skippy/prompt.ts`).
+- **Kept privately.** `api/skippy.ts` stores each answered turn (question, answer, room, time, model) in the private
+  blob store beside the chat's ledger, one file per room (`desk/skippy/rooms/<room>.json`, Vercel Blob or the Azure
+  `ceo-state` container): the last 200 per room, none older than 30 days (`api/_skippy/log.ts`). The history the
+  browser sends is never kept; a message the privacy check holds back never reaches Claude or the log.
+- **Read only signed in.** `GET /api/skippy-log?room=<room>` (a `vercel.json` rewrite into `api/skippy.ts`; its own
+  route on Azure, behind the site gate) answers only a Desk passkey session. Each room's Desk page (Green, Exchange,
+  Boiler Room, Foundry, Relay) shows its turns in an "Asked Skippy" panel, newest first, collapsed, veiled by Hide.
+  The Exchange's and Relay's asks never reach a public path or the Lattice. There is no outside reader (no token
+  read) yet: that waits on Nikita's word.
 
 ## Escalating to Skippy
 

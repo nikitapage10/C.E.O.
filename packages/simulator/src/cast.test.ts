@@ -32,7 +32,7 @@ describe("cast", () => {
 
   it("Rivet is back on the Foundry floor as first responder, at her alarm post, in her hard hat", () => {
     const rivet = SAMPLE_AGENTS.find((a) => a.id === "semicolon")!;
-    expect(rivet).toMatchObject({ name: "Rivet", role: "First responder", home: { room: "foundry", station: "watch" } });
+    expect(rivet).toMatchObject({ name: "Rivet", role: "First responder and upkeep", home: { room: "foundry", station: "watch" } });
     const p = defaultCast().profiles.semicolon!;
     expect(p.name).toBe("Rivet");
     expect(p.look).toMatchObject({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" });
@@ -69,7 +69,7 @@ describe("cast", () => {
       expect(cast.profiles[r.b]).toBeDefined();
       expect(r.a).not.toBe(r.b);
     }
-    expect(relationshipsOf(cast, "postmaster")).toEqual([expect.objectContaining({ other: "dialtone", kind: "partner", leads: true })]);
+    expect(relationshipsOf(cast, "postmaster")).toEqual([expect.objectContaining({ other: "dialtone", kind: "partner", leads: true }), expect.objectContaining({ other: "static", kind: "friend", leads: false })]);
   });
 
   it("every look preset is a valid look, and icon presets carry a disclaimer", () => {

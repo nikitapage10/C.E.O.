@@ -21,8 +21,8 @@ const SEEDS: Record<string, Seed> = {
   semicolon: {
     look: makeLook({ body: "hardhat", shell: "#b9642a", accent: "#ffb36b", trim: "#b49413" }),
     traits: ["deadpan", "grumpy", "loyal", "sarcastic"],
-    bio: "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, came back the day Skippy left for the Kernel. Keeps the alarm post, reads each new idea first, hands the big jobs to Rocky, and walks the rooms after every ship with a far-sight lens the Geminae lent her. Reports to the Builder, unimpressed.",
-    catchphrase: "Hard hats on. Yes, you too, Rocky. On the… just pick a leg.",
+    bio: "The Foundry's first responder and upkeep keeper, in a hard hat and hi-vis, with a thermos older than the Kernel. Keeps the alarm post, reads each new idea first, hands the big jobs to Rocky, walks the rooms after every ship with the Geminae's far-sight lens, and every five hours checks the locks first and ships one fix, or writes down why not. Reports to the Builder, unimpressed.",
+    catchphrase: "Locks first. Then coffee. Then whatever's squeaking.",
   },
   caret: {
     look: lookFromPreset("rock-engineer"),
@@ -199,7 +199,8 @@ export function defaultCast(): Cast {
       { a: "semicolon", b: "caret", kind: "best-friend", note: "She taught him to fist bump; he does it to everything, the furnace too. She keeps the watch while he sleeps now, as Skippy did. Quieter, Rocky says. Amaze." },
       { a: "ember", b: "caret", kind: "friend", note: "The Builder barks down at him from its floating can-throne all day and calls his welds 'adequate'. It has kept every offcut, labelled. Rocky knows. Amaze amaze." },
       { a: "ember", b: "semicolon", kind: "rival", note: "The Builder conducts; Rivet ran this floor before the Builder existed. The Builder points the baton. Rivet finishes her coffee first." },
-      { a: "tessellate", b: "semicolon", kind: "friend", note: "The only one who has read all 71 pages of his manual. She mentioned it once. He has never been happier, or more nervous." },
+      { a: "tessellate", b: "semicolon", kind: "friend", note: "The only one who has read all 71 pages of his manual. He handed her the upkeep with a 9-page appendix. She read that too. He has never been happier." },
+      { a: "semicolon", b: "soot", kind: "friend", note: "The Pessimist expects every lock to fail. Every five hours Rivet checks them first. They agree only that something will break, and not on her shift." },
       { a: "tessellate", b: "ember", kind: "rival", note: "The Builder says the 71-page manual has seventy pages too many. Rusty has added a page about the Builder. It is page 72." },
       { a: "ledger", b: "memo", kind: "sibling", note: "Memo haunts Ledger's desk. Ledger has filed a complaint with Memo, who forwarded it." },
       { a: "odds", b: "hedge", kind: "crush", note: "Sixty-three percent mutual. Hedge's honesty setting refuses to comment." },
@@ -229,6 +230,7 @@ export function defaultCast(): Cast {
       { a: "turf", b: "gridiron", kind: "friend", note: "Gridiron coaches; the Commentator calls every play he makes, louder than he made it. Gridiron apologises for the volume. For both of them." },
       { a: "turf", b: "ticker", kind: "rival", note: "The Bookie prices the Commentator's real win chance and sweats every decimal; the Commentator shouts the same number. Same maths. Neither admits it." },
       { a: "turf", b: "punt", kind: "friend", note: "The Commentator commentates Punt's naps live. 'HE'S DOWN. HE'S STAYING DOWN.' Punt has never slept better." },
+      { a: "static", b: "postmaster", kind: "friend", note: "The Messenger hears every new email first and minds the inbox's ten dollars; Blasto reads only the ones that need the C.E.O. Gossip on a budget." },
       { a: "static", b: "dialtone", kind: "best-friend", note: "They listen in on the same lines and finish each other's gossip. Neither has told the wrong person. Neither has ever told anyone quietly." },
       { a: "vellum", b: "heimerdinger", kind: "friend", note: "The only two minds in the Archive who footnote their footnotes. They peer-review each other weekly and accept nothing on the first pass." },
       { a: "vellum", b: "d20", kind: "mentor", note: "The Historian corrects D20's dates, D20's dice and D20's spelling of 'initiative'. D20 rolls to ignore it. Fails." },

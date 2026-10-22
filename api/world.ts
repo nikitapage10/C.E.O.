@@ -16,6 +16,7 @@
  * read of the store.
  */
 
+import { readPublicEmailStatus } from "./_email/store.js";
 import * as positions from "./_exchange/positions.js";
 import * as exchange from "./_exchange/route.js";
 import * as green from "./_green/route.js";
@@ -45,7 +46,8 @@ export async function GET(request: Request): Promise<Response> {
       return json(await store.readDay(day));
     }
     const stories = pickStoryStore();
-    const [state, storySpend] = await Promise.all([store.loadState(), stories ? stories.loadSpend().catch((): StorySpend => ({})) : Promise.resolve<StorySpend>({})]);
+    // The email agent's counts (#263) come from its own public file, on the Azure copy only; never its private state.
+    const [state, storySpend, email] = await Promise.all([store.loadState(), stories ? stories.loadSpend().catch((): StorySpend => ({})) : Promise.resolve<StorySpend>({}), readPublicEmailStatus()]);
     const now = Date.now();
     const budget = worldBudget(process.env.WORLD_BUDGET_USD);
     const feed: WorldFeed = {
@@ -60,6 +62,7 @@ export async function GET(request: Request): Promise<Response> {
       spend: { month: monthOf(now), budget, ...monthTotals(state ?? { spend: {} }, now) },
       claude: Boolean(claudeKey()),
       story: { month: monthOf(now), budget: geminiBudget(process.env.GEMINI_BUDGET_USD), gemini: Boolean(geminiKey()), ...storyMonth(storySpend, now) },
+      email,
     };
     return json(feed);
   } catch {

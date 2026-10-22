@@ -3,11 +3,16 @@
  * Nikita types or says something on Today, and Skippy answers in a line or two and suggests where it should go.
  *
  * GET  → { ready }: whether the chat can work here (the Desk's sign-in and Claude are both set up). Nothing else.
+ * GET /api/skippy-log?room=<room> (on Vercel a rewrite to ?log=1 here; on Azure its own route into this file) → the
+ *        room's "Asked Skippy" turns, newest first (#273, api/_skippy/log.ts): signed-in Desk only (requireSession),
+ *        401 signed-out, 403 cross-site, 400 for a room outside the set, 503 not-set-up.
  * POST → { message, history? } from a signed-in Desk only (requireSession, #132): `message` is what Nikita just said
  *        (at most 600 characters), `history` the last few turns the browser kept ({ who: "nikita" | "skippy", text },
- *        at most eight). Nothing is stored here and no message text is ever logged: the browser holds the
- *        conversation, and it is gone when the tab closes.
- *        200 { reply, actions }: Skippy's answer, and up to three buttons from a closed set (api/_skippy/prompt.ts):
+ *        at most eight). The browser holds the conversation, and the history is never stored. Each answered question
+ *        and its reply is kept in the private store under the room Skippy tagged it with (#273, api/_skippy/log.ts):
+ *        the last 200 per room, 30 days at most, read back only in a Desk session. No message text is ever logged.
+ *        200 { reply, actions, room }: Skippy's answer, the room it belongs with ("green", "exchange", "boiler",
+ *        "foundry", "relay" or "none"), and up to three buttons from a closed set (api/_skippy/prompt.ts):
  *          { kind: "idea", label, text }            file `text` as an idea, through the Suggest box's own path
  *          { kind: "answer", label, issue, text }   answer Rivet's open question on `issue`, through the Desk's path
  *          { kind: "open", label, page }            open a Desk page
@@ -39,6 +44,7 @@ import { costOf, setupList, type Usage } from "./foundry.js";
 import { BlobChatLedger, CHAT_MAX_TOKENS, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, type ChatLedger } from "./_skippy/budget.js";
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
+import { BlobRoomLog, isLogRoom, type RoomLog } from "./_skippy/log.js";
 import { LOOKUP_PROMPT, OVER_BUDGET, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb } from "./_skippy/prompt.js";
 import { monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
@@ -57,8 +63,11 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
 }
 
-/** One answer from Claude: the parsed answer (null when unusable), what it used in all (null when nothing answered), and what that cost. */
-export type Ask = (system: string, input: string) => Promise<{ answer: unknown; usage: Usage | null; usd?: number }>;
+/**
+ * One answer from Claude: the parsed answer (null when unusable), what it used in all (null when nothing answered),
+ * what that cost, and the model whose answer it is (kept with the turn, #273).
+ */
+export type Ask = (system: string, input: string) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string }>;
 
 const sumUsage = (a: Usage, b: Usage): Usage => ({
   input_tokens: a.input_tokens + b.input_tokens,
@@ -118,7 +127,7 @@ export function claudeChat(key: string): Ask {
     let usd = costOf(first.usage, SONNET_PRICE);
     const query = readLookup(first.parsed);
     const deeper = readDeeper(first.parsed);
-    if (!query && !deeper) return { answer: first.parsed, usage, usd };
+    if (!query && !deeper) return { answer: first.parsed, usage, usd, model: SKIPPY_MODEL };
     let again = input;
     if (query) {
       try {
@@ -134,9 +143,10 @@ export function claudeChat(key: string): Ask {
       const second = await answer(deeper ? SKIPPY_DEEP_MODEL : SKIPPY_MODEL, system, again);
       usage = sumUsage(usage, second.usage);
       usd += costOf(second.usage, deeper ? OPUS_PRICE : SONNET_PRICE);
-      return { answer: second.parsed ?? first.parsed, usage, usd };
+      const model = second.parsed ? (deeper ? SKIPPY_DEEP_MODEL : SKIPPY_MODEL) : SKIPPY_MODEL;
+      return { answer: second.parsed ?? first.parsed, usage, usd, model };
     } catch {
-      return { answer: first.parsed, usage, usd };
+      return { answer: first.parsed, usage, usd, model: SKIPPY_MODEL };
     }
   };
 }
@@ -165,6 +175,8 @@ export interface ChatDeps {
   store: AuthStore | null;
   ledger: ChatLedger | null;
   ask: Ask | null;
+  /** Where each answered ask is kept by room (#273); null or left out keeps nothing. */
+  log?: RoomLog | null;
   /** The saved world (its spend and its clock), or null. */
   world: () => Promise<WorldState | null>;
   /** The Desk's live state for Skippy. */
@@ -181,6 +193,7 @@ function defaultDeps(): ChatDeps {
     deskKey: env.FOUNDRY_DESK_KEY ?? "",
     store: pickAuthStore(env),
     ledger: blob ? new BlobChatLedger(blob) : null,
+    log: blob ? new BlobRoomLog(blob) : null,
     ask: key ? claudeChat(key) : null,
     world: async () => (await pickStore(env)?.loadState().catch(() => null)) ?? null,
     desk: async (world) => {
@@ -192,9 +205,37 @@ function defaultDeps(): ChatDeps {
   };
 }
 
-export async function GET(): Promise<Response> {
+/** The room log's own address; on Vercel vercel.json rewrites it to /api/skippy?log=1. */
+export const LOG_PATH = "/api/skippy-log";
+
+/** Whether a request is for the room log rather than the chat. */
+export function isLog(request: Request): boolean {
+  const url = new URL(request.url);
+  return url.pathname === LOG_PATH || url.searchParams.has("log");
+}
+
+export async function GET(request?: Request): Promise<Response> {
+  if (request && isLog(request)) return roomLog(request, defaultDeps());
   const d = defaultDeps();
   return json({ ready: Boolean(d.deskKey && d.store && d.ledger && d.ask) });
+}
+
+/**
+ * A room's "Asked Skippy" turns (#273), newest first: only in a passkey session, checked before anything is read.
+ * Everything it holds is private (the Exchange's and Relay's asks included), so there is no public view of it.
+ */
+export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" | "store" | "log" | "now">): Promise<Response> {
+  if (!deps.deskKey || !deps.store) return json({ error: "not-set-up" }, 503);
+  const signed = await requireSession(request, { deskKey: deps.deskKey, store: deps.store, now: deps.now });
+  if (!signed.ok) return signed.response;
+  const room = new URL(request.url).searchParams.get("room");
+  if (!isLogRoom(room)) return withCookie(json({ error: "bad-request" }, 400), signed);
+  if (!deps.log) return withCookie(json({ error: "not-set-up" }, 503), signed);
+  try {
+    return withCookie(json({ room, turns: await deps.log.list(room, deps.now) }), signed);
+  } catch {
+    return withCookie(json({ error: "unreadable" }, 502), signed);
+  }
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -258,5 +299,13 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   // Every call that answered counts against the month, usable or not.
   if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd).catch(() => undefined);
   const reply = readReply(got.answer, desk);
-  return reply ? json(reply) : json({ error: "model" }, 502);
+  if (!reply) return json({ error: "model" }, 502);
+  // Kept under its room for the room's Desk page (#273): the question (already through the privacy check), the answer,
+  // the room, the time and the model. A failed write never costs Nikita the answer.
+  if (deps.log) {
+    await deps.log
+      .add({ at: new Date(deps.now).toISOString(), question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL }, deps.now)
+      .catch(() => undefined);
+  }
+  return json(reply);
 }

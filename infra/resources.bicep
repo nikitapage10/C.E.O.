@@ -41,6 +41,9 @@ param skippyBudgetUsd string
 @description('The email agent\'s own monthly Claude cap, in USD (EMAIL_BUDGET_USD), as a string.')
 param emailBudgetUsd string
 
+@description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV): sandbox or live.')
+param paypalEnv string
+
 param tags object
 
 // Globally unique names carry a hash of the resource group, so the same paste lands on the same names every time.
@@ -79,6 +82,10 @@ var secrets = [
   { setting: 'GMAIL_CLIENT_ID', secret: 'gmail-client-id' }
   { setting: 'GMAIL_CLIENT_SECRET', secret: 'gmail-client-secret' }
   { setting: 'GMAIL_TOKEN_KEY', secret: 'gmail-token-key' }
+  // The Spire's invoices (#279, docs/PAYPAL.md): PayPal's REST app (client credentials). Sandbox or live is the plain
+  // PAYPAL_ENV setting below; switching to live means pasting the Live app's id and secret here.
+  { setting: 'PAYPAL_CLIENT_ID', secret: 'paypal-client-id' }
+  { setting: 'PAYPAL_CLIENT_SECRET', secret: 'paypal-client-secret' }
 ]
 
 // Built-in role IDs (the same in every tenant).
@@ -251,6 +258,8 @@ var plainSettings = [
   { name: 'SKIPPY_BUDGET_USD', value: skippyBudgetUsd }
   // The email agent's own cap (#263; Nikita: $10 a month), separate from the three above.
   { name: 'EMAIL_BUDGET_USD', value: emailBudgetUsd }
+  // The Spire's invoices (#279): sandbox until Nikita switches to live (docs/PAYPAL.md).
+  { name: 'PAYPAL_ENV', value: paypalEnv }
 ]
 
 resource functionApp 'Microsoft.Web/sites@2024-11-01' = {

@@ -208,6 +208,16 @@ is masked by Hide; the public site gets counts and states only (`EmailStatus`, a
 untrusted input to Claude: fenced as data, no tools, structured output checked in code. Connect Gmail is the OAuth
 web flow with a signed, short-lived state cookie checked in constant time. Its own Claude cap is `EMAIL_BUDGET_USD`.
 
+## The Spire's invoices
+
+The Spire's PayPal invoicing (#279, [PAYPAL.md](PAYPAL.md)) runs only on the Azure copy, with the REST app's client
+id and secret as Key Vault secrets; the access token stays in the function's memory. It makes **draft** invoices from
+the Desk; the only call that reaches a client is send, which needs the passkey session, the Desk's own origin, a JSON
+`POST` and `confirm: true`, which the page adds only after its in-page "Yes, send it" step. Drafts are validated on
+the server (email, amounts above 0 with two decimals, at most 20 lines, lengths). The request function refuses every
+PayPal path but the invoicing ones. The list is private (`private, no-store`, masked by Hide); the public site gets
+counts only (`InvoiceStatus`, an allowlist with a test). Nothing is stored or logged.
+
 ## Pings on the phone
 
 The Desk can sit on a phone's home screen like an app and send one notification when something needs Nikita's call

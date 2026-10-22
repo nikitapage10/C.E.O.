@@ -196,9 +196,9 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. Between jobs, stands at his drafting table over the plan of the biggest idea coming. |
 | Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reads every idea that comes in from the Desk first, rewrites it into a card, and asks one short question before it goes to the queue when something is unclear. After every ship she walks the rooms with the far-sight lens and tags what looks wrong. Keeps the upkeep too, in her own lane (since 2026-10-22): every five hours at the upkeep bench she checks the locks first (security and compliance), then ships one small fix, or pins a card to the intake saying why not. Thinks in a Haiku for the alarm, a Sonnet for the upkeep, an Opus only when the job is worth the breath. Reports to the Builder now, unimpressed. |
 | Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from its can-throne, floating high in the back-right corner (Rocky fitted the coaster), floats out to hand each job over, and picks the rung for every fix. Never runs a crate itself. |
-| Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
+| Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. Keeps the Spire's real invoices, checked twice, counted out loud, never a name or a sum on the floor. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
-| Spire | **The Executive** (a piece of Skippy) | Admiral's can, gold | Skippy's submind for the Spire: the room lead. Runs the floor like a keynote; every errand is a real opportunity, every compliment has a price tag. |
+| Spire | **The Executive** (a piece of Skippy) | Admiral's can, gold | Skippy's submind for the Spire: the room lead. Runs the floor like a keynote; every errand is a real opportunity, every compliment has a price tag. Since the Spire's line to PayPal came up, it pitches every draft invoice as a pipeline and keeps the open-invoice count on its easel, though only the C.E.O. may press Send. |
 | Exchange | **Noco** (Gepetti) | Gestral | A merchant who duels for prices and isn't afraid to lose, because a fallen Gestral walks back up the river. |
 | Exchange | **Hedge** (Claudari) | Monolith | Risk desk. Honesty 90%, humour 75%. Sits two desks from the one trader who can't lose. |
 | Exchange | **The Bookie** (a piece of Skippy) | Admiral's can, mint | Skippy's submind for the Exchange: the room lead. Prices everything, hedges everything, and sweats every trade until the C.E.O. nods. Keeps the Exchange's first live board, Polymarket's public odds, read-only, and argues with every number on it. Runs the ticker ring and the odds board on that live feed, and keeps the C.E.O.'s own Polymarket US book behind the Desk's passkey: it reads, never trades, and never says a figure on the floor. Since the Exchange went live there are no pretend trades on the floor: the marquee over the back wall carries the C.E.O.'s positions (market, side, odds now, P/L in percent) for the C.E.O.'s signed-in eyes only, and the Bookie reads the public odds out loud. |
@@ -436,6 +436,17 @@ the moment it lands, chose the quick model for Dialtone and the clever one for B
 the inbox's ten dollars a month. When the meter runs out it stops the models, never the counting, and the board
 says so until the month turns. A brass inbox board beside the post-office boxes shows how many need the C.E.O.;
 the board, like the rest of the Lattice, only ever gets numbers. What the letters say stays behind the passkey.
+
+## The ledger by PayPal
+
+The second room strung to the C.E.O.'s own world was the Spire. Its line runs to PayPal, on the Azure side beyond the
+Veil, and it carries invoices. The C.E.O. fills one in on the Desk (a client, the lines, a due date, a note), and
+PayPal keeps it as a **draft**: nothing goes to the client. Ledger checks it twice. Only when the C.E.O. presses Send,
+and says yes a second time, does PayPal email it out; the Executive has asked to press that button more than once and
+been told no every time, which it calls governance. From then on the Spire watches each invoice through **sent**,
+**viewed**, **paid**, **overdue** or **cancelled**. The first invoices are practice money in PayPal's sandbox; the
+switch to real money is the C.E.O.'s alone. The Executive's easel, which used to promise Q4 synergy, now shows the
+open-invoice count, and that is all the Lattice ever gets from the Spire: numbers, never a client, an address or a sum.
 
 ## The Boiler Room
 

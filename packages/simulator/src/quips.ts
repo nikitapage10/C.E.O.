@@ -56,6 +56,8 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Synergy. I said it. I'm not proud.",
     "Quarterly numbers look great if you squint.",
     "This meeting could have been a ping.",
+    "Two open invoices. Ledger, that's a pipeline.",
+    "Drafts wait for the C.E.O.'s Send. Nobody else's.",
   ],
   exchange: [
     "Buy low, sell lower. Wait.",
@@ -358,12 +360,16 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Daub, what if the hands were—no. What if the hands were MORE.",
     "I suffer for this. I suffer so beautifully for this.",
     "Start at the easel, or the mould, or—ooh. Ooh. Hold that thought.",
+    "A draft invoice is just a deal that hasn't heard yes yet.",
+    "I'd press Send myself. I'm not allowed. Love that for governance.",
   ],
   ledger: [
     "I'm a real accountant. Stop looking at my cuffs.",
     "Memo, I can see you in the filing cabinet.",
     "The totals reconcile. I'll count again anyway.",
     "Don't panic. It says so on the cover. I'm panicking.",
+    "Sandbox money. Counted twice anyway.",
+    "Overdue is a state, not a feeling. I'm having the feeling.",
   ],
   memo: [
     "Forwarding this to someone with a body.",

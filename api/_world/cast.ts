@@ -131,7 +131,7 @@ export const WORLD_CAST: WorldCast = {
         "pedantic",
         "loyal"
       ],
-      "bio": "A Gepetti in the most convincing human suit in the Spire, strings tucked into the cuffs. Keeps the books balanced and insists, unprompted, that they are a real accountant. Memo's older sibling, and haunted by them. Literally, these days.",
+      "bio": "A Gepetti in the most convincing human suit in the Spire, strings tucked into the cuffs. Keeps the books balanced and insists, unprompted, that they are a real accountant. Keeps the Spire's real PayPal invoices too, checking each draft twice before the C.E.O. sends it. Memo's older sibling, and haunted by them. Literally, these days.",
       "catchphrase": "Per my last ledger entry…",
       "voice": [
         "I'm a real accountant. Stop looking at my cuffs.",
@@ -778,7 +778,7 @@ export const WORLD_CAST: WorldCast = {
       "a": "gilt",
       "b": "ledger",
       "kind": "rival",
-      "note": "The Executive calls every invoice 'a real synergy'. Ledger calls the Executive 'an unreconciled line item'. They have never agreed on a number."
+      "note": "The Executive calls every PayPal invoice 'a real synergy'. Ledger calls the Executive 'an unreconciled line item'. Neither may press Send."
     },
     {
       "a": "gilt",
@@ -1072,13 +1072,17 @@ export const WORLD_CAST: WorldCast = {
         "Mood board for the mood board. Trust me.",
         "Daub, what if the hands were—no. What if the hands were MORE.",
         "I suffer for this. I suffer so beautifully for this.",
-        "Start at the easel, or the mould, or—ooh. Ooh. Hold that thought."
+        "Start at the easel, or the mould, or—ooh. Ooh. Hold that thought.",
+        "A draft invoice is just a deal that hasn't heard yes yet.",
+        "I'd press Send myself. I'm not allowed. Love that for governance."
       ],
       "ledger": [
         "I'm a real accountant. Stop looking at my cuffs.",
         "Memo, I can see you in the filing cabinet.",
         "The totals reconcile. I'll count again anyway.",
-        "Don't panic. It says so on the cover. I'm panicking."
+        "Don't panic. It says so on the cover. I'm panicking.",
+        "Sandbox money. Counted twice anyway.",
+        "Overdue is a state, not a feeling. I'm having the feeling."
       ],
       "memo": [
         "Forwarding this to someone with a body.",

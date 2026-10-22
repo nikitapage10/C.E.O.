@@ -128,12 +128,14 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `polymarket-us-key-id`, `polymarket-us-secret-key` | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` (optional, #253: the Exchange's read-only positions; Azure only) |
    | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
    | `gmail-client-id`, `gmail-client-secret`, `gmail-token-key` (the email agent, #263; Azure only, set up as in [GMAIL.md](GMAIL.md)) | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_KEY` |
+   | `paypal-client-id`, `paypal-client-secret` (the Spire's invoices, #279; Azure only, see [PAYPAL.md](PAYPAL.md)) | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings, lower than Vercel's because both copies
    use the same Claude and Gemini accounts, and each copy keeps its own ledger. `WORLD_BUDGET_USD=2` (Vercel: 6),
    `GEMINI_BUDGET_USD=2` (Vercel: 5) and `SKIPPY_BUDGET_USD=0.5` (Vercel: 1); change one with `-p worldBudgetUsd=3`
    (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. The email agent's own cap, `EMAIL_BUDGET_USD=10`
-   (`emailBudgetUsd`, #263), is separate from those and exists only here. Anything set by hand in the portal is reset by the next
+   (`emailBudgetUsd`, #263), is separate from those and exists only here. `PAYPAL_ENV` (`paypalEnv`, #279) is
+   `sandbox` unless the paste passes `-p paypalEnv=live`. Anything set by hand in the portal is reset by the next
    template run, so change them there.
    Vercel's `BLOB_*` settings have no counterpart: the Function App already has `WORLD_STORE=azureblob`,
    `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_BLOB_ENDPOINT` and `AZURE_STORAGE_CONTAINER=ceo-state`.
@@ -188,6 +190,9 @@ The same code runs on Vercel and on Azure; nothing here changes how Vercel runs 
 - **The email agent (#263) is Azure only.** `azure/src/index.ts` also registers `/api/email` and `/api/gmail-callback`
   (behind the same gate) and one timer function, `email_tick`, every minute. Vercel has neither, so its Desk shows the
   email agent as living on the Azure copy. Setup, privacy and the cap: [GMAIL.md](GMAIL.md).
+- **The Spire's invoices (#279) are Azure only.** `azure/src/index.ts` registers `/api/invoices` (behind the same
+  gate), which talks to PayPal's Invoicing API with `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `PAYPAL_ENV`.
+  Vercel has no route for it, so its Spire page says invoicing lives on the Azure copy. [PAYPAL.md](PAYPAL.md).
 - **Passkeys are per domain.** The Desk's passkeys are tied to the address they were made on, so signing in to the
   Desk on the Azure address needs its own passkey, enrolled there with the Desk key as on Vercel. Azure's store
   starts empty: Vercel's passkeys don't carry over, and neither do the world, the stories or the pictures until

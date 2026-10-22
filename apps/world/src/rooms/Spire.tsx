@@ -8,16 +8,32 @@ import { screenMaterial } from "../fx/materials.ts";
 import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { PALETTE } from "../theme.ts";
+import { invoicesLine, startInvoices, useInvoices } from "../desk/spire/invoices.ts";
 import { Block, FONTS, GlassWall, LightBar, Plant, Plinth, Workstation, ahead } from "./primitives.tsx";
 import { penthouseSkyMaterial } from "./sky.ts";
 
 const MOODS = ["NO.", "LATER.", "DECAF?", "…"];
+
+/**
+ * The KPI easel's heading, live (#279): the Spire's open-invoice count from PayPal, through the public counts only
+ * (desk/spire/invoices.ts, ?view=status). Never a client, an email or an amount.
+ */
+function useLedgerLine(): string {
+  const load = useInvoices((s) => s.load);
+  const status = useInvoices((s) => s.status);
+  useEffect(() => startInvoices(), []);
+  if (load === "off") return "INVOICES · ON THE AZURE COPY";
+  if (status?.paypal === "waiting") return "INVOICES · KEYS PENDING";
+  if (status?.paypal === "error") return "INVOICES · PAYPAL IS QUIET";
+  return status ? invoicesLine(load, status).toUpperCase() : "INVOICES · READING";
+}
 
 /** The Spire: a penthouse office in pale stone and glass, for the small-business agents. */
 export function Spire() {
   const kpi = useMemo(() => screenMaterial(PALETTE.violet, { speed: 0.25, density: 6 }), []);
   const bars = useRef<Group>(null);
   const [mood, setMood] = useState(0);
+  const ledger = useLedgerLine();
   useEffect(() => {
     const id = setInterval(() => setMood((m) => (m + 1) % MOODS.length), 5000);
     return () => clearInterval(id);
@@ -89,7 +105,7 @@ export function Spire() {
           <Block key={s} size={[0.05, 1.9, 0.05]} position={[s * 1.1, 0.95, -0.15]} rotation={[0.12, 0, 0]} material={PBR.aluminium()} radius={0.01} />
         ))}
         <Text font={FONTS.mono} fontSize={0.11} position={[0, 2.62, 0.01]} letterSpacing={0.18} color="#2a2f38">
-          Q4 SYNERGY (UP, PROBABLY)
+          {ledger}
         </Text>
       </group>
 

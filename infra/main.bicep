@@ -53,6 +53,10 @@ param skippyBudgetUsd string = '0.5'
 @description('The email agent\'s own monthly Claude cap on the Azure copy, in USD (EMAIL_BUDGET_USD, #263).')
 param emailBudgetUsd string = '10'
 
+@description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV, #279): sandbox until Nikita switches to live. Set it to live on the paste once the Live keys are in.')
+@allowed(['sandbox', 'live'])
+param paypalEnv string = 'sandbox'
+
 @description('Tags on every resource.')
 param tags object = {
   app: 'ceo'
@@ -79,6 +83,7 @@ module resources 'resources.bicep' = {
     geminiBudgetUsd: geminiBudgetUsd
     skippyBudgetUsd: skippyBudgetUsd
     emailBudgetUsd: emailBudgetUsd
+    paypalEnv: paypalEnv
     tags: tags
   }
 }

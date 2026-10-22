@@ -32,10 +32,15 @@ export interface GreenPlayer {
   /** Average league points a game this season (weeks he scored), and the last game's; null when he hasn't played for a team here. */
   avg: number | null;
   last: number | null;
+  /** FantasyPros' consensus rank at his position for this week (its start/sit order), when the key is set. */
+  wk: number | null;
   /** FantasyPros' rest-of-season consensus rank, overall and by position ("RB12"), when the key is set. */
   ecr: number | null;
   posRank: string | null;
-  /** His bye week, when FantasyPros says. */
+  /**
+   * His bye week: FantasyPros' (`player_bye_week`), or this week when FantasyPros projects nobody on his team while its
+   * projections are live; Sleeper's schedule only when FantasyPros has nothing on him.
+   */
   bye: number | null;
 }
 
@@ -101,6 +106,18 @@ export interface GreenStanding {
 /** FantasyPros' part: "live" with the key and a good read, "waiting" without a key, "failed" when it didn't answer. */
 export type FpState = "live" | "waiting" | "failed";
 
+/** What FantasyPros' read brought back: rows per part, and the status of each part that failed (an HTTP code, "timeout" or "error"). */
+export interface FpParts {
+  proj: number;
+  weekly: number;
+  ros: number;
+  injuries: number;
+  errors: { part: string; status: number | "timeout" | "error" }[];
+}
+
+/** Where the start-or-sit calls come from. */
+export type CallSource = "fp" | "form";
+
 export interface GreenBoard {
   ok: true;
   /** When the server put this together (ISO). */
@@ -129,7 +146,13 @@ export interface GreenBoard {
   standings: GreenStanding[];
   /** My players other leagues are dropping fastest today. */
   dropping: { player: GreenPlayer; drops: number }[];
-  sources: { sleeper: "live"; fantasypros: FpState; fpAt: string | null };
+  /** Teams on bye this week (Sleeper's schedule, and FantasyPros' projections when live); empty when unknown. */
+  byes: string[];
+  /**
+   * `calls`: where the start-or-sit calls come from: "fp" when FantasyPros' projections for this week drive them,
+   * "form" when they come from the players' scores here (FantasyPros waiting, failed, or without this week yet).
+   */
+  sources: { sleeper: "live"; fantasypros: FpState; fpAt: string | null; calls: CallSource; fpParts: FpParts | null };
   /** True when Sleeper didn't answer and this is the last good read. */
   stale?: true;
 }

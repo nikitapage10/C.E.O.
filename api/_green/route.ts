@@ -8,17 +8,20 @@
  *                         edge for two minutes, and a warm instance reads Sleeper at most once in that time; any other
  *                         query string is sent back to the bare address.
  *
+ * Byes come from Sleeper's schedule (a team with no game this week), and from FantasyPros' weekly projections when they
+ * are live (a team with no rows at all), never from FantasyPros alone.
+ *
  * Read-only everywhere: Sleeper's public API (no key) and, where the `FANTASYPROS` key is set (Azure), FantasyPros'
  * official API. Nothing is written to either; the Desk links to Sleeper for the moves.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { FP_PATH, PLAYERS_PATH, keptOrRead, pickGreenStore, type GreenStore } from "./cache.js";
-import { fpKey, readFantasyPros, scoringOf, type FpData } from "./fantasypros.js";
+import { FP_PATH, PLAYERS_PATH, SCHEDULE_PATH, keptOrRead, pickGreenStore, type GreenStore } from "./cache.js";
+import { FpUnavailable, fpKey, readFantasyPros, scoringOf, type FpData } from "./fantasypros.js";
 import { buildBoard, slotTakes } from "./model.js";
-import { LEAGUE_ID, getJson, pickLeague, readPlayers, shapeLeague, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, shapeTrending, urls, type Fetcher, type League, type MatchupRow, type NflState } from "./sleeper.js";
-import { GREEN_POS, type FpState, type GreenBoard, type GreenPos } from "./types.js";
+import { LEAGUE_ID, getJson, pickLeague, readPlayers, readSchedule, shapeLeague, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, shapeTrending, urls, type Fetcher, type League, type MatchupRow, type NflState, type Schedule } from "./sleeper.js";
+import { GREEN_POS, type FpParts, type FpState, type GreenBoard, type GreenPos } from "./types.js";
 
 export const PATH = "/api/green-league";
 /** How long the edge and a warm instance keep a board. */
@@ -93,16 +96,19 @@ async function weekRows(deps: GreenDeps, league: string, week: number, current: 
   return rows;
 }
 
-async function fantasyPros(deps: GreenDeps, league: League, state: NflState): Promise<{ fp: FpData | null; fpState: FpState }> {
+/** Bumped whenever the kept FantasyPros shape changes, so an old copy is never served as this one. */
+export const FP_SHAPE = "v2";
+
+async function fantasyPros(deps: GreenDeps, league: League, state: NflState): Promise<{ fp: FpData | null; fpState: FpState; fpParts?: FpParts }> {
   if (!deps.fpKey) return { fp: null, fpState: "waiting" };
   const key = deps.fpKey;
   const positions = GREEN_POS.filter((p) => league.slots.some((s) => slotTakes(s).includes(p))) as GreenPos[];
-  const tag = `${state.season}-${state.week}-${scoringOf(league.rec)}`;
+  const tag = `${FP_SHAPE}-${state.season}-${state.week}-${scoringOf(league.rec)}`;
   try {
     const got = await keptOrRead(deps.store, FP_PATH, tag, FP_TTL_MS, DAY_MS, deps.now, () => readFantasyPros(deps.fetcher, key, state.season, state.week, league.rec, positions));
     return { fp: got.value, fpState: "live" };
-  } catch {
-    return { fp: null, fpState: "failed" };
+  } catch (e) {
+    return { fp: null, fpState: "failed", ...(e instanceof FpUnavailable && { fpParts: e.parts }) };
   }
 }
 
@@ -111,7 +117,7 @@ export async function readBoard(deps: GreenDeps): Promise<GreenBoard> {
   const league = await leagueNow(deps, state.season);
   const week = state.week;
   const pastWeeks = Array.from({ length: Math.max(0, week - 1) }, (_, i) => i + 1);
-  const [rosters, users, matchups, history, adds, drops, players] = await Promise.all([
+  const [rosters, users, matchups, history, adds, drops, players, schedule] = await Promise.all([
     getJson(deps.fetcher, urls.rosters(league.id)).then(shapeRosters),
     getJson(deps.fetcher, urls.users(league.id)).then(shapeTeamNames),
     week >= 1 ? getJson(deps.fetcher, urls.matchups(league.id, week)).then(shapeMatchups) : Promise.resolve([]),
@@ -119,9 +125,15 @@ export async function readBoard(deps: GreenDeps): Promise<GreenBoard> {
     getJson(deps.fetcher, urls.trending("add")).then(shapeTrending).catch(() => ({})),
     getJson(deps.fetcher, urls.trending("drop")).then(shapeTrending).catch(() => ({})),
     keptOrRead(deps.store, PLAYERS_PATH, "nfl", DAY_MS, 7 * DAY_MS, deps.now, () => readPlayers(deps.fetcher)).then((k) => k.value),
+    // The byes, from the schedule (independent of FantasyPros); without it the board still answers.
+    keptOrRead(deps.store, SCHEDULE_PATH, state.season, DAY_MS, 7 * DAY_MS, deps.now, () => readSchedule(deps.fetcher, state.season))
+      .then((k): Schedule | null => k.value)
+      .catch(() => null),
   ]);
-  const { fp, fpState } = await fantasyPros(deps, league, state);
-  return buildBoard({ league, state, rosters, teamNames: users, matchups, history, players, adds, drops, fp, fpState, at: new Date(deps.now).toISOString() });
+  const { fp, fpState, fpParts } = await fantasyPros(deps, league, state);
+  const board = buildBoard({ league, state, rosters, teamNames: users, matchups, history, players, adds, drops, fp, fpState, schedule, at: new Date(deps.now).toISOString() });
+  if (fpParts && !board.sources.fpParts) board.sources.fpParts = fpParts;
+  return board;
 }
 
 export async function GET(request: Request, deps: GreenDeps = live()): Promise<Response> {

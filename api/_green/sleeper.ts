@@ -8,6 +8,7 @@
  *   https://api.sleeper.app/v1/league/<league>                        /rosters /users /matchups/<week>
  *   https://api.sleeper.app/v1/players/nfl/trending/add|drop?lookback_hours=24&limit=50
  *   https://api.sleeper.app/v1/players/nfl                            ~15 MB: read at most once a day (cache.ts)
+ *   https://api.sleeper.com/schedule/nfl/regular/<season>             the season's games (~27 kB), once a day: the byes
  *
  * Everything that comes back is untrusted: rebuilt with only the fields the board needs, text stripped of control and
  * direction characters and cut short, ids checked, numbers range-checked, answers past a size cap refused.
@@ -18,6 +19,8 @@
 import { GREEN_POS, GREEN_TEXT_MAX, type GreenInjury, type GreenPos } from "./types.js";
 
 export const SLEEPER = "https://api.sleeper.app/v1";
+/** Sleeper's schedule lives on its other host. */
+export const SLEEPER_SCHEDULE = "https://api.sleeper.com/schedule/nfl/regular";
 /** Nikita's Sleeper account and league (Nikita, 2026-10-22). Public ids, not secrets. */
 export const USER_ID = "464876436994387968";
 export const LEAGUE_ID = "1382508114531598336";
@@ -33,6 +36,9 @@ export const SNOWFLAKE = /^\d{1,24}$/;
 /** A Sleeper player id: digits, or a team code for a defence. */
 export const PLAYER_ID = /^(\d{1,8}|[A-Z]{2,3})$/;
 const TEAM = /^[A-Z]{2,3}$/;
+
+/** The 32 teams, in Sleeper's codes. */
+export const NFL_TEAMS: ReadonlySet<string> = new Set(["ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LAC", "LAR", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"]);
 
 /** Plain, short text: no control, zero-width or direction characters, whitespace collapsed. */
 export function cleanText(v: unknown, max = GREEN_TEXT_MAX): string {
@@ -271,6 +277,47 @@ export function pickLeague(raw: unknown, knownId: string, knownName: string | nu
   return typeof same?.league_id === "string" && SNOWFLAKE.test(same.league_id) ? same.league_id : null;
 }
 
+/* ── the schedule, for the byes ── */
+
+/** Which teams play in each regular-season week: week → team codes. */
+export type Schedule = Record<string, string[]>;
+
+/** Sleeper's schedule trimmed to who plays when; games with an unknown team or a week out of range are dropped. */
+export function shapeSchedule(raw: unknown): Schedule {
+  const weeks = new Map<number, Set<string>>();
+  for (const v of arr(raw)) {
+    const g = obj(v);
+    const week = num(g.week);
+    const home = typeof g.home === "string" ? g.home.trim().toUpperCase() : "";
+    const away = typeof g.away === "string" ? g.away.trim().toUpperCase() : "";
+    if (week === null || !Number.isInteger(week) || week < 1 || week > 18 || !NFL_TEAMS.has(home) || !NFL_TEAMS.has(away) || home === away) continue;
+    const set = weeks.get(week) ?? new Set<string>();
+    set.add(home).add(away);
+    weeks.set(week, set);
+  }
+  const out: Schedule = {};
+  for (const [w, set] of [...weeks].sort((a, b) => a[0] - b[0])) out[String(w)] = [...set].sort();
+  return out;
+}
+
+/** Reads the season's schedule; refuses one too thin to be the real thing. */
+export async function readSchedule(fetcher: Fetcher, season: string): Promise<Schedule> {
+  const s = shapeSchedule(await getJson(fetcher, urls.schedule(season)));
+  if (Object.keys(s).length < 10) throw new Error("schedule too short");
+  return s;
+}
+
+/**
+ * The teams on bye in a week, by the schedule: every team without a game. Null when the schedule can't say (no games
+ * that week, or so few that it looks wrong: the NFL never rests more than eight teams at once).
+ */
+export function byesOf(schedule: Schedule | null, week: number): string[] | null {
+  const playing = schedule?.[String(week)];
+  if (!playing || playing.length < NFL_TEAMS.size - 8) return null;
+  const set = new Set(playing);
+  return [...NFL_TEAMS].filter((t) => !set.has(t)).sort();
+}
+
 export const urls = {
   state: () => `${SLEEPER}/state/nfl`,
   userLeagues: (season: string) => `${SLEEPER}/user/${USER_ID}/leagues/nfl/${season}`,
@@ -278,5 +325,6 @@ export const urls = {
   rosters: (id: string) => `${SLEEPER}/league/${id}/rosters`,
   users: (id: string) => `${SLEEPER}/league/${id}/users`,
   matchups: (id: string, week: number) => `${SLEEPER}/league/${id}/matchups/${week}`,
+  schedule: (season: string) => `${SLEEPER_SCHEDULE}/${encodeURIComponent(season)}`,
   trending: (kind: "add" | "drop") => `${SLEEPER}/players/nfl/trending/${kind}?lookback_hours=24&limit=50`,
 };

@@ -359,6 +359,16 @@
 .desk .gl-inj.is-out {
   color: var(--wv-bad);
 }
+.desk .gl-inj.is-bye {
+  color: var(--wv-faint);
+  border-style: dashed;
+}
+.desk .gl-lineup li[data-call="bye"] .gl-front strong {
+  color: var(--wv-faint);
+}
+.desk .gl-lineup li[data-call="bye"] .gl-call {
+  color: var(--wv-bad);
+}
 
 .desk .gl-bench {
   margin-top: 18px;
@@ -663,4 +673,9 @@
   .desk .gl-field-track b {
     transition: none;
   }
+}
+
+/* What FantasyPros sent on its last read (#259): there to check, not to read. */
+.desk .gl-status .gl-fp {
+  opacity: 0.7;
 }

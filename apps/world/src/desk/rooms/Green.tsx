@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
 import { Parts, Poly, TAU, useViz, weave, type VizSpec } from "../wvCanvas.ts";
-import { commentatorCall, ordinal, pct, pts, sleeperLeagueUrl, startGreen, useGreen, yardLine, type GreenBoard, type GreenPlayer, type GreenSlot, type GreenStatus, type GreenSwap } from "../green/league.ts";
+import { callsWord, commentatorCall, fpLine, onBye, ordinal, pct, pts, sleeperLeagueUrl, startGreen, useGreen, yardLine, type GreenBoard, type GreenPlayer, type GreenSlot, type GreenStatus, type GreenSwap } from "../green/league.ts";
 import "./rooms.css";
 import "../green/green.css";
 
@@ -67,7 +67,14 @@ function ago(iso: string, now: number): string {
   return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 }
 
-function InjTag({ p }: { p: GreenPlayer | null | undefined }) {
+/** A player's tag: BYE when his team has no game this week, else his injury word. */
+function InjTag({ p, week }: { p: GreenPlayer | null | undefined; week: number }) {
+  if (onBye(p, week))
+    return (
+      <span className="gl-inj is-bye" title="On bye this week: no game">
+        BYE
+      </span>
+    );
   if (!p?.inj) return null;
   return (
     <span className={`gl-inj is-${p.inj === "Q" ? "q" : "out"}`} title={INJ_WORD[p.inj]}>
@@ -76,7 +83,7 @@ function InjTag({ p }: { p: GreenPlayer | null | undefined }) {
   );
 }
 
-const srcWord = (p: GreenPlayer) => (p.src === "fp" ? "FantasyPros projection" : p.src === "form" ? "Projected from his scores here" : "No projection yet");
+const srcWord = (p: GreenPlayer) => (p.src === "fp" ? `FantasyPros projection${p.wk ? ` · #${p.wk} at ${p.pos} this week` : ""}` : p.src === "form" ? "Projected from his scores here" : "No projection yet");
 
 /** The scoreboard: lit with the matchup, or dark with why. */
 function Scoreboard({ board, status }: { board: GreenBoard | null; status: GreenStatus }) {
@@ -170,7 +177,7 @@ function HeadToHead({ board }: { board: GreenBoard }) {
               <span className="gl-h-me">
                 <b>{a.player?.name ?? "Empty"}</b>
                 <small>
-                  {a.player?.team ?? ""} <InjTag p={a.player} />
+                  {a.player?.team ?? ""} <InjTag p={a.player} week={board.week} />
                 </small>
               </span>
               <span className="gl-h-v">{pts(va)}</span>
@@ -182,7 +189,7 @@ function HeadToHead({ board }: { board: GreenBoard }) {
               <span className="gl-h-them">
                 <b>{b?.player?.name ?? "Empty"}</b>
                 <small>
-                  {b?.player?.team ?? ""} <InjTag p={b?.player} />
+                  {b?.player?.team ?? ""} <InjTag p={b?.player} week={board.week} />
                 </small>
               </span>
             </li>
@@ -209,13 +216,16 @@ function Lineup({ board }: { board: GreenBoard }) {
           <p className="wv-eyb">Start or sit · {board.me.team}</p>
           <h2 className="wv-h2">The lineup, card by card</h2>
         </div>
-        <p className="wv-note">Turn a card over (hover or tap) for the call and why.</p>
+        <p className="wv-note">
+          {callsWord(board)}. Turn a card over (hover or tap) for the call and why.
+        </p>
       </div>
       <ul style={{ "--n": board.roster.starters.length } as React.CSSProperties}>
         {board.roster.starters.map((s, i) => {
           const p = s.player;
           const sw = p ? outFor.get(p.id) : undefined;
-          const call = !p ? "EMPTY" : sw ? "SIT" : p.inj && p.inj !== "Q" ? "RISK" : "START";
+          const bye = onBye(p, board.week);
+          const call = !p ? "EMPTY" : sw ? "SIT" : bye ? "BYE" : p.inj && p.inj !== "Q" ? "RISK" : "START";
           return (
             <li key={i} tabIndex={0} aria-label={p ? `${s.slot}: ${p.name}, projected ${pts(p.proj)}. Call: ${call}${sw ? `, start ${sw.in.name} instead` : ""}.` : `${s.slot}: empty`} data-call={call.toLowerCase()}>
               <span className="gr-card">
@@ -225,7 +235,7 @@ function Lineup({ board }: { board: GreenBoard }) {
                   <b>{p?.name ?? "Empty slot"}</b>
                   <small>
                     {p?.team ?? ""}
-                    {p && p.pos !== s.slot ? ` · ${p.pos}` : ""} <InjTag p={p} />
+                    {p && p.pos !== s.slot ? ` · ${p.pos}` : ""} <InjTag p={p} week={board.week} />
                   </small>
                 </span>
                 <span className="gr-back gl-back">
@@ -234,6 +244,8 @@ function Lineup({ board }: { board: GreenBoard }) {
                     <span>
                       Start {sw.in.name} ({pts(sw.in.proj)}): {sw.why}.
                     </span>
+                  ) : p && bye ? (
+                    <span>On bye this week, and nobody on the bench fits the slot. Sit him in Sleeper.</span>
                   ) : p ? (
                     <span>
                       {p.inj ? `${INJ_WORD[p.inj]}. ` : ""}
@@ -257,7 +269,7 @@ function Lineup({ board }: { board: GreenBoard }) {
             {board.roster.bench.map((p) => (
               <li key={p.id} className={inFor.has(p.id) ? "is-in" : ""}>
                 <span>
-                  <b>{p.name}</b> <small>{p.pos} · {p.team ?? "FA"}</small> <InjTag p={p} />
+                  <b>{p.name}</b> <small>{p.pos} · {p.team ?? "FA"}</small> <InjTag p={p} week={board.week} />
                 </span>
                 <em>{inFor.has(p.id) ? `START · ${pts(p.proj)}` : pts(p.proj)}</em>
               </li>
@@ -265,7 +277,7 @@ function Lineup({ board }: { board: GreenBoard }) {
             {board.roster.reserve.map((p) => (
               <li key={p.id} className="is-ir">
                 <span>
-                  <b>{p.name}</b> <small>{p.pos} · {p.team ?? "FA"}</small> <InjTag p={p} />
+                  <b>{p.name}</b> <small>{p.pos} · {p.team ?? "FA"}</small> <InjTag p={p} week={board.week} />
                 </span>
                 <em>IR</em>
               </li>
@@ -277,10 +289,13 @@ function Lineup({ board }: { board: GreenBoard }) {
   );
 }
 
-function Calls({ swaps }: { swaps: GreenSwap[] }) {
+function Calls({ board }: { board: GreenBoard }) {
+  const swaps: GreenSwap[] = board.swaps;
   return (
     <section className="gl-calls" aria-label="Calls from the booth">
-      <p className="wv-eyb">Calls from the booth</p>
+      <p className="wv-eyb">
+        Calls from the booth · <span data-src={board.sources.calls}>{callsWord(board)}</span>
+      </p>
       <h2 className="rm-h2">{swaps.length ? `${swaps.length === 1 ? "One change" : `${swaps.length} changes`} worth making` : "The lineup's set"}</h2>
       {swaps.length ? (
         <ol>
@@ -323,7 +338,7 @@ function Wire({ board }: { board: GreenBoard }) {
               <span className="gl-wn">{String(i + 1).padStart(2, "0")}</span>
               <span className="gl-wp">
                 <span className="gl-wname">
-                  <b>{p.player.name}</b> <small>{p.player.pos} · {p.player.team ?? "FA"}</small> <InjTag p={p.player} />
+                  <b>{p.player.name}</b> <small>{p.player.pos} · {p.player.team ?? "FA"}</small> <InjTag p={p.player} week={board.week} />
                 </span>
                 <span className="gl-why">{p.why}</span>
                 {p.drop && <span className="gl-drop">Cut {p.drop.name} for him</span>}
@@ -464,14 +479,18 @@ export function Green() {
               : status === "absent"
                 ? "No team of yours in the league"
                 : "Reading Sleeper…"}
-        <span>FantasyPros {fp === "live" ? "live" : fp === "failed" ? "not answering" : "waiting"}</span>
+        <span className="gl-fp" title="What FantasyPros sent on its last read">
+          {board ? fpLine(board) : `FantasyPros ${fp === "failed" ? "not answering" : "waiting"}`}
+        </span>
+        {board && <span>{board.sources.calls === "fp" ? "Start/sit by FantasyPros" : "Start/sit by form here"}</span>}
+        {board && board.byes.length > 0 && <span>On bye: {board.byes.join(", ")}</span>}
       </p>
 
       {board && (
         <>
           <HeadToHead board={board} />
           <Lineup board={board} />
-          <Calls swaps={board.swaps} />
+          <Calls board={board} />
           <div className="gr-row gl-row">
             <Wire board={board} />
             <Table board={board} />

@@ -10,6 +10,9 @@ import { useSetupStatus } from "./SetupCard.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { systemsModel, type FlowId } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
+import { roomLink } from "./hero/roomLink.ts";
+import { Home } from "./rooms/Home.tsx";
+import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
 /**
@@ -19,12 +22,13 @@ import { describeRun, useVisualQa } from "./visualqa/feed.ts";
  * panel beside it. Below: the rooms still to build, and the world clock every room lives by. Real states only.
  */
 
-/** Rooms whose real systems are still to come, in the order they're likely to be built. */
-const PLANNED: { room: string; name: string; what: string }[] = [
-  { room: "spire", name: "Spire", what: "Invoices, bookings and the business inbox" },
-  { room: "exchange", name: "Exchange", what: "Kalshi and the portfolio" },
-  { room: "green", name: "Green", what: "Sleeper fantasy football" },
-  { room: "workshop", name: "Workshop", what: "New models: an image, then Meshy, then imported and animated here" },
+/** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
+const PLANNED: { room: string; name: string; what: string; href?: string }[] = [
+  { room: "spire", name: "Spire", what: "Stripe Invoicing and the idea scout", href: "/spire" },
+  { room: "exchange", name: "Exchange", what: "Kalshi, market data, and Plaid or statements", href: "/exchange" },
+  { room: "green", name: "Green", what: "Sleeper and FantasyPros", href: "/green" },
+  { room: "workshop", name: "Workshop", what: "Meshy and the Bambu Lab printer", href: "/workshop" },
+  { room: "boiler", name: "The house", what: "Google Nest, below" },
   { room: "breakroom", name: "Break Room", what: "Off the clock; shows the Veil countdown" },
 ];
 
@@ -74,12 +78,12 @@ export function Systems({ now }: { now: number }) {
   const today = world?.recent.filter((e) => new Date(e.at).toDateString() === new Date(now).toDateString()).length ?? 0;
 
   return (
-    <div className={`systems-page wv-page wv-sys${mode !== "overview" ? " is-focus" : ""}`}>
+    <div className={`systems-page wv-page wv-sys rm-boiler${mode !== "overview" ? " is-focus" : ""}`}>
       <SystemsNav />
       <header className="wv-syshead">
         <img className="wv-syshead-pf" src="/desk/agent-gary.webp" alt="" />
         <div>
-          <p className="wv-eyb">What's connected</p>
+          <p className="wv-eyb">The Boiler Room · what's connected</p>
           <h1 className="wv-h1 desk__title">
             {bad.length ? (
               <>
@@ -134,14 +138,20 @@ export function Systems({ now }: { now: number }) {
           <div className="wv-sechead">
             <div>
               <p className="wv-eyb">Still to build</p>
-              <h2 className="wv-h2">{WORDS[PLANNED.length]} rooms, no threads yet</h2>
+              <h2 className="wv-h2">{WORDS[PLANNED.length]} pipes, not yet laid</h2>
             </div>
           </div>
           <ul className="wv-tb-l">
             {PLANNED.map((p) => (
-              <li key={p.room} data-room={p.room}>
+              <li key={p.name} data-room={p.room}>
                 <i className="wv-dot is-ring" />
-                <b>{p.name}</b>
+                {p.href ? (
+                  <a href={p.href} onClick={roomLink(p.href)}>
+                    <b>{p.name}</b>
+                  </a>
+                ) : (
+                  <b>{p.name}</b>
+                )}
                 <span>{p.what}</span>
               </li>
             ))}
@@ -175,6 +185,8 @@ export function Systems({ now }: { now: number }) {
           </button>
         </section>
       </div>
+
+      <Home />
     </div>
   );
 }

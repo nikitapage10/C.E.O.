@@ -17,6 +17,11 @@ export function sstep(a: number, b: number, x: number) {
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 export const gauss = () => (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 2;
 export const frac = (x: number) => x - Math.floor(x);
+export const eOut = (k: number) => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
+export const eInOut = (k: number) => {
+  const x = clamp(k, 0, 1);
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+};
 
 /** The rooms' colours as "r,g,b" (the Desk's --room-* tokens), and the Weave's own lights. */
 export const RC: Record<string, string> = {
@@ -463,6 +468,9 @@ function frame(now: number) {
   }
   requestAnimationFrame(frame);
 }
+
+/** The shared loop's clock (seconds), so an overlay can draw the same moment of a thread as its canvas. */
+export const vizTime = () => TIME;
 
 export function kick() {
   if (running || typeof window === "undefined" || document.visibilityState === "hidden") return;

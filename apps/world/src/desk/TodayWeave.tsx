@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from "react";
 import { chronicleDay, type HistoryEntry, type RoomId, type WorldFeed } from "../chronicle.ts";
 import { CREW, type Change, type FoundryData } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
+import { roomLink } from "./hero/roomLink.ts";
+import { mountainHour, PART } from "./ilyrTime.ts";
 import { formatUsd, monthSpend, SPEND_CAP_USD, type UsageFeed } from "../usage.ts";
 import { clockState, nextLine, useWorldClock } from "../worldClock.ts";
 import { nextRuns } from "./crewRuns.ts";
@@ -257,14 +259,6 @@ function lanesSpec(pulses: RoomPulse[], from: number, to: number, now: number, a
   };
 }
 
-/** What Ilyr's hour is: the Mountain clock, as the world keeps it. */
-function mountainHour(now: number): number {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);
-  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-  const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-  return h + m / 60;
-}
-const PART = (h: number) => (h < 5 ? "Night" : h < 12 ? "Morning" : h < 18 ? "Afternoon" : h < 22 ? "Evening" : "Night");
 
 /** The world clock beside the lanes: the hour of Ilyr's day on a dial, and when it steps next. */
 function WorldClockCard({ now, world }: { now: number; world: WorldFeed | null }) {
@@ -383,8 +377,8 @@ function RoomDrawer({ p, now, onClose }: { p: RoomPulse; now: number; onClose: (
             <button type="button" className="wv-btn is-sm" onClick={onClose}>
               Close
             </button>
-            <a className="wv-link" href={href} onClick={onDesk ? link(href === "/systems" ? "systems" : (href.slice(1) as "foundry" | "relay" | "chronicle")) : link("lattice")}>
-              {onDesk ? `Open ${href === "/systems" ? "Systems" : href === "/chronicle" ? "the Chronicle" : p.name}` : "Walk in on the Lattice"} →
+            <a className="wv-link" href={href} onClick={roomLink(href)}>
+              {onDesk ? `Open the ${p.name}` : "Walk in on the Lattice"} →
             </a>
           </div>
         </div>
@@ -690,8 +684,8 @@ export function ShortVersion({ moments, awaySince, now, storyDay, shipped }: { m
       ) : (
         <p className="wv-allclear-line">
           {shipped ? `${shipped} shipped today; the Foundry tab has every one.` : `Nothing new since ${clock(awaySince)}.`}{" "}
-          <a className="wv-link" href="/chronicle" onClick={link("chronicle")}>
-            Read the Chronicle →
+          <a className="wv-link" href="/archive" onClick={link("archive")}>
+            Read it in the Archive →
           </a>
         </p>
       )}

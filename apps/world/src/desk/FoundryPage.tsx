@@ -841,8 +841,8 @@ function WorldSpend({ now, world }: { now: number; world: { status: ChronicleSta
               ? "No Claude key is set, so every hour comes from the agents' scripted lines, for free."
               : `Guard: the world stops calling Claude at ${formatUsd(f.spend.budget)} a month and writes from scripted lines until the month turns.`}{" "}
             {f.at ? `Last step ${formatSpan(now - Date.parse(f.at))} ago.` : "No step yet."}{" "}
-            <a href="/chronicle" onClick={link("chronicle")}>
-              Read the Chronicle →
+            <a href="/archive" onClick={link("archive")}>
+              Read it in the Archive →
             </a>
           </p>
         </>
@@ -889,9 +889,9 @@ function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFe
           <p className="fy-world__line">
             {!s.gemini
               ? "No Gemini key is set (GEMINI_API_KEY in Vercel), so the Historian doesn't read the day aloud."
-              : `Guard: no more stories once one more could pass ${formatUsd(s.budget)} this month; the Chronicle says so until the month turns.`}{" "}
-            <a href="/chronicle" onClick={link("chronicle")}>
-              Hear it in the Chronicle →
+              : `Guard: no more stories once one more could pass ${formatUsd(s.budget)} this month; the Archive says so until the month turns.`}{" "}
+            <a href="/archive" onClick={link("archive")}>
+              Hear it in the Archive →
             </a>
           </p>
         </>

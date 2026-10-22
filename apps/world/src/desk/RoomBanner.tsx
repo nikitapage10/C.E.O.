@@ -10,18 +10,22 @@ import { PORTRAITS } from "./portraits.ts";
  */
 
 /** The Desk's pages past Today, and the Systems hub's subpages (all three in the Boiler Room). */
-export type BannerPage = "relay" | "foundry" | "systems" | "security" | "compliance" | "chronicle";
+export type BannerPage = "relay" | "foundry" | "boiler" | "security" | "compliance" | "archive" | "spire" | "exchange" | "green" | "workshop";
 
 export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; title: string; voice: { id: string; line: string } }> = {
   relay: { room: "relay", eyebrow: "The switchboard", title: "Relay", voice: { id: "dialtone", line: "Please hold. Not you, darling." } },
   foundry: { room: "foundry", eyebrow: "The coding crew", title: "Foundry", voice: { id: "ember", line: "Weld it. Test it. Ship it. Why are we still talking?" } },
-  // The Boiler Room carries the Systems links: Gary keeps the gauges.
-  systems: { room: "boiler", eyebrow: "The Boiler Room", title: "Systems", voice: { id: "gary", line: "Honk. (I have tape.)" } },
+  // The Boiler Room carries every link: Gary keeps the gauges.
+  boiler: { room: "boiler", eyebrow: "Every pipe in the house", title: "Boiler Room", voice: { id: "gary", line: "Honk. (I have tape.)" } },
   // The Pessimist reads the gauges like omens, and is delighted to be wrong: the scans, said its way.
   security: { room: "boiler", eyebrow: "The Boiler Room", title: "Security", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
   compliance: { room: "boiler", eyebrow: "The Boiler Room", title: "Compliance", voice: { id: "gary", line: "Honk. (I have tape.)" } },
-  // The Archive, where the Historian writes the Chronicle up.
-  chronicle: { room: "archive", eyebrow: "Ilyr, hour by hour", title: "Chronicle", voice: { id: "vellum", line: "Citation needed. I'll wait." } },
+  // The Archive, where the Historian writes the day up.
+  archive: { room: "archive", eyebrow: "Ilyr, hour by hour", title: "Archive", voice: { id: "vellum", line: "Citation needed. I'll wait." } },
+  spire: { room: "spire", eyebrow: "The gilded ledger", title: "Spire", voice: { id: "ledger", line: "Per my last ledger entry…" } },
+  exchange: { room: "exchange", eyebrow: "The floor after hours", title: "Exchange", voice: { id: "ticker", line: "Seventy-one percent, give or take. Mostly take." } },
+  green: { room: "green", eyebrow: "Under the floodlights", title: "Green", voice: { id: "turf", line: "AND HE'S DONE IT. Whatever it was. HE'S DONE IT." } },
+  workshop: { room: "workshop", eyebrow: "The maker's bench", title: "Workshop", voice: { id: "putty", line: "Wait. No. Better idea. ...I suffer for this." } },
 };
 
 /** The room's still, twice the width, for the banner on retina screens. */

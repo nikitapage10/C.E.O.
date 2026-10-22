@@ -27,7 +27,7 @@ export function CompliancePage() {
   const nist = useMemo(() => ringSpec(NIST_AI_RMF.map(() => 1), "relay"), []);
   const saif = useMemo(() => ringSpec(SAIF.map(() => 1), "archive"), []);
   return (
-    <div className="sec-page wv-page wv-comp">
+    <div className="sec-page wv-page wv-comp rm-boiler">
       <SystemsNav />
       <header className="wv-pghead">
         <p className="wv-eyb">Frameworks and controls</p>

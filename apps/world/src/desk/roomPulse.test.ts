@@ -67,6 +67,6 @@ describe("room pulses", () => {
     const pulses = roomPulses(input());
     expect(skippyLine(0, pulses)).toMatch(/^Nothing needs a human/);
     expect(skippyLine(1, pulses)).toMatch(/^One thing needs a human/);
-    expect(skippyLine(3, pulses)).toMatch(/^3 things need a human/);
+    expect(skippyLine(3, pulses)).toMatch(/^Three things need a human/);
   });
 });

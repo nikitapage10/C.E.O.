@@ -9,7 +9,7 @@ import { useWidth } from "./motion.tsx";
 import { Avatar } from "./ui.tsx";
 
 /**
- * The Chronicle: the Lattice, hour by hour, while you were away (docs/WORLD.md), in the approved Weave (desk-concepts
+ * The Archive's day (the Chronicle until #225): the Lattice, hour by hour, while you were away (docs/WORLD.md), in the approved Weave (desk-concepts
  * round five). Every hour the world takes a step and the Historian writes it up: what happened, who said what to whom,
  * how relationships moved, and what the builders thought of the work that shipped. The first step after midnight files
  * the day in Ilyr and the Historian reads it aloud. Up top the day's story plays as a player; then the week, the bonds
@@ -23,7 +23,7 @@ const AWAY_SHOWN = 6;
 /** How many past days sit on the shelf. */
 const SHELF = 8;
 
-export function Chronicle({ now, awaySince }: { now: number; awaySince: number }) {
+export function Chronicle({ now, awaySince, children }: { now: number; awaySince: number; children?: React.ReactNode }) {
   const { status, feed } = useWorldFeed();
   const pages = useChronicle((s) => s.pages);
   const today = chronicleDay(now);
@@ -60,10 +60,10 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
       ? "The world isn't being saved yet. Once the step runs, every hour in Ilyr is written up here."
       : !feed
         ? status === "failed"
-          ? "Can't reach the Chronicle right now; trying again shortly."
-          : "Opening the Chronicle…"
+          ? "Can't reach the Archive right now; trying again shortly."
+          : "Opening the Archive…"
         : !feed.at
-          ? "The Chronicle opens with the first hourly step."
+          ? "The Archive opens with the first hourly step."
           : away.length
             ? `${away.length} ${away.length === 1 ? "hour has" : "hours have"} passed in Ilyr since you were last here.`
             : `The Lattice took its last step ${formatWait(now - Date.parse(feed.at))} ago${feed.nextAt ? `, the next ${nextIn(Date.parse(feed.nextAt) - now)}` : ""}.`;
@@ -71,9 +71,9 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
   const dateLine = new Date(Date.UTC(y!, m! - 1, d!, 12)).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
 
   return (
-    <div className="chron wv-page wv-chron" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
+    <div className="chron wv-page wv-chron wv-archive" data-room="archive" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
       <header className="wv-pghead">
-        <p className="wv-eyb">Chronicle, {dateLine}</p>
+        <p className="wv-eyb">The Archive · {dateLine}</p>
         <h1 className="wv-h1 desk__title">
           {shown === today ? "The day" : dayTitle(shown, now)} in <em style={{ color: "var(--rc-archive)" }}>Ilyr.</em>
         </h1>
@@ -118,7 +118,7 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
         <Tale day={shown} today={shown === today} entries={entries} canMake={canMake} />
       ) : (
         <section className="wv-tale wv-tale-off">
-          <p className="wv-note">{status === "off" ? "No pages yet." : status === "failed" ? "Can't reach the Chronicle right now." : "Turning the pages…"}</p>
+          <p className="wv-note">{status === "off" ? "No pages yet." : status === "failed" ? "Can't reach the Archive right now." : "Turning the pages…"}</p>
         </section>
       )}
 
@@ -127,9 +127,11 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
         <Bonds entries={entries} today={shown === today} />
       </div>
 
+      {children}
+
       <Shelf days={shelfDays} pages={pages} recent={recent} onOpen={open} />
 
-      <section className="wv-hours" aria-label={`The Chronicle, ${dayTitle(shown, now)}`}>
+      <section className="wv-hours" aria-label={`The Archive, ${dayTitle(shown, now)}`}>
         <div className="wv-sechead">
           <div>
             <p className="wv-eyb">Hour by hour</p>
@@ -182,11 +184,11 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
           )}
         </details>
         <details className="wv-more-d">
-          <summary>How the Chronicle is written</summary>
+          <summary>How the Archive is written</summary>
           <p className="wv-note">
             Once an hour the Lattice takes a step: one Claude Haiku call writes the whole world's hour from the cast, how they stand, the last few hours and what really happened in the
             Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. Once the day's recap is filed, the Historian reads the day aloud in the
-            Archive: Gemini's speech, one voice, from the Chronicle's own public lines. The story's lines light up in step with the reading by their share of it. The Lattice
+            Archive: Gemini's speech, one voice, from the Archive's own public lines. The story's lines light up in step with the reading by their share of it. The Lattice
             plays the latest hour when you{" "}
             <a href="/lattice" onClick={link("lattice")}>
               walk in

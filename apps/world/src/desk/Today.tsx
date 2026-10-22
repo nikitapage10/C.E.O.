@@ -1,25 +1,19 @@
-import { lazy, Suspense, useCallback, useRef, useState } from "react";
+import { useState } from "react";
 import { byWait, DESK_ROOMS, roomImage, type DeskData, type DeskRoom } from "./deskData.ts";
 import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
 import { chronicleDay, sinceAway, useWorldFeed } from "../chronicle.ts";
 import { loadLattice } from "../route.ts";
 import { useUsage } from "../usage.ts";
-import { nextLine, useWorldClock } from "../worldClock.ts";
-import { CouncilButton } from "./CouncilButton.tsx";
+import { TodayHero } from "./hero/TodayHero.tsx";
+import { roomLink } from "./hero/roomLink.ts";
 import { useSetup } from "./IdeaCard.tsx";
-import { LatticeThreads, labelTop } from "./LatticeThreads.tsx";
-import { dailyOpening } from "./motion.tsx";
 import { link } from "./nav.ts";
-import { greeting, partOfDay, skippyLine, type RoomPulse } from "./roomPulse.ts";
 import { SetupAct, useSetupStatus } from "./SetupCard.tsx";
 import { DecisionAct, IdeasAct, LaterAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
 import { ComingUp, LatticeToday, ShortVersion, shortVersion, WorthKnowing } from "./TodayWeave.tsx";
 import { Avatar } from "./ui.tsx";
 import { usePulses } from "./usePulses.ts";
-import { SKIPPY_PORTRAIT, SkippyAsk, SkippyAvatar } from "./skippy/index.ts";
-
-/** The Council is its own download, fetched the first time it opens (and in the Desk's idle prefetch). */
-const Council = lazy(() => import("./Council.tsx").then((m) => ({ default: m.Council })));
+import { SKIPPY_PORTRAIT } from "./skippy/index.ts";
 
 /**
  * Today, in the Weave (Nikita, 2026-10-22): Skippy, the Magnificent guiding the day. A hero first: the nine rooms as
@@ -70,14 +64,16 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   ];
   const nothing = !todo && !toPick.length && !later.length && !otherReplies;
 
+  const [pre, setPre] = useState(true);
+
   return (
-    <div className="today wv-page wv-today">
-      <TodayHero now={now} pulses={pulses} todo={todo} />
+    <div className={`today wv-page wv-today${pre ? " is-pre" : ""}`}>
+      <TodayHero now={now} pulses={pulses} todo={todo} onPre={setPre} />
 
       <section className="wv-acts" aria-label="Needs you">
         {cards}
         {nothing && (
-          <article className="wv-act wv-act-clear" data-room="boiler" style={at(i)}>
+          <article className="wv-act wv-act-clear" data-room="boiler" data-in style={at(i)}>
             <div className="wv-act-top">
               <i className="wv-dot is-faint" />
               <span>Needs you</span>
@@ -119,7 +115,7 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
             const p = pulses.find((x) => x.id === r);
             return (
               <li key={r} className={`room ${waiting ? "room--hot" : ""}`} style={{ "--tone": room.accent } as React.CSSProperties}>
-                <a href={roomHref(r)} onClick={r === "relay" ? link("relay") : r === "foundry" ? link("foundry") : r === "boiler" ? link("systems") : undefined}>
+                <a href={p?.href ?? `/lattice?room=${r}`} onClick={roomLink(p?.href ?? "/lattice")}>
                   <img className="room__pic" src={roomImage(r)} alt="" loading="lazy" decoding="async" />
                   <span className="room__text">
                     <span className="room__name">{room.name}</span>
@@ -136,89 +132,5 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
         </ul>
       </section>
     </div>
-  );
-}
-
-/** "Lattice" pages for rooms without a Desk page yet; Relay, the Foundry and the Boiler Room have their own. */
-function roomHref(room: DeskRoom) {
-  return room === "relay" ? "/relay" : room === "foundry" ? "/foundry" : room === "boiler" ? "/systems" : `/lattice?room=${room}`;
-}
-
-/** In-app click for a room's address (a Desk page), or a plain link into the Lattice. */
-function roomClick(href: string) {
-  return href.startsWith("/lattice") ? link("lattice") : link(href === "/systems" ? "systems" : (href.slice(1) as "foundry"));
-}
-
-/* ── The hero ── */
-
-function TodayHero({ now, pulses, todo }: { now: number; pulses: RoomPulse[]; todo: number }) {
-  const [opening] = useState(() => dailyOpening(now));
-  const hovered = useRef<string | null>(null);
-  const [hot, setHot] = useState<string | null>(null);
-  const [council, setCouncil] = useState(false);
-  const date = new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-  const clock = useWorldClock((s) => s.reading);
-  const status = pulses.filter((p) => p.real);
-  const closeCouncil = useCallback(() => setCouncil(false), []);
-  const hover = (id: string | null) => {
-    hovered.current = id;
-    setHot(id);
-  };
-
-  return (
-    <section className={`wv-hero wv-hero--${opening}`} aria-label="Today at a glance">
-      <LatticeThreads pulses={pulses} opening={opening} hovered={hovered} />
-      <div className="wv-hero__wash" aria-hidden="true" />
-      <div className="wv-hero__text">
-        <div className="wv-hero__skippy">
-          {/* Skippy, the Magnificent (#224): a click opens his chat (mounted once at the Desk's root, Desk.tsx). */}
-          <SkippyAvatar size="md" className="wv-hero__can" />
-          <div className="wv-hero__who">
-            <b>Skippy, the Magnificent</b>
-            <span>
-              {date} · Ilyr, {partOfDay(now)}
-              {clock?.nextAt ? ` · next hour ${nextLine(clock, now)}` : ""}
-            </span>
-          </div>
-        </div>
-        <h1 className="desk__title wv-hero__title">{greeting(now)}</h1>
-        <p className="wv-hero__line">{skippyLine(todo, pulses)}</p>
-        <ul className="wv-hero__status" aria-label="The rooms with real work">
-          {status.map((p) => (
-            <li key={p.id} style={{ "--c": p.colour } as React.CSSProperties} className={`is-${p.state}`}>
-              <i aria-hidden="true" />
-              <b>{p.name}</b> <span>{p.status}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="wv-hero__act">
-          <a className="wv-enter" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
-            <img src="/desk/lattice.webp" alt="" aria-hidden="true" decoding="async" />
-            <span>
-              <b>Enter the Lattice</b>
-              <small>Walk the nine rooms</small>
-            </span>
-            <i aria-hidden="true">→</i>
-          </a>
-          <CouncilButton pulses={pulses} onOpen={() => setCouncil(true)} />
-        </div>
-        <SkippyAsk className="wv-ask" />
-      </div>
-      <ul className="wv-hero__rooms" aria-label="The rooms">
-        {pulses.map((p, i) => (
-          <li key={p.id} style={{ "--c": p.colour, top: `${(labelTop(i, pulses.length) * 100).toFixed(2)}%`, "--i": i } as React.CSSProperties} className={`is-${p.state} ${hot && hot !== p.id ? "dim" : ""}`}>
-            <a href={p.href} onClick={roomClick(p.href)} onMouseEnter={() => hover(p.id)} onMouseLeave={() => hover(null)} onFocus={() => hover(p.id)} onBlur={() => hover(null)}>
-              <b>{p.name}</b>
-              <span>{p.status}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-      {council && (
-        <Suspense fallback={null}>
-          <Council pulses={pulses} open onClose={closeCouncil} />
-        </Suspense>
-      )}
-    </section>
   );
 }

@@ -30,7 +30,7 @@ export function SecurityPage({ now }: { now: number }) {
   const on = switches.filter((f) => f.state === "on").length;
 
   return (
-    <div className="sec-page wv-page wv-sec">
+    <div className="sec-page wv-page wv-sec rm-boiler">
       <SystemsNav />
       <header className="wv-pghead">
         <p className="wv-eyb">Threat model and scans</p>

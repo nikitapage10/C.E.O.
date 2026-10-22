@@ -22,7 +22,8 @@
  * and counts from the Foundry's issues, the setup list's states and the world clock, scrubbed like the public feeds.
  *
  * Environment: FOUNDRY_DESK_KEY and the blob store (the Desk's sign-in), CLAUDE_API_KEY (or ANTHROPIC_API_KEY),
- * optional SKIPPY_BUDGET_USD (the chat's share of the $10 monthly Claude cap, $1 by default).
+ * optional SKIPPY_BUDGET_USD (the chat's share of the $10 monthly Claude cap, $2 by default). Skippy answers on Claude
+ * Sonnet 5.5, goes to Claude Opus 5.5 for the hard questions, and can run a web lookup (claudeChat below).
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -34,17 +35,20 @@ import type { SetupStatus } from "./_desk/setup.js";
 import { memo } from "./_feedcache.js";
 import { githubToken } from "./_github.js";
 import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
-import { setupList, type Usage } from "./foundry.js";
-import { BlobChatLedger, CHAT_MAX_TOKENS, canChat, chatMonth, skippyBudget, type ChatLedger } from "./_skippy/budget.js";
+import { costOf, setupList, type Usage } from "./foundry.js";
+import { BlobChatLedger, CHAT_MAX_TOKENS, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, type ChatLedger } from "./_skippy/budget.js";
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
-import { OVER_BUDGET, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, readChat, readReply } from "./_skippy/prompt.js";
+import { LOOKUP_PROMPT, OVER_BUDGET, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb } from "./_skippy/prompt.js";
 import { monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
 import type { WorldState } from "./_world/types.js";
 
-export const SKIPPY_MODEL = "claude-opus-5-5";
+/** Sonnet answers; Opus takes the questions Sonnet marks "deeper"; Sonnet with web search runs a lookup. */
+export const SKIPPY_MODEL = "claude-sonnet-5-5";
+export const SKIPPY_DEEP_MODEL = "claude-opus-5-5";
+export const LOOKUP_MODEL = "claude-sonnet-5-5";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -53,31 +57,87 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
 }
 
-/** One call to Claude: the parsed answer (null when unusable) and what it used (null when it never answered). */
-export type Ask = (system: string, input: string) => Promise<{ answer: unknown; usage: Usage | null }>;
+/** One answer from Claude: the parsed answer (null when unusable), what it used in all (null when nothing answered), and what that cost. */
+export type Ask = (system: string, input: string) => Promise<{ answer: unknown; usage: Usage | null; usd?: number }>;
 
-/** Claude Opus 5.5 with the fixed rules, the fenced input, structured output and a hard max_tokens (thinking can't be
- * turned off on Opus 5.5: effort "low" keeps it short, and max_tokens leaves room for it). */
+const sumUsage = (a: Usage, b: Usage): Usage => ({
+  input_tokens: a.input_tokens + b.input_tokens,
+  output_tokens: a.output_tokens + b.output_tokens,
+  cache_creation_input_tokens: (a.cache_creation_input_tokens ?? 0) + (b.cache_creation_input_tokens ?? 0),
+  cache_read_input_tokens: (a.cache_read_input_tokens ?? 0) + (b.cache_read_input_tokens ?? 0),
+});
+
+/**
+ * Skippy's answer in up to three calls, each with the fixed rules, fenced input and a hard max_tokens:
+ *
+ *   1. Claude Sonnet 5.5 answers in the closed schema. Most answers end here.
+ *   2. When it asked for a lookup, a separate Sonnet call with web search (at most three searches) writes a plain
+ *      summary. That call sees only the query, never the Desk or the conversation.
+ *   3. When it asked for a lookup or to go deeper, it answers again in the closed schema, with the summary in a <web>
+ *      block, on Claude Opus 5.5 when it asked to go deeper. If a later call fails, the first answer stands.
+ *
+ * Thinking can't be turned off on Sonnet 5.5 or Opus 5.5: effort "low" keeps it short, and max_tokens leaves room.
+ */
 export function claudeChat(key: string): Ask {
-  const client = new Anthropic({ apiKey: key, timeout: 15_000, maxRetries: 1 });
-  return async (system, input) => {
+  const client = new Anthropic({ apiKey: key, timeout: 20_000, maxRetries: 0 });
+  const answer = async (model: string, system: string, input: string) => {
     const res = await client.messages.create({
-      model: SKIPPY_MODEL,
+      model,
       max_tokens: CHAT_MAX_TOKENS,
       output_config: { effort: "low", format: { type: "json_schema", schema: SKIPPY_SCHEMA } },
       system,
       messages: [{ role: "user", content: input }],
     });
     const text = res.content.find((b) => b.type === "text");
-    let answer: unknown = null;
+    let parsed: unknown = null;
     if (res.stop_reason === "end_turn" && text && text.type === "text") {
       try {
-        answer = JSON.parse(text.text);
+        parsed = JSON.parse(text.text);
       } catch {
-        answer = null;
+        parsed = null;
       }
     }
-    return { answer, usage: res.usage };
+    return { parsed, usage: res.usage as Usage };
+  };
+  const lookup = async (query: string) => {
+    const res = await client.messages.create({
+      model: LOOKUP_MODEL,
+      max_tokens: LOOKUP_MAX_TOKENS,
+      output_config: { effort: "low" },
+      system: LOOKUP_PROMPT,
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: SEARCH_MAX }],
+      messages: [{ role: "user", content: lookupInput(query) }],
+    });
+    const found = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ");
+    const searches = Math.min(SEARCH_MAX, (res.usage as { server_tool_use?: { web_search_requests?: number } | null }).server_tool_use?.web_search_requests ?? 0);
+    return { found: res.stop_reason === "end_turn" ? found : "", usage: res.usage as Usage, searches };
+  };
+  return async (system, input) => {
+    const first = await answer(SKIPPY_MODEL, system, input);
+    let usage = first.usage;
+    let usd = costOf(first.usage, SONNET_PRICE);
+    const query = readLookup(first.parsed);
+    const deeper = readDeeper(first.parsed);
+    if (!query && !deeper) return { answer: first.parsed, usage, usd };
+    let again = input;
+    if (query) {
+      try {
+        const got = await lookup(query);
+        usage = sumUsage(usage, got.usage);
+        usd += costOf(got.usage, SONNET_PRICE) + got.searches * SEARCH_USD;
+        again = withWeb(input, got.found);
+      } catch {
+        again = withWeb(input, "");
+      }
+    }
+    try {
+      const second = await answer(deeper ? SKIPPY_DEEP_MODEL : SKIPPY_MODEL, system, again);
+      usage = sumUsage(usage, second.usage);
+      usd += costOf(second.usage, deeper ? OPUS_PRICE : SONNET_PRICE);
+      return { answer: second.parsed ?? first.parsed, usage, usd };
+    } catch {
+      return { answer: first.parsed, usage, usd };
+    }
   };
 }
 
@@ -196,7 +256,7 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
     return json({ error: "model" }, 502);
   }
   // Every call that answered counts against the month, usable or not.
-  if (got.usage) await deps.ledger.add(deps.now, got.usage).catch(() => undefined);
+  if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd).catch(() => undefined);
   const reply = readReply(got.answer, desk);
   return reply ? json(reply) : json({ error: "model" }, 502);
 }

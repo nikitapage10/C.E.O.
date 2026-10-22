@@ -53,7 +53,7 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
   cent each. Past that, and whenever there is no key or Claude doesn't answer usably, the hour is written from the
   agents' own scripted lines (`api/_world/scripted.ts`, from `quips.ts`), for free. The total resets when the month
   turns (UTC, as the API bills).
-- Skippy's chat on the Desk (#224) has its own share, **$2** by default (on Claude Opus 5.5 since #264) (`SKIPPY_BUDGET_USD`), kept in its own
+- Skippy's chat on the Desk (#224) has its own share, **$2** by default (Claude Sonnet 5.5, Opus 5.5 for the hard ones, web lookups, since #264) (`SKIPPY_BUDGET_USD`), kept in its own
   ledger (`desk/skippy/spend.json`, `api/_skippy/budget.ts`). Before every call it checks both its share and the
   whole month: the world's spend plus the chat's plus one call must stay under $10 less $2 kept for idea shaping.
   Past that Skippy answers with a scripted line until the month turns.

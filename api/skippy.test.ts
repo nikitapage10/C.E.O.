@@ -69,7 +69,7 @@ describe("the chat's budget", () => {
     const now = Date.parse("2026-10-22T00:00:00Z");
     const spend = addChatSpend(addChatSpend({}, now, { input_tokens: 2000, output_tokens: 100 }), now, { input_tokens: 1000, output_tokens: 50 });
     expect(chatMonth(spend, now)).toMatchObject({ calls: 2, tokensIn: 3000, tokensOut: 150 });
-    expect(chatMonth(spend, now).usd).toBeCloseTo((3000 * 4 + 150 * 20) / 1e6, 10);
+    expect(chatMonth(spend, now).usd).toBeCloseTo((3000 * 2 + 150 * 10) / 1e6, 10);
   });
 });
 

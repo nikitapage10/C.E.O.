@@ -10,8 +10,9 @@
  *
  * The chat keeps its own month ledger in the private blob store (`desk/skippy/spend.json`), beside the Desk's
  * sign-ins, and every call is added to it from the call's own token use, as the world step does. Past the cap Skippy
- * answers with a scripted line and spends nothing until the month turns. The chat runs on Claude Opus 5.5 (Nikita,
- * 2026-10-22): a typical call costs about 3 cents.
+ * answers with a scripted line and spends nothing until the month turns. The chat runs on Claude Sonnet 5.5, with Claude
+ * Opus 5.5 for the hard questions and a web lookup when one is needed (Nikita, 2026-10-22): a typical answer costs
+ * about a cent, a looked-up or escalated one a few cents.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -27,13 +28,28 @@ export const SHAPING_RESERVE_USD = 2;
 /** The chat's share of the month, unless SKIPPY_BUDGET_USD says otherwise. */
 export const SKIPPY_BUDGET_USD = 2;
 
-/** Claude Opus 5.5's list price in dollars per million tokens (cache writes and reads as multiples of input). */
-export const SKIPPY_PRICE = { input: 4, output: 20, longInput: 4, longOutput: 20, longFrom: 1_000_000, cacheWrite: 1.25, cacheRead: 0.05 } as const;
+/** List prices in dollars per million tokens (cache writes and reads as multiples of input). */
+export const SONNET_PRICE = { input: 2, output: 10, longInput: 2, longOutput: 10, longFrom: 1_000_000, cacheWrite: 1.25, cacheRead: 0.1 } as const;
+export const OPUS_PRICE = { input: 4, output: 20, longInput: 4, longOutput: 20, longFrom: 1_000_000, cacheWrite: 1.25, cacheRead: 0.05 } as const;
+/** One web search, in dollars ($10 per 1,000). */
+export const SEARCH_USD = 0.01;
+/** The most searches one lookup may run. */
+export const SEARCH_MAX = 3;
+/** The most a lookup's summary may take, and the most it can add to the answering call's prompt. */
+export const LOOKUP_MAX_TOKENS = 1_500;
+/** A lookup reads search results (about 15k tokens a search at most) and writes a short summary. */
+const LOOKUP_IN = 4_000 + SEARCH_MAX * 15_000;
 
 /** The most one chat call can cost: its prompt (capped at 24k tokens by the input limits) and max_tokens out, thinking
  * included. */
 export const CHAT_MAX_TOKENS = 2_000;
-export const CHAT_CEILING_USD = (24_000 * SKIPPY_PRICE.input + CHAT_MAX_TOKENS * SKIPPY_PRICE.output) / 1_000_000;
+const call = (price: { input: number; output: number }, tokensIn: number, tokensOut: number) => (tokensIn * price.input + tokensOut * price.output) / 1_000_000;
+/** At most three calls: Sonnet's first answer, a lookup, and the answer again on Opus with the lookup's summary. */
+export const CHAT_CEILING_USD =
+  call(SONNET_PRICE, 24_000, CHAT_MAX_TOKENS) +
+  call(SONNET_PRICE, LOOKUP_IN, LOOKUP_MAX_TOKENS) +
+  SEARCH_MAX * SEARCH_USD +
+  call(OPUS_PRICE, 24_000 + LOOKUP_MAX_TOKENS, CHAT_MAX_TOKENS);
 
 export interface ChatMonth {
   usd: number;
@@ -63,12 +79,12 @@ export function canChat(chat: number, world: number, budget: number): boolean {
   return chat + CHAT_CEILING_USD <= budget && world + chat + CHAT_CEILING_USD <= CLAUDE_CAP_USD - SHAPING_RESERVE_USD;
 }
 
-/** The ledger with one call added (the last six months kept). */
-export function addChatSpend(spend: ChatSpend, now: number, usage: Usage): ChatSpend {
+/** The ledger with one answer added (the last six months kept): its tokens, and what it cost (Sonnet's price unless said). */
+export function addChatSpend(spend: ChatSpend, now: number, usage: Usage, usd = costOf(usage, SONNET_PRICE)): ChatSpend {
   const month = monthOf(now);
   const cur = chatMonth(spend, now);
   const tokensIn = usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
-  const next: ChatMonth = { usd: cur.usd + costOf(usage, SKIPPY_PRICE), calls: cur.calls + 1, tokensIn: cur.tokensIn + tokensIn, tokensOut: cur.tokensOut + usage.output_tokens };
+  const next: ChatMonth = { usd: cur.usd + usd, calls: cur.calls + 1, tokensIn: cur.tokensIn + tokensIn, tokensOut: cur.tokensOut + usage.output_tokens };
   const all = { ...spend, [month]: next };
   return Object.fromEntries(Object.keys(all).sort().slice(-6).map((k) => [k, all[k]!]));
 }
@@ -76,7 +92,7 @@ export function addChatSpend(spend: ChatSpend, now: number, usage: Usage): ChatS
 /** Where the ledger lives. */
 export interface ChatLedger {
   load(): Promise<ChatSpend>;
-  add(now: number, usage: Usage): Promise<void>;
+  add(now: number, usage: Usage, usd?: number): Promise<void>;
 }
 
 const SPEND_PATH = "desk/skippy/spend.json";
@@ -90,12 +106,12 @@ export class BlobChatLedger implements ChatLedger {
     const found = await this.blob.get(SPEND_PATH);
     return found ? clean(await new Response(found.stream).json()) : {};
   }
-  async add(now: number, usage: Usage): Promise<void> {
+  async add(now: number, usage: Usage, usd?: number): Promise<void> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const etag = await this.blob.etag(SPEND_PATH);
       const cur = etag ? await this.load() : {};
       try {
-        await this.blob.put(SPEND_PATH, JSON.stringify(addChatSpend(cur, now, usage)), {
+        await this.blob.put(SPEND_PATH, JSON.stringify(addChatSpend(cur, now, usage, usd)), {
           contentType: "application/json",
           addRandomSuffix: false,
           ...(etag ? { ifMatch: etag } : { allowOverwrite: false }),
@@ -114,7 +130,7 @@ export class MemoryChatLedger implements ChatLedger {
   async load(): Promise<ChatSpend> {
     return structuredClone(this.spend);
   }
-  async add(now: number, usage: Usage): Promise<void> {
-    this.spend = addChatSpend(this.spend, now, usage);
+  async add(now: number, usage: Usage, usd?: number): Promise<void> {
+    this.spend = addChatSpend(this.spend, now, usage, usd);
   }
 }

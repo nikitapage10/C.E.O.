@@ -3,6 +3,7 @@ import { CREW, crewOf, openIdeas, shippedToday, type FoundryData } from "../foun
 import type { Link, LinkState } from "../systems.ts";
 import type { GreenBoard, GreenStatus } from "./green/league.ts";
 import { submindOf } from "../../../../packages/simulator/src/subminds.ts";
+import type { InvoiceStatus } from "./spire/invoices.ts";
 
 /**
  * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): nine threads, one per room, each in its submind's
@@ -89,6 +90,8 @@ export interface PulseInput {
   odds?: { markets: number; lead: { question: string; prob: number } | null } | null;
   /** The Green's league board (desk/green/league.ts), once it has been asked for; left out, the Green stays simulated. */
   green?: { status: GreenStatus; board: GreenBoard | null };
+  /** The Spire's public invoice counts (#279), once PayPal has answered on the Azure copy; left out, the Spire stays simulated. */
+  invoices?: InvoiceStatus | null;
 }
 
 const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
@@ -247,8 +250,13 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
   const greenReal = green && green.status !== "off";
   if (greenReal) out.push(greenPulse(green, scenesIn("green"), pulse));
 
+  // The Spire: PayPal's invoices (#279), counts only. Never a client or an amount on Today.
+  const inv = input.invoices && input.invoices.paypal !== "waiting" ? input.invoices : null;
+  if (inv) out.push(spirePulse(inv, scenesIn("spire"), pulse));
+
   for (const id of ["breakroom", "spire", "green", "workshop"] as const) {
     if (id === "green" && greenReal) continue;
+    if (id === "spire" && inv) continue;
     const events = scenesIn(id);
     out.push(
       pulse(id, {
@@ -267,6 +275,22 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
 }
 
 type PulseFn = (id: RoomId, p: Omit<RoomPulse, "id" | "name" | "colour" | "submind" | "href">) => RoomPulse;
+
+/** The Spire's thread from the invoice counts, in the Executive's voice. */
+function spirePulse(s: InvoiceStatus, events: number[], pulse: PulseFn): RoomPulse {
+  if (s.paypal === "error") return pulse("spire", { real: true, state: "down", activity: 0.1, status: "PayPal isn't answering", short: "PayPal down", report: "PayPal has stepped out of the meeting. I'm calling it a strategic pause.", events });
+  const open = s.open;
+  const parts = [n(open, "open invoice"), s.overdue ? `${s.overdue} overdue` : "", s.drafts ? `${n(s.drafts, "draft")} waiting on your Send` : ""].filter(Boolean);
+  return pulse("spire", {
+    real: true,
+    state: s.overdue ? "busy" : "steady",
+    activity: clamp(0.2 + (open + s.drafts) * 0.06 + events.length * 0.04),
+    status: s.overdue ? `${s.overdue} overdue` : open ? n(open, "open invoice") : "Books balanced",
+    short: s.overdue ? "overdue" : open ? "invoices out" : "books balanced",
+    report: `${parts.join(", ")}${s.mode === "sandbox" ? ", in the sandbox" : ""}. ${s.overdue ? "Overdue is just a deal that wants a follow-up. Love that." : open ? "Every one of them a real opportunity." : "Nothing outstanding. Ledger calls that reconciled. I call it runway."}`,
+    events,
+  });
+}
 
 /** The Green's thread from the league board, in the Commentator's voice. */
 function greenPulse(green: NonNullable<PulseInput["green"]>, events: number[], pulse: PulseFn): RoomPulse {

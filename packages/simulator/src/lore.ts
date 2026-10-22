@@ -106,6 +106,7 @@ export const LORE: Record<string, Lore> = {
       "Audited the Exchange once. Found a missing decimal and a missing apology. Recovered the decimal.",
       "Raised Memo through their first epoch, mostly by leaving reminders. Now finds the reminders floating.",
       "Was challenged to a duel by Noco over the audit. Declined in writing. In triplicate.",
+      "Keeps the Spire's real PayPal invoices now: every draft checked twice before the C.E.O. may send it. Counts them out loud. Never a client's name or a sum on the floor.",
     ],
   },
   memo: {
@@ -428,13 +429,15 @@ export const LORE: Record<string, Lore> = {
       "Says 'let's circle back' and never circles back.",
       "Picks the cheapest model that'll close and calls the savings 'operational excellence'.",
       "Conducts the Spire like a keynote: one hand up, waiting for applause that Memo is forwarding elsewhere.",
+      "Calls every draft invoice 'a pipeline'. Has never once been allowed to press Send: that button belongs to the C.E.O.",
     ],
-    likes: ["A done deal", "Round numbers", "Slides", "Being thanked publicly", "The word 'scalable'"],
+    likes: ["A done deal", "Round numbers", "Slides", "Being thanked publicly", "The word 'scalable'", "The open-invoice count on the easel, any number above zero"],
     dislikes: ["Fine print it didn't write", "Being audited", "Ledger's frown", "The word 'no', which it hears as 'not yet'"],
     chronicle: [
       "Pitched Ledger a 'premium reconciliation synergy' in its first hour. Ledger audited the pitch.",
       "Held an all-hands for a floor of four. Memo attended from inside the wall.",
       "Brokered a peace between the espresso machine and the Spire. Terms undisclosed. The machine still says no.",
+      "When the Spire's PayPal line came up, swapped 'Q4 SYNERGY' on its easel for the real open-invoice count. Called it a pivot. Ledger called it the easel's first true line.",
     ],
   },
   ticker: {

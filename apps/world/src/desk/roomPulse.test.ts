@@ -76,6 +76,18 @@ describe("room pulses", () => {
     expect(down).toMatchObject({ state: "down", short: "odds down" });
   });
 
+  it("makes the Spire real once PayPal answers, with counts and never an amount", () => {
+    const at = NOW;
+    const waiting = roomPulses(input({ invoices: { v: 1, at, paypal: "waiting", mode: "sandbox", drafts: 0, open: 0, overdue: 0, paid: 0 } })).find((p) => p.id === "spire")!;
+    expect(waiting).toMatchObject({ real: false, state: "sim" });
+    const live = roomPulses(input({ invoices: { v: 1, at, paypal: "live", mode: "sandbox", drafts: 1, open: 2, overdue: 1, paid: 3 } })).find((p) => p.id === "spire")!;
+    expect(live).toMatchObject({ real: true, state: "busy", status: "1 overdue" });
+    expect(live.report).toContain("2 open invoices, 1 overdue, 1 draft waiting on your Send, in the sandbox");
+    expect(live.report).not.toMatch(/\$/);
+    const down = roomPulses(input({ invoices: { v: 1, at, paypal: "error", mode: "live", drafts: 0, open: 0, overdue: 0, paid: 0 } })).find((p) => p.id === "spire")!;
+    expect(down).toMatchObject({ real: true, state: "down" });
+  });
+
   it("knots the simulated rooms only on the living Lattice's own scenes", () => {
     const world = { recent: [{ at: new Date(NOW - 7_200_000).toISOString(), scenes: [{ room: "green", title: "", lines: [] }], source: "claude", summary: "" }] } as unknown as WorldFeed;
     const pulses = roomPulses(input({ world }));

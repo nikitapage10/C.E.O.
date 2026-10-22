@@ -21,6 +21,7 @@ import * as foundry from "../../api/foundry.js";
 import * as exchangemarkets from "../../api/_exchange/route.js";
 import * as exchangepositions from "../../api/_exchange/positions.js";
 import * as greenleague from "../../api/_green/route.js";
+import * as invoices from "../../api/_paypal/route.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -59,6 +60,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // The Green's Sleeper board (#252): its own endpoint here, where the FANTASYPROS key is set; on Vercel a rewrite into api/world.ts.
   ["green-league", greenleague],
   ["foundry-image", foundryimage],
+  // The Spire's invoices (#279, docs/PAYPAL.md): PayPal drafts made from the Desk, sent only on Nikita's confirmed tap.
+  // Azure only (the PayPal keys live only here). ?view=status is the public counts; the rest needs the passkey session.
+  ["invoices", invoices],
   ["foundry-usage", foundryusage],
   ["foundry", foundry],
   ["security-feed", securityfeed],

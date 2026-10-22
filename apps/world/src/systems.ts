@@ -9,7 +9,8 @@ import { create } from "zustand";
  * Gmail's comes from the email agent on the Azure copy (desk/email/email.ts, #263).
  * The Foundry's come from GitHub (see foundry.ts). The world clock comes from the living Lattice's hourly step
  * (worldClock.ts). Polymarket's odds come from the Exchange's board (desk/exchange/polymarket.ts, #240), read while a
- * Desk page that shows them is open; Sleeper and FantasyPros from the Green's league board (desk/green/league.ts, #252).
+ * Desk page that shows them is open; Sleeper and FantasyPros from the Green's league board (desk/green/league.ts, #252);
+ * PayPal from the Spire's invoices on the Azure copy (desk/spire/invoices.ts, #279).
  * `?demo` (or `?boiler=demo`) cycles them through every state, to preview the Boiler Room's gags.
  */
 
@@ -22,7 +23,7 @@ export interface Link {
   what: string;
   kind: "agent" | "service" | "machine";
   /** Which room's system it belongs to (the Systems page draws one schematic per room). */
-  room: "relay" | "foundry" | "world" | "exchange" | "green";
+  room: "relay" | "foundry" | "world" | "exchange" | "green" | "spire";
   state: LinkState;
   /** How busy, 0..1 (the pipe's gauge). */
   load: number;
@@ -55,6 +56,8 @@ const LINKS: Link[] = [
   { id: "polymarket", label: "Polymarket", what: "Public odds for the Exchange, read-only", kind: "service", room: "exchange", state: "off", load: 0, lastSeen: null },
   { id: "sleeper", label: "Sleeper", what: "Your fantasy league for the Green, read-only", kind: "service", room: "green", state: "off", load: 0, lastSeen: null },
   { id: "fantasypros", label: "FantasyPros", what: "Projections and rankings for the Green, where its key is set", kind: "service", room: "green", state: "off", load: 0, lastSeen: null },
+  // The Spire's invoices (#279): PayPal from the Azure copy, its state from desk/spire/invoices.ts.
+  { id: "paypal", label: "PayPal", what: "Invoices for the Spire: drafts, sent only when you confirm, on the Azure copy", kind: "service", room: "spire", state: "off", load: 0, lastSeen: null },
   { id: "world", label: "World clock", what: "The living Lattice's hourly step", kind: "service", room: "world", state: "off", load: 0, lastSeen: null },
 ];
 

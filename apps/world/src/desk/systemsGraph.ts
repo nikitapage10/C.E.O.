@@ -156,6 +156,9 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     sleeper: { id: "sleeper", l: "Sleeper", s: "league, read-only", k: "service", state: L("sleeper") },
     // The email agent (#263): Gmail read-only, from the Azure copy.
     gmail: { id: "gmail", l: "Gmail", s: L("gmail") === "wait" ? "on the Azure copy" : "read-only, every minute", k: "service", state: L("gmail") },
+    // The Spire's invoices (#279): PayPal's Invoicing API, from the Azure copy.
+    spire: { id: "spire", l: "Spire", s: L("paypal") === "wait" ? "invoices on the Azure copy" : "PayPal invoices", k: "room", room: "spire", state: L("paypal") },
+    paypal: { id: "paypal", l: "PayPal", s: L("paypal") === "wait" ? "on the Azure copy" : "drafts, sent on your tap", k: "service", state: L("paypal") },
     fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "key on Azure only" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
@@ -194,6 +197,8 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     e("desk", "green", "green", nodes.green!.state),
     { ...e("green", "sleeper", "green", nodes.sleeper!.state), label: "Your league", how: conn("sleeper")?.how, ...fromConn("sleeper") },
     { ...e("green", "fantasypros", "green", nodes.fantasypros!.state), label: "Projections", how: conn("fantasypros")?.how, ...fromConn("fantasypros") },
+    e("desk", "spire", "spire", nodes.spire!.state),
+    { ...e("spire", "paypal", "spire", nodes.paypal!.state), label: "Invoices", how: conn("paypal")?.how, ...fromConn("paypal") },
   ];
 
   // The Foundry's flow: foundryGraph's edges, with their connections' kinds, sign-in and timing.

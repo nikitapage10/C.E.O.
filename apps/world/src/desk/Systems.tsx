@@ -12,6 +12,7 @@ import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
 import { startEmail } from "./email/email.ts";
+import { startInvoices } from "./spire/invoices.ts";
 import { startPolymarket } from "./exchange/polymarket.ts";
 import { startGreen } from "./green/league.ts";
 import { roomLink } from "./hero/roomLink.ts";
@@ -30,7 +31,7 @@ import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
 /** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
 const PLANNED: { room: string; name: string; what: string; href?: string }[] = [
-  { room: "spire", name: "Spire", what: "Stripe Invoicing and the idea scout", href: "/spire" },
+  { room: "spire", name: "Spire", what: "The idea scout (PayPal invoices are live on the Azure copy)", href: "/spire" },
   { room: "exchange", name: "Exchange", what: "Your Polymarket US positions (read-only, behind the passkey), Polymarket's live odds, and later crypto and stock prices", href: "/exchange" },
   { room: "green", name: "Green", what: "The weekly take from OpenAI, and FantasyPros on Vercel (Sleeper's league is live; FantasyPros is on Azure)", href: "/green" },
   { room: "workshop", name: "Workshop", what: "Meshy and the Bambu Lab printer", href: "/workshop" },
@@ -61,6 +62,8 @@ export function Systems({ now }: { now: number }) {
   useEffect(() => startEmail(), []);
   // So are Sleeper and FantasyPros, through the Green's board (#252).
   useEffect(() => startGreen(), []);
+  // And PayPal, through the Spire's invoice counts (#279).
+  useEffect(() => startInvoices(), []);
   const linkList = useSystems((s) => s.links);
   const links = useMemo(() => Object.fromEntries(linkList.map((l) => [l.id, l.state])) as Record<string, LinkState>, [linkList]);
   const connected = useFoundry((s) => s.connected);

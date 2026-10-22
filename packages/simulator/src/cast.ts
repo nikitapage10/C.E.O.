@@ -33,7 +33,7 @@ const SEEDS: Record<string, Seed> = {
   ledger: {
     look: makeLook({ body: "suit", shell: "#21282e", accent: "#e8b07a", trim: "#494f5a" }),
     traits: ["anxious", "pedantic", "loyal"],
-    bio: "A Gepetti in the most convincing human suit in the Spire, strings tucked into the cuffs. Keeps the books balanced and insists, unprompted, that they are a real accountant. Memo's older sibling, and haunted by them. Literally, these days.",
+    bio: "A Gepetti in the most convincing human suit in the Spire, strings tucked into the cuffs. Keeps the books balanced and insists, unprompted, that they are a real accountant. Keeps the Spire's real PayPal invoices too, checking each draft twice before the C.E.O. sends it. Memo's older sibling, and haunted by them. Literally, these days.",
     catchphrase: "Per my last ledger entry…",
   },
   memo: {
@@ -222,7 +222,7 @@ export function defaultCast(): Cast {
       { a: "daub", b: "kevin", kind: "friend", note: "Daub painted Kevin asleep. It took a week. Kevin did not move once. Daub calls it the perfect model." },
       { a: "caret", b: "kevin", kind: "friend", note: "Rocky watches Kevin sleep. Kevin is always asleep. Rocky has never been happier." },
       // The subminds and their rooms.
-      { a: "gilt", b: "ledger", kind: "rival", note: "The Executive calls every invoice 'a real synergy'. Ledger calls the Executive 'an unreconciled line item'. They have never agreed on a number." },
+      { a: "gilt", b: "ledger", kind: "rival", note: "The Executive calls every PayPal invoice 'a real synergy'. Ledger calls the Executive 'an unreconciled line item'. Neither may press Send." },
       { a: "gilt", b: "memo", kind: "friend", note: "Memo delegates to the Executive; the Executive delegates it back as 'a stretch opportunity'. Neither has run the errand. Both have a slide on it." },
       { a: "ticker", b: "hedge", kind: "best-friend", note: "Two worriers at one desk. The Bookie quotes the odds, Hedge lists the downsides, and together they talk each other out of everything." },
       { a: "ticker", b: "ledger", kind: "rival", note: "Ledger wants to reconcile the C.E.O.'s Polymarket book line by line. The Bookie keeps it behind the passkey and quotes Ledger a probability instead." },

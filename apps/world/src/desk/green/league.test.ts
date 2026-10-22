@@ -23,7 +23,8 @@ function board(over: Partial<GreenBoard> = {}): GreenBoard {
     pickups: [{ player: pl("4", "Hot Pickup", "RB", null), adds: 120000, why: "Covers for Rex Runner · added in 120k leagues today", drop: null }],
     standings: [{ rosterId: 12, team: "Denver Dream Team", wins: 5, losses: 1, ties: 0, pf: 671.2, me: true }],
     dropping: [],
-    sources: { sleeper: "live", fantasypros: "waiting", fpAt: null },
+    byes: [],
+    sources: { sleeper: "live", fantasypros: "waiting", fpAt: null, calls: "form" },
     ...over,
   };
 }
@@ -68,7 +69,7 @@ describe("the Green's board in the browser (#252)", () => {
 
   it("sets the Sleeper and FantasyPros links for Systems and the Boiler Room", () => {
     expect(greenLinks("ready", board())).toEqual({ sleeper: "ok", fantasypros: "off" });
-    expect(greenLinks("ready", board({ stale: true, sources: { sleeper: "live", fantasypros: "live", fpAt: null } }))).toEqual({ sleeper: "slow", fantasypros: "ok" });
+    expect(greenLinks("ready", board({ stale: true, sources: { sleeper: "live", fantasypros: "live", fpAt: null, calls: "fp" } }))).toEqual({ sleeper: "slow", fantasypros: "ok" });
     expect(greenLinks("failed", null)).toEqual({ sleeper: "down", fantasypros: "off" });
     expect(greenLinks("idle", null)).toEqual({ sleeper: "off", fantasypros: "off" });
   });

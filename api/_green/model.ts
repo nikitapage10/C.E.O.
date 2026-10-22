@@ -6,6 +6,10 @@
  *                form here: his league scores this season, the last three games weighted over the season (weeks he
  *                didn't score are taken as byes or injuries and left out). Out, IR or suspended counts as zero,
  *                doubtful as 30% and questionable as 85%; a bye week as zero.
+ *   Byes         Sleeper's schedule: a team with no game this week is on bye. And while FantasyPros' projections for
+ *                this week are live, a team with no projection rows at all is on bye too. FantasyPros' rankings
+ *                (each player's bye week) count only when the schedule can't say. A player on bye or out is
+ *                never the one a call says to start.
  *   Win chance   The two lineups' expected finals (points scored plus projections for starters still to play), with a
  *                normal spread of about 45% of each unplayed projection (at least 3 points a player).
  *   Lineup       The best lineup by projection; each change is one start-or-sit call, with how much it gains.
@@ -17,8 +21,8 @@
 
 import type { FpData, FpView } from "./fantasypros.js";
 import { fpIndex } from "./fantasypros.js";
-import type { League, MatchupRow, NflState, Roster, SlimPlayer } from "./sleeper.js";
-import { USER_ID } from "./sleeper.js";
+import type { League, MatchupRow, NflState, Roster, Schedule, SlimPlayer } from "./sleeper.js";
+import { NFL_TEAMS, USER_ID, byesOf } from "./sleeper.js";
 import { GREEN_PICKUPS_MAX, type FpState, type GreenBoard, type GreenInjury, type GreenPickup, type GreenPlayer, type GreenPos, type GreenSide, type GreenSlot, type GreenStanding, type GreenSwap } from "./types.js";
 
 export interface ModelInput {
@@ -35,7 +39,27 @@ export interface ModelInput {
   drops: Record<string, number>;
   fp: FpData | null;
   fpState: FpState;
+  /** Sleeper's schedule for the season, for the byes; null when it didn't answer. */
+  schedule?: Schedule | null;
   at: string;
+}
+
+/** FantasyPros' projections count as covering the week once this many teams have rows (a bye week rests at most 8). */
+const FP_TEAMS_MIN = 20;
+
+/**
+ * This week's byes: the schedule's, plus (while FantasyPros' projections for this week are live and cover the league)
+ * every team with no projection rows at all. Null when neither source can say.
+ */
+export function byeTeams(schedule: Schedule | null | undefined, fp: FpData | null, week: number): Set<string> | null {
+  const fromSchedule = byesOf(schedule ?? null, week);
+  let fromFp: string[] | null = null;
+  if (fp && fp.week === week && fp.proj.length) {
+    const teams = new Set(fp.proj.map((p) => p.team).filter((t): t is string => t !== null && NFL_TEAMS.has(t)));
+    if (teams.size >= FP_TEAMS_MIN) fromFp = [...NFL_TEAMS].filter((t) => !teams.has(t));
+  }
+  if (!fromSchedule && !fromFp) return null;
+  return new Set([...(fromSchedule ?? []), ...(fromFp ?? [])]);
 }
 
 const OUT: ReadonlySet<GreenInjury> = new Set(["O", "IR", "SUS", "PUP", "NA"]);
@@ -110,14 +134,15 @@ export function isMine(r: Roster, userId = USER_ID): boolean {
 
 /** Everything the board shows, from one set of reads. Throws "not-in-league" when Nikita has no team in it. */
 export function buildBoard(input: ModelInput): GreenBoard {
-  const { league, state, rosters, teamNames, matchups, history, players, adds, drops, fp, fpState, at } = input;
+  const { league, state, rosters, teamNames, matchups, history, players, adds, drops, fp, fpState, schedule, at } = input;
   const week = state.week;
   const mine = rosters.find((r) => isMine(r));
   if (!mine) throw new Error("not-in-league");
   const teamName = (r: Roster) => (r.ownerId && teamNames[r.ownerId]) || `Team ${r.rosterId}`;
   const form = formOf(history);
   const fpOf: (p: SlimPlayer) => FpView | null = fp ? fpIndex(fp) : () => null;
-  const fpWeek = fp !== null && fp.week === week;
+  const fpWeek = fp !== null && fp.week === week && fp.proj.length > 0;
+  const byes = byeTeams(schedule, fp, week);
 
   const cache = new Map<string, GreenPlayer>();
   const player = (id: string): GreenPlayer => {
@@ -127,7 +152,11 @@ export function buildBoard(input: ModelInput): GreenBoard {
     const scores = form.get(id);
     const v = slim ? fpOf(slim) : null;
     const inj = v?.inj ?? slim?.inj ?? null;
-    const bye = v?.bye ?? null;
+    const team = slim?.team ?? (/^[A-Z]{2,3}$/.test(id) ? id : null);
+    const rankBye = v?.bye ?? null;
+    // The schedule (or FantasyPros' projections) decides this week; the rankings' bye week only when neither can say.
+    const onBye = byes ? team !== null && byes.has(team) : rankBye === week;
+    const bye = onBye ? week : rankBye === week ? null : rankBye;
     let proj: number | null = null;
     let src: GreenPlayer["src"] = "none";
     if (fpWeek && v?.proj != null) {
@@ -140,13 +169,13 @@ export function buildBoard(input: ModelInput): GreenBoard {
         src = "form";
       }
     }
-    if (bye === week) proj = 0;
+    if (onBye) proj = 0;
     else if (proj !== null && inj) proj = OUT.has(inj) ? 0 : round1(proj * (INJ_FACTOR[inj] ?? 1));
     const p: GreenPlayer = {
       id,
       name: slim?.n ?? (/^[A-Z]{2,3}$/.test(id) ? `${id} D/ST` : `Player ${id}`),
       pos: slim?.pos ?? (/^[A-Z]{2,3}$/.test(id) ? "DEF" : "WR"),
-      team: slim?.team ?? null,
+      team,
       inj,
       proj,
       src,
@@ -249,7 +278,8 @@ export function buildBoard(input: ModelInput): GreenBoard {
     pickups,
     standings,
     dropping,
-    sources: { sleeper: "live", fantasypros: fpState, fpAt: fp?.at ?? null },
+    byes: byes ? [...byes].sort() : [],
+    sources: { sleeper: "live", fantasypros: fpState, fpAt: fp?.at ?? null, calls: [...meSide.starters.map((s) => s.player), ...bench].some((p) => p?.src === "fp") ? "fp" : "form" },
   };
 }
 
@@ -267,6 +297,8 @@ function reasonOut(p: GreenPlayer | null, week: number): string | null {
  */
 export function lineupSwaps(slots: string[], current: GreenSlot[], bench: GreenPlayer[], locked: (id: string) => boolean, week: number): GreenSwap[] {
   const val = (p: GreenPlayer | null) => (p?.proj ?? -1);
+  // On bye, out, on IR or suspended: never the one a call starts.
+  const unavailable = (p: GreenPlayer) => reasonOut(p, week) !== null && p.inj !== "D";
   // Fill the fixed slots first, then the flexes, each with the best player left who fits.
   const order = slots.map((s, i) => ({ s, i })).sort((a, b) => slotTakes(a.s).length - slotTakes(b.s).length);
   const pool = [...current.map((c) => c.player).filter((p): p is GreenPlayer => p !== null), ...bench];
@@ -282,7 +314,7 @@ export function lineupSwaps(slots: string[], current: GreenSlot[], bench: GreenP
   for (const { s, i } of order) {
     if (best[i]) continue;
     const takes = slotTakes(s);
-    const pick = pool.filter((p) => !used.has(p.id) && !locked(p.id) && takes.includes(p.pos)).sort((a, b) => val(b) - val(a))[0];
+    const pick = pool.filter((p) => !used.has(p.id) && !locked(p.id) && !unavailable(p) && takes.includes(p.pos)).sort((a, b) => val(b) - val(a))[0];
     if (pick) {
       best[i] = pick;
       used.add(pick.id);

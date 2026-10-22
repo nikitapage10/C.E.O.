@@ -35,7 +35,10 @@ export interface GreenPlayer {
   /** FantasyPros' rest-of-season consensus rank, overall and by position ("RB12"), when the key is set. */
   ecr: number | null;
   posRank: string | null;
-  /** His bye week, when FantasyPros says. */
+  /**
+   * His bye week: this week when his team has no game (Sleeper's schedule, or no FantasyPros projection for his team
+   * while those are live), else the week FantasyPros' rankings give, when they do.
+   */
   bye: number | null;
 }
 
@@ -101,6 +104,9 @@ export interface GreenStanding {
 /** FantasyPros' part: "live" with the key and a good read, "waiting" without a key, "failed" when it didn't answer. */
 export type FpState = "live" | "waiting" | "failed";
 
+/** Where the start-or-sit calls come from. */
+export type CallSource = "fp" | "form";
+
 export interface GreenBoard {
   ok: true;
   /** When the server put this together (ISO). */
@@ -129,7 +135,13 @@ export interface GreenBoard {
   standings: GreenStanding[];
   /** My players other leagues are dropping fastest today. */
   dropping: { player: GreenPlayer; drops: number }[];
-  sources: { sleeper: "live"; fantasypros: FpState; fpAt: string | null };
+  /** Teams on bye this week (Sleeper's schedule, and FantasyPros' projections when live); empty when unknown. */
+  byes: string[];
+  /**
+   * `calls`: where the start-or-sit calls come from: "fp" when FantasyPros' projections for this week drive them,
+   * "form" when they come from the players' scores here (FantasyPros waiting, failed, or without this week yet).
+   */
+  sources: { sleeper: "live"; fantasypros: FpState; fpAt: string | null; calls: CallSource };
   /** True when Sleeper didn't answer and this is the last good read. */
   stale?: true;
 }

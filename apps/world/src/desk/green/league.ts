@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap } from "../../../../../api/_green/types.ts";
+import type { CallSource, FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap } from "../../../../../api/_green/types.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 
 /**
@@ -9,7 +9,7 @@ import { useSystems, type LinkState } from "../../systems.ts";
  * and FantasyPros links on Systems and in the Boiler Room. Read-only: the moves are made in Sleeper.
  */
 
-export type { FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap };
+export type { CallSource, FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap };
 
 const PATH = "/api/green-league";
 const POLL_MS = 120_000;
@@ -67,10 +67,17 @@ export function readGreen(v: unknown): GreenBoard | null {
     pickups: (b.pickups ?? []).filter((p): p is GreenPickup => !!p && isPlayer(p.player) && isNum(p.adds, 0, 1e9) && isStr(p.why, 300) && (p.drop === null || isPlayer(p.drop))),
     standings: (b.standings ?? []).filter((s): s is GreenStanding => !!s && isStr(s.team) && isNum(s.wins, 0, 30) && isNum(s.losses, 0, 30) && isNum(s.pf)),
     dropping: (b.dropping ?? []).filter((d) => !!d && isPlayer(d.player) && isNum(d.drops, 0, 1e9)),
-    sources: { sleeper: "live", fantasypros: fp, fpAt: typeof b.sources?.fpAt === "string" ? b.sources.fpAt : null },
+    byes: Array.isArray(b.byes) ? b.byes.filter((t): t is string => typeof t === "string" && /^[A-Z]{2,3}$/.test(t)).slice(0, 32) : [],
+    sources: { sleeper: "live", fantasypros: fp, fpAt: typeof b.sources?.fpAt === "string" ? b.sources.fpAt : null, calls: b.sources?.calls === "fp" ? "fp" : "form" },
     ...(b.stale === true && { stale: true }),
   };
 }
+
+/** Whether a player sits out this week because his team has no game. */
+export const onBye = (p: GreenPlayer | null | undefined, week: number) => !!p && p.bye !== null && p.bye === week;
+
+/** Where the start-or-sit calls come from, in words. */
+export const callsWord = (b: GreenBoard) => (b.sources.calls === "fp" ? "Calls from FantasyPros" : `Calls from form here (FantasyPros ${b.sources.fantasypros === "failed" ? "not answering" : b.sources.fantasypros === "live" ? "has no projections for this week yet" : "waiting"})`);
 
 /* ── how the numbers read ── */
 

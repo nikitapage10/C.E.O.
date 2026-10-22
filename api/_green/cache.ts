@@ -13,6 +13,8 @@ import { pickBlob, type BlobBackend } from "../_blob.js";
 
 export const PLAYERS_PATH = "desk/green/players.json";
 export const FP_PATH = "desk/green/fantasypros.json";
+/** Sleeper's NFL schedule, trimmed to who plays each week (for the byes), read at most once a day. */
+export const SCHEDULE_PATH = "desk/green/schedule.json";
 
 export interface Kept<T> {
   /** When it was read (ms). */

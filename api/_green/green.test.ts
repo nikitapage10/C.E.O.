@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { forgetMemory, MemoryGreenStore, PLAYERS_PATH } from "./cache.ts";
+import { forgetMemory, MemoryGreenStore, PLAYERS_PATH, SCHEDULE_PATH } from "./cache.ts";
 import { fpIndex, fpKey, nameKey, scoringOf, shapeInjuries, shapeProjections, shapeRankings, type FpData } from "./fantasypros.ts";
-import { buildBoard, formOf, formProjection, lineupSwaps, normCdf, slotTakes, winChance } from "./model.ts";
+import { buildBoard, byeTeams, formOf, formProjection, lineupSwaps, normCdf, slotTakes, winChance } from "./model.ts";
 import { forgetGreen, GET, isGreen, PATH, type GreenDeps } from "./route.ts";
-import { LEAGUE_ID, USER_ID, cleanText, shapeLeague, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
+import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, cleanText, shapeLeague, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
 import type { GreenBoard, GreenPlayer } from "./types.ts";
 import { GET as worldGET } from "../world.ts";
 
@@ -53,8 +53,20 @@ const WEEK3 = [row(12, 2, ROSTERS[0]!.starters, {}), row(5, 2, ROSTERS[1]!.start
 const TREND_ADD = [{ player_id: "14", count: 120_000 }, { player_id: "8", count: 50_000 }, { player_id: "4", count: 90_000 }, { player_id: "13", count: 99 }];
 const TREND_DROP = [{ player_id: "15", count: 4000 }];
 
+/** A season's games as Sleeper's schedule lists them, with the given teams on bye in the given weeks. */
+function scheduleWith(byes: Record<number, string[]>): { status: string; date: string; home: string; away: string; week: number; game_id: string }[] {
+  const games = [];
+  for (let week = 1; week <= 18; week++) {
+    const teams = [...NFL_TEAMS].filter((t) => !(byes[week] ?? []).includes(t));
+    for (let i = 0; i + 1 < teams.length; i += 2) games.push({ status: "pre_game", date: "2026-10-25", home: teams[i]!, away: teams[i + 1]!, week, game_id: `${week}${i}` });
+  }
+  return games;
+}
+/** Week 3: Arizona and Houston (Deep Bench's team) rest. */
+const SCHEDULE = scheduleWith({ 3: ["ARI", "HOU"] });
+
 /** A stand-in for Sleeper (and FantasyPros): answers by URL, and counts the calls. */
-function fakeApis(opts: { sleeperDown?: boolean; fpDown?: boolean; rosters?: unknown } = {}) {
+function fakeApis(opts: { sleeperDown?: boolean; fpDown?: boolean; rosters?: unknown; schedule?: unknown } = {}) {
   const calls: { url: string; key: string | null }[] = [];
   const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
   const fetcher: Fetcher = async (url, init) => {
@@ -75,6 +87,7 @@ function fakeApis(opts: { sleeperDown?: boolean; fpDown?: boolean; rosters?: unk
       return new Response("nope", { status: 404 });
     }
     if (opts.sleeperDown) return new Response("down", { status: 503 });
+    if (u.hostname === "api.sleeper.com") return u.pathname === "/schedule/nfl/regular/2026" && opts.schedule !== null ? ok(opts.schedule ?? SCHEDULE) : new Response("nope", { status: 404 });
     const path = u.pathname.replace("/v1", "");
     if (path === "/state/nfl") return ok({ season: "2026", league_season: "2026", display_week: 3, week: 3, season_type: "regular" });
     if (path === `/league/${LEAGUE_ID}`) return ok(LEAGUE);
@@ -178,13 +191,64 @@ describe("the predictions (#252)", () => {
     expect(board.pickups[0]!.drop?.name).toBe("Spare Part"); // never scored here, and far down Sleeper's own ranks
     expect(board.pickups[1]!.drop).toBeNull(); // nobody else is clearly worse
     expect(board.dropping).toEqual([{ player: expect.objectContaining({ name: "Deep Bench" }), drops: 4000 }]);
-    expect(board.sources).toEqual({ sleeper: "live", fantasypros: "waiting", fpAt: null });
+    expect(board.sources).toEqual({ sleeper: "live", fantasypros: "waiting", fpAt: null, calls: "form" });
+    expect(board.byes).toEqual([]); // no schedule given: nobody is taken for on bye
     expect(JSON.stringify(board)).not.toContain("a-username-never-shown");
   });
 
   it("refuses a league Nikita has no team in", () => {
     const input = boardInput();
     expect(() => buildBoard({ ...input, rosters: input.rosters.filter((r) => r.rosterId !== 12) })).toThrow("not-in-league");
+  });
+});
+
+describe("byes, whatever FantasyPros says (#259)", () => {
+  it("reads the schedule warily: unknown teams and weeks dropped, a thin week says nothing", () => {
+    const s = shapeSchedule([...SCHEDULE, { week: 3, home: "XYZ", away: "KC" }, { week: 40, home: "KC", away: "DAL" }, { week: 3, home: "KC", away: "KC" }, "junk", null]);
+    expect(Object.keys(s)).toHaveLength(18);
+    expect(s["3"]).not.toContain("XYZ");
+    expect(byesOf(s, 3)).toEqual(["ARI", "HOU"]);
+    expect(byesOf(s, 4)).toEqual([]);
+    expect(byesOf(s, 19)).toBeNull(); // no games that week: unknown, not a league-wide bye
+    expect(byesOf(shapeSchedule(scheduleWith({ 3: [...NFL_TEAMS].slice(0, 12) })), 3)).toBeNull(); // twelve teams resting can't be right
+    expect(byesOf(null, 3)).toBeNull();
+  });
+
+  it("puts a starter on bye from Sleeper's schedule alone: zero, a bye tag, and the call says so", () => {
+    const board = buildBoard({ ...boardInput(), schedule: shapeSchedule(scheduleWith({ 3: ["DAL", "ARI"] })) });
+    expect(board.byes).toEqual(["ARI", "DAL"]);
+    const rex = board.roster.starters[1]!.player!;
+    expect(rex).toMatchObject({ name: "Rex Runner", team: "DAL", proj: 0, bye: 3 });
+    expect(board.swaps.find((x) => x.out?.name === "Rex Runner")).toMatchObject({ in: { name: "Benny Bench" }, why: "Rex Runner is on bye" });
+    expect(board.sources.calls).toBe("form");
+  });
+
+  it("puts a team with no FantasyPros projections on bye while those are live, even when he'd have a form projection", () => {
+    // Projections for every team but Dallas (and Arizona), none for Rex Runner.
+    const teams = [...NFL_TEAMS].filter((t) => t !== "DAL" && t !== "ARI");
+    const fp: FpData = { at: "x", season: "2026", week: 3, scoring: "HALF", proj: [...teams.map((t, i) => ({ name: `Some One ${i}`, pos: "WR" as const, team: t, pts: 9 })), { name: "Benny Bench", pos: "RB", team: "DET", pts: 15 }], ranks: [], injuries: [] };
+    expect([...byeTeams(null, fp, 3)!].sort()).toEqual(["ARI", "DAL"]);
+    expect(byeTeams(null, { ...fp, week: 2 }, 3)).toBeNull(); // last week's projections say nothing about this week
+    expect(byeTeams(null, { ...fp, proj: fp.proj.slice(0, 5) }, 3)).toBeNull(); // too few teams to tell a bye from a gap
+    const board = buildBoard({ ...boardInput(), fp, fpState: "live" });
+    const rex = board.roster.starters[1]!.player!;
+    expect(rex).toMatchObject({ name: "Rex Runner", proj: 0, bye: 3 });
+    expect(board.sources.calls).toBe("fp");
+    expect(board.swaps.find((x) => x.out?.name === "Rex Runner")?.why).toBe("Rex Runner is on bye");
+    expect(board.swaps.some((x) => x.in.name === "Rex Runner")).toBe(false);
+  });
+
+  it("never says to start a player on bye or out, however high his projection", () => {
+    const pl = (id: string, pos: GreenPlayer["pos"], proj: number | null, over: Partial<GreenPlayer> = {}): GreenPlayer => ({ id, name: `P${id}`, pos, team: "KC", inj: null, proj, src: "fp", avg: proj, last: proj, ecr: null, posRank: null, bye: null, ...over });
+    const current = [
+      { slot: "WR", player: pl("a", "WR", 6), pts: 0 },
+      { slot: "RB", player: pl("b", "RB", 14, { bye: 7 }), pts: 0 },
+    ];
+    const bench = [pl("c", "WR", 25, { bye: 7 }), pl("d", "WR", 22, { inj: "O" }), pl("e", "RB", 3)];
+    const swaps = lineupSwaps(["WR", "RB"], current, bench, () => false, 7);
+    expect(swaps.map((s) => [s.in.id, s.out?.id, s.why])).toEqual([["e", "b", "Pb is on bye"]]);
+    // With nobody to bring in, a starter on bye stays put rather than being swapped for someone also on bye.
+    expect(lineupSwaps(["RB"], [current[1]!], [pl("f", "RB", 30, { bye: 7 })], () => false, 7)).toEqual([]);
   });
 });
 
@@ -258,6 +322,23 @@ describe("GET /api/green-league (#252)", () => {
     const b = fakeApis();
     await GET(get(), deps(b.fetcher, { store, now: NOW + 3_600_000 }));
     expect(b.calls.filter((c) => c.url.endsWith("/players/nfl"))).toHaveLength(0);
+  });
+
+  it("reads the byes from Sleeper's schedule without a FantasyPros key, once a day", async () => {
+    const store = new MemoryGreenStore();
+    const { fetcher, calls } = fakeApis();
+    const board = (await (await GET(get(), deps(fetcher, { store }))).json()) as GreenBoard;
+    expect(board.sources.fantasypros).toBe("waiting");
+    expect(board.byes).toEqual(["ARI", "HOU"]);
+    expect(board.roster.starters.find((s) => s.player?.name === "Deep Bench")!.player).toMatchObject({ proj: 0, bye: 3 });
+    expect(board.swaps.find((x) => x.out?.name === "Deep Bench")?.why).toBe("Deep Bench is on bye");
+    expect(calls.filter((c) => c.url === "https://api.sleeper.com/schedule/nfl/regular/2026")).toHaveLength(1);
+    expect(JSON.parse(store.files.get(SCHEDULE_PATH)!).tag).toBe("2026");
+    // Without the schedule the board still answers, just without the byes.
+    forgetGreen();
+    forgetMemory();
+    const none = (await (await GET(get(), deps(fakeApis({ schedule: null }).fetcher))).json()) as GreenBoard;
+    expect(none.byes).toEqual([]);
   });
 
   it("uses FantasyPros with the key: projections, consensus pickups and injuries, the key only in its header", async () => {

@@ -47,7 +47,13 @@ jobs:
       - name: Package provenance
         run: npm audit signatures
       - name: Known vulnerabilities (high and above)
-        run: npm audit --audit-level=high
+        # A finding fails the run. npm's audit service itself sometimes answers 400/503 (and npm takes minutes to give
+        # up on it); then warn instead of failing. Dependency review and Dependabot still cover the run.
+        run: |
+          if npm audit --audit-level=high --fetch-retries=1 > audit.txt 2>&1; then cat audit.txt; exit 0; fi
+          cat audit.txt
+          grep -q "audit endpoint returned an error" audit.txt || exit 1
+          echo "::warning::npm's audit service is down, so known vulnerabilities weren't checked this run."
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

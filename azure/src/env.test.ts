@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { dropKeyVaultRefs, envValue, isKeyVaultRef } from "./env.ts";
+import { dropKeyVaultRefs, envValue, isKeyVaultRef, SECRET_SETTINGS } from "./env.ts";
 
 const REF = "@Microsoft.KeyVault(VaultName=kv-ceo-x;SecretName=claude-api-key)";
 
@@ -7,6 +8,7 @@ describe("unresolved Key Vault references", () => {
   it("are recognised, and nothing else is", () => {
     expect(isKeyVaultRef(REF)).toBe(true);
     expect(isKeyVaultRef(`  ${REF}`)).toBe(true);
+    expect(isKeyVaultRef("@microsoft.keyvault(SecretUri=https://kv-ceo-x.vault.azure.net/secrets/gemini-api-key/)")).toBe(true);
     expect(isKeyVaultRef("sk-ant-real-looking")).toBe(false);
     expect(isKeyVaultRef("")).toBe(false);
     expect(isKeyVaultRef(undefined)).toBe(false);
@@ -29,5 +31,19 @@ describe("unresolved Key Vault references", () => {
     vi.resetModules();
     await import("./env.ts");
     expect(process.env.CEO_TEST_KV).toBeUndefined();
+  });
+
+  it("count an empty or blank secret as unset, and trim the rest", () => {
+    const env: Record<string, string | undefined> = { DESK_PINGS_SECRET: "", GEMINI_API_KEY: "  \n", CLAUDE_API_KEY: " k\n", WORLD_BUDGET_USD: "", PATH_LIKE: " x " };
+    expect(dropKeyVaultRefs(env)).toEqual(["DESK_PINGS_SECRET", "GEMINI_API_KEY"]);
+    // Only secret settings are touched: other settings keep their exact value, even an empty one.
+    expect(env).toEqual({ CLAUDE_API_KEY: "k", WORLD_BUDGET_USD: "", PATH_LIKE: " x " });
+  });
+
+  it("know every secret setting the infra template makes a Key Vault reference", () => {
+    const bicep = readFileSync(new URL("../../infra/resources.bicep", import.meta.url), "utf8");
+    const inTemplate = [...bicep.matchAll(/\{ setting: '([A-Z0-9_]+)', secret: '[a-z0-9-]+' \}/g)].map((m) => m[1]).sort();
+    expect(inTemplate.length).toBeGreaterThan(0);
+    expect([...SECRET_SETTINGS].sort()).toEqual(inTemplate);
   });
 });

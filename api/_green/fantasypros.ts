@@ -205,7 +205,8 @@ export async function readFantasyPros(fetcher: Fetcher, key: string, season: str
   const weekly = weeklyParts.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   const ros = ranks.status === "fulfilled" ? ranks.value : [];
   const inj = injuries.status === "fulfilled" ? injuries.value : [];
-  const parts: FpParts = { proj: proj.length, weekly: weekly.length, ros: ros.length, injuries: inj.length, errors };
+  const projBy = Object.fromEntries(projParts.map((r, i) => [PROJ_POS[positions[i]!], r.status === "fulfilled" ? r.value.length : 0]));
+  const parts: FpParts = { proj: proj.length, weekly: weekly.length, ros: ros.length, injuries: inj.length, projBy, errors };
   if (!proj.length && !weekly.length && ranks.status === "rejected" && injuries.status === "rejected") throw new FpUnavailable(parts);
   return { at: new Date().toISOString(), season, week, scoring, proj, weekly, ranks: ros, injuries: inj, parts };
 }

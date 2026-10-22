@@ -112,6 +112,8 @@ export interface FpParts {
   weekly: number;
   ros: number;
   injuries: number;
+  /** Projections per position ("QB": 32), to see which part came back short. */
+  projBy?: Record<string, number>;
   errors: { part: string; status: number | "timeout" | "error" }[];
 }
 

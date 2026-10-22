@@ -22,7 +22,7 @@ import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
 /**
- * Systems, in the approved Weave (desk-concepts round five): Gary's headline, then the whole system as a pipe rack
+ * Systems, in the approved Weave (desk-concepts round five): the Pessimist's headline, then the whole system as a pipe rack
  * (#241), one straight pipe per room with every real connection a fitting on it (connections.ts, foundryGraph.ts),
  * dashed while it isn't connected. Tap a pipe and it flows open into the room's whole flow, with every step's sign-in
  * and timing in a panel beside it. Below: the rooms still to build, and the world clock every room lives by. Real states only.
@@ -94,17 +94,17 @@ export function Systems({ now }: { now: number }) {
     <div className={`systems-page wv-page wv-sys rm-boiler${mode !== "overview" ? " is-focus" : ""}`}>
       <SystemsNav />
       <header className="wv-syshead">
-        <img className="wv-syshead-pf" src="/desk/agent-gary.webp" alt="" />
+        <img className="wv-syshead-pf" src="/desk/agent-soot.webp" alt="" />
         <div>
           <p className="wv-eyb">The Boiler Room · what's connected</p>
           <h1 className="wv-h1 desk__title">
             {bad.length ? (
               <>
-                Gary has his <em style={{ color: "var(--wv-bad)" }}>wrench out.</em>
+                The Pessimist <em style={{ color: "var(--wv-bad)" }}>called it.</em>
               </>
             ) : (
               <>
-                Gary says the pipes are <em style={{ color: "var(--wv-ok)" }}>steady.</em>
+                The Pessimist says the pipes are <em style={{ color: "var(--wv-ok)" }}>holding. For now.</em>
               </>
             )}
           </h1>

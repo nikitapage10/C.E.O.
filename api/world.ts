@@ -5,10 +5,14 @@
  * GET           → WorldFeed (api/_world/types.ts): the latest state, its recent hours and this month's world spend.
  * GET ?day=…    → DayPage: one day of the Chronicle ("2026-10-13", Mountain time), oldest hour first.
  *
+ * GET/POST ?exchange=markets → the Exchange's Polymarket board (#240; vercel.json rewrites /api/exchange-markets here so the
+ *               deployment keeps its twelve functions): api/_exchange/route.ts.
+ *
  * The world moves once an hour, so answers are cached at Vercel's edge for a few minutes: every open tab shares one
  * read of the store.
  */
 
+import * as exchange from "./_exchange/route.js";
 import { monthOf, monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { nextAt } from "./_world/step.js";
@@ -23,6 +27,7 @@ function json(body: unknown, status = 200, cache = "public, s-maxage=300, stale-
 }
 
 export async function GET(request: Request): Promise<Response> {
+  if (exchange.isExchange(request)) return exchange.GET(request);
   const store = pickStore();
   if (!store) return json({ error: "not-set-up" }, 503);
   const day = new URL(request.url).searchParams.get("day");
@@ -52,4 +57,10 @@ export async function GET(request: Request): Promise<Response> {
   } catch {
     return json({ error: "store" }, 502);
   }
+}
+
+/** The world feed takes no writes; only the Exchange's pins come through here (#240). */
+export async function POST(request: Request): Promise<Response> {
+  if (exchange.isExchange(request)) return exchange.POST(request);
+  return new Response(JSON.stringify({ error: "method" }), { status: 405, headers: { "Content-Type": "application/json", Allow: "GET", "Cache-Control": "no-store" } });
 }

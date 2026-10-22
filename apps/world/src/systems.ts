@@ -7,7 +7,8 @@ import { create } from "zustand";
  *
  * Relay's links come from the hub on the MacBook (phase 2); until it exists they are "off" (not connected yet).
  * The Foundry's come from GitHub (see foundry.ts). The world clock comes from the living Lattice's hourly step
- * (worldClock.ts).
+ * (worldClock.ts). Polymarket's odds come from the Exchange's board (desk/exchange/polymarket.ts, #240), read while a
+ * Desk page that shows them is open.
  * `?demo` (or `?boiler=demo`) cycles them through every state, to preview the Boiler Room's gags.
  */
 
@@ -20,7 +21,7 @@ export interface Link {
   what: string;
   kind: "agent" | "service" | "machine";
   /** Which room's system it belongs to (the Systems page draws one schematic per room). */
-  room: "relay" | "foundry" | "world";
+  room: "relay" | "foundry" | "world" | "exchange";
   state: LinkState;
   /** How busy, 0..1 (the pipe's gauge). */
   load: number;
@@ -48,6 +49,7 @@ const LINKS: Link[] = [
   { id: "e2e", label: "Nightly browser tests", what: "The Lattice and Desk in a real browser, nightly on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "live", label: "Live site", what: "The live Desk and Lattice open in a browser, hourly on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "foundry", label: "Foundry", what: "The coding thread in Claude Code", kind: "agent", room: "foundry", state: "off", load: 0, lastSeen: null },
+  { id: "polymarket", label: "Polymarket", what: "Public odds for the Exchange, read-only", kind: "service", room: "exchange", state: "off", load: 0, lastSeen: null },
   { id: "world", label: "World clock", what: "The living Lattice's hourly step", kind: "service", room: "world", state: "off", load: 0, lastSeen: null },
 ];
 

@@ -15,8 +15,8 @@ import type { DeskRoom } from "./deskData.ts";
 
 export type ConnectionKind = "REST API" | "SDK" | "MCP server" | "CLI" | "Scheduled" | "Webhook" | "Polling" | "Storage" | "WebSocket" | "Agent";
 
-/** Where a connection is explained: a part of Relay's or the Foundry's diagram, or the world clock. */
-export type ConnectionPlace = { system: "relay" | "foundry"; part: string } | { system: "world" };
+/** Where a connection is explained: a part of Relay's or the Foundry's diagram, the world clock, or the Exchange's page. */
+export type ConnectionPlace = { system: "relay" | "foundry"; part: string } | { system: "world" } | { system: "exchange" };
 
 export interface Connection {
   id: string;
@@ -172,6 +172,18 @@ export const CONNECTIONS: Connection[] = [
     when: "Once per push to main, at most eight a day, capped at $0.50 a run; a run is usually a few cents.",
   },
   {
+    id: "polymarket",
+    name: "Polymarket",
+    room: "exchange",
+    at: [{ system: "exchange" }],
+    serves: "The Exchange's odds board and watchlist",
+    kinds: ["REST API", "Polling"],
+    status: "live",
+    how: "A Vercel function (the world feed's, through a rewrite of /api/exchange-markets) reads Polymarket's public Gamma API for the busiest open markets and the pinned ones, and its CLOB API for a day of prices, then sends the Desk only the question, the odds, the day's move, the volume and a link. Read-only: no wallet, no orders.",
+    auth: "None: public market data, no key. Pinning a market to the watchlist needs your passkey on the Desk, and the pins are kept in the private Blob store.",
+    when: "The Desk asks every minute while the Exchange or Systems is open, through a one-minute edge cache, so Polymarket is read about once a minute at most.",
+  },
+  {
     id: "bluebubbles",
     name: "BlueBubbles",
     room: "relay",
@@ -211,5 +223,5 @@ export const CONNECTIONS: Connection[] = [
 
 /** The connections explained at one place on the Systems page: a part of a room's diagram, or the world clock. */
 export function connectionsAt(system: ConnectionPlace["system"], part?: string): Connection[] {
-  return CONNECTIONS.filter((c) => c.at.some((p) => p.system === system && (p.system === "world" || p.part === part)));
+  return CONNECTIONS.filter((c) => c.at.some((p) => p.system === system && (!("part" in p) || p.part === part)));
 }

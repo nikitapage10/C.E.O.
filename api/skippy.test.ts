@@ -53,11 +53,11 @@ describe("the Desk as Skippy sees it", () => {
 
 describe("the chat's budget", () => {
   it("takes its share from SKIPPY_BUDGET_USD, never past what the world and the shaping reserve leave", () => {
-    expect(skippyBudget(undefined, 6)).toBe(1);
+    expect(skippyBudget(undefined, 6)).toBe(2);
     expect(skippyBudget("1.5", 6)).toBe(1.5);
     expect(skippyBudget("50", 6)).toBe(CLAUDE_CAP_USD - SHAPING_RESERVE_USD - 6);
     expect(skippyBudget("5", 9)).toBe(0);
-    expect(skippyBudget("-1", 6)).toBe(1);
+    expect(skippyBudget("-1", 6)).toBe(2);
   });
   it("lets a call through only while it fits the share and the whole cap", () => {
     expect(canChat(0, 0, 1)).toBe(true);
@@ -69,7 +69,7 @@ describe("the chat's budget", () => {
     const now = Date.parse("2026-10-22T00:00:00Z");
     const spend = addChatSpend(addChatSpend({}, now, { input_tokens: 2000, output_tokens: 100 }), now, { input_tokens: 1000, output_tokens: 50 });
     expect(chatMonth(spend, now)).toMatchObject({ calls: 2, tokensIn: 3000, tokensOut: 150 });
-    expect(chatMonth(spend, now).usd).toBeCloseTo((3000 * 0.1 + 150 * 0.5) / 1e6, 10);
+    expect(chatMonth(spend, now).usd).toBeCloseTo((3000 * 2 + 150 * 10) / 1e6, 10);
   });
 });
 
@@ -200,7 +200,7 @@ describe("POST /api/skippy, with Claude stubbed", () => {
 
   it("answers from a script, for free, once the month's share is spent", async () => {
     const ledger = new MemoryChatLedger();
-    ledger.spend = { "2026-10": { usd: 1, calls: 2000, tokensIn: 0, tokensOut: 0 } };
+    ledger.spend = { "2026-10": { usd: 2, calls: 2000, tokensIn: 0, tokensOut: 0 } };
     const { post, calls } = await setup({ ledger });
     const body = (await (await post({ message: "hi" })).json()) as { capped?: boolean; actions: unknown[] };
     expect(body.capped).toBe(true);

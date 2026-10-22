@@ -147,6 +147,13 @@ a club night, a concert or the Hallowed Veil costume party), send everyone back 
 Lattice to nightfall or sunrise, grant Myshka the zoomies, or let one memory leak through on purpose. Skippy
 complies, magnificently. He logs his objections, and sings one of them.
 
+**Skippy on the Desk.** Skippy also sits on the C.E.O.'s Desk now: a portrait of the can in his navy admiral's
+shell with the gold braid, on the Today page. Tap him (or type in the "Ask Skippy" box, or say it into the mic) and he
+answers, briefly and smugly, from what he can see of the Desk: titles, labels and counts, never anyone's words. He
+routes, he does not act: each answer can carry up to three buttons (file this as an idea for Rivet, open a page, go to
+the Lattice, answer Rivet's question), and nothing happens until the C.E.O. taps one. He cannot approve a build. He
+finds this beneath him and says so.
+
 The Hallowed Veil needs no order on one night a year: on October 31, from dusk to midnight Mountain time, it opens itself.
 The agents come to the club in costume, jack-o'-lanterns light up in every room, and Skippy announces it as if he had planned
 it all along. The C.E.O. can still end the party from the console, and it stays ended until the next Halloween.

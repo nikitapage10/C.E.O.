@@ -94,7 +94,7 @@ describe("statuses come from the doc's own words", () => {
 
   it("splits controls into parts without breaking brackets", () => {
     expect(partsOf("a (b; c); d")).toEqual(["a (b; c)", "d"]);
-    expect(partsOf(OWASP_LLM[0]!.controls)[0]).toBe("Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`)");
+    expect(partsOf(OWASP_LLM[0]!.controls)[0]).toBe("Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`; `chatInput`, `unfenceChat` for Skippy's chat, #224)");
   });
 });
 

@@ -9,6 +9,7 @@ import { Body } from "../agents/bodies/Body.tsx";
 import type { Drive } from "../agents/bodies/types.ts";
 import { tickMaterials } from "../fx/materials.ts";
 import { ROOM_ACCENTS } from "../theme.ts";
+import { SKIPPY_ACCENT, SKIPPY_LOOK } from "../agents/skippyLook.ts";
 import { FRAMING, type Framing } from "./framing.ts";
 import "./studio.css";
 
@@ -31,6 +32,9 @@ const api: StudioApi = { roster: [], ready: false, frames: 0 };
 
 const cast = defaultCast();
 api.roster = SAMPLE_AGENTS.map((a) => ({ id: a.id, name: a.name, room: a.home.room, body: cast.profiles[a.id]?.look.body ?? "classic" }));
+
+/** Skippy's sitting, for the Desk's chat (public/desk/skippy.webp): not an agent, so not in the roster. */
+const SKIPPY_ID = "skippy";
 
 /** Turned this far from the camera (radians): the three-quarter view, the face towards the key light. */
 const TURN = -0.6;
@@ -78,7 +82,8 @@ function ClassicSitter({ look, lineage, phase }: { look: Look; lineage: Paramete
 
 /** The sitter: the agent's body at rest, turned three-quarters, its animation clock running. */
 function Sitter({ id, onBox }: { id: string; onBox: (box: Box3) => void }) {
-  const profile = cast.profiles[id]!;
+  // Skippy isn't in the cast (he runs it): his own look, for his Desk portrait (/studio?agent=skippy).
+  const profile = id === SKIPPY_ID ? { look: SKIPPY_LOOK, lineage: "cursori" as const } : cast.profiles[id]!;
   const look = profile.look;
   const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
   const root = useRef<Group>(null);
@@ -178,8 +183,8 @@ function FloorGlow({ accent }: { accent: string }) {
 }
 
 function Portrait({ id }: { id: string }) {
-  const entry = api.roster.find((a) => a.id === id)!;
-  const accent = ROOM_ACCENTS[entry.room];
+  const entry = id === SKIPPY_ID ? { body: SKIPPY_LOOK.body } : api.roster.find((a) => a.id === id)!;
+  const accent = id === SKIPPY_ID ? SKIPPY_ACCENT : ROOM_ACCENTS[(entry as { room: RoomId }).room];
   const [box, setBox] = useState<Box3 | null>(null);
   return (
     <div className="studio-frame" style={{ "--tone": accent } as React.CSSProperties} data-agent={id}>
@@ -223,7 +228,7 @@ function Roster() {
 
 export function Studio() {
   const id = new URLSearchParams(window.location.search).get("agent");
-  if (id && cast.profiles[id]) return <Portrait id={id} />;
+  if (id && (cast.profiles[id] || id === SKIPPY_ID)) return <Portrait id={id} />;
   api.ready = true;
   return <Roster />;
 }

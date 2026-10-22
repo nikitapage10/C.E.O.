@@ -440,7 +440,7 @@ export function shapedBody(shape: Shape, words: string, images: string[] = [], e
 }
 
 /** The setup list, kept for two minutes per warm function: two GitHub reads and a Blob read, not one per visit. */
-const setupList = memo<SetupStatus>(2 * 60_000, () =>
+export const setupList = memo<SetupStatus>(2 * 60_000, () =>
   loadSetup({ env: process.env, store: pickAuthStore(), now: Date.now(), fetch, token: () => githubToken("read") }),
 );
 

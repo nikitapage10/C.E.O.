@@ -1,0 +1,454 @@
+/*
+ * Skippy on the Desk (#224): his avatar, the dialogue and the compact box. Self-contained: the Desk's tokens
+ * (desk.css) with fallbacks, so the pieces can be placed anywhere on a Desk page.
+ */
+.skp-avatar,
+.skp-chat,
+.skp-ask {
+  --skp-ice: var(--ice, #8fe8ff);
+  --skp-gold: #e8b84a;
+  --skp-navy: #0a2e62;
+}
+
+/* ── The avatar: Skippy hovering in his can ── */
+.skp-avatar {
+  --s: 64px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--s);
+  height: var(--s);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  isolation: isolate;
+}
+.skp-avatar--sm {
+  --s: 40px;
+}
+.skp-avatar--lg {
+  --s: 96px;
+}
+.skp-avatar__glow {
+  position: absolute;
+  inset: 4%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 60%, rgba(127, 216, 255, 0.45), rgba(10, 46, 98, 0.55) 55%, rgba(4, 6, 11, 0) 72%);
+  box-shadow: 0 0 0 1px rgba(127, 216, 255, 0.35);
+  transition: box-shadow 0.25s;
+}
+.skp-avatar__can {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  animation: skp-hover 4.5s ease-in-out infinite;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.5));
+}
+.skp-avatar:hover .skp-avatar__glow,
+.skp-avatar:focus-visible .skp-avatar__glow {
+  box-shadow:
+    0 0 0 1px var(--skp-ice),
+    0 0 22px rgba(127, 216, 255, 0.55);
+}
+.skp-avatar:focus-visible {
+  outline: 2px solid var(--skp-ice);
+  outline-offset: 3px;
+}
+.skp-avatar--busy .skp-avatar__glow {
+  animation: skp-breathe 1.4s ease-in-out infinite;
+}
+.skp-avatar__tag {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 2px);
+  translate: -50% 0;
+  padding: 4px 9px;
+  border: 1px solid rgba(232, 184, 74, 0.55);
+  border-radius: 999px;
+  background: rgba(10, 46, 98, 0.75);
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--skp-gold);
+  white-space: nowrap;
+}
+@keyframes skp-hover {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: -2deg;
+  }
+  50% {
+    translate: 0 -4px;
+    rotate: 2deg;
+  }
+}
+@keyframes skp-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(127, 216, 255, 0.35),
+      0 0 6px rgba(127, 216, 255, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--skp-ice),
+      0 0 26px rgba(127, 216, 255, 0.7);
+  }
+}
+
+/* ── The compact box ── */
+.skp-ask {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 20px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid rgba(127, 216, 255, 0.28);
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(10, 46, 98, 0.42), rgba(10, 15, 26, 0.72) 45%);
+}
+.skp-ask__label {
+  flex: none;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--skp-gold);
+}
+.skp-ask .skp-compose {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* ── The composer ── */
+.skp-compose {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--hair, rgba(255, 255, 255, 0.13));
+}
+.skp-compose__box {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid var(--hair, rgba(255, 255, 255, 0.13));
+  border-radius: var(--radius, 4px);
+  background: rgba(4, 6, 11, 0.6);
+  color: var(--text, #e8f1ff);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  resize: none;
+  field-sizing: content;
+}
+.skp-compose__box:focus-visible {
+  outline: none;
+  border-color: var(--skp-ice);
+  box-shadow: 0 0 0 1px var(--skp-ice);
+}
+.skp-compose__box:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.skp-compose__box::placeholder {
+  color: var(--faint, #7c879e);
+}
+.skp-compose .fy-mic {
+  position: static;
+  flex: none;
+}
+.skp-compose__send {
+  flex: none;
+  min-width: 72px;
+}
+.skp-compose__err {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--amber, #ffd08f);
+}
+
+/* ── The dialogue ── */
+.skp-chat {
+  /* Set here too, since the dock sits at the page's body, outside the Desk's own styles. */
+  font-family: var(--sans, "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif);
+  color: var(--text, #e8f1ff);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid rgba(127, 216, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(7, 11, 20, 0.97);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(0, 0, 0, 0.4);
+  color: var(--text, #e8f1ff);
+  overflow: hidden;
+}
+.skp-chat--dock {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  width: min(420px, calc(100vw - 32px));
+  height: min(600px, calc(100dvh - 48px));
+  animation: skp-rise 0.28s var(--ease, ease-out);
+}
+.skp-chat--inline {
+  height: 100%;
+  min-height: 360px;
+}
+.skp-chat__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  border-bottom: 1px solid var(--hair, rgba(255, 255, 255, 0.13));
+  background: linear-gradient(90deg, rgba(10, 46, 98, 0.55), rgba(10, 46, 98, 0));
+}
+.skp-chat__face {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(127, 216, 255, 0.35), rgba(10, 46, 98, 0.6));
+  box-shadow: 0 0 0 1px rgba(127, 216, 255, 0.4);
+}
+.skp-chat__who {
+  flex: 1;
+  min-width: 0;
+}
+.skp-chat__who h2 {
+  margin: 0;
+  font-family: var(--serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.15;
+}
+.skp-chat__who p {
+  margin: 1px 0 0;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--skp-gold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.skp-chat__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted, #aab5c9);
+}
+.skp-chat__icon:hover,
+.skp-chat__icon.on {
+  color: var(--text, #e8f1ff);
+  border-color: var(--hair-strong, rgba(255, 255, 255, 0.3));
+}
+.skp-chat__icon.on {
+  color: var(--skp-ice);
+}
+.skp-chat__icon:focus-visible,
+.skp-chip:focus-visible,
+.skp-chat__list:focus-visible {
+  outline: 2px solid var(--skp-ice);
+  outline-offset: 2px;
+}
+.skp-chat__list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 16px 14px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.skp-turn {
+  max-width: 88%;
+}
+.skp-turn p {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.skp-turn--nikita {
+  align-self: flex-end;
+}
+.skp-turn--nikita p {
+  border-bottom-right-radius: 3px;
+  background: rgba(232, 241, 255, 0.1);
+  border: 1px solid var(--hair, rgba(255, 255, 255, 0.13));
+}
+.skp-turn--skippy {
+  align-self: flex-start;
+}
+.skp-turn--skippy p {
+  border-bottom-left-radius: 3px;
+  background: rgba(10, 46, 98, 0.55);
+  border: 1px solid rgba(127, 216, 255, 0.22);
+}
+.skp-turn--hello p {
+  font-family: var(--serif, "Cormorant Garamond", Georgia, serif);
+  font-style: italic;
+  font-size: 16px;
+}
+.skp-turn--note p {
+  background: rgba(255, 208, 143, 0.06);
+  border-color: rgba(255, 208, 143, 0.35);
+  color: var(--amber, #ffd08f);
+  font-size: 13px;
+}
+.skp-turn--typing {
+  display: flex;
+  gap: 5px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(10, 46, 98, 0.4);
+}
+.skp-turn--typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--skp-ice);
+  animation: skp-dot 1.2s ease-in-out infinite;
+}
+.skp-turn--typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.skp-turn--typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.skp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.skp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(232, 184, 74, 0.55);
+  border-radius: 999px;
+  background: rgba(232, 184, 74, 0.08);
+  color: var(--text, #e8f1ff);
+  font-size: 13px;
+  text-align: left;
+}
+.skp-chip:hover:not(:disabled) {
+  border-color: var(--skp-gold);
+  background: rgba(232, 184, 74, 0.16);
+}
+.skp-chip--open,
+.skp-chip--lattice {
+  border-color: rgba(127, 216, 255, 0.45);
+  background: rgba(127, 216, 255, 0.06);
+}
+.skp-chip em {
+  font-style: normal;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint, #7c879e);
+}
+.skp-chip--done em {
+  color: var(--mint, #7dffc4);
+}
+.skp-chip--held em,
+.skp-chip--failed em,
+.skp-chip--signed-out em {
+  color: var(--amber, #ffd08f);
+}
+.skp-chips__note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--faint, #7c879e);
+}
+.skp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Movement only: if a busy page stalls the animation, the dock is still fully there. */
+@keyframes skp-rise {
+  from {
+    translate: 0 12px;
+  }
+}
+@keyframes skp-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+    translate: 0 0;
+  }
+  50% {
+    opacity: 1;
+    translate: 0 -3px;
+  }
+}
+
+/* ── Phone width: the dialogue is a sheet from the bottom, the box stacks ── */
+@media (max-width: 640px) {
+  .skp-chat--dock {
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: min(82dvh, 640px);
+    border-radius: 12px 12px 0 0;
+    border-bottom: 0;
+  }
+  .skp-ask {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px;
+  }
+  .skp-ask__label {
+    flex-basis: 100%;
+  }
+  .skp-turn {
+    max-width: 94%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skp-avatar__can,
+  .skp-avatar--busy .skp-avatar__glow,
+  .skp-turn--typing i,
+  .skp-chat--dock {
+    animation: none;
+  }
+}

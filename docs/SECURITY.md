@@ -146,7 +146,7 @@ browser, and no function logs or returns one. Which environments get each is in 
 
 | Variable | What it is for | Without it |
 | --- | --- | --- |
-| `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script | Shaping is off; hours and scripts come from the agents' own lines |
+| `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script, Skippy's chat on Today (#224) | Shaping and Skippy's chat are off; hours and scripts come from the agents' own lines |
 | `GEMINI_API_KEY` | Gemini's text to speech: the day's story, read aloud (#95). Sent only in a request header, with only the day's scrubbed script | No audio; the Chronicle says so |
 | `GEMINI_BUDGET_USD` | Gemini's monthly cap, enforced in code (`api/_world/story.ts`); default 5, never above 10 | $5 |
 | `FOUNDRY_DESK_KEY` | The Desk's enrolment secret: typed once per device to add its passkey, and the root every Desk signing key is derived from (#132). Long and random | Sign-in, the buttons and the story backfill say "not set up" |
@@ -154,6 +154,7 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `FOUNDRY_APP_INSTALLATION_ID` | Optional: the App's installation, to skip one lookup | Looked up once per warm function |
 | `FOUNDRY_GITHUB_TOKEN` | The fallback until the App is set up: a fine-grained token that acts as Nikita. The Desk's buttons write issues with it; the feeds read with it | With the App set, nothing is lost; without either, buttons say "not set up" and the feeds read anonymously |
 | `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
+| `SKIPPY_BUDGET_USD` | Skippy's chat's share of the $10 Claude cap (#224, `api/_skippy/budget.ts`); never more than the cap leaves after the world's share and $2 kept for Rivet's shaping | $1 |
 | `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
 | `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved, and the Desk can't sign in |
 | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Make them with the browser paste in "Setting up pings" below and paste them straight into Vercel. Production only | The switch says pings aren't set up |

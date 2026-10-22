@@ -8,12 +8,27 @@
 #   models/     apps/world/public/models from main
 #
 # Signs in like deploy-azure.yml (OIDC, the `azure` environment, main only) and skips until Azure is set up.
+#
+# Run by hand with "seed" ticked, it does the one-off seed instead (docs/AZURE.md, "Seeding the Azure state"): it
+# copies production's world, its stories and the idea pictures from Vercel Blob into `ceo-state`, under the same
+# names. That needs the BLOB_READ_WRITE_TOKEN secret (production's Blob store token); without it the seed says so
+# and stops, green. If the Azure copy already has a world it changes nothing unless "force" is ticked too, and even
+# then it only replaces the files it copies (blob soft delete keeps what it replaced for 14 days).
 name: Back up to Azure
 
 on:
   schedule:
     - cron: "41 10 * * *"
   workflow_dispatch:
+    inputs:
+      seed:
+        description: "Seed the Azure state from production once, instead of the backup"
+        type: boolean
+        default: false
+      force:
+        description: "With seed: replace the Azure copy's world even if it already has one"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -24,7 +39,7 @@ concurrency:
 
 jobs:
   backup:
-    if: vars.AZURE_CLIENT_ID != ''
+    if: vars.AZURE_CLIENT_ID != '' && !inputs.seed
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: azure
@@ -75,3 +90,94 @@ jobs:
           az storage blob upload-batch --auth-mode login --account-name "$ACCOUNT" -d ceo-backups \
             --destination-path "$stamp" -s backup --tier Cool --overwrite --no-progress -o none
           echo "Backed up to ceo-backups/$stamp"
+
+  seed:
+    if: vars.AZURE_CLIENT_ID != '' && github.event_name == 'workflow_dispatch' && inputs.seed
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      FORCE: ${{ inputs.force }}
+    steps:
+      - name: Check for the Blob token
+        id: token
+        # The token goes only to the steps that need it (not to npm ci's install scripts).
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: |
+          if [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
+            echo "::notice::BLOB_READ_WRITE_TOKEN isn't set, so there is nothing to seed from (docs/AZURE.md, \"Seeding the Azure state\")."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.token.outputs.ok == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.token.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.token.outputs.ok == 'true'
+        run: npm ci
+      - name: Tidy the Azure settings
+        if: steps.token.outputs.ok == 'true'
+        id: az
+        env:
+          CLIENT: ${{ vars.AZURE_CLIENT_ID }}
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          SUB: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          NAME: ${{ vars.AZURE_STORAGE_ACCOUNT }}
+        # A pasted variable can carry a stray line break or space; drop them so sign-in sees clean IDs.
+        run: |
+          for k in CLIENT TENANT SUB NAME; do
+            printf '%s=%s\n' "${k,,}" "$(printf '%s' "${!k}" | tr -d '\r\n[:space:]')" >> "$GITHUB_OUTPUT"
+          done
+          echo "ACCOUNT=$(printf '%s' "$NAME" | tr -d '\r\n[:space:]')" >> "$GITHUB_ENV"
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        if: steps.token.outputs.ok == 'true'
+        with:
+          client-id: ${{ steps.az.outputs.client }}
+          tenant-id: ${{ steps.az.outputs.tenant }}
+          subscription-id: ${{ steps.az.outputs.sub }}
+      - name: Check the Azure copy for a world
+        if: steps.token.outputs.ok == 'true'
+        id: azure
+        run: |
+          exists=$(az storage blob exists --auth-mode login --account-name "$ACCOUNT" -c ceo-state -n world/state.json --query exists -o tsv)
+          if [ "$exists" = "true" ] && [ "$FORCE" != "true" ]; then
+            echo "::notice::The Azure copy already has a world (ceo-state/world/state.json); nothing changed. Run again with force ticked to replace it."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download production's world, stories and pictures
+        if: steps.azure.outputs.go == 'true'
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: node scripts/seed-azure-pull.mjs "$RUNNER_TEMP/seed"
+      - name: Upload into ceo-state
+        if: steps.azure.outputs.go == 'true'
+        run: |
+          seed="$RUNNER_TEMP/seed"
+          over=true
+          if [ "$FORCE" != "true" ]; then
+            # No world on Azure yet: still keep any file Azure already has (a story, a picture), rather than replace it.
+            over=false
+            for prefix in world/ foundry/ideas/; do
+              az storage blob list --auth-mode login --account-name "$ACCOUNT" -c ceo-state --prefix "$prefix" \
+                --num-results "*" --query "[].name" -o tsv
+            done | while IFS= read -r name; do
+              case "$name" in *..*) continue ;; esac
+              if [ -f "$seed/$name" ]; then rm -f -- "$seed/$name" && echo "kept Azure's $name"; fi
+            done
+          fi
+          if [ -z "$(find "$seed" -type f -print -quit)" ]; then echo "Nothing new to copy."; exit 0; fi
+          az storage blob upload-batch --auth-mode login --account-name "$ACCOUNT" -d ceo-state -s "$seed" \
+            --overwrite "$over" --no-progress -o none
+          echo "Seeded ceo-state with $(find "$seed" -type f | wc -l) files from production."

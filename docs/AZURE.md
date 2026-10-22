@@ -22,7 +22,7 @@ Optionally, on the subscription: a **$25 monthly budget** that emails the Owners
 
 **Backups:** blob and container soft delete keep anything deleted or overwritten for 14 days, and `ceo-backups`
 holds nightly copies of `ceo-state` in the Cool tier, deleted after 90 days by a lifecycle rule. The nightly copy
-job itself comes with the second pull request.
+job is `backup-azure.yml` (see [Deploys and backups](#deploys-and-backups)).
 
 The functions reach storage, Key Vault and App Insights through their identity, so there are no keys or connection
 strings anywhere. You get Key Vault Secrets Officer on the vault (to add the secrets) and Storage Blob Data
@@ -46,10 +46,58 @@ names and URLs it made.
 
 ## After the paste
 
-1. **Fill the secrets.** Portal → the Key Vault → Secrets → Generate/Import, one per name below, with the same values
-   as in Vercel. Then restart the Function App so it picks them up. Until a secret exists, its app setting holds the
-   literal `@Microsoft.KeyVault(...)` text, so fill every one the functions use (or delete its app setting) before the
-   ported code goes live.
+1. **Fill the secrets.** Two parts: one paste mints the secrets that are ours to make, and three come from outside
+   by hand. Vercel's values can't be read back (they are marked sensitive), so the Azure copy gets its own.
+
+   **The paste**, in Cloud Shell (Bash), after the [one-time setup](#one-time-setup) below. It brings the template
+   up to date (with `githubPrincipalId`, so GitHub's identity gets Key Vault Secrets User and the hourly pings can
+   read `desk-pings-secret`; and the budget settings), then writes straight into the vault (`kv-ceo-besgu7fnckib2`
+   today; it looks the names up in `rg-ceo-prod`) and restarts the Function App so it picks them up:
+
+   - `desk-vapid-public-key` / `desk-vapid-private-key`: a fresh P-256 push key pair, made by Node in Cloud Shell, in
+     the form `web-push` takes (base64url: the uncompressed public point, and the private scalar `d`);
+   - `desk-vapid-subject`: `mailto:` and the address you're signed in to Azure with;
+   - `desk-pings-secret`: 32 random bytes, base64url. Nobody needs a copy: `desk-pings.yml` reads it from the vault;
+   - `foundry-desk-key`: 32 random bytes, base64url, **printed once** at the end. It is the Azure Desk's sign-in key:
+     keep it in your password manager and use it to enrol a passkey on the Azure address (see "Passkeys are per
+     domain" below). It isn't Vercel's Desk key.
+
+   A secret that already has a value is kept, never replaced (the paste says `kept …`), so running it again is safe.
+   To replace them all on purpose (it signs every Azure Desk session out and drops its phones' pings), run
+   `export FORCE=1` first and `unset FORCE` after.
+
+```bash
+(git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId="$(az ad signed-in-user show --query id -o tsv)" githubPrincipalId="$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv)" -o none && echo "infra updated" && \
+(RG=rg-ceo-prod; KV=$(az keyvault list -g $RG --query "[0].name" -o tsv); FA=$(az functionapp list -g $RG --query "[0].name" -o tsv)
+[ -n "$KV" ] && [ -n "$FA" ] || { echo "No Key Vault or Function App in $RG yet: run the paste above first."; exit 1; }
+has() { [ "${FORCE:-0}" != 1 ] && [ -n "$(az keyvault secret show --vault-name "$KV" -n "$1" --query value -o tsv 2>/dev/null)" ]; }
+put() { az keyvault secret set --vault-name "$KV" -n "$1" --value "$2" -o none && echo "set  $1"; }
+rnd() { node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64url"))'; }
+if has desk-vapid-public-key || has desk-vapid-private-key; then echo "kept desk-vapid-public-key, desk-vapid-private-key"; else
+  read -r PUB PRIV < <(node -e 'const j=require("crypto").generateKeyPairSync("ec",{namedCurve:"P-256"}).privateKey.export({format:"jwk"}),b=s=>Buffer.from(s,"base64url");console.log(Buffer.concat([Buffer.from([4]),b(j.x),b(j.y)]).toString("base64url"),j.d)')
+  put desk-vapid-private-key "$PRIV" && put desk-vapid-public-key "$PUB"; fi
+if has desk-vapid-subject; then echo "kept desk-vapid-subject"; else U=$(az account show --query user.name -o tsv); put desk-vapid-subject "mailto:${U#*#}"; fi
+if has desk-pings-secret; then echo "kept desk-pings-secret"; else put desk-pings-secret "$(rnd)"; fi
+if has foundry-desk-key; then echo "kept foundry-desk-key"; else K=$(rnd); put foundry-desk-key "$K" && printf '\nYour Azure Desk key, shown only now (keep it in your password manager):\n%s\n\n' "$K"; fi
+az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
+```
+
+   **By hand, three secrets** (they come from other services). In the [Azure portal](https://portal.azure.com):
+   search **Key vaults** → **kv-ceo-besgu7fnckib2** → in the left menu **Objects → Secrets** → **+ Generate/Import**.
+   Leave **Upload options** on *Manual*, type the **Name** exactly as below, paste the value into **Secret value**,
+   leave the content type, dates and **Enabled: Yes** as they are, and press **Create**. Then restart: search
+   **Function App** → **func-ceo-besgu7fnckib2** → **Overview** → **Restart** (Key Vault values are read at start-up).
+
+   | Name | Value |
+   | --- | --- |
+   | `claude-api-key` | A new key from [console.anthropic.com](https://console.anthropic.com) → **API keys** → **Create key**, in the same workspace as Vercel's (so the same monthly spend limit covers both copies) |
+   | `gemini-api-key` | A key from [aistudio.google.com](https://aistudio.google.com) → **Get API key** → **Create API key** (Vercel's own Gemini project is fine) |
+   | `foundry-github-token` | A fine-grained token: GitHub → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**. Resource owner `nikitapage10`, **Only select repositories** → `nikitapage10/C.E.O.`, and under **Repository permissions**: Actions *Read-only*, Code scanning alerts *Read-only*, Contents *Read-only*, Dependabot alerts *Read-only*, Issues *Read and write*, Pull requests *Read-only* (Metadata *Read-only* comes with it). Nothing else |
+
+   `foundry-app-id`, `foundry-app-installation-id` and `foundry-app-private-key` stay empty until the crew's GitHub
+   App exists (#138); the functions use `foundry-github-token` meanwhile. A secret that doesn't exist yet (or is
+   empty) is harmless: its app setting holds the literal `@Microsoft.KeyVault(...)` text, which the functions treat
+   as unset (see "Key Vault references" below), so that feature is simply off, as on Vercel without the setting.
 
    | Key Vault secret | App setting |
    | --- | --- |
@@ -61,7 +109,11 @@ names and URLs it made.
    | `desk-vapid-public-key`, `desk-vapid-private-key`, `desk-vapid-subject` | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY`, `DESK_VAPID_SUBJECT` |
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
 
-   `WORLD_BUDGET_USD` and `GEMINI_BUDGET_USD` aren't secrets; add them as plain app settings if Vercel has them set.
+   **Budgets** aren't secrets: the template sets them as plain app settings, lower than Vercel's because both copies
+   use the same Claude and Gemini accounts, and each copy keeps its own ledger. `WORLD_BUDGET_USD=2` (Vercel: 6),
+   `GEMINI_BUDGET_USD=2` (Vercel: 5) and `SKIPPY_BUDGET_USD=0.5` (Vercel: 1); change one with `-p worldBudgetUsd=3`
+   (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. Anything set by hand in the portal is reset by the next
+   template run, so change them there.
    Vercel's `BLOB_*` settings have no counterpart: the Function App already has `WORLD_STORE=azureblob`,
    `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_BLOB_ENDPOINT` and `AZURE_STORAGE_CONTAINER=ceo-state`.
 
@@ -104,7 +156,9 @@ The same code runs on Vercel and on Azure; nothing here changes how Vercel runs 
 - **Key Vault references.** Until a secret exists in the vault, its app setting holds the literal
   `@Microsoft.KeyVault(...)` text. [`azure/src/env.ts`](../azure/src/env.ts) runs before any handler and removes
   every such value from the environment (logging only the setting's name), so the code behaves as on Vercel with
-  that setting missing, instead of using the reference as a key.
+  that setting missing, instead of using the reference as a key. A secret that exists but is empty or only
+  whitespace counts as unset too, and the rest are trimmed (a value pasted with a stray line break still works).
+  Its list of secret settings must match the template's; a unit test keeps the two in step.
 - **Long requests skip `/api`.** The Static Web App's proxy to a linked backend may cut a request at about 45
   seconds, so the hourly world step (up to 180 s) and the day story (up to 150 s) should be called on the Function
   App's own URL (`az deployment sub show -n ceo --query properties.outputs.functionAppUrl.value -o tsv`), not the
@@ -112,8 +166,8 @@ The same code runs on Vercel and on Azure; nothing here changes how Vercel runs 
   provider to the Function App; check its own URL still answers before pointing anything at it.
 - **Passkeys are per domain.** The Desk's passkeys are tied to the address they were made on, so signing in to the
   Desk on the Azure address needs its own passkey, enrolled there with the Desk key as on Vercel. Azure's store
-  starts empty: Vercel's passkeys don't carry over, and neither do the world, the stories or the pictures unless
-  they are copied into `ceo-state`.
+  starts empty: Vercel's passkeys don't carry over, and neither do the world, the stories or the pictures until
+  they are copied into `ceo-state` (see [Seeding the Azure state](#seeding-the-azure-state)).
 - **`staticwebapp.config.json`** (in `apps/world/public`, copied into `dist` by the build) already carries
   `vercel.json`'s headers and page rewrites; a unit test (`scripts/azure-config.test.mjs`) keeps the two in step. One difference: Vercel caches
   `/models/*?v=…` for good, and Static Web Apps can't match on a query string, so models are revalidated instead.
@@ -145,14 +199,43 @@ until the one-time setup below is done, so main stays green either way.
 - **`.github/workflows/deploy-azure.yml`**, on every push to `main` (and by hand from the Actions tab): one build, then
   the site (prebuilt `apps/world/dist`, uploaded with no rebuild) and the functions (`azure/dist/functions.zip`,
   zip-deployed to Flex Consumption) go out in parallel. Expect about 3 to 4 minutes from push to live.
+- **`.github/workflows/world-step.yml`** and **`.github/workflows/desk-pings.yml`**, hourly (and pings on Foundry
+  issue events): each has a second job, `azure`, beside the Vercel one. The world step calls the Function App's own
+  address (`az functionapp show … defaultHostName`), since a step can take minutes and the site's proxy may cut it;
+  if that address refuses callers (a linked Static Web App can do that), it goes through the site's `/api` instead.
+  The pings job reads `desk-pings-secret` from the vault at run time (masked in the log; GitHub keeps no copy, and
+  it isn't Vercel's), which needs the Key Vault Secrets User role the template gives GitHub's identity. Until Azure
+  is set up the job is skipped; if sign-in, the vault read or the call fails it leaves a warning and the run stays
+  green, since Vercel is production. Each run shows as a deployment to the `azure` environment, like the backups.
 - **`.github/workflows/backup-azure.yml`**, nightly at 10:41 UTC: the production world from Vercel's public API
   (`/api/world` and the last 7 days), everything in the Azure copy's `ceo-state`, and `apps/world/public/models`,
   into `ceo-backups/<YYYY-MM-DD>/` in Cool tier. The container keeps 90 days.
 
+### Seeding the Azure state
+
+A one-off: copy production's world (`world/state.json` and every day), its stories and their audio, and the idea
+pictures (`foundry/ideas/`) from Vercel Blob into `ceo-state`, under the same names, so the Azure copy carries on
+from where production is. The Desk's sign-ins (`desk/`) stay behind: passkeys and phones belong to their address.
+The world's month of Claude spend comes with it (it lives in the state), so the Azure budget starts where
+production's month is.
+
+1. Vercel → the project → **Storage** → the Blob store → **.env.local** tab → **Show secret** → copy
+   `BLOB_READ_WRITE_TOKEN`'s value (the store's own token, not a project setting, so it can be shown).
+2. GitHub → the repo's **Settings → Secrets and variables → Actions → Secrets → New repository secret**, name
+   `BLOB_READ_WRITE_TOKEN`, paste the value.
+3. Actions → **Back up to Azure** → **Run workflow**, tick **seed**. If the Azure copy has already made a world of
+   its own (the hourly step starts one as soon as it runs), tick **force** too to replace it with production's.
+   Without force a world already there is left alone and the run says so; with it, only the copied files are
+   replaced, and blob soft delete keeps what was replaced for 14 days.
+4. Delete the `BLOB_READ_WRITE_TOKEN` secret again (it can read and write production's store).
+
+Without the secret the seed run stops with a note, green. Nothing seeds on its own: only a hand-run with **seed**.
+
 **How GitHub signs in:** OIDC only. GitHub gives each job a short-lived token, and Azure trusts it only for this
 repo's `azure` environment, which only `main` may use. No password or key is stored in GitHub; the Static Web App's
-deployment token is read at run time and masked. The identity has Contributor on `rg-ceo-prod` and blob data access on
-the storage account, and nothing outside the resource group.
+deployment token is read at run time and masked. The identity has Contributor on `rg-ceo-prod`, blob data access on
+the storage account and Key Vault Secrets User on the vault (for `desk-pings-secret`), and nothing outside the
+resource group.
 
 **Pull requests** don't deploy to Azure: that would give Azure credentials to pull request code in a public repo.
 Vercel's previews cover them.
@@ -184,5 +267,11 @@ az ad app federated-credential create --id $(az ad app list --display-name ceo-g
    the seven lines step 1 printed (name on the left of `=`, value on the right). None of them is a secret. The
    workflows drop stray spaces and line breaks from them, so a messy paste still works.
 4. Run "Deploy to Azure" once from the Actions tab (or push anything to `main`).
+
+The paste in step 1 passes `githubPrincipalId`, so the template gives GitHub's identity all three roles, Key Vault
+Secrets User included. A setup made before that role was added gets it from the secrets paste in
+[After the paste](#after-the-paste), which runs the template the same way. (Give roles through the template only:
+one added by hand with `az role assignment create` gets a different name, and the next template run then fails
+with `RoleAssignmentExists`.)
 
 From then on every push to `main` updates both Vercel and Azure.

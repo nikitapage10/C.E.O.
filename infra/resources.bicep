@@ -29,6 +29,15 @@ param repositoryToken string
 @description('Daily Log Analytics ingestion cap in GB (a decimal, as a string).')
 param logDailyCapGb string
 
+@description('The Azure copy\'s monthly Claude budget for the world, in USD (WORLD_BUDGET_USD), as a string.')
+param worldBudgetUsd string
+
+@description('The Azure copy\'s monthly Gemini budget for the stories, in USD (GEMINI_BUDGET_USD), as a string.')
+param geminiBudgetUsd string
+
+@description('The Azure copy\'s monthly Claude budget for Skippy\'s chat, in USD (SKIPPY_BUDGET_USD), as a string.')
+param skippyBudgetUsd string
+
 param tags object
 
 // Globally unique names carry a hash of the resource group, so the same paste lands on the same names every time.
@@ -220,6 +229,11 @@ var plainSettings = [
   { name: 'AZURE_STORAGE_ACCOUNT', value: storage.name }
   { name: 'AZURE_STORAGE_BLOB_ENDPOINT', value: storage.properties.primaryEndpoints.blob }
   { name: 'AZURE_STORAGE_CONTAINER', value: stateContainer }
+  // Each copy keeps its own spend ledger in its own store, so these cap the Azure copy alone. They default lower
+  // than Vercel's ($6 world, $5 Gemini, $1 chat): the same Claude and Gemini keys serve both copies.
+  { name: 'WORLD_BUDGET_USD', value: worldBudgetUsd }
+  { name: 'GEMINI_BUDGET_USD', value: geminiBudgetUsd }
+  { name: 'SKIPPY_BUDGET_USD', value: skippyBudgetUsd }
 ]
 
 resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
@@ -358,8 +372,10 @@ resource deployerState 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
   }
 }
 
-// GitHub Actions (deploy-azure.yml, backup-azure.yml), signed in through OIDC from main only: Contributor on this
-// group to ship the site and the functions, and blob data access for the nightly backup (shared keys are off).
+// GitHub Actions (deploy-azure.yml, backup-azure.yml, world-step.yml, desk-pings.yml), signed in through OIDC from
+// main only: Contributor on this group to ship the site and the functions, blob data access for the nightly backup
+// and the one-off seed (shared keys are off), and read access to the vault's secrets so the hourly pings can read
+// `desk-pings-secret` at run time instead of keeping a copy in GitHub.
 resource githubDeploy 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubPrincipalId)) {
   name: guid(resourceGroup().id, githubPrincipalId, roles.contributor)
   properties: {
@@ -374,6 +390,16 @@ resource githubBackup 'Microsoft.Authorization/roleAssignments@2022-04-01' = if 
   scope: storage
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.storageBlobDataContributor)
+    principalId: githubPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource githubSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubPrincipalId)) {
+  name: guid(vault.id, githubPrincipalId, roles.keyVaultSecretsUser)
+  scope: vault
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.keyVaultSecretsUser)
     principalId: githubPrincipalId
     principalType: 'ServicePrincipal'
   }

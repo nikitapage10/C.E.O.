@@ -37,7 +37,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     next: "Claude agents with your store, email and payment connectors; outbound email needs your approval.",
   },
   exchange: {
-    blurb: "The trading floor for Kalshi and portfolio research. Agents research markets, price them, and bring trade ideas to the vault.",
+    blurb: "The trading floor for Polymarket and portfolio research. The ticker ring and the odds board run on Polymarket's live public odds; agents research markets, price them, and bring trade ideas to the vault.",
     stations: {
       post: "The Bookie's floating command podium, high in the back-right corner. The Exchange's submind prices every trade from here, nervously. It glides out over the room when it gives an order.",
       terminal: "Market research.",
@@ -46,8 +46,8 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       "desk-w": "Pricing desk.",
       vault: "The approval vault: it opens while a trade is waiting on you.",
     },
-    today: "Simulated quants proposing trades (no real money moves).",
-    next: "The Kalshi API, demo environment first, trades always approval-gated with caps.",
+    today: "Live Polymarket odds on the ticker ring and the odds board. The quants are still simulated, and no money moves: Nikita's own positions are read-only, on the Desk only.",
+    next: "The Bookie's own estimates beside the odds, and paper trades. Real trades stay off; any later would be approval-gated with caps.",
   },
   green: {
     blurb: "Fantasy football HQ. Agents read your Sleeper league, projections and injury reports, then suggest waiver claims and lineup changes. The Desk's Green page has the whole board.",

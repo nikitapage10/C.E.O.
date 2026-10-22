@@ -115,7 +115,7 @@ export const ROOMS: Record<RoomId, RoomDef> = {
     id: "exchange",
     name: "The Exchange",
     theme: "trading floor",
-    workstream: "Kalshi & portfolio",
+    workstream: "Polymarket & portfolio",
     y: 1.2,
     stations: [
       s("desk-n", "North desk", 0, -2.8, 0),

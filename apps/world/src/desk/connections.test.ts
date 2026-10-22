@@ -46,7 +46,7 @@ describe("each system's How it works", () => {
     expect(connectionsAt("foundry", "checks").map((c) => c.id)).toEqual(["gemini-visual-qa"]);
     expect(connectionsAt("world").map((c) => c.id)).toEqual(["claude-api", "gemini-speech", "world-trigger", "blob"]);
     expect(connectionsAt("foundry", "main")).toEqual([]);
-    expect(connectionsAt("exchange").map((c) => c.id)).toEqual(["polymarket"]);
+    expect(connectionsAt("exchange").map((c) => c.id)).toEqual(["polymarket", "polymarket-us"]);
     expect(connectionsAt("green").map((c) => c.id)).toEqual(["sleeper", "fantasypros"]);
     for (const c of CONNECTIONS.filter((c) => c.room === "relay")) expect(c.at.every((p) => p.system === "relay"), c.id).toBe(true);
   });

@@ -224,6 +224,7 @@ export function defaultCast(): Cast {
       { a: "gilt", b: "ledger", kind: "rival", note: "The Executive calls every invoice 'a real synergy'. Ledger calls the Executive 'an unreconciled line item'. They have never agreed on a number." },
       { a: "gilt", b: "memo", kind: "friend", note: "Memo delegates to the Executive; the Executive delegates it back as 'a stretch opportunity'. Neither has run the errand. Both have a slide on it." },
       { a: "ticker", b: "hedge", kind: "best-friend", note: "Two worriers at one desk. The Bookie quotes the odds, Hedge lists the downsides, and together they talk each other out of everything." },
+      { a: "ticker", b: "ledger", kind: "rival", note: "Ledger wants to reconcile the C.E.O.'s Polymarket book line by line. The Bookie keeps it behind the passkey and quotes Ledger a probability instead." },
       { a: "ticker", b: "odds", kind: "rival", note: "Noco duels for prices. The Bookie prices the duels, forty to one against, and has never once been right about Noco." },
       { a: "turf", b: "gridiron", kind: "friend", note: "Gridiron coaches; the Commentator calls every play he makes, louder than he made it. Gridiron apologises for the volume. For both of them." },
       { a: "turf", b: "ticker", kind: "rival", note: "The Bookie prices the Commentator's real win chance and sweats every decimal; the Commentator shouts the same number. Same maths. Neither admits it." },

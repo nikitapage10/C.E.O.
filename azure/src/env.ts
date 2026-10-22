@@ -31,6 +31,9 @@ export const SECRET_SETTINGS = [
   "DESK_VAPID_SUBJECT",
   "DESK_PINGS_SECRET",
   "FANTASYPROS",
+  // Optional (#253): the Exchange's positions wait for them.
+  "POLYMARKET_US_KEY_ID",
+  "POLYMARKET_US_SECRET_KEY",
 ] as const;
 
 /** Whether a setting's value is an unresolved Key Vault reference (the platform's own spelling, in any case). */

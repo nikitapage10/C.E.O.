@@ -28,7 +28,7 @@ import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 /** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
 const PLANNED: { room: string; name: string; what: string; href?: string }[] = [
   { room: "spire", name: "Spire", what: "Stripe Invoicing and the idea scout", href: "/spire" },
-  { room: "exchange", name: "Exchange", what: "Kalshi, crypto and stock prices, and Plaid or statements (Polymarket's odds are live)", href: "/exchange" },
+  { room: "exchange", name: "Exchange", what: "Your Polymarket US positions (read-only, behind the passkey), Polymarket's live odds, and later crypto and stock prices", href: "/exchange" },
   { room: "green", name: "Green", what: "The weekly take from OpenAI, and FantasyPros on Vercel (Sleeper's league is live; FantasyPros is on Azure)", href: "/green" },
   { room: "workshop", name: "Workshop", what: "Meshy and the Bambu Lab printer", href: "/workshop" },
   { room: "boiler", name: "The house", what: "Google Nest, below" },

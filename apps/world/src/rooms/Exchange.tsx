@@ -1,19 +1,19 @@
 import { getStation } from "@ceo/core";
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, Color, DoubleSide, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, ShaderMaterial, type Group } from "three";
+import { moveTone, startPolymarket, usePolymarket, type PmMarket } from "../desk/exchange/polymarket.ts";
 import { Dust, Haze } from "../fx/atmos.tsx";
 import { screenMaterial } from "../fx/materials.ts";
 import { Model } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
+import { tickerChunks } from "./exchangeTicker.ts";
 import { Block, FONTS, LightBar, Monitor, Plinth, ahead, facingDir } from "./primitives.tsx";
 
-const TICKERS = "RAIN-NYC-SAT  63¢ ▲2    FED-CUT-DEC  41¢ ▼3    BOXOFFICE-WKND  57¢ ▲1    SNOW-DEN-NOV  22¢ ▼4    ALIENS-CONFIRMED  1¢ —    ";
-
-function tickerTexture() {
+function tickerTexture(chunks: string[]) {
   const c = document.createElement("canvas");
   c.width = 4096;
   c.height = 96;
@@ -23,7 +23,8 @@ function tickerTexture() {
   g.font = "500 52px 'IBM Plex Mono', monospace";
   g.textBaseline = "middle";
   let x = 20;
-  for (const chunk of (TICKERS + TICKERS + TICKERS).split("    ")) {
+  for (let i = 0; x < c.width; i++) {
+    const chunk = chunks[i % chunks.length]!;
     const up = chunk.includes("▲");
     const down = chunk.includes("▼");
     g.fillStyle = up ? "#7dffc4" : down ? "#ff8a9e" : "#d8e6f2";
@@ -99,8 +100,19 @@ function Vault({ position, yaw, open }: { position: [number, number]; yaw: numbe
 
 /** The Exchange: a sunken trading pit in black glass, odds circling overhead. */
 export function Exchange() {
-  const tex = useMemo(tickerTexture, []);
-  const ledMat = useMemo(() => new MeshStandardMaterial({ color: "#000", emissiveMap: tex, emissive: "#ffffff", emissiveIntensity: 1.8, toneMapped: false }), [tex]);
+  useEffect(() => startPolymarket(), []);
+  const top = usePolymarket((s) => s.board?.top);
+  const chunks = useMemo(() => tickerChunks(top ?? []), [top]);
+  const key = chunks.join("|");
+  // A new texture only when the words change (about once a minute at most); the old one is let go.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tex = useMemo(() => tickerTexture(chunks), [key]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  const ledMat = useMemo(() => new MeshStandardMaterial({ color: "#000", emissive: "#ffffff", emissiveIntensity: 1.8, toneMapped: false }), []);
+  useEffect(() => {
+    ledMat.emissiveMap = tex;
+    ledMat.needsUpdate = true;
+  }, [ledMat, tex]);
   const wall = useMemo(() => screenMaterial(PALETTE.mint, { speed: 0.3, density: 22 }), []);
   const ring = useRef<Group>(null);
   const pendingTrade = useWorld((s) => Object.values(s.lattice.approvals).some((a) => a.status === "pending" && a.request.action === "trade.place"));
@@ -162,7 +174,7 @@ export function Exchange() {
         <Block size={[7.8, 3.6, 0.04]} position={[-3.2, 3, 0.13]} material={PBR.blackMetal()} radius={0.01} />
         <LightBar length={16} position={[0, 0.12, 0.2]} color={PALETTE.mint} intensity={1.6} thickness={0.025} />
       </group>
-      <ExchangeFloor />
+      <ExchangeFloor top={top ?? null} />
       <pointLight position={[0, 5, 1]} color="#cfeee0" intensity={22} distance={16} decay={1.6} />
     </group>
   );
@@ -224,25 +236,46 @@ function HoloChart({ position, yaw, seed, color }: { position: [number, number, 
   );
 }
 
-/** A split-flap price board: cells that flip between red and green as the odds move. */
-function FlipBoard({ position }: { position: [number, number, number] }) {
+/**
+ * A split-flap odds board: one row per market on Polymarket's live board (#253), its odds as lit cells (a cell per
+ * ten points, give or take), mint for a market up on the day, red for down, white for flat, flickering as the flaps
+ * settle. Dark rows until the feed answers.
+ */
+function FlipBoard({ position, top }: { position: [number, number, number]; top: readonly PmMarket[] | null }) {
   const COLS = 10;
   const ROWS = 6;
   const cells = useRef<InstancedMesh>(null);
   const mat = useMemo(() => new MeshBasicMaterial({ color: "#ffffff", toneMapped: false }), []);
   const dummy = useMemo(() => new Object3D(), []);
   const c = useMemo(() => new Color(), []);
+  const rows = useMemo(
+    () =>
+      Array.from({ length: ROWS }, (_, r) => {
+        const m = top?.[r];
+        if (!m) return null;
+        const tone = moveTone(m.change24h);
+        return { lit: Math.max(1, Math.round(m.prob * (COLS - 1))), colour: tone === "up" ? "#7dffc4" : tone === "down" ? "#ff8a9e" : "#d8e6f2" };
+      }),
+    [top],
+  );
   useFrame(({ clock }) => {
     const m = cells.current;
     if (!m) return;
     const step = Math.floor(clock.elapsedTime * 1.5);
     for (let i = 0; i < COLS * ROWS; i++) {
-      dummy.position.set((i % COLS) * 0.56 - (COLS - 1) * 0.28, Math.floor(i / COLS) * 0.36 - (ROWS - 1) * 0.18, 0);
+      const col = i % COLS;
+      // Row 0 at the top: the busiest market first.
+      const row = ROWS - 1 - Math.floor(i / COLS);
+      dummy.position.set(col * 0.56 - (COLS - 1) * 0.28, Math.floor(i / COLS) * 0.36 - (ROWS - 1) * 0.18, 0);
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
       const h = Math.sin(i * 12.9898 + Math.floor((step + i * 7) / 5) * 78.233) * 43758.5453;
       const r = h - Math.floor(h);
-      c.set(r < 0.45 ? "#7dffc4" : r < 0.85 ? "#ff8a9e" : "#d8e6f2").multiplyScalar(i % COLS === 0 ? 0.6 : 1.1 + r * 0.6);
+      const live = rows[row];
+      if (!live) c.set("#1c2328").multiplyScalar(0.8 + r * 0.2);
+      else if (col === 0) c.set(live.colour).multiplyScalar(0.6);
+      else if (col <= live.lit) c.set(live.colour).multiplyScalar(1.1 + r * 0.4);
+      else c.set("#26303a").multiplyScalar(0.7 + r * 0.2);
       m.setColorAt(i, c);
     }
     m.instanceMatrix.needsUpdate = true;
@@ -255,17 +288,17 @@ function FlipBoard({ position }: { position: [number, number, number] }) {
         <planeGeometry args={[0.5, 0.28]} />
       </instancedMesh>
       <Text font={FONTS.mono} fontSize={0.13} position={[0, ROWS * 0.18 + 0.32, 0]} letterSpacing={0.24} color="#c9d2dc">
-        ODDS BOARD · LIVE
+        {top?.length ? "ODDS BOARD · POLYMARKET LIVE" : "ODDS BOARD · WAITING ON THE FEED"}
       </Text>
     </group>
   );
 }
 
 /** Around the pit: more desks along the walls, data cabinets, floor light lines, holographic charts, a mint haze. */
-function ExchangeFloor() {
+function ExchangeFloor({ top }: { top: readonly PmMarket[] | null }) {
   return (
     <group>
-      <FlipBoard position={[4.4, 3.0, -6.32]} />
+      <FlipBoard position={[4.4, 3.0, -6.32]} top={top} />
       {[0, 1, 2, 3].map((i) => {
         const a = (i / 4) * Math.PI * 2 + 0.4;
         return <HoloChart key={i} position={[Math.sin(a) * 2.7, 2.4, 0.4 + Math.cos(a) * 2.7]} yaw={a + Math.PI} seed={i * 3.1} color={i % 2 ? PALETTE.mint : "#8fd3ff"} />;

@@ -30,7 +30,7 @@ describe("staticwebapp.config.json matches vercel.json (#214)", () => {
       expect(r.destination).toBe("/index.html");
       expect(excluded(r.source)).toBe(false);
     }
-    // The site password's routes (#236) are rewritten into the Desk's sign-in function on Vercel; Azure has them
+    // The site lock's routes (#236) are rewritten into the Desk's sign-in function on Vercel; Azure has them
     // as functions of their own, under /api like every function.
     for (const r of vercel.rewrites.filter((r) => r.source.startsWith("/api/"))) {
       expect(r.destination).toMatch(/^\/api\/desk-auth\?site=(login|password)$/);

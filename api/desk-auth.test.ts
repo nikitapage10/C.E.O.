@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 import { CHALLENGE_COOKIE, SESSION_COOKIE } from "./_desk/session.ts";
 import { MemoryAuthStore } from "./_desk/store.ts";
 import { cleanLabel, handleGet, handlePost } from "./desk-auth.ts";
+import { gateRequest } from "./_site/gate.ts";
+import { SITE_COOKIE, siteSessionOf } from "./_site/session.ts";
+import { MemorySiteStore, forgetCachedState, siteKeys, type SiteStore } from "./_site/state.ts";
 
 /**
  * The Desk's sign-in end to end (#132), with a software passkey standing in for Nikita's device: a P-256 key made
@@ -69,7 +72,7 @@ class SoftPasskey {
 class Browser {
   jar = new Map<string, string>();
   constructor(
-    readonly deps: { deskKey: string; store: MemoryAuthStore | null; now: number },
+    readonly deps: { deskKey: string; store: MemoryAuthStore | null; now: number; env?: Record<string, string>; site?: SiteStore | null },
     readonly ip = "203.0.113.9",
   ) {}
   private headers(extra: Record<string, string> = {}) {
@@ -280,5 +283,54 @@ describe("sessions, devices and sign-out (#132)", () => {
     expect(cleanLabel("Nikita's <b>PC</b>\n")).toBe("Nikita's b PC b");
     expect(cleanLabel("x".repeat(80))).toHaveLength(40);
     expect(cleanLabel(42)).toBe("A device");
+  });
+});
+
+describe("the locked site opens with the Desk passkey (#238)", () => {
+  const env = { FOUNDRY_DESK_KEY: DESK };
+  const locked = () => {
+    forgetCachedState();
+    const site = new MemorySiteStore();
+    site.record = { v: 1, passkey: true, locked: "2026-10-14T08:00:00.000Z", sv: "lock-version" };
+    const store = new MemoryAuthStore();
+    return { site, store, deps: { deskKey: DESK, store, now: NOW, env, site } };
+  };
+  const opens = async (site: SiteStore, jar: Map<string, string>) =>
+    (await gateRequest(new Request(`${ORIGIN}/lattice`, { headers: { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join("; ") } }), { env, store: site, now: NOW + MIN })).allow;
+
+  it("a new device added with the Desk key gets the 180-day site cookie with its Desk session", async () => {
+    const { site, deps } = locked();
+    const browser = new Browser(deps);
+    expect(await opens(site, browser.jar)).toBe(false);
+    const res = await browser.enrol(new SoftPasskey());
+    expect(res.status).toBe(200);
+    const line = res.headers.getSetCookie().find((c) => c.startsWith(`${SITE_COOKIE}=`))!;
+    expect(line).toMatch(/; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=15552000$/);
+    expect(siteSessionOf((await siteKeys(env))!.session, browser.jar.get(SITE_COOKIE), NOW)).toMatchObject({ v: "lock-version", f: ["passkey"] });
+    expect(browser.jar.has(SESSION_COOKIE)).toBe(true);
+    expect(await opens(site, browser.jar)).toBe(true);
+  });
+
+  it("a passkey sign-in on another device gets it too; a failed one gets nothing", async () => {
+    const { site, deps } = locked();
+    const passkey = new SoftPasskey();
+    await new Browser(deps).enrol(passkey);
+    const phone = new Browser(deps, "198.51.100.7");
+    expect((await phone.signIn(passkey, 0x01)).status).toBe(401);
+    expect(phone.jar.has(SITE_COOKIE)).toBe(false);
+    expect((await phone.signIn(passkey)).status).toBe(200);
+    expect(await opens(site, phone.jar)).toBe(true);
+  });
+
+  it("sets no site cookie while the site isn't locked, or with no site store in the deps", async () => {
+    const { site, deps } = locked();
+    site.record = null;
+    const open = new Browser(deps);
+    await open.enrol(new SoftPasskey());
+    expect(open.jar.has(SITE_COOKIE)).toBe(false);
+    const { store } = setup();
+    const plain = new Browser({ deskKey: DESK, store, now: NOW });
+    await plain.enrol(new SoftPasskey());
+    expect(plain.jar.has(SITE_COOKIE)).toBe(false);
   });
 });

@@ -63,8 +63,8 @@ for (const [name, mod, opts] of ENDPOINTS) {
     handler: (req, context) => {
       const handler = mod[req.method.toUpperCase() as "GET" | "POST"];
       if (!handler) return Promise.resolve({ status: 405, headers: { Allow: methods.join(", ") } });
-      // The site password (#236): the same gate as Vercel's middleware, in front of every function. The Static Web
-      // App's own files aren't behind it (docs/AZURE.md, "The site password on Azure").
+      // The site lock (#236, #238): the same gate as Vercel's middleware, in front of every function. The Static Web
+      // App's own files aren't behind it (docs/AZURE.md, "The site lock on Azure").
       return adapt(withGate(handler, gateDeps), opts)(req, context);
     },
   });

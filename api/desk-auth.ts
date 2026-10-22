@@ -23,6 +23,10 @@
  * verification and the signature counter. Passkeys are discoverable and always ask for the device's own unlock
  * (fingerprint, face or PIN).
  *
+ * The locked site (#238): while the site is locked, a successful `signin` or `enrol` also sets the 180-day site cookie
+ * (api/_site/login.ts, passkeySiteCookie), so the Desk passkey is the way into the whole site. The site's login page
+ * uses these same two ceremonies, and the gate lets /api/desk-auth through for them (api/_site/gate.ts).
+ *
  * GET/POST ?site=login | ?site=password → the site password's sign-in and its Desk control (#236; vercel.json rewrites
  *                                          /api/site-login and /api/site-password here): api/_site/login.ts, control.ts.
  *
@@ -45,6 +49,13 @@ import { dropEndpoint, dropPasskey } from "./_desk/pings.js";
 import { MAX_PASSKEYS, pickAuthStore, type AuthStore, type Passkey } from "./_desk/store.js";
 import * as siteControl from "./_site/control.js";
 import * as siteLogin from "./_site/login.js";
+import { pickSiteStore, type SiteStore } from "./_site/state.js";
+
+/** The Desk's sign-in, and (#238) the site lock it also opens: with no `site`, no site cookie is ever set. */
+export interface AuthDeps extends DeskDeps {
+  env?: Record<string, string | undefined>;
+  site?: SiteStore | null;
+}
 
 const RP_NAME = "C.E.O. Desk";
 /** Every Desk passkey belongs to the one Desk account; nothing personal in it. */
@@ -57,7 +68,14 @@ function json(body: unknown, status = 200, cookies: string[] = [], extra: Record
   return res;
 }
 
-const live = (): DeskDeps => ({ deskKey: process.env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(), now: Date.now() });
+const live = (): AuthDeps => ({ deskKey: process.env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(), now: Date.now(), env: process.env, site: pickSiteStore() });
+
+/** The site cookie to add to a passkey sign-in or a new device, when the site is locked (#238). */
+async function siteCookieFor(deps: AuthDeps): Promise<string[]> {
+  if (!deps.env || deps.site === undefined) return [];
+  const line = await siteLogin.passkeySiteCookie(deps.env, deps.site, deps.now);
+  return line ? [line] : [];
+}
 
 /** The device's name as stored: plain words, short. */
 export function cleanLabel(given: unknown): string {
@@ -103,7 +121,7 @@ export async function handleGet(request: Request, deps: DeskDeps = live()): Prom
   return json({ ready: true, signedIn: false }, 200, given ? [clearSession()] : []);
 }
 
-export async function handlePost(request: Request, deps: DeskDeps = live()): Promise<Response> {
+export async function handlePost(request: Request, deps: AuthDeps = live()): Promise<Response> {
   if (!deps.deskKey || !deps.store) return json({ error: "not-set-up" }, 503);
   if (!sameOrigin(request)) return json({ error: "cross-site" }, 403);
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
@@ -174,7 +192,7 @@ export async function handlePost(request: Request, deps: DeskDeps = live()): Pro
       await gate.pass(challenge.ch, challenge.e * 1000);
       await store.savePasskeys(list.map((p) => (p.id === passkey.id ? { ...p, counter, used: new Date(deps.now).toISOString() } : p)));
       const session = newSession(passkey.id, deps.now);
-      return json({ ok: true, device: passkey.label }, 200, [clearChallenge("signin"), await sessionCookie(deps.deskKey, session, deps.now)]);
+      return json({ ok: true, device: passkey.label }, 200, [clearChallenge("signin"), await sessionCookie(deps.deskKey, session, deps.now), ...(await siteCookieFor(deps))]);
     }
 
     case "enrol-options": {
@@ -228,7 +246,7 @@ export async function handlePost(request: Request, deps: DeskDeps = live()): Pro
       const list = (await store.passkeys()).filter((p) => p.id !== added.id);
       if (list.length >= MAX_PASSKEYS) return json({ error: "too-many" }, 409, [clearChallenge("enrol")]);
       await store.savePasskeys([...list, added]);
-      return json({ ok: true, device: added.label }, 200, [clearChallenge("enrol"), await sessionCookie(deps.deskKey, newSession(added.id, deps.now), deps.now)]);
+      return json({ ok: true, device: added.label }, 200, [clearChallenge("enrol"), await sessionCookie(deps.deskKey, newSession(added.id, deps.now), deps.now), ...(await siteCookieFor(deps))]);
     }
 
     default:

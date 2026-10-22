@@ -1,20 +1,23 @@
 /**
- * Whether the site is locked, and with what (#236, docs/SECURITY.md, "The site password").
+ * Whether the site is locked (#236, #238; docs/SECURITY.md, "The site lock"). The Desk passkey is the only way in.
  *
- * The record lives in the private blob store beside the Desk's passkeys, at `desk/site/password.json`:
+ * The record lives in the private blob store beside the Desk's passkeys, at `desk/site/password.json` (the name is
+ * kept from #236, so a lock set then still reads):
  *
- *   { v: 1, hash?: "pbkdf2-sha256$600000$…", sv: "<session version>", set?: "<ISO time>", second?: "passkey" }
+ *   { v: 1, passkey: true, locked?: "<ISO time>", sv: "<session version>", second?: "approval" }
  *
- *   hash    the password's salted hash (api/_site/password.ts), never the password
- *   sv      the session version: every site cookie carries it, and a new one (a new password, or "Sign out
- *           everywhere") ends every cookie made before
- *   second  the hook for a second factor later (2FA): when "passkey", a site session also needs a Desk passkey
- *           sign-in. Nothing sets it yet, and nothing in the Desk can; see docs/SECURITY.md
+ *   passkey the site is locked, with the Desk passkey as the way in ("Lock the site" on the Desk)
+ *   locked  when it was locked
+ *   sv      the session version: every site cookie carries it, and a new one ("Sign out everywhere", locking again)
+ *           ends every cookie made before
+ *   second  the hook for a second step later (2FA, not built): when "approval", a site session also needs the
+ *           "approval" factor, e.g. a new device approved from a signed-in one, or an emailed link. Nothing sets it
+ *           and no sign-in makes such a session yet, so setting it by hand would lock every device out
  *
- * SITE_PASSWORD_HASH (optional, same string format) is used when the record has no hash, so the gate can be turned
- * on from Vercel's settings too. SITE_GATE=off turns the gate off whatever is stored: the break-glass switch.
+ * A record from #236 (a password's `hash`, no `passkey`) reads as locked with the passkey; its hash is ignored and
+ * dropped at the next write. There is no password any more (Nikita, 2026-10-22).
  *
- * With neither a stored hash nor the variable, the gate is OFF: nothing is locked until Nikita sets a password.
+ * SITE_GATE=off turns the gate off whatever is stored: the break-glass switch. With no lock stored, the gate is OFF.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -22,61 +25,57 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { pickBlob, type BlobBackend } from "../_blob.js";
 import { deskKeyFor } from "../_desk/keys.js";
-import { parseHash } from "./password.js";
 
 type Env = Record<string, string | undefined>;
 
 export const RECORD_PATH = "desk/site/password.json";
 
+/** How a site session was opened: the Desk passkey; "approval" is the 2FA hook (not built). */
+export type Factor = "passkey" | "approval";
+
 export interface SiteRecord {
   v: 1;
-  hash?: string;
+  passkey?: true;
+  locked?: string;
   sv: string;
-  set?: string;
-  second?: "passkey";
+  second?: "approval";
 }
 
 /** What the gate acts on. */
 export interface SiteState {
   on: boolean;
-  /** Where the password came from: the Desk (blob), Vercel's settings (env), nowhere (none), or switched off (off). */
-  source: "blob" | "env" | "none" | "off";
-  hash: string | null;
+  /** Where the lock came from: the Desk (blob), nowhere (none), or switched off by SITE_GATE=off (off). */
+  source: "blob" | "none" | "off";
   /** The current session version; a cookie with any other is signed out. */
   sv: string;
-  /** The 2FA hook: the factors a site session must carry. Today only ["password"]. */
-  factors: Array<"password" | "passkey">;
+  /** Every factor a site session must carry: ["passkey"], plus "approval" once the 2FA hook is used. */
+  factors: Factor[];
 }
 
 export const newVersion = () => randomBytes(12).toString("base64url");
 
-/** A stored record, checked, or null for anything else. */
+/** A stored record, checked, or null for anything else. A #236 password record reads as a passkey lock. */
 export function readRecord(value: unknown): SiteRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const r = value as Record<string, unknown>;
   if (typeof r.sv !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(r.sv)) return null;
+  const legacy = typeof r.hash === "string" && r.hash.length > 0;
+  const locked = typeof r.locked === "string" ? r.locked : legacy && typeof r.set === "string" ? r.set : undefined;
   return {
     v: 1,
     sv: r.sv,
-    ...(typeof r.hash === "string" && parseHash(r.hash) && { hash: r.hash }),
-    ...(typeof r.set === "string" && { set: r.set.slice(0, 40) }),
-    ...(r.second === "passkey" && { second: "passkey" as const }),
+    ...((r.passkey === true || legacy) && { passkey: true as const }),
+    ...(locked && { locked: locked.slice(0, 40) }),
+    ...(r.second === "approval" && { second: "approval" as const }),
   };
 }
 
 /** The gate's state from the stored record and the environment. */
 export function stateOf(record: SiteRecord | null, env: Env): SiteState {
-  const off = (source: SiteState["source"]): SiteState => ({ on: false, source, hash: null, sv: record?.sv ?? "", factors: ["password"] });
-  if ((env.SITE_GATE ?? "").trim().toLowerCase() === "off") return off("off");
-  const factors: SiteState["factors"] = record?.second === "passkey" ? ["password", "passkey"] : ["password"];
-  if (record?.hash) return { on: true, source: "blob", hash: record.hash, sv: record.sv, factors };
-  const envHash = env.SITE_PASSWORD_HASH?.trim();
-  if (envHash && parseHash(envHash)) {
-    // With only the variable, the version is the variable's own fingerprint until "Sign out everywhere" stores one.
-    const sv = record?.sv ?? createHash("sha256").update(envHash).digest("base64url").slice(0, 16);
-    return { on: true, source: "env", hash: envHash, sv, factors };
-  }
-  return off("none");
+  const factors: Factor[] = record?.second === "approval" ? ["passkey", "approval"] : ["passkey"];
+  if ((env.SITE_GATE ?? "").trim().toLowerCase() === "off") return { on: false, source: "off", sv: record?.sv ?? "", factors };
+  if (record?.passkey) return { on: true, source: "blob", sv: record.sv, factors };
+  return { on: false, source: "none", sv: record?.sv ?? "", factors };
 }
 
 /* ── The store ── */
@@ -110,14 +109,15 @@ export class MemorySiteStore implements SiteStore {
   async read(): Promise<SiteRecord | null> {
     this.reads++;
     if (this.fail) throw new Error("store down");
-    return this.record ? structuredClone(this.record) : null;
+    // Read back as the blob store reads it, so an old or odd record is handled the same way.
+    return this.record ? readRecord(structuredClone(this.record)) : null;
   }
   async write(record: SiteRecord | null): Promise<void> {
     this.record = record ? structuredClone(record) : null;
   }
 }
 
-/** The private blob store's site record, or null when no store is connected (then only SITE_PASSWORD_HASH counts). */
+/** The private blob store's site record, or null when no store is connected (then the site is never locked). */
 export function pickSiteStore(env: Env = process.env): SiteStore | null {
   const blob = pickBlob(env);
   return blob ? new BlobSiteStore(blob) : null;

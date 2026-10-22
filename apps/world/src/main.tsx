@@ -39,7 +39,7 @@ function Root() {
   return <Desk route={route} />;
 }
 
-// The site password (#236): an API call that finds this browser signed out of the site goes to the login page.
+// The site lock (#236, #238): an API call that finds this browser signed out of the site goes to the login page.
 installSiteGate();
 
 createRoot(document.getElementById("root")!).render(

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { installSiteGate, isLocked, loginUrl } from "./siteGate.ts";
-import { statusLine } from "./desk/SitePassword.tsx";
+import { RECOVERY, statusLine } from "./desk/SitePassword.tsx";
 
-/** The site password, browser side (#236): a locked API answer sends the page to the login page, once. */
+/** The site lock, browser side (#236, #238): a locked API answer sends the page to the login page, once. */
 
 const answer = (status: number, gate?: string) => new Response("{}", { status, headers: gate ? { "x-ceo-site-gate": gate } : {} });
 
@@ -32,8 +32,13 @@ describe("the site gate in the browser (#236)", () => {
 
   it("says plainly whether the site is locked", () => {
     expect(statusLine({ on: false, source: "none" })).toContain("Off");
-    expect(statusLine({ on: true, source: "env" })).toContain("SITE_PASSWORD_HASH");
-    expect(statusLine({ on: true, source: "blob", set: "2026-10-22T00:00:00Z" })).toContain("On since");
+    expect(statusLine({ on: true, source: "blob", locked: "2026-10-22T00:00:00Z" })).toMatch(/^Locked since .*with your Desk passkey\.$/);
     expect(statusLine({ on: false, source: "off" })).toContain("SITE_GATE=off");
+  });
+
+  it("says how to get back in before and while the site is locked (#238)", () => {
+    expect(RECOVERY).toContain("Desk key");
+    expect(RECOVERY).toContain("Google Password Manager");
+    expect(RECOVERY).toContain("SITE_GATE=off");
   });
 });

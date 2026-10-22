@@ -6,6 +6,7 @@ import { Color, DoubleSide, MeshStandardMaterial, Object3D, PlaneGeometry, type 
 import { Beam, Dust, Haze } from "../fx/atmos.tsx";
 import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
+import { claimWaiting, scoreboardLine, startGreen, useGreen } from "../desk/green/league.ts";
 import { useWorld } from "../store.ts";
 import { Block, FONTS, Plinth, ROOM_D, ROOM_W, ahead } from "./primitives.tsx";
 
@@ -99,9 +100,12 @@ function Goalpost({ x }: { x: number }) {
 export function Green() {
   const ball = useRef<Mesh>(null);
   const flag = useRef<Mesh>(null);
-  const waiverPending = useWorld((s) =>
-    Object.values(s.lattice.approvals).some((a) => a.status === "pending" && (a.request.action === "waiver.claim" || a.request.action === "lineup.set")),
-  );
+  // The league is real (#252): the scoreboard, the depth chart's week and the mailbox flag read Nikita's Sleeper league.
+  useEffect(() => startGreen(), []);
+  const board = useGreen((s) => s.board);
+  const claim = claimWaiting(board);
+  const waiverPending =
+    useWorld((s) => Object.values(s.lattice.approvals).some((a) => a.status === "pending" && (a.request.action === "waiver.claim" || a.request.action === "lineup.set"))) || claim;
   const chart = ahead(getStation("green", "depth-chart"), 0.95);
   const mailbox = ahead(getStation("green", "mailbox"), 0.8);
   const bench = getStation("green", "bench");
@@ -167,7 +171,7 @@ export function Green() {
           </mesh>
         ))}
         <Text font={FONTS.mono} fontSize={0.1} position={[0, 2.3, 0.04]} letterSpacing={0.15} color="#e9e6dc">
-          DEPTH CHART · WEEK ??
+          DEPTH CHART · WEEK {board ? board.week : "??"}
         </Text>
         {[-1, 1].map((s) => (
           <Block key={s} size={[0.05, 2.3, 0.05]} position={[s * 0.95, 1.1, -0.2]} rotation={[0.15, 0, 0]} material={PBR.wood("oak")} radius={0.01} />
@@ -190,7 +194,7 @@ export function Green() {
       <group position={[0, 0, -6]}>
         <Block size={[3.4, 1.3, 0.25]} position={[0, 3.2, 0]} material={PBR.blackMetal()} radius={0.05} />
         <Text font={FONTS.mono} fontSize={0.36} position={[0, 3.25, 0.14]} letterSpacing={0.1}>
-          WE ARE 24 · AWAY 17
+          {scoreboardLine(board)}
           <meshBasicMaterial color={[2.2, 1.7, 0.8]} toneMapped={false} />
         </Text>
         {[-1.2, 1.2].map((x) => (

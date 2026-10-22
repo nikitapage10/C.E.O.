@@ -119,7 +119,7 @@ of Skippy: smug, sure they're the smartest thing in the room, loyal underneath. 
 | Foundry | **The Builder** | ember orange | Skippy's submind for the Foundry | A hot-tempered foreman. Short shop-talk sentences, no patience, grumbles about the monkeys and the furnace, secretly in awe of Rocky's welds. |
 | Spire | **The Executive** | gold | Skippy's submind for the Spire | A smarmy executive. Everything is a pitch or a synergy; every compliment has a price tag. |
 | Exchange | **The Bookie** | mint | Skippy's submind for the Exchange | A nervous odds-maker. A probability for everything, a hedge on every sentence, sweats the downside. |
-| Green | **The Commentator** | lime | Skippy's submind for the Green | Play-by-play, like the final seconds of a championship. Gridiron coaches; the Commentator calls it. |
+| Green | **The Commentator** | lime | Skippy's submind for the Green | Play-by-play, like the final seconds of a championship. Gridiron coaches; the Commentator calls it, now from the C.E.O.'s real league. |
 | Relay | **The Messenger** | signal blue | Skippy's submind for the Relay | A jittery gossip on every line. Knows who's waiting on whom; never tells the wrong person. |
 | Archive | **The Historian** | violet | Skippy's submind for the Archive | A footnote-obsessed pedant who corrects the record. |
 | Break Room | **The Life of the Party** | pink | Skippy's submind for the Break Room | Too loud, too much glitter, and knows exactly when the fun is over. |
@@ -197,7 +197,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Exchange | **The Bookie** (a piece of Skippy) | Admiral's can, mint | Skippy's submind for the Exchange: the room lead. Prices everything, hedges everything, and sweats every trade until the C.E.O. nods. Keeps the Exchange's first live board, Polymarket's public odds, read-only, and argues with every number on it. |
 | Green | **Gridiron** (Claudari) | Orc | Seven-foot coach. Roars the plays, then apologises for the volume. |
 | Green | **Punt** (Unforked) | Big bunny | Morale. Hops, naps, wins anyway. |
-| Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. |
+| Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. Since the Green went live it finally has stats for someone: the C.E.O.'s real Sleeper league on the scoreboard, the win chance as the ball's yard line, start-or-sit calls from the booth and the pickups worth a claim, read-only. |
 | Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. |
 | Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. |
 | Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. |

@@ -151,6 +151,10 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     // The Exchange's first real connection (#240): Polymarket's public odds, read-only.
     exchange: { id: "exchange", l: "Exchange", s: L("polymarket") === "wait" ? "Kalshi not connected" : "Polymarket odds", k: "room", room: "exchange", state: L("polymarket") === "wait" ? "wait" : L("polymarket") },
     polymarket: { id: "polymarket", l: "Polymarket", s: "public odds", k: "service", state: L("polymarket") },
+    // The Green's real connections (#252): Sleeper's public league data, and FantasyPros where its key is set.
+    green: { id: "green", l: "Green", s: L("sleeper") === "wait" ? "Sleeper not read yet" : "your Sleeper league", k: "room", room: "green", state: L("sleeper") },
+    sleeper: { id: "sleeper", l: "Sleeper", s: "league, read-only", k: "service", state: L("sleeper") },
+    fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "key on Azure only" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
   for (const n of foundry.nodes) {
@@ -184,6 +188,9 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     e("relay", "lattice", "relay", nodes.relay!.state),
     e("desk", "exchange", "exchange", nodes.exchange!.state),
     { ...e("exchange", "polymarket", "exchange", nodes.polymarket!.state), label: "Live odds", how: conn("polymarket")?.how, ...fromConn("polymarket") },
+    e("desk", "green", "green", nodes.green!.state),
+    { ...e("green", "sleeper", "green", nodes.sleeper!.state), label: "Your league", how: conn("sleeper")?.how, ...fromConn("sleeper") },
+    { ...e("green", "fantasypros", "green", nodes.fantasypros!.state), label: "Projections", how: conn("fantasypros")?.how, ...fromConn("fantasypros") },
   ];
 
   // The Foundry's flow: foundryGraph's edges, with their connections' kinds, sign-in and timing.
@@ -273,14 +280,14 @@ type Lay = Record<string, [number, number]>;
 /** Where each part sits, as fractions of the graph, on a desk and on a phone; and how tall each view is. */
 export const GL: Record<"d" | "p", Record<"overview" | FlowId, Lay>> = {
   d: {
-    overview: { exchange: [0.39, 0.55], polymarket: [0.47, 0.65], you: [0.05, 0.46], desk: [0.17, 0.3], phone: [0.17, 0.68], mac: [0.08, 0.88], foundry: [0.36, 0.3], relay: [0.32, 0.8], github: [0.55, 0.12], claudecode: [0.55, 0.34], claude: [0.6, 0.56], bluebubbles: [0.5, 0.76], openai: [0.62, 0.9], boiler: [0.76, 0.4], archive: [0.78, 0.72], vercel: [0.92, 0.14], blob: [0.91, 0.46], gemini: [0.93, 0.7], lattice: [0.9, 0.9] },
+    overview: { green: [0.3, 0.1], sleeper: [0.42, 0.04], fantasypros: [0.42, 0.18], exchange: [0.39, 0.55], polymarket: [0.47, 0.65], you: [0.05, 0.46], desk: [0.17, 0.3], phone: [0.17, 0.68], mac: [0.08, 0.88], foundry: [0.36, 0.3], relay: [0.32, 0.8], github: [0.55, 0.12], claudecode: [0.55, 0.34], claude: [0.6, 0.56], bluebubbles: [0.5, 0.76], openai: [0.62, 0.9], boiler: [0.76, 0.4], archive: [0.78, 0.72], vercel: [0.92, 0.14], blob: [0.91, 0.46], gemini: [0.93, 0.7], lattice: [0.9, 0.9] },
     foundry: { you: [0.04, 0.5], desk: [0.14, 0.5], shaping: [0.26, 0.24], pictures: [0.26, 0.8], issues: [0.37, 0.5], pings: [0.45, 0.84], queue: [0.48, 0.5], builder: [0.58, 0.5], rivet: [0.69, 0.2], rusty: [0.69, 0.5], rocky: [0.69, 0.8], checks: [0.8, 0.5], vqa: [0.82, 0.84], main: [0.88, 0.3], deploy: [0.96, 0.52] },
     boiler: { cron: [0.1, 0.3], doorbell: [0.1, 0.74], step: [0.34, 0.52], claude: [0.58, 0.24], worldstate: [0.58, 0.78], clock: [0.84, 0.3], lattice: [0.86, 0.78] },
     archive: { midnight: [0.1, 0.28], history: [0.1, 0.74], script: [0.34, 0.52], speech: [0.56, 0.28], audio: [0.74, 0.66], chron: [0.92, 0.42] },
     relay: { mac: [0.06, 0.5], hub: [0.24, 0.5], lattice: [0.26, 0.86], bluebubbles: [0.46, 0.2], messages: [0.46, 0.5], openai: [0.46, 0.8], dialtone: [0.68, 0.32], blasto: [0.7, 0.7], you: [0.92, 0.5] },
   },
   p: {
-    overview: { exchange: [0.42, 0.36], polymarket: [0.66, 0.58], you: [0.14, 0.05], desk: [0.5, 0.05], phone: [0.85, 0.07], foundry: [0.3, 0.21], github: [0.8, 0.2], claudecode: [0.64, 0.33], claude: [0.2, 0.38], vercel: [0.84, 0.45], boiler: [0.46, 0.5], blob: [0.16, 0.6], gemini: [0.82, 0.62], archive: [0.5, 0.7], lattice: [0.84, 0.78], mac: [0.14, 0.84], bluebubbles: [0.56, 0.84], relay: [0.32, 0.93], openai: [0.8, 0.94] },
+    overview: { green: [0.17, 0.28], sleeper: [0.17, 0.14], fantasypros: [0.62, 0.135], exchange: [0.42, 0.36], polymarket: [0.66, 0.58], you: [0.14, 0.05], desk: [0.5, 0.05], phone: [0.85, 0.07], foundry: [0.3, 0.21], github: [0.8, 0.2], claudecode: [0.64, 0.33], claude: [0.2, 0.38], vercel: [0.84, 0.45], boiler: [0.46, 0.5], blob: [0.16, 0.6], gemini: [0.82, 0.62], archive: [0.5, 0.7], lattice: [0.84, 0.78], mac: [0.14, 0.84], bluebubbles: [0.56, 0.84], relay: [0.32, 0.93], openai: [0.8, 0.94] },
     foundry: { you: [0.5, 0.03], desk: [0.5, 0.11], shaping: [0.2, 0.2], pictures: [0.8, 0.2], issues: [0.5, 0.29], pings: [0.84, 0.36], queue: [0.5, 0.39], builder: [0.5, 0.48], rivet: [0.16, 0.58], rusty: [0.5, 0.58], rocky: [0.84, 0.58], checks: [0.5, 0.68], vqa: [0.84, 0.76], main: [0.5, 0.8], deploy: [0.5, 0.92] },
     boiler: { cron: [0.25, 0.08], doorbell: [0.75, 0.08], step: [0.5, 0.3], claude: [0.22, 0.52], worldstate: [0.78, 0.52], clock: [0.22, 0.76], lattice: [0.78, 0.76] },
     archive: { midnight: [0.25, 0.08], history: [0.75, 0.08], script: [0.5, 0.3], speech: [0.5, 0.5], audio: [0.5, 0.7], chron: [0.5, 0.9] },

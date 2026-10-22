@@ -64,6 +64,7 @@ var secrets = [
   { setting: 'DESK_VAPID_PRIVATE_KEY', secret: 'desk-vapid-private-key' }
   { setting: 'DESK_VAPID_SUBJECT', secret: 'desk-vapid-subject' } // the pings' contact (mailto: or https:)
   { setting: 'DESK_PINGS_SECRET', secret: 'desk-pings-secret' } // shared with the desk-pings workflow
+  { setting: 'FANTASYPROS', secret: 'fantasypros' } // the Green's FantasyPros API key (x-api-key); Azure only
 ]
 
 // Built-in role IDs (the same in every tenant).

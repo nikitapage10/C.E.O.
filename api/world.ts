@@ -7,12 +7,15 @@
  *
  * GET/POST ?exchange=markets → the Exchange's Polymarket board (#240; vercel.json rewrites /api/exchange-markets here so the
  *               deployment keeps its twelve functions): api/_exchange/route.ts.
+ * GET ?green=league → the Green's Sleeper league board (#252; the rewrite of /api/green-league, the same way):
+ *               api/_green/route.ts.
  *
  * The world moves once an hour, so answers are cached at Vercel's edge for a few minutes: every open tab shares one
  * read of the store.
  */
 
 import * as exchange from "./_exchange/route.js";
+import * as green from "./_green/route.js";
 import { monthOf, monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { nextAt } from "./_world/step.js";
@@ -28,6 +31,7 @@ function json(body: unknown, status = 200, cache = "public, s-maxage=300, stale-
 
 export async function GET(request: Request): Promise<Response> {
   if (exchange.isExchange(request)) return exchange.GET(request);
+  if (green.isGreen(request)) return green.GET(request);
   const store = pickStore();
   if (!store) return json({ error: "not-set-up" }, 503);
   const day = new URL(request.url).searchParams.get("day");

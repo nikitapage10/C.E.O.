@@ -98,6 +98,8 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    App exists (#138); the functions use `foundry-github-token` meanwhile. A secret that doesn't exist yet (or is
    empty) is harmless: its app setting holds the literal `@Microsoft.KeyVault(...)` text, which the functions treat
    as unset (see "Key Vault references" below), so that feature is simply off, as on Vercel without the setting.
+   The Green's FantasyPros key lives in the vault as `fantasypros` (#252): if it was added as a plain `FANTASYPROS` app
+   setting in the portal, the next template run replaces that with the vault reference, so add it to the vault too.
 
    | Key Vault secret | App setting |
    | --- | --- |
@@ -108,6 +110,7 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `gemini-api-key` | `GEMINI_API_KEY` |
    | `desk-vapid-public-key`, `desk-vapid-private-key`, `desk-vapid-subject` | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY`, `DESK_VAPID_SUBJECT` |
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
+   | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings, lower than Vercel's because both copies
    use the same Claude and Gemini accounts, and each copy keeps its own ledger. `WORLD_BUDGET_USD=2` (Vercel: 6),

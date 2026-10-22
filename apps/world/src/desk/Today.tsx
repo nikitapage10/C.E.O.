@@ -39,7 +39,6 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   const replies = owed.filter((o) => !o.later && (o.urgency === "sooner" || now - o.since > NOW_WAIT)).slice(0, NOW_REPLIES);
   const otherReplies = owed.length - replies.length;
   const decisions = data.actions.filter((a) => a.when === "now");
-  const later = data.actions.filter((a) => a.when === "later");
   const foundry = useFoundry((s) => s.data);
   const pendingIdeas = useFoundry((s) => s.pending);
   const setup = useSetup();
@@ -48,6 +47,9 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   const ideas = openIdeas(foundry.crates, pendingIdeas);
   const questions = ideaCounts(ideas).questions;
   const toPick = ideas.filter((c) => !c.revising && !(c.asking && c.question));
+  // An idea waiting for its pick already has its own card (IdeasAct), so it isn't repeated under "can wait".
+  const picking = new Set(toPick.map((c) => `foundry-${c.number}`));
+  const later = data.actions.filter((a) => a.when === "later" && !picking.has(a.id));
   const todo = replies.length + decisions.length + questions.length;
   const shipped = shippedToday(foundry.changelog, now);
   const pulses = usePulses(owed.length, now);

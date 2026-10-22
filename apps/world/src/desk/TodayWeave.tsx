@@ -657,9 +657,6 @@ export function shortVersion({ data, changes, ilyr, awaySince }: { data: DeskDat
 
 export function ShortVersion({ moments, awaySince, now, storyDay, shipped }: { moments: Moment[]; awaySince: number; now: number; storyDay: string | null; shipped: number }) {
   const [read, setRead] = useState(false);
-  const cv = useRef<HTMLCanvasElement>(null);
-  const spec = useMemo(() => feedSpec(), []);
-  const vz = useViz(cv, spec);
   const show = !read && moments.length > 0;
   return (
     <section className="wv-story" aria-label="What's been happening">
@@ -674,10 +671,7 @@ export function ShortVersion({ moments, awaySince, now, storyDay, shipped }: { m
             <button
               type="button"
               className="wv-btn is-sm is-ghost wv-markread"
-              onClick={() => {
-                setRead(true);
-                vz.current?.relayout();
-              }}
+              onClick={() => setRead(true)}
             >
               Mark read
             </button>
@@ -685,22 +679,7 @@ export function ShortVersion({ moments, awaySince, now, storyDay, shipped }: { m
         </p>
       </div>
       {show ? (
-        <div className="wv-moments" role="list">
-          <canvas ref={cv} className="wv-cv" aria-hidden="true" />
-          {moments.map((m, i) => (
-            <div key={m.key} role="listitem" className="wv-mo" data-room={m.room} style={{ "--i": i } as React.CSSProperties}>
-              <time>{m.at ? clock(m.at) : "Earlier"}</time>
-              <img src={m.pic} alt="" loading="lazy" />
-              <div>
-                <p>{m.text}</p>
-                <span>
-                  <i className="wv-dot" />
-                  {m.tag}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Moments moments={moments} />
       ) : (
         <p className="wv-allclear-line">
           {shipped ? `${shipped} shipped today; the Foundry tab has every one.` : `Nothing new since ${clock(awaySince)}.`}{" "}
@@ -711,6 +690,31 @@ export function ShortVersion({ moments, awaySince, now, storyDay, shipped }: { m
       )}
       {storyDay && <DayStory day={storyDay} canMake={false} compact label="Hear yesterday in Ilyr" />}
     </section>
+  );
+}
+
+/** The moments on their thread, in a component of their own so the canvas mounts with the list. */
+function Moments({ moments }: { moments: Moment[] }) {
+  const cv = useRef<HTMLCanvasElement>(null);
+  const spec = useMemo(() => feedSpec(), []);
+  useViz(cv, spec);
+  return (
+    <div className="wv-moments" role="list">
+      <canvas ref={cv} className="wv-cv" aria-hidden="true" />
+      {moments.map((m, i) => (
+        <div key={m.key} role="listitem" className="wv-mo" data-room={m.room} style={{ "--i": i } as React.CSSProperties}>
+          <time>{m.at ? clock(m.at) : "Earlier"}</time>
+          <img src={m.pic} alt="" loading="lazy" />
+          <div>
+            <p>{m.text}</p>
+            <span>
+              <i className="wv-dot" />
+              {m.tag}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

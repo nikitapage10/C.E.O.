@@ -185,7 +185,7 @@
 .desk .wv-ask .skp-ask__label{flex:none;font-family:var(--wv-serif);font-size-adjust:var(--wv-serif-adj);font-size:19px;letter-spacing:0;text-transform:none;color:var(--wv-hot)}
 .desk .wv-ask .skp-compose{flex:1;min-width:0;align-items:center;flex-wrap:nowrap;padding:0;border:0}
 .desk .wv-ask .skp-compose__box{min-height:34px;padding:7px 0;border:0;border-bottom:1px solid var(--wv-line2);border-radius:0;background:none;font-size:14px;color:var(--wv-ink)}
-.desk .wv-ask .skp-compose__box:focus-visible{border-color:var(--wv-hot-line);box-shadow:none}
+.desk .wv-ask .skp-compose__box:focus,.desk .wv-ask .skp-compose__box:focus-visible{outline:none;border-color:var(--wv-hot-line);box-shadow:none}
 .desk .wv-ask .skp-compose__box::placeholder{color:var(--wv-faint)}
 
 /* The page rises in under the hero: on the first open of the day once the dark lifts, later in half a second. */
@@ -1530,7 +1530,8 @@
 @media (max-width:640px){
   .desk .wv-nav{flex-wrap:wrap;height:auto;padding:8px 16px 0;gap:0 10px}
   .desk .wv-logo{font-size:19px;height:38px}
-  .desk .wv-navr{gap:12px}
+  .desk .wv-navr{order:1;gap:12px}
+  .desk .wv-nav::after{content:"";order:2;flex-basis:100%;height:0}
   .desk .wv-navbtn{height:38px}
   .desk .wv-tabs{order:3;height:42px;gap:0;margin-left:-12px}
   .desk .wv-rooms{order:4;height:42px;margin-left:0}
@@ -1571,7 +1572,7 @@
 .desk .skp-chips__note{color:var(--wv-faint)}
 .desk .skp-compose{gap:10px;padding:10px 14px 12px;border-top:1px solid var(--wv-line)}
 .desk .skp-compose__box{padding:8px 0;border:0;border-bottom:1px solid var(--wv-line2);border-radius:0;background:none;font-size:14px;color:var(--wv-ink)}
-.desk .skp-compose__box:focus-visible{border-color:var(--wv-hot-line);box-shadow:none}
+.desk .skp-compose__box:focus,.desk .skp-compose__box:focus-visible{outline:none;border-color:var(--wv-hot-line);box-shadow:none}
 .desk .skp-compose__send.btn,.desk .skp-compose__send.btn--go{min-width:0;min-height:32px;padding:0 4px;border:0;border-radius:0;background:none;box-shadow:none;color:var(--wv-hot);font-weight:500}
 .desk .skp-compose__send:disabled{color:var(--wv-faint)}
 .desk .skp-compose .fy-mic{border-color:transparent;background:none;color:var(--wv-mute)}

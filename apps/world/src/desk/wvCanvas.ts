@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * The Weave's threads (Nikita, 2026-10-22, the approved round-five design): every chart on the Desk is drawn as
@@ -487,8 +487,11 @@ if (typeof document !== "undefined") document.addEventListener("visibilitychange
  */
 export function useViz(ref: React.RefObject<HTMLCanvasElement | null>, spec: VizSpec) {
   const vref = useRef<(Viz & { dirty: boolean; still: number }) | null>(null);
+  // The canvas can mount after its component does (a list that arrives with a feed): follow the element itself.
+  const [cv, setCv] = useState<HTMLCanvasElement | null>(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => void (ref.current !== cv && setCv(ref.current)));
   useEffect(() => {
-    const cv = ref.current;
     if (!cv) return;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
@@ -541,9 +544,9 @@ export function useViz(ref: React.RefObject<HTMLCanvasElement | null>, spec: Viz
       io?.disconnect();
       vref.current = null;
     };
-    // The spec is swapped in by the effect below; the canvas is created once.
+    // The spec is swapped in by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ref]);
+  }, [cv]);
   useEffect(() => {
     const V = vref.current;
     if (!V) return;

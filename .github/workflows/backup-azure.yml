@@ -10,10 +10,12 @@
 # Signs in like deploy-azure.yml (OIDC, the `azure` environment, main only) and skips until Azure is set up.
 #
 # Run by hand with "seed" ticked, it does the one-off seed instead (docs/AZURE.md, "Seeding the Azure state"): it
-# copies production's world, its stories and the idea pictures from Vercel Blob into `ceo-state`, under the same
-# names. That needs the BLOB_READ_WRITE_TOKEN secret (production's Blob store token); without it the seed says so
-# and stops, green. If the Azure copy already has a world it changes nothing unless "force" is ticked too, and even
-# then it only replaces the files it copies (blob soft delete keeps what it replaced for 14 days).
+# copies production's world and its stories into `ceo-state`, under the store's own names. No secret is needed: it
+# rebuilds the files from production's public API (scripts/seed-azure-public.mjs), the pages the backup reads. If the
+# optional BLOB_READ_WRITE_TOKEN secret (production's Blob store token) is set, it copies the store itself instead,
+# idea pictures included (scripts/seed-azure-pull.mjs). If the Azure copy already has a world it changes nothing
+# unless "force" is ticked too, and even then it only replaces the files it copies (blob soft delete keeps what it
+# replaced for 14 days).
 name: Back up to Azure
 
 on:
@@ -101,32 +103,32 @@ jobs:
       id-token: write
     env:
       FORCE: ${{ inputs.force }}
+      SITE: https://command-everything-obviously.vercel.app
     steps:
-      - name: Check for the Blob token
-        id: token
-        # The token goes only to the steps that need it (not to npm ci's install scripts).
+      - name: Pick the source
+        id: src
+        # With production's Blob token (optional), copy its store as is; without it, rebuild the same files from the
+        # public API. The token goes only to the steps that need it (not to npm ci's install scripts).
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
         run: |
-          if [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
-            echo "::notice::BLOB_READ_WRITE_TOKEN isn't set, so there is nothing to seed from (docs/AZURE.md, \"Seeding the Azure state\")."
-            echo "ok=false" >> "$GITHUB_OUTPUT"
+          if [ -n "$BLOB_READ_WRITE_TOKEN" ]; then
+            echo "from=blob" >> "$GITHUB_OUTPUT"
+            echo "Seeding from production's Blob store (BLOB_READ_WRITE_TOKEN is set)."
           else
-            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "from=public" >> "$GITHUB_OUTPUT"
+            echo "Seeding from production's public API (no BLOB_READ_WRITE_TOKEN, so no idea pictures)."
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.token.outputs.ok == 'true'
         with:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.token.outputs.ok == 'true'
         with:
           node-version: 22
-          cache: npm
-      - if: steps.token.outputs.ok == 'true'
+          cache: ${{ steps.src.outputs.from == 'blob' && 'npm' || '' }}
+      - if: steps.src.outputs.from == 'blob'
         run: npm ci
       - name: Tidy the Azure settings
-        if: steps.token.outputs.ok == 'true'
         id: az
         env:
           CLIENT: ${{ vars.AZURE_CLIENT_ID }}
@@ -140,13 +142,11 @@ jobs:
           done
           echo "ACCOUNT=$(printf '%s' "$NAME" | tr -d '\r\n[:space:]')" >> "$GITHUB_ENV"
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
-        if: steps.token.outputs.ok == 'true'
         with:
           client-id: ${{ steps.az.outputs.client }}
           tenant-id: ${{ steps.az.outputs.tenant }}
           subscription-id: ${{ steps.az.outputs.sub }}
       - name: Check the Azure copy for a world
-        if: steps.token.outputs.ok == 'true'
         id: azure
         run: |
           exists=$(az storage blob exists --auth-mode login --account-name "$ACCOUNT" -c ceo-state -n world/state.json --query exists -o tsv)
@@ -157,10 +157,13 @@ jobs:
             echo "go=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Download production's world, stories and pictures
-        if: steps.azure.outputs.go == 'true'
+        if: steps.azure.outputs.go == 'true' && steps.src.outputs.from == 'blob'
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
         run: node scripts/seed-azure-pull.mjs "$RUNNER_TEMP/seed"
+      - name: Rebuild production's world and stories from its public API
+        if: steps.azure.outputs.go == 'true' && steps.src.outputs.from == 'public'
+        run: node scripts/seed-azure-public.mjs "$RUNNER_TEMP/seed" "$SITE"
       - name: Upload into ceo-state
         if: steps.azure.outputs.go == 'true'
         run: |

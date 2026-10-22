@@ -213,23 +213,37 @@ until the one-time setup below is done, so main stays green either way.
 
 ### Seeding the Azure state
 
-A one-off: copy production's world (`world/state.json` and every day), its stories and their audio, and the idea
-pictures (`foundry/ideas/`) from Vercel Blob into `ceo-state`, under the same names, so the Azure copy carries on
-from where production is. The Desk's sign-ins (`desk/`) stay behind: passkeys and phones belong to their address.
-The world's month of Claude spend comes with it (it lives in the state), so the Azure budget starts where
-production's month is.
+A one-off: copy production's world (`world/state.json` and every day) and its stories with their audio into
+`ceo-state`, under the store's own names, so the Azure copy carries on from where production is. The Desk's sign-ins
+(`desk/`) stay behind: passkeys and phones belong to their address. The world's month of Claude spend and Gemini's
+month of speech spend come with it, so the Azure budgets start where production's month is.
+
+Actions → **Back up to Azure** → **Run workflow**, tick **seed**. If the Azure copy has already made a world of its
+own (the hourly step starts one as soon as it runs), tick **force** too to replace it with production's. Without
+force a world already there is left alone and the run says so; with it, only the copied files are replaced, and blob
+soft delete keeps what was replaced for 14 days. Nothing seeds on its own: only a hand-run with **seed**.
+
+**No token needed.** By default the run rebuilds the files from production's public API
+(`scripts/seed-azure-public.mjs`): `/api/world`, each day's `/api/world?day=…`, and each day's and week's story
+(`/api/day-story`) with its audio, the same pages the nightly backup saves. Everything the hourly step reads comes
+across: the hour count and time, the relationships, the last 24 hours, the days, the builders' remarks, which day
+was last told, and this month's spend. What the public pages don't carry stays behind:
+
+- the idea pictures (`foundry/ideas/`): they are only served on a signed link, so ideas on the Azure copy show none;
+- the spend of earlier months (only this month's is public; the budgets only use this month's);
+- what each story cost (`cost`, `scriptUsd`: no page reads them; the month's speech total does come across), and its
+  exact style version (a story in an older style is marked `1`, so the Desk may remake it once, as on production);
+- story claims (`*.claim`), which the Azure copy makes again as it needs them.
+
+**Optional, full copy:** with production's Blob token as a secret, the run copies the store itself instead,
+idea pictures included (`scripts/seed-azure-pull.mjs`):
 
 1. Vercel → the project → **Storage** → the Blob store → **.env.local** tab → **Show secret** → copy
    `BLOB_READ_WRITE_TOKEN`'s value (the store's own token, not a project setting, so it can be shown).
 2. GitHub → the repo's **Settings → Secrets and variables → Actions → Secrets → New repository secret**, name
    `BLOB_READ_WRITE_TOKEN`, paste the value.
-3. Actions → **Back up to Azure** → **Run workflow**, tick **seed**. If the Azure copy has already made a world of
-   its own (the hourly step starts one as soon as it runs), tick **force** too to replace it with production's.
-   Without force a world already there is left alone and the run says so; with it, only the copied files are
-   replaced, and blob soft delete keeps what was replaced for 14 days.
+3. Run the seed as above.
 4. Delete the `BLOB_READ_WRITE_TOKEN` secret again (it can read and write production's store).
-
-Without the secret the seed run stops with a note, green. Nothing seeds on its own: only a hand-run with **seed**.
 
 **How GitHub signs in:** OIDC only. GitHub gives each job a short-lived token, and Azure trusts it only for this
 repo's `azure` environment, which only `main` may use. No password or key is stored in GitHub; the Static Web App's

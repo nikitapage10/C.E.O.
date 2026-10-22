@@ -71,6 +71,9 @@ export function LatticeThreads({ pulses, opening, hovered }: { pulses: RoomPulse
   const ref = useRef<HTMLCanvasElement>(null);
   const live = useRef(pulses);
   live.current = pulses;
+  // With reduced motion the canvas is one still frame: drawn again whenever the rooms' pulses change.
+  const redrawStill = useRef<(() => void) | null>(null);
+  useEffect(() => redrawStill.current?.(), [pulses]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -97,7 +100,10 @@ export function LatticeThreads({ pulses, opening, hovered }: { pulses: RoomPulse
       g = geometry(r.width, r.height);
     };
     resize();
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(() => {
+      resize();
+      if (still) draw(performance.now());
+    });
     ro.observe(canvas);
 
     // Motes: per thread, positions along it.
@@ -219,10 +225,13 @@ export function LatticeThreads({ pulses, opening, hovered }: { pulses: RoomPulse
     io.observe(canvas);
     document.addEventListener("visibilitychange", run);
     run();
-    const redraw = still ? window.setInterval(() => draw(performance.now()), 30_000) : 0;
+    if (still) redrawStill.current = () => {
+      reseed();
+      draw(performance.now());
+    };
     return () => {
+      redrawStill.current = null;
       cancelAnimationFrame(raf);
-      window.clearInterval(redraw);
       ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", run);

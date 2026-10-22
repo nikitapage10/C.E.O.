@@ -555,7 +555,7 @@ a.panel__hint:hover {
 /* The cards that need you: each in its room's colour, settling in one after another. */
 .wv-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
   gap: 14px;
   margin: 0;
   padding: 0;
@@ -2110,4 +2110,24 @@ a.panel__hint:hover {
     animation-duration: 0.01ms !important;
     animation-delay: 0s !important;
   }
+}
+
+/* Small labels that were the old mono capitals, in sentence case now. */
+.room__cap,
+.later-list__due,
+.later-list__room,
+.todo__due,
+.desk__foot {
+  font-family: var(--sans);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+.room__cap,
+.later-list__due {
+  font-size: 12px;
+  font-weight: 500;
+}
+.desk__foot {
+  font-size: 12px;
+  color: var(--dim);
 }

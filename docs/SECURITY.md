@@ -92,8 +92,10 @@ and redeploy: every session and picture link ends, and enrolling needs the new k
 Nikita asked on 2026-10-22 for the whole site to stop being public (#236), and then for the Desk passkey to be the
 only way in, with no password at all (#238: "I don't want a password on there"). Once the site is locked, every page
 (the Desk, the Lattice, every Desk tab) and every `/api` route asks for a site session first; each device signs in
-once with the Desk passkey and then stays signed in. **Until the site is locked, nothing changes**: the gate is off,
-so setting it up can never lock anyone out by surprise.
+once with the Desk passkey and then stays signed in. **The site is locked by default** (Nikita, 2026-10-22): with
+nothing stored, everything but the ways in below shows the login page until a device signs in. It is open only after
+**Unlock** on the Desk, which stores `open: true`. With no store connected at all (a local run) there is nothing to
+sign in against, so the gate stays off there.
 
 - **Where it runs.** On Vercel, Routing Middleware (`middleware.ts` at the repo root, Node.js runtime) runs in front
   of every request, the static pages and files as well as the functions, before `vercel.json`'s rewrites. The
@@ -101,14 +103,15 @@ so setting it up can never lock anyone out by surprise.
   routes it adds, `/api/site-login` and `/api/site-password` (the lock's control; the name is kept from #236), are
   rewritten in `vercel.json` into the Desk's sign-in function (`api/desk-auth.ts?site=…`), so the deployment keeps
   its twelve functions.
-- **Locking it.** On the Desk, sign in with a passkey, open the **Foundry** tab, and on the signed-in bar open
-  **Site lock**. Press **Lock the site**; a box says how to get back in on any device (below) and asks to confirm.
+- **Locking it.** Locked from the start. To lock it again after an **Unlock**: on the Desk, sign in with a passkey,
+  open **Site lock**, and press **Lock the site**; a box says how to get back in on any device (below) and asks to confirm.
   Your own browser stays signed in; every other device sees the login page once. The same place has **Sign out
   everywhere else** (every other device's site session ends) and **Unlock** (the site is open again). All of it
   needs a Desk passkey session, from the Desk's own pages (`api/_site/control.ts`); the site session alone can't
   change anything.
 - **What is stored.** In the private Blob store beside the passkeys, at `desk/site/password.json` (the name is kept
-  from #236): `passkey: true`, the date it was locked, and a random session version. Nothing secret. A record #236
+  from #236): `passkey: true` (or `open: true` once unlocked), the date it was locked, and a random session version.
+With nothing stored, the default lock uses a fixed session version until the first change. Nothing secret. A record #236
   wrote (a password's hash) reads as locked with the passkey; its hash is ignored and dropped at the next change.
 - **The login page** (`api/_site/page.ts`) offers **Sign in with passkey** and, under it, **New device with no
   passkey? Add it** (the Desk key and a name for the device). There is no password field, and the login function

@@ -4,13 +4,13 @@ import { useDeskAuth } from "./signin.ts";
 /**
  * "Site lock" (#236, #238): one small control on the Foundry tab's signed-in bar, beside the pings switch. Signed in
  * to the Desk with a passkey, Nikita locks the whole site with that passkey as the only way in
- * (api/_site/control.ts), signs every other device out, or unlocks it. No password (Nikita, 2026-10-22). Until it's
- * locked, the site stays open. (The file keeps its #236 name so the Desk's other work doesn't trip over a rename.)
+ * (api/_site/control.ts), signs every other device out, or unlocks it. No password (Nikita, 2026-10-22). Locked by
+ * default: the site stays open only after "Unlock". (The file keeps its #236 name so the Desk's other work doesn't trip over a rename.)
  */
 
 export interface SiteStatus {
   on: boolean;
-  source: "blob" | "none" | "off";
+  source: "blob" | "default" | "open" | "none" | "off";
   locked?: string;
   second?: boolean;
 }
@@ -19,7 +19,8 @@ export interface SiteStatus {
 export function statusLine(s: SiteStatus | null): string {
   if (!s) return "";
   if (s.source === "off") return "Off: SITE_GATE=off is set in Vercel.";
-  if (!s.on) return "Off: anyone with the address can open the site.";
+  if (s.source === "none") return "Off: no store is connected on this server.";
+  if (!s.on) return "Unlocked: anyone with the address can open the site.";
   return `Locked${s.locked ? ` since ${new Date(s.locked).toLocaleDateString()}` : ""}: each device signs in once with your Desk passkey.`;
 }
 
@@ -81,7 +82,7 @@ export function SitePassword() {
       <p className="desk-auth__quiet">{statusLine(status)}</p>
       {status?.on ? <p className="desk-auth__quiet">{RECOVERY}</p> : null}
       <div className="desk-auth__actions">
-        {status && !status.on && status.source !== "off" ? (
+        {status && !status.on && status.source !== "off" && status.source !== "none" ? (
           <button
             type="button"
             className="btn btn--go btn--sm"
@@ -99,7 +100,7 @@ export function SitePassword() {
             <button type="button" className="btn btn--quiet btn--sm" disabled={busy} onClick={() => post("signout-all", "Every other device is signed out of the site.")}>
               Sign out everywhere else
             </button>
-            {status.source === "blob" && (
+            {(status.source === "blob" || status.source === "default") && (
               <button
                 type="button"
                 className="btn btn--quiet btn--sm"

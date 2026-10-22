@@ -6,7 +6,7 @@
  *
  *   node scripts/seed-azure-public.mjs <folder> [site]
  *
- * Plain Node, no dependencies. Its one secret, SITE_BYPASS_TOKEN (once the site password is on, #236), goes only to
+ * Plain Node, no dependencies. Its one secret, SITE_BYPASS_TOKEN (once the site is locked, #236), goes only to
  * the site in a header. Prints counts only.
  */
 
@@ -22,7 +22,7 @@ const root = resolve(process.argv[2]);
 const site = new URL(process.argv[3] ?? "https://command-everything-obviously.vercel.app");
 // A fresh read, past the edge's cached copy (the API ignores the extra parameter).
 const fresh = String(Date.now());
-// The site password's bypass (#236): sent only to the site, in a header, never printed. Unset: no header.
+// The site lock's bypass (#236): sent only to the site, in a header, never printed. Unset: no header.
 const bypass = process.env.SITE_BYPASS_TOKEN?.trim();
 const siteHeaders = bypass ? { "x-ceo-site-bypass": bypass } : {};
 

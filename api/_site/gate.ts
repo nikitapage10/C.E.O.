@@ -1,11 +1,17 @@
 /**
- * The whole-site gate (#236, docs/SECURITY.md, "The site password"): who may reach a page or an API route once a
- * site password is set. The same decision runs in front of everything on Vercel (middleware.ts, Routing Middleware)
- * and in front of every Azure function (azure/src/index.ts).
+ * The whole-site gate (#236, #238; docs/SECURITY.md, "The site lock"): who may reach a page or an API route once the
+ * site is locked. The Desk passkey is the only way in (#238). The same decision runs in front of everything on
+ * Vercel (middleware.ts, Routing Middleware) and in front of every Azure function (azure/src/index.ts).
  *
  * In order:
- *   1. No password set (or SITE_GATE=off): everything passes, as before.
- *   2. The login itself (/api/site-login) passes: it is the way in.
+ *   1. Not locked (or SITE_GATE=off): everything passes, as before.
+ *   2. The ways in pass:
+ *        /api/site-login (any method)          the login page, its script (?part=script) and its sign-out
+ *        /api/desk-auth, GET, HEAD and POST, without a `site` query other than "login"
+ *                                             the Desk's passkey ceremony: sign-in and "Add this device" (#238). The
+ *                                             function guards itself: a sign-in needs a passkey, an enrolment the Desk
+ *                                             key, removing a device a Desk session; its GET says only whether this
+ *                                             browser is signed in. ?site=password (the lock's control) stays gated.
  *   3. Static files built from the public repo pass on GET or HEAD: the hashed bundles (/assets/), the models
  *      (/models/), the Desk's and the Lattice's images (/desk/, /tide/), the PWA manifest and the service worker. They
  *      hold nothing that isn't already public on GitHub, the manifest and its icons are fetched without cookies by
@@ -27,7 +33,7 @@
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readCookie } from "../_desk/session.js";
-import { loginPage } from "./page.js";
+import { LOGIN_CSP, loginPage } from "./page.js";
 import { SITE_COOKIE, renewedSite, sessionFits, siteCookie, siteSessionOf } from "./session.js";
 import { currentState, siteKeys, type SiteKeys, type SiteState, type SiteStore } from "./state.js";
 
@@ -39,11 +45,13 @@ export const GATE_HEADER = "x-ceo-site-gate";
 export const MIN_BYPASS = 32;
 
 export const LOGIN_PATH = "/api/site-login";
+/** The Desk's sign-in function (api/desk-auth.ts): the passkey ceremony the login page uses (#238). */
+export const PASSKEY_PATH = "/api/desk-auth";
 const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "static" | "world-step" | "pings-secret" | "bypass" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "bypass" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -76,6 +84,17 @@ export function hasBypass(request: Request, env: Env): boolean {
   return Boolean(want && want.length >= MIN_BYPASS && secretMatches(request.headers.get(BYPASS_HEADER)?.trim(), want));
 }
 
+/**
+ * The Desk's passkey ceremony (#238): /api/desk-auth on GET, HEAD or POST, with no `site` query (or `site=login`, the
+ * login itself). Not ?site=password, which rewrites to the lock's control and stays behind the gate.
+ */
+export function isPasskeyPath(request: Request, url: URL): boolean {
+  if (url.pathname !== PASSKEY_PATH) return false;
+  if (!["GET", "HEAD", "POST"].includes(request.method)) return false;
+  const site = url.searchParams.getAll("site");
+  return site.length === 0 || (site.length === 1 && site[0] === "login");
+}
+
 /** The pings workflow's scan, with the right DESK_PINGS_SECRET (api/desk-pings.ts checks it again). */
 function isPingsScan(request: Request, pathname: string, env: Env): boolean {
   if (request.method !== "POST" || pathname !== "/api/desk-pings") return false;
@@ -92,7 +111,7 @@ const SECURITY_HEADERS = {
 } as const;
 
 /** The refusal for this request: JSON for the API and anything but a page load, the login page for a page. */
-export function locked(request: Request, message?: "unknown" | "off"): Response {
+export function locked(request: Request, message?: "unknown" | "off", passkey = true): Response {
   const url = new URL(request.url);
   const page = (request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/");
   if (!page) {
@@ -102,12 +121,12 @@ export function locked(request: Request, message?: "unknown" | "off"): Response 
       headers: { ...SECURITY_HEADERS, "Content-Type": "application/json" },
     });
   }
-  return new Response(request.method === "HEAD" ? null : loginPage({ next: url.pathname + url.search, message }), {
+  return new Response(request.method === "HEAD" ? null : loginPage({ next: url.pathname + url.search, message, passkey }), {
     status: message === "unknown" ? 503 : 401,
     headers: {
       ...SECURITY_HEADERS,
       "Content-Type": "text/html; charset=utf-8",
-      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      "Content-Security-Policy": LOGIN_CSP,
     },
   });
 }
@@ -116,16 +135,20 @@ export function locked(request: Request, message?: "unknown" | "off"): Response 
 export function decide(request: Request, ctx: GateContext): Decision {
   const { state, env } = ctx;
   if (!state.on) return { allow: true, why: "off" };
-  const pathname = new URL(request.url).pathname;
+  const url = new URL(request.url);
+  const pathname = url.pathname;
   if (pathname === LOGIN_PATH) return { allow: true, why: "login" };
+  if (isPasskeyPath(request, url)) return { allow: true, why: "passkey" };
   if (isStaticPath(request.method, pathname)) return { allow: true, why: "static" };
   if (request.method === "POST" && pathname === "/api/world-step") return { allow: true, why: "world-step" };
   if (isPingsScan(request, pathname, env)) return { allow: true, why: "pings-secret" };
   if (hasBypass(request, env)) return { allow: true, why: "bypass" };
-  if (state.unknown) return { allow: false, response: locked(request, "unknown") };
-  if (!ctx.keys) return { allow: false, response: locked(request, "off") };
+  // The passkey works only where the Desk key is set; without it, the login page says signing in isn't set up.
+  const passkey = Boolean(env.FOUNDRY_DESK_KEY?.trim());
+  if (state.unknown) return { allow: false, response: locked(request, "unknown", passkey) };
+  if (!ctx.keys) return { allow: false, response: locked(request, "off", passkey) };
   const session = siteSessionOf(ctx.keys.session, readCookie(request, SITE_COOKIE), ctx.now);
-  if (!sessionFits(session, state)) return { allow: false, response: locked(request) };
+  if (!sessionFits(session, state)) return { allow: false, response: locked(request, undefined, passkey) };
   const next = renewedSite(session, ctx.now);
   return { allow: true, why: "session", ...(next && { setCookie: siteCookie(ctx.keys.session, next, ctx.now) }) };
 }
@@ -140,7 +163,7 @@ export interface GateDeps {
 /**
  * The gate for one request, with the state read (cached per instance, api/_site/state.ts). A refused request that
  * carries a cookie we signed, for another version, re-reads the record once (at most every 2 s): right after "Sign
- * out everywhere" or a new password, an instance's copy can be older than the browser's new cookie.
+ * out everywhere" or locking again, an instance's copy can be older than the browser's new cookie.
  */
 export async function gateRequest(request: Request, deps: GateDeps): Promise<Decision> {
   const state = await currentState(deps.env, deps.store, deps.now);

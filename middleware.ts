@@ -1,11 +1,11 @@
 /**
- * The whole-site gate on Vercel (#236, docs/SECURITY.md, "The site password"): Vercel Routing Middleware, which runs
+ * The whole-site gate on Vercel (#236, #238; docs/SECURITY.md, "The site lock"): Vercel Routing Middleware, which runs
  * in front of every request to the deployment, the static pages and files as well as the /api functions, before
  * vercel.json's rewrites. It runs on the Node.js runtime so it can share the functions' crypto and blob store code.
  *
- * Until a site password is set (from the Desk, or SITE_PASSWORD_HASH), it lets everything through, as before. Once
- * one is set, a page without a site session gets the login page and an API route gets 401; the exemptions are in
- * api/_site/gate.ts and docs/SECURITY.md. SITE_GATE=off in Vercel's settings (and a redeploy) turns it off whatever
+ * Until the site is locked from the Desk ("Lock the site", the Desk passkey as the way in), it lets everything
+ * through, as before. Once it is locked, a page without a site session gets the login page and an API route gets
+ * 401; the exemptions are in api/_site/gate.ts and docs/SECURITY.md. SITE_GATE=off in Vercel's settings (and a redeploy) turns it off whatever
  * is stored: the break-glass switch.
  *
  * The local build (scripts/boot-check.mjs, tests/e2e/dist-server.ts) doesn't run this file unless asked to

@@ -51,7 +51,7 @@ wipes it all.
 ## Signing in to the Desk
 
 The Desk's buttons write to the public repo, so they need a real sign-in (#132, R3 in
-[THREAT-MODEL.md](THREAT-MODEL.md)). Reading the Desk needs only the site password once it is set (below); writing
+[THREAT-MODEL.md](THREAT-MODEL.md)). Reading the Desk needs only a site session once the site is locked (below); writing
 needs a passkey.
 
 - **Passkeys.** Nikita signs in with a passkey: the device's own fingerprint, face or PIN (Windows Hello, Touch ID,
@@ -87,50 +87,74 @@ device through the browser's own "use a phone or another device" prompt. Up to t
 too, if you have it.) **If a device is lost or the Desk key may have leaked**, change `FOUNDRY_DESK_KEY` in Vercel
 and redeploy: every session and picture link ends, and enrolling needs the new key; then remove the lost device.
 
-## The site password
+## The site lock
 
-Nikita asked on 2026-10-22 for the whole site to stop being public (#236). Once a site password is set, every page
-(the Desk, the Lattice, every Desk tab) and every `/api` route asks for it first; each device types it once and then
-stays signed in. **Until a password is set, nothing changes**: the gate is off, so setting it up can never lock anyone
-out by surprise.
+Nikita asked on 2026-10-22 for the whole site to stop being public (#236), and then for the Desk passkey to be the
+only way in, with no password at all (#238: "I don't want a password on there"). Once the site is locked, every page
+(the Desk, the Lattice, every Desk tab) and every `/api` route asks for a site session first; each device signs in
+once with the Desk passkey and then stays signed in. **Until the site is locked, nothing changes**: the gate is off,
+so setting it up can never lock anyone out by surprise.
 
 - **Where it runs.** On Vercel, Routing Middleware (`middleware.ts` at the repo root, Node.js runtime) runs in front
   of every request, the static pages and files as well as the functions, before `vercel.json`'s rewrites. The
   decision itself is `gateRequest` in `api/_site/gate.ts`, the same code the Azure functions run (below). The two
-  routes it adds, `/api/site-login` and `/api/site-password`, are rewritten in `vercel.json` into the Desk's sign-in
-  function (`api/desk-auth.ts?site=…`), so the deployment keeps its twelve functions.
-- **Setting it.** On the Desk, sign in with a passkey, open the **Foundry** tab, and on the signed-in bar open
-  **Site password**. Type a password of at least 10 characters twice and press **Set it and lock the site**. Your
-  own browser stays signed in; every other device sees the login page once. The same place changes it (**Change
-  it**: every other device signs in again with the new one), **Sign out everywhere else** (every other device's
-  session ends, the password stays), and **Turn off** (the site is open again). All of it needs a Desk passkey
-  session, from the Desk's own pages (`api/_site/control.ts`); the site session alone can't change anything.
-- **What is stored.** Only a salted hash: PBKDF2-SHA256 with 600,000 iterations, a 16-byte random salt and a 32-byte
-  result (`api/_site/password.ts`), in the private Blob store beside the passkeys at `desk/site/password.json`, with
-  a random session version and the date it was set. Never the password. Optionally, the same hash string can be put
-  in Vercel as `SITE_PASSWORD_HASH` (used when nothing is stored); a hash weaker than 600,000 iterations is refused.
-- **The sign-in.** A plain login page (`api/_site/page.ts`: one field, no script, nothing loaded from anywhere) posts
-  to `api/_site/login.ts`, which checks the password in constant time and answers a wrong one with a single generic
-  line. Tries are counted in the Blob store per address (a keyed hash, never the address) and across all addresses
-  (`siteAddress` and `siteAll` in `api/_desk/limits.ts`): five free from one address, then a wait of a minute, five
-  minutes, fifteen, then an hour's lock, so never more than 5 a minute or about 30 an hour; across every address,
-  30 free, then slower, then 15 minutes locked. A form from another site is refused.
+  routes it adds, `/api/site-login` and `/api/site-password` (the lock's control; the name is kept from #236), are
+  rewritten in `vercel.json` into the Desk's sign-in function (`api/desk-auth.ts?site=…`), so the deployment keeps
+  its twelve functions.
+- **Locking it.** On the Desk, sign in with a passkey, open the **Foundry** tab, and on the signed-in bar open
+  **Site lock**. Press **Lock the site**; a box says how to get back in on any device (below) and asks to confirm.
+  Your own browser stays signed in; every other device sees the login page once. The same place has **Sign out
+  everywhere else** (every other device's site session ends) and **Unlock** (the site is open again). All of it
+  needs a Desk passkey session, from the Desk's own pages (`api/_site/control.ts`); the site session alone can't
+  change anything.
+- **What is stored.** In the private Blob store beside the passkeys, at `desk/site/password.json` (the name is kept
+  from #236): `passkey: true`, the date it was locked, and a random session version. Nothing secret. A record #236
+  wrote (a password's hash) reads as locked with the passkey; its hash is ignored and dropped at the next change.
+- **The login page** (`api/_site/page.ts`) offers **Sign in with passkey** and, under it, **New device with no
+  passkey? Add it** (the Desk key and a name for the device). There is no password field, and the login function
+  (`api/_site/login.ts`) takes no password: a posted one is refused and opens nothing. The passkey needs a few lines
+  of script, served by the login function itself (`/api/site-login?part=script`, `LOGIN_SCRIPT`) with Subresource
+  Integrity, under a CSP that allows only that: `default-src 'none'; script-src 'self'; connect-src 'self';
+  style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`. Nothing is inline but
+  styles, nothing loads from anywhere else, and the script talks only to `/api/desk-auth`. Without script or
+  WebAuthn, the page says a browser with passkeys is needed.
+- **The sign-in** is the Desk's own (`api/desk-auth.ts`, "Signing in to the Desk" above): the same challenge, the
+  same checks (origin, site, signature, the device's own unlock, the counter) and the same slow-downs and lockouts.
+  While the site is locked, a successful `signin` or `enrol` also sets the site cookie (`passkeySiteCookie` in
+  `api/_site/login.ts`), so one tap opens both the site (180 days) and the Desk (30 minutes, as before).
 - **The session.** One cookie, `__Host-ceo-site`: HttpOnly, Secure, SameSite=Lax, a token signed with HMAC-SHA256
   (`api/_site/session.ts`) that lasts 180 days and slides: used a day or more after its last renewal, it is renewed
-  for another 180 days, so a device in use is never asked again. It carries the session version; a new password or
-  **Sign out everywhere else** makes a new version, which ends every older cookie (each server instance re-reads the
-  record at least every 20 seconds). Lax rather than Strict, so a ping, a bookmark or a link from elsewhere arrives
-  signed in; every write still needs the Desk's own Strict passkey session.
+  for another 180 days, so a device in use is never asked again. It carries the session version and how it signed in
+  (`f: ["passkey"]`); a #236 password cookie is no longer read. **Sign out everywhere else** and locking again make a
+  new version, which ends every older cookie (each server instance re-reads the record at least every 20 seconds).
+  Lax rather than Strict, so a ping, a bookmark or a link from elsewhere arrives signed in; every write still needs
+  the Desk's own Strict passkey session.
 - **The key that signs it.** `SITE_SESSION_SECRET` in Vercel when it is set (at least 32 random characters);
   otherwise derived from the Desk key (`FOUNDRY_DESK_KEY`, stretched with scrypt, purpose `site`, `api/_site/state.ts`),
   so no new variable is needed. Changing either signs every device out of the site.
 - **If the store can't be read**, an instance uses the last record it read; with none at all, it fails closed (the
   login page says to try again in a minute), except for the machine callers below.
-- **Break glass.** If the gate ever locks Nikita out (the store unreadable, a lost password with no Desk session),
-  set `SITE_GATE` to `off` in Vercel (Settings > Environment Variables, Production) and redeploy: the gate is off
-  whatever is stored. Delete it and redeploy to turn the gate back on.
 
-**Setting up the workflows' key** (once, from the PC, before turning the password on; nothing to install). In
+**Getting in on a new device, and never being locked out.** Locking needs a Desk passkey session, so at least one
+device already has a passkey. From then on:
+
+1. **A synced passkey.** A passkey saved in Google Password Manager (Chrome, signed in to the same Google account) is
+   on Nikita's other Chrome devices too: **Sign in with passkey** works there at once. Chrome can also use a phone's
+   passkey through a QR code ("Use a phone or tablet").
+2. **Add this device.** On the login page, **New device with no passkey? Add it**: the Desk key and a name. It is the
+   Desk's own enrolment (#132: the Desk key, its lockout, the ten-device limit), and it signs the new device in to
+   both the site and the Desk.
+3. **Break glass.** Only if every passkey and the Desk key are lost: set `SITE_GATE` to `off` in Vercel (Settings >
+   Environment Variables, Production) and redeploy: the gate is off whatever is stored. Delete it and redeploy to
+   turn the gate back on. (A new Desk key can also be set in Vercel, as in "Signing in to the Desk", which signs
+   every device out and lets a device enrol with the new key.)
+
+The Desk says this before locking (the confirm box) and under **Site lock** while it's locked (`RECOVERY` in
+`apps/world/src/desk/SitePassword.tsx`), so the only way to need the break glass is to lose every passkey and the
+Desk key, and that is said on screen. If the Desk key isn't set on the server there are no passkeys at all, and the
+login page says signing in isn't set up.
+
+**Setting up the workflows' key** (once, from the PC, before locking the site; nothing to install). In
 Chrome, open any page, F12 > **Console** (type `allow pasting` if Chrome asks), paste this and press Enter:
 
 ```js
@@ -146,25 +170,30 @@ name `SITE_BYPASS_TOKEN`, the same value. Close the console. To change it, do bo
 
 | What | Who uses it | How it is let through |
 | --- | --- | --- |
-| `/api/site-login` (GET and POST) | Everyone: the login page and its form | Always: it is the way in |
+| `/api/site-login` (GET and POST) | Everyone: the login page, its passkey script (`?part=script`) and its sign-out | Always: it is the way in. It takes no password (#238) |
+| `/api/desk-auth` (GET, HEAD and POST), with no `site` query or only `site=login` (#238) | The login page's script: the Desk's sign-in state, **Sign in with passkey** (`signin-options`, `signin`) and **Add this device** (`enrol-options`, `enrol`) | The function guards every action itself: a sign-in needs an enrolled passkey and the device's unlock, an enrolment needs the Desk key, removing a device needs a Desk session, all slowed and locked out after failures; its GET says only whether this browser is signed in to the Desk (and lists devices only when it is). `?site=password`, the lock's control, stays behind the gate (`isPasskeyPath`) |
 | `/assets/*`, `/models/*`, `/desk/*`, `/tide/*`, `/manifest.webmanifest`, `/sw.js`, `/favicon.ico`, `/robots.txt` (GET and HEAD, plain paths only) | The browser: the app's bundles, the 3D models, the images, the PWA manifest and its icons (fetched without cookies), the service worker | Static files built from this public repo, holding nothing that isn't already on GitHub; pages and data stay behind the gate |
 | `POST /api/world-step` | The hourly `world-step.yml` workflow (Vercel and Azure jobs), `scripts/foundry-watch.sh` | Open by design (calling it more often changes nothing, R6); its answer now says only whether it stepped and when, never the hour's words. Its `GET` (the Desk's world clock) is behind the gate |
 | `POST /api/desk-pings` with `Authorization: Bearer <DESK_PINGS_SECRET>` | `desk-pings.yml` (Vercel and Azure jobs) | The gate checks the secret itself, in constant time, and the function checks it again; every other ping action needs a site session and a Desk session |
 | Any route with `x-ceo-site-bypass: <SITE_BYPASS_TOKEN>` | `backup-azure.yml` (the nightly backup's `/api/world` reads, and the seed through `scripts/seed-azure-public.mjs`), `live-watch.yml` (`scripts/boot-check.mjs --url`) | A shared secret, at least 32 characters, compared in constant time; the workflows send it only to the site, from a file or a same-origin browser route, and never print it. Without it, the live watch only checks that the login page answers |
 
 Nothing else is exempt. The local checks (`scripts/boot-check.mjs` on a build, the browser tests) don't run the
-middleware, so they see the site as before; `tests/e2e/gate.spec.ts` runs the same gate in front of the built site
-with a password set, and checks the login page, a wrong password, the right one, and the cookie.
+middleware, so they see the site as before; `tests/e2e/gate.spec.ts` runs the same gate, the login function and the
+Desk's sign-in in front of the built site, locked, with Chromium's virtual authenticator as the device: no password
+field, a wrong Desk key refused, a new device added with the right one and back on the page it asked for, then
+signed in again with its passkey in one tap.
 
-**A second factor later (2FA).** The record has a `second` field and each site session lists the factors it was
-opened with (`f`). When `second` is `"passkey"`, the gate asks for a session that carries both `password` and
-`passkey` (`sessionFits` in `api/_site/session.ts`). Nothing sets it yet and the Desk can't; building it means a
-passkey step on the login page after the password (the Desk's own WebAuthn sign-in, `api/desk-auth.ts`) that adds
-`passkey` to the session, then a switch on the Desk. Until then, setting it by hand would lock every device out.
+**A second step later (2FA), not built.** Nikita may want one later: a new device approved from a signed-in one, or
+an emailed link. The hook is in place: the record's `second` field and each site session's `f` (how it signed in).
+When `second` is `"approval"`, the gate asks for a session that carries both `passkey` and `approval`
+(`sessionFits` in `api/_site/session.ts`). Nothing sets it and the Desk can't; building it means a step after the
+passkey (say, the new device waits on the login page while a signed-in Desk taps **Approve**) that adds `approval`
+to the session, then a switch on the Desk. Until then, setting it by hand would lock every device out.
 
-**On Azure** (docs/AZURE.md, "The site password on Azure"): the Static Web App has no middleware, so the same gate
+**On Azure** (docs/AZURE.md, "The site lock on Azure"): the Static Web App has no middleware, so the same gate
 runs in front of every Azure function, the login page is `/api/site-login`, and the Desk and the Lattice go there
-when an API call answers 401 with `x-ceo-site-gate: locked` (`apps/world/src/siteGate.ts`). The Static Web App's own
+when an API call answers 401 with `x-ceo-site-gate: locked` (`apps/world/src/siteGate.ts`). Passkeys belong to one
+domain, so the Azure copy has its own: lock it from the Azure Desk, after enrolling a passkey there. The Static Web App's own
 files stay reachable there until its own authentication is set up.
 
 ## Pings on the phone
@@ -241,10 +270,9 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Make them with the browser paste in "Setting up pings" below and paste them straight into Vercel. Production only | The switch says pings aren't set up |
 | `DESK_VAPID_SUBJECT` | Optional: an `https:` or `mailto:` contact the push services may use about the pings | The site's address |
 | `DESK_PINGS_SECRET` | Shared with the Desk pings workflow (the same value as the Actions secret below): only a caller holding it can make the Desk scan and ping. Long and random. Production only | No scans, so no pings |
-| `SITE_BYPASS_TOKEN` | The site password's key for the workflows that read the site (#236): the backup, the Azure seed and the live watch send it in `x-ceo-site-bypass`. At least 32 random characters, the same value as the Actions secret below. Production only | Those workflows get the login page once the password is on: the backup and seed fail, the live watch only checks the login page |
+| `SITE_BYPASS_TOKEN` | The site lock's key for the workflows that read the site (#236): the backup, the Azure seed and the live watch send it in `x-ceo-site-bypass`. At least 32 random characters, the same value as the Actions secret below. Production only | Those workflows get the login page once the password is on: the backup and seed fail, the live watch only checks the login page |
 | `SITE_SESSION_SECRET` | Optional: signs the site's sign-in cookies (#236). At least 32 random characters | Derived from `FOUNDRY_DESK_KEY` |
-| `SITE_PASSWORD_HASH` | Optional: the site password's hash, as `pbkdf2-sha256$600000$<salt>$<hash>`, used when none is set on the Desk (#236) | Only the Desk's own setting counts |
-| `SITE_GATE` | Break glass: `off` turns the site password off whatever is stored (#236) | The gate follows the stored password |
+| `SITE_GATE` | Break glass: `off` turns the site lock off whatever is stored (#236, #238) | The gate follows the stored lock |
 
 ## What scans the code, and when
 
@@ -272,7 +300,7 @@ only a workflow uses them. Workflows never print them.
 | --- | --- | --- |
 | `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below). Only the two `report` jobs (`checks.yml`, `visual-qa.yml`) use them, to open fix issues as `ceo-foundry[bot]` with a token that can only write issues and is revoked when the job ends | Those jobs write with the built-in token, as before |
 | `DESK_PINGS_SECRET` | The Desk pings workflow (`.github/workflows/desk-pings.yml`, #135): sent only to the site's own `api/desk-pings` in a header, to ask it to scan. The same value as in Vercel; it can make the Desk look for things to ping, nothing else | The workflow skips quietly and no pings go out |
-| `SITE_BYPASS_TOKEN` | The site password's key for the workflows that read the site (#236): `backup-azure.yml` (the backup and the seed) and `live-watch.yml` send it only to the site in the `x-ceo-site-bypass` header, from a file or a same-origin browser route, never printed. The same value as in Vercel; it can read the site, nothing else | Once the password is on, the backup and the seed fail and the live watch only checks the login page |
+| `SITE_BYPASS_TOKEN` | The site lock's key for the workflows that read the site (#236): `backup-azure.yml` (the backup and the seed) and `live-watch.yml` send it only to the site in the `x-ceo-site-bypass` header, from a file or a same-origin browser route, never printed. The same value as in Vercel; it can read the site, nothing else | Once the password is on, the backup and the seed fail and the live watch only checks the login page |
 | `GEMINI_API_KEY` | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91): clips of the public Lattice go to Gemini. Sent only to Google's API host in a header, never printed; spend capped in code at $0.50 a run and eight pushed runs a day. The same name in Vercel is the separate key for the day's story (above) | The tour still records; the review is skipped |
 
 ## The crew's own identity

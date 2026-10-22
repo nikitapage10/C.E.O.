@@ -1,5 +1,5 @@
 /**
- * The site password, browser side (#236): when an API call answers 401 with `x-ceo-site-gate: locked`, this browser
+ * The site lock, browser side (#236, #238): when an API call answers 401 with `x-ceo-site-gate: locked`, this browser
  * has no site session (it ran out, was signed out everywhere, or the site's files were reachable without one, as on
  * Azure, docs/AZURE.md). The page then goes to the login page, which brings it back here after the password.
  *

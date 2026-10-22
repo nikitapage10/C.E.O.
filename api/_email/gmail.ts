@@ -87,6 +87,9 @@ async function postForm(fetcher: Fetcher, url: string, form: Record<string, stri
  * Trades the callback's one-time code for tokens. Returns the refresh token only when Google granted gmail.readonly
  * and nothing that could write; anything else is refused (and the access it came with simply expires).
  */
+/** Full Gmail access (read, send, delete): a grant that carries it is refused. */
+const FULL_MAIL_SCOPE = "https://mail.google.com/";
+
 export async function exchangeCode(fetcher: Fetcher, client: OAuthClient, code: string): Promise<string> {
   const { status, body } = await postForm(fetcher, TOKEN_URL, {
     code,
@@ -98,7 +101,7 @@ export async function exchangeCode(fetcher: Fetcher, client: OAuthClient, code: 
   const b = (body ?? {}) as Record<string, unknown>;
   if (status !== 200 || typeof b.refresh_token !== "string" || !b.refresh_token) throw new Error(`gmail code exchange ${status}`);
   const scopes = typeof b.scope === "string" ? b.scope.split(/\s+/).filter(Boolean) : [];
-  if (!scopes.includes(GMAIL_SCOPE) || scopes.some((s) => s.startsWith("https://www.googleapis.com/auth/gmail.") && s !== GMAIL_SCOPE) || scopes.includes("https://mail.google.com/")) {
+  if (!scopes.includes(GMAIL_SCOPE) || scopes.some((s) => s.startsWith("https://www.googleapis.com/auth/gmail.") && s !== GMAIL_SCOPE) || new Set(scopes).has(FULL_MAIL_SCOPE)) {
     throw new Error("gmail scope not read-only");
   }
   return b.refresh_token;
@@ -242,6 +245,9 @@ function findPart(p: Part | undefined, type: string, depth = 0): string | null {
   return null;
 }
 
+/** The entities mail text uses, decoded in one pass so "&amp;lt;" stays "&lt;" (any other entity becomes a space). */
+const ENTITIES: Readonly<Record<string, string>> = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'" };
+
 /**
  * Mail text made plain and safe to quote: HTML tags and entities gone, every link and bare address of a web page
  * replaced by "[link]", invisible characters dropped, whitespace folded, trimmed to `max`.
@@ -251,13 +257,7 @@ export function plainMail(raw: string, max = BODY_MAX): string {
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<br\s*\/?>|<\/p>|<\/div>|<\/li>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#?\w{1,8};/g, " ")
+    .replace(/&(#?\w{1,8});/g, (_, e: string) => ENTITIES[e.toLowerCase()] ?? " ")
     .replace(/\p{Cf}/gu, "")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\b(?:https?|ftp|mailto|javascript|data|vbscript):\S*/gi, "[link]")

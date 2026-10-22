@@ -170,6 +170,10 @@ describe("reading a mail", () => {
     expect(text.length).toBeLessThanOrEqual(2_500);
   });
 
+  it("decodes entities once, so an escaped entity stays text", () => {
+    expect(plainMail("Tom &amp; Jerry &lt;3 &amp;lt;b&amp;gt; &copy;")).toBe("Tom & Jerry <3 &lt;b&gt;");
+  });
+
   it("reads sender, subject and body from Gmail's format", () => {
     const m = readMessage(rawMessage(MAILS[0]!))!;
     expect(m.from).toBe("Priya Fakename");

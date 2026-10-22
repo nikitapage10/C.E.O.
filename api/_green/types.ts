@@ -32,12 +32,14 @@ export interface GreenPlayer {
   /** Average league points a game this season (weeks he scored), and the last game's; null when he hasn't played for a team here. */
   avg: number | null;
   last: number | null;
+  /** FantasyPros' consensus rank at his position for this week (its start/sit order), when the key is set. */
+  wk: number | null;
   /** FantasyPros' rest-of-season consensus rank, overall and by position ("RB12"), when the key is set. */
   ecr: number | null;
   posRank: string | null;
   /**
-   * His bye week: this week when his team has no game (Sleeper's schedule, or no FantasyPros projection for his team
-   * while those are live), else the week FantasyPros' rankings give, when they do.
+   * His bye week: FantasyPros' (`player_bye_week`), or this week when FantasyPros projects nobody on his team while its
+   * projections are live; Sleeper's schedule only when FantasyPros has nothing on him.
    */
   bye: number | null;
 }
@@ -104,6 +106,15 @@ export interface GreenStanding {
 /** FantasyPros' part: "live" with the key and a good read, "waiting" without a key, "failed" when it didn't answer. */
 export type FpState = "live" | "waiting" | "failed";
 
+/** What FantasyPros' read brought back: rows per part, and the status of each part that failed (an HTTP code, "timeout" or "error"). */
+export interface FpParts {
+  proj: number;
+  weekly: number;
+  ros: number;
+  injuries: number;
+  errors: { part: string; status: number | "timeout" | "error" }[];
+}
+
 /** Where the start-or-sit calls come from. */
 export type CallSource = "fp" | "form";
 
@@ -141,7 +152,7 @@ export interface GreenBoard {
    * `calls`: where the start-or-sit calls come from: "fp" when FantasyPros' projections for this week drive them,
    * "form" when they come from the players' scores here (FantasyPros waiting, failed, or without this week yet).
    */
-  sources: { sleeper: "live"; fantasypros: FpState; fpAt: string | null; calls: CallSource };
+  sources: { sleeper: "live"; fantasypros: FpState; fpAt: string | null; calls: CallSource; fpParts: FpParts | null };
   /** True when Sleeper didn't answer and this is the last good read. */
   stale?: true;
 }

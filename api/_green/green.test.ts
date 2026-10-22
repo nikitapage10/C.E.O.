@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { forgetMemory, MemoryGreenStore, PLAYERS_PATH, SCHEDULE_PATH } from "./cache.ts";
-import { fpIndex, fpKey, nameKey, scoringOf, shapeInjuries, shapeProjections, shapeRankings, type FpData } from "./fantasypros.ts";
+import { FP_PATH, forgetMemory, MemoryGreenStore, PLAYERS_PATH, SCHEDULE_PATH } from "./cache.ts";
+import { FpUnavailable, fpIndex, fpKey, nameKey, readFantasyPros, statusOf, scoringOf, shapeInjuries, shapeProjections, shapeRankings, type FpData } from "./fantasypros.ts";
 import { buildBoard, byeTeams, formOf, formProjection, lineupSwaps, normCdf, slotTakes, winChance } from "./model.ts";
-import { forgetGreen, GET, isGreen, PATH, type GreenDeps } from "./route.ts";
+import { FP_SHAPE, forgetGreen, GET, isGreen, PATH, type GreenDeps } from "./route.ts";
 import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, cleanText, shapeLeague, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
 import type { GreenBoard, GreenPlayer } from "./types.ts";
 import { GET as worldGET } from "../world.ts";
@@ -66,7 +66,7 @@ function scheduleWith(byes: Record<number, string[]>): { status: string; date: s
 const SCHEDULE = scheduleWith({ 3: ["ARI", "HOU"] });
 
 /** A stand-in for Sleeper (and FantasyPros): answers by URL, and counts the calls. */
-function fakeApis(opts: { sleeperDown?: boolean; fpDown?: boolean; rosters?: unknown; schedule?: unknown } = {}) {
+function fakeApis(opts: { sleeperDown?: boolean; fpDown?: boolean; rosters?: unknown; schedule?: unknown; weeklyDown?: boolean } = {}) {
   const calls: { url: string; key: string | null }[] = [];
   const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
   const fetcher: Fetcher = async (url, init) => {
@@ -77,11 +77,17 @@ function fakeApis(opts: { sleeperDown?: boolean; fpDown?: boolean; rosters?: unk
       if (opts.fpDown) return new Response("down", { status: 500 });
       if (u.pathname.endsWith("/projections")) {
         const pos = u.searchParams.get("position");
-        const players = pos === "RB" ? [{ fpid: "1", name: "Rex Runner", position_id: "RB", team_id: "DAL", stats: { points: 9, points_half: 11.5, points_ppr: 14 } }, { fpid: "2", name: "Benny Bench", position_id: "RB", team_id: "DET", stats: [{ points: 15, points_half: 17, points_ppr: 19 }] }] : pos === "DST" ? [{ name: "Minnesota Vikings", position_id: "DST", team_id: "MIN", stats: { points: 8, points_half: 8, points_ppr: 8 } }] : [];
+        const players = pos === "RB" ? [{ fpid: "101", name: "Rex Runner", position_id: "RB", team_id: "DAL", stats: { points: 9, points_half: 11.5, points_ppr: 14 } }, { fpid: "102", name: "Benny Bench", position_id: "RB", team_id: "DET", stats: [{ points: 15, points_half: 17, points_ppr: 19 }] }] : pos === "DST" ? [{ name: "Minnesota Vikings", position_id: "DST", team_id: "MIN", stats: { points: 8, points_half: 8, points_ppr: 8 } }] : [];
         return ok({ season: "2026", week: "3", players });
       }
+      if (u.pathname.endsWith("/consensus-rankings") && u.searchParams.get("type") === "WEEKLY") {
+        const pos = u.searchParams.get("position");
+        if (opts.weeklyDown) return new Response("bad", { status: 400 });
+        const players = pos === "RB" ? [{ player_id: 101, player_name: "Rex Runner", player_team_id: "DAL", player_position_id: "RB", player_yahoo_id: "9002", rank_ecr: 5, pos_rank: "RB5", player_bye_week: "8" }, { player_id: 102, player_name: "Benny Bench", player_team_id: "DET", player_position_id: "RB", player_yahoo_id: "9007", rank_ecr: 12, pos_rank: "RB12", player_bye_week: "6" }] : pos === "DST" ? [{ player_id: 300, player_name: "Minnesota Vikings", player_team_id: "MIN", player_position_id: "DST", rank_ecr: 4, pos_rank: "DST4", player_bye_week: "6" }] : [];
+        return ok({ players });
+      }
       if (u.pathname.endsWith("/consensus-rankings")) {
-        return ok({ players: [{ player_id: 1, player_name: "Wes Waiver", player_team_id: "GB", player_position_id: "WR", player_yahoo_id: "9008", rank_ecr: 30, pos_rank: "WR15", player_bye_week: "9" }, { player_id: 2, player_name: "Hot Pickup", player_team_id: "ATL", player_position_id: "RB", player_yahoo_id: "9014", rank_ecr: 80, pos_rank: "RB30", player_bye_week: "5" }, { player_id: 3, player_name: "Deep Bench", player_team_id: "HOU", player_position_id: "WR", player_yahoo_id: "9015", rank_ecr: 300, pos_rank: "WR99", player_bye_week: "3" }, { player_id: 4, player_name: "Spare Part", player_team_id: "TEN", player_position_id: "WR", player_yahoo_id: "9016", rank_ecr: 400, pos_rank: "WR120", player_bye_week: "10" }] });
+        return ok({ players: [{ player_id: 201, player_name: "Wes Waiver", player_team_id: "GB", player_position_id: "WR", player_yahoo_id: "9008", rank_ecr: 30, pos_rank: "WR15", player_bye_week: "9" }, { player_id: 202, player_name: "Hot Pickup", player_team_id: "ATL", player_position_id: "RB", player_yahoo_id: "9014", rank_ecr: 80, pos_rank: "RB30", player_bye_week: "5" }, { player_id: 203, player_name: "Deep Bench", player_team_id: "HOU", player_position_id: "WR", player_yahoo_id: "9015", rank_ecr: 300, pos_rank: "WR99", player_bye_week: "3" }, { player_id: 204, player_name: "Spare Part", player_team_id: "TEN", player_position_id: "WR", player_yahoo_id: "9016", rank_ecr: 400, pos_rank: "WR120", player_bye_week: "10" }] });
       }
       if (u.pathname.endsWith("/injuries")) return ok({ injuries: [{ name: "Walt Wider", yahoo_id: "9005", status_short: "Q" }] });
       return new Response("nope", { status: 404 });
@@ -159,7 +165,7 @@ describe("the predictions (#252)", () => {
   });
 
   it("starts the bench player over an injured starter, and leaves locked players alone", () => {
-    const pl = (id: string, pos: GreenPlayer["pos"], proj: number | null, inj: GreenPlayer["inj"] = null): GreenPlayer => ({ id, name: `P${id}`, pos, team: "KC", inj, proj, src: "form", avg: proj, last: proj, ecr: null, posRank: null, bye: null });
+    const pl = (id: string, pos: GreenPlayer["pos"], proj: number | null, inj: GreenPlayer["inj"] = null): GreenPlayer => ({ id, name: `P${id}`, pos, team: "KC", inj, proj, src: "form", avg: proj, last: proj, wk: null, ecr: null, posRank: null, bye: null });
     const current = [
       { slot: "RB", player: pl("a", "RB", 0, "O"), pts: 0 },
       { slot: "WR", player: pl("b", "WR", 9), pts: 0 },
@@ -191,7 +197,7 @@ describe("the predictions (#252)", () => {
     expect(board.pickups[0]!.drop?.name).toBe("Spare Part"); // never scored here, and far down Sleeper's own ranks
     expect(board.pickups[1]!.drop).toBeNull(); // nobody else is clearly worse
     expect(board.dropping).toEqual([{ player: expect.objectContaining({ name: "Deep Bench" }), drops: 4000 }]);
-    expect(board.sources).toEqual({ sleeper: "live", fantasypros: "waiting", fpAt: null, calls: "form" });
+    expect(board.sources).toEqual({ sleeper: "live", fantasypros: "waiting", fpAt: null, calls: "form", fpParts: null });
     expect(board.byes).toEqual([]); // no schedule given: nobody is taken for on bye
     expect(JSON.stringify(board)).not.toContain("a-username-never-shown");
   });
@@ -229,17 +235,18 @@ describe("byes, whatever FantasyPros says (#259)", () => {
     const fp: FpData = { at: "x", season: "2026", week: 3, scoring: "HALF", proj: [...teams.map((t, i) => ({ name: `Some One ${i}`, pos: "WR" as const, team: t, pts: 9 })), { name: "Benny Bench", pos: "RB", team: "DET", pts: 15 }], ranks: [], injuries: [] };
     expect([...byeTeams(null, fp, 3)!].sort()).toEqual(["ARI", "DAL"]);
     expect(byeTeams(null, { ...fp, week: 2 }, 3)).toBeNull(); // last week's projections say nothing about this week
-    expect(byeTeams(null, { ...fp, proj: fp.proj.slice(0, 5) }, 3)).toBeNull(); // too few teams to tell a bye from a gap
+    expect(byeTeams(null, { ...fp, proj: fp.proj.slice(0, 5) }, 3)).toEqual(new Set()); // too few teams to tell a bye from a gap
     const board = buildBoard({ ...boardInput(), fp, fpState: "live" });
     const rex = board.roster.starters[1]!.player!;
     expect(rex).toMatchObject({ name: "Rex Runner", proj: 0, bye: 3 });
     expect(board.sources.calls).toBe("fp");
-    expect(board.swaps.find((x) => x.out?.name === "Rex Runner")?.why).toBe("Rex Runner is on bye");
+    // One RB on the bench (Benny Bench) for two RBs who can't play: he comes in, and Rex is never a start.
+    expect(board.swaps).toEqual([expect.objectContaining({ slot: "RB", in: expect.objectContaining({ name: "Benny Bench" }) })]);
     expect(board.swaps.some((x) => x.in.name === "Rex Runner")).toBe(false);
   });
 
   it("never says to start a player on bye or out, however high his projection", () => {
-    const pl = (id: string, pos: GreenPlayer["pos"], proj: number | null, over: Partial<GreenPlayer> = {}): GreenPlayer => ({ id, name: `P${id}`, pos, team: "KC", inj: null, proj, src: "fp", avg: proj, last: proj, ecr: null, posRank: null, bye: null, ...over });
+    const pl = (id: string, pos: GreenPlayer["pos"], proj: number | null, over: Partial<GreenPlayer> = {}): GreenPlayer => ({ id, name: `P${id}`, pos, team: "KC", inj: null, proj, src: "fp", avg: proj, last: proj, wk: null, ecr: null, posRank: null, bye: null, ...over });
     const current = [
       { slot: "WR", player: pl("a", "WR", 6), pts: 0 },
       { slot: "RB", player: pl("b", "RB", 14, { bye: 7 }), pts: 0 },
@@ -249,6 +256,53 @@ describe("byes, whatever FantasyPros says (#259)", () => {
     expect(swaps.map((s) => [s.in.id, s.out?.id, s.why])).toEqual([["e", "b", "Pb is on bye"]]);
     // With nobody to bring in, a starter on bye stays put rather than being swapped for someone also on bye.
     expect(lineupSwaps(["RB"], [current[1]!], [pl("f", "RB", 30, { bye: 7 })], () => false, 7)).toEqual([]);
+  });
+});
+
+describe("the Tuten case: FantasyPros live in week 7, Jacksonville on bye (#259)", () => {
+  // Bhayshul Tuten (Sleeper 12490, RB, JAX) started for Nikita in week 7 of 2026 with a big form line, and the board
+  // said to keep starting him though Jacksonville had no game.
+  const TUTEN = { player_id: "12490", full_name: "Bhayshul Tuten", first_name: "Bhayshul", last_name: "Tuten", position: "RB", team: "JAX", search_rank: 80, yahoo_id: null, sportradar_id: null, injury_status: null };
+  const tutenInput = (fp: FpData | null, schedule: ReturnType<typeof shapeSchedule> | null = null) => {
+    const base = boardInput();
+    const rosters = shapeRosters([{ ...ROSTERS[0]!, players: ROSTERS[0]!.players.map((id) => (id === "2" ? "12490" : id)), starters: ROSTERS[0]!.starters.map((id) => (id === "2" ? "12490" : id)) }, ROSTERS[1]]);
+    const hot = shapeMatchups([row(12, 1, rosters[0]!.starters, { "12490": 24, "7": 9 })]);
+    return { ...base, state: { season: "2026", week: 7, type: "regular" }, rosters, players: slimPlayers({ ...PLAYERS, "12490": TUTEN }), history: [...base.history, hot], matchups: [], fp, fpState: fp ? ("live" as const) : ("waiting" as const), schedule };
+  };
+  // FantasyPros' week 7: projections for every team but Jacksonville and three others on bye, Benny Bench among them.
+  const BYES7 = ["BUF", "JAX", "LAC", "WAS"];
+  const proj7 = [...NFL_TEAMS].filter((t) => !BYES7.includes(t)).map((t, i) => ({ fpid: String(500 + i), name: `Some Back ${i}`, pos: "RB" as const, team: t, pts: 7 }));
+  const fp7 = (over: Partial<FpData>): FpData => ({ at: "x", season: "2026", week: 7, scoring: "HALF", proj: [...proj7, { fpid: "102", name: "Benny Bench", pos: "RB", team: "DET", pts: 12 }], weekly: [], ranks: [], injuries: [], ...over });
+  const expectBenched = (board: GreenBoard) => {
+    const tuten = board.roster.starters.find((x) => x.player?.id === "12490")!.player!;
+    expect(tuten).toMatchObject({ name: "Bhayshul Tuten", team: "JAX", proj: 0, bye: 7 });
+    expect(board.swaps.some((x) => x.in.id === "12490")).toBe(false);
+    expect(board.swaps.find((x) => x.out?.id === "12490")).toMatchObject({ in: { name: "Benny Bench" }, why: "Bhayshul Tuten is on bye" });
+    expect(board.sources.calls).toBe(board.sources.fantasypros === "live" ? "fp" : "form");
+  };
+
+  it("benches him on FantasyPros' own bye week for him (player_bye_week, a string)", () => {
+    const ranks = shapeRankings({ players: [{ player_id: 9001, player_name: "Bhayshul Tuten", player_team_id: "JAC", player_position_id: "RB", rank_ecr: 40, pos_rank: "RB20", player_bye_week: "7" }] });
+    expect(ranks[0]).toMatchObject({ team: "JAX", bye: 7, fpid: "9001" });
+    expectBenched(buildBoard(tutenInput(fp7({ ranks }))));
+  });
+
+  it("benches him when FantasyPros projects nobody on Jacksonville, even with no ranking for him at all", () => {
+    expectBenched(buildBoard(tutenInput(fp7({}))));
+  });
+
+  it("benches him on Sleeper's schedule when FantasyPros can't say", () => {
+    expectBenched(buildBoard(tutenInput(fp7({ proj: [{ fpid: "102", name: "Benny Bench", pos: "RB", team: "DET", pts: 12 }] }), shapeSchedule(scheduleWith({ 7: BYES7 })))));
+    expectBenched(buildBoard(tutenInput(null, shapeSchedule(scheduleWith({ 7: BYES7 })))));
+  });
+
+  it("never lets his form here stand in while FantasyPros is live", () => {
+    // FantasyPros projects Jacksonville's other backs but not him (and gives no bye): no projection, never a start.
+    const fp = fp7({ proj: [...proj7, { fpid: "777", name: "Other Jag", pos: "RB", team: "JAX", pts: 6 }, { fpid: "102", name: "Benny Bench", pos: "RB", team: "DET", pts: 12 }] });
+    const board = buildBoard(tutenInput(fp));
+    const tuten = board.roster.starters.find((x) => x.player?.id === "12490")!.player!;
+    expect(tuten).toMatchObject({ proj: null, src: "none" });
+    expect(board.swaps.find((x) => x.out?.id === "12490")).toMatchObject({ in: { name: "Benny Bench" }, why: "FantasyPros doesn't rank or project Bhayshul Tuten this week" });
   });
 });
 
@@ -349,12 +403,18 @@ describe("GET /api/green-league (#252)", () => {
     const board = JSON.parse(text) as GreenBoard;
     expect(board.sources.fantasypros).toBe("live");
     const fpCalls = calls.filter((c) => c.url.startsWith("https://api.fantasypros.com/public/v2/json/"));
-    expect(fpCalls.length).toBe(7); // QB, RB, WR, TE, DST projections, the consensus, the injuries
+    expect(fpCalls.length).toBe(12); // QB, RB, WR, TE, DST projections and weekly consensus, the ROS consensus, the injuries
+    expect(fpCalls.some((c) => c.url.includes("/nfl/2026/consensus-rankings?position=RB&type=WEEKLY&scoring=HALF&week=3"))).toBe(true);
+    expect(board.sources.calls).toBe("fp");
+    expect(board.sources.fpParts).toEqual({ proj: 3, weekly: 3, ros: 4, injuries: 1, errors: [] });
     expect(fpCalls.every((c) => c.key === FP_KEY && !c.url.includes(FP_KEY))).toBe(true);
     expect(calls.filter((c) => !c.url.includes("fantasypros")).every((c) => c.key === null)).toBe(true);
     expect(fpCalls.some((c) => c.url.includes("/nfl/2026/projections?position=DST&week=3&scoring=HALF"))).toBe(true);
     const rex = board.roster.starters[1]!.player!;
-    expect(rex).toMatchObject({ name: "Rex Runner", proj: 11.5, src: "fp" });
+    expect(rex).toMatchObject({ name: "Rex Runner", proj: 11.5, src: "fp", wk: 5, bye: 8 });
+    // Players FantasyPros neither ranks nor projects this week are never a start, and no form stands in for them.
+    expect(board.roster.starters[0]!.player).toMatchObject({ name: "Quinn Arm", proj: null, src: "none" });
+    expect(board.swaps.every((x) => x.in.src === "fp")).toBe(true);
     expect(board.roster.starters.find((s) => s.player?.name === "Walt Wider")!.player!.inj).toBe("Q");
     // Deep Bench (on bye this week) sits; Pickups follow the consensus, Spare Part (WR120) is the clear drop for the WR,
     // and Benny Bench, whom the consensus doesn't rank, is never the one cut.
@@ -362,14 +422,43 @@ describe("GET /api/green-league (#252)", () => {
     expect(board.pickups[0]!.why).toBe("FantasyPros #30 (WR15) rest of season · added in 50k leagues today");
     expect(board.pickups[0]!.drop?.name).toBe("Spare Part");
     expect(board.pickups[1]!.drop).toBeNull();
-    expect(board.swaps.find((x) => x.out?.name === "Deep Bench")?.why).toBe("Deep Bench is on bye");
+    expect(board.roster.starters.find((x) => x.player?.name === "Deep Bench")!.player).toMatchObject({ proj: 0, bye: 3 });
+    expect(board.swaps.some((x) => x.in.bye === 3)).toBe(false);
   });
 
-  it("still answers when FantasyPros fails, and says so", async () => {
+  it("still answers when FantasyPros fails, and says which parts failed how, never with the key", async () => {
     const { fetcher } = fakeApis({ fpDown: true });
-    const board = (await (await GET(get(), deps(fetcher, { fpKey: FP_KEY }))).json()) as GreenBoard;
+    const text = await (await GET(get(), deps(fetcher, { fpKey: FP_KEY }))).text();
+    expect(text).not.toContain(FP_KEY);
+    expect(text).not.toContain("api.fantasypros.com");
+    const board = JSON.parse(text) as GreenBoard;
     expect(board.sources.fantasypros).toBe("failed");
+    expect(board.sources.calls).toBe("form");
+    expect(board.sources.fpParts!.errors).toContainEqual({ part: "projections RB", status: 500 });
+    expect(board.sources.fpParts!.errors).toContainEqual({ part: "ROS rankings", status: 500 });
     expect(board.roster.starters[0]!.player!.src).toBe("form");
+  });
+
+  it("notes a part that failed while the rest answered, and keeps its copy under the new shape's tag", async () => {
+    const store = new MemoryGreenStore();
+    const board = (await (await GET(get(), deps(fakeApis({ weeklyDown: true }).fetcher, { fpKey: FP_KEY, store }))).json()) as GreenBoard;
+    expect(board.sources.fantasypros).toBe("live");
+    expect(board.sources.fpParts!.weekly).toBe(0);
+    expect(board.sources.fpParts!.errors).toContainEqual({ part: "weekly RB", status: 400 });
+    const kept = JSON.parse(store.files.get(FP_PATH)!) as { tag: string };
+    expect(kept.tag).toBe(`${FP_SHAPE}-2026-3-HALF`);
+    expect(FP_SHAPE).not.toBe("");
+    expect(statusOf(new Error("upstream 403"))).toBe(403);
+    expect(statusOf(Object.assign(new Error("x"), { name: "TimeoutError" }))).toBe("timeout");
+    expect(statusOf(new Error("https://api.fantasypros.com/?k=secret"))).toBe("error");
+  });
+
+  it("throws with the parts when nothing from FantasyPros answers", async () => {
+    const { fetcher } = fakeApis({ fpDown: true });
+    const e = await readFantasyPros(fetcher, FP_KEY, "2026", 3, 0.5, ["QB", "RB"]).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(FpUnavailable);
+    expect((e as FpUnavailable).parts).toMatchObject({ proj: 0, weekly: 0, ros: 0, injuries: 0 });
+    expect(JSON.stringify((e as FpUnavailable).parts)).not.toContain(FP_KEY);
   });
 
   it("says when Nikita isn't in the league, and when Sleeper is down; a last good board stands in for a while", async () => {

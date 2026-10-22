@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
 import { Parts, Poly, TAU, useViz, weave, type VizSpec } from "../wvCanvas.ts";
-import { callsWord, commentatorCall, onBye, ordinal, pct, pts, sleeperLeagueUrl, startGreen, useGreen, yardLine, type GreenBoard, type GreenPlayer, type GreenSlot, type GreenStatus, type GreenSwap } from "../green/league.ts";
+import { callsWord, commentatorCall, fpLine, onBye, ordinal, pct, pts, sleeperLeagueUrl, startGreen, useGreen, yardLine, type GreenBoard, type GreenPlayer, type GreenSlot, type GreenStatus, type GreenSwap } from "../green/league.ts";
 import "./rooms.css";
 import "../green/green.css";
 
@@ -83,7 +83,7 @@ function InjTag({ p, week }: { p: GreenPlayer | null | undefined; week: number }
   );
 }
 
-const srcWord = (p: GreenPlayer) => (p.src === "fp" ? "FantasyPros projection" : p.src === "form" ? "Projected from his scores here" : "No projection yet");
+const srcWord = (p: GreenPlayer) => (p.src === "fp" ? `FantasyPros projection${p.wk ? ` · #${p.wk} at ${p.pos} this week` : ""}` : p.src === "form" ? "Projected from his scores here" : "No projection yet");
 
 /** The scoreboard: lit with the matchup, or dark with why. */
 function Scoreboard({ board, status }: { board: GreenBoard | null; status: GreenStatus }) {
@@ -479,7 +479,9 @@ export function Green() {
               : status === "absent"
                 ? "No team of yours in the league"
                 : "Reading Sleeper…"}
-        <span>FantasyPros {fp === "live" ? "live" : fp === "failed" ? "not answering" : "waiting"}</span>
+        <span className="gl-fp" title="What FantasyPros sent on its last read">
+          {board ? fpLine(board) : `FantasyPros ${fp === "failed" ? "not answering" : "waiting"}`}
+        </span>
         {board && <span>{board.sources.calls === "fp" ? "Start/sit by FantasyPros" : "Start/sit by form here"}</span>}
         {board && board.byes.length > 0 && <span>On bye: {board.byes.join(", ")}</span>}
       </p>

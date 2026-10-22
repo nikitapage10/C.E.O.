@@ -674,3 +674,8 @@
     transition: none;
   }
 }
+
+/* What FantasyPros sent on its last read (#259): there to check, not to read. */
+.desk .gl-status .gl-fp {
+  opacity: 0.7;
+}

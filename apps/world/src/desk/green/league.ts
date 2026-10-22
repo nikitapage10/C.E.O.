@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CallSource, FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap } from "../../../../../api/_green/types.ts";
+import type { CallSource, FpParts, FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap } from "../../../../../api/_green/types.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 
 /**
@@ -9,7 +9,7 @@ import { useSystems, type LinkState } from "../../systems.ts";
  * and FantasyPros links on Systems and in the Boiler Room. Read-only: the moves are made in Sleeper.
  */
 
-export type { CallSource, FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap };
+export type { CallSource, FpParts, FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap };
 
 const PATH = "/api/green-league";
 const POLL_MS = 120_000;
@@ -37,6 +37,30 @@ const side = (v: unknown): GreenSide | null => {
   if (!s || typeof s !== "object" || !isStr(s.team) || !isNum(s.pts) || !isNum(s.proj) || !Array.isArray(s.starters)) return null;
   return { rosterId: Number(s.rosterId) || 0, team: s.team!, record: isStr(s.record, 12) ? s.record! : "", pts: s.pts!, proj: s.proj!, starters: s.starters.filter(isSlot) };
 };
+
+const count = (n: unknown) => (isNum(n, 0, 100_000) ? Math.round(n as number) : 0);
+
+/** FantasyPros' diagnostics as the server sent them: counts, and short part names with a status. */
+export function readParts(v: unknown): FpParts | null {
+  const p = v as Partial<FpParts> | null;
+  if (!p || typeof p !== "object") return null;
+  const errors = (Array.isArray(p.errors) ? p.errors : [])
+    .filter((e): e is FpParts["errors"][number] => !!e && isStr(e.part, 40) && /^[A-Za-z ]+$/.test(e.part) && (isNum(e.status, 100, 599) || e.status === "timeout" || e.status === "error"))
+    .slice(0, 20)
+    .map((e) => ({ part: e.part, status: e.status }));
+  return { proj: count(p.proj), weekly: count(p.weekly), ros: count(p.ros), injuries: count(p.injuries), errors };
+}
+
+/** "FantasyPros: live · 312 projections · 290 ranked this week", and any part that failed with its status. */
+export function fpLine(b: GreenBoard): string {
+  const fp = b.sources.fantasypros;
+  const head = `FantasyPros: ${fp === "live" ? "live" : fp === "failed" ? "not answering" : "waiting"}`;
+  const p = b.sources.fpParts;
+  if (!p) return head;
+  const bits = [`${p.proj} projections`, `${p.weekly} ranked this week`, `${p.ros} rest of season`, `${p.injuries} injuries`];
+  const errs = p.errors.map((e) => `${e.part} ${e.status}`);
+  return [head, ...bits, ...(errs.length ? [`failed: ${errs.join(", ")}`] : [])].join(" · ");
+}
 
 /** The board as the server sent it, anything off-shape dropped; null when it isn't a board. */
 export function readGreen(v: unknown): GreenBoard | null {
@@ -68,7 +92,7 @@ export function readGreen(v: unknown): GreenBoard | null {
     standings: (b.standings ?? []).filter((s): s is GreenStanding => !!s && isStr(s.team) && isNum(s.wins, 0, 30) && isNum(s.losses, 0, 30) && isNum(s.pf)),
     dropping: (b.dropping ?? []).filter((d) => !!d && isPlayer(d.player) && isNum(d.drops, 0, 1e9)),
     byes: Array.isArray(b.byes) ? b.byes.filter((t): t is string => typeof t === "string" && /^[A-Z]{2,3}$/.test(t)).slice(0, 32) : [],
-    sources: { sleeper: "live", fantasypros: fp, fpAt: typeof b.sources?.fpAt === "string" ? b.sources.fpAt : null, calls: b.sources?.calls === "fp" ? "fp" : "form" },
+    sources: { sleeper: "live", fantasypros: fp, fpAt: typeof b.sources?.fpAt === "string" ? b.sources.fpAt : null, calls: b.sources?.calls === "fp" ? "fp" : "form", fpParts: readParts(b.sources?.fpParts) },
     ...(b.stale === true && { stale: true }),
   };
 }

@@ -18,10 +18,10 @@
  */
 
 import { FP_PATH, PLAYERS_PATH, SCHEDULE_PATH, keptOrRead, pickGreenStore, type GreenStore } from "./cache.js";
-import { fpKey, readFantasyPros, scoringOf, type FpData } from "./fantasypros.js";
+import { FpUnavailable, fpKey, readFantasyPros, scoringOf, type FpData } from "./fantasypros.js";
 import { buildBoard, slotTakes } from "./model.js";
 import { LEAGUE_ID, getJson, pickLeague, readPlayers, readSchedule, shapeLeague, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, shapeTrending, urls, type Fetcher, type League, type MatchupRow, type NflState, type Schedule } from "./sleeper.js";
-import { GREEN_POS, type FpState, type GreenBoard, type GreenPos } from "./types.js";
+import { GREEN_POS, type FpParts, type FpState, type GreenBoard, type GreenPos } from "./types.js";
 
 export const PATH = "/api/green-league";
 /** How long the edge and a warm instance keep a board. */
@@ -96,16 +96,19 @@ async function weekRows(deps: GreenDeps, league: string, week: number, current: 
   return rows;
 }
 
-async function fantasyPros(deps: GreenDeps, league: League, state: NflState): Promise<{ fp: FpData | null; fpState: FpState }> {
+/** Bumped whenever the kept FantasyPros shape changes, so an old copy is never served as this one. */
+export const FP_SHAPE = "v2";
+
+async function fantasyPros(deps: GreenDeps, league: League, state: NflState): Promise<{ fp: FpData | null; fpState: FpState; fpParts?: FpParts }> {
   if (!deps.fpKey) return { fp: null, fpState: "waiting" };
   const key = deps.fpKey;
   const positions = GREEN_POS.filter((p) => league.slots.some((s) => slotTakes(s).includes(p))) as GreenPos[];
-  const tag = `${state.season}-${state.week}-${scoringOf(league.rec)}`;
+  const tag = `${FP_SHAPE}-${state.season}-${state.week}-${scoringOf(league.rec)}`;
   try {
     const got = await keptOrRead(deps.store, FP_PATH, tag, FP_TTL_MS, DAY_MS, deps.now, () => readFantasyPros(deps.fetcher, key, state.season, state.week, league.rec, positions));
     return { fp: got.value, fpState: "live" };
-  } catch {
-    return { fp: null, fpState: "failed" };
+  } catch (e) {
+    return { fp: null, fpState: "failed", ...(e instanceof FpUnavailable && { fpParts: e.parts }) };
   }
 }
 
@@ -127,8 +130,10 @@ export async function readBoard(deps: GreenDeps): Promise<GreenBoard> {
       .then((k): Schedule | null => k.value)
       .catch(() => null),
   ]);
-  const { fp, fpState } = await fantasyPros(deps, league, state);
-  return buildBoard({ league, state, rosters, teamNames: users, matchups, history, players, adds, drops, fp, fpState, schedule, at: new Date(deps.now).toISOString() });
+  const { fp, fpState, fpParts } = await fantasyPros(deps, league, state);
+  const board = buildBoard({ league, state, rosters, teamNames: users, matchups, history, players, adds, drops, fp, fpState, schedule, at: new Date(deps.now).toISOString() });
+  if (fpParts && !board.sources.fpParts) board.sources.fpParts = fpParts;
+  return board;
 }
 
 export async function GET(request: Request, deps: GreenDeps = live()): Promise<Response> {

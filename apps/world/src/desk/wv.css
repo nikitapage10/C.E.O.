@@ -1589,3 +1589,22 @@
   .desk .wv-ask.skp-ask{padding:8px 0}
   .desk .wv-ask .skp-ask__label{font-size:17px}
 }
+
+/* ---------- the Desk sign-in bar and the Site lock (#238), in the Weave: a hairline row, no glow, quiet controls ---------- */
+.desk .wv-page .desk-auth{margin:0 0 18px;padding:12px 0;border:0;border-top:1px solid var(--wv-line);border-bottom:1px solid var(--wv-line);border-radius:0;background:none;backdrop-filter:none;-webkit-backdrop-filter:none;font-family:var(--wv-sans);font-size:13px;color:var(--wv-mute)}
+.desk .wv-page .desk-auth--compact{padding:10px 0}
+.desk .wv-page .desk-auth__line b{color:var(--wv-ink)}
+.desk .wv-page .desk-auth__quiet{color:var(--wv-faint)}
+.desk .wv-page .desk-auth__dot{width:6px;height:6px;background:var(--wv-ok);box-shadow:none}
+.desk .wv-page .desk-auth__dot--out{background:var(--wv-run)}
+.desk .wv-page .desk-auth__note{color:var(--wv-hot-dim)}
+.desk .wv-page .desk-auth__note--locked{color:var(--wv-bad)}
+.desk .wv-page .desk-auth__devices summary{font-family:var(--wv-sans);font-size:12px;letter-spacing:.02em;text-transform:none;color:var(--wv-mute)}
+.desk .wv-page .desk-auth__devices summary:hover{color:var(--wv-ink)}
+.desk .wv-page .desk-auth__devices ul{border-color:var(--wv-line2);border-radius:8px;background:#101217;box-shadow:0 20px 40px -24px rgba(0,0,0,.8)}
+.desk .wv-page .desk-site{grid-column:1/-1;padding-top:10px;border-top:1px solid var(--wv-line)}
+.desk .wv-page .desk-site>.desk-auth__quiet{margin:8px 0 0;max-width:72ch;line-height:1.5}
+.desk .wv-page .desk-site .desk-auth__actions{margin-top:10px}
+.desk .wv-page .desk-auth .btn{min-height:30px;padding:0 13px;border:1px solid var(--wv-line2);border-radius:999px;background:none;box-shadow:none;font-family:var(--wv-sans);font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--wv-soft)}
+.desk .wv-page .desk-auth .btn:hover:not(:disabled){border-color:var(--wv-hot-line);color:var(--wv-ink)}
+.desk .wv-page .desk-auth .btn--go{border-color:var(--wv-hot-line);background:var(--wv-hot-bg);color:var(--wv-hot)}

@@ -31,24 +31,13 @@ export function paragraphs(script: string): string[] {
   return out.filter(Boolean);
 }
 
-export function DayStory({ day, canMake, compact = false, label = "Hear the day in Ilyr" }: { day: string; canMake: boolean; compact?: boolean; label?: string }) {
-  const state = useDayStory((s) => s.stories[day]);
+/** "Make it now" for a day's story (today or yesterday): the button, the sign-in step when needed, and the note after. */
+export const STORY_WHY = (reason: string): string | undefined => WHY[reason];
+
+export function useStoryMaker(day: string): { makeControls: React.ReactNode; noteLine: React.ReactNode } {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
-
-  useEffect(() => {
-    void useDayStory.getState().loadStory(day);
-  }, [day]);
-
-  if (state === "loading") {
-    return compact ? null : <p className="quiet story__note">Finding the Historian&apos;s reading…</p>;
-  }
-  if (!state || state === "off") return null;
-  if (state === "failed") {
-    return compact ? null : <p className="quiet story__note">Can&apos;t reach the day&apos;s story right now.</p>;
-  }
-
   const make = async () => {
     setBusy(true);
     // Signed in already, or one passkey tap now; otherwise the sign-in step shows here.
@@ -69,7 +58,6 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
     setAsking(false);
     setNote(r.made ? null : r.error ? (r.error === "not-set-up" ? "The story isn't set up on the server yet." : "Couldn't make it right now; try again shortly.") : (WHY[r.reason ?? ""] ?? null));
   };
-
   const makeControls = (
     <div className="story__make">
       {asking ? (
@@ -86,6 +74,24 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
       {note}
     </p>
   );
+  return { makeControls, noteLine };
+}
+
+export function DayStory({ day, canMake, compact = false, label = "Hear the day in Ilyr" }: { day: string; canMake: boolean; compact?: boolean; label?: string }) {
+  const state = useDayStory((s) => s.stories[day]);
+  const { makeControls, noteLine } = useStoryMaker(day);
+
+  useEffect(() => {
+    void useDayStory.getState().loadStory(day);
+  }, [day]);
+
+  if (state === "loading") {
+    return compact ? null : <p className="quiet story__note">Finding the Historian&apos;s reading…</p>;
+  }
+  if (!state || state === "off") return null;
+  if (state === "failed") {
+    return compact ? null : <p className="quiet story__note">Can&apos;t reach the day&apos;s story right now.</p>;
+  }
 
   if (!state.ready) {
     if (compact) return null;

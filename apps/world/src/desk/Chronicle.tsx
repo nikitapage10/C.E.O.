@@ -1,38 +1,27 @@
 import { useEffect, useState } from "react";
 import { chronicleDay, dayTitle, hourLabel, sinceAway, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
-import { previousWeek, weekStartOf } from "../../../../api/_world/weeks.ts";
-import { DayStory } from "./DayStory.tsx";
-import { WeekStory } from "./WeekStory.tsx";
+import { previousWeek, weekDaysOf, weekStartOf } from "../../../../api/_world/weeks.ts";
+import { Bonds, hoursOf, KIND_WORD, ROOM_NAME, Shelf, Tale, WeekStrip } from "./ChronicleWeave.tsx";
 import { formatWait } from "./deskData.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
-import { RoomBanner } from "./RoomBanner.tsx";
 import { useWidth } from "./motion.tsx";
-import { Avatar, Panel } from "./ui.tsx";
+import { Avatar } from "./ui.tsx";
 
 /**
- * The Chronicle: the Lattice, hour by hour, while you were away (docs/WORLD.md). Every hour the world takes a step and
- * the Historian writes it up: what happened, who said what to whom, how relationships moved, and what the builders
- * thought of the work that shipped. The first step after midnight files the day in Ilyr. Pages by day.
+ * The Chronicle: the Lattice, hour by hour, while you were away (docs/WORLD.md), in the approved Weave (desk-concepts
+ * round five). Every hour the world takes a step and the Historian writes it up: what happened, who said what to whom,
+ * how relationships moved, and what the builders thought of the work that shipped. The first step after midnight files
+ * the day in Ilyr and the Historian reads it aloud. Up top the day's story plays as a player; then the week, the bonds
+ * that moved, a shelf of past days, and every hour of the shown day.
  */
-
-const ROOM_NAME: Record<RoomId, string> = {
-  foundry: "Foundry",
-  spire: "Spire",
-  exchange: "Exchange",
-  green: "Green",
-  relay: "Relay",
-  archive: "Archive",
-  breakroom: "Break Room",
-  boiler: "Boiler Room",
-  workshop: "Workshop",
-};
-const KIND_WORD: Record<string, string> = { friend: "friends", "best-friend": "best friends", rival: "rivals", nemesis: "nemeses", crush: "a crush", partner: "partners", mentor: "mentor and student", sibling: "siblings", ex: "exes" };
 
 const nameOf = (id: string) => PORTRAITS[id]?.name ?? id;
 const roomTone = (room: RoomId) => ({ "--tone": `var(--room-${room})` }) as React.CSSProperties;
 /** How many of the hours since you were away the top panel lists before "more". */
 const AWAY_SHOWN = 6;
+/** How many past days sit on the shelf. */
+const SHELF = 8;
 
 export function Chronicle({ now, awaySince }: { now: number; awaySince: number }) {
   const { status, feed } = useWorldFeed();
@@ -41,24 +30,30 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
   const days = feed?.days.length ? feed.days : [today];
   const [day, setDay] = useState<string | null>(null);
   const shown = day ?? days[0]!;
+  const week = weekStartOf(shown);
+  const shelfDays = days.filter((d) => d !== today).slice(0, SHELF);
+  const want = [...new Set([shown, ...weekDaysOf(week).filter((d) => days.includes(d)), ...shelfDays])].join(",");
 
   useEffect(() => {
-    if (status === "ready") void useChronicle.getState().loadDay(shown);
-  }, [status, shown]);
+    if (status !== "ready") return;
+    for (const d of want.split(",")) void useChronicle.getState().loadDay(d);
+  }, [status, want]);
 
   const page = pages[shown];
-  // Today's hours are in the feed already; the page fills in anything older than its last day's worth.
-  const fromFeed = (feed?.recent ?? []).filter((e) => e.day === shown);
-  const fromPage = page && page !== "loading" && page !== "failed" ? page.entries : [];
-  const entries = mergeEntries(fromPage, fromFeed).reverse();
+  const recent = feed?.recent ?? [];
+  const entries = hoursOf(shown, page, recent);
+  const newestFirst = [...entries].reverse();
   const recap = page && page !== "loading" && page !== "failed" ? page.recap : null;
   // The Desk can ask for today's or yesterday's story now (api/day-story.ts); older days only ever get the step's.
-  const recent = shown === today || shown === chronicleDay(now - 86_400_000);
-  // The week in Ilyr (#211) under the daily story: the shown day's week, and on today also the week just ended (Monday).
-  const week = weekStartOf(shown);
+  const canMake = shown === today || shown === chronicleDay(now - 86_400_000);
+  // The week in Ilyr (#211): the shown day's week, and on today also the week just ended (Monday).
   const weeks = shown === today ? [week, previousWeek(week)] : [week];
   const away = feed ? sinceAway(feed.recent, awaySince) : [];
   const changed = (feed?.relationships ?? []).filter((r) => r.since).sort((a, b) => Date.parse(b.since!) - Date.parse(a.since!)).slice(0, 8);
+  const open = (d: string) => {
+    setDay(d);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const lead =
     status === "off"
@@ -71,121 +66,134 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
           ? "The Chronicle opens with the first hourly step."
           : away.length
             ? `${away.length} ${away.length === 1 ? "hour has" : "hours have"} passed in Ilyr since you were last here.`
-            : `The Lattice took its last step ${formatWait(now - Date.parse(feed.at))} ago. Nothing new since you were last here.`;
+            : `The Lattice took its last step ${formatWait(now - Date.parse(feed.at))} ago${feed.nextAt ? `, the next ${nextIn(Date.parse(feed.nextAt) - now)}` : ""}.`;
+  const [y, m, d] = shown.split("-").map(Number);
+  const dateLine = new Date(Date.UTC(y!, m! - 1, d!, 12)).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
 
   return (
-    <div className="chron" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
-      <RoomBanner
-        page="chronicle"
-        lead={lead}
-        aside={
-          <div className="page-head__crew">
-            <Avatar agent="The Historian" room="archive" />
-            <span className="chron__keeper">
-              Kept by the Historian
-              {feed?.nextAt && <small>Next entry {nextIn(Date.parse(feed.nextAt) - now)}</small>}
-            </span>
-          </div>
-        }
-      />
+    <div className="chron wv-page wv-chron" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
+      <header className="wv-pghead">
+        <p className="wv-eyb">Chronicle, {dateLine}</p>
+        <h1 className="wv-h1 desk__title">
+          {shown === today ? "The day" : dayTitle(shown, now)} in <em style={{ color: "var(--rc-archive)" }}>Ilyr.</em>
+        </h1>
+        <p className="wv-sub">{lead} Every hour the world takes a step and the Historian writes it down. After midnight the whole day is filed as a story, read aloud.</p>
+      </header>
+
+      {days.length > 1 && (
+        <nav className="wv-days" aria-label="Days">
+          {days.slice(0, 14).map((x) => (
+            <button key={x} type="button" aria-pressed={x === shown} onClick={() => setDay(x)}>
+              {dayTitle(x, now)}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {away.length > 0 && (
-        <Panel eyebrow="While you were away" aside={<span className="badge badge--hot">{away.length}</span>} className="chron-away">
-          <ol className="chron-away__list">
+        <section className="wv-panel wv-away" data-room="archive">
+          <div className="wv-sechead">
+            <div>
+              <p className="wv-eyb">While you were away</p>
+              <h2 className="wv-h2">
+                {away.length} {away.length === 1 ? "hour" : "hours"} in Ilyr
+              </h2>
+            </div>
+          </div>
+          <ol className="wv-away-l">
             {away.slice(0, AWAY_SHOWN).map((e) => (
               <li key={e.step}>
-                <button type="button" className="chron-away__item" onClick={() => setDay(e.day)}>
+                <button type="button" onClick={() => setDay(e.day)}>
                   <time dateTime={e.at}>{dayTitle(e.day, now) === "Today" ? hourLabel(e.at) : `${dayTitle(e.day, now)}, ${hourLabel(e.at)}`}</time>
                   <span>{e.summary}</span>
                 </button>
               </li>
             ))}
           </ol>
-          {away.length > AWAY_SHOWN && <p className="quiet chron-away__more">…and {away.length - AWAY_SHOWN} more hours below.</p>}
-        </Panel>
+          {away.length > AWAY_SHOWN && <p className="wv-note">…and {away.length - AWAY_SHOWN} more hours below.</p>}
+        </section>
       )}
 
-      <div className="chron__grid">
-        <section className="chron__main" aria-label={`The Chronicle, ${dayTitle(shown, now)}`}>
-          <nav className="fy-tabs chron__days" aria-label="Days">
-            {days.slice(0, 14).map((d) => (
-              <button key={d} type="button" className="fy-tabs__tab" aria-pressed={d === shown} onClick={() => setDay(d)}>
-                {dayTitle(d, now)}
-              </button>
-            ))}
-          </nav>
-
-          {entries.length > 0 && <DayInRooms entries={entries} />}
-
-          {recap ? (
-            <Panel eyebrow={`The day in Ilyr · ${dayTitle(shown, now)}`} className="chron-recap">
-              <div className="chron-recap__body">
-                <Avatar agent="The Historian" size="sm" room="archive" />
-                <p>{recap}</p>
-              </div>
-              {status === "ready" && <DayStory key={shown} day={shown} canMake={recent} />}
-              {status === "ready" && <WeekStory key={weeks.join(",")} weeks={weeks} />}
-            </Panel>
-          ) : (
-            status === "ready" &&
-            entries.length > 0 && (
-              <Panel eyebrow={`The day in Ilyr, aloud · ${dayTitle(shown, now)}`} className="chron-recap">
-                <DayStory key={shown} day={shown} canMake={recent} label={shown === today ? "Hear the day so far" : "Hear the day in Ilyr"} />
-                <WeekStory key={weeks.join(",")} weeks={weeks} />
-              </Panel>
-            )
-          )}
-
-          {entries.length ? (
-            <ol className="chron-hours">
-              {entries.map((e) => (
-                <Hour key={e.step} e={e} fresh={Date.parse(e.at) > awaySince} />
-              ))}
-            </ol>
-          ) : (
-            <Panel eyebrow={dayTitle(shown, now)}>
-              <p className="quiet">{page === "loading" || status === "loading" ? "Turning the pages…" : status === "off" ? "No pages yet." : "No hours recorded on this day."}</p>
-            </Panel>
-          )}
-          {shown === today && entries.length > 0 && !recap && <p className="quiet chron__note">The Historian files the day in Ilyr after midnight.</p>}
+      {status === "ready" || entries.length ? (
+        <Tale day={shown} today={shown === today} entries={entries} canMake={canMake} />
+      ) : (
+        <section className="wv-tale wv-tale-off">
+          <p className="wv-note">{status === "off" ? "No pages yet." : status === "failed" ? "Can't reach the Chronicle right now." : "Turning the pages…"}</p>
         </section>
+      )}
 
-        <aside className="chron__side">
-          <Panel eyebrow="How they stand now" aside={<span className="badge">{changed.length}</span>}>
-            {changed.length ? (
-              <ul className="chron-rels">
-                {changed.map((r) => (
-                  <li key={`${r.a}|${r.b}`}>
-                    <span className="chron-rels__pair">
-                      <Avatar agent={nameOf(r.a)} size="sm" />
-                      <Avatar agent={nameOf(r.b)} size="sm" />
-                    </span>
-                    <span>
-                      <b>
-                        {nameOf(r.a)} & {nameOf(r.b)}
-                      </b>{" "}
-                      <em>{KIND_WORD[r.kind] ?? r.kind}</em>
-                      <small>{r.note}</small>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="quiet">No one's relationships have moved yet. Give them an hour or two.</p>
-            )}
-          </Panel>
-          <Panel eyebrow="How it works">
-            <p className="quiet chron__how">
-              Once an hour the Lattice takes a step: one Claude Haiku call writes the whole world's hour from the cast, how they stand, the last few hours and what really happened in
-              the Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. Once the day's recap is filed, the Historian reads the day aloud
-              in the Archive: Gemini's speech, one voice, from the Chronicle's own public lines. The Lattice plays the latest hour when you{" "}
-              <a href="/lattice" onClick={link("lattice")}>
-                walk in
-              </a>
-              .
-            </p>
-          </Panel>
-        </aside>
+      <div className="wv-chron2">
+        <WeekStrip monday={week} shown={shown} days={days} pages={pages} recent={recent} weeks={weeks} onPick={setDay} />
+        <Bonds entries={entries} today={shown === today} />
+      </div>
+
+      <Shelf days={shelfDays} pages={pages} recent={recent} onOpen={open} />
+
+      <section className="wv-hours" aria-label={`The Chronicle, ${dayTitle(shown, now)}`}>
+        <div className="wv-sechead">
+          <div>
+            <p className="wv-eyb">Hour by hour</p>
+            <h2 className="wv-h2">{dayTitle(shown, now)}, as it was written</h2>
+          </div>
+          {feed?.nextAt && <p className="wv-note">Next entry {nextIn(Date.parse(feed.nextAt) - now)}</p>}
+        </div>
+        {recap && (
+          <div className="wv-recap">
+            <img src="/desk/agent-vellum.webp" alt="" width={40} height={40} decoding="async" />
+            <p>{recap}</p>
+          </div>
+        )}
+        {entries.length > 0 && <DayInRooms entries={newestFirst} />}
+        {newestFirst.length ? (
+          <ol className="chron-hours">
+            {newestFirst.map((e) => (
+              <Hour key={e.step} e={e} fresh={Date.parse(e.at) > awaySince} />
+            ))}
+          </ol>
+        ) : (
+          <p className="wv-note">{page === "loading" || status === "loading" ? "Turning the pages…" : status === "off" ? "No pages yet." : "No hours recorded on this day."}</p>
+        )}
+        {shown === today && entries.length > 0 && !recap && <p className="wv-note chron__note">The Historian files the day in Ilyr after midnight.</p>}
+      </section>
+
+      <div className="wv-chron-more">
+        <details className="wv-more-d">
+          <summary>How everyone stands now{changed.length ? ` (${changed.length} moved lately)` : ""}</summary>
+          {changed.length ? (
+            <ul className="chron-rels">
+              {changed.map((r) => (
+                <li key={`${r.a}|${r.b}`}>
+                  <span className="chron-rels__pair">
+                    <Avatar agent={nameOf(r.a)} size="sm" />
+                    <Avatar agent={nameOf(r.b)} size="sm" />
+                  </span>
+                  <span>
+                    <b>
+                      {nameOf(r.a)} & {nameOf(r.b)}
+                    </b>{" "}
+                    <em>{KIND_WORD[r.kind] ?? r.kind}</em>
+                    <small>{r.note}</small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="wv-note">No one's relationships have moved yet. Give them an hour or two.</p>
+          )}
+        </details>
+        <details className="wv-more-d">
+          <summary>How the Chronicle is written</summary>
+          <p className="wv-note">
+            Once an hour the Lattice takes a step: one Claude Haiku call writes the whole world's hour from the cast, how they stand, the last few hours and what really happened in the
+            Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. Once the day's recap is filed, the Historian reads the day aloud in the
+            Archive: Gemini's speech, one voice, from the Chronicle's own public lines. The story's lines light up in step with the reading by their share of it. The Lattice
+            plays the latest hour when you{" "}
+            <a href="/lattice" onClick={link("lattice")}>
+              walk in
+            </a>
+            .
+          </p>
+        </details>
       </div>
     </div>
   );
@@ -257,13 +265,6 @@ function Hour({ e, fresh }: { e: HistoryEntry; fresh: boolean }) {
       )}
     </li>
   );
-}
-
-/** A day's hours from its page and from the feed, one per step, oldest first. */
-function mergeEntries(a: HistoryEntry[], b: HistoryEntry[]): HistoryEntry[] {
-  const byStep = new Map<number, HistoryEntry>();
-  for (const e of [...a, ...b]) byStep.set(e.step, e);
-  return [...byStep.values()].sort((x, y) => x.step - y.step);
 }
 
 function nextIn(ms: number): string {

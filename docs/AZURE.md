@@ -193,6 +193,19 @@ The same code runs on Vercel and on Azure; nothing here changes how Vercel runs 
 - **The Spire's invoices (#279) are Azure only.** `azure/src/index.ts` registers `/api/invoices` (behind the same
   gate), which talks to PayPal's Invoicing API with `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `PAYPAL_ENV`.
   Vercel has no route for it, so its Spire page says invoicing lives on the Azure copy. [PAYPAL.md](PAYPAL.md).
+- **The Green's Commentator's call (#276) is written on Azure.** `azure/src/index.ts` registers `/api/green-analysis`
+  (behind the same gate) and one timer function, `green_weekly`. The latest analysis is a **signed-in GET** of
+  `/api/green-analysis` (a Desk passkey session, same origin): `{ state: "ready" | "none", analysis, refreshAfter }`,
+  read from `desk/green/analysis.json` in the blob store; a POST `{ "action": "refresh" }` writes a fresh one, at most
+  once every ten minutes (429 with `Retry-After` otherwise). The timer fires at :39 past 23:00 and 00:00 UTC on
+  Tuesdays and Wednesdays and the code keeps only Tuesday 5:39pm in Denver (summer or winter time), no more than once
+  every six hours, then pings the Desk's devices (never in quiet hours). The words are Claude Haiku's, from the board's
+  numbers only (a section carrying any other number is replaced by the numbers said plainly), under its own share of
+  the month's $10 Claude cap: `GREEN_BUDGET_USD` (default 0.25), ledger `desk/green/spend.json`, and never past the
+  shared cap with the world and Skippy. `OPENAI_API_KEY` (optional; `OPENAI_MODEL`, default `gpt-4.1-mini`) adds a
+  second opinion on split start/sit decisions; without it that part is skipped. Every analysis ends with its Sources.
+  On Vercel the same path is rewritten to `/api/world?green=analysis`, but FantasyPros waits there, so the Azure copy
+  is the one to read.
 - **Passkeys are per domain.** The Desk's passkeys are tied to the address they were made on, so signing in to the
   Desk on the Azure address needs its own passkey, enrolled there with the Desk key as on Vercel. Azure's store
   starts empty: Vercel's passkeys don't carry over, and neither do the world, the stories or the pictures until

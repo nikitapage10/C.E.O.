@@ -90,6 +90,7 @@ function fakeApis(opts: { sleeperDown?: boolean; fpDown?: boolean; rosters?: unk
         return ok({ players: [{ player_id: 201, player_name: "Wes Waiver", player_team_id: "GB", player_position_id: "WR", player_yahoo_id: "9008", rank_ecr: 30, pos_rank: "WR15", player_bye_week: "9" }, { player_id: 202, player_name: "Hot Pickup", player_team_id: "ATL", player_position_id: "RB", player_yahoo_id: "9014", rank_ecr: 80, pos_rank: "RB30", player_bye_week: "5" }, { player_id: 203, player_name: "Deep Bench", player_team_id: "HOU", player_position_id: "WR", player_yahoo_id: "9015", rank_ecr: 300, pos_rank: "WR99", player_bye_week: "3" }, { player_id: 204, player_name: "Spare Part", player_team_id: "TEN", player_position_id: "WR", player_yahoo_id: "9016", rank_ecr: 400, pos_rank: "WR120", player_bye_week: "10" }] });
       }
       if (u.pathname.endsWith("/injuries")) return ok({ injuries: [{ name: "Walt Wider", yahoo_id: "9005", status_short: "Q" }] });
+      if (u.pathname.endsWith("/nfl/news")) return ok({ items: [{ player_id: 101, player_name: "Rex Runner", title: "Rex Runner (ankle) expected to play Sunday", created: "2026-10-21T18:00:00Z", link: "https://example.com/never-kept" }, { player_name: "Nobody Here", title: "A player outside the league" }] });
       return new Response("nope", { status: 404 });
     }
     if (opts.sleeperDown) return new Response("down", { status: 503 });
@@ -411,7 +412,7 @@ describe("GET /api/green-league (#252)", () => {
     const board = JSON.parse(text) as GreenBoard;
     expect(board.sources.fantasypros).toBe("live");
     const fpCalls = calls.filter((c) => c.url.startsWith("https://api.fantasypros.com/public/v2/json/"));
-    expect(fpCalls.length).toBe(12); // QB, RB, WR, TE, DST projections and weekly consensus, the ROS consensus, the injuries
+    expect(fpCalls.length).toBe(13); // QB, RB, WR, TE, DST projections and weekly consensus, the ROS consensus, the injuries, the news
     expect(fpCalls.some((c) => c.url.includes("/nfl/2026/consensus-rankings?position=RB&type=WEEKLY&scoring=HALF&week=3"))).toBe(true);
     expect(board.sources.calls).toBe("fp");
     expect(board.sources.fpParts).toMatchObject({ proj: 3, weekly: 3, ros: 4, injuries: 1, errors: [] });

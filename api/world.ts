@@ -11,6 +11,8 @@
  *               /api/exchange-positions the same way): api/_exchange/positions.ts.
  * GET ?green=league → the Green's Sleeper league board (#252; the rewrite of /api/green-league, the same way):
  *               api/_green/route.ts.
+ * GET/POST ?green=analysis → the Commentator's call, signed-in Desk only (#276; the rewrite of /api/green-analysis):
+ *               api/_green/analysis.ts.
  *
  * The world moves once an hour, so answers are cached at Vercel's edge for a few minutes: every open tab shares one
  * read of the store.
@@ -20,6 +22,7 @@ import { readPublicEmailStatus } from "./_email/store.js";
 import * as positions from "./_exchange/positions.js";
 import * as exchange from "./_exchange/route.js";
 import * as green from "./_green/route.js";
+import * as greenAnalysis from "./_green/analysis.js";
 import { monthOf, monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { nextAt } from "./_world/step.js";
@@ -37,6 +40,7 @@ export async function GET(request: Request): Promise<Response> {
   if (positions.isPositions(request)) return positions.GET(request);
   if (exchange.isExchange(request)) return exchange.GET(request);
   if (green.isGreen(request)) return green.GET(request);
+  if (greenAnalysis.isAnalysis(request)) return greenAnalysis.GET(request);
   const store = pickStore();
   if (!store) return json({ error: "not-set-up" }, 503);
   const day = new URL(request.url).searchParams.get("day");
@@ -70,8 +74,9 @@ export async function GET(request: Request): Promise<Response> {
   }
 }
 
-/** The world feed takes no writes; only the Exchange's pins come through here (#240). */
+/** The world feed takes no writes; only the Exchange's pins (#240) and the Green's refresh (#276) come through here. */
 export async function POST(request: Request): Promise<Response> {
   if (exchange.isExchange(request)) return exchange.POST(request);
+  if (greenAnalysis.isAnalysis(request)) return greenAnalysis.POST(request);
   return new Response(JSON.stringify({ error: "method" }), { status: 405, headers: { "Content-Type": "application/json", Allow: "GET", "Cache-Control": "no-store" } });
 }

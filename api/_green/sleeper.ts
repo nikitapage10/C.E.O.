@@ -9,6 +9,9 @@
  *   https://api.sleeper.app/v1/players/nfl/trending/add|drop?lookback_hours=24&limit=50
  *   https://api.sleeper.app/v1/players/nfl                            ~15 MB: read at most once a day (cache.ts)
  *   https://api.sleeper.com/schedule/nfl/regular/<season>             the season's games (~27 kB), once a day: the byes
+ *   https://api.sleeper.app/v1/league/<league>/transactions/<week>    the league's moves (waivers, FAAB bids, trades)
+ *   https://api.sleeper.app/projections/nfl/<season>/<week>?position[]=<P>   Sleeper's own weekly projections (#276),
+ *                                                                    one call a position, trimmed to points and opponent
  *
  * Everything that comes back is untrusted: rebuilt with only the fields the board needs, text stripped of control and
  * direction characters and cut short, ids checked, numbers range-checked, answers past a size cap refused.
@@ -141,6 +144,8 @@ export interface League {
   rec: number;
   faab: number | null;
   playoffStart: number;
+  /** How many teams make the playoffs (Sleeper's `playoff_teams`). */
+  playoffTeams: number;
 }
 
 const SLOT = /^(QB|RB|WR|TE|K|DEF|FLEX|WRRB_FLEX|REC_FLEX|SUPER_FLEX|WRT)$/;
@@ -162,6 +167,7 @@ export function shapeLeague(raw: unknown): League {
     rec: Math.max(0, Math.min(1, rec)),
     faab: num(s.waiver_type) === 2 && budget !== null ? budget : null,
     playoffStart: num(s.playoff_week_start) ?? 15,
+    playoffTeams: Math.max(0, Math.min(16, num(s.playoff_teams) ?? 6)),
   };
 }
 
@@ -318,6 +324,81 @@ export function byesOf(schedule: Schedule | null, week: number): string[] | null
   return [...NFL_TEAMS].filter((t) => !set.has(t)).sort();
 }
 
+/* ── Sleeper's own projections (#276) ── */
+
+/** One player's projection this week: points in the league's scoring, and his opponent ("@KC" away, "KC" home). */
+export interface SlProj {
+  pts: number;
+  opp: string | null;
+}
+
+/** Which of Sleeper's points fields fits the league: full, half or no points per reception. */
+export const slField = (rec: number) => (rec >= 0.75 ? "pts_ppr" : rec >= 0.25 ? "pts_half_ppr" : "pts_std");
+
+/** Sleeper's projections trimmed to points and opponent, by player id; players without a projection left out. */
+export function shapeSlProjections(raw: unknown, rec: number): Record<string, SlProj> {
+  const field = slField(rec);
+  const out: Record<string, SlProj> = {};
+  for (const v of arr(raw)) {
+    const r = obj(v);
+    const id = r.player_id;
+    if (typeof id !== "string" || !PLAYER_ID.test(id)) continue;
+    const pts = num(obj(r.stats)[field]);
+    if (pts === null || pts < -10 || pts > 80) continue;
+    const opp = typeof r.opponent === "string" && NFL_TEAMS.has(r.opponent.toUpperCase()) ? r.opponent.toUpperCase() : null;
+    out[id] = { pts: Math.round(pts * 10) / 10, opp };
+  }
+  return out;
+}
+
+/** Reads this week's projections at each position; a position that fails is left out. Throws only when all fail. */
+export async function readSlProjections(fetcher: Fetcher, season: string, week: number, rec: number, positions: GreenPos[]): Promise<Record<string, SlProj>> {
+  const parts = await Promise.allSettled(positions.map((p) => getJson(fetcher, urls.projections(season, week, p), 3_000_000).then((r) => shapeSlProjections(r, rec))));
+  if (parts.every((r) => r.status === "rejected")) throw new Error("sleeper projections unavailable");
+  return Object.assign({}, ...parts.map((r) => (r.status === "fulfilled" ? r.value : {}))) as Record<string, SlProj>;
+}
+
+/* ── the league's moves (#276) ── */
+
+export interface Move {
+  rosterIds: number[];
+  kind: "waiver" | "free_agent" | "trade";
+  /** player id → roster id that added him / dropped him. */
+  adds: Record<string, number>;
+  drops: Record<string, number>;
+  bid: number | null;
+  at: number | null;
+}
+
+export function shapeTransactions(raw: unknown): Move[] {
+  const out: Move[] = [];
+  for (const v of arr(raw)) {
+    const t = obj(v);
+    if (t.status !== "complete") continue;
+    const kind = t.type === "waiver" || t.type === "free_agent" || t.type === "trade" ? t.type : null;
+    if (!kind) continue;
+    const side = (m: unknown) => {
+      const o: Record<string, number> = {};
+      for (const [k, r] of Object.entries(obj(m))) {
+        const n = num(r);
+        if (PLAYER_ID.test(k) && n !== null && n >= 1 && n <= 64) o[k] = n;
+      }
+      return o;
+    };
+    const bid = num(obj(t.settings).waiver_bid);
+    const at = num(t.status_updated) ?? num(t.created);
+    out.push({
+      rosterIds: arr(t.roster_ids).map(num).filter((n): n is number => n !== null && n >= 1 && n <= 64),
+      kind,
+      adds: side(t.adds),
+      drops: side(t.drops),
+      bid: bid !== null && bid >= 0 && bid <= 10_000 ? bid : null,
+      at: at !== null && at > 1e12 && at < 1e13 ? at : null,
+    });
+  }
+  return out.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+}
+
 export const urls = {
   state: () => `${SLEEPER}/state/nfl`,
   userLeagues: (season: string) => `${SLEEPER}/user/${USER_ID}/leagues/nfl/${season}`,
@@ -326,5 +407,7 @@ export const urls = {
   users: (id: string) => `${SLEEPER}/league/${id}/users`,
   matchups: (id: string, week: number) => `${SLEEPER}/league/${id}/matchups/${week}`,
   schedule: (season: string) => `${SLEEPER_SCHEDULE}/${encodeURIComponent(season)}`,
+  transactions: (id: string, week: number) => `${SLEEPER}/league/${id}/transactions/${week}`,
+  projections: (season: string, week: number, pos: GreenPos) => `https://api.sleeper.app/projections/nfl/${encodeURIComponent(season)}/${week}?season_type=regular&position[]=${pos}&order_by=pts_half_ppr`,
   trending: (kind: "add" | "drop") => `${SLEEPER}/players/nfl/trending/${kind}?lookback_hours=24&limit=50`,
 };

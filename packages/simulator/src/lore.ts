@@ -488,6 +488,7 @@ export const LORE: Record<string, Lore> = {
       "Escalated a lineup call to Skippy 'for the drama'. Skippy settled it in a nanosecond. The Commentator called it the play of the year.",
       "The night the Green went live, the scoreboard lit with a real matchup for the first time. The Commentator called the first quarter before anyone had kicked off, and was, for once, roughly right.",
       "Got a bigger scoreboard: both teams, projected, then live, then the win chance. Gridiron's practice drills stopped. 'PROJECTED FIRST, FOLKS. THEN LIVE. THEN THE PERCENT. THAT'S THE BROADCAST.'",
+      "Got an analyst desk: faces on the scoreboard, FantasyPros calling the shots, Sleeper's number in the second chair, and the season played out three thousand times before Sunday. Files the Commentator's call every Tuesday at 5:39pm, numbers from the board only, and reads the sources at the end like the credits. The crowd that isn't there stays for the credits.",
     ],
   },
   static: {

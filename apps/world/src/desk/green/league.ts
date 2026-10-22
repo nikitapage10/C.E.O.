@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CallSource, FpParts, FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap } from "../../../../../api/_green/types.ts";
+import type { CallSource, FpParts, FpState, GreenAnalysis, GreenBid, GreenBoard, GreenByeWeek, GreenCall, GreenFeed, GreenMove, GreenNews, GreenOdds, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap, GreenTeam, GreenTrade } from "../../../../../api/_green/types.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 
 /**
@@ -9,7 +9,7 @@ import { useSystems, type LinkState } from "../../systems.ts";
  * and FantasyPros links on Systems and in the Boiler Room. Read-only: the moves are made in Sleeper.
  */
 
-export type { CallSource, FpParts, FpState, GreenBoard, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap };
+export type { CallSource, FpParts, FpState, GreenAnalysis, GreenBid, GreenBoard, GreenByeWeek, GreenCall, GreenFeed, GreenMove, GreenNews, GreenOdds, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap, GreenTeam, GreenTrade };
 
 const PATH = "/api/green-league";
 const POLL_MS = 120_000;
@@ -24,7 +24,26 @@ const POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
 /** Just enough of a check that a player has the board's shape before he is drawn. */
 export function isPlayer(v: unknown): v is GreenPlayer {
   const p = v as Partial<GreenPlayer> | null;
-  return !!p && typeof p === "object" && isStr(p.id, 12) && isStr(p.name) && POS.has(p.pos as string) && (p.proj === null || isNum(p.proj, -50, 150)) && (p.avg === null || isNum(p.avg, -50, 150)) && (p.ecr === null || isNum(p.ecr, 1, 5000));
+  const opt = (n: unknown, lo: number, hi: number) => n === undefined || n === null || isNum(n, lo, hi);
+  const range = p?.range;
+  return (
+    !!p &&
+    typeof p === "object" &&
+    isStr(p.id, 12) &&
+    /^(\d{1,8}|[A-Z]{2,3})$/.test(p.id as string) &&
+    isStr(p.name) &&
+    POS.has(p.pos as string) &&
+    (p.team === null || p.team === undefined || (typeof p.team === "string" && /^[A-Z]{2,3}$/.test(p.team))) &&
+    (p.proj === null || isNum(p.proj, -50, 150)) &&
+    (p.avg === null || isNum(p.avg, -50, 150)) &&
+    (p.ecr === null || isNum(p.ecr, 1, 5000)) &&
+    opt(p.sl, -50, 150) &&
+    opt(p.tier, 1, 50) &&
+    opt(p.delta, -500, 500) &&
+    opt(p.own, 0, 100) &&
+    (p.opp === undefined || p.opp === null || (typeof p.opp === "string" && /^[A-Z]{2,3}$/.test(p.opp))) &&
+    (range === undefined || range === null || (isNum(range.min, 1, 2000) && isNum(range.max, 1, 2000) && isNum(range.std, 0, 500)))
+  );
 }
 
 const isSlot = (v: unknown): v is GreenSlot => {
@@ -63,6 +82,71 @@ export function fpLine(b: GreenBoard): string {
   return [head, ...bits, ...(errs.length ? [`failed: ${errs.join(", ")}`] : [])].join(" · ");
 }
 
+const strs = (v: unknown, n = 16, max = 60): string[] => (Array.isArray(v) ? v.filter((x): x is string => isStr(x, max)).slice(0, n) : []);
+const isIso = (v: unknown) => typeof v === "string" && v.length <= 40 && Number.isFinite(Date.parse(v));
+
+/** The analyst desk's parts (#276) as the server sent them, each checked; a part that doesn't fit is left out. */
+export function readDesk(b: Partial<GreenBoard>): Partial<GreenBoard> {
+  const out: Partial<GreenBoard> = {};
+  if (Array.isArray(b.calls))
+    out.calls = b.calls
+      .filter((c): c is GreenCall => !!c && isStr(c.slot, 12) && isPlayer(c.start) && isPlayer(c.sit) && isNum(c.edge, -200, 200) && (c.slEdge === null || isNum(c.slEdge, -200, 200)) && ["agrees", "disagrees", "unknown"].includes(c.sleeper) && isStr(c.why, 400) && (c.tiebreak === null || isStr(c.tiebreak, 400)))
+      .map((c) => ({ ...c, change: c.change === true, split: c.split === true }))
+      .slice(0, 10);
+  if (Array.isArray(b.teams))
+    out.teams = b.teams
+      .filter((t): t is GreenTeam => !!t && isStr(t.team) && isNum(t.wins, 0, 30) && isNum(t.losses, 0, 30) && isNum(t.pf) && (t.faab === null || isNum(t.faab, 0, 10000)) && (t.playoff === null || isNum(t.playoff, 0, 1)) && (t.proj === null || isNum(t.proj, 0, 400)))
+      .map((t) => ({ ...t, needs: strs(t.needs, 6, 4), surplus: strs(t.surplus, 6, 4) }))
+      .slice(0, 32);
+  if (Array.isArray(b.bids))
+    out.bids = b.bids
+      .filter((x): x is GreenBid => !!x && isPlayer(x.player) && isNum(x.bid, 0, 10000) && isNum(x.low, 0, 10000) && isNum(x.high, 0, 10000) && isStr(x.why, 400) && (x.drop === null || isPlayer(x.drop)) && (x.blocks === null || isStr(x.blocks)))
+      .map((x) => ({ ...x, rivals: strs(x.rivals, 12) }))
+      .slice(0, 8);
+  if (b.trade === null) out.trade = null;
+  else if (b.trade && isStr(b.trade.team) && Array.isArray(b.trade.give) && Array.isArray(b.trade.get) && isStr(b.trade.why, 400)) {
+    const give = b.trade.give.filter(isPlayer).slice(0, 3);
+    const get = b.trade.get.filter(isPlayer).slice(0, 3);
+    if (give.length && get.length) out.trade = { team: b.trade.team, give, get, why: b.trade.why } satisfies GreenTrade;
+  }
+  if (b.odds === null) out.odds = null;
+  else if (b.odds && isNum(b.odds.playoff, 0, 1) && Array.isArray(b.odds.seeds) && isNum(b.odds.playoffTeams, 0, 16)) {
+    const o = b.odds;
+    out.odds = {
+      playoff: o.playoff,
+      seeds: o.seeds.filter((x) => isNum(x, 0, 1)).slice(0, 16),
+      playoffTeams: o.playoffTeams,
+      weeksLeft: isNum(o.weeksLeft, 0, 25) ? o.weeksLeft : 0,
+      sims: isNum(o.sims, 0, 1e6) ? o.sims : 0,
+      swing: (Array.isArray(o.swing) ? o.swing : []).filter((w) => !!w && isStr(w.a) && isStr(w.b) && isStr(w.root) && isNum(w.ifWin, 0, 1) && isNum(w.ifLose, 0, 1)).slice(0, 4),
+    } satisfies GreenOdds;
+  }
+  if (Array.isArray(b.news))
+    out.news = b.news
+      .filter((n): n is GreenNews => !!n && (n.id === null || (isStr(n.id, 12) && /^(\d{1,8}|[A-Z]{2,3})$/.test(n.id))) && isStr(n.name) && isStr(n.text, 200) && (n.at === null || isIso(n.at)) && ["mine", "opp", "league", "free"].includes(n.whose) && (n.src === "fp" || n.src === "sleeper"))
+      .slice(0, 20);
+  if (Array.isArray(b.moves))
+    out.moves = b.moves
+      .filter((m): m is GreenMove => !!m && isStr(m.team, 90) && ["waiver", "free_agent", "trade"].includes(m.kind) && (m.bid === null || isNum(m.bid, 0, 10000)) && (m.at === null || isIso(m.at)))
+      .map((m) => ({ ...m, adds: strs(m.adds, 6), drops: strs(m.drops, 6) }))
+      .slice(0, 12);
+  if (Array.isArray(b.feeds)) out.feeds = readFeeds(b.feeds);
+  if (Array.isArray(b.byeWeeks))
+    out.byeWeeks = b.byeWeeks
+      .filter((w): w is GreenByeWeek => !!w && isNum(w.week, 1, 25) && Array.isArray(w.out))
+      .map((w) => ({ week: w.week, teams: strs(w.teams, 32, 3), out: w.out.filter((o) => !!o && isStr(o.id, 12) && isStr(o.name) && POS.has(o.pos)).slice(0, 20), holes: strs(w.holes, 6, 4) }))
+      .slice(0, 4);
+  return out;
+}
+
+/** The Sources list: names, states and times only. */
+export function readFeeds(v: unknown): GreenFeed[] {
+  return (Array.isArray(v) ? v : [])
+    .filter((f): f is GreenFeed => !!f && isStr(f.name, 80) && ["live", "waiting", "failed", "off"].includes(f.state) && (f.at === null || isIso(f.at)) && (f.note === undefined || isStr(f.note, 200)))
+    .map((f) => ({ name: f.name, state: f.state, at: f.at, ...(f.note !== undefined && { note: f.note }) }))
+    .slice(0, 16);
+}
+
 /** The board as the server sent it, anything off-shape dropped; null when it isn't a board. */
 export function readGreen(v: unknown): GreenBoard | null {
   const b = v as Partial<GreenBoard> | null;
@@ -95,6 +179,7 @@ export function readGreen(v: unknown): GreenBoard | null {
     byes: Array.isArray(b.byes) ? b.byes.filter((t): t is string => typeof t === "string" && /^[A-Z]{2,3}$/.test(t)).slice(0, 32) : [],
     sources: { sleeper: "live", fantasypros: fp, fpAt: typeof b.sources?.fpAt === "string" ? b.sources.fpAt : null, calls: b.sources?.calls === "fp" ? "fp" : "form", fpParts: readParts(b.sources?.fpParts) },
     ...(b.stale === true && { stale: true }),
+    ...readDesk(b),
   };
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { claimWaiting, commentatorCall, greenLinks, ordinal, readGreen, sayNumber, scoreboardLine, sleeperLeagueUrl, yardLine, type GreenBoard, type GreenPlayer } from "./league.ts";
+import { readAnalysis } from "./analysis.ts";
 import { roomPhrase, roomPulses, type PulseInput } from "../roomPulse.ts";
 import { EMPTY_FOUNDRY } from "../../foundry.ts";
 
@@ -84,5 +85,42 @@ describe("the Green's board in the browser (#252)", () => {
     expect(roomPhrase(green)).toBe("the Green has you at 88% to win");
     expect(roomPulses({ ...input, green: { status: "failed", board: null } }).find((p) => p.id === "green")!.state).toBe("down");
     expect(roomPulses({ ...input, green: { status: "off", board: null } }).find((p) => p.id === "green")!.real).toBe(false);
+  });
+});
+
+describe("the analyst desk's parts in the browser (#276)", () => {
+  it("keeps good calls, bids, odds and news, and drops what doesn't fit", () => {
+    const a = pl("1", "Quinn Arm", "QB", 20, { sl: 18, range: { min: 3, max: 9, std: 1.2 }, tier: 2, delta: 3, own: 99 });
+    const b2 = pl("3", "Benny Bench", "RB", 14);
+    const desk = {
+      calls: [{ slot: "FLEX", start: a, sit: b2, change: true, edge: 6, slEdge: -1, sleeper: "disagrees", split: true, tiebreak: null, why: "FantasyPros: Quinn Arm 20.0 over Benny Bench 14.0" }, { slot: "FLEX", start: { id: "<script>" }, sit: b2 }],
+      bids: [{ player: b2, bid: 17, low: 12, high: 24, rivals: ["Team 3", 4], blocks: null, drop: null, why: "Fills a hole" }],
+      odds: { playoff: 0.13, seeds: [0.01, 2], playoffTeams: 6, weeksLeft: 7, sims: 3000, swing: [{ a: "A", b: "B", root: "A", ifWin: 0.2, ifLose: 0.1 }, { a: "A" }] },
+      news: [{ id: "1", name: "Quinn Arm", text: "limited Wednesday", at: null, whose: "mine", src: "fp" }, { id: "javascript:", name: "x", text: "y", at: null, whose: "mine", src: "fp" }],
+      feeds: [{ name: "Sleeper league", state: "live", at: "2026-10-22T12:00:00.000Z" }, { name: "Keys", state: "leaked", at: null }],
+    };
+    const got = readGreen(JSON.parse(JSON.stringify(board(desk as Partial<GreenBoard>))))!;
+    expect(got.calls).toHaveLength(1);
+    expect(got.calls![0]!.start).toMatchObject({ sl: 18, tier: 2, delta: 3, own: 99 });
+    expect(got.bids![0]!.rivals).toEqual(["Team 3"]);
+    expect(got.odds).toMatchObject({ seeds: [0.01], swing: [{ root: "A" }] });
+    expect(got.news).toHaveLength(1);
+    expect(got.feeds).toEqual([{ name: "Sleeper league", state: "live", at: "2026-10-22T12:00:00.000Z" }]);
+  });
+
+  it("an older board without them still reads", () => {
+    const got = readGreen(JSON.parse(JSON.stringify(board())))!;
+    expect(got.calls).toBeUndefined();
+    expect(got.odds).toBeUndefined();
+  });
+
+  it("reads the Commentator's call only when it is one", () => {
+    const facts = { team: "T", record: "2-5", rank: 10, teams: 12, matchup: null, weak: [], byes: [], injuries: [], trade: null, waiver: { action: "hold", player: null, pos: null, bid: null, low: null, high: null, faabLeft: 96, drop: null, rivals: 0, blocks: null }, splits: [], odds: null };
+    const good = { at: "2026-10-20T23:39:00.000Z", season: "2026", week: 8, trigger: "scheduled", headline: "Week 8.", sections: [{ key: "waiver", title: "The waiver call", text: "Hold." }, { key: "evil", title: "x", text: "y" }], facts, second: [], writer: "claude", sources: [{ name: "Sleeper league", state: "live", at: null }] };
+    const got = readAnalysis(good)!;
+    expect(got.sections).toHaveLength(1);
+    expect(got.trigger).toBe("scheduled");
+    expect(readAnalysis({ ...good, at: "not a date" })).toBeNull();
+    expect(readAnalysis(null)).toBeNull();
   });
 });

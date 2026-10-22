@@ -19,10 +19,11 @@
  */
 
 import type { FpData, FpView } from "./fantasypros.js";
-import { fpIndex } from "./fantasypros.js";
-import type { League, MatchupRow, NflState, Roster, Schedule, SlimPlayer } from "./sleeper.js";
+import { fpIndex, nameKey } from "./fantasypros.js";
+import type { League, MatchupRow, Move, NflState, Roster, Schedule, SlimPlayer, SlProj } from "./sleeper.js";
 import { NFL_TEAMS, USER_ID, byesOf } from "./sleeper.js";
-import { GREEN_PICKUPS_MAX, type FpState, type GreenBoard, type GreenInjury, type GreenPickup, type GreenPlayer, type GreenPos, type GreenSide, type GreenSlot, type GreenStanding, type GreenSwap } from "./types.js";
+import { bidCandidates, bidsFor, bestLineup, callsFor, simulate, teamsFor, tradeFor, worth, type OddsGame, type OddsTeam, type RosterView } from "./analyst.js";
+import { GREEN_PICKUPS_MAX, type FpState, type GreenBoard, type GreenByeWeek, type GreenInjury, type GreenMove, type GreenNews, type GreenPickup, type GreenPlayer, type GreenPos, type GreenSide, type GreenSlot, type GreenStanding, type GreenSwap } from "./types.js";
 
 export interface ModelInput {
   league: League;
@@ -40,6 +41,12 @@ export interface ModelInput {
   fpState: FpState;
   /** Sleeper's schedule for the season, for the byes; null when it didn't answer. */
   schedule?: Schedule | null;
+  /** Sleeper's own projections for this week (#276), by player id; null when they didn't answer. */
+  slProj?: Record<string, SlProj> | null;
+  /** The league's moves this week and last (#276). */
+  moves?: Move[];
+  /** The rest of the regular season's matchups, next week first (#276): who plays whom. */
+  future?: MatchupRow[][];
   at: string;
 }
 
@@ -177,8 +184,15 @@ export function buildBoard(input: ModelInput): GreenBoard {
         src = "form";
       } else if (fpWeek && v?.wk != null) src = "fp";
     }
-    if (onBye || (inj && OUT.has(inj))) proj = 0;
-    else if (proj !== null && inj) proj = round1(proj * (INJ_FACTOR[inj] ?? 1));
+    const slRaw = input.slProj?.[id];
+    let sl: number | null = slRaw ? slRaw.pts : null;
+    if (onBye || (inj && OUT.has(inj))) {
+      proj = 0;
+      if (sl !== null) sl = 0;
+    } else if (inj) {
+      if (proj !== null) proj = round1(proj * (INJ_FACTOR[inj] ?? 1));
+      if (sl !== null) sl = round1(sl * (INJ_FACTOR[inj] ?? 1));
+    }
     const p: GreenPlayer = {
       id,
       name: slim?.n ?? (/^[A-Z]{2,3}$/.test(id) ? `${id} D/ST` : `Player ${id}`),
@@ -193,6 +207,9 @@ export function buildBoard(input: ModelInput): GreenBoard {
       ecr: v?.ecr ?? null,
       posRank: v?.posRank ?? null,
       bye,
+      ...(input.slProj && { sl }),
+      ...(slRaw?.opp && { opp: slRaw.opp }),
+      ...(v && { range: v.range, tier: v.tier, delta: v.delta, own: v.own }),
     };
     cache.set(id, p);
     return p;
@@ -264,6 +281,8 @@ export function buildBoard(input: ModelInput): GreenBoard {
     .sort((a, b) => b.drops - a.drops)
     .slice(0, 3);
 
+  const desk = analystDesk({ input, mine, teamName, player, sideOf, meSide, matchup, bench, swaps, pickups, standings, byes, ptsOf, fpOf, free: free.map((p) => player(p.id)) });
+
   return {
     ok: true,
     at,
@@ -289,7 +308,195 @@ export function buildBoard(input: ModelInput): GreenBoard {
     dropping,
     byes: byes ? [...byes].sort() : [],
     sources: { sleeper: "live", fantasypros: fpState, fpAt: fp?.at ?? null, calls: fpWeek ? "fp" : "form", fpParts: fp?.parts ?? null },
+    ...desk,
   };
+}
+
+/* ── #276: the analyst desk, from the whole league ── */
+
+interface DeskIn {
+  input: ModelInput;
+  mine: Roster;
+  teamName: (r: Roster) => string;
+  player: (id: string) => GreenPlayer;
+  sideOf: (r: Roster, row: MatchupRow | undefined) => GreenSide & { varr: number };
+  meSide: GreenSide & { varr: number };
+  matchup: GreenBoard["matchup"];
+  bench: GreenPlayer[];
+  swaps: GreenSwap[];
+  pickups: GreenPickup[];
+  standings: GreenStanding[];
+  byes: Set<string> | null;
+  ptsOf: (id: string) => number;
+  fpOf: (p: SlimPlayer) => FpView | null;
+  /** Every free agent at a position the league starts. */
+  free: GreenPlayer[];
+}
+
+/** Points a game a team can expect, and the spread of one week's score, for the simulation. */
+const TEAM_SD = 22;
+
+function analystDesk(d: DeskIn): Pick<GreenBoard, "calls" | "teams" | "bids" | "trade" | "odds" | "news" | "moves" | "byeWeeks"> {
+  const { input, mine, teamName, player, sideOf, meSide, matchup, bench, swaps, pickups, standings } = d;
+  const { league, state, rosters, matchups, fp, schedule } = input;
+  const week = state.week;
+
+  // The byes for a week: Sleeper's schedule, and FantasyPros' own bye weeks for players it ranks.
+  const fpByeByTeam = new Map<number, Set<string>>();
+  for (const r of [...(fp?.weekly ?? []), ...(fp?.ranks ?? [])]) if (r.bye && r.team && NFL_TEAMS.has(r.team)) fpByeByTeam.set(r.bye, (fpByeByTeam.get(r.bye) ?? new Set()).add(r.team));
+  const byesIn = (w: number): Set<string> => new Set([...(byesOf(schedule ?? null, w) ?? []), ...(fpByeByTeam.get(w) ?? []), ...(w === week ? (d.byes ?? []) : [])]);
+  const ahead = [0, 1, 2, 3].map((k) => week + k).filter((w) => w >= 1 && w <= 18);
+  const upcoming = ahead.map(byesIn);
+
+  // Every roster as the analysis sees it.
+  const views: RosterView[] = rosters.map((r) => {
+    const row = matchups.find((m) => m.rosterId === r.rosterId);
+    const opp = row?.matchupId != null ? (matchups.find((m) => m.matchupId === row.matchupId && m.rosterId !== r.rosterId)?.rosterId ?? null) : null;
+    return {
+      rosterId: r.rosterId,
+      team: teamName(r),
+      wins: r.wins,
+      losses: r.losses,
+      ties: r.ties,
+      pf: r.pf,
+      faab: league.faab !== null ? Math.max(0, league.faab - r.faabUsed) : null,
+      players: [...new Set([...r.players, ...r.reserve])].map(player),
+      games: r.wins + r.losses + r.ties,
+      opp,
+    };
+  });
+  const sides = new Map(rosters.map((r) => [r.rosterId, r === mine ? meSide : sideOf(r, matchups.find((m) => m.rosterId === r.rosterId))]));
+  const projOf = new Map([...sides].map(([id, s]) => [id, matchups.length ? s.proj : null]));
+
+  // The playoff odds: this week as it stands, then the rest of the regular season from each team's mean.
+  let odds: GreenBoard["odds"] = null;
+  let byTeam: Map<number, number> | null = null;
+  if (week >= 1 && week < league.playoffStart && matchups.length) {
+    const oddsTeams: OddsTeam[] = views.map((v) => {
+      const ppg = v.games ? v.pf / v.games : null;
+      const best = bestLineup(league.slots, v.players.filter((p) => !(p.inj && ["O", "IR", "SUS", "PUP", "NA"].includes(p.inj))), worth).total;
+      const mean = ppg !== null && best > 0 ? 0.6 * ppg + 0.4 * best : (ppg ?? (best || 90));
+      return { rosterId: v.rosterId, team: v.team, wins: v.wins, losses: v.losses, ties: v.ties, pf: v.pf, mean, sd: TEAM_SD };
+    });
+    const pairsOf = (rows: MatchupRow[]) => {
+      const by = new Map<number, number[]>();
+      for (const r of rows) if (r.matchupId != null) by.set(r.matchupId, [...(by.get(r.matchupId) ?? []), r.rosterId]);
+      return [...by.values()].filter((p) => p.length === 2).map(([a, b]) => ({ a: a!, b: b! }));
+    };
+    const thisWeek: OddsGame[] = pairsOf(matchups).map(({ a, b }) => {
+      const sa = sides.get(a);
+      const sb = sides.get(b);
+      return { a, b, ...(sa && sa.proj > 0 && { aMean: sa.proj, aSd: Math.max(4, Math.sqrt(sa.varr)) }), ...(sb && sb.proj > 0 && { bMean: sb.proj, bSd: Math.max(4, Math.sqrt(sb.varr)) }) };
+    });
+    const rest = (input.future ?? []).slice(0, Math.max(0, league.playoffStart - week - 1)).map(pairsOf);
+    const sim = simulate(oddsTeams, [thisWeek, ...rest], mine.rosterId, league.playoffTeams, Number(state.season) * 100 + week);
+    if (sim) {
+      odds = sim.odds;
+      byTeam = sim.byTeam;
+    }
+  }
+
+  const teams = teamsFor(league.slots, views, week, upcoming, projOf, byTeam);
+  const locked = (id: string) => d.ptsOf(id) !== 0;
+  const calls = callsFor(meSide.starters, bench, swaps, week, matchup?.win ?? null, locked);
+
+  // FAAB bids on the pickups.
+  const rank = new Map(standings.map((s, i) => [s.rosterId, i + 1]));
+  const thisByes = upcoming[0] ?? new Set<string>();
+  const holesNow = new Set(meSide.starters.filter((s) => s.player && ((s.player.team && thisByes.has(s.player.team)) || (s.player.inj && ["O", "IR", "SUS"].includes(s.player.inj)))).map((s) => s.player!.pos));
+  const history = (input.moves ?? []).filter((m) => m.kind === "waiver" && m.bid !== null).map((m) => m.bid!);
+  const meView = views.find((v) => v.rosterId === mine.rosterId)!;
+  const meTeam = teams.find((t) => t.rosterId === mine.rosterId);
+  const benchIds = new Set(bench.map((b) => b.id));
+  // The weakest bench player who'd make room: same position first, never a lone QB or defence.
+  const dropFor = (cand: GreenPlayer, taken: Set<string>): GreenPlayer | null => {
+    const pool = meView.players.filter((p) => benchIds.has(p.id) && !taken.has(p.id) && worth(p) + 2 < worth(cand));
+    const same = pool.filter((p) => p.pos === cand.pos).sort((a, b) => worth(a) - worth(b))[0];
+    const any = pool.filter((p) => !["QB", "DEF", "K"].includes(p.pos) || meView.players.filter((x) => x.pos === p.pos).length > 1).sort((a, b) => worth(a) - worth(b))[0];
+    if (same ?? any) return same ?? any ?? null;
+    // A full roster has to cut someone: the weakest bench player who isn't the only one at his position.
+    return meView.players.filter((p) => benchIds.has(p.id) && !taken.has(p.id) && meView.players.filter((x) => x.pos === p.pos).length > 1).sort((a, b) => worth(a) - worth(b))[0] ?? null;
+  };
+  const taken = new Set<string>();
+  const adds = input.adds;
+  const bids = bidsFor(
+    bidCandidates(d.free, adds, meTeam, meView.players, league.slots, week).map((p) => {
+      const known = pickups.find((x) => x.player.id === p.id);
+      const drop = known?.drop && !taken.has(known.drop.id) ? known.drop : dropFor(p, taken);
+      if (drop) taken.add(drop.id);
+      return { player: p, adds: adds[p.id] ?? 0, drop, covers: (known?.why.startsWith("Covers for") ?? false) || holesNow.has(p.pos) };
+    }),
+    teams,
+    mine.rosterId,
+    league.faab,
+    league.faab !== null ? Math.max(0, league.faab - mine.faabUsed) : null,
+    rank,
+    history,
+  );
+
+  const me = meView;
+  const trade = tradeFor(league.slots, me, views.filter((v) => v.rosterId !== mine.rosterId), teams);
+
+  // The bye calendar: the next four weeks, who of Nikita's sits and which fixed slots he can't fill.
+  const fixed = league.slots.filter((s) => ["QB", "RB", "WR", "TE", "K", "DEF"].includes(s));
+  const byeWeeks: GreenByeWeek[] = ahead.map((w, k) => {
+    const set = upcoming[k]!;
+    const off = (p: GreenPlayer) => (p.team !== null && set.has(p.team)) || (w === week && p.bye === w);
+    const outList = me.players.filter(off);
+    const able = me.players.filter((p) => !off(p) && !(p.inj && ["IR", "SUS", "PUP"].includes(p.inj)));
+    const holes: string[] = [];
+    for (const pos of new Set(fixed)) {
+      const need = fixed.filter((s) => s === pos).length;
+      if (able.filter((p) => p.pos === pos).length < need) holes.push(pos);
+    }
+    return { week: w, teams: [...set].sort(), out: outList.map((p) => ({ id: p.id, name: p.name, pos: p.pos })), holes };
+  });
+
+  // The ticker: FantasyPros' headlines for players in the league, then Sleeper's injury flags and the hottest adds.
+  const owner = new Map<string, number>();
+  for (const r of rosters) for (const id of [...r.players, ...r.reserve]) owner.set(id, r.rosterId);
+  const oppId = matchup?.them?.rosterId ?? null;
+  const whose = (id: string | null): GreenNews["whose"] => {
+    const o = id ? owner.get(id) : undefined;
+    return o === undefined ? "free" : o === mine.rosterId ? "mine" : o === oppId ? "opp" : "league";
+  };
+  const byFpid = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const id of owner.keys()) {
+    const slim = input.players[id];
+    if (!slim) continue;
+    const v = d.fpOf(slim);
+    if (v?.fpid) byFpid.set(v.fpid, id);
+    byName.set(nameKey(slim.n), id);
+  }
+  const news: GreenNews[] = [];
+  for (const n of fp?.news ?? []) {
+    const id = (n.fpid ? byFpid.get(n.fpid) : undefined) ?? (n.name ? byName.get(nameKey(n.name)) : undefined) ?? null;
+    if (!id) continue;
+    const name = player(id).name;
+    // A headline that opens with his name reads twice on the ticker: the name is shown already.
+    const text = n.text.toLowerCase().startsWith(name.toLowerCase()) ? n.text.slice(name.length).replace(/^(?:['’]s\b)?[\s:,-]*/, "") || n.text : n.text;
+    news.push({ id, name, text, at: n.at, whose: whose(id), src: "fp" });
+  }
+  const INJ_LINE: Partial<Record<GreenInjury, string>> = { Q: "questionable", D: "doubtful", O: "out", IR: "on injured reserve", SUS: "suspended" };
+  const flagged = [...me.players, ...(oppId !== null ? (views.find((v) => v.rosterId === oppId)?.players ?? []) : [])].filter((p) => p.inj && INJ_LINE[p.inj] && !news.some((n) => n.id === p.id));
+  for (const p of flagged) news.push({ id: p.id, name: p.name, text: `${INJ_LINE[p.inj!]}${p.bye === week ? ", and on bye" : ""}`, at: null, whose: whose(p.id), src: "sleeper" });
+  for (const p of pickups.slice(0, 3)) if (p.adds >= 1000) news.push({ id: p.player.id, name: p.player.name, text: `free agent, added in ${p.adds >= 100_000 ? `${Math.round(p.adds / 1000)}k` : `${Math.round(p.adds / 100) / 10}k`} leagues today`, at: null, whose: "free", src: "sleeper" });
+  const ORDER: Record<GreenNews["whose"], number> = { mine: 0, opp: 1, free: 2, league: 3 };
+  news.sort((a, b) => ORDER[a.whose] - ORDER[b.whose] || (b.at ?? "").localeCompare(a.at ?? ""));
+
+  // The league's latest moves.
+  const nameOf = (rid: number) => views.find((v) => v.rosterId === rid)?.team ?? `Team ${rid}`;
+  const moves: GreenMove[] = (input.moves ?? []).slice(0, 10).map((m) => ({
+    team: m.rosterIds.map(nameOf).join(" & ") || "A team",
+    kind: m.kind,
+    adds: Object.keys(m.adds).map((id) => player(id).name),
+    drops: Object.keys(m.drops).map((id) => player(id).name),
+    bid: m.kind === "waiver" ? m.bid : null,
+    at: m.at ? new Date(m.at).toISOString() : null,
+  }));
+
+  return { calls, teams, bids, trade, odds, news: news.slice(0, 16), moves, byeWeeks };
 }
 
 function reasonOut(p: GreenPlayer | null, week: number, fpOnly = false): string | null {

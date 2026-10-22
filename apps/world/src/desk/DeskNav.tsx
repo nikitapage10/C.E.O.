@@ -1,14 +1,14 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { loadLattice, ROOM_ROUTES, type Route, type RoomRoute } from "../route.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { link } from "./nav.ts";
 import { useSkippy } from "./skippy/chat.ts";
 
 /**
- * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the woven wordmark, then Today, the Foundry and
- * Relay as plain words with a thread under the one you're on, then the rooms behind one "Rooms" word so the bar stays
- * one short line on a phone. On the right, Ilyr's hour on a small ring, Skippy and the way into the Lattice, both quiet.
- * Keys 1 to 3 open the first three, 4 to 9 the rooms.
+ * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the woven wordmark, then every page as a plain word
+ * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
+ * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Skippy and the way into the
+ * Lattice, both quiet. Keys 1 to 9 open them in order.
  */
 
 export const MAIN_TABS: { id: Exclude<Route, "lattice" | RoomRoute>; label: string }[] = [
@@ -75,29 +75,16 @@ function IlyrClock({ now }: { now: number }) {
 }
 
 export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">; owed: number; now: number }) {
-  const [open, setOpen] = useState(false);
-  const menuId = useId();
-  const wrap = useRef<HTMLDivElement>(null);
+  const tabs = useRef<HTMLElement>(null);
   const skippyOpen = useSkippy((s) => s.open);
   const setSkippy = useSkippy((s) => s.setOpen);
-  const inRoom = (ROOM_ROUTES as readonly string[]).includes(route) ? (route as RoomRoute) : null;
+  const pages: { id: Exclude<Route, "lattice">; label: string }[] = [...MAIN_TABS, ...ROOM_ROUTES.map((id) => ({ id, label: ROOM_TABS[id].label }))];
 
-  useEffect(() => setOpen(false), [route]);
+  // On a phone the row scrolls: keep the page you're on in view.
   useEffect(() => {
-    if (!open) return;
-    const away = (e: PointerEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setOpen(false);
-      (wrap.current?.querySelector("button") as HTMLButtonElement | null)?.focus();
-    };
-    document.addEventListener("pointerdown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("pointerdown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+    const el = tabs.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    el?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [route]);
 
   return (
     <header className="wv-nav">
@@ -105,9 +92,9 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
         <WovenMark />
         <span>C.E.O.</span>
       </a>
-      <nav className="wv-tabs desk__tabs" aria-label="Desk">
-        {MAIN_TABS.map((t, i) => (
-          <a key={t.id} className="wv-tab" href={pathOf(t.id)} aria-current={route === t.id ? "page" : undefined} onClick={link(t.id)} title={`${t.label} (${i + 1})`} data-room={t.id === "today" ? undefined : t.id}>
+      <nav className="wv-tabs desk__tabs" aria-label="Desk" ref={tabs}>
+        {pages.map((t, i) => (
+          <a key={t.id} className="wv-tab" href={pathOf(t.id)} aria-current={route === t.id ? "page" : undefined} onClick={link(t.id)} title={t.id in ROOM_TABS ? `${ROOM_TABS[t.id as RoomRoute].line} (${i + 1})` : `${t.label} (${i + 1})`} data-room={t.id === "today" ? undefined : t.id}>
             {t.label}
             {t.id === "today" && owed > 0 && (
               <b className="wv-tab-n" title="Things that need you">
@@ -117,25 +104,6 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
           </a>
         ))}
       </nav>
-      <div className="wv-rooms" ref={wrap}>
-        <button type="button" className="wv-tab wv-rooms-btn" aria-expanded={open} aria-controls={menuId} aria-current={inRoom ? "page" : undefined} data-room={inRoom ?? undefined} onClick={() => setOpen(!open)}>
-          {inRoom ? ROOM_TABS[inRoom].label : "Rooms"}
-          <svg viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <ul id={menuId} className="wv-roomsmenu" hidden={!open} aria-label="Rooms">
-          {ROOM_ROUTES.map((id, i) => (
-            <li key={id} data-room={id}>
-              <a href={pathOf(id)} onClick={link(id)} aria-current={route === id ? "page" : undefined} title={`${ROOM_TABS[id].label} (${i + 4})`}>
-                <i className="wv-dot" />
-                <b>{ROOM_TABS[id].label}</b>
-                <span>{ROOM_TABS[id].line}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
       <div className="wv-navr">
         <IlyrClock now={now} />
         <button type="button" className="wv-navbtn desk__skippy" onClick={() => setSkippy(!skippyOpen)} aria-expanded={skippyOpen} aria-controls="skippy-chat" title="Ask Skippy">

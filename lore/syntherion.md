@@ -455,7 +455,12 @@ brass pipes where the real lines come in. Every pipe on the wall runs up to one 
 strung to the outside world (Dialtone and Blasto first), the hub on the C.E.O.'s machine, and the services beyond
 the Veil that the hub talks to. A hot pipe hisses steam. A slow one rattles and coughs. A broken one bursts, the
 lamp over the door spins red, and Gary is already running with the tape. A pipe that isn't connected yet stays
-cold. The boiler in the corner is the C.E.O.'s machine itself, and its fire goes out when the machine sleeps.
+cold. Every pipe wears a glowing collar and a lit brass-framed plate that says what it's doing in letters you can
+read from the door: mint and steady for HOT · WORKING, amber and pulsing for COUGHING · SLOW, red and blinking for
+BURST · DOWN, with a white jet out of the split and a red work light washing the bricks behind it. The boiler in
+the front corner is the C.E.O.'s machine itself, and its fire goes out when the machine sleeps. It used to stand
+in front of the wall, hiding three pipes; Gary pushed it into the corner, honking the whole way, so nobody has to
+guess what a pipe is doing again.
 
 The last pipe on the wall is the **world clock**: the line the Lattice's own hours run through. Once an hour, at
 five past, the world takes its step and the pipe runs hot, and a brass tag under its gauge says when the hour

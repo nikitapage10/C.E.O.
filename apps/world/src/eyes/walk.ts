@@ -47,10 +47,10 @@ const b = (x: number, z: number, hw: number, hd: number): Box => ({ x, z, hw, hd
 
 /**
  * Pieces no agent's route ever crosses, so OBSTACLES leaves them out, but a steered Brogu would walk straight
- * through: the boiler, the club's DJ booth and speakers, the Spire's KPI easel.
+ * through: the club's DJ booth and speakers, the Spire's KPI easel. (The boiler moved into the walkways, so it's in
+ * OBSTACLES now.)
  */
 export const EYES_OBSTACLES: Partial<Record<RoomId, readonly Box[]>> = {
-  boiler: [b(4.2, -2.2, 1.2, 1.2)],
   breakroom: [b(0, -4.6, 1.1, 0.35), b(-4.45, -5.5, 0.5, 0.4), b(4.45, -5.5, 0.5, 0.4)],
   spire: [b(4.8, -3.5, 1.35, 0.15)],
 };

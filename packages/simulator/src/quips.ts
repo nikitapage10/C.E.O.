@@ -89,6 +89,7 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Days since last incident: zero. As per tradition.",
     "Hot pipe, happy pipe.",
     "The new pipe is the world clock. If it coughs, the hour's late.",
+    "Mint is fine. Amber is coughing. Red is Gary's problem.",
   ],
   workshop: [
     "Sketch, mould, fit, rehearse. In that order. Always that order.",
@@ -407,6 +408,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Honk. (World clock pipe: hot. The hour ticked. Logged it.)",
     "HONK HONK. (Clock pipe's coughing. An hour's late. Fetching the tape.)",
     "Honk. (The house pipe. Still cold. Polished the gauges anyway.)",
+    "HOOONK. (Pushed the boiler into the corner. Now you can see every pipe. You're welcome.)",
+    "Honk honk. (Red collar, red plate, red light. That one's down. Tape.)",
   ],
   daub: [
     "Hold still. You're my next canvas.",

@@ -152,14 +152,15 @@ describe("Brogu's eyes: walking", () => {
     expect(z).toBeGreaterThanOrEqual(table.z + table.hd + BODY_RADIUS - 1e-9);
   });
 
-  it("bumps into the things no agent's route crosses, too: the boiler", () => {
-    expect(blocked("boiler", 4.2, -2.2)).toBe(true);
+  it("bumps into the things no agent's route crosses, too: the DJ booth, and the boiler in its corner", () => {
+    expect(blocked("breakroom", 0, -4.6)).toBe(true);
+    expect(blocked("boiler", 6.5, 2.8)).toBe(true);
     expect(blocked("foundry", -5, 4.6)).toBe(false);
   });
 
   it("can always walk out of somewhere he shouldn't be", () => {
-    const s = move("boiler", 4.2, -2.2, 0.1, 0);
-    expect(s.x).toBeCloseTo(4.3);
+    const s = move("boiler", 6.5, 2.8, 0.1, 0);
+    expect(s.x).toBeCloseTo(6.6);
   });
 
   it("climbs onto the club's stage", () => {

@@ -2,7 +2,20 @@ import { getStation, pendingApprovals } from "@ceo/core";
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { MeshStandardMaterial, type Group, type Mesh, type PointLight } from "three";
+import {
+  AdditiveBlending,
+  BoxGeometry,
+  CanvasTexture,
+  Color,
+  CylinderGeometry,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  PlaneGeometry,
+  SRGBColorSpace,
+  type Group,
+  type Mesh,
+  type PointLight,
+} from "three";
 import { Dust, Haze, Smoke, Sparks } from "../fx/atmos.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
@@ -20,51 +33,201 @@ import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";
  */
 
 const LAMP: Record<LinkState, string> = { off: "#3a3d42", ok: "#9fe3c9", slow: "#ffd08f", down: "#ff5a6e" };
+const STATES: readonly LinkState[] = ["off", "ok", "slow", "down"];
 const PIPE_Z = -5.55;
-/** The pipes share the wall from x = -7 to 4, a metre apart until more links than that arrive (Polymarket made 13). */
-const pipeX = (i: number, n: number) => -7 + i * Math.min(1, 11 / Math.max(1, n - 1));
-const WORDS: Record<LinkState, string> = { off: "COLD · NOT CONNECTED", ok: "HOT · WORKING", slow: "COUGHING · SLOW", down: "BURST · DOWN" };
+/**
+ * The pipes share the wall from x = -7.2 to 5, a metre apart until more links than that arrive (Polymarket made 13).
+ * The wall right of 5 belongs to the Pessimist's podium, and the boiler stands out in the front-right corner, so
+ * nothing stands between the default camera and a pipe's status.
+ */
+const PIPE_X0 = -7.2;
+const PIPE_SPAN = 12.2;
+const pipeX = (i: number, n: number) => PIPE_X0 + i * Math.min(1, PIPE_SPAN / Math.max(1, n - 1));
+/** Each state's plate: what the pipe is doing, then what that means. */
+const WORDS: Record<LinkState, readonly [string, string]> = {
+  off: ["COLD", "NOT CONNECTED"],
+  ok: ["HOT", "WORKING"],
+  slow: ["COUGHING", "SLOW"],
+  down: ["BURST", "DOWN"],
+};
 /** The world clock's pipe speaks in hours: on time, overdue (amber, over 70 min), stopped (over 3 h, or no answer). */
-const CLOCK_WORDS: Record<LinkState, string> = { off: "COLD · NOT RUNNING", ok: "HOT · ON TIME", slow: "COUGHING · OVERDUE", down: "BURST · STOPPED" };
+const CLOCK_WORDS: Record<LinkState, readonly [string, string]> = {
+  off: ["COLD", "NOT RUNNING"],
+  ok: ["HOT", "ON TIME"],
+  slow: ["COUGHING", "OVERDUE"],
+  down: ["BURST", "STOPPED"],
+};
+/** The status plate's face, and the biggest the state word gets on it (shrunk to fit longer words). */
+const PLATE_W = 0.7;
+const PLATE_H = 0.32;
+const WORD_MAX = 0.13;
+const wordSize = (word: string) => Math.min(WORD_MAX, (PLATE_W - 0.1) / (word.length * 0.62 * 1.06));
+/** Red work lights that wash the wall behind a burst pipe: pooled and always mounted, so a burst never recompiles shaders. */
+const WASH_LIGHTS = 2;
 
 /** A pipe's live state, read every frame without re-rendering the room. */
 const stateOf = (id: string): LinkState => useSystems.getState().links.find((l) => l.id === id)?.state ?? "off";
 const loadOf = (id: string): number => useSystems.getState().links.find((l) => l.id === id)?.load ?? 0;
 
+/**
+ * Everything that shows a pipe's state is shared by state: one collar, plate and wall-glow material for every pipe
+ * that is working, one for every slow pipe, and so on, animated once a frame by StatusDriver. The geometries are
+ * shared too, so sixteen pipes cost what one does.
+ */
+interface StatusLook {
+  collar: MeshStandardMaterial;
+  plate: MeshBasicMaterial;
+  plateBase: Color;
+  glow: MeshBasicMaterial;
+}
+let looks: Record<LinkState, StatusLook> | null = null;
+function statusLooks(): Record<LinkState, StatusLook> {
+  if (looks) return looks;
+  const tex = glowTexture();
+  const make = (s: LinkState): StatusLook => {
+    const plateBase = new Color(s === "off" ? "#25282e" : LAMP[s]);
+    return {
+      collar: new MeshStandardMaterial({ color: "#14161a", metalness: 0.6, roughness: 0.4, emissive: LAMP[s], emissiveIntensity: s === "off" ? 0 : 1.3, toneMapped: false }),
+      plate: new MeshBasicMaterial({ color: plateBase.clone(), toneMapped: false }),
+      plateBase,
+      glow: new MeshBasicMaterial({ color: LAMP[s], map: tex, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, toneMapped: false }),
+    };
+  };
+  looks = { off: make("off"), ok: make("ok"), slow: make("slow"), down: make("down") };
+  return looks;
+}
+
+/** A soft round glow, white in the middle and gone at the edge, tinted per state. */
+function glowTexture(): CanvasTexture | null {
+  if (typeof document === "undefined") return null;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.35, "rgba(255,255,255,0.45)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+const GEO = {
+  pipe: new CylinderGeometry(0.11, 0.11, 5.8, 20),
+  ring: new CylinderGeometry(0.15, 0.15, 0.08, 20),
+  collar: new CylinderGeometry(0.19, 0.19, 0.46, 28),
+  collarRim: new CylinderGeometry(0.21, 0.21, 0.05, 28),
+  plateBack: new BoxGeometry(PLATE_W + 0.06, PLATE_H + 0.06, 0.03),
+  plateFace: new BoxGeometry(PLATE_W, PLATE_H, 0.02),
+  glow: new PlaneGeometry(1.1, 1.9),
+  split: new PlaneGeometry(0.035, 0.22),
+};
+
+/** How hard each state's light is right now, 0..1: ok steady, slow a slow amber pulse, down a fast red blink. */
+function beat(s: LinkState, t: number): number {
+  if (s === "ok") return 1;
+  if (s === "slow") return 0.5 + 0.5 * Math.sin(t * 3.2);
+  if (s === "down") return t * 4 - Math.floor(t * 4) < 0.55 ? 1 : 0.12;
+  return 0;
+}
+
+/** Drives the shared status materials and the pooled burst lights, once a frame for the whole wall. */
+function StatusDriver() {
+  const lights = useRef<(PointLight | null)[]>([]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const L = statusLooks();
+    for (const s of STATES) {
+      if (s === "off") continue;
+      const k = beat(s, t);
+      const look = L[s];
+      // Bright enough to bloom, not so bright the colour burns out to white.
+      look.collar.emissiveIntensity = s === "ok" ? 1.3 : s === "slow" ? 0.55 + 0.95 * k : 0.25 + 1.75 * k;
+      // The plate stays under the bloom threshold so its letters stay sharp, and never goes dark enough to lose them.
+      look.plate.color.copy(look.plateBase).multiplyScalar(s === "ok" ? 0.95 : s === "slow" ? 0.6 + 0.35 * k : 0.45 + 0.5 * k);
+      look.glow.opacity = s === "ok" ? 0.5 : s === "slow" ? 0.25 + 0.4 * k : 0.15 + 0.8 * k;
+    }
+    // The first bursts on the wall get the red work lights; the rest still blink and spray.
+    const links = useSystems.getState().links;
+    let used = 0;
+    for (let i = 0; i < links.length && used < WASH_LIGHTS; i++) {
+      if (links[i]!.state !== "down") continue;
+      const l = lights.current[used++];
+      if (!l) continue;
+      l.position.set(pipeX(i, links.length), 2.6, PIPE_Z + 0.45);
+      l.intensity = 2 + 7 * beat("down", t);
+    }
+    for (let j = used; j < WASH_LIGHTS; j++) {
+      const l = lights.current[j];
+      if (l) l.intensity = 0;
+    }
+  });
+  return (
+    <>
+      {Array.from({ length: WASH_LIGHTS }, (_, j) => (
+        <pointLight
+          key={j}
+          ref={(l) => {
+            lights.current[j] = l;
+          }}
+          color="#ff3b4f"
+          intensity={0}
+          distance={3.4}
+          decay={1.6}
+        />
+      ))}
+    </>
+  );
+}
+
+const SPRAY_AT: [number, number, number] = [0, 2.98, 0.12];
+const SPRAY_DIR: [number, number, number] = [0.35, 0.25, 1];
+const STEAM_AT: [number, number, number] = [0, 2.98, 0.15];
+const VENT_AT: [number, number, number] = [0.22, 2.9, 0];
+
 function Pipe({ link, x }: { link: Link; x: number }) {
   const shake = useRef<Group>(null);
   const needle = useRef<Group>(null);
-  const lamp = useMemo(() => new MeshStandardMaterial({ color: "#000000", emissive: LAMP.off, emissiveIntensity: 2, toneMapped: false }), []);
   const state = link.state;
+  const look = statusLooks()[state];
+  const [flavour, word] = (link.id === "world" ? CLOCK_WORDS : WORDS)[state];
+  const lit = state !== "off";
+  const ink = lit ? "#0b0f14" : "#8a8a93";
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     const s = stateOf(link.id);
     if (shake.current) {
-      // A slow pipe rattles and coughs; a burst one shudders.
-      const amp = s === "slow" ? 0.025 * Math.max(0, Math.sin(t * 2.3)) : s === "down" ? 0.012 : 0;
+      // A slow pipe rattles hard in fits, coughing with each one; a burst one shudders.
+      const fit = s === "slow" ? Math.max(0, Math.sin(t * 2.3)) : 0;
+      const amp = s === "slow" ? 0.06 * fit : s === "down" ? 0.015 : 0;
       shake.current.position.x = Math.sin(t * 47 + x) * amp;
+      shake.current.rotation.z = s === "slow" ? Math.sin(t * 31 + x) * 0.012 * fit : 0;
     }
     if (needle.current) {
       const target = s === "off" || s === "down" ? 0 : loadOf(link.id) + (s === "slow" ? Math.sin(t * 9) * 0.05 : Math.sin(t * 1.3 + x) * 0.02);
       const angle = Math.PI * 0.75 - Math.min(1, Math.max(0, target)) * Math.PI * 1.5;
       needle.current.rotation.z += (angle - needle.current.rotation.z) * 0.08;
     }
-    lamp.emissive.set(LAMP[s]);
-    lamp.emissiveIntensity = s === "down" ? 2 + Math.sin(t * 12) * 1.5 : s === "slow" ? 1.6 + Math.sin(t * 3) * 0.6 : s === "ok" ? 2.2 : 0.4;
   });
   return (
     <group position={[x, 0, PIPE_Z]}>
+      {/* The pipe's state, washed onto the bricks behind it so it reads from across the room. */}
+      {lit && <mesh geometry={GEO.glow} position={[0, 2.3, -0.68]} material={look.glow} />}
       <group ref={shake}>
-        <mesh position={[0, 2.9, 0]} material={state === "off" ? PBR.steel() : PBR.copper()} castShadow>
-          <cylinderGeometry args={[0.11, 0.11, 5.8, 20]} />
-        </mesh>
-        {[0.35, 3.2, 5.2].map((y) => (
-          <mesh key={y} position={[0, y, 0]} material={PBR.brass()}>
-            <cylinderGeometry args={[0.15, 0.15, 0.08, 20]} />
-          </mesh>
+        <mesh geometry={GEO.pipe} position={[0, 2.9, 0]} material={lit ? PBR.copper() : PBR.steel()} castShadow />
+        {[0.35, 3.4, 5.2].map((y) => (
+          <mesh key={y} geometry={GEO.ring} position={[0, y, 0]} material={PBR.brass()} />
+        ))}
+        {/* The status collar: the loudest thing on the pipe. Mint and steady, amber and pulsing, red and blinking, or dark. */}
+        <mesh geometry={GEO.collar} position={[0, 2.35, 0]} material={look.collar} />
+        {[2.1, 2.6].map((y) => (
+          <mesh key={y} geometry={GEO.collarRim} position={[0, y, 0]} material={PBR.brass()} />
         ))}
         {/* The valve wheel nobody is allowed to touch. */}
-        <group position={[0, 0.95, 0.16]} rotation={[Math.PI / 2, 0, 0]}>
+        <group position={[0, 0.62, 0.16]} rotation={[Math.PI / 2, 0, 0]}>
           <mesh material={PBR.lacquer("#8c2f2f", 0.4)}>
             <torusGeometry args={[0.13, 0.02, 8, 24]} />
           </mesh>
@@ -89,23 +252,28 @@ function Pipe({ link, x }: { link: Link; x: number }) {
             </mesh>
           </group>
         </group>
-        <mesh position={[0, 2.18, 0.12]} material={lamp}>
-          <sphereGeometry args={[0.055, 16, 12]} />
-        </mesh>
         {/* A little vent on the side, where healthy steam escapes. */}
-        <mesh position={[0.16, 2.6, 0]} rotation={[0, 0, Math.PI / 2]} material={PBR.brass()}>
+        <mesh position={[0.16, 2.9, 0]} rotation={[0, 0, Math.PI / 2]} material={PBR.brass()}>
           <cylinderGeometry args={[0.035, 0.035, 0.12, 12]} />
         </mesh>
       </group>
-      <Text font={FONTS.mono} fontSize={0.085} position={[0, 1.38, 0.16]} letterSpacing={0.12} color="#e8c27a" anchorX="center">
+      <Text font={FONTS.mono} fontSize={0.075} position={[0, 1.31, 0.16]} letterSpacing={0.1} color="#e8c27a" anchorX="center" anchorY="bottom" maxWidth={PLATE_W + 0.02} textAlign="center" lineHeight={1.05}>
         {link.label.toUpperCase()}
       </Text>
-      <Text font={FONTS.mono} fontSize={0.05} position={[0, 1.27, 0.16]} letterSpacing={0.1} color={LAMP[state] === LAMP.off ? "#8a8a93" : LAMP[state]} anchorX="center">
-        {(link.id === "world" ? CLOCK_WORDS : WORDS)[state]}
-      </Text>
+      {/* The status plate, lit from behind in the pipe's colour: what it's doing, and what that means, big. */}
+      <group position={[0, 1.1, 0.15]}>
+        <mesh geometry={GEO.plateBack} material={PBR.blackMetal()} />
+        <mesh geometry={GEO.plateFace} position={[0, 0, 0.015]} material={look.plate} />
+        <Text font={FONTS.mono} fontSize={0.055} position={[0, 0.085, 0.03]} letterSpacing={0.24} color={ink} anchorX="center" anchorY="middle">
+          {flavour}
+        </Text>
+        <Text font={FONTS.mono} fontSize={wordSize(word)} position={[0, -0.035, 0.03]} letterSpacing={0.06} color={ink} anchorX="center" anchorY="middle">
+          {word}
+        </Text>
+      </group>
       {/* The world clock's brass tag: when the last hour ran, and who wrote it (worldClock.ts). */}
       {link.id === "world" && link.note && (
-        <group position={[0, 1.13, 0.26]}>
+        <group position={[0, 0.86, 0.26]}>
           {/* Its bracket, off the pipe. */}
           <mesh position={[0, 0, -0.07]} material={PBR.brass()}>
             <boxGeometry args={[0.03, 0.03, 0.14]} />
@@ -116,28 +284,27 @@ function Pipe({ link, x }: { link: Link; x: number }) {
           </Text>
         </group>
       )}
-      {state !== "off" && (
+      {(state === "ok" || state === "slow") && (
         <Smoke
-          position={[0.22, 2.6, 0]}
-          count={state === "slow" ? 18 : 10}
-          rate={state === "slow" ? 0.5 : 0.3}
-          height={state === "slow" ? 1.6 : 1}
-          spread={0.25}
-          sizes={state === "slow" ? [0.15, 0.7] : [0.08, 0.4]}
+          position={VENT_AT}
+          count={state === "slow" ? 24 : 10}
+          rate={state === "slow" ? 0.6 : 0.3}
+          height={state === "slow" ? 1.9 : 1}
+          spread={state === "slow" ? 0.35 : 0.25}
+          sizes={state === "slow" ? [0.2, 0.95] : [0.08, 0.4]}
           wind={[0.4, 0, 0.1]}
           color="#e9eef2"
-          opacity={state === "slow" ? 0.5 : 0.22}
-          live={(t) => (stateOf(link.id) === "slow" ? 0.25 + 0.35 * Math.max(0, Math.sin(t * 2.3)) : undefined)}
+          opacity={state === "slow" ? 0.62 : 0.22}
+          // Coughs: a puff with every rattle, and nothing in between.
+          live={(t) => (stateOf(link.id) === "slow" ? 0.15 + 0.5 * Math.max(0, Math.sin(t * 2.3)) : undefined)}
         />
       )}
       {state === "down" && (
         <>
-          {/* Burst: a jet of water from a split in the pipe, and a cloud of steam. */}
-          <Sparks position={[0, 2.35, 0.12]} dir={[0.3, 0.2, 1]} count={46} rate={2.4} speed={2.6} cone={0.35} size={0.03} color="#cfe6ff" intensity={1.6} />
-          <Smoke position={[0, 2.35, 0.15]} count={22} rate={0.7} height={2.2} spread={0.6} sizes={[0.25, 1.1]} wind={[0, 0, 0.6]} color="#f2f4f6" opacity={0.55} />
-          <mesh position={[0, 2.35, 0.1]} rotation={[0, 0, 0.5]} material={PBR.light("#ff5a6e", 2)}>
-            <planeGeometry args={[0.03, 0.18]} />
-          </mesh>
+          {/* Burst: a white jet of water from a split in the pipe, and a cloud of steam. */}
+          <Sparks position={SPRAY_AT} dir={SPRAY_DIR} count={64} rate={3.2} speed={3.2} cone={0.4} size={0.04} color="#ffffff" intensity={2.4} />
+          <Smoke position={STEAM_AT} count={22} rate={0.7} height={2.2} spread={0.6} sizes={[0.25, 1.1]} wind={[0, 0, 0.6]} color="#f2f4f6" opacity={0.55} />
+          <mesh geometry={GEO.split} position={[0, 2.98, 0.11]} rotation={[0, 0, 0.5]} material={PBR.light("#ff5a6e", 2)} />
         </>
       )}
     </group>
@@ -145,7 +312,7 @@ function Pipe({ link, x }: { link: Link; x: number }) {
 }
 
 /** The boiler: the MacBook. Its fire burns while the Mac is up, and goes out when it sleeps. */
-function Boiler({ position }: { position: [number, number] }) {
+function Boiler({ position, yaw }: { position: [number, number]; yaw: number }) {
   const fire = useRef<Mesh>(null);
   const glow = useRef<PointLight>(null);
   const flame = useMemo(() => new MeshStandardMaterial({ color: "#000000", emissive: "#ff7a2a", emissiveIntensity: 0, toneMapped: false }), []);
@@ -160,7 +327,7 @@ function Boiler({ position }: { position: [number, number] }) {
   });
   const [x, z] = position;
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} rotation={[0, yaw, 0]}>
       <mesh position={[0, 1.7, 0]} material={PBR.steel()} castShadow receiveShadow>
         <cylinderGeometry args={[1.15, 1.2, 3.2, 40]} />
       </mesh>
@@ -208,13 +375,17 @@ function Boiler({ position }: { position: [number, number] }) {
   );
 }
 
+/** How high the drip's pipe runs, and the left wall it runs in from. */
+const DRIP_Y = 5.6;
+const DRIP_WALL_X = -8;
+
 /** The bucket, under the drip that has always been there. */
 function Drip({ position }: { position: [number, number] }) {
   const drop = useRef<Mesh>(null);
   const ripple = useRef<Mesh>(null);
   useFrame(({ clock }) => {
     const u = (clock.elapsedTime * 0.7) % 1;
-    if (drop.current) drop.current.position.y = 4.05 - u * u * 3.65;
+    if (drop.current) drop.current.position.y = DRIP_Y - 0.1 - u * u * (DRIP_Y - 0.5);
     if (ripple.current) {
       const r = ((clock.elapsedTime * 0.7 + 0.02) % 1) * 3;
       ripple.current.scale.setScalar(0.2 + r * 0.6);
@@ -224,14 +395,15 @@ function Drip({ position }: { position: [number, number] }) {
   const [x, z] = position;
   return (
     <group position={[x, 0, z]}>
-      {/* The overhead pipe, with its one bad joint. */}
-      <mesh position={[-2.5, 4.15, 0]} rotation={[0, 0, Math.PI / 2]} material={PBR.copper()} castShadow>
-        <cylinderGeometry args={[0.08, 0.08, 6, 16]} />
+      {/* The overhead pipe, with its one bad joint. It runs in high from the left wall: hung any lower, the default
+          camera saw it cut straight across the pipe wall's status collars. */}
+      <mesh position={[(DRIP_WALL_X - x) / 2, DRIP_Y, 0]} rotation={[0, 0, Math.PI / 2]} material={PBR.copper()} castShadow>
+        <cylinderGeometry args={[0.08, 0.08, x - DRIP_WALL_X + 0.3, 16]} />
       </mesh>
-      <mesh position={[0, 4.15, 0]} rotation={[0, 0, Math.PI / 2]} material={PBR.brass()}>
+      <mesh position={[0, DRIP_Y, 0]} rotation={[0, 0, Math.PI / 2]} material={PBR.brass()}>
         <cylinderGeometry args={[0.11, 0.11, 0.12, 16]} />
       </mesh>
-      <mesh ref={drop} position={[0, 4, 0]} material={PBR.glass("#bfe3ff", 0.7)}>
+      <mesh ref={drop} position={[0, DRIP_Y - 0.15, 0]} material={PBR.glass("#bfe3ff", 0.7)}>
         <sphereGeometry args={[0.03, 10, 8]} />
       </mesh>
       {/* Bucket: a slightly dented galvanised pail. */}
@@ -365,6 +537,7 @@ export function BoilerRoom() {
   const links = useSystems((s) => s.links);
   // The world clock's pipe reads the hourly step live, as the Desk does.
   useEffect(() => startWorldClock(), []);
+  // The boiler stands in the front-right corner, its firebox turned to the keeper, clear of the pipe wall.
   const boiler = ahead(getStation("boiler", "boiler"), 1.6);
   const bucket = ahead(getStation("boiler", "bucket"), 0.6);
   const sign = ahead(getStation("boiler", "sign"), 0.95);
@@ -385,11 +558,12 @@ export function BoilerRoom() {
       {links.map((l, i) => (
         <Pipe key={l.id} link={l} x={pipeX(i, links.length)} />
       ))}
-      {/* A header pipe that ties the wall together and runs off toward the boiler. */}
-      <mesh position={[-1.4, 4.8, PIPE_Z - 0.25]} rotation={[0, 0, Math.PI / 2]} material={PBR.copper()} castShadow>
-        <cylinderGeometry args={[0.16, 0.16, 12.6, 20]} />
+      <StatusDriver />
+      {/* A header pipe that ties the wall together. */}
+      <mesh position={[PIPE_X0 + PIPE_SPAN / 2, 4.8, PIPE_Z - 0.25]} rotation={[0, 0, Math.PI / 2]} material={PBR.copper()} castShadow>
+        <cylinderGeometry args={[0.16, 0.16, PIPE_SPAN + 1.2, 20]} />
       </mesh>
-      <Boiler position={boiler.pos} />
+      <Boiler position={boiler.pos} yaw={boiler.yaw} />
       <Drip position={bucket.pos} />
       <IncidentSign position={sign.pos} yaw={sign.yaw} />
       <Bench position={bench.pos} yaw={bench.yaw} />

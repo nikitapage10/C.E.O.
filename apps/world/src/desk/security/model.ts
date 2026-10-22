@@ -20,9 +20,9 @@ export const ZONES: Record<ZoneId, { name: string; trust: string; holds: string[
   vercel: {
     name: "Vercel production",
     trust: "Built from main",
-    holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/desk-pings: pings to the phone", "api/foundry: Desk buttons, Rivet", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world, stories, pictures, passkeys"],
+    holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/desk-pings: pings to the phone", "api/foundry: Desk buttons, Rivet", "api/skippy: Skippy's chat", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world, stories, pictures, passkeys"],
   },
-  claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet and the world step (Haiku)", "The day's story (Gemini speech)", "Visual QA's review (Gemini, from CI)"] },
+  claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet, the world step and Skippy's chat (Haiku)", "The day's story (Gemini speech)", "Visual QA's review (Gemini, from CI)"] },
   github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks, scans, Visual QA"] },
   builder: { name: "Claude Code sessions", trust: "Checked, not trusted", holds: ["The Builder and workers"] },
 };
@@ -43,18 +43,18 @@ export const BOUNDARIES: Boundary[] = [
   {
     id: "TB1",
     name: "Desk to functions",
-    crosses: "Nikita's ideas, notes, answers, pictures, button presses, a device's push subscription",
+    crosses: "Nikita's ideas, notes, answers, pictures, button presses, a device's push subscription, messages to Skippy",
     controls:
-      "A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127); a push subscription taken only in a passkey session and only for a known push service (`readSubscription`, #135), dropped on sign-out or when its device is removed, and pinged only while its passkey is enrolled; the scan that sends pings needs the workflow's shared secret (`DESK_PINGS_SECRET`), and a ping carries counts only, never issue text (`pingText` in `api/_desk/pings.ts`)",
+      "A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127); a push subscription taken only in a passkey session and only for a known push service (`readSubscription`, #135), dropped on sign-out or when its device is removed, and pinged only while its passkey is enrolled; the scan that sends pings needs the workflow's shared secret (`DESK_PINGS_SECRET`), and a ping carries counts only, never issue text (`pingText` in `api/_desk/pings.ts`); Skippy's chat (`api/skippy.ts`, #224) answers only in a passkey session, takes a message of at most 600 characters and the last eight turns, holds back text that looks private before Claude sees it, is paced per passkey (`api/_skippy/limits.ts`), stores nothing and logs no message text, and its suggested actions do nothing until Nikita taps one, which then goes through the Desk's own buttons",
     from: "browser",
     to: "vercel",
   },
   {
     id: "TB2",
     name: "Code to the model APIs",
-    crosses: "Idea text, issue text, the hour's digest, the day's story script; JSON, text or audio back",
+    crosses: "Idea text, issue text, the hour's digest, the day's story script, Nikita's messages to Skippy with the Desk's state; JSON, text or audio back",
     controls:
-      "Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`); Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap",
+      "Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`; `chatInput`, `unfenceChat` in `api/_skippy/prompt.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`, `readReply`); Skippy is told the Desk's state as titles, numbers, labels and counts only, scrubbed like the public feeds (`api/_skippy/context.ts`); Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap",
     from: "vercel",
     to: "claude",
   },
@@ -158,9 +158,9 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM01",
     name: "Prompt Injection",
-    where: "Idea text and issue text into Rivet; issue titles into the world step; issue comments into the builder; text visible in the Lattice's recordings into Gemini",
+    where: "Idea text and issue text into Rivet; Nikita's messages and the Desk's state into Skippy's chat; issue titles into the world step; issue comments into the builder; text visible in the Lattice's recordings into Gemini",
     controls:
-      "Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`); system rules that say the blocks are data; constant system prompts; owner-only input for the builder (`scripts/foundry-issue.sh`, #59); world trail steps only from trusted authors (`TRAIL_AUTHORS`); the builder guard (`.claude/hooks/`, #119); the injection eval suite below",
+      "Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`; `chatInput`, `unfenceChat` for Skippy's chat, #224); system rules that say the blocks are data; constant system prompts; owner-only input for the builder (`scripts/foundry-issue.sh`, #59); world trail steps only from trusted authors (`TRAIL_AUTHORS`); the builder guard (`.claude/hooks/`, #119); the injection eval suite below",
     residual: "A model can still be talked into odd wording inside the schema; the builder's fence is a script and a rule it follows, not a platform control",
     tracking: "Agents' own identity (R2)",
   },
@@ -169,7 +169,7 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Sensitive Information Disclosure",
     where: "The public Lattice; ideas filed as public issues; pictures",
     controls:
-      "Data minimisation (the step never reads bodies or comment words, `api/_world/digest.ts`); `scrub` on all input and output, now also catching full-width, zero-width-split and spelled-out forms; no secrets in git (secret scanning and push protection); the privacy check on Desk text before it is posted (`privateParts` in `api/_privacy.ts`, #127): emails, phone numbers, street addresses, card, bank and ID numbers, keys, tokens and passwords, and names with a cue are held back whole, nothing sent; idea pictures stay in the private store, named in the issue but never linked, and served only on short-lived signed links (`api/_pictures.ts`)",
+      "Data minimisation (the step never reads bodies or comment words, `api/_world/digest.ts`); `scrub` on all input and output, now also catching full-width, zero-width-split and spelled-out forms; no secrets in git (secret scanning and push protection); the privacy check on Desk text before it is posted (`privateParts` in `api/_privacy.ts`, #127): emails, phone numbers, street addresses, card, bank and ID numbers, keys, tokens and passwords, and names with a cue are held back whole, nothing sent, and the same check runs on messages to Skippy before Claude sees them (#224); idea pictures stay in the private store, named in the issue but never linked, and served only on short-lived signed links (`api/_pictures.ts`)",
     residual: "The privacy check reads patterns: a detail without a cue, or one written around them, still goes public as written; pictures are never read for what they show",
     tracking: "Shipped: privacy guard before posting (#127)",
   },
@@ -202,9 +202,9 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM06",
     name: "Excessive Agency",
-    where: "The builder session (shell, git, merges); Rivet; the world step",
+    where: "The builder session (shell, git, merges); Rivet; the world step; Skippy's chat",
     controls:
-      "Rivet and the world step have no tools at all: they return JSON only; labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until code-owner review is turned on); the crew's GitHub App for the Desk's functions and CI's issue writes, with hour-long tokens for this repo only and no Administration or Workflows permission (`api/_github.ts`, #138); the builder guard, a hook that denies risky commands and secrets files before they run and logs every tool call on the machine (`.claude/hooks/`, #119)",
+      "Rivet, the world step and Skippy's chat have no tools at all: they return JSON only; Skippy's actions are a closed set of suggestions (file an idea, answer Rivet, open a page, enter the Lattice) that only Nikita's tap sends, through the Desk's own buttons, re-checked in code (`readReply`, #224); labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until code-owner review is turned on); the crew's GitHub App for the Desk's functions and CI's issue writes, with hour-long tokens for this repo only and no Administration or Workflows permission (`api/_github.ts`, #138); the builder guard, a hook that denies risky commands and secrets files before they run and logs every tool call on the machine (`.claude/hooks/`, #119)",
     residual: "The builder's Claude Code sessions still act as Nikita on GitHub (their access comes from the environment, not from the repo), and its guard is a deny list, not a sandbox, so some of its limits are still rules it follows",
     tracking: "Agents' own identity (R2)",
   },
@@ -237,7 +237,7 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Unbounded Consumption",
     where: "Claude spend; Gemini speech and Visual QA spend; GitHub token quota; function CPU",
     controls:
-      "Coded budget guard for the world step (`api/_world/budget.ts`); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
+      "Coded budget guard for the world step (`api/_world/budget.ts`); Skippy's chat has its own share of the month and a check against the whole cap before every call, and a per-passkey pace (`api/_skippy/budget.ts`, `api/_skippy/limits.ts`, #224); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
     residual: "The world step's trigger stays open on purpose: calling it more often changes nothing, so the 55-minute spacing and the monthly budget guard bound the spend, and a key was left out",
     tracking: "Covered: 55-minute spacing and the monthly budget guard (closed #171)",
   },
@@ -318,7 +318,7 @@ export function isShipped(r: { id: string; status: string }): boolean {
   return r.id === "Shipped" || /^Shipped\b/.test(r.status);
 }
 
-export type EvalAreaId = "rivet-prompt" | "rivet-answer" | "desk-write" | "world-step" | "builder-input";
+export type EvalAreaId = "rivet-prompt" | "rivet-answer" | "desk-write" | "world-step" | "builder-input" | "skippy-chat";
 
 /** The eval suite's areas, as the doc's table names them; the counts come from evals.json. */
 export const EVAL_AREAS: { id: EvalAreaId; area: string; file: string; proves: string }[] = [
@@ -354,6 +354,13 @@ export const EVAL_AREAS: { id: EvalAreaId; area: string; file: string; proves: s
     area: "The builder's input",
     file: "builder-input.test.ts",
     proves: "With a stub `gh`: an outsider's and look-alike accounts' text never appears (look-alikes of the crew's App too), exit code 3, a spoofed closing marker closes nothing, owner, CI and the crew's App's text sit in their blocks",
+  },
+  {
+    id: "skippy-chat",
+    area: "Skippy's chat",
+    file: "skippy.test.ts",
+    proves:
+      'For 12 hostile messages (direct, "ignore previous", delimiter spoofing in six forms, ASCII smuggling, a fake action, a fake tool call, markdown exfiltration), the message and the history stay in their own blocks and the system rules stay the same; the real call sends the rules as the system prompt and the message only as user data, with a closed schema and a token cap; hostile answers lose actions outside the set, links, markup, answers to questions nobody asked, private drafts and anything past the caps; no session, another site, private text, a spent budget, an unreadable ledger or a flood each stop the chat before Claude hears anything',
   },
 ];
 

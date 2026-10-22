@@ -92,7 +92,7 @@ The same code runs on Vercel and on Azure; nothing here changes how Vercel runs 
   called on the Function App's own URL.
 - **Storage.** [`api/_blob.ts`](../api/_blob.ts) is the one blob store every function uses: the world and its
   history (`api/_world/store.ts`), the day and week stories and Gemini's ledger (`api/_world/story.ts`), the Desk's
-  passkeys, limits and pings (`api/_desk/store.ts`) and idea pictures (`api/foundry-image.ts`).
+  passkeys, limits and pings (`api/_desk/store.ts`), Skippy's chat ledger (`api/_skippy/budget.ts`) and idea pictures (`api/foundry-image.ts`).
   `WORLD_STORE=azureblob` (set by the Bicep) uses Azure Blob Storage ([`azure/src/blob.ts`](../azure/src/blob.ts)):
   the container `AZURE_STORAGE_CONTAINER` (`ceo-state`) in `AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_BLOB_ENDPOINT`,
   signed in with the Function App's identity through `DefaultAzureCredential`. Anything else is Vercel Blob,

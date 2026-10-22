@@ -22,6 +22,7 @@ const AREAS = [
     blocks: ["the world step: a hostile hour of events", "scrub, the Lattice's second lock", "the world step: a hostile answer"],
   },
   { id: "builder-input", file: "builder-input.test.ts", blocks: null },
+  { id: "skippy-chat", file: "skippy.test.ts", blocks: null },
 ];
 
 function areaOf(file, block) {

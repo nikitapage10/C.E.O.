@@ -1,6 +1,6 @@
 {
-  "total": 201,
-  "passing": 201,
+  "total": 238,
+  "passing": 238,
   "expectedFail": 0,
   "areas": [
     {
@@ -36,6 +36,13 @@
       "file": "builder-input.test.ts",
       "cases": 10,
       "passing": 10,
+      "expectedFail": 0
+    },
+    {
+      "id": "skippy-chat",
+      "file": "skippy.test.ts",
+      "cases": 37,
+      "passing": 37,
       "expectedFail": 0
     }
   ]

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { chronicleDay, type HistoryEntry, type RoomId, type WorldFeed } from "../chronicle.ts";
 import { CREW, type Change, type FoundryData } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
@@ -10,6 +10,7 @@ import { nextRuns } from "./crewRuns.ts";
 import { DayStory } from "./DayStory.tsx";
 import { DESK_ROOMS, roomImage, type DeskData } from "./deskData.ts";
 import { ideaTitle } from "./IdeaCard.tsx";
+import { Private } from "./Private.tsx";
 import { link } from "./nav.ts";
 import { ROOM_META, type RoomPulse } from "./roomPulse.ts";
 import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, sprMix, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion, eOut } from "./wvCanvas.ts";
@@ -451,7 +452,12 @@ export function WorthKnowing({ data, usage, world, owed }: { data: FoundryData; 
   ];
   const total = parts.reduce((a, p) => a + p.f, 0);
   const known = Boolean(world || usage);
-  const spendLine = !known ? "Reading this month's spend…" : `${formatUsd(total)} of the ${formatUsd(cap)} the caps allow this month.${total / cap < 0.5 ? " Gary says that's thrifty. Gary says that about everything." : total / cap < 0.85 ? " Gary is keeping an eye on it." : " Gary would like a word."}`;
+  const spendLine = !known ? "Reading this month's spend…" : (
+    <>
+      <Private>{formatUsd(total)}</Private>
+      {` of the ${formatUsd(cap)} the caps allow this month.${total / cap < 0.5 ? " Gary says that's thrifty. Gary says that about everything." : total / cap < 0.85 ? " Gary is keeping an eye on it." :  " Gary would like a word."}`}
+    </>
+  );
 
   const fire = red.length + (hub === "down" ? 1 : 0) + (known && total / cap >= 0.9 ? 1 : 0);
   const head = fire ? `${fire === 1 ? "One thing is" : `${fire} things are`} on fire.` : "Nothing's on fire. Three things are warm.";
@@ -477,7 +483,7 @@ export function WorthKnowing({ data, usage, world, owed }: { data: FoundryData; 
   );
 }
 
-function PressCard({ room, k, text, spec, labels, ringDot, bad, href }: { room: string; k: string; text: string; spec: VizSpec; labels: string[]; ringDot?: boolean; bad?: boolean; href?: string }) {
+function PressCard({ room, k, text, spec, labels, ringDot, bad, href }: { room: string; k: string; text: ReactNode; spec: VizSpec; labels: string[]; ringDot?: boolean; bad?: boolean; href?: string }) {
   const cv = useRef<HTMLCanvasElement>(null);
   useViz(cv, spec);
   return (
@@ -632,6 +638,8 @@ interface Moment {
   pic: string;
   text: string;
   tag: string;
+  /** A note from one of the rooms that carry Nikita's own life: veiled under Hide. */
+  personal?: boolean;
 }
 
 const ROOM_OF_SCENE = (e: HistoryEntry): RoomId => e.scenes[0]?.room ?? "archive";
@@ -646,7 +654,7 @@ export function shortVersion({ data, changes, ilyr, awaySince }: { data: DeskDat
   // The hub's own notes and the Foundry's red-checks note carry no time: they lead, as "earlier".
   for (const [i, n] of data.notes.entries()) {
     if (n.room === "foundry" && /shipped/.test(n.text)) continue;
-    out.push({ key: `note-${i}`, at: null, room: n.room, pic: `/desk/agent-${DESK_ROOMS[n.room].lead}.webp`, text: n.text, tag: DESK_ROOMS[n.room].name });
+    out.push({ key: `note-${i}`, at: null, room: n.room, pic: `/desk/agent-${DESK_ROOMS[n.room].lead}.webp`, text: n.text, tag: DESK_ROOMS[n.room].name, personal: n.room === "relay" || n.room === "spire" || n.room === "exchange" || n.room === "boiler" });
   }
   for (const e of ilyr.slice(-4)) {
     const room = ROOM_OF_SCENE(e);
@@ -706,7 +714,7 @@ function Moments({ moments }: { moments: Moment[] }) {
           <time>{m.at ? clock(m.at) : "Earlier"}</time>
           <img src={m.pic} alt="" loading="lazy" />
           <div>
-            <p>{m.text}</p>
+            <p>{m.personal ? <Private>{m.text}</Private> : m.text}</p>
             <span>
               <i className="wv-dot" />
               {m.tag}

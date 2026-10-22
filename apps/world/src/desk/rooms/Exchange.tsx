@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
+import { Private } from "../Private.tsx";
 import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import { PolymarketBoard } from "../exchange/PolymarketBoard.tsx";
 import { tapeLine, usePolymarket } from "../exchange/polymarket.ts";
@@ -115,7 +116,9 @@ export function Exchange() {
       <section className="ex-board" aria-label="Positions">
         <div className="ex-odds">
           <p className="wv-eyb">Open positions</p>
-          <b aria-label="none">—</b>
+          <b aria-label="none">
+            <Private label="none">—</Private>
+          </b>
           <span>P&amp;L appears with the first position</span>
         </div>
         <table>
@@ -128,7 +131,7 @@ export function Exchange() {
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody data-private="block">
             {[0, 1, 2].map((i) => (
               <tr key={i} aria-hidden={i > 0}>
                 <td colSpan={4}>

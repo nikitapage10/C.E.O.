@@ -57,10 +57,11 @@ describe("the Desk's sign-in step (#132)", () => {
         { id: "b", label: "Windows PC", added: "2026-10-13T08:00:00Z", used: null, current: false },
       ],
     });
-    expect(html).toContain("Signed in on <b>iPhone</b>");
+    // The device names wear the Hide veil's marker (hide.ts).
+    expect(html).toContain('Signed in on <b class="wv-private" data-private="">iPhone</b>');
     expect(html).toContain("at the latest");
     expect(html).toContain("Devices (2)");
-    expect(html).toContain("iPhone (this one)");
+    expect(html).toContain('<span class="wv-private" data-private="">iPhone</span> (this one)');
     expect(html.match(/>Remove</g)).toHaveLength(2);
     expect(html).toContain("Sign out");
   });

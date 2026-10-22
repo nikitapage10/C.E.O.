@@ -2,6 +2,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { runAction } from "./actions.ts";
 import { canSpeak, stopSpeaking, useSkippy, type ActionState, type SkippyAction, type Turn } from "./chat.ts";
+import { useHide } from "../hide.ts";
+import { Private } from "../Private.tsx";
 import { SkippyComposer } from "./SkippyChat.tsx";
 import { SKIPPY_PORTRAIT } from "./SkippyAvatar.tsx";
 import "./skippy.css";
@@ -13,6 +15,7 @@ const ACTION_DONE: Record<ActionState, string> = { busy: "Sending…", done: "Do
 function ActionChips({ turn }: { turn: Turn }) {
   const mark = useSkippy((s) => s.mark);
   const [held, setHeld] = useState("");
+  const hidden = useHide((s) => s.on);
   const tap = async (a: SkippyAction, i: number) => {
     mark(turn.id, i, "busy");
     const state = await runAction(a, setHeld);
@@ -32,7 +35,7 @@ function ActionChips({ turn }: { turn: Turn }) {
             className={`skp-chip skp-chip--${a.kind}${state ? ` skp-chip--${state}` : ""}`}
             disabled={state === "busy" || (writes && state === "done")}
             onClick={() => void tap(a, i)}
-            title={a.kind === "idea" ? `Files this as an idea for Rivet to shape: ${a.text}` : a.kind === "answer" ? `Answers Rivet on #${a.issue}: ${a.text}` : undefined}
+            title={hidden ? undefined : a.kind === "idea" ? `Files this as an idea for Rivet to shape: ${a.text}` : a.kind === "answer" ? `Answers Rivet on #${a.issue}: ${a.text}` : undefined}
           >
             <span>{a.label}</span>
             {state && state !== "busy" && writes && <em>{ACTION_DONE[state]}</em>}
@@ -131,7 +134,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
         {turns.map((t) => (
           <li key={t.id} className={`skp-turn skp-turn--${t.who}${t.note ? " skp-turn--note" : ""}`}>
             <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : "Skippy:"}</span>
-            <p>{t.text}</p>
+            <p>{t.note ? t.text : <Private>{t.text}</Private>}</p>
             {t.who === "skippy" && <ActionChips turn={t} />}
           </li>
         ))}

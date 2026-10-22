@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { loadLattice, ROOM_ROUTES, type Route, type RoomRoute } from "../route.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
+import { HideButton } from "./Private.tsx";
 import { link } from "./nav.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { useDeskAuth } from "./signin.ts";
+import { useHide } from "./hide.ts";
 import { useSkippy } from "./skippy/chat.ts";
 
 /**
@@ -11,7 +13,8 @@ import { useSkippy } from "./skippy/chat.ts";
  * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
  * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Skippy and the way into the
  * Lattice, both quiet, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
- * Keys 1 to 9 open them in order. The Boiler Room comes last (Nikita, 05:35Z).
+ * Keys 1 to 9 open them in order. The Boiler Room comes last (Nikita, 05:35Z). Beside the account button, Hide: an eye
+ * that veils every personal value for showing the Desk to someone (Nikita, 05:36Z; hide.ts).
  */
 
 export const MAIN_TABS: { id: Exclude<Route, "lattice" | RoomRoute>; label: string }[] = [
@@ -80,6 +83,7 @@ function IlyrClock({ now }: { now: number }) {
 /** Sign-in, sign-out and the Site lock behind one button at the top right (Nikita, 2026-10-22 05:30Z). */
 function AccountMenu() {
   const auth = useDeskAuth((s) => s.auth);
+  const hidden = useHide((s) => s.on);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -102,7 +106,7 @@ function AccountMenu() {
   const label = signedIn ? "Signed in" : auth.status === "checking" ? "Checking" : "Sign in";
   return (
     <div className="wv-acct" ref={box}>
-      <button type="button" className="wv-navbtn wv-acct__btn" data-in={signedIn || undefined} aria-expanded={open} aria-controls="wv-acct-menu" onClick={() => setOpen(!open)} title={signedIn ? `Signed in${auth.device ? ` on ${auth.device}` : ""}: sign out, devices and the Site lock` : "Sign in with your passkey"}>
+      <button type="button" className="wv-navbtn wv-acct__btn" data-in={signedIn || undefined} aria-expanded={open} aria-controls="wv-acct-menu" onClick={() => setOpen(!open)} title={signedIn ? `Signed in${auth.device && !hidden ? ` on ${auth.device}` : ""}: sign out, devices and the Site lock` : "Sign in with your passkey"}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           {signedIn ? (
             <path d="M7 11V8a5 5 0 0 1 9.6-1.9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -155,6 +159,7 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
       </nav>
       <div className="wv-navr">
         <IlyrClock now={now} />
+        <HideButton />
         <AccountMenu />
         <button type="button" className="wv-navbtn desk__skippy" onClick={() => setSkippy(!skippyOpen)} aria-expanded={skippyOpen} aria-controls="skippy-chat" title="Ask Skippy">
           <svg viewBox="0 0 24 24" aria-hidden="true">

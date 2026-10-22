@@ -13,6 +13,7 @@ import { SystemsNav } from "./SystemsNav.tsx";
 import { startPolymarket } from "./exchange/polymarket.ts";
 import { startGreen } from "./green/league.ts";
 import { roomLink } from "./hero/roomLink.ts";
+import { Private } from "./Private.tsx";
 import { Home } from "./rooms/Home.tsx";
 import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
@@ -180,7 +181,15 @@ export function Systems({ now }: { now: number }) {
             </div>
             <div>
               <dt>This month</dt>
-              <dd>{world ? `${formatUsd(world.spend.usd)} of ${formatUsd(world.spend.budget)}` : "–"}</dd>
+              <dd>
+                {world ? (
+                  <>
+                    <Private>{formatUsd(world.spend.usd)}</Private> of {formatUsd(world.spend.budget)}
+                  </>
+                ) : (
+                  "–"
+                )}
+              </dd>
             </div>
           </dl>
           <button className="wv-link" type="button" onClick={() => setMode("boiler")}>

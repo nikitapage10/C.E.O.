@@ -1,3 +1,4 @@
+import { Private } from "../Private.tsx";
 import { Waits, type Wait } from "./parts.tsx";
 
 /**
@@ -48,7 +49,9 @@ export function Home() {
             <Gauge />
             <b>{g.k}</b>
             <span>{g.s}</span>
-            <em>No reading yet</em>
+            <em>
+              <Private label="no reading yet">No reading yet</Private>
+            </em>
           </li>
         ))}
       </ul>

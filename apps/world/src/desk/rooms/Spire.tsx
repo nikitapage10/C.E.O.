@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
+import { Private } from "../Private.tsx";
 import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import "./rooms.css";
 
@@ -74,7 +75,9 @@ export function Spire() {
             {["Sent", "Paid", "Overdue"].map((k) => (
               <div key={k}>
                 <dt>{k}</dt>
-                <dd aria-label="none yet">—</dd>
+                <dd aria-label="none yet">
+                  <Private label="none yet">—</Private>
+                </dd>
               </div>
             ))}
           </dl>

@@ -22,6 +22,9 @@
   color: var(--pm-ink);
   font-variant-numeric: tabular-nums;
 }
+.pos-totals b.wv-private {
+  display: inline-block;
+}
 .pos-totals b.is-up,
 .pos-pnl.is-up {
   color: var(--pm-up);

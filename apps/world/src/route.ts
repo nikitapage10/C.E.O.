@@ -9,7 +9,7 @@ import { useSyncExternalStore } from "react";
 export type Route = "today" | "foundry" | "relay" | "boiler" | "archive" | "spire" | "exchange" | "green" | "workshop" | "lattice";
 
 /** The rooms with a page of their own past Today, the Foundry and Relay. */
-export const ROOM_ROUTES = ["boiler", "archive", "spire", "exchange", "green", "workshop"] as const;
+export const ROOM_ROUTES = ["archive", "spire", "exchange", "green", "workshop", "boiler"] as const;
 export type RoomRoute = (typeof ROOM_ROUTES)[number];
 
 const first = (pathname: string) => pathname.split("/")[1] ?? "";

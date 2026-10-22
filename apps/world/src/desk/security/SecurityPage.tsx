@@ -9,7 +9,6 @@ import { beadsSpec, tmapSpec, type Bead } from "./secViz.ts";
 import { ALERT_EXPLAIN, EVAL_EXPLAIN, ROADMAP_EXPLAIN, SCAN_EXPLAIN, STAT_EXPLAIN, featureExplain, scorecardExplain, type ScanId } from "./explain.ts";
 import { DOC_URL, ExplainInline, Out, REPO_URL, Rich, useExplain } from "./parts.tsx";
 import { PopScope } from "../Popovers.tsx";
-import { DeskSignIn } from "../SignIn.tsx";
 
 /**
  * Systems > Security (#82), in the approved Weave (desk-concepts round five): a headline from the scans, a thread
@@ -56,10 +55,6 @@ export function SecurityPage({ now }: { now: number }) {
       </header>
 
       {/* Sign-in and the site lock live here too, where Nikita looks for them (05:23Z); the Foundry keeps its copy. */}
-      <section className="wv-device wv-sec-lock" aria-label="Sign-in and site lock">
-        <p className="wv-eyb">Sign-in and site lock</p>
-        <DeskSignIn />
-      </section>
 
       <PopScope prefix="sec">
         <ScanBeads feed={feed} now={now} />

@@ -166,13 +166,23 @@ that commit and ships it. (Vercel rolls back on its own dashboard, as before.)
    GitHub's `azure` environment, re-runs the template to give it its roles, and prints the values for step 3:
 
 ```bash
-APPID=$(az ad app create --display-name ceo-github-deploy --query appId -o tsv) && SPID=$(az ad sp create --id $APPID --query id -o tsv 2>/dev/null || az ad sp show --id $APPID --query id -o tsv) && az ad app federated-credential create --id $APPID --parameters '{"name":"github-azure-env","issuer":"https://token.actions.githubusercontent.com","subject":"repo:nikitapage10/C.E.O.:environment:azure","audiences":["api://AzureADTokenExchange"]}' -o none; (git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId=$(az ad signed-in-user show --query id -o tsv) githubPrincipalId=$SPID -o none && O=$(az deployment sub show -n ceo --query properties.outputs) && printf "AZURE_CLIENT_ID=%s\nAZURE_TENANT_ID=%s\nAZURE_SUBSCRIPTION_ID=%s\nAZURE_RG=rg-ceo-prod\nAZURE_SWA_NAME=%s\nAZURE_FUNCTIONAPP_NAME=%s\nAZURE_STORAGE_ACCOUNT=%s\n" "$APPID" "$(az account show --query tenantId -o tsv)" "$(az account show --query id -o tsv)" "$(echo $O | jq -r .staticSiteName.value)" "$(echo $O | jq -r .functionAppName.value)" "$(echo $O | jq -r .storageAccountName.value)"
+APPID=$(az ad app create --display-name ceo-github-deploy --query appId -o tsv) && SPID=$(az ad sp create --id $APPID --query id -o tsv 2>/dev/null || az ad sp show --id $APPID --query id -o tsv) && az ad app federated-credential create --id $APPID --parameters '{"name":"github-azure-env","issuer":"https://token.actions.githubusercontent.com","subject":"repo:nikitapage10/C.E.O.:environment:azure","audiences":["api://AzureADTokenExchange"]}' -o none; az ad app federated-credential create --id $APPID --parameters '{"name":"github-azure-env-ids","issuer":"https://token.actions.githubusercontent.com","subject":"repo:nikitapage10@11844478/C.E.O.@1412391639:environment:azure","audiences":["api://AzureADTokenExchange"]}' -o none; (git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId=$(az ad signed-in-user show --query id -o tsv) githubPrincipalId=$SPID -o none && O=$(az deployment sub show -n ceo --query properties.outputs) && printf "AZURE_CLIENT_ID=%s\nAZURE_TENANT_ID=%s\nAZURE_SUBSCRIPTION_ID=%s\nAZURE_RG=rg-ceo-prod\nAZURE_SWA_NAME=%s\nAZURE_FUNCTIONAPP_NAME=%s\nAZURE_STORAGE_ACCOUNT=%s\n" "$APPID" "$(az account show --query tenantId -o tsv)" "$(az account show --query id -o tsv)" "$(echo $O | jq -r .staticSiteName.value)" "$(echo $O | jq -r .functionAppName.value)" "$(echo $O | jq -r .storageAccountName.value)"
+```
+
+   GitHub names this repo in its sign-in tokens by its IDs (`repo:nikitapage10@11844478/C.E.O.@1412391639:…`, owner
+   ID then repo ID), not only by its name, so the paste trusts both forms. If sign-in fails with `AADSTS700213` (no
+   matching federated credential), the token's subject isn't one of them: the error prints it, and adding a credential
+   with that subject fixes it. For a setup made before the ID form was added, this one line adds it:
+
+```bash
+az ad app federated-credential create --id $(az ad app list --display-name ceo-github-deploy --query [0].appId -o tsv) --parameters '{"name":"github-azure-env-ids","issuer":"https://token.actions.githubusercontent.com","subject":"repo:nikitapage10@11844478/C.E.O.@1412391639:environment:azure","audiences":["api://AzureADTokenExchange"]}' -o none
 ```
 
 2. On GitHub: the repo's **Settings → Environments → New environment**, name it `azure`. Under **Deployment branches
    and tags** pick **Selected branches and tags** and add `main`.
 3. On GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**, once for each of
-   the seven lines step 1 printed (name on the left of `=`, value on the right). None of them is a secret.
+   the seven lines step 1 printed (name on the left of `=`, value on the right). None of them is a secret. The
+   workflows drop stray spaces and line breaks from them, so a messy paste still works.
 4. Run "Deploy to Azure" once from the Actions tab (or push anything to `main`).
 
 From then on every push to `main` updates both Vercel and Azure.

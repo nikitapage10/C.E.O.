@@ -44,7 +44,7 @@ import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
 import type { WorldState } from "./_world/types.js";
 
-export const SKIPPY_MODEL = "claude-haiku-5-5";
+export const SKIPPY_MODEL = "claude-opus-5-5";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -56,14 +56,14 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
 /** One call to Claude: the parsed answer (null when unusable) and what it used (null when it never answered). */
 export type Ask = (system: string, input: string) => Promise<{ answer: unknown; usage: Usage | null }>;
 
-/** Claude Haiku with the fixed rules, the fenced input, structured output and a hard max_tokens. */
+/** Claude Opus 5.5 with the fixed rules, the fenced input, structured output and a hard max_tokens (thinking can't be
+ * turned off on Opus 5.5: effort "low" keeps it short, and max_tokens leaves room for it). */
 export function claudeChat(key: string): Ask {
   const client = new Anthropic({ apiKey: key, timeout: 15_000, maxRetries: 1 });
   return async (system, input) => {
     const res = await client.messages.create({
       model: SKIPPY_MODEL,
       max_tokens: CHAT_MAX_TOKENS,
-      thinking: { type: "disabled" },
       output_config: { effort: "low", format: { type: "json_schema", schema: SKIPPY_SCHEMA } },
       system,
       messages: [{ role: "user", content: input }],

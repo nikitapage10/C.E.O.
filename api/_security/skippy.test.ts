@@ -90,8 +90,8 @@ describe("Skippy's chat: untrusted text stays in its data blocks", () => {
     expect(call.output_config?.format).toEqual({ type: "json_schema", schema: SKIPPY_SCHEMA });
     expect(SKIPPY_SCHEMA.additionalProperties).toBe(false);
     expect(SKIPPY_SCHEMA.properties.actions.items.additionalProperties).toBe(false);
-    expect(call.max_tokens).toBeLessThanOrEqual(500);
-    expect(call.model).toMatch(/^claude-haiku/);
+    expect(call.max_tokens).toBeLessThanOrEqual(2_000);
+    expect(call.model).toBe("claude-opus-5-5");
   });
 });
 
@@ -151,7 +151,7 @@ describe("Skippy's chat: the gates hold before Claude hears anything", () => {
 
   it("respects the month's budget: a spent share means a scripted line and no call", async () => {
     const ledger = new MemoryChatLedger();
-    ledger.spend = { "2026-10": { usd: 0.9999, calls: 1, tokensIn: 0, tokensOut: 0 } };
+    ledger.spend = { "2026-10": { usd: 1.9999, calls: 1, tokensIn: 0, tokensOut: 0 } };
     const { post, asked } = await harness({ ledger });
     const body = (await (await post({ message: "hi" })).json()) as { capped?: boolean };
     expect(body.capped).toBe(true);

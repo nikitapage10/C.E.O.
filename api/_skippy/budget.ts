@@ -2,7 +2,7 @@
  * Skippy's chat under the month's Claude cap (#224, docs/THREAT-MODEL.md LLM10). Claude's API is capped at $10 a
  * month for C.E.O. (the provider's cap, and api/_world/budget.ts in code): the world step takes up to
  * WORLD_BUDGET_USD ($6 by default) and idea shaping lives in what is left. The chat gets a share of that remainder,
- * SKIPPY_BUDGET_USD ($1 by default), and never so much that the world, the chat and a reserve for Rivet's shaping
+ * SKIPPY_BUDGET_USD ($2 by default), and never so much that the world, the chat and a reserve for Rivet's shaping
  * together pass the cap: a chat call goes out only while
  *
  *   chat this month + one call at its most   <= the chat's share, and
@@ -10,13 +10,14 @@
  *
  * The chat keeps its own month ledger in the private blob store (`desk/skippy/spend.json`), beside the Desk's
  * sign-ins, and every call is added to it from the call's own token use, as the world step does. Past the cap Skippy
- * answers with a scripted line and spends nothing until the month turns. A call costs about a twentieth of a cent.
+ * answers with a scripted line and spends nothing until the month turns. The chat runs on Claude Opus 5.5 (Nikita,
+ * 2026-10-22): a typical call costs about 3 cents.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
 import { BlobPreconditionError, type BlobBackend } from "../_blob.js";
-import { costOf, SHAPE_PRICE, type Usage } from "../foundry.js";
+import { costOf, type Usage } from "../foundry.js";
 import { monthOf } from "../_world/budget.js";
 
 /** The month's cap on Claude's API for all of C.E.O. (shared with api/_world/budget.ts). */
@@ -24,11 +25,15 @@ export const CLAUDE_CAP_USD = 10;
 /** Kept back for Rivet's shaping, which has no ledger of its own: the chat never eats into it. */
 export const SHAPING_RESERVE_USD = 2;
 /** The chat's share of the month, unless SKIPPY_BUDGET_USD says otherwise. */
-export const SKIPPY_BUDGET_USD = 1;
+export const SKIPPY_BUDGET_USD = 2;
 
-/** The most one chat call can cost: its prompt (capped at 24k tokens by the input limits) and max_tokens out. */
-export const CHAT_MAX_TOKENS = 500;
-export const CHAT_CEILING_USD = (24_000 * SHAPE_PRICE.input + CHAT_MAX_TOKENS * SHAPE_PRICE.output) / 1_000_000;
+/** Claude Opus 5.5's list price in dollars per million tokens (cache writes and reads as multiples of input). */
+export const SKIPPY_PRICE = { input: 4, output: 20, longInput: 4, longOutput: 20, longFrom: 1_000_000, cacheWrite: 1.25, cacheRead: 0.05 } as const;
+
+/** The most one chat call can cost: its prompt (capped at 24k tokens by the input limits) and max_tokens out, thinking
+ * included. */
+export const CHAT_MAX_TOKENS = 2_000;
+export const CHAT_CEILING_USD = (24_000 * SKIPPY_PRICE.input + CHAT_MAX_TOKENS * SKIPPY_PRICE.output) / 1_000_000;
 
 export interface ChatMonth {
   usd: number;
@@ -44,7 +49,7 @@ const EMPTY: ChatMonth = { usd: 0, calls: 0, tokensIn: 0, tokensOut: 0 };
 export const chatMonth = (spend: ChatSpend, now: number): ChatMonth => ({ ...EMPTY, ...spend[monthOf(now)] });
 
 /**
- * The chat's share from the environment, else $1; never more than the cap leaves after the world's share and the
+ * The chat's share from the environment, else $2; never more than the cap leaves after the world's share and the
  * shaping reserve, and never below 0.
  */
 export function skippyBudget(env: string | undefined, world: number): number {
@@ -63,7 +68,7 @@ export function addChatSpend(spend: ChatSpend, now: number, usage: Usage): ChatS
   const month = monthOf(now);
   const cur = chatMonth(spend, now);
   const tokensIn = usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
-  const next: ChatMonth = { usd: cur.usd + costOf(usage), calls: cur.calls + 1, tokensIn: cur.tokensIn + tokensIn, tokensOut: cur.tokensOut + usage.output_tokens };
+  const next: ChatMonth = { usd: cur.usd + costOf(usage, SKIPPY_PRICE), calls: cur.calls + 1, tokensIn: cur.tokensIn + tokensIn, tokensOut: cur.tokensOut + usage.output_tokens };
   const all = { ...spend, [month]: next };
   return Object.fromEntries(Object.keys(all).sort().slice(-6).map((k) => [k, all[k]!]));
 }

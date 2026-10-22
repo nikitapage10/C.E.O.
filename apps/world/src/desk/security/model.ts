@@ -178,7 +178,7 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Supply Chain",
     where: "npm packages, GitHub Actions, the Claude SDK",
     controls:
-      "Lockfile with `npm ci`; `npm audit signatures` and `npm audit --audit-level=high` in checks; dependency review; Dependabot; actions pinned to SHAs; CodeQL; OpenSSF Scorecard (#64, #67)",
+      "Lockfile with `npm ci`; `npm audit signatures` and `npm audit --audit-level=high` in checks; dependency review; Dependabot; actions pinned to SHAs; CodeQL; OpenSSF Scorecard (#64, #67); the Azure deploy signs in with OIDC from the `azure` environment, which only `main` may use (#218)",
     residual: "A malicious release that passes signature checks before it is known",
     tracking: "Watched by Dependabot and dependency review",
   },
@@ -247,7 +247,7 @@ export const OWASP_LLM: LlmRisk[] = [
 export const SAIF: { element: string; inCeo: string }[] = [
   {
     element: "Expand strong security foundations to the AI ecosystem",
-    inCeo: "Secrets only in Vercel and Actions secrets; pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62)",
+    inCeo: "Secrets only in Vercel, Actions secrets and Azure Key Vault; Azure deploys sign in with OIDC, with no stored key (#218); pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62)",
   },
   {
     element: "Extend detection and response",

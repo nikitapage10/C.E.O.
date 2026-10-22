@@ -5,6 +5,7 @@ import { PATHS } from "../route.ts";
 import { DESK_ROOMS, roomImage } from "./deskData.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { BANNERS, roomImage2x } from "./RoomBanner.tsx";
+import { ROOM_META } from "./roomPulse.ts";
 import { systemsPageOf } from "./SystemsNav.tsx";
 
 const file = (src: string) => new URL(`../../public${src}`, import.meta.url);
@@ -36,5 +37,14 @@ describe("room banners", () => {
       expect(voice.line).toBe(cast.profiles[voice.id]!.personality.catchphrase);
       expect(PORTRAITS[voice.id]?.name).toBe(agent!.name);
     }
+  });
+
+  it("puts the Pessimist on the Boiler Room banner and Gary on Compliance", () => {
+    expect(BANNERS.boiler.voice.id).toBe("soot");
+    expect(BANNERS.compliance.voice.id).toBe("gary");
+  });
+
+  it("has a portrait on disk for every room's submind, the face on its pipe", () => {
+    for (const { submind } of Object.values(ROOM_META)) expect(existsSync(file(`/desk/agent-${submind.id}.webp`)), submind.id).toBe(true);
   });
 });

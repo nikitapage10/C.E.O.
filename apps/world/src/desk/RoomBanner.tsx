@@ -15,8 +15,8 @@ export type BannerPage = "relay" | "foundry" | "boiler" | "security" | "complian
 export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; title: string; voice: { id: string; line: string } }> = {
   relay: { room: "relay", eyebrow: "The switchboard", title: "Relay", voice: { id: "dialtone", line: "Please hold. Not you, darling." } },
   foundry: { room: "foundry", eyebrow: "The coding crew", title: "Foundry", voice: { id: "ember", line: "Weld it. Test it. Ship it. Why are we still talking?" } },
-  // The Boiler Room carries every link: Gary keeps the gauges.
-  boiler: { room: "boiler", eyebrow: "Every pipe in the house", title: "Boiler Room", voice: { id: "gary", line: "Honk. (I have tape.)" } },
+  // The Boiler Room carries every link: the Pessimist watches the gauges.
+  boiler: { room: "boiler", eyebrow: "Every pipe in the house", title: "Boiler Room", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
   // The Pessimist reads the gauges like omens, and is delighted to be wrong: the scans, said its way.
   security: { room: "boiler", eyebrow: "The Boiler Room", title: "Security", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
   compliance: { room: "boiler", eyebrow: "The Boiler Room", title: "Compliance", voice: { id: "gary", line: "Honk. (I have tape.)" } },

@@ -4,6 +4,7 @@ import { navigate, renamedPath, usePathname, type Route } from "../route.ts";
 import { useSystems } from "../systems.ts";
 import { startWorldClock } from "../worldClock.ts";
 import { useAwaySince } from "./awaySince.ts";
+import { useHide } from "./hide.ts";
 import { DeskNav, KEY_ORDER, ROOM_TABS } from "./DeskNav.tsx";
 import { DeskSky } from "./DeskSky.tsx";
 import { useDeskData } from "./deskData.ts";
@@ -90,7 +91,12 @@ export function Desk({ route }: { route: DeskTab }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement | null)?.closest("input, textarea")) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]")) return;
+      // Shift+H: Hide, the same as the bar's eye.
+      if (e.shiftKey && (e.key === "H" || e.key === "h")) {
+        useHide.getState().toggle();
+        return;
+      }
       const to = KEY_ORDER[Number(e.key) - 1];
       if (to && /^[1-9]$/.test(e.key)) navigate(to, window.location.search);
     };
@@ -99,6 +105,7 @@ export function Desk({ route }: { route: DeskTab }) {
   }, []);
 
   const skippyOpen = useSkippy((s) => s.open);
+  const hide = useHide((s) => s.on);
   const skippyOpener = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const remember = (e: Event) => {
@@ -118,7 +125,7 @@ export function Desk({ route }: { route: DeskTab }) {
   const connected = hub !== "off";
 
   return (
-    <div className="desk" data-route={route}>
+    <div className="desk" data-route={route} data-hide={hide || undefined}>
       <DeskSky />
       <DeskNav route={route} owed={owed} now={now} />
 

@@ -229,7 +229,7 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
       st: clockLine,
       stc: G_STATE[clock.state],
       edges: [
-        { a: "cron", b: "step", room: "boiler", state: nodes.step!.state, label: "POST /api/world-step", how: "A GitHub Actions cron calls the world step on Vercel.", ...fromConn("world-trigger") },
+        { a: "cron", b: "step", room: "boiler", state: nodes.step!.state, label: "POST /api/world-step", how: "A GitHub Actions cron calls the world step on Vercel, as a backup to the Azure timer.", ...fromConn("world-trigger") },
         { a: "doorbell", b: "step", room: "boiler", state: nodes.doorbell!.state === "wait" ? "wait" : nodes.step!.state, label: "A backup knock", kinds: ["Webhook"], how: "The Foundry's doorbell knocks too, in case GitHub's schedule runs late.", auth: "None needed: a step within 55 minutes of the last one does nothing.", when: "Every ten minutes." },
         { a: "step", b: "claude", room: "boiler", state: world?.claude ? nodes.step!.state : "wait", label: "Writes the hour", how: "Claude Haiku writes the next hour of Ilyr in a fixed shape, and every answer is checked again.", ...fromConn("claude-api") },
         { a: "step", b: "worldstate", room: "boiler", state: nodes.worldstate!.state, label: "Saves it", how: "The new hour is saved with an ETag check, so two steps can't both land.", ...fromConn("blob") },

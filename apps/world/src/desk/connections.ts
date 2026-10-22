@@ -118,9 +118,9 @@ export const CONNECTIONS: Connection[] = [
     serves: "The hourly step",
     kinds: ["Scheduled", "Webhook"],
     status: "live",
-    how: "A GitHub Actions cron POSTs to /api/world-step on Vercel; the doorbell POSTs too, as a backup for GitHub's late schedule. The Desk reads the same address to draw the world clock.",
+    how: "A timer on the Azure Function App steps the Azure world and POSTs to /api/world-step on Vercel; a GitHub Actions cron and the doorbell knock too, as backups. The Desk reads the same address to draw the world clock.",
     auth: "None needed: a step within 55 minutes of the last one does nothing.",
-    when: "At :05 every hour, plus every ten minutes from the doorbell; the Desk reads it every minute.",
+    when: "At :05 and :35 every hour from Azure, :05 from GitHub (when it fires), every ten minutes from the doorbell; the Desk reads it every minute.",
   },
   {
     id: "blob",

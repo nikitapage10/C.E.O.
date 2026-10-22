@@ -32,6 +32,7 @@ import { withGate } from "../../api/_site/gate.js";
 import { pickSiteStore } from "../../api/_site/state.js";
 import { adapt, type AdaptOptions, type WebHandler } from "./adapter.js";
 import { azureBlobFromEnv } from "./blob.js";
+import { tick, TICK_SCHEDULE } from "./tick.js";
 
 // WORLD_STORE=azureblob: the world, stories, Desk sign-ins and pictures in the `ceo-state` container.
 registerAzureBlob(azureBlobFromEnv);
@@ -87,6 +88,15 @@ for (const [name, mod, opts] of ENDPOINTS) {
     },
   });
 }
+
+// The world's steady clock (#271, ./tick.ts): steps the Azure world in-process and knocks on Vercel's, at :05 and :35,
+// so the world no longer waits on GitHub's best-effort hourly schedule.
+app.timer("world_tick", {
+  schedule: TICK_SCHEDULE,
+  handler: async (_timer, context) => {
+    await tick({ step: () => worldstep.POST(), fetch, env: process.env, log: { log: (m: string) => context.log(m), error: (m: string) => context.error(m) } });
+  },
+});
 
 // The email agent's minute (#263, docs/GMAIL.md): Gmail's history every minute, Claude only for new inbox mail.
 // Logs only what happened, by kind ("checked", "busy", "waiting"…), never anything from a mail.

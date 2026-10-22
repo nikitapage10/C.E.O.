@@ -1,12 +1,13 @@
-# The living Lattice's clock: once an hour, advance the world one step (docs/WORLD.md). The step runs on Vercel
+# The living Lattice's clock: advance the world one step an hour (docs/WORLD.md). The step runs on Vercel
 # (api/world-step.ts) and is idempotent per hour, so this needs no secret: calling it again within 55 minutes does
-# nothing. GitHub may run a scheduled job a few minutes late, or skip one when it is busy; the next hour catches up
-# on whatever happened in between.
+# nothing, and the site gate lets a POST through (api/_site/gate.ts). GitHub runs this schedule best-effort (on
+# 2026-10-21/22 only every four to five hours), so it is a backup knock now: the steady driver is the Function App's
+# timer (azure/src/tick.ts, #271), which steps both worlds at :05 and :35. The Foundry doorbell knocks too.
 #
 # The Azure copy (docs/AZURE.md) keeps its own world in its own store, so the same hour advances it too, in a job of
 # its own: it signs in like deploy-azure.yml (OIDC, the `azure` environment, main only), finds the Function App's
-# address, and calls the step there (not through the site's /api, whose proxy may cut a long request). It is skipped
-# until Azure is set up, and anything that goes wrong on Azure is a warning, never a red run: Vercel is production.
+# address (or, failing that, the Static Web App's), and calls the step there. It is skipped until Azure is set up;
+# once it is, a step that can't be reached or doesn't answer 200/409 fails the job, so a stopped clock shows here.
 name: World step
 
 on:
@@ -56,31 +57,34 @@ jobs:
             printf '%s=%s\n' "${k,,}" "$(printf '%s' "${!k}" | tr -d '\r\n[:space:]')" >> "$GITHUB_OUTPUT"
           done
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
-        id: login
-        continue-on-error: true
         with:
           client-id: ${{ steps.az.outputs.client }}
           tenant-id: ${{ steps.az.outputs.tenant }}
           subscription-id: ${{ steps.az.outputs.sub }}
       - name: Advance the Azure world one hour
-        if: steps.login.outcome == 'success'
         env:
           RG: ${{ steps.az.outputs.rg }}
           FUNC: ${{ steps.az.outputs.func }}
           SWA: ${{ steps.az.outputs.swa }}
+          SITE_HOST: ${{ vars.AZURE_SITE_HOST }}
         run: |
-          host=$(az functionapp show -g "$RG" -n "$FUNC" --query defaultHostName -o tsv 2>/dev/null) || host=""
-          if [ -z "$host" ]; then echo "::warning::Couldn't find the Azure Function App; skipped."; exit 0; fi
-          code=$(curl -sS -o step.json -w '%{http_code}' -X POST --max-time 300 "https://$host/api/world-step") || code=000
-          # The Function App's own address may refuse callers once the Static Web App is linked to it; then go
-          # through the site instead.
-          if [ "$code" = "401" ] || [ "$code" = "403" ]; then
-            site=$(az staticwebapp show -g "$RG" -n "$SWA" --query defaultHostname -o tsv 2>/dev/null) || site=""
-            if [ -n "$site" ]; then code=$(curl -sS -o step.json -w '%{http_code}' -X POST --max-time 300 "https://$site/api/world-step") || code=000; fi
+          post() { local c; c=$(curl -sS -o step.json -w '%{http_code}' -X POST --max-time 300 "https://$1/api/world-step") || c=000; echo "$c"; }
+          # The Function App's own address first (no proxy cut). `az functionapp show` has come back empty for the
+          # Flex app (#271), so read the site resource directly, and say why when it fails.
+          host=$(az resource show -g "$RG" -n "$FUNC" --resource-type Microsoft.Web/sites --query properties.defaultHostName -o tsv) || host=""
+          code=000
+          if [ -n "$host" ]; then code=$(post "$host"); echo "Function App: HTTP $code"; else echo "::notice::No Function App address for '$FUNC' in '$RG'; trying the site."; fi
+          # The Function App refuses direct callers once the Static Web App is linked to it, or it wasn't found: go
+          # through the site's /api instead (its proxy may cut a long step, but the step still lands).
+          if [ "$code" != "200" ] && [ "$code" != "409" ]; then
+            site="${SITE_HOST:-}"
+            if [ -z "$site" ]; then site=$(az staticwebapp show -g "$RG" -n "$SWA" --query defaultHostname -o tsv) || site=""; fi
+            # Last resort: the site's address as it stands (docs/AZURE.md).
+            site="${site:-thankful-forest-019308c1e.5.azurestaticapps.net}"
+            code=$(post "$site"); echo "Site: HTTP $code"
+            # The proxy cuts an answer at ~45 s (a step that waits for the day's story); the step itself carries on,
+            # so ask once more: a landed step answers 200 "not due yet" at once.
+            case "$code" in 000|502|504) sleep 60; code=$(post "$site"); echo "Site, again: HTTP $code" ;; esac
           fi
-          echo "HTTP $code"
           head -c 600 step.json 2>/dev/null; echo
-          if [ "$code" != "200" ] && [ "$code" != "409" ]; then echo "::warning::The Azure world step answered HTTP $code."; fi
-      - name: Note a skipped sign-in
-        if: steps.login.outcome != 'success'
-        run: echo "::warning::Couldn't sign in to Azure; the Azure world step was skipped."
+          if [ "$code" != "200" ] && [ "$code" != "409" ]; then echo "::error::The Azure world step answered HTTP $code."; exit 1; fi

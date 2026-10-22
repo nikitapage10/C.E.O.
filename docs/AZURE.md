@@ -246,12 +246,15 @@ until the one-time setup below is done, so main stays green either way.
   zip-deployed to Flex Consumption) go out in parallel. Expect about 3 to 4 minutes from push to live.
 - **`.github/workflows/world-step.yml`** and **`.github/workflows/desk-pings.yml`**, hourly (and pings on Foundry
   issue events): each has a second job, `azure`, beside the Vercel one. The world step calls the Function App's own
-  address (`az functionapp show … defaultHostName`), since a step can take minutes and the site's proxy may cut it;
-  if that address refuses callers (a linked Static Web App can do that), it goes through the site's `/api` instead.
+  address (`az resource show … properties.defaultHostName`; `az functionapp show` came back empty for the Flex app,
+  #271), since a step can take minutes and the site's proxy may cut it; if that address refuses callers (a linked
+  Static Web App can do that) or can't be found, it goes through the site's `/api` instead (`AZURE_SITE_HOST`, else
+  `az staticwebapp show`, else the site's known address), and a step that still fails fails the job. The steady
+  driver for both worlds is the Function App's own timer, `world_tick` (`azure/src/tick.ts`), at :05 and :35.
   The pings job reads `desk-pings-secret` from the vault at run time (masked in the log; GitHub keeps no copy, and
   it isn't Vercel's), which needs the Key Vault Secrets User role the template gives GitHub's identity. Until Azure
-  is set up the job is skipped; if sign-in, the vault read or the call fails it leaves a warning and the run stays
-  green, since Vercel is production. Each run shows as a deployment to the `azure` environment, like the backups.
+  is set up the job is skipped; if the pings job's sign-in, vault read or call fails it leaves a warning and the run
+  stays green, since Vercel is production. Each run shows as a deployment to the `azure` environment, like the backups.
 - **`.github/workflows/backup-azure.yml`**, nightly at 10:41 UTC: the production world from Vercel's public API
   (`/api/world` and the last 7 days), everything in the Azure copy's `ceo-state`, and `apps/world/public/models`,
   into `ceo-backups/<YYYY-MM-DD>/` in Cool tier. The container keeps 90 days.

@@ -160,7 +160,7 @@ export function Exchange() {
         </div>
       </section>
 
-      <Waits items={WAITS} className="ex-waits" />
+      <Waits items={posStatus === "live" ? WAITS.slice(1) : WAITS} className="ex-waits" />
     </div>
   );
 }

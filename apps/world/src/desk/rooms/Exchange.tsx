@@ -1,23 +1,27 @@
 import { useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
 import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
+import { PolymarketBoard } from "../exchange/PolymarketBoard.tsx";
+import { tapeLine, usePolymarket } from "../exchange/polymarket.ts";
 import "./rooms.css";
 
 /**
  * The Exchange (#225): markets and money, as a trading floor at night. Kalshi positions and P&L first, then markets the
  * Bookie thinks are mispriced with his reasons, then crypto and stock research, a watchlist and a paper-trading
- * record; below, behind the passkey, personal money: spending, debts and subscriptions. Nothing is connected yet, so
- * the tape says so and the board is dark. It starts read-only, on paper trades; the Lattice will only ever say
- * "on track" or "needs a look".
+ * record; below, behind the passkey, personal money: spending, debts and subscriptions. Polymarket's public odds are
+ * live (#240, PolymarketBoard: the busiest markets and a pinned watchlist, read-only); Kalshi and the rest aren't
+ * connected yet, so the tape says so and their boards stay dark. It starts read-only, on paper trades; the Lattice will
+ * only ever say "on track" or "needs a look".
  */
 
 const MINT = "124,205,172";
 
+/** The tape; MARKET DATA and WATCHLIST read Polymarket live (#240). */
 const TAPE = [
   ["KALSHI", "not connected"],
   ["POSITIONS", "none"],
-  ["MARKET DATA", "not connected"],
-  ["WATCHLIST", "empty"],
+  ["MARKET DATA", ""],
+  ["WATCHLIST", ""],
   ["PAPER TRADES", "none yet"],
   ["PLAID", "not connected"],
   ["STATEMENTS", "none uploaded"],
@@ -25,7 +29,7 @@ const TAPE = [
 
 const WAITS: Wait[] = [
   { what: "A Kalshi API key", why: "Read-only first: positions and P&L. Trades stay on paper until you say otherwise." },
-  { what: "A market-data source", why: "Prices for the watchlist and the research desk, crypto and stocks." },
+  { what: "A crypto and stock price source", why: "Prices for the research desk. Prediction-market odds already come from Polymarket, above." },
   { what: "OpenAI for the reasoning", why: "Reads a market, makes its own estimate and shows its working. The key stays on the server." },
   { what: "Plaid, read-only, or statement uploads", why: "For spending, debts and subscriptions. Behind the Desk's passkey; nothing leaves the server." },
 ];
@@ -67,10 +71,15 @@ export function Exchange() {
   const cv = useRef<HTMLCanvasElement>(null);
   const spec = useMemo(floorSpec, []);
   useViz(cv, spec);
-  const tape = [...TAPE, ...TAPE];
+  const pmStatus = usePolymarket((s) => s.status);
+  const pmBoard = usePolymarket((s) => s.board);
+  const pmLive = pmStatus === "ready" && pmBoard !== null;
+  const pinned = pmBoard?.watchlist.length ?? 0;
+  const live = TAPE.map(([k, v]): [string, string] => [k, k === "MARKET DATA" ? tapeLine(pmStatus, pmBoard) : k === "WATCHLIST" ? (pmBoard ? (pinned ? `${pinned} pinned` : "empty") : "–") : v]);
+  const tape = [...live, ...live];
   return (
     <div className="wv-page rm rm-exchange" data-room="exchange">
-      <div className="ex-tape" aria-label="The tape: Kalshi, market data and Plaid are not connected yet">
+      <div className="ex-tape" aria-label={`The tape: market data, ${tapeLine(pmStatus, pmBoard)}; Kalshi and Plaid are not connected yet`}>
         <p aria-hidden="true">
           {tape.map(([k, v], i) => (
             <span key={i}>
@@ -85,11 +94,19 @@ export function Exchange() {
         <div>
           <p className="wv-eyb">The Exchange · the floor after hours</p>
           <h1 className="wv-h1 desk__title">
-            The board is dark. <em>The Bookie isn't.</em>
+            {pmLive ? (
+              <>
+                The odds are lit. <em>The Bookie is sweating.</em>
+              </>
+            ) : (
+              <>
+                The board is dark. <em>The Bookie isn't.</em>
+              </>
+            )}
           </h1>
           <p className="wv-sub">
             The Exchange will hold your Kalshi positions and what they're worth, the markets the Bookie thinks are mispriced and why, and research on crypto and stocks.
-            It starts read-only, on paper trades. Nothing is connected yet.
+            It starts read-only, on paper trades. Polymarket's public odds are live below; Kalshi and the rest aren't connected yet.
           </p>
         </div>
         <Keeper page="exchange" />
@@ -124,6 +141,8 @@ export function Exchange() {
         </table>
       </section>
 
+      <PolymarketBoard />
+
       <div className="ex-grid">
         <section className="ex-card" aria-label="Mispriced markets">
           <p className="wv-eyb">Mispriced, with reasons</p>
@@ -133,7 +152,7 @@ export function Exchange() {
         <section className="ex-card" aria-label="Research">
           <p className="wv-eyb">The research desk</p>
           <h2 className="rm-h2">Crypto, stocks and a watchlist</h2>
-          <p className="wv-note">Notes on what you're watching and a paper-trading record that keeps score honestly, wins and losses alike. Waits on a market-data source.</p>
+          <p className="wv-note">Notes on what you're watching and a paper-trading record that keeps score honestly, wins and losses alike. Prediction markets read from Polymarket now (pin one above); crypto and stocks wait on a price source.</p>
         </section>
       </div>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useWorldFeed } from "../chronicle.ts";
 import { CREW, crewOf, useFoundry } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
@@ -11,6 +11,7 @@ import { PipeRack } from "./PipeRack.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
+import { startPolymarket } from "./exchange/polymarket.ts";
 import { roomLink } from "./hero/roomLink.ts";
 import { Home } from "./rooms/Home.tsx";
 import "./rooms/rooms.css";
@@ -26,7 +27,7 @@ import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 /** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
 const PLANNED: { room: string; name: string; what: string; href?: string }[] = [
   { room: "spire", name: "Spire", what: "Stripe Invoicing and the idea scout", href: "/spire" },
-  { room: "exchange", name: "Exchange", what: "Kalshi, market data, and Plaid or statements", href: "/exchange" },
+  { room: "exchange", name: "Exchange", what: "Kalshi, crypto and stock prices, and Plaid or statements (Polymarket's odds are live)", href: "/exchange" },
   { room: "green", name: "Green", what: "Sleeper and FantasyPros", href: "/green" },
   { room: "workshop", name: "Workshop", what: "Meshy and the Bambu Lab printer", href: "/workshop" },
   { room: "boiler", name: "The house", what: "Google Nest, below" },
@@ -51,6 +52,8 @@ const VQA_STATE: Record<string, LinkState> = { ok: "ok", slow: "ok", down: "down
 
 export function Systems({ now }: { now: number }) {
   const [mode, setMode] = useState<"overview" | FlowId>(firstMode);
+  // Polymarket's thread is real (#240): read its odds while this page is open, so the thread shows its true state.
+  useEffect(() => startPolymarket(), []);
   const linkList = useSystems((s) => s.links);
   const links = useMemo(() => Object.fromEntries(linkList.map((l) => [l.id, l.state])) as Record<string, LinkState>, [linkList]);
   const connected = useFoundry((s) => s.connected);

@@ -97,8 +97,9 @@ describe("locking the site from the Desk (#236, #238)", () => {
     expect(await opens(site, pair(cookieOf(out)))).toBe(true);
 
     const off = await lockPost(json({ action: "off" }, desk), lock);
-    expect(await off.json()).toMatchObject({ on: false, source: "none" });
+    expect(await off.json()).toMatchObject({ on: false, source: "open" });
     expect(site.record?.passkey).toBeUndefined();
+    expect(site.record?.open).toBe(true);
     forgetCachedState();
     expect(await opens(site, "")).toBe(true);
     // Signing out everywhere while unlocked: nothing to do.
@@ -116,8 +117,10 @@ describe("locking the site from the Desk (#236, #238)", () => {
 });
 
 describe("the login page (#236, #238)", () => {
-  it("goes straight on while the site isn't locked", async () => {
-    const { login } = await setup();
+  it("goes straight on while the site is unlocked", async () => {
+    const { lock, desk, login } = await setup();
+    await lockPost(json({ action: "off" }, desk), lock);
+    forgetCachedState();
     const res = await handleGet(new Request(`${ORIGIN}/api/site-login?next=/lattice`), login());
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("/lattice");
@@ -167,8 +170,11 @@ describe("the login page (#236, #238)", () => {
 
   it("the passkey's site cookie: 180 days, only while locked", async () => {
     const { site, lock, desk } = await setup();
+    await lockPost(json({ action: "off" }, desk), lock);
+    forgetCachedState();
     expect(await passkeySiteCookie(env, site, NOW)).toBeNull();
     await lockPost(json({ action: "lock" }, desk), lock);
+    expect(site.record?.open).toBeUndefined();
     expect(await passkeySiteCookie(env, site, NOW)).toMatch(/Max-Age=15552000$/);
     expect(await passkeySiteCookie({ ...env, SITE_GATE: "off" }, site, NOW)).toBeNull();
     site.fail = true;

@@ -148,6 +148,9 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     blasto: { id: "blasto", l: "Blasto", s: "drafts replies", k: "agent", pf: "postmaster", state: L("postmaster") },
     vqa: { id: "vqa", l: "Visual QA", s: "Gemini", k: "service", state: G_STATE[vqa] },
     pings: { id: "pings", l: "Pings", s: "to your phone", k: "service", state: pings ? "ok" : "wait" },
+    // The Exchange's first real connection (#240): Polymarket's public odds, read-only.
+    exchange: { id: "exchange", l: "Exchange", s: L("polymarket") === "wait" ? "Kalshi not connected" : "Polymarket odds", k: "room", room: "exchange", state: L("polymarket") === "wait" ? "wait" : L("polymarket") },
+    polymarket: { id: "polymarket", l: "Polymarket", s: "public odds", k: "service", state: L("polymarket") },
   };
   // The Foundry's own parts, with their live readings.
   for (const n of foundry.nodes) {
@@ -179,6 +182,8 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     e("relay", "bluebubbles", "relay", nodes.bluebubbles!.state),
     e("relay", "openai", "relay", nodes.openai!.state),
     e("relay", "lattice", "relay", nodes.relay!.state),
+    e("desk", "exchange", "exchange", nodes.exchange!.state),
+    { ...e("exchange", "polymarket", "exchange", nodes.polymarket!.state), label: "Live odds", how: conn("polymarket")?.how, ...fromConn("polymarket") },
   ];
 
   // The Foundry's flow: foundryGraph's edges, with their connections' kinds, sign-in and timing.
@@ -278,7 +283,10 @@ export interface Fitting {
 
 /** One straight pipe on the Boiler Room's rack: a room, what feeds it and what it feeds, in the order the data flows. */
 export interface PipeRow {
-  id: FlowId;
+  /** The room's id; a FlowId when the room has a whole flow to open. */
+  id: string;
+  /** Whether tapping the pipe can open the room's whole flow. */
+  flow: boolean;
   room: string;
   name: string;
   sub: string;
@@ -297,7 +305,9 @@ const PIPE_NAME: Record<FlowId, string> = { foundry: "Foundry", boiler: "Boiler 
  * its connection's real state. A part two rooms use sits on both pipes.
  */
 export function pipeRows(nodes: Record<string, GNode>, over: GEdge[], flows: Record<FlowId, Flow>): PipeRow[] {
-  return (Object.keys(flows) as FlowId[]).map((id) => {
+  // Every room with a flow, then any other room that owns a connection, in the order the overview lists them.
+  const ids = [...new Set<string>([...Object.keys(flows), ...over.map((e) => e.room)])];
+  return ids.map((id) => {
     const mine = over.filter((e) => e.room === id);
     const fit = (nid: string, state: GState, side: Fitting["side"]): Fitting => {
       const n = nodes[nid];
@@ -322,8 +332,10 @@ export function pipeRows(nodes: Record<string, GNode>, over: GEdge[], flows: Rec
       }
     }
     outs.sort((a, b) => Number(a.id === "lattice") - Number(b.id === "lattice"));
-    const f = flows[id];
-    return { id, room: f.room, name: PIPE_NAME[id], sub: f.sub, stc: f.stc, steps: f.edges.length, ins, outs };
+    const f = (flows as Record<string, Flow | undefined>)[id];
+    const n = nodes[id];
+    if (f) return { id, flow: true, room: f.room, name: PIPE_NAME[id as FlowId], sub: f.sub, stc: f.stc, steps: f.edges.length, ins, outs };
+    return { id, flow: false, room: n?.room ?? id, name: n?.l ?? id, sub: n?.s ?? "", stc: n?.state ?? "wait", steps: mine.length, ins, outs };
   });
 }
 

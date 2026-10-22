@@ -1,14 +1,17 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadLattice, ROOM_ROUTES, type Route, type RoomRoute } from "../route.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { link } from "./nav.ts";
+import { DeskSignIn } from "./SignIn.tsx";
+import { useDeskAuth } from "./signin.ts";
 import { useSkippy } from "./skippy/chat.ts";
 
 /**
- * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the woven wordmark, then Today, the Foundry and
- * Relay as plain words with a thread under the one you're on, then the rooms behind one "Rooms" word so the bar stays
- * one short line on a phone. On the right, Ilyr's hour on a small ring, Skippy and the way into the Lattice, both quiet.
- * Keys 1 to 3 open the first three, 4 to 9 the rooms.
+ * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the woven wordmark, then every page as a plain word
+ * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
+ * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Skippy and the way into the
+ * Lattice, both quiet, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
+ * Keys 1 to 9 open them in order. The Boiler Room comes last (Nikita, 05:35Z).
  */
 
 export const MAIN_TABS: { id: Exclude<Route, "lattice" | RoomRoute>; label: string }[] = [
@@ -74,22 +77,18 @@ function IlyrClock({ now }: { now: number }) {
   );
 }
 
-export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">; owed: number; now: number }) {
+/** Sign-in, sign-out and the Site lock behind one button at the top right (Nikita, 2026-10-22 05:30Z). */
+function AccountMenu() {
+  const auth = useDeskAuth((s) => s.auth);
   const [open, setOpen] = useState(false);
-  const menuId = useId();
-  const wrap = useRef<HTMLDivElement>(null);
-  const skippyOpen = useSkippy((s) => s.open);
-  const setSkippy = useSkippy((s) => s.setOpen);
-  const inRoom = (ROOM_ROUTES as readonly string[]).includes(route) ? (route as RoomRoute) : null;
-
-  useEffect(() => setOpen(false), [route]);
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
+    const away = (e: PointerEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
     const esc = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setOpen(false);
-      (wrap.current?.querySelector("button") as HTMLButtonElement | null)?.focus();
+      if (e.key === "Escape") setOpen(false);
     };
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);
@@ -98,6 +97,43 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
       document.removeEventListener("keydown", esc);
     };
   }, [open]);
+  if (auth.status === "off") return null;
+  const signedIn = auth.status === "in";
+  const label = signedIn ? "Signed in" : auth.status === "checking" ? "Checking" : "Sign in";
+  return (
+    <div className="wv-acct" ref={box}>
+      <button type="button" className="wv-navbtn wv-acct__btn" data-in={signedIn || undefined} aria-expanded={open} aria-controls="wv-acct-menu" onClick={() => setOpen(!open)} title={signedIn ? `Signed in${auth.device ? ` on ${auth.device}` : ""}: sign out, devices and the Site lock` : "Sign in with your passkey"}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {signedIn ? (
+            <path d="M7 11V8a5 5 0 0 1 9.6-1.9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          ) : (
+            <path d="M7 11V8a5 5 0 0 1 10 0v3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          )}
+          <rect x="5" y="11" width="14" height="10" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <circle cx="12" cy="16" r="1.4" fill="currentColor" />
+        </svg>
+        <span>{label}</span>
+      </button>
+      {open && (
+        <div className="wv-acct__menu" id="wv-acct-menu" role="dialog" aria-label="Sign-in and site lock">
+          <DeskSignIn />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">; owed: number; now: number }) {
+  const tabs = useRef<HTMLElement>(null);
+  const skippyOpen = useSkippy((s) => s.open);
+  const setSkippy = useSkippy((s) => s.setOpen);
+  const pages: { id: Exclude<Route, "lattice">; label: string }[] = [...MAIN_TABS, ...ROOM_ROUTES.map((id) => ({ id, label: ROOM_TABS[id].label }))];
+
+  // On a phone the row scrolls: keep the page you're on in view.
+  useEffect(() => {
+    const el = tabs.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    el?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [route]);
 
   return (
     <header className="wv-nav">
@@ -105,9 +141,9 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
         <WovenMark />
         <span>C.E.O.</span>
       </a>
-      <nav className="wv-tabs desk__tabs" aria-label="Desk">
-        {MAIN_TABS.map((t, i) => (
-          <a key={t.id} className="wv-tab" href={pathOf(t.id)} aria-current={route === t.id ? "page" : undefined} onClick={link(t.id)} title={`${t.label} (${i + 1})`} data-room={t.id === "today" ? undefined : t.id}>
+      <nav className="wv-tabs desk__tabs" aria-label="Desk" ref={tabs}>
+        {pages.map((t, i) => (
+          <a key={t.id} className="wv-tab" href={pathOf(t.id)} aria-current={route === t.id ? "page" : undefined} onClick={link(t.id)} title={t.id in ROOM_TABS ? `${ROOM_TABS[t.id as RoomRoute].line} (${i + 1})` : `${t.label} (${i + 1})`} data-room={t.id === "today" ? undefined : t.id}>
             {t.label}
             {t.id === "today" && owed > 0 && (
               <b className="wv-tab-n" title="Things that need you">
@@ -117,27 +153,9 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
           </a>
         ))}
       </nav>
-      <div className="wv-rooms" ref={wrap}>
-        <button type="button" className="wv-tab wv-rooms-btn" aria-expanded={open} aria-controls={menuId} aria-current={inRoom ? "page" : undefined} data-room={inRoom ?? undefined} onClick={() => setOpen(!open)}>
-          {inRoom ? ROOM_TABS[inRoom].label : "Rooms"}
-          <svg viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <ul id={menuId} className="wv-roomsmenu" hidden={!open} aria-label="Rooms">
-          {ROOM_ROUTES.map((id, i) => (
-            <li key={id} data-room={id}>
-              <a href={pathOf(id)} onClick={link(id)} aria-current={route === id ? "page" : undefined} title={`${ROOM_TABS[id].label} (${i + 4})`}>
-                <i className="wv-dot" />
-                <b>{ROOM_TABS[id].label}</b>
-                <span>{ROOM_TABS[id].line}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
       <div className="wv-navr">
         <IlyrClock now={now} />
+        <AccountMenu />
         <button type="button" className="wv-navbtn desk__skippy" onClick={() => setSkippy(!skippyOpen)} aria-expanded={skippyOpen} aria-controls="skippy-chat" title="Ask Skippy">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3.8 7.6C5.9 4.7 8.7 3.4 12 3.4s6.1 1.3 8.2 4.2c-2.5-.8-5.2-1.1-8.2-1.1s-5.7.3-8.2 1.1z" fill="currentColor" />

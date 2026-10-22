@@ -168,11 +168,6 @@ export function FoundryPage({ now }: { now: number }) {
           {setup !== null && !setup.buttons && <SetupNote />}
         </div>
       </div>
-      {setup?.buttons && (
-        <section className="wv-device" aria-label="This device">
-          <DeskSignIn />
-        </section>
-      )}
 
       <CrewRow data={data} now={now} />
       <details className="wv-jobs">

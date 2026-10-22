@@ -17,7 +17,12 @@
  * A record from #236 (a password's `hash`, no `passkey`) reads as locked with the passkey; its hash is ignored and
  * dropped at the next write. There is no password any more (Nikita, 2026-10-22).
  *
- * SITE_GATE=off turns the gate off whatever is stored: the break-glass switch. With no lock stored, the gate is OFF.
+ *   open    the site was unlocked on purpose ("Unlock" on the Desk): the only way the gate is off without SITE_GATE=off
+ *
+ * Locked by default (Nikita, 2026-10-22: "blocking everything ... until I unlock"): with no record stored, or a record
+ * without `open`, the gate is ON with the passkey as the way in. SITE_GATE=off turns the gate off whatever is stored:
+ * the break-glass switch. With no store connected at all (local runs, tests) there is nothing to sign in against, so
+ * the gate stays off.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -39,13 +44,18 @@ export interface SiteRecord {
   locked?: string;
   sv: string;
   second?: "approval";
+  open?: true;
 }
+
+/** The session version while nothing has been stored yet (the default lock): any later write replaces it. */
+export const DEFAULT_SV = "default-lock";
 
 /** What the gate acts on. */
 export interface SiteState {
   on: boolean;
-  /** Where the lock came from: the Desk (blob), nowhere (none), or switched off by SITE_GATE=off (off). */
-  source: "blob" | "none" | "off";
+  /** Where the state came from: the Desk's record (blob), the default lock with nothing stored (default), unlocked on
+   * the Desk (open), no store connected (none), or switched off by SITE_GATE=off (off). */
+  source: "blob" | "default" | "open" | "none" | "off";
   /** The current session version; a cookie with any other is signed out. */
   sv: string;
   /** Every factor a site session must carry: ["passkey"], plus "approval" once the 2FA hook is used. */
@@ -67,6 +77,7 @@ export function readRecord(value: unknown): SiteRecord | null {
     ...((r.passkey === true || legacy) && { passkey: true as const }),
     ...(locked && { locked: locked.slice(0, 40) }),
     ...(r.second === "approval" && { second: "approval" as const }),
+    ...(r.open === true && r.passkey !== true && !legacy && { open: true as const }),
   };
 }
 
@@ -74,8 +85,9 @@ export function readRecord(value: unknown): SiteRecord | null {
 export function stateOf(record: SiteRecord | null, env: Env): SiteState {
   const factors: Factor[] = record?.second === "approval" ? ["passkey", "approval"] : ["passkey"];
   if ((env.SITE_GATE ?? "").trim().toLowerCase() === "off") return { on: false, source: "off", sv: record?.sv ?? "", factors };
-  if (record?.passkey) return { on: true, source: "blob", sv: record.sv, factors };
-  return { on: false, source: "none", sv: record?.sv ?? "", factors };
+  if (record?.open) return { on: false, source: "open", sv: record.sv, factors };
+  if (record) return { on: true, source: "blob", sv: record.sv, factors };
+  return { on: true, source: "default", sv: DEFAULT_SV, factors };
 }
 
 /* ── The store ── */
@@ -143,7 +155,7 @@ export function forgetCachedState(): void {
  * environment alone decides (SITE_GATE=off, or no store connected).
  */
 export async function currentState(env: Env, store: SiteStore | null, now: number, opts: { fresh?: boolean } = {}): Promise<SiteState & { unknown?: boolean }> {
-  if (!store) return stateOf(null, env);
+  if (!store) return noStore(env);
   // `fresh`: a signed cookie from another version may be newer than this instance's copy; re-read, at most every 2 s.
   const ttl = opts.fresh ? REFRESH_MS : STATE_TTL_MS;
   if (cached && now - cached.at < ttl) return stateOf(cached.record, env);
@@ -157,6 +169,12 @@ export async function currentState(env: Env, store: SiteStore | null, now: numbe
     if (fromEnv.source === "off") return fromEnv;
     return { ...fromEnv, on: true, unknown: true };
   }
+}
+
+/** No store connected: nothing to sign in against, so the gate is off (SITE_GATE=off reads the same). */
+function noStore(env: Env): SiteState {
+  const s = stateOf(null, env);
+  return s.source === "off" ? s : { ...s, on: false, source: "none", sv: "" };
 }
 
 /** Remember a record just written, so this instance acts on it at once. */

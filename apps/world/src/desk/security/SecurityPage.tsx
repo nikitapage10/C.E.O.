@@ -54,6 +54,8 @@ export function SecurityPage({ now }: { now: number }) {
         </p>
       </header>
 
+      {/* Sign-in and the site lock live here too, where Nikita looks for them (05:23Z); the Foundry keeps its copy. */}
+
       <PopScope prefix="sec">
         <ScanBeads feed={feed} now={now} />
 

@@ -287,6 +287,10 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Two-minute warning on the waiver run. The crowd is ON ITS FEET.",
     "AND THE COMMENTATOR LEAVES THE BOOTH! He's at midfield! What a call!",
     "Live from the floating booth, high above the action, folks!",
+    "SLEEPER'S ON THE LINE, FOLKS. A real league. Real stats. For SOMEONE, finally.",
+    "The ball's on their twenty-nine. That's the win chance. In yards. Percentages don't SCREAM.",
+    "A waiver claim at the buzzer! A Hail Mary, folks! Not the Project kind. Rocky asked.",
+    "Start the hot hand, sit the cold one. The booth calls it. The C.E.O. makes the move in Sleeper.",
   ],
   static: [
     "Didn't hear it from me. You heard it from me.",

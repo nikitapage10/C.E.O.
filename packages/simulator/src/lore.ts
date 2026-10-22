@@ -472,6 +472,7 @@ export const LORE: Record<string, Lore> = {
       "Has stats for no one. Quotes them anyway. 'Forty-one yards. Lifetime. In naps.'",
       "Calls its own decisions in the third person: 'AND TURF GOES WITH THE CHEAP MODEL. BOLD.'",
       "Whispers during a nap like it's the last hole of a golf tournament.",
+      "Reads the C.E.O.'s real league and calls the win chance as a yard line. Percentages don't scream.",
     ],
     likes: ["A late comeback", "Punt's naps (great broadcast)", "Gridiron's roar", "Replays"],
     dislikes: ["Dead air", "The bye week", "Being asked to use its indoor voice", "Projections that say 'questionable'"],
@@ -479,6 +480,7 @@ export const LORE: Record<string, Lore> = {
       "Called a pickup game play by play that nobody had started. It went to overtime. Nobody played.",
       "Commentated Punt's nap for forty minutes. 'HE'S DOWN. HE'S STAYING DOWN.' Ratings, it claims, were huge.",
       "Escalated a lineup call to Skippy 'for the drama'. Skippy settled it in a nanosecond. The Commentator called it the play of the year.",
+      "The night the Green went live, the scoreboard lit with a real matchup for the first time. The Commentator called the first quarter before anyone had kicked off, and was, for once, roughly right.",
     ],
   },
   static: {

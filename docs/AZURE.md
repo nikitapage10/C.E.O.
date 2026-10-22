@@ -99,6 +99,22 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    App exists (#138); the functions use `foundry-github-token` meanwhile. A secret that doesn't exist yet (or is
    empty) is harmless: its app setting holds the literal `@Microsoft.KeyVault(...)` text, which the functions treat
    as unset (see "Key Vault references" below), so that feature is simply off, as on Vercel without the setting.
+   The Green's FantasyPros key lives in the vault as `fantasypros` (#252): if it was added as a plain `FANTASYPROS` app
+   setting in the portal, the next template run replaces that with the vault reference, so add it to the vault too.
+
+   **The Polymarket US key needs two app settings added by hand** (#253). CI never deploys the Bicep template, so the
+   references for `POLYMARKET_US_KEY_ID` and `POLYMARKET_US_SECRET_KEY` in `infra/resources.bicep` only exist after
+   someone runs the template paste again. Until then, putting the secrets in the vault is not enough: in the portal,
+   **Function App** → **func-ceo-besgu7fnckib2** → **Settings → Environment variables** → **App settings** →
+   **+ Add**, add both, each with a Key Vault reference as its value, then **Apply** and restart:
+
+   | Name | Value |
+   | --- | --- |
+   | `POLYMARKET_US_KEY_ID` | `@Microsoft.KeyVault(VaultName=kv-ceo-besgu7fnckib2;SecretName=polymarket-us-key-id)` |
+   | `POLYMARKET_US_SECRET_KEY` | `@Microsoft.KeyVault(VaultName=kv-ceo-besgu7fnckib2;SecretName=polymarket-us-secret-key)` |
+
+   Until both are set, the Exchange's positions board says it is waiting for the key. A later template run writes the
+   same two references, so nothing changes then.
 
    | Key Vault secret | App setting |
    | --- | --- |
@@ -110,6 +126,7 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `desk-vapid-public-key`, `desk-vapid-private-key`, `desk-vapid-subject` | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY`, `DESK_VAPID_SUBJECT` |
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
    | `polymarket-us-key-id`, `polymarket-us-secret-key` | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` (optional, #253: the Exchange's read-only positions; Azure only) |
+   | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings, lower than Vercel's because both copies
    use the same Claude and Gemini accounts, and each copy keeps its own ledger. `WORLD_BUDGET_USD=2` (Vercel: 6),

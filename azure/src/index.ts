@@ -18,6 +18,7 @@ import * as foundryusage from "../../api/foundry-usage.js";
 import * as foundry from "../../api/foundry.js";
 import * as exchangemarkets from "../../api/_exchange/route.js";
 import * as exchangepositions from "../../api/_exchange/positions.js";
+import * as greenleague from "../../api/_green/route.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -47,6 +48,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // Nikita's Polymarket US positions (#253): Desk session only; the key lives only in this Function App's settings.
   ["exchange-positions", exchangepositions],
   ["foundry-feed", foundryfeed],
+  // The Green's Sleeper board (#252): its own endpoint here, where the FANTASYPROS key is set; on Vercel a rewrite into api/world.ts.
+  ["green-league", greenleague],
   ["foundry-image", foundryimage],
   ["foundry-usage", foundryusage],
   ["foundry", foundry],

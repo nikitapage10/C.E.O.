@@ -64,6 +64,7 @@ var secrets = [
   { setting: 'DESK_VAPID_PRIVATE_KEY', secret: 'desk-vapid-private-key' }
   { setting: 'DESK_VAPID_SUBJECT', secret: 'desk-vapid-subject' } // the pings' contact (mailto: or https:)
   { setting: 'DESK_PINGS_SECRET', secret: 'desk-pings-secret' } // shared with the desk-pings workflow
+  { setting: 'FANTASYPROS', secret: 'fantasypros' } // the Green's FantasyPros API key (x-api-key); Azure only
   // Nikita's Polymarket US key (#253), for the Exchange's private positions board: read-only by code (the key itself
   // could trade; api/_exchange/positions.ts only ever signs GETs to the two portfolio paths). Optional: without it the
   // board waits.

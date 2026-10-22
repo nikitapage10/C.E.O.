@@ -15,8 +15,8 @@ import type { DeskRoom } from "./deskData.ts";
 
 export type ConnectionKind = "REST API" | "SDK" | "MCP server" | "CLI" | "Scheduled" | "Webhook" | "Polling" | "Storage" | "WebSocket" | "Agent";
 
-/** Where a connection is explained: a part of Relay's or the Foundry's diagram, the world clock, or the Exchange's page. */
-export type ConnectionPlace = { system: "relay" | "foundry"; part: string } | { system: "world" } | { system: "exchange" };
+/** Where a connection is explained: a part of Relay's or the Foundry's diagram, the world clock, or the Exchange's or the Green's page. */
+export type ConnectionPlace = { system: "relay" | "foundry"; part: string } | { system: "world" } | { system: "exchange" } | { system: "green" };
 
 export interface Connection {
   id: string;
@@ -194,6 +194,30 @@ export const CONNECTIONS: Connection[] = [
     how: "An Azure function (exchange-positions; on Vercel the world feed's, through a rewrite) reads your Polymarket US account's positions and recent fills from its Retail API and sends them only to a signed-in Desk. Read-only by code: it signs GET requests to the two portfolio paths and nothing else, so it never places, changes or cancels an order. Deposits, withdrawals and balances are never read.",
     auth: "Your Polymarket US API key (POLYMARKET_US_KEY_ID and POLYMARKET_US_SECRET_KEY), kept in Key Vault and read by the Function App; each request carries an Ed25519 signature. The Desk needs your passkey to see the answer, and the figures are hidden in Hide mode.",
     when: "Every two minutes while the Exchange is open and you're signed in; each warm function reads Polymarket US at most once a minute.",
+  },
+  {
+    id: "sleeper",
+    name: "Sleeper",
+    room: "green",
+    at: [{ system: "green" }],
+    serves: "The Green's league board: roster, matchup, waivers and the table",
+    kinds: ["REST API", "Polling"],
+    status: "live",
+    how: "A Vercel function (the world feed's, through a rewrite of /api/green-league) reads Sleeper's public API for the Horse Meat league: the rosters and team names, this week's and past weeks' matchups, the NFL week, today's trending adds and drops, and the players list, which it trims to the fantasy positions and keeps in the private store for a day. It works out the projections, the win chance, the start-or-sit calls and the pickups, and sends the Desk only team names, player names and numbers. Read-only: the moves are made in Sleeper.",
+    auth: "None: Sleeper's public, read-only API, no key. Usernames and avatars are never read into the board.",
+    when: "The Desk asks every two minutes while the Green, Today or Systems is open, through a two-minute edge cache; the players list is read at most once a day.",
+  },
+  {
+    id: "fantasypros",
+    name: "FantasyPros",
+    room: "green",
+    at: [{ system: "green" }],
+    serves: "The Green's projections, consensus rankings and injury report",
+    kinds: ["REST API"],
+    status: "live",
+    how: "Where its key is set (the Azure copy), the same function asks FantasyPros' official API for this week's projections in the league's scoring, the rest-of-season consensus rankings and the injury report, matches them to Sleeper's players, and uses them for the projections, the win chance and the waiver order. Without the key (Vercel) the Green runs on Sleeper alone and says FantasyPros is waiting.",
+    auth: "An API key kept as the FANTASYPROS app setting on Azure (a Key Vault secret), sent only in FantasyPros' x-api-key header and never printed or stored.",
+    when: "At most seven calls every six hours, kept in the private store so every instance shares them.",
   },
   {
     id: "bluebubbles",

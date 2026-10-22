@@ -50,17 +50,17 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     next: "The Bookie's own estimates beside the odds, and paper trades. Real trades stay off; any later would be approval-gated with caps.",
   },
   green: {
-    blurb: "Fantasy football HQ. Agents read your Sleeper league, projections and injury reports, then suggest waiver claims and lineup changes.",
+    blurb: "Fantasy football HQ. Agents read your Sleeper league, projections and injury reports, then suggest waiver claims and lineup changes. The Desk's Green page has the whole board.",
     stations: {
       post: "The Commentator's floating command podium, high in the back-right corner. The Green's submind calls the play by play from here. It glides out over the room when it gives an order.",
       "depth-chart": "Projections and injury reports.",
-      mailbox: "Waiver claims. The flag goes up when one is waiting on you.",
+      mailbox: "Waiver claims. The flag goes up when a pickup on the wire clearly beats someone on your bench.",
       sideline: "Lineup suggestions.",
       huddle: "Morale.",
       bench: "Sitting. Thinking. Mostly sitting.",
     },
-    today: "Simulated coaches making recommendations.",
-    next: "Sleeper's read-only API. You tap the final move in the Sleeper app.",
+    today: "Live from your Sleeper league (Horse Meat): the scoreboard shows this week's matchup and win chance, the depth chart the week, and the mailbox flag a pickup worth claiming. The coaches' chatter is still simulated.",
+    next: "FantasyPros' projections on every copy, and the Commentator's weekly take. You tap the final move in the Sleeper app.",
   },
   relay: {
     blurb: "Your messages. Texts arrive by pneumatic tube, an agent drafts a reply in your voice, and it waits in the outbox until you approve it.",

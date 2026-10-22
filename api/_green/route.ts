@@ -97,7 +97,7 @@ async function weekRows(deps: GreenDeps, league: string, week: number, current: 
 }
 
 /** Bumped whenever the kept FantasyPros shape changes, so an old copy is never served as this one. */
-export const FP_SHAPE = "v2";
+export const FP_SHAPE = "v3";
 
 async function fantasyPros(deps: GreenDeps, league: League, state: NflState): Promise<{ fp: FpData | null; fpState: FpState; fpParts?: FpParts }> {
   if (!deps.fpKey) return { fp: null, fpState: "waiting" };

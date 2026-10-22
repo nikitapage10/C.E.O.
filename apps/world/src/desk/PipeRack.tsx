@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { roomLink } from "./hero/roomLink.ts";
-import { BANNERS, type BannerPage } from "./RoomBanner.tsx";
+import { ROOM_META } from "./roomPulse.ts";
 import type { FlowId, Fitting, GState, PipeRow } from "./systemsGraph.ts";
 import { reducedMotion } from "./wvCanvas.ts";
 
@@ -26,6 +26,9 @@ const OPEN_MS = 760;
 /** Where the i-th of n fittings after the keeper sits along the pipe, and the i-th of n before it. */
 const outX = (hub: number, i: number, n: number) => `(${hub}px + (100% - ${hub + END}px) * ${((i + 1) / (n + 0.5)).toFixed(4)})`;
 const inX = (slots: number, i: number, n: number) => `${(slots - n + i + 0.5) * SLOT}px`;
+
+/** The room's submind, front and centre on its pipe (the Boiler Room's if the row names no known room). */
+const sub = (r: PipeRow) => (ROOM_META[r.room as keyof typeof ROOM_META] ?? ROOM_META.boiler).submind;
 
 function head(r: PipeRow, more: string) {
   return (
@@ -112,7 +115,7 @@ export function PipeRack({ rows, onOpen }: { rows: PipeRow[]; onOpen: (id: FlowI
             <div className="pr-line" aria-hidden="true">
               {ins}
               <div className="pr-hub" style={{ "--d": `${hubBeat * 55}ms` } as CSSProperties}>
-                <img src={`/desk/agent-${(BANNERS[r.id as BannerPage] ?? BANNERS.boiler).voice.id}.webp`} alt="" decoding="async" />
+                <img src={`/desk/agent-${sub(r).id}.webp`} alt={sub(r).title} decoding="async" />
               </div>
               {outs}
               <i className={`pr-cap is-${r.outs[n - 1]?.state ?? r.stc}`} style={{ "--a": `calc(${last})`, "--d": `${beat * 55}ms` } as CSSProperties} />

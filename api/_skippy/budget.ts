@@ -101,17 +101,21 @@ const clean = (got: unknown): ChatSpend => (got && typeof got === "object" && !A
 
 /** The ledger in the private blob store; a write checks the ETag, so two calls at once both count. */
 export class BlobChatLedger implements ChatLedger {
-  constructor(private readonly blob: BlobBackend) {}
+  /** `path`: where this ledger lives; Skippy's by default (the Green's Commentator keeps its own beside it, #276). */
+  constructor(
+    private readonly blob: BlobBackend,
+    private readonly path = SPEND_PATH,
+  ) {}
   async load(): Promise<ChatSpend> {
-    const found = await this.blob.get(SPEND_PATH);
+    const found = await this.blob.get(this.path);
     return found ? clean(await new Response(found.stream).json()) : {};
   }
   async add(now: number, usage: Usage, usd?: number): Promise<void> {
     for (let attempt = 0; attempt < 3; attempt++) {
-      const etag = await this.blob.etag(SPEND_PATH);
+      const etag = await this.blob.etag(this.path);
       const cur = etag ? await this.load() : {};
       try {
-        await this.blob.put(SPEND_PATH, JSON.stringify(addChatSpend(cur, now, usage, usd)), {
+        await this.blob.put(this.path, JSON.stringify(addChatSpend(cur, now, usage, usd)), {
           contentType: "application/json",
           addRandomSuffix: false,
           ...(etag ? { ifMatch: etag } : { allowOverwrite: false }),

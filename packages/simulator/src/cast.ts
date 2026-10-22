@@ -143,7 +143,7 @@ const SEEDS: Record<string, Seed> = {
   turf: {
     look: submindLook("turf"),
     traits: ["cheerful", "dramatic", "competitive", "chaotic"],
-    bio: "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from its floating can-throne in the corner, which it calls the commentary box, like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches; the Commentator calls the game, now the C.E.O.'s real league, live.",
+    bio: "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. Narrates everything from its floating can-throne, which it calls the commentary box, all caps when excited. Gridiron coaches; the Commentator calls the C.E.O.'s real league, live, and every Tuesday files the Commentator's call: FantasyPros decides, Sleeper gets a say, the sources roll at the end.",
     catchphrase: "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
   },
   static: {

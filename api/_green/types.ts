@@ -42,6 +42,18 @@ export interface GreenPlayer {
    * projections are live; Sleeper's schedule only when FantasyPros has nothing on him.
    */
   bye: number | null;
+  /** Sleeper's own projection for this week in the league's scoring (#276), shown beside FantasyPros', never averaged. */
+  sl?: number | null;
+  /** His NFL opponent this week (a team code), from Sleeper's projections; absent when unknown. */
+  opp?: string | null;
+  /** FantasyPros' experts this week at his position: the best and worst rank any gave him, and their spread (#276). */
+  range?: { min: number; max: number; std: number } | null;
+  /** FantasyPros' tier this week at his position (1 is the top tier). */
+  tier?: number | null;
+  /** Rest-of-season consensus rank moved since last week: positive is up (better), negative down. */
+  delta?: number | null;
+  /** Share of leagues he is rostered in, 0..100 (FantasyPros' average across hosts). */
+  own?: number | null;
 }
 
 /** A starter in a lineup slot ("FLEX" takes RB, WR or TE). */
@@ -157,7 +169,192 @@ export interface GreenBoard {
   sources: { sleeper: "live"; fantasypros: FpState; fpAt: string | null; calls: CallSource; fpParts: FpParts | null };
   /** True when Sleeper didn't answer and this is the last good read. */
   stale?: true;
+  /* #276 additions (optional, so an older board still reads) */
+  calls?: GreenCall[];
+  teams?: GreenTeam[];
+  bids?: GreenBid[];
+  trade?: GreenTrade | null;
+  odds?: GreenOdds | null;
+  news?: GreenNews[];
+  moves?: GreenMove[];
+  feeds?: GreenFeed[];
+  /** The next four weeks' byes for Nikita's roster: who sits, and the lineup slots he can't fill because of it. */
+  byeWeeks?: GreenByeWeek[];
+}
+
+/* ── #276: the analyst desk ── */
+
+/**
+ * One start-or-sit decision: FantasyPros' call (it decides), with Sleeper's projection beside it. `split` when the two
+ * order the pair differently, or their margins differ by 3 points or more. `tiebreak` only when FantasyPros has the two
+ * within a point: the projected underdog leans to the higher ceiling, the favourite to the safer floor.
+ */
+export interface GreenCall {
+  slot: string;
+  start: GreenPlayer;
+  sit: GreenPlayer;
+  /** True when the call changes the lineup that's set in Sleeper. */
+  change: boolean;
+  /** FantasyPros' (or, without it, the form's) projected margin for `start` over `sit`. */
+  edge: number;
+  /** Sleeper's margin for the same pair (negative: Sleeper prefers `sit`); null without both Sleeper projections. */
+  slEdge: number | null;
+  sleeper: "agrees" | "disagrees" | "unknown";
+  split: boolean;
+  tiebreak: string | null;
+  why: string;
+}
+
+/** One manager in the league, as the analysis sees them: never a username, only the team name. */
+export interface GreenTeam {
+  rosterId: number;
+  team: string;
+  wins: number;
+  losses: number;
+  ties: number;
+  pf: number;
+  /** FAAB left (fantasy budget units, not money); null when the league doesn't use FAAB. */
+  faab: number | null;
+  /** Positions where their starters fall short of the league's middle, or have a bye or injury hole soon. */
+  needs: string[];
+  /** Positions where their bench holds a player who would start for many teams. */
+  surplus: string[];
+  /** Where their starters rank in the league at each position, 1 the best (QB, RB, WR, TE…). */
+  posRank?: Record<string, number>;
+  /** This week's opponent's roster id, null on a bye. */
+  opp: number | null;
+  /** This week's projected total. */
+  proj: number | null;
+  /** Chance of making the playoffs, 0..1, from the simulation; null without one. */
+  playoff: number | null;
+}
+
+/** A free agent worth a claim, priced for FAAB against the league's needs and budgets. */
+export interface GreenBid {
+  player: GreenPlayer;
+  /** Suggested bid in FAAB units (0 when claims are free), and the range around it. */
+  bid: number;
+  low: number;
+  high: number;
+  /** Rival teams with a need at his position and FAAB to chase him. */
+  rivals: string[];
+  /** A rival close in the standings who needs him: taking him blocks them. */
+  blocks: string | null;
+  drop: GreenPlayer | null;
+  why: string;
+}
+
+/** One trade idea: a rival's surplus for Nikita's thin spot, paid from Nikita's surplus where they're thin. */
+export interface GreenTrade {
+  team: string;
+  give: GreenPlayer[];
+  get: GreenPlayer[];
+  why: string;
+}
+
+/** Another game this week that moves Nikita's playoff chance, and who to root for. */
+export interface GreenSwing {
+  a: string;
+  b: string;
+  /** Root for this team. */
+  root: string;
+  /** Nikita's playoff chance if `root` wins, and if they lose. */
+  ifWin: number;
+  ifLose: number;
+}
+
+export interface GreenOdds {
+  /** Chance of making the playoffs, 0..1. */
+  playoff: number;
+  /** Chance of each final seed, 1-based (index 0 is the 1 seed), regular season's end. */
+  seeds: number[];
+  playoffTeams: number;
+  /** Weeks left in the regular season, this one included. */
+  weeksLeft: number;
+  sims: number;
+  swing: GreenSwing[];
+}
+
+/** One line on the ticker: a headline, or a status change, for a player in the league. */
+export interface GreenNews {
+  /** Sleeper player id when matched (for the face). */
+  id: string | null;
+  name: string;
+  text: string;
+  /** ISO time, when known. */
+  at: string | null;
+  /** Whose player: Nikita's, his opponent's, another team's, or a free agent. */
+  whose: "mine" | "opp" | "league" | "free";
+  src: "fp" | "sleeper";
+}
+
+/** A recent move in the league (Sleeper's transactions): team names and players only. */
+export interface GreenMove {
+  team: string;
+  kind: "waiver" | "free_agent" | "trade";
+  adds: string[];
+  drops: string[];
+  /** The winning FAAB bid on a waiver claim. */
+  bid: number | null;
+  at: string | null;
+}
+
+/** Where a number on the board came from, and when it was read. */
+export interface GreenFeed {
+  name: string;
+  state: "live" | "waiting" | "failed" | "off";
+  at: string | null;
+  note?: string;
+}
+
+export interface GreenByeWeek {
+  week: number;
+  /** Teams on bye that week. */
+  teams: string[];
+  /** Nikita's players on bye. */
+  out: { id: string; name: string; pos: GreenPos }[];
+  /** Fixed lineup slots (QB, RB…) he can't fill that week from his own roster. */
+  holes: string[];
 }
 
 export const GREEN_PICKUPS_MAX = 8;
 export const GREEN_TEXT_MAX = 60;
+
+/* ── #276: the Commentator's call (api/_green/analysis.ts) ── */
+
+/** The numbers the Commentator's words are written from: every figure in the words comes from here. */
+export interface AnalysisFacts {
+  team: string;
+  record: string;
+  rank: number;
+  teams: number;
+  matchup: { opp: string | null; proj: number | null; oppProj: number | null; win: number | null; live: boolean; pts: number; oppPts: number } | null;
+  /** Positions where Nikita's lineup falls short of the league's middle, with who starts there. */
+  weak: { pos: string; rank: number | null; starters: { name: string; proj: number | null; rank: string | null }[] }[];
+  byes: { week: number; out: string[]; holes: string[] }[];
+  injuries: { name: string; pos: string; status: string; starting: boolean }[];
+  trade: { team: string; give: string[]; get: string[]; why: string } | null;
+  waiver: { action: "bid" | "claim" | "hold"; player: string | null; pos: string | null; bid: number | null; low: number | null; high: number | null; faabLeft: number | null; drop: string | null; rivals: number; blocks: string | null };
+  splits: { slot: string; start: string; sit: string; fp: [number, number]; sl: [number, number] }[];
+  odds: { playoff: number; seeds: number[]; swing: { root: string; other: string; ifWin: number; ifLose: number }[] } | null;
+}
+
+export type AnalysisKey = "matchup" | "weak" | "byes" | "injuries" | "trade" | "waiver";
+
+export interface GreenAnalysis {
+  at: string;
+  season: string;
+  week: number;
+  trigger: "scheduled" | "manual";
+  headline: string;
+  sections: { key: AnalysisKey; title: string; text: string }[];
+  facts: AnalysisFacts;
+  /** A second opinion on each split decision, from OpenAI when its key is set on the server. */
+  second: { start: string; sit: string; take: string }[];
+  /** Who wrote the words: Claude Haiku from the facts, or the facts said plainly (no key, the month's cap, or a failed check). */
+  writer: "claude" | "scripted";
+  /** Why the words are scripted, when they are. */
+  scripted?: "no-key" | "capped" | "failed" | "checked";
+  /** Every feed the analysis used, with when it was read, and the ones that were unavailable. */
+  sources: GreenFeed[];
+}

@@ -22,6 +22,7 @@ import * as exchangemarkets from "../../api/_exchange/route.js";
 import * as exchangepositions from "../../api/_exchange/positions.js";
 import * as greenleague from "../../api/_green/route.js";
 import * as invoices from "../../api/_paypal/route.js";
+import * as greenanalysis from "../../api/_green/analysis.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -59,6 +60,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["foundry-feed", foundryfeed],
   // The Green's Sleeper board (#252): its own endpoint here, where the FANTASYPROS key is set; on Vercel a rewrite into api/world.ts.
   ["green-league", greenleague],
+  // The Commentator's call (#276): the Green's weekly analysis, Desk session only. GET the latest, POST { action: "refresh" }.
+  ["green-analysis", greenanalysis],
   ["foundry-image", foundryimage],
   // The Spire's invoices (#279, docs/PAYPAL.md): PayPal drafts made from the Desk, sent only on Nikita's confirmed tap.
   // Azure only (the PayPal keys live only here). ?view=status is the public counts; the rest needs the passkey session.
@@ -111,5 +114,19 @@ app.timer("email_tick", {
   handler: async (_timer, context) => {
     const result = await runEmailTick().catch(() => "error" as const);
     if (result === "error") context.warn("email tick: error");
+  },
+});
+
+// The Commentator's weekly call (#276): Tuesday 5:39pm Mountain, before Wednesday's waivers. Azure's timers run on UTC,
+// so this fires at :39 past 23:00 and 00:00 UTC on Tuesdays and Wednesdays and the run itself checks it is Tuesday's 5pm
+// hour in Denver (daylight saving or not); it never writes more than once in six hours. Logs only what happened.
+app.timer("green_weekly", {
+  schedule: "0 39 23,0 * * 2,3",
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    const result = await greenanalysis.runGreenWeekly();
+    if (result === "failed") context.warn("green weekly: failed");
+    else if (result === "written") context.log("green weekly: written");
   },
 });

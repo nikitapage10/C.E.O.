@@ -9,6 +9,10 @@
  *                                                                    position: FantasyPros' own start/sit order
  *   /nfl/<season>/consensus-rankings?position=ALL&type=ROS&scoring=<S>&week=<w>   rest-of-season consensus (ECR)
  *   /nfl/injuries?year=<season>&week=<w>                             the injury report
+ *   /nfl/news?limit=40                                               the latest headlines (#276), a line each, no links
+ *
+ * The rankings also carry the experts' best and worst rank and spread, the tier, the share of leagues that roster him
+ * and his move since last week (#276).
  *
  * Each player's bye is the rankings' `player_bye_week` (a string, "14"); the weekly rankings' first, then the ROS.
  * What answered is kept as counts per part, with the status of any part that failed (never the key, never a URL).
@@ -54,6 +58,23 @@ export interface FpRank {
   ecr: number;
   posRank: string | null;
   bye: number | null;
+  /** The best and worst rank an expert gave him, and the spread (#276); absent in older copies. */
+  min?: number | null;
+  max?: number | null;
+  std?: number | null;
+  tier?: number | null;
+  /** Rostered in this share of leagues, 0..100. */
+  own?: number | null;
+  /** FantasyPros' own move in the consensus since its last update, when it sends one (positive is up). */
+  delta?: number | null;
+}
+
+/** A news headline from FantasyPros (#276): public football news, trimmed to a line. */
+export interface FpNews {
+  fpid: string | null;
+  name: string;
+  text: string;
+  at: string | null;
 }
 
 export interface FpInjury {
@@ -75,6 +96,10 @@ export interface FpData {
   injuries: FpInjury[];
   /** What answered (absent in copies kept before #259). */
   parts?: FpParts;
+  /** The latest headlines (#276). */
+  news?: FpNews[];
+  /** Last week's rest-of-season consensus, by FantasyPros id, so the board can show who moved (#276). */
+  prev?: { week: number; ecr: Record<string, number> } | null;
 }
 
 /** Thrown when no part of FantasyPros answered; carries which part failed how. */
@@ -158,7 +183,31 @@ export function shapeRankings(raw: unknown): FpRank[] {
     const sr = typeof p.sportsdata_id === "string" && /^[0-9a-f-]{36}$/i.test(p.sportsdata_id) ? p.sportsdata_id.toLowerCase() : null;
     const posRank = typeof p.pos_rank === "string" && /^[A-Z/]{1,4}\d{1,3}$/.test(p.pos_rank) ? p.pos_rank.replace("DST", "DEF") : null;
     const bye = num(p.player_bye_week);
-    out.push({ fpid: fpidOf(p.player_id), name, pos, team, yh, sr, ecr: Math.round(ecr), posRank, bye: bye !== null && bye >= 1 && bye <= 18 ? bye : null });
+    const rank = (v: unknown) => {
+      const n = num(v);
+      return n !== null && n >= 1 && n <= 2000 ? Math.round(n) : null;
+    };
+    const std = num(p.rank_std);
+    const tier = num(p.tier);
+    const own = num(p.player_owned_avg);
+    const delta = num(p.player_ecr_delta);
+    out.push({
+      fpid: fpidOf(p.player_id),
+      name,
+      pos,
+      team,
+      yh,
+      sr,
+      ecr: Math.round(ecr),
+      posRank,
+      bye: bye !== null && bye >= 1 && bye <= 18 ? bye : null,
+      min: rank(p.rank_min),
+      max: rank(p.rank_max),
+      std: std !== null && std >= 0 && std < 500 ? Math.round(std * 10) / 10 : null,
+      tier: tier !== null && tier >= 1 && tier <= 50 ? Math.round(tier) : null,
+      own: own !== null && own >= 0 && own <= 100 ? Math.round(own) : null,
+      delta: delta !== null && Math.abs(delta) < 500 ? Math.round(delta) : null,
+    });
   }
   return out;
 }
@@ -176,6 +225,28 @@ export function shapeInjuries(raw: unknown): FpInjury[] {
   return out;
 }
 
+/**
+ * FantasyPros' news feed, trimmed: a headline per item, the player's name and FantasyPros id, and when. The feed's exact
+ * field names vary by version, so each is read from the names it has used; anything else (links, bodies, images) is
+ * dropped. Public football news only.
+ */
+export function shapeNews(raw: unknown): FpNews[] {
+  const o = obj(raw);
+  const list = arr(o.items ?? o.news ?? o.players ?? (Array.isArray(raw) ? raw : []));
+  const out: FpNews[] = [];
+  for (const v of list.slice(0, 60)) {
+    const n = obj(v);
+    const player = obj(n.player);
+    const text = cleanText(n.title ?? n.headline ?? n.desc ?? n.description, 140);
+    if (!text) continue;
+    const name = cleanText(n.player_name ?? player.name ?? player.player_name, 40);
+    const when = typeof n.created === "string" ? n.created : typeof n.updated === "string" ? n.updated : typeof n.published === "string" ? n.published : null;
+    const at = when && Number.isFinite(Date.parse(when)) ? new Date(Date.parse(when)).toISOString() : null;
+    out.push({ fpid: fpidOf(n.player_id ?? player.id ?? player.player_id), name, text, at });
+  }
+  return out.slice(0, 40);
+}
+
 const PROJ_POS: Record<GreenPos, string> = { QB: "QB", RB: "RB", WR: "WR", TE: "TE", K: "K", DEF: "DST" };
 
 /**
@@ -190,9 +261,9 @@ export async function readFantasyPros(fetcher: Fetcher, key: string, season: str
   const [projParts, weeklyParts, rest] = await Promise.all([
     Promise.allSettled(positions.map((p) => get(`/nfl/${y}/projections?position=${PROJ_POS[p]}&week=${week}&scoring=${scoring}`).then((r) => shapeProjections(r, scoring, p)))),
     Promise.allSettled(positions.map((p) => get(`/nfl/${y}/consensus-rankings?position=${PROJ_POS[p]}&type=WEEKLY&scoring=${scoring}&week=${week}`).then(shapeRankings))),
-    Promise.allSettled([get(`/nfl/${y}/consensus-rankings?position=ALL&type=ROS&scoring=${scoring}&week=${week}`).then(shapeRankings), get(`/nfl/injuries?year=${y}&week=${week}`).then(shapeInjuries)]),
+    Promise.allSettled([get(`/nfl/${y}/consensus-rankings?position=ALL&type=ROS&scoring=${scoring}&week=${week}`).then(shapeRankings), get(`/nfl/injuries?year=${y}&week=${week}`).then(shapeInjuries), get(`/nfl/news?limit=40`).then(shapeNews)]),
   ]);
-  const [ranks, injuries] = rest;
+  const [ranks, injuries, newsPart] = rest as [PromiseSettledResult<FpRank[]>, PromiseSettledResult<FpInjury[]>, PromiseSettledResult<FpNews[]>];
   const errors: FpParts["errors"] = [];
   const fail = (part: string, r: PromiseSettledResult<unknown>) => {
     if (r.status === "rejected") errors.push({ part, status: statusOf(r.reason) });
@@ -201,6 +272,7 @@ export async function readFantasyPros(fetcher: Fetcher, key: string, season: str
   weeklyParts.forEach((r, i) => fail(`weekly ${PROJ_POS[positions[i]!]}`, r));
   fail("ROS rankings", ranks);
   fail("injuries", injuries);
+  fail("news", newsPart);
   const proj = projParts.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   const weekly = weeklyParts.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   const ros = ranks.status === "fulfilled" ? ranks.value : [];
@@ -208,7 +280,8 @@ export async function readFantasyPros(fetcher: Fetcher, key: string, season: str
   const projBy = Object.fromEntries(projParts.map((r, i) => [PROJ_POS[positions[i]!], r.status === "fulfilled" ? r.value.length : 0]));
   const parts: FpParts = { proj: proj.length, weekly: weekly.length, ros: ros.length, injuries: inj.length, projBy, errors };
   if (!proj.length && !weekly.length && ranks.status === "rejected" && injuries.status === "rejected") throw new FpUnavailable(parts);
-  return { at: new Date().toISOString(), season, week, scoring, proj, weekly, ranks: ros, injuries: inj, parts };
+  const news = newsPart.status === "fulfilled" ? newsPart.value : [];
+  return { at: new Date().toISOString(), season, week, scoring, proj, weekly, ranks: ros, injuries: inj, parts, news };
 }
 
 /** What FantasyPros says about one Sleeper player. */
@@ -220,6 +293,26 @@ export interface FpView {
   posRank: string | null;
   bye: number | null;
   inj: GreenInjury | null;
+  /** This week's expert range and tier at his position, roster share, and his rest-of-season move (#276). */
+  range: { min: number; max: number; std: number } | null;
+  tier: number | null;
+  own: number | null;
+  delta: number | null;
+  fpid: string | null;
+}
+
+/**
+ * The rest-of-season move for each player since the last week FantasyPros was read: last week's rank minus this
+ * week's (positive is up). From the kept copy's own snapshot, when FantasyPros doesn't send its own delta.
+ */
+export function prevSnapshot(fp: FpData | null, week: number): FpData["prev"] {
+  if (!fp) return null;
+  if (fp.week !== week) {
+    const ecr: Record<string, number> = {};
+    for (const r of fp.ranks) if (r.fpid) ecr[r.fpid] = r.ecr;
+    return Object.keys(ecr).length ? { week: fp.week, ecr } : (fp.prev ?? null);
+  }
+  return fp.prev ?? null;
 }
 
 /**
@@ -262,6 +355,22 @@ export function fpIndex(fp: FpData): (p: SlimPlayer) => FpView | null {
     const inj = p.pos === "DEF" ? undefined : ((p.yh ? injByYh.get(p.yh) : undefined) ?? injByName.get(nameKey(p.n)));
     if (!rank && !wk && proj === undefined && !inj) return null;
     const wkRank = wk?.posRank ? Number(wk.posRank.replace(/^\D+/, "")) : null;
-    return { proj: proj ?? null, wk: wkRank !== null && Number.isFinite(wkRank) && wkRank > 0 ? wkRank : (wk?.ecr ?? null), ecr: rank?.ecr ?? null, posRank: rank?.posRank ?? null, bye: wk?.bye ?? rank?.bye ?? null, inj: inj?.inj ?? null };
+    const range = wk && wk.min != null && wk.max != null ? { min: wk.min, max: wk.max, std: wk.std ?? 0 } : null;
+    const fpid = rank?.fpid ?? wk?.fpid ?? null;
+    const before = fpid && fp.prev ? fp.prev.ecr[fpid] : undefined;
+    const delta = rank?.delta ?? (before !== undefined && rank ? before - rank.ecr : null);
+    return {
+      proj: proj ?? null,
+      wk: wkRank !== null && Number.isFinite(wkRank) && wkRank > 0 ? wkRank : (wk?.ecr ?? null),
+      ecr: rank?.ecr ?? null,
+      posRank: rank?.posRank ?? null,
+      bye: wk?.bye ?? rank?.bye ?? null,
+      inj: inj?.inj ?? null,
+      range,
+      tier: wk?.tier ?? null,
+      own: rank?.own ?? wk?.own ?? null,
+      delta,
+      fpid,
+    };
   };
 }

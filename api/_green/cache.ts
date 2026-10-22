@@ -15,6 +15,8 @@ export const PLAYERS_PATH = "desk/green/players.json";
 export const FP_PATH = "desk/green/fantasypros.json";
 /** Sleeper's NFL schedule, trimmed to who plays each week (for the byes), read at most once a day. */
 export const SCHEDULE_PATH = "desk/green/schedule.json";
+/** Sleeper's own weekly projections, trimmed to points and opponent (#276), read at most every three hours. */
+export const SL_PROJ_PATH = "desk/green/sleeper-projections.json";
 
 export interface Kept<T> {
   /** When it was read (ms). */
@@ -59,6 +61,13 @@ export function pickGreenStore(env: Record<string, string | undefined> = process
 }
 
 const memory = new Map<string, Kept<unknown>>();
+
+/** The copy kept for a path, from this instance's memory or the store, whatever its age or tag; null when none. */
+export async function peekKept<T>(store: GreenStore | null, path: string): Promise<Kept<T> | null> {
+  const mem = memory.get(path) as Kept<T> | undefined;
+  const saved = store ? await store.read<T>(path).catch(() => null) : null;
+  return [mem, saved].filter((k): k is Kept<T> => !!k).sort((a, b) => b.at - a.at)[0] ?? null;
+}
 
 /** For tests: forget what this instance kept. */
 export function forgetMemory(): void {

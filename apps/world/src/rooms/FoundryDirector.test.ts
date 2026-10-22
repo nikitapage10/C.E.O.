@@ -18,9 +18,15 @@ describe("routineFor", () => {
     expect(routineFor("semicolon", crate("fix", "working"), 0)).toBe("foundryFixing");
   });
 
-  it("leaves Rusty on his ideas, upkeep or rounds", () => {
+  it("leaves Rusty on his ideas or rounds", () => {
     expect(routineFor("tessellate", null, 2)).toBe("foundryIdeas");
-    expect(routineFor("tessellate", null, 0, true)).toBe("foundryUpkeep");
     expect(routineFor("tessellate", null, 0)).toBe("foundryIdle");
+  });
+
+  it("keeps Rivet at the upkeep bench between ticks, unless the checks or a hand-up need her", () => {
+    expect(routineFor("semicolon", null, 0, true)).toBe("foundryUpkeep");
+    expect(routineFor("semicolon", null, 0, true, { checksRunning: true })).toBe("foundryWatchClose");
+    expect(routineFor("semicolon", null, 0, true, { handingUp: true })).toBe("foundryHandUp");
+    expect(routineFor("semicolon", crate("upkeep", "working"), 0)).toBe("foundryUpkeep");
   });
 });

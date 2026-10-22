@@ -77,12 +77,15 @@ function holoTexture(colour: string, title: string, status: string, sub: string)
   return t;
 }
 
-/** The holo-display: flickers a little, and says whether the admiral is on deck or out giving orders. */
-function Holo({ colour, title, out, phase }: { colour: string; title: string; out: boolean; phase: number }) {
+/**
+ * The holo-display: flickers a little, says whether the admiral is on deck or out giving orders, and whether it is
+ * active with its own thread or still simulated (`active` on SUBMINDS, docs/SKIPPY.md).
+ */
+function Holo({ colour, title, active, out, phase }: { colour: string; title: string; active: boolean; out: boolean; phase: number }) {
   const ref = useRef<Mesh>(null);
   const [home, away] = useMemo(
-    () => [holoTexture(colour, title, "ON DECK", "the room is watched"), holoTexture(colour, title, "GIVING ORDERS", "back in a moment")],
-    [colour, title],
+    () => [holoTexture(colour, title, "ON DECK", active ? "active · own thread" : "simulated for now"), holoTexture(colour, title, "GIVING ORDERS", "back in a moment")],
+    [colour, title, active],
   );
   useEffect(
     () => () => {
@@ -246,7 +249,7 @@ export function Podium({ room }: { room: RoomId }) {
           <mesh position={[0, 0.065, 0]} material={glow}>
             <cylinderGeometry args={[0.025, 0.025, 0.01, 12]} />
           </mesh>
-          <Holo colour={m.colour} title={m.name} out={out} phase={phase} />
+          <Holo colour={m.colour} title={m.name} active={m.active} out={out} phase={phase} />
         </group>
 
         {/* The plaque on the slab's front face, tipped down to whoever reads it from the floor. */}

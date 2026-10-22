@@ -104,7 +104,7 @@ describe("questions apart from ideas waiting for a pick", () => {
 });
 
 describe("crewFor", () => {
-  it("sends tiny fixes to Rivet, other fixes and unnamed builds to Rusty, and named builds to their builder", () => {
+  it("sends tiny fixes and upkeep to Rivet, other fixes and unnamed builds to Rusty, and named builds to their builder", () => {
     expect(crewFor({ kind: "fix", rung: null })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 1 })).toBe("semicolon");
     expect(crewFor({ kind: "fix", rung: 2 })).toBe("tessellate");
@@ -112,7 +112,9 @@ describe("crewFor", () => {
     expect(crewFor({ kind: "build", rung: null })).toBe("tessellate");
     expect(crewFor({ kind: "build", rung: null, builder: "tessellate" })).toBe("tessellate");
     expect(crewFor({ kind: "build", rung: null, builder: "caret" })).toBe("caret");
-    expect(crewFor({ kind: "upkeep", rung: null })).toBe("tessellate");
+    // Upkeep is Rivet's own lane (Nikita, 2026-10-22), whatever model the tick runs on.
+    expect(crewFor({ kind: "upkeep", rung: null })).toBe("semicolon");
+    expect(crewFor({ kind: "upkeep", rung: null, builder: "tessellate" })).toBe("semicolon");
     expect(crewFor({ kind: "idea", rung: null })).toBe("tessellate");
   });
 });
@@ -129,6 +131,10 @@ describe("modelOf", () => {
     expect(modelOf({ rung: 2 }, "tessellate")).toBe("Sonnet");
     expect(modelOf({ rung: null }, "caret")).toBe("Opus");
     expect(modelOf({ rung: null }, "tessellate")).toBe("Sonnet");
+    // Rivet: Haiku for first response, Sonnet by default for upkeep, Opus when the tick's Builder line says so.
+    expect(modelOf({ rung: null }, "semicolon")).toBe("Haiku");
+    expect(modelOf({ rung: null, kind: "upkeep" }, "semicolon")).toBe("Sonnet");
+    expect(modelOf({ rung: null, kind: "upkeep", model: "Opus" }, "semicolon")).toBe("Opus");
   });
 });
 
@@ -190,10 +196,10 @@ describe("readBody", () => {
 });
 
 describe("visibleUpkeep", () => {
-  const at = Date.UTC(2026, 9, 13, 3, 0); // between the 00:57 and 06:57 ticks
+  const at = Date.UTC(2026, 9, 13, 3, 0); // between the 00:51 and 05:51 ticks (every five hours from 20:51Z)
   const crate = (over: Partial<Crate>): Crate => ({ number: 4, title: "Upkeep", kind: "upkeep", state: "shipped", rung: null, url: "", updatedAt: at - 60_000, pitch: "", size: null, revising: false, ...over });
-  it("keeps the latest tick's upkeep in Rusty's hands until the next tick", () => {
-    expect(lastUpkeep(at)).toBe(Date.UTC(2026, 9, 13, 0, 57));
+  it("keeps the latest tick's upkeep in Rivet's hands until the next tick", () => {
+    expect(lastUpkeep(at)).toBe(Date.UTC(2026, 9, 13, 0, 51));
     expect(visibleUpkeep([crate({ updatedAt: Date.UTC(2026, 9, 13, 1, 2) })], at)?.number).toBe(4);
   });
   it("lets go of upkeep from before the latest tick", () => {
@@ -213,7 +219,7 @@ describe("assignCrew", () => {
   });
 
   it("counts every job a crew member holds", () => {
-    expect(crewLoad([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")])).toEqual({ semicolon: 1, caret: 0, tessellate: 3 });
+    expect(crewLoad([crate(1, "fix", "working", 1), crate(2, "upkeep", "working"), crate(3, "build", "working"), crate(4, "chat", "working")])).toEqual({ semicolon: 2, caret: 0, tessellate: 2 });
   });
 
   it("leaves queued and shipped crates in nobody's hands", () => {
@@ -224,8 +230,10 @@ describe("assignCrew", () => {
 
   it("wakes one of the dock crew for each job really running past Rusty's first", () => {
     expect(sparesAwake([])).toBe(0);
-    expect(sparesAwake([crate(1, "upkeep", "working")])).toBe(0);
-    expect(sparesAwake([crate(1, "upkeep", "working"), crate(2, "fix", "working", 2)])).toBe(1);
+    expect(sparesAwake([crate(1, "chat", "working")])).toBe(0);
+    expect(sparesAwake([crate(1, "chat", "working"), crate(2, "fix", "working", 2)])).toBe(1);
+    // Upkeep is Rivet's lane: it never wakes Rusty's dock crew or takes one of his four slots.
+    expect(sparesAwake([crate(1, "chat", "working"), crate(2, "upkeep", "working")])).toBe(0);
     // Three jobs on the line: Rusty plus Dusty and Gusty.
     expect(sparesAwake([1, 2, 3].map((n) => crate(n, "build", "working")))).toBe(2);
     const lots = [1, 2, 3, 4, 5, 6].map((n) => crate(n, "fix", "working", 2));
@@ -478,12 +486,12 @@ describe("crewJob", () => {
     expect(crewJob([crate(9, "build", "working", { paused: true })], "tessellate", NOW)?.number).toBe(9);
   });
 
-  it("keeps Rusty on the latest upkeep between ticks, unless ideas wait on the board", () => {
+  it("keeps Rivet on the latest upkeep between ticks, and Rusty off it", () => {
     const at = Date.UTC(2026, 9, 13, 3, 0);
     const upkeep = crate(4, "upkeep", "shipped", { updatedAt: Date.UTC(2026, 9, 13, 1, 2) });
-    expect(crewJob([upkeep], "tessellate", at)?.number).toBe(4);
-    expect(crewJob([upkeep, crate(5, "idea", "queued")], "tessellate", at)).toBeNull();
-    expect(crewJob([upkeep], "semicolon", at)).toBeNull();
+    expect(crewJob([upkeep], "semicolon", at)?.number).toBe(4);
+    expect(crewJob([upkeep, crate(5, "idea", "queued")], "semicolon", at)?.number).toBe(4);
+    expect(crewJob([upkeep], "tessellate", at)).toBeNull();
     expect(crewJob([], "caret", at)).toBeNull();
   });
 });
@@ -492,7 +500,7 @@ describe("crew order and rank", () => {
   it("lists Rivet, then Rusty, then Rocky, each a tier up", () => {
     expect(CREW_ORDER.map((id) => CREW[id].name)).toEqual(["Rivet", "Rusty", "Rocky"]);
     expect(CREW_ORDER.map((id) => CREW_RANK[id].tier)).toEqual([1, 2, 3]);
-    expect(CREW_ORDER.map((id) => CREW_RANK[id].models)).toEqual(["Haiku", "Sonnet/Opus", "Opus"]);
+    expect(CREW_ORDER.map((id) => CREW_RANK[id].models)).toEqual(["Haiku/Sonnet", "Sonnet/Opus", "Opus"]);
     expect([...CREW_ORDER].sort()).toEqual(Object.keys(CREW).sort());
   });
 });

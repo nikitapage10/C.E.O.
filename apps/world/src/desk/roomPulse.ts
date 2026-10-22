@@ -2,6 +2,7 @@ import type { HistoryEntry, RoomId, WorldFeed } from "../chronicle.ts";
 import { CREW, crewOf, openIdeas, shippedToday, type FoundryData } from "../foundry.ts";
 import type { Link, LinkState } from "../systems.ts";
 import type { GreenBoard, GreenStatus } from "./green/league.ts";
+import { submindOf } from "../../../../packages/simulator/src/subminds.ts";
 
 /**
  * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): nine threads, one per room, each in its submind's
@@ -18,8 +19,8 @@ export interface RoomPulse {
   name: string;
   /** CSS colour (a Desk token). */
   colour: string;
-  /** The room's submind: its portrait id and title. */
-  submind: { id: string; title: string };
+  /** The room's submind: its portrait id, title, and whether it is active with its own thread (docs/SKIPPY.md). */
+  submind: RoomSubmind;
   /** Whether real work is connected for this room (else it is simulated for now). */
   real: boolean;
   state: PulseState;
@@ -39,16 +40,29 @@ export interface RoomPulse {
 
 export const ROOM_ORDER: readonly RoomId[] = ["foundry", "relay", "boiler", "archive", "breakroom", "spire", "exchange", "green", "workshop"];
 
-export const ROOM_META: Record<RoomId, { name: string; colour: string; submind: { id: string; title: string }; href: string }> = {
-  foundry: { name: "Foundry", colour: "var(--room-foundry)", submind: { id: "ember", title: "The Builder" }, href: "/foundry" },
-  relay: { name: "Relay", colour: "var(--room-relay)", submind: { id: "static", title: "The Messenger" }, href: "/relay" },
-  boiler: { name: "Boiler Room", colour: "var(--room-boiler)", submind: { id: "soot", title: "The Pessimist" }, href: "/boiler" },
-  archive: { name: "Archive", colour: "var(--room-archive)", submind: { id: "vellum", title: "The Historian" }, href: "/archive" },
-  breakroom: { name: "Break Room", colour: "var(--room-breakroom)", submind: { id: "fizz", title: "The Life of the Party" }, href: "/lattice?room=breakroom" },
-  spire: { name: "Spire", colour: "var(--room-spire)", submind: { id: "gilt", title: "The Executive" }, href: "/spire" },
-  exchange: { name: "Exchange", colour: "var(--room-exchange)", submind: { id: "ticker", title: "The Bookie" }, href: "/exchange" },
-  green: { name: "Green", colour: "var(--room-green)", submind: { id: "turf", title: "The Commentator" }, href: "/green" },
-  workshop: { name: "Workshop", colour: "var(--room-workshop)", submind: { id: "putty", title: "The Artiste" }, href: "/workshop" },
+export interface RoomSubmind {
+  id: string;
+  title: string;
+  /** Active: the room has a real API integrated, and the submind its own thread (`active` on `SUBMINDS`). */
+  active: boolean;
+}
+
+/** A room's submind, read from the one list in the simulator (`SUBMINDS`), so every view agrees on who is active. */
+function mind(room: RoomId): RoomSubmind {
+  const m = submindOf(room);
+  return { id: m.id, title: m.name, active: m.active };
+}
+
+export const ROOM_META: Record<RoomId, { name: string; colour: string; submind: RoomSubmind; href: string }> = {
+  foundry: { name: "Foundry", colour: "var(--room-foundry)", submind: mind("foundry"), href: "/foundry" },
+  relay: { name: "Relay", colour: "var(--room-relay)", submind: mind("relay"), href: "/relay" },
+  boiler: { name: "Boiler Room", colour: "var(--room-boiler)", submind: mind("boiler"), href: "/boiler" },
+  archive: { name: "Archive", colour: "var(--room-archive)", submind: mind("archive"), href: "/archive" },
+  breakroom: { name: "Break Room", colour: "var(--room-breakroom)", submind: mind("breakroom"), href: "/lattice?room=breakroom" },
+  spire: { name: "Spire", colour: "var(--room-spire)", submind: mind("spire"), href: "/spire" },
+  exchange: { name: "Exchange", colour: "var(--room-exchange)", submind: mind("exchange"), href: "/exchange" },
+  green: { name: "Green", colour: "var(--room-green)", submind: mind("green"), href: "/green" },
+  workshop: { name: "Workshop", colour: "var(--room-workshop)", submind: mind("workshop"), href: "/workshop" },
 };
 
 /** The simulated rooms' honest reports, each in its submind's voice: nothing real is connected there yet. */

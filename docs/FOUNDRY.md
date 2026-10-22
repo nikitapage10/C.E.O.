@@ -12,8 +12,10 @@ Scope: this repository only (Nikita, 2026-10-12).
    a bug. Drop everything else.
 2. **Ideas** (every morning at 9:00 Mountain). Propose exactly three ideas. Never code an idea before it is
    approved: by Nikita, or by the Builder itself when it is low risk (see "Auto-approval").
-3. **Upkeep** (every five hours, lined up with Nikita's Claude usage reset; only when nothing above is open). Security
-   and compliance first, then one small change that makes things run smoother without changing what Nikita sees.
+3. **Upkeep** (every five hours, lined up with Nikita's Claude usage reset). Rivet's own lane, beside the other two
+   rather than in one of Rusty's four slots (Nikita, 2026-10-22). Security and compliance first, then one small change
+   that makes things run smoother without changing what Nikita sees. Every tick ships something or files a card
+   saying why not.
 
 ## The crew
 
@@ -22,9 +24,9 @@ moves them.
 
 | Agent | Job | Takes |
 | --- | --- | --- |
-| Rivet (agent id `semicolon`, Haiku) | First responder | Reads every new job and sizes it; fixes on rung 1; shapes the ideas Nikita sends from the Desk into cards, and asks him first when one is unclear |
+| Rivet (agent id `semicolon`, Haiku; Sonnet for upkeep) | First responder and upkeep | Alerting and first response on Haiku: reads every new job and sizes it; fixes on rung 1; shapes the ideas Nikita sends from the Desk into cards, and asks him first when one is unclear. Owns the upkeep lane (Nikita, 2026-10-22): every five-hour tick she ships one change, security and compliance first, or files a card saying why not; Sonnet by default, Opus 5.5 only when a job needs it |
 | The Builder, the Foundry's submind (agent id `ember`, Opus) | Room lead | Decides who takes each job and on which model; plans, reviews and ships; conducts the room |
-| Rusty (agent id `tessellate`, Sonnet or Opus) | Builder, upkeep and ideas | The default builder for every fix and build (rungs 2 and 3), upkeep and maintenance, the morning ideas. His dock crew, Dusty, Gusty and Musty, take his extra jobs |
+| Rusty (agent id `tessellate`, Sonnet or Opus) | Builder and ideas | The default builder for every fix and build (rungs 2 and 3) and the morning ideas. His dock crew, Dusty, Gusty and Musty, take his extra jobs. Upkeep moved to Rivet (Nikita, 2026-10-22) |
 | Rocky (agent id `caret`, Opus) | Master builder | Only the high-level work: architecture, big-picture design, open-ended ideas where deciding what to build is most of the job |
 
 Who and which model is the Builder's call (the Foundry's submind, on Opus), made up front for every job (Nikita,
@@ -37,7 +39,12 @@ picks the job up, it confirms or changes it and updates the line. The Builder's 
   room one wakes on his dock and works the assembly line beside him.
 - **Rocky** is held for the high-level work: architecture, big-picture design, open-ended ideas, and the big design
   and animation jobs (3D scenes, models, animation, lighting, layout), on **Opus up to high effort** when needed.
-- **Rivet (Haiku)** answers first: triage, one-line fixes, copy tweaks, labels.
+- **Rivet (Haiku)** answers first: alerting, triage, one-line fixes, copy tweaks, labels.
+- **Rivet runs upkeep and maintenance on Sonnet** by default (Nikita, 2026-10-22: "it should really prioritize Sonnet
+  for maintenance"): dependency bumps, flaky tests, dead code, docs, the small security and compliance fixes. She goes
+  up to **Opus 5.5** only when the job needs it (a security fix whose cause isn't clear, a change that needs real
+  judgement), and back down to **Haiku** for the trivial ones (a label, a typo in the docs). The tick's issue names the
+  model on its `**Builder:**` line, e.g. `**Builder:** Rivet (Sonnet)`.
 - **Opus at extra-high effort, or Fable, needs Nikita's approval first.** The Builder asks with a decision card in
   the Foundry thread (`ask_decision`) before starting the job, and waits for the answer.
 
@@ -49,6 +56,8 @@ picks the job up, it confirms or changes it and updates the line. The Builder's 
   on its crate on the line.
 - The Builder doesn't start a job that changes the same files or the same room as a job already running; it waits in
   the queue until that one ships.
+- **Rivet's lane runs outside the four**: her urgent first responses and her upkeep never take one of Rusty's slots,
+  and she runs clones of herself, so an upkeep job never holds up a fix.
 - **Urgent work never waits** (red checks on main, a bug, an alert). There is one emergency slot outside the four,
   normally Rivet. If a second urgent job lands while that slot is busy, the newest idea build pauses: it pushes its
   branch as work in progress, takes the `foundry:paused` label (its card and crate show "paused for a fix"), and
@@ -87,7 +96,7 @@ An issue with no state label is queued. Close an issue without `foundry:shipped`
 to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread starts such work opens a `foundry` +
 `foundry:chat` + `foundry:working` issue for it first (title, a `**Pitch:**` line, `**Size:**`, a `**Short:**` line, a `**Builder:**`
 line naming the crew member for the model the thread really codes on (Rocky for Opus, Rusty for Sonnet, Rivet for
-Haiku), the branch), and labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists
+Haiku; Rivet also on upkeep, whatever her model), the branch), and labels it `foundry:shipped` and closes it when the work lands. The Desk's Foundry tab lists
 it under "In flight" with everything else, and in the Foundry room that crew member (or one of Rusty's dock crew,
 when he is already busy) is seen working on it (Nikita, 2026-10-12: "any development-based idea should end up in the Foundry
 somewhere as well"; 2026-10-13: the crew shown must match the model doing the work).
@@ -425,11 +434,32 @@ The first time, create the labels: `gh label create foundry:undo --color D93F0B 
 this shipped change from the Desk"` and `gh label create foundry:undone --color BFBFBF --description "Its revert has
 shipped"`.
 
-## Lane 3: Upkeep
+## Lane 3: Upkeep (Rivet)
 
-Only when no fix or build is open and unstuck. The tick runs every five hours, starting a minute after Nikita's
-Claude usage resets (Nikita, 2026-10-13); a cron can't say "every five hours", so each tick moves the routine's next
-run five hours on. One change per tick, on the cheapest model that can do it (design always on Opus):
+Upkeep is **Rivet's lane** (Nikita, 2026-10-22: "Let's have Rivet become the upkeep person, not Rusty"). It runs on
+its own track beside the fix and build lanes, not in one of Rusty's four slots (see "How many run at once"), so it
+never waits for the build queue and never takes a slot from it. The tick runs every five hours, starting a minute
+after Nikita's Claude usage resets (Nikita, 2026-10-13); a cron can't say "every five hours", so each tick moves the
+routine's next run five hours on.
+
+**Models.** Rivet triages the tick on Haiku (what is open, what is most pressing), then does the work on **Sonnet**
+by default. **Opus 5.5** only when the job needs it (a security fix whose cause isn't clear, a change that needs real
+judgement); Haiku for the trivial ones; design always on Opus. Extra-high effort or Fable still needs Nikita's OK
+first. The issue's `**Builder:**` line names the model she really used, e.g. `**Builder:** Rivet (Sonnet)`.
+
+**Every tick ends one of two ways** (no silent ticks):
+
+1. **It ships one change.** Open a `foundry:upkeep` issue (`**Builder:** Rivet (<model>)`), do the work on a
+   `foundry/upkeep/<issue>-<slug>` branch, open its PR, and merge it without asking once the PR's checks pass, then
+   label `foundry:shipped` and close the issue.
+2. **Or it files a card saying why not.** When nothing ships (main is red and a fix holds it, the top item is too big
+   or needs Nikita's call, the change failed its checks twice, nothing on the list needs doing), open a
+   `foundry:upkeep` issue titled `Upkeep: nothing shipped this tick` whose `**Pitch:**` says why in a sentence or two,
+   with a `**Trail · Decision:** Nothing shipped this tick: <reason>.` step, and close it as not planned. When the
+   reason is an item that is too big or needs Nikita, file that item as an idea card (`foundry:idea`) for Nikita's pick
+   as well and link it from the upkeep card.
+
+**What to pick, in this order** (one change per tick):
 
 - **security and compliance first:** the most pressing open item on the Desk's Security and Compliance pages (risks
   R1–R6 and the open OWASP LLM, NIST AI RMF and SAIF gaps in [THREAT-MODEL.md](THREAT-MODEL.md), or a failing scan).
@@ -446,9 +476,7 @@ run five hours on. One change per tick, on the cheapest model that can do it (de
   Nikita's pick. A red run is left unmerged with one comment saying which check failed;
 - keep docs and setup notes in step with the code.
 
-Open a `foundry:upkeep` issue, do the work on a `foundry/upkeep/…` branch, open its PR, and merge it without
-asking once the PR's checks pass, then label `foundry:shipped`. Upkeep never changes what Nikita sees or how the agents behave. If a change
-would, it becomes an idea instead.
+Upkeep never changes what Nikita sees or how the agents behave. If a change would, it becomes an idea instead.
 
 ## The trail on every issue
 

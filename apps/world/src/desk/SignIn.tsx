@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { DeskPings } from "./PingSwitch.tsx";
+import { SitePassword } from "./SitePassword.tsx";
 import { guessDevice, useDeskAuth, waitLine, type AuthResult, type AuthView } from "./signin.ts";
 
 /**
@@ -40,6 +41,8 @@ export interface SignInProps {
   defaultLabel: string;
   /** Signed in: the "Pings on this device" switch (#135), shown under the sign-in line. */
   pings?: ReactNode;
+  /** Signed in: the "Site password" control (#236), under the pings switch. */
+  site?: ReactNode;
 }
 
 /** The sign-in step as it looks for a given state; DeskSignIn wires it to the store. */
@@ -93,6 +96,7 @@ export function SignInPanel(p: SignInProps) {
           </button>
         </div>
         {p.pings}
+        {p.site}
       </aside>
     );
   }
@@ -196,6 +200,7 @@ export function DeskSignIn({ compact = false, onDone, onCancel }: { compact?: bo
       compact={compact}
       defaultLabel={guessDevice(typeof navigator === "undefined" ? "" : navigator.userAgent)}
       pings={compact ? undefined : <DeskPings />}
+      site={compact ? undefined : <SitePassword />}
       onSignIn={() => {
         setBusy(true);
         setNote("");

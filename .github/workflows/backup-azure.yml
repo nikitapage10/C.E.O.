@@ -3,7 +3,8 @@
 #
 # What it copies:
 #   vercel/     the production world as the public API serves it: /api/world and the last 7 days of /api/world?day=
-#               (no Vercel Blob token in GitHub: Vercel signs in to its store on its own, and these pages are public)
+#               (no Vercel Blob token in GitHub: Vercel signs in to its store on its own; once the site password is
+#               on, #236, these pages answer only with the SITE_BYPASS_TOKEN secret in a header)
 #   ceo-state/  everything in the Azure copy's own state container
 #   models/     apps/world/public/models from main
 #
@@ -74,13 +75,20 @@ jobs:
           tenant-id: ${{ steps.az.outputs.tenant }}
           subscription-id: ${{ steps.az.outputs.sub }}
       - name: Fetch the production world
+        # Once the site password is on (#236), the site answers only with SITE_BYPASS_TOKEN (the same value as in
+        # Vercel), sent in a header from a file so it never sits on a command line; never printed.
+        env:
+          SITE_BYPASS_TOKEN: ${{ secrets.SITE_BYPASS_TOKEN }}
         run: |
           mkdir -p backup/vercel
-          curl -fsS --max-time 60 "$SITE/api/world" -o backup/vercel/world.json
+          hdr="$RUNNER_TEMP/site-bypass.h"
+          printf 'x-ceo-site-bypass: %s\n' "$SITE_BYPASS_TOKEN" > "$hdr"
+          curl -fsS --max-time 60 -H @"$hdr" "$SITE/api/world" -o backup/vercel/world.json
           for i in 0 1 2 3 4 5 6; do
             day=$(TZ=America/Denver date -d "-$i day" +%F)
-            curl -fsS --max-time 60 "$SITE/api/world?day=$day" -o "backup/vercel/day-$day.json" || echo "no $day"
+            curl -fsS --max-time 60 -H @"$hdr" "$SITE/api/world?day=$day" -o "backup/vercel/day-$day.json" || echo "no $day"
           done
+          rm -f -- "$hdr"
       - name: Copy the Azure state
         run: |
           mkdir -p backup/ceo-state
@@ -163,6 +171,9 @@ jobs:
         run: node scripts/seed-azure-pull.mjs "$RUNNER_TEMP/seed"
       - name: Rebuild production's world and stories from its public API
         if: steps.azure.outputs.go == 'true' && steps.src.outputs.from == 'public'
+        # The site password's bypass (#236): the script sends it in a header to the site only, never prints it.
+        env:
+          SITE_BYPASS_TOKEN: ${{ secrets.SITE_BYPASS_TOKEN }}
         run: node scripts/seed-azure-public.mjs "$RUNNER_TEMP/seed" "$SITE"
       - name: Upload into ceo-state
         if: steps.azure.outputs.go == 'true'

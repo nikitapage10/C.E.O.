@@ -12,6 +12,7 @@ import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { Desk } from "./desk/Desk.tsx";
 import { loadLattice, useRoute } from "./route.ts";
+import { installSiteGate } from "./siteGate.ts";
 
 /** The 3D Lattice is its own download: nothing from it (three.js, models, the simulator) loads on the Desk. */
 const Lattice = lazy(() => loadLattice().then((m) => ({ default: m.App })));
@@ -37,6 +38,9 @@ function Root() {
   }
   return <Desk route={route} />;
 }
+
+// The site password (#236): an API call that finds this browser signed out of the site goes to the login page.
+installSiteGate();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

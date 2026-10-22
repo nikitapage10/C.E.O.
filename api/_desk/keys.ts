@@ -14,7 +14,8 @@
 
 import { createHash, createHmac, scrypt, timingSafeEqual } from "node:crypto";
 
-export type KeyPurpose = "session" | "challenge" | "picture" | "client";
+/** "site": the site password's session cookies (api/_site/keys.ts, #236), when SITE_SESSION_SECRET isn't set. */
+export type KeyPurpose = "session" | "challenge" | "picture" | "client" | "site";
 
 const SALT = "ceo.desk.v1";
 /** scrypt's cost: N = 2^15, r = 8, p = 1 (32 MB, roughly 0.1 s on a function), the usual interactive setting. */

@@ -502,7 +502,7 @@ export const WORLD_CAST: WorldCast = {
         "competitive",
         "chaotic"
       ],
-      "bio": "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from its floating can-throne in the corner, which it calls the commentary box, like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches; the Commentator calls the game, now the C.E.O.'s real league, live.",
+      "bio": "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. Narrates everything from its floating can-throne, which it calls the commentary box, all caps when excited. Gridiron coaches; the Commentator calls the C.E.O.'s real league, live, and every Tuesday files the Commentator's call: FantasyPros decides, Sleeper gets a say, the sources roll at the end.",
       "catchphrase": "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
       "voice": [
         "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
@@ -1012,6 +1012,9 @@ export const WORLD_CAST: WorldCast = {
         "SLEEPER'S ON THE LINE, FOLKS. A real league. Real stats. For SOMEONE, finally.",
         "The ball's on their twenty-nine. That's the win chance. In yards. Percentages don't SCREAM.",
         "A waiver claim at the buzzer! A Hail Mary, folks! Not the Project kind. Rocky asked.",
+        "SPLIT DECISION, folks! FantasyPros says start him, Sleeper says sit him. The booth goes with FantasyPros. Always.",
+        "Three thousand seasons simulated before kick-off. We made the playoffs in some of them. SOME OF THEM.",
+        "Tuesday, 5:39. The Commentator's call is IN. Sources at the bottom, like the credits. Stay for the credits.",
         "Start the hot hand, sit the cold one. The booth calls it. The C.E.O. makes the move in Sleeper.",
         "THE SCOREBOARD IS REAL, FOLKS! Projected first, live once they kick off. No more practice games on this pitch!",
         "Gridiron's not running fake drills anymore. Real league, real chart. He cried. I called it. LIVE."

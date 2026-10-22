@@ -1,13 +1,14 @@
 import { useEffect } from "react";
+import { Private } from "../Private.tsx";
 import { useDeskAuth } from "../signin.ts";
-import { cents, contracts, pnlTone, signedPct, signedUsd, startPositions, usd, usePositions, type PmPosition, type PmTrade } from "./positions.ts";
+import { cents, contracts, pnlTone, signedPct, signedUsd, startPositions, usd, usePositions, type PmPosition, type PmPositions, type PmTrade, type PosStatus } from "./positions.ts";
 import "./polymarket.css";
 import "./positions.css";
 
 /**
  * Nikita's own Polymarket US positions on the Exchange (#253): what he holds, what it cost, what it's worth and the
  * P&L, then the last few fills. Read-only. The server answers only a signed-in Desk; every dollar figure, size and P&L
- * here carries `data-private` so the Desk's Hide mode (#251) can mask it for a demo. Nothing from this board reaches the
+ * here is wrapped in <Private> so the Desk's Hide mode (#251) veils it for a demo. Nothing from this board reaches the
  * Lattice or any public page. Every word in it came from Polymarket, so it is drawn as text only.
  */
 
@@ -29,19 +30,23 @@ function Row({ p }: { p: PmPosition }) {
         <Market name={p.market} url={p.url} />
         <span className="pos-sub">
           <span className="pos-side">{p.short ? `Short ${p.outcome}` : p.outcome}</span>
-          <span data-private>
+          <Private>
             {contracts(p.contracts)} {p.contracts === 1 ? "contract" : "contracts"} · avg {cents(p.avgPrice)}
-          </span>
+          </Private>
           {p.expired && <span>Expired</span>}
         </span>
       </div>
-      <span className="pos-num" data-private aria-label={`Worth ${usd(p.value)}, cost ${usd(p.cost)}`}>
-        {usd(p.value)}
-        <small>cost {usd(p.cost)}</small>
+      <span className="pos-num">
+        <Private label="value hidden">{usd(p.value)}</Private>
+        <small>
+          cost <Private label="hidden">{usd(p.cost)}</Private>
+        </small>
       </span>
-      <span className={`pos-num pos-pnl is-${tone}`} data-private aria-label={`Profit or loss ${signedUsd(p.pnl)}, ${signedPct(p.pnlPct)}`}>
-        {signedUsd(p.pnl)}
-        <small>{signedPct(p.pnlPct)}</small>
+      <span className={`pos-num pos-pnl is-${tone}`}>
+        <Private label="profit or loss hidden">{signedUsd(p.pnl)}</Private>
+        <small>
+          <Private>{signedPct(p.pnlPct)}</Private>
+        </small>
       </span>
     </li>
   );
@@ -59,9 +64,7 @@ function Trade({ t }: { t: PmTrade }) {
       <span className="pos-when">{when(t.at)}</span>
       <span className="pos-kind">{KIND[t.kind]}</span>
       <Market name={t.market} url={t.url} />
-      <span className="pos-fill" data-private>
-        {t.kind === "settled" ? "" : `${contracts(t.contracts)} @ ${cents(t.price)}`}
-      </span>
+      <span className="pos-fill">{t.kind === "settled" ? "" : <Private>{`${contracts(t.contracts)} @ ${cents(t.price)}`}</Private>}</span>
     </li>
   );
 }
@@ -74,6 +77,11 @@ export function PositionsBoard() {
 
   useEffect(() => startPositions(), []);
 
+  return <PositionsView status={status} data={data} reason={reason} onSignIn={() => void signIn()} />;
+}
+
+/** The board itself, from the store's state (kept apart so it can be rendered and checked on its own). */
+export function PositionsView({ status, data, reason, onSignIn }: { status: PosStatus; data: Extract<PmPositions, { state: "live" }> | null; reason: "no-key" | "bad-key" | null; onSignIn: () => void }) {
   const totals = data?.totals ?? null;
   const tone = totals ? pnlTone(totals.pnl) : "flat";
 
@@ -107,17 +115,17 @@ export function PositionsBoard() {
           <div className="pos-totals">
             <div>
               <p className="pm-eyb">Worth now</p>
-              <b data-private>{usd(totals.value)}</b>
+              <Private as="b">{usd(totals.value)}</Private>
             </div>
             <div>
               <p className="pm-eyb">Cost</p>
-              <b data-private>{usd(totals.cost)}</b>
+              <Private as="b">{usd(totals.cost)}</Private>
             </div>
             <div>
               <p className="pm-eyb">Unrealised P&amp;L</p>
-              <b className={`is-${tone}`} data-private>
+              <Private as="b" className={`is-${tone}`}>
                 {signedUsd(totals.pnl)}
-              </b>
+              </Private>
             </div>
             <div>
               <p className="pm-eyb">Open</p>
@@ -156,7 +164,7 @@ export function PositionsBoard() {
           ) : status === "signed-out" ? (
             <p>
               Your positions are behind the Desk's passkey.{" "}
-              <button type="button" className="pos-signin" onClick={() => void signIn()}>
+              <button type="button" className="pos-signin" onClick={onSignIn}>
                 Sign in
               </button>
             </p>

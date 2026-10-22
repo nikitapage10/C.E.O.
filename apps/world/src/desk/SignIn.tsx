@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { DeskPings } from "./PingSwitch.tsx";
+import { Private } from "./Private.tsx";
 import { SitePassword } from "./SitePassword.tsx";
 import { guessDevice, useDeskAuth, waitLine, type AuthResult, type AuthView } from "./signin.ts";
 
@@ -70,7 +71,7 @@ export function SignInPanel(p: SignInProps) {
       <aside className="desk-auth desk-auth--in" aria-label="Desk sign-in">
         <p className="desk-auth__line">
           <i className="desk-auth__dot" aria-hidden="true" />
-          Signed in on <b>{auth.device}</b>
+          Signed in on <Private as="b">{auth.device}</Private>
           {auth.hardUntil ? <span className="desk-auth__quiet"> · stays signed in while you use it, until {clock(auth.hardUntil)} at the latest</span> : null}
         </p>
         <div className="desk-auth__actions">
@@ -80,7 +81,7 @@ export function SignInPanel(p: SignInProps) {
               {(auth.devices ?? []).map((d) => (
                 <li key={d.id}>
                   <span>
-                    {d.label}
+                    <Private>{d.label}</Private>
                     {d.current ? " (this one)" : ""}
                   </span>
                   <small>added {new Date(d.added).toLocaleDateString()}</small>
@@ -134,7 +135,7 @@ export function SignInPanel(p: SignInProps) {
         >
           <label>
             This device&apos;s name
-            <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40} autoComplete="off" />
+            <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40} autoComplete="off" data-private="" />
           </label>
           <label>
             The Desk key, asked once to enrol this device&apos;s passkey

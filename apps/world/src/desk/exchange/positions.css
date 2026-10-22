@@ -1,6 +1,6 @@
 /*
  * Nikita's Polymarket US positions (#253), beside the odds board and in its language (polymarket.css): flat dark
- * surfaces, hairlines, mono numerals; green and red only on P&L. Private figures carry data-private for Hide mode.
+ * surfaces, hairlines, mono numerals; green and red only on P&L. Private figures are wrapped in <Private> for Hide mode (#251).
  */
 
 .pos {

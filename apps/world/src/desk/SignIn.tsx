@@ -41,7 +41,7 @@ export interface SignInProps {
   defaultLabel: string;
   /** Signed in: the "Pings on this device" switch (#135), shown under the sign-in line. */
   pings?: ReactNode;
-  /** Signed in: the "Site password" control (#236), under the pings switch. */
+  /** Signed in: the "Site lock" control (#236, #238), under the pings switch. */
   site?: ReactNode;
 }
 

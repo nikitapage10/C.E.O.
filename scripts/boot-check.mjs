@@ -21,7 +21,7 @@
  * The live watch (#181): `node scripts/boot-check.mjs --url=https://…` runs the same three pages against a deployed
  * site instead of the local build (no build or server needed), hourly from .github/workflows/live-watch.yml.
  *
- * The site password (#236): when the live site is locked, SITE_BYPASS_TOKEN (the same value as in Vercel) is sent in
+ * The site lock (#236, #238): when the live site is locked, SITE_BYPASS_TOKEN (the same value as in Vercel) is sent in
  * the x-ceo-site-bypass header on the site's own requests only (never to another host), and never printed. Without
  * it, a locked site is checked only for answering with its login page, and the run passes with a notice.
  */
@@ -47,12 +47,13 @@ const base = live ?? `http://localhost:${PORT}`;
 const BYPASS = live ? process.env.SITE_BYPASS_TOKEN?.trim() || "" : "";
 
 if (live) {
-  // Locked by the site password (#236)? Ask once, as the watch will (with the bypass when it has one).
+  // Locked by the site lock (#236, #238)? Ask once, as the watch will (with the bypass when it has one).
   const res = await fetch(`${base}/`, { headers: BYPASS ? { "x-ceo-site-bypass": BYPASS } : {}, redirect: "manual", signal: AbortSignal.timeout(30_000) }).catch(() => null);
   if (res && res.headers.get("x-ceo-site-gate") === "locked") {
-    const login = res.status === 401 && /action="\/api\/site-login"/.test(await res.text());
+    // The login page: the passkey's script from /api/site-login (#238; the #236 page had a form posting there).
+    const login = res.status === 401 && /"\/api\/site-login[?"]/.test(await res.text());
     if (!BYPASS && login) {
-      console.log("boot-check: the live site is password-protected and SITE_BYPASS_TOKEN isn't set; checked only that its login page answers.");
+      console.log("boot-check: the live site is locked and SITE_BYPASS_TOKEN isn't set; checked only that its login page answers.");
       process.exit(0);
     }
     console.error(BYPASS ? "boot-check: FAIL the live site refused SITE_BYPASS_TOKEN (is it the same value as in Vercel?)" : "boot-check: FAIL the live site is locked and its login page didn't answer");

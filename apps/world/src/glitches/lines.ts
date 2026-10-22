@@ -44,7 +44,7 @@ export const WELCOME_BACK = [
 export const CLIP_OFFERS: Record<RoomId, string> = {
   foundry: "It looks like you're trying to write code. Would you like me to make it worse?",
   spire: "It looks like you're trying to run a business. Would you like help with that letter?",
-  exchange: "It looks like you're trying to trade on Kalshi. Would you like help losing money faster?",
+  exchange: "It looks like you're trying to trade on Polymarket. Would you like help losing money faster?",
   green: "It looks like you're starting a backup kicker. Bold. Would you like help?",
   relay: "It looks like you're writing a text. Would you like to add a third exclamation point?",
   archive: "It looks like you're writing lore. Would you like it to be a prophecy?",

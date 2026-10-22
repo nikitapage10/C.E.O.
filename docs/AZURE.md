@@ -82,7 +82,7 @@ if has foundry-desk-key; then echo "kept foundry-desk-key"; else K=$(rnd); put f
 az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
 ```
 
-   **By hand, three secrets** (they come from other services). In the [Azure portal](https://portal.azure.com):
+   **By hand, three secrets** (they come from other services), and two optional ones for the Exchange. In the [Azure portal](https://portal.azure.com):
    search **Key vaults** → **kv-ceo-besgu7fnckib2** → in the left menu **Objects → Secrets** → **+ Generate/Import**.
    Leave **Upload options** on *Manual*, type the **Name** exactly as below, paste the value into **Secret value**,
    leave the content type, dates and **Enabled: Yes** as they are, and press **Create**. Then restart: search
@@ -93,6 +93,7 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `claude-api-key` | A new key from [console.anthropic.com](https://console.anthropic.com) → **API keys** → **Create key**, in the same workspace as Vercel's (so the same monthly spend limit covers both copies) |
    | `gemini-api-key` | A key from [aistudio.google.com](https://aistudio.google.com) → **Get API key** → **Create API key** (Vercel's own Gemini project is fine) |
    | `foundry-github-token` | A fine-grained token: GitHub → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**. Resource owner `nikitapage10`, **Only select repositories** → `nikitapage10/C.E.O.`, and under **Repository permissions**: Actions *Read-only*, Code scanning alerts *Read-only*, Contents *Read-only*, Dependabot alerts *Read-only*, Issues *Read and write*, Pull requests *Read-only* (Metadata *Read-only* comes with it). Nothing else |
+   | `polymarket-us-key-id`, `polymarket-us-secret-key` | Optional (#253, the Exchange's positions). On the Polymarket US app, finish identity verification; then at [polymarket.us/developer](https://polymarket.us/developer), signed in the same way as in the app (Apple, Google or email), create an API key. Paste its **Key ID** (a UUID) as `polymarket-us-key-id` and its **Secret Key** (shown only once) as `polymarket-us-secret-key`. The key could trade (Polymarket US has no read-only keys); the code only ever reads two portfolio paths. Revoke it there if in doubt |
 
    `foundry-app-id`, `foundry-app-installation-id` and `foundry-app-private-key` stay empty until the crew's GitHub
    App exists (#138); the functions use `foundry-github-token` meanwhile. A secret that doesn't exist yet (or is
@@ -100,6 +101,20 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    as unset (see "Key Vault references" below), so that feature is simply off, as on Vercel without the setting.
    The Green's FantasyPros key lives in the vault as `fantasypros` (#252): if it was added as a plain `FANTASYPROS` app
    setting in the portal, the next template run replaces that with the vault reference, so add it to the vault too.
+
+   **The Polymarket US key needs two app settings added by hand** (#253). CI never deploys the Bicep template, so the
+   references for `POLYMARKET_US_KEY_ID` and `POLYMARKET_US_SECRET_KEY` in `infra/resources.bicep` only exist after
+   someone runs the template paste again. Until then, putting the secrets in the vault is not enough: in the portal,
+   **Function App** → **func-ceo-besgu7fnckib2** → **Settings → Environment variables** → **App settings** →
+   **+ Add**, add both, each with a Key Vault reference as its value, then **Apply** and restart:
+
+   | Name | Value |
+   | --- | --- |
+   | `POLYMARKET_US_KEY_ID` | `@Microsoft.KeyVault(VaultName=kv-ceo-besgu7fnckib2;SecretName=polymarket-us-key-id)` |
+   | `POLYMARKET_US_SECRET_KEY` | `@Microsoft.KeyVault(VaultName=kv-ceo-besgu7fnckib2;SecretName=polymarket-us-secret-key)` |
+
+   Until both are set, the Exchange's positions board says it is waiting for the key. A later template run writes the
+   same two references, so nothing changes then.
 
    | Key Vault secret | App setting |
    | --- | --- |
@@ -110,6 +125,7 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `gemini-api-key` | `GEMINI_API_KEY` |
    | `desk-vapid-public-key`, `desk-vapid-private-key`, `desk-vapid-subject` | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY`, `DESK_VAPID_SUBJECT` |
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
+   | `polymarket-us-key-id`, `polymarket-us-secret-key` | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` (optional, #253: the Exchange's read-only positions; Azure only) |
    | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings, lower than Vercel's because both copies

@@ -4,7 +4,7 @@ import type { WorldFeed } from "../chronicle.ts";
 import { EMPTY_FOUNDRY, type Crate } from "../foundry.ts";
 import type { Link } from "../systems.ts";
 import { PORTRAITS } from "./portraits.ts";
-import { ROOM_META, ROOM_ORDER, roomPulses, skippyLine, type PulseInput } from "./roomPulse.ts";
+import { ROOM_META, ROOM_ORDER, roomPhrase, roomPulses, skippyLine, type PulseInput } from "./roomPulse.ts";
 
 const NOW = Date.parse("2026-10-22T19:00:00Z");
 const DAY = new Date(NOW).setHours(0, 0, 0, 0);
@@ -47,12 +47,27 @@ describe("room pulses", () => {
     expect(relay.status).toBe("Waiting on the Mac");
     const boiler = pulses.find((p) => p.id === "boiler")!;
     expect(boiler.report).toMatch(/^2 links up, 2 not connected yet/);
-    for (const id of ["breakroom", "spire", "exchange", "green", "workshop"]) {
+    const exchange = pulses.find((p) => p.id === "exchange")!;
+    expect(exchange).toMatchObject({ real: false, state: "sim", short: "no odds yet" });
+    for (const id of ["breakroom", "spire", "green", "workshop"]) {
       const p = pulses.find((x) => x.id === id)!;
       expect(p.real).toBe(false);
       expect(p.state).toBe("sim");
       expect(p.report.toLowerCase()).toContain("nothing real");
     }
+  });
+
+  it("says the Exchange's odds are live once Polymarket answers, and never a dollar figure", () => {
+    const links = [...input().links, link("polymarket", "ok")];
+    const live = roomPulses(input({ links, odds: { markets: 10, lead: { question: "Fed cut?", prob: 0.63 } } })).find((p) => p.id === "exchange")!;
+    expect(live).toMatchObject({ real: true, state: "steady", short: "odds live", status: "Polymarket odds live" });
+    expect(live.report).toContain("10 markets on the board, the busiest at 63%");
+    expect(live.report).not.toMatch(/\$/);
+    expect(roomPhrase(live)).toBe("the Exchange's odds are live");
+    const slow = roomPulses(input({ links: [...input().links, link("polymarket", "slow")], odds: null })).find((p) => p.id === "exchange")!;
+    expect(slow.short).toBe("odds stale");
+    const down = roomPulses(input({ links: [...input().links, link("polymarket", "down")] })).find((p) => p.id === "exchange")!;
+    expect(down).toMatchObject({ state: "down", short: "odds down" });
   });
 
   it("knots the simulated rooms only on the living Lattice's own scenes", () => {

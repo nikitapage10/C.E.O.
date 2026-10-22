@@ -53,3 +53,82 @@ export const PM_TOP_MAX = 10;
 export const PM_WATCH_MAX = 8;
 export const PM_TEXT_MAX = 160;
 export const PM_SPARK_MAX = 48;
+
+
+/* ── Nikita's own positions (#253): read-only, from his Polymarket US account, only to a signed-in Desk ── */
+
+/** One position, as the Desk's private positions board shows it. Text came from Polymarket: drawn as text only. */
+export interface PmPosition {
+  /** The market's title, plain text, trimmed. */
+  market: string;
+  /** The outcome the contracts are on ("Yes", "Brewers"). */
+  outcome: string;
+  /** The event's page on polymarket.us, built from a checked slug; null when there is none. */
+  url: string | null;
+  /** Short (a negative net position): on Polymarket US that is the other side of the outcome. */
+  short: boolean;
+  /** Contracts held (the size of the net position, always positive here). */
+  contracts: number;
+  /** Average cost per contract, 0..1; null when it can't be worked out. */
+  avgPrice: number | null;
+  /** What the position is worth now, in dollars (Polymarket US's cash value). */
+  value: number;
+  /** Its cost basis, in dollars. */
+  cost: number;
+  /** Unrealised profit or loss, in dollars (value − cost). */
+  pnl: number;
+  /** The same as a percentage of the cost; null when the cost is nothing. */
+  pnlPct: number | null;
+  /** Profit or loss already taken on this market, in dollars. */
+  realized: number;
+  /** The market has expired (settling or settled). */
+  expired: boolean;
+}
+
+/** One line of recent activity: a fill or a settlement. Deposits and withdrawals are never read. No ids are kept. */
+export interface PmTrade {
+  /** When (ISO). */
+  at: string;
+  /** "voided" is a fill the exchange busted afterwards: shown, struck through, never counted. */
+  kind: "trade" | "settled" | "voided";
+  market: string;
+  url: string | null;
+  /** Contracts moved (0 when Polymarket doesn't say). */
+  contracts: number;
+  /** Price per contract, 0..1; null when there is none. */
+  price: number | null;
+}
+
+export interface PmTotals {
+  /** Open positions counted. */
+  open: number;
+  /** What they're worth now, what they cost, and the difference, in dollars. */
+  value: number;
+  cost: number;
+  pnl: number;
+}
+
+/**
+ * GET /api/exchange-positions, signed in with the Desk passkey. "waiting" until the Polymarket US key is set (or while
+ * it can't be read). Nothing about the key is ever sent to the browser.
+ */
+export type PmPositions =
+  | { ok: true; state: "waiting"; reason: "no-key" | "bad-key" }
+  | {
+      ok: true;
+      state: "live";
+      /** When the server read Polymarket US (ISO). */
+      at: string;
+      /** Open positions, largest first. */
+      positions: PmPosition[];
+      /** Newest first. */
+      activity: PmTrade[];
+      totals: PmTotals;
+      /** More positions than the board reads (PM_POS_MAX); the totals cover only those read. */
+      more: boolean;
+      /** True when Polymarket US didn't answer and this is the last good read. */
+      stale?: boolean;
+    };
+
+export const PM_POS_MAX = 100;
+export const PM_TRADES_MAX = 12;

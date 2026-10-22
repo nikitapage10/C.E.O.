@@ -184,6 +184,18 @@ export const CONNECTIONS: Connection[] = [
     when: "The Desk asks every minute while the Exchange or Systems is open, through a one-minute edge cache, so Polymarket is read about once a minute at most.",
   },
   {
+    id: "polymarket-us",
+    name: "Polymarket US",
+    room: "exchange",
+    at: [{ system: "exchange" }],
+    serves: "Your own positions and P&L on the Exchange",
+    kinds: ["REST API", "Polling"],
+    status: "live",
+    how: "An Azure function (exchange-positions; on Vercel the world feed's, through a rewrite) reads your Polymarket US account's positions and recent fills from its Retail API and sends them only to a signed-in Desk. Read-only by code: it signs GET requests to the two portfolio paths and nothing else, so it never places, changes or cancels an order. Deposits, withdrawals and balances are never read.",
+    auth: "Your Polymarket US API key (POLYMARKET_US_KEY_ID and POLYMARKET_US_SECRET_KEY), kept in Key Vault and read by the Function App; each request carries an Ed25519 signature. The Desk needs your passkey to see the answer, and the figures are hidden in Hide mode.",
+    when: "Every two minutes while the Exchange is open and you're signed in; each warm function reads Polymarket US at most once a minute.",
+  },
+  {
     id: "bluebubbles",
     name: "BlueBubbles",
     room: "relay",

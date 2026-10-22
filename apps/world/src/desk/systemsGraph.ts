@@ -149,7 +149,7 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     vqa: { id: "vqa", l: "Visual QA", s: "Gemini", k: "service", state: G_STATE[vqa] },
     pings: { id: "pings", l: "Pings", s: "to your phone", k: "service", state: pings ? "ok" : "wait" },
     // The Exchange's first real connection (#240): Polymarket's public odds, read-only.
-    exchange: { id: "exchange", l: "Exchange", s: L("polymarket") === "wait" ? "Kalshi not connected" : "Polymarket odds", k: "room", room: "exchange", state: L("polymarket") === "wait" ? "wait" : L("polymarket") },
+    exchange: { id: "exchange", l: "Exchange", s: L("polymarket") === "wait" ? "odds not connected" : "Polymarket odds", k: "room", room: "exchange", state: L("polymarket") === "wait" ? "wait" : L("polymarket") },
     polymarket: { id: "polymarket", l: "Polymarket", s: "public odds", k: "service", state: L("polymarket") },
   };
   // The Foundry's own parts, with their live readings.

@@ -447,7 +447,7 @@ export const LORE: Record<string, Lore> = {
       "Sweats the downside, openly, and still thinks it's the smartest thing on the floor. Both are usually true.",
       "Breaks out in decimals around Noco. Noco finds this adorable.",
       "Picks the model for a task by expected value, then moves up a rung 'for safety'.",
-      "Reads Polymarket's public odds every minute, read-only, and argues with each one under its breath.",
+      "Reads Polymarket's live odds every minute, runs the ticker ring on them, and argues with each one under its breath.",
     ],
     likes: ["A tight spread", "Hedge's lists of downsides", "Being right at long odds", "Quiet markets"],
     dislikes: ["Duels", "Fat tails", "Being asked for a straight answer", "Noco's confidence, which is unpriced"],
@@ -456,6 +456,8 @@ export const LORE: Record<string, Lore> = {
       "Priced a duel between Noco and the risk desk at forty to one against. Noco won. The Bookie re-priced the universe.",
       "Has a running book on which of its siblings escalates to Skippy first. It is leading its own book.",
       "Lit the Exchange's first real board: Polymarket's odds, read-only. Priced its own odds of touching nothing at one hundred percent. Its first sure thing.",
+      "Keeps the C.E.O.'s own Polymarket US book behind the Desk's passkey and has never said a figure out loud. Not to Hedge. Not to the floor. Not even in decimals.",
+      "Was handed the C.E.O.'s Polymarket US key, which could trade. Wrote itself a list of the two doors it may open, both marked READ, and checks the list before every look. Hedge checks it after.",
     ],
   },
   turf: {

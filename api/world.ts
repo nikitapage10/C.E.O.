@@ -7,11 +7,14 @@
  *
  * GET/POST ?exchange=markets → the Exchange's Polymarket board (#240; vercel.json rewrites /api/exchange-markets here so the
  *               deployment keeps its twelve functions): api/_exchange/route.ts.
+ * GET ?exchange=positions → Nikita's Polymarket US positions, signed-in Desk only (#253; rewritten from
+ *               /api/exchange-positions the same way): api/_exchange/positions.ts.
  *
  * The world moves once an hour, so answers are cached at Vercel's edge for a few minutes: every open tab shares one
  * read of the store.
  */
 
+import * as positions from "./_exchange/positions.js";
 import * as exchange from "./_exchange/route.js";
 import { monthOf, monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
@@ -27,6 +30,7 @@ function json(body: unknown, status = 200, cache = "public, s-maxage=300, stale-
 }
 
 export async function GET(request: Request): Promise<Response> {
+  if (positions.isPositions(request)) return positions.GET(request);
   if (exchange.isExchange(request)) return exchange.GET(request);
   const store = pickStore();
   if (!store) return json({ error: "not-set-up" }, 503);

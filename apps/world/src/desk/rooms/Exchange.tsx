@@ -2,24 +2,26 @@ import { useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
 import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import { PolymarketBoard } from "../exchange/PolymarketBoard.tsx";
+import { PositionsBoard } from "../exchange/PositionsBoard.tsx";
+import { bookLine, usePositions } from "../exchange/positions.ts";
 import { tapeLine, usePolymarket } from "../exchange/polymarket.ts";
 import "./rooms.css";
 
 /**
- * The Exchange (#225): markets and money, as a trading floor at night. Kalshi positions and P&L first, then markets the
- * Bookie thinks are mispriced with his reasons, then crypto and stock research, a watchlist and a paper-trading
- * record; below, behind the passkey, personal money: spending, debts and subscriptions. Polymarket's public odds are
- * live (#240, PolymarketBoard: the busiest markets and a pinned watchlist, read-only); Kalshi and the rest aren't
- * connected yet, so the tape says so and their boards stay dark. It starts read-only, on paper trades; the Lattice will
- * only ever say "on track" or "needs a look".
+ * The Exchange (#225): markets and money, as a trading floor at night. Nikita's own Polymarket US positions and P&L
+ * first (#253, PositionsBoard: read-only, signed-in Desk only, every figure marked private for Hide mode), then
+ * Polymarket's public odds (#240, PolymarketBoard: the busiest markets and a pinned watchlist, read-only), then markets
+ * the Bookie thinks are mispriced with his reasons, crypto and stock research and a paper-trading record; below,
+ * behind the passkey, personal money: spending, debts and subscriptions (not built yet). The Lattice only ever shows
+ * the public odds, never a position.
  */
 
 const MINT = "124,205,172";
 
-/** The tape; MARKET DATA and WATCHLIST read Polymarket live (#240). */
+/** The tape; POSITIONS reads the book's state (never a figure), MARKET DATA and WATCHLIST read Polymarket live (#240). */
 const TAPE = [
-  ["KALSHI", "not connected"],
-  ["POSITIONS", "none"],
+  ["POLYMARKET US", ""],
+  ["POSITIONS", ""],
   ["MARKET DATA", ""],
   ["WATCHLIST", ""],
   ["PAPER TRADES", "none yet"],
@@ -28,13 +30,12 @@ const TAPE = [
 ] as const;
 
 const WAITS: Wait[] = [
-  { what: "A Kalshi API key", why: "Read-only first: positions and P&L. Trades stay on paper until you say otherwise." },
+  { what: "Your Polymarket US key, in Azure", why: "POLYMARKET_US_KEY_ID and POLYMARKET_US_SECRET_KEY in the Function App, from Key Vault. Read-only: the Desk reads positions and never places an order." },
   { what: "A crypto and stock price source", why: "Prices for the research desk. Prediction-market odds already come from Polymarket, above." },
   { what: "OpenAI for the reasoning", why: "Reads a market, makes its own estimate and shows its working. The key stays on the server." },
   { what: "Plaid, read-only, or statement uploads", why: "For spending, debts and subscriptions. Behind the Desk's passkey; nothing leaves the server." },
 ];
 
-const BOARD = ["Market", "Side", "Odds", "P&L"];
 
 /** The floor: a grid running away into the dark, mint tickers sliding along its rails. */
 function floorSpec(): VizSpec {
@@ -75,11 +76,16 @@ export function Exchange() {
   const pmBoard = usePolymarket((s) => s.board);
   const pmLive = pmStatus === "ready" && pmBoard !== null;
   const pinned = pmBoard?.watchlist.length ?? 0;
-  const live = TAPE.map(([k, v]): [string, string] => [k, k === "MARKET DATA" ? tapeLine(pmStatus, pmBoard) : k === "WATCHLIST" ? (pmBoard ? (pinned ? `${pinned} pinned` : "empty") : "–") : v]);
+  const posStatus = usePositions((s) => s.status);
+  const [usLine, posLine] = bookLine(posStatus);
+  const live = TAPE.map(([k, v]): [string, string] => [
+    k,
+    k === "MARKET DATA" ? tapeLine(pmStatus, pmBoard) : k === "WATCHLIST" ? (pmBoard ? (pinned ? `${pinned} pinned` : "empty") : "–") : k === "POLYMARKET US" ? usLine : k === "POSITIONS" ? posLine : v,
+  ]);
   const tape = [...live, ...live];
   return (
     <div className="wv-page rm rm-exchange" data-room="exchange">
-      <div className="ex-tape" aria-label={`The tape: market data, ${tapeLine(pmStatus, pmBoard)}; Kalshi and Plaid are not connected yet`}>
+      <div className="ex-tape" aria-label={`The tape: Polymarket US, ${usLine}; market data, ${tapeLine(pmStatus, pmBoard)}; Plaid is not connected yet`}>
         <p aria-hidden="true">
           {tape.map(([k, v], i) => (
             <span key={i}>
@@ -105,41 +111,14 @@ export function Exchange() {
             )}
           </h1>
           <p className="wv-sub">
-            The Exchange will hold your Kalshi positions and what they're worth, the markets the Bookie thinks are mispriced and why, and research on crypto and stocks.
-            It starts read-only, on paper trades. Polymarket's public odds are live below; Kalshi and the rest aren't connected yet.
+            Your Polymarket US positions and what they're worth, read-only and only for you signed in; Polymarket's public odds, live; and soon the markets the Bookie
+            thinks are mispriced and why, and research on crypto and stocks. Nothing here places an order.
           </p>
         </div>
         <Keeper page="exchange" />
       </header>
 
-      <section className="ex-board" aria-label="Positions">
-        <div className="ex-odds">
-          <p className="wv-eyb">Open positions</p>
-          <b aria-label="none">—</b>
-          <span>P&amp;L appears with the first position</span>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              {BOARD.map((h) => (
-                <th key={h} scope="col">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[0, 1, 2].map((i) => (
-              <tr key={i} aria-hidden={i > 0}>
-                <td colSpan={4}>
-                  <i className="ex-bar" style={{ "--i": i } as React.CSSProperties} />
-                  {i === 0 && <span>No positions. Kalshi isn't connected.</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      <PositionsBoard />
 
       <PolymarketBoard />
 
@@ -147,7 +126,7 @@ export function Exchange() {
         <section className="ex-card" aria-label="Mispriced markets">
           <p className="wv-eyb">Mispriced, with reasons</p>
           <h2 className="rm-h2">Where the odds look wrong</h2>
-          <p className="wv-note">For each open market: the price, the Bookie's own estimate, and the reasoning in a few lines, so you can disagree with it. Comes once Kalshi and the reasoning model are connected.</p>
+          <p className="wv-note">For each open market: the price, the Bookie's own estimate, and the reasoning in a few lines, so you can disagree with it. Comes once the reasoning model is connected.</p>
         </section>
         <section className="ex-card" aria-label="Research">
           <p className="wv-eyb">The research desk</p>

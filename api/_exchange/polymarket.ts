@@ -30,7 +30,7 @@ const TIMEOUT_MS = 6000;
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
 export const ID = /^\d{1,12}$/;
-const SLUG = /^[a-z0-9][a-z0-9-]{0,199}$/;
+export const SLUG = /^[a-z0-9][a-z0-9-]{0,199}$/;
 const TOKEN = /^\d{1,90}$/;
 
 /** Plain, short text: no control, zero-width or direction characters, whitespace collapsed. */

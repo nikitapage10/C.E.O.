@@ -54,7 +54,6 @@ export const ROOM_META: Record<RoomId, { name: string; colour: string; submind: 
 const SIM_REPORT: Partial<Record<RoomId, string>> = {
   breakroom: "Nothing real to report yet. The party is simulated; the enthusiasm is not.",
   spire: "Nothing real to report yet. The books aren't connected, which is, frankly, an untapped opportunity.",
-  exchange: "Nothing real to report yet. Odds the markets get connected this week? I'd rather not quote them.",
   green: "NOTHING REAL TO CALL YET, FOLKS. The league isn't connected, so the scoreboard stays dark.",
   workshop: "Nothing real yet. The model pipeline isn't connected, so I'm between pieces. Suffering, beautifully.",
 };
@@ -71,6 +70,8 @@ export interface PulseInput {
   /** Replies waiting on Nikita (Relay), once the hub is connected. */
   owed: number;
   world: WorldFeed | null;
+  /** The Exchange's public odds (#253), once Polymarket's board has answered: how many markets, and the busiest. */
+  odds?: { markets: number; lead: { question: string; prob: number } | null } | null;
 }
 
 const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
@@ -86,7 +87,7 @@ function worldToday(world: WorldFeed | null, dayStart: number): HistoryEntry[] {
 }
 
 export function roomPulses(input: PulseInput): RoomPulse[] {
-  const { now, dayStart, foundry, links, hub, owed, world } = input;
+  const { now, dayStart, foundry, links, hub, owed, world, odds } = input;
   const since = input.since ?? dayStart;
   const today = worldToday(world, dayStart);
   const recent = worldToday(world, since);
@@ -187,7 +188,44 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
     );
   }
 
-  for (const id of ["breakroom", "spire", "exchange", "green", "workshop"] as const) {
+  // The Exchange: Polymarket's public odds (#240, #253). Never a position or a dollar figure: Today is for the room's
+  // state, and the book stays on the Exchange page behind the passkey.
+  {
+    const link = links.find((l) => l.id === "polymarket")?.state ?? "off";
+    const events = scenesIn("exchange");
+    if (link !== "off") {
+      const lead = odds?.lead ?? null;
+      const markets = odds?.markets ?? 0;
+      out.push(
+        pulse("exchange", {
+          real: true,
+          state: link === "down" ? "down" : "steady",
+          activity: clamp(0.2 + markets * 0.03 + events.length * 0.04),
+          status: link === "down" ? "Polymarket isn't answering" : link === "slow" ? "Odds from the last good read" : "Polymarket odds live",
+          short: link === "down" ? "odds down" : link === "slow" ? "odds stale" : "odds live",
+          report:
+            link === "down"
+              ? "Polymarket stopped answering. I'm quoting stale odds at a discount. Which is to say, not at all."
+              : `${link === "slow" ? "Last good read: " : "Odds are live: "}${n(markets, "market")} on the board${lead ? `, the busiest at ${Math.round(lead.prob * 100)}%` : ""}. I'd hedge that. I'd hedge anything.`,
+          events,
+        }),
+      );
+    } else {
+      out.push(
+        pulse("exchange", {
+          real: false,
+          state: "sim",
+          activity: clamp(0.04 + events.length * 0.05),
+          status: events.length ? `${n(events.length, "scene")} in Ilyr lately` : "No odds yet",
+          short: "no odds yet",
+          report: `The odds haven't answered yet. Odds they will? I'd rather not quote them.${events.length ? ` In Ilyr, ${n(events.length, "scene")} here lately.` : ""}`,
+          events,
+        }),
+      );
+    }
+  }
+
+  for (const id of ["breakroom", "spire", "green", "workshop"] as const) {
     const events = scenesIn(id);
     out.push(
       pulse(id, {
@@ -235,6 +273,8 @@ export function roomPhrase(p: RoomPulse): string {
       return p.state === "waiting" ? "the Relay's waiting on the Mac" : p.state === "down" ? "the Relay's hub is down" : p.state === "busy" ? `${p.short} in the Relay` : "the Relay's quiet";
     case "archive":
       return p.state === "waiting" ? "the Archive's waiting on the hours" : "the Archive's writing it down";
+    case "exchange":
+      return !p.real ? "Exchange: no odds yet" : p.state === "down" ? "the Exchange's odds are down" : p.short === "odds stale" ? "the Exchange's odds are stale" : "the Exchange's odds are live";
     default:
       return `${p.name}: ${p.short}`;
   }

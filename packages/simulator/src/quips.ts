@@ -273,6 +273,10 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The Polymarket board's lit. Somebody else's odds, read-only. I'm checking their maths anyway.",
     "Top market moved four points overnight. I didn't sleep. I don't sleep. Still, four points.",
     "Pinned it to the watchlist. Not a bet. A watch. Watching is free. Mostly.",
+    "The C.E.O.'s book is open. On the Desk. Behind the passkey. Ask me the number and I'll give you a probability instead.",
+    "Read-only. I read. I don't touch. The key could trade. My hands could also shake. Neither is happening.",
+    "The ring's running on live odds now. If it says sixty-three, it's sixty-three. I checked. Twice. Sixty-three.",
+    "Feed's quiet. Board's dark. Better a dark board than a made-up one. Noco disagrees. Noco would.",
   ],
   turf: [
     "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",

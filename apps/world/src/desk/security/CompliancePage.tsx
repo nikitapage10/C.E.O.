@@ -1,117 +1,144 @@
+import { useMemo, useRef } from "react";
 import { SystemsNav } from "../SystemsNav.tsx";
-import { RoomBanner } from "../RoomBanner.tsx";
-import { Avatar, Panel } from "../ui.tsx";
+import { useViz, type VizSpec } from "../wvCanvas.ts";
+import { ringSpec } from "./secViz.ts";
 import { NIST_AI_RMF, OWASP_LLM, RISK_STATUS_LABEL, ROADMAP, SAIF, owaspTally, partsOf, refsOf, statusOf, type RiskStatus } from "./model.ts";
 import { PopScope } from "../Popovers.tsx";
 import { FRAME_EXPLAIN, NIST_EXPLAIN, OWASP_EXPLAIN, SAIF_EXPLAIN, type Explain, type FrameId } from "./explain.ts";
 import { DOC_URL, ExplainInline, Out, Rich, RiskPill, useExplain } from "./parts.tsx";
 
 /**
- * Systems > Compliance (#82): the frameworks docs/THREAT-MODEL.md maps C.E.O. to (OWASP Top 10 for LLM
- * Applications, the NIST AI RMF and Google SAIF), each control and its status, word for word from the doc. Nothing
+ * Systems > Compliance (#82), in the approved Weave (desk-concepts round five): each framework docs/THREAT-MODEL.md
+ * maps C.E.O. to (OWASP Top 10 for LLM Applications, the NIST AI RMF and Google SAIF) as a ring, one strand per
+ * control, bright when it's in place; then every risk as a bar, and each control word for word from the doc. Nothing
  * here is mapped that the doc doesn't map; what isn't mapped yet says so.
  */
 
 const ORDER: RiskStatus[] = ["covered", "tracked", "open", "accepted", "not-applicable"];
 
+/** How bright a risk's strand is: covered fully, covered with more planned, accepted, open, not used. */
+const STRENGTH: Record<RiskStatus, number> = { covered: 1, tracked: 0.75, accepted: 0.5, open: 0.2, "not-applicable": 0 };
+const STATUS_C: Record<RiskStatus, string> = { covered: "var(--wv-ok)", tracked: "var(--rc-relay)", accepted: "var(--rc-spire)", open: "var(--wv-bad)", "not-applicable": "var(--wv-faint)" };
+
 export function CompliancePage() {
   const tally = owaspTally();
+  const covered = tally.covered + tally.tracked;
+  const owasp = useMemo(() => ringSpec(OWASP_LLM.map((r) => STRENGTH[statusOf(r.controls, r.tracking)]), "exchange"), []);
+  const nist = useMemo(() => ringSpec(NIST_AI_RMF.map(() => 1), "relay"), []);
+  const saif = useMemo(() => ringSpec(SAIF.map(() => 1), "archive"), []);
   return (
-    <div className="sec-page">
-      <RoomBanner
-        page="compliance"
-        lead="The frameworks the threat model maps C.E.O. to, every control in place, and what's still open."
-        aside={
-          <div className="page-head__crew">
-            <Avatar agent="Gary" room="boiler" />
-            <span>From the threat model</span>
-          </div>
-        }
-      />
-
+    <div className="sec-page wv-page wv-comp rm-boiler">
       <SystemsNav />
+      <header className="wv-pghead">
+        <p className="wv-eyb">Frameworks and controls</p>
+        <h1 className="wv-h1 desk__title">
+          Three frameworks, <em>{covered === OWASP_LLM.length ? "woven in." : "mostly woven in."}</em>
+        </h1>
+        <p className="wv-sub">How C.E.O. maps to the frameworks people trust for AI systems, word for word from the threat model. Each ring is one framework; each strand a control, bright when it's in place.</p>
+      </header>
 
       <PopScope prefix="comp">
-        <ul className="frames" aria-label="Frameworks">
-          <Frame id="owasp">
-            <span className="frame__big">10/10</span>
-            <span className="frame__sub">risks mapped, 2025 edition</span>
-            <span
-              className="frame__seg"
-              role="img"
-              aria-label={ORDER.filter((s) => tally[s])
-                .map((s) => `${tally[s]} ${RISK_STATUS_LABEL[s].toLowerCase()}`)
-                .join(", ")}
-            >
-              {OWASP_LLM.map((r) => (
-                <i key={r.id} className={`seg seg--${statusOf(r.controls, r.tracking)}`} />
-              ))}
-            </span>
-            <span className="frame__legend">
-              {ORDER.filter((s) => tally[s]).map((s) => (
-                <span key={s}>
-                  <i className={`seg seg--${s}`} aria-hidden="true" />
-                  {tally[s]} {RISK_STATUS_LABEL[s].toLowerCase()}
-                </span>
-              ))}
-            </span>
-          </Frame>
-          <Frame id="nist">
-            <span className="frame__big">
-              {NIST_AI_RMF.length}/{NIST_AI_RMF.length}
-            </span>
-            <span className="frame__sub">functions mapped: {NIST_AI_RMF.map((n) => n.fn).join(", ")}</span>
-            <span className="frame__seg" aria-hidden="true">
-              {NIST_AI_RMF.map((n) => (
-                <i key={n.fn} className="seg seg--covered" />
-              ))}
-            </span>
-            <span className="frame__legend">Mapped at the function level; categories not yet</span>
-          </Frame>
-          <Frame id="saif">
-            <span className="frame__big">
-              {SAIF.length}/{SAIF.length}
-            </span>
-            <span className="frame__sub">core elements mapped</span>
-            <span className="frame__seg" aria-hidden="true">
-              {SAIF.map((s) => (
-                <i key={s.element} className="seg seg--covered" />
-              ))}
-            </span>
-          </Frame>
-          <Frame id="regulation" off>
-            <span className="frame__big">—</span>
-            <span className="frame__sub">Not yet covered</span>
-            <span className="frame__legend">No law or standard is mapped in the repo yet. Relay's privacy spec (R5, #149) is written, ahead of the hub.</span>
-          </Frame>
-        </ul>
+        <div className="wv-fw-row">
+          <FwRing id="owasp" spec={owasp} big={String(covered)} of={`of ${OWASP_LLM.length}`} what="covered">
+            {ORDER.filter((st) => tally[st])
+              .map((st) => `${tally[st]} ${RISK_STATUS_LABEL[st].toLowerCase()}`)
+              .join(", ")}
+            .
+          </FwRing>
+          <FwRing id="nist" spec={nist} big={String(NIST_AI_RMF.length)} of={`of ${NIST_AI_RMF.length}`} what="functions mapped">
+            {NIST_AI_RMF.map((n) => n.fn).join(", ")}, mapped at the function level; categories not yet.
+          </FwRing>
+          <FwRing id="saif" spec={saif} big={String(SAIF.length)} of={`of ${SAIF.length}`} what="core elements mapped">
+            Every core element mapped to something C.E.O. already does, from the supply chain to the risks in context.
+          </FwRing>
+        </div>
+        <p className="wv-note">No law or standard is mapped in the repo yet. Relay's privacy spec (R5, #149) is written, ahead of the hub.</p>
 
-        <Panel eyebrow="OWASP Top 10 for LLM Applications (2025)" aside={<Out href={DOC_URL}>Threat model</Out>} className="sec-panel">
-          <ul className="owasp">
-            {OWASP_LLM.map((r) => (
-              <Risk key={r.id} risk={r} />
-            ))}
+        <section className="wv-panel wv-ctl">
+          <div className="wv-sechead">
+            <div>
+              <p className="wv-eyb">OWASP Top 10 for LLM Applications (2025)</p>
+              <h2 className="wv-h2">Where the strands are</h2>
+            </div>
+            <Out href={DOC_URL}>Threat model</Out>
+          </div>
+          <ul className="wv-score-l is-wide">
+            {OWASP_LLM.map((r) => {
+              const st = statusOf(r.controls, r.tracking);
+              return (
+                <li key={r.id} className={st === "not-applicable" ? "is-z" : undefined} style={{ "--v": STRENGTH[st], "--c": STATUS_C[st] } as React.CSSProperties}>
+                  <b>
+                    {r.id} {r.name}
+                  </b>
+                  <i aria-hidden="true" />
+                  <em>{RISK_STATUS_LABEL[st]}</em>
+                </li>
+              );
+            })}
           </ul>
-        </Panel>
+          <details className="wv-more-d">
+            <summary>Every risk, control by control</summary>
+            <ul className="owasp">
+              {OWASP_LLM.map((r) => (
+                <Risk key={r.id} risk={r} />
+              ))}
+            </ul>
+          </details>
+        </section>
 
-        <div className="sec-two">
-          <Panel eyebrow="NIST AI RMF" aside={<span className="panel__hint">Govern · Map · Measure · Manage</span>} className="sec-panel">
+        <div className="wv-sec2 wv-comp2">
+          <section className="wv-panel">
+            <div className="wv-sechead">
+              <div>
+                <p className="wv-eyb">NIST AI RMF</p>
+                <h2 className="wv-h2">Govern, Map, Measure, Manage</h2>
+              </div>
+            </div>
             <ul className="fnlist">
               {NIST_AI_RMF.map((n) => (
                 <Fn key={n.fn} id={`nist-${n.fn}`} name={n.fn} kicker="NIST AI RMF function" e={NIST_EXPLAIN[n.fn]} inCeo={n.inCeo} />
               ))}
             </ul>
-          </Panel>
-          <Panel eyebrow="Google SAIF" aside={<span className="panel__hint">Six core elements</span>} className="sec-panel">
+          </section>
+          <section className="wv-panel">
+            <div className="wv-sechead">
+              <div>
+                <p className="wv-eyb">Google SAIF</p>
+                <h2 className="wv-h2">Six core elements</h2>
+              </div>
+            </div>
             <ul className="fnlist">
-              {SAIF.map((s, i) => (
-                <Fn key={s.element} id={`saif-${i + 1}`} name={s.element} kicker="SAIF core element" e={SAIF_EXPLAIN[s.element]!} inCeo={s.inCeo} long />
+              {SAIF.map((x, i) => (
+                <Fn key={x.element} id={`saif-${i + 1}`} name={x.element} kicker="SAIF core element" e={SAIF_EXPLAIN[x.element]!} inCeo={x.inCeo} long />
               ))}
             </ul>
-          </Panel>
+          </section>
         </div>
       </PopScope>
     </div>
+  );
+}
+
+function FwRing({ id, spec, big, of, what, children }: { id: FrameId; spec: VizSpec; big: string; of: string; what: string; children: React.ReactNode }) {
+  const cv = useRef<HTMLCanvasElement>(null);
+  useViz(cv, spec);
+  const pop = useExplain(`frame-${id}`, FRAME_TITLE[id], FRAME_EXPLAIN[id], { kicker: "Framework" });
+  return (
+    <section className={`wv-fw has-pop ${pop.open ? "is-open" : ""}`} tabIndex={0} {...pop.anchor}>
+      {pop.card}
+      <div className="wv-fw-ring">
+        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
+        <p>
+          <b>
+            {big}
+            <small>{of}</small>
+          </b>
+          <span>{what}</span>
+        </p>
+      </div>
+      <h2 className="wv-h3">{FRAME_TITLE[id]}</h2>
+      <p className="wv-note">{children}</p>
+    </section>
   );
 }
 
@@ -121,19 +148,6 @@ const FRAME_TITLE: Record<FrameId, string> = {
   saif: "Google SAIF",
   regulation: "Regulation",
 };
-
-function Frame({ id, off, children }: { id: FrameId; off?: boolean; children: React.ReactNode }) {
-  const pop = useExplain(`frame-${id}`, FRAME_TITLE[id], FRAME_EXPLAIN[id], {
-    kicker: "Framework",
-  });
-  return (
-    <li className={`frame ${off ? "frame--off" : ""} has-pop ${pop.open ? "is-open" : ""}`} tabIndex={0} {...pop.anchor}>
-      {pop.card}
-      <span className="frame__name">{FRAME_TITLE[id]}</span>
-      {children}
-    </li>
-  );
-}
 
 function Fn({ id, name, kicker, e, inCeo, long }: { id: string; name: string; kicker: string; e: Explain; inCeo: string; long?: boolean }) {
   const pop = useExplain(id, name, e, { kicker });

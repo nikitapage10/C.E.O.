@@ -1067,7 +1067,8 @@ export const WORLD_CAST: WorldCast = {
         "Honk. (I have tape. I have always had tape.)",
         "Hoooonk. (The boiler is warm. Kevin is on it again.)",
         "Honk. (World clock pipe: hot. The hour ticked. Logged it.)",
-        "HONK HONK. (Clock pipe's coughing. An hour's late. Fetching the tape.)"
+        "HONK HONK. (Clock pipe's coughing. An hour's late. Fetching the tape.)",
+        "Honk. (The house pipe. Still cold. Polished the gauges anyway.)"
       ],
       "daub": [
         "Hold still. You're my next canvas.",

@@ -72,7 +72,7 @@ test("a shipped change on the Changelog can be undone in two taps", async ({ pag
   const sent = await stub(page);
 
   await page.goto(BASE + "/");
-  await expect(page.locator(".desk__title")).toHaveText("Today");
+  await expect(page.locator(".today .desk__title")).toBeVisible();
   await page.goto(BASE + "/foundry");
   const log = page.locator(".fy-changelog");
   const podium = log.locator(".cl-entry", { hasText: "Podium in the Spire" });

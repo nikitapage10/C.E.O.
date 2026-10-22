@@ -1,240 +1,131 @@
-import { useLayoutEffect, useRef } from "react";
-import { SkippyAsk, SkippyAvatar, SkippyChat } from "./skippy/index.ts";
-import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
+import { useState } from "react";
+import { byWait, DESK_ROOMS, roomImage, type DeskData, type DeskRoom } from "./deskData.ts";
 import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
 import { chronicleDay, sinceAway, useWorldFeed } from "../chronicle.ts";
-import { DayStory } from "./DayStory.tsx";
+import { loadLattice } from "../route.ts";
+import { useUsage } from "../usage.ts";
+import { TodayHero } from "./hero/TodayHero.tsx";
+import { roomLink } from "./hero/roomLink.ts";
+import { useSetup } from "./IdeaCard.tsx";
 import { link } from "./nav.ts";
-import { Avatar, Panel } from "./ui.tsx";
-import { Listening } from "./viz.tsx";
-import { IdeaCard, useSetup } from "./IdeaCard.tsx";
-import { SetupCard, useSetupStatus } from "./SetupCard.tsx";
+import { SetupAct, useSetupStatus } from "./SetupCard.tsx";
+import { DecisionAct, IdeasAct, LaterAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
+import { ComingUp, LatticeToday, ShortVersion, shortVersion, WorthKnowing } from "./TodayWeave.tsx";
+import { Avatar } from "./ui.tsx";
+import { usePulses } from "./usePulses.ts";
+import { SKIPPY_PORTRAIT } from "./skippy/index.ts";
 
 /**
- * Today: what needs you, plainly, in the Lattice's own light. A hero over the Lattice with the day's count, a
- * "Do now" board (replies with drafts ready, decisions with the answers as buttons, each with the agent asking),
- * the setup list (things only Nikita can do, once, until they're all done; #164), what can wait, what happened while
- * you were away, and the rooms as pictures.
+ * Today, in the Weave (Nikita, 2026-10-22): Skippy, the Magnificent guiding the day. A hero first: the nine rooms as
+ * living threads through the Lattice, Skippy's line on what needs a human, the way into the Lattice and the Ask
+ * Skippy box, and the Council one click away. Then the approved Weave's sections: what needs you as cards answerable in
+ * place, the nine rooms as lanes beside the world clock, what is worth knowing now, the short version of what happened
+ * until you mark it read, and what the crew does next. Real data only: anything not connected says it is waiting.
  */
 
-/** Replies that make "Do now": the ones marked sooner, and anything waiting longer than this. */
+/** Replies that make "Needs you": the ones marked sooner, and anything waiting longer than this. */
 const NOW_WAIT = 8 * 3_600_000;
-/** Never more than this many replies in "Do now"; the rest wait in Relay. */
+/** Never more than this many replies in "Needs you"; the rest wait in Relay. */
 const NOW_REPLIES = 3;
 
-function greeting(now: number) {
-  const h = new Date(now).getHours();
-  return h < 5 ? "Still up, Nikita." : h < 12 ? "Good morning, Nikita." : h < 18 ? "Good afternoon, Nikita." : "Good evening, Nikita.";
-}
-
-/** "Lattice" pages for rooms without a Desk page yet; Relay, the Foundry and the Boiler Room have their own. */
-function roomHref(room: DeskRoom) {
-  return room === "relay" ? "/relay" : room === "foundry" ? "/foundry" : room === "boiler" ? "/systems" : `/lattice?room=${room}`;
-}
+const at = (i: number) => ({ "--i": i }) as React.CSSProperties;
 
 export function Today({ data, now, connected, awaySince }: { data: DeskData; now: number; connected: boolean; awaySince: number }) {
-  // The living Lattice (docs/WORLD.md): the latest hour in Ilyr, and how many have passed since you were here.
   const world = useWorldFeed().feed;
   const ilyr = world ? sinceAway(world.recent, awaySince) : [];
-  const latest = world?.recent.at(-1) ?? null;
-  // The latest day the Historian has read aloud (issue #95): yesterday's, once its recap is filed.
   const yesterday = chronicleDay(now - 86_400_000);
   const storyDay = world?.days.includes(yesterday) ? yesterday : null;
-  const date = new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const owed = byWait(data.owed);
   const replies = owed.filter((o) => !o.later && (o.urgency === "sooner" || now - o.since > NOW_WAIT)).slice(0, NOW_REPLIES);
   const otherReplies = owed.length - replies.length;
   const decisions = data.actions.filter((a) => a.when === "now");
-  const later = data.actions.filter((a) => a.when === "later");
-  // Rivet's questions about ideas wait on you too: answered right here with the Foundry's own card.
-  const crates = useFoundry((s) => s.data.crates);
+  const foundry = useFoundry((s) => s.data);
   const pendingIdeas = useFoundry((s) => s.pending);
   const setup = useSetup();
   const setupList = useSetupStatus();
-  const ideas = openIdeas(crates, pendingIdeas);
+  const usage = useUsage().feed;
+  const ideas = openIdeas(foundry.crates, pendingIdeas);
   const questions = ideaCounts(ideas).questions;
+  const toPick = ideas.filter((c) => !c.revising && !(c.asking && c.question));
+  // An idea waiting for its pick already has its own card (IdeasAct), so it isn't repeated under "can wait".
+  const picking = new Set(toPick.map((c) => `foundry-${c.number}`));
+  const later = data.actions.filter((a) => a.when === "later" && !picking.has(a.id));
   const todo = replies.length + decisions.length + questions.length;
-  const canWait = later.length + otherReplies;
-  const shipped = shippedToday(useFoundry((s) => s.data.changelog), now);
-  const notesRef = useRef<HTMLUListElement>(null);
-  // Skippy, the Magnificent (#224): he hovers in the hero's corner, and a click opens the chat; focus comes back to him.
-  const skippyRef = useRef<HTMLButtonElement>(null);
-  const fadeNotes = () => {
-    const el = notesRef.current;
-    if (el) el.dataset.more = String(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
-  };
-  useLayoutEffect(fadeNotes, [data.notes]);
-  const total = todo + canWait + data.doneToday;
-  const working = (Object.keys(DESK_ROOMS) as DeskRoom[]).filter((r) => data.notes.some((n) => n.room === r) || data.actions.some((a) => a.room === r));
+  const shipped = shippedToday(foundry.changelog, now);
+  const pulses = usePulses(owed.length, now);
+  const moments = shortVersion({ data, changes: foundry.changelog, ilyr, awaySince });
+
+  let i = 0;
+  const cards = [
+    ...questions.map((c) => <QuestionAct key={`q${c.number}`} crate={c} setup={setup} now={now} style={at(i++)} />),
+    ...decisions.map((a) => <DecisionAct key={a.id} a={a} style={at(i++)} />),
+    ...replies.map((o) => <ReplyAct key={o.id} o={o} now={now} style={at(i++)} />),
+    ...(toPick.length ? [<IdeasAct key="ideas" ideas={toPick} setup={setup} now={now} style={at(i++)} />] : []),
+    <SetupAct key="setup" status={setupList} style={at(i++)} />,
+    ...(later.length || otherReplies > 0 ? [<LaterAct key="later" items={later} moreReplies={otherReplies} style={at(i++)} />] : []),
+  ];
+  const nothing = !todo && !toPick.length && !later.length && !otherReplies;
+
+  const [pre, setPre] = useState(true);
 
   return (
-    <div className="today">
-      <section className="hero" aria-label="Today at a glance">
-        <img
-          className="hero__pic"
-          src="/desk/lattice.webp"
-          srcSet="/desk/lattice.webp 1440w, /desk/lattice@2x.webp 2880w"
-          sizes="(max-width: 1280px) 100vw, 1280px"
-          alt=""
-          decoding="async"
-        />
-        <div className="today__skippy">
-          <SkippyAvatar ref={skippyRef} size="lg" tag />
-        </div>
-        <div className="hero__text">
-          <p className="eyebrow">{date}</p>
-          <h1 className="desk__title hero__title">Today</h1>
-          <p className="hero__greet">{greeting(now)}</p>
-          <p className="hero__lead">
-            {questions.length > 0 && `${questions.length === 1 ? "Rivet has a question" : `Rivet has ${questions.length} questions`}. `}
-            {todo ? `${todo} ${todo === 1 ? "thing needs" : "things need"} you now, about ${todo} ${todo === 1 ? "minute" : "minutes"}.` : "Nothing needs you right now."}
-            {canWait > 0 && ` ${canWait} more can wait.`}
-          </p>
-        </div>
-        <dl className="hero__stats">
-          <div className={todo ? "hot" : ""}>
-            <dd>{todo}</dd>
-            <dt>{todo === 1 ? "needs you" : "need you"}</dt>
-          </div>
-          <div>
-            <dd>{canWait}</dd>
-            <dt>can wait</dt>
-          </div>
-          <div>
-            <dd>{data.doneToday}</dd>
-            <dt>done today</dt>
-          </div>
-          <div>
-            <dd>{working.length}</dd>
-            <dt>rooms busy</dt>
-          </div>
-        </dl>
-        <p className="hero__foot" aria-label={`${data.doneToday} of ${total} done today`}>
-          <span className="hero__bar" aria-hidden="true">
-            <b style={{ width: `${total ? (data.doneToday / total) * 100 : 100}%` }} />
-          </span>
-          <span>{total ? `${data.doneToday} of ${total} handled today` : "All clear today"}</span>
-        </p>
+    <div className={`today wv-page wv-today${pre ? " is-pre" : ""}`}>
+      <TodayHero now={now} pulses={pulses} todo={todo} onPre={setPre} />
+
+      <section className="wv-acts" aria-label="Needs you">
+        {cards}
+        {nothing && (
+          <article className="wv-act wv-act-clear" data-room="boiler" data-in style={at(i)}>
+            <div className="wv-act-top">
+              <i className="wv-dot is-faint" />
+              <span>Needs you</span>
+            </div>
+            <div className="wv-act-body">
+              <img className="wv-act-pf" src={SKIPPY_PORTRAIT} alt="" width={44} height={44} decoding="async" />
+              <div>
+                <h3 className="wv-h3">All quiet. Enjoy it; I arranged it.</h3>
+                <p className="wv-act-p">
+                  {connected
+                    ? "When an agent needs a reply sent or a decision made, it lands here with the answer one tap away."
+                    : "Once the hub on your MacBook is connected, replies you owe and decisions from your agents land here."}
+                </p>
+              </div>
+            </div>
+          </article>
+        )}
       </section>
 
-      <SkippyAsk />
-      <SkippyChat returnFocus={skippyRef} />
+      <LatticeToday pulses={pulses} now={now} awaySince={awaySince} world={world} />
+      <WorthKnowing data={foundry} usage={usage} world={world} owed={owed.length} />
+      <ShortVersion moments={moments} awaySince={awaySince} now={now} storyDay={storyDay} shipped={shipped} />
+      <ComingUp now={now} />
 
-      <Panel eyebrow="Do now" aside={<span className="badge badge--hot">{todo}</span>} className="panel--now">
-        {todo ? (
-          <ol className="todo">
-            {questions.map((c) => (
-              <li key={c.number} className="todo__item todo__item--question" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
-                <IdeaCard crate={c} index={ideas.indexOf(c) + 1} setup={setup} focus={false} />
-              </li>
-            ))}
-            {replies.map((o) => (
-              <ReplyCard key={o.id} o={o} now={now} />
-            ))}
-            {decisions.map((a) => (
-              <DecisionCard key={a.id} a={a} />
-            ))}
-          </ol>
-        ) : (
-          <div className="empty empty--wide">
-            <Listening />
-            <div>
-              <p className="empty__title">Nothing needs you right now</p>
-              <p className="empty__text">
-                {connected
-                  ? "When an agent needs a reply sent or a decision made, it shows up here with the answer one tap away."
-                  : "Once the hub on your MacBook is connected, replies you owe and decisions from your agents land here."}
-              </p>
-            </div>
+      <section className="wv-section rooms" aria-label="Your rooms">
+        <div className="wv-sechead">
+          <div>
+            <p className="wv-eyb">The rooms</p>
+            <h2 className="wv-h2">Walk in anywhere</h2>
           </div>
-        )}
-      </Panel>
-
-      <SetupCard status={setupList} />
-
-      <div className="today__row">
-        <Panel eyebrow="Later today" aside={<span className="badge">{later.length + (otherReplies > 0 ? 1 : 0)}</span>}>
-          {later.length || otherReplies ? (
-            <ul className="later-list">
-              {later.map((a) => (
-                <LaterRow key={a.id} a={a} />
-              ))}
-              {otherReplies > 0 && (
-                <li style={{ "--tone": DESK_ROOMS.relay.accent } as React.CSSProperties}>
-                  <Avatar agent="Blasto" size="sm" room="relay" />
-                  <span className="later-list__due">Any time</span>
-                  <a className="later-list__title later-list__title--link" href="/relay" onClick={link("relay")}>
-                    {otherReplies} more {otherReplies === 1 ? "reply" : "replies"} waiting in Relay →
-                  </a>
-                </li>
-              )}
-            </ul>
-          ) : (
-            <p className="quiet">Nothing scheduled.</p>
-          )}
-        </Panel>
-
-        <Panel
-          eyebrow="While you were away"
-          aside={
-            shipped > 0 && (
-              <a className="section-head__link" href="/foundry" onClick={link("foundry")}>
-                Shipped today: {shipped}
-              </a>
-            )
-          }
-        >
-          {data.notes.length ? (
-            <ul className="notes" ref={notesRef} onScroll={fadeNotes}>
-              {data.notes.map((n, i) => (
-                <li key={i} style={{ "--tone": DESK_ROOMS[n.room].accent } as React.CSSProperties}>
-                  <Avatar agent={DESK_ROOMS[n.room].lead} size="sm" room={n.room} />
-                  <span className="notes__body">
-                    <span className="notes__room">{DESK_ROOMS[n.room].name}</span>
-                    <span className="notes__text">{n.text}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="quiet">Nothing new since you were last here.</p>
-          )}
-          {latest && (
-            <p className="today-world">
-              <b>In Ilyr</b>
-              {ilyr.length > 1 ? `${ilyr.length} hours passed. Latest: ` : ""}
-              {latest.summary}{" "}
-              <a href="/chronicle" onClick={link("chronicle")}>
-                Read the Chronicle →
-              </a>
-            </p>
-          )}
-          {storyDay && <DayStory day={storyDay} canMake={false} compact label="Hear yesterday in Ilyr" />}
-        </Panel>
-      </div>
-
-      <section className="rooms" aria-label="Your rooms">
-        <header className="section-head">
-          <h2>Your rooms</h2>
-          <a className="section-head__link" href="/lattice" onClick={link("lattice")}>
-            Walk the Lattice →
+          <a className="wv-link" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()}>
+            Enter the Lattice →
           </a>
-        </header>
+        </div>
         <ul className="rooms__grid">
           {(Object.keys(DESK_ROOMS) as DeskRoom[]).map((r) => {
             const waiting = data.actions.filter((a) => a.room === r).length + (r === "relay" ? owed.length : 0);
             const room = DESK_ROOMS[r];
+            const p = pulses.find((x) => x.id === r);
             return (
               <li key={r} className={`room ${waiting ? "room--hot" : ""}`} style={{ "--tone": room.accent } as React.CSSProperties}>
-                <a href={roomHref(r)} onClick={r === "relay" ? link("relay") : r === "foundry" ? link("foundry") : r === "boiler" ? link("systems") : undefined}>
+                <a href={p?.href ?? `/lattice?room=${r}`} onClick={roomLink(p?.href ?? "/lattice")}>
                   <img className="room__pic" src={roomImage(r)} alt="" loading="lazy" decoding="async" />
                   <span className="room__text">
                     <span className="room__name">{room.name}</span>
-                    <span className="room__what">{room.what}</span>
+                    <span className="room__what">{p?.status ?? room.what}</span>
                   </span>
                   <span className="room__foot">
                     <Avatar agent={room.lead} size="sm" room={r} />
-                    <span className="room__cap">{waiting ? `${waiting} waiting on you` : "All clear"}</span>
+                    <span className="room__cap">{waiting ? `${waiting} waiting on you` : room.what}</span>
                   </span>
                 </a>
               </li>
@@ -243,113 +134,5 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
         </ul>
       </section>
     </div>
-  );
-}
-
-function RoomTag({ room, agent }: { room: DeskRoom; agent: string }) {
-  return (
-    <span className="roomtag" style={{ "--tone": DESK_ROOMS[room].accent } as React.CSSProperties}>
-      <i aria-hidden="true" />
-      <span>
-        {DESK_ROOMS[room].name} · {agent}
-      </span>
-    </span>
-  );
-}
-
-/** An action's button: a link when it opens something (the Foundry thread, an issue), otherwise an answer. */
-function Choice({ a, k, small }: { a: DeskAction; k: number; small?: boolean }) {
-  const act = useDesk((s) => s.act);
-  const c = a.choices[k]!;
-  const cls = `btn ${small ? "btn--sm " : ""}${k === 0 ? "btn--go" : small ? "btn--quiet" : ""}`;
-  const href = a.hrefs?.[k];
-  return href ? (
-    <a className={cls} href={href} target="_blank" rel="noreferrer">
-      {c}
-    </a>
-  ) : (
-    <button type="button" className={cls} onClick={() => act(a.id)}>
-      {c}
-    </button>
-  );
-}
-
-function ReplyCard({ o, now }: { o: OwedReply; now: number }) {
-  const { send, later, pick } = useDesk();
-  return (
-    <li className="todo__item todo__item--reply" style={{ "--tone": DESK_ROOMS.relay.accent } as React.CSSProperties}>
-      <Avatar agent="Blasto" room="relay" />
-      <div className="todo__body">
-        <div className="todo__top">
-          <RoomTag room="relay" agent="Blasto" />
-          <span className="todo__due">waiting {formatWait(now - o.since)}</span>
-        </div>
-        <h3 className="todo__title">Reply to {o.name}</h3>
-        <p className="todo__quote">“{o.preview}”</p>
-        {o.draft && (
-          <p className="todo__draft">
-            <span className="todo__draft-label">Blasto's draft</span>
-            {o.draft}
-          </p>
-        )}
-        <div className="todo__actions">
-          <button type="button" className="btn btn--go" disabled={!o.draft} onClick={() => send(o.id)}>
-            Send
-          </button>
-          <a
-            className="btn"
-            href="/relay"
-            onClick={(e) => {
-              pick(o.id);
-              link("relay")(e);
-            }}
-          >
-            Edit
-          </a>
-          <button type="button" className="btn btn--quiet" onClick={() => later(o.id)}>
-            Later
-          </button>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-function DecisionCard({ a }: { a: DeskAction }) {
-  return (
-    <li className="todo__item" style={{ "--tone": DESK_ROOMS[a.room].accent } as React.CSSProperties}>
-      <Avatar agent={a.agent} room={a.room} />
-      <div className="todo__body">
-        <div className="todo__top">
-          <RoomTag room={a.room} agent={a.agent} />
-          {a.due && <span className="todo__due">{a.due}</span>}
-        </div>
-        <h3 className="todo__title">{a.title}</h3>
-        {a.detail && <p className="todo__detail">{a.detail}</p>}
-        <div className="todo__actions">
-          {a.choices.map((c, k) => (
-            <Choice key={c} a={a} k={k} />
-          ))}
-        </div>
-      </div>
-    </li>
-  );
-}
-
-function LaterRow({ a }: { a: DeskAction }) {
-  return (
-    <li style={{ "--tone": DESK_ROOMS[a.room].accent } as React.CSSProperties}>
-      <Avatar agent={a.agent} size="sm" room={a.room} />
-      <span className="later-list__due">{a.due ?? "Later"}</span>
-      <span className="later-list__title">{a.title}</span>
-      <span className="later-list__room">
-        {DESK_ROOMS[a.room].name} · {a.agent}
-      </span>
-      <span className="later-list__actions">
-        {a.choices.map((c, k) => (
-          <Choice key={c} a={a} k={k} small />
-        ))}
-      </span>
-    </li>
   );
 }

@@ -7,7 +7,7 @@ import { create } from "zustand";
  * Nikita taps one: ideas and answers then go through the Desk's own buttons (IdeaCard.tsx), pages open in place.
  */
 
-export type Page = "today" | "relay" | "foundry" | "systems" | "chronicle" | "security" | "compliance";
+export type Page = "today" | "relay" | "foundry" | "boiler" | "archive" | "security" | "compliance" | "spire" | "exchange" | "green" | "workshop" | "systems" | "chronicle";
 export type Room = "foundry" | "spire" | "exchange" | "green" | "relay" | "archive" | "breakroom" | "boiler" | "workshop";
 
 export type SkippyAction =
@@ -40,10 +40,17 @@ export const PAGES: Record<Page, string> = {
   today: "/",
   relay: "/relay",
   foundry: "/foundry",
-  systems: "/systems",
-  chronicle: "/chronicle",
-  security: "/systems/security",
-  compliance: "/systems/compliance",
+  boiler: "/boiler",
+  archive: "/archive",
+  security: "/boiler/security",
+  compliance: "/boiler/compliance",
+  spire: "/spire",
+  exchange: "/exchange",
+  green: "/green",
+  workshop: "/workshop",
+  // The rooms' old names (#225), in case a reply still uses them.
+  systems: "/boiler",
+  chronicle: "/archive",
 };
 const ROOMS: readonly Room[] = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop"];
 

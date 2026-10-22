@@ -59,7 +59,7 @@ for (const width of [1280, 400]) {
     const asked = await stub(page, true);
 
     await page.goto(BASE + "/");
-    await expect(page.locator(".desk__title")).toHaveText("Today");
+    await expect(page.locator(".today .desk__title")).toBeVisible();
     const avatar = page.getByRole("button", { name: "Talk to Skippy, the Magnificent" });
     await avatar.click();
     const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });

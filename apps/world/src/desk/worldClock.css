@@ -85,7 +85,7 @@
 .wclock__cell dt {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }

@@ -1,15 +1,107 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
 import { RoomBanner } from "./RoomBanner.tsx";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
+import { isPhone, knot, Parts, Poly, RC, ring, spr, useViz, type VizSpec } from "./wvCanvas.ts";
 
 /** Relay: who you owe a reply, the ones to answer sooner first, each with Blasto's draft in your voice. */
 
 const CHIPS = ["On my way", "Can I call you later?", "Love that", "Let me check and get back to you"];
 const WAIT_SCALE = 12 * 3_600_000;
 
+/** The chain Relay waits on (desk-concepts round five, "relaychain"): a dashed thread, the Mac's knot alive, the rest rings. */
+function chainSpec(): VizSpec {
+  let ks: { x: number; y: number }[] = [];
+  let poly = new Poly();
+  const P = new Parts(40, 0);
+  return {
+    lay(V) {
+      const ph = isPhone(V.cv.parentElement);
+      const lis = [...(V.cv.parentElement?.querySelectorAll(".wv-chain-l li") ?? [])];
+      ks = lis.map((li) => {
+        const r = V.rel(li);
+        return ph ? { x: 22, y: r.y + 14 } : { x: r.x + r.w / 2, y: 35 };
+      });
+      if (ks.length < 2) return;
+      const a = ks[0]!;
+      const b = ks[ks.length - 1]!;
+      poly = ph ? new Poly().set([22, 22], [a.y, b.y]) : new Poly().set([a.x, b.x], [35, 35]);
+    },
+    draw(_V, c, t) {
+      if (ks.length < 2) return;
+      const rgb = RC.relay!;
+      c.globalAlpha = 1;
+      c.strokeStyle = `rgba(${rgb},.45)`;
+      c.lineWidth = 1;
+      c.setLineDash([3, 5]);
+      poly.stroke(c);
+      c.setLineDash([]);
+      const k0 = ks[0]!;
+      for (let i = 0; i < P.n; i++) {
+        const r = 10 + Math.abs(P.o[i]!) * 14;
+        const a = P.p[i]! + t * 0.6 * (i % 2 ? 1 : -1);
+        c.globalAlpha = 0.3 + 0.45 * P.z[i]!;
+        const sz = 1 + P.z[i]! * 1.8;
+        c.drawImage(spr(rgb), k0.x + Math.cos(a) * r - sz, k0.y + Math.sin(a) * r * 0.5 - sz, sz * 2, sz * 2);
+      }
+      ks.forEach((k, i) => (i === 0 ? knot(c, k.x, k.y, 0.6, t, rgb, 0.9) : ring(c, k.x, k.y, 5, rgb, 0.55, [2, 3])));
+    },
+  };
+}
+
+const CHAIN = [
+  { b: "MacBook", s: "Awake, on power, online" },
+  { b: "The hub", s: "Runs on the Mac, keeps messages there" },
+  { b: "Messages", s: "Read and sent through BlueBubbles" },
+  { b: "Dialtone and Blasto", s: "Sort, then draft" },
+  { b: "You", s: "A tap to send" },
+];
+
+/** Before the hub is connected: what Relay will do, and the one thing it waits on. No made-up messages. */
+function RelayLater() {
+  const spec = useMemo(() => chainSpec(), []);
+  const cv = useRef<HTMLCanvasElement>(null);
+  useViz(cv, spec);
+  return (
+    <div className="relay-page wv-page wv-relay" data-room="relay">
+      <header className="wv-pghead">
+        <p className="wv-eyb" style={{ color: "var(--rc-relay)" }}>
+          Relay
+        </p>
+        <h1 className="wv-h1 desk__title">
+          Relay comes <em style={{ color: "var(--rc-relay)" }}>later.</em>
+        </h1>
+        <p className="wv-sub">It will keep track of who you owe a reply, sort the urgent from the rest, and draft answers in your voice for a tap to send. It waits on one thing: the MacBook.</p>
+      </header>
+      <section className="wv-chain" aria-label="What Relay waits on">
+        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
+        <ol className="wv-chain-l">
+          {CHAIN.map((c) => (
+            <li key={c.b}>
+              <b>{c.b}</b>
+              <span>{c.s}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+      <figure className="wv-relay-q">
+        <img src="/desk/agent-postmaster.webp" alt="" width={62} height={62} decoding="async" />
+        <blockquote>&ldquo;My pen is ready. My stamps are sorted. I am simply waiting for a laptop to wake up, which is a humbling thing to wait for.&rdquo;</blockquote>
+        <figcaption>
+          <b>Blasto</b>Relay's drafter
+        </figcaption>
+      </figure>
+    </div>
+  );
+}
+
 export function Relay({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
+  if (!connected) return <RelayLater />;
+  return <RelayLive data={data} now={now} connected={connected} />;
+}
+
+function RelayLive({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
   const owed = byWait(data.owed);
   const { picked, pick, send, later, setDraft } = useDesk();
   const current = owed.find((o) => o.id === picked) ?? null;

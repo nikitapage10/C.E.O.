@@ -24,7 +24,7 @@ describe("Skippy's buttons, checked again in the browser", () => {
   });
 
   it("knows where pages and rooms are, and that ideas and answers aren't links", () => {
-    expect(actionPath({ kind: "open", label: "x", page: "security" })).toBe("/systems/security");
+    expect(actionPath({ kind: "open", label: "x", page: "security" })).toBe("/boiler/security");
     expect(actionPath({ kind: "open", label: "x", page: "today" })).toBe("/");
     expect(actionPath({ kind: "lattice", label: "x", room: "spire" })).toBe("/lattice?room=spire");
     expect(actionPath({ kind: "lattice", label: "x" })).toBe("/lattice");

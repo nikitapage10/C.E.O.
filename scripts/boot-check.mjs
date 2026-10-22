@@ -40,7 +40,9 @@ const PAGE_MS = 20_000;
 // The most JavaScript the Desk may download on first load of `/` (uncompressed bytes of the entry and everything it pulls in
 // before Today renders). Oct 19, 2026 (#195): measured 415.0 kB, plus about 15% headroom. Raise it on purpose, in a PR
 // that says why, with BOOT_CHECK_DESK_JS_BUDGET=<bytes> for a one-off run or by editing this number.
-const DESK_JS_BUDGET = Number(process.env.BOOT_CHECK_DESK_JS_BUDGET) || 480_000;
+// Oct 22, 2026 (#225, the Weave Desk): raised to 1 MB. Nikita: up to about 1 MB is fine for a fresher Desk design
+// (a good connection, mostly local). Measured 477 kB at the time; the Lattice stays lazy either way.
+const DESK_JS_BUDGET = Number(process.env.BOOT_CHECK_DESK_JS_BUDGET) || 1_000_000;
 
 const server = live ? null : await startDistServer(PORT);
 const base = live ?? `http://localhost:${PORT}`;
@@ -123,7 +125,7 @@ function checkDeskJs(bytes) {
 const deskUp = async (page, timeout, text) => {
   await page.waitForSelector(".desk__tabs", { timeout });
   await page.waitForFunction(
-    (t) => !globalThis.document.querySelector(".boot") && globalThis.document.getElementById("root")?.innerText.includes(t),
+    (t) => !globalThis.document.querySelector(".boot") && globalThis.document.getElementById("root")?.innerText.toLowerCase().includes(t.toLowerCase()),
     text,
     { timeout },
   );

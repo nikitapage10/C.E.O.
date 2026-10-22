@@ -27,14 +27,14 @@
 }
 .hub-nav__label {
   font-family: var(--serif);
-  font-size: 17px;
-  letter-spacing: 0.04em;
+  font-size: 14.3px;
+  letter-spacing: -0.01em;
   color: var(--muted);
 }
 .hub-nav__hint {
   font-family: var(--mono);
   font-size: 9px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dim);
 }
@@ -65,7 +65,7 @@
 .sec-out {
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
   white-space: nowrap;
@@ -145,14 +145,14 @@
 .sec-stat__label {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
 .sec-stat__value {
   font-family: var(--serif);
-  font-size: 34px;
-  font-weight: 300;
+  font-size: 28.6px;
+  font-weight: 500;
   line-height: 1.1;
   color: var(--text);
   font-variant-numeric: lining-nums tabular-nums;
@@ -222,7 +222,7 @@
 .scan__name {
   grid-area: name;
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 14.3px;
   line-height: 1.2;
   color: var(--text);
 }
@@ -230,7 +230,7 @@
   grid-area: state;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--c);
 }
@@ -249,7 +249,7 @@
   justify-self: start;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ice);
 }
@@ -292,7 +292,7 @@ summary.has-pop {
   flex: none;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -308,7 +308,7 @@ summary.has-pop {
 .exp-facts dt {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ice);
 }
@@ -370,13 +370,13 @@ summary.has-pop {
 }
 .dial__num {
   font-family: var(--serif);
-  font-size: 30px;
+  font-size: 25.2px;
   fill: var(--text);
 }
 .dial__of {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   fill: var(--faint);
 }
 .bars {
@@ -517,13 +517,13 @@ summary.has-pop {
 }
 .tmap__zname {
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: 15.1px;
   fill: var(--text);
 }
 .tmap__ztrust {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   fill: var(--faint);
 }
 .tmap__zone--public .tmap__ztrust {
@@ -650,7 +650,7 @@ summary.has-pop {
   margin: 0;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -661,8 +661,8 @@ summary.has-pop {
 .tmap__title {
   margin: 4px 0 10px;
   font-family: var(--serif);
-  font-weight: 400;
-  font-size: 21px;
+  font-weight: 600;
+  font-size: 17.6px;
   color: var(--text);
 }
 .tmap__title b {
@@ -682,7 +682,7 @@ summary.has-pop {
   margin: 0 0 4px;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -762,8 +762,8 @@ summary.has-pop {
 }
 .evals__total {
   font-family: var(--serif);
-  font-size: 48px;
-  font-weight: 300;
+  font-size: 40.3px;
+  font-weight: 500;
   line-height: 1;
   color: var(--text);
   font-variant-numeric: lining-nums tabular-nums;
@@ -874,14 +874,14 @@ summary.has-pop {
 .frame__name {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
 .frame__big {
   font-family: var(--serif);
-  font-size: 34px;
-  font-weight: 300;
+  font-size: 28.6px;
+  font-weight: 500;
   line-height: 1.1;
   color: var(--text);
   font-variant-numeric: lining-nums tabular-nums;
@@ -989,7 +989,7 @@ summary.has-pop {
 .risk__name {
   grid-area: name;
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 14.3px;
   line-height: 1.25;
   color: var(--text);
 }
@@ -1035,7 +1035,7 @@ summary.has-pop {
 }
 .fn__name {
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: 15.1px;
   color: var(--text);
 }
 .fn__name--long {

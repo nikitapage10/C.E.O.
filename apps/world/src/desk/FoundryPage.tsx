@@ -1,17 +1,18 @@
-import { useRef, useState } from "react";
-import { heldMessage, IdeaCard, Mic, nextCheck, propose, send, soon, useSetup, ideaTitle, type Setup } from "./IdeaCard.tsx";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { heldMessage, IdeaCard, nextCheck, propose, send, soon, useSetup, ideaTitle, type Setup } from "./IdeaCard.tsx";
 export { heldMessage, IdeaCard, ideaTitle, nextCheck, useSetup };
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { ensureSignedIn, useDeskAuth } from "./signin.ts";
-import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, crewWork, expectChange, MODEL, modelOf, nextUpkeep, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, withTrails, type Approval, type Change, type Crate, type CrateKind, type CrateState, type CrewId, type Origin } from "../foundry.ts";
-import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
+import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, expectChange, MODEL, modelOf, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, withTrails, type Approval, type Change, type Crate, type CrateKind, type CrateState, type CrewId, type Origin } from "../foundry.ts";
+import { useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
-import { RoomBanner } from "./RoomBanner.tsx";
+import { CrewRow, FoundryHead, FoundryStage, InFlight, logSpec, RunDials, UsageWoven, VqaChips, WeaveIdea } from "./FoundryWeave.tsx";
+import { useViz } from "./wvCanvas.ts";
 import { ChangePictures } from "./ChangePictures.tsx";
-import { Avatar, Panel } from "./ui.tsx";
+import { Avatar } from "./ui.tsx";
 import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
@@ -64,109 +65,166 @@ export function FoundryPage({ now }: { now: number }) {
   // just sent from the Desk goes last until GitHub numbers it.
   const ideas = openIdeas(data.crates, pending);
   const decisions = data.crates.filter((c) => c.kind !== "idea" && (c.state === "ready" || c.state === "stuck"));
-  const running = data.crates.filter((c) => c.kind !== "idea" && c.state === "working");
-  const upkeep = data.crates.find((c) => c.kind === "upkeep");
   // Everything in flight: what the crew holds plus the queue nobody holds yet. Chat work is in here too.
   const inFlight = assignCrew(data.crates).size + upNext(data.crates).length;
   const { questions, toPick } = ideaCounts(ideas);
-  const needs = decisions.length + (toPick ? 1 : 0) + (questions.length ? 1 : 0);
 
   const parts: string[] = [];
   if (questions.length) parts.push(questions.length === 1 ? "Rivet has a question" : `Rivet has ${questions.length} questions`);
   if (toPick) parts.push(`${toPick} ${toPick === 1 ? "idea is" : "ideas are"} waiting for your pick`);
   if (decisions.length) parts.push(`${decisions.length} ${decisions.length === 1 ? "thing needs" : "things need"} your OK`);
-  const lead = !connected ? "Connecting to GitHub…" : parts.length ? `${parts.join(", and ")}.` : "Nothing needs you. The crew handles small fixes and upkeep on its own.";
+  const lead = !connected ? "Connecting to GitHub…" : parts.length ? `${parts.join(", and ")}.` : "Nothing needs you; the crew handles small fixes and upkeep on its own.";
   // The living Lattice: the builders' remarks for the Changelog, and the world's spend for the Usage panel.
   const world = useWorldFeed();
   // The issue trails: the Usage panel counts from them, and the Changelog reads each change's Origin and Decision.
   const usage = useUsage();
   const changelog = withTrails(data.changelog, usage.feed?.trails ?? []);
+  const follow = useRef<((id: string) => void) | null>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const suggest = useRef<HTMLElement>(null);
+  const toSuggest = () => {
+    suggest.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    window.setTimeout(() => suggest.current?.querySelector("textarea")?.focus({ preventScroll: true }), 400);
+  };
+  const stop = (c: Crate) => (c.auto ? <StopAuto crate={c} setup={setup} /> : null);
 
   return (
-    <div className="foundry-page" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
-      <RoomBanner
-        page="foundry"
-        lead={lead}
-        aside={
-          <div className="page-head__crew">
-            {CREW_ORDER.map((id) => (
-              <Avatar key={id} agent={id} room="foundry" />
-            ))}
-            <a className="btn btn--go" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
-              Open the Foundry thread →
-            </a>
-          </div>
-        }
+    <div className="foundry-page wv-page wv-foundry" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
+      <FoundryHead data={data} ideas={ideas} now={now} connected={connected} lead={lead} />
+      <div ref={stage}>
+        <FoundryStage data={data} ideas={ideas} now={now} setup={setup} stop={stop} onSuggest={toSuggest} openRef={follow} />
+      </div>
+
+      {decisions.length > 0 && (
+        <section className="wv-acts wv-decide" aria-label="Waiting for your OK">
+          {decisions.map((c, i) => {
+            const who = crewOf(c, data.crates);
+            return (
+              <article key={c.number} className="wv-act" data-room="foundry" style={{ "--i": i } as React.CSSProperties}>
+                <div className="wv-act-top">
+                  <i className="wv-dot" />
+                  <span>{c.state === "stuck" ? "Foundry, stuck" : "Foundry, ship it?"}</span>
+                  <time>{formatWait(now - c.updatedAt)}</time>
+                </div>
+                <div className="wv-act-body">
+                  <img className="wv-act-pf" src={`/desk/agent-${who}.webp`} alt="" />
+                  <div>
+                    <h3 className="wv-h3">{ideaTitle(c.title)}</h3>
+                    <p className="wv-act-p">
+                      {c.state === "stuck" ? `Stuck after every rung. Have a look.` : `Done and checked. ${CREW[who].name} is waiting for your OK.`} {KIND_LABEL[c.kind]} · #{c.number}
+                    </p>
+                  </div>
+                </div>
+                <div className="wv-act-do">
+                  <a className="wv-btn is-pri" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
+                    {c.state === "stuck" ? "See why" : "Decide"}
+                  </a>
+                  <a className="wv-btn" href={c.url} target="_blank" rel="noreferrer">
+                    The issue
+                  </a>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      <InFlight
+        data={data}
+        now={now}
+        stop={stop}
+        onFollow={(id) => {
+          stage.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+          follow.current?.(id);
+        }}
       />
 
-      <section className="fy-needs" aria-label="Needs you">
-        <header className="section-head">
-          <h2>Needs you</h2>
-          <span className="badge">{needs}</span>
-        </header>
-        {setup !== null && !setup.buttons && <SetupNote />}
-        {setup?.buttons && <DeskSignIn />}
-        {decisions.length > 0 && (
-          <ul className="fy-decisions">
-            {decisions.map((c) => (
-              <li key={c.number} className={`fy-decision fy-decision--${c.state}`}>
-                <Avatar agent={crewOf(c, data.crates)} room="foundry" />
-                <span className="fy-decision__kind">{KIND_LABEL[c.kind]}</span>
-                <a href={c.url} target="_blank" rel="noreferrer" className="fy-decision__title">
-                  {c.title}
-                </a>
-                <span className="fy-decision__what">{c.state === "stuck" ? "Stuck after every rung. Have a look." : "Done and checked. Ship it?"}</span>
-                <a className="btn btn--go btn--sm" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
-                  {c.state === "stuck" ? "See why" : "Decide"}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-        {ideas.length > 0 ? (
-          <div className="fy-ideas">
-            {ideas.map((c, i) => (
-              <IdeaCard key={c.number} crate={c} index={i + 1} setup={setup} />
-            ))}
+      <div className="wv-fgrid">
+        <section className="wv-ideas" aria-label="Ideas waiting">
+          <div className="wv-sechead">
+            <div>
+              <p className="wv-eyb">Ideas waiting</p>
+              <h2 className="wv-h2">{ideas.length ? `${NUMBER_WORD[ideas.length] ?? ideas.length} on the bench` : "The bench is clear"}</h2>
+            </div>
+            <p className="wv-note">{ideas.length ? (questions.length ? "Rivet asks about one first" : "Shaped by Rivet and the Builder") : connected ? `The next ideas arrive ${inTime(nextIdeas(now) - now)}, at 9:00` : "Connecting to GitHub…"}</p>
           </div>
-        ) : (
-          !decisions.length && connected && <p className="quiet fy-calm">All clear. The next three ideas arrive {inTime(nextIdeas(now) - now)}, at 9:00.</p>
-        )}
-        <Propose setup={setup} />
-        {data.shelved > 0 && (
-          <p className="quiet fy-shelf">
-            {data.shelved} {data.shelved === 1 ? "idea" : "ideas"} on the shelf: passed for now, and Rusty may bring one back in a new shape.
-          </p>
-        )}
-      </section>
+          {ideas.length > 0 ? (
+            <div className="wv-ideas-row fy-ideas">
+              {ideas.map((c, i) => (
+                <WeaveIdea key={c.number} crate={c} setup={setup} now={now} i={i} />
+              ))}
+            </div>
+          ) : (
+            <p className="wv-allclear-line">{connected ? "All clear. Suggest one, or wait for the morning's three." : "Waiting for GitHub."}</p>
+          )}
+          {data.shelved > 0 && (
+            <p className="wv-note wv-shelf">
+              {data.shelved} {data.shelved === 1 ? "idea" : "ideas"} on the shelf: passed for now, and Rusty may bring one back in a new shape.
+            </p>
+          )}
+        </section>
+        <div className="wv-fside">
+          <Propose setup={setup} box={suggest} />
+          {setup !== null && !setup.buttons && <SetupNote />}
+        </div>
+      </div>
+      {setup?.buttons && (
+        <section className="wv-device" aria-label="This device">
+          <DeskSignIn />
+        </section>
+      )}
 
-      <StatusStrip now={now} running={running} upkeep={upkeep} />
-
-      <Panel eyebrow="The crew" className="fy-crewpanel" aside={<span className="badge">{inFlight}</span>} label="The crew and what is in flight">
+      <CrewRow data={data} now={now} />
+      <details className="wv-jobs">
+        <summary>
+          Every job in hand, and the queue <span className="wv-count">{inFlight}</span>
+        </summary>
         <Crew now={now} setup={setup} />
-      </Panel>
+      </details>
 
-      <Panel eyebrow="Usage" className="fy-usage" aside={<a className="panel__hint" href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer">Claude plan limits →</a>} label="Usage: API spend and work by model">
-        <Usage now={now} setup={setup} world={world} usage={usage} />
-      </Panel>
-
-      <Panel eyebrow="Connections" className="fy-connections">
-        <Connections setup={setup} />
-      </Panel>
-
-      <Panel eyebrow="Changelog" className="fy-changelog" aside={<span className="badge">{changelog.length}</span>}>
-        {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} setup={setup} /> : <p className="quiet">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
-        <p className="quiet changelog__all">
-          Every commit on main, one-offs included, is on{" "}
-          <a href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
-            GitHub
-          </a>
-          .
-        </p>
-      </Panel>
+      <div className="wv-flow2">
+        <section className="wv-log fy-changelog" aria-label="Changelog">
+          <div className="wv-sechead">
+            <div>
+              <p className="wv-eyb">Changelog</p>
+              <h2 className="wv-h2">What reached the Lattice</h2>
+            </div>
+          </div>
+          {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} setup={setup} /> : <p className="wv-allclear-line">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
+          <p className="wv-note changelog__all">
+            Every commit on main, one-offs included, is on{" "}
+            <a className="wv-link" href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
+              GitHub ↗
+            </a>
+          </p>
+        </section>
+        <div className="wv-flow2-r">
+          <RunDials now={now} />
+          <UsageWoven usage={usage.feed} world={world.feed} now={now}>
+            <details className="wv-more-d">
+              <summary>
+                By time span and model{" "}
+                <a className="wv-link" href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                  Claude plan limits ↗
+                </a>
+              </summary>
+              <div className="fy-usage">
+                <Usage now={now} setup={setup} world={world} usage={usage} />
+              </div>
+            </details>
+          </UsageWoven>
+          <VqaChips />
+          <details className="wv-conn">
+            <summary>Connections</summary>
+            <Connections setup={setup} />
+          </details>
+        </div>
+      </div>
     </div>
   );
 }
+
+const NUMBER_WORD = ["None", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 
 /** Shown until the Vercel function can reach the Foundry: what unlocks the buttons, in one place. */
 function SetupNote() {
@@ -185,8 +243,7 @@ function SetupNote() {
 /** Nikita's own idea: say it or type it, and Rivet shapes it into a card like the morning ones. */
 type Pic = { id: string; file: File; preview: string; status: "wait" | "up" | "done" | "failed"; url?: string };
 
-function Propose({ setup }: { setup: Setup }) {
-  const [open, setOpen] = useState(false);
+function Propose({ setup, box }: { setup: Setup; box?: React.Ref<HTMLElement> }) {
   const [note, setNote] = useState("");
   const [state, setState] = useState<"idle" | "busy" | "done" | "shaping" | "failed" | "signed-out" | "held">("idle");
   // What was typed before the mic started; dictation appends to it.
@@ -249,7 +306,6 @@ function Propose({ setup }: { setup: Setup }) {
     const card = pendingIdea(note, Date.now(), urls);
     const { addPending, settlePending, shapePending } = useFoundry.getState();
     addPending(card);
-    setOpen(false);
     const words = note;
     const kept = pics;
     setNote("");
@@ -273,7 +329,6 @@ function Propose({ setup }: { setup: Setup }) {
       settlePending(number, null);
       setNote(words);
       setPics(kept.map((p, n) => ({ ...p, status: "done" as const, url: urls[n] })));
-      setOpen(true);
       setState(r);
     }
   };
@@ -296,42 +351,38 @@ function Propose({ setup }: { setup: Setup }) {
     window.open(FOUNDRY_THREAD, "_blank", "noopener");
     setState("done");
   };
-  if (!open)
-    return (
-      <button type="button" className="fy-propose__open" onClick={() => (setOpen(true), setState("idle"))}>
-        <span aria-hidden="true">+</span> Suggest an idea
-        {state === "busy" && <em>On the board. Sending it to GitHub…</em>}
-        {state === "shaping" && <em>On the board. Rivet is shaping it now.</em>}
-        {state === "done" && <em>{ready ? `Sent. Rivet shapes it into a card ${soon()}.` : "Copied. Paste it in the Foundry thread."}</em>}
-      </button>
-    );
+  const status =
+    state === "busy" ? "On the board. Sending it to GitHub…" : state === "shaping" ? "On the board. Rivet is shaping it now." : state === "done" ? (ready ? `Sent. Rivet shapes it into a card ${soon()}.` : "Copied. Paste it in the Foundry thread.") : "";
   return (
-    <>
-    <form
-      className={`fy-propose fy-idea__form${dragging ? " fy-propose--drop" : ""}`}
-      onDragOver={(e) => {
-        if (!canPic || !Array.from(e.dataTransfer.types).includes("Files")) return;
-        e.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setDragging(false)}
-      onDrop={(e) => {
-        setDragging(false);
-        if (!canPic) return;
-        e.preventDefault();
-        addFiles(Array.from(e.dataTransfer.files));
-      }}
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!note.trim()) return;
-        if (!ready) void handOver().then(() => setOpen(false));
-        else void submit();
-      }}
-    >
-      <label>
-        {dictation.listening ? "Listening… say the idea, then press the mic again." : "Your idea, said or typed. Rivet turns it into a card with a size and a builder, and asks first if something is unclear."}
-        <span className="fy-propose__box">
+    <section ref={box} className={`wv-suggest${dragging ? " is-drop" : ""}`} aria-label="Suggest an idea">
+      <p className="wv-eyb" style={{ color: "var(--wv-hot)" }}>
+        Suggest
+      </p>
+      <h2 className="wv-h2">What should the crew build next?</h2>
+      <form
+        className="wv-sug-form"
+        onDragOver={(e) => {
+          if (!canPic || !Array.from(e.dataTransfer.types).includes("Files")) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setDragging(false)}
+        onDrop={(e) => {
+          setDragging(false);
+          if (!canPic) return;
+          e.preventDefault();
+          addFiles(Array.from(e.dataTransfer.files));
+        }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!note.trim()) return;
+          if (!ready) void handOver();
+          else void submit();
+        }}
+      >
+        <div className="wv-sug-box">
           <textarea
+            className="wv-input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             onPaste={(e) => {
@@ -341,124 +392,79 @@ function Propose({ setup }: { setup: Setup }) {
               if (!e.clipboardData.getData("text/plain")) e.preventDefault();
               addFiles(files);
             }}
-            rows={3}
-            autoFocus
             maxLength={2000}
-            placeholder={canPic ? "What should the Foundry build? Paste or drop pictures too." : "What should the Foundry build?"}
+            aria-label="Your idea"
+            placeholder={dictation.listening ? "Listening… say the idea, then press the mic again." : canPic ? "Say it however it comes out, or paste and drop pictures. Rivet tidies it up." : "Say it however it comes out. Rivet tidies it up."}
           />
-          {canPic && (
-            <>
-              <input ref={pickFiles} type="file" accept="image/*" multiple hidden onChange={(e) => (addFiles(Array.from(e.target.files ?? [])), (e.target.value = ""))} />
-              <button type="button" className="fy-mic fy-mic--attach" onClick={() => pickFiles.current?.click()} disabled={pics.length >= MAX_IMAGES} aria-label="Attach pictures" title="Attach pictures">
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                  <path d="M20 11.5l-7.6 7.6a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-7.6 7.6a1.7 1.7 0 0 1-2.4-2.4l7-7" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          {pics.length > 0 && (
+            <ul className="fy-pics wv-sug-pics">
+              {pics.map((p) => (
+                <li key={p.id} className={`fy-pics__item${p.status === "up" ? " fy-pics__item--up" : ""}${p.status === "failed" ? " fy-pics__item--failed" : ""}`}>
+                  <img src={p.preview} alt="" />
+                  {p.status === "up" && <span className="fy-pics__state">Uploading…</span>}
+                  {p.status === "failed" && <span className="fy-pics__state">Not sent</span>}
+                  <button type="button" className="fy-pics__x" onClick={() => dropPic(p.id)} aria-label="Remove picture">
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="wv-sug-row">
+            {dictation.supported && (
+              <button type="button" className={`wv-mic${dictation.listening ? " is-on" : ""}`} onClick={toggleMic} aria-pressed={dictation.listening} aria-label={dictation.listening ? "Stop listening" : "Say the idea"} title={dictation.listening ? "Stop listening" : "Say the idea"}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
+                  <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
                 </svg>
               </button>
-            </>
-          )}
-          <Mic dictation={dictation} onToggle={toggleMic} label="Say the idea" />
-        </span>
-      </label>
-      {dictation.error && <p className="fy-idea__note">{dictation.error}</p>}
-      {pics.length > 0 && (
-        <ul className="fy-pics">
-          {pics.map((p) => (
-            <li key={p.id} className={`fy-pics__item${p.status === "up" ? " fy-pics__item--up" : ""}${p.status === "failed" ? " fy-pics__item--failed" : ""}`}>
-              <img src={p.preview} alt="" />
-              {p.status === "up" && <span className="fy-pics__state">Uploading…</span>}
-              {p.status === "failed" && <span className="fy-pics__state">Not sent</span>}
-              <button type="button" className="fy-pics__x" onClick={() => dropPic(p.id)} aria-label="Remove picture">
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {picNote && <p className="fy-idea__note">{picNote}</p>}
-      {state === "failed" && <p className="fy-idea__note">That didn't go through. Try again.</p>}
+            )}
+            {canPic && (
+              <>
+                <input ref={pickFiles} type="file" accept="image/*" multiple hidden onChange={(e) => (addFiles(Array.from(e.target.files ?? [])), (e.target.value = ""))} />
+                <button type="button" className="wv-btn is-ic" onClick={() => pickFiles.current?.click()} disabled={pics.length >= MAX_IMAGES} aria-label="Add pictures" title="Add pictures">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="1.5" y="2.5" width="13" height="11" rx="2" />
+                    <circle cx="5.5" cy="6.5" r="1.3" />
+                    <path d="m2 12 4-3.5 3 2.5 2-1.5 3 2.5" />
+                  </svg>
+                </button>
+              </>
+            )}
+            <span className="wv-sug-sp" />
+            <button type="submit" className="wv-btn is-pri" disabled={!note.trim() || state === "busy" || state === "signed-out" || uploading || setup === null}>
+              {ready ? "Send to Rivet" : "Copy and open the thread"}
+            </button>
+          </div>
+        </div>
+      </form>
+      {dictation.error && <p className="wv-act-note">{dictation.error}</p>}
+      {picNote && <p className="wv-act-note">{picNote}</p>}
+      {state === "failed" && <p className="wv-act-note">That didn't go through. Try again.</p>}
       {state === "held" && held && (
-        <p className="fy-idea__note" role="alert">
+        <p className="wv-act-note" role="alert">
           {held}
         </p>
       )}
-      {!ready && setup !== null && <p className="fy-idea__note fy-idea__note--quiet">Sending straight from here needs the Vercel variables above. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
-      <button type="submit" className="btn btn--go btn--sm" disabled={!note.trim() || state === "busy" || state === "signed-out" || uploading || setup === null}>
-        {ready ? "Send to Rivet" : "Copy and open the thread"}
-      </button>
-      <button type="button" className="btn btn--quiet btn--sm" onClick={() => (dictation.stop(), setOpen(false))}>
-        Cancel
-      </button>
-    </form>
-    {/* Outside the form: the sign-in step has a form of its own. */}
-    {ready && state === "signed-out" && <DeskSignIn compact onDone={() => void submit()} onCancel={() => setState("idle")} />}
-    </>
+      {status && (
+        <p className="wv-act-ok" role="status">
+          {status}
+        </p>
+      )}
+      {!ready && setup !== null && <p className="wv-act-note">Sending straight from here needs the Vercel variables. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
+      {/* Outside the form: the sign-in step has a form of its own. */}
+      {ready && state === "signed-out" && <DeskSignIn compact onDone={() => void submit()} onCancel={() => setState("idle")} />}
+      <p className="wv-sug-rivet">
+        <img src="/desk/agent-semicolon.webp" alt="" />
+        Rivet reads it within a minute, asks if anything's unclear, and it lands on the bench with a size and a builder.
+      </p>
+    </section>
   );
 }
 
 /** Queued work nobody holds yet (ideas waiting for a pick are the cards above, not this). */
 function upNext(crates: Crate[]): Crate[] {
   return crates.filter((c) => c.kind !== "idea" && c.state === "queued").sort((a, b) => a.number - b.number);
-}
-
-const ICONS = {
-  checks: "M5 12.5l4.2 4.2L19 7",
-  running: "M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
-  upkeep: "M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.4-.6-.6-2.4z",
-  ideas: "M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z",
-} as const;
-
-function Chip({ icon, tone, label, title, href }: { icon: keyof typeof ICONS; tone: LinkState; label: string; title: string; href?: string }) {
-  const body = (
-    <>
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <path d={ICONS[icon]} stroke="currentColor" strokeWidth="1.7" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <i className={`fy-dot fy-dot--${tone}`} aria-hidden="true" />
-      <span>{label}</span>
-    </>
-  );
-  return (
-    <li>
-      {href ? (
-        <a className="fy-chip" href={href} target="_blank" rel="noreferrer" title={title} aria-label={title}>
-          {body}
-        </a>
-      ) : (
-        <span className="fy-chip" title={title} aria-label={title}>
-          {body}
-        </span>
-      )}
-    </li>
-  );
-}
-
-/** How things stand, at icon level: checks, work running, upkeep, the next ideas. The details sit in each tooltip. */
-function StatusStrip({ now, running, upkeep }: { now: number; running: Crate[]; upkeep: Crate | undefined }) {
-  const checks = useFoundry((s) => s.data.checks);
-  const tone: LinkState = checks.state === "pass" ? "ok" : checks.state === "fail" ? "down" : checks.state === "running" ? "slow" : "off";
-  const checksLong = checks.state === "pass" ? "All green" : checks.state === "fail" ? "Red, Rivet is on it" : checks.state === "running" ? "Running" : "No run yet";
-  const upkeepNow = upkeep?.state === "working";
-  const upkeepLine = upkeepNow ? `Working: ${upkeep.title}` : upkeep ? `Last: ${upkeep.title}` : "None yet";
-  return (
-    <ul className="fy-strip" aria-label="Right now">
-      <Chip icon="checks" tone={tone} label={CHECKS_LABEL[tone]} title={`Checks on main: ${checksLong}`} href={checks.url ?? undefined} />
-      <Chip
-        icon="running"
-        tone={running.length ? "ok" : "off"}
-        label={running.length ? `${running.length} running` : "Idle"}
-        title={running.length ? `Work running: ${running.map((c) => `#${c.number} ${c.title}`).join("; ")}` : "Work running: nothing right now"}
-        href={running.length === 1 ? running[0]!.url : undefined}
-      />
-      <Chip
-        icon="upkeep"
-        tone={upkeepNow ? "ok" : "off"}
-        label={upkeepNow ? "Upkeep now" : `Upkeep ${inTime(nextUpkeep(now) - now)}`}
-        title={`Upkeep. ${upkeepLine}. Next run ${inTime(nextUpkeep(now) - now)}.`}
-        href={upkeep?.url}
-      />
-      <Chip icon="ideas" tone="off" label="Ideas 9:00" title={`Next ideas at 9:00 Mountain, ${inTime(nextIdeas(now) - now)}`} />
-    </ul>
-  );
 }
 
 const STATE_ORDER: Record<CrateState, number> = { stuck: 0, working: 1, ready: 2, queued: 3, shipped: 9 };
@@ -601,15 +607,15 @@ function StopAuto({ crate, setup }: { crate: Crate; setup: Setup }) {
   if (mode === "signin") return <span className="fy-stop__note">Sign in above to stop it.</span>;
   return mode === "confirm" || mode === "busy" ? (
     <span className="fy-stop">
-      <button type="button" className="btn btn--sm" disabled={mode === "busy"} onClick={() => void stop()}>
+      <button type="button" className="wv-btn is-sm" disabled={mode === "busy"} onClick={() => void stop()}>
         {mode === "busy" ? "Stopping…" : "Yes, stop it"}
       </button>
-      <button type="button" className="btn btn--quiet btn--sm" disabled={mode === "busy"} onClick={() => setMode("idle")}>
+      <button type="button" className="wv-btn is-sm is-ghost" disabled={mode === "busy"} onClick={() => setMode("idle")}>
         Keep going
       </button>
     </span>
   ) : (
-    <button type="button" className="btn btn--quiet btn--sm fy-stop__btn" onClick={() => setMode("confirm")} title="Auto-approved by the Builder. Stop it and send it back to you as an idea.">
+    <button type="button" className="wv-btn is-sm fy-stop__btn" onClick={() => setMode("confirm")} title="Auto-approved by the Builder. Stop it and send it back to you as an idea.">
       Stop
     </button>
   );
@@ -835,8 +841,8 @@ function WorldSpend({ now, world }: { now: number; world: { status: ChronicleSta
               ? "No Claude key is set, so every hour comes from the agents' scripted lines, for free."
               : `Guard: the world stops calling Claude at ${formatUsd(f.spend.budget)} a month and writes from scripted lines until the month turns.`}{" "}
             {f.at ? `Last step ${formatSpan(now - Date.parse(f.at))} ago.` : "No step yet."}{" "}
-            <a href="/chronicle" onClick={link("chronicle")}>
-              Read the Chronicle →
+            <a href="/archive" onClick={link("archive")}>
+              Read it in the Archive →
             </a>
           </p>
         </>
@@ -883,9 +889,9 @@ function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFe
           <p className="fy-world__line">
             {!s.gemini
               ? "No Gemini key is set (GEMINI_API_KEY in Vercel), so the Historian doesn't read the day aloud."
-              : `Guard: no more stories once one more could pass ${formatUsd(s.budget)} this month; the Chronicle says so until the month turns.`}{" "}
-            <a href="/chronicle" onClick={link("chronicle")}>
-              Hear it in the Chronicle →
+              : `Guard: no more stories once one more could pass ${formatUsd(s.budget)} this month; the Archive says so until the month turns.`}{" "}
+            <a href="/archive" onClick={link("archive")}>
+              Hear it in the Archive →
             </a>
           </p>
         </>
@@ -1029,6 +1035,7 @@ function ChangelogLegend({ changes }: { changes: Change[] }) {
  * pictures when its issue has a Pictures step.
  */
 function Changelog({ changes, now, remarks, setup }: { changes: Change[]; now: number; remarks: Map<number, Remark>; setup: Setup }) {
+  const [all, setAll] = useState(false);
   const days: { label: string; items: Change[] }[] = [];
   for (const c of changes) {
     const label = dayLabel(c.at, now);
@@ -1036,61 +1043,74 @@ function Changelog({ changes, now, remarks, setup }: { changes: Change[]; now: n
     if (last?.label === label) last.items.push(c);
     else days.push({ label, items: [c] });
   }
+  const shown = all ? days : days.slice(0, 3);
+  const cv = useRef<HTMLCanvasElement>(null);
+  const spec = useMemo(() => logSpec(), []);
+  const vz = useViz(cv, spec);
+  const sig = `${all}|${changes.length}|${changes.map((c) => c.undo ?? "").join()}`;
+  useEffect(() => vz.current?.relayout(), [sig, vz]);
   return (
-    <div className="changelog">
-      <ChangelogLegend changes={changes} />
-      {days.map((d) => (
-        <section key={d.label} className="changelog__day">
-          <h3 className="changelog__date">
-            {d.label} <span className="badge">{d.items.length}</span>
-          </h3>
-          <ul className="cl-list">
+    <>
+      <div className="wv-log-in changelog">
+        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
+        {shown.map((d) => (
+          <div key={d.label} className="changelog__day">
+            <p className="wv-log-day">
+              <b>{d.label}</b>
+              <span>{d.items.length} shipped</span>
+            </p>
             {d.items.map((c) => {
               const who = c.by ?? crewFor({ kind: c.kind, rung: null });
               // The builder's own word on it, from the living Lattice's hourly step (docs/WORLD.md).
               const said = c.issue ? remarks.get(c.issue.number) : undefined;
               return (
-                <li key={c.key} className={`cl-entry cl-origin--${c.origin}${c.pictures?.length ? " cl-entry--pics" : ""}${c.undo ? ` cl-entry--undo-${c.undo}` : ""}`}>
-                  <Avatar agent={who} size="sm" room="foundry" />
-                  {/* Its pictures from the issue's Pictures steps: the first as a thumbnail, all of them in the viewer. */}
+                <div key={c.key} className={`wv-log-i cl-entry cl-origin--${c.origin}${c.pictures?.length ? " cl-entry--pics" : ""}${c.undo ? ` cl-entry--undo-${c.undo}` : ""}`} data-c={d.label === "Today" ? "ok" : undefined}>
                   {c.pictures?.length ? <ChangePictures pictures={c.pictures} title={ideaTitle(c.title)} /> : null}
-                  <a className="cl-entry__title" href={c.issue?.url ?? c.landed?.url} target="_blank" rel="noreferrer">
-                    {/* The source marker already says it was an idea. */}
-                    {ideaTitle(c.title)}
-                  </a>
-                  <time className="cl-entry__time" dateTime={new Date(c.at).toISOString()}>
-                    {new Date(c.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                  </time>
-                  <p className="cl-entry__meta">
+                  <b>
+                    <a className="cl-entry__title" href={c.issue?.url ?? c.landed?.url} target="_blank" rel="noreferrer">
+                      {ideaTitle(c.title)}
+                    </a>
+                  </b>
+                  <span className="wv-log-when">
+                    {new Date(c.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}, {CREW[who].name}
+                                      </span>
+                  <div className="wv-log-meta cl-entry__meta">
                     <OriginMark origin={c.origin} />
                     <ApprovalMark approval={c.approval} />
-                    <span className="cl-entry__ref">
-                      <span className="cl-entry__who">{CREW[who].name}</span>
-                      {c.issue && (
-                        <a className="cl-entry__link" href={c.issue.url} target="_blank" rel="noreferrer">
-                          #{c.issue.number}
-                        </a>
-                      )}
-                      {c.landed && (
-                        <a className="cl-entry__link" href={c.landed.url} target="_blank" rel="noreferrer">
-                          {c.landed.label}
-                        </a>
-                      )}
-                    </span>
+                    {c.issue && (
+                      <a className="cl-entry__link" href={c.issue.url} target="_blank" rel="noreferrer">
+                        #{c.issue.number}
+                      </a>
+                    )}
+                    {c.landed && (
+                      <a className="cl-entry__link" href={c.landed.url} target="_blank" rel="noreferrer">
+                        {c.landed.label}
+                      </a>
+                    )}
                     {c.undo ? <UndoMark change={c} /> : c.issue && <UndoChange issue={c.issue.number} setup={setup} />}
-                  </p>
+                  </div>
                   {said && (
-                    <p className="changelog__remark">
-                      <b>{PORTRAITS[said.who]?.name ?? said.who}</b>“{said.text}”
+                    <p className="wv-log-said">
+                      <img src={`/desk/agent-${said.who}.webp`} alt="" />
+                      <b>{PORTRAITS[said.who]?.name ?? said.who}</b> “{said.text}”
                     </p>
                   )}
-                </li>
+                </div>
               );
             })}
-          </ul>
-        </section>
-      ))}
-    </div>
+          </div>
+        ))}
+      </div>
+      {days.length > 3 && (
+        <button type="button" className="wv-link wv-log-all" onClick={() => setAll((v) => !v)}>
+          {all ? "Just the last three days" : `Every day GitHub lists (${changes.length} changes)`}
+        </button>
+      )}
+      <details className="wv-log-key">
+        <summary>What the markers mean</summary>
+        <ChangelogLegend changes={changes} />
+      </details>
+    </>
   );
 }
 
@@ -1130,77 +1150,16 @@ function UndoChange({ issue, setup }: { issue: number; setup: Setup }) {
   if (mode === "signin") return <span className="fy-stop__note cl-undo__note">Sign in above to undo it.</span>;
   return mode === "confirm" || mode === "busy" ? (
     <span className="fy-stop cl-undo__ask">
-      <button type="button" className="btn btn--sm" disabled={mode === "busy"} onClick={() => void undo()}>
+      <button type="button" className="wv-btn is-sm" disabled={mode === "busy"} onClick={() => void undo()}>
         {mode === "busy" ? "Asking…" : "Yes, undo it"}
       </button>
-      <button type="button" className="btn btn--quiet btn--sm" disabled={mode === "busy"} onClick={() => setMode("idle")}>
+      <button type="button" className="wv-btn is-sm is-ghost" disabled={mode === "busy"} onClick={() => setMode("idle")}>
         Keep it
       </button>
     </span>
   ) : (
-    <button type="button" className="btn btn--quiet btn--sm fy-stop__btn cl-undo__btn" onClick={() => setMode("confirm")} title={`Take back #${issue}: the Builder reverts it through the fix lane and ships the revert once its checks are green.`}>
+    <button type="button" className="wv-btn is-sm is-ghost fy-stop__btn cl-undo__btn" onClick={() => setMode("confirm")} title={`Take back #${issue}: the Builder reverts it through the fix lane and ships the revert once its checks are green.`}>
       Undo
     </button>
-  );
-}
-
-/** The Foundry's system: a red check on GitHub opens a fix, the Foundry thread in Claude Code picks it up, and ships to main. */
-export function FoundrySystem() {
-  const connected = useFoundry((s) => s.connected);
-  const data = useFoundry((s) => s.data);
-  const checks = useSystems((s) => s.links.find((l) => l.id === "checks")?.state ?? "off");
-  const work = crewWork(data.crates);
-  const steps: { name: string; what: string; state: LinkState; label: string }[] = [
-    { name: "Checks", what: "Types, lint, tests and build on every push to main, on GitHub", state: checks, label: checks === "off" ? "No run yet" : LINK_STATE_LABEL[checks] },
-    { name: "Queue check", what: "A red check opens a fix; the Foundry picks it up within a minute or two", state: connected ? "ok" : "off", label: connected ? "About a minute" : "Not connected yet" },
-    { name: "Foundry thread", what: "Fixes, upkeep and builds, coded in Claude Code on your plan, each on its own branch and pull request", state: connected ? "ok" : "off", label: connected ? "Ready" : "Not connected yet" },
-    { name: "main → the site", what: "Small fixes and upkeep merge once green; bigger work gets a preview and waits for you", state: connected ? "ok" : "off", label: connected ? "Shipping" : "Not connected yet" },
-  ];
-  return (
-    <section className="foundry-system" aria-label="The Foundry's system" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
-      <header className="section-head">
-        <h2>Foundry: coding in Claude Code</h2>
-        <a className="panel__hint" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
-          Open the Foundry thread →
-        </a>
-      </header>
-      <ol className="foundry-flow">
-        {steps.map((st) => (
-          <li key={st.name}>
-            <span className="foundry-flow__name">{st.name}</span>
-            <span className="foundry-flow__what">{st.what}</span>
-            <span className={`pill pill--${st.state}`}>
-              <i aria-hidden="true" />
-              {st.label}
-            </span>
-          </li>
-        ))}
-      </ol>
-      <ul className="foundry-crew">
-        {CREW_ORDER.map((id) => {
-          const crate = work[id];
-          return (
-            <li key={id}>
-              <Avatar agent={id} room="foundry" />
-              <span className="foundry-crew__job">{CREW[id].job}</span>
-              <span className="foundry-crew__name">
-                {CREW[id].name} <Rank id={id} />
-              </span>
-              {crate ? (
-                <a className="foundry-crew__on" href={crate.url} target="_blank" rel="noreferrer">
-                  #{crate.number} {crate.title}
-                </a>
-              ) : (
-                <span className="foundry-crew__on foundry-crew__on--idle">Nothing in hand</span>
-              )}
-              <span className={`pill pill--${crate ? CREW_STATE[crate.state] : connected ? "ok" : "off"}`}>
-                <i aria-hidden="true" />
-                {crate ? CRATE_STATE[crate.state] : connected ? "Free" : "Not connected yet"}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }

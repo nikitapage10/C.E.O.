@@ -1,0 +1,858 @@
+/*
+ * The Weave (Nikita, 2026-10-22): the Desk's design. Dark ink, the rooms as coloured threads, Manrope for display and
+ * Inter for the rest. Loaded after desk.css, so it restyles the shared pieces (bar, panels, buttons, banners) and holds
+ * the Weave's own parts (Today's hero, the Council, the day's threads). Motion decorates and never gates: everything
+ * is readable at once, transitions are short, and all of it holds still with reduced motion.
+ */
+
+.desk {
+  /* Flat now (Nikita, 2026-10-22: less glass, fewer glows): one dark surface, a hairline, no lift. */
+  --glass: rgba(16, 18, 24, 0.72);
+  --glass-line: rgba(236, 238, 243, 0.08);
+  --lift: none;
+  font-feature-settings: "cv11", "ss01";
+  background: radial-gradient(120% 80% at 50% -10%, #0d1220 0%, var(--bg) 55%) fixed, var(--bg);
+}
+
+/* ── The sky: glows in room colours, drifting threads, a fine dust ── */
+
+@keyframes weave-drift {
+  from {
+    transform: translate3d(-1.5%, 0, 0) scaleY(1);
+  }
+  to {
+    transform: translate3d(1.5%, -2%, 0) scaleY(1.06);
+  }
+}
+
+/* ── The bar ── */
+
+@property --spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes spin-border {
+  to {
+    --spin: 360deg;
+  }
+}
+
+/* ── Page changes: a quick, calm fade and lift (no scatter) ── */
+.desk__main {
+  padding-top: 26px;
+  animation: page-in 0.19s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+
+/* ── Type ── */
+.eyebrow {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+.desk__title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 46px;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  text-transform: none;
+}
+.section-head h2,
+.panel__head h2 {
+  font-family: var(--display);
+  font-weight: 650;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+.section-head__link,
+.panel__hint {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+.section-head__link:hover,
+a.panel__hint:hover {
+  color: var(--text);
+}
+
+/* ── Panels, buttons, badges: soft glass, pills, sentence case ── */
+.panel {
+  padding: 20px 22px 22px;
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  box-shadow: var(--lift);
+}
+.panel::before {
+  background: radial-gradient(120% 60% at 0% 0%, color-mix(in srgb, var(--tone) 7%, transparent), transparent 60%);
+}
+.panel__head {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+.btn {
+  min-height: 36px;
+  padding: 0 15px;
+  border-radius: 10px;
+  border-color: rgba(236, 238, 243, 0.15);
+  background: none;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.btn--go {
+  color: #ffdcaa;
+  border-color: rgba(255, 220, 170, 0.34);
+  background: rgba(255, 220, 170, 0.06);
+  box-shadow: none;
+}
+.btn--go:hover:not(:disabled) {
+  background: rgba(255, 220, 170, 0.12);
+  border-color: rgba(255, 220, 170, 0.6);
+  box-shadow: none;
+}
+.btn--quiet {
+  border-color: transparent;
+  background: none;
+}
+.btn--sm {
+  min-height: 32px;
+  padding: 0 13px;
+  font-size: 12.5px;
+}
+.badge {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 12px;
+}
+.pill,
+.roomtag {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.avatar {
+  background: radial-gradient(circle at 50% 30%, #1a2236, #0b1020);
+}
+.desk :focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ice) 80%, transparent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Banners over each page past Today: the room, its threads and its keeper ── */
+.banner {
+  min-height: 270px;
+  padding: 34px 36px 28px;
+  border: 1px solid var(--glass-line);
+  border-radius: 22px;
+  background: radial-gradient(80% 140% at 0% 100%, color-mix(in srgb, var(--tone) 14%, transparent), transparent 60%), #0a0d16;
+  box-shadow: var(--lift);
+}
+.banner__pic {
+  left: 34%;
+  width: 66%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 38%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 38%);
+  opacity: 0.85;
+}
+.banner::before {
+  background:
+    radial-gradient(60% 90% at 0% 100%, color-mix(in srgb, var(--tone) 18%, transparent) 0%, transparent 70%),
+    linear-gradient(90deg, rgba(10, 13, 22, 0.96) 0%, rgba(10, 13, 22, 0.75) 40%, rgba(10, 13, 22, 0.15) 75%, rgba(10, 13, 22, 0.25) 100%),
+    linear-gradient(0deg, rgba(10, 13, 22, 0.85) 0%, transparent 55%);
+}
+.banner::after {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--tone) 20%, transparent 80%);
+}
+.banner__threads {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 1.2;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.banner__threads path {
+  stroke-dasharray: 1600;
+  stroke-dashoffset: 1600;
+  animation: draw 1.4s cubic-bezier(0.3, 0.6, 0.2, 1) forwards;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 4px var(--tone));
+}
+.banner__threads path:nth-child(2) {
+  animation-delay: 0.12s;
+  opacity: 0.6;
+}
+.banner__threads path:nth-child(3) {
+  animation-delay: 0.24s;
+  opacity: 0.4;
+}
+.banner__threads path:nth-child(4) {
+  animation-delay: 0.36s;
+  opacity: 0.3;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.banner .eyebrow {
+  color: color-mix(in srgb, var(--tone) 85%, #fff);
+}
+.banner__title {
+  font-size: 54px;
+}
+.banner__voice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 17px;
+}
+.banner__who {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--tone) 60%, transparent);
+  box-shadow: 0 0 16px -4px var(--tone);
+  background: #0b1020;
+}
+.banner__voice cite {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.banner__lead {
+  max-width: 560px;
+  font-size: 15px;
+}
+
+/* ── Sections on Today ── */
+.wv-section {
+  position: relative;
+  margin: 0 0 22px;
+  padding: 26px 28px 28px;
+  border: 1px solid var(--glass-line);
+  border-radius: 22px;
+  background: var(--glass);
+  box-shadow: var(--lift);
+  min-width: 0;
+}
+/* ── Today's hero ── */
+
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+    filter: blur(4px);
+  }
+}
+
+/* The room labels at the threads' ends. */
+
+@keyframes label-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-8px, 0, 0);
+  }
+}
+
+/* Skippy (#224, skippy/): his avatar in the hero and the Ask box, restyled for the Weave. */
+
+.council__skippy img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* ── The Council: the control, then the gathering ── */
+.council-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 5px 18px 5px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(10, 13, 22, 0.66);
+  backdrop-filter: blur(8px);
+  text-align: left;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.council-btn:hover {
+  border-color: rgba(246, 213, 140, 0.4);
+  background: rgba(20, 24, 36, 0.8);
+}
+.council-btn__ring {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(246, 213, 140, 0.35) 0 5px, transparent 6px);
+}
+.council-btn__ring i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 50%;
+  background: var(--c);
+  opacity: 0.55;
+  transform: rotate(var(--a)) translateY(-17px);
+  transition: transform 0.4s var(--ease);
+}
+.council-btn__ring i.real {
+  opacity: 1;
+  box-shadow: 0 0 6px var(--c);
+}
+.council-btn:hover .council-btn__ring i {
+  transform: rotate(calc(var(--a) + 20deg)) translateY(-19px);
+}
+.council-btn__text b {
+  display: block;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--text);
+}
+.council-btn__text small {
+  display: block;
+  font-size: 12px;
+  color: var(--faint);
+}
+.council {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 6, 11, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: fade-in 0.2s ease both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.council__panel {
+  width: min(1060px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 26px 28px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 26px;
+  background:
+    radial-gradient(60% 60% at 25% 45%, rgba(246, 213, 140, 0.08), transparent 70%),
+    linear-gradient(180deg, #10141f, #0a0d16);
+  box-shadow: 0 40px 120px -30px rgba(0, 0, 0, 0.9);
+  animation: council-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  scrollbar-width: thin;
+}
+@keyframes council-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.97);
+  }
+}
+.council__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.council__head h2 {
+  margin: 6px 0 0;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+.council__lead {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.council__close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+}
+.council__close svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.council__body {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  margin-top: 18px;
+}
+.council__ring {
+  position: sticky;
+  top: 0;
+  aspect-ratio: 1;
+  width: 100%;
+}
+.council__threads {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.council__thread {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1.2;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.45;
+  animation: council-thread 0.6s var(--ease) forwards;
+  animation-delay: calc(0.1s + var(--i) * 40ms);
+  transition:
+    opacity 0.2s,
+    stroke-width 0.2s;
+}
+.council__thread:not(.real) {
+  stroke-dasharray: 0.02 0.025;
+  stroke-dashoffset: 0;
+  animation: fade-in 0.6s ease both;
+  animation-delay: calc(0.1s + var(--i) * 40ms);
+  opacity: 0.35;
+}
+.council__thread.on {
+  opacity: 1;
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 4px var(--c));
+}
+.council__thread.dim {
+  opacity: 0.12;
+}
+@keyframes council-thread {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.council__skippy {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  margin: -48px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(246, 213, 140, 0.2), rgba(10, 13, 22, 0.9) 70%);
+  box-shadow:
+    0 0 0 1px rgba(246, 213, 140, 0.4),
+    0 0 50px -6px rgba(246, 213, 140, 0.6);
+  animation: council-mind 0.4s var(--ease) both;
+}
+.council__mind {
+  position: absolute;
+  top: calc(50% + var(--y));
+  left: calc(50% + var(--x));
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: -27px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1.5px solid var(--c);
+  background: #0b1020;
+  box-shadow: 0 0 22px -4px var(--c);
+  animation: council-mind 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(0.08s + var(--i) * 45ms);
+  transition:
+    opacity 0.2s,
+    transform 0.25s var(--ease);
+}
+.council__mind img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.12);
+}
+.council__mind.on {
+  transform: scale(1.15);
+}
+.council__mind.dim {
+  opacity: 0.35;
+}
+@keyframes council-mind {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+.council__reports {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.council__report {
+  animation: card-in 0.4s var(--ease) both;
+  animation-delay: calc(0.12s + var(--i) * 40ms);
+}
+.council__report button {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 12px 14px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: radial-gradient(100% 100% at 0% 0%, color-mix(in srgb, var(--c) 9%, transparent), transparent 70%), rgba(255, 255, 255, 0.02);
+  text-align: left;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.council__report button:hover,
+.council__report button:focus-visible {
+  border-color: color-mix(in srgb, var(--c) 45%, transparent);
+}
+.council__who {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.council__who i {
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+}
+.council__who b {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14px;
+  color: color-mix(in srgb, var(--c) 65%, #fff);
+}
+.council__who span {
+  font-size: 12px;
+  color: var(--faint);
+}
+.council__who em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dim);
+}
+.council__report--busy .council__who em {
+  color: var(--c);
+}
+.council__report--down .council__who em {
+  color: var(--rose);
+}
+.council__report--sim button {
+  background: rgba(255, 255, 255, 0.015);
+}
+.council__report--sim .council__who i {
+  background: none;
+  border: 1px solid var(--c);
+  box-shadow: none;
+}
+.council__line {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.council__report--sim .council__line {
+  color: var(--faint);
+}
+
+/* ── Today's rooms gallery ── */
+.rooms .rooms__grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.rooms .room {
+  border-radius: 16px;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.07);
+  background: rgba(12, 15, 24, 0.6);
+  transition:
+    transform 0.3s var(--ease),
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+.rooms .room:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--tone) 45%, transparent);
+  box-shadow: 0 20px 40px -24px var(--tone);
+}
+.rooms .room__name {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+/* Sections further down rise in as they scroll into view, where the browser can do it on the compositor. */
+@supports (animation-timeline: view()) {
+  .desk__main > div > .wv-section,
+  .desk__main > div > .panel{
+    animation: scroll-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 22%;
+  }
+}
+@keyframes scroll-rise {
+  from {
+    opacity: 0.35;
+    transform: translate3d(0, 18px, 0);
+  }
+}
+
+/* ── Narrower screens ── */
+@media (max-width: 1100px) {
+  
+  
+  
+  .council__body {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+  .council__reports {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .rooms .rooms__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  .council-btn {
+    width: 100%;
+  }
+  
+  .wv-section {
+    padding: 20px 16px 20px;
+    border-radius: 18px;
+  }
+  .council {
+    padding: 0;
+    place-items: end stretch;
+  }
+  .council__panel {
+    max-height: 92dvh;
+    padding: 20px 16px 24px;
+    border-radius: 24px 24px 0 0;
+  }
+  .council__body {
+    grid-template-columns: 1fr;
+  }
+  .council__ring {
+    position: relative;
+    width: min(300px, 86%);
+    margin: 0 auto;
+  }
+  .council__mind {
+    width: 42px;
+    height: 42px;
+    margin: -21px;
+  }
+  .council__skippy {
+    width: 76px;
+    height: 76px;
+    margin: -38px;
+  }
+  .banner__title {
+    font-size: 38px;
+  }
+  .banner__pic {
+    left: 0;
+    width: 100%;
+    -webkit-mask-image: linear-gradient(180deg, #000 40%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 40%, transparent 100%);
+  }
+}
+@media (max-width: 640px) {
+  
+  
+  
+  
+  
+  
+  .desk__title {
+    font-size: 36px;
+    letter-spacing: -0.02em;
+  }
+  .rooms .rooms__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  
+  .desk__main,
+  .council,
+  .council *,
+  .wv-page *,
+  .banner__threads path {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+  }
+  .desk__main > div > * {
+    animation: none !important;
+  }
+}
+
+/* ── The Chronicle's day, by room ── */
+.chron-weave {
+  margin: 14px 0 18px;
+  padding: 16px 18px 10px;
+  border: 1px solid var(--glass-line);
+  border-radius: 18px;
+  background: radial-gradient(80% 100% at 50% 0%, rgba(164, 147, 240, 0.08), transparent 70%), var(--glass);
+  box-shadow: var(--lift);
+  overflow: hidden;
+}
+.chron-weave svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.chron__main {
+  min-width: 0;
+}
+.chron-weave__tick line {
+  stroke: rgba(255, 255, 255, 0.05);
+}
+.chron-weave__tick text {
+  font-size: 11px;
+  text-anchor: middle;
+  fill: var(--dim);
+}
+.chron-weave__name {
+  font-size: 12px;
+  fill: var(--dim);
+}
+.chron-weave__row.on .chron-weave__name {
+  fill: color-mix(in srgb, var(--c) 60%, #fff);
+}
+.chron-weave__rest {
+  stroke: var(--c);
+  stroke-width: 1;
+  opacity: 0.16;
+  stroke-dasharray: 2 5;
+}
+.chron-weave__line {
+  stroke: var(--c);
+}
+.chron-weave__row.on .chron-weave__line {
+  opacity: 0.7;
+  stroke-width: 1.4;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: council-thread 1s cubic-bezier(0.3, 0.6, 0.2, 1) forwards;
+  animation-delay: calc(var(--i) * 50ms);
+  filter: drop-shadow(0 0 3px var(--c));
+}
+.chron-weave__knot {
+  fill: #fff;
+  stroke: var(--c);
+  stroke-width: 2;
+  cursor: pointer;
+  filter: drop-shadow(0 0 5px var(--c));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: knot-in 0.4s var(--ease) both;
+  animation-delay: calc(0.6s + var(--k) * 50ms);
+  transition: transform 0.2s;
+}
+.chron-weave__knot:hover,
+.chron-weave__knot:focus-visible {
+  transform: scale(1.5);
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chron-weave * {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+  }
+}
+
+/* Small labels that were the old mono capitals, in sentence case now. */
+.room__cap,
+.later-list__due,
+.later-list__room,
+.todo__due,
+.desk__foot {
+  font-family: var(--sans);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+.room__cap,
+.later-list__due {
+  font-size: 12px;
+  font-weight: 500;
+}
+.desk__foot {
+  font-size: 12px;
+  color: var(--dim);
+}

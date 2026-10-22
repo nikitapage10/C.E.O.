@@ -150,7 +150,7 @@ describe("Skippy's answer, checked again", () => {
     ]);
   });
   it("keeps at most three, once each", () => {
-    const many = Array.from({ length: 6 }, (_, i) => ({ kind: "open", label: `Open ${i}`, page: ["today", "relay", "foundry", "systems", "chronicle", "today"][i] }));
+    const many = Array.from({ length: 6 }, (_, i) => ({ kind: "open", label: `Open ${i}`, page: ["today", "relay", "foundry", "boiler", "archive", "today"][i] }));
     expect(readReply({ reply: "ok", actions: many }, desk)!.actions).toHaveLength(ACTIONS_MAX);
     expect(readReply({ reply: "ok", actions: [many[0], many[0], many[5]] }, desk)!.actions).toHaveLength(1);
   });

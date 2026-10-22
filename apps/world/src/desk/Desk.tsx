@@ -15,6 +15,7 @@ import { Today } from "./Today.tsx";
 import "./desk.css";
 import "./chronicle.css";
 import "./weave.css";
+import "./wv.css";
 
 // Today is in the first load; every other tab loads the first time it is opened (and is fetched in the idle time
 // after the first paint, so switching stays instant).

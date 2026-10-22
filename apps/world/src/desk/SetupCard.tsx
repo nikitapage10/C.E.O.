@@ -184,3 +184,126 @@ function SetupRow({
     </li>
   );
 }
+
+/**
+ * The setup list as a Weave card on Today (the approved design's "A setup step"): the next thing only Nikita can do,
+ * with its links, and its steps one tap away. The rest wait as small links underneath; each ticks itself off as the
+ * site sees it done, or by hand where it can't check.
+ */
+export function SetupAct({ status, style }: { status: SetupStatus | null; style?: React.CSSProperties }) {
+  const [ticked, setTicked] = useState<Set<SetupItemId>>(readTicked);
+  const [pick, setPick] = useState<SetupItemId | null>(null);
+  const [steps, setSteps] = useState(false);
+  const [copied, setCopied] = useState(false);
+  if (!status) return null;
+  const left = remaining(status, ticked);
+  if (!left.length) return null;
+  const item = left.find((i) => i.id === pick) ?? left[0]!;
+  const state = status.items[item.id];
+  const byHand = state === "unknown" && ticked.has(item.id);
+  const done = SETUP_LIST.length - left.length;
+  const tick = () => {
+    const next = new Set(ticked);
+    if (next.has(item.id)) next.delete(item.id);
+    else next.add(item.id);
+    setTicked(next);
+    writeTicked(next);
+    setSteps(false);
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(item.paste ?? "");
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // No clipboard: the line is selectable in the box to copy by hand.
+    }
+  };
+  return (
+    <article className="wv-act wv-act--setup" data-room="boiler" style={style} aria-label="Setup: things only you can do">
+      <div className="wv-act-top">
+        <i className="wv-dot" />
+        <span>A setup step</span>
+        <time>
+          {done} of {SETUP_LIST.length} done
+        </time>
+      </div>
+      <div className="wv-act-body">
+        <span className="wv-act-pf wv-act-can" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22">
+            <path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.4-.6-.6-2.4z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <div>
+          <h3 className="wv-h3">{item.title}</h3>
+          <p className="wv-act-p">{item.why}</p>
+        </div>
+      </div>
+      {item.id === "pings" && (
+        <ul className="wv-act-parts" aria-label="The two halves">
+          <li className={`is-${status.pings.vercel}`}>Keys in Vercel</li>
+          <li className={`is-${status.pings.actions}`}>Secret in GitHub</li>
+        </ul>
+      )}
+      {steps && (
+        <ol className="wv-act-steps">
+          {item.steps.map((s, i) => (
+            <li key={i}>
+              <span>
+                {stepParts(s).map((p, k) => (p.kind === "bold" ? <b key={k}>{p.text}</b> : p.kind === "code" ? <code key={k}>{p.text}</code> : <span key={k}>{p.text}</span>))}
+              </span>
+              {item.paste && i === 1 && (
+                <span className="wv-act-paste">
+                  <code tabIndex={0}>{item.paste}</code>
+                  <button type="button" className="wv-btn is-sm" onClick={copy}>
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+      <div className="wv-act-do">
+        {!steps ? (
+          <button type="button" className="wv-btn" onClick={() => setSteps(true)} aria-expanded={false}>
+            Show me the steps
+          </button>
+        ) : (
+          item.links.map((l, i) =>
+            l.route ? (
+              <a key={l.href} className={`wv-btn${i === 0 ? " is-pri" : ""}`} href={l.href} onClick={link(l.route)}>
+                {l.label}
+              </a>
+            ) : (
+              <a key={l.href} className={`wv-btn${i === 0 ? " is-pri" : ""}`} href={l.href} target="_blank" rel="noreferrer">
+                {l.label} ↗
+              </a>
+            ),
+          )
+        )}
+        {(state === "unknown" || byHand) && (
+          <button type="button" className="wv-btn is-ghost" onClick={tick}>
+            {byHand ? "Untick" : "I've done it"}
+          </button>
+        )}
+      </div>
+      {steps && <p className="wv-act-note">{item.ticks}</p>}
+      {left.length > 1 && (
+        <p className="wv-act-more">
+          Also to do:{" "}
+          {left
+            .filter((i) => i.id !== item.id)
+            .map((i, k, all) => (
+              <span key={i.id}>
+                <button type="button" className="wv-plain" onClick={() => (setPick(i.id), setSteps(false))}>
+                  {i.title}
+                </button>
+                {k < all.length - 1 ? ", " : ""}
+              </span>
+            ))}
+        </p>
+      )}
+    </article>
+  );
+}

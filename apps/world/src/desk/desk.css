@@ -27,20 +27,20 @@
   --warn: var(--amber);
   --bad: var(--rose);
   /* The rooms' colours, as their subminds wear them (docs/SKIPPY.md): the threads, dots and accents. */
-  --room-relay: #7fa8f0;
-  --room-foundry: #f0a05a;
-  --room-spire: #e3c46e;
-  --room-exchange: #74dcb4;
-  --room-green: #a9d86a;
-  --room-archive: #a493f0;
-  --room-workshop: #5fc9c0;
-  --room-boiler: #9aa3b2;
-  --room-breakroom: #ef8fbf;
+  --room-relay: #7d9fe2;
+  --room-foundry: #e4985e;
+  --room-spire: #d6bc72;
+  --room-exchange: #7ccdac;
+  --room-green: #acc872;
+  --room-archive: #a890e2;
+  --room-workshop: #62c4c0;
+  --room-boiler: #a8aebc;
+  --room-breakroom: #e28fb6;
   --tone: var(--ice);
-  /* Type: Manrope for display, Inter for everything else. No serif, no mono: the Desk never looks like a terminal. */
+  /* Type: Manrope for the interface, Instrument Serif (--wv-serif, wv.css) for headlines and story lines. Never mono. */
   --serif: "Manrope Variable", Manrope, "Inter Variable", system-ui, sans-serif;
   --display: var(--serif);
-  --sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sans: "Manrope Variable", Manrope, "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: var(--sans);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --radius: 10px;

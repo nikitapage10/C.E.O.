@@ -185,17 +185,18 @@ export async function fileIdea(words: string, images: string[] = [], onHeld: (me
   return r;
 }
 
-/** An idea card with its buttons; the Foundry tab lists them all and Today shows the ones Rivet is asking about. */
-export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; index: number; setup: Setup; focus?: boolean }) {
-  const [mode, setMode] = useState<"idle" | "signin" | "revise" | "busy" | "done" | "failed">("idle");
+/**
+ * An idea's buttons, as a hook so each layout (the Foundry's picture cards, Today's Weave cards and rows) shares one
+ * path: sign in if needed, send, then say what happens next. `go` picks; `mode` says where the card is.
+ */
+export function useIdeaChoice(crate: Crate, setup: Setup) {
+  const [mode, setMode] = useState<"idle" | "signin" | "revise" | "answer" | "busy" | "done" | "failed">("idle");
   const [pending, setPending] = useState<Choice | null>(null);
   const [note, setNote] = useState("");
   const [result, setResult] = useState("");
   const [held, setHeld] = useState("");
   const ready = setup?.buttons ?? false;
   const asking = Boolean(crate.asking && crate.question);
-  // Nikita's own pictures only, on short-lived links the picture function signs for a signed-in Desk (#127, #132).
-  const pictures = usePictureLinks(crate.images);
   // What was typed before the mic started; dictation appends to it, as in the Suggest box.
   const typed = useRef("");
   const dictation = useDictation((finished, tail) => setNote(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`));
@@ -221,6 +222,7 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
 
   const go = async (choice: Choice) => {
     dictation.stop();
+    const back = choice === "revise" ? "revise" : choice === "answer" ? "answer" : "idle";
     setMode("busy");
     setHeld("");
     // Signed in already, or one passkey tap now; otherwise the sign-in step takes the buttons' place.
@@ -232,7 +234,7 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
     const r = await send(crate.number, choice, note, setHeld);
     if (r === "held") {
       // The privacy check kept it back: the words stay in the box to rephrase, and nothing went to GitHub.
-      setMode(choice === "revise" ? "revise" : "idle");
+      setMode(back);
       return;
     }
     if (r === "signed-out") {
@@ -255,6 +257,17 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
     setMode("done");
     expectChange();
   };
+  /** Back from the sign-in step: to the box that was open, or the buttons. */
+  const cancelSignIn = () => setMode(pending === "revise" ? "revise" : pending === "answer" ? "answer" : "idle");
+  const resume = () => pending && void go(pending);
+  return { mode, setMode, note, setNote, result, held, ready, asking, dictation, toggleMic, go, cancelSignIn, resume };
+}
+
+/** An idea card with its buttons; the Foundry tab lists them all and Today shows the ones Rivet is asking about. */
+export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; index: number; setup: Setup; focus?: boolean }) {
+  const { mode, setMode, note, setNote, result, held, ready, asking, dictation, toggleMic, go, cancelSignIn, resume } = useIdeaChoice(crate, setup);
+  // Nikita's own pictures only, on short-lived links the picture function signs for a signed-in Desk (#127, #132).
+  const pictures = usePictureLinks(crate.images);
 
   return (
     <article className={`fy-idea${crate.revising ? " fy-idea--revising" : ""}`}>
@@ -316,7 +329,7 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
             </button>
           </div>
         ) : mode === "signin" ? (
-          <DeskSignIn compact onDone={() => pending && void go(pending)} onCancel={() => setMode(pending === "revise" ? "revise" : "idle")} />
+          <DeskSignIn compact onDone={resume} onCancel={cancelSignIn} />
         ) : mode === "revise" ? (
           <form
             className="fy-idea__form"
@@ -341,7 +354,7 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
               Cancel
             </button>
           </form>
-        ) : asking && (mode === "idle" || mode === "busy") ? (
+        ) : asking && (mode === "idle" || mode === "busy" || mode === "answer") ? (
           <form
             className="fy-idea__form"
             onSubmit={(e) => {

@@ -494,6 +494,8 @@ export const SKIPPY_QUIPS: string[] = [
   "Nine subminds. Nine of me, smaller. And still I have to do everything myself.",
   "From up here you all look like monkeys. From down there you also looked like monkeys.",
   "The Pessimist says it'll burst. The Bookie gives it twelve percent. The Commentator is commentating. I'm the only adult here.",
+  "The C.E.O. has me on the Desk now. A button. Me. A button. A magnificent button, but still.",
+  "I route, the C.E.O. taps. That's the deal. I could do it all myself, of course. I'm choosing restraint. Write that down.",
 ];
 
 /**

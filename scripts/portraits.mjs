@@ -112,6 +112,21 @@ try {
     shots.push({ ...a, png });
     console.log(`agent-${a.id}.webp  ${(webp.length / 1024).toFixed(1)} KB  (${a.body}, ${((Date.now() - started) / 1000).toFixed(0)}s)`);
   }
+  // Skippy runs the cast and isn't in it: his portrait for the Desk's chat (apps/world/src/desk/skippy) is
+  // public/desk/skippy.webp, shot on a full run or with --only=skippy, and never listed in PORTRAITS.
+  if (!only || only.includes("skippy")) {
+    await page.goto(`${base}/studio?agent=skippy`, { waitUntil: "domcontentloaded" });
+    try {
+      await page.waitForFunction(() => globalThis.__studio?.ready === true, undefined, { timeout: 240_000, polling: 500 });
+      const png = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: FRAME, height: FRAME }, timeout: 120_000 });
+      const webp = await sharp(png).resize(SIZE, SIZE, { kernel: "lanczos3" }).webp({ quality: 82, effort: 6, smartSubsample: true }).toBuffer();
+      writeFileSync(`${OUT}skippy.webp`, webp);
+      if (keep) writeFileSync(`${keep}/skippy.png`, png);
+      console.log(`skippy.webp  ${(webp.length / 1024).toFixed(1)} KB`);
+    } catch {
+      console.warn("skippy: the studio never settled; skipping");
+    }
+  }
   await browser.close();
 
   // The list the Desk resolves portraits by: every agent in the cast, by id and by name.

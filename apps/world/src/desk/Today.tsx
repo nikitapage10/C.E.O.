@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { SkippyAsk, SkippyAvatar, SkippyChat } from "./skippy/index.ts";
 import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
 import { chronicleDay, sinceAway, useWorldFeed } from "../chronicle.ts";
@@ -56,6 +57,8 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   const canWait = later.length + otherReplies;
   const shipped = shippedToday(useFoundry((s) => s.data.changelog), now);
   const notesRef = useRef<HTMLUListElement>(null);
+  // Skippy, the Magnificent (#224): he hovers in the hero's corner, and a click opens the chat; focus comes back to him.
+  const skippyRef = useRef<HTMLButtonElement>(null);
   const fadeNotes = () => {
     const el = notesRef.current;
     if (el) el.dataset.more = String(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
@@ -75,6 +78,9 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
           alt=""
           decoding="async"
         />
+        <div className="today__skippy">
+          <SkippyAvatar ref={skippyRef} size="lg" tag />
+        </div>
         <div className="hero__text">
           <p className="eyebrow">{date}</p>
           <h1 className="desk__title hero__title">Today</h1>
@@ -110,6 +116,9 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
           <span>{total ? `${data.doneToday} of ${total} handled today` : "All clear today"}</span>
         </p>
       </section>
+
+      <SkippyAsk />
+      <SkippyChat returnFocus={skippyRef} />
 
       <Panel eyebrow="Do now" aside={<span className="badge badge--hot">{todo}</span>} className="panel--now">
         {todo ? (

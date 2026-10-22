@@ -1,0 +1,240 @@
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Mic } from "../IdeaCard.tsx";
+import { useDictation } from "../dictate.ts";
+import { useDeskAuth } from "../signin.ts";
+import { runAction } from "./actions.ts";
+import { canSpeak, MESSAGE_MAX, stopSpeaking, useSkippy, type ActionState, type SkippyAction, type Turn } from "./chat.ts";
+import { SKIPPY_PORTRAIT } from "./SkippyAvatar.tsx";
+import "./skippy.css";
+
+/** Whether Nikita can talk to Skippy here, and if not, what to say instead. */
+export function useChatGate(): { ready: boolean; hint: string; canSignIn: boolean } {
+  const status = useDeskAuth((s) => s.auth.status);
+  if (status === "in") return { ready: true, hint: "", canSignIn: false };
+  if (status === "out") return { ready: false, hint: "Sign in on the Desk to talk to Skippy.", canSignIn: true };
+  if (status === "checking") return { ready: false, hint: "Checking your sign-in…", canSignIn: false };
+  return { ready: false, hint: "Skippy's chat needs the Desk's sign-in, which isn't set up on this site.", canSignIn: false };
+}
+
+/**
+ * The text box with its mic and send button, shared by the dialogue and the compact box on Today. Speech comes from
+ * the browser's own recognition (dictate.ts); what was typed before the mic started stays, and the words append.
+ */
+export function SkippyComposer({ autoFocus = false, compact = false, onSent, placeholder = "Ask Skippy anything…" }: { autoFocus?: boolean; compact?: boolean; onSent?: () => void; placeholder?: string }) {
+  const gate = useChatGate();
+  const busy = useSkippy((s) => s.busy);
+  const send = useSkippy((s) => s.send);
+  const signIn = useDeskAuth((s) => s.signIn);
+  const [text, setText] = useState("");
+  const typed = useRef("");
+  const box = useRef<HTMLTextAreaElement>(null);
+  const hintId = useId();
+  const dictation = useDictation((finished, tail) => setText(`${typed.current}${typed.current && (finished || tail) ? " " : ""}${finished}${finished && tail ? " " : ""}${tail}`.slice(0, MESSAGE_MAX)));
+  useEffect(() => {
+    if (autoFocus && gate.ready) box.current?.focus({ preventScroll: true });
+  }, [autoFocus, gate.ready]);
+  const toggleMic = () => {
+    if (dictation.listening) dictation.stop();
+    else {
+      stopSpeaking();
+      typed.current = text.trim();
+      dictation.start();
+    }
+  };
+  const submit = () => {
+    const words = text.trim();
+    if (!words || busy || !gate.ready) return;
+    dictation.stop();
+    setText("");
+    onSent?.();
+    void send(words);
+  };
+  return (
+    <form
+      className={`skp-compose${compact ? " skp-compose--compact" : ""}`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <textarea
+        ref={box}
+        className="skp-compose__box"
+        rows={1}
+        value={text}
+        maxLength={MESSAGE_MAX}
+        disabled={!gate.ready}
+        placeholder={gate.ready ? placeholder : gate.hint}
+        aria-label="Message to Skippy"
+        aria-describedby={gate.ready ? undefined : hintId}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+      />
+      {gate.ready && <Mic dictation={dictation} onToggle={toggleMic} label="Say it to Skippy" />}
+      {gate.ready ? (
+        <button type="submit" className="btn btn--go btn--sm skp-compose__send" disabled={!text.trim() || busy}>
+          {busy ? "…" : "Send"}
+        </button>
+      ) : gate.canSignIn ? (
+        <button type="button" className="btn btn--sm skp-compose__send" onClick={() => void signIn()}>
+          Sign in
+        </button>
+      ) : null}
+      {!gate.ready && (
+        <span id={hintId} className="skp-sr">
+          {gate.hint}
+        </span>
+      )}
+      {dictation.error && <p className="skp-compose__err">{dictation.error}</p>}
+    </form>
+  );
+}
+
+const ACTION_DONE: Record<ActionState, string> = { busy: "Sending…", done: "Done", held: "Held back", "signed-out": "Sign in first", failed: "Didn't work" };
+
+function ActionChips({ turn }: { turn: Turn }) {
+  const mark = useSkippy((s) => s.mark);
+  const [held, setHeld] = useState("");
+  const tap = async (a: SkippyAction, i: number) => {
+    mark(turn.id, i, "busy");
+    const state = await runAction(a, setHeld);
+    mark(turn.id, i, state);
+    if (state === "done" && (a.kind === "open" || a.kind === "lattice")) useSkippy.getState().setOpen(false);
+  };
+  if (!turn.actions?.length) return null;
+  return (
+    <div className="skp-chips">
+      {turn.actions.map((a, i) => {
+        const state = turn.done?.[i];
+        const writes = a.kind === "idea" || a.kind === "answer";
+        return (
+          <button
+            key={i}
+            type="button"
+            className={`skp-chip skp-chip--${a.kind}${state ? ` skp-chip--${state}` : ""}`}
+            disabled={state === "busy" || (writes && state === "done")}
+            onClick={() => void tap(a, i)}
+            title={a.kind === "idea" ? `Files this as an idea for Rivet to shape: ${a.text}` : a.kind === "answer" ? `Answers Rivet on #${a.issue}: ${a.text}` : undefined}
+          >
+            <span>{a.label}</span>
+            {state && state !== "busy" && writes && <em>{ACTION_DONE[state]}</em>}
+            {state === "busy" && <em>{ACTION_DONE.busy}</em>}
+          </button>
+        );
+      })}
+      {turn.actions.some((a) => a.kind === "idea" || a.kind === "answer") && <p className="skp-chips__note">Nothing is sent until you tap.</p>}
+      {held && <p className="skp-compose__err">{held}</p>}
+    </div>
+  );
+}
+
+export interface SkippyChatProps {
+  /** Where it sits: "dock" floats over the page's corner (a sheet at phone width), "inline" fills its container. */
+  placement?: "dock" | "inline";
+  /** Shown when the store says it's open; an inline chat is always shown. */
+  className?: string;
+  /** Where focus goes back to when it closes (the avatar that opened it). */
+  returnFocus?: React.RefObject<HTMLElement | null>;
+}
+
+/**
+ * The dialogue with Skippy: what was said, his buttons, and the text box with a mic. Optional spoken replies (the
+ * browser's own voice) with a toggle. Esc closes it and focus goes back where it came from.
+ */
+export function SkippyChat({ placement = "dock", className = "", returnFocus }: SkippyChatProps) {
+  const open = useSkippy((s) => s.open);
+  const turns = useSkippy((s) => s.turns);
+  const busy = useSkippy((s) => s.busy);
+  const voice = useSkippy((s) => s.voice);
+  const setVoice = useSkippy((s) => s.setVoice);
+  const setOpen = useSkippy((s) => s.setOpen);
+  const clear = useSkippy((s) => s.clear);
+  const list = useRef<HTMLOListElement>(null);
+  const titleId = useId();
+  const shown = placement === "inline" || open;
+
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns, busy, shown]);
+
+  const close = () => {
+    setOpen(false);
+    stopSpeaking();
+    returnFocus?.current?.focus();
+  };
+  useEffect(() => {
+    if (!shown || placement === "inline") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  if (!shown) return null;
+  const dialog = (
+    <section id="skippy-chat" className={`skp-chat skp-chat--${placement} ${className}`} role="dialog" aria-modal="false" aria-labelledby={titleId}>
+      <header className="skp-chat__head">
+        <img className="skp-chat__face" src={SKIPPY_PORTRAIT} alt="" width={40} height={40} />
+        <div className="skp-chat__who">
+          <h2 id={titleId}>Skippy, the Magnificent</h2>
+          <p>{busy ? "Thinking, magnificently…" : "Runs C.E.O. Routes anything you ask."}</p>
+        </div>
+        {canSpeak() && (
+          <button type="button" className={`skp-chat__icon${voice ? " on" : ""}`} aria-pressed={voice} onClick={() => setVoice(!voice)} title={voice ? "Stop reading replies aloud" : "Read replies aloud"} aria-label="Read replies aloud">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+              {voice ? <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" /> : <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />}
+            </svg>
+          </button>
+        )}
+        {turns.length > 0 && (
+          <button type="button" className="skp-chat__icon" onClick={clear} title="Start over" aria-label="Start a new conversation">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M5 12a7 7 0 1 0 2.1-5M5 4v4h4" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
+        {placement === "dock" && (
+          <button type="button" className="skp-chat__icon" onClick={close} aria-label="Close the chat" title="Close (Esc)">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+      </header>
+      <ol className="skp-chat__list" ref={list} aria-live="polite" aria-relevant="additions" tabIndex={0} aria-label="Conversation">
+        {turns.length === 0 && (
+          <li className="skp-turn skp-turn--skippy skp-turn--hello">
+            <p>Ah, the C.E.O. Ask me what's waiting, what's building, or tell me an idea and I'll route it. Magnificently.</p>
+          </li>
+        )}
+        {turns.map((t) => (
+          <li key={t.id} className={`skp-turn skp-turn--${t.who}${t.note ? " skp-turn--note" : ""}`}>
+            <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : "Skippy:"}</span>
+            <p>{t.text}</p>
+            {t.who === "skippy" && <ActionChips turn={t} />}
+          </li>
+        ))}
+        {busy && (
+          <li className="skp-turn skp-turn--skippy skp-turn--typing" aria-label="Skippy is thinking">
+            <i />
+            <i />
+            <i />
+          </li>
+        )}
+      </ol>
+      <SkippyComposer autoFocus />
+    </section>
+  );
+  // The dock floats over the viewport, so it lives at the body: an ancestor's transform or backdrop-filter would
+  // otherwise pin "fixed" to that ancestor instead of the screen.
+  return placement === "dock" && typeof document !== "undefined" ? createPortal(dialog, document.body) : dialog;
+}

@@ -812,6 +812,13 @@ a.panel__hint:hover {
     linear-gradient(90deg, rgba(4, 6, 11, 0.96) 0%, rgba(4, 6, 11, 0.82) 34%, rgba(4, 6, 11, 0.3) 62%, rgba(4, 6, 11, 0.3) 100%),
     linear-gradient(0deg, rgba(4, 6, 11, 0.95) 0%, rgba(4, 6, 11, 0.25) 55%, rgba(4, 6, 11, 0.35) 100%);
 }
+/* Skippy (#224) hovers in the hero's top-right corner, over the Lattice; a click opens his chat. */
+.today__skippy {
+  position: absolute;
+  top: 22px;
+  right: 30px;
+  z-index: 1;
+}
 .hero__text {
   grid-area: text;
   max-width: 560px;
@@ -4387,6 +4394,10 @@ a.fy-chip:hover {
   }
   .hero__greet {
     font-size: 22px;
+  }
+  .today__skippy {
+    top: 14px;
+    right: 16px;
   }
   .hero__lead {
     font-size: 14px;

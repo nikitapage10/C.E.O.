@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { heldMessage, IdeaCard, Mic, nextCheck, readHeld, send, soon, useSetup, ideaTitle, type Sent, type Setup } from "./IdeaCard.tsx";
+import { heldMessage, IdeaCard, Mic, nextCheck, propose, send, soon, useSetup, ideaTitle, type Setup } from "./IdeaCard.tsx";
 export { heldMessage, IdeaCard, ideaTitle, nextCheck, useSetup };
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
 import { DeskSignIn } from "./SignIn.tsx";
@@ -52,52 +52,6 @@ export function nextIdeas(now: number): number {
 
 
 const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60_000))} min` : `in ${Math.round(ms / HOUR)} h`);
-
-type Shaped = Pick<Crate, "title" | "pitch" | "size" | "short" | "builder"> & { question?: string };
-
-/**
- * A new idea: the function streams back Rivet's shaping (straight from Claude) and the GitHub issue as each is ready,
- * so the card rewrites itself in about a second, whatever GitHub's pace.
- */
-async function propose(note: string, images: string[], onShape: (shape: Shaped) => void, onIssue: (issue: number) => void, onHeld: (message: string) => void): Promise<Sent> {
-  try {
-    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: "propose", note, images }), credentials: "same-origin" });
-    if (res.status === 401) {
-      useDeskAuth.getState().lost();
-      return "signed-out";
-    }
-    if (res.status === 422) {
-      onHeld(await readHeld(res));
-      return "held";
-    }
-    if (!res.ok || !res.body) return "failed";
-    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-    let buffer = "";
-    let result: Sent = "ok";
-    let filed = false;
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (value) buffer += value;
-      const lines = buffer.split("\n");
-      buffer = done ? "" : lines.pop()!;
-      for (const raw of lines) {
-        if (!raw.trim()) continue;
-        const msg = JSON.parse(raw) as { shaping?: boolean; shape?: { title: string; pitch: string; size: Crate["size"]; short?: string; builder: "Rusty" | "Rocky"; question?: string }; issue?: number; error?: string };
-        if (msg.shaping) result = "shaping";
-        if (msg.shape) onShape({ title: msg.shape.title, pitch: msg.shape.pitch, size: msg.shape.size, short: msg.shape.short ?? "", builder: msg.shape.builder === "Rusty" ? "tessellate" : "caret", ...(msg.shape.question && { question: msg.shape.question }) });
-        if (typeof msg.issue === "number") {
-          filed = true;
-          onIssue(msg.issue);
-        }
-        if (msg.error) return "failed";
-      }
-      if (done) break;
-    }
-    return filed ? result : "failed";
-  } catch {
-    return "failed";
-  }
-}
 
 /* ── The page ── */
 

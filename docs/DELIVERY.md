@@ -227,6 +227,7 @@ fixes what they find or explains why not on the pull request, and adds the resul
 | `WORLD_BUDGET_USD` | Yes | Yes | Harmless |
 | `GEMINI_API_KEY` | Yes | No | Spends money. Without it the day's story has no audio, and the Chronicle says so |
 | `GEMINI_BUDGET_USD` | Yes | Yes | Harmless (Gemini's own monthly cap, default 5, never above 10) |
+| `SITE_BYPASS_TOKEN`, `SITE_SESSION_SECRET`, `SITE_PASSWORD_HASH` | Yes | No | The site password (#236, SECURITY.md): with no Blob store and none of these, a preview's gate stays off |
 
   Nikita checks this in Vercel, Settings, Environment Variables (each variable's environments), and Storage (which
   environments the Blob store is connected to). Turn on Vercel Authentication for previews (Settings, Deployment

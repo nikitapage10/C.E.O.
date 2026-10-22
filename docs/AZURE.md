@@ -172,6 +172,25 @@ The same code runs on Vercel and on Azure; nothing here changes how Vercel runs 
   `vercel.json`'s headers and page rewrites; a unit test (`scripts/azure-config.test.mjs`) keeps the two in step. One difference: Vercel caches
   `/models/*?v=…` for good, and Static Web Apps can't match on a query string, so models are revalidated instead.
 
+### The site password on Azure
+
+The site password (#236, [SECURITY.md](SECURITY.md), "The site password") is Vercel Routing Middleware on Vercel,
+which Static Web Apps can't run. On Azure the simplest sound part of it runs:
+
+- **Every function is behind the same gate.** `azure/src/index.ts` wraps each handler in `withGate`
+  (`api/_site/gate.ts`): the same decision, the same cookie and the same exemptions as Vercel's middleware (the
+  hourly world step's POST, the pings scan with the Azure copy's own `DESK_PINGS_SECRET`, `SITE_BYPASS_TOKEN` when
+  set). The password is the Azure copy's own: set it on the Azure Desk (Foundry tab, **Site password**), after
+  enrolling a passkey there. It lives in `ceo-state` at `desk/site/password.json`, and the site's cookies are signed
+  with a key derived from the Azure copy's own Desk key (`foundry-desk-key`), so no new secret is needed.
+- **The login page is `/api/site-login`.** The Desk and the Lattice still load from the Static Web App, but their
+  first API call answers 401 with `x-ceo-site-gate: locked`, and the page goes to the login page
+  (`apps/world/src/siteGate.ts`), which brings it back after the password.
+- **Follow-up, not done:** the Static Web App's own files (the HTML, scripts, models and images) stay reachable
+  without the password, though they hold nothing that isn't already public on GitHub, and no data comes without the
+  API. Locking those needs Static Web Apps' own authentication with a custom role on `/*` in
+  `staticwebapp.config.json` (Standard plan; a custom identity provider or invitations), which is its own change.
+
 ### Building the functions package
 
 ```bash

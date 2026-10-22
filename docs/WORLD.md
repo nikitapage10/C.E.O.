@@ -11,7 +11,8 @@ Lattice the agents pick up where they left off, and the Desk's **Chronicle** has
   GitHub's schedule is best-effort (on 2026-10-13 it didn't fire at all for hours), so the Builder's doorbell
   (`scripts/foundry-watch.sh`) also POSTs every ten minutes while it runs; the extra calls do nothing until the hour is up.
 - **Idempotent:** if the last step is under 55 minutes old, the call changes nothing and spends nothing, and
-  returns the saved hour (`{ stepped: false, entry, nextAt }`). Two calls racing for the same hour can't both land:
+  says when the saved hour was written (`{ stepped: false, at, nextAt }`; never the hour's words, since the site password
+  lets this trigger through, #236). Two calls racing for the same hour can't both land:
   the state is saved with an ETag check (Blob `ifMatch`), and the loser gets a 409 and writes no history.
 - **What it reads:** the world's saved state (relationships, the last 24 hours) and a digest of the hour's real
   events from GitHub: Foundry jobs shipped and started, ideas and decisions on the Desk, the checks on main

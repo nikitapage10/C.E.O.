@@ -53,9 +53,17 @@ export const RULES = {
   enrolAll: { free: 5, waits: [MIN, 5 * MIN], lock: 60 * MIN },
   /** Every address together, signing in with a passkey: 1 min, then locked 15 min. */
   signinAll: { free: 20, waits: [MIN], lock: 15 * MIN },
+  /**
+   * One address, typing the site password (#236): five free, then a minute, five minutes, fifteen, then locked an
+   * hour. That keeps one address under 5 tries a minute and about 30 an hour, never more.
+   */
+  siteAddress: { free: 5, waits: [MIN, 5 * MIN, 15 * MIN], lock: 60 * MIN },
+  /** Every address together, typing the site password: 30 free, then a minute, then five, then locked 15 min. */
+  siteAll: { free: 30, waits: [MIN, 5 * MIN], lock: 15 * MIN },
 } satisfies Record<string, Rule>;
 
-export type Attempt = "enrol" | "signin";
+/** "site": the whole-site password's sign-in (api/_site/login.ts, #236). */
+export type Attempt = "enrol" | "signin" | "site";
 
 /** How long this bucket must still wait before a try (ms; 0 when a try is allowed). */
 export function waitOf(bucket: Bucket | undefined, now: number): number {
@@ -84,9 +92,10 @@ export function addressOf(request: Request): string {
 }
 
 /** The buckets one try touches: its address's (hashed with a key derived from the Desk key) and everyone's. */
-export function bucketsFor(attempt: Attempt, address: string, clientKey: Buffer): { mine: string; all: string; allRule: Rule } {
+export function bucketsFor(attempt: Attempt, address: string, clientKey: Buffer): { mine: string; all: string; mineRule: Rule; allRule: Rule } {
   const tag = createHmac("sha256", clientKey).update(address).digest("hex").slice(0, 20);
-  return { mine: `${attempt}:a:${tag}`, all: `${attempt}:all`, allRule: attempt === "enrol" ? RULES.enrolAll : RULES.signinAll };
+  const allRule = attempt === "enrol" ? RULES.enrolAll : attempt === "site" ? RULES.siteAll : RULES.signinAll;
+  return { mine: `${attempt}:a:${tag}`, all: `${attempt}:all`, mineRule: attempt === "site" ? RULES.siteAddress : RULES.address, allRule };
 }
 
 /** The counters for one kind of try from one address, read from and written to the store. */
@@ -110,7 +119,7 @@ export class Gate {
   /** A failed try: both buckets count it. */
   async fail(): Promise<void> {
     this.limits = prune(
-      { ...this.limits, [this.keys.mine]: failed(this.limits[this.keys.mine], RULES.address, this.now), [this.keys.all]: failed(this.limits[this.keys.all], this.keys.allRule, this.now) },
+      { ...this.limits, [this.keys.mine]: failed(this.limits[this.keys.mine], this.keys.mineRule, this.now), [this.keys.all]: failed(this.limits[this.keys.all], this.keys.allRule, this.now) },
       this.now,
     );
     await this.store.saveLimits(this.limits);
@@ -119,6 +128,15 @@ export class Gate {
   /** Whether this challenge has already been answered once (a challenge opens one session, never two). */
   spent(challenge: string): boolean {
     return waitOf(this.limits[spentKey(challenge)], this.now) > 0;
+  }
+
+  /** A good try with nothing to spend (the site password, #236): this address starts again. */
+  async clear(): Promise<void> {
+    if (!this.limits[this.keys.mine]) return;
+    const rest: Limits = { ...this.limits };
+    delete rest[this.keys.mine];
+    this.limits = prune(rest, this.now);
+    await this.store.saveLimits(this.limits);
   }
 
   /** A good try: the challenge is spent until it would have expired, and this address starts again. */

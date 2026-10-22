@@ -39,6 +39,8 @@
     { "source": "/systems/security", "destination": "/index.html" },
     { "source": "/systems/compliance", "destination": "/index.html" },
     { "source": "/chronicle", "destination": "/index.html" },
-    { "source": "/lattice", "destination": "/index.html" }
+    { "source": "/lattice", "destination": "/index.html" },
+    { "source": "/api/site-login", "destination": "/api/desk-auth?site=login" },
+    { "source": "/api/site-password", "destination": "/api/desk-auth?site=password" }
   ]
 }

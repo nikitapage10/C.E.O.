@@ -49,8 +49,42 @@ const TYPES: Record<string, string> = {
   ".txt": "text/plain",
 };
 
-export function startDistServer(port: number): Promise<Server> {
-  const server = createServer((req, res) => {
+/**
+ * Something to run in front of every request, the way Vercel runs middleware.ts (tests/e2e/gate.spec.ts puts the
+ * site password's gate here, #236). It answers a web Response: one with `x-middleware-next: 1` carries on to the
+ * file (with its Set-Cookie, if any), anything else is sent as it is.
+ */
+export type Front = (request: Request) => Promise<Response>;
+
+async function webRequest(req: import("node:http").IncomingMessage, port: number): Promise<Request> {
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string") headers.set(k, v);
+  const method = req.method ?? "GET";
+  let body: Uint8Array<ArrayBuffer> | undefined;
+  if (method !== "GET" && method !== "HEAD") {
+    const chunks: Buffer[] = [];
+    for await (const c of req) chunks.push(c as Buffer);
+    body = new Uint8Array(Buffer.concat(chunks));
+  }
+  return new Request(`http://localhost:${port}${req.url ?? "/"}`, { method, headers, ...(body && { body }) });
+}
+
+export function startDistServer(port: number, front?: Front): Promise<Server> {
+  const server = createServer(async (req, res) => {
+    let extra: Record<string, string[]> = {};
+    if (front) {
+      const answer = await front(await webRequest(req, port));
+      if (answer.headers.get("x-middleware-next") !== "1") {
+        const out: Record<string, string | string[]> = {};
+        answer.headers.forEach((v, k) => k !== "set-cookie" && (out[k] = v));
+        const cookies = answer.headers.getSetCookie();
+        if (cookies.length) out["set-cookie"] = cookies;
+        res.writeHead(answer.status, out).end(Buffer.from(await answer.arrayBuffer()));
+        return;
+      }
+      const cookies = answer.headers.getSetCookie();
+      if (cookies.length) extra = { "set-cookie": cookies };
+    }
     const url = new URL(req.url ?? "/", "http://localhost");
     let pathname = decodeURIComponent(url.pathname);
     const rewrite = vercelConfig.rewrites.find((r) => r.source === pathname);
@@ -67,10 +101,10 @@ export function startDistServer(port: number): Promise<Server> {
       }
     }
     if (!body) {
-      res.writeHead(404, headers).end("not found");
+      res.writeHead(404, { ...headers, ...extra }).end("not found");
       return;
     }
-    res.writeHead(200, { ...headers, "Content-Type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
+    res.writeHead(200, { ...headers, ...extra, "Content-Type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
   });
   return new Promise((resolve) => server.listen(port, () => resolve(server)));
 }

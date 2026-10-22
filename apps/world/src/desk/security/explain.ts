@@ -338,6 +338,11 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     connects: "The hourly world step that writes the Lattice's history with Claude.",
     why: "However often anyone pokes the step, it can't run up the Claude bill.",
   },
+  R7: {
+    what: "One password Nikita sets on the Desk locks the whole site. Each device types it once and stays signed in while it is used; the robots that keep the site running carry their own keys.",
+    connects: "Every page and every data feed of the Desk and the Lattice.",
+    why: "The Lattice and the Desk stop being open to anyone who finds the address.",
+  },
 };
 
 /** The eval suite's areas. */

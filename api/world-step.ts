@@ -2,9 +2,10 @@
  * The living Lattice's hourly step, as a Vercel function (docs/WORLD.md). A GitHub Actions workflow
  * (.github/workflows/world-step.yml) posts here every hour; the step advances the world one hour and saves it.
  *
- * POST → { stepped: true, entry } after a step, or { stepped: false, entry, nextAt } when the last step is under 55
+ * POST → { stepped: true, at } after a step, or { stepped: false, at, nextAt } when the last step is under 55
  *        minutes old (nothing changes, nothing is spent). That rule is what makes it safe to leave open: calling it
- *        more often does nothing, so it needs no secret.
+ *        more often does nothing, so it needs no secret, and the site gate lets it through (#236). So the answer
+ *        never carries the hour's words, only whether it stepped and when.
  * GET  → WorldClock (api/_world/types.ts): when it last ran, when the next is due, who wrote the last hour (Claude or
  *        scripted) and this month's world spend against its share, without running it. The Desk's world clock and the
  *        Boiler Room's pipe poll it, so it is never cached. Only times, counts and dollars: nothing an hour says.
@@ -83,7 +84,9 @@ export async function POST(): Promise<Response> {
     const result = await runStep({ store, now: Date.now(), readFeed: (since) => readFeed(since), ask: claudeAsk(), budget: worldBudget(process.env.WORLD_BUDGET_USD) });
     if (result.stepped && result.entry.recap) tellTheDay(store, result.entry.recap.day);
     if (result.stepped) tellTheWeek(store, result.state, Date.parse(result.entry.at));
-    return json(result.stepped ? { stepped: true, entry: result.entry } : result);
+    // Only whether it stepped and when: the trigger is open (the site gate lets it through, #236), and the hour's
+    // words are for the Lattice, behind the gate, not for whoever calls this.
+    return json(result.stepped ? { stepped: true, at: result.entry.at } : { stepped: false, at: result.entry?.at ?? null, nextAt: result.nextAt });
   } catch (e) {
     // Another step landed first: this hour is already written.
     if (e instanceof StaleStateError) return json({ stepped: false, error: "already-stepped" }, 409);

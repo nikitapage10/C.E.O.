@@ -1,12 +1,13 @@
 import type { HistoryEntry, RoomId, WorldFeed } from "../chronicle.ts";
 import { CREW, crewOf, openIdeas, shippedToday, type FoundryData } from "../foundry.ts";
 import type { Link, LinkState } from "../systems.ts";
+import type { GreenBoard, GreenStatus } from "./green/league.ts";
 
 /**
  * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): nine threads, one per room, each in its submind's
  * colour (docs/SKIPPY.md), with how busy it is, a short status and its submind's report for the Council. Built only
  * from real data: the Foundry from GitHub, the Relay and the Boiler Room from the links, the Archive from the living
- * Lattice's hours. Rooms with no real work connected yet say so plainly; their only knots are the scenes the hourly
+ * Lattice's hours, the Green from Nikita's Sleeper league (#252). Rooms with no real work connected yet say so plainly; their only knots are the scenes the hourly
  * step set there (real entries of the living Lattice, not samples). Deterministic templates, no API calls.
  */
 
@@ -71,6 +72,8 @@ export interface PulseInput {
   /** Replies waiting on Nikita (Relay), once the hub is connected. */
   owed: number;
   world: WorldFeed | null;
+  /** The Green's league board (desk/green/league.ts), once it has been asked for; left out, the Green stays simulated. */
+  green?: { status: GreenStatus; board: GreenBoard | null };
 }
 
 const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
@@ -187,7 +190,13 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
     );
   }
 
+  // The Green: Nikita's Sleeper league, when the board has been read (or is being read).
+  const green = input.green;
+  const greenReal = green && green.status !== "off";
+  if (greenReal) out.push(greenPulse(green, scenesIn("green"), pulse));
+
   for (const id of ["breakroom", "spire", "exchange", "green", "workshop"] as const) {
+    if (id === "green" && greenReal) continue;
     const events = scenesIn(id);
     out.push(
       pulse(id, {
@@ -203,6 +212,38 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
   }
 
   return ROOM_ORDER.map((id) => out.find((p) => p.id === id)!);
+}
+
+type PulseFn = (id: RoomId, p: Omit<RoomPulse, "id" | "name" | "colour" | "submind" | "href">) => RoomPulse;
+
+/** The Green's thread from the league board, in the Commentator's voice. */
+function greenPulse(green: NonNullable<PulseInput["green"]>, events: number[], pulse: PulseFn): RoomPulse {
+  const { status, board } = green;
+  if (status === "failed") return pulse("green", { real: true, state: "down", activity: 0.1, status: "Sleeper isn't answering", short: "Sleeper down", report: "WE'VE LOST THE FEED, FOLKS. Sleeper isn't answering. Stay with us.", events });
+  if (status === "absent") return pulse("green", { real: true, state: "waiting", activity: 0.05, status: "No team in the league", short: "no team", report: "The Commentator can't find your team in the league. A broadcast with no home side. Unthinkable.", events });
+  if (status !== "ready" || !board) return pulse("green", { real: true, state: "waiting", activity: 0.1, status: "Reading the league", short: "reading Sleeper", report: "Warming up the booth. Sleeper's on the line.", events });
+  const m = board.matchup;
+  const win = m?.win ?? null;
+  const pctWin = win === null ? null : `${Math.round(win * 100)}%`;
+  const calls = board.swaps.length;
+  const top = board.pickups[0]?.player.name;
+  const match = !m
+    ? `No game in week ${board.week}.`
+    : !m.them
+      ? `Bye in week ${board.week}.`
+      : m.live
+        ? `LIVE: ${m.me.pts.toFixed(1)} to ${m.them.pts.toFixed(1)} against ${m.them.team}${pctWin ? `, ${pctWin} to win` : ""}.`
+        : `Week ${m.week} against ${m.them.team}: projected ${m.me.proj.toFixed(1)} to ${m.them.proj.toFixed(1)}${pctWin ? `, ${pctWin} to win` : ""}.`;
+  const lineup = calls ? `${calls === 1 ? "One lineup call" : `${calls} lineup calls`} from the booth.` : "Lineup's set.";
+  return pulse("green", {
+    real: true,
+    state: m?.live || calls ? "busy" : "steady",
+    activity: clamp(0.3 + (m?.live ? 0.35 : 0) + calls * 0.1),
+    status: pctWin ? `Week ${board.week}: ${pctWin} to win` : `${board.me.team}, ${board.me.record}`,
+    short: m?.live ? "game on" : pctWin ? `${pctWin} to win` : board.me.record,
+    report: `${board.me.team.toUpperCase()}, ${board.me.record}. ${match} ${lineup}${top ? ` Top pickup: ${top}.` : ""}`,
+    events,
+  });
 }
 
 /** Skippy's opening line on Today: what needs a human, said his way. */
@@ -235,6 +276,9 @@ export function roomPhrase(p: RoomPulse): string {
       return p.state === "waiting" ? "the Relay's waiting on the Mac" : p.state === "down" ? "the Relay's hub is down" : p.state === "busy" ? `${p.short} in the Relay` : "the Relay's quiet";
     case "archive":
       return p.state === "waiting" ? "the Archive's waiting on the hours" : "the Archive's writing it down";
+    case "green":
+      if (!p.real) return `${p.name}: ${p.short}`;
+      return p.state === "down" ? "the Green's lost Sleeper" : p.state === "waiting" ? "the Green's reading the league" : p.short === "game on" ? "the Green's game is on" : p.short.endsWith("to win") ? `the Green has you at ${p.short}` : `the Green has you ${p.short}`;
     default:
       return `${p.name}: ${p.short}`;
   }

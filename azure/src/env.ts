@@ -30,6 +30,7 @@ export const SECRET_SETTINGS = [
   "DESK_VAPID_PRIVATE_KEY",
   "DESK_VAPID_SUBJECT",
   "DESK_PINGS_SECRET",
+  "FANTASYPROS",
 ] as const;
 
 /** Whether a setting's value is an unresolved Key Vault reference (the platform's own spelling, in any case). */

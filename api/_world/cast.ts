@@ -502,7 +502,7 @@ export const WORLD_CAST: WorldCast = {
         "competitive",
         "chaotic"
       ],
-      "bio": "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from its floating can-throne in the corner, which it calls the commentary box, like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches the Green; the Commentator calls the game, whether or not there is one.",
+      "bio": "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from its floating can-throne in the corner, which it calls the commentary box, like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches; the Commentator calls the game, now the C.E.O.'s real league, live.",
       "catchphrase": "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
       "voice": [
         "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
@@ -800,6 +800,12 @@ export const WORLD_CAST: WorldCast = {
     },
     {
       "a": "turf",
+      "b": "ticker",
+      "kind": "rival",
+      "note": "The Bookie prices the Commentator's real win chance and sweats every decimal; the Commentator shouts the same number. Same maths. Neither admits it."
+    },
+    {
+      "a": "turf",
       "b": "punt",
       "kind": "friend",
       "note": "The Commentator commentates Punt's naps live. 'HE'S DOWN. HE'S STAYING DOWN.' Punt has never slept better."
@@ -973,7 +979,11 @@ export const WORLD_CAST: WorldCast = {
         "And the Commentator goes with the cheap model. BOLD. Will it pay off?",
         "Two-minute warning on the waiver run. The crowd is ON ITS FEET.",
         "AND THE COMMENTATOR LEAVES THE BOOTH! He's at midfield! What a call!",
-        "Live from the floating booth, high above the action, folks!"
+        "Live from the floating booth, high above the action, folks!",
+        "SLEEPER'S ON THE LINE, FOLKS. A real league. Real stats. For SOMEONE, finally.",
+        "The ball's on their twenty-nine. That's the win chance. In yards. Percentages don't SCREAM.",
+        "A waiver claim at the buzzer! A Hail Mary, folks! Not the Project kind. Rocky asked.",
+        "Start the hot hand, sit the cold one. The booth calls it. The C.E.O. makes the move in Sleeper."
       ],
       "static": [
         "Didn't hear it from me. You heard it from me.",

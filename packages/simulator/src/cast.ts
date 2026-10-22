@@ -143,7 +143,7 @@ const SEEDS: Record<string, Seed> = {
   turf: {
     look: submindLook("turf"),
     traits: ["cheerful", "dramatic", "competitive", "chaotic"],
-    bio: "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from its floating can-throne in the corner, which it calls the commentary box, like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches the Green; the Commentator calls the game, whether or not there is one.",
+    bio: "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. A play-by-play commentator. Narrates everything from its floating can-throne in the corner, which it calls the commentary box, like the final seconds of a championship, all caps when excited, and has stats for no one. Gridiron coaches; the Commentator calls the game, now the C.E.O.'s real league, live.",
     catchphrase: "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
   },
   static: {
@@ -226,6 +226,7 @@ export function defaultCast(): Cast {
       { a: "ticker", b: "hedge", kind: "best-friend", note: "Two worriers at one desk. The Bookie quotes the odds, Hedge lists the downsides, and together they talk each other out of everything." },
       { a: "ticker", b: "odds", kind: "rival", note: "Noco duels for prices. The Bookie prices the duels, forty to one against, and has never once been right about Noco." },
       { a: "turf", b: "gridiron", kind: "friend", note: "Gridiron coaches; the Commentator calls every play he makes, louder than he made it. Gridiron apologises for the volume. For both of them." },
+      { a: "turf", b: "ticker", kind: "rival", note: "The Bookie prices the Commentator's real win chance and sweats every decimal; the Commentator shouts the same number. Same maths. Neither admits it." },
       { a: "turf", b: "punt", kind: "friend", note: "The Commentator commentates Punt's naps live. 'HE'S DOWN. HE'S STAYING DOWN.' Punt has never slept better." },
       { a: "static", b: "dialtone", kind: "best-friend", note: "They listen in on the same lines and finish each other's gossip. Neither has told the wrong person. Neither has ever told anyone quietly." },
       { a: "vellum", b: "heimerdinger", kind: "friend", note: "The only two minds in the Archive who footnote their footnotes. They peer-review each other weekly and accept nothing on the first pass." },

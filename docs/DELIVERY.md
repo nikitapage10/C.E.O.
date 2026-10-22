@@ -93,7 +93,7 @@ label (`foundry:fix`, `foundry:idea`, `foundry:build`, `foundry:upkeep`, `foundr
 | The 9:00 ideas | The Builder | `foundry:idea` |
 | A chat ask | The session doing the work, before it starts | `foundry:chat` |
 | Red checks on `main` | `checks.yml` | `foundry:fix` |
-| An upkeep tick | The Builder | `foundry:upkeep` |
+| An upkeep tick | Rivet, in her own upkeep lane (every tick ships one change or files a card saying why not) | `foundry:upkeep` |
 | A bug or idea filed on GitHub | Anyone, with the templates in `.github/ISSUE_TEMPLATE/` | None until triaged |
 
 **The body** opens with the four lines the Desk and the Lattice read (`readBody` in `apps/world/src/foundry.ts`):

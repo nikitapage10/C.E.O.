@@ -4,10 +4,10 @@ import { ideaAge } from "./IdeaCard.tsx";
 import { ideaTitle, nextIdeas } from "./FoundryPage.tsx";
 
 describe("the Foundry's clock", () => {
-  it("finds the next upkeep tick at :57 on a sixth hour", () => {
+  it("finds the next upkeep tick, every five hours from the routine's anchor (20:51Z on 2026-10-13)", () => {
     const at = Date.UTC(2026, 9, 12, 22, 51);
-    expect(new Date(nextUpkeep(at)).toISOString()).toBe("2026-10-13T00:57:00.000Z");
-    expect(new Date(nextUpkeep(Date.UTC(2026, 9, 13, 0, 57))).toISOString()).toBe("2026-10-13T06:57:00.000Z");
+    expect(new Date(nextUpkeep(at)).toISOString()).toBe("2026-10-13T00:51:00.000Z");
+    expect(new Date(nextUpkeep(Date.UTC(2026, 9, 13, 0, 51))).toISOString()).toBe("2026-10-13T05:51:00.000Z");
   });
   it("finds the next 9:00 in Denver", () => {
     const at = Date.UTC(2026, 9, 12, 22, 51); // 16:51 in Denver (MDT)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { crewFor, readBody, REPO, type CrateKind, type Model } from "./foundry.ts";
+import { crewFor, modelOf, readBody, REPO, type CrateKind, type Model } from "./foundry.ts";
 
 /**
  * What the Foundry uses, for the Desk's Usage panel, counted from the issue trails (docs/FOUNDRY.md, "The trail on
@@ -107,7 +107,7 @@ export function assignedModel(body: string): Model | null {
 /**
  * Every job the Foundry has taken up: fixes, builds, upkeep and chat work that are being worked, waiting, stuck or
  * shipped (queued, dropped and unpicked ideas don't count). The model is what the Builder assigned, else the issue's
- * Builder line, else its fix rung, else the crew member's usual one. It starts at the Assigned step (else the first
+ * Builder line, else its fix rung, else Sonnet for upkeep, else the crew member's usual one (`modelOf`). It starts at the Assigned step (else the first
  * Work step, else the approval for a build, else when the issue was opened) and ends at the Shipped step (else when
  * the issue closed as shipped; a job waiting for an OK or stuck stopped at its last step).
  */
@@ -128,7 +128,7 @@ export function foundryJobs(issues: UsageIssue[], trails: Trail[]): Job[] {
     const assigned = steps.find((t) => step(t, "Assigned"));
     const rung = labels.has("rung:3") ? 3 : labels.has("rung:2") ? 2 : labels.has("rung:1") ? 1 : null;
     const read = readBody(issue.body ?? "");
-    const model = (assigned && assignedModel(assigned.body)) || read.model || (rung === 1 ? "Haiku" : rung === 2 ? "Sonnet" : rung === 3 ? "Opus" : null) || defaultModel(crewFor({ kind, rung, builder: read.builder }));
+    const model = (assigned && assignedModel(assigned.body)) || modelOf({ kind, rung, model: read.model }, crewFor({ kind, rung, builder: read.builder }));
 
     const approved = steps.find((t) => step(t, "Decision") || t.body.startsWith("Approved for building"));
     const startStep = assigned ?? steps.find((t) => step(t, "Work")) ?? (kind === "build" ? approved : undefined);
@@ -141,10 +141,6 @@ export function foundryJobs(issues: UsageIssue[], trails: Trail[]): Job[] {
     jobs.push({ issue: issue.number, model, start, end: end === null ? null : Math.max(start, end) });
   }
   return jobs;
-}
-
-function defaultModel(who: ReturnType<typeof crewFor>): Model {
-  return who === "semicolon" ? "Haiku" : who === "caret" ? "Opus" : "Sonnet";
 }
 
 /** Monday 00:00 of the week `now` is in, local time. */

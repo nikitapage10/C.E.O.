@@ -60,7 +60,7 @@ export const WORLD_CAST: WorldCast = {
     {
       "id": "tessellate",
       "name": "Rusty",
-      "role": "Builder, upkeep and ideas",
+      "role": "Builder and ideas",
       "room": "foundry",
       "lead": false,
       "traits": [
@@ -81,7 +81,7 @@ export const WORLD_CAST: WorldCast = {
     {
       "id": "semicolon",
       "name": "Rivet",
-      "role": "First responder",
+      "role": "First responder and upkeep",
       "room": "foundry",
       "lead": false,
       "traits": [
@@ -90,13 +90,13 @@ export const WORLD_CAST: WorldCast = {
         "loyal",
         "sarcastic"
       ],
-      "bio": "The Foundry's first responder: first to anything broken, in a hard hat and hi-vis, with a thermos older than the Kernel. Ran the floor once, came back the day Skippy left for the Kernel. Keeps the alarm post, reads each new idea first, hands the big jobs to Rocky, and walks the rooms after every ship with a far-sight lens the Geminae lent her. Reports to the Builder, unimpressed.",
-      "catchphrase": "Hard hats on. Yes, you too, Rocky. On the… just pick a leg.",
+      "bio": "The Foundry's first responder and upkeep keeper, in a hard hat and hi-vis, with a thermos older than the Kernel. Keeps the alarm post, reads each new idea first, hands the big jobs to Rocky, walks the rooms after every ship with the Geminae's far-sight lens, and every five hours checks the locks first and ships one fix, or writes down why not. Reports to the Builder, unimpressed.",
+      "catchphrase": "Locks first. Then coffee. Then whatever's squeaking.",
       "voice": [
         "Hard hat. Thermos. Let's see what's broken.",
-        "First responder. I respond. First. Then I finish my coffee.",
-        "I walk to fires. Running is how you get a second fire.",
-        "The Builder, if you point that baton at me once more I'm putting it in the furnace."
+        "Upkeep tick. Locks first. The Pessimist will want to know which ones held.",
+        "Sonnet for this one. It's a squeak, not a song.",
+        "Nothing to ship this tick. Writing down why. A blank log is a lie with good posture."
       ]
     },
     {
@@ -646,7 +646,13 @@ export const WORLD_CAST: WorldCast = {
       "a": "tessellate",
       "b": "semicolon",
       "kind": "friend",
-      "note": "The only one who has read all 71 pages of his manual. She mentioned it once. He has never been happier, or more nervous."
+      "note": "The only one who has read all 71 pages of his manual. He handed her the upkeep with a 9-page appendix. She read that too. He has never been happier."
+    },
+    {
+      "a": "semicolon",
+      "b": "soot",
+      "kind": "friend",
+      "note": "The Pessimist expects every lock to fail. Every five hours Rivet checks them first. They agree only that something will break, and not on her shift."
     },
     {
       "a": "tessellate",
@@ -931,6 +937,11 @@ export const WORLD_CAST: WorldCast = {
       ],
       "semicolon": [
         "Hard hat. Thermos. Let's see what's broken.",
+        "Upkeep tick. Locks first. The Pessimist will want to know which ones held.",
+        "Sonnet for this one. It's a squeak, not a song.",
+        "Nothing to ship this tick. Writing down why. A blank log is a lie with good posture.",
+        "Opus? For a dependency bump? Put the long verse back on the shelf, Builder.",
+        "Rusty gave me his bench, his shelf and a nine-page appendix. Read it. It's good. Don't tell him.",
         "First responder. I respond. First. Then I finish my coffee.",
         "I walk to fires. Running is how you get a second fire.",
         "The Builder, if you point that baton at me once more I'm putting it in the furnace.",

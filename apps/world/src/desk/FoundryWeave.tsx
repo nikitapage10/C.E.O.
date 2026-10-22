@@ -320,11 +320,11 @@ export function FoundryStage({ data, ideas, now, setup, stop, onSuggest, openRef
         ))}
         <Detail id="crew-dock" focus={focus} level={level} onDeeper={() => setLevel(2)} eyebrow="The dock crew" title="Dusty, Gusty and Musty" more="Next runs">
           {{
-            body: <p className="wv-txt">Frames Rusty pulled off the scrapheap and patched up himself. They keep the loom running between builds: the queue checks, the upkeep and the morning ideas. {sparesAwake(data.crates) ? `${words(sparesAwake(data.crates))} out on a job right now.` : "All three are in their bays."}</p>,
+            body: <p className="wv-txt">Frames Rusty pulled off the scrapheap and patched up himself. They keep the loom running between builds: the queue checks and the morning ideas. Upkeep is Rivet's own lane. {sparesAwake(data.crates) ? `${words(sparesAwake(data.crates))} out on a job right now.` : "All three are in their bays."}</p>,
             deep: (
               <>
                 <Row b="Queue check" span="Every 15 minutes" st={countdown(runs.queue, new Date(now))} i={0} c="run" />
-                <Row b="Upkeep" span="Every 5 hours" st={runTime(runs.upkeep)} i={1} />
+                <Row b="Upkeep" span="Rivet, every 5 hours" st={runTime(runs.upkeep)} i={1} />
                 <Row b="Morning ideas" span="Daily, 9:00 Mountain" st={runTime(runs.ideas)} i={2} />
               </>
             ),
@@ -691,7 +691,10 @@ export function CrewRow({ data, now }: { data: FoundryData; now: number }) {
               <em>
                 {CREW_RANK[id].models.replace("/", " or ")}, {CREW[id].job.toLowerCase()}
               </em>
-              <p>{line}</p>
+              <p>
+                {line}
+                {id === "semicolon" ? ` Next upkeep at ${runTime(runs.upkeep)}.` : ""}
+              </p>
             </li>
           );
         })}
@@ -706,7 +709,7 @@ export function CrewRow({ data, now }: { data: FoundryData; now: number }) {
           <b>Dusty, Gusty, Musty</b>
           <em>The dock crew</em>
           <p>
-            {awake ? `${words(awake)} out on a job. ` : ""}Next queue check {countdown(runs.queue, new Date(now))}, upkeep at {runTime(runs.upkeep)}.
+            {awake ? `${words(awake)} out on a job. ` : ""}Next queue check {countdown(runs.queue, new Date(now))}.
           </p>
         </li>
       </ul>
@@ -796,7 +799,7 @@ export function RunDials({ now }: { now: number }) {
   const runs = nextRuns(at);
   const dials: { k: string; at: Date; every: number; c: string; what: string; who: string; about?: boolean; short?: boolean }[] = [
     { k: "queue", at: runs.queue, every: 15 * 60_000, c: "var(--rc-foundry)", what: "Queue check", who: "Dusty, every 15 min", short: true },
-    { k: "upkeep", at: runs.upkeep, every: 5 * HOUR, c: "var(--rc-workshop)", what: "Upkeep", who: "Gusty, every 5 h", about: true },
+    { k: "upkeep", at: runs.upkeep, every: 5 * HOUR, c: "var(--rc-workshop)", what: "Upkeep", who: "Rivet, every 5 h", about: true },
     { k: "ideas", at: runs.ideas, every: 24 * HOUR, c: "var(--wv-hot)", what: "Morning ideas", who: "Musty, daily at 9:00 MT" },
   ];
   return (

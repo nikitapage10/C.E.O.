@@ -386,7 +386,7 @@ function RoomDrawer({ p, now, onClose }: { p: RoomPulse; now: number; onClose: (
           <div className="wv-room-who">
             <img src={`/desk/agent-${p.submind.id}.webp`} alt="" />
             <span>
-              {p.submind.title} leads it{desk ? `, with ${desk.lead === "semicolon" ? "Rivet" : ""}` : ""}
+              {p.submind.title} leads it{p.submind.active ? " from its own thread" : ""}{desk ? `, with ${desk.lead === "semicolon" ? "Rivet" : ""}` : ""}
             </span>
           </div>
           <ul className="wv-room-l">
@@ -799,7 +799,7 @@ export function ComingUp({ now }: { now: number }) {
     const ms = at.getTime();
     const list: Next[] = [
       { key: "queue", at: runs.queue.getTime(), room: "foundry", what: "Queue check", when: `${span(runs.queue.getTime() - ms)}, the dock crew` },
-      { key: "upkeep", at: runs.upkeep.getTime(), room: "workshop", what: "Upkeep", when: `${clock(runs.upkeep.getTime())}, Rusty` },
+      { key: "upkeep", at: runs.upkeep.getTime(), room: "workshop", what: "Upkeep", when: `${clock(runs.upkeep.getTime())}, Rivet` },
       { key: "ideas", at: runs.ideas.getTime(), room: "spire", what: "Morning ideas", when: `${clock(runs.ideas.getTime())}, Rusty` },
       { key: "story", at: nextMountain(ms, 0), room: "archive", what: "Today becomes a story", when: "After midnight, the Historian" },
     ];

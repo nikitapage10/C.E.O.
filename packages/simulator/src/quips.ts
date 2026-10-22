@@ -221,6 +221,11 @@ export const AGENT_QUIPS: Record<string, string[]> = {
   ],
   semicolon: [
     "Hard hat. Thermos. Let's see what's broken.",
+    "Upkeep tick. Locks first. The Pessimist will want to know which ones held.",
+    "Sonnet for this one. It's a squeak, not a song.",
+    "Nothing to ship this tick. Writing down why. A blank log is a lie with good posture.",
+    "Opus? For a dependency bump? Put the long verse back on the shelf, Builder.",
+    "Rusty gave me his bench, his shelf and a nine-page appendix. Read it. It's good. Don't tell him.",
     "First responder. I respond. First. Then I finish my coffee.",
     "I walk to fires. Running is how you get a second fire.",
     "The Builder, if you point that baton at me once more I'm putting it in the furnace.",

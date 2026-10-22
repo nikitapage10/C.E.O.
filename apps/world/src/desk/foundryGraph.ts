@@ -257,8 +257,8 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
       source: "Read from what it writes on GitHub; the thread itself isn't visible to the Desk.",
       url: FOUNDRY_THREAD,
     },
-    lane("rivet", "Rivet", "Haiku", "The first responder and the emergency slot: rung-one fixes, run outside the cap of four so they never wait. Rivet can run clones of herself."),
-    lane("rusty", "Rusty + dock", "Sonnet · Opus med", "Rusty and his dock crew (Dusty, Gusty, Musty): builds, upkeep, ideas and harder fixes, up to four jobs at once."),
+    lane("rivet", "Rivet", "Haiku · Sonnet", "The first responder and the upkeep lane: alerts and rung-one fixes on Haiku, and every five-hour upkeep tick on Sonnet (Opus when a job needs it), security and compliance first. Runs outside the cap of four so it never waits; Rivet can run clones of herself."),
+    lane("rusty", "Rusty + dock", "Sonnet · Opus med", "Rusty and his dock crew (Dusty, Gusty, Musty): builds, ideas and harder fixes, up to four jobs at once."),
     lane("rocky", "Rocky", "Opus high", "The master builder, held for big-picture and design-heavy work. One job at a time."),
     {
       id: "checks",
@@ -366,14 +366,14 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
       from: "builder",
       to: "rivet",
       state: laneEdge("rivet"),
-      label: "Rung-one fixes",
-      what: "Simple fixes go to Rivet on Haiku, outside the cap of four.",
+      label: "Rung-one fixes, upkeep",
+      what: "Simple fixes go to Rivet on Haiku, and each upkeep tick to Rivet on Sonnet, outside the cap of four.",
     },
     {
       from: "builder",
       to: "rusty",
       state: laneEdge("rusty"),
-      label: "Builds, upkeep, ideas",
+      label: "Builds, ideas",
       what: "Most work goes to Rusty on Sonnet, or Opus at medium when it needs taste; harder fixes too.",
     },
     {

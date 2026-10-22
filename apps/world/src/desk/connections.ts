@@ -84,7 +84,7 @@ export const CONNECTIONS: Connection[] = [
     status: "live",
     how: "The Builder's thread in your C.E.O. project writes the code, with Rivet, Rusty and Rocky as subagents in their own worktrees, and asks you on decision cards.",
     auth: "Your Claude Code plan. No API key, and none of the Claude API's budget.",
-    when: "Four hourly routines check the queue every 15 minutes; the morning ideas at 9:00 Mountain; upkeep every six hours.",
+    when: "Four hourly routines check the queue every 15 minutes; the morning ideas at 9:00 Mountain; Rivet's upkeep every five hours.",
   },
   {
     id: "github-builder",

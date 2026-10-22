@@ -6,14 +6,14 @@ import type { RoomId } from "@ceo/core";
  */
 export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string, string>; today: string; next: string }> = {
   foundry: {
-    blurb: "Where code gets made, for real. Every crate is a real task for the C.E.O. repo, worked by the Foundry thread in Claude Code (Skippy, the Builder): the Builder conducts from its podium floating high in the corner, picks who takes each job and floats out to hand it over, Rivet jumps on anything broken and sizes it up, Rusty takes the simple jobs, the upkeep and the three ideas he pins to his board each morning, and Rocky takes everything big. When Rusty has more than one job running, one of his dock crew (Dusty, Gusty or Musty, each in their own paint) wakes on the dock by the left wall and rolls out to work the line beside him; four jobs at once at most, and the rest wait their turn. Every bench's work light shows the model of whoever is working there: Haiku, Sonnet or Opus.",
+    blurb: "Where code gets made, for real. Every crate is a real task for the C.E.O. repo, worked by the Foundry thread in Claude Code (Skippy, the Builder): the Builder conducts from its podium floating high in the corner, picks who takes each job and floats out to hand it over, Rivet jumps on anything broken and sizes it up and keeps the upkeep, a job every five hours at the upkeep bench, Rusty takes the simple jobs and the three ideas he pins to his board each morning, and Rocky takes everything big. When Rusty has more than one job running, one of his dock crew (Dusty, Gusty or Musty, each in their own paint) wakes on the dock by the left wall and rolls out to work the line beside him; four jobs at once at most, and the rest wait their turn. Every bench's work light shows the model of whoever is working there: Haiku, Sonnet or Opus.",
     stations: {
       post: "The Builder's floating command podium, high in the back-right corner. The Foundry's submind conducts the crew from here and picks the model rung for each fix. It glides out over the room when it gives an order.",
       intake: "New Foundry tasks arrive here as crates. A red light spins when one is stuck and needs you.",
       assembler: "The crew writes and edits code.",
       furnace: "The checks on main (types, lint, tests, build). The window glows green for a pass, red for a fail.",
       shipping: "Finished work ships to the site from here. The lamp glows amber while something waits for your OK.",
-      "bench-a": "Rusty's upkeep bench: small fixes that make things run smoother.",
+      "bench-a": "Rivet's upkeep bench: every five hours, one small fix that makes things run smoother, security and compliance first.",
       "bench-b": "Where Rusty works out the morning ideas before pinning them up.",
       drafting: "Rocky's drafting table: the plan of the biggest open or upcoming idea. He takes the crate here when a job is handed up to him.",
       handoff: "Where Rivet hands a new job up to Rocky.",

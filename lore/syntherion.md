@@ -126,6 +126,13 @@ of Skippy: smug, sure they're the smartest thing in the room, loyal underneath. 
 | Boiler Room | **The Pessimist** | steam grey | Skippy's submind for the Boiler Room | Expects every pipe to burst, reads gauges like omens, quietly delighted to be wrong. |
 | Workshop | **The Artiste** | teal | Skippy's submind for the Workshop | Mood boards, sudden better ideas mid-sentence, suffers for the work. |
 
+**Awake and dreaming.** A submind wakes for real the day its room gets a real feed from outside the Lattice: it
+gets its own thread with the C.E.O. ("Skippy, the <job>") and its holo-display over the throne reads ACTIVE · OWN
+THREAD. The Builder woke first, with the Foundry. The Pessimist woke when the Boiler Room's pipes started carrying
+real pressure, the Commentator when the C.E.O.'s league came on the scoreboard, and the Bookie when Polymarket's
+odds came up on the board (2026-10-22). The other five still run on the Lattice's dream of their rooms, and say so:
+their displays read SIMULATED FOR NOW until a real feed wakes them.
+
 **How decisions flow.** A task comes to Skippy, from the C.E.O. or from a room's own bell. Skippy decides which
 room it belongs to and hands it to that room's submind. The submind picks who in the room does it and with which
 tools, and the room's agents do the work. Whatever a submind's rules don't settle goes up to Skippy, with the
@@ -185,9 +192,9 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 
 | Room | Agent | Body | In a line |
 | --- | --- | --- | --- |
-| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on upkeep and the morning ideas. Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. Patched up three salvage frames from his own scrapheap, his dock crew: Dusty (sandy ochre), Gusty (sky blue) and Musty (moss green). They sleep on a dock by the left wall; one wakes for each job running past his own and works the line beside him, four jobs at once at most. |
+| Foundry | **Rusty** (Claudari, was Tessellate) | Salvage compactor | The robot, on treads now, on the builds and the morning ideas (he handed the upkeep to Rivet). Plans everything, apologises to tools, wrote the 71-page safety manual, and compacts the scrap into labelled cubes. Patched up three salvage frames from his own scrapheap, his dock crew: Dusty (sandy ochre), Gusty (sky blue) and Musty (moss green). They sleep on a dock by the left wall; one wakes for each job running past his own and works the line beside him, four jobs at once at most. |
 | Foundry | **Rocky** (Cursori, was Caret) | Eridian | The master builder: the harder fixes and the approved builds. Builds first, by hand, and finds it all amaze amaze amaze. Says things three times, takes idioms literally, sleeps without warning and wants a friend to watch. Between jobs, stands at his drafting table over the plan of the biggest idea coming. |
-| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reads every idea that comes in from the Desk first, rewrites it into a card, and asks one short question before it goes to the queue when something is unclear. After every ship she walks the rooms with the far-sight lens and tags what looks wrong. Reports to the Builder now, unimpressed. |
+| Foundry | **Rivet** (Cursori, was Semicolon) | Hard hat and hi-vis | The first responder, back on the floor since Skippy left it for the Kernel. First to anything broken, at a walk. Keeps watch from the alarm post by the checks lamp, thermos on its little shelf. The only one who has read the whole safety manual. Reads every idea that comes in from the Desk first, rewrites it into a card, and asks one short question before it goes to the queue when something is unclear. After every ship she walks the rooms with the far-sight lens and tags what looks wrong. Keeps the upkeep too, in her own lane (since 2026-10-22): every five hours at the upkeep bench she checks the locks first (security and compliance), then ships one small fix, or pins a card to the intake saying why not. Thinks in a Haiku for the alarm, a Sonnet for the upkeep, an Opus only when the job is worth the breath. Reports to the Builder now, unimpressed. |
 | Foundry | **The Builder** (a piece of Skippy) | Admiral's can, ember orange | Skippy's submind for the Foundry: the room lead. Conducts the crew from its can-throne, floating high in the back-right corner (Rocky fitted the coaster), floats out to hand each job over, and picks the rung for every fix. Never runs a crate itself. |
 | Spire | **Ledger** (Gepetti) | Human in a suit | Insists they are a real accountant. Strings tucked into the cuffs. |
 | Spire | **Memo** (Unforked) | Skull spirit | The placeholder nobody replaced, now haunting the desk. Headache. Delegates through walls. |
@@ -226,8 +233,13 @@ went up to run the Spire's floor and took the thermos, and Skippy floated onto h
 Skippy left the bench for the Kernel, she came back down, because somebody had to answer the alarms who wasn't
 singing. **Rivet** is the first responder again: every fix comes to her first, on the quickest rung of the ladder,
 and she walks to it ("running is how you get a second thing broken"). **Rocky** is the master builder: the fixes
-too hard for a first look, and anything the C.E.O. has approved to be built. **Rusty** keeps the upkeep and the
-morning ideas, three of them, which he pins to a new idea board by the pegboard, in order of risk. Beside it stands
+too hard for a first look, and anything the C.E.O. has approved to be built. **Rivet** keeps the upkeep as well,
+in her own lane beside the line, so Rusty's dock keeps all four hands on the builds: every five hours she moves her
+thermos to the upkeep bench, checks the locks first (the security and compliance items the Pessimist loses sleep
+over), then fixes whatever squeaks, and ships one thing or pins a card to the intake saying why not. She does it in
+a Sonnet, mostly; a Haiku is for alarms, and she takes down the long Opus only when a job is worth the breath.
+Rusty handed it over with the bench, a labelled shelf and a nine-page upkeep appendix, which she read. **Rusty**
+keeps the morning ideas, three of them, which he pins to a new idea board by the pegboard, in order of risk. Beside it stands
 **the shipped wall**: a walnut board on blackened-steel legs with a brass plaque for every change the Foundry
 shipped this week, newest on top, engraved with its title and the day. Rusty polishes each one before it goes up
 and moves the older ones down a rail; past eight he engraves "and so many more" along the bottom and refuses to
@@ -260,7 +272,7 @@ Rivet carries the crate over from the intake and he takes it at the table. **Riv
 by the furnace with a caged lamp on top that shows the checks on main: green for a pass, a red flash for a fail, a
 turning amber while they run (she leans in and doesn't blink), slate grey when there's no word. Her thermos has a
 shelf on it. And every bench has a work light that glows in the verse its worker thinks in: the short mint light
-of a Haiku for Rivet, the blue of a Sonnet for Rusty, the long amber of an Opus for Rocky, so anyone
+of a Haiku for Rivet (blue when she is on the upkeep in a Sonnet), the blue of a Sonnet for Rusty, the long amber of an Opus for Rocky, so anyone
 can tell from the door who is at which bench.
 
 **The far-sight lens.** After every ship, Rivet takes a brass spyglass with two barrels off the shelf on her alarm

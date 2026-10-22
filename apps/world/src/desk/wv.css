@@ -1039,3 +1039,262 @@
   letter-spacing: -0.012em;
   line-height: 1;
 }
+
+/* ── Desk-only: the Foundry's real controls in the Weave's forms ── */
+.desk .wv-foundry .wv-fhead .wv-h1 em {
+  font-style: italic;
+}
+.desk .wv-decide {
+  margin: 36px 0 0;
+}
+.desk .wv-flight.is-empty {
+  background: rgba(18, 19, 24, 0.6);
+  border-color: var(--wv-line);
+}
+.desk .wv-flight-do .fy-stop {
+  display: flex;
+  gap: 6px;
+}
+.desk .wv-flight-do .fy-stop__note,
+.desk .wv-dacts .fy-stop__note {
+  font-size: 12.5px;
+  color: var(--wv-mute);
+}
+.desk .wv-fside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.desk .wv-fside .wv-suggest {
+  flex: 1;
+}
+.desk .wv-suggest.is-drop {
+  border-color: var(--wv-hot);
+}
+.desk .wv-sug-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.desk .wv-sug-pics {
+  padding: 0 8px;
+}
+.desk .wv-suggest .wv-act-ok {
+  margin-top: 12px;
+}
+.desk .wv-suggest .signin {
+  margin-top: 14px;
+}
+.desk .wv-shelf {
+  margin-top: 16px;
+}
+.desk .wv-idea-n {
+  margin-left: auto;
+  color: var(--wv-faint);
+  font-size: 12px;
+}
+.desk .wv-idea-n:hover {
+  color: var(--wv-soft);
+}
+.desk .wv-idea-q {
+  margin: 10px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--wv-hot-line);
+  font-family: var(--wv-serif);
+  font-size-adjust: var(--wv-serif-adj);
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--wv-soft);
+}
+.desk .wv-idea-pics {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.desk .wv-idea-pics img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--wv-line2);
+}
+.desk .wv-idea .wv-act-reply {
+  margin-top: 10px;
+}
+.desk .wv-idea .wv-act-ok,
+.desk .wv-detail .wv-act-ok {
+  margin-top: 16px;
+}
+.desk .wv-device {
+  margin-top: 28px;
+}
+.desk .wv-jobs,
+.desk .wv-more-d,
+.desk .wv-conn,
+.desk .wv-log-key {
+  margin-top: 20px;
+}
+.desk .wv-jobs > summary,
+.desk .wv-more-d > summary,
+.desk .wv-conn > summary,
+.desk .wv-log-key > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  color: var(--wv-mute);
+  padding: 6px 0;
+  transition: color 0.3s;
+}
+.desk .wv-jobs > summary::-webkit-details-marker,
+.desk .wv-more-d > summary::-webkit-details-marker,
+.desk .wv-conn > summary::-webkit-details-marker,
+.desk .wv-log-key > summary::-webkit-details-marker {
+  display: none;
+}
+.desk .wv-jobs > summary::before,
+.desk .wv-more-d > summary::before,
+.desk .wv-conn > summary::before,
+.desk .wv-log-key > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.3s var(--wv-ease);
+}
+.desk details[open] > summary::before {
+  transform: rotate(45deg);
+}
+.desk .wv-jobs > summary:hover,
+.desk .wv-more-d > summary:hover,
+.desk .wv-conn > summary:hover,
+.desk .wv-log-key > summary:hover {
+  color: var(--wv-ink);
+}
+.desk .wv-jobs {
+  margin-top: 36px;
+  padding: 14px 20px;
+  border-radius: 18px;
+  border: 1px solid var(--wv-line);
+  background: rgba(16, 18, 23, 0.5);
+}
+.desk .wv-jobs[open] > summary {
+  margin-bottom: 12px;
+}
+.desk .wv-count {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--wv-line2);
+  color: var(--wv-soft);
+}
+.desk .wv-more-d .wv-link {
+  margin-left: auto;
+}
+.desk .wv-more-d .fy-usage {
+  margin-top: 12px;
+}
+.desk .wv-conn {
+  padding: 4px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--wv-line);
+}
+.desk .wv-log-i.cl-entry {
+  display: block;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 1px solid var(--wv-line);
+  border-radius: 0;
+  background: none;
+}
+.desk .wv-log-i .cl-entry__title {
+  white-space: normal;
+  font-size: inherit;
+}
+.desk .wv-log-i .wv-log-meta .cl-undo__btn,
+.desk .wv-log-i .wv-log-meta .cl-undo__ask,
+.desk .wv-log-i .wv-log-meta .cl-undo {
+  margin-left: auto;
+}
+.desk .wv-log-when {
+  display: block;
+}
+.desk .wv-log-i .wv-log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.desk .wv-log-i .wv-log-meta span {
+  display: inline-flex;
+  margin-top: 0;
+}
+.desk .wv-log-i b a {
+  color: inherit;
+}
+.desk .wv-log-i b a:hover {
+  color: var(--wv-hot);
+}
+.desk .wv-log-i .cl-shot,
+.desk .wv-log-i > .cl-shot-x {
+  float: right;
+  margin: 0 0 6px 12px;
+}
+.desk .wv-log-said {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-family: var(--wv-serif);
+  font-size-adjust: var(--wv-serif-adj);
+  font-size: 15px;
+  color: var(--wv-soft);
+}
+.desk .wv-log-said img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--wv-line2);
+}
+.desk .wv-log-said b {
+  font-family: var(--wv-sans);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--wv-mute);
+}
+.desk .wv-log-all {
+  margin: 14px 0 0 40px;
+}
+.desk .wv-log .changelog__all {
+  margin-top: 8px;
+}
+.desk .wv-vqa-l li.is-off {
+  opacity: 0.45;
+  border-style: dashed;
+}
+.desk .wv-vqa-l li.is-off i {
+  -webkit-mask: none;
+  mask: none;
+  width: 6px;
+  height: 6px;
+  margin: 0 3px;
+  opacity: 0.6;
+}
+.desk .wv-detail .signin {
+  margin-top: 16px;
+}
+@media (max-width: 720px) {
+  .desk .wv-log-all {
+    margin-left: 0;
+  }
+}

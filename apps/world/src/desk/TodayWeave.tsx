@@ -395,7 +395,7 @@ function RoomDrawer({ p, now, onClose }: { p: RoomPulse; now: number; onClose: (
 
 /* ── Worth knowing now ── */
 
-type Seg = "ok" | "run" | "wait" | "bad";
+export type Seg = "ok" | "run" | "wait" | "bad";
 const SEG_OF: Record<LinkState, Seg> = { ok: "ok", slow: "run", off: "wait", down: "bad" };
 
 export function WorthKnowing({ data, usage, world, owed }: { data: FoundryData; usage: UsageFeed | null; world: WorldFeed | null; owed: number }) {
@@ -493,7 +493,7 @@ function PressCard({ room, k, text, spec, labels, ringDot, bad, href }: { room: 
   );
 }
 
-function progSpecOf(steps: Seg[]): VizSpec {
+export function progSpecOf(steps: Seg[]): VizSpec {
   let seg: { s: Seg; x0: number; x1: number; poly: Poly; P: Parts }[] = [];
   let y = 0;
   return {
@@ -565,13 +565,13 @@ function chainSpecOf(states: LinkState[]): VizSpec {
   };
 }
 
-function barSpecOf(parts: { f: number; rgb: string }[]): VizSpec {
+export function barSpecOf(parts: { f: number; rgb: string }[], big = false): VizSpec {
   let segs: { x1: number; rgb: string; str: { poly: Poly; P: Parts }[] }[] = [];
   let end = 0;
   return {
     lay(V) {
       let x = 2;
-      const amp = V.H * 0.22;
+      const amp = V.H * (big ? 0.28 : 0.22);
       const y = V.H / 2;
       segs = [];
       for (const s of parts) {
@@ -587,7 +587,7 @@ function barSpecOf(parts: { f: number; rgb: string }[]): VizSpec {
             xs.push(x + w * u);
             ys.push(y + Math.sin(u * TAU * Math.max(1, w / 70) + (k * TAU) / 3) * amp * (0.4 + 0.6 * Math.sin(Math.PI * u)));
           }
-          str.push({ poly: new Poly().set(xs, ys), P: new Parts(Math.max(4, Math.round(w * 0.22)), 0.1) });
+          str.push({ poly: new Poly().set(xs, ys), P: new Parts(Math.max(4, Math.round(w * (big ? 0.35 : 0.22))), 0.1) });
         }
         segs.push({ x1: x + w, rgb: s.rgb, str });
         x += w;
@@ -599,10 +599,10 @@ function barSpecOf(parts: { f: number; rgb: string }[]): VizSpec {
       dots(c, end + 5, y, V.W - 3, y, 4, 0.2);
       ring(c, V.W - 4, y, 3, HOT, 0.5);
       for (const s of segs) {
-        for (const q of s.str) weave(c, q.poly, q.P, { a: 0.95, sp: 0.6, sz: 0.5, v: 14, line: 0.22, rgb: s.rgb, rgb2: WHITE, nofade: true }, t, dt);
+        for (const q of s.str) weave(c, q.poly, q.P, { a: 0.95, sp: big ? 0.9 : 0.6, sz: big ? 0.6 : 0.5, v: big ? 22 : 14, line: 0.22, rgb: s.rgb, rgb2: WHITE, nofade: true }, t, dt);
         c.globalAlpha = 0.5;
         c.fillStyle = `rgba(${s.rgb},1)`;
-        c.fillRect(s.x1 - 0.5, y - V.H * 0.3, 1, V.H * 0.6);
+        c.fillRect(s.x1 - 0.5, y - V.H * (big ? 0.36 : 0.3), 1, V.H * (big ? 0.72 : 0.6));
       }
       c.globalAlpha = 1;
     },

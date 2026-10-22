@@ -17,15 +17,21 @@ import * as foundryimage from "../../api/foundry-image.js";
 import * as foundryusage from "../../api/foundry-usage.js";
 import * as foundry from "../../api/foundry.js";
 import * as securityfeed from "../../api/security-feed.js";
+import * as sitelogin from "../../api/_site/login.js";
+import * as sitepassword from "../../api/_site/control.js";
 import * as skippy from "../../api/skippy.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
 import * as worldstep from "../../api/world-step.js";
 import * as world from "../../api/world.js";
+import { withGate } from "../../api/_site/gate.js";
+import { pickSiteStore } from "../../api/_site/state.js";
 import { adapt, type AdaptOptions, type WebHandler } from "./adapter.js";
 import { azureBlobFromEnv } from "./blob.js";
 
 // WORLD_STORE=azureblob: the world, stories, Desk sign-ins and pictures in the `ceo-state` container.
 registerAzureBlob(azureBlobFromEnv);
+
+const gateDeps = () => ({ env: process.env, store: pickSiteStore(), now: Date.now() });
 
 type Module = Partial<Record<"GET" | "POST", WebHandler>>;
 
@@ -39,6 +45,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["foundry-usage", foundryusage],
   ["foundry", foundry],
   ["security-feed", securityfeed],
+  ["site-login", sitelogin],
+  ["site-password", sitepassword],
   ["skippy", skippy],
   ["visual-qa-feed", visualqafeed],
   // Called on the Function App's own URL (no proxy cut), so the step waits for its day and week stories.
@@ -55,7 +63,9 @@ for (const [name, mod, opts] of ENDPOINTS) {
     handler: (req, context) => {
       const handler = mod[req.method.toUpperCase() as "GET" | "POST"];
       if (!handler) return Promise.resolve({ status: 405, headers: { Allow: methods.join(", ") } });
-      return adapt(handler, opts)(req, context);
+      // The site password (#236): the same gate as Vercel's middleware, in front of every function. The Static Web
+      // App's own files aren't behind it (docs/AZURE.md, "The site password on Azure").
+      return adapt(withGate(handler, gateDeps), opts)(req, context);
     },
   });
 }

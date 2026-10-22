@@ -6,7 +6,8 @@
  *
  *   node scripts/seed-azure-public.mjs <folder> [site]
  *
- * Plain Node, no dependencies and no secrets. Prints counts only.
+ * Plain Node, no dependencies. Its one secret, SITE_BYPASS_TOKEN (once the site password is on, #236), goes only to
+ * the site in a header. Prints counts only.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -21,11 +22,14 @@ const root = resolve(process.argv[2]);
 const site = new URL(process.argv[3] ?? "https://command-everything-obviously.vercel.app");
 // A fresh read, past the edge's cached copy (the API ignores the extra parameter).
 const fresh = String(Date.now());
+// The site password's bypass (#236): sent only to the site, in a header, never printed. Unset: no header.
+const bypass = process.env.SITE_BYPASS_TOKEN?.trim();
+const siteHeaders = bypass ? { "x-ceo-site-bypass": bypass } : {};
 
 async function getJson(path, params) {
   const url = new URL(path, site);
   for (const [k, v] of Object.entries({ ...params, fresh })) url.searchParams.set(k, v);
-  const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+  const res = await fetch(url, { headers: siteHeaders, signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`${url.pathname}?${[...url.searchParams.keys()].join("&")} answered ${res.status}`);
   return res.json();
 }
@@ -37,7 +41,7 @@ async function getWav(params) {
   const parts = [];
   let at = 0;
   for (;;) {
-    const res = await fetch(url, { headers: { Range: `bytes=${at}-` }, signal: AbortSignal.timeout(60_000) });
+    const res = await fetch(url, { headers: { ...siteHeaders, Range: `bytes=${at}-` }, signal: AbortSignal.timeout(60_000) });
     if (res.status === 404) return null;
     if (res.status !== 200 && res.status !== 206) throw new Error(`audio answered ${res.status}`);
     const chunk = new Uint8Array(await res.arrayBuffer());

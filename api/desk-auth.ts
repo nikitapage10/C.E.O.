@@ -23,6 +23,9 @@
  * verification and the signature counter. Passkeys are discoverable and always ask for the device's own unlock
  * (fingerprint, face or PIN).
  *
+ * GET/POST ?site=login | ?site=password → the site password's sign-in and its Desk control (#236; vercel.json rewrites
+ *                                          /api/site-login and /api/site-password here): api/_site/login.ts, control.ts.
+ *
  * Environment: FOUNDRY_DESK_KEY (the enrolment secret, and the root of every signing key), BLOB_STORE_ID (the private
  * Blob store that keeps the passkeys and the counters).
  */
@@ -40,6 +43,8 @@ import { addressOf, Gate, type Attempt } from "./_desk/limits.js";
 import { CHALLENGE_COOKIE, CHALLENGE_S, MAX_S, SESSION_COOKIE, challengeOf, clearSession, cookie, newSession, readCookie, renewed, requireSession, sameOrigin, sessionCookie, sessionOf, signToken, type Challenge, type DeskDeps } from "./_desk/session.js";
 import { dropEndpoint, dropPasskey } from "./_desk/pings.js";
 import { MAX_PASSKEYS, pickAuthStore, type AuthStore, type Passkey } from "./_desk/store.js";
+import * as siteControl from "./_site/control.js";
+import * as siteLogin from "./_site/login.js";
 
 const RP_NAME = "C.E.O. Desk";
 /** Every Desk passkey belongs to the one Desk account; nothing personal in it. */
@@ -231,10 +236,28 @@ export async function handlePost(request: Request, deps: DeskDeps = live()): Pro
   }
 }
 
+/**
+ * The site password's two routes (#236) live in this function on Vercel, so they add none to the deployment:
+ * vercel.json rewrites /api/site-login to ?site=login and /api/site-password to ?site=password.
+ */
+export function siteRoute(request: Request): "login" | "password" | null {
+  const url = new URL(request.url);
+  const site = url.searchParams.get("site");
+  if (site === "login" || url.pathname === "/api/site-login") return "login";
+  if (site === "password" || url.pathname === "/api/site-password") return "password";
+  return null;
+}
+
 export async function GET(request: Request): Promise<Response> {
+  const site = siteRoute(request);
+  if (site === "login") return siteLogin.GET(request);
+  if (site === "password") return siteControl.GET(request);
   return handleGet(request);
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const site = siteRoute(request);
+  if (site === "login") return siteLogin.POST(request);
+  if (site === "password") return siteControl.POST(request);
   return handlePost(request);
 }

@@ -40,6 +40,10 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Open the live site
+        # Once the site password is on (#236), the boot check sends SITE_BYPASS_TOKEN (the same value as in Vercel) to
+        # the site only, in a header; without it, it checks only that the login page answers. Never printed.
+        env:
+          SITE_BYPASS_TOKEN: ${{ secrets.SITE_BYPASS_TOKEN }}
         run: |
           if node scripts/boot-check.mjs --url="$SITE"; then exit 0; fi
           echo "Missed once; trying again in a minute."

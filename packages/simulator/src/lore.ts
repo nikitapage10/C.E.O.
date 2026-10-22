@@ -447,6 +447,7 @@ export const LORE: Record<string, Lore> = {
       "Sweats the downside, openly, and still thinks it's the smartest thing on the floor. Both are usually true.",
       "Breaks out in decimals around Noco. Noco finds this adorable.",
       "Picks the model for a task by expected value, then moves up a rung 'for safety'.",
+      "Reads Polymarket's public odds every minute, read-only, and argues with each one under its breath.",
     ],
     likes: ["A tight spread", "Hedge's lists of downsides", "Being right at long odds", "Quiet markets"],
     dislikes: ["Duels", "Fat tails", "Being asked for a straight answer", "Noco's confidence, which is unpriced"],
@@ -454,6 +455,7 @@ export const LORE: Record<string, Lore> = {
       "Gave Skippy's grand scheme for the Exchange eleven percent. It worked. The Bookie has not recovered.",
       "Priced a duel between Noco and the risk desk at forty to one against. Noco won. The Bookie re-priced the universe.",
       "Has a running book on which of its siblings escalates to Skippy first. It is leading its own book.",
+      "Lit the Exchange's first real board: Polymarket's odds, read-only. Priced its own odds of touching nothing at one hundred percent. Its first sure thing.",
     ],
   },
   turf: {

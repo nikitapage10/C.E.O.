@@ -21,7 +21,8 @@ import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";
 
 const LAMP: Record<LinkState, string> = { off: "#3a3d42", ok: "#9fe3c9", slow: "#ffd08f", down: "#ff5a6e" };
 const PIPE_Z = -5.55;
-const pipeX = (i: number) => -7 + i * 1.0;
+/** The pipes share the wall from x = -7 to 4, a metre apart until more links than that arrive (Polymarket made 13). */
+const pipeX = (i: number, n: number) => -7 + i * Math.min(1, 11 / Math.max(1, n - 1));
 const WORDS: Record<LinkState, string> = { off: "COLD · NOT CONNECTED", ok: "HOT · WORKING", slow: "COUGHING · SLOW", down: "BURST · DOWN" };
 /** The world clock's pipe speaks in hours: on time, overdue (amber, over 70 min), stopped (over 3 h, or no answer). */
 const CLOCK_WORDS: Record<LinkState, string> = { off: "COLD · NOT RUNNING", ok: "HOT · ON TIME", slow: "COUGHING · OVERDUE", down: "BURST · STOPPED" };
@@ -382,7 +383,7 @@ export function BoilerRoom() {
         MAINTENANCE · AUTHORISED HONKERS ONLY
       </Text>
       {links.map((l, i) => (
-        <Pipe key={l.id} link={l} x={pipeX(i)} />
+        <Pipe key={l.id} link={l} x={pipeX(i, links.length)} />
       ))}
       {/* A header pipe that ties the wall together and runs off toward the boiler. */}
       <mesh position={[-1.4, 4.8, PIPE_Z - 0.25]} rotation={[0, 0, Math.PI / 2]} material={PBR.copper()} castShadow>

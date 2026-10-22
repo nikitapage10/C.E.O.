@@ -16,6 +16,7 @@ import * as foundryfeed from "../../api/foundry-feed.js";
 import * as foundryimage from "../../api/foundry-image.js";
 import * as foundryusage from "../../api/foundry-usage.js";
 import * as foundry from "../../api/foundry.js";
+import * as exchangemarkets from "../../api/_exchange/route.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -40,6 +41,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["day-story", daystory],
   ["desk-auth", deskauth],
   ["desk-pings", deskpings],
+  // The Exchange's Polymarket board (#240): its own endpoint here; on Vercel a rewrite into api/world.ts.
+  ["exchange-markets", exchangemarkets],
   ["foundry-feed", foundryfeed],
   ["foundry-image", foundryimage],
   ["foundry-usage", foundryusage],

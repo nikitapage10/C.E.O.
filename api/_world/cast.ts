@@ -960,7 +960,10 @@ export const WORLD_CAST: WorldCast = {
         "Noco's smiling. I hate it when Noco smiles. The spread hates it too.",
         "Expected value says yes. My gut says the tails. My gut's usually right. Sixty percent.",
         "Every trade goes past the C.E.O. first. I'm not nervous. I'm prudent. Same thing.",
-        "Leaving the throne: twelve percent risk of a bad landing. Taking it."
+        "Leaving the throne: twelve percent risk of a bad landing. Taking it.",
+        "The Polymarket board's lit. Somebody else's odds, read-only. I'm checking their maths anyway.",
+        "Top market moved four points overnight. I didn't sleep. I don't sleep. Still, four points.",
+        "Pinned it to the watchlist. Not a bet. A watch. Watching is free. Mostly."
       ],
       "turf": [
         "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",

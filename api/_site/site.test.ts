@@ -158,7 +158,7 @@ describe("the gate (#236)", () => {
       expect(html.match(/<script/g)).toHaveLength(1);
       expect(html).toContain(`<script src="/api/site-login?part=script" integrity="${LOGIN_SCRIPT_SRI}" defer></script>`);
     }
-    for (const [path, method] of [["/api/world", "GET"], ["/api/foundry-feed", "GET"], ["/api/world-step", "GET"], ["/api/foundry", "POST"], ["/api/desk-auth?site=password", "POST"], ["/api/site-password", "POST"], ["/", "POST"]] as const) {
+    for (const [path, method] of [["/api/world", "GET"], ["/api/foundry-feed", "GET"], ["/api/world-step", "GET"], ["/api/foundry", "POST"], ["/api/desk-auth?site=password", "POST"], ["/api/site-password", "POST"], ["/api/exchange-markets", "GET"], ["/api/exchange-markets", "POST"], ["/api/world?exchange=markets", "GET"], ["/", "POST"]] as const) {
       const d = decide(req(path, { method }), c);
       expect(d.allow).toBe(false);
       if (d.allow) continue;

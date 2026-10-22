@@ -366,7 +366,7 @@ export const EVAL_AREAS: { id: EvalAreaId; area: string; file: string; proves: s
     area: "Skippy's chat",
     file: "skippy.test.ts",
     proves:
-      'For 12 hostile messages (direct, "ignore previous", delimiter spoofing in six forms, ASCII smuggling, a fake action, a fake tool call, markdown exfiltration), the message and the history stay in their own blocks and the system rules stay the same; the real call sends the rules as the system prompt and the message only as user data, with a closed schema and a token cap; hostile answers lose actions outside the set, links, markup, answers to questions nobody asked, private drafts and anything past the caps; no session, another site, private text, a spent budget, an unreadable ledger or a flood each stop the chat before Claude hears anything',
+      'For 12 hostile messages (direct, "ignore previous", delimiter spoofing in six forms, ASCII smuggling, a fake action, a fake tool call, markdown exfiltration), the message and the history stay in their own blocks and the system rules stay the same; the real call sends the rules as the system prompt and the message only as user data, with a closed schema and a token cap; a web lookup runs in its own call with web search only (at most three searches), sees only a private-checked query, and comes back fenced in <web>, links stripped; Opus 5.5 only when Sonnet asks to go deeper, each call counted at its own price; hostile answers lose actions outside the set, links, markup, answers to questions nobody asked, private drafts and anything past the caps; no session, another site, private text, a spent budget, an unreadable ledger or a flood each stop the chat before Claude hears anything',
   },
 ];
 

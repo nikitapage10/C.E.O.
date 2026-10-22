@@ -9,6 +9,8 @@ import { useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
+import { useHide, useMasked } from "./hide.ts";
+import { Private } from "./Private.tsx";
 import { CrewRow, FoundryHead, FoundryStage, InFlight, logSpec, RunDials, UsageWoven, VqaChips, WeaveIdea } from "./FoundryWeave.tsx";
 import { useViz } from "./wvCanvas.ts";
 import { ChangePictures } from "./ChangePictures.tsx";
@@ -669,6 +671,8 @@ function savedPeriod(): Period {
  */
 function Usage({ now, setup, world, usage }: { now: number; setup: Setup; world: { status: ChronicleStatus; feed: WorldFeed | null }; usage: ReturnType<typeof useUsage> }) {
   const { feed, failed } = usage;
+  const mask = useMasked();
+  const hidden = useHide((h) => h.on);
   // The cap is shared with the living Lattice's hourly steps (docs/WORLD.md), so the meter counts both.
   // The day's story scripts (Claude Haiku) count against the same cap, with the world's hours.
   const worldUsd = (world.feed?.spend.usd ?? 0) + (world.feed?.story?.scriptUsd ?? 0);
@@ -718,7 +722,9 @@ function Usage({ now, setup, world, usage }: { now: number; setup: Setup; world:
           ) : (
             <>
               <p className="fy-spend__figure">
-                <b>{formatUsd(spend.usd)}</b>
+                <b>
+                  <Private>{formatUsd(spend.usd)}</Private>
+                </b>
                 <span>{label.toLowerCase()}</span>
               </p>
               <p className="fy-spend__calls">
@@ -733,15 +739,20 @@ function Usage({ now, setup, world, usage }: { now: number; setup: Setup; world:
                 role="meter"
                 aria-valuemin={0}
                 aria-valuemax={SPEND_CAP_USD}
-                aria-valuenow={Number(capUsed.toFixed(4))}
-                aria-label={`${formatUsd(capUsed)} of the $${SPEND_CAP_USD} monthly cap`}
+                aria-valuenow={hidden ? undefined : Number(capUsed.toFixed(4))}
+                aria-label={`${mask(formatUsd(capUsed))} of the $${SPEND_CAP_USD} monthly cap`}
                 title={`${(share * 100).toFixed(share < 0.01 ? 2 : 0)}% of the $${SPEND_CAP_USD} cap`}
               >
                 <i style={{ width: `${capUsed > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
               </div>
               <p className="fy-spend__calls">
-                {formatUsd(capUsed)} of ${SPEND_CAP_USD} cap · {month.month}
-                {worldUsd > 0 && ` · shaping ${formatUsd(month.usd)}, the living Lattice ${formatUsd(worldUsd)}`}
+                <Private>{formatUsd(capUsed)}</Private> of ${SPEND_CAP_USD} cap · {month.month}
+                {worldUsd > 0 && (
+                  <>
+                    {" · shaping "}
+                    <Private>{formatUsd(month.usd)}</Private>, the living Lattice <Private>{formatUsd(worldUsd)}</Private>
+                  </>
+                )}
               </p>
               <p className="quiet fy-usage__note">Counted from each call's own token use, written on its idea's trail.</p>
             </>
@@ -824,7 +835,9 @@ function WorldSpend({ now, world }: { now: number; world: { status: ChronicleSta
         <>
           <div className="fy-world__row">
             <p className="fy-spend__figure">
-              <b>{formatUsd(f.spend.usd)}</b>
+              <b>
+                <Private>{formatUsd(f.spend.usd)}</Private>
+              </b>
               <span>{month}</span>
             </p>
             <p className="fy-spend__calls">
@@ -852,6 +865,8 @@ function WorldSpend({ now, world }: { now: number; world: { status: ChronicleSta
  */
 function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
   const s = world.feed?.story;
+  const mask = useMasked();
+  const hidden = useHide((h) => h.on);
   const month = s ? new Date(`${s.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
   const share = s && s.budget > 0 ? Math.min(1, s.usd / s.budget) : 0;
   const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
@@ -864,11 +879,13 @@ function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFe
         <>
           <div className="fy-world__row">
             <p className="fy-spend__figure">
-              <b>{formatUsd(s.usd)}</b>
+              <b>
+                <Private>{formatUsd(s.usd)}</Private>
+              </b>
               <span>{month}</span>
             </p>
             <p className="fy-spend__calls">
-              {s.stories} {s.stories === 1 ? "story" : "stories"} read aloud · {s.tokensOut.toLocaleString()} audio tokens · scripts on Claude Haiku {formatUsd(s.scriptUsd)}
+              {s.stories} {s.stories === 1 ? "story" : "stories"} read aloud · {s.tokensOut.toLocaleString()} audio tokens · scripts on Claude Haiku <Private>{formatUsd(s.scriptUsd)}</Private>
             </p>
           </div>
           <div
@@ -876,8 +893,8 @@ function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFe
             role="meter"
             aria-valuemin={0}
             aria-valuemax={s.budget}
-            aria-valuenow={Number(s.usd.toFixed(4))}
-            aria-label={`${formatUsd(s.usd)} of Gemini's $${s.budget} monthly cap`}
+            aria-valuenow={hidden ? undefined : Number(s.usd.toFixed(4))}
+            aria-label={`${mask(formatUsd(s.usd))} of Gemini's $${s.budget} monthly cap`}
           >
             <i style={{ width: `${s.usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
           </div>

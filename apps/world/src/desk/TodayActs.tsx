@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { CREW, crewFor, type Crate } from "../foundry.ts";
-import { DESK_ROOMS, formatWait, portrait, useDesk, type DeskAction, type OwedReply } from "./deskData.ts";
+import { DESK_ROOMS, formatWait, portrait, useDesk, type DeskAction, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { ideaTitle, Mic, useIdeaChoice, type Setup } from "./IdeaCard.tsx";
 import { link } from "./nav.ts";
+import { Private } from "./Private.tsx";
 import { DeskSignIn } from "./SignIn.tsx";
 
 /**
@@ -36,6 +37,9 @@ function Said({ text }: { text: string }) {
     </p>
   );
 }
+
+/** Rooms whose asks carry Nikita's own life (messages, money, the house): their wording is veiled under Hide. */
+const personal = (room: DeskRoom) => room === "relay" || room === "spire" || room === "exchange" || room === "boiler";
 
 type CardStyle = React.CSSProperties & { "--i"?: number };
 
@@ -203,8 +207,8 @@ export function DecisionAct({ a, style }: { a: DeskAction; style?: CardStyle }) 
       <div className="wv-act-body">
         {pic ? <img className="wv-act-pf" src={pic} alt={a.agent} /> : <span className="wv-act-pf wv-act-can" aria-hidden="true" />}
         <div>
-          <h3 className="wv-h3">{a.title}</h3>
-          {a.detail && <p className="wv-act-p">{a.detail}</p>}
+          <h3 className="wv-h3">{personal(a.room) ? <Private>{a.title}</Private> : a.title}</h3>
+          {a.detail && <p className="wv-act-p">{personal(a.room) ? <Private>{a.detail}</Private> : a.detail}</p>}
         </div>
       </div>
       <div className="wv-act-do">
@@ -248,9 +252,17 @@ export function ReplyAct({ o, now, style }: { o: OwedReply; now: number; style?:
       <div className="wv-act-body">
         <img className="wv-act-pf" src={portrait("Blasto")!} alt="Blasto" />
         <div>
-          <h3 className="wv-h3">Reply to {o.name}</h3>
-          <p className="wv-act-p">“{o.preview}”</p>
-          {o.draft && <p className="wv-act-draft">{o.draft}</p>}
+          <h3 className="wv-h3">
+            Reply to <Private>{o.name}</Private>
+          </h3>
+          <p className="wv-act-p">
+            <Private>“{o.preview}”</Private>
+          </p>
+          {o.draft && (
+            <p className="wv-act-draft">
+              <Private>{o.draft}</Private>
+            </p>
+          )}
         </div>
       </div>
       <div className="wv-act-do">
@@ -291,7 +303,7 @@ export function LaterAct({ items, moreReplies, style }: { items: DeskAction[]; m
             <li key={a.id}>
               {pic && <img className="wv-act-pf is-sm" src={pic} alt="" />}
               <div>
-                <b>{a.title}</b>
+                <b>{personal(a.room) ? <Private>{a.title}</Private> : a.title}</b>
                 <span>
                   {DESK_ROOMS[a.room].name}, {a.agent}
                   {a.due ? ` · ${a.due}` : ""}

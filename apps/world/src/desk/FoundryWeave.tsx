@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, modelOf, recentWork, shippedToday, sparesAwake, type Change, type Crate, type CrewId, type FoundryData } from "../foundry.ts";
 import type { WorldFeed } from "../chronicle.ts";
 import { formatUsd, foundryJobs, monthSpend, SPEND_CAP_USD, workByModel, type UsageFeed } from "../usage.ts";
+import { Private } from "./Private.tsx";
 import { countdown, nextRuns, runTime } from "./crewRuns.ts";
 import { FOUNDRY_THREAD } from "./deskData.ts";
 import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "./IdeaCard.tsx";
@@ -853,7 +854,15 @@ export function UsageWoven({ usage, world, now, children }: { usage: UsageFeed |
       <div className="wv-sechead">
         <div>
           <p className="wv-eyb">Usage this month</p>
-          <h2 className="wv-h2">{known ? `${formatUsd(total)} of ${formatUsd(cap)} in caps` : "Reading the ledgers…"}</h2>
+          <h2 className="wv-h2">
+            {known ? (
+              <>
+                <Private>{formatUsd(total)}</Private> of {formatUsd(cap)} in caps
+              </>
+            ) : (
+              "Reading the ledgers…"
+            )}
+          </h2>
         </div>
       </div>
       <canvas ref={cv} className="wv-usage-cv" aria-hidden="true" />
@@ -863,7 +872,7 @@ export function UsageWoven({ usage, world, now, children }: { usage: UsageFeed |
             <i className="wv-dot" />
             <b>{p.b}</b>
             <span>{p.s}</span>
-            <em>{known ? formatUsd(p.usd) : "…"}</em>
+            <em>{known ? <Private>{formatUsd(p.usd)}</Private> : "…"}</em>
           </li>
         ))}
       </ul>

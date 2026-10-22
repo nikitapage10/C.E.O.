@@ -37,7 +37,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     next: "Claude agents with your store, email and payment connectors; outbound email needs your approval.",
   },
   exchange: {
-    blurb: "The trading floor for Polymarket and portfolio research. The ticker ring and the odds board run on Polymarket's live public odds; agents research markets, price them, and bring trade ideas to the vault.",
+    blurb: "The trading floor for Polymarket and portfolio research. Live: the ticker ring and the odds board run on Polymarket's live public odds, and the marquee over the back wall carries your own positions (market, side, odds now, P/L %) when you're signed in to the Desk, masked by Hide. No pretend trades.",
     stations: {
       post: "The Bookie's floating command podium, high in the back-right corner. The Exchange's submind prices every trade from here, nervously. It glides out over the room when it gives an order.",
       terminal: "Market research.",
@@ -50,7 +50,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     next: "The Bookie's own estimates beside the odds, and paper trades. Real trades stay off; any later would be approval-gated with caps.",
   },
   green: {
-    blurb: "Fantasy football HQ. Agents read your Sleeper league, projections and injury reports, then suggest waiver claims and lineup changes. The Desk's Green page has the whole board.",
+    blurb: "Fantasy football HQ, live from your Sleeper league: the scoreboard shows both teams, the projected score, the live score once games are on, and your win chance. Start-or-sit calls and pickups are on the Desk's Green page. No pretend claims.",
     stations: {
       post: "The Commentator's floating command podium, high in the back-right corner. The Green's submind calls the play by play from here. It glides out over the room when it gives an order.",
       "depth-chart": "Projections and injury reports.",

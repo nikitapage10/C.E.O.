@@ -979,7 +979,9 @@ export const WORLD_CAST: WorldCast = {
         "The C.E.O.'s book is open. On the Desk. Behind the passkey. Ask me the number and I'll give you a probability instead.",
         "Read-only. I read. I don't touch. The key could trade. My hands could also shake. Neither is happening.",
         "The ring's running on live odds now. If it says sixty-three, it's sixty-three. I checked. Twice. Sixty-three.",
-        "Feed's quiet. Board's dark. Better a dark board than a made-up one. Noco disagrees. Noco would."
+        "Feed's quiet. Board's dark. Better a dark board than a made-up one. Noco disagrees. Noco would.",
+        "No more pretend trades on this floor. The vault stays shut unless the C.E.O.'s real book needs it. Which it doesn't. Read-only.",
+        "The marquee's running the C.E.O.'s positions. Behind the passkey. Signed out, you get the odds and my sweating."
       ],
       "turf": [
         "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
@@ -993,7 +995,9 @@ export const WORLD_CAST: WorldCast = {
         "SLEEPER'S ON THE LINE, FOLKS. A real league. Real stats. For SOMEONE, finally.",
         "The ball's on their twenty-nine. That's the win chance. In yards. Percentages don't SCREAM.",
         "A waiver claim at the buzzer! A Hail Mary, folks! Not the Project kind. Rocky asked.",
-        "Start the hot hand, sit the cold one. The booth calls it. The C.E.O. makes the move in Sleeper."
+        "Start the hot hand, sit the cold one. The booth calls it. The C.E.O. makes the move in Sleeper.",
+        "THE SCOREBOARD IS REAL, FOLKS! Projected first, live once they kick off. No more practice games on this pitch!",
+        "Gridiron's not running fake drills anymore. Real league, real chart. He cried. I called it. LIVE."
       ],
       "static": [
         "Didn't hear it from me. You heard it from me.",

@@ -2,8 +2,9 @@ import { moveTone, pct, type PmMarket } from "../desk/exchange/polymarket.ts";
 
 /**
  * The ticker ring reads Polymarket's live public odds (#253, the board's own feed: apps/world/src/desk/exchange/
- * polymarket.ts): the busiest open markets, each with its odds and the day's move. Public market data only; nothing
- * from Nikita's own positions ever reaches the Lattice. Until the feed answers, the ring says so instead of making odds up.
+ * polymarket.ts): the busiest open markets, each with its odds and the day's move. Public market data only: Nikita's
+ * own positions show only on the marquee (liveBoards.ts), to a signed-in Desk session with Hide off, never on the ring
+ * or anything public. Until the feed answers, the ring says so instead of making odds up.
  */
 export function tickerChunks(top: readonly PmMarket[]): string[] {
   if (!top.length) return ["POLYMARKET · READING THE ODDS", "THE BOOKIE IS SWEATING ANYWAY"];

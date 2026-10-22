@@ -20,6 +20,7 @@ import {
 } from "@ceo/core";
 import { describe, expect, it } from "vitest";
 import { SAMPLE_AGENTS, SUBMINDS, isSubmind, submindOf } from "./agents.ts";
+import { isLiveRoom } from "./live.ts";
 import { COMMAND_COOLDOWN, Simulator } from "./simulator.ts";
 
 const TEN_MINUTES = 10 * 60 * 1000;
@@ -98,6 +99,40 @@ describe("the Relay's real line", () => {
     const state = applyEvents(emptyState(), events);
     expect(state.liveFeed).toEqual([]);
     expect(pendingApprovals(state, true)).toEqual([]);
+  });
+});
+
+describe("live rooms (LIVE_ROOMS)", () => {
+  it("the Exchange and the Green are live; rooms not yet connected keep their demo", () => {
+    for (const room of ["exchange", "green", "relay", "foundry"] as const) expect(isLiveRoom(room), room).toBe(true);
+    for (const room of ["spire", "archive", "workshop"] as const) expect(isLiveRoom(room), room).toBe(false);
+  });
+
+  it("no agent of a live room starts a demo task, reports progress or asks for a demo approval; they still idle and banter", () => {
+    const { events } = run(21, 3 * TEN_MINUTES);
+    const home = new Map(SAMPLE_AGENTS.map((a) => [a.id, a.home.room]));
+    const tasks = new Map<string, string>();
+    for (const e of events) {
+      if (e.type === "task.started") {
+        expect(isLiveRoom(home.get(e.agentId)!), `${e.agentId}: ${e.title}`).toBe(false);
+        tasks.set(e.taskId, e.agentId);
+      }
+      if (e.type === "task.progress" || e.type === "task.completed") expect(tasks.has(e.taskId)).toBe(true);
+      if (e.type === "approval.requested") expect(isLiveRoom(e.approval.room), e.approval.summary).toBe(false);
+    }
+    // Demo rooms keep theirs.
+    expect(events.some((e) => e.type === "task.started" && home.get(e.agentId) === "spire")).toBe(true);
+    for (const id of ["odds", "hedge", "gridiron", "punt", "ticker", "turf"]) {
+      expect(events.some((e) => e.type === "agent.quip" && e.agentId === id), id).toBe(true);
+    }
+  });
+
+  it("skips demo work even when a live room's agent is handed a scripted task", () => {
+    const sim = new Simulator({ seed: 4, agents: SAMPLE_AGENTS.filter((a) => a.id === "odds") });
+    sim.assign("odds", [{ kind: "task", title: "Research a pretend market" }, { kind: "progress", progress: 0.5 }, { kind: "approval", action: "trade.place", summary: "Buy YES · $5", amountUsd: 5, risk: "medium" }, { kind: "finish" }], 0);
+    const events = sim.advanceTo(TEN_MINUTES);
+    expect(events.filter((e) => e.type.startsWith("task.") || e.type === "approval.requested")).toEqual([]);
+    expect(sim.pendingApprovalIds()).toEqual([]);
   });
 });
 

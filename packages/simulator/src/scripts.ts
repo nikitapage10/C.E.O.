@@ -200,70 +200,32 @@ export const spireOperator: Script = ({ rng }) => {
   return steps;
 };
 
-const MARKETS = [
-  { ticker: "RAIN-NYC-SAT", q: "Will it rain in NYC on Saturday?" },
-  { ticker: "FED-CUT-DEC", q: "Fed cuts rates in December?" },
-  { ticker: "BOXOFFICE-WKND", q: "Weekend box office over $90M?" },
-  { ticker: "SNOW-DEN-NOV", q: "Denver snow before Nov 15?" },
+/**
+ * The Exchange is live (#240, #253): the ring and the odds board read Polymarket, and the C.E.O.'s positions sit on the
+ * marquee behind the passkey. The demo's research tasks and pretend trades are gone (LIVE_ROOMS); Noco and Hedge
+ * watch the real board from the terminal and the desks, and argue about it.
+ */
+export const exchangeQuant: Script = ({ rng }) => [
+  { kind: "go", station: rng.pick(["terminal", "desk-n", "desk-e", "desk-w"]) },
+  { kind: "do", activity: rng.pick(["staring", "idle", "staring"]), ms: rng.int(5000, 9000), prop: null },
+  { kind: "quip", chance: 0.3 },
+  { kind: "go", station: rng.pick(["desk-n", "desk-e", "desk-w", "terminal"]) },
+  { kind: "do", activity: rng.pick(["idle", "staring", "waiting"]), ms: rng.int(4000, 7000), prop: rng.chance(0.3) ? "mug" : null },
+  { kind: "set", activity: "idle", prop: null },
 ];
 
-export const exchangeQuant: Script = ({ rng }) => {
-  const m = rng.pick(MARKETS);
-  const steps: Step[] = [
-    { kind: "go", station: "terminal" },
-    { kind: "task", title: `Research ${m.ticker}` },
-    ...grind(rng, rng.int(6000, 9000), "typing", ["Reading 40 forecasts", "Model says 63%", "Market says 51%"]),
-    { kind: "go", station: rng.pick(["desk-n", "desk-e", "desk-w"]) },
-    work(rng.int(2500, 4000), "working"),
-    { kind: "finish", failRate: 0.1 },
-    { kind: "quip", chance: 0.4 },
-  ];
-  if (rng.chance(0.55)) {
-    const amount = rng.int(2, 25);
-    steps.push(
-      { kind: "set", activity: "carrying", prop: "coin" },
-      { kind: "go", station: "vault" },
-      {
-        kind: "approval",
-        action: "trade.place",
-        summary: `Buy YES on ${m.ticker} · $${amount}`,
-        detail: m.q,
-        amountUsd: amount,
-        target: m.ticker,
-        risk: amount > 15 ? "high" : "medium",
-      },
-      { kind: "do", activity: "waiting", ms: 2500, prop: null },
-    );
-  }
-  return steps;
-};
-
-const PLAYERS = ["a backup RB with vibes", "a WR coming off a bye", "the kicker everyone forgot", "a TE named after a weather event"];
-
-export const greenCoach: Script = ({ rng }) => {
-  const player = rng.pick(PLAYERS);
-  const steps: Step[] = [
-    { kind: "go", station: "depth-chart" },
-    { kind: "task", title: "Review projections & injury report" },
-    ...grind(rng, rng.int(5000, 8000), "working", ["Pulled league rosters", "Projections loaded", "Injury report: 'questionable'"]),
-    { kind: "finish", failRate: 0.05 },
-    { kind: "quip", chance: 0.35 },
-  ];
-  if (rng.chance(0.5)) {
-    steps.push(
-      { kind: "set", activity: "carrying", prop: "envelope" },
-      { kind: "go", station: "mailbox" },
-      { kind: "approval", action: "waiver.claim", summary: `Claim ${player}`, detail: "FAAB bid: $3. Drop: whoever's sad.", risk: "low" },
-      { kind: "do", activity: "working", ms: 1500, prop: null },
-    );
-  } else {
-    steps.push(
-      { kind: "go", station: "sideline" },
-      { kind: "approval", action: "lineup.set", summary: "Swap FLEX for this week", detail: `Start ${player}. Sleeper's API is read-only, so you tap it in.`, risk: "low" },
-    );
-  }
-  return steps;
-};
+/**
+ * The Green is live (#252): the scoreboard and the depth chart read the C.E.O.'s Sleeper league. No demo reviews and
+ * no pretend waiver claims (LIVE_ROOMS): Gridiron studies the real chart, paces the sideline and gives the speech.
+ */
+export const greenCoach: Script = ({ rng }) => [
+  { kind: "go", station: "depth-chart" },
+  { kind: "do", activity: rng.pick(["staring", "idle"]), ms: rng.int(5000, 8000), prop: null },
+  { kind: "quip", chance: 0.3 },
+  { kind: "go", station: rng.pick(["sideline", "huddle", "sideline"]) },
+  { kind: "do", activity: rng.pick(["idle", "staring", "celebrating"]), ms: rng.int(3000, 6000) },
+  { kind: "set", activity: "idle", prop: null },
+];
 
 export const greenPlayer: Script = ({ rng }) => [
   { kind: "go", station: "huddle" },

@@ -113,22 +113,26 @@ function Scoreboard({ board, status }: { board: GreenBoard | null; status: Green
   }
   const show = (s: { pts: number; proj: number }) => (m.live ? s.pts : s.proj);
   const ball = m.win === null ? null : yardLine(m.win);
+  // Projected first, then live, then the win chance (Nikita, 2026-10-22).
+  const live = (s: { pts: number }) => <i className="gl-live">Live {m.live ? pts(s.pts) : "–"}</i>;
   return (
     <div className="gl-pitch-in">
-      <div className="gr-board gl-lit" role="img" aria-label={`Week ${m.week}: ${m.me.team} ${m.live ? "" : "projected "}${pts(show(m.me))}, ${m.them ? `${m.them.team} ${pts(show(m.them))}` : "a bye"}${m.win !== null ? `. Win chance ${pct(m.win)}` : ""}.`}>
+      <div className="gr-board gl-lit" role="img" aria-label={`Week ${m.week}: projected ${m.me.team} ${pts(m.me.proj)}, ${m.them ? `${m.them.team} ${pts(m.them.proj)}` : "a bye"}${m.live && m.them ? `. Live ${pts(m.me.pts)} to ${pts(m.them.pts)}` : ""}${m.win !== null ? `. Win ${pct(m.win)}` : ""}.`}>
         <div className="gr-side">
           <span title={m.me.team}>{m.me.team}</span>
-          <b>{pts(show(m.me))}</b>
+          <b>{pts(m.me.proj)}</b>
+          {live(m.me)}
           <i>{m.me.record}</i>
         </div>
         <div className="gr-mid">
-          <span>{m.live ? "Live" : "Week"}</span>
-          <b>{m.week}</b>
+          <span>Week {m.week}</span>
+          <b>Proj</b>
           <em>Win {m.win === null ? "--" : pct(m.win)}</em>
         </div>
         <div className="gr-side">
           <span title={m.them?.team}>{m.them?.team ?? "Bye"}</span>
-          <b>{m.them ? pts(show(m.them)) : "--"}</b>
+          <b>{m.them ? pts(m.them.proj) : "--"}</b>
+          {m.them && live(m.them)}
           <i>{m.them?.record ?? ""}</i>
         </div>
       </div>

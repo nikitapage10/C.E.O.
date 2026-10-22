@@ -353,7 +353,7 @@ said what to whom. After midnight it files **the day in Ilyr**, a page on the wh
 to cut. When a job ships, its builder gets the last word on it in the Chronicle, in their own voice: Rocky's
 triple-word delight, Rivet's deadpan, Rusty's apology to his tools, the Builder's grudging "adequate". When the C.E.O.
 walks back into the Lattice, the agents are mid-conversation, Skippy reads the latest hour over the PA, and the
-Chronicle on the Desk has everything they missed.
+Archive on the Desk has everything they missed.
 
 The Lattice's hours have a budget, like everything beyond the Veil. Near the end of a lean month the Historian writes
 the hours from the agents' own well-worn lines instead: the same world, a little more predictable, until the month
@@ -375,6 +375,15 @@ sounds like a colleague"), and offered to re-record the day once in it. Like the
 Heimerdinger times every update and was delighted when it came in under forty-five seconds. Loremaster checks the
 dates in it. D20 has asked for a dice roll in the middle twice and been refused twice. If the C.E.O. can't wait for
 midnight, the Historian will read **the day so far**, once, and say "more by midnight".
+
+
+**The Desk's rooms.** On the C.E.O.'s Desk, beyond the Veil, each room keeps a page of its own, drawn in its own
+look: the Foundry's loom, the Relay's post, the Boiler Room's brass and steam, the Archive as an illuminated codex
+(with a blank sea chart kept for the Tide, the C.E.O.'s own campaign), the Spire as a gilded ledger, the Exchange
+as a trading floor at night under a mint ticker, the Green as a floodlit pitch with a dark scoreboard, and the
+Workshop as a maker's bench on blueprint paper with an empty turntable. A room whose real line isn't connected
+yet says so plainly and shows nothing made up. Each room's keeper stands at the top of its page and says what they
+are waiting on.
 
 ## Tomorrowlattice
 
@@ -425,6 +434,13 @@ past, and flips the DAYS SINCE LAST INCIDENT sign back to zero with visible desp
 always been there, and he is proud of it. Rusty wrote him a 71-page boiler manual, which levels the tool bench
 perfectly. Kevin naps on the warm side of the boiler, and Gary logs it as spiritual maintenance. The kettle on the
 bench whistles whenever something real is waiting on the C.E.O.
+
+
+**The house.** A new pipe went up on the wall in October, capped with a brass plate that says THE HOUSE. It is
+meant for the Home agent, who will live down here with the pipes: it will read the C.E.O.'s Google Nest
+thermostats and who is home, and walk the heat from room to room behind them. Until Google Nest lets it in
+(Device Access), the pipe stays cold and its three gauges rest at zero. Gary polishes them anyway. The Pessimist
+says a gauge that reads nothing can't read wrong, and has never been happier with a pipe.
 
 ## The Workshop
 

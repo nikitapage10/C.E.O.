@@ -258,6 +258,11 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
   let first = true;
   let hoverT: Thread | null = null;
   let bound: HTMLCanvasElement | null = null;
+  let size = "";
+  /** The re-weave: when a thread is opened or let go, a bright wave runs along it while it flows to its new path. */
+  let wave = 9;
+  let waveT: Thread | null = null;
+  let lastFoc: string | null = null;
 
   const geo = () =>
     phone
@@ -374,7 +379,7 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
     for (const t of threads) {
       const base = t === tide ? 1 : t === aux ? 0 : ships.includes(t) ? 0.5 : 0.42;
       t.alphaT = followed ? (t === followed ? 1 : 0.03) : base * (hoverT && hoverT.item === t.item && t.item ? 1.6 : 1);
-      t.k = followed === t ? 26 : 30;
+      t.k = followed === t ? 11 : followed ? 30 : 16;
     }
     if (followed) focusPts(followed, W, H);
     if (followed === aux && foc) {
@@ -422,6 +427,22 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
     c.stroke();
     const kn = knots.filter((k) => k.t === t && k.s > 0.02);
     const L = t.len;
+    // The re-weave wave: a bright front running the thread's length over 1.4 s, quickening the motes it passes.
+    const wv = waveT === t && wave < 1.6 ? wave / 1.4 : -1;
+    if (wv >= 0) {
+      const S2 = t.s;
+      const m0 = Math.max(0, Math.floor((wv - 0.18) * (M - 1)));
+      const m1 = Math.min(M - 1, Math.floor(wv * (M - 1)));
+      if (m1 > m0) {
+        c.globalAlpha = 1;
+        c.beginPath();
+        c.moveTo(S2[2 * m0]!, S2[2 * m0 + 1]!);
+        for (let m = m0 + 1; m <= m1; m++) c.lineTo(S2[2 * m]!, S2[2 * m + 1]!);
+        c.strokeStyle = `rgba(${t.rgb},${0.55 * a * (1 - Math.max(0, wv - 1) * 2.5)})`;
+        c.lineWidth = 1.6;
+        c.stroke();
+      }
+    }
     const sp1 = spr(t.rgb);
     const sprC = spr(t.hi);
     for (let i = 0; i < t.n; i++) {
@@ -443,8 +464,12 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
           boost = Math.max(boost, f);
         }
       }
+      if (wv >= 0) {
+        const dw = wv - u;
+        if (dw > 0 && dw < 0.18) boost = Math.max(boost, 1 - dw / 0.18);
+      }
       if (!rm) {
-        u += (t.pv[i]! * slow * dt) / L;
+        u += (t.pv[i]! * slow * (1 + boost * 1.6) * dt) / L;
         if (u > 1) {
           u -= 1;
           t.po[i] = gauss();
@@ -546,7 +571,10 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
       phone = V.W < 640;
       gx = phone ? 22 : Math.round(clamp(V.W * 0.27, 200, 380));
       ctl.current.host?.style.setProperty("--wv-gx", `${gx}px`);
-      first = true;
+      // Snap only when the stage itself changes size; opening a knot re-lays the stage and the threads flow there.
+      const sz = `${V.W}x${V.H}`;
+      if (sz !== size) first = true;
+      size = sz;
       bind(V);
     },
     draw(V, c, _t, dt0) {
@@ -556,6 +584,13 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
       const snap = first || rm;
       layout(V);
       const cur = ctl.current;
+      const fNow = cur.level > 0 ? cur.focus : null;
+      if (fNow !== lastFoc) {
+        waveT = threadOf(fNow ?? lastFoc);
+        wave = snap ? 9 : 0;
+        lastFoc = fNow;
+      }
+      wave += dt;
       const host = cur.host;
       // The open knot sits beside the details' title.
       if (cur.focus && host) {

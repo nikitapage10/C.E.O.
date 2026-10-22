@@ -62,6 +62,13 @@ test("the Desk and each of its tabs raise no CSP violation", async ({ page }) =>
     await tab.click();
     await page.waitForTimeout(400);
   }
+  // The rooms, from the Rooms menu (#225): each has its own page, and none may trip the policy.
+  for (const room of ["boiler", "archive", "spire", "exchange", "green", "workshop"]) {
+    await page.locator(".wv-rooms-btn").click();
+    await page.locator(`.wv-roomsmenu a[href="/${room}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/${room}$`));
+    await page.waitForTimeout(400);
+  }
   await page.waitForTimeout(1000);
   expect(seen).toEqual([]);
 });

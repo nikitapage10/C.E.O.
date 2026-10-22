@@ -12,7 +12,7 @@ import { DESK_ROOMS, roomImage, type DeskData } from "./deskData.ts";
 import { ideaTitle } from "./IdeaCard.tsx";
 import { link } from "./nav.ts";
 import { ROOM_META, type RoomPulse } from "./roomPulse.ts";
-import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, sprMix, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion } from "./wvCanvas.ts";
+import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, sprMix, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion, eOut } from "./wvCanvas.ts";
 
 /**
  * Today below the hero, as the approved Weave lays it out: the nine rooms as lanes through the day beside the world
@@ -64,7 +64,8 @@ export function LatticeToday({ pulses, now, awaySince, world }: { pulses: RoomPu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to, minute]);
 
-  const spec = useMemo<VizSpec>(() => lanesSpec(pulses, from, to, now, awaySince), [pulses, from, to, now, awaySince]);
+  const born = useRef(-1);
+  const spec = useMemo<VizSpec>(() => lanesSpec(pulses, from, to, now, awaySince, born), [pulses, from, to, now, awaySince]);
   useViz(cv, spec);
   const lead = pulses.find((p) => p.state === "busy") ?? pulses.find((p) => p.real && p.events.length);
   const waiting = pulses.filter((p) => p.state === "waiting" && p.real);
@@ -148,9 +149,11 @@ export function LatticeToday({ pulses, now, awaySince, world }: { pulses: RoomPu
   );
 }
 
-function lanesSpec(pulses: RoomPulse[], from: number, to: number, now: number, away: number): VizSpec {
-  type L = { el: HTMLElement; p: RoomPulse; st: Lane; y: number; x0: number; x1: number; nx: number; poly: Poly; ev: number[]; P: Parts; I: (u: number) => number };
+function lanesSpec(pulses: RoomPulse[], from: number, to: number, now: number, away: number, bornRef: { current: number }): VizSpec {
+  type L = { el: HTMLElement; p: RoomPulse; st: Lane; y: number; x0: number; x1: number; nx: number; poly: Poly; xs: number[]; ys: number[]; ev: number[]; P: Parts; I: (u: number) => number };
   let lanes: L[] = [];
+  /** When the lanes first drew (kept across polls by the page): each flows out from the morning to now, one after another, then keeps a slow swell. */
+  const born = bornRef;
   let top = 0;
   let bot = 0;
   let nx = 0;
@@ -194,6 +197,8 @@ function lanesSpec(pulses: RoomPulse[], from: number, to: number, now: number, a
           x1,
           nx: n,
           poly: new Poly().set(xs, ys),
+          xs,
+          ys,
           ev: p.events.filter((t) => t >= from && t <= now).map(X),
           P: new Parts(st === "wait" ? 18 : st === "off" ? 6 : st === "quiet" ? 14 : Math.round(30 + tot * 3), 0.12),
           I: (u) => {
@@ -214,6 +219,21 @@ function lanesSpec(pulses: RoomPulse[], from: number, to: number, now: number, a
     },
     draw(V, c, t, dt) {
       if (!lanes.length) return;
+      const rm = reducedMotion();
+      if (born.current < 0) born.current = t;
+      const t0 = born.current;
+      lanes.forEach((ln, i) => {
+        const grow = rm ? 1 : eOut((t - t0 - i * 0.07) / 1.1);
+        const hov = ln.el.matches(":hover") || ln.el.classList.contains("is-on");
+        const amp = rm || ln.st === "wait" || ln.st === "down" ? 0 : (ln.st === "busy" ? 1.6 : ln.st === "active" ? 1.1 : 0.6) * (hov ? 1.8 : 1);
+        const end = ln.x0 + (ln.nx - ln.x0) * Math.max(0.002, grow);
+        for (let k = 0; k <= 40; k++) {
+          const u = k / 40;
+          ln.xs[k] = ln.x0 + (end - ln.x0) * u;
+          ln.ys[k] = ln.y + Math.sin(u * TAU * 2.2 - t * 1.3 + i * 0.8) * amp * Math.sin(u * Math.PI);
+        }
+        ln.poly.set(ln.xs, ln.ys);
+      });
       if (ax < nx) {
         c.globalCompositeOperation = "source-over";
         c.fillStyle = "rgba(236,238,243,.035)";
@@ -802,7 +822,7 @@ export function ComingUp({ now }: { now: number }) {
         <canvas ref={cv} className="wv-cv" aria-hidden="true" />
         <ul className="wv-strip-l">
           {items.map((i, k) => (
-            <li key={i.key} data-room={i.room} data-at={i.at} className={k % 2 ? "is-lo" : undefined}>
+            <li key={i.key} data-room={i.room} data-at={i.at}>
               <b>{i.what}</b>
               <span>{k === 0 ? `in ${i.when}` : i.when}</span>
             </li>
@@ -864,8 +884,15 @@ function stripSpec(ats: number[], band: [number, number], now: number, end: numb
         night = null;
       } else {
         const y0 = V.H * 0.5;
+        // Labels take the row above or below the thread, whichever is clear, so two close runs never overlap.
+        const last = [-1e9, -1e9];
         lis.forEach((li, i) => {
           const x = pad + f(Number(li.dataset.at)) * (V.W - 2 * pad);
+          const w = li.offsetWidth;
+          const l0 = x < 160 ? x - 8 : x - w / 2;
+          const row = l0 > last[0]! + 14 ? 0 : l0 > last[1]! + 14 ? 1 : last[0]! <= last[1]! ? 0 : 1;
+          last[row] = l0 + w;
+          li.classList.toggle("is-lo", row === 1);
           li.style.left = `${x}px`;
           li.style.top = `${y0}px`;
           li.style.transform = "";

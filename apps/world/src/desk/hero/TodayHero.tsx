@@ -116,9 +116,14 @@ export function TodayHero({ now, pulses, todo, onPre }: { now: number; pulses: R
             </p>
           </div>
           <h1 className={`desk__title wv-greet${write ? "" : " is-writing"}`} aria-label={text}>
-            {text.split("").map((ch, i) => (
-              <span key={`${run}-${i}`} className="wv-ch" aria-hidden="true" style={write ? ({ "--d": `${write.start + i * write.step}ms` } as React.CSSProperties) : undefined}>
-                {ch}
+            {words(text).map((w) => (
+              // Each word holds together, so a narrow screen breaks between words and never inside a name.
+              <span key={`${run}-${w.at}`} className="wv-wd" aria-hidden="true">
+                {w.text.split("").map((ch, k) => (
+                  <span key={k} className="wv-ch" style={write ? ({ "--d": `${write.start + (w.at + k) * write.step}ms` } as React.CSSProperties) : undefined}>
+                    {ch}
+                  </span>
+                ))}
               </span>
             ))}
           </h1>
@@ -184,3 +189,12 @@ const partWord = (now: number) => {
   const h = new Date(now).getHours();
   return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
 };
+
+/** The greeting's words with where each starts, spaces kept on the word before so the letters keep their timing. */
+function words(text: string) {
+  const out: { text: string; at: number }[] = [];
+  const re = /\S+\s*/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) out.push({ text: m[0], at: m.index });
+  return out;
+}

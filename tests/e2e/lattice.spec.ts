@@ -183,7 +183,7 @@ test("the Desk opens first without loading the Lattice", async ({ page }) => {
   page.on("request", (r) => r.resourceType() === "script" && scripts.push(r.url()));
   await page.goto("/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
-  await page.keyboard.press("2");
+  await page.keyboard.press("3");
   await expect(page).toHaveURL(/\/relay$/);
   await expect(page.locator(".desk__title")).toHaveText(/^Relay\b/);
   expect(scripts.some((u) => /three|App\.tsx|\/App-/.test(u))).toBe(false);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BAD, bez, knot, Parts, Poly, RC, reducedMotion, RUN, TAU, weave, WHITE, useViz, type VizSpec } from "./wvCanvas.ts";
+import { BAD, bez, eOut, knot, Parts, Poly, RC, reducedMotion, RUN, TAU, weave, WHITE, useViz, type VizSpec } from "./wvCanvas.ts";
 import { GH, GL, type Flow, type FlowId, type GEdge, type GNode, type GState } from "./systemsGraph.ts";
 
 /**
@@ -7,6 +7,8 @@ import { GH, GL, type Flow, type FlowId, type GEdge, type GNode, type GState } f
  * light in its room's colour, dashed while it isn't connected yet. Picking a room re-weaves the graph into that room's
  * whole flow and opens a panel with every step: what travels, how it signs in, how often. The model is systemsGraph.ts.
  */
+
+const BRASS = "198,150,84";
 
 const ROOM_NAME: Record<string, string> = { foundry: "Foundry", boiler: "Boiler Room", archive: "Archive", relay: "Relay" };
 const STATE_WORD: Record<GState, string> = { ok: "Working", run: "Running now", wait: "Not connected yet", bad: "Down" };
@@ -32,6 +34,8 @@ interface Live {
   ys: number[];
   P: Parts;
   ctr: string;
+  /** How far the thread has flowed out from its first node, 0 to 1: a new connection runs along its pipe. */
+  gr: number;
 }
 
 export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Record<string, GNode>; over: GEdge[]; flows: Record<FlowId, Flow>; mode: "overview" | FlowId; setMode: (m: "overview" | FlowId) => void }) {
@@ -76,8 +80,9 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
     S.live = edges.map((e, i) => {
       const had = prev.get(`${e.a}>${e.b}`);
       if (had && had.e.state === e.state) return { ...had, e, i };
+      const gr = had ? 1 : 0;
       const n = e.state === "wait" ? 18 : e.state === "run" ? 120 : 80;
-      return { e, i, al: had?.al ?? 0, aT: 1, poly: new Poly(), xs: new Array<number>(32), ys: new Array<number>(32), P: new Parts(n, 0.12), ctr: "" };
+      return { e, i, al: had?.al ?? 0, aT: 1, poly: new Poly(), xs: new Array<number>(32), ys: new Array<number>(32), P: new Parts(n, 0.12), ctr: "", gr };
     });
     S.mode = mode;
     vz.current?.relayout();
@@ -120,7 +125,10 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
       const dy = B.y - A.y;
       if (Math.abs(dx) >= Math.abs(dy) * 0.8) bez(A.x, A.y, A.x + dx * 0.5, A.y, B.x - dx * 0.5, B.y, B.x, B.y, 32, l.xs, l.ys);
       else bez(A.x, A.y, A.x, A.y + dy * 0.5, B.x, B.y - dy * 0.5, B.x, B.y, 32, l.xs, l.ys);
-      l.poly.set(l.xs, l.ys);
+      if (l.gr < 1) {
+        const m = Math.max(2, Math.ceil(32 * eOut(l.gr)));
+        l.poly.set(l.xs.slice(0, m), l.ys.slice(0, m));
+      } else l.poly.set(l.xs, l.ys);
       return true;
     };
     return {
@@ -159,6 +167,7 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
         const sl = S.sel;
         for (const l of [...S.live, ...S.old]) {
           l.al += (l.aT - l.al) * (rm ? 1 : Math.min(1, (dt || 0.016) * 4));
+          l.gr = rm ? 1 : Math.min(1, l.gr + (dt || 0.016) * 1.25);
           if (l.al < 0.02) continue;
           const A = S.pos[l.e.a];
           const B = S.pos[l.e.b];
@@ -170,6 +179,18 @@ export function SystemsGraph({ nodes, over, flows, mode, setMode }: { nodes: Rec
           else if (sl?.node) hi = l.e.a === sl.node || l.e.b === sl.node ? 1.6 : 0.3;
           const a = l.al * hi;
           const s = l.e.state;
+          // The pipe under the thread: a brass under-stroke, the Boiler Room's pipework.
+          c.globalAlpha = 1;
+          c.beginPath();
+          c.moveTo(l.poly.x[0]!, l.poly.y[0]!);
+          for (let q = 1; q < l.poly.n; q++) c.lineTo(l.poly.x[q]!, l.poly.y[q]!);
+          c.lineCap = "round";
+          c.strokeStyle = `rgba(${BRASS},${0.13 * a})`;
+          c.lineWidth = 6;
+          c.stroke();
+          c.strokeStyle = `rgba(${BRASS},${0.07 * a})`;
+          c.lineWidth = 9;
+          c.stroke();
           if (s === "wait") weave(c, l.poly, l.P, { a: 0.6 * a, sp: 0.7, sz: 0.7, v: 0, rgb, line: 0.5 * a, dash: [3, 5], nofade: true }, t, 0);
           else weave(c, l.poly, l.P, { a: (s === "run" ? 1.7 : 1.35) * a, sp: s === "run" ? 2.4 : 1.8, sz: s === "run" ? 1.05 : 0.92, v: s === "run" ? 70 : s === "bad" ? 8 : 34, rgb: s === "bad" ? BAD : rgb, rgb2: s === "run" ? RUN : WHITE, line: (s === "run" ? 0.46 : 0.34) * a, lw: s === "run" ? 1.3 : 1, jit: 0.3 }, t, dt);
           const chip = l.aT > 0 ? box.querySelector<HTMLElement>(`.wv-gchip[data-i="${l.i}"]`) : null;

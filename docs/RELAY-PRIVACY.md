@@ -19,6 +19,10 @@ The parts: BlueBubbles (the bridge to Messages), a Node hub in `apps/hub` under 
 Tailscale if Nikita wants Relay away from home, a local database, and two OpenAI models: **Dialtone** sorts and
 summarises, **Blasto** drafts. The OpenAI key is in the Keychain.
 
+**Email is a separate line** (#263): Gmail, read-only, sorted by Claude on the Azure copy, not on the Mac. Its own
+rules (what is read, sealed, shown and logged) are in [GMAIL.md](GMAIL.md); like the hub, it gives the public site
+counts and states only.
+
 ## The rules in brief
 
 1. **Messages stay on the Mac.** Message text, contacts, handles, drafts, summaries, style examples and dictation

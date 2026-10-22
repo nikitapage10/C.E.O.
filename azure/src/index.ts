@@ -12,6 +12,8 @@ import { registerAzureBlob } from "../../api/_blob.js";
 import * as daystory from "../../api/day-story.js";
 import * as deskauth from "../../api/desk-auth.js";
 import * as deskpings from "../../api/desk-pings.js";
+import * as email from "../../api/_email/route.js";
+import { runEmailTick } from "../../api/_email/live.js";
 import * as foundryfeed from "../../api/foundry-feed.js";
 import * as foundryimage from "../../api/foundry-image.js";
 import * as foundryusage from "../../api/foundry-usage.js";
@@ -44,6 +46,11 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["day-story", daystory],
   ["desk-auth", deskauth],
   ["desk-pings", deskpings],
+  // The email agent (#263): Gmail, read-only, sorted by Claude. Azure only: its keys live only in this Function App.
+  // GET ?view=status is the public counts; the rest needs the Desk's passkey session (api/_email/route.ts).
+  ["email", email],
+  // Where Google sends the browser back after Connect Gmail (the OAuth client's redirect URI).
+  ["gmail-callback", email],
   // The Exchange's Polymarket board (#240): its own endpoint here; on Vercel a rewrite into api/world.ts.
   ["exchange-markets", exchangemarkets],
   // Nikita's Polymarket US positions (#253): Desk session only; the key lives only in this Function App's settings.
@@ -58,6 +65,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["site-login", sitelogin],
   ["site-password", sitepassword],
   ["skippy", skippy],
+  // What Nikita asked Skippy, by room (#273): Desk session only; on Vercel a rewrite into api/skippy.ts.
+  ["skippy-log", skippy],
   ["visual-qa-feed", visualqafeed],
   // Called on the Function App's own URL (no proxy cut), so the step waits for its day and week stories.
   ["world-step", worldstep, { settleMs: Infinity }],
@@ -86,5 +95,17 @@ app.timer("world_tick", {
   schedule: TICK_SCHEDULE,
   handler: async (_timer, context) => {
     await tick({ step: () => worldstep.POST(), fetch, env: process.env, log: { log: (m: string) => context.log(m), error: (m: string) => context.error(m) } });
+  },
+});
+
+// The email agent's minute (#263, docs/GMAIL.md): Gmail's history every minute, Claude only for new inbox mail.
+// Logs only what happened, by kind ("checked", "busy", "waiting"…), never anything from a mail.
+app.timer("email_tick", {
+  schedule: "0 * * * * *",
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    const result = await runEmailTick().catch(() => "error" as const);
+    if (result === "error") context.warn("email tick: error");
   },
 });

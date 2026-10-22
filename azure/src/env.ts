@@ -34,6 +34,10 @@ export const SECRET_SETTINGS = [
   // Optional (#253): the Exchange's positions wait for them.
   "POLYMARKET_US_KEY_ID",
   "POLYMARKET_US_SECRET_KEY",
+  // The email agent (#263): Google's OAuth client and the key that seals the Gmail token at rest.
+  "GMAIL_CLIENT_ID",
+  "GMAIL_CLIENT_SECRET",
+  "GMAIL_TOKEN_KEY",
 ] as const;
 
 /** Whether a setting's value is an unresolved Key Vault reference (the platform's own spelling, in any case). */

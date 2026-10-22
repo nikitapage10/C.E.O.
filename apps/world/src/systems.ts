@@ -6,6 +6,7 @@ import { create } from "zustand";
  * so the Desk can load it alone.
  *
  * Relay's links come from the hub on the MacBook (phase 2); until it exists they are "off" (not connected yet).
+ * Gmail's comes from the email agent on the Azure copy (desk/email/email.ts, #263).
  * The Foundry's come from GitHub (see foundry.ts). The world clock comes from the living Lattice's hourly step
  * (worldClock.ts). Polymarket's odds come from the Exchange's board (desk/exchange/polymarket.ts, #240), read while a
  * Desk page that shows them is open; Sleeper and FantasyPros from the Green's league board (desk/green/league.ts, #252).
@@ -45,6 +46,8 @@ const LINKS: Link[] = [
   { id: "messages", label: "Messages", what: "Signed in on the Mac", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "openai", label: "OpenAI", what: "Sorting, drafting and voice", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "mac", label: "MacBook", what: "Awake, on power, online", kind: "machine", room: "relay", state: "off", load: 0, lastSeen: null },
+  // The email agent (#263): Gmail read-only from the Azure copy, its state from desk/email/email.ts.
+  { id: "gmail", label: "Gmail", what: "Your inbox, read-only, checked every minute on the Azure copy", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "checks", label: "Checks", what: "Types, lint, tests and build on main, on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "e2e", label: "Nightly browser tests", what: "The Lattice and Desk in a real browser, nightly on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "live", label: "Live site", what: "The live Desk and Lattice open in a browser, hourly on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },

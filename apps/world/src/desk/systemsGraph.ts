@@ -121,7 +121,7 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     foundry: { id: "foundry", l: "Foundry", s: building ? `${building} is building` : "the coding crew", k: "room", room: "foundry", state: foundryRoom },
     boiler: { id: "boiler", l: "Boiler Room", s: "the world clock", k: "room", room: "boiler", state: G_STATE[clock.state] },
     archive: { id: "archive", l: "Archive", s: "the day's story", k: "room", room: "archive", state: story ? (story.gemini ? "ok" : "wait") : "wait" },
-    relay: { id: "relay", l: "Relay", s: relayLive ? "the hub is up" : "waiting on the Mac", k: "room", room: "relay", state: relayLive ? hub : "wait" },
+    relay: { id: "relay", l: "Relay", s: relayLive ? "the hub is up" : L("gmail") !== "wait" ? "email is live" : "waiting on the Mac", k: "room", room: "relay", state: relayLive ? hub : L("gmail") },
     github: { id: "github", l: "GitHub", s: "issues, checks, Actions", k: "service", state: connected ? "ok" : "wait" },
     claudecode: { id: "claudecode", l: "Claude Code", s: "the Builder's thread", k: "agent", state: building ? "run" : connected ? "ok" : "wait" },
     claude: { id: "claude", l: "Claude API", s: "Haiku", k: "service", state: world?.claude || fnode("shaping")?.state === "ok" ? "ok" : "wait" },
@@ -154,6 +154,8 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     // The Green's real connections (#252): Sleeper's public league data, and FantasyPros where its key is set.
     green: { id: "green", l: "Green", s: L("sleeper") === "wait" ? "Sleeper not read yet" : "your Sleeper league", k: "room", room: "green", state: L("sleeper") },
     sleeper: { id: "sleeper", l: "Sleeper", s: "league, read-only", k: "service", state: L("sleeper") },
+    // The email agent (#263): Gmail read-only, from the Azure copy.
+    gmail: { id: "gmail", l: "Gmail", s: L("gmail") === "wait" ? "on the Azure copy" : "read-only, every minute", k: "service", state: L("gmail") },
     fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "key on Azure only" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
@@ -186,6 +188,7 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     e("relay", "bluebubbles", "relay", nodes.bluebubbles!.state),
     e("relay", "openai", "relay", nodes.openai!.state),
     e("relay", "lattice", "relay", nodes.relay!.state),
+    { ...e("relay", "gmail", "relay", nodes.gmail!.state), label: "Your inbox", how: conn("gmail")?.how, ...fromConn("gmail") },
     e("desk", "exchange", "exchange", nodes.exchange!.state),
     { ...e("exchange", "polymarket", "exchange", nodes.polymarket!.state), label: "Live odds", how: conn("polymarket")?.how, ...fromConn("polymarket") },
     e("desk", "green", "green", nodes.green!.state),
@@ -270,6 +273,8 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
         { a: "openai", b: "blasto", room: "relay", state: nodes.blasto!.state, label: "Drafts in your voice", kinds: ["Agent"], how: "Blasto writes a reply in your voice and waits for your tap.", auth: "Local to the hub.", when: "Only for replies you owe." },
         { a: "blasto", b: "you", room: "relay", state: nodes.blasto!.state, label: "A tap to send", kinds: [], how: "Nothing is ever sent without you.", auth: "You.", when: "When you say so." },
         { a: "hub", b: "lattice", room: "relay", state: nodes.hub!.state, label: "Live events", how: conn("hub-socket")?.how ?? "", ...fromConn("hub-socket") },
+        { a: "gmail", b: "dialtone", room: "relay", state: nodes.gmail!.state, label: "Sorts new mail", how: conn("gmail")?.how ?? "", ...fromConn("gmail") },
+        { a: "gmail", b: "blasto", room: "relay", state: nodes.gmail!.state, label: "Advice and drafts", kinds: ["Agent"], how: "For mail that needs you, Blasto writes short advice and a draft for you to copy. Nothing is sent.", auth: "Read-only Gmail; your passkey to see it.", when: "Only for needs-you mail, under the email cap." },
       ],
     },
   };
@@ -353,13 +358,13 @@ export const GL: Record<"d" | "p", Record<FlowId, Lay>> = {
     foundry: { you: [0.04, 0.5], desk: [0.14, 0.5], shaping: [0.26, 0.24], pictures: [0.26, 0.8], issues: [0.37, 0.5], pings: [0.45, 0.84], queue: [0.48, 0.5], builder: [0.58, 0.5], rivet: [0.69, 0.2], rusty: [0.69, 0.5], rocky: [0.69, 0.8], checks: [0.8, 0.5], vqa: [0.82, 0.84], main: [0.88, 0.3], deploy: [0.96, 0.52] },
     boiler: { cron: [0.1, 0.3], doorbell: [0.1, 0.74], step: [0.34, 0.52], claude: [0.58, 0.24], worldstate: [0.58, 0.78], clock: [0.84, 0.3], lattice: [0.86, 0.78] },
     archive: { midnight: [0.1, 0.28], history: [0.1, 0.74], script: [0.34, 0.52], speech: [0.56, 0.28], audio: [0.74, 0.66], chron: [0.92, 0.42] },
-    relay: { mac: [0.06, 0.5], hub: [0.24, 0.5], lattice: [0.26, 0.86], bluebubbles: [0.46, 0.2], messages: [0.46, 0.5], openai: [0.46, 0.8], dialtone: [0.68, 0.32], blasto: [0.7, 0.7], you: [0.92, 0.5] },
+    relay: { mac: [0.06, 0.5], hub: [0.24, 0.5], gmail: [0.24, 0.14], lattice: [0.26, 0.86], bluebubbles: [0.46, 0.2], messages: [0.46, 0.5], openai: [0.46, 0.8], dialtone: [0.68, 0.32], blasto: [0.7, 0.7], you: [0.92, 0.5] },
   },
   p: {
     foundry: { you: [0.5, 0.03], desk: [0.5, 0.11], shaping: [0.2, 0.2], pictures: [0.8, 0.2], issues: [0.5, 0.29], pings: [0.84, 0.36], queue: [0.5, 0.39], builder: [0.5, 0.48], rivet: [0.16, 0.58], rusty: [0.5, 0.58], rocky: [0.84, 0.58], checks: [0.5, 0.68], vqa: [0.84, 0.76], main: [0.5, 0.8], deploy: [0.5, 0.92] },
     boiler: { cron: [0.25, 0.08], doorbell: [0.75, 0.08], step: [0.5, 0.3], claude: [0.22, 0.52], worldstate: [0.78, 0.52], clock: [0.22, 0.76], lattice: [0.78, 0.76] },
     archive: { midnight: [0.25, 0.08], history: [0.75, 0.08], script: [0.5, 0.3], speech: [0.5, 0.5], audio: [0.5, 0.7], chron: [0.5, 0.9] },
-    relay: { mac: [0.5, 0.05], hub: [0.5, 0.19], lattice: [0.86, 0.2], bluebubbles: [0.16, 0.38], messages: [0.5, 0.38], openai: [0.84, 0.38], dialtone: [0.3, 0.6], blasto: [0.7, 0.6], you: [0.5, 0.84] },
+    relay: { mac: [0.5, 0.05], hub: [0.5, 0.19], gmail: [0.14, 0.2], lattice: [0.86, 0.2], bluebubbles: [0.16, 0.38], messages: [0.5, 0.38], openai: [0.84, 0.38], dialtone: [0.3, 0.6], blasto: [0.7, 0.6], you: [0.5, 0.84] },
   },
 };
 export const GH: Record<"d" | "p", Record<FlowId, number>> = {

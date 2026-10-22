@@ -1,8 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
 import { useMasked } from "./hide.ts";
+import { EmailSection } from "./email/EmailSection.tsx";
 import { Private } from "./Private.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
+import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
 import { isPhone, knot, Parts, Poly, RC, ring, spr, useViz, type VizSpec } from "./wvCanvas.ts";
@@ -60,8 +62,11 @@ const CHAIN = [
   { b: "You", s: "A tap to send" },
 ];
 
-/** Before the hub is connected: what Relay will do, and the one thing it waits on. No made-up messages. */
-function RelayLater() {
+/**
+ * Before the hub is connected: what Relay will do for texts, and the one thing it waits on. No made-up messages.
+ * Email (#263) doesn't wait on the Mac: it runs on the Azure copy, so its section is live here already.
+ */
+function RelayLater({ now }: { now: number }) {
   const spec = useMemo(() => chainSpec(), []);
   const cv = useRef<HTMLCanvasElement>(null);
   useViz(cv, spec);
@@ -74,8 +79,11 @@ function RelayLater() {
         <h1 className="wv-h1 desk__title">
           Relay comes <em style={{ color: "var(--rc-relay)" }}>later.</em>
         </h1>
-        <p className="wv-sub">It will keep track of who you owe a reply, sort the urgent from the rest, and draft answers in your voice for a tap to send. It waits on one thing: the MacBook.</p>
+        <p className="wv-sub">For texts, it will keep track of who you owe a reply, sort the urgent from the rest, and draft answers in your voice for a tap to send. That waits on one thing: the MacBook. Email is here already.</p>
       </header>
+      <EmailSection now={now} />
+
+      <AskedSkippy room="relay" />
       <section className="wv-chain" aria-label="What Relay waits on">
         <canvas ref={cv} className="wv-cv" aria-hidden="true" />
         <ol className="wv-chain-l">
@@ -99,7 +107,7 @@ function RelayLater() {
 }
 
 export function Relay({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
-  if (!connected) return <RelayLater />;
+  if (!connected) return <RelayLater now={now} />;
   return <RelayLive data={data} now={now} connected={connected} />;
 }
 
@@ -341,6 +349,10 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
           </div>
         </Panel>
       </div>
+
+      <EmailSection now={now} />
+
+      <AskedSkippy room="relay" />
 
       <div className="habits">
         <Panel eyebrow="Reply time, last 7 days" className="panel--strip">

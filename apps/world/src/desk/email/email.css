@@ -1,0 +1,183 @@
+/*
+ * The Relay page's Email section (#263), in the Weave's language (wv.css): a glass card, hairlines, the Relay's own
+ * colour for the eyebrow. Private text is wrapped in <Private> for Hide mode (#251).
+ */
+
+.em {
+  margin: 28px 0 8px;
+  padding: 22px 24px;
+  border: 1px solid var(--wv-line2, rgba(236, 238, 243, 0.15));
+  border-radius: 18px;
+  background: var(--wv-card, rgba(20, 22, 29, 0.72));
+  color: var(--wv-ink, #eceef3);
+}
+.em-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.em-title {
+  margin: 4px 0 0;
+  font-family: var(--wv-serif, Georgia, serif);
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1.15;
+}
+.em-spend {
+  font-family: var(--wv-mono, monospace);
+  font-size: 12.5px;
+  color: var(--wv-mute, #8c94a3);
+  font-variant-numeric: tabular-nums;
+}
+.em-state,
+.em-empty,
+.em-note {
+  margin: 6px 0 12px;
+  color: var(--wv-soft, #bcc2cd);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.em-note {
+  font-size: 12.5px;
+  color: var(--wv-mute, #8c94a3);
+}
+.em-state.is-warn {
+  color: var(--wv-hot, #ffdcaa);
+}
+.em-state.is-bad {
+  color: var(--wv-bad, #f07a8f);
+}
+.em-gate {
+  display: flex;
+  align-items: center;
+  gap: 12px 18px;
+  flex-wrap: wrap;
+}
+.em-gate .em-state {
+  flex: 1 1 280px;
+}
+.em-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.em-item {
+  padding: 16px 0;
+  border-top: 1px solid var(--wv-line, rgba(236, 238, 243, 0.08));
+}
+.em-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--wv-mute, #8c94a3);
+}
+.em-from {
+  color: var(--wv-ink, #eceef3);
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.em-subject {
+  margin: 4px 0 2px;
+  font-size: 15.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.em-summary {
+  margin: 2px 0;
+  color: var(--wv-soft, #bcc2cd);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.em-action {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--rc-relay, #8fb4f0);
+}
+.em-advice,
+.em-draft {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--rc-relay, #8fb4f0);
+  background: rgba(236, 238, 243, 0.03);
+  border-radius: 0 10px 10px 0;
+}
+.em-advice p,
+.em-draft p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.em-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wv-mute, #8c94a3);
+}
+.em-do {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.em-fyi {
+  margin-top: 10px;
+  border-top: 1px solid var(--wv-line, rgba(236, 238, 243, 0.08));
+  padding-top: 10px;
+}
+.em-fyi summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--wv-soft, #bcc2cd);
+}
+.em-fyi ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.em-fyi li {
+  display: grid;
+  grid-template-columns: minmax(0, 160px) minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  padding: 8px 0;
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--wv-line, rgba(236, 238, 243, 0.08));
+}
+.em-fyi li span {
+  color: var(--wv-soft, #bcc2cd);
+  overflow-wrap: anywhere;
+}
+.em-fyi time,
+.em-head time {
+  color: var(--wv-faint, #5d6574);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.em-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--wv-mute, #8c94a3);
+}
+@media (max-width: 640px) {
+  .em {
+    padding: 18px 16px;
+  }
+  .em-fyi li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .em-fyi li span {
+    grid-column: 1 / -1;
+  }
+}

@@ -3,11 +3,16 @@
  * Nikita types or says something on Today, and Skippy answers in a line or two and suggests where it should go.
  *
  * GET  → { ready }: whether the chat can work here (the Desk's sign-in and Claude are both set up). Nothing else.
+ * GET /api/skippy-log?room=<room> (on Vercel a rewrite to ?log=1 here; on Azure its own route into this file) → the
+ *        room's "Asked Skippy" turns, newest first (#273, api/_skippy/log.ts): signed-in Desk only (requireSession),
+ *        401 signed-out, 403 cross-site, 400 for a room outside the set, 503 not-set-up.
  * POST → { message, history? } from a signed-in Desk only (requireSession, #132): `message` is what Nikita just said
  *        (at most 600 characters), `history` the last few turns the browser kept ({ who: "nikita" | "skippy", text },
- *        at most eight). Nothing is stored here and no message text is ever logged: the browser holds the
- *        conversation, and it is gone when the tab closes.
- *        200 { reply, actions }: Skippy's answer, and up to three buttons from a closed set (api/_skippy/prompt.ts):
+ *        at most eight). The browser holds the conversation, and the history is never stored. Each answered question
+ *        and its reply is kept in the private store under the room Skippy tagged it with (#273, api/_skippy/log.ts):
+ *        the last 200 per room, 30 days at most, read back only in a Desk session. No message text is ever logged.
+ *        200 { reply, actions, room }: Skippy's answer, the room it belongs with ("green", "exchange", "boiler",
+ *        "foundry", "relay" or "none"), and up to three buttons from a closed set (api/_skippy/prompt.ts):
  *          { kind: "idea", label, text }            file `text` as an idea, through the Suggest box's own path
  *          { kind: "answer", label, issue, text }   answer Rivet's open question on `issue`, through the Desk's path
  *          { kind: "open", label, page }            open a Desk page
@@ -22,7 +27,8 @@
  * and counts from the Foundry's issues, the setup list's states and the world clock, scrubbed like the public feeds.
  *
  * Environment: FOUNDRY_DESK_KEY and the blob store (the Desk's sign-in), CLAUDE_API_KEY (or ANTHROPIC_API_KEY),
- * optional SKIPPY_BUDGET_USD (the chat's share of the $10 monthly Claude cap, $1 by default).
+ * optional SKIPPY_BUDGET_USD (the chat's share of the $10 monthly Claude cap, $2 by default). Skippy answers on Claude
+ * Sonnet 5.5, goes to Claude Opus 5.5 for the hard questions, and can run a web lookup (claudeChat below).
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -34,17 +40,21 @@ import type { SetupStatus } from "./_desk/setup.js";
 import { memo } from "./_feedcache.js";
 import { githubToken } from "./_github.js";
 import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
-import { setupList, type Usage } from "./foundry.js";
-import { BlobChatLedger, CHAT_MAX_TOKENS, canChat, chatMonth, skippyBudget, type ChatLedger } from "./_skippy/budget.js";
+import { costOf, setupList, type Usage } from "./foundry.js";
+import { BlobChatLedger, CHAT_MAX_TOKENS, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, type ChatLedger } from "./_skippy/budget.js";
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
-import { OVER_BUDGET, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, readChat, readReply } from "./_skippy/prompt.js";
+import { BlobRoomLog, isLogRoom, type RoomLog } from "./_skippy/log.js";
+import { LOOKUP_PROMPT, OVER_BUDGET, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb } from "./_skippy/prompt.js";
 import { monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
 import type { WorldState } from "./_world/types.js";
 
-export const SKIPPY_MODEL = "claude-haiku-5-5";
+/** Sonnet answers; Opus takes the questions Sonnet marks "deeper"; Sonnet with web search runs a lookup. */
+export const SKIPPY_MODEL = "claude-sonnet-5-5";
+export const SKIPPY_DEEP_MODEL = "claude-opus-5-5";
+export const LOOKUP_MODEL = "claude-sonnet-5-5";
 
 const REPO = "nikitapage10/C.E.O.";
 const GH = `https://api.github.com/repos/${REPO}`;
@@ -53,31 +63,91 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
 }
 
-/** One call to Claude: the parsed answer (null when unusable) and what it used (null when it never answered). */
-export type Ask = (system: string, input: string) => Promise<{ answer: unknown; usage: Usage | null }>;
+/**
+ * One answer from Claude: the parsed answer (null when unusable), what it used in all (null when nothing answered),
+ * what that cost, and the model whose answer it is (kept with the turn, #273).
+ */
+export type Ask = (system: string, input: string) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string }>;
 
-/** Claude Haiku with the fixed rules, the fenced input, structured output and a hard max_tokens. */
+const sumUsage = (a: Usage, b: Usage): Usage => ({
+  input_tokens: a.input_tokens + b.input_tokens,
+  output_tokens: a.output_tokens + b.output_tokens,
+  cache_creation_input_tokens: (a.cache_creation_input_tokens ?? 0) + (b.cache_creation_input_tokens ?? 0),
+  cache_read_input_tokens: (a.cache_read_input_tokens ?? 0) + (b.cache_read_input_tokens ?? 0),
+});
+
+/**
+ * Skippy's answer in up to three calls, each with the fixed rules, fenced input and a hard max_tokens:
+ *
+ *   1. Claude Sonnet 5.5 answers in the closed schema. Most answers end here.
+ *   2. When it asked for a lookup, a separate Sonnet call with web search (at most three searches) writes a plain
+ *      summary. That call sees only the query, never the Desk or the conversation.
+ *   3. When it asked for a lookup or to go deeper, it answers again in the closed schema, with the summary in a <web>
+ *      block, on Claude Opus 5.5 when it asked to go deeper. If a later call fails, the first answer stands.
+ *
+ * Thinking can't be turned off on Sonnet 5.5 or Opus 5.5: effort "low" keeps it short, and max_tokens leaves room.
+ */
 export function claudeChat(key: string): Ask {
-  const client = new Anthropic({ apiKey: key, timeout: 15_000, maxRetries: 1 });
-  return async (system, input) => {
+  const client = new Anthropic({ apiKey: key, timeout: 20_000, maxRetries: 0 });
+  const answer = async (model: string, system: string, input: string) => {
     const res = await client.messages.create({
-      model: SKIPPY_MODEL,
+      model,
       max_tokens: CHAT_MAX_TOKENS,
-      thinking: { type: "disabled" },
       output_config: { effort: "low", format: { type: "json_schema", schema: SKIPPY_SCHEMA } },
       system,
       messages: [{ role: "user", content: input }],
     });
     const text = res.content.find((b) => b.type === "text");
-    let answer: unknown = null;
+    let parsed: unknown = null;
     if (res.stop_reason === "end_turn" && text && text.type === "text") {
       try {
-        answer = JSON.parse(text.text);
+        parsed = JSON.parse(text.text);
       } catch {
-        answer = null;
+        parsed = null;
       }
     }
-    return { answer, usage: res.usage };
+    return { parsed, usage: res.usage as Usage };
+  };
+  const lookup = async (query: string) => {
+    const res = await client.messages.create({
+      model: LOOKUP_MODEL,
+      max_tokens: LOOKUP_MAX_TOKENS,
+      output_config: { effort: "low" },
+      system: LOOKUP_PROMPT,
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: SEARCH_MAX }],
+      messages: [{ role: "user", content: lookupInput(query) }],
+    });
+    const found = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ");
+    const searches = Math.min(SEARCH_MAX, (res.usage as { server_tool_use?: { web_search_requests?: number } | null }).server_tool_use?.web_search_requests ?? 0);
+    return { found: res.stop_reason === "end_turn" ? found : "", usage: res.usage as Usage, searches };
+  };
+  return async (system, input) => {
+    const first = await answer(SKIPPY_MODEL, system, input);
+    let usage = first.usage;
+    let usd = costOf(first.usage, SONNET_PRICE);
+    const query = readLookup(first.parsed);
+    const deeper = readDeeper(first.parsed);
+    if (!query && !deeper) return { answer: first.parsed, usage, usd, model: SKIPPY_MODEL };
+    let again = input;
+    if (query) {
+      try {
+        const got = await lookup(query);
+        usage = sumUsage(usage, got.usage);
+        usd += costOf(got.usage, SONNET_PRICE) + got.searches * SEARCH_USD;
+        again = withWeb(input, got.found);
+      } catch {
+        again = withWeb(input, "");
+      }
+    }
+    try {
+      const second = await answer(deeper ? SKIPPY_DEEP_MODEL : SKIPPY_MODEL, system, again);
+      usage = sumUsage(usage, second.usage);
+      usd += costOf(second.usage, deeper ? OPUS_PRICE : SONNET_PRICE);
+      const model = second.parsed ? (deeper ? SKIPPY_DEEP_MODEL : SKIPPY_MODEL) : SKIPPY_MODEL;
+      return { answer: second.parsed ?? first.parsed, usage, usd, model };
+    } catch {
+      return { answer: first.parsed, usage, usd, model: SKIPPY_MODEL };
+    }
   };
 }
 
@@ -105,6 +175,8 @@ export interface ChatDeps {
   store: AuthStore | null;
   ledger: ChatLedger | null;
   ask: Ask | null;
+  /** Where each answered ask is kept by room (#273); null or left out keeps nothing. */
+  log?: RoomLog | null;
   /** The saved world (its spend and its clock), or null. */
   world: () => Promise<WorldState | null>;
   /** The Desk's live state for Skippy. */
@@ -121,6 +193,7 @@ function defaultDeps(): ChatDeps {
     deskKey: env.FOUNDRY_DESK_KEY ?? "",
     store: pickAuthStore(env),
     ledger: blob ? new BlobChatLedger(blob) : null,
+    log: blob ? new BlobRoomLog(blob) : null,
     ask: key ? claudeChat(key) : null,
     world: async () => (await pickStore(env)?.loadState().catch(() => null)) ?? null,
     desk: async (world) => {
@@ -132,9 +205,37 @@ function defaultDeps(): ChatDeps {
   };
 }
 
-export async function GET(): Promise<Response> {
+/** The room log's own address; on Vercel vercel.json rewrites it to /api/skippy?log=1. */
+export const LOG_PATH = "/api/skippy-log";
+
+/** Whether a request is for the room log rather than the chat. */
+export function isLog(request: Request): boolean {
+  const url = new URL(request.url);
+  return url.pathname === LOG_PATH || url.searchParams.has("log");
+}
+
+export async function GET(request?: Request): Promise<Response> {
+  if (request && isLog(request)) return roomLog(request, defaultDeps());
   const d = defaultDeps();
   return json({ ready: Boolean(d.deskKey && d.store && d.ledger && d.ask) });
+}
+
+/**
+ * A room's "Asked Skippy" turns (#273), newest first: only in a passkey session, checked before anything is read.
+ * Everything it holds is private (the Exchange's and Relay's asks included), so there is no public view of it.
+ */
+export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" | "store" | "log" | "now">): Promise<Response> {
+  if (!deps.deskKey || !deps.store) return json({ error: "not-set-up" }, 503);
+  const signed = await requireSession(request, { deskKey: deps.deskKey, store: deps.store, now: deps.now });
+  if (!signed.ok) return signed.response;
+  const room = new URL(request.url).searchParams.get("room");
+  if (!isLogRoom(room)) return withCookie(json({ error: "bad-request" }, 400), signed);
+  if (!deps.log) return withCookie(json({ error: "not-set-up" }, 503), signed);
+  try {
+    return withCookie(json({ room, turns: await deps.log.list(room, deps.now) }), signed);
+  } catch {
+    return withCookie(json({ error: "unreadable" }, 502), signed);
+  }
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -196,7 +297,15 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
     return json({ error: "model" }, 502);
   }
   // Every call that answered counts against the month, usable or not.
-  if (got.usage) await deps.ledger.add(deps.now, got.usage).catch(() => undefined);
+  if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd).catch(() => undefined);
   const reply = readReply(got.answer, desk);
-  return reply ? json(reply) : json({ error: "model" }, 502);
+  if (!reply) return json({ error: "model" }, 502);
+  // Kept under its room for the room's Desk page (#273): the question (already through the privacy check), the answer,
+  // the room, the time and the model. A failed write never costs Nikita the answer.
+  if (deps.log) {
+    await deps.log
+      .add({ at: new Date(deps.now).toISOString(), question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL }, deps.now)
+      .catch(() => undefined);
+  }
+  return json(reply);
 }

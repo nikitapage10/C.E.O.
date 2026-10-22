@@ -154,6 +154,11 @@ export interface WorldFeed {
    * of the scripts (part of the shared Claude cap). `gemini` says whether the key is set.
    */
   story?: { month: string; budget: number; gemini: boolean; usd: number; calls: number; stories: number; tokensIn: number; tokensOut: number; scriptUsd: number };
+  /**
+   * The email agent's public counts (#263, api/_email/status.ts): counts and states only, never a subject or a
+   * sender. Null where the agent doesn't run (the Vercel copy) or hasn't reported yet.
+   */
+  email?: import("../_email/status.js").EmailStatus | null;
 }
 
 /** What GET /api/day-story?day=… answers (api/day-story.ts): the day's story, or why there isn't one. */

@@ -229,20 +229,19 @@ describe("byes, whatever FantasyPros says (#259)", () => {
     expect(board.sources.calls).toBe("form");
   });
 
-  it("puts a team with no FantasyPros projections on bye while those are live, even when he'd have a form projection", () => {
-    // Projections for every team but Dallas (and Arizona), none for Rex Runner.
+  it("never infers a bye from teams missing in FantasyPros' projections: its answer can be partial (#266)", () => {
+    // Projections for every team but Dallas (and Arizona), none for Rex Runner, and no schedule.
     const teams = [...NFL_TEAMS].filter((t) => t !== "DAL" && t !== "ARI");
     const fp: FpData = { at: "x", season: "2026", week: 3, scoring: "HALF", proj: [...teams.map((t, i) => ({ name: `Some One ${i}`, pos: "WR" as const, team: t, pts: 9 })), { name: "Benny Bench", pos: "RB", team: "DET", pts: 15 }], ranks: [], injuries: [] };
-    expect([...byeTeams(null, fp, 3)!].sort()).toEqual(["ARI", "DAL"]);
-    expect(byeTeams(null, { ...fp, week: 2 }, 3)).toBeNull(); // last week's projections say nothing about this week
-    expect(byeTeams(null, { ...fp, proj: fp.proj.slice(0, 5) }, 3)).toEqual(new Set()); // too few teams to tell a bye from a gap
+    expect(byeTeams(null, fp, 3)).toEqual(new Set());
+    expect(byeTeams(null, { ...fp, week: 2 }, 3)).toBeNull();
     const board = buildBoard({ ...boardInput(), fp, fpState: "live" });
+    expect(board.byes).toEqual([]);
     const rex = board.roster.starters[1]!.player!;
-    expect(rex).toMatchObject({ name: "Rex Runner", proj: 0, bye: 3 });
+    expect(rex.bye).toBeNull();
+    expect(rex.src).toBe("form");
+    expect(rex.proj).toBeGreaterThan(0);
     expect(board.sources.calls).toBe("fp");
-    // One RB on the bench (Benny Bench) for two RBs who can't play: he comes in, and Rex is never a start.
-    expect(board.swaps).toEqual([expect.objectContaining({ slot: "RB", in: expect.objectContaining({ name: "Benny Bench" }) })]);
-    expect(board.swaps.some((x) => x.in.name === "Rex Runner")).toBe(false);
   });
 
   it("never says to start a player on bye or out, however high his projection", () => {
@@ -287,8 +286,17 @@ describe("the Tuten case: FantasyPros live in week 7, Jacksonville on bye (#259)
     expectBenched(buildBoard(tutenInput(fp7({ ranks }))));
   });
 
-  it("benches him when FantasyPros projects nobody on Jacksonville, even with no ranking for him at all", () => {
-    expectBenched(buildBoard(tutenInput(fp7({}))));
+  it("a partial FantasyPros answer (week 7 came back short) puts nobody on bye: the schedule and its own bye weeks decide (#266)", () => {
+    const partial = fp7({ proj: [...proj7.slice(0, 10), { fpid: "102", name: "Benny Bench", pos: "RB", team: "DET", pts: 12 }] });
+    const board = buildBoard(tutenInput(partial));
+    expect(board.byes).toEqual([]);
+    const tuten = board.roster.starters.find((x) => x.player?.id === "12490")!.player!;
+    expect(tuten).toMatchObject({ bye: null, src: "form" });
+    expect(tuten.proj).toBeGreaterThan(0);
+    // With the schedule, only the real byes count.
+    const withSchedule = buildBoard(tutenInput(partial, shapeSchedule(scheduleWith({ 7: BYES7 }))));
+    expect(withSchedule.byes).toEqual(BYES7);
+    expectBenched(withSchedule);
   });
 
   it("benches him on Sleeper's schedule when FantasyPros can't say", () => {
@@ -296,13 +304,13 @@ describe("the Tuten case: FantasyPros live in week 7, Jacksonville on bye (#259)
     expectBenched(buildBoard(tutenInput(null, shapeSchedule(scheduleWith({ 7: BYES7 })))));
   });
 
-  it("never lets his form here stand in while FantasyPros is live", () => {
-    // FantasyPros projects Jacksonville's other backs but not him (and gives no bye): no projection, never a start.
-    const fp = fp7({ proj: [...proj7, { fpid: "777", name: "Other Jag", pos: "RB", team: "JAX", pts: 6 }, { fpid: "102", name: "Benny Bench", pos: "RB", team: "DET", pts: 12 }] });
+  it("lets his form stand in when FantasyPros leaves him out, never benching him for that alone (#266)", () => {
+    const fp = fp7({ proj: [...proj7, { fpid: "777", name: "Other Jag", pos: "RB", team: "JAX", pts: 6 }, { fpid: "102", name: "Benny Bench", pos: "RB", team: "DET", pts: 1 }] });
     const board = buildBoard(tutenInput(fp));
     const tuten = board.roster.starters.find((x) => x.player?.id === "12490")!.player!;
-    expect(tuten).toMatchObject({ proj: null, src: "none" });
-    expect(board.swaps.find((x) => x.out?.id === "12490")).toMatchObject({ in: { name: "Benny Bench" }, why: "FantasyPros doesn't rank or project Bhayshul Tuten this week" });
+    expect(tuten).toMatchObject({ src: "form", bye: null });
+    expect(tuten.proj).toBeGreaterThan(0);
+    expect(board.swaps.some((x) => x.out?.id === "12490")).toBe(false);
   });
 });
 
@@ -406,14 +414,15 @@ describe("GET /api/green-league (#252)", () => {
     expect(fpCalls.length).toBe(12); // QB, RB, WR, TE, DST projections and weekly consensus, the ROS consensus, the injuries
     expect(fpCalls.some((c) => c.url.includes("/nfl/2026/consensus-rankings?position=RB&type=WEEKLY&scoring=HALF&week=3"))).toBe(true);
     expect(board.sources.calls).toBe("fp");
-    expect(board.sources.fpParts).toEqual({ proj: 3, weekly: 3, ros: 4, injuries: 1, errors: [] });
+    expect(board.sources.fpParts).toMatchObject({ proj: 3, weekly: 3, ros: 4, injuries: 1, errors: [] });
+    expect(Object.values(board.sources.fpParts!.projBy ?? {}).reduce((a, b) => a + b, 0)).toBe(3);
     expect(fpCalls.every((c) => c.key === FP_KEY && !c.url.includes(FP_KEY))).toBe(true);
     expect(calls.filter((c) => !c.url.includes("fantasypros")).every((c) => c.key === null)).toBe(true);
     expect(fpCalls.some((c) => c.url.includes("/nfl/2026/projections?position=DST&week=3&scoring=HALF"))).toBe(true);
     const rex = board.roster.starters[1]!.player!;
     expect(rex).toMatchObject({ name: "Rex Runner", proj: 11.5, src: "fp", wk: 5, bye: 8 });
-    // Players FantasyPros neither ranks nor projects this week are never a start, and no form stands in for them.
-    expect(board.roster.starters[0]!.player).toMatchObject({ name: "Quinn Arm", proj: null, src: "none" });
+    // Players FantasyPros leaves out keep their form here, marked as form (#266).
+    expect(board.roster.starters[0]!.player).toMatchObject({ name: "Quinn Arm", src: "form" });
     expect(board.swaps.every((x) => x.in.src === "fp")).toBe(true);
     expect(board.roster.starters.find((s) => s.player?.name === "Walt Wider")!.player!.inj).toBe("Q");
     // Deep Bench (on bye this week) sits; Pickups follow the consensus, Spare Part (WR120) is the clear drop for the WR,

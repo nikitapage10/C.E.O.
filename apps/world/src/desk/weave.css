@@ -886,120 +886,71 @@ a.panel__hint:hover {
   }
 }
 
-/* Skippy and the Ask box (placeholders until the chat lands; SkippySlot.tsx). */
-.skippy-slot__avatar {
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 40%, rgba(246, 213, 140, 0.16), rgba(10, 13, 22, 0.8) 70%);
+/* Skippy (#224, skippy/): his avatar in the hero and the Ask box, restyled for the Weave. */
+.wv-hero__can.skp-avatar .skp-avatar__glow {
+  background: radial-gradient(circle at 50% 55%, rgba(246, 213, 140, 0.3), rgba(10, 13, 22, 0.6) 60%, transparent 74%);
   box-shadow:
-    0 0 0 1px rgba(246, 213, 140, 0.35),
-    0 0 26px -6px rgba(246, 213, 140, 0.6);
-  transition:
-    transform 0.25s var(--ease),
-    box-shadow 0.25s;
+    0 0 0 1px rgba(246, 213, 140, 0.4),
+    0 0 30px -6px rgba(246, 213, 140, 0.6);
 }
-.skippy-slot__avatar:hover {
-  transform: translateY(-1px) rotate(-4deg);
-  box-shadow:
-    0 0 0 1px rgba(246, 213, 140, 0.6),
-    0 0 34px -4px rgba(246, 213, 140, 0.8);
-}
-.skippy-can {
-  display: block;
-  overflow: visible;
-}
-.skippy-can__halo {
-  animation: halo 4s ease-in-out infinite;
-  transform-origin: 24px 27px;
-}
-@keyframes halo {
-  50% {
-    opacity: 0.55;
-    transform: scale(0.92);
-  }
-}
-.ask-skippy {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: min(100%, 470px);
-  min-height: 50px;
-  margin: 14px 0 0;
-  padding: 0 6px 0 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  background: rgba(10, 13, 22, 0.72);
+.wv-ask.skp-ask {
+  width: min(100%, 520px);
+  margin: 16px 0 0;
+  padding: 6px 6px 6px 18px;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 22px;
+  background: rgba(10, 13, 22, 0.74);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  animation: hero-in 0.7s var(--ease) 0.36s both;
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
-  animation: hero-in 0.7s var(--ease) 0.36s both;
 }
-.ask-skippy:focus-within {
+.wv-ask.skp-ask:focus-within {
   border-color: rgba(246, 213, 140, 0.45);
   box-shadow: 0 0 0 4px rgba(246, 213, 140, 0.08);
 }
-.ask-skippy__spark {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin-right: 12px;
-  border-radius: 50%;
-  background: #f6d58c;
-  box-shadow: 0 0 10px #f6d58c;
+.wv-ask .skp-ask__label {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #f6d58c;
 }
-.ask-skippy__input {
-  flex: 1;
-  min-width: 0;
-  height: 48px;
+.wv-ask .skp-compose {
+  align-items: center;
+}
+.wv-ask .skp-compose__box {
+  min-height: 40px;
   border: 0;
-  outline: none;
   background: none;
-  font: inherit;
-  font-size: 15px;
+  font-size: 14.5px;
+}
+.wv-ask .skp-compose__box:focus-visible {
+  box-shadow: none;
+}
+.wv-ask .skp-compose__send {
+  min-width: 0;
+}
+.desk__skippy img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 12px -2px rgba(246, 213, 140, 0.6);
+}
+.desk__skippy[aria-expanded="true"] {
+  border-color: rgba(246, 213, 140, 0.5);
   color: var(--text);
 }
-.ask-skippy__input::placeholder {
-  color: var(--faint);
-}
-.desk .ask-skippy__input:focus-visible {
-  outline: none;
-}
-.ask-skippy__go {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  border: 0;
+.council__skippy img {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  background: linear-gradient(180deg, #ffe2b0, #f2bd72);
-  color: #1a1206;
-  transition: opacity 0.2s;
-}
-.ask-skippy__go:disabled {
-  opacity: 0.3;
-}
-.ask-skippy__go svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.ask-skippy__note {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 16px;
-  margin: 0;
-  font-size: 12.5px;
-  color: #f6d58c;
+  object-fit: cover;
 }
 
 /* ── The Council: the control, then the gathering ── */
@@ -1684,8 +1635,10 @@ a.panel__hint:hover {
   .council-btn {
     width: 100%;
   }
-  .ask-skippy {
+  .wv-ask.skp-ask {
     width: 100%;
+    flex-wrap: wrap;
+    padding: 10px 10px 8px 14px;
   }
   .wv-section {
     padding: 20px 16px 20px;
@@ -1731,10 +1684,6 @@ a.panel__hint:hover {
     width: 76px;
     height: 76px;
     margin: -38px;
-  }
-  .council__skippy svg {
-    width: 58px;
-    height: 58px;
   }
   .banner__title {
     font-size: 38px;
@@ -1787,8 +1736,7 @@ a.panel__hint:hover {
   .desk__weave,
   .desk__glow,
   .desk__enter::before,
-  .wv-enter::before,
-  .skippy-can__halo {
+  .wv-enter::before {
     animation: none !important;
   }
   .desk__main,

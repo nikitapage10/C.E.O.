@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { navigateTo } from "../route.ts";
 import { portrait } from "./deskData.ts";
 import type { PulseState, RoomPulse } from "./roomPulse.ts";
-import { SkippyCan } from "./SkippySlot.tsx";
+import { SKIPPY_PORTRAIT } from "./skippy/index.ts";
 
 /**
  * The Council (Nikita, 2026-10-22): Skippy, the Magnificent with his nine subminds around him, each giving a short
@@ -96,7 +96,7 @@ export function Council({ pulses, open, onClose }: { pulses: RoomPulse[]; open: 
               })}
             </svg>
             <span className="council__skippy">
-              <SkippyCan size={74} />
+              <img src={SKIPPY_PORTRAIT} alt="" width={96} height={96} decoding="async" />
             </span>
             {pulses.map((p, i) => {
               const a = (i / count) * Math.PI * 2 - Math.PI / 2;

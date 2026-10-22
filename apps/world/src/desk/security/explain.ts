@@ -367,6 +367,11 @@ export const EVAL_EXPLAIN: Record<EvalAreaId, Explain> = {
     connects: "The Foundry's builder, which reads GitHub issues before it writes code.",
     why: "Anyone can comment on a public issue; only the owner's words should steer an agent that writes code.",
   },
+  "skippy-chat": {
+    what: "Hostile messages to Skippy on the Desk, and hostile answers from the model behind him.",
+    connects: "Skippy's chat on Today, which suggests buttons for filing ideas, answering Rivet and opening pages.",
+    why: "Skippy may only suggest. Nothing he says should change the Desk, spend past the cap or leak private text.",
+  },
 };
 
 /** The NIST AI Risk Management Framework's four functions. */

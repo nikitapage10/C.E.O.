@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePictureLinks } from "./ideaImages.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { ensureSignedIn, useDeskAuth } from "./signin.ts";
-import { expectChange, type Crate } from "../foundry.ts";
+import { expectChange, pendingIdea, useFoundry, type Crate } from "../foundry.ts";
 import { FOUNDRY_THREAD } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { Avatar } from "./ui.tsx";
@@ -112,6 +112,78 @@ export async function send(issue: number | null, choice: Choice, note = "", onHe
   return (await post(issue, choice, note, onHeld)).r;
 }
 
+
+export type Shaped = Pick<Crate, "title" | "pitch" | "size" | "short" | "builder"> & { question?: string };
+
+/**
+ * A new idea: the function streams back Rivet's shaping (straight from Claude) and the GitHub issue as each is ready,
+ * so the card rewrites itself in about a second, whatever GitHub's pace.
+ */
+export async function propose(note: string, images: string[], onShape: (shape: Shaped) => void, onIssue: (issue: number) => void, onHeld: (message: string) => void): Promise<Sent> {
+  try {
+    const res = await fetch("/api/foundry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: "propose", note, images }), credentials: "same-origin" });
+    if (res.status === 401) {
+      useDeskAuth.getState().lost();
+      return "signed-out";
+    }
+    if (res.status === 422) {
+      onHeld(await readHeld(res));
+      return "held";
+    }
+    if (!res.ok || !res.body) return "failed";
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    let result: Sent = "ok";
+    let filed = false;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (value) buffer += value;
+      const lines = buffer.split("\n");
+      buffer = done ? "" : lines.pop()!;
+      for (const raw of lines) {
+        if (!raw.trim()) continue;
+        const msg = JSON.parse(raw) as { shaping?: boolean; shape?: { title: string; pitch: string; size: Crate["size"]; short?: string; builder: "Rusty" | "Rocky"; question?: string }; issue?: number; error?: string };
+        if (msg.shaping) result = "shaping";
+        if (msg.shape) onShape({ title: msg.shape.title, pitch: msg.shape.pitch, size: msg.shape.size, short: msg.shape.short ?? "", builder: msg.shape.builder === "Rusty" ? "tessellate" : "caret", ...(msg.shape.question && { question: msg.shape.question }) });
+        if (typeof msg.issue === "number") {
+          filed = true;
+          onIssue(msg.issue);
+        }
+        if (msg.error) return "failed";
+      }
+      if (done) break;
+    }
+    return filed ? result : "failed";
+  } catch {
+    return "failed";
+  }
+}
+
+/**
+ * Files an idea the way the Suggest box does: the card goes on the board at once in Nikita's words, and the
+ * function's stream (Rivet's shaping, then the issue number) fills it in. Skippy's "File it" button uses this too
+ * (desk/skippy), so an idea from the chat takes exactly the Suggest box's path: same checks, same labels.
+ */
+export async function fileIdea(words: string, images: string[] = [], onHeld: (message: string) => void = () => {}): Promise<Sent> {
+  const card = pendingIdea(words, Date.now(), images);
+  const { addPending, settlePending, shapePending } = useFoundry.getState();
+  addPending(card);
+  let number = card.number;
+  const r = await propose(
+    words,
+    images,
+    (shape) => shapePending(number, shape),
+    (issue) => {
+      settlePending(number, issue);
+      number = issue;
+      expectChange();
+    },
+    onHeld,
+  );
+  if (r === "ok" || r === "shaping") expectChange();
+  else settlePending(number, null);
+  return r;
+}
 
 /** An idea card with its buttons; the Foundry tab lists them all and Today shows the ones Rivet is asking about. */
 export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; index: number; setup: Setup; focus?: boolean }) {

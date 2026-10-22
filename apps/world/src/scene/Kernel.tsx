@@ -1,8 +1,9 @@
-import { KERNEL_PORT_RADIUS, KERNEL_PORT_Y, makeLook } from "@ceo/core";
+import { KERNEL_PORT_RADIUS, KERNEL_PORT_Y } from "@ceo/core";
 import { useFrame } from "@react-three/fiber";
 import { Suspense, useMemo, useRef } from "react";
 import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, type Group } from "three";
 import { LibraryBody } from "../agents/bodies/Library.tsx";
+import { SKIPPY_LOOK } from "../agents/skippyLook.ts";
 import type { Drive } from "../agents/bodies/types.ts";
 import { Flare } from "../fx/Flare.tsx";
 import { emissive, kernelMaterial } from "../fx/materials.ts";
@@ -12,8 +13,6 @@ import { PALETTE } from "../theme.ts";
 const HEIGHT = 18;
 /** How many times life size Skippy hovers over the Kernel: about ten metres of can, the old monolith's presence. */
 const SKIPPY_SIZE = 11;
-/** Skippy as made: navy hat and coat, gold braid. */
-const SKIPPY_LOOK = makeLook({ body: "skippy", shell: "#0a2e62", accent: "#7fd8ff", trim: "#e8b84a" });
 
 /**
  * Skippy, the Magnificent, enthroned over the Kernel's port: a giant of the admiral can, turning slowly to keep

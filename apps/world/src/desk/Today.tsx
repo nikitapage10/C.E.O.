@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { byWait, DESK_ROOMS, formatWait, roomImage, useDesk, type DeskAction, type DeskData, type DeskRoom, type OwedReply } from "./deskData.ts";
 import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
 import { chronicleDay, sinceAway, useWorldFeed, type HistoryEntry } from "../chronicle.ts";
@@ -13,10 +13,10 @@ import { CountUp, dailyOpening, useWidth } from "./motion.tsx";
 import { link } from "./nav.ts";
 import { greeting, partOfDay, skippyLine, type RoomPulse } from "./roomPulse.ts";
 import { SetupCard, useSetupStatus } from "./SetupCard.tsx";
-import { AskSkippySlot, SkippyAvatarSlot } from "./SkippySlot.tsx";
 import { Avatar } from "./ui.tsx";
 import { DAY_STRIP_MS, usePulses } from "./usePulses.ts";
 import { Listening } from "./viz.tsx";
+import { SkippyAsk, SkippyAvatar } from "./skippy/index.ts";
 
 /**
  * Today, in the Weave (Nikita, 2026-10-22): Skippy, the Magnificent guiding the day. A hero first: the nine rooms as
@@ -30,8 +30,6 @@ import { Listening } from "./viz.tsx";
 const NOW_WAIT = 8 * 3_600_000;
 /** Never more than this many replies in "Needs you"; the rest wait in Relay. */
 const NOW_REPLIES = 3;
-/** Today's Ask Skippy box listens for this, so the can in the bar can bring it into view. */
-export const ASK_SKIPPY_EVENT = "desk:ask-skippy";
 
 export function Today({ data, now, connected, awaySince }: { data: DeskData; now: number; connected: boolean; awaySince: number }) {
   const world = useWorldFeed().feed;
@@ -202,7 +200,6 @@ function TodayHero({ now, pulses, todo }: { now: number; pulses: RoomPulse[]; to
   const hovered = useRef<string | null>(null);
   const [hot, setHot] = useState<string | null>(null);
   const [council, setCouncil] = useState(false);
-  const ask = useRef<HTMLInputElement>(null);
   const date = new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
   const clock = useWorldClock((s) => s.reading);
   const status = pulses.filter((p) => p.real);
@@ -212,22 +209,14 @@ function TodayHero({ now, pulses, todo }: { now: number; pulses: RoomPulse[]; to
     setHot(id);
   };
 
-  useEffect(() => {
-    const focus = () => {
-      ask.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-      ask.current?.focus({ preventScroll: true });
-    };
-    window.addEventListener(ASK_SKIPPY_EVENT, focus);
-    return () => window.removeEventListener(ASK_SKIPPY_EVENT, focus);
-  }, []);
-
   return (
     <section className={`wv-hero wv-hero--${opening}`} aria-label="Today at a glance">
       <LatticeThreads pulses={pulses} opening={opening} hovered={hovered} />
       <div className="wv-hero__wash" aria-hidden="true" />
       <div className="wv-hero__text">
         <div className="wv-hero__skippy">
-          <SkippyAvatarSlot size={52} onOpen={() => ask.current?.focus()} />
+          {/* Skippy, the Magnificent (#224): a click opens his chat (mounted once at the Desk's root, Desk.tsx). */}
+          <SkippyAvatar size="md" className="wv-hero__can" />
           <div className="wv-hero__who">
             <b>Skippy, the Magnificent</b>
             <span>
@@ -257,7 +246,7 @@ function TodayHero({ now, pulses, todo }: { now: number; pulses: RoomPulse[]; to
           </a>
           <CouncilButton pulses={pulses} onOpen={() => setCouncil(true)} />
         </div>
-        <AskSkippySlot inputRef={ask} />
+        <SkippyAsk className="wv-ask" />
       </div>
       <ul className="wv-hero__rooms" aria-label="The rooms">
         {pulses.map((p, i) => (

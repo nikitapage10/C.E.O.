@@ -17,6 +17,7 @@ import * as foundryimage from "../../api/foundry-image.js";
 import * as foundryusage from "../../api/foundry-usage.js";
 import * as foundry from "../../api/foundry.js";
 import * as securityfeed from "../../api/security-feed.js";
+import * as skippy from "../../api/skippy.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
 import * as worldstep from "../../api/world-step.js";
 import * as world from "../../api/world.js";
@@ -38,6 +39,7 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["foundry-usage", foundryusage],
   ["foundry", foundry],
   ["security-feed", securityfeed],
+  ["skippy", skippy],
   ["visual-qa-feed", visualqafeed],
   // Called on the Function App's own URL (no proxy cut), so the step waits for its day and week stories.
   ["world-step", worldstep, { settleMs: Infinity }],

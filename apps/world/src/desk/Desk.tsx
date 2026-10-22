@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { startFoundry } from "../foundry.ts";
 import { loadLattice, navigate, usePathname, type Route } from "../route.ts";
 import { useSystems, type LinkState } from "../systems.ts";
@@ -10,8 +10,8 @@ import { link } from "./nav.ts";
 import { startDeskWorker } from "./pings.ts";
 import { startDeskAuth } from "./signin.ts";
 import { systemsTitle } from "./SystemsNav.tsx";
-import { SkippyCan } from "./SkippySlot.tsx";
-import { ASK_SKIPPY_EVENT, Today } from "./Today.tsx";
+import { SKIPPY_PORTRAIT, SkippyChat, useSkippy } from "./skippy/index.ts";
+import { Today } from "./Today.tsx";
 import "./desk.css";
 import "./chronicle.css";
 import "./weave.css";
@@ -60,11 +60,6 @@ const TABS: { id: DeskTab; label: string; colour: string }[] = [
   { id: "chronicle", label: "Chronicle", colour: "var(--room-archive)" },
 ];
 
-/** The can in the bar: Skippy's Ask box lives on Today, so it goes there and brings the box into view. */
-function askSkippy() {
-  if (window.location.pathname !== "/") navigate("today", window.location.search);
-  window.setTimeout(() => window.dispatchEvent(new Event(ASK_SKIPPY_EVENT)), 60);
-}
 
 /**
  * The sky behind every Desk page: the void, three slow glows in room colours, a few long threads drifting across it
@@ -124,6 +119,18 @@ export function Desk({ route }: { route: DeskTab }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const skippyOpen = useSkippy((s) => s.open);
+  const setSkippy = useSkippy((s) => s.setOpen);
+  const skippyOpener = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const remember = (e: Event) => {
+      const el = (e.target as HTMLElement | null)?.closest?.(".desk__skippy, .skp-avatar, .skp-ask button");
+      if (el) skippyOpener.current = el as HTMLElement;
+    };
+    document.addEventListener("click", remember, true);
+    return () => document.removeEventListener("click", remember, true);
+  }, []);
+
   const pathname = usePathname();
   useEffect(() => {
     document.title = route === "relay" ? "Relay · C.E.O." : route === "foundry" ? "Foundry · C.E.O." : route === "systems" ? systemsTitle(pathname) : route === "chronicle" ? "Chronicle · C.E.O." : "C.E.O. — Desk";
@@ -181,8 +188,8 @@ export function Desk({ route }: { route: DeskTab }) {
               <i aria-hidden="true" />
               <span>{HUB_PILL[hub]}</span>
             </span>
-            <button type="button" className="desk__skippy" onClick={askSkippy} title="Ask Skippy" aria-label="Ask Skippy">
-              <SkippyCan size={30} />
+            <button type="button" className="desk__skippy" onClick={() => setSkippy(!skippyOpen)} title="Ask Skippy" aria-label="Ask Skippy" aria-expanded={skippyOpen} aria-controls="skippy-chat">
+              <img src={SKIPPY_PORTRAIT} alt="" width={30} height={30} decoding="async" />
               <span>Ask Skippy</span>
             </button>
             <a className="desk__enter" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
@@ -215,6 +222,10 @@ export function Desk({ route }: { route: DeskTab }) {
           )}
         </Suspense>
       </main>
+
+      {/* Skippy's dialogue (#224), on every page: the bar's button, Today's avatar and the Ask box all open it. Focus goes
+          back to whichever of them opened it. */}
+      <SkippyChat returnFocus={skippyOpener} />
 
       <footer className="desk__foot">
         <span>Command Everything, Obviously</span>

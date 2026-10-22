@@ -4,6 +4,7 @@ import { useMasked } from "./hide.ts";
 import { EmailSection } from "./email/EmailSection.tsx";
 import { Private } from "./Private.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
+import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
 import { isPhone, knot, Parts, Poly, RC, ring, spr, useViz, type VizSpec } from "./wvCanvas.ts";
@@ -81,6 +82,8 @@ function RelayLater({ now }: { now: number }) {
         <p className="wv-sub">For texts, it will keep track of who you owe a reply, sort the urgent from the rest, and draft answers in your voice for a tap to send. That waits on one thing: the MacBook. Email is here already.</p>
       </header>
       <EmailSection now={now} />
+
+      <AskedSkippy room="relay" />
       <section className="wv-chain" aria-label="What Relay waits on">
         <canvas ref={cv} className="wv-cv" aria-hidden="true" />
         <ol className="wv-chain-l">
@@ -348,6 +351,8 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
       </div>
 
       <EmailSection now={now} />
+
+      <AskedSkippy room="relay" />
 
       <div className="habits">
         <Panel eyebrow="Reply time, last 7 days" className="panel--strip">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
+import { AskedSkippy } from "../skippy/AskedSkippy.tsx";
 import { Parts, Poly, TAU, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import { callsWord, commentatorCall, fpLine, onBye, ordinal, pct, pts, sleeperLeagueUrl, startGreen, useGreen, yardLine, type GreenBoard, type GreenPlayer, type GreenSlot, type GreenStatus, type GreenSwap } from "../green/league.ts";
 import "./rooms.css";
@@ -497,6 +498,8 @@ export function Green() {
           </div>
         </>
       )}
+
+      <AskedSkippy room="green" />
 
       <Waits items={waitsFor(board)} className="gr-waits" title="Still to come" />
       <p className="rm-guard">

@@ -8,7 +8,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { POST, chat, type Ask, type ChatDeps } from "../skippy.ts";
+import { POST, chat, roomLog, type Ask, type ChatDeps } from "../skippy.ts";
+import { MemoryRoomLog } from "../_skippy/log.ts";
 import { MemoryChatLedger, chatMonth } from "../_skippy/budget.ts";
 import { deskContext } from "../_skippy/context.ts";
 import { CHAT_TAGS, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, readReply } from "../_skippy/prompt.ts";
@@ -174,6 +175,12 @@ describe("Skippy's chat: nothing outside the closed set survives a bad answer", 
     }
   });
 
+  it("files a hostile or made-up room under none, never a new one (#273)", () => {
+    for (const room of ["spire", "../../desk/auth", "green\u200b", "GREEN", "exchange; relay", { room: "green" }, ["relay"], 1, true, null]) {
+      expect(readReply({ reply: "Noted.", actions: [], room }, desk)!.room).toBe("none");
+    }
+  });
+
   it("rejects answers with no reply", () => {
     for (const bad of [null, undefined, "text", 42, [], { actions: [] }, { reply: 7 }, { reply: "\u200b" }]) expect(readReply(bad, desk)).toBeNull();
   });
@@ -188,6 +195,25 @@ describe("Skippy's chat: the gates hold before Claude hears anything", () => {
       expect((await post({ message: "hi", key: "test-desk-key" }, cookie)).status, cookie).toBe(401);
     }
     expect(asked()).toBe(0);
+  });
+
+  it("the room log gives a read without a sign-in session nothing, Exchange and Relay included (#273)", async () => {
+    const log = new MemoryRoomLog();
+    const { deps, cookie } = await harness({ log });
+    await log.add({ at: new Date(NOW).toISOString(), question: "What do I hold?", answer: "Secret sauce.", room: "exchange", model: "claude-sonnet-5-5" }, NOW);
+    await log.add({ at: new Date(NOW).toISOString(), question: "Who wrote me?", answer: "Secret sauce.", room: "relay", model: "claude-sonnet-5-5" }, NOW);
+    const good = cookie.slice(SESSION_COOKIE.length + 1);
+    const other = (await signedInCookie("another-desk-key", NOW)).slice(SESSION_COOKIE.length + 1);
+    for (const room of ["exchange", "relay"]) {
+      for (const c of ["", `${SESSION_COOKIE}=`, `${SESSION_COOKIE}=forged.token`, `${SESSION_COOKIE}=${other}`, `${SESSION_COOKIE}=${good.split(".")[0]}`, `ceo-desk=${good}`]) {
+        const res = await roomLog(new Request(`${ORIGIN}/api/skippy-log?room=${room}`, { headers: { Cookie: c } }), deps);
+        expect(res.status, c).toBe(401);
+        expect(await res.text()).not.toContain("Secret sauce");
+      }
+      const cross = await roomLog(new Request(`${ORIGIN}/api/skippy-log?room=${room}`, { headers: { Cookie: cookie, Origin: "https://attacker.example" } }), deps);
+      expect(cross.status).toBe(403);
+      expect(await cross.text()).not.toContain("Secret sauce");
+    }
   });
 
   it("refuses a request from another site", async () => {

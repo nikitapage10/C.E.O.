@@ -77,6 +77,24 @@ in the awesomeness".
 4. **Decisions.** When the submind's rules don't settle something, it goes up to Skippy (below). Skippy decides,
    or, when it needs Nikita, asks Nikita once with a decision card and the options.
 
+## Asks on the Desk, kept by room
+
+Nikita (2026-10-22): questions asked of Skippy, the Magnificent on the Desk are routed to the submind's room and kept
+there. Nothing server-side can post into a project thread, so the Desk keeps them (#273):
+
+- **Tagged in the same answer.** Skippy's closed answer schema has a required `room`: `green` (players, fantasy),
+  `exchange` (money, markets), `boiler` (systems), `foundry` (builds), `relay` (messages, email) or `none`. No extra
+  call; `readReply` files anything outside the set under `none` (`api/_skippy/prompt.ts`).
+- **Kept privately.** `api/skippy.ts` stores each answered turn (question, answer, room, time, model) in the private
+  blob store beside the chat's ledger, one file per room (`desk/skippy/rooms/<room>.json`, Vercel Blob or the Azure
+  `ceo-state` container): the last 200 per room, none older than 30 days (`api/_skippy/log.ts`). The history the
+  browser sends is never kept; a message the privacy check holds back never reaches Claude or the log.
+- **Read only signed in.** `GET /api/skippy-log?room=<room>` (a `vercel.json` rewrite into `api/skippy.ts`; its own
+  route on Azure, behind the site gate) answers only a Desk passkey session. Each room's Desk page (Green, Exchange,
+  Boiler Room, Foundry, Relay) shows its turns in an "Asked Skippy" panel, newest first, collapsed, veiled by Hide.
+  The Exchange's and Relay's asks never reach a public path or the Lattice. There is no outside reader (no token
+  read) yet: that waits on Nikita's word.
+
 ## Escalating to Skippy
 
 - From the Foundry thread (The Builder): send Skippy's thread a message saying what's being decided, the options, what

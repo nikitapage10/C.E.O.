@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
+import { AskedSkippy } from "../skippy/AskedSkippy.tsx";
 import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import { PolymarketBoard } from "../exchange/PolymarketBoard.tsx";
 import { PositionsBoard } from "../exchange/PositionsBoard.tsx";
@@ -159,6 +160,8 @@ export function Exchange() {
           <p className="wv-note">Read-only, through Plaid or statements you upload. Only you see this, signed in. The Lattice only ever says "on track" or "needs a look".</p>
         </div>
       </section>
+
+      <AskedSkippy room="exchange" />
 
       <Waits items={posStatus === "live" ? WAITS.slice(1) : WAITS} className="ex-waits" />
     </div>

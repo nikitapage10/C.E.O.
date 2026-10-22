@@ -17,6 +17,7 @@ import { startGreen } from "./green/league.ts";
 import { roomLink } from "./hero/roomLink.ts";
 import { Private } from "./Private.tsx";
 import { Home } from "./rooms/Home.tsx";
+import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
@@ -207,6 +208,8 @@ export function Systems({ now }: { now: number }) {
           </button>
         </section>
       </div>
+
+      <AskedSkippy room="boiler" />
 
       <Home />
     </div>

@@ -18,6 +18,7 @@ import { Avatar } from "./ui.tsx";
 import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
+import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 
 /**
  * The Foundry's own Desk page. Top to bottom: what needs you (the morning's ideas as cards you can build, pass on or
@@ -217,6 +218,8 @@ export function FoundryPage({ now }: { now: number }) {
           </details>
         </div>
       </div>
+
+      <AskedSkippy room="foundry" />
     </div>
   );
 }

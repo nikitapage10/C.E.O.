@@ -95,7 +95,7 @@ function checkDeskJs(bytes) {
 const deskUp = async (page, timeout, text) => {
   await page.waitForSelector(".desk__tabs", { timeout });
   await page.waitForFunction(
-    (t) => !globalThis.document.querySelector(".boot") && globalThis.document.getElementById("root")?.innerText.includes(t),
+    (t) => !globalThis.document.querySelector(".boot") && globalThis.document.getElementById("root")?.innerText.toLowerCase().includes(t.toLowerCase()),
     text,
     { timeout },
   );

@@ -9,6 +9,7 @@ import { LINK_STATE_LABEL, useSystems, type LinkState } from "../systems.ts";
 import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
+import { FoundryLoom } from "./FoundryLoom.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
 import { ChangePictures } from "./ChangePictures.tsx";
 import { Avatar, Panel } from "./ui.tsx";
@@ -144,6 +145,8 @@ export function FoundryPage({ now }: { now: number }) {
           </div>
         }
       />
+
+      <FoundryLoom data={data} pending={pending} now={now} connected={connected} />
 
       <section className="fy-needs" aria-label="Needs you">
         <header className="section-head">

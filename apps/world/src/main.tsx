@@ -3,6 +3,7 @@ import "@fontsource/cormorant-garamond/400.css";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/400-italic.css";
 import "@fontsource-variable/inter/wght.css";
+import "@fontsource-variable/manrope/wght.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import { StrictMode, Suspense, lazy } from "react";

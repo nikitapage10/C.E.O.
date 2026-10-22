@@ -10,9 +10,11 @@ import { link } from "./nav.ts";
 import { startDeskWorker } from "./pings.ts";
 import { startDeskAuth } from "./signin.ts";
 import { systemsTitle } from "./SystemsNav.tsx";
-import { Today } from "./Today.tsx";
+import { SkippyCan } from "./SkippySlot.tsx";
+import { ASK_SKIPPY_EVENT, Today } from "./Today.tsx";
 import "./desk.css";
 import "./chronicle.css";
+import "./weave.css";
 
 // Today is in the first load; every other tab loads the first time it is opened (and is fetched in the idle time
 // after the first paint, so switching stays instant).
@@ -49,13 +51,44 @@ function TabLoading() {
 
 type DeskTab = Exclude<Route, "lattice">;
 
-const TABS: { id: DeskTab; label: string }[] = [
-  { id: "today", label: "Today" },
-  { id: "relay", label: "Relay" },
-  { id: "foundry", label: "Foundry" },
-  { id: "systems", label: "Systems" },
-  { id: "chronicle", label: "Chronicle" },
+/** The tabs, each with the colour of the room it belongs to (Today is Skippy's own warm light). */
+const TABS: { id: DeskTab; label: string; colour: string }[] = [
+  { id: "today", label: "Today", colour: "var(--amber)" },
+  { id: "relay", label: "Relay", colour: "var(--room-relay)" },
+  { id: "foundry", label: "Foundry", colour: "var(--room-foundry)" },
+  { id: "systems", label: "Systems", colour: "var(--room-boiler)" },
+  { id: "chronicle", label: "Chronicle", colour: "var(--room-archive)" },
 ];
+
+/** The can in the bar: Skippy's Ask box lives on Today, so it goes there and brings the box into view. */
+function askSkippy() {
+  if (window.location.pathname !== "/") navigate("today", window.location.search);
+  window.setTimeout(() => window.dispatchEvent(new Event(ASK_SKIPPY_EVENT)), 60);
+}
+
+/**
+ * The sky behind every Desk page: the void, three slow glows in room colours, a few long threads drifting across it
+ * and a fine dust of stars. CSS and one static SVG only; the motion is transforms, so it costs the CPU next to
+ * nothing, and it holds still with reduced motion.
+ */
+function WeaveSky() {
+  return (
+    <div className="desk__sky" aria-hidden="true">
+      <span className="desk__glow desk__glow--a" />
+      <span className="desk__glow desk__glow--b" />
+      <span className="desk__glow desk__glow--c" />
+      <svg className="desk__weave" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+        <path d="M-100 220C300 120 520 420 860 300S1380 80 1700 200" style={{ stroke: "var(--room-foundry)" }} />
+        <path d="M-100 300C260 260 600 520 940 380S1400 200 1700 330" style={{ stroke: "var(--room-relay)" }} />
+        <path d="M-100 520C340 600 620 360 980 520S1420 700 1700 560" style={{ stroke: "var(--room-archive)" }} />
+        <path d="M-100 700C300 640 700 860 1020 720S1460 600 1700 760" style={{ stroke: "var(--room-exchange)" }} />
+        <path d="M-100 860C380 820 640 960 1000 880S1500 820 1700 920" style={{ stroke: "var(--room-breakroom)" }} />
+      </svg>
+      <span className="desk__stars" />
+    </div>
+  );
+}
+
 
 const HUB_LINE: Record<LinkState, string> = {
   off: "Not connected to your hub yet. Once the MacBook is set up, Relay's work shows up here.",
@@ -101,20 +134,26 @@ export function Desk({ route }: { route: DeskTab }) {
 
   return (
     <div className="desk" data-route={route}>
-      <div className="desk__sky" aria-hidden="true">
-        <span className="desk__glow desk__glow--a" />
-        <span className="desk__glow desk__glow--b" />
-        <span className="desk__stars" />
-      </div>
+      <WeaveSky />
 
       <header className="desk__bar">
         <div className="desk__bar-row">
-          <a className="desk__mark" href="/" onClick={link("today")} aria-label="C.E.O.">
-            <svg viewBox="0 0 32 32" aria-hidden="true">
-              <path d="M16 3v26M9 9a7 7 0 0 1 14 0M10 23a6 6 0 0 0 12 0" />
-              <circle cx="16" cy="16" r="2.4" />
+          <a className="desk__mark" href="/" onClick={link("today")} aria-label="C.E.O. Desk, Today">
+            <svg viewBox="0 0 40 40" aria-hidden="true">
+              <defs>
+                <linearGradient id="desk-mark" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0" stopColor="#f0a05a" />
+                  <stop offset="0.5" stopColor="#a493f0" />
+                  <stop offset="1" stopColor="#74dcb4" />
+                </linearGradient>
+              </defs>
+              <path d="M4 20c6-10 12-10 16 0s10 10 16 0" />
+              <path d="M4 20c6 10 12 10 16 0s10-10 16 0" />
+              <circle cx="20" cy="20" r="2.6" />
             </svg>
-            <span>C.E.O.</span>
+            <span>
+              C.E.O.<small>Desk</small>
+            </span>
           </a>
           <nav className="desk__tabs" aria-label="Desk">
             {TABS.map((t, i) => (
@@ -125,7 +164,9 @@ export function Desk({ route }: { route: DeskTab }) {
                 aria-current={route === t.id ? "page" : undefined}
                 onClick={link(t.id)}
                 title={`${t.label} (${i + 1})`}
+                style={{ "--c": t.colour } as React.CSSProperties}
               >
+                <i aria-hidden="true" />
                 {t.label}
                 {t.id === "today" && owed > 0 && (
                   <span className="desk__count" title="Things that need you">
@@ -140,6 +181,10 @@ export function Desk({ route }: { route: DeskTab }) {
               <i aria-hidden="true" />
               <span>{HUB_PILL[hub]}</span>
             </span>
+            <button type="button" className="desk__skippy" onClick={askSkippy} title="Ask Skippy" aria-label="Ask Skippy">
+              <SkippyCan size={30} />
+              <span>Ask Skippy</span>
+            </button>
             <a className="desk__enter" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
               <img src="/desk/lattice.webp" alt="" aria-hidden="true" decoding="async" />
               <span>Enter the Lattice</span>

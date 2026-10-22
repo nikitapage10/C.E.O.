@@ -5,42 +5,46 @@
  */
 .desk,
 .desk-boot {
-  --bg: #04060b;
-  --deep: #070b14;
-  --panel: rgba(10, 15, 26, 0.72);
-  --panel-solid: #0b1220;
-  --text: #e8f1ff;
-  --muted: #aab5c9;
-  --faint: #7c879e;
-  --dim: #46506a;
-  --hair: rgba(255, 255, 255, 0.13);
-  --hair-soft: rgba(255, 255, 255, 0.07);
-  --hair-strong: rgba(255, 255, 255, 0.3);
-  --ice: #8fe8ff;
-  --silver: #e8f1ff;
-  --violet: #9b8cff;
-  --mint: #7dffc4;
-  --amber: #ffd08f;
-  --rose: #ff6b8b;
+  /* Weave (round 5, Nikita 2026-10-22): a dark ink base, the rooms' colours as the threads' own, muted so they glow. */
+  --bg: #05070c;
+  --deep: #090c14;
+  --panel: rgba(15, 19, 30, 0.66);
+  --panel-solid: #0e121c;
+  --text: #eef1f7;
+  --muted: #b2bbcb;
+  --faint: #8790a5;
+  --dim: #4d566b;
+  --hair: rgba(255, 255, 255, 0.1);
+  --hair-soft: rgba(255, 255, 255, 0.06);
+  --hair-strong: rgba(255, 255, 255, 0.24);
+  --ice: #9fd2ff;
+  --silver: #eef1f7;
+  --violet: #a493f0;
+  --mint: #74dcb4;
+  --amber: #f4c27a;
+  --rose: #f07a8f;
   --ok: var(--mint);
   --warn: var(--amber);
   --bad: var(--rose);
-  /* The rooms' plinth colours, as the Lattice lights them. */
-  --room-relay: #e8c27a;
-  --room-foundry: #ffb067;
-  --room-spire: #c9d6ea;
-  --room-exchange: #7dffc4;
-  --room-green: #9dff6b;
-  --room-archive: #9b8cff;
-  --room-workshop: #e07a5f;
-  --room-boiler: #ff9a4a;
-  --room-breakroom: #ff8fc8;
+  /* The rooms' colours, as their subminds wear them (docs/SKIPPY.md): the threads, dots and accents. */
+  --room-relay: #7fa8f0;
+  --room-foundry: #f0a05a;
+  --room-spire: #e3c46e;
+  --room-exchange: #74dcb4;
+  --room-green: #a9d86a;
+  --room-archive: #a493f0;
+  --room-workshop: #5fc9c0;
+  --room-boiler: #9aa3b2;
+  --room-breakroom: #ef8fbf;
   --tone: var(--ice);
-  --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  /* Type: Manrope for display, Inter for everything else. No serif, no mono: the Desk never looks like a terminal. */
+  --serif: "Manrope Variable", Manrope, "Inter Variable", system-ui, sans-serif;
+  --display: var(--serif);
   --sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --mono: var(--sans);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --radius: 4px;
+  --radius: 10px;
+  --radius-lg: 18px;
   --gutter: 40px;
   position: fixed;
   inset: 0;
@@ -164,9 +168,9 @@ body {
   align-items: center;
   gap: 12px;
   font-family: var(--serif);
-  font-weight: 300;
-  font-size: 19px;
-  letter-spacing: 0.42em;
+  font-weight: 500;
+  font-size: 16px;
+  letter-spacing: -0.01em;
   color: var(--text);
 }
 .desk__mark svg {
@@ -195,7 +199,7 @@ body {
   border-radius: var(--radius);
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
   transition:
@@ -246,7 +250,7 @@ body {
   gap: 8px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
   white-space: nowrap;
@@ -283,7 +287,7 @@ body {
   border-radius: var(--radius);
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text);
   background: rgba(255, 255, 255, 0.03);
@@ -359,7 +363,7 @@ body {
   border-radius: var(--radius);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text);
 }
@@ -386,7 +390,7 @@ body {
   padding: 24px var(--gutter) 40px;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dim);
 }
@@ -401,17 +405,17 @@ body {
   margin: 0;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
 .desk__title {
   margin: 8px 0 0;
   font-family: var(--serif);
-  font-weight: 300;
-  font-size: 40px;
+  font-weight: 500;
+  font-size: 33.6px;
   line-height: 1.05;
-  letter-spacing: 0.26em;
+  letter-spacing: -0.01em;
   text-transform: uppercase;
   color: var(--text);
 }
@@ -425,10 +429,10 @@ body {
 .panel__head h2 {
   margin: 0;
   font-family: var(--serif);
-  font-weight: 400;
-  font-size: 23px;
+  font-weight: 600;
+  font-size: 19.3px;
   line-height: 1.2;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
   color: var(--text);
 }
 .section-head::after {
@@ -443,7 +447,7 @@ body {
   order: 2;
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
   white-space: nowrap;
@@ -523,8 +527,8 @@ a.panel__hint:hover {
 .banner__voice {
   margin: 12px 0 0;
   font-family: var(--serif);
-  font-style: italic;
-  font-size: 22px;
+  font-style: normal;
+  font-size: 18.5px;
   line-height: 1.25;
   color: var(--text);
 }
@@ -533,7 +537,7 @@ a.panel__hint:hover {
   font-family: var(--mono);
   font-style: normal;
   font-size: 10px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
   color: var(--tone);
@@ -635,7 +639,7 @@ a.panel__hint:hover {
   gap: 7px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--c);
   white-space: nowrap;
@@ -668,7 +672,7 @@ a.panel__hint:hover {
   gap: 8px;
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
@@ -712,7 +716,7 @@ a.panel__hint:hover {
 }
 .avatar b {
   font-family: var(--serif);
-  font-weight: 400;
+  font-weight: 600;
   font-size: calc(var(--s) * 0.5);
   color: var(--tone);
 }
@@ -735,7 +739,7 @@ a.panel__hint:hover {
   background: rgba(255, 255, 255, 0.02);
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text);
   white-space: nowrap;
@@ -826,8 +830,8 @@ a.panel__hint:hover {
 .hero__greet {
   margin: 14px 0 0;
   font-family: var(--serif);
-  font-style: italic;
-  font-size: 26px;
+  font-style: normal;
+  font-size: 21.8px;
   line-height: 1.2;
   color: var(--text);
 }
@@ -858,8 +862,8 @@ a.panel__hint:hover {
 .hero__stats dd {
   margin: 0;
   font-family: var(--serif);
-  font-weight: 300;
-  font-size: 40px;
+  font-weight: 500;
+  font-size: 33.6px;
   line-height: 1;
   color: var(--text);
 }
@@ -867,7 +871,7 @@ a.panel__hint:hover {
   margin-top: 6px;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -886,7 +890,7 @@ a.panel__hint:hover {
   margin: 0;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
   white-space: nowrap;
@@ -973,16 +977,16 @@ a.panel__hint:hover {
 .todo__title {
   margin: 0;
   font-family: var(--serif);
-  font-weight: 400;
-  font-size: 23px;
+  font-weight: 600;
+  font-size: 19.3px;
   line-height: 1.2;
   color: var(--text);
 }
 .todo__quote {
   margin: 0;
   font-family: var(--serif);
-  font-style: italic;
-  font-size: 16px;
+  font-style: normal;
+  font-size: 13.4px;
   line-height: 1.4;
   color: var(--muted);
 }
@@ -1005,7 +1009,7 @@ a.panel__hint:hover {
   margin-bottom: 2px;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
@@ -1052,7 +1056,7 @@ a.panel__hint:hover {
   grid-area: due;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
   white-space: nowrap;
@@ -1110,7 +1114,7 @@ a.panel__hint:hover {
 .notes__room {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
@@ -1169,7 +1173,7 @@ a.panel__hint:hover {
 }
 .room__name {
   font-family: var(--serif);
-  font-size: 21px;
+  font-size: 17.6px;
   line-height: 1.15;
   color: var(--text);
 }
@@ -1186,7 +1190,7 @@ a.panel__hint:hover {
 .room__cap {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -1223,7 +1227,7 @@ a.panel__hint:hover {
 .empty__title {
   margin: 0;
   font-family: var(--serif);
-  font-size: 22px;
+  font-size: 18.5px;
   color: var(--text);
 }
 .empty__text {
@@ -1281,14 +1285,14 @@ a.panel__hint:hover {
 .stat__label {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
 .stat__value {
   font-family: var(--serif);
-  font-weight: 300;
-  font-size: 44px;
+  font-weight: 500;
+  font-size: 37px;
   line-height: 1;
 }
 .stat__bar {
@@ -1361,7 +1365,7 @@ a.panel__hint:hover {
   font-style: normal;
   font-family: var(--mono);
   font-size: 9px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--amber);
 }
@@ -1400,7 +1404,7 @@ a.panel__hint:hover {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dim);
 }
@@ -1489,8 +1493,8 @@ a.panel__hint:hover {
 .clock-wrap__big {
   display: block;
   font-family: var(--serif);
-  font-weight: 300;
-  font-size: 42px;
+  font-weight: 500;
+  font-size: 35.3px;
   line-height: 1;
 }
 .clock-wrap__cap {
@@ -1498,7 +1502,7 @@ a.panel__hint:hover {
   margin: 6px 0 14px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -1581,7 +1585,7 @@ a.panel__hint:hover {
 .outbox__label {
   fill: var(--room-relay);
   font: 500 9px var(--mono);
-  letter-spacing: 0.3em;
+  letter-spacing: 0.08em;
   text-anchor: middle;
 }
 .outbox__mote {
@@ -1598,7 +1602,7 @@ a.panel__hint:hover {
   margin: 0;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -1646,7 +1650,7 @@ a.panel__hint:hover {
   display: block;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--room-relay);
 }
@@ -1654,14 +1658,14 @@ a.panel__hint:hover {
   margin: 6px 0 2px;
   color: var(--faint);
   font-size: 12px;
-  font-style: italic;
+  font-style: normal;
 }
 .draft__heard span {
   display: block;
   font-style: normal;
   font-family: var(--mono);
   font-size: 9px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dim);
 }
@@ -1698,7 +1702,7 @@ a.panel__hint:hover {
   color: var(--bg);
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .draft__send:hover:not(:disabled) {
@@ -1714,7 +1718,7 @@ a.panel__hint:hover {
   background: none;
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -1938,7 +1942,7 @@ a.panel__hint:hover {
 .strip__day {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   color: var(--muted);
 }
 .strip__col--today .strip__day {
@@ -1967,7 +1971,7 @@ a.panel__hint:hover {
   margin-top: 12px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -1978,14 +1982,14 @@ a.panel__hint:hover {
 }
 .streak__num span {
   font-family: var(--serif);
-  font-weight: 300;
-  font-size: 56px;
+  font-weight: 500;
+  font-size: 47px;
   line-height: 1;
 }
 .streak__num small {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -2163,7 +2167,7 @@ a.panel__hint:hover {
 .node__label {
   fill: var(--text);
   font: 500 11px var(--mono);
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-anchor: middle;
 }
@@ -2185,7 +2189,7 @@ a.panel__hint:hover {
   padding: 0;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -2225,7 +2229,7 @@ a.panel__hint:hover {
 .incident__eyebrow {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--amber);
 }
@@ -2269,7 +2273,7 @@ a.panel__hint:hover {
   margin: 0;
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -2354,7 +2358,7 @@ a.panel__hint:hover {
 .room-pick__label {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -2418,7 +2422,7 @@ button.room-pick__tab:hover {
 .room-pick__tab small {
   font-family: var(--mono);
   font-size: 8.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dim);
 }
@@ -2437,7 +2441,7 @@ button.room-pick__tab:hover {
 .fsys__schematic .node__sub {
   fill: var(--faint);
   font: 9px var(--mono);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-anchor: middle;
   paint-order: stroke;
@@ -2500,7 +2504,7 @@ button.room-pick__tab:hover {
 .fsys__readouts dt {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -2517,15 +2521,15 @@ button.room-pick__tab:hover {
 .fsys__eyebrow {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
 .fsys__title {
   margin: 0;
   font-family: var(--serif);
-  font-weight: 400;
-  font-size: 22px;
+  font-weight: 600;
+  font-size: 18.5px;
   line-height: 1.15;
   color: var(--text);
 }
@@ -2537,14 +2541,14 @@ button.room-pick__tab:hover {
 .fsys__source {
   margin: 0;
   font-size: 12px;
-  font-style: italic;
+  font-style: normal;
   color: var(--faint);
 }
 .fsys__link {
   justify-self: start;
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ice) !important;
 }
@@ -2652,15 +2656,15 @@ button.room-pick__tab:hover {
   margin: 0;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
 .agent__name {
   margin: 4px 0 6px;
   font-family: var(--serif);
-  font-weight: 400;
-  font-size: 26px;
+  font-weight: 600;
+  font-size: 21.8px;
   line-height: 1.1;
 }
 .agent__job {
@@ -2733,7 +2737,7 @@ button.room-pick__tab:hover {
 }
 .planned__name {
   font-family: var(--serif);
-  font-size: 20px;
+  font-size: 16.8px;
   line-height: 1.15;
 }
 .planned__what {
@@ -2777,7 +2781,7 @@ button.room-pick__tab:hover {
   min-width: 0;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ice);
 }
@@ -2795,7 +2799,7 @@ button.room-pick__tab:hover {
   color: var(--tone);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
   transition:
@@ -2826,7 +2830,7 @@ button.room-pick__tab:hover {
   background: color-mix(in srgb, var(--ice) 8%, transparent);
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ice);
 }
@@ -2881,7 +2885,7 @@ button.room-pick__tab:hover {
 .conn-pop__name {
   min-width: 0;
   font-family: var(--serif);
-  font-size: 20px;
+  font-size: 16.8px;
   line-height: 1.15;
 }
 .conn-pop__how {
@@ -2906,7 +2910,7 @@ button.room-pick__tab:hover {
   padding-top: 2px;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -2953,12 +2957,12 @@ button.room-pick__tab:hover {
   content: "0" counter(step);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   color: var(--tone);
 }
 .foundry-flow__name {
   font-family: var(--serif);
-  font-size: 20px;
+  font-size: 16.8px;
   line-height: 1.15;
 }
 .foundry-flow__what {
@@ -2993,14 +2997,14 @@ button.room-pick__tab:hover {
   grid-area: job;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
 .foundry-crew__name {
   grid-area: name;
   font-family: var(--serif);
-  font-size: 22px;
+  font-size: 18.5px;
   line-height: 1.1;
 }
 .foundry-crew__on {
@@ -3050,7 +3054,7 @@ button.room-pick__tab:hover {
   grid-area: kind;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--amber);
 }
@@ -3060,7 +3064,7 @@ button.room-pick__tab:hover {
 .fy-decision__title {
   grid-area: title;
   font-family: var(--serif);
-  font-size: 20px;
+  font-size: 16.8px;
   line-height: 1.2;
 }
 .fy-decision__title:hover {
@@ -3110,7 +3114,7 @@ button.room-pick__tab:hover {
 .fy-idea__n {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
@@ -3120,7 +3124,7 @@ button.room-pick__tab:hover {
   border-radius: 10px;
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -3136,8 +3140,8 @@ button.room-pick__tab:hover {
 .fy-idea__title {
   margin: 0;
   font-family: var(--serif);
-  font-weight: 400;
-  font-size: 23px;
+  font-weight: 600;
+  font-size: 19.3px;
   line-height: 1.2;
 }
 .fy-idea__pitch {
@@ -3371,7 +3375,7 @@ button.room-pick__tab:hover {
   cursor: pointer;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -3580,7 +3584,7 @@ a.fy-chip:hover {
 .fy-crew__name {
   min-width: 0;
   font-family: var(--serif);
-  font-size: 21px;
+  font-size: 17.6px;
   line-height: 1.1;
 }
 .fy-crew__name small {
@@ -3588,7 +3592,7 @@ a.fy-chip:hover {
   margin-top: 3px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -3605,7 +3609,7 @@ a.fy-chip:hover {
   font-family: var(--mono);
   font-size: 9.5px;
   line-height: 1.5;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
   vertical-align: 0.2em;
@@ -3640,7 +3644,7 @@ a.fy-chip:hover {
 .fy-crew__load {
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
   text-align: right;
@@ -3661,7 +3665,7 @@ a.fy-chip:hover {
 .fy-recent__label {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .fy-recent__item {
@@ -3742,7 +3746,7 @@ a.fy-chip:hover {
   font-family: var(--mono);
   font-size: 9.5px;
   font-weight: 400;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
@@ -3760,7 +3764,7 @@ a.fy-chip:hover {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 400;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -3829,7 +3833,7 @@ a.fy-chip:hover {
   grid-area: kind;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
@@ -3862,7 +3866,7 @@ a.fy-chip:hover {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 400;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -3959,7 +3963,7 @@ a.fy-chip:hover {
   min-width: 64px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -4313,7 +4317,7 @@ a.fy-chip:hover {
   .desk__tabs a {
     padding: 0 8px;
     font-size: 10.5px;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
   }
   .desk__hub span {
     display: none;
@@ -4321,7 +4325,7 @@ a.fy-chip:hover {
   .desk__enter {
     padding: 4px 10px 4px 4px;
     font-size: 9.5px;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
   }
   .desk__enter img {
     width: 36px;
@@ -4362,7 +4366,7 @@ a.fy-chip:hover {
   }
   .desk__title {
     font-size: 30px;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.08em;
   }
   /* On a phone the still is a band above the words, fading into the panel, so nothing sits on the Kernel's glare. */
   .hero,
@@ -4709,7 +4713,7 @@ a.fy-chip:hover {
   font-family: var(--mono);
   font-size: 10.5px;
   font-weight: 400;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -4726,8 +4730,8 @@ a.fy-chip:hover {
 }
 .fy-spend__figure b {
   font-family: var(--serif);
-  font-size: 40px;
-  font-weight: 400;
+  font-size: 33.6px;
+  font-weight: 600;
   line-height: 1;
   color: var(--text);
 }
@@ -4780,7 +4784,7 @@ a.fy-chip:hover {
   padding-top: 0;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
@@ -4840,7 +4844,7 @@ a.fy-chip:hover {
   margin-bottom: 4px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tone);
 }
@@ -4977,8 +4981,8 @@ a.fy-chip:hover {
   min-width: 0;
   margin: 0;
   font-family: var(--serif);
-  font-weight: 400;
-  font-size: 21px;
+  font-weight: 600;
+  font-size: 17.6px;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5127,7 +5131,7 @@ a.fy-chip:hover {
   gap: 10px;
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
   white-space: nowrap;
@@ -5223,7 +5227,7 @@ a.fy-chip:hover {
 }
 .setup__title {
   font-family: var(--serif);
-  font-size: 19px;
+  font-size: 16px;
   line-height: 1.25;
   color: var(--text);
 }
@@ -5237,7 +5241,7 @@ a.fy-chip:hover {
 .setup__state {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--c);
   white-space: nowrap;

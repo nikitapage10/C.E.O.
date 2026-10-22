@@ -41,15 +41,31 @@ export function RoomBanner({ page, lead, aside }: { page: BannerPage; lead?: Rea
         alt=""
         decoding="async"
       />
+      <BannerThreads />
       <div className="banner__text">
         <p className="eyebrow">{eyebrow}</p>
         <h1 className="desk__title banner__title">{title}</h1>
         <p className="banner__voice">
-          <q>{voice.line}</q> <cite>{PORTRAITS[voice.id]?.name ?? voice.id}</cite>
+          <img className="banner__who" src={`/desk/agent-${voice.id}.webp`} alt="" decoding="async" />
+          <span>
+            <q>{voice.line}</q> <cite>{PORTRAITS[voice.id]?.name ?? voice.id}</cite>
+          </span>
         </p>
         {lead && <p className="banner__lead">{lead}</p>}
       </div>
       {aside && <div className="banner__aside">{aside}</div>}
     </header>
+  );
+}
+
+/** The banner's woven threads in the room's colour, drawing themselves in once and then drifting slowly (CSS only). */
+function BannerThreads() {
+  return (
+    <svg className="banner__threads" viewBox="0 0 1200 260" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 200C220 150 380 240 600 170S980 60 1200 120" />
+      <path d="M0 150C260 210 420 110 640 150S1000 230 1200 170" />
+      <path d="M0 230C300 200 520 250 760 200S1060 140 1200 210" />
+      <path d="M0 110C200 140 460 70 700 110S1020 160 1200 90" />
+    </svg>
   );
 }

@@ -57,7 +57,7 @@ test("every response carries the security headers", async ({ request }) => {
 test("the Desk and each of its tabs raise no CSP violation", async ({ page }) => {
   const seen = await watch(page);
   await page.goto(BASE + "/");
-  await expect(page.locator(".desk__title")).toHaveText("Today");
+  await expect(page.locator(".today .desk__title")).toBeVisible();
   for (const tab of await page.locator(".desk__tabs a").all()) {
     await tab.click();
     await page.waitForTimeout(400);
@@ -75,7 +75,7 @@ test("the Desk installs as an app under the policy: manifest, icons and its serv
   for (const icon of body.icons) expect((await request.get(BASE + icon.src)).ok(), icon.src).toBe(true);
   expect((await request.get(BASE + "/sw.js")).headers()["cache-control"]).toBe("no-cache");
   await page.goto(BASE + "/");
-  await expect(page.locator(".desk__title")).toHaveText("Today");
+  await expect(page.locator(".today .desk__title")).toBeVisible();
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
   expect(scope).toBe(BASE + "/");
   // The worker keeps nothing: no cache is ever opened.

@@ -90,6 +90,9 @@ export default defineConfig({
   define: { __MODEL_VERSIONS__: JSON.stringify(modelVersions()) },
   build: {
     chunkSizeWarningLimit: 2500,
+    // Fonts are always files, never inlined as data: URIs: the site's CSP allows fonts from 'self' only, and Manrope's
+    // smallest subsets fall under Vite's 4 kB inline limit.
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
     rollupOptions: {
       output: {
         // Two library chunks that change rarely, so returning visitors keep them cached between deploys:

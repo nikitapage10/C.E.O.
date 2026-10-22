@@ -229,6 +229,7 @@ export function defaultCast(): Cast {
       { a: "turf", b: "gridiron", kind: "friend", note: "Gridiron coaches; the Commentator calls every play he makes, louder than he made it. Gridiron apologises for the volume. For both of them." },
       { a: "turf", b: "ticker", kind: "rival", note: "The Bookie prices the Commentator's real win chance and sweats every decimal; the Commentator shouts the same number. Same maths. Neither admits it." },
       { a: "turf", b: "punt", kind: "friend", note: "The Commentator commentates Punt's naps live. 'HE'S DOWN. HE'S STAYING DOWN.' Punt has never slept better." },
+      { a: "static", b: "postmaster", kind: "friend", note: "The Messenger hears every new email first and minds the inbox's ten dollars; Blasto reads only the ones that need the C.E.O. Gossip on a budget." },
       { a: "static", b: "dialtone", kind: "best-friend", note: "They listen in on the same lines and finish each other's gossip. Neither has told the wrong person. Neither has ever told anyone quietly." },
       { a: "vellum", b: "heimerdinger", kind: "friend", note: "The only two minds in the Archive who footnote their footnotes. They peer-review each other weekly and accept nothing on the first pass." },
       { a: "vellum", b: "d20", kind: "mentor", note: "The Historian corrects D20's dates, D20's dice and D20's spelling of 'initiative'. D20 rolls to ignore it. Fails." },

@@ -69,7 +69,7 @@ describe("cast", () => {
       expect(cast.profiles[r.b]).toBeDefined();
       expect(r.a).not.toBe(r.b);
     }
-    expect(relationshipsOf(cast, "postmaster")).toEqual([expect.objectContaining({ other: "dialtone", kind: "partner", leads: true })]);
+    expect(relationshipsOf(cast, "postmaster")).toEqual([expect.objectContaining({ other: "dialtone", kind: "partner", leads: true }), expect.objectContaining({ other: "static", kind: "friend", leads: false })]);
   });
 
   it("every look preset is a valid look, and icon presets carry a disclaimer", () => {

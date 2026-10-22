@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { byWait, DESK_ROOMS, roomImage, type DeskData, type DeskRoom } from "./deskData.ts";
 import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
 import { chronicleDay, sinceAway, useWorldFeed } from "../chronicle.ts";
@@ -9,6 +9,8 @@ import { roomLink } from "./hero/roomLink.ts";
 import { useSetup } from "./IdeaCard.tsx";
 import { link } from "./nav.ts";
 import { SetupAct, useSetupStatus } from "./SetupCard.tsx";
+import { EmailAct } from "./email/EmailAct.tsx";
+import { startEmail, useEmail } from "./email/email.ts";
 import { DecisionAct, IdeasAct, LaterAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
 import { ComingUp, LatticeToday, ShortVersion, shortVersion, WorthKnowing } from "./TodayWeave.tsx";
 import { Avatar } from "./ui.tsx";
@@ -50,7 +52,10 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   // An idea waiting for its pick already has its own card (IdeasAct), so it isn't repeated under "can wait".
   const picking = new Set(toPick.map((c) => `foundry-${c.number}`));
   const later = data.actions.filter((a) => a.when === "later" && !picking.has(a.id));
-  const todo = replies.length + decisions.length + questions.length;
+  // The email agent's count (#263): mail Dialtone sorted as needing you, from the public counts (no subjects here).
+  const emailNeeds = useEmail((s) => s.status?.needsYou ?? 0);
+  useEffect(() => startEmail(), []);
+  const todo = replies.length + decisions.length + questions.length + emailNeeds;
   const shipped = shippedToday(foundry.changelog, now);
   const pulses = usePulses(owed.length, now);
   const moments = shortVersion({ data, changes: foundry.changelog, ilyr, awaySince });
@@ -60,6 +65,7 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
     ...questions.map((c) => <QuestionAct key={`q${c.number}`} crate={c} setup={setup} now={now} style={at(i++)} />),
     ...decisions.map((a) => <DecisionAct key={a.id} a={a} style={at(i++)} />),
     ...replies.map((o) => <ReplyAct key={o.id} o={o} now={now} style={at(i++)} />),
+    ...(emailNeeds ? [<EmailAct key="email" count={emailNeeds} style={at(i++)} />] : []),
     ...(toPick.length ? [<IdeasAct key="ideas" ideas={toPick} setup={setup} now={now} style={at(i++)} />] : []),
     <SetupAct key="setup" status={setupList} style={at(i++)} />,
     ...(later.length || otherReplies > 0 ? [<LaterAct key="later" items={later} moreReplies={otherReplies} style={at(i++)} />] : []),

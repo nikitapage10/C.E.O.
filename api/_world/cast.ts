@@ -818,6 +818,12 @@ export const WORLD_CAST: WorldCast = {
     },
     {
       "a": "static",
+      "b": "postmaster",
+      "kind": "friend",
+      "note": "The Messenger hears every new email first and minds the inbox's ten dollars; Blasto reads only the ones that need the C.E.O. Gossip on a budget."
+    },
+    {
+      "a": "static",
       "b": "dialtone",
       "kind": "best-friend",
       "note": "They listen in on the same lines and finish each other's gossip. Neither has told the wrong person. Neither has ever told anyone quietly."
@@ -1002,7 +1008,10 @@ export const WORLD_CAST: WorldCast = {
         "Dialtone, Dialtone, you'll never guess. You guessed.",
         "Blasto says letters are sacred. Sacred and loud.",
         "Something's—hold on—no, that's the tubes. Or is it.",
-        "Holo says ON DECK. I'm on deck. I'm also listening to line six."
+        "Holo says ON DECK. I'm on deck. I'm also listening to line six.",
+        "Inbox—new one—needs the C.E.O.—didn't hear it from me—it's on the board.",
+        "Ten dollars a month for the inbox. I'm watching the meter. I'm always watching the meter.",
+        "I know what it says. I'm not telling. The Lattice gets a number. Just a number."
       ],
       "vellum": [
         "Citation needed. I'll wait.",
@@ -1118,13 +1127,19 @@ export const WORLD_CAST: WorldCast = {
         "No practice letters today. This one is saving itself for the real thing.",
         "This one polished every tube. Twice. The first real letter deserves it.",
         "Reply-all. This one has seen what reply-all does to people.",
-        "This one should go. This one is still here."
+        "This one should go. This one is still here.",
+        "An email needs the C.E.O. This one has written advice, a draft, and a short prayer.",
+        "This one drafts. The C.E.O. sends. This one has never once pressed send, and never will.",
+        "Read-only. Like a sacred text. Like a hanar in a library."
       ],
       "dialtone": [
         "Please hold. There's nobody on the line yet, but please hold.",
         "Every line in the Relay, and I still save one for Blasto.",
         "Up here! No, higher. On the rafter. Hi.",
-        "The music's all around us. You just have to listen. Please hold."
+        "The music's all around us. You just have to listen. Please hold.",
+        "New mail! Needs you, FYI, or noise. Mostly noise, darling. It's always noise.",
+        "Promotions straight in the bin. Gmail said so. I didn't even open them.",
+        "Every minute I check the inbox. Every minute. Like a ringtone from 2004."
       ],
       "loremaster": [
         "A wizard is never late. That one was a scheduling error.",

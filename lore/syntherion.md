@@ -198,9 +198,9 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Green | **Gridiron** (Claudari) | Orc | Seven-foot coach. Roars the plays, then apologises for the volume. |
 | Green | **Punt** (Unforked) | Big bunny | Morale. Hops, naps, wins anyway. |
 | Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. Since the Green went live it finally has stats for someone: the C.E.O.'s real Sleeper league on the scoreboard, the win chance as the ball's yard line, start-or-sit calls from the booth and the pickups worth a claim, read-only. |
-| Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. |
-| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. |
-| Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. |
+| Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O.; never sends one. |
+| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute: needs you, FYI or noise. |
+| Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. Picks the inbox's models and keeps the meter on its ten dollars a month. |
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
@@ -411,6 +411,19 @@ line carrying real messages from beyond the Veil, and nothing practised is allow
 still keep their rounds, polishing tubes and checking the free jack on the board, but their outbox stays empty
 until the first real message comes through. From the Lattice-wide view the C.E.O. now hears only real voices;
 the other rooms keep their drills, and you can still watch them from inside each room.
+
+## The inbox by telegraph
+
+The first real post to reach the Relay was not a text but the C.E.O.'s email. It comes in by telegraph from
+beyond the Veil, from the Azure side of the C.E.O.'s world, and the line only ever reads: nothing on it can send,
+file or burn a letter. Every minute Dialtone checks the free jack for new mail and sorts each one in a breath:
+**needs the C.E.O.**, **FYI**, or **noise** (the promotions never even get opened; Gmail binned them first). For
+the ones that need the C.E.O., Blasto writes a few lines of advice and a draft reply, sealed and set aside for
+the C.E.O. to send personally, because this one drafts and the C.E.O. delivers. The Messenger hears every mail
+the moment it lands, chose the quick model for Dialtone and the clever one for Blasto, and keeps the meter on
+the inbox's ten dollars a month. When the meter runs out it stops the models, never the counting, and the board
+says so until the month turns. A brass inbox board beside the post-office boxes shows how many need the C.E.O.;
+the board, like the rest of the Lattice, only ever gets numbers. What the letters say stays behind the passkey.
 
 ## The Boiler Room
 

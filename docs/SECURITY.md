@@ -199,6 +199,15 @@ when an API call answers 401 with `x-ceo-site-gate: locked` (`apps/world/src/sit
 domain, so the Azure copy has its own: lock it from the Azure Desk, after enrolling a passkey there. The Static Web App's own
 files stay reachable there until its own authentication is set up.
 
+## The email agent
+
+Relay's email agent (#263, [GMAIL.md](GMAIL.md)) runs only on the Azure copy. It reads Gmail with the read-only
+scope (`gmail.readonly`), so nothing can be sent, archived or deleted. The refresh token and the private mail list
+are sealed (AES-256-GCM, `GMAIL_TOKEN_KEY`) in the private store; the list reaches only the Desk's passkey session and
+is masked by Hide; the public site gets counts and states only (`EmailStatus`, an allowlist with a test). Mail is
+untrusted input to Claude: fenced as data, no tools, structured output checked in code. Connect Gmail is the OAuth
+web flow with a signed, short-lived state cookie checked in constant time. Its own Claude cap is `EMAIL_BUDGET_USD`.
+
 ## Pings on the phone
 
 The Desk can sit on a phone's home screen like an app and send one notification when something needs Nikita's call
@@ -276,6 +285,9 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `SITE_BYPASS_TOKEN` | The site lock's key for the workflows that read the site (#236): the backup, the Azure seed and the live watch send it in `x-ceo-site-bypass`. At least 32 random characters, the same value as the Actions secret below. Production only | Those workflows get the login page once the password is on: the backup and seed fail, the live watch only checks the login page |
 | `SITE_SESSION_SECRET` | Optional: signs the site's sign-in cookies (#236). At least 32 random characters | Derived from `FOUNDRY_DESK_KEY` |
 | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` | Nikita's Polymarket US API key (#253), for the Exchange's private positions board. **Azure only**, as Key Vault references (`polymarket-us-key-id`, `polymarket-us-secret-key`); not set on Vercel. Polymarket US keys have no read-only scope, so the code keeps it read-only: `api/_exchange/positions.ts` signs only GET requests to `/v1/portfolio/positions` and `/v1/portfolio/activities` (an allow-list, with a test that fails if an order, account, RFQ, combo or WebSocket path becomes reachable), never logs or returns the key, and answers only a signed-in Desk (`private, no-store`). Revoke it at polymarket.us/developer if in doubt | The positions board says it's waiting for the key |
+| `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` | The email agent's Google OAuth client (#263, [GMAIL.md](GMAIL.md)). **Azure only**, as Key Vault references (`gmail-client-id`, `gmail-client-secret`) | Connect Gmail is off; the Relay page says it's waiting for the keys |
+| `GMAIL_TOKEN_KEY` | 32 random bytes that seal the Gmail refresh token and the private mail list at rest (`api/_email/seal.ts`). **Azure only** (`gmail-token-key`). Replacing it locks the stored token away: Connect Gmail again | The email agent waits |
+| `EMAIL_BUDGET_USD` | The email agent's own monthly Claude cap (#263), separate from the others; at the cap it only counts new mail. **Azure only** | $10 |
 | `SITE_GATE` | Break glass: `off` turns the site lock off whatever is stored (#236, #238) | The gate follows the stored lock |
 
 ## What scans the code, and when

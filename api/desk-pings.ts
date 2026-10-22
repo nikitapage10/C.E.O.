@@ -58,7 +58,7 @@ export function vapidSubject(given = env("DESK_VAPID_SUBJECT")): string {
   return /^(https:\/\/|mailto:)\S+$/.test(given) ? given : SITE;
 }
 
-async function webPushSend(sub: PingSub, text: PingText): Promise<Sent> {
+export async function webPushSend(sub: PingSub, text: PingText): Promise<Sent> {
   try {
     await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, JSON.stringify(text), {
       vapidDetails: { subject: vapidSubject(), publicKey: env("DESK_VAPID_PUBLIC_KEY"), privateKey: env("DESK_VAPID_PRIVATE_KEY") },
@@ -102,7 +102,7 @@ export function handleGet(deps: PingDeps = live()): Response {
 }
 
 /** Sends one ping to each device; drops the ones the push service says are gone. Returns how many took it. */
-async function deliver(store: AuthStore, subs: PingSub[], text: PingText, send: PingDeps["send"]): Promise<number> {
+export async function deliver(store: AuthStore, subs: PingSub[], text: PingText, send: PingDeps["send"]): Promise<number> {
   const results = await Promise.all(subs.map((s) => send(s, text)));
   const gone = new Set(subs.filter((_, i) => results[i] === "gone").map((s) => s.endpoint));
   if (gone.size) {

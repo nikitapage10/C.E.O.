@@ -127,11 +127,13 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
    | `polymarket-us-key-id`, `polymarket-us-secret-key` | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` (optional, #253: the Exchange's read-only positions; Azure only) |
    | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
+   | `gmail-client-id`, `gmail-client-secret`, `gmail-token-key` (the email agent, #263; Azure only, set up as in [GMAIL.md](GMAIL.md)) | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_KEY` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings, lower than Vercel's because both copies
    use the same Claude and Gemini accounts, and each copy keeps its own ledger. `WORLD_BUDGET_USD=2` (Vercel: 6),
    `GEMINI_BUDGET_USD=2` (Vercel: 5) and `SKIPPY_BUDGET_USD=0.5` (Vercel: 1); change one with `-p worldBudgetUsd=3`
-   (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. Anything set by hand in the portal is reset by the next
+   (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. The email agent's own cap, `EMAIL_BUDGET_USD=10`
+   (`emailBudgetUsd`, #263), is separate from those and exists only here. Anything set by hand in the portal is reset by the next
    template run, so change them there.
    Vercel's `BLOB_*` settings have no counterpart: the Function App already has `WORLD_STORE=azureblob`,
    `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_BLOB_ENDPOINT` and `AZURE_STORAGE_CONTAINER=ceo-state`.
@@ -183,6 +185,9 @@ The same code runs on Vercel and on Azure; nothing here changes how Vercel runs 
   App's own URL (`az deployment sub show -n ceo --query properties.outputs.functionAppUrl.value -o tsv`), not the
   site's `/api`. The Function App allows 10 minutes (`azure/host.json`, `functionTimeout`). Linking adds an identity
   provider to the Function App; check its own URL still answers before pointing anything at it.
+- **The email agent (#263) is Azure only.** `azure/src/index.ts` also registers `/api/email` and `/api/gmail-callback`
+  (behind the same gate) and one timer function, `email_tick`, every minute. Vercel has neither, so its Desk shows the
+  email agent as living on the Azure copy. Setup, privacy and the cap: [GMAIL.md](GMAIL.md).
 - **Passkeys are per domain.** The Desk's passkeys are tied to the address they were made on, so signing in to the
   Desk on the Azure address needs its own passkey, enrolled there with the Desk key as on Vercel. Azure's store
   starts empty: Vercel's passkeys don't carry over, and neither do the world, the stories or the pictures until

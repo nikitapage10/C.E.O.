@@ -78,7 +78,7 @@
 /* ── The bar ── */
 .desk__bar {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  background: linear-gradient(180deg, rgba(7, 9, 15, 0.86), rgba(7, 9, 15, 0.7));
+  background: linear-gradient(180deg, rgba(7, 9, 15, 0.94), rgba(7, 9, 15, 0.86));
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
@@ -2002,6 +2002,13 @@ a.panel__hint:hover {
   }
   .fy-loom__card {
     flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .fy-loom__what {
+    flex: 1 1 calc(100% - 70px);
+  }
+  .fy-loom__card .btn {
+    margin-left: 60px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2027,5 +2034,80 @@ a.panel__hint:hover {
   }
   .desk__tabs a.on i {
     display: inline-block;
+  }
+}
+
+/* ── The Chronicle's day, by room ── */
+.chron-weave {
+  margin: 14px 0 18px;
+  padding: 16px 18px 10px;
+  border: 1px solid var(--glass-line);
+  border-radius: 18px;
+  background: radial-gradient(80% 100% at 50% 0%, rgba(164, 147, 240, 0.08), transparent 70%), var(--glass);
+  box-shadow: var(--lift);
+  overflow: hidden;
+}
+.chron-weave svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.chron__main {
+  min-width: 0;
+}
+.chron-weave__tick line {
+  stroke: rgba(255, 255, 255, 0.05);
+}
+.chron-weave__tick text {
+  font-size: 11px;
+  text-anchor: middle;
+  fill: var(--dim);
+}
+.chron-weave__name {
+  font-size: 12px;
+  fill: var(--dim);
+}
+.chron-weave__row.on .chron-weave__name {
+  fill: color-mix(in srgb, var(--c) 60%, #fff);
+}
+.chron-weave__rest {
+  stroke: var(--c);
+  stroke-width: 1;
+  opacity: 0.16;
+  stroke-dasharray: 2 5;
+}
+.chron-weave__line {
+  stroke: var(--c);
+}
+.chron-weave__row.on .chron-weave__line {
+  opacity: 0.7;
+  stroke-width: 1.4;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: council-thread 1s cubic-bezier(0.3, 0.6, 0.2, 1) forwards;
+  animation-delay: calc(var(--i) * 50ms);
+  filter: drop-shadow(0 0 3px var(--c));
+}
+.chron-weave__knot {
+  fill: #fff;
+  stroke: var(--c);
+  stroke-width: 2;
+  cursor: pointer;
+  filter: drop-shadow(0 0 5px var(--c));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: knot-in 0.4s var(--ease) both;
+  animation-delay: calc(0.6s + var(--k) * 50ms);
+  transition: transform 0.2s;
+}
+.chron-weave__knot:hover,
+.chron-weave__knot:focus-visible {
+  transform: scale(1.5);
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chron-weave * {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
   }
 }

@@ -7,6 +7,7 @@ import { formatWait } from "./deskData.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { RoomBanner } from "./RoomBanner.tsx";
+import { useWidth } from "./motion.tsx";
 import { Avatar, Panel } from "./ui.tsx";
 
 /**
@@ -114,6 +115,8 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
             ))}
           </nav>
 
+          {entries.length > 0 && <DayInRooms entries={entries} />}
+
           {recap ? (
             <Panel eyebrow={`The day in Ilyr · ${dayTitle(shown, now)}`} className="chron-recap">
               <div className="chron-recap__body">
@@ -190,7 +193,7 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
 
 function Hour({ e, fresh }: { e: HistoryEntry; fresh: boolean }) {
   return (
-    <li className={`chron-hour${fresh ? " chron-hour--fresh" : ""}`}>
+    <li className={`chron-hour${fresh ? " chron-hour--fresh" : ""}`} id={`hour-${e.step}`}>
       <header className="chron-hour__head">
         <time dateTime={e.at}>{hourLabel(e.at)}</time>
         {fresh && <span className="chron-hour__new">New</span>}
@@ -266,4 +269,57 @@ function mergeEntries(a: HistoryEntry[], b: HistoryEntry[]): HistoryEntry[] {
 function nextIn(ms: number): string {
   if (ms <= 60_000) return "any minute";
   return `in ${Math.round(ms / 60_000)} min`;
+}
+
+const ROOM_ROWS: RoomId[] = ["foundry", "relay", "boiler", "archive", "breakroom", "spire", "exchange", "green", "workshop"];
+
+/**
+ * The shown day as threads (the Weave): a thread per room across the day's hours, a knot wherever the hour set a
+ * scene there. Rooms the day never visited stay a faint dashed line. Tap a knot to jump to that hour below.
+ */
+function DayInRooms({ entries }: { entries: HistoryEntry[] }) {
+  const [box, width] = useWidth<HTMLDivElement>(320);
+  const label = width < 520 ? 76 : 104;
+  const plot = width - label - 10;
+  const hourOf = (e: HistoryEntry) => {
+    const d = new Date(e.at);
+    return d.getHours() + d.getMinutes() / 60;
+  };
+  const x = (h: number) => label + (h / 24) * plot;
+  const row = 22;
+  const top = 10;
+  const h = top + ROOM_ROWS.length * row + 22;
+  const go = (step: number) => document.getElementById(`hour-${step}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  return (
+    <div className="chron-weave" ref={box} aria-label="The day's scenes by room">
+      <svg width={width} height={h} viewBox={`0 0 ${width} ${h}`}>
+        {[0, 6, 12, 18, 24].map((t) => (
+          <g key={t} className="chron-weave__tick">
+            <line x1={x(t)} x2={x(t)} y1={top - 4} y2={h - 18} />
+            <text x={x(t)} y={h - 4} style={{ textAnchor: t === 0 ? "start" : t === 24 ? "end" : "middle" }}>
+              {t === 0 || t === 24 ? "midnight" : t === 12 ? "noon" : t < 12 ? `${t} am` : `${t - 12} pm`}
+            </text>
+          </g>
+        ))}
+        {ROOM_ROWS.map((room, i) => {
+          const y = top + i * row + row / 2;
+          const scenes = entries.flatMap((e) => e.scenes.filter((sc) => sc.room === room).map((sc) => ({ e, sc })));
+          return (
+            <g key={room} className={`chron-weave__row ${scenes.length ? "on" : ""}`} style={{ "--c": `var(--room-${room})`, "--i": i } as React.CSSProperties}>
+              <text x={0} y={y + 4} className="chron-weave__name">
+                {ROOM_NAME[room]}
+              </text>
+              <line x1={label} x2={label + plot} y1={y} y2={y} className="chron-weave__rest" />
+              {scenes.length > 0 && <line x1={label} x2={x(Math.max(...scenes.map(({ e }) => hourOf(e))))} y1={y} y2={y} className="chron-weave__line" pathLength={1} />}
+              {scenes.map(({ e, sc }, k) => (
+                <circle key={`${e.step}-${k}`} cx={x(hourOf(e))} cy={y} r="4.5" className="chron-weave__knot" style={{ "--k": k } as React.CSSProperties} role="button" tabIndex={0} aria-label={`${ROOM_NAME[room]}, ${hourLabel(e.at)}: ${sc.title}`} onClick={() => go(e.step)} onKeyDown={(ev) => ev.key === "Enter" && go(e.step)}>
+                  <title>{`${hourLabel(e.at)} · ${sc.title}`}</title>
+                </circle>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
 }

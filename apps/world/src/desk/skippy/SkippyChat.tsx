@@ -234,7 +234,8 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
       <SkippyComposer autoFocus />
     </section>
   );
-  // The dock floats over the viewport, so it lives at the body: an ancestor's transform or backdrop-filter would
-  // otherwise pin "fixed" to that ancestor instead of the screen.
-  return placement === "dock" && typeof document !== "undefined" ? createPortal(dialog, document.body) : dialog;
+  // The dock floats over the viewport, so it lives at the Desk's root (its tokens and resets, none of its panels):
+  // a panel's backdrop-filter would otherwise pin "fixed" to that panel instead of the screen. Off the Desk, the body.
+  if (placement !== "dock" || typeof document === "undefined") return dialog;
+  return createPortal(dialog, document.querySelector(".desk") ?? document.body);
 }

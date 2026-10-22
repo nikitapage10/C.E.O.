@@ -2,6 +2,11 @@
 # (api/world-step.ts) and is idempotent per hour, so this needs no secret: calling it again within 55 minutes does
 # nothing. GitHub may run a scheduled job a few minutes late, or skip one when it is busy; the next hour catches up
 # on whatever happened in between.
+#
+# The Azure copy (docs/AZURE.md) keeps its own world in its own store, so the same hour advances it too, in a job of
+# its own: it signs in like deploy-azure.yml (OIDC, the `azure` environment, main only), finds the Function App's
+# address, and calls the step there (not through the site's /api, whose proxy may cut a long request). It is skipped
+# until Azure is set up, and anything that goes wrong on Azure is a warning, never a red run: Vercel is production.
 name: World step
 
 on:
@@ -27,3 +32,55 @@ jobs:
           head -c 600 step.json; echo
           # 409: another step landed first, which is fine.
           if [ "$code" != "200" ] && [ "$code" != "409" ]; then exit 1; fi
+
+  azure:
+    if: vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: azure
+    permissions:
+      id-token: write
+    steps:
+      - name: Tidy the Azure settings
+        id: az
+        env:
+          CLIENT: ${{ vars.AZURE_CLIENT_ID }}
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          SUB: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          RG: ${{ vars.AZURE_RG }}
+          FUNC: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          SWA: ${{ vars.AZURE_SWA_NAME }}
+        # A pasted variable can carry a stray line break or space; drop them so sign-in sees clean IDs.
+        run: |
+          for k in CLIENT TENANT SUB RG FUNC SWA; do
+            printf '%s=%s\n' "${k,,}" "$(printf '%s' "${!k}" | tr -d '\r\n[:space:]')" >> "$GITHUB_OUTPUT"
+          done
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        id: login
+        continue-on-error: true
+        with:
+          client-id: ${{ steps.az.outputs.client }}
+          tenant-id: ${{ steps.az.outputs.tenant }}
+          subscription-id: ${{ steps.az.outputs.sub }}
+      - name: Advance the Azure world one hour
+        if: steps.login.outcome == 'success'
+        env:
+          RG: ${{ steps.az.outputs.rg }}
+          FUNC: ${{ steps.az.outputs.func }}
+          SWA: ${{ steps.az.outputs.swa }}
+        run: |
+          host=$(az functionapp show -g "$RG" -n "$FUNC" --query defaultHostName -o tsv 2>/dev/null) || host=""
+          if [ -z "$host" ]; then echo "::warning::Couldn't find the Azure Function App; skipped."; exit 0; fi
+          code=$(curl -sS -o step.json -w '%{http_code}' -X POST --max-time 300 "https://$host/api/world-step") || code=000
+          # The Function App's own address may refuse callers once the Static Web App is linked to it; then go
+          # through the site instead.
+          if [ "$code" = "401" ] || [ "$code" = "403" ]; then
+            site=$(az staticwebapp show -g "$RG" -n "$SWA" --query defaultHostname -o tsv 2>/dev/null) || site=""
+            if [ -n "$site" ]; then code=$(curl -sS -o step.json -w '%{http_code}' -X POST --max-time 300 "https://$site/api/world-step") || code=000; fi
+          fi
+          echo "HTTP $code"
+          head -c 600 step.json 2>/dev/null; echo
+          if [ "$code" != "200" ] && [ "$code" != "409" ]; then echo "::warning::The Azure world step answered HTTP $code."; fi
+      - name: Note a skipped sign-in
+        if: steps.login.outcome != 'success'
+        run: echo "::warning::Couldn't sign in to Azure; the Azure world step was skipped."

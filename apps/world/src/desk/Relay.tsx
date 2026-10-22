@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
+import { useMasked } from "./hide.ts";
+import { Private } from "./Private.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
@@ -105,6 +107,7 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
   const owed = byWait(data.owed);
   const { picked, pick, send, later, setDraft } = useDesk();
   const current = owed.find((o) => o.id === picked) ?? null;
+  const mask = useMasked();
   const canAct = connected;
   // Voice: what you said, then Blasto's light pass in your style. The words stream from OpenAI speech-to-text
   // through the hub and the styled version comes back from Blasto.
@@ -182,12 +185,14 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
                     <li key={o.id}>
                       <button type="button" className={current?.id === o.id ? "on" : ""} onClick={() => pick(o.id)} style={{ "--tone": waitTone(f) } as React.CSSProperties}>
                         <span className="owed__name">
-                          {o.name}
+                          <Private>{o.name}</Private>
                           {o.later ? <em className="later">later</em> : o.urgency === "sooner" && <em>sooner</em>}
                           <small>{o.channel}</small>
                         </span>
                         <span className="owed__wait">{formatWait(wait)}</span>
-                        <span className="owed__preview">{o.preview}</span>
+                        <span className="owed__preview">
+                          <Private>{o.preview}</Private>
+                        </span>
                       </button>
                     </li>
                   );
@@ -230,7 +235,7 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
           </Panel>
         </div>
 
-        <Panel eyebrow={current ? current.name : "Conversation"} className="panel--thread" label="Conversation">
+        <Panel eyebrow={current ? mask(current.name, "A conversation") : "Conversation"} className="panel--thread" label="Conversation">
           <div className="thread">
             {current ? (
               <div className="thread__body">
@@ -239,7 +244,7 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
                 </p>
                 {(current.thread ?? [{ from: "them" as const, text: current.preview, at: current.since }]).map((m, i) => (
                   <p key={i} className={`bubble bubble--${m.from === "me" ? "out" : "in"}`}>
-                    {m.text}
+                    <Private>{m.text}</Private>
                     <time>{hhmm(m.at)}</time>
                   </p>
                 ))}
@@ -258,7 +263,8 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
                   </span>
                   {said && (
                     <p className="draft__heard">
-                      <span>You said</span>“{said}”
+                      <span>You said</span>
+                      <Private>“{said}”</Private>
                     </p>
                   )}
                   {canAct ? (
@@ -268,10 +274,11 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
                       placeholder="Drafting… or write your own"
                       rows={2}
                       onChange={(e) => setDraft(current.id, e.target.value)}
-                      aria-label={`Reply to ${current.name}`}
+                      aria-label={`Reply to ${mask(current.name, "them")}`}
+                      data-private=""
                     />
                   ) : (
-                    <p>{current.draft ?? "Drafting…"}</p>
+                    <p>{current.draft ? <Private>{current.draft}</Private> : "Drafting…"}</p>
                   )}
                   {canAct && (
                     <div className="draft__actions">

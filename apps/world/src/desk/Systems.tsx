@@ -12,7 +12,9 @@ import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
 import { startPolymarket } from "./exchange/polymarket.ts";
+import { startGreen } from "./green/league.ts";
 import { roomLink } from "./hero/roomLink.ts";
+import { Private } from "./Private.tsx";
 import { Home } from "./rooms/Home.tsx";
 import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
@@ -28,7 +30,7 @@ import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 const PLANNED: { room: string; name: string; what: string; href?: string }[] = [
   { room: "spire", name: "Spire", what: "Stripe Invoicing and the idea scout", href: "/spire" },
   { room: "exchange", name: "Exchange", what: "Kalshi, crypto and stock prices, and Plaid or statements (Polymarket's odds are live)", href: "/exchange" },
-  { room: "green", name: "Green", what: "Sleeper and FantasyPros", href: "/green" },
+  { room: "green", name: "Green", what: "The weekly take from OpenAI, and FantasyPros on Vercel (Sleeper's league is live; FantasyPros is on Azure)", href: "/green" },
   { room: "workshop", name: "Workshop", what: "Meshy and the Bambu Lab printer", href: "/workshop" },
   { room: "boiler", name: "The house", what: "Google Nest, below" },
   { room: "breakroom", name: "Break Room", what: "Off the clock; shows the Veil countdown" },
@@ -54,6 +56,8 @@ export function Systems({ now }: { now: number }) {
   const [mode, setMode] = useState<"overview" | FlowId>(firstMode);
   // Polymarket's thread is real (#240): read its odds while this page is open, so the thread shows its true state.
   useEffect(() => startPolymarket(), []);
+  // So are Sleeper and FantasyPros, through the Green's board (#252).
+  useEffect(() => startGreen(), []);
   const linkList = useSystems((s) => s.links);
   const links = useMemo(() => Object.fromEntries(linkList.map((l) => [l.id, l.state])) as Record<string, LinkState>, [linkList]);
   const connected = useFoundry((s) => s.connected);
@@ -182,7 +186,15 @@ export function Systems({ now }: { now: number }) {
             </div>
             <div>
               <dt>This month</dt>
-              <dd>{world ? `${formatUsd(world.spend.usd)} of ${formatUsd(world.spend.budget)}` : "–"}</dd>
+              <dd>
+                {world ? (
+                  <>
+                    <Private>{formatUsd(world.spend.usd)}</Private> of {formatUsd(world.spend.budget)}
+                  </>
+                ) : (
+                  "–"
+                )}
+              </dd>
             </div>
           </dl>
           <button className="wv-link" type="button" onClick={() => setMode("boiler")}>

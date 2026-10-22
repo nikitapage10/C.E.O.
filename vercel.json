@@ -50,6 +50,7 @@
     { "source": "/lattice", "destination": "/index.html" },
     { "source": "/api/site-login", "destination": "/api/desk-auth?site=login" },
     { "source": "/api/site-password", "destination": "/api/desk-auth?site=password" },
-    { "source": "/api/exchange-markets", "destination": "/api/world?exchange=markets" }
+    { "source": "/api/exchange-markets", "destination": "/api/world?exchange=markets" },
+    { "source": "/api/green-league", "destination": "/api/world?green=league" }
   ]
 }

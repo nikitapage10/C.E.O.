@@ -1723,3 +1723,31 @@
 .desk .wv-page .desk-auth .btn{min-height:30px;padding:0 13px;border:1px solid var(--wv-line2);border-radius:999px;background:none;box-shadow:none;font-family:var(--wv-sans);font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--wv-soft)}
 .desk .wv-page .desk-auth .btn:hover:not(:disabled){border-color:var(--wv-hot-line);color:var(--wv-ink)}
 .desk .wv-page .desk-auth .btn--go{border-color:var(--wv-hot-line);background:var(--wv-hot-bg);color:var(--wv-hot)}
+
+/* ---------- Hide (Nikita, 2026-10-22 05:36Z): personal values under a woven veil, for showing the Desk to someone ----------
+ * hide.ts sets data-hide on the .desk root; anything marked data-private (Private.tsx) keeps its place and size but its
+ * words go under a fine warp-and-weft in the Desk's own gold, and a whole private block (a chart, a table) blurs. The
+ * veil fades in through --wv-veil so the text and the weave cross over together. */
+@property --wv-veil{syntax:"<number>";inherits:false;initial-value:0}
+.desk [data-private]{--wv-veil:0;transition:color .45s var(--wv-ease),-webkit-text-fill-color .45s var(--wv-ease),--wv-veil .45s var(--wv-ease),filter .5s var(--wv-ease),opacity .5s var(--wv-ease)}
+.desk .wv-private{padding:0 .14em;margin:0 -.14em;border-radius:.38em;-webkit-box-decoration-break:clone;box-decoration-break:clone;background-image:repeating-linear-gradient(90deg,rgba(255,220,170,calc(var(--wv-veil)*.2)) 0 1px,transparent 1px 4px),repeating-linear-gradient(0deg,rgba(255,220,170,calc(var(--wv-veil)*.12)) 0 1px,transparent 1px 3px),linear-gradient(rgba(255,220,170,calc(var(--wv-veil)*.07)),rgba(255,220,170,calc(var(--wv-veil)*.07)));box-shadow:inset 0 0 0 1px rgba(255,220,170,calc(var(--wv-veil)*.16))}
+.desk div.wv-private,.desk p.wv-private{display:block;margin:0;padding:0}
+.desk[data-hide] [data-private]{--wv-veil:1;-webkit-user-select:none;user-select:none}
+.desk[data-hide] [data-private]:not([data-private="block"]),.desk[data-hide] [data-private]:not([data-private="block"]) *{color:transparent!important;-webkit-text-fill-color:transparent;text-shadow:none!important}
+.desk[data-hide] [data-private]:not([data-private="block"]) :is(img,svg,canvas,video){opacity:0}
+.desk[data-hide] :is(input,textarea)[data-private]{caret-color:var(--wv-hot);background-image:repeating-linear-gradient(90deg,rgba(255,220,170,.12) 0 1px,transparent 1px 4px)}
+.desk[data-hide] [data-private="block"]{filter:blur(9px) saturate(.4);opacity:.6;pointer-events:none}
+
+/* The bar's eye: open while everything shows, a thread drawn through it while personal details are hidden. */
+.desk .wv-hide__slash{stroke-dasharray:22;stroke-dashoffset:22;transition:stroke-dashoffset .5s var(--wv-ease)}
+.desk .wv-hide__iris{transition:opacity .4s var(--wv-ease),transform .4s var(--wv-ease);transform-origin:12px 12px}
+.desk .wv-hide[data-on]{color:var(--wv-hot)}
+.desk .wv-hide[data-on] .wv-hide__slash{stroke-dashoffset:0}
+.desk .wv-hide[data-on] .wv-hide__iris{opacity:.4;transform:scale(.7)}
+/* The bar is full below 1440px wide: the eye alone, its slash and gold saying it's on. */
+@media (max-width:1440px){
+  .desk .wv-hide span{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .desk [data-private],.desk .wv-hide__slash,.desk .wv-hide__iris{transition:none}
+}

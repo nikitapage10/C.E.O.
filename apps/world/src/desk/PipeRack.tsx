@@ -106,7 +106,7 @@ export function PipeRack({ rows, onOpen }: { rows: PipeRow[]; onOpen: (id: FlowI
               </button>
             ) : (
               <a className="pr-head" href={`/${r.id}`} onClick={roomLink(`/${r.id}`)} aria-label={`${r.name}, ${WORD[r.stc]}: open its room`}>
-                {head(r, `${r.steps} ${r.steps === 1 ? "connection" : "connections"} · its room`)}
+                {head(r, `${r.steps} ${r.steps === 1 ? "connection" : "connections"} · the room`)}
               </a>
             )}
             <div className="pr-line" aria-hidden="true">

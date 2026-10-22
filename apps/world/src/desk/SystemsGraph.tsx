@@ -10,7 +10,7 @@ import { GH, GL, type Flow, type FlowId, type GEdge, type GNode, type GState } f
 
 const BRASS = "198,150,84";
 
-const ROOM_NAME: Record<string, string> = { foundry: "Foundry", boiler: "Boiler Room", archive: "Archive", relay: "Relay", exchange: "Exchange" };
+const ROOM_NAME: Record<string, string> = { foundry: "Foundry", boiler: "Boiler Room", archive: "Archive", relay: "Relay", exchange: "Exchange", green: "Green" };
 const STATE_WORD: Record<GState, string> = { ok: "Working", run: "Running now", wait: "Not connected yet", bad: "Down" };
 
 interface Pos {

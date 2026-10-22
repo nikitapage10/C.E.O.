@@ -151,6 +151,10 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     // The Exchange's first real connection (#240): Polymarket's public odds, read-only.
     exchange: { id: "exchange", l: "Exchange", s: L("polymarket") === "wait" ? "Kalshi not connected" : "Polymarket odds", k: "room", room: "exchange", state: L("polymarket") === "wait" ? "wait" : L("polymarket") },
     polymarket: { id: "polymarket", l: "Polymarket", s: "public odds", k: "service", state: L("polymarket") },
+    // The Green's real connections (#252): Sleeper's public league data, and FantasyPros where its key is set.
+    green: { id: "green", l: "Green", s: L("sleeper") === "wait" ? "Sleeper not read yet" : "your Sleeper league", k: "room", room: "green", state: L("sleeper") },
+    sleeper: { id: "sleeper", l: "Sleeper", s: "league, read-only", k: "service", state: L("sleeper") },
+    fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "key on Azure only" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
   for (const n of foundry.nodes) {
@@ -184,6 +188,9 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     e("relay", "lattice", "relay", nodes.relay!.state),
     e("desk", "exchange", "exchange", nodes.exchange!.state),
     { ...e("exchange", "polymarket", "exchange", nodes.polymarket!.state), label: "Live odds", how: conn("polymarket")?.how, ...fromConn("polymarket") },
+    e("desk", "green", "green", nodes.green!.state),
+    { ...e("green", "sleeper", "green", nodes.sleeper!.state), label: "Your league", how: conn("sleeper")?.how, ...fromConn("sleeper") },
+    { ...e("green", "fantasypros", "green", nodes.fantasypros!.state), label: "Projections", how: conn("fantasypros")?.how, ...fromConn("fantasypros") },
   ];
 
   // The Foundry's flow: foundryGraph's edges, with their connections' kinds, sign-in and timing.

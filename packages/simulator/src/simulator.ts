@@ -10,6 +10,7 @@ import {
   type RoomId,
 } from "@ceo/core";
 import { SAMPLE_AGENTS, isSubmind, submindOf, type SimAgent } from "./agents.ts";
+import { isLiveRoom } from "./live.ts";
 import {
   AGENT_QUIPS,
   APPROVAL_WAIT_QUIPS,
@@ -23,6 +24,9 @@ import {
 } from "./quips.ts";
 import { createRng } from "./rng.ts";
 import { SCRIPTS, coffeeBreak, type ScriptId, type Step } from "./scripts.ts";
+
+/** The demo's own work: what a live room's agents never do here (see LIVE_ROOMS). */
+const DEMO_WORK: ReadonlySet<Step["kind"]> = new Set(["task", "progress", "finish", "approval"]);
 
 /** What counts as working, to a submind on its rounds. */
 const BUSY: ReadonlySet<Activity> = new Set(["working", "typing", "carrying"]);
@@ -235,6 +239,8 @@ export class Simulator {
       if (actor.queue.length === 0) this.refill(actor);
       const step = actor.queue.shift()!;
       const t = actor.nextAt;
+      // A live room's agents do real work only: the demo's tasks and approvals are skipped for them (live.ts).
+      if (DEMO_WORK.has(step.kind) && isLiveRoom(actor.spec.home.room)) continue;
       switch (step.kind) {
         case "go": {
           const to: Place = { room: step.room ?? actor.spec.home.room, station: step.station };

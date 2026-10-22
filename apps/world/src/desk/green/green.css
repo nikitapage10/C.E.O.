@@ -679,3 +679,12 @@
 .desk .gl-status .gl-fp {
   opacity: 0.7;
 }
+
+/* The live score under each projected one: second on the board, ahead of the win chance (2026-10-22). */
+.desk .gl .gl-lit .gr-side i.gl-live {
+  margin-top: 6px;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  color: var(--turf);
+  font-variant-numeric: tabular-nums;
+}

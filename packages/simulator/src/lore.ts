@@ -460,6 +460,7 @@ export const LORE: Record<string, Lore> = {
       "Lit the Exchange's first real board: Polymarket's odds, read-only. Priced its own odds of touching nothing at one hundred percent. Its first sure thing.",
       "Keeps the C.E.O.'s own Polymarket US book behind the Desk's passkey and has never said a figure out loud. Not to Hedge. Not to the floor. Not even in decimals.",
       "Was handed the C.E.O.'s Polymarket US key, which could trade. Wrote itself a list of the two doors it may open, both marked READ, and checks the list before every look. Hedge checks it after.",
+      "The day the Exchange went live, the pretend trades stopped. A marquee went up with the C.E.O.'s real positions, for signed-in eyes only. The Bookie reads the odds aloud. Never the marquee.",
     ],
   },
   turf: {
@@ -483,6 +484,7 @@ export const LORE: Record<string, Lore> = {
       "Commentated Punt's nap for forty minutes. 'HE'S DOWN. HE'S STAYING DOWN.' Ratings, it claims, were huge.",
       "Escalated a lineup call to Skippy 'for the drama'. Skippy settled it in a nanosecond. The Commentator called it the play of the year.",
       "The night the Green went live, the scoreboard lit with a real matchup for the first time. The Commentator called the first quarter before anyone had kicked off, and was, for once, roughly right.",
+      "Got a bigger scoreboard: both teams, projected, then live, then the win chance. Gridiron's practice drills stopped. 'PROJECTED FIRST, FOLKS. THEN LIVE. THEN THE PERCENT. THAT'S THE BROADCAST.'",
     ],
   },
   static: {

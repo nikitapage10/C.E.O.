@@ -282,6 +282,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Read-only. I read. I don't touch. The key could trade. My hands could also shake. Neither is happening.",
     "The ring's running on live odds now. If it says sixty-three, it's sixty-three. I checked. Twice. Sixty-three.",
     "Feed's quiet. Board's dark. Better a dark board than a made-up one. Noco disagrees. Noco would.",
+    "No more pretend trades on this floor. The vault stays shut unless the C.E.O.'s real book needs it. Which it doesn't. Read-only.",
+    "The marquee's running the C.E.O.'s positions. Behind the passkey. Signed out, you get the odds and my sweating.",
   ],
   turf: [
     "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
@@ -296,6 +298,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The ball's on their twenty-nine. That's the win chance. In yards. Percentages don't SCREAM.",
     "A waiver claim at the buzzer! A Hail Mary, folks! Not the Project kind. Rocky asked.",
     "Start the hot hand, sit the cold one. The booth calls it. The C.E.O. makes the move in Sleeper.",
+    "THE SCOREBOARD IS REAL, FOLKS! Projected first, live once they kick off. No more practice games on this pitch!",
+    "Gridiron's not running fake drills anymore. Real league, real chart. He cried. I called it. LIVE.",
   ],
   static: [
     "Didn't hear it from me. You heard it from me.",
@@ -594,3 +598,44 @@ export const BROGU_RIDE_KERNEL: string[] = [
   "Brogu is riding the light to {room}. The C.E.O. is riding Brogu. I'm riding nobody. I'm the stream.",
   "Inbound to {room}: one Brogu, one C.E.O., zero snacks. For now.",
 ];
+
+/**
+ * The Bookie on the Exchange's live board (#253): a line about a real market's odds, said in the Lattice when the feed
+ * answers. Public odds only. {market} is the question, {odds} its price ("63%"), {move} the day's move in words ("up
+ * four"). Never a stake, a position or a dollar figure: the C.E.O.'s book stays behind the passkey.
+ */
+export const BOOKIE_LIVE_QUIPS: string[] = [
+  "{market}? The board says {odds}. I say {odds}, nervously.",
+  "Top of the board: {market}, {odds}. Hedge, tell me that's priced right. Hedge. HEDGE.",
+  "{odds} on {market}. Sixty-three percent I'm right that it's {odds}. I checked. Twice.",
+  "Live odds, folks. Sorry, wrong submind. {market}: {odds}. Moving on. Sweating.",
+];
+
+/** The Bookie when the market moved on the day ({move}: "up four", "down two"). */
+export const BOOKIE_MOVE_QUIPS: string[] = [
+  "{market}, {move} on the day. {odds} now. I felt every point.",
+  "{move}! {market} went {move}! I'm fine. {odds}. I'm fine.",
+];
+
+/**
+ * The Commentator on the C.E.O.'s real matchup (#252), from the Green's scoreboard: {me} and {them} are the team
+ * names, {proj} and {theirProj} the projected finals, {win} the win chance in words ("SEVENTY-ONE"). Before kick-off.
+ */
+export const COMMENTATOR_PROJECTED_QUIPS: string[] = [
+  "{me} PROJECTED {proj} TO {theirProj}! {win} PERCENT, FOLKS!",
+  "The booth has {me} at {win} PERCENT against {them}. Projected {proj}. THE CROWD IS ON ITS FEET.",
+  "Projected {proj} to {theirProj}. That's not a forecast, folks. That's a PROPHECY. Roughly.",
+  "{them} on the other sideline, projected {theirProj}. {me}, {proj}. Somebody hold my hat.",
+];
+
+/** The Commentator once the game is on: {score} and {theirScore} are the live points. */
+export const COMMENTATOR_LIVE_QUIPS: string[] = [
+  "LIVE FROM THE FLOATING BOOTH: {me} {score}, {them} {theirScore}! {win} PERCENT!",
+  "{score} TO {theirScore}! Projected to finish {proj} to {theirProj}! DON'T TOUCH THAT DIAL!",
+  "It's {score} to {theirScore}, folks, and the Commentator has not blinked since kick-off. Can't. No eyelids.",
+];
+
+/** Fills `{key}` in a quip from `vars`; a missing key is left as it was. */
+export function fillQuip(line: string, vars: Record<string, string>): string {
+  return line.replace(/\{(\w+)\}/g, (all, k: string) => vars[k] ?? all);
+}

@@ -6,8 +6,10 @@ import { Color, DoubleSide, MeshStandardMaterial, Object3D, PlaneGeometry, type 
 import { Beam, Dust, Haze } from "../fx/atmos.tsx";
 import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
-import { claimWaiting, scoreboardLine, startGreen, useGreen } from "../desk/green/league.ts";
+import { claimWaiting, startGreen, useGreen } from "../desk/green/league.ts";
 import { useWorld } from "../store.ts";
+import { commentatorLine, scoreRows } from "./liveBoards.ts";
+import { useLiveLines } from "./liveLines.ts";
 import { Block, FONTS, Plinth, ROOM_D, ROOM_W, ahead } from "./primitives.tsx";
 
 const BLADES = 9000;
@@ -103,6 +105,8 @@ export function Green() {
   // The league is real (#252): the scoreboard, the depth chart's week and the mailbox flag read Nikita's Sleeper league.
   useEffect(() => startGreen(), []);
   const board = useGreen((s) => s.board);
+  // The Commentator calls the real matchup now and then: projected, live, the win chance.
+  useLiveLines("turf", () => commentatorLine(useGreen.getState().board, Math.random()));
   const claim = claimWaiting(board);
   const waiverPending =
     useWorld((s) => Object.values(s.lattice.approvals).some((a) => a.status === "pending" && (a.request.action === "waiver.claim" || a.request.action === "lineup.set"))) || claim;
@@ -190,17 +194,7 @@ export function Green() {
         </mesh>
       </group>
 
-      {/* Scoreboard */}
-      <group position={[0, 0, -6]}>
-        <Block size={[3.4, 1.3, 0.25]} position={[0, 3.2, 0]} material={PBR.blackMetal()} radius={0.05} />
-        <Text font={FONTS.mono} fontSize={0.36} position={[0, 3.25, 0.14]} letterSpacing={0.1}>
-          {scoreboardLine(board)}
-          <meshBasicMaterial color={[2.2, 1.7, 0.8]} toneMapped={false} />
-        </Text>
-        {[-1.2, 1.2].map((x) => (
-          <Block key={x} size={[0.12, 2.6, 0.12]} position={[x, 1.3, 0]} material={PBR.blackMetal()} radius={0.02} />
-        ))}
-      </group>
+      <Scoreboard board={board} />
 
       {/* Park bench: timber slats on cast iron */}
       <group position={[bench.x, 0, bench.z - 0.35]}>
@@ -243,6 +237,34 @@ export function Green() {
       <LampPost position={[7.5, 0, 1.4]} />
       <GreenEvening />
       <pointLight position={[2, 5, 2]} color="#ffdcb0" intensity={24} distance={18} decay={1.6} />
+    </group>
+  );
+}
+
+const LED: [number, number, number] = [2.2, 1.7, 0.8];
+
+/**
+ * The scoreboard, from the C.E.O.'s real matchup (#252; Nikita, 2026-10-22): the two teams by name, the projected
+ * score first, the live score once a game is on, and the win chance. All of it is the league's public data.
+ */
+function Scoreboard({ board }: { board: ReturnType<typeof useGreen.getState>["board"] }) {
+  const rows = scoreRows(board);
+  const line = (text: string, y: number, size: number, color: [number, number, number] = LED) => (
+    <Text font={FONTS.mono} fontSize={size} position={[0, y, 0.14]} letterSpacing={0.08} maxWidth={4.4} anchorX="center" anchorY="middle">
+      {text}
+      <meshBasicMaterial color={color} toneMapped={false} />
+    </Text>
+  );
+  return (
+    <group position={[0, 0, -6]}>
+      <Block size={[4.8, 2.1, 0.25]} position={[0, 3.45, 0]} material={PBR.blackMetal()} radius={0.05} />
+      {line(rows.teams, 4.18, 0.2, [1.6, 1.6, 1.5])}
+      {line(rows.proj, 3.72, 0.36)}
+      {line(rows.live, 3.24, 0.26, [0.9, 1.9, 0.9])}
+      {line(rows.win, 2.8, 0.24, [1.5, 2.1, 0.7])}
+      {[-1.6, 1.6].map((x) => (
+        <Block key={x} size={[0.12, 2.4, 0.12]} position={[x, 1.2, 0]} material={PBR.blackMetal()} radius={0.02} />
+      ))}
     </group>
   );
 }

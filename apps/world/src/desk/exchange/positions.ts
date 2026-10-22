@@ -6,7 +6,9 @@ import { useDeskAuth } from "../signin.ts";
  * Nikita's own Polymarket US positions for the Exchange (#253), browser side: reads GET /api/exchange-positions, which
  * answers only a signed-in Desk (the passkey session), every two minutes while the Exchange is showing. Read-only:
  * nothing here, or on the server behind it, can trade. Dollar values, sizes and P&L are private: the board marks them
- * with <Private> (data-private) for the Desk's Hide mode (#251), and none of it ever reaches the Lattice, Today or any public page.
+ * with <Private> (data-private) for the Desk's Hide mode (#251), and none of it ever reaches Today or any public page.
+ * The Lattice's Exchange marquee reads this same store in the signed-in browser only, and masks it while Hide is on
+ * (rooms/liveBoards.ts); it never reaches /api/world or the server-side Lattice.
  */
 
 export type { PmPosition, PmPositions, PmTrade };

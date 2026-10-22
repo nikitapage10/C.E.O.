@@ -4,6 +4,9 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, Color, DoubleSide, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, RepeatWrapping, SRGBColorSpace, ShaderMaterial, type Group } from "three";
 import { moveTone, startPolymarket, usePolymarket, type PmMarket } from "../desk/exchange/polymarket.ts";
+import { startPositions, usePositions } from "../desk/exchange/positions.ts";
+import { HIDE_KEY, readHide, useHide } from "../desk/hide.ts";
+import { useDeskAuth } from "../desk/signin.ts";
 import { Dust, Haze } from "../fx/atmos.tsx";
 import { screenMaterial } from "../fx/materials.ts";
 import { Model } from "../fx/Model.tsx";
@@ -11,6 +14,8 @@ import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { tickerChunks } from "./exchangeTicker.ts";
+import { bookieLine, chunkTone, marqueeChunks } from "./liveBoards.ts";
+import { useLiveLines } from "./liveLines.ts";
 import { Block, FONTS, LightBar, Monitor, Plinth, ahead, facingDir } from "./primitives.tsx";
 
 function tickerTexture(chunks: string[]) {
@@ -35,6 +40,102 @@ function tickerTexture(chunks: string[]) {
   tex.wrapS = RepeatWrapping;
   tex.colorSpace = SRGBColorSpace;
   return tex;
+}
+
+/**
+ * The marquee's strip: amber lettering on black, each chunk coloured by its move. Wider than the ring's, since the
+ * position lines are longer, and a chunk is never repeated mid-strip so a short book doesn't stutter.
+ */
+const STRIP_W = 4096;
+const FONT = "500 64px 'IBM Plex Mono', monospace";
+
+function marqueeTexture(chunks: string[]) {
+  const c = document.createElement("canvas");
+  const probe = c.getContext("2d")!;
+  probe.font = FONT;
+  // One pass of the chunks, with a diamond between each; the strip is as long as a whole number of passes (at least
+  // the plane's width, at most 16k), and the plane shows a 4096-pixel window of it, so the loop is seamless.
+  const widths = chunks.map((ch) => probe.measureText(ch).width);
+  const gap = probe.measureText("   ◆   ").width;
+  const pass = Math.ceil(widths.reduce((a, w) => a + w + gap, 0)) || 1;
+  const reps = Math.max(1, Math.ceil(STRIP_W / pass));
+  c.width = Math.min(16384, pass * reps);
+  c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#050302";
+  g.fillRect(0, 0, c.width, c.height);
+  g.font = FONT;
+  g.textBaseline = "middle";
+  // A very long book is squeezed to fit the largest texture rather than cut off.
+  g.setTransform(c.width / (pass * reps), 0, 0, 1, 0, 0);
+  let x = 0;
+  for (let r = 0; r < reps; r++) {
+    chunks.forEach((chunk, i) => {
+      const tone = chunkTone(chunk);
+      g.fillStyle = i === 0 ? "#ffcf7a" : tone === "up" ? "#7dffc4" : tone === "down" ? "#ff8a9e" : "#f2e6cf";
+      g.fillText(chunk, x, 66);
+      x += widths[i]!;
+      g.fillStyle = "#8a7448";
+      g.fillText("   ◆   ", x, 66);
+      x += gap;
+    });
+  }
+  const tex = new CanvasTexture(c);
+  tex.wrapS = RepeatWrapping;
+  tex.repeat.x = STRIP_W / c.width;
+  tex.colorSpace = SRGBColorSpace;
+  return tex;
+}
+
+/** Follows the Desk's Hide from other tabs: the Lattice masks the book the moment the Desk does. */
+function useHideAcrossTabs() {
+  useEffect(() => {
+    const on = (e: StorageEvent) => {
+      if (e.key === null || e.key === HIDE_KEY) useHide.setState({ on: readHide() });
+    };
+    window.addEventListener("storage", on);
+    return () => window.removeEventListener("storage", on);
+  }, []);
+}
+
+/**
+ * The marquee over the back wall (Nikita, 2026-10-22): the C.E.O.'s Polymarket positions scrolling past, market, side,
+ * odds now and P/L %, read from the passkey-only /api/exchange-positions. Only a signed-in Desk session gets them,
+ * and Hide masks them; everyone else, and every public page, sees the public odds. Never a dollar figure.
+ */
+function Marquee({ top }: { top: readonly PmMarket[] }) {
+  useHideAcrossTabs();
+  useEffect(() => {
+    // The Lattice doesn't run the Desk's sign-in; one quiet check says whether this browser holds the session.
+    if (useDeskAuth.getState().auth.status === "checking") void useDeskAuth.getState().check();
+    startPositions();
+  }, []);
+  const status = usePositions((s) => s.status);
+  const positions = usePositions((s) => s.data?.positions ?? null);
+  const hidden = useHide((s) => s.on);
+  const chunks = useMemo(() => marqueeChunks({ status, positions, hidden }, top), [status, positions, hidden, top]);
+  const key = chunks.join("|");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tex = useMemo(() => marqueeTexture(chunks), [key]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  const mat = useMemo(() => new MeshStandardMaterial({ color: "#000", emissive: "#ffffff", emissiveIntensity: 1.6, toneMapped: false }), []);
+  useEffect(() => {
+    mat.emissiveMap = tex;
+    mat.needsUpdate = true;
+  }, [mat, tex]);
+  useFrame(({ clock }) => {
+    // The same speed on the wall however long the strip is.
+    tex.offset.x = (clock.elapsedTime * 0.012 * tex.repeat.x) % 1;
+  });
+  return (
+    <group position={[0, 5.2, -6.3]}>
+      <Block size={[15.6, 0.62, 0.12]} position={[0, 0, -0.02]} material={PBR.blackMetal()} radius={0.02} />
+      <mesh position={[0, 0, 0.05]} material={mat}>
+        <planeGeometry args={[15.2, 0.46]} />
+      </mesh>
+      <LightBar length={15.4} position={[0, -0.34, 0.06]} color={PALETTE.amber} intensity={1.4} thickness={0.018} />
+    </group>
+  );
 }
 
 /** A curved trading desk with a bank of monitors. */
@@ -98,10 +199,14 @@ function Vault({ position, yaw, open }: { position: [number, number]; yaw: numbe
   );
 }
 
+const EMPTY: readonly PmMarket[] = [];
+
 /** The Exchange: a sunken trading pit in black glass, odds circling overhead. */
 export function Exchange() {
   useEffect(() => startPolymarket(), []);
   const top = usePolymarket((s) => s.board?.top);
+  // The Bookie reads the real board out loud now and then (public odds only).
+  useLiveLines("ticker", () => bookieLine(top ?? [], Math.random(), Math.random()));
   const chunks = useMemo(() => tickerChunks(top ?? []), [top]);
   const key = chunks.join("|");
   // A new texture only when the words change (about once a minute at most); the old one is let go.
@@ -175,6 +280,7 @@ export function Exchange() {
         <LightBar length={16} position={[0, 0.12, 0.2]} color={PALETTE.mint} intensity={1.6} thickness={0.025} />
       </group>
       <ExchangeFloor top={top ?? null} />
+      <Marquee top={top ?? EMPTY} />
       <pointLight position={[0, 5, 1]} color="#cfeee0" intensity={22} distance={16} decay={1.6} />
     </group>
   );

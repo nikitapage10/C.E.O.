@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, modelOf, recentWork, shippedToday, sparesAwake, type Change, type Crate, type CrewId, type FoundryData } from "../foundry.ts";
+import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, modelOf, recentWork, runningNow, shippedToday, sparesAwake, type Change, type Crate, type CrewId, type FoundryData } from "../foundry.ts";
 import type { WorldFeed } from "../chronicle.ts";
 import { formatUsd, foundryJobs, monthSpend, SPEND_CAP_USD, workByModel, type UsageFeed } from "../usage.ts";
 import { Private } from "./Private.tsx";
@@ -9,14 +9,14 @@ import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "./IdeaCard.tsx"
 import { usePictureLinks } from "./ideaImages.ts";
 import { ROOM_META, ROOM_ORDER } from "./roomPulse.ts";
 import { DeskSignIn } from "./SignIn.tsx";
-import { loomSpec, type LoomCtl, type LoomItems } from "./stageEngine.ts";
+import { LOOM_STRANDS, loomSpec, type LoomCtl, type LoomItems } from "./stageEngine.ts";
 import { barSpecOf, progSpecOf, type Seg } from "./TodayWeave.tsx";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 import { knot, OK, Parts, Poly, RC, ring, smoothPts, spr, useViz, weave, WHITE, type VizSpec } from "./wvCanvas.ts";
 
 /**
  * The Foundry in the approved Weave (desk-concepts round five): a headline with the Builder's word, the loom with every
- * real item as a knot you can open, the job in flight with its stages, the ideas on the bench beside the Suggest box,
+ * real item as a knot you can open, every job in flight on its own strand (up to four, then "+N more"), the job in flight with its stages, the ideas on the bench beside the Suggest box,
  * the crew as portraits, and the changelog, runs, usage and Visual QA below. Every number and name comes from GitHub,
  * the issue trails, the world's ledger and the Visual QA feed; anything not connected says so.
  */
@@ -95,6 +95,27 @@ export function FoundryHead({ data, ideas, now, connected, lead }: { data: Found
 
 /* ── The loom ── */
 
+/** The knot id of the jobs past the loom's strands. */
+export const MORE_KNOT = "flights-more";
+
+/**
+ * The jobs in flight on the loom: every working build, the ones really running first (then those waiting their turn
+ * or paused), newest first within each. The first {@link LOOM_STRANDS} get a strand each; the rest go on "+N more".
+ */
+export function loomFlights(crates: Crate[]): { shown: Crate[]; more: Crate[]; state: (c: Crate) => FlightState } {
+  const { running } = runningNow(crates);
+  const state = (c: Crate): FlightState => (c.paused ? "paused" : running.has(c.number) ? "running" : "waiting");
+  const rank = (c: Crate) => (state(c) === "running" ? 0 : 1);
+  const all = crates.filter((c) => isBuild(c) && c.state === "working").sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
+  return { shown: all.slice(0, LOOM_STRANDS), more: all.slice(LOOM_STRANDS), state };
+}
+
+/** A job in flight is building now, waiting its turn (past the cap), or paused for a fix. */
+export type FlightState = "running" | "waiting" | "paused";
+const FLIGHT_NOTE: Record<FlightState, string> = { running: "building", waiting: "waiting its turn", paused: "paused for a fix" };
+/** The eyebrow on a job in flight's knot and details. */
+export const flightEyebrow = (s: FlightState) => (s === "running" ? "In flight" : `In flight, ${FLIGHT_NOTE[s]}`);
+
 interface StageProps {
   data: FoundryData;
   ideas: Crate[];
@@ -114,19 +135,20 @@ export function FoundryStage({ data, ideas, now, setup, stop, onSuggest, openRef
   const [focus, setFocus] = useState<string | null>(null);
   const [level, setLevel] = useState<0 | 1 | 2>(0);
   const [hover, setHover] = useState<string | null>(null);
-  const flight = data.crates.filter((c) => isBuild(c) && c.state === "working").sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
+  const { shown: flights, more, state: flightState } = loomFlights(data.crates);
   const bench = ideas.filter((c) => c.number > 0).slice(0, 2);
   const latest = data.changelog[0] ?? null;
   const items: LoomItems = useMemo(
     () => ({
-      flight: flight ? `c${flight.number}` : null,
+      flights: flights.map((c) => `c${c.number}`),
+      more: more.length ? MORE_KNOT : null,
       ideas: bench.map((c) => `c${c.number}`),
       shipped: latest ? "shipped" : null,
       aux: { "crew-semicolon": RC.exchange!, "crew-tessellate": RC.foundry!, "crew-caret": RC.archive!, "crew-dock": RC.workshop! },
     }),
     // The loom is rebuilt only when which items it holds changes, not on every poll.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [flight?.number, bench.map((c) => c.number).join(), Boolean(latest)],
+    [flights.map((c) => c.number).join(), more.length > 0, bench.map((c) => c.number).join(), Boolean(latest)],
   );
   const ctl = useRef<LoomCtl>({ focus: null, level: 0, hover: null, host: null, open: () => {} });
   const open = useCallback((id: string) => {
@@ -173,8 +195,9 @@ export function FoundryStage({ data, ideas, now, setup, stop, onSuggest, openRef
   const checks = data.checks.state;
   const today = shippedToday(data.changelog, now);
   const runs = nextRuns(new Date(now));
-  const knotBtn = (id: string, colour: string, eyebrow: string, title: string, avatar?: string) => (
-    <button key={id} className="wv-knot" type="button" data-item={id} style={{ "--sc": colour } as React.CSSProperties} aria-label={`${eyebrow}: ${title}`} onClick={() => open(id)} onPointerEnter={() => setHover(id)} onPointerLeave={() => setHover(null)} onFocus={() => setHover(id)} onBlur={() => setHover(null)}>
+  const rows = flights.length + (more.length ? 1 : 0) > 1;
+  const knotBtn = (id: string, colour: string, eyebrow: string, title: string, avatar?: string, row?: boolean) => (
+    <button key={id} className={`wv-knot${row ? " is-row" : ""}`} type="button" data-item={id} style={{ "--sc": colour } as React.CSSProperties} aria-label={`${eyebrow}: ${title}`} onClick={() => open(id)} onPointerEnter={() => setHover(id)} onPointerLeave={() => setHover(null)} onFocus={() => setHover(id)} onBlur={() => setHover(null)}>
       <span className="wv-kl">
         <span className="wv-ke">{eyebrow}</span>
         {avatar && <img className="wv-kav" src={avatar} alt="" />}
@@ -221,7 +244,8 @@ export function FoundryStage({ data, ideas, now, setup, stop, onSuggest, openRef
           <b>{today}</b>
         </div>
 
-        {flight && knotBtn(`c${flight.number}`, "var(--rc-foundry)", flight.state === "working" ? "In flight" : "On the bench", ideaTitle(flight.title), pic(crewOf(flight, data.crates)))}
+        {flights.map((c) => knotBtn(`c${c.number}`, "var(--rc-foundry)", flightState(c) === "running" ? "In flight" : FLIGHT_NOTE[flightState(c)][0]!.toUpperCase() + FLIGHT_NOTE[flightState(c)].slice(1), ideaTitle(c.title), pic(crewOf(c, data.crates)), rows))}
+        {more.length > 0 && knotBtn(MORE_KNOT, "var(--rc-foundry)", "Also in flight", `+${more.length} more`, undefined, rows)}
         {bench.map((c) => knotBtn(`c${c.number}`, "var(--wv-hot)", c.asking ? "Idea, Rivet asks first" : `Idea${c.builder ? `, for ${CREW[c.builder].name}` : ""}`, ideaTitle(c.title)))}
         {latest && knotBtn("shipped", "var(--wv-ok)", "Shipped, latest", ideaTitle(latest.title))}
 
@@ -260,33 +284,24 @@ export function FoundryStage({ data, ideas, now, setup, stop, onSuggest, openRef
           </div>
         </div>
 
-        {flight && (
-          <Detail id={`c${flight.number}`} focus={focus} level={level} onDeeper={() => setLevel(2)} eyebrow={flight.paused ? "In flight, paused for a fix" : "In flight"} colour="var(--rc-foundry)" title={ideaTitle(flight.title)} more="Its history">
+        {flights.map((c) => (
+          <FlightDetail key={c.number} crate={c} eyebrow={flightEyebrow(flightState(c))} data={data} stop={stop} focus={focus} level={level} onDeeper={() => setLevel(2)} />
+        ))}
+        {more.length > 0 && (
+          <Detail id={MORE_KNOT} focus={focus} level={level} onDeeper={() => setLevel(2)} eyebrow="Also in flight" colour="var(--rc-foundry)" title={`${words(more.length)} more ${more.length === 1 ? "job" : "jobs"} on the loom`} more="Who has them">
             {{
               body: (
-                <>
-                  <p className="wv-txt">
-                    {CREW[crewOf(flight, data.crates)].name} is building it on {modelOf(flight, crewOf(flight, data.crates))}.{flight.pitch ? ` ${flight.pitch}` : ""}
-                  </p>
-                  <div className="wv-steps" aria-label="Stage">
-                    <span className="is-past">Idea</span>
-                    <span className="is-now">Building</span>
-                    <span>Checks</span>
-                    <span>Shipped</span>
-                  </div>
-                  <div className="wv-dacts">
-                    <a className="wv-btn is-pri" href={flight.url} target="_blank" rel="noreferrer">
-                      Watch it on GitHub
-                    </a>
-                    {stop(flight)}
-                  </div>
-                </>
+                <ul className="wv-list">
+                  {more.map((c) => (
+                    <li key={c.number}>{ideaTitle(c.title)}</li>
+                  ))}
+                </ul>
               ),
               deep: (
                 <>
-                  <p className="wv-eb2">History</p>
-                  {flight.createdAt && <Row b="Opened" span={`#${flight.number}`} st={clock(flight.createdAt)} i={0} />}
-                  <Row b="Last change" span={`${flight.kind === "fix" ? "A fix" : flight.kind === "upkeep" ? "Upkeep" : "A build"}${flight.short ? `, ${flight.short.toLowerCase()}` : ""}`} st={clock(flight.updatedAt)} i={1} c="run" />
+                  {more.map((c, i) => (
+                    <Row key={c.number} b={ideaTitle(c.title)} span={`${CREW[crewOf(c, data.crates)].name}, ${FLIGHT_NOTE[flightState(c)]}`} st={clock(c.updatedAt)} i={i} c="run" href={c.url} />
+                  ))}
                 </>
               ),
             }}
@@ -332,6 +347,43 @@ export function FoundryStage({ data, ideas, now, setup, stop, onSuggest, openRef
         </Detail>
       </div>
     </div>
+  );
+}
+
+/** One job in flight's details over the loom: who builds it on what, its stage, and its history one level deeper. */
+function FlightDetail({ crate: flight, eyebrow, data, stop, focus, level, onDeeper }: { crate: Crate; eyebrow: string; data: FoundryData; stop: (c: Crate) => ReactNode; focus: string | null; level: number; onDeeper: () => void }) {
+  const who = crewOf(flight, data.crates);
+  return (
+    <Detail id={`c${flight.number}`} focus={focus} level={level} onDeeper={onDeeper} eyebrow={eyebrow} colour="var(--rc-foundry)" title={ideaTitle(flight.title)} more="Its history">
+      {{
+        body: (
+          <>
+            <p className="wv-txt">
+              {CREW[who].name} is building it on {modelOf(flight, who)}.{flight.pitch ? ` ${flight.pitch}` : ""}
+            </p>
+            <div className="wv-steps" aria-label="Stage">
+              <span className="is-past">Idea</span>
+              <span className="is-now">Building</span>
+              <span>Checks</span>
+              <span>Shipped</span>
+            </div>
+            <div className="wv-dacts">
+              <a className="wv-btn is-pri" href={flight.url} target="_blank" rel="noreferrer">
+                Watch it on GitHub
+              </a>
+              {stop(flight)}
+            </div>
+          </>
+        ),
+        deep: (
+          <>
+            <p className="wv-eb2">History</p>
+            {flight.createdAt && <Row b="Opened" span={`#${flight.number}`} st={clock(flight.createdAt)} i={0} />}
+            <Row b="Last change" span={`${flight.kind === "fix" ? "A fix" : flight.kind === "upkeep" ? "Upkeep" : "A build"}${flight.short ? `, ${flight.short.toLowerCase()}` : ""}`} st={clock(flight.updatedAt)} i={1} c="run" />
+          </>
+        ),
+      }}
+    </Detail>
   );
 }
 

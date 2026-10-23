@@ -58,7 +58,8 @@ names and URLs it made.
    > keys. Cost: nothing extra. Undo: re-run with other `-p` values; a secret can be disabled or deleted in the vault.
 
    **The paste**, in Cloud Shell (Bash), after the [one-time setup](#one-time-setup) below. It brings the template
-   up to date (with `githubPrincipalId`, so GitHub's identity gets Key Vault Secrets User and the hourly pings can
+   up to date (keeping the home address the Function App already has, so it never undoes the ceo.nikita.page
+   switch in [DOMAIN.md](DOMAIN.md); with `githubPrincipalId`, so GitHub's identity gets Key Vault Secrets User and the hourly pings can
    read `desk-pings-secret` and the live watch `site-bypass-token`; and the budget settings), then writes straight into the vault (`kv-ceo-besgu7fnckib2`
    today; it looks the names up in `rg-ceo-prod`) and restarts the Function App so it picks them up:
 
@@ -72,12 +73,16 @@ names and URLs it made.
      keep it in your password manager and use it to enrol a passkey on the Azure address (see "Passkeys are per
      domain" below). It isn't Vercel's Desk key.
 
+   It ends by changing one throwaway setting (`KEYVAULT_REFRESH`) rather than only restarting: on the Flex plan a
+   plain restart can keep a Key Vault reference that failed before its secret existed, and a settings change makes the
+   app read every reference again. If a value you add by hand later still shows as missing, run that last line again.
+
    A secret that already has a value is kept, never replaced (the paste says `kept …`), so running it again is safe.
    To replace them all on purpose (it signs every Azure Desk session out and drops its phones' pings), run
    `export FORCE=1` first and `unset FORCE` after.
 
 ```bash
-(git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId="$(az ad signed-in-user show --query id -o tsv)" githubPrincipalId="$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv)" -o none && echo "infra updated" && \
+(git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && SOD=$(az functionapp list -g rg-ceo-prod --query "[0].name" -o tsv | xargs -r -I{} az functionapp config appsettings list -g rg-ceo-prod -n {} --query "[?name=='CEO_SITE_URL'].value | [0]" -o tsv 2>/dev/null || true) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId="$(az ad signed-in-user show --query id -o tsv)" githubPrincipalId="$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv)" siteOnCustomDomain=$([ "$SOD" = "https://ceo.nikita.page" ] && echo true || echo false) -o none && echo "infra updated (home address: ${SOD:-the azurestaticapps.net one})" && \
 (RG=rg-ceo-prod; KV=$(az keyvault list -g $RG --query "[0].name" -o tsv); FA=$(az functionapp list -g $RG --query "[0].name" -o tsv)
 [ -n "$KV" ] && [ -n "$FA" ] || { echo "No Key Vault or Function App in $RG yet: run the paste above first."; exit 1; }
 has() { [ "${FORCE:-0}" != 1 ] && [ -n "$(az keyvault secret show --vault-name "$KV" -n "$1" --query value -o tsv 2>/dev/null)" ]; }
@@ -90,7 +95,7 @@ if has desk-vapid-subject; then echo "kept desk-vapid-subject"; else U=$(az acco
 if has desk-pings-secret; then echo "kept desk-pings-secret"; else put desk-pings-secret "$(rnd)"; fi
 if has site-bypass-token; then echo "kept site-bypass-token"; else put site-bypass-token "$(rnd)"; fi
 if has foundry-desk-key; then echo "kept foundry-desk-key"; else K=$(rnd); put foundry-desk-key "$K" && printf '\nYour Azure Desk key, shown only now (keep it in your password manager):\n%s\n\n' "$K"; fi
-az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
+az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRESH=$(date -u +%Y%m%d%H%M%S)" -o none && echo "refreshed $FA (it restarts and re-reads the vault)")
 ```
 
    **By hand, three secrets** (they come from other services), and two optional ones for the Exchange. In the [Azure portal](https://portal.azure.com):

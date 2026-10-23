@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { useSystems, type LinkState } from "./systems.ts";
 import { UPKEEP_ANCHOR_MS, UPKEEP_EVERY_MS } from "./desk/crewRuns.ts";
+import type { GhJob } from "./desk/jobs.ts";
 import { ownPictures, pictureRef } from "../../../api/_pictures.ts";
 
 /**
@@ -302,6 +303,8 @@ export interface FoundryData {
   shelved: number;
   /** The newest commit on main (Vercel builds the live site from it), when GitHub listed one. */
   lastCommit?: LastCommit | null;
+  /** The scheduled jobs' newest runs for the Boiler Room's board (desk/jobs.ts); absent without the Desk's feed. */
+  jobs?: GhJob[];
 }
 
 /** The newest commit on main: its short sha, link, first line and when it landed. */
@@ -820,6 +823,8 @@ interface Feed {
   live?: { workflow_runs: GhRun[] };
   pulls: GhPull[];
   commits: GhCommit[];
+  /** The scheduled jobs' newest runs (#301); only the Desk's feed reads them, and an older cached feed has none. */
+  jobs?: GhJob[];
 }
 
 /** The Desk's own feed (api/foundry-feed.ts): one request, read with the Foundry's token and shared by every tab. */
@@ -845,8 +850,8 @@ async function readGitHub(): Promise<Feed> {
 
 export async function refreshFoundry(): Promise<void> {
   try {
-    const { issues, runs, e2e, live, pulls, commits } = await readFeed().catch(readGitHub);
-    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits) };
+    const { issues, runs, e2e, live, pulls, commits, jobs } = await readFeed().catch(readGitHub);
+    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits), jobs };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
     const { setLink } = useSystems.getState();

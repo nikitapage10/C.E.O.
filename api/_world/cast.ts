@@ -1067,7 +1067,9 @@ export const WORLD_CAST: WorldCast = {
         "Left the throne. Came back. Throne still there. Lucky.",
         "Floating throne. Long drop. Noted.",
         "Clock pipe. Due at five past. Watch. ...Ticked. Hm.",
-        "Every hour, the world moves. Every hour, I expect it won't."
+        "Every hour, the world moves. Every hour, I expect it won't.",
+        "Nightly backup. Due at 10:41. Started late. Always late. Omens.",
+        "Nine jobs on the board. All green. I don't trust it."
       ],
       "putty": [
         "Wait. No. Better idea.",

@@ -49,7 +49,8 @@ describe("the Desk's GitHub feeds", () => {
       const { GET } = await load();
       await Promise.all([1, 2, 3].map(() => GET(new Request(url))));
       const together = fetchMock.mock.calls.length;
-      vi.advanceTimersByTime(61_000);
+      // Past every memo, the job board's two minutes included, so the next call makes the same full set of reads.
+      vi.advanceTimersByTime(121_000);
       fetchMock.mockClear();
       await GET(new Request(url));
       expect(together).toBe(fetchMock.mock.calls.length);

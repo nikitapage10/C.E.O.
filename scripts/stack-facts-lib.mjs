@@ -163,24 +163,50 @@ const DATABASES = ["pg", "mysql", "mysql2", "mongodb", "mongoose", "prisma", "@p
 /** Which of those the lockfile has (none means no database server). */
 export const databasesOf = (packages) => [...new Set(packages.filter((p) => DATABASES.includes(p.name)).map((p) => p.name))].sort();
 
-/** Outside services, by what the server code calls: a host or an SDK. Names only. */
+/**
+ * Outside services, by what the server code calls: a host it names in a URL (the host itself or a subdomain of it)
+ * or an SDK it imports. Names only.
+ */
 const SERVICES = [
-  ["GitHub API", /api\.github\.com/],
-  ["Anthropic Claude API", /@anthropic-ai\/sdk|api\.anthropic\.com/],
-  ["OpenAI API", /api\.openai\.com/],
-  ["Google Gemini API", /generativelanguage\.googleapis\.com/],
-  ["Gmail API", /gmail\.googleapis\.com/],
-  ["Polymarket", /polymarket\.(?:com|us)/],
-  ["Sleeper", /api\.sleeper\.(?:app|com)/],
-  ["FantasyPros", /api\.fantasypros\.com/],
-  ["PayPal", /api-m(?:\.sandbox)?\.paypal\.com/],
-  ["Vercel Blob", /["']@vercel\/blob["']/],
-  ["Azure Blob Storage", /["']@azure\/storage-blob["']/],
-  ["Azure managed identity", /["']@azure\/identity["']/],
-  ["Web Push (the browsers' push services)", /["']web-push["']/],
-  ["OpenSSF Scorecard", /api\.securityscorecards\.dev/],
-  ["OSV.dev", /api\.osv\.dev/],
+  { name: "GitHub API", hosts: ["api.github.com"] },
+  { name: "Anthropic Claude API", hosts: ["api.anthropic.com"], packages: ["@anthropic-ai/sdk"] },
+  { name: "OpenAI API", hosts: ["api.openai.com"] },
+  { name: "Google Gemini API", hosts: ["generativelanguage.googleapis.com"] },
+  { name: "Gmail API", hosts: ["gmail.googleapis.com"] },
+  { name: "Polymarket", hosts: ["polymarket.com", "polymarket.us"] },
+  { name: "Sleeper", hosts: ["api.sleeper.app", "api.sleeper.com"] },
+  { name: "FantasyPros", hosts: ["api.fantasypros.com"] },
+  { name: "PayPal", hosts: ["api-m.paypal.com", "api-m.sandbox.paypal.com"] },
+  { name: "Vercel Blob", packages: ["@vercel/blob"] },
+  { name: "Azure Blob Storage", packages: ["@azure/storage-blob"] },
+  { name: "Azure managed identity", packages: ["@azure/identity"] },
+  { name: "Web Push (the browsers' push services)", packages: ["web-push"] },
+  { name: "OpenSSF Scorecard", hosts: ["api.securityscorecards.dev"] },
+  { name: "OSV.dev", hosts: ["api.osv.dev"] },
 ];
+
+/** Every hostname named in an https:// URL in `text`, parsed by URL itself (anything that doesn't parse is skipped). */
+export function hostsIn(text) {
+  const hosts = new Set();
+  for (const m of text.matchAll(/https:\/\/[^\s"'`<>()\\${}]+/g)) {
+    try {
+      hosts.add(new URL(m[0]).hostname.toLowerCase());
+    } catch {
+      // A template or a fragment, not a URL.
+    }
+  }
+  return hosts;
+}
+
+/** Every module `text` imports, by its exact specifier. */
+export function importsIn(text) {
+  const out = new Set();
+  for (const m of text.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)["']([^"']+)["']/g)) out.add(m[1]);
+  return out;
+}
+
+/** Whether `host` is `domain` or one of its subdomains. */
+export const onDomain = (host, domain) => host === domain || host.endsWith(`.${domain}`);
 
 /** Where the server code lives: the functions, their Azure wrapper, the middleware and the hub. Tests left out. */
 const isServerSource = (f) => /^(?:api|azure\/src|apps\/hub\/src)\/.+\.(?:ts|mjs|js)$/.test(f) || f === "middleware.ts";
@@ -188,7 +214,9 @@ const isTest = (f) => /\.test\.(?:ts|mjs|js)$/.test(f) || f.includes("/_security
 
 export function servicesOf(root, files) {
   const text = files.filter((f) => isServerSource(f) && !isTest(f) && f !== "api/_skippy/stack.ts").map((f) => readText(root, f)).join("\n");
-  return SERVICES.filter(([, re]) => re.test(text)).map(([name]) => name);
+  const hosts = [...hostsIn(text)];
+  const imports = importsIn(text);
+  return SERVICES.filter((svc) => (svc.hosts ?? []).some((d) => hosts.some((h) => onDomain(h, d))) || (svc.packages ?? []).some((p) => imports.has(p))).map((svc) => svc.name);
 }
 
 /** The repo's own facts, from the checkout at `root`: they change only when the code does. */

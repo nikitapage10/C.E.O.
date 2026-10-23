@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { databasesOf, languagesOf, lockedPackagesOf, renderStackDeps, renderStackFacts, stackFacts, topLevelOf } from "./stack-facts-lib.mjs";
+import { databasesOf, hostsIn, importsIn, languagesOf, onDomain, lockedPackagesOf, renderStackDeps, renderStackFacts, stackFacts, topLevelOf } from "./stack-facts-lib.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const file = (name) => readFileSync(new URL(`../api/_skippy/${name}`, import.meta.url), "utf8");
@@ -55,6 +55,16 @@ describe("Desk Skippy's stack sheet (#312)", () => {
     expect(pkgs.find((p) => p.name === "b" && p.version === "1.0.0")?.dev).toBe(false);
     expect(pkgs.some((p) => p.name === "@ceo/core")).toBe(false);
     expect(databasesOf([{ name: "pg" }, { name: "react" }])).toEqual(["pg"]);
+  });
+
+  it("matches a service on the URL's parsed host, never on look-alike text", () => {
+    const hosts = hostsIn('fetch("https://api.github.com/repos/x"); "https://api.github.com.evil.example/x"; `https://${host}/x`; "https://gamma-api.polymarket.com/m"');
+    expect([...hosts].sort()).toEqual(["api.github.com", "api.github.com.evil.example", "gamma-api.polymarket.com"]);
+    expect(onDomain("api.github.com", "api.github.com")).toBe(true);
+    expect(onDomain("api.github.com.evil.example", "api.github.com")).toBe(false);
+    expect(onDomain("evilapi.github.com", "api.github.com")).toBe(false);
+    expect(onDomain("gamma-api.polymarket.com", "polymarket.com")).toBe(true);
+    expect([...importsIn('import webpush from "web-push";\nconst m = await import("@vercel/blob");\nimport { x } from "web-push-extra";')].sort()).toEqual(["@vercel/blob", "web-push", "web-push-extra"]);
   });
 
   it("holds public facts only: no keys, tokens, links or account names", () => {

@@ -52,7 +52,7 @@ export const ROOM_SUBMINDS = {
   exchange: { id: "ticker", name: "The Bookie", active: true },
   boiler: { id: "soot", name: "The Pessimist", active: true },
   foundry: { id: "ember", name: "The Builder", active: true },
-  relay: { id: "static", name: "The Messenger", active: false },
+  relay: { id: "static", name: "The Messenger", active: true },
 } as const satisfies Record<Exclude<LogRoom, "none">, { id: string; name: string; active: boolean }>;
 
 /** Who a turn can be handed to: Skippy's own thread, or a room's submind by its id. */

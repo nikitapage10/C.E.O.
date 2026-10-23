@@ -23,6 +23,7 @@ import * as exchangepositions from "../../api/_exchange/positions.js";
 import * as greenleague from "../../api/_green/route.js";
 import * as invoices from "../../api/_paypal/route.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
+import * as roomfeed from "../../api/_room/feed.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -68,6 +69,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["invoices", invoices],
   ["foundry-usage", foundryusage],
   ["foundry", foundry],
+  // The subminds' room events (#281, docs/SKIPPY.md "Room keys"): POST with the feed key only; GET full for a Desk
+  // session or the read key, scrubbed titles for the Lattice. Azure only: both keys live only in this Key Vault.
+  ["room-feed", roomfeed],
   ["security-feed", securityfeed],
   ["site-login", sitelogin],
   ["site-password", sitepassword],

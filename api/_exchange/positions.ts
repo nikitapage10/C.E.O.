@@ -28,6 +28,7 @@
 import { createPrivateKey, sign, type KeyObject } from "node:crypto";
 import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
+import { readsWithLogKey } from "../_site/roomkeys.js";
 import { SLUG, cleanText, type Fetcher } from "./polymarket.js";
 import { PM_POS_MAX, PM_TRADES_MAX, type PmPosition, type PmPositions, type PmTrade } from "./types.js";
 
@@ -61,6 +62,8 @@ export interface PositionsDeps {
   key: UsKey | { error: "no-key" | "bad-key" };
   desk: DeskDeps;
   now: number;
+  /** The settings, for the submind read key (#281); none means no key opens it. */
+  env?: Record<string, string | undefined>;
 }
 
 /** Reads the key from the settings; the secret is the base64 Ed25519 key (its 32-byte seed, or seed and public half). */
@@ -92,6 +95,7 @@ const live = (): PositionsDeps => ({
   key: envKey(),
   desk: { deskKey: process.env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(), now: Date.now() },
   now: Date.now(),
+  env: process.env,
 });
 
 /** Whether a request to the host function is for this route (by its own path, or the rewrite's query). */
@@ -248,21 +252,23 @@ function json(body: unknown, status = 200): Response {
 }
 
 export async function GET(request: Request, deps: PositionsDeps = live()): Promise<Response> {
-  const signed = await requireSession(request, deps.desk);
+  // A submind thread with the read key (#281, api/_site/roomkeys.ts) reads the same board, never cached; no cookie.
+  const signed = readsWithLogKey(request, deps.env ?? {}) ? ({ ok: true, cookie: null } as const) : await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
+  const out = (res: Response) => (signed.cookie ? withCookie(res, { cookie: signed.cookie }) : res);
   const url = new URL(request.url);
   const extra = [...url.searchParams.keys()].some((k) => k !== "exchange") || url.searchParams.getAll("exchange").length > 1;
-  if (extra) return withCookie(json({ error: "bad-request" }, 400), signed);
+  if (extra) return out(json({ error: "bad-request" }, 400));
   const key = deps.key;
-  if ("error" in key) return withCookie(json({ ok: true, state: "waiting", reason: key.error } satisfies PmPositions), signed);
+  if ("error" in key) return out(json({ ok: true, state: "waiting", reason: key.error } satisfies PmPositions));
   const mine = kept && kept.id === key.id ? kept : null;
-  if (mine && deps.now - mine.at < POS_FRESH_S * 1000) return withCookie(json(mine.value), signed);
+  if (mine && deps.now - mine.at < POS_FRESH_S * 1000) return out(json(mine.value));
   try {
     const value = await readPositions(deps.fetcher, key, deps.now);
     kept = { id: key.id, at: deps.now, value };
-    return withCookie(json(value), signed);
+    return out(json(value));
   } catch {
-    if (mine && deps.now - mine.at < STALE_MS) return withCookie(json({ ...mine.value, stale: true }), signed);
-    return withCookie(json({ error: "upstream" }, 502), signed);
+    if (mine && deps.now - mine.at < STALE_MS) return out(json({ ...mine.value, stale: true }));
+    return out(json({ error: "upstream" }, 502));
   }
 }

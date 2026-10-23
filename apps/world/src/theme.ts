@@ -27,6 +27,7 @@ export const ROOM_ACCENTS: Record<RoomId, string> = {
   breakroom: "#ff8fb1",
   boiler: "#ff9a4a",
   workshop: "#e07a5f",
+  studio: "#ff5d5d",
 };
 
 /** An HDR colour for emissive, un-tonemapped materials: values above 1 are what make bloom bloom. */

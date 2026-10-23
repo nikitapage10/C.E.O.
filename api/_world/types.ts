@@ -4,7 +4,7 @@
  * import these types. Plain data, no imports, so the Vercel functions and the browser bundle both take it as is.
  */
 
-export type RoomId = "foundry" | "spire" | "exchange" | "green" | "relay" | "archive" | "breakroom" | "boiler" | "workshop";
+export type RoomId = "foundry" | "spire" | "exchange" | "green" | "relay" | "archive" | "breakroom" | "boiler" | "workshop" | "studio";
 export type RelationshipKind = "friend" | "best-friend" | "rival" | "nemesis" | "crush" | "partner" | "mentor" | "sibling" | "ex";
 
 /** The cast as the step sees it (generated into api/_world/cast.ts from packages/simulator/src/worldCast.ts). */

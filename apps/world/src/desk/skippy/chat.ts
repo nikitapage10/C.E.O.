@@ -9,8 +9,8 @@ import { create } from "zustand";
  * Nikita taps one: ideas and answers then go through the Desk's own buttons (IdeaCard.tsx), pages open in place.
  */
 
-export type Page = "today" | "relay" | "foundry" | "boiler" | "archive" | "security" | "compliance" | "spire" | "exchange" | "green" | "workshop" | "systems" | "chronicle";
-export type Room = "foundry" | "spire" | "exchange" | "green" | "relay" | "archive" | "breakroom" | "boiler" | "workshop";
+export type Page = "today" | "relay" | "foundry" | "boiler" | "archive" | "security" | "compliance" | "spire" | "exchange" | "green" | "workshop" | "studio" | "systems" | "chronicle";
+export type Room = "foundry" | "spire" | "exchange" | "green" | "relay" | "archive" | "breakroom" | "boiler" | "workshop" | "studio";
 
 export type SkippyAction =
   | { kind: "idea"; label: string; text: string }
@@ -50,11 +50,12 @@ export const PAGES: Record<Page, string> = {
   exchange: "/exchange",
   green: "/green",
   workshop: "/workshop",
+  studio: "/studio",
   // The rooms' old names (#225), in case a reply still uses them.
   systems: "/boiler",
   chronicle: "/archive",
 };
-const ROOMS: readonly Room[] = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop"];
+const ROOMS: readonly Room[] = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop", "studio"];
 
 const clip = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
 

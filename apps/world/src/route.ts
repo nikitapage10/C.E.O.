@@ -2,14 +2,14 @@ import { useSyncExternalStore } from "react";
 
 /**
  * The app's few addresses. The Desk lives at `/` (Today), `/foundry`, `/relay` and one page per room: `/boiler` (with
- * its Security and Compliance subpages), `/archive`, `/spire`, `/exchange`, `/green` and `/workshop`; the 3D Lattice
+ * its Security and Compliance subpages), `/archive`, `/spire`, `/exchange`, `/green`, `/workshop` and `/studio`; the 3D Lattice
  * at `/lattice`. The old `/systems` and `/chronicle` addresses still open the Boiler Room and the Archive (#225).
  * Kept free of imports on purpose: the Desk loads this, and must not pull in anything from the Lattice.
  */
-export type Route = "today" | "foundry" | "relay" | "boiler" | "archive" | "spire" | "exchange" | "green" | "workshop" | "lattice";
+export type Route = "today" | "foundry" | "relay" | "boiler" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio" | "lattice";
 
 /** The rooms with a page of their own past Today, the Foundry and Relay. */
-export const ROOM_ROUTES = ["archive", "spire", "exchange", "green", "workshop", "boiler"] as const;
+export const ROOM_ROUTES = ["archive", "spire", "exchange", "green", "workshop", "studio", "boiler"] as const;
 export type RoomRoute = (typeof ROOM_ROUTES)[number];
 
 const first = (pathname: string) => pathname.split("/")[1] ?? "";
@@ -43,6 +43,7 @@ export const PATHS: Record<Route, string> = {
   exchange: "/exchange",
   green: "/green",
   workshop: "/workshop",
+  studio: "/studio",
   lattice: "/lattice",
 };
 

@@ -274,7 +274,7 @@ function nextIn(ms: number): string {
   return `in ${Math.round(ms / 60_000)} min`;
 }
 
-const ROOM_ROWS: RoomId[] = ["foundry", "relay", "boiler", "archive", "breakroom", "spire", "exchange", "green", "workshop"];
+const ROOM_ROWS: RoomId[] = ["foundry", "relay", "boiler", "archive", "breakroom", "spire", "exchange", "green", "workshop", "studio"];
 
 /**
  * The shown day as threads (the Weave): a thread per room across the day's hours, a knot wherever the hour set a

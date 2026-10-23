@@ -145,6 +145,14 @@ const STATIONS: Partial<Record<RoomId, Record<string, StationWords>>> = {
     shelves: { work: "Looking over past figures", icon: "look" },
     crate: { work: "Packing finished pieces", icon: "carry" },
   },
+  studio: {
+    set: { work: "On the mark, filming", icon: "music" },
+    camera: { work: "Running the camera", icon: "look" },
+    storyboard: { work: "Pinning up the storyboard", icon: "write" },
+    script: { work: "Writing a script", icon: "write" },
+    edit: { work: "Cutting at the edit desk" },
+    render: { work: "Rendering, 9:16" },
+  },
 };
 
 const PROP_NAME: Record<Prop, string> = {

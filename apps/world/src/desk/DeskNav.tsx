@@ -13,7 +13,7 @@ import { useSkippy } from "./skippy/chat.ts";
  * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
  * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Skippy and the way into the
  * Lattice, both quiet, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
- * Keys 1 to 9 open them in order. The Boiler Room comes last (Nikita, 05:35Z). Beside the account button, Hide: an eye
+ * Keys 1 to 9 open them in order, 0 the tenth. The Boiler Room comes last (Nikita, 05:35Z). Beside the account button, Hide: an eye
  * that veils every personal value for showing the Desk to someone (Nikita, 05:36Z; hide.ts).
  */
 
@@ -30,6 +30,7 @@ export const ROOM_TABS: Record<RoomRoute, { label: string; line: string }> = {
   exchange: { label: "Exchange", line: "Markets, research and money" },
   green: { label: "Green", line: "The fantasy league" },
   workshop: { label: "Workshop", line: "From a prompt to a print" },
+  studio: { label: "Studio", line: "Short videos that explain the internet" },
 };
 
 /** Every page in key order: 1 Today, 2 Foundry, 3 Relay, then the rooms. */

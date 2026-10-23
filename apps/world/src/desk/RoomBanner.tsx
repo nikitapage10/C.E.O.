@@ -10,7 +10,7 @@ import { PORTRAITS } from "./portraits.ts";
  */
 
 /** The Desk's pages past Today, and the Systems hub's subpages (all three in the Boiler Room). */
-export type BannerPage = "relay" | "foundry" | "boiler" | "security" | "compliance" | "archive" | "spire" | "exchange" | "green" | "workshop";
+export type BannerPage = "relay" | "foundry" | "boiler" | "security" | "compliance" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio";
 
 export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; title: string; voice: { id: string; line: string } }> = {
   relay: { room: "relay", eyebrow: "The switchboard", title: "Relay", voice: { id: "dialtone", line: "Please hold. Not you, darling." } },
@@ -26,6 +26,7 @@ export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; titl
   exchange: { room: "exchange", eyebrow: "The floor after hours", title: "Exchange", voice: { id: "ticker", line: "Seventy-one percent, give or take. Mostly take." } },
   green: { room: "green", eyebrow: "Under the floodlights", title: "Green", voice: { id: "turf", line: "AND HE'S DONE IT. Whatever it was. HE'S DONE IT." } },
   workshop: { room: "workshop", eyebrow: "The maker's bench", title: "Workshop", voice: { id: "putty", line: "Wait. No. Better idea. ...I suffer for this." } },
+  studio: { room: "studio", eyebrow: "The sound stage", title: "Studio", voice: { id: "tally", line: "CUT! Masterpiece. ...One more." } },
 };
 
 /** The room's still, twice the width, for the banner on retina screens. */

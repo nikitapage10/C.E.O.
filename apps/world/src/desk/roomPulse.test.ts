@@ -23,7 +23,7 @@ const input = (patch: Partial<PulseInput> = {}): PulseInput => ({
 });
 
 describe("room pulses", () => {
-  it("covers all nine rooms, each with its submind from docs/SKIPPY.md and a portrait", () => {
+  it("covers all ten rooms, each with its submind from docs/SKIPPY.md and a portrait", () => {
     const pulses = roomPulses(input());
     expect(pulses.map((p) => p.id)).toEqual([...ROOM_ORDER]);
     for (const p of pulses) {
@@ -55,7 +55,7 @@ describe("room pulses", () => {
     expect(boiler.report).toMatch(/^2 links up, 2 not connected yet/);
     const exchange = pulses.find((p) => p.id === "exchange")!;
     expect(exchange).toMatchObject({ real: false, state: "sim", short: "no odds yet" });
-    for (const id of ["breakroom", "spire", "green", "workshop"]) {
+    for (const id of ["breakroom", "spire", "green", "workshop", "studio"]) {
       const p = pulses.find((x) => x.id === id)!;
       expect(p.real).toBe(false);
       expect(p.state).toBe("sim");

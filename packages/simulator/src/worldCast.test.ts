@@ -17,7 +17,7 @@ describe("the cast as the hourly world step sees it", () => {
       expect(m.bio.length, m.id).toBeGreaterThan(20);
       expect(m.catchphrase.length, m.id).toBeGreaterThan(0);
     }
-    expect(cast.members.filter((m) => m.lead)).toHaveLength(9);
+    expect(cast.members.filter((m) => m.lead)).toHaveLength(10);
   });
 
   it("every builder has a stock line for when a job of theirs ships", () => {

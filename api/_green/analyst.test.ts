@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bidCandidates, bidsFor, callsFor, ceilingOf, floorOf, seeded, simulate, teamsFor, tradeFor, type OddsTeam, type RosterView } from "./analyst.ts";
+import { bidCandidates, bidsFor, callsFor, ceilingOf, floorOf, seeded, simulate, teamsFor, tiebreakApplies, tiebreakPick, tradeFor, type OddsTeam, type RosterView } from "./analyst.ts";
 import { shapeNews, shapeRankings } from "./fantasypros.ts";
 import { shapeSlProjections, shapeTransactions, slField } from "./sleeper.ts";
 import type { GreenPlayer, GreenSlot, GreenTeam } from "./types.ts";
@@ -69,6 +69,54 @@ describe("calls: FantasyPros decides, Sleeper sits beside it (#276)", () => {
     expect(callsFor([slot("WR", a)], [pl("2", "WR", 9.9, { bye: 8 })], [], 8, 0.5, never)).toEqual([]);
     expect(callsFor([slot("WR", a)], [pl("3", "WR", 9.9, { inj: "O" })], [], 8, 0.5, never)).toEqual([]);
     expect(callsFor([slot("WR", a)], [pl("4", "WR", 9.9)], [], 8, 0.5, (id) => id === "4")).toEqual([]);
+  });
+});
+
+describe("the FLEX tiebreak (#340)", () => {
+  // Week 7: Goedert (TE, FantasyPros 8.8, Sleeper 9.1) in the FLEX, Tucker (WR, FantasyPros 9.0, Sleeper 7.6) on the bench.
+  const goedert = pl("5022", "TE", 8.8, { name: "Dallas Goedert", inj: "Q", sl: 9.1, wk: 8, range: { min: 4, max: 14, std: 2.4 } });
+  const tucker = pl("10213", "WR", 9.0, { name: "Tre Tucker", sl: 7.6, wk: 30, range: { min: 18, max: 48, std: 6.1 } });
+
+  it("under a point apart, the favourite keeps the steadier floor in the FLEX, labelled tiebreak", () => {
+    const c = callsFor([slot("FLEX", goedert)], [tucker], [], 7, 0.62, never)[0]!;
+    expect(c).toMatchObject({ slot: "FLEX", start: { id: "5022" }, sit: { id: "10213" }, change: false });
+    expect(c.tiebreak).toMatch(/^Tiebreak: FantasyPros has them within a point and you're favoured \(62%\), so lean floor: Dallas Goedert's low is 8\.8, Tre Tucker's 7\.6\./);
+  });
+
+  it("the underdog takes the higher ceiling, which can bring the bench player in", () => {
+    const boom = pl("2", "WR", 8.5, { name: "Boom", sl: 12 });
+    const c = callsFor([slot("FLEX", goedert)], [boom], [], 7, 0.35, never)[0]!;
+    expect(c).toMatchObject({ start: { id: "2" }, sit: { id: "5022" }, change: true });
+    expect(c.tiebreak).toMatch(/underdog \(35%\), so lean ceiling: Boom tops out at 12\.0/);
+  });
+
+  it("level on the floor, the experts' narrower spread is the steadier one", () => {
+    const a = pl("1", "RB", 9, { name: "Wide Spread", range: { min: 5, max: 40, std: 9 } });
+    const b = pl("2", "RB", 9.4, { name: "Tight Spread", range: { min: 10, max: 16, std: 1.5 } });
+    expect(tiebreakPick(a, b, 0.7)).toBe(b);
+    // The underdog, level on the ceiling too (no Sleeper numbers), takes the better best rank an expert gave.
+    const c = pl("3", "RB", 9, { name: "Same", range: { min: 10, max: 16, std: 1.5 } });
+    expect(tiebreakPick(c, a, 0.3)).toBe(a);
+    expect(tiebreakPick(a, c, 0.7)).toBe(c);
+  });
+
+  it("a point or more apart, FantasyPros decides alone: no tiebreak", () => {
+    const c = callsFor([slot("FLEX", { ...goedert, proj: 7.5 })], [tucker], [], 7, 0.62, never);
+    expect(c.every((x) => x.tiebreak === null)).toBe(true);
+  });
+
+  it("respects byes and outs: a player who can't play is never in a tiebreak", () => {
+    expect(tiebreakApplies(goedert, { ...tucker, bye: 7 }, 7, 0.6)).toBe(false);
+    expect(tiebreakApplies(goedert, { ...tucker, inj: "O" }, 7, 0.6)).toBe(false);
+    expect(callsFor([slot("FLEX", goedert)], [{ ...tucker, bye: 7 }], [], 7, 0.6, never)).toEqual([]);
+  });
+
+  it("start/sit stays FantasyPros': never a tiebreak between a FantasyPros projection and a form one, nor without a win chance", () => {
+    expect(tiebreakApplies(goedert, { ...tucker, src: "form" }, 7, 0.6)).toBe(false);
+    expect(tiebreakApplies(goedert, tucker, 7, null)).toBe(false);
+    expect(tiebreakApplies({ ...goedert, src: "form" }, { ...tucker, src: "form" }, 7, 0.6)).toBe(true);
+    const c = callsFor([slot("FLEX", goedert)], [{ ...tucker, src: "form", sl: 20 }], [], 7, 0.3, never)[0]!;
+    expect(c).toMatchObject({ start: { id: "5022" }, tiebreak: null });
   });
 });
 

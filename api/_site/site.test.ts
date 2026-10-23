@@ -240,6 +240,15 @@ describe("the gate (#236)", () => {
     expect(decide(req("/api/desk-pings", { method: "POST", headers: { Authorization: `Bearer ${PINGS}` } }), c)).toEqual({ allow: true, why: "pings-secret" });
     for (const auth of [`Bearer ${PINGS}x`, "Bearer ", PINGS, ""]) expect(decide(req("/api/desk-pings", { method: "POST", headers: { Authorization: auth } }), c).allow).toBe(false);
     expect(decide(req("/api/foundry", { method: "POST", headers: { Authorization: `Bearer ${PINGS}` } }), c).allow).toBe(false);
+    // A hand-off's answer from a room thread (#312): SUBMIND_FEED_TOKEN, on POST /api/skippy-answer only.
+    const FEED = "a-test-submind-feed-token-long-enough-0123456789";
+    const withFeed = await ctx({ env: { FOUNDRY_DESK_KEY: DESK, SUBMIND_FEED_TOKEN: FEED } });
+    expect(decide(req("/api/skippy-answer", { method: "POST", headers: { Authorization: `Bearer ${FEED}` } }), withFeed)).toEqual({ allow: true, why: "submind-token" });
+    for (const auth of [`Bearer ${FEED}x`, "Bearer ", FEED, ""]) expect(decide(req("/api/skippy-answer", { method: "POST", headers: { Authorization: auth } }), withFeed).allow).toBe(false);
+    for (const [path, method] of [["/api/skippy-answer", "GET"], ["/api/skippy-log?room=foundry", "GET"], ["/api/skippy", "POST"], ["/api/foundry", "POST"]] as const)
+      expect(decide(req(path, { method, headers: { Authorization: `Bearer ${FEED}` } }), withFeed).allow).toBe(false);
+    const shortFeed = await ctx({ env: { FOUNDRY_DESK_KEY: DESK, SUBMIND_FEED_TOKEN: "short" } });
+    expect(decide(req("/api/skippy-answer", { method: "POST", headers: { Authorization: "Bearer short" } }), shortFeed).allow).toBe(false);
     // The workflows that read the site (backup, seed, live watch): the bypass token, on any route.
     for (const path of ["/", "/lattice", "/api/world", "/api/day-story?day=2026-10-21"]) expect(decide(req(path, { headers: { [BYPASS_HEADER]: BYPASS } }), c)).toEqual({ allow: true, why: "bypass" });
     for (const wrong of [`${BYPASS}x`, BYPASS.slice(1), ""]) expect(decide(req("/api/world", { headers: { [BYPASS_HEADER]: wrong } }), c).allow).toBe(false);

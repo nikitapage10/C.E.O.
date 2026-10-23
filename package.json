@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @ceo/world",
-    "build": "npm run build -w @ceo/world",
+    "build": "node scripts/stack-facts.mjs && npm run build -w @ceo/world",
     "preview": "npm run preview -w @ceo/world",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
@@ -22,8 +22,10 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "world:cast": "node scripts/world-cast.mjs",
+    "stack:facts": "node scripts/stack-facts.mjs",
+    "postinstall": "node scripts/stack-facts.mjs --deps",
     "security:evals": "node scripts/security-evals.mjs",
-    "build:azure": "npm run build -w @ceo/azure"
+    "build:azure": "node scripts/stack-facts.mjs && npm run build -w @ceo/azure"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

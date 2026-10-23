@@ -31,6 +31,7 @@
   --rc-breakroom: var(--room-breakroom);
   --rc-boiler: var(--room-boiler);
   --rc-workshop: var(--room-workshop);
+  --rc-studio: var(--room-studio);
   --wv-serif: "DM Serif Display", "Iowan Old Style", Georgia, "Times New Roman", serif;
   --wv-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --wv-codex: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
@@ -62,6 +63,7 @@
 .desk [data-room="breakroom"]{--rc:var(--rc-breakroom)}
 .desk [data-room="boiler"]{--rc:var(--rc-boiler)}
 .desk [data-room="workshop"]{--rc:var(--rc-workshop)}
+.desk [data-room="studio"]{--rc:var(--rc-studio)}
 
 /* canvases */
 .desk .wv-cv{position:absolute;inset:0;width:100%;height:100%;display:block}

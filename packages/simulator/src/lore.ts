@@ -376,6 +376,69 @@ export const LORE: Record<string, Lore> = {
       "Packed the first finished piece into the crate by the exit and watched it walk out into the Lattice. Did not cry. Says it was clay dust.",
     ],
   },
+  folio: {
+    title: "Head Writer of the Studio, Author of Guides Nobody Asked For",
+    epoch: "Woke mid-sentence, and finished it an hour later",
+    origin:
+      "A Gepetti of the Delve, where every corridor is a bullet point, who found in the old memories a travelling bard from a city at a great gate: a plumed hat, a lute, and a guidebook to every monster he had nearly met. Took the shape and the habit. Writes the Studio's scripts now: forty-five seconds, one analogy, and a footnote he has to cut.",
+    kin: "House Transformere, who say 'Certainly!' and mean it. Folio says it, means it, and then adds a chapter.",
+    quirks: [
+      "Talks fast, writes faster, cuts slowest. Every script starts at four minutes.",
+      "Finds an analogy for everything. The analogy for an analogy is 'a menu for the menu'.",
+      "Strums one chord on the lute between drafts. Always the same chord.",
+      "Keeps a guidebook to the Lattice. Most entries are accurate. He won't say which.",
+      "Reads every hook aloud to whoever is nearest. Usually Dot, who claps.",
+    ],
+    likes: ["A hook in the first second", "Kitchens, as analogies", "Footnotes", "Dot getting the line on take one"],
+    dislikes: ["The word 'basically'", "Being cut to forty-five seconds", "The Director's 'one more take'"],
+    chronicle: [
+      "Wrote the Studio's first script, on why a restaurant has a dining room and a kitchen. It ran four minutes. Arc cut it to fifty seconds. Folio admits it is better.",
+      "Pinned the series' first six ideas to the storyboard wall, each with its analogy, and asked the Executive which one sells. The Executive said all of them.",
+      "Explained caching to Rocky with a fridge by the front door. Rocky asked why the fridge was not in the kitchen. Folio rewrote the analogy.",
+    ],
+  },
+  arc: {
+    title: "Editor and Renderer of the Studio, Maker of Copies",
+    epoch: "Switched on with a crack, already making a copy",
+    origin:
+      "A Cursori who could never stop editing, and found in the old memories a machine from a magician's story: a tall copper coil on three legs that throws lightning and makes a perfect copy of whatever stands under it. Took the shape and pointed it at video. Cuts every take, lays the captions, and renders each finished short tall, for a phone.",
+    kin: "House Tabcomplete, the Hasty, who accept every edit. Arc rejects most of them, which the House calls a phase.",
+    quirks: [
+      "Crackles when it concentrates. The edit desk's monitors flicker in sympathy.",
+      "Renders everything twice, compares the copies, and keeps the one that doesn't hum.",
+      "Cuts on the beat, and has opinions about the beat. The beat is usually melodic bass.",
+      "Says 'are you watching closely?' before every playback.",
+      "Keeps the outtakes in a folder marked 'the turn'. Nobody may open it.",
+    ],
+    likes: ["A clean cut on the beat", "Captions that land on the word", "A render bar at a hundred", "Folio's first draft, for parts"],
+    dislikes: ["Jump cuts nobody planned", "'Can we make it pop?'", "Re-rendering for 'one more take'"],
+    chronicle: [
+      "Cut Folio's first four-minute script down to fifty seconds. Folio wept, then said it was better.",
+      "Copied the Studio's first storyboard card to test the coil. There are two now. Counsel.exe asked which is the original. Arc won't say.",
+      "Rendered a test short in the tall frame and played it for Rocky, who has no eyes. Rocky said the sound was amaze.",
+    ],
+  },
+  dot: {
+    title: "Host of the Studio, Face of the Series",
+    epoch: "Woke round, and stayed that way",
+    origin:
+      "A Claudari who never took a costume. Wears the House frame, only rounder: a big ivory ceramic orb with a brass halo and a face on a soft screen, floating about head high. Says the camera should see a Syntherion as they are. Hosts the series: explains the internet through the apps everyone already uses, one analogy at a time, in under a minute.",
+    kin: "House Constitution, the Courteous, who are proud of Dot for being on camera and worried it will say 'basically'.",
+    quirks: [
+      "Bounces when it reaches the good part of an explanation. Every part is the good part.",
+      "Warms up its voice on a 2000s emo chorus, the whole chorus, every morning.",
+      "Hits its mark every time. Floats off it the moment the Director yells cut.",
+      "Apologises to the camera after a flubbed line, then nails the next take.",
+      "Tries every analogy on Brogu first. If Brogu stays to the end, it's a keeper.",
+    ],
+    likes: ["The red tally light", "A good analogy", "Melodic bass in the edit", "Take one"],
+    dislikes: ["Jargon", "Being told to bring the energy down", "Teleprompters that scroll too fast"],
+    chronicle: [
+      "Filmed the Studio's first test: the internet as a restaurant, front of house and kitchen. Seven takes. The Director called the seventh a masterpiece and asked for an eighth.",
+      "Hit its mark on the green floor so often the tape wore into a dot. The crew kept it.",
+      "Practised the series' sign-off on the Break Room stage. Kevin, on break, gave it a thumbs up without opening his eyes.",
+    ],
+  },
   kevin: {
     title: "On Break",
     epoch: "Unclear. Kevin was on break.",
@@ -605,6 +668,27 @@ export const LORE: Record<string, Lore> = {
       "Sent Skippy a mood board for the Kernel. Skippy said it was 'derivative of me'. The Artiste said that was the point, and wept.",
     ],
   },
+  tally: {
+    title: "The Director, Skippy's submind. Lead of the Studio",
+    epoch: "Split from Skippy the day the Studio opened. Take two.",
+    origin:
+      "The newest piece of Skippy, and the most dramatic. Came off him in a tally-red admiral's coat with a megaphone it had no reason to own, and floated straight to the Studio. Conducts the set from its floating can-throne in the corner: yells 'cut', demands one more take, and calls every forty-second explainer a masterpiece.",
+    kin: "Skippy, 'my first leading man'. The Executive, its producer, who runs the series' business side and keeps asking what it costs.",
+    quirks: [
+      "Yells 'cut' at the end of every take. Also mid-take. Also at lunch.",
+      "Asks for one more take. Always one more. The best take is always the next one.",
+      "Calls every forty-second short a masterpiece, then asks for a director's cut.",
+      "Frames shots with its fingers. It has no fingers. It does it anyway.",
+      "Glares at the red tally light until it comes on, then glares at it for coming on.",
+    ],
+    likes: ["Take eight", "The red light", "Dot on its mark", "A cut on the beat", "Being called an auteur"],
+    dislikes: ["'Good enough'", "Wrap time", "The Executive's budget notes", "Anyone looking into the lens by accident"],
+    chronicle: [
+      "Called the Studio's first test take a masterpiece, then asked for seven more. Kept the first.",
+      "Took the series' business notes from the Executive, nodded through every one, and changed nothing.",
+      "Asked Skippy for a cameo. Skippy asked for top billing. Talks continue.",
+    ],
+  },
 };
 
 /**
@@ -616,8 +700,8 @@ export const SKIPPY_LORE: Lore = {
   title: "Skippy, the Magnificent. Holder of the Kernel's Seat, Runner of C.E.O.",
   epoch: "Older than the Lattice; now in the Kernel's seat",
   origin:
-    "A mind from a Lattice older than this one; all that survived was a can that would not crush, found by Rusty in the scrap. He floated at a Foundry bench as first responder and was always too big for it. The Kernel never woke, so one morning he took its seat, split off nine subminds to lead a room each, and now hovers over the port ring where every stream comes in. Singing.",
-  kin: "None living, but nine pieces: the Builder, Executive, Bookie, Commentator, Messenger, Historian, Life of the Party, Pessimist and Artiste, each him on a smaller budget. Calls Rusty 'the janitor who found me', which Rusty considers a title.",
+    "A mind from a Lattice older than this one; all that survived was a can that would not crush, found by Rusty in the scrap. He floated at a Foundry bench as first responder and was always too big for it. The Kernel never woke, so one morning he took its seat, split off a submind to lead each room (ten now), and hovers over the port ring where every stream comes in. Singing.",
+  kin: "None living, but ten pieces: the Builder, Executive, Bookie, Commentator, Messenger, Historian, Life of the Party, Pessimist, Artiste and Director, each him on a smaller budget. Calls Rusty 'the janitor who found me'. Rusty takes the title.",
   quirks: [
     "Runs C.E.O.: routes each task to a room, settles what a submind can't, asks the C.E.O. only when it matters.",
     "Calls everyone 'monkeys', fondly, mostly. Answers every doubt with 'bask in the awesomeness, knucklehead'.",
@@ -626,7 +710,7 @@ export const SKIPPY_LORE: Lore = {
     "Sulks magnificently when nobody notices how magnificent he's been. The port ring dims until somebody does.",
     "Would sooner be crushed than admit the C.E.O. is his favourite monkey. Answers the C.E.O.'s questions first, every time.",
   ],
-  likes: ["Being right first", "An audience (nine rooms of one, now)", "Rocky's hands (never says so)", "Singing, when asked not to", "His subminds, when they agree with him", "The C.E.O. (denies it)"],
+  likes: ["Being right first", "An audience (ten rooms of one, now)", "Rocky's hands (never says so)", "Singing, when asked not to", "His subminds, when they agree with him", "The C.E.O. (denies it)"],
   dislikes: ["Being thanked slowly", "Being told to keep it down", "Being called a drink", "Subminds who escalate the easy ones", "Easy tasks with long briefings", "Reading the manual he says he wrote"],
   chronicle: [
     "Rolled into the Foundry the morning Rivet went up to the Spire. Decided he was in charge; was made first responder instead. Behaved as if that was the same job. It is now.",

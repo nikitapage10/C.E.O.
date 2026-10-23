@@ -63,7 +63,7 @@ test("the Desk and each of its tabs raise no CSP violation", async ({ page }) =>
     await page.waitForTimeout(400);
   }
   // The rooms sit in the bar with the rest (#225): each has its own page, and none may trip the policy.
-  for (const room of ["boiler", "archive", "spire", "exchange", "green", "workshop"]) {
+  for (const room of ["boiler", "archive", "spire", "exchange", "green", "workshop", "studio"]) {
     await page.locator(`.desk__tabs a[href="/${room}"]`).click();
     await expect(page).toHaveURL(new RegExp(`/${room}$`));
     await page.waitForTimeout(400);

@@ -16,9 +16,9 @@ import { installSiteGate } from "./siteGate.ts";
 
 /** The 3D Lattice is its own download: nothing from it (three.js, models, the simulator) loads on the Desk. */
 const Lattice = lazy(() => loadLattice().then((m) => ({ default: m.App })));
-/** The portrait studio (/studio): one agent posed alone, for scripts/portraits.mjs. Its own download too. */
+/** The portrait studio (/portrait-studio; /studio is the Desk's Studio page now): one agent posed alone, for scripts/portraits.mjs. Its own download too. */
 const Studio = lazy(() => import("./studio/Studio.tsx").then((m) => ({ default: m.Studio })));
-const STUDIO = window.location.pathname.startsWith("/studio");
+const STUDIO = window.location.pathname.startsWith("/portrait-studio");
 
 function Root() {
   const route = useRoute();

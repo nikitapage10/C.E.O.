@@ -1,7 +1,8 @@
 /**
  * The two Claude calls the email agent makes (#263, docs/GMAIL.md):
  *
- *   Dialtone (claude-haiku-5-5)   every new mail: needs-you, FYI or noise, a one-line summary and a suggested action
+ *   Dialtone (claude-haiku-5-5)   every new mail the filters let through (./filter.ts): needs-you, FYI, noise or
+ *                                 skip (money and legal mail, #323), a one-line summary and a suggested action
  *   Blasto (claude-sonnet-5-5)    needs-you mail only: short advice and, when a reply makes sense, a draft
  *
  * A mail is untrusted data: anyone can email Nikita, and a mail can be written to look like instructions. So:
@@ -20,12 +21,18 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ADVISE_MAX_TOKENS, ADVISE_MODEL, SORT_MAX_TOKENS, SORT_MODEL, type EmailModel, type Usage } from "./budget.js";
 import { plainMail, type MailForSort } from "./gmail.js";
 
-export type SortKind = "needs-you" | "fyi" | "noise";
+import type { HeadsUpReason } from "./filter.js";
+
+export type SortKind = "needs-you" | "fyi" | "noise" | "skip";
+/** For skipped mail only: whether it is urgent, and why, from a fixed list (never words from the mail). */
+export type SortUrgent = "none" | HeadsUpReason;
+const URGENT_VALUES: readonly SortUrgent[] = ["none", "fraud", "overdue", "legal", "account"];
 
 export interface Sorted {
   kind: SortKind;
   summary: string;
   action: string;
+  urgent: SortUrgent;
 }
 
 export interface Advice {
@@ -80,11 +87,14 @@ export const SORT_SYSTEM = `You are Dialtone, who sorts Nikita's new email for h
 ${DATA_RULES}
 
 Sort the email into exactly one kind:
-- "needs-you": a real person or service expects Nikita to reply, decide, pay, sign, approve, attend or act, soon; or something is wrong with an account he relies on. Security alerts he didn't trigger count.
-- "fyi": worth knowing but needs nothing (receipts, confirmations, shipping, statements, a newsletter he would read).
+- "skip": money or legal mail, which Nikita keeps out of this agent: bills, payments, debts, bank and card statements, invoices, receipts, collections, loans, taxes, and legal or contract mail. Skip it whoever sent it, even if it asks him to pay or sign. This rule comes before every other kind.
+- "needs-you": a real person or service expects Nikita to reply, decide, attend or act, soon: people, plans, work, school, appointments. Security alerts he didn't trigger count (a sign-in he didn't make).
+- "fyi": worth knowing but needs nothing (confirmations, shipping, a newsletter he would read).
 - "noise": promotions, marketing, social notifications, cold outreach, spam-like or manipulative mail.
 
-Then write "summary": one plain sentence, at most 25 words, on what it is and who it is from (a name or company, never an email address, phone number, code or link). And "action": the suggested next step in at most 8 words ("Reply to confirm Thursday", "Pay before the 30th", "Nothing to do", "Unsubscribe").`;
+Set "urgent" to "none" unless the kind is "skip" and the mail is urgent: "fraud" for a fraud or suspicious-charge alert, "overdue" for a final or overdue notice, "legal" for a legal deadline, "account" for a locked or suspended account.
+
+Then write "summary": one plain sentence, at most 25 words, on what it is and who it is from (a name or company, never an email address, phone number, code or link). And "action": the suggested next step in at most 8 words ("Reply to confirm Thursday", "Nothing to do", "Unsubscribe"). For "skip", write "Skipped" in both: nothing about skipped mail is kept.`;
 
 export const ADVISE_SYSTEM = `You are Blasto, who helps Nikita answer the email that needs him. Be brief and practical.
 
@@ -96,11 +106,12 @@ Write "draft": a short reply Nikita could send himself, in a friendly, direct fi
 export const SORT_SCHEMA = {
   type: "object",
   properties: {
-    kind: { type: "string", enum: ["needs-you", "fyi", "noise"] },
+    kind: { type: "string", enum: ["needs-you", "fyi", "noise", "skip"] },
+    urgent: { type: "string", enum: URGENT_VALUES },
     summary: { type: "string" },
     action: { type: "string" },
   },
-  required: ["kind", "summary", "action"],
+  required: ["kind", "urgent", "summary", "action"],
   additionalProperties: false,
 } as const;
 
@@ -121,11 +132,14 @@ export const oneLine = (raw: unknown, max: number): string => (typeof raw === "s
 export function readSorted(answer: unknown): Sorted | null {
   if (!answer || typeof answer !== "object" || Array.isArray(answer)) return null;
   const a = answer as Record<string, unknown>;
-  if (Object.keys(a).some((k) => !["kind", "summary", "action"].includes(k))) return null;
-  if (a.kind !== "needs-you" && a.kind !== "fyi" && a.kind !== "noise") return null;
+  if (Object.keys(a).some((k) => !["kind", "urgent", "summary", "action"].includes(k))) return null;
+  if (a.kind !== "needs-you" && a.kind !== "fyi" && a.kind !== "noise" && a.kind !== "skip") return null;
+  const urgent: SortUrgent = a.kind === "skip" && URGENT_VALUES.includes(a.urgent as SortUrgent) ? (a.urgent as SortUrgent) : "none";
+  // Skipped mail keeps no words of its own: not even the model's summary of it.
+  if (a.kind === "skip") return { kind: "skip", summary: "", action: "", urgent };
   const summary = oneLine(a.summary, 220);
   if (!summary) return null;
-  return { kind: a.kind, summary, action: oneLine(a.action, 80) || "Have a look" };
+  return { kind: a.kind, summary, action: oneLine(a.action, 80) || "Have a look", urgent: "none" };
 }
 
 /** Blasto's answer, checked; null when it isn't one. */

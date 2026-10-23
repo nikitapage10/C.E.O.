@@ -71,6 +71,10 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
   yeti: 2.1,
   monolith: 1.78,
   powerbox: 1.05,
+  bard: 1.55,
+  coil: 2.0,
+  // The orb floats; this is the top of its halo.
+  orb: 1.75,
 };
 
 /** Where a body holds what it carries, [height, distance in front], before `size`. Default: half its height, 0.42 out. */
@@ -78,4 +82,5 @@ export const CARRY_AT: Partial<Record<Exclude<Body, "classic">, [number, number]
   hanar: [0.95, 0.3],
   rocky: [0.55, 0.42],
   compactor: [0.62, 0.5],
+  orb: [1.0, 0.5],
 };

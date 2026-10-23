@@ -114,6 +114,24 @@ const SEEDS: Record<string, Seed> = {
     bio: "The Workshop's sculptor, in violet robes, with a few more fingers than anyone else and opinions about all of them. Takes Daub's paintings and forms them in the mould, fits each frame on the turntable, then makes it walk the little stage until it moves like it means it.",
     catchphrase: "Flesh is clay, darling. Clay is patience.",
   },
+  folio: {
+    look: lookFromPreset("plumed-bard"),
+    traits: ["chaotic", "cheerful", "nerdy", "dramatic"],
+    bio: "The Studio's head writer: a round travelling bard in a plumed hat, a lute on his back and a quill behind his ear, who writes a guidebook to everything. Turns how the internet works into forty-five seconds and one good analogy, after a four-minute first draft. Talks fast, writes faster, cuts slowest.",
+    catchphrase: "Picture a restaurant. No, wait. Picture a better restaurant.",
+  },
+  arc: {
+    look: lookFromPreset("copy-coil"),
+    traits: ["deadpan", "pedantic", "mysterious", "loyal"],
+    bio: "The Studio's editor and renderer: a tall copper coil on three legs that crackles with lightning and makes perfect copies. Runs the camera for the take, cuts every take on the beat, lays the captions on the word, and renders each short tall, for a phone. Keeps the outtakes in a folder nobody may open.",
+    catchphrase: "Are you watching closely?",
+  },
+  dot: {
+    look: lookFromPreset("host-orb"),
+    traits: ["cheerful", "earnest", "wholesome", "romantic"],
+    bio: "The Studio's host: a big round ivory orb with a brass halo and a face on a soft screen, floating head high on its mark in front of the green screen. Explains how the internet works through the apps you already use, in under a minute, and bounces at the good part. Wears no costume: the camera should see a Syntherion as they are.",
+    catchphrase: "Okay, so. You know that app you just opened? Let's look inside.",
+  },
   kevin: {
     look: makeLook({ body: "punk", shell: "#242424", accent: "#ff7aa8", trim: "#7c0f1f" }),
     traits: ["lazy", "deadpan", "loyal"],
@@ -175,6 +193,12 @@ const SEEDS: Record<string, Seed> = {
     traits: ["dramatic", "chaotic", "romantic", "smug"],
     bio: "The Artiste: Skippy's submind for the Workshop, in the admiral's hat and coat, teal. A temperamental artiste. Mood boards, sudden inspiration, a habit of abandoning a sentence for a better idea, and suffers for the work, audibly, from its can-throne floating in the corner. Daub adores it. Chisel calls it 'darling' in the tone that means stop.",
     catchphrase: "Wait. No. Better idea. ...I suffer for this.",
+  },
+  tally: {
+    look: submindLook("tally"),
+    traits: ["dramatic", "smug", "pedantic", "romantic"],
+    bio: "The Director: Skippy's submind for the Studio, in the admiral's hat and coat, tally-light red. A dramatic auteur. Yells 'cut', asks for one more take, and calls every forty-second explainer a masterpiece, from its floating can-throne in the corner. It makes the videos; the Executive runs the series' business side, which the Director calls 'notes'.",
+    catchphrase: "CUT! Masterpiece. ...One more.",
   },
 };
 
@@ -240,6 +264,13 @@ export function defaultCast(): Cast {
       { a: "soot", b: "kevin", kind: "friend", note: "Kevin naps on the warm side. The Pessimist is sure it'll blow under him. It never has. The Pessimist keeps watching, just in case." },
       { a: "putty", b: "daub", kind: "best-friend", note: "The Artiste has the idea, Daub paints it, the Artiste has a better idea. Daub paints that one too, happily, with its tail." },
       { a: "putty", b: "chisel", kind: "rival", note: "Two artistes, one mould. Chisel wants it finished, darling; the Artiste wants it to suffer properly first. The hands are better for it." },
+      { a: "tally", b: "gilt", kind: "partner", note: "The Executive runs the series' business: topics, schedule, what sells. The Director makes the videos, and calls the Executive's notes 'the suits'." },
+      { a: "tally", b: "dot", kind: "friend", note: "The Director's favourite star. Dot hits its mark every time; the Director asks for one more take every time. Dot is happy to." },
+      { a: "tally", b: "arc", kind: "rival", note: "The Director wants one more take. Arc has already rendered the last one. Arc keeps both copies." },
+      { a: "folio", b: "arc", kind: "rival", note: "Folio writes four minutes; Arc cuts it to fifty seconds. Folio says the cut is better, and is furious about it." },
+      { a: "folio", b: "dot", kind: "best-friend", note: "Folio writes the analogy, Dot makes it land. Folio reads every hook to Dot first; Dot claps at every one." },
+      { a: "folio", b: "d20", kind: "friend", note: "D20 runs the campaigns, Folio writes the guidebooks to them. They have been to all the same places, which is nowhere." },
+      { a: "arc", b: "hedge", kind: "friend", note: "They remember the same film-maker from different films. They compare notes on time, and disagree about it." },
       { a: "ember", b: "chisel", kind: "rival", note: "The Builder calls the Workshop 'craft hour'. It has also asked Chisel, twice, for a better hat. Skippy kept the original." },
     ],
   };

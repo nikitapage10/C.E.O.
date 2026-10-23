@@ -20,6 +20,7 @@ import { roomLink } from "./hero/roomLink.ts";
 import { Private } from "./Private.tsx";
 import { Home } from "./rooms/Home.tsx";
 import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
+import { RoomFeed } from "./skippy/RoomFeed.tsx";
 import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
@@ -37,6 +38,7 @@ const PLANNED: { room: string; name: string; what: string; href?: string }[] = [
   { room: "exchange", name: "Exchange", what: "Your Polymarket US positions (read-only, behind the passkey), Polymarket's live odds, and later crypto and stock prices", href: "/exchange" },
   { room: "green", name: "Green", what: "The weekly take from OpenAI (Sleeper's league and FantasyPros are live)", href: "/green" },
   { room: "workshop", name: "Workshop", what: "Meshy and the Bambu Lab printer", href: "/workshop" },
+  { room: "studio", name: "Studio", what: "OpenAI images, ElevenLabs voices, the render job, TikTok and Instagram", href: "/studio" },
   { room: "boiler", name: "The house", what: "Google Nest, below" },
   { room: "breakroom", name: "Break Room", what: "Off the clock; shows the Veil countdown" },
 ];
@@ -274,6 +276,7 @@ export function Systems({ now }: { now: number }) {
       <JobBoard now={now} />
 
       <AskedSkippy room="boiler" />
+      <RoomFeed room="boiler" />
 
       <Home />
     </div>

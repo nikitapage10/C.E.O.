@@ -90,12 +90,18 @@ var secrets = [
   { setting: 'GMAIL_CLIENT_ID', secret: 'gmail-client-id' }
   { setting: 'GMAIL_CLIENT_SECRET', secret: 'gmail-client-secret' }
   { setting: 'GMAIL_TOKEN_KEY', secret: 'gmail-token-key' }
+  // A private skip list for the email agent (#323): comma-separated terms; mail holding one is counted, never read by
+  // a model or kept. Optional: missing or empty skips nothing.
+  { setting: 'EMAIL_SKIP_TERMS', secret: 'email-skip-terms' }
   // The Spire's invoices (#279, docs/PAYPAL.md): PayPal's REST app (client credentials). Sandbox or live is the plain
   // PAYPAL_ENV setting below; switching to live means pasting the Live app's id and secret here.
   { setting: 'PAYPAL_CLIENT_ID', secret: 'paypal-client-id' }
   { setting: 'PAYPAL_CLIENT_SECRET', secret: 'paypal-client-secret' }
-  // The room threads' write key (#281, #312): opens only POST /api/skippy-answer, a hand-off's answer coming back to
-  // the Desk. At least 32 random characters; without it that route stays off.
+  // The subminds' two room keys (#281, #312, api/_site/roomkeys.ts): 32 random bytes each, minted by the secrets paste
+  // (docs/AZURE.md). The read key opens only GETs of room data; the write key only POST /api/room-feed and POST
+  // /api/skippy-answer (a hand-off's answer coming back). Neither can change a setting, trade, send, or reach another
+  // secret. Without one, what it opens stays off.
+  { setting: 'SUBMIND_LOG_TOKEN', secret: 'submind-log-token' }
   { setting: 'SUBMIND_FEED_TOKEN', secret: 'submind-feed-token' }
 ]
 

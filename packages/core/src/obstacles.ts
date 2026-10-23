@@ -93,6 +93,15 @@ const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
     b(-7.2, 5.4, 0.4, 0.4), // barrels
     b(-6.5, 5.8, 0.4, 0.4),
   ],
+  studio: [
+    b(-3.6, 0.2, 0.45, 0.45), // the camera on its tripod
+    b(-1.5, -2.1, 0.35, 0.35), // the ring light
+    b(-5.8, -2.1, 0.35, 0.35), // the softbox
+    b(3.4, 1.7, 1.35, 0.45), // the edit desk
+    b(7.3, 2.8, 0.45, 0.85), // the render rack
+    b(-6.95, 3.1, 0.5, 1.05), // the writing desk
+    b(-1.0, 1.7, 0.35, 0.35), // the director's chair
+  ],
 };
 
 /** Every room's furniture. (The submind's podium floats high over the back-right corner, so it blocks nobody.) */

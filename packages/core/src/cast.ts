@@ -16,7 +16,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "yordle", "hanar", "rocky", "compactor", "skippy", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith", "powerbox",
+  "gestral", "yordle", "hanar", "rocky", "compactor", "skippy", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith", "powerbox", "bard", "coil", "orb",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -59,6 +59,9 @@ export const BODY_LABEL: Record<Body, string> = {
   yeti: "Great grey beast",
   monolith: "Monolith",
   powerbox: "Power droid",
+  bard: "Plumed bard",
+  coil: "Copper coil",
+  orb: "Host orb",
 };
 /** Bodies that were retired, and what a saved look wearing one now gets. */
 const RETIRED_BODY: Record<string, Body> = { envoy: "yeti", duck: "birb" };
@@ -328,6 +331,26 @@ export const LOOK_PRESETS: LookPreset[] = [
     kind: "icon",
     disclaimer: "A flamboyant sculptor in violet robes, with one or two more fingers than strictly necessary, who carves living clay. Robes, the colour violet and spare fingers are public domain. The red planet's mines belong to someone else, and Counsel.exe would like that on the record.",
     look: makeLook({ body: "mage", shell: "#6a3d9a", accent: "#e0b3ff", trim: "#c9a25c" }),
+  },
+  {
+    id: "plumed-bard",
+    name: "Plumed Bard, Author of Guides",
+    kind: "icon",
+    disclaimer: "A round travelling bard in a plumed hat, a lute on his back and a quill behind his ear, who writes guidebooks to places he has mostly visited. Bards, plumes and guidebooks are public domain. Counsel.exe fact-checked one page and needed a lie-down.",
+    look: makeLook({ body: "bard", shell: "#7a2e3a", accent: "#f2c94c", trim: "#5a3a22" }),
+  },
+  {
+    id: "copy-coil",
+    name: "The Copper Coil That Makes Copies",
+    kind: "icon",
+    disclaimer: "A tall copper coil on three legs that crackles with lightning and makes perfect copies. Coils, copper and lightning are public domain; the magicians in the old story can keep their secrets. Counsel.exe compared every copy for differences. There were none, which worried it more.",
+    look: makeLook({ body: "coil", shell: "#b8693f", accent: "#9fd8ff", trim: "#2a2d33" }),
+  },
+  {
+    id: "host-orb",
+    name: "Host Orb",
+    kind: "generic",
+    look: makeLook({ body: "orb", shell: "#efe8dc", accent: "#7fe0ff", trim: "#c9a25c" }),
   },
   {
     id: "migraine-duck",

@@ -14,7 +14,8 @@
  *   - The last 200 turns per room, and none older than 30 days: both trimmed on every write and filtered on every read.
  *   - Read only in a signed-in Desk session (`requireSession`, the chat's own sign-in), through GET /api/skippy-log
  *     (on Vercel a rewrite into api/skippy.ts, so the deployment keeps its twelve functions). The Exchange's and
- *     Relay's turns are private like the rest; nothing here reaches the Lattice, a public feed, or any outside reader.
+ *     Relay's turns are private like the rest; nothing here reaches the Lattice or a public feed. The one outside
+ *     reader is the subminds' read key (#281, api/_site/roomkeys.ts), for the four active rooms only, never Relay's.
  *
  * Hand-offs (#312): when Desk Skippy can't settle an ask from the Desk, his stack sheet and a lookup, or it is a build or
  * room request, the turn is kept with `needs`: "skippy" (the "Skippy, the Magnificent" thread) or the id of the room's

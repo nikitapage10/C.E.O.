@@ -15,6 +15,7 @@ export const ROOM_MODELS: Record<RoomId, readonly string[]> = {
   breakroom: ["nature"],
   boiler: [],
   workshop: ["fantasy-props", "nature", "scifi-essentials"],
+  studio: [],
 };
 
 /** The file a library model id loads from: its pack's bundle, or its own file. */

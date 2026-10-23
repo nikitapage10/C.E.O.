@@ -15,6 +15,7 @@ import { HoverGlow } from "./HoverGlow.tsx";
 import { Podium } from "./Podium.tsx";
 import { Relay } from "./Relay.tsx";
 import { Spire } from "./Spire.tsx";
+import { Studio } from "./Studio.tsx";
 import { Workshop } from "./Workshop.tsx";
 
 /** Each room's accent (its plinth's glow); kept in theme.ts so the portrait studio can use it without the rooms. */
@@ -30,6 +31,7 @@ const CONTENT: Record<RoomId, ComponentType> = {
   breakroom: BreakRoom,
   boiler: BoilerRoom,
   workshop: Workshop,
+  studio: Studio,
 };
 
 function Room({ id }: { id: RoomId }) {

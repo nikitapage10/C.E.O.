@@ -372,4 +372,6 @@ export const EASTER_EGGS: Record<RoomId, ComponentType> = {
   boiler: () => null,
   // The Workshop makes its own surprises.
   workshop: () => null,
+  // The Studio's joke is the Director.
+  studio: () => null,
 };

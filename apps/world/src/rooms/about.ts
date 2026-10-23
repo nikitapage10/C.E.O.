@@ -131,4 +131,18 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     today: "Simulated: Daub and Chisel run the line on their own, one made-up piece at a time.",
     next: "Your own ideas go in at the easel: a picture is made, a model is formed from it, fitted with a frame, animated, and walks into the Lattice.",
   },
+  studio: {
+    blurb: "A small sound stage for a series of short, tall videos that teach how the internet works through apps everyone uses: a simple analogy first, then how it works, then how it's built. Folio writes the script, the shots go up on the storyboard wall, Dot hosts it in front of the green screen while Arc runs the camera, and Arc cuts it, captions it and renders it 9:16 at the edit desk. The Spire's Executive runs the business side; the Studio makes the videos.",
+    stations: {
+      post: "The Director's floating command podium, high in the back-right corner. The Studio's submind runs the set from here, yells cut, and asks for one more take. It glides out over the room when it gives an order.",
+      set: "The mark on the green floor, in front of the green screen, under the ring light. The red tally light is on while the camera rolls.",
+      camera: "The camera on its tripod, with its own red tally lamp. Arc runs it for the take.",
+      storyboard: "One card per shot, each in the phone's tall 9:16 frame, pinned in order along the back wall.",
+      script: "Folio's writing desk: the typewriter, the drafts, and a lute. Every script starts at four minutes here and leaves at forty-five seconds.",
+      edit: "The edit desk: the timeline of takes, captions and music on the wide screen, the tall preview beside it.",
+      render: "The render rack: where each finished short is rendered, tall, for a phone.",
+    },
+    today: "Simulated: Folio, Dot and Arc make made-up shorts on their own. Nothing is rendered or posted.",
+    next: "Real episodes: a topic from the Spire, a script and storyboard, art, voice and captions, scenes as code, a 9:16 render, your review, and a post only when you tap.",
+  },
 };

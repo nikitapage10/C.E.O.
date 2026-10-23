@@ -18,6 +18,9 @@ export const PORTRAITS: Record<string, { name: string; room: string }> = {
   "gary": { name: "Gary", room: "boiler" },
   "daub": { name: "Daub", room: "workshop" },
   "chisel": { name: "Chisel", room: "workshop" },
+  "folio": { name: "Folio", room: "studio" },
+  "arc": { name: "Arc", room: "studio" },
+  "dot": { name: "Dot", room: "studio" },
   "kevin": { name: "Kevin", room: "breakroom" },
   "ember": { name: "The Builder", room: "foundry" },
   "gilt": { name: "The Executive", room: "spire" },
@@ -28,4 +31,5 @@ export const PORTRAITS: Record<string, { name: string; room: string }> = {
   "fizz": { name: "The Life of the Party", room: "breakroom" },
   "soot": { name: "The Pessimist", room: "boiler" },
   "putty": { name: "The Artiste", room: "workshop" },
+  "tally": { name: "The Director", room: "studio" },
 };

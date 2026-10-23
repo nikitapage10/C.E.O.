@@ -7,7 +7,7 @@ import type { InvoiceStatus } from "./spire/invoices.ts";
 import type { EmailStatus } from "./email/email.ts";
 
 /**
- * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): nine threads, one per room, each in its submind's
+ * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): ten threads, one per room, each in its submind's
  * colour (docs/SKIPPY.md), with how busy it is, a short status and its submind's report for the Council. Built only
  * from real data: the Foundry from GitHub, the Relay and the Boiler Room from the links, the Archive from the living
  * Lattice's hours, the Green from Nikita's Sleeper league (#252). Rooms with no real work connected yet say so plainly; their only knots are the scenes the hourly
@@ -40,7 +40,7 @@ export interface RoomPulse {
   href: string;
 }
 
-export const ROOM_ORDER: readonly RoomId[] = ["foundry", "relay", "boiler", "archive", "breakroom", "spire", "exchange", "green", "workshop"];
+export const ROOM_ORDER: readonly RoomId[] = ["foundry", "relay", "boiler", "archive", "breakroom", "spire", "exchange", "green", "workshop", "studio"];
 
 export interface RoomSubmind {
   id: string;
@@ -65,6 +65,7 @@ export const ROOM_META: Record<RoomId, { name: string; colour: string; submind: 
   exchange: { name: "Exchange", colour: "var(--room-exchange)", submind: mind("exchange"), href: "/exchange" },
   green: { name: "Green", colour: "var(--room-green)", submind: mind("green"), href: "/green" },
   workshop: { name: "Workshop", colour: "var(--room-workshop)", submind: mind("workshop"), href: "/workshop" },
+  studio: { name: "Studio", colour: "var(--room-studio)", submind: mind("studio"), href: "/studio" },
 };
 
 /** The simulated rooms' honest reports, each in its submind's voice: nothing real is connected there yet. */
@@ -73,6 +74,7 @@ const SIM_REPORT: Partial<Record<RoomId, string>> = {
   spire: "Nothing real to report yet. The books aren't connected, which is, frankly, an untapped opportunity.",
   green: "NOTHING REAL TO CALL YET, FOLKS. The league isn't connected, so the scoreboard stays dark.",
   workshop: "Nothing real yet. The model pipeline isn't connected, so I'm between pieces. Suffering, beautifully.",
+  studio: "Nothing real yet. No episode is connected, so the set is dark. Every take so far is rehearsal. Masterpieces, all of them.",
 };
 
 export interface PulseInput {
@@ -276,7 +278,7 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
   const inv = input.invoices && input.invoices.paypal !== "waiting" ? input.invoices : null;
   if (inv) out.push(spirePulse(inv, scenesIn("spire"), pulse));
 
-  for (const id of ["breakroom", "spire", "green", "workshop"] as const) {
+  for (const id of ["breakroom", "spire", "green", "workshop", "studio"] as const) {
     if (id === "green" && greenReal) continue;
     if (id === "spire" && inv) continue;
     const events = scenesIn(id);

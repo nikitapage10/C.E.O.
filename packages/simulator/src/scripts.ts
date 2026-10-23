@@ -382,6 +382,51 @@ export const workshopSculptor: Script = ({ rng }) => [
 ];
 
 /**
+ * The Studio (#311): short tall videos that teach how the internet works through apps everyone uses. Folio writes the
+ * script at the writing desk (the hook, the analogy, how it works, how it's built), then pins the shots to the
+ * storyboard wall. Simulated until the Studio's line is real: the made-up tasks here are the room's demo.
+ */
+export const studioWriter: Script = ({ rng }) => [
+  { kind: "go", station: "script" },
+  { kind: "task", title: rng.pick(["Write a 45-second script", "Find the analogy", "Sharpen the hook", "Cut the script to 50 seconds"]) },
+  ...grind(rng, rng.int(9000, 14000), "typing", ["The hook", "The analogy", "How it works", "How it's built", "Cut a footnote"]),
+  { kind: "quip", chance: 0.3 },
+  { kind: "set", activity: "carrying", prop: "book" },
+  { kind: "go", station: "storyboard" },
+  work(rng.int(4000, 7000), "working", null),
+  { kind: "progress", progress: 0.96, note: "Shots pinned" },
+  { kind: "finish", failRate: 0.05 },
+  { kind: "quip", chance: 0.2 },
+];
+
+/** Dot hosts: on its mark in front of the green screen, take after take, then off to watch the cut. */
+export const studioHost: Script = ({ rng }) => [
+  { kind: "go", station: "set" },
+  { kind: "task", title: rng.pick(["Film the hook", "Film the analogy", "Film the sign-off", "One more take"]) },
+  ...grind(rng, rng.int(8000, 12000), "working", ["Take one", "Take two", "Take seven", "Cut! Again", "That's the one"]),
+  { kind: "quip", chance: 0.35 },
+  { kind: "finish", failRate: 0.04 },
+  { kind: "go", station: rng.pick(["storyboard", "edit", "set"]) },
+  { kind: "do", activity: rng.pick(["staring", "idle", "celebrating"]), ms: rng.int(3000, 5500) },
+  { kind: "quip", chance: 0.2 },
+];
+
+/** Arc runs the camera for the take, cuts it at the edit desk, and renders the short, tall, at the rack. */
+export const studioEditor: Script = ({ rng }) => [
+  { kind: "go", station: "camera" },
+  { kind: "do", activity: "working", ms: rng.int(5000, 8000), prop: null },
+  { kind: "quip", chance: 0.2 },
+  { kind: "go", station: "edit" },
+  { kind: "task", title: rng.pick(["Cut the takes together", "Lay the captions", "Cut to the beat", "Trim to 45 seconds"]) },
+  ...grind(rng, rng.int(8000, 12000), "typing", ["Rough cut", "Captions on the word", "On the beat", "Picture lock"]),
+  { kind: "go", station: "render" },
+  work(rng.int(4000, 6000), "working"),
+  { kind: "progress", progress: 0.97, note: "Rendered, 9:16" },
+  { kind: "finish", failRate: 0.06 },
+  { kind: "quip", chance: 0.25 },
+];
+
+/**
  * A Skippy submind conducts its room from its command podium floating high in the back-right corner (the can-throne): sits there
  * looking the room over, directs whoever is working (the world turns it toward them and gives it the baton, see
  * SubmindDirector), passes remarks, and once in a few minutes swoops down to check on someone up close before going
@@ -477,5 +522,8 @@ export const SCRIPTS = {
   boilerKeeper,
   workshopPainter,
   workshopSculptor,
+  studioWriter,
+  studioHost,
+  studioEditor,
 } as const;
 export type ScriptId = keyof typeof SCRIPTS;

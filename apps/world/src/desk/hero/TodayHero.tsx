@@ -13,7 +13,7 @@ import { roomLink } from "./roomLink.ts";
 const Council = lazy(() => import("../Council.tsx").then((m) => ({ default: m.Council })));
 
 /** The fan's order, as the approved Weave has it: the busiest rooms on top, the rooms not set up below. */
-const FAN_ORDER = ["foundry", "boiler", "breakroom", "archive", "relay", "spire", "exchange", "green", "workshop"] as const;
+const FAN_ORDER = ["foundry", "boiler", "breakroom", "archive", "relay", "spire", "exchange", "green", "workshop", "studio"] as const;
 const FAN_STATE: Record<RoomPulse["state"], FanState> = { busy: "busy", steady: "active", waiting: "wait", down: "down", sim: "off" };
 
 /**

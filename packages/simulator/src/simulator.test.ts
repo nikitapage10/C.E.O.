@@ -105,7 +105,7 @@ describe("the Relay's real line", () => {
 describe("live rooms (LIVE_ROOMS)", () => {
   it("the Exchange and the Green are live; rooms not yet connected keep their demo", () => {
     for (const room of ["exchange", "green", "relay", "foundry"] as const) expect(isLiveRoom(room), room).toBe(true);
-    for (const room of ["spire", "archive", "workshop"] as const) expect(isLiveRoom(room), room).toBe(false);
+    for (const room of ["spire", "archive", "workshop", "studio"] as const) expect(isLiveRoom(room), room).toBe(false);
   });
 
   it("every room whose submind is active (a real API integrated) is live, so it runs no demo", () => {

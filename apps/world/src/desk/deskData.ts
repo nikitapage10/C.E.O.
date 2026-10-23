@@ -23,6 +23,7 @@ export const DESK_ROOMS = {
   green: { name: "Green", accent: "var(--room-green)", lead: "gridiron", what: "Fantasy football" },
   archive: { name: "Archive", accent: "var(--room-archive)", lead: "loremaster", what: "The Tide's canon" },
   workshop: { name: "Workshop", accent: "var(--room-workshop)", lead: "daub", what: "New models" },
+  studio: { name: "Studio", accent: "var(--room-studio)", lead: "dot", what: "Explainer videos" },
   boiler: { name: "Boiler Room", accent: "var(--room-boiler)", lead: "gary", what: "Systems and upkeep" },
 } as const;
 export type DeskRoom = keyof typeof DESK_ROOMS;
@@ -49,6 +50,9 @@ export const AGENTS: Record<string, { id: string; room: DeskRoom; job: string }>
   Gary: { id: "gary", room: "boiler", job: "Maintenance" },
   Daub: { id: "daub", room: "workshop", job: "Concept painter" },
   Chisel: { id: "chisel", room: "workshop", job: "Sculptor" },
+  Folio: { id: "folio", room: "studio", job: "Scriptwriter" },
+  Arc: { id: "arc", room: "studio", job: "Editor and renderer" },
+  Dot: { id: "dot", room: "studio", job: "Host" },
 };
 
 /**

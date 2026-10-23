@@ -23,8 +23,9 @@ export const ROOM_NAME: Record<RoomId, string> = {
   breakroom: "Break Room",
   boiler: "Boiler Room",
   workshop: "Workshop",
+  studio: "Studio",
 };
-const LOOM_ROOMS: RoomId[] = ["foundry", "breakroom", "boiler", "relay", "archive", "spire", "exchange", "green", "workshop"];
+const LOOM_ROOMS: RoomId[] = ["foundry", "breakroom", "boiler", "relay", "archive", "spire", "exchange", "green", "workshop", "studio"];
 const WORDS = ["None", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 export const KIND_WORD: Record<string, string> = { friend: "friends", "best-friend": "best friends", rival: "rivals", nemesis: "nemeses", crush: "a crush", partner: "partners", mentor: "mentor and student", sibling: "siblings", ex: "exes" };
 

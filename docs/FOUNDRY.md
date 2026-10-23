@@ -90,7 +90,7 @@ The Desk and the Lattice read these labels straight from GitHub, so keep them ac
 | `foundry:passed` | An idea Nikita passed on (closed, not planned): on the shelf, not in the bin |
 | `rung:1`, `rung:2`, `rung:3` | Which model rung a fix is on |
 
-An issue with no state label is queued. Close an issue without `foundry:shipped` to drop it.
+An issue with no state label is queued: file queued work (chat issues included) with no state label, never `foundry:ready`, which the Desk shows as a test that needs Nikita. Close an issue without `foundry:shipped` to drop it.
 
 `foundry:chat` is work Nikita asked for in chat (any thread, any model), built outside the lanes and pushed straight
 to `main` as the repo's CLAUDE.md says. It is still listed: whichever thread starts such work opens a `foundry` +

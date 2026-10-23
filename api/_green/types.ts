@@ -42,6 +42,12 @@ export interface GreenPlayer {
    * projections are live; Sleeper's schedule only when FantasyPros has nothing on him.
    */
   bye: number | null;
+  /**
+   * FantasyPros' own weekly projection in the league's scoring, exactly as it published it (#340): no injury scaling.
+   * `proj` equals it unless he is doubtful (30%), out or on bye. Null when FantasyPros doesn't project him this week;
+   * absent without FantasyPros.
+   */
+  fp?: number | null;
   /** Sleeper's own projection for this week in the league's scoring (#276), shown beside FantasyPros', never averaged. */
   sl?: number | null;
   /** His NFL opponent this week (a team code), from Sleeper's projections; absent when unknown. */

@@ -36,10 +36,10 @@
       "mcp__claude-code-remote__unsubscribe_pr_activity",
       "mcp__claude-code-remote__list_triggers",
       "mcp__claude-code-remote__get_trigger",
-      "mcp__claude-code-remote__fire_trigger"
+      "mcp__claude-code-remote__fire_trigger",
       "Edit(api/_site/**)",
       "Write(api/_site/**)",
-      "Edit(middleware.ts)",
+      "Edit(middleware.ts)"
     ]
   },
   "hooks": {

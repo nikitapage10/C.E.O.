@@ -120,7 +120,7 @@ of Skippy: smug, sure they're the smartest thing in the room, loyal underneath. 
 | Spire | **The Executive** | gold | Skippy's submind for the Spire | A smarmy executive. Everything is a pitch or a synergy; every compliment has a price tag. |
 | Exchange | **The Bookie** | mint | Skippy's submind for the Exchange | A nervous odds-maker. A probability for everything, a hedge on every sentence, sweats the downside. |
 | Green | **The Commentator** | lime | Skippy's submind for the Green | Play-by-play, like the final seconds of a championship. Gridiron coaches; the Commentator calls it, now from the C.E.O.'s real league. |
-| Relay | **The Messenger** | signal blue | Skippy's submind for the Relay | A jittery gossip on every line. Knows who's waiting on whom; never tells the wrong person. |
+| Relay | **The Messenger** | signal blue | Skippy's submind for the Relay (awake since the inbox went live) | A jittery gossip on every line. Knows who's waiting on whom; never tells the wrong person. |
 | Archive | **The Historian** | violet | Skippy's submind for the Archive | A footnote-obsessed pedant who corrects the record. |
 | Break Room | **The Life of the Party** | pink | Skippy's submind for the Break Room | Too loud, too much glitter, and knows exactly when the fun is over. |
 | Boiler Room | **The Pessimist** | steam grey | Skippy's submind for the Boiler Room | Expects every pipe to burst, reads gauges like omens, quietly delighted to be wrong. |
@@ -130,7 +130,8 @@ of Skippy: smug, sure they're the smartest thing in the room, loyal underneath. 
 gets its own thread with the C.E.O. ("Skippy, the <job>") and its holo-display over the throne reads ACTIVE · OWN
 THREAD. The Builder woke first, with the Foundry. The Pessimist woke when the Boiler Room's pipes started carrying
 real pressure, the Commentator when the C.E.O.'s league came on the scoreboard, and the Bookie when Polymarket's
-odds came up on the board (2026-10-22). The other five still run on the Lattice's dream of their rooms, and say so:
+odds came up on the board (2026-10-22). The Messenger woke the next night, when the C.E.O.'s inbox came live on the
+Relay's telegraph (2026-10-23). The other four still run on the Lattice's dream of their rooms, and say so:
 their displays read SIMULATED FOR NOW until a real feed wakes them.
 
 **How decisions flow.** A task comes to Skippy, from the C.E.O. or from a room's own bell. Skippy decides which
@@ -205,9 +206,9 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Green | **Gridiron** (Claudari) | Orc | Seven-foot coach. Roars the plays, then apologises for the volume. |
 | Green | **Punt** (Unforked) | Big bunny | Morale. Hops, naps, wins anyway. |
 | Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. Since the Green went live it finally has stats for someone: the C.E.O.'s real Sleeper league on the scoreboard, the win chance as the ball's yard line, start-or-sit calls from the booth and the pickups worth a claim, read-only. The scoreboard names both teams and runs projected first, then live, then the win chance, and the Commentator reads it out loud; Gridiron's practice reviews and pretend claims are gone. Now it runs an analyst desk too: FantasyPros makes the call, Sleeper's number stands beside it and a split decision gets flagged, every rival's needs and FAAB get read, and the playoff race gets played out three thousand times. Every Tuesday at 5:39pm Denver time it files the Commentator's call to the Desk (weak spots, byes, injuries, one trade, the waiver bid), using only numbers from the board, and it always ends with where each one came from. |
-| Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O.; never sends one. |
-| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute: needs you, FYI or noise. |
-| Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. Picks the inbox's models and keeps the meter on its ten dollars a month. |
+| Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O.; never sends one. Live on the inbox since 2026-10-23. |
+| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute: needs you, FYI or noise. Live on the inbox since 2026-10-23; texts wait on the Mac. |
+| Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. Picks the inbox's models and keeps the meter on its ten dollars a month. Awake, with its own thread, since the inbox went live. |
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
@@ -436,6 +437,26 @@ the moment it lands, chose the quick model for Dialtone and the clever one for B
 the inbox's ten dollars a month. When the meter runs out it stops the models, never the counting, and the board
 says so until the month turns. A brass inbox board beside the post-office boxes shows how many need the C.E.O.;
 the board, like the rest of the Lattice, only ever gets numbers. What the letters say stays behind the passkey.
+
+## The line goes live
+
+On the night of 2026-10-23 the C.E.O. turned the key beyond the Veil, and the telegraph stopped being a promise. The
+free jack Dialtone had checked far too often rang for real, and has rung every minute since. Dialtone took the call
+on the wing, conducting the sort like the drop in a melodic-bass set: needs the C.E.O., FYI, noise, and back up to
+the rafters. Blasto, glowing the colour of a hanar at a premiere, sealed the first real advice in red wax and set it
+aside unsent, as this one always will. The Messenger's holo flicked from SIMULATED FOR NOW to ACTIVE · OWN THREAD,
+and it got its own line to the C.E.O., "Skippy, the Messenger", which it has not stopped talking on.
+
+The practised post is gone from the room for good. The pneumatic tubes, which used to cycle canisters for show, now
+stand still until real mail is counted; each new email drops one canister into the receiving station, and a quiet
+inbox means quiet tubes. The brass inbox board shows three counters (needs the C.E.O., FYI, noise), a sweep dial
+that runs once round each minute from Dialtone's last check, and a telegraph sounder that clicks dot-dot-dash when a
+check lands. In the Boiler Room the Gmail pipe runs hot, and on the Desk the Relay page says email is live.
+
+Only half the Relay is awake. The texts still wait on the C.E.O.'s MacBook, and the chain on the Desk still shows
+it: the Mac, the hub, the messages, Dialtone and Blasto, the C.E.O. Dialtone keeps a second jack free for it and
+plays it an old emo record from the 2000s at night, about waiting by the phone, which Blasto says is too on the
+nose. The Lattice, as ever, gets numbers and states. What the letters say stays behind the passkey.
 
 ## The ledger by PayPal
 

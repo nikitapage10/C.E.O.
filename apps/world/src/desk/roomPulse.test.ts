@@ -36,8 +36,21 @@ describe("room pulses", () => {
 
   it("marks the subminds of rooms with a real API active, from the one list in the simulator (docs/SKIPPY.md)", () => {
     const active = roomPulses(input()).filter((p) => p.submind.active).map((p) => p.submind.title).sort();
-    expect(active).toEqual(["The Bookie", "The Builder", "The Commentator", "The Pessimist"]);
+    expect(active).toEqual(["The Bookie", "The Builder", "The Commentator", "The Messenger", "The Pessimist"]);
     for (const m of SUBMINDS) expect(ROOM_META[m.room].submind.active, m.room).toBe(m.active);
+  });
+
+  it("runs Relay on the email line's public counts while the Mac's hub waits, and never shows more than counts (#322)", () => {
+    const email = { v: 1 as const, at: NOW, gmail: "connected" as const, agent: "listening" as const, needsYou: 2, fyi: 3, noise: 9, newToday: 14, unsorted: 0, budgetPct: 4, lastCheck: NOW - 30_000 };
+    const relay = roomPulses(input({ email })).find((p) => p.id === "relay")!;
+    expect(relay).toMatchObject({ real: true, state: "busy", status: "2 emails need you", short: "2 emails" });
+    expect(relay.report).toContain("14 new emails today, 2 need you, 3 FYI, 9 noise");
+    expect(relay.report).toContain("Texts still wait on the Mac");
+    expect(relay.events).toEqual([NOW - 30_000]);
+    const quiet = roomPulses(input({ email: { ...email, needsYou: 0 } })).find((p) => p.id === "relay")!;
+    expect(quiet).toMatchObject({ state: "steady", status: "Email is quiet" });
+    const notYet = roomPulses(input({ email: { ...email, gmail: "not-connected" } })).find((p) => p.id === "relay")!;
+    expect(notYet.status).toBe("Waiting on the Mac");
   });
 
   it("speaks from real data where a room is real, and says plainly when it is only simulated", () => {

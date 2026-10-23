@@ -238,8 +238,9 @@ export const greenPlayer: Script = ({ rng }) => [
 ];
 
 /**
- * The Relay is off the demo: its practice post has stopped while the real line is wired in (Relay will be the
- * first room played by a real agent). Blasto and Dialtone keep their rounds, with no tasks and no approvals.
+ * The Relay is off the demo: its practice post has stopped, and its real line is live (email since 2026-10-23, #322;
+ * texts still wait on the Mac). Blasto and Dialtone keep their rounds, with no tasks and no approvals: the inbox's
+ * real work shows on the room's board and tubes, from the email agent's public counts.
  */
 export const relayClerk: Script = ({ rng }) => [
   { kind: "go", station: rng.pick(["tubes", "draft-desk", "outbox"]) },

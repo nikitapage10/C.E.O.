@@ -16,7 +16,7 @@ which step changes it.
 2. **Every change reaches `main` through a pull request** with green checks. That is the target; today chat work is
    the exception (see "Decisions for Nikita").
 3. **Rules live in the platform, not only in prose.** A rule an agent could break by mistake is enforced by GitHub
-   or Vercel where it can be.
+   or Azure where it can be.
 4. **Small batches.** One issue, one branch, one pull request, merged within the day.
 5. **`main` is production.** Whatever is on `main` is live within minutes, so `main` is always releasable, and
    undoing a change takes one click or one revert.
@@ -69,17 +69,15 @@ flowchart TD
   decide -- "idea: Nikita approves on the Desk" --> branch
   decide -- "fix, upkeep, chat: the playbook allows it" --> branch
   branch["3. Branch<br/>foundry/lane/issue-slug or chat/issue-slug"] --> pr["4. Pull request<br/>template, Closes the issue"]
-  pr --> ci["5. CI: checks, e2e"]
-  pr --> preview["Vercel preview<br/>no write secrets"]
+  pr --> ci["5. CI: checks with the boot check, e2e"]
   ci --> review["6. Review<br/>Builder plus code review pass<br/>Nikita for trust-boundary files"]
-  preview --> review
   review --> merge["7. Auto-merge when green<br/>squash"]
   merge --> main[("main, guarded by a ruleset")]
-  main --> prod["8. Vercel production"]
+  main --> prod["8. Deploy to Azure, production"]
   main --> post["Checks on main and nightly"]
   post -- "red" --> red
   prod --> notes["9. Changelog, Trail: Shipped, daily release"]
-  prod -. "bad deploy" .-> rollback["Instant rollback, then a revert PR"]
+  prod -. "bad deploy" .-> rollback["Re-run the last good deploy, then a revert PR"]
 ```
 
 ## 1. Intake and cataloguing
@@ -125,7 +123,7 @@ the story reads the same from either side.
 | Fix | `foundry/fix/<issue>-<slug>` | As today |
 | Approved idea | `foundry/build/<issue>-<slug>` | As today |
 | Upkeep | `foundry/upkeep/<issue>-<slug>` | As today |
-| Chat work, if it moves to PRs | `chat/<issue>-<slug>` | Gets a Vercel preview. The Changelog already reads the issue number from it and files it as chat |
+| Chat work, if it moves to PRs | `chat/<issue>-<slug>` | No preview (`checks` builds and boot-checks it). The Changelog already reads the issue number from it and files it as chat |
 | Claude Code session scratch | `claude/*` | Never deployed (`vercel.json`) and never merged as is |
 | Pictures | `foundry-shots` | Never merged, never deployed |
 
@@ -155,7 +153,7 @@ Keep a pull request under about 400 changed lines, not counting the lockfile and
 | `checks`: typecheck, lint, unit tests, build | `checks.yml` | Every PR, every push to `main`, nightly, on demand | Yes, from the gated ruleset (below) |
 | `e2e`: the Desk and the Lattice in headless Chromium, as two parallel suites (a PR that touches only the Desk, APIs or docs skips the Lattice suite) | `e2e.yml` | Nightly on `main`, on demand, and on a PR labelled `e2e` | After two green weeks it runs on every PR and becomes required |
 | Live watch: the live site opens in Chromium (#181) | `live-watch.yml` | Hourly, on demand | No: it watches production, not a change |
-| Vercel preview build | Vercel | Every PR branch except `claude/*` | Optional. `checks` already runs the same build |
+| Boot check: the PR's build loads in Chromium | `checks.yml` (`scripts/boot-check.mjs`) | Every PR and push to `main` | Yes, as part of `checks`. There are no preview sites since Vercel's retirement (#313) |
 | Supply chain: pinned actions, dependency and code scanning | Issue #64 | | Joins once #64 lands |
 
 What changed in this job: each job now gets only the token permissions it needs (`checks` reads; only the `report`
@@ -211,38 +209,26 @@ fixes what they find or explains why not on the pull request, and adds the resul
 
 ## 7. Deployment
 
-- **Production** is `main`, built by Vercel on every push (`npm ci`, `npm run build`, `apps/world/dist` plus
-  `api/`). A change is live a minute or two after it merges.
-- **Previews.** Every pull request branch gets a preview deployment (except `claude/*`), linked on the PR and the
-  issue. Previews run code that hasn't been reviewed, so they get no write secrets:
-
-| Variable | Production | Preview | Why |
-| --- | --- | --- | --- |
-| `CLAUDE_API_KEY` | Yes | No | Spends money. Without it shaping is off and the world step writes scripted hours |
-| `FOUNDRY_DESK_KEY` | Yes | No | Enrols the Desk's passkeys and signs its sessions (#132); without it the Desk can't sign in and its buttons say "not set up" |
-| `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | Yes | No | The crew's App key mints write tokens (#138) |
-| `FOUNDRY_GITHUB_TOKEN` | Yes, until the App is set up; then deleted | No (or a separate read-only token) | It can write issues as Nikita |
-| Blob store (`BLOB_STORE_ID`) | Yes | Not connected | Previews must not write the real world |
-| `WORLD_STORE` | unset (`blob`) | `memory` | A preview's world step can't touch production state |
-| `WORLD_BUDGET_USD` | Yes | Yes | Harmless |
-| `GEMINI_API_KEY` | Yes | No | Spends money. Without it the day's story has no audio, and the Chronicle says so |
-| `GEMINI_BUDGET_USD` | Yes | Yes | Harmless (Gemini's own monthly cap, default 5, never above 10) |
-| `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` | No (Azure only) | No | Nikita's Polymarket US key (#253): it could trade, so it lives only in the Azure Function App's Key Vault. On Vercel the positions board says it's waiting |
-| `SITE_BYPASS_TOKEN`, `SITE_SESSION_SECRET` | Yes | No | The site lock (#236, #238, SECURITY.md): with no Blob store, a preview's gate stays off |
-
-  Nikita checks this in Vercel, Settings, Environment Variables (each variable's environments), and Storage (which
-  environments the Blob store is connected to). Turn on Vercel Authentication for previews (Settings, Deployment
-  Protection) so only Nikita can open them.
+- **Production** is `main`, shipped to Azure (C.E.O.'s only home since #313, docs/AZURE.md) by `deploy-azure.yml`
+  on every push: one build (`npm ci`, `npm run build`, `npm run build:azure`), then `apps/world/dist` to the Static
+  Web App and `azure/dist/functions.zip` to the Function App, in parallel. A change is live about 3 to 4 minutes
+  after it merges. GitHub signs in to Azure with OIDC, from `main` only; no deploy key is stored.
+- **No previews.** Pull requests get no deployment: that would hand Azure credentials to pull request code in a
+  public repo. `checks` builds every PR and the boot check loads that build in Chromium, which is what a preview was
+  for. (Vercel's previews ended with its retirement, #313.)
+- **Secrets** live only in the Azure Key Vault, read by the Function App's own identity through Key Vault
+  references, and the Desk's two hourly workflows read the one each needs from the vault at run time
+  (docs/AZURE.md, "After the paste"; SECURITY.md).
 - **Rollback.** For a bad deploy, roll back first and fix second:
-  1. Vercel, Deployments, the last good production deployment, **Instant Rollback**. Live in seconds. Vercel then
-     stops promoting new `main` builds until you promote one again, so nothing re-breaks it meanwhile.
+  1. Actions, **Deploy to Azure**, the last good run, **Re-run all jobs**. It rebuilds that commit and ships it, in
+     about 3 to 4 minutes.
   2. Open a `foundry:fix` issue, and a revert pull request (`git revert <sha>`) on `foundry/fix/<issue>-revert`.
-     It merges when green.
-  3. Promote the new production build (or "Undo Rollback") once `main` is good.
-  Code rollbacks do not roll back stored data: the world state in Blob only moves forward. So anything that changes
+     It merges when green, and its own deploy replaces the re-run.
+  Code rollbacks do not roll back stored data: the world state in `ceo-state` only moves forward (blob soft delete
+  keeps an overwritten file for 14 days, and `ceo-backups` keeps nightly copies for 90). So anything that changes
   stored data's shape reads both the old and the new shape for at least one release before it drops the old.
-- **The hourly world step** keeps running through all of this (`world-step.yml` and the doorbell), against whatever
-  is in production.
+- **The hourly world step** keeps running through all of this (the Function App's timer, `world-step.yml` and the
+  doorbell), against whatever is in production.
 
 ## 8. Release notes
 
@@ -259,10 +245,9 @@ fixes what they find or explains why not on the pull request, and adds the resul
 | Environment | What runs | Secrets | How it updates |
 | --- | --- | --- | --- |
 | Local | `npm run dev` (Vite), unit and browser tests, the memory world store | None needed. A local `.env*` is ignored by git | By hand |
-| CI | GitHub Actions: `checks`, `e2e`, `report`, `world-step`, `desk-pings` | The built-in token, read-only except `report`; the two `report` jobs use the crew's App key for an issues-only token when it is set (#138); `desk-pings` sends only `DESK_PINGS_SECRET`, to the site's own ping function (#135) | Every PR, push and night; `desk-pings` on Foundry issue events and hourly |
+| CI | GitHub Actions: `checks`, `e2e`, `report`, `world-step`, `desk-pings` | The built-in token, read-only except `report`; the two `report` jobs use the crew's App key for an issues-only token when it is set (#138); `world-step`, `desk-pings`, `live-watch`, `deploy-azure` and `backup-azure` sign in to Azure with OIDC from `main` only; `desk-pings` and `live-watch` read their one secret each from the Key Vault at run time and send it only to the site (#135, #313) | Every PR, push and night; `desk-pings` on Foundry issue events and hourly |
 | The Foundry's sessions | Claude Code threads and their worktrees, with `.claude/settings.json` permissions | The session's GitHub access (today Nikita's) | Each job starts from the latest `main` |
-| Preview | Vercel, one per PR branch | No write secrets (above) | Every push to the branch |
-| Production | Vercel, from `main`; the hourly world step | Claude key, the crew's App key (or the Foundry token until it is set up), Desk key, Blob, the Desk's push key pair and the pings secret (#135) | Every merge to `main` |
+| Production | Azure (Static Web App + Function App), from `main`; the hourly world step | In the Key Vault: Claude key, the crew's App key (or the Foundry token until it is set up), Desk key, the Desk's push key pair, the pings secret (#135) and the site lock's bypass (#313); the state in Azure Blob (`ceo-state`) through the Function App's identity | Every merge to `main` (`deploy-azure.yml`) |
 | The Relay MacBook | The hub (`apps/hub`, not built yet) under `launchd`, BlueBubbles | The OpenAI key and the hub's token, in the Keychain or a file only the hub's user can read | Pull, never push (below) |
 
 **The Relay MacBook** holds the most sensitive data in C.E.O. (messages and contacts), so it never runs code the
@@ -297,7 +282,7 @@ outcome, but GitHub itself would have accepted it from the same account.
 
 **What #138 wires to the App** (each falls back to how it worked before while the App isn't set up):
 
-- **The Vercel functions** (`api/foundry.ts`, the feeds, the world step) get their token from `api/_github.ts`,
+- **The site's functions** (`api/foundry.ts`, the feeds, the world step) get their token from `api/_github.ts`,
   which mints an installation token from the App's key (Production only), for this repo only and with only what the
   call needs: the Desk's buttons can write issues and nothing else; the feeds and the world step can only read. It
   is kept until five minutes before it expires. Without the App's variables it returns `FOUNDRY_GITHUB_TOKEN`.
@@ -305,7 +290,7 @@ outcome, but GitHub itself would have accepted it from the same account.
   `actions/create-github-app-token` with Issues write only, when the App's Actions secrets exist; otherwise the
   built-in token. No workflow's permissions grew.
 - **The readers** (`scripts/foundry-issue.sh`, `scripts/foundry-watch.sh`, the world step's `TRAIL_AUTHORS`) trust
-  `ceo-foundry[bot]` like the Desk, since the App's key lives only in Vercel's Production functions and CI.
+  `ceo-foundry[bot]` like the Desk, since the App's key lives only in the Azure Key Vault (production's functions) and CI.
 
 **What it can't change: the Claude Code sessions.** The Builder, the crew and chat sessions push, open pull
 requests and merge with the GitHub access their environment gives them. That is configured where the sessions run
@@ -424,9 +409,9 @@ Desk panel beside Usage:
 
 | Measure | Definition here | Source |
 | --- | --- | --- |
-| Deployment frequency | Changes reaching `main` per day | Merged PRs and pushes to `main`; Vercel production deployments |
+| Deployment frequency | Changes reaching `main` per day | Merged PRs and pushes to `main`; Deploy to Azure runs |
 | Lead time for changes | From the Decision step (or the issue opening, for fixes and chat) to the Shipped step; and PR opened to merged | The Trail; PR timestamps |
-| Change failure rate | Share of shipped changes followed within 24 hours by a red `main`, a revert or a rollback | "Checks failing on main" issues, revert PRs, Vercel rollbacks |
+| Change failure rate | Share of shipped changes followed within 24 hours by a red `main`, a revert or a rollback | "Checks failing on main" issues, revert PRs, re-run Azure deploys |
 | Time to restore | From a red `main` or rollback to green again | The fix issue's open and close times |
 
 And three for an agent crew: first-try green rate (jobs that never climbed a rung), review findings per PR, and
@@ -464,8 +449,8 @@ Recommended: yes, today.
 **One-time settings for Nikita** (none change how anyone works; "Allow auto-merge" is on the **Setup** card on
 Today, which ticks it when GitHub shows the setting to the Desk's token, or lets Nikita tick it by hand): in GitHub, Settings, General, Pull Requests: allow
 squash merging only, allow auto-merge, automatically delete head branches. Settings, Actions, General: workflow
-permissions "Read repository contents", and don't let Actions create or approve pull requests. In Vercel: the
-Preview column of the env var table above, and Deployment Protection on previews.
+permissions "Read repository contents", and don't let Actions create or approve pull requests. (Vercel's preview
+settings no longer matter: Azure has no previews, #313.)
 
 ## 14. What ships when
 

@@ -3,10 +3,11 @@
  * itself off once the site can see it:
  *
  *   pings      the Desk's ping keys (#135): DESK_VAPID_PUBLIC_KEY, DESK_VAPID_PRIVATE_KEY and DESK_PINGS_SECRET in
- *              Vercel, and the same DESK_PINGS_SECRET as a GitHub Actions secret. The Actions half can't be read
- *              (secrets are write-only from outside), so it counts as set once the pings workflow's scan has reached
- *              the Desk with the right secret recently (`scanned` in the ping state, api/desk-pings.ts).
- *   app        the crew's GitHub App (#138): FOUNDRY_APP_ID and FOUNDRY_APP_PRIVATE_KEY in Vercel (api/_github.ts).
+ *              the site's settings (Key Vault references on Azure, #313), and the pings workflow reaching the Desk
+ *              with that secret (it reads it from the vault). The workflow's half can't be read from here, so it
+ *              counts as set once its scan has reached the Desk with the right secret recently (`scanned` in the
+ *              ping state, api/desk-pings.ts). The field names (`vercel`, `actions`) are kept for the Desk.
+ *   app        the crew's GitHub App (#138): FOUNDRY_APP_ID and FOUNDRY_APP_PRIVATE_KEY in the site's settings (api/_github.ts).
  *   devices    sign-in on more than one device (#132): at least two passkeys enrolled, so the phone and the PC can
  *              both sign in, and losing one device doesn't lock the Desk.
  *   ruleset    a ruleset on `main` (#60, .github/rulesets/main-now.json): the branch's active rules, from GitHub's
@@ -31,13 +32,13 @@ export type SetupItem = (typeof SETUP_ITEMS)[number];
 
 export interface SetupStatus {
   items: Record<SetupItem, SetupState>;
-  /** The two halves of the ping keys, so the Desk can tick the one that's done. */
+  /** The two halves of the ping keys, so the Desk can tick the one that's done: the site's keys, and the workflow's. */
   pings: { vercel: SetupState; actions: SetupState };
 }
 
 type Env = Record<string, string | undefined>;
 
-/** The pings workflow runs hourly; a scan this recent means its secret matches Vercel's. A missed hour or two is fine. */
+/** The pings workflow runs hourly; a scan this recent means its secret matches the site's. A missed hour or two is fine. */
 export const SCAN_FRESH_MS = 3 * 3_600_000;
 
 /** At least this many enrolled devices: the PC and the phone. */
@@ -45,13 +46,13 @@ export const DEVICES_WANTED = 2;
 
 const has = (env: Env, name: string) => Boolean(env[name]?.trim());
 
-/** The ping keys in Vercel: all three. */
+/** The ping keys in the site's settings: all three. */
 export function pingsVercel(env: Env): SetupState {
   return has(env, "DESK_VAPID_PUBLIC_KEY") && has(env, "DESK_VAPID_PRIVATE_KEY") && has(env, "DESK_PINGS_SECRET") ? "done" : "todo";
 }
 
 /**
- * The Actions secret, seen through its effect: a scan with the right secret within SCAN_FRESH_MS. Before Vercel's
+ * The Actions secret, seen through its effect: a scan with the right secret within SCAN_FRESH_MS. Before the site's
  * half is in, no scan can get through, so there's nothing to see yet.
  */
 export function pingsActions(vercel: SetupState, scanned: number | null | undefined, now: number): SetupState {
@@ -66,7 +67,7 @@ export function both(a: SetupState, b: SetupState): SetupState {
   return a === "todo" || b === "todo" ? "todo" : "unknown";
 }
 
-/** The crew's App: its ID and key in Vercel. */
+/** The crew's App: its ID and key in the site's settings. */
 export const appState = (env: Env): SetupState => (githubIdentity(env) === "app" ? "done" : "todo");
 
 /** Devices: null when sign-in isn't set up at all (nothing can be enrolled yet, so it's still to do). */

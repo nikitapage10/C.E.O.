@@ -32,7 +32,7 @@ numbers, keys, tokens and passwords, and people's names where a cue gives them a
 Claude: the Desk says what kind of thing it found (never the words) and Nikita says it another way. It is a pattern
 check with no model call, so it is free and predictable, and a slip it can't see still goes public as written.
 
-Idea pictures stay in the private Vercel Blob store. The issue names them but never links them, and
+Idea pictures stay in the private Azure Blob store (`ceo-state`). The issue names them but never links them, and
 `api/foundry-image.ts` serves one only on a link that lasts minutes, signed with a key derived from the Desk key
 (`api/_pictures.ts`): the function signs the Desk's own links for a signed-in Desk (#132), and Rivet's shaping call
 gets one that lasts five. The Desk's idea cards show pictures only from that store, through that function, never
@@ -84,8 +84,8 @@ device through the browser's own "use a phone or another device" prompt. Up to t
 
 **Removing a device:** signed in on any device, open **Devices** on the Foundry tab's sign-in bar and press
 **Remove** next to it. Its sessions end at once. (Then delete the passkey from that device's own password manager
-too, if you have it.) **If a device is lost or the Desk key may have leaked**, change `FOUNDRY_DESK_KEY` in Vercel
-and redeploy: every session and picture link ends, and enrolling needs the new key; then remove the lost device.
+too, if you have it.) **If a device is lost or the Desk key may have leaked**, change `foundry-desk-key` in the Key Vault
+and restart the Function App: every session and picture link ends, and enrolling needs the new key; then remove the lost device.
 
 ## The site lock
 
@@ -97,7 +97,9 @@ nothing stored, everything but the ways in below shows the login page until a de
 **Unlock** on the Desk, which stores `open: true`. With no store connected at all (a local run) there is nothing to
 sign in against, so the gate stays off there.
 
-- **Where it runs.** On Vercel, Routing Middleware (`middleware.ts` at the repo root, Node.js runtime) runs in front
+- **Where it runs.** On Azure, the only home since #313, every function is wrapped in the same gate (`withGate` in
+  `azure/src/index.ts`; [AZURE.md](AZURE.md), "The site lock on Azure"), and the Static Web App's own files stay
+  reachable. On Vercel, while it still runs, Routing Middleware (`middleware.ts` at the repo root, Node.js runtime) runs in front
   of every request, the static pages and files as well as the functions, before `vercel.json`'s rewrites. The
   decision itself is `gateRequest` in `api/_site/gate.ts`, the same code the Azure functions run (below). The two
   routes it adds, `/api/site-login` and `/api/site-password` (the lock's control; the name is kept from #236), are
@@ -109,7 +111,7 @@ sign in against, so the gate stays off there.
   everywhere else** (every other device's site session ends) and **Unlock** (the site is open again). All of it
   needs a Desk passkey session, from the Desk's own pages (`api/_site/control.ts`); the site session alone can't
   change anything.
-- **What is stored.** In the private Blob store beside the passkeys, at `desk/site/password.json` (the name is kept
+- **What is stored.** In the private blob store (`ceo-state`) beside the passkeys, at `desk/site/password.json` (the name is kept
   from #236): `passkey: true` (or `open: true` once unlocked), the date it was locked, and a random session version.
 With nothing stored, the default lock uses a fixed session version until the first change. Nothing secret. A record #236
   wrote (a password's hash) reads as locked with the passkey; its hash is ignored and dropped at the next change.
@@ -132,7 +134,7 @@ With nothing stored, the default lock uses a fixed session version until the fir
   new version, which ends every older cookie (each server instance re-reads the record at least every 20 seconds).
   Lax rather than Strict, so a ping, a bookmark or a link from elsewhere arrives signed in; every write still needs
   the Desk's own Strict passkey session.
-- **The key that signs it.** `SITE_SESSION_SECRET` in Vercel when it is set (at least 32 random characters);
+- **The key that signs it.** `SITE_SESSION_SECRET` when it is set (at least 32 random characters);
   otherwise derived from the Desk key (`FOUNDRY_DESK_KEY`, stretched with scrypt, purpose `site`, `api/_site/state.ts`),
   so no new variable is needed. Changing either signs every device out of the site.
 - **If the store can't be read**, an instance uses the last record it read; with none at all, it fails closed (the
@@ -147,27 +149,29 @@ device already has a passkey. From then on:
 2. **Add this device.** On the login page, **New device with no passkey? Add it**: the Desk key and a name. It is the
    Desk's own enrolment (#132: the Desk key, its lockout, the ten-device limit), and it signs the new device in to
    both the site and the Desk.
-3. **Break glass.** Only if every passkey and the Desk key are lost: set `SITE_GATE` to `off` in Vercel (Settings >
-   Environment Variables, Production) and redeploy: the gate is off whatever is stored. Delete it and redeploy to
-   turn the gate back on. (A new Desk key can also be set in Vercel, as in "Signing in to the Desk", which signs
-   every device out and lets a device enrol with the new key.)
+3. **Break glass.** Only if every passkey and the Desk key are lost: set `SITE_GATE` to `off` as a Function App
+   setting (Azure portal > **Function App** > the C.E.O. app > **Settings** > **Environment variables** > **App
+   settings** > **+ Add**, then **Apply**; the app restarts): the gate is off whatever is stored. Delete it to turn the
+   gate back on. The next template paste drops a setting added by hand, which also turns the gate back on. (A new Desk
+   key can also be set in the Key Vault as `foundry-desk-key`, as in "Signing in to the Desk", which signs every
+   device out and lets a device enrol with the new key.)
 
 The Desk says this before locking (the confirm box) and under **Site lock** while it's locked (`RECOVERY` in
 `apps/world/src/desk/SitePassword.tsx`), so the only way to need the break glass is to lose every passkey and the
 Desk key, and that is said on screen. If the Desk key isn't set on the server there are no passkeys at all, and the
 login page says signing in isn't set up.
 
-**Setting up the workflows' key** (once, from the PC, before locking the site; nothing to install). In
-Chrome, open any page, F12 > **Console** (type `allow pasting` if Chrome asks), paste this and press Enter:
+**Setting up the live watch's key.** The secrets paste in [AZURE.md](AZURE.md) ("After the paste") mints
+`site-bypass-token` in the Key Vault (#313), and `live-watch.yml` reads it from there at run time, so GitHub keeps no
+copy. To make one by hand instead (from the PC, nothing to install): in Chrome, open any page, F12 > **Console**
+(type `allow pasting` if Chrome asks), paste this and press Enter:
 
 ```js
 console.log("SITE_BYPASS_TOKEN",btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""));
 ```
 
-Copy the value it prints. In Vercel: the project > **Settings** > **Environment Variables** > add `SITE_BYPASS_TOKEN`
-with that value, **Production** only, **Save**, then **Deployments** > the top Production deployment > **⋯** >
-**Redeploy**. On GitHub: the repo > **Settings** > **Secrets and variables** > **Actions** > **New repository secret**,
-name `SITE_BYPASS_TOKEN`, the same value. Close the console. To change it, do both again with a new value.
+Copy the value it prints and add it to the Azure Key Vault (`kv-ceo-…`: **Key vaults** > the vault > **Objects** > **Secrets**, then **Restart** the Function App; [AZURE.md](AZURE.md), "After the paste") as `site-bypass-token`. Close the console. To change it, do the same
+with a new value.
 
 **What passes without a site session** (`decide` in `api/_site/gate.ts`; each has a test in `api/_site/site.test.ts`):
 
@@ -176,9 +180,9 @@ name `SITE_BYPASS_TOKEN`, the same value. Close the console. To change it, do bo
 | `/api/site-login` (GET and POST) | Everyone: the login page, its passkey script (`?part=script`) and its sign-out | Always: it is the way in. It takes no password (#238) |
 | `/api/desk-auth` (GET, HEAD and POST), with no `site` query or only `site=login` (#238) | The login page's script: the Desk's sign-in state, **Sign in with passkey** (`signin-options`, `signin`) and **Add this device** (`enrol-options`, `enrol`) | The function guards every action itself: a sign-in needs an enrolled passkey and the device's unlock, an enrolment needs the Desk key, removing a device needs a Desk session, all slowed and locked out after failures; its GET says only whether this browser is signed in to the Desk (and lists devices only when it is). `?site=password`, the lock's control, stays behind the gate (`isPasskeyPath`) |
 | `/assets/*`, `/models/*`, `/desk/*`, `/tide/*`, `/manifest.webmanifest`, `/sw.js`, `/favicon.ico`, `/robots.txt` (GET and HEAD, plain paths only) | The browser: the app's bundles, the 3D models, the images, the PWA manifest and its icons (fetched without cookies), the service worker | Static files built from this public repo, holding nothing that isn't already on GitHub; pages and data stay behind the gate |
-| `POST /api/world-step` | The hourly `world-step.yml` workflow (Vercel and Azure jobs), `scripts/foundry-watch.sh` | Open by design (calling it more often changes nothing, R6); its answer now says only whether it stepped and when, never the hour's words. Its `GET` (the Desk's world clock) is behind the gate |
-| `POST /api/desk-pings` with `Authorization: Bearer <DESK_PINGS_SECRET>` | `desk-pings.yml` (Vercel and Azure jobs) | The gate checks the secret itself, in constant time, and the function checks it again; every other ping action needs a site session and a Desk session |
-| Any route with `x-ceo-site-bypass: <SITE_BYPASS_TOKEN>` | `backup-azure.yml` (the nightly backup's `/api/world` reads, and the seed through `scripts/seed-azure-public.mjs`), `live-watch.yml` (`scripts/boot-check.mjs --url`) | A shared secret, at least 32 characters, compared in constant time; the workflows send it only to the site, from a file or a same-origin browser route, and never print it. Without it, the live watch only checks that the login page answers |
+| `POST /api/world-step` | The hourly `world-step.yml` workflow, the Function App's own timer (in-process, no HTTP), `scripts/foundry-watch.sh` | Open by design (calling it more often changes nothing, R6); its answer now says only whether it stepped and when, never the hour's words. Its `GET` (the Desk's world clock) is behind the gate |
+| `POST /api/desk-pings` with `Authorization: Bearer <DESK_PINGS_SECRET>` | `desk-pings.yml`, which reads the secret from the Key Vault | The gate checks the secret itself, in constant time, and the function checks it again; every other ping action needs a site session and a Desk session |
+| Any route with `x-ceo-site-bypass: <SITE_BYPASS_TOKEN>` | `live-watch.yml` (`scripts/boot-check.mjs --url`) only, since #313: the backup reads Azure's own store, and the final copy from Vercel uses Vercel's Blob token | A shared secret, at least 32 characters, compared in constant time, read from the Key Vault (`site-bypass-token`) at run time; the workflow sends it only to the site, from a file or a same-origin browser route, and never print it. Without it, the live watch only checks that the login page answers |
 
 Nothing else is exempt. The local checks (`scripts/boot-check.mjs` on a build, the browser tests) don't run the
 middleware, so they see the site as before; `tests/e2e/gate.spec.ts` runs the same gate, the login function and the
@@ -247,13 +251,13 @@ The Desk can sit on a phone's home screen like an app and send one notification 
 - **Who sends.** `.github/workflows/desk-pings.yml` runs when a Foundry issue is opened or relabelled, and every
   hour, and asks `api/desk-pings.ts` to scan with the shared `DESK_PINGS_SECRET`. The function reads the open
   issues itself and decides; the workflow sends nothing about an issue. Pushes are signed with the Desk's VAPID key
-  (RFC 8292), which lives only in Vercel.
+  (RFC 8292), which lives only in the Azure Key Vault.
 - **Quiet hours.** None from 10pm to 7am Mountain (`QUIET_HOURS`): the first scan from 7am sends one summary of what
   still needs Nikita, and whatever was handled overnight is dropped.
 
 **Setting up pings** (once, from the PC; nothing to install). The **Setup** card on Today has these steps, the
-paste with a Copy button and both links, and ticks itself off once the keys are in Vercel and the next hourly scan
-gets through with the secret. In Chrome, open any page, press F12 > **Console**
+paste with a Copy button and its links, and ticks itself off once the keys are in the Key Vault and the next hourly
+scan gets through with the secret. The secrets paste in [AZURE.md](AZURE.md) mints all three for you; by hand: In Chrome, open any page, press F12 > **Console**
 (type `allow pasting` if Chrome asks), paste this and press Enter. It makes the push key pair and the shared secret
 with the browser's own crypto and prints three lines:
 
@@ -261,19 +265,22 @@ with the browser's own crypto and prints three lines:
 const k=await crypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign"]);const b=a=>btoa(String.fromCharCode(...a)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");console.log("DESK_VAPID_PUBLIC_KEY",b(new Uint8Array(await crypto.subtle.exportKey("raw",k.publicKey))));console.log("DESK_VAPID_PRIVATE_KEY",(await crypto.subtle.exportKey("jwk",k.privateKey)).d);console.log("DESK_PINGS_SECRET",b(crypto.getRandomValues(new Uint8Array(32))));
 ```
 
-Add all three in Vercel (Settings > Environment Variables, Production only), add `DESK_PINGS_SECRET` with the same
-value as a GitHub Actions secret (Settings > Secrets and variables > Actions), redeploy, and close the console.
+Add all three to the Azure Key Vault (`kv-ceo-…`: **Key vaults** > the vault > **Objects** > **Secrets**, then **Restart** the Function App; [AZURE.md](AZURE.md), "After the paste"), as `desk-vapid-public-key`, `desk-vapid-private-key` and `desk-pings-secret`, and close the
+console. GitHub needs no copy: `desk-pings.yml` reads the secret from the vault.
 
 **Turning pings off:** switch off **Pings on this device**, or sign out on that device: either drops its
 subscription on the server and in the browser. Removing a device under **Devices** drops its pings too, and pings
 only ever go to a device whose passkey is still enrolled. The phone's own settings (Settings, Notifications, C.E.O.
 on an iPhone) can mute them as well. **To stop all pings at once**, delete `DESK_PINGS_SECRET` (or the VAPID keys)
-in Vercel and redeploy.
+in the Key Vault and restart the Function App.
 
-## Keys and settings in Vercel
+## Keys and settings in the Key Vault
 
-Every secret lives only in Vercel's environment (Project, Settings, Environment Variables), never in the repo or the
-browser, and no function logs or returns one. Which environments get each is in [DELIVERY.md](DELIVERY.md),
+Every secret lives only in the Azure Key Vault (#313), as a Key Vault reference in the Function App's settings, read
+by the app's own identity; never in the repo or the browser, and no function logs or returns one. The names below
+are the app settings; the vault's secret for each is in [AZURE.md](AZURE.md) ("After the paste"). The budgets and
+`WORLD_STORE` are plain app settings the template writes. Which environments get each is in [DELIVERY.md](DELIVERY.md),
+"Environments". Which environments get each is in [DELIVERY.md](DELIVERY.md),
 "Environments".
 
 | Variable | What it is for | Without it |
@@ -288,13 +295,13 @@ browser, and no function logs or returns one. Which environments get each is in 
 | `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
 | `SKIPPY_BUDGET_USD` | Skippy's chat's share of the $10 Claude cap (#224, `api/_skippy/budget.ts`; Claude Sonnet 5.5 with Opus 5.5 for hard questions and a fenced web lookup since #264); never more than the cap leaves after the world's share and $2 kept for Rivet's shaping | $2 |
 | `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
-| `BLOB_STORE_ID` | Set by Vercel when the private Blob store is connected; signed in with Vercel's OIDC token | The world isn't saved, and the Desk can't sign in |
-| `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Make them with the browser paste in "Setting up pings" below and paste them straight into Vercel. Production only | The switch says pings aren't set up |
+| `WORLD_STORE=azureblob`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_CONTAINER` | Set by the template: the private `ceo-state` container, signed in with the Function App's managed identity (no key). `BLOB_STORE_ID` was Vercel's counterpart | The world isn't saved, and the Desk can't sign in |
+| `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Made by the secrets paste, or the browser paste in "Setting up pings" above | The switch says pings aren't set up |
 | `DESK_VAPID_SUBJECT` | Optional: an `https:` or `mailto:` contact the push services may use about the pings | The site's address |
-| `DESK_PINGS_SECRET` | Shared with the Desk pings workflow (the same value as the Actions secret below): only a caller holding it can make the Desk scan and ping. Long and random. Production only | No scans, so no pings |
-| `SITE_BYPASS_TOKEN` | The site lock's key for the workflows that read the site (#236): the backup, the Azure seed and the live watch send it in `x-ceo-site-bypass`. At least 32 random characters, the same value as the Actions secret below. Production only | Those workflows get the login page once the password is on: the backup and seed fail, the live watch only checks the login page |
+| `DESK_PINGS_SECRET` | Shared with the Desk pings workflow, which reads it from the vault: only a caller holding it can make the Desk scan and ping. Long and random | No scans, so no pings |
+| `SITE_BYPASS_TOKEN` | The site lock's key for the live watch (#236, #313), which reads it from the vault (`site-bypass-token`) and sends it in `x-ceo-site-bypass`. At least 32 random characters | The live watch only checks the login page |
 | `SITE_SESSION_SECRET` | Optional: signs the site's sign-in cookies (#236). At least 32 random characters | Derived from `FOUNDRY_DESK_KEY` |
-| `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` | Nikita's Polymarket US API key (#253), for the Exchange's private positions board. **Azure only**, as Key Vault references (`polymarket-us-key-id`, `polymarket-us-secret-key`); not set on Vercel. Polymarket US keys have no read-only scope, so the code keeps it read-only: `api/_exchange/positions.ts` signs only GET requests to `/v1/portfolio/positions` and `/v1/portfolio/activities` (an allow-list, with a test that fails if an order, account, RFQ, combo or WebSocket path becomes reachable), never logs or returns the key, and answers only a signed-in Desk (`private, no-store`). Revoke it at polymarket.us/developer if in doubt | The positions board says it's waiting for the key |
+| `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` | Nikita's Polymarket US API key (#253), for the Exchange's private positions board. As Key Vault references (`polymarket-us-key-id`, `polymarket-us-secret-key`); never set on Vercel. Polymarket US keys have no read-only scope, so the code keeps it read-only: `api/_exchange/positions.ts` signs only GET requests to `/v1/portfolio/positions` and `/v1/portfolio/activities` (an allow-list, with a test that fails if an order, account, RFQ, combo or WebSocket path becomes reachable), never logs or returns the key, and answers only a signed-in Desk (`private, no-store`). Revoke it at polymarket.us/developer if in doubt | The positions board says it's waiting for the key |
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` | The email agent's Google OAuth client (#263, [GMAIL.md](GMAIL.md)). **Azure only**, as Key Vault references (`gmail-client-id`, `gmail-client-secret`) | Connect Gmail is off; the Relay page says it's waiting for the keys |
 | `GMAIL_TOKEN_KEY` | 32 random bytes that seal the Gmail refresh token and the private mail list at rest (`api/_email/seal.ts`). **Azure only** (`gmail-token-key`). Replacing it locks the stored token away: Connect Gmail again | The email agent waits |
 | `EMAIL_BUDGET_USD` | The email agent's own monthly Claude cap (#263), separate from the others; at the cap it only counts new mail. **Azure only** | $10 |
@@ -319,31 +326,33 @@ access only to the job that needs it.
 
 ## Keys in GitHub Actions
 
-These live in the repo's Actions secrets (Settings > Secrets and variables > Actions) rather than in Vercel, because
-only a workflow uses them. Workflows never print them.
+These live in the repo's Actions secrets (Settings > Secrets and variables > Actions) rather than in the Key Vault,
+because only a workflow uses them. Workflows never print them. The workflows that sign in to Azure (OIDC, `main`
+only) read what they need from the vault instead and keep no copy here.
 
 | Secret | What it is for | Without it |
 | --- | --- | --- |
 | `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below). Only the two `report` jobs (`checks.yml`, `visual-qa.yml`) use them, to open fix issues as `ceo-foundry[bot]` with a token that can only write issues and is revoked when the job ends | Those jobs write with the built-in token, as before |
-| `DESK_PINGS_SECRET` | The Desk pings workflow (`.github/workflows/desk-pings.yml`, #135): sent only to the site's own `api/desk-pings` in a header, to ask it to scan. The same value as in Vercel; it can make the Desk look for things to ping, nothing else | The workflow skips quietly and no pings go out |
-| `SITE_BYPASS_TOKEN` | The site lock's key for the workflows that read the site (#236): `backup-azure.yml` (the backup and the seed) and `live-watch.yml` send it only to the site in the `x-ceo-site-bypass` header, from a file or a same-origin browser route, never printed. The same value as in Vercel; it can read the site, nothing else | Once the password is on, the backup and the seed fail and the live watch only checks the login page |
-| `GEMINI_API_KEY` | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91): clips of the public Lattice go to Gemini. Sent only to Google's API host in a header, never printed; spend capped in code at $0.50 a run and eight pushed runs a day. The same name in Vercel is the separate key for the day's story (above) | The tour still records; the review is skipped |
+| `DESK_PINGS_SECRET` | **To be removed after the cut-over (#313).** Vercel's pings secret: no workflow reads it since #313 (`desk-pings.yml` reads `desk-pings-secret` from the Key Vault). Nikita deletes it in the last step of [AZURE.md](AZURE.md), "Retiring Vercel" | Nothing |
+| `SITE_BYPASS_TOKEN` | **To be removed after the cut-over (#313).** Vercel's site lock bypass: only the backup workflow's public-mode seed (the fallback for the final copy from Vercel) still sends it, to the Vercel site only; the live watch reads `site-bypass-token` from the Key Vault. Nikita deletes it in the last step of "Retiring Vercel" | The public-mode seed sees Vercel's login page (the Blob-mode seed doesn't need it) |
+| `BLOB_READ_WRITE_TOKEN` | Only for the final world copy from Vercel (#313), Blob mode: added for about ten minutes, then deleted ([AZURE.md](AZURE.md), "Retiring Vercel") | Normally absent |
+| `GEMINI_API_KEY` | Visual QA's review step only (`.github/workflows/visual-qa.yml`, #91): clips of the public Lattice go to Gemini. Sent only to Google's API host in a header, never printed; spend capped in code at $0.50 a run and eight pushed runs a day. The same name on the Function App (`gemini-api-key` in the vault) is the separate key for the day's story (above) | The tour still records; the review is skipped |
 
 ## The crew's own identity
 
 The crew has its own GitHub identity (#138, R2 in [THREAT-MODEL.md](THREAT-MODEL.md)): a GitHub App called
 `ceo-foundry`, installed on this repo only, that acts as `ceo-foundry[bot]`. Once it is set up:
 
-- **Every Vercel function that talks to GitHub** mints its own token from the App's key (`api/_github.ts`): a JSON Web
+- **Every function that talks to GitHub** mints its own token from the App's key (`api/_github.ts`): a JSON Web
   Token signed with the key, exchanged for an installation token for this repo only, kept until five minutes before
   it expires (GitHub gives them an hour). The Desk's buttons get a token that can only write issues; the feeds and the
-  world step get one that can only read. Production only: previews get no App key.
+  world step get one that can only read.
 - **CI's fix issues** (`checks.yml` and `visual-qa.yml`, the `report` jobs) come from the App too, on a token that can
   only write issues and is revoked when the job ends. No workflow's permissions changed.
 - **The Foundry's readers trust it like the Desk**: `scripts/foundry-issue.sh` shows its words in their own block,
   and the world step counts its trail steps. Look-alike accounts are still withheld.
 - **Until then, and whenever GitHub won't mint a token**, everything works exactly as before, on
-  `FOUNDRY_GITHUB_TOKEN` in Vercel and the built-in token in CI. A failed mint is retried after a minute and logs
+  `FOUNDRY_GITHUB_TOKEN` on the Function App and the built-in token in CI. A failed mint is retried after a minute and logs
   only GitHub's status code.
 
 What it doesn't change: the Foundry's Claude Code sessions push, open pull requests and merge with the GitHub
@@ -351,7 +360,7 @@ access their environment gives them, which is Nikita's account today. That is se
 repo, so their work still shows as Nikita's (DELIVERY.md, section 10).
 
 **Setup, once (Nikita).** About five minutes, all in the browser. The **Setup** card on Today has the same steps
-with links, and ticks itself off once `FOUNDRY_APP_ID` and `FOUNDRY_APP_PRIVATE_KEY` are in Vercel.
+with links, and ticks itself off once `FOUNDRY_APP_ID` and `FOUNDRY_APP_PRIVATE_KEY` are in the Key Vault.
 
 1. **Create the App.** Open https://github.com/settings/apps/new (your picture, top right > Settings > Developer
    settings > GitHub Apps > New GitHub App).
@@ -375,13 +384,11 @@ with links, and ticks itself off once `FOUNDRY_APP_ID` and `FOUNDRY_APP_PRIVATE_
    C.E.O. > **Settings** > **Secrets and variables** > **Actions** > **New repository secret**. Add
    `FOUNDRY_APP_ID` (the App ID) and `FOUNDRY_APP_PRIVATE_KEY` (paste the whole `.pem`, its BEGIN and END lines
    included).
-5. **Vercel, in the browser.** The project > **Settings** > **Environment Variables**. Add the same two:
-   `FOUNDRY_APP_ID`, and `FOUNDRY_APP_PRIVATE_KEY` with the `.pem` pasted as is (several lines is fine). Under
-   **Environments**, tick **Production** only (untick Preview and Development). **Save**. Then **Deployments** >
-   the top Production deployment > **⋯** > **Redeploy**, so the functions pick them up.
+5. **The Key Vault, in the browser.** Add the same two to the Azure Key Vault (`kv-ceo-…`: **Key vaults** > the vault > **Objects** > **Secrets**, then **Restart** the Function App; [AZURE.md](AZURE.md), "After the paste"): `foundry-app-id`, and `foundry-app-private-key`
+   with the `.pem` pasted as is (several lines is fine; `foundry-app-installation-id` is optional).
 6. **Check it, then retire the old token.** The next Desk button you press leaves its trail comment on GitHub as
-   `ceo-foundry[bot]` instead of you. Once it does, delete `FOUNDRY_GITHUB_TOKEN` in Vercel (Environment Variables > ⋯ >
-   Remove) and revoke it on GitHub (Settings > Developer settings > Personal access tokens > Fine-grained tokens), so
+   `ceo-foundry[bot]` instead of you. Once it does, disable `foundry-github-token` in the Key Vault (the secret > its
+   version > **Enabled: No**) and revoke it on GitHub (Settings > Developer settings > Personal access tokens > Fine-grained tokens), so
    no long-lived token that acts as you is left. Delete the `.pem` from Downloads; GitHub can make a new key any time.
 
 To rotate the key: the App's page > Private keys > Generate a private key, run steps 4 and 5 again, then delete the

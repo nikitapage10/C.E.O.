@@ -96,7 +96,7 @@ for (const [name, mod, opts] of ENDPOINTS) {
   });
 }
 
-// The world's steady clock (#271, ./tick.ts): steps the Azure world in-process and knocks on Vercel's, at :05 and :35,
+// The world's steady clock (#271, ./tick.ts): steps the world in-process at :05 and :35 (the Vercel knock is off, #313),
 // so the world no longer waits on GitHub's best-effort hourly schedule.
 app.timer("world_tick", {
   schedule: TICK_SCHEDULE,

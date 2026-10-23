@@ -135,7 +135,7 @@ function SetupRow({
           {item.id === "pings" && (
             <ul className="setup__parts" aria-label="The two halves">
               <li>
-                <Tick state={status.pings.vercel} /> Keys in Vercel
+                <Tick state={status.pings.vercel} /> Keys in the Key Vault
               </li>
               <li>
                 <Tick state={status.pings.actions} /> Secret in GitHub
@@ -241,7 +241,7 @@ export function SetupAct({ status, style }: { status: SetupStatus | null; style?
       </div>
       {item.id === "pings" && (
         <ul className="wv-act-parts" aria-label="The two halves">
-          <li className={`is-${status.pings.vercel}`}>Keys in Vercel</li>
+          <li className={`is-${status.pings.vercel}`}>Keys in the Key Vault</li>
           <li className={`is-${status.pings.actions}`}>Secret in GitHub</li>
         </ul>
       )}

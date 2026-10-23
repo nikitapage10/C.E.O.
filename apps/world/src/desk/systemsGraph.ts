@@ -65,8 +65,8 @@ export interface SystemsInput {
 
 export const G_STATE: Record<LinkState, GState> = { ok: "ok", slow: "run", off: "wait", down: "bad" };
 
-const KEY = "A server-side key in Vercel's environment. It never reaches the browser.";
-const VBLOB = "Vercel's own sign-in. No key in the code.";
+const KEY = "A server-side key in the Azure Key Vault. It never reaches the browser.";
+const VBLOB = "The Function App's managed identity. No key in the code.";
 
 const conn = (id: string) => CONNECTIONS.find((c) => c.id === id);
 const fromConn = (id: string): Pick<GEdge, "kinds" | "auth" | "when"> => {
@@ -88,7 +88,7 @@ const FOUNDRY_EDGE: Record<string, Pick<GEdge, "kinds" | "auth" | "when">> = {
   "rusty-checks": fromConn("github-builder"),
   "rocky-checks": fromConn("github-builder"),
   "checks-main": { kinds: [], auth: "GitHub's own merge, with the gated ruleset.", when: "When the checks pass." },
-  "main-deploy": { kinds: ["Webhook"], auth: "Vercel's link to the repo.", when: "Each merge." },
+  "main-deploy": { kinds: ["Scheduled"], auth: "GitHub signs in to Azure with OIDC: a short-lived token, no stored key.", when: "Each merge." },
   "desk-blob": fromConn("blob"),
   "checks-vqa": fromConn("gemini-visual-qa"),
   "desk-pings": fromConn("desk-pings"),
@@ -126,21 +126,21 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     claudecode: { id: "claudecode", l: "Claude Code", s: "the Builder's thread", k: "agent", state: building ? "run" : connected ? "ok" : "wait" },
     claude: { id: "claude", l: "Claude API", s: "Haiku", k: "service", state: world?.claude || fnode("shaping")?.state === "ok" ? "ok" : "wait" },
     gemini: { id: "gemini", l: "Gemini", s: "speech, Visual QA", k: "service", state: story?.gemini || vqa === "ok" ? "ok" : "wait" },
-    vercel: { id: "vercel", l: "Vercel", s: "site and functions", k: "service", state: "ok" },
-    blob: { id: "blob", l: "Vercel Blob", s: "private store", k: "store", state: world || fnode("blob")?.state === "ok" ? "ok" : "wait" },
+    vercel: { id: "vercel", l: "Azure", s: "Static Web App + Functions", k: "service", state: "ok" },
+    blob: { id: "blob", l: "Azure Blob", s: "ceo-state, private", k: "store", state: world || fnode("blob")?.state === "ok" ? "ok" : "wait" },
     lattice: { id: "lattice", l: "The Lattice", s: "public", k: "service", state: "ok" },
     bluebubbles: { id: "bluebubbles", l: "BlueBubbles", s: "iMessage and SMS", k: "service", state: L("bluebubbles") },
     openai: { id: "openai", l: "OpenAI", s: "sorting, drafts", k: "service", state: L("openai") },
     cron: { id: "cron", l: "GitHub Actions", s: "at :05 hourly", k: "service", state: "ok" },
     doorbell: { id: "doorbell", l: "The doorbell", s: "every 10 min", k: "service", state: connected ? "ok" : "wait" },
     step: { id: "step", l: "World step", s: "/api/world-step", k: "service", state: G_STATE[clock.state] },
-    worldstate: { id: "worldstate", l: "World state", s: "Vercel Blob", k: "store", state: world ? "ok" : "wait" },
+    worldstate: { id: "worldstate", l: "World state", s: "Azure Blob (ceo-state)", k: "store", state: world ? "ok" : "wait" },
     clock: { id: "clock", l: "World clock", s: clock.headline.toLowerCase(), k: "service", state: G_STATE[clock.state] },
     midnight: { id: "midnight", l: "Midnight", s: "just after 12", k: "service", state: "ok" },
     history: { id: "history", l: "World history", s: "the public Chronicle", k: "store", state: world ? "ok" : "wait" },
     script: { id: "script", l: "Story script", s: "scrubbed", k: "service", state: story ? "ok" : "wait" },
     speech: { id: "speech", l: "Gemini speech", s: story?.gemini ? "a friendly voice" : "no key yet", k: "service", state: story?.gemini ? "ok" : "wait" },
-    audio: { id: "audio", l: "Audio", s: "Vercel Blob", k: "store", state: story?.stories ? "ok" : "wait" },
+    audio: { id: "audio", l: "Audio", s: "Azure Blob (ceo-state)", k: "store", state: story?.stories ? "ok" : "wait" },
     chron: { id: "chron", l: "Chronicle", s: "on the Desk", k: "service", state: "ok" },
     hub: { id: "hub", l: "Hub", s: "on the MacBook", k: "service", state: hub },
     messages: { id: "messages", l: "Messages", s: "on the Mac", k: "service", state: L("messages") },
@@ -154,12 +154,12 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     // The Green's real connections (#252): Sleeper's public league data, and FantasyPros where its key is set.
     green: { id: "green", l: "Green", s: L("sleeper") === "wait" ? "Sleeper not read yet" : "your Sleeper league", k: "room", room: "green", state: L("sleeper") },
     sleeper: { id: "sleeper", l: "Sleeper", s: "league, read-only", k: "service", state: L("sleeper") },
-    // The email agent (#263): Gmail read-only, from the Azure copy.
-    gmail: { id: "gmail", l: "Gmail", s: L("gmail") === "wait" ? "on the Azure copy" : "read-only, every minute", k: "service", state: L("gmail") },
-    // The Spire's invoices (#279): PayPal's Invoicing API, from the Azure copy.
-    spire: { id: "spire", l: "Spire", s: L("paypal") === "wait" ? "invoices on the Azure copy" : "PayPal invoices", k: "room", room: "spire", state: L("paypal") },
-    paypal: { id: "paypal", l: "PayPal", s: L("paypal") === "wait" ? "on the Azure copy" : "drafts, sent on your tap", k: "service", state: L("paypal") },
-    fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "key on Azure only" : "projections", k: "service", state: L("fantasypros") },
+    // The email agent (#263): Gmail read-only.
+    gmail: { id: "gmail", l: "Gmail", s: L("gmail") === "wait" ? "not connected yet" : "read-only, every minute", k: "service", state: L("gmail") },
+    // The Spire's invoices (#279): PayPal's Invoicing API.
+    spire: { id: "spire", l: "Spire", s: L("paypal") === "wait" ? "invoices not connected" : "PayPal invoices", k: "room", room: "spire", state: L("paypal") },
+    paypal: { id: "paypal", l: "PayPal", s: L("paypal") === "wait" ? "not connected yet" : "drafts, sent on your tap", k: "service", state: L("paypal") },
+    fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "no key yet" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
   for (const n of foundry.nodes) {
@@ -230,11 +230,11 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
       t: "The world clock",
       sub: "one step every hour",
       room: "boiler",
-      p: "How Ilyr moves forward. A schedule knocks, Claude writes the hour, the Blob store keeps it, and the Lattice and this Desk read it back.",
+      p: "How Ilyr moves forward. A schedule knocks, Claude writes the hour, Azure Blob keeps it, and the Lattice and this Desk read it back.",
       st: clockLine,
       stc: G_STATE[clock.state],
       edges: [
-        { a: "cron", b: "step", room: "boiler", state: nodes.step!.state, label: "POST /api/world-step", how: "A GitHub Actions cron calls the world step on Vercel, as a backup to the Azure timer.", ...fromConn("world-trigger") },
+        { a: "cron", b: "step", room: "boiler", state: nodes.step!.state, label: "POST /api/world-step", how: "A GitHub Actions cron calls the world step on Azure, as a backup to the Function App's own timer.", ...fromConn("world-trigger") },
         { a: "doorbell", b: "step", room: "boiler", state: nodes.doorbell!.state === "wait" ? "wait" : nodes.step!.state, label: "A backup knock", kinds: ["Webhook"], how: "The Foundry's doorbell knocks too, in case GitHub's schedule runs late.", auth: "None needed: a step within 55 minutes of the last one does nothing.", when: "Every ten minutes." },
         { a: "step", b: "claude", room: "boiler", state: world?.claude ? nodes.step!.state : "wait", label: "Writes the hour", how: "Claude Haiku writes the next hour of Ilyr in a fixed shape, and every answer is checked again.", ...fromConn("claude-api") },
         { a: "step", b: "worldstate", room: "boiler", state: nodes.worldstate!.state, label: "Saves it", how: "The new hour is saved with an ETag check, so two steps can't both land.", ...fromConn("blob") },
@@ -251,10 +251,10 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
       st: story ? (story.gemini ? `Live, ${story.stories} ${story.stories === 1 ? "story" : "stories"} this month` : "No Gemini key yet, so no audio") : "Waiting for the world's ledger",
       stc: nodes.archive!.state,
       edges: [
-        { a: "midnight", b: "script", room: "archive", state: nodes.script!.state, label: "Files the day", kinds: ["Scheduled"], how: "Once the day's recap is filed, a Vercel function writes the story script.", auth: "A scheduled run; Make it now needs your passkey.", when: "Once a day, just after midnight." },
+        { a: "midnight", b: "script", room: "archive", state: nodes.script!.state, label: "Files the day", kinds: ["Scheduled"], how: "Once the day's recap is filed, an Azure function writes the story script.", auth: "A scheduled run; Make it now needs your passkey.", when: "Once a day, just after midnight." },
         { a: "history", b: "script", room: "archive", state: nodes.script!.state, label: "The day's hours", kinds: ["Storage"], how: "The script is written from the public Chronicle only, then scrubbed.", auth: VBLOB, when: "Once a day." },
         { a: "script", b: "speech", room: "archive", state: nodes.speech!.state, label: "Read it aloud", how: conn("gemini-speech")?.how ?? "The script goes to Gemini's text to speech.", ...fromConn("gemini-speech") },
-        { a: "speech", b: "audio", room: "archive", state: nodes.audio!.state, label: "Keeps the audio", kinds: ["Storage"], how: "The audio is kept in the private Blob store and served from our own site.", auth: VBLOB, when: "Once a day." },
+        { a: "speech", b: "audio", room: "archive", state: nodes.audio!.state, label: "Keeps the audio", kinds: ["Storage"], how: "The audio is kept in the private Azure Blob store and served from our own site.", auth: VBLOB, when: "Once a day." },
         { a: "audio", b: "chron", room: "archive", state: nodes.audio!.state, label: "Play", kinds: ["REST API"], how: "The Chronicle on the Desk plays it, with the words alongside.", auth: "Your Desk session.", when: "Whenever you press play." },
       ],
     },

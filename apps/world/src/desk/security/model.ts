@@ -18,9 +18,9 @@ export const ZONES: Record<ZoneId, { name: string; trust: string; holds: string[
   browser: { name: "Nikita's browser", trust: "Passkey session", holds: ["The Desk"] },
   relay: { name: "Relay MacBook", trust: "Planned", holds: ["Hub and BlueBubbles"], planned: true },
   vercel: {
-    name: "Vercel production",
+    name: "Azure production",
     trust: "Built from main",
-    holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/desk-pings: pings to the phone", "api/foundry: Desk buttons, Rivet", "api/skippy: Skippy's chat", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Vercel Blob: world, stories, pictures, passkeys"],
+    holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/desk-pings: pings to the phone", "api/foundry: Desk buttons, Rivet", "api/skippy: Skippy's chat", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Azure Blob: world, stories, pictures, passkeys"],
   },
   claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet, the world step and Skippy's chat (Haiku)", "The day's story (Gemini speech)", "Visual QA's review (Gemini, from CI)"] },
   github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks, scans, Visual QA"] },
@@ -63,7 +63,7 @@ export const BOUNDARIES: Boundary[] = [
     name: "Functions to GitHub",
     crosses: "Issue writes with the Foundry token",
     controls:
-      "Token lives only in Vercel; once the crew's GitHub App is set up, the buttons write as `ceo-foundry[bot]` with an hour-long token that can only touch this repo's issues, and the feeds read with a read-only one (`api/_github.ts`, #138); label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`)",
+      "Token lives only in the Azure Key Vault; once the crew's GitHub App is set up, the buttons write as `ceo-foundry[bot]` with an hour-long token that can only touch this repo's issues, and the feeds read with a read-only one (`api/_github.ts`, #138); label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`)",
     from: "vercel",
     to: "github",
   },
@@ -247,7 +247,7 @@ export const OWASP_LLM: LlmRisk[] = [
 export const SAIF: { element: string; inCeo: string }[] = [
   {
     element: "Expand strong security foundations to the AI ecosystem",
-    inCeo: "Secrets only in Vercel, Actions secrets and Azure Key Vault; Azure deploys sign in with OIDC, with no stored key (#218); pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62)",
+    inCeo: "Secrets only in Azure Key Vault and Actions secrets; Azure deploys sign in with OIDC, with no stored key (#218); pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62)",
   },
   {
     element: "Extend detection and response",

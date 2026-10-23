@@ -104,7 +104,7 @@ export function QuestionAct({ crate, setup, now, style }: { crate: Crate; setup:
               {c.held}
             </p>
           )}
-          {!c.ready && setup !== null && <p className="wv-act-note">Answering from here needs the Foundry's setup on Vercel; the Foundry tab says what's missing.</p>}
+          {!c.ready && setup !== null && <p className="wv-act-note">Answering from here needs the Foundry's setup on Azure; the Foundry tab says what's missing.</p>}
         </>
       )}
       {resolved && <Said text={c.result} />}

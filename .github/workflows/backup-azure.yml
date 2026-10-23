@@ -1,22 +1,20 @@
-# Nightly backup into the Azure copy's `ceo-backups` container, one folder per day (docs/AZURE.md, "Deploys and
-# backups"). The container keeps 90 days (a lifecycle rule in infra/resources.bicep), and blobs land in Cool tier.
+# Nightly backup into Azure's `ceo-backups` container, one folder per day (docs/AZURE.md, "Deploys and backups").
+# The container keeps 90 days (a lifecycle rule in infra/resources.bicep), and blobs land in Cool tier.
 #
 # What it copies:
-#   vercel/     the production world as the public API serves it: /api/world and the last 7 days of /api/world?day=
-#               (no Vercel Blob token in GitHub: Vercel signs in to its store on its own; once the site is
-#               locked, #236, these pages answer only with the SITE_BYPASS_TOKEN secret in a header)
-#   ceo-state/  everything in the Azure copy's own state container
+#   ceo-state/  everything in production's state container (the world, its stories, the Desk's store): Azure is the
+#               only home since #313, so nothing is read through the Vercel site any more
 #   models/     apps/world/public/models from main
 #
 # Signs in like deploy-azure.yml (OIDC, the `azure` environment, main only) and skips until Azure is set up.
 #
-# Run by hand with "seed" ticked, it does the one-off seed instead (docs/AZURE.md, "Seeding the Azure state"): it
-# copies production's world and its stories into `ceo-state`, under the store's own names. No secret is needed: it
-# rebuilds the files from production's public API (scripts/seed-azure-public.mjs), the pages the backup reads. If the
-# optional BLOB_READ_WRITE_TOKEN secret (production's Blob store token) is set, it copies the store itself instead,
-# idea pictures included (scripts/seed-azure-pull.mjs). If the Azure copy already has a world it changes nothing
-# unless "force" is ticked too, and even then it only replaces the files it copies (blob soft delete keeps what it
-# replaced for 14 days).
+# Run by hand with "seed" ticked, it does the final copy from the old Vercel home instead (docs/AZURE.md, "Retiring
+# Vercel"): it copies Vercel's world and its stories into `ceo-state`, under the store's own names. With the
+# BLOB_READ_WRITE_TOKEN secret (Vercel's Blob store token, added for the run and deleted after) it copies the store
+# itself, idea pictures included (scripts/seed-azure-pull.mjs); without it, it rebuilds the files from the Vercel
+# site's public API (scripts/seed-azure-public.mjs). If Azure already has a world it changes nothing unless "force"
+# is ticked too, and even then it only replaces the files it copies (blob soft delete keeps what it replaced for 14
+# days). The seed goes once Vercel is off (#313).
 name: Back up to Azure
 
 on:
@@ -25,11 +23,11 @@ on:
   workflow_dispatch:
     inputs:
       seed:
-        description: "Seed the Azure state from production once, instead of the backup"
+        description: "Copy the old Vercel world into Azure once, instead of the backup"
         type: boolean
         default: false
       force:
-        description: "With seed: replace the Azure copy's world even if it already has one"
+        description: "With seed: replace Azure's world even if it already has one"
         type: boolean
         default: false
 
@@ -49,8 +47,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      SITE: https://command-everything-obviously.vercel.app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -74,22 +70,7 @@ jobs:
           client-id: ${{ steps.az.outputs.client }}
           tenant-id: ${{ steps.az.outputs.tenant }}
           subscription-id: ${{ steps.az.outputs.sub }}
-      - name: Fetch the production world
-        # Once the site is locked (#236), the site answers only with SITE_BYPASS_TOKEN (the same value as in
-        # Vercel), sent in a header from a file so it never sits on a command line; never printed.
-        env:
-          SITE_BYPASS_TOKEN: ${{ secrets.SITE_BYPASS_TOKEN }}
-        run: |
-          mkdir -p backup/vercel
-          hdr="$RUNNER_TEMP/site-bypass.h"
-          printf 'x-ceo-site-bypass: %s\n' "$SITE_BYPASS_TOKEN" > "$hdr"
-          curl -fsS --max-time 60 -H @"$hdr" "$SITE/api/world" -o backup/vercel/world.json
-          for i in 0 1 2 3 4 5 6; do
-            day=$(TZ=America/Denver date -d "-$i day" +%F)
-            curl -fsS --max-time 60 -H @"$hdr" "$SITE/api/world?day=$day" -o "backup/vercel/day-$day.json" || echo "no $day"
-          done
-          rm -f -- "$hdr"
-      - name: Copy the Azure state
+      - name: Copy production's state
         run: |
           mkdir -p backup/ceo-state
           az storage blob download-batch --auth-mode login --account-name "$ACCOUNT" -s ceo-state -d backup/ceo-state --no-progress -o none
@@ -111,6 +92,7 @@ jobs:
       id-token: write
     env:
       FORCE: ${{ inputs.force }}
+      # The old Vercel home, the source of the final copy (#313) when there is no Blob token.
       SITE: https://command-everything-obviously.vercel.app
     steps:
       - name: Pick the source

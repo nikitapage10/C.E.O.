@@ -21,7 +21,7 @@
  * The live watch (#181): `node scripts/boot-check.mjs --url=https://…` runs the same three pages against a deployed
  * site instead of the local build (no build or server needed), hourly from .github/workflows/live-watch.yml.
  *
- * The site lock (#236, #238): when the live site is locked, SITE_BYPASS_TOKEN (the same value as in Vercel) is sent in
+ * The site lock (#236, #238): when the live site is locked, SITE_BYPASS_TOKEN (the same value as in the Azure Key Vault) is sent in
  * the x-ceo-site-bypass header on the site's own requests only (never to another host), and never printed. Without
  * it, a locked site is checked only for answering with its login page, and the run passes with a notice.
  */
@@ -58,7 +58,7 @@ if (live) {
       console.log("boot-check: the live site is locked and SITE_BYPASS_TOKEN isn't set; checked only that its login page answers.");
       process.exit(0);
     }
-    console.error(BYPASS ? "boot-check: FAIL the live site refused SITE_BYPASS_TOKEN (is it the same value as in Vercel?)" : "boot-check: FAIL the live site is locked and its login page didn't answer");
+    console.error(BYPASS ? "boot-check: FAIL the live site refused SITE_BYPASS_TOKEN (is it the same value as in the Azure Key Vault?)" : "boot-check: FAIL the live site is locked and its login page didn't answer");
     process.exit(1);
   }
 }

@@ -456,7 +456,7 @@ function IdeaAnswers({ c, crate, setup, small }: { c: ReturnType<typeof useIdeaC
   const busy = c.mode === "busy";
   return (
     <>
-      <div className={small ? "wv-idea-do" : "wv-dacts"} title={!c.ready ? (setup ? "Set the Vercel variables to pick from here" : "Checking…") : undefined}>
+      <div className={small ? "wv-idea-do" : "wv-dacts"} title={!c.ready ? (setup ? "Set the Key Vault secrets to pick from here" : "Checking…") : undefined}>
         <button className={`wv-btn is-pri${sm}`} type="button" disabled={!c.ready || busy} onClick={() => void c.go("build")}>
           {c.asking ? "Build as is" : "Build"}
         </button>

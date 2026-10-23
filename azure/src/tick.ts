@@ -1,18 +1,18 @@
 /**
- * The world's steady clock (#271, docs/WORLD.md): a timer on the Azure Function App that steps both worlds, because
+ * The world's steady clock (#271, docs/WORLD.md): a timer on the Azure Function App that steps the world, because
  * GitHub's hourly schedule (.github/workflows/world-step.yml) is best-effort and on 2026-10-21/22 fired only every
  * four to five hours, so the Boiler Room's world clock went DOWN (past three hours) between runs.
  *
- * Twice an hour, at :05 and :35 (Azure's six-field cron, UTC):
- *   Azure   runs the same step handler in-process (api/world-step.ts POST): no HTTP, so neither the site gate nor the
- *           Static Web App's proxy cut is in the way, and the day's and week's stories are waited for.
- *   Vercel  POSTs to production's /api/world-step, which the site gate lets through by design (api/_site/gate.ts).
+ * Twice an hour, at :05 and :35 (Azure's six-field cron, UTC), it runs the same step handler in-process
+ * (api/world-step.ts POST): no HTTP, so neither the site gate nor the Static Web App's proxy cut is in the way, and the
+ * day's and week's stories are waited for.
+ *
+ * Azure is the only home since #313, so the old Vercel knock is off by default. The adapter stays until Vercel is
+ * switched off: WORLD_TICK_VERCEL set to "on" knocks the old Vercel step again, or to an https:// URL knocks that step.
  *
  * The step does nothing until 55 minutes have passed since the last, so the :35 knock only matters when the :05 one
  * was missed or failed; GitHub's cron and the Foundry doorbell stay on as extra knocks. A failure on either side is
  * logged as an error (Application Insights) and thrown, so the run shows as failed.
- *
- *   WORLD_TICK_VERCEL   optional: the Vercel step's URL (default: production's); "off" leaves Vercel to its own knocks
  */
 
 import { collectWaitUntil } from "../../api/_waitUntil.js";
@@ -41,11 +41,11 @@ export function stepOk(status: number): boolean {
   return status === 200 || status === 409;
 }
 
-/** Where to knock on Vercel, or null when WORLD_TICK_VERCEL is "off". */
+/** Where to knock on Vercel: nowhere unless WORLD_TICK_VERCEL is "on" (the old step) or an https:// URL (#313). */
 export function vercelUrl(env: Record<string, string | undefined>): string | null {
   const v = env.WORLD_TICK_VERCEL?.trim();
-  if (v === "off") return null;
-  return v && /^https:\/\//.test(v) ? v : VERCEL_STEP_URL;
+  if (v === "on") return VERCEL_STEP_URL;
+  return v && /^https:\/\//.test(v) ? v : null;
 }
 
 async function stepHere(step: TickDeps["step"]): Promise<TickSide> {
@@ -68,7 +68,7 @@ async function knock(url: string, fetcher: typeof fetch): Promise<TickSide> {
   }
 }
 
-/** One tick: both worlds at once. Throws when either side failed, after both have been tried. */
+/** One tick: the Azure world, and the Vercel one too when asked. Throws when either side failed, after both have been tried. */
 export async function tick(deps: TickDeps): Promise<{ azure: TickSide; vercel: TickSide | null }> {
   const url = vercelUrl(deps.env);
   const [azure, vercel] = await Promise.all([stepHere(deps.step), url ? knock(url, deps.fetch) : Promise.resolve(null)]);

@@ -1,5 +1,5 @@
 /**
- * The Desk's pings (#135, api/_desk/pings.ts), as a Vercel function: a phone with the Desk on its home screen gets
+ * The Desk's pings (#135, api/_desk/pings.ts), as a function on the site (Azure, #313): a phone with the Desk on its home screen gets
  * one notification when something needs Nikita's call (a new idea waiting for the pick, a question from Rivet, a
  * blocker), instead of an email.
  *
@@ -18,10 +18,10 @@
  * Pushes are standard Web Push (RFC 8030, 8291, 8292) through `web-push`: the payload is encrypted for the device,
  * and the push service (Apple's, Google's, Mozilla's, Microsoft's) only ever sees ciphertext.
  *
- * Environment (Vercel, Production): DESK_VAPID_PUBLIC_KEY, DESK_VAPID_PRIVATE_KEY (the server's push key pair; the
- * private one never leaves Vercel), DESK_VAPID_SUBJECT (optional: an https: or mailto: contact the push services may
- * use; defaults to the site's address), DESK_PINGS_SECRET (shared with the workflow, as a GitHub Actions secret), plus
- * FOUNDRY_DESK_KEY and the Blob store, as for sign-in. Nothing here logs or returns a key, a secret or an endpoint.
+ * Environment (the Function App's settings, from Key Vault): DESK_VAPID_PUBLIC_KEY, DESK_VAPID_PRIVATE_KEY (the
+ * server's push key pair; the private one never leaves the server), DESK_VAPID_SUBJECT (optional: an https: or mailto: contact the push services may
+ * use; defaults to the site's address), DESK_PINGS_SECRET (the workflow reads it from the Key Vault at run time), plus
+ * FOUNDRY_DESK_KEY and the blob store, as for sign-in. Nothing here logs or returns a key, a secret or an endpoint.
  */
 
 import webpush from "web-push";
@@ -32,7 +32,7 @@ import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import { githubToken } from "./_github.js";
 
 const REPO = "nikitapage10/C.E.O.";
-const SITE = "https://command-everything-obviously.vercel.app";
+const SITE = "https://thankful-forest-019308c1e.5.azurestaticapps.net";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -127,7 +127,7 @@ export async function scan(deps: PingDeps & { store: AuthStore }): Promise<Respo
   const plan = planPings(needsOf(issues), state.sent, deps.now, open);
   const subs = liveSubs(state.subs, passkeys);
   // What is about to be pinged is written down first, so a second scan landing now doesn't ping it again.
-  // The scan's own time too: it shows the Actions secret matches Vercel's (the setup list on Today, #164).
+  // The scan's own time too: it shows the workflow's secret matches the site's (the setup list on Today, #164).
   await deps.store.savePings({ ...state, sent: plan.sent, scanned: deps.now });
   if (!plan.ping.length || !subs.length) return json({ pinged: 0, held: plan.held, devices: subs.length });
   const took = await deliver(deps.store, subs, pingText(plan.ping, plan.morning), deps.send);

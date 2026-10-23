@@ -32,7 +32,8 @@ look() {
 # schedule for it is best-effort and has gone hours without firing; the step itself does nothing until an hour has
 # passed, so the extra nudges cost nothing. It also nudges once on every start: the Builder restarts this script after
 # each ring, and on a busy day it never ran ten unbroken minutes, so the world went over an hour without a step.
-world() { curl -sS -o /dev/null --max-time 120 -X POST https://command-everything-obviously.vercel.app/api/world-step || true; }
+# Azure is the only home (#313): the site's /api may cut a long step at ~45 s, but the step itself still lands.
+world() { curl -sS -o /dev/null --max-time 120 -X POST https://thankful-forest-019308c1e.5.azurestaticapps.net/api/world-step || true; }
 ticks=0
 world &
 

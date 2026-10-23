@@ -1,7 +1,7 @@
 # The live watch (#181): every hour, open the live site in a browser, the same three pages the boot check opens on a
 # pull request (scripts/boot-check.mjs --url): the Desk's Today, a Desk tab, and the Lattice. On Oct 16 the live site
 # stayed blank for about four hours before anyone noticed (#173); the boot check now stops that kind of change before
-# it merges, and this catches what breaks only on Vercel.
+# it merges, and this catches what breaks only on the live site, Azure (the only home since #313).
 #
 # A miss is tried again a minute later, so one slow load doesn't raise an alarm. Two misses open one "Live site not
 # loading" Foundry fix issue labelled foundry:down, which wakes the Builder and pings Nikita's phone (api/_desk/pings.ts);
@@ -26,8 +26,14 @@ jobs:
     if: github.repository == 'nikitapage10/C.E.O.'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Signs in like deploy-azure.yml (OIDC, the `azure` environment, main only) to read the site lock's bypass from
+    # the Key Vault; GitHub keeps no copy of it.
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
     env:
-      SITE: https://command-everything-obviously.vercel.app
+      SITE: https://thankful-forest-019308c1e.5.azurestaticapps.net
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,11 +45,41 @@ jobs:
       - run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Open the live site
-        # Once the site is locked (#236), the boot check sends SITE_BYPASS_TOKEN (the same value as in Vercel) to
-        # the site only, in a header; without it, it checks only that the login page answers. Never printed.
+      - name: Tidy the Azure settings
+        id: az
+        if: vars.AZURE_CLIENT_ID != ''
         env:
-          SITE_BYPASS_TOKEN: ${{ secrets.SITE_BYPASS_TOKEN }}
+          CLIENT: ${{ vars.AZURE_CLIENT_ID }}
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          SUB: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          RG: ${{ vars.AZURE_RG }}
+        # A pasted variable can carry a stray line break or space; drop them so sign-in sees clean IDs.
+        run: |
+          for k in CLIENT TENANT SUB RG; do
+            printf '%s=%s\n' "${k,,}" "$(printf '%s' "${!k}" | tr -d '\r\n[:space:]')" >> "$GITHUB_OUTPUT"
+          done
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        if: vars.AZURE_CLIENT_ID != ''
+        with:
+          client-id: ${{ steps.az.outputs.client }}
+          tenant-id: ${{ steps.az.outputs.tenant }}
+          subscription-id: ${{ steps.az.outputs.sub }}
+      - name: Read the site lock's bypass
+        if: vars.AZURE_CLIENT_ID != ''
+        # `site-bypass-token` from the Key Vault, as desk-pings.yml reads its secret: masked, never printed, and handed
+        # to the boot check through the job's environment file only. Without it the check sees only the login page.
+        env:
+          RG: ${{ steps.az.outputs.rg }}
+        run: |
+          vault=$(az keyvault list -g "$RG" --query "[0].name" -o tsv 2>/dev/null) || vault=""
+          token=""
+          if [ -n "$vault" ]; then token=$(az keyvault secret show --vault-name "$vault" -n site-bypass-token --query value -o tsv 2>/dev/null) || token=""; fi
+          if [ -z "$token" ]; then echo "::notice::No site-bypass-token in the Azure Key Vault; a locked site is checked only for its login page."; exit 0; fi
+          echo "::add-mask::$token"
+          printf 'SITE_BYPASS_TOKEN=%s\n' "$token" >> "$GITHUB_ENV"
+      - name: Open the live site
+        # Once the site is locked (#236), the boot check sends SITE_BYPASS_TOKEN (read from the Key Vault above) to
+        # the site only, in a header; without it, it checks only that the login page answers. Never printed.
         run: |
           if node scripts/boot-check.mjs --url="$SITE"; then exit 0; fi
           echo "Missed once; trying again in a minute."

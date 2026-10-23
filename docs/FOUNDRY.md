@@ -169,12 +169,12 @@ The path for every change:
 2. **Pull request** into `main`, titled like the issue, with `Closes #<issue>` and the lane label (`foundry:fix`,
    `foundry:build` or `foundry:upkeep`) on it.
 3. **Checks** run on the PR (`checks.yml`). Red means back to the ladder; never merge red.
-4. **Preview:** Vercel builds a preview site for the PR, linked on the PR and the issue. Nothing waits on it: the
-   change ships once its checks pass.
+4. **No preview site** (Azure, the only home since #313, deploys `main` only): `checks` builds the PR and the boot
+   check loads that build in Chromium. The change ships once its checks pass.
 5. **Pictures** on the issue before it ships: screenshots for a visual change, a change card for anything else
    ("Pictures on every change" below). The Trail runs Work, Pictures, Checks, Shipped.
 6. **Merge** with a squash commit through GitHub's auto-merge, turned on when the PR opens (until "Allow auto-merge"
-   and the gated ruleset are on, the Builder squash-merges it once `checks` is green), then delete the branch. Vercel deploys `main` to the site.
+   and the gated ruleset are on, the Builder squash-merges it once `checks` is green), then delete the branch. Deploy to Azure ships `main` to the site.
 7. **Watch:** the push to `main` runs the checks again. If they go red there, the merge is reverted with a
    `git revert` commit through a `foundry/fix/` branch, and the fix starts over.
 
@@ -203,11 +203,11 @@ The nightly browser tests (`.github/workflows/e2e.yml`) report the same way: a r
 amber while running, off until a run is read) next to the checks.
 
 **The live watch (#181).** Every hour `.github/workflows/live-watch.yml` opens the live site the way the boot check
-opens a build (`node scripts/boot-check.mjs --url=https://command-everything-obviously.vercel.app`): the Desk's Today, a
+opens a build (`node scripts/boot-check.mjs --url=https://thankful-forest-019308c1e.5.azurestaticapps.net`, past the site lock with `site-bypass-token` from the Key Vault): the Desk's Today, a
 Desk tab and the Lattice. A miss is tried again a minute later; two in a row open one `foundry:fix` issue titled "Live
 site not loading", labelled `foundry:down`, which rings the doorbell and pings Nikita's phone ("The live site isn't
 loading; the Foundry is on it"). While it is open a later miss only comments on it. When the site loads again the run
-takes `foundry:down` off with a comment; the Builder still finds and fixes the cause (or, for a Vercel blip that left
+takes `foundry:down` off with a comment; the Builder still finds and fixes the cause (or, for an Azure blip that left
 nothing to fix, closes it saying so). Systems shows the watch's light as "Live site".
 
 **The doorbell (#50).** What can wake the thread is a command it started itself. At the end of every turn the Builder
@@ -319,7 +319,7 @@ Lattice) and propose **exactly three** ideas: a new feature, an improvement, or 
 - Write each idea's body with `**Pitch:** …`, `**Size:** small|medium|large` and `**Short:** …` (see "The issue
   body" above): the Desk's Foundry tab shows these on the idea cards.
 - Nikita picks on the Desk's Foundry tab (Build this / Revise / Not this one) or on the thread's card. The Desk's
-  buttons go through `api/foundry.ts` on Vercel, which needs `FOUNDRY_DESK_KEY` and the crew's App
+  buttons go through `api/foundry.ts` on Azure, which needs `FOUNDRY_DESK_KEY` and the crew's App
   (`FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY`; or `FOUNDRY_GITHUB_TOKEN` until it is set up) there, and Nikita's
   passkey sign-in on the Desk (#132, docs/SECURITY.md, "Signing in to the Desk"); a click changes the issue at once.
   A proposed or revised idea goes up straight away in Nikita's words,

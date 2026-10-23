@@ -105,8 +105,6 @@ export const PETS: PetDef[] = [
   },
 ];
 
-export const PET_BY_ID: Record<string, PetDef> = Object.fromEntries(PETS.map((p) => [p.id, p]));
-
 /** The room a pet starts in: Myshka in the last of his, everyone else in their first. */
 export const petStart = (def: PetDef): RoomId => def.homes[def.id === "myshka" ? def.homes.length - 1 : 0]!;
 

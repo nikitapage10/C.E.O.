@@ -1,4 +1,4 @@
-/* The world clock on the Systems page (WorldClockPanel.tsx): a dial and four readings, amber when an hour is overdue. */
+/* The world clock on the Systems page (Systems.tsx): a dial and four readings, amber when an hour is overdue. */
 .wclock {
   --c: var(--faint);
 }

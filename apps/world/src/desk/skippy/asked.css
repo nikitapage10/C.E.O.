@@ -109,3 +109,60 @@
   gap: 4px;
   padding: 10px 0;
 }
+
+/* Setup asks (#324): the same panel; each ask is its line, the "What this does" box, and Approve / Decline. */
+.desk .skp-setup__ask {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+}
+.desk .skp-setup__line {
+  display: grid;
+  gap: 4px;
+}
+.desk .skp-setup__box {
+  padding: 10px 12px;
+  border-left: 2px solid var(--rc, var(--wv-mute, #8c94a3));
+  border-radius: 3px;
+  background: var(--wv-well, rgba(236, 238, 243, 0.04));
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--wv-ink, #eceef3);
+}
+.desk .skp-setup__box p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.desk .skp-setup__box b {
+  font-weight: 500;
+  color: var(--wv-mute, #8c94a3);
+}
+.desk .skp-setup__boxhead {
+  font-family: var(--wv-mono, ui-monospace, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--wv-faint, #5d6574);
+  margin-bottom: 4px !important;
+}
+.desk .skp-setup__how {
+  margin-top: 4px !important;
+  font-size: 12px;
+  color: var(--wv-faint, #5d6574);
+}
+.desk .skp-setup__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.desk .skp-setup__trail {
+  margin: 0;
+  font-size: 13px;
+  color: var(--wv-mute, #8c94a3);
+  overflow-wrap: anywhere;
+}
+.desk .skp-setup__ask[data-state="declined"],
+.desk .skp-setup__ask[data-state="dropped"],
+.desk .skp-setup__ask[data-state="done"] {
+  opacity: 0.8;
+}

@@ -187,6 +187,7 @@ with a new value.
 
 | GET of a room read with `x-ceo-room-key: <SUBMIND_LOG_TOKEN>` (or `Authorization: Bearer`) | The active submind threads (#281): the four active rooms' Asked Skippy logs, the Green's league, the Exchange's board and positions, the world feed (and `?day=`), the Foundry feed, the room feed | The read key, from the Key Vault only, at least 32 characters, compared in constant time; exactly the listed paths and queries, GET only (`api/_site/roomkeys.ts`), and the private handlers check the key again. See "The subminds' room keys" below |
 | `POST /api/room-feed` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a short room event (#281) | The feed key, the same way; that one write only, which answers `{ ok, id }` and nothing more |
+| `POST /api/setup-asks` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a setup ask, or closing one with its Trail line (#324) | The feed key, the same way, no query; it can't approve its own ask (only the passkey session can), and it answers `{ ok, id }` or `{ ok }`. A new ask pings Nikita's phone with counts-only words. See "Setup asks" below |
 
 Nothing else is exempt. The local checks (`scripts/boot-check.mjs` on a build, the browser tests) don't run the
 middleware, so they see the site as before; `tests/e2e/gate.spec.ts` runs the same gate, the login function and the
@@ -213,10 +214,10 @@ Nikita approved two narrow keys for the subminds' project threads on 2026-10-22 
 keys"; Nikita's steps in [AZURE.md](AZURE.md), "The subminds' room keys"):
 
 - **Two keys, two directions.** `SUBMIND_LOG_TOKEN` reads (GET only, the listed room data, the Asked Skippy log's `needs` filter included); `SUBMIND_FEED_TOKEN` writes
-  (POST `/api/room-feed`, and POST `/api/skippy-answer` for a hand-off's answer, #312) and reads nothing. Each opens only its own exact method, path and query
+  (POST `/api/room-feed`, POST `/api/setup-asks` for a setup ask or its Trail line, #324, and POST `/api/skippy-answer` for a hand-off's answer, #312) and reads nothing. Each opens only its own exact method, path and query
   (`LOG_READS`, `isFeedWrite` in `api/_site/roomkeys.ts`): another route, an extra or repeated query key, an encoded
   path, HEAD or any other POST is refused by the gate, and the handlers that hold private data
-  (`/api/skippy-log`, `/api/exchange-positions`, `/api/room-feed`) check the key again, so the same holds while the site
+  (`/api/skippy-log`, `/api/exchange-positions`, `/api/room-feed`, `/api/setup-asks`) check the key again, so the same holds while the site
   is unlocked. The read key sees the Asked Skippy log of the four active rooms only, never Relay's.
 - **What they can't do.** Change a setting (no Desk write takes them: the Desk's own writes need a passkey session),
   trade (positions are read through the two allow-listed Polymarket GETs, `api/_exchange/positions.ts`), send
@@ -233,6 +234,23 @@ keys"; Nikita's steps in [AZURE.md](AZURE.md), "The subminds' room keys"):
   gets the titles only, with money and links replaced by "…" (`publicTitle`). Every answer is `private, no-store`.
 - **If a key leaks**, give the secret a new version in the vault and restart the Function App: the old key opens
   nothing from then on ([AZURE.md](AZURE.md), step 3).
+
+
+## Setup asks
+
+When a submind's thread needs something set up only Nikita can allow (#324; [SKIPPY.md](SKIPPY.md), "Setup asks"):
+
+- **No keys through people or threads.** Agents never type keys, passwords or tokens, and never do sign-ins (Skippy's
+  rule on #324). Each ask names its route, and the first choice needs no key: a managed identity, then OIDC federation;
+  where a key can't be avoided, a machine-to-machine flow that lands it straight in the Key Vault; last, steps in
+  Nikita's own browser that stop at every sign-in and passkey. An ask whose words ask anyone to type, paste or copy a
+  key, password or token is refused (422 `asks-for-secret`), and so is one that looks private or carries a room key.
+- **Only Nikita says yes.** Approve and Decline need the Desk's passkey session (`requireSession`, same-origin); the
+  feed key can post an ask and close it, but "done" only after Nikita approved. Nothing is changed until then.
+- **Owner only.** `GET /api/setup-asks` answers the passkey session or the read key, nothing else; there is no public
+  view, and the Lattice never reads it. The Desk shows the panel only signed in, veiled by Hide.
+- **Bounded.** Five new asks an hour, eight waiting at once; the last 100, none untouched for 30 days, in the private
+  store (`desk/rooms/setup.json`). Its ping says only that an ask is waiting, never what it says; quiet hours hold it.
 
 ## The email agent
 

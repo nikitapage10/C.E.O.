@@ -20,6 +20,7 @@ import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import { RoomFeed } from "./skippy/RoomFeed.tsx";
+import { SetupAsks } from "./skippy/SetupAsks.tsx";
 
 /**
  * The Foundry's own Desk page. Top to bottom: what needs you (the morning's ideas as cards you can build, pass on or
@@ -221,6 +222,7 @@ export function FoundryPage({ now }: { now: number }) {
       </div>
 
       <AskedSkippy room="foundry" />
+      <SetupAsks room="foundry" />
       <RoomFeed room="foundry" />
     </div>
   );

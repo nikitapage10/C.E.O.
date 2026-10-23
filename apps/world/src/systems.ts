@@ -32,13 +32,6 @@ export interface Link {
   note?: string;
 }
 
-export const LINK_STATE_LABEL: Record<LinkState, string> = {
-  off: "Not connected yet",
-  ok: "Working",
-  slow: "Slow",
-  down: "Down",
-};
-
 const LINKS: Link[] = [
   { id: "dialtone", label: "Dialtone", what: "Tracks who you owe a reply", kind: "agent", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "postmaster", label: "Blasto", what: "Drafts replies in your voice", kind: "agent", room: "relay", state: "off", load: 0, lastSeen: null },

@@ -24,7 +24,7 @@ async function ctx(env: Record<string, string> = ENV): Promise<GateContext> {
 }
 
 /** Every read the read key opens, as a submind thread sends it. */
-const READS = ["/api/skippy-log?room=green", "/api/skippy-log?room=exchange", "/api/skippy-log?room=boiler", "/api/skippy-log?room=foundry", "/api/skippy-log?room=green&needs=turf", "/api/skippy-log?room=foundry&needs=any", "/api/green-league", "/api/exchange-markets", "/api/exchange-positions", "/api/world", "/api/world?day=2026-10-22", "/api/foundry-feed", "/api/room-feed"];
+const READS = ["/api/skippy-log?room=green", "/api/skippy-log?room=exchange", "/api/skippy-log?room=boiler", "/api/skippy-log?room=foundry", "/api/skippy-log?room=green&needs=turf", "/api/skippy-log?room=foundry&needs=any", "/api/green-league", "/api/exchange-markets", "/api/exchange-positions", "/api/world", "/api/world?day=2026-10-22", "/api/foundry-feed", "/api/room-feed", "/api/setup-asks", "/api/setup-asks?room=green"];
 
 /** Requests the read key must never open: other rooms, other routes, other queries, encoded paths and every write. */
 const NOT_READS: Array<[string, string]> = [
@@ -75,6 +75,10 @@ const NOT_READS: Array<[string, string]> = [
   ["/api/invoices", "POST"],
   ["/api/desk-auth?site=password", "POST"],
   ["/api/room-feed", "POST"],
+  ["/api/setup-asks", "POST"],
+  ["/api/setup-asks?room=relay", "GET"],
+  ["/api/setup-asks?room=green&room=boiler", "GET"],
+  ["/api/setup-asks?state=open", "GET"],
 ];
 
 afterEach(() => forgetCachedState());
@@ -112,7 +116,7 @@ describe("which room key a request carries", () => {
 
 describe("the read key (SUBMIND_LOG_TOKEN)", () => {
   it("lists exactly the room data Nikita approved", () => {
-    expect(Object.keys(LOG_READS).sort()).toEqual(["/api/exchange-markets", "/api/exchange-positions", "/api/foundry-feed", "/api/green-league", "/api/room-feed", "/api/skippy-log", "/api/world"]);
+    expect(Object.keys(LOG_READS).sort()).toEqual(["/api/exchange-markets", "/api/exchange-positions", "/api/foundry-feed", "/api/green-league", "/api/room-feed", "/api/setup-asks", "/api/skippy-log", "/api/world"]);
     expect([...KEY_LOG_ROOMS]).toEqual(["green", "exchange", "boiler", "foundry"]);
   });
 
@@ -168,6 +172,8 @@ describe("the feed key (SUBMIND_FEED_TOKEN)", () => {
     expect(isFeedWrite(req(ROOM_FEED_PATH, "POST"))).toBe(true);
     expect(decide(req(ROOM_FEED_PATH, "POST", FEED), c)).toEqual({ allow: true, why: "room-feed" });
     expect(decide(req(ROOM_FEED_PATH, "POST", undefined, { [ROOM_KEY_HEADER]: FEED }), c)).toEqual({ allow: true, why: "room-feed" });
+    // A setup ask (#324): posting one or closing it is the same one write.
+    expect(decide(req("/api/setup-asks", "POST", FEED), c)).toEqual({ allow: true, why: "room-feed" });
     for (const [path, method] of [
       [`${ROOM_FEED_PATH}?view=public`, "POST"],
       [ROOM_FEED_PATH, "GET"],
@@ -183,6 +189,9 @@ describe("the feed key (SUBMIND_FEED_TOKEN)", () => {
       ["/api/invoices", "POST"],
       ["/api/desk-auth?site=password", "POST"],
       ["/api/world", "POST"],
+      ["/api/setup-asks?room=green", "POST"],
+      ["/api/setup-asks", "GET"],
+      ["/api/setup-asks/", "POST"],
     ] as const) {
       expect(roomKeyPass(req(path, method, FEED), ENV), `${method} ${path}`).toBeNull();
       expect(decide(req(path, method, FEED), c).allow, `${method} ${path}`).toBe(false);

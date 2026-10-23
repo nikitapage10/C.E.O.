@@ -15,7 +15,15 @@ export interface AskedTurn {
   question: string;
   answer: string;
   model: string;
+  /** Handed off (#312): who it went to, "skippy" or a submind's id. */
+  needs?: string;
+  /** The answer that came back for a hand-off. */
+  followUp?: { from: string; text: string; at: string };
 }
+
+/** Who a hand-off went to, by name (api/_skippy/log.ts, ROOM_SUBMINDS). */
+const HANDED_TO: Record<string, string> = { skippy: "Skippy", ember: "The Builder", ticker: "The Bookie", turf: "The Commentator", soot: "The Pessimist", static: "The Messenger" };
+export const handedName = (id: string): string => HANDED_TO[id] ?? "Skippy";
 
 /** "idle" before the first read; "signed-out" without the Desk session; "off" where the route doesn't exist (a local preview). */
 export type AskedStatus = "idle" | "signed-out" | "off" | "live" | "failed";
@@ -38,7 +46,12 @@ export function readAsked(v: unknown, room: AskedRoom): AskedTurn[] | null {
     const question = clip(r.question, 600);
     const answer = clip(r.answer, 700);
     if (!at || !question || !answer) continue;
-    out.push({ at, question, answer, model: clip(r.model, 40) });
+    const needs = typeof r.needs === "string" && r.needs in HANDED_TO ? r.needs : undefined;
+    const f = (r.followUp && typeof r.followUp === "object" ? r.followUp : null) as Record<string, unknown> | null;
+    const fText = f ? clip(f.text, 700) : "";
+    const fAt = f && typeof f.at === "string" && Number.isFinite(Date.parse(f.at)) ? f.at : "";
+    const followUp = f && fText && fAt && typeof f.from === "string" && f.from in HANDED_TO ? { from: f.from, text: fText, at: fAt } : undefined;
+    out.push({ at, question, answer, model: clip(r.model, 40), ...(needs && { needs }), ...(followUp && { followUp }) });
   }
   return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, ASKED_MAX);
 }

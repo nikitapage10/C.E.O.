@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { modelName, readAsked, whenAsked } from "./asked.ts";
+import { handedName, modelName, readAsked, whenAsked } from "./asked.ts";
 
 describe("Asked Skippy, browser side (#273)", () => {
   it("keeps only good turns for the room asked, newest first", () => {
@@ -27,5 +27,24 @@ describe("Asked Skippy, browser side (#273)", () => {
     expect(whenAsked("2026-10-22T15:59:30Z", now)).toBe("just now");
     expect(whenAsked("2026-10-22T15:48:00Z", now)).toBe("12 min ago");
     expect(whenAsked("2026-10-22T13:00:00Z", now)).toBe("3 h ago");
+  });
+});
+
+describe("a hand-off on the panel (#312)", () => {
+  it("keeps who it went to and the answer that came back, and drops what isn't one", () => {
+    const at = "2026-10-23T18:00:00.000Z";
+    const body = {
+      room: "foundry",
+      turns: [
+        { at, question: "Lift?", answer: "Handed off.", model: "m", needs: "ember", followUp: { from: "ember", text: "On the line.", at } },
+        { at, question: "Other?", answer: "Handed off.", model: "m", needs: "rocky", followUp: { from: "x", text: "nope", at } },
+      ],
+    };
+    const [a, b] = readAsked(body, "foundry")!;
+    expect(a).toMatchObject({ needs: "ember", followUp: { from: "ember", text: "On the line.", at } });
+    expect(b!.needs).toBeUndefined();
+    expect(b!.followUp).toBeUndefined();
+    expect(handedName("ember")).toBe("The Builder");
+    expect(handedName("skippy")).toBe("Skippy");
   });
 });

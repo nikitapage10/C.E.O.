@@ -88,3 +88,17 @@
 .desk .skp-asked__more:focus-visible {
   text-decoration: underline;
 }
+
+/* A hand-off (#312): who has it, and the answer that came back, under the ask. */
+.desk .skp-asked__handed {
+  color: var(--rc, var(--wv-hot, #ffdcaa));
+}
+.desk .skp-asked__follow {
+  margin: 0 0 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--rc, var(--wv-line, rgba(236, 238, 243, 0.2)));
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--wv-ink, #eceef3);
+  overflow-wrap: anywhere;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Private } from "../Private.tsx";
 import { useDeskAuth } from "../signin.ts";
-import { modelName, useAsked, whenAsked, type AskedRoom } from "./asked.ts";
+import { handedName, modelName, useAsked, whenAsked, type AskedRoom } from "./asked.ts";
 import { useSkippy } from "./chat.ts";
 import "./asked.css";
 
@@ -60,8 +60,15 @@ export function AskedSkippy({ room, className = "" }: { room: AskedRoom; classNa
                     <span className="skp-asked__meta">
                       <time dateTime={t.at}>{whenAsked(t.at, now)}</time>
                       {t.model && <span> · {modelName(t.model)}</span>}
+                      {t.needs && <span className="skp-asked__handed"> · {t.followUp ? `${handedName(t.followUp.from)} answered` : `with ${handedName(t.needs)}`}</span>}
                     </span>
                   </summary>
+                  {t.followUp && (
+                    <p className="skp-asked__follow">
+                      <b>{handedName(t.followUp.from)}:</b>{" "}
+                      <Private as="span">{t.followUp.text}</Private>
+                    </p>
+                  )}
                 </details>
               </li>
             ))}

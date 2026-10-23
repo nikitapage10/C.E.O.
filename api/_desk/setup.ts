@@ -83,7 +83,12 @@ export function rulesetState(rules: unknown): SetupState {
   return types.has("deletion") && types.has("non_fast_forward") ? "done" : "todo";
 }
 
-/** The repo (GET /repos/{o}/{r}): `allow_auto_merge` when GitHub shows it to this token. */
+/**
+ * The repo (GET /repos/{o}/{r}): `allow_auto_merge` when GitHub shows it to this token. GitHub shows it only to admin
+ * tokens, so the read-only app token gets "unknown", and the Desk keeps an unknown auto-merge off the to-do list
+ * (setupList.ts). GraphQL's `autoMergeAllowed` would answer, but it is a POST, and the Desk's GitHub reads stay
+ * GET-only (api/_security/skippy.test.ts).
+ */
 export function autoMergeState(repo: unknown): SetupState {
   const flag = repo && typeof repo === "object" ? (repo as { allow_auto_merge?: unknown }).allow_auto_merge : undefined;
   return typeof flag === "boolean" ? (flag ? "done" : "todo") : "unknown";

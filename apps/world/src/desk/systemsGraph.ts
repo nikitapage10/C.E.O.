@@ -154,12 +154,12 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     // The Green's real connections (#252): Sleeper's public league data, and FantasyPros where its key is set.
     green: { id: "green", l: "Green", s: L("sleeper") === "wait" ? "Sleeper not read yet" : "your Sleeper league", k: "room", room: "green", state: L("sleeper") },
     sleeper: { id: "sleeper", l: "Sleeper", s: "league, read-only", k: "service", state: L("sleeper") },
-    // The email agent (#263): Gmail read-only, from the Azure copy.
-    gmail: { id: "gmail", l: "Gmail", s: L("gmail") === "wait" ? "on the Azure copy" : "read-only, every minute", k: "service", state: L("gmail") },
-    // The Spire's invoices (#279): PayPal's Invoicing API, from the Azure copy.
-    spire: { id: "spire", l: "Spire", s: L("paypal") === "wait" ? "invoices on the Azure copy" : "PayPal invoices", k: "room", room: "spire", state: L("paypal") },
-    paypal: { id: "paypal", l: "PayPal", s: L("paypal") === "wait" ? "on the Azure copy" : "drafts, sent on your tap", k: "service", state: L("paypal") },
-    fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "key on Azure only" : "projections", k: "service", state: L("fantasypros") },
+    // The email agent (#263): Gmail read-only.
+    gmail: { id: "gmail", l: "Gmail", s: L("gmail") === "wait" ? "not connected yet" : "read-only, every minute", k: "service", state: L("gmail") },
+    // The Spire's invoices (#279): PayPal's Invoicing API.
+    spire: { id: "spire", l: "Spire", s: L("paypal") === "wait" ? "invoices not connected" : "PayPal invoices", k: "room", room: "spire", state: L("paypal") },
+    paypal: { id: "paypal", l: "PayPal", s: L("paypal") === "wait" ? "not connected yet" : "drafts, sent on your tap", k: "service", state: L("paypal") },
+    fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "no key yet" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
   for (const n of foundry.nodes) {

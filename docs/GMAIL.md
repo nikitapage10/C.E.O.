@@ -12,9 +12,11 @@ live only there. The Vercel copy's Desk says "Email: on the Azure copy".
 from the last history id). That costs nothing: no Claude, no message read. Only for **new inbox mail** does it read
 the message, made plain text, links taken out and trimmed to 2,500 characters.
 
+- **A private skip list** and **money and legal mail** come first (see "What it skips"): counted as skipped, never
+  read by a model, never kept.
 - Gmail's own **Promotions** and **Social** tabs are noise by rule: counted, never sent to a model.
-- **Dialtone** (`claude-haiku-5-5`) sorts everything else: **needs you**, **FYI** or **noise**, with a one-line
-  summary and a suggested next step.
+- **Dialtone** (`claude-haiku-5-5`) sorts everything else: **needs you**, **FYI**, **noise** or **skip** (money and
+  legal mail the first look missed), with a one-line summary and a suggested next step.
 - For **needs-you** mail only, **Blasto** (`claude-sonnet-5-5`) writes two or three sentences of advice and, when a
   reply makes sense, a short draft for Nikita to copy and send himself.
 - New needs-you mail **pings the phone** (the Desk's own Web Push pings, `api/_desk/pings.ts`): "An email needs you"
@@ -23,8 +25,44 @@ the message, made plain text, links taken out and trimmed to 2,500 characters.
   **Open in Gmail**, **Done**) and then FYI, folded. **Today** shows "N emails need you". The Lattice's Relay room has a
   brass inbox board with the counts, and the Boiler Room a Gmail pipe.
 
+**The catch-up** (#323). History only shows what arrives after the first check, so once per connection (on the first
+connect, after a reconnect, and once for the connection that existed before the catch-up shipped) the agent also lists
+the **unread inbox mail of the last 48 hours** (`in:inbox is:unread newer_than:2d`, at most 24) and sorts it through
+the same path over the next minutes, in whatever room each minute's limit of 12 reads leaves after new mail. It costs
+what new mail costs, under the same cap; it **never pings** (it isn't new); its queue is message ids only, in the sealed
+state. The Relay page's empty list says it watches mail that arrives after connecting, plus that catch-up.
+
 **Nothing is ever sent, archived, labelled or deleted.** The OAuth scope is `gmail.readonly`, so Gmail itself refuses
-anything else, and the code only makes three GETs (profile, history, one message). A draft is text on the Desk.
+anything else, and the code only makes four kinds of GET (profile, history, the catch-up list, one message). A draft is
+text on the Desk.
+
+## What it skips
+
+Nikita keeps money and legal mail out of the agent (2026-10-22). [`api/_email/filter.ts`](../api/_email/filter.ts)
+looks first, before any Claude call, and new mail and the catch-up both go through it:
+
+1. **A private skip list** (`EMAIL_SKIP_TERMS`, the Key Vault secret `email-skip-terms`): comma-separated terms,
+   matched case-insensitively against the sender, the subject and the body. A match is counted as skipped and nothing
+   else: no model, no summary, no draft, no item, no heads-up, and nothing says which term matched. Missing or empty,
+   it skips nothing.
+2. **Money and legal mail**, by sender and subject: bills, payments, debts, bank and card statements, invoices,
+   receipts, collections, loans, taxes, contracts and legal notices. Counted as skipped; nothing of it is stored, not
+   even in the sealed list.
+3. **Urgent money or legal mail** (a fraud alert, a final or overdue notice, a legal deadline, a locked account) is the
+   one exception: a one-line **heads-up** in the needs-you list, the sender and a fixed reason ("Chase: Possible
+   fraud alert, check your app"). Never an amount, an account number, a detail of the mail or a draft, and it never
+   reaches Blasto.
+
+Mail that passes goes to Dialtone, whose instructions carry the same rule as a **skip** kind (with the same urgent
+exception, chosen from the same fixed reasons). Dialtone's own words about skipped mail are dropped, and skipped mail
+never reaches Blasto. People, plans, work, school, appointments and anything else that needs Nikita come through as
+before. The public status carries a **skipped** count for the day, a number and nothing else.
+
+To set or change the skip list (Azure Cloud Shell; the terms are typed hidden and never echoed):
+
+```bash
+KV=kv-ceo-besgu7fnckib2; read -rsp "Skip terms, comma-separated: " TERMS; echo; az keyvault secret set --vault-name $KV -n email-skip-terms --value "$TERMS" -o none && echo "set email-skip-terms"; unset TERMS; az functionapp config appsettings set -g rg-ceo-prod -n func-ceo-besgu7fnckib2 --settings "EMAIL_SKIP_TERMS=@Microsoft.KeyVault(VaultName=$KV;SecretName=email-skip-terms)" -o none && az functionapp restart -g rg-ceo-prod -n func-ceo-besgu7fnckib2 -o none && echo "skip list in; function app restarted"
+```
 
 ## The cap
 
@@ -44,7 +82,7 @@ turns. The Relay page shows the month's spend against the cap.
 Mail content is private and stays on the private path:
 
 - **In the store**, two sealed blobs in the Azure copy's private `ceo-state` container: `email/token.json` (the
-  refresh token) and `email/state.json` (history id, the last 500 message ids, the mail list kept a week, the month's
+  refresh token) and `email/state.json` (history id, the last 500 message ids, the catch-up queue of ids, the mail list kept a week, the month's
   spend). Both are AES-256-GCM with a key derived from `GMAIL_TOKEN_KEY`, a Key Vault secret
   ([`api/_email/seal.ts`](../api/_email/seal.ts)), so the nightly backup holds nothing readable.
 - **To the browser**, only `GET /api/email` in the Desk's passkey session (`private, no-store`), and every subject,
@@ -138,7 +176,8 @@ references (`infra/resources.bicep`, `secrets`, and `emailBudgetUsd`), so nothin
 2. Open <https://ceo.nikita.page/relay> (or the azurestaticapps.net address) and sign in with your passkey.
 3. In the **Email** section, press **Connect Gmail** → pick your Gmail account → if Google says the app isn't
    verified, **Continue** → tick **View your email messages and settings** → **Continue**.
-4. Back on Relay it says **"Gmail is connected"**. From the next new email on, it shows within about a minute.
+4. Back on Relay it says **"Gmail is connected"**. Unread mail from the last two days is caught up over the next few
+   minutes, and every new email shows within about a minute.
 
 For pings on the phone, turn on **Pings on this device** on the Azure Desk (Foundry tab) on the phone, as in
 SECURITY.md, "Pings on the phone": the Azure copy has its own subscriptions.
@@ -154,4 +193,7 @@ mail stays inside its blocks, the models are told it's data, schemas are closed,
 budget stop (no Claude past the cap, mail still counted, the status says paused); privacy (the public status and the
 world feed's `email` carry no subject or sender; the private list needs the passkey; sealed blobs are unreadable
 without the key); the OAuth state check (only our signed, unexpired state for the same nonce; the callback stores
-nothing on a mismatch; a grant wider than read-only is refused); and that a whole minute logs nothing.
+nothing on a mismatch; a grant wider than read-only is refused); the skip rules (the private skip list, the money and
+legal pre-filter, the urgent heads-up with no amounts, Dialtone's skip, and nothing stored for skipped mail); the
+catch-up (queued once, drained within the per-minute limit, never pinged, re-armed by a reconnect); and that a whole
+minute logs nothing.

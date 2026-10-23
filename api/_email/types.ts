@@ -50,8 +50,8 @@ export interface EmailState {
   items: EmailItem[];
   /** Claude spend by month ("2026-10"). */
   spend: Record<string, EmailMonth>;
-  /** Today's counts (Mountain day "2026-10-22"). */
-  day: { day: string; newCount: number; noise: number };
+  /** Today's counts (Mountain day "2026-10-22"). `skipped`: money, legal and skip-list mail, counted only (#323). */
+  day: { day: string; newCount: number; noise: number; skipped: number };
   /** Mail counted while paused, this month. */
   unsorted: number;
   gmail: GmailState;
@@ -62,6 +62,13 @@ export interface EmailState {
   pingPending: number;
   /** A tick holds the state until this time (ms), so two overlapping ticks never both sort the same mail. */
   busyUntil: number;
+  /**
+   * Whether this connection's catch-up was listed (#323). False on a fresh state, a state saved before the catch-up
+   * existed, and after a connect or reconnect: the next check then lists the unread inbox mail of the last 48 hours.
+   */
+  catchUpListed: boolean;
+  /** The catch-up's message ids still to sort, at most CATCH_UP_MAX; ids only, sealed with the rest. */
+  catchUp: string[];
 }
 
 /** The refresh token's record, sealed at rest. */
@@ -78,9 +85,11 @@ export const MAX_SEEN = 500;
 export const ITEM_KEEP_MS = 7 * 24 * 60 * 60_000;
 /** At most this many new mails are read in one tick; the rest wait for the next one. */
 export const MAX_PER_TICK = 12;
+/** At most this many mails in one connection's catch-up (gmail.ts lists no more). */
+export const CATCH_UP_MAX = 24;
 
 export function emptyEmailState(): EmailState {
-  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0 }, unsorted: 0, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0 };
+  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0 }, unsorted: 0, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [] };
 }
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
@@ -99,13 +108,15 @@ export function readEmailState(v: unknown): EmailState {
     seen: Array.isArray(o.seen) ? (o.seen as unknown[]).filter((s): s is string => typeof s === "string").slice(-MAX_SEEN) : [],
     items: items.slice(0, MAX_ITEMS),
     spend: o.spend && typeof o.spend === "object" && !Array.isArray(o.spend) ? (o.spend as Record<string, EmailMonth>) : {},
-    day: { day: str(day.day, 10), newCount: num(day.newCount), noise: num(day.noise) },
+    day: { day: str(day.day, 10), newCount: num(day.newCount), noise: num(day.noise), skipped: num(day.skipped) },
     unsorted: num(o.unsorted),
     gmail: o.gmail === "connected" || o.gmail === "refused" ? o.gmail : "not-connected",
     lastCheck: typeof o.lastCheck === "number" ? o.lastCheck : null,
     lastError: o.lastError === "gmail" || o.lastError === "claude" || o.lastError === "token" || o.lastError === "store" ? o.lastError : null,
     pingPending: num(o.pingPending),
     busyUntil: num(o.busyUntil),
+    catchUpListed: o.catchUpListed === true,
+    catchUp: Array.isArray(o.catchUp) ? (o.catchUp as unknown[]).filter((s): s is string => typeof s === "string" && /^[0-9a-f]{6,32}$/.test(s)).slice(0, CATCH_UP_MAX) : [],
   };
 }
 

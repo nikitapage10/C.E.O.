@@ -45,14 +45,16 @@ export interface EmailStatus {
   newToday: number;
   /** New mail counted while paused, not sorted. */
   unsorted: number;
+  /** Money, legal and private-skip-list mail today, counted and nothing else (#323). */
+  skipped: number;
   /** The month's spend as a whole percentage of the cap, 0 to 100. */
   budgetPct: number;
   /** When Gmail was last checked (ms), or null before the first check. */
   lastCheck: number | null;
 }
 
-export const EMAIL_STATUS_KEYS = ["v", "at", "gmail", "agent", "needsYou", "fyi", "noise", "newToday", "unsorted", "budgetPct", "lastCheck"] as const satisfies readonly (keyof EmailStatus)[];
-export const EMAIL_COUNT_KEYS = ["needsYou", "fyi", "noise", "newToday", "unsorted"] as const satisfies readonly (keyof EmailStatus)[];
+export const EMAIL_STATUS_KEYS = ["v", "at", "gmail", "agent", "needsYou", "fyi", "noise", "newToday", "unsorted", "skipped", "budgetPct", "lastCheck"] as const satisfies readonly (keyof EmailStatus)[];
+export const EMAIL_COUNT_KEYS = ["needsYou", "fyi", "noise", "newToday", "unsorted", "skipped"] as const satisfies readonly (keyof EmailStatus)[];
 
 const isCount = (n: unknown, max = EMAIL_MAX_COUNT): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= max;
 const isTime = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= EMAIL_EARLIEST && n <= EMAIL_LATEST;
@@ -61,7 +63,9 @@ const oneOf = <T extends string>(list: readonly T[], v: unknown): v is T => type
 /** The status, rebuilt from the allowlist; null for anything else. */
 export function readEmailStatus(input: unknown): EmailStatus | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
-  const o = input as Record<string, unknown>;
+  const raw = input as Record<string, unknown>;
+  // A status written before the skipped count existed (#323) reads as none skipped, until the next minute rewrites it.
+  const o = "skipped" in raw ? raw : { ...raw, skipped: 0 };
   if (Object.keys(o).some((k) => !(EMAIL_STATUS_KEYS as readonly string[]).includes(k))) return null;
   if (o.v !== EMAIL_STATUS_VERSION || !isTime(o.at) || !oneOf(GMAIL_STATES, o.gmail) || !oneOf(EMAIL_AGENT_STATES, o.agent)) return null;
   if (!EMAIL_COUNT_KEYS.every((k) => isCount(o[k])) || !isCount(o.budgetPct, 100)) return null;
@@ -76,6 +80,7 @@ export function readEmailStatus(input: unknown): EmailStatus | null {
     noise: o.noise as number,
     newToday: o.newToday as number,
     unsorted: o.unsorted as number,
+    skipped: o.skipped as number,
     budgetPct: o.budgetPct as number,
     lastCheck: o.lastCheck,
   };
@@ -83,5 +88,5 @@ export function readEmailStatus(input: unknown): EmailStatus | null {
 
 /** Before the agent has ever run. */
 export function emptyEmailStatus(at: number, agent: EmailAgentState = "waiting"): EmailStatus {
-  return { v: EMAIL_STATUS_VERSION, at, gmail: "not-connected", agent, needsYou: 0, fyi: 0, noise: 0, newToday: 0, unsorted: 0, budgetPct: 0, lastCheck: null };
+  return { v: EMAIL_STATUS_VERSION, at, gmail: "not-connected", agent, needsYou: 0, fyi: 0, noise: 0, newToday: 0, unsorted: 0, skipped: 0, budgetPct: 0, lastCheck: null };
 }

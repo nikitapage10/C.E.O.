@@ -43,6 +43,8 @@ export const SECRET_SETTINGS = [
   "GMAIL_CLIENT_ID",
   "GMAIL_CLIENT_SECRET",
   "GMAIL_TOKEN_KEY",
+  // Optional (#323): the email agent's private skip list.
+  "EMAIL_SKIP_TERMS",
   // The Spire's invoices (#279): PayPal's REST app. PAYPAL_ENV (sandbox or live) is a plain setting.
   "PAYPAL_CLIENT_ID",
   "PAYPAL_CLIENT_SECRET",

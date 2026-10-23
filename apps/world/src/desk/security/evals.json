@@ -1,6 +1,6 @@
 {
-  "total": 244,
-  "passing": 244,
+  "total": 245,
+  "passing": 245,
   "expectedFail": 0,
   "areas": [
     {
@@ -41,8 +41,8 @@
     {
       "id": "skippy-chat",
       "file": "skippy.test.ts",
-      "cases": 43,
-      "passing": 43,
+      "cases": 44,
+      "passing": 44,
       "expectedFail": 0
     }
   ]

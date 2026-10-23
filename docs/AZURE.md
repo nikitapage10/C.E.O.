@@ -141,6 +141,7 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
    | `gmail-client-id`, `gmail-client-secret`, `gmail-token-key` (the email agent, #263; Azure only, set up as in [GMAIL.md](GMAIL.md)) | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_KEY` |
    | `paypal-client-id`, `paypal-client-secret` (the Spire's invoices, #279; Azure only, see [PAYPAL.md](PAYPAL.md)) | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
+   | `submind-feed-token` (the room threads' write key, #281; at least 32 random characters; opens only `POST /api/skippy-answer`, #312) | `SUBMIND_FEED_TOKEN` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
    same Claude and Gemini accounts; with Vercel no longer spending (#313) they are the code's own defaults, the ones

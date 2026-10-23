@@ -74,6 +74,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["skippy", skippy],
   // What Nikita asked Skippy, by room (#273): Desk session only; on Vercel a rewrite into api/skippy.ts.
   ["skippy-log", skippy],
+  // A hand-off's answer coming back from Skippy's or a submind's thread (#312): SUBMIND_FEED_TOKEN only.
+  ["skippy-answer", skippy],
   ["visual-qa-feed", visualqafeed],
   // Called on the Function App's own URL (no proxy cut), so the step waits for its day and week stories.
   ["world-step", worldstep, { settleMs: Infinity }],

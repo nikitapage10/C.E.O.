@@ -98,7 +98,9 @@ About ten minutes. Signed in to Google as the Gmail account Relay should read, a
 7. **The OAuth client.** Left menu → **Clients** → **+ Create client**.
    - Application type: **Web application**. Name: `C.E.O. Azure`.
    - **Authorized redirect URIs** → **+ Add URI** →
-     `https://thankful-forest-019308c1e.5.azurestaticapps.net/api/gmail-callback` (exactly, no trailing slash).
+     `https://thankful-forest-019308c1e.5.azurestaticapps.net/api/gmail-callback` (exactly, no trailing slash), then
+     **+ Add URI** again → `https://ceo.nikita.page/api/gmail-callback`. A connect comes back to the address it was
+     started on (#314, docs/DOMAIN.md), so both are listed while both answer.
    - Leave **Authorized JavaScript origins** empty → **Create**.
    - The dialog shows the **Client ID** and **Client secret**. Copy both now (or **Download JSON**): the secret is
      shown only once. Keep them for step 2; don't paste them anywhere else.
@@ -133,7 +135,7 @@ references (`infra/resources.bicep`, `secrets`, and `emailBudgetUsd`), so nothin
 ### 4. Connect
 
 1. Wait for the pull request to merge and **Deploy to Azure** to finish (Actions tab, 3 to 4 minutes).
-2. Open <https://thankful-forest-019308c1e.5.azurestaticapps.net/relay> and sign in with your passkey.
+2. Open <https://ceo.nikita.page/relay> (or the azurestaticapps.net address) and sign in with your passkey.
 3. In the **Email** section, press **Connect Gmail** → pick your Gmail account → if Google says the app isn't
    verified, **Continue** → tick **View your email messages and settings** → **Continue**.
 4. Back on Relay it says **"Gmail is connected"**. From the next new email on, it shows within about a minute.

@@ -30,9 +30,9 @@ import { dropEndpoint, liveSubs, needsOf, PING_TTL_S, pingText, planPings, readS
 import { requireSession, withCookie, type DeskDeps } from "./_desk/session.js";
 import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import { githubToken } from "./_github.js";
+import { siteUrl } from "./_site/hosts.js";
 
 const REPO = "nikitapage10/C.E.O.";
-const SITE = "https://thankful-forest-019308c1e.5.azurestaticapps.net";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -53,9 +53,9 @@ export interface PingDeps extends DeskDeps {
 
 const env = (name: string) => process.env[name] ?? "";
 
-/** The VAPID contact: DESK_VAPID_SUBJECT when it is an https: or mailto: address, else the site itself. */
+/** The VAPID contact: DESK_VAPID_SUBJECT when it is an https: or mailto: address, else the site itself (CEO_SITE_URL, #314). */
 export function vapidSubject(given = env("DESK_VAPID_SUBJECT")): string {
-  return /^(https:\/\/|mailto:)\S+$/.test(given) ? given : SITE;
+  return /^(https:\/\/|mailto:)\S+$/.test(given) ? given : siteUrl();
 }
 
 export async function webPushSend(sub: PingSub, text: PingText): Promise<Sent> {

@@ -33,7 +33,9 @@ jobs:
       contents: read
       id-token: write
     env:
-      SITE: https://thankful-forest-019308c1e.5.azurestaticapps.net
+      # The site's public host: the AZURE_SITE_HOST repository variable (ceo.nikita.page once Nikita confirms the
+      # switch, docs/DOMAIN.md), else the Static Web App's own address, which keeps answering either way.
+      SITE: https://${{ vars.AZURE_SITE_HOST || 'thankful-forest-019308c1e.5.azurestaticapps.net' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

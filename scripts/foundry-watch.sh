@@ -33,7 +33,10 @@ look() {
 # passed, so the extra nudges cost nothing. It also nudges once on every start: the Builder restarts this script after
 # each ring, and on a busy day it never ran ten unbroken minutes, so the world went over an hour without a step.
 # Azure is the only home (#313): the site's /api may cut a long step at ~45 s, but the step itself still lands.
-world() { curl -sS -o /dev/null --max-time 120 -X POST https://thankful-forest-019308c1e.5.azurestaticapps.net/api/world-step || true; }
+# CEO_SITE overrides the address (https://ceo.nikita.page once switched, docs/DOMAIN.md); the Static Web App's own
+# address keeps answering either way.
+site="${CEO_SITE:-https://thankful-forest-019308c1e.5.azurestaticapps.net}"
+world() { curl -sS -o /dev/null --max-time 120 -X POST "$site/api/world-step" || true; }
 ticks=0
 world &
 

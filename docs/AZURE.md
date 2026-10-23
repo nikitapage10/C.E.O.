@@ -1,9 +1,12 @@
 # C.E.O. on Azure
 
-C.E.O.'s Azure footprint, as Bicep in [`infra/`](../infra): a second working copy of the site alongside Vercel,
-which stays production and is untouched. One paste in Azure Cloud Shell creates all of it, and the app's code runs
-on both (see [The port](#the-port)); the deploy workflow and nightly backup are in [Deploys and backups](#deploys-and-backups).
-No Azure OpenAI or Speech: the functions keep calling Claude and Gemini as they do on Vercel.
+C.E.O.'s home, as Bicep in [`infra/`](../infra): **Azure is production and the only home** (Nikita, 2026-10-23,
+#313), at <https://ceo.nikita.page> and its own <https://thankful-forest-019308c1e.5.azurestaticapps.net>
+(both answer during the switch, #314: [DOMAIN.md](DOMAIN.md)). Vercel, where C.E.O. started, is being retired:
+nothing runs against it any more except the one final copy of its world, and what Nikita switches off there is in
+[Retiring Vercel](#retiring-vercel). One paste in Azure Cloud Shell creates all of it (the app's Vercel adapter code
+stays until Vercel is off, see [The port](#the-port)); the deploy workflow and nightly backup are in
+[Deploys and backups](#deploys-and-backups). No Azure OpenAI or Speech: the functions call Claude and Gemini directly.
 
 ## What gets created
 
@@ -13,7 +16,7 @@ In the resource group `rg-ceo-prod` (West US 3, the Static Web App in West US 2:
 | --- | --- | --- |
 | Static Web App `swa-ceo`, Standard | The site (`apps/world/dist`), with the Function App linked as its `/api` | about $9 |
 | Function App `func-ceo-…`, Flex Consumption, Node 22 | The `api/` functions, system-assigned identity, 10-minute timeout | $0–5 (the hourly world step is most of it) |
-| Storage account `stceo…`, Standard LRS | `ceo-state` (what Vercel Blob holds on Vercel), `ceo-backups` and the functions' code package. No public blobs, no account keys, TLS 1.2 | under $1 |
+| Storage account `stceo…`, Standard LRS | `ceo-state` (the world, its stories, idea pictures and the Desk's store), `ceo-backups` and the functions' code package. No public blobs, no account keys, TLS 1.2 | under $1 |
 | Key Vault `kv-ceo-…`, RBAC | Every secret the functions read, as Key Vault references in their app settings | under $1 |
 | Log Analytics `log-ceo` + Application Insights `appi-ceo` | Logs and traces, capped at 0.2 GB a day (the first 5 GB a month are free) | $0–3 |
 
@@ -47,27 +50,39 @@ names and URLs it made.
 ## After the paste
 
 1. **Fill the secrets.** Two parts: one paste mints the secrets that are ours to make, and three come from outside
-   by hand. Vercel's values can't be read back (they are marked sensitive), so the Azure copy gets its own.
+   by hand. Vercel's values can't be read back (they are marked sensitive), so Azure has its own.
+
+   > **What this does.** Service: Azure (Cloud Shell, the Key Vault and the Function App). It re-runs the template
+   > (app settings, roles, the budgets) and adds any missing secret to the vault, keeping the ones already there,
+   > then restarts the Function App (a few seconds of downtime). Why: so the functions and the workflows have their
+   > keys. Cost: nothing extra. Undo: re-run with other `-p` values; a secret can be disabled or deleted in the vault.
 
    **The paste**, in Cloud Shell (Bash), after the [one-time setup](#one-time-setup) below. It brings the template
-   up to date (with `githubPrincipalId`, so GitHub's identity gets Key Vault Secrets User and the hourly pings can
-   read `desk-pings-secret`; and the budget settings), then writes straight into the vault (`kv-ceo-besgu7fnckib2`
+   up to date (keeping the home address the Function App already has, so it never undoes the ceo.nikita.page
+   switch in [DOMAIN.md](DOMAIN.md); with `githubPrincipalId`, so GitHub's identity gets Key Vault Secrets User and the hourly pings can
+   read `desk-pings-secret` and the live watch `site-bypass-token`; and the budget settings), then writes straight into the vault (`kv-ceo-besgu7fnckib2`
    today; it looks the names up in `rg-ceo-prod`) and restarts the Function App so it picks them up:
 
    - `desk-vapid-public-key` / `desk-vapid-private-key`: a fresh P-256 push key pair, made by Node in Cloud Shell, in
      the form `web-push` takes (base64url: the uncompressed public point, and the private scalar `d`);
    - `desk-vapid-subject`: `mailto:` and the address you're signed in to Azure with;
    - `desk-pings-secret`: 32 random bytes, base64url. Nobody needs a copy: `desk-pings.yml` reads it from the vault;
+   - `site-bypass-token`: 32 random bytes, base64url, the site lock's bypass (#236, #313). Nobody needs a copy either:
+     `live-watch.yml` reads it from the vault and sends it only to the site, so the hourly check sees a locked site;
    - `foundry-desk-key`: 32 random bytes, base64url, **printed once** at the end. It is the Azure Desk's sign-in key:
      keep it in your password manager and use it to enrol a passkey on the Azure address (see "Passkeys are per
      domain" below). It isn't Vercel's Desk key.
+
+   It ends by changing one throwaway setting (`KEYVAULT_REFRESH`) rather than only restarting: on the Flex plan a
+   plain restart can keep a Key Vault reference that failed before its secret existed, and a settings change makes the
+   app read every reference again. If a value you add by hand later still shows as missing, run that last line again.
 
    A secret that already has a value is kept, never replaced (the paste says `kept …`), so running it again is safe.
    To replace them all on purpose (it signs every Azure Desk session out and drops its phones' pings), run
    `export FORCE=1` first and `unset FORCE` after.
 
 ```bash
-(git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId="$(az ad signed-in-user show --query id -o tsv)" githubPrincipalId="$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv)" -o none && echo "infra updated" && \
+(git -C ceo-azure pull -q || git clone -q --depth 1 https://github.com/nikitapage10/C.E.O..git ceo-azure) && SOD=$(az functionapp list -g rg-ceo-prod --query "[0].name" -o tsv | xargs -r -I{} az functionapp config appsettings list -g rg-ceo-prod -n {} --query "[?name=='CEO_SITE_URL'].value | [0]" -o tsv 2>/dev/null || true) && az deployment sub create -n ceo -l westus3 -f ceo-azure/infra/main.bicep -p deployerPrincipalId="$(az ad signed-in-user show --query id -o tsv)" githubPrincipalId="$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv)" siteOnCustomDomain=$([ "$SOD" = "https://ceo.nikita.page" ] && echo true || echo false) -o none && echo "infra updated (home address: ${SOD:-the azurestaticapps.net one})" && \
 (RG=rg-ceo-prod; KV=$(az keyvault list -g $RG --query "[0].name" -o tsv); FA=$(az functionapp list -g $RG --query "[0].name" -o tsv)
 [ -n "$KV" ] && [ -n "$FA" ] || { echo "No Key Vault or Function App in $RG yet: run the paste above first."; exit 1; }
 has() { [ "${FORCE:-0}" != 1 ] && [ -n "$(az keyvault secret show --vault-name "$KV" -n "$1" --query value -o tsv 2>/dev/null)" ]; }
@@ -78,8 +93,9 @@ if has desk-vapid-public-key || has desk-vapid-private-key; then echo "kept desk
   put desk-vapid-private-key "$PRIV" && put desk-vapid-public-key "$PUB"; fi
 if has desk-vapid-subject; then echo "kept desk-vapid-subject"; else U=$(az account show --query user.name -o tsv); put desk-vapid-subject "mailto:${U#*#}"; fi
 if has desk-pings-secret; then echo "kept desk-pings-secret"; else put desk-pings-secret "$(rnd)"; fi
+if has site-bypass-token; then echo "kept site-bypass-token"; else put site-bypass-token "$(rnd)"; fi
 if has foundry-desk-key; then echo "kept foundry-desk-key"; else K=$(rnd); put foundry-desk-key "$K" && printf '\nYour Azure Desk key, shown only now (keep it in your password manager):\n%s\n\n' "$K"; fi
-az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
+az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRESH=$(date -u +%Y%m%d%H%M%S)" -o none && echo "refreshed $FA (it restarts and re-reads the vault)")
 ```
 
    **By hand, three secrets** (they come from other services), and two optional ones for the Exchange. In the [Azure portal](https://portal.azure.com):
@@ -125,15 +141,18 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
    | `gemini-api-key` | `GEMINI_API_KEY` |
    | `desk-vapid-public-key`, `desk-vapid-private-key`, `desk-vapid-subject` | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY`, `DESK_VAPID_SUBJECT` |
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
+   | `site-bypass-token` (the live watch's way past the site lock, #313) | `SITE_BYPASS_TOKEN` |
    | `polymarket-us-key-id`, `polymarket-us-secret-key` | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` (optional, #253: the Exchange's read-only positions; Azure only) |
    | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
    | `gmail-client-id`, `gmail-client-secret`, `gmail-token-key` (the email agent, #263; Azure only, set up as in [GMAIL.md](GMAIL.md)) | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_KEY` |
    | `paypal-client-id`, `paypal-client-secret` (the Spire's invoices, #279; Azure only, see [PAYPAL.md](PAYPAL.md)) | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
+   | `submind-feed-token` (the room threads' write key, #281; at least 32 random characters; opens only `POST /api/skippy-answer`, #312) | `SUBMIND_FEED_TOKEN` |
 
-   **Budgets** aren't secrets: the template sets them as plain app settings, lower than Vercel's because both copies
-   use the same Claude and Gemini accounts, and each copy keeps its own ledger. `WORLD_BUDGET_USD=2` (Vercel: 6),
-   `GEMINI_BUDGET_USD=2` (Vercel: 5) and `SKIPPY_BUDGET_USD=0.5` (Vercel: 1); change one with `-p worldBudgetUsd=3`
-   (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. The email agent's own cap, `EMAIL_BUDGET_USD=10`
+   **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
+   same Claude and Gemini accounts; with Vercel no longer spending (#313) they are the code's own defaults, the ones
+   Vercel ran on: `WORLD_BUDGET_USD=6`, `GEMINI_BUDGET_USD=5` and `SKIPPY_BUDGET_USD=2` (agreed 2026-10-22), so the
+   total a month is what it was across both. They take effect when the template paste runs again. Change one with
+   `-p worldBudgetUsd=3` (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. The email agent's own cap, `EMAIL_BUDGET_USD=10`
    (`emailBudgetUsd`, #263), is separate from those and exists only here. `PAYPAL_ENV` (`paypalEnv`, #279) is
    `sandbox` unless the paste passes `-p paypalEnv=live`. Anything set by hand in the portal is reset by the next
    template run, so change them there.
@@ -147,7 +166,8 @@ az functionapp restart -g $RG -n "$FA" -o none && echo "restarted $FA")
 
 ## The port
 
-The same code runs on Vercel and on Azure; nothing here changes how Vercel runs it.
+The code still runs on both (the Vercel handlers, `vercel.json`, `middleware.ts` and `@vercel/blob` stay until Vercel
+is off, #313), but only Azure serves it.
 
 - **The functions.** Each `api/<name>.ts` keeps its Vercel handlers (`GET`/`POST`, web `Request` → `Response`).
   The [`azure/`](../azure) package registers every one of them as an Azure Functions HTTP function (Node 22,
@@ -263,24 +283,31 @@ until the one-time setup below is done, so main stays green either way.
   the site (prebuilt `apps/world/dist`, uploaded with no rebuild) and the functions (`azure/dist/functions.zip`,
   zip-deployed to Flex Consumption) go out in parallel. Expect about 3 to 4 minutes from push to live.
 - **`.github/workflows/world-step.yml`** and **`.github/workflows/desk-pings.yml`**, hourly (and pings on Foundry
-  issue events): each has a second job, `azure`, beside the Vercel one. The world step calls the Function App's own
+  issue events): each is one job, `azure` (the Vercel jobs went with #313). The world step calls the Function App's own
   address (`az resource show … properties.defaultHostName`; `az functionapp show` came back empty for the Flex app,
   #271), since a step can take minutes and the site's proxy may cut it; if that address refuses callers (a linked
   Static Web App can do that) or can't be found, it goes through the site's `/api` instead (`AZURE_SITE_HOST`, else
   `az staticwebapp show`, else the site's known address), and a step that still fails fails the job. The steady
-  driver for both worlds is the Function App's own timer, `world_tick` (`azure/src/tick.ts`), at :05 and :35.
-  The pings job reads `desk-pings-secret` from the vault at run time (masked in the log; GitHub keeps no copy, and
-  it isn't Vercel's), which needs the Key Vault Secrets User role the template gives GitHub's identity. Until Azure
-  is set up the job is skipped; if the pings job's sign-in, vault read or call fails it leaves a warning and the run
-  stays green, since Vercel is production. Each run shows as a deployment to the `azure` environment, like the backups.
-- **`.github/workflows/backup-azure.yml`**, nightly at 10:41 UTC: the production world from Vercel's public API
-  (`/api/world` and the last 7 days), everything in the Azure copy's `ceo-state`, and `apps/world/public/models`,
-  into `ceo-backups/<YYYY-MM-DD>/` in Cool tier. The container keeps 90 days.
+  driver is the Function App's own timer, `world_tick` (`azure/src/tick.ts`), at :05 and :35; it no longer knocks
+  on Vercel (`WORLD_TICK_VERCEL=on` would turn that back on; the adapter stays until Vercel is off).
+  The pings job reads `desk-pings-secret` from the vault at run time (masked in the log; GitHub keeps no copy),
+  which needs the Key Vault Secrets User role the template gives GitHub's identity, and finds the Function App the
+  same way as the world step, falling back to the site's `/api`. Until Azure is set up the job is skipped; once it
+  is, a failed sign-in, vault read or call is a red run, since Azure is production. Each run shows as a deployment to
+  the `azure` environment, like the backups.
+- **`.github/workflows/live-watch.yml`**, hourly at :23: the boot check against the Azure site. It signs in the same
+  way and reads `site-bypass-token` from the vault (masked) to see past the site lock; without it a locked site is
+  checked only for its login page.
+- **`.github/workflows/backup-azure.yml`**, nightly at 10:41 UTC: everything in production's `ceo-state` and
+  `apps/world/public/models`, into `ceo-backups/<YYYY-MM-DD>/` in Cool tier. The container keeps 90 days. It no
+  longer reads anything through the Vercel site (#313).
 
 ### Seeding the Azure state
 
-A one-off: copy production's world (`world/state.json` and every day) and its stories with their audio into
-`ceo-state`, under the store's own names, so the Azure copy carries on from where production is. The Desk's sign-ins
+The final copy from Vercel (#313; the steps Nikita follows are in [Retiring Vercel](#retiring-vercel)): copy the
+Vercel world (`world/state.json` and every day) and its stories with their audio into `ceo-state`, under the store's
+own names, so Azure carries on from where Vercel left off. It is a one-time job; the `seed` option goes from the
+workflow once Vercel is off. The Desk's sign-ins
 (`desk/`) stay behind: passkeys and phones belong to their address. The world's month of Claude spend and Gemini's
 month of speech spend come with it, so the Azure budgets start where production's month is.
 
@@ -314,14 +341,15 @@ idea pictures included (`scripts/seed-azure-pull.mjs`):
 **How GitHub signs in:** OIDC only. GitHub gives each job a short-lived token, and Azure trusts it only for this
 repo's `azure` environment, which only `main` may use. No password or key is stored in GitHub; the Static Web App's
 deployment token is read at run time and masked. The identity has Contributor on `rg-ceo-prod`, blob data access on
-the storage account and Key Vault Secrets User on the vault (for `desk-pings-secret`), and nothing outside the
+the storage account and Key Vault Secrets User on the vault (for `desk-pings-secret` and `site-bypass-token`), and nothing outside the
 resource group.
 
 **Pull requests** don't deploy to Azure: that would give Azure credentials to pull request code in a public repo.
-Vercel's previews cover them.
+The `checks` run covers them, the boot check included (it loads the PR's build in Chromium); there are no preview
+sites.
 
 **Rolling back:** open Actions, "Deploy to Azure", pick the last good run and choose "Re-run all jobs". It rebuilds
-that commit and ships it. (Vercel rolls back on its own dashboard, as before.)
+that commit and ships it, in about 3 to 4 minutes. (A `git revert` pull request does the same through the usual path.)
 
 ### One-time setup
 
@@ -354,4 +382,62 @@ Secrets User included. A setup made before that role was added gets it from the 
 one added by hand with `az role assignment create` gets a different name, and the next template run then fails
 with `RoleAssignmentExists`.)
 
-From then on every push to `main` updates both Vercel and Azure.
+From then on every push to `main` updates production on Azure.
+
+## Retiring Vercel
+
+Azure is the only home (#313). The crew deletes nothing in Vercel; these are Nikita's steps, in order. The ruleset on
+`main` requires only `checks`, so disconnecting Vercel never blocks a merge.
+
+**1. The secrets paste, once.**
+
+> **What this does.** Service: Azure. Re-runs the template and the secrets paste, which adds `site-bypass-token` to
+> the Key Vault and wires it to the Function App, and raises the budgets to world $6, Gemini $5, Skippy $2. Why: the
+> live watch needs the token to see past the site lock, and Azure takes over the spend Vercel had. Cost: up to $13 a
+> month in Claude and Gemini, the same total as before because Vercel stops. Undo: re-run with lower `-p` budgets.
+
+Run the secrets paste in [After the paste](#after-the-paste) again in Cloud Shell. It
+brings the template up to date (the new `site-bypass-token` reference, and the budgets at world $6, Gemini $5 and
+Skippy $2 now that Vercel stops spending, so the total a month is unchanged), mints `site-bypass-token`, keeps every
+secret that already has a value, and restarts the Function App.
+
+**2. The final world copy**
+
+> **What this does.** Services: Vercel (read one token), GitHub (a secret for ten minutes, one workflow run) and
+> Azure (`ceo-state`). It replaces Azure's world, stories and idea pictures with Vercel's, so the Lattice carries on
+> from Vercel's history. Cost: nothing. Undo: blob soft delete keeps every replaced file for 14 days, and
+> `ceo-backups` holds last night's copy.
+
+Blob mode copies `world/` and the idea pictures straight from Vercel Blob, so it needs no bypass token and no site
+unlock. The token sits in GitHub for about ten minutes:
+
+1. Vercel → the project → **Storage** → the Blob store → **.env.local** tab → **Show secret** → copy
+   `BLOB_READ_WRITE_TOKEN`'s value (the store's own token, not a project setting, so it can be shown).
+2. GitHub → the repo's **Settings → Secrets and variables → Actions → Secrets → New repository secret**, name
+   `BLOB_READ_WRITE_TOKEN`, paste the value.
+3. Between **:10 and :30 past the hour** (clear of the world step at :05 and :35, so no step lands mid-copy), Actions
+   → **Back up to Azure** → **Run workflow**, tick **seed** and **force**, **Run workflow**. Wait for it to go green;
+   it says how many files it copied.
+4. Delete the `BLOB_READ_WRITE_TOKEN` secret again (it can read and write Vercel's store).
+5. Open the Azure Desk and check the world clock, the Chronicle and an idea with a picture.
+
+**3. After 3 to 5 clean days on Azure:**
+
+> **What this does.** Service: Vercel. Disconnects the repo, so merges to `main` stop building on Vercel; its last
+> deploy stays up, frozen. Why: Azure is the only home, and two live copies drift. Cost: nothing (Vercel stops
+> building). Undo: Settings → Git → connect the repo again.
+
+Vercel → the project → **Settings → Git** → **Disconnect**, so `main` no longer builds there. The site stays up as it was, but nothing updates it.
+
+**4. About 30 days later:**
+
+> **What this does.** Services: Vercel, Anthropic, Google AI Studio, GitHub. Removes Vercel's copy for good: the
+> Blob store (the cold backup), its keys, two unused GitHub secrets and the project. Why: nothing reads them any more,
+> and an unused key is only risk. Cost: saves whatever Vercel was billing. Undo: **none** for the store and the
+> project (copy anything wanted first); keys and secrets can be made again.
+
+Delete the Vercel Blob store (it is the cold backup until then), revoke Vercel's keys (a
+new Claude key and Gemini key were made for Azure; the Vercel ones, and its `FOUNDRY_GITHUB_TOKEN`, can go), delete
+the GitHub Actions secrets `SITE_BYPASS_TOKEN` and `DESK_PINGS_SECRET` (no workflow reads them since #313), and delete
+the Vercel project. Then the crew removes the seed job, the Vercel adapter code, `vercel.json`, `middleware.ts` and
+`@vercel/blob` in a later pull request.

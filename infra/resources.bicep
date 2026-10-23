@@ -44,6 +44,9 @@ param emailBudgetUsd string
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV): sandbox or live.')
 param paypalEnv string
 
+@description('Make ceo.nikita.page the site\'s home (CEO_SITE_URL, #314) once Nikita confirms the switch. Both addresses answer either way.')
+param siteOnCustomDomain bool
+
 param tags object
 
 // Globally unique names carry a hash of the resource group, so the same paste lands on the same names every time.
@@ -70,7 +73,12 @@ var secrets = [
   { setting: 'DESK_VAPID_PRIVATE_KEY', secret: 'desk-vapid-private-key' }
   { setting: 'DESK_VAPID_SUBJECT', secret: 'desk-vapid-subject' } // the pings' contact (mailto: or https:)
   { setting: 'DESK_PINGS_SECRET', secret: 'desk-pings-secret' } // shared with the desk-pings workflow
+  { setting: 'SITE_BYPASS_TOKEN', secret: 'site-bypass-token' } // the site lock's bypass, shared with the live-watch workflow (#313)
   { setting: 'FANTASYPROS', secret: 'fantasypros' } // the Green's FantasyPros API key (x-api-key); Azure only
+  // The Studio's voice and picture keys (#311), each capped at $10 a month in code; Azure only. Nikita set these by
+  // hand before they were here, and the template replaces the whole settings list, so they must be listed.
+  { setting: 'ELEVENLABS_API_KEY', secret: 'elevenlabs' }
+  { setting: 'OPENAI_STUDIO_KEY', secret: 'openai' }
   // Nikita's Polymarket US key (#253), for the Exchange's private positions board: read-only by code (the key itself
   // could trade; api/_exchange/positions.ts only ever signs GETs to the two portfolio paths). Optional: without it the
   // board waits.
@@ -86,6 +94,9 @@ var secrets = [
   // PAYPAL_ENV setting below; switching to live means pasting the Live app's id and secret here.
   { setting: 'PAYPAL_CLIENT_ID', secret: 'paypal-client-id' }
   { setting: 'PAYPAL_CLIENT_SECRET', secret: 'paypal-client-secret' }
+  // The room threads' write key (#281, #312): opens only POST /api/skippy-answer, a hand-off's answer coming back to
+  // the Desk. At least 32 random characters; without it that route stays off.
+  { setting: 'SUBMIND_FEED_TOKEN', secret: 'submind-feed-token' }
 ]
 
 // Built-in role IDs (the same in every tenant).
@@ -260,6 +271,11 @@ var plainSettings = [
   { name: 'EMAIL_BUDGET_USD', value: emailBudgetUsd }
   // The Spire's invoices (#279): sandbox until Nikita switches to live (docs/PAYPAL.md).
   { name: 'PAYPAL_ENV', value: paypalEnv }
+  // The site's home address (api/_site/hosts.ts): the pings' contact and the Gmail callback's fallback. The
+  // azurestaticapps.net address until Nikita confirms the switch to ceo.nikita.page (docs/DOMAIN.md). The domain
+  // itself (the nikita.page zone, its records, the custom domain on swa-ceo) was set up by hand and stays out of here,
+  // so a deployment never touches the zone's other names (www, tide, the apex, mail).
+  { name: 'CEO_SITE_URL', value: siteOnCustomDomain ? 'https://ceo.nikita.page' : 'https://${site.properties.defaultHostname}' }
 ]
 
 resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
@@ -398,10 +414,11 @@ resource deployerState 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
   }
 }
 
-// GitHub Actions (deploy-azure.yml, backup-azure.yml, world-step.yml, desk-pings.yml), signed in through OIDC from
-// main only: Contributor on this group to ship the site and the functions, blob data access for the nightly backup
-// and the one-off seed (shared keys are off), and read access to the vault's secrets so the hourly pings can read
-// `desk-pings-secret` at run time instead of keeping a copy in GitHub.
+// GitHub Actions (deploy-azure.yml, backup-azure.yml, world-step.yml, desk-pings.yml, live-watch.yml), signed in
+// through OIDC from main only: Contributor on this group to ship the site and the functions, blob data access for the
+// nightly backup and the one-off seed (shared keys are off), and read access to the vault's secrets so the hourly
+// pings and the live watch can read `desk-pings-secret` and `site-bypass-token` at run time instead of keeping copies
+// in GitHub.
 resource githubDeploy 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubPrincipalId)) {
   name: guid(resourceGroup().id, githubPrincipalId, roles.contributor)
   properties: {

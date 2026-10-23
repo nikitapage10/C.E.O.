@@ -55,6 +55,7 @@
     { "source": "/api/exchange-positions", "destination": "/api/world?exchange=positions" },
     { "source": "/api/green-league", "destination": "/api/world?green=league" },
     { "source": "/api/skippy-log", "destination": "/api/skippy?log=1" },
+    { "source": "/api/skippy-answer", "destination": "/api/skippy?answer=1" },
     { "source": "/api/green-analysis", "destination": "/api/world?green=analysis" }
   ]
 }

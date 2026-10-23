@@ -21,7 +21,7 @@ const CHAPTERS = ["People and factions", "Maps", "Pictures", "Session notes"];
 
 const WAITS: Wait[] = [
   { what: "The Tide's website", why: "Its address, and a read-only feed of the campaign, the sessions and the storyline." },
-  { what: "Private pictures, in Vercel Blob", why: "Maps and art the party shouldn't see yet, shown only when you're signed in." },
+  { what: "Private pictures, in Azure Blob", why: "Maps and art the party shouldn't see yet, shown only when you're signed in." },
 ];
 
 /** A blank sea chart: tide lines drifting across it, gilt motes riding them. */

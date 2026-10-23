@@ -229,6 +229,20 @@ describe("the tool-call log's lines", () => {
   });
 });
 
+describe("the project settings file", () => {
+  // A stray comma once made Claude Code drop the whole file, which silently turned the guard off (#317).
+  const settings = () => JSON.parse(readFileSync(join(import.meta.dirname, "../settings.json"), "utf8"));
+
+  it("parses as JSON", () => {
+    expect(settings).not.toThrow();
+  });
+
+  it("still wires the guard hook", () => {
+    const hooks = settings().hooks.PreToolUse.flatMap((entry) => entry.hooks.map((hook) => hook.command));
+    expect(hooks.some((command) => command.includes("guard-hook.mjs"))).toBe(true);
+  });
+});
+
 describe("the hooks themselves", () => {
   const dir = mkdtempSync(join(tmpdir(), "ceo-guard-"));
   afterAll(() => rmSync(dir, { recursive: true, force: true }));

@@ -1,5 +1,5 @@
-# Ships main to the Azure copy of C.E.O., beside Vercel (docs/AZURE.md, "Deploys and backups"). Vercel stays
-# production and deploys itself; this workflow only keeps the Azure copy in step.
+# Ships main to production: C.E.O. on Azure, its only home since #313 (docs/AZURE.md, "Deploys and backups").
+# Every merge into main goes live through this workflow; rolling back is re-running an older run of it.
 #
 # One build, then the site and the functions go out in parallel: the prebuilt apps/world/dist is uploaded to the
 # Static Web App (no rebuild there), and azure/dist/functions.zip is zip-deployed to the Flex Consumption app.
@@ -9,8 +9,8 @@
 # token is read at run time and masked. The identity holds Contributor on the C.E.O. resource group and nothing else.
 #
 # Until Azure is set up (the AZURE_CLIENT_ID variable is empty) every job is skipped, so main stays green.
-# Pull requests get no Azure deploy on purpose: that would hand Azure credentials to pull request code. Vercel's
-# previews cover them.
+# Pull requests get no Azure deploy on purpose: that would hand Azure credentials to pull request code. The checks
+# (and the boot check on the PR's build) cover them.
 name: Deploy to Azure
 
 on:

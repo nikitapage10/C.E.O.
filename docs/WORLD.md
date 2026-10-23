@@ -7,12 +7,13 @@ Lattice the agents pick up where they left off, and the Desk's **Chronicle** has
 ## The hourly step
 
 - **Trigger:** the Azure Function App's timer `world_tick` (`azure/src/tick.ts`, #271) runs at :05 and :35 every
-  hour: it steps the Azure world in-process and POSTs to
-  `https://command-everything-obviously.vercel.app/api/world-step`. No secret: the step is idempotent per hour, and the
-  site gate lets that POST through. `.github/workflows/world-step.yml` still knocks at :05 (GitHub Actions, free), but
+  hour: it steps the world in-process (Azure is the only home since #313; the old knock on Vercel's step is off, and
+  `WORLD_TICK_VERCEL=on` would bring it back while the adapter stays). No secret: the step is idempotent per hour,
+  and the site gate lets a POST to `/api/world-step` through. `.github/workflows/world-step.yml` still knocks at :05
+  on the Azure site (GitHub Actions, free), but
   GitHub's schedule is best-effort (on 2026-10-13 it didn't fire for hours; on 2026-10-21/22 only every four to five
   hours, which left the Boiler Room's world clock DOWN), and the Builder's doorbell (`scripts/foundry-watch.sh`) also
-  POSTs every ten minutes while it runs; the extra calls do nothing until the hour is up.
+  POSTs to the Azure site every ten minutes while it runs; the extra calls do nothing until the hour is up.
 - **Idempotent:** if the last step is under 55 minutes old, the call changes nothing and spends nothing, and
   says when the saved hour was written (`{ stepped: false, at, nextAt }`; never the hour's words, since the site lock
   lets this trigger through, #236). Two calls racing for the same hour can't both land:
@@ -39,7 +40,7 @@ Lattice the agents pick up where they left off, and the Desk's **Chronicle** has
   only public Foundry titles, and every line in and out goes through `scrub` (emails, phone numbers, card numbers,
   keys, links and amounts are hidden). `api/_world/prompt.test.ts` checks that a feed full of private material
   leaves none of it in the prompt.
-- **The cast:** the step runs as a Vercel function and can't load the simulator package, so `npm run world:cast`
+- **The cast:** the step runs as a bundled function and can't load the simulator package, so `npm run world:cast`
   writes the cast it needs into `api/_world/cast.ts` (from `packages/simulator/src/worldCast.ts`). A test fails when
   that file falls behind the cast: run the script after changing an agent, a relationship or their quips.
 
@@ -118,8 +119,10 @@ normal voice in #107): a short "today in Ilyr" in 30 to 45 seconds, one clear sp
 `api/_world/store.ts` is one small interface: `loadState`, `saveState`, `appendHistory`, `putRecap`, `readDay`.
 `WORLD_STORE` picks the store:
 
-- `blob` (default): the project's **private Vercel Blob** store, signed in with Vercel's OIDC token the same way as
-  the idea pictures (no key in the code). `world/state.json` holds the state; `world/days/<day>.json` holds each
+- `azureblob` (what production runs, set by the Azure template): the private `ceo-state` container in Azure Blob
+  Storage, signed in with the Function App's managed identity (no key in the code; docs/AZURE.md, "The port").
+- `blob` (the code's default, kept until Vercel is off, #313): Vercel's private Blob store, signed in with Vercel's
+  OIDC token the same way as the idea pictures. `world/state.json` holds the state; `world/days/<day>.json` holds each
   day's hours and recap. About two writes a step, about 1,500 a month.
 - `supabase`: C.E.O.'s own Supabase project, once it is connected. A skeleton for now, with the tables written out
   in its comment. To switch: build the methods, set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, copy the days

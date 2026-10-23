@@ -189,7 +189,7 @@ const TZ: { x: number; label: string; zones: ZoneId[] }[] = [
   { x: 0.68, label: "Services", zones: ["claude", "github", "builder"] },
   { x: 1, label: "Public", zones: ["public"] },
 ];
-const ZONE_SHORT: Record<ZoneId, string> = { browser: "The Desk", relay: "MacBook", vercel: "Vercel", claude: "Claude, Gemini", github: "GitHub", builder: "Claude Code", public: "The internet" };
+const ZONE_SHORT: Record<ZoneId, string> = { browser: "The Desk", relay: "MacBook", vercel: "Azure", claude: "Claude, Gemini", github: "GitHub", builder: "Claude Code", public: "The internet" };
 
 function WovenTrust() {
   const [picked, setPicked] = useState<string | null>(null);

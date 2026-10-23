@@ -3,7 +3,7 @@ import type { Route } from "../route.ts";
 /**
  * The setup list on Today (#164): the few things only Nikita can do, gathered from docs/SECURITY.md and
  * docs/DELIVERY.md into one card, each with a link straight to the right settings page and the steps. Every step
- * works in a browser on the PC (Vercel's and GitHub's own pages, or the browser's console), never from a repo folder.
+ * works in a browser on the PC (the Azure portal's and GitHub's own pages, or the browser's console), never from a repo folder.
  *
  * Whether each is done comes from GET /api/foundry?setup (api/_desk/setup.ts): "done", "todo" or "unknown", never a
  * value. An item the site can't check can be ticked by hand; that tick lives only in this browser.
@@ -39,10 +39,11 @@ export interface SetupItem {
 }
 
 const REPO = "https://github.com/nikitapage10/C.E.O.";
-/** Vercel's own "pick the project" link to its Environment Variables page. */
-export const VERCEL_ENV = "https://vercel.com/d?to=%2F%5Bteam%5D%2F%5Bproject%5D%2Fsettings%2Fenvironment-variables&title=Environment+Variables";
-const VERCEL_DEPLOYMENTS = "https://vercel.com/d?to=%2F%5Bteam%5D%2F%5Bproject%5D%2Fdeployments&title=Deployments";
-const SITE = "command-everything-obviously.vercel.app";
+/** The Azure portal's lists of Key Vaults and Function Apps: Azure is the only home (#313, docs/AZURE.md). */
+export const AZURE_VAULTS = "https://portal.azure.com/#browse/Microsoft.KeyVault%2Fvaults";
+const AZURE_FUNCTIONS = "https://portal.azure.com/#browse/Microsoft.Web%2Fsites/kind/functionapp";
+/** The address the Desk is open on (both ceo.nikita.page and the azurestaticapps.net host work, #314). */
+const SITE = typeof location !== "undefined" && location.host ? location.host : "thankful-forest-019308c1e.5.azurestaticapps.net";
 
 /** Makes the push key pair and the shared secret with the browser's own crypto (docs/SECURITY.md, "Setting up pings"). */
 export const PINGS_PASTE =
@@ -66,18 +67,17 @@ export const SETUP_LIST: SetupItem[] = [
     id: "pings",
     title: "Turn on phone pings",
     why: "The Desk pings your phone when an idea, a question or a blocker needs your call, or the live site stops loading.",
-    ticks: "Ticks itself once the keys are in Vercel and the hourly ping check gets through with the secret.",
+    ticks: "Ticks itself once the keys are in the Key Vault and the hourly ping check gets through with the secret.",
     links: [
-      { label: "Vercel: Environment Variables", href: VERCEL_ENV },
-      { label: "GitHub: new Actions secret", href: `${REPO}/settings/secrets/actions/new` },
-      { label: "Vercel: Deployments", href: VERCEL_DEPLOYMENTS },
+      { label: "Azure: Key vaults", href: AZURE_VAULTS },
+      { label: "Azure: Function Apps", href: AZURE_FUNCTIONS },
     ],
     steps: [
-      "On the PC, in Chrome, open any page and press **F12**, then **Console** (type `allow pasting` if Chrome asks).",
+      "The secrets paste in docs/AZURE.md (**After the paste**) makes all three for you; if it has run, skip to the last step.",
+      "Otherwise, on the PC, in Chrome, open any page and press **F12**, then **Console** (type `allow pasting` if Chrome asks).",
       "Paste the line below and press **Enter**. It prints three lines: two keys and a secret.",
-      "In Vercel, **Settings** > **Environment Variables**: add `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` and `DESK_PINGS_SECRET` with the printed values, **Production** only. **Save**.",
-      "In GitHub, **Settings** > **Secrets and variables** > **Actions** > **New repository secret**: `DESK_PINGS_SECRET`, the same value.",
-      "In Vercel, **Deployments** > the top Production one > **⋯** > **Redeploy**. Close the console.",
+      "In Azure, **Key vaults** > the C.E.O. vault > **Objects** > **Secrets** > **+ Generate/Import**: add `desk-vapid-public-key`, `desk-vapid-private-key` and `desk-pings-secret` with the printed values. GitHub needs no copy: the pings workflow reads the secret from the vault.",
+      "In Azure, **Function App** > the C.E.O. app > **Overview** > **Restart**. Close the console.",
       "Then on the phone: **Foundry** tab > **Pings on this device**.",
     ],
     paste: PINGS_PASTE,
@@ -86,12 +86,12 @@ export const SETUP_LIST: SetupItem[] = [
     id: "app",
     title: "Give the crew its own GitHub App",
     why: "The Desk and the crew write as ceo-foundry[bot] with hour-long tokens, instead of as you.",
-    ticks: "Ticks itself once the App's ID and key are in Vercel.",
+    ticks: "Ticks itself once the App's ID and key are in the Key Vault.",
     links: [
       { label: "GitHub: new GitHub App", href: "https://github.com/settings/apps/new" },
       { label: "GitHub: Actions secrets", href: `${REPO}/settings/secrets/actions` },
-      { label: "Vercel: Environment Variables", href: VERCEL_ENV },
-      { label: "Vercel: Deployments", href: VERCEL_DEPLOYMENTS },
+      { label: "Azure: Key vaults", href: AZURE_VAULTS },
+      { label: "Azure: Function Apps", href: AZURE_FUNCTIONS },
     ],
     steps: [
       "Open **New GitHub App**. Name: `ceo-foundry`, exactly. Homepage URL: `" + REPO + "`. Untick **Webhook > Active**.",
@@ -100,8 +100,8 @@ export const SETUP_LIST: SetupItem[] = [
       "**Private keys** > **Generate a private key**. A `.pem` file lands in Downloads.",
       "Left sidebar: **Install App** > **Install** > **Only select repositories** > `C.E.O.` > **Install**.",
       "Open the `.pem` in Notepad and copy all of it. In GitHub, C.E.O. > **Settings** > **Secrets and variables** > **Actions**: add `FOUNDRY_APP_ID` and `FOUNDRY_APP_PRIVATE_KEY`.",
-      "In Vercel, **Environment Variables**: the same two, **Production** only. **Save**, then **Redeploy** the top Production deployment.",
-      "Once a Desk button's comment shows as ceo-foundry[bot], remove `FOUNDRY_GITHUB_TOKEN` in Vercel, revoke it on GitHub, and delete the `.pem`.",
+      "In Azure, **Key vaults** > the C.E.O. vault > **Secrets**: add `foundry-app-id`, `foundry-app-installation-id` and `foundry-app-private-key`, then **Restart** the Function App.",
+      "Once a Desk button's comment shows as ceo-foundry[bot], disable `foundry-github-token` in the vault, revoke it on GitHub, and delete the `.pem`.",
     ],
   },
   {

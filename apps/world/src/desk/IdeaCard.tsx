@@ -317,7 +317,7 @@ export function IdeaCard({ crate, index, setup, focus = true }: { crate: Crate; 
             .
           </p>
         ) : !ready ? (
-          <div className="fy-idea__actions" title={setup ? "Set the Vercel variables to pick from here" : "Checking…"}>
+          <div className="fy-idea__actions" title={setup ? "Set the Key Vault secrets to pick from here" : "Checking…"}>
             <button type="button" className="btn btn--go btn--sm" disabled>
               {asking ? "Build as is" : "Build this"}
             </button>

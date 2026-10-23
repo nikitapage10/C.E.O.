@@ -19,7 +19,7 @@ param staticSiteLocation string = 'westus2'
 @description('Object ID of the person deploying (`az ad signed-in-user show --query id -o tsv`). Gets Key Vault Secrets Officer, so they can add the secrets in the portal, and read/write on the state blobs. Empty skips both.')
 param deployerPrincipalId string = ''
 
-@description('Object ID of the service principal GitHub Actions signs in as through OIDC (docs/AZURE.md, "Deploys and backups"). Gets Contributor on the resource group, blob data access for backups and the seed, and Key Vault Secrets User (for desk-pings-secret). Empty skips all three.')
+@description('Object ID of the service principal GitHub Actions signs in as through OIDC (docs/AZURE.md, "Deploys and backups"). Gets Contributor on the resource group, blob data access for backups and the seed, and Key Vault Secrets User (for desk-pings-secret and site-bypass-token). Empty skips all three.')
 param githubPrincipalId string = ''
 
 @description('Optional GitHub token (repo + workflow scope) to link the Static Web App to the repo at creation. Leave empty to create it unlinked and connect it later (docs/AZURE.md). Never commit one.')
@@ -41,14 +41,14 @@ param budgetStartDate string = '${utcNow('yyyy-MM')}-01'
 @description('Daily Log Analytics ingestion cap in GB, as a string because Bicep has no decimal literals.')
 param logDailyCapGb string = '0.2'
 
-@description('Monthly Claude budget for the Azure copy\'s world, in USD (the Function App\'s WORLD_BUDGET_USD). Vercel\'s copy defaults to 6 and both use the same key, so the Azure copy takes less.')
-param worldBudgetUsd string = '2'
+@description('Monthly Claude budget for the world, in USD (the Function App\'s WORLD_BUDGET_USD). The code\'s own default; Azure took less while Vercel shared the key, and is the only home since #313.')
+param worldBudgetUsd string = '6'
 
 @description('Monthly Gemini budget for the Azure copy\'s stories, in USD (GEMINI_BUDGET_USD; the code never goes above 10).')
-param geminiBudgetUsd string = '2'
+param geminiBudgetUsd string = '5'
 
 @description('Monthly Claude budget for Skippy\'s chat on the Azure copy, in USD (SKIPPY_BUDGET_USD).')
-param skippyBudgetUsd string = '0.5'
+param skippyBudgetUsd string = '2'
 
 @description('The email agent\'s own monthly Claude cap on the Azure copy, in USD (EMAIL_BUDGET_USD, #263).')
 param emailBudgetUsd string = '10'
@@ -56,6 +56,9 @@ param emailBudgetUsd string = '10'
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV, #279): sandbox until Nikita switches to live. Set it to live on the paste once the Live keys are in.')
 @allowed(['sandbox', 'live'])
 param paypalEnv string = 'sandbox'
+
+@description('Make ceo.nikita.page the site\'s home (CEO_SITE_URL, #314, docs/DOMAIN.md) once Nikita confirms the switch. Both addresses answer either way.')
+param siteOnCustomDomain bool = false
 
 @description('Tags on every resource.')
 param tags object = {
@@ -84,6 +87,7 @@ module resources 'resources.bicep' = {
     skippyBudgetUsd: skippyBudgetUsd
     emailBudgetUsd: emailBudgetUsd
     paypalEnv: paypalEnv
+    siteOnCustomDomain: siteOnCustomDomain
     tags: tags
   }
 }

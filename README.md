@@ -133,11 +133,13 @@ The rigged characters are CC0:
 
 `scripts/build-models.mjs` rebuilds `apps/world/public/models` from those sources. It strips the animations from each KayKit character, shares one set of clips between them, and quantises everything, which takes 18 MB down to about 2 MB. The creatures and pets are built in code (`apps/world/src/agents/bodies`, `apps/world/src/pets`).
 
-## Deploy (Vercel)
+## Deploy (Azure)
 
-`vercel.json` holds the settings: install with `npm ci`, build with `npm run build`, and serve `apps/world/dist`. In the
-Vercel dashboard, keep the project's Root Directory at the repo root (not `apps/world`) so the workspace packages
-resolve.
+Production is on Azure, C.E.O.'s only home since #313: `.github/workflows/deploy-azure.yml` ships every push to `main`
+(the site from `apps/world/dist` to the Static Web App, the functions from `npm run build:azure` to the Function App).
+It answers at <https://ceo.nikita.page> (#314, [docs/DOMAIN.md](docs/DOMAIN.md)) and on the Static Web App's own
+address. Setup, secrets and rollback are in [docs/AZURE.md](docs/AZURE.md). `vercel.json` stays until Vercel is switched off
+(docs/AZURE.md, "Retiring Vercel").
 
 ## Layout
 

@@ -5,7 +5,15 @@
  * GET  → { ready }: whether the chat can work here (the Desk's sign-in and Claude are both set up). Nothing else.
  * GET /api/skippy-log?room=<room> (on Vercel a rewrite to ?log=1 here; on Azure its own route into this file) → the
  *        room's "Asked Skippy" turns, newest first (#273, api/_skippy/log.ts): signed-in Desk only (requireSession),
- *        401 signed-out, 403 cross-site, 400 for a room outside the set, 503 not-set-up.
+ *        401 signed-out, 403 cross-site, 400 for a room outside the set, 503 not-set-up. `&needs=skippy`, `&needs=<submind
+ *        id>` or `&needs=any` lists only the hand-offs still open (#312); 400 for any other value.
+ * POST /api/skippy-answer (on Vercel a rewrite to ?answer=1 here; on Azure its own route) → the return leg of a
+ *        hand-off (#312): { id, text, from } with `Authorization: Bearer <SUBMIND_FEED_TOKEN>` (the room threads' write
+ *        key, #281; at least 32 characters, compared in constant time, and nothing else opens it). `from` is "skippy" or
+ *        the submind the turn was handed to; `text` one plain line of at most 700 characters, held back whole when it
+ *        looks private (422). Kept on the turn as its follow-up, which closes the hand-off, and the Desk pings Nikita's
+ *        phone (counts-only words, never the text; quiet hours kept). 200 { ok, room, pinged }, 401 without the key,
+ *        404 no such turn, 409 not handed off or already answered, 403 a submind answering another's, 503 not-set-up.
  * POST → { message, history? } from a signed-in Desk only (requireSession, #132): `message` is what Nikita just said
  *        (at most 600 characters), `history` the last few turns the browser kept ({ who: "nikita" | "skippy", text },
  *        at most eight). The browser holds the conversation, and the history is never stored. Each answered question
@@ -25,6 +33,9 @@
  *
  * What Skippy is told about the Desk is what the Desk already shows (api/_skippy/context.ts): titles, numbers, labels
  * and counts from the Foundry's issues, the setup list's states and the world clock, scrubbed like the public feeds.
+ * He is also told what C.E.O. runs on (#312): the sheet generated from the repo at build time and an OSV.dev advisory
+ * summary of the locked packages, cached (api/_skippy/advisories.ts). When he can't settle an ask, or it is work for a
+ * room, he hands it off ("needs" in his answer) and the turn is kept flagged for Skippy's thread or the room's submind.
  *
  * Environment: FOUNDRY_DESK_KEY and the blob store (the Desk's sign-in), CLAUDE_API_KEY (or ANTHROPIC_API_KEY),
  * optional SKIPPY_BUDGET_USD (the chat's share of the $10 monthly Claude cap, $2 by default). Skippy answers on Claude
@@ -33,7 +44,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { pickBlob } from "./_blob.js";
-import { deskKeyFor } from "./_desk/keys.js";
+import { deskKeyFor, keyMatches } from "./_desk/keys.js";
 import { requireSession, withCookie } from "./_desk/session.js";
 import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import type { SetupStatus } from "./_desk/setup.js";
@@ -44,7 +55,11 @@ import { costOf, setupList, type Usage } from "./foundry.js";
 import { BlobChatLedger, CHAT_MAX_TOKENS, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, type ChatLedger } from "./_skippy/budget.js";
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
-import { BlobRoomLog, isLogRoom, type RoomLog } from "./_skippy/log.js";
+import { advisoryCache, stackBrief, stackLines, wantsStack } from "./_skippy/advisories.js";
+import { BlobRoomLog, cleanFollowUp, isLogRoom, isNeeds, isNeedsFilter, isTurnId, needsName, type LogRoom, type Needs, type RoomLog } from "./_skippy/log.js";
+import { deliver, webPushSend } from "./desk-pings.js";
+import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
+import { plainLine } from "./foundry.js";
 import { LOOKUP_PROMPT, OVER_BUDGET, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb } from "./_skippy/prompt.js";
 import { monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
@@ -177,6 +192,8 @@ export interface ChatDeps {
   ask: Ask | null;
   /** Where each answered ask is kept by room (#273); null or left out keeps nothing. */
   log?: RoomLog | null;
+  /** The <stack> block (#312): the whole sheet with the advisory summary when `full`, else one line. Left out, no block. */
+  stack?: (full: boolean) => Promise<string>;
   /** The saved world (its spend and its clock), or null. */
   world: () => Promise<WorldState | null>;
   /** The Desk's live state for Skippy. */
@@ -185,11 +202,17 @@ export interface ChatDeps {
   env: Record<string, string | undefined>;
 }
 
+/** The advisory summary, kept per warm function and in the blob store (api/_skippy/advisories.ts). */
+let advisories: ReturnType<typeof advisoryCache> | null = null;
+
 function defaultDeps(): ChatDeps {
   const env = process.env;
   const blob = pickBlob(env);
   const key = claudeKey(env);
+  advisories ??= advisoryCache({ fetcher: (input, init) => fetch(input, init), blob });
+  const lookup = advisories;
   return {
+    stack: async (full) => (full ? stackLines(await lookup(Date.now()).catch(() => null)) : stackBrief()),
     deskKey: env.FOUNDRY_DESK_KEY ?? "",
     store: pickAuthStore(env),
     ledger: blob ? new BlobChatLedger(blob) : null,
@@ -208,10 +231,19 @@ function defaultDeps(): ChatDeps {
 /** The room log's own address; on Vercel vercel.json rewrites it to /api/skippy?log=1. */
 export const LOG_PATH = "/api/skippy-log";
 
+/** The hand-off's return leg (#312); on Vercel vercel.json rewrites it to /api/skippy?answer=1. */
+export const ANSWER_PATH = "/api/skippy-answer";
+
 /** Whether a request is for the room log rather than the chat. */
 export function isLog(request: Request): boolean {
   const url = new URL(request.url);
   return url.pathname === LOG_PATH || url.searchParams.has("log");
+}
+
+/** Whether a request is a hand-off's answer coming back. */
+export function isAnswer(request: Request): boolean {
+  const url = new URL(request.url);
+  return url.pathname === ANSWER_PATH || url.searchParams.has("answer");
 }
 
 export async function GET(request?: Request): Promise<Response> {
@@ -228,18 +260,89 @@ export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" |
   if (!deps.deskKey || !deps.store) return json({ error: "not-set-up" }, 503);
   const signed = await requireSession(request, { deskKey: deps.deskKey, store: deps.store, now: deps.now });
   if (!signed.ok) return signed.response;
-  const room = new URL(request.url).searchParams.get("room");
-  if (!isLogRoom(room)) return withCookie(json({ error: "bad-request" }, 400), signed);
+  const query = new URL(request.url).searchParams;
+  const room = query.get("room");
+  const needs = query.get("needs");
+  if (!isLogRoom(room) || (needs !== null && !isNeedsFilter(needs))) return withCookie(json({ error: "bad-request" }, 400), signed);
   if (!deps.log) return withCookie(json({ error: "not-set-up" }, 503), signed);
   try {
-    return withCookie(json({ room, turns: await deps.log.list(room, deps.now) }), signed);
+    return withCookie(json({ room, ...(needs && { needs }), turns: await deps.log.list(room, deps.now, needs ?? undefined) }), signed);
   } catch {
     return withCookie(json({ error: "unreadable" }, 502), signed);
   }
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (isAnswer(request)) return followUp(request, answerDeps());
   return chat(request, defaultDeps());
+}
+
+/** The shortest SUBMIND_FEED_TOKEN that counts, as for the site's bypass token. */
+export const MIN_TOKEN = 32;
+/** The Desk page each room's asks live on, for the ping to open. */
+const ROOM_PAGE: Record<LogRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry", relay: "/relay", none: "/" };
+
+export interface AnswerDeps {
+  /** SUBMIND_FEED_TOKEN, or "" (then the return leg is off). */
+  token: string;
+  log: RoomLog | null;
+  /** Pings Nikita's phones; how many took it. */
+  ping: (text: PingText) => Promise<number>;
+  now: number;
+}
+
+function answerDeps(): AnswerDeps {
+  const env = process.env;
+  const blob = pickBlob(env);
+  const store = pickAuthStore(env);
+  const pingsOn = Boolean(env.DESK_VAPID_PUBLIC_KEY && env.DESK_VAPID_PRIVATE_KEY && store);
+  return {
+    token: env.SUBMIND_FEED_TOKEN?.trim() ?? "",
+    log: blob ? new BlobRoomLog(blob) : null,
+    ping: async (text) => {
+      if (!pingsOn || !store) return 0;
+      const [state, passkeys] = await Promise.all([store.pings(), store.passkeys()]);
+      const subs = liveSubs(state.subs, passkeys);
+      return subs.length ? deliver(store, subs, text, webPushSend) : 0;
+    },
+    now: Date.now(),
+  };
+}
+
+/** The words of an answer's ping: who answered, never what. Safe on a lock screen. */
+export const answerPing = (from: Needs, room: LogRoom): PingText => ({
+  title: "C.E.O. Desk",
+  body: `${from === "skippy" ? "Skippy" : needsName(from)} answered something you asked on the Desk.`,
+  url: ROOM_PAGE[room],
+});
+
+/** The return leg of a hand-off (#312): the thread side's answer, kept on the turn, and a ping. */
+export async function followUp(request: Request, deps: AnswerDeps): Promise<Response> {
+  if (deps.token.length < MIN_TOKEN || !deps.log) return json({ error: "not-set-up" }, 503);
+  const auth = request.headers.get("authorization") ?? "";
+  if (!auth.startsWith("Bearer ") || !keyMatches(auth.slice(7).trim(), deps.token)) return json({ error: "unauthorized" }, 401);
+  if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
+  const body = (await request.json().catch(() => null)) as { id?: unknown; text?: unknown; from?: unknown } | null;
+  if (!body || typeof body !== "object" || !isTurnId(body.id) || !isNeeds(body.from) || typeof body.text !== "string") return json({ error: "bad-request" }, 400);
+  const text = plainLine(body.text, 700);
+  if (!text) return json({ error: "bad-request" }, 400);
+  const held = privateParts(text);
+  if (held.length) return json({ error: "private", held: [...new Set(held)].map((k) => PRIVATE_LABEL[k]) }, 422);
+  const f = cleanFollowUp({ from: body.from, text, at: new Date(deps.now).toISOString() });
+  if (!f) return json({ error: "bad-request" }, 400);
+  let result: Awaited<ReturnType<RoomLog["answer"]>>;
+  try {
+    result = await deps.log.answer(body.id, f, deps.now);
+  } catch {
+    return json({ error: "unreadable" }, 502);
+  }
+  if (!result.ok) {
+    const status = result.why === "missing" ? 404 : result.why === "wrong-thread" ? 403 : 409;
+    return json({ error: result.why }, status);
+  }
+  // Quiet hours hold the ping (the follow-up still shows on the Desk); a failed ping never loses the answer.
+  const pinged = isQuiet(deps.now) ? 0 : await deps.ping(answerPing(f.from, result.turn.room)).catch(() => 0);
+  return json({ ok: true, room: result.turn.room, pinged });
 }
 
 /** The chat itself, with everything it touches handed in (the tests stub each piece). */
@@ -289,10 +392,10 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
     return json({ reply: OVER_BUDGET[Math.floor(deps.now / 60_000) % OVER_BUDGET.length], actions: [], capped: true });
   }
 
-  const desk = await deps.desk(world).catch(() => EMPTY_CONTEXT);
+  const [desk, stack] = await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")]);
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(SKIPPY_PROMPT, chatInput(contextLines(desk, deps.now), said.history, said.message));
+    got = await deps.ask(SKIPPY_PROMPT, chatInput(contextLines(desk, deps.now), said.history, said.message, stack));
   } catch {
     return json({ error: "model" }, 502);
   }
@@ -304,7 +407,7 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   // the room, the time and the model. A failed write never costs Nikita the answer.
   if (deps.log) {
     await deps.log
-      .add({ at: new Date(deps.now).toISOString(), question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL }, deps.now)
+      .add({ at: new Date(deps.now).toISOString(), question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }) }, deps.now)
       .catch(() => undefined);
   }
   return json(reply);

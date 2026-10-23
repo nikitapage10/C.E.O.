@@ -13,7 +13,7 @@ import { Avatar } from "./ui.tsx";
  */
 
 const WHY: Record<string, string> = {
-  "no-key": "No audio: Gemini's speech isn't connected (GEMINI_API_KEY in Vercel), so the Historian can't read the day aloud.",
+  "no-key": "No audio: Gemini's speech isn't connected (gemini-api-key in the Key Vault), so the Historian can't read the day aloud.",
   "over-budget": "No audio this month: Gemini's speech budget is spent. The Historian reads again when the month turns.",
   "not-yet": "The Historian reads the day's update once its recap is filed, after midnight.",
   "no-recap": "The day's recap isn't filed yet.",

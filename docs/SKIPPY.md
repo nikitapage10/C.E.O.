@@ -102,7 +102,46 @@ there. Nothing server-side can post into a project thread, so the Desk keeps the
   route on Azure, behind the site gate) answers only a Desk passkey session. Each room's Desk page (Green, Exchange,
   Boiler Room, Foundry, Relay) shows its turns in an "Asked Skippy" panel, newest first, collapsed, veiled by Hide.
   The Exchange's and Relay's asks never reach a public path or the Lattice. There is no outside reader (no token
-  read) yet: that waits on Nikita's word.
+  read) yet: that waits on the room keys (#281).
+
+## What Desk Skippy knows about our stack
+
+Nikita (2026-10-23) asked Desk Skippy about PHP security flaws and got "nothing on the Desk shows we run PHP". Now he
+knows (#312). `scripts/stack-facts.mjs` writes a public fact sheet from the repo itself: the languages it has code in
+and the common server languages it has none of (PHP, Python, Java, Ruby, Go, Rust, .NET), the Node versions it names
+(package.json's engines, CI, the Azure Function App), the hosts its config and Bicep set up (Azure Static Web Apps,
+Functions, Blob Storage, Key Vault; Vercel as being retired), the security checks CI runs, and the outside services its server code calls,
+by name. That part is committed (`api/_skippy/stack.ts`; run `npm run stack:facts` after changing what it reads, and a
+test fails when it falls behind, like `api/_world/cast.ts`). The lockfile's part, every workspace's top-level
+dependencies at their locked versions and the list of every locked package, is written at each `npm ci` (postinstall)
+and each build into `api/_skippy/stackDeps.ts`, which is not committed, so a Dependabot bump never makes it stale.
+
+For an ask about our tech (vulnerabilities, packages, versions, hosts, languages: `wantsStack` in
+`api/_skippy/advisories.ts`) Skippy gets the whole sheet in a `<stack>` block, about 550 tokens, with an advisory
+summary from OSV.dev: one querybatch for the locked packages (names and versions only), the severity of at most 25
+advisories it names, counts by severity and the critical or high ones by id. It is kept six hours in the warm function
+and twelve in the private store (`desk/skippy/advisories.json`, for the same lockfile), and a failed lookup waits ten
+minutes. Any other ask gets one line ("TypeScript and JavaScript on Node.js 22, hosted on Azure; no PHP, Python, Java"). So "are we exposed to X" gets a yes or no from facts.
+
+## Hand-offs: what Desk Skippy can't settle
+
+When Desk Skippy can't settle an ask from the Desk, the stack sheet and a lookup, or the ask is a build, a fix or work
+in a room, he hands it off (#312). His answer's closed schema has a required `needs`: `none`, `skippy` (for "Skippy,
+the Magnificent") or `submind` (the room's own). The code turns `submind` into the room's submind id when that submind
+is active (`ember`, `ticker`, `turf`, `soot`; `ROOM_SUBMINDS` in `api/_skippy/log.ts`, held to `SUBMINDS` by a test) and
+into `skippy` otherwise. The turn is kept in the room log with `needs` set, the reply always says who has it (a fixed
+line is added when Skippy's own words don't), and the room's "Asked Skippy" panel shows "with The Builder".
+
+- **Reading them.** `GET /api/skippy-log?room=<room>&needs=<skippy|submind id|any>` lists only the hand-offs still
+  open; without `needs`, every turn. Signed-in Desk only, for now; the threads read it with the room key once #281
+  lands.
+- **Answering them.** `POST /api/skippy-answer` with `{ id, text, from }` and `Authorization: Bearer
+  <SUBMIND_FEED_TOKEN>` (the room threads' write key from #281, Azure Key Vault `submind-feed-token`; the route is off
+  until it is set). `from` is `skippy` (any hand-off) or the submind it was handed to (only its own); `text` is one
+  plain line of at most 700 characters, refused whole when it looks private. The answer is kept on the turn as its
+  `followUp`, which closes the hand-off; the room's panel shows it under the ask ("The Builder answered"), and Nikita's
+  phone gets one ping that names who answered, never what (quiet hours hold it). A turn already answered, not handed
+  off, or another submind's is refused.
 
 ## Escalating to Skippy
 

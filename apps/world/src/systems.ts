@@ -41,7 +41,7 @@ const LINKS: Link[] = [
   { id: "openai", label: "OpenAI", what: "Sorting, drafting and voice", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "mac", label: "MacBook", what: "Awake, on power, online", kind: "machine", room: "relay", state: "off", load: 0, lastSeen: null },
   // The email agent (#263): Gmail read-only from the Azure copy, its state from desk/email/email.ts.
-  { id: "gmail", label: "Gmail", what: "Your inbox, read-only, checked every minute on the Azure copy", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "gmail", label: "Gmail", what: "Your inbox, read-only, checked every minute", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "checks", label: "Checks", what: "Types, lint, tests and build on main, on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "e2e", label: "Nightly browser tests", what: "The Lattice and Desk in a real browser, nightly on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
   { id: "live", label: "Live site", what: "The live Desk and Lattice open in a browser, hourly on GitHub", kind: "service", room: "foundry", state: "off", load: 0, lastSeen: null },
@@ -50,7 +50,7 @@ const LINKS: Link[] = [
   { id: "sleeper", label: "Sleeper", what: "Your fantasy league for the Green, read-only", kind: "service", room: "green", state: "off", load: 0, lastSeen: null },
   { id: "fantasypros", label: "FantasyPros", what: "Projections and rankings for the Green, where its key is set", kind: "service", room: "green", state: "off", load: 0, lastSeen: null },
   // The Spire's invoices (#279): PayPal from the Azure copy, its state from desk/spire/invoices.ts.
-  { id: "paypal", label: "PayPal", what: "Invoices for the Spire: drafts, sent only when you confirm, on the Azure copy", kind: "service", room: "spire", state: "off", load: 0, lastSeen: null },
+  { id: "paypal", label: "PayPal", what: "Invoices for the Spire: drafts, sent only when you confirm", kind: "service", room: "spire", state: "off", load: 0, lastSeen: null },
   { id: "world", label: "World clock", what: "The living Lattice's hourly step", kind: "service", room: "world", state: "off", load: 0, lastSeen: null },
 ];
 

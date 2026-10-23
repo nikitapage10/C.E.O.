@@ -1,13 +1,12 @@
-# The living Lattice's clock: advance the world one step an hour (docs/WORLD.md). The step runs on Vercel
-# (api/world-step.ts) and is idempotent per hour, so this needs no secret: calling it again within 55 minutes does
-# nothing, and the site gate lets a POST through (api/_site/gate.ts). GitHub runs this schedule best-effort (on
-# 2026-10-21/22 only every four to five hours), so it is a backup knock now: the steady driver is the Function App's
-# timer (azure/src/tick.ts, #271), which steps both worlds at :05 and :35. The Foundry doorbell knocks too.
+# The living Lattice's clock: advance the world one step an hour (docs/WORLD.md). The step (api/world-step.ts) runs
+# on Azure, the only home since #313, and is idempotent per hour: calling it again within 55 minutes does nothing,
+# and the site gate lets a POST through (api/_site/gate.ts). GitHub runs this schedule best-effort (on 2026-10-21/22
+# only every four to five hours), so it is a backup knock: the steady driver is the Function App's timer
+# (azure/src/tick.ts, #271), which steps the world at :05 and :35. The Foundry doorbell knocks too.
 #
-# The Azure copy (docs/AZURE.md) keeps its own world in its own store, so the same hour advances it too, in a job of
-# its own: it signs in like deploy-azure.yml (OIDC, the `azure` environment, main only), finds the Function App's
-# address (or, failing that, the Static Web App's), and calls the step there. It is skipped until Azure is set up;
-# once it is, a step that can't be reached or doesn't answer 200/409 fails the job, so a stopped clock shows here.
+# The job signs in like deploy-azure.yml (OIDC, the `azure` environment, main only), finds the Function App's address
+# (or, failing that, the Static Web App's), and calls the step there. It is skipped until Azure is set up; once it
+# is, a step that can't be reached or doesn't answer 200/409 fails the job, so a stopped clock shows here.
 name: World step
 
 on:
@@ -22,18 +21,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  step:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Advance the world one hour
-        run: |
-          code=$(curl -sS -o step.json -w '%{http_code}' -X POST --max-time 120 https://command-everything-obviously.vercel.app/api/world-step)
-          echo "HTTP $code"
-          head -c 600 step.json; echo
-          # 409: another step landed first, which is fine.
-          if [ "$code" != "200" ] && [ "$code" != "409" ]; then exit 1; fi
-
   azure:
     if: vars.AZURE_CLIENT_ID != ''
     runs-on: ubuntu-latest

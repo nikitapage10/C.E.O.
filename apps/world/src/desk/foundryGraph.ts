@@ -15,7 +15,7 @@ export type GraphKind = "person" | "service" | "agent" | "store";
 export interface GraphNode {
   id: GraphNodeId;
   label: string;
-  /** What it runs on, in a word or two ("Opus", "Vercel"). */
+  /** What it runs on, in a word or two ("Opus", "Azure"). */
   sub: string;
   kind: GraphKind;
   state: LinkState;
@@ -195,7 +195,7 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
     {
       id: "desk",
       label: "Desk",
-      sub: "Vercel",
+      sub: "Azure",
       kind: "service",
       state: "ok",
       status: "Live",
@@ -293,7 +293,7 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
     {
       id: "deploy",
       label: "Deploy",
-      sub: "Vercel",
+      sub: "Azure",
       kind: "service",
       ...(connected && commit
         ? { state: "ok" as LinkState, status: `Pushed ${ago(commit.at, now)}` }
@@ -302,21 +302,21 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
             status: connected ? "Not measurable" : "Not reached",
           }),
       load: commit ? 0.4 : 0,
-      what: "Vercel builds the live site from every push to main, usually within a couple of minutes.",
-      source: "Not measured directly: the Desk can't read Vercel's deploys, so this is the time of the latest commit on main.",
+      what: "Deploy to Azure ships the live site from every push to main, usually within three to four minutes.",
+      source: "Not measured directly: the Desk can't read the Azure deploys, so this is the time of the latest commit on main.",
     },
     {
       id: "blob",
       label: "Pictures",
-      sub: "Vercel Blob",
+      sub: "Azure Blob",
       kind: "store",
       ...blob,
       load: set?.images ? 0.25 : 0,
       what: "Where pictures you paste, attach or drop on an idea are kept, privately, and served back through api/foundry-image.",
       source:
         set && !set.images
-          ? "api/foundry says no Blob store is connected (Vercel → Storage → Blob → connect, then redeploy)."
-          : "Whether a Blob store is connected, from api/foundry.",
+          ? "api/foundry says no blob store is connected (the Azure template sets one up: docs/AZURE.md)."
+          : "Whether the blob store is connected, from api/foundry.",
     },
   ];
 
@@ -345,7 +345,7 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
       what: set
         ? set.direct
           ? "The function opens the issue on GitHub straight away, shaped or not."
-          : "No GitHub write token in Vercel, so the function can't open issues."
+          : "No GitHub write token in the Key Vault, so the function can't open issues."
         : "Waiting on api/foundry.",
     },
     {
@@ -417,15 +417,15 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
       from: "main",
       to: "deploy",
       state: at("main").state,
-      label: "Vercel builds main",
-      what: "Every push to main starts a Vercel build of the live site.",
+      label: "Azure deploys main",
+      what: "Every push to main runs Deploy to Azure, which builds and ships the live site.",
     },
     {
       from: "desk",
       to: "blob",
       state: blob.state,
       label: "Pictures on ideas",
-      what: "Pictures on an idea upload through api/foundry-image into the Blob store.",
+      what: "Pictures on an idea upload through api/foundry-image into the private blob store.",
     },
   ];
   return { nodes, edges };

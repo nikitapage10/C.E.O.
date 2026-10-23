@@ -86,6 +86,11 @@ export function cleanLabel(given: unknown): string {
 /** What the Desk is shown about a device: never its key. */
 const deviceView = (p: Passkey, current: string | null) => ({ id: p.id, label: p.label, added: p.added, used: p.used ?? null, current: p.id === current });
 
+/**
+ * WebAuthn's origin and RP ID: the address the browser used (azure/src/adapter.ts puts it back behind the Static Web
+ * App). So both of the site's hosts sign in during the move to ceo.nikita.page (#314, api/_site/hosts.ts), each with
+ * the passkeys made on it: a passkey is bound to its RP ID, and the browser offers it nowhere else.
+ */
 const site = (request: Request) => {
   const url = new URL(request.url);
   return { origin: url.origin, rpID: url.hostname };

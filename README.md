@@ -137,7 +137,8 @@ The rigged characters are CC0:
 
 Production is on Azure, C.E.O.'s only home since #313: `.github/workflows/deploy-azure.yml` ships every push to `main`
 (the site from `apps/world/dist` to the Static Web App, the functions from `npm run build:azure` to the Function App).
-Setup, secrets and rollback are in [docs/AZURE.md](docs/AZURE.md). `vercel.json` stays until Vercel is switched off
+It answers at <https://ceo.nikita.page> (#314, [docs/DOMAIN.md](docs/DOMAIN.md)) and on the Static Web App's own
+address. Setup, secrets and rollback are in [docs/AZURE.md](docs/AZURE.md). `vercel.json` stays until Vercel is switched off
 (docs/AZURE.md, "Retiring Vercel").
 
 ## Layout

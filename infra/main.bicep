@@ -57,6 +57,9 @@ param emailBudgetUsd string = '10'
 @allowed(['sandbox', 'live'])
 param paypalEnv string = 'sandbox'
 
+@description('Make ceo.nikita.page the site\'s home (CEO_SITE_URL, #314, docs/DOMAIN.md) once Nikita confirms the switch. Both addresses answer either way.')
+param siteOnCustomDomain bool = false
+
 @description('Tags on every resource.')
 param tags object = {
   app: 'ceo'
@@ -84,6 +87,7 @@ module resources 'resources.bicep' = {
     skippyBudgetUsd: skippyBudgetUsd
     emailBudgetUsd: emailBudgetUsd
     paypalEnv: paypalEnv
+    siteOnCustomDomain: siteOnCustomDomain
     tags: tags
   }
 }

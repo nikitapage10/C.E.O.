@@ -26,6 +26,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { deskKeyFor } from "../_desk/keys.js";
 import { readCookie, readToken, requireSession, signToken, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore, type AuthStore } from "../_desk/store.js";
+import { AZURE_HOST, isSiteHost } from "../_site/hosts.js";
 import { emailBudget, monthSpend } from "./budget.js";
 import { authUrl, exchangeCode, revoke, type Fetcher, type OAuthClient } from "./gmail.js";
 import { emptyEmailStatus, type EmailStatus } from "./status.js";
@@ -35,8 +36,12 @@ import { emptyEmailState, type EmailView } from "./types.js";
 
 export const EMAIL_PATH = "/api/email";
 export const CALLBACK_PATH = "/api/gmail-callback";
-/** The Azure copy's own address; GMAIL_REDIRECT_URI overrides it (it must match the OAuth client's exactly). */
-export const DEFAULT_REDIRECT = "https://thankful-forest-019308c1e.5.azurestaticapps.net/api/gmail-callback";
+/**
+ * The callback on the Static Web App's own address. GMAIL_REDIRECT_URI overrides it (it must match the OAuth
+ * client's exactly). A connect started on one of the site's hosts (api/_site/hosts.ts) comes back to that same host
+ * instead (redirectFor), since the state cookie is per host: while both answer (#314), Google's OAuth client lists both.
+ */
+export const DEFAULT_REDIRECT = `https://${AZURE_HOST}/api/gmail-callback`;
 export const STATE_COOKIE = "__Host-ceo-gmail";
 /** The state cookie lasts this long (s): time enough to pick an account and press Allow. */
 export const STATE_S = 10 * 60;
@@ -62,6 +67,16 @@ export function clientFrom(env: Env): OAuthClient | null {
   const given = (env.GMAIL_REDIRECT_URI ?? "").trim();
   const redirectUri = /^https:\/\/[^\s/]+\/api\/gmail-callback$/.test(given) ? given : DEFAULT_REDIRECT;
   return { clientId, clientSecret, redirectUri };
+}
+
+/**
+ * The redirect for a request: the callback on the request's own host when it is one of the site's public addresses
+ * (so the state cookie, which is host-only, comes back with it), else the client's configured one.
+ */
+export function redirectFor(client: OAuthClient, request: Request): OAuthClient {
+  const url = new URL(request.url);
+  if (url.protocol !== "https:" || url.port || !isSiteHost(url.hostname)) return client;
+  return { ...client, redirectUri: `https://${url.hostname.toLowerCase()}${CALLBACK_PATH}` };
 }
 
 export function liveRouteDeps(env: Env = process.env): EmailRouteDeps {
@@ -162,7 +177,7 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
   if (body.action === "connect") {
     if (!deps.client) return withCookie(json({ error: "not-set-up" }, 503), signed);
     const { nonce, cookie } = await makeState(deps.desk.deskKey, signed.passkey.id, deps.now);
-    const res = withCookie(json({ ok: true, url: authUrl(deps.client, nonce) }), signed);
+    const res = withCookie(json({ ok: true, url: authUrl(redirectFor(deps.client, request), nonce) }), signed);
     res.headers.append("Set-Cookie", cookie);
     return res;
   }
@@ -209,7 +224,8 @@ export async function callback(request: Request, deps: EmailRouteDeps): Promise<
   const code = url.searchParams.get("code");
   if (!code || code.length > 2048 || !deps.client || !deps.store) return back("failed");
   try {
-    const refresh = await exchangeCode(deps.fetcher, deps.client, code);
+    // The same redirect the connect sent to Google: Google refuses a code traded with any other.
+    const refresh = await exchangeCode(deps.fetcher, redirectFor(deps.client, request), code);
     await deps.store.saveToken({ refresh, connectedAt: deps.now });
     // Start the history afresh on the next tick, from the new connection.
     for (let i = 0; i < 2; i++) {

@@ -42,7 +42,8 @@ const REPO = "https://github.com/nikitapage10/C.E.O.";
 /** The Azure portal's lists of Key Vaults and Function Apps: Azure is the only home (#313, docs/AZURE.md). */
 export const AZURE_VAULTS = "https://portal.azure.com/#browse/Microsoft.KeyVault%2Fvaults";
 const AZURE_FUNCTIONS = "https://portal.azure.com/#browse/Microsoft.Web%2Fsites/kind/functionapp";
-const SITE = "thankful-forest-019308c1e.5.azurestaticapps.net";
+/** The address the Desk is open on (both ceo.nikita.page and the azurestaticapps.net host work, #314). */
+const SITE = typeof location !== "undefined" && location.host ? location.host : "thankful-forest-019308c1e.5.azurestaticapps.net";
 
 /** Makes the push key pair and the shared secret with the browser's own crypto (docs/SECURITY.md, "Setting up pings"). */
 export const PINGS_PASTE =

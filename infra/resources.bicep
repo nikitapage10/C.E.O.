@@ -44,6 +44,9 @@ param emailBudgetUsd string
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV): sandbox or live.')
 param paypalEnv string
 
+@description('Make ceo.nikita.page the site\'s home (CEO_SITE_URL, #314) once Nikita confirms the switch. Both addresses answer either way.')
+param siteOnCustomDomain bool
+
 param tags object
 
 // Globally unique names carry a hash of the resource group, so the same paste lands on the same names every time.
@@ -265,6 +268,11 @@ var plainSettings = [
   { name: 'EMAIL_BUDGET_USD', value: emailBudgetUsd }
   // The Spire's invoices (#279): sandbox until Nikita switches to live (docs/PAYPAL.md).
   { name: 'PAYPAL_ENV', value: paypalEnv }
+  // The site's home address (api/_site/hosts.ts): the pings' contact and the Gmail callback's fallback. The
+  // azurestaticapps.net address until Nikita confirms the switch to ceo.nikita.page (docs/DOMAIN.md). The domain
+  // itself (the nikita.page zone, its records, the custom domain on swa-ceo) was set up by hand and stays out of here,
+  // so a deployment never touches the zone's other names (www, tide, the apex, mail).
+  { name: 'CEO_SITE_URL', value: siteOnCustomDomain ? 'https://ceo.nikita.page' : 'https://${site.properties.defaultHostname}' }
 ]
 
 resource functionApp 'Microsoft.Web/sites@2024-11-01' = {

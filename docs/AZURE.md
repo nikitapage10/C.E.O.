@@ -1,7 +1,8 @@
 # C.E.O. on Azure
 
 C.E.O.'s home, as Bicep in [`infra/`](../infra): **Azure is production and the only home** (Nikita, 2026-10-23,
-#313), at <https://thankful-forest-019308c1e.5.azurestaticapps.net>. Vercel, where C.E.O. started, is being retired:
+#313), at <https://ceo.nikita.page> and its own <https://thankful-forest-019308c1e.5.azurestaticapps.net>
+(both answer during the switch, #314: [DOMAIN.md](DOMAIN.md)). Vercel, where C.E.O. started, is being retired:
 nothing runs against it any more except the one final copy of its world, and what Nikita switches off there is in
 [Retiring Vercel](#retiring-vercel). One paste in Azure Cloud Shell creates all of it (the app's Vercel adapter code
 stays until Vercel is off, see [The port](#the-port)); the deploy workflow and nightly backup are in

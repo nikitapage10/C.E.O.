@@ -51,6 +51,11 @@ names and URLs it made.
 1. **Fill the secrets.** Two parts: one paste mints the secrets that are ours to make, and three come from outside
    by hand. Vercel's values can't be read back (they are marked sensitive), so Azure has its own.
 
+   > **What this does.** Service: Azure (Cloud Shell, the Key Vault and the Function App). It re-runs the template
+   > (app settings, roles, the budgets) and adds any missing secret to the vault, keeping the ones already there,
+   > then restarts the Function App (a few seconds of downtime). Why: so the functions and the workflows have their
+   > keys. Cost: nothing extra. Undo: re-run with other `-p` values; a secret can be disabled or deleted in the vault.
+
    **The paste**, in Cloud Shell (Bash), after the [one-time setup](#one-time-setup) below. It brings the template
    up to date (with `githubPrincipalId`, so GitHub's identity gets Key Vault Secrets User and the hourly pings can
    read `desk-pings-secret` and the live watch `site-bypass-token`; and the budget settings), then writes straight into the vault (`kv-ceo-besgu7fnckib2`
@@ -377,13 +382,27 @@ From then on every push to `main` updates production on Azure.
 Azure is the only home (#313). The crew deletes nothing in Vercel; these are Nikita's steps, in order. The ruleset on
 `main` requires only `checks`, so disconnecting Vercel never blocks a merge.
 
-**1. The secrets paste, once.** Run the secrets paste in [After the paste](#after-the-paste) again in Cloud Shell. It
+**1. The secrets paste, once.**
+
+> **What this does.** Service: Azure. Re-runs the template and the secrets paste, which adds `site-bypass-token` to
+> the Key Vault and wires it to the Function App, and raises the budgets to world $6, Gemini $5, Skippy $2. Why: the
+> live watch needs the token to see past the site lock, and Azure takes over the spend Vercel had. Cost: up to $13 a
+> month in Claude and Gemini, the same total as before because Vercel stops. Undo: re-run with lower `-p` budgets.
+
+Run the secrets paste in [After the paste](#after-the-paste) again in Cloud Shell. It
 brings the template up to date (the new `site-bypass-token` reference, and the budgets at world $6, Gemini $5 and
 Skippy $2 now that Vercel stops spending, so the total a month is unchanged), mints `site-bypass-token`, keeps every
 secret that already has a value, and restarts the Function App.
 
-**2. The final world copy** (Blob mode: it copies `world/` and the idea pictures straight from Vercel Blob, so it
-needs no bypass token and no site unlock). The token sits in GitHub for about ten minutes:
+**2. The final world copy**
+
+> **What this does.** Services: Vercel (read one token), GitHub (a secret for ten minutes, one workflow run) and
+> Azure (`ceo-state`). It replaces Azure's world, stories and idea pictures with Vercel's, so the Lattice carries on
+> from Vercel's history. Cost: nothing. Undo: blob soft delete keeps every replaced file for 14 days, and
+> `ceo-backups` holds last night's copy.
+
+Blob mode copies `world/` and the idea pictures straight from Vercel Blob, so it needs no bypass token and no site
+unlock. The token sits in GitHub for about ten minutes:
 
 1. Vercel → the project → **Storage** → the Blob store → **.env.local** tab → **Show secret** → copy
    `BLOB_READ_WRITE_TOKEN`'s value (the store's own token, not a project setting, so it can be shown).
@@ -395,10 +414,22 @@ needs no bypass token and no site unlock). The token sits in GitHub for about te
 4. Delete the `BLOB_READ_WRITE_TOKEN` secret again (it can read and write Vercel's store).
 5. Open the Azure Desk and check the world clock, the Chronicle and an idea with a picture.
 
-**3. After 3 to 5 clean days on Azure:** Vercel → the project → **Settings → Git** → **Disconnect**, so `main` no
-longer builds there. The site stays up as it was, but nothing updates it.
+**3. After 3 to 5 clean days on Azure:**
 
-**4. About 30 days later:** delete the Vercel Blob store (it is the cold backup until then), revoke Vercel's keys (a
+> **What this does.** Service: Vercel. Disconnects the repo, so merges to `main` stop building on Vercel; its last
+> deploy stays up, frozen. Why: Azure is the only home, and two live copies drift. Cost: nothing (Vercel stops
+> building). Undo: Settings → Git → connect the repo again.
+
+Vercel → the project → **Settings → Git** → **Disconnect**, so `main` no longer builds there. The site stays up as it was, but nothing updates it.
+
+**4. About 30 days later:**
+
+> **What this does.** Services: Vercel, Anthropic, Google AI Studio, GitHub. Removes Vercel's copy for good: the
+> Blob store (the cold backup), its keys, two unused GitHub secrets and the project. Why: nothing reads them any more,
+> and an unused key is only risk. Cost: saves whatever Vercel was billing. Undo: **none** for the store and the
+> project (copy anything wanted first); keys and secrets can be made again.
+
+Delete the Vercel Blob store (it is the cold backup until then), revoke Vercel's keys (a
 new Claude key and Gemini key were made for Azure; the Vercel ones, and its `FOUNDRY_GITHUB_TOKEN`, can go), delete
 the GitHub Actions secrets `SITE_BYPASS_TOKEN` and `DESK_PINGS_SECRET` (no workflow reads them since #313), and delete
 the Vercel project. Then the crew removes the seed job, the Vercel adapter code, `vercel.json`, `middleware.ts` and

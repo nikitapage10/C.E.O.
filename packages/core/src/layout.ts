@@ -155,7 +155,7 @@ export const ROOMS: Record<RoomId, RoomDef> = {
     id: "relay",
     name: "The Relay",
     theme: "switchboard & post office",
-    workstream: "iMessage assistant",
+    workstream: "Email and iMessage assistant",
     y: 1.8,
     stations: [
       s("tubes", "Pneumatic tubes", 0, -3.4, 0),

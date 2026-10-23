@@ -46,6 +46,9 @@ export const SECRET_SETTINGS = [
   // The Spire's invoices (#279): PayPal's REST app. PAYPAL_ENV (sandbox or live) is a plain setting.
   "PAYPAL_CLIENT_ID",
   "PAYPAL_CLIENT_SECRET",
+  // The subminds' room keys (#281): read-only GETs of room data, and write-only room events (api/_site/roomkeys.ts).
+  "SUBMIND_LOG_TOKEN",
+  "SUBMIND_FEED_TOKEN",
 ] as const;
 
 /** Whether a setting's value is an unresolved Key Vault reference (the platform's own spelling, in any case). */

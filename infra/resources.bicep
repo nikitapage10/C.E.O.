@@ -94,6 +94,11 @@ var secrets = [
   // PAYPAL_ENV setting below; switching to live means pasting the Live app's id and secret here.
   { setting: 'PAYPAL_CLIENT_ID', secret: 'paypal-client-id' }
   { setting: 'PAYPAL_CLIENT_SECRET', secret: 'paypal-client-secret' }
+  // The subminds' two room keys (#281, api/_site/roomkeys.ts): 32 random bytes each, minted by the secrets paste
+  // (docs/AZURE.md). The read key opens only GETs of room data; the feed key only POST /api/room-feed. Neither can
+  // change a setting, trade, send, or reach another secret.
+  { setting: 'SUBMIND_LOG_TOKEN', secret: 'submind-log-token' }
+  { setting: 'SUBMIND_FEED_TOKEN', secret: 'submind-feed-token' }
 ]
 
 // Built-in role IDs (the same in every tenant).

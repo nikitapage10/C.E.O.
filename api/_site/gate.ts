@@ -22,6 +22,11 @@
  *        POST /api/desk-pings + Authorization: Bearer <DESK_PINGS_SECRET>   the pings scan, checked here too
  *        any request + x-ceo-site-bypass: <SITE_BYPASS_TOKEN>   the live watch (it reads site-bypass-token from the
  *                                             Key Vault, #313; Vercel's copy also served the public-mode seed)
+ *        GET <a room read> + x-ceo-room-key: <SUBMIND_LOG_TOKEN>    a submind thread reading its room's data
+ *        POST /api/room-feed + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting a room event
+ *                                             (or either as Authorization: Bearer)
+ *                                             (#281, api/_site/roomkeys.ts: each key opens only its own exact
+ *                                             method, path and query; the handlers check the key again)
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
  *   6. Anything else: an API route gets 401 { error: "site-locked" }; a page gets the login page, with 401.
  *
@@ -35,6 +40,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { readCookie } from "../_desk/session.js";
 import { LOGIN_CSP, loginPage } from "./page.js";
 import { SITE_COOKIE, renewedSite, sessionFits, siteCookie, siteSessionOf } from "./session.js";
+import { roomKeyPass } from "./roomkeys.js";
 import { currentState, siteKeys, type SiteKeys, type SiteState, type SiteStore } from "./state.js";
 
 type Env = Record<string, string | undefined>;
@@ -51,7 +57,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "bypass" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "bypass" | "room-log" | "room-feed" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -143,6 +149,8 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if (request.method === "POST" && pathname === "/api/world-step") return { allow: true, why: "world-step" };
   if (isPingsScan(request, pathname, env)) return { allow: true, why: "pings-secret" };
   if (hasBypass(request, env)) return { allow: true, why: "bypass" };
+  const room = roomKeyPass(request, env);
+  if (room) return { allow: true, why: room };
   // The passkey works only where the Desk key is set; without it, the login page says signing in isn't set up.
   const passkey = Boolean(env.FOUNDRY_DESK_KEY?.trim());
   if (state.unknown) return { allow: false, response: locked(request, "unknown", passkey) };

@@ -88,3 +88,9 @@
 .desk .skp-asked__more:focus-visible {
   text-decoration: underline;
 }
+/* The room feed (#281) reuses the panel; a row without a detail has no disclosure. */
+.desk .skp-feed__row {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+}

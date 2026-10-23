@@ -231,3 +231,34 @@ describe("GET /api/exchange-positions", () => {
     expect(typeof worldGET).toBe("function");
   });
 });
+
+describe("the subminds' read key (#281)", () => {
+  const LOG = "test-log-key-not-a-real-one-0123456789abcdef";
+  const FEED = "test-feed-key-not-a-real-one-0123456789abcdef";
+  const env = { SUBMIND_LOG_TOKEN: LOG, SUBMIND_FEED_TOKEN: FEED };
+  const keyed = (key: string, path = POSITIONS_PATH) => new Request(`https://ceo.test${path}`, { headers: { Authorization: `Bearer ${key}` } });
+
+  it("reads the same board with the read key: GETs to the read paths only, never cached, no cookie", async () => {
+    const us = fakeUs();
+    const res = await GET(keyed(LOG), deps(us.fetcher, { env }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
+    expect(us.calls.length).toBeGreaterThan(0);
+    for (const c of us.calls) {
+      expect(c.method).toBe("GET");
+      expect((READ_PATHS as readonly string[]).includes(new URL(c.url).pathname)).toBe(true);
+    }
+    expect(JSON.stringify(await (await GET(keyed(LOG), deps(us.fetcher, { env }))).json())).not.toContain(KEY_ID);
+  });
+
+  it("is refused with the feed key, a wrong key, no key set, or an extra query", async () => {
+    const us = fakeUs();
+    expect((await GET(keyed(FEED), deps(us.fetcher, { env }))).status).toBe(401);
+    expect((await GET(keyed("wrong-key-but-long-enough-0123456789abcdef"), deps(us.fetcher, { env }))).status).toBe(401);
+    expect((await GET(keyed(LOG), deps(us.fetcher))).status).toBe(401);
+    expect(us.calls).toEqual([]);
+    expect((await GET(keyed(LOG, `${POSITIONS_PATH}?limit=500`), deps(us.fetcher, { env }))).status).toBe(400);
+  });
+});

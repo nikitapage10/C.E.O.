@@ -36,6 +36,7 @@ import { pickBlob } from "./_blob.js";
 import { deskKeyFor } from "./_desk/keys.js";
 import { requireSession, withCookie } from "./_desk/session.js";
 import { pickAuthStore, type AuthStore } from "./_desk/store.js";
+import { KEY_LOG_ROOMS, readsWithLogKey } from "./_site/roomkeys.js";
 import type { SetupStatus } from "./_desk/setup.js";
 import { memo } from "./_feedcache.js";
 import { githubToken } from "./_github.js";
@@ -221,10 +222,22 @@ export async function GET(request?: Request): Promise<Response> {
 }
 
 /**
- * A room's "Asked Skippy" turns (#273), newest first: only in a passkey session, checked before anything is read.
- * Everything it holds is private (the Exchange's and Relay's asks included), so there is no public view of it.
+ * A room's "Asked Skippy" turns (#273), newest first: only in a passkey session, checked before anything is read, or
+ * to a submind thread holding the read key (#281) for one of the four active rooms. Everything it holds is private
+ * (the Exchange's and Relay's asks included), so there is no public view of it.
  */
-export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" | "store" | "log" | "now">): Promise<Response> {
+export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" | "store" | "log" | "now"> & Partial<Pick<ChatDeps, "env">>): Promise<Response> {
+  // A submind thread with the read key (#281, api/_site/roomkeys.ts): its own four rooms only, never Relay's or "none".
+  if (readsWithLogKey(request, deps.env ?? {})) {
+    const room = new URL(request.url).searchParams.get("room");
+    if (!(KEY_LOG_ROOMS as readonly string[]).includes(room ?? "") || !isLogRoom(room)) return json({ error: "bad-request" }, 400);
+    if (!deps.log) return json({ error: "not-set-up" }, 503);
+    try {
+      return json({ room, turns: await deps.log.list(room, deps.now) });
+    } catch {
+      return json({ error: "unreadable" }, 502);
+    }
+  }
   if (!deps.deskKey || !deps.store) return json({ error: "not-set-up" }, 503);
   const signed = await requireSession(request, { deskKey: deps.deskKey, store: deps.store, now: deps.now });
   if (!signed.ok) return signed.response;

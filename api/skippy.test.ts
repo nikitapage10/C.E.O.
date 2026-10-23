@@ -272,6 +272,26 @@ describe("Skippy's room log (#273)", () => {
     expect(await cross.text()).not.toContain("positions");
   });
 
+  it("reads the four active rooms to a submind thread with the read key (#281), and nothing else", async () => {
+    const LOG = "test-log-key-not-a-real-one-0123456789abcdef";
+    const FEED = "test-feed-key-not-a-real-one-0123456789abcdef";
+    const { post, deps } = await setup({ reply: "Start the kicker.", actions: [], room: "green" });
+    await post("Who do I start at K?");
+    const keyed = { ...deps, env: { SUBMIND_LOG_TOKEN: LOG, SUBMIND_FEED_TOKEN: FEED } };
+    const read = (room: string, key: string, method = "GET") => roomLog(new Request(`${ORIGIN}/api/skippy-log?room=${room}`, { method, headers: { Authorization: `Bearer ${key}` } }), keyed);
+    const ok = await read("green", LOG);
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("set-cookie")).toBeNull();
+    expect(((await ok.json()) as { turns: { question: string }[] }).turns.map((t) => t.question)).toEqual(["Who do I start at K?"]);
+    for (const room of ["exchange", "boiler", "foundry"]) expect((await read(room, LOG)).status).toBe(200);
+    // Relay's asks and the rest stay Desk-only.
+    for (const room of ["relay", "none", "spire"]) expect((await read(room, LOG)).status).toBe(400);
+    // The feed key, a wrong key or an unset one is no key: the Desk session is asked for.
+    expect((await read("green", FEED)).status).toBe(401);
+    expect((await read("green", "wrong-key-but-long-enough-0123456789abcdef")).status).toBe(401);
+    expect((await roomLog(new Request(`${ORIGIN}/api/skippy-log?room=green`, { headers: { Authorization: `Bearer ${LOG}` } }), deps)).status).toBe(401);
+  });
+
   it("still answers when the log can't be written", async () => {
     const { post, log } = await setup({ reply: "Fine.", actions: [], room: "boiler" });
     log.add = async () => Promise.reject(new Error("blob"));

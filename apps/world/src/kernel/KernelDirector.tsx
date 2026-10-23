@@ -6,6 +6,7 @@ import { clock } from "../clock.ts";
 import { useWorld, type AnnouncementTone } from "../store.ts";
 import { KERNEL, SKIPPY_HELLO } from "./lines.ts";
 import { scopeOf, type NoticeScope } from "./notices.ts";
+import { RoomFeedDirector } from "./RoomFeedDirector.tsx";
 import { SubmindDirector } from "./SubmindDirector.tsx";
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
@@ -149,6 +150,11 @@ export function KernelDirector() {
       clearTimeout(hello);
     };
   }, []);
-  // His subminds walk the rooms on his behalf.
-  return <SubmindDirector />;
+  // His subminds walk the rooms on his behalf, and say what they posted from their threads (#281).
+  return (
+    <>
+      <SubmindDirector />
+      <RoomFeedDirector />
+    </>
+  );
 }

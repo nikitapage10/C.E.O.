@@ -33,9 +33,9 @@ export const STACK_FACTS: StackFacts = {
     "azure": "22"
   },
   "hosts": [
-    "Vercel (production, no framework preset): the static site, Node.js serverless functions (api/), Routing Middleware, Vercel Blob for state",
-    "Azure (the second copy, where the site moves as Vercel is retired; infra/*.bicep): Static Web Apps (the site), Azure Functions on Linux, Flex Consumption, Node.js 22 (the same api/ code, bundled by azure/build.mjs), Blob Storage for state and backups, Key Vault for secrets, Application Insights",
-    "GitHub Actions for CI, deploys and the hourly jobs"
+    "Azure, production and the only home (infra/*.bicep): Static Web Apps (the site), Azure Functions on Linux, Flex Consumption, Node.js 22 (the api/ code, bundled by azure/build.mjs), Blob Storage for state and backups, Key Vault for secrets, Application Insights",
+    "Vercel: being retired, nothing deploys there; vercel.json and its adapter code stay until it is switched off",
+    "GitHub Actions for CI, deploys and the scheduled jobs"
   ],
   "checks": [
     "npm audit (fails at high and above)",

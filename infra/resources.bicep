@@ -72,6 +72,10 @@ var secrets = [
   { setting: 'DESK_PINGS_SECRET', secret: 'desk-pings-secret' } // shared with the desk-pings workflow
   { setting: 'SITE_BYPASS_TOKEN', secret: 'site-bypass-token' } // the site lock's bypass, shared with the live-watch workflow (#313)
   { setting: 'FANTASYPROS', secret: 'fantasypros' } // the Green's FantasyPros API key (x-api-key); Azure only
+  // The Studio's voice and picture keys (#311), each capped at $10 a month in code; Azure only. Nikita set these by
+  // hand before they were here, and the template replaces the whole settings list, so they must be listed.
+  { setting: 'ELEVENLABS_API_KEY', secret: 'elevenlabs' }
+  { setting: 'OPENAI_STUDIO_KEY', secret: 'openai' }
   // Nikita's Polymarket US key (#253), for the Exchange's private positions board: read-only by code (the key itself
   // could trade; api/_exchange/positions.ts only ever signs GETs to the two portfolio paths). Optional: without it the
   // board waits.

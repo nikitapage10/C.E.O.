@@ -33,6 +33,9 @@ export const SECRET_SETTINGS = [
   // The site lock's bypass for the live watch (#313): the workflow reads `site-bypass-token` from the vault too.
   "SITE_BYPASS_TOKEN",
   "FANTASYPROS",
+  // The Studio (#311): voice and pictures, each capped at $10 a month.
+  "ELEVENLABS_API_KEY",
+  "OPENAI_STUDIO_KEY",
   // Optional (#253): the Exchange's positions wait for them.
   "POLYMARKET_US_KEY_ID",
   "POLYMARKET_US_SECRET_KEY",

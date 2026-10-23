@@ -53,9 +53,15 @@ export const RULES = {
   enrolAll: { free: 5, waits: [MIN, 5 * MIN], lock: 60 * MIN },
   /** Every address together, signing in with a passkey: 1 min, then locked 15 min. */
   signinAll: { free: 20, waits: [MIN], lock: 15 * MIN },
+  /**
+   * The Keys form (#330, api/_keys/route.ts): not failures but writes. Every key set counts, from any address; six in
+   * a row are free, the seventh waits a minute, and after that the form is shut for 15 minutes. It forgets after an
+   * hour without a write, like the rest.
+   */
+  keysAll: { free: 6, waits: [MIN], lock: 15 * MIN },
 } satisfies Record<string, Rule>;
 
-export type Attempt = "enrol" | "signin";
+export type Attempt = "enrol" | "signin" | "keys";
 
 /** How long this bucket must still wait before a try (ms; 0 when a try is allowed). */
 export function waitOf(bucket: Bucket | undefined, now: number): number {
@@ -86,8 +92,8 @@ export function addressOf(request: Request): string {
 /** The buckets one try touches: its address's (hashed with a key derived from the Desk key) and everyone's. */
 export function bucketsFor(attempt: Attempt, address: string, clientKey: Buffer): { mine: string; all: string; mineRule: Rule; allRule: Rule } {
   const tag = createHmac("sha256", clientKey).update(address).digest("hex").slice(0, 20);
-  const allRule = attempt === "enrol" ? RULES.enrolAll : RULES.signinAll;
-  return { mine: `${attempt}:a:${tag}`, all: `${attempt}:all`, mineRule: RULES.address, allRule };
+  const allRule = attempt === "enrol" ? RULES.enrolAll : attempt === "keys" ? RULES.keysAll : RULES.signinAll;
+  return { mine: `${attempt}:a:${tag}`, all: `${attempt}:all`, mineRule: attempt === "keys" ? RULES.keysAll : RULES.address, allRule };
 }
 
 /** The counters for one kind of try from one address, read from and written to the store. */
@@ -115,6 +121,11 @@ export class Gate {
       this.now,
     );
     await this.store.saveLimits(this.limits);
+  }
+
+  /** One write counted (the Keys form, #330): both buckets take it, as they would a failure. */
+  count(): Promise<void> {
+    return this.fail();
   }
 
   /** Whether this challenge has already been answered once (a challenge opens one session, never two). */

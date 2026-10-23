@@ -45,11 +45,13 @@ flowchart LR
     fSkippy["api/skippy<br/>Skippy's chat"]
     fImage["api/foundry-image"]
     fAuth["api/desk-auth<br/>passkeys, sessions"]
+    fKeys["api/keys<br/>write-only Keys form"]
     fPings["api/desk-pings<br/>pings to the phone"]
     fFeed["api/foundry-feed<br/>api/foundry-usage<br/>api/security-feed<br/>api/visual-qa-feed"]
     fStep["api/world-step<br/>api/world<br/>api/day-story"]
   end
   blob[("Azure Blob, ceo-state<br/>world state, stories, pictures,<br/>passkeys' public keys, ping subscriptions")]
+  kv[("Azure Key Vault<br/>every secret")]
   push["Push services<br/>Apple, Google, Mozilla, Microsoft"]
   claude["Claude API<br/>Haiku"]
   gemini["Gemini API<br/>speech, Visual QA"]
@@ -68,6 +70,8 @@ flowchart LR
 
   desk -- "TB1: ideas, notes, pictures, session" --> fFoundry
   desk -- "TB1: passkey sign-in" --> fAuth
+  desk -- "TB1: a key, fresh passkey" --> fKeys
+  fKeys -- "set only, allowlisted" --> kv
   fAuth --> blob
   desk -- "TB1" --> fImage
   fImage --> blob
@@ -83,6 +87,7 @@ flowchart LR
   builder -- "branches, PRs" --> repo
   repo -- "checks and scans" --> actions
   repo -- "deploy" --> site
+  actions -- "template, conditioned role" --> kv
   actions -- "hourly POST" --> fStep
   issues -- "titles, trail kinds" --> fStep
   fStep -- "TB2: fenced digest" --> claude
@@ -107,7 +112,7 @@ flowchart LR
 
 | Boundary | What crosses it | Controls |
 | --- | --- | --- |
-| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses, a device's push subscription, messages to Skippy | A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127); a push subscription taken only in a passkey session and only for a known push service (`readSubscription`, #135), dropped on sign-out or when its device is removed, and pinged only while its passkey is enrolled; the scan that sends pings needs the workflow's shared secret (`DESK_PINGS_SECRET`), and a ping carries counts only, never issue text (`pingText` in `api/_desk/pings.ts`); Skippy's chat (`api/skippy.ts`, #224) answers only in a passkey session, takes a message of at most 600 characters and the last eight turns, holds back text that looks private before Claude sees it, is paced per passkey (`api/_skippy/limits.ts`), logs no message text, keeps each answered question and reply only in the private store under the room Skippy tagged it with (the last 200 per room, 30 days at most; the room checked against a closed set, anything else filed as none), readable back only in a passkey session (`api/_skippy/log.ts`, GET /api/skippy-log, #273, with a `needs` filter for open hand-offs, #312); a hand-off's answer comes back only with the room threads' write key, as one plain line on a turn that was handed off (`POST /api/skippy-answer`, #312), never the history and never on a public path or the Lattice, and its suggested actions do nothing until Nikita taps one, which then goes through the Desk's own buttons; the site is locked or unlocked, and every site session ended, only in a passkey session (`api/_site/control.ts`, #236, #238) |
+| **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses, a device's push subscription, messages to Skippy, a third-party key for the Key Vault | A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127); a push subscription taken only in a passkey session and only for a known push service (`readSubscription`, #135), dropped on sign-out or when its device is removed, and pinged only while its passkey is enrolled; the scan that sends pings needs the workflow's shared secret (`DESK_PINGS_SECRET`), and a ping carries counts only, never issue text (`pingText` in `api/_desk/pings.ts`); Skippy's chat (`api/skippy.ts`, #224) answers only in a passkey session, takes a message of at most 600 characters and the last eight turns, holds back text that looks private before Claude sees it, is paced per passkey (`api/_skippy/limits.ts`), logs no message text, keeps each answered question and reply only in the private store under the room Skippy tagged it with (the last 200 per room, 30 days at most; the room checked against a closed set, anything else filed as none), readable back only in a passkey session (`api/_skippy/log.ts`, GET /api/skippy-log, #273, with a `needs` filter for open hand-offs, #312); a hand-off's answer comes back only with the room threads' write key, as one plain line on a turn that was handed off (`POST /api/skippy-answer`, #312), never the history and never on a public path or the Lattice, and its suggested actions do nothing until Nikita taps one, which then goes through the Desk's own buttons; the site is locked or unlocked, and every site session ended, only in a passkey session (`api/_site/control.ts`, #236, #238); a third-party key is set from the Keys form (`api/_keys/route.ts`, #330) only by an allowlisted name (`api/_keys/allowlist.ts`; never the Desk key, the bypass, the pings secret, the crew's tokens, the push keys or the sealing key), each write with a fresh answer from the session's own passkey to a two-minute challenge, used once (`api/_desk/assert.ts`), write-only (no read, no list of values, no delete), at most 4 KB, six in a row before a wait, and its value never answered, logged or kept in the trail |
 | **TB2** Code to the model APIs | Idea text, issue text, the hour's digest, the day's story script, Nikita's messages to Skippy with the Desk's state; JSON, text or audio back | Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`; `chatInput`, `unfenceChat` in `api/_skippy/prompt.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`, `readReply`); Skippy is told the Desk's state as titles, numbers, labels and counts only, scrubbed like the public feeds (`api/_skippy/context.ts`), and what C.E.O. runs on as a public sheet generated from the repo (languages, hosts, package and service names and versions, an OSV.dev advisory count; never a key or an account id: `api/_skippy/stack.ts`, `api/_skippy/advisories.ts`, #312), in its own <stack> block; OSV is sent only the lockfile's public package names and versions; Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap |
 | **TB3** Functions to GitHub | Issue writes with the Foundry token | Token lives only in the Azure Key Vault; once the crew's GitHub App is set up, the buttons write as `ceo-foundry[bot]` with an hour-long token that can only touch this repo's issues, and the feeds read with a read-only one (`api/_github.ts`, #138); label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`) |
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account, the Checks bot and the crew's App (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
@@ -119,7 +124,10 @@ flowchart LR
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's
 lanes, by direct push for chat work today) and the "Deploy to Azure" workflow ships it (#214, #216, #218; Azure is
 the only home since #313, and Vercel is being retired). It signs in with OIDC from the repo's `azure` environment
-(only `main` may use it), so no Azure password or key is stored in GitHub. The controls on that path are in
+(only `main` may use it), so no Azure password or key is stored in GitHub. Since #330 the same workflow applies the
+Azure template to the resource group on every merge, with Role Based Access Control Administrator conditioned to the
+template's own roles and identities and no deletes (AZURE.md, "The template on every deploy"; R8 below), so a
+compromised `main` could change C.E.O.'s Azure resources but not grant anything outside that list. The controls on that path are in
 [DELIVERY.md](DELIVERY.md) and [SECURITY.md](SECURITY.md): checks, CodeQL, dependency review, Scorecard, Dependabot,
 secret scanning, pinned actions, least-privilege workflows and npm provenance checks (#64, #66, #67).
 
@@ -244,6 +252,7 @@ links through its own picture function; its test passes like any other, and noth
 | R5 | Relay privacy spec before the hub is built (what stays on the Mac, what OpenAI and the site may see, retention, the wipe; a counts-only check on the site boundary) | Messages and contacts | Shipped #149 |
 | R6 | Key the world step and cap it per hour | World spend | Shipped #171: covered by the 55-minute spacing and the monthly budget guard; no key needed |
 | R7 | A lock on the whole site (one Desk passkey sign-in per device, no password, machine callers on their own keys, a second step such as approving a new device later) | The site being public | Built #236 and #238 (passkey only), on once Nikita locks it from the Desk; open: Azure's static files, the second step |
+| R8 | Azure changes and keys without Cloud Shell (the deploy applies the template with a role that may assign only the template's own roles; a write-only, allowlisted Keys form behind a passkey step-up) | Hand-run pastes drifting from the template; keys pasted in a shell | Built #330, live once Nikita runs the role paste in AZURE.md |
 
 **R2, what #138 does and doesn't close.** Once Nikita creates the crew's GitHub App and pastes its key
 (SECURITY.md, "The crew's own identity"), every function that talks to GitHub mints its own hour-long token for

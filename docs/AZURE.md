@@ -4,9 +4,16 @@ C.E.O.'s home, as Bicep in [`infra/`](../infra): **Azure is production and the o
 #313), at <https://ceo.nikita.page> and its own <https://thankful-forest-019308c1e.5.azurestaticapps.net>
 (both answer during the switch, #314: [DOMAIN.md](DOMAIN.md)). Vercel, where C.E.O. started, is being retired:
 nothing runs against it any more except the one final copy of its world, and what Nikita switches off there is in
-[Retiring Vercel](#retiring-vercel). One paste in Azure Cloud Shell creates all of it (the app's Vercel adapter code
+[Retiring Vercel](#retiring-vercel). One paste in Azure Cloud Shell created all of it (the app's Vercel adapter code
 stays until Vercel is off, see [The port](#the-port)); the deploy workflow and nightly backup are in
 [Deploys and backups](#deploys-and-backups). No Azure OpenAI or Speech: the functions call Claude and Gemini directly.
+
+**Since #330, changes ship with the deploy and keys go in on the Desk.** Every merge into `main` applies
+`infra/resources.bicep` to `rg-ceo-prod` ([The template on every deploy](#the-template-on-every-deploy)), so new app
+settings, Key Vault references and roles go live with the code, and a third-party key (Claude, Gemini, FantasyPros,
+Polymarket US, Gmail's client, PayPal, ElevenLabs, OpenAI, the email skip list) is set or replaced on the Desk, in
+**Boiler Room → Security → Keys**, behind the passkey. The pastes below are the **first-time setup** of a new
+subscription; with everything in place, the only paste left is the one-time role paste in that section.
 
 ## What gets created
 
@@ -33,6 +40,9 @@ Contributor on the storage account (to look at or copy in the state).
 
 ## The paste
 
+**First-time setup only.** It creates the resource group and everything in it on a new subscription; after that the
+deploy keeps the template applied ([The template on every deploy](#the-template-on-every-deploy)).
+
 Open [Cloud Shell](https://shell.azure.com) (Bash) in the subscription and paste this. It registers the services a new
 subscription doesn't have switched on yet and deploys (5–10 minutes). (The repo's name ends in a dot, so its clone URL
 is `C.E.O..git`, with two dots.)
@@ -47,10 +57,17 @@ The defaults are in [`infra/main.bicep`](../infra/main.bicep); add `-p name=valu
 and cap spend themselves; on a pay-as-you-go subscription add `createBudget=true budgetEmail=you@example.com`. `az deployment sub show -n ceo --query properties.outputs` prints the
 names and URLs it made.
 
-## After the paste
+<a id="after-the-paste"></a>
 
-1. **Fill the secrets.** Two parts: one paste mints the secrets that are ours to make, and three come from outside
-   by hand. Vercel's values can't be read back (they are marked sensitive), so Azure has its own.
+## After the paste (first-time setup only)
+
+**On a running setup, skip this section.** Since #330 the deploy applies the template on every merge (no template
+paste), and the third-party keys go in on the Desk (**Boiler Room → Security → Keys**). What is left here is for a new
+subscription: minting the secrets that are ours to make (the Desk key, the bypass, the pings secret, the push keys),
+and, on purpose, replacing them all (`FORCE=1`). Those never go through the Desk.
+
+1. **Fill the secrets.** Two parts: one paste mints the secrets that are ours to make, and the rest come from outside.
+   Vercel's values can't be read back (they are marked sensitive), so Azure has its own.
 
    > **What this does.** Service: Azure (Cloud Shell, the Key Vault and the Function App). It re-runs the template
    > (app settings, roles, the budgets) and adds any missing secret to the vault, keeping the ones already there,
@@ -98,11 +115,13 @@ if has foundry-desk-key; then echo "kept foundry-desk-key"; else K=$(rnd); put f
 az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRESH=$(date -u +%Y%m%d%H%M%S)" -o none && echo "refreshed $FA (it restarts and re-reads the vault)")
 ```
 
-   **By hand, three secrets** (they come from other services), and two optional ones for the Exchange. In the [Azure portal](https://portal.azure.com):
-   search **Key vaults** → **kv-ceo-besgu7fnckib2** → in the left menu **Objects → Secrets** → **+ Generate/Import**.
-   Leave **Upload options** on *Manual*, type the **Name** exactly as below, paste the value into **Secret value**,
-   leave the content type, dates and **Enabled: Yes** as they are, and press **Create**. Then restart: search
-   **Function App** → **func-ceo-besgu7fnckib2** → **Overview** → **Restart** (Key Vault values are read at start-up).
+   **The keys from other services.** The third-party ones (`claude-api-key`, `gemini-api-key`, the Polymarket US
+   pair and the rest of the allowlist in `api/_keys/allowlist.ts`) go in on the Desk: **Boiler Room → Security →
+   Keys**, signed in, **Set** or **Replace**, paste, and tap the passkey. The app takes a new one within two minutes,
+   with no restart. `foundry-github-token` isn't on that list (it is the crew's access), so it goes in the portal:
+   [Azure portal](https://portal.azure.com) → **Key vaults** → **kv-ceo-besgu7fnckib2** → **Objects → Secrets** →
+   **+ Generate/Import**, **Name** exactly as below, the value in **Secret value**, **Create**; then **Function App** →
+   **func-ceo-besgu7fnckib2** → **Overview** → **Restart**. Where each value comes from:
 
    | Name | Value |
    | --- | --- |
@@ -118,19 +137,9 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    The Green's FantasyPros key lives in the vault as `fantasypros` (#252): if it was added as a plain `FANTASYPROS` app
    setting in the portal, the next template run replaces that with the vault reference, so add it to the vault too.
 
-   **The Polymarket US key needs two app settings added by hand** (#253). CI never deploys the Bicep template, so the
-   references for `POLYMARKET_US_KEY_ID` and `POLYMARKET_US_SECRET_KEY` in `infra/resources.bicep` only exist after
-   someone runs the template paste again. Until then, putting the secrets in the vault is not enough: in the portal,
-   **Function App** → **func-ceo-besgu7fnckib2** → **Settings → Environment variables** → **App settings** →
-   **+ Add**, add both, each with a Key Vault reference as its value, then **Apply** and restart:
-
-   | Name | Value |
-   | --- | --- |
-   | `POLYMARKET_US_KEY_ID` | `@Microsoft.KeyVault(VaultName=kv-ceo-besgu7fnckib2;SecretName=polymarket-us-key-id)` |
-   | `POLYMARKET_US_SECRET_KEY` | `@Microsoft.KeyVault(VaultName=kv-ceo-besgu7fnckib2;SecretName=polymarket-us-secret-key)` |
-
-   Until both are set, the Exchange's positions board says it is waiting for the key. A later template run writes the
-   same two references, so nothing changes then.
+   **No app settings by hand any more** (#253 needed two for the Polymarket US key while CI never applied the
+   template). The deploy writes every reference in `infra/resources.bicep` on each merge, so a new secret's app
+   setting exists as soon as its pull request lands; only the value is ever added, on the Desk or in the vault.
 
    | Key Vault secret | App setting |
    | --- | --- |
@@ -151,11 +160,13 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
    same Claude and Gemini accounts; with Vercel no longer spending (#313) they are the code's own defaults, the ones
    Vercel ran on: `WORLD_BUDGET_USD=6`, `GEMINI_BUDGET_USD=5` and `SKIPPY_BUDGET_USD=2` (agreed 2026-10-22), so the
-   total a month is what it was across both. They take effect when the template paste runs again. Change one with
-   `-p worldBudgetUsd=3` (or `geminiBudgetUsd`, `skippyBudgetUsd`) on the paste. The email agent's own cap, `EMAIL_BUDGET_USD=10`
-   (`emailBudgetUsd`, #263), is separate from those and exists only here. `PAYPAL_ENV` (`paypalEnv`, #279) is
-   `sandbox` unless the paste passes `-p paypalEnv=live`. Anything set by hand in the portal is reset by the next
-   template run, so change them there.
+   total a month is what it was across both. The email agent's own cap, `EMAIL_BUDGET_USD=10` (`emailBudgetUsd`,
+   #263), is separate from those and exists only here. `PAYPAL_ENV` (`paypalEnv`, #279) starts as `sandbox`. The
+   deploy keeps all five as they are live (and the home address and the log cap): change one in the portal
+   (**Function App** → **Settings → Environment variables**, **Apply**) or with `-p worldBudgetUsd=3` (or
+   `geminiBudgetUsd`, `skippyBudgetUsd`, `emailBudgetUsd`, `paypalEnv=live`) on the first-time paste, and later deploys
+   keep the new value. Any other setting added in the portal makes the deploy skip the template (it would remove it)
+   and say so, so add new settings to the template instead.
    Vercel's `BLOB_*` settings have no counterpart: the Function App already has `WORLD_STORE=azureblob`,
    `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_BLOB_ENDPOINT` and `AZURE_STORAGE_CONTAINER=ceo-state`.
 
@@ -279,9 +290,11 @@ The unit tests for the adapter, the Key Vault guard and the store choice run wit
 Nikita OK'd GitHub signing in to Azure on 2026-10-21. Two workflows keep the Azure copy going; both skip themselves
 until the one-time setup below is done, so main stays green either way.
 
-- **`.github/workflows/deploy-azure.yml`**, on every push to `main` (and by hand from the Actions tab): one build, then
-  the site (prebuilt `apps/world/dist`, uploaded with no rebuild) and the functions (`azure/dist/functions.zip`,
-  zip-deployed to Flex Consumption) go out in parallel. Expect about 3 to 4 minutes from push to live.
+- **`.github/workflows/deploy-azure.yml`**, on every push to `main` (and by hand from the Actions tab, from `main`):
+  one build and, beside it, the template (`infra/resources.bicep` on `rg-ceo-prod`, #330: [The template on every
+  deploy](#the-template-on-every-deploy)); then the site (prebuilt `apps/world/dist`, uploaded with no rebuild) and
+  the functions (`azure/dist/functions.zip`, zip-deployed to Flex Consumption) go out in parallel. Expect about 4 to 6
+  minutes from push to live.
 - **`.github/workflows/world-step.yml`** and **`.github/workflows/desk-pings.yml`**, hourly (and pings on Foundry
   issue events): each is one job, `azure` (the Vercel jobs went with #313). The world step calls the Function App's own
   address (`az resource show … properties.defaultHostName`; `az functionapp show` came back empty for the Flex app,
@@ -341,8 +354,9 @@ idea pictures included (`scripts/seed-azure-pull.mjs`):
 **How GitHub signs in:** OIDC only. GitHub gives each job a short-lived token, and Azure trusts it only for this
 repo's `azure` environment, which only `main` may use. No password or key is stored in GitHub; the Static Web App's
 deployment token is read at run time and masked. The identity has Contributor on `rg-ceo-prod`, blob data access on
-the storage account and Key Vault Secrets User on the vault (for `desk-pings-secret` and `site-bypass-token`), and nothing outside the
-resource group.
+the storage account and Key Vault Secrets User on the vault (for `desk-pings-secret` and `site-bypass-token`), and,
+once the role paste below has run, Role Based Access Control Administrator on `rg-ceo-prod` with a condition (#330).
+Nothing outside the resource group.
 
 **Pull requests** don't deploy to Azure: that would give Azure credentials to pull request code in a public repo.
 The `checks` run covers them, the boot check included (it loads the PR's build in Chromium); there are no preview
@@ -377,12 +391,76 @@ az ad app federated-credential create --id $(az ad app list --display-name ceo-g
 4. Run "Deploy to Azure" once from the Actions tab (or push anything to `main`).
 
 The paste in step 1 passes `githubPrincipalId`, so the template gives GitHub's identity all three roles, Key Vault
-Secrets User included. A setup made before that role was added gets it from the secrets paste in
-[After the paste](#after-the-paste), which runs the template the same way. (Give roles through the template only:
-one added by hand with `az role assignment create` gets a different name, and the next template run then fails
-with `RoleAssignmentExists`.)
+Secrets User included. (Give the template's roles through the template only: one added by hand with
+`az role assignment create` gets a different name, and the next template run then fails with `RoleAssignmentExists`.
+The two roles in the role paste below are not the template's, on purpose, so they don't clash.)
 
-From then on every push to `main` updates production on Azure.
+From then on every push to `main` updates production on Azure. Then run the role paste once, below.
+
+## The template on every deploy
+
+Since #330 (Nikita, 2026-10-23: "Let the GitHub deploy apply the Azure template, so Cloud Shell pastes stop"), the
+`infra` job in `deploy-azure.yml` applies `infra/resources.bicep` on every push to `main`, before the site and the
+functions ship, so a new app setting or Key Vault reference exists when the code that reads it lands:
+
+- **Resource-group scope only:** `az deployment group create -g rg-ceo-prod`, the same module `main.bicep` deploys.
+  Nothing subscription-scoped runs from CI: the resource group, the providers, the budget alert and the GitHub
+  identity stay in the first-time pastes above.
+- **Nothing is reset.** Every parameter the paste could have set differently is read back from what is live first:
+  the home address (`CEO_SITE_URL`, so the ceo.nikita.page switch in [DOMAIN.md](DOMAIN.md) holds), `PAYPAL_ENV`, the
+  four budgets and the log cap; `main.bicep`'s defaults fill in only what is missing. `githubPrincipalId` comes from
+  the job's own token, `deployerPrincipalId` from the repo variable `AZURE_DEPLOYER_PRINCIPAL_ID` when set, else the
+  one person with Key Vault Secrets Officer on the vault (with neither, the deployer's roles are left alone). If the
+  template would remove an app setting made outside it, the job applies nothing, names the setting (never its value)
+  and the code still ships.
+- **A what-if first**, summarised in the run (changes and property paths, never values); a run that would delete
+  anything stops there. Then the apply, then `KEYVAULT_REFRESH` changes so Flex reads every Key Vault reference again.
+- **Least privilege.** GitHub's identity keeps Contributor on the group (which can't write role assignments) and gets
+  **Role Based Access Control Administrator** on `rg-ceo-prod` with a condition: it may assign only the template's own
+  roles, each only to the identity the template gives it to (the Function App: Storage Blob Data Owner, Storage Queue
+  and Table Data Contributor, Key Vault Secrets User, Monitoring Metrics Publisher; you: Key Vault Secrets Officer,
+  Storage Blob Data Contributor; GitHub itself: Contributor, Storage Blob Data Contributor, Key Vault Secrets User),
+  and may never delete an assignment. Strictly less than Owner: it can't grant itself or anyone else anything new.
+  If the Function App is ever recreated (a new identity), the condition no longer matches it and the apply fails red:
+  run the role paste again.
+- Until the role paste below has run, the job says so in the run and applies nothing; the code still ships.
+
+**The one last paste**, in Cloud Shell (Bash), once:
+
+> **What this does.** Service: Azure (`rg-ceo-prod` and the vault `kv-ceo-besgu7fnckib2`). It gives GitHub's deploy
+> identity `ceo-github-deploy` Role Based Access Control Administrator on `rg-ceo-prod` only, limited by a condition
+> to the template's own roles for the template's own three identities and no deletes; and the Function App's identity
+> Key Vault Secrets Officer on the vault, so the Desk's Keys form can write. Azure scopes that vault-wide, so the
+> allowlist in code (`api/_keys/allowlist.ts`) is the real guard. Why: merges apply the template and keys go in on the
+> Desk, so the Cloud Shell pastes stop. Cost: nothing. Undo: the two `az role assignment delete` lines below.
+
+```bash
+(RG=rg-ceo-prod; SCOPE=$(az group show -n $RG --query id -o tsv); SP=$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv); ME=$(az ad signed-in-user show --query id -o tsv); FA=$(az functionapp list -g $RG --query "[0].name" -o tsv); FN=$(az resource show -g $RG -n "$FA" --resource-type Microsoft.Web/sites --query identity.principalId -o tsv); KV=$(az keyvault list -g $RG --query "[0].id" -o tsv)
+[ -n "$SCOPE" ] && [ -n "$SP" ] && [ -n "$ME" ] && [ -n "$FN" ] && [ -n "$KV" ] || { echo "Couldn't find $RG, ceo-github-deploy, the Function App or the vault: nothing changed."; exit 1; }
+N='!'; W=Microsoft.Authorization/roleAssignments; R="@Request[$W:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals"; P="@Request[$W:PrincipalId] ForAnyOfAnyValues:GuidEquals"
+COND="(($N(ActionMatches{'$W/write'})) OR (($R {b7e6dc6d-f1e8-4753-8033-0f276bb0955b, 974c5e8b-45b9-4653-ba55-5f855dd0fb88, 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3, 4633458b-17de-408a-b874-0445c86b69e6, 3913510d-42f4-4e42-8a64-420c390055eb} AND $P {$FN}) OR ($R {b86a8fe4-44ce-4948-aee5-eccb2c155cd7, ba92f5b4-2d11-453d-a403-e96b0029c9fe} AND $P {$ME}) OR ($R {b24988ac-6180-42a0-ab88-20f7382dd24c, ba92f5b4-2d11-453d-a403-e96b0029c9fe, 4633458b-17de-408a-b874-0445c86b69e6} AND $P {$SP}))) AND (($N(ActionMatches{'$W/delete'})) OR (@Resource[$W:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {00000000-0000-0000-0000-000000000000}))"
+has() { [ -n "$(az role assignment list --assignee "$1" --role "$2" --scope "$3" --query "[0].id" -o tsv)" ]; }
+has "$SP" Contributor "$SCOPE" && echo "ok   ceo-github-deploy has Contributor on $RG" || echo "note ceo-github-deploy has no Contributor on $RG: run the one-time setup's paste first"
+if has "$SP" "Role Based Access Control Administrator" "$SCOPE"; then echo "kept ceo-github-deploy's Role Based Access Control Administrator on $RG"; else az role assignment create --assignee-object-id "$SP" --assignee-principal-type ServicePrincipal --role "Role Based Access Control Administrator" --scope "$SCOPE" --condition "$COND" --condition-version 2.0 --description "C.E.O. deploy (#330): only the template's roles, to its own identities, never deletes" -o none && echo "set  ceo-github-deploy: Role Based Access Control Administrator on $RG, conditioned"; fi
+if has "$FN" "Key Vault Secrets Officer" "$KV"; then echo "kept $FA's Key Vault Secrets Officer"; else az role assignment create --assignee-object-id "$FN" --assignee-principal-type ServicePrincipal --role "Key Vault Secrets Officer" --scope "$KV" --description "C.E.O. Desk Keys form (#330); api/_keys/allowlist.ts is the guard" -o none && echo "set  $FA: Key Vault Secrets Officer on the vault"; fi)
+```
+
+It prints one line per role (`set`, or `kept` when it was already there, so running it again is safe). The next push
+to `main`, or **Actions → Deploy to Azure → Run workflow** from `main`, applies the template. To undo, in Cloud Shell:
+
+```bash
+az role assignment delete --assignee "$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv)" --role "Role Based Access Control Administrator" --scope "$(az group show -n rg-ceo-prod --query id -o tsv)"
+az role assignment delete --assignee "$(az resource show -g rg-ceo-prod -n func-ceo-besgu7fnckib2 --resource-type Microsoft.Web/sites --query identity.principalId -o tsv)" --role "Key Vault Secrets Officer" --scope "$(az keyvault show -n kv-ceo-besgu7fnckib2 --query id -o tsv)"
+```
+
+After the first, the deploy goes back to skipping the template (and says so); after the second, the Keys form's
+writes answer "the Key Vault said no" and nothing else changes.
+
+**Keys from the Desk.** The Keys form ([SECURITY.md](SECURITY.md), "Setting keys from the Desk") writes with the
+Function App's own identity. A key set there reaches the running app within two minutes without a restart: each
+instance looks at the vault's dates (never values) at most every two minutes and reads only an allowlisted key that is
+newer than the one it holds (`azure/src/keys.ts`). That needs only Key Vault Secrets User, which the app has always
+had; bumping an app setting from the app instead would need it to hold Website Contributor on itself.
 
 ## Retiring Vercel
 
@@ -396,7 +474,7 @@ Azure is the only home (#313). The crew deletes nothing in Vercel; these are Nik
 > live watch needs the token to see past the site lock, and Azure takes over the spend Vercel had. Cost: up to $13 a
 > month in Claude and Gemini, the same total as before because Vercel stops. Undo: re-run with lower `-p` budgets.
 
-Run the secrets paste in [After the paste](#after-the-paste) again in Cloud Shell. It
+(Done once, before #330.) Run the secrets paste in [After the paste](#after-the-paste) again in Cloud Shell. It
 brings the template up to date (the new `site-bypass-token` reference, and the budgets at world $6, Gemini $5 and
 Skippy $2 now that Vercel stops spending, so the total a month is unchanged), mints `site-bypass-token`, keeps every
 secret that already has a value, and restarts the Function App.

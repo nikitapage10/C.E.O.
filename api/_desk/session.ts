@@ -24,8 +24,11 @@ export const CHALLENGE_S = 5 * 60;
 
 /** `__Host-`: the browser keeps it only when it is Secure, for the whole site, and set by this host alone. */
 export const SESSION_COOKIE = "__Host-ceo-desk";
-/** One challenge cookie per step, so starting an enrolment never spoils a sign-in the Desk has ready, or the reverse. */
-export const CHALLENGE_COOKIE = { signin: "__Host-ceo-desk-signin", enrol: "__Host-ceo-desk-enrol" } as const;
+/**
+ * One challenge cookie per step, so starting an enrolment never spoils a sign-in the Desk has ready, or the reverse.
+ * `keys` is the Keys form's step-up (#330, api/_keys/route.ts): a fresh passkey answer for each key it sets.
+ */
+export const CHALLENGE_COOKIE = { signin: "__Host-ceo-desk-signin", enrol: "__Host-ceo-desk-enrol", keys: "__Host-ceo-desk-keys" } as const;
 
 export interface Session {
   t: "session";
@@ -38,7 +41,7 @@ export interface Session {
 }
 
 export interface Challenge {
-  t: "enrol" | "signin";
+  t: "enrol" | "signin" | "keys";
   /** The WebAuthn challenge, base64url. */
   ch: string;
   /** Ends at (s). */

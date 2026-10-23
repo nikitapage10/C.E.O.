@@ -86,5 +86,5 @@ ones from the **Foundry** tab's device list (the names without "(ceo)").
 3. Tell Skippy it's done. The next live watch (hourly at :23, or **Actions** → **Live watch** → **Run workflow**)
    checks ceo.nikita.page.
 
-If the Bicep template is ever run again, add `siteOnCustomDomain=true` to its parameters, or it sets `CEO_SITE_URL`
-back to the old address.
+The template paste in [AZURE.md](AZURE.md#after-the-paste) reads `CEO_SITE_URL` first and keeps it, so running it
+again after this step doesn't undo the switch. Running the template any other way needs `siteOnCustomDomain=true`.

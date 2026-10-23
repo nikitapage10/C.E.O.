@@ -100,6 +100,46 @@ there. Nothing server-side can post into a project thread, so the Desk keeps the
   The Exchange's and Relay's asks never reach a public path or the Lattice. The one outside reader is the subminds'
   read key (#281, "Room keys" below), for the four active rooms only; Relay's asks stay Desk-only.
 
+
+## What Desk Skippy knows about our stack
+
+Nikita (2026-10-23) asked Desk Skippy about PHP security flaws and got "nothing on the Desk shows we run PHP". Now he
+knows (#312). `scripts/stack-facts.mjs` writes a public fact sheet from the repo itself: the languages it has code in
+and the common server languages it has none of (PHP, Python, Java, Ruby, Go, Rust, .NET), the Node versions it names
+(package.json's engines, CI, the Azure Function App), the hosts its config and Bicep set up (Azure Static Web Apps,
+Functions, Blob Storage, Key Vault; Vercel as being retired), the security checks CI runs, and the outside services its server code calls,
+by name. That part is committed (`api/_skippy/stack.ts`; run `npm run stack:facts` after changing what it reads, and a
+test fails when it falls behind, like `api/_world/cast.ts`). The lockfile's part, every workspace's top-level
+dependencies at their locked versions and the list of every locked package, is written at each `npm ci` (postinstall)
+and each build into `api/_skippy/stackDeps.ts`, which is not committed, so a Dependabot bump never makes it stale.
+
+For an ask about our tech (vulnerabilities, packages, versions, hosts, languages: `wantsStack` in
+`api/_skippy/advisories.ts`) Skippy gets the whole sheet in a `<stack>` block, about 550 tokens, with an advisory
+summary from OSV.dev: one querybatch for the locked packages (names and versions only), the severity of at most 25
+advisories it names, counts by severity and the critical or high ones by id. It is kept six hours in the warm function
+and twelve in the private store (`desk/skippy/advisories.json`, for the same lockfile), and a failed lookup waits ten
+minutes. Any other ask gets one line ("TypeScript and JavaScript on Node.js 22, hosted on Azure; no PHP, Python, Java"). So "are we exposed to X" gets a yes or no from facts.
+
+## Hand-offs: what Desk Skippy can't settle
+
+When Desk Skippy can't settle an ask from the Desk, the stack sheet and a lookup, or the ask is a build, a fix or work
+in a room, he hands it off (#312). His answer's closed schema has a required `needs`: `none`, `skippy` (for "Skippy,
+the Magnificent") or `submind` (the room's own). The code turns `submind` into the room's submind id when that submind
+is active (`ember`, `ticker`, `turf`, `soot`; `ROOM_SUBMINDS` in `api/_skippy/log.ts`, held to `SUBMINDS` by a test) and
+into `skippy` otherwise. The turn is kept in the room log with `needs` set, the reply always says who has it (a fixed
+line is added when Skippy's own words don't), and the room's "Asked Skippy" panel shows "with The Builder".
+
+- **Reading them.** `GET /api/skippy-log?room=<room>&needs=<skippy|submind id|any>` lists only the hand-offs still
+  open; without `needs`, every turn. Signed-in Desk, or a submind thread with the read key (#281, "Room keys" below)
+  for the four active rooms.
+- **Answering them.** `POST /api/skippy-answer` with `{ id, text, from }` and `Authorization: Bearer
+  <SUBMIND_FEED_TOKEN>` (only the bearer form here) (the room threads' write key from #281, Azure Key Vault `submind-feed-token`; the route is off
+  until it is set). `from` is `skippy` (any hand-off) or the submind it was handed to (only its own); `text` is one
+  plain line of at most 700 characters, refused whole when it looks private. The answer is kept on the turn as its
+  `followUp`, which closes the hand-off; the room's panel shows it under the ask ("The Builder answered"), and Nikita's
+  phone gets one ping that names who answered, never what (quiet hours hold it). A turn already answered, not handed
+  off, or another submind's is refused.
+
 ## Room keys
 
 Nikita approved "Both tokens" on 2026-10-22 (#281). Nothing server-side can post into a project thread, and a thread
@@ -109,11 +149,12 @@ every new session finds them as environment variables (the steps, each with its 
 [AZURE.md](AZURE.md), "The subminds' room keys").
 
 - **`SUBMIND_LOG_TOKEN`, read-only.** GET only, and only the room data: the Asked Skippy log of the four active rooms
-  (`/api/skippy-log?room=green|exchange|boiler|foundry`; never Relay's), the Green's league board
+  (`/api/skippy-log?room=green|exchange|boiler|foundry`, optionally `&needs=`; never Relay's), the Green's league board
   (`/api/green-league`), the Exchange's odds board and Nikita's positions (`/api/exchange-markets`,
   `/api/exchange-positions`), the world feed (`/api/world`, one day with `?day=YYYY-MM-DD`), the Foundry feed
   (`/api/foundry-feed`) and the room feed with its details (`/api/room-feed`).
-- **`SUBMIND_FEED_TOKEN`, write-only.** POST `/api/room-feed` only: `{ "room": "green", "title": "…", "detail": "…" }`.
+- **`SUBMIND_FEED_TOKEN`, write-only.** POST `/api/skippy-answer` (a hand-off's answer, above) and POST
+  `/api/room-feed`, nothing else. A room event: `{ "room": "green", "title": "…", "detail": "…" }`.
   `room` is the thread's own (`foundry`, `boiler`, `green`, `exchange`); the title is one line (120 characters at
   most), the detail optional (600). The answer is only `{ ok, id }`. An event that looks private (an email address,
   a phone number, an address, a card or account number, a key, a person's name) is refused whole (422), as on the
@@ -133,6 +174,8 @@ SITE=https://ceo.nikita.page
 # Read: the Green's board, and what Nikita asked Skippy about the Green.
 curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/green-league"
 curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/skippy-log?room=green"
+# The Green's open hand-offs to the Commentator.
+curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/skippy-log?room=green&needs=turf"
 # Post a room event.
 curl -fsS -X POST -H "x-ceo-room-key: $SUBMIND_FEED_TOKEN" -H "Content-Type: application/json" \
   -d '{"room":"green","title":"Waiver call is in: grab the Bears D","detail":"Week 8 bye cover."}' "$SITE/api/room-feed"

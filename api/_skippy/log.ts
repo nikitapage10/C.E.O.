@@ -17,9 +17,15 @@
  *     Relay's turns are private like the rest; nothing here reaches the Lattice or a public feed. The one outside
  *     reader is the subminds' read key (#281, api/_site/roomkeys.ts), for the four active rooms only, never Relay's.
  *
+ * Hand-offs (#312): when Desk Skippy can't settle an ask from the Desk, his stack sheet and a lookup, or it is a build or
+ * room request, the turn is kept with `needs`: "skippy" (the "Skippy, the Magnificent" thread) or the id of the room's
+ * active submind. GET /api/skippy-log?room=<room>&needs=<who> lists the ones still open; the thread side answers through
+ * POST /api/skippy-answer (api/skippy.ts), which keeps the answer on the turn as its `followUp` and closes it.
+ *
  * Underscore folder: Vercel never serves it as a function.
  */
 
+import { createHash } from "node:crypto";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.js";
 
 /** The rooms an ask can belong to; "none" for small talk and anything that fits no room. */
@@ -37,8 +43,51 @@ const QUESTION_MAX = 600;
 const ANSWER_MAX = 700;
 const MODEL_MAX = 40;
 
+/**
+ * Each room's submind, who a hand-off for that room goes to (packages/simulator/src/subminds.ts, the one list; a test
+ * holds this copy to it, since the functions don't bundle the simulator). Only an active one has a thread to take it;
+ * a hand-off for a room whose submind isn't active goes to Skippy.
+ */
+export const ROOM_SUBMINDS = {
+  green: { id: "turf", name: "The Commentator", active: true },
+  exchange: { id: "ticker", name: "The Bookie", active: true },
+  boiler: { id: "soot", name: "The Pessimist", active: true },
+  foundry: { id: "ember", name: "The Builder", active: true },
+  relay: { id: "static", name: "The Messenger", active: false },
+} as const satisfies Record<Exclude<LogRoom, "none">, { id: string; name: string; active: boolean }>;
+
+/** Who a turn can be handed to: Skippy's own thread, or a room's submind by its id. */
+export const NEEDS = ["skippy", ...Object.values(ROOM_SUBMINDS).map((m) => m.id)] as const;
+export type Needs = "skippy" | (typeof ROOM_SUBMINDS)[keyof typeof ROOM_SUBMINDS]["id"];
+export const isNeeds = (v: unknown): v is Needs => typeof v === "string" && (NEEDS as readonly string[]).includes(v);
+
+/** Who a hand-off asked for in the answer ("skippy" or "submind") goes to, for the room it was filed under. */
+export function handoffTo(ask: unknown, room: LogRoom): Needs | null {
+  if (ask === "skippy") return "skippy";
+  if (ask !== "submind") return null;
+  const m = room === "none" ? null : ROOM_SUBMINDS[room];
+  return m && m.active ? m.id : "skippy";
+}
+
+/** The name a hand-off is said to go to. */
+export const needsName = (n: Needs): string => (n === "skippy" ? "Skippy's thread" : (Object.values(ROOM_SUBMINDS).find((m) => m.id === n)?.name ?? "Skippy's thread"));
+
+/** The thread side's answer to a hand-off, kept on the turn. */
+export interface FollowUp {
+  from: Needs;
+  text: string;
+  /** ISO time it came back. */
+  at: string;
+}
+
+/** A turn's id: 16 hex characters, stable for a turn (its time and its question). */
+export const turnId = (at: string, question: string) => createHash("sha256").update(`${at}|${question}`).digest("hex").slice(0, 16);
+export const isTurnId = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{16}$/.test(v);
+
 /** One question and Skippy's answer. */
 export interface LoggedTurn {
+  /** Its id, for a follow-up to name (#312). */
+  id: string;
   /** ISO time it was answered. */
   at: string;
   question: string;
@@ -46,6 +95,10 @@ export interface LoggedTurn {
   room: LogRoom;
   /** The model that wrote the answer, like "claude-sonnet-5-5". */
   model: string;
+  /** Handed off (#312): who it waits on. */
+  needs?: Needs;
+  /** The answer that came back for a hand-off; the hand-off is closed once there is one. */
+  followUp?: FollowUp;
 }
 
 /** A room from anywhere (the model's answer, a query): one of the set, else "none". */
@@ -57,14 +110,55 @@ export const isLogRoom = (v: unknown): v is LogRoom => typeof v === "string" && 
 const line = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 /** A stored turn, checked again on the way out: null when it isn't one. */
+const isoOf = (v: unknown) => (typeof v === "string" && Number.isFinite(Date.parse(v)) ? new Date(Date.parse(v)).toISOString() : "");
+
+/** A follow-up, checked like the rest: who from, one plain line under the answer's cap, and when. */
+export function cleanFollowUp(v: unknown): FollowUp | null {
+  const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const at = isoOf(f.at);
+  const text = line(f.text, ANSWER_MAX);
+  return at && text && isNeeds(f.from) ? { from: f.from, text, at } : null;
+}
+
 export function cleanTurn(v: unknown): LoggedTurn | null {
   const t = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
-  const at = typeof t.at === "string" && Number.isFinite(Date.parse(t.at)) ? new Date(Date.parse(t.at)).toISOString() : "";
+  const at = isoOf(t.at);
   const question = line(t.question, QUESTION_MAX);
   const answer = line(t.answer, ANSWER_MAX);
   const model = line(t.model, MODEL_MAX);
   if (!at || !question || !answer) return null;
-  return { at, question, answer, room: readRoom(t.room), model: model || "unknown" };
+  const followUp = cleanFollowUp(t.followUp);
+  return {
+    id: isTurnId(t.id) ? t.id : turnId(at, question),
+    at,
+    question,
+    answer,
+    room: readRoom(t.room),
+    model: model || "unknown",
+    ...(isNeeds(t.needs) && { needs: t.needs }),
+    ...(followUp && { followUp }),
+  };
+}
+
+/** Which turns a read wants: every one, or only the hand-offs still open (to one thread, or to any). */
+export type NeedsFilter = Needs | "any";
+export const isNeedsFilter = (v: unknown): v is NeedsFilter => v === "any" || isNeeds(v);
+const fits = (t: LoggedTurn, needs?: NeedsFilter) => !needs || (!!t.needs && !t.followUp && (needs === "any" || t.needs === needs));
+
+/** What answering a hand-off came to. */
+export type Answered = { ok: true; turn: LoggedTurn } | { ok: false; why: "missing" | "not-handed-off" | "answered" | "wrong-thread" };
+
+/** A follow-up applied to a room's turns: the turns as they become, and what it came to. */
+export function withFollowUp(turns: LoggedTurn[], id: string, f: FollowUp): { turns: LoggedTurn[]; result: Answered } {
+  const i = turns.findIndex((t) => t.id === id);
+  const t = turns[i];
+  if (!t) return { turns, result: { ok: false, why: "missing" } };
+  if (!t.needs) return { turns, result: { ok: false, why: "not-handed-off" } };
+  if (t.followUp) return { turns, result: { ok: false, why: "answered" } };
+  // Skippy can answer anything handed off; a submind only what was handed to it.
+  if (f.from !== "skippy" && f.from !== t.needs) return { turns, result: { ok: false, why: "wrong-thread" } };
+  const turn = { ...t, followUp: f };
+  return { turns: turns.map((x, j) => (j === i ? turn : x)), result: { ok: true, turn } };
 }
 
 /** A room's turns, oldest first: only good ones, none older than 30 days, the last 200. */
@@ -79,13 +173,15 @@ export function keepTurns(raw: unknown, now: number): LoggedTurn[] {
 
 /** Where the turns live. */
 export interface RoomLog {
-  /** A room's turns, newest first, at most LOG_SHOW. */
-  list(room: LogRoom, now: number): Promise<LoggedTurn[]>;
-  add(turn: LoggedTurn, now: number): Promise<void>;
+  /** A room's turns, newest first, at most LOG_SHOW; with `needs`, only the hand-offs still open to that thread. */
+  list(room: LogRoom, now: number, needs?: NeedsFilter): Promise<LoggedTurn[]>;
+  add(turn: Omit<LoggedTurn, "id"> & { id?: string }, now: number): Promise<void>;
+  /** Keeps the thread side's answer on a handed-off turn, in whichever room it was filed (#312). */
+  answer(id: string, followUp: FollowUp, now: number): Promise<Answered>;
 }
 
 const pathOf = (room: LogRoom) => `desk/skippy/rooms/${room}.json`;
-const newestFirst = (turns: LoggedTurn[]) => turns.slice(-LOG_SHOW).reverse();
+const newestFirst = (turns: LoggedTurn[], needs?: NeedsFilter) => turns.filter((t) => fits(t, needs)).slice(-LOG_SHOW).reverse();
 
 /** The log in the private blob store; a write checks the ETag, so two answers at once both land. */
 export class BlobRoomLog implements RoomLog {
@@ -94,38 +190,65 @@ export class BlobRoomLog implements RoomLog {
     const found = await this.blob.get(pathOf(room));
     return found ? await new Response(found.stream).json().catch(() => []) : [];
   }
-  async list(room: LogRoom, now: number): Promise<LoggedTurn[]> {
-    return newestFirst(keepTurns(await this.load(room), now));
+  async list(room: LogRoom, now: number, needs?: NeedsFilter): Promise<LoggedTurn[]> {
+    return newestFirst(keepTurns(await this.load(room), now), needs);
   }
-  async add(turn: LoggedTurn, now: number): Promise<void> {
-    const good = cleanTurn(turn);
-    if (!good) return;
-    const path = pathOf(good.room);
-    for (let attempt = 0; attempt < 3; attempt++) {
+  /** Rewrites a room's file from what is there now; the ETag check means a write that lost the race tries again. */
+  private async change<T>(room: LogRoom, now: number, fn: (turns: LoggedTurn[]) => { turns: LoggedTurn[] | null; out: T }): Promise<T> {
+    const path = pathOf(room);
+    for (let attempt = 0; ; attempt++) {
       const etag = await this.blob.etag(path);
-      const cur = etag ? await this.load(good.room) : [];
+      const { turns, out } = fn(keepTurns(etag ? await this.load(room) : [], now));
+      if (!turns) return out;
       try {
-        await this.blob.put(path, JSON.stringify(keepTurns([...(Array.isArray(cur) ? cur : []), good], now)), {
+        await this.blob.put(path, JSON.stringify(keepTurns(turns, now)), {
           contentType: "application/json",
           addRandomSuffix: false,
           ...(etag ? { ifMatch: etag } : { allowOverwrite: false }),
         });
-        return;
+        return out;
       } catch (e) {
         if (attempt === 2 || !(e instanceof BlobPreconditionError || etag === null)) throw e;
       }
     }
+  }
+  async add(turn: Omit<LoggedTurn, "id"> & { id?: string }, now: number): Promise<void> {
+    const good = cleanTurn(turn);
+    if (!good) return;
+    await this.change(good.room, now, (cur) => ({ turns: [...cur, good], out: undefined }));
+  }
+  async answer(id: string, followUp: FollowUp, now: number): Promise<Answered> {
+    const f = cleanFollowUp(followUp);
+    if (!f || !isTurnId(id)) return { ok: false, why: "missing" };
+    for (const room of LOG_ROOMS) {
+      const result = await this.change(room, now, (cur) => {
+        const r = withFollowUp(cur, id, f);
+        return { turns: r.result.ok ? r.turns : null, out: r.result };
+      });
+      if (result.ok || result.why !== "missing") return result;
+    }
+    return { ok: false, why: "missing" };
   }
 }
 
 /** In memory, for tests. */
 export class MemoryRoomLog implements RoomLog {
   rooms: Partial<Record<LogRoom, unknown[]>> = {};
-  async list(room: LogRoom, now: number): Promise<LoggedTurn[]> {
-    return newestFirst(keepTurns(structuredClone(this.rooms[room] ?? []), now));
+  async list(room: LogRoom, now: number, needs?: NeedsFilter): Promise<LoggedTurn[]> {
+    return newestFirst(keepTurns(structuredClone(this.rooms[room] ?? []), now), needs);
   }
-  async add(turn: LoggedTurn, now: number): Promise<void> {
+  async add(turn: Omit<LoggedTurn, "id"> & { id?: string }, now: number): Promise<void> {
     const good = cleanTurn(turn);
     if (good) this.rooms[good.room] = keepTurns([...(this.rooms[good.room] ?? []), good], now);
+  }
+  async answer(id: string, followUp: FollowUp, now: number): Promise<Answered> {
+    const f = cleanFollowUp(followUp);
+    if (!f) return { ok: false, why: "missing" };
+    for (const room of LOG_ROOMS) {
+      const r = withFollowUp(keepTurns(this.rooms[room] ?? [], now), id, f);
+      if (r.result.ok) this.rooms[room] = r.turns;
+      if (r.result.ok || r.result.why !== "missing") return r.result;
+    }
+    return { ok: false, why: "missing" };
   }
 }

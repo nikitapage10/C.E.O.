@@ -24,7 +24,7 @@ async function ctx(env: Record<string, string> = ENV): Promise<GateContext> {
 }
 
 /** Every read the read key opens, as a submind thread sends it. */
-const READS = ["/api/skippy-log?room=green", "/api/skippy-log?room=exchange", "/api/skippy-log?room=boiler", "/api/skippy-log?room=foundry", "/api/green-league", "/api/exchange-markets", "/api/exchange-positions", "/api/world", "/api/world?day=2026-10-22", "/api/foundry-feed", "/api/room-feed"];
+const READS = ["/api/skippy-log?room=green", "/api/skippy-log?room=exchange", "/api/skippy-log?room=boiler", "/api/skippy-log?room=foundry", "/api/skippy-log?room=green&needs=turf", "/api/skippy-log?room=foundry&needs=any", "/api/green-league", "/api/exchange-markets", "/api/exchange-positions", "/api/world", "/api/world?day=2026-10-22", "/api/foundry-feed", "/api/room-feed"];
 
 /** Requests the read key must never open: other rooms, other routes, other queries, encoded paths and every write. */
 const NOT_READS: Array<[string, string]> = [
@@ -33,6 +33,10 @@ const NOT_READS: Array<[string, string]> = [
   ["/api/skippy-log", "GET"],
   ["/api/skippy-log?room=green&room=exchange", "GET"],
   ["/api/skippy-log?room=green&x=1", "GET"],
+  ["/api/skippy-log?room=green&needs=bogus", "GET"],
+  ["/api/skippy-log?room=green&needs=turf&needs=any", "GET"],
+  ["/api/skippy-answer", "GET"],
+  ["/api/skippy-answer", "POST"],
   ["/api/skippy?log=1&room=green", "GET"],
   ["/api/skippy", "GET"],
   ["/api/world?exchange=positions", "GET"],

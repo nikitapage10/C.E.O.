@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { chat, isLog, roomLog, type Ask, type ChatDeps } from "./skippy.ts";
+import { chat, followUp, isAnswer, isLog, roomLog, answerPing, type AnswerDeps, type Ask, type ChatDeps } from "./skippy.ts";
 import { MemoryRoomLog } from "./_skippy/log.ts";
+import { saysHandedOff } from "./_skippy/prompt.ts";
 import { SESSION_COOKIE } from "./_desk/session.ts";
 import { CHAT_CEILING_USD, CLAUDE_CAP_USD, MemoryChatLedger, SHAPING_RESERVE_USD, addChatSpend, canChat, chatMonth, skippyBudget } from "./_skippy/budget.ts";
 import { contextLines, deskContext, line, type ContextIssue } from "./_skippy/context.ts";
@@ -244,7 +245,7 @@ describe("Skippy's room log (#273)", () => {
     expect(((await (await post("Who do I start at K?")).json()) as { room: string }).room).toBe("green");
     const body = (await (await read("green")).json()) as { room: string; turns: { question: string; answer: string; room: string; model: string; at: string }[] };
     expect(body.room).toBe("green");
-    expect(body.turns).toEqual([{ at: new Date(NOW).toISOString(), question: "Who do I start at K?", answer: "Start the kicker, monkey.", room: "green", model: "claude-opus-5-5" }]);
+    expect(body.turns).toEqual([{ id: expect.stringMatching(/^[0-9a-f]{16}$/), at: new Date(NOW).toISOString(), question: "Who do I start at K?", answer: "Start the kicker, monkey.", room: "green", model: "claude-opus-5-5" }]);
     expect(((await (await read("exchange")).json()) as { turns: unknown[] }).turns).toEqual([]);
   });
 
@@ -302,5 +303,139 @@ describe("Skippy's room log (#273)", () => {
     expect(isLog(new Request(`${ORIGIN}/api/skippy-log?room=green`))).toBe(true);
     expect(isLog(new Request(`${ORIGIN}/api/skippy?log=1&room=green`))).toBe(true);
     expect(isLog(new Request(`${ORIGIN}/api/skippy`))).toBe(false);
+  });
+});
+
+describe("Desk Skippy's stack and hand-offs (#312)", () => {
+  const ORIGIN = "https://ceo.example";
+  const NOW = Date.parse("2026-10-23T18:00:00Z");
+  async function setup(answer: unknown) {
+    const store = new MemoryAuthStore();
+    const cookie = await signedInCookie("test-desk-key", NOW, store);
+    const log = new MemoryRoomLog();
+    const inputs: string[] = [];
+    const fulls: boolean[] = [];
+    const ask: Ask = async (_s, input) => {
+      inputs.push(input);
+      return { answer, usage: { input_tokens: 100, output_tokens: 10 } };
+    };
+    const deps: ChatDeps = {
+      deskKey: "test-desk-key",
+      store,
+      ledger: new MemoryChatLedger(),
+      ask,
+      log,
+      world: async () => null,
+      desk: async () => deskContext([], [], null, null),
+      stack: async (full) => {
+        fulls.push(full);
+        return full ? "Languages: TypeScript. None at all of PHP." : "C.E.O. is TypeScript; no PHP.";
+      },
+      now: NOW,
+      env: {},
+    };
+    const post = (message: string) => chat(new Request(`${ORIGIN}/api/skippy`, { method: "POST", headers: { Cookie: cookie }, body: JSON.stringify({ message }) }), deps);
+    const read = (q: string) => roomLog(new Request(`${ORIGIN}/api/skippy-log?${q}`, { headers: { Cookie: cookie } }), deps);
+    return { post, read, log, inputs, fulls };
+  }
+
+  it("gives Skippy the whole stack sheet for a tech question, and one line otherwise", async () => {
+    const { post, inputs, fulls } = await setup({ reply: "No PHP here, monkey: we're not exposed.", actions: [], room: "boiler", needs: "none" });
+    const body = (await (await post("Are we covered for the new PHP security flaws?")).json()) as { reply: string; needs?: string };
+    expect(body.needs).toBeUndefined();
+    expect(inputs[0]).toContain("<stack>\nLanguages: TypeScript. None at all of PHP.\n</stack>");
+    await post("Who should I start at kicker?");
+    expect(fulls).toEqual([true, false]);
+    expect(inputs[1]).toContain("<stack>\nC.E.O. is TypeScript; no PHP.\n</stack>");
+  });
+
+  it("files a hand-off for the room's submind, says so in the reply, and lists it under the needs filter", async () => {
+    const { post, read } = await setup({ reply: "That's a build.", actions: [], room: "foundry", needs: "submind" });
+    const body = (await (await post("Add a lift to the Spire")).json()) as { reply: string; needs?: string };
+    expect(body.needs).toBe("ember");
+    expect(body.reply).toBe("That's a build. Handed to The Builder; the answer will show on the Desk.");
+    const open = (await (await read("room=foundry&needs=ember")).json()) as { needs: string; turns: { needs: string; question: string }[] };
+    expect(open.needs).toBe("ember");
+    expect(open.turns.map((t) => [t.question, t.needs])).toEqual([["Add a lift to the Spire", "ember"]]);
+    expect(((await (await read("room=foundry&needs=skippy")).json()) as { turns: unknown[] }).turns).toEqual([]);
+    expect(((await (await read("room=foundry&needs=any")).json()) as { turns: unknown[] }).turns).toHaveLength(1);
+    for (const bad of ["room=foundry&needs=rocky", "room=foundry&needs="]) expect((await read(bad)).status).toBe(400);
+  });
+
+  it("sends a submind's ask to Skippy when that room's submind isn't active, and keeps his own words when they say so", async () => {
+    const { post } = await setup({ reply: "I've handed it to my own thread.", actions: [], room: "relay", needs: "submind" });
+    const body = (await (await post("Sort my texts")).json()) as { reply: string; needs?: string };
+    expect(body.needs).toBe("skippy");
+    expect(body.reply).toBe("I've handed it to my own thread.");
+    expect(saysHandedOff("x".repeat(700), "skippy").length).toBeLessThanOrEqual(700);
+  });
+});
+
+describe("POST /api/skippy-answer: a hand-off's answer coming back (#312)", () => {
+  const ORIGIN = "https://ceo.example";
+  const NOW = Date.parse("2026-10-23T18:00:00Z"); // noon in Denver: not quiet hours
+  const TOKEN = "a-test-submind-feed-token-long-enough-0123456789";
+  async function setup(over: Partial<AnswerDeps> = {}) {
+    const log = new MemoryRoomLog();
+    const at = new Date(NOW - 60_000).toISOString();
+    await log.add({ at, question: "Add a lift to the Spire", answer: "Handed to The Builder.", room: "foundry", model: "m", needs: "ember" }, NOW);
+    await log.add({ at, question: "What's building?", answer: "Two jobs.", room: "foundry", model: "m" }, NOW);
+    const turns = await log.list("foundry", NOW);
+    const handed = turns.find((t) => t.needs);
+    const plain = turns.find((t) => !t.needs);
+    const pings: unknown[] = [];
+    const deps: AnswerDeps = { token: TOKEN, log, ping: async (t) => (pings.push(t), 1), now: NOW, ...over };
+    const send = (body: unknown, auth = `Bearer ${TOKEN}`, type = "application/json") =>
+      followUp(new Request(`${ORIGIN}/api/skippy-answer`, { method: "POST", headers: { Authorization: auth, "Content-Type": type }, body: JSON.stringify(body) }), deps);
+    return { send, log, pings, id: handed!.id, plainId: plain!.id };
+  }
+
+  it("keeps the answer on the turn, closes the hand-off and pings the phone with no words of it", async () => {
+    const { send, log, pings, id } = await setup();
+    const res = await send({ id, from: "ember", text: "  Lift's on the line.\n\nSaturday, monkey. " });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, room: "foundry", pinged: 1 });
+    const turn = (await log.list("foundry", NOW)).find((t) => t.id === id)!;
+    expect(turn.followUp).toEqual({ from: "ember", text: "Lift's on the line. Saturday, monkey.", at: new Date(NOW).toISOString() });
+    expect(await log.list("foundry", NOW, "any")).toEqual([]);
+    expect(pings).toEqual([{ title: "C.E.O. Desk", body: "The Builder answered something you asked on the Desk.", url: "/foundry" }]);
+    expect(JSON.stringify(pings)).not.toContain("Lift");
+    expect((await send({ id, from: "skippy", text: "again" })).status).toBe(409);
+  });
+
+  it("opens only on the room threads' write key", async () => {
+    const { send, id } = await setup();
+    for (const auth of ["", `Bearer ${TOKEN}x`, TOKEN, "Bearer "]) expect((await send({ id, from: "ember", text: "x" }, auth)).status).toBe(401);
+    expect((await (await setup({ token: "" })).send({ id, from: "ember", text: "x" })).status).toBe(503);
+    expect((await (await setup({ token: "short" })).send({ id, from: "ember", text: "x" }, "Bearer short")).status).toBe(503);
+    expect((await (await setup({ log: null })).send({ id, from: "ember", text: "x" })).status).toBe(503);
+  });
+
+  it("refuses a bad body, private text, an unknown turn, a turn not handed off and another submind's", async () => {
+    const { send, id, plainId } = await setup();
+    expect((await send({ id, from: "ember", text: "x" }, `Bearer ${TOKEN}`, "text/plain")).status).toBe(415);
+    for (const body of [{}, { id, from: "rocky", text: "x" }, { id: "../x", from: "ember", text: "x" }, { id, from: "ember", text: "   " }, { id, from: "ember", text: 5 }]) expect((await send(body)).status).toBe(400);
+    const priv = await send({ id, from: "ember", text: "Mail nikita@example.com about it" });
+    expect(priv.status).toBe(422);
+    expect(await priv.text()).not.toContain("nikita@example.com");
+    expect((await send({ id: "0123456789abcdef", from: "skippy", text: "x" })).status).toBe(404);
+    expect((await send({ id: plainId, from: "skippy", text: "x" })).status).toBe(409);
+    expect((await send({ id, from: "turf", text: "x" })).status).toBe(403);
+  });
+
+  it("holds the ping in quiet hours, and never loses the answer to a failed ping", async () => {
+    const night = Date.parse("2026-10-24T06:00:00Z"); // midnight in Denver
+    const quiet = await setup({ now: night });
+    expect(await (await quiet.send({ id: quiet.id, from: "skippy", text: "Done." })).json()).toEqual({ ok: true, room: "foundry", pinged: 0 });
+    expect(quiet.pings).toEqual([]);
+    const broken = await setup({ ping: async () => Promise.reject(new Error("push")) });
+    expect((await broken.send({ id: broken.id, from: "skippy", text: "Done." })).status).toBe(200);
+    expect(answerPing("skippy", "none")).toEqual({ title: "C.E.O. Desk", body: "Skippy answered something you asked on the Desk.", url: "/" });
+  });
+
+  it("knows its address on both hosts", () => {
+    expect(isAnswer(new Request(`${ORIGIN}/api/skippy-answer`, { method: "POST" }))).toBe(true);
+    expect(isAnswer(new Request(`${ORIGIN}/api/skippy?answer=1`, { method: "POST" }))).toBe(true);
+    expect(isAnswer(new Request(`${ORIGIN}/api/skippy`, { method: "POST" }))).toBe(false);
   });
 });

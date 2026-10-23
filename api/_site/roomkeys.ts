@@ -6,8 +6,9 @@
  *   SUBMIND_LOG_TOKEN    read-only. GET only, and only the room data below (LOG_READS): the Asked Skippy logs of the
  *                        four active rooms, the Green's league board, the Exchange's board and Nikita's positions, the
  *                        world feed (and one day of it), the Foundry feed, and the room feed itself.
- *   SUBMIND_FEED_TOKEN   write-only. POST /api/room-feed only, a short room event (api/_room/feed.ts). It reads
- *                        nothing: the answer says only that the event was kept.
+ *   SUBMIND_FEED_TOKEN   write-only. POST /api/room-feed, a short room event (api/_room/feed.ts), and POST
+ *                        /api/skippy-answer, a hand-off's answer (#312; its own check in gate.ts and api/skippy.ts,
+ *                        bearer only). It reads nothing: each answer says only that the write was kept.
  *
  * Neither key can change a setting (no other POST, and the Desk's own writes still need a passkey session), trade
  * (positions are read through the allow-listed GETs in api/_exchange/positions.ts), send anything (no email, invoice
@@ -23,6 +24,7 @@
  */
 
 import { createHash, timingSafeEqual } from "node:crypto";
+import { isNeedsFilter } from "../_skippy/log.js";
 
 type Env = Record<string, string | undefined>;
 
@@ -49,7 +51,8 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Everything the read key opens: the path, exactly, and the query it may carry (nothing more). GET only. */
 export const LOG_READS: Readonly<Record<string, QueryRule>> = {
-  "/api/skippy-log": { room: { required: true, ok: (v) => (KEY_LOG_ROOMS as readonly string[]).includes(v) } },
+  // `needs` (#312): only the turns handed off to that thread and still open, as the Desk's own read.
+  "/api/skippy-log": { room: { required: true, ok: (v) => (KEY_LOG_ROOMS as readonly string[]).includes(v) }, needs: { ok: (v) => isNeedsFilter(v) } },
   "/api/green-league": {},
   "/api/exchange-markets": {},
   "/api/exchange-positions": {},

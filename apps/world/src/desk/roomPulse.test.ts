@@ -41,7 +41,7 @@ describe("room pulses", () => {
   });
 
   it("runs Relay on the email line's public counts while the Mac's hub waits, and never shows more than counts (#322)", () => {
-    const email = { v: 1 as const, at: NOW, gmail: "connected" as const, agent: "listening" as const, needsYou: 2, fyi: 3, noise: 9, newToday: 14, unsorted: 0, budgetPct: 4, lastCheck: NOW - 30_000 };
+    const email = { v: 1 as const, at: NOW, gmail: "connected" as const, agent: "listening" as const, needsYou: 2, fyi: 3, noise: 9, newToday: 14, unsorted: 0, skipped: 0, budgetPct: 4, lastCheck: NOW - 30_000 };
     const relay = roomPulses(input({ email })).find((p) => p.id === "relay")!;
     expect(relay).toMatchObject({ real: true, state: "busy", status: "2 emails need you", short: "2 emails" });
     expect(relay.report).toContain("14 new emails today, 2 need you, 3 FYI, 9 noise");

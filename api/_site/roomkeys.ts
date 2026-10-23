@@ -38,7 +38,10 @@ const OTHER_SECRETS = ["FOUNDRY_DESK_KEY", "SITE_BYPASS_TOKEN", "SITE_SESSION_SE
 
 export type RoomKey = "log" | "feed";
 
-/** The rooms whose Asked Skippy log the read key may see: the four with an active submind. Never Relay's or "none". */
+/**
+ * The rooms whose Asked Skippy log the read key may see: the four with an active submind. Never Relay's (its asks can
+ * touch messages; the Messenger is active since #322 but its asks stay Desk-only) or "none".
+ */
 export const KEY_LOG_ROOMS = ["green", "exchange", "boiler", "foundry"] as const;
 
 /** The room feed's address (api/_room/feed.ts). */

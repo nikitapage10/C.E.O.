@@ -49,9 +49,10 @@ function useEyesKeys() {
         eyesInput.keys.add(k);
       }
       // At the stream's foot: a room's number rides to it (the same numbers as the room keys outside).
-      if (eyes.atGate && /^[1-9]$/.test(e.key)) {
+      if (eyes.atGate && /^[0-9]$/.test(e.key)) {
         e.preventDefault();
-        const to = ROOM_IDS[Number(e.key) - 1];
+        // 0 is the tenth room, as outside.
+        const to = ROOM_IDS[e.key === "0" ? 9 : Number(e.key) - 1];
         if (to && to !== eyes.room) eyes.ride(to);
       }
     };

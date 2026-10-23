@@ -66,7 +66,8 @@ test("boots, agents move, rooms are reachable", async ({ page }) => {
   expect(moved.length).toBeGreaterThan(2);
 
   for (const [i, room] of ROOM_IDS.entries()) {
-    await page.keyboard.press(String(i + 1));
+    // 1 to 9, then 0 for the tenth room.
+    await page.keyboard.press(String((i + 1) % 10));
     await expect(page.locator(`[data-room="${room}"]`)).toHaveClass(/on/);
     await expect(page.locator(".title-block .eyebrow")).toContainText(String(i + 1).padStart(2, "0"));
     await page.waitForTimeout(1500);

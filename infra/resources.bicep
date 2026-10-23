@@ -70,6 +70,7 @@ var secrets = [
   { setting: 'DESK_VAPID_PRIVATE_KEY', secret: 'desk-vapid-private-key' }
   { setting: 'DESK_VAPID_SUBJECT', secret: 'desk-vapid-subject' } // the pings' contact (mailto: or https:)
   { setting: 'DESK_PINGS_SECRET', secret: 'desk-pings-secret' } // shared with the desk-pings workflow
+  { setting: 'SITE_BYPASS_TOKEN', secret: 'site-bypass-token' } // the site lock's bypass, shared with the live-watch workflow (#313)
   { setting: 'FANTASYPROS', secret: 'fantasypros' } // the Green's FantasyPros API key (x-api-key); Azure only
   // Nikita's Polymarket US key (#253), for the Exchange's private positions board: read-only by code (the key itself
   // could trade; api/_exchange/positions.ts only ever signs GETs to the two portfolio paths). Optional: without it the
@@ -398,10 +399,11 @@ resource deployerState 'Microsoft.Authorization/roleAssignments@2022-04-01' = if
   }
 }
 
-// GitHub Actions (deploy-azure.yml, backup-azure.yml, world-step.yml, desk-pings.yml), signed in through OIDC from
-// main only: Contributor on this group to ship the site and the functions, blob data access for the nightly backup
-// and the one-off seed (shared keys are off), and read access to the vault's secrets so the hourly pings can read
-// `desk-pings-secret` at run time instead of keeping a copy in GitHub.
+// GitHub Actions (deploy-azure.yml, backup-azure.yml, world-step.yml, desk-pings.yml, live-watch.yml), signed in
+// through OIDC from main only: Contributor on this group to ship the site and the functions, blob data access for the
+// nightly backup and the one-off seed (shared keys are off), and read access to the vault's secrets so the hourly
+// pings and the live watch can read `desk-pings-secret` and `site-bypass-token` at run time instead of keeping copies
+// in GitHub.
 resource githubDeploy 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubPrincipalId)) {
   name: guid(resourceGroup().id, githubPrincipalId, roles.contributor)
   properties: {

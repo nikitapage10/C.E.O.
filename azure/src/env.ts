@@ -30,6 +30,8 @@ export const SECRET_SETTINGS = [
   "DESK_VAPID_PRIVATE_KEY",
   "DESK_VAPID_SUBJECT",
   "DESK_PINGS_SECRET",
+  // The site lock's bypass for the live watch (#313): the workflow reads `site-bypass-token` from the vault too.
+  "SITE_BYPASS_TOKEN",
   "FANTASYPROS",
   // Optional (#253): the Exchange's positions wait for them.
   "POLYMARKET_US_KEY_ID",

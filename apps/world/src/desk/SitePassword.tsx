@@ -18,7 +18,7 @@ export interface SiteStatus {
 /** One line on what the lock is doing now. */
 export function statusLine(s: SiteStatus | null): string {
   if (!s) return "";
-  if (s.source === "off") return "Off: SITE_GATE=off is set in Vercel.";
+  if (s.source === "off") return "Off: SITE_GATE=off is set on the Function App.";
   if (s.source === "none") return "Off: no store is connected on this server.";
   if (!s.on) return "Unlocked: anyone with the address can open the site.";
   return `Locked${s.locked ? ` since ${new Date(s.locked).toLocaleDateString()}` : ""}: each device signs in once with your Desk passkey.`;

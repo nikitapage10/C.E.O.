@@ -8,7 +8,7 @@ import type { DeskRoom } from "./deskData.ts";
  *
  * Each one is explained where it belongs (issue #99): in the pop-over of the part it serves in its room's system
  * diagram on the Systems page, or in the world clock's for the Boiler Room's hourly step. The two the Foundry and the
- * world clock both lean on (the Claude API, Vercel Blob) show in both.
+ * world clock both lean on (the Claude API, Azure Blob) show in both.
  *
  * The page is public: name env vars at most, never a value (connections.test.ts checks for anything key-like).
  */
@@ -46,8 +46,8 @@ export const CONNECTIONS: Connection[] = [
     serves: "Rivet, the world step and Skippy's chat",
     kinds: ["REST API", "SDK"],
     status: "live",
-    how: "Vercel functions call Claude Haiku through Anthropic's SDK (the Messages API over HTTPS) and get JSON back in a fixed shape: Rivet's idea cards and each hour of the Lattice (Haiku), and Skippy's answers on Today (Sonnet 5.5, Opus 5.5 for the hard ones, with a web lookup when needed).",
-    auth: "A server-side key in Vercel's environment (CLAUDE_API_KEY). It never reaches the browser.",
+    how: "Azure functions call Claude Haiku through Anthropic's SDK (the Messages API over HTTPS) and get JSON back in a fixed shape: Rivet's idea cards and each hour of the Lattice (Haiku), and Skippy's answers on Today (Sonnet 5.5, Opus 5.5 for the hard ones, with a web lookup when needed).",
+    auth: "A server-side key in the Azure Key Vault (CLAUDE_API_KEY). It never reaches the browser.",
     when: "Once an hour for the world step, whenever Rivet shapes an idea, and each time you talk to Skippy. Capped at $10 a month between them.",
   },
   {
@@ -58,8 +58,8 @@ export const CONNECTIONS: Connection[] = [
     serves: "The day's story",
     kinds: ["REST API"],
     status: "live",
-    how: "Once a day's recap is filed, a Vercel function sends that day's script, written from the public Chronicle and scrubbed, to Gemini's text to speech (gemini-3.8-flash-tts, the plain, friendly Achird voice at a natural pace, a 30 to 45 second update) over plain HTTPS. The audio is kept in the private Blob store and served from our own site.",
-    auth: "A server-side key in Vercel's environment (GEMINI_API_KEY). It never reaches the browser.",
+    how: "Once a day's recap is filed, an Azure function sends that day's script, written from the public Chronicle and scrubbed, to Gemini's text to speech (gemini-3.8-flash-tts, the plain, friendly Achird voice at a natural pace, a 30 to 45 second update) over plain HTTPS. The audio is kept in the private Blob store and served from our own site.",
+    auth: "A server-side key in the Azure Key Vault (GEMINI_API_KEY). It never reaches the browser.",
     when: "Once a day after midnight, plus Make it now on the Chronicle (signed in with a passkey). Capped by GEMINI_BUDGET_USD, $5 a month by default.",
   },
   {
@@ -70,8 +70,8 @@ export const CONNECTIONS: Connection[] = [
     serves: "The Desk and the Lattice",
     kinds: ["REST API"],
     status: "live",
-    how: "Vercel functions read the Foundry's issues, runs, pull requests and commits for the Desk, and add labels and comments when you press a Desk button. The world step reads Foundry titles from it too.",
-    auth: "The crew's GitHub App (ceo-foundry): hour-long tokens for this repo only, minted from its key in Vercel; until it is set up, a fine-grained token (FOUNDRY_GITHUB_TOKEN). The buttons also need Nikita's passkey sign-in on the Desk.",
+    how: "Azure functions read the Foundry's issues, runs, pull requests and commits for the Desk, and add labels and comments when you press a Desk button. The world step reads Foundry titles from it too.",
+    auth: "The crew's GitHub App (ceo-foundry): hour-long tokens for this repo only, minted from its key in the Azure Key Vault; until it is set up, a fine-grained token (FOUNDRY_GITHUB_TOKEN). The buttons also need Nikita's passkey sign-in on the Desk.",
     when: "The Desk asks every 30 seconds, shared through a 5-second edge cache; usage every minute.",
   },
   {
@@ -118,20 +118,20 @@ export const CONNECTIONS: Connection[] = [
     serves: "The hourly step",
     kinds: ["Scheduled", "Webhook"],
     status: "live",
-    how: "A timer on the Azure Function App steps the Azure world and POSTs to /api/world-step on Vercel; a GitHub Actions cron and the doorbell knock too, as backups. The Desk reads the same address to draw the world clock.",
+    how: "A timer on the Azure Function App steps the world in-process; a GitHub Actions cron and the doorbell knock on /api/world-step too, as backups. The Desk reads the same address to draw the world clock.",
     auth: "None needed: a step within 55 minutes of the last one does nothing.",
     when: "At :05 and :35 every hour from Azure, :05 from GitHub (when it fires), every ten minutes from the doorbell; the Desk reads it every minute.",
   },
   {
     id: "blob",
-    name: "Vercel Blob",
+    name: "Azure Blob",
     room: "boiler",
     at: [{ system: "foundry", part: "blob" }, { system: "world" }],
     serves: "The world, its stories and idea pictures",
     kinds: ["Storage", "SDK"],
     status: "live",
-    how: "Vercel functions use the @vercel/blob SDK to keep the world's state and history, the day's stories (audio and script), and the pictures you add to ideas, in a private store, with the Desk's passkeys and the devices that turned pings on. Saves check an ETag, so two steps can't both land.",
-    auth: "Vercel's own OIDC sign-in. No key in the code.",
+    how: "Azure functions use the Azure Blob SDK to keep the world's state and history, the day's stories (audio and script), and the pictures you add to ideas, in a private container (ceo-state), with the Desk's passkeys and the devices that turned pings on. Saves check an ETag, so two steps can't both land.",
+    auth: "The Function App's managed identity. No key in the code.",
     when: "Each world step, each day's story, and each picture you upload.",
   },
   {
@@ -143,7 +143,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["REST API", "SDK"],
     status: "live",
     how: "Today's Ask Skippy box (typed, or said with the browser's own speech input) posts your message and the last few turns to /api/skippy. The function adds the Desk's live state (titles and counts only), asks Claude Sonnet 5.5 (Opus 5.5 for a hard question, and a separate web lookup when it needs current facts), and sends back a short reply with up to three buttons: file an idea, answer Rivet, open a page or enter the Lattice. Nothing happens until you tap one, and then it goes through the Desk's usual buttons. Skippy also files each ask under a room (Green, Exchange, Boiler Room, Foundry, Relay or none), and the question and answer are kept in the private store, the last 200 per room for 30 days, for that room's Asked Skippy panel, signed-in only. Spoken replies use the browser's own voice.",
-    auth: "Only in your passkey session on the Desk; the Claude key stays in Vercel's environment (CLAUDE_API_KEY). Text that looks private is held back before it is sent.",
+    auth: "Only in your passkey session on the Desk; the Claude key stays in the Azure Key Vault (CLAUDE_API_KEY). Text that looks private is held back before it is sent.",
     when: "Each message you send, at most 8 a minute and 60 an hour. On Claude Sonnet and Opus 5.5, with its own share of the Claude cap, $2 a month by default (SKIPPY_BUDGET_USD); nothing is stored.",
   },
   {
@@ -155,7 +155,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["Webhook", "Scheduled", "REST API"],
     status: "live",
     how: "When a Foundry issue is opened or relabelled, and every hour, a GitHub Actions run asks /api/desk-pings to look. The function reads the open issues itself and, for a new idea waiting for your pick, a question from Rivet, a blocker or the live site not loading, sends one Web Push ping through your phone's push service (Apple's or Google's), encrypted for the phone. It says only how many, never what.",
-    auth: "The run sends a shared secret (DESK_PINGS_SECRET); pings are signed with the Desk's VAPID key in Vercel. A phone joins only from a passkey session, and signing out drops it.",
+    auth: "The run reads a shared secret (DESK_PINGS_SECRET) from the Key Vault and sends it; pings are signed with the Desk's VAPID key, also in the Key Vault. A phone joins only from a passkey session, and signing out drops it.",
     when: "Within a couple of minutes of something new, once per item, a burst as one ping; never 10pm to 7am Mountain, with one summary at 7am.",
   },
   {
@@ -179,7 +179,7 @@ export const CONNECTIONS: Connection[] = [
     serves: "The Exchange's odds board and watchlist",
     kinds: ["REST API", "Polling"],
     status: "live",
-    how: "A Vercel function (the world feed's, through a rewrite of /api/exchange-markets) reads Polymarket's public Gamma API for the busiest open markets and the pinned ones, and its CLOB API for a day of prices, then sends the Desk only the question, the odds, the day's move, the volume and a link. Read-only: no wallet, no orders.",
+    how: "An Azure function (exchange-markets) reads Polymarket's public Gamma API for the busiest open markets and the pinned ones, and its CLOB API for a day of prices, then sends the Desk only the question, the odds, the day's move, the volume and a link. Read-only: no wallet, no orders.",
     auth: "None: public market data, no key. Pinning a market to the watchlist needs your passkey on the Desk, and the pins are kept in the private Blob store.",
     when: "The Desk asks every minute while the Exchange or Systems is open, through a one-minute edge cache, so Polymarket is read about once a minute at most.",
   },
@@ -191,7 +191,7 @@ export const CONNECTIONS: Connection[] = [
     serves: "Your own positions and P&L on the Exchange",
     kinds: ["REST API", "Polling"],
     status: "live",
-    how: "An Azure function (exchange-positions; on Vercel the world feed's, through a rewrite) reads your Polymarket US account's positions and recent fills from its Retail API and sends them only to a signed-in Desk. Read-only by code: it signs GET requests to the two portfolio paths and nothing else, so it never places, changes or cancels an order. Deposits, withdrawals and balances are never read.",
+    how: "An Azure function (exchange-positions) reads your Polymarket US account's positions and recent fills from its Retail API and sends them only to a signed-in Desk. Read-only by code: it signs GET requests to the two portfolio paths and nothing else, so it never places, changes or cancels an order. Deposits, withdrawals and balances are never read.",
     auth: "Your Polymarket US API key (POLYMARKET_US_KEY_ID and POLYMARKET_US_SECRET_KEY), kept in Key Vault and read by the Function App; each request carries an Ed25519 signature. The Desk needs your passkey to see the answer, and the figures are hidden in Hide mode.",
     when: "Every two minutes while the Exchange is open and you're signed in; each warm function reads Polymarket US at most once a minute.",
   },
@@ -203,7 +203,7 @@ export const CONNECTIONS: Connection[] = [
     serves: "The Green's league board: roster, matchup, waivers and the table",
     kinds: ["REST API", "Polling"],
     status: "live",
-    how: "A Vercel function (the world feed's, through a rewrite of /api/green-league) reads Sleeper's public API for the Horse Meat league: the rosters and team names, this week's and past weeks' matchups, the NFL week, today's trending adds and drops, and the players list, which it trims to the fantasy positions and keeps in the private store for a day. It works out the projections, the win chance, the start-or-sit calls and the pickups, and sends the Desk only team names, player names and numbers. Read-only: the moves are made in Sleeper.",
+    how: "An Azure function (green-league) reads Sleeper's public API for the Horse Meat league: the rosters and team names, this week's and past weeks' matchups, the NFL week, today's trending adds and drops, and the players list, which it trims to the fantasy positions and keeps in the private store for a day. It works out the projections, the win chance, the start-or-sit calls and the pickups, and sends the Desk only team names, player names and numbers. Read-only: the moves are made in Sleeper.",
     auth: "None: Sleeper's public, read-only API, no key. Usernames and avatars are never read into the board.",
     when: "The Desk asks every two minutes while the Green, Today or Systems is open, through a two-minute edge cache; the players list is read at most once a day.",
   },
@@ -215,7 +215,7 @@ export const CONNECTIONS: Connection[] = [
     serves: "The Green's projections, consensus rankings and injury report",
     kinds: ["REST API"],
     status: "live",
-    how: "Where its key is set (the Azure copy), the same function asks FantasyPros' official API for this week's projections in the league's scoring, the rest-of-season consensus rankings and the injury report, matches them to Sleeper's players, and uses them for the projections, the win chance and the waiver order. Without the key (Vercel) the Green runs on Sleeper alone and says FantasyPros is waiting.",
+    how: "Where its key is set, the same function asks FantasyPros' official API for this week's projections in the league's scoring, the rest-of-season consensus rankings and the injury report, matches them to Sleeper's players, and uses them for the projections, the win chance and the waiver order. Without the key the Green runs on Sleeper alone and says FantasyPros is waiting.",
     auth: "An API key kept as the FANTASYPROS app setting on Azure (a Key Vault secret), sent only in FantasyPros' x-api-key header and never printed or stored.",
     when: "At most seven calls every six hours, kept in the private store so every instance shares them.",
   },
@@ -228,7 +228,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["REST API", "Polling", "Scheduled", "SDK"],
     status: "live",
     how: "An Azure timer function asks the Gmail API every minute what was added to your inbox since the last check (the history list, which costs nothing), and reads only the new mail, trimmed to a few KB with the links taken out. Claude Haiku sorts each one into needs you, FYI or noise with a one-line summary; for needs-you mail Claude Sonnet writes short advice and a draft for you to copy. The Desk's Relay page shows the list behind your passkey; the Lattice, Today and the world feed get counts only. Nothing is ever sent, archived or deleted.",
-    auth: "Google OAuth with the read-only Gmail scope (gmail.readonly), connected from the Desk with your passkey. The refresh token is sealed in the Azure copy's private store with GMAIL_TOKEN_KEY; the OAuth client (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET) and the Claude key (CLAUDE_API_KEY) are Key Vault secrets. Azure only: the Vercel copy shows it waiting.",
+    auth: "Google OAuth with the read-only Gmail scope (gmail.readonly), connected from the Desk with your passkey. The refresh token is sealed in the private store with GMAIL_TOKEN_KEY; the OAuth client (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET) and the Claude key (CLAUDE_API_KEY) are Key Vault secrets. Without them it shows as waiting.",
     when: "Every minute; Claude only for new mail, under its own cap (EMAIL_BUDGET_USD, $10 a month). Past the cap it pauses and keeps counting.",
   },
   {
@@ -240,7 +240,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["REST API"],
     status: "live",
     how: "An Azure function calls PayPal's Invoicing API (v2) over HTTPS. The Spire page's Invoices panel makes a draft invoice (a client, lines, a due date, a note); nothing reaches the client until you press Send and confirm it, which is a separate call. The panel lists the newest invoices and where each stands (draft, sent, viewed, paid, overdue, cancelled). The Lattice, Systems and the Boiler Room get counts only, never a client, an email or an amount.",
-    auth: "OAuth client credentials for your PayPal REST app (PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET), Key Vault secrets on the Azure copy; the short-lived access token is kept in memory and never leaves the function. PAYPAL_ENV picks the sandbox or live. Making, sending and cancelling need your passkey on the Desk. Azure only: the Vercel copy shows it waiting.",
+    auth: "OAuth client credentials for your PayPal REST app (PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET), Key Vault secrets; the short-lived access token is kept in memory and never leaves the function. PAYPAL_ENV picks the sandbox or live. Making, sending and cancelling need your passkey on the Desk. Without them it shows as waiting.",
     when: "Every minute while the Spire page is open; the public counts at most every five minutes. Sends only when you confirm.",
   },
   {
@@ -264,7 +264,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["REST API"],
     status: "planned",
     how: "The hub will call OpenAI for Dialtone's sorting (gpt-5.4-mini, JSON out), Blasto's drafts (gpt-6.1-sol) and speech to text for voice replies.",
-    auth: "An OpenAI key kept only on the Mac, never in the repo or on Vercel.",
+    auth: "An OpenAI key kept only on the Mac, never in the repo or on the site.",
     when: "Sorting on every message; a draft only for replies you owe.",
   },
   {

@@ -20,8 +20,8 @@
  *        POST /api/world-step                 the hourly step: open by design (calling it more often changes nothing,
  *                                             docs/WORLD.md), and its answer says only whether it stepped and when
  *        POST /api/desk-pings + Authorization: Bearer <DESK_PINGS_SECRET>   the pings scan, checked here too
- *        any request + x-ceo-site-bypass: <SITE_BYPASS_TOKEN>   the GitHub workflows that read the site (the backup,
- *                                             the Azure seed, the live watch)
+ *        any request + x-ceo-site-bypass: <SITE_BYPASS_TOKEN>   the live watch (it reads site-bypass-token from the
+ *                                             Key Vault, #313; Vercel's copy also served the public-mode seed)
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
  *   6. Anything else: an API route gets 401 { error: "site-locked" }; a page gets the login page, with 401.
  *

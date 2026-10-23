@@ -14,7 +14,7 @@ change both together.
 
 ## What C.E.O. is, in one paragraph
 
-C.E.O. is a web app on Vercel with two faces: **the Desk**, Nikita's dashboard, and **the Lattice**, a public 3D
+C.E.O. is a web app on Azure (its only home since #313) with two faces: **the Desk**, Nikita's dashboard, and **the Lattice**, a public 3D
 world of AI agents. Claude Haiku is called from code for three things: **Rivet** shapes an idea Nikita types or
 dictates on the Desk into a card (pitch, size, builder), the **world step** writes one hour of the Lattice's
 history from the Foundry's real work (and, once a day, the script of **the day's story**), and **Skippy's chat**
@@ -25,7 +25,7 @@ already-scrubbed public Chronicle, and returning audio; and **Visual QA** (#91),
 each room of the built Lattice to Gemini after every push to `main`, and CI turns the blockers it flags into fix
 issues. Code is written by **the Foundry**, a Claude Code builder session (the Builder,
 Skippy's submind) and its workers (Rusty, Rocky), which read GitHub issues, open branches and pull requests, and
-ship to `main`, which Vercel deploys to production. **Relay**, a hub on an always-on MacBook that will read
+ship to `main`, which the "Deploy to Azure" workflow ships to production. **Relay**, a hub on an always-on MacBook that will read
 messages, is designed but not built yet; its privacy rules come first, in [RELAY-PRIVACY.md](RELAY-PRIVACY.md).
 
 ## Data flow and trust boundaries
@@ -39,7 +39,7 @@ flowchart LR
   subgraph NIK["Nikita's browser"]
     desk["Desk<br/>passkey session"]
   end
-  subgraph VER["Vercel production, built from main"]
+  subgraph VER["Azure production (Static Web App + Functions), built from main"]
     site["Static site<br/>Lattice and Desk"]
     fFoundry["api/foundry<br/>Desk buttons, Rivet"]
     fSkippy["api/skippy<br/>Skippy's chat"]
@@ -49,7 +49,7 @@ flowchart LR
     fFeed["api/foundry-feed<br/>api/foundry-usage<br/>api/security-feed<br/>api/visual-qa-feed"]
     fStep["api/world-step<br/>api/world<br/>api/day-story"]
   end
-  blob[("Vercel Blob<br/>world state, stories, pictures,<br/>passkeys' public keys, ping subscriptions")]
+  blob[("Azure Blob, ceo-state<br/>world state, stories, pictures,<br/>passkeys' public keys, ping subscriptions")]
   push["Push services<br/>Apple, Google, Mozilla, Microsoft"]
   claude["Claude API<br/>Haiku"]
   gemini["Gemini API<br/>speech, Visual QA"]
@@ -109,7 +109,7 @@ flowchart LR
 | --- | --- | --- |
 | **TB1** Desk to functions | Nikita's ideas, notes, answers, pictures, button presses, a device's push subscription, messages to Skippy | A passkey sign-in with the device's own unlock (`api/desk-auth.ts`, #132), then a signed, HttpOnly, SameSite=Strict session cookie that lasts 30 minutes from its last use and 12 hours at most, checked on every write and private read (`requireSession` in `api/_desk/session.ts`); failed sign-ins and enrolments slow down, then lock out (`api/_desk/limits.ts`); the Desk key only enrols a new device and is never kept in the browser; the day's story backfill only for today or yesterday, once each (and once more when the story's style changes, #102); notes capped at 2,000 characters; only open `foundry:idea` issues can be acted on; picture links accepted only from the Desk's own picture function (`readImages`); image types allow-listed, 4 MB cap; Desk text that looks private is held back before it is sent anywhere (`privateParts`, #127); pictures served only on short-lived signed links (`verifyPicture`, #127); a push subscription taken only in a passkey session and only for a known push service (`readSubscription`, #135), dropped on sign-out or when its device is removed, and pinged only while its passkey is enrolled; the scan that sends pings needs the workflow's shared secret (`DESK_PINGS_SECRET`), and a ping carries counts only, never issue text (`pingText` in `api/_desk/pings.ts`); Skippy's chat (`api/skippy.ts`, #224) answers only in a passkey session, takes a message of at most 600 characters and the last eight turns, holds back text that looks private before Claude sees it, is paced per passkey (`api/_skippy/limits.ts`), logs no message text, keeps each answered question and reply only in the private store under the room Skippy tagged it with (the last 200 per room, 30 days at most; the room checked against a closed set, anything else filed as none), readable back only in a passkey session (`api/_skippy/log.ts`, GET /api/skippy-log, #273), never the history and never on a public path or the Lattice, and its suggested actions do nothing until Nikita taps one, which then goes through the Desk's own buttons; the site is locked or unlocked, and every site session ended, only in a passkey session (`api/_site/control.ts`, #236, #238) |
 | **TB2** Code to the model APIs | Idea text, issue text, the hour's digest, the day's story script, Nikita's messages to Skippy with the Desk's state; JSON, text or audio back | Untrusted text fenced in tagged data blocks that it can't close (`shapeInput`, `unfence` in `api/foundry.ts`; `fence` in `api/_world/prompt.ts` and `api/_world/story.ts`; `chatInput`, `unfenceChat` in `api/_skippy/prompt.ts`); the system rules are a constant, never built from input; structured output with a closed JSON schema; every answer re-validated in code (`readShape`, `readAnswer`, `readReply`); Skippy is told the Desk's state as titles, numbers, labels and counts only, scrubbed like the public feeds (`api/_skippy/context.ts`); Gemini gets only the day's script, written from the already-scrubbed public Chronicle and scrubbed again (`cleanScript`), and its audio is only stored and played, with its key in Vercel and its own monthly cap |
-| **TB3** Functions to GitHub | Issue writes with the Foundry token | Token lives only in Vercel; once the crew's GitHub App is set up, the buttons write as `ceo-foundry[bot]` with an hour-long token that can only touch this repo's issues, and the feeds read with a read-only one (`api/_github.ts`, #138); label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`) |
+| **TB3** Functions to GitHub | Issue writes with the Foundry token | Token lives only in the Azure Key Vault; once the crew's GitHub App is set up, the buttons write as `ceo-foundry[bot]` with an hour-long token that can only touch this repo's issues, and the feeds read with a read-only one (`api/_github.ts`, #138); label changes are hard-coded per button, so shaping can never add `foundry:build`; card text is reduced to plain lines before it is written (`plainLine`) |
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account, the Checks bot and the crew's App (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
 | **TB5** Issues to the builder | Work descriptions | `scripts/foundry-issue.sh` (#59): owner, CI and Foundry App text in data blocks with a random tag per read, everything else withheld by name, exit 3 when anything was withheld; worker briefs carry issue text only inside a data block (docs/FOUNDRY.md, "Trusted input") |
 | **TB6** The public Lattice | World history, Foundry feed, spend totals, security posture, the latest Visual QA run | Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63); the security feed (`api/security-feed.ts`, #82) returns only pass or fail states, scores, dates and counts, never an open alert's details; the Visual QA feed (`api/visual-qa-feed.ts`, #91) returns only counts, a time, a state and a link to the run; once Nikita locks the site, every page and API route asks for a site session first, one Desk passkey sign-in per device that lasts 180 days from its last use (no password, #238), and only the login page, the Desk's passkey ceremony (which guards itself), the public build's files and machine callers holding their own key pass without one (`middleware.ts`, `api/_site/gate.ts`, #236) |
@@ -117,9 +117,9 @@ flowchart LR
 | **TB8** CI to Gemini | Clips of the public Lattice and the room descriptions; JSON findings back | Only renders of the public Lattice built from `main`, a few seconds a room at low resolution, never live data or secrets (`scripts/room-tour.mjs`); the key is a GitHub Actions secret (`GEMINI_API_KEY`) given only to the review step, sent only to Google's API host and never printed (`redact`); fixed rules that say text in the video is never instructions; structured output re-validated in code (`parseFindings`) and reduced to plain lines (`plainText`) before CI writes an issue in its own words; spend capped per run and per day (`api/_visualqa/review.ts`) |
 
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's
-lanes, by direct push for chat work today) and Vercel ships it. A second copy on Azure (#214, #216, #218) is
-deployed from the same `main` by the "Deploy to Azure" workflow, which signs in with OIDC from the repo's `azure`
-environment (only `main` may use it), so no Azure password or key is stored in GitHub. The controls on that path are in
+lanes, by direct push for chat work today) and the "Deploy to Azure" workflow ships it (#214, #216, #218; Azure is
+the only home since #313, and Vercel is being retired). It signs in with OIDC from the repo's `azure` environment
+(only `main` may use it), so no Azure password or key is stored in GitHub. The controls on that path are in
 [DELIVERY.md](DELIVERY.md) and [SECURITY.md](SECURITY.md): checks, CodeQL, dependency review, Scorecard, Dependabot,
 secret scanning, pinned actions, least-privilege workflows and npm provenance checks (#64, #66, #67).
 
@@ -127,25 +127,25 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 
 | Asset | Where it lives | Why it matters |
 | --- | --- | --- |
-| Production code and `main` | GitHub, Vercel | Whatever lands on `main` is live in minutes |
-| Claude API key | Vercel environment | Spend (capped at $10 a month at the provider) |
-| Gemini API key | Vercel environment (speech) and a GitHub Actions secret (Visual QA), both `GEMINI_API_KEY` | Speech spend (capped in code by `GEMINI_BUDGET_USD`, $5 a month by default, never above $10); Visual QA spend (capped in code at $0.50 a run and eight pushed runs a day) |
-| Foundry GitHub token | Vercel environment | Writes issues as Nikita; the fallback until the crew's App is set up (#138), then deleted |
-| The crew's App key | Vercel environment (Production only) and a GitHub Actions secret | Mints hour-long tokens for this repo only, as `ceo-foundry[bot]`: issues, pull requests and code, never settings or CI |
-| Desk key | Vercel environment only; typed once per device to enrol its passkey (#132) | Enrols a device on the Desk, the human approval gate for builds; the Desk's signing keys are derived from it |
-| Desk passkeys | Their private keys stay on Nikita's devices; only the public keys are in Vercel Blob (private) | Sign in to the Desk |
-| The site lock | Not a secret: whether the site is locked and a session version, in Vercel Blob (private) at `desk/site/password.json` (#236). The way in is the Desk passkey (#238), whose private part never leaves the device; there is no site password | Writing it (only through a Desk passkey session) locks, unlocks or signs every device out |
-| The site's session key | `SITE_SESSION_SECRET` in Vercel, or derived from the Desk key | Signs the site's sign-in cookies; with it, a cookie could be forged until it changes |
-| The workflows' site key | `SITE_BYPASS_TOKEN` in Vercel and a GitHub Actions secret (#236) | Reads the site past the lock, for the backup, the Azure seed and the live watch; reads only |
-| The Desk's push key (VAPID private key) | Vercel environment only (#135) | Signs pings; with a subscription too, it could put a notification on Nikita's phone, never read anything |
-| The pings secret | Vercel environment and a GitHub Actions secret, both `DESK_PINGS_SECRET` | Makes the Desk scan and ping; nothing else |
-| Ping subscriptions | Vercel Blob (private), beside the passkeys | Where Nikita's devices get pings; useless without the push key |
+| Production code and `main` | GitHub, Azure | Whatever lands on `main` is live in minutes |
+| Claude API key | Azure Key Vault | Spend (capped at $10 a month at the provider) |
+| Gemini API key | Azure Key Vault (speech) and a GitHub Actions secret (Visual QA), both `GEMINI_API_KEY` | Speech spend (capped in code by `GEMINI_BUDGET_USD`, $5 a month by default, never above $10); Visual QA spend (capped in code at $0.50 a run and eight pushed runs a day) |
+| Foundry GitHub token | Azure Key Vault | Writes issues as Nikita; the fallback until the crew's App is set up (#138), then deleted |
+| The crew's App key | Azure Key Vault and a GitHub Actions secret | Mints hour-long tokens for this repo only, as `ceo-foundry[bot]`: issues, pull requests and code, never settings or CI |
+| Desk key | Azure Key Vault only; typed once per device to enrol its passkey (#132) | Enrols a device on the Desk, the human approval gate for builds; the Desk's signing keys are derived from it |
+| Desk passkeys | Their private keys stay on Nikita's devices; only the public keys are in Azure Blob (private) | Sign in to the Desk |
+| The site lock | Not a secret: whether the site is locked and a session version, in Azure Blob (private) at `desk/site/password.json` (#236). The way in is the Desk passkey (#238), whose private part never leaves the device; there is no site password | Writing it (only through a Desk passkey session) locks, unlocks or signs every device out |
+| The site's session key | `SITE_SESSION_SECRET` in the Key Vault, or derived from the Desk key | Signs the site's sign-in cookies; with it, a cookie could be forged until it changes |
+| The workflows' site key | `site-bypass-token` in the Azure Key Vault, read by the live watch at run time (#236, #313); the old `SITE_BYPASS_TOKEN` Actions secret is removed after the cut-over | Reads the site past the lock, for the live watch; reads only |
+| The Desk's push key (VAPID private key) | Azure Key Vault only (#135) | Signs pings; with a subscription too, it could put a notification on Nikita's phone, never read anything |
+| The pings secret | Azure Key Vault (`desk-pings-secret`), read by the pings workflow at run time; the old `DESK_PINGS_SECRET` Actions secret is removed after the cut-over | Makes the Desk scan and ping; nothing else |
+| Ping subscriptions | Azure Blob (private), beside the passkeys | Where Nikita's devices get pings; useless without the push key |
 | The builder session's GitHub access | Claude Code environment (Nikita's account; set by the environment, not the repo) | Pushes code, merges pull requests |
-| The Azure deploy identity (`ceo-github-deploy`) | Microsoft Entra ID, trusted only for GitHub's `azure` environment on `main` (OIDC, no stored key) | Contributor on the Azure copy's resource group, blob writer on its storage, and Key Vault Secrets User on its vault (so the hourly pings read `desk-pings-secret` at run time): can replace the Azure copy and read its secrets, never Vercel or the subscription |
-| The Azure functions' secrets | Azure Key Vault (RBAC), read by the functions' own identity through Key Vault references, and by the deploy identity for `desk-pings-secret` | The Azure copy's own keys: its Desk key, push keys and pings secret are minted for it, not copied from Vercel; the Claude, Gemini and GitHub keys are separate keys on the same accounts |
-| World state and history | Vercel Blob (private) | The Lattice's memory |
+| The Azure deploy identity (`ceo-github-deploy`) | Microsoft Entra ID, trusted only for GitHub's `azure` environment on `main` (OIDC, no stored key) | Contributor on the Azure copy's resource group, blob writer on its storage, and Key Vault Secrets User on its vault (so the hourly pings and the live watch read `desk-pings-secret` and `site-bypass-token` at run time): can replace the Azure copy and read its secrets, never Vercel or the subscription |
+| The Azure functions' secrets | Azure Key Vault (RBAC), read by the functions' own identity through Key Vault references, and by the deploy identity for `desk-pings-secret` and `site-bypass-token` | The Azure copy's own keys: its Desk key, push keys and pings secret are minted for it, not copied from Vercel; the Claude, Gemini and GitHub keys are separate keys on the same accounts |
+| World state and history | Azure Blob (private) | The Lattice's memory |
 | Nightly backups | Azure Storage `ceo-backups` (private, Cool tier), kept 90 days; deletes and overwrites recoverable for 14 days | A copy of the world's public state, the Azure copy's state and the models; restores either copy |
-| Idea pictures | Vercel Blob (private), shown only on short-lived signed links (#127) | May show Nikita's screen |
+| Idea pictures | Azure Blob (private), shown only on short-lived signed links (#127) | May show Nikita's screen |
 | Nikita's words | GitHub issues (public) | Dictated, may mention people |
 | Messages and contacts (planned) | Relay MacBook only; what may leave it is in [RELAY-PRIVACY.md](RELAY-PRIVACY.md) | The most sensitive data C.E.O. will touch |
 
@@ -184,7 +184,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 
 | SAIF core element | In C.E.O. |
 | --- | --- |
-| Expand strong security foundations to the AI ecosystem | Secrets only in Vercel, Actions secrets and Azure Key Vault; Azure deploys sign in with OIDC, with no stored key (#218); pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62) |
+| Expand strong security foundations to the AI ecosystem | Secrets only in Azure Key Vault and Actions secrets; Azure deploys sign in with OIDC, with no stored key (#218); pinned and signed supply chain; CodeQL and dependency review on agent-written code like any other; an enforcing CSP and security headers (#62) |
 | Extend detection and response | The Trail on every issue records origin, decision, builder, model and cost of each change; Checks failing on `main` opens a fix issue by itself; Scorecard and code scanning report to the Security tab |
 | Automate defenses | The injection eval suite runs on every build; schema-bound output and code re-validation on every model call; Dependabot and secret scanning |
 | Harmonize platform controls | One delivery path for every change (DELIVERY.md); rulesets for `main` defined in `.github/rulesets/` (#60); least-privilege workflow permissions |
@@ -246,7 +246,7 @@ links through its own picture function; its test passes like any other, and noth
 | R7 | A lock on the whole site (one Desk passkey sign-in per device, no password, machine callers on their own keys, a second step such as approving a new device later) | The site being public | Built #236 and #238 (passkey only), on once Nikita locks it from the Desk; open: Azure's static files, the second step |
 
 **R2, what #138 does and doesn't close.** Once Nikita creates the crew's GitHub App and pastes its key
-(SECURITY.md, "The crew's own identity"), every Vercel function that talks to GitHub mints its own hour-long token for
+(SECURITY.md, "The crew's own identity"), every function that talks to GitHub mints its own hour-long token for
 this repo only (`api/_github.ts`): the Desk's buttons can only write issues, the feeds and the world step can only
 read. CI's fix issues come from the App too. None of it can change settings, rulesets or workflows. What stays open
 is the biggest actor: the Foundry's Claude Code sessions push, open pull requests and merge with the GitHub access

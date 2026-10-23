@@ -25,7 +25,7 @@ import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
  * send back with notes, plus anything waiting for your OK), how things stand right now (a strip of icons: checks, work
  * running, upkeep, the next ideas), the crew with every job each holds and the queue after them, and whether every
  * connection is up. GitHub is read directly (see foundry.ts);
- * the idea buttons write through the Vercel function in api/foundry.ts.
+ * the idea buttons write through the function in api/foundry.ts (on Azure, #313).
  */
 
 const KIND_LABEL: Record<CrateKind, string> = { fix: "Fix", build: "Build", upkeep: "Upkeep", idea: "Idea", chat: "From chat" };
@@ -226,14 +226,14 @@ export function FoundryPage({ now }: { now: number }) {
 
 const NUMBER_WORD = ["None", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 
-/** Shown until the Vercel function can reach the Foundry: what unlocks the buttons, in one place. */
+/** Shown until the Foundry function can reach GitHub: what unlocks the buttons, in one place. */
 function SetupNote() {
   return (
     <aside className="fy-setup" aria-label="One-time setup">
       <strong>One-time setup, then everything happens here.</strong>
       <p>
-        The buttons go through Vercel, which needs two values (Project → Settings → Environment Variables, then redeploy): <code>FOUNDRY_DESK_KEY</code>, a long passphrase you invent and type once per device to enrol its passkey, and{" "}
-        <code>FOUNDRY_GITHUB_TOKEN</code>, a GitHub token for this repo with Issues read and write, plus the private Blob store connected. A click then changes GitHub at once.
+        The buttons go through the Azure functions, which need two Key Vault secrets (Key vaults → the C.E.O. vault → Secrets, then restart the Function App; docs/AZURE.md): <code>foundry-desk-key</code>, a long passphrase you invent and type once per device to enrol its passkey, and{" "}
+        <code>foundry-github-token</code>, a GitHub token for this repo with Issues read and write. The private store (Azure Blob) comes with the template. A click then changes GitHub at once.
       </p>
     </aside>
   );
@@ -339,7 +339,7 @@ function Propose({ setup, box }: { setup: Setup; box?: React.Ref<HTMLElement> })
       dictation.start();
     }
   };
-  // Until the Vercel variables are set, the Desk can't write to GitHub: the idea gets copied, and the Foundry
+  // Until the Key Vault secrets are set, the Desk can't write to GitHub: the idea gets copied, and the Foundry
   // thread opens to paste it in.
   const handOver = async () => {
     dictation.stop();
@@ -451,7 +451,7 @@ function Propose({ setup, box }: { setup: Setup; box?: React.Ref<HTMLElement> })
           {status}
         </p>
       )}
-      {!ready && setup !== null && <p className="wv-act-note">Sending straight from here needs the Vercel variables. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
+      {!ready && setup !== null && <p className="wv-act-note">Sending straight from here needs the Key Vault secrets. Until then this copies your idea and opens the Foundry thread to paste it.</p>}
       {/* Outside the form: the sign-in step has a form of its own. */}
       {ready && state === "signed-out" && <DeskSignIn compact onDone={() => void submit()} onCancel={() => setState("idle")} />}
       <p className="wv-sug-rivet">
@@ -734,7 +734,7 @@ function Usage({ now, setup, world, usage }: { now: number; setup: Setup; world:
                 {spend.calls
                   ? `${spend.calls} ${spend.calls === 1 ? "call" : "calls"} on Claude Haiku · ${spend.tokensIn.toLocaleString()} tokens in · ${spend.tokensOut.toLocaleString()} out`
                   : setup?.shape === false
-                    ? "Quick shaping isn't connected yet (CLAUDE_API_KEY in Vercel), so nothing is spent."
+                    ? "Quick shaping isn't connected yet (claude-api-key in the Key Vault), so nothing is spent."
                     : "No shaping calls in this span."}
               </p>
               <div
@@ -903,7 +903,7 @@ function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFe
           </div>
           <p className="fy-world__line">
             {!s.gemini
-              ? "No Gemini key is set (GEMINI_API_KEY in Vercel), so the Historian doesn't read the day aloud."
+              ? "No Gemini key is set (gemini-api-key in the Key Vault), so the Historian doesn't read the day aloud."
               : `Guard: no more stories once one more could pass ${formatUsd(s.budget)} this month; the Archive says so until the month turns.`}{" "}
             <a href="/archive" onClick={link("archive")}>
               Hear it in the Archive →
@@ -929,13 +929,13 @@ function Connections({ setup }: { setup: Setup }) {
     },
     {
       name: "Pictures on ideas",
-      what: setup?.images ? "Paste, attach or drop pictures on an idea" : "Needs a Vercel Blob store connected to the project (Vercel → Storage → Create → Blob → connect to this project, then redeploy)",
+      what: setup?.images ? "Paste, attach or drop pictures on an idea" : "Needs the private Azure Blob store (ceo-state), which the Azure template creates (docs/AZURE.md)",
       state: setup === null ? "off" : setup.images ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.images ? "Ready" : "Needs setup",
     },
     {
       name: "Quick shaping",
-      what: setup?.shape ? "Your idea goes up at once and Rivet shapes it in a second or two" : "Add CLAUDE_API_KEY in Vercel so Rivet shapes ideas on the spot",
+      what: setup?.shape ? "Your idea goes up at once and Rivet shapes it in a second or two" : "Add claude-api-key to the Key Vault so Rivet shapes ideas on the spot",
       state: setup === null ? "off" : setup.shape ? "ok" : "slow",
       label: setup === null ? "Checking…" : setup.shape ? "Ready" : "Needs setup",
     },

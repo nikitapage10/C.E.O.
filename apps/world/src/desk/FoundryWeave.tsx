@@ -509,7 +509,7 @@ function CrewDetail({ id, data, now, focus, level, onDeeper }: { id: CrewId; dat
         deep: (
           <>
             {jobs.map((c, i) => (
-              <Row key={c.number} b={ideaTitle(c.title)} st={c.state === "working" ? "Building" : c.state === "ready" ? "Your OK" : "Stuck"} c="run" i={i} href={c.url} />
+              <Row key={c.number} b={ideaTitle(c.title)} st={c.state === "working" ? "Building" : c.state === "ready" ? "Test" : "Stuck"} c="run" i={i} href={c.url} />
             ))}
             {done.map((r, i) => (
               <Row key={r.number} b={r.name} st={dayTime(r.at, now)} i={jobs.length + i} href={r.url} />
@@ -563,7 +563,7 @@ export function InFlight({ data, now, stop, onFollow }: { data: FoundryData; now
     ["Picked up", c.createdAt ? `#${c.number}, ${ago(now - c.createdAt)} ago` : `#${c.number}`, "is-ok"],
     ["Building", c.paused ? "Paused for a fix" : `${CREW[who].name} on ${modelOf(c, who)}`, c.paused ? "" : "is-run"],
     ["Checks", "On its pull request", ""],
-    ["Ships", c.kind === "fix" || c.kind === "upkeep" || c.auto ? "Once green" : "Once green, with your OK", ""],
+    ["Ships", "Once green", ""],
   ];
   return (
     <section className="wv-flight" data-room="foundry" aria-label="In flight now">
@@ -678,7 +678,7 @@ export function CrewRow({ data, now }: { data: FoundryData; now: number }) {
           const jobs = data.crates.filter((c) => isBuild(c) && c.state !== "shipped" && c.state !== "queued" && crewOf(c, data.crates) === id);
           const last = recentWork(data.changelog, id, 1)[0];
           const line = jobs.length
-            ? `${jobs[0]!.state === "working" ? "Building" : jobs[0]!.state === "ready" ? "Waiting on your OK for" : "Stuck on"} “${ideaTitle(jobs[0]!.title)}”${jobs.length > 1 ? `, and ${words(jobs.length - 1).toLowerCase()} more` : ""}.`
+            ? `${jobs[0]!.state === "working" ? "Building" : jobs[0]!.state === "ready" ? "A test needs you on" : "Stuck on"} “${ideaTitle(jobs[0]!.title)}”${jobs.length > 1 ? `, and ${words(jobs.length - 1).toLowerCase()} more` : ""}.`
             : last
               ? `Free. Last shipped “${last.name}”, ${ago(now - last.at)} ago.`
               : "Free, and nothing shipped yet.";

@@ -115,7 +115,7 @@ export function FoundryPage({ now }: { now: number }) {
                   <div>
                     <h3 className="wv-h3">{ideaTitle(c.title)}</h3>
                     <p className="wv-act-p">
-                      {c.state === "stuck" ? `Stuck after every rung. Have a look.` : `Done and checked. ${CREW[who].name} is waiting for your OK.`} {KIND_LABEL[c.kind]} · #{c.number}
+                      {c.state === "stuck" ? `Stuck after every rung. Have a look.` : `A test needs you before ${CREW[who].name} can ship it.`} {KIND_LABEL[c.kind]} · #{c.number}
                     </p>
                   </div>
                 </div>

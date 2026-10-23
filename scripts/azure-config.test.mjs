@@ -31,9 +31,9 @@ describe("staticwebapp.config.json matches vercel.json (#214)", () => {
       expect(excluded(r.source)).toBe(false);
     }
     // The site lock's routes (#236) are rewritten into the Desk's sign-in function on Vercel, and the Exchange's
-    // Polymarket board (#240) and the Green's league board (#252) and the Commentator's call (#276) into the world feed's, and Skippy's room log (#273) into his chat's; Azure has them as functions of their own, under /api like every function.
+    // Polymarket board (#240) and the Green's league board (#252) and the Commentator's call (#276) into the world feed's, and Skippy's room log (#273) and hand-off answers (#312) into his chat's; Azure has them as functions of their own, under /api like every function.
     for (const r of vercel.rewrites.filter((r) => r.source.startsWith("/api/"))) {
-      expect(r.destination).toMatch(/^\/api\/(desk-auth\?site=(login|password)|world\?(exchange=(markets|positions)|green=(league|analysis))|skippy\?log=1)$/);
+      expect(r.destination).toMatch(/^\/api\/(desk-auth\?site=(login|password)|world\?(exchange=(markets|positions)|green=(league|analysis))|skippy\?(log|answer)=1)$/);
       expect(excluded(r.source)).toBe(true);
     }
     for (const path of ["/api/*", "/assets/*", "/models/*"]) expect(swa.navigationFallback.exclude).toContain(path);

@@ -12,3 +12,5 @@ test-results/
 .claude/worktrees/
 # The builder guard's local tool-call log (#119): stays on the machine
 .claude/logs/
+# Desk Skippy's dependency sheet (#312): written from the lockfile at every install and build
+api/_skippy/stackDeps.ts

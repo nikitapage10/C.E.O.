@@ -94,6 +94,9 @@ var secrets = [
   // PAYPAL_ENV setting below; switching to live means pasting the Live app's id and secret here.
   { setting: 'PAYPAL_CLIENT_ID', secret: 'paypal-client-id' }
   { setting: 'PAYPAL_CLIENT_SECRET', secret: 'paypal-client-secret' }
+  // The room threads' write key (#281, #312): opens only POST /api/skippy-answer, a hand-off's answer coming back to
+  // the Desk. At least 32 random characters; without it that route stays off.
+  { setting: 'SUBMIND_FEED_TOKEN', secret: 'submind-feed-token' }
 ]
 
 // Built-in role IDs (the same in every tenant).

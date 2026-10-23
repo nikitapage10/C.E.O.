@@ -20,6 +20,8 @@
  *        POST /api/world-step                 the hourly step: open by design (calling it more often changes nothing,
  *                                             docs/WORLD.md), and its answer says only whether it stepped and when
  *        POST /api/desk-pings + Authorization: Bearer <DESK_PINGS_SECRET>   the pings scan, checked here too
+ *        POST /api/skippy-answer + Authorization: Bearer <SUBMIND_FEED_TOKEN>   a hand-off's answer from Skippy's or a
+ *                                             submind's thread (#312), checked here too and again in api/skippy.ts
  *        any request + x-ceo-site-bypass: <SITE_BYPASS_TOKEN>   the live watch (it reads site-bypass-token from the
  *                                             Key Vault, #313; Vercel's copy also served the public-mode seed)
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
@@ -51,7 +53,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "bypass" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -102,6 +104,17 @@ function isPingsScan(request: Request, pathname: string, env: Env): boolean {
   return auth.startsWith("Bearer ") && secretMatches(auth.slice(7).trim(), env.DESK_PINGS_SECRET?.trim());
 }
 
+/**
+ * A hand-off's answer coming back (#312), with the room threads' write key (SUBMIND_FEED_TOKEN, at least 32
+ * characters). Only this one path and method: the key opens nothing else on the site.
+ */
+function isSkippyAnswer(request: Request, pathname: string, env: Env): boolean {
+  if (request.method !== "POST" || pathname !== "/api/skippy-answer") return false;
+  const want = env.SUBMIND_FEED_TOKEN?.trim();
+  const auth = request.headers.get("authorization") ?? "";
+  return Boolean(want && want.length >= MIN_BYPASS && auth.startsWith("Bearer ") && secretMatches(auth.slice(7).trim(), want));
+}
+
 const SECURITY_HEADERS = {
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
@@ -142,6 +155,7 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if (isStaticPath(request.method, pathname)) return { allow: true, why: "static" };
   if (request.method === "POST" && pathname === "/api/world-step") return { allow: true, why: "world-step" };
   if (isPingsScan(request, pathname, env)) return { allow: true, why: "pings-secret" };
+  if (isSkippyAnswer(request, pathname, env)) return { allow: true, why: "submind-token" };
   if (hasBypass(request, env)) return { allow: true, why: "bypass" };
   // The passkey works only where the Desk key is set; without it, the login page says signing in isn't set up.
   const passkey = Boolean(env.FOUNDRY_DESK_KEY?.trim());

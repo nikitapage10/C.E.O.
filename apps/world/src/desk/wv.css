@@ -794,6 +794,34 @@
 .desk .wv-sysclock{border-radius:22px;padding:24px 26px;border:1px solid var(--wv-line);background:linear-gradient(160deg,rgba(168,174,188,.08),rgba(16,18,23,.7) 55%)}
 .desk .wv-sysclock .wv-facts{margin-bottom:14px}
 
+/* The Pessimist's board of scheduled jobs (#301, JobBoard.tsx). */
+.desk .wv-jobs{margin-top:64px}
+.desk .wv-jobs .wv-h2{text-wrap:balance}
+.desk .wv-jobs-l{list-style:none;margin:0;padding:0}
+.desk .wv-jobs-l li{--st:var(--wv-faint);border-top:1px solid var(--wv-line)}
+.desk .wv-jobs-l li.is-pass{--st:var(--wv-ok)}
+.desk .wv-jobs-l li.is-running{--st:var(--wv-run)}
+.desk .wv-jobs-l li.is-fail,.desk .wv-jobs-l li.is-missed{--st:var(--wv-bad)}
+.desk .wv-jobs-l li.is-other{--st:var(--wv-mute)}
+.desk .wv-jobs-l li>a,.desk .wv-jobs-l li>div{display:grid;grid-template-columns:auto minmax(0,1.2fr) minmax(0,1fr) 80px 96px 110px;align-items:center;gap:12px;padding:12px 4px;color:inherit;text-decoration:none;border-radius:8px}
+.desk .wv-jobs-l li>a:hover{background:var(--wv-hot-bg)}
+.desk .wv-jobs-l li>a:focus-visible{outline:1px solid var(--wv-hot-line);outline-offset:2px}
+.desk .wv-jobs-l .wv-dot{--rc:var(--st)}
+.desk .wv-jobs-l li.is-none .wv-dot{background:none;box-shadow:none;border:1px solid var(--wv-faint)}
+.desk .wv-jobs-l b{font-family:var(--wv-serif);font-size-adjust:var(--wv-serif-adj);font-weight:400;font-size:17px;color:var(--wv-soft)}
+.desk .wv-jobs-l span{font-size:13px;color:var(--wv-mute);font-variant-numeric:tabular-nums}
+.desk .wv-jobs-st{color:var(--st)!important}
+.desk .wv-jobs-late{text-align:right}
+.desk .wv-jobs-late.is-late{color:var(--wv-hot)!important}
+@media (max-width:720px){
+  .desk .wv-jobs{margin-top:48px}
+  .desk .wv-jobs-l li>a,.desk .wv-jobs-l li>div{grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px}
+  .desk .wv-jobs-when,.desk .wv-jobs-at{grid-column:2}
+  .desk .wv-jobs-st{grid-column:3;grid-row:1}
+  .desk .wv-jobs-late{grid-column:3;grid-row:2}
+  .desk .wv-jobs-when{display:none}
+}
+
 /* ---------- Security ---------- */
 .desk .wv-scans{position:relative;padding:28px 0 8px;margin-bottom:40px}
 .desk .wv-scans>.wv-cv{height:60px;top:0}

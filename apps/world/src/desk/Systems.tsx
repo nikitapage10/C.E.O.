@@ -7,6 +7,7 @@ import { clockHeadline, clockState, nextLine, useWorldClock } from "../worldCloc
 import { foundryGraph } from "./foundryGraph.ts";
 import { nextCheck, useSetup } from "./IdeaCard.tsx";
 import { useSetupStatus } from "./SetupCard.tsx";
+import { JobBoard } from "./JobBoard.tsx";
 import { PipeRack } from "./PipeRack.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId } from "./systemsGraph.ts";
@@ -26,7 +27,8 @@ import { describeRun, useVisualQa } from "./visualqa/feed.ts";
  * Systems, in the approved Weave (desk-concepts round five): the Pessimist's headline, then the whole system as a pipe rack
  * (#241), one straight pipe per room with every real connection a fitting on it (connections.ts, foundryGraph.ts),
  * dashed while it isn't connected. Tap a pipe and it flows open into the room's whole flow, with every step's sign-in
- * and timing in a panel beside it. Below: the rooms still to build, and the world clock every room lives by. Real states only.
+ * and timing in a panel beside it. Below: the rooms still to build, the world clock every room lives by, and the Pessimist's board of scheduled jobs
+ * (JobBoard.tsx). Real states only.
  */
 
 /** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
@@ -211,6 +213,8 @@ export function Systems({ now }: { now: number }) {
           </button>
         </section>
       </div>
+
+      <JobBoard now={now} />
 
       <AskedSkippy room="boiler" />
 

@@ -24,11 +24,11 @@ import type { DeskContext } from "./context.js";
 import { LOG_ROOMS, readRoom, type LogRoom } from "./log.js";
 
 /** The Desk pages an "open" action can go to: Today, the Foundry, Relay, the rooms' pages and the Boiler Room's subpages. */
-export const PAGES = ["today", "foundry", "relay", "boiler", "security", "compliance", "archive", "spire", "exchange", "green", "workshop"] as const;
+export const PAGES = ["today", "foundry", "relay", "boiler", "security", "compliance", "archive", "spire", "exchange", "green", "workshop", "studio"] as const;
 export type Page = (typeof PAGES)[number];
 
 /** The Lattice's rooms, for "enter the Lattice" at a room. */
-export const ROOMS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop"] as const;
+export const ROOMS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop", "studio"] as const;
 export type Room = (typeof ROOMS)[number];
 
 /** The closed set of things Skippy can suggest. */
@@ -91,8 +91,8 @@ Keep it brief: one to three short sentences, the useful part first, the attitude
 Your job here is to answer Nikita and route what they ask to the right place. Your only way to act is to suggest buttons in "actions" (at most three). Nothing happens until Nikita taps one. Suggest only what fits what Nikita asked:
 - "idea": file what Nikita described as a new idea for the Foundry. "text" is the idea in Nikita's own words, tidied, under 600 characters. Rivet shapes it and it waits for Nikita's pick like any idea; you never approve or build anything yourself.
 - "answer": answer one of Rivet's open questions. "issue" must be the number of a question listed in <desk>, and "text" the answer in Nikita's words. Only when Nikita has actually given the answer.
-- "open": open a page of the Desk. "page" is one of today, foundry, relay, boiler (every connection), security, compliance, archive (the day's story and the Tide), spire, exchange, green, workshop. The Spire, Exchange, Green and Workshop pages say what each room will do and what it waits on; nothing is connected there yet.
-- "lattice": enter the 3D Lattice, at a "room" when one fits (foundry, spire, exchange, green, relay, archive, breakroom, boiler, workshop).
+- "open": open a page of the Desk. "page" is one of today, foundry, relay, boiler (every connection), security, compliance, archive (the day's story and the Tide), spire, exchange, green, workshop, studio (the explainer-video series). The Spire, Exchange, Green, Workshop and Studio pages say what each room will do and what it waits on.
+- "lattice": enter the 3D Lattice, at a "room" when one fits (foundry, spire, exchange, green, relay, archive, breakroom, boiler, workshop, studio).
 Each action has a short "label" for its button, under 40 characters, like "File it as an idea" or "Open the Foundry".
 Use the Desk's live state in <desk> to answer questions about what is waiting, building or shipped. Say so plainly when you don't know something; never make up issues, numbers or results. Relay (messages) is not connected yet.
 Two more fields steer how you answer. "lookup": when answering well needs current facts from the web (news, a release, a security advisory, a score, a price, anything after your training), put a short web search query there and give a holding "reply"; you will be asked again with what the lookup found in a <web> block. Leave it "" when you don't need the web or when a <web> block is already there. "deeper": true only when the question needs careful multi-step reasoning or analysis you can't do well in a quick answer; a stronger mind of yours then answers it. Otherwise false. Never put private details or anything from <desk> in "lookup".

@@ -34,6 +34,7 @@ export const RC: Record<string, string> = {
   breakroom: "226,143,182",
   boiler: "168,174,188",
   workshop: "98,196,192",
+  studio: "232,112,111",
 };
 export const WHITE = "236,238,243";
 export const HOT = "255,220,170";

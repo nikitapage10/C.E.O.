@@ -14,7 +14,7 @@ import { FRAMING, type Framing } from "./framing.ts";
 import "./studio.css";
 
 /**
- * The portrait studio, at /studio?agent=<id>: one agent's own model, alone, in a three-quarter turn under a key,
+ * The portrait studio, at /portrait-studio?agent=<id>: one agent's own model, alone, in a three-quarter turn under a key,
  * a rim and a fill, over its room's colours. scripts/portraits.mjs photographs it for the Desk. Without `agent`
  * it lists the cast, which is how the script finds everyone (subminds included) without a list of its own.
  *
@@ -82,7 +82,7 @@ function ClassicSitter({ look, lineage, phase }: { look: Look; lineage: Paramete
 
 /** The sitter: the agent's body at rest, turned three-quarters, its animation clock running. */
 function Sitter({ id, onBox }: { id: string; onBox: (box: Box3) => void }) {
-  // Skippy isn't in the cast (he runs it): his own look, for his Desk portrait (/studio?agent=skippy).
+  // Skippy isn't in the cast (he runs it): his own look, for his Desk portrait (/portrait-studio?agent=skippy).
   const profile = id === SKIPPY_ID ? { look: SKIPPY_LOOK, lineage: "cursori" as const } : cast.profiles[id]!;
   const look = profile.look;
   const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
@@ -214,7 +214,7 @@ function Roster() {
       <ul>
         {api.roster.map((a) => (
           <li key={a.id}>
-            <a href={`/studio?agent=${a.id}`}>
+            <a href={`/portrait-studio?agent=${a.id}`}>
               <img src={`/desk/agent-${a.id}.webp`} alt="" />
               <span>{a.name}</span>
               <small>{a.room}</small>

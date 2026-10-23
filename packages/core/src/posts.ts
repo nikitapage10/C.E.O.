@@ -16,6 +16,7 @@ export const POSTS: Record<RoomId, readonly [number, number]> = {
   breakroom: [6.4, -4.8],
   boiler: [6.3, -5.0],
   workshop: [7.3, -4.6],
+  studio: [7.1, -4.7],
 };
 
 /**
@@ -40,6 +41,7 @@ export const COMMAND_SPOTS: Record<RoomId, readonly [number, number]> = {
   breakroom: [0.4, 0.4],
   boiler: [0.5, 0.3],
   workshop: [0.6, 0.4],
+  studio: [0.5, 0.2],
 };
 
 /** How high the submind hovers at the command spot: well clear of every agent and every piece of furniture. */

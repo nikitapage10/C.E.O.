@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Photographs every agent for the Desk: each one's own model, alone in the portrait studio (/studio?agent=<id>,
+ * Photographs every agent for the Desk: each one's own model, alone in the portrait studio (/portrait-studio?agent=<id>,
  * apps/world/src/studio), in a three-quarter turn under a key, a rim and a fill, over its room's colours. Writes
  * apps/world/public/desk/agent-<id>.webp and the list the Desk reads them by (apps/world/src/desk/portraits.ts).
  *
@@ -84,7 +84,7 @@ try {
   const page = await browser.newPage({ viewport: { width: FRAME, height: FRAME }, deviceScaleFactor: 2 });
   page.on("pageerror", (e) => console.log("pageerror:", e.message));
 
-  await page.goto(`${base}/studio`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/portrait-studio`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => globalThis.__studio?.roster?.length > 0, undefined, { timeout: 120_000 });
   const roster = await page.evaluate(() => globalThis.__studio.roster);
   const wanted = only ? roster.filter((a) => only.includes(a.id)) : roster;
@@ -93,7 +93,7 @@ try {
   const shots = [];
   for (const a of wanted) {
     const started = Date.now();
-    await page.goto(`${base}/studio?agent=${a.id}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${base}/portrait-studio?agent=${a.id}`, { waitUntil: "domcontentloaded" });
     try {
       await page.waitForFunction(() => globalThis.__studio?.ready === true, undefined, { timeout: 240_000, polling: 500 });
     } catch {
@@ -115,7 +115,7 @@ try {
   // Skippy runs the cast and isn't in it: his portrait for the Desk's chat (apps/world/src/desk/skippy) is
   // public/desk/skippy.webp, shot on a full run or with --only=skippy, and never listed in PORTRAITS.
   if (!only || only.includes("skippy")) {
-    await page.goto(`${base}/studio?agent=skippy`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${base}/portrait-studio?agent=skippy`, { waitUntil: "domcontentloaded" });
     try {
       await page.waitForFunction(() => globalThis.__studio?.ready === true, undefined, { timeout: 240_000, polling: 500 });
       const png = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: FRAME, height: FRAME }, timeout: 120_000 });

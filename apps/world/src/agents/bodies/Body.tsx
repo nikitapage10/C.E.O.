@@ -1,6 +1,9 @@
 import type { Body as BodyKind } from "@ceo/core";
 import { Suspense, type ComponentType } from "react";
+import { Bard } from "./Bard.tsx";
+import { Coil } from "./Coil.tsx";
 import { Hanar } from "./Hanar.tsx";
+import { Orb } from "./Orb.tsx";
 import { Rocky } from "./Rocky.tsx";
 import { Compactor } from "./Compactor.tsx";
 import { LibraryBody } from "./Library.tsx";
@@ -48,6 +51,9 @@ const BODIES: Record<Exclude<BodyKind, "classic">, ComponentType<BodyProps>> = {
   yeti: LibraryBody,
   monolith: Monolith,
   powerbox: PowerBox,
+  bard: Bard,
+  coil: Coil,
+  orb: Orb,
 };
 
 /** Any body but the classic figure, at the look's size. Models stream in; until then there's nothing to see. */

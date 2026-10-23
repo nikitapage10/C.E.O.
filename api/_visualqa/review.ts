@@ -148,6 +148,15 @@ export const ROOMS: RoomBrief[] = [
       "A workbench at the front left of centre and a second bench at the front; shelves of past figures on the left wall; a crate of finished pieces at the front right; two barrels in the front left corner against the walls, clear of the shelves and the benches.",
     ],
   },
+  {
+    id: "studio",
+    name: "Studio",
+    expect: [
+      "A small sound stage: a green-screen wall curving into a green floor at the back left, a ring light and a softbox beside it, and a camera on a tripod facing it with a red tally lamp.",
+      "A storyboard wall of tall 9:16 cards at the back right; a writing desk at the front left; an edit desk with a timeline on a wide screen and a tall preview at the front right, and a render rack against the right edge.",
+      "Dot, the host, is a round orb that floats about head high on purpose.",
+    ],
+  },
 ];
 
 /** What holds in every room. */

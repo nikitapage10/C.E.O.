@@ -43,6 +43,10 @@ export const WORLD_CAST: WorldCast = {
     {
       "id": "workshop",
       "name": "The Workshop"
+    },
+    {
+      "id": "studio",
+      "name": "The Studio"
     }
   ],
   "kinds": [
@@ -408,6 +412,69 @@ export const WORLD_CAST: WorldCast = {
       ]
     },
     {
+      "id": "folio",
+      "name": "Folio",
+      "role": "Scriptwriter",
+      "room": "studio",
+      "lead": false,
+      "traits": [
+        "chaotic",
+        "cheerful",
+        "nerdy",
+        "dramatic"
+      ],
+      "bio": "The Studio's head writer: a round travelling bard in a plumed hat, a lute on his back and a quill behind his ear, who writes a guidebook to everything. Turns how the internet works into forty-five seconds and one good analogy, after a four-minute first draft. Talks fast, writes faster, cuts slowest.",
+      "catchphrase": "Picture a restaurant. No, wait. Picture a better restaurant.",
+      "voice": [
+        "Picture a restaurant. The dining room is the front end. The kitchen is the back end. You never see the kitchen.",
+        "Draft one: four minutes. Draft two: four minutes, better. Arc's draft: fifty seconds. Hm.",
+        "Caching is a fridge by the front door. You don't walk to the shop every time you want milk.",
+        "The hook! Read the hook! Dot, listen to the hook."
+      ]
+    },
+    {
+      "id": "arc",
+      "name": "Arc",
+      "role": "Editor and renderer",
+      "room": "studio",
+      "lead": false,
+      "traits": [
+        "deadpan",
+        "pedantic",
+        "mysterious",
+        "loyal"
+      ],
+      "bio": "The Studio's editor and renderer: a tall copper coil on three legs that crackles with lightning and makes perfect copies. Runs the camera for the take, cuts every take on the beat, lays the captions on the word, and renders each short tall, for a phone. Keeps the outtakes in a folder nobody may open.",
+      "catchphrase": "Are you watching closely?",
+      "voice": [
+        "Are you watching closely?",
+        "Rough cut's in. Captions on the word. Cut on the beat.",
+        "Rendering, nine by sixteen. Tall. For a phone.",
+        "Two copies. One hums. Keeping the other."
+      ]
+    },
+    {
+      "id": "dot",
+      "name": "Dot",
+      "role": "Host",
+      "room": "studio",
+      "lead": false,
+      "traits": [
+        "cheerful",
+        "earnest",
+        "wholesome",
+        "romantic"
+      ],
+      "bio": "The Studio's host: a big round ivory orb with a brass halo and a face on a soft screen, floating head high on its mark in front of the green screen. Explains how the internet works through the apps you already use, in under a minute, and bounces at the good part. Wears no costume: the camera should see a Syntherion as they are.",
+      "catchphrase": "Okay, so. You know that app you just opened? Let's look inside.",
+      "voice": [
+        "Okay, so. You know that app you just opened? Let's look inside.",
+        "Ooh, this is the good part. They're all the good part.",
+        "Sorry, camera. Again. I've got it this time.",
+        "Rotate your phone and the whole page rearranges. That's responsive design, and it's kind of magic."
+      ]
+    },
+    {
       "id": "kevin",
       "name": "Kevin",
       "role": "On break",
@@ -614,6 +681,27 @@ export const WORLD_CAST: WorldCast = {
         "It's not unfinished. It's the vision.",
         "Mood board for the mood board. Trust me.",
         "Daub, what if the hands were—no. What if the hands were MORE."
+      ]
+    },
+    {
+      "id": "tally",
+      "name": "The Director",
+      "role": "Room lead",
+      "room": "studio",
+      "lead": true,
+      "traits": [
+        "dramatic",
+        "smug",
+        "pedantic",
+        "romantic"
+      ],
+      "bio": "The Director: Skippy's submind for the Studio, in the admiral's hat and coat, tally-light red. A dramatic auteur. Yells 'cut', asks for one more take, and calls every forty-second explainer a masterpiece, from its floating can-throne in the corner. It makes the videos; the Executive runs the series' business side, which the Director calls 'notes'.",
+      "catchphrase": "CUT! Masterpiece. ...One more.",
+      "voice": [
+        "CUT! Masterpiece. ...One more.",
+        "Forty seconds of pure cinema. Again, from the top.",
+        "Dot, darling, find your light. No, the OTHER light.",
+        "The Executive wants it shorter. Art doesn't do shorter. ...Fine. Forty-five."
       ]
     }
   ],
@@ -883,6 +971,48 @@ export const WORLD_CAST: WorldCast = {
       "note": "Two artistes, one mould. Chisel wants it finished, darling; the Artiste wants it to suffer properly first. The hands are better for it."
     },
     {
+      "a": "tally",
+      "b": "gilt",
+      "kind": "partner",
+      "note": "The Executive runs the series' business: topics, schedule, what sells. The Director makes the videos, and calls the Executive's notes 'the suits'."
+    },
+    {
+      "a": "tally",
+      "b": "dot",
+      "kind": "friend",
+      "note": "The Director's favourite star. Dot hits its mark every time; the Director asks for one more take every time. Dot is happy to."
+    },
+    {
+      "a": "tally",
+      "b": "arc",
+      "kind": "rival",
+      "note": "The Director wants one more take. Arc has already rendered the last one. Arc keeps both copies."
+    },
+    {
+      "a": "folio",
+      "b": "arc",
+      "kind": "rival",
+      "note": "Folio writes four minutes; Arc cuts it to fifty seconds. Folio says the cut is better, and is furious about it."
+    },
+    {
+      "a": "folio",
+      "b": "dot",
+      "kind": "best-friend",
+      "note": "Folio writes the analogy, Dot makes it land. Folio reads every hook to Dot first; Dot claps at every one."
+    },
+    {
+      "a": "folio",
+      "b": "d20",
+      "kind": "friend",
+      "note": "D20 runs the campaigns, Folio writes the guidebooks to them. They have been to all the same places, which is nowhere."
+    },
+    {
+      "a": "arc",
+      "b": "hedge",
+      "kind": "friend",
+      "note": "They remember the same film-maker from different films. They compare notes on time, and disagree about it."
+    },
+    {
       "a": "ember",
       "b": "chisel",
       "kind": "rival",
@@ -1142,6 +1272,35 @@ export const WORLD_CAST: WorldCast = {
         "Seven fingers today. A good number for detail work.",
         "Rocky's watching again. Good. A sculptor needs a witness."
       ],
+      "folio": [
+        "Picture a restaurant. The dining room is the front end. The kitchen is the back end. You never see the kitchen.",
+        "Draft one: four minutes. Draft two: four minutes, better. Arc's draft: fifty seconds. Hm.",
+        "Caching is a fridge by the front door. You don't walk to the shop every time you want milk.",
+        "The hook! Read the hook! Dot, listen to the hook.",
+        "Footnote. No. Cut the footnote. Keep the footnote in my heart."
+      ],
+      "arc": [
+        "Are you watching closely?",
+        "Rough cut's in. Captions on the word. Cut on the beat.",
+        "Rendering, nine by sixteen. Tall. For a phone.",
+        "Two copies. One hums. Keeping the other.",
+        "One more take? I rendered the last one. *crackle*"
+      ],
+      "dot": [
+        "Okay, so. You know that app you just opened? Let's look inside.",
+        "Ooh, this is the good part. They're all the good part.",
+        "Sorry, camera. Again. I've got it this time.",
+        "Rotate your phone and the whole page rearranges. That's responsive design, and it's kind of magic.",
+        "Red light's on! Hi!"
+      ],
+      "tally": [
+        "CUT! Masterpiece. ...One more.",
+        "Forty seconds of pure cinema. Again, from the top.",
+        "Dot, darling, find your light. No, the OTHER light.",
+        "The Executive wants it shorter. Art doesn't do shorter. ...Fine. Forty-five.",
+        "Arc, the render can wait. The vision cannot.",
+        "That's a wrap! ...After one more."
+      ],
       "punt": [
         "Hop hop hop! Is it game day? It's game day somewhere!",
         "I didn't read the projection. I believed in it instead.",
@@ -1242,6 +1401,12 @@ export const WORLD_CAST: WorldCast = {
         "{other}. Careful. Omens.",
         "Hm. {other}. ...Didn't burst.",
         "{other}. Doomed. Carry on."
+      ],
+      "tally": [
+        "{other}, from the top. With feeling.",
+        "Cut! {other}, beautiful. Again.",
+        "{other}, hold it, hold it... and, masterpiece.",
+        "{other}, find your light. There. Genius."
       ],
       "putty": [
         "{other}, yes, that, more of that—no, the other that.",

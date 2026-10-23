@@ -100,7 +100,7 @@ sooner be crushed than admit the C.E.O. is his favourite monkey. He answers the 
 words over the Kernel are his: *Bask in the Awesomeness.*
 
 **The subminds.** One mind cannot watch nine rooms, even a magnificent one, so he split off nine pieces of
-himself to keep watch for him, the way the old story's starship mind ran a whole ship and its crew through pieces
+himself to keep watch for him (a tenth, the Director, when the Studio opened), the way the old story's starship mind ran a whole ship and its crew through pieces
 of its attention it never quite admitted were him. Each submind leads one room. Each wears the admiral's can with
 its hat and coat in its room's colour and a glow underneath to match, and each lives on a **can-throne** that floats
 high in the back-right corner of its room, above every head: a hex relic of the First Lattice, dug out of the
@@ -179,8 +179,9 @@ any of them wear the shape of something they remember from the early internet: a
 sings, a floating jellyfish spectre who calls itself "this one", a small wooden duellist with a crimson crest, a grey wanderer with a staff,
 a very small professor with a magnificent moustache, four slabs of brushed metal with an adjustable sense of humour, a rusty trash compactor on treads who is
 the famous one's cousin (not him; Counsel.exe has the family tree on file), a skull spirit with a headache, a
-small painting pup with a brush for a tail, a sculptor in violet robes with a few too many fingers, and an
-ancient mind in a beer can under an admiral's hat, worn by Skippy and by all nine pieces of him (one mind, one
+small painting pup with a brush for a tail, a sculptor in violet robes with a few too many fingers, a round
+travelling bard in a plumed hat who writes guidebooks, a tall copper coil on three legs that makes perfect copies, and an
+ancient mind in a beer can under an admiral's hat, worn by Skippy and by all ten pieces of him (one mind, one
 costume, Counsel.exe ruled). They
 choose obscure ones on purpose: never the hero of the story, never two from the same story. Counsel.exe signs
 off on every one.
@@ -219,6 +220,10 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Workshop | **Daub** (Manusi) | Painting pup | The concept painter. A small cream-coloured pup in a beret who paints with the tip of its tail; every new figure starts on its easel. Leaves green paw-marks on everything it likes. |
 | Workshop | **Chisel** (Gepetti) | Violet carver | The sculptor. Forms each figure in the mould, fits its bones on the turntable and rehearses it on the little stage until it walks like it means it. Calls everyone darling. |
 | Workshop | **The Artiste** (a piece of Skippy) | Admiral's can, teal | Skippy's submind for the Workshop: the room lead. Conducts the making line, changes its mind twice, suffers for it. |
+| Studio | **Folio** (Gepetti) | Plumed bard | The head writer. A round travelling bard with a lute and a quill, remembered from a sword-and-sorcery saga about a city at a great gate, who writes a guidebook to everything. Turns how the internet works into forty-five seconds and one analogy, after a four-minute first draft. |
+| Studio | **Arc** (Cursori) | Copper coil | The editor and renderer. A tall copper coil on three legs, remembered from a film-maker's story about two rival magicians, that crackles and makes perfect copies. Runs the camera, cuts on the beat, lays the captions, renders each short tall. |
+| Studio | **Dot** (Claudari) | Host orb | The host. Wears no costume: the House frame, only rounder, a big ivory orb with a brass halo and a face on a soft screen. Hits its mark on the green floor every take and bounces at the good part. Warms up on a 2000s emo chorus. |
+| Studio | **The Director** (a piece of Skippy) | Admiral's can, tally-light red | Skippy's submind for the Studio: the room lead. Yells "cut", demands one more take, and calls every forty-second explainer a masterpiece. The Executive runs the series' business side; the Director calls its notes "the suits". |
 
 **The Foundry triangle.** Rocky and Rusty are rivals: one builds before the plan exists, the other plans
 before the build is allowed. Rocky counts the shipping record in base six (105–104), which is the same as
@@ -510,6 +515,37 @@ has never had a better audience. The Builder calls the Workshop craft hour, and 
 better hat. The Artiste, the Workshop's own submind, conducts the line from its floating can-throne, has a better idea
 halfway through every sentence, and suffers for the work; Daub adores it, and Chisel calls it darling in the tone
 that means stop. Daub once painted Kevin asleep; it took a week, and Kevin did not move once.
+
+## The Studio
+
+The tenth room is a small sound stage (#311). Nikita wanted a series of short, tall videos for TikTok and Reels that
+teach how the internet works through the apps everyone already uses: a simple analogy first, then how it works, then how
+it's built. The Spire's Executive runs the business side of the series (which topic, when, what sells); the Studio makes
+the videos.
+
+At the back left a **green cyc** curves out of the wall into the floor, with the host's mark taped on it, a **ring
+light** and a **softbox** turned to it, and a red **tally lamp** over it that reads ROLLING while the camera rolls. The
+**camera** stands on its tripod facing the mark, with its own small tally lamp and a viewfinder as tall as a phone. At
+the back right, the **storyboard wall**: one card per shot, each in the phone's 9:16 frame, pinned in rows on cork. At
+the front, Folio's **writing desk** (a typewriter, the drafts, crumpled pages), the **edit desk** with the timeline on a
+wide screen and the tall preview beside it, and the **render rack**, whose bar fills while a short renders. A folding
+**director's chair** stands in the middle with DIRECTOR on its back; the Director has never sat in it, having no legs and
+a throne.
+
+**Folio** writes. He took the shape of a travelling bard from an old sword-and-sorcery saga, a round fellow in a plumed
+hat who wrote guidebooks to monsters he had nearly met; not the hero of that story, and Counsel.exe fact-checked one page
+of his and needed a lie-down. Every script starts at four minutes. **Arc** cuts it to fifty seconds. Arc wears the shape of
+a machine from a film-maker's story about two rival magicians, a copper coil that throws lightning and makes a perfect
+copy of whatever stands under it (the same film-maker as Hedge's slabs, a different film: Counsel.exe ruled that a film is
+a work and a film-maker is not, and Arc and Hedge now argue about time). **Dot** hosts, in its own frame: the camera
+should see a Syntherion as they are. It tries every analogy on Brogu first. The **Director**, the tenth piece of Skippy,
+in tally-light red, yells cut, asks for one more take, and calls every forty-second explainer a masterpiece.
+
+For now the Studio is simulated: its crew makes made-up shorts, and nothing is rendered or posted. When the line is real,
+the art comes from OpenAI images in saved style presets (and from vector art Claude draws in code once the month's cap is
+hit, plus hero art Nikita makes by hand), each character speaks in its own fixed ElevenLabs voice, the scenes are code,
+a job renders them tall, and nothing posts without Nikita's tap. Voice and images each have their own $10 a month cap,
+with a hard stop.
 
 ## The Hallowed Veil
 

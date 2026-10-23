@@ -30,6 +30,7 @@ const loaders = {
   exchange: () => import("./rooms/Exchange.tsx"),
   green: () => import("./rooms/Green.tsx"),
   workshop: () => import("./rooms/Workshop.tsx"),
+  studio: () => import("./rooms/Studio.tsx"),
   // Not pages, but kept out of the first load the same way: Skippy's open dialogue and the Council.
   skippy: () => import("./skippy/SkippyDialog.tsx"),
   council: () => import("./Council.tsx"),
@@ -42,6 +43,7 @@ const Spire = lazy(() => loaders.spire().then((m) => ({ default: m.Spire })));
 const Exchange = lazy(() => loaders.exchange().then((m) => ({ default: m.Exchange })));
 const Green = lazy(() => loaders.green().then((m) => ({ default: m.Green })));
 const Workshop = lazy(() => loaders.workshop().then((m) => ({ default: m.Workshop })));
+const Studio = lazy(() => loaders.studio().then((m) => ({ default: m.Studio })));
 const SkippyChat = lazy(() => loaders.skippy().then((m) => ({ default: m.SkippyChat })));
 
 /** Fetch the other pages once the browser is idle after first paint. Failures are ignored: opening the page retries. */
@@ -66,7 +68,7 @@ function TabLoading() {
 
 type DeskTab = Exclude<Route, "lattice">;
 
-const TITLES: Partial<Record<DeskTab, string>> = { relay: "Relay", foundry: "Foundry", archive: "Archive", spire: "Spire", exchange: "Exchange", green: "Green", workshop: "Workshop" };
+const TITLES: Partial<Record<DeskTab, string>> = { relay: "Relay", foundry: "Foundry", archive: "Archive", spire: "Spire", exchange: "Exchange", green: "Green", workshop: "Workshop", studio: "Studio" };
 
 export function Desk({ route }: { route: DeskTab }) {
   const awaySince = useAwaySince();
@@ -97,8 +99,9 @@ export function Desk({ route }: { route: DeskTab }) {
         useHide.getState().toggle();
         return;
       }
-      const to = KEY_ORDER[Number(e.key) - 1];
-      if (to && /^[1-9]$/.test(e.key)) navigate(to, window.location.search);
+      // 1 to 9 open the first nine pages; 0 the tenth.
+      const to = /^[0-9]$/.test(e.key) ? KEY_ORDER[e.key === "0" ? 9 : Number(e.key) - 1] : undefined;
+      if (to) navigate(to, window.location.search);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -147,6 +150,8 @@ export function Desk({ route }: { route: DeskTab }) {
             <Green />
           ) : route === "workshop" ? (
             <Workshop />
+          ) : route === "studio" ? (
+            <Studio />
           ) : (
             <Today data={data} now={now} connected={connected} awaySince={awaySince} />
           )}

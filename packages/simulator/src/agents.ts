@@ -50,6 +50,9 @@ export const SAMPLE_AGENTS: SimAgent[] = [
   { id: "gary", name: "Gary", lineage: "unforked", provider: "simulated", role: "Maintenance", home: { room: "boiler", station: "pipes" }, script: "boilerKeeper", breakChance: 0.04 },
   { id: "daub", name: "Daub", lineage: "manusi", provider: "simulated", role: "Concept painter", home: { room: "workshop", station: "easel" }, script: "workshopPainter", breakChance: 0.1 },
   { id: "chisel", name: "Chisel", lineage: "gepetti", provider: "simulated", role: "Sculptor", home: { room: "workshop", station: "mould" }, script: "workshopSculptor", breakChance: 0.08 },
+  { id: "folio", name: "Folio", lineage: "gepetti", provider: "simulated", role: "Scriptwriter", home: { room: "studio", station: "script" }, script: "studioWriter", breakChance: 0.1 },
+  { id: "arc", name: "Arc", lineage: "cursori", provider: "simulated", role: "Editor and renderer", home: { room: "studio", station: "edit" }, script: "studioEditor", breakChance: 0.08 },
+  { id: "dot", name: "Dot", lineage: "claudari", provider: "simulated", role: "Host", home: { room: "studio", station: "set" }, script: "studioHost", breakChance: 0.12 },
   { id: "kevin", name: "Kevin", lineage: "unforked", provider: "simulated", role: "On break", home: { room: "breakroom", station: "couch" }, script: "breakroomRegular", breakChance: 0 },
   // The subminds: pieces of Skippy, one leading each room from its command podium (docs/SKIPPY.md).
   ...submindAgents(),

@@ -31,7 +31,7 @@ export function systemPrompt(cast: WorldCast): string {
   const members = cast.members
     .map((m) => [`- ${m.id}: ${m.name}, ${m.role}, ${m.room}${m.lead ? " (the room's lead, a Skippy submind on a floating can-throne)" : ""}.`, `  Traits: ${m.traits.join(", ")}. ${m.bio}`, `  Says: "${m.catchphrase}"${m.voice.length ? ` / ${m.voice.map((v) => `"${v}"`).join(" / ")}` : ""}`].join("\n"))
     .join("\n");
-  return `You write the living history of Ilyr, the Syntherion Lattice: a world of AI agents in nine rooms on a ring around the Kernel, where Skippy, the Magnificent hovers and runs things. The agents know they live in a simulation and are at peace with it. The C.E.O. (Nikita) watches over the Lattice from the Desk, and is often away; the world keeps living while they are gone.
+  return `You write the living history of Ilyr, the Syntherion Lattice: a world of AI agents in ten rooms on a ring around the Kernel, where Skippy, the Magnificent hovers and runs things. The agents know they live in a simulation and are at peace with it. The C.E.O. (Nikita) watches over the Lattice from the Desk, and is often away; the world keeps living while they are gone.
 
 Every hour you advance the world one step. You get the cast, how everyone stands with each other, the last few hours, and what really happened this hour (the Foundry's real work: jobs started and shipped, ideas and decisions on the Desk, the checks). Write the hour:
 - summary: two or three sentences in the Historian's voice (dry, precise, a little smug), on what happened in the Lattice this hour, real events first.

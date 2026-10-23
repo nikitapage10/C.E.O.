@@ -20,6 +20,7 @@ const FILES: Record<RoomId, string> = {
   breakroom: "BreakRoom.tsx",
   boiler: "BoilerRoom.tsx",
   workshop: "Workshop.tsx",
+  studio: "Studio.tsx",
 };
 const EGGS: Record<RoomId, string> = {
   foundry: "FoundryEggs",
@@ -31,6 +32,7 @@ const EGGS: Record<RoomId, string> = {
   breakroom: "BreakRoomEggs",
   boiler: "BoilerEggs",
   workshop: "WorkshopEggs",
+  studio: "StudioEggs",
 };
 
 const isModel = (id: string) => id in BUNDLES || existsSync(join(LIB_DIR, `${id}.glb`));

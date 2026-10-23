@@ -7,7 +7,7 @@
  * over that room's Desk page, see desk/RoomBanner.tsx). The Desk shows them as static files, so three.js never loads with it. The agents'
  * portraits are taken separately, each model alone in the portrait studio: scripts/portraits.mjs.
  *
- * Usage: node scripts/desk-images.mjs [base-url] [--only=rooms|hero]
+ * Usage: node scripts/desk-images.mjs [base-url] [--only=rooms|hero] [--rooms=studio,workshop]
  *   base-url defaults to http://localhost:5181 (a `vite preview` or `vite dev` of @ceo/world).
  * Needs Chromium for Playwright (PLAYWRIGHT_CHROMIUM_PATH, or Playwright's own) and ImageMagick's `convert`
  * (falls back to JPEG straight from Playwright when it is missing).
@@ -30,7 +30,10 @@ const H = 900;
 /** Device pixels per CSS pixel: crops are given in CSS pixels and scaled by this. */
 const SCALE = 2;
 /** The Desk's rooms, in its order. */
-const ROOMS = ["relay", "foundry", "spire", "exchange", "green", "archive", "workshop", "boiler"];
+const ALL_ROOMS = ["relay", "foundry", "spire", "exchange", "green", "archive", "workshop", "studio", "boiler"];
+/** --rooms=a,b shoots only those rooms (a new room needs only its own stills). */
+const pick = args.find((a) => a.startsWith("--rooms="))?.slice(8).split(",").filter(Boolean);
+const ROOMS = pick ? ALL_ROOMS.filter((r) => pick.includes(r)) : ALL_ROOMS;
 
 let hasConvert = true;
 try {

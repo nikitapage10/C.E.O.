@@ -14,7 +14,7 @@ import { AIR_HEIGHT, COMMAND_HEIGHT, COMMAND_SPOTS, FLY_LIFT, FLY_SPEED, POSTS, 
 
 export type Vec3 = readonly [number, number, number];
 
-export const ROOM_IDS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop"] as const;
+export const ROOM_IDS = ["foundry", "spire", "exchange", "green", "relay", "archive", "breakroom", "boiler", "workshop", "studio"] as const;
 export type RoomId = (typeof ROOM_IDS)[number];
 
 export interface Station {
@@ -270,6 +270,26 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       s("crate", "Crate of finished pieces", 6.2, 3.4, -Math.PI / 2),
       // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
       ...post("workshop"),
+    ],
+  },
+  studio: {
+    id: "studio",
+    name: "The Studio",
+    theme: "sound stage",
+    workstream: "Short explainer videos about tech, for TikTok and Reels — script, storyboard, film, edit, render",
+    y: 0.4,
+    stations: [
+      // The set: a green cyc along the back left, the host on its mark facing the camera on its tripod.
+      s("set", "On the mark, in front of the green screen", -3.6, -3.4, Math.PI),
+      s("camera", "Behind the camera", -3.6, 1.25, 0),
+      // The storyboard wall along the back right, one card per shot, in the phone's tall frame.
+      s("storyboard", "The storyboard wall", 3.4, -4.9, 0),
+      // Front of the room: the writing desk on the left, the edit desk and the render rack on the right.
+      s("script", "The writing desk", -5.85, 3.1, Math.PI / 2),
+      s("edit", "The edit desk", 3.4, 2.65, 0),
+      s("render", "The render rack", 6.2, 2.8, -Math.PI / 2),
+      // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.
+      ...post("studio"),
     ],
   },
 };

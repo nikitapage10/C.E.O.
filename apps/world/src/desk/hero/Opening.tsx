@@ -13,7 +13,7 @@ import { FAN, fanPaths } from "./fan.ts";
 /** The opening's beats, in milliseconds. */
 export const OP = { B0: 420, B1: 1500, C0: 1550, C1: 2400, LIFT: 2050, WRITE: 2150, RISE: 2350, FADE0: 2300, FADE1: 2950, END: 3050 };
 
-const ORDER = ["foundry", "boiler", "breakroom", "archive", "relay", "spire", "exchange", "green", "workshop"];
+const ORDER = ["foundry", "boiler", "breakroom", "archive", "relay", "spire", "exchange", "green", "workshop", "studio"];
 
 interface P {
   i: number;

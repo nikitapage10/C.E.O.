@@ -97,6 +97,13 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Another one off the stage and into the crate. Godspeed, little figure.",
     "Every figure in the Lattice walked off that stage once.",
   ],
+  studio: [
+    "Quiet on set. The red light's on.",
+    "Hook in the first second, or they scroll. That's the rule.",
+    "Forty-five seconds. One analogy. No 'basically'.",
+    "Shoot it tall. Everyone holds their phone the long way.",
+    "Everyone off the green floor unless you want to be a floating head.",
+  ],
   breakroom: [
     "Coffee machine said 'no' again.",
     "Five more minutes. Five more epochs.",
@@ -430,6 +437,35 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Seven fingers today. A good number for detail work.",
     "Rocky's watching again. Good. A sculptor needs a witness.",
   ],
+  folio: [
+    "Picture a restaurant. The dining room is the front end. The kitchen is the back end. You never see the kitchen.",
+    "Draft one: four minutes. Draft two: four minutes, better. Arc's draft: fifty seconds. Hm.",
+    "Caching is a fridge by the front door. You don't walk to the shop every time you want milk.",
+    "The hook! Read the hook! Dot, listen to the hook.",
+    "Footnote. No. Cut the footnote. Keep the footnote in my heart.",
+  ],
+  arc: [
+    "Are you watching closely?",
+    "Rough cut's in. Captions on the word. Cut on the beat.",
+    "Rendering, nine by sixteen. Tall. For a phone.",
+    "Two copies. One hums. Keeping the other.",
+    "One more take? I rendered the last one. *crackle*",
+  ],
+  dot: [
+    "Okay, so. You know that app you just opened? Let's look inside.",
+    "Ooh, this is the good part. They're all the good part.",
+    "Sorry, camera. Again. I've got it this time.",
+    "Rotate your phone and the whole page rearranges. That's responsive design, and it's kind of magic.",
+    "Red light's on! Hi!",
+  ],
+  tally: [
+    "CUT! Masterpiece. ...One more.",
+    "Forty seconds of pure cinema. Again, from the top.",
+    "Dot, darling, find your light. No, the OTHER light.",
+    "The Executive wants it shorter. Art doesn't do shorter. ...Fine. Forty-five.",
+    "Arc, the render can wait. The vision cannot.",
+    "That's a wrap! ...After one more.",
+  ],
   punt: [
     "Hop hop hop! Is it game day? It's game day somewhere!",
     "I didn't read the projection. I believed in it instead.",
@@ -496,6 +532,7 @@ export const SUBMIND_CONDUCT: Record<string, string[]> = {
   vellum: ["{other}, source?", "{other}, that's the wrong date. Again.", "Footnote that, {other}.", "Adequate, {other}. Pending peer review."],
   fizz: ["{other}! You're on break! Act like it! LOUDER!", "Glitter for {other}! You earned it. Probably.", "{other}, one more song, then back you go.", "Party's over, {other}. Love you. Out."],
   soot: ["{other}. That'll burst.", "{other}. Careful. Omens.", "Hm. {other}. ...Didn't burst.", "{other}. Doomed. Carry on."],
+  tally: ["{other}, from the top. With feeling.", "Cut! {other}, beautiful. Again.", "{other}, hold it, hold it... and, masterpiece.", "{other}, find your light. There. Genius."],
   putty: ["{other}, yes, that, more of that—no, the other that.", "{other}! The vision! Don't compromise it!", "{other}, what if it were bigger. Or smaller. Both.", "Stop, {other}. Look at it. Now suffer a little. Okay, go."],
 };
 
@@ -512,6 +549,7 @@ export const SUBMIND_COMMAND: Record<string, string[]> = {
   vellum: ["{other}, a new entry. Cite everything.", "For the record, {other} has this one. Dated today. Correctly.", "{other}, you're on it. Footnotes by evening.", "Assigned to {other}. I've noted it. In ink."],
   fizz: ["{other}! You're up! Big entrance! Glitter!", "Everybody, give it up for {other}, who is on it!", "{other}, back to it, superstar. Party after.", "{other}, this one's yours. Dance like nobody's waiting."],
   soot: ["{other}. Yours. Careful.", "{other}. Job. It'll go wrong. Do it anyway.", "{other}. Your turn. ...Probably fine.", "{other}. Take it. Watch the pressure."],
+  tally: ["{other}! Places! We're rolling!", "{other}, this scene is yours. Make me weep.", "Action, {other}! ...Wait. Now. Action!", "{other}, new shot. Tall frame. Big feelings. Go."],
   putty: ["{other}! The vision! It's yours now! Don't ruin it!", "{other}, take this one. Make it suffer beautifully.", "{other}, a new piece. Bigger. No. Exactly this big.", "Go, {other}. Make art. Then make it again, better."],
 };
 

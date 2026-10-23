@@ -1,16 +1,19 @@
 /**
  * Gmail, read-only (#263, docs/GMAIL.md): Google's OAuth 2.0 web flow for one scope, `gmail.readonly`, and the three
  * Gmail API reads the agent makes. Nothing here can send, label, archive or delete: the scope doesn't allow it, and
- * the only calls are GETs to the profile, the history and one message.
+ * the only calls are GETs to the profile, the history, the catch-up list and one message.
  *
  *   GET users/me/profile                 the mailbox's current history id (the first check starts there)
  *   GET users/me/history                 what changed since a history id: the minute check, free of Claude
+ *   GET users/me/messages?q=…            once per connection: the unread inbox mail of the last 48 hours (#323)
  *   GET users/me/messages/{id}           one new inbox mail, read only to sort it
  *
  * `fetcher` is passed in everywhere, so the tests never touch the network.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
+
+import { CATCH_UP_MAX } from "./types.js";
 
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -200,6 +203,20 @@ export function lastHistoryId(pages: HistoryPage[], fallback: string): string {
   return best;
 }
 
+/** The catch-up's search (#323): unread inbox mail from the last two days. */
+export const CATCH_UP_QUERY = "in:inbox is:unread newer_than:2d";
+
+/** The ids of the unread inbox mail of the last 48 hours, newest first, at most CATCH_UP_MAX: ids only. */
+export async function catchUpIds(fetcher: Fetcher, token: string): Promise<string[]> {
+  const b = (await gmailGet(fetcher, token, "/messages", new URLSearchParams({ q: CATCH_UP_QUERY, maxResults: String(CATCH_UP_MAX) }))) as { messages?: { id?: unknown }[] } | null;
+  const out: string[] = [];
+  for (const m of b?.messages ?? []) {
+    if (typeof m?.id === "string" && MESSAGE_ID.test(m.id) && !out.includes(m.id)) out.push(m.id);
+    if (out.length >= CATCH_UP_MAX) break;
+  }
+  return out;
+}
+
 /** One message, fully. */
 export async function readMessageRaw(fetcher: Fetcher, token: string, id: string): Promise<unknown> {
   if (!MESSAGE_ID.test(id)) throw new Error("not a message id");
@@ -217,6 +234,8 @@ export interface MailForSort {
   from: string;
   /** The sender's address's domain only ("example.com"), a hint for the sort. */
   fromDomain: string;
+  /** The sender's address, lower-cased, for the filters only (./filter.ts); never sent to a model. */
+  fromAddress: string;
   subject: string;
   /** Plain text, links taken out, trimmed to BODY_MAX. */
   body: string;
@@ -278,9 +297,22 @@ export function senderName(header: string): string {
   return plainMail(name || header.replace(/[<>]/g, "").trim(), 80);
 }
 
+export function senderAddress(header: string): string {
+  const m = /([A-Za-z0-9._%+'-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,24})/.exec(header);
+  return (m?.[1] ?? "").toLowerCase().slice(0, 120);
+}
+
 export function senderDomain(header: string): string {
   const m = /@([A-Za-z0-9.-]+\.[A-Za-z]{2,24})/.exec(header);
   return (m?.[1] ?? "").toLowerCase().slice(0, 80);
+}
+
+/** A Gmail message's whole body as plain text, untrimmed (up to 200,000 characters): for the private skip list only. */
+export function fullBody(raw: unknown): string {
+  const m = raw as { snippet?: unknown; payload?: Part } | null;
+  if (!m) return "";
+  const text = findPart(m.payload, "text/plain") ?? findPart(m.payload, "text/html") ?? (typeof m.snippet === "string" ? m.snippet : "");
+  return plainMail(text, 200_000);
 }
 
 /** A Gmail message (format=full) as the sort needs it; null when it isn't one. */
@@ -300,6 +332,7 @@ export function readMessage(raw: unknown): MailForSort | null {
     at: Number.isFinite(at) && at > 0 ? at : Date.now(),
     from: senderName(from) || "Unknown sender",
     fromDomain: senderDomain(from),
+    fromAddress: senderAddress(from),
     subject: plainMail(headers.get("subject") ?? "(no subject)", 160),
     body,
     promo: labels.includes("CATEGORY_PROMOTIONS") || labels.includes("CATEGORY_SOCIAL"),

@@ -90,6 +90,9 @@ var secrets = [
   { setting: 'GMAIL_CLIENT_ID', secret: 'gmail-client-id' }
   { setting: 'GMAIL_CLIENT_SECRET', secret: 'gmail-client-secret' }
   { setting: 'GMAIL_TOKEN_KEY', secret: 'gmail-token-key' }
+  // A private skip list for the email agent (#323): comma-separated terms; mail holding one is counted, never read by
+  // a model or kept. Optional: missing or empty skips nothing.
+  { setting: 'EMAIL_SKIP_TERMS', secret: 'email-skip-terms' }
   // The Spire's invoices (#279, docs/PAYPAL.md): PayPal's REST app (client credentials). Sandbox or live is the plain
   // PAYPAL_ENV setting below; switching to live means pasting the Live app's id and secret here.
   { setting: 'PAYPAL_CLIENT_ID', secret: 'paypal-client-id' }

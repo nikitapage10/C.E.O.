@@ -227,10 +227,10 @@ export async function callback(request: Request, deps: EmailRouteDeps): Promise<
     // The same redirect the connect sent to Google: Google refuses a code traded with any other.
     const refresh = await exchangeCode(deps.fetcher, redirectFor(deps.client, request), code);
     await deps.store.saveToken({ refresh, connectedAt: deps.now });
-    // Start the history afresh on the next tick, from the new connection.
+    // Start the history afresh on the next tick, from the new connection, and catch up on its unread mail (#323).
     for (let i = 0; i < 2; i++) {
       const { state, version } = await deps.store.load();
-      if (await deps.store.save({ ...state, historyId: null, gmail: "connected", lastError: null }, version)) break;
+      if (await deps.store.save({ ...state, historyId: null, gmail: "connected", lastError: null, catchUpListed: false, catchUp: [] }, version)) break;
     }
     return back("connected");
   } catch {

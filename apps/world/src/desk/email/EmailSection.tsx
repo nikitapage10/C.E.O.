@@ -13,7 +13,7 @@ import "./email.css";
  */
 
 const RETURN_TEXT: Record<string, string> = {
-  connected: "Gmail is connected. Dialtone starts from the next new mail.",
+  connected: "Gmail is connected. Dialtone catches up on unread mail from the last two days, then watches new mail.",
   cancelled: "Connect Gmail was cancelled at Google. Nothing was connected.",
   refused: "That Connect Gmail link didn't match this session. Try again from here.",
   failed: "Google didn't hand over access. Try Connect Gmail again.",
@@ -184,8 +184,9 @@ export function EmailSection({ now }: { now: number }) {
               ))}
             </ul>
           ) : (
-            <p className="em-empty">Nothing in your inbox needs you right now.</p>
+            <p className="em-empty">Nothing needs you right now. Dialtone watches mail that arrives after you connect, plus unread mail from the two days before.</p>
           )}
+          <p className="em-note">Money and legal mail is skipped unless it's urgent{status?.skipped ? ` (${status.skipped} today)` : ""}.</p>
           {fyi.length > 0 && (
             <details className="em-fyi">
               <summary>FYI · {fyi.length}</summary>

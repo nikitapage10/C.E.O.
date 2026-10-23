@@ -86,6 +86,8 @@ interface EmailStore {
   /** Set while Connect Gmail is on its way to Google, or a button is working. */
   busy: boolean;
   error: string | null;
+  /** Why the signed-in read last failed ("502", "shape", …); null once it reads. Shown instead of a "Reading…" that never ends. */
+  privateFail: string | null;
   refresh: () => Promise<void>;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
@@ -110,8 +112,10 @@ export const useEmail = create<EmailStore>((set, get) => ({
   checkedAt: null,
   busy: false,
   error: null,
+  privateFail: null,
   refresh: async () => {
     const auth = useDeskAuth.getState().auth.status;
+    let privateFail: string | null = null;
     try {
       if (auth === "in") {
         const res = await fetch(PATH, { headers: { Accept: "application/json" }, credentials: "same-origin", cache: "no-store" });
@@ -123,11 +127,12 @@ export const useEmail = create<EmailStore>((set, get) => ({
         } else if (res.ok) {
           const view = readView(await res.json());
           if (view) {
-            set({ load: "live", view, status: view.status, checkedAt: Date.now() });
+            set({ load: "live", view, status: view.status, checkedAt: Date.now(), privateFail: null });
             setLink(view.status);
             return;
           }
-        }
+          privateFail = "shape";
+        } else privateFail = String(res.status);
       }
       // Signed out (or the private read failed): the public counts, and nothing private lingers on the page.
       const res = await fetch(`${PATH}?view=status`, { headers: { Accept: "application/json" }, cache: "no-store" });
@@ -137,10 +142,10 @@ export const useEmail = create<EmailStore>((set, get) => ({
         return;
       }
       const status = res.ok ? readEmailStatus(((await res.json()) as { status?: unknown }).status) : null;
-      set({ load: status ? "live" : "failed", status: status ?? get().status, view: null, checkedAt: Date.now() });
+      set({ load: status ? "live" : "failed", status: status ?? get().status, view: null, checkedAt: Date.now(), privateFail });
       setLink(status ?? get().status);
     } catch {
-      set({ load: "failed", checkedAt: Date.now() });
+      set({ load: "failed", checkedAt: Date.now(), ...(auth === "in" && { privateFail: privateFail ?? "network" }) });
     }
   },
   connect: async () => {

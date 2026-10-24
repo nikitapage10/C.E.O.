@@ -1,7 +1,5 @@
 import { useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
-import { AskedSkippy } from "../skippy/AskedSkippy.tsx";
-import { RoomFeed } from "../skippy/RoomFeed.tsx";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
 import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import { BookieAsides } from "../exchange/BookieAsides.tsx";
@@ -167,9 +165,7 @@ export function Exchange() {
         </div>
       </section>
 
-      <AskedSkippy room="exchange" />
       <SetupAsks room="exchange" />
-      <RoomFeed room="exchange" />
 
       <Waits items={posStatus === "live" ? WAITS.slice(1) : WAITS} className="ex-waits" />
     </div>

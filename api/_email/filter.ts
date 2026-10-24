@@ -5,9 +5,8 @@
  *      its terms is counted as skipped and nothing else. No summary, no draft, no item, no heads-up.
  *   2. Money and legal mail (bills, payments, debts, bank and card statements, invoices, receipts, collections,
  *      contracts and legal notices), by its sender and subject: counted as skipped, never read by a model, never
- *      kept as an item. The exception is an urgent one (a fraud alert, a final or overdue notice, a legal deadline,
- *      a locked account): it becomes a one-line heads-up, the sender and a generic reason, never an amount, an
- *      account number, a detail of the mail or a draft.
+ *      kept as an item. An urgent one (a fraud alert, a final or overdue notice, a legal deadline, a locked
+ *      account) is counted too, as an urgent alert (#415): no item, no sender, nothing kept but the count.
  *
  * Mail that passes both goes to Dialtone, whose instructions carry the same money and legal rule (./sort.ts).
  * Nothing here logs, and nothing says which term or pattern matched.
@@ -49,15 +48,20 @@ export function onSkipList(terms: readonly string[], mail: Pick<MailForSort, "fr
 
 /** Senders whose mail is money by its address: banks, cards, payment and billing services, collections. */
 const MONEY_DOMAIN =
-  /(?:^|\.)(?:chase|bankofamerica|bofa|wellsfargo|capitalone|americanexpress|aexp|amex|discover|citi|citibank|usbank|ally|schwab|fidelity|vanguard|sofi|synchrony|barclays|barclaycard|navyfederal|paypal|venmo|zelle|cash\.app|squareup|stripe|intuit|quickbooks|billtrust|bill\.com|paymentus|doxo|experian|equifax|transunion|creditkarma|affirm|klarna|afterpay)\.[a-z.]{2,12}$|(?:^|[.-])(?:bank|banking|billing|invoice|invoices|payments?|collections?|creditunion)\.[a-z.]{2,12}$/i;
+  /(?:^|\.)(?:chase|bankofamerica|bofa|wellsfargo|capitalone|americanexpress|aexp|amex|discover|citi|citibank|usbank|ally|schwab|fidelity|vanguard|sofi|synchrony|barclays|barclaycard|navyfederal|paypal|venmo|zelle|squareup|stripe|intuit|quickbooks|billtrust|bill\.com|paymentus|doxo|experian|equifax|transunion|creditkarma|affirm|klarna|afterpay|robinhood|coinbase|etrade|webull|kraken|gemini|polymarket|kalshi|chime|wise|revolut|geico|progressive|statefarm|allstate|lemonade|mrcooper|nelnet|navient|mohela|aidvantage|lendingclub|rocketmortgage|quickenloans|loandepot|turbotax|hrblock|taxact|freetaxusa|irs|duke-?energy|xcelenergy|coned)\.[a-z.]{2,12}$|(?:^|\.)cash\.app$|(?:^|[.-])(?:bank|banking|billing|invoice|invoices|payments?|collections?|creditunion|insurance|loans?|mortgages?|lending|utility|utilities|electric|energy|tax|taxes)\.[a-z.]{2,12}$/i;
 /** Address local parts that are billing desks. */
 const MONEY_USER = /^(?:billing|bills?|invoices?|receipts?|payments?|statements?|accounts?-?payable|collections?|autopay|payroll)(?:[._+-]|$)/i;
 /** Subjects that are money. */
 const MONEY_SUBJECT =
-  /\b(?:invoice|receipt|statement|your bill|new bill|bill is (?:ready|due|available)|billing|payment|paid|autopay|direct debit|balance|amount due|past due|overdue|refund|charge[ds]?|transaction|debt|collections?|loan|mortgage|credit (?:card|limit|score|report)|tax (?:return|form|document)|1099|w-?2|order (?:confirmation|#)|your order)\b/i;
+  /\b(?:invoice|receipt|statement|your bill|new bill|bill is (?:ready|due|available)|billing|payment|paid|autopay|direct debit|balance|amount due|past due|overdue|refund|charge[ds]?|transaction|debt|collections?|loan|mortgage|credit (?:card|limit|score|report)|tax (?:return|form|document)|1099|w-?2|order (?:confirmation|#)|your order|deposits?|withdrawals?|transfers?|you sent|you received|purchases?|renewals?|trades?|dividends?|premiums?|claims?|rents?|wallets?|crypto|account alert)\b|\$\s?\d/i;
 /** Subjects that are legal or contracts. */
-const LEGAL_SUBJECT = /\b(?:contract|agreement|lawsuit|legal notice|subpoena|summons|court|attorney|settlement|docusign|e-?signature|sign(?:ature)? requested|notice of (?:claim|default|intent)|jury)\b/i;
+const LEGAL_SUBJECT = /\b(?:contract|agreement|lawsuit|legal notice|subpoena|summons|court|attorney|settlement|docusign|e-?signature|sign(?:ature)? requested|notice of (?:claim|default|intent)|jury|terms (?:of (?:service|use)|and conditions|& conditions)|privacy (?:policy|notice)|(?:updates?|changes?) to (?:our|your|the) terms)\b/i;
 const LEGAL_DOMAIN = /(?:^|\.)(?:docusign|hellosign|adobesign|pandadoc|courts?|uscourts|law|legal|attorneys?)\.[a-z.]{2,12}$|\.(?:law|legal|attorney)$/i;
+/** Mail that is money or legal by its sender or subject, urgent or not. */
+const moneyOrLegal = (mail: Pick<MailForSort, "fromAddress" | "fromDomain" | "subject">) => {
+  const user = mail.fromAddress.split("@")[0] ?? "";
+  return MONEY_DOMAIN.test(mail.fromDomain) || MONEY_USER.test(user) || MONEY_SUBJECT.test(mail.subject) || LEGAL_DOMAIN.test(mail.fromDomain) || LEGAL_SUBJECT.test(mail.subject);
+};
 
 /** Urgent patterns, only ever looked at for mail already found to be money or legal. */
 const URGENT: [RegExp, HeadsUpReason][] = [
@@ -72,10 +76,25 @@ const URGENT: [RegExp, HeadsUpReason][] = [
  * a generic reason for an urgent one, "pass" for everything else (which Dialtone then sorts).
  */
 export function preFilter(mail: Pick<MailForSort, "fromAddress" | "fromDomain" | "subject">): Verdict {
-  const user = mail.fromAddress.split("@")[0] ?? "";
-  const money = MONEY_DOMAIN.test(mail.fromDomain) || MONEY_USER.test(user) || MONEY_SUBJECT.test(mail.subject);
-  const legal = LEGAL_DOMAIN.test(mail.fromDomain) || LEGAL_SUBJECT.test(mail.subject);
-  if (!money && !legal) return { kind: "pass" };
+  if (!moneyOrLegal(mail)) return { kind: "pass" };
   for (const [re, reason] of URGENT) if (re.test(mail.subject)) return { kind: "heads-up", reason };
   return { kind: "skip" };
+}
+
+/** The minimal shape of a stored item, which keeps no address of its own, only the sender's display name or address. */
+type Stored = { from: string; subject: string; summary: string };
+
+/**
+ * Whether a mail already kept as an item would be skipped today (#415): on the skip list, a money or legal sender or
+ * subject, or an old heads-up (they are no longer kept at all). A display name stands in for its domain ("Name" is
+ * tried as name.com), since an item keeps no address. Run over the stored list on every tick, so a wider filter also
+ * clears what an older one let in.
+ */
+export function storedMailSkipped(terms: readonly string[], item: Stored): boolean {
+  if ((Object.values(HEADS_UP_REASONS) as string[]).includes(item.subject)) return true;
+  const at = item.from.lastIndexOf("@");
+  const fromAddress = at > 0 ? item.from.replace(/^.*</, "").replace(/>.*$/, "").trim() : "";
+  const domain = fromAddress.includes("@") ? fromAddress.slice(fromAddress.lastIndexOf("@") + 1).toLowerCase() : `${item.from.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
+  if (onSkipList(terms, { from: item.from, fromAddress, subject: item.subject }, item.summary)) return true;
+  return preFilter({ fromAddress, fromDomain: domain, subject: item.subject }).kind !== "pass";
 }

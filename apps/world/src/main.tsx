@@ -15,7 +15,7 @@ import "@fontsource/ibm-plex-sans/latin-600.css";
 import { StrictMode, Suspense, lazy, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Desk } from "./desk/Desk.tsx";
-import { askedForLattice, keepLattice, useLatticeWarmed } from "./latticeWarm.ts";
+import { askedForLattice, keepLattice } from "./latticeWarm.ts";
 import { lastMove, loadLattice, useRoute } from "./route.ts";
 import { installSiteGate } from "./siteGate.ts";
 
@@ -31,12 +31,11 @@ const AWAY = { visibility: "hidden", pointerEvents: "none", position: "fixed", i
 function Root() {
   const route = useRoute();
   const onLattice = route === "lattice";
-  // Once it has been on screen (or the Desk has warmed it, latticeWarm.ts), the Lattice stays mounted behind the Desk,
+  // Once it has been on screen, the Lattice stays mounted behind the Desk,
   // paused, so going back to it is instant (#373). The Desk still comes and goes with its route, as before.
-  const warmed = useLatticeWarmed();
   const [seen, setSeen] = useState(onLattice);
   if (onLattice && !seen) setSeen(true);
-  const mounted = onLattice || ((seen || warmed) && keepLattice());
+  const mounted = onLattice || (seen && keepLattice());
   useLayoutEffect(() => {
     if (onLattice) askedForLattice(lastMove());
   }, [onLattice]);

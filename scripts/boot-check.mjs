@@ -11,8 +11,8 @@
  *   3. `/lattice` the scene boots: its lazy chunk runs, a WebGL canvas and the HUD mount and window.__ceo is there,
  *                 and nothing throws in the few seconds after. It does not wait for every model (the cast's >= 14
  *                 positions take 100 s+ on SwiftShader; the nightly browser tests cover that, tests/e2e/lattice.spec.ts).
- *   4. the warm-up (#373, run before step 3): `/` with the Desk's warm-up on, until it has run (the Lattice mounted behind the Desk where
- *                 shaders compile off the page's thread, the models fetched elsewhere), the Desk still up.
+ *   4. the warm-up (#373, run before step 3): `/` with the Desk's warm-up on, until it has run (the models fetched, the Lattice not mounted
+ *                 behind the Desk, #401), the Desk still up.
  *   5. the trip (#373): `/`, then in the page the way the nav moves, to /lattice (it shows, with its HUD), to /foundry
  *                 (the Desk is back, the Lattice hidden behind it) and to /lattice again. Nothing may throw on the way.
  * The Desk's weight (#195): on `/` it also adds up the JavaScript the page downloads from its own site before Today renders
@@ -140,19 +140,19 @@ const deskUp = async (page, timeout, text) => {
 try {
   checkDeskJs(await visit("/", (page, timeout) => deskUp(page, timeout, "TODAY"), PAGE_MS, true));
   await visit("/foundry", (page, timeout) => deskUp(page, timeout, "FOUNDRY"), PAGE_MS);
-  // The warm-up (#373): with it on, the Lattice mounts behind the Desk once the Desk is idle, and the Desk stays up.
+  // The warm-up (#373, #401): with it on, the models are fetched once the Desk is idle, and the Desk stays up.
   // Before the Lattice's own visits: they leave SwiftShader's GPU process compiling for a while, and the warm-up's
   // check for off-thread compiles opens a WebGL context, which would wait behind that.
   await visit(
     "/",
     async (page, timeout) => {
       await deskUp(page, timeout, "TODAY");
-      // Mounted where shaders link off the page's thread; elsewhere (SwiftShader, often) it only fetches the models.
-      const how = await page.waitForFunction(() => globalThis.__ceoWarmed, undefined, { timeout, polling: 500 }).then((h) => h.jsonValue());
-      if (how === "mounted") await page.waitForFunction(() => globalThis.document.querySelector(".lattice-keep canvas"), undefined, { timeout, polling: 500 });
+      // It only fetches the models (#401): the Lattice must not mount behind the Desk before its first visit.
+      await page.waitForFunction(() => globalThis.__ceoWarmed, undefined, { timeout, polling: 500 });
       await page.waitForTimeout(3000);
+      if (await page.$(".lattice-keep canvas")) throw new Error("the Desk's warm-up mounted the Lattice behind it");
       await deskUp(page, timeout, "TODAY");
-      console.log(`boot-check: the Desk's warm-up ${how === "mounted" ? "mounted the Lattice behind it" : "fetched the models only (no off-thread shader compile here)"}`);
+      console.log("boot-check: the Desk's warm-up fetched the models only");
     },
     BOOT_MS,
     false,

@@ -14,7 +14,7 @@ import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { tickerChunks } from "./exchangeTicker.ts";
-import { bookieLine, chunkTone, marqueeChunks } from "./liveBoards.ts";
+import { bookieLine, bookieWorldLine, chunkTone, marqueeChunks } from "./liveBoards.ts";
 import { useLiveLines } from "./liveLines.ts";
 import { Block, FONTS, LightBar, Monitor, Plinth, ahead, facingDir } from "./primitives.tsx";
 
@@ -205,8 +205,10 @@ const EMPTY: readonly PmMarket[] = [];
 export function Exchange() {
   useEffect(() => startPolymarket(), []);
   const top = usePolymarket((s) => s.board?.top);
-  // The Bookie reads the real board out loud now and then (public odds only).
-  useLiveLines("ticker", () => bookieLine(top ?? [], Math.random(), Math.random()));
+  const world = usePolymarket((s) => s.board?.world);
+  // The Bookie reads the real board out loud now and then (public odds only), and more often than not an aside on a
+  // world-moving market instead (#345: geopolitics, politics, pop culture; no sports).
+  useLiveLines("ticker", () => (world?.length && Math.random() < 0.6 ? bookieWorldLine(world, Math.random(), Math.random()) : bookieLine(top ?? [], Math.random(), Math.random())));
   const chunks = useMemo(() => tickerChunks(top ?? []), [top]);
   const key = chunks.join("|");
   // A new texture only when the words change (about once a minute at most); the old one is let go.

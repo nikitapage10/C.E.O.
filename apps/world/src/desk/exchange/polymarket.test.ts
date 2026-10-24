@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isPmMarket, money, move, moveTone, pct, pmLinkState, readBoard, sparkPath, tapeLine, type PmBoard, type PmMarket } from "./polymarket.ts";
 
 const M: PmMarket = { id: "12", question: "Will it rain?", outcome: "Yes", prob: 0.42, change24h: 0.031, volume24h: 1_400_000, volume: 9_000_000, endDate: null, url: "https://polymarket.com/event/rain", closed: false, spark: [0.4, 0.42] };
-const B: PmBoard = { ok: true, at: "2026-10-22T12:00:00.000Z", top: [M], watch: [], watchlist: [], canPin: true };
+const B: PmBoard = { ok: true, at: "2026-10-22T12:00:00.000Z", top: [M], world: [], watch: [], watchlist: [], canPin: true };
 
 describe("the Exchange's Polymarket board, browser side", () => {
   it("reads the numbers the way the board says them", () => {

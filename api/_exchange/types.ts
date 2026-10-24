@@ -30,6 +30,18 @@ export interface PmMarket {
   spark: number[];
 }
 
+/**
+ * What a world-moving market is about (#345): the Bookie's asides cover geopolitics, US and world politics and pop
+ * culture, never sports.
+ */
+export type PmWorldKind = "geopolitics" | "politics" | "culture";
+export const PM_WORLD_KINDS: readonly PmWorldKind[] = ["geopolitics", "politics", "culture"];
+
+/** A market that moves the world, for the Bookie's asides (#345): a board market plus what it's about. */
+export interface PmWorld extends PmMarket {
+  kind: PmWorldKind;
+}
+
 export interface PmBoard {
   ok: true;
   /** When the server read Polymarket (ISO). */
@@ -38,6 +50,11 @@ export interface PmBoard {
   top: PmMarket[];
   /** The pinned markets, in pin order. */
   watch: PmMarket[];
+  /**
+   * World-moving markets for the Bookie's asides (#345): geopolitics, politics and pop culture picked by volume and the
+   * day's move, sports left out. Empty while that read hasn't answered: the asides then say they're waiting.
+   */
+  world: PmWorld[];
   /** The pinned ids (a pinned market Polymarket no longer lists stays here until it is unpinned). */
   watchlist: string[];
   /** Whether pins can be saved here (the private store is connected). */
@@ -53,6 +70,7 @@ export const PM_TOP_MAX = 10;
 export const PM_WATCH_MAX = 8;
 export const PM_TEXT_MAX = 160;
 export const PM_SPARK_MAX = 48;
+export const PM_WORLD_MAX = 6;
 
 
 /* ── Nikita's own positions (#253): read-only, from his Polymarket US account, only to a signed-in Desk ── */

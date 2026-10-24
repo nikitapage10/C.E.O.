@@ -100,7 +100,30 @@ describe("which room key a request carries", () => {
     // Its own header works too (the Static Web App's proxy may keep Authorization), and wins over a bearer token.
     expect(roomKeyOf(req("/api/world", "GET", undefined, { [ROOM_KEY_HEADER]: LOG }), ENV)).toBe("log");
     expect(roomKeyOf(req("/api/world", "GET", undefined, { [ROOM_KEY_HEADER]: ` ${FEED} ` }), ENV)).toBe("feed");
-    expect(roomKeyOf(req("/api/world", "GET", LOG, { [ROOM_KEY_HEADER]: "wrong-key-but-long-enough-0123456789abcdef" }), ENV)).toBeNull();
+    expect(roomKeyOf(req("/api/world", "GET", LOG, { [ROOM_KEY_HEADER]: "wrong-key-but-long-enough-0123456789abcdef" }), ENV)).toBe("log");
+    expect(roomKeyOf(req("/api/world", "GET", "wrong-key-but-long-enough-0123456789abcdef", { [ROOM_KEY_HEADER]: "wrong-key-but-long-enough-0123456789abcdef" }), ENV)).toBeNull();
+  });
+
+  it("with both headers on every request (the proxy's one secret, #361): reads count the read key, writes the feed key", async () => {
+    const both = (path: string, method: string) => req(path, method, FEED, { [ROOM_KEY_HEADER]: LOG });
+    const c = await ctx();
+    for (const path of READS) {
+      expect(roomKeyOf(both(path, "GET"), ENV), path).toBe("log");
+      expect(decide(both(path, "GET"), c), path).toEqual({ allow: true, why: "room-log" });
+      expect(readsWithLogKey(both(path, "GET"), ENV), path).toBe(true);
+    }
+    for (const path of [ROOM_FEED_PATH, "/api/setup-asks"]) {
+      expect(roomKeyOf(both(path, "POST"), ENV), path).toBe("feed");
+      expect(decide(both(path, "POST"), c), path).toEqual({ allow: true, why: "room-feed" });
+    }
+    expect(decide(both("/api/skippy-answer", "POST"), c)).toEqual({ allow: true, why: "submind-token" });
+    expect(decide(req("/api/skippy-answer", "POST", LOG, { [ROOM_KEY_HEADER]: LOG }), c).allow).toBe(false);
+    // Neither header grants more: a read key never writes, a feed key never reads, and other routes stay shut.
+    expect(decide(both("/api/green-league", "POST"), c).allow).toBe(false);
+    expect(decide(both("/api/skippy", "POST"), c).allow).toBe(false);
+    expect(decide(both("/api/desk-settings", "GET"), c).allow).toBe(false);
+    expect(decide(req("/api/room-feed", "POST", undefined, { [ROOM_KEY_HEADER]: LOG }), c).allow).toBe(false);
+    expect(decide(req("/api/green-league", "GET", FEED), c).allow).toBe(false);
   });
 
   it("opens nothing while a key is unset, short, the same as the other, or a copy of one of the site's secrets", () => {

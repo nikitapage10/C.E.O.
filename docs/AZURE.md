@@ -282,20 +282,34 @@ then `restarted func-ceo-…`. It never prints a key.
 **2. Give the keys to the submind threads (Azure portal, then Claude).**
 
 > **What this does.** Services: the Azure portal (you read the two secrets) and Claude (the C.E.O. project's cloud
-> environment). Every new session in the project gets the keys as `SUBMIND_LOG_TOKEN` and `SUBMIND_FEED_TOKEN`, so
-> the submind threads can read their room's data and post room events; the site's address is let through the
-> environment's network policy. Why: a thread has no passkey, and keys never go in chat. Cost: nothing. Undo: delete
-> the two variables in the environment (a key stays valid in the vault until step 3).
+> environment). Every new session in the project gets the keys as network secrets: the environment's egress proxy adds
+> them as headers to calls to the site, so the submind threads can read their room's data and answer hand-offs without
+> ever seeing a value; the site's address is let through the environment's network policy. Why: a thread has no passkey, and keys never go in chat. Cost: nothing. Undo: delete
+> the network secret (or the two variables) in the environment (a key stays valid in the vault until step 3).
+
+Network secrets are the main setup; plain environment variables are the fallback (the watcher and the docs' commands
+work with either, and with the secrets they send no key at all).
 
 1. In the [Azure portal](https://portal.azure.com): search **Key vaults** → **kv-ceo-besgu7fnckib2** → **Objects →
    Secrets** → **submind-log-token** → the version marked **Current** → **Show Secret Value** → the copy button.
 2. In Claude (claude.ai in the browser): open the **C.E.O.** project → **Project settings** → the **Cloud environment**
-   menu → the **gear** beside the selected environment. Under **Environment variables** add a line
-   `SUBMIND_LOG_TOKEN=` followed by the pasted value. Back in the portal, do the same for **submind-feed-token** and
-   add `SUBMIND_FEED_TOKEN=` with its value. Under **Network access**, if the level is **Limited**, add
-   `ceo.nikita.page` to **Allowed domains** (leave **Allow package managers** ticked). Save.
-3. Start (or restart) each submind thread: a new session picks the variables up. Never paste either key into a
-   thread, an issue or a file; the threads read them from the environment.
+   menu → the **gear** beside the selected environment. Under **Network access**, if the level is **Limited**, add
+   `ceo.nikita.page` to **Allowed domains** (leave **Allow package managers** ticked). Then add one **network secret**
+   for the host `ceo.nikita.page` (the environment allows one per host, with no path prefix), with two headers, so the
+   egress proxy adds them to every request and a thread never sees a value:
+   - header `x-ceo-room-key`, value the **submind-log-token** you copied;
+   - header `Authorization`, value `Bearer ` followed by the **submind-feed-token** you copied (back in the portal, the
+     same steps as above).
+
+   Save. The site reads each request by what it is: a read goes by the read key and ignores the Bearer, a write
+   (`/api/skippy-answer`, `/api/room-feed`, `/api/setup-asks`) goes by the Bearer feed key and ignores
+   `x-ceo-room-key`.
+3. Start (or restart) each submind thread: a new session picks the secrets up. Never paste either key into a
+   thread, an issue or a file.
+
+*Fallback: environment variables.* Instead of the network secret, under **Environment variables** add
+`SUBMIND_LOG_TOKEN=` and `SUBMIND_FEED_TOKEN=` with the pasted values. The threads then send the keys themselves
+(`scripts/submind-watch.sh` and the commands in [SKIPPY.md](SKIPPY.md) use them when set). If a session has neither, the watcher exits 3 ("key not set up").
 
 **3. Change a key (only if one leaks, or once a year).**
 

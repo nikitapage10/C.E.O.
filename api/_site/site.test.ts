@@ -247,6 +247,12 @@ describe("the gate (#236)", () => {
     for (const auth of [`Bearer ${FEED}x`, "Bearer ", FEED, ""]) expect(decide(req("/api/skippy-answer", { method: "POST", headers: { Authorization: auth } }), withFeed).allow).toBe(false);
     for (const [path, method] of [["/api/skippy-answer", "GET"], ["/api/skippy-log?room=foundry", "GET"], ["/api/skippy", "POST"], ["/api/foundry", "POST"]] as const)
       expect(decide(req(path, { method, headers: { Authorization: `Bearer ${FEED}` } }), withFeed).allow).toBe(false);
+    // The proxy adds the read key in x-ceo-room-key to every request on the host (#361): the bearer feed key still decides.
+    const LOGK = "a-test-submind-log-token-long-enough-0123456789";
+    const both = await ctx({ env: { FOUNDRY_DESK_KEY: DESK, SUBMIND_FEED_TOKEN: FEED, SUBMIND_LOG_TOKEN: LOGK } });
+    expect(decide(req("/api/skippy-answer", { method: "POST", headers: { Authorization: `Bearer ${FEED}`, "x-ceo-room-key": LOGK } }), both)).toEqual({ allow: true, why: "submind-token" });
+    expect(decide(req("/api/skippy-answer", { method: "POST", headers: { "x-ceo-room-key": LOGK } }), both).allow).toBe(false);
+    expect(decide(req("/api/skippy-answer", { method: "POST", headers: { Authorization: `Bearer ${LOGK}x`, "x-ceo-room-key": LOGK } }), both).allow).toBe(false);
     const shortFeed = await ctx({ env: { FOUNDRY_DESK_KEY: DESK, SUBMIND_FEED_TOKEN: "short" } });
     expect(decide(req("/api/skippy-answer", { method: "POST", headers: { Authorization: "Bearer short" } }), shortFeed).allow).toBe(false);
     // The workflows that read the site (backup, seed, live watch): the bypass token, on any route.

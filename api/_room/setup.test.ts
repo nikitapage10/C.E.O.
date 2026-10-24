@@ -73,6 +73,21 @@ describe("a thread posting a setup ask (the feed key)", () => {
     expect(pings.join(" ")).not.toContain("GitHub");
   });
 
+  it("takes both headers the proxy sends on every request (#361): the Bearer feed key posts, the x-ceo-room-key read key reads", async () => {
+    const { deps, store, get } = await setup();
+    const both = { Authorization: `Bearer ${FEED}`, "x-ceo-room-key": LOG };
+    const send = (headers: Record<string, string>) =>
+      handlePost(new Request(`${ORIGIN}/api/setup-asks`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(ASK) }), deps);
+    expect((await send(both)).status).toBe(201);
+    expect((await send({ "x-ceo-room-key": LOG })).status).toBe(401);
+    expect((await send({ Authorization: `Bearer ${LOG}`, "x-ceo-room-key": LOG })).status).toBe(401);
+    expect(store.asks).toHaveLength(1);
+    const read = await get("/api/setup-asks", both);
+    expect(read.status).toBe(200);
+    expect(((await read.json()) as { asks: unknown[] }).asks).toHaveLength(1);
+    expect((await get("/api/setup-asks", { Authorization: `Bearer ${FEED}` })).status).toBe(401);
+  });
+
   it("holds the ping in quiet hours but keeps the ask", async () => {
     const night = Date.parse("2026-10-24T06:00:00Z");
     const { post, pings, store } = await setup({ now: night });

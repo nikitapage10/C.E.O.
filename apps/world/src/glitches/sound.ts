@@ -3,8 +3,10 @@
  * Sound is off by default and only plays after the viewer turns it on.
  */
 let ctx: AudioContext | null = null;
+let held = false;
 
 function audio(): AudioContext | null {
+  if (held) return null;
   try {
     ctx ??= new AudioContext();
     if (ctx.state === "suspended") void ctx.resume();
@@ -12,6 +14,12 @@ function audio(): AudioContext | null {
   } catch {
     return null;
   }
+}
+
+/** The Lattice went behind the Desk (#373): silence anything still ringing, and play nothing until it's back. */
+export function holdSound(hold: boolean) {
+  held = hold;
+  if (hold && ctx?.state === "running") void ctx.suspend();
 }
 
 function tone(ac: AudioContext, freq: number, start: number, dur: number, type: OscillatorType = "sine", gain = 0.05) {

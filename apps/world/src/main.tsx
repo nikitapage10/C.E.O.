@@ -12,10 +12,11 @@ import "@fontsource/ibm-plex-sans/latin-400.css";
 import "@fontsource/ibm-plex-sans/latin-400-italic.css";
 import "@fontsource/ibm-plex-sans/latin-500.css";
 import "@fontsource/ibm-plex-sans/latin-600.css";
-import { StrictMode, Suspense, lazy, useState, type CSSProperties } from "react";
+import { StrictMode, Suspense, lazy, useEffect, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Desk } from "./desk/Desk.tsx";
-import { loadLattice, useRoute } from "./route.ts";
+import { askedForLattice, keepLattice, startLetGo } from "./latticeWarm.ts";
+import { lastMove, loadLattice, useRoute } from "./route.ts";
 import { installSiteGate } from "./siteGate.ts";
 
 /** The 3D Lattice is its own download: nothing from it (three.js, models, the simulator) loads on the Desk. */
@@ -24,17 +25,25 @@ const Lattice = lazy(() => loadLattice().then((m) => ({ default: m.App })));
 const Studio = lazy(() => import("./studio/Studio.tsx").then((m) => ({ default: m.Studio })));
 const STUDIO = window.location.pathname.startsWith("/portrait-studio");
 
-/**
- * Once entered, the Lattice stays (#327): back on the Desk it is only hidden, its canvas stops drawing altogether
- * (App.tsx, `shown`) and its HUD and directors unmount, so entering it again is instant instead of another load.
- */
-const HIDDEN: CSSProperties = { visibility: "hidden", pointerEvents: "none", position: "fixed", inset: 0, zIndex: -1 };
+/** Hidden, behind the Desk: not drawn, never focused or clicked, but still sized, so its canvas keeps its size. */
+const AWAY = { visibility: "hidden", pointerEvents: "none", position: "fixed", inset: 0, zIndex: -1 } as const;
 
 function Root() {
   const route = useRoute();
-  const inLattice = route === "lattice";
-  const [entered, setEntered] = useState(inLattice);
-  if (inLattice && !entered) setEntered(true);
+  const onLattice = route === "lattice";
+  // Once it has been on screen, the Lattice stays mounted behind the Desk,
+  // paused, so going back to it is instant (#373). The Desk still comes and goes with its route, as before.
+  const [seen, setSeen] = useState(onLattice);
+  if (onLattice && !seen) setSeen(true);
+  const mounted = onLattice || (seen && keepLattice());
+  // Ten minutes back on the Desk and the kept Lattice is let go (#406); coming back sooner cancels it.
+  useEffect(() => {
+    if (onLattice || !seen) return;
+    return startLetGo(() => setSeen(false));
+  }, [onLattice, seen]);
+  useLayoutEffect(() => {
+    if (onLattice) askedForLattice(lastMove());
+  }, [onLattice]);
   if (STUDIO) {
     return (
       <Suspense fallback={null}>
@@ -44,14 +53,14 @@ function Root() {
   }
   return (
     <>
-      {!inLattice && <Desk route={route} />}
-      {entered && (
-        <Suspense fallback={inLattice ? <div className="desk-boot" /> : null}>
-          <div className="lattice-keep" style={inLattice ? undefined : HIDDEN} aria-hidden={!inLattice} inert={!inLattice}>
-            <Lattice shown={inLattice} />
-          </div>
-        </Suspense>
+      {mounted && (
+        <div className="lattice-keep" style={onLattice ? undefined : AWAY} inert={!onLattice}>
+          <Suspense fallback={onLattice ? <div className="desk-boot" /> : null}>
+            <Lattice active={onLattice} />
+          </Suspense>
+        </div>
       )}
+      {!onLattice && <Desk route={route} />}
     </>
   );
 }

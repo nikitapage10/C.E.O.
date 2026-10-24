@@ -15,6 +15,9 @@ import type { Camera, Material, Object3D, Scene, WebGLRenderer } from "three";
 /** Whether this renderer can link programs off the page's thread. */
 export const parallelCompile = (gl: WebGLRenderer) => gl.extensions.get("KHR_parallel_shader_compile") !== null;
 
+/** Streamed parts (fx/Warm.tsx) whose shaders are still compiling; scene/streaming.ts's streamedIn reads it. */
+export const warming = { count: 0 };
+
 const nextTask = () => new Promise<void>((r) => setTimeout(r, 0));
 
 /** The parts to compile one at a time: the scene's children, with the rooms' group split into its rooms. */

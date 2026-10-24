@@ -48,6 +48,11 @@ export const PATHS: Record<Route, string> = {
 };
 
 const listeners = new Set<() => void>();
+let movedAt = 0;
+/** When the page last moved (a link, or the back and forward buttons), in performance.now() time; 0 for its first load. */
+export const lastMove = () => movedAt;
+const moved = () => (movedAt = performance.now());
+if (typeof window !== "undefined") window.addEventListener("popstate", moved);
 const subscribe = (fn: () => void) => {
   listeners.add(fn);
   window.addEventListener("popstate", fn);
@@ -75,6 +80,7 @@ export function navigate(route: Route, search = "") {
 export function navigateTo(path: string) {
   if (window.location.pathname + window.location.search === path) return;
   window.history.pushState(null, "", path);
+  moved();
   for (const fn of listeners) fn();
 }
 

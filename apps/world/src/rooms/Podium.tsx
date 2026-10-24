@@ -161,7 +161,8 @@ export function Podium({ room }: { room: RoomId }) {
       </mesh>
 
       {/* Everything that floats, at the seat's height: bobbing, drifting and rocking a little. */}
-      <group ref={raft} position={[0, POST_HEIGHT, 0]}>
+      {/* It moves as one piece, so what's on it merges on its own (scene/StillFurniture.tsx, #373). */}
+      <group ref={raft} position={[0, POST_HEIGHT, 0]} userData={{ stillRoot: `${room}-podium`, stillRides: true }}>
         {/* The slab: a brass rim, a tapered hex body (a face to the front), glowing grooves. */}
         <mesh position={[0, -0.06, 0]} rotation={[0, Math.PI / 6, 0]} material={PBR.brass()} castShadow receiveShadow>
           <cylinderGeometry args={[R_TOP + 0.03, R_TOP + 0.01, 0.08, 6]} />

@@ -5,7 +5,7 @@ import { emailLine, LATE_MS, startEmail, takeGmailReturn, useEmail, type EmailIt
 import "./email.css";
 
 /**
- * The Relay page's Email section (#263): the mail Dialtone sorted as needing Nikita, each with its one-line summary,
+ * The Relay page's Email section (#263), drawn as the receiver's log since #386: the mail Dialtone sorted as needing Nikita, each with its one-line summary,
  * the suggested step, Blasto's advice and a draft to copy; then FYI, folded. Private: the list is served only to the
  * passkey session, and every subject, sender, summary, advice and draft is wrapped in <Private> for Hide mode. Every
  * word in it came from someone's email or a model reading it, so it is drawn as text only, never as HTML or a link.
@@ -54,40 +54,52 @@ function CopyDraft({ text }: { text: string }) {
 
 export function NeedsYou({ item, now, index }: { item: EmailItem; now: number; index: number }) {
   const done = useEmail((s) => s.done);
+  const sealed = !!(item.advice || item.draft);
   return (
-    <li className="em-item" style={{ "--i": Math.min(index, 8) } as React.CSSProperties}>
-      <div className="em-head">
+    <li className="em-item" data-sealed={sealed ? "" : undefined} style={{ "--i": Math.min(index, 8) } as React.CSSProperties}>
+      <div className="em-stamp">
+        <i className="rl-lamp" aria-hidden="true" />
+        <time>{ago(item.at, now)}</time>
+      </div>
+      <div className="em-call">
         <b className="em-from">
           <Private>{item.from}</Private>
         </b>
-        <time>{ago(item.at, now)}</time>
-      </div>
-      <p className="em-subject">
-        <Private>{item.subject}</Private>
-      </p>
-      {item.summary && (
-        <p className="em-summary">
-          <Private>{item.summary}</Private>
+        <p className="em-subject">
+          <Private>{item.subject}</Private>
         </p>
-      )}
-      {item.action && <p className="em-action">{<Private>{item.action}</Private>}</p>}
-      {item.advice && (
-        <div className="em-advice">
-          <span className="em-label">Blasto's advice</span>
-          <p>
-            <Private>{item.advice}</Private>
+        {item.summary && (
+          <p className="em-summary">
+            <Private>{item.summary}</Private>
           </p>
+        )}
+        {item.action && (
+          <p className="em-action">
+            <Private>{item.action}</Private>
+          </p>
+        )}
+        {item.kind === "unsorted" && <p className="em-note">Came in while the agent was paused: not read by a model.</p>}
+      </div>
+      {sealed && (
+        <div className="em-sealed">
+          {item.advice && (
+            <div className="em-advice">
+              <span className="em-label">Blasto's advice</span>
+              <p>
+                <Private>{item.advice}</Private>
+              </p>
+            </div>
+          )}
+          {item.draft && (
+            <div className="em-draft">
+              <span className="em-label">A draft, to send yourself</span>
+              <Private block as="p">
+                {item.draft}
+              </Private>
+            </div>
+          )}
         </div>
       )}
-      {item.draft && (
-        <div className="em-draft">
-          <span className="em-label">A draft, to send yourself</span>
-          <Private block as="p">
-            {item.draft}
-          </Private>
-        </div>
-      )}
-      {item.kind === "unsorted" && <p className="em-note">Came in while the agent was paused: not read by a model.</p>}
       <div className="em-do">
         {item.draft && <CopyDraft text={item.draft} />}
         <a className="wv-btn is-sm" href={gmailHref(item.id)} target="_blank" rel="noopener noreferrer">
@@ -108,9 +120,9 @@ function StateLine({ status, now }: { status: EmailStatus; now: number }) {
   // The check's time shows only when it's late (Nikita, 2026-10-24: "unless there's a syncing issue").
   const late = status.agent === "listening" && status.lastCheck !== null && now - status.lastCheck > LATE_MS;
   return (
-    <p className={`em-state${late ? " is-warn" : ""}`}>
+    <p className={`em-state em-tallyline${late ? " is-warn" : ""}`}>
       {late && status.lastCheck ? `Sync is late: the last check was ${ago(status.lastCheck, now)}. ` : ""}
-      {status.newToday} new today, {status.noise} of them noise.
+      {status.newToday} calls taken today, {status.noise} of them handled without you.
     </p>
   );
 }
@@ -139,12 +151,10 @@ export function EmailSection({ now }: { now: number }) {
   const connected = status?.gmail === "connected";
 
   return (
-    <section className="em" aria-label="Email" data-room="relay">
+    <section className="em" aria-label="Email: what came in" data-room="relay">
       <header className="em-top">
         <div>
-          <p className="wv-eyb" style={{ color: "var(--rc-relay)" }}>
-            Email
-          </p>
+          <p className="em-eyb">Received · channel 1, email</p>
           <h2 className="em-title">{emailLine(load, status)}</h2>
         </div>
         {view && (
@@ -160,8 +170,10 @@ export function EmailSection({ now }: { now: number }) {
       {load === "off" ? (
         <p className="em-state">The email agent runs on the Azure copy, where its keys are. Open the Desk there to connect Gmail and see your mail.</p>
       ) : auth !== "in" ? (
-        <div className="em-gate">
-          <p className="em-state">Your mail shows here only behind your passkey.{status ? ` ${status.needsYou} need you, ${status.fyi} FYI.` : ""}</p>
+        <div className="em-gate is-sealed">
+          <p className="em-state">
+            {status ? `${status.needsYou} need you and ${status.fyi} are noted. Sign in to read them.` : "Sign in to read your mail."}
+          </p>
           <button type="button" className="wv-btn is-pri" onClick={() => void signIn()}>
             Sign in
           </button>
@@ -182,17 +194,17 @@ export function EmailSection({ now }: { now: number }) {
         <>
           {status && <StateLine status={status} now={now} />}
           {needs.length ? (
-            <ul className="em-list">
+            <ul className="em-list" aria-label="Mail that needs you">
               {needs.map((i, n) => (
                 <NeedsYou key={i.id} item={i} now={now} index={n} />
               ))}
             </ul>
           ) : (
-            <p className="em-empty">Nothing needs you right now. Dialtone watches mail that arrives after you connect, plus unread mail from the two days before.</p>
+            <p className="em-empty">No entries that need you. Dialtone watches mail that arrives after you connect, plus unread mail from the two days before.</p>
           )}
           {fyi.length > 0 && (
             <details className="em-fyi">
-              <summary>FYI · {fyi.length}</summary>
+              <summary>Noted for your information · {fyi.length}</summary>
               <ul>
                 {fyi.map((i) => (
                   <li key={i.id}>

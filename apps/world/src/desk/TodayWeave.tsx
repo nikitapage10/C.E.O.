@@ -2,24 +2,23 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { chronicleDay, type HistoryEntry, type RoomId, type WorldFeed } from "../chronicle.ts";
 import { CREW, type Change, type FoundryData } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
-import { roomLink } from "./hero/roomLink.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { formatUsd, monthSpend, SPEND_CAP_USD, type UsageFeed } from "../usage.ts";
 import { clockState, nextLine, useWorldClock } from "../worldClock.ts";
 import { nextRuns } from "./crewRuns.ts";
 import { DayStory } from "./DayStory.tsx";
-import { DESK_ROOMS, roomImage, type DeskData } from "./deskData.ts";
+import { DESK_ROOMS, type DeskData } from "./deskData.ts";
 import { ideaTitle } from "./IdeaCard.tsx";
 import { Private } from "./Private.tsx";
 import { link } from "./nav.ts";
-import { ROOM_META, type RoomPulse } from "./roomPulse.ts";
-import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, sprMix, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion, eOut } from "./wvCanvas.ts";
+import { ROOM_META } from "./roomPulse.ts";
+import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, sprMix, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion } from "./wvCanvas.ts";
 
 /**
- * Today below the hero, as the approved Weave lays it out: the nine rooms as lanes through the day beside the world
- * clock (tap a lane to look inside the room), what is worth knowing now as three small thread charts, the short
- * version of what happened as a calm timeline, and what the crew does next on one strip. Everything is drawn from the
- * live feeds; a room or a link that isn't connected says so.
+ * Today's "more" (#336): the parts that used to sit below the hero, now one quiet link away (TodayMore.tsx loads them
+ * on demand): the world clock, what is worth knowing now as three small thread charts, the short version of what
+ * happened as a calm timeline, and what the crew does next on one strip. Everything is drawn from the live feeds; a
+ * room or a link that isn't connected says so.
  */
 
 const HOUR = 3_600_000;
@@ -32,257 +31,8 @@ const hourLabel = (t: number) => {
   return d.toLocaleTimeString(undefined, { hour: "numeric" });
 };
 
-/** How a lane is drawn, from its room's pulse. */
-type Lane = "busy" | "active" | "wait" | "down" | "quiet" | "off";
-function laneOf(p: RoomPulse): Lane {
-  if (p.state === "busy") return "busy";
-  if (p.state === "steady") return "active";
-  if (p.state === "waiting") return "wait";
-  if (p.state === "down") return "down";
-  return p.events.length ? "quiet" : "off";
-}
-
-/* ── Nine rooms, nine threads ── */
-
-export function LatticeToday({ pulses, now, awaySince, world }: { pulses: RoomPulse[]; now: number; awaySince: number; world: WorldFeed | null }) {
-  const [open, setOpen] = useState<RoomId | null>(null);
-  const cv = useRef<HTMLCanvasElement>(null);
-  const day = new Date(now);
-  day.setHours(0, 0, 0, 0);
-  const from = Math.min(day.getTime() + 6 * HOUR, now - 14 * HOUR);
-  const to = now + 3 * HOUR;
-  const minute = Math.floor(now / 60_000);
-  const ticks = useMemo(() => {
-    const out: { x: number; label: string; now?: boolean }[] = [];
-    const step = 3 * HOUR;
-    for (let t = Math.ceil(from / step) * step; t <= to; t += step) {
-      const x = (t - from) / (to - from);
-      if (Math.abs(t - now) > 1.1 * HOUR) out.push({ x, label: hourLabel(t) });
-    }
-    out.push({ x: (now - from) / (to - from), label: "Now", now: true });
-    return out;
-    // `now` moves by the minute; the ticks follow it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, minute]);
-
-  const born = useRef(-1);
-  const spec = useMemo<VizSpec>(() => lanesSpec(pulses, from, to, now, awaySince, born), [pulses, from, to, now, awaySince]);
-  useViz(cv, spec);
-  const lead = pulses.find((p) => p.state === "busy") ?? pulses.find((p) => p.real && p.events.length);
-  const waiting = pulses.filter((p) => p.state === "waiting" && p.real);
-  const room = open ? pulses.find((p) => p.id === open) : null;
-
-  return (
-    <section className="wv-lat" aria-label="The Lattice, today">
-      <div className="wv-sechead">
-        <div>
-          <p className="wv-eyb">The Lattice, today</p>
-          <h2 className="wv-h2">Nine rooms, nine threads</h2>
-          <p className="wv-aside">
-            <img className="wv-aside-pf" src="/desk/skippy.webp" alt="" />
-            <span>
-              {lead ? `The ${lead.name} is doing most of the talking. ` : "A quiet stretch across the rooms. "}
-              {waiting.length ? `The ${waiting[0]!.name} is ${waiting[0]!.status.toLowerCase()}. ` : ""}Tap a thread to look inside.
-            </span>
-          </p>
-        </div>
-        <div className="wv-lat-key" aria-hidden="true">
-          <span>
-            <i className="wv-k-busy" />
-            Busy
-          </span>
-          <span>
-            <i className="wv-k-act" />
-            Activity
-          </span>
-          <span>
-            <i className="wv-k-wait" />
-            Waiting
-          </span>
-          <span>
-            <i className="wv-k-knot" />
-            Something happened
-          </span>
-          <span>
-            <i className="wv-k-away" />
-            While you were away
-          </span>
-        </div>
-      </div>
-      <div className="wv-lat-grid">
-        <div className="wv-lanes">
-          <canvas ref={cv} className="wv-cv" aria-hidden="true" />
-          <div className="wv-lanes-rows">
-            {pulses.map((p) => {
-              const st = laneOf(p);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`wv-lane is-${st}${st === "off" ? " is-quiet" : ""}${open === p.id ? " is-on" : ""}`}
-                  data-room={p.id}
-                  aria-expanded={open === p.id}
-                  aria-label={`${p.name}: ${p.status}${p.events.length ? `, ${p.events.length} ${p.events.length === 1 ? "moment" : "moments"} today` : ""}`}
-                  onClick={() => setOpen(open === p.id ? null : p.id)}
-                >
-                  <span className="wv-lane-n">
-                    <i className={`wv-dot${st === "wait" || st === "off" ? " is-ring" : ""}`} />
-                    {p.name}
-                  </span>
-                  <span className="wv-lane-s" />
-                  <span className="wv-lane-t">{p.status}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="wv-lanes-axis" aria-hidden="true">
-            {ticks.map((t) => (
-              <span key={t.label + t.x.toFixed(3)} style={{ "--x": t.x } as React.CSSProperties} className={t.now ? "is-now" : undefined}>
-                {t.label}
-              </span>
-            ))}
-          </div>
-        </div>
-        <WorldClockCard now={now} world={world} />
-      </div>
-      {room && <RoomDrawer key={room.id} p={room} now={now} onClose={() => setOpen(null)} />}
-    </section>
-  );
-}
-
-function lanesSpec(pulses: RoomPulse[], from: number, to: number, now: number, away: number, bornRef: { current: number }): VizSpec {
-  type L = { el: HTMLElement; p: RoomPulse; st: Lane; y: number; x0: number; x1: number; nx: number; poly: Poly; xs: number[]; ys: number[]; ev: number[]; P: Parts; I: (u: number) => number };
-  let lanes: L[] = [];
-  /** When the lanes first drew (kept across polls by the page): each flows out from the morning to now, one after another, then keeps a slow swell. */
-  const born = bornRef;
-  let top = 0;
-  let bot = 0;
-  let nx = 0;
-  let ax = 0;
-  return {
-    lay(V) {
-      const rows = V.cv.parentElement?.querySelectorAll<HTMLElement>(".wv-lane") ?? [];
-      lanes = [];
-      rows.forEach((el, i) => {
-        const p = pulses[i];
-        const s = el.querySelector(".wv-lane-s");
-        if (!p || !s) return;
-        const r = V.rel(s);
-        const x0 = r.x + 6;
-        const x1 = r.x + r.w - 4;
-        const y = r.y + r.h / 2;
-        const X = (t: number) => x0 + ((t - from) / (to - from)) * (x1 - x0);
-        const n = X(now);
-        const xs: number[] = [];
-        const ys: number[] = [];
-        for (let k = 0; k <= 40; k++) {
-          xs.push(x0 + ((n - x0) * k) / 40);
-          ys.push(y);
-        }
-        // Activity along the lane: today's events in twelve bins, eased, over the room's own level.
-        const bins = new Array(12).fill(0) as number[];
-        for (const t of p.events) {
-          const f = (t - from) / (now - from);
-          if (f >= 0 && f <= 1) bins[Math.min(11, Math.floor(f * 12))]! += 1;
-        }
-        const st = laneOf(p);
-        const base = st === "busy" ? 3 : st === "active" ? 2 : 0.6;
-        const act = bins.map((b, k) => base + b * 2.4 + (st === "busy" ? k * 0.25 : 0));
-        const tot = act.reduce((a, b) => a + b, 0);
-        lanes.push({
-          el,
-          p,
-          st,
-          y,
-          x0,
-          x1,
-          nx: n,
-          poly: new Poly().set(xs, ys),
-          xs,
-          ys,
-          ev: p.events.filter((t) => t >= from && t <= now).map(X),
-          P: new Parts(st === "wait" ? 18 : st === "off" ? 6 : st === "quiet" ? 14 : Math.round(30 + tot * 3), 0.12),
-          I: (u) => {
-            const f = u * 11;
-            const k = Math.min(10, f | 0);
-            const q = f - k;
-            const a = act[k]! + (act[k + 1]! - act[k]!) * q;
-            return Math.min(1, 0.18 + (0.82 * a) / 9);
-          },
-        });
-        nx = n;
-        ax = X(Math.max(from, away));
-      });
-      if (lanes.length) {
-        top = lanes[0]!.y - 16;
-        bot = lanes[lanes.length - 1]!.y + 16;
-      }
-    },
-    draw(V, c, t, dt) {
-      if (!lanes.length) return;
-      const rm = reducedMotion();
-      if (born.current < 0) born.current = t;
-      const t0 = born.current;
-      lanes.forEach((ln, i) => {
-        const grow = rm ? 1 : eOut((t - t0 - i * 0.07) / 1.1);
-        const hov = ln.el.matches(":hover") || ln.el.classList.contains("is-on");
-        const amp = rm || ln.st === "wait" || ln.st === "down" ? 0 : (ln.st === "busy" ? 1.6 : ln.st === "active" ? 1.1 : 0.6) * (hov ? 1.8 : 1);
-        const end = ln.x0 + (ln.nx - ln.x0) * Math.max(0.002, grow);
-        for (let k = 0; k <= 40; k++) {
-          const u = k / 40;
-          ln.xs[k] = ln.x0 + (end - ln.x0) * u;
-          ln.ys[k] = ln.y + Math.sin(u * TAU * 2.2 - t * 1.3 + i * 0.8) * amp * Math.sin(u * Math.PI);
-        }
-        ln.poly.set(ln.xs, ln.ys);
-      });
-      if (ax < nx) {
-        c.globalCompositeOperation = "source-over";
-        c.fillStyle = "rgba(236,238,243,.035)";
-        c.fillRect(ax, top, nx - ax, bot - top);
-        c.globalCompositeOperation = "lighter";
-      }
-      const g = c.createLinearGradient(0, top, 0, bot);
-      g.addColorStop(0, `rgba(${HOT},.05)`);
-      g.addColorStop(0.5, `rgba(${HOT},.35)`);
-      g.addColorStop(1, `rgba(${HOT},.6)`);
-      c.fillStyle = g;
-      c.fillRect(Math.round(nx) - 0.5, top, 1, bot - top);
-      for (const ln of lanes) {
-        const rgb = RC[ln.p.id] ?? WHITE;
-        const hov = ln.el.matches(":hover") || ln.el === document.activeElement || ln.el.classList.contains("is-on");
-        const b = hov ? 1.4 : 1;
-        dots(c, ln.nx + 6, ln.y, ln.x1, ln.y, 5, 0.08);
-        if (ln.st === "wait" || ln.st === "down") {
-          const col = ln.st === "down" ? BAD : rgb;
-          c.strokeStyle = `rgba(${col},${0.4 * b})`;
-          c.lineWidth = 1;
-          c.setLineDash([3, 4]);
-          c.globalAlpha = 1;
-          ln.poly.stroke(c);
-          c.setLineDash([]);
-          weave(c, ln.poly, ln.P, { a: 0.5 * b, sp: 0.6, sz: 0.6, v: 0, rgb: col, nofade: true }, t, 0);
-          ring(c, ln.nx, ln.y, 4.5, col, 0.8);
-          continue;
-        }
-        if (ln.st === "off" || ln.st === "quiet") {
-          dots(c, ln.x0, ln.y, ln.nx, ln.y, 5, 0.13 * b, rgb);
-          weave(c, ln.poly, ln.P, { a: 0.45 * b, sp: 0.5, sz: 0.6, v: 5, rgb, line: 0.08 }, t, dt);
-          for (const x of ln.ev) knot(c, x, ln.y, 0.36, t, rgb, 0.6);
-          continue;
-        }
-        const busy = ln.st === "busy";
-        const lvl = ln.p.activity;
-        weave(c, ln.poly, ln.P, { a: (busy ? 1.6 : 1.15 + lvl * 0.6) * b, sp: busy ? 2.5 : 1.9, sz: busy ? 1.05 : 0.95, v: busy ? 50 : 14 + lvl * 20, line: busy ? 0.36 : 0.24, lw: busy ? 1.1 : 0.9, rgb, rgb2: WHITE, I: ln.I, jit: 0.25 }, t, dt);
-        for (const x of ln.ev) knot(c, x, ln.y, 0.5, t, rgb, 0.95);
-        if (busy) knot(c, ln.nx, ln.y, 0.66, t, rgb, 1);
-      }
-    },
-  };
-}
-
-
-/** The world clock beside the lanes: the hour of Ilyr's day on a dial, and when it steps next. */
-function WorldClockCard({ now, world }: { now: number; world: WorldFeed | null }) {
+/** The world clock: the hour of Ilyr's day on a dial, and when it steps next. */
+export function WorldClockCard({ now, world }: { now: number; world: WorldFeed | null }) {
   const reading = useWorldClock((s) => s.reading);
   const status = useWorldClock((s) => s.status);
   const cv = useRef<HTMLCanvasElement>(null);
@@ -363,49 +113,6 @@ function dialSpec(h: number): VizSpec {
       knot(c, e.x, e.y, 0.62, t, HOT, 1);
     },
   };
-}
-
-/** A room, looked into: its still, who leads it, and its submind's report in plain lines. */
-function RoomDrawer({ p, now, onClose }: { p: RoomPulse; now: number; onClose: () => void }) {
-  const desk = p.id === "breakroom" ? null : DESK_ROOMS[p.id as keyof typeof DESK_ROOMS];
-  const img = p.id === "breakroom" ? "/desk/lattice.webp" : roomImage(p.id as keyof typeof DESK_ROOMS);
-  const today = p.events.filter((t) => t >= now - 24 * HOUR);
-  const lines = [p.report, today.length ? `${today.length} ${today.length === 1 ? "moment" : "moments"} on its thread lately, the last at ${clock(Math.max(...today))}` : p.real ? "Nothing on its thread yet today" : "Nothing real connected here yet"];
-  if (desk) lines.push(desk.what);
-  const href = p.href;
-  const onDesk = !href.startsWith("/lattice");
-  return (
-    <div className="wv-room" data-room={p.id} role="region" aria-label={p.name}>
-      <div className="wv-room-in">
-        <div className="wv-room-img">
-          <img src={img} alt="" loading="lazy" decoding="async" />
-        </div>
-        <div className="wv-room-txt">
-          <p className="wv-eyb wv-room-eb">{p.real ? (p.state === "busy" ? "Busy right now" : p.state === "waiting" ? "Waiting" : p.state === "down" ? "Needs a look" : "Steady") : "Simulated for now"}</p>
-          <h3 className="wv-h2 wv-room-t">{p.name}</h3>
-          <div className="wv-room-who">
-            <img src={`/desk/agent-${p.submind.id}.webp`} alt="" />
-            <span>
-              {p.submind.title} leads it{p.submind.active ? " from its own thread" : ""}{desk ? `, with ${desk.lead === "semicolon" ? "Rivet" : ""}` : ""}
-            </span>
-          </div>
-          <ul className="wv-room-l">
-            {lines.map((l) => (
-              <li key={l}>{l}</li>
-            ))}
-          </ul>
-          <div className="wv-room-do">
-            <button type="button" className="wv-btn is-sm" onClick={onClose}>
-              Close
-            </button>
-            <a className="wv-link" href={href} onClick={roomLink(href)}>
-              {onDesk ? `Open the ${p.name}` : "Walk in on the Lattice"} →
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 /* ── Worth knowing now ── */
@@ -935,7 +642,7 @@ function stripSpec(ats: number[], band: [number, number], now: number, end: numb
         c.globalCompositeOperation = "lighter";
         c.globalAlpha = 1;
         c.fillStyle = `rgba(${RC.relay},.55)`;
-        c.font = '11px "Manrope Variable", system-ui, sans-serif';
+        c.font = '10.5px "IBM Plex Mono", ui-monospace, monospace';
         c.textAlign = "center";
         c.fillText("pings quiet", (night[0] + night[1]) / 2, 18);
       }

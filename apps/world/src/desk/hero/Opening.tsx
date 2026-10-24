@@ -5,8 +5,8 @@ import { FAN, fanPaths } from "./fan.ts";
 
 /**
  * The daily opening (the approved Weave, 87-opening.js), about three seconds on the first open of the day: out of the
- * dark, particles drift in and gather onto nine long threads across the screen, the threads draw together into
- * Today's fan beside Skippy, the dark lifts and his greeting writes itself in. A click, a tap or any key skips it; with
+ * dark, particles drift in and gather onto ten long threads across the screen, the threads draw together into
+ * Today's strands from Skippy, the dark lifts and his greeting writes itself in. A click, a tap or any key skips it; with
  * reduced motion it never plays. It sits over the page in its own layer and takes no clicks itself.
  */
 
@@ -31,7 +31,7 @@ interface P {
 function openPath(i: number, u: number, T: number, W: number, H: number): [number, number] {
   const x = lerp(-0.06 * W, 1.06 * W, u);
   const env = 0.35 + 0.65 * Math.sin(Math.PI * u);
-  const y = H * 0.5 + H * 0.3 * Math.sin(u * TAU * 0.9 + (i * TAU) / 9 + T * 1.1) * env + (i - 4) * H * 0.012;
+  const y = H * 0.5 + H * 0.3 * Math.sin(u * TAU * 0.9 + (i * TAU) / ORDER.length + T * 1.1) * env + (i - 4.5) * H * 0.012;
   return [x, y];
 }
 
@@ -54,9 +54,9 @@ export function Opening({ onLift, onWrite, onRise, onDone }: { onLift: () => voi
     const parts: P[] = [];
     for (let k = 0; k < n; k++) {
       const u = Math.random();
-      parts.push({ i: k % 9, u, o: gauss(), sx: Math.random() * W, sy: Math.random() * H, z: Math.random(), d0: Math.random() * 480, d1: OP.B0 + u * 650 + Math.random() * 160, v: 0.03 + Math.random() * 0.04 });
+      parts.push({ i: k % ORDER.length, u, o: gauss(), sx: Math.random() * W, sy: Math.random() * H, z: Math.random(), d0: Math.random() * 480, d1: OP.B0 + u * 650 + Math.random() * 160, v: 0.03 + Math.random() * 0.04 });
     }
-    // The fan's threads go in the fan's order; the opening's nine waves map onto them by room.
+    // The strands go in the picture's order; the opening's ten waves map onto them by room.
     const fanIndex = (i: number) => FAN.items.findIndex((x) => x.id === ORDER[i]);
     const t0 = performance.now();
     const done = { lift: false, write: false, rise: false, end: false };
@@ -118,7 +118,7 @@ export function Opening({ onLift, onWrite, onRise, onDone }: { onLift: () => voi
       c.globalCompositeOperation = "lighter";
       if (T > OP.B0 + 300) {
         c.lineWidth = 0.8;
-        for (let i = 0; i < 9; i++) {
+        for (let i = 0; i < ORDER.length; i++) {
           c.strokeStyle = `rgba(${RC[ORDER[i]!]},${0.16 * sstep(OP.B0 + 300, OP.B1, T) * fade})`;
           c.beginPath();
           for (let k = 0; k <= 40; k++) {

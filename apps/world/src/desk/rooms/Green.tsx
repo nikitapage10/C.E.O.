@@ -269,6 +269,7 @@ function CallRow({ c, week }: { c: GreenCall; week: number }) {
       <span className="gd-call-slot">
         {c.slot}
         {c.tiebreak && <em className="gd-call-tie">tiebreak</em>}
+        {c.lateRisk && <em className="gd-call-tie is-risk">late-game risk</em>}
       </span>
       <span className="gd-call-p is-start">
         <Face p={c.start} size={40} />
@@ -304,6 +305,7 @@ function CallRow({ c, week }: { c: GreenCall; week: number }) {
       <small className="gd-call-why">
         {c.why}
         {c.tiebreak && <span className="gd-tiebreak">{c.tiebreak}</span>}
+        {c.lateRisk && <span className="gd-tiebreak is-risk">Late-game risk: a Q/D starter in a later window.</span>}
       </small>
     </li>
   );
@@ -339,7 +341,7 @@ function Calls({ board }: { board: GreenBoard }) {
 
 type RowCall = "start" | "sit" | "bye" | "out" | "";
 
-function LineRow({ slot, p, live, week, call, tie = false }: { slot: string; p: GreenPlayer | null; live: number | null; week: number; call: RowCall; tie?: boolean }) {
+function LineRow({ slot, p, live, week, call, tie = false, risk = false }: { slot: string; p: GreenPlayer | null; live: number | null; week: number; call: RowCall; tie?: boolean; risk?: boolean }) {
   if (!p)
     return (
       <tr className="is-empty">
@@ -361,6 +363,7 @@ function LineRow({ slot, p, live, week, call, tie = false }: { slot: string; p: 
             {call === "sit" && <em className="gd-tag is-sit">SIT</em>}
             {call === "start" && <em className="gd-tag is-start">START</em>}
             {tie && <em className="gd-tag is-tie">TIEBREAK</em>}
+            {risk && <em className="gd-tag is-tie">LATE-GAME RISK</em>}
           </small>
         </span>
       </td>
@@ -386,6 +389,8 @@ function Lineup({ board }: { board: GreenBoard }) {
   const ins = new Set(changes.map((c) => c.start.id));
   // The player a tiebreak put in his slot (#340): labelled, whether the call keeps him or brings him in.
   const ties = new Set((board.calls ?? []).filter((c) => c.tiebreak).map((c) => c.start.id));
+  // Players a late-game-risk call (#370) moved: the Q/D starter going to the bench and the earlier-kicking bench player coming in.
+  const risks = new Set((board.calls ?? []).filter((c) => c.lateRisk).flatMap((c) => [c.start.id, c.sit.id]));
   const callOf = (p: GreenPlayer | null, starting: boolean): RowCall => {
     if (!p) return "";
     if (onBye(p, board.week)) return "bye";
@@ -447,13 +452,13 @@ function Lineup({ board }: { board: GreenBoard }) {
           </thead>
           <tbody>
             {board.roster.starters.map((s: GreenSlot, i) => (
-              <LineRow key={i} slot={s.slot} p={s.player} live={s.pts} week={board.week} call={callOf(s.player, true)} tie={!!s.player && ties.has(s.player.id)} />
+              <LineRow key={i} slot={s.slot} p={s.player} live={s.pts} week={board.week} call={callOf(s.player, true)} tie={!!s.player && ties.has(s.player.id)} risk={!!s.player && risks.has(s.player.id)} />
             ))}
           </tbody>
           {open && (
             <tbody className="is-bench">
               {bench.map((p) => (
-                <LineRow key={p.id} slot="BN" p={p} live={null} week={board.week} call={callOf(p, false)} tie={ties.has(p.id)} />
+                <LineRow key={p.id} slot="BN" p={p} live={null} week={board.week} call={callOf(p, false)} tie={ties.has(p.id)} risk={risks.has(p.id)} />
               ))}
               {board.roster.reserve.map((p) => (
                 <LineRow key={p.id} slot="IR" p={p} live={null} week={board.week} call="" />

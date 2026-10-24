@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { FP_PATH, forgetMemory, MemoryGreenStore, PLAYERS_PATH, SCHEDULE_PATH } from "./cache.ts";
-import { FpUnavailable, fpIndex, fpKey, nameKey, readFantasyPros, statusOf, scoringOf, shapeInjuries, shapeProjections, shapeRankings, type FpData } from "./fantasypros.ts";
-import { buildBoard, byeTeams, formOf, formProjection, lineupSwaps, normCdf, slotTakes, winChance } from "./model.ts";
+import { FpUnavailable, fpIndex, fpKey, nameKey, readFantasyPros, statusOf, scoringOf, shapeInjuries, shapeProjections, shapeRankings, kickoffOf, type FpData } from "./fantasypros.ts";
+import { LATE_GAME_RISK_GAP, buildBoard, byeTeams, formOf, formProjection, lineupSwaps, normCdf, slotTakes, winChance } from "./model.ts";
+import { callsFor } from "./analyst.ts";
 import { FP_SHAPE, forgetGreen, GET, isGreen, PATH, type GreenDeps } from "./route.ts";
 import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, cleanText, shapeLeague, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
 import type { GreenBoard, GreenPlayer } from "./types.ts";
@@ -543,3 +544,70 @@ function boardInput() {
 function sleeperOnlyBoard(): GreenBoard {
   return buildBoard(boardInput());
 }
+
+describe("late-game risk: a Q/D starter in a later window than a close bench alternative (#370)", () => {
+  const SUN = Date.parse("2026-10-25T17:00:00Z"); // Sunday 1pm ET
+  const MON_ET = Date.parse("2026-10-27T00:15:00Z"); // Monday 8:15pm ET
+  const pl = (id: string, name: string, pos: GreenPlayer["pos"], fp: number, over: Partial<GreenPlayer> = {}): GreenPlayer => ({ id, name, pos, team: "KC", inj: null, proj: fp, fp, src: "fp", avg: fp, last: fp, wk: null, ecr: null, posRank: null, bye: null, ...over });
+  const slots = ["RB", "WR", "FLEX"];
+  const base = () => [
+    { slot: "RB", player: pl("1", "Rex", "RB", 15, { ko: SUN }), pts: 0 },
+    { slot: "WR", player: pl("2", "Wes", "WR", 14, { ko: SUN }), pts: 0 },
+  ];
+
+  it("the threshold is a named constant", () => {
+    expect(LATE_GAME_RISK_GAP).toBe(1.5);
+  });
+
+  it("recommends Tucker (Sunday) over a questionable Goedert (Monday) when FantasyPros has them under 1.5 apart", () => {
+    const goedert = pl("3", "Dallas Goedert", "TE", 8.8, { inj: "Q", ko: MON_ET });
+    const tucker = pl("4", "Tucker Kraft", "TE", 7.6, { ko: SUN });
+    const current = [...base(), { slot: "FLEX", player: goedert, pts: 0 }];
+    const swaps = lineupSwaps(slots, current, [tucker], () => false, 8);
+    expect(swaps).toHaveLength(1);
+    expect(swaps[0]).toMatchObject({ slot: "FLEX", in: { id: "4" }, out: { id: "3" } });
+    expect(swaps[0]!.lateRisk).toMatch(/^Late-game risk: Dallas Goedert is questionable and kicks off Monday; Tucker Kraft plays Sunday/);
+    const calls = callsFor(current, [tucker], swaps, 8, 0.6, () => false);
+    expect(calls[0]).toMatchObject({ change: true, start: { id: "4" }, sit: { id: "3" } });
+    expect(calls[0]!.lateRisk).toContain("Late-game risk");
+    expect(calls[0]!.tiebreak).toBeNull();
+  });
+
+  it("keeps the questionable starter when the gap is 1.5 or more", () => {
+    const goedert = pl("3", "Dallas Goedert", "TE", 9.1, { inj: "Q", ko: MON_ET });
+    const tucker = pl("4", "Tucker Kraft", "TE", 7.6, { ko: SUN });
+    expect(lineupSwaps(slots, [...base(), { slot: "FLEX", player: goedert, pts: 0 }], [tucker], () => false, 8)).toEqual([]);
+  });
+
+  it("does nothing for a healthy starter, an alternative in the same window, or an unknown kickoff", () => {
+    const run = (s: Partial<GreenPlayer>, a: Partial<GreenPlayer>) => lineupSwaps(slots, [...base(), { slot: "FLEX", player: pl("3", "G", "TE", 8.8, { ko: MON_ET, ...s }), pts: 0 }], [pl("4", "T", "TE", 7.6, { ko: SUN, ...a })], () => false, 8);
+    expect(run({}, {})).toEqual([]);
+    expect(run({ inj: "Q", ko: SUN + 30 * 60_000 }, {})).toEqual([]);
+    expect(run({ inj: "Q", ko: null }, {})).toEqual([]);
+    expect(run({ inj: "Q" }, { ko: null })).toEqual([]);
+    expect(run({ inj: "Q" }, { inj: "Q" })).toEqual([]);
+  });
+
+  it("applies to a doubtful starter too, and byes still come first", () => {
+    const doubt = lineupSwaps(slots, [...base(), { slot: "FLEX", player: pl("3", "G", "TE", 8.8, { inj: "D", ko: MON_ET }), pts: 0 }], [pl("4", "T", "TE", 8.0, { ko: SUN })], () => false, 8);
+    expect(doubt[0]).toMatchObject({ in: { id: "4" }, out: { id: "3" } });
+    // The earlier-kicking alternative is on bye: no late-game swap to him.
+    const bye = lineupSwaps(slots, [...base(), { slot: "FLEX", player: pl("3", "G", "TE", 8.8, { inj: "Q", ko: MON_ET }), pts: 0 }], [pl("4", "T", "TE", 8.0, { ko: SUN, bye: 8 })], () => false, 8);
+    expect(bye).toEqual([]);
+    // A starter on bye is swapped for the bye reason, not the late-game one.
+    const forced = lineupSwaps(slots, [...base(), { slot: "FLEX", player: pl("3", "G", "TE", 8.8, { bye: 8 }), pts: 0 }], [pl("4", "T", "TE", 8.0, { ko: SUN })], () => false, 8);
+    expect(forced[0]).toMatchObject({ why: "G is on bye" });
+    expect(forced[0]!.lateRisk).toBeUndefined();
+  });
+
+  it("reads FantasyPros' kickoff (player_game_kickoff_ts) as epoch milliseconds", () => {
+    expect(kickoffOf(1792947600)).toBe(1792947600000);
+    expect(kickoffOf("1792947600")).toBe(1792947600000);
+    expect(kickoffOf(1792947600000)).toBe(1792947600000);
+    expect(kickoffOf("2026-10-25T17:00:00Z")).toBe(SUN);
+    expect(kickoffOf("soon")).toBeNull();
+    expect(kickoffOf(null)).toBeNull();
+    const [r] = shapeRankings({ players: [{ player_id: 1, player_name: "Dallas Goedert", player_team_id: "PHI", player_position_id: "TE", rank_ecr: 9, pos_rank: "TE9", player_game_kickoff_ts: "2026-10-27T00:15:00Z" }] });
+    expect(r!.ko).toBe(MON_ET);
+  });
+});

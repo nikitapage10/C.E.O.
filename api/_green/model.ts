@@ -214,6 +214,7 @@ export function buildBoard(input: ModelInput): GreenBoard {
       ecr: v?.ecr ?? null,
       posRank: v?.posRank ?? null,
       bye,
+      ...(v?.ko != null && { ko: v.ko }),
       ...(fp && { fp: fpOwn }),
       ...(input.slProj && { sl }),
       ...(slRaw?.opp && { opp: slRaw.opp }),
@@ -516,6 +517,43 @@ function reasonOut(p: GreenPlayer | null, week: number, fpOnly = false): string 
   return null;
 }
 
+/** The late-game risk rule (#370): a Q/D starter loses his slot to an earlier-kicking bench player FantasyPros has within this many points. */
+export const LATE_GAME_RISK_GAP = 1.5;
+/** How much later his kickoff must be to count as a later window (3 hours: Sunday 1pm and 4pm are different windows, 1:00 and 1:25 are not). */
+export const LATE_GAME_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+/** The weekday of a kickoff in US Eastern time (NFL's calendar). */
+const dayOf = (ms: number): string => {
+  const d = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "America/New_York" }).format(new Date(ms));
+  return DAY_NAMES.includes(d) ? d : "later";
+};
+
+/** The published FantasyPros figure for the gap: his own number, else the board's projection. */
+const fpGapPts = (p: GreenPlayer) => p.fp ?? p.proj;
+
+/**
+ * The earlier-kicking bench alternative to a questionable or doubtful starter, if the rule applies: he is Q or D, the
+ * alternative isn't, his game kicks off a window earlier, and FantasyPros has them under LATE_GAME_RISK_GAP apart.
+ * Null otherwise (a missing kickoff or projection never triggers it).
+ */
+export function lateGameAlt(starter: GreenPlayer, options: GreenPlayer[]): { alt: GreenPlayer; why: string } | null {
+  if ((starter.inj !== "Q" && starter.inj !== "D") || starter.ko == null) return null;
+  const sp = fpGapPts(starter);
+  if (sp == null) return null;
+  const alt = options
+    .filter((a) => a.id !== starter.id && a.inj !== "Q" && a.inj !== "D" && a.ko != null && starter.ko! - a.ko >= LATE_GAME_WINDOW_MS)
+    .filter((a) => {
+      const ap = fpGapPts(a);
+      return ap != null && Math.abs(sp - ap) < LATE_GAME_RISK_GAP;
+    })
+    .sort((a, b) => (fpGapPts(b) ?? 0) - (fpGapPts(a) ?? 0) || a.ko! - b.ko!)[0];
+  if (!alt) return null;
+  const tag = starter.inj === "Q" ? "questionable" : "doubtful";
+  const gap = Math.abs(sp - fpGapPts(alt)!).toFixed(1);
+  return { alt, why: `Late-game risk: ${starter.name} is ${tag} and kicks off ${dayOf(starter.ko)}; ${alt.name} plays ${dayOf(alt.ko!)} and FantasyPros has them just ${gap} apart (under ${LATE_GAME_RISK_GAP}), so ${alt.name} starts and nothing waits on a late status.` };
+}
+
 /**
  * The start-or-sit calls: the best lineup by projection (FantasyPros' weekly rank breaking ties), compared with the one
  * set. Players already locked (scored this week) stay where they are. Each call names who comes in, who goes out, and
@@ -531,6 +569,9 @@ export function lineupSwaps(slots: string[], current: GreenSlot[], bench: GreenP
   const order = slots.map((s, i) => ({ s, i })).sort((a, b) => slotTakes(a.s).length - slotTakes(b.s).length);
   const pool = [...current.map((c) => c.player).filter((p): p is GreenPlayer => p !== null), ...bench];
   const used = new Set<string>();
+  const nowInEarly = new Set(current.map((c) => c.player?.id).filter(Boolean) as string[]);
+  const benchIds = new Set(bench.map((b) => b.id));
+  const lateRisk = new Map<string, string>();
   const best: (GreenPlayer | null)[] = slots.map(() => null);
   // Locked starters keep their slots.
   current.forEach((c, i) => {
@@ -544,8 +585,12 @@ export function lineupSwaps(slots: string[], current: GreenSlot[], bench: GreenP
     const takes = slotTakes(s);
     const pick = pool.filter((p) => !used.has(p.id) && !locked(p.id) && !unavailable(p) && takes.includes(p.pos)).sort(better)[0];
     if (pick) {
-      best[i] = pick;
-      used.add(pick.id);
+      // Late-game risk (#370): a Q/D starter whose game is in a later window than a close bench alternative's.
+      const risk = nowInEarly.has(pick.id) ? lateGameAlt(pick, pool.filter((p) => benchIds.has(p.id) && !used.has(p.id) && !locked(p.id) && !unavailable(p) && takes.includes(p.pos))) : null;
+      const chosen = risk ? risk.alt : pick;
+      if (risk) lateRisk.set(chosen.id, risk.why);
+      best[i] = chosen;
+      used.add(chosen.id);
     }
   }
   const nowIn = new Set(current.map((c) => c.player?.id).filter(Boolean) as string[]);
@@ -564,10 +609,11 @@ export function lineupSwaps(slots: string[], current: GreenSlot[], bench: GreenP
     const out = hit.c.player;
     const gain = round1((p.proj ?? 0) - Math.max(0, out?.proj ?? 0));
     const forced = reasonOut(out, week);
-    if (gain < 0.5 && !forced) continue;
+    const risk = lateRisk.get(p.id);
+    if (gain < 0.5 && !forced && !risk) continue;
     taken.add(hit.k);
-    const why = forced ?? (out ? `${p.name} projects ${(p.proj ?? 0).toFixed(1)}, ${out.name} ${(out.proj ?? 0).toFixed(1)}` : "the slot is empty");
-    swaps.push({ slot: hit.c.slot, in: p, out, gain, why });
+    const why = forced ?? risk ?? (out ? `${p.name} projects ${(p.proj ?? 0).toFixed(1)}, ${out.name} ${(out.proj ?? 0).toFixed(1)}` : "the slot is empty");
+    swaps.push({ slot: hit.c.slot, in: p, out, gain, why, ...(risk && !forced && { lateRisk: risk }) });
   }
   return swaps;
 }

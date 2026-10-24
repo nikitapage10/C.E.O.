@@ -42,6 +42,8 @@ export interface GreenPlayer {
    * projections are live; Sleeper's schedule only when FantasyPros has nothing on him.
    */
   bye: number | null;
+  /** When his game kicks off this week, epoch milliseconds (FantasyPros' `player_game_kickoff_ts`, #370); absent when unknown. */
+  ko?: number | null;
   /**
    * FantasyPros' own weekly projection in the league's scoring, exactly as it published it (#340): no injury scaling.
    * `proj` equals it unless he is doubtful (30%), out or on bye. Null when FantasyPros doesn't project him this week;
@@ -99,6 +101,8 @@ export interface GreenSwap {
   /** Projected points gained. */
   gain: number;
   why: string;
+  /** Set when `in` was chosen over a better-projected, later-kicking Q/D starter (#370): why. */
+  lateRisk?: string | null;
 }
 
 export interface GreenPickup {
@@ -208,6 +212,8 @@ export interface GreenCall {
   sleeper: "agrees" | "disagrees" | "unknown";
   split: boolean;
   tiebreak: string | null;
+  /** The "late-game risk" label (#370): a Q/D starter in a later window, within the threshold of an earlier-kicking alternative; why. */
+  lateRisk?: string | null;
   why: string;
 }
 

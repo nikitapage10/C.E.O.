@@ -17,6 +17,8 @@ import { noticeVisible } from "../kernel/notices.ts";
 import { pinned, useCatchup } from "../kernel/catchup.ts";
 import { enterEyes, useEyes } from "../eyes/eyes.ts";
 import { roomRgb, weaveBus } from "../weave/bus.ts";
+import { goToView } from "../map/view.ts";
+import { useStreaming } from "../scene/roomScope.ts";
 
 /** A room's thread colour as a CSS variable, for the Weave's rules and threads (weave/weave.css). */
 const rgbVar = (room: RoomId | null) => ({ "--lw-rgb": roomRgb(room ?? undefined) }) as React.CSSProperties;
@@ -76,6 +78,7 @@ function TopBar() {
         ))}
       </nav>
       <div className="topbar__right">
+        <ViewSwitch />
         <a className="topbar__desk" href="/" onClick={(e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate("today"); }} title="Back to the Desk">
           Desk
         </a>
@@ -87,6 +90,26 @@ function TopBar() {
         </span>
       </div>
     </header>
+  );
+}
+
+/**
+ * The way out to the map, and from one room on its own to the whole ring (#332). One room in 3D loads only that room;
+ * the whole Lattice is its own, heavier view.
+ */
+function ViewSwitch() {
+  const solo = useStreaming((s) => s.solo);
+  return (
+    <>
+      <button className="topbar__view" onClick={() => goToView({ kind: "map" })} data-view="map" title="Back to the map of the ring">
+        ← Map
+      </button>
+      {solo && (
+        <button className="topbar__view" onClick={() => goToView({ kind: "ring", room: solo })} data-view="ring" title="Load all ten rooms in 3D (heavier)">
+          Whole Lattice
+        </button>
+      )}
+    </>
   );
 }
 

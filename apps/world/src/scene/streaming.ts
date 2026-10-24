@@ -95,7 +95,8 @@ export function loadRoom(room: RoomId): Promise<void> {
 
 /** Let the other rooms in, and fetch what they need. (Brogu's eyes calls it too: he can walk anywhere.) */
 export function release() {
-  if (useStreaming.getState().all) return;
+  // One room on its own (#332) stays on its own: the rest of the ring is "Whole Lattice", a view of its own.
+  if (useStreaming.getState().all || useStreaming.getState().solo) return;
   useStreaming.setState({ all: true });
   preloadNow(...modelsFor(new Set(ROOM_IDS)));
   if (readied) whenIdle(flushPreloads);
@@ -106,32 +107,51 @@ function whenIdle(fn: () => void, timeout = 1500) {
   else setTimeout(fn, 200);
 }
 
+let unsubscribe: (() => void) | null = null;
+
 /**
- * Called once, as the Lattice mounts, with the room it opened on (if any). Starts fetching what's on screen before
- * the scene has rendered, so nothing waits behind anything else.
+ * Called as the 3D world mounts (#332: once per view, the map's room or the whole ring), with the room it opened on
+ * (if any). Starts fetching what's on screen before the scene has rendered, so nothing waits behind anything else.
+ * `solo` builds that room alone: its props, crew and pets, and nothing else, ever (release() leaves it alone).
  */
-export function bootStreaming(first: RoomId | null) {
+export function bootStreaming(first: RoomId | null, solo = false) {
   if (booted) return;
   booted = true;
+  if (solo && first && (ROOM_IDS as readonly string[]).includes(first)) {
+    useStreaming.setState({ rooms: [first], all: false, solo: first });
+    preloadNow(...modelsFor(new Set([first])));
+    return;
+  }
   const room = first && (ROOM_IDS as readonly string[]).includes(first) ? first : null;
   // On a room: that room. On the overview: the rooms nearest its camera.
   const rooms = room ? [room] : nearestRooms();
-  useStreaming.setState({ rooms: [], all: false });
+  useStreaming.setState({ rooms: [], all: false, solo: null });
   for (const r of rooms) void loadRoom(r);
   // Going anywhere past the first rooms brings the rest in at once.
-  const off = useWorld.subscribe((s) => {
+  const off = (unsubscribe = useWorld.subscribe((s) => {
     if (s.focus === room || (s.focus !== null && rooms.includes(s.focus))) return;
     // The room link sets focus just after mount; ignore the moment before it lands.
     if (s.focus === null && (room === null || !readied)) return;
     off();
     release();
-  });
+  }));
+}
+
+/** The 3D world is gone (#332: back to the map, or on to another view): the next one boots afresh. */
+export function endStreaming() {
+  unsubscribe?.();
+  unsubscribe = null;
+  booted = false;
+  readied = false;
+  useStreaming.setState({ rooms: [], all: true, solo: null });
 }
 
 /** The curtain is up on the world on screen: stream in the rest when the browser is next idle. */
 export function streamingReady() {
   if (readied) return;
   readied = true;
+  // One room on its own fetches nothing more: no other rooms, and none of the wardrobe's bodies held for later.
+  if (useStreaming.getState().solo) return;
   whenIdle(() => {
     if (useStreaming.getState().all) flushPreloads();
     else release();
@@ -144,5 +164,6 @@ export function streamingReady() {
  * reads it, so the browser tests start once the world has finished arriving (#405).
  */
 export function streamedIn(): boolean {
-  return useStreaming.getState().all && !useProgress.getState().active && warming.count === 0;
+  const s = useStreaming.getState();
+  return (s.all || s.solo !== null) && !useProgress.getState().active && warming.count === 0;
 }

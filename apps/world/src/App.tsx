@@ -1,35 +1,25 @@
-import { ROOM_IDS, type RoomId } from "@ceo/core";
-import { Suspense, useEffect, useLayoutEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useState } from "react";
 import { bootMarks, markBoot, useBoot } from "./boot.ts";
 import { holdDeck } from "./club/deck.ts";
 import { holdSound } from "./glitches/sound.ts";
-import { loadRoom, streamedIn } from "./scene/streaming.ts";
 import { AppGuard } from "./scene/SceneGuard.tsx";
-import { bootStreaming } from "./scene/streaming.ts";
 import { agentPositions, clock } from "./clock.ts";
 import { GatheringDirector } from "./gatherings/GatheringDirector.tsx";
-import { GlitchDirector } from "./glitches/GlitchDirector.tsx";
-import { GlitchOverlay } from "./glitches/GlitchOverlay.tsx";
-import { AgentStudio } from "./hud/AgentStudio.tsx";
-import { Hud } from "./hud/Hud.tsx";
-import { Loader } from "./hud/Loader.tsx";
-import { EyesHud } from "./eyes/EyesHud.tsx";
-import { brogu, enterEyes, useEyes } from "./eyes/eyes.ts";
 import { KernelDirector } from "./kernel/KernelDirector.tsx";
-import { SocialDirector } from "./social/SocialDirector.tsx";
-import { Scene } from "./scene/Scene.tsx";
 import { useCast } from "./cast/castStore.ts";
-import { AchievementDirector } from "./achievements/AchievementDirector.tsx";
-import { DeckDirector } from "./club/DeckDirector.tsx";
+import { LatticeMap, mapDebug } from "./map/LatticeMap.tsx";
+import { loadWorld3D } from "./map/load3d.ts";
+import { useLatticeView, viewKey, type LatticeView } from "./map/view.ts";
 import { NightDirector } from "./night/NightDirector.tsx";
 import { FoundryDirector } from "./rooms/FoundryDirector.tsx";
-import { VeilDirector } from "./veil/VeilDirector.tsx";
 import { WorldDirector } from "./world/WorldDirector.tsx";
-import { WeaveCanvas } from "./weave/WeaveCanvas.tsx";
 import { pumpSpeech, useWorld } from "./store.ts";
 import "@fontsource/cormorant-garamond/300.css";
 import "@fontsource/cormorant-garamond/400-italic.css";
 import "./styles.css";
+
+/** The 3D world, one room or the whole ring (#332): its own download, fetched when a room is picked on the map. */
+const World3D = lazy(() => loadWorld3D().then((m) => ({ default: m.World3D })));
 
 /** window.__ceo: a small debug surface for the console and the e2e tests. */
 function useDebugApi() {
@@ -48,20 +38,14 @@ function useDebugApi() {
         room: Parameters<ReturnType<typeof useWorld.getState>["setFocus"]>[0],
       ) => useWorld.getState().setFocus(room),
       activeGlitch: () => useWorld.getState().activeGlitch,
+      // The 3D world's own (World3D.tsx) take over once it has loaded: nothing streams on the map.
+      streamedIn: () => false,
       store: useWorld,
       cast: () => useCast.getState().cast,
       openStudio: (id: string | null) => useCast.getState().openStudio(id),
       boot: () => ({ ...bootMarks }),
-      // Every room streamed in and compiled (scene/streaming.ts): the page has stopped loading.
-      streamedIn,
-      // Brogu's eyes: in and out, and where he is (room-local x, z, yaw).
-      eyes: {
-        enter: enterEyes,
-        leave: () => useEyes.getState().leave(),
-        state: () => ({ ...useEyes.getState(), brogu: { x: brogu.x, z: brogu.z, yaw: brogu.yaw, pitch: brogu.pitch } }),
-        /** Put him somewhere (room-local) and point his eyes, without walking there. */
-        pose: (p: { x?: number; z?: number; yaw?: number; pitch?: number }) => Object.assign(brogu, p),
-      },
+      // The 2D map (#332): what it shows, when it's on screen.
+      map: mapDebug,
     });
   }, []);
 }
@@ -76,8 +60,8 @@ function useSpeechTicker(active: boolean) {
 
 /**
  * On screen or behind the Desk (#373). Behind it the canvas stops drawing (Scene.tsx), the simulator stops with it
- * (it ticks in the frame loop), the HUD and directors unmount and the sound holds; back on screen it all picks up
- * where it was, with nothing to load or compile again.
+ * (it ticks in the frame loop, or the map's), the HUD and directors unmount and the sound holds; back on screen it all
+ * picks up where it was, with nothing to load or compile again.
  */
 function useActive(active: boolean) {
   useLayoutEffect(() => {
@@ -87,70 +71,46 @@ function useActive(active: boolean) {
   }, [active]);
 }
 
-const roomLink = () => {
-  const room = new URLSearchParams(window.location.search).get("room");
-  return room && (ROOM_IDS as readonly string[]).includes(room) ? (room as RoomId) : null;
-};
-
 /**
- * `/lattice?room=relay` opens straight on a room (links from the Desk), and loads that room first. The fetching
- * starts here, as the Lattice mounts, before the scene renders (scene/streaming.ts).
+ * The view on screen, one step behind the address when it changes from one 3D view to another: the old world unmounts
+ * (and lets its GPU memory go) in one commit, the new one mounts in the next, so the two never share a frame.
  */
-function useRoomLink(active: boolean) {
-  useState(() => {
-    markBoot("lattice");
-    bootStreaming(roomLink());
-    return null;
-  });
-  // Each arrival, not just the first: kept mounted behind the Desk (#373), the Lattice is entered many times.
-  useEffect(() => {
-    if (!active) return;
-    const room = roomLink();
-    if (!room) return;
-    // Its models first, ahead of anything still streaming for the rest of the ring.
-    void loadRoom(room);
-    useWorld.getState().setFocus(room);
-  }, [active]);
+function useShownView(view: LatticeView): LatticeView | null {
+  const key = viewKey(view);
+  const [shown, setShown] = useState(key);
+  useEffect(() => setShown(key), [key]);
+  return shown === key || view.kind === "map" ? view : null;
 }
 
 /**
- * The Lattice. `active` is false while it waits behind the Desk (main.tsx): warmed in the background before its first
- * visit, or kept after one, so entering it is instant.
+ * The Lattice (#332). It opens on the map: the ring in 2D, live, with nothing 3D loaded. A room picked there loads that
+ * room alone in 3D; "Whole Lattice" loads the full ring, as it was before. The directors that feed the world (real
+ * work, the saved world, Skippy's calls, gatherings, the night shift) run in every view, so the map is as alive as the
+ * rooms. `active` is false while it waits behind the Desk (main.tsx), kept after a visit so coming back is instant.
  */
 export function App({ active = true }: { active?: boolean }) {
+  useState(() => markBoot("lattice"));
   useActive(active);
   useDebugApi();
-  useRoomLink(active);
   useSpeechTicker(active);
+  const view = useShownView(useLatticeView());
   return (
     <AppGuard>
-      <div className="stage">
-        {/* Anything that suspends here waits in place; it never blanks the page back to the boot screen. */}
-        <Suspense fallback={null}>
-          <Scene />
+      {view?.kind === "map" && <LatticeMap active={active} />}
+      {view && view.kind !== "map" && (
+        <Suspense fallback={active ? <div className="lmap-wait" role="status">Stepping inside…</div> : null}>
+          <World3D key={viewKey(view)} view={view} active={active} />
         </Suspense>
-      </div>
-      {/* Behind the Desk none of this runs: no timers, no key or pointer listeners, nothing announced. */}
-      {active && (
-      <Suspense fallback={null}>
-        <WeaveCanvas />
-        <Hud />
-        <EyesHud />
-        <GlitchOverlay />
-        <AgentStudio />
-        <GlitchDirector />
-        <SocialDirector />
-        <KernelDirector />
-        <GatheringDirector />
-        <NightDirector />
-        <FoundryDirector />
-        <DeckDirector />
-        <VeilDirector />
-        <AchievementDirector />
-        <WorldDirector />
-      </Suspense>
       )}
-      <Loader />
+      {active && (
+        <>
+          <KernelDirector />
+          <GatheringDirector />
+          <NightDirector />
+          <FoundryDirector />
+          <WorldDirector />
+        </>
+      )}
     </AppGuard>
   );
 }

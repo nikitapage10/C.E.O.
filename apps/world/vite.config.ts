@@ -144,6 +144,11 @@ export default defineConfig({
           groups: [
             { name: "vendor", test: /node_modules[\\/](react|react-dom|scheduler|zustand|use-sync-external-store|zod|@fontsource|@fontsource-variable)[\\/]/ },
             { name: "three", test: /node_modules[\\/]/ },
+            // @ceo/core as one chunk (#332). Left to itself, rolldown put a module only the 3D world uses (core's
+            // houses.ts) into the 3D chunk, and the rest of core imported it from there, so the 2D map, which needs
+            // core, pulled in the whole 3D world and three.js with it. (Core only: with the simulator too, the Desk
+            // would load all of it, 170 kB more on first load.)
+            { name: "world-model", test: /[\\/]packages[\\/]core[\\/]src[\\/]/ },
           ],
         },
       },

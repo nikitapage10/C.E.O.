@@ -23,6 +23,7 @@ import { DetailLevels, ShadowFocus } from "./DetailLevels.tsx";
 import { Floor, FloorRings, Motes } from "./Environment.tsx";
 import { Kernel } from "./Kernel.tsx";
 import { Lighting } from "./Lighting.tsx";
+import { useStreaming } from "./roomScope.ts";
 import { SceneReady } from "./SceneReady.tsx";
 import { StillFurniture } from "./StillFurniture.tsx";
 import { Streams } from "./Streams.tsx";
@@ -88,6 +89,9 @@ export function Scene() {
   const drawing = useBoot((s) => s.drawing);
   const active = useBoot((s) => s.active);
   const selectAgent = useWorld((s) => s.selectAgent);
+  // One room on its own (#332): no Kernel, no streams to it, no ring of floor lights, no lanterns round the ring and
+  // fewer motes; the room, its crew and its pets are all that's built.
+  const solo = useStreaming((s) => s.solo);
   useEffect(watchLoopErrors, []);
   return (
     <>
@@ -112,7 +116,8 @@ export function Scene() {
           onPointerMissed={() => {
             if (useEyes.getState().active) return;
             if (useWorld.getState().selectedAgent) selectAgent(null);
-            else setFocus(null);
+            // On its own, a room stays in view: a click on the void is not a way out (the map button is).
+            else if (!solo) setFocus(null);
           }}
         >
           <color attach="background" args={[PALETTE.void]} />
@@ -123,18 +128,18 @@ export function Scene() {
           <Backstage />
           <TripTimer />
           <Suspense fallback={null}>
-            <Kernel />
-            <Streams />
+            {!solo && <Kernel />}
+            {!solo && <Streams />}
             <Rooms />
             <Agents />
             <Pets />
             <GlitchStage />
-            <LetterFlight />
-            {VEIL || party ? <Pumpkins key="veil" /> : countdown !== null && <Pumpkins key="countdown" spots={COUNTDOWN_SPOTS} name="veil-countdown" />}
+            {!solo && <LetterFlight />}
+            {!solo && (VEIL || party ? <Pumpkins key="veil" /> : countdown !== null && <Pumpkins key="countdown" spots={COUNTDOWN_SPOTS} name="veil-countdown" />)}
             <Callouts />
             <Floor />
-            <FloorRings />
-            <Motes count={quality === "high" ? 1600 : 600} />
+            {!solo && <FloorRings />}
+            <Motes count={solo ? 200 : quality === "high" ? 1600 : 600} />
             <Wardrobe />
             <SceneReady />
           </Suspense>

@@ -1,5 +1,3 @@
-import { allModelUrls } from "./modelUrl.ts";
-
 /**
  * Getting the Lattice ready on the Desk (#327, #373), so "Enter the Lattice" is quick the first time and instant after.
  *
@@ -8,12 +6,13 @@ import { allModelUrls } from "./modelUrl.ts";
  *   Machines that report little memory (navigator.deviceMemory under 4 GB) drop it on the way out instead, as before.
  * - Let go (#406): after LET_GO_MS back on the Desk, the kept Lattice is unmounted, which frees its memory and GPU
  *   through the usual unmount path. A short hop back stays instant; after that it loads fresh, like a first visit.
- * - Fetched ahead: on a desktop with a fast connection, once the Desk has loaded, gone idle and had a quiet spell
- *   (WAIT_MS), the models are read into this browser's cache at the lowest priority, one at a time: public,
- *   content-hashed files under /assets/models, immutable for a year on both hosts. Nothing from /api and nothing
- *   behind the site lock is fetched here. Never on a phone, with Data Saver on, on a 2G/3G connection, or in a tab
- *   that isn't on screen. The Lattice itself no longer mounts behind the Desk before its first visit (#401): building
- *   and compiling the whole scene out of sight made the Desk and the Lattice lag.
+ * - Fetched ahead: since #332 "Enter the Lattice" opens on the 2D map, which needs no models, no three.js and no
+ *   shaders, so nothing heavy is fetched for it here any more (the models went ahead of time before #332, ~30 MB of
+ *   them for a view that now loads one room's worth when a room is picked). The map's own code is the build's
+ *   `<link rel="prefetch">` (vite.config.ts, prefetchLattice), fetched by the browser at idle, lowest priority. The
+ *   warm-up only marks when the Desk went quiet, on a desktop with a fast connection (never on a phone, with Data
+ *   Saver on, on 2G/3G, or in a tab that isn't on screen). The Lattice itself does not mount behind the Desk before
+ *   its first visit (#401): building and compiling the scene out of sight made the Desk and the Lattice lag.
  *
  * It also counts the trips (#373, the boot-timing beacon): when the Lattice was last asked for and how many times, so
  * the Lattice can time each arrival from the click, not from when its code ran.
@@ -45,19 +44,6 @@ function allowed(): boolean {
   return !(window.matchMedia?.("(pointer: coarse)").matches ?? false);
 }
 
-async function fetchModels(urls: string[]) {
-  for (const url of urls) {
-    // The Lattice was entered in the meantime: it fetches what it needs itself.
-    if (window.location.pathname.startsWith("/lattice")) return;
-    try {
-      const res = await fetch(url, { priority: "low", credentials: "same-origin" } as RequestInit);
-      await res.arrayBuffer();
-    } catch {
-      return;
-    }
-  }
-}
-
 /** Called by the Desk once it has mounted. Runs at most once per page. */
 export function warmLattice() {
   if (started || typeof window === "undefined" || !allowed()) return;
@@ -70,9 +56,8 @@ export function warmLattice() {
       document.addEventListener("visibilitychange", () => idle(run), { once: true });
       return;
     }
-    // For the boot check and the console: the warm-up ran.
-    (window as Window & { __ceoWarmed?: string }).__ceoWarmed = "fetched";
-    void fetchModels(allModelUrls());
+    // For the boot check and the console: the warm-up ran. The map needs nothing more than its prefetched code.
+    (window as Window & { __ceoWarmed?: string }).__ceoWarmed = "map";
   };
   const go = () => setTimeout(() => idle(run), WAIT_MS);
   if (document.readyState === "complete") go();

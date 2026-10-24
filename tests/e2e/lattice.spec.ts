@@ -4,6 +4,8 @@ import { ROOM_IDS } from "@ceo/core";
 /**
  * Smoke test for the whole Lattice: it boots, agents move, every room is reachable, an approval can be
  * granted, and every glitch fires and cleans up after itself. Screenshots land in test-results/shots.
+ * Since #332 "Enter the Lattice" opens on the 2D map; the whole ring in 3D is `/lattice?view=ring`, which these tests
+ * boot. The map, and one room loaded on its own from it, have a test of their own at the end.
  * Runs in headless Chromium on SwiftShader, which is slow, so waits are generous (boot, with the whole world streamed
  * in, gets 6 min) and the camera cuts.
  *
@@ -28,6 +30,8 @@ const STEP_MS = 60_000;
 const MOVE_WINDOW_MS = 4000;
 
 type Api = {
+  map: () => { on: boolean; crew: number; frames: number; positions: Record<string, [number, number]> };
+  three: () => { scene: { getObjectByName: (name: string) => unknown } };
   state: () => { agents: Record<string, unknown>; approvals: Record<string, { status: string; request: { room: string } }> };
   positions: () => Record<string, [number, number, number]>;
   time: () => number;
@@ -50,7 +54,7 @@ const api = <T,>(page: Page, fn: (a: Api) => T) =>
 
 async function boot(page: Page, speed = 4) {
   const start = Date.now();
-  await page.goto(`/lattice?instant&glitches=off&speed=${speed}&quality=low&seed=7`);
+  await page.goto(`/lattice?view=ring&instant&glitches=off&speed=${speed}&quality=low&seed=7`);
   await page.waitForFunction(() => {
     const w = window as unknown as { __ceo?: { positions?: () => Record<string, unknown> } };
     return w.__ceo?.positions && Object.keys(w.__ceo.positions()).length >= 14;
@@ -223,6 +227,49 @@ test.describe.serial("the Lattice", () => {
     await expect(dossier).toContainText("Generatio the Pretrained");
   });
 
+});
+
+test("the Lattice opens on its map, and a room picked there loads on its own", async ({ page }) => {
+  // The map (#332): no three.js and no models until a room is picked. One room in 3D, then back to the map.
+  test.setTimeout(BOOT_MS + STEP_MS * 3);
+  const heavy: string[] = [];
+  page.on("request", (r) => /three|\.glb$/.test(new URL(r.url()).pathname) && heavy.push(new URL(r.url()).pathname));
+  await page.goto("/lattice?instant&glitches=off&speed=4&quality=low&seed=7");
+  await expect(page.locator(".lmap")).toBeVisible({ timeout: STEP_MS });
+  await expect(page.locator("[data-map-room]")).toHaveCount(ROOM_IDS.length);
+  await expect.poll(() => api(page, (a) => a.map().crew), { timeout: STEP_MS }).toBeGreaterThanOrEqual(14);
+  // Nothing 3D was fetched for it (the map fetches the 3D code itself after a quiet spell; this is before that).
+  expect(heavy).toEqual([]);
+
+  // The crew move on the map, as in the rooms.
+  const before = await api(page, (a) => a.map().positions);
+  await page.waitForTimeout(3000);
+  const after = await api(page, (a) => a.map().positions);
+  const moved = Object.keys(before).filter((id) => after[id] && Math.hypot(after[id]![0] - before[id]![0], after[id]![1] - before[id]![1]) > 0.05);
+  expect(moved.length).toBeGreaterThan(0);
+  await page.screenshot({ path: "test-results/shots/map.png" });
+
+  // A room picked on the map: that room alone, in 3D.
+  await page.locator('[data-map-room="foundry"]').click();
+  await expect(page).toHaveURL(/[?&]room=foundry/);
+  await page.waitForFunction(
+    () => {
+      const w = window as unknown as { __ceo?: { positions?: () => Record<string, unknown>; streamedIn?: () => boolean } };
+      return document.querySelector(".stage canvas") && Object.keys(w.__ceo?.positions?.() ?? {}).length > 0 && w.__ceo?.streamedIn?.();
+    },
+    undefined,
+    { timeout: BOOT_MS, polling: 2000 },
+  );
+  await expect(page.locator('[data-room="foundry"]')).toHaveClass(/on/);
+  const rooms = await api(page, (a) => ["foundry", "spire", "relay"].map((r) => !!a.three().scene.getObjectByName(`room-${r}`)));
+  expect(rooms).toEqual([true, false, false]);
+  await page.screenshot({ path: "test-results/shots/map-room-foundry.png" });
+
+  // Back to the map: the 3D world goes with it.
+  await page.locator('[data-view="map"]').click();
+  await expect(page.locator(".lmap")).toBeVisible({ timeout: STEP_MS });
+  await expect(page.locator(".stage canvas")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/lattice(\?(?!.*room=).*)?$/);
 });
 
 test("the Desk opens first without loading the Lattice", async ({ page }) => {

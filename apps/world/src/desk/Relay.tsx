@@ -6,7 +6,6 @@ import { startEmail, useEmail, type EmailLoad, type EmailStatus } from "./email/
 import { Allowance, flowOf, Heartbeat, Switchboard } from "./relay/Switchboard.tsx";
 import { Private } from "./Private.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
-import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
 import { isPhone, knot, Parts, Poly, RC, ring, spr, useViz, type VizSpec } from "./wvCanvas.ts";
@@ -136,7 +135,6 @@ function RelayLater({ now }: { now: number }) {
 
       <EmailSection now={now} />
 
-      <AskedSkippy room="relay" />
       <section className="rl-texts" aria-label="What the texts line waits on">
         <header>
           <p className="wv-eyb">Texts</p>
@@ -414,7 +412,6 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
 
       <EmailSection now={now} />
 
-      <AskedSkippy room="relay" />
 
       <div className="habits">
         <Panel eyebrow="Reply time, last 7 days" className="panel--strip">

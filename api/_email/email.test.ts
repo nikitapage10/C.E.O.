@@ -8,9 +8,9 @@ import { seal, sealKey, unseal } from "./seal.ts";
 import { ADVISE_SYSTEM, SORT_SYSTEM, fenceMail, mailInput, readAdvice, readSorted, type ClaudeCall, type ClaudeRequest } from "./sort.ts";
 import { EMAIL_STATUS_KEYS, emptyEmailStatus, readEmailStatus } from "./status.ts";
 import { MemoryEmailStore } from "./store.ts";
-import { HEADS_UP_REASONS, onSkipList, preFilter, skipTermsFrom } from "./filter.ts";
-import { emailPing, tick, type TickDeps } from "./tick.ts";
-import { MAX_PER_TICK, emptyEmailState } from "./types.ts";
+import { HEADS_UP_REASONS, onSkipList, preFilter, skipTermsFrom, storedMailSkipped } from "./filter.ts";
+import { emailPing, purgeItems, tick, type TickDeps } from "./tick.ts";
+import { MAX_PER_TICK, emptyEmailState, type EmailItem } from "./types.ts";
 
 /* ── fixtures: made up, never real mail ── */
 
@@ -571,7 +571,7 @@ describe("the skip rules", () => {
     expect(preFilter({ fromAddress: "billing@power.example", fromDomain: "power.example", subject: "FINAL NOTICE: balance overdue" })).toEqual({ kind: "heads-up", reason: "overdue" });
   });
 
-  it("skipped mail is counted only: no Claude, no item, nothing of it stored; the heads-up has no amounts or draft", async () => {
+  it("skipped mail is counted only: no Claude, no item, nothing of it stored; urgent mail is only a count", async () => {
     const store = await connectedStore();
     const c = fakeClaude();
     const ids = ["18a1b2c3d4e5f611", "18a1b2c3d4e5f612", "18a1b2c3d4e5f615"];
@@ -580,20 +580,18 @@ describe("the skip rules", () => {
     // None of the three reached a model.
     expect(c.requests).toHaveLength(0);
     const s = (await store.load()).state;
-    expect(s.items).toHaveLength(1);
-    const heads = s.items[0]!;
-    expect(heads).toMatchObject({ id: "18a1b2c3d4e5f612", from: "Chase", subject: HEADS_UP_REASONS.fraud, kind: "needs-you", summary: "", action: "" });
-    expect(heads.advice).toBeUndefined();
-    expect(heads.draft).toBeUndefined();
+    // No heads-up item either: urgent mail is only a count (#415).
+    expect(s.items).toHaveLength(0);
+    expect(s.day.urgent).toBe(1);
     const stored = store.stateJson!;
     for (const secret of ["$", "482", "4417", "1,234", "9876", "Suspicious", "statement", "Coffee", "Old Friend", "zzfaketerm"]) expect(stored, secret).not.toContain(secret);
     const status = (await store.status())!;
-    expect(status.skipped).toBe(2);
-    expect(status.needsYou).toBe(1);
-    expect(deps.pings).toEqual(["An email needs you"]);
+    expect(status.skipped).toBe(3);
+    expect(status.needsYou).toBe(0);
+    expect(deps.pings).toEqual([]);
   });
 
-  it("Dialtone's skip keeps nothing and never reaches Blasto; an urgent one is a heads-up", async () => {
+  it("Dialtone's skip keeps nothing and never reaches Blasto; an urgent one is only a count", async () => {
     const store = await connectedStore();
     const c = fakeClaude();
     const deps = tickDeps(store, { fetcher: fakeGoogle({ history: [page(["18a1b2c3d4e5f613", "18a1b2c3d4e5f614"])] }).fetcher, claude: c.call });
@@ -601,8 +599,9 @@ describe("the skip rules", () => {
     expect(c.requests.map((r) => r.model)).toEqual([SORT_MODEL, SORT_MODEL]);
     expect(SORT_SYSTEM).toContain('"skip"');
     const s = (await store.load()).state;
-    expect(s.items.map((i) => [i.id, i.subject, i.summary, i.draft])).toEqual([["18a1b2c3d4e5f614", HEADS_UP_REASONS.legal, "", undefined]]);
-    expect(s.day.skipped).toBe(1);
+    expect(s.items).toEqual([]);
+    expect(s.day.skipped).toBe(2);
+    expect(s.day.urgent).toBe(1);
     for (const secret of ["2,000", "55512345", "deposit", "Friday", "lease"]) expect(store.stateJson!, secret).not.toContain(secret);
     expect(readSorted({ kind: "skip", urgent: "none", summary: "Pay $40", action: "Pay" })).toEqual({ kind: "skip", urgent: "none", summary: "", action: "" });
     expect(readSorted({ kind: "fyi", urgent: "fraud", summary: "x", action: "y" })?.urgent).toBe("none");
@@ -700,8 +699,9 @@ describe("the catch-up", () => {
     // The statement and the skip-list mail never reach a model; the two ZZ ones are Dialtone's to skip.
     expect(c.requests).toHaveLength(2);
     expect(c.requests.every((r) => r.model === SORT_MODEL)).toBe(true);
-    expect(s.items.map((i) => i.subject).sort()).toEqual([HEADS_UP_REASONS.legal, HEADS_UP_REASONS.fraud].sort());
-    expect(s.day.skipped).toBe(3);
+    expect(s.items).toEqual([]);
+    expect(s.day.skipped).toBe(5);
+    expect(s.day.urgent).toBe(2);
   });
 
   it("runs on the first check of a new connection too", async () => {
@@ -738,5 +738,148 @@ describe("the catch-up", () => {
     await tick(tickDeps(store, { fetcher: g.fetcher }));
     expect(catchUpLists(g.calls)).toBe(1);
     expect((await store.load()).state.items.length).toBeGreaterThan(0);
+  });
+});
+
+/* ── the widened filter and the purge (#415): invented senders only ── */
+
+const fx = (domain: string, subject: string, user = "hello") => ({ fromAddress: `${user}@${domain}`, fromDomain: domain, subject });
+
+describe("the widened money and legal filter", () => {
+  const MUST_SKIP: [string, ReturnType<typeof fx>][] = [
+    ["bank", fx("alerts.chase.example", "Your account")],
+    ["bank subject", fx("news.example", "Deposit received")],
+    ["card", fx("mail.americanexpress.example", "Hello")],
+    ["card subject", fx("news.example", "Your payment posted")],
+    ["brokerage", fx("mail.robinhood.example", "Weekly digest")],
+    ["brokerage etrade", fx("etrade.example", "Hello")],
+    ["brokerage dividend", fx("news.example", "A dividend was paid")],
+    ["brokerage trade", fx("news.example", "Your trade filled")],
+    ["crypto", fx("mail.coinbase.example", "Hello")],
+    ["crypto kraken", fx("kraken.example", "Hello")],
+    ["crypto prediction", fx("kalshi.example", "Hello")],
+    ["crypto wallet", fx("news.example", "Connect your wallet")],
+    ["crypto word", fx("news.example", "Crypto is moving")],
+    ["fintech", fx("chime.example", "Hello")],
+    ["fintech cash app", fx("cash.app", "Hello")],
+    ["fintech transfer", fx("news.example", "Your transfer is on its way")],
+    ["fintech sent", fx("news.example", "You sent Alex a message")],
+    ["fintech received", fx("news.example", "You received a gift")],
+    ["amount", fx("news.example", "Look: $25 for you")],
+    ["tax", fx("mail.irs.example", "Hello")],
+    ["tax gov", fx("irs.gov", "Hello")],
+    ["tax domain", fx("filing.tax.example", "Hello")],
+    ["loan", fx("mail.mrcooper.example", "Hello")],
+    ["loan domain", fx("mortgage.example", "Hello")],
+    ["loan servicer", fx("nelnet.example", "Hello")],
+    ["utility", fx("utilities.example", "Hello")],
+    ["insurance", fx("mail.geico.example", "Hello")],
+    ["insurance premium", fx("news.example", "Your premium changed")],
+    ["insurance claim", fx("news.example", "Your claim update")],
+    ["receipt", fx("news.example", "Your receipt from the cafe")],
+    ["receipt purchase", fx("news.example", "Thanks for your purchase")],
+    ["renewal", fx("news.example", "Renewal notice")],
+    ["rent", fx("news.example", "Rent is due")],
+    ["account alert", fx("news.example", "Account alert")],
+    ["legal terms", fx("news.example", "We updated our Terms of Service")],
+    ["legal privacy", fx("news.example", "Privacy Policy update")],
+    ["legal contract", fx("news.example", "Please sign the contract")],
+  ];
+  it.each(MUST_SKIP)("skips %s", (_name, mail) => {
+    expect(preFilter(mail).kind).not.toBe("pass");
+  });
+
+  const MUST_PASS: ReturnType<typeof fx>[] = [
+    fx("example.org", "Dinner Thursday?", "priya"),
+    fx("school.example", "Practice moved to 5pm"),
+    fx("library.example", "Your hold is ready"),
+    fx("example.com", "Coffee soon?"),
+    fx("example.com", "Lunch at the current spot?"),
+    fx("example.com", "Photos from the trip"),
+    fx("team.example", "Standup notes and the new sprint"),
+    fx("example.com", "Rented a car for the trip, any tips?"),
+    fx("example.com", "Concert tickets for Saturday"),
+  ];
+  it.each(MUST_PASS)("lets ordinary mail through ($subject)", (mail) => {
+    expect(preFilter(mail)).toEqual({ kind: "pass" });
+  });
+});
+
+describe("urgent money mail keeps nothing", () => {
+  it("is a count only, in every path, with no ping", async () => {
+    const store = await connectedStore();
+    const deps = tickDeps(store, { fetcher: fakeGoogle({ history: [page(["18a1b2c3d4e5f612", "18a1b2c3d4e5f614"])] }).fetcher });
+    await tick(deps);
+    const s = (await store.load()).state;
+    expect(s.items).toEqual([]);
+    expect(s.day.urgent).toBe(2);
+    expect(deps.pings).toEqual([]);
+    expect(store.stateJson!).not.toContain("Chase");
+    expect(store.stateJson!).not.toContain(HEADS_UP_REASONS.fraud);
+  });
+
+  it("the signed-in view carries the count and no item", async () => {
+    const store = await connectedStore();
+    await tick(tickDeps(store, { fetcher: fakeGoogle({ history: [page(["18a1b2c3d4e5f612"])] }).fetcher }));
+    const deps = await routeDeps(store);
+    const view = (await (await GET(new Request(`${SITE}${EMAIL_PATH}`, { headers: { cookie: await signedInCookie(DESK_KEY, NOW, deps.desk.store!) } }), deps)).json()) as { items: unknown[]; urgentSkipped: number };
+    expect(view.items).toEqual([]);
+    expect(view.urgentSkipped).toBe(1);
+  });
+});
+
+describe("the paused path", () => {
+  it("runs the widened filter before keeping an unsorted item", async () => {
+    const store = await connectedStore();
+    const mails: FakeMail[] = [
+      { id: "18a1b2c3d4e5f621", from: "Digest <hello@robinhood.example>", subject: "Weekly digest", body: "Hello." },
+      { id: "18a1b2c3d4e5f622", from: "Friend <friend@example.com>", subject: "Photos from the trip", body: "Here they are." },
+    ];
+    const deps = tickDeps(store, { claude: null, fetcher: fakeGoogle({ mails, history: [page(mails.map((m) => m.id))] }).fetcher });
+    await tick(deps);
+    const s = (await store.load()).state;
+    expect(s.items.map((i) => [i.id, i.kind])).toEqual([["18a1b2c3d4e5f622", "unsorted"]]);
+    expect(s.day.skipped).toBe(1);
+  });
+});
+
+describe("the purge of stored items", () => {
+  const item = (id: string, from: string, subject: string, over: Partial<EmailItem> = {}): EmailItem => ({ id, at: NOW - 3_600_000, from, subject, kind: "fyi", summary: "", action: "", done: false, ...over });
+
+  it("recognises stored money and legal mail, old heads-ups and skip-list terms, and leaves the rest", () => {
+    expect(storedMailSkipped([], item("a00001", "Robinhood", "Weekly digest"))).toBe(true);
+    expect(storedMailSkipped([], item("a00002", "Pat <pat@mail.coinbase.example>", "Hello"))).toBe(true);
+    expect(storedMailSkipped([], item("a00003", "Anyone", "Your receipt from the cafe"))).toBe(true);
+    expect(storedMailSkipped([], item("a00004", "Chase", HEADS_UP_REASONS.fraud, { kind: "needs-you" }))).toBe(true);
+    expect(storedMailSkipped(["zzfaketerm"], item("a00005", "Old Friend", "Coffee", { summary: "about the zzfaketerm thing" }))).toBe(true);
+    expect(storedMailSkipped([], item("a00006", "Priya Fakename", "Dinner Thursday?"))).toBe(false);
+    expect(storedMailSkipped([], item("a00007", "Library Example", "Your hold is ready"))).toBe(false);
+  });
+
+  it("purgeItems drops matches and keeps the others", () => {
+    const state = { ...emptyEmailState(), items: [item("a00001", "Gemini", "Hello"), item("a00006", "Priya Fakename", "Dinner Thursday?")] };
+    expect(purgeItems(state, []).items.map((i) => i.id)).toEqual(["a00006"]);
+  });
+
+  it("every tick purges what is already stored, even when nothing new came", async () => {
+    const store = await connectedStore();
+    const { state, version } = await store.load();
+    await store.save(
+      {
+        ...state,
+        items: [
+          item("18a1b2c3d4e5f701", "Shop Example", "Thanks for your purchase"),
+          item("18a1b2c3d4e5f702", "Kalshi", "Hello", { kind: "needs-you" }),
+          item("18a1b2c3d4e5f703", "Chase", HEADS_UP_REASONS.overdue, { kind: "needs-you" }),
+          item("18a1b2c3d4e5f704", "Priya Fakename", "Dinner Thursday?", { kind: "needs-you" }),
+        ],
+      },
+      version,
+    );
+    await tick(tickDeps(store, { fetcher: fakeGoogle({ history: [page([])] }).fetcher }));
+    const s = (await store.load()).state;
+    expect(s.items.map((i) => i.id)).toEqual(["18a1b2c3d4e5f704"]);
+    for (const gone of ["Kalshi", "purchase", "Chase", HEADS_UP_REASONS.overdue]) expect(store.stateJson!, gone).not.toContain(gone);
+    expect((await store.status())!.needsYou).toBe(1);
   });
 });

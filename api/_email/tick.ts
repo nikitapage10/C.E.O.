@@ -23,7 +23,7 @@
 import { isQuiet, type PingText } from "../_desk/pings.js";
 import { monthOf } from "../_world/budget.js";
 import { addSpend, ADVISE_MODEL, budgetPct, canSpend, SORT_MODEL } from "./budget.js";
-import { HEADS_UP_REASONS, onSkipList, preFilter, type HeadsUpReason } from "./filter.js";
+import { onSkipList, preFilter, storedMailSkipped } from "./filter.js";
 import { accessToken, catchUpIds, currentHistoryId, fullBody, historySince, HistoryGoneError, lastHistoryId, newInboxIds, readMessage, readMessageRaw, TokenRefusedError, type Fetcher, type OAuthClient } from "./gmail.js";
 import { adviseMail, sortMail, type ClaudeCall } from "./sort.js";
 import { EMAIL_STATUS_VERSION, type EmailStatus } from "./status.js";
@@ -93,13 +93,6 @@ async function writeStatus(deps: TickDeps, state: EmailState): Promise<void> {
   await deps.store.saveStatus(statusOf(state, { ready: deps.client !== null, claude: deps.claude !== null, budget: deps.budget, now: deps.now })).catch(() => undefined);
 }
 
-/** A heads-up for urgent money or legal mail: the sender and a fixed reason, nothing else of the mail's. */
-function headsUp(mail: { id: string; at: number; from: string }, reason: HeadsUpReason): EmailItem {
-  // A long run of digits in a display name could be part of an account number: never kept.
-  const from = mail.from.replace(/\d[\d\s-]{2,}\d/g, "…").trim() || "A sender";
-  return { id: mail.id, at: mail.at, from, subject: HEADS_UP_REASONS[reason], kind: "needs-you", summary: "", action: "", done: false };
-}
-
 /**
  * Sorts one new mail into an item (or null for noise and skipped mail), spending only what the cap allows. The
  * private skip list and the money and legal pre-filter come first, before any model (./filter.ts).
@@ -109,12 +102,14 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown): Promise
   if (!mail) return { state, item: null, claudeFailed: false };
   let s: EmailState = { ...state, day: { ...state.day, newCount: state.day.newCount + 1 } };
   const skipped = (st: EmailState) => ({ state: { ...st, day: { ...st.day, skipped: st.day.skipped + 1 } }, item: null, claudeFailed: false });
+  // Urgent money or legal mail is counted and nothing else: no item, no sender, no reason (#415).
+  const urgent = (st: EmailState) => ({ state: { ...st, day: { ...st.day, skipped: st.day.skipped + 1, urgent: st.day.urgent + 1 } }, item: null, claudeFailed: false });
   // The private skip list: counted, and nothing else, not even a heads-up.
   if (onSkipList(deps.skipTerms ?? [], mail, fullBody(raw))) return skipped(s);
   if (mail.promo) return { state: { ...s, day: { ...s.day, noise: s.day.noise + 1 } }, item: null, claudeFailed: false };
   const verdict = preFilter(mail);
   if (verdict.kind === "skip") return skipped(s);
-  if (verdict.kind === "heads-up") return { state: s, item: headsUp(mail, verdict.reason), claudeFailed: false };
+  if (verdict.kind === "heads-up") return urgent(s);
   const base: EmailItem = { id: mail.id, at: mail.at, from: mail.from, subject: mail.subject, kind: "unsorted", summary: "", action: "", done: false };
   if (!deps.claude || !canSpend(s, SORT_MODEL, deps.budget, deps.now)) {
     // Paused (or no key): counted, not read by a model.
@@ -126,7 +121,7 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown): Promise
     if (!sorted) return { state: s, item: base, claudeFailed: true };
     if (sorted.kind === "noise") return { state: { ...s, day: { ...s.day, noise: s.day.noise + 1 } }, item: null, claudeFailed: false };
     // Money or legal mail Dialtone caught: skipped, or a heads-up when urgent. Never to Blasto.
-    if (sorted.kind === "skip") return sorted.urgent === "none" ? skipped(s) : { state: s, item: headsUp(mail, sorted.urgent), claudeFailed: false };
+    if (sorted.kind === "skip") return sorted.urgent === "none" ? skipped(s) : urgent(s);
     const item: EmailItem = { ...base, kind: sorted.kind, summary: sorted.summary, action: sorted.action };
     if (sorted.kind !== "needs-you" || !canSpend(s, ADVISE_MODEL, deps.budget, deps.now)) return { state: s, item, claudeFailed: false };
     const { advice, usage: u2 } = await adviseMail(deps.claude, mail);
@@ -135,6 +130,12 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown): Promise
   } catch {
     return { state: s, item: base, claudeFailed: true };
   }
+}
+
+/** The state without any kept item the skip list or the money and legal filter would skip today (#415). */
+export function purgeItems(state: EmailState, terms: readonly string[]): EmailState {
+  const items = state.items.filter((i) => !storedMailSkipped(terms, i));
+  return items.length === state.items.length ? state : { ...state, items };
 }
 
 /** New items into the list, replacing any with the same id. */
@@ -160,9 +161,10 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
   const claimed: EmailState = { ...loaded.state, busyUntil: deps.now + CLAIM_MS };
   if (!(await deps.store.save(claimed, loaded.version).catch(() => false))) return "busy";
 
-  let state: EmailState = claimed;
+  // Every tick clears what the filter would skip from the kept list: mail sorted before it existed or before it grew (#415).
+  let state: EmailState = purgeItems(claimed, deps.skipTerms ?? []);
   const today = mountainDay(deps.now);
-  if (state.day.day !== today) state = { ...state, day: { day: today, newCount: 0, noise: 0, skipped: 0 } };
+  if (state.day.day !== today) state = { ...state, day: { day: today, newCount: 0, noise: 0, skipped: 0, urgent: 0 } };
   // A new month lifts the pause, and its count of mail left unsorted starts again.
   if (state.lastCheck !== null && monthOf(state.lastCheck) !== monthOf(deps.now)) state = { ...state, unsorted: 0 };
   let result: TickResult = "checked";
@@ -262,7 +264,8 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
     await deps.ping(emailPing(state.pingPending)).catch(() => 0);
     state = { ...state, pingPending: 0 };
   }
-  state = { ...state, items: pruneItems(state.items, deps.now), lastCheck: deps.now, lastError, busyUntil: 0 };
+  state = { ...purgeItems(state, deps.skipTerms ?? []), lastCheck: deps.now, lastError, busyUntil: 0 };
+  state = { ...state, items: pruneItems(state.items, deps.now) };
   // Saved over whatever is stored now, keeping any Done Nikita pressed on the Desk while this tick ran.
   // Disconnected on the Desk while this tick ran: nothing of the inbox is kept.
   if (!(await deps.store.token().catch(() => null))) state = { ...state, items: [], historyId: null, seen: [], gmail: "not-connected", pingPending: 0, catchUpListed: false, catchUp: [] };

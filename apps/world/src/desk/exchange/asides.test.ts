@@ -1,6 +1,6 @@
 import { BOOKIE_WORLD_QUIPS } from "@ceo/simulator";
 import { describe, expect, it } from "vitest";
-import { asideBadge, asideLine, moveWords, seedOf, shortName } from "./asides.ts";
+import { asideBadge, asideLine, byMove, moveWords, seedOf, shortName } from "./asides.ts";
 import { isPmWorld, readBoard, type PmWorld } from "./polymarket.ts";
 import { bookieWorldLine } from "../../rooms/liveBoards.ts";
 
@@ -71,5 +71,13 @@ describe("what the Bookie calls a market", () => {
     expect(shortName("US x Iran ceasefire continues through October 31?")).toBe("US x Iran ceasefire continues");
     expect(shortName("2026 Balance of Power: R Senate, R House")).toBe("2026 Balance of Power: R Senate, R House");
     expect(shortName("X by 2026?")).toBe("X by 2026");
+  });
+});
+
+describe("the movers rail (#367)", () => {
+  it("puts the biggest move first, either way, and unknown moves last", () => {
+    const xs = [{ id: "a", change24h: 0.02 }, { id: "b", change24h: null }, { id: "c", change24h: -0.15 }, { id: "d", change24h: 0.07 }];
+    expect(byMove(xs).map((x) => x.id)).toEqual(["c", "d", "a", "b"]);
+    expect(xs.map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
   });
 });

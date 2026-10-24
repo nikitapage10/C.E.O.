@@ -67,3 +67,8 @@ export function asideBadge(m: PmWorld, world: readonly PmWorld[]): string {
   const busiest = world.reduce<PmWorld | null>((best, x) => (!best || x.volume24h > best.volume24h ? x : best), null);
   return busiest?.id === m.id ? "Busiest today" : "Live";
 }
+
+/** Biggest movers first, for the movers rail (#367); markets Polymarket gave no move for go last. */
+export function byMove<T extends Pick<PmWorld, "change24h">>(world: readonly T[]): T[] {
+  return [...world].sort((a, b) => (b.change24h === null ? -1 : Math.abs(b.change24h)) - (a.change24h === null ? -1 : Math.abs(a.change24h)));
+}

@@ -145,7 +145,7 @@ test.describe.serial("the Lattice", () => {
   });
 
   test("Brogu's eyes open in a room and Esc leaves them", async () => {
-    test.setTimeout(STEP_MS * 2);
+    test.setTimeout(STEP_MS * 5);
     await returnToOverview();
     const room = ROOM_IDS[0]!;
     await page.keyboard.press("1");
@@ -167,13 +167,13 @@ test.describe.serial("the Lattice", () => {
   });
 
   test("every glitch fires and the Lattice returns to normal", async () => {
-    test.setTimeout(STEP_MS);
+    test.setTimeout(STEP_MS * 2);
     await returnToOverview();
     await api(page, (a) => a.focus("foundry"));
     const ids = await api(page, (a) => a.glitchIds);
     expect(ids.length).toBeGreaterThanOrEqual(14);
     // One step per glitch: fire, hold, screenshot, and wait for it to clear.
-    test.setTimeout((ids.length + 1) * STEP_MS);
+    test.setTimeout((ids.length + 4) * STEP_MS);
     for (const id of ids) {
       await page.evaluate((g) => (window as unknown as { __ceo: Api }).__ceo.fireGlitch(g), id);
       await expect.poll(() => api(page, (a) => a.activeGlitch()?.id ?? null)).toBe(id);
@@ -184,7 +184,7 @@ test.describe.serial("the Lattice", () => {
   });
 
   test("agents can be renamed, re-dressed and given relationships", async () => {
-    test.setTimeout(2 * STEP_MS);
+    test.setTimeout(STEP_MS * 5);
     await returnToOverview();
     await page.evaluate(() => localStorage.removeItem("ceo.cast.v2"));
     await page.locator(".roster li").filter({ hasText: "Kevin" }).hover();

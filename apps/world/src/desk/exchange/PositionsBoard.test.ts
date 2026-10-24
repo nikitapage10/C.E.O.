@@ -27,4 +27,11 @@ describe("the positions board (#253)", () => {
     expect(html).toContain("Waiting for your Polymarket US key");
     expect(html).not.toMatch(/\$\d/);
   });
+
+  it("signed out, shows only where the book is: a state and a sign-in, never a figure (#367)", () => {
+    const html = renderToStaticMarkup(createElement(PositionsView, { status: "signed-out", data: null, reason: null, onSignIn: () => {} }));
+    expect(html).toContain("behind the Desk&#x27;s passkey");
+    expect(html).toContain("Sign in");
+    expect(html).not.toMatch(/\$\d|\d+(\.\d+)?%|contracts? ·|@ \d/);
+  });
 });

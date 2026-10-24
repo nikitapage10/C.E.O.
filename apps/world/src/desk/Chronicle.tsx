@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { chronicleDay, dayTitle, hourLabel, sinceAway, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
+import { BookOfHours, mountainHour } from "./ChronicleHours.tsx";
+import { TideFolio } from "./ChronicleTide.tsx";
+import type { BookLive } from "./chronicleViz.ts";
+import { chronicleDay, dayTitle, hourLabel, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
 import { previousWeek, weekDaysOf, weekStartOf } from "../../../../api/_world/weeks.ts";
-import { Bonds, Chevron, Edition, hoursOf, KIND_WORD, ROOM_NAME, Shelf, shortDay, WeekInIlyr } from "./ChronicleWeave.tsx";
+import { Bonds, Chevron, Edition, hoursOf, KIND_WORD, Kin, ROOM_NAME, Shelf, shortDay, WeekTold } from "./ChronicleWeave.tsx";
 import { DayStory } from "./DayStory.tsx";
 import { formatWait } from "./deskData.ts";
 import { link } from "./nav.ts";
@@ -25,18 +28,22 @@ const HOURS_SHOWN = 6;
 /** How many past days sit on the shelf. */
 const SHELF = 8;
 
-export function Chronicle({ now, awaySince, children }: { now: number; awaySince: number; children?: React.ReactNode }) {
+export function Chronicle({ now, awaySince }: { now: number; awaySince: number }) {
   const { status, feed } = useWorldFeed();
   const pages = useChronicle((s) => s.pages);
   const today = chronicleDay(now);
   const yesterday = chronicleDay(now - 86_400_000);
   const days = feed?.days.length ? feed.days : [today];
   const [day, setDay] = useState<string | null>(null);
+  // The hour picked in the Book of Hours, opened and brought into view in the day below.
+  const [focusStep, setFocusStep] = useState<number | null>(null);
   const shown = day ?? days[0]!;
   const week = weekStartOf(shown);
+  const weekDays = weekDaysOf(week);
   const shelfDays = days.filter((d) => d !== today).slice(0, SHELF);
-  const want = [...new Set([today, shown, ...weekDaysOf(week).filter((d) => days.includes(d)), ...shelfDays])].join(",");
+  const want = [...new Set([today, shown, ...weekDays.filter((d) => days.includes(d)), ...shelfDays])].join(",");
   const dayRef = useRef<HTMLElement>(null);
+  const live = useRef<BookLive>({ hover: -1, read: [], pr: 0, on: false });
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -47,17 +54,23 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
   const todays = hoursOf(today, pages[today], recent);
   const page = pages[shown];
   const entries = hoursOf(shown, page, recent);
+  const weekEntries = weekDays.flatMap((d) => hoursOf(d, pages[d], recent));
   const recap = page && page !== "loading" && page !== "failed" ? page.recap : null;
   // The Desk can ask for today's or yesterday's story (api/day-story.ts); older days only ever get the step's.
   const canMake = shown === today || shown === yesterday;
   // The week in Ilyr (#211): the shown day's week, and on this week also the week just ended.
   const weeks = week === weekStartOf(today) ? [week, previousWeek(week)] : [week];
-  const away = feed ? sinceAway(feed.recent, awaySince) : [];
   const changed = (feed?.relationships ?? []).filter((r) => r.since).sort((a, b) => Date.parse(b.since!) - Date.parse(a.since!)).slice(0, 8);
-  const pick = (d: string) => {
+  const pick = (d: string, step?: number) => {
     setDay(d);
-    dayRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setFocusStep(step ?? null);
+    if (step == null) dayRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+  // The weeks either side that have days on file, by the latest day of each.
+  const weekOf = (monday: string) => days.filter((d) => weekStartOf(d) === monday).sort().pop() ?? null;
+  const prevWeek = weekOf(previousWeek(week));
+  const nextMonday = weekDays[6]! < today ? weekStartOf(nextDay(weekDays[6]!)) : null;
+  const nextWeek = nextMonday ? (weekOf(nextMonday) ?? (weekStartOf(today) === nextMonday ? today : null)) : null;
 
   const lead =
     status === "off"
@@ -68,9 +81,7 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
           : "Opening the Archive…"
         : !feed.at
           ? "The Archive opens with the first hourly step."
-          : away.length
-            ? `${away.length} ${away.length === 1 ? "hour has" : "hours have"} passed in Ilyr since you were last here.`
-            : "Every hour the world takes a step, and the Historian writes it down here.";
+          : "Every hour the world takes a step, and the Historian writes it down. This is the record.";
   const [y, m, d] = today.split("-").map(Number);
   const dateLine = new Date(Date.UTC(y!, m! - 1, d!, 12)).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
   const idx = days.indexOf(shown);
@@ -79,17 +90,13 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
     <div className="chron wv-page ax" data-room="archive" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
       <header className="ax-mast">
         <div className="ax-mast-t">
-          <p className="ax-k">The Archive</p>
+          <p className="ax-k">The Archive · {dateLine}</p>
           <h1 className="desk__title ax-title">
-            <span>The Chronicle</span> <span className="ax-title-of">of Ilyr</span>
+            <span className="ax-title-a">The Chronicle</span> <span className="ax-title-of">of Ilyr</span>
           </h1>
           <p className="ax-lead">{lead}</p>
         </div>
         <dl className="ax-label" aria-label="The Archive at a glance">
-          <div>
-            <dt>Today</dt>
-            <dd>{dateLine}</dd>
-          </div>
           <div>
             <dt>Last step</dt>
             <dd>{feed?.at ? `${formatWait(now - Date.parse(feed.at))} ago` : status === "off" ? "Not saved yet" : "Not yet"}</dd>
@@ -99,110 +106,121 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
             <dd>{feed?.nextAt ? nextIn(Date.parse(feed.nextAt) - now) : "Not scheduled"}</dd>
           </div>
           <div>
+            <dt>Today so far</dt>
+            <dd>{todays.length ? `${todays.length} ${todays.length === 1 ? "hour" : "hours"}` : "None yet"}</dd>
+          </div>
+          <div>
             <dt>On file</dt>
             <dd>{feed ? `${feed.days.length} ${feed.days.length === 1 ? "day" : "days"}` : "…"}</dd>
           </div>
         </dl>
       </header>
 
-      {status === "ready" || todays.length ? (
-        <Edition today={today} yesterday={yesterday} entries={todays} hourNow={mountainHour(now)} />
-      ) : (
-        <section className="ax-ed ax-ed-off">
-          <p className="wv-note">{status === "off" ? "No pages yet. Today in Ilyr appears here once the world takes its first step." : status === "failed" ? "Can't reach the Archive right now." : "Turning the pages…"}</p>
-        </section>
-      )}
-
-      <WeekInIlyr monday={week} shown={shown} today={today} days={days} pages={pages} recent={recent} weeks={weeks} onPick={pick} />
-
-      <section ref={dayRef} className="ax-day" aria-label={`The Archive, ${dayTitle(shown, now)}`}>
-        <div className="ax-day-head">
-          <div>
-            <p className="ax-k">Hour by hour</p>
-            <h2 className="ax-h2">
-              {dayTitle(shown, now)}, <em>as it was written</em>
-            </h2>
-            <p className="ax-day-date">
-              {shortDay(shown).long} {shortDay(shown).month}
-              {entries.length ? ` · ${entries.length} ${entries.length === 1 ? "hour" : "hours"} on file` : ""}
-            </p>
-          </div>
-          {days.length > 1 && (
-            <div className="ax-step" role="group" aria-label="Days">
-              <button type="button" disabled={idx < 0 || idx >= days.length - 1} onClick={() => setDay(days[idx + 1]!)} aria-label="The day before">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-                  <path d="M10 3L5 8l5 5" />
-                </svg>
-              </button>
-              <select value={shown} onChange={(e) => setDay(e.target.value)} aria-label="Pick a day">
-                {days.slice(0, 30).map((x) => (
-                  <option key={x} value={x}>
-                    {dayTitle(x, now)}
-                  </option>
-                ))}
-              </select>
-              <button type="button" disabled={idx <= 0} onClick={() => setDay(days[idx - 1]!)} aria-label="The day after">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-                  <path d="M6 3l5 5-5 5" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </div>
-        {recap && (
-          <div className="ax-recap">
-            <p className="ax-k">The day, as the Historian filed it</p>
-            <p>{recap}</p>
-          </div>
+      <div className="ax-hero">
+        {status === "ready" || todays.length ? (
+          <Edition today={today} yesterday={yesterday} entries={todays} hourNow={mountainHour(now)} live={live} />
+        ) : (
+          <section className="ax-ed ax-ed-off">
+            <p className="ax-k">Today in Ilyr</p>
+            <p className="wv-note">{status === "off" ? "No pages yet. Today in Ilyr appears here once the world takes its first step." : status === "failed" ? "Can't reach the Archive right now." : "Turning the pages…"}</p>
+          </section>
         )}
-        {shown !== today && <DayStory day={shown} canMake={canMake && shown !== today} compact label={`Hear ${dayTitle(shown, now) === "Yesterday" ? "yesterday" : "the day"} in Ilyr`} />}
-        <Hours key={shown} entries={entries} awaySince={awaySince} loading={page === "loading" || status === "loading"} off={status === "off"} />
-        {entries.length > 0 && (
-          <details className="ax-drawer">
-            <summary>
-              The day by room
-              <Chevron />
-            </summary>
-            <DayInRooms entries={entries} />
-          </details>
-        )}
-        {shown === today && entries.length > 0 && !recap && <p className="wv-note ax-day-foot">The Historian files the day in Ilyr after midnight.{feed?.nextAt ? ` Next hour ${nextIn(Date.parse(feed.nextAt) - now)}.` : ""}</p>}
-      </section>
-
-      <div className="ax-pair2">
-        <Bonds entries={entries} today={shown === today}>
-          <details className="ax-drawer">
-            <summary>
-              How everyone stands now{changed.length ? ` (${changed.length} moved lately)` : ""}
-              <Chevron />
-            </summary>
-            {changed.length ? (
-              <ul className="chron-rels">
-                {changed.map((r) => (
-                  <li key={`${r.a}|${r.b}`}>
-                    <span className="chron-rels__pair">
-                      <Avatar agent={nameOf(r.a)} size="sm" />
-                      <Avatar agent={nameOf(r.b)} size="sm" />
-                    </span>
-                    <span>
-                      <b>
-                        {nameOf(r.a)} & {nameOf(r.b)}
-                      </b>{" "}
-                      <em>{KIND_WORD[r.kind] ?? r.kind}</em>
-                      <small>{r.note}</small>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="wv-note">No one's relationships have moved yet. Give them an hour or two.</p>
-            )}
-          </details>
-        </Bonds>
-        <Shelf days={shelfDays} pages={pages} recent={recent} onOpen={pick} />
+        <BookOfHours monday={week} shown={shown} today={today} now={now} days={days} pages={pages} recent={recent} live={live} onPick={pick} onWeek={(x) => pick(x)} prevWeek={prevWeek} nextWeek={nextWeek} />
+        <WeekTold weeks={weeks} monday={week} written={weekEntries.length > 0} />
       </div>
 
-      {children}
+      <div className="ax-folio">
+        <section ref={dayRef} className="ax-day" aria-label={`The Archive, ${dayTitle(shown, now)}`}>
+          <div className="ax-day-head">
+            <div>
+              <p className="ax-k">The scroll · hour by hour</p>
+              <h2 className="ax-h2">
+                {dayTitle(shown, now)}, <em>as it was written</em>
+              </h2>
+              <p className="ax-day-date">
+                {shortDay(shown).long} {shortDay(shown).month}
+                {entries.length ? ` · ${entries.length} ${entries.length === 1 ? "hour" : "hours"} on file` : ""}
+              </p>
+            </div>
+            {days.length > 1 && (
+              <div className="ax-step" role="group" aria-label="Days">
+                <button type="button" disabled={idx < 0 || idx >= days.length - 1} onClick={() => pick(days[idx + 1]!, -1)} aria-label="The day before">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                    <path d="M10 3L5 8l5 5" />
+                  </svg>
+                </button>
+                <select value={shown} onChange={(e) => pick(e.target.value, -1)} aria-label="Pick a day">
+                  {days.slice(0, 30).map((x) => (
+                    <option key={x} value={x}>
+                      {dayTitle(x, now)}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" disabled={idx <= 0} onClick={() => pick(days[idx - 1]!, -1)} aria-label="The day after">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                    <path d="M6 3l5 5-5 5" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+          {recap && (
+            <div className="ax-recap">
+              <p className="ax-k">The day, as the Historian filed it</p>
+              <p>
+                <Kin text={recap} />
+              </p>
+            </div>
+          )}
+          {shown !== today && <DayStory day={shown} canMake={canMake && shown !== today} compact label={`Hear ${dayTitle(shown, now) === "Yesterday" ? "yesterday" : "the day"} in Ilyr`} />}
+          <Hours key={shown} entries={entries} awaySince={awaySince} focus={focusStep} loading={page === "loading" || status === "loading"} off={status === "off"} />
+          {entries.length > 0 && (
+            <details className="ax-drawer">
+              <summary>
+                The day by room
+                <Chevron />
+              </summary>
+              <DayInRooms entries={entries} />
+            </details>
+          )}
+          {shown === today && entries.length > 0 && !recap && <p className="wv-note ax-day-foot">The Historian files the day in Ilyr after midnight.{feed?.nextAt ? ` Next hour ${nextIn(Date.parse(feed.nextAt) - now)}.` : ""}</p>}
+        </section>
+
+        <aside className="ax-side">
+          <Bonds entries={entries} today={shown === today}>
+            <details className="ax-drawer">
+              <summary>
+                How everyone stands now{changed.length ? ` (${changed.length} moved lately)` : ""}
+                <Chevron />
+              </summary>
+              {changed.length ? (
+                <ul className="chron-rels">
+                  {changed.map((r) => (
+                    <li key={`${r.a}|${r.b}`}>
+                      <span className="chron-rels__pair">
+                        <Avatar agent={nameOf(r.a)} size="sm" />
+                        <Avatar agent={nameOf(r.b)} size="sm" />
+                      </span>
+                      <span>
+                        <b>
+                          {nameOf(r.a)} & {nameOf(r.b)}
+                        </b>{" "}
+                        <em>{KIND_WORD[r.kind] ?? r.kind}</em>
+                        <small>{r.note}</small>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="wv-note">No one's relationships have moved yet. Give them an hour or two.</p>
+              )}
+            </details>
+          </Bonds>
+          <Shelf days={shelfDays} pages={pages} recent={recent} onOpen={pick} />
+        </aside>
+      </div>
+
+      <TideFolio week={weekEntries} />
 
       <details className="ax-drawer ax-how">
         <summary>
@@ -212,8 +230,8 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
         <p className="wv-note">
           Once an hour the Lattice takes a step: one Claude Haiku call writes the whole world's hour from the cast, how they stand, the last few hours and what really happened in the
           Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. About every five hours, and once the day's recap is filed, Skippy, the Magnificent
-          reads the day aloud from the Historian's notes: ElevenLabs' speech when it's connected, else Gemini's, one voice, from the Archive's own public lines. The story's lines light
-          up in step with the reading by their share of it. On Sunday evening the cast tells the week. The Lattice plays the latest hour when you{" "}
+          reads the day aloud from the Historian's notes: ElevenLabs' speech when it's connected, else Gemini's, one voice, from the Archive's own public lines. While it plays, the
+          day's hours light up in the Book of Hours by their share of the reading. On Sunday evening the cast tells the week. The Lattice plays the latest hour when you{" "}
           <a href="/lattice" onClick={link("lattice")}>
             walk in
           </a>
@@ -224,27 +242,35 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
   );
 }
 
-/** The hour of a moment in Mountain time, the Chronicle's clock. */
-function mountainHour(at: number): number {
-  return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", hour: "2-digit", hourCycle: "h23" }).format(new Date(at))) % 24;
+/** The day after a "YYYY-MM-DD" day. */
+function nextDay(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d! + 1, 12)).toISOString().slice(0, 10);
 }
 
 /** The shown day's hours, newest first, as a thread: one line each, the scenes a click deeper. */
-function Hours({ entries, awaySince, loading, off }: { entries: HistoryEntry[]; awaySince: number; loading: boolean; off: boolean }) {
-  const [all, setAll] = useState(false);
+function Hours({ entries, awaySince, focus, loading, off }: { entries: HistoryEntry[]; awaySince: number; focus: number | null; loading: boolean; off: boolean }) {
   const newestFirst = [...entries].reverse();
+  const at = focus == null ? -1 : newestFirst.findIndex((e) => e.step === focus);
+  const [all, setAll] = useState(false);
+  const showAll = all || at >= HOURS_SHOWN;
+  // An hour picked in the Book of Hours: bring it into view once it's here.
+  useEffect(() => {
+    if (at < 0) return;
+    document.getElementById(`hour-${focus}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [at, focus]);
   if (!newestFirst.length) return <p className="wv-note ax-hours-none">{loading ? "Turning the pages…" : off ? "No pages yet." : "No hours recorded on this day."}</p>;
-  const list = all ? newestFirst : newestFirst.slice(0, HOURS_SHOWN);
+  const list = showAll ? newestFirst : newestFirst.slice(0, HOURS_SHOWN);
   return (
     <>
       <ol className="ax-hours">
         {list.map((e, i) => (
-          <Hour key={e.step} e={e} fresh={Date.parse(e.at) > awaySince} i={i} />
+          <Hour key={e.step} e={e} fresh={Date.parse(e.at) > awaySince} i={i} picked={e.step === focus} />
         ))}
       </ol>
       {newestFirst.length > HOURS_SHOWN && (
-        <button className="ax-more" type="button" aria-expanded={all} onClick={() => setAll(!all)}>
-          {all ? "Fewer hours" : `All ${newestFirst.length} hours`}
+        <button className="ax-more" type="button" aria-expanded={showAll} onClick={() => setAll(!showAll)}>
+          {showAll ? "Fewer hours" : `All ${newestFirst.length} hours`}
           <Chevron />
         </button>
       )}
@@ -252,16 +278,19 @@ function Hours({ entries, awaySince, loading, off }: { entries: HistoryEntry[]; 
   );
 }
 
-function Hour({ e, fresh, i }: { e: HistoryEntry; fresh: boolean; i: number }) {
-  const [open, setOpen] = useState(false);
+function Hour({ e, fresh, i, picked }: { e: HistoryEntry; fresh: boolean; i: number; picked: boolean }) {
+  const [open, setOpen] = useState(picked);
+  useEffect(() => {
+    if (picked) setOpen(true);
+  }, [picked]);
   const rooms = [...new Set(e.scenes.map((s) => s.room))];
   const deeper = e.scenes.length + e.remarks.length + e.changes.length + e.events.length > 0;
   return (
-    <li className={`ax-hour${fresh ? " is-fresh" : ""}${open ? " is-open" : ""}${i === 0 ? " is-lead" : ""}`} id={`hour-${e.step}`} style={{ "--i": i } as React.CSSProperties}>
+    <li className={`ax-hour${fresh ? " is-fresh" : ""}${open ? " is-open" : ""}${i === 0 ? " is-lead" : ""}${picked ? " is-picked" : ""}`} id={`hour-${e.step}`} style={{ "--i": i } as React.CSSProperties}>
       <button className="ax-hour-row" type="button" aria-expanded={deeper ? open : undefined} onClick={() => deeper && setOpen(!open)} disabled={!deeper}>
         <time dateTime={e.at}>{hourLabel(e.at)}</time>
         <span className="ax-hour-s">
-          {e.summary}
+          <Kin text={e.summary} />
           {fresh && <span className="ax-tag is-new">New</span>}
           {e.source === "scripted" && (
             <span className="ax-tag" title="Written from the agents' own scripted lines (no Claude call this hour)">

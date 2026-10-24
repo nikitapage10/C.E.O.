@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDuration, useDayStory, useWeekStory, type DayPage, type DayStoryView, type HistoryEntry, type RoomId } from "../chronicle.ts";
-import { weekDaysOf } from "../../../../api/_world/weeks.ts";
-import { tloomSpec, waveSpec, weekSpec, type TaleClock, type WeekCol } from "./chronicleViz.ts";
+import type { BookLive } from "./chronicleViz.ts";
 import { madeAt, paragraphs, STORY_WHY, useStoryMaker } from "./DayStory.tsx";
 import { PORTRAITS } from "./portraits.ts";
 import { SKIPPY_PORTRAIT } from "./skippy/SkippyAvatar.tsx";
-import { reducedMotion, useViz } from "./wvCanvas.ts";
+import { reducedMotion } from "./wvCanvas.ts";
 
 /**
  * The Archive's pieces (#366, a redesign of the Weave's Chronicle): Today in Ilyr as a broadsheet edition, Skippy's
@@ -27,7 +26,6 @@ export const ROOM_NAME: Record<RoomId, string> = {
   workshop: "Workshop",
   studio: "Studio",
 };
-const LOOM_ROOMS: RoomId[] = ["foundry", "breakroom", "boiler", "relay", "archive", "spire", "exchange", "green", "workshop", "studio"];
 const WORDS = ["None", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 export const KIND_WORD: Record<string, string> = { friend: "friends", "best-friend": "best friends", rival: "rivals", nemesis: "nemeses", crush: "a crush", partner: "partners", mentor: "mentor and student", sibling: "siblings", ex: "exes" };
 
@@ -215,7 +213,7 @@ const REFRESH_MS = 5 * 60_000;
  * play ring and the day's editions as a rail. Read along opens the lines lighting up in time, and the rooms with them.
  * Falls back to yesterday's whole day while today has no edition yet, and to the hours read quietly when neither does.
  */
-export function Edition({ today, yesterday, entries, hourNow }: { today: string; yesterday: string; entries: HistoryEntry[]; hourNow: number }) {
+export function Edition({ today, yesterday, entries, hourNow, live }: { today: string; yesterday: string; entries: HistoryEntry[]; hourNow: number; live: { current: BookLive } }) {
   const mine = useDayStory((s) => s.stories[today]);
   const prev = useDayStory((s) => s.stories[yesterday]);
   const audio = useRef<HTMLAudioElement>(null);
@@ -240,24 +238,18 @@ export function Edition({ today, yesterday, entries, hourNow }: { today: string;
   const [t, setT] = useState(0);
   // The audio couldn't play (blocked or gone): the lines carry on as a quiet read-along.
   const [silent, setSilent] = useState(false);
-  const clock = useRef<TaleClock>({ on: false, t: 0, dur: 1, room: null, told: new Set() });
   const idx = lines.reduce((ix, l, i) => (started && t >= l.t ? i : ix), -1);
-  const room = idx >= 0 ? lines[idx]!.room : null;
-  const toldKey = lines
-    .slice(0, Math.max(0, idx))
-    .map((l) => l.room)
-    .join();
-  const told = useMemo(() => new Set(toldKey ? toldKey.split(",") : []), [toldKey]);
+  // The Book of Hours lights today's hours as the reading goes (read each frame, no re-render).
   useEffect(() => {
-    Object.assign(clock.current, { on, t, dur: dur || 1, room, told });
-  }, [on, t, dur, room, told]);
-
-  const wave = useMemo(() => waveSpec(clock), []);
-  const loom = useMemo(() => tloomSpec(clock), []);
-  const waveCv = useRef<HTMLCanvasElement>(null);
-  const loomCv = useRef<HTMLCanvasElement>(null);
-  const wv = useViz(waveCv, wave);
-  const lv = useViz(loomCv, loom);
+    live.current.on = on || (started && t > 0 && t < dur);
+    live.current.pr = dur ? Math.min(1, t / dur) : 0;
+  }, [on, started, t, dur, live]);
+  useEffect(
+    () => () => {
+      live.current.on = false;
+    },
+    [live],
+  );
   const box = useRef<HTMLDivElement>(null);
 
   // A new edition starts from the top.
@@ -296,11 +288,7 @@ export function Edition({ today, yesterday, entries, hourNow }: { today: string;
     const el = box.current?.querySelector<HTMLElement>(".is-now");
     const b = box.current;
     if (el && b && b.scrollHeight > b.clientHeight) b.scrollTo({ top: el.offsetTop - b.clientHeight / 3, behavior: reducedMotion() ? "auto" : "smooth" });
-    if (reducedMotion()) {
-      wv.current?.relayout();
-      lv.current?.relayout();
-    }
-  }, [idx, open, wv, lv]);
+  }, [idx, open]);
 
   const play = () => {
     if (!lines.length) return;
@@ -366,9 +354,6 @@ export function Edition({ today, yesterday, entries, hourNow }: { today: string;
               </span>
             </div>
           </div>
-          <div className="ax-ed-wave">
-            <canvas ref={waveCv} className="wv-cv" aria-hidden="true" />
-          </div>
           <ol className="ax-rail" aria-label="Today's editions">
             {SLOTS.map((s, i) => {
               const state = ready && isToday ? (i < slot ? "past" : i === slot ? "now" : "next") : ready && i === slot ? "now" : !ready && s.ed && hourNow >= s.ed * 5 ? "past" : "next";
@@ -418,19 +403,6 @@ export function Edition({ today, yesterday, entries, hourNow }: { today: string;
               </p>
             ))}
           </div>
-          <div className="ax-looms">
-            <p className="ax-k">Where the story goes</p>
-            <div className="wv-tlooms ax-tlooms">
-              <canvas ref={loomCv} className="wv-cv" aria-hidden="true" />
-              <ul className="wv-tloom-l">
-                {LOOM_ROOMS.map((r) => (
-                  <li key={r} data-room={r} className={room === r ? "is-lit" : told.has(r) ? "is-told" : undefined}>
-                    {ROOM_NAME[r]}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
         </div>
       )}
     </section>
@@ -456,30 +428,19 @@ export function hoursOf(day: string, page: DayPage | "loading" | "failed" | unde
   return [...byStep.values()].sort((x, y) => x.step - y.step);
 }
 
-const roomsOf = (entries: HistoryEntry[]) => {
+export const roomsOf = (entries: HistoryEntry[]) => {
   const rooms: Record<string, number> = {};
   for (const e of entries) for (const s of e.scenes) rooms[s.room] = (rooms[s.room] ?? 0) + 1;
   return rooms;
 };
 const shipsOf = (entries: HistoryEntry[]) => entries.reduce((n, e) => n + e.remarks.length, 0);
-/** The phone layout's tapestry hides the folios' lines, so its strands can run lower. */
-const phoneWidth = () => typeof window !== "undefined" && window.innerWidth <= 640;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * The week in Ilyr (#211), given pride of place: seven folios over a tapestry of strands (a strand per room a day
- * visited, a knot per change shipped), the cast's Sunday story under it as a pull quote, its transcript a click away.
- * Picking a folio opens that day below.
+ * The week, told by the cast (#211): their Sunday story as a pull quote across the page, its reading behind a play
+ * ring and its transcript a click away. Until Sunday it says when it comes.
  */
-export function WeekInIlyr({ monday, shown, today, days, pages, recent, weeks, onPick }: { monday: string; shown: string; today: string; days: string[]; pages: Record<string, DayPage | "loading" | "failed">; recent: HistoryEntry[]; weeks: string[]; onPick: (day: string) => void }) {
-  const week = weekDaysOf(monday);
-  const hrsBy = week.map((d) => hoursOf(d, pages[d], recent));
-  const cols: WeekCol[] = week.map((d, i) => ({ rooms: roomsOf(hrsBy[i]!), ships: shipsOf(hrsBy[i]!), hot: d === shown }));
-  const sig = JSON.stringify(cols);
-  const spec = useMemo(() => weekSpec(cols, phoneWidth() ? { top: 70, bottom: 34 } : { top: 104, bottom: 112 }), [sig]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cv = useRef<HTMLCanvasElement>(null);
-  useViz(cv, spec);
-
+export function WeekTold({ weeks, monday, written }: { weeks: string[]; monday: string; written: boolean }) {
   const all = useWeekStory((s) => s.weeks);
   const key = weeks.join(",");
   useEffect(() => {
@@ -497,81 +458,10 @@ export function WeekInIlyr({ monday, shown, today, days, pages, recent, weeks, o
     if (on) a.pause();
     else void a.play().then(() => setOn(true), () => setOn(false));
   };
-  const scenes = cols.reduce((n, c) => n + Object.values(c.rooms).reduce((a, b) => a + b, 0), 0);
-  const hours = hrsBy.reduce((n, h) => n + h.length, 0);
-  const ships = cols.reduce((n, c) => n + c.ships, 0);
-  const byRoom: Record<string, number> = {};
-  for (const c of cols) for (const [r, n] of Object.entries(c.rooms)) byRoom[r] = (byRoom[r] ?? 0) + n;
-  const weekRooms = Object.entries(byRoom).sort((a, b) => b[1] - a[1]);
   const quote = story ? sentences(story.script).slice(0, 2).join(" ") : null;
   const lastWeek = Boolean(story && story.week !== monday);
-  const first = shortDay(week[0]!);
-  const last = shortDay(week[6]!);
-  // The week unrolls once it comes into view.
-  const band = useRef<HTMLDivElement>(null);
-  const unrolled = useInView(band);
-
   return (
-    <section className="ax-week" data-room="archive" aria-label="The week in Ilyr">
-      <div className="ax-week-head">
-        <div>
-          <p className="ax-k">The week in Ilyr</p>
-          <h2 className="ax-h2">
-            {first.month.endsWith(last.month.replace(/^\d+\s*/, "")) ? first.d : first.month} to {last.month}
-          </h2>
-        </div>
-        <dl className="ax-tally">
-          <div>
-            <dt>Hours</dt>
-            <dd>{hours}</dd>
-          </div>
-          <div>
-            <dt>Scenes</dt>
-            <dd>{scenes}</dd>
-          </div>
-          <div>
-            <dt>Ships</dt>
-            <dd>{ships}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <div ref={band} className={`ax-scroll${unrolled ? " is-in" : ""}`}>
-        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
-        <ol className="ax-folios">
-          {week.map((d, i) => {
-            const s = shortDay(d);
-            const hrs = hrsBy[i]!;
-            const has = days.includes(d) || hrs.length > 0;
-            const page = pages[d];
-            const recap = page && page !== "loading" && page !== "failed" ? page.recap : null;
-            const line = clauseOf(recap, 8) ?? clauseOf(hrs[hrs.length - 1]?.summary, 8);
-            const future = d > today;
-            const cls = [d === shown && "is-shown", d === today && "is-today", future && "is-future"].filter(Boolean).join(" ");
-            return (
-              <li key={d} className={cls || undefined} style={{ "--i": i } as React.CSSProperties}>
-                <button type="button" disabled={!has} onClick={() => onPick(d)} aria-pressed={d === shown} aria-label={`Open ${s.long} ${s.d}`}>
-                  <span className="ax-folio-wd">{d === today ? "Today" : s.wd}</span>
-                  <span className="ax-folio-d">{s.d}</span>
-                  <span className="ax-folio-l">{future ? "To come" : (line ?? (has ? plural(hrs.length, "hour") : "Not written"))}</span>
-                  <span className="ax-folio-s">{future ? "" : cols[i]!.ships > 0 ? plural(cols[i]!.ships, "ship") : has ? plural(hrs.length, "hour") : ""}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </div>
-      {weekRooms.length > 0 && (
-        <ul className="ax-legend" aria-label="Rooms the week visited">
-          {weekRooms.map(([r, n]) => (
-            <li key={r} data-room={r}>
-              <i aria-hidden="true" />
-              {ROOM_NAME[r as RoomId] ?? r} <small>{n}</small>
-            </li>
-          ))}
-        </ul>
-      )}
-
+    <section className="ax-told" aria-label="The week, told by the cast">
       {story?.audio && <audio ref={audio} preload="none" src={story.audio} onTimeUpdate={(e) => setT(e.currentTarget.currentTime)} onPause={() => setOn(false)} onEnded={() => setOn(false)} />}
       {quote ? (
         <figure className="ax-quote">
@@ -584,25 +474,23 @@ export function WeekInIlyr({ monday, shown, today, days, pages, recent, weeks, o
               <b>{lastWeek ? "Last week, told by the cast" : "The week, told by the cast"}</b>
               <small>Sunday evening{story?.audio ? ` · ${formatDuration(story.durationSec)}` : " · not read aloud"}</small>
             </span>
+            {story && (
+              <button className="ax-more" type="button" aria-expanded={read} onClick={() => setRead(!read)}>
+                {read ? "Close the week's story" : "Read the whole week"}
+                <Chevron />
+              </button>
+            )}
           </figcaption>
         </figure>
       ) : (
-        <p className="ax-week-wait">{scenes ? "The threads gather all week. The cast tells the week on Sunday evening." : "Nothing written this week yet. The cast tells the week on Sunday evening."}</p>
+        <p className="ax-told-wait">{written ? "The cast tells the week on Sunday evening. Until then, the ink gathers." : "Nothing written this week yet. The cast tells the week on Sunday evening."}</p>
       )}
-      {story && (
-        <>
-          <button className="ax-more" type="button" aria-expanded={read} onClick={() => setRead(!read)}>
-            {read ? "Close the week's story" : "Read the whole week"}
-            <Chevron />
-          </button>
-          {read && (
-            <div className="ax-week-read">
-              {paragraphs(story.script).map((p, i) => (
-                <p key={i}>{p}</p>
-              ))}
-            </div>
-          )}
-        </>
+      {story && read && (
+        <div className="ax-week-read">
+          {paragraphs(story.script).map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </div>
       )}
     </section>
   );

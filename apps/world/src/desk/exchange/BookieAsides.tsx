@@ -1,63 +1,55 @@
 import { useEffect, useMemo, useState } from "react";
-import { asideBadge, asideLine, byMove, KIND_LABEL, movePts, moved, shortName } from "./asides.ts";
+import { asideBadge, asideLine, byMove, KIND_LABEL, shortName } from "./asides.ts";
+import { Flap } from "./Flap.tsx";
+import { Fronts } from "./Fronts.tsx";
 import { move, moveTone, pct, startPolymarket, usePolymarket, type PmWorld } from "./polymarket.ts";
-import { DayArea, Dial, MoveBar, useReducedMotion } from "./viz.tsx";
+import { DayArea, useReducedMotion } from "./viz.tsx";
 import "./exchange.css";
 
 /**
- * What's moving the world (#345, made the Exchange's centrepiece in #367): the Bookie's world-moving odds
- * (geopolitics, politics, pop culture; never sports). One market takes the stage: its odds as a dial with a tick where
- * they stood a day ago, the day's price drawn in, and one line in his voice on why it matters. Beside it, the movers:
- * every world market as a diverging bar of the day's move, biggest first; tap one to put it on the stage. The stage
- * turns over on its own (a thin bar runs down the time); hovering, focusing or Pause holds it, and with reduced motion
- * it only changes when asked. Real data only: until Polymarket answers, it says it's waiting. Public odds only.
+ * What's moving the world (#345; weather and a split-flap board since #387): the Bookie's world-moving odds
+ * (geopolitics, politics, pop culture; never sports). The band is a pressure chart: each market a system whose
+ * strength is the day's move, isobars traced live and motes riding the wind round them (Fronts). One market holds the
+ * stage: its odds and the day's move on big split-flap readouts, the question, one line in the Bookie's voice and the
+ * day's price drawn in. Beside it, the board: every world market, biggest move first, odds and move on flaps that
+ * turn over when a figure changes; tap a row to put it on the stage. The stage turns over on its own (a thin bar runs
+ * down the time); hovering, focusing or Pause holds it, and with reduced motion it only changes when asked. Real data
+ * only: until Polymarket answers, it says it's waiting. Public odds only.
  */
 
 /** How long each market holds the stage. */
 const DWELL_S = 10;
 
-/** The Bookie as a glyph: his Admiral's can, a bead of sweat that drops when the odds jump. */
-function BookieMark({ sweating }: { sweating: boolean }) {
-  return (
-    <svg className={`xc-bk${sweating ? " is-sweating" : ""}`} viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="9" y="6" width="14" height="21" rx="3" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M9 11h14M9 22h14" stroke="currentColor" strokeWidth="1" opacity=".55" />
-      <circle cx="13.5" cy="16" r="1.1" fill="currentColor" />
-      <circle cx="18.5" cy="16" r="1.1" fill="currentColor" />
-      <path className="xc-bk-drop" d="M25.5 7.5c1 1.5 1.6 2.4 1.6 3.2a1.6 1.6 0 0 1-3.2 0c0-.8.6-1.7 1.6-3.2z" fill="currentColor" />
-    </svg>
-  );
+/** The day's move for a flap: "▲2.0", "▼40.5", "0.0" when it held, a dash when Polymarket didn't say. */
+export function moveFlap(c: number | null): string {
+  const t = moveTone(c);
+  if (t === "flat") return c === null ? "–" : "0.0";
+  return `${t === "up" ? "▲" : "▼"}${move(c).replace(/^[+−]/, "")}`;
 }
 
 function Stage({ m, world, paused, auto, onDone }: { m: PmWorld; world: readonly PmWorld[]; paused: boolean; auto: boolean; onDone: () => void }) {
   const tone = moveTone(m.change24h);
   const yes = m.outcome.toLowerCase() === "yes";
-  const pts = movePts(m);
   const was = m.change24h === null ? null : Math.min(1, Math.max(0, m.prob - m.change24h));
   return (
-    <article className={`xc-stage is-${m.kind}`}>
-      <div className="xc-stage-dial">
-        <div className="xc-dial-box">
-          <Dial prob={m.prob} was={was} tone={tone} />
-          <div className="xc-stage-n">
-            <b>{pct(m.prob)}</b>
-            <span>{yes ? "chance, yes" : m.outcome}</span>
-          </div>
+    <article className="xc-stage">
+      <div className="xc-stage-read">
+        <p className="xc-tag">
+          <span className="xc-kind">{KIND_LABEL[m.kind]}</span>
+          <span className="xc-badge">{asideBadge(m, world)}</span>
+        </p>
+        <div className="xc-stage-odds">
+          <Flap text={pct(m.prob)} cells={4} className="is-xl" />
+          <span className="xc-k">{yes ? "chance of yes" : `chance · ${m.outcome}`}</span>
         </div>
-        {was !== null && (
-          <p className="xc-dial-key">
-            <i aria-hidden="true" /> where it stood a day ago
-          </p>
-        )}
+        <div className={`xc-stage-move is-${tone}`}>
+          <Flap text={moveFlap(m.change24h)} cells={5} className="is-md" />
+          <span className="xc-k">
+            points in a day{was !== null && <> · was {pct(was)}</>}
+          </span>
+        </div>
       </div>
       <div className="xc-stage-body">
-        <p className="xc-tag">
-          <span className={`xc-kind is-${m.kind}`}>{KIND_LABEL[m.kind]}</span>
-          <span className="xc-badge">{asideBadge(m, world)}</span>
-          <span className={`xc-stage-move is-${tone}`} aria-label={pts === null ? "No 24-hour move" : `${move(m.change24h)} points in 24 hours`}>
-            {tone === "up" ? "▲" : tone === "down" ? "▼" : "·"} {move(m.change24h).replace(/^[+−]/, "")} pts today
-          </span>
-        </p>
         {m.url ? (
           <a className="xc-stage-q" href={m.url} target="_blank" rel="noopener noreferrer nofollow">
             {m.question}
@@ -100,17 +92,15 @@ export function BookieAsides() {
     setAt(n);
     setTurn((t) => t + 1);
   };
-  const sweating = !!m && moved(m) && (movePts(m) ?? 0) >= 5;
-  const maxMove = world.reduce((x, w) => Math.max(x, Math.abs(w.change24h ?? 0)), 0);
   const auto = !reduced && world.length > 1;
 
   return (
     <section className="xc-world" aria-label="What's moving the world: the Bookie's world-moving odds">
+      {m && <Fronts items={world} at={i} />}
       <header className="xc-world-head">
-        <BookieMark sweating={sweating} />
         <div>
-          <p className="xc-eyb">The Bookie's asides · geopolitics, politics, pop culture · no sports</p>
-          <h2 className="xc-world-h">What's moving the world</h2>
+          <p className="xc-k">The Bookie&apos;s board · geopolitics, politics, pop culture · no sports</p>
+          <h2 className="xc-world-h">What&apos;s moving the world</h2>
         </div>
         <p className="xc-state" data-state={m ? "ready" : status}>
           <i aria-hidden="true" />
@@ -121,37 +111,38 @@ export function BookieAsides() {
       {m ? (
         <div className="xc-world-grid" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={() => setHover(true)} onBlur={() => setHover(false)}>
           <Stage key={`${m.id}:${turn}`} m={m} world={world} paused={held || hover} auto={auto} onDone={() => go(i + 1)} />
-          <div className="xc-movers">
-            <p className="xc-eyb xc-movers-h">
-              <span>The movers · today</span>
+          <div className="xc-board">
+            <p className="xc-board-h">
+              <span className="xc-k">The movers · last 24 hours</span>
               {auto && (
                 <button type="button" className="xc-hold" aria-pressed={held} onClick={() => setHeld((h) => !h)}>
                   {held ? "Play" : "Pause"}
                 </button>
               )}
             </p>
+            <p className="xc-board-cols" aria-hidden="true">
+              <span>Market</span>
+              <span>Odds</span>
+              <span>24 h</span>
+            </p>
             <ol aria-label="World markets by the day's move">
               {world.map((w, k) => {
                 const t = moveTone(w.change24h);
                 return (
                   <li key={w.id}>
-                    <button type="button" className="xc-mover" aria-current={k === i ? "true" : undefined} onClick={() => go(k)} title={w.question}>
-                      <span className="xc-mover-q">
-                        <span className={`xc-kind is-${w.kind}`}>{KIND_LABEL[w.kind]}</span>
-                        <span className="xc-mover-name">{shortName(w.question)}</span>
+                    <button type="button" className="xc-row" aria-current={k === i ? "true" : undefined} onClick={() => go(k)} title={w.question}>
+                      <span className="xc-row-q">
+                        <span className="xc-row-kind">{KIND_LABEL[w.kind]}</span>
+                        <span className="xc-row-name">{shortName(w.question)}</span>
                       </span>
-                      <b className="xc-mover-p">{pct(w.prob)}</b>
-                      <MoveBar c={w.change24h} max={maxMove} />
-                      <span className={`xc-mover-d is-${t}`}>
-                        {t === "up" ? "▲" : t === "down" ? "▼" : ""}
-                        {move(w.change24h).replace(/^[+−]/, "")}
-                      </span>
+                      <Flap text={pct(w.prob)} cells={4} className="xc-row-p" />
+                      <Flap text={moveFlap(w.change24h)} cells={5} className={`xc-row-d is-${t}`} />
                     </button>
                   </li>
                 );
               })}
             </ol>
-            <p className="xc-foot">Points moved in the last 24 hours. Odds are the market's price, not advice.</p>
+            <p className="xc-foot">Points moved in the last 24 hours. Odds are the market&apos;s price, not advice.</p>
           </div>
         </div>
       ) : (

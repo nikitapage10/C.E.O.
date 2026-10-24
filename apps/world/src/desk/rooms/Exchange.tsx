@@ -1,28 +1,27 @@
-import { useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
-import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import { BookieAsides } from "../exchange/BookieAsides.tsx";
 import { PolymarketBoard } from "../exchange/PolymarketBoard.tsx";
 import { PositionsBoard } from "../exchange/PositionsBoard.tsx";
 import { bookLine, usePositions } from "../exchange/positions.ts";
 import { tapeLine, usePolymarket } from "../exchange/polymarket.ts";
+import "@fontsource/instrument-serif/400.css";
+import "@fontsource/instrument-serif/400-italic.css";
+import "@fontsource-variable/martian-mono/standard.css";
 import "./rooms.css";
 import "../exchange/exchange.css";
 
 /**
- * The Exchange (#225, redrawn #367): markets and money, as a trading floor at night. Simple first, deeper on a tap.
- * Nikita's own Polymarket US positions lead (#253, PositionsBoard: read-only, signed-in Desk only, every figure marked
- * private for Hide mode; signed out it shows only where the book is). Then the centrepiece, what's moving the world
- * (#345, BookieAsides: geopolitics, politics and pop culture, no sports), then where the money is on Polymarket today
- * (#240, PolymarketBoard: the busiest markets, sports left out, and the pinned watchlist). Below, what's still to come
- * to the floor (the mispriced desk, research, personal money behind the passkey) and what the room waits on, folded
- * away. The Lattice only ever shows the public odds, never a position.
+ * The Exchange (#225, redrawn #367, given its own look in #387): a market sea and terrain, set in Instrument Serif and
+ * Martian Mono with the Bookie's mint. Simple first, deeper on a tap. Nikita's own Polymarket US positions lead
+ * (#253, PositionsBoard): plain figures, then the book as land against sea level (what was paid), then a ledger of
+ * every position; read-only, signed-in Desk only, every figure marked private for Hide mode, and signed out an empty
+ * sea that says where the book is. Then what's moving the world (#345, BookieAsides): the world's odds as weather and
+ * a split-flap board, no sports. Then where the money is on Polymarket today (#240, PolymarketBoard). Below, what's
+ * still to come and what the room waits on, folded away. The Lattice only ever shows the public odds, never a position.
  */
 
-const MINT = "124,205,172";
-
-/** The tape; POSITIONS reads the book's state (never a figure), MARKET DATA and WATCHLIST read Polymarket live (#240). */
+/** The room's gauges; POSITIONS reads the book's state (never a figure), MARKET DATA and WATCHLIST read Polymarket live (#240). */
 const TAPE = [
   ["POLYMARKET US", ""],
   ["POSITIONS", ""],
@@ -62,93 +61,44 @@ const LATER = [
   },
 ] as const;
 
-/** The floor: a grid running away into the dark, mint tickers sliding along its rails. */
-function floorSpec(): VizSpec {
-  return {
-    lay(V) {
-      const hz = V.H * 0.18;
-      const rails: { p: Poly; P: Parts; k: number }[] = [];
-      for (let i = 0; i < 9; i++) {
-        const f = i / 8;
-        const y = hz + Math.pow(f, 1.8) * (V.H - hz);
-        rails.push({ p: new Poly().set([0, V.W], [y, y]), P: new Parts(6 + Math.round(f * 26), 0.12), k: f });
-      }
-      const rays: { p: Poly }[] = [];
-      for (let i = -8; i <= 8; i++) {
-        const x0 = V.W / 2 + i * V.W * 0.035;
-        const x1 = V.W / 2 + i * V.W * 0.16;
-        rays.push({ p: new Poly().set([x0, x1], [hz, V.H]) });
-      }
-      V.s.f = { rails, rays };
-    },
-    draw(V, c, t, dt) {
-      const f = V.s.f as { rails: { p: Poly; P: Parts; k: number }[]; rays: { p: Poly }[] };
-      c.lineWidth = 0.6;
-      for (const r of f.rays) {
-        c.strokeStyle = `rgba(${MINT},.06)`;
-        r.p.stroke(c);
-      }
-      f.rails.forEach((r, i) => weave(c, r.p, r.P, { a: 0.2 + r.k * 0.45, sp: 0.4, sz: 0.5 + r.k * 0.5, v: (i % 2 ? -1 : 1) * (10 + r.k * 40), rgb: MINT, rgb2: "236,238,243", line: 0.04 + r.k * 0.06 }, t, dt));
-    },
-  };
-}
-
 export function Exchange() {
-  const cv = useRef<HTMLCanvasElement>(null);
-  const spec = useMemo(floorSpec, []);
-  useViz(cv, spec);
   const pmStatus = usePolymarket((s) => s.status);
   const pmBoard = usePolymarket((s) => s.board);
-  const pmLive = pmStatus === "ready" && pmBoard !== null;
   const pinned = pmBoard?.watchlist.length ?? 0;
   const posStatus = usePositions((s) => s.status);
   const [usLine, posLine] = bookLine(posStatus);
-  const live = TAPE.map(([k, v]): [string, string] => [
+  const gauges = TAPE.map(([k, v]): [string, string] => [
     k,
     k === "MARKET DATA" ? tapeLine(pmStatus, pmBoard) : k === "WATCHLIST" ? (pmBoard ? (pinned ? `${pinned} pinned` : "empty") : "–") : k === "POLYMARKET US" ? usLine : k === "POSITIONS" ? posLine : v,
   ]);
-  const tape = [...live, ...live];
   const waits = posStatus === "live" ? WAITS.slice(1) : WAITS;
   return (
     <div className="wv-page xc" data-room="exchange">
-      <div className="xc-tape" aria-label={`The tape: Polymarket US, ${usLine}; market data, ${tapeLine(pmStatus, pmBoard)}; Plaid is not connected yet`}>
-        <p aria-hidden="true">
-          {tape.map(([k, v], i) => (
-            <span key={i}>
-              <b>{k}</b> {v}
-            </span>
-          ))}
-        </p>
-      </div>
-
-      <div className="xc-floor">
-        <canvas ref={cv} className="wv-cv xc-floor-cv" aria-hidden="true" />
-        <header className="xc-mast">
-          <div>
-            <p className="xc-eyb">The Exchange · the floor after hours</p>
-            <h1 className="xc-h1 desk__title">
-              {pmLive ? (
-                <>
-                  The odds are lit. <em>The Bookie is sweating.</em>
-                </>
-              ) : (
-                <>
-                  The board is dark. <em>The Bookie isn't.</em>
-                </>
-              )}
-            </h1>
+      <header className="xc-mast">
+        <div className="xc-mast-t">
+          <p className="xc-k">Ilyr · the market floor · read-only</p>
+          <h1 className="xc-h1 desk__title">The Exchange</h1>
+          <p className="xc-dek">Your book as land against what you paid for it, and the world&apos;s odds as weather.</p>
+        </div>
+        <Keeper page="exchange" className="xc-keeper" />
+      </header>
+      <dl className="xc-gauges" aria-label="What the Exchange reads">
+        {gauges.map(([k, v]) => (
+          <div key={k}>
+            <dt>{k.toLowerCase()}</dt>
+            <dd>{v}</dd>
           </div>
-          <Keeper page="exchange" className="xc-keeper" />
-        </header>
-        <PositionsBoard />
-      </div>
+        ))}
+      </dl>
+
+      <PositionsBoard />
 
       <BookieAsides />
 
       <PolymarketBoard />
 
-      <section className="xc-later" aria-label="Still to come to the floor">
-        <p className="xc-eyb">Still to come to the floor</p>
+      <section className="xc-later" aria-label="Still to come to the Exchange">
+        <p className="xc-k">Still to come</p>
         <div className="xc-later-row">
           {LATER.map((l) => (
             <details key={l.k} className="xc-soon">

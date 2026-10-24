@@ -86,5 +86,6 @@ ones from the **Foundry** tab's device list (the names without "(ceo)").
 3. Tell Skippy it's done. The next live watch (hourly at :23, or **Actions** → **Live watch** → **Run workflow**)
    checks ceo.nikita.page.
 
-The template paste in [AZURE.md](AZURE.md#after-the-paste) reads `CEO_SITE_URL` first and keeps it, so running it
-again after this step doesn't undo the switch. Running the template any other way needs `siteOnCustomDomain=true`.
+The deploy (which applies the template on every merge since #330, [AZURE.md](AZURE.md#the-template-on-every-deploy))
+and the first-time template paste ([AZURE.md](AZURE.md#after-the-paste)) both read `CEO_SITE_URL` first and keep it,
+so neither undoes the switch. Running the template any other way needs `siteOnCustomDomain=true`.

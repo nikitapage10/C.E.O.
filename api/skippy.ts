@@ -16,7 +16,10 @@
  *        404 no such turn, 409 not handed off or already answered, 403 a submind answering another's, 503 not-set-up.
  * POST → { message, history? } from a signed-in Desk only (requireSession, #132): `message` is what Nikita just said
  *        (at most 600 characters), `history` the last few turns the browser kept ({ who: "nikita" | "skippy", text },
- *        at most eight). The browser holds the conversation, and the history is never stored. Each answered question
+ *        at most eight), and `page`, what the Desk page shows (#341: the Green's start/sit rows first, then the other
+        live rooms; plain lines, at most 1,600 characters, a private-looking line dropped). The browser holds the
+        conversation, and neither the history nor the page is ever stored. A hand-off's answer also carries `turn`, the
+        kept turn's id, so the Desk can wait for the room's answer in the same chat. Each answered question
  *        and its reply is kept in the private store under the room Skippy tagged it with (#273, api/_skippy/log.ts):
  *        the last 200 per room, 30 days at most, read back only in a Desk session. No message text is ever logged.
  *        200 { reply, actions, room }: Skippy's answer, the room it belongs with ("green", "exchange", "boiler",
@@ -57,7 +60,7 @@ import { BlobChatLedger, CHAT_MAX_TOKENS, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
 import { advisoryCache, stackBrief, stackLines, wantsStack } from "./_skippy/advisories.js";
-import { BlobRoomLog, cleanFollowUp, isLogRoom, isNeeds, isNeedsFilter, isTurnId, needsName, type LogRoom, type Needs, type RoomLog } from "./_skippy/log.js";
+import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, isLogRoom, isNeeds, isNeedsFilter, isTurnId, needsName, turnId, type LogRoom, type Needs, type RoomLog } from "./_skippy/log.js";
 import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
 import { plainLine } from "./foundry.js";
@@ -337,13 +340,16 @@ export async function followUp(request: Request, deps: AnswerDeps): Promise<Resp
   const auth = request.headers.get("authorization") ?? "";
   if (!auth.startsWith("Bearer ") || !keyMatches(auth.slice(7).trim(), deps.token)) return json({ error: "unauthorized" }, 401);
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
-  const body = (await request.json().catch(() => null)) as { id?: unknown; text?: unknown; from?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { id?: unknown; text?: unknown; from?: unknown; card?: unknown } | null;
   if (!body || typeof body !== "object" || !isTurnId(body.id) || !isNeeds(body.from) || typeof body.text !== "string") return json({ error: "bad-request" }, 400);
   const text = plainLine(body.text, 700);
   if (!text) return json({ error: "bad-request" }, 400);
-  const held = privateParts(text);
+  // The answer card (#341) is optional; one that is sent must be a card (a verdict at least), never silently dropped.
+  const card = body.card === undefined || body.card === null ? null : cleanCard(body.card);
+  if (body.card !== undefined && body.card !== null && !card) return json({ error: "bad-request" }, 400);
+  const held = [text, ...(card ? cardText(card) : [])].flatMap((t) => privateParts(t));
   if (held.length) return json({ error: "private", held: [...new Set(held)].map((k) => PRIVATE_LABEL[k]) }, 422);
-  const f = cleanFollowUp({ from: body.from, text, at: new Date(deps.now).toISOString() });
+  const f = cleanFollowUp({ from: body.from, text, at: new Date(deps.now).toISOString(), ...(card && { card }) });
   if (!f) return json({ error: "bad-request" }, 400);
   let result: Awaited<ReturnType<RoomLog["answer"]>>;
   try {
@@ -410,7 +416,7 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   const [desk, stack] = await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")]);
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(SKIPPY_PROMPT, chatInput(contextLines(desk, deps.now), said.history, said.message, stack));
+    got = await deps.ask(SKIPPY_PROMPT, chatInput(contextLines(desk, deps.now), said.history, said.message, stack, said.page));
   } catch {
     return json({ error: "model" }, 502);
   }
@@ -420,10 +426,15 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   if (!reply) return json({ error: "model" }, 502);
   // Kept under its room for the room's Desk page (#273): the question (already through the privacy check), the answer,
   // the room, the time and the model. A failed write never costs Nikita the answer.
+  const at = new Date(deps.now).toISOString();
+  const id = turnId(at, said.message);
+  let kept = false;
   if (deps.log) {
-    await deps.log
-      .add({ at: new Date(deps.now).toISOString(), question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }) }, deps.now)
-      .catch(() => undefined);
+    kept = await deps.log
+      .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }) }, deps.now)
+      .then(() => true)
+      .catch(() => false);
   }
-  return json(reply);
+  // A hand-off that was kept carries its turn's id (#341), so the Desk's chat can wait for the answer in place.
+  return json(reply.needs && kept ? { ...reply, turn: id } : reply);
 }

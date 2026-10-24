@@ -38,11 +38,12 @@
   --room-boiler: #a8aebc;
   --room-breakroom: #e28fb6;
   --tone: var(--ice);
-  /* Type: Manrope for the interface, DM Serif Display (--wv-serif, wv.css) for headlines and story lines. Never mono. */
-  --serif: "Manrope Variable", Manrope, "Inter Variable", system-ui, sans-serif;
+  /* Type, blended from the Lattice (#336, Nikita 2026-10-23: "I like the fonts on the Lattice more"): Cormorant
+     Garamond for headings and big numbers, IBM Plex Mono for labels and eyebrows, IBM Plex Sans for running text. */
+  --serif: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
   --display: var(--serif);
-  --sans: "Manrope Variable", Manrope, "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: var(--sans);
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --radius: 10px;
   --radius-lg: 18px;

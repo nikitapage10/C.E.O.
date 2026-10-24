@@ -4,9 +4,10 @@
  * the private state (subjects, senders, summaries, drafts) are written to the private `ceo-state` container only in
  * this form, so a copy of the container (the nightly backup included) holds nothing readable without the vault.
  *
- * Why not Key Vault itself for the token: the Function App's identity can only read secrets (Key Vault Secrets User).
- * Letting it write one would need Secrets Officer, which could rewrite every secret in the vault (the Desk key, the
- * Claude key). A sealed blob keeps the identity read-only on the vault.
+ * Why not Key Vault itself for the token: the Function App's identity reads secrets (Key Vault Secrets User) and may
+ * write only the Keys form's twelve third-party secrets, each by its own role (#330, docs/AZURE.md); writing the token
+ * would need Secrets Officer on one more secret, refreshed from a background job with no passkey. A sealed blob keeps
+ * the identity read-only on everything else in the vault.
  *
  * Underscore folder: Vercel never serves it as a function.
  */

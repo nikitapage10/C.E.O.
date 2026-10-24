@@ -1,6 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { runAction } from "./actions.ts";
+import { AnswerCard } from "./AnswerCard.tsx";
+import { handedName } from "./asked.ts";
 import { canSpeak, stopSpeaking, useSkippy, type ActionState, type SkippyAction, type Turn } from "./chat.ts";
 import { useHide } from "../hide.ts";
 import { Private } from "../Private.tsx";
@@ -132,10 +134,20 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
           </li>
         )}
         {turns.map((t) => (
-          <li key={t.id} className={`skp-turn skp-turn--${t.who}${t.note ? " skp-turn--note" : ""}`}>
-            <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : "Skippy:"}</span>
-            <p>{t.note ? t.text : <Private>{t.text}</Private>}</p>
-            {t.who === "skippy" && <ActionChips turn={t} />}
+          <li key={t.id} className={`skp-turn skp-turn--${t.who}${t.note ? " skp-turn--note" : ""}${t.pending ? " skp-turn--pending" : ""}${t.from ? " skp-turn--answer" : ""}`} aria-busy={t.pending ? true : undefined}>
+            <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : t.from ? `${t.from === "skippy" ? "Skippy's thread" : handedName(t.from)}:` : "Skippy:"}</span>
+            {t.from && (
+              <p className="skp-turn__from" aria-hidden="true">
+                {t.from === "skippy" ? "Skippy's thread" : handedName(t.from)} answered
+              </p>
+            )}
+            <p>{t.note || t.pending ? t.text : <Private>{t.text}</Private>}</p>
+            {t.card && (
+              <Private block as="div">
+                <AnswerCard card={t.card} />
+              </Private>
+            )}
+            {t.who === "skippy" && !t.pending && <ActionChips turn={t} />}
           </li>
         ))}
         {busy && (

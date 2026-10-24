@@ -37,11 +37,11 @@
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
-  verifyAuthenticationResponse,
   verifyRegistrationResponse,
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
+import { checkAssertion } from "./_desk/assert.js";
 import { deskKeyFor, keyMatches } from "./_desk/keys.js";
 import { addressOf, Gate, type Attempt } from "./_desk/limits.js";
 import { CHALLENGE_COOKIE, CHALLENGE_S, MAX_S, SESSION_COOKIE, challengeOf, clearSession, cookie, newSession, readCookie, renewed, requireSession, sameOrigin, sessionCookie, sessionOf, signToken, type Challenge, type DeskDeps } from "./_desk/session.js";
@@ -95,8 +95,6 @@ const site = (request: Request) => {
   const url = new URL(request.url);
   return { origin: url.origin, rpID: url.hostname };
 };
-
-const toBytes = (b64: string) => new Uint8Array(Buffer.from(b64, "base64url"));
 
 async function gateFor(deps: DeskDeps & { store: AuthStore }, attempt: Attempt, request: Request): Promise<Gate> {
   return Gate.open(deps.store, attempt, addressOf(request), await deskKeyFor(deps.deskKey, "client"), deps.now);
@@ -172,30 +170,13 @@ export async function handlePost(request: Request, deps: AuthDeps = live()): Pro
       const response = body.response as AuthenticationResponseJSON | undefined;
       const list = await store.passkeys();
       const passkey = response && typeof response.id === "string" ? list.find((p) => p.id === response.id) : undefined;
-      let ok = false;
-      let counter = 0;
-      if (challenge && !gate.spent(challenge.ch) && response && passkey) {
-        try {
-          const result = await verifyAuthenticationResponse({
-            response,
-            expectedChallenge: challenge.ch,
-            expectedOrigin: origin,
-            expectedRPID: rpID,
-            credential: { id: passkey.id, publicKey: toBytes(passkey.publicKey), counter: passkey.counter, transports: passkey.transports },
-            requireUserVerification: true,
-          });
-          ok = result.verified;
-          counter = result.authenticationInfo.newCounter;
-        } catch {
-          ok = false;
-        }
-      }
-      if (!ok || !passkey || !challenge) {
+      const checked = challenge && !gate.spent(challenge.ch) && passkey ? await checkAssertion({ response, challenge: challenge.ch, origin, rpID, passkey }) : { ok: false as const };
+      if (!checked.ok || !passkey || !challenge) {
         await gate.fail();
         return json({ error: "failed" }, 401, [clearChallenge("signin")]);
       }
       await gate.pass(challenge.ch, challenge.e * 1000);
-      await store.savePasskeys(list.map((p) => (p.id === passkey.id ? { ...p, counter, used: new Date(deps.now).toISOString() } : p)));
+      await store.savePasskeys(list.map((p) => (p.id === passkey.id ? { ...p, counter: checked.counter, used: new Date(deps.now).toISOString() } : p)));
       const session = newSession(passkey.id, deps.now);
       return json({ ok: true, device: passkey.label }, 200, [clearChallenge("signin"), await sessionCookie(deps.deskKey, session, deps.now), ...(await siteCookieFor(deps))]);
     }

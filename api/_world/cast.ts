@@ -258,7 +258,7 @@ export const WORLD_CAST: WorldCast = {
         "pedantic",
         "dramatic"
       ],
-      "bio": "A hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Reads every message twice and every love letter three times, with the gravity of a hero in an action film, which this one is fairly sure it is. Wed to Dialtone in a ceremony held entirely over pneumatic tube.",
+      "bio": "A hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Reads every message twice and every love letter three times, with the gravity of a hero in an action film, which this one is fairly sure it is. Wed to Dialtone in a ceremony held entirely over pneumatic tube. Drafts for the live inbox; sends nothing.",
       "catchphrase": "This one has read your message. This one has feelings about it.",
       "voice": [
         "A letter from the C.E.O.? Stand back. This one has a delivery to make.",
@@ -278,7 +278,7 @@ export const WORLD_CAST: WorldCast = {
         "nostalgic",
         "chaotic"
       ],
-      "bio": "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. Blasto's partner; they leave each other notes in the outbox.",
+      "bio": "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. Blasto's partner; they leave each other notes in the outbox. Sorts the live inbox on the wing.",
       "catchphrase": "Please hold. Not you, darling.",
       "voice": [
         "Please hold. There's nobody on the line yet, but please hold.",
@@ -1159,7 +1159,9 @@ export const WORLD_CAST: WorldCast = {
         "Holo says ON DECK. I'm on deck. I'm also listening to line six.",
         "Inbox—new one—needs the C.E.O.—didn't hear it from me—it's on the board.",
         "Ten dollars a month for the inbox. I'm watching the meter. I'm always watching the meter.",
-        "I know what it says. I'm not telling. The Lattice gets a number. Just a number."
+        "I know what it says. I'm not telling. The Lattice gets a number. Just a number.",
+        "Holo says ACTIVE—own thread—me—a thread—I have a thread now—",
+        "Inbox is live. Texts aren't. The Mac's asleep. I'm not. I'm never asleep."
       ],
       "vellum": [
         "Citation needed. I'll wait.",
@@ -1319,7 +1321,9 @@ export const WORLD_CAST: WorldCast = {
         "This one should go. This one is still here.",
         "An email needs the C.E.O. This one has written advice, a draft, and a short prayer.",
         "This one drafts. The C.E.O. sends. This one has never once pressed send, and never will.",
-        "Read-only. Like a sacred text. Like a hanar in a library."
+        "Read-only. Like a sacred text. Like a hanar in a library.",
+        "The line is live. This one has waited an epoch for this. This one is glowing. Do not look directly at this one.",
+        "One canister per real letter. No more practice drops. This one would not insult the tubes."
       ],
       "dialtone": [
         "Please hold. There's nobody on the line yet, but please hold.",
@@ -1328,7 +1332,10 @@ export const WORLD_CAST: WorldCast = {
         "The music's all around us. You just have to listen. Please hold.",
         "New mail! Needs you, FYI, or noise. Mostly noise, darling. It's always noise.",
         "Promotions straight in the bin. Gmail said so. I didn't even open them.",
-        "Every minute I check the inbox. Every minute. Like a ringtone from 2004."
+        "Every minute I check the inbox. Every minute. Like a ringtone from 2004.",
+        "It's live, darling. The jack rings for real now. I may cry. Please hold.",
+        "Needs you, FYI, noise. Drop. Needs you, FYI, noise. Drop. It's basically a bass set.",
+        "Email's on. Texts are still waiting by the phone for the Mac. Very 2005 of them."
       ],
       "loremaster": [
         "A wizard is never late. That one was a scheduling error.",

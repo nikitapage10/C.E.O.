@@ -362,9 +362,10 @@ describe("Desk Skippy's stack and hand-offs (#312)", () => {
     for (const bad of ["room=foundry&needs=rocky", "room=foundry&needs="]) expect((await read(bad)).status).toBe(400);
   });
 
-  it("sends a submind's ask to Skippy when that room's submind isn't active, and keeps his own words when they say so", async () => {
-    const { post } = await setup({ reply: "I've handed it to my own thread.", actions: [], room: "relay", needs: "submind" });
-    const body = (await (await post("Sort my texts")).json()) as { reply: string; needs?: string };
+  it("sends a submind's ask to Skippy when no room's submind is active for it, and keeps his own words when they say so", async () => {
+    // Every logged room's submind is active since the Messenger woke (#322), so a roomless ask stands in.
+    const { post } = await setup({ reply: "I've handed it to my own thread.", actions: [], room: "none", needs: "submind" });
+    const body = (await (await post("What's the weather in Ilyr?")).json()) as { reply: string; needs?: string };
     expect(body.needs).toBe("skippy");
     expect(body.reply).toBe("I've handed it to my own thread.");
     expect(saysHandedOff("x".repeat(700), "skippy").length).toBeLessThanOrEqual(700);

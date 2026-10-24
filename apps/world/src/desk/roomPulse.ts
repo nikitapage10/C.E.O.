@@ -4,6 +4,7 @@ import type { Link, LinkState } from "../systems.ts";
 import type { GreenBoard, GreenStatus } from "./green/league.ts";
 import { submindOf } from "../../../../packages/simulator/src/subminds.ts";
 import type { InvoiceStatus } from "./spire/invoices.ts";
+import type { EmailStatus } from "./email/email.ts";
 
 /**
  * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): ten threads, one per room, each in its submind's
@@ -92,6 +93,8 @@ export interface PulseInput {
   odds?: { markets: number; lead: { question: string; prob: number } | null } | null;
   /** The Green's league board (desk/green/league.ts), once it has been asked for; left out, the Green stays simulated. */
   green?: { status: GreenStatus; board: GreenBoard | null };
+  /** The email agent's public counts (#263, live since #322), once the Azure copy has answered; left out, Relay waits on the Mac. */
+  email?: EmailStatus | null;
   /** The Spire's public invoice counts (#279), once PayPal has answered on the Azure copy; left out, the Spire stays simulated. */
   invoices?: InvoiceStatus | null;
 }
@@ -150,8 +153,27 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
     }
   }
 
-  // The Relay: the hub on the MacBook.
-  if (hub === "off") {
+  // The Relay: email from the Azure copy (#322) while the hub on the MacBook is still to come.
+  const mail = input.email ?? null;
+  const mailLive = !!mail && mail.gmail === "connected" && mail.agent !== "waiting";
+  if (hub === "off" && mailLive) {
+    const needs = mail.needsYou;
+    const broken = mail.agent === "error";
+    const checked = mail.lastCheck !== null && mail.lastCheck >= since && mail.lastCheck <= now ? [mail.lastCheck] : [];
+    out.push(
+      pulse("relay", {
+        real: true,
+        state: broken ? "down" : needs ? "busy" : "steady",
+        activity: clamp(0.2 + needs * 0.15 + mail.newToday * 0.01),
+        status: broken ? "The last email check failed" : mail.agent === "paused" ? "Email paused at the cap" : needs ? `${n(needs, "email")} need${needs === 1 ? "s" : ""} you` : "Email is quiet",
+        short: broken ? "email check failed" : mail.agent === "paused" ? "email paused" : needs ? `${needs} email${needs === 1 ? "" : "s"}` : "inbox quiet",
+        report: broken
+          ? "Line's crackling, the last email check didn't land. Dialtone's redialling. Texts still wait on the Mac."
+          : `${n(mail.newToday, "new email")} today, ${needs} need${needs === 1 ? "s" : ""} you, ${mail.fyi} FYI, ${mail.noise} noise. I won't read them out. Texts still wait on the Mac.`,
+        events: checked,
+      }),
+    );
+  } else if (hub === "off") {
     out.push(pulse("relay", { real: true, state: "waiting", activity: 0.05, status: "Waiting on the Mac", short: "waiting on the Mac", report: "Psst. I can't hear a thing yet: the hub on the MacBook isn't connected. The moment it is, you'll know who's waiting on you.", events: [] }));
   } else {
     out.push(

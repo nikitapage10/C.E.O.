@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
 import { useMasked } from "./hide.ts";
 import { EmailSection } from "./email/EmailSection.tsx";
+import { linkOf, startEmail, useEmail, type EmailLoad, type EmailStatus } from "./email/email.ts";
 import { Private } from "./Private.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
 import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
@@ -62,14 +63,68 @@ const CHAIN = [
   { b: "You", s: "A tap to send" },
 ];
 
+/** The page's headline, from the email agent's public state: email live (or why not), texts still on the Mac. */
+function headOf(load: EmailLoad, status: EmailStatus | null): { lead: string; em: string; sub: string } {
+  const texts = "Texts wait on one thing: the MacBook. Once its hub is up, Relay keeps track of who you owe a reply and drafts answers in your voice for a tap to send.";
+  if (load === "off") return { lead: "Email lives on", em: "the Azure copy.", sub: `Dialtone and Blasto read your inbox there, where their keys are. ${texts}` };
+  if (!status) return { lead: "Relay is", em: load === "failed" ? "not answering." : "listening…", sub: texts };
+  if (status.gmail === "refused") return { lead: "Gmail needs", em: "reconnecting.", sub: `Google stopped accepting the connection; reconnect below and the line picks up where it left off. ${texts}` };
+  if (status.gmail !== "connected" || status.agent === "waiting") return { lead: "Email is", em: "ready to connect.", sub: `Connect Gmail below and Dialtone starts sorting from the next new mail. ${texts}` };
+  if (status.agent === "paused") return { lead: "Email is live,", em: "paused at the cap.", sub: `New mail is still counted; the models wait for the month to turn. ${texts}` };
+  if (status.agent === "error") return { lead: "Email is live,", em: "one check missed.", sub: `Dialtone tries again every minute. ${texts}` };
+  return { lead: "Email is", em: "live.", sub: `Dialtone sorts each new inbox mail within a minute, and Blasto drafts advice for the ones that need you. ${texts}` };
+}
+
+/** The two lines Relay runs, each with its real state: email from the Azure copy, texts from the Mac (still waiting). */
+function Lines({ load, status, now }: { load: EmailLoad; status: EmailStatus | null; now: number }) {
+  const link = linkOf(status);
+  const tone = load === "off" ? "wait" : link === "ok" ? "ok" : link === "slow" ? "warn" : link === "down" ? "bad" : "wait";
+  const word = load === "off" ? "on the Azure copy" : link === "ok" ? "live" : link === "slow" ? "paused" : link === "down" ? "needs a look" : status?.gmail === "connected" ? "starting" : "not connected";
+  const checked = status?.lastCheck ? `checked ${ago(status.lastCheck, now)}` : null;
+  return (
+    <ul className="wv-relay-lines" aria-label="Relay's lines">
+      <li data-tone={tone}>
+        <i className={`wv-dot${tone === "wait" ? " is-ring" : ""}`} aria-hidden="true" />
+        <b>Email</b>
+        <span>
+          {word}
+          {checked && tone !== "wait" ? ` · ${checked}` : ""}
+        </span>
+        {status && tone !== "wait" && (
+          <span className="wv-relay-lines-n">
+            {status.needsYou} need you · {status.fyi} FYI · {status.noise} noise
+          </span>
+        )}
+      </li>
+      <li data-tone="wait">
+        <i className="wv-dot is-ring" aria-hidden="true" />
+        <b>Texts</b>
+        <span>waiting on the MacBook</span>
+      </li>
+    </ul>
+  );
+}
+
+const ago = (at: number, now: number) => {
+  const m = Math.max(0, Math.round((now - at) / 60_000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
+};
+
 /**
- * Before the hub is connected: what Relay will do for texts, and the one thing it waits on. No made-up messages.
- * Email (#263) doesn't wait on the Mac: it runs on the Azure copy, so its section is live here already.
+ * Before the hub is connected: email live from the Azure copy (#263, live since #322), and what Relay will do for
+ * texts, with the one thing it waits on. Real states only; no made-up messages.
  */
 function RelayLater({ now }: { now: number }) {
   const spec = useMemo(() => chainSpec(), []);
   const cv = useRef<HTMLCanvasElement>(null);
   useViz(cv, spec);
+  useEffect(() => startEmail(), []);
+  const load = useEmail((s) => s.load);
+  const status = useEmail((s) => s.status);
+  const head = headOf(load, status);
   return (
     <div className="relay-page wv-page wv-relay" data-room="relay">
       <header className="wv-pghead">
@@ -77,9 +132,10 @@ function RelayLater({ now }: { now: number }) {
           Relay
         </p>
         <h1 className="wv-h1 desk__title">
-          Relay comes <em style={{ color: "var(--rc-relay)" }}>later.</em>
+          {head.lead} <em style={{ color: "var(--rc-relay)" }}>{head.em}</em>
         </h1>
-        <p className="wv-sub">For texts, it will keep track of who you owe a reply, sort the urgent from the rest, and draft answers in your voice for a tap to send. That waits on one thing: the MacBook. Email is here already.</p>
+        <p className="wv-sub">{head.sub}</p>
+        <Lines load={load} status={status} now={now} />
       </header>
       <EmailSection now={now} />
 
@@ -97,7 +153,7 @@ function RelayLater({ now }: { now: number }) {
       </section>
       <figure className="wv-relay-q">
         <img src="/desk/agent-postmaster.webp" alt="" width={62} height={62} decoding="async" />
-        <blockquote>&ldquo;My pen is ready. My stamps are sorted. I am simply waiting for a laptop to wake up, which is a humbling thing to wait for.&rdquo;</blockquote>
+        <blockquote>&ldquo;The letters are in, and this one has drafted for the ones that matter. The texts still wait for a laptop to wake up, which is a humbling thing to wait for.&rdquo;</blockquote>
         <figcaption>
           <b>Blasto</b>Relay's drafter
         </figcaption>

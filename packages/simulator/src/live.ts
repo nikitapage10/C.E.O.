@@ -8,7 +8,8 @@ import type { RoomId } from "@ceo/core";
  * the Lattice shows the real numbers.
  *
  * - foundry: GitHub issues worked by the Foundry thread (docs/FOUNDRY.md).
- * - relay: the first real agent's line (its practice post stopped, #94).
+ * - relay: the first real agent's line (its practice post stopped, #94); email live on the Azure copy since
+ *   2026-10-23 (#263, #322), the tubes and the inbox board driven by its public counts. Texts wait on the Mac.
  * - exchange: Polymarket's live odds and Nikita's positions (#240, #253).
  * - green: Nikita's Sleeper league and FantasyPros (#252).
  * - boiler: the pipes report the real lines; Gary only tends them.

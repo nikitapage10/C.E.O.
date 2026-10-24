@@ -7,7 +7,7 @@ import type { TodayIcon } from "./todayIcons.tsx";
  * Today's little schedule (#363, Nikita 2026-10-24: "the world clock stuff, what the crew does next, little
  * schedule"): what runs next and when, from the fixed schedule in docs/FOUNDRY.md (crewRuns.ts) and the world clock's own
  * next step. Nothing here is guessed beyond that schedule: the queue checks, upkeep and the morning ideas are cron
- * times, the day's story is written after midnight, and Ilyr's hour comes from the clock's reading (then hourly, as the
+ * times, Skippy presents Today in Ilyr about every five hours and the whole day after midnight (#365), and Ilyr's hour comes from the clock's reading (then hourly, as the
  * step runs). Pure, so it is tested on its own (todaySchedule.test.ts).
  */
 
@@ -34,6 +34,16 @@ export function nextMountain(now: number, h: number): number {
   return now + wait - (now % 60_000);
 }
 
+/** Today in Ilyr's editions (#365): "so far" after 5 am, 10 am, 3 pm and 8 pm Mountain, the whole day after midnight. */
+export const EDITION_HOURS = [0, 5, 10, 15, 20] as const;
+
+/** Skippy's next edition of Today in Ilyr: the first world step after the hour, when the Chronicle has news. */
+export function nextEdition(now: number): Run {
+  const at = Math.min(...EDITION_HOURS.map((h) => nextMountain(now, h)));
+  const final = Math.abs(at - nextMountain(now, 0)) < 60_000;
+  return { key: "story", at, room: "archive", icon: "story", what: final ? "Today in Ilyr, the whole day" : "Today in Ilyr, so far", who: "Skippy", every: 5 * HOUR };
+}
+
 /** Everything that runs next, soonest first. `hourAt` is the world clock's next step (null when it isn't reading). */
 export function upcoming(now: number, hourAt: number | null): Run[] {
   const r = nextRuns(new Date(now));
@@ -41,7 +51,7 @@ export function upcoming(now: number, hourAt: number | null): Run[] {
     { key: "queue", at: r.queue.getTime(), room: "foundry", icon: "queue", what: "Queue check", who: "the dock crew", every: QUEUE_EVERY },
     { key: "upkeep", at: r.upkeep.getTime(), room: "workshop", icon: "upkeep", what: "Upkeep", who: "Rivet", every: UPKEEP_EVERY_MS },
     { key: "ideas", at: r.ideas.getTime(), room: "spire", icon: "dawn", what: "Morning ideas", who: "Rusty", every: DAY },
-    { key: "story", at: nextMountain(now, 0), room: "archive", icon: "story", what: "Day becomes a story", who: "the Historian", every: DAY },
+    nextEdition(now),
   ];
   if (hourAt !== null && hourAt > now) list.push({ key: "hour", at: hourAt, room: "boiler", icon: "hour", what: "Ilyr's next hour", who: "the world clock", every: HOUR });
   return list.sort((a, b) => a.at - b.at);

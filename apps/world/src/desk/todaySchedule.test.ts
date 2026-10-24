@@ -9,9 +9,15 @@ describe("Today's little schedule (#363)", () => {
     const now = at("2026-10-24T03:10:00Z"); // 9:10 pm in Denver (MDT)
     const runs = upcoming(now, at("2026-10-24T04:05:00Z"));
     expect(runs.map((r) => r.key)).toEqual(["queue", "hour", "story", "upkeep", "ideas"]);
+    expect(runs.find((r) => r.key === "story")!.who).toBe("Skippy");
     expect(new Date(runs[0]!.at).toISOString()).toBe("2026-10-24T03:21:00.000Z");
-    // The story is after midnight, Mountain.
+    // At 9:10 pm the next edition is the whole day, after midnight Mountain.
     expect(new Date(runs.find((r) => r.key === "story")!.at).toISOString()).toBe("2026-10-24T06:00:00.000Z");
+    expect(runs.find((r) => r.key === "story")!.what).toBe("Today in Ilyr, the whole day");
+    // At 4 pm it is the 8 pm "so far" edition.
+    const so = upcoming(at("2026-10-24T22:00:00Z"), null).find((r) => r.key === "story")!;
+    expect(new Date(so.at).toISOString()).toBe("2026-10-25T02:00:00.000Z");
+    expect(so.what).toBe("Today in Ilyr, so far");
     expect(upcoming(now, null).some((r) => r.key === "hour")).toBe(false);
     expect(upcoming(now, now - 1).some((r) => r.key === "hour")).toBe(false);
   });

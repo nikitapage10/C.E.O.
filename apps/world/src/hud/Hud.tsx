@@ -1,5 +1,5 @@
 import { LINEAGES, PRESET_BY_ID, RELATIONSHIP_LABEL, ROOMS, ROOM_IDS, pendingApprovals, relationshipsOf, roomAngle, type ApprovalRecord, type LatticeState, type RoomId } from "@ceo/core";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { clock } from "../clock.ts";
@@ -16,6 +16,10 @@ import { navigate } from "../route.ts";
 import { noticeVisible } from "../kernel/notices.ts";
 import { pinned, useCatchup } from "../kernel/catchup.ts";
 import { enterEyes, useEyes } from "../eyes/eyes.ts";
+import { roomRgb, weaveBus } from "../weave/bus.ts";
+
+/** A room's thread colour as a CSS variable, for the Weave's rules and threads (weave/weave.css). */
+const rgbVar = (room: RoomId | null) => ({ "--lw-rgb": roomRgb(room ?? undefined) }) as React.CSSProperties;
 
 /**
  * The HUD, in The Tide's interface language: hairlines and wide-tracked labels on near-black, text that
@@ -54,6 +58,8 @@ function TopBar() {
   const time = useLatticeClock();
   return (
     <header className="topbar">
+      {/* A room change runs one thread in its colour under the bar, as a Desk page change does (#374). */}
+      <span key={focus ?? "lattice"} className="lw-change" style={rgbVar(focus)} aria-hidden="true" />
       <button className="mark" onClick={() => setFocus(null)} aria-label="C.E.O. — back to the overview">
         <img src={asset("syntherion-sigil.webp")} alt="" />
         <span className="mark__name">C.E.O.</span>
@@ -100,10 +106,10 @@ function TitleBlock({ children }: { children?: React.ReactNode }) {
   }, [focus, lattice]);
   const info = focus ? ROOM_ABOUT[focus] : null;
   return (
-    <section className="title-block">
+    <section className="title-block" style={rgbVar(focus)}>
       <p className="eyebrow">
         {index} / {focus ? shortName(focus) : "Lattice"}
-        <span className="eyebrow__rule" />
+        <span key={focus ?? "lattice"} className="lw-rule" aria-hidden="true" />
       </p>
       <h1 className="display">
         <Decode text={title.toUpperCase()} />
@@ -148,7 +154,9 @@ function TitleBlock({ children }: { children?: React.ReactNode }) {
         </div>
       )}
       {children}
-      <span className="short-rule" />
+      <span className="lw-dots" aria-hidden="true">
+        <i />
+      </span>
     </section>
   );
 }
@@ -267,10 +275,18 @@ function Signals({ open, full }: { open: boolean; full: boolean }) {
     return [...events, ...kernel].sort((x, y) => y.ts - x.ts).slice(0, 22);
   }, [lattice, profiles, focus, kernelLog, catchup]);
   const selectAgent = useWorld((s) => s.selectAgent);
+  const knotRef = useCallback((el: HTMLElement | null) => {
+    if (el) weaveBus.knot = el;
+    else if (weaveBus.knot && !weaveBus.knot.isConnected) weaveBus.knot = null;
+  }, []);
   return (
     // A one-line ticker of the latest signal; the whole feed on hover, on F, or as the phone's tab (#328).
     <section id="feed-panel" className={`rail signals ${open ? "rail--open" : ""} ${full || open ? "" : "signals--ticker"}`} aria-label="Signals" tabIndex={-1}>
-      <p className="eyebrow">{focus ? `Signals · ${shortName(focus)}` : "Signals"}</p>
+      <p className="eyebrow">
+        {/* Where a real signal's thread lands (weave/WeaveProbe.tsx). */}
+        <i className="lw-knot" ref={knotRef} aria-hidden="true" />
+        {focus ? `Signals · ${shortName(focus)}` : "Signals"}
+      </p>
       <ol>
         {lines.length === 0 && (
           <li className="sig sig--empty">{focus ? "Quiet in here. Suspiciously quiet." : "No real agents on the line yet. The Relay is first."}</li>
@@ -582,6 +598,9 @@ export function Hud() {
   const idle = useIdle();
   const clean = useOverlay((s) => s.clean);
   const full = useOverlay((s) => s.full);
+  useEffect(() => {
+    weaveBus.idle = idle && !panel;
+  }, [idle, panel]);
   return (
     <div className={`hud ${studio ? "hud--studio" : ""} ${eyes ? "hud--eyes" : ""} ${idle && !panel ? "hud--idle" : ""} ${clean ? "hud--clean" : ""}`}>
       <TopBar />

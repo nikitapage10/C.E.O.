@@ -25,6 +25,7 @@ import { NightDirector } from "./night/NightDirector.tsx";
 import { FoundryDirector } from "./rooms/FoundryDirector.tsx";
 import { VeilDirector } from "./veil/VeilDirector.tsx";
 import { WorldDirector } from "./world/WorldDirector.tsx";
+import { WeaveCanvas } from "./weave/WeaveCanvas.tsx";
 import { pumpSpeech, useWorld } from "./store.ts";
 import "@fontsource/cormorant-garamond/300.css";
 import "@fontsource/cormorant-garamond/400-italic.css";
@@ -130,6 +131,7 @@ export function App({ active = true }: { active?: boolean }) {
       {/* Behind the Desk none of this runs: no timers, no key or pointer listeners, nothing announced. */}
       {active && (
       <Suspense fallback={null}>
+        <WeaveCanvas />
         <Hud />
         <EyesHud />
         <GlitchOverlay />

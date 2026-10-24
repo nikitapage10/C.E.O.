@@ -31,7 +31,7 @@ import { emailBudget, monthSpend } from "./budget.js";
 import { authUrl, exchangeCode, revoke, type Fetcher, type OAuthClient } from "./gmail.js";
 import { emptyEmailStatus, type EmailStatus } from "./status.js";
 import { pickEmailStore, type EmailStore } from "./store.js";
-import { markDone, statusOf } from "./tick.js";
+import { markDone, mountainDay, statusOf } from "./tick.js";
 import { emptyEmailState, type EmailView } from "./types.js";
 
 export const EMAIL_PATH = "/api/email";
@@ -157,6 +157,7 @@ export async function GET(request: Request, deps: EmailRouteDeps = liveRouteDeps
       status,
       canConnect: deps.client !== null && deps.store !== null,
       items: state.items,
+      urgentSkipped: state.day.day === mountainDay(deps.now) ? Math.min(9_999, state.day.urgent) : 0,
       spend: { usd: Math.round(monthSpend(state, deps.now).usd * 10_000) / 10_000, budget: deps.budget },
     };
     return withCookie(json(view), signed);

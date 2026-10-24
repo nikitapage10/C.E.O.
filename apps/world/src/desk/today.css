@@ -1,12 +1,10 @@
 /*
- * Today, the bridge of Skippy's ship over Ilyr (#385). The helm on the left (the greeting, Right now, the ephemeris,
- * the deck with the channel to Skippy and the day's broadcast), the astrolabe on the right, the Council under them
- * set as the minutes of a sitting, and below deck what can wait. The Lattice's type (Cormorant Garamond for what is
- * said, IBM Plex Mono for what is measured) on the Weave's dark (wv.css tokens); rooms tint only their own light.
- * Every motion stops under prefers-reduced-motion (at the end).
+ * Today's parts (#385, kept by #413's Confluence, whose own layout is confluence/confluence.css): Held for you's rows,
+ * * the ephemeris, the channel to Skippy, the day's broadcast, the talks, and below the stage what can wait. On the
+ * Weave's dark (wv.css tokens); rooms tint only their own light. Every motion stops under prefers-reduced-motion.
  */
 
-.desk .td{--td-gut:56px;--td-chart:min(640px,52vw);--td-disp:"Bodoni Moda Variable","Bodoni Moda",Didot,"Bodoni 72",serif;--td-sans:"Jost Variable",Jost,Futura,"Century Gothic",system-ui,sans-serif;font-family:var(--td-sans)}
+.desk .td{--td-disp:"Bodoni Moda Variable","Bodoni Moda",Didot,"Bodoni 72",serif;--td-sans:"Jost Variable",Jost,Futura,"Century Gothic",system-ui,sans-serif;font-family:var(--td-sans)}
 /* Today's own type (#385, Nikita 05:22Z "make it fit the theme more"): Bodoni Moda, a didone cut like an instrument's
    engraved dial, for what is said and the hours; Jost, a geometric sans like a chart's spaced labels, for the rest. */
 .desk .td-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -16,21 +14,6 @@
 .desk .td-k{display:flex;align-items:center;flex-wrap:wrap;gap:4px 9px;margin:0 0 12px;font-family:var(--td-sans);font-size:10.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--wv-faint)}
 .desk .td-k>span{color:var(--wv-hot)}
 .desk .td-h2{margin:0;font-family:var(--td-disp);font-weight:500;font-size:clamp(28px,3vw,38px);line-height:1.06;letter-spacing:-.008em;color:var(--wv-ink);text-wrap:balance}
-
-/* ---------- the bridge ---------- */
-.desk .td-bridge{position:relative;display:grid;grid-template-columns:minmax(0,1fr) var(--td-chart);grid-template-areas:"head chart" "helm chart" "eph chart" "deck chart";grid-template-rows:auto auto auto 1fr;column-gap:var(--td-gut);row-gap:36px;margin:0 0 104px;isolation:isolate}
-/* The sun's light spills off the chart onto the bridge. */
-.desk .td-bridge::before{content:"";position:absolute;z-index:-1;right:calc(var(--td-chart) / 2 - 520px);top:-140px;width:1040px;height:1040px;border-radius:50%;background:radial-gradient(closest-side,rgba(255,196,130,.075),rgba(236,238,243,.02) 45%,transparent 72%);pointer-events:none}
-.desk .td-head{grid-area:head;padding-top:6px}
-.desk .td-sig svg{width:22px;height:22px;fill:none;stroke:var(--wv-hot-dim);stroke-width:1}
-.desk .td-sig svg .is-pl{fill:var(--wv-hot);stroke:none;transform-origin:12px 12px;animation:td-orbit 9s linear infinite}
-@keyframes td-orbit{to{transform:rotate(360deg)}}
-.desk .td-greet{font-size:clamp(44px,4.8vw,64px);line-height:.98;letter-spacing:-.018em;text-wrap:balance}
-.desk .td-say{margin:16px 0 0;max-width:40ch;font-family:var(--td-disp);font-style:italic;font-size:21px;line-height:1.38;color:var(--wv-soft)}
-.desk .td-helm{grid-area:helm;min-width:0}
-.desk .td-ephw{grid-area:eph;min-width:0}
-.desk .td-deck{grid-area:deck;min-width:0;display:grid;gap:22px;align-content:start}
-.desk .td-chart{grid-area:chart;position:sticky;top:12px;align-self:start;min-width:0}
 
 /* ---------- the helm: Right now ---------- */
 .desk .td-now{position:relative}
@@ -95,54 +78,6 @@
 .desk .td-clear span{font-size:14px;line-height:1.5;color:var(--wv-mute)}
 .desk .td-clear+.td-now-l{margin-top:10px}
 
-/* ---------- the astrolabe ---------- */
-.desk .td-astro{margin:0;position:relative}
-.desk .td-astro-sq{position:relative;width:100%;aspect-ratio:1;container-type:inline-size}
-.desk .td-astro-cv{position:absolute;inset:0;width:100%;height:100%;display:block}
-.desk .td-sun{position:absolute;left:50%;top:50%;z-index:3;transform:translate(-50%,-50%)}
-.desk .td-sun .skp-avatar{--s:clamp(48px,11.5cqw,76px)}
-.desk .td-sun .skp-avatar__glow{display:none}
-.desk .td-sun .skp-avatar__can{border:1px solid rgba(255,220,170,.5);background:radial-gradient(closest-side,#2a2117,#120f0b);object-position:50% 30%;filter:none;box-shadow:0 0 34px -4px rgba(255,200,130,.55),inset 0 0 10px rgba(0,0,0,.5)}
-.desk .td-sun .skp-avatar:hover .skp-avatar__can,.desk .td-sun .skp-avatar:focus-visible .skp-avatar__can{box-shadow:0 0 48px 0 rgba(255,200,130,.7)}
-.desk .td-sun .skp-avatar:focus-visible{outline:1px solid var(--wv-hot);outline-offset:6px}
-.desk .td-bridge.is-glow .td-sun .skp-avatar{transform:scale(1.12);transition:transform .5s var(--wv-ease)}
-.desk .td-sun .skp-avatar{transition:transform .6s var(--wv-ease)}
-
-.desk .td-pls,.desk .td-beads{list-style:none;margin:0;padding:0}
-.desk .td-pl{--pz:clamp(30px,7.2cqw,48px);position:absolute;z-index:2;width:var(--pz);height:var(--pz);transform:translate(-50%,-50%);border-radius:50%;color:var(--wv-ink);transition:opacity .35s}
-.desk .td-pl.is-s1{--pz:clamp(26px,5.8cqw,38px)}
-.desk .td-pl.is-s2{--pz:clamp(22px,4.6cqw,31px)}
-.desk .td-pl-pf{position:absolute;inset:0;display:block;border-radius:50%;transition:transform .45s var(--wv-ease)}
-.desk .td-pl-pf img{position:relative;z-index:1;width:100%;height:100%;display:block;border-radius:50%;object-fit:cover;object-position:50% 26%;background:#12141a;border:1px solid var(--wv-line2)}
-.desk .td-pl.is-busy .td-pl-pf::before,.desk .td-pl.is-steady .td-pl-pf::before{content:"";position:absolute;inset:-5px;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 55%,var(--wv-hot) 82%,transparent 100%);-webkit-mask:radial-gradient(closest-side,transparent calc(100% - 2px),#000 calc(100% - 1.5px));mask:radial-gradient(closest-side,transparent calc(100% - 2px),#000 calc(100% - 1.5px));animation:weave-spin 5s linear infinite}
-.desk .td-pl.is-steady .td-pl-pf::before{opacity:.5;animation-duration:9s}
-.desk .td-pl.is-down .td-pl-pf img{border-color:var(--wv-bad)}
-.desk .td-pl.is-waiting .td-pl-pf img{border-style:dashed}
-.desk .td-pl.is-s2 .td-pl-pf img{filter:grayscale(.65) brightness(.8);border-style:dashed;border-color:var(--wv-line2)}
-.desk .td-pl-t{position:absolute;top:50%;display:grid;gap:1px;white-space:nowrap;transform:translateY(-50%);pointer-events:none;transition:opacity .35s,transform .45s var(--wv-ease)}
-.desk .td-pl[data-side="r"] .td-pl-t{left:calc(100% + 9px)}
-.desk .td-pl[data-side="l"] .td-pl-t{right:calc(100% + 9px);text-align:right}
-.desk .td-pl-t b{font-family:var(--td-disp);font-weight:500;font-size:16px;line-height:1.05;color:var(--wv-ink);text-shadow:0 1px 10px #07080b,0 0 3px #07080b}
-.desk .td-pl-t em{font-style:normal;font-family:var(--td-sans);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--wv-mute);text-shadow:0 0 6px #07080b}
-.desk .td-pl.is-down .td-pl-t em{color:var(--wv-bad)}
-.desk .td-pl.is-s1 .td-pl-t b{font-size:14px;color:var(--wv-soft)}
-.desk .td-pl.is-s2 .td-pl-t{opacity:0}
-.desk .td-pl.is-s2 .td-pl-t b{font-size:12.5px;color:var(--wv-mute)}
-.desk .td-pl.is-s2 .td-pl-t em{display:none}
-.desk .td-pl:hover,.desk .td-pl:focus-visible,.desk .td-pl.is-hot{z-index:4;outline:none}
-.desk .td-pl:hover .td-pl-pf,.desk .td-pl:focus-visible .td-pl-pf,.desk .td-pl.is-hot .td-pl-pf{transform:scale(1.16)}
-.desk .td-pl:focus-visible .td-pl-pf img{box-shadow:0 0 0 2px #07080b,0 0 0 3px var(--wv-hot)}
-.desk .td-pl.is-hot .td-pl-t,.desk .td-pl:hover .td-pl-t{opacity:1}
-.desk .td-pl.is-hot .td-pl-t em,.desk .td-pl:hover .td-pl-t em{display:block}
-.desk .td-pl.is-dim{opacity:.42}
-
-/* The crew's runs on the rim's inner track: a glyph each, the soonest calling. */
-.desk .td-bead{position:absolute;z-index:2;width:clamp(18px,4cqw,26px);height:clamp(18px,4cqw,26px);transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;color:var(--wv-mute);background:#0c0e13;border:1px solid var(--wv-line2);transition:transform .4s var(--wv-ease),box-shadow .3s;cursor:default}
-.desk .td-bead.is-next{color:var(--wv-hot);border-color:var(--wv-hot-line)}
-.desk .td-bead .td-ic{width:58%;height:58%}
-.desk .td-bead.is-next::after{content:"";position:absolute;inset:-3px;border-radius:50%;--k:var(--wv-hot);animation:weave-ping 2.4s ease-out infinite}
-.desk .td-bead.is-hot,.desk .td-bead:hover{transform:translate(-50%,-50%) scale(1.3);box-shadow:0 0 16px -2px rgba(236,238,243,.04);z-index:4}
-
 /* Ilyr's hour, read off the chart's corner. */
 .desk .td-read{position:relative;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;margin:0 0 6px;padding-right:200px;min-height:50px}
 .desk .td-read-k{display:flex;align-items:center;gap:7px;margin:0;font-family:var(--td-sans);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--wv-mute)}
@@ -154,14 +89,6 @@
 .desk .td-read-warn{flex-basis:100%;margin:0;font-size:12.5px;color:var(--wv-bad)}
 .desk .td-read.is-slow .td-read-h b{color:#f3c178}
 .desk .td-read.is-down .td-read-h b{color:var(--wv-bad);text-shadow:none}
-
-.desk .td-astro-cap{min-height:66px;margin:6px auto 0;max-width:58ch;text-align:center;font-size:13.5px;line-height:1.55;color:var(--wv-mute)}
-.desk .td-astro-cap>span{display:block;animation:td-cap .5s var(--wv-ease)}
-.desk .td-astro-cap b{display:block;margin-bottom:3px;font-family:var(--td-disp);font-weight:500;font-size:19px;color:var(--wv-ink)}
-@keyframes td-cap{from{opacity:0;transform:translateY(5px);filter:blur(3px)}to{opacity:1;transform:none;filter:none}}
-.desk .td-replay{position:absolute;right:0;top:14px;z-index:3;display:inline-flex;align-items:center;gap:6px;padding:4px 0;border:0;background:none;font:inherit;font-size:11.5px;color:var(--wv-faint);cursor:pointer;transition:color .3s}
-.desk .td-replay svg{width:13px;height:13px}
-.desk .td-replay:hover,.desk .td-replay:focus-visible{color:var(--wv-hot);outline:none}
 
 /* ---------- the ephemeris ---------- */
 .desk .td-eph-l{list-style:none;margin:0;padding:0;border-top:1px solid var(--wv-line)}
@@ -232,52 +159,6 @@
 .desk .td-cast.is-none .td-cast-btn .td-cast-w{height:18px}
 .desk .td-cast.is-none .td-cast-btn .td-cast-w i{height:calc(3px + (var(--i) * 7 % 5) * 2px);background:var(--wv-line2)}
 
-/* ---------- the Council of Skippies: the minutes of a sitting ---------- */
-.desk .td-council{position:relative;margin:0 0 96px;padding-left:var(--td-cn-m,0)}
-/* The table seen from above: a great faint ring behind the speakers' margin. */
-.desk .td-council::before{content:"";position:absolute;z-index:-1;left:-360px;top:40px;width:640px;height:640px;border-radius:50%;border:1px solid rgba(255,220,170,.07);pointer-events:none}
-.desk .td-cn-head{margin:0 0 28px;max-width:760px}
-.desk .td-cn-l{list-style:none;margin:0;padding:0;border-top:1px solid var(--wv-line)}
-.desk .td-cn{position:relative;display:grid;grid-template-columns:240px minmax(0,1fr);gap:8px 36px;padding:22px 0 20px;border-bottom:1px solid var(--wv-line);transition:opacity .35s,background .45s}
-.desk .td-cn.is-hot{background:linear-gradient(90deg,rgba(236,238,243,.04),transparent 60%)}
-.desk .td-cn.is-dim{opacity:.5}
-.desk .td-cn-who{display:grid;grid-template-columns:44px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:12px;align-content:start;color:var(--wv-ink)}
-.desk a.td-cn-who:focus-visible{outline:1px solid var(--wv-hot-line);outline-offset:6px;border-radius:10px}
-.desk .td-cn-pf{position:relative;grid-row:1/4;width:44px;height:44px;border-radius:50%}
-.desk .td-cn-pf img{position:relative;z-index:1;width:44px;height:44px;border-radius:50%;object-fit:cover;object-position:50% 28%;background:#15171d;border:1px solid var(--wv-line2)}
-.desk .td-cn-pf.is-active::before{content:"";position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 55%,var(--wv-hot-dim) 80%,transparent 100%);-webkit-mask:radial-gradient(closest-side,transparent calc(100% - 2px),#000 calc(100% - 1.5px));mask:radial-gradient(closest-side,transparent calc(100% - 2px),#000 calc(100% - 1.5px));animation:weave-spin 6s linear infinite;opacity:.9}
-.desk .td-cn-who>b{align-self:end;font-family:var(--td-sans);font-weight:500;font-size:11px;letter-spacing:.17em;text-transform:uppercase;color:var(--wv-ink)}
-.desk .td-cn-who>span{font-size:12.5px;color:var(--wv-mute)}
-.desk .td-cn-who>span em{font-style:normal;color:var(--wv-faint)}
-.desk .td-cn.is-down .td-cn-who>span em{color:var(--wv-bad)}
-.desk .td-cn.is-busy .td-cn-who>span em{color:var(--wv-hot-dim)}
-.desk .td-cn-who small{justify-self:start;margin-top:5px;font-family:var(--td-sans);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--wv-line2);color:var(--wv-mute)}
-.desk .td-cn-line{min-width:0;display:grid;gap:8px;align-content:start}
-.desk .td-cn-say{position:relative;font-family:var(--td-disp);font-size:clamp(19px,1.8vw,23px);line-height:1.36;color:var(--wv-soft);text-wrap:pretty;max-width:46ch}
-.desk .td-cn-dir{font-family:var(--td-disp);font-style:italic;font-size:16px;line-height:1.45;color:var(--wv-mute)}
-.desk .td-cn-dir::before{content:"("}
-.desk .td-cn-dir::after{content:")"}
-.desk .td-cn.is-chair .td-cn-say{font-style:italic;color:var(--wv-hot);font-size:clamp(21px,2vw,26px)}
-.desk .td-cn.is-chair .td-cn-who>b{color:var(--wv-hot)}
-.desk .td-cn.is-bench .td-cn-who{grid-template-columns:minmax(0,1fr)}
-.desk .td-cn.is-bench .td-cn-who>b{color:var(--wv-mute)}
-/* Speaking: three bars hanging in the margin while its line comes in. */
-.desk .td-cn-talk{position:absolute;left:-22px;top:.45em;display:inline-flex;align-items:flex-end;gap:2px;height:10px;opacity:0}
-.desk .td-cn-talk i{width:2px;height:100%;border-radius:2px;background:var(--wv-hot-dim);transform-origin:bottom}
-.desk .td-council .td-cn{opacity:0;transform:translateY(10px)}
-.desk .td-council .td-cn-say>span{opacity:0;filter:blur(4px)}
-.desk .td-council.is-live .td-cn{animation:td-seat .7s var(--wv-ease) forwards;animation-delay:var(--d)}
-.desk .td-council.is-live .td-cn-say>span{animation:td-word .5s var(--wv-ease) forwards;animation-delay:calc(var(--d) + 260ms + var(--w))}
-.desk .td-council.is-live .td-cn-talk{animation:td-talking 1.6s var(--wv-ease) forwards;animation-delay:calc(var(--d) + 200ms)}
-.desk .td-council.is-live .td-cn-talk i{animation:td-bar .5s ease-in-out 3 alternate;animation-delay:calc(var(--d) + 200ms)}
-.desk .td-council.is-live .td-cn-talk i:nth-child(2){animation-delay:calc(var(--d) + 340ms)}
-.desk .td-council.is-live .td-cn-talk i:nth-child(3){animation-delay:calc(var(--d) + 270ms)}
-@keyframes td-seat{to{opacity:1;transform:none}}
-@keyframes td-word{to{opacity:1;filter:none}}
-@keyframes td-talking{0%{opacity:0}15%,75%{opacity:1}100%{opacity:0}}
-@keyframes td-bar{from{transform:scaleY(.3)}to{transform:scaleY(1)}}
-.desk .td-council.is-live .td-cn.is-dim{opacity:.5}
-
 /* The talks: whether Nikita has talked with this submind, and the exchanges under it. */
 .desk .td-talks{margin:2px 0 0;max-width:640px}
 .desk .td-talks-bar{display:flex;align-items:center;gap:9px;width:auto;margin:0;padding:4px 0;border:0;background:none;font:inherit;font-size:12.5px;color:var(--wv-mute);text-align:left;cursor:pointer}
@@ -296,15 +177,6 @@
 .desk .td-tk-a.is-sub{padding-left:10px}
 .desk .td-tk-d{color:var(--wv-mute)}
 .desk .td-talks-l time{font-family:var(--td-sans);font-size:10px;color:var(--wv-faint)}
-
-/* Not yet seated: the subminds whose rooms aren't set up, each one tap from saying so. */
-.desk .td-cn-bench{display:flex;flex-wrap:wrap;gap:8px}
-.desk .td-cn-bench button{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px 0 3px;border-radius:999px;border:1px dashed var(--wv-line2);background:none;color:var(--wv-soft);font:inherit;font-size:13px;cursor:pointer;transition:border-color .3s,background .3s,color .3s}
-.desk .td-cn-bench button img{width:30px;height:30px;border-radius:50%;object-fit:cover;object-position:50% 28%;filter:grayscale(.6) brightness(.85);transition:filter .3s}
-.desk .td-cn-bench button:hover,.desk .td-cn-bench button[aria-pressed="true"],.desk .td-cn-bench button:focus-visible{border-color:var(--wv-line2);border-style:solid;color:var(--wv-ink);background:rgba(236,238,243,.04);outline:none}
-.desk .td-cn-bench button:hover img,.desk .td-cn-bench button[aria-pressed="true"] img{filter:none}
-.desk .td-cn-heard{display:grid;gap:6px;margin-top:6px;animation:weave-rise .4s var(--wv-ease)}
-.desk .td-cn-heard .td-cn-say b{font-weight:500;color:var(--wv-ink);margin-right:4px}
 
 /* ---------- below deck: not worth knowing now ---------- */
 .desk .td-later{margin:0}
@@ -336,46 +208,20 @@
 .desk .td-ni-t em,.desk .td-ni-go,.desk .td-ni-end time{font-weight:500}
 .desk .td-ni-n{font-size:15px}
 .desk .td-clear b{font-size:19px}
-.desk .td-pl-t b{font-family:var(--td-sans);font-weight:500;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;line-height:1.2}
-.desk .td-pl.is-s1 .td-pl-t b{font-size:10.5px}
-.desk .td-pl.is-s2 .td-pl-t b{font-size:10px}
-.desk .td-pl-t em{font-size:9px;letter-spacing:.14em;font-weight:400}
 .desk .td-read-h b{font-weight:500;letter-spacing:.06em}
 .desk .td-read-h>span:last-child{font-size:14px}
 .desk .td-read-t,.desk .td-read-k{font-weight:400;letter-spacing:.06em;font-size:11.5px}
 .desk .td-read-k{letter-spacing:.2em;font-size:10px;font-weight:500}
-.desk .td-astro-cap b{font-size:17px}
 .desk .td-eph-w b{font-family:var(--td-sans);font-weight:500;font-size:15px;letter-spacing:.01em}
 .desk .td-eph-w span{font-size:12.5px}
 .desk .td-eph-r time{font-size:12.5px;font-feature-settings:"tnum"}
 .desk .td-eph-r time b{font-weight:600}
 .desk .td-door b,.desk .td-cast-t b{font-family:var(--td-sans);font-weight:500;font-size:15.5px}
 .desk .td-ask .skp-ask__label{font-family:var(--td-disp);font-style:italic;font-size:18px}
-.desk .td-cn-say{font-family:var(--td-sans);font-weight:300;font-size:clamp(17px,1.5vw,19.5px);line-height:1.5}
-.desk .td-cn.is-chair .td-cn-say{font-family:var(--td-disp);font-weight:400;font-size:clamp(20px,1.9vw,24px);line-height:1.3}
-.desk .td-cn-dir{font-size:14.5px}
-.desk .td-cn-who>b{font-size:10.5px;letter-spacing:.2em}
 .desk .td-later-k b{font-size:18px}
 .desk .td-cast-script p{font-family:var(--td-sans);font-weight:300;font-size:16px}
 
 /* ---------- narrower ---------- */
-@media (max-width:1100px){
-  .desk .td{--td-gut:36px;--td-chart:min(560px,50vw)}
-  .desk .td-cn{grid-template-columns:200px minmax(0,1fr);gap:8px 24px}
-}
-@media (max-width:900px){
-  .desk .td{--td-chart:100%}
-  .desk .td-bridge{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "helm" "chart" "eph" "deck";grid-template-rows:none;row-gap:30px;margin-bottom:72px}
-  .desk .td-bridge::before{right:50%;transform:translateX(50%);top:30%;width:760px;height:760px}
-  .desk .td-chart{position:relative;top:auto;max-width:600px;width:100%;justify-self:center}
-  .desk .td-read{padding-right:0}
-  .desk .td-replay{position:static;margin:8px auto 0;display:flex}
-  .desk .td-cn{grid-template-columns:minmax(0,1fr);gap:12px}
-  .desk .td-cn-who{grid-template-columns:36px minmax(0,1fr)}
-  .desk .td-cn-pf,.desk .td-cn-pf img{width:36px;height:36px}
-  .desk .td-cn-talk{left:auto;right:0;top:-24px}
-  .desk .td-council::before{left:-420px}
-}
 @media (max-width:640px){
   .desk .td .td-greet{font-size:clamp(36px,10.5vw,46px)}
   .desk .td-say{font-size:18px}
@@ -394,26 +240,14 @@
   .desk .td-cast>.td-cast-w{display:none}
   .desk .td-later-bar{flex-wrap:wrap;gap:12px;padding:14px 18px;border-radius:22px}
   .desk .td-later-k{flex:1 1 100%}
-  .desk .td-cn-say{font-size:19px}
-}
-/* A small chart: names stay on the live orbit only, the rest on a point or a tap. */
-@container (max-width:480px){
-  .desk .td-pl-t b{font-size:12.5px}
-  .desk .td-pl-t em{display:none}
-  .desk .td-pl.is-s1 .td-pl-t b{font-size:12px}
-  .desk .td-pl.is-hot .td-pl-t,.desk .td-pl:hover .td-pl-t{opacity:1}
-  .desk .td-pl[data-side="r"] .td-pl-t{left:calc(100% + 5px)}
-  .desk .td-pl[data-side="l"] .td-pl-t{right:calc(100% + 5px)}
 }
 
 /* ---------- still ---------- */
 @media (prefers-reduced-motion:reduce){
-  .desk .td-live,.desk .td-now-l::after,.desk .td-ni.is-fire .td-ni-ic,.desk .td-clear-ic::before,.desk .td-clear-ic::after,.desk .td-bead.is-next::after,.desk .td-eph-r.is-next .td-eph-g::after,.desk .td-cn-pf.is-active::before,.desk .td-pl-pf::before,.desk .td-sig svg .is-pl,.desk .td-cast.is-playing .td-cast-w i{animation:none}
+  .desk .td-live,.desk .td-now-l::after,.desk .td-ni.is-fire .td-ni-ic,.desk .td-clear-ic::before,.desk .td-clear-ic::after,.desk .td-eph-r.is-next .td-eph-g::after,.desk .td-cast.is-playing .td-cast-w i{animation:none}
   .desk .td-now-l::after{display:none}
-  .desk .td-ni,.desk .td-council .td-cn{animation:none;opacity:1;transform:none}
+  .desk .td-ni{animation:none;opacity:1;transform:none}
   .desk .td-ni-ic .td-ic path,.desk .td-clear-ic .td-ic path{animation:none;stroke-dashoffset:0}
-  .desk .td-council .td-cn-say>span{animation:none;opacity:1;filter:none}
-  .desk .td-cn-talk{display:none}
-  .desk .td-ni-row,.desk .td-cn,.desk .td-later-ics>span,.desk .td-pl,.desk .td-pl-pf,.desk .td-pl-t,.desk .td-bead,.desk .td-door svg,.desk .td-sun .skp-avatar,.desk .td-cast-btn,.desk .td-cast-ring circle.is-f{transition:none}
-  .desk .td-ni-card,.desk .td-clear,.desk .td-talks-l,.desk .td-cn-heard,.desk .td-astro-cap>span{animation:none}
+  .desk .td-ni-row,.desk .td-later-ics>span,.desk .td-door svg,.desk .td-cast-btn,.desk .td-cast-ring circle.is-f{transition:none}
+  .desk .td-ni-card,.desk .td-clear,.desk .td-talks-l{animation:none}
 }

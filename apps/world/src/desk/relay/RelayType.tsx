@@ -388,6 +388,11 @@ export function RelayType({ now }: { now: number }) {
                   </ul>
                 </details>
               )}
+              {view.urgentSkipped > 0 && (
+                <p className="rp-state is-warn">
+                  {view.urgentSkipped} urgent money or legal {view.urgentSkipped === 1 ? "alert" : "alerts"} skipped; check those accounts directly.
+                </p>
+              )}
               <footer className="rp-foot">
                 <span>
                   {status ? `${status.newToday.toLocaleString()} in today · ${status.noise.toLocaleString()} handled without you` : ""}

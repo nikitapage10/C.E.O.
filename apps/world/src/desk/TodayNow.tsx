@@ -15,8 +15,8 @@ import { useNow } from "./motion.tsx";
 import { mtTime, roman, until, upcoming } from "./todaySchedule.ts";
 
 /**
- * Right now (#363, Nikita 2026-10-24: "the focus is what do I need to know right now?"), the helm of Today's bridge
- * since #385, each row a signal numbered in the chart's numerals, its room lit on the astrolabe while pointed at: one list in
+ * Right now (#363, Nikita 2026-10-24: "the focus is what do I need to know right now?"), "Held for you" in the top right
+ * of Today since #413, each row a signal numbered in the chart's numerals, its room lit on the stage while pointed at: one list in
  * the order to read it. First what's on fire (a room whose submind says it needs a look, an hour of Ilyr overdue), then
  * what needs an answer from Nikita (Rivet's questions, the Foundry's decisions, replies, email, ideas to pick, setup),
  * then one line of what landed while he was away. Each row has its icon in its room's colour; a row that takes an
@@ -69,8 +69,10 @@ export interface NowInput {
   /** What shipped since Nikita was last here, newest first. */
   shipped: Change[];
   awaySince: number;
-  /** Lights a row's room on the astrolabe while it is pointed at. */
+  /** Lights a row's room on the stage while it is pointed at. */
   onHot?: (room: string | null) => void;
+  /** The eyebrow over the list: "Held for you" on Today since #413. */
+  label?: string;
 }
 
 export function TodayNow(p: NowInput) {
@@ -188,7 +190,7 @@ export function TodayNow(p: NowInput) {
       <header className="td-now-head">
         <p className="wv-eyb">
           <i className="td-live" aria-hidden="true" />
-          <span>Right now</span>
+          <span>{p.label ?? "Right now"}</span>
           <span className="td-now-as">{mtTime(now)}</span>
         </p>
         <h2 id="td-now-h" className="td-h2">

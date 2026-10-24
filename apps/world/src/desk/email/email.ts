@@ -56,7 +56,7 @@ export function readView(v: unknown): EmailView | null {
   const status = readEmailStatus(b.status);
   const spend = b.spend as Record<string, unknown> | null;
   if (!status || !Array.isArray(b.items) || !spend || typeof spend.usd !== "number" || typeof spend.budget !== "number") return null;
-  return { ok: true, status, canConnect: b.canConnect === true, items: b.items.map(readItem).filter((x): x is EmailItem => x !== null), spend: { usd: spend.usd, budget: spend.budget } };
+  return { ok: true, status, canConnect: b.canConnect === true, items: b.items.map(readItem).filter((x): x is EmailItem => x !== null), urgentSkipped: typeof b.urgentSkipped === "number" && b.urgentSkipped > 0 ? Math.min(9_999, Math.floor(b.urgentSkipped)) : 0, spend: { usd: spend.usd, budget: spend.budget } };
 }
 
 /** The Boiler Room's Gmail pipe and the Systems light, from the public counts. */

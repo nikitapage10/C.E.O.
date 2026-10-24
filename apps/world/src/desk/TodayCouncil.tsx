@@ -12,7 +12,8 @@ import { FEED_ROOMS, useRoomFeed, type FeedRoom } from "./skippy/roomFeed.ts";
 import { reducedMotion } from "./wvCanvas.ts";
 
 /**
- * The Council of Skippies, on the page (#363, Nikita 2026-10-24: "I still like the council of Skippies, just they need
+ * The Council of Skippies, on the page (#363; set as the minutes of a sitting since #385, like a script: the speaker in
+ * the margin, the line in the big serif, and the stage directions in italics, Nikita 2026-10-24: "I still like the council of Skippies, just they need
  * to be presented in a better way"; it was a pop-up until #351). Skippy calls the room to order and each submind whose
  * room runs real work reports in turn, in its own voice, its words coming in as it speaks: rooms that need a look
  * first, then the busy ones, then the steady and the waiting. The subminds whose rooms aren't set up yet sit along the
@@ -168,22 +169,31 @@ export function TodayCouncil({ pulses, hot, onHot }: { pulses: RoomPulse[]; hot:
 
   return (
     <section ref={ref} className={`td-council${live ? " is-live" : ""}`} aria-labelledby="td-council-h" data-in>
-      <div className="td-cn-head">
-        <span className="td-cn-chair" aria-hidden="true">
-          <img src={SKIPPY_PORTRAIT} alt="" width={56} height={56} decoding="async" loading="lazy" />
-        </span>
-        <div>
-          <p className="wv-eyb">The Council of Skippies</p>
-          <h2 id="td-council-h" className="td-h2">
-            Skippy and his nine, reporting in
-          </h2>
-          <p className="td-cn-lead">
-            “Council's in session. Report, and keep it short.” {active} of {pulses.length} subminds are active, each with its own thread; {speakers.length} rooms have something real to say.
-          </p>
-        </div>
-      </div>
+      <header className="td-cn-head">
+        <p className="td-k">
+          <span>The Council of Skippies</span> in session
+        </p>
+        <h2 id="td-council-h" className="td-h2">
+          Skippy and his nine, reporting in
+        </h2>
+      </header>
 
       <ol className="td-cn-l">
+        <li className="td-cn is-chair" data-room="kernel" style={{ "--d": "0ms", "--i": 0 } as React.CSSProperties}>
+          <span className="td-cn-who">
+            <span className="td-cn-pf is-active">
+              <img src={SKIPPY_PORTRAIT} alt="" width={48} height={48} decoding="async" loading="lazy" />
+            </span>
+            <b>Skippy</b>
+            <span>the chair</span>
+          </span>
+          <div className="td-cn-line">
+            <span className="td-cn-say">“Council's in session. Report, and keep it short.”</span>
+            <span className="td-cn-dir">
+              {active} of {pulses.length} subminds are active, each with its own thread; {speakers.length} {speakers.length === 1 ? "room has" : "rooms have"} something real to say.
+            </span>
+          </div>
+        </li>
         {speakers.map((p, i) => {
           const src = portrait(p.submind.id) ?? `/desk/agent-${p.submind.id}.webp`;
           const words = p.report.split(/(\s+)/);
@@ -192,71 +202,79 @@ export function TodayCouncil({ pulses, hot, onHot }: { pulses: RoomPulse[]; hot:
               key={p.id}
               data-room={p.id}
               className={`td-cn is-${p.state}${hot === p.id ? " is-hot" : hot ? " is-dim" : ""}`}
-              style={{ "--d": `${starts[i]}ms`, "--i": i } as React.CSSProperties}
+              style={{ "--d": `${starts[i]}ms`, "--i": i + 1 } as React.CSSProperties}
               onPointerEnter={() => onHot(p.id)}
               onPointerLeave={() => onHot(null)}
             >
-              <a href={p.href} onClick={roomLink(p.href)} onFocus={() => onHot(p.id)} onBlur={() => onHot(null)}>
+              <a className="td-cn-who" href={p.href} onClick={roomLink(p.href)} onFocus={() => onHot(p.id)} onBlur={() => onHot(null)}>
                 <span className={`td-cn-pf${p.submind.active ? " is-active" : ""}`}>
                   <img src={src} alt="" width={48} height={48} decoding="async" loading="lazy" />
                 </span>
-                <span className="td-cn-body">
-                  <span className="td-cn-who">
-                    <b>{p.submind.title}</b>
-                    <span>{p.name}</span>
-                    <em>{STATE_WORD[p.state]}</em>
-                    {p.submind.active && <small title="Its room has a real API, and the submind its own thread">Active</small>}
-                    <i className="td-cn-talk" aria-hidden="true">
-                      <i />
-                      <i />
-                      <i />
-                    </i>
-                  </span>
-                  <span className="td-cn-say">
-                    {words.map((w, k) =>
-                      /^\s+$/.test(w) ? (
-                        w
-                      ) : (
-                        <span key={k} style={{ "--w": `${Math.floor(k / 2) * WORD_MS}ms` } as React.CSSProperties}>
-                          {w}
-                        </span>
-                      ),
-                    )}
-                  </span>
+                <b>{p.submind.title}</b>
+                <span>
+                  {p.name}, <em>{STATE_WORD[p.state].toLowerCase()}</em>
                 </span>
+                {p.submind.active && <small title="Its room has a real API, and the submind its own thread">Active</small>}
               </a>
-              <Talks room={p.id} who={p.submind.title} />
+              <div className="td-cn-line">
+                <span className="td-cn-say">
+                  <i className="td-cn-talk" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </i>
+                  {words.map((w, k) =>
+                    /^\s+$/.test(w) ? (
+                      w
+                    ) : (
+                      <span key={k} style={{ "--w": `${Math.floor(k / 2) * WORD_MS}ms` } as React.CSSProperties}>
+                        {w}
+                      </span>
+                    ),
+                  )}
+                </span>
+                <Talks room={p.id} who={p.submind.title} />
+              </div>
             </li>
           );
         })}
-      </ol>
-
-      {bench.length > 0 && (
-        <div className="td-cn-bench" style={{ "--d": `${t}ms` } as React.CSSProperties}>
-          <p>
-            <b>At the end of the table</b>
-            <span>{bench.length === 1 ? "One room isn't" : `${bench.length} rooms aren't`} set up yet; tap a submind to hear it say so.</span>
-          </p>
-          <ul>
-            {bench.map((p) => (
-              <li key={p.id} data-room={p.id}>
-                <button type="button" aria-pressed={heard === p.id} onClick={() => setHeard(heard === p.id ? null : p.id)} onPointerEnter={() => onHot(p.id)} onPointerLeave={() => onHot(null)} aria-label={`${p.submind.title}, ${p.name}`}>
-                  <img src={portrait(p.submind.id) ?? `/desk/agent-${p.submind.id}.webp`} alt="" width={36} height={36} decoding="async" loading="lazy" />
-                  <span>{p.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {heardP && (
-            <div key={heardP.id} className="td-cn-heard" data-room={heardP.id}>
-              <p role="status">
-                <b>{heardP.submind.title}</b> {heardP.report}
-              </p>
-              <Talks room={heardP.id} who={heardP.submind.title} />
+        {bench.length > 0 && (
+          <li className="td-cn is-bench" style={{ "--d": `${t}ms`, "--i": speakers.length + 1 } as React.CSSProperties}>
+            <span className="td-cn-who">
+              <b>Not yet seated</b>
+              <span>{bench.length === 1 ? "one room isn't" : `${bench.length} rooms aren't`} set up</span>
+            </span>
+            <div className="td-cn-line">
+              <span className="td-cn-dir">At the end of the table, waiting for their rooms. Tap one to hear it say so.</span>
+              <div className="td-cn-bench">
+                {bench.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    data-room={p.id}
+                    aria-pressed={heard === p.id}
+                    onClick={() => setHeard(heard === p.id ? null : p.id)}
+                    onPointerEnter={() => onHot(p.id)}
+                    onPointerLeave={() => onHot(null)}
+                    aria-label={`${p.submind.title}, ${p.name}`}
+                  >
+                    <img src={portrait(p.submind.id) ?? `/desk/agent-${p.submind.id}.webp`} alt="" width={36} height={36} decoding="async" loading="lazy" />
+                    <span>{p.name}</span>
+                  </button>
+                ))}
+              </div>
+              {heardP && (
+                <div key={heardP.id} className="td-cn-heard" data-room={heardP.id}>
+                  <span className="td-cn-say" role="status">
+                    <b>{heardP.submind.title}:</b> {heardP.report}
+                  </span>
+                  <Talks room={heardP.id} who={heardP.submind.title} />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </li>
+        )}
+      </ol>
     </section>
   );
 }

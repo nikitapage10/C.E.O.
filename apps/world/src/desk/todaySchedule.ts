@@ -103,3 +103,22 @@ export function until(at: number, now: number, seconds = false): string {
 
 /** "2:05 am", Mountain, like the rest of the Desk. */
 export const mtTime = (t: number) => new Date(t).toLocaleTimeString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit" }).toLowerCase();
+
+const ROMAN: [number, string][] = [
+  [10, "X"],
+  [9, "IX"],
+  [5, "V"],
+  [4, "IV"],
+  [1, "I"],
+];
+/** 21 → "XXI": the hour of the day as the bridge's chart writes it (#385); 0 is the day's last hour, XXIV. */
+export function roman(n: number): string {
+  let out = "";
+  let k = Math.max(0, Math.floor(n));
+  for (const [v, s] of ROMAN)
+    while (k >= v) {
+      out += s;
+      k -= v;
+    }
+  return out || "XXIV";
+}

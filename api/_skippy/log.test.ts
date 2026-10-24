@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
+import { KEY_LOG_ROOMS } from "../_site/roomkeys.ts";
 import { BlobRoomLog, LOG_KEEP, LOG_SHOW, MemoryRoomLog, ROOM_SUBMINDS, cardText, cleanCard, cleanFollowUp, cleanTurn, handoffTo, keepTurns, readRoom, turnId, type LoggedTurn } from "./log.ts";
 import { SUBMINDS } from "../../packages/simulator/src/subminds.ts";
 import { pickBlob } from "../_blob.ts";
@@ -126,9 +127,10 @@ describe("hand-offs in the room log (#312)", () => {
 describe("the subminds' doorbell (#341, scripts/submind-watch.sh)", () => {
   const script = readFileSync(new URL("../../scripts/submind-watch.sh", import.meta.url), "utf8");
 
-  it("watches each active room for its own submind, and only those", () => {
+  it("watches each active room the read key may read, for its own submind, and only those (never Relay's)", () => {
     const mapped = Object.fromEntries([...script.matchAll(/^\s+([a-z]+)\) mind=([a-z]+) ;;$/gm)].map((m) => [m[1], m[2]]));
-    const active = Object.fromEntries(Object.entries(ROOM_SUBMINDS).filter(([, m]) => m.active).map(([room, m]) => [room, m.id]));
+    const active = Object.fromEntries(Object.entries(ROOM_SUBMINDS).filter(([room, m]) => m.active && (KEY_LOG_ROOMS as readonly string[]).includes(room)).map(([room, m]) => [room, m.id]));
+    expect(mapped.relay).toBeUndefined();
     expect(mapped).toEqual(active);
   });
 

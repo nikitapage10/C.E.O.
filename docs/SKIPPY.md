@@ -187,7 +187,9 @@ numbers for the players asked about), decides, posts the answer back, says the s
 watcher again. Exits: 0 rang, 2 no key or a bad room, 3 the key was refused (401: not the vault's current one; say so in
 the thread), 1 the site couldn't be read ten times running (restart it). Hand-offs already open when it starts are
 counted on stderr and left, so read them first (`--all` rings for them at once). A watcher that times out is simply
-restarted; when the thread's machine is recycled the watcher goes with it until the thread next runs.
+restarted; when the thread's machine is recycled the watcher goes with it until the thread next runs. Relay's asks stay
+Desk-only (the read key never opens them), so the Messenger has no watcher: a hand-off to it waits on the Relay page's
+Asked Skippy panel, and the chat says so when it stops waiting.
 
 The lines a thread runs, from the repo's root (here for the Green; `exchange`, `boiler` and `foundry` the same way):
 

@@ -6,6 +6,8 @@ import { allModelUrls } from "./modelUrl.ts";
  * - Kept: once the Lattice has been on screen it stays mounted behind the Desk (main.tsx), hidden, not drawing, its
  *   simulator, HUD and sound paused. Coming back shows it as it was: nothing to fetch, build or compile again.
  *   Machines that report little memory (navigator.deviceMemory under 4 GB) drop it on the way out instead, as before.
+ * - Let go (#406): after LET_GO_MS back on the Desk, the kept Lattice is unmounted, which frees its memory and GPU
+ *   through the usual unmount path. A short hop back stays instant; after that it loads fresh, like a first visit.
  * - Fetched ahead: on a desktop with a fast connection, once the Desk has loaded, gone idle and had a quiet spell
  *   (WAIT_MS), the models are read into this browser's cache at the lowest priority, one at a time: public,
  *   content-hashed files under /assets/models, immutable for a year on both hosts. Nothing from /api and nothing
@@ -17,6 +19,8 @@ import { allModelUrls } from "./modelUrl.ts";
  * the Lattice can time each arrival from the click, not from when its code ran.
  */
 const WAIT_MS = 4000;
+/** How long the Desk can have been back on screen before the kept Lattice is let go. */
+export const LET_GO_MS = 10 * 60 * 1000;
 
 type Connection = { saveData?: boolean; effectiveType?: string };
 type Nav = Navigator & { connection?: Connection; deviceMemory?: number };
@@ -85,4 +89,16 @@ export const trips = { asked: 0, count: 0, warmed: false };
 export function askedForLattice(at: number) {
   trips.count += 1;
   trips.asked = at;
+}
+
+/**
+ * Starts the let-go timer (#406): after `ms` calls `letGo` and forgets the trips so the next arrival counts as a
+ * first one, not a return. Returns a function that cancels it (the route went back to the Lattice).
+ */
+export function startLetGo(letGo: () => void, ms = LET_GO_MS): () => void {
+  const timer = setTimeout(() => {
+    trips.count = 0;
+    letGo();
+  }, ms);
+  return () => clearTimeout(timer);
 }

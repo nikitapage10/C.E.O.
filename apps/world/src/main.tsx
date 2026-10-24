@@ -12,10 +12,10 @@ import "@fontsource/ibm-plex-sans/latin-400.css";
 import "@fontsource/ibm-plex-sans/latin-400-italic.css";
 import "@fontsource/ibm-plex-sans/latin-500.css";
 import "@fontsource/ibm-plex-sans/latin-600.css";
-import { StrictMode, Suspense, lazy, useLayoutEffect, useState } from "react";
+import { StrictMode, Suspense, lazy, useEffect, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Desk } from "./desk/Desk.tsx";
-import { askedForLattice, keepLattice } from "./latticeWarm.ts";
+import { askedForLattice, keepLattice, startLetGo } from "./latticeWarm.ts";
 import { lastMove, loadLattice, useRoute } from "./route.ts";
 import { installSiteGate } from "./siteGate.ts";
 
@@ -36,6 +36,11 @@ function Root() {
   const [seen, setSeen] = useState(onLattice);
   if (onLattice && !seen) setSeen(true);
   const mounted = onLattice || (seen && keepLattice());
+  // Ten minutes back on the Desk and the kept Lattice is let go (#406); coming back sooner cancels it.
+  useEffect(() => {
+    if (onLattice || !seen) return;
+    return startLetGo(() => setSeen(false));
+  }, [onLattice, seen]);
   useLayoutEffect(() => {
     if (onLattice) askedForLattice(lastMove());
   }, [onLattice]);

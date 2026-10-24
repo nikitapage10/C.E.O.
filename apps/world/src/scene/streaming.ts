@@ -1,9 +1,10 @@
-import { ROOM_IDS, type RoomId } from "@ceo/core";
+import { ROOM_IDS, roomCenter, type RoomId } from "@ceo/core";
 import { SAMPLE_AGENTS } from "@ceo/simulator";
 import { bodyModels } from "../agents/bodies/assets.ts";
 import { useCast } from "../cast/castStore.ts";
 import { useProgress } from "@react-three/drei";
 import { flushPreloads, libUrl, preloadNow } from "../fx/library.ts";
+import { warming } from "../fx/compile.ts";
 import { MODEL as BROGU } from "../pets/Brogu.tsx";
 import { LIBRARY_PETS } from "../pets/LibraryPet.tsx";
 import { MODEL as MYSHKA } from "../pets/Myshka.tsx";
@@ -17,8 +18,8 @@ import { useStreaming } from "./roomScope.ts";
  * Room-first loading. Opened on a room (/lattice?room=foundry, the Desk's room links), the Lattice fetches what that
  * room needs (its props, the agents and pets in it), lifts the curtain on it at full detail, then streams the other
  * rooms' props, agents and pets in behind it. Their walls, floors, lights and furniture built in code are there from
- * the start, so the light count (and every shader) stays the same as they fill in. Opened on the overview, everything
- * loads, as before, but all at once instead of in waves.
+ * the start, so the light count (and every shader) stays the same as they fill in. Opened on the overview (#373), the
+ * rooms nearest its camera, the biggest on screen, come first (NEAR of them), and the rest of the ring the same way.
  *
  * Whatever is fetched ahead of need (bodies in the studio's wardrobe, House frames) waits until the world on screen
  * is in (fx/library.ts, preloadLib).
@@ -32,6 +33,19 @@ const PET_MODELS: Record<PetKind, string> = {
   shiba: LIBRARY_PETS.shiba.model,
   mushnub: LIBRARY_PETS.mushnub.model,
 };
+
+/** Where the overview's camera starts (Scene.tsx), and how many of the rooms nearest it load first. */
+const OVERVIEW_EYE = [0, 66, 96] as const;
+export const NEAR = 4;
+
+/** The rooms nearest the overview's camera, nearest first: what fills most of the screen when the Lattice opens. */
+export function nearestRooms(n = NEAR): RoomId[] {
+  const d = (r: RoomId) => {
+    const [x, y, z] = roomCenter(r);
+    return Math.hypot(x - OVERVIEW_EYE[0], y - OVERVIEW_EYE[1], z - OVERVIEW_EYE[2]);
+  };
+  return [...ROOM_IDS].sort((a, b) => d(a) - d(b)).slice(0, n);
+}
 
 /** Skippy over the Kernel, seen from every room. */
 const KERNEL_MODELS = [libUrl("custom/Skippy")];
@@ -100,17 +114,15 @@ export function bootStreaming(first: RoomId | null) {
   if (booted) return;
   booted = true;
   const room = first && (ROOM_IDS as readonly string[]).includes(first) ? first : null;
-  useStreaming.setState({ rooms: [], all: room === null });
-  if (!room) {
-    preloadNow(...modelsFor(new Set(ROOM_IDS)));
-    return;
-  }
-  void loadRoom(room);
-  // Leaving the first room for anywhere else brings the rest in at once.
+  // On a room: that room. On the overview: the rooms nearest its camera.
+  const rooms = room ? [room] : nearestRooms();
+  useStreaming.setState({ rooms: [], all: false });
+  for (const r of rooms) void loadRoom(r);
+  // Going anywhere past the first rooms brings the rest in at once.
   const off = useWorld.subscribe((s) => {
-    if (s.focus === room) return;
+    if (s.focus === room || (s.focus !== null && rooms.includes(s.focus))) return;
     // The room link sets focus just after mount; ignore the moment before it lands.
-    if (s.focus === null && !readied) return;
+    if (s.focus === null && (room === null || !readied)) return;
     off();
     release();
   });
@@ -124,4 +136,13 @@ export function streamingReady() {
     if (useStreaming.getState().all) flushPreloads();
     else release();
   });
+}
+
+/**
+ * The whole world is in: every room let in, nothing left loading and every streamed part's shaders compiled. Until
+ * then the page is still busy behind the curtain (on a software renderer, for minutes). window.__ceo.streamedIn()
+ * reads it, so the browser tests start once the world has finished arriving (#405).
+ */
+export function streamedIn(): boolean {
+  return useStreaming.getState().all && !useProgress.getState().active && warming.count === 0;
 }

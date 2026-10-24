@@ -10,8 +10,14 @@ interface BootStore {
    */
   drawing: boolean;
   startDrawing: () => void;
-  /** The Lattice is on screen, not hidden behind the Desk (main.tsx). Hidden, the canvas doesn't draw at all. */
-  shown: boolean;
+  /**
+   * Whether the Lattice is the page on screen (#373). After its first visit, or once the Desk has warmed it in the
+   * background (latticeWarm.ts), the Lattice stays mounted behind the Desk: hidden, its canvas not drawing, its
+   * simulator, HUD, directors and sound paused, so coming back is instant. main.tsx sets it from the route.
+   */
+  active: boolean;
+  /** The Lattice has been on screen at least once (warmed before then, it draws a few frames out of sight). */
+  visited: boolean;
 }
 
 export const useBoot = create<BootStore>((set) => ({
@@ -22,7 +28,8 @@ export const useBoot = create<BootStore>((set) => ({
   },
   drawing: false,
   startDrawing: () => set({ drawing: true }),
-  shown: true,
+  active: true,
+  visited: false,
 }));
 
 /**

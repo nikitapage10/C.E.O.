@@ -104,6 +104,21 @@ export async function playTrack(file: File): Promise<void> {
   changed();
 }
 
+/**
+ * The Lattice went behind the Desk (#373): the C.E.O.'s track pauses with it and picks up where it was on the way
+ * back. (Before the Lattice stayed mounted, leaving it left the track playing on the Desk with nothing to stop it.)
+ */
+export function holdDeck(hold: boolean) {
+  if (!audio) return;
+  if (hold) {
+    audio.pause();
+    void ctx?.suspend();
+  } else {
+    void ctx?.resume();
+    void audio.play().catch(() => {});
+  }
+}
+
 export function stopTrack() {
   if (audio) {
     audio.pause();

@@ -1,5 +1,6 @@
 import { Component, type ReactNode, useEffect, useState } from "react";
 import { create } from "zustand";
+import { useBoot } from "../boot.ts";
 
 /**
  * Keeps the Lattice on screen when something in it breaks. A render error or a lost WebGL context used to
@@ -191,6 +192,8 @@ export function GuardNote() {
 export function watchLoopErrors() {
   let recent: number[] = [];
   const onError = (e: ErrorEvent) => {
+    // Behind the Desk (#373) the scene draws nothing: an error now is the Desk's.
+    if (!useBoot.getState().active) return;
     const now = performance.now();
     recent = [...recent.filter((t) => now - t < 2000), now];
     if (recent.length >= 3) {

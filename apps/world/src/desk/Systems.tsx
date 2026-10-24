@@ -8,6 +8,7 @@ import { foundryGraph } from "./foundryGraph.ts";
 import { nextCheck, useSetup } from "./IdeaCard.tsx";
 import { useSetupStatus } from "./SetupCard.tsx";
 import { JobBoard } from "./JobBoard.tsx";
+import { LatticeTimings } from "./LatticeTimings.tsx";
 import { PipeRack, RoomDetail } from "./PipeRack.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId, type GState } from "./systemsGraph.ts";
@@ -306,6 +307,8 @@ export function Systems({ now }: { now: number }) {
         <EmailCard load={emailLoad} status={emailStatus} now={now} onFlow={() => openLine("relay")} />
         <JobBoard now={now} />
       </div>
+
+      <LatticeTimings />
 
       <details className="bx-more">
         <summary>

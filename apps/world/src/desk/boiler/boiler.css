@@ -1798,3 +1798,11 @@
     transform: translate(calc(var(--dx) * 0.6), calc(var(--dy) * 0.6));
   }
 }
+
+/* The Lattice's boot timings (#373, LatticeTimings.tsx). */
+.desk .rm-boiler .bx-ltime .bx-note,
+.desk .rm-boiler .bx-ltime .bx-readout{margin-top:12px}
+.desk .rm-boiler .bx-ltime-scroll{margin-top:14px;overflow-x:auto}
+.desk .rm-boiler .bx-ltime-t{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.desk .rm-boiler .bx-ltime-t th{font-weight:500;text-align:left;padding:6px 12px 6px 0;white-space:nowrap;opacity:.65}
+.desk .rm-boiler .bx-ltime-t td{border-top:1px solid rgba(255,255,255,.08);padding:6px 12px 6px 0;white-space:nowrap}

@@ -127,6 +127,22 @@ try {
       console.warn("skippy: the studio never settled; skipping");
     }
   }
+  // Rusty's dock crew aren't in the cast either: Rusty's body in each one's paint, public/desk/agent-<name>.webp for
+  // the Foundry's crew row, shot on a full run or with --only=dusty,gusty,musty, and never listed in PORTRAITS.
+  for (const id of ["dusty", "gusty", "musty"]) {
+    if (only && !only.includes(id)) continue;
+    await page.goto(`${base}/portrait-studio?agent=${id}`, { waitUntil: "domcontentloaded" });
+    try {
+      await page.waitForFunction(() => globalThis.__studio?.ready === true, undefined, { timeout: 240_000, polling: 500 });
+      const png = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: FRAME, height: FRAME }, timeout: 120_000 });
+      const webp = await sharp(png).resize(SIZE, SIZE, { kernel: "lanczos3" }).webp({ quality: 82, effort: 6, smartSubsample: true }).toBuffer();
+      writeFileSync(`${OUT}agent-${id}.webp`, webp);
+      if (keep) writeFileSync(`${keep}/${id}.png`, png);
+      console.log(`agent-${id}.webp  ${(webp.length / 1024).toFixed(1)} KB`);
+    } catch {
+      console.warn(`${id}: the studio never settled; skipping`);
+    }
+  }
   await browser.close();
 
   // The list the Desk resolves portraits by: every agent in the cast, by id and by name.

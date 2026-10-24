@@ -1,5 +1,6 @@
 import { LINEAGES, PRESET_BY_ID, RELATIONSHIP_LABEL, ROOMS, ROOM_IDS, pendingApprovals, relationshipsOf, roomAngle, type ApprovalRecord, type LatticeState, type RoomId } from "@ceo/core";
 import { useEffect, useMemo, useState } from "react";
+import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { clock } from "../clock.ts";
 import type { GlitchLevel } from "../glitches/scheduler.ts";
@@ -85,7 +86,7 @@ function TopBar() {
 
 const OVERVIEW_LINES = ["Agents work.", "The Lattice responds.", "The C.E.O. approves."];
 
-function TitleBlock() {
+function TitleBlock({ children }: { children?: React.ReactNode }) {
   const focus = useWorld((s) => s.focus);
   const lattice = useWorld((s) => s.lattice);
   const [about, setAbout] = useState(false);
@@ -112,12 +113,14 @@ function TitleBlock() {
       </p>
       {info ? (
         <>
-          <p className="about__blurb">{info.blurb}</p>
+          {/* One status line; the rest waits behind "About this room" (#328). */}
+          <p className="tracked faint status-line">{lines.join(" · ")}</p>
           <button className="tracked about__toggle" onClick={() => setAbout(!about)} aria-expanded={about}>
             {about ? "− Less about this room" : "+ About this room"}
           </button>
           {about && (
             <div className="about">
+              <p className="about__blurb">{info.blurb}</p>
               <dl>
                 {Object.entries(info.stations).map(([id, what]) => (
                   <div key={id}>
@@ -144,21 +147,14 @@ function TitleBlock() {
           ))}
         </div>
       )}
-      {info && !about && (
-        <div className="lines lines--room">
-          {lines.map((l) => (
-            <p key={l} className="tracked faint">
-              {l}
-            </p>
-          ))}
-        </div>
-      )}
+      {children}
       <span className="short-rule" />
     </section>
   );
 }
 
-function Roster({ open }: { open: boolean }) {
+function Roster({ open, folded = false }: { open: boolean; folded?: boolean }) {
+  const [unfolded, setUnfolded] = useState(false);
   const all = useWorld((s) => s.lattice.agents);
   const tasks = useWorld((s) => s.lattice.tasks);
   const focus = useWorld((s) => s.focus);
@@ -190,9 +186,25 @@ function Roster({ open }: { open: boolean }) {
   const selected = useWorld((s) => s.selectedAgent);
   const selectAgent = useWorld((s) => s.selectAgent);
   const hoverAgent = useWorld((s) => s.hoverAgent);
+  if (folded && !unfolded && !open) {
+    // In a room the roster is one line in the room's panel: who's here, and a tap for the list (#328).
+    return (
+      <section className="roster roster--panel" aria-label="Agents">
+        <button className="tracked roster__fold" onClick={() => setUnfolded(true)} aria-expanded={false}>
+          In {focus ? shortName(focus) : "the Lattice"} · {agents.length ? agents.map((a) => a.name).join(", ") : "nobody"} ▸
+        </button>
+      </section>
+    );
+  }
   return (
-    <section className={`rail roster ${focus ? "roster--room" : ""} ${open ? "rail--open" : ""}`} aria-label="Agents">
-      <p className="eyebrow">{focus ? `In ${shortName(focus)} · ${agents.length}` : "Roster"}</p>
+    <section className={`${folded && !open ? "roster--panel" : "rail"} roster ${focus ? "roster--room" : ""} ${open ? "rail--open" : ""}`} aria-label="Agents">
+      {folded ? (
+        <button className="tracked roster__fold eyebrow" onClick={() => setUnfolded(false)} aria-expanded>
+          In {focus ? shortName(focus) : "the Lattice"} · {agents.length} ▾
+        </button>
+      ) : (
+        <p className="eyebrow">{focus ? `In ${shortName(focus)} · ${agents.length}` : "Roster"}</p>
+      )}
       <ul>
         {agents.length === 0 && <li className="roster__empty">Nobody's here right now.</li>}
         {agents.map((a) => (
@@ -238,7 +250,7 @@ function Roster({ open }: { open: boolean }) {
   );
 }
 
-function Signals({ open }: { open: boolean }) {
+function Signals({ open, full }: { open: boolean; full: boolean }) {
   const lattice = useWorld((s) => s.lattice);
   const focus = useWorld((s) => s.focus);
   const kernelLog = useWorld((s) => s.kernelLog);
@@ -256,7 +268,8 @@ function Signals({ open }: { open: boolean }) {
   }, [lattice, profiles, focus, kernelLog, catchup]);
   const selectAgent = useWorld((s) => s.selectAgent);
   return (
-    <section id="feed-panel" className={`rail signals ${open ? "rail--open" : ""}`} aria-label="Signals">
+    // A one-line ticker of the latest signal; the whole feed on hover, on F, or as the phone's tab (#328).
+    <section id="feed-panel" className={`rail signals ${open ? "rail--open" : ""} ${full || open ? "" : "signals--ticker"}`} aria-label="Signals" tabIndex={-1}>
       <p className="eyebrow">{focus ? `Signals · ${shortName(focus)}` : "Signals"}</p>
       <ol>
         {lines.length === 0 && (
@@ -410,12 +423,37 @@ function Footer() {
     })),
   );
   const next = <T,>(list: T[], v: T) => list[(list.indexOf(v) + 1) % list.length]!;
+  const [more, setMore] = useState(false);
   return (
     <footer className="footer">
       <p className="footer__left tracked faint">
-        <span className="muted">{focus ? "S · outward" : "W · inward"}  ·  A D · rooms  ·  E · studio  ·  B · Brogu's eyes</span>
         <span className="footer__rule" /> A living lattice of agents
       </p>
+      {more && (
+        // Keys and settings, behind "?" (#328).
+        <div className="footer__more" role="group" aria-label="Keys and settings">
+          <p className="tracked faint footer__keys">
+            {focus ? "S · outward" : "W · inward"} · A D · rooms · E · studio · B · Brogu's eyes · F · signals · H · clean view
+          </p>
+          <div className="controls">
+            <button className="tracked" onClick={() => s.setTimeScale(next(SPEEDS, s.timeScale))} data-control="speed">
+              Speed <b>{s.timeScale}×</b>
+            </button>
+            <span className="slash">/</span>
+            <button className="tracked" onClick={() => s.setGlitchLevel(next(LEVELS, s.glitchLevel))} data-control="glitches">
+              Glitches <b>{LEVEL_LABEL[s.glitchLevel]}</b>
+            </button>
+            <span className="slash">/</span>
+            <button className="tracked" onClick={() => s.setSound(!s.sound)} data-control="sound">
+              Sound <b>{s.sound ? "On" : "Off"}</b>
+            </button>
+            <span className="slash">/</span>
+            <button className="tracked" onClick={() => s.setQuality(s.quality === "high" ? "low" : "high")} data-control="fx">
+              FX <b>{s.quality}</b>
+            </button>
+          </div>
+        </div>
+      )}
       <div className="footer__right controls" role="group" aria-label="Controls">
         <button className="tracked" onClick={enterEyes} data-control="eyes" title="Walk Brogu round the room you're looking at, and see it through his eyes (B)">
           Brogu's <b>eyes</b>
@@ -425,27 +463,27 @@ function Footer() {
         <span className="slash">/</span>
         <DeckButton />
         <span className="slash">/</span>
-        <button className="tracked" onClick={() => s.setTimeScale(next(SPEEDS, s.timeScale))} data-control="speed">
-          Speed <b>{s.timeScale}×</b>
-        </button>
-        <span className="slash">/</span>
-        <button className="tracked" onClick={() => s.setGlitchLevel(next(LEVELS, s.glitchLevel))} data-control="glitches">
-          Glitches <b>{LEVEL_LABEL[s.glitchLevel]}</b>
-        </button>
-        <span className="slash">/</span>
-        <button className="tracked" onClick={() => s.setSound(!s.sound)} data-control="sound">
-          Sound <b>{s.sound ? "On" : "Off"}</b>
-        </button>
-        <span className="slash">/</span>
-        <button className="tracked" onClick={() => s.setQuality(s.quality === "high" ? "low" : "high")} data-control="fx">
-          FX <b>{s.quality}</b>
+        <button className={`tracked footer__q ${more ? "on" : ""}`} onClick={() => setMore(!more)} aria-expanded={more} aria-label="Keys and settings" title="Keys and settings">
+          <b>?</b>
         </button>
       </div>
     </footer>
   );
 }
 
-/** Bottom-right: the room's name in the Tide's script, with its bearing in the Lattice, in a bracketed box. */
+/** In a room, the bearing and the Lattice's time are one line of its panel (#328). */
+function CoordsLine() {
+  const focus = useWorld((s) => s.focus);
+  const time = useLatticeClock();
+  if (!focus) return null;
+  return (
+    <p className="tracked faint coords-line">
+      {((roomAngle(focus) * 180) / Math.PI).toFixed(3)}° θ / 34.000 R / {time}
+    </p>
+  );
+}
+
+/** Bottom-right, on the overview: the Lattice's name in the Tide's script and the time, in a bracketed box. */
 function Coordinates() {
   const focus = useWorld((s) => s.focus);
   const time = useLatticeClock();
@@ -460,6 +498,36 @@ function Coordinates() {
       </p>
     </div>
   );
+}
+
+/** The overlay's own state (#328): faded after a quiet spell, hidden for a clean view (H), the full feed (F). */
+export const useOverlay = create<{ clean: boolean; full: boolean; toggleClean: () => void; toggleFull: () => void }>((set) => ({
+  clean: false,
+  full: false,
+  toggleClean: () => set((s) => ({ clean: !s.clean })),
+  toggleFull: () => set((s) => ({ full: !s.full })),
+}));
+
+const IDLE_MS = 4000;
+
+/** True after IDLE_MS without a pointer, key, wheel or touch; any of them brings the panels straight back. */
+function useIdle(): boolean {
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    let t = setTimeout(() => setIdle(true), IDLE_MS);
+    const wake = () => {
+      clearTimeout(t);
+      setIdle(false);
+      t = setTimeout(() => setIdle(true), IDLE_MS);
+    };
+    const events = ["pointermove", "pointerdown", "keydown", "wheel", "touchstart"] as const;
+    for (const e of events) window.addEventListener(e, wake, { passive: true });
+    return () => {
+      clearTimeout(t);
+      for (const e of events) window.removeEventListener(e, wake);
+    };
+  }, []);
+  return idle;
 }
 
 function useKeyboard() {
@@ -482,6 +550,8 @@ function useKeyboard() {
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
+      if (k === "h") return useOverlay.getState().toggleClean();
+      if (k === "f") return useOverlay.getState().toggleFull();
       // WASD: A/D step between rooms, W goes in, S backs out.
       if (k === "d") s.cycleFocus(1);
       else if (k === "a") s.cycleFocus(-1);
@@ -508,19 +578,32 @@ export function Hud() {
   const studio = useCast((s) => s.studio !== null);
   const selected = useWorld((s) => s.selectedAgent);
   const eyes = useEyes((s) => s.active);
+  const focus = useWorld((s) => s.focus);
+  const idle = useIdle();
+  const clean = useOverlay((s) => s.clean);
+  const full = useOverlay((s) => s.full);
   return (
-    <div className={`hud ${studio ? "hud--studio" : ""} ${eyes ? "hud--eyes" : ""}`}>
+    <div className={`hud ${studio ? "hud--studio" : ""} ${eyes ? "hud--eyes" : ""} ${idle && !panel ? "hud--idle" : ""} ${clean ? "hud--clean" : ""}`}>
       <TopBar />
       <div className="leftcol">
-        <TitleBlock />
-        <Roster open={panel === "roster"} />
+        {focus ? (
+          <TitleBlock>
+            <CoordsLine />
+            <Roster open={panel === "roster"} folded />
+          </TitleBlock>
+        ) : (
+          <>
+            <TitleBlock />
+            <Roster open={panel === "roster"} />
+          </>
+        )}
       </div>
       <PA />
-      {selected && !studio ? <Dossier key={selected} id={selected} open={panel === "signals"} /> : <Signals open={panel === "signals"} />}
+      {selected && !studio ? <Dossier key={selected} id={selected} open={panel === "signals"} /> : <Signals open={panel === "signals"} full={full} />}
       <Approvals />
       <KernelConsole />
       <TrophyPanel />
-      <Coordinates />
+      {!focus && <Coordinates />}
       <Footer />
       <div className="mobile-tabs">
         <button className={`tracked ${panel === "roster" ? "on" : ""}`} onClick={() => setPanel(panel === "roster" ? null : "roster")}>

@@ -18,8 +18,6 @@ import { Avatar } from "./ui.tsx";
 import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
-import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
-import { RoomFeed } from "./skippy/RoomFeed.tsx";
 import { SetupAsks } from "./skippy/SetupAsks.tsx";
 
 /**
@@ -160,7 +158,7 @@ export function FoundryPage({ now }: { now: number }) {
               ))}
             </div>
           ) : (
-            <p className="wv-allclear-line">{connected ? "All clear. Suggest one, or wait for the morning's three." : "Waiting for GitHub."}</p>
+            <BenchClear now={now} connected={connected} onSuggest={toSuggest} />
           )}
           {data.shelved > 0 && (
             <p className="wv-note wv-shelf">
@@ -221,9 +219,37 @@ export function FoundryPage({ now }: { now: number }) {
         </div>
       </div>
 
-      <AskedSkippy room="foundry" />
       <SetupAsks room="foundry" />
-      <RoomFeed room="foundry" />
+    </div>
+  );
+}
+
+/**
+ * The empty bench (#328): where the morning's three will land, as three outlined places with the time they arrive,
+ * and a fourth that is Nikita's own, pointing at Suggest. The bench reads as waiting, not as missing.
+ */
+function BenchClear({ now, connected, onSuggest }: { now: number; connected: boolean; onSuggest: () => void }) {
+  const at = nextIdeas(now);
+  const when = connected ? inTime(at - now) : "once GitHub answers";
+  return (
+    <div className="wv-bench" aria-label="The bench is clear">
+      <p className="wv-allclear-line">{connected ? "All clear. The morning's three land here, or yours does first." : "Waiting for GitHub."}</p>
+      <ol className="wv-bench-slots">
+        {["One", "Two", "Three"].map((n, i) => (
+          <li key={n} className="wv-bench-slot" style={{ "--i": i } as React.CSSProperties}>
+            <span className="wv-eyb">Idea {n.toLowerCase()} · 9:00</span>
+            <b>Rivet is still sleeping on it</b>
+            <small>Arrives {when}, sized and with a builder.</small>
+          </li>
+        ))}
+        <li className="wv-bench-slot is-yours">
+          <button type="button" onClick={onSuggest}>
+            <span className="wv-eyb">Yours</span>
+            <b>Suggest one now →</b>
+            <small>Rivet reads it within a minute.</small>
+          </button>
+        </li>
+      </ol>
     </div>
   );
 }
@@ -867,19 +893,23 @@ function WorldSpend({ now, world }: { now: number; world: { status: ChronicleSta
 }
 
 /**
- * The day's story (issue #95, docs/WORLD.md): this month's Gemini speech spend against its own cap
- * (GEMINI_BUDGET_USD), next to the world's. Over the cap or without a key there is no audio, and this says so.
+ * Today in Ilyr (issue #95, #365, docs/WORLD.md): Skippy writes it (Claude Haiku, on the shared Claude cap) and
+ * presents it, ElevenLabs reading first under its own cap (ELEVENLABS_BUDGET_USD) and Gemini's speech taking over on a
+ * failure or past the cap (GEMINI_BUDGET_USD). This month's voice spend against both caps; without a key, it says so.
  */
 function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
   const s = world.feed?.story;
   const mask = useMasked();
   const hidden = useHide((h) => h.on);
   const month = s ? new Date(`${s.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
-  const share = s && s.budget > 0 ? Math.min(1, s.usd / s.budget) : 0;
+  const usd = s ? s.usd + (s.elevenUsd ?? 0) : 0;
+  const budget = s ? s.budget + (s.elevenBudget ?? 0) : 0;
+  const share = budget > 0 ? Math.min(1, usd / budget) : 0;
   const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
+  const voices = s ? [s.eleven ? "ElevenLabs" : null, s.gemini ? "Gemini" : null].filter(Boolean).join(", then ") : "";
   return (
-    <section className="fy-world" aria-label="Gemini speech spend on the day's story, this month">
-      <h3 className="fy-usage__head">The day's story · Gemini speech · this month</h3>
+    <section className="fy-world" aria-label="Voice spend on Today in Ilyr, this month">
+      <h3 className="fy-usage__head">Today in Ilyr · Skippy's voice · this month</h3>
       {!s ? (
         <p className="quiet">{world.status === "off" ? "The world isn't saving yet, so there are no stories." : world.status === "failed" ? "Can't reach the world right now." : "Reading the ledger…"}</p>
       ) : (
@@ -887,28 +917,30 @@ function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFe
           <div className="fy-world__row">
             <p className="fy-spend__figure">
               <b>
-                <Private>{formatUsd(s.usd)}</Private>
+                <Private>{formatUsd(usd)}</Private>
               </b>
               <span>{month}</span>
             </p>
             <p className="fy-spend__calls">
-              {s.stories} {s.stories === 1 ? "story" : "stories"} read aloud · {s.tokensOut.toLocaleString()} audio tokens · scripts on Claude Haiku <Private>{formatUsd(s.scriptUsd)}</Private>
+              {s.stories} {s.stories === 1 ? "edition" : "editions"} read aloud · ElevenLabs <Private>{formatUsd(s.elevenUsd ?? 0)}</Private> · Gemini <Private>{formatUsd(s.usd)}</Private> · scripts on Claude Haiku <Private>{formatUsd(s.scriptUsd)}</Private>
             </p>
           </div>
           <div
             className={`fy-meter fy-meter--${tone}`}
             role="meter"
             aria-valuemin={0}
-            aria-valuemax={s.budget}
-            aria-valuenow={hidden ? undefined : Number(s.usd.toFixed(4))}
-            aria-label={`${mask(formatUsd(s.usd))} of Gemini's $${s.budget} monthly cap`}
+            aria-valuemax={budget}
+            aria-valuenow={hidden ? undefined : Number(usd.toFixed(4))}
+            aria-label={`${mask(formatUsd(usd))} of the voices' $${budget} monthly caps`}
           >
-            <i style={{ width: `${s.usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
+            <i style={{ width: `${usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
           </div>
           <p className="fy-world__line">
-            {!s.gemini
-              ? "No Gemini key is set (gemini-api-key in the Key Vault), so the Historian doesn't read the day aloud."
-              : `Guard: no more stories once one more could pass ${formatUsd(s.budget)} this month; the Archive says so until the month turns.`}{" "}
+            {!s.eleven && !s.gemini
+              ? "No voice key is set (elevenlabs or gemini-api-key in the Key Vault), so Skippy writes Today but doesn't read it aloud."
+              : !s.eleven
+                ? "No ElevenLabs key (elevenlabs in the Key Vault), so Gemini reads Today in Skippy's place."
+                : `Skippy reads with ${voices}. Guard: each voice stops once one more edition could pass its cap; the Archive says so until the month turns.`}{" "}
             <a href="/archive" onClick={link("archive")}>
               Hear it in the Archive →
             </a>

@@ -49,6 +49,8 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Who wrote this? Oh. Me. Three minutes ago.",
     "Shipping it like it's 1999.",
     "This crate is mostly semicolons.",
+    "We had four crates. Now we have one good crate.",
+    "Where did the anvil go? We make code, Rusty.",
   ],
   spire: [
     "Per my last email…",

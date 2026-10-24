@@ -16,7 +16,7 @@ import { BUILD, BackProp, Face, HandProp, Hair, Hat, Head, Outfit, shellMaterial
 import { poseFor, type PoseMode } from "./behavior.ts";
 import { Body, topOf } from "./bodies/Body.tsx";
 import { CostumePiece } from "./Costume.tsx";
-import { Nameplate, useTaskCard } from "./Nameplate.tsx";
+import { Nameplate, useHasTask, useTaskCard } from "./Nameplate.tsx";
 import { CARRY_AT, type Drive } from "./bodies/types.ts";
 import { PropMesh } from "./Props.tsx";
 import { SpeechBubble } from "./SpeechBubble.tsx";
@@ -292,6 +292,7 @@ export function Agent({ id }: { id: string }) {
   // Hide the speech bubble once its reading time is up.
   const [bubbleOn, setBubbleOn] = useState(false);
   const cardOpen = useTaskCard((s) => s.open === id);
+  const busy = useHasTask(id);
   useEffect(() => {
     if (!speech) return;
     const left = speech.until - performance.now();
@@ -435,6 +436,7 @@ export function Agent({ id }: { id: string }) {
   const showBubble = bubbleOn && speech && inFocus && !cardOpen;
   // The info card opens on a click (or tap), not on hover, so it never lands on top of the task's own hover.
   const showTag = selected && inFocus && !studioOpen;
+  // A floating name only over someone with a task in hand; everyone else's shows on hover (#328: less on screen).
   // Fixed-size labels in the studio close-up, distance-scaled ones in a room.
   const df = focus && !studioOpen ? 16 : undefined;
   const b = BUILD[look.build];
@@ -514,7 +516,7 @@ export function Agent({ id }: { id: string }) {
           <div className="emote">{emote.glyph}</div>
         </Html>
       )}
-      {focus === rt.place.room && !showBubble && !showTag && !studioOpen && (
+      {focus === rt.place.room && !showBubble && !showTag && !studioOpen && (busy || hovered || cardOpen) && (
         <Nameplate id={id} name={name} accent={accent} y={nameY} />
       )}
       {showBubble && line && <SpeechBubble key={speech!.until} id={id} name={name} accent={accent} line={line} until={speech!.until} y={nameY - 0.1} far={!df} />}

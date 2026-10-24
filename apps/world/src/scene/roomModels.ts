@@ -6,7 +6,7 @@ import type { RoomId } from "@ceo/core";
  * missing here still loads, just later; roomModels.test.ts checks each room's props are covered.
  */
 export const ROOM_MODELS: Record<RoomId, readonly string[]> = {
-  foundry: ["fantasy-props", "scifi-essentials", "scifi-modular"],
+  foundry: ["scifi-essentials", "scifi-modular"],
   spire: ["downtown", "fantasy-props", "nature", "scifi-essentials"],
   exchange: ["scifi-modular", "animals/Bull"],
   green: ["downtown", "medieval", "nature"],

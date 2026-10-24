@@ -3,13 +3,15 @@ import { SAMPLE_AGENTS, defaultCast } from "@ceo/simulator";
 import { Environment, Lightformer } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ACESFilmicToneMapping, AdditiveBlending, Box3, CanvasTexture, Vector3, type Group, type Mesh, type PerspectiveCamera } from "three";
+import { ACESFilmicToneMapping, AdditiveBlending, Box3, CanvasTexture, Vector3, type Group, type Material, type Mesh, type MeshStandardMaterial, type PerspectiveCamera } from "three";
 import { Figure, poseClassic, type Limbs } from "../agents/Agent.tsx";
 import { Body } from "../agents/bodies/Body.tsx";
 import type { Drive } from "../agents/bodies/types.ts";
 import { tickMaterials } from "../fx/materials.ts";
 import { ROOM_ACCENTS } from "../theme.ts";
 import { SKIPPY_ACCENT, SKIPPY_LOOK } from "../agents/skippyLook.ts";
+import { paintDock } from "../agents/dockPaint.ts";
+import { DOCK_CREW } from "../foundry.ts";
 import { FRAMING, type Framing } from "./framing.ts";
 import "./studio.css";
 
@@ -35,6 +37,12 @@ api.roster = SAMPLE_AGENTS.map((a) => ({ id: a.id, name: a.name, room: a.home.ro
 
 /** Skippy's sitting, for the Desk's chat (public/desk/skippy.webp): not an agent, so not in the roster. */
 const SKIPPY_ID = "skippy";
+
+/**
+ * Rusty's dock crew (Dusty, Gusty, Musty), for the Desk's crew row (public/desk/agent-dusty.webp...): not agents
+ * either, so not in the roster. Each sits in Rusty's own salvage-compactor body in its own paint, as in the Foundry.
+ */
+const DOCK = Object.fromEntries(DOCK_CREW.map((d) => [d.name.toLowerCase(), d.colour])) as Record<string, string>;
 
 /** Turned this far from the camera (radians): the three-quarter view, the face towards the key light. */
 const TURN = -0.6;
@@ -83,7 +91,9 @@ function ClassicSitter({ look, lineage, phase }: { look: Look; lineage: Paramete
 /** The sitter: the agent's body at rest, turned three-quarters, its animation clock running. */
 function Sitter({ id, onBox }: { id: string; onBox: (box: Box3) => void }) {
   // Skippy isn't in the cast (he runs it): his own look, for his Desk portrait (/portrait-studio?agent=skippy).
-  const profile = id === SKIPPY_ID ? { look: SKIPPY_LOOK, lineage: "cursori" as const } : cast.profiles[id]!;
+  const dock = DOCK[id];
+  const profile = id === SKIPPY_ID ? { look: SKIPPY_LOOK, lineage: "cursori" as const } : dock ? cast.profiles.tessellate! : cast.profiles[id]!;
+  const painted = useRef(new WeakSet<Mesh>());
   const look = profile.look;
   const drive = useRef<Drive>({ mode: "idle", moving: false, t: 0, speaking: false });
   const root = useRef<Group>(null);
@@ -93,6 +103,19 @@ function Sitter({ id, onBox }: { id: string; onBox: (box: Box3) => void }) {
     drive.current.t = clock.elapsedTime;
     tickMaterials(clock.elapsedTime);
     api.frames++;
+    // A dock crew member: paint each of the body's meshes as it streams in (before the framing, so before the shot).
+    if (dock && root.current) {
+      root.current.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh || painted.current.has(mesh)) return;
+        painted.current.add(mesh);
+        const src = mesh.material as Material | Material[];
+        if (Array.isArray(src) || !(src as MeshStandardMaterial).isMeshStandardMaterial) return;
+        const mat = (src as MeshStandardMaterial).clone();
+        paintDock(mat, dock);
+        mesh.material = mat;
+      });
+    }
     // Frame once the model has streamed in and stood up (a few frames of its idle), measuring what's really there.
     if (!framed.current && root.current) {
       settle.current++;
@@ -183,8 +206,8 @@ function FloorGlow({ accent }: { accent: string }) {
 }
 
 function Portrait({ id }: { id: string }) {
-  const entry = id === SKIPPY_ID ? { body: SKIPPY_LOOK.body } : api.roster.find((a) => a.id === id)!;
-  const accent = id === SKIPPY_ID ? SKIPPY_ACCENT : ROOM_ACCENTS[(entry as { room: RoomId }).room];
+  const entry = id === SKIPPY_ID ? { body: SKIPPY_LOOK.body } : DOCK[id] ? api.roster.find((a) => a.id === "tessellate")! : api.roster.find((a) => a.id === id)!;
+  const accent = id === SKIPPY_ID ? SKIPPY_ACCENT : (DOCK[id] ?? ROOM_ACCENTS[(entry as { room: RoomId }).room]);
   const [box, setBox] = useState<Box3 | null>(null);
   return (
     <div className="studio-frame" style={{ "--tone": accent } as React.CSSProperties} data-agent={id}>
@@ -228,7 +251,7 @@ function Roster() {
 
 export function Studio() {
   const id = new URLSearchParams(window.location.search).get("agent");
-  if (id && (cast.profiles[id] || id === SKIPPY_ID)) return <Portrait id={id} />;
+  if (id && (cast.profiles[id] || id === SKIPPY_ID || DOCK[id])) return <Portrait id={id} />;
   api.ready = true;
   return <Roster />;
 }

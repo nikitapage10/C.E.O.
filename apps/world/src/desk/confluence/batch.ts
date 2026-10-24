@@ -1,8 +1,7 @@
 /**
  * Cheap motes (#413, Nikita 21:34Z: "the Desk is still laggy"). A canvas pays per draw call far more than per pixel,
- * so only the bright, near particles get the soft glowing sprite; the small far ones are gathered into two paths of
- * tiny squares (a faint one and a brighter one) and filled once each. A stream of three hundred motes costs about
- * eighty sprite draws and two fills instead of three hundred draws.
+ * so only the bright, near particles get the soft glowing sprite; the small far ones are gathered into two runs of
+ * tiny squares (a faint one and a brighter one), each run in one colour and alpha, which the canvas draws as a batch.
  */
 export class Motes {
   private a: number[] = [];
@@ -22,9 +21,8 @@ export class Motes {
       if (A >= 0.03) {
         c.globalAlpha = A > 1 ? 1 : A;
         c.fillStyle = `rgb(${rgb})`;
-        c.beginPath();
-        for (let i = 0; i < list.length; i += 3) c.rect(list[i]!, list[i + 1]!, list[i + 2]!, list[i + 2]!);
-        c.fill();
+        // Plain rects, one colour and alpha: the canvas batches these, where one path of hundreds of rects is slow.
+        for (let i = 0; i < list.length; i += 3) c.fillRect(list[i]!, list[i + 1]!, list[i + 2]!, list[i + 2]!);
       }
       list.length = 0;
     }

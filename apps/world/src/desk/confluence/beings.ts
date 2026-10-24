@@ -228,10 +228,10 @@ export class Being {
     this.speed = this.F.v * (0.5 + act);
   }
 
-  /** The slow cycle: mostly itself, now and then Skippy for a while. 34 s round, staggered by `phase`. */
+  /** The slow cycle: mostly itself, now and then Skippy for about four seconds. 34 s round, staggered by `phase`. */
   cycle(t: number): number {
     const k = frac(t / 34 + this.phase);
-    return k < 0.62 ? 0 : k < 0.7 ? smooth((k - 0.62) / 0.08) : k < 0.9 ? 1 : 1 - smooth((k - 0.9) / 0.1);
+    return k < 0.72 ? 0 : k < 0.8 ? smooth((k - 0.72) / 0.08) : k < 0.92 ? 1 : 1 - smooth((k - 0.92) / 0.08);
   }
 
   /** Step the morph toward its target (instant under reduced motion, where dt is 0). */

@@ -61,14 +61,14 @@ interface Eddy {
 const G1 = [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]];
 const G2 = [[0, 1], [2, 3, 4]];
 /** Caps, so a laptop stays smooth whatever the day brings. */
-const STREAM_MAX = 300;
-const STREAM_MIN = 26;
+const STREAM_MAX = 200;
+const STREAM_MIN = 20;
 /**
  * The most backing pixels the stage draws into a frame. It is a soft field of light over the whole top of the page, so
- * it draws at up to this many pixels and lets the browser scale it up (on a laptop a little under its own size; on a
- * Retina screen not double, which would quadruple the work).
+ * it draws at up to this many pixels and lets the browser scale it up (on a laptop screen about three quarters of its
+ * own size: the light is soft, and a Retina screen at double would be seven times the work).
  */
-const BACKING_PX = 900_000;
+const BACKING_PX = 650_000;
 
 /** The Desk's dark (wv.css --wv-bg, a shade deeper), and a fixed scatter of faint stars: x, y (0..1), alpha. */
 const BG = "#0a0b0f";
@@ -94,7 +94,7 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
     const key = `${S.pulses.map((p) => `${p.id}:${p.real ? 1 : 0}:${Math.round(p.activity * 10)}`).join("|")}|${phone ? 1 : 0}`;
     if (key === built) return;
     built = key;
-    const dens = phone ? 0.45 : 0.62;
+    const dens = phone ? 0.36 : 0.42;
     const keep = new Map(beings);
     beings.clear();
     const mk = (id: string, rgb: string, act: number, i: number) => {
@@ -111,7 +111,7 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
     sk = mk("kernel", GOLD, 1, 0);
     order = S.pulses.map((p, i) => mk(p.id, RC[p.id] ?? WHITE, p.real ? p.activity : 0.08, i + 1));
     streams = S.pulses.map((p) => {
-      const n = p.real ? Math.round(clamp(60 + p.activity * 300, STREAM_MIN, STREAM_MAX) * (phone ? 0.5 : 1)) : 18;
+      const n = p.real ? Math.round(clamp(40 + p.activity * 200, STREAM_MIN, STREAM_MAX) * (phone ? 0.55 : 1)) : 12;
       return { id: p.id, rgb: RC[p.id] ?? WHITE, real: p.real, poly: new Poly(), P: new Parts(n, 0.07), v: p.real ? 34 + p.activity * 70 : 16, sp: p.real ? 2 + p.activity * 3 : 1.2, knots: [] };
     });
   };

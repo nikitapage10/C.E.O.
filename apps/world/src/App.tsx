@@ -1,6 +1,9 @@
 import { ROOM_IDS, type RoomId } from "@ceo/core";
-import { Suspense, useEffect, useState } from "react";
-import { bootMarks, markBoot } from "./boot.ts";
+import { Suspense, useEffect, useLayoutEffect, useState } from "react";
+import { bootMarks, markBoot, useBoot } from "./boot.ts";
+import { holdDeck } from "./club/deck.ts";
+import { holdSound } from "./glitches/sound.ts";
+import { loadRoom } from "./scene/streaming.ts";
 import { AppGuard } from "./scene/SceneGuard.tsx";
 import { bootStreaming } from "./scene/streaming.ts";
 import { agentPositions, clock } from "./clock.ts";
@@ -60,11 +63,25 @@ function useDebugApi() {
   }, []);
 }
 
-function useSpeechTicker() {
+function useSpeechTicker(active: boolean) {
   useEffect(() => {
+    if (!active) return;
     const id = setInterval(pumpSpeech, 300);
     return () => clearInterval(id);
-  }, []);
+  }, [active]);
+}
+
+/**
+ * On screen or behind the Desk (#373). Behind it the canvas stops drawing (Scene.tsx), the simulator stops with it
+ * (it ticks in the frame loop), the HUD and directors unmount and the sound holds; back on screen it all picks up
+ * where it was, with nothing to load or compile again.
+ */
+function useActive(active: boolean) {
+  useLayoutEffect(() => {
+    useBoot.setState({ active, ...(active && { visited: true }) });
+    holdDeck(!active);
+    holdSound(!active);
+  }, [active]);
 }
 
 const roomLink = () => {
@@ -76,22 +93,32 @@ const roomLink = () => {
  * `/lattice?room=relay` opens straight on a room (links from the Desk), and loads that room first. The fetching
  * starts here, as the Lattice mounts, before the scene renders (scene/streaming.ts).
  */
-function useRoomLink() {
+function useRoomLink(active: boolean) {
   useState(() => {
     markBoot("lattice");
     bootStreaming(roomLink());
     return null;
   });
+  // Each arrival, not just the first: kept mounted behind the Desk (#373), the Lattice is entered many times.
   useEffect(() => {
+    if (!active) return;
     const room = roomLink();
-    if (room) useWorld.getState().setFocus(room);
-  }, []);
+    if (!room) return;
+    // Its models first, ahead of anything still streaming for the rest of the ring.
+    void loadRoom(room);
+    useWorld.getState().setFocus(room);
+  }, [active]);
 }
 
-export function App() {
+/**
+ * The Lattice. `active` is false while it waits behind the Desk (main.tsx): warmed in the background before its first
+ * visit, or kept after one, so entering it is instant.
+ */
+export function App({ active = true }: { active?: boolean }) {
+  useActive(active);
   useDebugApi();
-  useRoomLink();
-  useSpeechTicker();
+  useRoomLink(active);
+  useSpeechTicker(active);
   return (
     <AppGuard>
       <div className="stage">
@@ -100,6 +127,8 @@ export function App() {
           <Scene />
         </Suspense>
       </div>
+      {/* Behind the Desk none of this runs: no timers, no key or pointer listeners, nothing announced. */}
+      {active && (
       <Suspense fallback={null}>
         <Hud />
         <EyesHud />
@@ -116,6 +145,7 @@ export function App() {
         <AchievementDirector />
         <WorldDirector />
       </Suspense>
+      )}
       <Loader />
     </AppGuard>
   );

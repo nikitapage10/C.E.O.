@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import { Vector3, type Group } from "three";
 import { create } from "zustand";
+import { useBoot } from "../boot.ts";
 import { CREW, crewJob, useFoundry, waitingTurn, type CrewId } from "../foundry.ts";
 import { useWorld } from "../store.ts";
 import { declutterPlates, settleLevel, stepsForward, type PlateBox, type PlateLevel, type Rect } from "./declutter.ts";
@@ -214,7 +215,8 @@ export function Plate({ y, name, accent, line, card, owner }: { y: number; name:
     };
     // Esc closes the card and nothing else: it doesn't also back the camera out of the room.
     const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      // Behind the Desk (#373), Esc is the Desk's.
+      if (e.key !== "Escape" || !useBoot.getState().active) return;
       e.stopImmediatePropagation();
       setOpen(false);
     };

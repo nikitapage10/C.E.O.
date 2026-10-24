@@ -13,11 +13,13 @@
  *               api/_green/route.ts.
  * GET/POST ?green=analysis → the Commentator's call, signed-in Desk only (#276; the rewrite of /api/green-analysis):
  *               api/_green/analysis.ts.
+ * GET/POST ?timing=lattice → the Lattice's boot timings (#373; the rewrite of /api/lattice-timing): api/_boot/timing.ts.
  *
  * The world moves once an hour, so answers are cached at Vercel's edge for a few minutes: every open tab shares one
  * read of the store.
  */
 
+import * as timing from "./_boot/timing.js";
 import { readPublicEmailStatus } from "./_email/store.js";
 import * as positions from "./_exchange/positions.js";
 import * as exchange from "./_exchange/route.js";
@@ -41,6 +43,7 @@ export async function GET(request: Request): Promise<Response> {
   if (exchange.isExchange(request)) return exchange.GET(request);
   if (green.isGreen(request)) return green.GET(request);
   if (greenAnalysis.isAnalysis(request)) return greenAnalysis.GET(request);
+  if (timing.isTiming(request)) return timing.GET(request);
   const store = pickStore();
   if (!store) return json({ error: "not-set-up" }, 503);
   const day = new URL(request.url).searchParams.get("day");
@@ -74,9 +77,13 @@ export async function GET(request: Request): Promise<Response> {
   }
 }
 
-/** The world feed takes no writes; only the Exchange's pins (#240) and the Green's refresh (#276) come through here. */
+/**
+ * The world feed takes no writes; only the Exchange's pins (#240), the Green's refresh (#276) and the Lattice's boot
+ * timings (#373) come through here.
+ */
 export async function POST(request: Request): Promise<Response> {
   if (exchange.isExchange(request)) return exchange.POST(request);
   if (greenAnalysis.isAnalysis(request)) return greenAnalysis.POST(request);
+  if (timing.isTiming(request)) return timing.POST(request);
   return new Response(JSON.stringify({ error: "method" }), { status: 405, headers: { "Content-Type": "application/json", Allow: "GET", "Cache-Control": "no-store" } });
 }

@@ -83,11 +83,16 @@ export function mergeBar(o: Object3D, root: Object3D): string | null {
   if (m.customDepthMaterial || m.customDistanceMaterial) return "custom depth";
   const bar = materialBar(m.material) ?? geometryBar(m.geometry);
   if (bar) return bar;
-  // Mirrored meshes would come out inside out.
-  if (m.matrixWorld.determinant() <= 0) return "mirrored";
+  // Mirrored meshes would come out inside out; one not placed anywhere yet (NaN in its matrix, a scale still being
+  // worked out) would poison its whole piece's bounds.
+  const det = m.matrixWorld.determinant();
+  if (Number.isNaN(det)) return "not placed";
+  if (det <= 0) return "mirrored";
   // Inside the room, visible, with no handler or opt-out on the way up.
   for (let p: Object3D | null = m; p !== root; p = p.parent) {
     if (!p) return "outside the room";
+    // A part that moves as one (a podium) is a root of its own: it merges there, riding along (#373).
+    if (typeof p.userData.stillRoot === "string") return "own root";
     if (!p.visible) return "hidden";
     if (p.userData.merge === false) return "opted out";
     if (hasHandlers(p)) return "pickable";

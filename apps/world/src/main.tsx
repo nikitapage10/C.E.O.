@@ -12,10 +12,11 @@ import "@fontsource/ibm-plex-sans/latin-400.css";
 import "@fontsource/ibm-plex-sans/latin-400-italic.css";
 import "@fontsource/ibm-plex-sans/latin-500.css";
 import "@fontsource/ibm-plex-sans/latin-600.css";
-import { StrictMode, Suspense, lazy } from "react";
+import { StrictMode, Suspense, lazy, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Desk } from "./desk/Desk.tsx";
-import { loadLattice, useRoute } from "./route.ts";
+import { askedForLattice, keepLattice, useLatticeWarmed } from "./latticeWarm.ts";
+import { lastMove, loadLattice, useRoute } from "./route.ts";
 import { installSiteGate } from "./siteGate.ts";
 
 /** The 3D Lattice is its own download: nothing from it (three.js, models, the simulator) loads on the Desk. */
@@ -24,8 +25,21 @@ const Lattice = lazy(() => loadLattice().then((m) => ({ default: m.App })));
 const Studio = lazy(() => import("./studio/Studio.tsx").then((m) => ({ default: m.Studio })));
 const STUDIO = window.location.pathname.startsWith("/portrait-studio");
 
+/** Hidden, behind the Desk: not drawn, never focused or clicked, but still sized, so its canvas keeps its size. */
+const AWAY = { visibility: "hidden" } as const;
+
 function Root() {
   const route = useRoute();
+  const onLattice = route === "lattice";
+  // Once it has been on screen (or the Desk has warmed it, latticeWarm.ts), the Lattice stays mounted behind the Desk,
+  // paused, so going back to it is instant (#373). The Desk still comes and goes with its route, as before.
+  const warmed = useLatticeWarmed();
+  const [seen, setSeen] = useState(onLattice);
+  if (onLattice && !seen) setSeen(true);
+  const mounted = onLattice || ((seen || warmed) && keepLattice());
+  useLayoutEffect(() => {
+    if (onLattice) askedForLattice(lastMove());
+  }, [onLattice]);
   if (STUDIO) {
     return (
       <Suspense fallback={null}>
@@ -33,14 +47,18 @@ function Root() {
       </Suspense>
     );
   }
-  if (route === "lattice") {
-    return (
-      <Suspense fallback={<div className="desk-boot" />}>
-        <Lattice />
-      </Suspense>
-    );
-  }
-  return <Desk route={route} />;
+  return (
+    <>
+      {mounted && (
+        <div className="lattice-keep" style={onLattice ? undefined : AWAY} inert={!onLattice}>
+          <Suspense fallback={onLattice ? <div className="desk-boot" /> : null}>
+            <Lattice active={onLattice} />
+          </Suspense>
+        </div>
+      )}
+      {!onLattice && <Desk route={route} />}
+    </>
+  );
 }
 
 // The site lock (#236, #238): an API call that finds this browser signed out of the site goes to the login page.

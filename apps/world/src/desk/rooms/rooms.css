@@ -307,3 +307,10 @@
   .desk .ex-tape p,.desk .ex-bar::after,.desk .bh-home::before,.desk .bh-needle{animation:none}
   .desk .gr-card{transition:none}
 }
+
+/* The Lattice's boot timings in the Boiler Room (#373, LatticeTimings.tsx). */
+.desk .wv-ltime{margin-top:22px}
+.desk .wv-ltime-scroll{margin-top:14px;overflow-x:auto}
+.desk .wv-ltime-t{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.desk .wv-ltime-t th{color:var(--wv-mute);font-weight:500;text-align:left;padding:6px 10px 6px 0;white-space:nowrap}
+.desk .wv-ltime-t td{border-top:1px solid var(--wv-line);padding:6px 10px 6px 0;white-space:nowrap;color:var(--wv-ink)}

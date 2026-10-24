@@ -8,6 +8,7 @@ import { foundryGraph } from "./foundryGraph.ts";
 import { nextCheck, useSetup } from "./IdeaCard.tsx";
 import { useSetupStatus } from "./SetupCard.tsx";
 import { JobBoard } from "./JobBoard.tsx";
+import { LatticeTimings } from "./LatticeTimings.tsx";
 import { PipeRack } from "./PipeRack.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId } from "./systemsGraph.ts";
@@ -275,6 +276,7 @@ export function Systems({ now }: { now: number }) {
       </div>
 
       <JobBoard now={now} />
+      <LatticeTimings />
 
       <AskedSkippy room="boiler" />
       <SetupAsks room="boiler" />

@@ -44,6 +44,20 @@ describe("which meshes may merge (#136)", () => {
     }
   });
 
+  it("leaves out a mesh with no real place yet (NaN in its matrix)", () => {
+    const { root, mesh } = inRoom(box());
+    mesh.matrixWorld.elements[12] = Number.NaN;
+    expect(mergeable(mesh, root)).toBe(false);
+  });
+
+  it("leaves a moving part's meshes to its own root (a podium, #373)", () => {
+    const raft = new Group();
+    raft.userData.stillRoot = "foundry-podium";
+    const { root, mesh } = inRoom(box(), raft);
+    expect(mergeable(mesh, root)).toBe(false);
+    expect(mergeable(mesh, raft)).toBe(true);
+  });
+
   it("leaves out anything opted out, on the mesh or a group above it", () => {
     const a = inRoom(box());
     a.mesh.userData.merge = false;

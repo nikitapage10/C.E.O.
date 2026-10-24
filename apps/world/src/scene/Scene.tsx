@@ -17,6 +17,7 @@ import { pumpSimulator, useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { Callouts } from "./Callouts.tsx";
 import { AdaptiveResolution, canvasDpr, lowPower } from "./AdaptiveResolution.tsx";
+import { Backstage, TripTimer } from "./Backstage.tsx";
 import { CameraRig } from "./CameraRig.tsx";
 import { DetailLevels, ShadowFocus } from "./DetailLevels.tsx";
 import { Floor, FloorRings, Motes } from "./Environment.tsx";
@@ -81,8 +82,10 @@ export function Scene() {
   // The week before Halloween, one lantern by the club's front, counting down; the Veil's own take over when it opens.
   const countdown = useVeilCountdown();
   const setFocus = useWorld((s) => s.setFocus);
-  // No frame until the first shader compile is done (scene/SceneReady.tsx, boot.ts).
+  // No frame until the first shader compile is done (scene/SceneReady.tsx, boot.ts), and none behind the Desk (#373):
+  // the simulator ticks in the frame loop, so it pauses with it.
   const drawing = useBoot((s) => s.drawing);
+  const active = useBoot((s) => s.active);
   const selectAgent = useWorld((s) => s.selectAgent);
   useEffect(watchLoopErrors, []);
   return (
@@ -90,7 +93,7 @@ export function Scene() {
       <SceneGuard>
         <Canvas
           dpr={canvasDpr(quality)}
-          frameloop={drawing ? "always" : "never"}
+          frameloop={drawing && active ? "always" : "never"}
           camera={{ position: [0, 66, 96], fov: 38, near: 0.5, far: 600 }}
           shadows="soft"
           gl={{
@@ -116,6 +119,8 @@ export function Scene() {
           <Lighting />
           <Heartbeat />
           <RenderInfo />
+          <Backstage />
+          <TripTimer />
           <Suspense fallback={null}>
             <Kernel />
             <Streams />

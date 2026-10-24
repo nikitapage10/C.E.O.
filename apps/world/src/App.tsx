@@ -3,7 +3,7 @@ import { Suspense, useEffect, useLayoutEffect, useState } from "react";
 import { bootMarks, markBoot, useBoot } from "./boot.ts";
 import { holdDeck } from "./club/deck.ts";
 import { holdSound } from "./glitches/sound.ts";
-import { loadRoom } from "./scene/streaming.ts";
+import { loadRoom, streamedIn } from "./scene/streaming.ts";
 import { AppGuard } from "./scene/SceneGuard.tsx";
 import { bootStreaming } from "./scene/streaming.ts";
 import { agentPositions, clock } from "./clock.ts";
@@ -52,6 +52,8 @@ function useDebugApi() {
       cast: () => useCast.getState().cast,
       openStudio: (id: string | null) => useCast.getState().openStudio(id),
       boot: () => ({ ...bootMarks }),
+      // Every room streamed in and compiled (scene/streaming.ts): the page has stopped loading.
+      streamedIn,
       // Brogu's eyes: in and out, and where he is (room-local x, z, yaw).
       eyes: {
         enter: enterEyes,

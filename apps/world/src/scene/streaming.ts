@@ -4,6 +4,7 @@ import { bodyModels } from "../agents/bodies/assets.ts";
 import { useCast } from "../cast/castStore.ts";
 import { useProgress } from "@react-three/drei";
 import { flushPreloads, libUrl, preloadNow } from "../fx/library.ts";
+import { warming } from "../fx/compile.ts";
 import { MODEL as BROGU } from "../pets/Brogu.tsx";
 import { LIBRARY_PETS } from "../pets/LibraryPet.tsx";
 import { MODEL as MYSHKA } from "../pets/Myshka.tsx";
@@ -135,4 +136,13 @@ export function streamingReady() {
     if (useStreaming.getState().all) flushPreloads();
     else release();
   });
+}
+
+/**
+ * The whole world is in: every room let in, nothing left loading and every streamed part's shaders compiled. Until
+ * then the page is still busy behind the curtain (on a software renderer, for minutes). window.__ceo.streamedIn()
+ * reads it, so the browser tests start once the world has finished arriving (#405).
+ */
+export function streamedIn(): boolean {
+  return useStreaming.getState().all && !useProgress.getState().active && warming.count === 0;
 }

@@ -50,10 +50,11 @@ looks first, before any Claude call, and new mail and the catch-up both go throu
 2. **Money and legal mail**, by sender and subject: bills, payments, debts, bank and card statements, invoices,
    receipts, collections, loans, taxes, contracts and legal notices. Counted as skipped; nothing of it is stored, not
    even in the sealed list.
-3. **Urgent money or legal mail** (a fraud alert, a final or overdue notice, a legal deadline, a locked account) is the
-   one exception: a one-line **heads-up** in the needs-you list, the sender and a fixed reason ("Chase: Possible
-   fraud alert, check your app"). Never an amount, an account number, a detail of the mail or a draft, and it never
-   reaches Blasto.
+3. **Urgent money or legal mail** (a fraud alert, a final or overdue notice, a legal deadline, a locked account) is
+   counted the same way, plus one number: the Desk's Relay page says "N urgent money or legal alerts skipped; check
+   those accounts directly". No heads-up item, no sender, no reason is kept (#415), and it never pings or reaches Blasto.
+4. **A purge on every tick** (#415): the same skip list and filter run over the kept items, so mail sorted before the
+   filter existed, or before it grew, is dropped on the next minute and whenever the filter widens.
 
 Mail that passes goes to Dialtone, whose instructions carry the same rule as a **skip** kind (with the same urgent
 exception, chosen from the same fixed reasons). Dialtone's own words about skipped mail are dropped, and skipped mail
@@ -198,6 +199,6 @@ budget stop (no Claude past the cap, mail still counted, the status says paused)
 world feed's `email` carry no subject or sender; the private list needs the passkey; sealed blobs are unreadable
 without the key); the OAuth state check (only our signed, unexpired state for the same nonce; the callback stores
 nothing on a mismatch; a grant wider than read-only is refused); the skip rules (the private skip list, the money and
-legal pre-filter, the urgent heads-up with no amounts, Dialtone's skip, and nothing stored for skipped mail); the
+legal pre-filter, the urgent count with nothing kept, the purge of stored items, Dialtone's skip, and nothing stored for skipped mail); the
 catch-up (queued once, drained within the per-minute limit, never pinged, re-armed by a reconnect); and that a whole
 minute logs nothing.

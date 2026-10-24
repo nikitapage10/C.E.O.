@@ -10,6 +10,8 @@ interface BootStore {
    */
   drawing: boolean;
   startDrawing: () => void;
+  /** The Lattice is on screen, not hidden behind the Desk (main.tsx). Hidden, the canvas doesn't draw at all. */
+  shown: boolean;
 }
 
 export const useBoot = create<BootStore>((set) => ({
@@ -20,6 +22,7 @@ export const useBoot = create<BootStore>((set) => ({
   },
   drawing: false,
   startDrawing: () => set({ drawing: true }),
+  shown: true,
 }));
 
 /**

@@ -82,7 +82,8 @@ export function Scene() {
   const countdown = useVeilCountdown();
   const setFocus = useWorld((s) => s.setFocus);
   // No frame until the first shader compile is done (scene/SceneReady.tsx, boot.ts).
-  const drawing = useBoot((s) => s.drawing);
+  // Hidden behind the Desk, not a single frame (main.tsx).
+  const drawing = useBoot((s) => s.drawing && s.shown);
   const selectAgent = useWorld((s) => s.selectAgent);
   useEffect(watchLoopErrors, []);
   return (

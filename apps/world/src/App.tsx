@@ -1,6 +1,6 @@
 import { ROOM_IDS, type RoomId } from "@ceo/core";
-import { Suspense, useEffect, useState } from "react";
-import { bootMarks, markBoot } from "./boot.ts";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { bootMarks, markBoot, useBoot } from "./boot.ts";
 import { AppGuard } from "./scene/SceneGuard.tsx";
 import { bootStreaming } from "./scene/streaming.ts";
 import { agentPositions, clock } from "./clock.ts";
@@ -60,11 +60,26 @@ function useDebugApi() {
   }, []);
 }
 
-function useSpeechTicker() {
+function useSpeechTicker(shown: boolean) {
   useEffect(() => {
+    if (!shown) return;
     const id = setInterval(pumpSpeech, 300);
     return () => clearInterval(id);
-  }, []);
+  }, [shown]);
+}
+
+/** Hidden behind the Desk (main.tsx), the canvas stops drawing; shown again, a room link still opens its room. */
+function useShown(shown: boolean) {
+  const first = useRef(true);
+  useEffect(() => {
+    useBoot.setState({ shown });
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const room = roomLink();
+    if (shown && room) useWorld.getState().setFocus(room);
+  }, [shown]);
 }
 
 const roomLink = () => {
@@ -88,10 +103,11 @@ function useRoomLink() {
   }, []);
 }
 
-export function App() {
+export function App({ shown = true }: { shown?: boolean }) {
   useDebugApi();
   useRoomLink();
-  useSpeechTicker();
+  useShown(shown);
+  useSpeechTicker(shown);
   return (
     <AppGuard>
       <div className="stage">
@@ -100,22 +116,25 @@ export function App() {
           <Scene />
         </Suspense>
       </div>
-      <Suspense fallback={null}>
-        <Hud />
-        <EyesHud />
-        <GlitchOverlay />
-        <AgentStudio />
-        <GlitchDirector />
-        <SocialDirector />
-        <KernelDirector />
-        <GatheringDirector />
-        <NightDirector />
-        <FoundryDirector />
-        <DeckDirector />
-        <VeilDirector />
-        <AchievementDirector />
-        <WorldDirector />
-      </Suspense>
+      {/* Off screen, the HUD and the directors (and their keys and timers) go; the world itself waits. */}
+      {shown && (
+        <Suspense fallback={null}>
+          <Hud />
+          <EyesHud />
+          <GlitchOverlay />
+          <AgentStudio />
+          <GlitchDirector />
+          <SocialDirector />
+          <KernelDirector />
+          <GatheringDirector />
+          <NightDirector />
+          <FoundryDirector />
+          <DeckDirector />
+          <VeilDirector />
+          <AchievementDirector />
+          <WorldDirector />
+        </Suspense>
+      )}
       <Loader />
     </AppGuard>
   );

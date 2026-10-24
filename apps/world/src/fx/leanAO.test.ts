@@ -73,7 +73,7 @@ describe("transparencySets", () => {
 });
 
 describe("leanAO", () => {
-  it("draws the same two sets, reusing matrices and sparing the first shadow pass, then restores everything", () => {
+  it("draws the same two sets, reusing matrices and sparing both shadow passes, then restores everything", () => {
     const scene = world();
     const pass = fakePass(scene);
     const { renderer, draws } = fakeRenderer(scene);
@@ -86,7 +86,7 @@ describe("leanAO", () => {
 
     expect(draws).toEqual([
       { target: pass.transparencyRenderTargetDWFalse, visible: ["glass", "no-ao"], autoMatrix: false, shadows: false },
-      { target: pass.transparencyRenderTargetDWTrue, visible: ["pane"], autoMatrix: false, shadows: true },
+      { target: pass.transparencyRenderTargetDWTrue, visible: ["pane"], autoMatrix: false, shadows: false },
     ]);
     expect(scene.children.map((o) => o.visible)).toEqual(before);
     expect(scene.matrixWorldAutoUpdate).toBe(true);

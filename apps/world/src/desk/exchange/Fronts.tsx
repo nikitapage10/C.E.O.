@@ -33,6 +33,9 @@ interface Field {
   motes: Float32Array;
 }
 
+/** Where a level crosses a cell edge running from value a to value b, starting at o. */
+const cut = (o: number, cell: number, lv: number, a: number, b: number) => o + (cell * (lv - a)) / (b - a);
+
 const LEVELS = [-0.9, -0.62, -0.38, -0.18, 0.18, 0.38, 0.62, 0.9];
 
 /** The systems' places: the stage's market to the left of centre, the rest scattered by their ids across the band. */
@@ -103,46 +106,49 @@ function spec(fs: readonly FrontIn[], at: number): VizSpec {
             if (k === 0 || k === 15) continue;
             const x = i * cell;
             const y = j * cell;
-            const T: [number, number] = [x + (cell * (lv - a0)) / (a1 - a0), y];
-            const R: [number, number] = [x + cell, y + (cell * (lv - a1)) / (a2 - a1)];
-            const B: [number, number] = [x + (cell * (lv - a3)) / (a2 - a3), y + cell];
-            const Lf: [number, number] = [x, y + (cell * (lv - a0)) / (a3 - a0)];
-            const seg = (p: [number, number], q: [number, number]) => {
-              c.moveTo(p[0], p[1]);
-              c.lineTo(q[0], q[1]);
-            };
+            // Each edge's crossing is worked out only when a segment needs it, with nothing allocated per cell.
             switch (k) {
               case 1:
               case 14:
-                seg(Lf, T);
+                c.moveTo(x, cut(y, cell, lv, a0, a3));
+                c.lineTo(cut(x, cell, lv, a0, a1), y);
                 break;
               case 2:
               case 13:
-                seg(T, R);
+                c.moveTo(cut(x, cell, lv, a0, a1), y);
+                c.lineTo(x + cell, cut(y, cell, lv, a1, a2));
                 break;
               case 3:
               case 12:
-                seg(Lf, R);
+                c.moveTo(x, cut(y, cell, lv, a0, a3));
+                c.lineTo(x + cell, cut(y, cell, lv, a1, a2));
                 break;
               case 4:
               case 11:
-                seg(R, B);
+                c.moveTo(x + cell, cut(y, cell, lv, a1, a2));
+                c.lineTo(cut(x, cell, lv, a3, a2), y + cell);
                 break;
               case 6:
               case 9:
-                seg(T, B);
+                c.moveTo(cut(x, cell, lv, a0, a1), y);
+                c.lineTo(cut(x, cell, lv, a3, a2), y + cell);
                 break;
               case 7:
               case 8:
-                seg(Lf, B);
+                c.moveTo(x, cut(y, cell, lv, a0, a3));
+                c.lineTo(cut(x, cell, lv, a3, a2), y + cell);
                 break;
               case 5:
-                seg(Lf, T);
-                seg(R, B);
+                c.moveTo(x, cut(y, cell, lv, a0, a3));
+                c.lineTo(cut(x, cell, lv, a0, a1), y);
+                c.moveTo(x + cell, cut(y, cell, lv, a1, a2));
+                c.lineTo(cut(x, cell, lv, a3, a2), y + cell);
                 break;
               case 10:
-                seg(T, R);
-                seg(Lf, B);
+                c.moveTo(cut(x, cell, lv, a0, a1), y);
+                c.lineTo(x + cell, cut(y, cell, lv, a1, a2));
+                c.moveTo(x, cut(y, cell, lv, a0, a3));
+                c.lineTo(cut(x, cell, lv, a3, a2), y + cell);
                 break;
             }
           }

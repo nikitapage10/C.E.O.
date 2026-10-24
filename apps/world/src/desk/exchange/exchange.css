@@ -180,7 +180,7 @@
 .desk .xc-timer{position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--mint);transform-origin:left;animation-name:xc-timer;animation-timing-function:linear;animation-fill-mode:both;opacity:.6}
 @keyframes xc-timer{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 
-.desk .xc-board{min-width:0;padding:16px 16px 12px;border:1px solid var(--wv-line);background:rgba(7,8,11,.84);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.desk .xc-board{min-width:0;padding:16px 16px 12px;border:1px solid var(--wv-line);background:rgba(7,8,11,.9)}
 .desk .xc-board-h{display:flex;align-items:center;justify-content:space-between;margin:0 0 6px}
 .desk .xc-board-h .xc-k{margin:0}
 .desk .xc-hold{padding:3px 10px;border:1px solid var(--wv-line2);border-radius:2px;background:transparent;font-family:var(--xc-mono);font-stretch:87.5%;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--wv-mute);cursor:pointer}

@@ -27,6 +27,7 @@ import { SceneReady } from "./SceneReady.tsx";
 import { StillFurniture } from "./StillFurniture.tsx";
 import { Streams } from "./Streams.tsx";
 import { Wardrobe } from "./Wardrobe.tsx";
+import { WeaveProbe } from "../weave/WeaveProbe.tsx";
 import {
   GuardNote,
   SceneGuard,
@@ -138,6 +139,8 @@ export function Scene() {
             <SceneReady />
           </Suspense>
           <CameraRig />
+          {/* After the camera has moved: the Weave's dots land where the world is this frame (#374). */}
+          <WeaveProbe />
           <BroguEyes />
           <AdaptiveResolution quality={quality} />
           <StillFurniture />

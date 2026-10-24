@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { markBoot, useBoot } from "../boot.ts";
 import { streamingReady } from "../scene/streaming.ts";
 import { Decode } from "../tide/Decode.tsx";
+import { CurtainWeave } from "../weave/CurtainWeave.tsx";
 
 const asset = (p: string) => `${import.meta.env.BASE_URL}tide/${p}`;
 
@@ -46,6 +47,8 @@ export function Loader() {
   const [modelsWaited, setModelsWaited] = useState(false);
   const [line, setLine] = useState(0);
   const [gone, setGone] = useState(false);
+  // The Weave behind the curtain (#374), only while it's on screen: warming behind the Desk, it would draw unseen.
+  const shown = useBoot((s) => s.active);
 
   useEffect(() => {
     void document.fonts?.ready.then(() => setFonts(true));
@@ -87,6 +90,7 @@ export function Loader() {
 
   return (
     <div className={`loader ${done ? "loader--done" : ""}`} role="status" aria-live="polite" aria-label={`Loading the Lattice, ${pct}%`}>
+      {shown && <CurtainWeave pct={pct} />}
       <div className="loader__mark">
         <span className="loader__ring" />
         <span className="loader__ring loader__ring--inner" />
@@ -98,6 +102,7 @@ export function Loader() {
       <p className="loader__sub tracked">Command Everything, Obviously</p>
       <div className="loader__bar" aria-hidden="true">
         <i style={{ transform: `scaleX(${pct / 100})` }} />
+        <b className="lw-head" style={{ transform: `translateX(${pct}%)` }} />
       </div>
       <p className="loader__line">
         <span key={line}>{done ? "Welcome to the Lattice" : LINES[line]}</span>

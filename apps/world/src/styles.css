@@ -259,14 +259,6 @@ button {
   max-width: 460px;
   pointer-events: none;
 }
-.eyebrow__rule {
-  display: inline-block;
-  width: 72px;
-  height: 1px;
-  margin-left: 14px;
-  vertical-align: middle;
-  background: var(--hair);
-}
 .display {
   margin: 16px 0 0;
   font-family: var(--serif);
@@ -287,13 +279,6 @@ button {
 .lines p {
   margin: 0 0 7px;
   font-size: 9.5px;
-}
-.short-rule {
-  display: block;
-  width: 22px;
-  height: 1px;
-  margin-top: 14px;
-  background: var(--hair-strong);
 }
 
 /* Rails: frameless lists with a single hairline on the edge, like the Tide's section rail. */
@@ -2092,7 +2077,7 @@ button {
     white-space: normal;
   }
   .lines,
-  .short-rule,
+  .lw-dots,
   .inward {
     display: none;
   }

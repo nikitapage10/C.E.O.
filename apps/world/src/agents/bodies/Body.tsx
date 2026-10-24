@@ -1,5 +1,5 @@
 import type { Body as BodyKind } from "@ceo/core";
-import { Suspense, type ComponentType } from "react";
+import { type ComponentType } from "react";
 import { Bard } from "./Bard.tsx";
 import { Coil } from "./Coil.tsx";
 import { Hanar } from "./Hanar.tsx";
@@ -10,6 +10,7 @@ import { LibraryBody } from "./Library.tsx";
 import { Monolith } from "./Monolith.tsx";
 import { PowerBox } from "./PowerBox.tsx";
 import { KayKitBody, RobotBody } from "./Rigged.tsx";
+import { StreamIn } from "../../fx/Warm.tsx";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
 
 const BODIES: Record<Exclude<BodyKind, "classic">, ComponentType<BodyProps>> = {
@@ -62,9 +63,9 @@ export function Body(props: BodyProps) {
   const Component = BODIES[kind];
   return (
     <group scale={props.look.size} userData={{ merge: false }}>
-      <Suspense fallback={null}>
+      <StreamIn>
         <Component key={kind} {...props} />
-      </Suspense>
+      </StreamIn>
     </group>
   );
 }

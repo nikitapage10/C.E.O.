@@ -1,5 +1,5 @@
 import { getStation } from "@ceo/core";
-import { Text } from "@react-three/drei";
+import { Text } from "../fx/Text.tsx";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CatmullRomCurve3, Object3D, TubeGeometry, Vector3, type Group, type InstancedMesh, type Mesh } from "three";

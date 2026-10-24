@@ -23,13 +23,19 @@ const LINES = [
 ];
 
 const MIN_MS = 1600;
+/**
+ * After the world on screen is compiled, how long the curtain waits for the models still on their way (#327). They
+ * stream in behind it afterwards, each shown once its shaders are compiled (fx/Warm.tsx), so the wait is for looks,
+ * not for things to work: the first room's props are usually in by then.
+ */
+const MODELS_MS = 2500;
 const FAILSAFE_MS = 25000;
 const FADE_MS = 900;
 
 /**
  * The loading screen: the Syntherion sigil, the title decoding out of the Tide's script, a hairline of
- * progress and a running account of what's being set up. Stays until the models, fonts and shaders are all
- * in, so the world arrives whole instead of popping in piece by piece.
+ * progress and a running account of what's being set up. Stays until the fonts and the shaders of the world on
+ * screen are in, and gives the models a moment more (MODELS_MS); what's still on its way streams in after (#327).
  */
 export function Loader() {
   const { progress, active } = useProgress();
@@ -37,6 +43,7 @@ export function Loader() {
   const [fonts, setFonts] = useState(false);
   const [minDone, setMinDone] = useState(false);
   const [failsafe, setFailsafe] = useState(false);
+  const [modelsWaited, setModelsWaited] = useState(false);
   const [line, setLine] = useState(0);
   const [gone, setGone] = useState(false);
 
@@ -52,13 +59,20 @@ export function Loader() {
     };
   }, []);
 
-  const done = (sceneReady && !active && fonts && minDone) || failsafe;
+  useEffect(() => {
+    if (!sceneReady) return;
+    const t = setTimeout(() => setModelsWaited(true), MODELS_MS);
+    return () => clearTimeout(t);
+  }, [sceneReady]);
+
+  const done = (sceneReady && (!active || modelsWaited) && fonts && minDone) || failsafe;
   useEffect(() => {
     if (sceneReady && !active) markBoot("models");
   }, [sceneReady, active]);
   useEffect(() => {
     if (!done) return;
     markBoot("curtain");
+    useBoot.getState().startDrawing();
     const t = setTimeout(() => {
       setGone(true);
       // The curtain is up: the rooms off screen stream in behind it (scene/streaming.ts).

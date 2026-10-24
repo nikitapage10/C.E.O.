@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin, type Rolldown } from "vite";
 
@@ -9,8 +9,10 @@ type OutputChunk = Rolldown.OutputChunk;
 
 /**
  * A short content hash for every model under public/models, keyed by its path there ("lib/custom/Rocky.glb"). The
- * app asks for each model as `…glb?v=<hash>`, so the browser can keep a model for good (vercel.json) and still
- * picks up a new one the moment it changes.
+ * built site serves each model from a hashed path under /assets (`/assets/models/lib/custom/Rocky.<hash>.glb`,
+ * hashedModels() below), so both hosts keep it for good, like the bundles, and still pick up a new one the moment it
+ * changes (#327: Static Web Apps can't match the old `?v=<hash>` query, so it made every visit revalidate them all).
+ * The dev server serves public/models as it is (fx/library.ts, modelUrl).
  */
 function modelVersions(): Record<string, string> {
   const root = fileURLToPath(new URL("./public/models", import.meta.url));
@@ -24,6 +26,34 @@ function modelVersions(): Record<string, string> {
   };
   walk(root);
   return out;
+}
+
+/** Where the build puts a model: its public/models path with the content hash before the extension. */
+export const hashedModelPath = (path: string, hash: string) => `assets/models/${path.replace(/\.glb$/, "")}.${hash}.glb`;
+
+/**
+ * Moves every model in the built site from dist/models to its hashed path under dist/assets (see modelVersions), so
+ * the site ships each model once, under /assets/, where both hosts cache it for a year as immutable.
+ */
+function hashedModels(versions: Record<string, string>): Plugin {
+  let outDir = "";
+  return {
+    name: "ceo:hashed-models",
+    apply: "build",
+    configResolved(config) {
+      outDir = config.build.outDir.startsWith("/") ? config.build.outDir : join(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      const from = join(outDir, "models");
+      if (!existsSync(from)) return;
+      for (const [path, hash] of Object.entries(versions)) {
+        const to = join(outDir, hashedModelPath(path, hash));
+        mkdirSync(dirname(to), { recursive: true });
+        cpSync(join(from, path), to);
+      }
+      rmSync(from, { recursive: true });
+    },
+  };
 }
 
 /**
@@ -84,10 +114,12 @@ function checkChunks(): Plugin {
   };
 }
 
+const MODEL_VERSIONS = modelVersions();
+
 export default defineConfig({
-  plugins: [react(), prefetchLattice(), checkChunks()],
+  plugins: [react(), prefetchLattice(), checkChunks(), hashedModels(MODEL_VERSIONS)],
   server: { host: true },
-  define: { __MODEL_VERSIONS__: JSON.stringify(modelVersions()) },
+  define: { __MODEL_VERSIONS__: JSON.stringify(MODEL_VERSIONS) },
   build: {
     chunkSizeWarningLimit: 2500,
     // Fonts are always files, never inlined as data: URIs: the site's CSP allows fonts from 'self' only, and Manrope's

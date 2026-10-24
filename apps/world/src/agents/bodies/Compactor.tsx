@@ -4,11 +4,12 @@ import { useMemo, useRef } from "react";
 import { Vector3, type Group, type Mesh } from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { poseCompactor, rigCompactor, type CompactorRig } from "./compactorPose.ts";
+import { modelUrl } from "../../fx/library.ts";
 import { fitScale } from "./Rigged.tsx";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
 
 /** Rebuilt from its Meshy export by scripts/rig-tessellate.mjs. */
-const URL = `${import.meta.env.BASE_URL}models/compactor.glb`;
+const URL = modelUrl("compactor.glb");
 
 /**
  * A salvage compactor on treads: a rusted box with a neck, a pair of binocular eyes and two claw arms. Worn as

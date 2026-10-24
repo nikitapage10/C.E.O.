@@ -1,7 +1,8 @@
 import { Stats } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect } from "react";
-import { NoToneMapping, SRGBColorSpace } from "three";
+import { NoToneMapping, SRGBColorSpace, Texture } from "three";
+import { useBoot } from "../boot.ts";
 import { Agents } from "../agents/Agents.tsx";
 import { Pets } from "../pets/Pets.tsx";
 import { BroguEyes } from "../eyes/BroguEyes.tsx";
@@ -15,7 +16,7 @@ import { Rooms } from "../rooms/Rooms.tsx";
 import { pumpSimulator, useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 import { Callouts } from "./Callouts.tsx";
-import { AdaptiveResolution, canvasDpr } from "./AdaptiveResolution.tsx";
+import { AdaptiveResolution, canvasDpr, lowPower } from "./AdaptiveResolution.tsx";
 import { CameraRig } from "./CameraRig.tsx";
 import { DetailLevels, ShadowFocus } from "./DetailLevels.tsx";
 import { Floor, FloorRings, Motes } from "./Environment.tsx";
@@ -35,6 +36,10 @@ import { LetterFlight } from "../letters/LetterFlight.tsx";
 import { COUNTDOWN_SPOTS, Pumpkins } from "../veil/Pumpkins.tsx";
 import { useVeilCountdown } from "../veil/useVeilCountdown.ts";
 import { COSTUME_PARTY, VEIL } from "../veil/veil.ts";
+
+// Sharp textures at a slant (#327): the floors, desks and crate tops seen from the camera's height. Every texture made
+// from here on, the models' included, filters anisotropically (three.js clamps it to what the card supports).
+Texture.DEFAULT_ANISOTROPY = lowPower() ? 4 : 8;
 
 /** Advances Lattice time, runs the simulator and animates every shader, once per frame. */
 function Heartbeat() {
@@ -76,6 +81,8 @@ export function Scene() {
   // The week before Halloween, one lantern by the club's front, counting down; the Veil's own take over when it opens.
   const countdown = useVeilCountdown();
   const setFocus = useWorld((s) => s.setFocus);
+  // No frame until the first shader compile is done (scene/SceneReady.tsx, boot.ts).
+  const drawing = useBoot((s) => s.drawing);
   const selectAgent = useWorld((s) => s.selectAgent);
   useEffect(watchLoopErrors, []);
   return (
@@ -83,6 +90,7 @@ export function Scene() {
       <SceneGuard>
         <Canvas
           dpr={canvasDpr(quality)}
+          frameloop={drawing ? "always" : "never"}
           camera={{ position: [0, 66, 96], fov: 38, near: 0.5, far: 600 }}
           shadows="soft"
           gl={{
@@ -91,7 +99,12 @@ export function Scene() {
             toneMapping: NoToneMapping,
             outputColorSpace: SRGBColorSpace,
           }}
-          onCreated={({ gl }) => watchContext(gl.domElement)}
+          onCreated={({ gl }) => {
+            // Checking each shader for errors reads its compile log straight after linking, which makes the browser
+            // wait for the compile right there; in production the compile runs on its own threads instead (#327).
+            gl.debug.checkShaderErrors = import.meta.env.DEV;
+            watchContext(gl.domElement);
+          }}
           onPointerMissed={() => {
             if (useEyes.getState().active) return;
             if (useWorld.getState().selectedAgent) selectAgent(null);

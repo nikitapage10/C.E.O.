@@ -1,7 +1,8 @@
+import { StreamIn } from "../fx/Warm.tsx";
 import { ROOMS, WALK_SPEED, getStation, placeToWorld, roomAngle, roomToWorld, routeBetween, sampleRoute, worldToRoom, type Place, type RoomId, type Route } from "@ceo/core";
 import { Html } from "@react-three/drei";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
-import { Suspense, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Vector3, type Group } from "three";
 import { useCast } from "../cast/castStore.ts";
 import { agentPositions, clock } from "../clock.ts";
@@ -13,7 +14,7 @@ import { LIBRARY_PETS, LibraryPet } from "./LibraryPet.tsx";
 import { Brogu } from "./Brogu.tsx";
 import { Myshka } from "./Myshka.tsx";
 import { Owlbear } from "./Owlbear.tsx";
-import { useStreaming } from "../scene/roomScope.ts";
+import { roomIn, useStreaming } from "../scene/roomScope.ts";
 import { brogu, useEyes } from "../eyes/eyes.ts";
 import { floorAt } from "../eyes/walk.ts";
 import { PETS, petOrders, petStart, wanderSpots, type PetDef } from "./pets.ts";
@@ -238,24 +239,24 @@ function Pet({ def }: { def: PetDef }) {
     <group ref={root} name={`pet-${def.id}`}>
       <group ref={model}>
         {def.kind === "kitten" && (
-          <Suspense fallback={null}>
+          <StreamIn>
             <Myshka drive={drive} />
-          </Suspense>
+          </StreamIn>
         )}
         {(def.kind === "shiba" || def.kind === "mushnub") && (
-          <Suspense fallback={null}>
+          <StreamIn>
             <LibraryPet def={LIBRARY_PETS[def.kind]} drive={drive} />
-          </Suspense>
+          </StreamIn>
         )}
         {def.kind === "owlbear" && (
-          <Suspense fallback={null}>
+          <StreamIn>
             <Owlbear drive={drive} />
-          </Suspense>
+          </StreamIn>
         )}
         {def.kind === "brogu" && (
-          <Suspense fallback={null}>
+          <StreamIn>
             <Brogu drive={drive} />
-          </Suspense>
+          </StreamIn>
         )}
       </group>
       <mesh position={[0, tagY / 2, 0]} visible={false} onPointerOver={over} onPointerOut={out} onClick={click}>
@@ -283,10 +284,10 @@ function Pet({ def }: { def: PetDef }) {
 /** The Lattice's pets. They aren't agents: nobody assigns them anything, and they wouldn't do it anyway. */
 export function Pets() {
   // Opened on a room, only the pets starting there join at first; the rest follow once it's in (scene/streaming.ts).
-  const first = useStreaming((s) => (s.all ? null : s.first));
+  const streaming = useStreaming();
   return (
     <group>
-      {PETS.filter((p) => !first || petStart(p) === first).map((p) => (
+      {PETS.filter((p) => roomIn(streaming, petStart(p))).map((p) => (
         <Pet key={p.id} def={p} />
       ))}
     </group>

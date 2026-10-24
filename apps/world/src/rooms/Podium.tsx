@@ -1,6 +1,6 @@
 import { POST_HEIGHT, getStation, type RoomId } from "@ceo/core";
 import { submindOf } from "@ceo/simulator";
-import { Text } from "@react-three/drei";
+import { Text } from "../fx/Text.tsx";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, DoubleSide, type Group, type Mesh, type MeshBasicMaterial } from "three";

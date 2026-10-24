@@ -1,5 +1,5 @@
 import { getStation, type RoomId } from "@ceo/core";
-import { Text } from "@react-three/drei";
+import { Text } from "../fx/Text.tsx";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type ComponentType, type ReactNode } from "react";
 import type { Group, Mesh } from "three";

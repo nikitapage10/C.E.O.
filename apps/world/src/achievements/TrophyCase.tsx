@@ -1,5 +1,5 @@
 import { getStation } from "@ceo/core";
-import { Text } from "@react-three/drei";
+import { Text } from "../fx/Text.tsx";
 import { useMemo } from "react";
 import { MeshStandardMaterial } from "three";
 import { PBR } from "../fx/pbr.ts";

@@ -2,6 +2,7 @@ import { ROOM_IDS, type RoomId } from "@ceo/core";
 import { SAMPLE_AGENTS } from "@ceo/simulator";
 import { bodyModels } from "../agents/bodies/assets.ts";
 import { useCast } from "../cast/castStore.ts";
+import { useProgress } from "@react-three/drei";
 import { flushPreloads, libUrl, preloadNow } from "../fx/library.ts";
 import { MODEL as BROGU } from "../pets/Brogu.tsx";
 import { LIBRARY_PETS } from "../pets/LibraryPet.tsx";
@@ -53,6 +54,31 @@ function modelsFor(rooms: ReadonlySet<RoomId>): string[] {
   return [...urls];
 }
 
+/** Resolves once nothing is loading (the models asked for so far are all in), or after `ms` at the latest. */
+function settled(ms = 20000): Promise<void> {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    const check = () => {
+      // useProgress only notices a load on its next tick, so give a just-started fetch a moment to register.
+      if ((performance.now() - start > 100 && !useProgress.getState().active) || performance.now() - start > ms) resolve();
+      else setTimeout(check, 100);
+    };
+    setTimeout(check, 0);
+  });
+}
+
+/**
+ * One room's step on its own (#327; the 2D map of #332 calls it when a room is picked): let it in, so its props,
+ * the agents in it and its pets mount, and fetch their models. Resolves when they have arrived (each still shows
+ * once its shaders are compiled, fx/Warm.tsx). The rest of the ring stays as it was; release() lets it all in.
+ */
+export function loadRoom(room: RoomId): Promise<void> {
+  const s = useStreaming.getState();
+  if (!s.all && !s.rooms.includes(room)) useStreaming.setState({ rooms: [...s.rooms, room] });
+  preloadNow(...modelsFor(new Set([room])));
+  return settled();
+}
+
 /** Let the other rooms in, and fetch what they need. (Brogu's eyes calls it too: he can walk anywhere.) */
 export function release() {
   if (useStreaming.getState().all) return;
@@ -74,9 +100,12 @@ export function bootStreaming(first: RoomId | null) {
   if (booted) return;
   booted = true;
   const room = first && (ROOM_IDS as readonly string[]).includes(first) ? first : null;
-  useStreaming.setState({ first: room, all: room === null });
-  preloadNow(...modelsFor(new Set(room ? [room] : ROOM_IDS)));
-  if (!room) return;
+  useStreaming.setState({ rooms: [], all: room === null });
+  if (!room) {
+    preloadNow(...modelsFor(new Set(ROOM_IDS)));
+    return;
+  }
+  void loadRoom(room);
   // Leaving the first room for anywhere else brings the rest in at once.
   const off = useWorld.subscribe((s) => {
     if (s.focus === room) return;

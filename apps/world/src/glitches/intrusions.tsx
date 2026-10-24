@@ -1,4 +1,5 @@
-import { Html, Sparkles, Text } from "@react-three/drei";
+import { Html, Sparkles } from "@react-three/drei";
+import { Text } from "../fx/Text.tsx";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type ComponentType } from "react";
 import { CanvasTexture, CatmullRomCurve3, NearestFilter, TubeGeometry, Vector3, type Group, type Mesh } from "three";

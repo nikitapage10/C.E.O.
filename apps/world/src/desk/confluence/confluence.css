@@ -1,0 +1,189 @@
+/*
+ * Confluence, Today's own layout (#413; round 9's T1 with Nikita's changes, 2026-10-24 21:30Z). The page steps out of
+ * the Desk's centred column (scoped to .cf-page, the shared shell untouched) so the stage runs edge to edge: the top
+ * face on the left, Skippy at the river's end in the middle, "Held for you" large in the top right, the Council along
+ * the bottom. Type is Today's lane, Bodoni Moda and Jost, set larger than before ("make the font a little bit bigger").
+ * No backdrop blur over the canvas (it would re-blur every frame); panels are near-opaque instead.
+ */
+
+.desk .wv-page.cf-page,.desk .desk__main>.wv-page.cf-page,.desk .desk__main>div>.wv-page.cf-page{max-width:none;margin:0;padding:0 0 80px}
+.desk .cf-page{--cf-pad:clamp(24px,3vw,56px);--cf-gold:232,207,156;--cf-hot:242,201,143;font-size:16px}
+
+/* ---------- the stage ---------- */
+.desk .cf-hero{position:relative;isolation:isolate;display:grid;grid-template-columns:minmax(380px,1fr) minmax(220px,.62fr) minmax(440px,1.08fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top sk held" "helm sk held" "council council council";column-gap:clamp(24px,2.6vw,48px);row-gap:24px;min-height:max(780px,min(calc(100svh - 62px),1120px));padding:34px var(--cf-pad) 22px;background:radial-gradient(60% 46% at 50% 0%,rgba(var(--cf-gold),.07),transparent 70%),radial-gradient(120% 60% at 50% 110%,rgba(18,20,28,.9),transparent 70%)}
+/* The horizon: a hairline across the very top, brightest over Skippy, its light drawn in once. */
+.desk .cf-hero::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(var(--cf-gold),.18) 22%,rgba(var(--cf-gold),.75) 50%,rgba(var(--cf-gold),.18) 78%,transparent);transform-origin:50% 50%;animation:cf-draw 1.4s var(--wv-ease) both}
+.desk .cf-hero::after{content:"";position:absolute;left:50%;top:0;width:min(900px,70vw);height:220px;transform:translateX(-50%);z-index:-1;background:radial-gradient(50% 100% at 50% 0%,rgba(var(--cf-gold),.09),transparent 70%);pointer-events:none}
+@keyframes cf-draw{from{transform:scaleX(0);opacity:0}to{transform:none;opacity:1}}
+.desk .cf-river{display:contents}
+.desk .cf-cv{position:absolute;inset:0;z-index:0;display:block;width:100%;height:100%;pointer-events:none}
+.desk .cf-top,.desk .cf-helm,.desk .cf-held,.desk .cf-sk,.desk .cf-council{position:relative;z-index:1;min-width:0}
+
+/* ---------- the top face ---------- */
+.desk .cf-top{grid-area:top}
+.desk .cf-eyb{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 16px;font-family:var(--td-sans);font-size:12px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .cf-eyb>span{color:var(--wv-hot)}
+.desk .cf-eyb>i{width:22px;height:1px;background:rgba(var(--cf-gold),.4)}
+.desk .td .cf-greet{margin:0;font-family:var(--td-disp);font-size-adjust:none;font-weight:500;font-size:clamp(52px,4.5vw,84px);line-height:.96;letter-spacing:-.028em;color:var(--wv-ink);text-wrap:balance}
+.desk .cf-greet em{font-style:italic;font-weight:400;color:var(--wv-hot);text-shadow:0 0 40px rgba(var(--cf-gold),.25)}
+.desk .cf-say{margin:14px 0 0;max-width:36ch;font-family:var(--td-disp);font-style:italic;font-size:clamp(20px,1.6vw,24px);line-height:1.38;color:var(--wv-soft);text-wrap:pretty}
+/* The day's ledger: four plain figures under a gold rule, the instrument's readout. */
+.desk .cf-ledger{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:24px 0 0;padding:14px 0 0;max-width:620px}
+.desk .cf-ledger::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,rgba(var(--cf-gold),.6),rgba(var(--cf-gold),.14) 70%,transparent);transform-origin:0 50%;animation:cf-draw 1.1s .25s var(--wv-ease) both}
+.desk .cf-ledger>div{display:grid;gap:6px;align-content:start;padding:0 clamp(12px,1.3vw,22px);border-left:1px solid var(--wv-line)}
+.desk .cf-ledger>div:first-child{padding-left:0;border-left:0}
+.desk .cf-ledger dt{font-family:var(--td-sans);font-size:11px;font-weight:500;line-height:1.35;letter-spacing:.18em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .cf-ledger dd{margin:0;font-family:var(--td-disp);font-weight:500;font-size:clamp(32px,2.6vw,44px);line-height:1;color:var(--wv-ink);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.desk .cf-ledger dd small{font-family:var(--td-sans);font-size:14px;font-weight:400;letter-spacing:.02em;color:var(--wv-faint)}
+.desk .cf-ledger .is-hot dd{color:var(--wv-hot);text-shadow:0 0 28px rgba(var(--cf-gold),.35)}
+.desk .cf-ledger .is-hot dt{color:var(--wv-hot-dim)}
+.desk .cf-ledger .is-ilyr dd>span{letter-spacing:.04em;color:var(--wv-hot)}
+.desk .cf-ledger .is-ilyr dd small{font-family:var(--td-disp);font-style:italic;font-size:16px}
+
+/* ---------- the helm ---------- */
+.desk .cf-helm{grid-area:helm;display:grid;gap:22px;align-content:start;max-width:640px}
+.desk .cf-helm .td-ask.skp-ask{background:linear-gradient(90deg,rgba(255,220,170,.08),rgba(10,11,15,.88) 45%)}
+.desk .cf-helm .td-ask .skp-compose__box{font-size:16px}
+.desk .cf-helm .td-ask .skp-ask__label{font-size:20px}
+.desk .cf-chips{display:flex;flex-wrap:wrap;align-items:center;gap:16px 26px}
+.desk .cf-chips .td-cast{flex:1 1 280px;max-width:420px}
+.desk .cf-chips .td-cast-t b,.desk .cf-chips .td-door b{font-size:16.5px}
+.desk .cf-cu{position:relative}
+.desk .cf-cu-btn{display:inline-flex;align-items:center;gap:10px;height:42px;padding:0 18px;border-radius:999px;border:1px solid var(--wv-line2);background:rgba(10,11,15,.8);color:var(--wv-soft);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap;transition:border-color .3s,color .3s}
+.desk .cf-cu-btn b{font-weight:500;color:var(--wv-hot)}
+.desk .cf-cu-k{font-family:var(--td-sans);font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .cf-cu-btn:hover,.desk .cf-cu-btn[aria-expanded="true"]{border-color:var(--wv-hot-line);color:var(--wv-ink)}
+.desk .cf-cu-pop{position:absolute;z-index:20;left:0;top:calc(100% + 10px);width:min(460px,calc(100vw - 32px));padding:18px 20px 14px;border-radius:18px;background:rgba(9,10,14,.97);border:1px solid var(--wv-line2);box-shadow:0 30px 60px -20px #000}
+
+/* ---------- Skippy, where the river ends ---------- */
+.desk .cf-sk{grid-area:sk;align-self:start;justify-self:center;display:grid;justify-items:center;gap:6px;margin-top:6px;padding:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer}
+.desk .cf-sk-mark{display:block;width:clamp(130px,11vw,178px);aspect-ratio:1;border-radius:50%}
+.desk .cf-sk-t{display:grid;justify-items:center;gap:2px;text-align:center}
+.desk .cf-sk-t b{font-family:var(--td-disp);font-style:italic;font-weight:500;font-size:21px;color:var(--wv-hot)}
+.desk .cf-sk-t small{font-family:var(--td-sans);font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .cf-sk:focus-visible{outline:none}
+.desk .cf-sk:focus-visible .cf-sk-mark,.desk .cf-fig:focus-visible .cf-mark{box-shadow:0 0 0 1px rgba(var(--cf-gold),.5)}
+
+/* ---------- Held for you ---------- */
+.desk .cf-held{grid-area:held;align-self:start;padding:26px 28px 18px;border-radius:22px;background:linear-gradient(180deg,rgba(14,13,12,.94),rgba(9,10,14,.9));border:1px solid rgba(var(--cf-hot),.22);box-shadow:0 40px 80px -40px #000,inset 0 1px 0 rgba(var(--cf-gold),.12);transition:opacity .35s}
+.desk .cf-held .td-now-head .wv-eyb{font-size:12px}
+.desk .cf-held .td-now .td-h2{font-size:clamp(28px,2.4vw,36px)}
+.desk .cf-held .td-ni-t b{font-size:20px}
+.desk .cf-held .td-ni-t>span{font-size:14px}
+.desk .cf-held .td-ni-t em{font-size:10.5px}
+.desk .cf-held .td-ni-end time{font-size:12px}
+.desk .cf-held .td-ni-go{font-size:10.5px;height:30px}
+.desk .cf-held .td-clear b{font-size:22px}
+.desk .cf-held .td-clear span{font-size:15px}
+.desk .cf-hero.has-sel .cf-held{opacity:0;pointer-events:none}
+
+/* ---------- the Council ---------- */
+.desk .cf-council{grid-area:council;display:grid;gap:10px}
+.desk .cf-council-k{margin:0;text-align:center;font-family:var(--td-sans);font-size:11px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .cf-council-k>span{color:var(--wv-hot)}
+.desk .cf-figs{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:0 4px}
+.desk .cf-fig{--m:clamp(72px,6.2vw,108px);display:grid;justify-items:center;gap:2px;width:100%;padding:0 2px 4px;border:0;background:none;color:inherit;font:inherit;text-align:center;cursor:pointer;transition:opacity .35s}
+.desk .cf-mark{display:block;width:var(--m);height:var(--m);margin-bottom:6px;border-radius:50%}
+.desk .cf-fig b{font-family:var(--td-sans);font-weight:500;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--wv-ink);white-space:nowrap}
+.desk .cf-fig i{font-family:var(--td-disp);font-style:italic;font-size:17px;line-height:1.15;color:rgb(var(--c,236,238,243))}
+.desk .cf-fig small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--wv-mute);transition:color .4s}
+.desk .cf-fig.is-sim b{color:var(--wv-soft)}
+.desk .cf-fig.is-sim i{opacity:.6}
+.desk .cf-fig.is-sim small{color:var(--wv-faint)}
+.desk .cf-fig.is-down small{color:var(--wv-bad)}
+.desk .cf-fig.is-busy small{color:var(--wv-soft)}
+.desk .cf-fig.is-need small::before{content:"";display:inline-block;width:6px;height:6px;margin:0 6px 1px 0;border-radius:50%;background:rgb(var(--cf-hot));box-shadow:0 0 8px rgba(var(--cf-hot),.8)}
+.desk .cf-fig.is-speaking small{color:rgb(var(--c,236,238,243))}
+.desk .cf-fig:hover b,.desk .cf-fig.is-sel b{color:#fff}
+.desk .cf-fig:focus-visible{outline:none}
+.desk .cf-hero.has-sel .cf-fig:not(.is-sel){opacity:.4}
+
+/* ---------- the room's panel ---------- */
+.desk .cf-pn{position:absolute;top:34px;right:var(--cf-pad);width:min(580px,40vw);z-index:3;display:grid;gap:14px;align-content:start;max-height:calc(100% - 290px);overflow:auto;padding:26px 28px 22px;border-radius:22px;background:rgba(9,10,14,.95);border:1px solid rgba(var(--c),.34);box-shadow:0 40px 80px -40px #000;outline:none;animation:weave-rise .4s var(--wv-ease)}
+.desk .cf-pn{--c:236,238,243}
+.desk .cf-pn header{display:flex;gap:14px;align-items:flex-start}
+.desk .cf-pn h2{margin:0;font-family:var(--td-disp);font-weight:500;font-size:clamp(32px,2.6vw,42px);line-height:1;letter-spacing:-.01em;color:var(--wv-ink)}
+.desk .cf-pn header p{margin:8px 0 0;font-family:var(--td-sans);font-size:12px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:rgb(var(--c))}
+.desk .cf-pn-x{margin-left:auto;flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--wv-line2);background:none;color:var(--wv-soft);cursor:pointer}
+.desk .cf-pn-x svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5}
+.desk .cf-pn-x:hover{color:var(--wv-ink);border-color:var(--wv-hot-line)}
+.desk .cf-pn blockquote{margin:0;font-family:var(--td-disp);font-style:italic;font-size:21px;line-height:1.4;color:var(--wv-ink);text-wrap:pretty}
+.desk .cf-pn-doing{margin:0;font-size:14.5px;color:var(--wv-soft)}
+.desk .cf-pn h3{margin:6px 0 0;font-family:var(--td-sans);font-size:11.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-hot)}
+.desk .cf-pn-l{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.desk .cf-pn-l li{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px;align-items:baseline}
+.desk .cf-pn-l time{font-family:var(--td-sans);font-size:12.5px;color:var(--wv-hot);font-variant-numeric:tabular-nums}
+.desk .cf-pn-l p{margin:0;font-size:15px;line-height:1.45;color:var(--wv-soft)}
+.desk .cf-pn-l p b{font-weight:500;color:rgb(var(--c))}
+.desk .cf-pn-l p span{color:var(--wv-faint)}
+.desk .cf-pn-none{margin:0;font-size:15px;line-height:1.5;color:var(--wv-mute)}
+.desk .cf-pn .td-talks{margin:0}
+.desk .cf-pn .td-talks h3{margin:0 0 6px}
+.desk .cf-pn .td-talks-bar{font-size:14px}
+.desk .cf-pn-acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.desk .cf-btn{display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:999px;border:1px solid var(--wv-line2);background:none;color:var(--wv-ink);font:inherit;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none}
+.desk .cf-btn.is-pri{border-color:rgba(var(--cf-gold),.6);background:rgba(var(--cf-gold),.12);color:var(--wv-hot)}
+.desk .cf-btn:hover{background:rgba(var(--cf-gold),.2)}
+.desk .cf-pn[data-room="foundry"]{--c:228,152,94}
+.desk .cf-pn[data-room="spire"]{--c:214,188,114}
+.desk .cf-pn[data-room="exchange"]{--c:124,205,172}
+.desk .cf-pn[data-room="green"]{--c:172,200,114}
+.desk .cf-pn[data-room="relay"]{--c:125,159,226}
+.desk .cf-pn[data-room="archive"]{--c:168,144,226}
+.desk .cf-pn[data-room="breakroom"]{--c:226,143,182}
+.desk .cf-pn[data-room="boiler"]{--c:168,174,188}
+.desk .cf-pn[data-room="workshop"]{--c:98,196,192}
+.desk .cf-pn[data-room="studio"]{--c:232,112,111}
+
+/* Below the stage: what can wait. */
+.desk .cf-later{margin:36px var(--cf-pad) 0}
+
+/* ---------- narrower ---------- */
+@media (max-width:1240px){
+  .desk .cf-hero{grid-template-columns:minmax(340px,1fr) minmax(180px,.5fr) minmax(400px,1fr)}
+}
+@media (max-width:1000px) and (min-width:761px){
+  .desk .cf-hero{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"top held" "helm held" "sk sk" "council council";grid-template-rows:auto auto auto auto;min-height:0}
+  .desk .cf-sk{margin:20px 0 150px}
+  .desk .cf-fig{--m:clamp(58px,8vw,84px)}
+  .desk .cf-fig i{font-size:14px}
+  .desk .cf-fig b{font-size:10.5px;letter-spacing:.08em}
+}
+@media (max-width:760px){
+  .desk .wv-page.cf-page{padding-bottom:56px}
+  .desk .cf-hero{display:flex;flex-direction:column;min-height:0;padding:26px 16px 10px}
+  .desk .cf-top{order:1}
+  .desk .cf-held{order:2}
+  .desk .cf-helm{order:3}
+  .desk .cf-river{order:4}
+  .desk .cf-river>*{grid-area:auto}
+  .desk .cf-hero::after{width:100%}
+  .desk .cf-top{margin-bottom:26px}
+  .desk .td .cf-greet{font-size:clamp(44px,12.5vw,58px)}
+  .desk .cf-say{font-size:19px}
+  .desk .cf-ledger{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:18px;margin-top:22px}
+  .desk .cf-ledger>div:nth-child(3){padding-left:0;border-left:0}
+  .desk .cf-ledger dd{font-size:30px}
+  .desk .cf-ledger dd small{font-size:12px}
+  .desk .cf-held{margin-bottom:26px;padding:20px 16px 12px;border-radius:18px}
+  .desk .cf-helm{margin-bottom:10px}
+  .desk .cf-river{position:relative;display:grid;gap:0;margin:0 -16px;padding:0 10px}
+  .desk .cf-sk{margin:24px auto 200px}
+  .desk .cf-sk-mark{width:112px}
+  .desk .cf-figs{grid-template-columns:repeat(5,minmax(0,1fr));row-gap:18px}
+  .desk .cf-fig{--m:clamp(50px,14vw,64px)}
+  .desk .cf-fig b{font-size:10px;letter-spacing:.06em}
+  .desk .cf-fig i{display:none}
+  .desk .cf-fig small{font-size:11px}
+  .desk .cf-council-k{padding:0 8px;letter-spacing:.14em;font-size:10px;line-height:1.6}
+  .desk .cf-pn{position:fixed;top:auto;width:auto;left:0;right:0;bottom:0;z-index:70;max-height:74svh;border-radius:20px 20px 0 0;padding:22px 18px calc(22px + env(safe-area-inset-bottom,0px))}
+  .desk .cf-hero.has-sel .cf-held{opacity:1;pointer-events:auto}
+  .desk .cf-later{margin:28px 16px 0}
+  .desk .cf-chips .td-cast{max-width:none}
+}
+
+/* ---------- still ---------- */
+@media (prefers-reduced-motion:reduce){
+  .desk .cf-hero::before,.desk .cf-ledger::before,.desk .cf-pn{animation:none}
+  .desk .cf-fig,.desk .cf-held,.desk .cf-fig small,.desk .cf-cu-btn{transition:none}
+}

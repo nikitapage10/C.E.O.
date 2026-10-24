@@ -389,6 +389,13 @@ export interface VizSpec {
   draw: (V: Viz, c: CanvasRenderingContext2D, t: number, dt: number) => void;
   /** Blend mode for the draw: "lighter" (default) makes overlapping light add up. */
   blend?: GlobalCompositeOperation;
+  /**
+   * The canvas's backing scale for its size (default: the screen's, capped at 2). A big full-bleed canvas of soft
+   * light can draw at a lower resolution and still look the same, for far less work a frame (Today, #413).
+   */
+  scale?: (W: number, H: number, dpr: number) => number;
+  /** The canvas paints its own background, so the page under it need not be drawn or blended (read once, on mount). */
+  opaque?: boolean;
 }
 
 const VZ = new Set<Viz & { dirty: boolean; still: number }>();
@@ -407,7 +414,8 @@ function resize(V: Viz & { dirty: boolean; still: number }) {
     V.ok = false;
     return;
   }
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const screen = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = V.spec.scale ? Math.max(0.25, Math.min(screen, V.spec.scale(W, H, screen))) : screen;
   if (W !== V.W || H !== V.H || dpr !== V.dpr) {
     V.W = W;
     V.H = H;
@@ -494,7 +502,7 @@ export function useViz(ref: React.RefObject<HTMLCanvasElement | null>, spec: Viz
   useEffect(() => void (ref.current !== cv && setCv(ref.current)));
   useEffect(() => {
     if (!cv) return;
-    const ctx = cv.getContext("2d");
+    const ctx = cv.getContext("2d", spec.opaque ? { alpha: false } : undefined);
     if (!ctx) return;
     const V: Viz & { dirty: boolean; still: number } = {
       cv,

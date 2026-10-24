@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Private } from "../Private.tsx";
 import { useDeskAuth } from "../signin.ts";
-import { emailLine, startEmail, takeGmailReturn, useEmail, type EmailItem, type EmailStatus } from "./email.ts";
+import { emailLine, LATE_MS, startEmail, takeGmailReturn, useEmail, type EmailItem, type EmailStatus } from "./email.ts";
 import "./email.css";
 
 /**
@@ -19,7 +19,7 @@ const RETURN_TEXT: Record<string, string> = {
   failed: "Google didn't hand over access. Try Connect Gmail again.",
 };
 
-const ago = (at: number, now: number) => {
+export const ago = (at: number, now: number) => {
   const m = Math.max(0, Math.round((now - at) / 60_000));
   if (m < 1) return "just now";
   if (m < 60) return `${m}m ago`;
@@ -27,7 +27,7 @@ const ago = (at: number, now: number) => {
   return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
 };
 
-function gmailHref(id: string) {
+export function gmailHref(id: string) {
   return `https://mail.google.com/mail/u/0/#inbox/${id}`;
 }
 
@@ -52,7 +52,7 @@ function CopyDraft({ text }: { text: string }) {
   );
 }
 
-function NeedsYou({ item, now, index }: { item: EmailItem; now: number; index: number }) {
+export function NeedsYou({ item, now, index }: { item: EmailItem; now: number; index: number }) {
   const done = useEmail((s) => s.done);
   return (
     <li className="em-item" style={{ "--i": Math.min(index, 8) } as React.CSSProperties}>
@@ -105,9 +105,12 @@ function StateLine({ status, now }: { status: EmailStatus; now: number }) {
   if (status.agent === "paused") return <p className="em-state is-warn">Email agent paused: monthly cap reached. New mail is still counted ({status.unsorted} so far) and waits for next month.</p>;
   if (status.gmail === "refused") return <p className="em-state is-bad">Google stopped accepting the connection. Connect Gmail again to carry on.</p>;
   if (status.agent === "error") return <p className="em-state is-bad">The last check didn't go through. Dialtone tries again every minute.</p>;
+  // The check's time shows only when it's late (Nikita, 2026-10-24: "unless there's a syncing issue").
+  const late = status.agent === "listening" && status.lastCheck !== null && now - status.lastCheck > LATE_MS;
   return (
-    <p className="em-state">
-      Dialtone checks every minute{status.lastCheck ? `, last ${ago(status.lastCheck, now)}` : ""}. {status.newToday} new today, {status.noise} of them noise.
+    <p className={`em-state${late ? " is-warn" : ""}`}>
+      {late && status.lastCheck ? `Sync is late: the last check was ${ago(status.lastCheck, now)}. ` : ""}
+      {status.newToday} new today, {status.noise} of them noise.
     </p>
   );
 }

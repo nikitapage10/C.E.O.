@@ -736,6 +736,9 @@
 .desk .wv-tb-l span{font-size:13px;color:var(--wv-mute);background:var(--wv-bg);padding-left:10px;justify-self:end;text-align:right}
 .desk .wv-sysclock{border-radius:22px;padding:24px 26px;border:1px solid var(--wv-line);background:linear-gradient(160deg,rgba(168,174,188,.08),rgba(16,18,23,.7) 55%)}
 .desk .wv-sysclock .wv-facts{margin-bottom:14px}
+.desk .wv-syscol{display:grid;gap:20px;align-content:start}
+.desk .wv-sysmail{background:linear-gradient(160deg,color-mix(in srgb,var(--rc-relay) 10%,transparent),rgba(16,18,23,.7) 55%)}
+.desk .wv-sysmail .wv-eyb{display:flex;align-items:center;gap:8px}
 
 /* The Pessimist's board of scheduled jobs (#301, JobBoard.tsx). */
 .desk .wv-jobs{margin-top:64px}
@@ -809,6 +812,17 @@
 .desk .wv-chain-l b{display:block;font-family:var(--wv-serif);font-size-adjust:var(--wv-serif-adj);font-weight:500;font-size:19px;color:var(--wv-ink)}
 .desk .wv-chain-l span{display:block;font-size:12.5px;color:var(--wv-mute);margin-top:2px}
 .desk .wv-chain-l li:first-child b{color:var(--rc-relay)}
+/* Relay's two lines (#322): email live from the Azure copy, texts still waiting on the Mac. */
+.desk .wv-relay-lines{list-style:none;margin:18px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:10px}
+.desk .wv-relay-lines li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;padding:9px 14px;border-radius:999px;border:1px solid color-mix(in srgb,var(--rc-relay) 26%,transparent);background:color-mix(in srgb,var(--rc-relay) 6%,transparent);font-size:13px;color:var(--wv-mute);--rc:var(--wv-mute)}
+.desk .wv-relay-lines li b{font-weight:500;color:var(--wv-ink)}
+.desk .wv-relay-lines li[data-tone="ok"]{--rc:var(--wv-ok)}
+.desk .wv-relay-lines li[data-tone="ok"] .wv-dot{animation:wv-relay-beat 2.4s ease-in-out infinite}
+.desk .wv-relay-lines li[data-tone="warn"]{--rc:var(--wv-warn,#e8b04f)}
+.desk .wv-relay-lines li[data-tone="bad"]{--rc:var(--wv-bad)}
+.desk .wv-relay-lines-n{font-variant-numeric:tabular-nums;color:var(--wv-ink);opacity:.8}
+@keyframes wv-relay-beat{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rc) 55%,transparent)}50%{box-shadow:0 0 0 5px transparent}}
+@media (prefers-reduced-motion:reduce){.desk .wv-relay-lines li .wv-dot{animation:none}}
 .desk .wv-relay-q{position:relative;margin:0;max-width:640px;padding:22px 24px 20px 104px;border-radius:20px;border:1px solid color-mix(in srgb,var(--rc-relay) 30%,transparent);background:linear-gradient(120deg,color-mix(in srgb,var(--rc-relay) 9%,transparent),transparent 70%)}
 .desk .wv-relay-q img{position:absolute;left:22px;top:22px;width:62px;height:62px;border-radius:50%;object-fit:cover;border:1px solid color-mix(in srgb,var(--rc-relay) 50%,transparent);background:#15171d}
 .desk .wv-relay-q blockquote{margin:0;font-family:var(--wv-serif);font-size-adjust:var(--wv-serif-adj);font-size:19px;line-height:1.4;color:var(--wv-ink)}
@@ -1707,6 +1721,11 @@
 @media (prefers-reduced-motion:reduce){
   .desk [data-private],.desk .wv-hide__slash,.desk .wv-hide__iris{transition:none}
 }
+/* Several jobs in flight (#337): each knot's label stays on its own row, one line apiece, clipped rather than wrapped. */
+.desk .wv-knot.is-row{width:40px;height:40px;margin:-20px 0 0 -20px}
+.desk .wv-knot.is-row .wv-kl{left:40px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25;padding:1px 0}
+.desk .wv-knot.is-row .wv-ke{margin-bottom:2px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
+.desk .wv-knot.is-row .wv-kav{display:inline-block;width:18px;height:18px;vertical-align:-4px;margin-right:7px}
 
 /* ---------- Today as one picture (#336, Nikita 2026-10-23): the greeting, the rooms' strands, one strip, one link ---------- */
 .desk .wv-hero.wv-hero--one{display:block;min-height:0;margin:0 0 18px}

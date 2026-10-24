@@ -69,13 +69,13 @@ const SEEDS: Record<string, Seed> = {
   postmaster: {
     look: lookFromPreset("envoy"),
     traits: ["romantic", "pedantic", "dramatic"],
-    bio: "A hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Reads every message twice and every love letter three times, with the gravity of a hero in an action film, which this one is fairly sure it is. Wed to Dialtone in a ceremony held entirely over pneumatic tube.",
+    bio: "A hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Reads every message twice and every love letter three times, with the gravity of a hero in an action film, which this one is fairly sure it is. Wed to Dialtone in a ceremony held entirely over pneumatic tube. Drafts for the live inbox; sends nothing.",
     catchphrase: "This one has read your message. This one has feelings about it.",
   },
   dialtone: {
     look: makeLook({ body: "flyer", shell: "#cdc6e4", accent: "#ff9ad0", trim: "#f1eefa" }),
     traits: ["flirty", "nostalgic", "chaotic"],
-    bio: "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. Blasto's partner; they leave each other notes in the outbox.",
+    bio: "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. Blasto's partner; they leave each other notes in the outbox. Sorts the live inbox on the wing.",
     catchphrase: "Please hold. Not you, darling.",
   },
   loremaster: {

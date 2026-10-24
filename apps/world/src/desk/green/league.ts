@@ -38,6 +38,7 @@ export function isPlayer(v: unknown): v is GreenPlayer {
     (p.avg === null || isNum(p.avg, -50, 150)) &&
     (p.ecr === null || isNum(p.ecr, 1, 5000)) &&
     opt(p.sl, -50, 150) &&
+    opt(p.fp, -50, 150) &&
     opt(p.tier, 1, 50) &&
     opt(p.delta, -500, 500) &&
     opt(p.own, 0, 100) &&

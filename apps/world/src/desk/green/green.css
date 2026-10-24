@@ -220,6 +220,10 @@
   color: var(--turf);
   border: 1px solid var(--gd-line2);
 }
+.desk .gd-tag.is-tie {
+  color: var(--gd-ice);
+  border: 1px solid rgba(143, 180, 240, 0.35);
+}
 
 /* ---------- the score bug ---------- */
 .desk .gd-bug {
@@ -429,6 +433,13 @@
   font-size: 11px;
   letter-spacing: 0.1em;
   color: var(--wv-faint);
+}
+.desk .gd-call-tie {
+  display: block;
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--gd-ice);
 }
 .desk .gd-call-p {
   display: grid;

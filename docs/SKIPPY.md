@@ -27,7 +27,7 @@ are still played by the simulator until their room goes real. The list lives in 
 | Green | The Commentator | lime | **Active**, its own thread | Which of the real league reads (Sleeper, FantasyPros: start/sit, pickups, the win chance) the Green shows and calls |
 | Exchange | The Bookie | mint | **Active**, its own thread | Which of Polymarket's real reads (the public odds board, Nikita's read-only book) the Exchange shows |
 | Spire | The Executive | gold | Simulated for now | (simulated for now) |
-| Relay | The Messenger | signal blue | Simulated for now | OpenAI models for sorting and drafting (Dialtone, Blasto); see `relay/macbook-setup.md` |
+| Relay | The Messenger | signal blue | **Active**, its own thread (email live since 2026-10-23, #322) | Claude models for the inbox (Haiku for Dialtone's sort, Sonnet for Blasto's advice, under the $10 email cap, [GMAIL.md](GMAIL.md)); OpenAI for texts once the MacBook's hub is up (`relay/macbook-setup.md`) |
 | Archive | The Historian | violet | Simulated for now | (simulated for now) |
 | Break Room | The Life of the Party | pink | Simulated for now | (simulated for now) |
 | Workshop | The Artiste | teal | Simulated for now | Image model, Meshy, import (when the pipeline is real) |

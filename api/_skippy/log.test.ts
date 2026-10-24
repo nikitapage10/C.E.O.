@@ -74,7 +74,7 @@ describe("hand-offs in the room log (#312)", () => {
   it("hands a submind's ask to the room's active submind, and anything else to Skippy", () => {
     expect(handoffTo("submind", "foundry")).toBe("ember");
     expect(handoffTo("submind", "green")).toBe("turf");
-    expect(handoffTo("submind", "relay")).toBe("skippy");
+    expect(handoffTo("submind", "relay")).toBe("static");
     expect(handoffTo("submind", "none")).toBe("skippy");
     expect(handoffTo("skippy", "green")).toBe("skippy");
     for (const no of ["none", "", "ember", null, 1]) expect(handoffTo(no, "foundry")).toBeNull();

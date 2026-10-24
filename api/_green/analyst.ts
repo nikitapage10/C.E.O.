@@ -5,8 +5,11 @@
  *   Calls        FantasyPros decides each start-or-sit (its projection, then its weekly rank). Sleeper's projection
  *                sits beside it, never averaged in: when Sleeper orders the pair the other way, or the two margins
  *                differ by 3 points or more, the call is a split decision. Only when FantasyPros has the two within a
- *                point does the matchup break the tie: the projected underdog leans to the higher ceiling (the higher
- *                of the two projections), the favourite to the safer floor (the lower of the two).
+ *                point does the matchup break the tie (#340): the projected underdog leans to the higher ceiling (the
+ *                higher of the two projections), the favourite to the steadier floor (the lower of the two); level on
+ *                that, the experts' spread decides (the narrower spread is steadier, the better best rank the higher
+ *                ceiling). Only between two FantasyPros projects (or, while it waits, two on form), both able to play;
+ *                the call is labelled "tiebreak".
  *   Teams        Every roster: what its best lineup projects, positions where it falls short of the league's middle
  *                or has a bye or injury hole coming (needs), and positions where its bench would start for most teams
  *                (surplus). FAAB left from Sleeper.
@@ -92,21 +95,54 @@ export function callsFor(current: GreenSlot[], bench: GreenPlayer[], swaps: Gree
   return out.sort((a, b) => rank(a) - rank(b) || Math.abs(a.edge) - Math.abs(b.edge)).slice(0, 8);
 }
 
+/** The experts' spread this week (lower is steadier), Infinity when unknown. */
+const spreadOf = (p: GreenPlayer) => p.range?.std ?? Infinity;
+/** The best rank any expert gave him this week (lower is a higher ceiling), Infinity when unknown. */
+const bestRankOf = (p: GreenPlayer) => p.range?.min ?? Infinity;
+
+/**
+ * Whether the favourite/underdog tiebreak may settle a pair: a win chance to go on, both able to play, both projected
+ * by the same source (FantasyPros, or form while it waits: start/sit never rests on a form number against a FantasyPros
+ * one), and under a point apart.
+ */
+export function tiebreakApplies(a: GreenPlayer, b: GreenPlayer, week: number, win: number | null): boolean {
+  if (win === null || a.proj === null || b.proj === null || sitsOut(a, week) || sitsOut(b, week)) return false;
+  if ((a.src === "fp" || b.src === "fp") && a.src !== b.src) return false;
+  return Math.abs(a.proj - b.proj) < 1;
+}
+
+/** Who the tiebreak picks: the underdog the higher ceiling, the favourite the steadier floor; level, the experts' spread, then `a`. */
+export function tiebreakPick(a: GreenPlayer, b: GreenPlayer, win: number): GreenPlayer {
+  const under = win < 0.5;
+  const key = under ? ceilingOf : floorOf;
+  const ka = round1(key(a));
+  const kb = round1(key(b));
+  if (ka !== kb) return ka > kb ? a : b;
+  const sa = under ? bestRankOf(a) : spreadOf(a);
+  const sb = under ? bestRankOf(b) : spreadOf(b);
+  return sb < sa ? b : a;
+}
+
 function judge(slot: string, a: GreenPlayer, b: GreenPlayer, change: boolean, week: number, win: number | null, forcedWhy: string | null): GreenCall {
   let start = a;
   let sit = b;
   let isChange = change;
   let tiebreak: string | null = null;
-  const fpGap = (start.proj ?? 0) - (sit.proj ?? 0);
   // The tiebreak: only between two who can both play and whom FantasyPros has within a point.
-  if (win !== null && Math.abs(fpGap) < 1 && !sitsOut(a, week) && !sitsOut(b, week) && a.proj !== null && b.proj !== null) {
+  if (win !== null && tiebreakApplies(a, b, week, win)) {
     const under = win < 0.5;
-    const key = under ? ceilingOf : floorOf;
-    const pick = key(a) === key(b) ? start : key(a) > key(b) ? a : b;
+    const pick = tiebreakPick(a, b, win);
     const other = pick === a ? b : a;
+    const who = a.src === "fp" ? "FantasyPros has" : "their form has";
+    const level = round1((under ? ceilingOf : floorOf)(pick)) === round1((under ? ceilingOf : floorOf)(other));
+    const spread = level
+      ? under
+        ? ` Level there, so the experts' best rank decides: ${pick.name} ${pick.range?.min != null ? `#${pick.range.min}` : "unranked"}, ${other.name} ${other.range?.min != null ? `#${other.range.min}` : "unranked"}.`
+        : ` Level there, so the experts' spread decides: ${pick.name} ${pick.range ? pick.range.std.toFixed(1) : "unknown"}, ${other.name} ${other.range ? other.range.std.toFixed(1) : "unknown"}.`
+      : "";
     tiebreak = under
-      ? `Tiebreak: FantasyPros has them within a point and you're the underdog (${Math.round(win * 100)}%), so lean ceiling: ${pick.name} tops out at ${ceilingOf(pick).toFixed(1)}, ${other.name} at ${ceilingOf(other).toFixed(1)}.`
-      : `Tiebreak: FantasyPros has them within a point and you're favoured (${Math.round(win * 100)}%), so lean floor: ${pick.name}'s low is ${floorOf(pick).toFixed(1)}, ${other.name}'s ${floorOf(other).toFixed(1)}.`;
+      ? `Tiebreak: ${who} them within a point and you're the underdog (${Math.round(win * 100)}%), so lean ceiling: ${pick.name} tops out at ${ceilingOf(pick).toFixed(1)}, ${other.name} at ${ceilingOf(other).toFixed(1)}.${spread}`
+      : `Tiebreak: ${who} them within a point and you're favoured (${Math.round(win * 100)}%), so lean floor: ${pick.name}'s low is ${floorOf(pick).toFixed(1)}, ${other.name}'s ${floorOf(other).toFixed(1)}.${spread}`;
     if (pick !== start) {
       // The tie broke the other way: the call flips, and whether it changes the lineup flips with it.
       start = pick;

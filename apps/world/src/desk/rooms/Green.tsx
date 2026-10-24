@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Keeper } from "./parts.tsx";
-import { AskedSkippy } from "../skippy/AskedSkippy.tsx";
-import { RoomFeed } from "../skippy/RoomFeed.tsx";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
 import { Parts, Poly, OK, WHITE, knot, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import { onBye, ordinal, pct, pts, sleeperLeagueUrl, startGreen, useGreen, type GreenBid, type GreenBoard, type GreenCall, type GreenFeed, type GreenNews, type GreenPlayer, type GreenSlot, type GreenStatus } from "../green/league.ts";
@@ -913,9 +911,7 @@ export function Green() {
         </>
       )}
 
-      <AskedSkippy room="green" />
       <SetupAsks room="green" />
-      <RoomFeed room="green" />
 
       <footer className="gd-sources" aria-label="Where the numbers come from">
         <p className="gd-k">Sources · how the board is put together</p>

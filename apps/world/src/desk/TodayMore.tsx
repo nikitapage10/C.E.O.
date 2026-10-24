@@ -1,25 +1,22 @@
 import { chronicleDay, sinceAway, useWorldFeed } from "../chronicle.ts";
 import { shippedToday, useFoundry } from "../foundry.ts";
 import { loadLattice } from "../route.ts";
-import { useUsage } from "../usage.ts";
 import { DESK_ROOMS, roomImage, type DeskAction, type DeskData, type DeskRoom } from "./deskData.ts";
 import { roomLink } from "./hero/roomLink.ts";
 import { link } from "./nav.ts";
 import type { RoomPulse } from "./roomPulse.ts";
 import { LaterAct } from "./TodayActs.tsx";
-import { ComingUp, ShortVersion, shortVersion, WorldClockCard, WorthKnowing } from "./TodayWeave.tsx";
+import { ShortVersion, shortVersion, WorthKnowing } from "./TodayWeave.tsx";
 import { Avatar } from "./ui.tsx";
 
 /**
- * Today's "more" (#336, Nikita 2026-10-23: "not have so many different sections"): everything that used to stack up
- * under the hero, behind one quiet link and loaded only when it is opened. What can wait, what is worth knowing now,
- * the short version of what happened (with yesterday's story to listen to), what the crew does next, the world clock,
- * and every room as a still to walk into. Nothing here is new; it is all the same live data, just out of the way.
+ * Today's "Not worth knowing now" (#363; first "More from today", #336): what can wait, the short version of what
+ * happened (with yesterday's story to listen to), what's warm but not on fire, and every room as a still to walk into.
+ * Loaded only when it is opened. The world clock and what the crew does next moved up to the rail (TodayRail.tsx).
  */
 export function TodayMore({ data, now, awaySince, pulses, owed, later, moreReplies }: { data: DeskData; now: number; awaySince: number; pulses: RoomPulse[]; owed: number; later: DeskAction[]; moreReplies: number }) {
   const world = useWorldFeed().feed;
   const foundry = useFoundry((s) => s.data);
-  const usage = useUsage().feed;
   const ilyr = world ? sinceAway(world.recent, awaySince) : [];
   const yesterday = chronicleDay(now - 86_400_000);
   const storyDay = world?.days.includes(yesterday) ? yesterday : null;
@@ -34,11 +31,7 @@ export function TodayMore({ data, now, awaySince, pulses, owed, later, moreRepli
         </section>
       )}
       <ShortVersion moments={moments} awaySince={awaySince} now={now} storyDay={storyDay} shipped={shipped} />
-      <WorthKnowing data={foundry} usage={usage} world={world} owed={owed} />
-      <div className="wv-tmore-pair">
-        <ComingUp now={now} />
-        <WorldClockCard now={now} world={world} />
-      </div>
+      <WorthKnowing data={foundry} owed={owed} />
 
       <section className="wv-section rooms" aria-label="Your rooms">
         <div className="wv-sechead">

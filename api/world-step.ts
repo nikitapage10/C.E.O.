@@ -18,9 +18,11 @@
  *   FOUNDRY_GITHUB_TOKEN   optional: the same with the older fine-grained token, until the App is set up
  *   WORLD_STORE            optional: "blob" (default) or "supabase" once it is connected (api/_world/store.ts)
  *   WORLD_BUDGET_USD       optional: the world's share of the $10 monthly Claude API cap (default 6)
- *   GEMINI_API_KEY         optional: the day's story, read aloud once the recap is filed (api/_world/story.ts), and the
- *                          week in Ilyr on Sunday evening (api/_world/week.ts)
+ *   GEMINI_API_KEY         optional: the day's story, read aloud about every five hours and once the recap is filed
+ *                          (api/_world/story.ts), and the week in Ilyr on Sunday evening (api/_world/week.ts)
  *   GEMINI_BUDGET_USD      optional: Gemini's own monthly cap (default 5, never above 10)
+ *   ELEVENLABS_API_KEY     optional (#365): ElevenLabs reads the day's story first, under ELEVENLABS_BUDGET_USD
+ *                          (default 10), with ELEVENLABS_VOICE_ID; Gemini reads when it can't
  */
 
 import { waitUntil } from "./_waitUntil.js";
@@ -31,20 +33,41 @@ import { readFeed } from "./_world/digest.js";
 import { runStep } from "./_world/step.js";
 import { makeWeekStory } from "./_world/week.js";
 import { weekDue } from "./_world/weeks.js";
-import { geminiBudget, geminiKey, makeStory, pickStoryStore } from "./_world/story.js";
+import { editionAt, elevenFromEnv, geminiBudget, geminiKey, makeStory, mountainOf, pickStoryStore } from "./_world/story.js";
 import { pickStore, StaleStateError, type WorldStore } from "./_world/store.js";
 import type { WorldState } from "./_world/types.js";
 
 /**
- * Once the day's recap is filed, the Historian reads the day aloud (api/_world/story.ts): after the answer has gone,
- * so the step stays fast. Without GEMINI_API_KEY, or past GEMINI_BUDGET_USD, nothing is called.
+ * Once the day's recap is filed, Skippy reads the day aloud (api/_world/story.ts, #365): after the answer has gone,
+ * so the step stays fast. Without a voice key (ELEVENLABS_API_KEY or GEMINI_API_KEY), or past both caps, nothing is
+ * called.
  */
 function tellTheDay(world: WorldStore, day: string): void {
   const stories = pickStoryStore();
   const key = geminiKey();
-  if (!stories || !key) return;
+  const eleven = elevenFromEnv();
+  if (!stories || (!key && !eleven)) return;
   waitUntil(
-    makeStory({ world, stories, day, now: Date.now(), key, budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write: claudeStoryWriter() }).catch(() => undefined),
+    makeStory({ world, stories, day, now: Date.now(), key, eleven, budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write: claudeStoryWriter() }).catch(() => undefined),
+  );
+}
+
+/**
+ * The day so far (#365): at the first step after each 5-hour mark (5 am, 10 am, 3 pm, 8 pm Mountain), a fresh "so
+ * far" edition of today, when the Chronicle has something new since the last one. Each edition is claimed once, so
+ * the next steps in the same window spend nothing (one store read). Claude writes it only while the world's budget
+ * has room, else the Chronicle's own lines do.
+ */
+function tellSoFar(world: WorldStore, state: WorldState, now: number): void {
+  const { day } = mountainOf(now);
+  const edition = editionAt(day, now);
+  const stories = pickStoryStore();
+  const key = geminiKey();
+  const eleven = elevenFromEnv();
+  if (edition < 1 || !stories || (!key && !eleven)) return;
+  const write = canSpend(state, now, worldBudget(process.env.WORLD_BUDGET_USD)) ? claudeStoryWriter() : null;
+  waitUntil(
+    makeStory({ world, stories, day, now, key, eleven, budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write, allowPartial: true, edition }).catch(() => undefined),
   );
 }
 
@@ -83,6 +106,7 @@ export async function POST(): Promise<Response> {
   try {
     const result = await runStep({ store, now: Date.now(), readFeed: (since) => readFeed(since), ask: claudeAsk(), budget: worldBudget(process.env.WORLD_BUDGET_USD) });
     if (result.stepped && result.entry.recap) tellTheDay(store, result.entry.recap.day);
+    else if (result.stepped) tellSoFar(store, result.state, Date.parse(result.entry.at));
     if (result.stepped) tellTheWeek(store, result.state, Date.parse(result.entry.at));
     // Only whether it stepped and when: the trigger is open (the site gate lets it through, #236), and the hour's
     // words are for the Lattice, behind the gate, not for whoever calls this.

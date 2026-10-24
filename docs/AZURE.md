@@ -152,6 +152,7 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | `foundry-github-token` (only without the App) | `FOUNDRY_GITHUB_TOKEN` |
    | `claude-api-key` | `CLAUDE_API_KEY` |
    | `gemini-api-key` | `GEMINI_API_KEY` |
+   | `elevenlabs` (ElevenLabs, #311, #365: Skippy reads "today in Ilyr" with it first, Gemini behind it; settable on the Desk's Keys form) | `ELEVENLABS_API_KEY` |
    | `desk-vapid-public-key`, `desk-vapid-private-key`, `desk-vapid-subject` | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY`, `DESK_VAPID_SUBJECT` |
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
    | `site-bypass-token` (the live watch's way past the site lock, #313) | `SITE_BYPASS_TOKEN` |
@@ -171,6 +172,10 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    `geminiBudgetUsd`, `skippyBudgetUsd`, `emailBudgetUsd`, `paypalEnv=live`) on the first-time paste, and later deploys
    keep the new value. Any other setting added in the portal makes the deploy skip the template (it would remove it)
    and say so, so add new settings to the template instead.
+   ElevenLabs' story settings (#365) are the code's own defaults and need no app setting: `ELEVENLABS_BUDGET_USD`
+   (default `10`, never above 10) and `ELEVENLABS_VOICE_ID` (default Daniel, `onwK4e9ZLuTAKqWW03F9`, a premade British
+   male voice). To change one, add it to `plainSettings` in `infra/resources.bicep` (and to the kept-live list in
+   `scripts/azure-infra-lib.mjs` and `deploy-azure.yml`), not in the portal, for the reason above.
    Vercel's `BLOB_*` settings have no counterpart: the Function App already has `WORLD_STORE=azureblob`,
    `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_BLOB_ENDPOINT` and `AZURE_STORAGE_CONTAINER=ceo-state`.
 

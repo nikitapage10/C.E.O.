@@ -33,7 +33,7 @@ export function seedTarget(root, pathname) {
  * unit test (seed-azure-lib.test.mjs) keeps them equal to api/_world/prompt.ts and api/_world/story.ts.
  */
 export const RECENT_KEEP = 24;
-export const STORY_STYLE = 3;
+export const STORY_STYLE = 4;
 export const TTS_MODEL = "gemini-3.8-flash-tts";
 export const TTS_VOICE = "Achird";
 

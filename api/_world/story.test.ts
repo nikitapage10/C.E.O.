@@ -17,6 +17,15 @@ import {
   storyCeiling,
   STORY_STYLE,
   storyPrompt,
+  SKIPPY_VOICE,
+  editionAt,
+  elevenBudget,
+  elevenFromEnv,
+  elevenVoice,
+  ELEVEN_MODEL,
+  ELEVEN_URL,
+  ELEVEN_VOICE,
+  mountainOf,
   TTS_MODEL,
   TTS_URL,
   TTS_VOICE,
@@ -226,7 +235,7 @@ describe("making the day's story", () => {
     const r = await makeStory(d);
     expect(r.made).toBe(true);
     if (!r.made) return;
-    expect(r.story).toMatchObject({ day: DAY, partial: false, writer: "claude", model: TTS_MODEL, voice: TTS_VOICE, durationSec: 2 });
+    expect(r.story).toMatchObject({ day: DAY, partial: false, writer: "claude", model: TTS_MODEL, voice: SKIPPY_VOICE.voice, reader: "gemini", durationSec: 2 });
     expect(r.story.cost.usd).toBeCloseTo((400 * 0.5 + 2_500 * 9) / 1e6, 10);
     const wav = await d.stories.readAudio(DAY);
     expect(String.fromCharCode(...wav!.subarray(0, 4))).toBe("RIFF");
@@ -333,7 +342,7 @@ describe("the script's prompt and cleaning", () => {
     const page = await (await worldWith({ recap: null })).readDay(DAY);
     const s = chronicleScript(page, true);
     expect(s).toMatch(/^Today in Ilyr, so far/);
-    expect(s).toContain("More by midnight.");
+    expect(s).toContain("More by midnight, monkeys.");
     expect(s).toContain("The day's story, read aloud (built by Rusty)");
   });
 
@@ -365,7 +374,7 @@ describe("the normal voice (#107)", () => {
     const style = body.input[0]!.content[0]!.annotations[0]!.style;
     expect(style).toMatch(/natural/);
     expect(style).not.toMatch(/faster|brisk|unhurried|lamplight/);
-    expect(STORY_STYLE).toBe(3);
+    expect(STORY_STYLE).toBe(4);
   });
 
   /** Make a story, then store it as #95 did: Gacrux, and no style version. */
@@ -387,7 +396,7 @@ describe("the normal voice (#107)", () => {
     expect(d.fetcher).toHaveBeenCalledTimes(1);
     // The Desk's "Make it now" does, once.
     const remade = await makeStory({ ...d, now: NOW + 120_000, allowPartial: true, allowRemake: true });
-    expect(remade.made && remade.story).toMatchObject({ partial: false, voice: "Achird", style: STORY_STYLE });
+    expect(remade.made && remade.story).toMatchObject({ partial: false, voice: SKIPPY_VOICE.voice, style: STORY_STYLE });
     expect(await makeStory({ ...d, now: NOW + 180_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists" });
     expect(d.fetcher).toHaveBeenCalledTimes(2);
     expect(d.stories.spend["2026-10"]!.calls).toBe(2);
@@ -400,7 +409,7 @@ describe("the normal voice (#107)", () => {
     d.stories.stories.set(DAY, { ...made.story, voice: "Puck", style: 2 });
     d.stories.claims.clear();
     const remade = await makeStory({ ...d, now: NOW + 60_000, allowPartial: true, allowRemake: true });
-    expect(remade.made && remade.story).toMatchObject({ voice: "Achird", style: 3 });
+    expect(remade.made && remade.story).toMatchObject({ voice: SKIPPY_VOICE.voice, style: STORY_STYLE });
     expect(await makeStory({ ...d, now: NOW + 120_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists" });
     expect(d.fetcher).toHaveBeenCalledTimes(2);
   });
@@ -422,5 +431,183 @@ describe("the normal voice (#107)", () => {
     d.stories.spend = { "2026-10": { usd: 4.99, tokensIn: 0, tokensOut: 0, calls: 1, stories: 1, scriptUsd: 0 } };
     expect(await makeStory({ ...d, allowRemake: true })).toMatchObject({ made: false, reason: "over-budget" });
     expect(d.fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Skippy presents (#365)", () => {
+  it("writes the script in Skippy's voice and has Gemini read it in a male voice with a British style note", async () => {
+    const d = await deps();
+    await makeStory(d);
+    const body = JSON.parse(String(d.fetcher!.mock.calls[0]![1]!.body));
+    expect(body.generation_config.speech_config).toEqual([{ voice: "Sadaltager" }]);
+    expect(body.input[0].content[0].annotations[0].style).toMatch(/upper-crust British/);
+    const prompt = (d.write as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { system: string };
+    expect(prompt.system).toMatch(/^You are Skippy, the Magnificent/);
+    expect(prompt.system).toMatch(/Never say personal data/);
+  });
+
+  it("leaves the week in Ilyr with the Historian's plain voice", () => {
+    expect(speechRequest("x").generation_config.speech_config).toEqual([{ voice: TTS_VOICE }]);
+  });
+});
+
+/** Two seconds of 24 kHz PCM, as ElevenLabs answers for pcm_24000. */
+const elevenFetch = (status = 200, type = "application/octet-stream") => vi.fn<typeof fetch>(async () => new Response(status === 200 ? new Uint8Array(PCM) : JSON.stringify({ detail: "nope" }), { status, headers: { "Content-Type": type } }));
+const ELEVEN_KEY = "sk_eleventestkey_do_not_leak_0123456789";
+const eleven = { key: ELEVEN_KEY, voice: ELEVEN_VOICE, budget: 10 };
+
+describe("the ElevenLabs voice (#365)", () => {
+  it("reads the settings from the environment only: key, voice (sanitised) and a $10 cap", () => {
+    expect(elevenFromEnv({})).toBeNull();
+    expect(elevenFromEnv({ ELEVENLABS_API_KEY: "  " })).toBeNull();
+    expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY })).toEqual({ key: ELEVEN_KEY, voice: ELEVEN_VOICE, budget: 10 });
+    expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY, ELEVENLABS_VOICE_ID: "JBFqnCBsd6RMkjVDRZzb", ELEVENLABS_BUDGET_USD: "3" })).toMatchObject({ voice: "JBFqnCBsd6RMkjVDRZzb", budget: 3 });
+    expect(elevenVoice("../../v1/user")).toBe(ELEVEN_VOICE);
+    expect(elevenBudget("50")).toBe(10);
+    expect(elevenBudget(undefined)).toBe(10);
+  });
+
+  it("is tried first when its key is set: PCM at 24 kHz, the key only in a header, its spend on its own line", async () => {
+    const fetcher = elevenFetch();
+    const d = { ...(await deps({ fetcher })), eleven };
+    const r = await makeStory(d);
+    expect(r.made && r.story).toMatchObject({ reader: "elevenlabs", model: ELEVEN_MODEL, voice: ELEVEN_VOICE, durationSec: 2 });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(String(url)).toBe(`${ELEVEN_URL}/${ELEVEN_VOICE}?output_format=pcm_24000`);
+    expect(String(url)).not.toContain(ELEVEN_KEY);
+    expect((init!.headers as Record<string, string>)["xi-api-key"]).toBe(ELEVEN_KEY);
+    const body = JSON.parse(String(init!.body));
+    expect(body.model_id).toBe(ELEVEN_MODEL);
+    expect(JSON.stringify(body)).not.toContain(ELEVEN_KEY);
+    const month = d.stories.spend["2026-10"]!;
+    expect(month.elevenCalls).toBe(1);
+    expect(month.elevenUsd).toBeCloseTo((body.text.length * 0.08) / 1000, 10);
+    expect(month.usd).toBe(0);
+    expect(JSON.stringify([r, d.stories.spend, [...d.stories.stories.values()]])).not.toContain(ELEVEN_KEY);
+  });
+
+  it("falls back to Gemini when ElevenLabs fails", async () => {
+    const gem = geminiFetch();
+    const fetcher = vi.fn<typeof fetch>(async (url, init) => (String(url).startsWith(ELEVEN_URL) ? new Response("{}", { status: 401, headers: { "Content-Type": "application/json" } }) : gem(url, init)));
+    const d = { ...(await deps({ fetcher })), eleven };
+    const r = await makeStory(d);
+    expect(r.made && r.story).toMatchObject({ reader: "gemini", voice: SKIPPY_VOICE.voice });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(d.stories.spend["2026-10"]).toMatchObject({ calls: 1, elevenCalls: 0 });
+  });
+
+  it("falls back to Gemini, without calling ElevenLabs, once its own cap is reached", async () => {
+    const fetcher = geminiFetch();
+    const d = { ...(await deps({ fetcher })), eleven: { ...eleven, budget: 1 } };
+    d.stories.spend = { "2026-10": { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0.95, elevenChars: 0, elevenCalls: 9 } };
+    const r = await makeStory(d);
+    expect(r.made && r.story.reader).toBe("gemini");
+    expect(fetcher.mock.calls.every(([u]) => !String(u).startsWith(ELEVEN_URL))).toBe(true);
+  });
+
+  it("with only ElevenLabs set, reads with it; with both over their caps, calls nothing", async () => {
+    const d = { ...(await deps({ fetcher: elevenFetch(), key: "" })), eleven };
+    expect((await makeStory(d)).made).toBe(true);
+    const e = { ...(await deps({ key: "" })), eleven: { ...eleven, budget: 0 } };
+    expect(await makeStory(e)).toMatchObject({ made: false, reason: "over-budget" });
+    expect(e.fetcher).not.toHaveBeenCalled();
+    expect(e.write).not.toHaveBeenCalled();
+  });
+
+  it("refuses an answer that isn't raw audio (JSON or MP3)", async () => {
+    const d = { ...(await deps({ fetcher: elevenFetch(200, "application/json"), key: "" })), eleven };
+    expect(await makeStory(d)).toMatchObject({ made: false, reason: "speech-failed" });
+  });
+});
+
+describe("the editions (#365)", () => {
+  const at = (iso: string) => Date.parse(iso);
+  it("counts 5-hour marks in Mountain time: 0 before 5 am, then 1 to 4; a day already over is 5", () => {
+    // 13 October 2026 is daylight time: Mountain is UTC-6.
+    expect(mountainOf(at("2026-10-13T10:30:00Z"))).toEqual({ day: DAY, hour: 4 });
+    expect(editionAt(DAY, at("2026-10-13T10:30:00Z"))).toBe(0);
+    expect(editionAt(DAY, at("2026-10-13T11:05:00Z"))).toBe(1);
+    expect(editionAt(DAY, at("2026-10-13T16:05:00Z"))).toBe(2);
+    expect(editionAt(DAY, at("2026-10-13T21:05:00Z"))).toBe(3);
+    expect(editionAt(DAY, at("2026-10-14T02:05:00Z"))).toBe(4);
+    expect(editionAt(DAY, at("2026-10-14T06:05:00Z"))).toBe(5);
+  });
+
+  /** A day of hours 1 to 9 (UTC 11:05 to 19:05), with a step entry at each. */
+  async function soFarDay() {
+    const world = await worldWith({ recap: null });
+    world.days.get(DAY)!.entries = [entry(1)];
+    return world;
+  }
+  const add = (world: MemoryStore, step: number, iso: string) => world.days.get(DAY)!.entries.push(entry(step, { at: iso }));
+
+  it("makes a fresh edition at each 5-hour mark only when the Chronicle has something new, each once, then the final", async () => {
+    const world = await soFarDay();
+    const d = await deps({ world });
+    const step = (iso: string) => makeStory({ ...d, now: at(iso), allowPartial: true, edition: editionAt(DAY, at(iso)) });
+
+    const first = await step("2026-10-13T11:35:00Z"); // 5:35 am: edition 1
+    expect(first.made && first.story).toMatchObject({ partial: true, edition: 1 });
+    expect(await step("2026-10-13T12:35:00Z")).toMatchObject({ made: false, reason: "exists" }); // same window
+    // 10:35 am, nothing new since 5:35: no new edition, nothing spent.
+    expect(await step("2026-10-13T16:35:00Z")).toMatchObject({ made: false, reason: "no-news" });
+    add(world, 2, "2026-10-13T17:05:00.000Z");
+    const second = await step("2026-10-13T17:35:00Z"); // still 11:35 am: edition 2, with news
+    expect(second.made && second.story).toMatchObject({ partial: true, edition: 2 });
+    expect((await d.stories.readStory(DAY))!.edition).toBe(2);
+    expect(d.fetcher).toHaveBeenCalledTimes(2);
+    // After midnight the recap is filed and the final edition replaces the day so far, once.
+    await world.putRecap(DAY, "The whole day, footnoted.");
+    const final = await makeStory({ ...d, now: at("2026-10-14T06:05:00Z") });
+    expect(final.made && final.story).toMatchObject({ partial: false });
+    expect(final.made && final.story.edition).toBeUndefined();
+    expect(await step("2026-10-14T07:05:00Z")).toMatchObject({ made: false, reason: "exists" });
+    expect(d.fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it("lets only one of two runners spend on the same edition", async () => {
+    const world = await soFarDay();
+    const d = await deps({ world });
+    const ask = { ...d, now: at("2026-10-13T16:05:00Z"), allowPartial: true, edition: 2 };
+    const [a, b] = await Promise.all([makeStory(ask), makeStory(ask)]);
+    expect([a.made, b.made].filter(Boolean)).toHaveLength(1);
+    expect(d.fetcher).toHaveBeenCalledTimes(1);
+    expect(d.stories.spend["2026-10"]!.stories).toBe(1);
+  });
+
+  it("never lets a late 'so far' cover the final one", async () => {
+    const world = await soFarDay();
+    const d = await deps({ world });
+    // The final lands while the edition is being read.
+    const slow = vi.fn<typeof fetch>(async () => {
+      await world.putRecap(DAY, "Filed.");
+      await makeStory({ ...d, fetcher: geminiFetch(), now: at("2026-10-14T06:05:00Z") });
+      return new Response(JSON.stringify(geminiAnswer()), { status: 200 });
+    });
+    const late = await makeStory({ ...d, fetcher: slow, now: at("2026-10-14T05:59:00Z"), allowPartial: true, edition: 4 });
+    expect(late).toMatchObject({ made: false, reason: "exists" });
+    expect((await d.stories.readStory(DAY))!.partial).toBe(false);
+  });
+
+  it("stays inside both caps over many stories: ElevenLabs to its cap, then Gemini to its, then nothing", async () => {
+    const world = new MemoryStore();
+    const days = Array.from({ length: 28 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
+    for (const day of days) world.days.set(day, { day, entries: [entry(1, { day })], recap: "Filed." });
+    const stories = new MemoryStoryStore();
+    const gem = geminiFetch();
+    const fetcher = vi.fn<typeof fetch>(async (url, init) => (String(url).startsWith(ELEVEN_URL) ? new Response(new Uint8Array(PCM), { status: 200 }) : gem(url, init)));
+    const readers: string[] = [];
+    for (const day of days) {
+      const r = await makeStory({ world, stories, day, now: NOW, key: KEY, budget: 0.1, eleven: { ...eleven, budget: 0.5 }, write: writer(), fetcher });
+      readers.push(r.made ? r.story.reader! : r.reason);
+    }
+    const month = stories.spend["2026-10"]!;
+    expect(month.elevenUsd!).toBeLessThanOrEqual(0.5);
+    expect(month.usd).toBeLessThanOrEqual(0.1);
+    expect(readers).toContain("elevenlabs");
+    expect(readers).toContain("gemini");
+    expect(readers.at(-1)).toBe("over-budget");
+    expect(readers.indexOf("gemini")).toBeGreaterThan(readers.lastIndexOf("elevenlabs"));
   });
 });

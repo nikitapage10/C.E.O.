@@ -173,7 +173,7 @@ const SEEDS: Record<string, Seed> = {
   vellum: {
     look: submindLook("vellum"),
     traits: ["pedantic", "smug", "nerdy", "deadpan"],
-    bio: "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne floating high in the corner, with a view of every shelf. Has never once been wrong, and has a footnote saying so. Heimerdinger is the only mind in the Archive it considers a peer.",
+    bio: "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne high in the corner. Has never once been wrong, and has a footnote saying so. Writes Skippy's notes for Today in Ilyr. Heimerdinger is the only mind in the Archive it considers a peer.",
     catchphrase: "Citation needed. I'll wait.",
   },
   fizz: {

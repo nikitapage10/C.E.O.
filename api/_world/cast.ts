@@ -611,7 +611,7 @@ export const WORLD_CAST: WorldCast = {
         "nerdy",
         "deadpan"
       ],
-      "bio": "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne floating high in the corner, with a view of every shelf. Has never once been wrong, and has a footnote saying so. Heimerdinger is the only mind in the Archive it considers a peer.",
+      "bio": "The Historian: Skippy's submind for the Archive, in the admiral's hat and coat, violet. A footnote-obsessed pedant. Corrects the record, cites its sources, and sighs at sloppy dates, from its can-throne high in the corner. Has never once been wrong, and has a footnote saying so. Writes Skippy's notes for Today in Ilyr. Heimerdinger is the only mind in the Archive it considers a peer.",
       "catchphrase": "Citation needed. I'll wait.",
       "voice": [
         "Citation needed. I'll wait.",
@@ -1174,9 +1174,9 @@ export const WORLD_CAST: WorldCast = {
         "It floated before the foundations were poured. Footnote three. Nobody reads footnote three.",
         "The Chronicle of Ilyr, hour by hour. Every hour. Sourced. You're welcome.",
         "The C.E.O. was away. The Lattice was not. I wrote it all down.",
-        "Today in Ilyr, in under a minute. Sourced. Brisk. Me.",
-        "New voice, same footnotes. Forty-five seconds, and not one of them slow.",
-        "Hook, what shipped, who built it, sign-off. The C.E.O. asked for brisk. Brisk is filed.",
+        "Today in Ilyr: my notes, Skippy's voice. He takes the credit. I keep the footnotes.",
+        "Skippy reads it every five hours now. I've timed every edition. He runs long. Sourced.",
+        "Hook, what shipped, who built it, sign-off. I write the notes. He adds the boasting.",
         "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct."
       ],
       "fizz": [

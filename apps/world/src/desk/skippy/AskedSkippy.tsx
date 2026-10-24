@@ -1,3 +1,4 @@
+import { AnswerCard } from "./AnswerCard.tsx";
 import { useEffect, useState } from "react";
 import { Private } from "../Private.tsx";
 import { useDeskAuth } from "../signin.ts";
@@ -68,6 +69,11 @@ export function AskedSkippy({ room, className = "" }: { room: AskedRoom; classNa
                       <b>{handedName(t.followUp.from)}:</b>{" "}
                       <Private as="span">{t.followUp.text}</Private>
                     </p>
+                  )}
+                  {t.followUp?.card && (
+                    <Private block as="div">
+                      <AnswerCard card={t.followUp.card} />
+                    </Private>
                   )}
                 </details>
               </li>

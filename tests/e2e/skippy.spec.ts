@@ -69,7 +69,8 @@ for (const width of [1280, 400]) {
     await box.fill("What's going on?");
     await box.press("Enter");
     await expect(chat.getByText("Bask in my summary.")).toBeVisible();
-    expect(asked).toEqual([{ message: "What's going on?", history: [] }]);
+    // The message goes with the page's own data for his quick take (#341), never with anything typed before.
+    expect(asked).toEqual([{ message: "What's going on?", history: [], page: expect.stringMatching(/^Nikita is on the Desk's Today page\./) }]);
     // The unknown "merge" button is dropped in the browser too.
     await expect(chat.getByRole("button", { name: "Merge everything" })).toHaveCount(0);
     await expect(chat.getByRole("button", { name: /File: podium/ })).toBeVisible();

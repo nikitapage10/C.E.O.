@@ -51,9 +51,10 @@ export function transparencySets(objects: readonly Drawn[], visible: readonly bo
  * - One walk collects the objects with a material; the visibility flips run over that list.
  * - The two draws reuse the matrices the main pass computed a moment earlier in the same frame (nothing moves
  *   between the main pass and the AO pass).
- * - The first draw leaves the shadow map alone: N8AO reads only alpha and depth, which shadows don't touch. The
- *   second still redraws it as before, so the floor's reflection (drawn next frame, before the main pass) sees
- *   exactly the shadow map it always did.
+ * - Neither draw redraws the shadow map: N8AO reads only alpha and depth, which shadows don't touch. (The second
+ *   used to redraw it so the floor's reflection, drawn next frame before the main pass, saw a fresh one; nothing
+ *   moves between the main pass and this one, so the main pass's map is the same map. #327: that was a whole
+ *   shadow pass every frame.)
  *
  * Returns a function that puts the pass back the way it was.
  */
@@ -111,6 +112,7 @@ export function leanAO(pass: AOPass): () => void {
       for (let i = 0; i < objects.length; i++) objects[i]!.visible = depthWrite[i]!;
       renderer.clear(true, true, true);
       copy.render(renderer);
+      renderer.shadowMap.autoUpdate = false;
       renderer.render(scene, camera);
     } finally {
       for (let i = 0; i < objects.length; i++) objects[i]!.visible = visible[i]!;

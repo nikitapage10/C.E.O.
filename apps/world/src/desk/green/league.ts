@@ -39,6 +39,7 @@ export function isPlayer(v: unknown): v is GreenPlayer {
     (p.ecr === null || isNum(p.ecr, 1, 5000)) &&
     opt(p.sl, -50, 150) &&
     opt(p.fp, -50, 150) &&
+    opt(p.ko, 1e12, 5e12) &&
     opt(p.tier, 1, 50) &&
     opt(p.delta, -500, 500) &&
     opt(p.own, 0, 100) &&
@@ -91,7 +92,7 @@ export function readDesk(b: Partial<GreenBoard>): Partial<GreenBoard> {
   const out: Partial<GreenBoard> = {};
   if (Array.isArray(b.calls))
     out.calls = b.calls
-      .filter((c): c is GreenCall => !!c && isStr(c.slot, 12) && isPlayer(c.start) && isPlayer(c.sit) && isNum(c.edge, -200, 200) && (c.slEdge === null || isNum(c.slEdge, -200, 200)) && ["agrees", "disagrees", "unknown"].includes(c.sleeper) && isStr(c.why, 400) && (c.tiebreak === null || isStr(c.tiebreak, 400)))
+      .filter((c): c is GreenCall => !!c && isStr(c.slot, 12) && isPlayer(c.start) && isPlayer(c.sit) && isNum(c.edge, -200, 200) && (c.slEdge === null || isNum(c.slEdge, -200, 200)) && ["agrees", "disagrees", "unknown"].includes(c.sleeper) && isStr(c.why, 700) && (c.tiebreak === null || isStr(c.tiebreak, 400)) && (c.lateRisk == null || isStr(c.lateRisk, 500)))
       .map((c) => ({ ...c, change: c.change === true, split: c.split === true }))
       .slice(0, 10);
   if (Array.isArray(b.teams))

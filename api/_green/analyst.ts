@@ -9,7 +9,9 @@
  *                higher of the two projections), the favourite to the steadier floor (the lower of the two); level on
  *                that, the experts' spread decides (the narrower spread is steadier, the better best rank the higher
  *                ceiling). Only between two FantasyPros projects (or, while it waits, two on form), both able to play;
- *                the call is labelled "tiebreak".
+ *                the call is labelled "tiebreak". A questionable or doubtful starter whose game kicks off a window later
+ *                than a bench alternative's, with FantasyPros under 1.5 points apart, loses the slot: "late-game risk"
+ *                (#370; model.ts's lineupSwaps, byes still first).
  *   Teams        Every roster: what its best lineup projects, positions where it falls short of the league's middle
  *                or has a bye or injury hole coming (needs), and positions where its bench would start for most teams
  *                (surplus). FAAB left from Sleeper.
@@ -73,7 +75,7 @@ export function callsFor(current: GreenSlot[], bench: GreenPlayer[], swaps: Gree
   const used = new Set<string>();
   for (const s of swaps) {
     if (!s.out) continue;
-    out.push(judge(s.slot, s.in, s.out, true, week, win, s.why));
+    out.push(judge(s.slot, s.in, s.out, true, week, win, s.why, s.lateRisk ?? null));
     used.add(s.in.id);
     used.add(s.out.id);
   }
@@ -123,13 +125,13 @@ export function tiebreakPick(a: GreenPlayer, b: GreenPlayer, win: number): Green
   return sb < sa ? b : a;
 }
 
-function judge(slot: string, a: GreenPlayer, b: GreenPlayer, change: boolean, week: number, win: number | null, forcedWhy: string | null): GreenCall {
+function judge(slot: string, a: GreenPlayer, b: GreenPlayer, change: boolean, week: number, win: number | null, forcedWhy: string | null, lateRisk: string | null = null): GreenCall {
   let start = a;
   let sit = b;
   let isChange = change;
   let tiebreak: string | null = null;
   // The tiebreak: only between two who can both play and whom FantasyPros has within a point.
-  if (win !== null && tiebreakApplies(a, b, week, win)) {
+  if (!lateRisk && win !== null && tiebreakApplies(a, b, week, win)) {
     const under = win < 0.5;
     const pick = tiebreakPick(a, b, win);
     const other = pick === a ? b : a;
@@ -157,8 +159,8 @@ function judge(slot: string, a: GreenPlayer, b: GreenPlayer, change: boolean, we
   const sleeper: GreenCall["sleeper"] = slEdge === null ? "unknown" : slEdge >= 0 ? "agrees" : "disagrees";
   const fpLine = `FantasyPros: ${fpWord(start)} over ${fpWord(sit)}`;
   const slLine = slEdge === null ? "" : ` · Sleeper: ${(start.sl ?? 0).toFixed(1)} to ${(sit.sl ?? 0).toFixed(1)}`;
-  const why = forcedWhy && !tiebreak && /bye|out|IR|suspended|empty/.test(forcedWhy) ? `${forcedWhy}. ${fpLine}${slLine}` : `${fpLine}${slLine}`;
-  return { slot, start, sit, change: isChange, edge, slEdge, sleeper, split, tiebreak, why };
+  const why = lateRisk ? `${lateRisk} ${fpLine}${slLine}` : forcedWhy && !tiebreak && /bye|out|IR|suspended|empty/.test(forcedWhy) ? `${forcedWhy}. ${fpLine}${slLine}` : `${fpLine}${slLine}`;
+  return { slot, start, sit, change: isChange, edge, slEdge, sleeper, split, tiebreak, ...(lateRisk && { lateRisk }), why };
 }
 
 /* ── the league's teams ── */

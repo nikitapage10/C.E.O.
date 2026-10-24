@@ -58,6 +58,8 @@ export interface FpRank {
   ecr: number;
   posRank: string | null;
   bye: number | null;
+  /** When his game kicks off this week, epoch milliseconds (`player_game_kickoff_ts`, #370); absent when FantasyPros sends none. */
+  ko?: number | null;
   /** The best and worst rank an expert gave him, and the spread (#276); absent in older copies. */
   min?: number | null;
   max?: number | null;
@@ -140,6 +142,16 @@ const fpidOf = (v: unknown): string | null => {
   return /^\d{1,9}$/.test(s) ? s : null;
 };
 
+/** A kickoff time (`player_game_kickoff_ts`) as epoch milliseconds: epoch seconds or milliseconds, or a date string; null when it isn't a plausible time. */
+export function kickoffOf(v: unknown): number | null {
+  let t: number | null = null;
+  if (typeof v === "number" && Number.isFinite(v)) t = v;
+  else if (typeof v === "string" && v.trim()) t = /^\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : Date.parse(v);
+  if (t === null || !Number.isFinite(t) || t <= 0) return null;
+  const ms = t < 1e11 ? t * 1000 : t;
+  return ms > Date.UTC(2020, 0, 1) && ms < Date.UTC(2100, 0, 1) ? Math.round(ms) : null;
+}
+
 const FP_INJ: Record<string, GreenInjury> = { Q: "Q", D: "D", O: "O", OUT: "O", IR: "IR", "COV-IR": "IR", PUP: "PUP", S: "SUS", NS: "O" };
 
 /** A name for matching: lower case, letters only, suffixes dropped ("D.K. Metcalf Jr." → "dkmetcalf"). */
@@ -183,6 +195,7 @@ export function shapeRankings(raw: unknown): FpRank[] {
     const sr = typeof p.sportsdata_id === "string" && /^[0-9a-f-]{36}$/i.test(p.sportsdata_id) ? p.sportsdata_id.toLowerCase() : null;
     const posRank = typeof p.pos_rank === "string" && /^[A-Z/]{1,4}\d{1,3}$/.test(p.pos_rank) ? p.pos_rank.replace("DST", "DEF") : null;
     const bye = num(p.player_bye_week);
+    const ko = kickoffOf(p.player_game_kickoff_ts);
     const rank = (v: unknown) => {
       const n = num(v);
       return n !== null && n >= 1 && n <= 2000 ? Math.round(n) : null;
@@ -201,6 +214,7 @@ export function shapeRankings(raw: unknown): FpRank[] {
       ecr: Math.round(ecr),
       posRank,
       bye: bye !== null && bye >= 1 && bye <= 18 ? bye : null,
+      ...(ko !== null && { ko }),
       min: rank(p.rank_min),
       max: rank(p.rank_max),
       std: std !== null && std >= 0 && std < 500 ? Math.round(std * 10) / 10 : null,
@@ -292,6 +306,8 @@ export interface FpView {
   ecr: number | null;
   posRank: string | null;
   bye: number | null;
+  /** His game's kickoff this week, epoch milliseconds, when FantasyPros sends it (#370). */
+  ko?: number | null;
   inj: GreenInjury | null;
   /** This week's expert range and tier at his position, roster share, and his rest-of-season move (#276). */
   range: { min: number; max: number; std: number } | null;
@@ -365,6 +381,7 @@ export function fpIndex(fp: FpData): (p: SlimPlayer) => FpView | null {
       ecr: rank?.ecr ?? null,
       posRank: rank?.posRank ?? null,
       bye: wk?.bye ?? rank?.bye ?? null,
+      ko: wk?.ko ?? null,
       inj: inj?.inj ?? null,
       range,
       tier: wk?.tier ?? null,

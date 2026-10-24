@@ -4,7 +4,8 @@ import { ROOM_IDS } from "@ceo/core";
 /**
  * Smoke test for the whole Lattice: it boots, agents move, every room is reachable, an approval can be
  * granted, and every glitch fires and cleans up after itself. Screenshots land in test-results/shots.
- * Runs in headless Chromium on SwiftShader, which is slow, so waits are generous (boot gets 150 s) and the camera cuts.
+ * Runs in headless Chromium on SwiftShader, which is slow, so waits are generous (boot, with the whole world streamed
+ * in, gets 6 min) and the camera cuts.
  *
  * How slow (#161): a frame of the full Lattice takes 2-5 s of wall time there, and the simulation advances at most
  * 0.1 s x speed per frame (Scene.tsx), so 400 ms of simulated time at speed=4. A screenshot has to wait for a fresh
@@ -12,8 +13,16 @@ import { ROOM_IDS } from "@ceo/core";
  * movement is measured over a fixed simulated window that starts when the first snapshot is taken.
  */
 
-/** Wall-clock budget for booting the Lattice (the boot wait below) and for one room or glitch screenshot step. */
-const BOOT_MS = 150_000;
+/**
+ * Wall-clock budget for booting the Lattice (the boot wait below) and for one room or glitch screenshot step.
+ *
+ * Booting means the whole world is in, not just the first rooms (#405). Since room-first loading (#360) the curtain
+ * lifts on the rooms nearest the camera and the other rooms' models stream in and compile behind it. With no
+ * KHR_parallel_shader_compile (SwiftShader) that goes a part at a time between frames, and here it takes minutes
+ * after the agents appear. A test that starts then has every evaluate, hover and screenshot queued behind it (an
+ * evaluate took 20 s, a hover over two minutes), so the boot waits for window.__ceo.streamedIn() as well.
+ */
+const BOOT_MS = 360_000;
 const STEP_MS = 60_000;
 /** Simulated time agents get to move between the two position snapshots: ten frames at the slowest. */
 const MOVE_WINDOW_MS = 4000;
@@ -31,12 +40,18 @@ type Api = {
 const api = <T,>(page: Page, fn: (a: Api) => T) =>
   page.evaluate(`(${fn.toString()})(window.__ceo)`) as Promise<Awaited<T>>;
 
-async function boot(page: Page) {
-  await page.goto("/lattice?instant&glitches=off&speed=4&quality=low&seed=7");
+async function boot(page: Page, speed = 4) {
+  const start = Date.now();
+  await page.goto(`/lattice?instant&glitches=off&speed=${speed}&quality=low&seed=7`);
   await page.waitForFunction(() => {
     const w = window as unknown as { __ceo?: { positions?: () => Record<string, unknown> } };
     return w.__ceo?.positions && Object.keys(w.__ceo.positions()).length >= 14;
   }, undefined, { timeout: BOOT_MS, polling: 1000 });
+  await page.waitForFunction(
+    () => (window as unknown as { __ceo: { streamedIn: () => boolean } }).__ceo.streamedIn(),
+    undefined,
+    { timeout: Math.max(1000, BOOT_MS - (Date.now() - start)), polling: 2000 },
+  );
 }
 
 test("boots, agents move, rooms are reachable", async ({ page }) => {
@@ -78,6 +93,7 @@ test("boots, agents move, rooms are reachable", async ({ page }) => {
 });
 
 test("Brogu's eyes open in a room and Esc leaves them", async ({ page }) => {
+  test.setTimeout(BOOT_MS + STEP_MS);
   await boot(page);
   const room = ROOM_IDS[0]!;
   await page.keyboard.press("1");
@@ -99,7 +115,11 @@ test("Brogu's eyes open in a room and Esc leaves them", async ({ page }) => {
 });
 
 test("the C.E.O. can approve a request", async ({ page }) => {
-  await boot(page);
+  test.setTimeout(BOOT_MS + 2 * STEP_MS);
+  // The demo's first approval comes 15-25 s into Lattice time (seed 7's moved from 12.4 s to 22.4 s when the Studio's
+  // cast joined, #326). At speed 4 a frame moves Lattice time 0.4 s at most, so that's 50-60 frames of several seconds
+  // each here; at 16 it's a quarter of that, and the approval flow is the same.
+  await boot(page, 16);
   // The demo's approvals only show inside their room (the Lattice-wide view is for real agents).
   await expect(page.locator("[data-approval]")).toHaveCount(0);
   const room = await page.waitForFunction(
@@ -141,6 +161,7 @@ test("every glitch fires and the Lattice returns to normal", async ({ page }) =>
 });
 
 test("agents can be renamed, re-dressed and given relationships", async ({ page }) => {
+  test.setTimeout(BOOT_MS + 2 * STEP_MS);
   await boot(page);
   await page.evaluate(() => localStorage.removeItem("ceo.cast.v2"));
   await page.locator(".roster li").filter({ hasText: "Kevin" }).hover();

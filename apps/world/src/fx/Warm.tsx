@@ -1,7 +1,7 @@
 import { useThree } from "@react-three/fiber";
 import { Suspense, useLayoutEffect, useRef, type ReactNode } from "react";
 import type { Group } from "three";
-import { compileScene } from "./compile.ts";
+import { compileScene, warming } from "./compile.ts";
 
 /**
  * Streamed-in models arrive with materials the graphics card hasn't compiled yet. Drawn straight away, each new
@@ -30,11 +30,22 @@ export function Warm({ children }: { children: ReactNode }) {
       g.visible = true;
     };
     g.visible = false;
+    let pending = true;
+    warming.count += 1;
+    const settle = () => {
+      if (!pending) return;
+      pending = false;
+      warming.count -= 1;
+    };
     const compiled = compileScene(gl, g, camera, scene);
-    void compiled.then(show);
+    void compiled.then(() => {
+      settle();
+      show();
+    });
     const t = setTimeout(show, WARM_MS);
     return () => {
       done = true;
+      settle();
       clearTimeout(t);
     };
   }, [gl, scene, camera]);

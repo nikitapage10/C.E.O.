@@ -8,13 +8,15 @@
  * (tests/e2e/dist-server.ts reads vercel.json, so the CSP applies too):
  *   1. `/`        the Desk renders its Today page: no page error, no console error from the app, the boot screen gone.
  *   2. `/foundry` a lazily loaded Desk tab renders its own page.
- *   3. `/lattice` the scene boots: its lazy chunk runs, a WebGL canvas and the HUD mount and window.__ceo is there,
- *                 and nothing throws in the few seconds after. It does not wait for every model (the cast's >= 14
- *                 positions take 100 s+ on SwiftShader; the nightly browser tests cover that, tests/e2e/lattice.spec.ts).
- *   4. the warm-up (#373, run before step 3): `/` with the Desk's warm-up on, until it has run (the models fetched, the Lattice not mounted
- *                 behind the Desk, #401), the Desk still up.
- *   5. the trip (#373): `/`, then in the page the way the nav moves, to /lattice (it shows, with its HUD), to /foundry
- *                 (the Desk is back, the Lattice hidden behind it) and to /lattice again. Nothing may throw on the way.
+ *   3. `/lattice` the map (#332): its lazy chunk runs and the 2D map draws, without fetching three.js or a model.
+ *      `/lattice?room=foundry` one room in 3D: a WebGL canvas and the HUD mount and window.__ceo is there, and nothing
+ *                 throws in the few seconds after. It does not wait for every model (the cast's >= 14 positions take
+ *                 100 s+ on SwiftShader; the nightly browser tests cover that, tests/e2e/lattice.spec.ts).
+ *   4. the warm-up (#373, run before step 3): `/` with the Desk's warm-up on, until it has run (nothing mounted
+ *                 behind the Desk, #401; since #332 nothing heavy fetched either), the Desk still up.
+ *   5. the trip (#373): `/`, then in the page the way the nav moves, to /lattice (the map shows), to /foundry
+ *                 (the Desk is back, the Lattice hidden behind it), to /lattice?room=foundry (the room in 3D, with its
+ *                 HUD) and to /lattice again (the map). Nothing may throw on the way.
  * The Desk's weight (#195): on `/` it also adds up the JavaScript the page downloads from its own site before Today renders
  * (uncompressed bytes) and fails when that passes DESK_JS_BUDGET below. The live watch only reports the number.
  * Takes about 20 s on SwiftShader. Exits 0 when all pass, 1 otherwise (and prints what each page threw).
@@ -147,22 +149,37 @@ try {
     "/",
     async (page, timeout) => {
       await deskUp(page, timeout, "TODAY");
-      // It only fetches the models (#401): the Lattice must not mount behind the Desk before its first visit.
+      // The Lattice must not mount behind the Desk before its first visit (#401), and the map needs no models (#332).
       await page.waitForFunction(() => globalThis.__ceoWarmed, undefined, { timeout, polling: 500 });
       await page.waitForTimeout(3000);
-      if (await page.$(".lattice-keep canvas")) throw new Error("the Desk's warm-up mounted the Lattice behind it");
+      if (await page.$(".lattice-keep")) throw new Error("the Desk's warm-up mounted the Lattice behind it");
       await deskUp(page, timeout, "TODAY");
-      console.log("boot-check: the Desk's warm-up fetched the models only");
+      console.log("boot-check: the Desk's warm-up mounted nothing");
     },
     BOOT_MS,
     false,
     true,
   );
+  // The map (#332): it draws, with nothing 3D fetched (three.js waits for a room to be picked, or a quiet spell).
   await visit(
     "/lattice",
+    async (page, timeout) => {
+      const heavy = [];
+      page.on("request", (r) => {
+        const path = new URL(r.url()).pathname;
+        if (/\/three-[^/]*\.js$/.test(path) || path.endsWith(".glb")) heavy.push(path);
+      });
+      await page.waitForFunction(() => globalThis.document.querySelector(".lmap") && globalThis.__ceo?.map?.().frames > 3, undefined, { timeout, polling: 250 });
+      if (heavy.length) throw new Error(`the map fetched ${heavy.join(", ")} before anything 3D was asked for`);
+      await page.waitForTimeout(1500);
+    },
+    BOOT_MS,
+  );
+  await visit(
+    "/lattice?room=foundry",
     (page, timeout) =>
       page
-        .waitForFunction(() => globalThis.__ceo && globalThis.document.querySelector("canvas") && globalThis.document.querySelector(".mark__name"), undefined, { timeout, polling: 250 })
+        .waitForFunction(() => globalThis.__ceo && globalThis.document.querySelector(".stage canvas") && globalThis.document.querySelector(".mark__name"), undefined, { timeout, polling: 250 })
         .then(() => page.waitForTimeout(3000)), // a late throw (a model, a shader) lands in the page errors
     BOOT_MS,
   );
@@ -173,13 +190,15 @@ try {
       globalThis.history.pushState(null, "", p);
       globalThis.dispatchEvent(new globalThis.PopStateEvent("popstate"));
     }, path);
-  const shown = (page, timeout) =>
+  // On screen: the map, or a room in 3D with its HUD.
+  const shown = (page, timeout, what = "map") =>
     page.waitForFunction(
-      () => {
+      (w) => {
         const keep = globalThis.document.querySelector(".lattice-keep");
-        return keep && globalThis.getComputedStyle(keep).visibility !== "hidden" && keep.querySelector("canvas") && globalThis.document.querySelector(".mark__name") && !globalThis.document.querySelector(".desk");
+        const there = w === "map" ? keep?.querySelector(".lmap canvas") : keep?.querySelector(".stage canvas") && globalThis.document.querySelector(".mark__name");
+        return keep && globalThis.getComputedStyle(keep).visibility !== "hidden" && there && !globalThis.document.querySelector(".desk");
       },
-      undefined,
+      what,
       { timeout, polling: 500 },
     );
   await visit(
@@ -192,9 +211,12 @@ try {
       await go(page, "/foundry");
       await deskUp(page, timeout, "FOUNDRY");
       await page.waitForFunction(() => globalThis.getComputedStyle(globalThis.document.querySelector(".lattice-keep")).visibility === "hidden", undefined, { timeout });
+      await go(page, "/lattice?room=foundry");
+      await shown(page, timeout, "room");
+      await page.waitForTimeout(2000);
       await go(page, "/lattice");
       await shown(page, timeout);
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1000);
     },
     BOOT_MS * 4, // each wait; on SwiftShader the Lattice compiles on the page's thread, behind the Desk too
   );

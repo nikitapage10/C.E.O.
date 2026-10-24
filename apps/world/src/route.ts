@@ -71,6 +71,11 @@ export function usePathname(): string {
   return useSyncExternalStore(subscribe, () => window.location.pathname);
 }
 
+/** The current query string ("?room=relay"), kept in step with in-app navigation: the Lattice reads its view from it (#332). */
+export function useSearch(): string {
+  return useSyncExternalStore(subscribe, () => window.location.search);
+}
+
 /** Go somewhere without reloading the page (keeps the query string when staying inside the Lattice). */
 export function navigate(route: Route, search = "") {
   navigateTo(PATHS[route] + search);

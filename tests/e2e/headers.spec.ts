@@ -93,11 +93,12 @@ test("the Desk installs as an app under the policy: manifest, icons and its serv
 test("the Lattice boots under the policy without a violation", async ({ page }) => {
   test.setTimeout(240_000);
   const seen = await watch(page);
-  await page.goto(BASE + "/lattice?instant&glitches=off&speed=4&quality=low&seed=7");
+  // One room in 3D (#332; `/lattice` itself is the 2D map now): models, workers and shaders, all under the policy.
+  await page.goto(BASE + "/lattice?room=foundry&instant&glitches=off&speed=4&quality=low&seed=7");
   await page.waitForFunction(
     () => {
       const w = window as unknown as { __ceo?: { positions?: () => Record<string, unknown> } };
-      return w.__ceo?.positions && Object.keys(w.__ceo.positions()).length >= 14;
+      return w.__ceo?.positions && Object.keys(w.__ceo.positions()).length >= 3;
     },
     undefined,
     { timeout: 150_000, polling: 1000 },

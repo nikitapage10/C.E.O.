@@ -1,7 +1,7 @@
 import { ROOM_IDS, roomAngle, roomCenter, type RoomId } from "@ceo/core";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { ComponentType } from "react";
-import { RoomScope } from "../scene/roomScope.ts";
+import { RoomScope, useStreaming } from "../scene/roomScope.ts";
 import { useWorld } from "../store.ts";
 import { ROOM_ACCENTS } from "../theme.ts";
 import { Archive } from "./Archive.tsx";
@@ -61,9 +61,11 @@ function Room({ id }: { id: RoomId }) {
 }
 
 export function Rooms() {
+  // One room on its own (#332): only it is built.
+  const solo = useStreaming((s) => s.solo);
   return (
     <group>
-      {ROOM_IDS.map((id) => (
+      {(solo ? [solo] : ROOM_IDS).map((id) => (
         <Room key={id} id={id} />
       ))}
     </group>

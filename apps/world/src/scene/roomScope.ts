@@ -11,9 +11,14 @@ interface StreamingStore {
   rooms: readonly RoomId[];
   /** Every room's models, agents and pets may load: the overview, or the first room is in. */
   all: boolean;
+  /**
+   * One room on its own (#332, `/lattice?room=relay`): only it is built, with its crew and pets; the other rooms, the
+   * Kernel and the streams are not mounted at all, and nothing for them is fetched. Null for the whole ring.
+   */
+  solo: RoomId | null;
 }
 
-export const useStreaming = create<StreamingStore>(() => ({ rooms: [], all: true }));
+export const useStreaming = create<StreamingStore>(() => ({ rooms: [], all: true, solo: null }));
 
 /** Whether a room's models, agents and pets may load yet. */
 export const roomIn = (s: StreamingStore, room: RoomId) => s.all || s.rooms.includes(room);

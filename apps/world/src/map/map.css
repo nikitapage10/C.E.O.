@@ -1,0 +1,518 @@
+/*
+ * The Lattice's map (#332): the ring from above, in the Desk's dots and threads and the Lattice's type (Cormorant
+ * Garamond for names, IBM Plex Mono for readings). Tokens come from styles.css (The Tide's near-black and hairlines).
+ */
+.lmap {
+  --lm-rgb: 236, 238, 243;
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(270px, 320px);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "top top top"
+    "title chart side";
+  background:
+    radial-gradient(ellipse at 50% 55%, rgba(143, 232, 255, 0.05), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.lmap-eyebrow {
+  margin: 0 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.lmap-faint {
+  color: var(--faint);
+}
+
+/* ── Top bar ── */
+.lmap-top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 24px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.lmap-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.lmap-mark img {
+  width: 22px;
+  height: 22px;
+  opacity: 0.9;
+}
+.lmap-mark b {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+}
+.lmap-top__rule {
+  width: 48px;
+  height: 1px;
+  background: var(--hair);
+}
+.lmap-top__where {
+  color: var(--muted);
+}
+.lmap-top__right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.lmap-top__desk {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hair-strong);
+}
+.lmap-top__desk:hover,
+.lmap-top__desk:focus-visible {
+  border-color: var(--text);
+}
+.lmap-count {
+  min-width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--hair);
+  border-radius: 50%;
+}
+.lmap-count.hot {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+/* ── Left: what the Lattice is, right now ── */
+.lmap-title {
+  grid-area: title;
+  padding: 18px 0 24px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.lmap-title .lmap-eyebrow {
+  margin: 0;
+}
+.lmap-display {
+  margin: -8px 0 0;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(40px, 4.2vw, 60px);
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+}
+.lmap-sub {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.lmap-totals,
+.lmap-figs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin: 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--hair);
+}
+.lmap-totals dt,
+.lmap-figs dt {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.lmap-totals dd,
+.lmap-figs dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.lmap-totals dd.hot,
+.lmap-figs dd.hot {
+  color: var(--amber);
+}
+.lmap-skippy {
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.lmap-skippy .lmap-eyebrow {
+  display: block;
+  font-family: var(--mono);
+  font-style: normal;
+}
+.lmap-signals ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  line-height: 1.45;
+}
+.lmap-signals li {
+  color: var(--muted);
+  padding-left: 10px;
+  border-left: 1px solid var(--hair);
+}
+.lmap-signals b {
+  color: var(--text);
+  font-weight: 500;
+}
+.lmap-whole {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius);
+  transition: border-color 0.2s, background 0.2s;
+}
+.lmap-whole span {
+  font-family: var(--serif);
+  font-size: 20px;
+}
+.lmap-whole small {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.lmap-whole:hover,
+.lmap-whole:focus-visible {
+  border-color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+.lmap-keys {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+/* ── The chart ── */
+.lmap-chart {
+  grid-area: chart;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+.lmap-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  touch-action: manipulation;
+}
+.lmap-kernel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--faint);
+  pointer-events: none;
+}
+.lmap-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 4px 8px;
+  min-width: 120px;
+  text-align: center;
+  border-radius: var(--radius);
+  transition: background 0.2s;
+}
+.lmap-label__idx {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: rgba(var(--lm-rgb), 0.9);
+}
+.lmap-label__name {
+  font-family: var(--serif);
+  font-size: 21px;
+  line-height: 1.05;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lmap-label__state {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.lmap-label.on,
+.lmap-label:focus-visible {
+  background: rgba(var(--lm-rgb), 0.1);
+  outline: none;
+}
+.lmap-label.on .lmap-label__state {
+  color: var(--text);
+}
+.lmap-label--pin {
+  min-width: 0;
+  padding: 2px 4px;
+}
+.lmap-label--pin .lmap-label__idx {
+  font-size: 10px;
+  color: var(--text);
+  text-shadow: 0 0 6px rgba(var(--lm-rgb), 0.9);
+}
+.lmap-live {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 8px var(--mint);
+}
+.lmap-tip {
+  position: absolute;
+  transform: translate(12px, -50%);
+  display: grid;
+  gap: 2px;
+  max-width: 240px;
+  padding: 6px 9px;
+  background: rgba(5, 5, 6, 0.86);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  pointer-events: none;
+  line-height: 1.35;
+}
+.lmap-tip b {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 500;
+}
+.lmap-tip span {
+  color: var(--muted);
+}
+
+/* ── Right: the room in hand ── */
+.lmap-side {
+  grid-area: side;
+  padding: 18px 24px 24px 0;
+  overflow-y: auto;
+}
+.lmap-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 16px;
+  border-left: 1px solid rgba(var(--lm-rgb), 0.55);
+}
+.lmap-panel .lmap-eyebrow {
+  margin: 0;
+  color: rgba(var(--lm-rgb), 0.95);
+}
+.lmap-panel__name {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 32px;
+  line-height: 1;
+}
+.lmap-panel__work {
+  margin: 0;
+  color: var(--muted);
+}
+.lmap-figs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.lmap-crew {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.lmap-crew li {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  column-gap: 8px;
+  line-height: 1.35;
+}
+.lmap-crew i {
+  grid-row: span 2;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: rgb(var(--lm-dot));
+  box-shadow: 0 0 8px rgb(var(--lm-dot));
+}
+.lmap-crew li.busy i {
+  outline: 1px solid rgb(var(--lm-dot));
+  outline-offset: 2px;
+}
+.lmap-crew b {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 16px;
+}
+.lmap-crew span {
+  color: var(--muted);
+}
+.lmap-crew__empty {
+  display: block !important;
+  color: var(--faint);
+}
+.lmap-go {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 12px 14px;
+  text-align: left;
+  font-family: var(--serif);
+  font-size: 20px;
+  border: 1px solid rgba(var(--lm-rgb), 0.7);
+  border-radius: var(--radius);
+  background: rgba(var(--lm-rgb), 0.08);
+  transition: background 0.2s;
+}
+.lmap-go small {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lmap-go:hover,
+.lmap-go:focus-visible {
+  background: rgba(var(--lm-rgb), 0.18);
+}
+
+.lmap-list {
+  display: none;
+}
+
+/* While the 3D code arrives after a pick on the map. */
+.lmap-wait {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  color: var(--muted);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 20px;
+}
+
+/* ── Narrower: the side panel folds under; a phone stacks it all and lists the rooms ── */
+@media (max-width: 1180px) {
+  .lmap {
+    grid-template-columns: minmax(230px, 270px) minmax(0, 1fr);
+    grid-template-areas:
+      "top top"
+      "title chart";
+  }
+  .lmap-side {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .lmap {
+    display: block;
+    overflow-y: auto;
+  }
+  .lmap-top {
+    padding: 12px 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .lmap-top__rule,
+  .lmap-top__where,
+  .lmap-top__right .lmap-faint {
+    display: none;
+  }
+  .lmap-title {
+    padding: 6px 16px 0;
+    overflow: visible;
+  }
+  .lmap-title > .lmap-skippy,
+  .lmap-title > .lmap-signals,
+  .lmap-title > .lmap-keys {
+    display: none;
+  }
+  .lmap-totals {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .lmap-totals dd {
+    font-size: 18px;
+  }
+  .lmap-chart {
+    width: 100%;
+    aspect-ratio: 1;
+    margin: 8px 0;
+  }
+  .lmap-list {
+    display: grid;
+    gap: 0;
+    list-style: none;
+    margin: 0;
+    padding: 0 16px 28px;
+  }
+  .lmap-list li {
+    border-top: 1px solid var(--hair);
+  }
+  .lmap-list button {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 30px 1fr auto;
+    gap: 2px 8px;
+    padding: 12px 0;
+    text-align: left;
+  }
+  .lmap-list__idx {
+    color: rgb(var(--lm-rgb));
+    letter-spacing: 0.14em;
+    padding-top: 4px;
+  }
+  .lmap-list__name {
+    font-family: var(--serif);
+    font-size: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lmap-list__state {
+    color: var(--muted);
+    padding-top: 5px;
+    text-align: right;
+  }
+  .lmap-list__doing {
+    grid-column: 2 / 4;
+    color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lmap-label,
+  .lmap-whole,
+  .lmap-go {
+    transition: none;
+  }
+}

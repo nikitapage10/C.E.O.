@@ -50,7 +50,7 @@ registerAzureBlob(azureBlobFromEnv);
 const vault = vaultFromEnv(process.env);
 const keyRefresh = vault ? new KeyRefresh({ dates: () => secretDates(vault), read: (name) => readSecret(vault, name) }, process.env, (line) => console.log(line)) : null;
 registerKeyWriter(() => (vault ? keyWriter(vault, (name, value, updated) => keyRefresh?.noteSet(name, value, updated)) : null));
-const keysFresh = () => keyRefresh?.fresh() ?? Promise.resolve();
+const keysFresh = () => (keyRefresh ? keyRefresh.fresh() : Promise.resolve());
 
 const gateDeps = () => ({ env: process.env, store: pickSiteStore(), now: Date.now() });
 

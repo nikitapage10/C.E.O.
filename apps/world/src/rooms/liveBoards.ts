@@ -1,5 +1,6 @@
 import { BOOKIE_LIVE_QUIPS, BOOKIE_MOVE_QUIPS, COMMENTATOR_LIVE_QUIPS, COMMENTATOR_PROJECTED_QUIPS, fillQuip } from "@ceo/simulator";
-import { moveTone, pct, type PmMarket } from "../desk/exchange/polymarket.ts";
+import { asideLine } from "../desk/exchange/asides.ts";
+import { moveTone, pct, type PmMarket, type PmWorld } from "../desk/exchange/polymarket.ts";
 import { signedPct, type PmPosition, type PosStatus } from "../desk/exchange/positions.ts";
 import { sayNumber, type GreenBoard } from "../desk/green/league.ts";
 import { tickerChunks } from "./exchangeTicker.ts";
@@ -112,6 +113,15 @@ export function bookieLine(top: readonly PmMarket[], r1: number, r2: number): st
     return fillQuip(pickOf(BOOKIE_MOVE_QUIPS, r2 / 0.4), { market, odds, move: `${tone} ${sayNumber(pts).toLowerCase()}` });
   }
   return fillQuip(pickOf(BOOKIE_LIVE_QUIPS, r2), { market, odds });
+}
+
+/**
+ * The Bookie's world aside from his podium (#345): one of the world-moving markets (geopolitics, politics, pop culture;
+ * never sports) and why it matters, in his voice. Null until that read answers: never a made-up market.
+ */
+export function bookieWorldLine(world: readonly PmWorld[], r1: number, r2: number): string | null {
+  if (!world.length) return null;
+  return asideLine(pickOf(world, r1), r2, 60);
 }
 
 /** The Commentator on the C.E.O.'s matchup; null without a game this week. */

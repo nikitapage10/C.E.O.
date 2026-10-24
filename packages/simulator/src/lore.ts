@@ -529,6 +529,7 @@ export const LORE: Record<string, Lore> = {
       "Keeps the C.E.O.'s own Polymarket US book behind the Desk's passkey and has never said a figure out loud. Not to Hedge. Not to the floor. Not even in decimals.",
       "Was handed the C.E.O.'s Polymarket US key, which could trade. Wrote itself a list of the two doors it may open, both marked READ, and checks the list before every look. Hedge checks it after.",
       "The day the Exchange went live, the pretend trades stopped. A marquee went up with the C.E.O.'s real positions, for signed-in eyes only. The Bookie reads the odds aloud. Never the marquee.",
+      "Was told the C.E.O. doesn't want sports. Now it leans off the podium with asides on odds that move the world: a NATO-Russia clash, the balance of power. One number, one reason to sweat.",
     ],
   },
   turf: {

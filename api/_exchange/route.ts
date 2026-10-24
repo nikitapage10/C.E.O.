@@ -3,7 +3,8 @@
  * all taken, so vercel.json rewrites /api/exchange-markets to /api/world?exchange=markets and api/world.ts hands it
  * here. On Azure it is its own endpoint (azure/src/index.ts), behind the same site gate.
  *
- * GET  /api/exchange-markets                  → PmBoard: the busiest open markets and the pinned ones. Cached at the
+ * GET  /api/exchange-markets                  → PmBoard: the busiest open markets, the world-moving ones for the
+ *                                               Bookie's asides (#345, no sports) and the pinned ones. Cached at the
  *                                               edge for a minute, and each warm instance reads Polymarket at most
  *                                               once a minute; any query string is sent back to the bare address.
  * POST /api/exchange-markets { action, … }    → signed in with the Desk passkey (requireSession): "pin" with `ref`
@@ -17,8 +18,8 @@
 
 import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
-import { ID, readTop, readWatch, resolveRef, type Fetcher } from "./polymarket.js";
-import { PM_WATCH_MAX, type PmBoard, type PmMarket } from "./types.js";
+import { ID, readTop, readWatch, readWorld, resolveRef, type Fetcher } from "./polymarket.js";
+import { PM_WATCH_MAX, type PmBoard, type PmMarket, type PmWorld } from "./types.js";
 import { pickWatchStore, type WatchStore } from "./watchlist.js";
 
 export const PATH = "/api/exchange-markets";
@@ -53,11 +54,13 @@ interface Kept<T> {
   value: T;
 }
 let topKept: Kept<PmMarket[]> | null = null;
+let worldKept: Kept<PmWorld[]> | null = null;
 const watchKept = new Map<string, Kept<PmMarket[]>>();
 
 /** For tests: forget what this instance read. */
 export function forgetKept(): void {
   topKept = null;
+  worldKept = null;
   watchKept.clear();
 }
 
@@ -69,6 +72,18 @@ async function topNow(deps: ExchangeDeps): Promise<{ value: PmMarket[]; stale: b
   } catch (e) {
     if (topKept && deps.now - topKept.at < STALE_MS) return { value: topKept.value, stale: true };
     throw e;
+  }
+}
+
+/** The asides' markets; a failed read keeps the last good one for a while, else none (the asides say they're waiting). */
+async function worldNow(deps: ExchangeDeps): Promise<{ value: PmWorld[]; stale: boolean }> {
+  if (worldKept && deps.now - worldKept.at < FRESH_S * 1000) return { value: worldKept.value, stale: false };
+  try {
+    worldKept = { at: deps.now, value: await readWorld(deps.fetcher, deps.now) };
+    return { value: worldKept.value, stale: false };
+  } catch {
+    if (worldKept && deps.now - worldKept.at < STALE_MS) return { value: worldKept.value, stale: true };
+    return { value: [], stale: false };
   }
 }
 
@@ -89,8 +104,8 @@ async function watchNow(deps: ExchangeDeps, ids: string[], force = false): Promi
 }
 
 async function board(deps: ExchangeDeps, ids: string[], force = false): Promise<PmBoard> {
-  const [top, watch] = await Promise.all([topNow(deps), watchNow(deps, ids, force).catch(() => ({ value: [] as PmMarket[], stale: true }))]);
-  return { ok: true, at: new Date(deps.now).toISOString(), top: top.value, watch: watch.value, watchlist: ids, canPin: deps.watch !== null, ...((top.stale || watch.stale) && { stale: true }) };
+  const [top, world, watch] = await Promise.all([topNow(deps), worldNow(deps), watchNow(deps, ids, force).catch(() => ({ value: [] as PmMarket[], stale: true }))]);
+  return { ok: true, at: new Date(deps.now).toISOString(), top: top.value, world: world.value, watch: watch.value, watchlist: ids, canPin: deps.watch !== null, ...((top.stale || world.stale || watch.stale) && { stale: true }) };
 }
 
 export async function GET(request: Request, deps: ExchangeDeps = live()): Promise<Response> {

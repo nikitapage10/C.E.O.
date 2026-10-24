@@ -3,7 +3,7 @@ import { money, move, moveTone, pct, PIN_ERROR, PM_WATCH_MAX, sparkPath, startPo
 import "./polymarket.css";
 
 /**
- * Polymarket's odds on the Exchange (#240): the busiest open markets by 24-hour volume, each with its probability as a
+ * Polymarket's odds on the Exchange (#240): the busiest open markets by 24-hour volume, sports left out (#358), each with its probability as a
  * big mint numeral and a bar, the day's move and volume and a day's sparkline, and a small watchlist pinned with the
  * Desk passkey. Read-only public data: nothing here trades, and every word in it came from Polymarket, so it is drawn
  * as text only. Self-contained (its own CSS, its own polling), in the Weave's dark trading-floor language.
@@ -99,7 +99,7 @@ export function PolymarketBoard({ limit = 10 }: { limit?: number }) {
     <section className="pm" aria-label="Polymarket: live odds">
       <header className="pm-head">
         <div>
-          <p className="pm-eyb">Polymarket · live odds</p>
+          <p className="pm-eyb">Polymarket · live odds · no sports</p>
           <h2 className="pm-h2">The busiest markets right now</h2>
         </div>
         <p className="pm-state" data-state={board?.stale ? "stale" : status}>
@@ -135,7 +135,7 @@ export function PolymarketBoard({ limit = 10 }: { limit?: number }) {
       )}
 
       {top.length > 0 ? (
-        <ol className="pm-list" aria-label="Top markets by 24-hour volume">
+        <ol className="pm-list" aria-label="Top markets by 24-hour volume, no sports">
           {top.map((m) => (
             <Row key={m.id} m={m} pinned={pinned.has(m.id)} onPin={toggle} busy={busy !== null} />
           ))}

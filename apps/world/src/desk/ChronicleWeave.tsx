@@ -111,6 +111,63 @@ const Arrow = () => (
   </svg>
 );
 
+/** True once the element has come into view (at once where there's no IntersectionObserver). */
+export function useInView<T extends Element>(ref: React.RefObject<T | null>): boolean {
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || seen) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setSeen(true);
+      return;
+    }
+    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setSeen(true), { threshold: 0.12 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref, seen]);
+  return seen;
+}
+
+/**
+ * Kinetic type: a line that sets itself word by word as it comes into view, each word settling from loose tracking.
+ * The words are ordinary text (a screen reader reads the line as it is); without motion they're simply there.
+ */
+export function Kin({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const seen = useInView(ref);
+  let k = 0;
+  return (
+    <span ref={ref} className={`ax-kin${seen ? " is-in" : ""}${className ? ` ${className}` : ""}`}>
+      {text.split(/(\s+)/).map((w, i) =>
+        /^\s*$/.test(w) ? (
+          w
+        ) : (
+          <span key={i} className="ax-w" style={{ "--w": k++ } as React.CSSProperties}>
+            {w}
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
+
+/** The illuminated initial: the letter inked as an outline in violet, then filled, inside a hairline square. */
+function Initial({ ch }: { ch: string }) {
+  return (
+    <span className="ax-initial" aria-hidden="true">
+      <svg viewBox="0 0 100 100">
+        <rect x="1" y="1" width="98" height="98" pathLength={1} />
+        <text x="50" y="76" className="ax-initial-o">
+          {ch}
+        </text>
+        <text x="50" y="76" className="ax-initial-f">
+          {ch}
+        </text>
+      </svg>
+    </span>
+  );
+}
+
 /** The big play button, its ring filling as the reading goes. */
 function PlayRing({ on, pr, label, onClick, disabled }: { on: boolean; pr: number; label: string; onClick: () => void; disabled?: boolean }) {
   const C = 2 * Math.PI * 35;
@@ -276,34 +333,35 @@ export function Edition({ today, yesterday, entries, hourNow }: { today: string;
 
   return (
     <section className={`ax-ed${on ? " is-playing" : ""}`} aria-label="Today in Ilyr" data-room="archive">
-      <header className="ax-ed-band">
-        <span>Today in Ilyr</span>
-        <span className="ax-ed-band-m">
-          {ready ? `${isToday ? editionName(ready) : "Yesterday, the whole day"}${made ? ` · made ${made}` : ""} · ${formatDuration(ready.durationSec)}` : lines.length ? "No edition yet · the hours so far" : "Waiting on the first hour"}
-        </span>
-      </header>
-      <div className="ax-ed-main">
-        <div className="ax-ed-text">
-          <h2 className="ax-ed-h">{headline}</h2>
+      <div className="ax-spread">
+        <article className="ax-verso">
+          <header className="ax-run">
+            <span>Today in Ilyr</span>
+            <span className="ax-run-m">{ready ? (isToday ? editionName(ready) : "Yesterday, the whole day") : lines.length ? "No edition yet" : "Waiting on the first hour"}</span>
+          </header>
+          <h2 className="ax-ed-h">
+            <Kin text={headline} />
+          </h2>
           {lede ? (
             <p className="ax-ed-lede">
-              <span className="ax-initial" aria-hidden="true">
-                {lede[0]}
-              </span>
+              <Initial ch={lede[0]!} />
               <span className="wv-sr">{lede[0]}</span>
               {lede.slice(1)}
             </p>
           ) : (
             <p className="ax-ed-lede is-empty">Nothing in Ilyr has been written down today yet. The Historian writes once the world takes its first step of the day.</p>
           )}
-        </div>
-        <div className="ax-ed-player">
+        </article>
+        <div className="ax-recto">
+          <header className="ax-run ax-run-r">
+            <span>{ready ? `${made ? `Made ${made}` : "Read aloud"} · ${formatDuration(ready.durationSec)}` : lines.length ? "The hours so far" : "Nothing to read yet"}</span>
+          </header>
           <div className="ax-ed-ctl">
             <PlayRing on={on} pr={pr} onClick={play} disabled={!lines.length} label={on ? "Pause" : ready ? "Play Today in Ilyr" : "Read the hours along"} />
             <div className="ax-ed-by">
               <img src={SKIPPY_PORTRAIT} alt="" width={40} height={40} decoding="async" />
               <span>
-                <b>{ready ? "Presented by Skippy, the Magnificent" : "Not read aloud yet"}</b>
+                <b>{ready ? "Read by Skippy, the Magnificent" : "Not read aloud yet"}</b>
                 <small>{ready ? `${formatDuration(t)} of ${formatDuration(dur)}` : lines.length ? "Play reads the hours along, quietly" : "Nothing to read yet"}</small>
               </span>
             </div>
@@ -311,31 +369,30 @@ export function Edition({ today, yesterday, entries, hourNow }: { today: string;
           <div className="ax-ed-wave">
             <canvas ref={waveCv} className="wv-cv" aria-hidden="true" />
           </div>
+          <ol className="ax-rail" aria-label="Today's editions">
+            {SLOTS.map((s, i) => {
+              const state = ready && isToday ? (i < slot ? "past" : i === slot ? "now" : "next") : ready && i === slot ? "now" : !ready && s.ed && hourNow >= s.ed * 5 ? "past" : "next";
+              return (
+                <li key={s.at} className={`is-${state}`} aria-current={state === "now" ? "true" : undefined}>
+                  <b>{s.ed ? ROMAN[s.ed] : "Day"}</b>
+                  <span>{s.ed ? `after ${s.at}` : s.at}</span>
+                  <em>{state === "now" ? "playing here" : state === "past" ? "filed" : "to come"}</em>
+                </li>
+              );
+            })}
+          </ol>
+          <p className="ax-ed-note">
+            {ready
+              ? isToday
+                ? nextSlot
+                  ? `Skippy reads the day so far about every five hours. The next edition comes ${nextSlot.ed ? `after ${nextSlot.at}` : "after midnight: the whole day"}.`
+                  : "The whole day, filed after midnight."
+                : `Today has no edition yet. Yesterday's whole day plays until it does.`
+              : (why && STORY_WHY(why)) || (mine === "loading" ? "Finding Skippy's reading…" : "Skippy reads the day so far about every five hours, and the whole day after midnight.")}
+          </p>
         </div>
       </div>
       {ready && <audio ref={audio} preload="none" src={ready.audio} onPause={() => !silent && setOn(false)} onEnded={() => setOn(false)} onError={() => setSilent(true)} />}
-
-      <ol className="ax-rail" aria-label="Today's editions">
-        {SLOTS.map((s, i) => {
-          const state = ready && isToday ? (i < slot ? "past" : i === slot ? "now" : "next") : ready && i === slot ? "now" : !ready && s.ed && hourNow >= s.ed * 5 ? "past" : "next";
-          return (
-            <li key={s.at} className={`is-${state}`} aria-current={state === "now" ? "true" : undefined}>
-              <i aria-hidden="true" />
-              <b>{s.ed ? ROMAN[s.ed] : "Whole day"}</b>
-              <span>{s.at}</span>
-            </li>
-          );
-        })}
-      </ol>
-      <p className="ax-ed-note">
-        {ready
-          ? isToday
-            ? nextSlot
-              ? `Skippy reads the day so far about every five hours. The next edition comes ${nextSlot.ed ? `after ${nextSlot.at}` : "after midnight: the whole day"}.`
-              : "The whole day, filed after midnight."
-            : `Today has no edition yet. Yesterday's whole day plays until it does.`
-          : (why && STORY_WHY(why)) || (mine === "loading" ? "Finding Skippy's reading…" : "Skippy reads the day so far about every five hours, and the whole day after midnight.")}
-      </p>
       {ready?.stale && isToday && (
         <div className="ax-ed-make">
           <p className="wv-note">Read in an older voice. Make it now remakes it once in Skippy's.</p>
@@ -347,7 +404,7 @@ export function Edition({ today, yesterday, entries, hourNow }: { today: string;
       {silent && <p className="wv-note ax-ed-make">The recording wouldn't play here, so the lines are reading along quietly.</p>}
 
       {lines.length > 0 && (
-        <button className="ax-more" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <button className="ax-more ax-ed-open" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? "Close the read-along" : `Read along, ${lines.length} ${lines.length === 1 ? "line" : "lines"}`}
           <Chevron />
         </button>
@@ -362,7 +419,7 @@ export function Edition({ today, yesterday, entries, hourNow }: { today: string;
             ))}
           </div>
           <div className="ax-looms">
-            <p className="wv-eyb">Where the story goes</p>
+            <p className="ax-k">Where the story goes</p>
             <div className="wv-tlooms ax-tlooms">
               <canvas ref={loomCv} className="wv-cv" aria-hidden="true" />
               <ul className="wv-tloom-l">
@@ -419,7 +476,7 @@ export function WeekInIlyr({ monday, shown, today, days, pages, recent, weeks, o
   const hrsBy = week.map((d) => hoursOf(d, pages[d], recent));
   const cols: WeekCol[] = week.map((d, i) => ({ rooms: roomsOf(hrsBy[i]!), ships: shipsOf(hrsBy[i]!), hot: d === shown }));
   const sig = JSON.stringify(cols);
-  const spec = useMemo(() => weekSpec(cols, phoneWidth() ? { top: 74, bottom: 40 } : { top: 112, bottom: 112 }), [sig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const spec = useMemo(() => weekSpec(cols, phoneWidth() ? { top: 70, bottom: 34 } : { top: 104, bottom: 112 }), [sig]); // eslint-disable-line react-hooks/exhaustive-deps
   const cv = useRef<HTMLCanvasElement>(null);
   useViz(cv, spec);
 
@@ -448,33 +505,38 @@ export function WeekInIlyr({ monday, shown, today, days, pages, recent, weeks, o
   const weekRooms = Object.entries(byRoom).sort((a, b) => b[1] - a[1]);
   const quote = story ? sentences(story.script).slice(0, 2).join(" ") : null;
   const lastWeek = Boolean(story && story.week !== monday);
+  const first = shortDay(week[0]!);
+  const last = shortDay(week[6]!);
+  // The week unrolls once it comes into view.
+  const band = useRef<HTMLDivElement>(null);
+  const unrolled = useInView(band);
 
   return (
     <section className="ax-week" data-room="archive" aria-label="The week in Ilyr">
       <div className="ax-week-head">
         <div>
-          <p className="wv-eyb ax-eyb">The week in Ilyr</p>
+          <p className="ax-k">The week in Ilyr</p>
           <h2 className="ax-h2">
-            Week of <em>{shortDay(monday).month}</em>
+            {first.month.endsWith(last.month.replace(/^\d+\s*/, "")) ? first.d : first.month} to {last.month}
           </h2>
-          <p className="ax-week-stats">
-            <span>{plural(hours, "hour")}</span>
-            <span>{plural(scenes, "scene")}</span>
-            <span>{plural(ships, "ship")}</span>
-          </p>
         </div>
-        {story?.audio && (
-          <div className="ax-week-play">
-            <PlayRing on={on} pr={story.durationSec ? Math.min(1, t / story.durationSec) : 0} onClick={toggle} label={on ? "Pause the week" : "Play the week in Ilyr"} />
-            <span>
-              <b>{lastWeek ? "Last week, told" : "The week, told"}</b>
-              <small>by the cast · {formatDuration(story.durationSec)}</small>
-            </span>
+        <dl className="ax-tally">
+          <div>
+            <dt>Hours</dt>
+            <dd>{hours}</dd>
           </div>
-        )}
+          <div>
+            <dt>Scenes</dt>
+            <dd>{scenes}</dd>
+          </div>
+          <div>
+            <dt>Ships</dt>
+            <dd>{ships}</dd>
+          </div>
+        </dl>
       </div>
 
-      <div className="ax-tapestry">
+      <div ref={band} className={`ax-scroll${unrolled ? " is-in" : ""}`}>
         <canvas ref={cv} className="wv-cv" aria-hidden="true" />
         <ol className="ax-folios">
           {week.map((d, i) => {
@@ -492,7 +554,7 @@ export function WeekInIlyr({ monday, shown, today, days, pages, recent, weeks, o
                   <span className="ax-folio-wd">{d === today ? "Today" : s.wd}</span>
                   <span className="ax-folio-d">{s.d}</span>
                   <span className="ax-folio-l">{future ? "To come" : (line ?? (has ? plural(hrs.length, "hour") : "Not written"))}</span>
-                  {cols[i]!.ships > 0 && <span className="ax-folio-s">{plural(cols[i]!.ships, "ship")}</span>}
+                  <span className="ax-folio-s">{future ? "" : cols[i]!.ships > 0 ? plural(cols[i]!.ships, "ship") : has ? plural(hrs.length, "hour") : ""}</span>
                 </button>
               </li>
             );
@@ -513,10 +575,15 @@ export function WeekInIlyr({ monday, shown, today, days, pages, recent, weeks, o
       {story?.audio && <audio ref={audio} preload="none" src={story.audio} onTimeUpdate={(e) => setT(e.currentTarget.currentTime)} onPause={() => setOn(false)} onEnded={() => setOn(false)} />}
       {quote ? (
         <figure className="ax-quote">
-          <blockquote>{quote}</blockquote>
+          <blockquote>
+            <Kin text={quote} />
+          </blockquote>
           <figcaption>
-            {lastWeek ? "Last week in Ilyr, told by the cast on Sunday evening" : "Told by the cast on Sunday evening"}
-            {!story?.audio && " · not read aloud"}
+            {story?.audio && <PlayRing on={on} pr={story.durationSec ? Math.min(1, t / story.durationSec) : 0} onClick={toggle} label={on ? "Pause the week" : "Play the week in Ilyr"} />}
+            <span>
+              <b>{lastWeek ? "Last week, told by the cast" : "The week, told by the cast"}</b>
+              <small>Sunday evening{story?.audio ? ` · ${formatDuration(story.durationSec)}` : " · not read aloud"}</small>
+            </span>
           </figcaption>
         </figure>
       ) : (
@@ -551,7 +618,7 @@ export function Bonds({ entries, today, children }: { entries: HistoryEntry[]; t
   const list = [...byPair.values()].reverse().slice(0, 4);
   return (
     <section className="ax-bonds" aria-label="Bonds that moved">
-      <p className="wv-eyb ax-eyb">Bonds that moved</p>
+      <p className="ax-k">Bonds that moved</p>
       <h2 className="ax-h3">
         {WORDS[list.length] ?? list.length}, {today ? "today" : "that day"}
       </h2>
@@ -591,69 +658,76 @@ export function Bonds({ entries, today, children }: { entries: HistoryEntry[]; t
   );
 }
 
-/** Past days as spines on a shelf: pull one out to read its recap, then open the whole day. */
+/**
+ * Past days in the case: each day a drawer with its date, its line and its tally, the rooms it visited as a strip of
+ * their colours. Pull one out to read its recap, then open the whole day.
+ */
 export function Shelf({ days, pages, recent, onOpen }: { days: string[]; pages: Record<string, DayPage | "loading" | "failed">; recent: HistoryEntry[]; onOpen: (day: string) => void }) {
   const [out, setOut] = useState<string | null>(null);
   if (!days.length) {
     return (
       <section className="ax-shelf" aria-label="Past days">
-        <p className="wv-eyb ax-eyb">Past days</p>
-        <h2 className="ax-h3">The shelf</h2>
-        <p className="wv-note">The shelf fills one spine a day, from the first full day the world writes.</p>
+        <p className="ax-k">Past days</p>
+        <h2 className="ax-h3">In the case</h2>
+        <p className="wv-note">The case fills one drawer a day, from the first full day the world writes.</p>
       </section>
     );
   }
-  const spines = days.map((d) => {
+  const drawers = days.map((d) => {
     const page = pages[d];
     const hrs = hoursOf(d, page, recent);
     const recap = page && page !== "loading" && page !== "failed" ? page.recap : null;
     const rooms = Object.entries(roomsOf(hrs)).sort((a, b) => b[1] - a[1]);
+    const total = rooms.reduce((n, [, k]) => n + k, 0) || 1;
     const ships = shipsOf(hrs);
     const s = shortDay(d);
     return {
       d,
-      label: `${s.wd} ${s.d}`,
-      title: clauseOf(recap, 8) ?? clauseOf(hrs[hrs.length - 1]?.summary, 8) ?? (page === "loading" ? "Fetching the day" : `${s.wd}, ${s.month}`),
-      foot: ships ? plural(ships, "ship") : hrs.length ? plural(hrs.length, "hour") : "No hours",
+      s,
+      title: clauseOf(recap, 8) ?? clauseOf(hrs[hrs.length - 1]?.summary, 8) ?? (page === "loading" ? "Fetching the day" : `${s.long}, ${s.month}`),
+      foot: [ships ? plural(ships, "ship") : null, hrs.length ? plural(hrs.length, "hour") : "No hours"].filter(Boolean).join(" · "),
       text: recap ?? hrs[hrs.length - 1]?.summary ?? (page === "loading" ? "Turning the pages…" : "Nothing was written down on this day."),
-      a: `var(--rc-${rooms[0]?.[0] ?? "archive"})`,
-      b: `var(--rc-${rooms[1]?.[0] ?? "relay"})`,
-      h: `${Math.min(100, 80 + hrs.length)}%`,
-      month: s.month,
-      wd: s.long,
+      rooms: rooms.map(([r, k]) => ({ r, w: k / total })),
     };
   });
-  const open = spines.find((s) => s.d === out);
   return (
     <section className="ax-shelf" aria-label="Past days">
-      <div className="ax-shelf-head">
-        <div>
-          <p className="wv-eyb ax-eyb">Past days</p>
-          <h2 className="ax-h3">The shelf</h2>
-        </div>
-        <p className="wv-note">Pull one out to read it</p>
-      </div>
-      <div className="wv-shelf-row">
-        {spines.map((s) => (
-          <button key={s.d} className={`wv-spine${out === s.d ? " is-out" : ""}`} type="button" aria-expanded={out === s.d} onClick={() => setOut(out === s.d ? null : s.d)} style={{ "--a": s.a, "--b": s.b, "--h": s.h } as React.CSSProperties}>
-            <span>{s.label}</span>
-            <b>{s.title}</b>
-            <em>{s.foot}</em>
-          </button>
-        ))}
-      </div>
-      {open && (
-        <div className="wv-shelf-read" key={open.d}>
-          <p className="wv-eyb">
-            {open.wd} {open.month}
-          </p>
-          <p className="wv-shelf-x">{open.text}</p>
-          <button className="wv-link" type="button" onClick={() => onOpen(open.d)}>
-            Open the whole day
-            <Arrow />
-          </button>
-        </div>
-      )}
+      <p className="ax-k">Past days</p>
+      <h2 className="ax-h3">In the case</h2>
+      <ol className="ax-case">
+        {drawers.map((x, i) => {
+          const isOut = out === x.d;
+          return (
+            <li key={x.d} className={isOut ? "is-out" : undefined} style={{ "--i": i } as React.CSSProperties}>
+              <button type="button" aria-expanded={isOut} onClick={() => setOut(isOut ? null : x.d)}>
+                <span className="ax-case-d">
+                  <b>{x.s.d}</b>
+                  <small>{x.s.wd}</small>
+                </span>
+                <span className="ax-case-t">
+                  <b>{x.title}</b>
+                  <small>{x.foot}</small>
+                </span>
+                <span className="ax-case-r" aria-hidden="true">
+                  {x.rooms.map(({ r, w }) => (
+                    <i key={r} data-room={r} style={{ flexGrow: w }} />
+                  ))}
+                </span>
+                <Chevron />
+              </button>
+              {isOut && (
+                <div className="ax-case-x">
+                  <p>{x.text}</p>
+                  <button className="ax-link" type="button" onClick={() => onOpen(x.d)}>
+                    Open {x.s.long} {x.s.month}
+                    <Arrow />
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }

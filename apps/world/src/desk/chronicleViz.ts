@@ -96,54 +96,74 @@ export function tloomSpec(tale: { current: TaleClock }): VizSpec {
   };
 }
 
-/** The week: a column per day, one strand per room it visited (height by scenes), a knot per change shipped. */
+/** The week: a column per day, with the rooms it visited (scenes per room) and the changes it shipped. */
 export interface WeekCol {
   rooms: Record<string, number>;
   ships: number;
   hot: boolean;
 }
 
+/**
+ * The week as a scroll (#388): a storyline per room the week visited, running Monday to Sunday. A room's line lights
+ * and draws in toward the middle on the days it had scenes (by how many), and goes quiet on the days it didn't, so the
+ * rooms gather where the week was busy. A knot under a day per change it shipped.
+ */
 export function weekSpec(cols: WeekCol[], pad: { top: number; bottom: number } = { top: 18, bottom: 46 }): VizSpec {
-  let C: { x: number; hot: boolean; ships: number; str: { id: string; poly: Poly; P: Parts }[] }[] = [];
+  let S: { id: string; poly: Poly; P: Parts; k: number[] }[] = [];
   let cw = 0;
   let top = 0;
+  let bot = 0;
+  // A day-by-day value at a point along the week, eased between the days' centres.
+  const along = (k: number[], u: number) => {
+    const p = clamp(u * 7 - 0.5, 0, 6);
+    const i0 = Math.floor(p);
+    const i1 = Math.min(6, i0 + 1);
+    const e = (1 - Math.cos((p - i0) * Math.PI)) / 2;
+    return lerp(k[i0] ?? 0, k[i1] ?? 0, e);
+  };
   return {
     lay(V) {
       cw = V.W / 7;
       top = pad.top;
-      const bot = V.H - pad.bottom;
-      C = cols.map((d, i) => {
-        const keys = Object.keys(d.rooms).filter((k) => d.rooms[k]! > 0);
-        const x0 = i * cw + cw / 2;
-        const str = keys.map((k, j) => {
-          const h = (bot - top) * clamp(d.rooms[k]! / 6, 0.15, 1);
-          const ox = (j - (keys.length - 1) / 2) * 7;
-          const xs: number[] = [];
-          const ys: number[] = [];
-          for (let q = 0; q <= 20; q++) {
-            const u = q / 20;
-            xs.push(x0 + ox + Math.sin(u * TAU * 1.2 + j * 1.7 + i) * 5);
-            ys.push(bot - h * u);
-          }
-          return { id: k, poly: new Poly().set(xs, ys), P: new Parts(Math.round(6 + d.rooms[k]! * 6), 0.1) };
-        });
-        return { x: x0, hot: d.hot, ships: d.ships, str };
+      bot = V.H - pad.bottom;
+      const tot: Record<string, number> = {};
+      for (const c of cols) for (const [r, n] of Object.entries(c.rooms)) if (n > 0) tot[r] = (tot[r] ?? 0) + n;
+      const ids = Object.keys(tot).sort((a, b) => tot[b]! - tot[a]!);
+      const max = Math.max(1, ...cols.flatMap((c) => Object.values(c.rooms)));
+      const mid = (top + bot) / 2;
+      const half = (bot - top) / 2 - 6;
+      const rungs = Math.max(1, Math.ceil((ids.length - 1) / 2));
+      S = ids.map((id, j) => {
+        const base = mid + (j === 0 ? 0 : (j % 2 ? -1 : 1) * (Math.ceil(j / 2) / rungs) * half);
+        const k = cols.map((c) => (c.rooms[id] ?? 0) / max);
+        const xs: number[] = [];
+        const ys: number[] = [];
+        const N = 84;
+        for (let q = 0; q <= N; q++) {
+          const u = q / N;
+          xs.push(u * V.W);
+          ys.push(base + (mid - base) * 0.62 * along(k, u) + Math.sin(u * TAU * 2.5 + j * 1.3) * 2);
+        }
+        return { id, poly: new Poly().set(xs, ys), P: new Parts(Math.min(150, Math.round(16 + tot[id]! * 3)), 0.1), k };
       });
     },
     draw(V, c, t, dt) {
-      C.forEach((col, i) => {
-        if (col.hot) {
-          c.globalCompositeOperation = "source-over";
-          const g = c.createLinearGradient(0, 0, 0, V.H);
-          g.addColorStop(0, `rgba(${RC.archive},.14)`);
-          g.addColorStop(1, `rgba(${RC.archive},0)`);
-          c.fillStyle = g;
-          c.fillRect(i * cw + 4, 4, cw - 8, V.H - 8);
-          c.globalCompositeOperation = "lighter";
-        }
-        for (const s of col.str) weave(c, s.poly, s.P, { a: col.hot ? 1.1 : 0.75, sp: 0.8, sz: 0.55, v: col.hot ? 16 : 8, rgb: RC[s.id] ?? WHITE, line: col.hot ? 0.3 : 0.18, lw: 1.2 }, t, dt);
+      cols.forEach((col, i) => {
+        if (!col.hot) return;
+        c.globalCompositeOperation = "source-over";
+        const g = c.createLinearGradient(0, 0, 0, V.H);
+        g.addColorStop(0, `rgba(${RC.archive},.13)`);
+        g.addColorStop(1, `rgba(${RC.archive},0)`);
+        c.fillStyle = g;
+        c.fillRect(i * cw + 1, 0, cw - 2, V.H);
+        c.globalCompositeOperation = "lighter";
+      });
+      if (!S.length) dots(c, 0, (top + bot) / 2, V.W, (top + bot) / 2, 6, 0.14, RC.archive);
+      for (const s of S) weave(c, s.poly, s.P, { a: 1, sp: 1.4, sz: 0.6, v: 16, rgb: RC[s.id] ?? WHITE, line: 0.13, lw: 1, I: (u) => 0.06 + 0.94 * along(s.k, u) }, t, dt);
+      cols.forEach((col, i) => {
         const n = Math.min(col.ships, 6);
-        for (let k = 0; k < n; k++) knot(c, col.x + (k - (n - 1) / 2) * 12, top + 2, 0.34, t + k, col.hot ? RC.archive! : WHITE, col.hot ? 1 : 0.6);
+        const x = i * cw + cw / 2;
+        for (let k = 0; k < n; k++) knot(c, x + (k - (n - 1) / 2) * 11, bot + 16, 0.32, t + k, col.hot ? RC.archive! : WHITE, col.hot ? 1 : 0.6);
       });
     },
   };

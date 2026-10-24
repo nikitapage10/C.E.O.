@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { chronicleDay, dayTitle, hourLabel, sinceAway, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
 import { previousWeek, weekDaysOf, weekStartOf } from "../../../../api/_world/weeks.ts";
-import { Bonds, Chevron, Edition, hoursOf, KIND_WORD, ROOM_NAME, Shelf, WeekInIlyr } from "./ChronicleWeave.tsx";
+import { Bonds, Chevron, Edition, hoursOf, KIND_WORD, ROOM_NAME, Shelf, shortDay, WeekInIlyr } from "./ChronicleWeave.tsx";
 import { DayStory } from "./DayStory.tsx";
 import { formatWait } from "./deskData.ts";
 import { link } from "./nav.ts";
@@ -70,7 +70,7 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
           ? "The Archive opens with the first hourly step."
           : away.length
             ? `${away.length} ${away.length === 1 ? "hour has" : "hours have"} passed in Ilyr since you were last here.`
-            : `The Lattice took its last step ${formatWait(now - Date.parse(feed.at))} ago${feed.nextAt ? `, the next ${nextIn(Date.parse(feed.nextAt) - now)}` : ""}.`;
+            : "Every hour the world takes a step, and the Historian writes it down here.";
   const [y, m, d] = today.split("-").map(Number);
   const dateLine = new Date(Date.UTC(y!, m! - 1, d!, 12)).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
   const idx = days.indexOf(shown);
@@ -78,15 +78,31 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
   return (
     <div className="chron wv-page ax" data-room="archive" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
       <header className="ax-mast">
-        <p className="wv-eyb ax-eyb">The Archive · {dateLine}</p>
-        <h1 className="wv-h1 desk__title ax-title">
-          The Chronicle of <em>Ilyr</em>
-        </h1>
-        <svg className="ax-flourish" viewBox="0 0 240 12" aria-hidden="true">
-          <path d="M2 6 H100 M140 6 H238" pathLength={1} />
-          <path d="M120 1 L125 6 L120 11 L115 6 Z" />
-        </svg>
-        <p className="ax-lead">{lead}</p>
+        <div className="ax-mast-t">
+          <p className="ax-k">The Archive</p>
+          <h1 className="desk__title ax-title">
+            <span>The Chronicle</span> <span className="ax-title-of">of Ilyr</span>
+          </h1>
+          <p className="ax-lead">{lead}</p>
+        </div>
+        <dl className="ax-label" aria-label="The Archive at a glance">
+          <div>
+            <dt>Today</dt>
+            <dd>{dateLine}</dd>
+          </div>
+          <div>
+            <dt>Last step</dt>
+            <dd>{feed?.at ? `${formatWait(now - Date.parse(feed.at))} ago` : status === "off" ? "Not saved yet" : "Not yet"}</dd>
+          </div>
+          <div>
+            <dt>Next step</dt>
+            <dd>{feed?.nextAt ? nextIn(Date.parse(feed.nextAt) - now) : "Not scheduled"}</dd>
+          </div>
+          <div>
+            <dt>On file</dt>
+            <dd>{feed ? `${feed.days.length} ${feed.days.length === 1 ? "day" : "days"}` : "…"}</dd>
+          </div>
+        </dl>
       </header>
 
       {status === "ready" || todays.length ? (
@@ -102,10 +118,14 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
       <section ref={dayRef} className="ax-day" aria-label={`The Archive, ${dayTitle(shown, now)}`}>
         <div className="ax-day-head">
           <div>
-            <p className="wv-eyb ax-eyb">Hour by hour</p>
+            <p className="ax-k">Hour by hour</p>
             <h2 className="ax-h2">
               {dayTitle(shown, now)}, <em>as it was written</em>
             </h2>
+            <p className="ax-day-date">
+              {shortDay(shown).long} {shortDay(shown).month}
+              {entries.length ? ` · ${entries.length} ${entries.length === 1 ? "hour" : "hours"} on file` : ""}
+            </p>
           </div>
           {days.length > 1 && (
             <div className="ax-step" role="group" aria-label="Days">
@@ -131,7 +151,7 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
         </div>
         {recap && (
           <div className="ax-recap">
-            <p className="wv-eyb">The day in Ilyr, as the Historian filed it</p>
+            <p className="ax-k">The day, as the Historian filed it</p>
             <p>{recap}</p>
           </div>
         )}
@@ -237,7 +257,7 @@ function Hour({ e, fresh, i }: { e: HistoryEntry; fresh: boolean; i: number }) {
   const rooms = [...new Set(e.scenes.map((s) => s.room))];
   const deeper = e.scenes.length + e.remarks.length + e.changes.length + e.events.length > 0;
   return (
-    <li className={`ax-hour${fresh ? " is-fresh" : ""}${open ? " is-open" : ""}`} id={`hour-${e.step}`} style={{ "--i": i } as React.CSSProperties}>
+    <li className={`ax-hour${fresh ? " is-fresh" : ""}${open ? " is-open" : ""}${i === 0 ? " is-lead" : ""}`} id={`hour-${e.step}`} style={{ "--i": i } as React.CSSProperties}>
       <button className="ax-hour-row" type="button" aria-expanded={deeper ? open : undefined} onClick={() => deeper && setOpen(!open)} disabled={!deeper}>
         <time dateTime={e.at}>{hourLabel(e.at)}</time>
         <span className="ax-hour-s">

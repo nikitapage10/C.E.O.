@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { startFoundry } from "../foundry.ts";
+import { warmLattice } from "../latticeWarm.ts";
 import { navigate, renamedPath, usePathname, type Route } from "../route.ts";
 import { useSystems } from "../systems.ts";
 import { startWorldClock } from "../worldClock.ts";
@@ -89,6 +90,8 @@ export function Desk({ route }: { route: DeskTab }) {
     // The Desk as a home-screen app, and its pings (#135).
     void startDeskWorker();
     prefetchTabs();
+    // The Lattice's models, into this browser's cache once the Desk is idle (#327).
+    warmLattice();
   }, []);
 
   useEffect(() => {

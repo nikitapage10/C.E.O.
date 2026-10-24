@@ -231,8 +231,10 @@ is off, #313), but only Azure serves it.
   starts empty: Vercel's passkeys don't carry over, and neither do the world, the stories or the pictures until
   they are copied into `ceo-state` (see [Seeding the Azure state](#seeding-the-azure-state)).
 - **`staticwebapp.config.json`** (in `apps/world/public`, copied into `dist` by the build) already carries
-  `vercel.json`'s headers and page rewrites; a unit test (`scripts/azure-config.test.mjs`) keeps the two in step. One difference: Vercel caches
-  `/models/*?v=…` for good, and Static Web Apps can't match on a query string, so models are revalidated instead.
+  `vercel.json`'s headers and page rewrites; a unit test (`scripts/azure-config.test.mjs`) keeps the two in step. The built site serves
+  every model from a hashed path under `/assets/models/` (`…/Rocky.<hash>.glb`, #327), so both hosts cache models
+  for a year as immutable, like the bundles; Static Web Apps can't match the old `/models/*?v=…` query, which made
+  every visit revalidate all of them.
 
 ### The site lock on Azure
 

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   AnimationMixer,
   Box3,
@@ -17,6 +17,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import bundles from "./bundles.gen.json";
 import { useStreamedIn } from "../scene/roomScope.ts";
 import { useLib } from "./library.ts";
+import { StreamIn } from "./Warm.tsx";
 
 const BUNDLED = bundles as Record<string, string>;
 
@@ -123,9 +124,9 @@ function ModelInner({ id, fit = { scale: 1 }, position, rotation = 0, cast = fal
 export function Model(props: ModelProps) {
   if (!useStreamedIn()) return null;
   return (
-    <Suspense fallback={null}>
+    <StreamIn>
       <ModelInner {...props} />
-    </Suspense>
+    </StreamIn>
   );
 }
 
@@ -187,8 +188,8 @@ function InstancesInner({ id, fit = { scale: 1 }, at, cast = false, material }: 
 export function ModelInstances(props: { id: string; fit?: Fit; at: Placement[]; cast?: boolean; material?: Material }) {
   if (!useStreamedIn()) return null;
   return (
-    <Suspense fallback={null}>
+    <StreamIn>
       <InstancesInner {...props} />
-    </Suspense>
+    </StreamIn>
   );
 }

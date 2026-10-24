@@ -1,5 +1,5 @@
 import { getStation } from "@ceo/core";
-import { Text } from "@react-three/drei";
+import { Text } from "../fx/Text.tsx";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { BufferGeometry, Float32BufferAttribute, type Group, LineBasicMaterial, LineSegments, MeshStandardMaterial, type Mesh } from "three";

@@ -1,17 +1,7 @@
 import { useGLTF } from "@react-three/drei";
+import { modelUrl } from "../modelUrl.ts";
 
-/** Each model's content hash, from vite.config.ts (absent in tests). */
-declare const __MODEL_VERSIONS__: Record<string, string> | undefined;
-const VERSIONS: Record<string, string> = typeof __MODEL_VERSIONS__ === "undefined" ? {} : __MODEL_VERSIONS__;
-
-/**
- * A model under public/models ("lib/custom/Rocky.glb"), tagged with its content hash: the browser keeps it for good
- * (vercel.json) and still fetches a new one as soon as the file changes.
- */
-export function modelUrl(path: string) {
-  const v = VERSIONS[path];
-  return `${import.meta.env.BASE_URL}models/${path}${v ? `?v=${v}` : ""}`;
-}
+export { modelUrl };
 
 /**
  * Models from the CC0 library (github.com/nikitapage10/models), vendored into public/models/lib by

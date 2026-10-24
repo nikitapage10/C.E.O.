@@ -1,5 +1,6 @@
 import { FOUNDRY_FLOOR } from "@ceo/core";
-import { Html, Text } from "@react-three/drei";
+import { Html } from "@react-three/drei";
+import { Text } from "../fx/Text.tsx";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MeshStandardMaterial, Vector3, type Group } from "three";

@@ -1,6 +1,7 @@
+import { StreamIn } from "../fx/Warm.tsx";
 import { KERNEL_PORT_RADIUS, KERNEL_PORT_Y } from "@ceo/core";
 import { useFrame } from "@react-three/fiber";
-import { Suspense, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, type Group } from "three";
 import { LibraryBody } from "../agents/bodies/Library.tsx";
 import { SKIPPY_LOOK } from "../agents/skippyLook.ts";
@@ -42,9 +43,9 @@ function Magnificent() {
   });
   return (
     <group ref={turn} position={[0, KERNEL_PORT_Y - 1.2, 0]} scale={SKIPPY_SIZE}>
-      <Suspense fallback={null}>
+      <StreamIn>
         <LibraryBody look={SKIPPY_LOOK} lineage="cursori" drive={drive} phase={0} />
-      </Suspense>
+      </StreamIn>
     </group>
   );
 }

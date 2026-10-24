@@ -26,7 +26,7 @@ const Studio = lazy(() => import("./studio/Studio.tsx").then((m) => ({ default: 
 const STUDIO = window.location.pathname.startsWith("/portrait-studio");
 
 /** Hidden, behind the Desk: not drawn, never focused or clicked, but still sized, so its canvas keeps its size. */
-const AWAY = { visibility: "hidden" } as const;
+const AWAY = { visibility: "hidden", pointerEvents: "none", position: "fixed", inset: 0, zIndex: -1 } as const;
 
 function Root() {
   const route = useRoute();

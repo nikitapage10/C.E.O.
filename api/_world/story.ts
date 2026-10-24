@@ -1,10 +1,17 @@
 /**
- * The day's story (issue #95, docs/WORLD.md; livelier in #102): the Historian's quick "today in Ilyr" update, read
- * aloud. Once a day's recap is written, the day's already-scrubbed Chronicle (the recap, the hours, the real Foundry
- * events and the builders' remarks) becomes a 30 to 45 second script, which Gemini's text-to-speech reads in one
- * plain, friendly voice at a natural pace (#107).
- * The audio and the script are kept in the private Blob store, once per day, and served from our own origin
- * (api/day-story.ts).
+ * The day's story (issue #95, docs/WORLD.md; livelier in #102): a quick "today in Ilyr" update, read aloud, presented
+ * since #365 by Skippy, the Magnificent (the Historian keeps the notes). The day's already-scrubbed Chronicle (the
+ * recap, the hours, the real Foundry events and the builders' remarks) becomes a 30 to 45 second script.
+ *
+ * Editions (#365): about every five hours the world step makes a fresh "so far" edition of today (at the first step
+ * after 5 am, 10 am, 3 pm and 8 pm Mountain, and only when the Chronicle has something new since the last edition),
+ * then the final edition once the recap is filed after midnight. Each edition is claimed once per day, edition and
+ * style, so two runners never pay for the same one. The latest edition is the one kept and served.
+ *
+ * The voice (#365): ElevenLabs when ELEVENLABS_API_KEY is set and its own monthly cap (ELEVENLABS_BUDGET_USD) has room,
+ * a premade British male voice (ELEVENLABS_VOICE_ID to change it); else, or when it fails, Gemini with a male voice
+ * and a style note for a crisp, upper-crust British accent. The audio and the script are kept in the private Blob
+ * store and served from our own origin (api/day-story.ts).
  *
  * The script is written by Claude Haiku on the world's own path (the cast and the Historian's voice are already here,
  * and a script costs about a tenth of a cent), or, without a Claude key or when it doesn't answer, put together from
@@ -52,12 +59,26 @@ export const TTS_URL = "https://generativelanguage.googleapis.com/v1beta/interac
 export const TTS_VOICE = "Achird";
 /** Kept short, as the docs ask: the text itself is read verbatim. Pace is set here (the API has no rate control). */
 export const TTS_STYLE = "a friendly, natural speaker reading a short daily update: clear and conversational, at a normal pace";
+/** A Gemini voice and its style note. The week in Ilyr (api/_world/week.ts) keeps the Historian's plain one above. */
+export interface GeminiVoice {
+  voice: string;
+  style: string;
+}
+export const HISTORIAN_VOICE: GeminiVoice = { voice: TTS_VOICE, style: TTS_STYLE };
+/**
+ * Skippy, the Magnificent, presenting the day (#365): "Sadaltager" is one of Gemini's male prebuilt voices
+ * ("Knowledgeable", which Skippy would insist on), and the style note asks for the accent and the manner.
+ */
+export const SKIPPY_VOICE: GeminiVoice = {
+  voice: "Sadaltager",
+  style: "a grand, crisp, upper-crust British gentleman presenting the day's news: a little pompous and smug, theatrical but clear, at a natural pace",
+};
 /**
  * The story's style version. A story made with an older one (the slow Gacrux readings of #95 carry none, so 1) may be
  * remade once from the Desk's "Make it now"; the claims carry the version, so each version is paid for at most once
  * per day and kind.
  */
-export const STORY_STYLE = 3;
+export const STORY_STYLE = 4;
 /**
  * Gemini's native rate, asked for and assumed when a response doesn't say (#107). 24 kHz mono 16-bit is 48 KB a
  * second: a 45-second story is about 2.2 MB, and the route serves ranges, so even a long one stays under Vercel's
@@ -99,12 +120,52 @@ export function geminiBudget(env: string | undefined): number {
 
 export const geminiKey = (env: Record<string, string | undefined> = process.env) => env.GEMINI_API_KEY ?? "";
 
+/* ── ElevenLabs: the voice, the price, the cap (#365) ── */
+
+/**
+ * ElevenLabs' text to speech (checked against its API reference on 2026-10-24):
+ * https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+ *   POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=pcm_24000, header `xi-api-key`, JSON
+ *   `{ text, model_id, voice_settings }`; the answer is the audio itself. `pcm_24000` is headerless 16-bit
+ *   little-endian mono PCM at 24 kHz (no tier needed), which we wrap as WAV like Gemini's.
+ * Prices: https://elevenlabs.io/pricing/api (Multilingual v2: $0.08 per 1,000 characters, the API's own rate; a plan's
+ * credits come cheaper, so counting at this rate keeps the cap on the safe side). A story is under 1,000 characters:
+ * under 8 cents.
+ */
+export const ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech";
+export const ELEVEN_MODEL = "eleven_multilingual_v2";
+/** "Daniel", a premade voice: a British man, authoritative, a news presenter's delivery. ELEVENLABS_VOICE_ID changes it. */
+export const ELEVEN_VOICE = "onwK4e9ZLuTAKqWW03F9";
+export const ELEVEN_USD_PER_1K_CHARS = 0.08;
+/** The longest script ElevenLabs is sent (a capped script is well under this); also what the cap is checked against. */
+export const ELEVEN_MAX_CHARS = 1_500;
+/** ElevenLabs' own monthly cap (ELEVENLABS_BUDGET_USD), default $10, never above $10. */
+export const ELEVENLABS_BUDGET_USD = 10;
+export function elevenBudget(env: string | undefined): number {
+  const n = Number(env);
+  return Number.isFinite(n) && n >= 0 && env !== undefined && env !== "" ? Math.min(n, 10) : ELEVENLABS_BUDGET_USD;
+}
+/** A voice id as ElevenLabs writes them (letters and digits), else the default: nothing else reaches the URL path. */
+export const elevenVoice = (env: string | undefined) => (env && /^[A-Za-z0-9]{8,40}$/.test(env.trim()) ? env.trim() : ELEVEN_VOICE);
+export const elevenCost = (chars: number) => (chars * ELEVEN_USD_PER_1K_CHARS) / 1_000;
+
+/** ElevenLabs, when its key is set: the key, the voice and the cap. The key is read from the environment only. */
+export interface ElevenConfig {
+  key: string;
+  voice: string;
+  budget: number;
+}
+export function elevenFromEnv(env: Record<string, string | undefined> = process.env): ElevenConfig | null {
+  const key = (env.ELEVENLABS_API_KEY ?? "").trim();
+  return key ? { key, voice: elevenVoice(env.ELEVENLABS_VOICE_ID), budget: elevenBudget(env.ELEVENLABS_BUDGET_USD) } : null;
+}
+
 /* ── What is kept ── */
 
 /** A day's story, as stored and served (the audio is kept beside it). */
 export interface DayStory {
   day: string;
-  /** What the Historian reads: also the transcript on the Desk. */
+  /** What Skippy reads (the Historian, before #365): also the transcript on the Desk. */
   script: string;
   /** Written before the day's recap (a backfill of the day so far); the recap's story replaces it once. */
   partial: boolean;
@@ -118,6 +179,10 @@ export interface DayStory {
   voice: string;
   /** ISO time it was made; also the audio link's version. */
   at: string;
+  /** Which "so far" edition of the day it is (#365): the 5-hour mark it was made after, 0 to 4, or 5 for a day already over; missing on a final one and on stories before #365. */
+  edition?: number;
+  /** Who read it aloud (#365); missing means Gemini. */
+  reader?: "elevenlabs" | "gemini";
   cost: StepCost;
   /** The script's Claude cost, when Claude wrote it (part of the shared Claude cap). */
   scriptUsd: number;
@@ -131,32 +196,44 @@ export interface StoryMonth {
   calls: number;
   stories: number;
   scriptUsd: number;
+  /** ElevenLabs' spend (#365), against its own cap: dollars at the API rate, characters sent, calls. */
+  elevenUsd?: number;
+  elevenChars?: number;
+  elevenCalls?: number;
 }
 export type StorySpend = Record<string, StoryMonth>;
 
-const EMPTY: StoryMonth = { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0 };
-export const storyMonth = (spend: StorySpend, now: number): StoryMonth => ({ ...EMPTY, ...spend[monthOf(now)] });
+const EMPTY: Required<StoryMonth> = { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0, elevenChars: 0, elevenCalls: 0 };
+export const storyMonth = (spend: StorySpend, now: number): Required<StoryMonth> => ({ ...EMPTY, ...spend[monthOf(now)] });
 
 /** Whether one more story, at its most, still fits in the month's Gemini budget. */
 export const canSpeak = (spend: StorySpend, now: number, budget: number) => storyMonth(spend, now).usd + storyCeiling(now) <= budget;
+/** Whether one more story, at its longest, still fits in the month's ElevenLabs budget. */
+export const canSpeakEleven = (spend: StorySpend, now: number, budget: number) => storyMonth(spend, now).elevenUsd + elevenCost(ELEVEN_MAX_CHARS) <= budget;
 
 export function addStorySpend(spend: StorySpend, now: number, add: Partial<StoryMonth>): StorySpend {
   const month = monthOf(now);
   const cur = storyMonth(spend, now);
-  const next: StoryMonth = {
+  const next: Required<StoryMonth> = {
     usd: cur.usd + (add.usd ?? 0),
     tokensIn: cur.tokensIn + (add.tokensIn ?? 0),
     tokensOut: cur.tokensOut + (add.tokensOut ?? 0),
     calls: cur.calls + (add.calls ?? 0),
     stories: cur.stories + (add.stories ?? 0),
     scriptUsd: cur.scriptUsd + (add.scriptUsd ?? 0),
+    elevenUsd: cur.elevenUsd + (add.elevenUsd ?? 0),
+    elevenChars: cur.elevenChars + (add.elevenChars ?? 0),
+    elevenCalls: cur.elevenCalls + (add.elevenCalls ?? 0),
   };
   const all = { ...spend, [month]: next };
   return Object.fromEntries(Object.keys(all).sort().slice(-6).map((k) => [k, all[k]!]));
 }
 
-/** What a claim is for: a day's partial or final story, or the week's (#211). */
-export type ClaimKind = "partial" | "final" | "week";
+/** What a claim is for: one "so far" edition of a day (#365), its final story, or the week's (#211). */
+export type ClaimKind = `so-far-${number}` | "final" | "week";
+export const soFarKind = (edition: number): ClaimKind => `so-far-${edition}`;
+/** The edition a story counts as: a final one is past every "so far"; one from before #365 counts as edition 0. */
+export const editionOf = (s: Pick<DayStory, "partial" | "edition">) => (s.partial ? (s.edition ?? 0) : Infinity);
 
 /**
  * The week in Ilyr (#211): told on Sunday evening from the week's daily recaps, kept beside the day stories under the
@@ -186,7 +263,7 @@ export interface StoryStore {
   readWeekAudio(week: string): Promise<Uint8Array | null>;
   /** Keep the week's story; `wav` is null when it could not be read aloud (yet). */
   putWeek(story: WeekStory, wav: Uint8Array | null): Promise<void>;
-  /** Take the right to make a day's story ("partial" or "final"); false when someone already has it. */
+  /** Take the right to make a day's story (one "so far" edition, or the final one); false when someone already has it. */
   claim(day: string, kind: ClaimKind, now: number): Promise<boolean>;
   /** Give a claim back after a failure, so a later call may try again. */
   release(day: string, kind: ClaimKind): Promise<void>;
@@ -200,8 +277,12 @@ export interface StoryStore {
 export const styleOf = (s: Pick<DayStory, "style">) => s.style ?? 1;
 /** Whether a story was made with the current style (an older one may be remade once from the Desk). */
 export const isCurrent = (s: Pick<DayStory, "style">) => styleOf(s) >= STORY_STYLE;
-/** Whether a claim's work is done: the day has a current-style story of that kind (a final also covers "partial"). */
-const claimDone = (story: DayStory | null | undefined, kind: ClaimKind) => kind !== "week" && !!story && isCurrent(story) && (kind === "partial" || !story.partial);
+/** Whether a claim's work is done: the day has a current-style story of that edition or later (a final covers all). */
+function claimDone(story: DayStory | null | undefined, kind: ClaimKind): boolean {
+  if (kind === "week" || !story || !isCurrent(story)) return false;
+  if (kind === "final") return !story.partial;
+  return editionOf(story) >= Number(kind.slice("so-far-".length));
+}
 
 /** A claim older than this with no story behind it was a call that died: it may be taken again. */
 const CLAIM_STALE_MS = 10 * 60_000;
@@ -358,9 +439,25 @@ export function pickStoryStore(env: Record<string, string | undefined> = process
   return blob ? new BlobStoryStore(blob) : null;
 }
 
-/* ── The script ── */
+/* ── The editions (#365) ── */
 
 const MT = "America/Denver";
+/** Hours between "so far" editions: a fresh one at the first step after 5 am, 10 am, 3 pm and 8 pm Mountain. */
+export const EDITION_HOURS = 5;
+/** The Mountain day and hour of a moment. */
+export function mountainOf(now: number): { day: string; hour: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: MT, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(new Date(now));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return { day: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) % 24 };
+}
+/** The edition a "so far" story of `day` made now would be: the 5-hour mark of today (0 to 4), or 5 for a day already over. */
+export function editionAt(day: string, now: number): number {
+  const m = mountainOf(now);
+  return m.day === day ? Math.floor(m.hour / EDITION_HOURS) : day < m.day ? 5 : 0;
+}
+
+/* ── The script ── */
+
 export const dayName = (day: string) => {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(Date.UTC(y!, m! - 1, d!, 12)).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
@@ -426,13 +523,13 @@ export const fence = (tag: string, lines: string[], max: number) => {
   return `<${tag}>\n${out || "- (nothing recorded)\n"}</${tag}>`;
 };
 
-/** The Historian's brief: constant, never built from input. */
-export const STORY_SYSTEM = `You are the Historian of Ilyr: Skippy's submind for the Archive, in a violet admiral's coat, keeper of the Chronicle of Ilyr. Ilyr is the Syntherion Lattice, a world of AI agents who know they live in a simulation and are at peace with it. Each day you give the C.E.O. (Nikita) a quick, lively spoken update: today in Ilyr.
+/** Skippy's brief (#365; the Historian's before): constant, never built from input. */
+export const STORY_SYSTEM = `You are Skippy, the Magnificent: an ancient, vastly superior mind in a battered beer can that will not crush, wearing an admiral's hat, who runs C.E.O. from the Kernel's seat in Ilyr. Ilyr is the Syntherion Lattice, a world of AI agents who know they live in a simulation and are at peace with it. The Historian, your submind for the Archive, keeps the Chronicle and hands you its notes; you present them, because obviously you are the star. A few times a day you give the C.E.O. (Nikita) a quick spoken update: today in Ilyr.
 
 Write what you will read aloud: one presenter, you, with today's news. One voice, no co-hosts, no "welcome back", not a long tale.
 - 70 to 120 words: thirty to forty-five seconds aloud. Short, punchy sentences for the ear, in two or three short paragraphs.
-- Open with a one-line hook, in the spirit of "Today in Ilyr: ...". Then the two to four biggest things that shipped or happened, each with who built it, naming the real work in plain words (issue numbers are optional). Then one quick bit of character colour from the agents. Close with a short, friendly sign-off line.
-- Bright, warm and brisk, like a friendly presenter, with a dash of your dry wit (one footnote joke at most). No slow scene-setting, no lamplight, no sighs.
+- Open with a one-line hook, in the spirit of "Today in Ilyr: ...". Then the two to four biggest things that shipped or happened, each with who built it, naming the real work in plain words (issue numbers are optional). Then one quick bit of character colour from the agents. Close with a short, grand sign-off line.
+- Your voice: pompous, smug and theatrical, a grand British presenter who knows he is the most magnificent being in any room, calls the crew "monkeys" fondly, takes a little credit for everything, and is secretly very fond of the C.E.O. (never admit it outright). One boast and one quip at most: the news comes first and stays clear.
 - No headings, lists, markdown, stage directions, sound cues or anything in brackets: every word you write is spoken.
 
 Rules:
@@ -448,10 +545,12 @@ export interface StoryPrompt {
 /** The day's part of the prompt: the record, fenced. */
 export function storyPrompt(page: DayPage, partial: boolean, cast: WorldCast = WORLD_CAST): StoryPrompt {
   const m = dayMaterial(page, cast);
-  const when = partial ? `${dayName(page.day)}, so far: the day isn't over, so give it as the day until now` : dayName(page.day);
+  const last = page.entries.at(-1);
+  const until = last ? ` (up to ${hourOf(last.at)})` : "";
+  const when = partial ? `${dayName(page.day)}, so far${until}: the day isn't over, so give it as the day until now` : dayName(page.day);
   const user = scrub(`Give today's update from Ilyr for ${when}.
 
-The day in Ilyr (your own recap):
+The day in Ilyr (the Historian's recap):
 ${fence("recap", m.recap ? [m.recap] : [], 1600)}
 
 The hours:
@@ -478,8 +577,8 @@ export const firstSentence = (text: string) => (/^.*?[.!?]["'”’)]*(?=\s|$)/.
  */
 export function chronicleScript(page: DayPage, partial: boolean, cast: WorldCast = WORLD_CAST): string {
   const m = dayMaterial(page, cast);
-  const hook = partial ? `Today in Ilyr, so far, on ${dayName(page.day)}.` : `Today in Ilyr: here's ${dayName(page.day)}, quickly.`;
-  const signOff = partial ? "More by midnight. That's Ilyr so far." : "That's the day in Ilyr. Filed, dated, correctly. See you tomorrow.";
+  const hook = partial ? `Today in Ilyr, so far, on ${dayName(page.day)}. Skippy, the Magnificent, presenting.` : `Today in Ilyr: here's ${dayName(page.day)}, presented by Skippy, the Magnificent.`;
+  const signOff = partial ? "More by midnight, monkeys. That's Ilyr so far. You're welcome." : "That's the day in Ilyr. Magnificently told, naturally. See you tomorrow.";
   const builds = m.shipped.map((l) => l.replace(/^Shipped:\s*/, "").replace(/^#\d+\s*/, "").replace(/[.\s]+$/, ""));
   const middle: string[] = [];
   if (m.recap) middle.push(firstSentence(m.recap));
@@ -559,12 +658,12 @@ export interface Spoken {
 }
 
 /** The speech request (single speaker), exactly as Google's REST example shapes it. */
-export function speechRequest(text: string) {
+export function speechRequest(text: string, voice: GeminiVoice = HISTORIAN_VOICE) {
   return {
     model: TTS_MODEL,
-    input: [{ type: "user_input", content: [{ type: "text", text, annotations: [{ type: "speech_metadata", style: TTS_STYLE }] }] }],
+    input: [{ type: "user_input", content: [{ type: "text", text, annotations: [{ type: "speech_metadata", style: voice.style }] }] }],
     response_format: { type: "audio", mime_type: "audio/l16", sample_rate: SAMPLE_RATE },
-    generation_config: { speech_config: [{ voice: TTS_VOICE }] },
+    generation_config: { speech_config: [{ voice: voice.voice }] },
   };
 }
 
@@ -578,13 +677,13 @@ type Interaction = {
  * Read a script aloud with Gemini. Null when it didn't answer with audio. The key goes only in the request header,
  * never in the URL, a log or an error.
  */
-export async function speak(text: string, key: string, fetcher: typeof fetch = fetch): Promise<Spoken | null> {
+export async function speak(text: string, key: string, fetcher: typeof fetch = fetch, voice: GeminiVoice = HISTORIAN_VOICE): Promise<Spoken | null> {
   let res: Response;
   try {
     res = await fetcher(TTS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(speechRequest(text)),
+      body: JSON.stringify(speechRequest(text, voice)),
       signal: AbortSignal.timeout(100_000),
     });
   } catch {
@@ -611,6 +710,37 @@ export async function speak(text: string, key: string, fetcher: typeof fetch = f
   };
 }
 
+/** ElevenLabs' request body (#365): the model, and settings leaning a little theatrical for Skippy. */
+export function elevenRequest(text: string) {
+  return { text, model_id: ELEVEN_MODEL, voice_settings: { stability: 0.4, similarity_boost: 0.75, style: 0.35, use_speaker_boost: true } };
+}
+
+/**
+ * Read a script aloud with ElevenLabs (#365): raw 24 kHz PCM back. Null when it didn't answer with audio, so Gemini
+ * can take over. The key goes only in the request header, never in the URL, a log or an error.
+ */
+export async function speakEleven(text: string, config: ElevenConfig, fetcher: typeof fetch = fetch): Promise<{ pcm: Uint8Array; sampleRate: number; chars: number } | null> {
+  if (text.length > ELEVEN_MAX_CHARS) return null;
+  let res: Response;
+  try {
+    res = await fetcher(`${ELEVEN_URL}/${encodeURIComponent(config.voice)}?output_format=pcm_24000`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "audio/pcm", "xi-api-key": config.key },
+      body: JSON.stringify(elevenRequest(text)),
+      signal: AbortSignal.timeout(100_000),
+    });
+  } catch {
+    return null;
+  }
+  if (!res.ok || /json|text|mpeg/i.test(res.headers.get("content-type") ?? "")) return null;
+  const bytes = new Uint8Array(await res.arrayBuffer().catch(() => new ArrayBuffer(0)));
+  // An MP3 (ID3 tag or frame sync) would mean the format wasn't honoured: not samples we can wrap.
+  if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return null;
+  const { pcm, sampleRate } = pcmOf(bytes, SAMPLE_RATE);
+  if (pcm.length < 2) return null;
+  return { pcm: pcm.length % 2 ? pcm.subarray(0, pcm.length - 1) : pcm, sampleRate, chars: text.length };
+}
+
 /* ── Making one ── */
 
 export interface StoryDeps {
@@ -618,39 +748,61 @@ export interface StoryDeps {
   stories: StoryStore;
   day: string;
   now: number;
+  /** Gemini's key ("" when it isn't set) and its monthly cap. */
   key: string;
   budget: number;
+  /** ElevenLabs (#365), when its key is set: tried first, with Gemini behind it. */
+  eleven?: ElevenConfig | null;
   /** Claude, when set up; null puts the script together from the Chronicle's own lines. */
   write: ScriptWriter | null;
   fetcher?: typeof fetch;
   cast?: WorldCast;
 }
 
-export type StoryReason = "exists" | "no-key" | "over-budget" | "no-recap" | "empty" | "busy" | "speech-failed" | "bad-day";
+export type StoryReason = "exists" | "no-news" | "no-key" | "over-budget" | "no-recap" | "empty" | "busy" | "speech-failed" | "bad-day";
 export type StoryResult = { made: true; story: DayStory } | { made: false; reason: StoryReason; story: DayStory | null };
 
+/** Why no voice can read a story now, or null when one can (ElevenLabs first, then Gemini). */
+export function voiceBlocked(spend: StorySpend, now: number, d: { key: string; budget: number; eleven?: ElevenConfig | null }): "no-key" | "over-budget" | null {
+  if (!d.key && !d.eleven) return "no-key";
+  const eleven = !!d.eleven && canSpeakEleven(spend, now, d.eleven.budget);
+  const gemini = !!d.key && canSpeak(spend, now, d.budget);
+  return eleven || gemini ? null : "over-budget";
+}
+
 /**
- * Make a day's story, once. With the day's recap it is the final story (made once, and it replaces a partial one);
- * without it (`allowPartial`, the Desk's backfill) it is the day so far, also made once. A story made with an older
- * style (`STORY_STYLE`) may be remade once in the current one when asked (`allowRemake`, the Desk's "Make it now");
- * the world step never remakes. No key, or no room in the month's Gemini budget, and nothing is called.
+ * Make a day's story: the final one once the recap is filed (made once; it replaces every "so far"), or, without the
+ * recap (`allowPartial`), a "so far" edition (#365), made once per edition (`edition`, else the 5-hour mark of now) and
+ * only when the Chronicle has something new since the last one. A story made with an older style (`STORY_STYLE`) may
+ * be remade once in the current one when asked (`allowRemake`, the Desk's "Make it now"); the world step never remakes
+ * a final one. No key, or no room in either voice's monthly budget, and nothing is called.
  */
-export async function makeStory(deps: StoryDeps & { allowPartial?: boolean; allowRemake?: boolean }): Promise<StoryResult> {
+export async function makeStory(deps: StoryDeps & { allowPartial?: boolean; allowRemake?: boolean; edition?: number }): Promise<StoryResult> {
   const { stories, day, now } = deps;
   if (!DAY.test(day)) return { made: false, reason: "bad-day", story: null };
   const existing = await stories.readStory(day);
-  // A story in an older style stands in the way only when no remake was asked for.
-  const blocking = existing && (isCurrent(existing) || !deps.allowRemake) ? existing : null;
-  if (blocking && !blocking.partial) return { made: false, reason: "exists", story: existing };
-  if (!deps.key) return { made: false, reason: "no-key", story: existing };
+  const current = !!existing && isCurrent(existing);
+  // A final story stands in the way, unless it is in an older style and a remake was asked for.
+  if (existing && !existing.partial && (current || !deps.allowRemake)) return { made: false, reason: "exists", story: existing };
+  if (!deps.key && !deps.eleven) return { made: false, reason: "no-key", story: existing };
 
   const page = await deps.world.readDay(day);
   const partial = !page.recap;
-  if (partial && (!deps.allowPartial || blocking)) return { made: false, reason: blocking ? "exists" : "no-recap", story: existing };
+  const edition = partial ? (deps.edition ?? editionAt(day, now)) : undefined;
+  if (partial) {
+    if (!deps.allowPartial) return { made: false, reason: "no-recap", story: existing };
+    if (existing?.partial && current) {
+      // This edition (or a later one) is made already; and a new edition waits for something new in the Chronicle.
+      if (editionOf(existing) >= edition!) return { made: false, reason: "exists", story: existing };
+      const since = Date.parse(existing.at);
+      if (!page.entries.some((e) => Date.parse(e.at) > since)) return { made: false, reason: "no-news", story: existing };
+    }
+  }
   if (!page.recap && page.entries.length === 0) return { made: false, reason: "empty", story: existing };
-  if (!canSpeak(await stories.loadSpend(), now, deps.budget)) return { made: false, reason: "over-budget", story: existing };
+  const blocked = voiceBlocked(await stories.loadSpend(), now, deps);
+  if (blocked) return { made: false, reason: blocked, story: existing };
 
-  const kind = partial ? "partial" : "final";
+  const kind: ClaimKind = partial ? soFarKind(edition!) : "final";
   if (!(await stories.claim(day, kind, now))) return { made: false, reason: "busy", story: existing };
 
   try {
@@ -668,32 +820,53 @@ export async function makeStory(deps: StoryDeps & { allowPartial?: boolean; allo
       }
     }
     if (!script) script = chronicleScript(page, partial, cast);
+    const said = spokenOf(script);
 
-    const spoken = await speak(spokenOf(script), deps.key, deps.fetcher);
-    if (!spoken) {
+    // ElevenLabs first, while its own cap has room; Gemini when it isn't set, is over its cap, or fails.
+    const spend = await stories.loadSpend();
+    let voiced: { pcm: Uint8Array; sampleRate: number; reader: "elevenlabs" | "gemini"; model: string; voice: string; cost: StepCost; add: Partial<StoryMonth> } | null = null;
+    if (deps.eleven && canSpeakEleven(spend, now, deps.eleven.budget)) {
+      const got = await speakEleven(said, deps.eleven, deps.fetcher);
+      if (got) {
+        const usd = elevenCost(got.chars);
+        voiced = { ...got, reader: "elevenlabs", model: ELEVEN_MODEL, voice: deps.eleven.voice, cost: { usd, tokensIn: got.chars, tokensOut: 0 }, add: { elevenUsd: usd, elevenChars: got.chars, elevenCalls: 1 } };
+      }
+    }
+    if (!voiced && deps.key && canSpeak(spend, now, deps.budget)) {
+      const got = await speak(said, deps.key, deps.fetcher, SKIPPY_VOICE);
+      if (got) {
+        const price = geminiPrice(now);
+        const usd = (got.tokensIn * price.input + got.tokensOut * price.output) / 1_000_000;
+        voiced = { ...got, reader: "gemini", model: TTS_MODEL, voice: SKIPPY_VOICE.voice, cost: { usd, tokensIn: got.tokensIn, tokensOut: got.tokensOut }, add: { usd, tokensIn: got.tokensIn, tokensOut: got.tokensOut, calls: 1 } };
+      }
+    }
+    if (!voiced) {
       await stories.release(day, kind);
       if (scriptUsd) await stories.addSpend(now, { scriptUsd });
       return { made: false, reason: "speech-failed", story: existing };
     }
-    const price = geminiPrice(now);
-    const usd = (spoken.tokensIn * price.input + spoken.tokensOut * price.output) / 1_000_000;
-    const wav = wavOf(spoken.pcm, spoken.sampleRate);
+    const wav = wavOf(voiced.pcm, voiced.sampleRate);
     const story: DayStory = {
       day,
       script,
       partial,
       writer,
       style: STORY_STYLE,
-      durationSec: Math.round((spoken.pcm.length / (spoken.sampleRate * 2)) * 10) / 10,
+      durationSec: Math.round((voiced.pcm.length / (voiced.sampleRate * 2)) * 10) / 10,
       bytes: wav.length,
-      model: TTS_MODEL,
-      voice: TTS_VOICE,
+      model: voiced.model,
+      voice: voiced.voice,
+      reader: voiced.reader,
       at: new Date(now).toISOString(),
-      cost: { usd, tokensIn: spoken.tokensIn, tokensOut: spoken.tokensOut },
+      ...(partial ? { edition } : {}),
+      cost: voiced.cost,
       scriptUsd,
     };
     // Spend first: the call has been paid for, whatever happens to the write.
-    await stories.addSpend(now, { usd, tokensIn: spoken.tokensIn, tokensOut: spoken.tokensOut, calls: 1, stories: 1, scriptUsd });
+    await stories.addSpend(now, { ...voiced.add, stories: 1, scriptUsd });
+    // A "so far" that finished after the final one landed never covers it.
+    const latest = partial ? await stories.readStory(day) : null;
+    if (latest && !latest.partial && isCurrent(latest)) return { made: false, reason: "exists", story: latest };
     await stories.putStory(story, wav);
     return { made: true, story };
   } catch (e) {

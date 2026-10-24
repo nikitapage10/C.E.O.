@@ -351,6 +351,20 @@ export function Plate({ y, name, accent, line, card, owner }: { y: number; name:
 }
 
 /**
+ * Whether an agent has work in hand right now: a Foundry job for the crew, a running task for everyone else. Only
+ * they wear a floating name in a room; the rest show theirs on hover (#328).
+ */
+export function useHasTask(id: string): boolean {
+  const running = useWorld((s) => {
+    const taskId = s.lattice.agents[id]?.taskId;
+    return taskId ? s.lattice.tasks[taskId]?.status === "running" : false;
+  });
+  const crew = id in CREW ? (id as CrewId) : null;
+  const job = useFoundry((s) => (crew && s.connected ? crewJob(s.data.crates, crew) !== null : false));
+  return running || job;
+}
+
+/**
  * The plate over an agent in a room: their name, and under it what they are doing right now (a task line with
  * an icon; see taskLine.ts), with a card of the detail on hover. The Foundry crew's lines come from the real
  * job each one holds (`crewJob`), so a line that would only say where they stand names the work instead; everyone

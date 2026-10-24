@@ -4,6 +4,7 @@ import { SecurityPage } from "./security/SecurityPage.tsx";
 import { Systems } from "./Systems.tsx";
 import { systemsPageOf } from "./SystemsNav.tsx";
 import "./security/security.css";
+import "./boiler/boiler.css";
 
 /**
  * Systems as the Desk's admin hub (#82): the systems themselves (Systems.tsx), Security (the threat model, live scan

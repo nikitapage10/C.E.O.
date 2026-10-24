@@ -304,7 +304,7 @@ export function SystemsGraph({ nodes, flows, mode, setMode }: { nodes: Record<st
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M10 3 5 8l5 5" />
             </svg>
-            All rooms<span className="wv-back-k">Esc</span>
+            All lines<span className="wv-back-k">Esc</span>
           </button>
           <p className="wv-gtitle">
             {flow.t}

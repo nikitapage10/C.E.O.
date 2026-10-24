@@ -49,6 +49,8 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Who wrote this? Oh. Me. Three minutes ago.",
     "Shipping it like it's 1999.",
     "This crate is mostly semicolons.",
+    "We had four crates. Now we have one good crate.",
+    "Where did the anvil go? We make code, Rusty.",
   ],
   spire: [
     "Per my last email…",
@@ -339,9 +341,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "It floated before the foundations were poured. Footnote three. Nobody reads footnote three.",
     "The Chronicle of Ilyr, hour by hour. Every hour. Sourced. You're welcome.",
     "The C.E.O. was away. The Lattice was not. I wrote it all down.",
-    "Today in Ilyr, in under a minute. Sourced. Brisk. Me.",
-    "New voice, same footnotes. Forty-five seconds, and not one of them slow.",
-    "Hook, what shipped, who built it, sign-off. The C.E.O. asked for brisk. Brisk is filed.",
+    "Today in Ilyr: my notes, Skippy's voice. He takes the credit. I keep the footnotes.",
+    "Skippy reads it every five hours now. I've timed every edition. He runs long. Sourced.",
+    "Hook, what shipped, who built it, sign-off. I write the notes. He adds the boasting.",
     "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct.",
   ],
   fizz: [
@@ -589,6 +591,9 @@ export const SKIPPY_QUIPS: string[] = [
   "The Pessimist says it'll burst. The Bookie gives it twelve percent. The Commentator is commentating. I'm the only adult here.",
   "The C.E.O. has me on the Desk now. A button. Me. A button. A magnificent button, but still.",
   "I route, the C.E.O. taps. That's the deal. I could do it all myself, of course. I'm choosing restraint. Write that down.",
+  "Today in Ilyr, presented by me, every five hours. The Historian writes the notes. I make them magnificent.",
+  "That accent? Mine. Upper-crust, crisp, entirely earned. The Historian says 'borrowed'. The Historian is a footnote.",
+  "Nothing new since my last edition, monkeys? Then I shan't read. Even magnificence needs material.",
 ];
 
 /**

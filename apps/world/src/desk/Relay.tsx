@@ -3,7 +3,7 @@ import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type 
 import { useMasked } from "./hide.ts";
 import { EmailSection } from "./email/EmailSection.tsx";
 import { startEmail, useEmail, type EmailLoad, type EmailStatus } from "./email/email.ts";
-import { Allowance, flowOf, Heartbeat, Switchboard } from "./relay/Switchboard.tsx";
+import { Allowance, flowOf, Switchboard } from "./relay/Switchboard.tsx";
 import { Private } from "./Private.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
 import { Avatar, Panel } from "./ui.tsx";
@@ -125,10 +125,9 @@ function RelayLater({ now }: { now: number }) {
         <p className="wv-sub">{head.sub}</p>
       </header>
 
-      <Switchboard load={load} status={status} />
+      <Switchboard load={load} status={status} now={now} />
 
       <div className="rl-tiles">
-        <Heartbeat lastCheck={live ? (status?.lastCheck ?? null) : null} flow={flow} />
         <Allowance pct={load === "live" && status && status.gmail === "connected" ? status.budgetPct : null} />
         <Crew live={live} />
       </div>

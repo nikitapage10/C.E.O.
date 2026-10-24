@@ -99,8 +99,10 @@ there. Nothing server-side can post into a project thread, so the Desk keeps the
   `ceo-state` container): the last 200 per room, none older than 30 days (`api/_skippy/log.ts`). The history the
   browser sends is never kept; a message the privacy check holds back never reaches Claude or the log.
 - **Read only signed in.** `GET /api/skippy-log?room=<room>` (a `vercel.json` rewrite into `api/skippy.ts`; its own
-  route on Azure, behind the site gate) answers only a Desk passkey session. Each room's Desk page (Green, Exchange,
-  Boiler Room, Foundry, Relay) shows its turns in an "Asked Skippy" panel, newest first, collapsed, veiled by Hide.
+  route on Azure, behind the site gate) answers only a Desk passkey session. The talks live in the Council of Skippies
+  on Today (#363, Nikita 2026-10-24): each submind says whether Nikita has talked with it and opens to read the
+  exchanges, newest first, veiled by Hide; the room pages no longer carry an "Asked Skippy" panel (Relay and the
+  Foundry drop theirs in #364 and #328).
   The Exchange's and Relay's asks never reach a public path or the Lattice. The one outside reader is the subminds'
   read key (#281, "Room keys" below), for the four active rooms only; Relay's asks stay Desk-only.
 
@@ -258,8 +260,8 @@ headers on every one of those routes). The fallback is plain environment variabl
   most), the detail optional (600). The answer is only `{ ok, id }`. An event that looks private (an email address,
   a phone number, an address, a card or account number, a key, a person's name) is refused whole (422), as on the
   Desk; at most 20 events per room an hour (429).
-- **Where it shows.** On the room's Desk page, "From the <submind>", under Asked Skippy: signed in, each event opens to
-  its detail (veiled by Hide); signed out, titles only. In the Lattice the room's submind says the title from its
+- **Where it shows.** In the Council of Skippies on Today (#363), under the submind's report: signed in, each event
+  opens to its detail (veiled by Hide); signed out, only how many there are. In the Lattice the room's submind says the title from its
   podium, scrubbed of money and links (`publicTitle`), never the detail. The public site never shows money, messages,
   contacts or keys.
 - **Neither key** can change a setting, trade, send anything, or reach an upstream secret; each opens only its own

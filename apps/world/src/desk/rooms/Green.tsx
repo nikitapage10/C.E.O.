@@ -1,28 +1,52 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Keeper } from "./parts.tsx";
-import { AskedSkippy } from "../skippy/AskedSkippy.tsx";
-import { RoomFeed } from "../skippy/RoomFeed.tsx";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
-import { Parts, Poly, OK, WHITE, knot, useViz, weave, type VizSpec } from "../wvCanvas.ts";
-import { onBye, ordinal, pct, pts, sleeperLeagueUrl, startGreen, useGreen, type GreenBid, type GreenBoard, type GreenCall, type GreenFeed, type GreenNews, type GreenPlayer, type GreenSlot, type GreenStatus } from "../green/league.ts";
+import { Parts, Poly, OK, WHITE, knot, reducedMotion, useViz, weave, type VizSpec } from "../wvCanvas.ts";
+import {
+  onBye,
+  ordinal,
+  pct,
+  pts,
+  sleeperLeagueUrl,
+  startGreen,
+  useGreen,
+  yardLine,
+  type GreenBid,
+  type GreenBoard,
+  type GreenCall,
+  type GreenFeed,
+  type GreenNews,
+  type GreenPlayer,
+  type GreenSlot,
+  type GreenStatus,
+} from "../green/league.ts";
 import { useGreenAnalysis, type GreenAnalysis } from "../green/analysis.ts";
 import "./rooms.css";
 import "../green/green.css";
 
 /**
- * The Green (#225, live since #252, an analyst desk since #276): Nikita's Sleeper league, "Horse Meat", as a sports
- * broadcast desk. A ticker of the league's news; a score bug (projected, then live, then the win chance, with the
- * Weave's thread split where that chance falls); FantasyPros' start-or-sit calls with Sleeper's projection beside each
- * and split decisions flagged; the lineup with faces, team logos and FantasyPros' expert range, tier, rank move and
- * roster share; the Commentator's written call; then the whole league: playoff odds, the waiver bids, one trade idea,
- * the bye calendar, the table and the latest moves; and at the foot, where every number came from.
+ * The Green (#225, live since #252, an analyst desk since #276, calmed down in #368): Nikita's Sleeper league, "Horse
+ * Meat", as a floodlit pitch at night. Up top only what the week needs: the face-off (projected, then live, with the
+ * ball on the field where the win chance falls and the Weave's thread under it), and FantasyPros' start-or-sit calls,
+ * each a duel of faces with its late-game-risk, tiebreak, split and bye flags, and why on a tap. The nine starters as a
+ * row of faces. Everything else waits behind "Go deeper": the full lineup with FantasyPros' range, tier, rank move and
+ * roster share; the playoff race; the wire; one trade idea; the byes; the table; the league's moves; the news; the
+ * Commentator's written call; and where every number came from. One drawer open at a time.
  *
  * Read-only: the moves are made in Sleeper. Faces and logos are Sleeper's public images; a picture that doesn't load
- * falls back to initials.
+ * falls back to initials. Every motion settles, and none plays under prefers-reduced-motion.
  */
 
 const TURF = "172,200,114";
-const INJ_WORD: Record<string, string> = { Q: "Questionable", D: "Doubtful", O: "Out", IR: "On IR", SUS: "Suspended", PUP: "PUP", NA: "Not active" };
+const INJ_WORD: Record<string, string> = {
+  Q: "Questionable",
+  D: "Doubtful",
+  O: "Out",
+  IR: "On IR",
+  SUS: "Suspended",
+  PUP: "PUP",
+  NA: "Not active",
+};
 
 /* ── faces and logos ── */
 
@@ -105,7 +129,12 @@ function Range({ p }: { p: GreenPlayer }) {
   return (
     <span className="gd-rng" title={`Experts ranked him ${p.pos}${r.min} at best and ${p.pos}${r.max} at worst; consensus ${p.pos}${p.wk}`}>
       <span className="gd-rng-bar">
-        <i style={{ left: `${at(r.min)}%`, width: `${Math.max(1, at(r.max) - at(r.min))}%` }} />
+        <i
+          style={{
+            left: `${at(r.min)}%`,
+            width: `${Math.max(1, at(r.max) - at(r.min))}%`,
+          }}
+        />
         <b style={{ left: `${at(p.wk)}%` }} />
       </span>
       <small>
@@ -126,38 +155,15 @@ const ago = (iso: string | null | undefined, now: number): string => {
   return h < 36 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
 };
 
-const fmtWhen = (iso: string) => new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Denver" }).format(Date.parse(iso));
+const fmtWhen = (iso: string) =>
+  new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Denver",
+  }).format(Date.parse(iso));
 
-/* ── the ticker ── */
-
-const WHOSE: Record<GreenNews["whose"], string> = { mine: "YOURS", opp: "THEIRS", league: "LEAGUE", free: "WIRE" };
-
-function Ticker({ board }: { board: GreenBoard }) {
-  const items: GreenNews[] = board.news ?? [];
-  const lines: GreenNews[] = items.length ? items : [{ id: null, name: board.league.name, text: `week ${board.week} · ${board.league.teams} teams · ${board.league.scoring}`, at: null, whose: "league", src: "sleeper" }];
-  const loop = [...lines, ...lines];
-  const team = (id: string) => (/^[A-Z]{2,3}$/.test(id) ? id : null);
-  return (
-    <div className="gd-ticker" aria-label={`League news: ${lines.map((n) => `${n.name}, ${n.text}`).join("; ")}`}>
-      <span className="gd-ticker-k" aria-hidden="true">
-        Newsdesk
-      </span>
-      <div className="gd-ticker-run" aria-hidden="true">
-        <p style={{ "--n": lines.length } as React.CSSProperties}>
-          {loop.map((n, i) => (
-            <span key={i} data-whose={n.whose}>
-              {n.id && <Face p={{ id: n.id, name: n.name, pos: team(n.id) ? "DEF" : "WR", team: team(n.id) }} size={20} />}
-              <em>{WHOSE[n.whose]}</em>
-              <b>{n.name}</b> {n.text}
-            </span>
-          ))}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ── the score bug ── */
+/* ── the win thread ── */
 
 /** The win thread: your light from the left up to the win chance, theirs from the right, a knot where they meet. */
 function winSpec(win: number | null): VizSpec {
@@ -166,10 +172,24 @@ function winSpec(win: number | null): VizSpec {
       const y = V.H / 2;
       const f = win ?? 0.5;
       const x = V.W * f;
-      V.s.w = { mine: new Poly().set([0, x], [y, y]), theirs: new Poly().set([V.W, x], [y, y]), x, y, Pm: new Parts(Math.max(8, Math.round(70 * f)), 0.15), Pt: new Parts(Math.max(8, Math.round(70 * (1 - f))), 0) };
+      V.s.w = {
+        mine: new Poly().set([0, x], [y, y]),
+        theirs: new Poly().set([V.W, x], [y, y]),
+        x,
+        y,
+        Pm: new Parts(Math.max(8, Math.round(70 * f)), 0.15),
+        Pt: new Parts(Math.max(8, Math.round(70 * (1 - f))), 0),
+      };
     },
     draw(V, c, t, dt) {
-      const w = V.s.w as { mine: Poly; theirs: Poly; x: number; y: number; Pm: Parts; Pt: Parts };
+      const w = V.s.w as {
+        mine: Poly;
+        theirs: Poly;
+        x: number;
+        y: number;
+        Pm: Parts;
+        Pt: Parts;
+      };
       if (win === null) {
         c.strokeStyle = "rgba(236,238,243,.12)";
         c.setLineDash([3, 5]);
@@ -180,131 +200,242 @@ function winSpec(win: number | null): VizSpec {
         c.setLineDash([]);
         return;
       }
-      weave(c, w.mine, w.Pm, { a: 1, sp: 3, sz: 1, v: 34, rgb: TURF, rgb2: "236,240,220", line: 0.6, lw: 1.6 }, t, dt);
+      weave(
+        c,
+        w.mine,
+        w.Pm,
+        {
+          a: 1,
+          sp: 3,
+          sz: 1,
+          v: 34,
+          rgb: TURF,
+          rgb2: "236,240,220",
+          line: 0.6,
+          lw: 1.6,
+        },
+        t,
+        dt,
+      );
       weave(c, w.theirs, w.Pt, { a: 0.55, sp: 2, sz: 0.75, v: 24, rgb: WHITE, line: 0.22, lw: 1 }, t, dt);
       knot(c, w.x, w.y, 0.9, t, win >= 0.5 ? TURF : OK, 1);
     },
   };
 }
 
-function ScoreBug({ board, status }: { board: GreenBoard | null; status: GreenStatus }) {
+/** The FantasyPros figure to show: its own number as published (#340), else the board's projection (form, or an older board). */
+const fpPts = (p: GreenPlayer): number | null => (p.fp != null ? p.fp : p.proj);
+/** Says when the projection the calls use differs from FantasyPros' own figure (doubtful, out, on bye). */
+const fpTitle = (p: GreenPlayer): string | undefined =>
+  p.fp != null && p.proj !== null && Math.abs(p.fp - p.proj) >= 0.05
+    ? `FantasyPros ${p.fp.toFixed(1)}; ${p.proj.toFixed(1)} after ${p.inj === "D" ? "the doubtful tag" : "his status"}`
+    : p.src === "form"
+      ? "His form here: FantasyPros doesn't project him this week"
+      : undefined;
+
+/* ── motion ── */
+
+/** A number that runs up to its value once (and eases to each new one); lands at once under reduced motion. */
+function useCount(to: number | null, ms = 900): number | null {
+  const [v, setV] = useState<number | null>(() => (to === null || reducedMotion() ? to : 0));
+  const from = useRef(0);
+  useEffect(() => {
+    if (to === null || reducedMotion() || typeof requestAnimationFrame !== "function") {
+      setV(to);
+      return;
+    }
+    const start = performance.now();
+    const a = from.current;
+    let raf = 0;
+    const step = (t: number) => {
+      const k = Math.min(1, (t - start) / ms);
+      const e = 1 - Math.pow(1 - k, 3);
+      const n = a + (to - a) * e;
+      from.current = n;
+      setV(n);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [to, ms]);
+  return v;
+}
+
+/** Each element stagger-rises in by its index. */
+const rise = (i: number) => ({ "--i": i }) as React.CSSProperties;
+
+/* ── the face-off ── */
+
+function FaceOff({ board, status }: { board: GreenBoard | null; status: GreenStatus }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const m = board?.matchup ?? null;
   const win = m?.win ?? null;
   const spec = useMemo(() => winSpec(win), [win]);
   useViz(cv, spec);
+  const live = !!m?.live;
+  const mine = useCount(m ? (live ? m.me.pts : m.me.proj) : null);
+  const theirs = useCount(m?.them ? (live ? m.them.pts : m.them.proj) : null);
+  // The ball starts at midfield and runs to the win chance once the page is up.
+  const [kicked, setKicked] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setKicked(true), 260);
+    return () => window.clearTimeout(t);
+  }, []);
   if (!board || !m) {
-    const why = status === "idle" ? "Reading the league…" : status === "failed" ? "Sleeper isn't answering. Trying again every two minutes." : status === "absent" ? "No team of yours in this league." : status === "off" ? "Not connected here." : `No game on the board in week ${board?.week ?? "–"}.`;
+    const why =
+      status === "idle"
+        ? "Reading the league…"
+        : status === "failed"
+          ? "Sleeper isn't answering. Trying again every two minutes."
+          : status === "absent"
+            ? "No team of yours in this league."
+            : status === "off"
+              ? "Not connected here."
+              : `No game on the board in week ${board?.week ?? "–"}.`;
     return (
-      <section className="gd-bug is-dark" aria-label="Scoreboard">
-        <p className="gd-bug-empty">{why}</p>
-        <canvas ref={cv} className="gd-bug-thread" aria-hidden="true" />
+      <section className="gd-fo is-empty gd-rise" style={rise(1)} aria-label="This week's matchup">
+        <p className="gd-fo-empty">{why}</p>
+        <div className="gd-field" aria-hidden="true">
+          <canvas ref={cv} className="gd-field-thread" />
+        </div>
       </section>
     );
   }
   const them = m.them;
+  const yd = win === null ? null : yardLine(win);
   const label = `Week ${m.week}. Projected ${pts(m.me.proj)} to ${them ? pts(them.proj) : "a bye"}. Live ${pts(m.me.pts)} to ${them ? pts(them.pts) : "–"}.${win !== null ? ` Win chance ${pct(win)}.` : ""}`;
+  const ball = kicked && yd ? yd.x : 0.5;
   return (
-    <section className="gd-bug" aria-label={label}>
-      <div className="gd-bug-side is-me">
-        <TeamBadge name={m.me.team} me />
-        <span>
-          <b>{m.me.team}</b>
-          <small>
-            {m.me.record}
-            {board.me.rank ? ` · ${ordinal(board.me.rank)} of ${board.league.teams}` : ""}
-          </small>
-        </span>
-      </div>
-      <dl className="gd-bug-nums">
-        <div className="is-proj">
-          <dt>Projected</dt>
-          <dd>
-            <b>{pts(m.me.proj)}</b>
+    <section className={`gd-fo gd-rise${live ? " is-live" : ""}`} style={rise(1)} aria-label={label}>
+      <div className="gd-fo-row" aria-hidden="true">
+        <div className="gd-fo-side is-me">
+          <TeamBadge name={m.me.team} me />
+          <span>
+            <b>{m.me.team}</b>
+            <small>
+              {m.me.record}
+              {board.me.rank ? ` · ${ordinal(board.me.rank)} of ${board.league.teams}` : ""}
+            </small>
+          </span>
+        </div>
+        <div className="gd-fo-mid">
+          <p className="gd-fo-state">
+            {live ? (
+              <>
+                <i className="gd-dot" /> Live
+              </>
+            ) : (
+              `Week ${m.week} · projected`
+            )}
+          </p>
+          <p className="gd-fo-score">
+            <b className="is-me">{pts(mine)}</b>
             <i>–</i>
-            <b>{them ? pts(them.proj) : "–"}</b>
-          </dd>
+            <b>{them ? pts(theirs) : "–"}</b>
+          </p>
+          <small>{live ? `Projected ${pts(m.me.proj)} – ${them ? pts(them.proj) : "–"}` : "Live score from kickoff"}</small>
         </div>
-        <div className={`is-live${m.live ? " is-on" : ""}`}>
-          <dt>
-            Live{!m.live && <small> · pre-game</small>}
-          </dt>
-          <dd>
-            <b>{pts(m.me.pts)}</b>
-            <i>–</i>
-            <b>{them ? pts(them.pts) : "–"}</b>
-          </dd>
+        <div className="gd-fo-side is-them">
+          <span>
+            <b>{them?.team ?? "Bye week"}</b>
+            <small>{them?.record ?? ""}</small>
+          </span>
+          {them && <TeamBadge name={them.team} />}
         </div>
-        <div className="is-win">
-          <dt>Win</dt>
-          <dd>
-            <b>{win === null ? "–" : pct(win)}</b>
-          </dd>
-        </div>
-      </dl>
-      <div className="gd-bug-side is-them">
-        <span>
-          <b>{them?.team ?? "Bye week"}</b>
-          <small>{them?.record ?? ""}</small>
-        </span>
-        {them && <TeamBadge name={them.team} />}
       </div>
-      <canvas ref={cv} className="gd-bug-thread" aria-hidden="true" />
+      <div className="gd-field" aria-hidden="true">
+        <span className="gd-field-ez is-me">{initials(m.me.team)}</span>
+        <span className="gd-field-yards">
+          {[10, 20, 30, 40, 50, 40, 30, 20, 10].map((n, i) => (
+            <i key={i}>{n}</i>
+          ))}
+        </span>
+        <span className="gd-field-ez is-them">{them ? initials(them.team) : "–"}</span>
+        <canvas ref={cv} className="gd-field-thread" />
+        {yd && (
+          <span className="gd-ball" style={{ "--x": ball } as React.CSSProperties}>
+            <b>{pct(win!)}</b>
+          </span>
+        )}
+      </div>
+      <p className="gd-fo-foot" aria-hidden="true">
+        {yd ? (
+          <>
+            <b>{pct(win!)}</b> to win · {yd.words.toLowerCase()}
+          </>
+        ) : them ? (
+          "Win chance at kickoff"
+        ) : (
+          "A week off"
+        )}
+      </p>
     </section>
   );
 }
 
 /* ── the calls ── */
 
-/** The FantasyPros figure to show: its own number as published (#340), else the board's projection (form, or an older board). */
-const fpPts = (p: GreenPlayer): number | null => (p.fp != null ? p.fp : p.proj);
-/** Says when the projection the calls use differs from FantasyPros' own figure (doubtful, out, on bye). */
-const fpTitle = (p: GreenPlayer): string | undefined =>
-  p.fp != null && p.proj !== null && Math.abs(p.fp - p.proj) >= 0.05 ? `FantasyPros ${p.fp.toFixed(1)}; ${p.proj.toFixed(1)} after ${p.inj === "D" ? "the doubtful tag" : "his status"}` : p.src === "form" ? "His form here: FantasyPros doesn't project him this week" : undefined;
+function Duelist({ p, week, role }: { p: GreenPlayer; week: number; role: "start" | "sit" }) {
+  return (
+    <span className={`gd-du is-${role}`}>
+      <Face p={p} size={role === "start" ? 58 : 40} />
+      <span className="gd-du-t">
+        <b>{p.name}</b>
+        <small>
+          <Logo team={p.team} />
+          {p.opp && <> v {p.opp}</>} <Tag p={p} week={week} />
+        </small>
+      </span>
+      <strong title={fpTitle(p)}>{pts(fpPts(p))}</strong>
+    </span>
+  );
+}
 
-function CallRow({ c, week }: { c: GreenCall; week: number }) {
+function CallCard({ c, week, fp, i }: { c: GreenCall; week: number; fp: boolean; i: number }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
   const sl = c.sleeper;
   return (
-    <li className={`gd-call${c.change ? " is-change" : ""}${c.split ? " is-split" : ""}`}>
-      <span className="gd-call-slot">
-        {c.slot}
-        {c.tiebreak && <em className="gd-call-tie">tiebreak</em>}
-      </span>
-      <span className="gd-call-p is-start">
-        <Face p={c.start} size={40} />
-        <span>
-          <em>{c.change ? "Start" : "Keep"}</em>
-          <b>{c.start.name}</b>
-          <small>
-            <Logo team={c.start.team} />
-            {c.start.opp && <> v {c.start.opp}</>} <Tag p={c.start} week={week} />
-          </small>
+    <li className={`gd-cl gd-rise${c.change ? " is-change" : ""}${c.lateRisk ? " is-risk" : ""}`} style={rise(i + 2)}>
+      <header className="gd-cl-head">
+        <span className="gd-cl-slot">{c.slot}</span>
+        <span className="gd-cl-verb">{c.change ? "Start" : "Keep"}</span>
+        <span className="gd-cl-flags">
+          {c.lateRisk && (
+            <em className="gd-flag is-risk" title={c.lateRisk}>
+              Late-game risk
+            </em>
+          )}
+          {c.tiebreak && <em className="gd-flag is-tie">Tiebreak</em>}
+          {c.split && <em className="gd-flag is-split">Split</em>}
         </span>
-        <strong>{pts(fpPts(c.start))}</strong>
-      </span>
-      <span className="gd-call-over" aria-hidden="true">
-        over
-      </span>
-      <span className="gd-call-p is-sit">
-        <Face p={c.sit} size={30} />
-        <span>
-          <b>{c.sit.name}</b>
-          <small>
-            <Logo team={c.sit.team} />
-            {c.sit.opp && <> v {c.sit.opp}</>} <Tag p={c.sit} week={week} />
-          </small>
+      </header>
+      <div className="gd-cl-duel">
+        <Duelist p={c.start} week={week} role="start" />
+        <span className="gd-cl-over" aria-hidden="true">
+          over
         </span>
-        <strong>{pts(fpPts(c.sit))}</strong>
-      </span>
-      <span className="gd-call-verdict">
-        <span className="gd-chip is-fp">FP call +{pts(Math.abs(c.edge))}</span>
-        <span className={`gd-chip is-sl is-${sl}`}>{sl === "unknown" ? "Sleeper: no projection" : `Sleeper ${sl} · ${pts(c.start.sl)}–${pts(c.sit.sl)}`}</span>
-        {c.split && <span className="gd-chip is-split">Split decision</span>}
-      </span>
-      <small className="gd-call-why">
-        {c.why}
-        {c.tiebreak && <span className="gd-tiebreak">{c.tiebreak}</span>}
-      </small>
+        <Duelist p={c.sit} week={week} role="sit" />
+      </div>
+      <footer className="gd-cl-foot">
+        <span className="gd-cl-edge">
+          <b>+{pts(Math.abs(c.edge))}</b> {fp ? "FantasyPros" : "on form"}
+        </span>
+        <span className={`gd-cl-sl is-${sl}`}>{sl === "unknown" ? "Sleeper: no projection" : `Sleeper ${sl}`}</span>
+        <button type="button" className="gd-cl-why-btn" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+          {open ? "Less" : "Why"}
+        </button>
+      </footer>
+      {open && (
+        <div className="gd-cl-why" id={id}>
+          <p>{c.why}</p>
+          {c.lateRisk && <p className="is-risk">{c.lateRisk}</p>}
+          {c.tiebreak && <p className="is-tie">{c.tiebreak}</p>}
+          <p className="gd-cl-slnum">
+            Sleeper projects {c.start.name} {pts(c.start.sl)} and {c.sit.name} {pts(c.sit.sl)}: beside the call, never averaged in.
+          </p>
+        </div>
+      )}
     </li>
   );
 }
@@ -312,22 +443,27 @@ function CallRow({ c, week }: { c: GreenCall; week: number }) {
 function Calls({ board }: { board: GreenBoard }) {
   const calls = board.calls ?? [];
   const changes = calls.filter((c) => c.change).length;
-  const splits = calls.filter((c) => c.split).length;
+  const risks = calls.filter((c) => c.lateRisk).length;
   const fp = board.sources.calls === "fp";
   return (
-    <section className="gd-sec gd-calls" aria-label="Start or sit">
-      <header className="gd-sh">
-        <p className="gd-k">Start / sit · {fp ? "FantasyPros decides" : "form decides while FantasyPros waits"}</p>
-        <h2 className="rm-h2">{changes ? `${changes === 1 ? "One change" : `${changes} changes`} to make` : "The lineup's set"}</h2>
-        <p className="gd-note">
-          {calls.length ? `${calls.length} close call${calls.length === 1 ? "" : "s"}${splits ? `, ${splits} split` : ""}. ` : "No close calls this week. "}
-          Sleeper's projection sits beside each call, never averaged in.
-        </p>
+    <section className="gd-calls" aria-label="Start or sit">
+      <header className="gd-sh gd-rise" style={rise(2)}>
+        <p className="gd-k">Start / sit · {fp ? "FantasyPros decides" : "form decides while FantasyPros waits"} · byes counted</p>
+        <h2 className="gd-h2">
+          {changes ? (
+            <>
+              <em>{changes === 1 ? "One change" : `${changes} changes`}</em> to make
+            </>
+          ) : (
+            "The lineup's set."
+          )}
+        </h2>
+        <p className="gd-note">{calls.length ? `${calls.length} close call${calls.length === 1 ? "" : "s"}${risks ? `, ${risks} with a late-game risk` : ""}.` : "No close calls this week."}</p>
       </header>
       {calls.length > 0 && (
-        <ol className="gd-call-list">
-          {calls.map((c) => (
-            <CallRow key={`${c.slot}-${c.start.id}-${c.sit.id}`} c={c} week={board.week} />
+        <ol className="gd-cl-list">
+          {calls.map((c, i) => (
+            <CallCard key={`${c.slot}-${c.start.id}-${c.sit.id}`} c={c} week={board.week} fp={fp} i={i} />
           ))}
         </ol>
       )}
@@ -335,11 +471,12 @@ function Calls({ board }: { board: GreenBoard }) {
   );
 }
 
+
 /* ── the lineup ── */
 
 type RowCall = "start" | "sit" | "bye" | "out" | "";
 
-function LineRow({ slot, p, live, week, call, tie = false }: { slot: string; p: GreenPlayer | null; live: number | null; week: number; call: RowCall; tie?: boolean }) {
+function LineRow({ slot, p, live, week, call, tie = false, risk = false }: { slot: string; p: GreenPlayer | null; live: number | null; week: number; call: RowCall; tie?: boolean; risk?: boolean }) {
   if (!p)
     return (
       <tr className="is-empty">
@@ -361,6 +498,7 @@ function LineRow({ slot, p, live, week, call, tie = false }: { slot: string; p: 
             {call === "sit" && <em className="gd-tag is-sit">SIT</em>}
             {call === "start" && <em className="gd-tag is-start">START</em>}
             {tie && <em className="gd-tag is-tie">TIEBREAK</em>}
+            {risk && <em className="gd-tag is-tie">LATE-GAME RISK</em>}
           </small>
         </span>
       </td>
@@ -386,6 +524,8 @@ function Lineup({ board }: { board: GreenBoard }) {
   const ins = new Set(changes.map((c) => c.start.id));
   // The player a tiebreak put in his slot (#340): labelled, whether the call keeps him or brings him in.
   const ties = new Set((board.calls ?? []).filter((c) => c.tiebreak).map((c) => c.start.id));
+  // Players a late-game-risk call (#370) moved: the Q/D starter going to the bench and the earlier-kicking bench player coming in.
+  const risks = new Set((board.calls ?? []).filter((c) => c.lateRisk).flatMap((c) => [c.start.id, c.sit.id]));
   const callOf = (p: GreenPlayer | null, starting: boolean): RowCall => {
     if (!p) return "";
     if (onBye(p, board.week)) return "bye";
@@ -447,13 +587,13 @@ function Lineup({ board }: { board: GreenBoard }) {
           </thead>
           <tbody>
             {board.roster.starters.map((s: GreenSlot, i) => (
-              <LineRow key={i} slot={s.slot} p={s.player} live={s.pts} week={board.week} call={callOf(s.player, true)} tie={!!s.player && ties.has(s.player.id)} />
+              <LineRow key={i} slot={s.slot} p={s.player} live={s.pts} week={board.week} call={callOf(s.player, true)} tie={!!s.player && ties.has(s.player.id)} risk={!!s.player && risks.has(s.player.id)} />
             ))}
           </tbody>
           {open && (
             <tbody className="is-bench">
               {bench.map((p) => (
-                <LineRow key={p.id} slot="BN" p={p} live={null} week={board.week} call={callOf(p, false)} tie={ties.has(p.id)} />
+                <LineRow key={p.id} slot="BN" p={p} live={null} week={board.week} call={callOf(p, false)} tie={ties.has(p.id)} risk={risks.has(p.id)} />
               ))}
               {board.roster.reserve.map((p) => (
                 <LineRow key={p.id} slot="IR" p={p} live={null} week={board.week} call="" />
@@ -841,6 +981,262 @@ function Moves({ board, now }: { board: GreenBoard; now: number }) {
 
 /* ── the page ── */
 
+/* ── the newsdesk (a drawer now, no longer a ticker) ── */
+
+const WHOSE: Record<GreenNews["whose"], string> = {
+  mine: "Yours",
+  opp: "Theirs",
+  league: "League",
+  free: "Wire",
+};
+const ORDER: Record<GreenNews["whose"], number> = {
+  mine: 0,
+  opp: 1,
+  free: 2,
+  league: 3,
+};
+
+function News({ board, now }: { board: GreenBoard; now: number }) {
+  const items = [...(board.news ?? [])].sort((a, b) => ORDER[a.whose] - ORDER[b.whose]);
+  const team = (id: string) => (/^[A-Z]{2,3}$/.test(id) ? id : null);
+  return (
+    <section className="gd-sec gd-news" aria-label="League news">
+      <p className="gd-k">Newsdesk · yours first</p>
+      {items.length ? (
+        <ol>
+          {items.map((n, i) => (
+            <li key={i} data-whose={n.whose}>
+              {n.id ? (
+                <Face
+                  p={{
+                    id: n.id,
+                    name: n.name,
+                    pos: team(n.id) ? "DEF" : "WR",
+                    team: team(n.id),
+                  }}
+                  size={30}
+                />
+              ) : (
+                <span className="gd-news-dot" aria-hidden="true" />
+              )}
+              <span>
+                <em>{WHOSE[n.whose]}</em>
+                <b>{n.name}</b> {n.text}
+              </span>
+              {n.at && <small>{ago(n.at, now)}</small>}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="gd-note">Quiet: no news on anyone who matters to you.</p>
+      )}
+    </section>
+  );
+}
+
+/* ── the nine: starters as a row of faces ── */
+
+/** "Tyrone Tracy Jr." → "Tracy"; a defence keeps its name's last word ("D/ST"). */
+const surname = (name: string) => {
+  const w = name.split(/\s+/).filter((x) => !/^(jr|sr|ii|iii|iv|v)\.?$/i.test(x));
+  return w[w.length - 1] ?? name;
+};
+
+function Starters({ board, onOpen }: { board: GreenBoard; onOpen: () => void }) {
+  const calls = board.calls ?? [];
+  const outs = new Set(calls.filter((c) => c.change).map((c) => c.sit.id));
+  const risks = new Set(calls.filter((c) => c.lateRisk).map((c) => c.sit.id));
+  return (
+    <section className="gd-nine gd-rise" style={rise(6)} aria-label="Your starters">
+      <header>
+        <p className="gd-k">Your starters · {board.me.team}</p>
+        <button type="button" className="gd-link-btn" onClick={onOpen}>
+          Full lineup and ranks
+        </button>
+      </header>
+      <ol>
+        {board.roster.starters.map((s: GreenSlot, i) => {
+          const p = s.player;
+          const mark = !p ? "empty" : onBye(p, board.week) ? "bye" : p.inj && ["O", "IR", "SUS"].includes(p.inj) ? "out" : outs.has(p.id) ? "sit" : "";
+          return (
+            <li
+              key={i}
+              data-mark={mark || undefined}
+              title={
+                p
+                  ? `${s.slot} · ${p.name}${mark === "sit" ? ": FantasyPros sits him" : mark === "bye" ? ": on bye" : mark === "out" ? `: ${INJ_WORD[p.inj!]}` : ""}${risks.has(p.id) ? " (late-game risk)" : ""}`
+                  : `${s.slot}: empty`
+              }
+            >
+              {p ? <Face p={p} size={44} /> : <span className="gd-face is-empty" style={{ "--s": "44px" } as React.CSSProperties} />}
+              <small>{s.slot}</small>
+              <b>{p ? (s.pts ? pts(s.pts) : pts(fpPts(p))) : "–"}</b>
+              {p && <span className="gd-nine-name">{surname(p.name)}</span>}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+/* ── go deeper ── */
+
+type DeepId = "lineup" | "odds" | "wire" | "trade" | "byes" | "table" | "moves" | "news" | "booth" | "sources";
+interface Drawer {
+  id: DeepId;
+  k: string;
+  stat: string;
+  label: string;
+  body: () => React.ReactNode;
+}
+
+function drawers(board: GreenBoard, now: number): Drawer[] {
+  const starters = board.roster.starters.reduce((a, s) => a + (s.player ? (fpPts(s.player) ?? 0) : 0), 0);
+  const o = board.odds;
+  const bids = board.bids ?? [];
+  const holes = (board.byeWeeks ?? []).filter((w) => w.holes.length).length;
+  const feeds = board.feeds ?? [];
+  const out: Drawer[] = [
+    {
+      id: "lineup",
+      k: "Lineup and ranks",
+      stat: pts(starters),
+      label: "projected · range, tier, bench",
+      body: () => <Lineup board={board} />,
+    },
+  ];
+  if (o)
+    out.push({
+      id: "odds",
+      k: "Playoff race",
+      stat: pct(o.playoff),
+      label: `top ${o.playoffTeams} · ${o.weeksLeft} week${o.weeksLeft === 1 ? "" : "s"} left`,
+      body: () => <Odds board={board} />,
+    });
+  out.push({
+    id: "wire",
+    k: "The wire",
+    stat: String(bids.length),
+    label: `bid${bids.length === 1 ? "" : "s"} worth placing${board.me.faabLeft !== null ? ` · ${board.me.faabLeft} FAAB` : ""}`,
+    body: () => <Waivers board={board} />,
+  });
+  out.push({
+    id: "trade",
+    k: "Trade idea",
+    stat: board.trade ? "1" : "0",
+    label: board.trade ? `with ${board.trade.team}` : "nothing lines up",
+    body: () => <Trade board={board} />,
+  });
+  if (board.byeWeeks?.length)
+    out.push({
+      id: "byes",
+      k: "Byes",
+      stat: String(holes),
+      label: `week${holes === 1 ? "" : "s"} short · next four`,
+      body: () => <Byes board={board} />,
+    });
+  out.push({
+    id: "table",
+    k: "The table",
+    stat: board.me.rank ? ordinal(board.me.rank) : "–",
+    label: `of ${board.league.teams} · ${board.league.scoring}`,
+    body: () => <Standings board={board} />,
+  });
+  if (board.moves?.length)
+    out.push({
+      id: "moves",
+      k: "League moves",
+      stat: String(board.moves.length),
+      label: "claims, signings, trades",
+      body: () => <Moves board={board} now={now} />,
+    });
+  out.push({
+    id: "news",
+    k: "Newsdesk",
+    stat: String(board.news?.length ?? 0),
+    label: "notes on the league",
+    body: () => <News board={board} now={now} />,
+  });
+  out.push({
+    id: "booth",
+    k: "The booth",
+    stat: "Tue",
+    label: "the Commentator's written call",
+    body: () => <Commentator now={now} />,
+  });
+  out.push({
+    id: "sources",
+    k: "Sources",
+    stat: feeds.length ? `${feeds.filter((f) => f.state === "live").length}/${feeds.length}` : "1",
+    label: "feeds live · where it comes from",
+    body: () => <Sources board={board} now={now} />,
+  });
+  return out;
+}
+
+function Sources({ board, now }: { board: GreenBoard; now: number }) {
+  return (
+    <section className="gd-sec gd-sources" aria-label="Where the numbers come from">
+      <p className="gd-k">Sources · how the board is put together</p>
+      {board.feeds?.length ? <SourcesList feeds={board.feeds} now={now} /> : <p className="gd-note">Sleeper's public league data.</p>}
+      <p className="gd-note">
+        Read-only. FantasyPros makes the start/sit calls; Sleeper's projection sits beside it, never averaged. The win and playoff chances are worked out here from both teams' projections. Team and
+        player names only; the Desk never makes a move in your league.
+      </p>
+    </section>
+  );
+}
+
+function Deeper({ board, now, open, setOpen }: { board: GreenBoard; now: number; open: DeepId | null; setOpen: (d: DeepId | null) => void }) {
+  const list = drawers(board, now);
+  const cur = list.find((d) => d.id === open) ?? null;
+  const panel = useRef<HTMLDivElement>(null);
+  const base = useId();
+  useEffect(() => {
+    if (!open) return;
+    const el = panel.current;
+    if (!el || typeof el.getBoundingClientRect !== "function") return;
+    const r = el.getBoundingClientRect();
+    if (r.top > window.innerHeight * 0.7)
+      el.scrollIntoView({
+        behavior: reducedMotion() ? "auto" : "smooth",
+        block: "start",
+      });
+  }, [open]);
+  return (
+    <section className="gd-deep gd-rise" style={rise(7)} aria-label="Go deeper">
+      <header className="gd-deep-head">
+        <p className="gd-k">Go deeper</p>
+        <p className="gd-note">Everything else, one drawer at a time.</p>
+      </header>
+      <ul className="gd-tiles">
+        {list.map((d, i) => (
+          <li key={d.id} style={rise(i)}>
+            <button type="button" id={`${base}-${d.id}`} className="gd-tile" aria-expanded={open === d.id} aria-controls={`${base}-panel`} onClick={() => setOpen(open === d.id ? null : d.id)}>
+              <small>{d.k}</small>
+              <b>{d.stat}</b>
+              <span>{d.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div ref={panel} id={`${base}-panel`} className="gd-drawer-wrap">
+        {cur && (
+          <div key={cur.id} className="gd-drawer" role="region" aria-labelledby={`${base}-${cur.id}`}>
+            <button type="button" className="gd-drawer-x" onClick={() => setOpen(null)} aria-label={`Close ${cur.k}`}>
+              ×
+            </button>
+            {cur.body()}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ── the page ── */
+
 function headline(board: GreenBoard): string {
   const m = board.matchup;
   if (!m) return "No game this week.";
@@ -855,16 +1251,23 @@ export function Green() {
   const status = useGreen((s) => s.status);
   const board = useGreen((s) => s.board);
   const [now, setNow] = useState(() => Date.now());
+  const [open, setOpen] = useState<DeepId | null>(null);
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(t);
   }, []);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
   return (
     <div className="wv-page rm rm-green gd" data-room="green">
-      {board && <Ticker board={board} />}
-      <header className="rm-head gd-head">
+      <div className="gd-lights" aria-hidden="true" />
+      <header className="rm-head gd-head gd-rise" style={rise(0)}>
         <div>
-          <p className="wv-eyb">The Green · {board ? `${board.league.name} · week ${board.week}` : "the analyst desk"}</p>
+          <p className="wv-eyb">The Green · {board ? `${board.league.name} · week ${board.week}` : "under the floodlights"}</p>
           <h1 className="wv-h1 desk__title gd-h1">
             {board ? (
               <>
@@ -872,7 +1275,7 @@ export function Green() {
               </>
             ) : (
               <>
-                The desk is <em>warming up.</em>
+                The pitch is <em>warming up.</em>
               </>
             )}
           </h1>
@@ -880,47 +1283,31 @@ export function Green() {
         <Keeper page="green" />
       </header>
 
-      <ScoreBug board={board} status={status} />
+      <FaceOff board={board} status={status} />
 
       {board && (
         <>
-          <div className="gd-desk">
-            <div className="gd-main">
-              <Calls board={board} />
-              <Lineup board={board} />
-            </div>
-            <aside className="gd-rail">
-              <Commentator now={now} />
-            </aside>
-          </div>
-          <div className="gd-league">
-            <Odds board={board} />
-            <Waivers board={board} />
-            <div className="gd-stack">
-              <Trade board={board} />
-              <Byes board={board} />
-            </div>
-          </div>
-          <div className="gd-league is-two">
-            <Standings board={board} />
-            <Moves board={board} now={now} />
-          </div>
+          <Calls board={board} />
+          <Starters board={board} onOpen={() => setOpen("lineup")} />
+          <Deeper board={board} now={now} open={open} setOpen={setOpen} />
         </>
       )}
 
-      <AskedSkippy room="green" />
       <SetupAsks room="green" />
-      <RoomFeed room="green" />
 
-      <footer className="gd-sources" aria-label="Where the numbers come from">
-        <p className="gd-k">Sources · how the board is put together</p>
-        {board?.feeds?.length ? <SourcesList feeds={board.feeds} now={now} /> : <p className="gd-note">{status === "ready" ? "Sleeper's public league data." : "Waiting for the league."}</p>}
-        <p className="gd-note">
-          Read-only. FantasyPros makes the start/sit calls; Sleeper's projection sits beside it, never averaged. The win and playoff chances are worked out here from both teams' projections. Team and
-          player names only; the Desk never makes a move in your league.
-          {board?.stale ? ` Sleeper isn't answering: this is the last good read, ${ago(board.at, now)}.` : ""}
-        </p>
-      </footer>
+      <p className="gd-foot">
+        Read-only: the moves are made in{" "}
+        {board ? (
+          <a href={sleeperLeagueUrl(board)} target="_blank" rel="noopener noreferrer">
+            Sleeper
+          </a>
+        ) : (
+          "Sleeper"
+        )}
+        . Calls from FantasyPros, Sleeper's projection beside them.
+        {board?.stale ? ` Sleeper isn't answering: this is the last good read, ${ago(board.at, now)}.` : ""}
+        {!board && status === "ready" ? " Sleeper's public league data." : ""}
+      </p>
     </div>
   );
 }

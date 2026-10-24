@@ -1,126 +1,29 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { chronicleDay, type HistoryEntry, type RoomId, type WorldFeed } from "../chronicle.ts";
+import type { HistoryEntry, RoomId } from "../chronicle.ts";
 import { CREW, type Change, type FoundryData } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
-import { mountainHour, PART } from "./ilyrTime.ts";
-import { formatUsd, monthSpend, SPEND_CAP_USD, type UsageFeed } from "../usage.ts";
-import { clockState, nextLine, useWorldClock } from "../worldClock.ts";
-import { nextRuns } from "./crewRuns.ts";
 import { DayStory } from "./DayStory.tsx";
 import { DESK_ROOMS, type DeskData } from "./deskData.ts";
 import { ideaTitle } from "./IdeaCard.tsx";
 import { Private } from "./Private.tsx";
 import { link } from "./nav.ts";
 import { ROOM_META } from "./roomPulse.ts";
-import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, sprMix, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion } from "./wvCanvas.ts";
+import { dots, HOT, isPhone, knot, OK, Parts, Poly, RC, ring, RUN, smoothPts, spr, TAU, BAD, weave, WHITE, useViz, type VizSpec, frac, reducedMotion } from "./wvCanvas.ts";
 
 /**
- * Today's "more" (#336): the parts that used to sit below the hero, now one quiet link away (TodayMore.tsx loads them
- * on demand): the world clock, what is worth knowing now as three small thread charts, the short version of what
- * happened as a calm timeline, and what the crew does next on one strip. Everything is drawn from the live feeds; a
- * room or a link that isn't connected says so.
+ * Today's "Not worth knowing now" (TodayMore.tsx loads it on demand; #336, #363): what's warm as two small thread
+ * charts, and the short version of what happened as a calm timeline. The progress and bar charts are shared with the
+ * Foundry page. Everything is drawn from the live feeds; a room or a link that isn't connected says so.
  */
 
-const HOUR = 3_600_000;
 const clock = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-const hourLabel = (t: number) => {
-  const d = new Date(t);
-  const h = d.getHours();
-  if (h === 12 && d.getMinutes() === 0) return "Noon";
-  if (h === 0 && d.getMinutes() === 0) return "Midnight";
-  return d.toLocaleTimeString(undefined, { hour: "numeric" });
-};
-
-/** The world clock: the hour of Ilyr's day on a dial, and when it steps next. */
-export function WorldClockCard({ now, world }: { now: number; world: WorldFeed | null }) {
-  const reading = useWorldClock((s) => s.reading);
-  const status = useWorldClock((s) => s.status);
-  const cv = useRef<HTMLCanvasElement>(null);
-  const h = mountainHour(now);
-  const spec = useMemo(() => dialSpec(h), [h]);
-  useViz(cv, spec);
-  const state = clockState(reading, status, now);
-  const today = chronicleDay(now);
-  const written = world ? world.recent.filter((e) => e.day === today).length : null;
-  return (
-    <aside className="wv-wclock" aria-label="World clock">
-      <div className="wv-dial">
-        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
-        <p>
-          <b>{Math.floor(h) || 24}</b>
-          <span>of 24</span>
-        </p>
-      </div>
-      <p className="wv-eyb">World clock</p>
-      <h3 className="wv-h3">
-        {PART(h)} in Ilyr
-      </h3>
-      <dl className="wv-facts">
-        <div>
-          <dt>Next step</dt>
-          <dd>{status === "ready" ? nextLine(reading, now) : status === "failed" ? "Not answering" : status === "off" ? "Not running here" : "Reading…"}</dd>
-        </div>
-        <div>
-          <dt>Last hour</dt>
-          <dd>{reading?.source === "claude" ? "by Claude" : reading?.source === "scripted" ? "from the agents' lines" : "None yet"}</dd>
-        </div>
-        <div>
-          <dt>Today so far</dt>
-          <dd>{written === null ? "Reading…" : `${written} ${written === 1 ? "hour" : "hours"} written`}</dd>
-        </div>
-      </dl>
-      {state !== "ok" && state !== "off" && <p className="wv-wclock-warn">{state === "down" ? "The clock has stopped." : "An hour is overdue."}</p>}
-    </aside>
-  );
-}
-
-function dialSpec(h: number): VizSpec {
-  let r = 0;
-  let cx = 0;
-  let cy = 0;
-  const poly = new Poly();
-  const P = new Parts(110, 0.3);
-  return {
-    lay(V) {
-      r = Math.min(V.W, V.H) / 2 - 10;
-      cx = V.W / 2;
-      cy = V.H / 2;
-      const xs: number[] = [];
-      const ys: number[] = [];
-      for (let i = 0; i <= 60; i++) {
-        const a = -Math.PI / 2 + (i / 60) * (h / 24) * TAU;
-        xs.push(cx + Math.cos(a) * r);
-        ys.push(cy + Math.sin(a) * r);
-      }
-      poly.set(xs, ys);
-    },
-    draw(_V, c, t, dt) {
-      for (let k = 0; k < 24; k++) {
-        const a = -Math.PI / 2 + (k / 24) * TAU;
-        const lit = k <= h;
-        const night = k >= 22 || k < 6;
-        const col = night ? RC.relay! : k >= 17 ? HOT : WHITE;
-        c.globalAlpha = lit ? (night ? 0.55 : 0.7) : 0.18;
-        c.strokeStyle = `rgba(${col},1)`;
-        c.lineWidth = k % 6 === 0 ? 1.6 : 1;
-        c.beginPath();
-        c.moveTo(cx + Math.cos(a) * (r - 7), cy + Math.sin(a) * (r - 7));
-        c.lineTo(cx + Math.cos(a) * (r + 4), cy + Math.sin(a) * (r + 4));
-        c.stroke();
-      }
-      weave(c, poly, P, { a: 0.9, sp: 1.4, sz: 0.6, v: 18, rgb: WHITE, rgb2: HOT, line: 0.12, col: (u) => sprMix(RC.relay!, HOT, u) }, t, dt);
-      const e = poly.at(1);
-      knot(c, e.x, e.y, 0.62, t, HOT, 1);
-    },
-  };
-}
 
 /* ── Worth knowing now ── */
 
 export type Seg = "ok" | "run" | "wait" | "bad";
 const SEG_OF: Record<LinkState, Seg> = { ok: "ok", slow: "run", off: "wait", down: "bad" };
 
-export function WorthKnowing({ data, usage, world, owed }: { data: FoundryData; usage: UsageFeed | null; world: WorldFeed | null; owed: number }) {
+export function WorthKnowing({ data, owed }: { data: FoundryData; owed: number }) {
   const links = useSystems((s) => s.links);
   const state = (id: string): LinkState => links.find((l) => l.id === id)?.state ?? "off";
   const checks: [string, LinkState][] = [
@@ -144,47 +47,23 @@ export function WorthKnowing({ data, usage, world, owed }: { data: FoundryData; 
   const relayLine =
     hub === "off" ? "Blasto can't start until the MacBook is awake, on power and online, with the hub running." : hub === "down" ? "The hub on the MacBook stopped answering. Replies wait until it's back." : owed ? `The hub is live. ${owed} ${owed === 1 ? "reply is" : "replies are"} waiting on you.` : "The hub is live and nobody is waiting on you.";
 
-  // This month's spend: the Claude cap (idea shaping, the world's hours, the story scripts) plus Gemini's speech cap.
-  const month = usage ? monthSpend(usage.trails, Date.now()) : null;
-  const worldUsd = world?.spend.usd ?? 0;
-  const scripts = world?.story?.scriptUsd ?? 0;
-  const speech = world?.story?.usd ?? 0;
-  const speechCap = world?.story?.budget ?? 0;
-  const cap = SPEND_CAP_USD + speechCap;
-  const parts = [
-    { f: worldUsd, rgb: RC.boiler! },
-    { f: month?.usd ?? 0, rgb: RC.foundry! },
-    { f: scripts, rgb: RC.archive! },
-    { f: speech, rgb: RC.workshop! },
-  ];
-  const total = parts.reduce((a, p) => a + p.f, 0);
-  const known = Boolean(world || usage);
-  const spendLine = !known ? "Reading this month's spend…" : (
-    <>
-      <Private>{formatUsd(total)}</Private>
-      {` of the ${formatUsd(cap)} the caps allow this month.${total / cap < 0.5 ? " Gary says that's thrifty. Gary says that about everything." : total / cap < 0.85 ? " Gary is keeping an eye on it." :  " Gary would like a word."}`}
-    </>
-  );
-
-  const fire = red.length + (hub === "down" ? 1 : 0) + (known && total / cap >= 0.9 ? 1 : 0);
-  const head = fire ? `${fire === 1 ? "One thing is" : `${fire} things are`} on fire.` : "Nothing's on fire. Three things are warm.";
+  const fire = red.length + (hub === "down" ? 1 : 0);
+  const head = fire ? `${fire === 1 ? "One thing is" : `${fire} things are`} warmer than it should be.` : "Nothing's on fire. Two things are warm.";
 
   const progSpec = useMemo(() => progSpecOf(checks.map(([, s]) => SEG_OF[s])), [checks.map(([, s]) => s).join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const chainSpec = useMemo(() => chainSpecOf([mac, hub, hub === "ok" ? "ok" : "off"]), [mac, hub]);
-  const barSpec = useMemo(() => barSpecOf(parts.map((p) => ({ f: cap ? p.f / cap : 0, rgb: p.rgb }))), [worldUsd, month?.usd, scripts, speech, cap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <section className="wv-press" aria-label="Worth knowing now">
       <div className="wv-sechead">
         <div>
-          <p className="wv-eyb">Worth knowing now</p>
+          <p className="wv-eyb">Warm, not on fire</p>
           <h2 className="wv-h2">{head}</h2>
         </div>
       </div>
       <div className="wv-press-row">
         <PressCard room="foundry" k="Foundry, the checks on main" text={checksLine} spec={progSpec} labels={checks.map(([n]) => n)} bad={red.length > 0} href={data.checks.url ?? undefined} />
         <PressCard room="relay" ringDot={hub !== "ok"} k={hub === "ok" ? "Relay, live" : "Relay, whenever you're ready"} text={relayLine} spec={chainSpec} labels={["MacBook", "Hub", "Relay"]} />
-        <PressCard room="boiler" k="Spend, this month" text={spendLine} spec={barSpec} labels={["$0", `${formatUsd(cap)} in caps`]} />
       </div>
     </section>
   );
@@ -478,178 +357,3 @@ function feedSpec(): VizSpec {
   };
 }
 
-/* ── Coming up ── */
-
-interface Next {
-  key: string;
-  at: number;
-  room: RoomId;
-  what: string;
-  when: string;
-}
-
-/** The next Mountain wall-clock hour `h` after `now`. */
-function nextMountain(now: number, h: number): number {
-  const cur = mountainHour(now);
-  let wait = (h - cur) * HOUR;
-  if (wait <= 0) wait += 24 * HOUR;
-  return now + wait - (now % 60_000);
-}
-
-export function ComingUp({ now }: { now: number }) {
-  const reading = useWorldClock((s) => s.reading);
-  const cv = useRef<HTMLCanvasElement>(null);
-  const minute = Math.floor(now / 60_000);
-  const items = useMemo(() => {
-    const at = new Date(minute * 60_000);
-    const runs = nextRuns(at);
-    const ms = at.getTime();
-    const list: Next[] = [
-      { key: "queue", at: runs.queue.getTime(), room: "foundry", what: "Queue check", when: `${span(runs.queue.getTime() - ms)}, the dock crew` },
-      { key: "upkeep", at: runs.upkeep.getTime(), room: "workshop", what: "Upkeep", when: `${clock(runs.upkeep.getTime())}, Rivet` },
-      { key: "ideas", at: runs.ideas.getTime(), room: "spire", what: "Morning ideas", when: `${clock(runs.ideas.getTime())}, Rusty` },
-      { key: "story", at: nextMountain(ms, 0), room: "archive", what: "Today becomes a story", when: "After midnight, the Historian" },
-    ];
-    if (reading?.nextAt) {
-      const t = Date.parse(reading.nextAt);
-      if (t > ms) list.push({ key: "hour", at: t, room: "boiler", what: "Ilyr's next hour", when: `${clock(t)}, the world clock` });
-    }
-    return list.sort((a, b) => a.at - b.at);
-  }, [minute, reading?.nextAt]);
-  const end = Math.max(...items.map((i) => i.at));
-  const quiet: [number, number] = [nextMountain(now, 22), nextMountain(now, 7)];
-  const inQuiet = quiet[1] < quiet[0];
-  const band: [number, number] = inQuiet ? [now, quiet[1]] : quiet;
-  const axis = [
-    { at: now, label: "Now" },
-    { at: band[0], label: hourLabel(band[0]) },
-    { at: nextMountain(now, 0), label: "Midnight" },
-    { at: band[1], label: hourLabel(band[1]) },
-  ].filter((a, i) => i === 0 || (a.at > now + HOUR && a.at < end - HOUR / 2));
-  const spec = useMemo(() => stripSpec(items.map((i) => i.at), band, now, end), [items, band[0], band[1], now, end]); // eslint-disable-line react-hooks/exhaustive-deps
-  useViz(cv, spec);
-  return (
-    <section className="wv-next" aria-label="Coming up">
-      <div className="wv-sechead">
-        <div>
-          <p className="wv-eyb">Coming up</p>
-          <h2 className="wv-h2">What the crew does next</h2>
-        </div>
-        <p className="wv-note">Whether you watch or not. Pings stay quiet from 10 PM to 7 AM, Mountain.</p>
-      </div>
-      <div className="wv-strip">
-        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
-        <ul className="wv-strip-l">
-          {items.map((i, k) => (
-            <li key={i.key} data-room={i.room} data-at={i.at}>
-              <b>{i.what}</b>
-              <span>{k === 0 ? `in ${i.when}` : i.when}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="wv-strip-ax" aria-hidden="true">
-          {axis.map((a) => (
-            <span key={a.label} data-at={a.at}>
-              {a.label}
-            </span>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function span(ms: number): string {
-  const m = Math.max(1, Math.round(ms / 60_000));
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m / 60);
-  return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
-}
-
-function stripSpec(ats: number[], band: [number, number], now: number, end: number): VizSpec {
-  let ks: { x: number; y: number; rgb: string }[] = [];
-  let ph = false;
-  let night: [number, number] | null = null;
-  const poly = new Poly();
-  const P = new Parts(150, 0.1);
-  const nearest = (x: number, y: number) => {
-    let b = ks[0]!;
-    for (const k of ks) if ((ph ? Math.abs(k.y - y) : Math.abs(k.x - x)) < (ph ? Math.abs(b.y - y) : Math.abs(b.x - x))) b = k;
-    return b;
-  };
-  return {
-    lay(V) {
-      const host = V.cv.parentElement!;
-      const lis = [...host.querySelectorAll<HTMLElement>(".wv-strip-l li")];
-      const ax = [...host.querySelectorAll<HTMLElement>(".wv-strip-ax span")];
-      ph = isPhone(V.cv);
-      const pad = ph ? 28 : 64;
-      const f = (t: number) => Math.sqrt(Math.max(0, t - now) / Math.max(1, end - now));
-      ks = [];
-      if (ph) {
-        const n = lis.length;
-        const tx = 26;
-        lis.forEach((li, i) => {
-          const y = pad + (i * (V.H - 2 * pad)) / Math.max(1, n - 1);
-          li.style.left = `${tx + 22}px`;
-          li.style.top = `${y}px`;
-          li.style.transform = "translateY(-50%)";
-          li.style.textAlign = "left";
-          li.classList.remove("is-l", "is-r");
-          ks.push({ x: tx, y, rgb: RC[li.dataset.room ?? ""] ?? WHITE });
-        });
-        ax.forEach((s) => (s.style.display = "none"));
-        poly.set([tx, tx], [8, V.H - 8]);
-        night = null;
-      } else {
-        const y0 = V.H * 0.5;
-        // Labels take the row above or below the thread, whichever is clear, so two close runs never overlap.
-        const last = [-1e9, -1e9];
-        lis.forEach((li, i) => {
-          const x = pad + f(Number(li.dataset.at)) * (V.W - 2 * pad);
-          const w = li.offsetWidth;
-          const l0 = x < 160 ? x - 8 : x - w / 2;
-          const row = l0 > last[0]! + 14 ? 0 : l0 > last[1]! + 14 ? 1 : last[0]! <= last[1]! ? 0 : 1;
-          last[row] = l0 + w;
-          li.classList.toggle("is-lo", row === 1);
-          li.style.left = `${x}px`;
-          li.style.top = `${y0}px`;
-          li.style.transform = "";
-          li.style.textAlign = "";
-          li.classList.toggle("is-l", x < 160);
-          li.classList.toggle("is-r", i === lis.length - 1 && x > V.W - 160);
-          ks.push({ x, y: y0, rgb: RC[li.dataset.room ?? ""] ?? WHITE });
-        });
-        ax.forEach((s) => {
-          s.style.display = "";
-          s.style.left = `${pad + f(Number(s.dataset.at)) * (V.W - 2 * pad)}px`;
-        });
-        poly.set([pad - 30, V.W - pad + 30], [y0, y0]);
-        night = [pad + f(band[0]) * (V.W - 2 * pad), pad + f(Math.min(band[1], end + HOUR)) * (V.W - 2 * pad)];
-      }
-    },
-    draw(V, c, t, dt) {
-      if (!ks.length) return;
-      if (night && night[1] > night[0]) {
-        c.globalCompositeOperation = "source-over";
-        const g = c.createLinearGradient(night[0], 0, night[1], 0);
-        g.addColorStop(0, `rgba(${RC.relay},0)`);
-        g.addColorStop(0.15, `rgba(${RC.relay},.07)`);
-        g.addColorStop(0.85, `rgba(${RC.relay},.07)`);
-        g.addColorStop(1, `rgba(${RC.relay},0)`);
-        c.fillStyle = g;
-        c.fillRect(night[0], 0, night[1] - night[0], V.H);
-        c.globalCompositeOperation = "lighter";
-        c.globalAlpha = 1;
-        c.fillStyle = `rgba(${RC.relay},.55)`;
-        c.font = '10.5px "IBM Plex Mono", ui-monospace, monospace';
-        c.textAlign = "center";
-        c.fillText("pings quiet", (night[0] + night[1]) / 2, 18);
-      }
-      weave(c, poly, P, { a: 0.7, sp: 1.2, sz: 0.6, v: 16, line: 0.14, jit: 0.3, col: (_u, x, y) => spr(nearest(x, y).rgb) }, t, dt);
-      ks.forEach((k, i) => knot(c, k.x, k.y, i === 0 ? 0.8 : 0.62, t, k.rgb, i === 0 ? 1 : 0.9));
-    },
-  };
-}
-
-/** Used by the hero: everything here eases in on scroll, never gating the reading. */

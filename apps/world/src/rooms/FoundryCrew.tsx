@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { CanvasTexture, Color, MeshBasicMaterial, MeshStandardMaterial, SRGBColorSpace, type Group, type Material, type Mesh } from "three";
 import { Body, topOf } from "../agents/bodies/Body.tsx";
+import { paintDock } from "../agents/dockPaint.ts";
 import { Plate } from "../agents/Nameplate.tsx";
 import { crateCard } from "../agents/taskCard.ts";
 import { onTask } from "../agents/taskLine.ts";
@@ -191,25 +192,6 @@ interface UnitState {
 type Dimmable = { mat: MeshStandardMaterial; color: Color; intensity: number; env: number };
 
 /**
- * Its own paint: the rust frame's texture greyed down and washed in the crew member's colour, so Dusty, Gusty and
- * Musty read as three different salvage robots and none of them as Rusty.
- */
-function paint(mat: MeshStandardMaterial, colour: string): void {
-  const tint = { value: new Color(colour) };
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uPaint = tint;
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform vec3 uPaint;")
-      .replace(
-        "#include <map_fragment>",
-        "#include <map_fragment>\n{ float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)); diffuseColor.rgb = mix(diffuseColor.rgb, uPaint * l * 2.3, 0.9); }",
-      );
-  };
-  mat.customProgramCacheKey = () => "dock-crew-paint";
-  mat.needsUpdate = true;
-}
-
-/**
  * A dock crew member's name plate while it's out on the line: its name, the job it's on ("#43 · Speeding up the
  * Lattice") and the card with the detail on hover, the same as the crew's own plates.
  */
@@ -351,7 +333,7 @@ function SpareUnit({ index, active, look, state, job }: { index: number; active:
         const src = mesh.material as Material | Material[];
         if (Array.isArray(src) || !(src as MeshStandardMaterial).isMeshStandardMaterial) return;
         const mat = (src as MeshStandardMaterial).clone();
-        paint(mat, colour);
+        paintDock(mat, colour);
         mesh.material = mat;
         dim.list.push({ mat, color: mat.color.clone(), intensity: mat.emissiveIntensity, env: mat.envMapIntensity });
       });

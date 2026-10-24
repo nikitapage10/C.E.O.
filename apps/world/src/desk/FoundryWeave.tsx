@@ -15,7 +15,7 @@ import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 import { knot, OK, Parts, Poly, RC, ring, smoothPts, spr, useViz, weave, WHITE, type VizSpec } from "./wvCanvas.ts";
 
 /**
- * The Foundry in the approved Weave (desk-concepts round five): a headline with the Builder's word, the loom with every
+ * The Foundry in the approved Weave (desk-concepts round five): a headline with the Foundry in one status line, the loom with every
  * real item as a knot you can open, every job in flight on its own strand (up to four, then "+N more"), the job in flight with its stages, the ideas on the bench beside the Suggest box,
  * the crew as portraits, and the changelog, runs, usage and Visual QA below. Every number and name comes from GitHub,
  * the issue trails, the world's ledger and the Visual QA feed; anything not connected says so.
@@ -39,7 +39,7 @@ export function isBuild(c: Crate) {
   return c.kind !== "idea" || c.state === "working";
 }
 
-/* ── The headline and the Builder's word ── */
+/* ── The headline and the Foundry in one line ── */
 
 export function FoundryHead({ data, ideas, now, connected, lead }: { data: FoundryData; ideas: Crate[]; now: number; connected: boolean; lead: string }) {
   const working = data.crates.filter((c) => isBuild(c) && c.state === "working");
@@ -47,18 +47,6 @@ export function FoundryHead({ data, ideas, now, connected, lead }: { data: Found
   const week = data.changelog.filter((c) => now - c.at < 7 * 24 * HOUR).length;
   const today = shippedToday(data.changelog, now);
   const checks = data.checks.state;
-  const checksLine = checks === "pass" ? "checks on main came back green" : checks === "fail" ? "checks on main are red" : checks === "running" ? "checks on main are running" : "no check run read yet";
-  const quote = !connected
-    ? "I can't see the shop floor yet. GitHub hasn't answered. I'm told patience is a virtue. I'm told a lot of things."
-    : checks === "fail"
-      ? "Main went red. Rivet's already on it, and nothing new ships until it's green. That's the rule. I wrote the rule."
-      : working[0]
-        ? `${who} is on “${ideaTitle(working[0].title)}”. Tests are the slow part. They always are. I've stopped hovering. Mostly.`
-        : ideas.length
-          ? `${words(ideas.length)} ${ideas.length === 1 ? "idea is" : "ideas are"} on the bench waiting for your pick. The loom's warm. Say the word.`
-          : today
-            ? `${words(today)} shipped today and the loom is resting. I'd call that a good day, if I called days anything.`
-            : `The loom is quiet. The next ideas arrive ${countdown(nextRuns(new Date(now)).ideas, new Date(now))}. I'll pretend I'm not counting.`;
   return (
     <header className="wv-fhead">
       <div>
@@ -79,16 +67,28 @@ export function FoundryHead({ data, ideas, now, connected, lead }: { data: Found
           )}
         </h1>
         <p className="wv-sub">
-          Ideas come in on the left, warm, and ship on the right, cool. {week ? `${words(week)} shipped this week` : "Nothing shipped this week yet"}, and {checksLine}. {lead} Open any knot to follow its thread.
+          Ideas come in on the left, warm, and ship on the right, cool. {lead} Open any knot to follow its thread.
         </p>
       </div>
-      <figure className="wv-builder" data-room="foundry">
-        <img src={pic(ROOM_META.foundry.submind.id)} alt="" />
-        <blockquote>“{quote}”</blockquote>
-        <figcaption>
-          <b>{ROOM_META.foundry.submind.title}</b>Skippy's submind in the Foundry
-        </figcaption>
-      </figure>
+      {/* The Foundry at a glance, in one line (#328): replaces the Builder's quote card. */}
+      <ul className="wv-fstatus" aria-label="The Foundry right now">
+        <li data-tone={!connected ? "off" : who ? "run" : ideas.length ? "hot" : "ok"}>
+          <i />
+          {!connected ? "Waiting for GitHub" : who ? `${who} at the loom${working.length > 1 ? ` · ${working.length} building` : ""}` : ideas.length ? `${words(ideas.length)} on the bench` : "Loom resting"}
+        </li>
+        <li data-tone={today ? "ok" : "off"}>
+          <i />
+          {today ? `${words(today)} shipped today` : week ? `${words(week)} shipped this week` : "Nothing shipped this week"}
+        </li>
+        <li data-tone={checks === "pass" ? "ok" : checks === "fail" ? "bad" : checks === "running" ? "run" : "off"}>
+          <i />
+          {checks === "pass" ? "Main is green" : checks === "fail" ? "Main is red" : checks === "running" ? "Checks running" : "No check run yet"}
+        </li>
+        <li data-tone="off">
+          <i />
+          Next ideas {countdown(nextRuns(new Date(now)).ideas, new Date(now))}
+        </li>
+      </ul>
     </header>
   );
 }
@@ -753,8 +753,9 @@ export function CrewRow({ data, now }: { data: FoundryData; now: number }) {
         <li className="wv-dock" data-room="workshop">
           <span className="wv-dock-m">
             {DOCK_CREW.map((d) => (
-              <i key={d.name} style={{ borderColor: d.colour }}>
-                {d.name[0]}
+              <i key={d.name} className="has-pic" style={{ borderColor: d.colour }} title={d.name}>
+                {/* Rusty's salvage-compactor body in each one's own paint (scripts/portraits.mjs). */}
+                <img src={pic(d.name.toLowerCase())} alt={d.name} />
               </i>
             ))}
           </span>
@@ -889,14 +890,15 @@ export function UsageWoven({ usage, world, now, children }: { usage: UsageFeed |
   const month = usage ? monthSpend(usage.trails, now) : null;
   const worldUsd = world?.spend.usd ?? 0;
   const scripts = world?.story?.scriptUsd ?? 0;
-  const speech = world?.story?.usd ?? 0;
-  const speechCap = world?.story?.budget ?? 0;
+  // Today in Ilyr's voice (#365): ElevenLabs first, Gemini's speech when it fails or passes its cap.
+  const speech = (world?.story?.usd ?? 0) + (world?.story?.elevenUsd ?? 0);
+  const speechCap = (world?.story?.budget ?? 0) + (world?.story?.elevenBudget ?? 0);
   const cap = SPEND_CAP_USD + speechCap;
   const parts = [
     { k: "boiler", b: "The living Lattice", s: "Claude API, hourly", usd: worldUsd },
-    { k: "archive", b: "The day's story", s: "Gemini speech", usd: speech },
+    { k: "archive", b: "Today in Ilyr", s: "ElevenLabs, Gemini fallback", usd: speech },
     { k: "foundry", b: "Idea shaping", s: "Claude API, Rivet", usd: month?.usd ?? 0 },
-    { k: "workshop", b: "Story scripts", s: "Claude API, the Historian", usd: scripts },
+    { k: "workshop", b: "Today's scripts", s: "Claude API, Skippy", usd: scripts },
   ];
   const total = parts.reduce((a, p) => a + p.usd, 0);
   const known = Boolean(usage || world);

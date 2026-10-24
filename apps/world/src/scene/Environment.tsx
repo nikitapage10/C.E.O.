@@ -1,15 +1,44 @@
 import { MeshReflectorMaterial } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, ShaderMaterial, type Group, type Points } from "three";
 import { useWorld } from "../store.ts";
 import { PALETTE } from "../theme.ts";
 
 export const FLOOR_Y = -6;
 
+/**
+ * The floor's reflection draws the scene once more each frame, before the main pass. It reuses the matrices the
+ * main pass worked out a frame earlier instead of recomputing every matrix in the scene for itself (#327): a blurred
+ * reflection a frame behind looks the same, and the walk over thousands of objects goes once per frame, not twice.
+ */
+function useLeanReflection(on: boolean) {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    if (!on) return;
+    const render = gl.render;
+    gl.render = function (this: typeof gl, s, camera) {
+      if (s !== scene || camera === get().camera) return render.call(this, s, camera);
+      const auto = s.matrixWorldAutoUpdate;
+      s.matrixWorldAutoUpdate = false;
+      try {
+        return render.call(this, s, camera);
+      } finally {
+        s.matrixWorldAutoUpdate = auto;
+      }
+    };
+    return () => {
+      gl.render = render;
+    };
+  }, [on, gl, scene, get]);
+}
+
 /** The black mirror the Lattice floats over. */
 export function Floor() {
   const quality = useWorld((s) => s.quality);
+  useLeanReflection(quality === "high");
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_Y, 0]}>
       <planeGeometry args={[420, 420]} />

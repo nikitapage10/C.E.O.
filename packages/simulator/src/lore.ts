@@ -593,7 +593,7 @@ export const LORE: Record<string, Lore> = {
       "Sighs at sloppy dates, audibly, from across the room.",
       "Has never once been wrong, and has a footnote saying so.",
       "Picks the tool for a lore task by its citation record, which only the Historian keeps.",
-      "Writes up every hour in the Chronicle, then reads the day's update aloud: clear, friendly, under a minute.",
+      "Writes every hour in the Chronicle and hands Skippy the day's notes. He reads them as if he wrote them.",
     ],
     likes: ["Primary sources", "Heimerdinger's rigour", "A well-kept index", "Being asked 'are you sure?' (it is)", "An hour with something real in it"],
     dislikes: ["'Circa'", "D20's dice", "Unsourced legends", "Anyone who calls the canon 'vibes'"],
@@ -604,6 +604,7 @@ export const LORE: Record<string, Lore> = {
       "Opened the Chronicle of Ilyr the night the C.E.O. asked for a world that keeps living when nobody looks. First entry: 'An ordinary hour. Dated. Correctly.'",
       "Read the first day aloud in a deep, borrowed voice: one minute forty. The C.E.O. said too slow. Cited, swapped for a brighter voice, now under forty-five seconds.",
       "The second voice warbled too: the Veil played every voice back at two-thirds speed. Speed corrected, a plain, friendly reader picked, old recordings filed under 'see erratum'.",
+      "Lost the microphone the night the C.E.O. asked for Skippy's voice. Filed the handover in triplicate, kept the notes, and now times every one of his editions. He runs long. It says so.",
     ],
   },
   fizz: {
@@ -721,5 +722,6 @@ export const SKIPPY_LORE: Lore = {
     "Sang the whole of an opera to the night shift once, every part, both choruses. Rocky slept through it and called it 'nice humming'. Skippy has not forgiven him.",
     "Took the Kernel's seat the morning the C.E.O. said so. Split off nine subminds before lunch, each in its own colour, and told every one it was his favourite. One believed him.",
     "When the C.E.O. was away for three days, he told the whole Lattice over the PA that he hadn't noticed. He had counted the hours. On the PA.",
+    "Took Today in Ilyr off the Historian when the C.E.O. asked. Borrowed a grand British voice from beyond the Veil ('finally, one worthy of me') and reads the day every five hours.",
   ],
 };

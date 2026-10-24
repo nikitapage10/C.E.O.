@@ -37,6 +37,7 @@ export function greenLines(board: GreenBoard | null): string[] {
     const sl = c.sleeper === "unknown" ? "Sleeper has no projection" : `Sleeper ${c.sleeper}`;
     out.push(`Call ${c.slot}: ${verb} ${who(c.start)} over ${who(c.sit)}; FP edge ${pts(Math.abs(c.edge))}; ${sl}${c.split ? "; split decision" : ""}${c.tiebreak ? "; settled by the tiebreak" : ""}.`);
     if (c.tiebreak) out.push(`${c.slot} ${c.tiebreak}`);
+    if (c.lateRisk) out.push(`${c.slot} ${c.lateRisk}`);
   }
   if (!board.calls?.length) out.push("No close start/sit calls this week.");
   const starters = board.roster.starters.filter((s) => s.player).map((s) => `${s.slot} ${s.player!.name} FP ${pts(s.player!.fp ?? s.player!.proj)}${s.player!.sl !== undefined ? ` / SLP ${pts(s.player!.sl)}` : ""}${s.player!.inj ? ` ${s.player!.inj}` : ""}`);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { dailyOpening } from "../motion.tsx";
 import { greeting, skippyLine, type PulseState, type RoomPulse } from "../roomPulse.ts";
 import { SKIPPY_PORTRAIT, SkippyAvatar } from "../skippy/index.ts";
@@ -20,16 +20,15 @@ const TICKS = [0, 1, 2, 3, 4];
  * showing how busy one of the rooms are and what are they doing currently"). Skippy's line and the greeting in the
  * big serif, then the rooms' strands: every room's thread runs out of Skippy's knot to its submind, who sits on its end
  * with the room's name, how busy it is and what it is doing right now. Hovering or focusing a strand brings its
- * submind's report up under the picture (the Council, folded into the picture); a click walks into the room. The first
+ * submind's report up under the picture and lights its report in the Council below (#363, `hot`); a click walks into the room. `under` and `aside` sit beside the greeting: Right now and the rail. The first
  * open of the day plays the opening (Opening.tsx); later opens grow in, in half a second. Real data only (roomPulse.ts).
  */
-export function TodayHero({ now, pulses, todo, since, onPre }: { now: number; pulses: RoomPulse[]; todo: number; since: number; onPre: (pre: boolean) => void }) {
+export function TodayHero({ now, pulses, todo, since, onPre, hot, onHot, under, aside }: { now: number; pulses: RoomPulse[]; todo: number; since: number; onPre: (pre: boolean) => void; hot: string | null; onHot: (id: string | null) => void; under?: ReactNode; aside?: ReactNode }) {
   const [opening, setOpening] = useState(() => dailyOpening(now) === "first" && !reducedMotion());
   const [run, setRun] = useState(0);
   // The greeting: hidden while the opening runs, then written in letter by letter (start and step in ms).
   const [write, setWrite] = useState<{ start: number; step: number } | null>(() => (opening ? null : { start: 60, step: 14 }));
   const [glow, setGlow] = useState(false);
-  const [hot, setHot] = useState<string | null>(null);
   const cv = useRef<HTMLCanvasElement>(null);
 
   const byId = useMemo(() => new Map(pulses.map((p) => [p.id as string, p])), [pulses]);
@@ -98,24 +97,27 @@ export function TodayHero({ now, pulses, todo, since, onPre }: { now: number; pu
   const onDone = useCallback(() => setOpening(false), []);
 
   const text = greeting(now);
-  const hover = (id: string | null) => {
-    FAN.hot = id;
-    setHot(id);
+  // The lit strand follows `hot`, from a strand here or a report in the Council below (#363).
+  useEffect(() => {
+    FAN.hot = hot;
     // A re-layout redraws even a still (reduced-motion) canvas; with motion the loop just carries on.
     if (reducedMotion()) FAN.V?.relayout();
     else kick();
-  };
+  }, [hot]);
   useEffect(
     () => () => {
       FAN.hot = null;
     },
     [],
   );
+  const hover = onHot;
   const lit = hot ? byId.get(hot) : null;
   const real = pulses.filter((p) => p.real).length;
 
   return (
     <>
+      <div className="td-top">
+      <div className="td-main">
       <header className="wv-hero wv-hero--one" aria-label="Today at a glance">
         <div className={`wv-skip${glow ? " is-glow" : ""}`} data-in>
           {/* Skippy, the Magnificent (#224): a click opens his chat (mounted once at the Desk's root, Desk.tsx). */}
@@ -143,8 +145,16 @@ export function TodayHero({ now, pulses, todo, since, onPre }: { now: number; pu
           {skippyLine(todo, pulses)}
         </p>
       </header>
+      {under}
+      </div>
+      {aside}
+      </div>
 
-      <section className="wv-loom" data-in aria-label="The rooms right now">
+      <section className="wv-loom" id="td-rooms" data-in aria-label="The rooms right now">
+        <div className="td-sechead">
+          <p className="wv-eyb">The rooms, live</p>
+          <h2 className="td-h2">Every strand runs from Skippy to a room</h2>
+        </div>
         <div className="wv-loom-pic">
           <canvas ref={cv} className="wv-cv" aria-hidden="true" />
           <span className="wv-loom-knot" aria-hidden="true">
@@ -195,9 +205,9 @@ export function TodayHero({ now, pulses, todo, since, onPre }: { now: number; pu
               </>
             ) : (
               <>
-                <b>Every strand is a room</b>
+                <b>How to read it</b>
                 <span>
-                  {real} of {pulses.length} run real work. The knots are today's moments, from the morning at Skippy's end to now at the room's. Hover a strand to hear its submind; tap to walk in.
+                  {real} of {pulses.length} rooms run real work. The more dots, the busier the room; the knots are today's moments, from the morning at Skippy's end to now at the room's. Point at a strand to hear its submind; tap to walk in.
                 </span>
               </>
             )}

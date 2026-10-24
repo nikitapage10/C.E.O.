@@ -75,29 +75,33 @@ export const useChronicle = create<ChronicleStore>((set, get) => ({
   },
 }));
 
-/* ── The day's story (issue #95): the Historian reading the day aloud ── */
+/* ── The day's story (issue #95): Skippy reading the day aloud (#365; the Historian before), in editions ── */
 
 /** A day's story as the Desk holds it: the answer, or where its read stands. */
 export type StoryState = DayStoryView | "loading" | "failed" | "off";
 
 interface StoryStore {
   stories: Record<string, StoryState>;
-  loadStory: (day: string) => Promise<void>;
+  /** Load a day's story; `refresh` asks again for one already loaded (a newer edition may be out, #365). */
+  loadStory: (day: string, refresh?: boolean) => Promise<void>;
   /** The Desk's "Make it now" (in its sign-in session, #132): says why not, when it wasn't made. */
   makeStory: (day: string) => Promise<{ made: boolean; reason?: string; error?: string }>;
 }
 
 export const useDayStory = create<StoryStore>((set, get) => ({
   stories: {},
-  loadStory: async (day) => {
+  loadStory: async (day, refresh = false) => {
     const have = get().stories[day];
-    if (have && have !== "failed") return;
-    set({ stories: { ...get().stories, [day]: "loading" } });
+    if (have && have !== "failed" && (!refresh || typeof have !== "object")) return;
+    if (!refresh) set({ stories: { ...get().stories, [day]: "loading" } });
     try {
       const got = await getJson<DayStoryView>(`/api/day-story?day=${encodeURIComponent(day)}`);
+      const now = get().stories[day];
+      // A refresh only replaces what's shown when a different edition came back.
+      if (refresh && typeof now === "object" && now.ready && typeof got === "object" && got.ready && now.at === got.at) return;
       set({ stories: { ...get().stories, [day]: got } });
     } catch {
-      set({ stories: { ...get().stories, [day]: "failed" } });
+      if (!refresh) set({ stories: { ...get().stories, [day]: "failed" } });
     }
   },
   makeStory: async (day) => {

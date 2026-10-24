@@ -57,24 +57,26 @@ export function LatticeTimings() {
   const fps = median(list.map((t) => t.fps));
 
   return (
-    <section className="wv-sysclock wv-ltime" data-room="boiler" aria-label="How the Lattice loads">
-      <p className="wv-eyb">The Lattice · how it loads on this machine</p>
-      <h2 className="wv-h2">
-        {state === "loading" ? "Reading the timings" : state === "off" ? "No timings to read here" : list.length ? `${list.length} arrivals timed` : "No arrival timed yet"}
-      </h2>
-      <p className="wv-note" style={{ marginTop: 8 }}>
-        Each trip into the Lattice, timed in your own browser: from the click to the first frame on screen and to the curtain lifting, then the frame rate
-        over the next five seconds. Timings and counts only.
+    <details className="bx-more bx-ltime" aria-label="How the Lattice loads">
+      <summary>
+        <span className="bx-eyb">The Lattice · how it loads on this machine</span>
+        <b>
+          {state === "loading" ? "Reading the timings" : state === "off" ? "No timings to read here" : !list.length ? "No arrival timed yet" : `Desk to Lattice ${firsts === null ? "–" : sec(firsts)} first, ${returns === null ? "–" : sec(returns)} after`}
+        </b>
+      </summary>
+      <p className="bx-note">
+        Each trip into the Lattice, timed in your own browser: from the click to the first frame on screen and to the curtain lifting, then the frame rate over
+        the next five seconds. Timings and counts only.
       </p>
       {list.length > 0 && (
         <>
-          <dl className="wv-facts">
+          <dl className="bx-readout">
             <div>
-              <dt>Desk to Lattice, first trip</dt>
+              <dt>First trip</dt>
               <dd>{firsts === null ? "–" : sec(firsts)}</dd>
             </div>
             <div>
-              <dt>Desk to Lattice, back again</dt>
+              <dt>Back again</dt>
               <dd>{returns === null ? "–" : sec(returns)}</dd>
             </div>
             <div>
@@ -82,8 +84,8 @@ export function LatticeTimings() {
               <dd>{fps === null ? "–" : `${fps} fps`}</dd>
             </div>
           </dl>
-          <div className="wv-ltime-scroll">
-            <table className="wv-ltime-t">
+          <div className="bx-ltime-scroll">
+            <table className="bx-ltime-t">
               <thead>
                 <tr>
                   <th scope="col">When</th>
@@ -112,6 +114,6 @@ export function LatticeTimings() {
           </div>
         </>
       )}
-    </section>
+    </details>
   );
 }

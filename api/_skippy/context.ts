@@ -1,7 +1,7 @@
 /**
  * What Skippy knows about the Desk when Nikita talks to him (#224): the same live state the Desk already shows,
  * read server-side and cut down to titles, numbers, labels and counts. Ideas waiting for the pick, builds in
- * flight, what is waiting for Nikita's OK, Rivet's open questions, the setup steps still to do, the last few
+ * flight, what is held on a test for Nikita, Rivet's open questions, the setup steps still to do, the last few
  * ships and the world clock. Never an issue body or a comment's words (one exception: Rivet's own `**Question:**`
  * line on an idea the Desk or the crew filed, since answering it is one of the things Skippy can route), and every
  * line goes through `scrub` as the public feeds do (api/_world/digest.ts).
@@ -66,7 +66,7 @@ function questionOf(i: ContextIssue): string {
 /** A build's state in a word, from its labels. */
 function stateOf(labels: string[]): string {
   if (labels.includes("foundry:working")) return "in progress";
-  if (labels.includes("foundry:ready")) return "waiting for Nikita's OK";
+  if (labels.includes("foundry:ready")) return "held on a test for Nikita";
   if (labels.includes("foundry:stuck") || labels.includes("foundry:blocked")) return "stuck";
   if (labels.includes("foundry:paused")) return "paused";
   return "queued";
@@ -97,7 +97,7 @@ export function deskContext(open: ContextIssue[], shipped: ContextIssue[], setup
       continue;
     }
     const state = stateOf(labels);
-    if (state === "waiting for Nikita's OK" || state === "stuck") waiting.push({ issue: i.number, title, why: state });
+    if (state === "held on a test for Nikita" || state === "stuck") waiting.push({ issue: i.number, title, why: state });
     else building.push({ issue: i.number, title, state });
   }
   const todo = setup ? Object.entries(setup.items).filter(([, s]) => s === "todo").map(([k]) => SETUP_NAMES[k] ?? k) : [];

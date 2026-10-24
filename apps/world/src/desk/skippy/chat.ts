@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import type { AskedCard, AskedRoom } from "./asked.ts";
+import type { Pending } from "./handoff.ts";
 
 /**
  * Skippy's chat, browser side (#224; the function is api/skippy.ts). The conversation lives only in this tab's
@@ -30,6 +32,12 @@ export interface Turn {
   done?: Record<number, ActionState>;
   /** A line from the Desk itself (signed out, held back, too fast), not from Skippy. */
   note?: boolean;
+  /** A hand-off still out (#341): the bubble says "Checking with the <submind>…" until the answer replaces it. */
+  pending?: Pending;
+  /** The submind (or "skippy") whose answer this is, once it came back in place of the pending bubble. */
+  from?: string;
+  /** The answer's card: the numbers side by side, the verdict, what decided it, the sources. */
+  card?: AskedCard;
 }
 
 /** What Nikita may send at once, and how many turns go with it: the function's own caps (api/_skippy/prompt.ts). */
@@ -83,10 +91,10 @@ export function actionPath(a: SkippyAction): string | null {
   return null;
 }
 
-/** The turns that go with a message: Skippy's and Nikita's own words only, never the Desk's notes, the last few. */
+/** The turns that go with a message: Skippy's and Nikita's own words only, never the Desk's notes or a pending bubble, the last few. */
 export function historyFor(turns: Turn[]): { who: Turn["who"]; text: string }[] {
   return turns
-    .filter((t) => !t.note)
+    .filter((t) => !t.note && !t.pending)
     .slice(-HISTORY_TURNS)
     .map((t) => ({ who: t.who, text: t.text.slice(0, MESSAGE_MAX) }));
 }
@@ -101,7 +109,7 @@ export function speakable(text: string): string {
 }
 
 export type Asked =
-  | { ok: true; reply: string; actions: SkippyAction[]; capped: boolean }
+  | { ok: true; reply: string; actions: SkippyAction[]; capped: boolean; room?: string; needs?: string; turn?: string }
   | { ok: false; error: "signed-out" | "held" | "slow" | "off" | "failed"; message: string };
 
 /** What the Desk says for each way a message can fail. */
@@ -114,15 +122,15 @@ export const ASK_ERROR: Record<Exclude<Asked, { ok: true }>["error"], string> = 
 };
 
 /** One message to the function. */
-export async function askSkippy(message: string, history: { who: Turn["who"]; text: string }[], doFetch: typeof fetch = fetch): Promise<Asked> {
+export async function askSkippy(message: string, history: { who: Turn["who"]; text: string }[], doFetch: typeof fetch = fetch, page = ""): Promise<Asked> {
   try {
     const res = await doFetch("/api/skippy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: message.slice(0, MESSAGE_MAX), history }),
+      body: JSON.stringify({ message: message.slice(0, MESSAGE_MAX), history, ...(page && { page }) }),
       credentials: "same-origin",
     });
-    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown };
+    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown };
     if (res.status === 401) return { ok: false, error: "signed-out", message: ASK_ERROR["signed-out"] };
     if (res.status === 422) {
       const kinds = Array.isArray(body.held) ? body.held.filter((k): k is string => typeof k === "string" && k.length < 60) : [];
@@ -135,7 +143,8 @@ export async function askSkippy(message: string, history: { who: Turn["who"]; te
     if (res.status === 503) return { ok: false, error: "off", message: ASK_ERROR.off };
     const reply = clip(body.reply, 700);
     if (!res.ok || !reply) return { ok: false, error: "failed", message: ASK_ERROR.failed };
-    return { ok: true, reply, actions: readActions(body.actions), capped: body.capped === true };
+    const handed = typeof body.turn === "string" && /^[0-9a-f]{16}$/.test(body.turn) && typeof body.needs === "string" && /^[a-z]{2,12}$/.test(body.needs) && typeof body.room === "string";
+    return { ok: true, reply, actions: readActions(body.actions), capped: body.capped === true, ...(handed && { room: body.room as string, needs: body.needs as string, turn: body.turn as string }) };
   } catch {
     return { ok: false, error: "failed", message: ASK_ERROR.failed };
   }
@@ -153,10 +162,20 @@ function readVoice(): boolean {
   }
 }
 
+/**
+ * The round trip's own code (#341, roundtrip.ts: the page's data for the quick take, and waiting on a hand-off) loads
+ * on its own, when the chat is first opened or its box focused, so the Desk's first load carries none of it.
+ */
+type RoundTrip = typeof import("./roundtrip.ts");
+let roundTrip: Promise<RoundTrip> | null = null;
+export const loadRoundTrip = (): Promise<RoundTrip> => (roundTrip ??= import("./roundtrip.ts"));
+
 interface SkippyStore {
   turns: Turn[];
   busy: boolean;
   open: boolean;
+  /** A hand-off's answer came back while the chat was closed: the avatar shows a ping until it opens. */
+  unread: boolean;
   /** Read replies aloud with the browser's own voice (remembered in this browser only). */
   voice: boolean;
   setOpen: (open: boolean) => void;
@@ -174,8 +193,12 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
   turns: [],
   busy: false,
   open: false,
+  unread: false,
   voice: readVoice(),
-  setOpen: (open) => set({ open }),
+  setOpen: (open) => {
+    if (open) void loadRoundTrip().catch(() => null);
+    set(open ? { open, unread: false } : { open });
+  },
   setVoice: (voice) => {
     try {
       localStorage.setItem(VOICE_KEY, voice ? "1" : "0");
@@ -190,16 +213,21 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     if (!message || get().busy) return null;
     const history = historyFor(get().turns);
     set((s) => ({ busy: true, turns: [...s.turns, { id: nextId++, who: "nikita" as const, text: message }].slice(-KEEP_TURNS) }));
-    const got = await askSkippy(message, history, doFetch);
+    const rt = await loadRoundTrip().catch(() => null);
+    const got = await askSkippy(message, history, doFetch, rt?.pageNow() ?? "");
     const turn: Turn = got.ok ? { id: nextId++, who: "skippy", text: got.reply, actions: got.actions } : { id: nextId++, who: "skippy", text: got.message, note: true };
-    set((s) => ({ busy: false, turns: [...s.turns, turn].slice(-KEEP_TURNS) }));
+    // A hand-off (#341): Skippy's quick take stays, and a pending bubble waits for the room's answer under it.
+    const waits = rt && got.ok && got.turn && got.needs && (rt.WAIT_ROOMS as readonly string[]).includes(got.room ?? "");
+    const pending: Turn | null = rt && waits ? { id: nextId++, who: "skippy", text: rt.pendingText(got.needs!), pending: { turn: got.turn!, room: got.room as AskedRoom, needs: got.needs!, since: Date.now() } } : null;
+    set((s) => ({ busy: false, turns: [...s.turns, turn, ...(pending ? [pending] : [])].slice(-KEEP_TURNS) }));
     if (got.ok && get().voice) speak(got.reply);
+    if (rt && pending) rt.watchHandoffs(doFetch);
     return got.ok ? turn : null;
   },
   mark: (id, index, state) => set((s) => ({ turns: s.turns.map((t) => (t.id === id ? { ...t, done: { ...t.done, [index]: state } } : t)) })),
   clear: () => {
     stopSpeaking();
-    set({ turns: [] });
+    set({ turns: [], unread: false });
   },
 }));
 

@@ -10,7 +10,18 @@ import { useDeskAuth } from "../signin.ts";
 
 export type AskedRoom = "green" | "exchange" | "boiler" | "foundry" | "relay";
 
+/** A submind's answer card (#341, api/_skippy/log.ts `AnswerCard`): the numbers side by side, the verdict, what decided it, the sources. */
+export interface AskedCard {
+  verdict: string;
+  cols: string[];
+  rows: { label: string; values: (number | null)[] }[];
+  metrics: string[];
+  sources: string[];
+}
+
 export interface AskedTurn {
+  /** The turn's id (16 hex characters), for the chat to find its answer (#341). */
+  id?: string;
   at: string;
   question: string;
   answer: string;
@@ -18,7 +29,7 @@ export interface AskedTurn {
   /** Handed off (#312): who it went to, "skippy" or a submind's id. */
   needs?: string;
   /** The answer that came back for a hand-off. */
-  followUp?: { from: string; text: string; at: string };
+  followUp?: { from: string; text: string; at: string; card?: AskedCard };
 }
 
 /** Who a hand-off went to, by name (api/_skippy/log.ts, ROOM_SUBMINDS). */
@@ -35,6 +46,25 @@ export const ASKED_MAX = 50;
 
 const clip = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
+/** A card as the function sent it, checked again with the function's caps; null when it isn't one. */
+export function readCard(v: unknown): AskedCard | null {
+  const c = (v && typeof v === "object" && !Array.isArray(v) ? v : null) as Record<string, unknown> | null;
+  const verdict = c ? clip(c.verdict, 200) : "";
+  if (!c || !verdict) return null;
+  const list = (x: unknown, max: number, each: number) => (Array.isArray(x) ? x : []).map((s) => clip(s, each)).filter(Boolean).slice(0, max);
+  const cols = list(c.cols, 3, 24);
+  const num = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : null);
+  const rows = (Array.isArray(c.rows) ? c.rows : [])
+    .map((r) => {
+      const o = (r && typeof r === "object" ? r : {}) as Record<string, unknown>;
+      const label = clip(o.label, 48);
+      return label ? { label, values: cols.map((_, i) => num(Array.isArray(o.values) ? o.values[i] : null)) } : null;
+    })
+    .filter((r): r is AskedCard["rows"][number] => r !== null)
+    .slice(0, 6);
+  return { verdict, cols: rows.length ? cols : [], rows: cols.length ? rows : [], metrics: list(c.metrics, 5, 140), sources: list(c.sources, 5, 80) };
+}
+
 /** The function's answer, checked again: the turns that fit the shape, newest first. Null when it isn't one. */
 export function readAsked(v: unknown, room: AskedRoom): AskedTurn[] | null {
   const b = v as { room?: unknown; turns?: unknown } | null;
@@ -50,8 +80,10 @@ export function readAsked(v: unknown, room: AskedRoom): AskedTurn[] | null {
     const f = (r.followUp && typeof r.followUp === "object" ? r.followUp : null) as Record<string, unknown> | null;
     const fText = f ? clip(f.text, 700) : "";
     const fAt = f && typeof f.at === "string" && Number.isFinite(Date.parse(f.at)) ? f.at : "";
-    const followUp = f && fText && fAt && typeof f.from === "string" && f.from in HANDED_TO ? { from: f.from, text: fText, at: fAt } : undefined;
-    out.push({ at, question, answer, model: clip(r.model, 40), ...(needs && { needs }), ...(followUp && { followUp }) });
+    const card = f ? readCard(f.card) : null;
+    const followUp = f && fText && fAt && typeof f.from === "string" && f.from in HANDED_TO ? { from: f.from, text: fText, at: fAt, ...(card && { card }) } : undefined;
+    const id = typeof r.id === "string" && /^[0-9a-f]{16}$/.test(r.id) ? r.id : undefined;
+    out.push({ ...(id && { id }), at, question, answer, model: clip(r.model, 40), ...(needs && { needs }), ...(followUp && { followUp }) });
   }
   return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, ASKED_MAX);
 }

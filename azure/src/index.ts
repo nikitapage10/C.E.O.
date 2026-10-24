@@ -22,7 +22,11 @@ import * as exchangemarkets from "../../api/_exchange/route.js";
 import * as exchangepositions from "../../api/_exchange/positions.js";
 import * as greenleague from "../../api/_green/route.js";
 import * as invoices from "../../api/_paypal/route.js";
+import * as keys from "../../api/_keys/route.js";
+import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
+import * as roomfeed from "../../api/_room/feed.js";
+import * as setupasks from "../../api/_room/setup.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -34,10 +38,19 @@ import { withGate } from "../../api/_site/gate.js";
 import { pickSiteStore } from "../../api/_site/state.js";
 import { adapt, type AdaptOptions, type WebHandler } from "./adapter.js";
 import { azureBlobFromEnv } from "./blob.js";
+import { KeyRefresh } from "./keys.js";
+import { keyWriter, readSecret, secretDates, vaultFromEnv } from "./vault.js";
 import { tick, TICK_SCHEDULE } from "./tick.js";
 
 // WORLD_STORE=azureblob: the world, stories, Desk sign-ins and pictures in the `ceo-state` container.
 registerAzureBlob(azureBlobFromEnv);
+
+// The Key Vault (#330): the Keys form's write-only face, and the refresh that brings keys set from the Desk into this
+// instance without a restart (./keys.ts). Both off until the template has set KEY_VAULT_URI.
+const vault = vaultFromEnv(process.env);
+const keyRefresh = vault ? new KeyRefresh({ dates: () => secretDates(vault), read: (name) => readSecret(vault, name) }, process.env, (line) => console.log(line)) : null;
+registerKeyWriter(() => (vault ? keyWriter(vault, (name, value, updated) => keyRefresh?.noteSet(name, value, updated)) : null));
+const keysFresh = () => (keyRefresh ? keyRefresh.fresh() : Promise.resolve());
 
 const gateDeps = () => ({ env: process.env, store: pickSiteStore(), now: Date.now() });
 
@@ -66,9 +79,18 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // The Spire's invoices (#279, docs/PAYPAL.md): PayPal drafts made from the Desk, sent only on Nikita's confirmed tap.
   // Azure only (the PayPal keys live only here). ?view=status is the public counts; the rest needs the passkey session.
   ["invoices", invoices],
+  // The Desk's Keys form (#330): sets an allowlisted key in the Key Vault, behind the passkey and a fresh step-up.
+  // Write-only: GET shows names and dates, POST sets one. Azure only (the vault is only here).
+  ["keys", keys],
   ["foundry-usage", foundryusage],
   ["foundry", foundry],
+  // The subminds' room events (#281, docs/SKIPPY.md "Room keys"): POST with the feed key only; GET full for a Desk
+  // session or the read key, scrubbed titles for the Lattice. Azure only: both keys live only in this Key Vault.
+  ["room-feed", roomfeed],
   ["security-feed", securityfeed],
+  // Setup asks (#324, docs/SKIPPY.md "Setup asks"): a thread posts one with the feed key; Nikita approves or declines it
+  // in the Desk's passkey session; the thread reads the answer with the read key and closes it with a Trail line.
+  ["setup-asks", setupasks],
   ["site-login", sitelogin],
   ["site-password", sitepassword],
   ["skippy", skippy],
@@ -92,8 +114,8 @@ for (const [name, mod, opts] of ENDPOINTS) {
       const handler = mod[req.method.toUpperCase() as "GET" | "POST"];
       if (!handler) return Promise.resolve({ status: 405, headers: { Allow: methods.join(", ") } });
       // The site lock (#236, #238): the same gate as Vercel's middleware, in front of every function. The Static Web
-      // App's own files aren't behind it (docs/AZURE.md, "The site lock on Azure").
-      return adapt(withGate(handler, gateDeps), opts)(req, context);
+      // App's own files aren't behind it (docs/AZURE.md, "The site lock on Azure"). Keys set from the Desk first (#330).
+      return keysFresh().then(() => adapt(withGate(handler, gateDeps), opts)(req, context));
     },
   });
 }
@@ -103,6 +125,7 @@ for (const [name, mod, opts] of ENDPOINTS) {
 app.timer("world_tick", {
   schedule: TICK_SCHEDULE,
   handler: async (_timer, context) => {
+    await keysFresh();
     await tick({ step: () => worldstep.POST(), fetch, env: process.env, log: { log: (m: string) => context.log(m), error: (m: string) => context.error(m) } });
   },
 });
@@ -114,6 +137,7 @@ app.timer("email_tick", {
   runOnStartup: false,
   useMonitor: false,
   handler: async (_timer, context) => {
+    await keysFresh();
     const result = await runEmailTick().catch(() => "error" as const);
     if (result === "error") context.warn("email tick: error");
   },
@@ -127,6 +151,7 @@ app.timer("green_weekly", {
   runOnStartup: false,
   useMonitor: false,
   handler: async (_timer, context) => {
+    await keysFresh();
     const result = await greenanalysis.runGreenWeekly();
     if (result === "failed") context.warn("green weekly: failed");
     else if (result === "written") context.log("green weekly: written");

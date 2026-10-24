@@ -45,7 +45,7 @@ const HAND_UP_MS = 15_000;
 
 const NOTE: Partial<Record<CrateState, string>> = {
   working: "On it",
-  ready: "Checked and waiting for your OK",
+  ready: "Held: a test needs you",
 };
 
 export function FoundryDirector() {

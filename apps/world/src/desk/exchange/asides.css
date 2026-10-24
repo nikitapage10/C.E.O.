@@ -1,0 +1,442 @@
+/*
+ * The Bookie's asides (#345), in the Exchange's trading-floor language (polymarket.css): flat dark ground, hairlines,
+ * mint on the odds, the serif for the market, the mono for numbers and labels. Each topic gets a quiet accent of its
+ * own on its label and the card's left rule. The card pops in like a speech bubble, the line follows a beat later, a
+ * thin bar runs the time to the next one. Every Weave token has a fallback.
+ */
+
+.ba {
+  --ba-mint: #7ccdac;
+  --ba-ink: var(--wv-ink, #eceef3);
+  --ba-mute: var(--wv-mute, #8c94a3);
+  --ba-faint: var(--wv-faint, #5d6574);
+  --ba-line: var(--wv-line, rgba(236, 238, 243, 0.08));
+  --ba-up: var(--wv-ok, #86d4b4);
+  --ba-down: var(--wv-bad, #f07a8f);
+  --ba-mono: var(--wv-mono, "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace);
+  --ba-serif: var(--wv-serif, "DM Serif Display", Georgia, serif);
+  --ba-sans: var(--wv-sans, "Manrope Variable", Manrope, system-ui, sans-serif);
+  --ba-ease: var(--wv-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+  --ba-geo: #f2b36b;
+  --ba-pol: #8fb4ff;
+  --ba-cul: #e7a0d8;
+  position: relative;
+  margin: 36px 0 0;
+  padding: 22px 0 0;
+  border-top: 1px solid rgba(124, 205, 172, 0.18);
+  color: var(--ba-mute);
+}
+.ba .is-geopolitics { --ba-k: var(--ba-geo); }
+.ba .is-politics { --ba-k: var(--ba-pol); }
+.ba .is-culture { --ba-k: var(--ba-cul); }
+
+.ba-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px 14px;
+  margin: 0 0 16px;
+}
+.ba-eyb {
+  margin: 0 0 6px;
+  font-family: var(--ba-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ba-mint) 70%, var(--ba-mute));
+}
+.ba-h2 {
+  margin: 0;
+  font-family: var(--ba-serif);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.15;
+  color: var(--ba-ink);
+}
+.ba-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--ba-mono);
+  font-size: 11.5px;
+  color: var(--ba-faint);
+}
+.ba-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ba-faint);
+}
+.ba-state[data-on="live"] i {
+  background: var(--ba-mint);
+  box-shadow: 0 0 0 3px rgba(124, 205, 172, 0.14);
+  animation: ba-beat 2.4s ease-in-out infinite;
+}
+.ba-state[data-on="failed"] i {
+  background: var(--ba-down);
+}
+
+/* The Bookie's can, idly bobbing; the bead of sweat drops when the odds jump. */
+.ba-mark {
+  width: 40px;
+  height: 40px;
+  color: var(--ba-mint);
+  animation: ba-bob 4.8s ease-in-out infinite;
+}
+.ba-drop {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center top;
+}
+.ba-mark.is-sweating .ba-drop {
+  animation: ba-drip 2.6s ease-in 0.4s infinite;
+}
+
+/* The stage: the aside on the left, the chips to pick one below it. */
+.ba-stage {
+  position: relative;
+}
+.ba-card {
+  position: relative;
+  margin: 0 0 0 6px;
+  padding: 18px 22px 20px;
+  border: 1px solid var(--ba-line);
+  border-left: 2px solid var(--ba-k, var(--ba-mint));
+  border-radius: 4px 14px 14px 14px;
+  background: linear-gradient(180deg, rgba(124, 205, 172, 0.045), rgba(124, 205, 172, 0) 70%), rgba(10, 13, 18, 0.55);
+  overflow: hidden;
+  transform-origin: 0 0;
+  animation: ba-pop 0.55s var(--ba-ease) both;
+}
+/* The speech tail, toward the Bookie. */
+.ba-card::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -8px;
+  width: 8px;
+  height: 10px;
+  background: var(--ba-k, var(--ba-mint));
+  clip-path: polygon(100% 0, 0 0, 100% 100%);
+  opacity: 0.9;
+}
+.ba-tag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 0 0 10px;
+  font-family: var(--ba-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.ba-kind {
+  color: var(--ba-k, var(--ba-mint));
+}
+.ba-badge {
+  color: var(--ba-faint);
+}
+.ba-q {
+  display: block;
+  max-width: 62ch;
+  font-family: var(--ba-serif);
+  font-size: 23px;
+  line-height: 1.2;
+  color: var(--ba-ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.ba-q:hover,
+a.ba-q:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: rgba(124, 205, 172, 0.5);
+  text-underline-offset: 4px;
+}
+.ba-nums {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin: 12px 0 0;
+}
+.ba-odds {
+  font-family: var(--ba-mono);
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ba-mint);
+  font-variant-numeric: tabular-nums;
+  animation: ba-rise 0.6s var(--ba-ease) 0.08s both;
+}
+.ba-on {
+  font-size: 12px;
+  color: var(--ba-faint);
+}
+.ba-move {
+  font-family: var(--ba-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.ba .is-up {
+  color: var(--ba-up);
+}
+.ba .is-down {
+  color: var(--ba-down);
+}
+.ba .is-flat {
+  color: var(--ba-faint);
+}
+.ba-spark {
+  align-self: center;
+  margin-left: auto;
+  overflow: visible;
+}
+.ba-spark path {
+  stroke: currentColor;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ba-draw 1.1s var(--ba-ease) 0.15s forwards;
+}
+.ba-spark.is-flat {
+  color: var(--ba-mute);
+}
+.ba-line {
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px dashed var(--ba-line);
+  animation: ba-rise 0.6s var(--ba-ease) 0.25s both;
+}
+.ba-line p {
+  margin: 0;
+  max-width: 70ch;
+  font-family: var(--ba-sans);
+  font-size: 14.5px;
+  line-height: 1.5;
+  font-style: italic;
+  color: color-mix(in srgb, var(--ba-ink) 82%, var(--ba-mute));
+}
+.ba-line p::before {
+  content: "\201C";
+}
+.ba-line p::after {
+  content: "\201D";
+}
+.ba-line cite {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--ba-mono);
+  font-size: 10.5px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ba-faint);
+}
+.ba-line cite::before {
+  content: "— ";
+}
+/* The time to the next aside. */
+.ba-timer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--ba-k, var(--ba-mint));
+  opacity: 0.45;
+  transform-origin: 0 50%;
+  animation-name: ba-tick;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+/* The chips: one per aside, its topic, odds and move. */
+.ba-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px 0 0 6px;
+}
+.ba-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ba-chip,
+.ba-hold {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid var(--ba-line);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--ba-mono);
+  font-size: 11px;
+  color: var(--ba-mute);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, color 0.2s, transform 0.2s var(--ba-ease);
+}
+.ba-chip:hover,
+.ba-hold:hover {
+  border-color: rgba(124, 205, 172, 0.35);
+  color: var(--ba-ink);
+}
+.ba-chip:focus-visible,
+.ba-hold:focus-visible {
+  outline: 1px solid var(--ba-mint);
+  outline-offset: 2px;
+}
+.ba-chip[aria-current="true"] {
+  border-color: var(--ba-k, var(--ba-mint));
+  background: color-mix(in srgb, var(--ba-k, var(--ba-mint)) 10%, transparent);
+  color: var(--ba-ink);
+  transform: translateY(-1px);
+}
+.ba-chip-k {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ba-k, var(--ba-mint));
+}
+.ba-chip b {
+  font-weight: 400;
+  color: var(--ba-mint);
+  font-variant-numeric: tabular-nums;
+}
+.ba-hold {
+  color: var(--ba-faint);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+/* Waiting: three dots and the reason, never a made-up market. */
+.ba-wait {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 0 6px;
+  padding: 16px 20px;
+  border: 1px dashed var(--ba-line);
+  border-radius: 4px 14px 14px 14px;
+  font-size: 13px;
+  color: var(--ba-faint);
+}
+.ba-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+.ba-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ba-mint);
+  opacity: 0.25;
+  animation: ba-dot 1.4s ease-in-out infinite;
+}
+.ba-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.ba-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes ba-pop {
+  0% { opacity: 0; transform: translateY(10px) scale(0.96); }
+  60% { opacity: 1; transform: translateY(-1px) scale(1.008); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes ba-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ba-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ba-tick {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes ba-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-2px) rotate(-3deg); }
+}
+@keyframes ba-drip {
+  0% { opacity: 0; transform: translateY(-2px); }
+  20% { opacity: 0.9; transform: translateY(0); }
+  70% { opacity: 0.9; transform: translateY(6px); }
+  100% { opacity: 0; transform: translateY(10px); }
+}
+@keyframes ba-beat {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(124, 205, 172, 0.14); }
+  50% { box-shadow: 0 0 0 5px rgba(124, 205, 172, 0.05); }
+}
+@keyframes ba-dot {
+  0%, 100% { opacity: 0.2; transform: translateY(0); }
+  50% { opacity: 0.85; transform: translateY(-2px); }
+}
+
+@media (max-width: 720px) {
+  .ba-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .ba-state {
+    grid-column: 1 / -1;
+  }
+  .ba-card {
+    padding: 16px 16px 18px;
+  }
+  .ba-q {
+    font-size: 20px;
+  }
+  .ba-odds {
+    font-size: 36px;
+  }
+  .ba-spark {
+    margin-left: 0;
+  }
+  /* One row of chips that slides sideways, inside the page's gutter. */
+  .ba-nav {
+    flex-wrap: nowrap;
+  }
+  .ba-hold {
+    flex-shrink: 0;
+  }
+  .ba-chips {
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 12px 4px 1px;
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+  .ba-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .ba-chip {
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ba-card,
+  .ba-odds,
+  .ba-line,
+  .ba-mark,
+  .ba-mark.is-sweating .ba-drop,
+  .ba-state[data-on="live"] i,
+  .ba-dots i {
+    animation: none;
+  }
+  .ba-spark path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

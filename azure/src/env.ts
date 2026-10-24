@@ -6,10 +6,12 @@
  * the vault) the setting holds that literal text, and the code would take it for a real key: a "Claude key" that is
  * a vault address, a "Desk key" anyone can read in the template. So such values are removed from the environment
  * before any handler runs, and the code behaves as it does on Vercel with the setting missing. The same goes for a
- * secret that exists but is empty (or only whitespace).
+ * secret that exists but is empty (or only whitespace), or holds the role paste's placeholder (#330).
  *
  * Imported first by azure/src/index.ts, so it runs before the api/ modules load.
  */
+
+import { isPlaceholder } from "../../api/_keys/allowlist.js";
 
 export const KEY_VAULT_PREFIX = "@Microsoft.KeyVault(";
 
@@ -48,7 +50,9 @@ export const SECRET_SETTINGS = [
   // The Spire's invoices (#279): PayPal's REST app. PAYPAL_ENV (sandbox or live) is a plain setting.
   "PAYPAL_CLIENT_ID",
   "PAYPAL_CLIENT_SECRET",
-  // The room threads' write key (#281, #312): only a hand-off's answer coming back (POST /api/skippy-answer).
+  // The subminds' room keys (#281, #312, api/_site/roomkeys.ts): the read key opens GETs of room data only; the
+  // write key opens only POST /api/room-feed and POST /api/skippy-answer (a hand-off's answer coming back).
+  "SUBMIND_LOG_TOKEN",
   "SUBMIND_FEED_TOKEN",
 ] as const;
 
@@ -78,7 +82,8 @@ export function dropKeyVaultRefs(env: Record<string, string | undefined> = proce
     const value = env[name];
     if (typeof value !== "string") continue;
     const trimmed = value.trim();
-    if (trimmed === "") {
+    // The role paste's placeholder (#330, api/_keys/allowlist.ts) is a secret that exists but holds no key.
+    if (trimmed === "" || isPlaceholder(trimmed)) {
       delete env[name];
       dropped.push(name);
     } else if (trimmed !== value) env[name] = trimmed;

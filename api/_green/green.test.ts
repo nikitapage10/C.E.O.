@@ -315,6 +315,43 @@ describe("the Tuten case: FantasyPros live in week 7, Jacksonville on bye (#259)
   });
 });
 
+describe("the Goedert case: FantasyPros' figure as published (#340)", () => {
+  // Week 7 of 2026: FantasyPros had Dallas Goedert (questionable, knee) at 8.8 in half PPR, the league's scoring; the
+  // board showed 7.5, its own 85% questionable discount on top of FantasyPros' number.
+  const fp: FpData = {
+    at: "x",
+    season: "2026",
+    week: 3,
+    scoring: "HALF",
+    proj: [
+      { name: "Walt Wider", pos: "WR", team: "SF", pts: 8.8 },
+      { name: "Will Wide", pos: "WR", team: "MIN", pts: 10 },
+      { name: "Ty End", pos: "TE", team: "BAL", pts: 7 },
+    ],
+    weekly: [],
+    ranks: [],
+    injuries: shapeInjuries({ injuries: [{ name: "Walt Wider", yahoo_id: "9005", status_short: "Q" }, { name: "Ty End", yahoo_id: "9006", status_short: "D" }] }),
+  };
+  const input = () => ({ ...boardInput(), players: slimPlayers({ ...PLAYERS, "7": P("7", "Benny Bench", "RB", "DET", { injury_status: "Questionable" })[1] }), fp, fpState: "live" as const });
+  const find = (board: GreenBoard, name: string) => [...board.roster.starters.map((x) => x.player), ...board.roster.bench].find((p) => p?.name === name)!;
+
+  it("uses a questionable player's FantasyPros projection as published, and keeps that figure beside it", () => {
+    const board = buildBoard(input());
+    expect(find(board, "Walt Wider")).toMatchObject({ inj: "Q", proj: 8.8, fp: 8.8, src: "fp" });
+    expect(find(board, "Will Wide")).toMatchObject({ proj: 10, fp: 10 });
+  });
+
+  it("still scales a doubtful player, but shows FantasyPros' own number as fp", () => {
+    expect(find(buildBoard(input()), "Ty End")).toMatchObject({ inj: "D", proj: 2.1, fp: 7 });
+  });
+
+  it("a questionable player on form alone still takes the 85%, with no FantasyPros figure", () => {
+    const benny = find(buildBoard(input()), "Benny Bench");
+    expect(benny).toMatchObject({ inj: "Q", src: "form", fp: null });
+    expect(benny.proj).toBe(Math.round(formProjection([18, 16])! * 0.85 * 10) / 10);
+  });
+});
+
 describe("FantasyPros (#252)", () => {
   it("reads the key only from FANTASYPROS, and maps the league's scoring", () => {
     expect(fpKey({ FANTASYPROS: "  abc  " })).toBe("abc");

@@ -31,6 +31,8 @@ export interface SetupItem {
   why: string;
   /** How the item ticks itself off. */
   ticks: string;
+  /** Leave it off the list while the site can't read it (only a "todo" it can see brings it back). */
+  unknownIsDone?: true;
   links: SetupLink[];
   /** The steps, in order. `**words**` are the names of buttons and pages, shown in bold. */
   steps: string[];
@@ -123,7 +125,8 @@ export const SETUP_LIST: SetupItem[] = [
     id: "automerge",
     title: "Allow auto-merge",
     why: "Pull requests merge themselves the moment their checks go green, so nothing waits on a click.",
-    ticks: "Ticks itself when GitHub shows the setting; if it can't, tick it here once it's on.",
+    ticks: "Ticks itself when GitHub shows the setting; while the site can't read it, it stays off the list.",
+    unknownIsDone: true,
     links: [{ label: "GitHub: repo settings", href: `${REPO}/settings` }],
     steps: [
       "Open **Settings** > **General** and scroll to **Pull Requests**.",
@@ -140,7 +143,7 @@ export function isDone(state: SetupState | undefined, ticked: boolean): boolean 
 
 /** The items still to do, in the list's order. Empty means the card hides. */
 export function remaining(status: SetupStatus, ticked: ReadonlySet<SetupItemId>): SetupItem[] {
-  return SETUP_LIST.filter((i) => !isDone(status.items[i.id], ticked.has(i.id)));
+  return SETUP_LIST.filter((i) => !isDone(status.items[i.id], ticked.has(i.id) || (i.unknownIsDone === true && status.items[i.id] !== "todo")));
 }
 
 /** Reads the answer from api/foundry?setup, keeping only the states it knows; null when it isn't one. */

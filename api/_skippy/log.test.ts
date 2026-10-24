@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { BlobRoomLog, LOG_KEEP, LOG_SHOW, MemoryRoomLog, ROOM_SUBMINDS, cleanTurn, handoffTo, keepTurns, readRoom, turnId, type LoggedTurn } from "./log.ts";
+import { readFileSync } from "node:fs";
+import { KEY_LOG_ROOMS } from "../_site/roomkeys.ts";
+import { BlobRoomLog, LOG_KEEP, LOG_SHOW, MemoryRoomLog, ROOM_SUBMINDS, cardText, cleanCard, cleanFollowUp, cleanTurn, handoffTo, keepTurns, readRoom, turnId, type LoggedTurn } from "./log.ts";
 import { SUBMINDS } from "../../packages/simulator/src/subminds.ts";
 import { pickBlob } from "../_blob.ts";
 
@@ -74,7 +76,7 @@ describe("hand-offs in the room log (#312)", () => {
   it("hands a submind's ask to the room's active submind, and anything else to Skippy", () => {
     expect(handoffTo("submind", "foundry")).toBe("ember");
     expect(handoffTo("submind", "green")).toBe("turf");
-    expect(handoffTo("submind", "relay")).toBe("skippy");
+    expect(handoffTo("submind", "relay")).toBe("static");
     expect(handoffTo("submind", "none")).toBe("skippy");
     expect(handoffTo("skippy", "green")).toBe("skippy");
     for (const no of ["none", "", "ember", null, 1]) expect(handoffTo(no, "foundry")).toBeNull();
@@ -119,5 +121,46 @@ describe("hand-offs in the room log (#312)", () => {
     expect(res.ok && res.turn.room).toBe("exchange");
     expect((await log.list("exchange", NOW))[0]!.followUp?.text).toBe("Hedged enough.");
     expect(await log.list("exchange", NOW, "any")).toEqual([]);
+  });
+});
+
+describe("the subminds' doorbell (#341, scripts/submind-watch.sh)", () => {
+  const script = readFileSync(new URL("../../scripts/submind-watch.sh", import.meta.url), "utf8");
+
+  it("watches each active room the read key may read, for its own submind, and only those (never Relay's)", () => {
+    const mapped = Object.fromEntries([...script.matchAll(/^\s+([a-z]+)\) mind=([a-z]+) ;;$/gm)].map((m) => [m[1], m[2]]));
+    const active = Object.fromEntries(Object.entries(ROOM_SUBMINDS).filter(([room, m]) => m.active && (KEY_LOG_ROOMS as readonly string[]).includes(room)).map(([room, m]) => [room, m.id]));
+    expect(mapped.relay).toBeUndefined();
+    expect(mapped).toEqual(active);
+  });
+
+  it("reads only the needs filter with the read key in its own header, from stdin, and never prints it", () => {
+    expect(script).toContain('url="$site/api/skippy-log?room=$room&needs=$mind"');
+    expect(script).toContain(`printf 'x-ceo-room-key: %s\\n' "$SUBMIND_LOG_TOKEN" | curl -sS --max-time 20 -H @-`);
+    const uses = script.split("\n").filter((l) => l.includes("$SUBMIND_LOG_TOKEN") || l.includes("${SUBMIND_LOG_TOKEN"));
+    expect(uses).toHaveLength(2); // the emptiness check and the header
+    const code = script.split("\n").filter((l) => !l.trimStart().startsWith("#")).join("\n");
+    expect(code).not.toMatch(/echo[^\n]*\$\{?SUBMIND_LOG_TOKEN/);
+    expect(code).not.toMatch(/\bset -x\b|\benv\b|printenv|-X POST|SUBMIND_FEED_TOKEN/);
+  });
+});
+
+describe("the answer card (#341)", () => {
+  it("keeps a verdict, up to three columns and six rows, short lines, and no links", () => {
+    const c = cleanCard({ verdict: " Start Tucker ", cols: ["Sleeper", "FantasyPros", "Form", "Extra"], rows: [{ label: "Tucker", values: [7.611, "9", 9] }, { label: "", values: [1] }], metrics: ["a", "see https://x.example", 5], sources: ["Sleeper"] })!;
+    expect(c).toEqual({ verdict: "Start Tucker", cols: ["Sleeper", "FantasyPros", "Form"], rows: [{ label: "Tucker", values: [7.61, null, 9] }], metrics: ["a"], sources: ["Sleeper"] });
+    expect(cleanCard({ verdict: "", cols: [] })).toBeNull();
+    expect(cleanCard(["x"])).toBeNull();
+    expect(cleanCard({ verdict: "Fine", rows: [{ label: "x", values: [1] }] })).toEqual({ verdict: "Fine", cols: [], rows: [], metrics: [], sources: [] });
+    expect(cardText(c)).toContain("Tucker");
+  });
+
+  it("rides on a follow-up and survives the store", () => {
+    const at = new Date(NOW).toISOString();
+    const f = cleanFollowUp({ from: "turf", text: "Tucker.", at, card: { verdict: "Start Tucker", cols: ["Sleeper"], rows: [{ label: "Tucker", values: [7.6] }] } })!;
+    expect(f.card!.rows).toEqual([{ label: "Tucker", values: [7.6] }]);
+    expect(cleanFollowUp({ from: "turf", text: "Tucker.", at, card: { nope: 1 } })).toEqual({ from: "turf", text: "Tucker.", at });
+    const t = cleanTurn({ ...turn(1), needs: "turf", followUp: f })!;
+    expect(t.followUp!.card!.verdict).toBe("Start Tucker");
   });
 });

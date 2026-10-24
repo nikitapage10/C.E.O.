@@ -4,6 +4,7 @@ import type { Link, LinkState } from "../systems.ts";
 import type { GreenBoard, GreenStatus } from "./green/league.ts";
 import { submindOf } from "../../../../packages/simulator/src/subminds.ts";
 import type { InvoiceStatus } from "./spire/invoices.ts";
+import type { EmailStatus } from "./email/email.ts";
 
 /**
  * The rooms as the Weave Desk draws them (Nikita, 2026-10-22): ten threads, one per room, each in its submind's
@@ -29,6 +30,8 @@ export interface RoomPulse {
   activity: number;
   /** A few words for the thread's label: "Rusty is building", "Waiting on the Mac". */
   status: string;
+  /** What the room is doing right now, when there is more to say than `status`: "Rusty on #336, Simplifying Today". */
+  doing?: string;
   /** Fewer words, lower case, for the fan beside Today's greeting: "mid-build", "steady", "not set up". */
   short: string;
   /** The submind's report, in its own voice: one or two short sentences, numbers from real data. */
@@ -92,6 +95,8 @@ export interface PulseInput {
   odds?: { markets: number; lead: { question: string; prob: number } | null } | null;
   /** The Green's league board (desk/green/league.ts), once it has been asked for; left out, the Green stays simulated. */
   green?: { status: GreenStatus; board: GreenBoard | null };
+  /** The email agent's public counts (#263, live since #322), once the Azure copy has answered; left out, Relay waits on the Mac. */
+  email?: EmailStatus | null;
   /** The Spire's public invoice counts (#279), once PayPal has answered on the Azure copy; left out, the Spire stays simulated. */
   invoices?: InvoiceStatus | null;
 }
@@ -142,6 +147,7 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
           state: red ? "down" : working.length ? "busy" : "steady",
           activity: clamp(0.25 + working.length * 0.3 + shipped * 0.08),
           status: red ? "Checks on main are red" : who ? `${who} is building` : waiting ? `${n(waiting, "thing")} waiting on you` : "All clear",
+          ...(who && working[0] && { doing: `${who} on #${working[0].number}, ${working[0].short || working[0].title}${working.length > 1 ? `, and ${n(working.length - 1, "more job")}` : ""}` }),
           short: red ? "checks red" : who ? "mid-build" : waiting ? `${waiting} waiting on you` : "all clear",
           report: `${parts.join(", ")}. ${red ? "Main's red. Rivet's already on it." : "Checks are green. Don't touch anything."}`,
           events,
@@ -150,8 +156,27 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
     }
   }
 
-  // The Relay: the hub on the MacBook.
-  if (hub === "off") {
+  // The Relay: email from the Azure copy (#322) while the hub on the MacBook is still to come.
+  const mail = input.email ?? null;
+  const mailLive = !!mail && mail.gmail === "connected" && mail.agent !== "waiting";
+  if (hub === "off" && mailLive) {
+    const needs = mail.needsYou;
+    const broken = mail.agent === "error";
+    const checked = mail.lastCheck !== null && mail.lastCheck >= since && mail.lastCheck <= now ? [mail.lastCheck] : [];
+    out.push(
+      pulse("relay", {
+        real: true,
+        state: broken ? "down" : needs ? "busy" : "steady",
+        activity: clamp(0.2 + needs * 0.15 + mail.newToday * 0.01),
+        status: broken ? "The last email check failed" : mail.agent === "paused" ? "Email paused at the cap" : needs ? `${n(needs, "email")} need${needs === 1 ? "s" : ""} you` : "Email is quiet",
+        short: broken ? "email check failed" : mail.agent === "paused" ? "email paused" : needs ? `${needs} email${needs === 1 ? "" : "s"}` : "inbox quiet",
+        report: broken
+          ? "Line's crackling, the last email check didn't land. Dialtone's redialling. Texts still wait on the Mac."
+          : `${n(mail.newToday, "new email")} today, ${needs} need${needs === 1 ? "s" : ""} you, ${mail.fyi} FYI, ${mail.noise} noise. I won't read them out. Texts still wait on the Mac.`,
+        events: checked,
+      }),
+    );
+  } else if (hub === "off") {
     out.push(pulse("relay", { real: true, state: "waiting", activity: 0.05, status: "Waiting on the Mac", short: "waiting on the Mac", report: "Psst. I can't hear a thing yet: the hub on the MacBook isn't connected. The moment it is, you'll know who's waiting on you.", events: [] }));
   } else {
     out.push(

@@ -118,6 +118,7 @@ export function EmailSection({ now }: { now: number }) {
   const view = useEmail((s) => s.view);
   const busy = useEmail((s) => s.busy);
   const error = useEmail((s) => s.error);
+  const privateFail = useEmail((s) => s.privateFail);
   const connect = useEmail((s) => s.connect);
   const disconnect = useEmail((s) => s.disconnect);
   const auth = useDeskAuth((s) => s.auth.status);
@@ -163,7 +164,7 @@ export function EmailSection({ now }: { now: number }) {
           </button>
         </div>
       ) : !view ? (
-        <p className="em-state">Reading…</p>
+        <p className={`em-state${privateFail ? " is-warn" : ""}`}>{privateFail ? `Couldn't read your mail just now (${privateFail}). Trying again at the next check.` : "Reading…"}</p>
       ) : !connected ? (
         <div className="em-gate">
           <p className="em-state">

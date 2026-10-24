@@ -52,7 +52,7 @@ export function spanText(ms: number): string {
 /** Where a real job stands, in a few words. */
 function standing(crate: Crate, now: number, waiting: boolean): string {
   if (crate.state === "stuck") return "Stuck: needs you";
-  if (crate.state === "ready") return "Checked, waiting for your OK";
+  if (crate.state === "ready") return "A test needs you";
   if (crate.state === "shipped") return crate.closedAt ? `Shipped ${spanText(now - crate.closedAt)} ago` : "Shipped";
   if (crate.paused) return "Paused for a fix";
   if (waiting) return "Waiting its turn";

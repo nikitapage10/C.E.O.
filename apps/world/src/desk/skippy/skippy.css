@@ -324,6 +324,103 @@
   color: var(--amber, #ffd08f);
   font-size: 13px;
 }
+/* A hand-off waiting on its room (#341): the bubble breathes until the answer replaces it. */
+.skp-turn--pending p {
+  border-style: dashed;
+  color: var(--skp-ice);
+  font-style: italic;
+  animation: skp-wait 1.6s ease-in-out infinite;
+}
+@keyframes skp-wait {
+  50% {
+    opacity: 0.55;
+  }
+}
+.skp-turn__from {
+  margin: 0 0 3px;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--skp-ice);
+}
+.skp-turn--answer > p:not(.skp-turn__from) {
+  border-color: rgba(127, 216, 255, 0.5);
+  animation: skp-rise 0.3s ease-out;
+}
+.skp-card {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(127, 216, 255, 0.22);
+  border-radius: 10px;
+  background: rgba(10, 46, 98, 0.35);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.skp-card .skp-card__verdict {
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 600;
+  font-size: 14px;
+}
+.skp-card__nums {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.skp-card__nums th,
+.skp-card__nums td {
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: right;
+}
+.skp-card__nums th[scope="row"],
+.skp-card__nums thead th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+.skp-card__nums thead th {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--skp-ice);
+}
+.skp-card__metrics {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.skp-card .skp-card__sources {
+  margin: 8px 0 0;
+  padding: 6px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  background: none;
+  font-size: 11px;
+  opacity: 0.8;
+}
+.skp-card__sources b {
+  font-weight: 600;
+  margin-right: 4px;
+}
+/* The ping on the avatar: an answer came back while the chat was closed. */
+.skp-avatar__ping {
+  position: absolute;
+  top: 4%;
+  right: 4%;
+  width: 22%;
+  height: 22%;
+  min-width: 9px;
+  min-height: 9px;
+  border-radius: 50%;
+  background: var(--skp-gold, #e8b84a);
+  box-shadow: 0 0 0 2px rgba(10, 46, 98, 0.9);
+}
 .skp-turn--typing {
   display: flex;
   gap: 5px;
@@ -448,6 +545,8 @@
   .skp-avatar__can,
   .skp-avatar--busy .skp-avatar__glow,
   .skp-turn--typing i,
+  .skp-turn--pending p,
+  .skp-turn--answer > p,
   .skp-chat--dock {
     animation: none;
   }

@@ -40,6 +40,12 @@ describe("unresolved Key Vault references", () => {
     expect(env).toEqual({ CLAUDE_API_KEY: "k", WORLD_BUDGET_USD: "", PATH_LIKE: " x " });
   });
 
+  it("count the role paste's placeholder as unset (#330)", () => {
+    const env: Record<string, string | undefined> = { OPENAI_STUDIO_KEY: "ceo-placeholder-not-a-key", CLAUDE_API_KEY: "k" };
+    expect(dropKeyVaultRefs(env)).toEqual(["OPENAI_STUDIO_KEY"]);
+    expect(env).toEqual({ CLAUDE_API_KEY: "k" });
+  });
+
   it("know every secret setting the infra template makes a Key Vault reference", () => {
     const bicep = readFileSync(new URL("../../infra/resources.bicep", import.meta.url), "utf8");
     const inTemplate = [...bicep.matchAll(/\{ setting: '([A-Z0-9_]+)', secret: '[a-z0-9-]+' \}/g)].map((m) => m[1]).sort();

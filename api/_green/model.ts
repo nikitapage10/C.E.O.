@@ -5,7 +5,10 @@
  *   Projection   FantasyPros' weekly projection in the league's scoring when it has one for the player; otherwise
  *                his form here (#266): his league scores this season, the last three games weighted over the season
  *                (weeks he didn't score are taken as byes or injuries and left out). Out, IR or suspended counts as zero,
- *                doubtful as 30% and questionable as 85%; a bye week as zero.
+ *                doubtful as 30%; a bye week as zero. Questionable takes 85% off his form only: a published
+ *                projection (FantasyPros', Sleeper's) already prices the risk and is used as published (#340: the
+ *                board showed Goedert, questionable, at 7.5 when FantasyPros had him at 8.8 in half PPR). FantasyPros'
+ *                own number is kept beside it (`fp`), so the board never shows a FantasyPros figure FantasyPros didn't give.
  *   Byes         FantasyPros' bye week for the player (`player_bye_week`) and Sleeper's schedule (a team with no game
  *                this week). Never inferred from rows missing in FantasyPros' answer, which can be partial (#266). A player on bye or out is
  *                never the one a call says to start.
@@ -71,6 +74,8 @@ export function byeTeams(schedule: Schedule | null | undefined, fp: FpData | nul
 
 const OUT: ReadonlySet<GreenInjury> = new Set(["O", "IR", "SUS", "PUP", "NA"]);
 const INJ_FACTOR: Partial<Record<GreenInjury, number>> = { D: 0.3, Q: 0.85 };
+/** What a published projection (FantasyPros', Sleeper's) is scaled by: doubtful only; it already prices a questionable tag (#340). */
+const PUBLISHED_FACTOR: Partial<Record<GreenInjury, number>> = { D: 0.3 };
 
 /** Which positions may fill a slot. */
 export function slotTakes(slot: string): GreenPos[] {
@@ -190,9 +195,11 @@ export function buildBoard(input: ModelInput): GreenBoard {
       proj = 0;
       if (sl !== null) sl = 0;
     } else if (inj) {
-      if (proj !== null) proj = round1(proj * (INJ_FACTOR[inj] ?? 1));
-      if (sl !== null) sl = round1(sl * (INJ_FACTOR[inj] ?? 1));
+      if (proj !== null) proj = round1(proj * ((src === "fp" ? PUBLISHED_FACTOR : INJ_FACTOR)[inj] ?? 1));
+      if (sl !== null) sl = round1(sl * (PUBLISHED_FACTOR[inj] ?? 1));
     }
+    // FantasyPros' own figure for him this week, as it published it (none on a bye, or when it doesn't project him).
+    const fpOwn = fpWeek && v?.proj != null && !onBye ? v.proj : null;
     const p: GreenPlayer = {
       id,
       name: slim?.n ?? (/^[A-Z]{2,3}$/.test(id) ? `${id} D/ST` : `Player ${id}`),
@@ -207,6 +214,7 @@ export function buildBoard(input: ModelInput): GreenBoard {
       ecr: v?.ecr ?? null,
       posRank: v?.posRank ?? null,
       bye,
+      ...(fp && { fp: fpOwn }),
       ...(input.slProj && { sl }),
       ...(slRaw?.opp && { opp: slRaw.opp }),
       ...(v && { range: v.range, tier: v.tier, delta: v.delta, own: v.own }),

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Mic } from "../IdeaCard.tsx";
 import { useDictation } from "../dictate.ts";
 import { useDeskAuth } from "../signin.ts";
-import { MESSAGE_MAX, stopSpeaking, useSkippy } from "./chat.ts";
+import { MESSAGE_MAX, loadRoundTrip, stopSpeaking, useSkippy } from "./chat.ts";
 import "./skippy.css";
 
 /** Whether Nikita can talk to Skippy here, and if not, what to say instead. */
@@ -65,6 +65,7 @@ export function SkippyComposer({ autoFocus = false, compact = false, onSent, pla
         placeholder={gate.ready ? placeholder : gate.hint}
         aria-label="Message to Skippy"
         aria-describedby={gate.ready ? undefined : hintId}
+        onFocus={() => void loadRoundTrip().catch(() => null)}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

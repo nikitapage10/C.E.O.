@@ -6,7 +6,16 @@
 #
 # Signing in: OIDC only. GitHub hands the job a short-lived token, and Azure trusts it only for this repo's `azure`
 # environment, which only main may use. Nothing long-lived is stored in GitHub: the Static Web App's deployment
-# token is read at run time and masked. The identity holds Contributor on the C.E.O. resource group and nothing else.
+# token is read at run time and masked. The identity holds Contributor on the C.E.O. resource group, and (#330, once
+# Nikita's role paste has run) Role Based Access Control Administrator there with a condition that lets it assign
+# only the template's own roles to the template's own three identities, and never delete one. Nothing outside it.
+#
+# The template (#330, docs/AZURE.md, "The template on every deploy"): the infra job applies infra/resources.bicep to
+# the resource group alone (never the subscription: the group, budgets and first-time setup stay in Cloud Shell),
+# with every parameter the paste could have set read back from what is live, a what-if first, and a check that it
+# would drop no app setting set outside it. Then it changes KEYVAULT_REFRESH so the Function App reads every Key
+# Vault reference again. The site and the functions wait for it, so new settings are there when new code lands.
+# Until the role paste has run it applies nothing and says so; the code still ships.
 #
 # Until Azure is set up (the AZURE_CLIENT_ID variable is empty) every job is skipped, so main stays green.
 # Pull requests get no Azure deploy on purpose: that would hand Azure credentials to pull request code. The checks
@@ -55,8 +64,150 @@ jobs:
           path: azure/dist/functions.zip
           retention-days: 3
 
+  infra:
+    # Only on main: a push, or a run by hand from main. A pull request never reaches this workflow.
+    if: vars.AZURE_CLIENT_ID != '' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Tidy the Azure settings
+        id: az
+        env:
+          CLIENT: ${{ vars.AZURE_CLIENT_ID }}
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          SUB: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          RG: ${{ vars.AZURE_RG }}
+          NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          DEPLOYER: ${{ vars.AZURE_DEPLOYER_PRINCIPAL_ID }}
+        # A pasted variable can carry a stray line break or space; drop them so sign-in sees clean IDs.
+        run: |
+          for k in CLIENT TENANT SUB RG NAME DEPLOYER; do
+            printf '%s=%s\n' "${k,,}" "$(printf '%s' "${!k}" | tr -d '\r\n[:space:]')" >> "$GITHUB_OUTPUT"
+          done
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ steps.az.outputs.client }}
+          tenant-id: ${{ steps.az.outputs.tenant }}
+          subscription-id: ${{ steps.az.outputs.sub }}
+      - name: Check the deploy identity can apply the template
+        id: roles
+        env:
+          RG: ${{ steps.az.outputs.rg }}
+        # The template writes role assignments, which Contributor can't. Without the role paste (docs/AZURE.md), skip.
+        run: |
+          oid=$(az account get-access-token --query accessToken -o tsv | node scripts/azure-infra.mjs oid)
+          [ -n "$oid" ] || { echo "Couldn't read the deploy identity's object id."; exit 1; }
+          echo "oid=$oid" >> "$GITHUB_OUTPUT"
+          scope=$(az group show -n "$RG" --query id -o tsv)
+          az role assignment list --scope "$scope" --include-inherited --fill-principal-name false \
+            --query "[?principalId=='$oid'].roleDefinitionName" -o json > roles.json
+          if node scripts/azure-infra.mjs can-assign roles.json; then
+            echo "apply=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apply=false" >> "$GITHUB_OUTPUT"
+            msg="The template isn't applied: the deploy identity can't assign roles on $RG yet. Run the role paste in docs/AZURE.md (\"The template on every deploy\"). The code still ships."
+            echo "::warning::$msg"
+            echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Read back what is live
+        id: params
+        if: steps.roles.outputs.apply == 'true'
+        env:
+          RG: ${{ steps.az.outputs.rg }}
+          APP: ${{ steps.az.outputs.name }}
+          DEPLOYER: ${{ steps.az.outputs.deployer }}
+          DEPLOY_OID: ${{ steps.roles.outputs.oid }}
+        # Values only of the six plain settings the paste could have set differently; names only of the rest.
+        run: |
+          az bicep install --version v0.37.4
+          az bicep build -f infra/main.bicep --stdout > main.json
+          az functionapp config appsettings list -g "$RG" -n "$APP" -o json \
+            --query "[?name=='CEO_SITE_URL'||name=='PAYPAL_ENV'||name=='WORLD_BUDGET_USD'||name=='GEMINI_BUDGET_USD'||name=='SKIPPY_BUDGET_USD'||name=='EMAIL_BUDGET_USD'].{name:name,value:value}" > live.json
+          az functionapp config appsettings list -g "$RG" -n "$APP" -o json --query "[].name" > names.json
+          cap=$(az monitor log-analytics workspace show -g "$RG" -n log-ceo --query workspaceCapping.dailyQuotaGb -o tsv 2>/dev/null || true)
+          if [ -z "$DEPLOYER" ]; then
+            # The vault by name, never the group's first: the one the Function App's KEY_VAULT_URI names, else the
+            # group's only kv-ceo-* vault. With neither, or more than one, the deployer's roles are left alone.
+            kvname=$(az functionapp config appsettings list -g "$RG" -n "$APP" -o tsv \
+              --query "[?name=='KEY_VAULT_URI'].value | [0]" | sed -E 's#^https://([^.]+)\.vault\.azure\.net/?$#\1#')
+            if [ -z "$kvname" ] || [[ "$kvname" == *[!a-zA-Z0-9-]* ]]; then
+              kvname=$(az keyvault list -g "$RG" --query "[?starts_with(name, 'kv-ceo-')].name" -o json | jq -r 'if length == 1 then .[0] else "" end')
+            fi
+            vault=""
+            [ -n "$kvname" ] && vault=$(az keyvault show -g "$RG" -n "$kvname" --query id -o tsv 2>/dev/null || true)
+            # The person the first paste gave Key Vault Secrets Officer (the Function App's own Officer role is a
+            # service principal's). Exactly one, or none: with none, the deployer's roles are left as they are.
+            if [ -n "$vault" ]; then
+              az role assignment list --scope "$vault" --fill-principal-name false \
+                --query "[?principalType=='User' && roleDefinitionName=='Key Vault Secrets Officer'].principalId" -o json > officers.json
+              DEPLOYER=$(jq -r 'if length == 1 then .[0] else "" end' officers.json)
+            fi
+          fi
+          set +e
+          node scripts/azure-infra.mjs params --main main.json --bicep infra/resources.bicep --live live.json --names names.json \
+            --cap "$cap" --deployer "$DEPLOYER" --github "$DEPLOY_OID" --out params.json | tee params.txt
+          code=${PIPESTATUS[0]}
+          set -e
+          { echo '### The template'; echo; echo '```'; cat params.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" = 3 ]; then
+            echo "::warning::The template isn't applied: it would remove an app setting set outside it (see the summary). The code still ships."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          elif [ "$code" = 0 ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            exit "$code"
+          fi
+      - name: What-if
+        id: whatif
+        if: steps.params.outputs.go == 'true'
+        env:
+          RG: ${{ steps.az.outputs.rg }}
+        # The apply below runs only on `ok=true`, written here only when the helper exits 0. pipefail keeps tee from
+        # hiding its exit: 4 (the run would delete something) skips the apply and says so; anything else fails red.
+        run: |
+          set -o pipefail
+          az deployment group what-if -g "$RG" -n ceo-resources -f infra/resources.bicep -p @params.json \
+            --no-pretty-print -o json > whatif.json
+          set +e
+          node scripts/azure-infra.mjs whatif whatif.json | tee whatif.txt
+          code=$?
+          set -e
+          { echo '### What-if'; echo; echo '```'; cat whatif.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" = 0 ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          elif [ "$code" = 4 ]; then
+            echo "::warning::The template isn't applied: the what-if would delete something (see the summary). The code still ships."
+          else
+            exit "$code"
+          fi
+      - name: Apply the template
+        if: steps.params.outputs.go == 'true' && steps.whatif.outputs.ok == 'true'
+        env:
+          RG: ${{ steps.az.outputs.rg }}
+        run: az deployment group create -g "$RG" -n ceo-resources -f infra/resources.bicep -p @params.json -o none
+      - name: Re-read the Key Vault references
+        if: steps.params.outputs.go == 'true' && steps.whatif.outputs.ok == 'true'
+        env:
+          RG: ${{ steps.az.outputs.rg }}
+          APP: ${{ steps.az.outputs.name }}
+        # On Flex a plain restart can keep a reference that failed before its secret existed; a settings change doesn't.
+        # `-o none`: the command would otherwise print every setting.
+        run: |
+          az functionapp config appsettings set -g "$RG" -n "$APP" --settings "KEYVAULT_REFRESH=$(date -u +%Y%m%d%H%M%S)" -o none
+          echo "Applied, and $APP re-reads the vault." >> "$GITHUB_STEP_SUMMARY"
+
   site:
-    needs: build
+    needs: [build, infra]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: azure
@@ -106,7 +257,7 @@ jobs:
           skip_api_build: true
 
   functions:
-    needs: build
+    needs: [build, infra]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: azure

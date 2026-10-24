@@ -8,7 +8,7 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { pickBlob, vercelBlob, type BlobBackend } from "../_blob.js";
+import { BlobPreconditionError, pickBlob, vercelBlob, type BlobBackend } from "../_blob.js";
 import type { Limits } from "./limits.js";
 import type { PingState } from "./pings.js";
 
@@ -35,6 +35,12 @@ export interface AuthStore {
   /** The devices that turned pings on, and what has been pinged already (#135, api/_desk/pings.ts). */
   pings(): Promise<PingState>;
   savePings(state: PingState): Promise<void>;
+  /**
+   * Marks one answered challenge spent, atomically (#330): true for the first caller only. Two requests racing with
+   * the same answer can't both win, because the write is create-if-absent in the store itself (If-None-Match: *),
+   * not a read of the counters followed by a write. `id` is already a hash; nothing of the challenge is kept.
+   */
+  claim(id: string, until: number): Promise<boolean>;
 }
 
 /** At most this many devices: enough for every PC, phone and key Nikita owns, and a bound on the record. */
@@ -44,6 +50,10 @@ const PASSKEYS = "desk/auth/passkeys.json";
 const LIMITS = "desk/auth/limits.json";
 /** Beside the passkeys: each device's push subscription, and the keys of what was pinged (#135). */
 const PINGS = "desk/auth/pings.json";
+/** One small file per spent step-up challenge (#330), named by its hash: written once, never overwritten. */
+const SPENT = "desk/auth/spent/";
+/** A claim id is a hex hash and nothing else, so it can't steer the path. */
+const CLAIM_ID = /^[a-f0-9]{16,64}$/;
 
 const pingsOf = (got: Partial<PingState> | null | undefined): PingState => ({
   subs: Array.isArray(got?.subs) ? got.subs : [],
@@ -85,6 +95,17 @@ export class BlobAuthStore implements AuthStore {
   async savePings(state: PingState): Promise<void> {
     await writeJson(this.blob, PINGS, state);
   }
+  async claim(id: string, until: number): Promise<boolean> {
+    if (!CLAIM_ID.test(id)) return false;
+    try {
+      // allowOverwrite false: the store refuses the write when the file is already there (If-None-Match: *).
+      await this.blob.put(`${SPENT}${id}.json`, JSON.stringify({ until }), { contentType: "application/json", addRandomSuffix: false, allowOverwrite: false });
+      return true;
+    } catch (e) {
+      if (e instanceof BlobPreconditionError) return false;
+      throw e;
+    }
+  }
 }
 
 /** For tests and local runs: the same shape, in memory. */
@@ -109,6 +130,12 @@ export class MemoryAuthStore implements AuthStore {
   }
   async savePings(state: PingState): Promise<void> {
     this.pingState = structuredClone(state);
+  }
+  claimed = new Set<string>();
+  async claim(id: string): Promise<boolean> {
+    if (!CLAIM_ID.test(id) || this.claimed.has(id)) return false;
+    this.claimed.add(id);
+    return true;
   }
 }
 

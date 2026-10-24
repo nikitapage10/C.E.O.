@@ -185,6 +185,10 @@ with a new value.
 | `POST /api/skippy-answer` with `Authorization: Bearer <SUBMIND_FEED_TOKEN>` (#312) | Skippy's and the room subminds' threads, answering a question Desk Skippy handed off | The gate checks the key itself, at least 32 characters, in constant time, on that one path and method, and the function checks it again; it can only attach one plain line (700 characters at most, held back whole when it looks private) to a turn that was handed off and isn't answered yet, and the ping it sends names who answered, never what. Without the key set the route is off |
 | Any route with `x-ceo-site-bypass: <SITE_BYPASS_TOKEN>` | `live-watch.yml` (`scripts/boot-check.mjs --url`) only, since #313: the backup reads Azure's own store, and the final copy from Vercel uses Vercel's Blob token | A shared secret, at least 32 characters, compared in constant time, read from the Key Vault (`site-bypass-token`) at run time; the workflow sends it only to the site, from a file or a same-origin browser route, and never print it. Without it, the live watch only checks that the login page answers |
 
+| GET of a room read with `x-ceo-room-key: <SUBMIND_LOG_TOKEN>` (or `Authorization: Bearer`) | The active submind threads (#281): the four active rooms' Asked Skippy logs, the Green's league, the Exchange's board and positions, the world feed (and `?day=`), the Foundry feed, the room feed | The read key, from the Key Vault only, at least 32 characters, compared in constant time; exactly the listed paths and queries, GET only (`api/_site/roomkeys.ts`), and the private handlers check the key again. See "The subminds' room keys" below |
+| `POST /api/room-feed` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a short room event (#281) | The feed key, the same way; that one write only, which answers `{ ok, id }` and nothing more |
+| `POST /api/setup-asks` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a setup ask, or closing one with its Trail line (#324) | The feed key, the same way, no query; it can't approve its own ask (only the passkey session can), and it answers `{ ok, id }` or `{ ok }`. A new ask pings Nikita's phone with counts-only words. See "Setup asks" below |
+
 Nothing else is exempt. The local checks (`scripts/boot-check.mjs` on a build, the browser tests) don't run the
 middleware, so they see the site as before; `tests/e2e/gate.spec.ts` runs the same gate, the login function and the
 Desk's sign-in in front of the built site, locked, with Chromium's virtual authenticator as the device: no password
@@ -203,6 +207,50 @@ runs in front of every Azure function, the login page is `/api/site-login`, and 
 when an API call answers 401 with `x-ceo-site-gate: locked` (`apps/world/src/siteGate.ts`). Passkeys belong to one
 domain, so the Azure copy has its own: lock it from the Azure Desk, after enrolling a passkey there. The Static Web App's own
 files stay reachable there until its own authentication is set up.
+
+## The subminds' room keys
+
+Nikita approved two narrow keys for the subminds' project threads on 2026-10-22 (#281; [SKIPPY.md](SKIPPY.md), "Room
+keys"; Nikita's steps in [AZURE.md](AZURE.md), "The subminds' room keys"):
+
+- **Two keys, two directions.** `SUBMIND_LOG_TOKEN` reads (GET only, the listed room data, the Asked Skippy log's `needs` filter included); `SUBMIND_FEED_TOKEN` writes
+  (POST `/api/room-feed`, POST `/api/setup-asks` for a setup ask or its Trail line, #324, and POST `/api/skippy-answer` for a hand-off's answer, #312) and reads nothing. Each opens only its own exact method, path and query
+  (`LOG_READS`, `isFeedWrite` in `api/_site/roomkeys.ts`): another route, an extra or repeated query key, an encoded
+  path, HEAD or any other POST is refused by the gate, and the handlers that hold private data
+  (`/api/skippy-log`, `/api/exchange-positions`, `/api/room-feed`, `/api/setup-asks`) check the key again, so the same holds while the site
+  is unlocked. The read key sees the Asked Skippy log of the four active rooms only, never Relay's.
+- **What they can't do.** Change a setting (no Desk write takes them: the Desk's own writes need a passkey session),
+  trade (positions are read through the two allow-listed Polymarket GETs, `api/_exchange/positions.ts`), send
+  anything (no email, invoice or ping route takes them), or reach an upstream secret (no route returns one).
+- **The keys themselves.** Key Vault only (`submind-log-token`, `submind-feed-token`), minted by the secrets paste, never
+  in the repo, an issue, a file or a chat; the threads read them from the project's cloud environment. Each must be at
+  least 32 characters and differ from the other and from `FOUNDRY_DESK_KEY`, `SITE_BYPASS_TOKEN`, `SITE_SESSION_SECRET`,
+  `DESK_PINGS_SECRET` and `GMAIL_TOKEN_KEY`, or it counts as unset. Both are compared in constant time (hashed first, so
+  their lengths don't show), and sent in their own header (`x-ceo-room-key`) or as a bearer token.
+- **The feed.** A room (one of the four), a title of 120 characters at most and an optional detail of 600, in the
+  private blob store (`desk/rooms/feed.json`: the last 200, 14 days at most), at most 20 per room an hour. An event
+  that trips the Desk's privacy check (`privateParts`) or carries a copy of either key is refused whole (422). A Desk
+  passkey session or the read key gets each event's detail; everyone else, and the Lattice always (`?view=public`),
+  gets the titles only, with money and links replaced by "…" (`publicTitle`). Every answer is `private, no-store`.
+- **If a key leaks**, give the secret a new version in the vault and restart the Function App: the old key opens
+  nothing from then on ([AZURE.md](AZURE.md), step 3).
+
+
+## Setup asks
+
+When a submind's thread needs something set up only Nikita can allow (#324; [SKIPPY.md](SKIPPY.md), "Setup asks"):
+
+- **No keys through people or threads.** Agents never type keys, passwords or tokens, and never do sign-ins (Skippy's
+  rule on #324). Each ask names its route, and the first choice needs no key: a managed identity, then OIDC federation;
+  where a key can't be avoided, a machine-to-machine flow that lands it straight in the Key Vault; last, steps in
+  Nikita's own browser that stop at every sign-in and passkey. An ask whose words ask anyone to type, paste or copy a
+  key, password or token is refused (422 `asks-for-secret`), and so is one that looks private or carries a room key.
+- **Only Nikita says yes.** Approve and Decline need the Desk's passkey session (`requireSession`, same-origin); the
+  feed key can post an ask and close it, but "done" only after Nikita approved. Nothing is changed until then.
+- **Owner only.** `GET /api/setup-asks` answers the passkey session or the read key, nothing else; there is no public
+  view, and the Lattice never reads it. The Desk shows the panel only signed in, veiled by Hide.
+- **Bounded.** Five new asks an hour, eight waiting at once; the last 100, none untouched for 30 days, in the private
+  store (`desk/rooms/setup.json`). Its ping says only that an ask is waiting, never what it says; quiet hours hold it.
 
 ## The email agent
 
@@ -275,14 +323,53 @@ only ever go to a device whose passkey is still enrolled. The phone's own settin
 on an iPhone) can mute them as well. **To stop all pings at once**, delete `DESK_PINGS_SECRET` (or the VAPID keys)
 in the Key Vault and restart the Function App.
 
+## Setting keys from the Desk
+
+Since #330, a third-party key is set or replaced on the Desk instead of in Cloud Shell: **Boiler Room → Security →
+Keys**, signed in. It is write-only by design:
+
+- **Only allowlisted names** (`api/_keys/allowlist.ts`): `claude-api-key`, `gemini-api-key`, `fantasypros`,
+  `polymarket-us-key-id`, `polymarket-us-secret-key`, `gmail-client-id`, `gmail-client-secret`, `paypal-client-id`,
+  `paypal-client-secret`, `elevenlabs`, `openai` and `email-skip-terms`. Never anything that guards the lock, the crew
+  or sealed data: `foundry-desk-key`, `site-bypass-token`, `desk-pings-secret`, `foundry-github-token`,
+  `foundry-app-*`, `desk-vapid-*`, `gmail-token-key` and `submind-*` are refused by name and by pattern, so a stolen
+  session can't hand itself a way back in. A unit test pins both lists and puts every secret in the template on
+  exactly one.
+- **Per-secret scope in Azure first, the allowlist on top.** The role paste (AZURE.md, "The template on every
+  deploy") gives the Function App's identity Key Vault Secrets Officer on each of those twelve secrets alone
+  (`<vault>/secrets/<name>`), never on the vault, so Azure itself refuses a write to any other secret, whatever the
+  code does. The allowlist in code is defence in depth on top of that scope: an off-list name is refused before the
+  vault is called. A secret the paste had to create so it could carry its role holds a tagged placeholder
+  (`ceo-placeholder-not-a-key`, tag `ceo-placeholder`), never a key: the Desk shows it as not set, the app treats it
+  as unset at start-up and in the key refresh, and the form won't take it as a value.
+- **A fresh passkey for every write, bound to that write.** The session cookie alone sets nothing: `POST /api/keys`
+  needs a passkey answer from that session's own passkey to a challenge handed out in the last two minutes, checked by
+  the same WebAuthn code as the sign-in (`api/_desk/assert.ts`). The challenge is asked for one write: the browser
+  sends h = sha256(name + "\n" + value) for its options, the signed challenge cookie keeps a keyed hash of h, and the
+  set is refused unless its own name and value hash to the same, so an answer can't be spent on another key or value.
+  It is used once: the challenge is marked spent with an atomic create-if-absent write in the private store
+  (`If-None-Match: *`, `claim` in `api/_desk/store.ts`) before the vault is called, so two requests racing with one
+  answer can't both write. A failed step-up counts against the sign-in's lockout.
+- **Nothing comes back.** The route can set or replace a value; it can't read one, list values or delete
+  (`api/_keys/vault.ts` has only `set` and the vault's list of names and dates). The Desk sees each key's name,
+  whether it is set and when, never a value, a length or a hash. The vault's answer to a write, which repeats the
+  value, is dropped in `azure/src/vault.ts`. The trail (`desk/keys/trail.json`) and the log keep the name and the time
+  only; a test checks the value appears in no answer, log line or trail entry.
+- **The usual Desk-write guards:** JSON only, same origin, `SameSite=Strict` cookie, a 16 KB body and a 4 KB
+  one-line value at most, and six writes in a row before a wait (then a 15-minute lockout).
+- **How the app picks it up:** each instance checks the vault's dates at most every two minutes and reads only an
+  allowlisted key newer than its own copy into that one setting (`azure/src/keys.ts`); the instance that wrote it takes
+  it at once. That needs only Key Vault Secrets User, which the app already had.
+
 ## Keys and settings in the Key Vault
 
 Every secret lives only in the Azure Key Vault (#313), as a Key Vault reference in the Function App's settings, read
-by the app's own identity; never in the repo or the browser, and no function logs or returns one. The names below
-are the app settings; the vault's secret for each is in [AZURE.md](AZURE.md) ("After the paste"). The budgets and
-`WORLD_STORE` are plain app settings the template writes. Which environments get each is in [DELIVERY.md](DELIVERY.md),
-"Environments". Which environments get each is in [DELIVERY.md](DELIVERY.md),
-"Environments".
+by the app's own identity; never in the repo or the browser, and no function logs or returns one. Since #330 the
+template is applied by the deploy on every merge (AZURE.md, "The template on every deploy"), and the third-party keys
+above can be written from the Desk. The names below
+are the app settings; the vault's secret for each is in [AZURE.md](AZURE.md) ("After the paste"). The budgets,
+`WORLD_STORE` and `KEY_VAULT_URI` (the vault's address, for the Keys form) are plain app settings the template
+writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environments".
 
 | Variable | What it is for | Without it |
 | --- | --- | --- |
@@ -301,6 +388,7 @@ are the app settings; the vault's secret for each is in [AZURE.md](AZURE.md) ("A
 | `DESK_VAPID_SUBJECT` | Optional: an `https:` or `mailto:` contact the push services may use about the pings | The site's address |
 | `DESK_PINGS_SECRET` | Shared with the Desk pings workflow, which reads it from the vault: only a caller holding it can make the Desk scan and ping. Long and random | No scans, so no pings |
 | `SITE_BYPASS_TOKEN` | The site lock's key for the live watch (#236, #313), which reads it from the vault (`site-bypass-token`) and sends it in `x-ceo-site-bypass`. At least 32 random characters | The live watch only checks the login page |
+| `SUBMIND_LOG_TOKEN`, `SUBMIND_FEED_TOKEN` | The subminds' room keys (#281, "The subminds' room keys" above): read-only GETs of room data, and write-only room events. **Azure only** (`submind-log-token`, `submind-feed-token`), minted by the secrets paste. At least 32 random characters, different from each other and the site's secrets | The keys open nothing; the threads read and post nothing |
 | `SITE_SESSION_SECRET` | Optional: signs the site's sign-in cookies (#236). At least 32 random characters | Derived from `FOUNDRY_DESK_KEY` |
 | `POLYMARKET_US_KEY_ID`, `POLYMARKET_US_SECRET_KEY` | Nikita's Polymarket US API key (#253), for the Exchange's private positions board. As Key Vault references (`polymarket-us-key-id`, `polymarket-us-secret-key`); never set on Vercel. Polymarket US keys have no read-only scope, so the code keeps it read-only: `api/_exchange/positions.ts` signs only GET requests to `/v1/portfolio/positions` and `/v1/portfolio/activities` (an allow-list, with a test that fails if an order, account, RFQ, combo or WebSocket path becomes reachable), never logs or returns the key, and answers only a signed-in Desk (`private, no-store`). Revoke it at polymarket.us/developer if in doubt | The positions board says it's waiting for the key |
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` | The email agent's Google OAuth client (#263, [GMAIL.md](GMAIL.md)). **Azure only**, as Key Vault references (`gmail-client-id`, `gmail-client-secret`) | Connect Gmail is off; the Relay page says it's waiting for the keys |
@@ -324,6 +412,18 @@ are the app settings; the vault's secret for each is in [AZURE.md](AZURE.md) ("A
 Every action in the workflows is pinned to a full commit SHA with its version in a comment, so a moved tag can't
 change what runs. Dependabot proposes the bumps. Each workflow starts with read-only permissions and grants write
 access only to the job that needs it.
+
+## What GitHub can do in Azure
+
+The deploy signs in to Azure with OIDC, trusted only for this repo's `azure` environment, which only `main` may use
+(GitHub: Settings → Environments → `azure` → Deployment branches: `main`). It holds Contributor on `rg-ceo-prod`, blob
+data access, Key Vault Secrets User, and (#330) Role Based Access Control Administrator on `rg-ceo-prod` with a
+condition: it may assign only the template's own roles, each only to the identity the template names (the Function
+App, Nikita, itself), and may never delete an assignment. It can't grant itself anything new, can't write a secret,
+and has nothing outside the group. The job that applies the template runs only on a push to `main` (or a run by hand
+from `main`), pins every action by SHA, reads back what is live before applying so nothing is reset, and prints only
+names, plain values and property paths. The role design and the paste are in [AZURE.md](AZURE.md), "The template on
+every deploy".
 
 ## Keys in GitHub Actions
 
@@ -473,7 +573,11 @@ Agents can't change repo settings, so these are clicks for Nikita, once. In the 
 8. **Optional, make the scans required:** Settings > Branches (or Rules > Rulesets) > the rule for `main` >
    Require status checks to pass > add "checks", "Analyze (javascript-typescript)", "Analyze (actions)" and
    "Dependency review".
-9. **Visual QA's key (optional):** Settings > Secrets and variables > Actions > New repository secret, named
+9. **The `azure` environment is for `main` only:** Settings > Environments > `azure` > Deployment branches and tags >
+   **Selected branches and tags** > `main` only (no other rule), and no `pull_request` workflow uses it. Azure trusts
+   any job in that environment, and since #330 that job can apply the template, so this setting is what keeps it to
+   `main`.
+10. **Visual QA's key (optional):** Settings > Secrets and variables > Actions > New repository secret, named
    `GEMINI_API_KEY`, with a key from Google AI Studio on a paid-tier project (the free tier lets Google use what it is
    sent to improve its products). Until it is set, Visual QA records the clips and skips the review. Setting a
    budget alert on that Google project backs up the caps in code.

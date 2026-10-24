@@ -23,7 +23,9 @@ the message, made plain text, links taken out and trimmed to 2,500 characters.
   or "3 emails need you", a count and nothing else, never between 10pm and 7am Mountain (held for the morning).
 - The **Desk's Relay page** shows the needs-you list (sender, subject, summary, step, advice, draft with **Copy draft**,
   **Open in Gmail**, **Done**) and then FYI, folded. **Today** shows "N emails need you". The Lattice's Relay room has a
-  brass inbox board with the counts, and the Boiler Room a Gmail pipe.
+  brass inbox board with the counts (needs you, FYI, noise, and a dial and sounder for the last check), its tubes drop
+  one canister per new mail, and the Boiler Room has a Gmail pipe; Systems has a Gmail card. Live since 2026-10-23
+  (#322).
 
 **The catch-up** (#323). History only shows what arrives after the first check, so once per connection (on the first
 connect, after a reconnect, and once for the connection that existed before the catch-up shipped) the agent also lists
@@ -100,9 +102,11 @@ Mail content is private and stays on the private path:
 ### Where the token lives
 
 The refresh token is sealed into the private blob store, not written to Key Vault. Writing a secret would need the
-Function App's identity to hold **Key Vault Secrets Officer**, which could also rewrite every other secret in the vault
-(the Desk key, the Claude key). With the sealed blob the identity keeps only **Key Vault Secrets User** (read), which
-it already has, so **no new role assignment** is needed: nothing changes in `infra/resources.bicep`'s roles.
+Function App's identity to hold **Key Vault Secrets Officer** on it. Since #330 it holds that role only on the twelve
+third-party secrets the Desk's Keys form may set, one by one ([AZURE.md](AZURE.md), "The template on every deploy"),
+never on the vault and never on `gmail-token-key` or the Desk key. With the sealed blob the token needs no further
+role: everything else in the vault stays **Key Vault Secrets User** (read) for the app, and nothing changes in
+`infra/resources.bicep`'s roles.
 
 ### Connect Gmail (the OAuth flow)
 

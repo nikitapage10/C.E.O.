@@ -12,7 +12,7 @@ import { PipeRack } from "./PipeRack.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
-import { startEmail } from "./email/email.ts";
+import { emailLine, linkOf, startEmail, useEmail, type EmailLoad, type EmailStatus } from "./email/email.ts";
 import { startInvoices } from "./spire/invoices.ts";
 import { startPolymarket } from "./exchange/polymarket.ts";
 import { startGreen } from "./green/league.ts";
@@ -20,6 +20,8 @@ import { roomLink } from "./hero/roomLink.ts";
 import { Private } from "./Private.tsx";
 import { Home } from "./rooms/Home.tsx";
 import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
+import { RoomFeed } from "./skippy/RoomFeed.tsx";
+import { SetupAsks } from "./skippy/SetupAsks.tsx";
 import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
@@ -58,11 +60,65 @@ function firstMode(): "overview" | FlowId {
 
 const VQA_STATE: Record<string, LinkState> = { ok: "ok", slow: "ok", down: "down", off: "off" };
 
+const sinceWord = (at: number | null, now: number) => {
+  if (at === null) return "not yet";
+  const m = Math.max(0, Math.round((now - at) / 60_000));
+  if (m < 1) return "under a minute ago";
+  return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+};
+
+/**
+ * The Gmail card (#322): the email agent's line, live on the Azure copy since 2026-10-23. Built from the public counts
+ * only (`EmailStatus`: counts, states, times), so it reads the same signed in or out; the mail itself stays on Relay.
+ */
+function EmailCard({ load, status, now, onFlow }: { load: EmailLoad; status: EmailStatus | null; now: number; onFlow: () => void }) {
+  const link = linkOf(status);
+  const tone = link === "ok" ? "var(--wv-ok)" : link === "down" ? "var(--wv-bad)" : link === "slow" ? "#e8b04f" : "var(--wv-mute)";
+  const head = load === "off" ? "On the Azure copy" : !status ? emailLine(load, status).replace(/^Email:\s*/, "") : link === "ok" ? "Live, read-only" : emailLine(load, status).replace(/^Email(?: agent)?:?\s*/i, "");
+  return (
+    <section className="wv-sysclock wv-sysmail" data-room="relay" aria-label="Gmail">
+      <p className="wv-eyb">
+        <i className={`wv-dot${link === "off" ? " is-ring" : ""}`} style={{ "--rc": tone } as React.CSSProperties} aria-hidden="true" /> Gmail · Relay's email line
+      </p>
+      <h2 className="wv-h2">{head.charAt(0).toUpperCase() + head.slice(1)}</h2>
+      <p className="wv-note" style={{ marginTop: 8 }}>
+        Your inbox, read from the Azure copy every minute with read-only access. Dialtone sorts, Blasto advises; nothing is ever sent. Only these counts leave the passkey.
+      </p>
+      <dl className="wv-facts">
+        <div>
+          <dt>Last check</dt>
+          <dd>{load === "off" ? "–" : sinceWord(status?.lastCheck ?? null, now)}</dd>
+        </div>
+        <div>
+          <dt>Open</dt>
+          <dd>{status ? `${status.needsYou} need you · ${status.fyi} FYI` : "–"}</dd>
+        </div>
+        <div>
+          <dt>Today</dt>
+          <dd>{status ? `${status.newToday} new · ${status.noise} noise` : "–"}</dd>
+        </div>
+        <div>
+          <dt>Monthly cap</dt>
+          <dd>{status ? `${status.budgetPct}% used` : "–"}</dd>
+        </div>
+      </dl>
+      <button className="wv-link" type="button" onClick={onFlow}>
+        See its flow
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+          <path d="M3 8h10M9 4l4 4-4 4" />
+        </svg>
+      </button>
+    </section>
+  );
+}
+
 export function Systems({ now }: { now: number }) {
   const [mode, setMode] = useState<"overview" | FlowId>(firstMode);
   // Polymarket's thread is real (#240): read its odds while this page is open, so the thread shows its true state.
   useEffect(() => startPolymarket(), []);
   useEffect(() => startEmail(), []);
+  const emailLoad = useEmail((s) => s.load);
+  const emailStatus = useEmail((s) => s.status);
   // So are Sleeper and FantasyPros, through the Green's board (#252).
   useEffect(() => startGreen(), []);
   // And PayPal, through the Spire's invoice counts (#279).
@@ -178,6 +234,7 @@ export function Systems({ now }: { now: number }) {
             ))}
           </ul>
         </section>
+        <div className="wv-syscol">
         <section className="wv-sysclock" data-room="boiler">
           <p className="wv-eyb">World clock</p>
           <h2 className="wv-h2">{hour !== null && cstate !== "off" ? `Hour ${hour}, ${headline.toLowerCase()}` : headline}</h2>
@@ -213,11 +270,15 @@ export function Systems({ now }: { now: number }) {
             </svg>
           </button>
         </section>
+        <EmailCard load={emailLoad} status={emailStatus} now={now} onFlow={() => setMode("relay")} />
+        </div>
       </div>
 
       <JobBoard now={now} />
 
       <AskedSkippy room="boiler" />
+      <SetupAsks room="boiler" />
+      <RoomFeed room="boiler" />
 
       <Home />
     </div>

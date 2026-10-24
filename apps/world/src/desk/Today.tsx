@@ -1,28 +1,28 @@
-import { useEffect, useState } from "react";
-import { byWait, DESK_ROOMS, roomImage, type DeskData, type DeskRoom } from "./deskData.ts";
-import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
-import { chronicleDay, sinceAway, useWorldFeed } from "../chronicle.ts";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { byWait, type DeskData } from "./deskData.ts";
+import { ideaCounts, openIdeas, useFoundry } from "../foundry.ts";
 import { loadLattice } from "../route.ts";
-import { useUsage } from "../usage.ts";
 import { TodayHero } from "./hero/TodayHero.tsx";
-import { roomLink } from "./hero/roomLink.ts";
 import { useSetup } from "./IdeaCard.tsx";
 import { link } from "./nav.ts";
 import { SetupAct, useSetupStatus } from "./SetupCard.tsx";
+import { readTicked, remaining, SETUP_LIST } from "./setupList.ts";
 import { EmailAct } from "./email/EmailAct.tsx";
 import { startEmail, useEmail } from "./email/email.ts";
-import { DecisionAct, IdeasAct, LaterAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
-import { ComingUp, LatticeToday, ShortVersion, shortVersion, WorthKnowing } from "./TodayWeave.tsx";
-import { Avatar } from "./ui.tsx";
-import { usePulses } from "./usePulses.ts";
-import { SKIPPY_PORTRAIT } from "./skippy/index.ts";
+import { DecisionAct, IdeasAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
+import { DAY_STRIP_MS, usePulses } from "./usePulses.ts";
+import { SkippyAsk } from "./skippy/index.ts";
+
+/** The rest of Today, loaded the first time "More from today" is opened (or in the idle time after first paint). */
+export const loadTodayMore = () => import("./TodayMore.tsx");
+const TodayMore = lazy(() => loadTodayMore().then((m) => ({ default: m.TodayMore })));
 
 /**
- * Today, in the Weave (Nikita, 2026-10-22): Skippy, the Magnificent guiding the day. A hero first: the nine rooms as
- * living threads through the Lattice, Skippy's line on what needs a human, the way into the Lattice and the Ask
- * Skippy box, and the Council one click away. Then the approved Weave's sections: what needs you as cards answerable in
- * place, the nine rooms as lanes beside the world clock, what is worth knowing now, the short version of what happened
- * until you mark it read, and what the crew does next. Real data only: anything not connected says it is waiting.
+ * Today as one calm picture (#336, Nikita 2026-10-23: "I really want the today page to really be seamless… not have so
+ * many different sections… clicking into each individual room obviously gives me more detail"). Skippy's greeting,
+ * one slim strip when something actually needs Nikita (the cards open from it, answerable in place), the rooms'
+ * strands with their subminds (TodayHero), the Ask Skippy line, and one quiet link to everything else (TodayMore).
+ * Real data only: anything not connected says it is waiting.
  */
 
 /** Replies that make "Needs you": the ones marked sooner, and anything waiting longer than this. */
@@ -31,12 +31,9 @@ const NOW_WAIT = 8 * 3_600_000;
 const NOW_REPLIES = 3;
 
 const at = (i: number) => ({ "--i": i }) as React.CSSProperties;
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-export function Today({ data, now, connected, awaySince }: { data: DeskData; now: number; connected: boolean; awaySince: number }) {
-  const world = useWorldFeed().feed;
-  const ilyr = world ? sinceAway(world.recent, awaySince) : [];
-  const yesterday = chronicleDay(now - 86_400_000);
-  const storyDay = world?.days.includes(yesterday) ? yesterday : null;
+export function Today({ data, now, awaySince }: { data: DeskData; now: number; connected: boolean; awaySince: number }) {
   const owed = byWait(data.owed);
   const replies = owed.filter((o) => !o.later && (o.urgency === "sooner" || now - o.since > NOW_WAIT)).slice(0, NOW_REPLIES);
   const otherReplies = owed.length - replies.length;
@@ -45,7 +42,6 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   const pendingIdeas = useFoundry((s) => s.pending);
   const setup = useSetup();
   const setupList = useSetupStatus();
-  const usage = useUsage().feed;
   const ideas = openIdeas(foundry.crates, pendingIdeas);
   const questions = ideaCounts(ideas).questions;
   const toPick = ideas.filter((c) => !c.revising && !(c.asking && c.question));
@@ -56,9 +52,23 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
   const emailNeeds = useEmail((s) => s.status?.needsYou ?? 0);
   useEffect(() => startEmail(), []);
   const todo = replies.length + decisions.length + questions.length + emailNeeds;
-  const shipped = shippedToday(foundry.changelog, now);
   const pulses = usePulses(owed.length, now);
-  const moments = shortVersion({ data, changes: foundry.changelog, ilyr, awaySince });
+  const [ticked] = useState(readTicked);
+  const setupLeft = setupList ? remaining(setupList, ticked).length : 0;
+
+  const [pre, setPre] = useState(true);
+  const [needsOpen, setNeedsOpen] = useState(false);
+  const [more, setMore] = useState(() => typeof window !== "undefined" && window.location.hash === "#more");
+
+  // What the strip says, one short phrase per kind; it shows only when there is something.
+  const asks = [
+    questions.length ? count(questions.length, "question from Rivet", "questions from Rivet") : "",
+    decisions.length ? count(decisions.length, "decision") : "",
+    replies.length ? count(replies.length, "reply", "replies") : "",
+    emailNeeds ? count(emailNeeds, "email") : "",
+    toPick.length ? count(toPick.length, "idea to pick", "ideas to pick") : "",
+    setupLeft ? `a setup step (${SETUP_LIST.length - setupLeft} of ${SETUP_LIST.length} done)` : "",
+  ].filter(Boolean);
 
   let i = 0;
   const cards = [
@@ -68,77 +78,61 @@ export function Today({ data, now, connected, awaySince }: { data: DeskData; now
     ...(emailNeeds ? [<EmailAct key="email" count={emailNeeds} style={at(i++)} />] : []),
     ...(toPick.length ? [<IdeasAct key="ideas" ideas={toPick} setup={setup} now={now} style={at(i++)} />] : []),
     <SetupAct key="setup" status={setupList} style={at(i++)} />,
-    ...(later.length || otherReplies > 0 ? [<LaterAct key="later" items={later} moreReplies={otherReplies} style={at(i++)} />] : []),
   ];
-  const nothing = !todo && !toPick.length && !later.length && !otherReplies;
 
-  const [pre, setPre] = useState(true);
+  const openMore = () => {
+    setMore((m) => !m);
+    if (!more) window.setTimeout(() => document.getElementById("today-more")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
 
   return (
     <div className={`today wv-page wv-today${pre ? " is-pre" : ""}`}>
-      <TodayHero now={now} pulses={pulses} todo={todo} onPre={setPre} />
+      <TodayHero now={now} pulses={pulses} todo={todo} since={Math.min(new Date(now).setHours(0, 0, 0, 0), now - DAY_STRIP_MS)} onPre={setPre} />
 
-      <section className="wv-acts" aria-label="Needs you">
-        {cards}
-        {nothing && (
-          <article className="wv-act wv-act-clear" data-room="boiler" data-in style={at(i)}>
-            <div className="wv-act-top">
-              <i className="wv-dot is-faint" />
-              <span>Needs you</span>
-            </div>
-            <div className="wv-act-body">
-              <img className="wv-act-pf" src={SKIPPY_PORTRAIT} alt="" width={44} height={44} decoding="async" />
-              <div>
-                <h3 className="wv-h3">All quiet. Enjoy it; I arranged it.</h3>
-                <p className="wv-act-p">
-                  {connected
-                    ? "When an agent needs a reply sent or a decision made, it lands here with the answer one tap away."
-                    : "Once the hub on your MacBook is connected, replies you owe and decisions from your agents land here."}
-                </p>
-              </div>
-            </div>
-          </article>
-        )}
-      </section>
-
-      <LatticeToday pulses={pulses} now={now} awaySince={awaySince} world={world} />
-      <WorthKnowing data={foundry} usage={usage} world={world} owed={owed.length} />
-      <ShortVersion moments={moments} awaySince={awaySince} now={now} storyDay={storyDay} shipped={shipped} />
-      <ComingUp now={now} />
-
-      <section className="wv-section rooms" aria-label="Your rooms">
-        <div className="wv-sechead">
-          <div>
-            <p className="wv-eyb">The rooms</p>
-            <h2 className="wv-h2">Walk in anywhere</h2>
+      {asks.length > 0 && (
+        <section className={`wv-needs${needsOpen ? " is-open" : ""}`} data-in aria-label="Needs you">
+          <button type="button" className="wv-needs-bar" aria-expanded={needsOpen} aria-controls="today-needs" onClick={() => setNeedsOpen((o) => !o)}>
+            <i className="wv-needs-dot" aria-hidden="true" />
+            <span className="wv-needs-k">Needs you</span>
+            <span className="wv-needs-t">{asks.join(" · ")}</span>
+            <span className="wv-needs-go">{needsOpen ? "Fold away" : "Answer here"}</span>
+          </button>
+          <div id="today-needs" className="wv-acts" hidden={!needsOpen}>
+            {needsOpen && cards}
           </div>
-          <a className="wv-link" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()}>
-            Enter the Lattice →
-          </a>
-        </div>
-        <ul className="rooms__grid">
-          {(Object.keys(DESK_ROOMS) as DeskRoom[]).map((r) => {
-            const waiting = data.actions.filter((a) => a.room === r).length + (r === "relay" ? owed.length : 0);
-            const room = DESK_ROOMS[r];
-            const p = pulses.find((x) => x.id === r);
-            return (
-              <li key={r} className={`room ${waiting ? "room--hot" : ""}`} style={{ "--tone": room.accent } as React.CSSProperties}>
-                <a href={p?.href ?? `/lattice?room=${r}`} onClick={roomLink(p?.href ?? "/lattice")}>
-                  <img className="room__pic" src={roomImage(r)} alt="" loading="lazy" decoding="async" />
-                  <span className="room__text">
-                    <span className="room__name">{room.name}</span>
-                    <span className="room__what">{p?.status ?? room.what}</span>
-                  </span>
-                  <span className="room__foot">
-                    <Avatar agent={room.lead} size="sm" room={r} />
-                    <span className="room__cap">{waiting ? `${waiting} waiting on you` : room.what}</span>
-                  </span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+        </section>
+      )}
+
+      <div className="wv-hero-do" data-in>
+        <SkippyAsk className="wv-ask" />
+        <a className="wv-door" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
+          <svg viewBox="0 0 28 20" aria-hidden="true">
+            <path d="M1 10c4-7 8-7 13 0s9 7 13 0" />
+            <path d="M1 10c4 7 8 7 13 0s9-7 13 0" />
+          </svg>
+          <span>
+            <b>Enter the Lattice</b>
+            <small>Walk the ten rooms</small>
+          </span>
+        </a>
+      </div>
+
+      <p className="wv-tmore" data-in>
+        <button type="button" className="wv-tmore-link" aria-expanded={more} aria-controls="today-more" onClick={openMore} onPointerEnter={() => void loadTodayMore()} onFocus={() => void loadTodayMore()}>
+          {more ? "Less" : "More from today"}
+          <small>{more ? "fold it away" : "the short version, what's worth knowing, what's next, every room"}</small>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </p>
+      <div id="today-more" className="wv-tmore-box">
+        {more && (
+          <Suspense fallback={<div className="desk__loading" role="status" aria-label="Loading" />}>
+            <TodayMore data={data} now={now} awaySince={awaySince} pulses={pulses} owed={owed.length} later={later} moreReplies={otherReplies} />
+          </Suspense>
+        )}
+      </div>
     </div>
   );
 }

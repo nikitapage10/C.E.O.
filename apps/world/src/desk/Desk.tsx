@@ -14,7 +14,7 @@ import { startDeskWorker } from "./pings.ts";
 import { startDeskAuth } from "./signin.ts";
 import { systemsTitle } from "./SystemsNav.tsx";
 import { useSkippy } from "./skippy/index.ts";
-import { Today } from "./Today.tsx";
+import { loadTodayMore, Today } from "./Today.tsx";
 import "./desk.css";
 import "./chronicle.css";
 import "./weave.css";
@@ -32,9 +32,9 @@ const loaders = {
   green: () => import("./rooms/Green.tsx"),
   workshop: () => import("./rooms/Workshop.tsx"),
   studio: () => import("./rooms/Studio.tsx"),
-  // Not pages, but kept out of the first load the same way: Skippy's open dialogue and the Council.
+  // Not pages, but kept out of the first load the same way: Skippy's open dialogue and the rest of Today.
   skippy: () => import("./skippy/SkippyDialog.tsx"),
-  council: () => import("./Council.tsx"),
+  more: loadTodayMore,
 };
 const Relay = lazy(() => loaders.relay().then((m) => ({ default: m.Relay })));
 const FoundryPage = lazy(() => loaders.foundry().then((m) => ({ default: m.FoundryPage })));

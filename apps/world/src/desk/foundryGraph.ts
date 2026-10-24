@@ -225,7 +225,7 @@ export function foundryGraph({ now, connected, data, setup, nextCheck }: GraphIn
       load: Math.min(1, open.length / 12),
       what: "The queue: every job is a GitHub issue labelled foundry, from your ideas, red checks, upkeep and chat work.",
       source: connected
-        ? `Read through the Desk's feed: ${open.length} open, ${ready} waiting for your OK${stuck ? `, ${stuck} stuck` : ""}.`
+        ? `Read through the Desk's feed: ${open.length} open, ${ready} held on a test${stuck ? `, ${stuck} stuck` : ""}.`
         : "The Desk's feed hasn't answered yet.",
       url: "https://github.com/nikitapage10/C.E.O./issues?q=label%3Afoundry",
     },

@@ -343,6 +343,11 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     connects: "Every page and every data feed of the Desk and the Lattice.",
     why: "The Lattice and the Desk stop being open to anyone who finds the address.",
   },
+  R8: {
+    what: "Each merge updates the Azure settings by itself, and a new key for an outside service goes in on the Desk with a passkey tap. Nothing on the Desk can show a key back.",
+    connects: "The deploy, the Azure settings and the key store, and the Keys form on this page.",
+    why: "No more pasting into a cloud shell, and the keys that guard the lock and the crew stay out of reach of the Desk.",
+  },
 };
 
 /** The eval suite's areas. */

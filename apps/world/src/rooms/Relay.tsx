@@ -1,7 +1,7 @@
 import { getStation } from "@ceo/core";
 import { Text } from "../fx/Text.tsx";
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CatmullRomCurve3, Object3D, TubeGeometry, Vector3, type Group, type InstancedMesh, type Mesh } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { Dust, Haze } from "../fx/atmos.tsx";
@@ -52,13 +52,43 @@ function PostBoxes() {
   );
 }
 
-/** Copper pneumatic tubes with glass windows; canisters shoot down into the receiving station. */
+/**
+ * Copper pneumatic tubes with glass windows. Since the inbox went live (#322) nothing practised rides them: a canister
+ * drops into the receiving station only when a real new mail is counted (the public `newToday` count goes up), one per
+ * mail, up to four at once. Between mails the tubes stand still, which is the honest state of a quiet inbox.
+ */
 function Tubes({ position }: { position: [number, number] }) {
   const canisters = useRef<Group>(null);
+  const newToday = useEmail((s) => s.status?.newToday ?? null);
+  const seen = useRef<number | null>(null);
+  /** When each canister was sent down (seconds on the frame clock), or null while it waits at the top. */
+  const sent = useRef<(number | null)[]>([null, null, null, null]);
+  const owed = useRef(0);
+  useEffect(() => {
+    if (newToday === null) return;
+    // The first answer only sets the mark; a lower count is the day turning over (Mountain midnight).
+    if (seen.current !== null && newToday > seen.current) owed.current = Math.min(4, owed.current + newToday - seen.current);
+    seen.current = newToday;
+  }, [newToday]);
   useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const slots = sent.current;
+    // Release what's owed, one tube at a time, a beat apart.
+    if (owed.current > 0) {
+      const last = Math.max(-1, ...slots.map((v) => v ?? -1));
+      const free = slots.findIndex((v) => v === null);
+      if (free >= 0 && t - last > 0.45) {
+        slots[free] = t;
+        owed.current--;
+      }
+    }
     canisters.current?.children.forEach((c, i) => {
-      const u = (clock.elapsedTime * (0.35 + i * 0.07) + i * 0.4) % 1;
-      c.position.y = 5.6 - u * 4.4;
+      const at = slots[i] ?? null;
+      const u = at === null ? 0 : Math.min(1, (t - at) / 1.4);
+      // Ease in: the canister falls, then thumps into the station and sits a moment before it's taken.
+      c.position.y = 5.6 - u * u * 4.4;
+      c.visible = at !== null;
+      if (at !== null && t - at > 2.4) slots[i] = null;
     });
   });
   return (
@@ -80,7 +110,7 @@ function Tubes({ position }: { position: [number, number] }) {
       ))}
       <group ref={canisters}>
         {[-1.2, -0.4, 0.4, 1.2].map((x) => (
-          <mesh key={x} position={[x, 3, 0]} material={PBR.brass()}>
+          <mesh key={x} position={[x, 5.6, 0]} material={PBR.brass()} visible={false}>
             <capsuleGeometry args={[0.09, 0.22, 6, 16]} />
           </mesh>
         ))}
@@ -156,40 +186,135 @@ function BankersLamp({ position }: { position: [number, number, number] }) {
   );
 }
 
+/** "40s ago", "3 min ago", "2 h ago": how long since Dialtone last checked the line. */
+function sinceCheck(lastCheck: number | null, now: number): string {
+  if (lastCheck === null) return "NOT YET";
+  const s = Math.max(0, Math.round((now - lastCheck) / 1000));
+  if (s < 60) return `${s}S AGO`;
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m} MIN AGO` : `${Math.round(m / 60)} H AGO`;
+}
+
+/** The board's three counters: what Dialtone sorted, as numbers and nothing else. */
+const COUNTERS = [
+  { key: "needsYou", label: "NEEDS YOU", x: -0.5 },
+  { key: "fyi", label: "FYI", x: 0 },
+  { key: "noise", label: "NOISE", x: 0.5 },
+] as const;
+
+/** A counter: a dark window in a brass rim, the figure lit when it isn't zero. */
+function Counter({ label, value, x, hot }: { label: string; value: number | null; x: number; hot: boolean }) {
+  return (
+    <group position={[x, 2.88, 0.09]}>
+      <Block size={[0.44, 0.36, 0.02]} position={[0, 0, -0.01]} material={PBR.brass()} radius={0.012} />
+      <Block size={[0.38, 0.3, 0.02]} position={[0, 0, 0]} material={PBR.matte("#0d0a07", 0.85)} radius={0.008} />
+      <Text font={FONTS.serifUpright} fontSize={0.2} position={[0, 0.01, 0.015]} anchorY="middle" color={value === null ? "#5a4a30" : hot ? "#ffcf8a" : value > 0 ? "#e8d4a8" : "#8a7a60"}>
+        {value === null ? "–" : String(value)}
+      </Text>
+      <Text font={FONTS.mono} fontSize={0.045} position={[0, -0.24, 0.015]} letterSpacing={0.16} color="#c9a25c">
+        {label}
+      </Text>
+    </group>
+  );
+}
+
 /**
- * The inbox board (#263): a brass telegraph board by the post-office boxes, driven by the email agent's live public
- * counts (desk/email/email.ts, ?view=status): how many emails need the C.E.O., how many were FYI, and the agent's
- * state. Counts only: no subject or sender ever reaches the Lattice. The lamp burns while something needs the C.E.O.
+ * The inbox board (#263, live since #322): a brass telegraph board by the post-office boxes, driven by the email
+ * agent's public counts (desk/email/email.ts, ?view=status). Three counters (needs the C.E.O., FYI, noise today), the
+ * line's state, and when Dialtone last checked: a sweep dial runs round once a minute from the last check, and the
+ * sounder taps out a short click each time a new check lands. Counts only: no subject or sender ever reaches the
+ * Lattice. The lamp burns while something needs the C.E.O.
  */
 function InboxBoard() {
   const load = useEmail((s) => s.load);
   const status = useEmail((s) => s.status);
   const lamp = useRef<Mesh>(null);
+  const needle = useRef<Group>(null);
+  const arm = useRef<Group>(null);
+  const tapAt = useRef<number | null>(null);
+  const seenCheck = useRef<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => startEmail(), []);
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 5_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const lastCheck = status?.lastCheck ?? null;
+  // A new check: the sounder taps (the first reading only sets the mark).
+  useEffect(() => {
+    if (lastCheck !== null && seenCheck.current !== null && lastCheck !== seenCheck.current) tapAt.current = -1;
+    seenCheck.current = lastCheck;
+  }, [lastCheck]);
   const needs = status?.needsYou ?? 0;
+  const live = status?.gmail === "connected" && (status.agent === "listening" || status.agent === "paused");
   useFrame(({ clock }) => {
-    if (lamp.current) lamp.current.scale.setScalar(needs > 0 ? 1 + Math.sin(clock.elapsedTime * 3) * 0.15 : 0.6);
+    const t = clock.elapsedTime;
+    if (lamp.current) lamp.current.scale.setScalar(needs > 0 ? 1 + Math.sin(t * 3) * 0.15 : 0.6);
+    // The dial: once round per minute since the last check; it rests at twelve when nothing has been checked.
+    if (needle.current) {
+      const f = lastCheck === null || !live ? 0 : ((Date.now() - lastCheck) % 60_000) / 60_000;
+      needle.current.rotation.z = -f * Math.PI * 2;
+    }
+    if (tapAt.current === -1) tapAt.current = t;
+    if (arm.current) {
+      const since = tapAt.current === null ? 99 : t - tapAt.current;
+      // Dot, dot, dash: the sounder's arm snaps down and back.
+      const down = since < 0.08 || (since > 0.2 && since < 0.28) || (since > 0.4 && since < 0.62);
+      arm.current.rotation.z = down ? -0.22 : 0;
+      if (since > 1) tapAt.current = null;
+    }
   });
-  const line = needs > 0 ? "NEED THE C.E.O." : emailLine(load, status).replace(/^Email(?: agent)?:?\s*/i, "").toUpperCase() || "ALL QUIET";
+  const headline = !status ? emailLine(load, status) : status.agent === "paused" ? "PAUSED · CAP REACHED" : live ? (needs > 0 ? "NEED THE C.E.O." : "ALL QUIET") : emailLine(load, status);
+  const line = headline.replace(/^Email(?: agent)?:?\s*/i, "").toUpperCase();
+  const counts = COUNTERS.map((c) => ({ ...c, value: status ? status[c.key] : null }));
   return (
     <group position={[6.55, 0, -5.92]}>
-      <Block size={[1.7, 1.25, 0.12]} position={[0, 2.75, 0]} material={PBR.wood("walnut")} radius={0.03} />
-      <Block size={[1.5, 1.05, 0.02]} position={[0, 2.75, 0.07]} material={PBR.matte("#14100c", 0.8)} radius={0.01} />
-      <Text font={FONTS.mono} fontSize={0.07} position={[0, 3.18, 0.09]} letterSpacing={0.2} color="#c9a25c">
+      <Block size={[1.7, 1.55, 0.12]} position={[0, 2.8, 0]} material={PBR.wood("walnut")} radius={0.03} />
+      <Block size={[1.54, 1.38, 0.02]} position={[0, 2.8, 0.07]} material={PBR.matte("#14100c", 0.8)} radius={0.01} />
+      <Text font={FONTS.mono} fontSize={0.07} position={[-0.06, 3.38, 0.09]} letterSpacing={0.2} color="#c9a25c">
         INBOX · BY TELEGRAPH
       </Text>
-      <Text font={FONTS.serifUpright} fontSize={0.42} position={[0, 2.82, 0.09]} color={needs > 0 ? "#ffcf8a" : "#8a7a60"}>
-        {status ? String(needs) : "–"}
-      </Text>
-      <Text font={FONTS.mono} fontSize={0.06} maxWidth={1.4} textAlign="center" position={[0, 2.5, 0.09]} letterSpacing={0.12} color="#c9a25c">
-        {line}
-      </Text>
-      <Text font={FONTS.mono} fontSize={0.055} position={[0, 2.32, 0.09]} letterSpacing={0.12} color="#8a7a60">
-        {status ? `${status.fyi} FYI · ${status.newToday} TODAY` : " "}
-      </Text>
-      <mesh ref={lamp} position={[0.68, 3.28, 0.1]} material={PBR.light(needs > 0 ? "#ffb347" : "#5a4a30", needs > 0 ? 4 : 0.6)}>
+      <mesh ref={lamp} position={[0.66, 3.38, 0.1]} material={PBR.light(needs > 0 ? "#ffb347" : "#5a4a30", needs > 0 ? 4 : 0.6)}>
         <sphereGeometry args={[0.05, 16, 12]} />
       </mesh>
+      <Text font={FONTS.mono} fontSize={0.06} maxWidth={1.4} textAlign="center" position={[0, 3.21, 0.09]} letterSpacing={0.12} color={needs > 0 ? "#ffcf8a" : "#8a7a60"}>
+        {line}
+      </Text>
+      {counts.map((c) => (
+        <Counter key={c.key} label={c.label} value={c.value} x={c.x} hot={c.key === "needsYou" && (c.value ?? 0) > 0} />
+      ))}
+      {/* The last check: a sweep dial, the time, and the sounder that clicks when a check lands. */}
+      <group position={[-0.5, 2.3, 0.09]}>
+        <mesh material={PBR.brass()}>
+          <torusGeometry args={[0.11, 0.012, 8, 32]} />
+        </mesh>
+        <mesh position={[0, 0, -0.005]} material={PBR.matte("#efe3c4", 0.7)}>
+          <circleGeometry args={[0.105, 32]} />
+        </mesh>
+        <group ref={needle} position={[0, 0, 0.006]}>
+          <mesh position={[0, 0.045, 0]} material={PBR.matte("#8c2f2f", 0.5)}>
+            <planeGeometry args={[0.012, 0.09]} />
+          </mesh>
+        </group>
+        <mesh position={[0, 0, 0.008]} material={PBR.brass()}>
+          <circleGeometry args={[0.014, 12]} />
+        </mesh>
+      </group>
+      <Text font={FONTS.mono} fontSize={0.045} position={[-0.3, 2.34, 0.09]} anchorX="left" letterSpacing={0.14} color="#8a7a60">
+        LAST CHECK
+      </Text>
+      <Text font={FONTS.mono} fontSize={0.06} position={[-0.3, 2.26, 0.09]} anchorX="left" letterSpacing={0.1} color={live ? "#e8d4a8" : "#8a7a60"}>
+        {sinceCheck(lastCheck, now)}
+      </Text>
+      {/* The sounder: a brass bar on a pivot that snaps down onto its anvil. */}
+      <group position={[0.5, 2.24, 0.1]}>
+        <Block size={[0.36, 0.04, 0.06]} position={[0, -0.02, 0]} material={PBR.wood("walnut")} radius={0.01} />
+        <Block size={[0.04, 0.1, 0.04]} position={[-0.14, 0.05, 0]} material={PBR.brass()} radius={0.006} />
+        <Block size={[0.04, 0.04, 0.04]} position={[0.12, 0.02, 0]} material={PBR.steel()} radius={0.006} />
+        <group ref={arm} position={[-0.14, 0.1, 0.01]}>
+          <Block size={[0.3, 0.025, 0.03]} position={[0.14, 0, 0]} material={PBR.brass()} radius={0.006} />
+        </group>
+      </group>
     </group>
   );
 }

@@ -1,7 +1,10 @@
 import { useMemo, useRef } from "react";
 import { Keeper, Waits, type Wait } from "./parts.tsx";
 import { AskedSkippy } from "../skippy/AskedSkippy.tsx";
+import { RoomFeed } from "../skippy/RoomFeed.tsx";
+import { SetupAsks } from "../skippy/SetupAsks.tsx";
 import { Parts, Poly, useViz, weave, type VizSpec } from "../wvCanvas.ts";
+import { BookieAsides } from "../exchange/BookieAsides.tsx";
 import { PolymarketBoard } from "../exchange/PolymarketBoard.tsx";
 import { PositionsBoard } from "../exchange/PositionsBoard.tsx";
 import { bookLine, usePositions } from "../exchange/positions.ts";
@@ -11,6 +14,7 @@ import "./rooms.css";
 /**
  * The Exchange (#225): markets and money, as a trading floor at night. Nikita's own Polymarket US positions and P&L
  * first (#253, PositionsBoard: read-only, signed-in Desk only, every figure marked private for Hide mode), then
+ * the Bookie's asides on world-moving odds (#345, BookieAsides: geopolitics, politics and pop culture, no sports), then
  * Polymarket's public odds (#240, PolymarketBoard: the busiest markets and a pinned watchlist, read-only), then markets
  * the Bookie thinks are mispriced with his reasons, crypto and stock research and a paper-trading record; below,
  * behind the passkey, personal money: spending, debts and subscriptions (not built yet). The Lattice only ever shows
@@ -121,6 +125,8 @@ export function Exchange() {
 
       <PositionsBoard />
 
+      <BookieAsides />
+
       <PolymarketBoard />
 
       <div className="ex-grid">
@@ -162,6 +168,8 @@ export function Exchange() {
       </section>
 
       <AskedSkippy room="exchange" />
+      <SetupAsks room="exchange" />
+      <RoomFeed room="exchange" />
 
       <Waits items={posStatus === "live" ? WAITS.slice(1) : WAITS} className="ex-waits" />
     </div>

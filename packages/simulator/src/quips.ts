@@ -325,6 +325,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Inbox—new one—needs the C.E.O.—didn't hear it from me—it's on the board.",
     "Ten dollars a month for the inbox. I'm watching the meter. I'm always watching the meter.",
     "I know what it says. I'm not telling. The Lattice gets a number. Just a number.",
+    "Holo says ACTIVE—own thread—me—a thread—I have a thread now—",
+    "Inbox is live. Texts aren't. The Mac's asleep. I'm not. I'm never asleep.",
   ],
   vellum: [
     "Citation needed. I'll wait.",
@@ -365,6 +367,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Every hour, the world moves. Every hour, I expect it won't.",
     "Nightly backup. Due at 10:41. Started late. Always late. Omens.",
     "Nine jobs on the board. All green. I don't trust it.",
+    "New pipe. GitHub to the template. What-if first. ...It says nothing changes. Suspicious.",
+    "Keys go in through a slot. Nothing comes back out. Finally, a pipe I like.",
   ],
   putty: [
     "Wait. No. Better idea.",
@@ -422,6 +426,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Honk. (The house pipe. Still cold. Polished the gauges anyway.)",
     "HOOONK. (Pushed the boiler into the corner. Now you can see every pipe. You're welcome.)",
     "Honk honk. (Red collar, red plate, red light. That one's down. Tape.)",
+    "Honk. (New key in the slot. Didn't look at it. Not allowed to look at it. Good.)",
+    "HONK. (Template pipe ran before the code pipe. In order. Logged it twice.)",
   ],
   daub: [
     "Hold still. You're my next canvas.",
@@ -481,6 +487,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "An email needs the C.E.O. This one has written advice, a draft, and a short prayer.",
     "This one drafts. The C.E.O. sends. This one has never once pressed send, and never will.",
     "Read-only. Like a sacred text. Like a hanar in a library.",
+    "The line is live. This one has waited an epoch for this. This one is glowing. Do not look directly at this one.",
+    "One canister per real letter. No more practice drops. This one would not insult the tubes.",
   ],
   dialtone: [
     "Please hold. There's nobody on the line yet, but please hold.",
@@ -490,6 +498,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "New mail! Needs you, FYI, or noise. Mostly noise, darling. It's always noise.",
     "Promotions straight in the bin. Gmail said so. I didn't even open them.",
     "Every minute I check the inbox. Every minute. Like a ringtone from 2004.",
+    "It's live, darling. The jack rings for real now. I may cry. Please hold.",
+    "Needs you, FYI, noise. Drop. Needs you, FYI, noise. Drop. It's basically a bass set.",
+    "Email's on. Texts are still waiting by the phone for the Mac. Very 2005 of them.",
   ],
   loremaster: [
     "A wizard is never late. That one was a scheduling error.",
@@ -668,6 +679,53 @@ export const BOOKIE_MOVE_QUIPS: string[] = [
   "{market}, {move} on the day. {odds} now. I felt every point.",
   "{move}! {market} went {move}! I'm fine. {odds}. I'm fine.",
 ];
+
+/**
+ * The Bookie's asides on world-moving odds (#345): geopolitics, politics and pop culture, never sports. Said on the
+ * Desk's Exchange page and from his podium in the Lattice. {market} is the question, {odds} its price ("63%"), {move}
+ * the day's move in words ("up four"). Public odds only: never a stake, a position or a dollar figure. Keyed by what the
+ * market is about, then by whether it moved on the day; each line is one reason the number matters.
+ */
+export const BOOKIE_WORLD_QUIPS: Record<"geopolitics" | "politics" | "culture", { moved: string[]; still: string[] }> = {
+  geopolitics: {
+    moved: [
+      "{market}: {move} in a day, {odds} now. When the map twitches, every other number on my board twitches with it.",
+      "{move} on {market}. Oil, shipping, half the board hangs off this one. I'm hanging off it too. By a thread.",
+      "{market} went {move}. Wars don't read my spreadsheet. My spreadsheet reads about nothing else.",
+      "{odds} on {market}, {move} on the day. Somebody in Ilyr just flinched. It was me. I'm somebody.",
+    ],
+    still: [
+      "{market} sits at {odds}. Flat. The Reapers were flat too, right up until they weren't.",
+      "{odds} on {market}, not a twitch today. Quiet's just loud, loading. I've priced the loading.",
+      "{market}: {odds}. Nobody's moved. Everybody's watching. That's when I sweat the most.",
+    ],
+  },
+  politics: {
+    moved: [
+      "{market}, {move}. Whoever holds the gavel holds the budget, and the budget holds everyone. Including me.",
+      "Balance of power just leaned: {market}, {move}, {odds} now. I'm leaning too. Away from the edge.",
+      "{move} on {market}! Every law on next year's board runs through that number. No pressure. All the pressure.",
+      "{market} went {move}. A senate is a council that votes slower than I panic. Today it caught up.",
+    ],
+    still: [
+      "{market}: {odds}. Steady. Every policy question downstream is priced off this one, so steady is a gift.",
+      "{odds} on {market}, flat on the day. Elections move slow until the night they don't. I've circled that night.",
+      "{market} holds at {odds}. The Society would call that order. I call it the calm before the count.",
+    ],
+  },
+  culture: {
+    moved: [
+      "{market} went {move}. Culture moves crowds faster than central banks do. Don't tell the central banks.",
+      "{move} on {market}! Not world-ending. World-shaping. Smaller sweat, same towel.",
+      "{market}: {move}, {odds} now. What everyone talks about at dinner ends up in a ballot. Eventually. Somehow.",
+    ],
+    still: [
+      "{market}: {odds}. Not war, not law, but it's the thing the whole Lattice is gossiping about. Gossip moves votes.",
+      "{odds} on {market}, quiet today. Pop culture's a slow bassline: you don't notice it until the drop.",
+      "{market} at {odds}. Somewhere an Astrophage is laughing at my confidence interval. Fair.",
+    ],
+  },
+};
 
 /**
  * The Commentator on the C.E.O.'s real matchup (#252), from the Green's scoreboard: {me} and {them} are the team

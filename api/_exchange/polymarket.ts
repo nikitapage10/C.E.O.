@@ -3,6 +3,7 @@
  *
  *   Gamma  https://gamma-api.polymarket.com/markets    the busiest open markets (order=volume24hr), or markets by id
  *                                                      or slug; /events?slug= for an event link
+ *          /markets?tag_id=…&include_tag=true          world-moving markets by topic, with their tags (#345)
  *   CLOB   https://clob.polymarket.com/prices-history  one day of an outcome token's prices, for the sparkline
  *
  * Everything that comes back is untrusted: each market is rebuilt from scratch with only the fields the board shows,
@@ -12,7 +13,7 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { PM_SPARK_MAX, PM_TEXT_MAX, PM_TOP_MAX, PM_WATCH_MAX, type PmMarket } from "./types.js";
+import { PM_SPARK_MAX, PM_TEXT_MAX, PM_TOP_MAX, PM_WATCH_MAX, PM_WORLD_MAX, type PmMarket, type PmWorld, type PmWorldKind } from "./types.js";
 
 export const GAMMA = "https://gamma-api.polymarket.com";
 export const CLOB = "https://clob.polymarket.com";
@@ -222,4 +223,96 @@ export async function resolveRef(fetcher: Fetcher, ref: unknown): Promise<string
   const markets = (Array.isArray(first?.markets) ? (first.markets as unknown[]) : []).map(shapeMarket).filter((m): m is NonNullable<typeof m> => m !== null);
   const open = markets.filter((m) => !m.closed);
   return [...(open.length ? open : markets)].sort((a, b) => b.volume24h - a.volume24h)[0]?.id ?? null;
+}
+
+
+/* ── world-moving markets, for the Bookie's asides (#345) ── */
+
+/**
+ * Polymarket's topic tags the asides read, in priority order (a market under two of them takes the first): Geopolitics,
+ * Politics and Culture ("pop-culture"). Ids from gamma-api.polymarket.com/tags/slug/<slug>.
+ */
+export const WORLD_TAGS: readonly { kind: PmWorldKind; id: string }[] = [
+  { kind: "geopolitics", id: "100265" },
+  { kind: "politics", id: "2" },
+  { kind: "culture", id: "596" },
+];
+/** How many of each topic's busiest markets to ask for before picking. */
+const WORLD_ASK = 30;
+/** A market quieter than this on the day is too thin for its move to mean much. */
+export const WORLD_MIN_VOL = 5_000;
+/** Odds this close to settled say nothing new. */
+const WORLD_DECIDED = 0.03;
+
+/** Nikita doesn't want sports in the asides: any of these tags, or a league in the question, rules a market out. */
+const SPORTS_TAGS = new Set([
+  "sports", "nfl", "nba", "wnba", "mlb", "nhl", "mls", "soccer", "football", "basketball", "baseball", "hockey", "tennis", "golf", "ufc", "mma",
+  "boxing", "f1", "formula-1", "formula1", "nascar", "cricket", "esports", "epl", "premier-league", "champions-league", "ucl", "la-liga",
+  "serie-a", "bundesliga", "ligue-1", "ncaa", "ncaab", "ncaaf", "cfb", "cbb", "college-football", "college-basketball", "march-madness",
+  "olympics", "world-cup", "fifa-world-cup", "fifa", "super-bowl", "nba-finals", "stanley-cup", "world-series", "wimbledon", "chess", "games",
+]);
+const SPORTS_WORDS = /\b(NFL|NBA|WNBA|MLB|NHL|MLS|UFC|FIFA|UEFA|NCAA|F1|Formula 1|Premier League|Champions League|Super Bowl|World Series|Stanley Cup|Grand Slam|Wimbledon|Olympics?|World Cup|playoffs?|touchdowns?|Ballon d'Or)\b/i;
+/** Busy but not news: tweet counts, "mention" markets, crypto up-or-down candles. */
+const NOISE_TAGS = new Set(["recurring", "tweets-markets", "mention-markets", "mentions", "up-or-down", "crypto-prices", "crypto", "weather"]);
+
+/** The slugs of a market's tags (asked for with include_tag=true); server side only. */
+export function tagsOf(raw: unknown): string[] {
+  const tags = raw && typeof raw === "object" && Array.isArray((raw as Raw).tags) ? ((raw as Raw).tags as unknown[]) : [];
+  return tags.map((t) => (t && typeof t === "object" ? (t as Raw).slug : null)).filter((s): s is string => typeof s === "string" && SLUG.test(s));
+}
+
+/** Sports, or noise, by its tags or its question. */
+export function isOffTopic(question: string, tags: readonly string[]): boolean {
+  return tags.some((t) => SPORTS_TAGS.has(t) || NOISE_TAGS.has(t)) || SPORTS_WORDS.test(question);
+}
+
+export const worldUrl = (tagId: string) => `${GAMMA}/markets?limit=${WORLD_ASK}&active=true&closed=false&order=volume24hr&ascending=false&tag_id=${tagId}&include_tag=true`;
+
+/** How much a market is worth an aside: a big day's move on a busy market beats a busy market sitting still. */
+export function worldScore(m: Pick<PmMarket, "volume24h" | "change24h">): number {
+  return Math.sqrt(m.volume24h) * (0.02 + Math.abs(m.change24h ?? 0));
+}
+
+type Shaped = NonNullable<ReturnType<typeof shapeMarket>>;
+
+/**
+ * Picks the asides from each topic's answer (in WORLD_TAGS order; a topic that didn't answer is null): open, not near
+ * settled, busy enough, not sports, one market per event, the best of each topic first so all three get a turn, then
+ * the rest by score.
+ */
+export function pickWorld(answers: readonly (unknown[] | null)[], now: number): (Shaped & { kind: PmWorldKind })[] {
+  const seen = new Set<string>();
+  const byKind: (Shaped & { kind: PmWorldKind })[][] = WORLD_TAGS.map(({ kind }, i) => {
+    const out: (Shaped & { kind: PmWorldKind })[] = [];
+    for (const raw of answers[i] ?? []) {
+      const m = shapeMarket(raw);
+      if (!m || seen.has(m.id)) continue;
+      if (m.closed || (m.endDate && Date.parse(m.endDate) <= now)) continue;
+      if (m.prob < WORLD_DECIDED || m.prob > 1 - WORLD_DECIDED || m.volume24h < WORLD_MIN_VOL) continue;
+      if (isOffTopic(m.question, tagsOf(raw))) continue;
+      seen.add(m.id);
+      out.push({ ...m, kind });
+    }
+    return out.sort((a, b) => worldScore(b) - worldScore(a));
+  });
+  const events = new Set<string>();
+  const picked: (Shaped & { kind: PmWorldKind })[] = [];
+  const take = (m: Shaped & { kind: PmWorldKind }) => {
+    const key = m.event ?? m.id;
+    if (events.has(key) || picked.length >= PM_WORLD_MAX) return;
+    events.add(key);
+    picked.push(m);
+  };
+  for (const list of byKind) if (list[0]) take(list[0]);
+  for (const m of byKind.flat().sort((a, b) => worldScore(b) - worldScore(a))) take(m);
+  return picked;
+}
+
+/** The asides' markets, with sparklines. Throws only when no topic answered. */
+export async function readWorld(fetcher: Fetcher, now: number): Promise<PmWorld[]> {
+  const got = await Promise.allSettled(WORLD_TAGS.map(({ id }) => getJson(fetcher, worldUrl(id))));
+  if (got.every((g) => g.status === "rejected")) throw new Error("polymarket world: no answer");
+  const answers = got.map((g) => (g.status === "fulfilled" ? list(g.value) : null));
+  const picked = pickWorld(answers, now);
+  return Promise.all(picked.map(async (m) => ({ ...forBoard(m, await sparkFor(fetcher, m.token)), kind: m.kind })));
 }

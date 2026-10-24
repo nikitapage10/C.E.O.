@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import type { PmBoard, PmMarket } from "../../../../../api/_exchange/types.ts";
-import { PM_WATCH_MAX } from "../../../../../api/_exchange/types.ts";
+import type { PmBoard, PmMarket, PmWorld, PmWorldKind } from "../../../../../api/_exchange/types.ts";
+import { PM_WATCH_MAX, PM_WORLD_KINDS } from "../../../../../api/_exchange/types.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 import { ensureSignedIn, useDeskAuth } from "../signin.ts";
 
@@ -11,7 +11,7 @@ import { ensureSignedIn, useDeskAuth } from "../signin.ts";
  * Room. Read-only: there is no trading anywhere in it.
  */
 
-export type { PmBoard, PmMarket };
+export type { PmBoard, PmMarket, PmWorld, PmWorldKind };
 export { PM_WATCH_MAX };
 
 const PATH = "/api/exchange-markets";
@@ -44,6 +44,11 @@ export function isPmMarket(v: unknown): v is PmMarket {
   );
 }
 
+/** A world-moving market for the Bookie's asides (#345): a board market with a known topic. */
+export function isPmWorld(v: unknown): v is PmWorld {
+  return isPmMarket(v) && (PM_WORLD_KINDS as readonly unknown[]).includes((v as Partial<PmWorld>).kind);
+}
+
 /** The board as the server sent it, with any market that doesn't fit the shape dropped; null when it isn't a board. */
 export function readBoard(v: unknown): PmBoard | null {
   const b = v as Partial<PmBoard> | null;
@@ -52,6 +57,7 @@ export function readBoard(v: unknown): PmBoard | null {
     ok: true,
     at: b.at,
     top: b.top.filter(isPmMarket),
+    world: Array.isArray(b.world) ? b.world.filter(isPmWorld) : [],
     watch: b.watch.filter(isPmMarket),
     watchlist: Array.isArray(b.watchlist) ? b.watchlist.filter((x): x is string => typeof x === "string" && /^\d{1,12}$/.test(x)) : [],
     canPin: b.canPin === true,

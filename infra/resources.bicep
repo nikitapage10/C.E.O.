@@ -59,7 +59,8 @@ var packageContainer = 'app-package'
 var backupContainer = 'ceo-backups'
 
 // Every secret the functions read (process.env under api/), by app setting and its Key Vault secret. Key Vault
-// names take letters, digits and dashes only, hence the two spellings. Values are filled in by hand in the portal.
+// names take letters, digits and dashes only, hence the two spellings. Values come from the first-time secrets paste,
+// or (third-party keys only, api/_keys/allowlist.ts) the Desk's Keys form.
 // Vercel's BLOB_* settings are left out: the functions get the storage account below through their identity.
 var secrets = [
   { setting: 'FOUNDRY_DESK_KEY', secret: 'foundry-desk-key' } // the Desk's sign-in key; also signs picture links
@@ -86,7 +87,8 @@ var secrets = [
   { setting: 'POLYMARKET_US_SECRET_KEY', secret: 'polymarket-us-secret-key' }
   // The email agent (#263, docs/GMAIL.md): Google's OAuth client for Connect Gmail (gmail.readonly), and 32 random
   // bytes that seal the Gmail refresh token and the private mail list in `ceo-state` (api/_email/seal.ts). The
-  // functions only read these: the token is never written to the vault, so the identity stays Secrets User.
+  // functions only read these: the token is never written to the vault. The Desk's Keys form (#330) may replace the
+  // client id and secret, never the sealing key (api/_keys/allowlist.ts).
   { setting: 'GMAIL_CLIENT_ID', secret: 'gmail-client-id' }
   { setting: 'GMAIL_CLIENT_SECRET', secret: 'gmail-client-secret' }
   { setting: 'GMAIL_TOKEN_KEY', secret: 'gmail-token-key' }
@@ -97,8 +99,11 @@ var secrets = [
   // PAYPAL_ENV setting below; switching to live means pasting the Live app's id and secret here.
   { setting: 'PAYPAL_CLIENT_ID', secret: 'paypal-client-id' }
   { setting: 'PAYPAL_CLIENT_SECRET', secret: 'paypal-client-secret' }
-  // The room threads' write key (#281, #312): opens only POST /api/skippy-answer, a hand-off's answer coming back to
-  // the Desk. At least 32 random characters; without it that route stays off.
+  // The subminds' two room keys (#281, #312, api/_site/roomkeys.ts): 32 random bytes each, minted by the secrets paste
+  // (docs/AZURE.md). The read key opens only GETs of room data; the write key only POST /api/room-feed and POST
+  // /api/skippy-answer (a hand-off's answer coming back). Neither can change a setting, trade, send, or reach another
+  // secret. Without one, what it opens stays off.
+  { setting: 'SUBMIND_LOG_TOKEN', secret: 'submind-log-token' }
   { setting: 'SUBMIND_FEED_TOKEN', secret: 'submind-feed-token' }
 ]
 
@@ -279,6 +284,9 @@ var plainSettings = [
   // itself (the nikita.page zone, its records, the custom domain on swa-ceo) was set up by hand and stays out of here,
   // so a deployment never touches the zone's other names (www, tide, the apex, mail).
   { name: 'CEO_SITE_URL', value: siteOnCustomDomain ? 'https://ceo.nikita.page' : 'https://${site.properties.defaultHostname}' }
+  // The vault's own address, for the Desk's Keys form (#330, api/_keys/route.ts) and the refresh that brings a key set
+  // there into the running app (azure/src/keys.ts). Not a secret.
+  { name: 'KEY_VAULT_URI', value: vault.properties.vaultUri }
 ]
 
 resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
@@ -375,6 +383,11 @@ resource functionStorage 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   }
 ]
 
+// Read access to the vault's secrets: the Key Vault references, and the Keys form's refresh (azure/src/keys.ts).
+// Writing (the Desk's Keys form, #330) needs Key Vault Secrets Officer, which is granted by the one-time role paste in
+// docs/AZURE.md and deliberately not here: the deploy identity that applies this template may only assign the roles
+// listed in its condition, and giving any identity write on the vault is not one of them. The paste grants it on each
+// allowlisted secret alone (`<vault>/secrets/<name>`), never on the vault.
 resource functionSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(vault.id, functionApp.id, roles.keyVaultSecretsUser)
   scope: vault

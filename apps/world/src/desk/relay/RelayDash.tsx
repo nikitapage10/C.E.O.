@@ -5,10 +5,11 @@ import { ago, gmailHref, NeedsYou } from "../email/EmailSection.tsx";
 import { useEmail, type EmailItem, type EmailStatus } from "../email/email.ts";
 
 /**
- * Relay's dashboard (#375): a click on Need you or FYI opens it over the page, without leaving it. Signed in, it is the
- * private list (the same mail and the same actions as the Email section below, every word in <Private>); signed out,
- * it carries the two counts and a Sign in, and nothing from any mail. A native modal <dialog>: Escape, the close
- * button or a click outside the card closes it, and focus goes back where it was.
+ * Relay's band sheet (#375, redrawn for the receiver in #386): a click on Need you or FYI opens it over the
+ * page, without leaving it. Signed in, it is the private list (the same mail and the same actions as the ledger below,
+ * every word in <Private>), one entry per mail; signed out, it carries the two counts and a Sign in, and nothing from
+ * any mail. A native modal <dialog>: Escape, the close button or a click outside the sheet closes it, and focus goes
+ * back where it was.
  */
 
 export type DashTab = "needs" | "fyi";
@@ -54,10 +55,8 @@ export function RelayDash({ tab, status, now, onTab, onClose }: { tab: DashTab; 
       <div className="rl-dash-card">
         <header className="rl-dash-top">
           <div>
-            <p className="wv-eyb" style={{ color: "var(--rc-relay)" }}>
-              Relay · what's waiting
-            </p>
-            <h2 id="rl-dash-h">{tab === "needs" ? (tabs[0]!.n === 1 ? "1 email needs you" : `${tabs[0]!.n} emails need you`) : `${tabs[1]!.n} for your information`}</h2>
+            <p className="rl-dash-plate">Band {tab === "needs" ? "1 · Need you" : "2 · FYI"}</p>
+            <h2 id="rl-dash-h">{tab === "needs" ? (tabs[0]!.n === 1 ? "One email needs you" : `${tabs[0]!.n} emails need you`) : tabs[1]!.n === 1 ? "One noted for your information" : `${tabs[1]!.n} noted for your information`}</h2>
           </div>
           <button type="button" className="rl-dash-x" onClick={() => ref.current?.close()} aria-label="Close">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -68,6 +67,7 @@ export function RelayDash({ tab, status, now, onTab, onClose }: { tab: DashTab; 
         <div className="rl-dash-tabs" role="tablist" aria-label="Which mail">
           {tabs.map((t) => (
             <button key={t.k} type="button" role="tab" aria-selected={tab === t.k} className="rl-dash-tab" data-k={t.k} onClick={() => onTab(t.k)}>
+              <i className="rl-lamp" aria-hidden="true" />
               {t.label}
               <b>{t.n}</b>
             </button>
@@ -78,7 +78,7 @@ export function RelayDash({ tab, status, now, onTab, onClose }: { tab: DashTab; 
           {auth !== "in" ? (
             <div className="rl-dash-gate">
               <p>
-                {status.needsYou} need you and {status.fyi} are FYI. The mail itself shows only behind your passkey.
+                {status.needsYou} need you and {status.fyi} are noted. Sign in to read them.
               </p>
               <button type="button" className="wv-btn is-pri" onClick={() => void signIn()}>
                 Sign in
@@ -88,7 +88,7 @@ export function RelayDash({ tab, status, now, onTab, onClose }: { tab: DashTab; 
             <p className={`em-state${privateFail ? " is-warn" : ""}`}>{privateFail ? `Couldn't read your mail just now (${privateFail}). Trying again at the next check.` : "Reading…"}</p>
           ) : tab === "needs" ? (
             needs.length ? (
-              <ul className="em-list rl-dash-grid">
+              <ul className="em-list rl-dash-list">
                 {needs.map((i, n) => (
                   <NeedsYou key={i.id} item={i} now={now} index={n} />
                 ))}
@@ -100,6 +100,7 @@ export function RelayDash({ tab, status, now, onTab, onClose }: { tab: DashTab; 
             <ul className="rl-dash-fyi">
               {fyi.map((i, n) => (
                 <li key={i.id} style={{ "--i": Math.min(n, 10) } as React.CSSProperties}>
+                  <time className="rl-dash-fyi-t">{ago(i.at, now)}</time>
                   <div>
                     <Private as="b">{i.from}</Private>
                     <Private as="p" className="rl-dash-fyi-s">
@@ -112,7 +113,6 @@ export function RelayDash({ tab, status, now, onTab, onClose }: { tab: DashTab; 
                     )}
                   </div>
                   <span className="rl-dash-fyi-r">
-                    <time>{ago(i.at, now)}</time>
                     <a className="wv-btn is-sm" href={gmailHref(i.id)} target="_blank" rel="noopener noreferrer">
                       Open
                     </a>
@@ -121,7 +121,7 @@ export function RelayDash({ tab, status, now, onTab, onClose }: { tab: DashTab; 
               ))}
             </ul>
           ) : (
-            <p className="em-empty">No FYI mail right now.</p>
+            <p className="em-empty">Nothing noted for you right now.</p>
           )}
         </div>
       </div>

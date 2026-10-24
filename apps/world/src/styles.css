@@ -2983,6 +2983,8 @@ button {
 .title-block .roster--panel,
 .leftcol .title-block .roster {
   position: static;
+  flex: none;
+  min-height: 0;
   width: auto;
   max-height: 46vh;
   margin-top: 10px;

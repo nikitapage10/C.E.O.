@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDuration, useDayStory, useWeekStory, type DayPage, type HistoryEntry, type RoomId } from "../chronicle.ts";
 import { weekDaysOf } from "../../../../api/_world/weeks.ts";
 import { tloomSpec, waveSpec, weekSpec, type TaleClock, type WeekCol } from "./chronicleViz.ts";
-import { paragraphs, STORY_WHY, useStoryMaker } from "./DayStory.tsx";
+import { madeAt, paragraphs, STORY_WHY, useStoryMaker } from "./DayStory.tsx";
 import { PORTRAITS } from "./portraits.ts";
 import { reducedMotion, useViz } from "./wvCanvas.ts";
 
@@ -199,11 +199,11 @@ export function Tale({ day, today, entries, canMake }: { day: string; today: boo
   const eyebrow = ready ? (today ? (ready.partial ? "Today's story, so far" : "Today's story") : "The day's story") : lines.length ? (today ? "Today's hours, so far" : "The day's hours") : "The day's story";
   const hours = entries.length;
   const note = ready
-    ? `Read by the Historian, ${formatDuration(ready.durationSec)}. ${hours ? `${hours} ${hours === 1 ? "hour" : "hours"} written.` : ""}`
+    ? `Presented by Skippy, the Magnificent, ${formatDuration(ready.durationSec)}${madeAt(ready.at) ? `, made ${madeAt(ready.at)}` : ""}. ${hours ? `${hours} ${hours === 1 ? "hour" : "hours"} written.` : ""}`
     : lines.length
       ? `${(why && STORY_WHY(why)) ?? "Not read aloud yet."} Play reads the hours along, quietly.`
       : story === "loading"
-        ? "Finding the Historian's reading…"
+        ? "Finding Skippy's reading…"
         : "The Historian writes once the world takes its first step of the day.";
 
   return (

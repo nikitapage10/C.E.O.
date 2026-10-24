@@ -12,7 +12,7 @@ import { Avatar } from "./ui.tsx";
  * The Archive's day (the Chronicle until #225): the Lattice, hour by hour, while you were away (docs/WORLD.md), in the approved Weave (desk-concepts
  * round five). Every hour the world takes a step and the Historian writes it up: what happened, who said what to whom,
  * how relationships moved, and what the builders thought of the work that shipped. The first step after midnight files
- * the day in Ilyr and the Historian reads it aloud. Up top the day's story plays as a player; then the week, the bonds
+ * the day in Ilyr, and Skippy reads it aloud (about every five hours as the day goes, #365). Up top the day's story plays as a player; then the week, the bonds
  * that moved, a shelf of past days, and every hour of the shown day.
  */
 
@@ -77,7 +77,7 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
         <h1 className="wv-h1 desk__title">
           {shown === today ? "The day" : dayTitle(shown, now)} in <em style={{ color: "var(--rc-archive)" }}>Ilyr.</em>
         </h1>
-        <p className="wv-sub">{lead} Every hour the world takes a step and the Historian writes it down. After midnight the whole day is filed as a story, read aloud.</p>
+        <p className="wv-sub">{lead} Every hour the world takes a step and the Historian writes it down. About every five hours Skippy reads the day so far, and after midnight the whole day.</p>
       </header>
 
       {days.length > 1 && (
@@ -187,8 +187,8 @@ export function Chronicle({ now, awaySince, children }: { now: number; awaySince
           <summary>How the Archive is written</summary>
           <p className="wv-note">
             Once an hour the Lattice takes a step: one Claude Haiku call writes the whole world's hour from the cast, how they stand, the last few hours and what really happened in the
-            Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. Once the day's recap is filed, the Historian reads the day aloud in the
-            Archive: Gemini's speech, one voice, from the Archive's own public lines. The story's lines light up in step with the reading by their share of it. The Lattice
+            Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. About every five hours, and once the day's recap is filed, Skippy, the
+            Magnificent reads the day aloud from the Historian's notes: ElevenLabs' speech when it's connected, else Gemini's, one voice, from the Archive's own public lines. The story's lines light up in step with the reading by their share of it. The Lattice
             plays the latest hour when you{" "}
             <a href="/lattice" onClick={link("lattice")}>
               walk in

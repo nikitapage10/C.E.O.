@@ -151,9 +151,25 @@ export interface WorldFeed {
   claude: boolean;
   /**
    * The day's story (api/_world/story.ts): Gemini's speech spend this month against its own cap, and the Claude cost
-   * of the scripts (part of the shared Claude cap). `gemini` says whether the key is set.
+   * of the scripts (part of the shared Claude cap). `gemini` says whether the key is set; `eleven`, whether
+   * ElevenLabs' is (#365), with its own spend against `elevenBudget`.
    */
-  story?: { month: string; budget: number; gemini: boolean; usd: number; calls: number; stories: number; tokensIn: number; tokensOut: number; scriptUsd: number };
+  story?: {
+    month: string;
+    budget: number;
+    gemini: boolean;
+    usd: number;
+    calls: number;
+    stories: number;
+    tokensIn: number;
+    tokensOut: number;
+    scriptUsd: number;
+    eleven?: boolean;
+    elevenBudget?: number;
+    elevenUsd?: number;
+    elevenChars?: number;
+    elevenCalls?: number;
+  };
   /**
    * The email agent's public counts (#263, api/_email/status.ts): counts and states only, never a subject or a
    * sender. Null where the agent doesn't run (the Vercel copy) or hasn't reported yet.
@@ -163,7 +179,23 @@ export interface WorldFeed {
 
 /** What GET /api/day-story?day=… answers (api/day-story.ts): the day's story, or why there isn't one. */
 export type DayStoryView =
-  | { day: string; ready: true; script: string; durationSec: number; partial: boolean; writer: "claude" | "chronicle"; /** Made in an older style (#102): "Make it now" may remake it once. */ stale: boolean; at: string; audio: string }
+  | {
+      day: string;
+      ready: true;
+      script: string;
+      durationSec: number;
+      partial: boolean;
+      /** Which "so far" edition (#365): the 5-hour mark it was made after (0 to 4, 5 for a day already over); null when final. */
+      edition: number | null;
+      /** Who read it aloud (#365). */
+      reader: "elevenlabs" | "gemini";
+      writer: "claude" | "chronicle";
+      /** Made in an older style (#102): "Make it now" may remake it once. */
+      stale: boolean;
+      /** When this edition was made (ISO). */
+      at: string;
+      audio: string;
+    }
   | { day: string; ready: false; reason: "no-key" | "over-budget" | "not-yet" };
 
 /**

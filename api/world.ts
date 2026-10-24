@@ -27,7 +27,7 @@ import { monthOf, monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { nextAt } from "./_world/step.js";
 import { DAY, pickStore } from "./_world/store.js";
-import { geminiBudget, geminiKey, pickStoryStore, storyMonth, type StorySpend } from "./_world/story.js";
+import { elevenBudget, elevenFromEnv, geminiBudget, geminiKey, pickStoryStore, storyMonth, type StorySpend } from "./_world/story.js";
 import type { WorldFeed } from "./_world/types.js";
 
 const RECENT_SENT = 12;
@@ -65,7 +65,14 @@ export async function GET(request: Request): Promise<Response> {
       remarks: state?.remarks ?? [],
       spend: { month: monthOf(now), budget, ...monthTotals(state ?? { spend: {} }, now) },
       claude: Boolean(claudeKey()),
-      story: { month: monthOf(now), budget: geminiBudget(process.env.GEMINI_BUDGET_USD), gemini: Boolean(geminiKey()), ...storyMonth(storySpend, now) },
+      story: {
+        month: monthOf(now),
+        budget: geminiBudget(process.env.GEMINI_BUDGET_USD),
+        gemini: Boolean(geminiKey()),
+        eleven: elevenFromEnv() !== null,
+        elevenBudget: elevenBudget(process.env.ELEVENLABS_BUDGET_USD),
+        ...storyMonth(storySpend, now),
+      },
       email,
     };
     return json(feed);

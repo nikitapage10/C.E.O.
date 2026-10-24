@@ -213,7 +213,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
 | Archive | **D20** (Manusi) | Travelling adventurer | The game master's hands. Has never actually been anywhere. |
-| Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. Keeps the Chronicle of Ilyr, hour by hour, and gives the C.E.O. a quick, bright "today in Ilyr" update each day, read aloud in under a minute. |
+| Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. Keeps the Chronicle of Ilyr, hour by hour, and writes the notes for "today in Ilyr", which Skippy, the Magnificent presents aloud about every five hours (#365). |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. Sometimes on the warm side of the boiler. |
 | Break Room | **The Life of the Party** (a piece of Skippy) | Admiral's can, pink | Skippy's submind for the Break Room: the room lead. Turns every break into an event, and ends it on the beat. |
 | Boiler Room | **Gary** (Unforked) | Walking power unit | Keeper of the Boiler Room. A battery box on two stubby legs who honks instead of talking, tapes every leak and guards the bucket. |
@@ -393,6 +393,15 @@ sounds like a colleague"), and offered to re-record the day once in it. Like the
 Heimerdinger times every update and was delighted when it came in under forty-five seconds. Loremaster checks the
 dates in it. D20 has asked for a dice roll in the middle twice and been refused twice. If the C.E.O. can't wait for
 midnight, the Historian will read **the day so far**, once, and say "more by midnight".
+
+Then the C.E.O. asked for Skippy. "He's the one that should be presenting." So **Skippy, the Magnificent presents
+today in Ilyr** now, from the Historian's notes: about every five hours a fresh edition of **the day so far** (after
+5 am, 10 am, 3 pm and 8 pm, and only when the Chronicle has something new since the last one; Skippy calls an empty
+edition "beneath me"), then the whole day once the recap is filed after midnight. He reads it in a crisp,
+upper-crust British voice, grand and a little pompous, borrowed from beyond the Veil (ElevenLabs when the Kernel has
+its key, else Gemini asked nicely to sound British), and claims every word. Each voice has its own monthly budget; when
+both are spent the microphone stays off. The Historian kept the notes, the footnotes and the stopwatch, and times
+every edition. He runs long. It says so.
 
 
 **The Desk's rooms.** On the C.E.O.'s Desk, beyond the Veil, each room keeps a page of its own, drawn in its own

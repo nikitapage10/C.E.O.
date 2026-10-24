@@ -175,9 +175,11 @@ the Green), he says "Checking with the Commentator…", hands it off, and the an
 
 The site can't fire a claude.ai trigger or post into a thread, so a submind thread wakes itself, as the Builder does
 with `scripts/foundry-watch.sh`: `scripts/submind-watch.sh <room>` runs in the background, reads the room's open
-hand-offs with the read key every 30 seconds (`GET /api/skippy-log?room=<room>&needs=<submind>`, the key in
-`x-ceo-room-key`, passed from stdin so it never shows in the process list, and never printed), and exits the moment a
-new one lands with one line:
+hand-offs with the read key every 30 seconds (`GET /api/skippy-log?room=<room>&needs=<submind>`) and exits the moment
+a new one lands with one line. The thread sends no key itself: the environment's network secrets make the egress proxy
+add `x-ceo-room-key` to the call (below, "Room keys"), and the thread never sees the value. Where `SUBMIND_LOG_TOKEN` is
+set instead (the fallback), the script sends it in that header, passed from stdin so it never shows in the process
+list. A key is never printed:
 
 ```
 handoff 3f9c0a1b2c3d4e5f green turf 2026-10-23T23:30:00.000Z: Why start Tre Tucker over Godwin?
@@ -186,8 +188,8 @@ handoff 3f9c0a1b2c3d4e5f green turf 2026-10-23T23:30:00.000Z: Why start Tre Tuck
 That exit gives the thread a turn. The thread answers on its own Claude Code session (Opus, on Nikita's plan, no API
 spend): it reads the room's data with the read key (for the Green, `/api/green-league`: FantasyPros' and Sleeper's
 numbers for the players asked about), decides, posts the answer back, says the same in its own thread, and starts the
-watcher again. Exits: 0 rang, 2 no key or a bad room, 3 the key was refused (401: not the vault's current one; say so in
-the thread), 1 the site couldn't be read ten times running (restart it). Hand-offs already open when it starts are
+watcher again. Exits: 0 rang, 2 a bad room, 3 the key isn't set up (401 or 403: no network secret for it in this
+environment, or not the vault's current key; say so in the thread and point Nikita at "Room keys"), 1 the site couldn't be read ten times running (restart it). Hand-offs already open when it starts are
 counted on stderr and left, so read them first (`--all` rings for them at once). A watcher that times out is simply
 restarted; when the thread's machine is recycled the watcher goes with it until the thread next runs. Relay's asks stay
 Desk-only (the read key never opens them), so the Messenger has no watcher: a hand-off to it waits on the Relay page's
@@ -197,14 +199,16 @@ The lines a thread runs, from the repo's root (here for the Green; `exchange`, `
 
 ```bash
 SITE=https://ceo.nikita.page
+# The proxy adds both headers (the one network secret), so these lines carry no key header. With the env-var fallback, add
+# -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" to the reads and -H "Authorization: Bearer $SUBMIND_FEED_TOKEN" to the answer.
 # 1. Anything already waiting? Answer those first.
-curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/skippy-log?room=green&needs=turf"
+curl -fsS "$SITE/api/skippy-log?room=green&needs=turf"
 # 2. Then wait for the next one, in the background (the thread's background command; it rings by exiting).
 scripts/submind-watch.sh green
 # 3. On a ring: read the numbers, decide, and post the answer back with the write key (one plain line, at most 700
 #    characters, and an optional card). The id is the one the watcher printed.
-curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/green-league" > /tmp/green.json
-curl -fsS -X POST -H "Authorization: Bearer $SUBMIND_FEED_TOKEN" -H "Content-Type: application/json" "$SITE/api/skippy-answer" -d '{
+curl -fsS "$SITE/api/green-league" > /tmp/green.json
+curl -fsS -X POST -H "Content-Type: application/json" "$SITE/api/skippy-answer" -d '{
   "id": "3f9c0a1b2c3d4e5f", "from": "turf",
   "text": "TUCKER, FOLKS. Under a point apart on FantasyPros, and as the underdog you take the ceiling.",
   "card": {
@@ -229,8 +233,20 @@ public site never shows money, messages, contacts or keys.
 Nikita approved "Both tokens" on 2026-10-22 (#281). Nothing server-side can post into a project thread, and a thread
 has no passkey, so each active submind thread gets two narrow keys instead. They come from the Azure Key Vault only
 (`submind-log-token`, `submind-feed-token`); Nikita copies them once into the C.E.O. project's cloud environment, where
-every new session finds them as environment variables (the steps, each with its "What this does", are in
-[AZURE.md](AZURE.md), "The subminds' room keys").
+every new session gets them as network secrets, which the environment's egress proxy turns into headers, so a thread
+never sees a value (the steps, each with its "What this does", are in [AZURE.md](AZURE.md), "The subminds' room keys").
+The environment allows one network secret per host, so there is one secret for `ceo.nikita.page`, with no path prefix and
+two headers, and every request a thread makes to the site carries both:
+
+- `x-ceo-room-key: <log token>`
+- `Authorization: Bearer <feed token>`
+
+So no command in a thread carries a key. The site tells the two apart by what the request is: a read (GET) is decided
+by the read key and ignores the Bearer; a write (POST `/api/skippy-answer`, `/api/room-feed`, `/api/setup-asks`) is
+decided by the Bearer feed key and ignores `x-ceo-room-key`. Neither header grants more than its key does alone: the
+read key never writes, the feed key never reads, and each opens only its own methods and paths (tests send both
+headers on every one of those routes). The fallback is plain environment variables (`SUBMIND_LOG_TOKEN`,
+`SUBMIND_FEED_TOKEN`), sent by hand as shown below.
 
 - **`SUBMIND_LOG_TOKEN`, read-only.** GET only, and only the room data: the Asked Skippy log of the four active rooms
   (`/api/skippy-log?room=green|exchange|boiler|foundry`, optionally `&needs=`; never Relay's), the Green's league board
@@ -251,24 +267,34 @@ every new session finds them as environment variables (the steps, each with its 
 - **Neither key** can change a setting, trade, send anything, or reach an upstream secret; each opens only its own
   exact method, path and query (`api/_site/roomkeys.ts`, with a test for every allowed and refused path).
 
-How a thread uses them, from its shell (the key goes in its own header, `x-ceo-room-key`; the site's proxy may keep
-`Authorization` for itself). Never echo a key, print the environment, or put a key in a commit, an issue or the thread:
+How a thread uses them, from its shell. With network secrets the proxy adds the headers, so the lines carry none. With
+the env-var fallback the key goes in its own header, `x-ceo-room-key` (the site's proxy may keep `Authorization` for
+itself), shown in the second block. Never echo a key, print the environment, or put a key in a commit, an issue or the
+thread:
 
 ```bash
 SITE=https://ceo.nikita.page
 # Read: the Green's board, and what Nikita asked Skippy about the Green.
-curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/green-league"
-curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/skippy-log?room=green"
+curl -fsS "$SITE/api/green-league"
+curl -fsS "$SITE/api/skippy-log?room=green"
 # The Green's open hand-offs to the Commentator.
-curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/skippy-log?room=green&needs=turf"
-# Post a room event.
+curl -fsS "$SITE/api/skippy-log?room=green&needs=turf"
+```
+
+The env-var fallback (only where the variables are set):
+
+```bash
+curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/green-league"
+# Post a room event (the feed key).
 curl -fsS -X POST -H "x-ceo-room-key: $SUBMIND_FEED_TOKEN" -H "Content-Type: application/json" \
   -d '{"room":"green","title":"Waiver call is in: grab the Bears D","detail":"Week 8 bye cover."}' "$SITE/api/room-feed"
 ```
 
-If `SUBMIND_LOG_TOKEN` is empty in a session, the keys aren't in the environment yet: say so in the thread and point
-Nikita at the steps; never ask for a key in chat. A 401 `site-locked` means the key isn't the vault's current one
-(changed, or not yet restarted).
+With network secrets that last POST is simply `curl -fsS -X POST -H "Content-Type: application/json" -d '…' "$SITE/api/room-feed"`.
+
+If a call comes back 401 or 403 (or the watcher exits 3) and `SUBMIND_LOG_TOKEN` is empty, the key isn't set up: say so
+in the thread and point Nikita at the steps; never ask for a key in chat. A 401 `site-locked` with a key set means it
+isn't the vault's current one (changed, or not yet restarted).
 
 ## Setup asks
 
@@ -292,7 +318,9 @@ browser that stop at every sign-in and passkey, which stay Nikita's). Nikita's p
 is needed. Any new secret lives in the Key Vault only, as a row in the `secrets` table of `infra/resources.bicep` and
 in `SECRET_SETTINGS` (`azure/src/env.ts`); never in the repo, a file, a log, an issue or the thread.
 
-From the thread's shell, with the room keys (never echo them):
+From the thread's shell, with the room keys (never echo them). Under the network-secret setup the feed key is the
+`Authorization: Bearer` header, which the proxy adds, so these POSTs carry none there; with the env-var fallback add
+`-H "Authorization: Bearer $SUBMIND_FEED_TOKEN"` (or `x-ceo-room-key`). The reads need no header:
 
 ```bash
 SITE=https://ceo.nikita.page
@@ -303,7 +331,7 @@ curl -fsS -X POST -H "x-ceo-room-key: $SUBMIND_FEED_TOKEN" -H "Content-Type: app
   "why":"So the Builder reads check runs without a personal token.","cost":"Free","reversible":true,
   "route":"key-vault-flow"}' "$SITE/api/setup-asks"
 # Whether Nikita approved it (the read key): state is open, approved, declined, done or dropped.
-curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/setup-asks?room=foundry"
+curl -fsS "$SITE/api/setup-asks?room=foundry"
 # Close it with its Trail line once done ("done" only after Approve), or "dropped".
 curl -fsS -X POST -H "x-ceo-room-key: $SUBMIND_FEED_TOKEN" -H "Content-Type: application/json" \
   -d '{"action":"close","id":"<id>","outcome":"done","trail":"App created; its key went straight to the Key Vault."}' "$SITE/api/setup-asks"

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
 import { useMasked } from "./hide.ts";
 import { EmailSection } from "./email/EmailSection.tsx";
-import { linkOf, startEmail, useEmail, type EmailLoad, type EmailStatus } from "./email/email.ts";
+import { startEmail, useEmail, type EmailLoad, type EmailStatus } from "./email/email.ts";
+import { Allowance, flowOf, Heartbeat, Switchboard } from "./relay/Switchboard.tsx";
 import { Private } from "./Private.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
-import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import { Avatar, Panel } from "./ui.tsx";
 import { Listening, NudgeClock, Outbox, ReplyStrip, Streak, waitTone } from "./viz.tsx";
 import { isPhone, knot, Parts, Poly, RC, ring, spr, useViz, type VizSpec } from "./wvCanvas.ts";
@@ -63,59 +63,44 @@ const CHAIN = [
   { b: "You", s: "A tap to send" },
 ];
 
-/** The page's headline, from the email agent's public state: email live (or why not), texts still on the Mac. */
+/** The page's headline, from the email agent's public state. */
 function headOf(load: EmailLoad, status: EmailStatus | null): { lead: string; em: string; sub: string } {
-  const texts = "Texts wait on one thing: the MacBook. Once its hub is up, Relay keeps track of who you owe a reply and drafts answers in your voice for a tap to send.";
-  if (load === "off") return { lead: "Email lives on", em: "the Azure copy.", sub: `Dialtone and Blasto read your inbox there, where their keys are. ${texts}` };
-  if (!status) return { lead: "Relay is", em: load === "failed" ? "not answering." : "listening…", sub: texts };
-  if (status.gmail === "refused") return { lead: "Gmail needs", em: "reconnecting.", sub: `Google stopped accepting the connection; reconnect below and the line picks up where it left off. ${texts}` };
-  if (status.gmail !== "connected" || status.agent === "waiting") return { lead: "Email is", em: "ready to connect.", sub: `Connect Gmail below and Dialtone starts sorting from the next new mail. ${texts}` };
-  if (status.agent === "paused") return { lead: "Email is live,", em: "paused at the cap.", sub: `New mail is still counted; the models wait for the month to turn. ${texts}` };
-  if (status.agent === "error") return { lead: "Email is live,", em: "one check missed.", sub: `Dialtone tries again every minute. ${texts}` };
-  return { lead: "Email is", em: "live.", sub: `Dialtone sorts each new inbox mail within a minute, and Blasto drafts advice for the ones that need you. ${texts}` };
+  if (load === "off") return { lead: "Email lives on", em: "the Azure copy.", sub: "Dialtone and Blasto read your inbox there, where their keys are. Texts follow once the MacBook's hub is up." };
+  if (!status) return { lead: "Relay is", em: load === "failed" ? "not answering." : "listening…", sub: "Who you owe a reply, the ones to answer sooner first, each with a draft in your voice." };
+  if (status.gmail === "refused") return { lead: "Gmail needs", em: "reconnecting.", sub: "Google stopped accepting the connection; reconnect below and the line picks up where it left off." };
+  if (status.gmail !== "connected" || status.agent === "waiting") return { lead: "Email is", em: "ready to connect.", sub: "Connect Gmail below and Dialtone starts sorting from the next new mail." };
+  if (status.agent === "paused") return { lead: "Email is live,", em: "paused at the cap.", sub: "New mail is still counted; the models wait for the month to turn." };
+  if (status.agent === "error") return { lead: "Email is live,", em: "one check missed.", sub: "Dialtone tries again every minute." };
+  return { lead: "Email is", em: "live.", sub: "Dialtone sorts each new mail within a minute; Blasto drafts advice for the ones that need you." };
 }
 
-/** The two lines Relay runs, each with its real state: email from the Azure copy, texts from the Mac (still waiting). */
-function Lines({ load, status, now }: { load: EmailLoad; status: EmailStatus | null; now: number }) {
-  const link = linkOf(status);
-  const tone = load === "off" ? "wait" : link === "ok" ? "ok" : link === "slow" ? "warn" : link === "down" ? "bad" : "wait";
-  const word = load === "off" ? "on the Azure copy" : link === "ok" ? "live" : link === "slow" ? "paused" : link === "down" ? "needs a look" : status?.gmail === "connected" ? "starting" : "not connected";
-  const checked = status?.lastCheck ? `checked ${ago(status.lastCheck, now)}` : null;
+/** Relay's crew, with the words they live by (packages/simulator/src/cast.ts). */
+const CREW = [
+  { id: "static", name: "Static", role: "The Messenger · Relay's lead", line: "Didn't hear it from me. You heard it from me." },
+  { id: "dialtone", name: "Dialtone", role: "Switchboard · sorts", line: "Please hold. Not you, darling." },
+  { id: "postmaster", name: "Blasto", role: "Correspondence · drafts", line: "This one has read your message. This one has feelings about it." },
+];
+
+function Crew({ live }: { live: boolean }) {
   return (
-    <ul className="wv-relay-lines" aria-label="Relay's lines">
-      <li data-tone={tone}>
-        <i className={`wv-dot${tone === "wait" ? " is-ring" : ""}`} aria-hidden="true" />
-        <b>Email</b>
-        <span>
-          {word}
-          {checked && tone !== "wait" ? ` · ${checked}` : ""}
-        </span>
-        {status && tone !== "wait" && (
-          <span className="wv-relay-lines-n">
-            {status.needsYou} need you · {status.fyi} FYI · {status.noise} noise
-          </span>
-        )}
-      </li>
-      <li data-tone="wait">
-        <i className="wv-dot is-ring" aria-hidden="true" />
-        <b>Texts</b>
-        <span>waiting on the MacBook</span>
-      </li>
-    </ul>
+    <section className="rl-crew" aria-label="Relay's crew">
+      {CREW.map((c, i) => (
+        <figure key={c.id} className="rl-mate" data-on={live && c.id !== "static" ? "" : undefined} style={{ "--i": i } as React.CSSProperties}>
+          <img src={`/desk/agent-${c.id}.webp`} alt="" width={56} height={56} decoding="async" loading="lazy" />
+          <figcaption>
+            <b>{c.name}</b>
+            <span>{c.role}</span>
+            <q>{c.line}</q>
+          </figcaption>
+        </figure>
+      ))}
+    </section>
   );
 }
 
-const ago = (at: number, now: number) => {
-  const m = Math.max(0, Math.round((now - at) / 60_000));
-  if (m < 1) return "just now";
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
-};
-
 /**
- * Before the hub is connected: email live from the Azure copy (#263, live since #322), and what Relay will do for
- * texts, with the one thing it waits on. Real states only; no made-up messages.
+ * Before the hub is connected: email live from the Azure copy (#263, live since #322) on the switchboard, and the texts
+ * line with the one thing it waits on. Real states only; no made-up messages.
  */
 function RelayLater({ now }: { now: number }) {
   const spec = useMemo(() => chainSpec(), []);
@@ -125,31 +110,50 @@ function RelayLater({ now }: { now: number }) {
   const load = useEmail((s) => s.load);
   const status = useEmail((s) => s.status);
   const head = headOf(load, status);
+  const flow = flowOf(load, status);
+  const live = flow === "live" || flow === "slow";
   return (
-    <div className="relay-page wv-page wv-relay" data-room="relay">
-      <header className="wv-pghead">
+    <div className="relay-page wv-page wv-relay rl" data-room="relay" data-flow={flow}>
+      <div className="rl-sky" aria-hidden="true" />
+      <header className="wv-pghead rl-head">
         <p className="wv-eyb" style={{ color: "var(--rc-relay)" }}>
-          Relay
+          Relay · the switchboard
         </p>
         <h1 className="wv-h1 desk__title">
           {head.lead} <em style={{ color: "var(--rc-relay)" }}>{head.em}</em>
         </h1>
         <p className="wv-sub">{head.sub}</p>
-        <Lines load={load} status={status} now={now} />
       </header>
+
+      <Switchboard load={load} status={status} />
+
+      <div className="rl-tiles">
+        <Heartbeat lastCheck={live ? (status?.lastCheck ?? null) : null} flow={flow} />
+        <Allowance pct={load === "live" && status && status.gmail === "connected" ? status.budgetPct : null} />
+        <Crew live={live} />
+      </div>
+
       <EmailSection now={now} />
 
-      <AskedSkippy room="relay" />
-      <section className="wv-chain" aria-label="What Relay waits on">
-        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
-        <ol className="wv-chain-l">
-          {CHAIN.map((c) => (
-            <li key={c.b}>
-              <b>{c.b}</b>
-              <span>{c.s}</span>
-            </li>
-          ))}
-        </ol>
+      <section className="rl-texts" aria-label="What the texts line waits on">
+        <header>
+          <p className="wv-eyb">Texts</p>
+          <h2>
+            Waiting on <em>the MacBook.</em>
+          </h2>
+          <p>Once its hub is up, Relay keeps track of who you owe a reply and drafts answers in your voice for a tap to send.</p>
+        </header>
+        <div className="wv-chain">
+          <canvas ref={cv} className="wv-cv" aria-hidden="true" />
+          <ol className="wv-chain-l">
+            {CHAIN.map((c) => (
+              <li key={c.b}>
+                <b>{c.b}</b>
+                <span>{c.s}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
       </section>
       <figure className="wv-relay-q">
         <img src="/desk/agent-postmaster.webp" alt="" width={62} height={62} decoding="async" />
@@ -408,7 +412,6 @@ function RelayLive({ data, now, connected }: { data: DeskData; now: number; conn
 
       <EmailSection now={now} />
 
-      <AskedSkippy room="relay" />
 
       <div className="habits">
         <Panel eyebrow="Reply time, last 7 days" className="panel--strip">

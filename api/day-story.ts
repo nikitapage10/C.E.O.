@@ -1,16 +1,18 @@
 /**
- * The day's story (#95, livelier in #102; docs/WORLD.md): the Historian's quick "today in Ilyr" update, as a Vercel
- * function. The audio lives in the private Blob store and is served from here, so it comes from our own origin (the
+ * The day's story (#95, livelier in #102; docs/WORLD.md): the quick "today in Ilyr" update, presented by Skippy, the
+ * Magnificent since #365, made about every five hours as the day goes ("so far" editions) and once more when the
+ * recap is filed. The latest edition is the one served. As a Vercel (and Azure) function. The audio lives in the private Blob store and is served from here, so it comes from our own origin (the
  * CSP's media-src is 'self').
  *
- * GET  ?day=2026-10-13          → { day, ready: true, script, durationSec, partial, stale, at, audio } or
+ * GET  ?day=2026-10-13          → { day, ready: true, script, durationSec, partial, edition, reader, stale, at, audio } or
  *                                  { day, ready: false, reason } ("no-key", "over-budget", "not-yet").
  * GET  ?day=2026-10-13&audio=1  → the WAV (audio/wav). Under 4 MB it is one cacheable 200; a longer one is served in
  *                                  ranges (206), since a function's response is capped at 4.5 MB.
  * POST { day? }                 → make today's or yesterday's story now, once (the Desk's "Make it now"). Only in the
  *                                  Desk's sign-in session (#132, api/desk-auth.ts). Without `day`: yesterday
- *                                  if its recap is written and it has no story yet, else today so far. A story made in an
- *                                  older style (`stale`) is remade once in the current one.
+ *                                  if its recap is written and it has no story yet, else today so far (this 5-hour
+ *                                  mark's edition, when the Chronicle has something new). A story made in an older
+ *                                  style (`stale`) is remade once in the current one.
  *
  * GET  ?week=2026-10-19        → { week, ready: true, script, durationSec, writer, at, audio } or { week, ready: false }:
  *                                  the week in Ilyr (#211), by the week's Monday; `audio` is null when it wasn't read aloud.
@@ -20,7 +22,10 @@
  * (api/world-step.ts, waitUntil).
  *
  * Environment (Vercel → Settings → Environment Variables):
- *   GEMINI_API_KEY     Gemini's speech (without it there is no audio, and the Desk says so)
+ *   ELEVENLABS_API_KEY    optional (#365): ElevenLabs reads the story first (Key Vault secret `elevenlabs` on Azure)
+ *   ELEVENLABS_VOICE_ID   optional: its voice (default Daniel, a premade British male voice)
+ *   ELEVENLABS_BUDGET_USD optional: ElevenLabs' own monthly cap (default 10, never above 10); past it, Gemini reads
+ *   GEMINI_API_KEY     Gemini's speech, and the fallback when ElevenLabs is unset, over its cap or failing
  *   GEMINI_BUDGET_USD  optional: Gemini's own monthly cap (default 5, never above 10)
  *   FOUNDRY_DESK_KEY   the root of the Desk's sign-in (api/_desk/keys.ts), for POST
  *   CLAUDE_API_KEY     optional: Claude Haiku writes the script (else it is put together from the Chronicle's lines)
@@ -30,7 +35,7 @@
 import { requireSession, withCookie } from "./_desk/session.js";
 import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import { claudeStoryWriter } from "./_world/claude.js";
-import { backfillDays, canSpeak, geminiBudget, geminiKey, isCurrent, makeStory, pickStoryStore, type DayStory, type StoryStore, type WeekStory } from "./_world/story.js";
+import { backfillDays, elevenFromEnv, geminiBudget, geminiKey, isCurrent, makeStory, pickStoryStore, voiceBlocked, type DayStory, type StoryStore, type WeekStory } from "./_world/story.js";
 import { DAY, pickStore, type WorldStore } from "./_world/store.js";
 import type { DayStoryView, WeekStoryView } from "./_world/types.js";
 
@@ -43,7 +48,19 @@ function json(body: unknown, status = 200, cache = "no-store"): Response {
 
 /** What the Desk is told about a story: the transcript and where to hear it. */
 export function storyView(s: DayStory): DayStoryView {
-  return { day: s.day, ready: true as const, script: s.script, durationSec: s.durationSec, partial: s.partial, writer: s.writer, stale: !isCurrent(s), at: s.at, audio: `/api/day-story?day=${s.day}&audio=1&v=${Date.parse(s.at)}` };
+  return {
+    day: s.day,
+    ready: true as const,
+    script: s.script,
+    durationSec: s.durationSec,
+    partial: s.partial,
+    edition: s.partial ? (s.edition ?? null) : null,
+    reader: s.reader ?? "gemini",
+    writer: s.writer,
+    stale: !isCurrent(s),
+    at: s.at,
+    audio: `/api/day-story?day=${s.day}&audio=1&v=${Date.parse(s.at)}`,
+  };
 }
 
 /** Serve the WAV: whole when it fits, else the range asked for (at most MAX_BODY). */
@@ -117,14 +134,17 @@ export async function handleGet(request: Request, deps: DayStoryEnv = live()): P
     if (url.searchParams.has("audio")) {
       const wav = await deps.stories.readAudio(day);
       if (!wav) return json({ error: "not-found" }, 404);
-      return audioResponse(wav, request.headers.get("range"), url.searchParams.has("v"));
+      // Each edition replaces the day's audio (#365): only the current edition's link may be cached for good.
+      const v = url.searchParams.get("v");
+      const story = v ? await deps.stories.readStory(day) : null;
+      return audioResponse(wav, request.headers.get("range"), !!story && v === String(Date.parse(story.at)));
     }
     const story = await deps.stories.readStory(day);
     if (story) return json(storyView(story), 200, "public, s-maxage=60, stale-while-revalidate=600");
     const view: DayStoryView = {
       day,
       ready: false,
-      reason: !geminiKey(deps.env) ? "no-key" : !canSpeak(await deps.stories.loadSpend(), deps.now, geminiBudget(deps.env.GEMINI_BUDGET_USD)) ? "over-budget" : "not-yet",
+      reason: voiceBlocked(await deps.stories.loadSpend(), deps.now, { key: geminiKey(deps.env), budget: geminiBudget(deps.env.GEMINI_BUDGET_USD), eleven: elevenFromEnv(deps.env) }) ?? "not-yet",
     };
     return json(view, 200, "public, s-maxage=60");
   } catch {
@@ -157,6 +177,7 @@ async function make(request: Request, deps: DayStoryEnv & { world: WorldStore; s
       now: deps.now,
       key: geminiKey(deps.env),
       budget: geminiBudget(deps.env.GEMINI_BUDGET_USD),
+      eleven: elevenFromEnv(deps.env),
       write: claudeStoryWriter(deps.env.CLAUDE_API_KEY || deps.env.ANTHROPIC_API_KEY || ""),
       fetcher: deps.fetcher,
       allowPartial: true,

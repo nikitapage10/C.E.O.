@@ -61,7 +61,7 @@ function Marks({ ps, hot, onHot }: { ps: PmPosition[]; hot: number | null; onHot
         const p = ps[i]!;
         const tone = pnlTone(p.pnl);
         return (
-          <li key={`${p.market}-${i}`} className={`xc-mark is-${tone}${hot === i ? " is-hot" : ""}${f.rise < 0 ? " is-under" : ""}`} style={{ left: `${(f.cx * 100).toFixed(2)}%` }} onMouseEnter={() => onHot(i)} onMouseLeave={() => onHot(null)} title={p.market}>
+          <li key={`${p.market}-${i}`} className={`xc-mark is-${tone}${hot === i ? " is-hot" : ""}${f.rise < 0 ? " is-under" : ""}`} style={{ "--x": f.cx.toFixed(4) } as React.CSSProperties} onMouseEnter={() => onHot(i)} onMouseLeave={() => onHot(null)} title={p.market}>
             <b>{num(i)}</b>
             <span className={`is-${tone}`}>
               <Private label="profit or loss hidden">{signedUsd(p.pnl)}</Private>

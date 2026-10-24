@@ -27,7 +27,7 @@ export function moveFlap(c: number | null): string {
   return `${t === "up" ? "▲" : "▼"}${move(c).replace(/^[+−]/, "")}`;
 }
 
-function Stage({ m, world, paused, auto, onDone }: { m: PmWorld; world: readonly PmWorld[]; paused: boolean; auto: boolean; onDone: () => void }) {
+function Stage({ m, world, paused, auto, turn, onDone }: { m: PmWorld; world: readonly PmWorld[]; paused: boolean; auto: boolean; turn: number; onDone: () => void }) {
   const tone = moveTone(m.change24h);
   const yes = m.outcome.toLowerCase() === "yes";
   const was = m.change24h === null ? null : Math.min(1, Math.max(0, m.prob - m.change24h));
@@ -49,7 +49,7 @@ function Stage({ m, world, paused, auto, onDone }: { m: PmWorld; world: readonly
           </span>
         </div>
       </div>
-      <div className="xc-stage-body">
+      <div key={m.id} className="xc-stage-body">
         {m.url ? (
           <a className="xc-stage-q" href={m.url} target="_blank" rel="noopener noreferrer nofollow">
             {m.question}
@@ -69,7 +69,7 @@ function Stage({ m, world, paused, auto, onDone }: { m: PmWorld; world: readonly
           </p>
         </div>
       </div>
-      {auto && <i className="xc-timer" style={{ animationDuration: `${DWELL_S}s`, animationPlayState: paused ? "paused" : "running" }} onAnimationEnd={onDone} aria-hidden="true" />}
+      {auto && <i key={turn} className="xc-timer" style={{ animationDuration: `${DWELL_S}s`, animationPlayState: paused ? "paused" : "running" }} onAnimationEnd={onDone} aria-hidden="true" />}
     </article>
   );
 }
@@ -110,7 +110,8 @@ export function BookieAsides() {
 
       {m ? (
         <div className="xc-world-grid" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={() => setHover(true)} onBlur={() => setHover(false)}>
-          <Stage key={`${m.id}:${turn}`} m={m} world={world} paused={held || hover} auto={auto} onDone={() => go(i + 1)} />
+          {/* The stage stays mounted as it turns: its flaps flip from the last market's figures to the next's. */}
+          <Stage m={m} world={world} paused={held || hover} auto={auto} turn={turn} onDone={() => go(i + 1)} />
           <div className="xc-board">
             <p className="xc-board-h">
               <span className="xc-k">The movers · last 24 hours</span>

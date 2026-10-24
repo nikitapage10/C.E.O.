@@ -118,7 +118,7 @@ try {
   const t0 = Date.now();
   // The same switches as the browser tests: a fixed seed so the cast starts in its usual places, camera cuts instead
   // of flights, no glitches, agents at four times speed so a few seconds shows them walking.
-  await page.goto(`${base}/lattice?instant&glitches=off&speed=4&quality=low&seed=7`, { waitUntil: "load" });
+  await page.goto(`${base}/lattice?view=ring&instant&glitches=off&speed=4&quality=low&seed=7`, { waitUntil: "load" });
   await page.waitForFunction(() => globalThis.__ceo?.positions && Object.keys(globalThis.__ceo.positions()).length >= 14, undefined, { timeout: 180_000, polling: 1000 });
   console.log(`room-tour: booted in ${Math.round((Date.now() - t0) / 1000)} s`);
   // The scene only (the page's own panels and loader are not what's being checked), and the tag.

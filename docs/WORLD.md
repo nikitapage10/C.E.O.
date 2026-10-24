@@ -66,21 +66,28 @@ computed from its own token use, as idea shaping does it (`costOf` in `api/found
 
 ## The day's story
 
-Once a day's recap is filed, **the Historian reads the day's update aloud** (issue #95, made livelier in #102, a
-normal voice in #107): a short "today in Ilyr" in 30 to 45 seconds, one clear speaker, not a podcast and not two hosts.
-`api/_world/story.ts`.
+**Skippy, the Magnificent presents "today in Ilyr"** (#365; the Historian read it from #95 to #365, and still writes
+the notes): a short update in 30 to 45 seconds, one speaker, not a podcast and not two hosts, made in **editions**
+through the day. `api/_world/story.ts`.
 
-- **Trigger:** the step that writes a recap (the first after midnight Mountain) makes that day's story after it has
-  answered (`waitUntil` in `api/world-step.ts`), so the step stays fast. The Chronicle also has **Make it now** for
-  today or yesterday (`POST /api/day-story` in the Desk's passkey session, #132): yesterday when its recap
-  is filed and it has no story yet, else **the day so far**. Each day gets at most two: one "so far" from the Desk,
-  and the recap's, which replaces it. Each is made once (a claim in the store, so a second call, or two racing,
-  spends nothing).
-- **Style versions:** each story carries the style it was made with (`STORY_STYLE`, now 3; the first, slow Gacrux
-  stories of #95 carry none and count as 1). A story in an older style shows on the Chronicle with **Make it now**,
-  which remakes it once in the current style: still Desk-key gated, still inside `GEMINI_BUDGET_USD`, and the claims
-  carry the version (`world/stories/<day>.<kind>.v3.claim`), so each style is paid for at most once per day and kind,
-  and two racing remakes spend once. The world step never remakes an old story by itself.
+- **Editions (#365):** about every five hours the world step makes a fresh **so far** edition of today: at the first
+  step after 5 am, 10 am, 3 pm and 8 pm Mountain (editions 1 to 4; `editionAt`), and only when the Chronicle has an
+  hour newer than the last edition (else `no-news`, nothing spent). The step that writes a recap (the first after
+  midnight Mountain) makes the **final** edition, which replaces the day so far. Both run after the step has answered
+  (`waitUntil` in `api/world-step.ts`; on Azure the timer's step waits for them, `settleMs: Infinity`), so the step stays
+  fast. About five readings a day. The latest edition is the one kept and served; a "so far" that finishes after the
+  final one has landed never covers it. The Chronicle also has **Make it now** for today or yesterday (`POST
+  /api/day-story` in the Desk's passkey session, #132): yesterday when its recap is filed and it has no story yet,
+  else today's edition for the current 5-hour mark (edition 0 before 5 am).
+- **Claims:** each edition is claimed once per day, edition and style (`world/stories/<day>.so-far-<n>.v4.claim`, and
+  `<day>.final.v4.claim`), created without overwrite, so a second call, or two runners racing, spends nothing. A claim
+  with no story behind it after ten minutes was a call that died and may be taken again; a failed reading gives its
+  claim back.
+- **Style versions:** each story carries the style it was made with (`STORY_STYLE`, now 4: Skippy's voice, #365; the
+  first, slow Gacrux stories of #95 carry none and count as 1). A final story in an older style shows on the
+  Chronicle with **Make it now**, which remakes it once in the current style: still Desk-key gated, still inside the
+  voice caps, and the claims carry the version, so each style is paid for at most once per day and edition. The world
+  step never remakes an old final story by itself; an old "so far" is simply followed by the next edition.
 - **The script:** Claude Haiku (the world's model and key, plain text out, about a tenth of a cent) writes 70 to 120
   words, 30 to 45 seconds aloud, from the day's Chronicle page only: the recap, each hour's summary, the real Foundry
   events (what shipped and who built it) and the builders' remarks. Its shape: a one-line hook ("Today in Ilyr..."),
@@ -90,9 +97,26 @@ normal voice in #107): a short "today in Ilyr" in 30 to 45 seconds, one clear sp
   (`cleanScript`). Without a Claude key, or when it doesn't answer, the script is put together from the Chronicle's
   own lines in the same shape (`chronicleScript`: the hook, the recap's first sentence, the top three builds, one
   remark, the sign-off). Never a demo: no key, no audio.
-- **The speech:** Gemini's text to speech over plain `fetch` (no SDK): `gemini-3.8-flash-tts`, the prebuilt voice
-  **Achird** ("Friendly": an ordinary, clear speaker, the way a colleague reads out a short update), with a short
-  style note: a friendly, natural speaker reading a short daily update, clear and conversational, at a normal pace.
+- **Skippy's script (#365):** the brief (`STORY_SYSTEM`) is Skippy's: pompous, smug, theatrical, secretly fond of the
+  C.E.O., calling the crew "monkeys", one boast and one quip at most, the news first; in Ilyr, legally his own. The
+  public rules stay: never personal data, contacts, message contents, money or keys.
+- **ElevenLabs first (#365):** when `ELEVENLABS_API_KEY` is set (on Azure from the Key Vault secret `elevenlabs`; read
+  from the environment only, never logged), the script goes to ElevenLabs' text to speech over plain `fetch`:
+  `POST https://api.elevenlabs.io/v1/text-to-speech/<voice>?output_format=pcm_24000`, header `xi-api-key`, model
+  `eleven_multilingual_v2`, settings a little theatrical. The voice is **Daniel** (`onwK4e9ZLuTAKqWW03F9`, a premade
+  British male voice, a news presenter's delivery); `ELEVENLABS_VOICE_ID` changes it (letters and digits only, else
+  the default). It answers raw 16-bit mono PCM at 24 kHz, wrapped as WAV like Gemini's. Its **own cap**,
+  `ELEVENLABS_BUDGET_USD` (default **$10**, never above $10), counted at the API rate of $0.08 per 1,000 characters
+  (a plan's credits come cheaper, so the count errs high), kept beside Gemini's in `world/stories/spend.json`
+  (`elevenUsd`, `elevenChars`, `elevenCalls`); no reading starts once one more at its longest (1,500 characters, 12
+  cents) could pass it. A story is under 1,000 characters, under 8 cents: about 125 readings fill $10. When ElevenLabs
+  isn't set, is over its cap, or doesn't answer with audio, Gemini reads instead, under its own cap. Both spent, and
+  the microphone stays off. Sources: https://elevenlabs.io/docs/api-reference/text-to-speech/convert and
+  https://elevenlabs.io/pricing/api.
+- **Gemini's speech:** Gemini's text to speech over plain `fetch` (no SDK): `gemini-3.8-flash-tts`. Skippy's voice
+  (#365) is the male prebuilt **Sadaltager** ("Knowledgeable") with a style note asking for a grand, crisp,
+  upper-crust British gentleman presenting the day's news, a little pompous and smug, at a natural pace. The week in
+  Ilyr keeps the Historian's **Achird** ("Friendly") and its plain style note.
   The API has no speaking-rate setting; Google's guide steers pace through the style note, so that is where the pace
   is set. It asks for raw 16-bit mono PCM (`audio/l16`) at **24 kHz**, Gemini's native rate, and wraps it as WAV (48
   KB a second, a 45-second story about 2.2 MB). Headerless PCM carries no rate, so the rate is taken from what the
@@ -106,13 +130,15 @@ normal voice in #107): a short "today in Ilyr" in 30 to 45 seconds, one clear sp
   story is started once one more at its most (a long prompt and two minutes of audio, about three cents) could pass
   it. The script's Claude cost is kept beside it and counted in the shared Claude cap on the Usage panel, where
   Gemini's spend shows next to the world's.
-- **Kept and served:** `world/stories/<day>.json` (the script, its length, model, voice and style, what it cost) and
-  `world/stories/<day>.wav` in the private Blob store. `GET /api/day-story?day=…` answers the transcript and the
+- **Kept and served:** `world/stories/<day>.json` (the latest edition: the script, its length, model, voice, reader,
+  edition and style, when it was made, what it cost) and `world/stories/<day>.wav` in the private Blob store. `GET /api/day-story?day=…` answers the transcript and the
   audio's link, with `stale` for an older style (or why there is none: `no-key`, `over-budget`, `not-yet`);
   `&audio=1` serves the WAV from our own origin (the CSP's `media-src` is `'self'`), cached at the edge, versioned by
   when it was made.
-- **Where it shows:** on the Chronicle's day pages, "Hear the day in Ilyr" with its length, a native player and the
-  transcript (collapsed); on Today, yesterday's under "In Ilyr" once it is made.
+  Each edition replaces the day's audio, so only the current edition's versioned link is cached for good.
+- **Where it shows:** on the Chronicle's day pages, "Hear the day in Ilyr" with its length, whether it is the day so
+  far or the whole day, when the edition was made, a native player and the transcript (collapsed); an open player looks
+  for a newer edition every five minutes while it isn't playing. On Today, yesterday's under "In Ilyr" once it is made.
 
 ## The storage layer
 

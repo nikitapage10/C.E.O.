@@ -153,6 +153,25 @@ describe("reading a story (GET)", () => {
     expect(bytes.length).toBe(44 + PCM.length);
   });
 
+  it("caches only the current edition's audio link for good (#365), and says when the edition was made", async () => {
+    const s = setup();
+    const { deps } = s;
+    await handlePost(post({ day: YESTERDAY }, await signedIn(s)), deps);
+    const view = (await (await handleGet(get(`day=${YESTERDAY}`), deps)).json()) as { audio: string; at: string; reader: string; edition: number | null };
+    expect(view).toMatchObject({ at: new Date(NOW).toISOString(), reader: "gemini", edition: null });
+    const old = await handleGet(get(`day=${YESTERDAY}&audio=1&v=12345`), deps);
+    expect(old.headers.get("cache-control")).not.toContain("immutable");
+  });
+
+  it("counts ElevenLabs as a voice: no 'no-key' with only its key set, and it never returns that key", async () => {
+    const ELEVEN = "sk_eleven-never-in-a-response-42";
+    const only = setup({ GEMINI_API_KEY: "", ELEVENLABS_API_KEY: ELEVEN });
+    const res = await handleGet(get(`day=${TODAY}`), only.deps);
+    const text = await res.text();
+    expect(JSON.parse(text)).toMatchObject({ reason: "not-yet" });
+    expect(text).not.toContain(ELEVEN);
+  });
+
   it("404s audio that isn't there and refuses a bad day", async () => {
     const { deps } = setup();
     expect((await handleGet(get(`day=${TODAY}&audio=1`), deps)).status).toBe(404);

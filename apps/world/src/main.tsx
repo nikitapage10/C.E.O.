@@ -3,11 +3,15 @@ import "@fontsource/cormorant-garamond/400.css";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/400-italic.css";
 import "@fontsource-variable/inter/wght.css";
-import "@fontsource-variable/manrope/wght.css";
-import "@fontsource/dm-serif-display/latin-400.css";
-import "@fontsource/dm-serif-display/latin-400-italic.css";
+import "@fontsource/cormorant-garamond/latin-600.css";
+import "@fontsource/cormorant-garamond/latin-700.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
+// The Desk's running text (#336): IBM Plex Sans, beside the Lattice's Cormorant and Plex Mono.
+import "@fontsource/ibm-plex-sans/latin-400.css";
+import "@fontsource/ibm-plex-sans/latin-400-italic.css";
+import "@fontsource/ibm-plex-sans/latin-500.css";
+import "@fontsource/ibm-plex-sans/latin-600.css";
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { Desk } from "./desk/Desk.tsx";

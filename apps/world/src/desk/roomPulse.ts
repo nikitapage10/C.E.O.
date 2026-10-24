@@ -29,6 +29,8 @@ export interface RoomPulse {
   activity: number;
   /** A few words for the thread's label: "Rusty is building", "Waiting on the Mac". */
   status: string;
+  /** What the room is doing right now, when there is more to say than `status`: "Rusty on #336, Simplifying Today". */
+  doing?: string;
   /** Fewer words, lower case, for the fan beside Today's greeting: "mid-build", "steady", "not set up". */
   short: string;
   /** The submind's report, in its own voice: one or two short sentences, numbers from real data. */
@@ -142,6 +144,7 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
           state: red ? "down" : working.length ? "busy" : "steady",
           activity: clamp(0.25 + working.length * 0.3 + shipped * 0.08),
           status: red ? "Checks on main are red" : who ? `${who} is building` : waiting ? `${n(waiting, "thing")} waiting on you` : "All clear",
+          ...(who && working[0] && { doing: `${who} on #${working[0].number}, ${working[0].short || working[0].title}${working.length > 1 ? `, and ${n(working.length - 1, "more job")}` : ""}` }),
           short: red ? "checks red" : who ? "mid-build" : waiting ? `${waiting} waiting on you` : "all clear",
           report: `${parts.join(", ")}. ${red ? "Main's red. Rivet's already on it." : "Checks are green. Don't touch anything."}`,
           events,

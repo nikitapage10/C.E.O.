@@ -1,48 +1,49 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { loadLattice } from "../../route.ts";
-import { CouncilButton } from "../CouncilButton.tsx";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { dailyOpening } from "../motion.tsx";
-import { link } from "../nav.ts";
-import { greeting, roomPhrase, skippyLine, type RoomPulse } from "../roomPulse.ts";
-import { SkippyAsk, SkippyAvatar } from "../skippy/index.ts";
+import { greeting, skippyLine, type PulseState, type RoomPulse } from "../roomPulse.ts";
+import { SKIPPY_PORTRAIT, SkippyAvatar } from "../skippy/index.ts";
 import { eOut, kick, reducedMotion, useViz } from "../wvCanvas.ts";
 import { FAN, fanSpec, type FanItem, type FanState } from "./fan.ts";
 import { Opening } from "./Opening.tsx";
 import { roomLink } from "./roomLink.ts";
 
-const Council = lazy(() => import("../Council.tsx").then((m) => ({ default: m.Council })));
-
-/** The fan's order, as the approved Weave has it: the busiest rooms on top, the rooms not set up below. */
+/** The strands' order: the rooms with real work on top, the rooms not set up below. */
 const FAN_ORDER = ["foundry", "boiler", "breakroom", "archive", "relay", "spire", "exchange", "green", "workshop", "studio"] as const;
 const FAN_STATE: Record<RoomPulse["state"], FanState> = { busy: "busy", steady: "active", waiting: "wait", down: "down", sim: "off" };
+/** How busy a room is, in one word, beside its name. */
+const STATE_WORD: Record<PulseState, string> = { busy: "Busy", steady: "Steady", waiting: "Waiting", down: "Needs a look", sim: "Not set up" };
+/** The busy meter's five ticks. */
+const TICKS = [0, 1, 2, 3, 4];
 
 /**
- * Today's first screen, as the approved Weave draws it (Nikita's picks, 2026-10-22): Skippy's line, the greeting in
- * the big serif, how many things need a human, the rooms with real work in a short line, and on the right the fan,
- * every room's thread running out of Skippy's knot to its name and a word on how it's doing. The first open of the day
- * plays the opening (Opening.tsx); later opens settle in half a second. Below it, the way into the Lattice, the
- * Council and the Ask Skippy line, quiet. `onPre` hides the page's cards until they rise in with the hero.
+ * Today's one picture (#336, Nikita 2026-10-23: "way too much like a dashboard page… I like the little dots flowing…
+ * showing how busy one of the rooms are and what are they doing currently"). Skippy's line and the greeting in the
+ * big serif, then the rooms' strands: every room's thread runs out of Skippy's knot to its submind, who sits on its end
+ * with the room's name, how busy it is and what it is doing right now. Hovering or focusing a strand brings its
+ * submind's report up under the picture (the Council, folded into the picture); a click walks into the room. The first
+ * open of the day plays the opening (Opening.tsx); later opens grow in, in half a second. Real data only (roomPulse.ts).
  */
-export function TodayHero({ now, pulses, todo, onPre }: { now: number; pulses: RoomPulse[]; todo: number; onPre: (pre: boolean) => void }) {
+export function TodayHero({ now, pulses, todo, since, onPre }: { now: number; pulses: RoomPulse[]; todo: number; since: number; onPre: (pre: boolean) => void }) {
   const [opening, setOpening] = useState(() => dailyOpening(now) === "first" && !reducedMotion());
   const [run, setRun] = useState(0);
   // The greeting: hidden while the opening runs, then written in letter by letter (start and step in ms).
   const [write, setWrite] = useState<{ start: number; step: number } | null>(() => (opening ? null : { start: 60, step: 14 }));
   const [glow, setGlow] = useState(false);
-  const [council, setCouncil] = useState(false);
-  const labels = useRef<HTMLUListElement>(null);
+  const [hot, setHot] = useState<string | null>(null);
   const cv = useRef<HTMLCanvasElement>(null);
 
   const byId = useMemo(() => new Map(pulses.map((p) => [p.id as string, p])), [pulses]);
   const fanned = FAN_ORDER.map((id) => byId.get(id)).filter((p): p is RoomPulse => !!p);
-  const key = fanned.map((p) => `${p.id}${p.state}${p.activity.toFixed(2)}${p.short}`).join("|");
-  // Rebuilt only when what it draws changes; the threads themselves are kept (fan.ts).
+  const span = Math.max(1, now - since);
+  const at = (t: number) => 0.14 + 0.82 * Math.min(1, Math.max(0, (t - since) / span));
+  const key = fanned.map((p) => `${p.id}${p.state}${p.activity.toFixed(2)}${p.events.map((t) => at(t).toFixed(3)).join(",")}`).join("|");
+  // Rebuilt only when what it draws changes; the strands themselves are kept (fan.ts).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo<FanItem[]>(() => fanned.map((p) => ({ id: p.id, st: FAN_STATE[p.state], lvl: p.activity })), [key]);
-  const spec = useMemo(() => fanSpec(items, labels), [items]);
+  const items = useMemo<FanItem[]>(() => fanned.map((p) => ({ id: p.id, st: FAN_STATE[p.state], lvl: p.activity, ev: p.events.filter((t) => t >= since && t <= now).map(at) })), [key]);
+  const spec = useMemo(() => fanSpec(items), [items]);
   useViz(cv, spec);
 
-  // Later opens: the fan grows in and the page rises, about half a second. Once an opening ends, nothing more to do.
+  // Later opens: the strands grow in and the page rises, about half a second. Once an opening ends, nothing more to do.
   const played = useRef(false);
   useEffect(() => {
     if (opening) {
@@ -59,6 +60,11 @@ export function TodayHero({ now, pulses, todo, onPre }: { now: number; pulses: R
     FAN.am = 0;
     const t0 = performance.now();
     let raf = requestAnimationFrame(function grow() {
+      // A tab hidden mid-grow stops here; the strands show in full when it comes back.
+      if (document.visibilityState === "hidden") {
+        FAN.am = 1;
+        return;
+      }
       const k = (performance.now() - t0) / 520;
       FAN.am = eOut(k);
       kick();
@@ -90,97 +96,122 @@ export function TodayHero({ now, pulses, todo, onPre }: { now: number; pulses: R
   }, []);
   const onRise = useCallback(() => onPre(false), [onPre]);
   const onDone = useCallback(() => setOpening(false), []);
-  const closeCouncil = useCallback(() => setCouncil(false), []);
 
   const text = greeting(now);
-  const status = pulses.filter((p) => p.real);
-  const phrases = status.map((p) => ({ p, words: roomPhrase(p) }));
-  if (phrases[0]) phrases[0].words = phrases[0].words.charAt(0).toUpperCase() + phrases[0].words.slice(1);
   const hover = (id: string | null) => {
     FAN.hot = id;
-    kick();
+    setHot(id);
+    // A re-layout redraws even a still (reduced-motion) canvas; with motion the loop just carries on.
+    if (reducedMotion()) FAN.V?.relayout();
+    else kick();
   };
+  useEffect(
+    () => () => {
+      FAN.hot = null;
+    },
+    [],
+  );
+  const lit = hot ? byId.get(hot) : null;
+  const real = pulses.filter((p) => p.real).length;
 
   return (
     <>
-      <header className="wv-hero" aria-label="Today at a glance">
-        <div className="wv-hero-txt">
-          <div className={`wv-skip${glow ? " is-glow" : ""}`} data-in>
-            {/* Skippy, the Magnificent (#224): a click opens his chat (mounted once at the Desk's root, Desk.tsx). */}
-            <span className="wv-skip-pf">
-              <SkippyAvatar size="sm" className="wv-skip-can" />
+      <header className="wv-hero wv-hero--one" aria-label="Today at a glance">
+        <div className={`wv-skip${glow ? " is-glow" : ""}`} data-in>
+          {/* Skippy, the Magnificent (#224): a click opens his chat (mounted once at the Desk's root, Desk.tsx). */}
+          <span className="wv-skip-pf">
+            <SkippyAvatar size="sm" className="wv-skip-can" />
+          </span>
+          <p>
+            <b>Skippy, the Magnificent</b>
+            <span>From the Kernel, keeping an eye on everything</span>
+          </p>
+        </div>
+        <h1 className={`desk__title wv-greet${write ? "" : " is-writing"}`} aria-label={text}>
+          {words(text).map((w) => (
+            // Each word holds together, so a narrow screen breaks between words and never inside a name.
+            <span key={`${run}-${w.at}`} className="wv-wd" aria-hidden="true">
+              {w.text.split("").map((ch, k) => (
+                <span key={k} className="wv-ch" style={write ? ({ "--d": `${write.start + (w.at + k) * write.step}ms` } as React.CSSProperties) : undefined}>
+                  {ch}
+                </span>
+              ))}
             </span>
-            <p>
-              <b>Skippy, the Magnificent</b>
-              <span>From the Kernel, keeping an eye on everything</span>
-            </p>
-          </div>
-          <h1 className={`desk__title wv-greet${write ? "" : " is-writing"}`} aria-label={text}>
-            {words(text).map((w) => (
-              // Each word holds together, so a narrow screen breaks between words and never inside a name.
-              <span key={`${run}-${w.at}`} className="wv-wd" aria-hidden="true">
-                {w.text.split("").map((ch, k) => (
-                  <span key={k} className="wv-ch" style={write ? ({ "--d": `${write.start + (w.at + k) * write.step}ms` } as React.CSSProperties) : undefined}>
-                    {ch}
-                  </span>
-                ))}
-              </span>
-            ))}
-          </h1>
-          <p className="wv-say" data-in>
-            {skippyLine(todo, pulses)}
-          </p>
-          <p className="wv-status" data-in>
-            {phrases.map(({ p, words }) => (
-              <span key={p.id} data-room={p.id} className={`is-${p.state}`}>
-                <i className={`wv-dot${p.state === "waiting" ? " is-ring" : ""}`} />
-                {words}
-              </span>
-            ))}
-          </p>
-        </div>
-        <div className="wv-fan" data-in>
-          <canvas ref={cv} className="wv-cv" aria-hidden="true" />
-          <ul className="wv-fan-l" ref={labels} aria-label="Rooms reporting in">
-            {fanned.map((p) => (
-              <li key={p.id} data-room={p.id} className={p.real ? "" : "is-quiet"}>
-                <a href={p.href} onClick={roomLink(p.href)} onPointerEnter={() => hover(p.id)} onPointerLeave={() => hover(null)} onFocus={() => hover(p.id)} onBlur={() => hover(null)} title={p.status}>
-                  {p.name}
-                  <span>{p.short}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <button className="wv-replay wv-link" type="button" onClick={replay}>
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8M2.6 2.4v2.9h2.9" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Replay the {partWord(now)} opening
-        </button>
+          ))}
+        </h1>
+        <p className="wv-say" data-in>
+          {skippyLine(todo, pulses)}
+        </p>
       </header>
 
-      <div className="wv-hero-do" data-in>
-        <a className="wv-door" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
-          <svg viewBox="0 0 28 20" aria-hidden="true">
-            <path d="M1 10c4-7 8-7 13 0s9 7 13 0" />
-            <path d="M1 10c4 7 8 7 13 0s9-7 13 0" />
-          </svg>
-          <span>
-            <b>Enter the Lattice</b>
-            <small>Walk the nine rooms</small>
+      <section className="wv-loom" data-in aria-label="The rooms right now">
+        <div className="wv-loom-pic">
+          <canvas ref={cv} className="wv-cv" aria-hidden="true" />
+          <span className="wv-loom-knot" aria-hidden="true">
+            <img src={SKIPPY_PORTRAIT} alt="" width={44} height={44} decoding="async" />
           </span>
-        </a>
-        <CouncilButton pulses={pulses} onOpen={() => setCouncil(true)} />
-        <SkippyAsk className="wv-ask" />
-      </div>
+          <ol className="wv-loom-l">
+            {fanned.map((p) => {
+              const lvl = p.real && p.state !== "waiting" ? Math.max(1, Math.round(p.activity * 5)) : 0;
+              const doing = p.doing ?? p.status;
+              return (
+                <li key={p.id} data-room={p.id} className={`is-${p.state}${hot && hot !== p.id ? " is-dim" : ""}${hot === p.id ? " is-hot" : ""}`}>
+                  <a
+                    href={p.href}
+                    onClick={roomLink(p.href)}
+                    onPointerEnter={() => hover(p.id)}
+                    onPointerLeave={() => hover(null)}
+                    onFocus={() => hover(p.id)}
+                    onBlur={() => hover(null)}
+                    aria-label={`${p.name}, ${STATE_WORD[p.state].toLowerCase()}: ${doing}. ${p.submind.title} reports: ${p.report}`}
+                  >
+                    <span className="wv-loom-pf">
+                      <img src={`/desk/agent-${p.submind.id}.webp`} alt="" width={36} height={36} decoding="async" />
+                    </span>
+                    <span className="wv-loom-t">
+                      <span className="wv-loom-n">
+                        <b>{p.name}</b>
+                        <em>{STATE_WORD[p.state]}</em>
+                      </span>
+                      <span className="wv-loom-d">{doing}</span>
+                    </span>
+                    <span className="wv-loom-m" aria-hidden="true">
+                      {TICKS.map((k) => (
+                        <i key={k} className={k < lvl ? "is-on" : undefined} />
+                      ))}
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+        <div className="wv-loom-foot">
+          <p key={lit?.id ?? "all"} className="wv-loom-cap" aria-hidden="true" data-room={lit?.id}>
+            {lit ? (
+              <>
+                <b>{lit.submind.title}</b>
+                <span>{lit.report}</span>
+              </>
+            ) : (
+              <>
+                <b>Every strand is a room</b>
+                <span>
+                  {real} of {pulses.length} run real work. The knots are today's moments, from the morning at Skippy's end to now at the room's. Hover a strand to hear its submind; tap to walk in.
+                </span>
+              </>
+            )}
+          </p>
+          <button className="wv-replay wv-link" type="button" onClick={replay}>
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.8M2.6 2.4v2.9h2.9" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Replay the {partWord(now)} opening
+          </button>
+        </div>
+      </section>
 
       {opening && <Opening key={run} onLift={() => {}} onWrite={onWrite} onRise={onRise} onDone={onDone} />}
-      {council && (
-        <Suspense fallback={null}>
-          <Council pulses={pulses} open onClose={closeCouncil} />
-        </Suspense>
-      )}
     </>
   );
 }

@@ -6,13 +6,16 @@ import { MERGED_LAYER, STILL_TAG, mergeBar, mergePiece, mergeable, pieceKey, sph
 
 /**
  * Still furniture (#136): each room's walls, floors, shelves and props that never move are baked into a few big
- * meshes as the Lattice loads, so the graphics card draws a room in far fewer calls. The look stays the same: the
+ * meshes as the Lattice loads, so the graphics card draws a room in far fewer calls. A part that moves as one piece
+ * (each room's floating podium, #373) is a root of its own: what never moves *on it* bakes the same way, into pieces
+ * that ride along with it. The look stays the same: the
  * merged pieces use the same materials and shadow flags, and level of detail treats each one like its largest,
  * nearest member (so a small prop may stay drawn a little longer than it would alone, never shorter).
  *
- * How it goes, per room (the group Rooms.tsx marks with `userData.stillRoot`):
- * - Every second the room is scanned for meshes that may merge (stillFurniture.ts, `mergeable`). One that has kept
- *   the same place, material and geometry for SETTLE_MS joins its piece: the piece is rebuilt with it, and the
+ * How it goes, per root (a group marked with `userData.stillRoot`: each room in Rooms.tsx, each podium in Podium.tsx;
+ * a root inside another is left to itself):
+ * - Every second the root is scanned for meshes that may merge (stillFurniture.ts, `mergeable`). One that has kept
+ *   the same place on its root, material and geometry for SETTLE_MS joins its piece: the piece is rebuilt with it, and the
  *   original moves to MERGED_LAYER, where no camera draws it (its children, if any, are untouched). Library props
  *   stream in late, so pieces grow as they arrive. A mesh with nothing to merge with draws as itself.
  * - Every frame each member is checked. If it moves, changes material or geometry, hides, or leaves the scene, it is
@@ -33,8 +36,7 @@ interface Member {
   mesh: Mesh;
   material: Material;
   geometry: BufferGeometry;
-  world: Matrix4;
-  /** Room-space matrix the piece baked. */
+  /** Root-space matrix the piece baked. */
   local: Matrix4;
   cast: boolean;
   key: string;
@@ -51,7 +53,8 @@ interface Room {
 }
 
 interface Candidate {
-  world: Matrix4;
+  /** Its matrix in its root's space. */
+  local: Matrix4;
   material: Material;
   geometry: BufferGeometry;
   since: number;
@@ -61,16 +64,32 @@ interface Candidate {
 const sameMatrix = (a: Matrix4, b: Matrix4) => {
   const x = a.elements;
   const y = b.elements;
-  for (let i = 0; i < 16; i++) if (Math.abs(x[i]! - y[i]!) > 1e-6) return false;
+  // Written so a NaN counts as a change.
+  for (let i = 0; i < 16; i++) if (!(Math.abs(x[i]! - y[i]!) <= 1e-6)) return false;
   return true;
 };
 
+const scratch = new Matrix4();
+
+/**
+ * A mesh's matrix in its root's space. For a still root, from the world matrices the last frame drew with (`inverse`:
+ * the root's, inverted). For one that moves (`userData.stillRides`, a podium), from the local matrices between the
+ * two, so it can't matter when the root's own world matrix was last brought up to date (something reading a rider's
+ * world position does that mid-frame) while its meshes' were not.
+ */
+function localOf(mesh: Mesh, root: Object3D, inverse: Matrix4, out = scratch): Matrix4 {
+  if (!root.userData.stillRides) return out.multiplyMatrices(inverse, mesh.matrixWorld);
+  out.copy(mesh.matrix);
+  for (let p = mesh.parent; p && p !== root; p = p.parent) out.premultiply(p.matrix);
+  return out;
+}
+
 /** Whether a member still draws exactly as it did when it was baked. */
-function unchanged(m: Member, root: Object3D): boolean {
+function unchanged(m: Member, root: Object3D, inverse: Matrix4): boolean {
   const mesh = m.mesh;
   if (mesh.material !== m.material || mesh.geometry !== m.geometry || m.material.transparent) return false;
   if (m.built && mesh.layers.mask >>> 0 !== layerMask(MERGED_LAYER)) return false;
-  if (!sameMatrix(mesh.matrixWorld, m.world)) return false;
+  if (!sameMatrix(localOf(mesh, root, inverse), m.local)) return false;
   for (let p: Object3D | null = mesh; p !== root; p = p.parent) if (!p || !p.visible) return false;
   return true;
 }
@@ -154,7 +173,7 @@ export function StillFurniture() {
     for (const m of room.members.values()) {
       if (m.key !== key) continue;
       // One that changed while it waited for its piece stays out.
-      if (m.built || unchanged(m, room.root)) members.push(m);
+      if (m.built || unchanged(m, room.root, room.inverse)) members.push(m);
       else {
         room.members.delete(m.mesh);
         if (m.mesh.parent) restless.current.add(m.mesh);
@@ -208,7 +227,8 @@ export function StillFurniture() {
     const cands = candidates.current;
     const sphere = new Sphere();
     for (const room of known.values()) {
-      room.root.updateWorldMatrix(true, false);
+      // The root's matrix as the last frame drew it, like its meshes': updating it here, ahead of them, would make a
+      // moving root's meshes look as if they had moved on it.
       room.inverse.copy(room.root.matrixWorld).invert();
       room.root.traverse((o) => {
         const mesh = o as Mesh;
@@ -218,9 +238,9 @@ export function StillFurniture() {
           return;
         }
         const c = cands.get(mesh);
-        if (!c || c.material !== mesh.material || c.geometry !== mesh.geometry || !sameMatrix(c.world, mesh.matrixWorld)) {
+        if (!c || c.material !== mesh.material || c.geometry !== mesh.geometry || !sameMatrix(c.local, localOf(mesh, room.root, room.inverse))) {
           cands.set(mesh, {
-            world: mesh.matrixWorld.clone(),
+            local: localOf(mesh, room.root, room.inverse, new Matrix4()),
             material: mesh.material as Material,
             geometry: mesh.geometry,
             since: now,
@@ -237,8 +257,7 @@ export function StillFurniture() {
           mesh,
           material: c.material,
           geometry: c.geometry,
-          world: c.world,
-          local: new Matrix4().multiplyMatrices(room.inverse, c.world),
+          local: c.local,
           cast,
           key,
           built: false,
@@ -253,8 +272,9 @@ export function StillFurniture() {
     // Hand back anything that changed since it was baked, and rebuild its piece now, so it never shows twice.
     for (const room of rooms.current.values()) {
       let changed: Set<string> | null = null;
+      room.inverse.copy(room.root.matrixWorld).invert();
       for (const m of room.members.values()) {
-        if (unchanged(m, room.root)) continue;
+        if (unchanged(m, room.root, room.inverse)) continue;
         release(m);
         room.members.delete(m.mesh);
         if (m.mesh.parent) restless.current.add(m.mesh);

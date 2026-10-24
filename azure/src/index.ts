@@ -22,6 +22,7 @@ import * as exchangemarkets from "../../api/_exchange/route.js";
 import * as exchangepositions from "../../api/_exchange/positions.js";
 import * as greenleague from "../../api/_green/route.js";
 import * as invoices from "../../api/_paypal/route.js";
+import * as latticetiming from "../../api/_boot/timing.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
@@ -82,6 +83,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // The Desk's Keys form (#330): sets an allowlisted key in the Key Vault, behind the passkey and a fresh step-up.
   // Write-only: GET shows names and dates, POST sets one. Azure only (the vault is only here).
   ["keys", keys],
+  // The Lattice's boot-timing beacon (#373): timings and counts from the browser, shown in the Boiler Room.
+  ["lattice-timing", latticetiming],
   ["foundry-usage", foundryusage],
   ["foundry", foundry],
   // The subminds' room events (#281, docs/SKIPPY.md "Room keys"): POST with the feed key only; GET full for a Desk

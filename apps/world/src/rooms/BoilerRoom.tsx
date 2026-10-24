@@ -19,6 +19,7 @@ import {
 import { Dust, Haze, Smoke, Sparks } from "../fx/atmos.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { useWorld } from "../store.ts";
+import { startEmail } from "../desk/email/email.ts";
 import { daysSinceIncident, useSystems, type Link, type LinkState } from "../systems.ts";
 import { startWorldClock } from "../worldClock.ts";
 import { Block, FONTS, Plinth, ahead } from "./primitives.tsx";
@@ -537,6 +538,8 @@ export function BoilerRoom() {
   const links = useSystems((s) => s.links);
   // The world clock's pipe reads the hourly step live, as the Desk does.
   useEffect(() => startWorldClock(), []);
+  // So does the Gmail pipe (#322): the email agent's public state, read here too so the pipe never waits on the Relay.
+  useEffect(() => startEmail(), []);
   // The boiler stands in the front-right corner, its firebox turned to the keeper, clear of the pipe wall.
   const boiler = ahead(getStation("boiler", "boiler"), 1.6);
   const bucket = ahead(getStation("boiler", "bucket"), 0.6);

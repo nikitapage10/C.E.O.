@@ -29,7 +29,10 @@ const READS = ["/api/skippy-log?room=green", "/api/skippy-log?room=exchange", "/
 /** Requests the read key must never open: other rooms, other routes, other queries, encoded paths and every write. */
 const NOT_READS: Array<[string, string]> = [
   ["/api/skippy-log?room=relay", "GET"],
+  ["/api/skippy-log?room=archive", "GET"],
   ["/api/skippy-log?room=none", "GET"],
+  ["/api/email", "GET"],
+  ["/api/email?view=status", "GET"],
   ["/api/skippy-log", "GET"],
   ["/api/skippy-log?room=green&room=exchange", "GET"],
   ["/api/skippy-log?room=green&x=1", "GET"],
@@ -120,8 +123,10 @@ describe("the read key (SUBMIND_LOG_TOKEN)", () => {
     expect([...KEY_LOG_ROOMS]).toEqual(["green", "exchange", "boiler", "foundry"]);
   });
 
-  it("covers the rooms whose submind is active, and no other", () => {
-    const active = SUBMINDS.filter((m) => m.active).map((m) => m.room).sort();
+  it("covers the rooms whose submind is active, and no other, except Relay's asks, which stay Desk-only", () => {
+    // The Messenger is active since the inbox went live (#322), but Relay's asks can touch messages, so the key never
+    // reads them (docs/SECURITY.md, docs/SKIPPY.md). Opening them is Nikita's call, not a side effect of going active.
+    const active = SUBMINDS.filter((m) => m.active && m.room !== "relay").map((m) => m.room).sort();
     expect([...KEY_LOG_ROOMS].sort()).toEqual(active);
   });
 

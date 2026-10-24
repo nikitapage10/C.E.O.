@@ -26,7 +26,7 @@ export const SUBMINDS: readonly Submind[] = [
   { id: "gilt", name: "The Executive", room: "spire", colour: "#e8b84a", job: "Executive", active: false },
   { id: "ticker", name: "The Bookie", room: "exchange", colour: "#4fd18b", job: "Bookie", active: true },
   { id: "turf", name: "The Commentator", room: "green", colour: "#a3e04f", job: "Commentator", active: true },
-  { id: "static", name: "The Messenger", room: "relay", colour: "#4fa8ff", job: "Messenger", active: false },
+  { id: "static", name: "The Messenger", room: "relay", colour: "#4fa8ff", job: "Messenger", active: true },
   { id: "vellum", name: "The Historian", room: "archive", colour: "#a07aff", job: "Historian", active: false },
   { id: "fizz", name: "The Life of the Party", room: "breakroom", colour: "#ff6fae", job: "Life of the Party", active: false },
   { id: "soot", name: "The Pessimist", room: "boiler", colour: "#c9d3d8", job: "Pessimist", active: true },

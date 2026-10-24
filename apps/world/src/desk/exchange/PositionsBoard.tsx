@@ -2,21 +2,30 @@ import { useEffect, useState } from "react";
 import { Private } from "../Private.tsx";
 import { useDeskAuth } from "../signin.ts";
 import { cents, contracts, pnlTone, signedPct, signedUsd, startPositions, usd, usePositions, type PmPosition, type PmPositions, type PmTrade, type PosStatus } from "./positions.ts";
+import { landforms, returnPct, waterline } from "./terrain.ts";
+import { Terrain } from "./Terrain.tsx";
 import "./exchange.css";
 
 /**
- * Nikita's own Polymarket US positions, leading the Exchange (#253, redrawn #367): what the book is worth now and the
- * P&L as one big figure, where the money sits as a strip of positions, then each position, simple first and opened
- * for its detail on a tap, and the recent fills behind their own disclosure. Read-only. The server answers only a
- * signed-in Desk; every dollar figure, size and P&L is wrapped in <Private> so Hide mode (#251) veils it, and the
- * strip and bars carry shares only, never a figure. Signed out, the board says where the book is (behind the passkey)
- * and nothing else. Every word in it came from Polymarket, so it is drawn as text only.
+ * Nikita's own Polymarket US positions, leading the Exchange (#253; the terrain is #387). The book reads first as
+ * plain figures (what it's worth, the P&L, how many are above and under water), then as land: one cross-section where
+ * each position is a landform, its footprint its share of the book and its summit its return against sea level, which
+ * is what was paid. Under it, the ledger says every position plainly: side, size, entry, now, value, P&L; a row opens
+ * for cost, return and what was taken already. Hovering a row lights its landform and the other way round.
+ * Read-only. The server answers only a signed-in Desk; every dollar figure, size, price and P&L is wrapped in <Private>
+ * so Hide mode (#251) veils it, and the land carries shapes only. Signed out, the sea is empty and the board says where
+ * the book is and nothing else. Every word in it came from Polymarket, so it is drawn as text only.
  */
 
 /** Positions listed before "Show all". */
-const FIRST = 5;
+const FIRST = 8;
 
 type Live = Extract<PmPositions, { state: "live" }>;
+
+const num = (i: number) => String(i + 1).padStart(2, "0");
+
+/** The price a position marks at now, per contract: its value over its size. */
+const nowPrice = (p: PmPosition): number | null => (p.contracts > 0 ? Math.max(0, Math.min(1, p.value / p.contracts)) : null);
 
 function Market({ name, url, className = "xc-q" }: { name: string; url: string | null; className?: string }) {
   return url ? (
@@ -37,60 +46,66 @@ const STATE_WORD: Record<PosStatus, string> = {
   idle: "Reading…",
 };
 
-/** Where the book sits: one segment per position, its width the position's share of the book's value. */
-function Strip({ ps }: { ps: PmPosition[] }) {
-  const total = ps.reduce((s, p) => s + Math.abs(p.value), 0);
-  if (total <= 0) return null;
+const side = (p: PmPosition) => `${p.short ? "Short " : ""}${p.outcome}${p.expired ? " · expired" : ""}`;
+
+/** The summit markers above the land: each position's number and P&L, on its sounding line. */
+function Marks({ ps, hot, onHot }: { ps: PmPosition[]; hot: number | null; onHot: (i: number | null) => void }) {
+  const fs = landforms(ps);
+  let last = -1;
   return (
-    <div className="xc-strip" aria-hidden="true">
-      {ps.map((p, i) => (
-        <i key={`${p.market}-${i}`} className={`is-${pnlTone(p.pnl)}`} style={{ flexGrow: Math.abs(p.value) / total, animationDelay: `${i * 70}ms` }} title={p.market} />
-      ))}
-    </div>
+    <ol className="xc-marks" aria-label="Positions on the section, by number">
+      {fs.map((f, i) => {
+        // Markers too close to the one before stay off the section; the ledger still lists them.
+        if (last >= 0 && f.cx - fs[last]!.cx < 0.06 && hot !== i) return null;
+        last = i;
+        const p = ps[i]!;
+        const tone = pnlTone(p.pnl);
+        return (
+          <li key={`${p.market}-${i}`} className={`xc-mark is-${tone}${hot === i ? " is-hot" : ""}${f.rise < 0 ? " is-under" : ""}`} style={{ "--x": f.cx.toFixed(4) } as React.CSSProperties} onMouseEnter={() => onHot(i)} onMouseLeave={() => onHot(null)} title={p.market}>
+            <b>{num(i)}</b>
+            <span className={`is-${tone}`}>
+              <Private label="profit or loss hidden">{signedUsd(p.pnl)}</Private>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
-function Row({ p, maxPnl, open, onToggle }: { p: PmPosition; maxPnl: number; open: boolean; onToggle: () => void }) {
+function Row({ p, i, open, hot, onToggle, onHot }: { p: PmPosition; i: number; open: boolean; hot: boolean; onToggle: () => void; onHot: (i: number | null) => void }) {
   const tone = pnlTone(p.pnl);
-  const share = maxPnl > 0 ? Math.min(1, Math.abs(p.pnl) / maxPnl) : 0;
   return (
-    <li className={`xc-pos${p.expired ? " is-closed" : ""}${open ? " is-open" : ""}`}>
-      <button type="button" className="xc-pos-line" aria-expanded={open} onClick={onToggle}>
-        <span className={`xc-pos-dot is-${tone}`} aria-hidden="true" />
-        <span className="xc-pos-q">
-          <span className="xc-pos-name">{p.market}</span>
-          <span className="xc-pos-side">
-            {p.short ? `Short ${p.outcome}` : p.outcome}
-            {p.expired && " · expired"}
-          </span>
+    <li className={`xc-led-row${p.expired ? " is-closed" : ""}${open ? " is-open" : ""}${hot ? " is-hot" : ""}`} onMouseEnter={() => onHot(i)} onMouseLeave={() => onHot(null)}>
+      <button type="button" className="xc-led-line" aria-expanded={open} onClick={onToggle} onFocus={() => onHot(i)} onBlur={() => onHot(null)}>
+        <span className="xc-led-n">{num(i)}</span>
+        <span className="xc-led-q">
+          <span className="xc-led-name">{p.market}</span>
+          <span className={`xc-led-side${p.short ? " is-short" : ""}`}>{side(p)}</span>
         </span>
-        <span className="xc-pos-pl" aria-hidden="true">
-          <i className={`is-${tone}`} style={{ flexGrow: share }} />
-          <i style={{ flexGrow: 1 - share }} />
+        <span className="xc-led-f" data-k="Size">
+          <Private>{contracts(p.contracts)}</Private>
         </span>
-        <span className="xc-pos-val">
+        <span className="xc-led-f" data-k="Entry">
+          <Private>{cents(p.avgPrice)}</Private>
+        </span>
+        <span className="xc-led-f" data-k="Now">
+          <Private>{cents(nowPrice(p))}</Private>
+        </span>
+        <span className="xc-led-f xc-led-val" data-k="Value">
           <Private label="value hidden">{usd(p.value)}</Private>
         </span>
-        <span className={`xc-pos-pnl is-${tone}`}>
-          <Private label="profit or loss hidden">{signedUsd(p.pnl)}</Private>
+        <span className={`xc-led-pnl is-${tone}`}>
+          <Private as="b" label="profit or loss hidden">
+            {signedUsd(p.pnl)}
+          </Private>
+          <Private>{signedPct(p.pnlPct ?? returnPct(p))}</Private>
         </span>
         <span className="xc-chev" aria-hidden="true" />
       </button>
       {open && (
-        <div className="xc-pos-more">
+        <div className="xc-led-more">
           <dl>
-            <div>
-              <dt>Contracts</dt>
-              <dd>
-                <Private>{contracts(p.contracts)}</Private>
-              </dd>
-            </div>
-            <div>
-              <dt>Average price</dt>
-              <dd>
-                <Private>{cents(p.avgPrice)}</Private>
-              </dd>
-            </div>
             <div>
               <dt>Cost</dt>
               <dd>
@@ -145,45 +160,79 @@ function Fills({ ts }: { ts: PmTrade[] }) {
 function Book({ data }: { data: Live }) {
   const [open, setOpen] = useState<number | null>(null);
   const [all, setAll] = useState(false);
+  const [hot, setHot] = useState<number | null>(null);
   const { totals, positions } = data;
   const tone = pnlTone(totals.pnl);
   const pct = totals.cost > 0 ? (totals.pnl / Math.abs(totals.cost)) * 100 : null;
-  const maxPnl = positions.reduce((m, p) => Math.max(m, Math.abs(p.pnl)), 0);
   const shown = all ? positions : positions.slice(0, FIRST);
-  const up = positions.filter((p) => pnlTone(p.pnl) === "up").length;
-  const down = positions.filter((p) => pnlTone(p.pnl) === "down").length;
+  const w = waterline(positions);
   return (
     <>
-      <div className="xc-book-top">
+      <div className="xc-sum">
         <div className="xc-worth">
-          <p className="xc-eyb">Worth now</p>
+          <p className="xc-k">Worth now</p>
           <Private as="b" className="xc-worth-n">
             {usd(totals.value)}
           </Private>
-          <p className={`xc-worth-pl is-${tone}`}>
-            <span aria-hidden="true">{tone === "up" ? "▲" : tone === "down" ? "▼" : "·"}</span>
-            <Private>{signedUsd(totals.pnl)}</Private>
+        </div>
+        <div className={`xc-worth-pl is-${tone}`}>
+          <p className="xc-k">Profit or loss, unrealised</p>
+          <p>
+            <Private as="b">{signedUsd(totals.pnl)}</Private>
             <Private>{signedPct(pct)}</Private>
-            <span className="xc-worth-on">unrealised, on a cost of</span>
-            <Private>{usd(totals.cost)}</Private>
+          </p>
+          <p className="xc-worth-on">
+            on a cost of <Private>{usd(totals.cost)}</Private>
           </p>
         </div>
-        <div className="xc-sits">
-          <p className="xc-eyb">
-            Where the book sits · <b>{totals.open}</b> open · <span className="is-up">{up} up</span> · <span className="is-down">{down} down</span>
-          </p>
-          <Strip ps={positions} />
-        </div>
+        <dl className="xc-water">
+          <div>
+            <dt>Open</dt>
+            <dd>{totals.open}</dd>
+          </div>
+          <div className="is-up">
+            <dt>Above water</dt>
+            <dd>{w.above}</dd>
+          </div>
+          <div className="is-down">
+            <dt>Under water</dt>
+            <dd>{w.under}</dd>
+          </div>
+        </dl>
       </div>
 
       {positions.length > 0 ? (
-        <ol className="xc-poss" aria-label="Positions, largest first">
-          {shown.map((p, i) => (
-            <Row key={`${p.market}-${i}`} p={p} maxPnl={maxPnl} open={open === i} onToggle={() => setOpen(open === i ? null : i)} />
-          ))}
-        </ol>
+        <>
+          <div className="xc-relief">
+            <Marks ps={positions} hot={hot} onHot={setHot} />
+            <Terrain items={positions} hot={hot} />
+            <span className="xc-sea-key" aria-hidden="true">
+              Sea level · what you paid
+            </span>
+          </div>
+          <div className="xc-led" role="group" aria-label="Positions, largest first">
+            <p className="xc-led-head" aria-hidden="true">
+              <span>№</span>
+              <span>Market · side</span>
+              <span>Size</span>
+              <span>Entry</span>
+              <span>Now</span>
+              <span>Value</span>
+              <span>P&amp;L</span>
+              <span />
+            </p>
+            <ol>
+              {shown.map((p, i) => (
+                <Row key={`${p.market}-${i}`} p={p} i={i} open={open === i} hot={hot === i} onToggle={() => setOpen(open === i ? null : i)} onHot={setHot} />
+              ))}
+            </ol>
+          </div>
+        </>
       ) : (
-        <p className="xc-empty">No open positions. The Bookie finds this restful.</p>
+        <div className="xc-relief is-calm">
+          <Terrain items={[]} hot={null} />
+          <p className="xc-calm">No open positions right now.</p>
+        </div>
       )}
       {positions.length > FIRST && (
         <button type="button" className="xc-more" aria-expanded={all} onClick={() => setAll((a) => !a)}>
@@ -196,17 +245,12 @@ function Book({ data }: { data: Live }) {
   );
 }
 
-/** The vault the book sits in while it can't be shown: a lock, and the state in words. */
+/** While the book can't be shown: the open sea, and the state in words over it. */
 function Vault({ status, reason, onSignIn }: { status: PosStatus; reason: "no-key" | "bad-key" | null; onSignIn: () => void }) {
   return (
-    <div className="xc-vault" data-state={status}>
-      <svg className="xc-vault-lock" viewBox="0 0 64 64" aria-hidden="true">
-        <circle className="xc-vault-ring" cx="32" cy="32" r="30" />
-        <circle className="xc-vault-ring is-2" cx="32" cy="32" r="22" />
-        <rect x="22" y="29" width="20" height="15" rx="2.5" />
-        <path d="M26 29v-4a6 6 0 0 1 12 0v4" />
-      </svg>
-      <div>
+    <div className="xc-relief is-calm">
+      <Terrain items={[]} hot={null} />
+      <div className="xc-vault" data-state={status}>
         {status === "waiting" ? (
           <p>
             {reason === "bad-key"
@@ -215,16 +259,16 @@ function Vault({ status, reason, onSignIn }: { status: PosStatus; reason: "no-ke
           </p>
         ) : status === "signed-out" ? (
           <>
-            <p className="xc-vault-h">Your book is behind the Desk's passkey.</p>
-            <p>Sign in and it opens here: what it's worth, the P&amp;L, and every position.</p>
+            <p className="xc-vault-h">Your book is behind the Desk&apos;s passkey.</p>
+            <p>Sign in and it rises here: what it&apos;s worth, the P&amp;L, and every position.</p>
             <button type="button" className="xc-signin" onClick={onSignIn}>
               Sign in
             </button>
           </>
         ) : status === "off" ? (
-          <p>Positions need the Desk's sign-in, which isn't connected here.</p>
+          <p>Positions need the Desk&apos;s sign-in, which isn&apos;t connected here.</p>
         ) : status === "failed" ? (
-          <p>Polymarket US didn't answer. Trying again in two minutes.</p>
+          <p>Polymarket US didn&apos;t answer. Trying again in two minutes.</p>
         ) : (
           <p>Reading your positions…</p>
         )}
@@ -251,7 +295,7 @@ export function PositionsView({ status, data, reason, onSignIn }: { status: PosS
     <section className="xc-book" aria-label="Your Polymarket US positions">
       <header className="xc-head">
         <div>
-          <p className="xc-eyb">Your book · Polymarket US · only you, signed in</p>
+          <p className="xc-k">Your book · Polymarket US · only you, signed in</p>
           <h2 className="xc-h2">Open positions</h2>
         </div>
         <p className="xc-state" data-state={live ? (data.stale ? "stale" : "ready") : status}>

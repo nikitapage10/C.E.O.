@@ -52,10 +52,10 @@ function CopyDraft({ text }: { text: string }) {
   );
 }
 
-function NeedsYou({ item, now }: { item: EmailItem; now: number }) {
+function NeedsYou({ item, now, index }: { item: EmailItem; now: number; index: number }) {
   const done = useEmail((s) => s.done);
   return (
-    <li className="em-item">
+    <li className="em-item" style={{ "--i": Math.min(index, 8) } as React.CSSProperties}>
       <div className="em-head">
         <b className="em-from">
           <Private>{item.from}</Private>
@@ -168,7 +168,7 @@ export function EmailSection({ now }: { now: number }) {
       ) : !connected ? (
         <div className="em-gate">
           <p className="em-state">
-            Connect Gmail and Dialtone reads each new inbox mail once (read-only), sorts it, and Blasto drafts advice for the ones that need you. Nothing is ever sent, archived or deleted.
+            Connect Gmail and Dialtone sorts each new inbox mail, and Blasto drafts advice for the ones that need you.
           </p>
           <button type="button" className="wv-btn is-pri" disabled={!view.canConnect || busy} onClick={() => void connect()} title={view.canConnect ? "Opens Google's consent page" : "Waiting for the Gmail keys on Azure (docs/GMAIL.md)"}>
             {busy ? "Opening Google…" : status?.gmail === "refused" ? "Reconnect Gmail" : "Connect Gmail"}
@@ -180,14 +180,13 @@ export function EmailSection({ now }: { now: number }) {
           {status && <StateLine status={status} now={now} />}
           {needs.length ? (
             <ul className="em-list">
-              {needs.map((i) => (
-                <NeedsYou key={i.id} item={i} now={now} />
+              {needs.map((i, n) => (
+                <NeedsYou key={i.id} item={i} now={now} index={n} />
               ))}
             </ul>
           ) : (
             <p className="em-empty">Nothing needs you right now. Dialtone watches mail that arrives after you connect, plus unread mail from the two days before.</p>
           )}
-          <p className="em-note">Money and legal mail is skipped unless it's urgent{status?.skipped ? ` (${status.skipped} today)` : ""}.</p>
           {fyi.length > 0 && (
             <details className="em-fyi">
               <summary>FYI · {fyi.length}</summary>
@@ -207,7 +206,6 @@ export function EmailSection({ now }: { now: number }) {
             </details>
           )}
           <div className="em-foot">
-            <span>Read-only Gmail access. Summaries and drafts are kept a week, sealed.</span>
             <button type="button" className="wv-btn is-sm" disabled={busy} onClick={() => void disconnect()}>
               Disconnect Gmail
             </button>

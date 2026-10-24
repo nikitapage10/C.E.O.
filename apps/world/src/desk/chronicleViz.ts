@@ -103,15 +103,15 @@ export interface WeekCol {
   hot: boolean;
 }
 
-export function weekSpec(cols: WeekCol[]): VizSpec {
+export function weekSpec(cols: WeekCol[], pad: { top: number; bottom: number } = { top: 18, bottom: 46 }): VizSpec {
   let C: { x: number; hot: boolean; ships: number; str: { id: string; poly: Poly; P: Parts }[] }[] = [];
   let cw = 0;
   let top = 0;
   return {
     lay(V) {
       cw = V.W / 7;
-      top = 18;
-      const bot = V.H - 46;
+      top = pad.top;
+      const bot = V.H - pad.bottom;
       C = cols.map((d, i) => {
         const keys = Object.keys(d.rooms).filter((k) => d.rooms[k]! > 0);
         const x0 = i * cw + cw / 2;

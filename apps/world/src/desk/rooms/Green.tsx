@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Keeper } from "./parts.tsx";
 import { AskedSkippy } from "../skippy/AskedSkippy.tsx";
 import { RoomFeed } from "../skippy/RoomFeed.tsx";
+import { SetupAsks } from "../skippy/SetupAsks.tsx";
 import { Parts, Poly, OK, WHITE, knot, useViz, weave, type VizSpec } from "../wvCanvas.ts";
 import { onBye, ordinal, pct, pts, sleeperLeagueUrl, startGreen, useGreen, type GreenBid, type GreenBoard, type GreenCall, type GreenFeed, type GreenNews, type GreenPlayer, type GreenSlot, type GreenStatus } from "../green/league.ts";
 import { useGreenAnalysis, type GreenAnalysis } from "../green/analysis.ts";
@@ -255,11 +256,20 @@ function ScoreBug({ board, status }: { board: GreenBoard | null; status: GreenSt
 
 /* ── the calls ── */
 
+/** The FantasyPros figure to show: its own number as published (#340), else the board's projection (form, or an older board). */
+const fpPts = (p: GreenPlayer): number | null => (p.fp != null ? p.fp : p.proj);
+/** Says when the projection the calls use differs from FantasyPros' own figure (doubtful, out, on bye). */
+const fpTitle = (p: GreenPlayer): string | undefined =>
+  p.fp != null && p.proj !== null && Math.abs(p.fp - p.proj) >= 0.05 ? `FantasyPros ${p.fp.toFixed(1)}; ${p.proj.toFixed(1)} after ${p.inj === "D" ? "the doubtful tag" : "his status"}` : p.src === "form" ? "His form here: FantasyPros doesn't project him this week" : undefined;
+
 function CallRow({ c, week }: { c: GreenCall; week: number }) {
   const sl = c.sleeper;
   return (
     <li className={`gd-call${c.change ? " is-change" : ""}${c.split ? " is-split" : ""}`}>
-      <span className="gd-call-slot">{c.slot}</span>
+      <span className="gd-call-slot">
+        {c.slot}
+        {c.tiebreak && <em className="gd-call-tie">tiebreak</em>}
+      </span>
       <span className="gd-call-p is-start">
         <Face p={c.start} size={40} />
         <span>
@@ -270,7 +280,7 @@ function CallRow({ c, week }: { c: GreenCall; week: number }) {
             {c.start.opp && <> v {c.start.opp}</>} <Tag p={c.start} week={week} />
           </small>
         </span>
-        <strong>{pts(c.start.proj)}</strong>
+        <strong>{pts(fpPts(c.start))}</strong>
       </span>
       <span className="gd-call-over" aria-hidden="true">
         over
@@ -284,7 +294,7 @@ function CallRow({ c, week }: { c: GreenCall; week: number }) {
             {c.sit.opp && <> v {c.sit.opp}</>} <Tag p={c.sit} week={week} />
           </small>
         </span>
-        <strong>{pts(c.sit.proj)}</strong>
+        <strong>{pts(fpPts(c.sit))}</strong>
       </span>
       <span className="gd-call-verdict">
         <span className="gd-chip is-fp">FP call +{pts(Math.abs(c.edge))}</span>
@@ -329,7 +339,7 @@ function Calls({ board }: { board: GreenBoard }) {
 
 type RowCall = "start" | "sit" | "bye" | "out" | "";
 
-function LineRow({ slot, p, live, week, call }: { slot: string; p: GreenPlayer | null; live: number | null; week: number; call: RowCall }) {
+function LineRow({ slot, p, live, week, call, tie = false }: { slot: string; p: GreenPlayer | null; live: number | null; week: number; call: RowCall; tie?: boolean }) {
   if (!p)
     return (
       <tr className="is-empty">
@@ -350,10 +360,11 @@ function LineRow({ slot, p, live, week, call }: { slot: string; p: GreenPlayer |
             {p.pos !== slot && slot !== "BN" && slot !== "IR" ? ` · ${p.pos}` : ""} <Tag p={p} week={week} />
             {call === "sit" && <em className="gd-tag is-sit">SIT</em>}
             {call === "start" && <em className="gd-tag is-start">START</em>}
+            {tie && <em className="gd-tag is-tie">TIEBREAK</em>}
           </small>
         </span>
       </td>
-      <td className="gd-n is-fp">{live !== null && live !== 0 ? <span title="Live points so far">{pts(live)}</span> : pts(p.proj)}</td>
+      <td className="gd-n is-fp">{live !== null && live !== 0 ? <span title="Live points so far">{pts(live)}</span> : <span title={fpTitle(p)}>{pts(fpPts(p))}</span>}</td>
       <td className="gd-n is-sl">{p.sl === undefined ? "–" : pts(p.sl)}</td>
       <td className="gd-n">{p.wk ? `${p.pos}${p.wk}` : "–"}</td>
       <td>
@@ -373,6 +384,8 @@ function Lineup({ board }: { board: GreenBoard }) {
   const changes = (board.calls ?? []).filter((c) => c.change);
   const outs = new Set(changes.map((c) => c.sit.id));
   const ins = new Set(changes.map((c) => c.start.id));
+  // The player a tiebreak put in his slot (#340): labelled, whether the call keeps him or brings him in.
+  const ties = new Set((board.calls ?? []).filter((c) => c.tiebreak).map((c) => c.start.id));
   const callOf = (p: GreenPlayer | null, starting: boolean): RowCall => {
     if (!p) return "";
     if (onBye(p, board.week)) return "bye";
@@ -434,13 +447,13 @@ function Lineup({ board }: { board: GreenBoard }) {
           </thead>
           <tbody>
             {board.roster.starters.map((s: GreenSlot, i) => (
-              <LineRow key={i} slot={s.slot} p={s.player} live={s.pts} week={board.week} call={callOf(s.player, true)} />
+              <LineRow key={i} slot={s.slot} p={s.player} live={s.pts} week={board.week} call={callOf(s.player, true)} tie={!!s.player && ties.has(s.player.id)} />
             ))}
           </tbody>
           {open && (
             <tbody className="is-bench">
               {bench.map((p) => (
-                <LineRow key={p.id} slot="BN" p={p} live={null} week={board.week} call={callOf(p, false)} />
+                <LineRow key={p.id} slot="BN" p={p} live={null} week={board.week} call={callOf(p, false)} tie={ties.has(p.id)} />
               ))}
               {board.roster.reserve.map((p) => (
                 <LineRow key={p.id} slot="IR" p={p} live={null} week={board.week} call="" />
@@ -896,6 +909,7 @@ export function Green() {
       )}
 
       <AskedSkippy room="green" />
+      <SetupAsks room="green" />
       <RoomFeed room="green" />
 
       <footer className="gd-sources" aria-label="Where the numbers come from">

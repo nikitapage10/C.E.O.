@@ -26,6 +26,7 @@
  *                                             Key Vault, #313; Vercel's copy also served the public-mode seed)
  *        GET <a room read> + x-ceo-room-key: <SUBMIND_LOG_TOKEN>    a submind thread reading its room's data
  *        POST /api/room-feed + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting a room event
+ *        POST /api/setup-asks + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting or closing a setup ask (#324)
  *                                             (or either as Authorization: Bearer)
  *                                             (#281, api/_site/roomkeys.ts: each key opens only its own exact
  *                                             method, path and query; the handlers check the key again)

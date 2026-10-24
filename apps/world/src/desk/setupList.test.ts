@@ -11,6 +11,9 @@ describe("the setup list on Today (#164)", () => {
   it("hides once everything is done", () => {
     expect(remaining(all("done"), new Set())).toEqual([]);
     expect(remaining(all("todo"), new Set()).map((i) => i.id)).toEqual(SETUP_LIST.map((i) => i.id));
+    // Auto-merge stays off the list while it can't be read; the others still ask.
+    expect(remaining(all("unknown"), new Set()).map((i) => i.id)).not.toContain("automerge");
+    expect(remaining(all("unknown"), new Set()).map((i) => i.id)).toContain("ruleset");
   });
   it("counts a hand tick only for what the site can't check", () => {
     expect(isDone("unknown", true)).toBe(true);

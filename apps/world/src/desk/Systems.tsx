@@ -21,6 +21,7 @@ import { Private } from "./Private.tsx";
 import { Home } from "./rooms/Home.tsx";
 import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import { RoomFeed } from "./skippy/RoomFeed.tsx";
+import { SetupAsks } from "./skippy/SetupAsks.tsx";
 import "./rooms/rooms.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
@@ -276,6 +277,7 @@ export function Systems({ now }: { now: number }) {
       <JobBoard now={now} />
 
       <AskedSkippy room="boiler" />
+      <SetupAsks room="boiler" />
       <RoomFeed room="boiler" />
 
       <Home />

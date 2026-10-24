@@ -224,7 +224,7 @@ export function foundryDesk(f: FoundryData, now = Date.now(), awaySince = now - 
     const agent = CREW[crewOf(c, f.crates)].name;
     const id = `foundry-${c.number}`;
     if (c.state === "ready") {
-      actions.push({ id, room: "foundry", agent, kind: "decide", when: "now", live: true, title: `Ship “${c.title}”?`, detail: "Built and checked. Tap Ship on the card in the Foundry thread and it goes live.", choices: ["Open the Foundry thread", "See the work"], hrefs: [FOUNDRY_THREAD, c.url] });
+      actions.push({ id, room: "foundry", agent, kind: "decide", when: "now", live: true, title: `A test needs you: ${c.title}`, detail: "Built, but a test came back with something only you can judge. The note is on the issue.", choices: ["Read the note"], hrefs: [c.url] });
     } else if (c.state === "stuck") {
       actions.push({ id, room: "foundry", agent, kind: "check", when: "now", live: true, title: `Stuck: ${c.title}`, detail: "Every model rung tried and the checks are still red. The notes on what was tried are on the issue.", choices: ["Read the notes"], hrefs: [c.url] });
     } else if (c.kind === "idea" && c.state === "queued" && !(c.asking && c.question && !c.revising)) {

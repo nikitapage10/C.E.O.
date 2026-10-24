@@ -246,8 +246,8 @@ events without a passkey:
 
 | Key | Vault secret / app setting | Opens | Never |
 | --- | --- | --- | --- |
-| Read key | `submind-log-token` / `SUBMIND_LOG_TOKEN` | **GET only**: `/api/skippy-log?room=` green, exchange, boiler or foundry (not Relay's), optionally `&needs=`; `/api/green-league`; `/api/exchange-markets`; `/api/exchange-positions`; `/api/world` (and `?day=YYYY-MM-DD`); `/api/foundry-feed`; `/api/room-feed` | Any POST, any other route or query: no settings, no pins, no Skippy chat, no email, invoices or pings, no secret |
-| Feed key | `submind-feed-token` / `SUBMIND_FEED_TOKEN` | **POST `/api/room-feed`** (`{ room, title, detail? }`) and **POST `/api/skippy-answer`** (a hand-off's answer coming back, #312), nothing else | Reading anything: each answer says only that the write was kept |
+| Read key | `submind-log-token` / `SUBMIND_LOG_TOKEN` | **GET only**: `/api/skippy-log?room=` green, exchange, boiler or foundry (not Relay's), optionally `&needs=`; `/api/green-league`; `/api/exchange-markets`; `/api/exchange-positions`; `/api/world` (and `?day=YYYY-MM-DD`); `/api/foundry-feed`; `/api/room-feed`; `/api/setup-asks` (optionally `?room=`) | Any POST, any other route or query: no settings, no pins, no Skippy chat, no email, invoices or pings, no secret |
+| Feed key | `submind-feed-token` / `SUBMIND_FEED_TOKEN` | **POST `/api/room-feed`** (`{ room, title, detail? }`), **POST `/api/setup-asks`** (a setup ask or its Trail line, #324) and **POST `/api/skippy-answer`** (a hand-off's answer coming back, #312), nothing else | Reading anything: each answer says only that the write was kept |
 
 Both live only in the Key Vault (the template wires them, like every secret). The code is in `api/_site/roomkeys.ts`
 (the gate and the handlers check the key, in constant time) and `api/_room/feed.ts` (the feed); how the threads use

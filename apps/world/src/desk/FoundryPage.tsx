@@ -20,6 +20,7 @@ import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { AskedSkippy } from "./skippy/AskedSkippy.tsx";
 import { RoomFeed } from "./skippy/RoomFeed.tsx";
+import { SetupAsks } from "./skippy/SetupAsks.tsx";
 
 /**
  * The Foundry's own Desk page. Top to bottom: what needs you (the morning's ideas as cards you can build, pass on or
@@ -115,7 +116,7 @@ export function FoundryPage({ now }: { now: number }) {
                   <div>
                     <h3 className="wv-h3">{ideaTitle(c.title)}</h3>
                     <p className="wv-act-p">
-                      {c.state === "stuck" ? `Stuck after every rung. Have a look.` : `Done and checked. ${CREW[who].name} is waiting for your OK.`} {KIND_LABEL[c.kind]} · #{c.number}
+                      {c.state === "stuck" ? `Stuck after every rung. Have a look.` : `A test needs you before ${CREW[who].name} can ship it.`} {KIND_LABEL[c.kind]} · #{c.number}
                     </p>
                   </div>
                 </div>
@@ -221,6 +222,7 @@ export function FoundryPage({ now }: { now: number }) {
       </div>
 
       <AskedSkippy room="foundry" />
+      <SetupAsks room="foundry" />
       <RoomFeed room="foundry" />
     </div>
   );

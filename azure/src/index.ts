@@ -24,6 +24,7 @@ import * as greenleague from "../../api/_green/route.js";
 import * as invoices from "../../api/_paypal/route.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
 import * as roomfeed from "../../api/_room/feed.js";
+import * as setupasks from "../../api/_room/setup.js";
 import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
@@ -73,6 +74,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // session or the read key, scrubbed titles for the Lattice. Azure only: both keys live only in this Key Vault.
   ["room-feed", roomfeed],
   ["security-feed", securityfeed],
+  // Setup asks (#324, docs/SKIPPY.md "Setup asks"): a thread posts one with the feed key; Nikita approves or declines it
+  // in the Desk's passkey session; the thread reads the answer with the read key and closes it with a Trail line.
+  ["setup-asks", setupasks],
   ["site-login", sitelogin],
   ["site-password", sitepassword],
   ["skippy", skippy],

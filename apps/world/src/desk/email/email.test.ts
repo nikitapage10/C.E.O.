@@ -32,3 +32,22 @@ describe("the email agent on the Desk", () => {
     expect(readView({ ok: true, status: { ...live, subject: "x" }, canConnect: true, items: [], spend: { usd: 0, budget: 10 } })).toBeNull();
   });
 });
+
+describe("the signed-in read failing", () => {
+  it("says why instead of reading forever, and clears once it reads", async () => {
+    const { vi } = await import("vitest");
+    const { useEmail } = await import("./email.ts");
+    const { useDeskAuth } = await import("../signin.ts");
+    useDeskAuth.setState({ auth: { ...useDeskAuth.getState().auth, status: "in" } } as never);
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("view=status") ? json({ ok: true, status: live }) : json({ error: "store" }, 502))));
+    await useEmail.getState().refresh();
+    expect(useEmail.getState().privateFail).toBe("502");
+    expect(useEmail.getState().view).toBeNull();
+    vi.stubGlobal("fetch", vi.fn(async () => json({ ok: true, status: live, canConnect: true, items: [], spend: { usd: 0, budget: 10 } })));
+    await useEmail.getState().refresh();
+    expect(useEmail.getState().privateFail).toBeNull();
+    expect(useEmail.getState().view?.ok).toBe(true);
+    vi.unstubAllGlobals();
+  });
+});

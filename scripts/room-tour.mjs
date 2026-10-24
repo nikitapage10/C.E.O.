@@ -50,6 +50,8 @@ const TAGS = [
   [255, 128, 0],
   [128, 0, 255],
   [255, 255, 255],
+  [128, 255, 0],
+  [0, 128, 255],
 ];
 if (ROOMS.length > TAGS.length) throw new Error("room-tour: more rooms than tag colours");
 

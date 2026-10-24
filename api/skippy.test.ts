@@ -33,7 +33,7 @@ describe("the Desk as Skippy sees it", () => {
     expect(c.ideas.map((i) => i.issue)).toEqual([10, 12, 15]);
     expect(c.questions).toEqual([{ issue: 11, title: "Brighter cards", question: "Which page should it go on?" }]);
     expect(c.building).toEqual([{ issue: 13, title: "Speed up the Lattice", state: "in progress" }]);
-    expect(c.waiting).toEqual([{ issue: 14, title: "Fix the clock", why: "waiting for Nikita's OK" }]);
+    expect(c.waiting).toEqual([{ issue: 14, title: "Fix the clock", why: "held on a test for Nikita" }]);
     expect(c.setup).toEqual(["set up the crew's GitHub App", "enrol a second device for sign-in"]);
     expect(c.shipped).toEqual([{ issue: 9, title: "Night shift" }]);
   });

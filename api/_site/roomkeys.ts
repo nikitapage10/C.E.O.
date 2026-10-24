@@ -5,8 +5,10 @@
  *
  *   SUBMIND_LOG_TOKEN    read-only. GET only, and only the room data below (LOG_READS): the Asked Skippy logs of the
  *                        four active rooms, the Green's league board, the Exchange's board and Nikita's positions, the
- *                        world feed (and one day of it), the Foundry feed, and the room feed itself.
- *   SUBMIND_FEED_TOKEN   write-only. POST /api/room-feed, a short room event (api/_room/feed.ts), and POST
+ *                        world feed (and one day of it), the Foundry feed, the room feed itself, and the setup asks
+ *                        (#324, whether Nikita approved one).
+ *   SUBMIND_FEED_TOKEN   write-only. POST /api/room-feed, a short room event (api/_room/feed.ts), POST /api/setup-asks,
+ *                        a setup ask or its Trail line (#324, api/_room/setup.ts), and POST
  *                        /api/skippy-answer, a hand-off's answer (#312; its own check in gate.ts and api/skippy.ts,
  *                        bearer only). It reads nothing: each answer says only that the write was kept.
  *
@@ -46,6 +48,11 @@ export const KEY_LOG_ROOMS = ["green", "exchange", "boiler", "foundry"] as const
 
 /** The room feed's address (api/_room/feed.ts). */
 export const ROOM_FEED_PATH = "/api/room-feed";
+/** The setup asks' address (#324, api/_room/setup.ts): the read key reads them, the feed key posts and closes them. */
+export const SETUP_ASKS_PATH = "/api/setup-asks";
+
+/** The paths the feed key may POST to, with no query. */
+export const FEED_WRITES: readonly string[] = [ROOM_FEED_PATH, SETUP_ASKS_PATH];
 
 /** A query rule: which keys a read may carry, and what each must look like. Absent keys are fine unless required. */
 type QueryRule = { [key: string]: { required?: boolean; ok: (v: string) => boolean } };
@@ -62,6 +69,8 @@ export const LOG_READS: Readonly<Record<string, QueryRule>> = {
   "/api/world": { day: { ok: (v) => DAY.test(v) } },
   "/api/foundry-feed": {},
   [ROOM_FEED_PATH]: {},
+  // The setup asks (#324): whether Nikita approved one, so the thread knows when to go on.
+  [SETUP_ASKS_PATH]: { room: { ok: (v) => (KEY_LOG_ROOMS as readonly string[]).includes(v) } },
 };
 
 /** Two secrets compared in constant time (both hashed first, so their lengths don't show). */
@@ -138,10 +147,10 @@ export function isLogRead(request: Request): boolean {
   return queryFits(url, LOG_READS[url.pathname]!);
 }
 
-/** Whether a request is the one write the feed key opens: POST /api/room-feed with no query. */
+/** Whether a request is one of the writes the feed key opens: POST /api/room-feed or /api/setup-asks, with no query. */
 export function isFeedWrite(request: Request): boolean {
   const url = new URL(request.url);
-  return request.method === "POST" && url.pathname === ROOM_FEED_PATH && url.search === "";
+  return request.method === "POST" && FEED_WRITES.includes(url.pathname) && url.search === "";
 }
 
 /**

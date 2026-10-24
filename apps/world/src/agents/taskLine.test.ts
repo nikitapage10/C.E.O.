@@ -76,7 +76,7 @@ describe("the task card", () => {
   it("says where a job stands when it isn't simply going", () => {
     const status = (over: Partial<Crate>, waiting = false) => (crateCard({ ...crate, ...over }, "tessellate", { now: NOW, waiting }) as { status: string }).status;
     expect(status({ state: "stuck" })).toBe("Stuck: needs you");
-    expect(status({ state: "ready" })).toBe("Checked, waiting for your OK");
+    expect(status({ state: "ready" })).toBe("A test needs you");
     expect(status({ paused: true })).toBe("Paused for a fix");
     expect(status({}, true)).toBe("Waiting its turn");
     expect(status({ state: "shipped", closedAt: NOW - 3 * 3_600_000 })).toBe("Shipped 3 h ago");

@@ -1795,3 +1795,8 @@
 @media (prefers-reduced-motion:reduce){
   .desk [data-private],.desk .wv-hide__slash,.desk .wv-hide__iris{transition:none}
 }
+/* Several jobs in flight (#337): each knot's label stays on its own row, one line apiece, clipped rather than wrapped. */
+.desk .wv-knot.is-row{width:40px;height:40px;margin:-20px 0 0 -20px}
+.desk .wv-knot.is-row .wv-kl{left:40px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25;padding:1px 0}
+.desk .wv-knot.is-row .wv-ke{margin-bottom:2px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
+.desk .wv-knot.is-row .wv-kav{display:inline-block;width:18px;height:18px;vertical-align:-4px;margin-right:7px}

@@ -233,7 +233,10 @@ test("the Lattice opens on its map, and a room picked there loads on its own", a
   // The map (#332): no three.js and no models until a room is picked. One room in 3D, then back to the map.
   test.setTimeout(BOOT_MS + STEP_MS * 3);
   const heavy: string[] = [];
-  page.on("request", (r) => /three|\.glb$/.test(new URL(r.url()).pathname) && heavy.push(new URL(r.url()).pathname));
+  page.on("request", (r) => {
+    const path = new URL(r.url()).pathname;
+    if (path.includes("three") || path.endsWith(".glb")) heavy.push(path);
+  });
   await page.goto("/lattice?instant&glitches=off&speed=4&quality=low&seed=7");
   await expect(page.locator(".lmap")).toBeVisible({ timeout: STEP_MS });
   await expect(page.locator("[data-map-room]")).toHaveCount(ROOM_IDS.length);

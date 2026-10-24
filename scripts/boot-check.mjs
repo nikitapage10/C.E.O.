@@ -165,7 +165,10 @@ try {
     "/lattice",
     async (page, timeout) => {
       const heavy = [];
-      page.on("request", (r) => /\/three-[^/]*\.js$|\.glb$/.test(new URL(r.url()).pathname) && heavy.push(new URL(r.url()).pathname));
+      page.on("request", (r) => {
+        const path = new URL(r.url()).pathname;
+        if (/\/three-[^/]*\.js$/.test(path) || path.endsWith(".glb")) heavy.push(path);
+      });
       await page.waitForFunction(() => globalThis.document.querySelector(".lmap") && globalThis.__ceo?.map?.().frames > 3, undefined, { timeout, polling: 250 });
       if (heavy.length) throw new Error(`the map fetched ${heavy.join(", ")} before anything 3D was asked for`);
       await page.waitForTimeout(1500);

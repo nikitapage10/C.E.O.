@@ -14,9 +14,12 @@ import { goToView, type LatticeView } from "./map/view.ts";
 import { Scene } from "./scene/Scene.tsx";
 import { bootStreaming, endStreaming, loadRoom, streamedIn } from "./scene/streaming.ts";
 import { SocialDirector } from "./social/SocialDirector.tsx";
+import { guardRemoveChild } from "./scene/domGuard.ts";
 import { useWorld } from "./store.ts";
 import { VeilDirector } from "./veil/VeilDirector.tsx";
 import { WeaveCanvas } from "./weave/WeaveCanvas.tsx";
+
+guardRemoveChild();
 
 type View3D = Exclude<LatticeView, { kind: "map" }>;
 

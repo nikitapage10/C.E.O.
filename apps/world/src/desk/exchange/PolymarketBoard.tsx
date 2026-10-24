@@ -122,7 +122,7 @@ export function PolymarketBoard({ limit = 10 }: { limit?: number }) {
     <section className="xc-busy" aria-label="Polymarket: the busiest markets">
       <header className="xc-head">
         <div>
-          <p className="xc-eyb">Polymarket · live odds · no sports</p>
+          <p className="xc-k">Polymarket · live odds · no sports</p>
           <h2 className="xc-h2">Where the money is today</h2>
         </div>
         <p className="xc-state" data-state={board?.stale ? "stale" : status}>

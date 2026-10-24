@@ -16,7 +16,8 @@
  * Desk's idle pre-warm gets its chance), then goes Desk -> Lattice -> Desk -> Lattice -> Desk in the page, the way
  * the nav does (no reload), and prints how long each Lattice arrival took to a drawn world with the curtain up, how
  * long each Desk arrival took, the frame rate over the 3 s after each arrival and the JS heap. The Desk's warm-up runs
- * (latticeWarm.ts skips it for browser tests unless asked); add --no-warm to time a trip without it. Set PLAYWRIGHT_CHROMIUM_PATH to use a preinstalled Chromium. It renders on
+ * (latticeWarm.ts skips it for browser tests unless asked); add --no-warm to time a trip without it, and --settle to
+ * wait on the first visit until every model is in before going back to the Desk. Set PLAYWRIGHT_CHROMIUM_PATH to use a preinstalled Chromium. It renders on
  * SwiftShader (no GPU here), so shader compile and frame times run far slower than on a real machine; compare runs on
  * the same machine, not against a phone or a desktop GPU.
  */
@@ -133,7 +134,11 @@ async function runSwitch() {
   await page.waitForSelector(".desk__tabs", { timeout: LIMIT_MS });
   await page.waitForTimeout(Number(opt("desk-wait", "15")) * 1000);
   const steps = [];
-  for (const [path, ready] of [["/lattice", "lattice"], ["/", "desk"], ["/lattice", "lattice"], ["/foundry", "desk"]]) steps.push({ path, ...(await trip(page, path, ready)) });
+  for (const [path, ready] of [["/lattice", "lattice"], ["/", "desk"], ["/lattice", "lattice"], ["/foundry", "desk"]]) {
+    steps.push({ path, ...(await trip(page, path, ready)) });
+    // --settle: let the Lattice finish streaming in before leaving it, so the trips back time the trip, not the load.
+    if (steps.length === 1 && args.includes("--settle")) await page.waitForFunction(() => globalThis.__ceo?.boot?.().models !== undefined, undefined, { timeout: LIMIT_MS, polling: 500 });
+  }
   await page.close();
   return { steps, errors };
 }

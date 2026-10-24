@@ -111,18 +111,41 @@ export function bearerOf(request: Request): string | null {
   return token || null;
 }
 
-/** Which room key a request carries, if any (both compared, in constant time, whichever matches). */
+/** Every room-key value a request carries: its own header and the bearer token (the proxy sends both, #361). */
+function givenKeys(request: Request): string[] {
+  const out: string[] = [];
+  const own = request.headers.get(ROOM_KEY_HEADER)?.trim();
+  if (own) out.push(own);
+  const auth = request.headers.get("authorization") ?? "";
+  if (/^Bearer /i.test(auth)) {
+    const token = auth.slice(7).trim();
+    if (token) out.push(token);
+  }
+  return out;
+}
+
+/**
+ * Which room key a request carries, if any (all compared, in constant time). The environment's proxy puts both headers
+ * on every request to the site (#361): `x-ceo-room-key` with the read key and `Authorization: Bearer` with the feed
+ * key. A read (GET, HEAD) counts the read key wherever it sits and is not broken by the feed key's presence; a write
+ * counts the feed key and is not broken by the read key's. A key only ever counts as its own kind, so a second
+ * header can't make a request more than the keys it holds already allow (roomKeyPass checks the method and path).
+ */
 export function roomKeyOf(request: Request, env: Env): RoomKey | null {
-  const given = bearerOf(request);
-  if (!given) return null;
+  const given = givenKeys(request);
+  if (given.length === 0) return null;
   const log = roomKeyValue(env, "log");
   const feed = roomKeyValue(env, "feed");
-  // Both are always compared, so the time taken doesn't say which key (if either) was close.
-  const isLog = log ? same(given, log) : false;
-  const isFeed = feed ? same(given, feed) : false;
-  if (isLog) return "log";
-  if (isFeed) return "feed";
-  return null;
+  // Every value is compared against both keys, so the time taken doesn't say which key (if either) was close.
+  let isLog = false;
+  let isFeed = false;
+  for (const g of given) {
+    if (log && same(g, log)) isLog = true;
+    if (feed && same(g, feed)) isFeed = true;
+  }
+  const read = request.method === "GET" || request.method === "HEAD";
+  if (read) return isLog ? "log" : isFeed ? "feed" : null;
+  return isFeed ? "feed" : isLog ? "log" : null;
 }
 
 /** Whether `url`'s query fits a rule exactly: no other key, no key twice, every value in shape, the required ones there. */

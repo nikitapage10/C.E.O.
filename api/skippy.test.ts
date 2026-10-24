@@ -285,6 +285,11 @@ describe("Skippy's room log (#273)", () => {
     expect(ok.headers.get("set-cookie")).toBeNull();
     expect(((await ok.json()) as { turns: { question: string }[] }).turns.map((t) => t.question)).toEqual(["Who do I start at K?"]);
     for (const room of ["exchange", "boiler", "foundry"]) expect((await read(room, LOG)).status).toBe(200);
+    // The proxy sends both headers on every request (#361): the read key's header decides, the Bearer feed key is ignored.
+    const both = (room: string, headers: Record<string, string>) => roomLog(new Request(`${ORIGIN}/api/skippy-log?room=${room}`, { headers }), keyed);
+    expect((await both("green", { "x-ceo-room-key": LOG, Authorization: `Bearer ${FEED}` })).status).toBe(200);
+    expect((await both("relay", { "x-ceo-room-key": LOG, Authorization: `Bearer ${FEED}` })).status).toBe(400);
+    expect((await both("green", { "x-ceo-room-key": FEED, Authorization: `Bearer ${FEED}` })).status).toBe(401);
     // Relay's asks and the rest stay Desk-only.
     for (const room of ["relay", "none", "spire"]) expect((await read(room, LOG)).status).toBe(400);
     // The feed key, a wrong key or an unset one is no key: the Desk session is asked for.
@@ -515,6 +520,23 @@ describe("POST /api/skippy-answer: a hand-off's answer coming back (#312)", () =
     expect((await (await setup({ token: "" })).send({ id, from: "ember", text: "x" })).status).toBe(503);
     expect((await (await setup({ token: "short" })).send({ id, from: "ember", text: "x" }, "Bearer short")).status).toBe(503);
     expect((await (await setup({ log: null })).send({ id, from: "ember", text: "x" })).status).toBe(503);
+  });
+
+  it("authenticates on the Bearer feed key alone: the log key in x-ceo-room-key, which the proxy adds, changes nothing (#361)", async () => {
+    const { log, id } = await setup();
+    const LOG = "a-test-submind-log-token-long-enough-0123456789";
+    const deps: AnswerDeps = { token: TOKEN, log, ping: async () => 1, now: NOW };
+    const send = (headers: Record<string, string>) =>
+      followUp(new Request(`${ORIGIN}/api/skippy-answer`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ id, from: "ember", text: "x" }) }), deps);
+    // The extra header can't stand in for the Bearer key, whatever it holds.
+    expect((await send({ "x-ceo-room-key": LOG })).status).toBe(401);
+    expect((await send({ "x-ceo-room-key": TOKEN })).status).toBe(401);
+    expect((await send({ "x-ceo-room-key": LOG, Authorization: `Bearer ${LOG}` })).status).toBe(401);
+    expect((await send({ "x-ceo-room-key": TOKEN, Authorization: `Bearer ${LOG}` })).status).toBe(401);
+    // With the right Bearer key, the extra header neither breaks it nor grants anything more.
+    const ok = await send({ "x-ceo-room-key": LOG, Authorization: `Bearer ${TOKEN}` });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ ok: true, room: "foundry", pinged: 1 });
   });
 
   it("refuses a bad body, private text, an unknown turn, a turn not handed off and another submind's", async () => {

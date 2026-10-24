@@ -124,6 +124,22 @@ describe("reading the feed", () => {
     expect(((await res.json()) as { view: string }).view).toBe("full");
   });
 
+  it("takes both headers the proxy sends on every request (#361): the Bearer feed key posts, the read key header decides reads", async () => {
+    const { deps, get, feed } = await setup();
+    const both = { Authorization: `Bearer ${FEED}`, "x-ceo-room-key": LOG };
+    const post = (headers: Record<string, string>) =>
+      handlePost(new Request(`${ORIGIN}/api/room-feed`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(EVENT) }), deps);
+    expect((await post(both)).status).toBe(201);
+    // The read key alone, or in the extra header beside a wrong Bearer, never posts.
+    expect((await post({ "x-ceo-room-key": LOG })).status).toBe(401);
+    expect((await post({ Authorization: `Bearer ${LOG}`, "x-ceo-room-key": LOG })).status).toBe(401);
+    expect((await feed.all(NOW)).length).toBe(1);
+    const full = await get("/api/room-feed", both);
+    expect(((await full.json()) as { view: string }).view).toBe("full");
+    const pub = await get("/api/room-feed", { Authorization: `Bearer ${FEED}` });
+    expect(((await pub.json()) as { view: string }).view).toBe("public");
+  });
+
   it("gives everyone else, the feed key and ?view=public the scrubbed titles only", async () => {
     const { post, get, cookie } = await setup();
     await post(EVENT);

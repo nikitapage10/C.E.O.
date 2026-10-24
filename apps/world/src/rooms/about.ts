@@ -63,16 +63,16 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     next: "FantasyPros' projections on every copy, and the Commentator's weekly take. You tap the final move in the Sleeper app.",
   },
   relay: {
-    blurb: "Your messages. Texts arrive by pneumatic tube, an agent drafts a reply in your voice, and it waits in the outbox until you approve it.",
+    blurb: "Your messages. Email is live: each new mail drops down the pneumatic tubes, Dialtone sorts it and Blasto drafts advice for the ones that need you. Texts join once the Mac's hub is up.",
     stations: {
       post: "The Messenger's floating command podium, high in the back-right corner. The Relay's submind listens in on every line from here and picks who drafts what. It glides out over the room when it gives an order.",
-      tubes: "Incoming messages.",
+      tubes: "Incoming mail: one canister drops for each real new email, none for show.",
       "draft-desk": "Replies get drafted here.",
       outbox: "Drafts waiting for your approval (the beacon lights up).",
       switchboard: "Routing: who's urgent, who can wait, who's the group chat.",
     },
-    today: "Quiet. The demo messages are gone; Blasto and Dialtone wait for the real line.",
-    next: "BlueBubbles on your Mac for iMessage; draft-only at first, then allowlisted auto-replies.",
+    today: "Live from your Gmail (read-only, on the Azure copy): the inbox board by the post boxes counts what needs you, FYI and noise, and dials the last check. Counts only; the mail stays behind your passkey.",
+    next: "BlueBubbles on your Mac for iMessage and SMS; draft-only at first, then allowlisted auto-replies.",
   },
   archive: {
     blurb: "The Tide's library: worldbuilding, lore and D&D campaign prep. Half arcane library, half research lab, like the world it keeps.",

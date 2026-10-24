@@ -195,6 +195,8 @@ restarted; when the thread's machine is recycled the watcher goes with it until 
 Desk-only (the read key never opens them), so the Messenger has no watcher: a hand-off to it waits on the Relay page's
 Asked Skippy panel, and the chat says so when it stops waiting.
 
+Background watchers in submind threads stop at the session's 2-hour limit, so Skippy runs an hourly hand-off sweep: a scheduled task at :58 each hour on Skippy's thread. The sweep reads the open hand-offs of the green, exchange and boiler rooms with the read key, and pings only the submind that has one waiting. Otherwise it stays silent. Worst-case answer time is about an hour plus the answer itself, which fits the Desk bubble's two-hour wait.
+
 The lines a thread runs, from the repo's root (here for the Green; `exchange`, `boiler` and `foundry` the same way):
 
 ```bash

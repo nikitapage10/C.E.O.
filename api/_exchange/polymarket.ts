@@ -18,8 +18,8 @@ import { PM_SPARK_MAX, PM_TEXT_MAX, PM_TOP_MAX, PM_WATCH_MAX, PM_WORLD_MAX, type
 export const GAMMA = "https://gamma-api.polymarket.com";
 export const CLOB = "https://clob.polymarket.com";
 
-/** How many markets to ask for before filtering down to PM_TOP_MAX. */
-const TOP_ASK = 40;
+/** How many markets to ask for before filtering down to PM_TOP_MAX (about half the busiest are sports, left out). */
+const TOP_ASK = 60;
 /** A market this sure is all but decided; the top board skips it (a pinned one still shows). */
 const DECIDED = 0.01;
 /** At most this many of one event's markets on the top board, so one election doesn't fill it. */
@@ -108,9 +108,14 @@ export function shapeMarket(raw: unknown): (PmMarket & { token: string | null; e
   };
 }
 
-/** The top board: open, not yet due, not all but decided, busiest first, at most PER_EVENT from one event. */
+/**
+ * The top board: open, not yet due, not all but decided, not sports (#358: Nikita, "I don't want to do sports"; the
+ * asides' filter, isSports), busiest first, at most PER_EVENT from one event.
+ */
 export function pickTop(raws: unknown, now: number): ReturnType<typeof shapeMarket>[] {
-  const all = (Array.isArray(raws) ? raws : []).map(shapeMarket).filter((m): m is NonNullable<typeof m> => m !== null);
+  const all = (Array.isArray(raws) ? raws : [])
+    .filter((raw) => !isSports(typeof (raw as Raw | null)?.question === "string" ? ((raw as Raw).question as string) : "", tagsOf(raw)))
+    .map(shapeMarket).filter((m): m is NonNullable<typeof m> => m !== null);
   const open = all.filter((m) => !m.closed && (!m.endDate || Date.parse(m.endDate) > now) && m.prob >= DECIDED && m.prob <= 1 - DECIDED);
   open.sort((a, b) => b.volume24h - a.volume24h);
   const per = new Map<string, number>();
@@ -146,7 +151,7 @@ export async function getJson(fetcher: Fetcher, url: string): Promise<unknown> {
   return JSON.parse(text) as unknown;
 }
 
-export const topUrl = () => `${GAMMA}/markets?limit=${TOP_ASK}&active=true&closed=false&order=volume24hr&ascending=false`;
+export const topUrl = () => `${GAMMA}/markets?limit=${TOP_ASK}&active=true&closed=false&order=volume24hr&ascending=false&include_tag=true`;
 export const byIdsUrl = (ids: string[]) => `${GAMMA}/markets?${ids.map((id) => `id=${id}`).join("&")}`;
 export const historyUrl = (token: string) => `${CLOB}/prices-history?market=${token}&interval=1d&fidelity=30`;
 
@@ -261,9 +266,14 @@ export function tagsOf(raw: unknown): string[] {
   return tags.map((t) => (t && typeof t === "object" ? (t as Raw).slug : null)).filter((s): s is string => typeof s === "string" && SLUG.test(s));
 }
 
+/** Sports, by its tags or a league in its question: kept off the asides and the top board alike. */
+export function isSports(question: string, tags: readonly string[]): boolean {
+  return tags.some((t) => SPORTS_TAGS.has(t)) || SPORTS_WORDS.test(question);
+}
+
 /** Sports, or noise, by its tags or its question. */
 export function isOffTopic(question: string, tags: readonly string[]): boolean {
-  return tags.some((t) => SPORTS_TAGS.has(t) || NOISE_TAGS.has(t)) || SPORTS_WORDS.test(question);
+  return isSports(question, tags) || tags.some((t) => NOISE_TAGS.has(t));
 }
 
 export const worldUrl = (tagId: string) => `${GAMMA}/markets?limit=${WORLD_ASK}&active=true&closed=false&order=volume24hr&ascending=false&tag_id=${tagId}&include_tag=true`;

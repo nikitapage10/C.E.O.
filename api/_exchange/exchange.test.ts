@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
-import { cleanText, parseRef, pickTop, shapeMarket, sparkOf, type Fetcher } from "./polymarket.ts";
+import { cleanText, parseRef, pickTop, shapeMarket, sparkOf, topUrl, type Fetcher } from "./polymarket.ts";
 import { GET, POST, PATH, forgetKept, isExchange, type ExchangeDeps } from "./route.ts";
 import { PM_TOP_MAX, PM_WATCH_MAX, type PmBoard } from "./types.ts";
 import { MemoryWatchStore, cleanIds } from "./watchlist.ts";
@@ -98,6 +98,12 @@ describe("Polymarket's answers, trimmed and checked", () => {
     expect(pickTop(ms, NOW).map((m) => m!.id)).toEqual(["8", "6", "1"]);
     expect(pickTop(Array.from({ length: 40 }, (_, i) => raw(i + 1)), NOW)).toHaveLength(PM_TOP_MAX);
     expect(pickTop({ not: "a list" }, NOW)).toEqual([]);
+  });
+
+  it("keeps sports off the top board, by tag or by league (#358)", () => {
+    const ms = [raw(9, { tags: [{ slug: "sports" }, { slug: "nba" }] }), raw(8, { question: "Super Bowl LXI winner?" }), raw(7, { tags: [{ slug: "politics" }] }), raw(6)];
+    expect(pickTop(ms, NOW).map((m) => m!.id)).toEqual(["7", "6"]);
+    expect(new URL(topUrl()).searchParams.get("include_tag")).toBe("true");
   });
 
   it("thins a day of prices for the sparkline", () => {

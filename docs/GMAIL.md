@@ -100,9 +100,11 @@ Mail content is private and stays on the private path:
 ### Where the token lives
 
 The refresh token is sealed into the private blob store, not written to Key Vault. Writing a secret would need the
-Function App's identity to hold **Key Vault Secrets Officer**, which could also rewrite every other secret in the vault
-(the Desk key, the Claude key). With the sealed blob the identity keeps only **Key Vault Secrets User** (read), which
-it already has, so **no new role assignment** is needed: nothing changes in `infra/resources.bicep`'s roles.
+Function App's identity to hold **Key Vault Secrets Officer** on it. Since #330 it holds that role only on the twelve
+third-party secrets the Desk's Keys form may set, one by one ([AZURE.md](AZURE.md), "The template on every deploy"),
+never on the vault and never on `gmail-token-key` or the Desk key. With the sealed blob the token needs no further
+role: everything else in the vault stays **Key Vault Secrets User** (read) for the app, and nothing changes in
+`infra/resources.bicep`'s roles.
 
 ### Connect Gmail (the OAuth flow)
 

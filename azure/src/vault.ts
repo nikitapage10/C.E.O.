@@ -8,10 +8,12 @@
  *              way the platform's Key Vault references do at start-up. Never reachable from a route.
  *
  * Settings: KEY_VAULT_URI (the template sets it to the vault's own address). Writing needs Key Vault Secrets Officer
- * on the vault; the list and the reads need only Secrets User, which the template already gives (docs/AZURE.md).
+ * on that secret (the role paste gives it per allowlisted secret, never vault-wide); the list and the reads need only
+ * Secrets User, which the template already gives (docs/AZURE.md).
  */
 
 import { DefaultAzureCredential, type TokenCredential } from "@azure/identity";
+import { PLACEHOLDER_TAG } from "../../api/_keys/allowlist.js";
 import type { KeyWriter, SecretDates } from "../../api/_keys/vault.js";
 
 type Env = Record<string, string | undefined>;
@@ -52,10 +54,12 @@ export async function secretDates(v: Vault): Promise<Map<string, SecretDates>> {
   for (let page = 0; url && page < 20; page++) {
     const res = await call(v, url);
     if (!res.ok) throw new Error(`Key Vault list answered ${res.status}`);
-    const got = (await res.json()) as { value?: { id?: string; attributes?: { enabled?: boolean; updated?: number } }[]; nextLink?: string | null };
+    const got = (await res.json()) as { value?: { id?: string; attributes?: { enabled?: boolean; updated?: number }; tags?: Record<string, string> | null }[]; nextLink?: string | null };
     for (const s of got.value ?? []) {
       const name = s.id?.split("/secrets/")[1]?.split("/")[0];
-      if (name) out.set(name, { enabled: s.attributes?.enabled !== false, updated: secs(s.attributes?.updated) });
+      // A tag, not a value: the list never carries values, and the role paste tags the placeholders it creates.
+      const placeholder = Boolean(s.tags && typeof s.tags === "object" && PLACEHOLDER_TAG in s.tags);
+      if (name) out.set(name, { enabled: s.attributes?.enabled !== false, updated: secs(s.attributes?.updated), ...(placeholder && { placeholder }) });
     }
     const next: string | null = got.nextLink ?? null;
     url = next && new URL(next).origin === new URL(v.base).origin ? next : null;

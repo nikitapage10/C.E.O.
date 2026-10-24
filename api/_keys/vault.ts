@@ -13,6 +13,8 @@ export interface SecretDates {
   enabled: boolean;
   /** When its current version was written (ms). */
   updated: number | null;
+  /** Its current version is the role paste's placeholder (tagged so), not a key (api/_keys/allowlist.ts). */
+  placeholder?: boolean;
 }
 
 export interface KeyWriter {

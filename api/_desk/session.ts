@@ -48,6 +48,8 @@ export interface Challenge {
   e: number;
   /** Enrolment only: the device's label, as Nikita gave it. */
   label?: string;
+  /** The Keys form only (#330): the one write this step-up is for, as a keyed hash of sha256(name + "\n" + value). */
+  h?: string;
 }
 
 const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");
@@ -98,7 +100,7 @@ export function sessionOf(key: Buffer, token: string | null | undefined, now: nu
 export function challengeOf(key: Buffer, token: string | null | undefined, step: Challenge["t"], now: number): Challenge | null {
   const p = readToken(key, token);
   if (!p || p.t !== step || typeof p.ch !== "string" || typeof p.e !== "number" || p.e <= Math.floor(now / 1000)) return null;
-  return { t: step, ch: p.ch, e: p.e, ...(typeof p.label === "string" && { label: p.label }) };
+  return { t: step, ch: p.ch, e: p.e, ...(typeof p.label === "string" && { label: p.label }), ...(typeof p.h === "string" && { h: p.h }) };
 }
 
 /** A Set-Cookie value for one of the Desk's cookies; a max age of 0 clears it. */

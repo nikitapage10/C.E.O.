@@ -334,10 +334,22 @@ Keys**, signed in. It is write-only by design:
   or sealed data: `foundry-desk-key`, `site-bypass-token`, `desk-pings-secret`, `foundry-github-token`,
   `foundry-app-*`, `desk-vapid-*`, `gmail-token-key` and `submind-*` are refused by name and by pattern, so a stolen
   session can't hand itself a way back in. A unit test pins both lists and puts every secret in the template on
-  exactly one. Azure gives the Function App's Key Vault Secrets Officer vault-wide, so this list is the real guard.
-- **A fresh passkey for every write.** The session cookie alone sets nothing: `POST /api/keys` needs a passkey answer
-  from that session's own passkey to a challenge handed out in the last two minutes, checked by the same WebAuthn code
-  as the sign-in (`api/_desk/assert.ts`), used once. A failed step-up counts against the sign-in's lockout.
+  exactly one.
+- **Per-secret scope in Azure first, the allowlist on top.** The role paste (AZURE.md, "The template on every
+  deploy") gives the Function App's identity Key Vault Secrets Officer on each of those twelve secrets alone
+  (`<vault>/secrets/<name>`), never on the vault, so Azure itself refuses a write to any other secret, whatever the
+  code does. The allowlist in code is defence in depth on top of that scope: an off-list name is refused before the
+  vault is called. A secret the paste had to create so it could carry its role holds a tagged placeholder
+  (`ceo-placeholder-not-a-key`, tag `ceo-placeholder`), never a key: the Desk shows it as not set, the app treats it
+  as unset at start-up and in the key refresh, and the form won't take it as a value.
+- **A fresh passkey for every write, bound to that write.** The session cookie alone sets nothing: `POST /api/keys`
+  needs a passkey answer from that session's own passkey to a challenge handed out in the last two minutes, checked by
+  the same WebAuthn code as the sign-in (`api/_desk/assert.ts`). The challenge is asked for one write: the browser
+  sends h = sha256(name + "\n" + value) for its options, the signed challenge cookie keeps a keyed hash of h, and the
+  set is refused unless its own name and value hash to the same, so an answer can't be spent on another key or value.
+  It is used once: the challenge is marked spent with an atomic create-if-absent write in the private store
+  (`If-None-Match: *`, `claim` in `api/_desk/store.ts`) before the vault is called, so two requests racing with one
+  answer can't both write. A failed step-up counts against the sign-in's lockout.
 - **Nothing comes back.** The route can set or replace a value; it can't read one, list values or delete
   (`api/_keys/vault.ts` has only `set` and the vault's list of names and dates). The Desk sees each key's name,
   whether it is set and when, never a value, a length or a hash. The vault's answer to a write, which repeats the

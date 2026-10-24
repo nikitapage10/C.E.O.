@@ -133,6 +133,15 @@ export class Gate {
     return waitOf(this.limits[spentKey(challenge)], this.now) > 0;
   }
 
+  /**
+   * Spends a challenge for good, atomically (#330): true for the first caller only, however many race. The counters'
+   * record above is read-then-written, so two requests landing together could both see a challenge unspent; this is
+   * the store's own create-if-absent write, so only one of them gets true. Call it before acting on the answer.
+   */
+  claim(challenge: string, expires: number): Promise<boolean> {
+    return this.store.claim(claimId(challenge), expires);
+  }
+
   /** A good try: the challenge is spent until it would have expired, and this address starts again. */
   async pass(challenge: string, expires: number): Promise<void> {
     const rest: Limits = { ...this.limits, [spentKey(challenge)]: { fails: 0, last: this.now, until: expires } };
@@ -141,6 +150,9 @@ export class Gate {
     await this.store.saveLimits(this.limits);
   }
 }
+
+/** A spent challenge's id in the store's claim files: a hash, never the challenge. */
+const claimId = (challenge: string) => createHash("sha256").update(`claim:${challenge}`).digest("hex").slice(0, 32);
 
 /** Where a spent challenge is remembered (by hash), next to the counters, until it expires. */
 const spentKey = (challenge: string) => `spent:${createHash("sha256").update(challenge).digest("hex").slice(0, 24)}`;

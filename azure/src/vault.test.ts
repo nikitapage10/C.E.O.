@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SETTABLE_KEYS } from "../../api/_keys/allowlist.ts";
+import { KEY_PLACEHOLDER, SETTABLE_KEYS } from "../../api/_keys/allowlist.ts";
 import { KeyRefresh, KEYS_FRESH_MS } from "./keys.ts";
 import { keyWriter, readSecret, secretDates, setSecret, vaultFromEnv, type Vault } from "./vault.ts";
 
@@ -47,6 +47,16 @@ describe("the Keys form's face of the vault", () => {
       ["openai", { enabled: false, updated: 2000 }],
     ]);
     expect(calls.map((c) => c.url)).toEqual([`${BASE}/secrets?api-version=7.4&maxresults=25`, `${BASE}/secrets?page2`]);
+  });
+
+  it("marks the role paste's placeholders by their tag, never by a value", async () => {
+    const { vault } = vaultWith(() =>
+      json({ value: [{ id: `${BASE}/secrets/gemini-api-key`, attributes: { enabled: true, updated: 3 }, tags: { "ceo-placeholder": "1" } }, { id: `${BASE}/secrets/openai`, attributes: { enabled: true, updated: 4 }, tags: null }] }),
+    );
+    expect([...(await secretDates(vault))]).toEqual([
+      ["gemini-api-key", { enabled: true, updated: 3000, placeholder: true }],
+      ["openai", { enabled: true, updated: 4000 }],
+    ]);
   });
 
   it("has no way to read, list values or delete", () => {
@@ -108,6 +118,22 @@ describe("keys set from the Desk reach the running app (azure/src/keys.ts)", () 
     await r.refresh(0);
     expect(env).toEqual({ OPENAI_STUDIO_KEY: "o" });
     expect(reads).toEqual([]);
+  });
+
+  it("never takes the role paste's placeholder for a key, by tag or by value", async () => {
+    const env: Record<string, string | undefined> = {};
+    const reads: string[] = [];
+    const r = new KeyRefresh(
+      {
+        dates: async () => new Map([["claude-api-key", { enabled: true, updated: 1, placeholder: true }], ["gemini-api-key", { enabled: true, updated: 1 }]]),
+        read: async (name: string) => (reads.push(name), KEY_PLACEHOLDER),
+      },
+      env,
+    );
+    expect(await r.refresh(0)).toEqual([]);
+    r.noteSet("openai", KEY_PLACEHOLDER, 2);
+    expect(env).toEqual({});
+    expect(reads).toEqual(["gemini-api-key"]);
   });
 
   it("never throws when the vault is away, and logs names only", async () => {

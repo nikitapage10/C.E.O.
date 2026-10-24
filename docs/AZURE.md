@@ -474,11 +474,12 @@ functions ship, so a new app setting or Key Vault reference exists when the code
   the home address (`CEO_SITE_URL`, so the ceo.nikita.page switch in [DOMAIN.md](DOMAIN.md) holds), `PAYPAL_ENV`, the
   four budgets and the log cap; `main.bicep`'s defaults fill in only what is missing. `githubPrincipalId` comes from
   the job's own token, `deployerPrincipalId` from the repo variable `AZURE_DEPLOYER_PRINCIPAL_ID` when set, else the
-  one person with Key Vault Secrets Officer on the vault (with neither, the deployer's roles are left alone). If the
+  one person with Key Vault Secrets Officer on the vault, found by name (the one the Function App's `KEY_VAULT_URI`
+  names, else the group's only `kv-ceo-*` vault); with neither, the deployer's roles are left alone. If the
   template would remove an app setting made outside it, the job applies nothing, names the setting (never its value)
   and the code still ships.
 - **A what-if first**, summarised in the run (changes and property paths, never values); a run that would delete
-  anything stops there. Then the apply, then `KEYVAULT_REFRESH` changes so Flex reads every Key Vault reference again.
+  anything applies nothing, says so in the run, and the code still ships. Then the apply, then `KEYVAULT_REFRESH` changes so Flex reads every Key Vault reference again.
 - **Least privilege.** GitHub's identity keeps Contributor on the group (which can't write role assignments) and gets
   **Role Based Access Control Administrator** on `rg-ceo-prod` with a condition: it may assign only the template's own
   roles, each only to the identity the template gives it to (the Function App: Storage Blob Data Owner, Storage Queue
@@ -493,32 +494,52 @@ functions ship, so a new app setting or Key Vault reference exists when the code
 
 > **What this does.** Service: Azure (`rg-ceo-prod` and the vault `kv-ceo-besgu7fnckib2`). It gives GitHub's deploy
 > identity `ceo-github-deploy` Role Based Access Control Administrator on `rg-ceo-prod` only, limited by a condition
-> to the template's own roles for the template's own three identities and no deletes; and the Function App's identity
-> Key Vault Secrets Officer on the vault, so the Desk's Keys form can write. Azure scopes that vault-wide, so the
-> allowlist in code (`api/_keys/allowlist.ts`) is the real guard. Why: merges apply the template and keys go in on the
-> Desk, so the Cloud Shell pastes stop. Cost: nothing. Undo: the two `az role assignment delete` lines below.
+> to the template's own roles for the template's own three identities and no deletes. And it gives the Function App's
+> identity Key Vault Secrets Officer on each of the twelve secrets the Desk's Keys form may set, one by one
+> (`<vault>/secrets/<name>`), never on the vault, so Azure itself refuses a write to any other secret; the allowlist
+> in code (`api/_keys/allowlist.ts`) is defence in depth on top. A secret needs to exist to carry its own role, so a
+> missing one is created holding a placeholder (`ceo-placeholder-not-a-key`, tagged `ceo-placeholder`), which the
+> Desk shows as not set and the app treats as unset; a secret that is already there is never overwritten. If an
+> earlier version of this paste gave the Function App the role on the whole vault, that one is removed. The vault is
+> found by name: the one the Function App's `KEY_VAULT_URI` names, else the group's only `kv-ceo-*` vault. Why: merges
+> apply the template and keys go in on the Desk, so the Cloud Shell pastes stop. Cost: nothing. Undo: the lines below.
 
 ```bash
-(RG=rg-ceo-prod; SCOPE=$(az group show -n $RG --query id -o tsv); SP=$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv); ME=$(az ad signed-in-user show --query id -o tsv); FA=$(az functionapp list -g $RG --query "[0].name" -o tsv); FN=$(az resource show -g $RG -n "$FA" --resource-type Microsoft.Web/sites --query identity.principalId -o tsv); KV=$(az keyvault list -g $RG --query "[0].id" -o tsv)
-[ -n "$SCOPE" ] && [ -n "$SP" ] && [ -n "$ME" ] && [ -n "$FN" ] && [ -n "$KV" ] || { echo "Couldn't find $RG, ceo-github-deploy, the Function App or the vault: nothing changed."; exit 1; }
+(RG=rg-ceo-prod; SCOPE=$(az group show -n $RG --query id -o tsv); SP=$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv); ME=$(az ad signed-in-user show --query id -o tsv); FA=$(az functionapp list -g $RG --query "[0].name" -o tsv); FN=$(az resource show -g $RG -n "$FA" --resource-type Microsoft.Web/sites --query identity.principalId -o tsv)
+KVN=$(az functionapp config appsettings list -g $RG -n "$FA" --query "[?name=='KEY_VAULT_URI'].value | [0]" -o tsv | sed -E 's#^https://([A-Za-z0-9-]+)\.vault\.azure\.net/?$#\1#'); [ -n "$KVN" ] || KVN=$(az keyvault list -g $RG --query "[?starts_with(name, 'kv-ceo-')].name" -o tsv); [ "$(printf '%s\n' "$KVN" | grep -c .)" = 1 ] || KVN=""; KV=$([ -n "$KVN" ] && az keyvault show -g $RG -n "$KVN" --query id -o tsv)
+[ -n "$SCOPE" ] && [ -n "$SP" ] && [ -n "$ME" ] && [ -n "$FN" ] && [ -n "$KV" ] || { echo "Couldn't find $RG, ceo-github-deploy, the Function App or exactly one vault: nothing changed."; exit 1; }
 N='!'; W=Microsoft.Authorization/roleAssignments; R="@Request[$W:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals"; P="@Request[$W:PrincipalId] ForAnyOfAnyValues:GuidEquals"
 COND="(($N(ActionMatches{'$W/write'})) OR (($R {b7e6dc6d-f1e8-4753-8033-0f276bb0955b, 974c5e8b-45b9-4653-ba55-5f855dd0fb88, 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3, 4633458b-17de-408a-b874-0445c86b69e6, 3913510d-42f4-4e42-8a64-420c390055eb} AND $P {$FN}) OR ($R {b86a8fe4-44ce-4948-aee5-eccb2c155cd7, ba92f5b4-2d11-453d-a403-e96b0029c9fe} AND $P {$ME}) OR ($R {b24988ac-6180-42a0-ab88-20f7382dd24c, ba92f5b4-2d11-453d-a403-e96b0029c9fe, 4633458b-17de-408a-b874-0445c86b69e6} AND $P {$SP}))) AND (($N(ActionMatches{'$W/delete'})) OR (@Resource[$W:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {00000000-0000-0000-0000-000000000000}))"
 has() { [ -n "$(az role assignment list --assignee "$1" --role "$2" --scope "$3" --query "[0].id" -o tsv)" ]; }
+officer() { az role assignment list --assignee "$FN" --role "Key Vault Secrets Officer" --scope "$KV$1" --query "[?ends_with(scope, '$2')].id" -o tsv; }
 has "$SP" Contributor "$SCOPE" && echo "ok   ceo-github-deploy has Contributor on $RG" || echo "note ceo-github-deploy has no Contributor on $RG: run the one-time setup's paste first"
 if has "$SP" "Role Based Access Control Administrator" "$SCOPE"; then echo "kept ceo-github-deploy's Role Based Access Control Administrator on $RG"; else az role assignment create --assignee-object-id "$SP" --assignee-principal-type ServicePrincipal --role "Role Based Access Control Administrator" --scope "$SCOPE" --condition "$COND" --condition-version 2.0 --description "C.E.O. deploy (#330): only the template's roles, to its own identities, never deletes" -o none && echo "set  ceo-github-deploy: Role Based Access Control Administrator on $RG, conditioned"; fi
-if has "$FN" "Key Vault Secrets Officer" "$KV"; then echo "kept $FA's Key Vault Secrets Officer"; else az role assignment create --assignee-object-id "$FN" --assignee-principal-type ServicePrincipal --role "Key Vault Secrets Officer" --scope "$KV" --description "C.E.O. Desk Keys form (#330); api/_keys/allowlist.ts is the guard" -o none && echo "set  $FA: Key Vault Secrets Officer on the vault"; fi)
+HAVE=$(az keyvault secret list --vault-name "$KVN" --query "[].name" -o tsv) || { echo "Couldn't list the secrets' names in $KVN: no secret or vault role changed."; exit 1; }
+for S in claude-api-key gemini-api-key fantasypros polymarket-us-key-id polymarket-us-secret-key gmail-client-id gmail-client-secret paypal-client-id paypal-client-secret elevenlabs openai email-skip-terms; do
+  if printf '%s\n' "$HAVE" | grep -qx "$S"; then echo "kept secret $S as it is"; elif az keyvault secret set --vault-name "$KVN" -n "$S" --value ceo-placeholder-not-a-key --tags ceo-placeholder=1 -o none; then echo "made secret $S with a placeholder (the Desk shows it as not set)"; else echo "skip $S: couldn't create it (a deleted copy in the vault's recycle bin? recover it, then run this again)"; continue; fi
+  if [ -n "$(officer "/secrets/$S" "/secrets/$S")" ]; then echo "kept $FA's Key Vault Secrets Officer on $S"; else az role assignment create --assignee-object-id "$FN" --assignee-principal-type ServicePrincipal --role "Key Vault Secrets Officer" --scope "$KV/secrets/$S" --description "C.E.O. Desk Keys form (#330): this one secret" -o none && echo "set  $FA: Key Vault Secrets Officer on $S only"; fi
+done
+for ID in $(officer "" "/vaults/$KVN"); do az role assignment delete --ids "$ID" -o none && echo "removed $FA's Key Vault Secrets Officer on the whole vault (it has it per secret now)"; done)
 ```
 
-It prints one line per role (`set`, or `kept` when it was already there, so running it again is safe). The next push
-to `main`, or **Actions → Deploy to Azure → Run workflow** from `main`, applies the template. To undo, in Cloud Shell:
+It prints one line per role and secret (`set`/`made`, or `kept` when it was already there, so running it again is
+safe and never touches a secret's value). The next push to `main`, or **Actions → Deploy to Azure → Run workflow**
+from `main`, applies the template. A key added to the allowlist later needs this paste run again for its own secret
+and role; until then Azure refuses that write and the form says the Key Vault said no.
+
+Optional, and your call only: **purge protection** on the vault would stop a deleted secret (or the vault) from being
+purged before its retention ends, even by an admin. It can't be turned off again once on, so nothing here turns it on.
+
+To undo, in Cloud Shell, the deploy identity's role first (so nothing can assign roles while the rest is removed),
+then the Function App's per-secret roles:
 
 ```bash
 az role assignment delete --assignee "$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv)" --role "Role Based Access Control Administrator" --scope "$(az group show -n rg-ceo-prod --query id -o tsv)"
-az role assignment delete --assignee "$(az resource show -g rg-ceo-prod -n func-ceo-besgu7fnckib2 --resource-type Microsoft.Web/sites --query identity.principalId -o tsv)" --role "Key Vault Secrets Officer" --scope "$(az keyvault show -n kv-ceo-besgu7fnckib2 --query id -o tsv)"
+(FN=$(az resource show -g rg-ceo-prod -n func-ceo-besgu7fnckib2 --resource-type Microsoft.Web/sites --query identity.principalId -o tsv); KV=$(az keyvault show -g rg-ceo-prod -n kv-ceo-besgu7fnckib2 --query id -o tsv); for S in claude-api-key gemini-api-key fantasypros polymarket-us-key-id polymarket-us-secret-key gmail-client-id gmail-client-secret paypal-client-id paypal-client-secret elevenlabs openai email-skip-terms; do az role assignment delete --assignee "$FN" --role "Key Vault Secrets Officer" --scope "$KV/secrets/$S"; done)
 ```
 
-After the first, the deploy goes back to skipping the template (and says so); after the second, the Keys form's
-writes answer "the Key Vault said no" and nothing else changes.
+After the first line, the deploy goes back to skipping the template (and says so); after the second, the Keys form's
+writes answer "the Key Vault said no" and nothing else changes. The placeholders can stay: they read as not set.
 
 **Keys from the Desk.** The Keys form ([SECURITY.md](SECURITY.md), "Setting keys from the Desk") writes with the
 Function App's own identity. A key set there reaches the running app within two minutes without a restart: each

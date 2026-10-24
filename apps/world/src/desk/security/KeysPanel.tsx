@@ -62,9 +62,15 @@ function KeyItem({ row, now, open, canSet, onOpen, onDone }: { row: KeyRow; now:
   const [note, setNote] = useState("");
 
   useEffect(() => {
-    if (open) prepareStepUp();
-    else setValue("");
+    if (!open) setValue("");
   }, [open]);
+
+  // The step-up is for this name and value only (by hash), so it is fetched ahead once typing pauses.
+  useEffect(() => {
+    if (!open || !value.trim()) return;
+    const t = setTimeout(() => void prepareStepUp(row.name, value), 400);
+    return () => clearTimeout(t);
+  }, [open, value, row.name]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();

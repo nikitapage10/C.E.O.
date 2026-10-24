@@ -136,12 +136,22 @@ jobs:
           az functionapp config appsettings list -g "$RG" -n "$APP" -o json --query "[].name" > names.json
           cap=$(az monitor log-analytics workspace show -g "$RG" -n log-ceo --query workspaceCapping.dailyQuotaGb -o tsv 2>/dev/null || true)
           if [ -z "$DEPLOYER" ]; then
-            vault=$(az keyvault list -g "$RG" --query "[0].id" -o tsv)
+            # The vault by name, never the group's first: the one the Function App's KEY_VAULT_URI names, else the
+            # group's only kv-ceo-* vault. With neither, or more than one, the deployer's roles are left alone.
+            kvname=$(az functionapp config appsettings list -g "$RG" -n "$APP" -o tsv \
+              --query "[?name=='KEY_VAULT_URI'].value | [0]" | sed -E 's#^https://([^.]+)\.vault\.azure\.net/?$#\1#')
+            if [ -z "$kvname" ] || [[ "$kvname" == *[!a-zA-Z0-9-]* ]]; then
+              kvname=$(az keyvault list -g "$RG" --query "[?starts_with(name, 'kv-ceo-')].name" -o json | jq -r 'if length == 1 then .[0] else "" end')
+            fi
+            vault=""
+            [ -n "$kvname" ] && vault=$(az keyvault show -g "$RG" -n "$kvname" --query id -o tsv 2>/dev/null || true)
             # The person the first paste gave Key Vault Secrets Officer (the Function App's own Officer role is a
             # service principal's). Exactly one, or none: with none, the deployer's roles are left as they are.
-            az role assignment list --scope "$vault" --fill-principal-name false \
-              --query "[?principalType=='User' && roleDefinitionName=='Key Vault Secrets Officer'].principalId" -o json > officers.json
-            DEPLOYER=$(jq -r 'if length == 1 then .[0] else "" end' officers.json)
+            if [ -n "$vault" ]; then
+              az role assignment list --scope "$vault" --fill-principal-name false \
+                --query "[?principalType=='User' && roleDefinitionName=='Key Vault Secrets Officer'].principalId" -o json > officers.json
+              DEPLOYER=$(jq -r 'if length == 1 then .[0] else "" end' officers.json)
+            fi
           fi
           set +e
           node scripts/azure-infra.mjs params --main main.json --bicep infra/resources.bicep --live live.json --names names.json \
@@ -158,21 +168,35 @@ jobs:
             exit "$code"
           fi
       - name: What-if
+        id: whatif
         if: steps.params.outputs.go == 'true'
         env:
           RG: ${{ steps.az.outputs.rg }}
+        # The apply below runs only on `ok=true`, written here only when the helper exits 0. pipefail keeps tee from
+        # hiding its exit: 4 (the run would delete something) skips the apply and says so; anything else fails red.
         run: |
+          set -o pipefail
           az deployment group what-if -g "$RG" -n ceo-resources -f infra/resources.bicep -p @params.json \
             --no-pretty-print -o json > whatif.json
+          set +e
           node scripts/azure-infra.mjs whatif whatif.json | tee whatif.txt
+          code=$?
+          set -e
           { echo '### What-if'; echo; echo '```'; cat whatif.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" = 0 ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          elif [ "$code" = 4 ]; then
+            echo "::warning::The template isn't applied: the what-if would delete something (see the summary). The code still ships."
+          else
+            exit "$code"
+          fi
       - name: Apply the template
-        if: steps.params.outputs.go == 'true'
+        if: steps.params.outputs.go == 'true' && steps.whatif.outputs.ok == 'true'
         env:
           RG: ${{ steps.az.outputs.rg }}
         run: az deployment group create -g "$RG" -n ceo-resources -f infra/resources.bicep -p @params.json -o none
       - name: Re-read the Key Vault references
-        if: steps.params.outputs.go == 'true'
+        if: steps.params.outputs.go == 'true' && steps.whatif.outputs.ok == 'true'
         env:
           RG: ${{ steps.az.outputs.rg }}
           APP: ${{ steps.az.outputs.name }}

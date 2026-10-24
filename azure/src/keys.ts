@@ -12,7 +12,7 @@
  * itself.) Logs carry setting names only.
  */
 
-import { SETTABLE_KEYS } from "../../api/_keys/allowlist.js";
+import { SETTABLE_KEYS, isPlaceholder, settable } from "../../api/_keys/allowlist.js";
 import type { SecretDates } from "../../api/_keys/vault.js";
 
 type Env = Record<string, string | undefined>;
@@ -41,8 +41,8 @@ export class KeyRefresh {
 
   /** A value just written from this instance: the setting takes it now, and the next look won't read it again. */
   noteSet(secret: string, value: string, updated: number | null): void {
-    const key = SETTABLE_KEYS.find((k) => k.secret === secret);
-    if (!key) return;
+    const key = settable(secret);
+    if (!key || isPlaceholder(value)) return;
     this.apply(key.setting, value);
     this.loaded.set(secret, updated);
   }
@@ -80,12 +80,14 @@ export class KeyRefresh {
     const dates = await this.source.dates();
     const changed: string[] = [];
     await Promise.all(
-      SETTABLE_KEYS.map(async (k) => {
+      // The allowlist through settable(), so a name on the never list is skipped here too, even if added above by
+      // mistake. A placeholder (the role paste's, by tag or by value) is never taken for a key.
+      SETTABLE_KEYS.filter((k) => settable(k.secret) !== null).map(async (k) => {
         const d = dates.get(k.secret);
-        if (!d?.enabled) return;
+        if (!d?.enabled || d.placeholder) return;
         if (this.loaded.has(k.secret) && this.loaded.get(k.secret) === d.updated) return;
         const value = await this.source.read(k.secret);
-        if (value === null) return;
+        if (value === null || isPlaceholder(value)) return;
         const before = this.env[k.setting];
         this.apply(k.setting, value);
         this.loaded.set(k.secret, d.updated);

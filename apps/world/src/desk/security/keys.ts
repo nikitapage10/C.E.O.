@@ -67,21 +67,34 @@ export const SET_NOTE: Record<Exclude<SetResult, "ok">, string> = {
 const post = (f: typeof fetch, body: unknown) => f("/api/keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" });
 
 /**
- * The step-up's options fetched ahead (when the form opens), so the tap goes straight to the passkey prompt: some
- * browsers only show it while the tap is fresh. The challenge lasts two minutes; these are used for ninety seconds.
+ * What the step-up is bound to (#330, api/_keys/route.ts, writeHash): sha256(name + "\n" + value), hex, over the value
+ * as the server will store it (trimmed). The server hands out a passkey request for that hash only, and refuses the
+ * answer for any other name or value.
  */
-let ahead: { options: Promise<Response | null>; at: number } | null = null;
-const AHEAD_MS = 90_000;
-
-export function prepareStepUp(f: typeof fetch = fetch): void {
-  if (ahead && Date.now() - ahead.at < AHEAD_MS) return;
-  ahead = { options: post(f, { action: "options" }).catch(() => null), at: Date.now() };
+export async function writeHash(name: string, value: string, subtle: SubtleCrypto = globalThis.crypto.subtle): Promise<string> {
+  const digest = await subtle.digest("SHA-256", new TextEncoder().encode(`${name}\n${value.trim()}`));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function takeOptions(f: typeof fetch): Promise<Response | null> {
-  const fresh = ahead && Date.now() - ahead.at < AHEAD_MS ? ahead.options : null;
+/**
+ * The step-up's options fetched ahead (once the value has been typed), so the tap goes straight to the passkey
+ * prompt: some browsers only show it while the tap is fresh. Each is for one name and value (by hash), so a changed
+ * value fetches again. The challenge lasts two minutes; these are used for ninety seconds.
+ */
+let ahead: { h: string; options: Promise<Response | null>; at: number } | null = null;
+const AHEAD_MS = 90_000;
+
+export async function prepareStepUp(name: string, value: string, f: typeof fetch = fetch): Promise<void> {
+  if (!value.trim()) return;
+  const h = await writeHash(name, value).catch(() => null);
+  if (!h || (ahead && ahead.h === h && Date.now() - ahead.at < AHEAD_MS)) return;
+  ahead = { h, options: post(f, { action: "options", h }).catch(() => null), at: Date.now() };
+}
+
+function takeOptions(h: string, f: typeof fetch): Promise<Response | null> {
+  const fresh = ahead && ahead.h === h && Date.now() - ahead.at < AHEAD_MS ? ahead.options : null;
   ahead = null;
-  return fresh ?? post(f, { action: "options" }).catch(() => null);
+  return fresh ?? post(f, { action: "options", h }).catch(() => null);
 }
 
 const ERROR: Record<string, SetResult> = { "step-up": "step-up", "not-allowed": "not-allowed", "bad-value": "bad-value", "no-vault": "no-vault", vault: "vault", "signed-out": "out" };
@@ -89,7 +102,9 @@ const ERROR: Record<string, SetResult> = { "step-up": "step-up", "not-allowed": 
 /** Sets one key: the passkey prompt (the step-up), then the write. */
 export async function setKey(name: string, value: string, f: typeof fetch = fetch, creds: CredentialsContainer | null = typeof navigator === "undefined" ? null : navigator.credentials): Promise<SetResult> {
   if (!canPasskey() || !creds) return "unsupported";
-  const opts = await takeOptions(f);
+  const h = await writeHash(name, value).catch(() => null);
+  if (!h) return "unsupported";
+  const opts = await takeOptions(h, f);
   if (!opts) return "failed";
   if (opts.status === 401) return "out";
   if (opts.status === 429) return "locked";

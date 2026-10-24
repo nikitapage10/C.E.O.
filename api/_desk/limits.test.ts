@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FORGET_MS, Gate, RULES, addressOf, failed, prune, waitOf, type Bucket, type Limits } from "./limits.ts";
-import { MemoryAuthStore } from "./store.ts";
+import { BlobPreconditionError, type BlobBackend, type PutOptions } from "../_blob.ts";
+import { BlobAuthStore, MemoryAuthStore } from "./store.ts";
 
 const NOW = Date.parse("2026-10-14T09:00:00Z");
 const MIN = 60_000;
@@ -89,5 +90,41 @@ describe("the gate keeps its counters in the shared store (#132)", () => {
     expect((await Gate.open(store, "signin", "198.51.100.2", KEY, NOW + MIN)).spent("challenge-1")).toBe(true);
     expect((await Gate.open(store, "signin", "198.51.100.2", KEY, NOW + MIN)).spent("challenge-2")).toBe(false);
     expect(JSON.stringify(await store.limits())).not.toContain("challenge-1");
+  });
+});
+
+describe("a step-up challenge is spent atomically (#330)", () => {
+  /** A blob store with the real write rule: no overwrite unless allowed (If-None-Match: * on Azure). */
+  const blob = () => {
+    const files = new Map<string, string>();
+    const backend: BlobBackend = {
+      kind: "azureblob",
+      get: async () => null,
+      etag: async () => null,
+      async put(path: string, body: string | ArrayBuffer | Uint8Array, opts: PutOptions) {
+        if (!opts.allowOverwrite && files.has(path)) throw new BlobPreconditionError("already exists");
+        files.set(path, String(body));
+        return { pathname: path };
+      },
+      del: async () => undefined,
+    };
+    return { files, backend };
+  };
+
+  it("gives the claim to the first caller only, with a create-if-absent write named by a hash", async () => {
+    const { files, backend } = blob();
+    const store = new BlobAuthStore(backend);
+    const a = await Gate.open(store, "signin", "203.0.113.9", KEY, NOW);
+    const b = await Gate.open(store, "signin", "198.51.100.2", KEY, NOW);
+    expect(await Promise.all([a.claim("challenge-1", NOW + MIN), b.claim("challenge-1", NOW + MIN)])).toEqual([true, false]);
+    expect(await b.claim("challenge-2", NOW + MIN)).toBe(true);
+    expect([...files.keys()].every((k) => /^desk\/auth\/spent\/[a-f0-9]{32}\.json$/.test(k))).toBe(true);
+    expect([...files.keys()].join()).not.toContain("challenge");
+  });
+
+  it("refuses an id that isn't a hash, and passes on any other store error", async () => {
+    const store = new BlobAuthStore({ ...blob().backend, put: async () => Promise.reject(new Error("down")) });
+    expect(await store.claim("../x", 0)).toBe(false);
+    await expect(store.claim("a".repeat(32), 0)).rejects.toThrow("down");
   });
 });

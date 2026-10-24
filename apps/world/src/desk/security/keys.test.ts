@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { keyLine, loadKeys, setKey, type KeyRow } from "./keys.ts";
+import { writeHash as serverHash } from "../../../../../api/_keys/route.ts";
+import { keyLine, loadKeys, setKey, writeHash, type KeyRow } from "./keys.ts";
 
 const NOW = Date.parse("2026-10-23T23:30:00Z");
 const row = (over: Partial<KeyRow>): KeyRow => ({ name: "claude-api-key", label: "Claude", from: "x", set: true, updated: null, lastSet: null, ...over });
@@ -24,5 +25,10 @@ describe("the Keys form, browser side (#330)", () => {
     const f = (async () => ((called = true), new Response("{}"))) as unknown as typeof fetch;
     expect(await setKey("claude-api-key", "v", f, null)).toBe("unsupported");
     expect(called).toBe(false);
+  });
+
+  it("hashes the write exactly as the server does, over the trimmed value", async () => {
+    expect(await writeHash("claude-api-key", "  v-123\n")).toBe(serverHash("claude-api-key", "v-123"));
+    expect(await writeHash("claude-api-key", "v")).not.toBe(await writeHash("gemini-api-key", "v"));
   });
 });

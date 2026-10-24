@@ -1,7 +1,8 @@
 /**
- * The keys the Desk's Keys form may set (#330, docs/SECURITY.md, "Setting keys from the Desk"). The Function App's
- * identity can write any secret in the vault (Azure gives Key Vault Secrets Officer vault-wide), so this list is the
- * real guard: a name that isn't here can't be set from the Desk, whatever the request says.
+ * The keys the Desk's Keys form may set (#330, docs/SECURITY.md, "Setting keys from the Desk"). Azure is the first
+ * guard: the role paste (docs/AZURE.md) gives the Function App's identity Key Vault Secrets Officer on each of these
+ * secrets alone, never on the vault, so it can't write any other secret whatever the code does. This list is defence
+ * in depth on top of that: a name that isn't here is refused before the vault is called, whatever the request says.
  *
  * On it: third-party API keys and settings, which Nikita gets from another service and pastes in. Off it, by design:
  * everything that guards the lock, the crew or sealed data (the Desk key, the site bypass, the pings secret, the
@@ -65,6 +66,18 @@ export function settable(name: unknown): SettableKey | null {
   return SETTABLE_KEYS.find((k) => k.secret === name) ?? null;
 }
 
+/**
+ * The value the role paste gives a secret it has to create (#330, docs/AZURE.md), so that it exists for its own
+ * per-secret role, with the tag below. Never a key: the Desk shows such a secret as not set, the key refresh and the
+ * start-up (azure/src/env.ts) treat it as unset, and the form won't take it as a value.
+ */
+export const KEY_PLACEHOLDER = "ceo-placeholder-not-a-key";
+/** The tag the paste puts on a placeholder's version; setting a real value writes a new, untagged version. */
+export const PLACEHOLDER_TAG = "ceo-placeholder";
+
+/** Whether a value is the role paste's placeholder rather than a key. */
+export const isPlaceholder = (value: string | null | undefined): boolean => typeof value === "string" && value.trim() === KEY_PLACEHOLDER;
+
 /** The most a value may be: far above any key on the list (Key Vault's own limit is 25 KB). */
 export const MAX_VALUE = 4096;
 
@@ -72,7 +85,7 @@ export const MAX_VALUE = 4096;
 export function cleanValue(given: unknown): string | null {
   if (typeof given !== "string") return null;
   const value = given.trim();
-  if (!value || value.length > MAX_VALUE) return null;
+  if (!value || value.length > MAX_VALUE || isPlaceholder(value)) return null;
   // One line of printable text: a stray paste of something else (a file, a whole page) doesn't land as a key.
   for (const ch of value) {
     const code = ch.charCodeAt(0);

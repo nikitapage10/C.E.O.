@@ -5,8 +5,8 @@ import { CHALLENGE_COOKIE, SESSION_COOKIE } from "../_desk/session.ts";
 import { SoftPasskey } from "../_desk/softPasskey.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { handlePost as authPost } from "../desk-auth.ts";
-import { MAX_VALUE, NEVER_SETTABLE, SETTABLE_KEYS, cleanValue, settable } from "./allowlist.ts";
-import { STEPUP_S, handleGet, handlePost, type KeysDeps } from "./route.ts";
+import { KEY_PLACEHOLDER, MAX_VALUE, NEVER_SETTABLE, SETTABLE_KEYS, cleanValue, settable } from "./allowlist.ts";
+import { STEPUP_S, handleGet, handlePost, writeHash, type KeysDeps } from "./route.ts";
 import { MemoryKeyTrail } from "./trail.ts";
 import type { KeyWriter, SecretDates } from "./vault.ts";
 
@@ -26,14 +26,19 @@ class FakeVault implements KeyWriter {
   stamps = new Map<string, SecretDates>([
     ["claude-api-key", { enabled: true, updated: NOW - 86_400_000 }],
     ["foundry-desk-key", { enabled: true, updated: NOW - 86_400_000 }],
+    // Created by the role paste so it can have its own role; not a key yet.
+    ["gemini-api-key", { enabled: true, updated: NOW - 86_400_000, placeholder: true }],
   ]);
   fail = false;
+  writes = 0;
   async dates() {
     return new Map(this.stamps);
   }
   async set(name: string, value: string) {
     if (this.fail) throw new Error(`refused ${value}`);
+    this.writes += 1;
     this.written.set(name, value);
+    // A new version, untagged: a placeholder stops being one.
     this.stamps.set(name, { enabled: true, updated: NOW });
     return { updated: NOW };
   }
@@ -77,9 +82,13 @@ class Browser {
   async get() {
     return this.keep(await handleGet(new Request(`${ORIGIN}/api/keys`, { headers: this.headers() }), this.deps()));
   }
+  /** The step-up's passkey request, for one name and value (by hash), as the Desk asks for it. */
+  async options(name = "claude-api-key", value = VALUE) {
+    return this.post({ action: "options", h: writeHash(name, value.trim()) });
+  }
   /** The whole step-up and write, as the Desk does it. */
   async set(passkey: SoftPasskey, name: string, value = VALUE) {
-    const opts = await this.post({ action: "options" });
+    const opts = await this.options(name, value);
     if (!opts.ok) return opts;
     return this.post({ action: "set", name, value, response: passkey.get((await opts.json()) as { challenge: string; rpId: string }) });
   }
@@ -153,7 +162,7 @@ describe("setting a key from the Desk (#330)", () => {
 
   it("refuses without a session, before looking at anything else", async () => {
     const b = new Browser();
-    for (const body of [{ action: "options" }, { action: "set", name: "claude-api-key", value: VALUE }, { action: "set", name: "foundry-desk-key", value: VALUE }]) {
+    for (const body of [{ action: "options", h: writeHash("claude-api-key", VALUE) }, { action: "set", name: "claude-api-key", value: VALUE }, { action: "set", name: "foundry-desk-key", value: VALUE }]) {
       const res = await b.post(body);
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: "signed-out" });
@@ -169,12 +178,12 @@ describe("setting a key from the Desk (#330)", () => {
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "step-up" });
     // A real challenge, answered by a passkey that isn't this session's.
-    const opts = (await (await b.post({ action: "options" })).json()) as { challenge: string; rpId: string; allowCredentials: { id: string }[] };
+    const opts = (await (await b.options()).json()) as { challenge: string; rpId: string; allowCredentials: { id: string }[] };
     expect(opts.allowCredentials.map((c) => c.id)).toEqual([passkey.get(opts).id]);
     res = await b.post({ action: "set", name: "claude-api-key", value: VALUE, response: new SoftPasskey().get(opts) });
     expect(res.status).toBe(401);
     // An answer to a challenge the server never gave.
-    await b.post({ action: "options" });
+    await b.options();
     res = await b.post({ action: "set", name: "claude-api-key", value: VALUE, response: passkey.get({ challenge: "made-up", rpId: "ceo.test" }) });
     expect(res.status).toBe(401);
     expect(b.vault.written.size).toBe(0);
@@ -182,20 +191,64 @@ describe("setting a key from the Desk (#330)", () => {
 
   it("refuses one answer twice, and a step-up older than two minutes", async () => {
     const { b, passkey } = await signedIn();
-    const opts = (await (await b.post({ action: "options" })).json()) as { challenge: string; rpId: string };
+    const opts = (await (await b.options("gemini-api-key")).json()) as { challenge: string; rpId: string };
     const cookie = b.jar.get(CHALLENGE_COOKIE.keys)!;
     let res = await b.post({ action: "set", name: "gemini-api-key", value: VALUE, response: passkey.get(opts) });
     expect(res.status).toBe(200);
-    // The same challenge cookie and a fresh signature over the same challenge: spent.
+    // The same challenge cookie and a fresh signature over the same challenge, for the same write: spent.
     b.jar.set(CHALLENGE_COOKIE.keys, cookie);
-    res = await b.post({ action: "set", name: "openai", value: VALUE, response: passkey.get(opts) });
+    res = await b.post({ action: "set", name: "gemini-api-key", value: VALUE, response: passkey.get(opts) });
     expect(res.status).toBe(401);
     // A new challenge, answered too late.
-    const late = (await (await b.post({ action: "options" })).json()) as { challenge: string; rpId: string };
+    const late = (await (await b.options()).json()) as { challenge: string; rpId: string };
     b.now = NOW + (STEPUP_S + 1) * 1000;
     res = await b.post({ action: "set", name: "claude-api-key", value: VALUE, response: passkey.get(late) });
     expect(res.status).toBe(401);
     expect([...b.vault.written.keys()]).toEqual(["gemini-api-key"]);
+  });
+
+  it("binds the step-up to one name and value: any other is refused, and so is a request without the hash", async () => {
+    const { b, passkey } = await signedIn();
+    // No hash, or one that isn't sha256 hex: no passkey request at all.
+    for (const h of [undefined, "", "abc", writeHash("claude-api-key", VALUE).toUpperCase(), 7]) expect((await b.post({ action: "options", h })).status, String(h)).toBe(400);
+    // Asked for claude-api-key with VALUE; answered, then sent with another name, then another value.
+    let opts = (await (await b.options("claude-api-key", VALUE)).json()) as { challenge: string; rpId: string };
+    let res = await b.post({ action: "set", name: "gemini-api-key", value: VALUE, response: passkey.get(opts) });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "step-up" });
+    opts = (await (await b.options("claude-api-key", VALUE)).json()) as { challenge: string; rpId: string };
+    res = await b.post({ action: "set", name: "claude-api-key", value: `${VALUE}-swapped`, response: passkey.get(opts) });
+    expect(res.status).toBe(401);
+    expect(b.vault.written.size).toBe(0);
+    // The hash is over the stored (trimmed) value, and the cookie never carries it plain.
+    opts = (await (await b.options("claude-api-key", VALUE)).json()) as { challenge: string; rpId: string };
+    expect(b.jar.get(CHALLENGE_COOKIE.keys)).not.toContain(writeHash("claude-api-key", VALUE));
+    res = await b.post({ action: "set", name: "claude-api-key", value: ` ${VALUE} `, response: passkey.get(opts) });
+    expect(res.status).toBe(200);
+    expect(b.vault.written.get("claude-api-key")).toBe(VALUE);
+  });
+
+  it("spends a challenge once even when two requests race with the same answer", async () => {
+    const { b, passkey } = await signedIn();
+    const opts = (await (await b.options("openai")).json()) as { challenge: string; rpId: string };
+    const first = passkey.get(opts);
+    const second = passkey.get(opts);
+    const results = await Promise.all([
+      b.post({ action: "set", name: "openai", value: VALUE, response: first }),
+      b.post({ action: "set", name: "openai", value: VALUE, response: second }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 401]);
+    expect(b.vault.writes).toBe(1);
+    // And a later replay of it, too.
+    expect((await b.post({ action: "set", name: "openai", value: VALUE, response: passkey.get(opts) })).status).toBe(401);
+    expect(b.vault.writes).toBe(1);
+  });
+
+  it("won't take the role paste's placeholder as a key", async () => {
+    const { b, passkey } = await signedIn();
+    const res = await b.set(passkey, "claude-api-key", KEY_PLACEHOLDER);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "bad-value" });
   });
 
   it("refuses names off the allowlist, even with a good step-up", async () => {
@@ -210,7 +263,7 @@ describe("setting a key from the Desk (#330)", () => {
 
   it("refuses other sites, other content types and oversized bodies", async () => {
     const { b } = await signedIn();
-    expect((await b.post({ action: "options" }, { origin: "https://evil.test" })).status).toBe(403);
+    expect((await b.post({ action: "options", h: writeHash("claude-api-key", VALUE) }, { origin: "https://evil.test" })).status).toBe(403);
     const form = await handlePost(new Request(`${ORIGIN}/api/keys`, { method: "POST", headers: b.headers({ "Content-Type": "text/plain" }), body: "{}" }), b.deps());
     expect(form.status).toBe(415);
     expect((await b.post({ action: "set", name: "claude-api-key", value: "x".repeat(20_000) })).status).toBe(413);
@@ -263,6 +316,7 @@ describe("what the Desk is shown (#330)", () => {
     expect(body.keys.find((k) => k.name === "claude-api-key")).toMatchObject({ set: true, updated: NOW - 86_400_000, lastSet: null });
     expect(body.keys.find((k) => k.name === "fantasypros")).toMatchObject({ set: true, updated: NOW, lastSet: NOW });
     expect(body.keys.find((k) => k.name === "openai")).toMatchObject({ set: false, updated: null });
+    expect(body.keys.find((k) => k.name === "gemini-api-key")).toMatchObject({ set: false });
     expect(JSON.stringify(body)).not.toContain("foundry-desk-key");
   });
 

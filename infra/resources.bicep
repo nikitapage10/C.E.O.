@@ -386,7 +386,8 @@ resource functionStorage 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
 // Read access to the vault's secrets: the Key Vault references, and the Keys form's refresh (azure/src/keys.ts).
 // Writing (the Desk's Keys form, #330) needs Key Vault Secrets Officer, which is granted by the one-time role paste in
 // docs/AZURE.md and deliberately not here: the deploy identity that applies this template may only assign the roles
-// listed in its condition, and giving any identity write on the vault is not one of them.
+// listed in its condition, and giving any identity write on the vault is not one of them. The paste grants it on each
+// allowlisted secret alone (`<vault>/secrets/<name>`), never on the vault.
 resource functionSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(vault.id, functionApp.id, roles.keyVaultSecretsUser)
   scope: vault

@@ -24,8 +24,11 @@ export const CHALLENGE_S = 5 * 60;
 
 /** `__Host-`: the browser keeps it only when it is Secure, for the whole site, and set by this host alone. */
 export const SESSION_COOKIE = "__Host-ceo-desk";
-/** One challenge cookie per step, so starting an enrolment never spoils a sign-in the Desk has ready, or the reverse. */
-export const CHALLENGE_COOKIE = { signin: "__Host-ceo-desk-signin", enrol: "__Host-ceo-desk-enrol" } as const;
+/**
+ * One challenge cookie per step, so starting an enrolment never spoils a sign-in the Desk has ready, or the reverse.
+ * `keys` is the Keys form's step-up (#330, api/_keys/route.ts): a fresh passkey answer for each key it sets.
+ */
+export const CHALLENGE_COOKIE = { signin: "__Host-ceo-desk-signin", enrol: "__Host-ceo-desk-enrol", keys: "__Host-ceo-desk-keys" } as const;
 
 export interface Session {
   t: "session";
@@ -38,13 +41,15 @@ export interface Session {
 }
 
 export interface Challenge {
-  t: "enrol" | "signin";
+  t: "enrol" | "signin" | "keys";
   /** The WebAuthn challenge, base64url. */
   ch: string;
   /** Ends at (s). */
   e: number;
   /** Enrolment only: the device's label, as Nikita gave it. */
   label?: string;
+  /** The Keys form only (#330): the one write this step-up is for, as a keyed hash of sha256(name + "\n" + value). */
+  h?: string;
 }
 
 const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");
@@ -95,7 +100,7 @@ export function sessionOf(key: Buffer, token: string | null | undefined, now: nu
 export function challengeOf(key: Buffer, token: string | null | undefined, step: Challenge["t"], now: number): Challenge | null {
   const p = readToken(key, token);
   if (!p || p.t !== step || typeof p.ch !== "string" || typeof p.e !== "number" || p.e <= Math.floor(now / 1000)) return null;
-  return { t: step, ch: p.ch, e: p.e, ...(typeof p.label === "string" && { label: p.label }) };
+  return { t: step, ch: p.ch, e: p.e, ...(typeof p.label === "string" && { label: p.label }), ...(typeof p.h === "string" && { h: p.h }) };
 }
 
 /** A Set-Cookie value for one of the Desk's cookies; a max age of 0 clears it. */

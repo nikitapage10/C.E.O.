@@ -1201,7 +1201,9 @@ export const WORLD_CAST: WorldCast = {
         "Clock pipe. Due at five past. Watch. ...Ticked. Hm.",
         "Every hour, the world moves. Every hour, I expect it won't.",
         "Nightly backup. Due at 10:41. Started late. Always late. Omens.",
-        "Nine jobs on the board. All green. I don't trust it."
+        "Nine jobs on the board. All green. I don't trust it.",
+        "New pipe. GitHub to the template. What-if first. ...It says nothing changes. Suspicious.",
+        "Keys go in through a slot. Nothing comes back out. Finally, a pipe I like."
       ],
       "putty": [
         "Wait. No. Better idea.",
@@ -1258,7 +1260,9 @@ export const WORLD_CAST: WorldCast = {
         "HONK HONK. (Clock pipe's coughing. An hour's late. Fetching the tape.)",
         "Honk. (The house pipe. Still cold. Polished the gauges anyway.)",
         "HOOONK. (Pushed the boiler into the corner. Now you can see every pipe. You're welcome.)",
-        "Honk honk. (Red collar, red plate, red light. That one's down. Tape.)"
+        "Honk honk. (Red collar, red plate, red light. That one's down. Tape.)",
+        "Honk. (New key in the slot. Didn't look at it. Not allowed to look at it. Good.)",
+        "HONK. (Template pipe ran before the code pipe. In order. Logged it twice.)"
       ],
       "daub": [
         "Hold still. You're my next canvas.",

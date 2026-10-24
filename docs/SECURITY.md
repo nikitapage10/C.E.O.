@@ -323,14 +323,53 @@ only ever go to a device whose passkey is still enrolled. The phone's own settin
 on an iPhone) can mute them as well. **To stop all pings at once**, delete `DESK_PINGS_SECRET` (or the VAPID keys)
 in the Key Vault and restart the Function App.
 
+## Setting keys from the Desk
+
+Since #330, a third-party key is set or replaced on the Desk instead of in Cloud Shell: **Boiler Room → Security →
+Keys**, signed in. It is write-only by design:
+
+- **Only allowlisted names** (`api/_keys/allowlist.ts`): `claude-api-key`, `gemini-api-key`, `fantasypros`,
+  `polymarket-us-key-id`, `polymarket-us-secret-key`, `gmail-client-id`, `gmail-client-secret`, `paypal-client-id`,
+  `paypal-client-secret`, `elevenlabs`, `openai` and `email-skip-terms`. Never anything that guards the lock, the crew
+  or sealed data: `foundry-desk-key`, `site-bypass-token`, `desk-pings-secret`, `foundry-github-token`,
+  `foundry-app-*`, `desk-vapid-*`, `gmail-token-key` and `submind-*` are refused by name and by pattern, so a stolen
+  session can't hand itself a way back in. A unit test pins both lists and puts every secret in the template on
+  exactly one.
+- **Per-secret scope in Azure first, the allowlist on top.** The role paste (AZURE.md, "The template on every
+  deploy") gives the Function App's identity Key Vault Secrets Officer on each of those twelve secrets alone
+  (`<vault>/secrets/<name>`), never on the vault, so Azure itself refuses a write to any other secret, whatever the
+  code does. The allowlist in code is defence in depth on top of that scope: an off-list name is refused before the
+  vault is called. A secret the paste had to create so it could carry its role holds a tagged placeholder
+  (`ceo-placeholder-not-a-key`, tag `ceo-placeholder`), never a key: the Desk shows it as not set, the app treats it
+  as unset at start-up and in the key refresh, and the form won't take it as a value.
+- **A fresh passkey for every write, bound to that write.** The session cookie alone sets nothing: `POST /api/keys`
+  needs a passkey answer from that session's own passkey to a challenge handed out in the last two minutes, checked by
+  the same WebAuthn code as the sign-in (`api/_desk/assert.ts`). The challenge is asked for one write: the browser
+  sends h = sha256(name + "\n" + value) for its options, the signed challenge cookie keeps a keyed hash of h, and the
+  set is refused unless its own name and value hash to the same, so an answer can't be spent on another key or value.
+  It is used once: the challenge is marked spent with an atomic create-if-absent write in the private store
+  (`If-None-Match: *`, `claim` in `api/_desk/store.ts`) before the vault is called, so two requests racing with one
+  answer can't both write. A failed step-up counts against the sign-in's lockout.
+- **Nothing comes back.** The route can set or replace a value; it can't read one, list values or delete
+  (`api/_keys/vault.ts` has only `set` and the vault's list of names and dates). The Desk sees each key's name,
+  whether it is set and when, never a value, a length or a hash. The vault's answer to a write, which repeats the
+  value, is dropped in `azure/src/vault.ts`. The trail (`desk/keys/trail.json`) and the log keep the name and the time
+  only; a test checks the value appears in no answer, log line or trail entry.
+- **The usual Desk-write guards:** JSON only, same origin, `SameSite=Strict` cookie, a 16 KB body and a 4 KB
+  one-line value at most, and six writes in a row before a wait (then a 15-minute lockout).
+- **How the app picks it up:** each instance checks the vault's dates at most every two minutes and reads only an
+  allowlisted key newer than its own copy into that one setting (`azure/src/keys.ts`); the instance that wrote it takes
+  it at once. That needs only Key Vault Secrets User, which the app already had.
+
 ## Keys and settings in the Key Vault
 
 Every secret lives only in the Azure Key Vault (#313), as a Key Vault reference in the Function App's settings, read
-by the app's own identity; never in the repo or the browser, and no function logs or returns one. The names below
-are the app settings; the vault's secret for each is in [AZURE.md](AZURE.md) ("After the paste"). The budgets and
-`WORLD_STORE` are plain app settings the template writes. Which environments get each is in [DELIVERY.md](DELIVERY.md),
-"Environments". Which environments get each is in [DELIVERY.md](DELIVERY.md),
-"Environments".
+by the app's own identity; never in the repo or the browser, and no function logs or returns one. Since #330 the
+template is applied by the deploy on every merge (AZURE.md, "The template on every deploy"), and the third-party keys
+above can be written from the Desk. The names below
+are the app settings; the vault's secret for each is in [AZURE.md](AZURE.md) ("After the paste"). The budgets,
+`WORLD_STORE` and `KEY_VAULT_URI` (the vault's address, for the Keys form) are plain app settings the template
+writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environments".
 
 | Variable | What it is for | Without it |
 | --- | --- | --- |
@@ -373,6 +412,18 @@ are the app settings; the vault's secret for each is in [AZURE.md](AZURE.md) ("A
 Every action in the workflows is pinned to a full commit SHA with its version in a comment, so a moved tag can't
 change what runs. Dependabot proposes the bumps. Each workflow starts with read-only permissions and grants write
 access only to the job that needs it.
+
+## What GitHub can do in Azure
+
+The deploy signs in to Azure with OIDC, trusted only for this repo's `azure` environment, which only `main` may use
+(GitHub: Settings → Environments → `azure` → Deployment branches: `main`). It holds Contributor on `rg-ceo-prod`, blob
+data access, Key Vault Secrets User, and (#330) Role Based Access Control Administrator on `rg-ceo-prod` with a
+condition: it may assign only the template's own roles, each only to the identity the template names (the Function
+App, Nikita, itself), and may never delete an assignment. It can't grant itself anything new, can't write a secret,
+and has nothing outside the group. The job that applies the template runs only on a push to `main` (or a run by hand
+from `main`), pins every action by SHA, reads back what is live before applying so nothing is reset, and prints only
+names, plain values and property paths. The role design and the paste are in [AZURE.md](AZURE.md), "The template on
+every deploy".
 
 ## Keys in GitHub Actions
 
@@ -522,7 +573,11 @@ Agents can't change repo settings, so these are clicks for Nikita, once. In the 
 8. **Optional, make the scans required:** Settings > Branches (or Rules > Rulesets) > the rule for `main` >
    Require status checks to pass > add "checks", "Analyze (javascript-typescript)", "Analyze (actions)" and
    "Dependency review".
-9. **Visual QA's key (optional):** Settings > Secrets and variables > Actions > New repository secret, named
+9. **The `azure` environment is for `main` only:** Settings > Environments > `azure` > Deployment branches and tags >
+   **Selected branches and tags** > `main` only (no other rule), and no `pull_request` workflow uses it. Azure trusts
+   any job in that environment, and since #330 that job can apply the template, so this setting is what keeps it to
+   `main`.
+10. **Visual QA's key (optional):** Settings > Secrets and variables > Actions > New repository secret, named
    `GEMINI_API_KEY`, with a key from Google AI Studio on a paid-tier project (the free tier lets Google use what it is
    sent to improve its products). Until it is set, Visual QA records the clips and skips the review. Setting a
    budget alert on that Google project backs up the caps in code.

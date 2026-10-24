@@ -1503,6 +1503,25 @@
   .desk .wv-sec-road .roadmap__side{align-items:flex-start}
 }
 
+/* ---------- Security: the Keys form (#330) ---------- */
+.desk .wv-keys{margin:0 0 24px}
+.desk .wv-keys-intro{max-width:78ch;line-height:1.5;margin:4px 0 14px}
+.desk .wv-keys-l{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.desk .wv-kf{padding:10px 0;border-top:1px solid var(--wv-line);min-width:0}
+.desk .wv-kf-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.desk .wv-kf-n{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 220px}
+.desk .wv-kf-n b{font-weight:500;font-size:14px;color:var(--wv-ink)}
+.desk .wv-kf-n code{font-family:var(--wv-mono);font-size:11.5px;color:var(--wv-faint);overflow-wrap:anywhere}
+.desk .wv-kf-s{font-size:12.5px;color:var(--wv-mute);flex:1 1 200px;padding-left:14px;position:relative}
+.desk .wv-kf-s::before{content:"";position:absolute;left:0;top:.45em;width:6px;height:6px;border-radius:50%;background:var(--wv-faint)}
+.desk .wv-kf.is-ok .wv-kf-s::before{background:var(--wv-ok);box-shadow:0 0 6px var(--wv-ok)}
+.desk .wv-kf.is-wait .wv-kf-s::before{background:transparent;border:1px dashed var(--wv-mute)}
+.desk .wv-kf-f{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 14px;margin-top:10px}
+.desk .wv-kf-f label{display:flex;flex-direction:column;gap:4px;flex:1 1 260px;min-width:0}
+.desk .wv-kf-f input{font:inherit;font-family:var(--wv-mono);font-size:13px;padding:8px 10px;border-radius:6px;border:1px solid var(--wv-line2);background:rgba(0,0,0,.25);color:var(--wv-ink);width:100%;box-sizing:border-box}
+.desk .wv-kf-f input:focus-visible{outline:none;border-color:var(--wv-hot-line)}
+.desk .wv-kf .desk-auth__note{margin:8px 0 0}
+
 /* ---------- Chronicle, Desk-only ---------- */
 .desk .wv-days{display:flex;gap:6px;overflow-x:auto;margin:-6px 0 26px;padding-bottom:4px;scrollbar-width:none}
 .desk .wv-days::-webkit-scrollbar{display:none}

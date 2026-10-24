@@ -11,9 +11,13 @@ import { startEmail, useEmail } from "./email/email.ts";
 import { TodayCouncil } from "./TodayCouncil.tsx";
 import { Icon } from "./todayIcons.tsx";
 import { TodayNow } from "./TodayNow.tsx";
-import { TodayRail } from "./TodayRail.tsx";
 import { DAY_STRIP_MS, usePulses } from "./usePulses.ts";
+import { TodayBroadcast } from "./DayStory.tsx";
+import { nextEdition, until } from "./todaySchedule.ts";
 import { SkippyAsk } from "./skippy/index.ts";
+import "@fontsource-variable/bodoni-moda/opsz.css";
+import "@fontsource-variable/bodoni-moda/opsz-italic.css";
+import "@fontsource-variable/jost/wght.css";
 import "./today.css";
 
 /** The rest of Today, loaded the first time "Not worth knowing now" is opened (or in the idle time after first paint). */
@@ -21,13 +25,14 @@ export const loadTodayMore = () => import("./TodayMore.tsx");
 const TodayMore = lazy(() => loadTodayMore().then((m) => ({ default: m.TodayMore })));
 
 /**
- * Today (#363, Nikita 2026-10-24: "the focus is what do I need to know right now?… the world clock stuff, what the
- * crew does next, little schedule, things not worth knowing now… I do like the strands… I still like the council of
- * Skippies"). From the top: Skippy's greeting and "Right now", the one list of what's on fire and what needs an answer
- * (TodayNow); beside it the rail, with the world clock and the next twelve hours (TodayRail); then the rooms' strands
- * with their subminds (TodayHero), the Council of Skippies reporting in under them (TodayCouncil), Ask Skippy, and
- * everything that can wait folded away under "Not worth knowing now" (TodayMore, loaded on demand).
- * Real data only: anything not connected says it is waiting.
+ * Today, the bridge of Skippy's ship over Ilyr (#385, Nikita 2026-10-24 04:58Z: "be more unique"; the content is
+ * #363's: "the focus is what do I need to know right now?… the world clock stuff, what the crew does next, little
+ * schedule, things not worth knowing now… I do like the strands… I still like the council of Skippies"). The bridge
+ * (TodayHero): the helm with Skippy's greeting and Right now (TodayNow), the ephemeris of what the crew does next, the
+ * deck with the open channel to Skippy and the day's broadcast; beside it the astrolabe, where the subminds orbit
+ * Skippy and live work travels out to them as light, with Ilyr's day as the sundial on its rim. Under it the Council of
+ * Skippies, as the minutes of a sitting (TodayCouncil), and below deck everything that can wait, folded away under
+ * "Not worth knowing now" (TodayMore, loaded on demand). Real data only: anything not connected says it is waiting.
  */
 
 /** Replies that make "Right now": the ones marked sooner, and anything waiting longer than this. */
@@ -79,29 +84,39 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
         onPre={setPre}
         hot={hot}
         onHot={setHot}
-        under={
+        helm={
+          <TodayNow
+            now={now}
+            pulses={pulses}
+            questions={questions}
+            decisions={decisions}
+            replies={replies}
+            emailNeeds={emailNeeds}
+            toPick={toPick}
+            setup={setup}
+            setupStatus={setupList}
+            setupLeft={setupLeft}
+            setupTotal={SETUP_LIST.length}
+            shipped={shipped}
+            awaySince={awaySince}
+            onHot={setHot}
+          />
+        }
+        deck={
           <>
-            <TodayNow
-              now={now}
-              pulses={pulses}
-              questions={questions}
-              decisions={decisions}
-              replies={replies}
-              emailNeeds={emailNeeds}
-              toPick={toPick}
-              setup={setup}
-              setupStatus={setupList}
-              setupLeft={setupLeft}
-              setupTotal={SETUP_LIST.length}
-              shipped={shipped}
-              awaySince={awaySince}
-            />
-            <div className="wv-hero-do td-do" data-in>
-              <SkippyAsk className="wv-ask" />
-              <a className="wv-door" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
-                <svg viewBox="0 0 28 20" aria-hidden="true">
-                  <path d="M1 10c4-7 8-7 13 0s9 7 13 0" />
-                  <path d="M1 10c4 7 8 7 13 0s9-7 13 0" />
+            <div className="td-comm">
+              <p className="td-k">
+                <span>Ask Skippy</span> type or talk; his answer comes with buttons
+              </p>
+              <SkippyAsk className="td-ask" />
+            </div>
+            <div className="td-deck-row">
+              <TodayBroadcast now={now} next={until(nextEdition(now).at, now)} />
+              <a className="td-door" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
+                <svg viewBox="0 0 28 28" aria-hidden="true">
+                  <circle cx="14" cy="14" r="12.5" />
+                  <path d="M3 14c4-5 7-5 11 0s7 5 11 0" />
+                  <path d="M14 1.5v25" />
                 </svg>
                 <span>
                   <b>Enter the Lattice</b>
@@ -111,7 +126,6 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
             </div>
           </>
         }
-        aside={<TodayRail now={now} />}
       />
 
       <TodayCouncil pulses={pulses} hot={hot} onHot={setHot} />

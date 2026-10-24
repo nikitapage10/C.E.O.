@@ -123,6 +123,11 @@ export function RelayDash({ tab, status, now, onTab, onClose }: { tab: DashTab; 
           ) : (
             <p className="em-empty">Nothing noted for you right now.</p>
           )}
+          {view && auth === "in" && view.urgentSkipped > 0 && (
+            <p className="em-empty">
+              {view.urgentSkipped} urgent money or legal {view.urgentSkipped === 1 ? "alert" : "alerts"} skipped; check those accounts directly.
+            </p>
+          )}
         </div>
       </div>
     </dialog>

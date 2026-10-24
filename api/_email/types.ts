@@ -50,8 +50,8 @@ export interface EmailState {
   items: EmailItem[];
   /** Claude spend by month ("2026-10"). */
   spend: Record<string, EmailMonth>;
-  /** Today's counts (Mountain day "2026-10-22"). `skipped`: money, legal and skip-list mail, counted only (#323). */
-  day: { day: string; newCount: number; noise: number; skipped: number };
+  /** Today's counts (Mountain day "2026-10-22"). `skipped`: money, legal and skip-list mail, counted only (#323). `urgent`: urgent money or legal alerts among them, a count and nothing else (#415). */
+  day: { day: string; newCount: number; noise: number; skipped: number; urgent: number };
   /** Mail counted while paused, this month. */
   unsorted: number;
   gmail: GmailState;
@@ -89,7 +89,7 @@ export const MAX_PER_TICK = 12;
 export const CATCH_UP_MAX = 24;
 
 export function emptyEmailState(): EmailState {
-  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0 }, unsorted: 0, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [] };
+  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [] };
 }
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
@@ -108,7 +108,7 @@ export function readEmailState(v: unknown): EmailState {
     seen: Array.isArray(o.seen) ? (o.seen as unknown[]).filter((s): s is string => typeof s === "string").slice(-MAX_SEEN) : [],
     items: items.slice(0, MAX_ITEMS),
     spend: o.spend && typeof o.spend === "object" && !Array.isArray(o.spend) ? (o.spend as Record<string, EmailMonth>) : {},
-    day: { day: str(day.day, 10), newCount: num(day.newCount), noise: num(day.noise), skipped: num(day.skipped) },
+    day: { day: str(day.day, 10), newCount: num(day.newCount), noise: num(day.noise), skipped: num(day.skipped), urgent: num(day.urgent) },
     unsorted: num(o.unsorted),
     gmail: o.gmail === "connected" || o.gmail === "refused" ? o.gmail : "not-connected",
     lastCheck: typeof o.lastCheck === "number" ? o.lastCheck : null,
@@ -146,6 +146,8 @@ export interface EmailView {
   /** Whether Connect Gmail can work here (the client id and secret and the token key are set). */
   canConnect: boolean;
   items: EmailItem[];
+  /** Urgent money or legal alerts skipped today: a count only, nothing of the mail is kept (#415). */
+  urgentSkipped: number;
   /** This month's Claude spend and the cap, in dollars. */
   spend: { usd: number; budget: number };
 }

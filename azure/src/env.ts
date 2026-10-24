@@ -48,7 +48,9 @@ export const SECRET_SETTINGS = [
   // The Spire's invoices (#279): PayPal's REST app. PAYPAL_ENV (sandbox or live) is a plain setting.
   "PAYPAL_CLIENT_ID",
   "PAYPAL_CLIENT_SECRET",
-  // The room threads' write key (#281, #312): only a hand-off's answer coming back (POST /api/skippy-answer).
+  // The subminds' room keys (#281, #312, api/_site/roomkeys.ts): the read key opens GETs of room data only; the
+  // write key opens only POST /api/room-feed and POST /api/skippy-answer (a hand-off's answer coming back).
+  "SUBMIND_LOG_TOKEN",
   "SUBMIND_FEED_TOKEN",
 ] as const;
 

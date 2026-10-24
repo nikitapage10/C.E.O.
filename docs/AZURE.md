@@ -86,6 +86,9 @@ and, on purpose, replacing them all (`FORCE=1`). Those never go through the Desk
    - `desk-pings-secret`: 32 random bytes, base64url. Nobody needs a copy: `desk-pings.yml` reads it from the vault;
    - `site-bypass-token`: 32 random bytes, base64url, the site lock's bypass (#236, #313). Nobody needs a copy either:
      `live-watch.yml` reads it from the vault and sends it only to the site, so the hourly check sees a locked site;
+   - `submind-log-token` and `submind-feed-token`: 32 random bytes each, base64url, the subminds' two room keys (#281;
+     [The subminds' room keys](#the-subminds-room-keys) below). Not printed: you copy them from the vault into the
+     project's cloud environment once;
    - `foundry-desk-key`: 32 random bytes, base64url, **printed once** at the end. It is the Azure Desk's sign-in key:
      keep it in your password manager and use it to enrol a passkey on the Azure address (see "Passkeys are per
      domain" below). It isn't Vercel's Desk key.
@@ -111,6 +114,7 @@ if has desk-vapid-public-key || has desk-vapid-private-key; then echo "kept desk
 if has desk-vapid-subject; then echo "kept desk-vapid-subject"; else U=$(az account show --query user.name -o tsv); put desk-vapid-subject "mailto:${U#*#}"; fi
 if has desk-pings-secret; then echo "kept desk-pings-secret"; else put desk-pings-secret "$(rnd)"; fi
 if has site-bypass-token; then echo "kept site-bypass-token"; else put site-bypass-token "$(rnd)"; fi
+for s in submind-log-token submind-feed-token; do if has $s; then echo "kept $s"; else put $s "$(rnd)"; fi; done
 if has foundry-desk-key; then echo "kept foundry-desk-key"; else K=$(rnd); put foundry-desk-key "$K" && printf '\nYour Azure Desk key, shown only now (keep it in your password manager):\n%s\n\n' "$K"; fi
 az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRESH=$(date -u +%Y%m%d%H%M%S)" -o none && echo "refreshed $FA (it restarts and re-reads the vault)")
 ```
@@ -155,7 +159,7 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | `fantasypros` (the Green's FantasyPros API key, #252; Azure only, never on Vercel) | `FANTASYPROS` |
    | `gmail-client-id`, `gmail-client-secret`, `gmail-token-key` (the email agent, #263; Azure only, set up as in [GMAIL.md](GMAIL.md)) | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_TOKEN_KEY` |
    | `paypal-client-id`, `paypal-client-secret` (the Spire's invoices, #279; Azure only, see [PAYPAL.md](PAYPAL.md)) | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
-   | `submind-feed-token` (the room threads' write key, #281; at least 32 random characters; opens only `POST /api/skippy-answer`, #312) | `SUBMIND_FEED_TOKEN` |
+   | `submind-log-token`, `submind-feed-token` (the subminds' room keys, #281, #312; Azure only, at least 32 random characters; see [The subminds' room keys](#the-subminds-room-keys)) | `SUBMIND_LOG_TOKEN`, `SUBMIND_FEED_TOKEN` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
    same Claude and Gemini accounts; with Vercel no longer spending (#313) they are the code's own defaults, the ones
@@ -244,6 +248,66 @@ is off, #313), but only Azure serves it.
 - **`staticwebapp.config.json`** (in `apps/world/public`, copied into `dist` by the build) already carries
   `vercel.json`'s headers and page rewrites; a unit test (`scripts/azure-config.test.mjs`) keeps the two in step. One difference: Vercel caches
   `/models/*?v=…` for good, and Static Web Apps can't match on a query string, so models are revalidated instead.
+
+### The subminds' room keys
+
+Nikita approved "Both tokens" on 2026-10-22 (#281). Each active submind's project thread ("Skippy, the Builder", "the
+Pessimist", "the Commentator", "the Bookie") gets two narrow keys, so it can read its room's data and post short room
+events without a passkey:
+
+| Key | Vault secret / app setting | Opens | Never |
+| --- | --- | --- | --- |
+| Read key | `submind-log-token` / `SUBMIND_LOG_TOKEN` | **GET only**: `/api/skippy-log?room=` green, exchange, boiler or foundry (not Relay's), optionally `&needs=`; `/api/green-league`; `/api/exchange-markets`; `/api/exchange-positions`; `/api/world` (and `?day=YYYY-MM-DD`); `/api/foundry-feed`; `/api/room-feed`; `/api/setup-asks` (optionally `?room=`) | Any POST, any other route or query: no settings, no pins, no Skippy chat, no email, invoices or pings, no secret |
+| Feed key | `submind-feed-token` / `SUBMIND_FEED_TOKEN` | **POST `/api/room-feed`** (`{ room, title, detail? }`), **POST `/api/setup-asks`** (a setup ask or its Trail line, #324) and **POST `/api/skippy-answer`** (a hand-off's answer coming back, #312), nothing else | Reading anything: each answer says only that the write was kept |
+
+Both live only in the Key Vault (the template wires them, like every secret). The code is in `api/_site/roomkeys.ts`
+(the gate and the handlers check the key, in constant time) and `api/_room/feed.ts` (the feed); how the threads use
+them is in [SKIPPY.md](SKIPPY.md), "Room keys", and the controls in [SECURITY.md](SECURITY.md), "The subminds' room
+keys". Nikita's steps, once, from the Windows PC's browser:
+
+**1. Mint the two keys (Azure Cloud Shell).**
+
+> **What this does.** Service: Azure (Cloud Shell, the Key Vault and the Function App). It re-runs the template,
+> which adds the `SUBMIND_LOG_TOKEN` and `SUBMIND_FEED_TOKEN` app settings as Key Vault references, mints the two
+> secrets in the vault (32 random bytes each; any secret already there is kept), and restarts the Function App (a few
+> seconds of downtime). Why: the subminds' keys must come from the vault only. Cost: nothing extra. Undo: disable or
+> delete either secret in the vault and restart the Function App; the key then opens nothing.
+
+Open <https://shell.azure.com> in the browser (Bash), and paste the secrets paste in [After the paste](#after-the-paste)
+as it stands. It prints `set  submind-log-token` and `set  submind-feed-token` the first time (`kept …` after that),
+then `restarted func-ceo-…`. It never prints a key.
+
+**2. Give the keys to the submind threads (Azure portal, then Claude).**
+
+> **What this does.** Services: the Azure portal (you read the two secrets) and Claude (the C.E.O. project's cloud
+> environment). Every new session in the project gets the keys as `SUBMIND_LOG_TOKEN` and `SUBMIND_FEED_TOKEN`, so
+> the submind threads can read their room's data and post room events; the site's address is let through the
+> environment's network policy. Why: a thread has no passkey, and keys never go in chat. Cost: nothing. Undo: delete
+> the two variables in the environment (a key stays valid in the vault until step 3).
+
+1. In the [Azure portal](https://portal.azure.com): search **Key vaults** → **kv-ceo-besgu7fnckib2** → **Objects →
+   Secrets** → **submind-log-token** → the version marked **Current** → **Show Secret Value** → the copy button.
+2. In Claude (claude.ai in the browser): open the **C.E.O.** project → **Project settings** → the **Cloud environment**
+   menu → the **gear** beside the selected environment. Under **Environment variables** add a line
+   `SUBMIND_LOG_TOKEN=` followed by the pasted value. Back in the portal, do the same for **submind-feed-token** and
+   add `SUBMIND_FEED_TOKEN=` with its value. Under **Network access**, if the level is **Limited**, add
+   `ceo.nikita.page` to **Allowed domains** (leave **Allow package managers** ticked). Save.
+3. Start (or restart) each submind thread: a new session picks the variables up. Never paste either key into a
+   thread, an issue or a file; the threads read them from the environment.
+
+**3. Change a key (only if one leaks, or once a year).**
+
+> **What this does.** Service: Azure (the Key Vault and the Function App), then Claude (the cloud environment). A new
+> version of the secret replaces the old one, and after the restart the old key opens nothing. Why: a leaked or old
+> key is cut off at once. Cost: nothing. Undo: none needed; the old version stays in the vault's history, disabled
+> or not, and the next restart uses the current one.
+
+In the portal: **Key vaults** → **kv-ceo-besgu7fnckib2** → **Objects → Secrets** → the secret → **+ New Version**.
+For the value, in Chrome on any page press F12 → **Console** (type `allow pasting` if asked), paste
+`console.log(btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""))`,
+press Enter, copy what it prints into **Secret value**, **Create**, close the console. Then **Function App** →
+**func-ceo-besgu7fnckib2** → **Overview** → **Restart**, and replace the variable's value in the cloud environment
+as in step 2.
 
 ### The site lock on Azure
 

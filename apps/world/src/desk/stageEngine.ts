@@ -2,7 +2,7 @@ import { clamp, gauss, HOT, lerp, OK, RC, reducedMotion, RUN, spr, sprMix, sstep
 
 /**
  * The Foundry's loom, as the approved Weave draws it (desk-concepts round five, 83-engine.js): the crew's work as
- * threads of light on springs. Ideas come in on the left, warm; the job in flight runs to the checks; what shipped
+ * threads of light on springs. Ideas come in on the left, warm; each job in flight runs to the checks; what shipped
  * braids out to the right, cool. Each real item is a knot on its thread; opening one re-weaves its thread into the left
  * margin beside the details. Everything drawn is from the live Foundry feed: no item, no thread.
  */
@@ -226,7 +226,10 @@ function mkKnot(item: string, t: Thread, o: { u: number; s?: number; r?: number;
 
 /** What the loom shows: which knots exist (from the live feed) and, for the crew and Suggest, the colour of the aux thread. */
 export interface LoomItems {
-  flight: string | null;
+  /** The jobs in flight, newest at the top, one strand each (at most {@link LOOM_STRANDS}). */
+  flights: string[];
+  /** The knot for the jobs past the strands ("+N more"), when there are any. */
+  more: string | null;
   ideas: string[];
   shipped: string | null;
   /** Items without a knot of their own (the crew, the dock crew): their colour when opened. */
@@ -245,11 +248,65 @@ export interface LoomCtl {
 
 const COLS = [HOT, RC.foundry!, RUN, OK];
 
+/** At most this many jobs in flight get a strand of their own: the dock crew's limit of four at once (docs/FOUNDRY.md). */
+export const LOOM_STRANDS = 4;
+
+/** The loom's stage lines and resting paths; phone stacks the stages top to bottom. */
+export const loomGeo = (phone: boolean) =>
+  phone
+    ? { st: [0.17, 0.36, 0.55, 0.74], bc: 0.3, A: 0.085, tideB: 0.66, ideaB: [0.56, 0.56], ideaA: [0.11, 0.25], freq: 1.5, shipB: 0.4 }
+    : { st: [0.12, 0.37, 0.62, 0.86], bc: 0.47, A: 0.075, tideB: 0.25, ideaB: [0.6, 0.71], ideaA: [0.14, 0.17], freq: 1.7, shipB: 0.47 };
+
+/** The rows in flight sit this far apart at most; a row's label is about 36 px tall and its knot's button 40 px. */
+export const ROW_GAP = 56;
+/** The least room a row's label gets beside its knot on the desktop loom. */
+const ROW_LABEL_MIN = 180;
+/** A row's label starts this far right of its knot (wv.css, `.wv-knot.is-row`). */
+export const ROW_LABEL_X = 20;
+
+/** The shipped knot's label width on the desktop loom beside rows in flight: centred under it and kept on the stage. */
+export function shipLabelWidth(W: number): number {
+  const ship = loomGeo(false).st[3]! * W;
+  return 2 * Math.round(Math.min(125, Math.max(60, W - ship - 16)));
+}
+
+/** Where a strand in flight ends (its knot), in pixels. */
+export interface FlightEnd {
+  x: number;
+  y: number;
+}
+
+/**
+ * The knots in flight. One job keeps the loom's old place, on the checks line. Several stack in a column in the
+ * Building stage, labels to the right, a row apart: below the column heads, above the ideas' labels (so the two never
+ * share a line), and far enough left that each label ends before the shipped knot's. On a phone they stack down the
+ * Building stage, between the ideas and the ships. n counts the strands and the "+N more" knot together.
+ */
+export function flightEnds(n: number, W: number, H: number, phone: boolean): FlightEnd[] {
+  const g = loomGeo(phone);
+  if (n <= 0) return [];
+  if (n === 1) return [phone ? { x: g.tideB * W, y: g.st[2]! * H } : { x: g.st[2]! * W, y: g.tideB * H }];
+  const top = phone ? g.st[1]! * H : 0.19 * H;
+  const bottom = phone ? 0.66 * H : Math.min(0.62 * H, g.ideaB[0]! * H - 44);
+  const gap = Math.min(ROW_GAP, (bottom - top) / (n - 1));
+  const x = phone ? 0.42 * W : Math.max(g.st[1]! * W, Math.min(0.5 * W, shipLeft(W) - 12 - ROW_LABEL_X - ROW_LABEL_MIN));
+  return Array.from({ length: n }, (_, i) => ({ x, y: top + i * gap }));
+}
+
+/** Where the shipped knot's label starts on the desktop loom. */
+const shipLeft = (W: number) => loomGeo(false).st[3]! * W - shipLabelWidth(W) / 2;
+
+/** How wide a row's label may run on the desktop loom: up to the shipped knot's label, with a little air. */
+export function rowLabelWidth(x: number, W: number): number {
+  return Math.floor(clamp(shipLeft(W) - 12 - (x + ROW_LABEL_X), 100, 250) / 4) * 4;
+}
+
 export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
   let threads: Thread[] = [];
   let ships: Thread[] = [];
   let ideas: Thread[] = [];
-  let tide: Thread | null = null;
+  let tides: Thread[] = [];
+  let more: Thread | null = null;
   let aux: Thread;
   let knots: Knot[] = [];
   let phone = false;
@@ -264,10 +321,11 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
   let waveT: Thread | null = null;
   let lastFoc: string | null = null;
 
-  const geo = () =>
-    phone
-      ? { st: [0.17, 0.36, 0.55, 0.74], bc: 0.3, A: 0.085, tideB: 0.66, ideaB: [0.56, 0.56], ideaA: [0.11, 0.25], freq: 1.5, shipB: 0.4 }
-      : { st: [0.12, 0.37, 0.62, 0.86], bc: 0.47, A: 0.075, tideB: 0.25, ideaB: [0.6, 0.71], ideaA: [0.14, 0.17], freq: 1.7, shipB: 0.47 };
+  const geo = () => loomGeo(phone);
+  const flights = items.flights.slice(0, LOOM_STRANDS);
+  /** Strands in flight, the "+N more" one included. */
+  const rows = flights.length + (items.more ? 1 : 0);
+  const multi = rows > 1;
 
   const build = () => {
     threads = [];
@@ -279,9 +337,13 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
     };
     ships = [0, 1, 2].map((j) => mk({ item: items.shipped, K: 9, n: 230, spread: 1.8, vmin: 30, vmax: 58, alpha: 0.5, head: j === 1, grad: true }));
     ideas = items.ideas.slice(0, 2).map((id) => mk({ item: id, K: 6, n: 120, spread: 1.6, vmin: 12, vmax: 26, alpha: 0.5, head: true, rgb: HOT }));
-    tide = items.flight ? mk({ item: items.flight, K: 9, n: 620, spread: 2.4, vmin: 44, vmax: 90, alpha: 1, head: true, grad: true }) : null;
+    // One job keeps its whole strand of motes; several share the same budget, so the loom draws no more than it did.
+    const n = flights.length > 1 ? Math.round(620 / flights.length) : 620;
+    tides = flights.map((id) => mk({ item: id, K: 9, n, spread: multi ? 1.9 : 2.4, vmin: 44, vmax: 90, alpha: 1, head: true, grad: true }));
+    more = items.more ? mk({ item: items.more, K: 9, n: 70, spread: 1.4, vmin: 30, vmax: 60, alpha: 0.55, head: true, grad: true }) : null;
     aux = mk({ K: 9, n: 520, spread: 2.2, vmin: 30, vmax: 60, alpha: 0, cy: 0.15 });
-    if (tide && items.flight) knots.push(mkKnot(items.flight, tide, { u: 0.99, head: true, r: 8, w: 22, rgb: RC.foundry! }));
+    tides.forEach((t, j) => knots.push(mkKnot(flights[j]!, t, { u: 0.99, head: true, r: 8, w: 22, rgb: RC.foundry! })));
+    if (more && items.more) knots.push(mkKnot(items.more, more, { u: 0.99, s: 0.6, r: 7, w: 18, rgb: RC.foundry! }));
     ideas.forEach((t, j) => knots.push(mkKnot(items.ideas[j]!, t, { u: 0.985, s: 0.55, head: true, r: 7, w: 18, rgb: HOT })));
     if (items.shipped) knots.push(mkKnot(items.shipped, ships[1]!, { u: 0.99, s: 0.9, r: 9, w: 24, rgb: OK }));
     knots.push(mkKnot("aux", aux, { u: 0.5, s: 0, rgb: HOT }));
@@ -335,7 +397,9 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
 
   const threadOf = (id: string | null): Thread | null => {
     if (!id) return null;
-    if (id === items.flight) return tide;
+    const fx = flights.indexOf(id);
+    if (fx >= 0) return tides[fx]!;
+    if (id === items.more) return more;
     const ix = items.ideas.indexOf(id);
     if (ix >= 0 && ix < ideas.length) return ideas[ix]!;
     if (id === items.shipped) return ships[1]!;
@@ -359,14 +423,19 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
         P(ships[j]!, i, a, b);
       }
     }
-    if (tide) {
+    const ends = flightEnds(rows, W, H, phone);
+    [...tides, ...(more ? [more] : [])].forEach((t, j) => {
+      const e = ends[j]!;
+      const endA = phone ? e.y / H : e.x / W;
+      const endB = phone ? e.x / W : e.y / H;
+      const from = multi ? endA - 0.3 : st[1]! - 0.1;
       for (let i = 0; i < 9; i++) {
-        const a = lerp(-0.06, st[2]!, i / 8);
-        let b = braid(a, TAU / 6);
-        b = lerp(b, g.tideB, sstep(st[1]! - 0.1, st[2]!, a));
-        P(tide, i, a, b);
+        const a = lerp(-0.06, endA, i / 8);
+        let b = braid(a, TAU / 6 + j * 1.3);
+        b = lerp(b, endB, sstep(from, endA, a));
+        P(t, i, a, b);
       }
-    }
+    });
     ideas.forEach((t, j) => {
       for (let i = 0; i < 6; i++) {
         const a = lerp(-0.06, g.ideaA[j]!, i / 5);
@@ -377,7 +446,7 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
     });
     for (let i = 0; i < 9; i++) aux.target(i, -0.3 * W, lerp(-0.1, 1.1, i / 8) * H);
     for (const t of threads) {
-      const base = t === tide ? 1 : t === aux ? 0 : ships.includes(t) ? 0.5 : 0.42;
+      const base = tides.includes(t) ? 1 : t === more ? 0.55 : t === aux ? 0 : ships.includes(t) ? 0.5 : 0.42;
       t.alphaT = followed ? (t === followed ? 1 : 0.03) : base * (hoverT && hoverT.item === t.item && t.item ? 1.6 : 1);
       t.k = followed === t ? 11 : followed ? 30 : 16;
     }
@@ -391,7 +460,7 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
       if (mine) k.sT = 1.2;
       else {
         k.anchorY = null;
-        k.sT = k.item === "aux" ? 0 : k.t === tide ? 1 : k.item === items.shipped ? 0.9 : 0.55;
+        k.sT = k.item === "aux" ? 0 : tides.includes(k.t) ? 1 : k.t === more ? 0.6 : k.item === items.shipped ? 0.9 : 0.55;
         k.uT = k.item === "aux" ? 0.5 : k.t === ideas[0] || k.t === ideas[1] ? 0.985 : 0.99;
       }
     }
@@ -620,10 +689,11 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
         const el = host.querySelector<HTMLElement>(`.wv-knot[data-item="${CSS.escape(k.item)}"]`);
         if (!el) continue;
         el.classList.toggle("is-gone", !(k.s > 0.06 && k.t.alpha > 0.15));
-        const side = phone ? (k.t === tide ? "below" : "right") : k.item === items.shipped ? "below" : "right";
+        const row = multi && (tides.includes(k.t) || k.t === more);
+        const side = phone ? (k.t === tides[0] && !multi ? "below" : "right") : k.item === items.shipped ? "below" : "right";
         if (el.dataset.side !== side) el.dataset.side = side;
-        if (side === "right") {
-          const mw = Math.round(Math.max(120, Math.min(250, V.W - k.x - 38)) / 4) * 4;
+        if (side === "right" || (multi && !phone)) {
+          const mw = side === "below" ? shipLabelWidth(V.W) : row && !phone ? rowLabelWidth(k.x, V.W) : Math.round(Math.max(120, Math.min(250, V.W - k.x - 38)) / 4) * 4;
           if (mw !== k.mw) {
             k.mw = mw;
             const lb = el.querySelector<HTMLElement>(".wv-kl");

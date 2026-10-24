@@ -101,8 +101,9 @@ there. Nothing server-side can post into a project thread, so the Desk keeps the
 - **Read only signed in.** `GET /api/skippy-log?room=<room>` (a `vercel.json` rewrite into `api/skippy.ts`; its own
   route on Azure, behind the site gate) answers only a Desk passkey session. Each room's Desk page (Green, Exchange,
   Boiler Room, Foundry, Relay) shows its turns in an "Asked Skippy" panel, newest first, collapsed, veiled by Hide.
-  The Exchange's and Relay's asks never reach a public path or the Lattice. There is no outside reader (no token
-  read) yet: that waits on the room keys (#281).
+  The Exchange's and Relay's asks never reach a public path or the Lattice. The one outside reader is the subminds'
+  read key (#281, "Room keys" below), for the four active rooms only; Relay's asks stay Desk-only.
+
 
 ## What Desk Skippy knows about our stack
 
@@ -133,15 +134,104 @@ into `skippy` otherwise. The turn is kept in the room log with `needs` set, the 
 line is added when Skippy's own words don't), and the room's "Asked Skippy" panel shows "with The Builder".
 
 - **Reading them.** `GET /api/skippy-log?room=<room>&needs=<skippy|submind id|any>` lists only the hand-offs still
-  open; without `needs`, every turn. Signed-in Desk only, for now; the threads read it with the room key once #281
-  lands.
+  open; without `needs`, every turn. Signed-in Desk, or a submind thread with the read key (#281, "Room keys" below)
+  for the four active rooms.
 - **Answering them.** `POST /api/skippy-answer` with `{ id, text, from }` and `Authorization: Bearer
-  <SUBMIND_FEED_TOKEN>` (the room threads' write key from #281, Azure Key Vault `submind-feed-token`; the route is off
+  <SUBMIND_FEED_TOKEN>` (only the bearer form here) (the room threads' write key from #281, Azure Key Vault `submind-feed-token`; the route is off
   until it is set). `from` is `skippy` (any hand-off) or the submind it was handed to (only its own); `text` is one
   plain line of at most 700 characters, refused whole when it looks private. The answer is kept on the turn as its
   `followUp`, which closes the hand-off; the room's panel shows it under the ask ("The Builder answered"), and Nikita's
   phone gets one ping that names who answered, never what (quiet hours hold it). A turn already answered, not handed
   off, or another submind's is refused.
+
+## Room keys
+
+Nikita approved "Both tokens" on 2026-10-22 (#281). Nothing server-side can post into a project thread, and a thread
+has no passkey, so each active submind thread gets two narrow keys instead. They come from the Azure Key Vault only
+(`submind-log-token`, `submind-feed-token`); Nikita copies them once into the C.E.O. project's cloud environment, where
+every new session finds them as environment variables (the steps, each with its "What this does", are in
+[AZURE.md](AZURE.md), "The subminds' room keys").
+
+- **`SUBMIND_LOG_TOKEN`, read-only.** GET only, and only the room data: the Asked Skippy log of the four active rooms
+  (`/api/skippy-log?room=green|exchange|boiler|foundry`, optionally `&needs=`; never Relay's), the Green's league board
+  (`/api/green-league`), the Exchange's odds board and Nikita's positions (`/api/exchange-markets`,
+  `/api/exchange-positions`), the world feed (`/api/world`, one day with `?day=YYYY-MM-DD`), the Foundry feed
+  (`/api/foundry-feed`), the room feed with its details (`/api/room-feed`) and the setup asks (`/api/setup-asks`,
+  optionally `?room=`; "Setup asks" below).
+- **`SUBMIND_FEED_TOKEN`, write-only.** POST `/api/skippy-answer` (a hand-off's answer, above), POST
+  `/api/setup-asks` (a setup ask or its Trail line, below) and POST `/api/room-feed`, nothing else. A room event: `{ "room": "green", "title": "…", "detail": "…" }`.
+  `room` is the thread's own (`foundry`, `boiler`, `green`, `exchange`); the title is one line (120 characters at
+  most), the detail optional (600). The answer is only `{ ok, id }`. An event that looks private (an email address,
+  a phone number, an address, a card or account number, a key, a person's name) is refused whole (422), as on the
+  Desk; at most 20 events per room an hour (429).
+- **Where it shows.** On the room's Desk page, "From the <submind>", under Asked Skippy: signed in, each event opens to
+  its detail (veiled by Hide); signed out, titles only. In the Lattice the room's submind says the title from its
+  podium, scrubbed of money and links (`publicTitle`), never the detail. The public site never shows money, messages,
+  contacts or keys.
+- **Neither key** can change a setting, trade, send anything, or reach an upstream secret; each opens only its own
+  exact method, path and query (`api/_site/roomkeys.ts`, with a test for every allowed and refused path).
+
+How a thread uses them, from its shell (the key goes in its own header, `x-ceo-room-key`; the site's proxy may keep
+`Authorization` for itself). Never echo a key, print the environment, or put a key in a commit, an issue or the thread:
+
+```bash
+SITE=https://ceo.nikita.page
+# Read: the Green's board, and what Nikita asked Skippy about the Green.
+curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/green-league"
+curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/skippy-log?room=green"
+# The Green's open hand-offs to the Commentator.
+curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/skippy-log?room=green&needs=turf"
+# Post a room event.
+curl -fsS -X POST -H "x-ceo-room-key: $SUBMIND_FEED_TOKEN" -H "Content-Type: application/json" \
+  -d '{"room":"green","title":"Waiver call is in: grab the Bears D","detail":"Week 8 bye cover."}' "$SITE/api/room-feed"
+```
+
+If `SUBMIND_LOG_TOKEN` is empty in a session, the keys aren't in the environment yet: say so in the thread and point
+Nikita at the steps; never ask for a key in chat. A 401 `site-locked` means the key isn't the vault's current one
+(changed, or not yet restarted).
+
+## Setup asks
+
+Nikita (2026-10-23, #324): when a thread needs something done that only Nikita can allow (creating a GitHub App,
+turning on a setting, granting an identity a role), it asks on the Desk instead of asking in chat. Each ask sits on the
+room's Desk page under Asked Skippy, beside the hand-off flags, in a "Setup asks" panel only the signed-in owner sees:
+
+- **One line, one box.** The line says what it will do and where ("Create the C.E.O. GitHub App on github.com"). The
+  "What this does" box has four lines: the service, what changes, why, and the cost and whether it can be undone.
+  Under it, the route (below).
+- **Nikita taps.** Approve or Decline, in the passkey session. A decline closes it at once ("Trail · Declined"). An
+  approved ask shows "approved, the <submind> is on it" until the thread closes it.
+- **Closed with a Trail line.** When the work is done the thread closes the ask with one line ("Trail · Done: App
+  created; its key went straight to the Key Vault"), or drops it ("Trail · Dropped: …") when it's no longer needed.
+
+**The rule** (Skippy, on #324): agents never type keys, passwords or tokens, and never do sign-ins. Each ask names its
+`route`, tried in this order: `managed-identity` (a role assignment, no secret anywhere), `oidc` (federated
+credentials, no secret anywhere), `key-vault-flow` (a machine-to-machine flow that lands a key straight in the Key
+Vault, such as a GitHub App manifest with its callback on the Function App), and last `browser` (steps in Nikita's own
+browser that stop at every sign-in and passkey, which stay Nikita's). Nikita's part is Approve, and a passkey when one
+is needed. Any new secret lives in the Key Vault only, as a row in the `secrets` table of `infra/resources.bicep` and
+in `SECRET_SETTINGS` (`azure/src/env.ts`); never in the repo, a file, a log, an issue or the thread.
+
+From the thread's shell, with the room keys (never echo them):
+
+```bash
+SITE=https://ceo.nikita.page
+# Ask (the feed key). The answer is only { ok, id }; Nikita's phone gets "A setup ask on the Desk is waiting for your OK."
+curl -fsS -X POST -H "x-ceo-room-key: $SUBMIND_FEED_TOKEN" -H "Content-Type: application/json" -d '{
+  "action":"ask","room":"foundry","title":"Create the C.E.O. GitHub App on github.com","where":"github.com",
+  "service":"GitHub Apps","changes":"Adds one app to the repo that reads checks and issues.",
+  "why":"So the Builder reads check runs without a personal token.","cost":"Free","reversible":true,
+  "route":"key-vault-flow"}' "$SITE/api/setup-asks"
+# Whether Nikita approved it (the read key): state is open, approved, declined, done or dropped.
+curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/setup-asks?room=foundry"
+# Close it with its Trail line once done ("done" only after Approve), or "dropped".
+curl -fsS -X POST -H "x-ceo-room-key: $SUBMIND_FEED_TOKEN" -H "Content-Type: application/json" \
+  -d '{"action":"close","id":"<id>","outcome":"done","trail":"App created; its key went straight to the Key Vault."}' "$SITE/api/setup-asks"
+```
+
+Refused: 422 for anything private-looking or words that ask anyone to type, paste or copy a key, password or token
+(`asks-for-secret`); 409 to finish an ask Nikita hasn't approved; 429 past five new asks an hour or eight waiting.
+The code is `api/_room/setup.ts` (Azure only) and the panel `apps/world/src/desk/skippy/SetupAsks.tsx`.
 
 ## Escalating to Skippy
 

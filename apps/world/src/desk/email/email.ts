@@ -21,6 +21,8 @@ export type { EmailItem, EmailStatus, EmailView };
 
 const PATH = "/api/email";
 const POLL_MS = 30_000;
+/** A check this much older than the minute it runs on is late: only then does the page show check times (#375). */
+export const LATE_MS = 5 * 60_000;
 
 /** "idle" before the first answer; "off" where the route doesn't exist (the Vercel copy, a local preview). */
 export type EmailLoad = "idle" | "off" | "live" | "failed";

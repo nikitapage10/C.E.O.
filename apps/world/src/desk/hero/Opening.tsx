@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { eInOut, eOut, gauss, kick, lerp, RC, spr, sstep, TAU, vizTime, WHITE } from "../wvCanvas.ts";
-import { FAN, fanPaths } from "./fan.ts";
+import { ORB, orbPaths } from "./orrery.ts";
 
 /**
  * The daily opening (the approved Weave, 87-opening.js), about three seconds on the first open of the day: out of the
  * dark, particles drift in and gather onto ten long threads across the screen, the threads draw together into
- * Today's strands from Skippy, the dark lifts and his greeting writes itself in. A click, a tap or any key skips it; with
+ * the astrolabe's strands out of Skippy (orrery.ts), the dark lifts and his greeting writes itself in. A click, a tap or any key skips it; with
  * reduced motion it never plays. It sits over the page in its own layer and takes no clicks itself.
  */
 
@@ -57,19 +57,19 @@ export function Opening({ onLift, onWrite, onRise, onDone }: { onLift: () => voi
       parts.push({ i: k % ORDER.length, u, o: gauss(), sx: Math.random() * W, sy: Math.random() * H, z: Math.random(), d0: Math.random() * 480, d1: OP.B0 + u * 650 + Math.random() * 160, v: 0.03 + Math.random() * 0.04 });
     }
     // The strands go in the picture's order; the opening's ten waves map onto them by room.
-    const fanIndex = (i: number) => FAN.items.findIndex((x) => x.id === ORDER[i]);
+    const fanIndex = (i: number) => ORB.items.findIndex((x) => x.id === ORDER[i]);
     const t0 = performance.now();
     const done = { lift: false, write: false, rise: false, end: false };
     let fin: ({ x: number[]; y: number[] } | null)[] = [];
     let raf = 0;
-    FAN.am = 0;
+    ORB.am = 0;
     kick();
 
     const finish = () => {
       if (done.end) return;
       done.end = true;
       cancelAnimationFrame(raf);
-      FAN.am = 1;
+      ORB.am = 1;
       kick();
       if (!done.lift) cbs.current.onLift();
       if (!done.write) cbs.current.onWrite(true);
@@ -90,7 +90,7 @@ export function Opening({ onLift, onWrite, onRise, onDone }: { onLift: () => voi
       const T = now - t0;
       const ts = T / 1000;
       if (T >= OP.END) return finish();
-      const paths = fanPaths(vizTime());
+      const paths = orbPaths(vizTime());
       fin = ORDER.map((_, i) => {
         const fi = fanIndex(i);
         return paths && fi >= 0 ? paths[fi]! : null;
@@ -111,7 +111,7 @@ export function Opening({ onLift, onWrite, onRise, onDone }: { onLift: () => voi
         done.rise = true;
         cbs.current.onRise();
       }
-      FAN.am = sstep(OP.FADE0, OP.FADE1, T);
+      ORB.am = sstep(OP.FADE0, OP.FADE1, T);
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       c.globalCompositeOperation = "source-over";
       c.clearRect(0, 0, W, H);
@@ -174,7 +174,7 @@ export function Opening({ onLift, onWrite, onRise, onDone }: { onLift: () => voi
       window.removeEventListener("pointerdown", skip, true);
       window.removeEventListener("keydown", skip, true);
       window.removeEventListener("wheel", skip, true);
-      if (!done.end) FAN.am = 1;
+      if (!done.end) ORB.am = 1;
     };
   }, []);
 

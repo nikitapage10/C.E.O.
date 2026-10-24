@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { formatDuration, useDayStory } from "../chronicle.ts";
+import { chronicleDay, formatDuration, useDayStory, type StoryState } from "../chronicle.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { ensureSignedIn, useDeskAuth } from "./signin.ts";
 import { SKIPPY_PORTRAIT } from "./skippy/SkippyAvatar.tsx";
@@ -162,5 +162,126 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
       )}
       {!compact && noteLine}
     </div>
+  );
+}
+
+type ReadyStory = Extract<StoryState, { ready: true }>;
+const isReady = (s: StoryState | undefined): s is ReadyStory => typeof s === "object" && s.ready;
+
+/**
+ * The day's broadcast on Today's bridge (#385): "Today in Ilyr" as a transmission from the planet, Skippy presenting.
+ * One round button plays the latest edition, a ring of light filling as it plays and the waves moving while it does;
+ * the transcript folds out under it. Before today's first edition is out (just after midnight, say) it plays
+ * yesterday's whole day instead, and says so; with no edition at all it says why, plainly, and when the next one is
+ * due (`next`). Looks again every few minutes while it isn't playing, so a new edition comes in by itself.
+ */
+export function TodayBroadcast({ now, next }: { now: number; next: string | null }) {
+  const today = chronicleDay(now);
+  const yesterday = chronicleDay(now - 86_400_000);
+  const mine = useDayStory((s) => s.stories[today]);
+  const prev = useDayStory((s) => s.stories[yesterday]);
+  const player = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [f, setF] = useState(0);
+
+  useEffect(() => {
+    void useDayStory.getState().loadStory(today);
+    void useDayStory.getState().loadStory(yesterday);
+    const timer = window.setInterval(() => {
+      if (player.current && !player.current.paused) return;
+      void useDayStory.getState().loadStory(today, true);
+    }, REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [today, yesterday]);
+
+  const story = isReady(mine) ? mine : isReady(prev) ? prev : null;
+  const isToday = story === mine;
+  const toggle = () => {
+    const a = player.current;
+    if (!a) return;
+    if (a.paused) void a.play().catch(() => setPlaying(false));
+    else a.pause();
+  };
+
+  if (!story) {
+    const why =
+      mine === "loading" || mine === undefined
+        ? "Tuning in to Ilyr…"
+        : mine === "failed"
+          ? "Can't reach Skippy's broadcast right now."
+          : mine === "off"
+            ? "The broadcast isn't connected on this copy of the Desk."
+            : typeof mine === "object" && !mine.ready
+              ? (WHY[mine.reason] ?? "No edition yet today.")
+              : "No edition yet today.";
+    return (
+      <div className="td-cast is-none">
+        <span className="td-cast-btn is-off" aria-hidden="true">
+          <CastWaves />
+        </span>
+        <p className="td-cast-t">
+          <b>Today in Ilyr</b>
+          <span>{why}</span>
+          {next && mine !== "off" && <small>Next edition {next}</small>}
+        </p>
+      </div>
+    );
+  }
+
+  const made = madeAt(story.at);
+  const label = isToday ? "Today in Ilyr" : "Yesterday in Ilyr";
+  return (
+    <div className={`td-cast${playing ? " is-playing" : ""}`}>
+      <button type="button" className="td-cast-btn" onClick={toggle} aria-label={`${playing ? "Pause" : "Play"} ${label}, ${formatDuration(story.durationSec)}`} style={{ "--f": f.toFixed(4) } as React.CSSProperties}>
+        <svg className="td-cast-ring" viewBox="0 0 56 56" aria-hidden="true">
+          <circle cx="28" cy="28" r="26" pathLength={1} />
+          <circle className="is-f" cx="28" cy="28" r="26" pathLength={1} />
+        </svg>
+        <svg className="td-cast-ic" viewBox="0 0 20 20" aria-hidden="true">
+          {playing ? <path d="M7 5v10M13 5v10" /> : <path d="M7.5 5.2v9.6L15 10z" />}
+        </svg>
+      </button>
+      <div className="td-cast-t">
+        <b>{label}</b>
+        <span>
+          {formatDuration(story.durationSec)} · {story.partial ? "the day so far" : "the whole day"}
+          {made ? `, made ${made}` : ""} · presented by Skippy
+        </span>
+        {next && isToday && story.partial && <small>Next edition {next}</small>}
+        <details className="td-cast-script">
+          <summary>Read the transcript</summary>
+          {paragraphs(story.script).map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </details>
+      </div>
+      <CastWaves />
+      <audio
+        ref={player}
+        src={story.audio}
+        preload="none"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setF(0);
+        }}
+        onTimeUpdate={(e) => {
+          const a = e.currentTarget;
+          setF(a.duration ? a.currentTime / a.duration : 0);
+        }}
+      />
+    </div>
+  );
+}
+
+/** The broadcast's waves: still lines, moving only while it plays. */
+function CastWaves() {
+  return (
+    <span className="td-cast-w" aria-hidden="true">
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+        <i key={i} style={{ "--i": i } as React.CSSProperties} />
+      ))}
+    </span>
   );
 }

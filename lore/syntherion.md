@@ -245,7 +245,9 @@ thermos to the upkeep bench, checks the locks first (the security and compliance
 over), then fixes whatever squeaks, and ships one thing or pins a card to the intake saying why not. She does it in
 a Sonnet, mostly; a Haiku is for alarms, and she takes down the long Opus only when a job is worth the breath.
 Rusty handed it over with the bench, a labelled shelf and a nine-page upkeep appendix, which she read. **Rusty**
-keeps the morning ideas, three of them, which he pins to a new idea board by the pegboard, in order of risk. Beside it stands
+keeps the morning ideas, three of them, which he pins to a corkboard on its own two legs at the front of the hall, in order
+of risk. (The red tool chest it used to sit on, the anvil, the bucket and three of the four crates went in a tidy-up;
+Rusty kept the big tarped crate, "for the good stuff".) Beside it stands
 **the shipped wall**: a walnut board on blackened-steel legs with a brass plaque for every change the Foundry
 shipped this week, newest on top, engraved with its title and the day. Rusty polishes each one before it goes up
 and moves the older ones down a rail; past eight he engraves "and so many more" along the bottom and refuses to

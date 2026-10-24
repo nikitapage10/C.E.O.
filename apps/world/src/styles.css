@@ -2965,3 +2965,115 @@ button {
     bottom: 14px;
   }
 }
+
+/* ── A quieter overlay (#328) ─────────────────────────────
+   One status line per room, the roster and the clock folded into its panel, Signals as a ticker, keys and settings
+   behind "?", a fade after a quiet spell, and H for a clean view. */
+.status-line {
+  margin: 10px 0 0;
+  font-size: 9px;
+  line-height: 1.6;
+}
+.coords-line {
+  margin: 6px 0 0;
+  font-size: 8.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.title-block .roster--panel,
+.leftcol .title-block .roster {
+  position: static;
+  width: auto;
+  max-height: 46vh;
+  margin-top: 10px;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  pointer-events: auto;
+}
+.roster__fold {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  font-size: 9px;
+  text-align: left;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+.roster__fold:hover {
+  color: var(--text);
+}
+.leftcol .title-block .roster ul {
+  overflow-y: auto;
+}
+.signals--ticker {
+  max-height: none;
+}
+.signals--ticker ol li:not(:first-child) {
+  display: none;
+}
+.signals--ticker:is(:hover, :focus-within) ol li {
+  display: grid;
+}
+.signals--ticker:is(:hover, :focus-within) {
+  max-height: calc(100vh - 300px);
+}
+.footer__more {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--glass-edge);
+  border-radius: 6px;
+  animation: rise 0.3s ease-out;
+}
+.footer__keys {
+  margin: 0;
+  font-size: 9px;
+}
+.footer__q b {
+  margin-left: 0;
+}
+.footer__q.on b {
+  color: var(--text);
+}
+.hud :is(.topbar, .leftcol, .rail, .coords, .footer, .inward, .mobile-tabs) {
+  transition: opacity 0.6s ease;
+}
+.hud--idle :is(.topbar, .leftcol, .rail, .coords, .footer, .inward, .mobile-tabs) {
+  opacity: 0.06;
+  transition-duration: 1.2s;
+}
+.hud--idle :is(.topbar, .leftcol, .rail, .coords, .footer, .inward):is(:hover, :focus-within) {
+  opacity: 1;
+}
+.hud--clean :is(.topbar, .leftcol, .rail, .coords, .footer, .inward, .mobile-tabs, .dossier) {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (max-width: 760px) {
+  .footer__more {
+    left: 0;
+    align-items: stretch;
+  }
+  .footer__keys {
+    display: none;
+  }
+  .signals--ticker:is(:hover, :focus-within) ol li:not(:first-child) {
+    display: grid;
+  }
+}

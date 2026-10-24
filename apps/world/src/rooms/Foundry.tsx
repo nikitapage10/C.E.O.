@@ -145,15 +145,16 @@ function Furnace({ position }: { position: [number, number, number] }) {
 const CARD_COLOURS = ["#f4e9c8", "#ffd9a8", "#d8ecf4"];
 
 /**
- * Rusty's idea board, on top of the pegboard: one card for each idea waiting on the C.E.O. (the morning three),
- * pinned with a brass tack. Empty cork when there are none.
+ * Rusty's idea board, on its own two legs at the front (#328: it used to sit on a red tool chest, one prop too many
+ * beside the Shipped board): one card for each idea waiting on the C.E.O. (the morning three), pinned with a brass
+ * tack. Empty cork when there are none.
  */
 function IdeaBoard() {
   const ideas = useFoundry((s) => s.data.crates.filter((c) => c.kind === "idea" && c.state === "queued").length);
   return (
-    <group position={[3, 0.9, 4.4]}>
+    <group position={[2.7, 0.9, 4.5]}>
       {[-0.55, 0.55].map((x) => (
-        <Block key={x} size={[0.05, 0.85, 0.05]} position={[x, 0.42, 0]} material={PBR.blackMetal()} radius={0.01} />
+        <Block key={x} size={[0.05, 1.75, 0.05]} position={[x, -0.03, 0]} material={PBR.blackMetal()} radius={0.01} />
       ))}
       <Block size={[1.3, 0.72, 0.05]} position={[0, 0.5, 0]} material={PBR.matte("#9a7448", 0.9)} radius={0.02} />
       {Array.from({ length: Math.min(ideas, 6) }, (_, i) => (
@@ -332,8 +333,8 @@ export function Foundry() {
         <LightBar length={2.6} position={[0, 3.3, 0]} rotation={[0, Math.PI / 2, 0]} color={PALETTE.mint} intensity={2.4} />
         <group position={[-0.9, 0, -0.7]}>
           <Block size={[1.1, 0.14, 1.1]} position={[0, 0.07, 0]} material={PBR.wood("oak")} radius={0.01} />
-          <Block size={[0.62, 0.48, 0.48]} position={[-0.2, 0.38, -0.2]} material={PBR.wood("oak")} radius={0.04} />
-          <Block size={[0.62, 0.48, 0.48]} position={[0.2, 0.38, 0.25]} material={PBR.wood("oak")} radius={0.04} />
+          {/* One shipment waiting on the pallet, not a stack (#328). */}
+          <Block size={[0.78, 0.52, 0.66]} position={[0, 0.4, 0]} material={PBR.wood("oak")} radius={0.04} />
         </group>
       </group>
 
@@ -348,9 +349,6 @@ export function Foundry() {
       <SpareDock />
       <DraftingTable />
       <AlarmPost />
-      {/* Pegboard of tools behind the benches (toward the camera, low) */}
-      <Block size={[1.4, 0.9, 0.9]} position={[3, 0.45, 4.4]} material={PBR.lacquer("#a83a2a", 0.4)} radius={0.06} />
-      <Block size={[1.4, 0.05, 0.9]} position={[3, 0.62, 4.4]} material={PBR.blackMetal()} radius={0.01} shadows={false} />
       <IdeaBoard />
       <ShippedWall />
       <DockLamp />
@@ -389,26 +387,20 @@ function Beacon({ position }: { position: [number, number, number] }) {
   );
 }
 
-/** The working floor: stock, lockers, a workshop corner, cables and vents, so the hall looks lived in. */
+/** The working floor: stock, lockers, cables and vents, so the hall looks lived in. */
 function FoundryFloor() {
   return (
     <group>
-      {/* Stock along the front wall on the right, beside the big tarped crate. Nothing stands in the front left
-          corner, so the dock against the left wall is in full view (Nikita, 2026-10-13). */}
-      <Model id="scifi-essentials/Prop_Crate_Tarp" fit={{ height: 0.9 }} position={[3.9, 0, 5.85]} rotation={-0.6} cast />
-      <Model id="scifi-essentials/Prop_Crate_Large" fit={{ height: 0.8 }} position={[4.9, 0, 5.85]} rotation={-0.15} cast />
-      <Model id="scifi-essentials/Prop_Crate" fit={{ height: 0.55 }} position={[5.65, 0, 5.9]} rotation={0.4} cast />
-      <Model id="scifi-essentials/Prop_Crate_Tarp_Large" fit={{ height: 1.3 }} position={[6.6, 0, 5.45]} rotation={-0.2} cast />
+      {/* One big tarped crate of stock in the front right corner, well clear of the Shipped board (#328: four crates,
+          an anvil, a bucket and a coil of chain crowded it). Nothing stands in the front left corner, so the dock
+          against the left wall is in full view (Nikita, 2026-10-13). */}
+      <Model id="scifi-essentials/Prop_Crate_Tarp_Large" fit={{ height: 1.3 }} position={[6.75, 0, 5.4]} rotation={-0.2} cast />
       {/* Lockers and tall shelving against the side walls. */}
       {[-0.4, 0.4, 1.2].map((z) => (
         <Model key={z} id="scifi-essentials/Prop_Locker" fit={{ height: 2.0 }} position={[-7.75, 0, z]} rotation={Math.PI / 2} cast />
       ))}
       <Model id="scifi-essentials/Prop_Shelves_WideTall" fit={{ height: 2.6 }} position={[7.6, 0, -4.6]} rotation={-Math.PI / 2} cast />
       <Model id="scifi-essentials/Prop_Shelves_WideTall" fit={{ height: 2.6 }} position={[7.6, 0, -2.4]} rotation={-Math.PI / 2} cast />
-      {/* Workshop corner by the pegboard: an anvil, a bucket, a coil of chain. */}
-      <Model id="fantasy-props/Anvil" fit={{ height: 0.7 }} position={[1.6, 0, 4.9]} rotation={0.4} cast />
-      <Model id="fantasy-props/Bucket_Metal" fit={{ height: 0.35 }} position={[2.1, 0, 5.4]} />
-      <Model id="fantasy-props/Chain_Coil" fit={{ scale: 1.2 }} position={[3.9, 0, 5.7]} rotation={1.2} />
       {/* Pipes up the back corners, cables across the floor, vents on the back wall. */}
       {[-7.7, 7.7].map((x) => (
         <Model key={x} id="scifi-modular/Columns/Column_Pipes" fit={{ height: 5.4 }} position={[x, 0, -6.1]} cast />

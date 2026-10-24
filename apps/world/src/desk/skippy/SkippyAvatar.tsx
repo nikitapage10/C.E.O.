@@ -23,6 +23,7 @@ export interface SkippyAvatarProps {
 export const SkippyAvatar = forwardRef<HTMLButtonElement, SkippyAvatarProps>(function SkippyAvatar({ size = "md", onOpen, tag = false, className = "" }, ref) {
   const busy = useSkippy((s) => s.busy);
   const open = useSkippy((s) => s.open);
+  const unread = useSkippy((s) => s.unread);
   const setOpen = useSkippy((s) => s.setOpen);
   return (
     <button
@@ -32,11 +33,12 @@ export const SkippyAvatar = forwardRef<HTMLButtonElement, SkippyAvatarProps>(fun
       onClick={onOpen ?? (() => setOpen(!open))}
       aria-expanded={open}
       aria-controls="skippy-chat"
-      aria-label={open ? "Close the chat with Skippy" : "Talk to Skippy, the Magnificent"}
+      aria-label={open ? "Close the chat with Skippy" : unread ? "Talk to Skippy, the Magnificent: an answer came back" : "Talk to Skippy, the Magnificent"}
       title="Talk to Skippy"
     >
       <span className="skp-avatar__glow" aria-hidden="true" />
       <img className="skp-avatar__can" src={SKIPPY_PORTRAIT} alt="" width={192} height={192} decoding="async" />
+      {unread && <span className="skp-avatar__ping" aria-hidden="true" />}
       {tag && (
         <span className="skp-avatar__tag" aria-hidden="true">
           {busy ? "Thinking…" : "Ask me"}

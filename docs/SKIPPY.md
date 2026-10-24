@@ -144,6 +144,82 @@ line is added when Skippy's own words don't), and the room's "Asked Skippy" pane
   phone gets one ping that names who answered, never what (quiet hours hold it). A turn already answered, not handed
   off, or another submind's is refused.
 
+## The round trip: Desk Skippy asks the submind (#341)
+
+Nikita (2026-10-23): when Desk Skippy is asked something a room's submind owns ("Why start Tre Tucker over Godwin?" on
+the Green), he says "Checking with the Commentator…", hands it off, and the answer comes back into the same chat.
+
+- **A quick take first, from the page.** With each message the Desk sends what it already has loaded (no extra reads,
+  so the chat is no slower): the Green's start/sit calls first, each with FantasyPros' and Sleeper's projections side
+  by side, its rank and any tiebreak, then the Green's lineup and bench, then the other live rooms in a line each (the
+  Exchange's public odds board, never Nikita's positions or an amount; the Boiler Room's links that aren't healthy).
+  It is `page` on the POST, at most 1,600 characters and 24 lines (about 400 tokens, a tenth of a cent on Sonnet, so the
+  chat stays well inside its monthly share), built by `apps/world/src/desk/skippy/page.ts`, fenced as `<page>` and
+  checked again by `readPage` (`api/_skippy/prompt.ts`: a private-looking line is dropped), and never stored. Skippy
+  answers from it first and never says he has no data when `<page>` has it; for an ask that belongs to the submind he
+  gives that take *and* hands it off.
+- **The pending bubble.** A hand-off's answer carries `turn`, the kept turn's id. The chat adds "Checking with the
+  Commentator…" under Skippy's take and looks for the answer in the room's log (`GET /api/skippy-log?room=`, the same
+  signed-in read as the Asked Skippy panel) every 15 seconds for five minutes, then every 30, only while the tab is
+  showing, for up to two hours (`apps/world/src/desk/skippy/handoff.ts`). Past that the bubble says where the answer
+  will show (the room's page, under Asked Skippy).
+- **The answer in place.** When the follow-up lands, it replaces the bubble: the submind's line, and its card when it
+  sent one (the numbers side by side, for the Green Sleeper's and FantasyPros' projections; the verdict; the metrics
+  that decided it; a Sources footer). The room's Asked Skippy panel shows the same card. Nikita's phone gets the usual
+  one-line ping (who answered, never what; quiet hours kept), and if the chat is closed Skippy's avatar shows a dot
+  until it is opened.
+
+### In a submind thread: the watcher, the answer, the post back
+
+The site can't fire a claude.ai trigger or post into a thread, so a submind thread wakes itself, as the Builder does
+with `scripts/foundry-watch.sh`: `scripts/submind-watch.sh <room>` runs in the background, reads the room's open
+hand-offs with the read key every 30 seconds (`GET /api/skippy-log?room=<room>&needs=<submind>`, the key in
+`x-ceo-room-key`, passed from stdin so it never shows in the process list, and never printed), and exits the moment a
+new one lands with one line:
+
+```
+handoff 3f9c0a1b2c3d4e5f green turf 2026-10-23T23:30:00.000Z: Why start Tre Tucker over Godwin?
+```
+
+That exit gives the thread a turn. The thread answers on its own Claude Code session (Opus, on Nikita's plan, no API
+spend): it reads the room's data with the read key (for the Green, `/api/green-league`: FantasyPros' and Sleeper's
+numbers for the players asked about), decides, posts the answer back, says the same in its own thread, and starts the
+watcher again. Exits: 0 rang, 2 no key or a bad room, 3 the key was refused (401: not the vault's current one; say so in
+the thread), 1 the site couldn't be read ten times running (restart it). Hand-offs already open when it starts are
+counted on stderr and left, so read them first (`--all` rings for them at once). A watcher that times out is simply
+restarted; when the thread's machine is recycled the watcher goes with it until the thread next runs.
+
+The lines a thread runs, from the repo's root (here for the Green; `exchange`, `boiler` and `foundry` the same way):
+
+```bash
+SITE=https://ceo.nikita.page
+# 1. Anything already waiting? Answer those first.
+curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/skippy-log?room=green&needs=turf"
+# 2. Then wait for the next one, in the background (the thread's background command; it rings by exiting).
+scripts/submind-watch.sh green
+# 3. On a ring: read the numbers, decide, and post the answer back with the write key (one plain line, at most 700
+#    characters, and an optional card). The id is the one the watcher printed.
+curl -fsS -H "x-ceo-room-key: $SUBMIND_LOG_TOKEN" "$SITE/api/green-league" > /tmp/green.json
+curl -fsS -X POST -H "Authorization: Bearer $SUBMIND_FEED_TOKEN" -H "Content-Type: application/json" "$SITE/api/skippy-answer" -d '{
+  "id": "3f9c0a1b2c3d4e5f", "from": "turf",
+  "text": "TUCKER, FOLKS. Under a point apart on FantasyPros, and as the underdog you take the ceiling.",
+  "card": {
+    "verdict": "Start Tre Tucker in the FLEX",
+    "cols": ["Sleeper", "FantasyPros"],
+    "rows": [{ "label": "Tre Tucker (WR)", "values": [7.6, 9.0] }, { "label": "Chris Godwin (WR)", "values": [9.1, 8.4] }],
+    "metrics": ["FantasyPros 9.0 to 8.4: under a point, so the tiebreak decides", "Win chance 38%: the underdog leans ceiling"],
+    "sources": ["Sleeper projections", "FantasyPros weekly projections"]
+  }
+}'
+# 4. Say the answer in the thread, then start the watcher again (step 2).
+```
+
+The card is optional and checked like the line (`cleanCard` in `api/_skippy/log.ts`): a `verdict` (200 characters), up
+to three `cols` and six `rows` of a label and a number (or `null`) per column, up to five `metrics` (140 each) and five
+`sources` (80 each, names only: a link is dropped). Anything that looks private refuses the whole answer (422), and a
+card without a verdict is a 400. The Desk is behind Nikita's passkey, so the answer never reaches a public page; the
+public site never shows money, messages, contacts or keys.
+
 ## Room keys
 
 Nikita approved "Both tokens" on 2026-10-22 (#281). Nothing server-side can post into a project thread, and a thread

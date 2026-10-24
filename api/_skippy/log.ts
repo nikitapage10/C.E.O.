@@ -72,12 +72,68 @@ export function handoffTo(ask: unknown, room: LogRoom): Needs | null {
 /** The name a hand-off is said to go to. */
 export const needsName = (n: Needs): string => (n === "skippy" ? "Skippy's thread" : (Object.values(ROOM_SUBMINDS).find((m) => m.id === n)?.name ?? "Skippy's thread"));
 
+/**
+ * The answer card a submind may send with its line (#341): the numbers side by side (for the Green, Sleeper's and
+ * FantasyPros' projections), its verdict, the metrics that decided it and where the numbers came from. The Desk's chat
+ * shows it in place of "Checking with the <submind>…". Plain text and numbers only, checked here and by the privacy
+ * check (api/skippy.ts) like the line itself.
+ */
+export interface AnswerCard {
+  /** The call, one line: "Start Tre Tucker in the FLEX". */
+  verdict: string;
+  /** The column heads of the numbers, two or three ("Sleeper", "FantasyPros"). */
+  cols: string[];
+  /** One row a player or option: its label and a number (or none) per column. */
+  rows: { label: string; values: (number | null)[] }[];
+  /** What decided it, a few short lines. */
+  metrics: string[];
+  /** Where the numbers came from, by name ("Sleeper projections, 18:02"); never a link. */
+  sources: string[];
+}
+
+/** The card's caps. */
+export const CARD_LIMITS = { verdict: 200, col: 24, cols: 3, label: 48, rows: 6, metric: 140, metrics: 5, source: 80, sources: 5 } as const;
+
+const NO_LINK = /\b(?:https?:\/\/|www\.)|[<>]/i;
+const cardLine = (v: unknown, max: number) => {
+  const t = line(v, max);
+  return t && !NO_LINK.test(t) ? t : "";
+};
+
+/** A card from anywhere (the thread's POST, the stored turn), checked: null when it isn't one or has no verdict. */
+export function cleanCard(v: unknown): AnswerCard | null {
+  const c = (v && typeof v === "object" && !Array.isArray(v) ? v : null) as Record<string, unknown> | null;
+  if (!c) return null;
+  const verdict = cardLine(c.verdict, CARD_LIMITS.verdict);
+  if (!verdict) return null;
+  const list = (x: unknown, max: number, each: number) => (Array.isArray(x) ? x : []).map((s) => cardLine(s, each)).filter(Boolean).slice(0, max);
+  const cols = list(c.cols, CARD_LIMITS.cols, CARD_LIMITS.col);
+  const value = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && Math.abs(n) < 1e6 ? Math.round(n * 100) / 100 : null);
+  const rows = cols.length
+    ? (Array.isArray(c.rows) ? c.rows : [])
+        .map((r) => {
+          const o = (r && typeof r === "object" ? r : {}) as Record<string, unknown>;
+          const label = cardLine(o.label, CARD_LIMITS.label);
+          const values = cols.map((_, i) => value(Array.isArray(o.values) ? o.values[i] : null));
+          return label ? { label, values } : null;
+        })
+        .filter((r): r is AnswerCard["rows"][number] => r !== null)
+        .slice(0, CARD_LIMITS.rows)
+    : [];
+  return { verdict, cols: rows.length ? cols : [], rows, metrics: list(c.metrics, CARD_LIMITS.metrics, CARD_LIMITS.metric), sources: list(c.sources, CARD_LIMITS.sources, CARD_LIMITS.source) };
+}
+
+/** Every string on a card, for the privacy check. */
+export const cardText = (c: AnswerCard): string[] => [c.verdict, ...c.cols, ...c.rows.map((r) => r.label), ...c.metrics, ...c.sources];
+
 /** The thread side's answer to a hand-off, kept on the turn. */
 export interface FollowUp {
   from: Needs;
   text: string;
   /** ISO time it came back. */
   at: string;
+  /** The answer card (#341), when the thread sent one. */
+  card?: AnswerCard;
 }
 
 /** A turn's id: 16 hex characters, stable for a turn (its time and its question). */
@@ -117,7 +173,8 @@ export function cleanFollowUp(v: unknown): FollowUp | null {
   const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   const at = isoOf(f.at);
   const text = line(f.text, ANSWER_MAX);
-  return at && text && isNeeds(f.from) ? { from: f.from, text, at } : null;
+  const card = f.card === undefined ? null : cleanCard(f.card);
+  return at && text && isNeeds(f.from) ? { from: f.from, text, at, ...(card && { card }) } : null;
 }
 
 export function cleanTurn(v: unknown): LoggedTurn | null {

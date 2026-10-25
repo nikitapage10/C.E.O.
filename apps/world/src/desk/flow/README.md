@@ -56,9 +56,14 @@ On live events: `field.pulse(id)` (a bright packet runs the line once), `field.b
 `field.setFocus(id)` (others dim). `field.hit(x, y)` and `field.line(id)` for anything custom.
 
 Options (`useFlow`, read once): `accent` ("r,g,b"), `ground` (paint the Desk's night with the accent's light and a dust
-of stars: for a full-bleed stage), `backing` (cap backing pixels for a big soft stage; Today uses 650 000).
+of stars: for a full-bleed stage), `backing` (cap backing pixels for a big soft stage; Today uses 650 000), `overlay`
+(the page's own drawing in the same frame, over the lines and under the rising words: the Lattice map's figures and
+crew, #433; no DOM reads in it).
 
 ## CSS (`flow.css`, scoped to `.fl-page`)
+
+Inside the Desk (`.desk`). A page outside the Desk's shell (the Lattice map, #433) puts `fl-root` on its own root and
+sets the Desk's colour tokens there (`--wv-ink`, `--wv-soft`, `--wv-mute`, `--wv-faint`, `--wv-line`, `--wv-line2`).
 
 Tokens: `--fl-accent` (set this), `--fl-gold`, `--fl-hi` (the accent, lightened), `--fl-disp` (Bodoni Moda),
 `--fl-text` (Jost), `--fl-s1`..`--fl-s6` (4, 8, 14, 22, 34, 56 px), `--fl-pad` (the page gutter).

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { averageReply, byWait, formatWait, nextNudge, OVERDUE_MS, useDesk, type DeskData } from "./deskData.ts";
 import { useMasked } from "./hide.ts";
 import { EmailSection } from "./email/EmailSection.tsx";
-import { RelayType } from "./relay/RelayType.tsx";
+import { RelayFilter } from "./relay/RelayFilter.tsx";
 import { Private } from "./Private.tsx";
 import { RoomBanner } from "./RoomBanner.tsx";
 import { Avatar, Panel } from "./ui.tsx";
@@ -14,7 +14,7 @@ const CHIPS = ["On my way", "Can I call you later?", "Love that", "Let me check 
 const WAIT_SCALE = 12 * 3_600_000;
 
 export function Relay({ data, now, connected }: { data: DeskData; now: number; connected: boolean }) {
-  if (!connected) return <RelayType now={now} />;
+  if (!connected) return <RelayFilter now={now} />;
   return <RelayLive data={data} now={now} connected={connected} />;
 }
 

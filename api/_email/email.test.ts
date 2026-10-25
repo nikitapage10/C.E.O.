@@ -430,7 +430,10 @@ describe("privacy", () => {
     expect(unseal(key, sealed)).toEqual({ subject: "Dinner Thursday?", refresh: "1//fake-refresh" });
     expect(unseal(sealKey(`${TOKEN_KEY}x`, "state")!, sealed)).toBeNull();
     expect(unseal(sealKey(TOKEN_KEY, "token")!, sealed)).toBeNull();
-    expect(unseal(key, { ...sealed, data: sealed.data.slice(0, -2) + "AA" })).toBeNull();
+    // Flip one bit of the ciphertext: always a real change (rewriting the last base64 characters can leave it unchanged).
+    const tampered = Buffer.from(sealed.data, "base64url");
+    tampered[0] = (tampered[0] ?? 0) ^ 1;
+    expect(unseal(key, { ...sealed, data: tampered.toString("base64url") })).toBeNull();
     expect(sealKey("too-short", "token")).toBeNull();
   });
 });

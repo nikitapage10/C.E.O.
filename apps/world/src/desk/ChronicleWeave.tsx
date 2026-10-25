@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDuration, useDayStory, useWeekStory, type DayPage, type DayStoryView, type HistoryEntry, type RoomId } from "../chronicle.ts";
-import type { BookLive } from "./chronicleViz.ts";
 import { madeAt, paragraphs, STORY_WHY, useStoryMaker } from "./DayStory.tsx";
 import { PORTRAITS } from "./portraits.ts";
 import { SKIPPY_PORTRAIT } from "./skippy/SkippyAvatar.tsx";
@@ -213,7 +212,7 @@ const REFRESH_MS = 5 * 60_000;
  * play ring and the day's editions as a rail. Read along opens the lines lighting up in time, and the rooms with them.
  * Falls back to yesterday's whole day while today has no edition yet, and to the hours read quietly when neither does.
  */
-export function Edition({ today, yesterday, entries, hourNow, live }: { today: string; yesterday: string; entries: HistoryEntry[]; hourNow: number; live: { current: BookLive } }) {
+export function Edition({ today, yesterday, entries, hourNow, onRead }: { today: string; yesterday: string; entries: HistoryEntry[]; hourNow: number; onRead?: (r: { day: string; room: RoomId; i: number } | null) => void }) {
   const mine = useDayStory((s) => s.stories[today]);
   const prev = useDayStory((s) => s.stories[yesterday]);
   const audio = useRef<HTMLAudioElement>(null);
@@ -239,17 +238,15 @@ export function Edition({ today, yesterday, entries, hourNow, live }: { today: s
   // The audio couldn't play (blocked or gone): the lines carry on as a quiet read-along.
   const [silent, setSilent] = useState(false);
   const idx = lines.reduce((ix, l, i) => (started && t >= l.t ? i : ix), -1);
-  // The Book of Hours lights today's hours as the reading goes (read each frame, no re-render).
+  // The week's threads above light the room being read, line by line (#431).
+  const readDay = ready?.day ?? today;
+  const readRoom = on && idx >= 0 ? lines[idx]?.room : undefined;
+  const reader = useRef(onRead);
+  reader.current = onRead;
   useEffect(() => {
-    live.current.on = on || (started && t > 0 && t < dur);
-    live.current.pr = dur ? Math.min(1, t / dur) : 0;
-  }, [on, started, t, dur, live]);
-  useEffect(
-    () => () => {
-      live.current.on = false;
-    },
-    [live],
-  );
+    reader.current?.(readRoom ? { day: readDay, room: readRoom, i: idx } : null);
+  }, [readRoom, readDay, idx]);
+  useEffect(() => () => reader.current?.(null), []);
   const box = useRef<HTMLDivElement>(null);
 
   // A new edition starts from the top.

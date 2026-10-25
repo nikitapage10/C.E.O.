@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { bookLine, cents, readPositions, signedPct, signedUsd, usd } from "./positions.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useDeskAuth } from "../signin.ts";
+import { bookLine, cents, readPositions, signedPct, signedUsd, startPositions, usd, usePositions } from "./positions.ts";
 
 const pos = { market: "Brewers win?", outcome: "Yes", url: "https://polymarket.us/event/mlb", short: false, contracts: 40, avgPrice: 0.55, value: 25.2, cost: 22, pnl: 3.2, pnlPct: 14.5, realized: 0, expired: false };
 
@@ -40,5 +41,57 @@ describe("the positions board's data (#253)", () => {
   it("puts the book's state on the tape in words, never a figure", () => {
     for (const s of ["idle", "signed-out", "off", "waiting", "live", "failed"] as const) expect(bookLine(s).join(" ")).not.toMatch(/\d/);
     expect(bookLine("waiting")[0]).toBe("waiting for the key");
+  });
+});
+
+describe("the positions poll's teardown (#451)", () => {
+  const original = usePositions.getState().refresh;
+  const refresh = vi.fn(async () => {});
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { location: { search: "" }, setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval });
+    vi.stubGlobal("document", { visibilityState: "visible" });
+    refresh.mockClear();
+    usePositions.setState({ refresh });
+  });
+  afterEach(() => {
+    usePositions.setState({ refresh: original });
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("polls while started, keeps polling until the last starter stops, then goes quiet and can start again", () => {
+    const stopA = startPositions();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    const stopB = startPositions();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(120_000);
+    expect(refresh).toHaveBeenCalledTimes(2);
+
+    stopA();
+    stopA(); // a second call from the same starter changes nothing
+    vi.advanceTimersByTime(120_000);
+    expect(refresh).toHaveBeenCalledTimes(3);
+
+    stopB();
+    vi.advanceTimersByTime(600_000);
+    expect(refresh).toHaveBeenCalledTimes(3);
+    useDeskAuth.setState({ auth: { status: "out" } as never });
+    expect(refresh).toHaveBeenCalledTimes(3);
+
+    const stopC = startPositions();
+    expect(refresh).toHaveBeenCalledTimes(4);
+    vi.advanceTimersByTime(120_000);
+    expect(refresh).toHaveBeenCalledTimes(5);
+    stopC();
+    vi.advanceTimersByTime(600_000);
+    expect(refresh).toHaveBeenCalledTimes(5);
+  });
+
+  it("returns a no-op stop on offline pages", () => {
+    vi.stubGlobal("window", { location: { search: "?offline" }, setInterval, clearInterval });
+    const stop = startPositions();
+    stop();
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

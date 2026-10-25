@@ -165,24 +165,46 @@ export const usePositions = create<PosStore>((set) => ({
   },
 }));
 
-let started = false;
+let starters = 0;
+let teardown: (() => void) | null = null;
 
-/** Start reading the positions (once per page): every two minutes while the tab is showing, and on sign-in or out. */
-export function startPositions(): void {
-  if (started || typeof window === "undefined") return;
+/**
+ * Start reading the positions: every two minutes while the tab is showing, and on sign-in or out. Starters are counted
+ * (the Desk board and the Lattice marquee can both ask): the first begins the poll and the sign-in subscription, and
+ * the returned stop ends them once the last starter has left, so nothing keeps polling after the page is gone (#451).
+ * The positions already read stay in the store.
+ */
+export function startPositions(): () => void {
+  if (typeof window === "undefined") return () => {};
   const q = new URLSearchParams(window.location.search);
-  if (q.has("offline") || q.has("demo")) return;
-  started = true;
-  const refresh = () => void usePositions.getState().refresh();
-  refresh();
-  window.setInterval(() => {
-    if (document.visibilityState === "visible") refresh();
-  }, POLL_MS);
-  let was = useDeskAuth.getState().auth.status;
-  useDeskAuth.subscribe((s) => {
-    if (s.auth.status !== was) {
-      was = s.auth.status;
-      refresh();
+  if (q.has("offline") || q.has("demo")) return () => {};
+  starters += 1;
+  if (starters === 1) {
+    const refresh = () => void usePositions.getState().refresh();
+    refresh();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, POLL_MS);
+    let was = useDeskAuth.getState().auth.status;
+    const unsub = useDeskAuth.subscribe((s) => {
+      if (s.auth.status !== was) {
+        was = s.auth.status;
+        refresh();
+      }
+    });
+    teardown = () => {
+      window.clearInterval(timer);
+      unsub();
+    };
+  }
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    starters -= 1;
+    if (starters === 0) {
+      teardown?.();
+      teardown = null;
     }
-  });
+  };
 }

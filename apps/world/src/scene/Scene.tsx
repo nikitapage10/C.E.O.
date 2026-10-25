@@ -20,6 +20,7 @@ import { AdaptiveResolution, canvasDpr, lowPower } from "./AdaptiveResolution.ts
 import { Backstage, TripTimer } from "./Backstage.tsx";
 import { CameraRig } from "./CameraRig.tsx";
 import { DetailLevels, ShadowFocus } from "./DetailLevels.tsx";
+import { frames } from "./frameCount.ts";
 import { Floor, FloorRings, Motes } from "./Environment.tsx";
 import { Kernel } from "./Kernel.tsx";
 import { Lighting } from "./Lighting.tsx";
@@ -47,6 +48,7 @@ Texture.DEFAULT_ANISOTROPY = lowPower() ? 4 : 8;
 /** Advances Lattice time, runs the simulator and animates every shader, once per frame. */
 function Heartbeat() {
   useFrame(({ clock: three }, dt) => {
+    frames.n++;
     clock.sim += Math.min(dt, 0.1) * 1000 * useWorld.getState().timeScale;
     pumpSimulator();
     tickMaterials(three.elapsedTime);
@@ -100,7 +102,9 @@ export function Scene() {
           dpr={canvasDpr(quality)}
           frameloop={drawing && active ? "always" : "never"}
           camera={{ position: [0, 66, 96], fov: 38, near: 0.5, far: 600 }}
-          shadows="soft"
+          // PCF, said outright: three.js r18x dropped PCFSoftShadowMap and swaps it for PCF at the first shadow pass, so
+          // "soft" compiled every program behind the curtain for a shadow type no frame ever drew with (#416).
+          shadows="percentage"
           gl={{
             antialias: false,
             powerPreference: "high-performance",

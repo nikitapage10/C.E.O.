@@ -1,4 +1,4 @@
-import type { Camera, Material, Object3D, Scene, WebGLRenderer } from "three";
+import { WebGLRenderTarget, type Camera, type Material, type Object3D, type Scene, type WebGLRenderer } from "three";
 
 /**
  * Compiling the Lattice's shaders without freezing the page (#327).
@@ -26,15 +26,45 @@ function parts(root: Object3D): Object3D[] {
 }
 
 /**
+ * A compile that builds the programs the frames will use (#416), or three.js builds them twice: once here and again,
+ * unwarmed, in the first frames that draw them.
+ *
+ * - Every frame of the Lattice is drawn into a render target (the effect composer's buffers, the floor mirror's map,
+ *   the shadow map), never straight to the canvas, and a material drawn to a target gets a different program (linear
+ *   output) from one drawn to the canvas (sRGB output). So the compile runs with a target bound.
+ * - three.js counts the lights of the scene and then those of the part being compiled, for a part that isn't in the
+ *   scene yet. Ours always is, so a room's lamps counted twice and its programs were built for twice the lights. The
+ *   part's own walk for lights runs once, inside the scene's.
+ */
+let target: WebGLRenderTarget | null = null;
+function compileAs<T>(gl: WebGLRenderer, part: Object3D, scene: Scene, run: () => T): T {
+  const before = gl.getRenderTarget();
+  target ??= new WebGLRenderTarget(1, 1);
+  if (!before) gl.setRenderTarget(target);
+  const walk = part.traverseVisible;
+  let walks = 0;
+  if (part !== scene)
+    part.traverseVisible = function (this: Object3D, cb) {
+      if (walks++ === 0) walk.call(this, cb);
+    };
+  try {
+    return run();
+  } finally {
+    if (part !== scene) delete (part as { traverseVisible?: unknown }).traverseVisible;
+    if (!before) gl.setRenderTarget(before);
+  }
+}
+
+/**
  * Compile every material under `root` (hidden things included: three.js compiles them all), lit by `scene`'s
  * lights as they are now, and resolve once all of it can be drawn without a stall.
  */
 export function compileScene(gl: WebGLRenderer, root: Object3D, camera: Camera, scene: Scene): Promise<void> {
-  if (parallelCompile(gl)) return gl.compileAsync(root, camera, scene).then(() => undefined, () => undefined);
+  if (parallelCompile(gl)) return compileAs(gl, root, scene, () => gl.compileAsync(root, camera, scene)).then(() => undefined, () => undefined);
   const list = root === scene ? parts(root) : [root];
   return (async () => {
     for (const part of list) {
-      const materials = gl.compile(part, camera, scene) as unknown as Set<Material>;
+      const materials = compileAs(gl, part, scene, () => gl.compile(part, camera, scene)) as unknown as Set<Material>;
       // Using a program waits for it to link: do it here, a part per task, not all at once in the first frame.
       for (const m of materials) {
         const program = (gl.properties.get(m) as { currentProgram?: { getUniforms(): unknown } }).currentProgram;

@@ -1,6 +1,7 @@
 import { useProgress } from "@react-three/drei";
 import { useEffect, useState } from "react";
 import { markBoot, useBoot } from "../boot.ts";
+import { useStreaming } from "../scene/roomScope.ts";
 import { streamingReady } from "../scene/streaming.ts";
 import { Decode } from "../tide/Decode.tsx";
 import { CurtainWeave } from "../weave/CurtainWeave.tsx";
@@ -24,6 +25,12 @@ const LINES = [
 ];
 
 const MIN_MS = 1600;
+/**
+ * One room on its own (#332, #416): a click on the map, so the curtain is a beat, not a screen. It lifts as soon as
+ * the room is compiled; props still on their way (usually none: the map fetched them on the hover) arrive in place.
+ */
+const SOLO_MIN_MS = 500;
+const SOLO_MODELS_MS = 900;
 /**
  * After the world on screen is compiled, how long the curtain waits for the models still on their way (#327). They
  * stream in behind it afterwards, each shown once its shaders are compiled (fx/Warm.tsx), so the wait is for looks,
@@ -49,10 +56,11 @@ export function Loader() {
   const [gone, setGone] = useState(false);
   // The Weave behind the curtain (#374), only while it's on screen: warming behind the Desk, it would draw unseen.
   const shown = useBoot((s) => s.active);
+  const solo = useStreaming((s) => s.solo !== null);
 
   useEffect(() => {
     void document.fonts?.ready.then(() => setFonts(true));
-    const a = setTimeout(() => setMinDone(true), MIN_MS);
+    const a = setTimeout(() => setMinDone(true), solo ? SOLO_MIN_MS : MIN_MS);
     const b = setTimeout(() => setFailsafe(true), FAILSAFE_MS);
     const c = setInterval(() => setLine((n) => (n + 1) % LINES.length), 1300);
     return () => {
@@ -60,13 +68,13 @@ export function Loader() {
       clearTimeout(b);
       clearInterval(c);
     };
-  }, []);
+  }, [solo]);
 
   useEffect(() => {
     if (!sceneReady) return;
-    const t = setTimeout(() => setModelsWaited(true), MODELS_MS);
+    const t = setTimeout(() => setModelsWaited(true), solo ? SOLO_MODELS_MS : MODELS_MS);
     return () => clearTimeout(t);
-  }, [sceneReady]);
+  }, [sceneReady, solo]);
 
   const done = (sceneReady && (!active || modelsWaited) && fonts && minDone) || failsafe;
   useEffect(() => {

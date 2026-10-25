@@ -1,24 +1,24 @@
-import { Keeper, Waits, type Wait } from "./parts.tsx";
+import { Waits, type Wait } from "./parts.tsx";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
-import { BookieAsides } from "../exchange/BookieAsides.tsx";
-import { PolymarketBoard } from "../exchange/PolymarketBoard.tsx";
+import { RC } from "../flow/index.ts";
+import { Floor } from "../exchange/Floor.tsx";
+import { Watchlist } from "../exchange/Markets.tsx";
+import { Movers } from "../exchange/Movers.tsx";
 import { PositionsBoard } from "../exchange/PositionsBoard.tsx";
 import { bookLine, usePositions } from "../exchange/positions.ts";
 import { tapeLine, usePolymarket } from "../exchange/polymarket.ts";
-import "@fontsource/instrument-serif/400.css";
-import "@fontsource/instrument-serif/400-italic.css";
-import "@fontsource-variable/martian-mono/standard.css";
 import "./rooms.css";
 import "../exchange/exchange.css";
 
 /**
- * The Exchange (#225, redrawn #367, given its own look in #387): a market sea and terrain, set in Instrument Serif and
- * Martian Mono with the Bookie's mint. Simple first, deeper on a tap. Nikita's own Polymarket US positions lead
- * (#253, PositionsBoard): plain figures, then the book as land against sea level (what was paid), then a ledger of
- * every position; read-only, signed-in Desk only, every figure marked private for Hide mode, and signed out an empty
- * sea that says where the book is. Then what's moving the world (#345, BookieAsides): the world's odds as weather and
- * a split-flap board, no sports. Then where the money is on Polymarket today (#240, PolymarketBoard). Below, what's
- * still to come and what the room waits on, folded away. The Lattice only ever shows the public odds, never a position.
+ * The Exchange (#225, redrawn #367, #387; on the flow kit since #430): Today's language in the Bookie's mint. The floor
+ * leads (Floor): a marquee of Polymarket's live odds along the top, then the day's money as particle lines fanning
+ * from the ledger into the busiest markets, each landing on its odds bar. Then Nikita's own Polymarket US positions
+ * (#253, PositionsBoard), each a line from what was paid to where it stands; read-only, signed-in Desk only, every
+ * figure marked private for Hide mode, and signed out only where the book is. Then what's moving the world (#345,
+ * Movers) and the watchlist. Below, what's still to come and what the room waits on, folded away. The data blocks sit
+ * in one measured column (--xc-max), so nothing stretches thin across a wide screen. The Lattice only ever shows the
+ * public odds, never a position.
  */
 
 /** The room's gauges; POSITIONS reads the book's state (never a figure), MARKET DATA and WATCHLIST read Polymarket live (#240). */
@@ -73,32 +73,20 @@ export function Exchange() {
   ]);
   const waits = posStatus === "live" ? WAITS.slice(1) : WAITS;
   return (
-    <div className="wv-page xc" data-room="exchange">
-      <header className="xc-mast">
-        <div className="xc-mast-t">
-          <p className="xc-k">Ilyr · the market floor · read-only</p>
-          <h1 className="xc-h1 desk__title">The Exchange</h1>
-          <p className="xc-dek">Your book as land against what you paid for it, and the world&apos;s odds as weather.</p>
-        </div>
-        <Keeper page="exchange" className="xc-keeper" />
-      </header>
-      <dl className="xc-gauges" aria-label="What the Exchange reads">
-        {gauges.map(([k, v]) => (
-          <div key={k}>
-            <dt>{k.toLowerCase()}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
-      </dl>
+    <div className="wv-page fl-page xc" data-room="exchange" style={{ "--fl-accent": RC.exchange } as React.CSSProperties}>
+      <Floor />
 
-      <PositionsBoard />
+      <div className="fl-below xc-wrap">
+        <PositionsBoard />
 
-      <BookieAsides />
+        <Movers />
 
-      <PolymarketBoard />
+        <section className="xc-sec xc-sec--slim" aria-label="Your watchlist">
+          <Watchlist />
+        </section>
 
       <section className="xc-later" aria-label="Still to come to the Exchange">
-        <p className="xc-k">Still to come</p>
+        <p className="fl-k">Still to come</p>
         <div className="xc-later-row">
           {LATER.map((l) => (
             <details key={l.k} className="xc-soon">
@@ -118,10 +106,20 @@ export function Exchange() {
       <details className="xc-fold xc-waits">
         <summary>
           <span>What the room waits on</span>
-          <b>{waits.length}</b>
+          <b className="fl-num">{waits.length}</b>
         </summary>
         <Waits items={waits} title="What it waits on" />
       </details>
+
+      <dl className="xc-gauges" aria-label="What the Exchange reads">
+        {gauges.map(([k, v]) => (
+          <div key={k}>
+            <dt>{k.toLowerCase()}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      </div>
     </div>
   );
 }

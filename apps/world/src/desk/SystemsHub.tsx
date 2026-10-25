@@ -3,7 +3,7 @@ import { CompliancePage } from "./security/CompliancePage.tsx";
 import { SecurityPage } from "./security/SecurityPage.tsx";
 import { Systems } from "./Systems.tsx";
 import { systemsPageOf } from "./SystemsNav.tsx";
-import "./security/security.css";
+import "./security/sx.css";
 import "./boiler/boiler.css";
 
 /**

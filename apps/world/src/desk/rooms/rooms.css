@@ -137,16 +137,7 @@
 .desk .ar-waits .rm-h2{font-family:var(--wv-codex);font-weight:500;font-size:21px}
 .desk .ar-waits li em{font-family:var(--wv-codex);font-style:italic;font-size:14px;letter-spacing:0;text-transform:none;color:var(--gilt)}
 
-/* ---------- the Boiler Room: brass and pipework ---------- */
-.desk .rm-boiler{--brass:#c9a46a;--brass-line:rgba(201,164,106,.24)}
-.desk .rm-boiler .wv-eyb{color:color-mix(in srgb,var(--brass) 75%,var(--wv-mute))}
-.desk .rm-boiler .wv-subnav{border-color:var(--brass-line);background:rgba(18,15,11,.6)}
-.desk .rm-boiler .wv-subnav a[aria-current="page"]{background:rgba(201,164,106,.12);color:#f0d9ac}
-.desk .rm-boiler .wv-graph{border-color:var(--brass-line);background:linear-gradient(180deg,rgba(20,17,13,.75),rgba(12,13,16,.8))}
-.desk .rm-boiler .wv-graph::after{content:"";position:absolute;inset:12px;z-index:2;pointer-events:none;background:radial-gradient(circle,#b8955a 0 2.2px,transparent 2.8px) 0 0/7px 7px no-repeat,radial-gradient(circle,#b8955a 0 2.2px,transparent 2.8px) 100% 0/7px 7px no-repeat,radial-gradient(circle,#b8955a 0 2.2px,transparent 2.8px) 0 100%/7px 7px no-repeat,radial-gradient(circle,#b8955a 0 2.2px,transparent 2.8px) 100% 100%/7px 7px no-repeat;opacity:.7}
-.desk .rm-boiler .wv-panel,.desk .rm-boiler .wv-sysclock,.desk .rm-boiler .wv-tobuild{border-color:var(--brass-line)}
-.desk .rm-boiler .wv-tb-l a b{color:var(--wv-ink);border-bottom:1px solid var(--brass-line)}
-.desk .rm-boiler .wv-tb-l a:hover b{color:#f0d9ac}
+/* ---------- the Boiler Room: the house ---------- */
 .desk .bh-home{margin-top:56px;padding:24px 26px;border:1px solid var(--brass-line);border-radius:6px;background:linear-gradient(180deg,rgba(26,21,15,.7),rgba(13,13,15,.75));overflow:hidden}
 .desk .bh-home::before{content:"";position:absolute;inset:-40% -10% auto;height:120%;background:radial-gradient(40% 30% at 20% 60%,rgba(236,230,220,.05),transparent 70%),radial-gradient(30% 25% at 70% 40%,rgba(236,230,220,.04),transparent 70%);animation:bh-steam 26s ease-in-out infinite alternate;pointer-events:none}
 @keyframes bh-steam{to{transform:translate3d(6%,-8%,0)}}

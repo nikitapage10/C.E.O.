@@ -137,22 +137,6 @@
 .desk .ar-waits .rm-h2{font-family:var(--wv-codex);font-weight:500;font-size:21px}
 .desk .ar-waits li em{font-family:var(--wv-codex);font-style:italic;font-size:14px;letter-spacing:0;text-transform:none;color:var(--gilt)}
 
-/* ---------- the Boiler Room: the house ---------- */
-.desk .bh-home{margin-top:56px;padding:24px 26px;border:1px solid var(--brass-line);border-radius:6px;background:linear-gradient(180deg,rgba(26,21,15,.7),rgba(13,13,15,.75));overflow:hidden}
-.desk .bh-home::before{content:"";position:absolute;inset:-40% -10% auto;height:120%;background:radial-gradient(40% 30% at 20% 60%,rgba(236,230,220,.05),transparent 70%),radial-gradient(30% 25% at 70% 40%,rgba(236,230,220,.04),transparent 70%);animation:bh-steam 26s ease-in-out infinite alternate;pointer-events:none}
-@keyframes bh-steam{to{transform:translate3d(6%,-8%,0)}}
-.desk .bh-home .wv-sechead{position:relative}
-.desk .bh-gauges{position:relative;list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.desk .bh-gauges li{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;padding:16px 14px 18px;border:1px solid var(--brass-line);border-radius:4px;background:rgba(12,11,10,.55)}
-.desk .bh-gauge{width:120px;height:72px;color:var(--brass);margin-bottom:8px}
-.desk .bh-needle{transform-origin:60px 64px;animation:bh-rest 6s ease-in-out infinite}
-@keyframes bh-rest{0%,100%{transform:rotate(0)}50%{transform:rotate(2.5deg)}}
-.desk .bh-gauges b{font-weight:500;font-size:14px;color:var(--wv-ink)}
-.desk .bh-gauges span{font-size:12.5px;color:var(--wv-mute)}
-.desk .bh-gauges em{margin-top:6px;font-style:normal;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass)}
-.desk .bh-waits{position:relative;margin-top:22px}
-.desk .bh-waits li em{color:var(--brass)}
-
 /* ---------- the Studio: a sound stage, the episode line as a strip of film ---------- */
 .desk .rm-studio{--tally:#e8706f;--green-screen:#5fbf7a}
 .desk .rm-studio .wv-eyb{color:color-mix(in srgb,var(--tally) 70%,var(--wv-mute))}
@@ -249,12 +233,10 @@
   .desk .ar-chart{min-height:0;padding-top:120px}
   .desk .ar-leaves{position:relative;grid-template-columns:minmax(0,1fr)}
   .desk .ar-leaves li{border-left:0;border-top:1px solid rgba(168,144,226,.14)}
-  .desk .bh-home{padding:18px 16px}
-  .desk .bh-gauges{grid-template-columns:minmax(0,1fr)}
   .desk .rm-waits li{grid-template-columns:minmax(0,1fr)}
   .desk .rm-waits li em{grid-column:1;grid-row:auto;margin-top:4px}
 }
 @media (prefers-reduced-motion:reduce){
-  .desk .ex-tape p,.desk .ex-bar::after,.desk .bh-home::before,.desk .bh-needle{animation:none}
+  .desk .ex-tape p,.desk .ex-bar::after{animation:none}
   .desk .gr-card{transition:none}
 }

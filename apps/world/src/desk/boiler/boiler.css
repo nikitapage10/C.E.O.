@@ -189,6 +189,28 @@
 .desk .bx-page .bx-ltime-t th{font-weight:500;text-align:left;padding:6px 12px 6px 0;white-space:nowrap;color:var(--wv-faint)}
 .desk .bx-page .bx-ltime-t td{border-top:1px solid var(--wv-line);padding:6px 12px 6px 0;white-space:nowrap;color:var(--wv-soft)}
 .desk .bx-page .skp-asked,.desk .bx-page .skp-setup__box{margin-top:var(--fl-s4)}
+/* The house (#456, rooms/Home.tsx): one line, dashed and waiting through its three stations until Google Nest is
+   connected. Nothing on it may read as a live value: the rings stay open, the words say "No reading yet". */
+.desk .bx-page .bx-house{padding-top:4px}
+.desk .bx-page .bx-house-h{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,340px);gap:var(--fl-s3) var(--fl-s5);align-items:end}
+.desk .bx-page .bx-house-h .fl-eyb{margin-bottom:10px}
+.desk .bx-page .bx-house-h .bx-note{margin:0;font-size:14px}
+.desk .bx-page .bx-hline{position:relative;isolation:isolate;margin-top:var(--fl-s4);border-top:1px solid rgba(var(--fl-accent),.3)}
+.desk .bx-page .bx-hline>:not(.fl-cv){position:relative;z-index:1}
+.desk .bx-page .bx-hst{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--fl-s4);margin:0;padding:0;list-style:none}
+.desk .bx-page .bx-hst li{display:grid;justify-items:center;align-content:start;gap:3px;padding:26px 8px 22px;text-align:center}
+.desk .bx-page .bx-hring{width:14px;height:14px;box-sizing:border-box;margin-bottom:14px;border-radius:50%;border:1px dashed var(--wv-faint);background:#0a0b0f}
+.desk .bx-page .bx-hst b{font-family:var(--fl-disp);font-weight:500;font-size:clamp(22px,1.7vw,26px);line-height:1.1;color:var(--wv-ink)}
+.desk .bx-page .bx-hst span{max-width:30ch;font-size:13.5px;line-height:1.45;color:var(--wv-mute)}
+.desk .bx-page .bx-hst em{margin-top:8px;font-size:16px}
+.desk .bx-page .bx-hwaits{margin-top:var(--fl-s3)}
+.desk .bx-page .bx-hwaits .rm-h2{font-family:var(--fl-text);font-size:11.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .bx-page .bx-hwaits ol{margin-top:var(--fl-s3)}
+.desk .bx-page .bx-hwaits li{padding:13px 0}
+.desk .bx-page .bx-hwaits li b{font-size:15px}
+.desk .bx-page .bx-hwaits li span{font-size:13.5px}
+.desk .bx-page .bx-hwaits li em{display:inline-flex;align-items:center;gap:8px;font-family:var(--fl-text);font-weight:500;letter-spacing:.16em;color:var(--wv-mute)}
+.desk .bx-page .bx-hwaits li em::before{content:"";width:14px;height:0;border-top:1px dashed var(--wv-mute)}
 
 @keyframes bx-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
@@ -230,6 +252,13 @@
   .desk .bx-page .bx-more>summary::after{grid-column:2;grid-row:1/3;align-self:center}
   .desk .bx-page .bx-tb li{grid-template-columns:22px minmax(0,1fr);row-gap:2px}
   .desk .bx-page .bx-tb li>span{grid-column:2}
+  .desk .bx-page .bx-house-h{grid-template-columns:1fr;align-items:start}
+  .desk .bx-page .bx-hst{grid-template-columns:1fr;gap:0}
+  .desk .bx-page .bx-hst li{grid-template-columns:14px minmax(0,1fr);justify-items:start;column-gap:16px;row-gap:2px;padding:16px 0 14px;text-align:left}
+  .desk .bx-page .bx-hring{grid-row:1;margin:6px 0 0}
+  .desk .bx-page .bx-hst li>:not(.bx-hring){grid-column:2}
+  .desk .bx-page .bx-hst b{font-size:22px}
+  .desk .bx-page .bx-hst em{margin-top:4px}
   .desk .bx-page .bx-sec b{font-size:22px}
   .desk .bx-page .bx-sec a{padding:8px 0 7px}
   .desk .bx-page .bx-sec small{font-size:11.5px}

@@ -1,31 +1,36 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { heldMessage, IdeaCard, nextCheck, propose, send, soon, useSetup, ideaTitle, type Setup } from "./IdeaCard.tsx";
 export { heldMessage, IdeaCard, ideaTitle, nextCheck, useSetup };
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { ensureSignedIn, useDeskAuth } from "./signin.ts";
-import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, expectChange, MODEL, modelOf, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, withTrails, type Approval, type Change, type Crate, type CrateKind, type CrateState, type CrewId, type Origin } from "../foundry.ts";
+import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, expectChange, MODEL, modelOf, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, withTrails, type Approval, type Change, type Crate, type CrateKind, type CrateState, type CrewId, type Origin } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
-import { DESK_ROOMS, FOUNDRY_THREAD, formatWait } from "./deskData.ts";
+import { FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
 import { useHide, useMasked } from "./hide.ts";
 import { Private } from "./Private.tsx";
-import { CrewRow, FoundryHead, FoundryStage, InFlight, logSpec, RunDials, UsageWoven, VqaChips, WeaveIdea } from "./FoundryWeave.tsx";
-import { useViz } from "./wvCanvas.ts";
 import { ChangePictures } from "./ChangePictures.tsx";
 import { Avatar } from "./ui.tsx";
 import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
 import { link } from "./nav.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { SetupAsks } from "./skippy/SetupAsks.tsx";
+import { RC } from "./flow/index.ts";
+import { ForgeStage } from "./foundry/ForgeStage.tsx";
+import { BenchCard, CrewStations, RunsLine, UsageLine, VqaLine } from "./foundry/ForgeParts.tsx";
+import { queueOf } from "./foundry/forge.ts";
+import "./foundry/foundry.css";
 
 /**
- * The Foundry's own Desk page. Top to bottom: what needs you (the morning's ideas as cards you can build, pass on or
- * send back with notes, plus anything waiting for your OK), how things stand right now (a strip of icons: checks, work
- * running, upkeep, the next ideas), the crew with every job each holds and the queue after them, and whether every
- * connection is up. GitHub is read directly (see foundry.ts);
- * the idea buttons write through the function in api/foundry.ts (on Azure, #313).
+ * The Foundry's own Desk page (#432), on the Desk's flow kit in Today's language with the Builder's forge orange. The
+ * stage leads: the pipeline as particle lines (ideas, the queue, the forge's four lanes, checks, shipped; see
+ * foundry/ForgeStage.tsx) with what needs Nikita beside the headline. Below it, simple first and deeper on click: the
+ * ideas on the bench as cards with their pictures beside the Suggest box, the crew at their stations (every job in hand
+ * and the queue one click deeper), the Changelog, and the next runs, usage, Visual QA and connections. GitHub is read
+ * through the Desk's feed (see foundry.ts); the idea buttons write through the function in api/foundry.ts (on Azure,
+ * #313).
  */
 
 const KIND_LABEL: Record<CrateKind, string> = { fix: "Fix", build: "Build", upkeep: "Upkeep", idea: "Idea", chat: "From chat" };
@@ -54,8 +59,8 @@ export function nextIdeas(now: number): number {
   return now + wait - (now % 60_000);
 }
 
-
 const inTime = (ms: number) => (ms < HOUR ? `in ${Math.max(1, Math.round(ms / 60_000))} min` : `in ${Math.round(ms / HOUR)} h`);
+const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ── The page ── */
 
@@ -69,7 +74,7 @@ export function FoundryPage({ now }: { now: number }) {
   const ideas = openIdeas(data.crates, pending);
   const decisions = data.crates.filter((c) => c.kind !== "idea" && (c.state === "ready" || c.state === "stuck"));
   // Everything in flight: what the crew holds plus the queue nobody holds yet. Chat work is in here too.
-  const inFlight = assignCrew(data.crates).size + upNext(data.crates).length;
+  const inFlight = assignCrew(data.crates).size + queueOf(data.crates).length;
   const { questions, toPick } = ideaCounts(ideas);
 
   const parts: string[] = [];
@@ -82,127 +87,87 @@ export function FoundryPage({ now }: { now: number }) {
   // The issue trails: the Usage panel counts from them, and the Changelog reads each change's Origin and Decision.
   const usage = useUsage();
   const changelog = withTrails(data.changelog, usage.feed?.trails ?? []);
-  const follow = useRef<((id: string) => void) | null>(null);
-  const stage = useRef<HTMLDivElement>(null);
   const suggest = useRef<HTMLElement>(null);
+  const log = useRef<HTMLElement>(null);
   const toSuggest = () => {
-    suggest.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    suggest.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" });
     window.setTimeout(() => suggest.current?.querySelector("textarea")?.focus({ preventScroll: true }), 400);
   };
+  const toIdea = (n: number) => {
+    const el = document.getElementById(`fo-idea-${n}`);
+    el?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" });
+    el?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+  };
+  const toLog = () => log.current?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "start" });
   const stop = (c: Crate) => (c.auto ? <StopAuto crate={c} setup={setup} /> : null);
 
   return (
-    <div className="foundry-page wv-page wv-foundry" style={{ "--tone": DESK_ROOMS.foundry.accent } as React.CSSProperties}>
-      <FoundryHead data={data} ideas={ideas} now={now} connected={connected} lead={lead} />
-      <div ref={stage}>
-        <FoundryStage data={data} ideas={ideas} now={now} setup={setup} stop={stop} onSuggest={toSuggest} openRef={follow} />
-      </div>
+    <div className="foundry-page wv-page fl-page fo" data-room="foundry" style={{ "--fl-accent": RC.foundry } as React.CSSProperties}>
+      <ForgeStage data={data} ideas={ideas} now={now} connected={connected} lead={lead} stop={stop} onSuggest={toSuggest} onIdea={toIdea} onShips={toLog} />
 
-      {decisions.length > 0 && (
-        <section className="wv-acts wv-decide" aria-label="Waiting for your OK">
-          {decisions.map((c, i) => {
-            const who = crewOf(c, data.crates);
-            return (
-              <article key={c.number} className="wv-act" data-room="foundry" style={{ "--i": i } as React.CSSProperties}>
-                <div className="wv-act-top">
-                  <i className="wv-dot" />
-                  <span>{c.state === "stuck" ? "Foundry, stuck" : "Foundry, ship it?"}</span>
-                  <time>{formatWait(now - c.updatedAt)}</time>
-                </div>
-                <div className="wv-act-body">
-                  <img className="wv-act-pf" src={`/desk/agent-${who}.webp`} alt="" />
-                  <div>
-                    <h3 className="wv-h3">{ideaTitle(c.title)}</h3>
-                    <p className="wv-act-p">
-                      {c.state === "stuck" ? `Stuck after every rung. Have a look.` : `A test needs you before ${CREW[who].name} can ship it.`} {KIND_LABEL[c.kind]} · #{c.number}
-                    </p>
-                  </div>
-                </div>
-                <div className="wv-act-do">
-                  <a className="wv-btn is-pri" href={FOUNDRY_THREAD} target="_blank" rel="noreferrer">
-                    {c.state === "stuck" ? "See why" : "Decide"}
-                  </a>
-                  <a className="wv-btn" href={c.url} target="_blank" rel="noreferrer">
-                    The issue
-                  </a>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      )}
-
-      <InFlight
-        data={data}
-        now={now}
-        stop={stop}
-        onFollow={(id) => {
-          stage.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-          follow.current?.(id);
-        }}
-      />
-
-      <div className="wv-fgrid">
-        <section className="wv-ideas" aria-label="Ideas waiting">
-          <div className="wv-sechead">
-            <div>
-              <p className="wv-eyb">Ideas waiting</p>
-              <h2 className="wv-h2">{ideas.length ? `${NUMBER_WORD[ideas.length] ?? ideas.length} on the bench` : "The bench is clear"}</h2>
-            </div>
-            <p className="wv-note">{ideas.length ? (questions.length ? "Rivet asks about one first" : "Shaped by Rivet and the Builder") : connected ? `The next ideas arrive ${inTime(nextIdeas(now) - now)}, at 9:00` : "Connecting to GitHub…"}</p>
-          </div>
+      <section className="fl-below fo-bench" aria-label="Ideas waiting">
+        <div className="fo-sec">
+          <p className="fl-eyb">
+            <span>On the bench</span>
+            <i />
+            {ideas.length ? (questions.length ? "Rivet asks about one first" : "shaped by Rivet and the Builder") : connected ? `the next ideas arrive ${inTime(nextIdeas(now) - now)}, at 9:00` : "connecting to GitHub"}
+          </p>
+          <h2 className="fl-h2">{ideas.length ? `${NUMBER_WORD[ideas.length] ?? ideas.length} ${ideas.length === 1 ? "idea waits" : "ideas wait"} for your pick` : "The bench is clear"}</h2>
+        </div>
+        <div className="fo-bench-g">
           {ideas.length > 0 ? (
-            <div className="wv-ideas-row fy-ideas">
+            <div className="fo-cards">
               {ideas.map((c, i) => (
-                <WeaveIdea key={c.number} crate={c} setup={setup} now={now} i={i} />
+                <BenchCard key={c.number} crate={c} setup={setup} now={now} i={i} />
               ))}
             </div>
           ) : (
             <BenchClear now={now} connected={connected} onSuggest={toSuggest} />
           )}
-          {data.shelved > 0 && (
-            <p className="wv-note wv-shelf">
-              {data.shelved} {data.shelved === 1 ? "idea" : "ideas"} on the shelf: passed for now, and Rusty may bring one back in a new shape.
-            </p>
-          )}
-        </section>
-        <div className="wv-fside">
-          <Propose setup={setup} box={suggest} />
-          {setup !== null && !setup.buttons && <SetupNote />}
-        </div>
-      </div>
-
-      <CrewRow data={data} now={now} />
-      <details className="wv-jobs">
-        <summary>
-          Every job in hand, and the queue <span className="wv-count">{inFlight}</span>
-        </summary>
-        <Crew now={now} setup={setup} />
-      </details>
-
-      <div className="wv-flow2">
-        <section className="wv-log fy-changelog" aria-label="Changelog">
-          <div className="wv-sechead">
-            <div>
-              <p className="wv-eyb">Changelog</p>
-              <h2 className="wv-h2">What reached the Lattice</h2>
-            </div>
+          <div className="fo-side">
+            <Propose setup={setup} box={suggest} />
+            {setup !== null && !setup.buttons && <SetupNote />}
           </div>
-          {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} setup={setup} /> : <p className="wv-allclear-line">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
-          <p className="wv-note changelog__all">
+        </div>
+        {data.shelved > 0 && (
+          <p className="fo-note fo-shelf">
+            {data.shelved} {data.shelved === 1 ? "idea" : "ideas"} on the shelf: passed for now, and Rusty may bring one back in a new shape.
+          </p>
+        )}
+      </section>
+
+      <CrewStations data={data} now={now}>
+        <details className="fo-more-d">
+          <summary>
+            Every job in hand, and the queue <span className="fl-num">{inFlight}</span>
+          </summary>
+          <Crew now={now} setup={setup} />
+        </details>
+      </CrewStations>
+
+      <div className="fl-below fo-flow2">
+        <section ref={log} className="fo-log fy-changelog" aria-label="Changelog">
+          <p className="fl-eyb">
+            <span>Changelog</span>
+            <i />
+            newest first
+          </p>
+          <h2 className="fl-h2">What reached the Lattice</h2>
+          {changelog.length ? <Changelog changes={changelog} now={now} remarks={remarksByIssue(world.feed?.remarks ?? [])} setup={setup} /> : <p className="fl-wait">{connected ? "Nothing shipped yet." : "Connecting to GitHub…"}</p>}
+          <p className="fo-note changelog__all">
             Every commit on main, one-offs included, is on{" "}
-            <a className="wv-link" href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
+            <a className="fo-link" href={`https://github.com/${REPO}/commits/main`} target="_blank" rel="noreferrer">
               GitHub ↗
             </a>
           </p>
         </section>
-        <div className="wv-flow2-r">
-          <RunDials now={now} />
-          <UsageWoven usage={usage.feed} world={world.feed} now={now}>
-            <details className="wv-more-d">
+        <div className="fo-flow2-r">
+          <RunsLine now={now} />
+          <UsageLine usage={usage.feed} world={world.feed} now={now}>
+            <details className="fo-more-d">
               <summary>
                 By time span and model{" "}
-                <a className="wv-link" href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                <a className="fo-link" href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
                   Claude plan limits ↗
                 </a>
               </summary>
@@ -210,16 +175,18 @@ export function FoundryPage({ now }: { now: number }) {
                 <Usage now={now} setup={setup} world={world} usage={usage} />
               </div>
             </details>
-          </UsageWoven>
-          <VqaChips />
-          <details className="wv-conn">
+          </UsageLine>
+          <VqaLine />
+          <details className="fo-more-d fo-conn">
             <summary>Connections</summary>
             <Connections setup={setup} />
           </details>
         </div>
       </div>
 
-      <SetupAsks room="foundry" />
+      <div className="fl-below">
+        <SetupAsks room="foundry" />
+      </div>
     </div>
   );
 }
@@ -232,19 +199,21 @@ function BenchClear({ now, connected, onSuggest }: { now: number; connected: boo
   const at = nextIdeas(now);
   const when = connected ? inTime(at - now) : "once GitHub answers";
   return (
-    <div className="wv-bench" aria-label="The bench is clear">
-      <p className="wv-allclear-line">{connected ? "All clear. The morning's three land here, or yours does first." : "Waiting for GitHub."}</p>
-      <ol className="wv-bench-slots">
+    <div className="fo-clear" aria-label="The bench is clear">
+      <p className="fl-wait">{connected ? "All clear. The morning's three land here, or yours does first." : "Waiting for GitHub."}</p>
+      <ol className="fo-slots">
         {["One", "Two", "Three"].map((n, i) => (
-          <li key={n} className="wv-bench-slot" style={{ "--i": i } as React.CSSProperties}>
-            <span className="wv-eyb">Idea {n.toLowerCase()} · 9:00</span>
+          <li key={n} style={{ "--i": i } as React.CSSProperties}>
+            <span className="fl-k">Idea {n.toLowerCase()} · 9:00</span>
             <b>Rivet is still sleeping on it</b>
             <small>Arrives {when}, sized and with a builder.</small>
           </li>
         ))}
-        <li className="wv-bench-slot is-yours">
+        <li className="is-yours">
           <button type="button" onClick={onSuggest}>
-            <span className="wv-eyb">Yours</span>
+            <span className="fl-k">
+              <span>Yours</span>
+            </span>
             <b>Suggest one now →</b>
             <small>Rivet reads it within a minute.</small>
           </button>
@@ -384,11 +353,11 @@ function Propose({ setup, box }: { setup: Setup; box?: React.Ref<HTMLElement> })
   const status =
     state === "busy" ? "On the board. Sending it to GitHub…" : state === "shaping" ? "On the board. Rivet is shaping it now." : state === "done" ? (ready ? `Sent. Rivet shapes it into a card ${soon()}.` : "Copied. Paste it in the Foundry thread.") : "";
   return (
-    <section ref={box} className={`wv-suggest${dragging ? " is-drop" : ""}`} aria-label="Suggest an idea">
-      <p className="wv-eyb" style={{ color: "var(--wv-hot)" }}>
-        Suggest
+    <section ref={box} className={`fl-panel wv-suggest fo-suggest${dragging ? " is-drop" : ""}`} aria-label="Suggest an idea">
+      <p className="fl-k">
+        <span>Suggest</span> · yours, in your words
       </p>
-      <h2 className="wv-h2">What should the crew build next?</h2>
+      <h2 className="fl-h2">What should the crew build next?</h2>
       <form
         className="wv-sug-form"
         onDragOver={(e) => {
@@ -492,11 +461,6 @@ function Propose({ setup, box }: { setup: Setup; box?: React.Ref<HTMLElement> })
   );
 }
 
-/** Queued work nobody holds yet (ideas waiting for a pick are the cards above, not this). */
-function upNext(crates: Crate[]): Crate[] {
-  return crates.filter((c) => c.kind !== "idea" && c.state === "queued").sort((a, b) => a.number - b.number);
-}
-
 const STATE_ORDER: Record<CrateState, number> = { stuck: 0, working: 1, ready: 2, queued: 3, shipped: 9 };
 
 /**
@@ -509,7 +473,7 @@ function Crew({ now, setup }: { now: number; setup: Setup }) {
   const crates = useFoundry((s) => s.data.crates);
   const changelog = useFoundry((s) => s.data.changelog);
   const by = assignCrew(crates);
-  const queue = upNext(crates);
+  const queue = queueOf(crates);
   const hands = rustyHands(crates);
   const waiting = waitingTurn(crates);
   const awake = sparesAwake(crates);
@@ -1095,15 +1059,9 @@ function Changelog({ changes, now, remarks, setup }: { changes: Change[]; now: n
     else days.push({ label, items: [c] });
   }
   const shown = all ? days : days.slice(0, 3);
-  const cv = useRef<HTMLCanvasElement>(null);
-  const spec = useMemo(() => logSpec(), []);
-  const vz = useViz(cv, spec);
-  const sig = `${all}|${changes.length}|${changes.map((c) => c.undo ?? "").join()}`;
-  useEffect(() => vz.current?.relayout(), [sig, vz]);
   return (
     <>
       <div className="wv-log-in changelog">
-        <canvas ref={cv} className="wv-cv" aria-hidden="true" />
         {shown.map((d) => (
           <div key={d.label} className="changelog__day">
             <p className="wv-log-day">

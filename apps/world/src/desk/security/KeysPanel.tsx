@@ -28,25 +28,26 @@ export function KeysPanel({ now }: { now: number }) {
   const view = load?.state === "ready" ? load.view : null;
 
   return (
-    <section className="wv-panel wv-keys" aria-label="Keys">
-      <div className="wv-sechead">
+    <section className="fl-below fl-panel sx-keys" aria-label="Keys">
+      <div className="sx-ghead">
         <div>
-          <p className="wv-eyb">Keys</p>
-          <h2 className="wv-h2">Set a key, never see one</h2>
+          <p className="fl-k">
+            <span>Keys</span> · each one asks for your passkey
+          </p>
+          <h2 className="fl-h2">Set a key, never see one</h2>
         </div>
-        <p className="wv-note">Each one asks for your passkey</p>
       </div>
-      <p className="wv-note wv-keys-intro">
+      <p className="sx-note sx-keys-intro">
         Paste a new key from the service it belongs to. It goes straight into the Key Vault and the app picks it up within two minutes. Nothing here can read a key back. The Desk key, the
         site lock's bypass and the crew's own tokens aren't on this list: they stay with Cloud Shell.
       </p>
-      {!load ? <p className="wv-note">Reading the vault…</p> : null}
-      {load?.state === "off" ? <p className="wv-note">Keys live on the Azure copy of the Desk.</p> : null}
-      {load?.state === "failed" ? <p className="wv-note">Couldn't read the vault just now.</p> : null}
-      {view?.vault === "none" ? <p className="wv-note">The Key Vault isn't connected here yet: the next deploy sets KEY_VAULT_URI.</p> : null}
-      {view?.vault === "error" ? <p className="wv-note">The Key Vault didn't answer, so whether each key is set can't be read right now.</p> : null}
+      {!load ? <p className="sx-note">Reading the vault…</p> : null}
+      {load?.state === "off" ? <p className="sx-note">Keys live on the Azure copy of the Desk.</p> : null}
+      {load?.state === "failed" ? <p className="sx-note">Couldn't read the vault just now.</p> : null}
+      {view?.vault === "none" ? <p className="sx-note">The Key Vault isn't connected here yet: the next deploy sets KEY_VAULT_URI.</p> : null}
+      {view?.vault === "error" ? <p className="sx-note">The Key Vault didn't answer, so whether each key is set can't be read right now.</p> : null}
       {view ? (
-        <ul className="wv-keys-l">
+        <ul className="sx-keys-l">
           {view.keys.map((k) => (
             <KeyItem key={k.name} row={k} now={now} open={open === k.name} canSet={view.vault !== "none"} onOpen={(on) => setOpen(on ? k.name : null)} onDone={refresh} />
           ))}
@@ -93,26 +94,26 @@ function KeyItem({ row, now, open, canSet, onOpen, onDone }: { row: KeyRow; now:
 
   const tone = row.set === null ? "is-off" : row.set ? "is-ok" : "is-wait";
   return (
-    <li className={`wv-kf ${tone}`}>
-      <div className="wv-kf-h">
-        <span className="wv-kf-n">
+    <li className={`sx-kf ${tone}`}>
+      <div className="sx-kf-h">
+        <span className="sx-kf-n">
           <b>{row.label}</b>
           <code>{row.name}</code>
         </span>
-        <span className="wv-kf-s">{keyLine(row, now)}</span>
+        <span className="sx-kf-s">{keyLine(row, now)}</span>
         {canSet ? (
-          <button type="button" className="btn btn--quiet btn--sm" aria-expanded={open} onClick={() => onOpen(!open)}>
+          <button type="button" className="fl-btn" aria-expanded={open} onClick={() => onOpen(!open)}>
             {open ? "Cancel" : row.set ? "Replace" : "Set"}
           </button>
         ) : null}
       </div>
       {open ? (
-        <form className="wv-kf-f" onSubmit={submit} autoComplete="off">
+        <form className="sx-kf-f" onSubmit={submit} autoComplete="off">
           <label>
-            <span className="wv-note">New value, from {row.from}</span>
+            <span className="sx-note">New value, from {row.from}</span>
             <input type="password" name={`key-${row.name}`} value={value} onChange={(e) => setValue(e.target.value)} maxLength={4096} autoComplete="new-password" spellCheck={false} autoCapitalize="off" autoCorrect="off" disabled={busy} />
           </label>
-          <button type="submit" className="btn btn--go btn--sm" disabled={busy || !value.trim()}>
+          <button type="submit" className="fl-btn is-pri" disabled={busy || !value.trim()}>
             {busy ? "Waiting for the passkey…" : "Set with passkey"}
           </button>
         </form>

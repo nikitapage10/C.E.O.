@@ -1,150 +1,12 @@
 /*
- * The Boiler Room. Two parts: the security and compliance pages (.rm-boiler, #369's steel and brass, kept as they
- * were), then the pipes page itself (.bx-page, #390), rebuilt on Today's flow kit.
+ * The Boiler Room's pipes page (#390), on Today's flow kit. Security and Compliance (#445) have their own sheet,
+ * security/sx.css, and share the sub-navigation below.
  */
-
-/* ===================== Security and Compliance (.rm-boiler) ===================== */
-.desk .rm-boiler {
-  font-variant-numeric: lining-nums tabular-nums;
-  --bx-steel: #a8aebc;
-  --bx-steel-dim: rgba(168, 174, 188, 0.5);
-  --bx-brass: #c9a46a;
-  --bx-brass-hi: #f0d9ac;
-  --bx-brass-line: rgba(201, 164, 106, 0.26);
-  --bx-hair: rgba(255, 255, 255, 0.09);
-  --bx-hair2: rgba(255, 255, 255, 0.16);
-  --bx-ground: #07080a;
-  --bx-panel: rgba(9, 10, 12, 0.86);
-  --bx-ok: var(--wv-ok, #86d4b4);
-  --bx-run: var(--wv-run, #8fb4f0);
-  --bx-bad: var(--wv-bad, #f07a8f);
-  --bx-mute: #8d93a0;
-  --bx-faint: #5b616d;
-  --bx-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --bx-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
-  font-family: var(--wv-mono);
-}
-
-/* The sub-navigation: a strip of engraved tabs, brass under the one you're on. */
-.desk .rm-boiler .wv-subnav {
-  display: flex;
-  gap: 0;
-  padding: 0;
-  border: 0;
-  border-bottom: 1px solid var(--bx-hair);
-  border-radius: 0;
-  background: none;
-  margin-bottom: 34px;
-}
-.desk .rm-boiler .wv-subnav a {
-  position: relative;
-  border-radius: 0;
-  padding: 12px 18px 13px;
-  font-family: var(--wv-mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--bx-mute);
-}
-.desk .rm-boiler .wv-subnav a:first-child {
-  padding-left: 2px;
-}
-.desk .rm-boiler .wv-subnav a[aria-current="page"] {
-  background: none;
-  color: var(--bx-brass-hi);
-}
-.desk .rm-boiler .wv-subnav a[aria-current="page"]::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--bx-brass) 20%, var(--bx-brass) 80%, transparent);
-}
-.desk .rm-boiler .wv-subnav a:first-child[aria-current="page"]::after {
-  left: 2px;
-}
-.desk .rm-boiler .wv-eyb {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  font-family: var(--wv-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--bx-brass) 78%, var(--bx-mute));
-}
-/* ——— Security and Compliance, in the same language. ——— */
-.desk .rm-boiler .wv-pghead .wv-h1 {
-  font-weight: 300;
-  font-size: clamp(38px, 4.8vw, 62px);
-}
-.desk .rm-boiler .wv-pghead .wv-h1 em {
-  font-style: italic;
-  font-weight: 400;
-}
-.desk .rm-boiler .wv-pghead .wv-sub {
-  font-family: var(--wv-mono);
-  font-size: 12.5px;
-  line-height: 1.65;
-}
-.desk .rm-boiler.wv-sec .wv-panel,
-.desk .rm-boiler.wv-comp .wv-panel,
-.desk .rm-boiler.wv-sec .wv-scans,
-.desk .rm-boiler.wv-sec .wv-counts > div,
-.desk .rm-boiler.wv-comp .wv-fw {
-  border-radius: 3px;
-  border-color: var(--bx-hair);
-  background: var(--bx-panel);
-}
-.desk .rm-boiler.wv-sec .wv-panel,
-.desk .rm-boiler.wv-comp .wv-panel,
-.desk .rm-boiler.wv-comp .wv-fw {
-  border-top: 2px solid var(--bx-brass-line);
-}
-.desk .rm-boiler.wv-sec .wv-h2,
-.desk .rm-boiler.wv-comp .wv-h2,
-.desk .rm-boiler.wv-comp .wv-h3 {
-  font-weight: 400;
-}
-.desk .rm-boiler.wv-sec .wv-counts b,
-.desk .rm-boiler.wv-comp .wv-fw b {
-  font-family: var(--wv-serif);
-  font-size-adjust: var(--wv-serif-adj);
-  font-weight: 300;
-}
-.desk .rm-boiler.wv-sec .wv-note,
-.desk .rm-boiler.wv-comp .wv-note {
-  font-family: var(--wv-mono);
-  font-size: 11.5px;
-}
-
-@media (max-width: 640px) {
-  .desk .rm-boiler .wv-subnav {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .desk .rm-boiler .wv-subnav a {
-    padding: 12px 12px 13px;
-    white-space: nowrap;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .desk .rm-boiler *,
-  .desk .rm-boiler *::before,
-  .desk .rm-boiler *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-}
 
 /* ===================================================================================================================
  * The Boiler Room's own page (#390): Today's flow kit (Bodoni Moda + Jost, the horizon, eyebrow, ledger, panels) in
  * the Pessimist's steel grey (--fl-accent, RC.boiler). The stage is the rack: one particle line a room (Rack.tsx).
- * Everything is scoped to .bx-page; the security and compliance pages above keep .rm-boiler.
+ * Everything is scoped to .bx-page, except the sub-navigation, which Security and Compliance (.sx-page) share.
  * =================================================================================================================== */
 
 .desk .bx-page{
@@ -158,11 +20,11 @@
 .desk .bx-page .is-wait{--st:var(--wv-mute)}
 
 /* The sub-navigation, in the kit's small caps: the page you're on gets the accent's hairline. */
-.desk .bx-page .wv-subnav{display:flex;gap:26px;margin:0 0 var(--fl-s5);padding:0;border:0;background:none}
-.desk .bx-page .wv-subnav a{position:relative;padding:4px 0 10px;border-radius:0;background:none;font-family:var(--fl-text);font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint);text-decoration:none;transition:color .3s}
-.desk .bx-page .wv-subnav a:hover{color:var(--wv-soft)}
-.desk .bx-page .wv-subnav a[aria-current="page"]{background:none;color:var(--fl-hi)}
-.desk .bx-page .wv-subnav a[aria-current="page"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,rgba(var(--fl-accent),.9),rgba(var(--fl-accent),0))}
+.desk :is(.bx-page,.sx-page) .wv-subnav{display:flex;gap:26px;margin:0 0 var(--fl-s5);padding:0;border:0;background:none}
+.desk :is(.bx-page,.sx-page) .wv-subnav a{position:relative;padding:4px 0 10px;border-radius:0;background:none;font-family:var(--fl-text);font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint);text-decoration:none;transition:color .3s}
+.desk :is(.bx-page,.sx-page) .wv-subnav a:hover{color:var(--wv-soft)}
+.desk :is(.bx-page,.sx-page) .wv-subnav a[aria-current="page"]{background:none;color:var(--fl-hi)}
+.desk :is(.bx-page,.sx-page) .wv-subnav a[aria-current="page"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,rgba(var(--fl-accent),.9),rgba(var(--fl-accent),0))}
 
 /* ---------- the head: headline and ledger, security beside them ---------- */
 .desk .bx-page .bx-stage{min-height:0;padding-bottom:var(--fl-s5)}
@@ -339,8 +201,8 @@
   .desk .bx-page .bx-v small{display:none}
 }
 @media (max-width:760px){
-  .desk .bx-page .wv-subnav{gap:18px;margin-bottom:var(--fl-s4);overflow-x:auto;scrollbar-width:none}
-  .desk .bx-page .wv-subnav a{padding:4px 0 10px;font-size:11.5px;white-space:nowrap}
+  .desk :is(.bx-page,.sx-page) .wv-subnav{gap:18px;margin-bottom:var(--fl-s4);overflow-x:auto;scrollbar-width:none}
+  .desk :is(.bx-page,.sx-page) .wv-subnav a{padding:4px 0 10px;font-size:11.5px;white-space:nowrap}
   .desk .bx-page .bx-mhead{margin-top:var(--fl-s5)}
   .desk .bx-page .bx-row{grid-template-columns:1fr;row-gap:10px;padding-top:14px}
   .desk .bx-page .bx-head{grid-template-columns:auto minmax(0,1fr) auto;align-items:baseline;column-gap:10px;width:100%}

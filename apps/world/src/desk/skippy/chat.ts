@@ -182,6 +182,8 @@ interface SkippyStore {
   setVoice: (on: boolean) => void;
   /** Sends a message; resolves with the reply turn, or null when it failed (a note says why). */
   send: (text: string, doFetch?: typeof fetch) => Promise<Turn | null>;
+  /** Adds a line said on a voice call (#434), or a note from the Desk about it, to the conversation. */
+  say: (who: Turn["who"], text: string, note?: boolean) => void;
   /** Marks a tapped button's state on its turn. */
   mark: (turn: number, index: number, state: ActionState) => void;
   clear: () => void;
@@ -223,6 +225,10 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     if (got.ok && get().voice) speak(got.reply);
     if (rt && pending) rt.watchHandoffs(doFetch);
     return got.ok ? turn : null;
+  },
+  say: (who, text, note = false) => {
+    const words = clip(text, 700);
+    if (words) set((s) => ({ turns: [...s.turns, { id: nextId++, who, text: words, ...(note && { note: true }) }].slice(-KEEP_TURNS) }));
   },
   mark: (id, index, state) => set((s) => ({ turns: s.turns.map((t) => (t.id === id ? { ...t, done: { ...t.done, [index]: state } } : t)) })),
   clear: () => {

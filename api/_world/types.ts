@@ -169,6 +169,10 @@ export interface WorldFeed {
     elevenUsd?: number;
     elevenChars?: number;
     elevenCalls?: number;
+    /** Skippy's voice chat (#434): dollars, seconds and sessions this month, inside ElevenLabs' cap. */
+    voiceUsd?: number;
+    voiceSecs?: number;
+    voiceCalls?: number;
   };
   /**
    * The email agent's public counts (#263, api/_email/status.ts): counts and states only, never a subject or a

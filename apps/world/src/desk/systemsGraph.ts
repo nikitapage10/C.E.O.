@@ -140,6 +140,8 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     history: { id: "history", l: "World history", s: "the public Chronicle", k: "store", state: world ? "ok" : "wait" },
     script: { id: "script", l: "Story script", s: "scrubbed", k: "service", state: story ? "ok" : "wait" },
     speech: { id: "speech", l: story?.eleven ? "ElevenLabs speech" : "Gemini speech", s: story?.eleven ? "Gemini behind it" : story?.gemini ? "Skippy's voice" : "no key yet", k: "service", state: story?.gemini || story?.eleven ? "ok" : "wait" },
+    // Talk to Skippy (#434): live voice calls from the Desk's chat, ElevenLabs Agents in the story's voice.
+    talk: { id: "talk", l: "Talk to Skippy", s: story?.eleven ? `${Math.round((story.voiceSecs ?? 0) / 60)} min talked this month` : "no key yet", k: "agent", state: story?.eleven ? "ok" : "wait" },
     audio: { id: "audio", l: "Audio", s: "Azure Blob (ceo-state)", k: "store", state: story?.stories ? "ok" : "wait" },
     chron: { id: "chron", l: "Chronicle", s: "on the Desk", k: "service", state: "ok" },
     hub: { id: "hub", l: "Hub", s: "on the MacBook", k: "service", state: hub },
@@ -255,6 +257,7 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
         { a: "history", b: "script", room: "archive", state: nodes.script!.state, label: "The day's hours", kinds: ["Storage"], how: "The script is written from the public Chronicle only, then scrubbed.", auth: VBLOB, when: "Each edition." },
         { a: "script", b: "speech", room: "archive", state: nodes.speech!.state, label: "Read it aloud", how: conn("gemini-speech")?.how ?? "The script goes to Gemini's text to speech.", ...fromConn("gemini-speech") },
         { a: "speech", b: "audio", room: "archive", state: nodes.audio!.state, label: "Keeps the audio", kinds: ["Storage"], how: "The latest edition's audio is kept in the private Azure Blob store and served from our own site.", auth: VBLOB, when: "Each edition." },
+        { a: "talk", b: "speech", room: "archive", state: nodes.talk!.state, label: "Same voice, live", how: conn("elevenlabs-agents")?.how ?? "The Desk's chat calls Skippy on ElevenLabs Agents, in the story's voice.", ...fromConn("elevenlabs-agents") },
         { a: "audio", b: "chron", room: "archive", state: nodes.audio!.state, label: "Play", kinds: ["REST API"], how: "The Chronicle on the Desk plays it, with the words alongside.", auth: "Your Desk session.", when: "Whenever you press play." },
       ],
     },
@@ -362,13 +365,13 @@ export const GL: Record<"d" | "p", Record<FlowId, Lay>> = {
   d: {
     foundry: { you: [0.04, 0.5], desk: [0.14, 0.5], shaping: [0.26, 0.24], pictures: [0.26, 0.8], issues: [0.37, 0.5], pings: [0.45, 0.84], queue: [0.48, 0.5], builder: [0.58, 0.5], rivet: [0.69, 0.2], rusty: [0.69, 0.5], rocky: [0.69, 0.8], checks: [0.8, 0.5], vqa: [0.82, 0.84], main: [0.88, 0.3], deploy: [0.96, 0.52] },
     boiler: { cron: [0.1, 0.3], doorbell: [0.1, 0.74], step: [0.34, 0.52], claude: [0.58, 0.24], worldstate: [0.58, 0.78], clock: [0.84, 0.3], lattice: [0.86, 0.78] },
-    archive: { midnight: [0.1, 0.28], history: [0.1, 0.74], script: [0.34, 0.52], speech: [0.56, 0.28], audio: [0.74, 0.66], chron: [0.92, 0.42] },
+    archive: { midnight: [0.1, 0.28], history: [0.1, 0.74], script: [0.34, 0.52], speech: [0.56, 0.28], talk: [0.82, 0.12], audio: [0.74, 0.66], chron: [0.92, 0.42] },
     relay: { mac: [0.06, 0.5], hub: [0.24, 0.5], gmail: [0.24, 0.14], lattice: [0.26, 0.86], bluebubbles: [0.46, 0.2], messages: [0.46, 0.5], openai: [0.46, 0.8], dialtone: [0.68, 0.32], blasto: [0.7, 0.7], you: [0.92, 0.5] },
   },
   p: {
     foundry: { you: [0.5, 0.03], desk: [0.5, 0.11], shaping: [0.2, 0.2], pictures: [0.8, 0.2], issues: [0.5, 0.29], pings: [0.84, 0.36], queue: [0.5, 0.39], builder: [0.5, 0.48], rivet: [0.16, 0.58], rusty: [0.5, 0.58], rocky: [0.84, 0.58], checks: [0.5, 0.68], vqa: [0.84, 0.76], main: [0.5, 0.8], deploy: [0.5, 0.92] },
     boiler: { cron: [0.25, 0.08], doorbell: [0.75, 0.08], step: [0.5, 0.3], claude: [0.22, 0.52], worldstate: [0.78, 0.52], clock: [0.22, 0.76], lattice: [0.78, 0.76] },
-    archive: { midnight: [0.25, 0.08], history: [0.75, 0.08], script: [0.5, 0.3], speech: [0.5, 0.5], audio: [0.5, 0.7], chron: [0.5, 0.9] },
+    archive: { midnight: [0.25, 0.08], history: [0.75, 0.08], script: [0.5, 0.3], speech: [0.5, 0.5], talk: [0.84, 0.38], audio: [0.5, 0.7], chron: [0.5, 0.9] },
     relay: { mac: [0.5, 0.05], hub: [0.5, 0.19], gmail: [0.14, 0.2], lattice: [0.86, 0.2], bluebubbles: [0.16, 0.38], messages: [0.5, 0.38], openai: [0.84, 0.38], dialtone: [0.3, 0.6], blasto: [0.7, 0.6], you: [0.5, 0.84] },
   },
 };

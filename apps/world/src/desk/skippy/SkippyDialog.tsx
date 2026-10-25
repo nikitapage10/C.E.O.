@@ -8,6 +8,9 @@ import { useHide } from "../hide.ts";
 import { Private } from "../Private.tsx";
 import { SkippyComposer } from "./SkippyChat.tsx";
 import { SKIPPY_PORTRAIT } from "./SkippyAvatar.tsx";
+import { SkippyLine, TalkUsage } from "./SkippyLine.tsx";
+import { useTalk } from "./talk.ts";
+import { useDeskAuth } from "../signin.ts";
 import "./skippy.css";
 
 /** The open dialogue, its own download: the Desk loads it the first time Skippy is opened (first-load budget). */
@@ -75,6 +78,12 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
   const list = useRef<HTMLOListElement>(null);
   const titleId = useId();
   const shown = placement === "inline" || open;
+  const talking = useTalk((s) => s.phase !== "idle");
+  const signedIn = useDeskAuth((s) => s.auth.status === "in");
+  // This month's talk minutes (#434), asked for when the chat opens signed in.
+  useEffect(() => {
+    if (shown && signedIn) void useTalk.getState().refresh();
+  }, [shown, signedIn]);
 
   useLayoutEffect(() => {
     const el = list.current;
@@ -82,6 +91,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
   }, [turns, busy, shown]);
 
   const close = () => {
+    void useTalk.getState().end();
     setOpen(false);
     stopSpeaking();
     returnFocus?.current?.focus();
@@ -102,7 +112,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
         <img className="skp-chat__face" src={SKIPPY_PORTRAIT} alt="" width={40} height={40} />
         <div className="skp-chat__who">
           <h2 id={titleId}>Skippy, the Magnificent</h2>
-          <p>{busy ? "Thinking, magnificently…" : "Runs C.E.O. Routes anything you ask."}</p>
+          <p>{talking ? "On the line, magnificently" : busy ? "Thinking, magnificently…" : "Runs C.E.O. Routes anything you ask."}</p>
         </div>
         {canSpeak() && (
           <button type="button" className={`skp-chat__icon${voice ? " on" : ""}`} aria-pressed={voice} onClick={() => setVoice(!voice)} title={voice ? "Stop reading replies aloud" : "Read replies aloud"} aria-label="Read replies aloud">
@@ -158,7 +168,14 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
           </li>
         )}
       </ol>
-      <SkippyComposer autoFocus />
+      {talking ? (
+        <SkippyLine />
+      ) : (
+        <>
+          <SkippyComposer autoFocus />
+          {signedIn && <TalkUsage />}
+        </>
+      )}
     </section>
   );
   // The dock floats over the viewport, so it lives at the Desk's root (its tokens and resets, none of its panels):

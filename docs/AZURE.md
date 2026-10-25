@@ -174,7 +174,10 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    and say so, so add new settings to the template instead.
    ElevenLabs' story settings (#365) are the code's own defaults and need no app setting: `ELEVENLABS_BUDGET_USD`
    (default `10`, never above 10) and `ELEVENLABS_VOICE_ID` (default Daniel, `onwK4e9ZLuTAKqWW03F9`, a premade British
-   male voice). To change one, add it to `plainSettings` in `infra/resources.bicep` (and to the kept-live list in
+   male voice). Talk to Skippy (#434, `api/skippy-voice.ts`) uses the same key and voice and needs no setting either:
+   `ELEVENLABS_VOICE_BUDGET_USD` (its share of that $10, default `5`, never above the cap), three-minute calls counted
+   at $0.12 a minute (about 41 minutes a month), and its one private agent is made from code on the first call (the
+   key needs ElevenLabs' Agents access: Write). To change one, add it to `plainSettings` in `infra/resources.bicep` (and to the kept-live list in
    `scripts/azure-infra-lib.mjs` and `deploy-azure.yml`), not in the portal, for the reason above.
    Vercel's `BLOB_*` settings have no counterpart: the Function App already has `WORLD_STORE=azureblob`,
    `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_BLOB_ENDPOINT` and `AZURE_STORAGE_CONTAINER=ceo-state`.

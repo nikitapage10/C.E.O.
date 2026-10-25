@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { mountainHour } from "./ilyrTime.ts";
 import { heldMessage, IdeaCard, nextCheck, propose, send, soon, useSetup, ideaTitle, type Setup } from "./IdeaCard.tsx";
 export { heldMessage, IdeaCard, ideaTitle, nextCheck, useSetup };
 import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
@@ -51,10 +52,8 @@ const MODEL_COLOUR = Object.fromEntries(Object.values(MODEL).map((m) => [m.name,
 
 /** The morning ideas come at 9:00 Mountain time. */
 export function nextIdeas(now: number): number {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(now));
-  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-  const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-  let wait = (9 * 60 - (h * 60 + m)) * 60_000;
+  const mt = mountainHour(now);
+  let wait = Math.round((9 - mt) * 60) * 60_000;
   if (wait <= 0) wait += 24 * HOUR;
   return now + wait - (now % 60_000);
 }

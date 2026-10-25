@@ -22,10 +22,15 @@
 .desk .td-now-head .wv-eyb>span:not(.td-now-as){color:var(--wv-hot)}
 .desk .td-now-as{margin-left:auto;color:var(--wv-faint);letter-spacing:.08em;font-variant-numeric:tabular-nums}
 .desk .td-now .td-h2{font-size:clamp(26px,2.5vw,32px)}
-.desk .td-live{width:7px;height:7px;border-radius:50%;background:var(--wv-hot);--k:var(--wv-hot);animation:weave-ping 2.4s ease-out infinite}
+.desk .td-live{position:relative;width:7px;height:7px;border-radius:50%;background:var(--wv-hot);--k:var(--wv-hot)}
+/* The live dot's ping (#417): the same ring as weave-ping, as a disc of its own colour that grows and fades, so it runs
+   on the compositor instead of repainting a box-shadow every frame (it kept the Desk making a frame 60 times a second). */
+.desk .td-live::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--k);opacity:0;animation:td-ping 2.4s ease-out infinite;pointer-events:none}
+@keyframes td-ping{0%{transform:scale(1);opacity:.6}70%,100%{transform:scale(3);opacity:0}}
 .desk .td-now.has-fire .td-live{background:var(--wv-bad);--k:var(--wv-bad)}
 .desk .td-now.has-fire .td-now-head .wv-eyb>span:not(.td-now-as){color:var(--wv-bad)}
-.desk .td-now.is-clear .td-live{background:var(--wv-ok);--k:var(--wv-ok);animation-duration:3.6s}
+.desk .td-now.is-clear .td-live{background:var(--wv-ok);--k:var(--wv-ok)}
+.desk .td-now.is-clear .td-live::after{animation-duration:3.6s}
 .desk .td-now.is-clear .td-now-head .wv-eyb>span:not(.td-now-as){color:var(--wv-ok)}
 
 /* Each signal: its numeral in the margin, its glyph on the helm's line, a light running down the line. */
@@ -244,7 +249,7 @@
 
 /* ---------- still ---------- */
 @media (prefers-reduced-motion:reduce){
-  .desk .td-live,.desk .td-now-l::after,.desk .td-ni.is-fire .td-ni-ic,.desk .td-clear-ic::before,.desk .td-clear-ic::after,.desk .td-eph-r.is-next .td-eph-g::after,.desk .td-cast.is-playing .td-cast-w i{animation:none}
+  .desk .td-live,.desk .td-live::after,.desk .td-now-l::after,.desk .td-ni.is-fire .td-ni-ic,.desk .td-clear-ic::before,.desk .td-clear-ic::after,.desk .td-eph-r.is-next .td-eph-g::after,.desk .td-cast.is-playing .td-cast-w i{animation:none}
   .desk .td-now-l::after{display:none}
   .desk .td-ni{animation:none;opacity:1;transform:none}
   .desk .td-ni-ic .td-ic path,.desk .td-clear-ic .td-ic path{animation:none;stroke-dashoffset:0}

@@ -1,6 +1,10 @@
+/** The Mountain clock's formatter, made once: building one costs far more than using it (#417, the Desk asks often). */
+let MT: Intl.DateTimeFormat | null = null;
+
 /** What Ilyr's hour is: the Mountain clock, as the world keeps it (hours and a fraction, 0..24). */
 export function mountainHour(now: number): number {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);
+  MT ??= new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "numeric", hourCycle: "h23" });
+  const parts = MT.formatToParts(now);
   const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
   const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
   return h + m / 60;

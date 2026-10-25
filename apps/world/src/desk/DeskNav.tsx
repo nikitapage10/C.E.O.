@@ -134,10 +134,17 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
   const setSkippy = useSkippy((s) => s.setOpen);
   const pages: { id: Exclude<Route, "lattice">; label: string }[] = [...MAIN_TABS, ...ROOM_ROUTES.map((id) => ({ id, label: ROOM_TABS[id].label }))];
 
-  // On a phone the row scrolls: keep the page you're on in view.
+  // On a phone the row scrolls: keep the page you're on in view. Asked in the next frame, once the new page has mounted,
+  // and only when the row overflows (#417): scrollIntoView lays the whole page out on the spot, and in the commit it
+  // did that before the page's own canvases had measured, so a page switch laid out twice.
   useEffect(() => {
-    const el = tabs.current?.querySelector<HTMLElement>('[aria-current="page"]');
-    el?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    const row = tabs.current;
+    if (!row) return;
+    const id = requestAnimationFrame(() => {
+      if (row.scrollWidth <= row.clientWidth) return;
+      row.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    });
+    return () => cancelAnimationFrame(id);
   }, [route]);
 
   return (

@@ -11,7 +11,12 @@
  * with a cron, plus Visual QA's newest push run, trimmed to the workflow's name, the run's state and times and its
  * link. Nothing else from the run leaves this function. They change at most hourly, so they are read every two minutes.
  *
- * GET → { issues, runs, e2e, live, pulls, commits, jobs }: the GitHub JSON the Desk parses (apps/world/src/foundry.ts,
+ * The open pull requests come along as `open` (#432): each one's number, link, when it opened, whether it is a draft,
+ * the issue it works on (from its branch or a "Closes #n") and its checks summed up to one state, read from its head
+ * commit's check runs. Nothing else from the pull request (no title, no body) leaves this function. They are read every
+ * 30 seconds, so the Foundry page sees a job's pull request open and its checks go green.
+ *
+ * GET → { issues, runs, e2e, live, pulls, commits, jobs, open }: the GitHub JSON the Desk parses (apps/world/src/foundry.ts,
  * apps/world/src/desk/jobs.ts).
  */
 
@@ -73,8 +78,76 @@ const jobs = memo(JOBS_TTL * 1000, () =>
   ),
 );
 
+/** How long the open pull requests and their checks are kept, in seconds. */
+const OPEN_TTL = 30;
+/** The most open pull requests whose checks are read (the crew runs four jobs at once). */
+const OPEN_CHECKED = 6;
+
+export type PullChecks = "pass" | "fail" | "running" | "unknown";
+
+/** One open pull request, as the Foundry page reads it: no title and no body. */
+export interface OpenPull {
+  number: number;
+  html_url: string;
+  created_at: string;
+  draft: boolean;
+  /** The issue it works on: its branch's number ("chat/432-foundry-fit"), else a "Closes #n" in its title or body. */
+  issue: number | null;
+  checks: PullChecks;
+}
+
+/** The issue a pull request works on, from its branch name or a closing keyword; null when it names none. */
+export function linkedIssue(ref: string, text: string): number | null {
+  const b = /(?:^|\/)(\d+)-/.exec(ref)?.[1];
+  if (b) return Number(b);
+  const c = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i.exec(text)?.[1];
+  return c ? Number(c) : null;
+}
+
+/** A head commit's check runs summed up: any failed is red, any still going is running, all done and fine is green. */
+export function checksOf(list: unknown): PullChecks {
+  const runs = (list as { check_runs?: unknown[] } | null)?.check_runs;
+  if (!Array.isArray(runs) || !runs.length) return "unknown";
+  let running = false;
+  for (const r of runs as Record<string, unknown>[]) {
+    const c = str(r.conclusion);
+    if (c && ["failure", "cancelled", "timed_out", "action_required", "startup_failure"].includes(c)) return "fail";
+    if (str(r.status) !== "completed") running = true;
+  }
+  return running ? "running" : "pass";
+}
+
+/** GitHub's open pull requests cut down to what the page shows, newest first, each with its checks. */
+export async function readOpen(list: unknown, checks: (sha: string) => Promise<unknown>): Promise<OpenPull[]> {
+  const pulls = Array.isArray(list) ? (list as Record<string, unknown>[]) : [];
+  const out: OpenPull[] = [];
+  for (const p of pulls) {
+    const number = typeof p.number === "number" ? p.number : null;
+    const url = str(p.html_url);
+    const created = str(p.created_at);
+    const head = (p.head ?? {}) as Record<string, unknown>;
+    if (number === null || !url || !created) continue;
+    out.push({ number, html_url: url, created_at: created, draft: p.draft === true, issue: linkedIssue(str(head.ref) ?? "", `${str(p.title) ?? ""}\n${str(p.body) ?? ""}`), checks: "unknown" });
+  }
+  await Promise.all(
+    out.slice(0, OPEN_CHECKED).map(async (o, i) => {
+      const sha = str(((pulls.find((p) => p.number === o.number)?.head ?? {}) as Record<string, unknown>).sha);
+      if (!sha || !/^[0-9a-f]{7,40}$/.test(sha)) return;
+      out[i] = { ...o, checks: checksOf(await checks(sha).catch(() => null)) };
+    }),
+  );
+  return out;
+}
+
+const openPulls = memo(OPEN_TTL * 1000, async () =>
+  readOpen(
+    await read("/pulls?state=open&sort=created&direction=desc&per_page=12").catch(() => []),
+    (sha) => read(`/commits/${sha}/check-runs?per_page=50`),
+  ),
+);
+
 const feed = memo(TTL * 1000, async () => {
-  const [issues, runs, e2e, live, pulls, commits, board] = await Promise.all([
+  const [issues, runs, e2e, live, pulls, commits, board, prs] = await Promise.all([
     read("/issues?labels=foundry&state=all&sort=updated&per_page=40"),
     read("/actions/workflows/checks.yml/runs?branch=main&per_page=1").catch(() => ({ workflow_runs: [] })),
     read("/actions/workflows/e2e.yml/runs?branch=main&per_page=5").catch(() => ({ workflow_runs: [] })),
@@ -82,8 +155,9 @@ const feed = memo(TTL * 1000, async () => {
     read("/pulls?state=closed&sort=updated&direction=desc&per_page=20").catch(() => []),
     read("/commits?sha=main&per_page=40").catch(() => []),
     jobs(),
+    openPulls().catch((): OpenPull[] => []),
   ]);
-  return JSON.stringify({ issues, runs, e2e, live, pulls, commits, jobs: board });
+  return JSON.stringify({ issues, runs, e2e, live, pulls, commits, jobs: board, open: prs });
 });
 
 export async function GET(req: Request): Promise<Response> {

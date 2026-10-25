@@ -6,9 +6,10 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * The loom shows every job in flight (#337): with the Foundry feed stubbed to six jobs working, the Desk's Foundry
- * loom gives four of them a strand and a knot each, with their builder's face, and a "+2 more" knot for the rest.
- * No two labels overlap, and each knot opens its own details.
+ * The forge shows every job in flight (#337, #432): with the Foundry feed stubbed to six jobs working, the Desk's
+ * Foundry stage gives four of them a lane each (the crew's cap), named for whoever has hands on it, and counts the rest
+ * on "+2 more in hand". A lane opened from the canvas's labels shows its stage and its pull request; no two lanes'
+ * labels overlap.
  */
 
 const PORT = Number(process.env.E2E_LOOM_PORT ?? 5184);
@@ -55,6 +56,7 @@ const FEED = {
   e2e: { workflow_runs: [] },
   pulls: [],
   commits: [],
+  open: [{ number: 90, html_url: "https://github.com/nikitapage10/C.E.O./pull/90", created_at: minsAgo(5), draft: false, issue: 61, checks: "running" }],
 };
 
 async function stub(page: Page) {
@@ -69,46 +71,43 @@ for (const [name, size] of [
   ["wide", { width: 1440, height: 1000 }],
   ["phone", { width: 390, height: 900 }],
 ] as const) {
-  test(`the loom gives every job in flight a knot (${name})`, async ({ page }) => {
+  test(`the forge gives every job in flight a lane (${name})`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.setViewportSize(size);
     await stub(page);
     await page.goto(BASE + "/foundry");
-    const stage = page.locator(".wv-fstage .wv-stage");
+    const stage = page.locator(".fo-stage");
     await expect(stage).toBeVisible();
-    const rows = stage.locator(".wv-knot.is-row");
-    await expect(rows).toHaveCount(5);
-    // The ideas and the latest shipped keep their knots beside them.
-    await expect(stage.locator(".wv-knot:not(.is-row)")).toHaveCount(3);
-    // Four strands, each with its builder's face, and the rest on one knot.
-    await expect(stage.locator(".wv-knot.is-row .wv-kav")).toHaveCount(4);
-    await expect(stage.locator('.wv-knot[data-item="flights-more"]')).toContainText("+2 more");
+    // Four lanes, the cap, and the rest on one row.
+    const lanes = stage.locator(".fo-lane[data-stage]");
+    await expect(lanes).toHaveCount(4);
+    await expect(stage.locator(".fo-more")).toContainText("+2 more in hand");
+    // The ideas wait on the bench, each with a thread.
+    await expect(stage.locator("[data-fo-idea]")).toHaveCount(2);
+    // The job with a pull request open and checks running says so.
+    await expect(stage.locator(".fo-lane", { hasText: "The loom shows every job in flight" }).locator(".fo-pill")).toHaveText("checks running");
     await page.waitForTimeout(800);
 
-    const labels = await stage.locator(".wv-knot:not(.is-gone) .wv-kl").evaluateAll((els) =>
+    const labels = await lanes.locator(".fo-lane-h").evaluateAll((els) =>
       els.map((e) => {
         const r = e.getBoundingClientRect();
-        return { x: r.x, y: r.y, width: r.width, height: r.height, text: e.textContent ?? "" };
+        return { x: r.x, y: r.y + 4, width: r.width, height: r.height - 8, text: e.textContent ?? "" };
       }),
     );
-    if (SHOTS) await stage.screenshot({ path: `${SHOTS}/loom-${name}.png` });
+    if (SHOTS) await stage.screenshot({ path: `${SHOTS}/forge-${name}.png` });
     for (let i = 0; i < labels.length; i++)
       for (let j = i + 1; j < labels.length; j++) expect(meets(labels[i]!, labels[j]!), `"${labels[i]!.text}" overlaps "${labels[j]!.text}"`).toBe(false);
 
-    // Each knot opens its own details.
-    for (const [item, title] of [
-      ["c61", "The loom shows every job in flight"],
-      ["c63", "A new skyline for the Spire"],
-      ["flights-more", "Two more jobs on the loom"],
-    ] as const) {
-      await stage.locator(`.wv-knot[data-item="${item}"]`).click();
-      await expect(stage.locator(".wv-detail.is-open .wv-ttl")).toHaveText(title);
-      if (SHOTS && item === "c63") await page.waitForTimeout(1500);
-      if (SHOTS && item === "c63") await stage.screenshot({ path: `${SHOTS}/loom-${name}-open.png` });
-      await page.keyboard.press("Escape");
-      await expect(stage.locator(".wv-detail.is-open")).toHaveCount(0);
-    }
+    // A lane opens to its stage and its pull request, and closes again.
+    const loom = stage.locator(".fo-lane", { hasText: "The loom shows every job in flight" });
+    await loom.locator(".fo-lane-h").click();
+    await expect(loom.locator(".fo-steps .is-now")).toHaveText("Checks");
+    await expect(loom.getByRole("link", { name: "Pull request #90" })).toBeVisible();
+    if (SHOTS) await stage.screenshot({ path: `${SHOTS}/forge-${name}-open.png` });
+    await loom.locator(".fo-lane-h").click();
+    await expect(loom.locator(".fo-lane-x")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(errors).toEqual([]);
   });
 }

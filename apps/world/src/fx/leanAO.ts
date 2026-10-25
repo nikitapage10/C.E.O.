@@ -1,5 +1,6 @@
 import { Color, Matrix4, type Camera, type Material, type Object3D, type Scene, type WebGLRenderer, type WebGLRenderTarget } from "three";
 import { cameraMovedSince } from "../scene/DetailLevels.tsx";
+import { frames } from "../scene/frameCount.ts";
 
 /** The members of n8ao's N8AOPostPass (n8ao 2.x) that this file touches. */
 export interface AOPass {
@@ -87,7 +88,7 @@ export function leanAO(pass: AOPass): () => void {
     // A newer n8ao that no longer looks like this: leave it to its own code.
     if (!copy || !dwFalse || !dwTrue) return original.call(this, renderer);
     // Still, and drawn a moment ago: the targets still hold this view's glass.
-    const frame = renderer.info.render.frame;
+    const frame = frames.n;
     if (frame >= drawnAt && frame - drawnAt < TRANSPARENCY_EVERY && !cameraMovedSince(camera.matrixWorld, seen)) return;
     drawnAt = frame;
     seen.copy(camera.matrixWorld);

@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { type BufferGeometry, DirectionalLight, MathUtils, Matrix4, Mesh, Vector3, type Object3D } from "three";
 import { roomCenter } from "@ceo/core";
 import { useWorld } from "../store.ts";
+import { frames } from "./frameCount.ts";
 
 /**
  * Level of detail, the way games do it: the world is drawn in full where the camera is looking closely, and
@@ -277,7 +278,7 @@ export function ShadowFocus() {
     }
     const l = light.current;
 
-    const frame = gl.info.render.frame;
+    const frame = frames.n;
     const overview = useWorld.getState().focus === null;
     const moved = cameraMovedSince(camera.matrixWorld, seen.current);
     if (overview && !moved && frame >= drawnAt.current && frame - drawnAt.current < OVERVIEW_SHADOW_EVERY) {

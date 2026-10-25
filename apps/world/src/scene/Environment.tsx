@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, Matrix4, ShaderMaterial, type Group, type Points } from "three";
 import { useWorld } from "../store.ts";
 import { cameraMovedSince } from "./DetailLevels.tsx";
+import { frames } from "./frameCount.ts";
 import { PALETTE } from "../theme.ts";
 
 export const FLOOR_Y = -6;
@@ -34,7 +35,7 @@ function useLeanReflection(on: boolean) {
     gl.render = function (this: typeof gl, s, camera) {
       const main = get().camera;
       if (s !== scene || camera === main) return render.call(this, s, camera);
-      const frame = this.info.render.frame;
+      const frame = frames.n;
       // Still, and drawn a moment ago: keep the reflection it drew then.
       if (frame - drawnAt < REFLECT_EVERY && frame >= drawnAt && !cameraMovedSince(main.matrixWorld, seen)) return;
       drawnAt = frame;

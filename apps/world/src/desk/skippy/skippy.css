@@ -551,3 +551,128 @@
     animation: none;
   }
 }
+
+/* ── Talking (#434): the call button, the line while a call is on, and the month's minutes ── */
+.skp-talk {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--hair-strong, rgba(255, 255, 255, 0.22));
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted, #a9b4c8);
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.skp-talk:hover {
+  color: var(--skp-ice);
+  border-color: var(--skp-ice);
+}
+.skp-talk:focus-visible {
+  outline: 2px solid var(--skp-ice);
+  outline-offset: 2px;
+}
+.skp-talk:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.skp-talk--live {
+  color: var(--skp-gold);
+  border-color: var(--skp-gold);
+  box-shadow: 0 0 14px rgba(232, 184, 74, 0.3);
+}
+.skp-compose--compact .skp-talk span {
+  display: none;
+}
+.skp-compose--compact .skp-talk {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+.skp-line {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid rgba(232, 184, 74, 0.35);
+  background: linear-gradient(180deg, rgba(10, 46, 98, 0.35), rgba(10, 46, 98, 0));
+}
+.skp-line__strand {
+  display: block;
+  width: 100%;
+  height: 56px;
+}
+.skp-line__row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.skp-line__who {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--serif, "Cormorant Garamond", Georgia, serif);
+  font-size: 19px;
+  font-style: italic;
+  line-height: 1.2;
+  color: var(--skp-ice);
+}
+.skp-line--speaking .skp-line__who {
+  color: var(--skp-gold);
+}
+.skp-line__clock {
+  flex: none;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text, #e8f1ff);
+}
+.skp-line__clock small {
+  margin-left: 4px;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint, #7c879e);
+}
+.skp-line__end {
+  flex: none;
+  align-self: center;
+}
+.skp-line__usage,
+.skp-talk-usage {
+  margin: 0;
+  font-family: var(--mono, "IBM Plex Mono", ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--faint, #7c879e);
+}
+.skp-talk-usage {
+  padding: 0 12px 10px;
+  margin-top: -4px;
+}
+.skp-talk-usage--off {
+  color: var(--amber, #ffd08f);
+}
+.skp-line--starting .skp-line__strand,
+.skp-line--ending .skp-line__strand {
+  opacity: 0.45;
+}
+@media (max-width: 420px) {
+  .skp-talk span {
+    display: none;
+  }
+  .skp-talk {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+  .skp-line__row {
+    flex-wrap: wrap;
+  }
+}

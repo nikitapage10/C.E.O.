@@ -3,6 +3,7 @@ import { Mic } from "../IdeaCard.tsx";
 import { useDictation } from "../dictate.ts";
 import { useDeskAuth } from "../signin.ts";
 import { MESSAGE_MAX, loadRoundTrip, stopSpeaking, useSkippy } from "./chat.ts";
+import { useTalk } from "./talk.ts";
 import "./skippy.css";
 
 /** Whether Nikita can talk to Skippy here, and if not, what to say instead. */
@@ -75,6 +76,14 @@ export function SkippyComposer({ autoFocus = false, compact = false, onSent, pla
         }}
       />
       {gate.ready && <Mic dictation={dictation} onToggle={toggleMic} label="Say it to Skippy" />}
+      {gate.ready && (
+        <TalkButton
+          onStart={() => {
+            dictation.stop();
+            if (compact) useSkippy.getState().setOpen(true);
+          }}
+        />
+      )}
       {gate.ready ? (
         <button type="submit" className="btn btn--go btn--sm skp-compose__send" disabled={!text.trim() || busy}>
           {busy ? "…" : "Send"}
@@ -91,5 +100,43 @@ export function SkippyComposer({ autoFocus = false, compact = false, onSent, pla
       )}
       {dictation.error && <p className="skp-compose__err">{dictation.error}</p>}
     </form>
+  );
+}
+
+/**
+ * The call button (#434): a live voice call with Skippy, on ElevenLabs. The microphone is asked for only after this
+ * tap. Off when the month's talk minutes are spent or talking isn't set up, with the reason as its title; typing and
+ * the mic beside it carry on either way.
+ */
+export function TalkButton({ onStart }: { onStart?: () => void }) {
+  const phase = useTalk((s) => s.phase);
+  const ready = useTalk((s) => s.ready);
+  const reason = useTalk((s) => s.reason);
+  const start = useTalk((s) => s.start);
+  const end = useTalk((s) => s.end);
+  const live = phase !== "idle";
+  const off = !live && ready === false && (reason === "capped" || reason === "no-key" || reason === "not-set-up");
+  const title = live ? "End the call" : off ? (reason === "capped" ? "This month's talk minutes are spent" : "Talking isn't set up yet") : "Talk to Skippy: a live voice call";
+  return (
+    <button
+      type="button"
+      className={`skp-talk${live ? " skp-talk--live" : ""}`}
+      aria-pressed={live}
+      aria-label={title}
+      title={title}
+      disabled={off || phase === "ending"}
+      onClick={() => {
+        if (live) void end();
+        else {
+          onStart?.();
+          void start();
+        }
+      }}
+    >
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2M21 12h0" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      </svg>
+      <span>{live ? "End" : "Talk"}</span>
+    </button>
   );
 }

@@ -63,6 +63,18 @@ export const CONNECTIONS: Connection[] = [
     when: "At the first step after 5 am, 10 am, 3 pm and 8 pm Mountain when the Chronicle has something new, once after midnight, plus Make it now on the Chronicle (signed in with a passkey). Capped by ELEVENLABS_BUDGET_USD ($10 a month by default) and GEMINI_BUDGET_USD ($5).",
   },
   {
+    id: "elevenlabs-agents",
+    name: "ElevenLabs Agents (Talk to Skippy)",
+    room: "archive",
+    at: [{ system: "world" }],
+    serves: "Live voice calls with Skippy on the Desk",
+    kinds: ["REST API", "SDK", "WebSocket"],
+    status: "live",
+    how: "Tap Talk in Skippy's chat: an Azure function keeps one private ElevenLabs agent (Skippy's rules, the day's story voice, three-minute calls) and mints a one-call token; the browser joins the call over WebRTC with ElevenLabs' own client, which loads only on that tap. Skippy is handed what the Desk already shows (titles, counts and states), never money, messages, contacts or keys, and what is said appears in the chat.",
+    auth: "The server-side key in the Azure Key Vault (ELEVENLABS_API_KEY from the elevenlabs secret), the same as the story's. The browser only gets a one-call token, and only in your Desk session.",
+    when: "Only when you tap Talk: three minutes a call at most, a few calls a minute. Inside ElevenLabs' $10 a month cap, with its own share (ELEVENLABS_VOICE_BUDGET_USD, $5 by default); past it the chat goes back to typing and the mic.",
+  },
+  {
     id: "github-api",
     name: "GitHub REST API",
     room: "foundry",

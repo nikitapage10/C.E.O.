@@ -1,0 +1,221 @@
+import { create } from "zustand";
+import { stopSpeaking, useSkippy } from "./chat.ts";
+
+/**
+ * Talking to Skippy out loud (#434), browser side; the function is api/skippy-voice.ts. A tap asks for the microphone,
+ * then for a one-session token from our own function (the ElevenLabs key never comes here), then joins ElevenLabs'
+ * agent over WebRTC with the client in talkSession.ts, which loads only on that first tap so the Desk's first load
+ * carries none of it. What is said on the call is added to the chat as it goes, so a typed message after it can
+ * follow on. A call ends on a second tap, when Skippy hangs up, after `maxSecs` (three minutes) or when the page goes
+ * away. Past the month's minutes, or when ElevenLabs fails, a plain note says so and typing and dictation carry on.
+ */
+
+export interface TalkUsage {
+  month: string;
+  usedMin: number;
+  budgetMin: number;
+  leftMin: number;
+  sessionMin: number;
+  canTalk: boolean;
+}
+
+export type TalkPhase = "idle" | "starting" | "live" | "ending";
+export type TalkReason = "capped" | "no-key" | "not-set-up" | "agent-denied" | "eleven" | "mic" | "signed-out" | "slow" | "failed" | "unsupported";
+
+/** What the Desk says when a call can't start or breaks; each ends by saying typing still works. */
+export const TALK_NOTE: Record<TalkReason, string> = {
+  capped: "This month's talk minutes are spent, so it's typing and the mic until the month turns.",
+  "no-key": "Talking needs the ElevenLabs key on the server. Typing and the mic still work.",
+  "not-set-up": "Talking isn't set up on this site. Typing and the mic still work.",
+  "agent-denied": "Talking waits on one ElevenLabs setting: the key needs access to Agents. Typing and the mic still work.",
+  eleven: "Couldn't reach ElevenLabs for a call. Typing and the mic still work.",
+  mic: "No microphone: allow it for this site to talk. Typing still works.",
+  "signed-out": "Sign in on the Desk to talk to Skippy.",
+  slow: "That's a lot of calls in a row. Try again in a minute.",
+  failed: "The call dropped. Typing and the mic still work.",
+  unsupported: "This browser can't make the call. Typing and the mic still work.",
+};
+
+export function readUsage(raw: unknown): TalkUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 100_000 ? v : null);
+  const used = n(r.usedMin);
+  const budget = n(r.budgetMin);
+  const left = n(r.leftMin);
+  const session = n(r.sessionMin);
+  if (used === null || budget === null || left === null || session === null) return null;
+  return { month: typeof r.month === "string" ? r.month.slice(0, 7) : "", usedMin: used, budgetMin: budget, leftMin: left, sessionMin: session, canTalk: r.canTalk === true };
+}
+
+/** "3.0 of 41.6 min this month": the small line under the call button. */
+export const usageLine = (u: TalkUsage) => `${u.usedMin.toFixed(1)} of ${u.budgetMin.toFixed(1)} talk min this month`;
+
+/** mm:ss. */
+export const clock = (secs: number) => {
+  const s = Math.max(0, Math.round(secs));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+export type Started = { ok: true; token: string; conversation: string; maxSecs: number; desk: string; usage: TalkUsage | null } | { ok: false; reason: TalkReason; usage?: TalkUsage | null };
+
+/** Ask our function for one call's token. */
+export async function requestToken(doFetch: typeof fetch = fetch): Promise<Started> {
+  try {
+    const res = await doFetch("/api/skippy-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }), credentials: "same-origin" });
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (res.status === 401) return { ok: false, reason: "signed-out" };
+    if (res.status === 429) return { ok: false, reason: "slow" };
+    if (res.status === 503) return { ok: false, reason: body.error === "no-key" ? "no-key" : "not-set-up" };
+    if (res.status === 502) return { ok: false, reason: body.error === "agent-denied" ? "agent-denied" : "eleven" };
+    const usage = readUsage(body.usage);
+    if (res.ok && body.ok === false && body.reason === "capped") return { ok: false, reason: "capped", usage };
+    if (!res.ok || body.ok !== true || typeof body.token !== "string" || !body.token) return { ok: false, reason: "eleven" };
+    const maxSecs = typeof body.maxSecs === "number" && body.maxSecs > 0 && body.maxSecs <= 600 ? body.maxSecs : 180;
+    return { ok: true, token: body.token, conversation: typeof body.conversation === "string" ? body.conversation : "", maxSecs, desk: typeof body.desk === "string" ? body.desk : "", usage };
+  } catch {
+    return { ok: false, reason: "eleven" };
+  }
+}
+
+type SessionModule = typeof import("./talkSession.ts");
+type Session = Awaited<ReturnType<SessionModule["openCall"]>>;
+let loading: Promise<SessionModule> | null = null;
+const loadSession = () => (loading ??= import("./talkSession.ts"));
+
+let session: Session | null = null;
+let conversation = "";
+let timer: ReturnType<typeof setTimeout> | null = null;
+
+interface TalkStore {
+  phase: TalkPhase;
+  /** Who has the floor on a live call. */
+  mode: "listening" | "speaking";
+  usage: TalkUsage | null;
+  /** Whether a call can start (null until asked). */
+  ready: boolean | null;
+  reason: TalkReason | null;
+  startedAt: number;
+  maxSecs: number;
+  refresh: (doFetch?: typeof fetch) => Promise<void>;
+  start: () => Promise<void>;
+  end: () => Promise<void>;
+}
+
+/** How loud the call is right now, 0 to 1 (Skippy's voice while he speaks, the mic otherwise). */
+export const talkLevel = (): number => {
+  try {
+    return session ? session.level() : 0;
+  } catch {
+    return 0;
+  }
+};
+
+export const useTalk = create<TalkStore>((set, get) => {
+  const note = (reason: TalkReason) => useSkippy.getState().say("skippy", TALK_NOTE[reason], true);
+
+  /** Clean up after a call, however it ended, and settle it. */
+  const finish = async (reason: TalkReason | null) => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    const was = session;
+    session = null;
+    if (was) await was.end().catch(() => undefined);
+    const id = conversation;
+    conversation = "";
+    set({ phase: "idle", mode: "listening", ...(reason && { reason }) });
+    if (reason) note(reason);
+    if (id) {
+      try {
+        const res = await fetch("/api/skippy-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "end", conversation: id }), credentials: "same-origin" });
+        const body = (await res.json().catch(() => ({}))) as { usage?: unknown };
+        const usage = readUsage(body.usage);
+        if (usage) set({ usage, ready: usage.canTalk });
+      } catch {
+        /* settled on a later request */
+      }
+    }
+  };
+
+  return {
+    phase: "idle",
+    mode: "listening",
+    usage: null,
+    ready: null,
+    reason: null,
+    startedAt: 0,
+    maxSecs: 180,
+    refresh: async (doFetch = fetch) => {
+      try {
+        const res = await doFetch("/api/skippy-voice", { credentials: "same-origin" });
+        if (!res.ok) return set({ ready: false, reason: res.status === 401 ? "signed-out" : "not-set-up" });
+        const body = (await res.json().catch(() => ({}))) as { ready?: unknown; reason?: unknown; usage?: unknown };
+        const reason = typeof body.reason === "string" && body.reason in TALK_NOTE ? (body.reason as TalkReason) : null;
+        set({ ready: body.ready === true, reason: body.ready === true ? null : reason, usage: readUsage(body.usage) });
+      } catch {
+        /* keep what we had */
+      }
+    },
+    start: async () => {
+      if (get().phase !== "idle") return;
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof RTCPeerConnection === "undefined") {
+        set({ reason: "unsupported" });
+        return note("unsupported");
+      }
+      set({ phase: "starting", reason: null });
+      stopSpeaking();
+      const mod = loadSession();
+      // The microphone prompt comes only now, straight after the tap, and before anything is spent.
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mic.getTracks().forEach((t) => t.stop());
+      } catch {
+        set({ phase: "idle", reason: "mic" });
+        return note("mic");
+      }
+      const got = await requestToken();
+      if (!got.ok) {
+        set({ phase: "idle", reason: got.reason, ...(got.usage && { usage: got.usage, ready: got.usage.canTalk }), ...(got.reason === "capped" && { ready: false }) });
+        return note(got.reason);
+      }
+      if (got.usage) set({ usage: got.usage });
+      conversation = got.conversation;
+      if (get().phase !== "starting") return void (await finish(null));
+      try {
+        const m = await mod;
+        session = await m.openCall({
+          token: got.token,
+          desk: got.desk,
+          onMessage: (who, text) => useSkippy.getState().say(who, text),
+          onMode: (mode) => set({ mode }),
+          onEnd: () => {
+            if (get().phase === "live") void finish(null);
+          },
+          onError: () => {
+            if (get().phase === "live") void finish("failed");
+          },
+        });
+      } catch {
+        await finish("eleven");
+        return;
+      }
+      if (get().phase !== "starting") {
+        // Ended (or the page left) while it was connecting.
+        await finish(null);
+        return;
+      }
+      set({ phase: "live", startedAt: Date.now(), maxSecs: got.maxSecs });
+      timer = setTimeout(() => void get().end(), got.maxSecs * 1000);
+    },
+    end: async () => {
+      const { phase } = get();
+      if (phase === "starting") return set({ phase: "ending" });
+      if (phase !== "live") return;
+      set({ phase: "ending" });
+      await finish(null);
+    },
+  };
+});
+
+// A call never outlives the page.
+if (typeof window !== "undefined") window.addEventListener("pagehide", () => void useTalk.getState().end());

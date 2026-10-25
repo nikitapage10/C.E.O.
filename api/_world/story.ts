@@ -200,10 +200,18 @@ export interface StoryMonth {
   elevenUsd?: number;
   elevenChars?: number;
   elevenCalls?: number;
+  /**
+   * Skippy's live voice chat on the Desk (#434, api/_skippy/voice.ts): its dollars (also counted in `elevenUsd`, so
+   * the story and the talk share ElevenLabs' one cap), seconds and sessions. A session is counted at its longest when
+   * it starts and settled to its real length once ElevenLabs reports it.
+   */
+  voiceUsd?: number;
+  voiceSecs?: number;
+  voiceCalls?: number;
 }
 export type StorySpend = Record<string, StoryMonth>;
 
-const EMPTY: Required<StoryMonth> = { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0, elevenChars: 0, elevenCalls: 0 };
+const EMPTY: Required<StoryMonth> = { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0, elevenChars: 0, elevenCalls: 0, voiceUsd: 0, voiceSecs: 0, voiceCalls: 0 };
 export const storyMonth = (spend: StorySpend, now: number): Required<StoryMonth> => ({ ...EMPTY, ...spend[monthOf(now)] });
 
 /** Whether one more story, at its most, still fits in the month's Gemini budget. */
@@ -224,6 +232,9 @@ export function addStorySpend(spend: StorySpend, now: number, add: Partial<Story
     elevenUsd: cur.elevenUsd + (add.elevenUsd ?? 0),
     elevenChars: cur.elevenChars + (add.elevenChars ?? 0),
     elevenCalls: cur.elevenCalls + (add.elevenCalls ?? 0),
+    voiceUsd: cur.voiceUsd + (add.voiceUsd ?? 0),
+    voiceSecs: cur.voiceSecs + (add.voiceSecs ?? 0),
+    voiceCalls: cur.voiceCalls + (add.voiceCalls ?? 0),
   };
   const all = { ...spend, [month]: next };
   return Object.fromEntries(Object.keys(all).sort().slice(-6).map((k) => [k, all[k]!]));

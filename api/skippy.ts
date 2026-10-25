@@ -181,7 +181,7 @@ async function readGithub<T>(path: string, fallback: T): Promise<T> {
 }
 
 /** The Foundry's open issues and the last ships, kept 30 seconds per warm function. */
-const foundryIssues = memo(30_000, async () => {
+export const foundryIssues = memo(30_000, async () => {
   const [open, shipped] = await Promise.all([
     readGithub<ContextIssue[]>("/issues?labels=foundry&state=open&sort=updated&direction=desc&per_page=50", []),
     readGithub<ContextIssue[]>("/issues?labels=foundry:shipped&state=closed&sort=updated&direction=desc&per_page=5", []),

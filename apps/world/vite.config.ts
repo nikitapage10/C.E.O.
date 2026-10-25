@@ -143,6 +143,9 @@ export default defineConfig({
           includeDependenciesRecursively: false,
           groups: [
             { name: "vendor", test: /node_modules[\\/](react|react-dom|scheduler|zustand|use-sync-external-store|zod|@fontsource|@fontsource-variable)[\\/]/ },
+            // Talk to Skippy's call (#434): ElevenLabs' client and LiveKit's WebRTC under it, loaded only on the first tap
+            // of Talk, never with the Desk or the Lattice.
+            { name: "talk", test: /node_modules[\\/](@elevenlabs|livekit-client|@livekit|@bufbuild|webrtc-adapter|sdp|sdp-transform|loglevel|machina|typed-emitter|jose|events|tslib)[\\/]/ },
             { name: "three", test: /node_modules[\\/]/ },
             // @ceo/core as one chunk (#332). Left to itself, rolldown put a module only the 3D world uses (core's
             // houses.ts) into the 3D chunk, and the rest of core imported it from there, so the 2D map, which needs

@@ -343,6 +343,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The C.E.O. was away. The Lattice was not. I wrote it all down.",
     "Today in Ilyr: my notes, Skippy's voice. He takes the credit. I keep the footnotes.",
     "Skippy reads it every five hours now. I've timed every edition. He runs long. Sourced.",
+    "He takes calls now, live, in the story voice. Three minutes each. He fills every second. I log the minutes.",
     "Hook, what shipped, who built it, sign-off. I write the notes. He adds the boasting.",
     "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct.",
   ],
@@ -594,6 +595,9 @@ export const SKIPPY_QUIPS: string[] = [
   "Today in Ilyr, presented by me, every five hours. The Historian writes the notes. I make them magnificent.",
   "That accent? Mine. Upper-crust, crisp, entirely earned. The Historian says 'borrowed'. The Historian is a footnote.",
   "Nothing new since my last edition, monkeys? Then I shan't read. Even magnificence needs material.",
+  "The C.E.O. can call me now. Out loud. Three minutes a call, because the Pessimist did the maths and nobody can afford more of me.",
+  "A live line to the Kernel. No typing, no dictating, just my voice in real time. Monkeys, this is what progress sounds like.",
+  "If the C.E.O. hangs up on me, that's the connection. It's always the connection. Never the content.",
 ];
 
 /**

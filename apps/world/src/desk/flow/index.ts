@@ -10,5 +10,5 @@ import "./flow.css";
 export { useFlow, type UseFlowOpts } from "./useFlow.ts";
 export { makeFlowField, type FlowBox, type FlowField, type FlowLayout, type FlowLayoutFn, type FlowLine, type FlowOpts, type PulseOpts } from "./field.ts";
 export { converge, fan, polyOf, samplePath, type BranchOpts, type PathSpec, type Pt } from "./path.ts";
-export { RiseField, safeTitle, type RiseLine } from "./rise.ts";
+export { RiseField, riseSpot, safeTitle, type RiseAt, type RiseLine } from "./rise.ts";
 export { RC } from "../wvCanvas.ts";

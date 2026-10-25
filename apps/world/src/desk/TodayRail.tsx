@@ -15,9 +15,12 @@ import { isQuiet, mtTime, roman, until, upcoming, type Run } from "./todaySchedu
  * reading. No "last checked" times unless something is wrong.
  */
 
-/** The runs coming up, recomputed once a minute; `now` ticks every second for the first countdown. */
-export function useRuns(): { now: number; runs: Run[] } {
-  const now = useNow(1000);
+/**
+ * The runs coming up, recomputed once a minute; `now` ticks every `tick` ms (every second for the ephemeris's first
+ * countdown, slower where only minutes show).
+ */
+export function useRuns(tick = 1000): { now: number; runs: Run[] } {
+  const now = useNow(tick);
   const hourAt = useWorldClock((s) => (s.reading?.nextAt ? Date.parse(s.reading.nextAt) : null));
   const minute = Math.floor(now / 60_000);
   const runs = useMemo(() => upcoming(minute * 60_000, hourAt !== null && Number.isFinite(hourAt) ? hourAt : null), [minute, hourAt]);

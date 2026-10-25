@@ -294,6 +294,8 @@ test("the Desk opens first without loading the Lattice", async ({ page }) => {
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await page.keyboard.press("3");
   await expect(page).toHaveURL(/\/relay$/);
-  await expect(page.locator(".desk__title")).toHaveText(/^Relay\b/);
+  // Relay's heading says what's waiting since #438, not the page's name: the page's own stage and title say it's Relay.
+  await expect(page.getByRole("region", { name: "Relay at a glance" })).toBeVisible();
+  await expect(page).toHaveTitle(/^Relay\b/);
   expect(scripts.some((u) => /three|App\.tsx|\/App-/.test(u))).toBe(false);
 });

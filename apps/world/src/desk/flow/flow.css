@@ -4,11 +4,12 @@
  * panels (no backdrop blur over a live canvas: it would re-blur every frame), an edge-to-edge stage. Everything is
  * scoped to .fl-page, so the Desk's shell (desk.css) is untouched. A page sets one token, its room colour:
  *   <div className="wv-page fl-page" style={{ "--fl-accent": RC.relay }}>
- * and gets the rest. Colours come from the Desk's own tokens (wv.css).
+ * and gets the rest. Colours come from the Desk's own tokens (wv.css). A host outside the Desk's shell (the Lattice map,
+ * #433) adds `fl-root` to its own root and sets those tokens itself.
  */
 
 .desk .wv-page.fl-page,.desk .desk__main>.wv-page.fl-page,.desk .desk__main>div>.wv-page.fl-page{max-width:none;margin:0;padding:0 0 80px}
-.desk .fl-page{
+:is(.desk,.fl-root) .fl-page{
   --fl-accent:232,207,156;
   --fl-gold:232,207,156;
   --fl-hi:color-mix(in srgb,rgb(var(--fl-accent)) 72%,#fff);
@@ -21,65 +22,65 @@
 }
 
 /* ---------- the stage: edge to edge, the canvas under everything ---------- */
-.desk .fl-stage{position:relative;isolation:isolate;min-height:max(560px,min(calc(100svh - 62px),1000px));padding:var(--fl-s5) var(--fl-pad) var(--fl-s4);background:radial-gradient(60% 46% at 50% 0%,rgba(var(--fl-accent),.07),transparent 70%)}
+:is(.desk,.fl-root) .fl-stage{position:relative;isolation:isolate;min-height:max(560px,min(calc(100svh - 62px),1000px));padding:var(--fl-s5) var(--fl-pad) var(--fl-s4);background:radial-gradient(60% 46% at 50% 0%,rgba(var(--fl-accent),.07),transparent 70%)}
 /* The horizon: a hairline across the very top, gold at the edges, the page's colour at its heart, drawn in once. */
-.desk .fl-stage::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(var(--fl-gold),.18) 22%,rgba(var(--fl-accent),.75) 50%,rgba(var(--fl-gold),.18) 78%,transparent);transform-origin:50% 50%;animation:fl-draw 1.4s var(--fl-ease) both}
-.desk .fl-stage::after{content:"";position:absolute;left:50%;top:0;width:min(900px,70vw);height:220px;transform:translateX(-50%);z-index:-1;background:radial-gradient(50% 100% at 50% 0%,rgba(var(--fl-accent),.09),transparent 70%);pointer-events:none}
+:is(.desk,.fl-root) .fl-stage::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(var(--fl-gold),.18) 22%,rgba(var(--fl-accent),.75) 50%,rgba(var(--fl-gold),.18) 78%,transparent);transform-origin:50% 50%;animation:fl-draw 1.4s var(--fl-ease) both}
+:is(.desk,.fl-root) .fl-stage::after{content:"";position:absolute;left:50%;top:0;width:min(900px,70vw);height:220px;transform:translateX(-50%);z-index:-1;background:radial-gradient(50% 100% at 50% 0%,rgba(var(--fl-accent),.09),transparent 70%);pointer-events:none}
 @keyframes fl-draw{from{transform:scaleX(0);opacity:0}to{transform:none;opacity:1}}
-.desk .fl-cv{position:absolute;inset:0;z-index:0;display:block;width:100%;height:100%;pointer-events:none}
-.desk .fl-stage>:not(.fl-cv){position:relative;z-index:1;min-width:0}
+:is(.desk,.fl-root) .fl-cv{position:absolute;inset:0;z-index:0;display:block;width:100%;height:100%;pointer-events:none}
+:is(.desk,.fl-root) .fl-stage>:not(.fl-cv){position:relative;z-index:1;min-width:0}
 /* A section below the stage. */
-.desk .fl-below{margin:var(--fl-s5) var(--fl-pad) 0}
+:is(.desk,.fl-root) .fl-below{margin:var(--fl-s5) var(--fl-pad) 0}
 
 /* ---------- type ---------- */
-.desk .fl-eyb{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 var(--fl-s3);font-family:var(--fl-text);font-size:12px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--wv-faint)}
-.desk .fl-eyb>span{color:var(--fl-hi)}
-.desk .fl-eyb>i{width:22px;height:1px;background:rgba(var(--fl-accent),.4)}
-.desk .fl-h1{margin:0;font-family:var(--fl-disp);font-weight:500;font-size:clamp(48px,4.5vw,84px);line-height:.96;letter-spacing:-.028em;color:var(--wv-ink);text-wrap:balance}
-.desk .fl-h1 em{font-style:italic;font-weight:400;color:var(--fl-hi);text-shadow:0 0 40px rgba(var(--fl-accent),.25)}
-.desk .fl-h2{margin:0;font-family:var(--fl-disp);font-weight:500;font-size:clamp(28px,2.4vw,40px);line-height:1.02;letter-spacing:-.01em;color:var(--wv-ink)}
-.desk .fl-say{margin:var(--fl-s3) 0 0;max-width:38ch;font-family:var(--fl-disp);font-style:italic;font-size:clamp(20px,1.6vw,24px);line-height:1.38;color:var(--wv-soft);text-wrap:pretty}
+:is(.desk,.fl-root) .fl-eyb{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 var(--fl-s3);font-family:var(--fl-text);font-size:12px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--wv-faint)}
+:is(.desk,.fl-root) .fl-eyb>span{color:var(--fl-hi)}
+:is(.desk,.fl-root) .fl-eyb>i{width:22px;height:1px;background:rgba(var(--fl-accent),.4)}
+:is(.desk,.fl-root) .fl-h1{margin:0;font-family:var(--fl-disp);font-weight:500;font-size:clamp(48px,4.5vw,84px);line-height:.96;letter-spacing:-.028em;color:var(--wv-ink);text-wrap:balance}
+:is(.desk,.fl-root) .fl-h1 em{font-style:italic;font-weight:400;color:var(--fl-hi);text-shadow:0 0 40px rgba(var(--fl-accent),.25)}
+:is(.desk,.fl-root) .fl-h2{margin:0;font-family:var(--fl-disp);font-weight:500;font-size:clamp(28px,2.4vw,40px);line-height:1.02;letter-spacing:-.01em;color:var(--wv-ink)}
+:is(.desk,.fl-root) .fl-say{margin:var(--fl-s3) 0 0;max-width:38ch;font-family:var(--fl-disp);font-style:italic;font-size:clamp(20px,1.6vw,24px);line-height:1.38;color:var(--wv-soft);text-wrap:pretty}
 /* A small caps label (a list's heading, a line's name). */
-.desk .fl-k{margin:0;font-family:var(--fl-text);font-size:11.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint)}
-.desk .fl-k>span{color:var(--fl-hi)}
+:is(.desk,.fl-root) .fl-k{margin:0;font-family:var(--fl-text);font-size:11.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint)}
+:is(.desk,.fl-root) .fl-k>span{color:var(--fl-hi)}
 /* Figures in running text: Bodoni's lining, tabular numbers. */
-.desk .fl-num{font-family:var(--fl-disp);font-variant-numeric:lining-nums tabular-nums}
+:is(.desk,.fl-root) .fl-num{font-family:var(--fl-disp);font-variant-numeric:lining-nums tabular-nums}
 /* Waiting on a connection: said plainly, never a made-up value. */
-.desk .fl-wait{font-family:var(--fl-disp);font-style:italic;color:var(--wv-mute)}
+:is(.desk,.fl-root) .fl-wait{font-family:var(--fl-disp);font-style:italic;color:var(--wv-mute)}
 
 /* ---------- the ledger: plain figures under a rule, the instrument's readout ---------- */
-.desk .fl-ledger{position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:0;margin:var(--fl-s4) 0 0;padding:var(--fl-s3) 0 0;max-width:680px}
-.desk .fl-ledger::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,rgba(var(--fl-accent),.6),rgba(var(--fl-accent),.14) 70%,transparent);transform-origin:0 50%;animation:fl-draw 1.1s .25s var(--fl-ease) both}
-.desk .fl-ledger>div{display:grid;gap:6px;align-content:start;padding:0 clamp(12px,1.3vw,22px);border-left:1px solid var(--wv-line)}
-.desk .fl-ledger>div:first-child{padding-left:0;border-left:0}
-.desk .fl-ledger dt{font-family:var(--fl-text);font-size:11px;font-weight:500;line-height:1.35;letter-spacing:.18em;text-transform:uppercase;color:var(--wv-faint)}
-.desk .fl-ledger dd{margin:0;font-family:var(--fl-disp);font-weight:500;font-size:clamp(32px,2.6vw,44px);line-height:1;color:var(--wv-ink);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
-.desk .fl-ledger dd small{font-family:var(--fl-text);font-size:14px;font-weight:400;letter-spacing:.02em;color:var(--wv-faint)}
-.desk .fl-ledger .is-hot dd{color:var(--fl-hi);text-shadow:0 0 28px rgba(var(--fl-accent),.35)}
+:is(.desk,.fl-root) .fl-ledger{position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:0;margin:var(--fl-s4) 0 0;padding:var(--fl-s3) 0 0;max-width:680px}
+:is(.desk,.fl-root) .fl-ledger::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,rgba(var(--fl-accent),.6),rgba(var(--fl-accent),.14) 70%,transparent);transform-origin:0 50%;animation:fl-draw 1.1s .25s var(--fl-ease) both}
+:is(.desk,.fl-root) .fl-ledger>div{display:grid;gap:6px;align-content:start;padding:0 clamp(12px,1.3vw,22px);border-left:1px solid var(--wv-line)}
+:is(.desk,.fl-root) .fl-ledger>div:first-child{padding-left:0;border-left:0}
+:is(.desk,.fl-root) .fl-ledger dt{font-family:var(--fl-text);font-size:11px;font-weight:500;line-height:1.35;letter-spacing:.18em;text-transform:uppercase;color:var(--wv-faint)}
+:is(.desk,.fl-root) .fl-ledger dd{margin:0;font-family:var(--fl-disp);font-weight:500;font-size:clamp(32px,2.6vw,44px);line-height:1;color:var(--wv-ink);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+:is(.desk,.fl-root) .fl-ledger dd small{font-family:var(--fl-text);font-size:14px;font-weight:400;letter-spacing:.02em;color:var(--wv-faint)}
+:is(.desk,.fl-root) .fl-ledger .is-hot dd{color:var(--fl-hi);text-shadow:0 0 28px rgba(var(--fl-accent),.35)}
 
 /* ---------- panels and buttons ---------- */
-.desk .fl-panel{padding:26px 28px 20px;border-radius:22px;background:linear-gradient(180deg,rgba(14,13,12,.94),rgba(9,10,14,.9));border:1px solid rgba(var(--fl-accent),.22);box-shadow:0 40px 80px -40px #000,inset 0 1px 0 rgba(var(--fl-accent),.12)}
-.desk .fl-btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border-radius:999px;border:1px solid var(--wv-line2);background:none;color:var(--wv-ink);font:inherit;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .3s,border-color .3s}
-.desk .fl-btn.is-pri{border-color:rgba(var(--fl-accent),.6);background:rgba(var(--fl-accent),.12);color:var(--fl-hi)}
-.desk .fl-btn:hover{background:rgba(var(--fl-accent),.2)}
-.desk .fl-btn:focus-visible{outline:1px solid rgba(var(--fl-accent),.7);outline-offset:2px}
+:is(.desk,.fl-root) .fl-panel{padding:26px 28px 20px;border-radius:22px;background:linear-gradient(180deg,rgba(14,13,12,.94),rgba(9,10,14,.9));border:1px solid rgba(var(--fl-accent),.22);box-shadow:0 40px 80px -40px #000,inset 0 1px 0 rgba(var(--fl-accent),.12)}
+:is(.desk,.fl-root) .fl-btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border-radius:999px;border:1px solid var(--wv-line2);background:none;color:var(--wv-ink);font:inherit;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .3s,border-color .3s}
+:is(.desk,.fl-root) .fl-btn.is-pri{border-color:rgba(var(--fl-accent),.6);background:rgba(var(--fl-accent),.12);color:var(--fl-hi)}
+:is(.desk,.fl-root) .fl-btn:hover{background:rgba(var(--fl-accent),.2)}
+:is(.desk,.fl-root) .fl-btn:focus-visible{outline:1px solid rgba(var(--fl-accent),.7);outline-offset:2px}
 
 /* ---------- phone ---------- */
 @media (max-width:760px){
-  .desk .fl-page{--fl-pad:16px}
-  .desk .wv-page.fl-page{padding-bottom:56px}
-  .desk .fl-stage{min-height:0;padding:26px var(--fl-pad) 10px}
-  .desk .fl-stage::after{width:100%}
-  .desk .fl-h1{font-size:clamp(42px,12vw,58px)}
-  .desk .fl-say{font-size:19px}
-  .desk .fl-ledger{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:18px}
-  .desk .fl-ledger>div:nth-child(odd){padding-left:0;border-left:0}
-  .desk .fl-ledger dd{font-size:30px}
-  .desk .fl-panel{padding:20px 16px 14px;border-radius:18px}
+  :is(.desk,.fl-root) .fl-page{--fl-pad:16px}
+  :is(.desk,.fl-root) .wv-page.fl-page{padding-bottom:56px}
+  :is(.desk,.fl-root) .fl-stage{min-height:0;padding:26px var(--fl-pad) 10px}
+  :is(.desk,.fl-root) .fl-stage::after{width:100%}
+  :is(.desk,.fl-root) .fl-h1{font-size:clamp(42px,12vw,58px)}
+  :is(.desk,.fl-root) .fl-say{font-size:19px}
+  :is(.desk,.fl-root) .fl-ledger{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:18px}
+  :is(.desk,.fl-root) .fl-ledger>div:nth-child(odd){padding-left:0;border-left:0}
+  :is(.desk,.fl-root) .fl-ledger dd{font-size:30px}
+  :is(.desk,.fl-root) .fl-panel{padding:20px 16px 14px;border-radius:18px}
 }
 
 /* ---------- still ---------- */
 @media (prefers-reduced-motion:reduce){
-  .desk .fl-stage::before,.desk .fl-ledger::before{animation:none}
-  .desk .fl-btn{transition:none}
+  :is(.desk,.fl-root) .fl-stage::before,:is(.desk,.fl-root) .fl-ledger::before{animation:none}
+  :is(.desk,.fl-root) .fl-btn{transition:none}
 }

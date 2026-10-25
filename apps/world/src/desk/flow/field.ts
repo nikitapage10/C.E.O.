@@ -69,6 +69,11 @@ export interface FlowOpts {
   ground?: boolean;
   /** The most backing pixels to draw into (a big soft stage can draw smaller and let the browser scale it up). */
   backing?: number;
+  /**
+   * The page's own drawing in the same frame, over the lines and under the rising words (the Lattice map's crew and
+   * figures, #433). Read nothing from the DOM in it: it runs every frame. `dt` is 0 on a still frame.
+   */
+  overlay?: (c: CanvasRenderingContext2D, t: number, dt: number) => void;
 }
 
 export interface PulseOpts {
@@ -284,6 +289,12 @@ export function makeFlowField(layout: FlowLayoutFn, o: FlowOpts = {}): FlowField
       }
       gn = alive;
       c.globalAlpha = 1;
+    }
+
+    if (o.overlay) {
+      o.overlay(c, t, dt);
+      c.globalAlpha = 1;
+      c.globalCompositeOperation = "lighter";
     }
 
     // Words rising, falling as sand.

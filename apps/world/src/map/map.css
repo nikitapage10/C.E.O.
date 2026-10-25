@@ -1,52 +1,61 @@
 /*
- * The Lattice's map (#332): the ring from above, in the Desk's dots and threads and the Lattice's type (Cormorant
- * Garamond for names, IBM Plex Mono for readings). Tokens come from styles.css (The Tide's near-black and hairlines).
+ * The Lattice's map (#332; in Today's language since #433): the flow kit's frame (flow.css: Bodoni Moda and Jost, the
+ * horizon, the eyebrow, the ledger, the panel) on the Lattice's own page. The map lives outside the Desk's shell, so
+ * its root carries `fl-root` and the Desk's colour tokens (wv.css) the kit reads. Each room's colour is `--rc`.
  */
 .lmap {
-  --lm-rgb: 236, 238, 243;
+  --wv-ink: #eceef3;
+  --wv-soft: #bcc2cd;
+  --wv-mute: #8c94a3;
+  --wv-faint: #6a7282;
+  --wv-line: rgba(236, 238, 243, 0.08);
+  --wv-line2: rgba(236, 238, 243, 0.15);
+  --wv-hot: #ffdcaa;
+  --wv-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --lm-bg: #0a0b0f;
+  --lm-text: "Jost Variable", Jost, Futura, "Century Gothic", system-ui, sans-serif;
+  --lm-disp: "Bodoni Moda Variable", "Bodoni Moda", Didot, "Bodoni 72", serif;
+  --rc: 232, 207, 156;
   position: fixed;
   inset: 0;
-  display: grid;
-  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(270px, 320px);
-  grid-template-rows: auto minmax(0, 1fr);
-  grid-template-areas:
-    "top top top"
-    "title chart side";
-  background:
-    radial-gradient(ellipse at 50% 55%, rgba(143, 232, 255, 0.05), transparent 60%),
-    var(--bg);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 12px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--lm-bg);
+  color: var(--wv-ink);
+  font-family: var(--lm-text);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: #232631 transparent;
+}
+.lmap *,
+.lmap *::before,
+.lmap *::after {
+  box-sizing: border-box;
+}
+.lmap :focus-visible {
+  outline: 1px solid rgba(var(--rc), 0.8);
+  outline-offset: 3px;
 }
 
-.lmap-eyebrow {
-  margin: 0 0 6px;
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.lmap-faint {
-  color: var(--faint);
-}
-
-/* ── Top bar ── */
+/* ── The bar: the way back to the Desk, Lattice time, what waits ── */
 .lmap-top {
-  grid-area: top;
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 24px;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  gap: 18px;
+  height: 56px;
+  padding: 0 clamp(24px, 3vw, 56px);
+  background: var(--lm-bg);
+  font-size: 13px;
 }
 .lmap-mark {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  color: inherit;
+  text-decoration: none;
 }
 .lmap-mark img {
   width: 22px;
@@ -54,354 +63,379 @@
   opacity: 0.9;
 }
 .lmap-mark b {
-  font-family: var(--serif);
+  font-family: var(--lm-disp);
+  font-size: 20px;
   font-weight: 500;
-  font-size: 18px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
-.lmap-top__rule {
-  width: 48px;
-  height: 1px;
-  background: var(--hair);
+.lmap-top__back {
+  margin-left: 14px;
+  padding-left: 16px;
+  border-left: 1px solid var(--wv-line2);
+  color: var(--wv-soft);
+  transition: color 0.2s;
 }
-.lmap-top__where {
-  color: var(--muted);
+.lmap-mark:hover .lmap-top__back {
+  color: var(--wv-ink);
 }
 .lmap-top__right {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
-.lmap-top__desk {
-  color: var(--text);
-  text-decoration: none;
-  border-bottom: 1px solid var(--hair-strong);
+.lmap-top__k {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--wv-faint);
 }
-.lmap-top__desk:hover,
-.lmap-top__desk:focus-visible {
-  border-color: var(--text);
+.lmap-top__time {
+  font-family: var(--lm-disp);
+  font-size: 17px;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .lmap-count {
-  min-width: 22px;
-  height: 22px;
   display: inline-grid;
   place-items: center;
-  border: 1px solid var(--hair);
-  border-radius: 50%;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid var(--wv-line2);
+  border-radius: 99px;
+  font-family: var(--lm-disp);
+  font-size: 14px;
+  color: var(--wv-mute);
 }
-.lmap-count.hot {
-  color: var(--amber);
-  border-color: var(--amber);
+.lmap-count.is-hot {
+  border-color: rgba(255, 220, 170, 0.6);
+  color: var(--wv-hot);
 }
 
-/* ── Left: what the Lattice is, right now ── */
-.lmap-title {
-  grid-area: title;
-  padding: 18px 0 24px 24px;
-  overflow-y: auto;
+/* ── The stage: what's said on the left, the ring in the middle, the room in hand on the right ── */
+.lmap .lmap-page {
+  padding-bottom: 0;
+}
+.lmap .lmap-stage {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.7fr) minmax(0, 1.9fr) minmax(280px, 320px);
+  grid-template-areas: "intro ring side";
+  gap: 0 clamp(16px, 2vw, 32px);
+  height: max(640px, calc(100svh - 56px));
+  min-height: 0;
+  padding-bottom: 28px;
+}
+.lmap-stage.is-pointing {
+  cursor: pointer;
+}
+
+.lmap-intro {
+  grid-area: intro;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-}
-.lmap-title .lmap-eyebrow {
-  margin: 0;
-}
-.lmap-display {
-  margin: -8px 0 0;
-  font-family: var(--serif);
-  font-weight: 300;
-  font-size: clamp(40px, 4.2vw, 60px);
-  line-height: 0.95;
-  letter-spacing: 0.02em;
-}
-.lmap-sub {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 17px;
-  line-height: 1.35;
-  color: var(--muted);
-}
-.lmap-totals,
-.lmap-figs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 16px;
-  margin: 0;
-  padding: 14px 0 0;
-  border-top: 1px solid var(--hair);
-}
-.lmap-totals dt,
-.lmap-figs dt {
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.lmap-totals dd,
-.lmap-figs dd {
-  margin: 2px 0 0;
-  font-size: 22px;
-  font-variant-numeric: tabular-nums;
-}
-.lmap-totals dd.hot,
-.lmap-figs dd.hot {
-  color: var(--amber);
-}
-.lmap-skippy {
-  margin: 0;
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 16px;
-  line-height: 1.35;
-  color: var(--muted);
-}
-.lmap-skippy .lmap-eyebrow {
-  display: block;
-  font-family: var(--mono);
-  font-style: normal;
-}
-.lmap-signals ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-  line-height: 1.45;
-}
-.lmap-signals li {
-  color: var(--muted);
-  padding-left: 10px;
-  border-left: 1px solid var(--hair);
-}
-.lmap-signals b {
-  color: var(--text);
-  font-weight: 500;
-}
-.lmap-whole {
-  display: grid;
-  gap: 3px;
-  text-align: left;
-  padding: 12px 14px;
-  border: 1px solid var(--hair-strong);
-  border-radius: var(--radius);
-  transition: border-color 0.2s, background 0.2s;
-}
-.lmap-whole span {
-  font-family: var(--serif);
-  font-size: 20px;
-}
-.lmap-whole small {
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.lmap-whole:hover,
-.lmap-whole:focus-visible {
-  border-color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-}
-.lmap-keys {
-  margin: 0;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-}
-
-/* ── The chart ── */
-.lmap-chart {
-  grid-area: chart;
-  position: relative;
   min-height: 0;
+}
+.lmap .lmap-intro .fl-h1 {
+  font-size: clamp(46px, 4.2vw, 78px);
+}
+.lmap .lmap-say {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
 }
-.lmap-canvas {
+.lmap .lmap-ledger {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.lmap .lmap-ledger dd {
+  font-size: clamp(30px, 2.4vw, 42px);
+}
+.lmap-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-top: 26px;
+}
+.lmap-keys {
+  font-size: 12.5px;
+  color: var(--wv-faint);
+}
+.lmap-keys kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin: 0 2px;
+  padding: 0 4px;
+  border: 1px solid var(--wv-line2);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--wv-soft);
+}
+.lmap-line {
+  margin-top: auto;
+  padding-top: 22px;
+}
+.lmap-line ol {
+  display: grid;
+  gap: 9px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lmap-line li {
+  padding-left: 12px;
+  border-left: 1px solid rgba(var(--rc), 0.55);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--wv-mute);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.lmap-line li b {
+  font-weight: 500;
+  color: var(--wv-ink);
+}
+
+/* ── The ring: a box the canvas draws into, with the names over it ── */
+.lmap-ring {
+  grid-area: ring;
+  min-width: 0;
+  min-height: 0;
+}
+.lmap .lmap-ring > * {
   position: absolute;
-  inset: 0;
-  display: block;
-  touch-action: manipulation;
 }
 .lmap-kernel {
-  position: absolute;
-  transform: translate(-50%, 0);
-  font-size: 9px;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--faint);
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  transform: translateX(-50%);
   pointer-events: none;
+  text-align: center;
+  text-shadow: 0 0 14px var(--lm-bg), 0 0 4px var(--lm-bg);
 }
-.lmap-label {
-  position: absolute;
-  transform: translate(-50%, -50%);
+.lmap-kernel em {
+  font-family: var(--lm-disp);
+  font-size: 22px;
+  font-style: italic;
+  color: #f2dfb6;
+  text-shadow: 0 0 28px rgba(232, 207, 156, 0.35), 0 0 6px var(--lm-bg);
+}
+.lmap-kernel span {
+  margin-top: 2px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--wv-faint);
+}
+
+.lmap-room {
   display: grid;
   justify-items: center;
   gap: 1px;
-  padding: 4px 8px;
-  min-width: 120px;
+  padding: 4px 10px 6px;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--wv-soft);
+  font: inherit;
   text-align: center;
-  border-radius: var(--radius);
-  transition: background 0.2s;
-}
-.lmap-label__idx {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: rgba(var(--lm-rgb), 0.9);
-}
-.lmap-label__name {
-  font-family: var(--serif);
-  font-size: 21px;
-  line-height: 1.05;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.lmap-label__state {
-  font-size: 10.5px;
-  color: var(--muted);
   white-space: nowrap;
+  cursor: pointer;
+  text-shadow: 0 0 14px var(--lm-bg), 0 0 5px var(--lm-bg), 0 0 2px var(--lm-bg);
 }
-.lmap-label.on,
-.lmap-label:focus-visible {
-  background: rgba(var(--lm-rgb), 0.1);
-  outline: none;
+.lmap-room.is-above {
+  transform: translate(-50%, -100%);
 }
-.lmap-label.on .lmap-label__state {
-  color: var(--text);
-}
-.lmap-label--pin {
-  min-width: 0;
-  padding: 2px 4px;
-}
-.lmap-label--pin .lmap-label__idx {
-  font-size: 10px;
-  color: var(--text);
-  text-shadow: 0 0 6px rgba(var(--lm-rgb), 0.9);
-}
-.lmap-live {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--mint);
-  box-shadow: 0 0 8px var(--mint);
-}
-.lmap-tip {
-  position: absolute;
-  transform: translate(12px, -50%);
-  display: grid;
-  gap: 2px;
-  max-width: 240px;
-  padding: 6px 9px;
-  background: rgba(5, 5, 6, 0.86);
-  border: 1px solid var(--hair);
-  border-radius: var(--radius);
-  pointer-events: none;
-  line-height: 1.35;
-}
-.lmap-tip b {
-  font-family: var(--serif);
-  font-size: 16px;
+.lmap-room__name {
+  font-size: 12.5px;
   font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--wv-soft);
+  transition: color 0.25s;
 }
-.lmap-tip span {
-  color: var(--muted);
+.lmap-room__say {
+  font-family: var(--lm-disp);
+  font-size: 18px;
+  font-style: italic;
+  line-height: 1.2;
+  color: color-mix(in srgb, rgb(var(--rc)) 55%, #8c94a3);
+}
+.lmap-room__meta {
+  font-size: 11.5px;
+  color: var(--wv-faint);
+}
+.lmap-room__meta b {
+  font-weight: 500;
+  color: color-mix(in srgb, rgb(var(--rc)) 75%, #fff);
+}
+.lmap-room__meta b::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin: 0 5px 1px 0;
+  border-radius: 50%;
+  background: rgb(var(--rc));
+  box-shadow: 0 0 8px rgb(var(--rc));
+}
+.lmap-room.is-live .lmap-room__name {
+  color: var(--wv-ink);
+}
+.lmap-room.is-live .lmap-room__say {
+  color: color-mix(in srgb, rgb(var(--rc)) 72%, #fff);
+}
+.lmap-room.is-hot .lmap-room__say {
+  color: var(--wv-hot);
+}
+.lmap-room.is-on .lmap-room__name,
+.lmap-room:hover .lmap-room__name {
+  color: #fff;
+}
+.lmap-room.is-on .lmap-room__say {
+  color: color-mix(in srgb, rgb(var(--rc)) 60%, #fff);
+}
+.lmap-room__idx {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(var(--rc), 0.55);
+  border-radius: 50%;
+  background: rgba(10, 11, 15, 0.8);
+  font-family: var(--lm-disp);
+  font-size: 13px;
+  color: var(--wv-ink);
+}
+.lmap-room.is-live .lmap-room__idx {
+  border-color: rgb(var(--rc));
+  box-shadow: 0 0 10px rgba(var(--rc), 0.45);
 }
 
-/* ── Right: the room in hand ── */
+/* ── The room in hand ── */
 .lmap-side {
   grid-area: side;
-  padding: 18px 24px 24px 0;
-  overflow-y: auto;
+  align-self: start;
+  min-height: 0;
 }
-.lmap-panel {
+.lmap .lmap-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-left: 16px;
-  border-left: 1px solid rgba(var(--lm-rgb), 0.55);
+  max-height: calc(max(640px, 100svh - 56px) - 70px);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
-.lmap-panel .lmap-eyebrow {
-  margin: 0;
-  color: rgba(var(--lm-rgb), 0.95);
+.lmap .lmap-panel .fl-h2 {
+  font-size: clamp(30px, 2.3vw, 38px);
 }
-.lmap-panel__name {
-  margin: 0;
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: 32px;
-  line-height: 1;
+.lmap-panel__mind {
+  margin: 6px 0 0;
+  font-family: var(--lm-disp);
+  font-size: 18px;
+  font-style: italic;
+  color: var(--fl-hi);
 }
 .lmap-panel__work {
-  margin: 0;
-  color: var(--muted);
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--wv-mute);
 }
-.lmap-figs {
+.lmap .lmap-panel__ledger {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+}
+.lmap .lmap-panel__ledger dd {
+  font-size: 32px;
 }
 .lmap-crew {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
 }
 .lmap-crew li {
   display: grid;
-  grid-template-columns: 10px 1fr;
-  column-gap: 8px;
+  grid-template-columns: 14px minmax(0, 1fr);
+  column-gap: 6px;
+  font-size: 13px;
   line-height: 1.35;
 }
-.lmap-crew i {
+.lmap-crew li i {
   grid-row: span 2;
   width: 7px;
   height: 7px;
-  margin-top: 5px;
+  margin-top: 6px;
   border-radius: 50%;
-  background: rgb(var(--lm-dot));
-  box-shadow: 0 0 8px rgb(var(--lm-dot));
+  background: rgb(var(--dot));
+  box-shadow: 0 0 8px rgba(var(--dot), 0.8);
 }
-.lmap-crew li.busy i {
-  outline: 1px solid rgb(var(--lm-dot));
-  outline-offset: 2px;
+.lmap-crew li.is-busy i {
+  outline: 1px solid rgba(var(--dot), 0.7);
+  outline-offset: 3px;
 }
 .lmap-crew b {
-  font-family: var(--serif);
+  font-size: 14.5px;
   font-weight: 500;
-  font-size: 16px;
+  color: var(--wv-ink);
 }
 .lmap-crew span {
-  color: var(--muted);
+  color: var(--wv-mute);
 }
 .lmap-crew__empty {
-  display: block !important;
-  color: var(--faint);
+  font-family: var(--lm-disp);
+  font-style: italic;
+  color: var(--wv-mute);
 }
-.lmap-go {
-  display: grid;
-  gap: 2px;
-  margin-top: 6px;
-  padding: 12px 14px;
-  text-align: left;
-  font-family: var(--serif);
-  font-size: 20px;
-  border: 1px solid rgba(var(--lm-rgb), 0.7);
-  border-radius: var(--radius);
-  background: rgba(var(--lm-rgb), 0.08);
-  transition: background 0.2s;
+.lmap .lmap-go {
+  align-self: flex-start;
+  margin-top: 20px;
 }
-.lmap-go small {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.lmap-go:hover,
-.lmap-go:focus-visible {
-  background: rgba(var(--lm-rgb), 0.18);
+.lmap-go__note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--wv-faint);
 }
 
-.lmap-list {
+/* ── Someone pointed at ── */
+.lmap.fl-root .lmap-stage > .lmap-tip {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  gap: 2px;
+  max-width: 260px;
+  padding: 7px 11px;
+  transform: translate(14px, -50%);
+  border: 1px solid var(--wv-line2);
+  border-radius: 10px;
+  background: rgba(10, 11, 15, 0.92);
+  pointer-events: none;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.lmap-tip b {
+  font-family: var(--lm-disp);
+  font-size: 17px;
+  font-weight: 500;
+}
+.lmap-tip span {
+  color: var(--wv-mute);
+}
+
+/* ── The rooms as a list (a phone) ── */
+.lmap .lmap-list {
   display: none;
 }
 
@@ -411,108 +445,127 @@
   inset: 0;
   display: grid;
   place-items: center;
-  background: var(--bg);
-  color: var(--muted);
-  font-family: var(--serif);
+  background: #0a0b0f;
+  color: #8c94a3;
+  font-family: "Bodoni Moda Variable", "Bodoni Moda", Didot, var(--serif), serif;
   font-style: italic;
-  font-size: 20px;
+  font-size: 22px;
 }
 
-/* ── Narrower: the side panel folds under; a phone stacks it all and lists the rooms ── */
+/* ── Narrower: the room in hand folds away (the names and the keys still open each room) ── */
 @media (max-width: 1180px) {
-  .lmap {
-    grid-template-columns: minmax(230px, 270px) minmax(0, 1fr);
-    grid-template-areas:
-      "top top"
-      "title chart";
+  .lmap .lmap-stage {
+    grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.5fr);
+    grid-template-areas: "intro ring";
   }
-  .lmap-side {
+  .lmap .lmap-side {
     display: none;
   }
 }
+
+/* ── A phone: the words, the ring, then every room listed ── */
 @media (max-width: 760px) {
-  .lmap {
-    display: block;
-    overflow-y: auto;
-  }
   .lmap-top {
-    padding: 12px 16px;
-    gap: 10px;
-    flex-wrap: wrap;
+    height: 52px;
+    padding: 0 16px;
   }
-  .lmap-top__rule,
-  .lmap-top__where,
-  .lmap-top__right .lmap-faint {
+  .lmap-top__k {
     display: none;
   }
-  .lmap-title {
-    padding: 6px 16px 0;
-    overflow: visible;
+  .lmap .lmap-stage {
+    display: block;
+    height: auto;
+    padding-bottom: 8px;
   }
-  .lmap-title > .lmap-skippy,
-  .lmap-title > .lmap-signals,
-  .lmap-title > .lmap-keys {
+  .lmap .lmap-ledger {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lmap .lmap-ledger dd {
+    font-size: 30px;
+  }
+  .lmap-keys,
+  .lmap-line {
     display: none;
   }
-  .lmap-totals {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .lmap-acts {
+    margin-top: 20px;
   }
-  .lmap-totals dd {
-    font-size: 18px;
-  }
-  .lmap-chart {
+  .lmap .lmap-ring {
     width: 100%;
     aspect-ratio: 1;
-    margin: 8px 0;
+    margin-top: 18px;
   }
-  .lmap-list {
+  .lmap-kernel em {
+    font-size: 18px;
+  }
+  .lmap-kernel span {
+    font-size: 9.5px;
+  }
+  .lmap-room {
+    padding: 0;
+  }
+  .lmap .lmap-list {
     display: grid;
-    gap: 0;
+    gap: 2px;
+    margin-top: 6px;
+    margin-bottom: 40px;
+    padding: 0;
     list-style: none;
-    margin: 0;
-    padding: 0 16px 28px;
-  }
-  .lmap-list li {
-    border-top: 1px solid var(--hair);
   }
   .lmap-list button {
-    width: 100%;
     display: grid;
-    grid-template-columns: 30px 1fr auto;
-    gap: 2px 8px;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "idx name say"
+      "idx meta meta";
+    align-items: baseline;
+    gap: 2px 10px;
+    width: 100%;
     padding: 12px 0;
+    border: 0;
+    border-top: 1px solid var(--wv-line);
+    background: none;
+    color: inherit;
+    font: inherit;
     text-align: left;
+    cursor: pointer;
   }
   .lmap-list__idx {
-    color: rgb(var(--lm-rgb));
-    letter-spacing: 0.14em;
-    padding-top: 4px;
+    grid-area: idx;
+    font-size: 16px;
+    color: rgb(var(--rc));
   }
   .lmap-list__name {
-    font-family: var(--serif);
-    font-size: 20px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    grid-area: name;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--wv-soft);
   }
-  .lmap-list__state {
-    color: var(--muted);
-    padding-top: 5px;
-    text-align: right;
+  .lmap-list li.is-live .lmap-list__name {
+    color: var(--wv-ink);
   }
-  .lmap-list__doing {
-    grid-column: 2 / 4;
-    color: var(--faint);
+  .lmap-list__say {
+    grid-area: say;
+    font-family: var(--lm-disp);
+    font-style: italic;
+    font-size: 17px;
+    color: color-mix(in srgb, rgb(var(--rc)) 65%, #fff);
+  }
+  .lmap-list__meta {
+    grid-area: meta;
     overflow: hidden;
+    font-size: 12.5px;
+    color: var(--wv-faint);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lmap-label,
-  .lmap-whole,
-  .lmap-go {
+  .lmap-room__name,
+  .lmap-top__back {
     transition: none;
   }
 }

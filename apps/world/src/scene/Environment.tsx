@@ -1,16 +1,26 @@
 import { MeshReflectorMaterial } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, ShaderMaterial, type Group, type Points } from "three";
+import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, Matrix4, ShaderMaterial, type Group, type Points } from "three";
 import { useWorld } from "../store.ts";
+import { cameraMovedSince } from "./DetailLevels.tsx";
 import { PALETTE } from "../theme.ts";
 
 export const FLOOR_Y = -6;
+
+/** While the camera holds still, the floor's reflection is redrawn every this many frames (#416). */
+export const REFLECT_EVERY = 2;
 
 /**
  * The floor's reflection draws the scene once more each frame, before the main pass. It reuses the matrices the
  * main pass worked out a frame earlier instead of recomputing every matrix in the scene for itself (#327): a blurred
  * reflection a frame behind looks the same, and the walk over thousands of objects goes once per frame, not twice.
+ *
+ * While the camera holds still it is redrawn every REFLECT_EVERY frames, not every frame (#416): it is blurred to a
+ * soft glow, so what moves in it (the crew walking) looks the same at half the rate, and the whole ring's reflection
+ * was some 420 draw calls a frame, each lit by every lamp in the Lattice. "Still" allows the overview's slow idle drift
+ * (DetailLevels.tsx, cameraMovedSince); the moment the camera really moves (a drag, a zoom, a flight to a room) it is
+ * redrawn every frame again, so it never lags a turn.
  */
 function useLeanReflection(on: boolean) {
   const gl = useThree((s) => s.gl);
@@ -19,8 +29,16 @@ function useLeanReflection(on: boolean) {
   useEffect(() => {
     if (!on) return;
     const render = gl.render;
+    const seen = new Matrix4();
+    let drawnAt = -Infinity;
     gl.render = function (this: typeof gl, s, camera) {
-      if (s !== scene || camera === get().camera) return render.call(this, s, camera);
+      const main = get().camera;
+      if (s !== scene || camera === main) return render.call(this, s, camera);
+      const frame = this.info.render.frame;
+      // Still, and drawn a moment ago: keep the reflection it drew then.
+      if (frame - drawnAt < REFLECT_EVERY && frame >= drawnAt && !cameraMovedSince(main.matrixWorld, seen)) return;
+      drawnAt = frame;
+      seen.copy(main.matrixWorld);
       const auto = s.matrixWorldAutoUpdate;
       s.matrixWorldAutoUpdate = false;
       try {

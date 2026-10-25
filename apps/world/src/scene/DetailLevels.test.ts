@@ -1,7 +1,7 @@
 import { roomCenter } from "@ceo/core";
-import { BoxGeometry, Mesh, MeshBasicMaterial, Sphere, Vector3 } from "three";
+import { BoxGeometry, Mesh, MeshBasicMaterial, PerspectiveCamera, Sphere, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { DETAIL_LAYER, HIDDEN_LAYER, hideCutoff, layerMask, measure, trackable } from "./DetailLevels.tsx";
+import { DETAIL_LAYER, HIDDEN_LAYER, cameraMovedSince, hideCutoff, layerMask, measure, trackable } from "./DetailLevels.tsx";
 
 const mesh = () => new Mesh(new BoxGeometry(), new MeshBasicMaterial());
 
@@ -80,5 +80,24 @@ describe("measuring a mesh (#188)", () => {
     expect(first).toMatchObject({ radius: 0.3, spread: 4 });
     m.geometry = new BoxGeometry(10, 10, 10);
     expect(measure(m, first)).toMatchObject({ radius: 0.3, spread: 4 });
+  });
+
+  it("counts the overview's idle drift as still, and a drag, zoom or flight as moving (#416)", () => {
+    const at = (x: number, y: number, z: number, look: [number, number, number] = [0, 0, 0]) => {
+      const c = new PerspectiveCamera();
+      c.position.set(x, y, z);
+      c.lookAt(...look);
+      c.updateMatrixWorld();
+      return c.matrixWorld.clone();
+    };
+    const seen = at(0, 66, 96);
+    // The drift: 0.025 rad/s about the ring's centre, one frame at 60 fps.
+    const a = 0.025 / 60;
+    expect(cameraMovedSince(at(96 * Math.sin(a), 66, 96 * Math.cos(a)), seen)).toBe(false);
+    expect(cameraMovedSince(seen.clone(), seen)).toBe(false);
+    // A zoom, a pan and a turn.
+    expect(cameraMovedSince(at(0, 60, 88), seen)).toBe(true);
+    expect(cameraMovedSince(at(1, 66, 96, [1, 0, 0]), seen)).toBe(true);
+    expect(cameraMovedSince(at(0, 66, 96, [6, 0, 0]), seen)).toBe(true);
   });
 });

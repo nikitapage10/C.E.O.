@@ -279,10 +279,22 @@ function useBeat(ms: number) {
 }
 
 /** The 3D world's code, fetched ahead once there's a hint it's wanted (a hover), or after a quiet spell on the map. */
-function warm3D() {
+function warm3D(room?: RoomId) {
   const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
   if (conn?.saveData) return;
-  void loadWorld3D().catch(() => {});
+  void loadWorld3D()
+    .then((m) => room && m.prefetchRoom(room))
+    .catch(() => {});
+}
+
+/** A room hovered this long has its models fetched ahead of the click (#416); a pointer sweeping past fetches nothing. */
+const DWELL_MS = 120;
+let dwell: ReturnType<typeof setTimeout> | undefined;
+function warmRoom(room: RoomId | null) {
+  clearTimeout(dwell);
+  if (!room) return;
+  warm3D();
+  dwell = setTimeout(() => warm3D(room), DWELL_MS);
 }
 
 const enter = (room: RoomId) => goToView({ kind: "room", room });
@@ -386,10 +398,8 @@ export function LatticeMap({ active }: { active: boolean }) {
     hoverRef.current = r;
     info.hovered = r;
     setHover(r);
-    if (r) {
-      setPinned(r);
-      warm3D();
-    }
+    if (r) setPinned(r);
+    warmRoom(r);
   }, []);
 
   // Nothing to focus on the map; the directors' notices read the Lattice-wide view.

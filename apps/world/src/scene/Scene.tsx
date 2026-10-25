@@ -100,7 +100,9 @@ export function Scene() {
           dpr={canvasDpr(quality)}
           frameloop={drawing && active ? "always" : "never"}
           camera={{ position: [0, 66, 96], fov: 38, near: 0.5, far: 600 }}
-          shadows="soft"
+          // PCF, said outright: three.js r18x dropped PCFSoftShadowMap and swaps it for PCF at the first shadow pass, so
+          // "soft" compiled every program behind the curtain for a shadow type no frame ever drew with (#416).
+          shadows="percentage"
           gl={{
             antialias: false,
             powerPreference: "high-performance",

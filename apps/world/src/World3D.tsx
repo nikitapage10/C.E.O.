@@ -13,6 +13,9 @@ import { Loader } from "./hud/Loader.tsx";
 import { goToView, type LatticeView } from "./map/view.ts";
 import { Scene } from "./scene/Scene.tsx";
 import { bootStreaming, endStreaming, loadRoom, streamedIn } from "./scene/streaming.ts";
+
+/** The map warms a room it is hovering over (#416): its models, fetched and decoded ahead of the click. */
+export { prefetchRoom } from "./scene/streaming.ts";
 import { SocialDirector } from "./social/SocialDirector.tsx";
 import { guardRemoveChild } from "./scene/domGuard.ts";
 import { useWorld } from "./store.ts";

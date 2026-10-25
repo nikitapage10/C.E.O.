@@ -98,7 +98,7 @@ function countCommits() {
 async function openLattice(browser) {
   const page = await browser.newPage({ viewport: VIEWPORT });
   await page.addInitScript(countCommits);
-  await page.goto(`http://localhost:${PORT}/lattice?instant&glitches=off&seed=7&quality=${QUALITY}`);
+  await page.goto(`http://localhost:${PORT}/lattice?view=ring&instant&glitches=off&seed=7&quality=${QUALITY}`);
   await page.waitForFunction(
     () => {
       const c = window.__ceo;

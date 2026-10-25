@@ -239,13 +239,34 @@ function findKeyLight(scene: Object3D): DirectionalLight | null {
   return found[0] ?? null;
 }
 
-/** Fits the key light's shadow map to what the camera is looking at, tighter as it zooms in. */
+/** On the overview, with the camera still, the key light's shadow map is redrawn every this many frames (#416). */
+export const OVERVIEW_SHADOW_EVERY = 2;
+
+/**
+ * Fits the key light's shadow map to what the camera is looking at, tighter as it zooms in.
+ *
+ * On the overview (no room in focus), while the camera holds still, the map is redrawn every OVERVIEW_SHADOW_EVERY
+ * frames, not every frame (#416): from that far the crew are a few pixels tall and their shadows a texel or two, so it
+ * looks the same, and the whole ring's shadow pass was some 340 draw calls a frame. ("Still" allows the overview's slow
+ * idle drift: cameraMovedSince.) The frame the camera moves faster, or a room is picked, it is redrawn every frame
+ * again, and its frustum is only moved on a frame it is redrawn, so the map and the matrix that reads it always match.
+ */
 export function ShadowFocus() {
   const scene = useThree((s) => s.scene);
+  const gl = useThree((s) => s.gl);
   const light = useRef<DirectionalLight | null>(null);
   const center = useRef(new Vector3());
   const half = useRef(50);
   const view = useRef(new Matrix4());
+  const seen = useRef(new Matrix4());
+  const drawnAt = useRef(-Infinity);
+
+  useEffect(
+    () => () => {
+      gl.shadowMap.autoUpdate = true;
+    },
+    [gl],
+  );
 
   useFrame(({ camera, controls }, dt) => {
     if (!light.current?.parent) {
@@ -255,6 +276,19 @@ export function ShadowFocus() {
       half.current = (cam.right - cam.left) / 2;
     }
     const l = light.current;
+
+    const frame = gl.info.render.frame;
+    const overview = useWorld.getState().focus === null;
+    const moved = cameraMovedSince(camera.matrixWorld, seen.current);
+    if (overview && !moved && frame >= drawnAt.current && frame - drawnAt.current < OVERVIEW_SHADOW_EVERY) {
+      // Keep last frame's map, and the frustum it was drawn with.
+      gl.shadowMap.autoUpdate = false;
+      gl.shadowMap.needsUpdate = false;
+      return;
+    }
+    gl.shadowMap.autoUpdate = true;
+    drawnAt.current = frame;
+    seen.current.copy(camera.matrixWorld);
 
     // Where the camera is looking and how far away it is.
     // With no orbit controls (behind Brogu's eyes), a few metres ahead of the camera.
@@ -280,4 +314,21 @@ export function ShadowFocus() {
   });
 
   return null;
+}
+
+/** How far (world units) and how much (cosine of the angle) the camera may move before it counts as moving. */
+const STILL_MOVE = 0.15;
+const STILL_TURN = Math.cos(MathUtils.degToRad(0.25));
+
+/**
+ * Whether a camera has moved since `seen` (its world matrix then) by more than the overview's slow idle drift does in
+ * a frame or two: a drag, a zoom or a flight to a room counts, the drift doesn't.
+ */
+export function cameraMovedSince(now: Matrix4, seen: Matrix4): boolean {
+  const a = now.elements;
+  const b = seen.elements;
+  const moved = Math.hypot(a[12]! - b[12]!, a[13]! - b[13]!, a[14]! - b[14]!);
+  // The view direction is the matrix's -Z column; both are unit length for a camera.
+  const turn = a[8]! * b[8]! + a[9]! * b[9]! + a[10]! * b[10]!;
+  return !(moved <= STILL_MOVE) || !(turn >= STILL_TURN);
 }

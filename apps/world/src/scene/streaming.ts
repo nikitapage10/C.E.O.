@@ -93,6 +93,15 @@ export function loadRoom(room: RoomId): Promise<void> {
   return settled();
 }
 
+/**
+ * Fetch one room's models ahead of a click (#416: the 2D map, on a hover), so they're in, decoded, by the time the
+ * room opens. Nothing is let in or built; the room's own view uses them from the cache.
+ */
+export function prefetchRoom(room: RoomId) {
+  if (!(ROOM_IDS as readonly string[]).includes(room)) return;
+  preloadNow(...modelsFor(new Set([room])));
+}
+
 /** Let the other rooms in, and fetch what they need. (Brogu's eyes calls it too: he can walk anywhere.) */
 export function release() {
   // One room on its own (#332) stays on its own: the rest of the ring is "Whole Lattice", a view of its own.

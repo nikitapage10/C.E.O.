@@ -13,7 +13,8 @@ import { useLatticeView, viewKey, type LatticeView } from "./map/view.ts";
 import { NightDirector } from "./night/NightDirector.tsx";
 import { FoundryDirector } from "./rooms/FoundryDirector.tsx";
 import { WorldDirector } from "./world/WorldDirector.tsx";
-import { pumpSpeech, useWorld } from "./store.ts";
+import type { Step } from "@ceo/simulator";
+import { pumpSpeech, simulator, useWorld } from "./store.ts";
 import "@fontsource/cormorant-garamond/300.css";
 import "@fontsource/cormorant-garamond/400-italic.css";
 import "./styles.css";
@@ -38,6 +39,9 @@ function useDebugApi() {
         room: Parameters<ReturnType<typeof useWorld.getState>["setFocus"]>[0],
       ) => useWorld.getState().setFocus(room),
       activeGlitch: () => useWorld.getState().activeGlitch,
+      // Hand a demo agent steps right now, through the simulator as a gathering does (an approval to answer, for the
+      // browser tests: on a software renderer the demo's own come too late to wait for, #454).
+      assign: (id: string, steps: Step[]) => simulator.assign(id, steps, clock.sim),
       // The 3D world's own (World3D.tsx) take over once it has loaded: nothing streams on the map.
       streamedIn: () => false,
       store: useWorld,

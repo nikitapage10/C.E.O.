@@ -38,7 +38,8 @@ type Api = {
   renderInfo: () => { calls: number; triangles: number; programs: number };
   map: () => { on: boolean; crew: number; frames: number; positions: Record<string, [number, number]> };
   three: () => { scene: { getObjectByName: (name: string) => unknown } };
-  state: () => { agents: Record<string, unknown>; approvals: Record<string, { status: string; request: { room: string } }> };
+  state: () => { agents: Record<string, unknown>; approvals: Record<string, { status: string; request: { room: string; agentId: string } }> };
+  assign: (agentId: string, steps: Record<string, unknown>[]) => boolean;
   positions: () => Record<string, [number, number, number]>;
   time: () => number;
   focus: (room: string | null) => void;
@@ -127,20 +128,30 @@ test.describe.serial("the Lattice", () => {
 
   test("the C.E.O. can approve a request", async () => {
     test.setTimeout(STEP_MS * 4);
-    // The demo's first approval comes 15-25 s into Lattice time (seed 7's moved from 12.4 s to 22.4 s when the Studio's
-    // cast joined, #326). Approvals stay pending until answered, and the shared world has been running since the first
-    // test's boot, so one is normally waiting already; the wait below covers the case where it isn't.
+    // The demo's approvals are a roll of the dice (scripts.ts), and on SwiftShader the Lattice only gets about a minute of
+    // its own time through the whole suite. Any live input (the Foundry's GitHub issues, a gathering) reshuffles the one
+    // seeded stream, so some nights no demo approval came in that minute and the wait ran out (#454). So Memo (the Spire,
+    // a demo room) is handed the Spire's own ask through the simulator, as a gathering hands out seats; if Memo is already
+    // waiting on one, that one is the ask. Either way it is a demo approval raised in the room Memo stands in, and
+    // answered through the same simulator, store and card as any other.
     await returnToOverview();
     // The demo's approvals only show inside their room (the Lattice-wide view is for real agents).
     await expect(page.locator("[data-approval]")).toHaveCount(0);
+    expect(
+      await api(page, (a) =>
+        a.assign("memo", [{ kind: "approval", action: "email.send", summary: "Send 4 customer replies", detail: "Drafted in your voice, minus the third exclamation point.", risk: "low" }]),
+      ),
+    ).toBe(true);
     const room = await page.waitForFunction(
       () => {
         const w = window as unknown as { __ceo: Api };
-        return Object.values(w.__ceo.state().approvals).find((a) => a.status === "pending")?.request.room;
+        return Object.values(w.__ceo.state().approvals).find((a) => a.status === "pending" && a.request.agentId === "memo")?.request.room;
       },
       undefined,
       { timeout: 100_000, polling: 1000 },
     );
+    // Still only in its room: the overview shows none.
+    await expect(page.locator("[data-approval]")).toHaveCount(0);
     await page.evaluate((r) => (window as unknown as { __ceo: Api }).__ceo.focus(r), (await room.jsonValue()) as string);
     const card = page.locator("[data-approval]").first();
     await expect(card).toBeVisible({ timeout: 100_000 });

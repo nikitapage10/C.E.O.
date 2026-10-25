@@ -9,6 +9,8 @@ import { clamp, gauss, HOT, lerp, OK, RC, reducedMotion, RUN, spr, sprMix, sstep
 
 const M = 160;
 const SEG = 12;
+/** The loom's backing-pixel budget (#417). */
+const LOOM_PX = 1_200_000;
 
 interface Pt {
   x: number;
@@ -735,5 +737,9 @@ export function loomSpec(items: LoomItems, ctl: { current: LoomCtl }): VizSpec {
       c.globalAlpha = 1;
     },
     blend: "source-over",
+    // Threads of soft light over a wide stage: drawn into at most this many backing pixels and scaled up by the
+    // browser (#417). On a Retina laptop that is about half the pixels to clear, draw and lay down every frame, and the
+    // light reads the same.
+    scale: (w, h, dpr) => Math.min(dpr, Math.max(1, Math.sqrt(LOOM_PX / Math.max(1, w * h)))),
   };
 }

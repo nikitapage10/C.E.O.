@@ -22,6 +22,8 @@ export interface Share {
 }
 
 const KEYS: GlyphKey[] = ["need", "fyi", "done"];
+/** The field's backing-pixel budget (#417). */
+const FIELD_PX = 1_600_000;
 /** The most dots each figure may use at a box of 1,000,000 px²; scaled to the box, then capped. */
 const CAP: Record<GlyphKey, number> = { need: 1700, fyi: 320, done: 320 };
 const DENSITY: Record<GlyphKey, number> = { need: 0.0075, fyi: 0.0095, done: 0.0095 };
@@ -279,7 +281,9 @@ export class TypeField {
     if (this.dead) return;
     const r = this.cv.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) return;
-    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    // Soft dots over a big stage: at most FIELD_PX backing pixels, scaled up by the browser (#417). On a Retina laptop
+    // the full-resolution field made each redraw a long task; the dots read the same.
+    this.dpr = Math.min(2, window.devicePixelRatio || 1, Math.max(1, Math.sqrt(FIELD_PX / Math.max(1, r.width * r.height))));
     this.w = r.width;
     this.h = r.height;
     const W = Math.round(r.width * this.dpr);

@@ -34,6 +34,14 @@ interface Laid {
   born: number;
   surf: Poly;
   P: Parts;
+  /**
+   * Once the land has risen it holds still (#417): its outline as a path for the sea's clip, and the land itself (its
+   * contours, skyline and soundings) drawn once into a layer per hover state, laid down each frame. Only the sea's
+   * lines and the surface move after that.
+   */
+  sea2: Path2D | null;
+  layer: HTMLCanvasElement | null;
+  layerKey: string;
 }
 
 /** The skyline's height at each column for a given growth (0..1), and which landform owns that column. */
@@ -62,6 +70,90 @@ function skyline(L: Laid, W: number, grow: number) {
   }
 }
 
+/** The land: contour lines through it, its skyline and the soundings over each summit (still once it has risen). */
+function land(c: CanvasRenderingContext2D, L: Laid, W: number, H: number, h: number | null) {
+  const { xs, ys, own, sea } = L;
+  const n = xs.length;
+  // The land: contour lines through it, bright where it stands in air, dim through the water.
+  c.save();
+  c.beginPath();
+  c.moveTo(0, H);
+  for (let i = 0; i < n; i++) c.lineTo(xs[i]!, ys[i]!);
+  c.lineTo(W, H);
+  c.closePath();
+  c.clip();
+  const g = c.createLinearGradient(0, sea - (sea - TOP), 0, H);
+  g.addColorStop(0, `rgba(${MINT},.10)`);
+  g.addColorStop(0.5, `rgba(${MINT},.035)`);
+  g.addColorStop(1, `rgba(${INK},.0)`);
+  c.fillStyle = g;
+  c.fillRect(0, 0, W, H);
+  c.lineWidth = 1;
+  for (let y = sea - 4; y > 0; y -= 6) {
+    c.strokeStyle = `rgba(${MINT},${(0.34 + 0.3 * (1 - y / sea)).toFixed(3)})`;
+    c.beginPath();
+    c.moveTo(0, y);
+    c.lineTo(W, y);
+    c.stroke();
+  }
+  c.setLineDash([2, 4]);
+  for (let y = sea + 6; y < H; y += 6) {
+    c.strokeStyle = `rgba(${INK},${(0.16 * (1 - (y - sea) / (H - sea)) + 0.03).toFixed(3)})`;
+    c.beginPath();
+    c.moveTo(0, y);
+    c.lineTo(W, y);
+    c.stroke();
+  }
+  c.setLineDash([]);
+  c.restore();
+
+  // The skyline itself: mint in air, faint under water; the hot landform's run drawn brighter.
+  c.lineJoin = "round";
+  for (const under of [false, true]) {
+    c.save();
+    c.beginPath();
+    if (under) c.rect(0, sea, W, H - sea);
+    else c.rect(0, 0, W, sea);
+    c.clip();
+    let run = -2;
+    for (let i = 0; i < n; i++) {
+      const o = own[i]!;
+      const hl = h !== null && o === h;
+      if (i === 0 || (hl ? 1 : 0) !== run) {
+        if (i > 0) c.stroke();
+        run = hl ? 1 : 0;
+        c.lineWidth = hl ? 2 : 1.2;
+        c.strokeStyle = under ? `rgba(${INK},${hl ? 0.7 : 0.28})` : `rgba(${MINT},${hl ? 1 : h === null ? 0.85 : 0.5})`;
+        c.beginPath();
+        c.moveTo(xs[Math.max(0, i - 1)]!, ys[Math.max(0, i - 1)]!);
+      }
+      c.lineTo(xs[i]!, ys[i]!);
+    }
+    c.stroke();
+    c.restore();
+  }
+
+  // Each summit marked by a sounding line up to its number (the markers sit in the page above the canvas).
+  L.fs.forEach((f, k) => {
+    const i = Math.round((f.cx * W) / (W / (n - 1)));
+    const sy = ys[Math.min(n - 1, Math.max(0, i))]!;
+    const x = f.cx * W;
+    const hl = h === k;
+    c.strokeStyle = f.rise >= 0 ? `rgba(${MINT},${hl ? 0.9 : 0.35})` : `rgba(${INK},${hl ? 0.75 : 0.22})`;
+    c.lineWidth = 1;
+    c.setLineDash([1, 3]);
+    c.beginPath();
+    c.moveTo(x, sy - 5);
+    c.lineTo(x, 40);
+    c.stroke();
+    c.setLineDash([]);
+    c.fillStyle = f.rise >= 0 ? `rgba(${MINT},${hl ? 1 : 0.8})` : `rgba(${INK},${hl ? 0.9 : 0.5})`;
+    c.beginPath();
+    c.arc(x, sy, hl ? 3.2 : 2.2, 0, Math.PI * 2);
+    c.fill();
+  });
+}
+
 function spec(items: readonly TerrainItem[], hot: { current: number | null }): VizSpec {
   const fs = landforms(items);
   const sds = items.map((p) => seed(p.market));
@@ -86,6 +178,9 @@ function spec(items: readonly TerrainItem[], hot: { current: number | null }): V
         born: prev?.born ?? -1,
         surf,
         P: new Parts(Math.round(V.W / 9), 0.08),
+        sea2: null,
+        layer: null,
+        layerKey: "",
       } satisfies Laid;
     },
     draw(V, c, t, dt) {
@@ -93,21 +188,33 @@ function spec(items: readonly TerrainItem[], hot: { current: number | null }): V
       if (L.born < 0) L.born = t;
       const still = reducedMotion();
       const grow = still ? 1 : eOut((t - L.born) / 1.8);
-      skyline(L, V.W, grow);
-      const { xs, ys, own, sea } = L;
+      const risen = grow >= 1;
+      if (!risen || !L.sea2) skyline(L, V.W, grow);
+      const { xs, ys, sea } = L;
       const n = xs.length;
       const H = V.H;
       const W = V.W;
       const h = hot.current;
+      if (risen && !L.sea2) {
+        const p = new Path2D();
+        p.moveTo(0, 0);
+        for (let i = 0; i < n; i++) p.lineTo(xs[i]!, ys[i]!);
+        p.lineTo(W, 0);
+        p.closePath();
+        L.sea2 = p;
+      }
 
       // The sea's own lines first, kept to open water: the land is clipped out of them.
       c.save();
-      c.beginPath();
-      c.moveTo(0, 0);
-      for (let i = 0; i < n; i++) c.lineTo(xs[i]!, ys[i]!);
-      c.lineTo(W, 0);
-      c.closePath();
-      c.clip();
+      if (L.sea2) c.clip(L.sea2);
+      else {
+        c.beginPath();
+        c.moveTo(0, 0);
+        for (let i = 0; i < n; i++) c.lineTo(xs[i]!, ys[i]!);
+        c.lineTo(W, 0);
+        c.closePath();
+        c.clip();
+      }
       c.lineWidth = 1;
       for (let y = sea + 12, k = 1; y < H; y += 12, k++) {
         const a = 0.12 * Math.pow(1 - (y - sea) / (H - sea), 1.6);
@@ -122,84 +229,24 @@ function spec(items: readonly TerrainItem[], hot: { current: number | null }): V
       c.setLineDash([]);
       c.restore();
 
-      // The land: contour lines through it, bright where it stands in air, dim through the water.
-      c.save();
-      c.beginPath();
-      c.moveTo(0, H);
-      for (let i = 0; i < n; i++) c.lineTo(xs[i]!, ys[i]!);
-      c.lineTo(W, H);
-      c.closePath();
-      c.clip();
-      const g = c.createLinearGradient(0, sea - (sea - TOP), 0, H);
-      g.addColorStop(0, `rgba(${MINT},.10)`);
-      g.addColorStop(0.5, `rgba(${MINT},.035)`);
-      g.addColorStop(1, `rgba(${INK},.0)`);
-      c.fillStyle = g;
-      c.fillRect(0, 0, W, H);
-      c.lineWidth = 1;
-      for (let y = sea - 4; y > 0; y -= 6) {
-        c.strokeStyle = `rgba(${MINT},${(0.34 + 0.3 * (1 - y / sea)).toFixed(3)})`;
-        c.beginPath();
-        c.moveTo(0, y);
-        c.lineTo(W, y);
-        c.stroke();
-      }
-      c.setLineDash([2, 4]);
-      for (let y = sea + 6; y < H; y += 6) {
-        c.strokeStyle = `rgba(${INK},${(0.16 * (1 - (y - sea) / (H - sea)) + 0.03).toFixed(3)})`;
-        c.beginPath();
-        c.moveTo(0, y);
-        c.lineTo(W, y);
-        c.stroke();
-      }
-      c.setLineDash([]);
-      c.restore();
-
-      // The skyline itself: mint in air, faint under water; the hot landform's run drawn brighter.
-      c.lineJoin = "round";
-      for (const under of [false, true]) {
-        c.save();
-        c.beginPath();
-        if (under) c.rect(0, sea, W, H - sea);
-        else c.rect(0, 0, W, sea);
-        c.clip();
-        let run = -2;
-        for (let i = 0; i < n; i++) {
-          const o = own[i]!;
-          const hl = h !== null && o === h;
-          if (i === 0 || (hl ? 1 : 0) !== run) {
-            if (i > 0) c.stroke();
-            run = hl ? 1 : 0;
-            c.lineWidth = hl ? 2 : 1.2;
-            c.strokeStyle = under ? `rgba(${INK},${hl ? 0.7 : 0.28})` : `rgba(${MINT},${hl ? 1 : h === null ? 0.85 : 0.5})`;
-            c.beginPath();
-            c.moveTo(xs[Math.max(0, i - 1)]!, ys[Math.max(0, i - 1)]!);
+      if (!risen) land(c, L, W, H, h);
+      else {
+        const key = `${V.cv.width}x${V.cv.height}|${h ?? ""}`;
+        if (key !== L.layerKey) {
+          L.layerKey = key;
+          L.layer ??= document.createElement("canvas");
+          L.layer.width = V.cv.width;
+          L.layer.height = V.cv.height;
+          const g = L.layer.getContext("2d");
+          if (g) {
+            g.setTransform(V.dpr, 0, 0, V.dpr, 0, 0);
+            g.clearRect(0, 0, W, H);
+            land(g, L, W, H, h);
           }
-          c.lineTo(xs[i]!, ys[i]!);
         }
-        c.stroke();
-        c.restore();
+        c.drawImage(L.layer!, 0, 0, W, H);
+        c.lineJoin = "round";
       }
-
-      // Each summit marked by a sounding line up to its number (the markers sit in the page above the canvas).
-      L.fs.forEach((f, k) => {
-        const i = Math.round((f.cx * W) / (W / (n - 1)));
-        const sy = ys[Math.min(n - 1, Math.max(0, i))]!;
-        const x = f.cx * W;
-        const hl = h === k;
-        c.strokeStyle = f.rise >= 0 ? `rgba(${MINT},${hl ? 0.9 : 0.35})` : `rgba(${INK},${hl ? 0.75 : 0.22})`;
-        c.lineWidth = 1;
-        c.setLineDash([1, 3]);
-        c.beginPath();
-        c.moveTo(x, sy - 5);
-        c.lineTo(x, 40);
-        c.stroke();
-        c.setLineDash([]);
-        c.fillStyle = f.rise >= 0 ? `rgba(${MINT},${hl ? 1 : 0.8})` : `rgba(${INK},${hl ? 0.9 : 0.5})`;
-        c.beginPath();
-        c.arc(x, sy, hl ? 3.2 : 2.2, 0, Math.PI * 2);
-        c.fill();
-      });
 
       // The surface: a slow swell with light riding it.
       const m = 48;

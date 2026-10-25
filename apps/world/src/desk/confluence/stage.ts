@@ -1,7 +1,7 @@
 import type { RoomPulse } from "../roomPulse.ts";
 import { clamp, frac, gauss, lerp, Parts, Poly, RC, reducedMotion, smoothPts, spr, sstep, TAU, weave, WHITE, type Viz, type VizSpec } from "../wvCanvas.ts";
 import { Being } from "./beings.ts";
-import { RISES } from "./sand.ts";
+import { RISES, type RiseAt } from "./sand.ts";
 import { Motes, NEAR } from "./batch.ts";
 
 const MOTES = new Motes();
@@ -89,6 +89,18 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
   let layer: HTMLCanvasElement | null = null;
   // Each figure's alpha, eased toward its target in the frame (no React).
   const fade = new Map<string, number>();
+  // What the rising words keep clear of (measured in lay, canvas pixels): the Council's label line, and the boxes over
+  // the stage (the top face, Held for you, Skippy's name, the helm).
+  type Box = { x: number; y: number; w: number; h: number };
+  let label: Box | null = null;
+  let boxes: Box[] = [];
+  const clear: RiseAt["clear"] = (x0, x1, y) => {
+    const over = (r: Box) => x1 > r.x && x0 < r.x + r.w;
+    const floor = label && over(label) && label.y < y ? label.y : Infinity;
+    let ceil = -Infinity;
+    for (const r of boxes) if (over(r) && r.y + r.h <= Math.min(floor, y)) ceil = Math.max(ceil, r.y + r.h);
+    return { floor, ceil };
+  };
 
   const build = () => {
     const key = `${S.pulses.map((p) => `${p.id}:${p.real ? 1 : 0}:${Math.round(p.activity * 10)}`).join("|")}|${phone ? 1 : 0}`;
@@ -144,6 +156,17 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
       const base = Math.min(r.w, r.h) * 0.42;
       b.r = base * (0.72 + 0.28 * (p?.real ? clamp(p.activity, 0, 1) : 0));
     }
+    // The labels the rising words keep clear of. The Council's label is a full-width line of centred text: its words'
+    // own extent, not the line's box.
+    const cvr = V.cv.getBoundingClientRect();
+    const box = (r: DOMRect): Box => ({ x: r.left - cvr.left, y: r.top - cvr.top, w: r.width, h: r.height });
+    const k = el.querySelector(".cf-council-k");
+    if (k) {
+      const range = document.createRange();
+      range.selectNodeContents(k);
+      label = box(range.getBoundingClientRect());
+    } else label = null;
+    boxes = [...el.querySelectorAll(".cf-top > *, .cf-held, .cf-sk-t, .cf-helm .td-comm, .cf-helm .cf-chips > *")].map((e) => box(e.getBoundingClientRect())).filter((r) => r.w > 0 && r.h > 0);
     if (!sk) return;
     const skX = sk.x;
     const skY = sk.y + sk.r * 0.9;
@@ -400,7 +423,7 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
     // Words rising off whoever spoke, crumbling into sand.
     RISES.draw(c, t, dt, (room) => {
       const b = room === "kernel" ? sk : beings.get(room);
-      return b ? { x: b.x, y: b.top(), W } : null;
+      return b ? { x: b.x, y: b.top(), W, clear } : null;
     });
   };
 

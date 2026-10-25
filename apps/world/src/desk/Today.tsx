@@ -232,8 +232,10 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
 
 /** "Coming up": the crew's next run as a chip, the whole ephemeris in a pop-over under it. */
 function ComingUp() {
-  const { now, runs } = useRuns();
   const [open, setOpen] = useState(false);
+  // Closed, the chip shows minutes, so it needn't redraw Today's helm every second (#417); open, the ephemeris counts
+  // the last minute down in seconds.
+  const { now, runs } = useRuns(open ? 1000 : 15_000);
   const [hotRun, setHotRun] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {

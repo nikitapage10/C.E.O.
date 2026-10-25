@@ -1,7 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Keeper } from "./parts.tsx";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
-import { reducedMotion, useViz } from "../wvCanvas.ts";
+import { clamp, reducedMotion } from "../wvCanvas.ts";
 import {
   onBye,
   ordinal,
@@ -21,10 +21,8 @@ import {
   type GreenStatus,
 } from "../green/league.ts";
 import { useGreenAnalysis, type GreenAnalysis } from "../green/analysis.ts";
-import { formation, makeStadium, modeFor, place, yardAt, type Mode, type StadiumData, type StadiumState, type Tok, type TokState } from "../green/stadium.ts";
-import "@fontsource-variable/bodoni-moda/opsz.css";
-import "@fontsource-variable/bodoni-moda/opsz-italic.css";
-import "@fontsource-variable/jost/wght.css";
+import { formation, modeFor, paintField, place, yardAt, type Mode, type Tok, type TokState } from "../green/stadium.ts";
+import { useFlow, RC, type FlowLayoutFn, type FlowLine } from "../flow/index.ts";
 import "./rooms.css";
 import "../green/green.css";
 
@@ -221,14 +219,14 @@ function lineups(board: GreenBoard | null): { mine: Man[]; theirs: Man[] } {
 
 const MARK_WORD: Record<TokState, string> = { "": "", sit: "FantasyPros sits him", bye: "on bye", out: "out", empty: "empty" };
 
-function Token({ man, mode, along, across, live, week, i }: { man: Man; mode: Mode; along: number; across: number; live: boolean; week: number; i: number }) {
+function Token({ man, mode, along, across, live, week, i, hot }: { man: Man; mode: Mode; along: number; across: number; live: boolean; week: number; i: number; hot: boolean }) {
   const at = place(mode, along, across);
   const { p, tok, mine } = man;
   const shown = live ? man.pts : tok.proj;
   const what = p ? `${tok.slot} ${p.name}${tok.state ? `, ${tok.state === "out" && p.inj ? INJ_WORD[p.inj] : MARK_WORD[tok.state]}` : ""}: ${live ? `${pts(man.pts)} scored, ` : ""}FantasyPros ${pts(fpPts(p))}${man.risk ? " (late-game risk)" : ""}` : `${tok.slot}: empty`;
   return (
     <li
-      className={`gd-tok ${mine ? "is-mine" : "is-theirs"}`}
+      className={`gd-tok ${mine ? "is-mine" : "is-theirs"}${hot ? " is-hot" : ""}`}
       data-mark={tok.state || undefined}
       data-risk={man.risk || undefined}
       style={{ left: `${(at.x * 100).toFixed(2)}%`, top: `${(at.y * 100).toFixed(2)}%`, "--k": at.s.toFixed(3), "--d": `${i * 55}ms` } as React.CSSProperties}
@@ -253,10 +251,14 @@ function Token({ man, mode, along, across, live, week, i }: { man: Man; mode: Mo
   );
 }
 
-function Stadium({ board, status }: { board: GreenBoard | null; status: GreenStatus }) {
+const LIME = RC.green ?? "172,200,114";
+
+function Stadium({ board, status, onLineup }: { board: GreenBoard | null; status: GreenStatus; onLineup: () => void }) {
+  const fieldCv = useRef<HTMLCanvasElement>(null);
   const stage = useRef<HTMLElement>(null);
-  const cv = useRef<HTMLCanvasElement>(null);
+  const pitch = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<Mode>(() => (typeof window !== "undefined" ? modeFor(window.innerWidth) : "wide"));
+  const [hot, setHot] = useState<string | null>(null);
   useEffect(() => {
     const on = () => setMode(modeFor(window.innerWidth));
     window.addEventListener("resize", on);
@@ -266,29 +268,98 @@ function Stadium({ board, status }: { board: GreenBoard | null; status: GreenSta
   const live = !!m?.live;
   const win = m?.win ?? null;
   const ups = useMemo(() => lineups(board), [board]);
-  // Only what the light is drawn from: a fresh poll with the same numbers leaves the stadium alone.
-  const key = JSON.stringify([live, win, ups.mine.map((x) => x.tok), ups.theirs.map((x) => x.tok)]);
-  const data = useMemo<StadiumData>(() => ({ live, win, mine: ups.mine.map((x) => x.tok), theirs: ups.theirs.map((x) => x.tok) }), [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  const S = useRef<StadiumState>({ data: null });
-  const spec = useMemo(() => makeStadium(() => stage.current, S.current), []);
-  const viz = useViz(cv, spec);
-  useEffect(() => {
-    S.current.data = board ? data : null;
-    viz.current?.relayout();
-  }, [data, board, mode, viz]);
-  // The scores' width settles once the display face has loaded: lay the streams again then.
-  useEffect(() => {
-    void document.fonts?.ready.then(() => viz.current?.relayout());
-  }, [viz]);
+  // Only what the lines are drawn from: a fresh poll with the same numbers leaves the stadium alone.
+  const key = JSON.stringify([live, win, mode, ups.mine.map((x) => x.tok), ups.theirs.map((x) => x.tok)]);
+  const spotsMine = useMemo(() => formation(ups.mine.map((x) => x.tok), "mine"), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const spotsTheirs = useMemo(() => formation(ups.theirs.map((x) => x.tok), "theirs"), [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const spotsMine = formation(
-    ups.mine.map((x) => x.tok),
-    "mine",
+  // Each starter is a line from his spot on the turf up into his team's score: as many particles as his share of the
+  // week's points, a knot where his scored points stand against his projection. A man on bye or out is a waiting line.
+  const layout = useCallback<FlowLayoutFn>(
+    ({ W, H, rel }) => {
+      const el = stage.current;
+      const pb = pitch.current;
+      if (!el || !pb) return { lines: [] };
+      const box = rel(pb);
+      const fc = fieldCv.current;
+      if (fc) paintField(fc, mode, box, W, H, LIME);
+      const target = (who: "me" | "them") => {
+        const t = el.querySelector(`[data-gd-score="${who}"]`);
+        if (!t) return null;
+        const q = rel(t);
+        return { x: q.x + q.w / 2, y: q.y + q.h * 0.92, w: q.w };
+      };
+      const tMe = target("me");
+      const tThem = target("them");
+      const all = [...ups.mine.map((x, i) => ({ x, s: spotsMine[i]! })), ...ups.theirs.map((x, i) => ({ x, s: spotsTheirs[i]! }))];
+      const peak = Math.max(8, ...all.map(({ x }) => Math.max(x.tok.proj, x.tok.banked)));
+      const lines: FlowLine[] = [];
+      all.forEach(({ x, s }, i) => {
+        const t = x.tok;
+        const tg = x.mine ? tMe : tThem;
+        if (!tg || t.state === "empty") return;
+        const p = place(mode, s.along, s.across);
+        const ax = box.x + p.x * box.w;
+        const ay = box.y + p.y * box.h;
+        const tx = tg.x + ((i % 5) - 2) * tg.w * 0.06;
+        const ty = tg.y;
+        const lift = Math.max(40, (ay - ty) * 0.5);
+        const v = Math.max(t.proj, t.banked);
+        const off = t.state === "bye" || t.state === "out";
+        lines.push({
+          id: t.id,
+          path: { cubic: [[ax, ay - 8 * p.s], [ax + (tx - ax) * 0.08, ay - lift], [tx + (ax - tx) * 0.25, ty + Math.max(30, (ay - ty) * 0.35)], [tx, ty]] },
+          rgb: x.mine ? LIME : "200,206,220",
+          // Half the kit's full density: sixteen lines share one stage, and a laptop stays smooth.
+          density: off ? 0 : clamp(v / peak, 0.06, 1) * 0.45,
+          bright: x.mine ? 0.9 : 0.5,
+          rate: x.mine ? 30 : 22,
+          spread: 1.6,
+          waiting: off || v <= 0,
+          knots: t.banked > 0 && v > 0 ? [clamp(t.banked / v, 0.02, 1)] : [],
+          bed: x.mine ? 0.12 : 0.06,
+        });
+      });
+      // The line of scrimmage, across the field at the win chance.
+      if (win !== null) {
+        const u = yardAt(win * 100);
+        const via: [number, number][] = [];
+        for (let k = 0; k <= 12; k++) {
+          const q = place(mode, u, k / 12);
+          via.push([box.x + q.x * box.w, box.y + q.y * box.h]);
+        }
+        lines.push({ id: "los", path: { via, smooth: false }, rgb: LIME, density: 0.5, bright: 1, rate: 16, spread: 1, bed: 0.5 });
+      }
+      return { lines };
+    },
+    [key, ups, spotsMine, spotsTheirs, mode, win], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const spotsTheirs = formation(
-    ups.theirs.map((x) => x.tok),
-    "theirs",
-  );
+  const { cv, field, bind } = useFlow(layout, {
+    accent: LIME,
+    backing: 160_000,
+    ground: true,
+    onHover: (id) => setHot(id),
+    onPick: (id) => id !== "los" && onLineup(),
+  });
+  // The scores' width settles once Bodoni has loaded: lay the lines again then.
+  useEffect(() => {
+    void document.fonts?.ready.then(() => field.relayout());
+  }, [field]);
+  // New points since the last poll: a packet runs that man's line and the points rise off his team's score.
+  const last = useRef<Map<string, number> | null>(null);
+  useEffect(() => {
+    const now = new Map([...ups.mine, ...ups.theirs].map((x) => [x.tok.id, x.tok.banked]));
+    const was = last.current;
+    last.current = now;
+    if (!was || !live) return;
+    for (const x of [...ups.mine, ...ups.theirs]) {
+      const gain = x.tok.banked - (was.get(x.tok.id) ?? x.tok.banked);
+      if (gain < 0.05) continue;
+      field.pulse(x.tok.id);
+      if (x.p) field.rise(`+${gain.toFixed(1)} ${surname(x.p.name)}`, { at: x.tok.id });
+    }
+  }, [ups, live, field]);
+
   const yd = win === null ? null : yardLine(win);
   // The line's label sits over the far sideline; on a phone the scoreboard above already says it.
   const los = win === null || mode === "tall" ? null : place(mode, yardAt(win * 100), 0);
@@ -308,18 +379,18 @@ function Stadium({ board, status }: { board: GreenBoard | null; status: GreenSta
   const label = m ? `Week ${m.week}. Projected ${pts(m.me.proj)} to ${them ? pts(them.proj) : "a bye"}. Live ${pts(m.me.pts)} to ${them ? pts(them.pts) : "–"}.${win !== null ? ` Win chance ${pct(win)}.` : ""}` : why;
 
   return (
-    <section ref={stage} className={`gd-stage is-${mode}${live ? " is-live" : ""}`} aria-label={`This week's matchup. ${label}`}>
-      <canvas className="gd-cv" data-gd-field="" aria-hidden="true" />
-      <canvas ref={cv} className="gd-cv" aria-hidden="true" />
+    <section ref={stage} className={`fl-stage gd-stage is-${mode}${live ? " is-live" : ""}`} aria-label={`This week's matchup. ${label}`} {...bind}>
+      <canvas ref={cv} className="fl-cv" aria-hidden="true" />
+      <canvas ref={fieldCv} className="fl-cv gd-field" aria-hidden="true" />
       <div className="gd-board">
-        <p className="gd-eyb">
-          <span className="gd-eyb-hot">{m ? (live ? "Live" : "Kickoff to come") : "The Green"}</span>
+        <p className="fl-eyb gd-eyb">
+          <span>{m ? (live ? "Live" : "Kickoff to come") : "The Green"}</span>
           <i aria-hidden="true" />
-          <span>{m ? `Week ${m.week}` : board ? `Week ${board.week}` : "Under the floodlights"}</span>
+          {m ? `Week ${m.week}` : board ? `Week ${board.week}` : "Under the floodlights"}
           {board && (
             <>
               <i aria-hidden="true" />
-              <span>{board.league.name}</span>
+              {board.league.name}
             </>
           )}
         </p>
@@ -332,7 +403,7 @@ function Stadium({ board, status }: { board: GreenBoard | null; status: GreenSta
                 {board?.me.rank ? ` · ${ordinal(board.me.rank)} of ${board.league.teams}` : ""}
               </small>
             </div>
-            <b className="gd-sb-n is-me" data-gd-score="me">
+            <b className="gd-sb-n fl-num is-me" data-gd-score="me">
               {pts(mine)}
             </b>
             <span className="gd-sb-mid">
@@ -345,7 +416,7 @@ function Stadium({ board, status }: { board: GreenBoard | null; status: GreenSta
                 <small>{them ? "versus" : "a bye"}</small>
               )}
             </span>
-            <b className="gd-sb-n" data-gd-score="them">
+            <b className="gd-sb-n fl-num" data-gd-score="them">
               {them ? pts(theirs) : "–"}
             </b>
             <div className="gd-sb-side is-them">
@@ -354,7 +425,7 @@ function Stadium({ board, status }: { board: GreenBoard | null; status: GreenSta
             </div>
           </div>
         ) : (
-          <p className="gd-sb-empty">{why}</p>
+          <p className="gd-sb-empty fl-wait">{why}</p>
         )}
         {m && (
           <p className="gd-sb-sub" aria-hidden="true">
@@ -363,7 +434,7 @@ function Stadium({ board, status }: { board: GreenBoard | null; status: GreenSta
           </p>
         )}
       </div>
-      <div className="gd-pitch" data-gd-pitch="">
+      <div className="gd-pitch" ref={pitch}>
         {los && yd && (
           <span className="gd-los" style={{ left: `${(los.x * 100).toFixed(2)}%`, top: `${(los.y * 100).toFixed(2)}%` } as React.CSSProperties} aria-hidden="true">
             line of scrimmage · <b>{pct(win!)}</b>
@@ -373,13 +444,13 @@ function Stadium({ board, status }: { board: GreenBoard | null; status: GreenSta
           <>
             <ol className="gd-turf" aria-label={`Your starters, ${board.me.team}`}>
               {ups.mine.map((x, i) => (
-                <Token key={`m${i}`} man={x} mode={mode} along={spotsMine[i]!.along} across={spotsMine[i]!.across} live={live} week={board.week} i={i} />
+                <Token key={`m${i}`} man={x} mode={mode} along={spotsMine[i]!.along} across={spotsMine[i]!.across} live={live} week={board.week} i={i} hot={hot === x.tok.id} />
               ))}
             </ol>
             {ups.theirs.length > 0 && (
               <ol className="gd-turf" aria-label={`Their starters, ${them?.team ?? ""}`}>
                 {ups.theirs.map((x, i) => (
-                  <Token key={`t${i}`} man={x} mode={mode} along={spotsTheirs[i]!.along} across={spotsTheirs[i]!.across} live={live} week={board.week} i={i + ups.mine.length} />
+                  <Token key={`t${i}`} man={x} mode={mode} along={spotsTheirs[i]!.along} across={spotsTheirs[i]!.across} live={live} week={board.week} i={i + ups.mine.length} hot={hot === x.tok.id} />
                 ))}
               </ol>
             )}
@@ -388,10 +459,10 @@ function Stadium({ board, status }: { board: GreenBoard | null; status: GreenSta
       </div>
       {board && (
         <p className="gd-key" aria-hidden="true">
-          <i className="is-line" /> each thread is a starter&rsquo;s points, running up into his team&rsquo;s score
+          <i className="is-line" /> each line is a starter&rsquo;s points, running up into his team&rsquo;s score
           {live && (
             <>
-              <i className="is-b" /> scored <i className="is-p" /> still projected
+              <i className="is-b" /> the knot: what he has scored against his projection
             </>
           )}
         </p>
@@ -405,7 +476,7 @@ function Ledger({ board }: { board: GreenBoard }) {
   const m = board.matchup;
   const o = board.odds;
   return (
-    <dl className="gd-ledger">
+    <dl className="fl-ledger gd-ledger">
       <div className="is-hot">
         <dt>Win chance</dt>
         <dd>{m?.win != null ? pct(m.win) : "–"}</dd>
@@ -507,9 +578,9 @@ function Calls({ board, onLineup }: { board: GreenBoard; onLineup: () => void })
   const fp = board.sources.calls === "fp";
   const most = Math.max(...calls.map((c) => Math.abs(c.edge)), 1);
   return (
-    <section className="gd-calls" aria-label="Start or sit">
+    <section className="fl-panel gd-calls" aria-label="Start or sit">
       <header className="gd-calls-head gd-rise" style={rise(2)}>
-        <h2 className="gd-h2">
+        <h2 className="fl-h2 gd-h2">
           {changes ? (
             <>
               <em>{changes === 1 ? "One change" : `${changes} changes`}</em> to make
@@ -1280,17 +1351,18 @@ export function Green() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
   return (
-    <div className="wv-page rm rm-green gd" data-room="green">
-      <Stadium board={board} status={status} />
+    <div className="wv-page fl-page rm-green gd" data-room="green" style={{ "--fl-accent": LIME } as React.CSSProperties}>
+      <Stadium board={board} status={status} onLineup={() => setOpen("lineup")} />
 
+      <div className="fl-below">
       <header className="gd-chyron gd-rise" style={rise(1)}>
         <div>
-          <p className="gd-eyb is-left">
-            <span className="gd-eyb-hot">The Green</span>
+          <p className="fl-eyb">
+            <span>The Green</span>
             <i aria-hidden="true" />
-            <span>{board ? `${board.league.name} · week ${board.week}` : "Under the floodlights"}</span>
+            {board ? `${board.league.name} · week ${board.week}` : "Under the floodlights"}
           </p>
-          <h1 className="gd-h1 desk__title">
+          <h1 className="fl-h1 gd-h1 desk__title">
             {board ? (
               <>
                 {board.me.team}, <span className="gd-nowrap">{board.me.record}.</span> <em>{headline(board)}</em>
@@ -1328,6 +1400,7 @@ export function Green() {
         {board?.stale ? ` Sleeper isn't answering: this is the last good read, ${ago(board.at, now)}.` : ""}
         {!board && status === "ready" ? " Sleeper's public league data." : ""}
       </p>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budget, formation, modeFor, place, rank, share, yardAt } from "./stadium.ts";
+import { formation, modeFor, place, rank, yardAt } from "./stadium.ts";
 
 describe("the Green's stadium", () => {
   it("picks the wide camera from 640px up and the tall one on a phone", () => {
@@ -40,16 +40,5 @@ describe("the Green's stadium", () => {
     for (const s of theirs) expect(s.along).toBeGreaterThan(0.5);
     expect(mine[2]!.along).toBeGreaterThan(mine[0]!.along);
     expect(mine[5]!.along).toBeLessThan(mine[1]!.along);
-  });
-
-  it("splits a capped light budget by points, nothing for nothing", () => {
-    const n = share([10, 0, 5, 5], 40);
-    expect(n.reduce((a, b) => a + b, 0)).toBe(40);
-    expect(n[1]).toBe(0);
-    expect(n[0]).toBe(20);
-    expect(share([0, 0], 10)).toEqual([0, 0]);
-    expect(budget(1000, "wide")).toBe(320);
-    expect(budget(1000, "tall")).toBe(170);
-    expect(budget(10, "wide")).toBe(40);
   });
 });

@@ -3,9 +3,9 @@ import type { DeskRoom } from "../deskData.ts";
 import type { Fitting, GState, PipeRow } from "../systemsGraph.ts";
 
 /**
- * The Boiler Room's pressure (#369): how much of the pipework carries flow, read from the same fittings the manifold
- * draws (systemsGraph.ts, pipeRows), so the gauge and the pipes can never disagree. A fitting is one real connection
- * with its own state: flowing (ok), running hot (run), dry (wait, not connected yet) or burst (bad, down). Also which
+ * The Boiler Room's pressure (#369, #390): how much of the pipework carries flow, read from the same fittings the rack
+ * draws (systemsGraph.ts, pipeRows), so the headline and the lines can never disagree. A fitting is one real connection
+ * with its own state: flowing (ok), under load (run: busy or slow), waiting (wait, not connected yet) or broken (bad). Also which
  * entry in connections.ts explains a valve, so tapping one shows how it works, how it signs in and how often. Pure.
  */
 
@@ -41,12 +41,12 @@ export function pipeState(r: PipeRow): GState {
   return p.flowing ? "ok" : "wait";
 }
 
-/** The headline the gauge reads out, from the real states only. */
+/** The headline over the rack, from the real states only, in plain words. */
 export function pressureHeadline(p: Pressure): { lead: string; em: string; tone: GState } {
-  if (p.burst) return { lead: p.burst === 1 ? "A pipe has" : `${p.burst} pipes have`, em: "burst.", tone: "bad" };
-  if (!p.flowing) return { lead: "The boiler is", em: "cold.", tone: "wait" };
-  if (p.run) return { lead: "The pipes are", em: "running hot.", tone: "run" };
-  return { lead: "The pipes are", em: "holding.", tone: "ok" };
+  if (p.burst) return { lead: p.burst === 1 ? "One link is" : `${p.burst} links are`, em: "broken.", tone: "bad" };
+  if (!p.flowing) return { lead: "Nothing is", em: "flowing yet.", tone: "wait" };
+  if (p.run) return { lead: "Flowing,", em: "under load.", tone: "run" };
+  return { lead: "The links are", em: "holding.", tone: "ok" };
 }
 
 /** Which connection explains a fitting, where the room changes the answer (GitHub on the world clock is its trigger). */
@@ -77,17 +77,4 @@ export function connectionFor(fitId: string, room: string): Connection | undefin
 /** Every connection a room owns, live ones first: the detail for a pipe with no whole flow drawn. */
 export function roomConnections(room: string): Connection[] {
   return CONNECTIONS.filter((c) => c.room === (room as DeskRoom)).sort((a, b) => Number(a.status === "planned") - Number(b.status === "planned"));
-}
-
-/**
- * Where each fitting sits along a pipe of `width` px, with the keeper's hub at `hub`: what feeds the room evenly
- * before it (in slots of `slot` px, right-aligned to the hub so every rack's hubs line up), what it feeds spread
- * evenly after it, and the outlet cap at the end.
- */
-export function pipeLayout(r: PipeRow, width: number, hub: number, slot: number, pad: number): { ins: number[]; outs: number[]; end: number } {
-  const end = Math.max(hub + 40, width - pad);
-  const ins = r.ins.map((_, i) => hub - (r.ins.length - i) * slot);
-  const n = r.outs.length;
-  const outs = r.outs.map((_, i) => hub + ((end - hub) * (i + 1)) / (n + 0.6));
-  return { ins, outs, end };
 }

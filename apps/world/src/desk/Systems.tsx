@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useWorldFeed } from "../chronicle.ts";
 import { CREW, crewOf, useFoundry } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
@@ -9,7 +9,6 @@ import { nextCheck, useSetup } from "./IdeaCard.tsx";
 import { useSetupStatus } from "./SetupCard.tsx";
 import { JobBoard } from "./JobBoard.tsx";
 import { LatticeTimings } from "./LatticeTimings.tsx";
-import { PipeRack, RoomDetail } from "./PipeRack.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId, type GState } from "./systemsGraph.ts";
 import { SystemsNav } from "./SystemsNav.tsx";
@@ -24,20 +23,21 @@ import { Home } from "./rooms/Home.tsx";
 import { SetupAsks } from "./skippy/SetupAsks.tsx";
 import { useSecurityFeed } from "./security/feed.ts";
 import { OWASP_LLM, owaspTally, EVALS } from "./security/model.ts";
-import { Gauge } from "./boiler/Gauge.tsx";
 import { pressureHeadline, rackPressure } from "./boiler/pressure.ts";
+import { ACCENT, Arrow, Rack, RoomDetail } from "./boiler/Rack.tsx";
 import { reducedMotion } from "./wvCanvas.ts";
 import "./rooms/rooms.css";
 import "./boiler/boiler.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
 /**
- * The Boiler Room (#369, redrawn from the Weave's Systems page): the Lattice's own dark, hairline language in the
- * Boiler Room's steel and brass. On top, the pressure gauge and its readout, from every real connection's state; then
- * the manifold (PipeRack.tsx), one line per room with a valve for each connection in connections.ts and
- * foundryGraph.ts. Progressive disclosure all the way down: a valve opens that one connection, a line opens the room's
- * whole flow (SystemsGraph.tsx), and the instruments below show counts first with their lists behind a fold. The
- * security and compliance instruments show only pass/fail, scores and counts. Real states only; nothing is made up.
+ * The Boiler Room (#390, on Today's flow kit; #369 before it): every real link C.E.O. depends on, drawn as particle
+ * lines. On the stage, the headline and ledger read the whole rack's state in plain words, security stands beside them
+ * as pass/fail and counts, and below them each room is one straight line of its connections (boiler/Rack.tsx): flowing,
+ * under load, waiting or broken. A valve opens that one connection, a room's name opens its whole flow
+ * (SystemsGraph.tsx, or RoomDetail for a room with no flow drawn yet). Under the stage, the instruments (the world
+ * clock, Gmail, the scheduled jobs), the Lattice's load timings, what's still to build and the house. Counts and
+ * states only, signed in or out; nothing is made up.
  */
 
 /** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
@@ -71,12 +71,6 @@ const sinceWord = (at: number | null, now: number) => {
   if (m < 1) return "under a minute ago";
   return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 };
-
-const Arrow = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-    <path d="M3 8h10M9 4l4 4-4 4" />
-  </svg>
-);
 
 /**
  * The Gmail instrument (#322): the email agent's line, live on the Azure copy since 2026-10-23. Built from the public
@@ -121,7 +115,7 @@ function EmailCard({ load, status, now, onFlow }: { load: EmailLoad; status: Ema
         </dl>
       </details>
       <button className="bx-go" type="button" onClick={onFlow}>
-        Its line in the manifold
+        Its whole flow
         <Arrow />
       </button>
     </section>
@@ -150,18 +144,22 @@ function Posture() {
     { k: "OWASP LLM", v: `${covered}/${OWASP_LLM.length}`, s: "risks covered", tone: covered === OWASP_LLM.length ? "ok" : "run", href: "/boiler/compliance" },
   ];
   return (
-    <section className="bx-posture" aria-label="Security and compliance">
-      {cells.map((c) => (
-        <a key={c.k} className={`bx-pc is-${c.tone}`} href={c.href} onClick={go(c.href)}>
-          <span className="bx-eyb">
-            <i className={`bx-lampdot is-${c.tone}`} aria-hidden="true" />
-            {c.k}
-          </span>
-          <b>{c.v}</b>
-          <small>{c.s}</small>
-        </a>
-      ))}
-      {/* #373: the Lattice's boot-timing reading slots in beside these, as one more instrument. */}
+    <section className="bx-sec" aria-label="Security and compliance">
+      <p className="fl-k">
+        <span>Security</span> · pass or fail
+      </p>
+      <ul>
+        {cells.map((c) => (
+          <li key={c.k}>
+            <a className={`is-${c.tone}`} href={c.href} onClick={go(c.href)}>
+              <i aria-hidden="true" />
+              <span>{c.k}</span>
+              <b className="fl-num">{c.v}</b>
+              <small>{c.s}</small>
+            </a>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -203,80 +201,90 @@ export function Systems({ now }: { now: number }) {
   const hour = reading?.step ?? null;
   const today = world?.recent.filter((e) => new Date(e.at).toDateString() === new Date(now).toDateString()).length ?? 0;
 
-  const manifold = useRef<HTMLElement>(null);
-  const openLine = (id: string | null) => {
-    setOpen(id);
-    const el = manifold.current;
-    if (id && el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" });
-  };
+  // The rack is re-laid only when a state really changes, not on every tick of the clock.
+  const sig = JSON.stringify(rows);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stable = useMemo(() => rows, [sig]);
+
+  const detail = useRef<HTMLDivElement>(null);
+  const openLine = (id: string | null) => setOpen(id);
+  useEffect(() => {
+    if (open && detail.current) detail.current.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" });
+  }, [open]);
   useEffect(() => {
     if (!open || isFlow(open)) return; // the flow view has its own Esc
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
+  const ctone: GState = cstate === "ok" ? "ok" : cstate === "down" ? "bad" : cstate === "slow" ? "run" : "wait";
+  const day = new Date(now).toLocaleDateString(undefined, { weekday: "long" });
 
-  return (
-    <div className={`systems-page wv-page bx-page rm-boiler${row ? " is-open" : ""}`}>
+  const header = (
+    <>
       <SystemsNav />
       <header className="bx-top">
         <div className="bx-top-t">
-          <p className="bx-eyb">The Boiler Room · pressure across every line</p>
-          <h1 className="bx-h1 desk__title">
+          <p className="fl-eyb">
+            <span>Boiler Room</span>
+            <i />
+            {day} · {rows.length} rooms · {p.total} links
+          </p>
+          <h1 className="fl-h1 desk__title">
             {head.lead} <em className={`is-${head.tone}`}>{head.em}</em>
           </h1>
-          <p className="bx-sub">
-            {p.flowing} of {p.total} connections carry flow. Tap a valve for one connection, or a line for its room's whole flow.
+          <p className="fl-say">
+            {p.flowing} of {p.total} links carry real data{p.dry ? `, ${p.dry} wait to be connected` : ""}. Tap a valve for one link, or a room for its whole flow.
           </p>
-          <dl className="bx-count">
+          <dl className="fl-ledger bx-ledger">
             <div className="is-ok">
               <dt>Flowing</dt>
               <dd>{p.flowing - p.run}</dd>
             </div>
             <div className="is-run">
-              <dt>Running hot</dt>
+              <dt>Under load</dt>
               <dd>{p.run}</dd>
             </div>
             <div className="is-wait">
-              <dt>Dry</dt>
+              <dt>Waiting</dt>
               <dd>{p.dry}</dd>
             </div>
-            <div className={`is-bad${p.burst ? " is-on" : ""}`}>
-              <dt>Burst</dt>
+            <div className={`is-bad${p.burst ? " is-hot" : ""}`}>
+              <dt>Broken</dt>
               <dd>{p.burst}</dd>
             </div>
           </dl>
         </div>
-        <Gauge p={p} tone={head.tone} />
+        <Posture />
       </header>
+      <div className="bx-mhead">
+        <p className="fl-k">
+          <span>Every link</span> · one line a room, in the order its data flows
+        </p>
+        <ul className="bx-key" aria-label="Key">
+          <li className="is-ok">Flowing</li>
+          <li className="is-run">Under load</li>
+          <li className="is-wait">Waiting</li>
+          <li className="is-bad">Broken</li>
+        </ul>
+      </div>
+    </>
+  );
 
-      <Posture />
-
-      <section ref={manifold} className="bx-manifold" aria-label="The manifold">
-        <div className="bx-mhead">
-          <p className="bx-eyb">
-            Manifold · {rows.length} lines · {p.total} valves
-          </p>
-          <ul className="bx-key-l" aria-label="Key">
-            <li className="is-ok">Flowing</li>
-            <li className="is-run">Running hot</li>
-            <li className="is-wait">Dry</li>
-            <li className="is-bad">Burst</li>
-          </ul>
-        </div>
-        <PipeRack rows={rows} open={row ? row.id : null} onOpen={openLine} />
-      </section>
+  return (
+    <div className={`systems-page wv-page fl-page bx-page${row ? " is-open" : ""}`} data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
+      <Rack rows={stable} open={row ? row.id : null} onOpen={openLine} header={header} />
 
       {row && (
-        <div className="bx-detail" key={row.id}>
+        <div className="bx-detail fl-below" key={row.id} ref={detail}>
           {isFlow(row.id) ? <SystemsGraph nodes={model.nodes} flows={model.flows} mode={row.id} setMode={(m) => setOpen(m === "overview" ? null : m)} /> : <RoomDetail r={row} onClose={() => setOpen(null)} />}
         </div>
       )}
 
-      <div className="bx-cards">
-        <section className={`bx-card is-${cstate === "ok" ? "ok" : cstate === "down" ? "bad" : cstate === "slow" ? "run" : "wait"}`} data-room="boiler" aria-label="World clock">
+      <div className="bx-cards fl-below">
+        <section className={`bx-card is-${ctone}`} data-room="boiler" aria-label="World clock">
           <p className="bx-eyb">
-            <i className={`bx-lampdot is-${cstate === "ok" ? "ok" : cstate === "down" ? "bad" : cstate === "slow" ? "run" : "wait"}`} aria-hidden="true" /> World clock · Ilyr's hourly step
+            <i className={`bx-lampdot is-${ctone}`} aria-hidden="true" /> World clock · Ilyr's hourly step
           </p>
           <h2 className="bx-h2">{hour !== null && cstate !== "off" ? `Hour ${hour}, ${headline.toLowerCase()}` : headline}</h2>
           <dl className="bx-readout">
@@ -300,7 +308,7 @@ export function Systems({ now }: { now: number }) {
             </p>
           </details>
           <button className="bx-go" type="button" onClick={() => openLine("boiler")}>
-            Its line in the manifold
+            Its whole flow
             <Arrow />
           </button>
         </section>
@@ -308,39 +316,41 @@ export function Systems({ now }: { now: number }) {
         <JobBoard now={now} />
       </div>
 
-      <LatticeTimings />
+      <div className="bx-folds fl-below">
+        <LatticeTimings />
 
-      <details className="bx-more">
-        <summary>
-          <span className="bx-eyb">Still to build</span>
-          <b>{PLANNED.length} lines not yet laid</b>
-        </summary>
-        <ul className="bx-tb">
-          {PLANNED.map((x) => (
-            <li key={x.name} data-room={x.room}>
-              <i className="bx-stub" aria-hidden="true" />
-              {x.href ? (
-                <a href={x.href} onClick={roomLink(x.href)}>
+        <details className="bx-more">
+          <summary>
+            <span className="bx-eyb">Still to build</span>
+            <b>{PLANNED.length} lines not yet laid</b>
+          </summary>
+          <ul className="bx-tb">
+            {PLANNED.map((x) => (
+              <li key={x.name} data-room={x.room}>
+                <i className="bx-stub" aria-hidden="true" />
+                {x.href ? (
+                  <a href={x.href} onClick={roomLink(x.href)}>
+                    <b>{x.name}</b>
+                  </a>
+                ) : (
                   <b>{x.name}</b>
-                </a>
-              ) : (
-                <b>{x.name}</b>
-              )}
-              <span>{x.what}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
+                )}
+                <span>{x.what}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
 
-      <details className="bx-more">
-        <summary>
-          <span className="bx-eyb">The house · comes later</span>
-          <b>Heating that follows you, waiting on Google Nest</b>
-        </summary>
-        <Home />
-      </details>
+        <details className="bx-more">
+          <summary>
+            <span className="bx-eyb">The house · comes later</span>
+            <b>Heating that follows you, waiting on Google Nest</b>
+          </summary>
+          <Home />
+        </details>
 
-      <SetupAsks room="boiler" />
+        <SetupAsks room="boiler" />
+      </div>
     </div>
   );
 }

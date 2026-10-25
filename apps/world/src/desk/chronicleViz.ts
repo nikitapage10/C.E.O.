@@ -1,150 +1,185 @@
-import { clamp, dots, knot, lerp, Parts, Poly, RC, spr, TAU, weave, WHITE, isPhone, type VizSpec } from "./wvCanvas.ts";
+import { clamp, isPhone, RC, ring, spr, TAU, WHITE, type VizSpec } from "./wvCanvas.ts";
 
 /**
- * The Chronicle's woven pieces (desk-concepts round five, 82-viz.js "wave", "tloom", "week"): the story's waveform,
- * lit up to where the reading is; a thread per room that runs hot while the story is in that room; and the week as a
- * column of strands per day, one strand per room the day visited. Shapes only: every value comes from the page.
+ * The Book of Hours (#388): the week in Ilyr as a codex page, seven columns of days and twenty-four rows of hours. Every
+ * hour the Historian wrote is a little swarm of ink motes drifting in its cell, one mote for each line the cast spoke
+ * that hour (capped), so a busy hour is visibly fuller than a quiet one; an hour that shipped work carries a bright
+ * core; hours not written are a single faint point and hours still to come are fainter still. Shapes only: every value
+ * comes from the world's own pages.
+ *
+ * Kept cheap on purpose (Nikita, "the desk is still kind of laggy"): the grid, the points and the shown day's wash are
+ * painted once per layout into an offscreen layer, and each frame only blits that layer and moves the motes, a fixed
+ * pool capped by screen size. Nothing here reads the layout during a frame or re-renders React.
  */
 
-/** Where the reading is, shared by the player and its canvases (read every frame, so no re-render is needed). */
-export interface TaleClock {
-  on: boolean;
-  t: number;
-  dur: number;
-  room: string | null;
-  told: Set<string>;
-}
-
-export function waveSpec(tale: { current: TaleClock }): VizSpec {
-  let xs: number[] = [];
-  let ys: number[] = [];
-  let env: number[] = [];
-  const poly = new Poly();
-  let P: Parts | null = null;
-  return {
-    lay(V) {
-      const n = Math.max(40, Math.round(V.W / 4));
-      xs = [];
-      ys = [];
-      env = [];
-      for (let i = 0; i < n; i++) {
-        const u = i / (n - 1);
-        xs.push(2 + (V.W - 4) * u);
-        ys.push(V.H / 2);
-        env.push(0.25 + 0.75 * Math.abs(Math.sin(u * 9.1) * 0.6 + Math.sin(u * 23.7 + 1) * 0.3 + Math.sin(u * 51.3 + 2) * 0.2));
-      }
-      poly.set(xs, ys);
-      P = new Parts(Math.round(V.W * 1.1), 0);
-    },
-    draw(V, c, t, dt) {
-      const T = tale.current;
-      const on = T.on;
-      const pr = T.dur ? clamp(T.t / T.dur, 0, 1) : 0;
-      const n = xs.length;
-      const amp = V.H / 2 - 4;
-      for (let i = 0; i < n; i++) {
-        const u = i / (n - 1);
-        const k = env[i]! * (on ? 0.55 + 0.45 * Math.sin(t * 5 + i * 0.7) : 0.5);
-        ys[i] = V.H / 2 + Math.sin(u * TAU * 7 + t * (on ? 3 : 0.6)) * amp * k * 0.6;
-      }
-      poly.set(xs, ys);
-      const arc = RC.archive!;
-      weave(c, poly, P, { a: 0.9, sp: on ? 2.6 : 1.4, sz: 0.6, v: on ? 60 : 14, line: 0.1, rgb: WHITE, nofade: true, I: (u) => (u <= pr ? 1 : 0.4), col: (u) => (u <= pr ? spr(arc) : spr(WHITE)) }, t, dt);
-      if (pr > 0) {
-        const p = poly.at(pr);
-        knot(c, p.x, p.y, 0.6, t, arc, 1);
-      }
-    },
-  };
-}
-
-/** A thread beside each room's name (`.wv-tloom-l li[data-room]`): hot while the story is there, warm once told. */
-export function tloomSpec(tale: { current: TaleClock }): VizSpec {
-  let L: { id: string; poly: Poly; P: Parts; y: number; x0: number; x1: number }[] = [];
-  return {
-    lay(V) {
-      const ph = isPhone(V.cv);
-      const host = V.cv.parentElement;
-      const lis = host ? [...host.querySelectorAll<HTMLElement>(".wv-tloom-l li")] : [];
-      L = lis.map((li) => {
-        const r = V.rel(li);
-        const x0 = ph ? r.x : r.x + 90;
-        const x1 = ph ? r.x + r.w - 4 : V.W - 4;
-        const y = ph ? r.y + r.h - 2 : r.y + r.h / 2;
-        const xs: number[] = [];
-        const ys: number[] = [];
-        for (let i = 0; i <= 24; i++) {
-          xs.push(lerp(x0, x1, i / 24));
-          ys.push(y);
-        }
-        return { id: li.dataset.room ?? "archive", poly: new Poly().set(xs, ys), P: new Parts(ph ? 22 : 40, 0.1), y, x0, x1 };
-      });
-    },
-    draw(_V, c, t, dt) {
-      const T = tale.current;
-      for (const l of L) {
-        const rgb = RC[l.id] ?? WHITE;
-        const lit = l.id === T.room;
-        for (let i = 0; i < l.poly.n; i++) l.poly.y[i] = l.y + (lit ? Math.sin(i * 0.6 + t * 4) * 2.2 : 0);
-        if (lit) {
-          weave(c, l.poly, l.P, { a: 1.3, sp: 2.2, sz: 0.75, v: 50, rgb, rgb2: WHITE, line: 0.35, lw: 1, jit: 0.5 }, t, dt);
-          knot(c, l.x1, l.y, 0.5, t, rgb, 1);
-        } else if (T.told.has(l.id)) weave(c, l.poly, l.P, { a: 0.55, sp: 1, sz: 0.55, v: 10, rgb, line: 0.16 }, t, dt);
-        else dots(c, l.x0, l.y, l.x1, l.y, 5, 0.12, rgb);
-      }
-    },
-  };
-}
-
-/** The week: a column per day, one strand per room it visited (height by scenes), a knot per change shipped. */
-export interface WeekCol {
-  rooms: Record<string, number>;
+/** One hour of the week, as the Book draws it. */
+export interface HourCell {
+  /** Lines spoken that hour, across its scenes. */
+  lines: number;
+  /** Changes the builders shipped that hour. */
   ships: number;
-  hot: boolean;
+  written: boolean;
+  /** Still to come. */
+  future: boolean;
 }
 
-export function weekSpec(cols: WeekCol[], pad: { top: number; bottom: number } = { top: 18, bottom: 46 }): VizSpec {
-  let C: { x: number; hot: boolean; ships: number; str: { id: string; poly: Poly; P: Parts }[] }[] = [];
+/** What the Book reads every frame without a re-render: the cell under the pointer, and where the reading is. */
+export interface BookLive {
+  hover: number;
+  /** Today's written cells in order, and how far along them Skippy's reading is (0..1) while it plays. */
+  read: number[];
+  pr: number;
+  on: boolean;
+}
+
+const VIOLET = RC.archive!;
+/** The most motes a page carries: a laptop draws these at ease, a phone fewer. */
+const MAX_MOTES = 1100;
+const MAX_MOTES_PHONE = 480;
+
+export function bookSpec(cells: HourCell[], shownCol: number, nowIdx: number, live: { current: BookLive }): VizSpec {
   let cw = 0;
-  let top = 0;
+  let ch = 0;
+  let layer: HTMLCanvasElement | null = null;
+  // The mote pool: cell, frequencies, phases, radii, size, depth, and whether it's a pale (white) mote.
+  let N = 0;
+  let cell = new Uint8Array(0);
+  let fa = new Float32Array(0);
+  let fb = new Float32Array(0);
+  let pa = new Float32Array(0);
+  let pb = new Float32Array(0);
+  let rx = new Float32Array(0);
+  let ry = new Float32Array(0);
+  let sz = new Float32Array(0);
+  let z = new Float32Array(0);
+  let pale = new Uint8Array(0);
+  const ships: number[] = [];
+  const cx = (i: number) => (Math.floor(i / 24) + 0.5) * cw;
+  const cy = (i: number) => ((i % 24) + 0.5) * ch;
+
   return {
+    scale: (W, H, dpr) => (W * H > 600_000 ? Math.min(dpr, 1.5) : dpr),
     lay(V) {
       cw = V.W / 7;
-      top = pad.top;
-      const bot = V.H - pad.bottom;
-      C = cols.map((d, i) => {
-        const keys = Object.keys(d.rooms).filter((k) => d.rooms[k]! > 0);
-        const x0 = i * cw + cw / 2;
-        const str = keys.map((k, j) => {
-          const h = (bot - top) * clamp(d.rooms[k]! / 6, 0.15, 1);
-          const ox = (j - (keys.length - 1) / 2) * 7;
-          const xs: number[] = [];
-          const ys: number[] = [];
-          for (let q = 0; q <= 20; q++) {
-            const u = q / 20;
-            xs.push(x0 + ox + Math.sin(u * TAU * 1.2 + j * 1.7 + i) * 5);
-            ys.push(bot - h * u);
-          }
-          return { id: k, poly: new Poly().set(xs, ys), P: new Parts(Math.round(6 + d.rooms[k]! * 6), 0.1) };
-        });
-        return { x: x0, hot: d.hot, ships: d.ships, str };
-      });
-    },
-    draw(V, c, t, dt) {
-      C.forEach((col, i) => {
-        if (col.hot) {
-          c.globalCompositeOperation = "source-over";
-          const g = c.createLinearGradient(0, 0, 0, V.H);
-          g.addColorStop(0, `rgba(${RC.archive},.14)`);
-          g.addColorStop(1, `rgba(${RC.archive},0)`);
-          c.fillStyle = g;
-          c.fillRect(i * cw + 4, 4, cw - 8, V.H - 8);
-          c.globalCompositeOperation = "lighter";
+      ch = V.H / 24;
+      // The still layer: the shown day's wash, the column rules, the quarter-day guides, and a point per unwritten hour.
+      layer ??= document.createElement("canvas");
+      layer.width = Math.round(V.W * V.dpr);
+      layer.height = Math.round(V.H * V.dpr);
+      const g = layer.getContext("2d")!;
+      g.setTransform(V.dpr, 0, 0, V.dpr, 0, 0);
+      g.clearRect(0, 0, V.W, V.H);
+      if (shownCol >= 0) {
+        const gr = g.createLinearGradient(0, 0, 0, V.H);
+        gr.addColorStop(0, `rgba(${VIOLET},.11)`);
+        gr.addColorStop(0.5, `rgba(${VIOLET},.05)`);
+        gr.addColorStop(1, `rgba(${VIOLET},.11)`);
+        g.fillStyle = gr;
+        g.fillRect(shownCol * cw + 1, 0, cw - 2, V.H);
+      }
+      g.fillStyle = "rgba(236,238,243,.055)";
+      for (let d = 1; d < 7; d++) g.fillRect(Math.round(d * cw), 0, 1, V.H);
+      g.fillStyle = "rgba(236,238,243,.04)";
+      for (const h of [6, 12, 18]) g.fillRect(0, Math.round(h * ch), V.W, 1);
+      // A written hour's ink has bled a little into the page: a soft bloom, fuller the more was said.
+      const bloom = spr(VIOLET);
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i]!;
+        if (!c.written) continue;
+        const r = Math.min(cw * 0.62, ch * 1.5);
+        g.globalAlpha = 0.1 + 0.22 * Math.min(1, c.lines / 12) + (Math.floor(i / 24) === shownCol ? 0.08 : 0);
+        g.drawImage(bloom, cx(i) - r, cy(i) - r * 0.62, r * 2, r * 1.24);
+      }
+      g.globalAlpha = 1;
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i]!;
+        if (c.written) continue;
+        g.fillStyle = c.future ? "rgba(236,238,243,.07)" : "rgba(236,238,243,.22)";
+        g.fillRect(cx(i) - 0.7, cy(i) - 0.7, 1.4, 1.4);
+      }
+
+      // The motes: one per line spoken (at least four, at most fourteen a cell), thinned evenly to the page's cap.
+      const want = cells.map((c) => (c.written ? clamp(3 + c.lines, 4, 14) : 0));
+      const total = want.reduce((a, b) => a + b, 0);
+      const cap = isPhone(V.cv) ? MAX_MOTES_PHONE : MAX_MOTES;
+      const f = total > cap ? cap / total : 1;
+      const per = want.map((n) => (n ? Math.max(2, Math.floor(n * f)) : 0));
+      N = per.reduce((a, b) => a + b, 0);
+      cell = new Uint8Array(N);
+      fa = new Float32Array(N);
+      fb = new Float32Array(N);
+      pa = new Float32Array(N);
+      pb = new Float32Array(N);
+      rx = new Float32Array(N);
+      ry = new Float32Array(N);
+      sz = new Float32Array(N);
+      z = new Float32Array(N);
+      pale = new Uint8Array(N);
+      let k = 0;
+      per.forEach((n, i) => {
+        for (let j = 0; j < n; j++, k++) {
+          cell[k] = i;
+          fa[k] = 0.16 + Math.random() * 0.32;
+          fb[k] = 0.12 + Math.random() * 0.3;
+          pa[k] = Math.random() * TAU;
+          pb[k] = Math.random() * TAU;
+          rx[k] = cw * 0.38 * (0.25 + 0.75 * Math.random());
+          ry[k] = ch * 0.34 * (0.3 + 0.7 * Math.random());
+          const d = Math.random();
+          z[k] = d * d;
+          sz[k] = 0.75 + z[k]! * 1.5;
+          pale[k] = Math.random() < 0.22 ? 1 : 0;
         }
-        for (const s of col.str) weave(c, s.poly, s.P, { a: col.hot ? 1.1 : 0.75, sp: 0.8, sz: 0.55, v: col.hot ? 16 : 8, rgb: RC[s.id] ?? WHITE, line: col.hot ? 0.3 : 0.18, lw: 1.2 }, t, dt);
-        const n = Math.min(col.ships, 6);
-        for (let k = 0; k < n; k++) knot(c, col.x + (k - (n - 1) / 2) * 12, top + 2, 0.34, t + k, col.hot ? RC.archive! : WHITE, col.hot ? 1 : 0.6);
       });
+      ships.length = 0;
+      cells.forEach((c, i) => c.ships > 0 && ships.push(i));
+    },
+    draw(V, c, t) {
+      if (layer) c.drawImage(layer, 0, 0, V.W, V.H);
+      const L = live.current;
+      const hover = L.hover;
+      // While the reading plays, today's hours light in order up to where Skippy is.
+      const readTo = L.on && L.read.length ? Math.floor(L.pr * L.read.length) : -1;
+      const reading = readTo >= 0 ? L.read[Math.min(readTo, L.read.length - 1)]! : -1;
+      const sv = spr(VIOLET);
+      const sw = spr(WHITE);
+      const scale = Math.min(2.4, Math.max(1.2, ch / 12));
+      for (let k = 0; k < N; k++) {
+        const i = cell[k]!;
+        const col = Math.floor(i / 24);
+        let I = col === shownCol ? 0.9 : 0.58;
+        let grow = 1;
+        if (i === hover) {
+          I = 1.35;
+          grow = 1.35;
+        }
+        if (readTo >= 0 && col === shownCol) {
+          const at = L.read.indexOf(i);
+          if (at >= 0 && at <= readTo) I = Math.max(I, 1.1);
+          if (i === reading) {
+            I = 1.5;
+            grow = 1.45;
+          }
+        }
+        const x = cx(i) + Math.sin(t * fa[k]! + pa[k]!) * rx[k]! * grow;
+        const y = cy(i) + Math.sin(t * fb[k]! + pb[k]!) * ry[k]! * grow;
+        const a = I * (0.45 + 0.55 * z[k]!);
+        const s = sz[k]! * scale * (i === hover ? 1.2 : 1);
+        c.globalAlpha = a > 1 ? 1 : a;
+        c.drawImage(pale[k] ? sw : sv, x - s, y - s, s * 2, s * 2);
+      }
+      // A change shipped: a bright core in its hour, breathing slowly.
+      for (const i of ships) {
+        const b = 0.75 + 0.25 * Math.sin(t * 1.3 + i);
+        const r = Math.min(cw, ch * 2.2) * 0.42 * b;
+        c.globalAlpha = 0.55;
+        c.drawImage(sv, cx(i) - r, cy(i) - r, r * 2, r * 2);
+        c.globalAlpha = 0.95;
+        c.drawImage(sw, cx(i) - 2.6, cy(i) - 2.6, 5.2, 5.2);
+      }
+      c.globalAlpha = 1;
+      if (nowIdx >= 0) ring(c, cx(nowIdx), cy(nowIdx), Math.min(cw, ch * 1.6) * (0.36 + 0.05 * Math.sin(t * 2)), VIOLET, 0.55);
+      if (hover >= 0 && hover !== nowIdx) ring(c, cx(hover), cy(hover), Math.min(cw, ch * 1.6) * 0.44, WHITE, 0.3);
     },
   };
 }

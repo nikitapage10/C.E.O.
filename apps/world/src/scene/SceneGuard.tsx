@@ -149,19 +149,23 @@ export function watchContext(canvas: HTMLCanvasElement) {
   const generation = useGuard.getState().generation;
   const current = () => useGuard.getState().generation === generation;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // A canvas that has left the page was unmounted on purpose (#332: back to the map, or on to another view), and
+  // three.js drops its context as it goes: nothing to rebuild.
+  const gone = () => !canvas.isConnected;
   canvas.addEventListener("webglcontextlost", (e) => {
-    if (!current()) return;
+    if (!current() || gone()) return;
     e.preventDefault(); // Ask the browser to give it back.
     timer = setTimeout(
       () =>
         current() &&
+        !gone() &&
         useGuard.getState().rebuild("the graphics context was lost"),
       2500,
     );
   });
   canvas.addEventListener("webglcontextrestored", () => {
     clearTimeout(timer);
-    if (current())
+    if (current() && !gone())
       useGuard
         .getState()
         .rebuild("the graphics context was lost and came back");

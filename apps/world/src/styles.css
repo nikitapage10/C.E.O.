@@ -236,6 +236,20 @@ button {
 .topbar__desk:hover {
   border-color: var(--hair-strong);
 }
+/* The map and the whole ring (#332), beside the Desk link. */
+.topbar__view {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  padding: 5px 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
+.topbar__view:hover,
+.topbar__view:focus-visible {
+  border-color: var(--hair-strong);
+}
 .ring-count {
   display: grid;
   place-items: center;

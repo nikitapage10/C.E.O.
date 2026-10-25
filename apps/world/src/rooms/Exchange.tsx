@@ -108,7 +108,7 @@ function Marquee({ top }: { top: readonly PmMarket[] }) {
   useEffect(() => {
     // The Lattice doesn't run the Desk's sign-in; one quiet check says whether this browser holds the session.
     if (useDeskAuth.getState().auth.status === "checking") void useDeskAuth.getState().check();
-    startPositions();
+    return startPositions();
   }, []);
   const status = usePositions((s) => s.status);
   const positions = usePositions((s) => s.data?.positions ?? null);

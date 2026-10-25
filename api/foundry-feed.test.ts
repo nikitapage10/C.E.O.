@@ -57,3 +57,20 @@ describe("the Desk's GitHub feeds", () => {
     });
   }
 });
+
+describe("the open pull requests on the Foundry feed (#432)", () => {
+  it("links each to its issue and sums its checks, and keeps no title or body", async () => {
+    const { checksOf, linkedIssue, readOpen } = await import("./foundry-feed.ts");
+    expect(linkedIssue("chat/432-foundry-fit", "")).toBe(432);
+    expect(linkedIssue("foundry/fix/12-red-main", "Closes #9")).toBe(12);
+    expect(linkedIssue("tidy-up", "Some work\n\nCloses #77")).toBe(77);
+    expect(linkedIssue("tidy-up", "Mentions #77 only")).toBeNull();
+    expect(checksOf({ check_runs: [] })).toBe("unknown");
+    expect(checksOf({ check_runs: [{ status: "completed", conclusion: "success" }, { status: "in_progress", conclusion: null }] })).toBe("running");
+    expect(checksOf({ check_runs: [{ status: "completed", conclusion: "failure" }, { status: "in_progress", conclusion: null }] })).toBe("fail");
+    expect(checksOf({ check_runs: [{ status: "completed", conclusion: "success" }, { status: "completed", conclusion: "skipped" }] })).toBe("pass");
+    const list = [{ number: 5, html_url: "https://github.com/x/pull/5", created_at: "2026-10-25T00:00:00Z", draft: true, title: "Secret-ish title", body: "Closes #3", head: { ref: "x", sha: "abc1234" } }];
+    const got = await readOpen(list, async () => ({ check_runs: [{ status: "completed", conclusion: "success" }] }));
+    expect(got).toEqual([{ number: 5, html_url: "https://github.com/x/pull/5", created_at: "2026-10-25T00:00:00Z", draft: true, issue: 3, checks: "pass" }]);
+  });
+});

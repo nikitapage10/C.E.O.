@@ -139,9 +139,9 @@ export function countVoice(limits: Limits, tag: string, now: number): Limits {
 
 /* ── What Skippy is told ── */
 
-/** The Desk's state for the agent: scrubbed again, no template braces (ElevenLabs' variables are {{…}}), short. */
+/** The Desk's state for the agent: scrubbed again, no braces (ElevenLabs' variables are {{…}}) and no angle brackets at all, so it can carry neither a template nor markup; short. */
 export function deskVariable(lines: string): string {
-  const t = scrub(lines).replace(/[{}]/g, "").replace(/<[^>]*>/g, "").trim();
+  const t = scrub(lines).replace(/[{}<>＜＞]/g, "").trim();
   return t.length > DESK_MAX ? `${t.slice(0, DESK_MAX - 1).trimEnd()}…` : t || "(nothing on the Desk right now)";
 }
 

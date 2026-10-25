@@ -93,6 +93,8 @@ describe("what Skippy is told and how the agent is set up", () => {
     expect(v).not.toMatch(/[{}]/);
     expect(v).toContain("Builds in flight: 1");
     expect(deskVariable("")).toMatch(/nothing/);
+    // No markup can survive, however it is nested.
+    for (const evil of ["<scr<script>ipt>alert(1)</script>", "<<script>script>", "＜script＞"]) expect(deskVariable(evil)).not.toMatch(/[<>＜＞]/);
   });
 
   it("makes a private agent in Skippy's voice that hangs up at three minutes", () => {

@@ -60,8 +60,8 @@ for (const width of [1280, 400]) {
 
     await page.goto(BASE + "/");
     await expect(page.locator(".today .desk__title")).toBeVisible();
-    const avatar = page.getByRole("button", { name: "Talk to Skippy, the Magnificent" });
-    await avatar.click();
+    // Today's avatar went with the Confluence (#413); the bar's Ask Skippy opens the same dialogue on every page.
+    await page.locator(".desk__skippy").click();
     const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
     await expect(chat).toBeVisible();
 
@@ -86,7 +86,7 @@ for (const width of [1280, 400]) {
 test("signed out, Skippy's box is off with a sign-in hint", async ({ page }) => {
   await stub(page, false);
   await page.goto(BASE + "/");
-  await page.getByRole("button", { name: "Talk to Skippy, the Magnificent" }).click();
+  await page.locator(".desk__skippy").click();
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
   const box = chat.getByRole("textbox", { name: "Message to Skippy" });
   await expect(box).toBeDisabled();

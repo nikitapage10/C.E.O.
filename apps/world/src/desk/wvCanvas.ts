@@ -364,7 +364,14 @@ export function dots(c: CanvasRenderingContext2D, x0: number, y0: number, x1: nu
 
 /* ── The canvases and the one loop ── */
 
-export const reducedMotion = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// One query, kept (#417): the canvases ask every frame, and matchMedia builds a new query list on each call. Its
+// `matches` follows the setting live.
+let motionQuery: MediaQueryList | null = null;
+export const reducedMotion = () => {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  motionQuery ??= window.matchMedia("(prefers-reduced-motion: reduce)");
+  return motionQuery.matches;
+};
 
 export interface Viz {
   cv: HTMLCanvasElement;

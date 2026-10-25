@@ -163,9 +163,12 @@ export function useWorldFeed(): { status: ChronicleStatus; feed: WorldFeed | nul
 
 const MT = "America/Denver";
 
-/** Today's page in the Chronicle: the Mountain-time day, as the step files it. */
+let DAY: Intl.DateTimeFormat | null = null;
+
+/** Today's page in the Chronicle: the Mountain-time day, as the step files it. Its formatter is made once (#417). */
 export function chronicleDay(at: number): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: MT, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at));
+  DAY ??= new Intl.DateTimeFormat("en-CA", { timeZone: MT, year: "numeric", month: "2-digit", day: "2-digit" });
+  return DAY.format(new Date(at));
 }
 
 /** "Today", "Yesterday", or "Sunday 11 October". */

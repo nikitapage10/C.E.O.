@@ -40,11 +40,30 @@ interface Live extends RiseLine {
   n: number;
   fill: string;
   sand: string;
-  /** Where it set out from, fixed at the start so a re-layout doesn't jerk it. */
+  /** Where it set out from, fixed at the start so a re-layout doesn't jerk it: its centre x, its top, how far it rises. */
   ox: number;
-  oy: number;
-  lift: number;
+  top0: number;
+  rise: number;
+  /** The grains fade out before they reach this line (the top of a label under the words). */
+  floor: number;
 }
+
+/** Where a source's words rise from, and the room they have (canvas pixels). */
+export interface RiseAt {
+  x: number;
+  y: number;
+  W: number;
+  /**
+   * The band between x0 and x1 that the words must stay in: above `floor` (a label between the source and the words,
+   * like Today's Council label) and below `ceil` (the lowest box above them, like Today's helm chips). Absent: anywhere.
+   */
+  clear?: (x0: number, x1: number, y: number) => { floor: number; ceil: number };
+}
+
+/** How far a line rises when it has the room. */
+const UP = 64;
+/** Kept between the words and a label. */
+const PAD = 6;
 
 const GAP = 1.4;
 const PER_ROOM = 6;
@@ -55,6 +74,22 @@ const SWEEP = 0.9;
 const FALL = 1.5;
 const MAX_GRAINS = 650;
 export const RISE_FONT = '500 16px "Jost Variable", Jost, Futura, system-ui, sans-serif';
+
+/**
+ * Where a line of `w` by `h` sets out and how far it rises, kept clear of the labels around it (#417: on Today a line
+ * could drift up over "The Council of Skippies"). It sets out from just above its source, or from just above a label
+ * that stands between, and rises up to 64 px, less when a box above leaves less room. Null when a line `lift` px over
+ * another one from the same source has no room above it yet: it waits its turn.
+ */
+export function riseSpot(pos: RiseAt, w: number, h: number, lift = 0): { ox: number; top0: number; rise: number; floor: number } | null {
+  const ox = Math.max(8 + w / 2, Math.min(pos.W - 8 - w / 2, pos.x));
+  const band = pos.clear?.(ox - w / 2 - PAD, ox + w / 2 + PAD, pos.y) ?? { floor: Infinity, ceil: -Infinity };
+  const bottom = Math.min(pos.y - 20 + h / 2, band.floor - PAD);
+  const top0 = bottom - h - lift;
+  const room = top0 - band.ceil - PAD;
+  if (lift && room < 0) return null;
+  return { ox, top0, rise: Math.max(0, Math.min(UP, room)), floor: band.floor };
+}
 
 let scratch: HTMLCanvasElement | null = null;
 
@@ -112,14 +147,21 @@ export class RiseField {
     return this.air.length > 0 || this.wait.length > 0;
   }
 
-  private start(t: number, at: (room: string) => { x: number; y: number; W: number } | null) {
+  private start(t: number, at: (room: string) => RiseAt | null) {
     if (t - this.last < GAP || this.air.length >= MAX_AIR) return;
     const k = this.wait.findIndex((l) => t - (this.lastBy.get(l.room) ?? -1e9) >= PER_ROOM && at(l.room));
     if (k < 0) return;
-    const line = this.wait.splice(k, 1)[0]!;
+    const line = this.wait[k]!;
     const pos = at(line.room)!;
     const g = grains(line.text);
-    if (!g.n) return;
+    if (!g.n) {
+      this.wait.splice(k, 1);
+      return;
+    }
+    // A second line over the same source rises past the first.
+    const spot = riseSpot(pos, g.w, g.h, this.air.filter((a) => a.room === line.room).length * 26);
+    if (!spot) return;
+    this.wait.splice(k, 1);
     const n = g.n;
     const live: Live = {
       ...line,
@@ -132,10 +174,7 @@ export class RiseField {
       rel: new Float32Array(n),
       fill: `rgba(${mixRgb(line.rgb, "255,246,230", 0.55)},1)`,
       sand: `rgb(${mixRgb(line.rgb, "255,214,160", 0.5)})`,
-      ox: Math.max(8 + g.w / 2, Math.min(pos.W - 8 - g.w / 2, pos.x)),
-      oy: pos.y,
-      // A second line over the same figure rises past the first.
-      lift: this.air.filter((a) => a.room === line.room).length * 26,
+      ...spot,
     };
     for (let i = 0; i < n; i++) {
       live.rel[i] = RISE + (g.gx[i]! / g.w) * SWEEP + Math.random() * 0.25;
@@ -149,7 +188,7 @@ export class RiseField {
   }
 
   /** Draw what is in the air; `at` says where a figure's words rise from (null when it isn't on the page). */
-  draw(c: CanvasRenderingContext2D, t: number, dt: number, at: (room: string) => { x: number; y: number; W: number } | null) {
+  draw(c: CanvasRenderingContext2D, t: number, dt: number, at: (room: string) => RiseAt | null) {
     if (!dt) return;
     this.start(t, at);
     if (!this.air.length) return;
@@ -162,9 +201,9 @@ export class RiseField {
         continue;
       }
       // Rising: eased up about 64 px, fading in.
-      const up = 64 * (1 - Math.pow(1 - Math.min(1, age / (RISE + SWEEP)), 3)) + L.lift;
+      const up = L.rise * (1 - Math.pow(1 - Math.min(1, age / (RISE + SWEEP)), 3));
       const left = L.ox - L.w / 2;
-      const top = L.oy - 20 - up - L.h / 2;
+      const top = L.top0 - up;
       if (age < RISE) {
         c.globalAlpha = Math.min(1, age / 0.35);
         c.font = RISE_FONT;
@@ -199,7 +238,8 @@ export class RiseField {
           L.y[i]! += L.vy[i]! * dt;
           x = L.x[i]!;
           y = L.y[i]!;
-          a = Math.max(0, 1 - since / FALL);
+          // Falling, fading, and gone before it reaches a label under it.
+          a = Math.max(0, 1 - since / FALL) * Math.min(1, Math.max(0, (L.floor - y) / 14));
         }
         if (a < 0.03) continue;
         c.globalAlpha = a;

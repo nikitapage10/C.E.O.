@@ -74,7 +74,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: SCALE });
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
 // A fixed seed so the cast is in its usual places; cuts instead of flights so each shot settles quickly.
-await page.goto(`${base}/lattice?instant&glitches=off&quality=high&seed=7`, { waitUntil: "load" });
+await page.goto(`${base}/lattice?view=ring&instant&glitches=off&quality=high&seed=7`, { waitUntil: "load" });
 await page.waitForFunction(() => globalThis.__ceo?.positions && Object.keys(globalThis.__ceo.positions()).length >= 14, undefined, { timeout: 180_000, polling: 1000 });
 await page.waitForTimeout(4000);
 // Clean renders: no HUD, loader, studio panel, callouts, name tags, nameplates or speech.

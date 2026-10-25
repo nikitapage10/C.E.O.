@@ -1,10 +1,9 @@
 import type { RoomPulse } from "../roomPulse.ts";
-import { clamp, frac, gauss, lerp, Parts, Poly, RC, reducedMotion, smoothPts, spr, sstep, TAU, weave, WHITE, type Viz, type VizSpec } from "../wvCanvas.ts";
+import { clamp, frac, lerp, Parts, Poly, RC, reducedMotion, smoothPts, spr, TAU, weave, WHITE, type Viz, type VizSpec } from "../wvCanvas.ts";
+import { knotAt, stream } from "../flow/draw.ts";
 import { Being } from "./beings.ts";
-import { RISES, type RiseAt } from "./sand.ts";
-import { Motes, NEAR } from "./batch.ts";
-
-const MOTES = new Motes();
+import type { RiseAt } from "../flow/rise.ts";
+import { RISES } from "./sand.ts";
 
 /**
  * Today's stage (#413, round 9's Confluence, Nikita's pick): one canvas under the whole top of the page. The Council
@@ -347,47 +346,11 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
       const P = T.P;
       const poly = T.poly;
       if (poly.n < 2) continue;
-      const L = poly.len;
-      const sp = spr(T.rgb);
-      const sw = spr(WHITE);
-      for (let k = 0; k < P.n; k++) {
-        let u = P.u[k]!;
-        if (dt) {
-          u += (P.v[k]! * T.v * dt) / L;
-          if (u > 1) {
-            u -= 1;
-            P.o[k] = gauss();
-          }
-          P.u[k] = u;
-        }
-        if (u > grow * 1.4) continue;
-        const z = P.z[k]!;
-        const edge = sstep(0, 0.05, u) * (1 - 0.55 * sstep(0.9, 1, u));
-        const al = fa * (0.25 + 0.75 * z) * edge * (T.real ? 1 : 0.5);
-        if (al < 0.03) continue;
-        const p = poly.at(u);
-        const w = T.sp * (1 + 3 * sstep(0.5, 0.85, u)) * (0.5 + 0.5 * z);
-        const off = P.o[k]! * w + Math.sin(t * 1.6 + P.p[k]! * 5) * 1.2;
-        const sz = (0.8 + z * 2) * (1 + 0.35 * sstep(0.5, 0.9, u));
-        const x = p.x - p.ty * off;
-        const y = p.y + p.tx * off;
-        if (z < NEAR && !P.c[k]) {
-          if (edge > 0.5) MOTES.add(x, y, sz, z > 0.2);
-          continue;
-        }
-        c.globalAlpha = al;
-        c.drawImage(P.c[k] ? sw : sp, x - sz, y - sz, sz * 2, sz * 2);
-      }
-      MOTES.flush(c, T.rgb, fa * (T.real ? 1 : 0.5));
+      stream(c, poly, P, { rgb: T.rgb, a: fa * (T.real ? 1 : 0.5), v: T.v, sp: T.sp, widen: 3, swell: 0.35, head: grow * 1.4 }, t, dt);
       // Today's real moments, riding the stream.
       for (const u of T.knots) {
         const q = poly.at(u);
-        const big = sel === T.id;
-        c.globalAlpha = (big ? 0.9 : 0.5) * fa;
-        const r = big ? 13 : 8;
-        c.drawImage(sp, q.x - r, q.y - r, r * 2, r * 2);
-        c.globalAlpha = Math.min(1, (big ? 1 : 0.7) * fa);
-        c.drawImage(sw, q.x - 2.2, q.y - 2.2, 4.4, 4.4);
+        knotAt(c, q.x, q.y, T.rgb, fa, sel === T.id);
       }
     }
     c.globalAlpha = 1;

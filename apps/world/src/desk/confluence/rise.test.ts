@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { safeTitle, shippedLine } from "./rise.ts";
-import { riseSpot } from "./sand.ts";
+import { riseSpot } from "../flow/rise.ts";
 import type { Change } from "../../foundry.ts";
 
 describe("rising words", () => {

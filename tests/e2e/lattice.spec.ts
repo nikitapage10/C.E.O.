@@ -26,10 +26,16 @@ import { ROOM_IDS } from "@ceo/core";
  */
 const BOOT_MS = 360_000;
 const STEP_MS = 60_000;
+/**
+ * One room on its own (the Foundry, ?quality=low): shader programs and draw calls a frame (#416). It measured 50 and
+ * about 335 when this was set; the headroom is for new props, not for programs built twice again.
+ */
+const ROOM_BUDGET = { programs: 64, calls: 420 };
 /** Simulated time agents get to move between the two position snapshots: ten frames at the slowest. */
 const MOVE_WINDOW_MS = 4000;
 
 type Api = {
+  renderInfo: () => { calls: number; triangles: number; programs: number };
   map: () => { on: boolean; crew: number; frames: number; positions: Record<string, [number, number]> };
   three: () => { scene: { getObjectByName: (name: string) => unknown } };
   state: () => { agents: Record<string, unknown>; approvals: Record<string, { status: string; request: { room: string } }> };
@@ -266,6 +272,12 @@ test("the Lattice opens on its map, and a room picked there loads on its own", a
   await expect(page.locator('[data-room="foundry"]')).toHaveClass(/on/);
   const rooms = await api(page, (a) => ["foundry", "spire", "relay"].map((r) => !!a.three().scene.getObjectByName(`room-${r}`)));
   expect(rooms).toEqual([true, false, false]);
+  // What one room costs to draw (#416): shader programs and draw calls a frame, under a budget with some headroom.
+  // Programs built twice (once for the canvas behind the curtain, again for the frames) or for twice the lamps are
+  // what made a room take 20 s to open; more draw calls are what made the Lattice run at 13 fps.
+  const cost = await api(page, (a) => a.renderInfo());
+  expect(cost.programs).toBeLessThanOrEqual(ROOM_BUDGET.programs);
+  expect(cost.calls).toBeLessThanOrEqual(ROOM_BUDGET.calls);
   await page.screenshot({ path: "test-results/shots/map-room-foundry.png" });
 
   // Back to the map: the 3D world goes with it.

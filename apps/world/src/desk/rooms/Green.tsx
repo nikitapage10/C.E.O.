@@ -1,7 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Keeper } from "./parts.tsx";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
-import { Parts, Poly, OK, WHITE, knot, reducedMotion, useViz, weave, type VizSpec } from "../wvCanvas.ts";
+import { clamp, reducedMotion } from "../wvCanvas.ts";
 import {
   onBye,
   ordinal,
@@ -21,23 +21,27 @@ import {
   type GreenStatus,
 } from "../green/league.ts";
 import { useGreenAnalysis, type GreenAnalysis } from "../green/analysis.ts";
+import { formation, modeFor, paintField, place, yardAt, type Mode, type Tok, type TokState } from "../green/stadium.ts";
+import { useFlow, RC, type FlowLayoutFn, type FlowLine } from "../flow/index.ts";
 import "./rooms.css";
 import "../green/green.css";
 
 /**
- * The Green (#225, live since #252, an analyst desk since #276, calmed down in #368): Nikita's Sleeper league, "Horse
- * Meat", as a floodlit pitch at night. Up top only what the week needs: the face-off (projected, then live, with the
- * ball on the field where the win chance falls and the Weave's thread under it), and FantasyPros' start-or-sit calls,
- * each a duel of faces with its late-game-risk, tiebreak, split and bye flags, and why on a tap. The nine starters as a
- * row of faces. Everything else waits behind "Go deeper": the full lineup with FantasyPros' range, tier, rank move and
- * roster share; the playoff race; the wire; one trade idea; the byes; the table; the league's moves; the news; the
- * Commentator's written call; and where every number came from. One drawer open at a time.
+ * The Green (#225, live since #252, an analyst desk since #276, its own stadium since #389): Nikita's Sleeper league,
+ * "Horse Meat", as the broadcast's field-view of a stadium at night. The matchup is the scoreboard over the stands; the
+ * starters of both teams stand as tokens on the turf in formation, each on a pool of floodlight haze that is his points
+ * (bright motes rising are what he has scored, dim ones hanging are what FantasyPros still projects), and the line of
+ * scrimmage sits at the win chance. New points flare their player and lift that side's crowd (green/stadium.ts).
+ * Under the field: FantasyPros' start-or-sit calls as broadcast strips, each a duel of faces with its late-game-risk,
+ * tiebreak, split and bye flags and why on a tap; then the stat rail, each stat opening one drawer: the full lineup
+ * with FantasyPros' range, tier, rank move and roster share; the playoff race; the wire; one trade idea; the byes; the
+ * table; the league's moves; the news; the Commentator's written call; and where every number came from.
  *
  * Read-only: the moves are made in Sleeper. Faces and logos are Sleeper's public images; a picture that doesn't load
- * falls back to initials. Every motion settles, and none plays under prefers-reduced-motion.
+ * falls back to initials. Barlow Condensed carries the numbers and names, Barlow the words, lime is the accent.
+ * Nothing moves under prefers-reduced-motion.
  */
 
-const TURF = "172,200,114";
 const INJ_WORD: Record<string, string> = {
   Q: "Questionable",
   D: "Doubtful",
@@ -163,66 +167,6 @@ const fmtWhen = (iso: string) =>
     timeZone: "America/Denver",
   }).format(Date.parse(iso));
 
-/* ── the win thread ── */
-
-/** The win thread: your light from the left up to the win chance, theirs from the right, a knot where they meet. */
-function winSpec(win: number | null): VizSpec {
-  return {
-    lay(V) {
-      const y = V.H / 2;
-      const f = win ?? 0.5;
-      const x = V.W * f;
-      V.s.w = {
-        mine: new Poly().set([0, x], [y, y]),
-        theirs: new Poly().set([V.W, x], [y, y]),
-        x,
-        y,
-        Pm: new Parts(Math.max(8, Math.round(70 * f)), 0.15),
-        Pt: new Parts(Math.max(8, Math.round(70 * (1 - f))), 0),
-      };
-    },
-    draw(V, c, t, dt) {
-      const w = V.s.w as {
-        mine: Poly;
-        theirs: Poly;
-        x: number;
-        y: number;
-        Pm: Parts;
-        Pt: Parts;
-      };
-      if (win === null) {
-        c.strokeStyle = "rgba(236,238,243,.12)";
-        c.setLineDash([3, 5]);
-        c.beginPath();
-        c.moveTo(0, w.y);
-        c.lineTo(V.W, w.y);
-        c.stroke();
-        c.setLineDash([]);
-        return;
-      }
-      weave(
-        c,
-        w.mine,
-        w.Pm,
-        {
-          a: 1,
-          sp: 3,
-          sz: 1,
-          v: 34,
-          rgb: TURF,
-          rgb2: "236,240,220",
-          line: 0.6,
-          lw: 1.6,
-        },
-        t,
-        dt,
-      );
-      weave(c, w.theirs, w.Pt, { a: 0.55, sp: 2, sz: 0.75, v: 24, rgb: WHITE, line: 0.22, lw: 1 }, t, dt);
-      knot(c, w.x, w.y, 0.9, t, win >= 0.5 ? TURF : OK, 1);
-    },
-  };
-}
-
 /** The FantasyPros figure to show: its own number as published (#340), else the board's projection (form, or an older board). */
 const fpPts = (p: GreenPlayer): number | null => (p.fp != null ? p.fp : p.proj);
 /** Says when the projection the calls use differs from FantasyPros' own figure (doubtful, out, on bye). */
@@ -233,143 +177,329 @@ const fpTitle = (p: GreenPlayer): string | undefined =>
       ? "His form here: FantasyPros doesn't project him this week"
       : undefined;
 
-/* ── motion ── */
-
-/** A number that runs up to its value once (and eases to each new one); lands at once under reduced motion. */
-function useCount(to: number | null, ms = 900): number | null {
-  const [v, setV] = useState<number | null>(() => (to === null || reducedMotion() ? to : 0));
-  const from = useRef(0);
-  useEffect(() => {
-    if (to === null || reducedMotion() || typeof requestAnimationFrame !== "function") {
-      setV(to);
-      return;
-    }
-    const start = performance.now();
-    const a = from.current;
-    let raf = 0;
-    const step = (t: number) => {
-      const k = Math.min(1, (t - start) / ms);
-      const e = 1 - Math.pow(1 - k, 3);
-      const n = a + (to - a) * e;
-      from.current = n;
-      setV(n);
-      if (k < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [to, ms]);
-  return v;
-}
-
 /** Each element stagger-rises in by its index. */
 const rise = (i: number) => ({ "--i": i }) as React.CSSProperties;
 
-/* ── the face-off ── */
+/** "Tyrone Tracy Jr." → "Tracy"; a defence keeps its name's last word ("D/ST"). */
+const surname = (name: string) => {
+  const w = name.split(/\s+/).filter((x) => !/^(jr|sr|ii|iii|iv|v)\.?$/i.test(x));
+  return w[w.length - 1] ?? name;
+};
 
-function FaceOff({ board, status }: { board: GreenBoard | null; status: GreenStatus }) {
-  const cv = useRef<HTMLCanvasElement>(null);
-  const m = board?.matchup ?? null;
-  const win = m?.win ?? null;
-  const spec = useMemo(() => winSpec(win), [win]);
-  useViz(cv, spec);
+/* ── the stadium: the scoreboard over the stands, the starters on the turf ── */
+
+interface Man {
+  tok: Tok;
+  p: GreenPlayer | null;
+  pts: number;
+  mine: boolean;
+  risk: boolean;
+}
+
+/** Both teams' starters as the stadium draws them: what each has scored, what FantasyPros still has him for, his mark. */
+function lineups(board: GreenBoard | null): { mine: Man[]; theirs: Man[] } {
+  if (!board) return { mine: [], theirs: [] };
+  const m = board.matchup;
   const live = !!m?.live;
-  const mine = useCount(m ? (live ? m.me.pts : m.me.proj) : null);
-  const theirs = useCount(m?.them ? (live ? m.them.pts : m.them.proj) : null);
-  // The ball starts at midfield and runs to the win chance once the page is up.
-  const [kicked, setKicked] = useState(false);
-  useEffect(() => {
-    const t = window.setTimeout(() => setKicked(true), 260);
-    return () => window.clearTimeout(t);
-  }, []);
-  if (!board || !m) {
-    const why =
-      status === "idle"
-        ? "Reading the league…"
-        : status === "failed"
-          ? "Sleeper isn't answering. Trying again every two minutes."
-          : status === "absent"
-            ? "No team of yours in this league."
-            : status === "off"
-              ? "Not connected here."
-              : `No game on the board in week ${board?.week ?? "–"}.`;
-    return (
-      <section className="gd-fo is-empty gd-rise" style={rise(1)} aria-label="This week's matchup">
-        <p className="gd-fo-empty">{why}</p>
-        <div className="gd-field" aria-hidden="true">
-          <canvas ref={cv} className="gd-field-thread" />
-        </div>
-      </section>
-    );
-  }
-  const them = m.them;
-  const yd = win === null ? null : yardLine(win);
-  const label = `Week ${m.week}. Projected ${pts(m.me.proj)} to ${them ? pts(them.proj) : "a bye"}. Live ${pts(m.me.pts)} to ${them ? pts(them.pts) : "–"}.${win !== null ? ` Win chance ${pct(win)}.` : ""}`;
-  const ball = kicked && yd ? yd.x : 0.5;
+  const calls = board.calls ?? [];
+  const outs = new Set(calls.filter((c) => c.change).map((c) => c.sit.id));
+  const risks = new Set(calls.filter((c) => c.lateRisk).map((c) => c.sit.id));
+  const man = (s: GreenSlot, i: number, mine: boolean): Man => {
+    const p = s.player;
+    const state: TokState = !p ? "empty" : onBye(p, board.week) ? "bye" : p.inj && ["O", "IR", "SUS"].includes(p.inj) ? "out" : mine && outs.has(p.id) ? "sit" : "";
+    const scored = live ? Math.max(0, s.pts) : 0;
+    const proj = p ? (fpPts(p) ?? p.sl ?? 0) : 0;
+    return { tok: { id: p?.id ?? `${mine ? "m" : "t"}-${i}`, slot: s.slot, pos: p?.pos ?? s.slot, banked: scored, proj: Math.max(scored, proj), state }, p, pts: s.pts, mine, risk: !!p && risks.has(p.id) };
+  };
+  return {
+    mine: board.roster.starters.map((s, i) => man(s, i, true)),
+    theirs: (m?.them?.starters ?? []).map((s, i) => man(s, i, false)),
+  };
+}
+
+const MARK_WORD: Record<TokState, string> = { "": "", sit: "FantasyPros sits him", bye: "on bye", out: "out", empty: "empty" };
+
+function Token({ man, mode, along, across, live, week, i, hot }: { man: Man; mode: Mode; along: number; across: number; live: boolean; week: number; i: number; hot: boolean }) {
+  const at = place(mode, along, across);
+  const { p, tok, mine } = man;
+  const shown = live ? man.pts : tok.proj;
+  const what = p ? `${tok.slot} ${p.name}${tok.state ? `, ${tok.state === "out" && p.inj ? INJ_WORD[p.inj] : MARK_WORD[tok.state]}` : ""}: ${live ? `${pts(man.pts)} scored, ` : ""}FantasyPros ${pts(fpPts(p))}${man.risk ? " (late-game risk)" : ""}` : `${tok.slot}: empty`;
   return (
-    <section className={`gd-fo gd-rise${live ? " is-live" : ""}`} style={rise(1)} aria-label={label}>
-      <div className="gd-fo-row" aria-hidden="true">
-        <div className="gd-fo-side is-me">
-          <TeamBadge name={m.me.team} me />
-          <span>
-            <b>{m.me.team}</b>
-            <small>
-              {m.me.record}
-              {board.me.rank ? ` · ${ordinal(board.me.rank)} of ${board.league.teams}` : ""}
-            </small>
-          </span>
-        </div>
-        <div className="gd-fo-mid">
-          <p className="gd-fo-state">
-            {live ? (
-              <>
-                <i className="gd-dot" /> Live
-              </>
-            ) : (
-              `Week ${m.week} · projected`
-            )}
-          </p>
-          <p className="gd-fo-score">
-            <b className="is-me">{pts(mine)}</b>
-            <i>–</i>
-            <b>{them ? pts(theirs) : "–"}</b>
-          </p>
-          <small>{live ? `Projected ${pts(m.me.proj)} – ${them ? pts(them.proj) : "–"}` : "Live score from kickoff"}</small>
-        </div>
-        <div className="gd-fo-side is-them">
-          <span>
-            <b>{them?.team ?? "Bye week"}</b>
-            <small>{them?.record ?? ""}</small>
-          </span>
-          {them && <TeamBadge name={them.team} />}
-        </div>
-      </div>
-      <div className="gd-field" aria-hidden="true">
-        <span className="gd-field-ez is-me">{initials(m.me.team)}</span>
-        <span className="gd-field-yards">
-          {[10, 20, 30, 40, 50, 40, 30, 20, 10].map((n, i) => (
-            <i key={i}>{n}</i>
-          ))}
+    <li
+      className={`gd-tok ${mine ? "is-mine" : "is-theirs"}${hot ? " is-hot" : ""}`}
+      data-mark={tok.state || undefined}
+      data-risk={man.risk || undefined}
+      style={{ left: `${(at.x * 100).toFixed(2)}%`, top: `${(at.y * 100).toFixed(2)}%`, "--k": at.s.toFixed(3), "--d": `${i * 55}ms` } as React.CSSProperties}
+      title={what}
+    >
+      <span className="gd-tok-in">
+        {p ? <Face p={p} size={mine ? 42 : 34} /> : <span className="gd-face is-empty" style={{ "--s": `${mine ? 42 : 34}px` } as React.CSSProperties} />}
+        <span className="gd-tok-t">
+          <b>{p ? pts(shown) : "–"}</b>
+          <small>
+            <i>{/FLEX/.test(tok.slot) ? "FX" : tok.slot}</i>
+            {p ? ` ${surname(p.name)}` : ""}
+          </small>
         </span>
-        <span className="gd-field-ez is-them">{them ? initials(them.team) : "–"}</span>
-        <canvas ref={cv} className="gd-field-thread" />
-        {yd && (
-          <span className="gd-ball" style={{ "--x": ball } as React.CSSProperties}>
-            <b>{pct(win!)}</b>
-          </span>
+        {mine && tok.state === "sit" && <em className="gd-tok-mk">Sit</em>}
+        {tok.state === "bye" && <em className="gd-tok-mk">Bye</em>}
+        {tok.state === "out" && p?.inj && <em className="gd-tok-mk is-out">{p.inj}</em>}
+        {!tok.state && p && onBye(p, week) && <em className="gd-tok-mk">Bye</em>}
+      </span>
+      <span className="gd-sr">{what}</span>
+    </li>
+  );
+}
+
+const LIME = RC.green ?? "172,200,114";
+
+function Stadium({ board, status, onLineup }: { board: GreenBoard | null; status: GreenStatus; onLineup: () => void }) {
+  const fieldCv = useRef<HTMLCanvasElement>(null);
+  const stage = useRef<HTMLElement>(null);
+  const pitch = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<Mode>(() => (typeof window !== "undefined" ? modeFor(window.innerWidth) : "wide"));
+  const [hot, setHot] = useState<string | null>(null);
+  useEffect(() => {
+    const on = () => setMode(modeFor(window.innerWidth));
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  const m = board?.matchup ?? null;
+  const live = !!m?.live;
+  const win = m?.win ?? null;
+  const ups = useMemo(() => lineups(board), [board]);
+  // Only what the lines are drawn from: a fresh poll with the same numbers leaves the stadium alone.
+  const key = JSON.stringify([live, win, mode, ups.mine.map((x) => x.tok), ups.theirs.map((x) => x.tok)]);
+  const spotsMine = useMemo(() => formation(ups.mine.map((x) => x.tok), "mine"), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const spotsTheirs = useMemo(() => formation(ups.theirs.map((x) => x.tok), "theirs"), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Each starter is a line from his spot on the turf up into his team's score: as many particles as his share of the
+  // week's points, a knot where his scored points stand against his projection. A man on bye or out is a waiting line.
+  const layout = useCallback<FlowLayoutFn>(
+    ({ W, H, rel }) => {
+      const el = stage.current;
+      const pb = pitch.current;
+      if (!el || !pb) return { lines: [] };
+      const box = rel(pb);
+      const fc = fieldCv.current;
+      if (fc) paintField(fc, mode, box, W, H, LIME);
+      const target = (who: "me" | "them") => {
+        const t = el.querySelector(`[data-gd-score="${who}"]`);
+        if (!t) return null;
+        const q = rel(t);
+        return { x: q.x + q.w / 2, y: q.y + q.h * 0.92, w: q.w };
+      };
+      const tMe = target("me");
+      const tThem = target("them");
+      const all = [...ups.mine.map((x, i) => ({ x, s: spotsMine[i]! })), ...ups.theirs.map((x, i) => ({ x, s: spotsTheirs[i]! }))];
+      const peak = Math.max(8, ...all.map(({ x }) => Math.max(x.tok.proj, x.tok.banked)));
+      const lines: FlowLine[] = [];
+      all.forEach(({ x, s }, i) => {
+        const t = x.tok;
+        const tg = x.mine ? tMe : tThem;
+        if (!tg || t.state === "empty") return;
+        const p = place(mode, s.along, s.across);
+        const ax = box.x + p.x * box.w;
+        const ay = box.y + p.y * box.h;
+        const tx = tg.x + ((i % 5) - 2) * tg.w * 0.06;
+        const ty = tg.y;
+        const lift = Math.max(40, (ay - ty) * 0.5);
+        const v = Math.max(t.proj, t.banked);
+        const off = t.state === "bye" || t.state === "out";
+        lines.push({
+          id: t.id,
+          path: { cubic: [[ax, ay - 8 * p.s], [ax + (tx - ax) * 0.08, ay - lift], [tx + (ax - tx) * 0.25, ty + Math.max(30, (ay - ty) * 0.35)], [tx, ty]] },
+          rgb: x.mine ? LIME : "200,206,220",
+          // Half the kit's full density: sixteen lines share one stage, and a laptop stays smooth.
+          density: off ? 0 : clamp(v / peak, 0.06, 1) * 0.45,
+          bright: x.mine ? 0.9 : 0.5,
+          rate: x.mine ? 30 : 22,
+          spread: 1.6,
+          waiting: off || v <= 0,
+          knots: t.banked > 0 && v > 0 ? [clamp(t.banked / v, 0.02, 1)] : [],
+          bed: x.mine ? 0.12 : 0.06,
+        });
+      });
+      // The line of scrimmage, across the field at the win chance.
+      if (win !== null) {
+        const u = yardAt(win * 100);
+        const via: [number, number][] = [];
+        for (let k = 0; k <= 12; k++) {
+          const q = place(mode, u, k / 12);
+          via.push([box.x + q.x * box.w, box.y + q.y * box.h]);
+        }
+        lines.push({ id: "los", path: { via, smooth: false }, rgb: LIME, density: 0.5, bright: 1, rate: 16, spread: 1, bed: 0.5 });
+      }
+      return { lines };
+    },
+    [key, ups, spotsMine, spotsTheirs, mode, win], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const { cv, field, bind } = useFlow(layout, {
+    accent: LIME,
+    backing: 160_000,
+    ground: true,
+    onHover: (id) => setHot(id),
+    onPick: (id) => id !== "los" && onLineup(),
+  });
+  // The scores' width settles once Bodoni has loaded: lay the lines again then.
+  useEffect(() => {
+    void document.fonts?.ready.then(() => field.relayout());
+  }, [field]);
+  // New points since the last poll: a packet runs that man's line and the points rise off his team's score.
+  const last = useRef<Map<string, number> | null>(null);
+  useEffect(() => {
+    const now = new Map([...ups.mine, ...ups.theirs].map((x) => [x.tok.id, x.tok.banked]));
+    const was = last.current;
+    last.current = now;
+    if (!was || !live) return;
+    for (const x of [...ups.mine, ...ups.theirs]) {
+      const gain = x.tok.banked - (was.get(x.tok.id) ?? x.tok.banked);
+      if (gain < 0.05) continue;
+      field.pulse(x.tok.id);
+      if (x.p) field.rise(`+${gain.toFixed(1)} ${surname(x.p.name)}`, { at: x.tok.id });
+    }
+  }, [ups, live, field]);
+
+  const yd = win === null ? null : yardLine(win);
+  // The line's label sits over the far sideline; on a phone the scoreboard above already says it.
+  const los = win === null || mode === "tall" ? null : place(mode, yardAt(win * 100), 0);
+  const them = m?.them ?? null;
+  const mine = m ? (live ? m.me.pts : m.me.proj) : null;
+  const theirs = m?.them ? (live ? m.them.pts : m.them.proj) : null;
+  const why =
+    status === "idle"
+      ? "Reading the league…"
+      : status === "failed"
+        ? "Sleeper isn't answering. Trying again every two minutes."
+        : status === "absent"
+          ? "No team of yours in this league."
+          : status === "off"
+            ? "Not connected here."
+            : `No game on the board in week ${board?.week ?? "–"}.`;
+  const label = m ? `Week ${m.week}. Projected ${pts(m.me.proj)} to ${them ? pts(them.proj) : "a bye"}. Live ${pts(m.me.pts)} to ${them ? pts(them.pts) : "–"}.${win !== null ? ` Win chance ${pct(win)}.` : ""}` : why;
+
+  return (
+    <section ref={stage} className={`fl-stage gd-stage is-${mode}${live ? " is-live" : ""}`} aria-label={`This week's matchup. ${label}`} {...bind}>
+      <canvas ref={cv} className="fl-cv" aria-hidden="true" />
+      <canvas ref={fieldCv} className="fl-cv gd-field" aria-hidden="true" />
+      <div className="gd-board">
+        <p className="fl-eyb gd-eyb">
+          <span>{m ? (live ? "Live" : "Kickoff to come") : "The Green"}</span>
+          <i aria-hidden="true" />
+          {m ? `Week ${m.week}` : board ? `Week ${board.week}` : "Under the floodlights"}
+          {board && (
+            <>
+              <i aria-hidden="true" />
+              {board.league.name}
+            </>
+          )}
+        </p>
+        {m ? (
+          <div className="gd-sb" aria-hidden="true">
+            <div className="gd-sb-side is-me">
+              <b>{m.me.team}</b>
+              <small>
+                {m.me.record}
+                {board?.me.rank ? ` · ${ordinal(board.me.rank)} of ${board.league.teams}` : ""}
+              </small>
+            </div>
+            <b className="gd-sb-n fl-num is-me" data-gd-score="me">
+              {pts(mine)}
+            </b>
+            <span className="gd-sb-mid">
+              {win !== null ? (
+                <>
+                  <b>{pct(win)}</b>
+                  <small>to win</small>
+                </>
+              ) : (
+                <small>{them ? "versus" : "a bye"}</small>
+              )}
+            </span>
+            <b className="gd-sb-n fl-num" data-gd-score="them">
+              {them ? pts(theirs) : "–"}
+            </b>
+            <div className="gd-sb-side is-them">
+              <b>{them?.team ?? "Bye week"}</b>
+              <small>{them?.record ?? ""}</small>
+            </div>
+          </div>
+        ) : (
+          <p className="gd-sb-empty fl-wait">{why}</p>
+        )}
+        {m && (
+          <p className="gd-sb-sub" aria-hidden="true">
+            {live ? `Projected ${pts(m.me.proj)} – ${them ? pts(them.proj) : "–"}` : "Projected · live from kickoff"}
+            {yd && <> · {yd.words.toLowerCase()}</>}
+          </p>
         )}
       </div>
-      <p className="gd-fo-foot" aria-hidden="true">
-        {yd ? (
-          <>
-            <b>{pct(win!)}</b> to win · {yd.words.toLowerCase()}
-          </>
-        ) : them ? (
-          "Win chance at kickoff"
-        ) : (
-          "A week off"
+      <div className="gd-pitch" ref={pitch}>
+        {los && yd && (
+          <span className="gd-los" style={{ left: `${(los.x * 100).toFixed(2)}%`, top: `${(los.y * 100).toFixed(2)}%` } as React.CSSProperties} aria-hidden="true">
+            line of scrimmage · <b>{pct(win!)}</b>
+          </span>
         )}
-      </p>
+        {board && (
+          <>
+            <ol className="gd-turf" aria-label={`Your starters, ${board.me.team}`}>
+              {ups.mine.map((x, i) => (
+                <Token key={`m${i}`} man={x} mode={mode} along={spotsMine[i]!.along} across={spotsMine[i]!.across} live={live} week={board.week} i={i} hot={hot === x.tok.id} />
+              ))}
+            </ol>
+            {ups.theirs.length > 0 && (
+              <ol className="gd-turf" aria-label={`Their starters, ${them?.team ?? ""}`}>
+                {ups.theirs.map((x, i) => (
+                  <Token key={`t${i}`} man={x} mode={mode} along={spotsTheirs[i]!.along} across={spotsTheirs[i]!.across} live={live} week={board.week} i={i + ups.mine.length} hot={hot === x.tok.id} />
+                ))}
+              </ol>
+            )}
+          </>
+        )}
+      </div>
+      {board && (
+        <p className="gd-key" aria-hidden="true">
+          <i className="is-line" /> each line is a starter&rsquo;s points, running up into his team&rsquo;s score
+          {live && (
+            <>
+              <i className="is-b" /> the knot: what he has scored against his projection
+            </>
+          )}
+        </p>
+      )}
     </section>
+  );
+}
+
+/** The week's ledger: four plain figures under the rule, Today's readout in the Green's light. */
+function Ledger({ board }: { board: GreenBoard }) {
+  const m = board.matchup;
+  const o = board.odds;
+  return (
+    <dl className="fl-ledger gd-ledger">
+      <div className="is-hot">
+        <dt>Win chance</dt>
+        <dd>{m?.win != null ? pct(m.win) : "–"}</dd>
+      </div>
+      <div>
+        <dt>Projected</dt>
+        <dd>
+          {m ? pts(m.me.proj) : "–"}
+          {m?.them && <small> to {pts(m.them.proj)}</small>}
+        </dd>
+      </div>
+      <div>
+        <dt>In the table</dt>
+        <dd>
+          {board.me.rank ? ordinal(board.me.rank) : "–"}
+          <small> of {board.league.teams}</small>
+        </dd>
+      </div>
+      <div>
+        <dt>Playoffs</dt>
+        <dd>{o ? pct(o.playoff) : "–"}</dd>
+      </div>
+    </dl>
   );
 }
 
@@ -378,8 +508,9 @@ function FaceOff({ board, status }: { board: GreenBoard | null; status: GreenSta
 function Duelist({ p, week, role }: { p: GreenPlayer; week: number; role: "start" | "sit" }) {
   return (
     <span className={`gd-du is-${role}`}>
-      <Face p={p} size={role === "start" ? 58 : 40} />
+      <Face p={p} size={role === "start" ? 56 : 42} />
       <span className="gd-du-t">
+        <small className="gd-du-role">{role === "start" ? "Start" : "Over"}</small>
         <b>{p.name}</b>
         <small>
           <Logo team={p.team} />
@@ -391,15 +522,27 @@ function Duelist({ p, week, role }: { p: GreenPlayer; week: number; role: "start
   );
 }
 
-function CallCard({ c, week, fp, i }: { c: GreenCall; week: number; fp: boolean; i: number }) {
+function CallRow({ c, week, fp, i, most }: { c: GreenCall; week: number; fp: boolean; i: number; most: number }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const sl = c.sleeper;
+  const edge = Math.abs(c.edge);
   return (
     <li className={`gd-cl gd-rise${c.change ? " is-change" : ""}${c.lateRisk ? " is-risk" : ""}`} style={rise(i + 2)}>
-      <header className="gd-cl-head">
-        <span className="gd-cl-slot">{c.slot}</span>
-        <span className="gd-cl-verb">{c.change ? "Start" : "Keep"}</span>
+      <span className="gd-cl-slot">
+        <b>{c.slot}</b>
+        <small>{c.change ? "Change" : "Keep"}</small>
+      </span>
+      <Duelist p={c.start} week={week} role="start" />
+      <span className="gd-cl-edge" title={`${fp ? "FantasyPros" : "Form"} has the start ${pts(edge)} points ahead`}>
+        <b>+{pts(edge)}</b>
+        <i aria-hidden="true">
+          <i style={{ width: `${Math.max(6, (edge / Math.max(most, 1)) * 100)}%` }} />
+        </i>
+        <small>{fp ? "FantasyPros" : "on form"}</small>
+      </span>
+      <Duelist p={c.sit} week={week} role="sit" />
+      <span className="gd-cl-tail">
         <span className="gd-cl-flags">
           {c.lateRisk && (
             <em className="gd-flag is-risk" title={c.lateRisk}>
@@ -408,24 +551,12 @@ function CallCard({ c, week, fp, i }: { c: GreenCall; week: number; fp: boolean;
           )}
           {c.tiebreak && <em className="gd-flag is-tie">Tiebreak</em>}
           {c.split && <em className="gd-flag is-split">Split</em>}
+          <em className={`gd-flag is-sl is-${sl}`}>{sl === "unknown" ? "Sleeper: no projection" : `Sleeper ${sl}`}</em>
         </span>
-      </header>
-      <div className="gd-cl-duel">
-        <Duelist p={c.start} week={week} role="start" />
-        <span className="gd-cl-over" aria-hidden="true">
-          over
-        </span>
-        <Duelist p={c.sit} week={week} role="sit" />
-      </div>
-      <footer className="gd-cl-foot">
-        <span className="gd-cl-edge">
-          <b>+{pts(Math.abs(c.edge))}</b> {fp ? "FantasyPros" : "on form"}
-        </span>
-        <span className={`gd-cl-sl is-${sl}`}>{sl === "unknown" ? "Sleeper: no projection" : `Sleeper ${sl}`}</span>
-        <button type="button" className="gd-cl-why-btn" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+        <button type="button" className="gd-why-btn" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
           {open ? "Less" : "Why"}
         </button>
-      </footer>
+      </span>
       {open && (
         <div className="gd-cl-why" id={id}>
           <p>{c.why}</p>
@@ -440,37 +571,44 @@ function CallCard({ c, week, fp, i }: { c: GreenCall; week: number; fp: boolean;
   );
 }
 
-function Calls({ board }: { board: GreenBoard }) {
+function Calls({ board, onLineup }: { board: GreenBoard; onLineup: () => void }) {
   const calls = board.calls ?? [];
   const changes = calls.filter((c) => c.change).length;
   const risks = calls.filter((c) => c.lateRisk).length;
   const fp = board.sources.calls === "fp";
+  const most = Math.max(...calls.map((c) => Math.abs(c.edge)), 1);
   return (
-    <section className="gd-calls" aria-label="Start or sit">
-      <header className="gd-sh gd-rise" style={rise(2)}>
-        <p className="gd-k">Start / sit · {fp ? "FantasyPros decides" : "form decides while FantasyPros waits"} · byes counted</p>
-        <h2 className="gd-h2">
+    <section className="fl-panel gd-calls" aria-label="Start or sit">
+      <header className="gd-calls-head gd-rise" style={rise(2)}>
+        <h2 className="fl-h2 gd-h2">
           {changes ? (
             <>
               <em>{changes === 1 ? "One change" : `${changes} changes`}</em> to make
             </>
           ) : (
-            "The lineup's set."
+            "The lineup's set"
           )}
         </h2>
-        <p className="gd-note">{calls.length ? `${calls.length} close call${calls.length === 1 ? "" : "s"}${risks ? `, ${risks} with a late-game risk` : ""}.` : "No close calls this week."}</p>
+        <p className="gd-k">
+          Start / sit · {fp ? "FantasyPros decides" : "form decides while FantasyPros waits"} · byes counted
+        </p>
+        <p className="gd-note">
+          {calls.length ? `${calls.length} close call${calls.length === 1 ? "" : "s"}${risks ? `, ${risks} with a late-game risk` : ""}.` : "No close calls this week."}{" "}
+          <button type="button" className="gd-link-btn" onClick={onLineup}>
+            Full lineup and ranks
+          </button>
+        </p>
       </header>
       {calls.length > 0 && (
         <ol className="gd-cl-list">
           {calls.map((c, i) => (
-            <CallCard key={`${c.slot}-${c.start.id}-${c.sit.id}`} c={c} week={board.week} fp={fp} i={i} />
+            <CallRow key={`${c.slot}-${c.start.id}-${c.sit.id}`} c={c} week={board.week} fp={fp} i={i} most={most} />
           ))}
         </ol>
       )}
     </section>
   );
 }
-
 
 /* ── the lineup ── */
 
@@ -979,8 +1117,6 @@ function Moves({ board, now }: { board: GreenBoard; now: number }) {
   );
 }
 
-/* ── the page ── */
-
 /* ── the newsdesk (a drawer now, no longer a ticker) ── */
 
 const WHOSE: Record<GreenNews["whose"], string> = {
@@ -1030,52 +1166,6 @@ function News({ board, now }: { board: GreenBoard; now: number }) {
       ) : (
         <p className="gd-note">Quiet: no news on anyone who matters to you.</p>
       )}
-    </section>
-  );
-}
-
-/* ── the nine: starters as a row of faces ── */
-
-/** "Tyrone Tracy Jr." → "Tracy"; a defence keeps its name's last word ("D/ST"). */
-const surname = (name: string) => {
-  const w = name.split(/\s+/).filter((x) => !/^(jr|sr|ii|iii|iv|v)\.?$/i.test(x));
-  return w[w.length - 1] ?? name;
-};
-
-function Starters({ board, onOpen }: { board: GreenBoard; onOpen: () => void }) {
-  const calls = board.calls ?? [];
-  const outs = new Set(calls.filter((c) => c.change).map((c) => c.sit.id));
-  const risks = new Set(calls.filter((c) => c.lateRisk).map((c) => c.sit.id));
-  return (
-    <section className="gd-nine gd-rise" style={rise(6)} aria-label="Your starters">
-      <header>
-        <p className="gd-k">Your starters · {board.me.team}</p>
-        <button type="button" className="gd-link-btn" onClick={onOpen}>
-          Full lineup and ranks
-        </button>
-      </header>
-      <ol>
-        {board.roster.starters.map((s: GreenSlot, i) => {
-          const p = s.player;
-          const mark = !p ? "empty" : onBye(p, board.week) ? "bye" : p.inj && ["O", "IR", "SUS"].includes(p.inj) ? "out" : outs.has(p.id) ? "sit" : "";
-          return (
-            <li
-              key={i}
-              data-mark={mark || undefined}
-              title={
-                p
-                  ? `${s.slot} · ${p.name}${mark === "sit" ? ": FantasyPros sits him" : mark === "bye" ? ": on bye" : mark === "out" ? `: ${INJ_WORD[p.inj!]}` : ""}${risks.has(p.id) ? " (late-game risk)" : ""}`
-                  : `${s.slot}: empty`
-              }
-            >
-              {p ? <Face p={p} size={44} /> : <span className="gd-face is-empty" style={{ "--s": "44px" } as React.CSSProperties} />}
-              <small>{s.slot}</small>
-              <b>{p ? (s.pts ? pts(s.pts) : pts(fpPts(p))) : "–"}</b>
-              {p && <span className="gd-nine-name">{surname(p.name)}</span>}
-            </li>
-          );
-        })}
-      </ol>
     </section>
   );
 }
@@ -1188,6 +1278,7 @@ function Sources({ board, now }: { board: GreenBoard; now: number }) {
   );
 }
 
+/** The stat rail: one line of the broadcast's numbers, each opening its drawer underneath. */
 function Deeper({ board, now, open, setOpen }: { board: GreenBoard; now: number; open: DeepId | null; setOpen: (d: DeepId | null) => void }) {
   const list = drawers(board, now);
   const cur = list.find((d) => d.id === open) ?? null;
@@ -1206,14 +1297,11 @@ function Deeper({ board, now, open, setOpen }: { board: GreenBoard; now: number;
   }, [open]);
   return (
     <section className="gd-deep gd-rise" style={rise(7)} aria-label="Go deeper">
-      <header className="gd-deep-head">
-        <p className="gd-k">Go deeper</p>
-        <p className="gd-note">Everything else, one drawer at a time.</p>
-      </header>
-      <ul className="gd-tiles">
-        {list.map((d, i) => (
-          <li key={d.id} style={rise(i)}>
-            <button type="button" id={`${base}-${d.id}`} className="gd-tile" aria-expanded={open === d.id} aria-controls={`${base}-panel`} onClick={() => setOpen(open === d.id ? null : d.id)}>
+      <p className="gd-k">Go deeper · one drawer at a time</p>
+      <ul className="gd-rail">
+        {list.map((d) => (
+          <li key={d.id}>
+            <button type="button" id={`${base}-${d.id}`} className="gd-stat" aria-expanded={open === d.id} aria-controls={`${base}-panel`} onClick={() => setOpen(open === d.id ? null : d.id)}>
               <small>{d.k}</small>
               <b>{d.stat}</b>
               <span>{d.label}</span>
@@ -1263,32 +1351,36 @@ export function Green() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
   return (
-    <div className="wv-page rm rm-green gd" data-room="green">
-      <div className="gd-lights" aria-hidden="true" />
-      <header className="rm-head gd-head gd-rise" style={rise(0)}>
+    <div className="wv-page fl-page rm-green gd" data-room="green" style={{ "--fl-accent": LIME } as React.CSSProperties}>
+      <Stadium board={board} status={status} onLineup={() => setOpen("lineup")} />
+
+      <div className="fl-below">
+      <header className="gd-chyron gd-rise" style={rise(1)}>
         <div>
-          <p className="wv-eyb">The Green · {board ? `${board.league.name} · week ${board.week}` : "under the floodlights"}</p>
-          <h1 className="wv-h1 desk__title gd-h1">
+          <p className="fl-eyb">
+            <span>The Green</span>
+            <i aria-hidden="true" />
+            {board ? `${board.league.name} · week ${board.week}` : "Under the floodlights"}
+          </p>
+          <h1 className="fl-h1 gd-h1 desk__title">
             {board ? (
               <>
                 {board.me.team}, <span className="gd-nowrap">{board.me.record}.</span> <em>{headline(board)}</em>
               </>
             ) : (
               <>
-                The pitch is <em>warming up.</em>
+                The Green. <em>The lights are coming up.</em>
               </>
             )}
           </h1>
+          {board && <Ledger board={board} />}
         </div>
-        <Keeper page="green" />
+        <Keeper page="green" className="gd-keeper" />
       </header>
-
-      <FaceOff board={board} status={status} />
 
       {board && (
         <>
-          <Calls board={board} />
-          <Starters board={board} onOpen={() => setOpen("lineup")} />
+          <Calls board={board} onLineup={() => setOpen("lineup")} />
           <Deeper board={board} now={now} open={open} setOpen={setOpen} />
         </>
       )}
@@ -1308,6 +1400,7 @@ export function Green() {
         {board?.stale ? ` Sleeper isn't answering: this is the last good read, ${ago(board.at, now)}.` : ""}
         {!board && status === "ready" ? " Sleeper's public league data." : ""}
       </p>
+      </div>
     </div>
   );
 }

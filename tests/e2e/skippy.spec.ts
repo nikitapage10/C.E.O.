@@ -93,3 +93,32 @@ test("signed out, Skippy's box is off with a sign-in hint", async ({ page }) => 
   await expect(box).toHaveAttribute("placeholder", /Sign in/);
   await expect(chat.getByRole("button", { name: "Sign in" })).toBeVisible();
 });
+
+test("Talk falls back to typing with a plain note when the month's minutes are spent (#434)", async ({ page }) => {
+  await stub(page, true);
+  // A stand-in microphone, so the call gets past the browser's prompt in a headless run.
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async () => new AudioContext().createMediaStreamDestination().stream;
+  });
+  const capped = { month: "2026-10", usedMin: 40, budgetMin: 41.6, leftMin: 1.6, sessionMin: 3, canTalk: false };
+  let starts = 0;
+  await page.route(`${BASE}/api/skippy-voice`, (r) => {
+    if (r.request().method() === "POST") {
+      starts++;
+      return r.fulfill({ json: { ok: false, reason: "capped", usage: capped } });
+    }
+    return r.fulfill({ json: { ready: true, usage: { ...capped, usedMin: 3, canTalk: true } } });
+  });
+  await page.goto(BASE + "/");
+  await page.getByRole("button", { name: "Ask Skippy", exact: true }).first().click();
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  await expect(chat.getByText("3.0 of 41.6 talk min this month")).toBeVisible();
+  const talk = chat.getByRole("button", { name: /live voice call/ });
+  await expect(talk).toBeEnabled();
+  await talk.click();
+  await expect(chat.getByText(/talk minutes are spent/).first()).toBeVisible();
+  // Typing still works, and the call button is off until the month turns.
+  await expect(chat.getByRole("textbox", { name: "Message to Skippy" })).toBeEnabled();
+  await expect(chat.getByRole("button", { name: /talk minutes are spent/ })).toBeDisabled();
+  expect(starts).toBe(1);
+});

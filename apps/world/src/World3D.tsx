@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Suspense } from "react";
+import { useProgress } from "@react-three/drei";
 import { useBoot } from "./boot.ts";
+import { warming } from "./fx/compile.ts";
+import { useStreaming } from "./scene/roomScope.ts";
 import { AchievementDirector } from "./achievements/AchievementDirector.tsx";
 import { DeckDirector } from "./club/DeckDirector.tsx";
 import { EyesHud } from "./eyes/EyesHud.tsx";
@@ -79,6 +82,8 @@ function useDebugApi() {
     Object.assign(api, {
       // Every room streamed in and compiled (scene/streaming.ts; one room on its own: that room): loading is done.
       streamedIn,
+      // What streamedIn is waiting on: models still loading, and streamed parts whose shaders are still compiling.
+      streamWait: () => ({ loading: useProgress.getState().active, compiling: warming.count, ...useStreaming.getState() }),
       // Brogu's eyes: in and out, and where he is (room-local x, z, yaw).
       eyes: {
         enter: enterEyes,

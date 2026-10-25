@@ -1,4 +1,5 @@
-import { Color, type Camera, type Material, type Object3D, type Scene, type WebGLRenderer, type WebGLRenderTarget } from "three";
+import { Color, Matrix4, type Camera, type Material, type Object3D, type Scene, type WebGLRenderer, type WebGLRenderTarget } from "three";
+import { cameraMovedSince } from "../scene/DetailLevels.tsx";
 
 /** The members of n8ao's N8AOPostPass (n8ao 2.x) that this file touches. */
 export interface AOPass {
@@ -55,9 +56,16 @@ export function transparencySets(objects: readonly Drawn[], visible: readonly bo
  *   used to redraw it so the floor's reflection, drawn next frame before the main pass, saw a fresh one; nothing
  *   moves between the main pass and this one, so the main pass's map is the same map. #327: that was a whole
  *   shadow pass every frame.)
+ * - While the camera holds still (the overview's idle drift counts as still: scene/DetailLevels.tsx,
+ *   cameraMovedSince) the two draws are redone every TRANSPARENCY_EVERY frames and the targets keep what they held
+ *   in between (#416). Glass doesn't move, so they hold the same thing; on the whole ring the two draws were some 350
+ *   draw calls a frame. When the camera moves they are redone every frame.
  *
  * Returns a function that puts the pass back the way it was.
  */
+/** How often, in frames, the transparency draws are redone while the camera holds still (#416). */
+export const TRANSPARENCY_EVERY = 2;
+
 export function leanAO(pass: AOPass): () => void {
   const autoDetect = pass.autoDetectTransparency;
   pass.autoDetectTransparency = false;
@@ -69,6 +77,8 @@ export function leanAO(pass: AOPass): () => void {
   const visible: boolean[] = [];
   const clear = new Color();
   const black = new Color(0, 0, 0);
+  const seen = new Matrix4();
+  let drawnAt = -Infinity;
 
   pass.renderTransparency = function (this: AOPass, renderer: WebGLRenderer) {
     const { scene, camera, depthCopyPass: copy } = this;
@@ -76,6 +86,11 @@ export function leanAO(pass: AOPass): () => void {
     const dwTrue = this.transparencyRenderTargetDWTrue;
     // A newer n8ao that no longer looks like this: leave it to its own code.
     if (!copy || !dwFalse || !dwTrue) return original.call(this, renderer);
+    // Still, and drawn a moment ago: the targets still hold this view's glass.
+    const frame = renderer.info.render.frame;
+    if (frame >= drawnAt && frame - drawnAt < TRANSPARENCY_EVERY && !cameraMovedSince(camera.matrixWorld, seen)) return;
+    drawnAt = frame;
+    seen.copy(camera.matrixWorld);
 
     objects.length = 0;
     visible.length = 0;

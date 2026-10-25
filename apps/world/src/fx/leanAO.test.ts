@@ -1,6 +1,6 @@
-import { BufferGeometry, Group, Mesh, MeshBasicMaterial, Scene, type Camera, type WebGLRenderer, type WebGLRenderTarget } from "three";
+import { BufferGeometry, Group, Mesh, MeshBasicMaterial, PerspectiveCamera, Scene, type WebGLRenderer, type WebGLRenderTarget } from "three";
 import { describe, expect, it } from "vitest";
-import { leanAO, transparencySets, type AOPass } from "./leanAO.ts";
+import { TRANSPARENCY_EVERY, leanAO, transparencySets, type AOPass } from "./leanAO.ts";
 
 const mat = (o: { transparent?: boolean; depthWrite?: boolean }) => new MeshBasicMaterial(o);
 
@@ -9,6 +9,7 @@ function fakeRenderer(scene: Scene) {
   const draws: { target: unknown; visible: string[]; autoMatrix: boolean; shadows: boolean }[] = [];
   let target: unknown = null;
   const renderer = {
+    info: { render: { frame: 0 } },
     shadowMap: { autoUpdate: true },
     autoClearDepth: true,
     getClearColor: (c: { set: (v: number) => void }) => (c.set(0x123456), c),
@@ -29,7 +30,7 @@ function fakeRenderer(scene: Scene) {
 function fakePass(scene: Scene): AOPass & { originalCalls: number } {
   const pass = {
     scene,
-    camera: {} as Camera,
+    camera: new PerspectiveCamera(),
     autoDetectTransparency: true,
     configuration: { transparencyAware: false, depthBufferType: 1 },
     depthTexture: "depth",
@@ -111,5 +112,32 @@ describe("leanAO", () => {
     pass.renderTransparency(renderer);
     expect(pass.originalCalls).toBe(1);
     expect(draws).toEqual([]);
+  });
+
+  it("redraws the glass every few frames while the camera holds still, and every frame once it moves (#416)", () => {
+    const scene = world();
+    const pass = fakePass(scene);
+    const { renderer, draws } = fakeRenderer(scene);
+    leanAO(pass);
+    const frames = (n: number) => {
+      const counts: number[] = [];
+      for (let i = 0; i < n; i++) {
+        renderer.info.render.frame++;
+        const before = draws.length;
+        pass.renderTransparency(renderer);
+        counts.push((draws.length - before) / 2);
+      }
+      return counts;
+    };
+    // Still: the first frame draws, then one in every TRANSPARENCY_EVERY.
+    expect(frames(TRANSPARENCY_EVERY * 2)).toEqual([1, 0, 1, 0].slice(0, TRANSPARENCY_EVERY * 2));
+    // Moving: every frame.
+    const moving: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      pass.camera.position.x += 2;
+      pass.camera.updateMatrixWorld();
+      moving.push(...frames(1));
+    }
+    expect(moving).toEqual([1, 1, 1]);
   });
 });

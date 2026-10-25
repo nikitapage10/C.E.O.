@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOfHours, mountainHour } from "./ChronicleHours.tsx";
+import { mountainHour, ThreadedWeek, type Reading } from "./ChronicleHours.tsx";
 import { TideFolio } from "./ChronicleTide.tsx";
-import type { BookLive } from "./chronicleViz.ts";
+import { RC } from "./flow/index.ts";
 import { chronicleDay, dayTitle, hourLabel, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
 import { previousWeek, weekDaysOf, weekStartOf } from "../../../../api/_world/weeks.ts";
 import { Bonds, Chevron, Edition, hoursOf, KIND_WORD, Kin, ROOM_NAME, Shelf, shortDay, WeekTold } from "./ChronicleWeave.tsx";
@@ -43,7 +43,8 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
   const shelfDays = days.filter((d) => d !== today).slice(0, SHELF);
   const want = [...new Set([today, shown, ...weekDays.filter((d) => days.includes(d)), ...shelfDays])].join(",");
   const dayRef = useRef<HTMLElement>(null);
-  const live = useRef<BookLive>({ hover: -1, read: [], pr: 0, on: false });
+  // What Skippy's reading has reached, which lights that room's thread in the week above.
+  const [reading, setReading] = useState<Reading | null>(null);
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -86,46 +87,71 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
   const dateLine = new Date(Date.UTC(y!, m! - 1, d!, 12)).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
   const idx = days.indexOf(shown);
 
-  return (
-    <div className="chron wv-page ax" data-room="archive" style={{ "--tone": "var(--room-archive)" } as React.CSSProperties}>
-      <header className="ax-mast">
-        <div className="ax-mast-t">
-          <p className="ax-k">The Archive · {dateLine}</p>
-          <h1 className="desk__title ax-title">
-            <span className="ax-title-a">The Chronicle</span> <span className="ax-title-of">of Ilyr</span>
-          </h1>
-          <p className="ax-lead">{lead}</p>
+  const head = (
+    <>
+      <p className="fl-eyb">
+        <span>The Archive</span>
+        <i />
+        {dateLine}
+      </p>
+      <h1 className="fl-h1 ax-h1">
+        The Chronicle <em>of Ilyr</em>
+      </h1>
+      <p className="fl-say">{lead}</p>
+      <dl className="fl-ledger ax-ledger" aria-label="The Archive at a glance">
+        <div>
+          <dt>Last step</dt>
+          <dd>{feed?.at ? <>{formatWait(now - Date.parse(feed.at))} <small>ago</small></> : <span className="fl-wait">{status === "off" ? "not saved yet" : "not yet"}</span>}</dd>
         </div>
-        <dl className="ax-label" aria-label="The Archive at a glance">
-          <div>
-            <dt>Last step</dt>
-            <dd>{feed?.at ? `${formatWait(now - Date.parse(feed.at))} ago` : status === "off" ? "Not saved yet" : "Not yet"}</dd>
-          </div>
-          <div>
-            <dt>Next step</dt>
-            <dd>{feed?.nextAt ? nextIn(Date.parse(feed.nextAt) - now) : "Not scheduled"}</dd>
-          </div>
-          <div>
-            <dt>Today so far</dt>
-            <dd>{todays.length ? `${todays.length} ${todays.length === 1 ? "hour" : "hours"}` : "None yet"}</dd>
-          </div>
-          <div>
-            <dt>On file</dt>
-            <dd>{feed ? `${feed.days.length} ${feed.days.length === 1 ? "day" : "days"}` : "…"}</dd>
-          </div>
-        </dl>
-      </header>
+        <div>
+          <dt>Next step</dt>
+          <dd>{feed?.nextAt ? <NextIn ms={Date.parse(feed.nextAt) - now} /> : <span className="fl-wait">not scheduled</span>}</dd>
+        </div>
+        <div className={todays.length ? "is-hot" : undefined}>
+          <dt>Today so far</dt>
+          <dd>
+            {todays.length} <small>{todays.length === 1 ? "hour" : "hours"}</small>
+          </dd>
+        </div>
+        <div>
+          <dt>On file</dt>
+          <dd>
+            {feed ? feed.days.length : "…"} <small>{feed?.days.length === 1 ? "day" : "days"}</small>
+          </dd>
+        </div>
+      </dl>
+    </>
+  );
+
+  return (
+    <div className="chron wv-page fl-page ax" data-room="archive" style={{ "--tone": "var(--room-archive)", "--fl-accent": RC.archive } as React.CSSProperties}>
+      <ThreadedWeek
+        head={head}
+        monday={week}
+        shown={shown}
+        today={today}
+        now={now}
+        days={days}
+        pages={pages}
+        recent={recent}
+        waiting={status === "off"}
+        latestStep={feed?.step ?? null}
+        reading={reading}
+        onPick={pick}
+        onWeek={(x) => pick(x)}
+        prevWeek={prevWeek}
+        nextWeek={nextWeek}
+      />
 
       <div className="ax-hero">
         {status === "ready" || todays.length ? (
-          <Edition today={today} yesterday={yesterday} entries={todays} hourNow={mountainHour(now)} live={live} />
+          <Edition today={today} yesterday={yesterday} entries={todays} hourNow={mountainHour(now)} onRead={setReading} />
         ) : (
           <section className="ax-ed ax-ed-off">
-            <p className="ax-k">Today in Ilyr</p>
+            <p className="fl-k">Today in Ilyr</p>
             <p className="wv-note">{status === "off" ? "No pages yet. Today in Ilyr appears here once the world takes its first step." : status === "failed" ? "Can't reach the Archive right now." : "Turning the pages…"}</p>
           </section>
         )}
-        <BookOfHours monday={week} shown={shown} today={today} now={now} days={days} pages={pages} recent={recent} live={live} onPick={pick} onWeek={(x) => pick(x)} prevWeek={prevWeek} nextWeek={nextWeek} />
         <WeekTold weeks={weeks} monday={week} written={weekEntries.length > 0} />
       </div>
 
@@ -361,6 +387,16 @@ function Hour({ e, fresh, i, picked }: { e: HistoryEntry; fresh: boolean; i: num
         </div>
       )}
     </li>
+  );
+}
+
+/** The ledger's next step: the minutes in Bodoni, the words small. */
+function NextIn({ ms }: { ms: number }) {
+  if (ms <= 60_000) return <small>any minute</small>;
+  return (
+    <>
+      <small>in</small> {Math.round(ms / 60_000)} <small>min</small>
+    </>
   );
 }
 

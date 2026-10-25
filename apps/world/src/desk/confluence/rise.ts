@@ -8,6 +8,7 @@ import { useRoomFeed, type FeedEvent } from "../skippy/roomFeed.ts";
 import { RC } from "../wvCanvas.ts";
 import { GOLD } from "./stage.ts";
 import { RISES } from "./sand.ts";
+import { safeTitle } from "../flow/rise.ts";
 
 /**
  * What makes words rise on Today (#413): only real events, said in neutral words. When Today opens, the Council
@@ -19,12 +20,7 @@ import { RISES } from "./sand.ts";
  * sand.ts.
  */
 
-/** A post's title, when it is safe to float over the page: short, and nothing that looks like money, a contact or a key. */
-export function safeTitle(title: string): string | null {
-  const t = title.replace(/\s+/g, " ").trim();
-  if (!t || /[$€£¥@]|https?:|www\.|\d{4,}|\b\d+[.,]\d{2}\b|key|token|password|secret/i.test(t)) return null;
-  return t.length > 34 ? `${t.slice(0, 33).trimEnd()}…` : t;
-}
+export { safeTitle } from "../flow/rise.ts";
 
 export const shippedLine = (c: Change) => (c.issue ? `shipped #${c.issue.number}` : "shipped a change");
 

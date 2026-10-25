@@ -49,7 +49,7 @@ jobs:
         run: |
           run=true
           if [ "$SUITE" = lattice ] && [ "$EVENT" = pull_request ]; then
-            if ! git diff --name-only "$BASE"...HEAD | grep -vqE '^(apps/world/src/desk/|api/|docs/|lore/|tests/e2e/(headers|skippy|undo)\.spec\.ts$|.*\.md$)'; then
+            if ! git diff --name-only "$BASE"...HEAD | grep -vqE '^(apps/world/src/desk/|api/|docs/|lore/|tests/e2e/(headers|skippy|undo|flow)\.spec\.ts$|.*\.md$)'; then
               run=false
               echo "Nothing the Lattice uses changed; skipping its suite."
             fi
@@ -71,7 +71,7 @@ jobs:
           SUITE: ${{ matrix.suite }}
         run: |
           if [ "$SUITE" = lattice ]; then npm run test:e2e -- tests/e2e/lattice.spec.ts
-          else npm run test:e2e -- tests/e2e/headers.spec.ts tests/e2e/skippy.spec.ts tests/e2e/undo.spec.ts; fi
+          else npm run test:e2e -- tests/e2e/headers.spec.ts tests/e2e/skippy.spec.ts tests/e2e/undo.spec.ts tests/e2e/flow.spec.ts; fi
       - name: Keep what the failing tests saw
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -1,48 +1,34 @@
 /*
- * The Archive (#388): the Chronicle of Ilyr as a dark codex in a museum vitrine. The page steps out of the Desk's
- * centred column (scoped to .ax, the shared shell untouched) and runs edge to edge: a title page across the top, Today
- * in Ilyr set as a codex column beside the Book of Hours (the week as a page of ink motes, the page's one living
- * particle piece), the cast's telling of the week as a band, the shown day unrolled as a scroll beside the bonds and
- * the case of past days, and the Tide as a folio. Cinzel for titles and labels, Crimson Pro for everything read;
- * Historian violet is the one accent. Loaded with the Archive's own chunk. Every entrance sits under
- * prefers-reduced-motion: no-preference; without it the page is still.
+ * The Archive (#431, on the Desk's flow kit): Today's language, Historian violet as --fl-accent. The kit (desk/flow/
+ * flow.css) brings the type (Bodoni Moda for display and figures, Jost for text), the horizon, the eyebrow, the
+ * ledger and the stage; this file adds the Archive's own: the Book of Hours, threaded (the week as rows of hours, the
+ * rooms' days as particle lines, drawn on the stage's canvas), and the pieces under it (Today in Ilyr, the cast's
+ * telling, the day hour by hour, bonds, the case, the Tide). Everything is scoped to .ax.
  */
-.desk .wv-page.ax,
-.desk .desk__main > .wv-page.ax,
-.desk .desk__main > div > .wv-page.ax {
-  max-width: none;
-  margin: 0;
-  padding: 0 0 72px;
-}
 .desk .ax {
-  --ax-v: var(--rc-archive);
-  --ax-vr: 168, 144, 226;
-  --ax-v-dim: rgba(var(--ax-vr), 0.62);
+  --ax-v: var(--fl-hi);
+  --ax-vr: var(--fl-accent);
+  --ax-v-dim: rgba(var(--ax-vr), 0.72);
   --ax-v-line: rgba(var(--ax-vr), 0.24);
   --ax-v-bg: rgba(var(--ax-vr), 0.07);
-  --ax-ink: #eeeaf5;
-  --ax-soft: #c3bdd0;
-  --ax-mute: #948da3;
-  --ax-faint: #6a6479;
-  --ax-line: rgba(238, 234, 245, 0.09);
-  --ax-line2: rgba(238, 234, 245, 0.17);
-  --ax-disp: "Cinzel Variable", "Cinzel", "Trajan Pro", Georgia, serif;
-  --ax-text: "Crimson Pro Variable", "Crimson Pro", Georgia, "Times New Roman", serif;
-  --ax-pad: clamp(16px, 3.4vw, 64px);
-  position: relative;
-  isolation: isolate;
-  font-family: var(--ax-text);
-  font-size: 18px;
+  --ax-ink: var(--wv-ink);
+  --ax-soft: var(--wv-soft);
+  --ax-mute: var(--wv-mute);
+  --ax-faint: var(--wv-faint);
+  --ax-line: var(--wv-line);
+  --ax-line2: var(--wv-line2);
+  /* Labels in Jost caps (the kit's eyebrow), reading in Jost, headings and figures in Bodoni. */
+  --ax-disp: var(--fl-text);
+  --ax-text: var(--fl-text);
+  --ax-serif: var(--fl-disp);
+  --ax-pad: var(--fl-pad);
+  font-size: 17px;
   color: var(--ax-soft);
-  background:
-    radial-gradient(70% 520px at 72% 0%, rgba(var(--ax-vr), 0.075), transparent 70%),
-    radial-gradient(50% 420px at 0% 40%, rgba(var(--ax-vr), 0.035), transparent 70%);
 }
-.desk .ax > * {
+.desk .ax > :not(.fl-stage) {
   padding-left: var(--ax-pad);
   padding-right: var(--ax-pad);
 }
-
 /* ---- shared bits ---- */
 .desk .ax-k {
   margin: 0 0 10px;
@@ -157,119 +143,6 @@
 /* kinetic type: each word settles into place as its line comes into view */
 .desk .ax-w {
   display: inline-block;
-}
-
-/* ---- the title page ---- */
-.desk .ax-mast {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 24px clamp(24px, 4vw, 72px);
-  padding-top: 30px;
-  padding-bottom: 26px;
-  border-bottom: 1px solid var(--ax-line);
-}
-.desk .ax .ax-title {
-  margin: 0;
-  font-family: var(--ax-disp);
-  font-size-adjust: none;
-  font-weight: 500;
-  font-size: clamp(42px, 6.4vw, 118px);
-  line-height: 0.94;
-  letter-spacing: 0.01em;
-  color: var(--ax-ink);
-  text-wrap: balance;
-}
-.desk .ax-title > span {
-  display: inline-block;
-  transform-origin: 0 50%;
-}
-.desk .ax-title-of {
-  font-weight: 400;
-  color: var(--ax-v);
-  text-shadow: 0 0 48px rgba(var(--ax-vr), 0.35);
-}
-.desk .ax-lead {
-  margin: 16px 0 0;
-  max-width: 54ch;
-  font-size: clamp(19px, 1.45vw, 23px);
-  font-style: italic;
-  line-height: 1.4;
-  color: var(--ax-soft);
-}
-/* The at-a-glance label: a vitrine's card, four plain facts. */
-.desk .ax-label {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(140px, auto));
-  margin: 0;
-  border: 1px solid var(--ax-line2);
-  background: rgba(14, 12, 20, 0.72);
-}
-.desk .ax-label > div {
-  padding: 12px 18px 13px;
-  border-left: 1px solid var(--ax-line);
-  border-top: 1px solid var(--ax-line);
-}
-.desk .ax-label > div:nth-child(odd) {
-  border-left: 0;
-}
-.desk .ax-label > div:nth-child(-n + 2) {
-  border-top: 0;
-}
-.desk .ax-label dt {
-  font-family: var(--ax-disp);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--ax-faint);
-}
-.desk .ax-label dd {
-  margin: 4px 0 0;
-  font-size: 22px;
-  line-height: 1.15;
-  color: var(--ax-ink);
-  white-space: nowrap;
-  font-variant-numeric: lining-nums;
-}
-
-/* ---- the hero: the edition beside the Book of Hours ---- */
-.desk .ax-hero {
-  display: grid;
-  grid-template-columns: minmax(340px, 0.82fr) minmax(0, 1.3fr);
-  gap: clamp(28px, 3.6vw, 72px);
-  align-items: start;
-  padding-top: 34px;
-  padding-bottom: 40px;
-}
-
-.desk .ax-hero > .ax-ed {
-  grid-area: ed;
-}
-.desk .ax-hero > .ax-book {
-  grid-area: book;
-}
-.desk .ax-hero > .ax-told {
-  grid-area: told;
-}
-/* In the hero the cast's telling sits under the edition, beside the Book. */
-.desk .ax-hero {
-  grid-template-areas: "ed book" "told book";
-  grid-template-rows: auto 1fr;
-}
-.desk .ax-hero .ax-told {
-  padding: 28px 0 0;
-  border-bottom: 0;
-  background: none;
-}
-.desk .ax-hero .ax-quote {
-  grid-template-columns: minmax(0, 1fr);
-}
-.desk .ax-hero .ax-quote blockquote {
-  font-size: clamp(24px, 1.9vw, 32px);
-}
-.desk .ax-hero .ax-told-wait {
-  font-size: clamp(20px, 1.6vw, 25px);
 }
 
 /* Today in Ilyr: a codex column, no box */
@@ -558,286 +431,6 @@
 .desk .ax-lines p.is-now {
   border-left-color: var(--ax-v);
   color: var(--ax-ink);
-}
-
-/* ---- the Book of Hours: a vitrine around the week's page of ink ---- */
-.desk .ax-book {
-  position: relative;
-  min-width: 0;
-  padding: 22px clamp(16px, 1.8vw, 28px) 20px;
-  border: 1px solid var(--ax-line2);
-  background:
-    radial-gradient(80% 60% at 50% 0%, rgba(var(--ax-vr), 0.07), transparent 70%),
-    linear-gradient(180deg, rgba(16, 14, 23, 0.92), rgba(10, 9, 14, 0.94));
-  box-shadow:
-    inset 0 0 0 6px rgba(10, 9, 14, 0.9),
-    inset 0 0 0 7px rgba(var(--ax-vr), 0.1),
-    0 30px 80px -40px rgba(0, 0, 0, 0.8);
-}
-.desk .ax-book-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-}
-.desk .ax-book-h {
-  margin: 0;
-  font-family: var(--ax-text);
-  font-weight: 500;
-  font-size: clamp(28px, 2.4vw, 40px);
-  line-height: 1.05;
-  color: var(--ax-ink);
-}
-.desk .ax-book-h span {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--ax-mute);
-}
-.desk .ax-book-nav,
-.desk .ax-step {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--ax-line2);
-  flex: none;
-}
-.desk .ax-book-nav button,
-.desk .ax-step button {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 0;
-  background: none;
-  color: var(--ax-soft);
-  cursor: pointer;
-}
-.desk .ax-book-nav button + button {
-  border-left: 1px solid var(--ax-line);
-}
-.desk .ax-book-nav button:hover:not(:disabled),
-.desk .ax-step button:hover:not(:disabled) {
-  color: var(--ax-ink);
-  background: var(--ax-v-bg);
-}
-.desk .ax-book-nav button:disabled,
-.desk .ax-step button:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-.desk .ax-book-nav svg,
-.desk .ax-step svg {
-  width: 15px;
-  height: 15px;
-}
-.desk .ax-book-tally {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 34px;
-  margin: 14px 0 18px;
-}
-.desk .ax-book-tally div {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.desk .ax-book-tally dt {
-  order: 2;
-  font-family: var(--ax-disp);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ax-faint);
-}
-.desk .ax-book-tally dd {
-  margin: 0;
-  font-size: 34px;
-  line-height: 1;
-  font-weight: 500;
-  color: var(--ax-ink);
-  font-variant-numeric: lining-nums tabular-nums;
-}
-.desk .ax-codex {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  grid-template-rows: auto clamp(400px, 56vh, 620px);
-  grid-template-areas: ". days" "ticks page";
-}
-.desk .ax-codex-days {
-  grid-area: days;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-bottom: 1px solid var(--ax-line);
-}
-.desk .ax-codex-days button {
-  display: grid;
-  justify-items: center;
-  gap: 0;
-  width: 100%;
-  padding: 0 2px 10px;
-  border: 0;
-  background: none;
-  color: var(--ax-mute);
-  cursor: pointer;
-  transition: color 0.3s;
-}
-.desk .ax-codex-days button:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-.desk .ax-codex-days button:hover:not(:disabled) {
-  color: var(--ax-ink);
-}
-.desk .ax-codex-days span {
-  font-family: var(--ax-disp);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-.desk .ax-codex-days b {
-  font-family: var(--ax-disp);
-  font-size: 30px;
-  font-weight: 500;
-  line-height: 1.1;
-  color: var(--ax-soft);
-}
-.desk .ax-codex-days small {
-  font-size: 14px;
-  font-style: italic;
-  color: var(--ax-faint);
-}
-.desk .ax-codex-days .is-today span {
-  color: var(--ax-v);
-}
-.desk .ax-codex-days .is-shown b {
-  color: var(--ax-ink);
-  text-shadow: 0 0 22px rgba(var(--ax-vr), 0.6);
-}
-.desk .ax-codex-days .is-shown button {
-  box-shadow: inset 0 -2px 0 var(--ax-v);
-}
-.desk .ax-codex-ticks {
-  grid-area: ticks;
-  position: relative;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.desk .ax-codex-ticks li {
-  position: absolute;
-  right: 10px;
-  top: calc(var(--h) / 24 * 100%);
-  transform: translateY(-1px);
-  font-size: 14px;
-  font-style: italic;
-  line-height: 1;
-  color: var(--ax-faint);
-  white-space: nowrap;
-}
-.desk .ax-codex-page {
-  grid-area: page;
-  position: relative;
-  min-width: 0;
-  cursor: crosshair;
-  touch-action: manipulation;
-}
-.desk .ax-codex-page:focus-visible {
-  outline-offset: 2px;
-}
-.desk .ax-codex-page .wv-cv {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  pointer-events: none;
-}
-.desk .ax-caption {
-  min-height: 8.6em;
-  margin-top: 16px;
-  padding: 14px 0 0 58px;
-  border-top: 1px solid var(--ax-line);
-}
-.desk .ax-caption-when {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin: 0 0 6px;
-}
-.desk .ax-caption-when b {
-  font-family: var(--ax-disp);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ax-v);
-}
-.desk .ax-caption-when span {
-  font-size: 18px;
-  color: var(--ax-ink);
-}
-.desk .ax-caption-when small {
-  font-size: 15px;
-  font-style: italic;
-  color: var(--ax-mute);
-}
-.desk .ax-caption-s {
-  margin: 0;
-  max-width: 70ch;
-  font-size: 20px;
-  line-height: 1.42;
-  color: var(--ax-ink);
-  text-wrap: pretty;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.desk .ax-caption-s.is-empty {
-  color: var(--ax-mute);
-}
-.desk .ax-caption .ax-link {
-  margin-top: 4px;
-}
-.desk .ax-key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 22px;
-  margin: 12px 0 0;
-  padding: 0 0 0 58px;
-  list-style: none;
-  font-size: 14.5px;
-  font-style: italic;
-  color: var(--ax-faint);
-}
-.desk .ax-key li {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.desk .ax-key i {
-  position: relative;
-  width: 16px;
-  height: 10px;
-  flex: none;
-}
-.desk .ax-key .is-ink {
-  background:
-    radial-gradient(circle at 20% 40%, var(--ax-v) 0 1.3px, transparent 2px),
-    radial-gradient(circle at 60% 70%, var(--ax-v) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 80% 25%, #fff 0 1px, transparent 1.6px),
-    radial-gradient(circle at 45% 20%, var(--ax-v) 0 1px, transparent 1.6px);
-}
-.desk .ax-key .is-ship {
-  background: radial-gradient(circle, #fff 0 2px, rgba(var(--ax-vr), 0.6) 3px, transparent 7px);
-}
-.desk .ax-key .is-none {
-  background: radial-gradient(circle, rgba(238, 234, 245, 0.35) 0 1px, transparent 1.6px);
 }
 
 /* ---- the week, told by the cast: a band across the page ---- */
@@ -1429,16 +1022,6 @@
       transform: none;
     }
   }
-  @keyframes ax-set {
-    from {
-      opacity: 0;
-      transform: translateX(-0.4em) scaleX(1.08);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
   @keyframes ax-ink {
     from {
       stroke-dashoffset: 1;
@@ -1463,21 +1046,8 @@
       opacity: 1;
     }
   }
-  .desk .ax-title > span {
-    animation: ax-set 1.1s var(--wv-ease) both;
-  }
-  .desk .ax-title > .ax-title-of {
-    animation-delay: 0.18s;
-  }
-  .desk .ax-lead,
-  .desk .ax-label {
-    animation: ax-rise 0.8s 0.3s var(--wv-ease) both;
-  }
-  .desk .ax-ed {
-    animation: ax-rise 0.9s 0.2s var(--wv-ease) both;
-  }
-  .desk .ax-book {
-    animation: ax-rise 0.9s 0.35s var(--wv-ease) both;
+  .desk .ax-week {
+    animation: ax-rise 0.9s 0.25s var(--wv-ease) both;
   }
   .desk .ax-initial rect {
     stroke-dasharray: 1;
@@ -1510,10 +1080,6 @@
 
 /* ---- narrower ---- */
 @media (max-width: 1080px) {
-  .desk .ax-hero {
-    grid-template-areas: "ed" "book" "told";
-    grid-template-rows: auto;
-  }
   .desk .ax-hero,
   .desk .ax-folio,
   .desk .ax-quote {
@@ -1525,17 +1091,6 @@
   }
 }
 @media (max-width: 760px) {
-  .desk .ax-mast {
-    grid-template-columns: minmax(0, 1fr);
-    padding-top: 18px;
-  }
-  .desk .ax-label {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .desk .ax-label dd {
-    font-size: 19px;
-    white-space: normal;
-  }
   .desk .ax-tide {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1552,68 +1107,8 @@
   .desk .ax {
     font-size: 17px;
   }
-  .desk .ax-label > div {
-    padding: 10px 12px;
-  }
-  .desk .ax-hero {
-    padding-top: 24px;
-    gap: 28px;
-  }
-  .desk .ax > .ax-hero {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-  .desk .ax-book {
-    padding: 16px 10px 16px;
-  }
   .desk .ax-ed {
-    padding: 0 4px;
-  }
-  .desk .ax-book-tally {
-    gap: 4px 18px;
-  }
-  .desk .ax-book-tally div {
-    display: grid;
-    gap: 2px;
-  }
-  .desk .ax-book-tally dt {
-    font-size: 9.5px;
-    letter-spacing: 0.14em;
-  }
-  .desk .ax-book-tally dd {
-    font-size: 28px;
-  }
-  .desk .ax-codex {
-    grid-template-columns: 34px minmax(0, 1fr);
-    grid-template-rows: auto 432px;
-  }
-  .desk .ax-codex-ticks li {
-    right: 6px;
-    font-size: 11.5px;
-  }
-  .desk .ax-codex-ticks li:first-child {
-    font-size: 0;
-  }
-  .desk .ax-codex-ticks li:first-child::before {
-    content: "12";
-    font-size: 11.5px;
-  }
-  .desk .ax-codex-days span {
-    font-size: 9.5px;
-    letter-spacing: 0.08em;
-  }
-  .desk .ax-codex-days b {
-    font-size: 21px;
-  }
-  .desk .ax-codex-days small {
-    display: none;
-  }
-  .desk .ax-caption,
-  .desk .ax-key {
-    padding-left: 4px;
-  }
-  .desk .ax-caption-s {
-    font-size: 18px;
+    padding: 0;
   }
   .desk .ax-hours::before {
     left: 6px;
@@ -1651,5 +1146,542 @@
   }
   .desk .ax-week-read {
     columns: 1;
+  }
+}
+
+/* ---- the kit's serif for what's set large or in italic (Jost carries no italic) ---- */
+.desk .ax :is(.ax-h2, .ax-h3, .ax-ed-h, .ax-quote blockquote, .ax-told-wait, .ax-recap > p:last-child, .ax-hour.is-lead .ax-hour-s, .ax-case-d b, .ax-tide-h, .ax-rail b, .ax-day-date, .ax-tide-scenes b, .ax-ed-lede .ax-initial text),
+.desk .ax :is(.ax-h2 em, .ax-rail em, .ax-bond em, .ax-case-t small, .ax-quote blockquote::before) {
+  font-family: var(--ax-serif);
+}
+.desk .ax .ax-tide-h {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* ---- the stage: the head and its ledger, then the Book of Hours, threaded, across the whole width ---- */
+.desk .ax-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fl-s5);
+  min-height: 0;
+  padding-bottom: var(--fl-s5);
+}
+.desk .ax-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "eyb eyb" "h1 ledger" "say ledger";
+  align-items: end;
+  column-gap: clamp(32px, 5vw, 96px);
+}
+.desk .ax-head > .fl-eyb {
+  grid-area: eyb;
+}
+.desk .ax-head > .fl-h1 {
+  grid-area: h1;
+}
+.desk .ax-head > .fl-say {
+  grid-area: say;
+  max-width: 46ch;
+}
+.desk .ax-ledger {
+  grid-area: ledger;
+  align-self: end;
+  min-width: min(560px, 44vw);
+  margin: 0;
+}
+.desk .ax-ledger dd small {
+  margin-left: 2px;
+}
+.desk .ax-ledger .fl-wait {
+  font-size: 0.7em;
+}
+
+/* the week: a header, the hour ticks, seven rows (the threads are the canvas under them), the caption, the key */
+.desk .ax-week {
+  --ax-lab: 124px;
+  position: relative;
+  display: grid;
+  gap: 0;
+}
+.desk .ax-week-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 18px clamp(24px, 3vw, 56px);
+  padding-bottom: var(--fl-s4);
+}
+.desk .ax-week-head .fl-k {
+  margin-bottom: 8px;
+}
+.desk .ax-week-head .fl-k > .ax-week-k {
+  color: inherit;
+}
+.desk .ax-week-h em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--fl-hi);
+}
+.desk .ax-tally {
+  display: flex;
+  gap: clamp(18px, 2.4vw, 40px);
+  margin: 0;
+}
+.desk .ax-tally > div {
+  display: grid;
+  gap: 4px;
+}
+.desk .ax-tally dt {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--wv-faint);
+}
+.desk .ax-tally dd {
+  margin: 0;
+  font-weight: 500;
+  font-size: clamp(28px, 2.2vw, 36px);
+  line-height: 1;
+  color: var(--wv-ink);
+}
+.desk .ax-week-nav,
+.desk .ax-step {
+  display: flex;
+  border: 1px solid var(--wv-line2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.desk .ax-week-nav button,
+.desk .ax-step button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wv-soft);
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.desk .ax-week-nav button + button,
+.desk .ax-step button + button {
+  border-left: 1px solid var(--wv-line);
+}
+.desk .ax-week-nav button:hover:not(:disabled),
+.desk .ax-step button:hover:not(:disabled) {
+  background: rgba(var(--fl-accent), 0.14);
+}
+.desk .ax-week-nav button:disabled,
+.desk .ax-step button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.desk .ax-week-nav svg,
+.desk .ax-step svg {
+  width: 15px;
+  height: 15px;
+}
+
+.desk .ax-ticks {
+  position: relative;
+  height: 22px;
+  margin: 0 0 0 var(--ax-lab);
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--wv-line);
+}
+.desk .ax-ticks li {
+  position: absolute;
+  left: calc(var(--h) / 24 * 100%);
+  bottom: 6px;
+  transform: translateX(-50%);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--wv-faint);
+}
+.desk .ax-ticks li:first-child {
+  transform: none;
+}
+.desk .ax-ticks li:last-child {
+  transform: translateX(-100%);
+}
+.desk .ax-rows {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  cursor: crosshair;
+}
+.desk .ax-rows:focus-visible {
+  outline: 1px solid rgba(var(--fl-accent), 0.6);
+  outline-offset: 4px;
+}
+/* The quarter-day guides, under the threads: plain hairlines, no canvas work. */
+.desk .ax-rows::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 var(--ax-lab);
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent calc(25% - 0.5px), var(--wv-line) calc(25% - 0.5px), var(--wv-line) calc(25% + 0.5px), transparent calc(25% + 0.5px), transparent calc(50% - 0.5px), var(--wv-line) calc(50% - 0.5px), var(--wv-line) calc(50% + 0.5px), transparent calc(50% + 0.5px), transparent calc(75% - 0.5px), var(--wv-line) calc(75% - 0.5px), var(--wv-line) calc(75% + 0.5px), transparent calc(75% + 0.5px));
+  opacity: 0.6;
+}
+.desk .ax-rows > li {
+  display: grid;
+  grid-template-columns: var(--ax-lab) minmax(0, 1fr);
+  min-height: clamp(66px, 7.8vh, 86px);
+  border-bottom: 1px solid rgba(236, 238, 243, 0.045);
+}
+.desk .ax-rows > li.is-shown {
+  background: linear-gradient(90deg, rgba(var(--fl-accent), 0.1), rgba(var(--fl-accent), 0.035) 30%, transparent);
+}
+.desk .ax-day-l {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "wd d" "n n";
+  align-content: center;
+  align-items: baseline;
+  column-gap: 10px;
+  padding: 0 12px 0 0;
+  border: 0;
+  background: none;
+  color: var(--wv-soft);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.desk .ax-day-l:disabled {
+  cursor: default;
+}
+.desk .ax-day-l span {
+  grid-area: wd;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--wv-faint);
+}
+.desk .ax-day-l b {
+  grid-area: d;
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--wv-ink);
+}
+.desk .ax-day-l small {
+  grid-area: n;
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--wv-mute);
+}
+.desk .ax-rows > li.is-today .ax-day-l span,
+.desk .ax-rows > li.is-shown .ax-day-l span {
+  color: var(--fl-hi);
+}
+.desk .ax-rows > li.is-future .ax-day-l {
+  opacity: 0.45;
+}
+.desk .ax-day-l:hover:not(:disabled) b {
+  color: var(--fl-hi);
+}
+.desk .ax-band {
+  position: relative;
+}
+/* Now: a hairline at the current hour on today's row. */
+.desk .ax-band[style*="--now"]::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: calc(var(--now) * 100%);
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(var(--fl-accent), 0.9), transparent);
+  box-shadow: 0 0 10px rgba(var(--fl-accent), 0.7);
+}
+/* The hour under the pointer: a soft column, nothing more. */
+.desk .ax-cur {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--h) / 24 * 100%);
+  width: calc(100% / 24);
+  background: linear-gradient(180deg, transparent, rgba(var(--fl-accent), 0.12), transparent);
+  border-left: 1px solid rgba(var(--fl-accent), 0.18);
+  border-right: 1px solid rgba(var(--fl-accent), 0.18);
+  pointer-events: none;
+}
+
+.desk .ax-caption {
+  display: grid;
+  gap: 6px;
+  min-height: 112px;
+  align-content: start;
+  margin: var(--fl-s4) 0 0 var(--ax-lab);
+  max-width: 900px;
+}
+.desk .ax-caption-when {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+}
+.desk .ax-caption-when b {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--wv-ink);
+}
+.desk .ax-caption-when span {
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--fl-hi);
+}
+.desk .ax-caption-when small {
+  font-size: 14px;
+  color: var(--wv-mute);
+}
+.desk .ax-caption-s {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.45;
+  color: var(--wv-ink);
+  text-wrap: pretty;
+}
+.desk .ax-caption-s.is-empty {
+  font-family: var(--fl-disp);
+  font-style: italic;
+  color: var(--wv-mute);
+}
+.desk .ax-caption-th {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 14.5px;
+  color: var(--wv-soft);
+}
+.desk .ax-caption-th i,
+.desk .ax-key-room i {
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+}
+.desk .ax-caption .ax-link {
+  justify-self: start;
+}
+.desk .ax-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: var(--fl-s3) 0 0 var(--ax-lab);
+  padding: 0;
+  list-style: none;
+  font-size: 13.5px;
+  color: var(--wv-mute);
+}
+.desk .ax-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.desk .ax-key small {
+  color: var(--wv-faint);
+}
+.desk .ax-key .is-thread {
+  width: 26px;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, rgba(var(--fl-accent), 0.95) 0 2px, transparent 2px 4px);
+}
+.desk .ax-key .is-knot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 22%, rgba(var(--fl-accent), 0.7) 30%, transparent 72%);
+}
+.desk .ax-key-room:first-of-type {
+  margin-left: 8px;
+}
+
+/* ---- under the stage: Today in Ilyr beside the cast's telling ---- */
+.desk .ax-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.8fr);
+  gap: clamp(28px, 3.6vw, 72px);
+  align-items: start;
+  padding-top: var(--fl-s5);
+  padding-bottom: var(--fl-s5);
+}
+.desk .ax-hero > .ax-ed:not(.ax-ed-off) {
+  padding: 26px 28px 22px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(14, 13, 18, 0.94), rgba(9, 10, 14, 0.9));
+  border: 1px solid rgba(var(--fl-accent), 0.22);
+  box-shadow:
+    0 40px 80px -40px #000,
+    inset 0 1px 0 rgba(var(--fl-accent), 0.12);
+}
+.desk .ax-hero .ax-spread {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+}
+/* The reading under the lede: the play ring and its reader beside the day's editions. */
+.desk .ax-hero .ax-recto {
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  column-gap: clamp(20px, 3vw, 44px);
+}
+.desk .ax-hero .ax-recto > .ax-run-r,
+.desk .ax-hero .ax-recto > .ax-ed-note {
+  grid-column: 1 / -1;
+}
+.desk .ax-hero .ax-told {
+  padding: 8px 0 0;
+  border: 0;
+  background: none;
+}
+.desk .ax-hero .ax-quote {
+  grid-template-columns: minmax(0, 1fr);
+}
+.desk .ax-hero .ax-quote blockquote {
+  font-size: clamp(24px, 1.9vw, 32px);
+}
+.desk .ax-hero .ax-told-wait {
+  font-size: clamp(22px, 1.7vw, 27px);
+}
+/* The read-along: each line on a hairline thread in its room's colour, lit as it is read. */
+.desk .ax-lines p {
+  border-left-color: color-mix(in srgb, var(--rc, rgb(var(--fl-accent))) 26%, transparent);
+}
+.desk .ax-lines p[data-room="foundry"] {
+  --rc: color-mix(in srgb, var(--room-foundry) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="spire"] {
+  --rc: color-mix(in srgb, var(--room-spire) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="exchange"] {
+  --rc: color-mix(in srgb, var(--room-exchange) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="green"] {
+  --rc: color-mix(in srgb, var(--room-green) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="relay"] {
+  --rc: color-mix(in srgb, var(--room-relay) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="archive"] {
+  --rc: color-mix(in srgb, var(--room-archive) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="breakroom"] {
+  --rc: color-mix(in srgb, var(--room-breakroom) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="boiler"] {
+  --rc: color-mix(in srgb, var(--room-boiler) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="workshop"] {
+  --rc: color-mix(in srgb, var(--room-workshop) 50%, var(--room-archive));
+}
+.desk .ax-lines p[data-room="studio"] {
+  --rc: color-mix(in srgb, var(--room-studio) 50%, var(--room-archive));
+}
+.desk .ax-lines p.is-now {
+  border-left-color: var(--rc, rgb(var(--fl-accent)));
+  box-shadow: -6px 0 14px -10px var(--rc, rgb(var(--fl-accent)));
+}
+
+@media (max-width: 1180px) {
+  .desk .ax-head {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "eyb" "h1" "say" "ledger";
+  }
+  .desk .ax-ledger {
+    min-width: 0;
+    margin-top: var(--fl-s4);
+  }
+}
+@media (max-width: 760px) {
+  .desk .ax-week {
+    --ax-lab: 50px;
+  }
+  .desk .ax-week-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .desk .ax-tally {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    gap: 22px;
+  }
+  .desk .ax-tally dt {
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+  }
+  .desk .ax-tally dd {
+    font-size: 26px;
+  }
+  .desk .ax-week-h {
+    font-size: 26px;
+  }
+  .desk .ax-week-k {
+    display: none;
+  }
+  .desk .ax-week-head {
+    gap: 14px 16px;
+    padding-bottom: var(--fl-s3);
+  }
+  .desk .ax-hero .ax-recto {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .desk .ax-week-nav {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .desk .ax-ticks li {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+  .desk .ax-ticks li:first-child,
+  .desk .ax-ticks li:last-child {
+    display: none;
+  }
+  .desk .ax-rows > li {
+    min-height: 50px;
+  }
+  .desk .ax-day-l {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "wd" "d";
+    padding-right: 6px;
+  }
+  .desk .ax-day-l span {
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+  }
+  .desk .ax-day-l b {
+    font-size: 22px;
+  }
+  .desk .ax-day-l small {
+    display: none;
+  }
+  .desk .ax-caption,
+  .desk .ax-key {
+    margin-left: 0;
+  }
+  .desk .ax-caption-s {
+    font-size: 17.5px;
+  }
+  .desk .ax-key-room:first-of-type {
+    margin-left: 0;
+  }
+  .desk .ax-hero > .ax-ed:not(.ax-ed-off) {
+    padding: 20px 16px 16px;
+    border-radius: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk .ax-week-nav button,
+  .desk .ax-step button {
+    transition: none;
   }
 }

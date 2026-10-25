@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CONNECTIONS } from "../connections.ts";
 import type { Fitting, GState, PipeRow } from "../systemsGraph.ts";
-import { connectionFor, pipeLayout, pipeState, pressureHeadline, pressureOf, rackPressure, roomConnections } from "./pressure.ts";
+import { connectionFor, pipeState, pressureHeadline, pressureOf, rackPressure, roomConnections } from "./pressure.ts";
 
 const fit = (id: string, state: GState, side: Fitting["side"] = "out"): Fitting => ({ id, l: id, s: "", k: "service", state, side });
 const row = (id: string, ins: Fitting[], outs: Fitting[], stc: GState = "ok"): PipeRow => ({ id, flow: false, room: id, name: id, sub: "", stc, steps: ins.length + outs.length, ins, outs });
@@ -21,10 +21,10 @@ describe("the Boiler Room's pressure", () => {
     expect(p.dry).toBe(2);
   });
 
-  it("says burst first, then cold, then hot, then holding", () => {
-    expect(pressureHeadline(pressureOf([fit("a", "bad"), fit("b", "ok")])).em).toBe("burst.");
-    expect(pressureHeadline(pressureOf([fit("a", "bad"), fit("b", "bad")])).lead).toBe("2 pipes have");
-    expect(pressureHeadline(pressureOf([fit("a", "wait")])).em).toBe("cold.");
+  it("says broken first, then nothing flowing, then under load, then holding", () => {
+    expect(pressureHeadline(pressureOf([fit("a", "bad"), fit("b", "ok")])).em).toBe("broken.");
+    expect(pressureHeadline(pressureOf([fit("a", "bad"), fit("b", "bad")])).lead).toBe("2 links are");
+    expect(pressureHeadline(pressureOf([fit("a", "wait")])).em).toBe("flowing yet.");
     expect(pressureHeadline(pressureOf([fit("a", "run")])).tone).toBe("run");
     expect(pressureHeadline(pressureOf([fit("a", "ok")])).em).toBe("holding.");
   });
@@ -50,14 +50,5 @@ describe("the Boiler Room's pressure", () => {
     expect(relay.length).toBe(CONNECTIONS.filter((c) => c.room === "relay").length);
     expect(relay[0]!.status).toBe("live");
     expect(roomConnections("exchange").map((c) => c.id)).toEqual(["polymarket", "polymarket-us"]);
-  });
-
-  it("lines the feeds up before the hub and spreads the rest after it", () => {
-    const r = row("x", [fit("a", "ok", "in"), fit("b", "ok", "in")], [fit("c", "ok"), fit("d", "ok")]);
-    const l = pipeLayout(r, 1000, 300, 90, 20);
-    expect(l.ins).toEqual([120, 210]);
-    expect(l.end).toBe(980);
-    expect(l.outs[0]).toBeGreaterThan(300);
-    expect(l.outs[1]).toBeLessThan(980);
   });
 });

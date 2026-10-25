@@ -1,0 +1,302 @@
+/*
+ * The Foundry on the flow kit (#432): Today's frame (flow.css) with the Builder's forge orange as --fl-accent. Only
+ * what the Foundry adds is here: the pipeline's grid (ideas, queue, the forge's lanes, the checks gate, shipped), the
+ * lanes and their progressive detail, the bench's cards, the crew and the side column. Everything is scoped to .fo, so
+ * the Desk's shell (desk.css) and the other pages are untouched; the older Foundry pieces still on this page (the
+ * Changelog, the job list, the Usage tables, Suggest) keep their classes and take the kit's type from here.
+ */
+
+.desk .fo{
+  --fo-ok:var(--wv-ok);--fo-bad:var(--wv-bad);--fo-run:var(--wv-run);--fo-hot:var(--wv-hot);
+  --fo-gate-r:clamp(150px,13vw,210px)
+}
+
+/* ---------- the stage ---------- */
+.desk .fo-stage{display:grid;grid-template-rows:auto 1fr;gap:var(--fl-s5);min-height:max(740px,min(calc(100svh - 62px),960px));align-content:start}
+.desk .fo-top{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.9fr);gap:var(--fl-s5) clamp(28px,4vw,80px);align-items:start}
+.desk .fo-eyb-x{font-size:inherit;letter-spacing:inherit;color:var(--wv-faint)}
+.desk .fo-head .fl-h1{font-size:clamp(52px,5vw,92px)}
+.desk .fo-head .fl-say{max-width:44ch}
+.desk .fo-ledger{max-width:760px;grid-template-columns:repeat(5,minmax(0,1fr))}
+.desk .fo-ledger dd small{margin-left:2px}
+.desk .fo-ledger .fo-checks{font-size:clamp(26px,2.1vw,36px)}
+.desk .fo-ledger [data-tone=pass] .fo-checks{color:var(--fo-ok)}
+.desk .fo-ledger [data-tone=fail] .fo-checks{color:var(--fo-bad)}
+.desk .fo-ledger [data-tone=running] .fo-checks{color:var(--fo-run)}
+
+/* What needs Nikita: plain, beside the headline. */
+.desk .fo-held{display:grid;gap:var(--fl-s3);align-content:start}
+.desk .fo-held .fl-h2{font-size:clamp(30px,2.6vw,42px)}
+.desk .fo-held-p{margin:0;font-size:15.5px;line-height:1.55;color:var(--wv-soft)}
+.desk .fo-held-t{margin:0;font-size:22px}
+.desk .fo-held-l{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.desk .fo-held-l>li{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:16px;row-gap:4px;align-items:center;padding:14px 0;border-top:1px solid var(--wv-line)}
+.desk .fo-held-l>li>.fl-k,.desk .fo-held-l>li>b{grid-column:1}
+.desk .fo-held-l>li:first-child{border-top:0;padding-top:2px}
+.desk .fo-held-l>li[data-tone=bad] .fl-k{color:var(--fo-bad)}
+.desk .fo-held-l>li[data-tone=hot] .fl-k{color:var(--fl-hi)}
+.desk .fo-held-l b{font-family:var(--fl-disp);font-weight:500;font-size:20px;line-height:1.25;color:var(--wv-ink);text-wrap:pretty}
+.desk .fo-held-do{grid-column:2;grid-row:1/span 2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.desk .fo-sug{justify-self:start;margin-top:2px}
+.desk .fo-sug svg{width:14px;height:14px}
+
+/* ---------- the pipeline ---------- */
+.desk .fo-line{position:relative;align-self:center;display:grid;grid-template-columns:minmax(170px,15%) minmax(104px,8%) minmax(0,1fr) minmax(190px,15%);grid-template-rows:auto 1fr;column-gap:clamp(18px,2vw,36px);row-gap:var(--fl-s3);align-items:center}
+.desk .fo-st{grid-column:1/-1;display:grid;grid-template-columns:subgrid;list-style:none;margin:0;padding:0 0 10px;border-bottom:1px solid var(--wv-line)}
+.desk .fo-st>li{white-space:nowrap}
+
+/* Ideas: one thread each, held at the queue's gate. */
+.desk .fo-ideas{list-style:none;margin:0;padding:0;display:grid;gap:12px;align-self:center}
+.desk .fo-ideas>li{position:relative}
+.desk .fo-idea{display:grid;gap:3px;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.desk .fo-idea b{font-weight:500;font-size:15px;line-height:1.3;color:var(--wv-ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;transition:color .3s}
+.desk .fo-idea small,.desk .fo-noidea small,.desk .fo-idea-more{font-size:12px;letter-spacing:.02em;color:var(--wv-faint)}
+.desk .fo-idea:hover b,.desk .fo-idea:focus-visible b{color:var(--fl-hi)}
+.desk .fo-idea:focus-visible{outline:1px solid rgba(var(--fl-accent),.6);outline-offset:4px;border-radius:6px}
+.desk .fo-noidea{display:grid;gap:4px}
+.desk .fo-noidea b{font-size:19px;font-weight:400}
+/* Where an idea's thread leaves it. */
+.desk .fo-tail{position:absolute;right:-12px;top:50%;width:2px;height:2px}
+
+/* The queue: a gate with its count. */
+.desk .fo-queue{position:relative;display:grid;gap:2px;justify-items:start;min-width:0;padding-left:22px;align-self:center}
+.desk .fo-queue>.fo-dot{position:absolute;left:0;top:22px}
+.desk .fo-queue>b{font-size:44px;font-weight:500;line-height:1;color:var(--wv-ink)}
+.desk .fo-queue>small{font-size:12px;color:var(--wv-faint)}
+.desk .fo-q-l{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px;width:100%;min-width:0}
+.desk .fo-q-l li{min-width:0}
+.desk .fo-q-l a{display:block;font-size:12.5px;line-height:1.3;color:var(--wv-mute);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.desk .fo-q-l a:hover{color:var(--fl-hi)}
+.desk .fo-dot{display:block;width:9px;height:9px;border-radius:50%;background:rgb(var(--fl-accent));box-shadow:0 0 0 4px rgba(var(--fl-accent),.12),0 0 18px rgba(var(--fl-accent),.6)}
+
+/* The forge's lanes: one job each, its line lit as far as it has got. */
+.desk .fo-lanes{position:relative;align-self:center;display:flex;flex-direction:column;justify-content:center}
+.desk .fo-gate{position:absolute;right:var(--fo-gate-r);top:0;bottom:0;width:1px}
+/* "Checks" sits over the gate, level with the stations' names. */
+.desk .fo-gate-h{position:absolute;right:var(--fo-gate-r);top:calc(-1 * (var(--fl-s3) + 25px));transform:translateX(50%);background:#0a0b0f;padding:0 10px}
+.desk .fo-gate-k{position:absolute;right:var(--fo-gate-r);bottom:-4px;transform:translateX(50%);margin:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap;color:var(--wv-faint)}
+.desk .fo-gate-k[data-tone=pass]{color:var(--fo-ok)}
+.desk .fo-gate-k[data-tone=fail]{color:var(--fo-bad)}
+.desk .fo-gate-k[data-tone=running]{color:var(--fo-run)}
+.desk .fo-lane-l{list-style:none;margin:0;padding:8px 0 22px;display:grid;gap:0}
+.desk .fo-lane{position:relative;display:grid;padding:0}
+.desk .fo-lane-h{position:relative;display:grid;grid-template-columns:minmax(64px,auto) minmax(0,1fr) auto;align-items:end;column-gap:18px;width:100%;min-height:58px;padding:10px calc(var(--fo-gate-r) + 16px) 16px 0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.desk .fo-lane.is-free .fo-lane-h{cursor:default;min-height:48px}
+.desk .fo-hand{font-family:var(--fl-disp);font-style:italic;font-size:22px;line-height:1;color:var(--fl-hi);white-space:nowrap}
+.desk .fo-lane.is-free .fo-hand{color:var(--wv-faint)}
+.desk .fo-lane-t{display:grid;gap:3px;min-width:0}
+.desk .fo-lane-t b{font-weight:500;font-size:17px;line-height:1.25;color:var(--wv-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .3s}
+.desk .fo-lane-t small{font-size:12.5px;color:var(--wv-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.desk .fo-lane.is-free .fo-lane-t{font-size:16px}
+/* The rail: the line runs along it, under the row's words. */
+.desk .fo-rail{position:absolute;left:0;right:0;bottom:6px;height:1px;pointer-events:none}
+.desk .fo-lane[data-lit] .fo-lane-t b,.desk .fo-lane-h:hover .fo-lane-t b,.desk .fo-lane-h:focus-visible .fo-lane-t b,.desk .fo-lane[data-open] .fo-lane-t b{color:var(--fl-hi)}
+.desk .fo-lane-h:focus-visible{outline:1px solid rgba(var(--fl-accent),.6);outline-offset:2px;border-radius:8px}
+.desk .fo-pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:500;letter-spacing:.06em;white-space:nowrap;color:var(--wv-mute)}
+.desk .fo-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
+.desk .fo-pill.is-run{color:var(--fl-hi)}
+.desk .fo-pill.is-ok{color:var(--fo-ok)}
+.desk .fo-pill.is-hot{color:var(--fo-hot)}
+.desk .fo-pill.is-bad{color:var(--fo-bad)}
+.desk .fo-pill.is-off::before{box-shadow:none;opacity:.6}
+/* A lane opened: its detail, under its line. */
+.desk .fo-lane-x{display:grid;gap:var(--fl-s3);margin:6px calc(var(--fo-gate-r) + 16px) 14px 0;padding:18px 20px;border-radius:16px;background:linear-gradient(180deg,rgba(18,14,11,.94),rgba(10,10,13,.92));border:1px solid rgba(var(--fl-accent),.2);animation:fo-in .4s var(--fl-ease) both}
+@keyframes fo-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.desk .fo-lane-who{display:flex;gap:14px;align-items:flex-start}
+.desk .fo-lane-who img{width:40px;height:40px;border-radius:50%;object-fit:cover;flex:none;border:1px solid rgba(var(--fl-accent),.35)}
+.desk .fo-lane-who p{margin:0;font-size:15px;line-height:1.55;color:var(--wv-soft);max-width:70ch}
+.desk .fo-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px 0}
+.desk .fo-steps li{display:flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .fo-steps li+li::before{content:"";width:28px;height:1px;margin-right:8px;background:var(--wv-line2)}
+.desk .fo-steps li.is-past{color:var(--wv-mute)}
+.desk .fo-steps li.is-now{color:var(--fl-hi)}
+.desk .fo-steps li.is-past+li::before,.desk .fo-steps li.is-now::before{background:rgba(var(--fl-accent),.55)}
+.desk .fo-do{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.desk .fo-hist{display:flex;flex-wrap:wrap;gap:8px 28px;margin:0}
+.desk .fo-hist>div{display:grid;gap:2px}
+.desk .fo-hist dt{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .fo-hist dd{margin:0;font-size:14px;color:var(--wv-soft)}
+.desk .fo-more{display:grid;gap:3px;padding:12px 0 6px;border:0;background:none;color:var(--wv-mute);font:inherit;font-size:15px;text-align:left;cursor:pointer}
+.desk .fo-more small{font-size:12px;color:var(--wv-faint)}
+.desk .fo-more:hover{color:var(--fl-hi)}
+.desk .fo-more-l{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}
+.desk .fo-more-l li{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:14px}
+.desk .fo-more-l a{color:var(--wv-ink);text-decoration:none}
+.desk .fo-more-l a:hover{color:var(--fl-hi)}
+.desk .fo-more-l span{color:var(--wv-faint)}
+
+/* Shipped: where the lanes gather. */
+.desk .fo-ship{position:relative;display:grid;gap:10px;padding-left:22px;align-self:center}
+.desk .fo-ship>.fo-dot{position:absolute;left:0;top:26px;background:var(--fo-ok);box-shadow:0 0 0 4px rgba(134,212,180,.12),0 0 18px rgba(134,212,180,.55)}
+.desk .fo-ship-n{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 10px;margin:0}
+.desk .fo-ship-n b{font-size:56px;font-weight:500;line-height:1;color:var(--wv-ink)}
+.desk .fo-ship-n span{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .fo-ship-l{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.desk .fo-ship-l li{display:grid;gap:1px}
+.desk .fo-ship-l a{font-size:14px;line-height:1.3;color:var(--wv-soft);text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.desk .fo-ship-l a:hover{color:var(--fl-hi)}
+.desk .fo-ship-l time{font-size:11.5px;color:var(--wv-faint)}
+.desk .fo-link{padding:0;border:0;background:none;font:inherit;font-size:13px;color:var(--fl-hi);text-decoration:none;cursor:pointer;justify-self:start}
+.desk .fo-link:hover{text-decoration:underline;text-underline-offset:3px}
+
+/* ---------- below the stage ---------- */
+.desk .fo-sec{display:grid;gap:4px;margin-bottom:var(--fl-s4)}
+.desk .fo-sec .fl-eyb{margin-bottom:6px}
+.desk .fo-note{margin:0;font-size:13.5px;line-height:1.55;color:var(--wv-mute)}
+.desk .fo-ok{margin:0;font-size:14.5px;line-height:1.5;color:var(--fo-ok)}
+.desk .fo-shelf{margin-top:var(--fl-s4)}
+
+/* The bench: the cards with their pictures, Suggest beside them. */
+.desk .fo-bench-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,400px);gap:var(--fl-s5);align-items:start}
+.desk .fo-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--fl-s4)}
+.desk .fo-card{display:grid;grid-template-rows:auto 1fr;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,rgba(16,13,11,.94),rgba(9,10,14,.92));border:1px solid rgba(var(--fl-accent),.16);scroll-margin:120px;animation:fo-in .5s calc(var(--i,0) * 70ms) var(--fl-ease) both;transition:border-color .3s}
+.desk .fo-card:hover,.desk .fo-card:focus-within{border-color:rgba(var(--fl-accent),.42)}
+.desk .fo-card[data-asking]{border-color:rgba(255,220,170,.32)}
+.desk .fo-card-img{position:relative;aspect-ratio:16/8;overflow:hidden;background:#0c0d11}
+.desk .fo-card-img img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.75) brightness(.72)}
+.desk .fo-card-img.is-own img{filter:none}
+.desk .fo-card-img::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,rgba(9,10,14,.92));pointer-events:none}
+.desk .fo-chip{position:absolute;left:14px;top:12px;z-index:1;padding:3px 10px;border-radius:999px;background:rgba(9,10,14,.72);border:1px solid rgba(var(--fl-accent),.35);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--fl-hi)}
+.desk .fo-card-b{display:grid;gap:10px;align-content:start;padding:4px 20px 20px}
+.desk .fo-card-by{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0;font-size:12.5px;color:var(--wv-faint)}
+.desk .fo-card-by img{width:22px;height:22px;border-radius:50%;object-fit:cover}
+.desk .fo-card-n{margin-left:auto;color:var(--wv-mute);text-decoration:none}
+.desk .fo-card-n:hover{color:var(--fl-hi)}
+.desk .fo-card-h{margin:0;font-family:var(--fl-disp);font-weight:500;font-size:clamp(24px,1.9vw,30px);line-height:1.08;letter-spacing:-.01em;color:var(--wv-ink);text-wrap:balance}
+.desk .fo-card-p{margin:0;font-size:15px;line-height:1.55;color:var(--wv-soft)}
+.desk .fo-card-q{margin:0;padding-left:12px;border-left:1px solid rgba(255,220,170,.4);font-family:var(--fl-disp);font-style:italic;font-size:18px;line-height:1.4;color:var(--fo-hot)}
+.desk .fo-card-pics{list-style:none;margin:0;padding:0;display:flex;gap:8px;flex-wrap:wrap}
+.desk .fo-card-pics img{width:64px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--wv-line2);display:block}
+.desk .fo-card-do{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.desk .fo-reply{display:flex;gap:8px;align-items:center}
+.desk .fo-reply .wv-input{flex:1;min-width:0}
+.desk .fl-btn.is-ghost{border-color:transparent;color:var(--wv-mute)}
+.desk .fl-btn.is-ghost:hover{color:var(--wv-ink)}
+.desk .fl-btn:disabled{opacity:.45;cursor:not-allowed}
+.desk .fo-side{display:grid;gap:var(--fl-s4)}
+.desk .fo-suggest .fl-h2{font-size:clamp(26px,2vw,32px);margin:6px 0 14px}
+.desk .fo .wv-input{font-family:var(--fl-text)}
+.desk .fo .wv-btn{font-family:var(--fl-text);font-size:14px}
+.desk .fo .wv-btn.is-pri{border-color:rgba(var(--fl-accent),.6);background:rgba(var(--fl-accent),.12);color:var(--fl-hi)}
+.desk .fo .wv-sug-rivet{font-size:13px;color:var(--wv-mute)}
+/* The empty bench: three places waiting, and Nikita's own. */
+.desk .fo-clear{display:grid;gap:var(--fl-s3)}
+.desk .fo-clear>.fl-wait{margin:0;font-size:20px}
+.desk .fo-slots{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--fl-s3)}
+.desk .fo-slots>li{display:grid;gap:6px;align-content:start;min-height:130px;padding:18px;border-radius:18px;border:1px dashed var(--wv-line2);animation:fo-in .5s calc(var(--i,0) * 80ms) var(--fl-ease) both}
+.desk .fo-slots b{font-family:var(--fl-disp);font-weight:500;font-size:20px;line-height:1.2;color:var(--wv-soft)}
+.desk .fo-slots small{font-size:12.5px;color:var(--wv-faint)}
+.desk .fo-slots>li.is-yours{padding:0;border-style:solid;border-color:rgba(var(--fl-accent),.4)}
+.desk .fo-slots>li.is-yours button{display:grid;gap:6px;align-content:start;height:100%;padding:18px;border:0;border-radius:18px;background:rgba(var(--fl-accent),.06);color:inherit;font:inherit;text-align:left;cursor:pointer}
+.desk .fo-slots>li.is-yours b{color:var(--fl-hi)}
+
+/* The crew at their stations. */
+.desk .fo-crew-l{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid rgba(var(--fl-accent),.3)}
+.desk .fo-crew-l>li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;padding:20px clamp(12px,1.4vw,24px) 6px;border-left:1px solid var(--wv-line)}
+.desk .fo-crew-l>li:first-child{padding-left:0;border-left:0}
+.desk .fo-crew-l>li>img{width:52px;height:52px;border-radius:50%;object-fit:cover;border:1px solid var(--wv-line2);filter:saturate(.7)}
+.desk .fo-crew-l>li[data-live]>img{border-color:rgba(var(--fl-accent),.7);filter:none;box-shadow:0 0 22px rgba(var(--fl-accent),.35)}
+.desk .fo-crew-l b{display:block;font-family:var(--fl-disp);font-weight:500;font-size:26px;line-height:1.05;color:var(--wv-ink)}
+.desk .fo-crew-l em{display:block;margin-top:4px;font-style:normal;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .fo-crew-l p{margin:8px 0 0;font-size:14.5px;line-height:1.5;color:var(--wv-soft)}
+.desk .fo-dock-m{display:flex;flex-direction:column;gap:4px}
+.desk .fo-dock-m img{width:26px;height:26px;border-radius:50%;object-fit:cover;border:1.5px solid;filter:saturate(.8)}
+.desk .fo-crew-l>li.fo-dock[data-live] .fo-dock-m img{filter:none}
+.desk .fo-more-d{margin-top:var(--fl-s4);border-top:1px solid var(--wv-line)}
+.desk .fo-more-d>summary{display:flex;align-items:center;gap:12px;padding:14px 0;cursor:pointer;list-style:none;font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-mute)}
+.desk .fo-more-d>summary::-webkit-details-marker{display:none}
+.desk .fo-more-d>summary::after{content:"";width:7px;height:7px;margin-left:auto;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);transition:transform .3s}
+.desk .fo-more-d[open]>summary::after{transform:rotate(225deg)}
+.desk .fo-more-d>summary .fl-num{font-size:20px;letter-spacing:0;color:var(--fl-hi)}
+.desk .fo-more-d>summary .fo-link{letter-spacing:.02em;text-transform:none}
+.desk .fo-more-d>summary:hover{color:var(--wv-ink)}
+
+/* The Changelog, and the side column. */
+.desk .fo-flow2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr);gap:var(--fl-s6) clamp(32px,4vw,72px);align-items:start}
+.desk .fo-log .fl-h2{margin-bottom:var(--fl-s4)}
+.desk .fo .changelog,.desk .fo .fy-crew,.desk .fo .fy-next,.desk .fo .fy-usage,.desk .fo .fy-links{font-family:var(--fl-text)}
+.desk .fo .wv-log-day b{font-family:var(--fl-disp);font-weight:500;font-size:22px}
+.desk .fo .cl-entry__title{font-family:var(--fl-text)}
+.desk .fo .wv-log-in{padding-left:0}
+.desk .fo .wv-log-i{border-left:1px solid rgba(var(--fl-accent),.22);padding-left:18px}
+.desk .fo .wv-log-i[data-c=ok]{border-left-color:rgba(134,212,180,.55)}
+.desk .fo-flow2-r{display:grid;gap:var(--fl-s5)}
+.desk .fo-flow2-r .fl-k{margin-bottom:var(--fl-s3)}
+.desk .fo-runs ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid rgba(var(--fl-accent),.3)}
+.desk .fo-runs li{position:relative;display:grid;gap:4px;padding:14px 12px 16px;border-left:1px solid var(--wv-line)}
+.desk .fo-runs li:first-child{padding-left:0;border-left:0}
+.desk .fo-runs b{font-size:30px;font-weight:500;line-height:1;color:var(--wv-ink)}
+.desk .fo-runs span{font-size:14px;color:var(--wv-soft)}
+.desk .fo-runs em{font-style:normal;font-size:12px;color:var(--wv-faint)}
+/* How far to the next run: a hairline that fills. */
+.desk .fo-runs i{position:absolute;left:0;right:12px;bottom:0;height:1px;background:linear-gradient(90deg,rgba(var(--fl-accent),.7) calc(var(--f) * 100%),var(--wv-line) 0)}
+.desk .fo-runs li:not(:first-child) i{left:12px}
+.desk .fo-usage-h{margin:0 0 var(--fl-s3);font-size:15px;color:var(--wv-mute)}
+.desk .fo-usage-h b{font-size:38px;font-weight:500;color:var(--wv-ink)}
+.desk .fo-usage-l{list-style:none;margin:0 0 var(--fl-s3);padding:0;display:grid}
+.desk .fo-usage-l li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:10px;align-items:baseline;padding:9px 0;border-top:1px solid var(--wv-line)}
+.desk .fo-usage-l .wv-dot{align-self:center}
+.desk .fo-usage-l b{font-weight:500;font-size:14.5px;color:var(--wv-ink)}
+.desk .fo-usage-l span{grid-column:2;font-size:12px;color:var(--wv-faint)}
+.desk .fo-usage-l em{grid-column:3;grid-row:1;font-style:normal;font-size:19px;color:var(--wv-soft)}
+.desk .fo-vqa-l{list-style:none;margin:var(--fl-s3) 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px}
+.desk .fo-vqa-l li{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--wv-soft)}
+.desk .fo-vqa-l li i{width:6px;height:6px;border-radius:50%;background:var(--rc,var(--wv-mute))}
+.desk .fo-vqa-l li.is-off{color:var(--wv-faint)}
+.desk .fo-vqa-l li.is-off i{background:none;border:1px solid var(--wv-faint)}
+.desk .fo-conn{margin-top:0}
+
+/* ---------- narrower: the side panel goes under the headline ---------- */
+@media (max-width:1180px){
+  .desk .fo-top{grid-template-columns:minmax(0,1fr)}
+  .desk .fo-held{max-width:640px}
+  .desk .fo-crew-l{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:12px}
+  .desk .fo-crew-l>li:nth-child(odd){padding-left:0;border-left:0}
+  .desk .fo-flow2,.desk .fo-bench-g{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ---------- phone: the pipeline runs down the page, each lane full width ---------- */
+@media (max-width:760px){
+  .desk .fo{--fo-gate-r:64px}
+  .desk .fo-stage{min-height:0;gap:var(--fl-s5)}
+  .desk .fo-head .fl-h1{font-size:clamp(40px,11.5vw,56px)}
+  .desk .fo-ledger{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .desk .fo-ledger>div:nth-child(5){grid-column:1/-1;padding-left:0;border-left:0}
+  .desk .fo-line{grid-template-columns:minmax(0,1fr);row-gap:var(--fl-s4)}
+  .desk .fo-st{display:none}
+  .desk .fo-eyb-x{display:none}
+  .desk .fo-ideas,.desk .fo-queue{padding-left:28px}
+  .desk .fo-tail{right:auto;left:-16px}
+  .desk .fo-queue{grid-template-columns:auto auto 1fr;align-items:baseline;column-gap:10px}
+  .desk .fo-queue>.fo-dot{left:8px;top:16px}
+  .desk .fo-queue>b{font-size:34px}
+  .desk .fo-q-l{grid-column:1/-1;max-width:none}
+  .desk .fo-lane-l{padding-bottom:26px}
+  .desk .fo-lane-h{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"hand pill" "t t";row-gap:4px;padding:10px 0 16px 22px}
+  .desk .fo-hand{grid-area:hand;font-size:20px}
+  .desk .fo-pill{grid-area:pill;padding-right:calc(var(--fo-gate-r) - 30px)}
+  .desk .fo-lane-t{grid-area:t}
+  .desk .fo-lane-t b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .desk .fo-lane.is-free .fo-lane-h{grid-template-areas:"hand pill" "t t"}
+  .desk .fo-lane-x{margin:4px 0 14px 22px;padding:16px}
+  /* "Checks" sits over the gate, level with the stations' names. */
+.desk .fo-gate-h{position:absolute;right:var(--fo-gate-r);top:calc(-1 * (var(--fl-s3) + 25px));transform:translateX(50%);background:#0a0b0f;padding:0 10px}
+.desk .fo-gate-k{right:var(--fo-gate-r)}
+  .desk .fo-ship{padding-left:0;padding-right:24px}
+  .desk .fo-ship>.fo-dot{left:auto;right:6px;top:22px}
+  .desk .fo-cards{grid-template-columns:minmax(0,1fr)}
+  .desk .fo-crew-l{grid-template-columns:minmax(0,1fr)}
+  .desk .fo-crew-l>li{padding-left:0;border-left:0;border-top:1px solid var(--wv-line)}
+  .desk .fo-crew-l>li:first-child{border-top:0}
+  .desk .fo-runs ul{grid-template-columns:minmax(0,1fr)}
+  .desk .fo-runs li{padding-left:0;border-left:0;border-top:1px solid var(--wv-line);grid-template-columns:auto 1fr;column-gap:12px;align-items:baseline}
+  .desk .fo-runs li:first-child{border-top:0}
+  .desk .fo-runs em{grid-column:2}
+  .desk .fo-runs li:not(:first-child) i{left:0}
+  .desk .fo-slots{grid-template-columns:minmax(0,1fr)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .desk .fo-lane-x,.desk .fo-card,.desk .fo-slots>li{animation:none}
+  .desk .fo-more-d>summary::after{transition:none}
+}

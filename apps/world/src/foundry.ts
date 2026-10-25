@@ -305,6 +305,42 @@ export interface FoundryData {
   lastCommit?: LastCommit | null;
   /** The scheduled jobs' newest runs for the Boiler Room's board (desk/jobs.ts); absent without the Desk's feed. */
   jobs?: GhJob[];
+  /** The open pull requests, each with the issue it works on and its checks (#432); absent from an older feed. */
+  prs?: OpenPr[];
+}
+
+/** An open pull request as the Foundry page reads it (api/foundry-feed.ts, `open`). */
+export interface OpenPr {
+  number: number;
+  url: string;
+  /** Date.now() it opened. */
+  at: number;
+  draft: boolean;
+  /** The issue it works on, when its branch or a "Closes #n" names one. */
+  issue: number | null;
+  /** Its head commit's checks summed up; "unknown" before any ran, or when the Desk read GitHub directly. */
+  checks: ChecksState;
+}
+
+/** The feed's open pull requests (or GitHub's own list, read directly) as OpenPr, dropping any that don't parse. */
+export function parseOpenPrs(list: unknown): OpenPr[] {
+  if (!Array.isArray(list)) return [];
+  const out: OpenPr[] = [];
+  for (const p of list as Record<string, unknown>[]) {
+    const at = Date.parse(typeof p.created_at === "string" ? p.created_at : "");
+    if (typeof p.number !== "number" || typeof p.html_url !== "string" || Number.isNaN(at)) continue;
+    const head = (p.head ?? {}) as { ref?: unknown };
+    const issue = typeof p.issue === "number" ? p.issue : typeof head.ref === "string" ? branchIssue(head.ref) ?? closes(`${String(p.title ?? "")}\n${String(p.body ?? "")}`) : null;
+    const c = p.checks;
+    out.push({ number: p.number, url: p.html_url, at, draft: p.draft === true, issue, checks: c === "pass" || c === "fail" || c === "running" ? c : "unknown" });
+  }
+  return out;
+}
+
+/** The issue a closing keyword names ("Closes #432"), or null. */
+function closes(text: string): number | null {
+  const n = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i.exec(text)?.[1];
+  return n ? Number(n) : null;
 }
 
 /** The newest commit on main: its short sha, link, first line and when it landed. */
@@ -825,6 +861,8 @@ interface Feed {
   commits: GhCommit[];
   /** The scheduled jobs' newest runs (#301); only the Desk's feed reads them, and an older cached feed has none. */
   jobs?: GhJob[];
+  /** The open pull requests with their checks (#432); an older cached feed has none. */
+  open?: unknown[];
 }
 
 /** The Desk's own feed (api/foundry-feed.ts): one request, read with the Foundry's token and shared by every tab. */
@@ -837,21 +875,22 @@ async function readFeed(): Promise<Feed> {
 
 /** GitHub directly, for local previews where the feed isn't running. */
 async function readGitHub(): Promise<Feed> {
-  const [issues, runs, e2e, live, pulls, commits] = await Promise.all([
+  const [issues, runs, e2e, live, pulls, commits, open] = await Promise.all([
     fetchJson<GhIssue[]>(`${API}/issues?labels=foundry&state=all&sort=updated&per_page=40`),
     fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/checks.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
     fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/e2e.yml/runs?branch=main&per_page=5`).catch(() => ({ workflow_runs: [] })),
     fetchJson<{ workflow_runs: GhRun[] }>(`${API}/actions/workflows/live-watch.yml/runs?branch=main&per_page=1`).catch(() => ({ workflow_runs: [] })),
     fetchJson<GhPull[]>(`${API}/pulls?state=closed&sort=updated&direction=desc&per_page=20`).catch(() => [] as GhPull[]),
     fetchJson<GhCommit[]>(`${API}/commits?sha=main&per_page=40`).catch(() => [] as GhCommit[]),
+    fetchJson<unknown[]>(`${API}/pulls?state=open&sort=created&direction=desc&per_page=12`).catch(() => [] as unknown[]),
   ]);
-  return { issues, runs, e2e, live, pulls, commits };
+  return { issues, runs, e2e, live, pulls, commits, open };
 }
 
 export async function refreshFoundry(): Promise<void> {
   try {
-    const { issues, runs, e2e, live, pulls, commits, jobs } = await readFeed().catch(readGitHub);
-    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits), jobs };
+    const { issues, runs, e2e, live, pulls, commits, jobs, open } = await readFeed().catch(readGitHub);
+    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits), jobs, prs: parseOpenPrs(open) };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
     const { setLink } = useSystems.getState();

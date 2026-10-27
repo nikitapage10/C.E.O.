@@ -23,6 +23,7 @@ import * as exchangepositions from "../../api/_exchange/positions.js";
 import * as greenleague from "../../api/_green/route.js";
 import * as invoices from "../../api/_paypal/route.js";
 import * as latticetiming from "../../api/_boot/timing.js";
+import * as talktiming from "../../api/_boot/talkTiming.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
@@ -92,6 +93,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["keys", keys],
   // The Lattice's boot-timing beacon (#373): timings and counts from the browser, shown in the Boiler Room.
   ["lattice-timing", latticetiming],
+  // The Talk calls' start timings (#512): stage names and milliseconds from the browser, shown in the Boiler Room.
+  ["talk-timing", talktiming],
   ["foundry-usage", foundryusage],
   ["foundry", foundry],
   // The subminds' room events (#281, docs/SKIPPY.md "Room keys"): POST with the feed key only; GET full for a Desk

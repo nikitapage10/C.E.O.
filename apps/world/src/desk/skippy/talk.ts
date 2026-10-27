@@ -3,6 +3,7 @@ import { readCrew } from "../hologram/crew.ts";
 import { setCrew, setSpeaker } from "../hologram/signal.ts";
 import { setCallLive } from "./liveCall.ts";
 import { stopSpeaking, useSkippy } from "./chat.ts";
+import { sendTalkTiming } from "./talkBeacon.ts";
 
 /**
  * Talking to Skippy out loud (#434), browser side; the function is api/skippy-voice.ts. A tap asks for the microphone,
@@ -399,7 +400,10 @@ export const useTalk = create<TalkStore>((set, get) => {
           onAgent: (agent) => setSpeaker(agent),
           onMessage: (who, text) => useSkippy.getState().say(who, text),
           onMode: (mode) => {
-            if (mode === "speaking" && get().timings?.firstWord === undefined) mark("firstWord");
+            if (mode === "speaking" && get().timings?.firstWord === undefined) {
+              mark("firstWord");
+              sendTalkTiming(get().timings ?? {}, true);
+            }
             set({ mode });
           },
           onTool: (name) => {
@@ -413,6 +417,7 @@ export const useTalk = create<TalkStore>((set, get) => {
           },
         });
       } catch {
+        sendTalkTiming(get().timings ?? {}, false);
         await finish("eleven");
         return;
       }

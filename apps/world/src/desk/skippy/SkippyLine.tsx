@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { TALK_NOTE, clock, creditsLine, talkLevel, usageLine, useTalk } from "./talk.ts";
+import { CREDITS_OUT, TALK_NOTE, clock, creditsLine, talkLevel, useTalk } from "./talk.ts";
 
 /**
  * The line (#434): while a call is on, the chat's composer becomes one strand of the Lattice's dots and lines, strung
@@ -61,19 +61,18 @@ function Strand() {
   return <canvas ref={canvas} className="skp-line__strand" aria-hidden="true" />;
 }
 
-function Left() {
+/** How long the call has run: a count up, since the site sets no length (#532). */
+function Elapsed() {
   const startedAt = useTalk((s) => s.startedAt);
-  const maxSecs = useTalk((s) => s.maxSecs);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const left = startedAt ? maxSecs - (now - startedAt) / 1000 : maxSecs;
+  const secs = startedAt ? (now - startedAt) / 1000 : 0;
   return (
-    <span className="skp-line__clock" aria-label={`${clock(left)} left on the call`}>
-      {clock(left)}
-      <small>left</small>
+    <span className="skp-line__clock" aria-label={`${clock(secs)} on the call`}>
+      {clock(secs)}
     </span>
   );
 }
@@ -82,7 +81,7 @@ export function SkippyLine() {
   const phase = useTalk((s) => s.phase);
   const mode = useTalk((s) => s.mode);
   const end = useTalk((s) => s.end);
-  const usage = useTalk((s) => s.usage);
+  const credits = useTalk((s) => s.credits);
   const who = phase === "starting" ? "Waking the magnificent one…" : phase === "ending" ? "Hanging up…" : mode === "speaking" ? "Skippy is talking" : "Listening to you";
   return (
     <div className={`skp-line skp-line--${phase} skp-line--${mode}`} role="group" aria-label="Voice call with Skippy">
@@ -91,28 +90,23 @@ export function SkippyLine() {
         <p className="skp-line__who" aria-live="polite">
           {who}
         </p>
-        {phase === "live" && <Left />}
+        {phase === "live" && <Elapsed />}
         <button type="button" className="btn btn--sm skp-line__end" onClick={() => void end()} disabled={phase === "ending"}>
           End call
         </button>
       </div>
-      {usage && <p className="skp-line__usage">{usageLine(usage)}</p>}
+      {credits && <p className="skp-line__usage">{creditsLine(credits)}</p>}
     </div>
   );
 }
 
-/** The small lines under the composer: this month's talk minutes and dollars, the plan's credits, or why talking is off. */
+/** The small lines under the composer: the plan's credits left (signed in only), "ElevenLabs credits used up", or why talking is off. */
 export function TalkUsage() {
-  const usage = useTalk((s) => s.usage);
   const credits = useTalk((s) => s.credits);
   const ready = useTalk((s) => s.ready);
   const reason = useTalk((s) => s.reason);
-  if (ready === false && reason && reason !== "signed-out" && reason !== "capped") return <p className="skp-talk-usage skp-talk-usage--off">{TALK_NOTE[reason]}</p>;
-  if (!usage) return null;
-  return (
-    <>
-      <p className={`skp-talk-usage${usage.canTalk ? "" : " skp-talk-usage--off"}`}>{usage.canTalk ? usageLine(usage) : `${usageLine(usage)}: spent, so it's typing until the month turns`}</p>
-      {credits && <p className="skp-talk-usage skp-talk-usage--plan">{creditsLine(credits)}</p>}
-    </>
-  );
+  if (reason === "quota") return <p className="skp-talk-usage skp-talk-usage--off">{CREDITS_OUT}</p>;
+  if (ready === false && reason && reason !== "signed-out") return <p className="skp-talk-usage skp-talk-usage--off">{TALK_NOTE[reason]}</p>;
+  if (!credits) return null;
+  return <p className={`skp-talk-usage skp-talk-usage--plan${credits.used >= credits.limit ? " skp-talk-usage--off" : ""}`}>{creditsLine(credits)}</p>;
 }

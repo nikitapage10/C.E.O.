@@ -2,34 +2,24 @@ import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import { speak, useSkippy } from "./chat.ts";
 import { setCallLive } from "./liveCall.ts";
-import { TALK_NOTE, clock, creditsLine, clipSentence, isToolToken, landedNote, readCredits, readHandoffs, readUsage, requestToken, usageLine } from "./talk.ts";
+import { CREDITS_OUT, TALK_NOTE, clock, creditsLine, clipSentence, isToolToken, landedNote, readCredits, readHandoffs, requestToken } from "./talk.ts";
 
-const usage = { month: "2026-10", usedMin: 3, budgetMin: 41.6, leftMin: 38.6, sessionMin: 3, canTalk: true };
 const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 
 describe("Talk to Skippy in the browser", () => {
-  it("reads the month's minutes and writes them small", () => {
-    expect(readUsage(usage)).toEqual(usage);
-    expect(readUsage({ usedMin: -1 })).toBeNull();
-    expect(readUsage(null)).toBeNull();
-    expect(usageLine(usage)).toBe("3.0 of 41.6 talk min this month");
+  it("writes the clock, and the plan's credits left with no site budget (#532)", () => {
     expect(clock(179.4)).toBe("2:59");
     expect(clock(-3)).toBe("0:00");
-  });
-
-  it("writes the month's dollars against the share and the cap, and the plan's credits (#477)", () => {
-    const billed = { ...usage, usedUsd: 0.36, budgetUsd: 5, elevenUsd: 1.1, capUsd: 10, calls: 2 };
-    expect(readUsage({ ...billed, storyUsd: 0.74 })).toEqual(billed);
-    expect(usageLine(billed)).toBe("3.0 of 41.6 talk min this month · $0.36 of $5.00 share · $1.10 of $10.00 cap");
     expect(readCredits({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" })).toEqual({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" });
-    expect(creditsLine({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" })).toBe("Creator plan: 100,370 of 122,113 credits · resets Nov 5");
-    expect(creditsLine({ used: 5, limit: 10, resetAt: null, tier: null })).toBe("Plan: 5 of 10 credits");
+    expect(creditsLine({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" })).toBe("Creator plan: 21,743 credits left of 122,113 · resets Nov 5");
+    expect(creditsLine({ used: 5, limit: 10, resetAt: null, tier: null })).toBe("Plan: 5 credits left of 10");
+    expect(creditsLine({ used: 10, limit: 10, resetAt: "2026-11-05", tier: "creator" })).toBe(`${CREDITS_OUT} · resets Nov 5`);
     expect(readCredits({ used: 5 })).toBeNull();
     expect(readCredits({ used: 5, limit: 10, resetAt: "soon<script>", tier: "<b>" })).toEqual({ used: 5, limit: 10, resetAt: null, tier: null });
   });
 
   it("turns each refusal into a reason with a plain note that says typing still works", async () => {
-    expect(await requestToken(reply(200, { ok: false, reason: "capped", usage: { ...usage, canTalk: false } }))).toMatchObject({ ok: false, reason: "capped" });
+    expect(await requestToken(reply(502, { error: "quota" }))).toEqual({ ok: false, reason: "quota" });
     expect(await requestToken(reply(401, { error: "signed-out" }))).toEqual({ ok: false, reason: "signed-out" });
     expect(await requestToken(reply(429, { error: "slow-down", wait: 30 }))).toEqual({ ok: false, reason: "slow" });
     expect(await requestToken(reply(503, { error: "no-key" }))).toEqual({ ok: false, reason: "no-key" });
@@ -40,14 +30,16 @@ describe("Talk to Skippy in the browser", () => {
     expect(await requestToken(reply(502, { error: "something-new" }))).toEqual({ ok: false, reason: "eleven" });
     expect(TALK_NOTE["key-invalid"]).toMatch(/Keys page/);
     expect(TALK_NOTE.plan).toMatch(/plan or limits/);
+    expect(TALK_NOTE.quota).toMatch(/ElevenLabs credits used up/);
+    expect(TALK_NOTE.quota.split(". ").length).toBeLessThanOrEqual(2);
     expect(TALK_NOTE["agent-denied"]).toMatch(/needs access to Agents/);
     expect(await requestToken((async () => Promise.reject(new Error("offline"))) as unknown as typeof fetch)).toEqual({ ok: false, reason: "eleven" });
-    for (const r of ["capped", "eleven", "key-invalid", "plan", "agent-denied", "mic", "failed"] as const) expect(TALK_NOTE[r]).toMatch(/[Tt]yping/);
+    for (const r of ["quota", "eleven", "key-invalid", "plan", "agent-denied", "mic", "failed"] as const) expect(TALK_NOTE[r]).toMatch(/[Tt]yping/);
   });
 
-  it("hands back the one-call token, the call's length and the Desk's state", async () => {
-    const got = await requestToken(reply(200, { ok: true, token: "lk-abc", conversation: "conv_1", maxSecs: 180, desk: "Builds in flight: 1", usage }));
-    expect(got).toEqual({ ok: true, token: "lk-abc", conversation: "conv_1", maxSecs: 180, desk: "Builds in flight: 1", usage });
+  it("hands back the one-call token and the Desk's state, with no call length (#532)", async () => {
+    const got = await requestToken(reply(200, { ok: true, token: "lk-abc", conversation: "conv_1", desk: "Builds in flight: 1" }));
+    expect(got).toEqual({ ok: true, token: "lk-abc", conversation: "conv_1", desk: "Builds in flight: 1" });
   });
 
   it("carries the call's tool token for the lookups only when it is well-formed (#479)", async () => {
@@ -55,9 +47,9 @@ describe("Talk to Skippy in the browser", () => {
     expect(isToolToken(tool)).toBe(true);
     expect(isToolToken("vt1.<script>.a.b")).toBe(false);
     expect(isToolToken(`vt1.a.b.${"c".repeat(300)}`)).toBe(false);
-    const ok = await requestToken(reply(200, { ok: true, token: "lk-abc", conversation: "conv_1", maxSecs: 600, desk: "", usage, tool }));
+    const ok = await requestToken(reply(200, { ok: true, token: "lk-abc", conversation: "conv_1", desk: "", tool }));
     expect(ok).toMatchObject({ ok: true, tool });
-    const bad = await requestToken(reply(200, { ok: true, token: "lk-abc", conversation: "conv_1", maxSecs: 600, desk: "", usage, tool: "sk_live_nope" }));
+    const bad = await requestToken(reply(200, { ok: true, token: "lk-abc", conversation: "conv_1", desk: "", tool: "sk_live_nope" }));
     expect(bad).not.toHaveProperty("tool");
   });
 

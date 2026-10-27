@@ -137,9 +137,12 @@ server-side in a signed-in session only, so none of it ever reaches the Lattice:
   sender or contact. The Exchange gets the open positions' count, value and P&L. The Boiler Room gets its pipes (which of
   those reads answered), main's last checks and deploy runs, and the world step's age. Each read runs on its own inside
   one 2.5 s budget, so a room that fails or is slow is said to be quiet and the rest go on. Every line is scrubbed.
-- **The ElevenLabs bill** (#477, `billLines` in `api/_skippy/voice.ts`): the month's talk minutes and calls, the
-  estimate against the talk's share and the $10 cap, the story's part, and the plan's credits from ElevenLabs'
-  `GET /v1/user/subscription` when it answers.
+- **The ElevenLabs plan's credits** (#477, #532, `billLines` in `api/_skippy/voice.ts`): what is left of the plan's
+  credits from ElevenLabs' `GET /v1/user/subscription` (read server-side with the key, signed-in only) when it answers.
+  The site holds Talk to no monthly budget and no call length (#532); the plan's credits are the only limit. A call
+  ends after two minutes with nobody speaking (`apps/world/src/desk/skippy/silence.ts`, and the agent's own
+  silence timeout), so a forgotten open mic doesn't burn credits. When ElevenLabs refuses for credits (402 or
+  `quota_exceeded`, reported as `quota`), Skippy says so in one in-character line and Talk shows "ElevenLabs credits used up".
 
 When a question needs more than these lines, Skippy gives his first take from them and says he's checking with the
 room's submind. Typed, he hands it off (below). He never tells Nikita to go and look in the Lattice.
@@ -301,11 +304,11 @@ answer. But if it's something a little bit more specific to our room, then it ta
 - **Lookups mid-call.** The voice agent has webhook tools (ElevenLabs' server tools) that call
   `GET /api/skippy-tools?read=<room>` on the site (Azure only, `api/_skippy/toolroute.ts`): `green`, `exchange` (the
   public odds), `exchange_positions` (Nikita's book, in dollars), `relay` (counts only), `boiler`, `foundry` and
-  `voice_bill` (the month's ElevenLabs ledger). Each answers a few short lines built from the same reads the Desk's
-  room pages use (`api/_skippy/voicereads.ts`), scrubbed like the public feeds; only the book and the bill carry a
+  `voice_bill` (the ElevenLabs plan's credits left). Each answers a few short lines built from the same reads the Desk's
+  room pages use (`api/_skippy/voicereads.ts`), scrubbed like the public feeds; only the book carries a
   dollar figure, and only to the call that asked.
 - **Who may call them.** Only a live call. When the call's token is minted, the function mints a random tool token
-  for that call, signed with a key derived from `FOUNDRY_DESK_KEY` (no new secret) and good for the call's longest plus
+  for that call, signed with a key derived from `FOUNDRY_DESK_KEY` (no new secret) and good for the call's longest (an hour) plus
   two minutes, and keeps its hash with the call (`desk/skippy/voice-tools.json`). The browser passes it to ElevenLabs
   as the secret dynamic variable `secret__ceo_tool`, which ElevenLabs binds only to tool headers and never shows the
   LLM; each tool sends it back as `x-ceo-voice-tool`. The site gate lets exactly `GET` or `POST /api/skippy-tools`
@@ -348,7 +351,7 @@ answer. But if it's something a little bit more specific to our room, then it ta
   fire once per hand-over, status answers are two or three sentences, and a turn has 1,024 tokens. Every agent sends
   the browser `agent_tool_response_full_payload`: agent lines carry no agent id over the socket, so the transfer's
   result (`to_agent`) is how the hologram knows who has the mic (`apps/world/src/desk/skippy/talkSession.ts`).
-- **Talk starts fast (#496).** The start answers with a `Server-Timing` header (pace, count, ledger, desk, credits,
+- **Talk starts fast (#496).** The start answers with a `Server-Timing` header (pace, count, desk, credits,
   agent, mint, keep, total; names and milliseconds only) and the browser marks `talk:*` for the mic, the token, the
   connection and Skippy's first word. Ended calls are settled only when the month looks full; the Desk's lines are
   kept for a minute and waited on for at most 0.8 s; the agent check runs only when its signature changed. Hovering or

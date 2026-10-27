@@ -3,7 +3,6 @@ import { DESK_LATE, DESK_WAIT_MS, stageTimer, status, talk, type VoiceDeps } fro
 import { MemoryVoiceStore } from "./_skippy/voice.ts";
 import { MemoryAuthStore } from "./_desk/store.ts";
 import { signedInCookie } from "./_desk/testing.ts";
-import { MemoryStoryStore } from "./_world/story.ts";
 import { MemoryCrewStore } from "./_skippy/voicetoken.ts";
 import { MemoryRoomLog } from "./_skippy/log.ts";
 
@@ -32,10 +31,8 @@ async function setup(over: Partial<VoiceDeps> = {}) {
   const deps: VoiceDeps = {
     deskKey: DESK,
     store,
-    stories: new MemoryStoryStore(),
     voice: new MemoryVoiceStore(),
     eleven: { key: KEY, voice: "onwK4e9ZLuTAKqWW03F9", budget: 10 },
-    budget: 5,
     desk: async () => "Builds in flight: 1",
     crew: new MemoryCrewStore(),
     roomLog: new MemoryRoomLog(),
@@ -55,7 +52,7 @@ describe("Talk's start (#496)", () => {
     const res = await post({ action: "start" });
     expect(res.status).toBe(200);
     const timing = res.headers.get("Server-Timing")!;
-    for (const stage of ["pace", "count", "ledger", "desk", "credits", "agent", "mint", "keep", "total"]) expect(timing).toMatch(new RegExp(`(^|, )${stage};dur=\\d+`));
+    for (const stage of ["pace", "count", "desk", "credits", "agent", "mint", "keep", "total"]) expect(timing).toMatch(new RegExp(`(^|, )${stage};dur=\\d+`));
     expect(timing).not.toContain(KEY);
   });
 
@@ -70,19 +67,6 @@ describe("Talk's start (#496)", () => {
     calls.length = 0;
     expect((await post({ action: "start" })).status).toBe(200);
     expect(calls).toEqual(["GET /v1/convai/conversation/token"]);
-  });
-
-  it("settles ended calls only when the month looks full, never on the common path", async () => {
-    const { post, calls, deps } = await setup();
-    await post({ action: "start" });
-    calls.length = 0;
-    await post({ action: "start" });
-    expect(calls.filter((c) => c.includes("/conversations/"))).toEqual([]);
-    // Near the cap, the start settles first: the pending calls give back their unused minutes and it goes ahead.
-    const full = await setup({ stories: deps.stories, voice: deps.voice, crew: deps.crew, budget: 3.0 });
-    const res = await full.post({ action: "start" });
-    expect(full.calls.filter((c) => c.includes("/conversations/")).length).toBeGreaterThan(0);
-    expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
   });
 
   it("doesn't wait long on the Desk's lines: cold, the call starts without them", async () => {

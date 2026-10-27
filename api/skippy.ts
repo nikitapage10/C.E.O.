@@ -37,8 +37,7 @@
  *
  * What Skippy is told about the Desk is what the Desk already shows (api/_skippy/context.ts): titles, numbers, labels
  * and counts from the Foundry's issues, the setup list's states and the world clock, scrubbed like the public feeds,
- * and the month's ElevenLabs bill (#477, billLines: talk minutes, calls, dollars against the talk's share and the cap,
- * the plan's credits when ElevenLabs answers). The bill is only ever in this signed-in answer, never on the Lattice.
+ * and the ElevenLabs plan's credits (#477, billLines, when ElevenLabs answers; the site caps nothing of its own, #532). They are only ever in this signed-in answer, never on the Lattice.
  * And a line or two per live room (#478, api/_skippy/rooms.ts): the Green's matchup and calls, Relay's counts, the
  * Exchange's open positions and the Boiler Room's pipes, each read on its own inside one time budget.
  * He is also told what C.E.O. runs on (#312): the sheet generated from the repo at build time and an OSV.dev advisory
@@ -73,8 +72,8 @@ import { LOOKUP_PROMPT, OVER_BUDGET, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lo
 import { monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
-import { elevenFromEnv, pickStoryStore } from "./_world/story.js";
-import { billLines, creditsReader, voiceBudget, voiceUsage } from "./_skippy/voice.js";
+import { elevenFromEnv } from "./_world/story.js";
+import { billLines, creditsReader } from "./_skippy/voice.js";
 import { roomLines } from "./_skippy/rooms.js";
 import { liveRoomReads } from "./_skippy/roomReads.js";
 import type { WorldState } from "./_world/types.js";
@@ -211,7 +210,7 @@ export interface ChatDeps {
   world: () => Promise<WorldState | null>;
   /** The Desk's live state for Skippy. */
   desk: (world: WorldState | null) => Promise<DeskContext>;
-  /** The month's ElevenLabs bill as plain lines (#477, api/_skippy/voice.ts billLines), added to <desk>; "" or left out, none. */
+  /** The ElevenLabs plan's credits as plain lines (#477, api/_skippy/voice.ts billLines), added to <desk>; "" or left out, none. */
   bill?: () => Promise<string>;
   /** The live rooms as plain lines (#478, api/_skippy/rooms.ts), added to <desk>; "" or left out, none. */
   rooms?: (world: WorldState | null) => Promise<string>;
@@ -243,10 +242,7 @@ function defaultDeps(): ChatDeps {
     rooms: (world) => roomLines({ ...liveRoomReads(env), clock: async () => world?.at ?? null }, Date.now()),
     bill: async () => {
       const eleven = elevenFromEnv(env);
-      const stories = pickStoryStore(env);
-      if (!eleven || !stories) return "";
-      const [spend, plan] = await Promise.all([stories.loadSpend(), creditsReader(eleven.key)()]);
-      return billLines(voiceUsage(spend, Date.now(), voiceBudget(env.ELEVENLABS_VOICE_BUDGET_USD, eleven.budget), eleven.budget), plan);
+      return eleven ? billLines(await creditsReader(eleven.key)()) : "";
     },
     now: Date.now(),
     env,

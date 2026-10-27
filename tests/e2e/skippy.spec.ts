@@ -94,35 +94,33 @@ test("signed out, Skippy's box is off with a sign-in hint", async ({ page }) => 
   await expect(chat.getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 
-test("Talk falls back to typing with a plain note when the month's minutes are spent (#434)", async ({ page }) => {
+test("Talk has no site budget: it shows the plan's credits left, and falls back to typing with ElevenLabs' own note when they are used up (#532)", async ({ page }) => {
   await stub(page, true);
   // A stand-in microphone, so the call gets past the browser's prompt in a headless run.
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = async () => new AudioContext().createMediaStreamDestination().stream;
   });
-  const capped = { month: "2026-10", usedMin: 40, budgetMin: 41.6, leftMin: 1.6, sessionMin: 3, canTalk: false };
   let starts = 0;
   await page.route(`${BASE}/api/skippy-voice`, (r) => {
     if (r.request().method() === "POST") {
       starts++;
-      return r.fulfill({ json: { ok: false, reason: "capped", usage: capped } });
+      return r.fulfill({ status: 502, json: { error: "quota" } });
     }
-    return r.fulfill({ json: { ready: true, usage: { ...capped, usedMin: 3, canTalk: true, usedUsd: 0.36, budgetUsd: 5, elevenUsd: 1.1, capUsd: 10, calls: 2 }, credits: { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" } } });
+    return r.fulfill({ json: { ready: true, credits: { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" } } });
   });
   await page.goto(BASE + "/");
   await page.getByRole("button", { name: "Ask Skippy", exact: true }).first().click();
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
-  await expect(chat.getByText("3.0 of 41.6 talk min this month")).toBeVisible();
-  // The month's bill and the plan's credits beside Talk (#477).
-  await expect(chat.getByText("3.0 of 41.6 talk min this month · $0.36 of $5.00 share · $1.10 of $10.00 cap")).toBeVisible();
-  await expect(chat.getByText("Creator plan: 100,370 of 122,113 credits · resets Nov 5")).toBeVisible();
+  // No talk minutes or budget block; only the plan's own credits.
+  await expect(chat.getByText("Creator plan: 21,743 credits left of 122,113 · resets Nov 5")).toBeVisible();
+  await expect(chat.getByText(/talk min|share|cap/)).toHaveCount(0);
   const talk = chat.getByRole("button", { name: /live voice call/ });
   await expect(talk).toBeEnabled();
   await talk.click();
-  await expect(chat.getByText(/talk minutes are spent/).first()).toBeVisible();
-  // Typing still works, and the call button is off until the month turns.
+  await expect(chat.getByText(/ElevenLabs credits used up/).first()).toBeVisible();
+  // Typing still works, and Talk can be tried again (the plan may have refilled).
   await expect(chat.getByRole("textbox", { name: "Message to Skippy" })).toBeEnabled();
-  await expect(chat.getByRole("button", { name: /talk minutes are spent/ })).toBeDisabled();
+  await expect(chat.getByRole("button", { name: /live voice call/ })).toBeEnabled();
   expect(starts).toBe(1);
 });
 
@@ -137,9 +135,8 @@ async function startCall(page: Page) {
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = async () => new AudioContext().createMediaStreamDestination().stream;
   });
-  const usage = { month: "2026-10", usedMin: 3, budgetMin: 41.6, leftMin: 38.6, sessionMin: 3, canTalk: true };
   await page.route(`${BASE}/api/skippy-voice`, (r) =>
-    r.fulfill({ json: r.request().method() === "POST" ? { ok: true, token: "t", conversation: "", maxSecs: 180, desk: "", usage, crew: { agent_turf01: "turf", agent_soot01: "soot" } } : { ready: true, usage } }),
+    r.fulfill({ json: r.request().method() === "POST" ? { ok: true, token: "t", conversation: "", desk: "", crew: { agent_turf01: "turf", agent_soot01: "soot" } } : { ready: true } }),
   );
   await page.route(/\/assets\/talkSession-[\w-]+\.js$/, (r) => r.fulfill({ contentType: "text/javascript", body: FAKE_CALL }));
   const asked: string[] = [];

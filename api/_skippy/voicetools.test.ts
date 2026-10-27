@@ -9,7 +9,7 @@ import { roomLog } from "../skippy.ts";
 import { handle, readText, type RoomSources } from "./toolroute.ts";
 import { exchangesOf } from "./voicecouncil.ts";
 import { KERNEL_TOOLS, ON_AIR, SKIPPY_CREW_PROMPT, TOOL_DEFS, ensureCrew, skippyTransfers, submindBody, toolConfig } from "./voicecrew.ts";
-import { PRIVATE_READS, READS, billText, boilerText, exchangeText, greenText, positionsText, relayText } from "./voicereads.ts";
+import { READS, billText, boilerText, exchangeText, greenText, positionsText, relayText } from "./voicereads.ts";
 import { MAX_HANDOFFS, MemoryCrewStore, TOOL_HEADER, TOOL_VAR, callHandoffs, checkToolToken, endToolToken, issueToolToken, mintToolToken, signedUntil, toolTokenSigned } from "./voicetoken.ts";
 
 const NOW = Date.parse("2026-10-27T06:00:00Z");
@@ -67,7 +67,7 @@ const sources = (over: Partial<RoomSources> = {}): RoomSources => ({
   foundryBoard: async () => "Builds in flight: 1\n  - #479 Talk: live room lookups (in progress)",
   jobs: async () => ({ jobs: [{ name: "Checks", status: "completed", conclusion: "failure", created_at: "2026-10-27T05:00:00Z", run_started_at: "2026-10-27T05:00:00Z", html_url: "https://github.com/x" }], open: [{ number: 481, html_url: "https://github.com/x", created_at: "2026-10-27T05:00:00Z", draft: false, issue: 479, checks: "running" }] }),
   world: async () => null,
-  bill: async () => ({ month: { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 2.5, elevenChars: 0, elevenCalls: 0, voiceUsd: 1.2, voiceSecs: 600, voiceCalls: 2 }, share: 5, cap: 10, usdPerMin: 0.12, sessionSecs: 600 }),
+  bill: async () => ({ credits: { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" } }),
   ...over,
 });
 
@@ -216,14 +216,15 @@ describe("what each lookup says", () => {
   it("keeps money to the two private reads, and scrubs every outside string", async () => {
     const texts = await all();
     for (const r of READS) {
-      if (PRIVATE_READS.includes(r)) expect(texts[r]).toMatch(/\$\d/);
+      if (r === "exchange_positions") expect(texts[r]).toMatch(/\$\d/);
       else expect(texts[r], r).not.toMatch(/\$\s?\d/);
       expect(texts[r], r).not.toMatch(/https?:\/\/|@example\.com/);
     }
     expect(texts.exchange).toContain("[amount]");
     expect(texts.exchange).toContain("34 percent, up 4 points today");
     expect(texts.exchange_positions).toContain("worth $18.40");
-    expect(texts.voice_bill).toContain("$2.50 of the $10.00 cap");
+    expect(texts.voice_bill).toContain("21,743 credits left of 122,113");
+    expect(texts.voice_bill).not.toMatch(/cap|share/);
     expect(texts.green).toContain("[private]");
   });
 
@@ -248,7 +249,7 @@ describe("what each lookup says", () => {
     expect(exchangeText(null)).toMatch(/isn't answering/);
     expect(positionsText({ ok: true, state: "waiting", reason: "no-key" })).toMatch(/isn't connected/);
     expect(await readText("green", sources({ green: () => Promise.reject(new Error("down")) }), NOW)).toMatch(/isn't answering/);
-    expect(billText({ month: { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0, elevenChars: 0, elevenCalls: 0, voiceUsd: 0, voiceSecs: 0, voiceCalls: 0 }, share: 5, cap: 10, usdPerMin: 0.12, sessionSecs: 600 })).toContain("about 41.6 minutes");
+    expect(billText({ credits: null })).toMatch(/isn't telling me/);
   });
 });
 

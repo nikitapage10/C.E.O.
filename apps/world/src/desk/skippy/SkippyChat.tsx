@@ -105,7 +105,7 @@ export function SkippyComposer({ autoFocus = false, compact = false, onSent, pla
 
 /**
  * The call button (#434): a live voice call with Skippy, on ElevenLabs. The microphone is asked for only after this
- * tap. Off when the month's talk minutes are spent or talking isn't set up, with the reason as its title; typing and
+ * tap. Off only when talking isn't set up; the site sets no budget or call length (#532), and ElevenLabs' own credits are the limit; typing and
  * the mic beside it carry on either way.
  */
 export function TalkButton({ onStart }: { onStart?: () => void }) {
@@ -115,8 +115,8 @@ export function TalkButton({ onStart }: { onStart?: () => void }) {
   const start = useTalk((s) => s.start);
   const end = useTalk((s) => s.end);
   const live = phase !== "idle";
-  const off = !live && ready === false && (reason === "capped" || reason === "no-key" || reason === "not-set-up");
-  const title = live ? "End the call" : off ? (reason === "capped" ? "This month's talk minutes are spent" : "Talking isn't set up yet") : "Talk to Skippy: a live voice call";
+  const off = !live && ready === false && (reason === "no-key" || reason === "not-set-up");
+  const title = live ? "End the call" : off ? "Talking isn't set up yet" : "Talk to Skippy: a live voice call";
   return (
     <button
       type="button"

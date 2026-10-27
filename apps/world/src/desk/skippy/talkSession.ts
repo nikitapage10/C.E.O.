@@ -1,6 +1,5 @@
 import { Conversation } from "@elevenlabs/client";
-import { agentOfEvent, roomOfAgent } from "../hologram/crew.ts";
-import { holoEvents, setSpeaker } from "../hologram/signal.ts";
+import { holoEvents } from "../hologram/signal.ts";
 
 /**
  * The call itself (#434): ElevenLabs' own client (@elevenlabs/client), joined over WebRTC with the one-session token
@@ -9,12 +8,11 @@ import { holoEvents, setSpeaker } from "../hologram/signal.ts";
  * call's own key for its lookups, as the secret variable `secret__ceo_tool`: ElevenLabs puts it only in the tools'
  * header and never shows it to the model.
  *
- * Who has the mic (#491): every agent change puts that submind's can on the hologram (setSpeaker(room)), and Skippy's
- * own agent puts him back (setSpeaker(null)). ElevenLabs' agent lines carry no agent id over the socket (its agent
- * transfer docs: "individual messages do not carry an agent_id field"), so the change is read from the transfer
- * itself: the `transfer_to_agent` tool's result in `agent_tool_response_full_payload`, `{ to_agent, from_agent, ... }`,
- * which every agent sends since #491 (api/_skippy/voicecrew.ts, CLIENT_EVENTS). An `agent_metadata.agent_id` on any
- * event is read too, should ElevenLabs ever send one. `crew` is the call's start answer's map of agent id → submind id.
+ * Who has the mic (#491, #490): every raw event of the call goes to the hologram's `holoEvents.event`
+ * (hologram/signal.ts), which swaps the speaker on a transfer and puts Skippy back when the mic returns. Every agent
+ * sends `agent_tool_response_full_payload` since #491 (api/_skippy/voicecrew.ts, CLIENT_EVENTS), whose transfer result
+ * names the agent taking the mic; without it, signal.ts works the target out from the lines. talk.ts gives it the
+ * call's crew (`setCrew`) so agent ids resolve to rooms.
  */
 export interface CallHandlers {
   token: string;
@@ -23,9 +21,7 @@ export interface CallHandlers {
   tool?: string;
   onMessage: (who: "nikita" | "skippy", text: string) => void;
   onMode: (mode: "listening" | "speaking") => void;
-  /** ElevenLabs agent id → submind id, from /api/skippy-voice's start answer (#481). */
-  crew?: Record<string, string>;
-  /** The ElevenLabs agent that just took the mic (#481): Skippy's, or a submind's after a transfer. */
+  /** The ElevenLabs agent that just took the mic: only a stand-in call (the browser tests) reports it; the real one goes through holoEvents. */
   onAgent?: (agentId: string) => void;
   /** A tool the agent called came back (#479): its name only. */
   onTool?: (name: string) => void;
@@ -33,38 +29,27 @@ export interface CallHandlers {
   onError: () => void;
 }
 
+/**
+ * What makes the agent speak an answer the moment it lands (#506). A contextual update alone waits for Nikita's next
+ * turn, which is how a landed answer sat unspoken while Skippy said "still nothing"; this user message after it asks
+ * for the turn now. Never shown in the chat.
+ */
+export const SPEAK_NOW = "(The answer I was waiting on just landed. Tell me now.)";
+
 /** The secret dynamic variable the lookups' header carries (api/_skippy/voicetoken.ts, TOOL_VAR). */
 export const TOOL_VAR = "secret__ceo_tool";
 
-/**
- * The agent a tool's result hands the mic to: the `to_agent` of a successful `transfer_to_agent` result (as the SDK's
- * onAgentToolResponse passes it, or wrapped as the raw socket event), else null.
- */
-export function transferTarget(r: unknown): string | null {
-  if (!r || typeof r !== "object") return null;
-  return "agent_tool_response_full_payload" in r || "agent_tool_response" in r ? agentOfEvent(r) : agentOfEvent({ agent_tool_response_full_payload: r });
-}
-
-/** Follows who has the mic: each change of agent swaps the hologram's speaker (null is Skippy) and tells `onAgent`. */
-export function speakerTracker(crew: Record<string, string>, onAgent?: (agentId: string) => void) {
-  let current: string | null = null;
-  return (agent: string | null) => {
-    if (!agent || agent === current) return;
-    current = agent;
-    setSpeaker(roomOfAgent(agent, crew));
-    onAgent?.(agent);
-  };
-}
-
 export async function openCall(h: CallHandlers) {
   let speaking = false;
-  const switchTo = speakerTracker(h.crew ?? {}, h.onAgent);
   const call = await Conversation.startSession({
     conversationToken: h.token,
     connectionType: "webrtc",
     textOnly: false,
     dynamicVariables: { desk: h.desk, ...(h.tool && { [TOOL_VAR]: h.tool }) },
-    onMessage: ({ message, role }) => h.onMessage(role === "user" ? "nikita" : "skippy", message),
+    onMessage: ({ message, role }) => {
+      if (role === "user" && message.trim() === SPEAK_NOW) return;
+      h.onMessage(role === "user" ? "nikita" : "skippy", message);
+    },
     onModeChange: ({ mode }) => {
       speaking = mode === "speaking";
       h.onMode(speaking ? "speaking" : "listening");
@@ -73,11 +58,10 @@ export async function openCall(h: CallHandlers) {
     onAgentToolRequest: () => holoEvents.toolStart(),
     onAgentToolResponse: (r) => {
       holoEvents.toolEnd();
-      switchTo(transferTarget(r));
       if (r && typeof r.tool_name === "string") h.onTool?.(r.tool_name);
     },
     onInterruption: () => holoEvents.interrupted(),
-    onIncomingEvent: (ev: unknown) => switchTo(agentOfEvent(ev)),
+    onIncomingEvent: (ev: unknown) => holoEvents.event(ev),
     onDisconnect: () => h.onEnd(),
     onError: () => h.onError(),
   });
@@ -86,6 +70,11 @@ export async function openCall(h: CallHandlers) {
     mute: (muted: boolean) => call.setMicMuted(muted),
     /** A note for the agent that it doesn't speak by itself (ElevenLabs' contextual update): an answer that landed. */
     tell: (text: string) => call.sendContextualUpdate(text),
+    /** An answer that landed (#506): the note, then a turn asked for now, so he says it straight away. */
+    speakNow: (note: string) => {
+      call.sendContextualUpdate(note);
+      call.sendUserMessage(SPEAK_NOW);
+    },
     end: () => call.endSession(),
   };
 }

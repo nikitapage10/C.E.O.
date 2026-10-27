@@ -227,7 +227,7 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     const turn: Turn = got.ok ? { id: nextId++, who: "skippy", text: got.reply, actions: got.actions } : { id: nextId++, who: "skippy", text: got.message, note: true };
     // A hand-off (#341): Skippy's quick take stays, and a pending bubble waits for the room's answer under it.
     const waits = rt && got.ok && got.turn && got.needs && (rt.WAIT_ROOMS as readonly string[]).includes(got.room ?? "");
-    const pending: Turn | null = rt && waits ? { id: nextId++, who: "skippy", text: rt.pendingText(got.needs!), pending: { turn: got.turn!, room: got.room as AskedRoom, needs: got.needs!, since: Date.now() } } : null;
+    const pending: Turn | null = rt && waits ? { id: nextId++, who: "skippy", text: rt.pendingText(got.needs!, got.turn), pending: { turn: got.turn!, room: got.room as AskedRoom, needs: got.needs!, since: Date.now() } } : null;
     set((s) => ({ busy: false, turns: [...s.turns, turn, ...(pending ? [pending] : [])].slice(-KEEP_TURNS) }));
     if (got.ok && get().voice) speak(got.reply);
     if (rt && pending) rt.watchHandoffs(doFetch);
@@ -242,7 +242,7 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     const rt = await loadRoundTrip().catch(() => null);
     if (!rt || get().turns.some((t) => t.pending?.turn === turn || t.handed === turn)) return null;
     const id = nextId++;
-    set((s) => ({ turns: [...s.turns, { id, who: "skippy" as const, text: rt.pendingText(needs), handed: turn, pending: { turn, room, needs, since: Date.now() } }].slice(-KEEP_TURNS) }));
+    set((s) => ({ turns: [...s.turns, { id, who: "skippy" as const, text: rt.pendingText(needs, turn), handed: turn, pending: { turn, room, needs, since: Date.now() } }].slice(-KEEP_TURNS) }));
     rt.watchHandoffs(doFetch);
     return id;
   },

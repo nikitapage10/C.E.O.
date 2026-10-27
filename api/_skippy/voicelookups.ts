@@ -126,7 +126,7 @@ export function playerNewsText(query: string | null, d: { board: GreenBoard | nu
       const news = (d.fp?.news ?? []).find((n) => n.name && namesPlayer(q, n.name));
       if (inj || news) found.push({ id: null, name: inj?.name ?? news!.name, pos: inj?.pos ?? "player", team: inj?.team ?? null });
     }
-    if (!found.length) return `No player matching "${said(q, PLAYER_MAX)}" on Sleeper's list or in FantasyPros' feeds.${fpState} Try the full name, or hand it to Skippy's thread with hand_to_kernel.`;
+    if (!found.length) return `No player matching "${said(q, PLAYER_MAX)}" on Sleeper's list or in FantasyPros' feeds.${fpState} Try the full name, or call hand_to_kernel.`;
     for (const f of found.slice(0, 2)) lines.push(about(f.id, f.name, f.pos, f.team));
     if (found.length > 2) lines.push(`${found.length - 2} more players match that name; say the team to narrow it.`);
     return capLines([...lines, ...(fpState ? [fpState.trim()] : [])]);
@@ -178,7 +178,7 @@ export const SEARCHES_PER_CALL = 6;
 const KEEP_MS = 15 * 60_000;
 
 export const STILL_SEARCHING =
-  "Still searching the web for that. Say you've got the crew digging, keep talking, and call web_search again with the same query in a few seconds. If it's still not back then, hand the question to hand_to_kernel.";
+  "Still searching the web for that. If you haven't yet, say one short in-character line, then call web_search again with the same query in a few seconds, without filling the wait with talk. If it's still not back then, hand the question to hand_to_kernel.";
 
 interface Search {
   at: number;

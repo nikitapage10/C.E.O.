@@ -83,7 +83,7 @@ export function SkippyLine() {
   const mode = useTalk((s) => s.mode);
   const end = useTalk((s) => s.end);
   const usage = useTalk((s) => s.usage);
-  const who = phase === "starting" ? "Ringing the Kernel…" : phase === "ending" ? "Hanging up…" : mode === "speaking" ? "Skippy is talking" : "Listening to you";
+  const who = phase === "starting" ? "Waking the magnificent one…" : phase === "ending" ? "Hanging up…" : mode === "speaking" ? "Skippy is talking" : "Listening to you";
   return (
     <div className={`skp-line skp-line--${phase} skp-line--${mode}`} role="group" aria-label="Voice call with Skippy">
       <Strand />

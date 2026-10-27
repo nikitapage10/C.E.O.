@@ -1,3 +1,5 @@
+import { ponderLine } from "../../../../../api/_skippy/ponder.ts";
+import { callIsLive } from "./liveCall.ts";
 import { handedName, readAsked, type AskedCard, type AskedRoom, type AskedTurn } from "./asked.ts";
 
 /**
@@ -15,18 +17,24 @@ export const WAIT_ROOMS: readonly AskedRoom[] = ["green", "exchange", "boiler", 
 /** How long the chat keeps waiting before it says where the answer will show instead. */
 export const WAIT_MAX_MS = 2 * 60 * 60_000;
 
-/** How often it looks: every 15 seconds for the first five minutes, then every 30 (a submind's watcher wakes it in about 30 s). */
-export const pollEvery = (waitedMs: number): number => (waitedMs < 5 * 60_000 ? 15_000 : 30_000);
+/** How often it looks while a Talk call is live (#506): an answer reaches the call within a few seconds of landing. */
+export const LIVE_POLL_MS = 3_000;
 
-/** The pending bubble's words. */
-export const pendingText = (needs: string): string => `Checking with ${needs === "skippy" ? "Skippy's own thread" : handedName(needs)}…`;
+/** How often it looks: every 15 seconds for the first five minutes, then every 30 (a submind's watcher wakes it in about 30 s); every 3 on a live call. */
+export const pollEvery = (waitedMs: number): number => (callIsLive() ? LIVE_POLL_MS : waitedMs < 5 * 60_000 ? 15_000 : 30_000);
+
+/**
+ * The pending bubble's words. For his deeper self Skippy stays in character (#498): a rotating line, picked by the kept
+ * turn's id so a bubble keeps its line, never "thread" or "Kernel".
+ */
+export const pendingText = (needs: string, seed?: string): string => (needs === "skippy" ? ponderLine(seed) : `Checking with ${handedName(needs)}…`);
 
 /** Where the answer will still show when the chat stops waiting. */
 const PAGE_NAME: Record<Exclude<AskedRoom, "kernel">, string> = { green: "the Green", exchange: "the Exchange", boiler: "the Boiler Room", foundry: "the Foundry", relay: "Relay" };
 export const gaveUpText = (needs: string, room: AskedRoom): string =>
   room === "kernel"
-    ? "Still with Skippy's own thread. Your phone gets a ping when the answer lands."
-    : `Still with ${needs === "skippy" ? "Skippy's own thread" : handedName(needs)}. The answer will show on ${PAGE_NAME[room]} page, under Asked Skippy.`;
+    ? "Still pondering. Your phone gets a ping when the answer lands."
+    : `${needs === "skippy" ? "Still pondering" : `Still with ${handedName(needs)}`}. The answer will show on ${PAGE_NAME[room]} page, under Asked Skippy.`;
 
 /** What a hand-off waits on: the kept turn, its room and who has it. */
 export interface Pending {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chat, followUp, isAnswer, isLog, roomLog, answerPing, type AnswerDeps, type Ask, type ChatDeps } from "./skippy.ts";
 import { MemoryRoomLog, cleanCard } from "./_skippy/log.ts";
+import { PONDER_LINES, UNSPOKEN } from "./_skippy/ponder.ts";
 import { PAGE_LINES, PAGE_MAX, readPage, saysHandedOff } from "./_skippy/prompt.ts";
 import { SESSION_COOKIE } from "./_desk/session.ts";
 import { CHAT_CEILING_USD, CLAUDE_CAP_USD, MemoryChatLedger, SHAPING_RESERVE_USD, addChatSpend, canChat, chatMonth, skippyBudget } from "./_skippy/budget.ts";
@@ -386,12 +387,23 @@ describe("Desk Skippy's stack and hand-offs (#312)", () => {
     for (const bad of ["room=foundry&needs=rocky", "room=foundry&needs="]) expect((await read(bad)).status).toBe(400);
   });
 
-  it("sends a submind's ask to Skippy when no room's submind is active for it, and keeps his own words when they say so", async () => {
+  it("sends a submind's ask to Skippy when no room's submind is active for it, and keeps his own words when they say so in character", async () => {
     // Every logged room's submind is active since the Messenger woke (#322), so a roomless ask stands in.
-    const { post } = await setup({ reply: "I've handed it to my own thread.", actions: [], room: "none", needs: "submind" });
+    const { post } = await setup({ reply: "Ooh, weather. Consulting the deeper me.", actions: [], room: "none", needs: "submind" });
     const body = (await (await post("What's the weather in Ilyr?")).json()) as { reply: string; needs?: string };
     expect(body.needs).toBe("skippy");
-    expect(body.reply).toBe("I've handed it to my own thread.");
+    expect(body.reply).toBe("Ooh, weather. Consulting the deeper me.");
+    // The plumbing's words never reach Nikita (#498): a sentence naming the thread, a hand-off or the Kernel goes, and a
+    // rotating in-character line says it instead.
+    for (const said of ["I've handed it to my own thread.", "Good question. Let me hand this off to the Kernel.", "Hmm. I'll pass it to my thread; hand-off done."]) {
+      const out = saysHandedOff(said, "skippy");
+      expect(out).not.toMatch(UNSPOKEN);
+      expect(PONDER_LINES.some((l) => out.includes(l))).toBe(true);
+      expect(out).toMatch(/the answer will show on the Desk/i);
+    }
+    expect(saysHandedOff("Good question. Let me hand this off to the Kernel.", "skippy")).toMatch(/^Good question\. /);
+    // A submind's hand-over keeps its plain words.
+    expect(saysHandedOff("That's a build.", "ember")).toBe("That's a build. Handed to The Builder; the answer will show on the Desk.");
     expect(saysHandedOff("x".repeat(700), "skippy").length).toBeLessThanOrEqual(700);
   });
 });

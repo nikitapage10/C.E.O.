@@ -297,6 +297,7 @@ export function buildBoard(input: ModelInput): GreenBoard {
     at,
     season: state.season,
     week,
+    ...(state.nflWeek !== undefined && { nflWeek: state.nflWeek }),
     league: { id: league.id, name: league.name, teams: league.teams, scoring: league.rec >= 0.75 ? "PPR" : league.rec >= 0.25 ? "Half PPR" : "Standard", faab: league.faab },
     me: {
       rosterId: mine.rosterId,

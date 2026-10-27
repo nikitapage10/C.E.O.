@@ -142,8 +142,11 @@ export async function readPlayers(fetcher: Fetcher): Promise<Record<string, Slim
 
 export interface NflState {
   season: string;
+  /** The week the league shows (Sleeper's display_week): last week's until the new one's games start. */
   week: number;
   type: string;
+  /** Sleeper's own current week (`week`), when it differs from the shown one: the next week, after a week goes final (#506). */
+  nflWeek?: number;
 }
 
 export function shapeState(raw: unknown): NflState {
@@ -151,7 +154,9 @@ export function shapeState(raw: unknown): NflState {
   const season = typeof s.league_season === "string" && /^\d{4}$/.test(s.league_season) ? s.league_season : typeof s.season === "string" && /^\d{4}$/.test(s.season) ? s.season : null;
   const week = num(s.display_week) ?? num(s.week);
   if (!season || week === null || week < 0 || week > 25) throw new Error("bad state");
-  return { season, week: Math.round(week), type: typeof s.season_type === "string" ? s.season_type : "regular" };
+  const current = num(s.week);
+  const nflWeek = current !== null && current >= 0 && current <= 25 && Math.round(current) !== Math.round(week) ? Math.round(current) : undefined;
+  return { season, week: Math.round(week), type: typeof s.season_type === "string" ? s.season_type : "regular", ...(nflWeek !== undefined && { nflWeek }) };
 }
 
 export interface League {

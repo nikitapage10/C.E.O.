@@ -4,7 +4,7 @@ import { shapeInjuryDetail, shapeNewsDetail, type FpInjuryDetail, type FpNewsDet
 import { slimPlayers, type SlimPlayer } from "../_green/sleeper.ts";
 import { PLAYER_READ, SLOW_TEXT, WEB_ACT, handle, type RoomSources } from "./toolroute.ts";
 import { agentBody, voicePrompt } from "./voice.ts";
-import { BACK_TO_SKIPPY, CLIENT_EVENTS, KERNEL_TOOLS, ON_AIR, SKIPPY_CREW_PROMPT, TOOL_DEFS, TURN_MAX_TOKENS, ensureCrew, skippyTransfers, submindBody, submindPrompt, toolConfig } from "./voicecrew.ts";
+import { BACK_TO_SKIPPY, CLIENT_EVENTS, KERNEL_TOOLS, ON_AIR, OWN_VOICE, SKIPPY_CREW_PROMPT, SKIPPY_SOUND, TOOL_DEFS, TURN_MAX_TOKENS, ensureCrew, skippyTransfers, submindBody, submindPrompt, toolConfig } from "./voicecrew.ts";
 import { STILL_SEARCHING, forgetSearches, namesPlayer, playerNewsText, webSearch, type PlayerSources, type WebDeps } from "./voicelookups.ts";
 import { MemoryCrewStore, TOOL_HEADER, issueToolToken } from "./voicetoken.ts";
 
@@ -31,11 +31,10 @@ describe("the call's rules on the prompt text (#491)", () => {
       expect(text, who).toMatch(/Never point Nikita somewhere else/);
       for (const banned of ["hit the injury tracker on your Desk", "check the beat reporters", "go look in the Lattice"]) expect(text, who).toContain(`no "${banned}"`);
       expect(text, who).toMatch(/call hand_to_kernel straight away/);
-      expect(text, who).toMatch(/check_answers/);
-      expect(text, who).toMatch(/read it back in your own words/);
+      expect(text, who).toMatch(/When the answer is put into the call, say it straight away in your own words/);
     }
-    for (const s of ON_AIR) expect(submindPrompt(s), s.name).toMatch(/checking with Skippy, the Magnificent/);
-    expect(voicePrompt(true)).toMatch(/getting the crew digging/);
+    for (const s of ON_AIR) expect(submindPrompt(s), s.name).toMatch(/one short line that you're asking Skippy, the Magnificent/);
+    expect(voicePrompt(true)).toMatch(/digging into your own mind \("Rummaging through my mainframe\."\)/);
     // What pushed him to refuse: "say so plainly when you don't know" is gone from the crewed call.
     expect(voicePrompt(true)).not.toMatch(/Say so plainly when you don't know/);
     expect(voicePrompt(true)).toMatch(/never just say you don't know or won't look/);
@@ -67,7 +66,7 @@ describe("the call's rules on the prompt text (#491)", () => {
       expect(p).toMatch(/Say it once per hand-over, only in your very first line right after a hand-over line that names you/);
       expect(p).toContain(s.handOver);
       expect(p).toMatch(/On every later turn: no sign-on, no greeting, no recap of your room/);
-      expect(p).toMatch(/two or three spoken sentences, the most important thing first, then offer more/);
+      expect(p).toMatch(/one or two spoken sentences, the most important thing first; no offer of more/);
       expect(p).toMatch(/Small talk \("hey, how's it going\?"\) gets one short line/);
     }
   });
@@ -80,13 +79,47 @@ describe("the agents on ElevenLabs (#491)", () => {
     for (const s of ON_AIR) {
       const t = submindBody(s, "v", "agent_skippy", ["tool_1"], LIMITS, "full", Object.fromEntries(Object.entries(known).filter(([id]) => id !== s.id))).conversation_config.agent.prompt.built_in_tools.transfer_to_agent.params.transfers;
       expect(t.map((x) => x.agent_id).sort()).toEqual(["agent_skippy", ...Object.entries(known).filter(([id]) => id !== s.id).map(([, a]) => a)].sort());
-      expect(t[0]).toMatchObject({ agent_id: "agent_skippy", condition: BACK_TO_SKIPPY });
-      for (const x of t.slice(1)) expect(x.condition).toMatch(/^Nikita names The .+ or .+ \(wants to talk to it, chat with it, or asks for it\)/);
+      expect(t.at(-1)).toMatchObject({ agent_id: "agent_skippy", condition: BACK_TO_SKIPPY });
+      for (const x of t.slice(0, -1)) expect(x.condition).toMatch(/^Nikita names The .+ or .+ \(wants to talk to it, chat with it, or asks for it\)/);
       const boiler = t.find((x) => x.agent_id === "agent_soot_1");
       if (s.id !== "soot") expect(boiler).toMatchObject({ condition: expect.stringContaining("the Boiler Room"), transfer_message: "Passing you to The Pessimist." });
     }
     const sk = skippyTransfers(Object.fromEntries(Object.entries(known).map(([id, a]) => [id, { id: a, sig: "0".repeat(16) }])))!.transfer_to_agent.params.transfers;
     expect(sk.find((x) => x.agent_id === "agent_soot_1")!.condition).toMatch(/^Nikita names The Pessimist or the Boiler Room/);
+  });
+
+  it("every pair of subminds passes the mic directly, both ways, never via Skippy (#504)", () => {
+    const edges = new Set<string>();
+    for (const s of ON_AIR) {
+      const t = submindBody(s, "v", "agent_skippy", ["tool_1"], LIMITS, "full", Object.fromEntries(Object.entries(known).filter(([id]) => id !== s.id))).conversation_config.agent.prompt.built_in_tools.transfer_to_agent.params.transfers;
+      for (const x of t) if (x.agent_id !== "agent_skippy") edges.add(`${s.id}->${x.agent_id}`);
+      // The room's own ask goes to the sibling, the Bookie included: its in-depth rule rides on the edge.
+      for (const o of ON_AIR.filter((o) => o.id !== s.id)) expect(t.find((x) => x.agent_id === known[o.id])!.condition).toContain(o.takes);
+    }
+    expect(edges.size).toBe(ON_AIR.length * (ON_AIR.length - 1));
+    expect(edges).toContain(`turf->${known.ticker}`);
+    expect(edges).toContain(`ticker->${known.turf}`);
+  });
+
+  it("the mic comes home to Skippy's own voice, settings and persona (#504)", () => {
+    const skippy = agentBody("v", "full", { toolIds: ["t"], transfers: null }).conversation_config.tts;
+    expect(skippy).toEqual({ voice_id: "v", ...SKIPPY_SOUND });
+    // Each submind sounds its own way, so the hand-back is heard.
+    for (const s of ON_AIR) {
+      const body = submindBody(s, "v", "agent_skippy", ["t"], LIMITS, "full", known);
+      expect(body.conversation_config.tts).toEqual({ voice_id: "v", ...s.sound });
+      expect(s.sound).not.toEqual(SKIPPY_SOUND);
+      expect(s.sound.speed).toBeGreaterThanOrEqual(0.7);
+      expect(s.sound.speed).toBeLessThanOrEqual(1.2);
+      // No transfer carries the speaker's voice across: the target's own applies, Skippy's on the way home.
+      for (const x of body.conversation_config.agent.prompt.built_in_tools.transfer_to_agent.params.transfers) expect(x).toMatchObject(OWN_VOICE);
+      expect(submindPrompt(s)).toMatch(/You are not Skippy and never speak as him/);
+    }
+    const sk = skippyTransfers(Object.fromEntries(Object.entries(known).map(([id, a]) => [id, { id: a, sig: "0".repeat(16) }])))!.transfer_to_agent.params.transfers;
+    for (const x of sk) expect(x).toMatchObject({ preserve_voice_settings: false, preserve_client_tts_overrides: false });
+    expect(voicePrompt(true)).toMatch(/When the mic comes back to you, you are Skippy again, all of you: your own voice, pace and manner, never the submind's/);
+    // The core fallback (ElevenLabs refused a setting) still keeps the voice id.
+    expect(agentBody("v", "core").conversation_config.tts).toEqual({ voice_id: "v" });
   });
 
   it("sends the transfers' results to the browser and gives a turn room to finish its sentence", () => {

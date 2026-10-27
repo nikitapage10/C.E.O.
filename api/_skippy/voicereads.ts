@@ -71,16 +71,36 @@ export function capLines(lines: string[], max = READ_MAX): string {
 const who = (p: GreenPlayer) => `${said(p.name, 40)} (${p.pos}${p.inj ? `, ${p.inj}` : ""}, FantasyPros ${pts(p.fp ?? p.proj)}${p.sl !== undefined ? `, Sleeper ${pts(p.sl)}` : ""})`;
 
 /** The Green, for Skippy and the Commentator. */
+/**
+ * Which week the matchup is, said plainly (#506): a week whose games are over is "final", never "this week"; Sleeper's
+ * next week is "up next" until it starts; a week under way is "live". Nikita heard last week's final as "this week you're
+ * at 128 to 75" on a Tuesday call.
+ */
+export function weekFrame(b: GreenBoard): { final: boolean; line: string } {
+  const m = b.matchup;
+  const week = m?.week ?? b.week;
+  const final = b.nflWeek !== undefined && b.nflWeek > week;
+  const next = final ? ` Week ${b.nflWeek} is up next and hasn't started.` : "";
+  if (!m) return { final, line: `No matchup in week ${week}.${next}` };
+  if (!m.them) return { final, line: `Week ${week}: bye for the C.E.O.'s team.${next}` };
+  const vs = `against ${said(m.them.team, 40)} (${m.them.record})`;
+  if (final) {
+    const how = m.me.pts > m.them.pts ? "a win" : m.me.pts < m.them.pts ? "a loss" : "a tie";
+    return { final, line: `Week ${week} is final: ${pts(m.me.pts)} to ${pts(m.them.pts)} ${vs}, ${how}.${next}` };
+  }
+  const odds = `projected ${pts(m.me.proj)} to ${pts(m.them.proj)}, win chance ${pct(m.win)}`;
+  if (m.live) return { final, line: `Week ${week}, live now ${vs}: ${pts(m.me.pts)} to ${pts(m.them.pts)} so far, ${odds}.` };
+  if (!m.me.pts && !m.them.pts) return { final, line: `Week ${week}, upcoming ${vs}: no games yet, ${odds}.` };
+  return { final, line: `Week ${week} ${vs}, between games: ${pts(m.me.pts)} to ${pts(m.them.pts)} so far, ${odds}.` };
+}
+
 export function greenText(b: GreenBoard | null): string {
   if (!b || b.ok !== true) return "The Green's board isn't answering right now.";
   const m = b.matchup;
+  const frame = weekFrame(b);
   const lines = [
-    `Green, ${said(b.league.name, 60)}, week ${b.week}${b.stale ? " (last good read, Sleeper is slow)" : ""}. ${said(b.me.team, 40)} is ${b.me.record}, rank ${b.me.rank} of ${b.league.teams}.`,
-    m
-      ? m.them
-        ? `This week against ${said(m.them.team, 40)} (${m.them.record}): ${m.live ? "live, " : ""}${pts(m.me.pts)} to ${pts(m.them.pts)} so far, projected ${pts(m.me.proj)} to ${pts(m.them.proj)}, win chance ${pct(m.win)}.`
-        : "Bye week for the C.E.O.'s team."
-      : "No matchup this week.",
+    `Green, ${said(b.league.name, 60)}, week ${b.week}${frame.final ? " (final)" : ""}${b.stale ? " (last good read, Sleeper is slow)" : ""}. ${said(b.me.team, 40)} is ${b.me.record}, rank ${b.me.rank} of ${b.league.teams}.`,
+    frame.line,
     `Start/sit: ${b.sources.calls === "fp" ? "FantasyPros decides, Sleeper beside it" : "form decides while FantasyPros waits"}.`,
   ];
   for (const c of (b.calls ?? []).slice(0, 5)) {

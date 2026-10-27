@@ -1,10 +1,12 @@
+import { setCallLive } from "./liveCall.ts";
+import { PONDER_LINES, UNSPOKEN } from "../../../../../api/_skippy/ponder.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GreenBoard, GreenPlayer } from "../green/league.ts";
 import type { PmBoard } from "../exchange/polymarket.ts";
 import type { Link } from "../../systems.ts";
 import { readCard } from "./asked.ts";
 import { useSkippy } from "./chat.ts";
-import { WAIT_MAX_MS, answerIn, gaveUpText, pendingText, pollEvery } from "./handoff.ts";
+import { LIVE_POLL_MS, WAIT_MAX_MS, answerIn, gaveUpText, pendingText, pollEvery } from "./handoff.ts";
 import { PAGE_LINES, PAGE_MAX, boilerLines, exchangeLines, greenLines, pageContext } from "./page.ts";
 
 /** The Desk's side of a hand-off's round trip (#341): the page's data for the quick take, the pending bubble, the answer in place. */
@@ -63,10 +65,21 @@ describe("the page's data for Skippy's quick take (#341)", () => {
 describe("the pending bubble and the answer in its place (#341)", () => {
   it("names who has it, and looks often at first, then less", () => {
     expect(pendingText("turf")).toBe("Checking with The Commentator…");
-    expect(pendingText("skippy")).toBe("Checking with Skippy's own thread…");
+    // His deeper self (#498): an in-character line, steady for a turn, rotating across turns, never the plumbing's words.
+    expect(PONDER_LINES).toContain(pendingText("skippy", "0123456789abcdef"));
+    expect(pendingText("skippy", "0123456789abcdef")).toBe(pendingText("skippy", "0123456789abcdef"));
+    expect(new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map((s) => pendingText("skippy", s.repeat(16)))).size).toBeGreaterThan(1);
+    for (const line of [...PONDER_LINES, gaveUpText("skippy", "kernel"), gaveUpText("skippy", "green")]) expect(line).not.toMatch(UNSPOKEN);
     expect(gaveUpText("turf", "green")).toBe("Still with The Commentator. The answer will show on the Green page, under Asked Skippy.");
     expect(pollEvery(0)).toBe(15_000);
     expect(pollEvery(10 * 60_000)).toBe(30_000);
+    // On a live call it looks every few seconds, so an answer reaches the call as it lands (#506).
+    setCallLive(true);
+    expect(pollEvery(0)).toBe(LIVE_POLL_MS);
+    expect(pollEvery(10 * 60_000)).toBe(LIVE_POLL_MS);
+    expect(LIVE_POLL_MS).toBeLessThanOrEqual(5_000);
+    setCallLive(false);
+    expect(pollEvery(0)).toBe(15_000);
   });
 
   it("finds the answer to its own turn only, with the card checked again", () => {
@@ -155,7 +168,7 @@ describe("the pending bubble and the answer in its place (#341)", () => {
         return Response.json({ room: "kernel", turns: [{ id: TURN, at: "2026-10-23T23:30:00.000Z", question: "Build a lift", answer: "On it.", model: "m", needs: "skippy", ...(followUp && { followUp }) }] });
       }) as unknown as typeof fetch;
       await useSkippy.getState().send("Build a lift in the Spire", doFetch);
-      expect(useSkippy.getState().turns[2]).toMatchObject({ text: "Checking with Skippy's own thread…", pending: { room: "kernel", needs: "skippy" } });
+      expect(useSkippy.getState().turns[2]).toMatchObject({ text: pendingText("skippy", TURN), pending: { room: "kernel", needs: "skippy" } });
       phase = "interim";
       useSkippy.setState({ open: false, unread: false });
       await vi.advanceTimersByTimeAsync(15_000);

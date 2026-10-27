@@ -41,7 +41,8 @@ import { takeLine } from "./rooms.js";
 import { VOICE_SESSION_SECS, VOICE_USD_PER_MIN, voiceBudget } from "./voice.js";
 import { billText, boilerText, capLines, said, exchangeText, foundryText, greenText, isRead, positionsText, relayText, type BillInput, type ReadName } from "./voicereads.js";
 import { BlobCrewStore, MAX_HANDOFFS, TOOL_HEADER, checkToolToken, noteHandoff, type CrewStore, type TokenCheck } from "./voicetoken.js";
-import { BlobRoomLog, turnId, type RoomLog } from "./log.js";
+import { BlobRoomLog, turnId, type LoggedTurn, type RoomLog } from "./log.js";
+import { ponderLine } from "./ponder.js";
 import { privateParts } from "../_privacy.js";
 import { PLAYERS_PATH, keptOrRead, pickGreenStore } from "../_green/cache.js";
 import { fpKey, readFpPlayerNews } from "../_green/fantasypros.js";
@@ -55,7 +56,7 @@ export const PATH = "/api/skippy-tools";
 /** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
 export const READ_BUDGET_MS = 4_300;
 /** What the call hears when a room is too slow: the agent then answers from what it already knows. */
-export const SLOW_TEXT = "That data is slow right now. Don't guess and don't send Nikita anywhere: hand the question to hand_to_kernel, say you're checking with Skippy, the Magnificent, and keep talking.";
+export const SLOW_TEXT = "That data is slow right now. Don't guess and don't send Nikita anywhere: hand the question to hand_to_kernel and say one short in-character line about it, then stop until the answer is put into the call.";
 /** The most lookups one call may make. */
 export const READS_PER_CALL = 60;
 
@@ -185,10 +186,17 @@ export const PLAYER_READ = "player_news";
 export const ANSWERS_READ = "answers";
 /** The longest ask handed over (the typed chat's message cap). */
 export const ASK_MAX = 600;
-/** What the Kernel's turn says Skippy answered on the call. */
-export const CALL_REPLY = "Handed to Skippy's own thread from a Talk call; the answer lands in the chat.";
+/**
+ * What the Kernel's turn says Skippy answered on the call: in character (#498), it shows on the Desk under Asked Skippy.
+ * The tool answers below tell the voice what to do without the plumbing's words, so none of them is said aloud.
+ */
+export const CALL_REPLY = "Asked on a Talk call. Consulting the deeper me; the answer lands in the chat.";
 
-const UNREACHABLE = "Skippy's thread can't be reached from the call right now; say to type it into the chat.";
+const UNREACHABLE = "The deeper Skippy can't be reached from the call right now; say, in character, to type it into the chat.";
+/** How far back check_answers looks at Nikita's earlier calls (#498): what he asked yesterday is still his to hear. */
+export const EARLIER_CALLS_MS = 48 * 60 * 60_000;
+/** The most earlier asks it reads back, newest first. */
+export const EARLIER_MAX = 4;
 
 async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>): Promise<Response> {
   const body = (await request.json().catch(() => null)) as { ask?: unknown } | null;
@@ -197,7 +205,7 @@ async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenChe
   // The same check as the typed chat: a private-looking ask is never kept or handed on.
   if (privateParts(ask).length) return json({ ok: false, text: "That ask has something private in it, so it wasn't handed over. Ask Nikita to say it without the private part, or to type it in the chat." });
   if (!deps.log || !deps.crew) return json({ ok: false, text: UNREACHABLE });
-  if (check.handoffs.length >= MAX_HANDOFFS) return json({ ok: false, text: "This call has handed over all it may; say to type the rest into the chat." });
+  if (check.handoffs.length >= MAX_HANDOFFS) return json({ ok: false, text: "This call has passed on all it may; say, in character, to type the rest into the chat." });
   const at = new Date(deps.now).toISOString();
   const id = turnId(at, ask);
   try {
@@ -206,23 +214,35 @@ async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenChe
   } catch {
     return json({ ok: false, text: UNREACHABLE });
   }
-  return json({ ok: true, turn: id, text: "Handed to Skippy's own thread. Say you're on it, keep talking, and check for the answer at a natural pause." });
+  return json({ ok: true, turn: id, text: `Passed to the deeper Skippy. Say one short in-character line, like "${ponderLine(id).replace(/…$/, "")}" (never "thread", "hand-off", "Kernel" or "crew"), then stop. The answer is put into the call the moment it lands; don't call check_answers for it.` });
 }
 
-/** The answers to this call's hand-offs so far, interim or final, as lines. */
+/** One ask's line: its question and where its answer stands. */
+function answerLine(t: LoggedTurn, earlier: boolean): string {
+  const q = `${earlier ? "Earlier call, " : ""}"${said(t.question, 120)}"`;
+  if (!t.followUp) return `${q}: no answer yet.`;
+  // The responder's interim "still pondering" (#501) is no answer (#506): said as such, so it is never read out as one.
+  if (t.followUp.final === false) return t.followUp.from === "kernel-agent" ? `${q}: no answer yet, still being worked out.` : `${q}: not final yet, so far: ${said(t.followUp.text, 400)}`;
+  return `${q}: answered: ${said(t.followUp.text, 400)}`;
+}
+
+/**
+ * The answers to what Nikita asked on this call so far, interim or final, then to what he asked on his calls in the
+ * last two days (#498): an answer that landed after an earlier call hung up is still his to hear. Lines only.
+ */
 async function answersText(deps: ToolDeps, handoffs: string[]): Promise<string> {
-  if (!handoffs.length) return "Nothing has been handed to Skippy's thread on this call.";
-  if (!deps.log) return "Skippy's thread can't be read right now.";
+  if (!deps.log) return "The deeper Skippy can't be read right now.";
   const turns = await deps.log.list("kernel", deps.now).catch(() => null);
-  if (!turns) return "Skippy's thread can't be read right now.";
-  const lines = handoffs.map((h) => {
-    const t = turns.find((x) => x.id === h);
-    if (!t) return null;
-    const q = said(t.question, 120);
-    if (!t.followUp) return `"${q}": no answer yet.`;
-    return `"${q}": ${t.followUp.final === false ? "so far" : "answered"}: ${said(t.followUp.text, 400)}`;
-  });
-  return capLines(lines.filter((l): l is string => l !== null)) || "No answers yet.";
+  if (!turns) return "The deeper Skippy can't be read right now.";
+  const mine = new Set(handoffs);
+  const now = handoffs.map((h) => turns.find((x) => x.id === h)).filter((t): t is LoggedTurn => !!t).map((t) => answerLine(t, false));
+  const earlier = turns
+    .filter((t) => t.model === "voice" && !mine.has(t.id) && deps.now - Date.parse(t.at) <= EARLIER_CALLS_MS)
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+    .slice(0, EARLIER_MAX)
+    .map((t) => answerLine(t, true));
+  if (!now.length && !earlier.length) return "Nothing asked of the deeper Skippy on this call or the last few.";
+  return capLines([...now, ...earlier]) || "No answers yet.";
 }
 
 /* ── The live sources ── */

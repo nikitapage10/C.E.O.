@@ -31,6 +31,9 @@ export interface AskedTurn {
   needs?: string;
   /** The answer that came back for a hand-off. */
   followUp?: { from: string; text: string; at: string; card?: AskedCard; final?: false };
+  /** Said on a Talk call (#479): a submind on the mic, `by` its id, the answer its gist. */
+  via?: "voice";
+  by?: string;
 }
 
 /** Who a hand-off went to, by name (api/_skippy/log.ts, ROOM_SUBMINDS). */
@@ -84,7 +87,8 @@ export function readAsked(v: unknown, room: AskedRoom): AskedTurn[] | null {
     const card = f ? readCard(f.card) : null;
     const followUp = f && fText && fAt && typeof f.from === "string" && f.from in HANDED_TO ? { from: f.from, text: fText, at: fAt, ...(card && { card }), ...(f.final === false && { final: false as const }) } : undefined;
     const id = typeof r.id === "string" && /^[0-9a-f]{16}$/.test(r.id) ? r.id : undefined;
-    out.push({ ...(id && { id }), at, question, answer, model: clip(r.model, 40), ...(needs && { needs }), ...(followUp && { followUp }) });
+    const voice = r.via === "voice" && typeof r.by === "string" && r.by in HANDED_TO ? { via: "voice" as const, by: r.by } : undefined;
+    out.push({ ...(id && { id }), at, question, answer, model: clip(r.model, 40), ...(needs && { needs }), ...(followUp && { followUp }), ...voice });
   }
   return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, ASKED_MAX);
 }

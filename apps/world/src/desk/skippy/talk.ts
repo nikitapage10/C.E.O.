@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { readCrew, roomOfAgent } from "../hologram/crew.ts";
+import { setSpeaker } from "../hologram/signal.ts";
 import { stopSpeaking, useSkippy } from "./chat.ts";
 
 /**
@@ -8,6 +10,10 @@ import { stopSpeaking, useSkippy } from "./chat.ts";
  * carries none of it. What is said on the call is added to the chat as it goes, so a typed message after it can
  * follow on. A call ends on a second tap, when Skippy hangs up, after `maxSecs` (ten minutes) or when the page goes
  * away. Past the month's minutes, or when ElevenLabs fails, a plain note says so and typing and dictation carry on.
+ * With Skippy's crew (#479) the call also carries its own key for the room lookups (`tool`), and what Skippy hands to
+ * his own thread on the call (hand_to_kernel) is waited on in the chat like a typed hand-off: while the call is live,
+ * an answer that lands is told to Skippy (ElevenLabs' contextual update) so he reads it out at the next pause; once
+ * the call is over it simply lands in the chat.
  */
 
 export interface TalkUsage {
@@ -112,7 +118,16 @@ export const clock = (secs: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export type Started = { ok: true; token: string; conversation: string; maxSecs: number; desk: string; usage: TalkUsage | null } | { ok: false; reason: TalkReason; usage?: TalkUsage | null };
+export type Started = { ok: true; token: string; conversation: string; maxSecs: number; desk: string; usage: TalkUsage | null; tool?: string; crew?: Record<string, string> } | { ok: false; reason: TalkReason; usage?: TalkUsage | null };
+
+/** The call's tool token as our function mints it (api/_skippy/voicetoken.ts): `vt1.<expiry>.<nonce>.<mac>`. */
+export const isToolToken = (v: unknown): v is string => typeof v === "string" && v.length <= 200 && /^vt1\.[0-9a-z]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(v);
+
+/** The crew's agents (#481), only when there are some. */
+const crewOf = (raw: unknown) => {
+  const crew = readCrew(raw);
+  return Object.keys(crew).length ? { crew } : {};
+};
 
 /** Ask our function for one call's token. */
 export async function requestToken(doFetch: typeof fetch = fetch): Promise<Started> {
@@ -127,7 +142,7 @@ export async function requestToken(doFetch: typeof fetch = fetch): Promise<Start
     if (res.ok && body.ok === false && body.reason === "capped") return { ok: false, reason: "capped", usage };
     if (!res.ok || body.ok !== true || typeof body.token !== "string" || !body.token) return { ok: false, reason: "eleven" };
     const maxSecs = typeof body.maxSecs === "number" && body.maxSecs > 0 && body.maxSecs <= 600 ? body.maxSecs : 600;
-    return { ok: true, token: body.token, conversation: typeof body.conversation === "string" ? body.conversation : "", maxSecs, desk: typeof body.desk === "string" ? body.desk : "", usage };
+    return { ok: true, token: body.token, conversation: typeof body.conversation === "string" ? body.conversation : "", maxSecs, desk: typeof body.desk === "string" ? body.desk : "", usage, ...(isToolToken(body.tool) && { tool: body.tool }), ...crewOf(body.crew) };
   } catch {
     return { ok: false, reason: "eleven" };
   }
@@ -141,6 +156,54 @@ const loadSession = () => (loading ??= import("./talkSession.ts"));
 let session: Session | null = null;
 let conversation = "";
 let timer: ReturnType<typeof setTimeout> | null = null;
+
+/** The call's hand-offs to the Kernel the function kept (#479), as kept turn ids. */
+export async function readHandoffs(id: string, doFetch: typeof fetch = fetch): Promise<string[]> {
+  if (!/^[A-Za-z0-9_-]{6,80}$/.test(id)) return [];
+  try {
+    const res = await doFetch(`/api/skippy-voice?handoffs=${encodeURIComponent(id)}`, { credentials: "same-origin" });
+    if (!res.ok) return [];
+    const body = (await res.json().catch(() => ({}))) as { handoffs?: unknown };
+    return Array.isArray(body.handoffs) ? body.handoffs.filter((h): h is string => typeof h === "string" && /^[0-9a-f]{16}$/.test(h)).slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** What Skippy is told when an answer from his own thread lands mid-call. He reads it out at the next natural pause. */
+export const landedNote = (text: string, final: boolean): string =>
+  `${final ? "The answer" : "An update"} from your own thread just landed on what Nikita asked you to hand off: "${text.slice(0, 500)}". Read it out at the next natural pause, briefly, in your own words.`;
+
+/** The chat bubbles this call is waiting on (chat turn id to the text last told to Skippy), and the watch on them. */
+let heard = new Map<number, string>();
+let unwatch: (() => void) | null = null;
+
+/** Waits in the chat on each hand-off the call made, and tells the live call when one's answer lands. */
+async function followHandoffs(id: string): Promise<void> {
+  const chat = useSkippy.getState();
+  for (const turn of await readHandoffs(id)) {
+    const bubble = await chat.wait(turn, "kernel", "skippy");
+    if (bubble !== null && session) heard.set(bubble, useSkippy.getState().turns.find((t) => t.id === bubble)?.text ?? "");
+  }
+  if (unwatch || !heard.size) return;
+  unwatch = useSkippy.subscribe((s) => {
+    for (const [bubble, last] of heard) {
+      const t = s.turns.find((x) => x.id === bubble);
+      if (!t) {
+        heard.delete(bubble);
+        continue;
+      }
+      if (t.text === last) continue;
+      heard.set(bubble, t.text);
+      if (!t.pending) heard.delete(bubble);
+      try {
+        session?.tell(landedNote(t.text, !t.pending));
+      } catch {
+        /* the call is going: the answer is in the chat anyway */
+      }
+    }
+  });
+}
 
 interface TalkStore {
   phase: TalkPhase;
@@ -189,6 +252,9 @@ export const useTalk = create<TalkStore>((set, get) => {
     if (was) await was.end().catch(() => undefined);
     const id = conversation;
     conversation = "";
+    unwatch?.();
+    unwatch = null;
+    heard = new Map();
     set({ phase: "idle", mode: "listening", ...(reason && { reason }) });
     if (reason) note(reason);
     if (id) {
@@ -200,6 +266,8 @@ export const useTalk = create<TalkStore>((set, get) => {
       } catch {
         /* settled on a later request */
       }
+      // Anything handed to the Kernel on the call and not yet waited on lands in the chat from here (#479).
+      await followHandoffs(id).catch(() => undefined);
     }
   };
 
@@ -253,8 +321,14 @@ export const useTalk = create<TalkStore>((set, get) => {
         session = await m.openCall({
           token: got.token,
           desk: got.desk,
+          ...(got.tool && { tool: got.tool }),
+          // Who has the mic (#481): a submind's agent puts its can on the hologram; Skippy's own puts his back.
+          onAgent: (agent) => setSpeaker(roomOfAgent(agent, got.crew ?? {})),
           onMessage: (who, text) => useSkippy.getState().say(who, text),
           onMode: (mode) => set({ mode }),
+          onTool: (name) => {
+            if (name === "hand_to_kernel" && conversation) void followHandoffs(conversation).catch(() => undefined);
+          },
           onEnd: () => {
             if (get().phase === "live") void finish(null);
           },

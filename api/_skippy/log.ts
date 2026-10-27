@@ -167,6 +167,13 @@ export interface LoggedTurn {
   needs?: Needs;
   /** The answer that came back for a hand-off; the hand-off is closed once there is one. */
   followUp?: FollowUp;
+  /**
+   * Said on a Talk call (#479): a submind took the mic and this is its exchange, the question in short and the
+   * answer's gist (api/_skippy/voicecouncil.ts). Desk-only: the read key never lists these.
+   */
+  via?: "voice";
+  /** Who answered on the call: the submind's id. */
+  by?: Needs;
 }
 
 /** A room from anywhere (the model's answer, a query): one of the set, else "none". */
@@ -206,6 +213,8 @@ export function cleanTurn(v: unknown): LoggedTurn | null {
     model: model || "unknown",
     ...(isNeeds(t.needs) && { needs: t.needs }),
     ...(followUp && { followUp }),
+    ...(t.via === "voice" && { via: "voice" as const }),
+    ...(isNeeds(t.by) && { by: t.by }),
   };
 }
 

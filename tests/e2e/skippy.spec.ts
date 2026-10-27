@@ -139,7 +139,7 @@ async function startCall(page: Page) {
   });
   const usage = { month: "2026-10", usedMin: 3, budgetMin: 41.6, leftMin: 38.6, sessionMin: 3, canTalk: true };
   await page.route(`${BASE}/api/skippy-voice`, (r) =>
-    r.fulfill({ json: r.request().method() === "POST" ? { ok: true, token: "t", conversation: "", maxSecs: 180, desk: "", usage } : { ready: true, usage } }),
+    r.fulfill({ json: r.request().method() === "POST" ? { ok: true, token: "t", conversation: "", maxSecs: 180, desk: "", usage, crew: { agent_turf01: "turf" } } : { ready: true, usage } }),
   );
   await page.route(/\/assets\/talkSession-[\w-]+\.js$/, (r) => r.fulfill({ contentType: "text/javascript", body: FAKE_CALL }));
   const asked: string[] = [];
@@ -177,6 +177,12 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   expect(await page.evaluate(() => (window as { __holoMuted?: boolean }).__holoMuted)).toBe(true);
   await expect(page.locator(".holo--ready")).toBeVisible({ timeout: 90_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/hologram-today.png` });
+
+  // A submind takes the mic (#479's transfer): the hologram becomes its can, and Skippy's own agent brings him back.
+  await page.evaluate(() => (window as unknown as { __holoCall: { onAgent: (a: string) => void } }).__holoCall.onAgent("agent_turf01"));
+  await expect(page.getByRole("region", { name: "Call with Skippy, the Commentator" })).toBeVisible();
+  await page.evaluate(() => (window as unknown as { __holoCall: { onAgent: (a: string) => void } }).__holoCall.onAgent("agent_skippy1"));
+  await expect(call).toBeVisible();
 
   await call.getByRole("button", { name: "End the call" }).click();
   await expect(call).toHaveCount(0);

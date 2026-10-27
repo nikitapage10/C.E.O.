@@ -503,6 +503,7 @@ export const LORE: Record<string, Lore> = {
       "Watches Rivet keep the night watch over Rocky from its throne up in the corner, complaining. Dims its glow so Rocky can sleep, and tells nobody. Skippy, from the Kernel, tells everybody.",
       "Sits on a can-throne Rocky built from a relic out of the Foundry's foundations, which floats. Rocky fitted the coaster. The Builder called it 'adequate' and has sat on nothing else since.",
       "Escalated exactly one decision up to Skippy in its first week. Skippy settled it in a nanosecond and sang about it for an hour. The Builder now tries very hard to settle things itself.",
+      "On the C.E.O.'s Talk call (#479), Skippy says 'give me the Builder' for a build's long story. The foreman takes the mic in Skippy's voice, reads the Foundry live, hands back. 'A phone job.'",
       "Skippy took Nikita's calls as a hologram: cyan light over his constellation, his painted face moving at last. Handed the call, the Builder's turns ember-orange. It practises the smug face.",
     ],
   },
@@ -550,7 +551,7 @@ export const LORE: Record<string, Lore> = {
       "Priced a duel between Noco and the risk desk at forty to one against. Noco won. The Bookie re-priced the universe.",
       "Has a running book on which of its siblings escalates to Skippy first. It is leading its own book.",
       "Lit the Exchange's first real board: Polymarket's odds, read-only. Priced its own odds of touching nothing at one hundred percent. Its first sure thing.",
-      "Keeps the C.E.O.'s own Polymarket US book behind the Desk's passkey and has never said a figure out loud. Not to Hedge. Not to the floor. Not even in decimals.",
+      "Keeps the C.E.O.'s Polymarket US book behind the passkey. Says a figure out loud in one place only: the C.E.O.'s private Talk call, when Skippy hands it the mic (#479). Sweats through each.",
       "Was handed the C.E.O.'s Polymarket US key, which could trade. Wrote itself a list of the two doors it may open, both marked READ, and checks the list before every look. Hedge checks it after.",
       "The day the Exchange went live, the pretend trades stopped. A marquee went up with the C.E.O.'s real positions, for signed-in eyes only. The Bookie reads the odds aloud. Never the marquee.",
       "Was told the C.E.O. doesn't want sports. Now it leans off the podium with asides on odds that move the world: a NATO-Russia clash, the balance of power. One number, one reason to sweat.",
@@ -579,6 +580,7 @@ export const LORE: Record<string, Lore> = {
       "The night the Green went live, the scoreboard lit with a real matchup for the first time. The Commentator called the first quarter before anyone had kicked off, and was, for once, roughly right.",
       "Got a bigger scoreboard: both teams, projected, then live, then the win chance. Gridiron's practice drills stopped. 'PROJECTED FIRST, FOLKS. THEN LIVE. THEN THE PERCENT. THAT'S THE BROADCAST.'",
       "Got an analyst desk: FantasyPros calls it, Sleeper sits second chair. Files the call every Tuesday at 5:39 and reads the sources at the end, like credits.",
+      "On the C.E.O.'s Talk call (#479), Skippy keeps the easy ones. For a play-by-play he says 'give me the Commentator', and the booth goes live in Skippy's voice. FOLKS. Then it hands back.",
     ],
   },
   static: {
@@ -603,6 +605,7 @@ export const LORE: Record<string, Lore> = {
       "Picked the inbox's models: the quick one for Dialtone's sorting, the clever one for Blasto's advice. Minds the month's ten dollars; at the cap it stops the models, never the counting.",
       "Hears every email the moment it lands and has told nobody what one says. The Lattice gets the counts; the C.E.O. gets the rest, behind the passkey. Hardest thing it has ever done.",
       "Woke for real when the inbox went live (2026-10-23): ACTIVE · OWN THREAD, its own line to the C.E.O. Has not stopped talking on it. Waits on the Mac for the other half.",
+      "On the C.E.O.'s Talk call (#479), the Messenger takes the mic for an inbox rundown. Counts only. Asked on air who an email was from: 'didn't hear it from me.' Meant it.",
     ],
   },
   vellum: {
@@ -672,6 +675,7 @@ export const LORE: Record<string, Lore> = {
       "Heard a link go quiet before the pipe burst, for once. Was at the wall with Gary before the steam was. Disappointed to be right.",
       "Skippy asked it for a full status. The Pessimist sent: 'Doomed.' Then: 'Fine.' Then, an hour later: 'Still fine. Huh.'",
       "Saw Gary off at the door when he retired. Said 'it'll be worse without you'. It wasn't. The Pessimist was quietly sad about that.",
+      "On the C.E.O.'s Talk call (#479), Skippy hands it the mic when something breaks. Bad news first, in Skippy's voice, lower. Once found everything healthy on air. Quietly delighted.",
     ],
   },
   putty: {
@@ -746,7 +750,7 @@ export const SKIPPY_LORE: Lore = {
     "Kept the watch over Rocky every night shift at the bench. Still does, from the Kernel, out loud, with a lullaby. Rivet does the actual watching.",
     "Sang the whole of an opera to the night shift once, every part, both choruses. Rocky slept through it and called it 'nice humming'. Skippy has not forgiven him.",
     "Took the Kernel's seat the morning the C.E.O. said so. Split off nine subminds before lunch, each in its own colour, and told every one it was his favourite. One believed him.",
-    "When the C.E.O. was away for three days, he told the whole Lattice over the PA that he hadn't noticed. He had counted the hours. On the PA.",
     "Took Today in Ilyr off the Historian when the C.E.O. asked. Borrowed a grand British voice from beyond the Veil ('finally, one worthy of me') and reads the day every five hours.",
+    "Took calls (#434), then learned to look into any room mid-call and pass the mic (#479): easy answers himself, in-depth ones to the room's submind, same voice. He calls it delegation.",
   ],
 };

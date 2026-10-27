@@ -41,7 +41,7 @@ export function claudeAgent(key: string): (req: AgentRequest) => Promise<AgentRu
     let usage: Usage = { input_tokens: 0, output_tokens: 0 };
     let searches = 0;
     let out: AgentRun["out"] = null;
-    for (let round = 0; round < RUN_LIMITS.rounds && !out; round++) {
+    for (let round = 0; round < RUN_LIMITS.rounds; round++) {
       const res = await client.messages.create({
         model: req.model,
         max_tokens: RUN_LIMITS.maxTokens,

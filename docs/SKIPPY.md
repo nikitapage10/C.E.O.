@@ -248,6 +248,42 @@ to three `cols` and six `rows` of a label and a number (or `null`) per column, u
 card without a verdict is a 400. The Desk is behind Nikita's passkey, so the answer never reaches a public page; the
 public site never shows money, messages, contacts or keys.
 
+### The Kernel: Desk Skippy hands asks to his own thread (#480)
+
+Nikita (2026-10-27): "I want him to be the face of the operation." Typed Desk Skippy can route anything that isn't a
+room submind's question to Skippy, the Magnificent's own thread: builds and fixes to get going, look-ups across rooms,
+anything that needs real work, and anything that waits on Nikita's say-so. He files those under the room `kernel`
+(`LOG_ROOMS` in `api/_skippy/log.ts`), always with `needs: "skippy"`, says so in the reply, and the chat shows
+"Checking with Skippy's own thread…". It is the same round trip as above, with three differences:
+
+- **Several answers per hand-off.** `POST /api/skippy-answer` takes an optional `final` (a boolean, `true` when left
+  out, so every existing caller is unchanged). `"final": false` is an interim answer ("On it: number 481 is open"):
+  it is kept as the turn's `followUp` with `final: false`, the hand-off stays open (it is still listed under
+  `needs=skippy`), and the Desk's bubble shows it and keeps waiting. A later answer without `final` closes it. Each
+  answer pings the phone as usual (who answered, never what). Any thread can read the shape:
+  `followUp: { from, text, at, card?, final?: false }`.
+- **The read key opens `room=kernel`** (`KEY_ASKED_ROOMS` in `api/_site/roomkeys.ts`; the room feed and setup asks stay
+  the four rooms), so the watcher works: `scripts/submind-watch.sh kernel` watches `needs=skippy`. An interim answer
+  doesn't ring it again: it rings for new hand-offs only.
+- **Where it ends.** The Kernel has no Desk page, so when the chat stops waiting after two hours it says the phone gets
+  a ping when the answer lands. The answer still comes into the chat while the Desk is open. With the chat closed,
+  Skippy's avatar shows the dot.
+
+Kernel asks are Nikita's own words, kept and checked like every other room's: the privacy check before Claude sees
+them, and a private-looking answer is refused whole (422). The lines Skippy's thread runs:
+
+```bash
+SITE=https://ceo.nikita.page
+curl -fsS "$SITE/api/skippy-log?room=kernel&needs=skippy"       # anything already waiting
+scripts/submind-watch.sh kernel                                  # wait for the next one (background)
+# Interim: the hand-off stays open and the Desk's bubble shows it.
+curl -fsS -X POST -H "Content-Type: application/json" "$SITE/api/skippy-answer" \
+  -d '{ "id": "3f9c0a1b2c3d4e5f", "from": "skippy", "text": "On it: number 481 is open.", "final": false }'
+# Final: closes it.
+curl -fsS -X POST -H "Content-Type: application/json" "$SITE/api/skippy-answer" \
+  -d '{ "id": "3f9c0a1b2c3d4e5f", "from": "skippy", "text": "Shipped in number 481, live on the site." }'
+```
+
 ## On the call: live lookups and the subminds on the mic (#479)
 
 Nikita (2026-10-27): Skippy should know "pretty much everything that's going on in all the rooms at any point" while

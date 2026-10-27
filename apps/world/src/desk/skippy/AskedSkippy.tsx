@@ -12,7 +12,7 @@ import "./asked.css";
  * wrapped in <Private> for Hide mode. Reads again when sign-in changes and after each new answer from Skippy.
  */
 
-const ROOM_NAME: Record<AskedRoom, string> = { green: "the Green", exchange: "the Exchange", boiler: "the Boiler Room", foundry: "the Foundry", relay: "Relay" };
+const ROOM_NAME: Record<AskedRoom, string> = { green: "the Green", exchange: "the Exchange", boiler: "the Boiler Room", foundry: "the Foundry", relay: "Relay", kernel: "the Kernel" };
 /** Shown before "Show all". */
 const FIRST = 4;
 

@@ -143,5 +143,35 @@ describe("the pending bubble and the answer in its place (#341)", () => {
       expect(left).toEqual([]);
       expect(useSkippy.getState().turns.at(-1)).toMatchObject({ note: true, text: gaveUpText("turf", "green") });
     });
+
+    it("hands a build to the Kernel: an interim answer shows and keeps it waiting, the final one closes it (#480)", async () => {
+      let phase: "none" | "interim" | "final" = "none";
+      const sent: string[] = [];
+      const doFetch = (async (url: string) => {
+        sent.push(url);
+        if (url === "/api/skippy") return Response.json({ reply: "A lift for the Spire? I'll get my thread on it.", actions: [], room: "kernel", needs: "skippy", turn: TURN });
+        const followUp =
+          phase === "interim" ? { from: "skippy", text: "On it: number 481 is open.", at: "2026-10-23T23:31:00.000Z", final: false } : phase === "final" ? { from: "skippy", text: "Shipped in number 481.", at: "2026-10-23T23:40:00.000Z" } : undefined;
+        return Response.json({ room: "kernel", turns: [{ id: TURN, at: "2026-10-23T23:30:00.000Z", question: "Build a lift", answer: "On it.", model: "m", needs: "skippy", ...(followUp && { followUp }) }] });
+      }) as unknown as typeof fetch;
+      await useSkippy.getState().send("Build a lift in the Spire", doFetch);
+      expect(useSkippy.getState().turns[2]).toMatchObject({ text: "Checking with Skippy's own thread…", pending: { room: "kernel", needs: "skippy" } });
+      phase = "interim";
+      useSkippy.setState({ open: false, unread: false });
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(useSkippy.getState().turns[2]).toMatchObject({ text: "On it: number 481 is open.", from: "skippy", pending: { seen: "2026-10-23T23:31:00.000Z" } });
+      expect(useSkippy.getState().unread).toBe(true);
+      useSkippy.setState({ unread: false });
+      // The same interim answer again: no second note.
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(useSkippy.getState().unread).toBe(false);
+      phase = "final";
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(useSkippy.getState().turns[2]).toMatchObject({ text: "Shipped in number 481.", from: "skippy" });
+      expect(useSkippy.getState().turns[2]!.pending).toBeUndefined();
+      expect(useSkippy.getState().unread).toBe(true);
+      expect(sent.filter((u) => u.startsWith("/api/skippy-log")).every((u) => u === "/api/skippy-log?room=kernel")).toBe(true);
+      expect(gaveUpText("skippy", "kernel")).toMatch(/ping/);
+    });
   });
 });

@@ -10,7 +10,7 @@ import { handedName, readAsked, type AskedCard, type AskedRoom, type AskedTurn }
  */
 
 /** The rooms whose asks are kept and can be waited on (asked.ts). */
-export const WAIT_ROOMS: readonly AskedRoom[] = ["green", "exchange", "boiler", "foundry", "relay"];
+export const WAIT_ROOMS: readonly AskedRoom[] = ["green", "exchange", "boiler", "foundry", "relay", "kernel"];
 
 /** How long the chat keeps waiting before it says where the answer will show instead. */
 export const WAIT_MAX_MS = 2 * 60 * 60_000;
@@ -22,9 +22,11 @@ export const pollEvery = (waitedMs: number): number => (waitedMs < 5 * 60_000 ? 
 export const pendingText = (needs: string): string => `Checking with ${needs === "skippy" ? "Skippy's own thread" : handedName(needs)}…`;
 
 /** Where the answer will still show when the chat stops waiting. */
-const PAGE_NAME: Record<AskedRoom, string> = { green: "the Green", exchange: "the Exchange", boiler: "the Boiler Room", foundry: "the Foundry", relay: "Relay" };
+const PAGE_NAME: Record<Exclude<AskedRoom, "kernel">, string> = { green: "the Green", exchange: "the Exchange", boiler: "the Boiler Room", foundry: "the Foundry", relay: "Relay" };
 export const gaveUpText = (needs: string, room: AskedRoom): string =>
-  `Still with ${needs === "skippy" ? "Skippy's own thread" : handedName(needs)}. The answer will show on ${PAGE_NAME[room]} page, under Asked Skippy.`;
+  room === "kernel"
+    ? "Still with Skippy's own thread. Your phone gets a ping when the answer lands."
+    : `Still with ${needs === "skippy" ? "Skippy's own thread" : handedName(needs)}. The answer will show on ${PAGE_NAME[room]} page, under Asked Skippy.`;
 
 /** What a hand-off waits on: the kept turn, its room and who has it. */
 export interface Pending {
@@ -33,6 +35,8 @@ export interface Pending {
   needs: string;
   /** Date.now() when it was handed off. */
   since: number;
+  /** When the last interim answer came back (#480), so the same one isn't shown or spoken twice. */
+  seen?: string;
 }
 
 /** The answer that came back, as the chat shows it. */
@@ -41,6 +45,8 @@ export interface Answer {
   text: string;
   at: string;
   card?: AskedCard;
+  /** false on an interim answer (#480): the bubble shows it and keeps waiting for the final one. */
+  final?: false;
 }
 
 /** The answer to `turn` in a room log's answer, when it has come back; null while it is still out. */

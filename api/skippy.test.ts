@@ -302,7 +302,8 @@ describe("Skippy's room log (#273)", () => {
     expect(ok.status).toBe(200);
     expect(ok.headers.get("set-cookie")).toBeNull();
     expect(((await ok.json()) as { turns: { question: string }[] }).turns.map((t) => t.question)).toEqual(["Who do I start at K?"]);
-    for (const room of ["exchange", "boiler", "foundry"]) expect((await read(room, LOG)).status).toBe(200);
+    // And the Kernel's (#480), for Skippy's own watcher.
+    for (const room of ["exchange", "boiler", "foundry", "kernel"]) expect((await read(room, LOG)).status).toBe(200);
     // The proxy sends both headers on every request (#361): the read key's header decides, the Bearer feed key is ignored.
     const both = (room: string, headers: Record<string, string>) => roomLog(new Request(`${ORIGIN}/api/skippy-log?room=${room}`, { headers }), keyed);
     expect((await both("green", { "x-ceo-room-key": LOG, Authorization: `Bearer ${FEED}` })).status).toBe(200);
@@ -555,6 +556,32 @@ describe("POST /api/skippy-answer: a hand-off's answer coming back (#312)", () =
     const ok = await send({ "x-ceo-room-key": LOG, Authorization: `Bearer ${TOKEN}` });
     expect(ok.status).toBe(200);
     expect(await ok.json()).toEqual({ ok: true, room: "foundry", pinged: 1 });
+  });
+
+  it("takes interim answers that keep a Kernel hand-off open, each pinged, until a final one closes it (#480)", async () => {
+    const { send, log, pings } = await setup();
+    await log.add({ at: new Date(NOW - 30_000).toISOString(), question: "Build a lift in the Spire", answer: "On it, monkey.", room: "kernel", model: "m", needs: "skippy" }, NOW);
+    const kernel = (await log.list("kernel", NOW))[0]!;
+    expect((await log.list("kernel", NOW, "skippy")).map((t) => t.id)).toEqual([kernel.id]);
+    const interim = await send({ id: kernel.id, from: "skippy", text: "On it: number 481 is open.", final: false });
+    expect(await interim.json()).toEqual({ ok: true, room: "kernel", pinged: 1 });
+    let turn = (await log.list("kernel", NOW))[0]!;
+    expect(turn.followUp).toEqual({ from: "skippy", text: "On it: number 481 is open.", at: new Date(NOW).toISOString(), final: false });
+    // Still open: the watcher and the Desk keep waiting.
+    expect((await log.list("kernel", NOW, "skippy")).map((t) => t.id)).toEqual([kernel.id]);
+    expect((await send({ id: kernel.id, from: "skippy", text: "Building now.", final: false })).status).toBe(200);
+    expect((await send({ id: kernel.id, from: "skippy", text: "x", final: "no" })).status).toBe(400);
+    expect((await send({ id: kernel.id, from: "skippy", text: "Shipped in number 481." })).status).toBe(200);
+    turn = (await log.list("kernel", NOW))[0]!;
+    expect(turn.followUp).toEqual({ from: "skippy", text: "Shipped in number 481.", at: new Date(NOW).toISOString() });
+    expect(await log.list("kernel", NOW, "skippy")).toEqual([]);
+    expect((await send({ id: kernel.id, from: "skippy", text: "again" })).status).toBe(409);
+    expect(pings).toHaveLength(3);
+    expect(pings[0]).toEqual({ title: "C.E.O. Desk", body: "Skippy answered something you asked on the Desk.", url: "/" });
+    // Private-looking answers are still refused whole.
+    await log.add({ at: new Date(NOW - 20_000).toISOString(), question: "Look into the invoices", answer: "Handing it over.", room: "kernel", model: "m", needs: "skippy" }, NOW);
+    const next = (await log.list("kernel", NOW, "skippy"))[0]!;
+    expect((await send({ id: next.id, from: "skippy", text: "Mail nikita" + "@example.com", final: false })).status).toBe(422);
   });
 
   it("refuses a bad body, private text, an unknown turn, a turn not handed off and another submind's", async () => {

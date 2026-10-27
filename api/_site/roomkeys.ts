@@ -46,6 +46,12 @@ export type RoomKey = "log" | "feed";
  */
 export const KEY_LOG_ROOMS = ["green", "exchange", "boiler", "foundry"] as const;
 
+/**
+ * The Asked Skippy logs the read key may see: those four and "kernel" (#480), Skippy, the Magnificent's own thread,
+ * whose watcher reads its hand-offs (scripts/submind-watch.sh kernel). The room feed and the setup asks stay the four.
+ */
+export const KEY_ASKED_ROOMS = [...KEY_LOG_ROOMS, "kernel"] as const;
+
 /** The room feed's address (api/_room/feed.ts). */
 export const ROOM_FEED_PATH = "/api/room-feed";
 /** The setup asks' address (#324, api/_room/setup.ts): the read key reads them, the feed key posts and closes them. */
@@ -62,7 +68,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** Everything the read key opens: the path, exactly, and the query it may carry (nothing more). GET only. */
 export const LOG_READS: Readonly<Record<string, QueryRule>> = {
   // `needs` (#312): only the turns handed off to that thread and still open, as the Desk's own read.
-  "/api/skippy-log": { room: { required: true, ok: (v) => (KEY_LOG_ROOMS as readonly string[]).includes(v) }, needs: { ok: (v) => isNeedsFilter(v) } },
+  "/api/skippy-log": { room: { required: true, ok: (v) => (KEY_ASKED_ROOMS as readonly string[]).includes(v) }, needs: { ok: (v) => isNeedsFilter(v) } },
   "/api/green-league": {},
   "/api/exchange-markets": {},
   "/api/exchange-positions": {},

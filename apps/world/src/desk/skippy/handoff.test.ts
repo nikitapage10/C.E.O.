@@ -1,3 +1,4 @@
+import { PONDER_LINES, UNSPOKEN } from "../../../../../api/_skippy/ponder.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GreenBoard, GreenPlayer } from "../green/league.ts";
 import type { PmBoard } from "../exchange/polymarket.ts";
@@ -63,7 +64,11 @@ describe("the page's data for Skippy's quick take (#341)", () => {
 describe("the pending bubble and the answer in its place (#341)", () => {
   it("names who has it, and looks often at first, then less", () => {
     expect(pendingText("turf")).toBe("Checking with The Commentator…");
-    expect(pendingText("skippy")).toBe("Checking with Skippy's own thread…");
+    // His deeper self (#498): an in-character line, steady for a turn, rotating across turns, never the plumbing's words.
+    expect(PONDER_LINES).toContain(pendingText("skippy", "0123456789abcdef"));
+    expect(pendingText("skippy", "0123456789abcdef")).toBe(pendingText("skippy", "0123456789abcdef"));
+    expect(new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map((s) => pendingText("skippy", s.repeat(16)))).size).toBeGreaterThan(1);
+    for (const line of [...PONDER_LINES, gaveUpText("skippy", "kernel"), gaveUpText("skippy", "green")]) expect(line).not.toMatch(UNSPOKEN);
     expect(gaveUpText("turf", "green")).toBe("Still with The Commentator. The answer will show on the Green page, under Asked Skippy.");
     expect(pollEvery(0)).toBe(15_000);
     expect(pollEvery(10 * 60_000)).toBe(30_000);
@@ -155,7 +160,7 @@ describe("the pending bubble and the answer in its place (#341)", () => {
         return Response.json({ room: "kernel", turns: [{ id: TURN, at: "2026-10-23T23:30:00.000Z", question: "Build a lift", answer: "On it.", model: "m", needs: "skippy", ...(followUp && { followUp }) }] });
       }) as unknown as typeof fetch;
       await useSkippy.getState().send("Build a lift in the Spire", doFetch);
-      expect(useSkippy.getState().turns[2]).toMatchObject({ text: "Checking with Skippy's own thread…", pending: { room: "kernel", needs: "skippy" } });
+      expect(useSkippy.getState().turns[2]).toMatchObject({ text: pendingText("skippy", TURN), pending: { room: "kernel", needs: "skippy" } });
       phase = "interim";
       useSkippy.setState({ open: false, unread: false });
       await vi.advanceTimersByTimeAsync(15_000);

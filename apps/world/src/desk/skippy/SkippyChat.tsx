@@ -125,6 +125,10 @@ export function TalkButton({ onStart }: { onStart?: () => void }) {
       aria-label={title}
       title={title}
       disabled={off || phase === "ending"}
+      // Ready before the tap (#496): the function, its Desk lines and agent check, the call's code and the hologram.
+      onPointerEnter={() => useTalk.getState().warm()}
+      onFocus={() => useTalk.getState().warm()}
+      onTouchStart={() => useTalk.getState().warm()}
       onClick={() => {
         if (live) void end();
         else {

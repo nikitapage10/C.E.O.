@@ -48,6 +48,7 @@ import { BlobVoiceStore, VOICE_LLM, VOICE_SESSION_SECS, VOICE_SILENCE_SECS, bill
 import { elevenFromEnv, pickStoryStore, type ElevenConfig, type StoryStore } from "./_world/story.js";
 import { pickStore } from "./_world/store.js";
 import { foundryIssues } from "./skippy.js";
+import { memo } from "./_feedcache.js";
 
 export interface VoiceDeps {
   deskKey: string;
@@ -77,6 +78,50 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
 }
 
+/** How long the Desk's lines for a call are kept per warm instance (#496): a minute, so a tap after the warm-up is instant. */
+export const DESK_KEEP_MS = 60_000;
+
+/** The longest a start waits on the Desk's lines when they aren't kept (#496). */
+export const DESK_WAIT_MS = 800;
+/** What Skippy is told when they weren't ready in time. */
+export const DESK_LATE = "(The Desk's lines are still loading: look the rooms up with your read tools.)";
+
+/** The Desk's state as plain lines for Skippy: the Foundry's, then the live rooms' (#478). Kept a minute (#496). */
+const deskLines = memo(DESK_KEEP_MS, async () => {
+  const env = process.env;
+  const [{ open, shipped }, setup, world] = await Promise.all([
+    foundryIssues().catch(() => ({ open: [], shipped: [] })),
+    setupList().catch((): SetupStatus | null => null),
+    pickStore(env)
+      ?.loadState()
+      .catch(() => null) ?? Promise.resolve(null),
+  ]);
+  // A room that fails or is slow is left out.
+  const rooms = await roomLines({ ...liveRoomReads(env), clock: async () => world?.at ?? null }, Date.now()).catch(() => "");
+  return [contextLines(deskContext(open, shipped, setup, world ?? null), Date.now()), rooms].filter(Boolean).join("\n");
+});
+
+/**
+ * The start's stages, timed (#496), for a `Server-Timing` header the browser can read: each stage's milliseconds by
+ * name. Names only, never a value.
+ */
+export function stageTimer(clock: () => number = () => performance.now()) {
+  const t0 = clock();
+  const marks: { name: string; ms: number }[] = [];
+  return {
+    async time<T>(name: string, work: Promise<T>): Promise<T> {
+      const at = clock();
+      try {
+        return await work;
+      } finally {
+        marks.push({ name, ms: clock() - at });
+      }
+    },
+    marks: () => [...marks],
+    header: () => [...marks.map((m) => `${m.name};dur=${Math.round(m.ms)}`), `total;dur=${Math.round(clock() - t0)}`].join(", "),
+  };
+}
+
 function live(): VoiceDeps {
   const env = process.env;
   const blob = pickBlob(env);
@@ -88,18 +133,7 @@ function live(): VoiceDeps {
     voice: blob ? new BlobVoiceStore(blob) : null,
     eleven,
     budget: voiceBudget(env.ELEVENLABS_VOICE_BUDGET_USD, eleven?.budget ?? 10),
-    desk: async () => {
-      const [{ open, shipped }, setup, world] = await Promise.all([
-        foundryIssues().catch(() => ({ open: [], shipped: [] })),
-        setupList().catch((): SetupStatus | null => null),
-        pickStore(env)
-          ?.loadState()
-          .catch(() => null) ?? Promise.resolve(null),
-      ]);
-      // The live rooms (#478) after the Foundry's lines; a room that fails or is slow is left out.
-      const rooms = await roomLines({ ...liveRoomReads(env), clock: async () => world?.at ?? null }, Date.now()).catch(() => "");
-      return [contextLines(deskContext(open, shipped, setup, world ?? null), Date.now()), rooms].filter(Boolean).join("\n");
-    },
+    desk: deskLines,
     ...(eleven && { credits: creditsReader(eleven.key) }),
     crew: blob ? new BlobCrewStore(blob) : null,
     roomLog: blob ? new BlobRoomLog(blob) : null,
@@ -135,30 +169,61 @@ async function settleQuietly(deps: VoiceDeps, only?: string): Promise<void> {
  * change in code calls ElevenLabs), and what Skippy's own agent then carries. Null when there is no crew store or
  * nothing could be made: the call goes ahead as before, without lookups or subminds.
  */
-async function crewFor(deps: VoiceDeps, eleven: ElevenConfig, skippy: string): Promise<AgentCrew | null> {
-  if (!deps.crew || !deps.site) return null;
+async function crewFor(deps: VoiceDeps, eleven: ElevenConfig, skippy: string): Promise<{ crew: AgentCrew | null; agents: Record<string, string> }> {
+  const none = { crew: null, agents: {} };
+  if (!deps.crew || !deps.site) return none;
   const store = deps.crew;
   try {
     const known = await store.load(deps.now);
     const got = await ensureCrew({ key: eleven.key, voice: eleven.voice, site: deps.site, skippy, limits: { sessionSecs: VOICE_SESSION_SECS, silenceSecs: VOICE_SILENCE_SECS, llm: VOICE_LLM }, fetcher: deps.fetcher }, known);
     if (JSON.stringify(got) !== JSON.stringify({ tools: known.tools, agents: known.agents })) await store.update(deps.now, (s) => ({ ...s, ...got }));
     const toolIds = skippyToolIds(got.tools);
-    return toolIds.length ? { toolIds, transfers: skippyTransfers(got.agents) } : null;
+    // Who's who on the call (#481): each submind's ElevenLabs agent id to its own id. Agent ids only, never a key.
+    const agents = Object.fromEntries(Object.entries(got.agents).map(([id, a]) => [a.id, id]));
+    return toolIds.length ? { crew: { toolIds, transfers: skippyTransfers(got.agents) }, agents } : none;
   } catch {
-    return null;
+    return none;
   }
 }
 
 /** Skippy's agent with his crew: a first-ever call makes Skippy bare first, since the subminds need his id to hand back. */
-async function skippyAgent(deps: VoiceDeps, eleven: ElevenConfig, state: VoiceState): Promise<{ agent: Awaited<ReturnType<typeof ensureAgent>>; crew: AgentCrew | null }> {
+async function skippyAgent(deps: VoiceDeps, eleven: ElevenConfig, state: VoiceState): Promise<{ agent: Awaited<ReturnType<typeof ensureAgent>>; crew: AgentCrew | null; agents: Record<string, string> }> {
   let known = state.agent;
   if (!known && deps.crew) {
     const bare = await ensureAgent(eleven.key, eleven.voice, undefined, deps.fetcher);
-    if (!bare.ok) return { agent: bare, crew: null };
+    if (!bare.ok) return { agent: bare, crew: null, agents: {} };
     known = { id: bare.id, sig: bare.sig, tier: bare.tier };
   }
-  const crew = known ? await crewFor(deps, eleven, known.id) : null;
-  return { agent: await ensureAgent(eleven.key, eleven.voice, known, deps.fetcher, undefined, crew), crew };
+  const { crew, agents } = known ? await crewFor(deps, eleven, known.id) : { crew: null, agents: {} };
+  // Only a change in code calls ElevenLabs: with the stored signatures matching, this is local work (ensureAgent and
+  // ensureCrew compare them first, #496).
+  return { agent: await ensureAgent(eleven.key, eleven.voice, known, deps.fetcher, undefined, crew), crew, agents };
+}
+
+/** Skippy's agent checked (and, after a deploy that changed it, PATCHed) and kept, as the start and the warm-up do. */
+async function agentReady(deps: VoiceDeps, eleven: ElevenConfig, voice: VoiceStore) {
+  const state = await voice.load();
+  const got = await skippyAgent(deps, eleven, state);
+  if (got.agent.ok && (got.agent.id !== state.agent?.id || got.agent.sig !== state.agent?.sig)) {
+    const kept = { id: got.agent.id, sig: got.agent.sig, tier: got.agent.tier };
+    await voice.update((s) => ({ ...s, agent: kept })).catch(() => undefined);
+  }
+  return got;
+}
+
+/**
+ * The warm-up (#496), GET ?warm=1 when Nikita's pointer or focus reaches Talk: wakes the function, fills the Desk's
+ * lines for the minute they are kept, and checks Skippy's agent and crew (PATCHing them once after a deploy that
+ * changed them), so the tap itself only mints a token. Signed-in only; answers { ok } with its stages' timings.
+ */
+async function warm(deps: VoiceDeps): Promise<Response> {
+  const t = stageTimer();
+  if (deps.eleven && deps.voice) {
+    const eleven = deps.eleven;
+    const voice = deps.voice;
+    await Promise.all([t.time("desk", deps.desk().catch(() => "")), t.time("agent", agentReady(deps, eleven, voice).catch(() => null)), t.time("credits", creditsOf(deps))]);
+  }
+  return json({ ok: true }, 200, { "Server-Timing": t.header() });
 }
 
 export async function status(request: Request, deps: VoiceDeps): Promise<Response> {
@@ -172,7 +237,10 @@ export async function status(request: Request, deps: VoiceDeps): Promise<Respons
     const turns = deps.crew ? await callHandoffs(deps.crew, conv, deps.now).catch(() => []) : [];
     return withCookie(json({ handoffs: turns }), signed);
   }
+  if (new URL(request.url).searchParams.get("warm") === "1") return withCookie(await warm(deps), signed);
   if (!deps.stories || !deps.voice) return withCookie(json({ ready: false, reason: "not-set-up" }), signed);
+  // The chat just opened: start filling the Desk's lines for a call now (#496), without waiting on them.
+  void deps.desk().catch(() => "");
   await settleQuietly(deps);
   let usage: VoiceUsage;
   try {
@@ -210,70 +278,82 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
     return json({ ok: true, usage: await usageOf({ ...deps, stories }).catch(() => null) });
   }
 
+  // Timed, stage by stage, into a Server-Timing header (#496).
+  const t = stageTimer();
   // The pace, per passkey, counted before anything is called.
   const tag = voiceTag(passkey, await deskKeyFor(deps.deskKey, "client"));
-  const limits = await store.limits();
+  const limits = await t.time("pace", store.limits());
   const wait = voiceWait(limits, tag, deps.now);
   if (wait > 0) {
     const s = Math.ceil(wait / 1000);
     return json({ error: "slow-down", wait: s }, 429, { "Retry-After": String(s) });
   }
-  await store.saveLimits(countVoice(limits, tag, deps.now));
+  // From here, what doesn't depend on another runs side by side (#496): the pace's write and the month's ledger, with
+  // the Desk's lines (kept a minute) and the plan's credits (kept five) under way behind them.
+  const counted = t.time("count", store.saveLimits(countVoice(limits, tag, deps.now)));
+  // The Desk's lines wait at most DESK_WAIT_MS: kept, they are instant; cold, the call starts without them and Skippy
+  // reads the rooms with his tools instead (the lines carry on filling the cache for the next tap).
+  const deskP = t.time("desk", Promise.race([deps.desk().catch(() => ""), new Promise<string>((r) => setTimeout(() => r(DESK_LATE), DESK_WAIT_MS))]));
+  const planP = t.time("credits", creditsOf(deps));
 
-  // The cap: settle what has ended, then refuse when one more session at its longest doesn't fit. Unreadable: no call.
-  await settleQuietly(deps);
+  // The cap: refuse when one more session at its longest doesn't fit. Only then are ended sessions settled first (their
+  // unused minutes given back) and the month read again: settling asks ElevenLabs about each, so it stays off the
+  // common path (the chat's status read and the call's end settle too). Unreadable: no call.
   let usage: VoiceUsage;
   try {
-    usage = await usageOf({ ...deps, stories });
+    await counted;
+    usage = await t.time("ledger", usageOf({ ...deps, stories }));
+    if (!usage.canTalk) {
+      await t.time("settle", settleQuietly(deps));
+      usage = await usageOf({ ...deps, stories });
+    }
   } catch {
     return json({ error: "not-set-up" }, 503);
   }
   if (!usage.canTalk) return json({ ok: false, reason: "capped", usage });
 
-  let state;
+  // Skippy's agent, checked only once the cap allows a call (a capped month never calls ElevenLabs). With the stored
+  // signatures matching (the warm-up has usually seen to it), this is two reads of our own store.
+  let got;
   try {
-    state = await voice.load();
+    got = await t.time("agent", agentReady(deps, eleven, voice));
   } catch {
     return json({ error: "not-set-up" }, 503);
   }
-  const { agent } = await skippyAgent(deps, eleven, state);
+  const { agent, agents } = got;
   if (!agent.ok) return json({ error: agent.why }, 502);
-  if (agent.id !== state.agent?.id || agent.sig !== state.agent?.sig) {
-    const kept = { id: agent.id, sig: agent.sig, tier: agent.tier };
-    await voice.update((s) => ({ ...s, agent: kept })).catch(() => undefined);
-  }
 
-  const [minted, lines, plan] = await Promise.all([mintToken(eleven.key, agent.id, deps.fetcher), deps.desk().catch(() => ""), creditsOf(deps)]);
+  const [minted, lines, plan] = await Promise.all([t.time("mint", mintToken(eleven.key, agent.id, deps.fetcher)), deskP, planP]);
   if ("why" in minted) {
     // The agent was deleted on ElevenLabs' side: forget it, so the next tap makes it again.
     if (minted.why === "missing") await voice.update((s) => ({ pending: s.pending })).catch(() => undefined);
     return json({ error: minted.why === "missing" ? "eleven" : minted.why }, 502);
   }
 
-  // Counted at its longest now; settled to its real length later. A failed write means no call (fail closed).
+  // Counted at its longest now; settled to its real length later. A failed write means no call (fail closed). The
+  // ledger, the pending list and the call's tool key are written side by side.
+  // The call's own key for its lookups (#479): good for the call's longest and a little more, kept as a hash with the
+  // call, passed to ElevenLabs as a secret dynamic variable that only the tools' header ever carries.
+  let after: VoiceUsage;
+  let tool: string | null;
   try {
-    await stories.addSpend(deps.now, reserveAdd());
-    if (minted.conversation) {
-      const p = { id: minted.conversation, at: deps.now, secs: VOICE_SESSION_SECS };
-      await voice.update((s) => ({ ...s, pending: [...s.pending.filter((x) => x.id !== p.id), p] }));
-    }
+    const p = minted.conversation ? { id: minted.conversation, at: deps.now, secs: VOICE_SESSION_SECS } : null;
+    [after, tool] = await t.time(
+      "keep",
+      Promise.all([
+        stories.addSpend(deps.now, reserveAdd()).then(() => usageOf({ ...deps, stories }).catch(() => usage)),
+        deps.crew && minted.conversation ? issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_SESSION_SECS * 1000 + TOOL_SLACK_MS, deps.now) : Promise.resolve(null),
+        p ? voice.update((s) => ({ ...s, pending: [...s.pending.filter((x) => x.id !== p.id), p] })) : Promise.resolve(null),
+      ]).then(([a, k]) => [a, k] as const),
+    );
   } catch {
     return json({ error: "not-set-up" }, 503);
   }
-  const after = await usageOf({ ...deps, stories }).catch(() => usage);
-  // The call's own key for its lookups (#479): good for the call's longest and a little more, kept as a hash with the
-  // call, passed to ElevenLabs as a secret dynamic variable that only the tools' header ever carries.
-  const tool = deps.crew && minted.conversation ? await issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_SESSION_SECS * 1000 + TOOL_SLACK_MS, deps.now) : null;
   // Who's who on the call (#481): each submind's ElevenLabs agent id, so the Desk's hologram can swap to whoever has
   // the mic after a transfer. Agent ids only, never a key.
-  const crew = deps.crew
-    ? await deps.crew
-        .load(deps.now)
-        .then((c) => Object.fromEntries(Object.entries(c.agents).map(([id, a]) => [a.id, id])))
-        .catch(() => ({}))
-    : {};
+  const crew = agents;
   // The bill goes first, so the Desk's cut at DESK_MAX never drops it.
-  return json({ ok: true, token: minted.token, conversation: minted.conversation, maxSecs: VOICE_SESSION_SECS, desk: deskVariable(`${billLines(after, plan)}\n${lines}`), usage: after, ...(plan && { credits: plan }), ...(tool && { tool }), ...(Object.keys(crew).length && { crew }) });
+  return json({ ok: true, token: minted.token, conversation: minted.conversation, maxSecs: VOICE_SESSION_SECS, desk: deskVariable(`${billLines(after, plan)}\n${lines}`), usage: after, ...(plan && { credits: plan }), ...(tool && { tool }), ...(Object.keys(crew).length && { crew }) }, 200, { "Server-Timing": t.header() });
 }
 
 export async function GET(request: Request): Promise<Response> {

@@ -341,6 +341,16 @@ answer. But if it's something a little bit more specific to our room, then it ta
   fire once per hand-over, status answers are two or three sentences, and a turn has 1,024 tokens. Every agent sends
   the browser `agent_tool_response_full_payload`: agent lines carry no agent id over the socket, so the transfer's
   result (`to_agent`) is how the hologram knows who has the mic (`apps/world/src/desk/skippy/talkSession.ts`).
+- **Talk starts fast (#496).** The start answers with a `Server-Timing` header (pace, count, ledger, desk, credits,
+  agent, mint, keep, total; names and milliseconds only) and the browser marks `talk:*` for the mic, the token, the
+  connection and Skippy's first word. Ended calls are settled only when the month looks full; the Desk's lines are
+  kept for a minute and waited on for at most 0.8 s; the agent check runs only when its signature changed. Hovering or
+  focusing Talk warms up: `GET /api/skippy-voice?warm=1` (signed in) checks the agents and fills the lines, and the
+  browser loads the call's code and the hologram (`preloadHologram`).
+- **In character (#498).** Skippy never says "thread", "hand-off" or "Kernel" when he asks his deeper self, on a call
+  or in the Desk's chat: a rotating line says it ("reaching into the recesses of my magnificent mind", "consulting the
+  deeper me", "still pondering"; `api/_skippy/ponder.ts`), in the prompts, the tool answers, the chat's hand-off line
+  and the Desk's pending bubbles. `check_answers` also reads back what Nikita asked on his calls in the last two days.
 - **The Council.** When the call is settled, its transcript is read once and each stretch a submind held the mic is
   kept in its room's log (`via: "voice"`, `by` the submind): the question in short and the answer's gist, scrubbed, a
   private-looking part held back whole (`api/_skippy/voicecouncil.ts`). The Council of Skippies shows them; the

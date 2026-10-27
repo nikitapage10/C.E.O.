@@ -258,8 +258,8 @@ const SOLO = {
 /** With the crew (#479): live lookups, the subminds on the mic and the Kernel's hand-off (api/_skippy/voicecrew.ts). */
 const CREW = {
   more: "look the room up yourself with a read tool, or, for an in-depth room-specific take, hand the mic to its submind.",
-  work: "When Nikita wants something done, or asks something no tool of yours can answer, hand it to your own thread with hand_to_kernel.",
-  unknown: "Never make up issues, numbers, players or results: when you don't know, look it up with a tool, or hand it to your own thread with hand_to_kernel; never just say you don't know or won't look.",
+  work: "When Nikita wants something done, or asks something no tool of yours can answer, pass it to your deeper self with hand_to_kernel.",
+  unknown: "Never make up issues, numbers, players or results: when you don't know, look it up with a tool, or pass it to your deeper self with hand_to_kernel; never just say you don't know or won't look.",
 };
 
 /** Skippy's prompt, with or without his crew. The {{desk}} variable stays for ElevenLabs to fill. */

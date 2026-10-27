@@ -69,7 +69,9 @@ describe("Talk to Skippy in the browser", () => {
     expect(seen).toEqual(["/api/skippy-voice?handoffs=conv_live_123"]);
     expect(await readHandoffs("../x", doFetch)).toEqual([]);
     expect(await readHandoffs("conv_live_123", reply(401, {}))).toEqual([]);
-    expect(landedNote("Shipped in number 485.", true)).toMatch(/^The answer from your own thread .*"Shipped in number 485\.".*next natural pause/);
+    expect(landedNote("Shipped in number 485.", true)).toMatch(/^The answer from the deeper you .*"Shipped in number 485\.".*next natural pause/);
+    // Nothing for him to echo (#498): the note never names the plumbing.
+    expect(landedNote("Shipped.", true).replace(/"[^"]*"/, "")).not.toMatch(/thread|hand-?off|hand (it )?off|kernel/i);
     expect(landedNote("On it.", false)).toMatch(/^An update/);
   });
 
@@ -79,7 +81,7 @@ describe("Talk to Skippy in the browser", () => {
     expect(id).not.toBeNull();
     const bubble = useSkippy.getState().turns.find((t) => t.id === id);
     expect(bubble).toMatchObject({ who: "skippy", handed: "0123456789abcdef", pending: { turn: "0123456789abcdef", room: "kernel", needs: "skippy" } });
-    expect(bubble!.text).toMatch(/Skippy's own thread/);
+    expect(bubble!.text).not.toMatch(/thread|kernel/i);
     expect(await useSkippy.getState().wait("0123456789abcdef", "kernel", "skippy", quiet)).toBeNull();
     expect(await useSkippy.getState().wait("not-a-turn", "kernel", "skippy", quiet)).toBeNull();
     useSkippy.getState().clear();

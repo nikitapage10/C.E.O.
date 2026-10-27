@@ -118,7 +118,7 @@ export const clock = (secs: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export type Started = { ok: true; token: string; conversation: string; maxSecs: number; desk: string; usage: TalkUsage | null; tool?: string; crew?: Record<string, string> } | { ok: false; reason: TalkReason; usage?: TalkUsage | null };
+export type Started = { ok: true; token: string; conversation: string; maxSecs: number; desk: string; usage: TalkUsage | null; tool?: string; crew?: Record<string, string>; serverTiming?: string } | { ok: false; reason: TalkReason; usage?: TalkUsage | null };
 
 /** The call's tool token as our function mints it (api/_skippy/voicetoken.ts): `vt1.<expiry>.<nonce>.<mac>`. */
 export const isToolToken = (v: unknown): v is string => typeof v === "string" && v.length <= 200 && /^vt1\.[0-9a-z]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(v);
@@ -142,11 +142,40 @@ export async function requestToken(doFetch: typeof fetch = fetch): Promise<Start
     if (res.ok && body.ok === false && body.reason === "capped") return { ok: false, reason: "capped", usage };
     if (!res.ok || body.ok !== true || typeof body.token !== "string" || !body.token) return { ok: false, reason: "eleven" };
     const maxSecs = typeof body.maxSecs === "number" && body.maxSecs > 0 && body.maxSecs <= 600 ? body.maxSecs : 600;
-    return { ok: true, token: body.token, conversation: typeof body.conversation === "string" ? body.conversation : "", maxSecs, desk: typeof body.desk === "string" ? body.desk : "", usage, ...(isToolToken(body.tool) && { tool: body.tool }), ...crewOf(body.crew) };
+    const timing = res.headers.get("Server-Timing");
+    return { ok: true, token: body.token, conversation: typeof body.conversation === "string" ? body.conversation : "", maxSecs, desk: typeof body.desk === "string" ? body.desk : "", usage, ...(isToolToken(body.tool) && { tool: body.tool }), ...crewOf(body.crew), ...(timing && { serverTiming: readServerTiming(timing) }) };
   } catch {
     return { ok: false, reason: "eleven" };
   }
 }
+
+/** A Server-Timing header as `name=ms` pairs (#496): names and numbers only, whatever else it carries dropped. */
+export function readServerTiming(raw: string): string {
+  return raw
+    .split(",")
+    .slice(0, 20)
+    .map((part) => /^\s*([a-z][a-z0-9_-]{0,20})\s*;\s*dur=(\d{1,6}(?:\.\d+)?)\s*$/i.exec(part))
+    .filter((m): m is RegExpExecArray => !!m)
+    .map((m) => `${m[1]}=${Math.round(Number(m[2]))}`)
+    .join(" ");
+}
+
+/**
+ * A call's start, stage by stage (#496): milliseconds from the tap to the mic's yes, the token, the call code, the
+ * connected call and his first word, and the server's own stages. Also left as performance marks (`talk:*`).
+ */
+export interface StartTimings {
+  mic?: number;
+  token?: number;
+  code?: number;
+  connected?: number;
+  firstWord?: number;
+  server?: string;
+}
+
+/** How long a warm-up counts for: the server keeps the Desk's lines a minute (api/skippy-voice.ts, DESK_KEEP_MS). */
+export const WARM_MS = 50_000;
+let warmedAt = 0;
 
 type SessionModule = typeof import("./talkSession.ts");
 type Session = Awaited<ReturnType<SessionModule["openCall"]>>;
@@ -170,9 +199,12 @@ export async function readHandoffs(id: string, doFetch: typeof fetch = fetch): P
   }
 }
 
-/** What Skippy is told when an answer from his own thread lands mid-call. He reads it out at the next natural pause. */
+/**
+ * What Skippy is told when what his deeper self worked out lands mid-call. He reads it out at the next natural pause,
+ * in character (#498): the note itself never says "thread", "hand-off" or "Kernel", so he has nothing to echo.
+ */
 export const landedNote = (text: string, final: boolean): string =>
-  `${final ? "The answer" : "An update"} from your own thread just landed on what Nikita asked you to hand off: "${text.slice(0, 500)}". Read it out at the next natural pause, briefly, in your own words.`;
+  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${text.slice(0, 500)}". Read it out at the next natural pause, briefly, in your own words and in character.`;
 
 /** The chat bubbles this call is waiting on (chat turn id to the text last told to Skippy), and the watch on them. */
 let heard = new Map<number, string>();
@@ -217,7 +249,14 @@ interface TalkStore {
   reason: TalkReason | null;
   startedAt: number;
   maxSecs: number;
+  /** The last start's stages (#496). */
+  timings: StartTimings | null;
   refresh: (doFetch?: typeof fetch) => Promise<void>;
+  /**
+   * Gets a call ready before the tap (#496), when the pointer or focus reaches Talk: wakes the function and fills its
+   * Desk lines and agent check (GET ?warm=1), and fetches the call's code and the hologram. Once a minute at most.
+   */
+  warm: (doFetch?: typeof fetch) => void;
   start: () => Promise<void>;
   end: () => Promise<void>;
 }
@@ -280,6 +319,14 @@ export const useTalk = create<TalkStore>((set, get) => {
     reason: null,
     startedAt: 0,
     maxSecs: 600,
+    timings: null,
+    warm: (doFetch = fetch) => {
+      if (get().phase !== "idle" || get().ready === false || Date.now() - warmedAt < WARM_MS) return;
+      warmedAt = Date.now();
+      void loadSession().catch(() => undefined);
+      void import("../hologram/HologramCall.tsx").then((m) => m.preloadHologram()).catch(() => undefined);
+      void doFetch("/api/skippy-voice?warm=1", { credentials: "same-origin" }).catch(() => undefined);
+    },
     refresh: async (doFetch = fetch) => {
       try {
         const res = await doFetch("/api/skippy-voice", { credentials: "same-origin" });
@@ -297,9 +344,19 @@ export const useTalk = create<TalkStore>((set, get) => {
         set({ reason: "unsupported" });
         return note("unsupported");
       }
-      set({ phase: "starting", reason: null });
+      set({ phase: "starting", reason: null, timings: {} });
       stopSpeaking();
-      const mod = loadSession();
+      // Each stage timed from the tap (#496).
+      const tap = performance.now();
+      const mark = (stage: keyof Omit<StartTimings, "server">) => {
+        try {
+          performance.mark(`talk:${stage}`);
+        } catch {
+          /* marks are a nicety */
+        }
+        set((st) => ({ timings: { ...st.timings, [stage]: Math.round(performance.now() - tap) } }));
+      };
+      const mod = loadSession().then((m) => (mark("code"), m));
       // The microphone prompt comes only now, straight after the tap, and before anything is spent.
       try {
         const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -308,7 +365,10 @@ export const useTalk = create<TalkStore>((set, get) => {
         set({ phase: "idle", reason: "mic" });
         return note("mic");
       }
+      mark("mic");
       const got = await requestToken();
+      mark("token");
+      if (got.ok && got.serverTiming) set((st) => ({ timings: { ...st.timings, server: got.serverTiming } }));
       if (!got.ok) {
         set({ phase: "idle", reason: got.reason, ...(got.usage && { usage: got.usage, ready: got.usage.canTalk }), ...(got.reason === "capped" && { ready: false }) });
         return note(got.reason);
@@ -327,7 +387,10 @@ export const useTalk = create<TalkStore>((set, get) => {
           crew: got.crew ?? {},
           onAgent: (agent) => setSpeaker(roomOfAgent(agent, got.crew ?? {})),
           onMessage: (who, text) => useSkippy.getState().say(who, text),
-          onMode: (mode) => set({ mode }),
+          onMode: (mode) => {
+            if (mode === "speaking" && get().timings?.firstWord === undefined) mark("firstWord");
+            set({ mode });
+          },
           onTool: (name) => {
             if (name === "hand_to_kernel" && conversation) void followHandoffs(conversation).catch(() => undefined);
           },
@@ -347,6 +410,7 @@ export const useTalk = create<TalkStore>((set, get) => {
         await finish(null);
         return;
       }
+      mark("connected");
       set({ phase: "live", startedAt: Date.now(), maxSecs: got.maxSecs });
       timer = setTimeout(() => void get().end(), got.maxSecs * 1000);
     },

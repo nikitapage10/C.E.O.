@@ -126,7 +126,7 @@ export function playerNewsText(query: string | null, d: { board: GreenBoard | nu
       const news = (d.fp?.news ?? []).find((n) => n.name && namesPlayer(q, n.name));
       if (inj || news) found.push({ id: null, name: inj?.name ?? news!.name, pos: inj?.pos ?? "player", team: inj?.team ?? null });
     }
-    if (!found.length) return `No player matching "${said(q, PLAYER_MAX)}" on Sleeper's list or in FantasyPros' feeds.${fpState} Try the full name, or hand it to Skippy's thread with hand_to_kernel.`;
+    if (!found.length) return `No player matching "${said(q, PLAYER_MAX)}" on Sleeper's list or in FantasyPros' feeds.${fpState} Try the full name, or call hand_to_kernel.`;
     for (const f of found.slice(0, 2)) lines.push(about(f.id, f.name, f.pos, f.team));
     if (found.length > 2) lines.push(`${found.length - 2} more players match that name; say the team to narrow it.`);
     return capLines([...lines, ...(fpState ? [fpState.trim()] : [])]);

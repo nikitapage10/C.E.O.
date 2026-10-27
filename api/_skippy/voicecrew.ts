@@ -45,6 +45,7 @@
 import { createHash } from "node:crypto";
 import { TOOL_HEADER, TOOL_VAR, type CrewState, type KeptThing } from "./voicetoken.js";
 import type { ReadName } from "./voicereads.js";
+import { inCharacter } from "./ponder.js";
 
 export const ELEVEN_API = "https://api.elevenlabs.io";
 
@@ -88,9 +89,9 @@ export const TOOL_DEFS: readonly ToolDef[] = [
     name: "hand_to_kernel",
     read: "kernel",
     description:
-      "Hand an ask to Skippy, the Magnificent's own thread (the Kernel), which does real work and digs deeper: starting a build or a fix, pulling information across rooms, and any question your lookups couldn't answer (empty, slow or not covered). The answer comes back later: say you're checking with Skippy, the Magnificent, keep talking, and check_answers at the next pause.",
+      "Pass an ask to the deeper Skippy, the Magnificent, who does real work and digs deeper: starting a build or a fix, pulling information across rooms, and any question your lookups couldn't answer (empty, slow or not covered). The answer comes back later: say so in character (never this tool's name, \"thread\", \"hand-off\" or \"Kernel\"), keep talking, and check_answers at the next pause.",
   },
-  { name: "check_answers", read: "answers", description: "Check whether Skippy's own thread has answered what this call handed it (an interim 'on it' or the final answer). Use it at a natural pause after a hand-off, or when Nikita asks." },
+  { name: "check_answers", read: "answers", description: "Check what the deeper Skippy has worked out on what Nikita asked, on this call and on his recent calls before it (an interim 'on it' or the final answer). Use it at a natural pause after passing an ask on, or when Nikita asks how something he asked earlier went." },
 ];
 
 /** The Kernel's two tools: every agent on the call carries them (#491), so nobody ever has to say "go look elsewhere". */
@@ -236,8 +237,8 @@ export const CALL_RULES = `Never ask for or repeat private details: emails, phon
  * and what no tool answers goes to the Kernel. `skippy` words it for Skippy himself, else for a submind.
  */
 export function noRefusals(skippy: boolean): string {
-  const checking = skippy ? "you're getting the crew digging and checking with your own thread, the Kernel" : "you're checking with Skippy, the Magnificent and getting the crew digging";
-  return `Never refuse to look something up that a tool of yours can look up, and never say you don't go digging around the web or that something isn't yours to look at.${skippy ? " A player's injury, status, availability or news is player_news; anything in the outside world (news, beat reporters, game times, scores) is web_search." : ""} Never point Nikita somewhere else to find it himself: no "hit the injury tracker on your Desk", no "check the beat reporters", no "go look in the Lattice", no "check the chat" or "the Desk shows it". When your tools can't answer (the lookup comes back empty, slow or doesn't cover it), call hand_to_kernel straight away with his question in his words, say ${checking}, and keep the conversation going. At the next natural pause call check_answers; when it, or a background note, brings the answer, read it back in your own words.`;
+  const checking = skippy ? "you're reaching into the recesses of your magnificent mind and getting the crew digging" : "you're checking with Skippy, the Magnificent and getting the crew digging";
+  return `Never refuse to look something up that a tool of yours can look up, and never say you don't go digging around the web or that something isn't yours to look at.${skippy ? " A player's injury, status, availability or news is player_news; anything in the outside world (news, beat reporters, game times, scores) is web_search." : ""} Never point Nikita somewhere else to find it himself: no "hit the injury tracker on your Desk", no "check the beat reporters", no "go look in the Lattice", no "check the chat" or "the Desk shows it". When your tools can't answer (the lookup comes back empty, slow or doesn't cover it), call hand_to_kernel straight away with his question in his words, say ${checking}, and keep the conversation going. At the next natural pause call check_answers; when it, or a background note, brings the answer, read it back in your own words. ${inCharacter(skippy)}`;
 }
 
 /** A hand-over is one action (#491): the transfer says the line, so a hand-over can never be announced and not made. */
@@ -269,7 +270,7 @@ ${SHORT_STATUS}
 ${noRefusals(true)}
 Your subminds can take the mic in this same call, in your voice, with transfer_to_agent: the Commentator (the Green, and the injury and news desk for Nikita's roster), the Bookie (the Exchange), the Messenger (Relay), the Pessimist (the Boiler Room) and the Builder (the Foundry). Nikita's rule: you answer basic questions yourself, with a lookup (whether a player is playing is a player_news lookup, yours to answer). Hand over when he names a room or a submind, or wants something in-depth and specific to that room (a play-by-play, start/sit reasoning, an injury rundown on his roster, a trade or waiver breakdown, a walk through his book, what broke and why, a build's story). When the mic comes back, carry on as Skippy without repeating what the submind said.
 ${TRANSFER_RULES}
-For real work (start a build or a fix, find something across rooms, anything that needs time or Nikita's say-so later) and any question your tools couldn't answer, hand it to your own thread, the Kernel, with hand_to_kernel: say you're on it, and keep chatting. At a natural pause, check_answers; when a background note says your thread answered, read the answer out at the next pause, in your own words. An interim answer ("on it, number 481") is worth a line too. If the call ends first, the answer lands in the Desk's chat.`;
+For real work (start a build or a fix, find something across rooms, anything that needs time or Nikita's say-so later) and any question your tools couldn't answer, pass it to your deeper self with hand_to_kernel: say you're on it, in character, and keep chatting. At a natural pause, check_answers; when a background note says the deeper you has answered, read the answer out at the next pause, in your own words. An interim answer ("on it, number 481") is worth a line too. If the call ends first, the answer lands in the Desk's chat.`;
 
 /** The events every agent sends the browser (#491): the call's own, plus the tools' results, whose transfer names the agent taking the mic. */
 export const CLIENT_EVENTS = ["conversation_initiation_metadata", "ping", "audio", "interruption", "user_transcript", "agent_response", "agent_response_correction", "agent_tool_request", "agent_tool_response_full_payload"] as const;

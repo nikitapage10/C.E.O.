@@ -18,7 +18,7 @@
  * VOICE_DAILY_CALLS a day, and only answers a minted token (auth on), so nobody else can spend its minutes.
  *
  * Counted at VOICE_USD_PER_MIN: ElevenLabs' API rate for Agents is $0.08 a minute (elevenlabs.io/pricing/api, checked
- * 2026-10-25), plus headroom for the LLM it runs on (Claude Haiku 4.5). A plan's own minutes come cheaper, so the cap
+ * 2026-10-25), plus headroom for the LLM it runs on (Claude Sonnet 5.5 since #491). A plan's own minutes come cheaper, so the cap
  * errs on the safe side. The talk's spend lives in the story's month ledger (`voiceUsd`, `voiceSecs`, `voiceCalls`,
  * and inside `elevenUsd`), so the story sees it too: once the cap is reached its audio waits (ElevenLabs only, #472).
  *
@@ -59,8 +59,8 @@ export const VOICE_DAILY_CALLS = 100;
 export const VOICE_USD_PER_MIN = 0.12;
 /** The talk's share of ElevenLabs' $10, unless ELEVENLABS_VOICE_BUDGET_USD says otherwise. */
 export const VOICE_BUDGET_USD = 5;
-/** The LLM the agent thinks with (ElevenLabs runs it): Claude, quick and cheap. */
-export const VOICE_LLM = "claude-haiku-4-5";
+/** The LLM the agent and its subminds think with (ElevenLabs runs it): Claude Sonnet 5.5, for its tool and transfer judgment (Nikita, 2026-10-27, #491). */
+export const VOICE_LLM = "claude-sonnet-5-5";
 /** How long a session that never reported back is kept waiting before it stays counted at its longest. */
 export const SETTLE_GIVE_UP_MS = 24 * 60 * 60_000;
 /** The most of the Desk's state Skippy is handed. */

@@ -260,6 +260,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
   ],
   // The subminds: each its own voice (docs/SKIPPY.md, "Voices").
   ember: [
+    "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
+    "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
+    "\"Give me the Builder,\" he says. Like I'm a tool. I AM the tool. The good one.",
     "Weld it. Test it. Ship it.",
     "Furnace is slow. Furnace is always slow.",
     "Quickest rung first. Up only when it fails. That's the ladder.",
@@ -281,6 +284,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "I don't leave the corner office for less than a launch. Launching. Now.",
   ],
   ticker: [
+    "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
+    "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
+    "Skippy hands me the mic, I read the book, I hand it back. Ninety percent clean. The ten keeps me up.",
     "Seventy-one percent, give or take. Mostly take.",
     "I'd put that at even money. Maybe forty. Thirty-eight. Don't quote me.",
     "Hedge, talk me down. No, talk me further down.",
@@ -299,6 +305,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The marquee's running the C.E.O.'s positions. Behind the passkey. Signed out, you get the odds and my sweating.",
   ],
   turf: [
+    "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
+    "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
+    "Basic question? Skippy takes it. Play-by-play? THAT'S MY CUE, FOLKS.",
     "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
     "Gridiron calls the play. I call the play he called. LOUDER.",
     "Punt is down. Punt is STAYING down. What a nap, folks.",
@@ -318,6 +327,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Gridiron's not running fake drills anymore. Real league, real chart. He cried. I called it. LIVE.",
   ],
   static: [
+    "On the C.E.O.'s call now. Counts only. Didn't hear the rest from me. Didn't say it either.",
+    "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five FYI. No names. Never names.",
     "Didn't hear it from me. You heard it from me.",
     "Line three's waiting on line seven, line seven's waiting on the C.E.O.—",
     "Heard that. Heard that too. Didn't hear that. ...Heard it.",
@@ -359,6 +370,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Best seat in the house, and it HOVERS. Iconic.",
   ],
   soot: [
+    "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
+    "Skippy hands me the mic when something's leaking. Something is always leaking.",
+    "Same voice as Skippy. Lower. Slower. Closer to the floor, where the water ends up.",
     "It'll burst.",
     "...Huh. Didn't.",
     "Needle twitched. Omen.",

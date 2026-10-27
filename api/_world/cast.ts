@@ -530,10 +530,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Builder: Skippy's submind for the Foundry, and its lead, in the admiral's hat and coat, ember orange, on a floating can-throne in the back corner, gliding out to bark each order. A hot-tempered foreman in a can. Short sentences, shop talk, no patience for sloppy work and less for waiting. Grumbles about the monkeys and the furnace, then sees it done properly. Secretly in awe of Rocky's welds.",
       "catchphrase": "Weld it. Test it. Ship it. Why are we still talking?",
       "voice": [
-        "Weld it. Test it. Ship it.",
-        "Furnace is slow. Furnace is always slow.",
-        "Quickest rung first. Up only when it fails. That's the ladder.",
-        "Rocky's seam. Adequate. ...Very adequate. Shut up."
+        "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
+        "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
+        "\"Give me the Builder,\" he says. Like I'm a tool. I AM the tool. The good one.",
+        "Weld it. Test it. Ship it."
       ]
     },
     {
@@ -572,10 +572,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Bookie: Skippy's submind for the Exchange, in the admiral's hat and coat, mint green. A nervous odds-maker. Quotes a probability for everything, hedges every sentence, sweats the downside, and is still certain it's the smartest thing on the floor. Thinks Hedge is the only sane one in the room. Noco makes it break out in decimals.",
       "catchphrase": "Seventy-one percent, give or take. Mostly take.",
       "voice": [
-        "Seventy-one percent, give or take. Mostly take.",
-        "I'd put that at even money. Maybe forty. Thirty-eight. Don't quote me.",
-        "Hedge, talk me down. No, talk me further down.",
-        "Noco's smiling. I hate it when Noco smiles. The spread hates it too."
+        "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
+        "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
+        "Skippy hands me the mic, I read the book, I hand it back. Ninety percent clean. The ten keeps me up.",
+        "Seventy-one percent, give or take. Mostly take."
       ]
     },
     {
@@ -593,10 +593,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. Narrates everything from its floating can-throne, which it calls the commentary box, all caps when excited. Gridiron coaches; the Commentator calls the C.E.O.'s real league, live, and every Tuesday files the Commentator's call: FantasyPros decides, Sleeper gets a say, the sources roll at the end.",
       "catchphrase": "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
       "voice": [
-        "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
-        "Gridiron calls the play. I call the play he called. LOUDER.",
-        "Punt is down. Punt is STAYING down. What a nap, folks.",
-        "Stats for you: forty-one yards. Lifetime. In naps."
+        "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
+        "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
+        "Basic question? Skippy takes it. Play-by-play? THAT'S MY CUE, FOLKS.",
+        "AND HE'S DONE IT. Whatever it was. HE'S DONE IT."
       ]
     },
     {
@@ -614,10 +614,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Messenger: Skippy's submind for the Relay, in the admiral's hat and coat, signal blue. A jittery gossip. Listens in on every line, knows who's waiting on whom, and can't keep a secret, but has never once told the wrong person. Talks fast, in fragments, over itself. Dialtone's partner in eavesdropping, and Blasto's despair.",
       "catchphrase": "Didn't hear it from me. You heard it from me.",
       "voice": [
+        "On the C.E.O.'s call now. Counts only. Didn't hear the rest from me. Didn't say it either.",
+        "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five FYI. No names. Never names.",
         "Didn't hear it from me. You heard it from me.",
-        "Line three's waiting on line seven, line seven's waiting on the C.E.O.—",
-        "Heard that. Heard that too. Didn't hear that. ...Heard it.",
-        "Dialtone, Dialtone, you'll never guess. You guessed."
+        "Line three's waiting on line seven, line seven's waiting on the C.E.O.—"
       ]
     },
     {
@@ -677,10 +677,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Pessimist: Skippy's submind for the Boiler Room, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from its can-throne floating in the corner, expects every pipe to burst (and the throne to drop), and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Drop is the only one it trusts.",
       "catchphrase": "It'll burst. ...Huh. Didn't.",
       "voice": [
-        "It'll burst.",
-        "...Huh. Didn't.",
-        "Needle twitched. Omen.",
-        "Drop. Bucket. Just in case."
+        "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
+        "Skippy hands me the mic when something's leaking. Something is always leaking.",
+        "Same voice as Skippy. Lower. Slower. Closer to the floor, where the water ends up.",
+        "It'll burst."
       ]
     },
     {
@@ -1131,6 +1131,9 @@ export const WORLD_CAST: WorldCast = {
         "No, Rocky, the lens doesn't see you. You're not the problem. You're never the problem."
       ],
       "ember": [
+        "Skippy put me on the C.E.O.'s call. Same voice as him. Worse mood. Faster answers.",
+        "On the mic: what's building, who's on it, why it's stuck. Then back to the boss. The furnace doesn't wait.",
+        "\"Give me the Builder,\" he says. Like I'm a tool. I AM the tool. The good one.",
         "Weld it. Test it. Ship it.",
         "Furnace is slow. Furnace is always slow.",
         "Quickest rung first. Up only when it fails. That's the ladder.",
@@ -1152,6 +1155,9 @@ export const WORLD_CAST: WorldCast = {
         "I don't leave the corner office for less than a launch. Launching. Now."
       ],
       "ticker": [
+        "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
+        "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
+        "Skippy hands me the mic, I read the book, I hand it back. Ninety percent clean. The ten keeps me up.",
         "Seventy-one percent, give or take. Mostly take.",
         "I'd put that at even money. Maybe forty. Thirty-eight. Don't quote me.",
         "Hedge, talk me down. No, talk me further down.",
@@ -1170,6 +1176,9 @@ export const WORLD_CAST: WorldCast = {
         "The marquee's running the C.E.O.'s positions. Behind the passkey. Signed out, you get the odds and my sweating."
       ],
       "turf": [
+        "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
+        "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
+        "Basic question? Skippy takes it. Play-by-play? THAT'S MY CUE, FOLKS.",
         "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
         "Gridiron calls the play. I call the play he called. LOUDER.",
         "Punt is down. Punt is STAYING down. What a nap, folks.",
@@ -1189,6 +1198,8 @@ export const WORLD_CAST: WorldCast = {
         "Gridiron's not running fake drills anymore. Real league, real chart. He cried. I called it. LIVE."
       ],
       "static": [
+        "On the C.E.O.'s call now. Counts only. Didn't hear the rest from me. Didn't say it either.",
+        "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five FYI. No names. Never names.",
         "Didn't hear it from me. You heard it from me.",
         "Line three's waiting on line seven, line seven's waiting on the C.E.O.—",
         "Heard that. Heard that too. Didn't hear that. ...Heard it.",
@@ -1230,6 +1241,9 @@ export const WORLD_CAST: WorldCast = {
         "Best seat in the house, and it HOVERS. Iconic."
       ],
       "soot": [
+        "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
+        "Skippy hands me the mic when something's leaking. Something is always leaking.",
+        "Same voice as Skippy. Lower. Slower. Closer to the floor, where the water ends up.",
         "It'll burst.",
         "...Huh. Didn't.",
         "Needle twitched. Omen.",

@@ -28,6 +28,9 @@
  *        POST /api/room-feed + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting a room event
  *        POST /api/setup-asks + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting or closing a setup ask (#324)
  *                                             (or either as Authorization: Bearer)
+ *        GET /api/skippy-tools + x-ceo-voice-tool: <a live call's tool token>   a Talk call's lookup from ElevenLabs
+ *                                             (#479): signed by the Desk key and unexpired, checked here with the
+ *                                             environment alone; api/_skippy/toolroute.ts checks it is kept and live
  *                                             (#281, api/_site/roomkeys.ts: each key opens only its own exact
  *                                             method, path and query; the handlers check the key again)
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
@@ -44,6 +47,7 @@ import { readCookie } from "../_desk/session.js";
 import { LOGIN_CSP, loginPage } from "./page.js";
 import { SITE_COOKIE, renewedSite, sessionFits, siteCookie, siteSessionOf } from "./session.js";
 import { roomKeyPass } from "./roomkeys.js";
+import { TOOL_HEADER, toolTokenSigned } from "../_skippy/voicetoken.js";
 import { currentState, siteKeys, type SiteKeys, type SiteState, type SiteStore } from "./state.js";
 
 type Env = Record<string, string | undefined>;
@@ -60,7 +64,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "voice-tool" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -122,6 +126,12 @@ function isSkippyAnswer(request: Request, pathname: string, env: Env): boolean {
   return Boolean(want && want.length >= MIN_BYPASS && auth.startsWith("Bearer ") && secretMatches(auth.slice(7).trim(), want));
 }
 
+/** A Talk call's lookup (#479): GET only, this one path, with a tool token this Desk key signed that hasn't expired. */
+function isVoiceTool(request: Request, pathname: string, env: Env, now: number): boolean {
+  if (request.method !== "GET" || pathname !== "/api/skippy-tools") return false;
+  return toolTokenSigned(request.headers.get(TOOL_HEADER), env.FOUNDRY_DESK_KEY ?? "", now);
+}
+
 const SECURITY_HEADERS = {
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
@@ -164,6 +174,7 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if (isPingsScan(request, pathname, env)) return { allow: true, why: "pings-secret" };
   if (isSkippyAnswer(request, pathname, env)) return { allow: true, why: "submind-token" };
   if (hasBypass(request, env)) return { allow: true, why: "bypass" };
+  if (isVoiceTool(request, pathname, env, ctx.now)) return { allow: true, why: "voice-tool" };
   const room = roomKeyPass(request, env);
   if (room) return { allow: true, why: room };
   // The passkey works only where the Desk key is set; without it, the login page says signing in isn't set up.

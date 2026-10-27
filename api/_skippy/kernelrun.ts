@@ -15,6 +15,11 @@ import { RUN_LIMITS, type AgentRequest, type AgentRun } from "./kernelagent.js";
 const TOOLS = [
   { type: "web_search_20260209", name: "web_search", max_uses: RUN_LIMITS.searches },
   {
+    name: "sleeper_league",
+    description: "Read Nikita's fantasy football league from Sleeper, read-only. read 'standings' gives every team's record, points scored and allowed. read 'weeks' gives every matchup of the weeks from..to (week numbers 1 to 18, at most eight weeks; leave them out for the last six played weeks). read 'week' gives one team's whole week: opponent, both totals, each starter and each bench player with their points; pass week and, for another team, part of its name (Nikita's own team when left out).",
+    input_schema: { type: "object", properties: { read: { type: "string", enum: ["standings", "weeks", "week"] }, from: { type: "integer" }, to: { type: "integer" }, week: { type: "integer" }, team: { type: "string" } }, required: ["read"], additionalProperties: false },
+  },
+  {
     name: "file_build_request",
     description: "File Nikita's request as a build or change request for the crew. Call it once, only when he asked for something to be built or changed. Returns the issue number.",
     input_schema: { type: "object", properties: { size: { type: "string", enum: ["small", "medium", "large"] } }, required: ["size"], additionalProperties: false },
@@ -41,7 +46,7 @@ export function claudeAgent(key: string): (req: AgentRequest) => Promise<AgentRu
     let usage: Usage = { input_tokens: 0, output_tokens: 0 };
     let searches = 0;
     let out: AgentRun["out"] = null;
-    for (let round = 0; round < RUN_LIMITS.rounds && !out; round++) {
+    for (let round = 0; round < RUN_LIMITS.rounds; round++) {
       const res = await client.messages.create({
         model: req.model,
         max_tokens: RUN_LIMITS.maxTokens,
@@ -62,6 +67,8 @@ export function claudeAgent(key: string): (req: AgentRequest) => Promise<AgentRu
         if (block.name === "deliver") {
           if ((input.mode === "answer" || input.mode === "ponder") && typeof input.text === "string") out = { mode: input.mode, text: input.text };
           results.push({ type: "tool_result", tool_use_id: block.id, content: "Delivered." });
+        } else if (block.name === "sleeper_league") {
+          results.push({ type: "tool_result", tool_use_id: block.id, content: await req.league(input) });
         } else if (block.name === "file_build_request") {
           const size = input.size === "small" || input.size === "large" ? input.size : "medium";
           const n = await req.fileBuild(size);
@@ -70,7 +77,12 @@ export function claudeAgent(key: string): (req: AgentRequest) => Promise<AgentRu
       }
       if (out) break;
       if (res.stop_reason === "pause_turn") continue;
-      if (!results.length) break; // it stopped without delivering
+      if (!results.length) {
+        // It wrote its answer instead of calling deliver: use the text rather than lose it (#507).
+        const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ").trim();
+        if (res.stop_reason === "end_turn" && text) out = { mode: "answer", text };
+        break;
+      }
       messages.push({ role: "user", content: results });
     }
     return { out, usage, searches };

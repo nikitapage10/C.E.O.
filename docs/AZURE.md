@@ -410,6 +410,17 @@ Logic in `api/_skippy/kernelagent.ts`, the Claude loop in `kernelrun.ts`, the ro
 - **What it reads.** The brief, the Desk's state and the live rooms' lines (the same reads Desk Skippy has, minus the
   ElevenLabs bill, with any dollar amount taken out), and the last three days of turns from every room (Desk chat, Talk
   exchanges, earlier answers) as trimmed question and answer pairs. Web search: at most three a run.
+- **Sleeper league tool (#507).** `sleeper_league` (`kernelleague.ts`): read-only, no keys, for league
+  1382508114531598336 only (the URLs are built in code; the model passes a read and week numbers). `standings`; `weeks`
+  (every matchup of up to eight weeks, any past week); `week` (one team's whole week: opponent, totals, each starter and bench
+  player with points; player names come from the Green's kept players list, never a 15 MB read). So "week-by-week history"
+  and "the week 5 breakdown" are lookups.
+- **Never silent (#507).** If the run fails or gives nothing usable, the responder leaves the pondering line (interim, the
+  hand-off stays open for the Magnificent). If the model writes its answer without calling `deliver`, the text is used. It
+  stays quiet only when off, over its cap, or without a key. Logs carry state, cost and an error class only
+  (`kernel-agent answered usd=0.003 `, `kernel-agent failed why=APIError-400`, `kernel-agent start refused status=401`),
+  never a question, an answer or the brief. The self-call goes to `WEBSITE_HOSTNAME`, else the site's `CEO_SITE_URL`.
+
 - **What it answers.** Facts and look-ups (scores, injuries, build status, room counts, web facts). Anything that hinges on a
   decision, a plan, a preference or judgment gets an in-character "pondering" line as an interim answer, and the hand-off
   stays open for Skippy, the Magnificent. Plain cases (`judgment` in `kernelagent.ts`) are settled without a model.

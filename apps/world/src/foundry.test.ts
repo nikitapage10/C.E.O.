@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, shippedThisWeek, plaqueTitle, bellRings, type Change, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep } from "./foundry.ts";
+import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, shippedThisWeek, plaqueTitle, bellRings, type Change, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep, HAND_COLOUR } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -176,9 +176,48 @@ describe("parseChecks", () => {
   });
 });
 
+describe("readBody: every named builder", () => {
+  it("resolves each crew member and dock hand to their own lane, name and model", () => {
+    const cases: [string, string, string | null, string | null][] = [
+      ["Rivet (Haiku)", "Rivet", "semicolon", "Haiku"],
+      ["Rusty (Sonnet)", "Rusty", "tessellate", "Sonnet"],
+      ["Rocky (Opus)", "Rocky", "caret", "Opus"],
+      ["Gusty (Opus)", "Gusty", "tessellate", "Opus"],
+      ["Dusty (Opus)", "Dusty", "tessellate", "Opus"],
+      ["Musty (Sonnet, high effort)", "Musty", "tessellate", "Sonnet"],
+      ["Skippy (Opus)", "Skippy", null, "Opus"],
+      ["gusty ( opus )", "Gusty", "tessellate", "Opus"],
+    ];
+    for (const [line, hand, builder, model] of cases) {
+      const r = readBody(`**Builder:** ${line}`);
+      expect([r.hand, r.builder, r.model]).toEqual([hand, builder, model]);
+    }
+  });
+  it("does not read a name that only starts like one", () => {
+    expect(readBody("**Builder:** Gustyx (Opus)")).toMatchObject({ hand: null, builder: null, model: null });
+  });
+  it("gives each hand its own colour", () => {
+    expect(HAND_COLOUR.Dusty).toBe("#ecc66a");
+    expect(HAND_COLOUR.Gusty).toBe("#3f8fea");
+    expect(HAND_COLOUR.Musty).toBe("#6fae4a");
+    expect(new Set(Object.values(HAND_COLOUR)).size).toBe(7);
+  });
+  it("puts a named dock hand on the forge instead of bay order", () => {
+    const job = (n: number, body: string) => parseCrates([{ number: n, title: `j${n}`, state: "open", labels: [{ name: "foundry" }, { name: "foundry:chat" }, { name: "foundry:working" }], html_url: "u", updated_at: "2026-10-27T00:00:00Z", body } as GhIssue]);
+    const crates = [job(1, "**Builder:** Rusty (Sonnet)"), job(2, "**Builder:** Gusty (Opus)"), job(3, "**Builder:** Musty (Opus)"), job(4, "**Builder:** Dusty (Sonnet)")].flatMap((c) => c);
+    expect(Object.fromEntries(rustyHands(crates))).toEqual({ 1: "Rusty", 2: "Gusty", 3: "Musty", 4: "Dusty" });
+    expect(crates.map((c) => modelOf(c, crewOf(c, crates)))).toEqual(["Sonnet", "Opus", "Opus", "Sonnet"]);
+  });
+  it("hands unnamed jobs the free hands in bay order", () => {
+    const job = (n: number, body: string) => parseCrates([{ number: n, title: `j${n}`, state: "open", labels: [{ name: "foundry" }, { name: "foundry:chat" }, { name: "foundry:working" }], html_url: "u", updated_at: "2026-10-27T00:00:00Z", body } as GhIssue]);
+    const crates = [job(1, "**Builder:** Rusty (Sonnet)"), job(2, "**Builder:** Dusty (Opus)"), job(3, "no builder")].flatMap((c) => c);
+    expect(Object.fromEntries(rustyHands(crates))).toEqual({ 1: "Rusty", 2: "Dusty", 3: "Gusty" });
+  });
+});
+
 describe("readBody", () => {
   it("reads the pitch and size the Foundry writes into an idea", () => {
-    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", images: [], model: null, short: "", question: "" });
+    expect(readBody("**Pitch:** Make it faster.\n\n**Size:** Medium. **Builder:** Rocky.")).toEqual({ pitch: "Make it faster.", size: "medium", builder: "caret", hand: "Rocky", images: [], model: null, short: "", question: "" });
   });
   it("reads attached pictures as names in the private store, and only the Desk's own (#127)", () => {
     const body = "**Pitch:** Look.\n\n![Picture 1](https://ceo.example/api/foundry-image?p=foundry%2Fideas%2Fold.jpg)\n![other](https://x.public.blob.vercel-storage.com/a.jpg)\n![bad](http://no.tls/c.png)\n\n**Pictures:** 1, kept private and shown only on the Desk (foundry/ideas/b.png)";
@@ -191,7 +230,7 @@ describe("readBody", () => {
     expect(readBody("**Pitch:** No question here.").question).toBe("");
   });
   it("is empty for a plain issue", () => {
-    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, images: [], model: null, short: "", question: "" });
+    expect(readBody("just words")).toEqual({ pitch: "", size: null, builder: null, hand: null, images: [], model: null, short: "", question: "" });
   });
 });
 

@@ -572,10 +572,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Bookie: Skippy's submind for the Exchange, in the admiral's hat and coat, mint green. A nervous odds-maker. Quotes a probability for everything, hedges every sentence, sweats the downside, and is still certain it's the smartest thing on the floor. Thinks Hedge is the only sane one in the room. Noco makes it break out in decimals.",
       "catchphrase": "Seventy-one percent, give or take. Mostly take.",
       "voice": [
+        "On the C.E.O.'s hologram. Glancing. Someone's always reading the book. Sixty percent sure.",
         "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
         "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
-        "Skippy hands me the mic, I read the book, I hand it back. Ninety percent clean. The ten keeps me up.",
-        "Seventy-one percent, give or take. Mostly take."
+        "Skippy hands me the mic, I read the book, I hand it back. Ninety percent clean. The ten keeps me up."
       ]
     },
     {
@@ -593,10 +593,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Commentator: Skippy's submind for the Green, in the admiral's hat and coat, lime green. Narrates everything from its floating can-throne, which it calls the commentary box, all caps when excited. Gridiron coaches; the Commentator calls the C.E.O.'s real league, live, and every Tuesday files the Commentator's call: FantasyPros decides, Sleeper gets a say, the sources roll at the end.",
       "catchphrase": "AND HE'S DONE IT. Whatever it was. HE'S DONE IT.",
       "voice": [
+        "AND THE COMMENTATOR IS ON THE HOLOGRAM! Lime green, folks! LOOK AT THAT GRIN!",
         "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
         "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
-        "Basic question? Skippy takes it. Play-by-play? THAT'S MY CUE, FOLKS.",
-        "AND HE'S DONE IT. Whatever it was. HE'S DONE IT."
+        "Basic question? Skippy takes it. Play-by-play? THAT'S MY CUE, FOLKS."
       ]
     },
     {
@@ -677,10 +677,10 @@ export const WORLD_CAST: WorldCast = {
       "bio": "The Pessimist: Skippy's submind for the Boiler Room, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from its can-throne floating in the corner, expects every pipe to burst (and the throne to drop), and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Drop is the only one it trusts.",
       "catchphrase": "It'll burst. ...Huh. Didn't.",
       "voice": [
+        "On the hologram. Grey. Slumped. Accurate.",
         "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
         "Skippy hands me the mic when something's leaking. Something is always leaking.",
-        "Same voice as Skippy. Lower. Slower. Closer to the floor, where the water ends up.",
-        "It'll burst."
+        "Same voice as Skippy. Lower. Slower. Closer to the floor, where the water ends up."
       ]
     },
     {
@@ -1157,6 +1157,7 @@ export const WORLD_CAST: WorldCast = {
         "I don't leave the corner office for less than a launch. Launching. Now."
       ],
       "ticker": [
+        "On the C.E.O.'s hologram. Glancing. Someone's always reading the book. Sixty percent sure.",
         "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
         "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
         "Skippy hands me the mic, I read the book, I hand it back. Ninety percent clean. The ten keeps me up.",
@@ -1178,6 +1179,7 @@ export const WORLD_CAST: WorldCast = {
         "The marquee's running the C.E.O.'s positions. Behind the passkey. Signed out, you get the odds and my sweating."
       ],
       "turf": [
+        "AND THE COMMENTATOR IS ON THE HOLOGRAM! Lime green, folks! LOOK AT THAT GRIN!",
         "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
         "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
         "Basic question? Skippy takes it. Play-by-play? THAT'S MY CUE, FOLKS.",
@@ -1243,6 +1245,7 @@ export const WORLD_CAST: WorldCast = {
         "Best seat in the house, and it HOVERS. Iconic."
       ],
       "soot": [
+        "On the hologram. Grey. Slumped. Accurate.",
         "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
         "Skippy hands me the mic when something's leaking. Something is always leaking.",
         "Same voice as Skippy. Lower. Slower. Closer to the floor, where the water ends up.",

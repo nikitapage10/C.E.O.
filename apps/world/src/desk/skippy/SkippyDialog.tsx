@@ -11,9 +11,13 @@ import { SKIPPY_PORTRAIT } from "./SkippyAvatar.tsx";
 import { SkippyLine, TalkUsage } from "./SkippyLine.tsx";
 import { useTalk } from "./talk.ts";
 import { useDeskAuth } from "../signin.ts";
+import { stripTags } from "../hologram/tags.ts";
 import "./skippy.css";
 
 /** The open dialogue, its own download: the Desk loads it the first time Skippy is opened (first-load budget). */
+
+/** A turn as it reads: a voice line's audio tags ("[smug]", #490) are for the voice, not the transcript. */
+const spoken = (t: Turn) => (t.who === "nikita" ? t.text : stripTags(t.text));
 
 const ACTION_DONE: Record<ActionState, string> = { busy: "Sending…", done: "Done", held: "Held back", "signed-out": "Sign in first", failed: "Didn't work" };
 
@@ -151,7 +155,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
                 {t.from === "skippy" ? "Skippy's thread" : handedName(t.from)} {t.pending ? "says, still working" : "answered"}
               </p>
             )}
-            <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{t.text}</Private>}</p>
+            <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{spoken(t)}</Private>}</p>
             {t.card && (
               <Private block as="div">
                 <AnswerCard card={t.card} />

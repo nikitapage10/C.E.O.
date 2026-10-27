@@ -35,6 +35,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { recolor, type Band } from "../../agents/bodies/recolor.ts";
 import { modelUrl } from "../../modelUrl.ts";
 import { FACE_H, FACE_W, drawFace } from "./face.ts";
+import type { Persona, Pose } from "./persona.ts";
 import type { Expression } from "./signal.ts";
 
 /**
@@ -50,6 +51,8 @@ import type { Expression } from "./signal.ts";
 
 export interface HoloFrame {
   expr: Expression;
+  /** Whoever has the mic (#490): its faces, poses and way of moving. */
+  persona: Persona;
   /** The call's level, 0 to 1. */
   level: number;
   speaking: boolean;
@@ -83,7 +86,7 @@ const CHILD = { LeftArm: "LeftForeArm", LeftForeArm: "LeftHand", RightArm: "Righ
 const ARMS = ["LeftArm", "LeftForeArm", "RightArm", "RightForeArm"] as const;
 
 /** Where his arms point for each face: each bone aims its child along a direction, as synthClips.ts does. */
-const POSES: Record<"rest" | "talk" | "smug" | "laugh" | "think" | "annoyed", Aims> = {
+const POSES: Record<Pose, Aims> = {
   rest: { LeftArm: [0.35, -1, 0.3], LeftForeArm: [0.1, -1, 0.45], RightArm: [-0.35, -1, 0.3], RightForeArm: [-0.1, -1, 0.45] },
   // the admiral's baton beat: right hand up, conducting
   talk: { LeftArm: [0.45, -0.85, 0.35], LeftForeArm: [0.1, -0.5, 1], RightArm: [-0.55, -0.35, 0.6], RightForeArm: [-0.2, 0.75, 0.75] },
@@ -92,8 +95,15 @@ const POSES: Record<"rest" | "talk" | "smug" | "laugh" | "think" | "annoyed", Ai
   laugh: { LeftArm: [0.55, -0.8, 0.3], LeftForeArm: [-0.5, -0.15, 0.85], RightArm: [-0.55, -0.8, 0.3], RightForeArm: [0.5, -0.15, 0.85] },
   think: { LeftArm: [0.4, -1, 0.3], LeftForeArm: [0.1, -1, 0.45], RightArm: [-0.3, -0.8, 0.5], RightForeArm: [0.55, 0.55, 0.8] },
   annoyed: { LeftArm: [0.5, -0.8, 0.45], LeftForeArm: [-0.75, 0.05, 0.75], RightArm: [-0.5, -0.8, 0.45], RightForeArm: [0.75, 0.05, 0.75] },
+  // The subminds' own (#490, persona.ts). The Pessimist's slump: arms hanging dead straight, a touch behind him.
+  slump: { LeftArm: [0.12, -1, -0.12], LeftForeArm: [0.04, -1, -0.05], RightArm: [-0.12, -1, -0.12], RightForeArm: [-0.04, -1, -0.05] },
+  // The Commentator calling the play: both arms up and out.
+  cheer: { LeftArm: [0.9, 0.35, 0.3], LeftForeArm: [0.35, 1, 0.25], RightArm: [-0.9, 0.35, 0.3], RightForeArm: [-0.35, 1, 0.25] },
+  // The Builder's hands at work in front of him.
+  hands: { LeftArm: [0.35, -0.75, 0.55], LeftForeArm: [-0.35, -0.1, 1], RightArm: [-0.35, -0.75, 0.55], RightForeArm: [0.35, -0.1, 1] },
+  // Leaning in, hands up and ready (the Messenger, the Commentator thinking).
+  ready: { LeftArm: [0.5, -0.7, 0.5], LeftForeArm: [0.05, 0.4, 1], RightArm: [-0.5, -0.7, 0.5], RightForeArm: [-0.05, 0.4, 1] },
 };
-const POSE_OF: Record<Expression, keyof typeof POSES> = { listening: "rest", thinking: "think", smug: "talk", laughing: "laugh", annoyed: "annoyed" };
 const HEAD_TURN: Record<Expression, [number, number, number]> = {
   listening: [0.02, 0, 0.04],
   thinking: [-0.1, 0.2, 0.12],
@@ -104,18 +114,20 @@ const HEAD_TURN: Record<Expression, [number, number, number]> = {
 
 const VERT = "varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0., 1.); }";
 const FRAG = `
-uniform sampler2D t; uniform vec2 res; uniform float time; uniform float still; uniform vec3 tint; varying vec2 v;
+uniform sampler2D t; uniform vec2 res; uniform float time; uniform float still; uniform vec3 tint; uniform float gl; varying vec2 v;
 float h(float n){ return fract(sin(n * 91.345) * 43758.5453); }
 float h2(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 vec4 S(vec2 p){ return texture2D(t, p); }
 void main(){
   vec2 p = v;
   float y = p.y * res.y;
-  float tick = floor(time * 7.0) * (1.0 - still);
-  float band = floor(p.y * 60.0);
-  p.x += step(0.965, h(band + tick * 13.1)) * (h(band + 1.7 + tick) - 0.5) * 0.04 * (1.0 - still);
+  float g = gl * (1.0 - still);
+  float tick = floor(time * mix(7.0, 34.0, g)) * (1.0 - still);
+  float band = floor(p.y * mix(60.0, 22.0, g));
+  p.x += step(0.965 - g * 0.6, h(band + tick * 13.1)) * (h(band + 1.7 + tick) - 0.5) * (0.04 + g * 0.3) * (1.0 - still);
   vec4 c = S(p);
-  c.r = S(p + vec2(0.002, 0.0)).r; c.b = S(p - vec2(0.002, 0.0)).b;
+  float sp = 0.002 + g * 0.024;
+  c.r = S(p + vec2(sp, 0.0)).r; c.b = S(p - vec2(sp, 0.0)).b;
   float a = c.a, glow = 0.0, ring = 0.0;
   for (int i = 0; i < 12; i++) {
     float an = float(i) * 0.5236; vec2 o = vec2(cos(an), sin(an));
@@ -130,8 +142,9 @@ void main(){
   float sl = 0.72 + 0.28 * sin((y + time * 40.0 * (1.0 - still)) * 1.15);
   col *= sl;
   col += bright * ring * 1.1;
-  col += (h2(p * res + time) - 0.5) * 0.1;
-  float flick = 1.0 - (1.0 - still) * 0.08 * step(0.9, h(floor(time * 12.0)));
+  col += (h2(p * res + time) - 0.5) * (0.1 + g * 0.5);
+  col *= 1.0 + g * 0.7;
+  float flick = 1.0 - (1.0 - still) * (0.08 + g * 0.5) * step(0.9 - g * 0.5, h(floor(time * 12.0 + g * 40.0)));
   float alpha = a * 0.8 * (0.82 + 0.18 * sl) * flick;
   alpha *= mix(0.25, 1.0, smoothstep(0.06, 0.3, v.y));
   float ga = glow * (1.0 - a) * 0.7;
@@ -309,7 +322,7 @@ export async function createHolo(canvas: HTMLCanvasElement): Promise<Holo> {
   const camera = new PerspectiveCamera(26, 1, 0.01, 50);
   const quadMat = new ShaderMaterial({
     transparent: true,
-    uniforms: { t: { value: rt.texture }, res: { value: new Vector2(2, 2) }, time: { value: 0 }, still: { value: 0 }, tint: { value: new Color(SKIPPY_HOLO) } },
+    uniforms: { t: { value: rt.texture }, res: { value: new Vector2(2, 2) }, time: { value: 0 }, still: { value: 0 }, tint: { value: new Color(SKIPPY_HOLO) }, gl: { value: 0 } },
     vertexShader: VERT,
     fragmentShader: FRAG,
   });
@@ -319,6 +332,11 @@ export async function createHolo(canvas: HTMLCanvasElement): Promise<Holo> {
   const postCam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   let time = 0;
+  /** The channel-switch glitch (#490): 1 the moment the colour changes, gone in about half a second. */
+  let glitch = 0;
+  /** The persona's own clock: time scaled by its tempo. */
+  let pt = 0;
+  let colourNow: string | null = null;
   let open = 0;
   let drawn = "";
   const headTurn = new Vector3();
@@ -344,39 +362,68 @@ export async function createHolo(canvas: HTMLCanvasElement): Promise<Holo> {
   return {
     frame: (dt, f) => {
       time += dt;
+      glitch = Math.max(0, glitch - dt * 1.8);
+      quadMat.uniforms.gl!.value = glitch * glitch;
       const k = 1 - Math.exp(-dt * 7);
       // The mouth follows his voice, opening fast and closing a touch slower.
       const want = f.speaking ? Math.min(1, Math.max(0, (f.level - 0.03) * 2.6)) : 0;
       open += (want - open) * (want > open ? Math.min(1, dt * 22) : Math.min(1, dt * 12));
       const q = Math.round(open * 8);
-      const key2 = `${f.expr}:${q}`;
+      const p = f.persona;
+      const m = p.motion;
+      const face = p.faces[f.expr];
+      const key2 = `${face}:${q}`;
       if (key2 !== drawn) {
-        drawFace(faceCtx, f.expr, q / 8);
+        drawFace(faceCtx, face, q / 8);
         faceTex.needsUpdate = true;
         drawn = key2;
       }
-      // Arms ease toward the face's pose; while he talks, the baton hand beats with his voice.
-      const pose = poses.get(POSE_OF[f.expr]);
+      const move = f.still ? 0 : 1;
+      // Each persona keeps its own clock, so a slow one is slow in everything and a fast one in everything.
+      pt += dt * m.tempo;
+      // The Pessimist's sigh: a slow drop of the head and shoulders, then back up.
+      const sighT = m.sighEvery ? (time % m.sighEvery) / m.sighEvery : 1;
+      const sigh = m.sighEvery && sighT < 0.3 ? Math.sin((sighT / 0.3) * Math.PI) * move : 0;
+      // Arms ease toward the pose; while it talks, the hand beats with the voice; busy hands keep working.
+      const pose = poses.get(p.poses[f.expr]);
       for (const n of ARMS) {
         const target = pose?.get(n);
         const b = bone(n);
         if (!target || !b) continue;
         tmpQ.copy(target);
-        if (n === "RightForeArm" && f.speaking && !f.still) {
-          beat.setFromEuler(euler.set(Math.sin(time * 5.5) * 0.25 * (0.3 + open), 0, 0));
+        if (n === "RightForeArm" && f.speaking && move) {
+          beat.setFromEuler(euler.set(Math.sin(pt * 5.5) * m.beat * (0.3 + open), 0, 0));
+          tmpQ.multiply(beat);
+        }
+        if (m.busy && move && (n === "LeftForeArm" || n === "RightForeArm")) {
+          const side = n === "LeftForeArm" ? 0 : Math.PI;
+          beat.setFromEuler(euler.set(Math.sin(pt * 7 + side) * 0.22 * m.busy, Math.sin(pt * 3.1 + side) * 0.12 * m.busy, 0));
+          tmpQ.multiply(beat);
+        }
+        if (sigh && (n === "LeftArm" || n === "RightArm")) {
+          beat.setFromEuler(euler.set(0, 0, (n === "LeftArm" ? -1 : 1) * 0.08 * sigh));
           tmpQ.multiply(beat);
         }
         b.quaternion.slerp(tmpQ, k);
       }
-      // The head: the face's own tilt, a nod with the words, a slow drift.
+      // The head: the mood's own tilt and the persona's, a nod with the words, a slow drift, its habits.
       const turn = HEAD_TURN[f.expr];
-      const drift = f.still ? 0 : 1;
-      headTurn.lerp(new Vector3(turn[0] + Math.sin(time * 9) * 0.05 * open * drift, turn[1] + Math.sin(time * 0.7) * 0.06 * drift, turn[2] + Math.sin(time * 0.5) * 0.03 * drift), k);
+      const glance = m.glance ? Math.sign(Math.sin(pt * Math.PI * m.glanceRate)) * m.glance * (0.5 + 0.5 * Math.abs(Math.sin(pt * 1.7))) : 0;
+      headTurn.lerp(
+        new Vector3(
+          turn[0] + m.head[0] + sigh * 0.22 + Math.sin(pt * 9) * 0.05 * open * move,
+          turn[1] + m.head[1] + (glance + Math.sin(pt * 0.7) * 0.06) * move,
+          turn[2] + m.head[2] + Math.sin(pt * 0.5) * 0.03 * move,
+        ),
+        m.glance ? Math.min(1, k * 2.4) : k,
+      );
       const hb = bone("Head");
       const hq = bind.get("Head");
       if (hb && hq) hb.quaternion.copy(hq).multiply(tmpQ.setFromEuler(euler.set(headTurn.x, headTurn.y, headTurn.z)));
-      // He floats: a slow bob, a little more when he laughs.
-      root.position.y = f.still ? 0 : Math.sin(time * 1.3) * 0.012 + (f.expr === "laughing" ? Math.abs(Math.sin(time * 9)) * 0.012 : 0);
+      // It floats: a bob at its own pace, a hop on the beat for the excitable, a little more when it laughs.
+      root.position.y = move
+        ? Math.sin(pt * 1.3) * m.bob - sigh * 0.01 + (f.speaking ? Math.abs(Math.sin(pt * 6)) * m.bounce : Math.abs(Math.sin(pt * 3)) * m.bounce * 0.4) + (face === "laughing" ? Math.abs(Math.sin(time * 9)) * 0.012 : 0)
+        : 0;
 
       renderer.setRenderTarget(rt);
       renderer.clear();
@@ -388,6 +435,8 @@ export async function createHolo(canvas: HTMLCanvasElement): Promise<Holo> {
       renderer.render(post, postCam);
     },
     setColour: (colour) => {
+      if (colour !== colourNow) glitch = 1;
+      colourNow = colour;
       (quadMat.uniforms.tint!.value as Color).set(colour ? new Color(colour).lerp(new Color(SKIPPY_HOLO), 0.08) : new Color(SKIPPY_HOLO));
       if (!ownMap) return;
       ownMat.map = colour ? recolor("skippy-holo", ownMap, [{ band: NAVY, color: colour }]) : ownMap;

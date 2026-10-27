@@ -8,9 +8,9 @@ import { MemoryRoomLog, keepTurns } from "./log.ts";
 import { roomLog } from "../skippy.ts";
 import { handle, readText, type RoomSources } from "./toolroute.ts";
 import { exchangesOf } from "./voicecouncil.ts";
-import { ON_AIR, SKIPPY_CREW_PROMPT, TOOL_DEFS, ensureCrew, skippyTransfers, submindBody, toolConfig } from "./voicecrew.ts";
+import { KERNEL_TOOLS, ON_AIR, SKIPPY_CREW_PROMPT, TOOL_DEFS, ensureCrew, skippyTransfers, submindBody, toolConfig } from "./voicecrew.ts";
 import { PRIVATE_READS, READS, billText, boilerText, exchangeText, greenText, positionsText, relayText } from "./voicereads.ts";
-import { MemoryCrewStore, TOOL_HEADER, TOOL_VAR, checkToolToken, endToolToken, issueToolToken, mintToolToken, signedUntil, toolTokenSigned } from "./voicetoken.ts";
+import { MAX_HANDOFFS, MemoryCrewStore, TOOL_HEADER, TOOL_VAR, callHandoffs, checkToolToken, endToolToken, issueToolToken, mintToolToken, signedUntil, toolTokenSigned } from "./voicetoken.ts";
 
 const NOW = Date.parse("2026-10-27T06:00:00Z");
 const DESK = "a test desk key, not a real one";
@@ -92,7 +92,7 @@ describe("the call's tool token (#479)", () => {
     const store = new MemoryCrewStore();
     const t = (await issueToolToken(store, DESK, "conv_live_123", UNTIL, NOW))!;
     expect(JSON.stringify(store.state)).not.toContain(t);
-    expect(await checkToolToken(t, DESK, store, NOW)).toEqual({ ok: true, conversation: "conv_live_123" });
+    expect(await checkToolToken(t, DESK, store, NOW)).toMatchObject({ ok: true, conversation: "conv_live_123", handoffs: [] });
     expect(await checkToolToken(null, DESK, store, NOW)).toEqual({ ok: false, why: "missing" });
     expect(await checkToolToken("", DESK, store, NOW)).toEqual({ ok: false, why: "missing" });
     expect(await checkToolToken("vt1.abc.def.ghi", DESK, store, NOW)).toEqual({ ok: false, why: "bad" });
@@ -126,7 +126,8 @@ describe("the lookups' route", () => {
       expect(await res.json()).toEqual({ error: "not-allowed" });
     }
     expect((await handle(toolReq("green", token), { ...d, now: UNTIL + 1 })).status).toBe(401);
-    expect((await handle(toolReq("green", token, "POST"), d)).status).toBe(405);
+    expect((await handle(toolReq("green", token, "PUT"), d)).status).toBe(405);
+    expect((await handle(toolReq("green", token, "POST"), d)).status).toBe(400);
   });
 
   it("answers a live token with the room, never cached", async () => {
@@ -153,16 +154,59 @@ describe("the lookups' route", () => {
     expect((await handle(new Request(`${SITE}/api/skippy-tools?read=green&x=1`, { headers: { [TOOL_HEADER]: token } }), d)).status).toBe(400);
   });
 
-  it("the site gate lets a signed, unexpired token through on exactly GET /api/skippy-tools", async () => {
+  it("the site gate lets a signed, unexpired token through on exactly GET or POST /api/skippy-tools", async () => {
     const env = { FOUNDRY_DESK_KEY: DESK };
     const ctx: GateContext = { state: stateOf({ v: 1, passkey: true, locked: "2026-10-22T00:00:00.000Z", sv: "v" }, {}), keys: (await siteKeys(env))!, env, now: NOW };
     const t = mintToolToken(DESK, UNTIL)!;
     expect(decide(toolReq("green", t), ctx)).toEqual({ allow: true, why: "voice-tool" });
     expect(decide(toolReq("green", t), { ...ctx, now: UNTIL + 1 }).allow).toBe(false);
     expect(decide(toolReq("green", mintToolToken("another desk key entirely", UNTIL)), ctx).allow).toBe(false);
-    expect(decide(toolReq("green", t, "POST"), ctx).allow).toBe(false);
+    expect(decide(toolReq("green", t, "POST"), ctx)).toEqual({ allow: true, why: "voice-tool" });
+    expect(decide(toolReq("green", t, "PUT"), ctx).allow).toBe(false);
     expect(decide(new Request(`${SITE}/api/exchange-positions`, { headers: { [TOOL_HEADER]: t } }), ctx).allow).toBe(false);
     expect(decide(new Request(`${SITE}/api/skippy-voice`, { headers: { [TOOL_HEADER]: t } }), ctx).allow).toBe(false);
+  });
+});
+
+describe("the Kernel from the call (#480)", () => {
+  const setup = async () => {
+    const crew = new MemoryCrewStore();
+    const log = new MemoryRoomLog();
+    const token = (await issueToolToken(crew, DESK, "conv_live_123", UNTIL, NOW))!;
+    const post = (ask: unknown) => new Request(`${SITE}/api/skippy-tools?act=kernel`, { method: "POST", headers: { [TOOL_HEADER]: token, "Content-Type": "application/json" }, body: JSON.stringify({ ask }) });
+    return { crew, log, token, post, deps: { deskKey: DESK, crew, log, sources: sources(), now: NOW } };
+  };
+
+  it("hand_to_kernel files the ask for Skippy's thread, as the typed chat does, and check_answers reads it back", async () => {
+    const { crew, log, token, post, deps: d } = await setup();
+    const res = await handle(post("Start a build that adds a waiver alarm to the Green"), d);
+    const body = (await res.json()) as { ok: boolean; turn: string };
+    expect(body.ok).toBe(true);
+    const [turn] = await log.list("kernel", NOW, "skippy");
+    expect(turn).toMatchObject({ id: body.turn, room: "kernel", needs: "skippy", question: "Start a build that adds a waiver alarm to the Green" });
+    expect(await callHandoffs(crew, "conv_live_123", NOW)).toEqual([body.turn]);
+    const read = async () => ((await (await handle(toolReq("answers", token), d)).json()) as { text: string }).text;
+    expect(await read()).toMatch(/no answer yet/);
+    await log.answer(body.turn, { from: "skippy", text: "On it: number 485 is open.", at: new Date(NOW).toISOString(), final: false }, NOW);
+    expect(await read()).toMatch(/so far: On it: number 485 is open\./);
+    await log.answer(body.turn, { from: "skippy", text: "Shipped in number 485.", at: new Date(NOW).toISOString() }, NOW);
+    expect(await read()).toMatch(/answered: Shipped in number 485\./);
+  });
+
+  it("never hands on a private-looking ask, and stops at the call's share", async () => {
+    const { log, post, deps: d } = await setup();
+    const held = (await (await handle(post("Email sam@example.com about lunch"), d)).json()) as { ok: boolean };
+    expect(held.ok).toBe(false);
+    expect(await log.list("kernel", NOW)).toEqual([]);
+    for (let i = 0; i < MAX_HANDOFFS; i++) expect(((await (await handle(post(`Ask number ${i}`), { ...d, now: NOW + i })).json()) as { ok: boolean }).ok).toBe(true);
+    expect(((await (await handle(post("one too many"), { ...d, now: NOW + 99 })).json()) as { ok: boolean }).ok).toBe(false);
+    expect((await handle(post(""), d)).status).toBe(400);
+  });
+
+  it("the kernel tool posts a body the LLM fills, and only Skippy carries the Kernel's tools", () => {
+    const c = toolConfig(TOOL_DEFS.find((t) => t.name === "hand_to_kernel")!, SITE);
+    expect(c.api_schema).toMatchObject({ method: "POST", query_params_schema: { properties: { act: { constant_value: "kernel" } } }, request_body_schema: { required: ["ask"] } });
+    for (const s of ON_AIR) for (const k of KERNEL_TOOLS) expect(s.tools).not.toContain(k);
   });
 });
 
@@ -210,13 +254,14 @@ describe("what each lookup says", () => {
 
 describe("the crew on ElevenLabs", () => {
   it("each tool is a GET to the site with a constant read and the token from the secret variable", () => {
-    for (const def of TOOL_DEFS) {
+    for (const def of TOOL_DEFS.filter((d) => d.read !== "kernel")) {
       const c = toolConfig(def, SITE);
       expect(c.type).toBe("webhook");
       expect(c.pre_tool_speech).toBe("force");
       expect(c.response_timeout_secs).toBe(5);
       expect(c.api_schema.url).toBe(`${SITE}/api/skippy-tools`);
-      expect(c.api_schema.query_params_schema.properties.read).toEqual({ type: "string", constant_value: def.read });
+      expect(c.api_schema.method).toBe("GET");
+      expect(c.api_schema.query_params_schema.properties).toEqual({ read: { type: "string", constant_value: def.read } });
       expect(c.api_schema.request_headers).toEqual({ [TOOL_HEADER]: { variable_name: TOOL_VAR } });
       expect(TOOL_VAR.startsWith("secret__")).toBe(true);
     }

@@ -26,6 +26,8 @@ export const TOOL_VAR = "secret__ceo_tool";
 export const TOOL_SLACK_MS = 2 * 60_000;
 /** The most tokens kept (one call at a time, so a handful at most). */
 const KEEP = 20;
+/** The most hand-offs to the Kernel one call may make. */
+export const MAX_HANDOFFS = 5;
 
 const B64 = /^[A-Za-z0-9_-]+$/;
 
@@ -78,6 +80,8 @@ export interface KeptToken {
   until: number;
   /** The call ended: refused from then on. */
   ended?: boolean;
+  /** The hand-offs to the Kernel this call made (#479, turn ids in the `kernel` room's log). */
+  handoffs?: string[];
 }
 
 /** One agent or tool on ElevenLabs, with the signature of the settings it was last given. */
@@ -114,7 +118,10 @@ export function cleanCrew(raw: unknown, now: number): CrewState {
   const tokens = (Array.isArray(r.tokens) ? r.tokens : [])
     .map((v) => (v && typeof v === "object" ? (v as Record<string, unknown>) : {}))
     .filter((t) => typeof t.hash === "string" && HASH.test(t.hash) && typeof t.until === "number" && Number.isFinite(t.until) && t.until > now)
-    .map((t): KeptToken => ({ hash: t.hash as string, conversation: typeof t.conversation === "string" && ID.test(t.conversation) ? t.conversation : "", until: t.until as number, ...(t.ended === true && { ended: true }) }))
+    .map((t): KeptToken => {
+      const handoffs = (Array.isArray(t.handoffs) ? t.handoffs : []).filter((h): h is string => typeof h === "string" && /^[0-9a-f]{16}$/.test(h)).slice(0, MAX_HANDOFFS);
+      return { hash: t.hash as string, conversation: typeof t.conversation === "string" && ID.test(t.conversation) ? t.conversation : "", until: t.until as number, ...(t.ended === true && { ended: true }), ...(handoffs.length && { handoffs }) };
+    })
     .slice(-KEEP);
   return { tokens, tools: things(r.tools), agents: things(r.agents) };
 }
@@ -176,7 +183,7 @@ export async function endToolToken(store: CrewStore, conversation: string, now: 
   await store.update(now, (s) => ({ ...s, tokens: s.tokens.map((t) => (t.conversation === conversation ? { ...t, ended: true } : t)) })).catch(() => undefined);
 }
 
-export type TokenCheck = { ok: true; conversation: string } | { ok: false; why: "missing" | "bad" | "expired" | "unknown" | "ended" | "store" };
+export type TokenCheck = { ok: true; conversation: string; hash: string; handoffs: string[] } | { ok: false; why: "missing" | "bad" | "expired" | "unknown" | "ended" | "store" };
 
 /** The full check the lookups run: signed, unexpired, kept and not ended. */
 export async function checkToolToken(token: string | null | undefined, deskKey: string, store: CrewStore | null, now: number): Promise<TokenCheck> {
@@ -196,5 +203,27 @@ export async function checkToolToken(token: string | null | undefined, deskKey: 
   if (!kept) return { ok: false, why: "unknown" };
   if (kept.ended) return { ok: false, why: "ended" };
   if (kept.until <= now) return { ok: false, why: "expired" };
-  return { ok: true, conversation: kept.conversation };
+  return { ok: true, conversation: kept.conversation, hash: h, handoffs: kept.handoffs ?? [] };
+}
+
+/** Notes a hand-off this call made, for check_answers and the Desk's chat; false once the call has made its share. */
+export async function noteHandoff(store: CrewStore, hash: string, turn: string, now: number): Promise<boolean> {
+  let ok = false;
+  await store.update(now, (s) => ({
+    ...s,
+    tokens: s.tokens.map((t) => {
+      if (t.hash !== hash) return t;
+      const list = t.handoffs ?? [];
+      ok = list.length < MAX_HANDOFFS;
+      return ok ? { ...t, handoffs: [...list, turn] } : t;
+    }),
+  }));
+  return ok;
+}
+
+/** The hand-offs a call made, by its conversation id (the Desk reads them to wait on the answers in the chat). */
+export async function callHandoffs(store: CrewStore, conversation: string, now: number): Promise<string[]> {
+  if (!ID.test(conversation)) return [];
+  const s = await store.load(now);
+  return s.tokens.filter((t) => t.conversation === conversation).flatMap((t) => t.handoffs ?? []);
 }

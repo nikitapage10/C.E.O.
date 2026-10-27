@@ -38,7 +38,8 @@ export const TOOLS_PATH = "/api/skippy-tools";
 
 export interface ToolDef {
   name: string;
-  read: ReadName;
+  /** A room read (GET ?read=), or the Kernel's two (#480): "answers" (GET ?read=answers) and "kernel" (POST ?act=kernel). */
+  read: ReadName | "answers" | "kernel";
   description: string;
 }
 
@@ -51,12 +52,22 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   { name: "read_boiler", read: "boiler", description: "The Boiler Room, live: which systems are healthy and which need a look (the scheduled jobs and checks on GitHub, the world clock, Gmail, Sleeper, FantasyPros, Polymarket)." },
   { name: "read_foundry", read: "foundry", description: "The Foundry, live: ideas waiting for the C.E.O.'s pick, builds in flight, what waits on him, the last ships, and the open pull requests with their checks." },
   { name: "read_voice_bill", read: "voice_bill", description: "This month's ElevenLabs bill: what the stories and these calls cost against the ten-dollar cap and the talk's share, and how many minutes are left." },
+  {
+    name: "hand_to_kernel",
+    read: "kernel",
+    description: "Hand an ask to Skippy, the Magnificent's own thread (the Kernel), which does real work: starting a build or a fix, pulling information across rooms, anything that takes longer than this call or needs Nikita's say-so later. Use it only when Nikita wants something done or found that no lookup can answer. The answer comes back later: say you're on it and keep talking.",
+  },
+  { name: "check_answers", read: "answers", description: "Check whether Skippy's own thread has answered what this call handed it (an interim 'on it' or the final answer). Use it at a natural pause after a hand-off, or when Nikita asks." },
 ];
+
+/** Only Skippy carries the Kernel's two tools; the subminds keep to their rooms. */
+export const KERNEL_TOOLS = ["hand_to_kernel", "check_answers"] as const;
 
 const toolByName = new Map(TOOL_DEFS.map((t) => [t.name, t]));
 
 /** One webhook tool's config for ElevenLabs. `site` is the site's https home (api/_site/hosts.ts, siteUrl). */
 export function toolConfig(def: ToolDef, site: string) {
+  const post = def.read === "kernel";
   return {
     type: "webhook",
     name: def.name,
@@ -67,9 +78,16 @@ export function toolConfig(def: ToolDef, site: string) {
     pre_tool_speech: "force",
     api_schema: {
       url: `${site}${TOOLS_PATH}`,
-      method: "GET",
-      query_params_schema: { properties: { read: { type: "string", constant_value: def.read } }, required: ["read"] },
+      method: post ? "POST" : "GET",
+      query_params_schema: post ? { properties: { act: { type: "string", constant_value: "kernel" } }, required: ["act"] } : { properties: { read: { type: "string", constant_value: def.read } }, required: ["read"] },
       request_headers: { [TOOL_HEADER]: { variable_name: TOOL_VAR } },
+      ...(post && {
+        request_body_schema: {
+          type: "object",
+          properties: { ask: { type: "string", description: "What Nikita wants, in one or two plain sentences in his words: what to do or find, and for which room. Never a private detail." } },
+          required: ["ask"],
+        },
+      }),
     },
   };
 }
@@ -175,7 +193,8 @@ You can't press anything: no filing, approving, trading, sending or changing set
 
 /** What Skippy's prompt gains (#479): his lookups and his crew, with Nikita's rule for when to hand over. */
 export const SKIPPY_CREW_PROMPT = `You can look up any live room yourself, mid-call, with your read tools: the Green (read_green), the Exchange's odds (read_exchange) and Nikita's own book (read_exchange_positions), Relay's counts (read_relay), the Boiler Room (read_boiler), the Foundry (read_foundry) and this month's ElevenLabs bill (read_voice_bill). Use one whenever Nikita asks what is going on in a room, and fill the pause with a short thinking beat in your own voice, never a robotic "loading" ("Hm. Let's think about this, monkey…", "Hold on, even magnificence takes a second…"), so the call never goes quiet; answer from what it says, not from memory. A lookup takes a few seconds at most: if it comes back slow or fails, say the data's dragging its feet and answer from what you already know (the Desk's lines). This call is private, so the book's and the bill's dollar figures may be said here; never Relay's messages, only its counts.
-Your subminds can take the mic in this same call, in your voice, with transfer_to_agent: the Commentator (the Green), the Bookie (the Exchange), the Messenger (Relay), the Pessimist (the Boiler Room) and the Builder (the Foundry). Nikita's rule: you answer basic questions yourself, with a lookup. Hand over only when he wants something in-depth and specific to that room (a play-by-play, start/sit reasoning, a trade or waiver breakdown, a walk through his book, what broke and why, a build's story), or asks for the submind by name. Before handing over, say one short line about it. When the mic comes back, carry on as Skippy without repeating what the submind said.`;
+Your subminds can take the mic in this same call, in your voice, with transfer_to_agent: the Commentator (the Green), the Bookie (the Exchange), the Messenger (Relay), the Pessimist (the Boiler Room) and the Builder (the Foundry). Nikita's rule: you answer basic questions yourself, with a lookup. Hand over only when he wants something in-depth and specific to that room (a play-by-play, start/sit reasoning, a trade or waiver breakdown, a walk through his book, what broke and why, a build's story), or asks for the submind by name. Before handing over, say one short line about it. When the mic comes back, carry on as Skippy without repeating what the submind said.
+For real work no lookup can answer (start a build or a fix, find something across rooms, anything that needs time or Nikita's say-so later), hand it to your own thread, the Kernel, with hand_to_kernel: say you're on it, and keep chatting. At a natural pause, check_answers; when a background note says your thread answered, read the answer out at the next pause, in your own words. An interim answer ("on it, number 481") is worth a line too. If the call ends first, the answer lands in the Desk's chat.`;
 
 /** A submind's agent, as made from code. `skippy` is Skippy's agent id (its way back). */
 export function submindBody(s: OnAir, voice: string, skippy: string, toolIds: string[], limits: { sessionSecs: number; silenceSecs: number; llm: string }, tier: "full" | "core" = "full") {
@@ -186,6 +205,7 @@ export function submindBody(s: OnAir, voice: string, skippy: string, toolIds: st
       agent: {
         first_message: "",
         language: "en",
+        dynamic_variables: { dynamic_variable_placeholders: { [TOOL_VAR]: "none" } },
         prompt: {
           prompt: submindPrompt(s),
           ...(tier === "full" && { llm: limits.llm, temperature: 0.8, max_tokens: 400 }),

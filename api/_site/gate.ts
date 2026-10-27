@@ -28,7 +28,7 @@
  *        POST /api/room-feed + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting a room event
  *        POST /api/setup-asks + x-ceo-room-key: <SUBMIND_FEED_TOKEN> a submind thread posting or closing a setup ask (#324)
  *                                             (or either as Authorization: Bearer)
- *        GET /api/skippy-tools + x-ceo-voice-tool: <a live call's tool token>   a Talk call's lookup from ElevenLabs
+ *        GET or POST /api/skippy-tools + x-ceo-voice-tool: <a live call's tool token>   a Talk call's tool, from ElevenLabs
  *                                             (#479): signed by the Desk key and unexpired, checked here with the
  *                                             environment alone; api/_skippy/toolroute.ts checks it is kept and live
  *                                             (#281, api/_site/roomkeys.ts: each key opens only its own exact
@@ -126,9 +126,9 @@ function isSkippyAnswer(request: Request, pathname: string, env: Env): boolean {
   return Boolean(want && want.length >= MIN_BYPASS && auth.startsWith("Bearer ") && secretMatches(auth.slice(7).trim(), want));
 }
 
-/** A Talk call's lookup (#479): GET only, this one path, with a tool token this Desk key signed that hasn't expired. */
+/** A Talk call's tool (#479): GET (a lookup) or POST (a hand-off to the Kernel), this one path, with a tool token this Desk key signed that hasn't expired. */
 function isVoiceTool(request: Request, pathname: string, env: Env, now: number): boolean {
-  if (request.method !== "GET" || pathname !== "/api/skippy-tools") return false;
+  if ((request.method !== "GET" && request.method !== "POST") || pathname !== "/api/skippy-tools") return false;
   return toolTokenSigned(request.headers.get(TOOL_HEADER), env.FOUNDRY_DESK_KEY ?? "", now);
 }
 

@@ -148,10 +148,10 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
             <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : t.from ? `${t.from === "skippy" ? "Skippy's thread" : handedName(t.from)}:` : "Skippy:"}</span>
             {t.from && (
               <p className="skp-turn__from" aria-hidden="true">
-                {t.from === "skippy" ? "Skippy's thread" : handedName(t.from)} answered
+                {t.from === "skippy" ? "Skippy's thread" : handedName(t.from)} {t.pending ? "says, still working" : "answered"}
               </p>
             )}
-            <p>{t.note || t.pending ? t.text : <Private>{t.text}</Private>}</p>
+            <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{t.text}</Private>}</p>
             {t.card && (
               <Private block as="div">
                 <AnswerCard card={t.card} />

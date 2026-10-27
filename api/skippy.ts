@@ -11,7 +11,8 @@
  *        hand-off (#312): { id, text, from } with `Authorization: Bearer <SUBMIND_FEED_TOKEN>` (the room threads' write
  *        key, #281; at least 32 characters, compared in constant time, and nothing else opens it). `from` is "skippy" or
  *        the submind the turn was handed to; `text` one plain line of at most 700 characters, held back whole when it
- *        looks private (422). Kept on the turn as its follow-up, which closes the hand-off, and the Desk pings Nikita's
+ *        looks private (422); optional `final` (#480), false for an interim answer that keeps the hand-off open. Kept on the
+ *        turn as its follow-up, which closes the hand-off unless it was interim, and the Desk pings Nikita's
  *        phone (counts-only words, never the text; quiet hours kept). 200 { ok, room, pinged }, 401 without the key,
  *        404 no such turn, 409 not handed off or already answered, 403 a submind answering another's, 503 not-set-up.
  * POST → { message, history? } from a signed-in Desk only (requireSession, #132): `message` is what Nikita just said
@@ -54,7 +55,7 @@ import { pickBlob } from "./_blob.js";
 import { deskKeyFor, keyMatches } from "./_desk/keys.js";
 import { requireSession, withCookie } from "./_desk/session.js";
 import { pickAuthStore, type AuthStore } from "./_desk/store.js";
-import { KEY_LOG_ROOMS, readsWithLogKey } from "./_site/roomkeys.js";
+import { KEY_ASKED_ROOMS, readsWithLogKey } from "./_site/roomkeys.js";
 import type { SetupStatus } from "./_desk/setup.js";
 import { memo } from "./_feedcache.js";
 import { githubToken } from "./_github.js";
@@ -287,7 +288,7 @@ export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" |
     const query = new URL(request.url).searchParams;
     const room = query.get("room");
     const needs = query.get("needs");
-    if (!(KEY_LOG_ROOMS as readonly string[]).includes(room ?? "") || !isLogRoom(room) || (needs !== null && !isNeedsFilter(needs))) return json({ error: "bad-request" }, 400);
+    if (!(KEY_ASKED_ROOMS as readonly string[]).includes(room ?? "") || !isLogRoom(room) || (needs !== null && !isNeedsFilter(needs))) return json({ error: "bad-request" }, 400);
     if (!deps.log) return json({ error: "not-set-up" }, 503);
     try {
       return json({ room, ...(needs && { needs }), turns: await deps.log.list(room, deps.now, needs ?? undefined) });
@@ -318,7 +319,7 @@ export async function POST(request: Request): Promise<Response> {
 /** The shortest SUBMIND_FEED_TOKEN that counts, as for the site's bypass token. */
 export const MIN_TOKEN = 32;
 /** The Desk page each room's asks live on, for the ping to open. */
-const ROOM_PAGE: Record<LogRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry", relay: "/relay", none: "/" };
+const ROOM_PAGE: Record<LogRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry", relay: "/relay", kernel: "/", none: "/" };
 
 export interface AnswerDeps {
   /** SUBMIND_FEED_TOKEN, or "" (then the return leg is off). */
@@ -360,8 +361,11 @@ export async function followUp(request: Request, deps: AnswerDeps): Promise<Resp
   const auth = request.headers.get("authorization") ?? "";
   if (!auth.startsWith("Bearer ") || !keyMatches(auth.slice(7).trim(), deps.token)) return json({ error: "unauthorized" }, 401);
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
-  const body = (await request.json().catch(() => null)) as { id?: unknown; text?: unknown; from?: unknown; card?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { id?: unknown; text?: unknown; from?: unknown; card?: unknown; final?: unknown } | null;
   if (!body || typeof body !== "object" || !isTurnId(body.id) || !isNeeds(body.from) || typeof body.text !== "string") return json({ error: "bad-request" }, 400);
+  // `final` (#480): false for an interim answer that keeps the hand-off open; left out or true closes it.
+  if (body.final !== undefined && typeof body.final !== "boolean") return json({ error: "bad-request" }, 400);
+  const final = body.final !== false;
   const text = plainLine(body.text, 700);
   if (!text) return json({ error: "bad-request" }, 400);
   // The answer card (#341) is optional; one that is sent must be a card (a verdict at least), never silently dropped.
@@ -369,7 +373,7 @@ export async function followUp(request: Request, deps: AnswerDeps): Promise<Resp
   if (body.card !== undefined && body.card !== null && !card) return json({ error: "bad-request" }, 400);
   const held = [text, ...(card ? cardText(card) : [])].flatMap((t) => privateParts(t));
   if (held.length) return json({ error: "private", held: [...new Set(held)].map((k) => PRIVATE_LABEL[k]) }, 422);
-  const f = cleanFollowUp({ from: body.from, text, at: new Date(deps.now).toISOString(), ...(card && { card }) });
+  const f = cleanFollowUp({ from: body.from, text, at: new Date(deps.now).toISOString(), ...(card && { card }), ...(!final && { final: false }) });
   if (!f) return json({ error: "bad-request" }, 400);
   let result: Awaited<ReturnType<RoomLog["answer"]>>;
   try {

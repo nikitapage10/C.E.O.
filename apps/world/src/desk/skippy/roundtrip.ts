@@ -49,7 +49,14 @@ export function watchHandoffs(doFetch: typeof fetch = fetch, first = pollEvery(0
         }
         const got = await lookForAnswer(p, doFetch);
         if (got === "signed-out") return settle(t.id, { text: ASK_ERROR["signed-out"], note: true });
-        if (got) {
+        if (got && got.final === false) {
+          // An interim answer (#480): shown in the bubble, which keeps waiting for the final one.
+          if (got.at === p.seen) continue;
+          useSkippy.setState((s) => ({ turns: s.turns.map((x) => (x.id === t.id ? { ...x, text: got.text, from: got.from, pending: { ...p, seen: got.at } } : x)) }));
+          const { open, voice } = useSkippy.getState();
+          if (!open) useSkippy.setState({ unread: true });
+          if (voice) speak(got.text);
+        } else if (got) {
           settle(t.id, { text: got.text, from: got.from, ...(got.card && { card: got.card }) });
           const { open, voice } = useSkippy.getState();
           if (!open) useSkippy.setState({ unread: true });

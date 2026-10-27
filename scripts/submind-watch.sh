@@ -6,7 +6,8 @@
 #
 #   scripts/submind-watch.sh <room> [seconds between looks, default 30] [--all]
 #
-#   <room>   green (the Commentator), exchange (the Bookie), boiler (the Pessimist) or foundry (the Builder)
+#   <room>   green (the Commentator), exchange (the Bookie), boiler (the Pessimist), foundry (the Builder) or kernel
+#            (Skippy, the Magnificent's own thread, #480: builds, look-ups across rooms, real work; needs=skippy)
 #   --all    ring at once for hand-offs already open when it starts (by default those are counted and left: the
 #            thread reads them before it starts the watcher, docs/SKIPPY.md)
 #
@@ -29,7 +30,7 @@ shift || true
 for a in "$@"; do
   case "$a" in
     --all) all=1 ;;
-    ''|*[!0-9]*) echo "usage: scripts/submind-watch.sh <green|exchange|boiler|foundry> [seconds] [--all]" >&2; exit 2 ;;
+    ''|*[!0-9]*) echo "usage: scripts/submind-watch.sh <green|exchange|boiler|foundry|kernel> [seconds] [--all]" >&2; exit 2 ;;
     *) every="$a" ;;
   esac
 done
@@ -41,7 +42,8 @@ case "$room" in
   exchange) mind=ticker ;;
   boiler) mind=soot ;;
   foundry) mind=ember ;;
-  *) echo "usage: scripts/submind-watch.sh <green|exchange|boiler|foundry> [seconds] [--all]" >&2; exit 2 ;;
+  kernel) mind=skippy ;;
+  *) echo "usage: scripts/submind-watch.sh <green|exchange|boiler|foundry|kernel> [seconds] [--all]" >&2; exit 2 ;;
 esac
 
 site="${CEO_SITE:-https://ceo.nikita.page}"

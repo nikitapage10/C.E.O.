@@ -2,7 +2,7 @@
 
 How C.E.O. handles the risks of putting language models and coding agents to work on a public repo: where the
 trust boundaries are, what each AI risk looks like here, which control answers it, and what is still open. Issue
-#65, from the security review of 2026-10-13 (#58). Status as of 2026-10-14.
+#65, from the security review of 2026-10-13 (#58). Status as of 2026-10-27, with #312 and #330 since 2026-10-14.
 
 This page describes controls and residual risk. Holes that are still open get one plain line and a tracking
 reference, never a recipe. To report a vulnerability, use the repo's Security tab (see [SECURITY.md](SECURITY.md)).

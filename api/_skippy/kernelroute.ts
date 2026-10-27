@@ -19,6 +19,7 @@
  */
 
 import { pickBlob, type BlobBackend } from "../_blob.js";
+import { PLAYERS_PATH, peekKept, pickGreenStore } from "../_green/cache.js";
 import { PRIVATE_LABEL, privateParts } from "../_privacy.js";
 import { waitUntil } from "../_waitUntil.js";
 import { githubToken } from "../_github.js";
@@ -30,7 +31,8 @@ import { pickStore } from "../_world/store.js";
 import type { SetupStatus } from "../_desk/setup.js";
 import { BlobChatLedger } from "./budget.js";
 import { contextLines, deskContext } from "./context.js";
-import { BRIEF_MAX_BYTES, BRIEF_PATH, KERNEL_LEDGER_PATH, kernelAgentOn, respond, type AgentDeps } from "./kernelagent.js";
+import { BRIEF_MAX_BYTES, BRIEF_PATH, KERNEL_LEDGER_PATH, kernelAgentOn, respond, whyOf, type AgentDeps } from "./kernelagent.js";
+import { leagueText } from "./kernelleague.js";
 import { claudeAgent } from "./kernelrun.js";
 import { BlobRoomLog, isTurnId, onHandoff } from "./log.js";
 import { liveRoomReads } from "./roomReads.js";
@@ -119,6 +121,11 @@ export function liveAgent(env: Env = process.env): AgentDeps {
       ]);
       return { desk: contextLines(deskContext(open, shipped, setup, world), Date.now()), rooms };
     },
+    league: (args) =>
+      leagueText(args, (url, init) => fetch(url, init), async () => {
+        const kept = await peekKept<Record<string, { n: string; pos: string; team: string | null }>>(pickGreenStore(env), PLAYERS_PATH).catch(() => null);
+        return kept?.value ?? {};
+      }),
     fileIssue: async (title, body) => {
       const res = await fetch(`${GH}/issues`, {
         method: "POST",
@@ -150,6 +157,8 @@ export async function runAgent(request: Request, deps: { env: Env; agent: () => 
   const body = (await request.json().catch(() => null)) as { id?: unknown } | null;
   if (!body || !isTurnId(body.id)) return json({ error: "bad-request" }, 400);
   const out = await respond(body.id, deps.agent());
+  // State, cost and an error class only: never a question, an answer or the brief.
+  console.log(`kernel-agent ${out.state} usd=${out.usd.toFixed(6)}${"why" in out && out.why ? ` why=${out.why}` : ""}`);
   return json({ state: out.state, usd: Math.round(out.usd * 1e6) / 1e6, ...("filed" in out && out.filed !== undefined && { filed: out.filed }) });
 }
 
@@ -162,7 +171,9 @@ export async function runAgent(request: Request, deps: { env: Env; agent: () => 
  */
 export function startFor(id: string, env: Env = process.env, send: typeof fetch = fetch, run: (id: string) => Promise<unknown> = (i) => respond(i, liveAgent(env))): void {
   if (!kernelAgentOn(env) || !claudeKey(env)) return;
-  const host = env.WEBSITE_HOSTNAME?.trim();
+  // The Function App's own address, else the site's (the same functions behind the proxy): never in-process on a plan
+  // that may stop the work once the response is out.
+  const host = env.WEBSITE_HOSTNAME?.trim() || siteHost(env.CEO_SITE_URL);
   const token = env.SUBMIND_FEED_TOKEN?.trim();
   if (host && token) {
     waitUntil(
@@ -171,9 +182,22 @@ export function startFor(id: string, env: Env = process.env, send: typeof fetch 
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
         signal: AbortSignal.timeout(10 * 60_000),
-      }).catch(() => undefined),
+      })
+        .then((res) => {
+          if (!res.ok) console.log(`kernel-agent start refused status=${res.status}`);
+        })
+        .catch((e: unknown) => console.log(`kernel-agent start failed why=${whyOf(e)}`)),
     );
   } else waitUntil(run(id).catch(() => undefined));
+}
+
+/** The host of the site's address, or "". */
+function siteHost(url: string | undefined): string {
+  try {
+    return url ? new URL(url).host : "";
+  } catch {
+    return "";
+  }
 }
 
 /** Sets the listener: every hand-off to Skippy that is kept starts the responder. Called once at start-up. */

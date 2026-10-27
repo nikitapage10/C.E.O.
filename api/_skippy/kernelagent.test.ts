@@ -69,6 +69,7 @@ function deps(log: MemoryRoomLog, run: ((req: AgentRequest) => Promise<AgentRun>
     run: run && (async (req) => (spy.runs.push(req), run(req))),
     brief: async () => "Notes the Magnificent keeps. Made-up sample.",
     desk: async () => ({ desk: "Building: sample issue", rooms: "Relay: 2 need you." }),
+    league: async () => "Week 5: Sample Team 101.40 vs Other Team 98.20 (won)",
     fileIssue: async (title, body) => (spy.issues.push({ title, body }), 777),
     keep: async (a) => (spy.kept.push(a), true),
     ...over,
@@ -224,19 +225,20 @@ describe("one answer", () => {
       const { d, spy, ledger } = deps(log, async () => reply(text));
       const out = await respond(id, d);
       expect(out.state, text).toBe("unusable");
-      expect(spy.kept, text).toHaveLength(0);
+      // Never kept as an answer: only the pondering line, as an interim one, so Nikita isn't left in silence.
+      expect(spy.kept.every((k) => !k.final && PONDERING.includes(k.text as (typeof PONDERING)[number])), text).toBe(true);
       expect(Object.values(await ledger.load())[0]!.calls).toBe(1);
     }
   });
 
-  it("a model that never delivers, or a run that throws, leaves it open", async () => {
+  it("a model that never delivers, or a run that throws, leaves it open with a pondering line", async () => {
     const a = await setup();
     const none = deps(a.log, async () => ({ out: null, usage: { input_tokens: 10, output_tokens: 1 }, searches: 0 }));
     expect((await respond(a.id, none.d)).state).toBe("unusable");
     const b = await setup("Is the sample bridge open?");
     const boom = deps(b.log, async () => Promise.reject(new Error("api down")));
     expect((await respond(b.id, boom.d)).state).toBe("failed");
-    expect(boom.spy.kept).toHaveLength(0);
+    expect(boom.spy.kept.map((k) => k.final)).toEqual([false]);
   });
 
   it("never answers a hand-off that is gone, already answered, or already taken up", async () => {
@@ -427,6 +429,15 @@ describe("the trigger and the run route", () => {
     expect(url).toBe(`https://ceo-fn.azurewebsites.test${AGENT_ROUTE}`);
     expect((init!.headers as Record<string, string>).Authorization).toBe(`Bearer ${FEED}`);
     expect(JSON.parse(init!.body as string)).toEqual({ id: "0123456789abcdef" });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the site's own address before ever running in-process (#507)", async () => {
+    const send = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response("{}"));
+    const run = vi.fn(async () => undefined);
+    startFor("0123456789abcdef", { ...ENV, CEO_SITE_URL: "https://ceo.example.test" }, send as unknown as typeof fetch, run);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(send.mock.calls[0]![0]).toBe(`https://ceo.example.test${AGENT_ROUTE}`);
     expect(run).not.toHaveBeenCalled();
   });
 

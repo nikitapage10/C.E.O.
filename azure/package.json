@@ -9,11 +9,11 @@
     "build": "node build.mjs"
   },
   "dependencies": {
-    "@azure/functions": "^4.16.5",
+    "@azure/functions": "^4.17.0",
     "@azure/identity": "^4.14.0",
     "@azure/storage-blob": "^12.34.0"
   },
   "devDependencies": {
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   }
 }

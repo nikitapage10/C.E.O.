@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { useSkippy } from "./chat.ts";
-import { TALK_NOTE, clock, creditsLine, isToolToken, landedNote, readCredits, readHandoffs, readUsage, requestToken, usageLine } from "./talk.ts";
+import { vi } from "vitest";
+import { speak, useSkippy } from "./chat.ts";
+import { setCallLive } from "./liveCall.ts";
+import { TALK_NOTE, clock, creditsLine, clipSentence, isToolToken, landedNote, readCredits, readHandoffs, readUsage, requestToken, usageLine } from "./talk.ts";
 
 const usage = { month: "2026-10", usedMin: 3, budgetMin: 41.6, leftMin: 38.6, sessionMin: 3, canTalk: true };
 const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
@@ -85,5 +87,32 @@ describe("Talk to Skippy in the browser", () => {
     expect(await useSkippy.getState().wait("0123456789abcdef", "kernel", "skippy", quiet)).toBeNull();
     expect(await useSkippy.getState().wait("not-a-turn", "kernel", "skippy", quiet)).toBeNull();
     useSkippy.getState().clear();
+  });
+});
+
+describe("a live call keeps local read-aloud quiet and answers whole (#521)", () => {
+  it("never speaks through the browser's voice while a call is live", () => {
+    const speakFn = vi.fn();
+    vi.stubGlobal("window", { speechSynthesis: { speak: speakFn, cancel: vi.fn() } });
+    vi.stubGlobal("SpeechSynthesisUtterance", function (this: { text: string }, t: string) { this.text = t; });
+    try {
+      setCallLive(true);
+      speak("The answer is five percent.");
+      expect(speakFn).not.toHaveBeenCalled();
+      setCallLive(false);
+      speak("The answer is five percent.");
+      expect(speakFn).toHaveBeenCalledTimes(1);
+    } finally {
+      setCallLive(false);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("puts a long answer in whole, and cuts at a sentence end when it must", () => {
+    const long = "A twenty-five basis point hike is five percent, which the market priced in. ".repeat(12).trim();
+    expect(landedNote(long.slice(0, 900), true)).toContain(long.slice(0, 900));
+    const cut = clipSentence(long.repeat(3), 1500);
+    expect(cut.length).toBeLessThanOrEqual(1500);
+    expect(cut.endsWith("in.")).toBe(true);
   });
 });

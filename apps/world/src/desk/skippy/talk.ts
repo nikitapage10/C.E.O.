@@ -201,13 +201,26 @@ export async function readHandoffs(id: string, doFetch: typeof fetch = fetch): P
   }
 }
 
+/** The most of an answer put into the call (#521): a long one was cut mid-sentence at 500 characters. */
+export const LANDED_MAX = 1500;
+
+/** Text cut at a sentence end within `max`, or at a word, never mid-sentence when it can be helped. */
+export function clipSentence(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max);
+  const stop = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "));
+  if (stop > max / 2) return head.slice(0, stop + 1);
+  return head.slice(0, head.lastIndexOf(" ") > 0 ? head.lastIndexOf(" ") : max).trimEnd();
+}
+
 /**
  * What Skippy is told when what his deeper self worked out lands mid-call (#506): say it now, answer first. It goes in
  * with a request for a turn (talkSession.ts, speakNow), so he speaks it at once instead of at Nikita's next line. In
  * character (#498): the note never says "thread", "hand-off", "Kernel" or "crew", so he has nothing to echo.
  */
 export const landedNote = (text: string, final: boolean): string =>
-  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${text.slice(0, 500)}". Say it to him now, answer first, in one or two short sentences of your own, in character, with no recap and no question after.`;
+  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${clipSentence(text, LANDED_MAX)}". Say it to him now, answer first, in one or two short sentences of your own, in character, with no recap and no question after.`;
 
 /** The chat bubbles this call is waiting on (chat turn id to the text last told to Skippy), and the watch on them. */
 let heard = new Map<number, string>();

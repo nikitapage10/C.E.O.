@@ -58,6 +58,20 @@ describe("an answer that lands is said at once (#506)", () => {
   });
 });
 
+describe("an answer waits for the agent to finish, and goes in once (#521)", () => {
+  it("holds the push while an agent is speaking, then sends the note and one turn, never the answer as a user message", async () => {
+    const o = await call();
+    fake.sent.length = 0;
+    o.onModeChange!({ mode: "speaking" });
+    o.session.speakNow("The answer from the deeper you just landed: five percent.");
+    expect(fake.sent).toEqual([]);
+    o.onModeChange!({ mode: "listening" });
+    o.onModeChange!({ mode: "listening" });
+    expect(fake.sent).toEqual(["context: The answer from the deeper you just landed: five percent.", `user: ${SPEAK_NOW}`]);
+    expect(fake.sent.filter((x) => x.startsWith("user:") && x.includes("five percent"))).toEqual([]);
+  });
+});
+
 describe("the hologram follows the mic on a call (#491, #490)", () => {
   beforeEach(() => {
     holoEvents.reset();

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { callIsLive } from "./liveCall.ts";
 import type { AskedCard, AskedRoom } from "./asked.ts";
 import type { Pending } from "./handoff.ts";
 
@@ -258,6 +259,9 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
 export const canSpeak = (): boolean => typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance === "function";
 
 export function speak(text: string): void {
+  // Never on a live Talk call (#521): the mic hears this robotic voice, it lands in Nikita's own turn, and the agent
+  // then says it again. During a call the answer goes only through the ElevenLabs session (talk.ts, followHandoffs).
+  if (callIsLive()) return;
   if (!canSpeak()) return;
   try {
     window.speechSynthesis.cancel();

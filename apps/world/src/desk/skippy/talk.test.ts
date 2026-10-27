@@ -21,8 +21,14 @@ describe("Talk to Skippy in the browser", () => {
     expect(await requestToken(reply(503, { error: "no-key" }))).toEqual({ ok: false, reason: "no-key" });
     expect(await requestToken(reply(502, { error: "agent-denied" }))).toEqual({ ok: false, reason: "agent-denied" });
     expect(await requestToken(reply(502, { error: "eleven" }))).toEqual({ ok: false, reason: "eleven" });
+    expect(await requestToken(reply(502, { error: "key-invalid" }))).toEqual({ ok: false, reason: "key-invalid" });
+    expect(await requestToken(reply(502, { error: "plan" }))).toEqual({ ok: false, reason: "plan" });
+    expect(await requestToken(reply(502, { error: "something-new" }))).toEqual({ ok: false, reason: "eleven" });
+    expect(TALK_NOTE["key-invalid"]).toMatch(/Keys page/);
+    expect(TALK_NOTE.plan).toMatch(/plan or limits/);
+    expect(TALK_NOTE["agent-denied"]).toMatch(/needs access to Agents/);
     expect(await requestToken((async () => Promise.reject(new Error("offline"))) as unknown as typeof fetch)).toEqual({ ok: false, reason: "eleven" });
-    for (const r of ["capped", "eleven", "mic", "failed"] as const) expect(TALK_NOTE[r]).toMatch(/[Tt]yping/);
+    for (const r of ["capped", "eleven", "key-invalid", "plan", "agent-denied", "mic", "failed"] as const) expect(TALK_NOTE[r]).toMatch(/[Tt]yping/);
   });
 
   it("hands back the one-call token, the call's length and the Desk's state", async () => {

@@ -159,7 +159,7 @@ Calls are short, three minutes at most, so get to the point. When Nikita says go
 
 export const VOICE_FIRST_MESSAGE = "Ah, the C.E.O. calls. Go on then, monkey, you have my magnificent attention.";
 
-/** The agent, as made from code. `core` is the fallback when ElevenLabs refuses an optional setting (422). */
+/** The agent, as made from code. `core` is the fallback when ElevenLabs refuses an optional setting (422 or 403). */
 export function agentBody(voice: string, tier: "full" | "core" = "full") {
   return {
     name: "Skippy, the Magnificent (C.E.O. Desk)",
@@ -254,52 +254,115 @@ export class MemoryVoiceStore implements VoiceStore {
 
 const headers = (key: string) => ({ "xi-api-key": key, "Content-Type": "application/json", Accept: "application/json" });
 
-export type AgentResult = { ok: true; id: string; sig: string; tier: "full" | "core" } | { ok: false; why: "denied" | "failed" };
+/**
+ * Why ElevenLabs refused (#470), from its answer: `key-invalid` when it doesn't accept the key at all (stale, mistyped,
+ * deleted), `agent-denied` when the key lacks a permission, `plan` when the plan, its credits or its limits said no,
+ * `eleven` for anything else. Read from the error body's `detail` (`{ detail: { code, status, type, message } }`, or a
+ * plain string), its code first, then the HTTP status alone.
+ */
+export type ElevenRefusal = "key-invalid" | "agent-denied" | "plan" | "eleven";
+
+const PLAN = /quota|credit|subscription|plan|payment|limit|feature_not_available|unusual_activity|voice_access_denied|model_access_denied|tier/;
+const KEY_BAD = /invalid_api_key|missing_api_key|invalid_authorization_header|api_key_invalid|authentication_error|sign_in_required|^unauthorized$/;
+const PERMISSION = /permission|forbidden|workspace_access_denied|authorization_error/;
+
+/** ElevenLabs' own reason, as one short code (letters, digits, `_` and `-` only, so a log line carries nothing else). */
+export function elevenReason(body: unknown): string {
+  const d = body && typeof body === "object" ? (body as { detail?: unknown }).detail : undefined;
+  let raw = "";
+  if (typeof d === "string") raw = d;
+  else if (d && typeof d === "object" && !Array.isArray(d)) {
+    const o = d as Record<string, unknown>;
+    raw = [o.code, o.status, o.type].find((v): v is string => typeof v === "string" && v.trim() !== "") ?? "";
+  }
+  const code = raw.trim().toLowerCase();
+  // A sentence rather than a code: keep only the words that name a cause.
+  if (/\s/.test(code)) {
+    if (/api key|api_key/.test(code) && /invalid|not valid|unknown/.test(code)) return "invalid_api_key";
+    if (/permission/.test(code)) return "missing_permissions";
+    if (/quota|credit|subscription|plan|limit/.test(code)) return "plan_limit";
+    return "";
+  }
+  return /^[a-z0-9_-]{1,64}$/.test(code) ? code : "";
+}
+
+/** The refusal's kind from the HTTP status and ElevenLabs' reason code (elevenReason). */
+export function classifyRefusal(status: number, reason: string): ElevenRefusal {
+  if (reason) {
+    if (PLAN.test(reason)) return "plan";
+    if (KEY_BAD.test(reason)) return "key-invalid";
+    if (PERMISSION.test(reason)) return "agent-denied";
+  }
+  if (status === 401) return "key-invalid";
+  if (status === 402 || status === 429) return "plan";
+  if (status === 403) return "agent-denied";
+  return "eleven";
+}
+
+/** A refusal read and logged: the HTTP status and ElevenLabs' reason code only, never the key, a header or a message. */
+async function refusal(res: Response, step: string, log: (line: string) => void): Promise<ElevenRefusal> {
+  const reason = elevenReason(await res.json().catch(() => null));
+  const why = classifyRefusal(res.status, reason);
+  log(`ElevenLabs refused ${step}: HTTP ${res.status}, ${reason || "no reason given"} (${why}).`);
+  return why;
+}
+
+const warn = (line: string) => console.warn(line);
+
+export type AgentResult = { ok: true; id: string; sig: string; tier: "full" | "core" } | { ok: false; why: ElevenRefusal };
 
 /**
  * The agent, made or brought up to date: kept as it is when its settings match the code, else updated (or made), the
- * full settings first and the core ones when ElevenLabs refuses an optional one. `denied` means the key isn't allowed
- * to manage Agents (401 or 403): that is Nikita's step, on ElevenLabs' side.
+ * full settings first and the core ones when ElevenLabs refuses the full ones (422, or 403: the LLM, the call limits
+ * or the silence timeout may be what a plan or key may not set). Only a refusal of the core settings too is final.
  */
-export async function ensureAgent(key: string, voice: string, known: VoiceState["agent"], fetcher: typeof fetch): Promise<AgentResult> {
+export async function ensureAgent(key: string, voice: string, known: VoiceState["agent"], fetcher: typeof fetch, log: (line: string) => void = warn): Promise<AgentResult> {
   if (known && known.sig === agentSig(voice, known.tier)) return { ok: true, ...known };
-  let denied = false;
+  let why: ElevenRefusal = "eleven";
   for (const tier of ["full", "core"] as const) {
     const body = JSON.stringify(agentBody(voice, tier));
     try {
       const res = known
         ? await fetcher(`${ELEVEN_API}/v1/convai/agents/${encodeURIComponent(known.id)}`, { method: "PATCH", headers: headers(key), body, signal: AbortSignal.timeout(15_000) })
         : await fetcher(`${ELEVEN_API}/v1/convai/agents/create`, { method: "POST", headers: headers(key), body, signal: AbortSignal.timeout(15_000) });
-      if (res.status === 401 || res.status === 403) {
-        denied = true;
+      if (res.status === 404 && known) return ensureAgent(key, voice, undefined, fetcher, log);
+      if (!res.ok) {
+        why = await refusal(res, `the agent's ${tier} settings`, log);
+        if (tier === "full" && (res.status === 422 || res.status === 403)) continue;
         break;
       }
-      if (res.status === 404 && known) return ensureAgent(key, voice, undefined, fetcher);
-      if (res.status === 422) continue;
-      if (!res.ok) break;
       const got = (await res.json().catch(() => ({}))) as { agent_id?: unknown };
       const id = known ? known.id : got.agent_id;
-      if (!isAgentId(id)) break;
+      if (!isAgentId(id)) {
+        log("ElevenLabs answered the agent without an id.");
+        why = "eleven";
+        break;
+      }
       return { ok: true, id, sig: agentSig(voice, tier), tier };
     } catch {
+      log(`ElevenLabs didn't answer for the agent's ${tier} settings.`);
+      why = "eleven";
       break;
     }
   }
-  return { ok: false, why: denied ? "denied" : "failed" };
+  return { ok: false, why };
 }
 
 /** One session's token (WebRTC), or why not. */
-export async function mintToken(key: string, agent: string, fetcher: typeof fetch): Promise<{ token: string; conversation: string } | { why: "denied" | "missing" | "failed" }> {
+export async function mintToken(key: string, agent: string, fetcher: typeof fetch, log: (line: string) => void = warn): Promise<{ token: string; conversation: string } | { why: ElevenRefusal | "missing" }> {
   try {
     const res = await fetcher(`${ELEVEN_API}/v1/convai/conversation/token?agent_id=${encodeURIComponent(agent)}`, { headers: { "xi-api-key": key, Accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
-    if (res.status === 401 || res.status === 403) return { why: "denied" };
     if (res.status === 404) return { why: "missing" };
-    if (!res.ok) return { why: "failed" };
+    if (!res.ok) return { why: await refusal(res, "a call's token", log) };
     const got = (await res.json().catch(() => ({}))) as { token?: unknown; conversation_id?: unknown };
-    if (typeof got.token !== "string" || got.token.length < 8 || got.token.length > 8_000) return { why: "failed" };
+    if (typeof got.token !== "string" || got.token.length < 8 || got.token.length > 8_000) {
+      log("ElevenLabs answered a call's token without one.");
+      return { why: "eleven" };
+    }
     return { token: got.token, conversation: isConversationId(got.conversation_id) ? got.conversation_id : "" };
   } catch {
-    return { why: "failed" };
+    log("ElevenLabs didn't answer for a call's token.");
+    return { why: "eleven" };
   }
 }
 

@@ -6,11 +6,11 @@ C.E.O.'s home, as Bicep in [`infra/`](../infra): **Azure is production and the o
 nothing runs against it any more except the one final copy of its world, and what Nikita switches off there is in
 [Retiring Vercel](#retiring-vercel). One paste in Azure Cloud Shell created all of it (the app's Vercel adapter code
 stays until Vercel is off, see [The port](#the-port)); the deploy workflow and nightly backup are in
-[Deploys and backups](#deploys-and-backups). No Azure OpenAI or Speech: the functions call Claude and Gemini directly.
+[Deploys and backups](#deploys-and-backups). No Azure OpenAI or Speech: the functions call Claude and ElevenLabs directly (Gemini only reviews the Lattice's look in CI, Visual QA).
 
 **Since #330, changes ship with the deploy and keys go in on the Desk.** Every merge into `main` applies
 `infra/resources.bicep` to `rg-ceo-prod` ([The template on every deploy](#the-template-on-every-deploy)), so new app
-settings, Key Vault references and roles go live with the code, and a third-party key (Claude, Gemini, FantasyPros,
+settings, Key Vault references and roles go live with the code, and a third-party key (Claude, FantasyPros,
 Polymarket US, Gmail's client, PayPal, ElevenLabs, OpenAI, the email skip list) is set or replaced on the Desk, in
 **Boiler Room → Security → Keys**, behind the passkey. The pastes below are the **first-time setup** of a new
 subscription; with everything in place, the only paste left is the one-time role paste in that section.
@@ -119,7 +119,7 @@ if has foundry-desk-key; then echo "kept foundry-desk-key"; else K=$(rnd); put f
 az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRESH=$(date -u +%Y%m%d%H%M%S)" -o none && echo "refreshed $FA (it restarts and re-reads the vault)")
 ```
 
-   **The keys from other services.** The third-party ones (`claude-api-key`, `gemini-api-key`, the Polymarket US
+   **The keys from other services.** The third-party ones (`claude-api-key`, `elevenlabs`, the Polymarket US
    pair and the rest of the allowlist in `api/_keys/allowlist.ts`) go in on the Desk: **Boiler Room → Security →
    Keys**, signed in, **Set** or **Replace**, paste, and tap the passkey. The app takes a new one within two minutes,
    with no restart. `foundry-github-token` isn't on that list (it is the crew's access), so it goes in the portal:
@@ -130,7 +130,7 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | Name | Value |
    | --- | --- |
    | `claude-api-key` | A new key from [console.anthropic.com](https://console.anthropic.com) → **API keys** → **Create key**, in the same workspace as Vercel's (so the same monthly spend limit covers both copies) |
-   | `gemini-api-key` | A key from [aistudio.google.com](https://aistudio.google.com) → **Get API key** → **Create API key** (Vercel's own Gemini project is fine) |
+   | `elevenlabs` | A key from [elevenlabs.io](https://elevenlabs.io) → **Developers → API keys** (text to speech, and Agents: Write for Talk to Skippy). The only voice since #472: without it the scripts show and the audio waits |
    | `foundry-github-token` | A fine-grained token: GitHub → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**. Resource owner `nikitapage10`, **Only select repositories** → `nikitapage10/C.E.O.`, and under **Repository permissions**: Actions *Read-only*, Code scanning alerts *Read-only*, Contents *Read-only*, Dependabot alerts *Read-only*, Issues *Read and write*, Pull requests *Read-only* (Metadata *Read-only* comes with it). Nothing else |
    | `polymarket-us-key-id`, `polymarket-us-secret-key` | Optional (#253, the Exchange's positions). On the Polymarket US app, finish identity verification; then at [polymarket.us/developer](https://polymarket.us/developer), signed in the same way as in the app (Apple, Google or email), create an API key. Paste its **Key ID** (a UUID) as `polymarket-us-key-id` and its **Secret Key** (shown only once) as `polymarket-us-secret-key`. The key could trade (Polymarket US has no read-only keys); the code only ever reads two portfolio paths. Revoke it there if in doubt |
 
@@ -151,8 +151,7 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | `foundry-app-id`, `foundry-app-installation-id`, `foundry-app-private-key` | `FOUNDRY_APP_ID`, `FOUNDRY_APP_INSTALLATION_ID`, `FOUNDRY_APP_PRIVATE_KEY` |
    | `foundry-github-token` (only without the App) | `FOUNDRY_GITHUB_TOKEN` |
    | `claude-api-key` | `CLAUDE_API_KEY` |
-   | `gemini-api-key` | `GEMINI_API_KEY` |
-   | `elevenlabs` (ElevenLabs, #311, #365: Skippy reads "today in Ilyr" with it first, Gemini behind it; settable on the Desk's Keys form) | `ELEVENLABS_API_KEY` |
+   | `elevenlabs` (ElevenLabs, #311, #365, #472: the only voice, for "today in Ilyr", the week and Talk to Skippy; settable on the Desk's Keys form) | `ELEVENLABS_API_KEY` |
    | `desk-vapid-public-key`, `desk-vapid-private-key`, `desk-vapid-subject` | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY`, `DESK_VAPID_SUBJECT` |
    | `desk-pings-secret` | `DESK_PINGS_SECRET` |
    | `site-bypass-token` (the live watch's way past the site lock, #313) | `SITE_BYPASS_TOKEN` |
@@ -163,18 +162,21 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | `submind-log-token`, `submind-feed-token` (the subminds' room keys, #281, #312; Azure only, at least 32 random characters; see [The subminds' room keys](#the-subminds-room-keys)) | `SUBMIND_LOG_TOKEN`, `SUBMIND_FEED_TOKEN` |
 
    **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
-   same Claude and Gemini accounts; with Vercel no longer spending (#313) they are the code's own defaults, the ones
-   Vercel ran on: `WORLD_BUDGET_USD=6`, `GEMINI_BUDGET_USD=5` and `SKIPPY_BUDGET_USD=2` (agreed 2026-10-22), so the
-   total a month is what it was across both. The email agent's own cap, `EMAIL_BUDGET_USD=10` (`emailBudgetUsd`,
+   same Claude account; with Vercel no longer spending (#313) they are the code's own defaults, the ones Vercel ran
+   on: `WORLD_BUDGET_USD=6` and `SKIPPY_BUDGET_USD=2` (agreed 2026-10-22), so the total a month is what it was across
+   both. `GEMINI_BUDGET_USD` and `GEMINI_API_KEY` were retired with Gemini's speech (#472): the next template run
+   drops them from the Function App (the `gemini-api-key` secret can be deleted from the vault; Visual QA keeps its
+   own key as a GitHub Actions secret). The email agent's own cap, `EMAIL_BUDGET_USD=10` (`emailBudgetUsd`,
    #263), is separate from those and exists only here. `PAYPAL_ENV` (`paypalEnv`, #279) starts as `sandbox`. The
-   deploy keeps all five as they are live (and the home address and the log cap): change one in the portal
+   deploy keeps all four as they are live (and the home address and the log cap): change one in the portal
    (**Function App** → **Settings → Environment variables**, **Apply**) or with `-p worldBudgetUsd=3` (or
-   `geminiBudgetUsd`, `skippyBudgetUsd`, `emailBudgetUsd`, `paypalEnv=live`) on the first-time paste, and later deploys
+   `skippyBudgetUsd`, `emailBudgetUsd`, `paypalEnv=live`) on the first-time paste, and later deploys
    keep the new value. Any other setting added in the portal makes the deploy skip the template (it would remove it)
    and say so, so add new settings to the template instead.
-   ElevenLabs' story settings (#365) are the code's own defaults and need no app setting: `ELEVENLABS_BUDGET_USD`
+   ElevenLabs' settings (#365, #472) are the code's own defaults and need no app setting: `ELEVENLABS_BUDGET_USD`
    (default `10`, never above 10) and `ELEVENLABS_VOICE_ID` (default Daniel, `onwK4e9ZLuTAKqWW03F9`, a premade British
-   male voice). Talk to Skippy (#434, `api/skippy-voice.ts`) uses the same key and voice and needs no setting either:
+   male voice), the **one** setting that picks the voice for everything spoken: the day's story, the week and Talk to
+   Skippy all read it through `elevenVoice` in `api/_world/story.ts`. Talk to Skippy (#434, `api/skippy-voice.ts`) uses the same key and voice and needs no setting either:
    `ELEVENLABS_VOICE_BUDGET_USD` (its share of that $10, default `5`, never above the cap), three-minute calls counted
    at $0.12 a minute (about 41 minutes a month), and its one private agent is made from code on the first call (the
    key needs ElevenLabs' Agents access: Write). To change one, add it to `plainSettings` in `infra/resources.bicep` (and to the kept-live list in
@@ -209,7 +211,7 @@ is off, #313), but only Azure serves it.
   on the warm instance, best effort. The world step waits for all of it (its day and week stories), since it is
   called on the Function App's own URL.
 - **Storage.** [`api/_blob.ts`](../api/_blob.ts) is the one blob store every function uses: the world and its
-  history (`api/_world/store.ts`), the day and week stories and Gemini's ledger (`api/_world/story.ts`), the Desk's
+  history (`api/_world/store.ts`), the day and week stories and the voice's ledger (`api/_world/story.ts`), the Desk's
   passkeys, limits and pings (`api/_desk/store.ts`), Skippy's chat ledger (`api/_skippy/budget.ts`) and idea pictures (`api/foundry-image.ts`).
   `WORLD_STORE=azureblob` (set by the Bicep) uses Azure Blob Storage ([`azure/src/blob.ts`](../azure/src/blob.ts)):
   the container `AZURE_STORAGE_CONTAINER` (`ceo-state`) in `AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_BLOB_ENDPOINT`,
@@ -409,8 +411,8 @@ The final copy from Vercel (#313; the steps Nikita follows are in [Retiring Verc
 Vercel world (`world/state.json` and every day) and its stories with their audio into `ceo-state`, under the store's
 own names, so Azure carries on from where Vercel left off. It is a one-time job; the `seed` option goes from the
 workflow once Vercel is off. The Desk's sign-ins
-(`desk/`) stay behind: passkeys and phones belong to their address. The world's month of Claude spend and Gemini's
-month of speech spend come with it, so the Azure budgets start where production's month is.
+(`desk/`) stay behind: passkeys and phones belong to their address. The world's month of Claude spend and the
+month of speech spend (Gemini's, before #472) come with it, so the Azure budgets start where production's month is.
 
 Actions → **Back up to Azure** → **Run workflow**, tick **seed**. If the Azure copy has already made a world of its
 own (the hourly step starts one as soon as it runs), tick **force** too to replace it with production's. Without
@@ -539,7 +541,7 @@ officer() { az role assignment list --assignee "$FN" --role "Key Vault Secrets O
 has "$SP" Contributor "$SCOPE" && echo "ok   ceo-github-deploy has Contributor on $RG" || echo "note ceo-github-deploy has no Contributor on $RG: run the one-time setup's paste first"
 if has "$SP" "Role Based Access Control Administrator" "$SCOPE"; then echo "kept ceo-github-deploy's Role Based Access Control Administrator on $RG"; else az role assignment create --assignee-object-id "$SP" --assignee-principal-type ServicePrincipal --role "Role Based Access Control Administrator" --scope "$SCOPE" --condition "$COND" --condition-version 2.0 --description "C.E.O. deploy (#330): only the template's roles, to its own identities, never deletes" -o none && echo "set  ceo-github-deploy: Role Based Access Control Administrator on $RG, conditioned"; fi
 HAVE=$(az keyvault secret list --vault-name "$KVN" --query "[].name" -o tsv) || { echo "Couldn't list the secrets' names in $KVN: no secret or vault role changed."; exit 1; }
-for S in claude-api-key gemini-api-key fantasypros polymarket-us-key-id polymarket-us-secret-key gmail-client-id gmail-client-secret paypal-client-id paypal-client-secret elevenlabs openai email-skip-terms; do
+for S in claude-api-key fantasypros polymarket-us-key-id polymarket-us-secret-key gmail-client-id gmail-client-secret paypal-client-id paypal-client-secret elevenlabs openai email-skip-terms; do
   if printf '%s\n' "$HAVE" | grep -qx "$S"; then echo "kept secret $S as it is"; elif az keyvault secret set --vault-name "$KVN" -n "$S" --value ceo-placeholder-not-a-key --tags ceo-placeholder=1 -o none; then echo "made secret $S with a placeholder (the Desk shows it as not set)"; else echo "skip $S: couldn't create it (a deleted copy in the vault's recycle bin? recover it, then run this again)"; continue; fi
   if [ -n "$(officer "/secrets/$S" "/secrets/$S")" ]; then echo "kept $FA's Key Vault Secrets Officer on $S"; else az role assignment create --assignee-object-id "$FN" --assignee-principal-type ServicePrincipal --role "Key Vault Secrets Officer" --scope "$KV/secrets/$S" --description "C.E.O. Desk Keys form (#330): this one secret" -o none && echo "set  $FA: Key Vault Secrets Officer on $S only"; fi
 done
@@ -559,7 +561,7 @@ then the Function App's per-secret roles:
 
 ```bash
 az role assignment delete --assignee "$(az ad sp list --display-name ceo-github-deploy --query "[0].id" -o tsv)" --role "Role Based Access Control Administrator" --scope "$(az group show -n rg-ceo-prod --query id -o tsv)"
-(FN=$(az resource show -g rg-ceo-prod -n func-ceo-besgu7fnckib2 --resource-type Microsoft.Web/sites --query identity.principalId -o tsv); KV=$(az keyvault show -g rg-ceo-prod -n kv-ceo-besgu7fnckib2 --query id -o tsv); for S in claude-api-key gemini-api-key fantasypros polymarket-us-key-id polymarket-us-secret-key gmail-client-id gmail-client-secret paypal-client-id paypal-client-secret elevenlabs openai email-skip-terms; do az role assignment delete --assignee "$FN" --role "Key Vault Secrets Officer" --scope "$KV/secrets/$S"; done)
+(FN=$(az resource show -g rg-ceo-prod -n func-ceo-besgu7fnckib2 --resource-type Microsoft.Web/sites --query identity.principalId -o tsv); KV=$(az keyvault show -g rg-ceo-prod -n kv-ceo-besgu7fnckib2 --query id -o tsv); for S in claude-api-key fantasypros polymarket-us-key-id polymarket-us-secret-key gmail-client-id gmail-client-secret paypal-client-id paypal-client-secret elevenlabs openai email-skip-terms; do az role assignment delete --assignee "$FN" --role "Key Vault Secrets Officer" --scope "$KV/secrets/$S"; done)
 ```
 
 After the first line, the deploy goes back to skipping the template (and says so); after the second, the Keys form's

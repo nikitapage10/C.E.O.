@@ -150,22 +150,20 @@ export interface WorldFeed {
   /** Whether Claude is set up for the step (else every hour is scripted). */
   claude: boolean;
   /**
-   * The day's story (api/_world/story.ts): Gemini's speech spend this month against its own cap, and the Claude cost
-   * of the scripts (part of the shared Claude cap). `gemini` says whether the key is set; `eleven`, whether
-   * ElevenLabs' is (#365), with its own spend against `elevenBudget`.
+   * The day's story (api/_world/story.ts): ElevenLabs, the only voice (#472), and its spend this month against its own
+   * cap (`elevenBudget`), and the Claude cost of the scripts (part of the shared Claude cap). `eleven` says whether
+   * its key is set. `usd`, `calls` and the tokens are Gemini's speech before #472, as recorded (never added to now).
    */
   story?: {
     month: string;
-    budget: number;
-    gemini: boolean;
     usd: number;
     calls: number;
     stories: number;
     tokensIn: number;
     tokensOut: number;
     scriptUsd: number;
-    eleven?: boolean;
-    elevenBudget?: number;
+    eleven: boolean;
+    elevenBudget: number;
     elevenUsd?: number;
     elevenChars?: number;
     elevenCalls?: number;
@@ -191,20 +189,22 @@ export type DayStoryView =
       partial: boolean;
       /** Which "so far" edition (#365): the 5-hour mark it was made after (0 to 4, 5 for a day already over); null when final. */
       edition: number | null;
-      /** Who read it aloud (#365). */
+      /** Who read it aloud (#365): ElevenLabs since #472; "gemini" on a story read before then. */
       reader: "elevenlabs" | "gemini";
       writer: "claude" | "chronicle";
       /** Made in an older style (#102): "Make it now" may remake it once. */
       stale: boolean;
       /** When this edition was made (ISO). */
       at: string;
-      audio: string;
+      /** Where to hear it; null while the script waits on ElevenLabs (#472), with `waiting` saying why. */
+      audio: string | null;
+      waiting?: "no-key" | "over-budget" | "speech-failed";
     }
   | { day: string; ready: false; reason: "no-key" | "over-budget" | "not-yet" };
 
 /**
  * What GET /api/day-story?week=… answers (#211): the week in Ilyr, told on Sunday evening. `audio` is null when the
- * script is there but could not be read aloud (no Gemini key, or the month's speech budget spent).
+ * script is there but ElevenLabs could not read it (yet): no key, its month's cap spent, or it refused or was down.
  */
 export type WeekStoryView =
   | { week: string; ready: true; script: string; durationSec: number; writer: "claude" | "chronicle"; at: string; audio: string | null }

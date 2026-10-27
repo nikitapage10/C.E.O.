@@ -414,9 +414,11 @@ Then the C.E.O. asked for Skippy. "He's the one that should be presenting." So *
 today in Ilyr** now, from the Historian's notes: about every five hours a fresh edition of **the day so far** (after
 5 am, 10 am, 3 pm and 8 pm, and only when the Chronicle has something new since the last one; Skippy calls an empty
 edition "beneath me"), then the whole day once the recap is filed after midnight. He reads it in a crisp,
-upper-crust British voice, grand and a little pompous, borrowed from beyond the Veil (ElevenLabs when the Kernel has
-its key, else Gemini asked nicely to sound British), and claims every word. Each voice has its own monthly budget; when
-both are spent the microphone stays off. The Historian kept the notes, the footnotes and the stopwatch, and times
+upper-crust British voice, grand and a little pompous, borrowed from beyond the Veil (ElevenLabs, and only
+ElevenLabs: the same voice he answers in on a live call, one dial in the Kernel for both), and claims every word. Gemini
+no longer reads for him; the Geminae went back to watching. When ElevenLabs can't speak, past its monthly budget or
+simply silent, the script still goes up on the Archive's board and Skippy's microphone waits on ElevenLabs. He calls
+it "an intermission". The Historian kept the notes, the footnotes and the stopwatch, and times
 every edition. He runs long. It says so.
 
 

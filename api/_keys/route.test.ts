@@ -27,7 +27,7 @@ class FakeVault implements KeyWriter {
     ["claude-api-key", { enabled: true, updated: NOW - 86_400_000 }],
     ["foundry-desk-key", { enabled: true, updated: NOW - 86_400_000 }],
     // Created by the role paste so it can have its own role; not a key yet.
-    ["gemini-api-key", { enabled: true, updated: NOW - 86_400_000, placeholder: true }],
+    ["polymarket-us-key-id", { enabled: true, updated: NOW - 86_400_000, placeholder: true }],
   ]);
   fail = false;
   writes = 0;
@@ -105,7 +105,6 @@ describe("the allowlist (#330)", () => {
   it("is exactly the third-party keys and settings Nikita pastes in", () => {
     expect(SETTABLE_KEYS.map((k) => k.secret)).toEqual([
       "claude-api-key",
-      "gemini-api-key",
       "fantasypros",
       "polymarket-us-key-id",
       "polymarket-us-secret-key",
@@ -191,20 +190,20 @@ describe("setting a key from the Desk (#330)", () => {
 
   it("refuses one answer twice, and a step-up older than two minutes", async () => {
     const { b, passkey } = await signedIn();
-    const opts = (await (await b.options("gemini-api-key")).json()) as { challenge: string; rpId: string };
+    const opts = (await (await b.options("polymarket-us-key-id")).json()) as { challenge: string; rpId: string };
     const cookie = b.jar.get(CHALLENGE_COOKIE.keys)!;
-    let res = await b.post({ action: "set", name: "gemini-api-key", value: VALUE, response: passkey.get(opts) });
+    let res = await b.post({ action: "set", name: "polymarket-us-key-id", value: VALUE, response: passkey.get(opts) });
     expect(res.status).toBe(200);
     // The same challenge cookie and a fresh signature over the same challenge, for the same write: spent.
     b.jar.set(CHALLENGE_COOKIE.keys, cookie);
-    res = await b.post({ action: "set", name: "gemini-api-key", value: VALUE, response: passkey.get(opts) });
+    res = await b.post({ action: "set", name: "polymarket-us-key-id", value: VALUE, response: passkey.get(opts) });
     expect(res.status).toBe(401);
     // A new challenge, answered too late.
     const late = (await (await b.options()).json()) as { challenge: string; rpId: string };
     b.now = NOW + (STEPUP_S + 1) * 1000;
     res = await b.post({ action: "set", name: "claude-api-key", value: VALUE, response: passkey.get(late) });
     expect(res.status).toBe(401);
-    expect([...b.vault.written.keys()]).toEqual(["gemini-api-key"]);
+    expect([...b.vault.written.keys()]).toEqual(["polymarket-us-key-id"]);
   });
 
   it("binds the step-up to one name and value: any other is refused, and so is a request without the hash", async () => {
@@ -213,7 +212,7 @@ describe("setting a key from the Desk (#330)", () => {
     for (const h of [undefined, "", "abc", writeHash("claude-api-key", VALUE).toUpperCase(), 7]) expect((await b.post({ action: "options", h })).status, String(h)).toBe(400);
     // Asked for claude-api-key with VALUE; answered, then sent with another name, then another value.
     let opts = (await (await b.options("claude-api-key", VALUE)).json()) as { challenge: string; rpId: string };
-    let res = await b.post({ action: "set", name: "gemini-api-key", value: VALUE, response: passkey.get(opts) });
+    let res = await b.post({ action: "set", name: "polymarket-us-key-id", value: VALUE, response: passkey.get(opts) });
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "step-up" });
     opts = (await (await b.options("claude-api-key", VALUE)).json()) as { challenge: string; rpId: string };
@@ -291,12 +290,12 @@ describe("setting a key from the Desk (#330)", () => {
     const error = vi.spyOn(console, "error");
     const ok = await b.set(passkey, "openai");
     b.vault.fail = true;
-    const failed = await b.set(passkey, "gemini-api-key");
+    const failed = await b.set(passkey, "polymarket-us-key-id");
     expect(failed.status).toBe(502);
     const status = await b.get();
     const everything = [await ok.text(), await failed.text(), await status.text(), ...b.logs, JSON.stringify(b.trail.entries), ...[spy, warn, error].flatMap((s) => s.mock.calls.flat().map(String))];
     for (const text of everything) expect(text).not.toContain(VALUE);
-    expect(b.logs).toContain("keys: gemini-api-key not set (the vault refused)");
+    expect(b.logs).toContain("keys: polymarket-us-key-id not set (the vault refused)");
     spy.mockRestore();
     warn.mockRestore();
     error.mockRestore();
@@ -316,7 +315,7 @@ describe("what the Desk is shown (#330)", () => {
     expect(body.keys.find((k) => k.name === "claude-api-key")).toMatchObject({ set: true, updated: NOW - 86_400_000, lastSet: null });
     expect(body.keys.find((k) => k.name === "fantasypros")).toMatchObject({ set: true, updated: NOW, lastSet: NOW });
     expect(body.keys.find((k) => k.name === "openai")).toMatchObject({ set: false, updated: null });
-    expect(body.keys.find((k) => k.name === "gemini-api-key")).toMatchObject({ set: false });
+    expect(body.keys.find((k) => k.name === "polymarket-us-key-id")).toMatchObject({ set: false });
     expect(JSON.stringify(body)).not.toContain("foundry-desk-key");
   });
 

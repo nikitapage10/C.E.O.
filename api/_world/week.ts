@@ -3,24 +3,26 @@
  * like the daily one (story.ts). It is told from the week's daily recaps the world step already filed (Monday to
  * Saturday, and Sunday so far from its hours), so the model reads seven short summaries, never raw data. One Claude
  * Haiku write (or, without a key or past the world's budget, a script put together from the recaps, free) and one
- * Gemini reading, a week: about 3 tenths of a cent and 2 cents. Kept under the week's Monday (story.ts, WeekStory).
+ * ElevenLabs reading in the same voice as the day's story and Skippy's calls (ELEVENLABS_VOICE_ID, #472), a week:
+ * about 3 tenths of a cent and, at ElevenLabs' API rate, about 10 cents. Kept under the week's Monday (story.ts,
+ * WeekStory). ElevenLabs alone reads it: when it can't, the script stands and the audio waits.
  */
 
 import { scrub } from "./digest.js";
 import { DAY, type WorldStore } from "./store.js";
 import {
-  canSpeak,
+  canSpeakEleven,
   cleanScript,
   dayName,
+  ELEVEN_MODEL,
+  elevenCost,
   fence,
   firstSentence,
-  geminiPrice,
-  speak,
+  speakEleven,
   spokenOf,
-  TTS_MODEL,
-  TTS_VOICE,
   wavOf,
   wordCount,
+  type ElevenConfig,
   type ScriptWriter,
   type StoryPrompt,
   type StoryStore,
@@ -112,9 +114,8 @@ export interface WeekDeps {
   /** The week's Monday. */
   week: string;
   now: number;
-  /** Gemini's key and monthly cap (story.ts). */
-  key: string;
-  budget: number;
+  /** ElevenLabs, the only voice (#472, story.ts): null when its key isn't set. */
+  eleven: ElevenConfig | null;
   /** Claude, when set up and the world's budget allows (the caller checks); null puts the script together from the recaps. */
   write: ScriptWriter | null;
   fetcher?: typeof fetch;
@@ -125,7 +126,7 @@ export type WeekResult = { made: true; story: WeekStory } | { made: false; reaso
 
 /**
  * Tell a week, once. The script is written first and kept at once (so Claude is paid for once, whatever happens to the
- * reading); then Gemini reads it, under its own monthly budget. No key or no room, and the script stands without audio.
+ * reading); then ElevenLabs reads it, under its own monthly cap. No key or no room, and the script stands without audio.
  * Called by the Sunday evening steps, which try again each hour until the reading is made.
  */
 export async function makeWeekStory(deps: WeekDeps): Promise<WeekResult> {
@@ -156,30 +157,30 @@ export async function makeWeekStory(deps: WeekDeps): Promise<WeekResult> {
     await stories.putWeek(existing, null);
   }
 
-  if (!deps.key) return { made: false, reason: "no-key", story: existing };
-  if (!canSpeak(await stories.loadSpend(), now, deps.budget)) return { made: false, reason: "over-budget", story: existing };
+  const eleven = deps.eleven;
+  if (!eleven) return { made: false, reason: "no-key", story: existing };
+  if (!canSpeakEleven(await stories.loadSpend(), now, eleven.budget)) return { made: false, reason: "over-budget", story: existing };
   if (!(await stories.claim(week, "week", now))) return { made: false, reason: "busy", story: existing };
 
   try {
-    const spoken = await speak(spokenOf(existing.script), deps.key, deps.fetcher);
+    const spoken = await speakEleven(spokenOf(existing.script), eleven, deps.fetcher);
     if (!spoken) {
       await stories.release(week, "week");
       return { made: false, reason: "speech-failed", story: existing };
     }
-    const price = geminiPrice(now);
-    const usd = (spoken.tokensIn * price.input + spoken.tokensOut * price.output) / 1_000_000;
+    const usd = elevenCost(spoken.chars);
     const wav = wavOf(spoken.pcm, spoken.sampleRate);
     const story: WeekStory = {
       ...existing,
       audio: true,
       durationSec: Math.round((spoken.pcm.length / (spoken.sampleRate * 2)) * 10) / 10,
       bytes: wav.length,
-      model: TTS_MODEL,
-      voice: TTS_VOICE,
+      model: ELEVEN_MODEL,
+      voice: eleven.voice,
       at: new Date(now).toISOString(),
-      cost: { usd, tokensIn: spoken.tokensIn, tokensOut: spoken.tokensOut },
+      cost: { usd, tokensIn: spoken.chars, tokensOut: 0 },
     };
-    await stories.addSpend(now, { usd, tokensIn: spoken.tokensIn, tokensOut: spoken.tokensOut, calls: 1, stories: 1 });
+    await stories.addSpend(now, { elevenUsd: usd, elevenChars: spoken.chars, elevenCalls: 1, stories: 1 });
     await stories.putWeek(story, wav);
     return { made: true, story };
   } catch (e) {

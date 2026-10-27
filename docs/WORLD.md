@@ -100,36 +100,27 @@ through the day. `api/_world/story.ts`.
 - **Skippy's script (#365):** the brief (`STORY_SYSTEM`) is Skippy's: pompous, smug, theatrical, secretly fond of the
   C.E.O., calling the crew "monkeys", one boast and one quip at most, the news first; in Ilyr, legally his own. The
   public rules stay: never personal data, contacts, message contents, money or keys.
-- **ElevenLabs first (#365):** when `ELEVENLABS_API_KEY` is set (on Azure from the Key Vault secret `elevenlabs`; read
-  from the environment only, never logged), the script goes to ElevenLabs' text to speech over plain `fetch`:
-  `POST https://api.elevenlabs.io/v1/text-to-speech/<voice>?output_format=pcm_24000`, header `xi-api-key`, model
-  `eleven_multilingual_v2`, settings a little theatrical. The voice is **Daniel** (`onwK4e9ZLuTAKqWW03F9`, a premade
-  British male voice, a news presenter's delivery); `ELEVENLABS_VOICE_ID` changes it (letters and digits only, else
-  the default). It answers raw 16-bit mono PCM at 24 kHz, wrapped as WAV like Gemini's. Its **own cap**,
-  `ELEVENLABS_BUDGET_USD` (default **$10**, never above $10), counted at the API rate of $0.08 per 1,000 characters
-  (a plan's credits come cheaper, so the count errs high), kept beside Gemini's in `world/stories/spend.json`
-  (`elevenUsd`, `elevenChars`, `elevenCalls`); no reading starts once one more at its longest (1,500 characters, 12
-  cents) could pass it. A story is under 1,000 characters, under 8 cents: about 125 readings fill $10. When ElevenLabs
-  isn't set, is over its cap, or doesn't answer with audio, Gemini reads instead, under its own cap. Both spent, and
-  the microphone stays off. Sources: https://elevenlabs.io/docs/api-reference/text-to-speech/convert and
-  https://elevenlabs.io/pricing/api.
-- **Gemini's speech:** Gemini's text to speech over plain `fetch` (no SDK): `gemini-3.8-flash-tts`. Skippy's voice
-  (#365) is the male prebuilt **Sadaltager** ("Knowledgeable") with a style note asking for a grand, crisp,
-  upper-crust British gentleman presenting the day's news, a little pompous and smug, at a natural pace. The week in
-  Ilyr keeps the Historian's **Achird** ("Friendly") and its plain style note.
-  The API has no speaking-rate setting; Google's guide steers pace through the style note, so that is where the pace
-  is set. It asks for raw 16-bit mono PCM (`audio/l16`) at **24 kHz**, Gemini's native rate, and wraps it as WAV (48
-  KB a second, a 45-second story about 2.2 MB). Headerless PCM carries no rate, so the rate is taken from what the
-  response says: the audio block's `sample_rate`, a `rate=` in its mime type, or a RIFF header, else 24 kHz. Until
-  #107 it was asked for and labelled as 16 kHz; if Gemini sent 24 kHz anyway, that plays at two-thirds speed and a
-  fifth lower, which is the deep, slow, distorted voice heard on Gacrux (#95) and Puck (#102). Sources are in the
-  file's header: Google's speech generation guide, the Interactions API reference and the pricing page.
-- **The budget:** $0.50 per million text tokens in and $9.00 per million audio tokens out (25 a second) through
-  2026, then $1.00 and $18.00: a 40-second story is about 1,000 audio tokens, about a cent (two from 2027). Gemini
-  has its **own cap**, `GEMINI_BUDGET_USD` (default **$5**, never above $10), kept in `world/stories/spend.json`; no
-  story is started once one more at its most (a long prompt and two minutes of audio, about three cents) could pass
-  it. The script's Claude cost is kept beside it and counted in the shared Claude cap on the Usage panel, where
-  Gemini's spend shows next to the world's.
+- **ElevenLabs, the only voice (#365, #472):** when `ELEVENLABS_API_KEY` is set (on Azure from the Key Vault secret
+  `elevenlabs`; read from the environment only, never logged), the script goes to ElevenLabs' text to speech over
+  plain `fetch`: `POST https://api.elevenlabs.io/v1/text-to-speech/<voice>?output_format=pcm_24000`, header
+  `xi-api-key`, model `eleven_multilingual_v2`, settings a little theatrical. The voice is **Daniel**
+  (`onwK4e9ZLuTAKqWW03F9`, a premade British male voice, a news presenter's delivery). **One setting picks it for
+  everything spoken:** `ELEVENLABS_VOICE_ID` (letters and digits only, else the default), read through `elevenVoice`
+  in `api/_world/story.ts`, sets the voice of the day's story, the week in Ilyr and Skippy's live voice calls
+  (`api/_skippy/voice.ts`) alike. It answers raw 16-bit mono PCM at **24 kHz**, wrapped as WAV (48 KB a second, a
+  45-second story about 2.2 MB). Its **own cap**, `ELEVENLABS_BUDGET_USD` (default **$10**, never above $10, shared
+  with the live calls), counted at the API rate of $0.08 per 1,000 characters (a plan's credits come cheaper, so the
+  count errs high), kept in `world/stories/spend.json` (`elevenUsd`, `elevenChars`, `elevenCalls`); no reading starts
+  once one more at its longest (2,000 characters, 16 cents, room for the week's script) could pass it. A day's story
+  is under 1,000 characters, under 8 cents. Sources: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+  and https://elevenlabs.io/pricing/api.
+- **No fallback (#472):** Gemini no longer reads anything. When ElevenLabs can't read (no key, past its cap, refused
+  or down), the script is still written once and kept with `audio: false`, the Desk shows the transcript and says
+  plainly that the audio is waiting on ElevenLabs, and the next try (the next step's edition, or Make it now) reads
+  that same script without a second Claude write. While it is still blocked, looking again costs nothing. Stories
+  Gemini read before #472 stay as they were (`reader: "gemini"`); its old spend stays in the ledger (`usd`, `calls`,
+  the tokens) and is never added to. The script's Claude cost is kept beside the voice's and counted in the shared
+  Claude cap on the Usage panel.
 - **Kept and served:** `world/stories/<day>.json` (the latest edition: the script, its length, model, voice, reader,
   edition and style, when it was made, what it cost) and `world/stories/<day>.wav` in the private Blob store. `GET /api/day-story?day=…` answers the transcript and the
   audio's link, with `stale` for an older style (or why there is none: `no-key`, `over-budget`, `not-yet`);
@@ -176,7 +167,7 @@ through the day. `api/_world/story.ts`.
 ## Reading it
 
 - `GET /api/world` → the feed (state, the last 12 hours, the day index, remarks, this month's spend, and the day's
-  story's Gemini spend as `story`), cached at the edge for five minutes.
+  story's ElevenLabs spend as `story`), cached at the edge for five minutes.
 - `GET /api/day-story?day=2026-10-13` → the day's story (transcript and audio link) or why there is none;
   `&audio=1` → the WAV. `POST { day? }` → make today's or yesterday's now (signed in on the Desk).
 - `GET /api/world?day=2026-10-13` → one day's page.

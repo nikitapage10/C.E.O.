@@ -256,7 +256,7 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
         <p className="wv-note">
           Once an hour the Lattice takes a step: one Claude Haiku call writes the whole world's hour from the cast, how they stand, the last few hours and what really happened in the
           Foundry. Near the monthly budget it writes from the agents' own scripted lines instead. About every five hours, and once the day's recap is filed, Skippy, the Magnificent
-          reads the day aloud from the Historian's notes: ElevenLabs' speech when it's connected, else Gemini's, one voice, from the Archive's own public lines. While it plays, the
+          reads the day aloud from the Historian's notes: ElevenLabs' speech alone, in the same voice as his live calls, from the Archive's own public lines. While it plays, the
           day's hours light up in the Book of Hours by their share of the reading. On Sunday evening the cast tells the week. The Lattice plays the latest hour when you{" "}
           <a href="/lattice" onClick={link("lattice")}>
             walk in

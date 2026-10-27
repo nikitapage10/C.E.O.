@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pipeRows, type Flow, type FlowId, type GEdge, type GNode } from "./systemsGraph.ts";
 
 const node = (id: string, l = id): GNode => ({ id, l, s: `${l} role`, k: "service", state: "ok" });
-const NODES = Object.fromEntries(["you", "desk", "foundry", "github", "claude", "blob", "lattice", "boiler", "archive", "gemini", "mac", "relay", "openai", "polymarket"].map((id) => [id, node(id)]));
+const NODES = Object.fromEntries(["you", "desk", "foundry", "github", "claude", "blob", "lattice", "boiler", "archive", "gemini", "speech", "mac", "relay", "openai", "polymarket"].map((id) => [id, node(id)]));
 const flow = (id: FlowId, n: number, stc: Flow["stc"] = "ok"): Flow => ({ id, t: id, sub: `${id} sub`, room: id, p: "", st: "", stc, edges: Array.from({ length: n }, () => ({ a: "x", b: "y", room: id, state: "ok" })) });
 const FLOWS: Record<FlowId, Flow> = { foundry: flow("foundry", 16, "run"), boiler: flow("boiler", 6), archive: flow("archive", 5, "wait"), relay: flow("relay", 9, "wait") };
 const e = (a: string, b: string, room: string, state: GEdge["state"] = "ok"): GEdge => ({ a, b, room, state });
@@ -18,7 +18,7 @@ describe("the Boiler Room's pipe rack", () => {
     e("boiler", "claude", "boiler"),
     e("boiler", "desk", "boiler"),
     e("blob", "archive", "archive", "wait"),
-    e("archive", "gemini", "archive", "wait"),
+    e("archive", "speech", "archive", "wait"),
     e("mac", "relay", "relay", "wait"),
     e("relay", "lattice", "relay", "wait"),
     e("relay", "openai", "relay", "wait"),

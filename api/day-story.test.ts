@@ -6,7 +6,7 @@ import { signedInCookie } from "./_desk/testing.ts";
 import { MemoryStore } from "./_world/store.ts";
 import { MemoryStoryStore, SAMPLE_RATE, wavOf } from "./_world/story.ts";
 
-const GEMINI = "AIzaTESTKEY-never-in-a-response-42";
+const ELEVEN = "sk_eleven-never-in-a-response-42";
 const DESK = "correct horse battery staple";
 /** 3 pm Mountain on 13 October 2026. */
 const NOW = Date.parse("2026-10-13T21:00:00Z");
@@ -14,13 +14,8 @@ const TODAY = "2026-10-13";
 const YESTERDAY = "2026-10-12";
 
 const PCM = new Uint8Array(SAMPLE_RATE * 2).fill(3);
-const geminiFetch = () =>
-  vi.fn<typeof fetch>(
-    async () =>
-      new Response(JSON.stringify({ status: "completed", steps: [{ type: "model_output", content: [{ type: "audio", data: Buffer.from(PCM).toString("base64") }] }], usage: { total_input_tokens: 300, total_output_tokens: 25 } }), {
-        status: 200,
-      }),
-  );
+/** ElevenLabs' answer: one second of raw 24 kHz PCM. */
+const elevenFetch = () => vi.fn<typeof fetch>(async () => new Response(new Uint8Array(PCM), { status: 200, headers: { "Content-Type": "application/octet-stream" } }));
 
 function setup(env: Record<string, string | undefined> = {}) {
   const world = new MemoryStore();
@@ -28,9 +23,9 @@ function setup(env: Record<string, string | undefined> = {}) {
   world.days.set(TODAY, { day: TODAY, entries: [hour(TODAY, 2)], recap: null });
   world.days.set(YESTERDAY, { day: YESTERDAY, entries: [hour(YESTERDAY, 1)], recap: "Yesterday, footnoted." });
   const stories = new MemoryStoryStore();
-  const fetcher = geminiFetch();
+  const fetcher = elevenFetch();
   const auth = new MemoryAuthStore();
-  const deps: DayStoryEnv = { world, stories, env: { GEMINI_API_KEY: GEMINI, FOUNDRY_DESK_KEY: DESK, ...env }, now: NOW, fetcher, auth };
+  const deps: DayStoryEnv = { world, stories, env: { ELEVENLABS_API_KEY: ELEVEN, FOUNDRY_DESK_KEY: DESK, ...env }, now: NOW, fetcher, auth };
   return { deps, stories, fetcher, auth };
 }
 
@@ -117,23 +112,34 @@ describe("the backfill (POST /api/day-story) needs the Desk's sign-in (#132)", (
     expect(s.fetcher).not.toHaveBeenCalled();
   });
 
-  it("never returns the Gemini key", async () => {
+  it("never returns the ElevenLabs key", async () => {
     const s = setup();
     const res = await handlePost(post({}, await signedIn(s)), s.deps);
-    expect(await res.text()).not.toContain(GEMINI);
+    expect(await res.text()).not.toContain(ELEVEN);
+  });
+
+  it("without ElevenLabs, keeps the script and says the audio waits on it; nothing else reads (#472)", async () => {
+    const s = setup({ ELEVENLABS_API_KEY: "", GEMINI_API_KEY: "AIza-a-gemini-key-that-must-do-nothing" });
+    const made = (await (await handlePost(post({ day: YESTERDAY }, await signedIn(s)), s.deps)).json()) as { made: boolean; reason: string; story: { audio: string | null; waiting: string; script: string } };
+    expect(made).toMatchObject({ made: false, reason: "no-key", story: { audio: null, waiting: "no-key" } });
+    expect(made.story.script.length).toBeGreaterThan(20);
+    expect(s.fetcher).not.toHaveBeenCalled();
+    const view = await (await handleGet(get(`day=${YESTERDAY}`), s.deps)).json();
+    expect(view).toMatchObject({ ready: true, audio: null, waiting: "no-key", script: made.story.script });
+    expect((await handleGet(get(`day=${YESTERDAY}&audio=1`), s.deps)).status).toBe(404);
   });
 });
 
 describe("reading a story (GET)", () => {
   it("says plainly why there is no audio: no key, over budget, not yet", async () => {
-    const noKey = setup({ GEMINI_API_KEY: "" });
+    const noKey = setup({ ELEVENLABS_API_KEY: "" });
     expect(await (await handleGet(get(`day=${TODAY}`), noKey.deps)).json()).toEqual({ day: TODAY, ready: false, reason: "no-key" });
-    const spent = setup({ GEMINI_BUDGET_USD: "1" });
-    spent.stories.spend = { "2026-10": { usd: 1, tokensIn: 0, tokensOut: 0, calls: 9, stories: 9, scriptUsd: 0 } };
+    const spent = setup({ ELEVENLABS_BUDGET_USD: "1" });
+    spent.stories.spend = { "2026-10": { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 9, scriptUsd: 0, elevenUsd: 1 } };
     expect(await (await handleGet(get(`day=${TODAY}`), spent.deps)).json()).toMatchObject({ reason: "over-budget" });
     const fresh = setup();
     const res = await handleGet(get(`day=${TODAY}`), fresh.deps);
-    expect(await res.text()).not.toContain(GEMINI);
+    expect(await res.text()).not.toContain(ELEVEN);
     expect(await (await handleGet(get(`day=${TODAY}`), fresh.deps)).json()).toMatchObject({ reason: "not-yet" });
   });
 
@@ -158,18 +164,24 @@ describe("reading a story (GET)", () => {
     const { deps } = s;
     await handlePost(post({ day: YESTERDAY }, await signedIn(s)), deps);
     const view = (await (await handleGet(get(`day=${YESTERDAY}`), deps)).json()) as { audio: string; at: string; reader: string; edition: number | null };
-    expect(view).toMatchObject({ at: new Date(NOW).toISOString(), reader: "gemini", edition: null });
+    expect(view).toMatchObject({ at: new Date(NOW).toISOString(), reader: "elevenlabs", edition: null });
     const old = await handleGet(get(`day=${YESTERDAY}&audio=1&v=12345`), deps);
     expect(old.headers.get("cache-control")).not.toContain("immutable");
   });
 
-  it("counts ElevenLabs as a voice: no 'no-key' with only its key set, and it never returns that key", async () => {
-    const ELEVEN = "sk_eleven-never-in-a-response-42";
-    const only = setup({ GEMINI_API_KEY: "", ELEVENLABS_API_KEY: ELEVEN });
-    const res = await handleGet(get(`day=${TODAY}`), only.deps);
-    const text = await res.text();
+  it("counts only ElevenLabs as a voice: Gemini's key alone is still 'no-key' (#472)", async () => {
+    const only = setup({ ELEVENLABS_API_KEY: "", GEMINI_API_KEY: "AIza-a-gemini-key-that-must-do-nothing" });
+    expect(await (await handleGet(get(`day=${TODAY}`), only.deps)).json()).toMatchObject({ reason: "no-key" });
+    const text = await (await handleGet(get(`day=${TODAY}`), setup().deps)).text();
     expect(JSON.parse(text)).toMatchObject({ reason: "not-yet" });
     expect(text).not.toContain(ELEVEN);
+  });
+
+  it("serves a story Gemini read before #472 as it was", async () => {
+    const s = setup();
+    await s.stories.putStory({ day: YESTERDAY, script: "An old reading.", partial: false, writer: "claude", style: 4, durationSec: 1, bytes: 44 + PCM.length, model: "gemini-3.8-flash-tts", voice: "Sadaltager", at: new Date(NOW).toISOString(), cost: { usd: 0, tokensIn: 0, tokensOut: 0 }, scriptUsd: 0 }, wavOf(PCM));
+    const view = await (await handleGet(get(`day=${YESTERDAY}`), s.deps)).json();
+    expect(view).toMatchObject({ ready: true, reader: "gemini", audio: expect.stringContaining("audio=1") });
   });
 
   it("404s audio that isn't there and refuses a bad day", async () => {
@@ -213,7 +225,7 @@ describe("the week in Ilyr (#211)", () => {
     const res = await handleGet(new Request(`https://x.test/api/day-story?week=${WEEK}`), s.deps);
     const text = await res.text();
     expect(JSON.parse(text).audio).toBeNull();
-    expect(text).not.toContain(GEMINI);
+    expect(text).not.toContain(ELEVEN);
   });
 
   it("streams the week's WAV and rejects a bad week", async () => {

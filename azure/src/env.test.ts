@@ -34,8 +34,8 @@ describe("unresolved Key Vault references", () => {
   });
 
   it("count an empty or blank secret as unset, and trim the rest", () => {
-    const env: Record<string, string | undefined> = { DESK_PINGS_SECRET: "", GEMINI_API_KEY: "  \n", CLAUDE_API_KEY: " k\n", WORLD_BUDGET_USD: "", PATH_LIKE: " x " };
-    expect(dropKeyVaultRefs(env)).toEqual(["DESK_PINGS_SECRET", "GEMINI_API_KEY"]);
+    const env: Record<string, string | undefined> = { DESK_PINGS_SECRET: "", FANTASYPROS: "  \n", CLAUDE_API_KEY: " k\n", WORLD_BUDGET_USD: "", PATH_LIKE: " x " };
+    expect(dropKeyVaultRefs(env)).toEqual(["DESK_PINGS_SECRET", "FANTASYPROS"]);
     // Only secret settings are touched: other settings keep their exact value, even an empty one.
     expect(env).toEqual({ CLAUDE_API_KEY: "k", WORLD_BUDGET_USD: "", PATH_LIKE: " x " });
   });

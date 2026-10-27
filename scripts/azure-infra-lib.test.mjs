@@ -15,7 +15,7 @@ function defaults() {
     return m ? m[1] : undefined;
   };
   const parameters = {};
-  for (const p of ["location", "staticSiteLocation", "logDailyCapGb", "worldBudgetUsd", "geminiBudgetUsd", "skippyBudgetUsd", "emailBudgetUsd", "paypalEnv"]) parameters[p] = { defaultValue: get(p) };
+  for (const p of ["location", "staticSiteLocation", "logDailyCapGb", "worldBudgetUsd", "skippyBudgetUsd", "emailBudgetUsd", "paypalEnv"]) parameters[p] = { defaultValue: get(p) };
   parameters.tags = { defaultValue: { app: "ceo", env: "prod" } };
   return { parameters };
 }
@@ -32,6 +32,10 @@ describe("the template on every deploy (#330)", () => {
   it("refuses to drop a setting made outside the template, but not the refresh switch", () => {
     const names = templateSettings(bicep);
     expect(droppedSettings([...names, "KEYVAULT_REFRESH"], names)).toEqual([]);
+    // Gemini's speech key and cap, retired by #472, go without holding the template back.
+    expect(droppedSettings([...names, "GEMINI_API_KEY", "GEMINI_BUDGET_USD"], names)).toEqual([]);
+    expect(names).not.toContain("GEMINI_API_KEY");
+    expect(names).not.toContain("GEMINI_BUDGET_USD");
     expect(droppedSettings([...names, "OPENAI_API_KEY", "GREEN_BUDGET_USD"], names)).toEqual(["GREEN_BUDGET_USD", "OPENAI_API_KEY"]);
   });
 
@@ -46,19 +50,19 @@ describe("the template on every deploy (#330)", () => {
   it("keeps what is live: the home address, PayPal's mode, the budgets and the log cap", () => {
     const { file } = buildParams({
       main: defaults(),
-      live: { CEO_SITE_URL: "https://ceo.nikita.page", PAYPAL_ENV: "live", WORLD_BUDGET_USD: "3", GEMINI_BUDGET_USD: "4.5", SKIPPY_BUDGET_USD: "1", EMAIL_BUDGET_USD: "8" },
+      live: { CEO_SITE_URL: "https://ceo.nikita.page", PAYPAL_ENV: "live", WORLD_BUDGET_USD: "3", SKIPPY_BUDGET_USD: "1", EMAIL_BUDGET_USD: "8" },
       cap: "0.5",
       deployer: ID,
       github: ID,
     });
     const v = Object.fromEntries(Object.entries(file.parameters).map(([k, p]) => [k, p.value]));
-    expect(v).toMatchObject({ siteOnCustomDomain: true, paypalEnv: "live", worldBudgetUsd: "3", geminiBudgetUsd: "4.5", skippyBudgetUsd: "1", emailBudgetUsd: "8", logDailyCapGb: "0.5", deployerPrincipalId: ID, githubPrincipalId: ID, location: "westus3", staticSiteLocation: "westus2" });
+    expect(v).toMatchObject({ siteOnCustomDomain: true, paypalEnv: "live", worldBudgetUsd: "3", skippyBudgetUsd: "1", emailBudgetUsd: "8", logDailyCapGb: "0.5", deployerPrincipalId: ID, githubPrincipalId: ID, location: "westus3", staticSiteLocation: "westus2" });
   });
 
   it("falls back to the template's defaults, never to junk", () => {
     const { file } = buildParams({ main: defaults(), live: { CEO_SITE_URL: "https://thankful-forest-019308c1e.5.azurestaticapps.net", PAYPAL_ENV: "prod", WORLD_BUDGET_USD: "lots" }, cap: "", deployer: "me", github: "" });
     const v = Object.fromEntries(Object.entries(file.parameters).map(([k, p]) => [k, p.value]));
-    expect(v).toMatchObject({ siteOnCustomDomain: false, paypalEnv: "sandbox", worldBudgetUsd: "6", geminiBudgetUsd: "5", skippyBudgetUsd: "2", emailBudgetUsd: "10", logDailyCapGb: "0.2", deployerPrincipalId: "", githubPrincipalId: "" });
+    expect(v).toMatchObject({ siteOnCustomDomain: false, paypalEnv: "sandbox", worldBudgetUsd: "6", skippyBudgetUsd: "2", emailBudgetUsd: "10", logDailyCapGb: "0.2", deployerPrincipalId: "", githubPrincipalId: "" });
   });
 
   it("summarises the what-if by change and property path, never by value", () => {

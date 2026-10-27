@@ -34,6 +34,10 @@ export function seedTarget(root, pathname) {
  */
 export const RECENT_KEEP = 24;
 export const STORY_STYLE = 4;
+/**
+ * The one-off seed copied production's stories from before #472, which Gemini read: they are labelled as what they
+ * are. The app itself no longer has a Gemini voice (ElevenLabs only, #472).
+ */
 export const TTS_MODEL = "gemini-3.8-flash-tts";
 export const TTS_VOICE = "Achird";
 
@@ -155,7 +159,7 @@ export function publicSeedFiles({ feed, pages = [], stories = [], weeks = [] }) 
     });
   }
 
-  // Gemini's ledger for this month, so Azure's speech budget starts where production's is.
+  // The speech ledger for this month (Gemini's, before #472), so Azure's starts where production's is.
   const st = feed.story;
   if (st && /^\d{4}-\d{2}$/.test(st.month)) {
     files.push({

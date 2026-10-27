@@ -19,9 +19,9 @@ world of AI agents. Claude Haiku is called from code for three things: **Rivet**
 dictates on the Desk into a card (pitch, size, builder), the **world step** writes one hour of the Lattice's
 history from the Foundry's real work (and, once a day, the script of **the day's story**), and **Skippy's chat**
 (#224) answers Nikita on the Desk's Today page and suggests where a request should go, as buttons only Nikita can
-press. Google's Gemini is used
-twice: **Gemini's text to speech** (#95) turns that script into speech, getting only the script, written from the
-already-scrubbed public Chronicle, and returning audio; and **Visual QA** (#91), in CI only, sends a few seconds of
+press. **ElevenLabs' text to speech** (#365, the only voice since #472) turns that script into speech, getting only
+the script, written from the already-scrubbed public Chronicle, and returning audio. Google's Gemini is used once:
+**Visual QA** (#91), in CI only, sends a few seconds of
 each room of the built Lattice to Gemini after every push to `main`, and CI turns the blockers it flags into fix
 issues. Code is written by **the Foundry**, a Claude Code builder session (the Builder,
 Skippy's submind) and its workers (Rusty, Rocky), which read GitHub issues, open branches and pull requests, and
@@ -54,7 +54,7 @@ flowchart LR
   kv[("Azure Key Vault<br/>every secret")]
   push["Push services<br/>Apple, Google, Mozilla, Microsoft"]
   claude["Claude API<br/>Haiku"]
-  gemini["Gemini API<br/>speech, Visual QA"]
+  gemini["Gemini API<br/>Visual QA"]
   subgraph GH["GitHub, public repo"]
     issues["Issues, comments, labels"]
     repo["Code and main"]
@@ -91,7 +91,7 @@ flowchart LR
   actions -- "hourly POST" --> fStep
   issues -- "titles, trail kinds" --> fStep
   fStep -- "TB2: fenced digest" --> claude
-  fStep -- "TB2: scrubbed script" --> gemini
+  fStep -- "TB2: scrubbed script" --> eleven["ElevenLabs API<br/>speech"]
   desk -- "TB1: story backfill, session" --> fStep
   fStep --> blob
   viewer -- "TB6: site lock (passkey), then read only" --> site
@@ -137,7 +137,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | --- | --- | --- |
 | Production code and `main` | GitHub, Azure | Whatever lands on `main` is live in minutes |
 | Claude API key | Azure Key Vault | Spend (capped at $10 a month at the provider) |
-| Gemini API key | Azure Key Vault (speech) and a GitHub Actions secret (Visual QA), both `GEMINI_API_KEY` | Speech spend (capped in code by `GEMINI_BUDGET_USD`, $5 a month by default, never above $10); Visual QA spend (capped in code at $0.50 a run and eight pushed runs a day) |
+| Gemini API key | A GitHub Actions secret (Visual QA), `GEMINI_API_KEY`; no longer in the functions since #472 | Visual QA spend (capped in code at $0.50 a run and eight pushed runs a day) |
 | Foundry GitHub token | Azure Key Vault | Writes issues as Nikita; the fallback until the crew's App is set up (#138), then deleted |
 | The crew's App key | Azure Key Vault and a GitHub Actions secret | Mints hour-long tokens for this repo only, as `ceo-foundry[bot]`: issues, pull requests and code, never settings or CI |
 | Desk key | Azure Key Vault only; typed once per device to enrol its passkey (#132) | Enrols a device on the Desk, the human approval gate for builds; the Desk's signing keys are derived from it |
@@ -166,7 +166,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | Rivet (Haiku) | Proposes a card | Nothing: its answer is data, re-checked in code |
 | Skippy's chat (Haiku) | Answers Nikita on the Desk and suggests actions | Nothing: its answer is data, re-checked in code, and its actions are buttons only Nikita can press |
 | World step model (Haiku) | Proposes an hour | Nothing: its answer is data, re-checked in code |
-| Gemini speech | Reads the day's script aloud | Nothing: it gets only public, scrubbed text, and its audio is only stored and played |
+| ElevenLabs speech | Reads the day's script aloud (the only voice since #472) | Nothing: it gets only public, scrubbed text, and its audio is only stored and played |
 | Visual QA reviewer (Gemini) | Proposes findings about the Lattice's look | Nothing: its answer is data, re-checked in code; only CI writes the issue, in its own format |
 | CI bots | Post check results | Machine output, read as data |
 | Anyone on GitHub | Open issues, comment | Nothing |
@@ -186,7 +186,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | **LLM07 System Prompt Leakage** | Rivet's and the world step's prompts | Both prompts are public in this repo by design and hold no secrets, keys or private rules; the security comes from code checks, not from the prompt being secret | None beyond what is already public | Accepted |
 | **LLM08 Vector and Embedding Weaknesses** | Not used: no retrieval, no vector store | Not applicable today; the Relay privacy spec (docs/RELAY-PRIVACY.md) rules out embeddings, vector stores and search indexes over messages until it is changed | If Relay adds retrieval over messages, this becomes live | Relay privacy spec (R5, shipped #149) |
 | **LLM09 Misinformation** | The Historian's hourly summaries; Rivet's pitches | The world step reads only real events and labels the Lattice as a story; Rivet's card is a suggestion that Nikita approves; the Builder confirms builder and model | Off-tone or wrong lines on the Lattice for an hour | Accepted |
-| **LLM10 Unbounded Consumption** | Claude spend; Gemini speech and Visual QA spend; GitHub token quota; function CPU | Coded budget guard for the world step (`api/_world/budget.ts`); Skippy's chat has its own share of the month and a check against the whole cap before every call, and a per-passkey pace (`api/_skippy/budget.ts`, `api/_skippy/limits.ts`, #224); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing) | The world step's trigger stays open on purpose: calling it more often changes nothing, so the 55-minute spacing and the monthly budget guard bound the spend, and a key was left out | Covered: 55-minute spacing and the monthly budget guard (closed #171) |
+| **LLM10 Unbounded Consumption** | Claude spend; ElevenLabs speech and Gemini Visual QA spend; GitHub token quota; function CPU | Coded budget guard for the world step (`api/_world/budget.ts`); Skippy's chat has its own share of the month and a check against the whole cap before every call, and a per-passkey pace (`api/_skippy/budget.ts`, `api/_skippy/limits.ts`, #224); ElevenLabs' own coded monthly cap and each edition made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing) | The world step's trigger stays open on purpose: calling it more often changes nothing, so the 55-minute spacing and the monthly budget guard bound the spend, and a key was left out | Covered: 55-minute spacing and the monthly budget guard (closed #171) |
 
 ## Google SAIF
 

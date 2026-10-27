@@ -10,20 +10,21 @@ import { SKIPPY_PORTRAIT } from "./skippy/SkippyAvatar.tsx";
  * every five hours, then the final one after midnight. It plays the latest edition and says when it was made, and
  * looks again every few minutes while it isn't playing, so a new edition shows up by itself. A plain <audio controls>
  * (served from our own origin, api/day-story.ts) and the script as a transcript. When there is no audio it says why,
- * plainly: no voice key, the month's speech budgets spent, or not made yet. For today and yesterday, "Make it now"
+ * plainly: ElevenLabs, the only voice (#472), isn't connected, is past its cap or didn't answer, so the audio waits on
+ * it (the transcript still shows), or it isn't made yet. For today and yesterday, "Make it now"
  * asks for one in the Desk's sign-in session (#132; once per edition, it doesn't spend twice), and remakes a story read
  * in an older style once in the current voice.
  */
 
 const WHY: Record<string, string> = {
-  "no-key": "No audio: no voice is connected (elevenlabs or gemini-api-key in the Key Vault), so Skippy can't read the day aloud.",
-  "over-budget": "No audio this month: the speech budgets are spent. Skippy reads again when the month turns.",
+  "no-key": "Audio waiting on ElevenLabs: it isn't connected (elevenlabs in the Key Vault), so Skippy can't read the day aloud yet.",
+  "over-budget": "Audio waiting on ElevenLabs: this month's ElevenLabs cap is spent. Skippy reads again when the month turns.",
   "not-yet": "Skippy reads the day so far about every five hours, and the whole day once its recap is filed, after midnight.",
   "no-recap": "The day's recap isn't filed yet.",
   "no-news": "Nothing new in the Chronicle since the last edition. Skippy will read again when there is.",
   empty: "Nothing was recorded on this day to read.",
   busy: "Skippy is already on this one. Give him a minute.",
-  "speech-failed": "Neither voice answered with audio. Nothing was saved; try again later.",
+  "speech-failed": "Audio waiting on ElevenLabs: it didn't answer with audio. Skippy tries again at the next edition, or Make it now.",
   exists: "This edition is already made.",
 };
 
@@ -138,13 +139,19 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
         <span className="story__title">
           <b>{label}</b>
           <small>
-            {formatDuration(state.durationSec)}
+            {state.audio ? formatDuration(state.durationSec) : "audio waiting on ElevenLabs"}
             {state.partial ? " · the day so far" : " · the whole day"}
             {made ? ` · made ${made}` : ""} · presented by Skippy, the Magnificent
           </small>
         </span>
       </div>
-      <audio ref={player} className="story__audio" controls preload="none" src={state.audio} aria-label={title} />
+      {state.audio ? (
+        <audio ref={player} className="story__audio" controls preload="none" src={state.audio} aria-label={title} />
+      ) : (
+        <p className="quiet story__note" role="status">
+          {WHY[state.waiting ?? "speech-failed"]}
+        </p>
+      )}
       {!compact && (
         <details className="story__script">
           <summary>Transcript</summary>
@@ -154,7 +161,8 @@ export function DayStory({ day, canMake, compact = false, label = "Hear the day 
         </details>
       )}
       {!compact && state.partial && <p className="quiet story__note">The day so far. A fresh edition comes about every five hours, and the whole day's story replaces it after midnight.</p>}
-      {!compact && canMake && state.stale && (
+      {!compact && canMake && !state.audio && state.waiting === "speech-failed" && makeControls}
+      {!compact && canMake && state.stale && state.audio && (
         <>
           <p className="quiet story__note">Read in an older voice, before Skippy took the microphone. Make it now remakes it once in his.</p>
           {makeControls}
@@ -230,6 +238,26 @@ export function TodayBroadcast({ now, next }: { now: number; next: string | null
 
   const made = madeAt(story.at);
   const label = isToday ? "Today in Ilyr" : "Yesterday in Ilyr";
+  if (!story.audio) {
+    // The script is here, its audio waiting on ElevenLabs (#472): say so plainly, and show the transcript.
+    return (
+      <div className="td-cast is-none">
+        <span className="td-cast-btn is-off" aria-hidden="true">
+          <CastWaves />
+        </span>
+        <div className="td-cast-t">
+          <b>{label}</b>
+          <span>{WHY[story.waiting ?? "speech-failed"]}</span>
+          <details className="td-cast-script">
+            <summary>Read the transcript</summary>
+            {paragraphs(story.script).map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+          </details>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`td-cast${playing ? " is-playing" : ""}`}>
       <button type="button" className="td-cast-btn" onClick={toggle} aria-label={`${playing ? "Pause" : "Play"} ${label}, ${formatDuration(story.durationSec)}`} style={{ "--f": f.toFixed(4) } as React.CSSProperties}>

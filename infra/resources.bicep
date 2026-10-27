@@ -270,6 +270,9 @@ var plainSettings = [
   // ElevenLabs alone (#472), capped in code by ELEVENLABS_BUDGET_USD; Gemini's speech key and cap are retired.
   { name: 'WORLD_BUDGET_USD', value: worldBudgetUsd }
   { name: 'SKIPPY_BUDGET_USD', value: skippyBudgetUsd }
+  // The one voice for the story, the week and Talk to Skippy (#475): Nikita's custom Skippy voice on ElevenLabs. Not a
+  // secret. A new voice goes here, not in the portal, or the next deploy puts this one back.
+  { name: 'ELEVENLABS_VOICE_ID', value: 'UmB8prvfojxqchgnJYWe' }
   // The email agent's own cap (#263; Nikita: $10 a month), separate from the two above.
   { name: 'EMAIL_BUDGET_USD', value: emailBudgetUsd }
   // The Spire's invoices (#279): sandbox until Nikita switches to live (docs/PAYPAL.md).

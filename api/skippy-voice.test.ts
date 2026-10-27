@@ -7,9 +7,12 @@ import {
   VOICE_USD_PER_MIN,
   agentBody,
   agentSig,
+  classifyRefusal,
   countVoice,
   deskVariable,
+  elevenReason,
   ensureAgent,
+  mintToken,
   reserveAdd,
   settleAdd,
   voiceBudget,
@@ -123,6 +126,73 @@ describe("what Skippy is told and how the agent is set up", () => {
   });
 });
 
+describe("why ElevenLabs refused (#470)", () => {
+  const refused = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+  it("reads ElevenLabs' reason code from the error body, the code before the legacy status, and never a sentence's other words", () => {
+    expect(elevenReason({ detail: { type: "authentication_error", code: "invalid_api_key", message: "Invalid API key" } })).toBe("invalid_api_key");
+    expect(elevenReason({ detail: { status: "missing_permissions", message: "The API key you used is missing the permission convai_write" } })).toBe("missing_permissions");
+    expect(elevenReason({ detail: { status: "quota_exceeded" } })).toBe("quota_exceeded");
+    expect(elevenReason({ detail: "Invalid API key" })).toBe("invalid_api_key");
+    expect(elevenReason({ detail: `bad key ${KEY}` })).toBe("");
+    expect(elevenReason({ detail: [{ loc: ["body"], msg: "x", type: "value_error" }] })).toBe("");
+    expect(elevenReason(null)).toBe("");
+    expect(elevenReason({ detail: { status: "<script>" } })).toBe("");
+  });
+
+  it("tells a bad key from a missing permission from a plan's limit", () => {
+    expect(classifyRefusal(401, "invalid_api_key")).toBe("key-invalid");
+    expect(classifyRefusal(401, "")).toBe("key-invalid");
+    expect(classifyRefusal(401, "unauthorized")).toBe("key-invalid");
+    expect(classifyRefusal(401, "quota_exceeded")).toBe("plan");
+    expect(classifyRefusal(401, "detected_unusual_activity")).toBe("plan");
+    expect(classifyRefusal(401, "missing_permissions")).toBe("agent-denied");
+    expect(classifyRefusal(403, "missing_permissions")).toBe("agent-denied");
+    expect(classifyRefusal(403, "insufficient_permissions")).toBe("agent-denied");
+    expect(classifyRefusal(403, "")).toBe("agent-denied");
+    expect(classifyRefusal(403, "subscription_required")).toBe("plan");
+    expect(classifyRefusal(403, "feature_not_available")).toBe("plan");
+    expect(classifyRefusal(402, "insufficient_credits")).toBe("plan");
+    expect(classifyRefusal(402, "")).toBe("plan");
+    expect(classifyRefusal(429, "rate_limit_exceeded")).toBe("plan");
+    expect(classifyRefusal(429, "concurrent_limit_exceeded")).toBe("plan");
+    expect(classifyRefusal(500, "internal_error")).toBe("eleven");
+    expect(classifyRefusal(400, "invalid_parameters")).toBe("eleven");
+  });
+
+  it("falls back to the core settings on a 403 and gives up only when those are refused too, logging the status and code but never the key", async () => {
+    const lines: string[] = [];
+    const log = (l: string) => lines.push(l);
+    let n = 0;
+    const firstRefused = (async () => (++n === 1 ? refused(403, { detail: { status: "feature_not_available", message: `nope ${KEY}` } }) : Response.json({ agent_id: "agent_abc123" }))) as unknown as typeof fetch;
+    expect(await ensureAgent(KEY, "voice1234", undefined, firstRefused, log)).toEqual({ ok: true, id: "agent_abc123", sig: agentSig("voice1234", "core"), tier: "core" });
+    expect(n).toBe(2);
+
+    n = 0;
+    const bothRefused = (async () => (++n, refused(403, { detail: { status: "missing_permissions", message: `key ${KEY}` } }))) as unknown as typeof fetch;
+    expect(await ensureAgent(KEY, "voice1234", undefined, bothRefused, log)).toEqual({ ok: false, why: "agent-denied" });
+    expect(n).toBe(2);
+
+    n = 0;
+    const badKey = (async () => (++n, refused(401, { detail: { status: "invalid_api_key", message: "Invalid API key" } }))) as unknown as typeof fetch;
+    expect(await ensureAgent(KEY, "voice1234", undefined, badKey, log)).toEqual({ ok: false, why: "key-invalid" });
+    expect(n).toBe(1);
+
+    n = 0;
+    const broke = (async () => (++n, refused(500, {}))) as unknown as typeof fetch;
+    expect(await ensureAgent(KEY, "voice1234", undefined, broke, log)).toEqual({ ok: false, why: "eleven" });
+    expect(n).toBe(1);
+
+    expect(await mintToken(KEY, "agent_abc123", (async () => refused(402, { detail: { code: "insufficient_credits" } })) as unknown as typeof fetch, log)).toEqual({ why: "plan" });
+
+    expect(lines).toContain("ElevenLabs refused the agent's full settings: HTTP 403, feature_not_available (plan).");
+    expect(lines).toContain("ElevenLabs refused the agent's core settings: HTTP 403, missing_permissions (agent-denied).");
+    expect(lines).toContain("ElevenLabs refused a call's token: HTTP 402, insufficient_credits (plan).");
+    expect(lines.join("\n")).not.toContain(KEY);
+    expect(lines.join("\n")).not.toMatch(/xi-api-key|nope|Invalid API key/);
+  });
+});
+
 describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
   const ORIGIN = "https://ceo.example";
 
@@ -223,11 +293,14 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     expect(res.headers.get("retry-after")).toBeTruthy();
   });
 
-  it("says when the key may not manage Agents, without echoing ElevenLabs' answer", async () => {
+  it("says why ElevenLabs refused, without echoing ElevenLabs' answer", async () => {
     const { post, stories } = await setup({}, { agent: 401 });
     const res = await post({ action: "start" });
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: "agent-denied" });
+    expect(await res.json()).toEqual({ error: "key-invalid" });
+    expect(await (await (await setup({}, { agent: 403 })).post({ action: "start" })).json()).toEqual({ error: "agent-denied" });
+    expect(await (await (await setup({}, { agent: 402 })).post({ action: "start" })).json()).toEqual({ error: "plan" });
+    expect(await (await (await setup({}, { token: 429 })).post({ action: "start" })).json()).toEqual({ error: "plan" });
     expect(storyMonth(stories.spend, NOW).voiceCalls).toBe(0);
     const failed = await (await setup({}, { token: 500 })).post({ action: "start" });
     const text = await failed.text();

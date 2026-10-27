@@ -20,7 +20,7 @@ export interface TalkUsage {
 }
 
 export type TalkPhase = "idle" | "starting" | "live" | "ending";
-export type TalkReason = "capped" | "no-key" | "not-set-up" | "agent-denied" | "eleven" | "mic" | "signed-out" | "slow" | "failed" | "unsupported";
+export type TalkReason = "capped" | "no-key" | "not-set-up" | "agent-denied" | "key-invalid" | "plan" | "eleven" | "mic" | "signed-out" | "slow" | "failed" | "unsupported";
 
 /** What the Desk says when a call can't start or breaks; each ends by saying typing still works. */
 export const TALK_NOTE: Record<TalkReason, string> = {
@@ -28,6 +28,8 @@ export const TALK_NOTE: Record<TalkReason, string> = {
   "no-key": "Talking needs the ElevenLabs key on the server. Typing and the mic still work.",
   "not-set-up": "Talking isn't set up on this site. Typing and the mic still work.",
   "agent-denied": "Talking waits on one ElevenLabs setting: the key needs access to Agents. Typing and the mic still work.",
+  "key-invalid": "ElevenLabs doesn't accept the key this site has; it may be stale, so set it again on the Desk's Keys page. Typing and the mic still work.",
+  plan: "ElevenLabs' plan or limits refused the call. Typing and the mic still work.",
   eleven: "Couldn't reach ElevenLabs for a call. Typing and the mic still work.",
   mic: "No microphone: allow it for this site to talk. Typing still works.",
   "signed-out": "Sign in on the Desk to talk to Skippy.",
@@ -67,7 +69,7 @@ export async function requestToken(doFetch: typeof fetch = fetch): Promise<Start
     if (res.status === 401) return { ok: false, reason: "signed-out" };
     if (res.status === 429) return { ok: false, reason: "slow" };
     if (res.status === 503) return { ok: false, reason: body.error === "no-key" ? "no-key" : "not-set-up" };
-    if (res.status === 502) return { ok: false, reason: body.error === "agent-denied" ? "agent-denied" : "eleven" };
+    if (res.status === 502) return { ok: false, reason: body.error === "agent-denied" || body.error === "key-invalid" || body.error === "plan" ? body.error : "eleven" };
     const usage = readUsage(body.usage);
     if (res.ok && body.ok === false && body.reason === "capped") return { ok: false, reason: "capped", usage };
     if (!res.ok || body.ok !== true || typeof body.token !== "string" || !body.token) return { ok: false, reason: "eleven" };

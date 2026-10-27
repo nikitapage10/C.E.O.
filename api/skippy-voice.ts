@@ -10,8 +10,9 @@
  * POST { action: "start" } → 200 { ok: true, token, conversation, maxSecs, desk, usage }: a one-session WebRTC token
  *        (short-lived, for the private agent only), the longest the call may run, and the Desk's state for Skippy.
  *        200 { ok: false, reason: "capped", usage } past the month's share or ElevenLabs' cap (the Desk goes back to
- *        typing); 429 { error: "slow-down", wait } past VOICE_RULES; 502 { error: "agent-denied" } when the key may
- *        not manage Agents, { error: "eleven" } when ElevenLabs didn't answer; 503 not-set-up or no-key.
+ *        typing); 429 { error: "slow-down", wait } past VOICE_RULES; 502 when ElevenLabs refused, with its reason
+ *        (#470): { error: "key-invalid" } it doesn't accept the key, "agent-denied" the key lacks a permission,
+ *        "plan" its plan or limits said no, "eleven" anything else; 503 not-set-up or no-key.
  * POST { action: "end", conversation } → { ok: true, usage }: the call is over; its real length is asked for now
  *        (or on a later request, when ElevenLabs hasn't finished it yet).
  * 401 signed-out, 403 cross-site, 400 bad-request.
@@ -153,7 +154,7 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
     return json({ error: "not-set-up" }, 503);
   }
   const agent = await ensureAgent(eleven.key, eleven.voice, state.agent, deps.fetcher);
-  if (!agent.ok) return json({ error: agent.why === "denied" ? "agent-denied" : "eleven" }, 502);
+  if (!agent.ok) return json({ error: agent.why }, 502);
   if (agent.id !== state.agent?.id || agent.sig !== state.agent?.sig) {
     const kept = { id: agent.id, sig: agent.sig, tier: agent.tier };
     await voice.update((s) => ({ ...s, agent: kept })).catch(() => undefined);
@@ -163,7 +164,7 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
   if ("why" in minted) {
     // The agent was deleted on ElevenLabs' side: forget it, so the next tap makes it again.
     if (minted.why === "missing") await voice.update((s) => ({ pending: s.pending })).catch(() => undefined);
-    return json({ error: minted.why === "denied" ? "agent-denied" : "eleven" }, 502);
+    return json({ error: minted.why === "missing" ? "eleven" : minted.why }, 502);
   }
 
   // Counted at its longest now; settled to its real length later. A failed write means no call (fail closed).

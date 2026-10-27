@@ -309,3 +309,4 @@
   .desk .fo-prog-bar>i{transition:none}
   .desk .fo-more-d>summary::after{transition:none}
 }
+.desk .fo-asof{margin:0 0 8px;padding:0 var(--wv-pad,0);font-style:normal;color:var(--wv-faint)}

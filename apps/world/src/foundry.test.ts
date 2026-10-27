@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, shippedThisWeek, plaqueTitle, bellRings, type Change, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep, HAND_COLOUR } from "./foundry.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { changeSource, withTrails, MAX_PICTURES, pictureUrl, readPictures, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, MAX_AT_ONCE, MAX_RUNNING, SPARE_BAYS, assignCrew, rustyHands, shifts, waitingTurn, blueprintCrate, sparesAwake, crewJob, dockJobs, crewFor, crewLoad, modelOf, crewOf, crewWork, lastUpkeep, parseChangelog, recentWork, parseChecks, parseE2e, CHECKS_LINK, parseCrates, shippedToday, shippedThisWeek, plaqueTitle, bellRings, type Change, ideaCounts, openIdeas, type Crate, type GhCommit, type GhIssue, type GhPull, readBody, visibleUpkeep, HAND_COLOUR, paintKeptFoundry, useFoundry } from "./foundry.ts";
 
 const NOW = Date.parse("2026-10-12T22:00:00Z");
 
@@ -696,5 +696,32 @@ describe("Changelog pictures", () => {
     const one = folded.find((c) => c.issue?.number === 1)!;
     expect(one.pictures?.map((p) => p.alt)).toEqual(["before", "after"]);
     expect(folded.find((c) => c.issue?.number === 2)).not.toHaveProperty("pictures");
+  });
+});
+
+describe("paintKeptFoundry", () => {
+  beforeEach(() => useFoundry.setState({ connected: false, lastFetch: null, keptAt: null }));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useFoundry.setState({ connected: false, lastFetch: null, keptAt: null });
+  });
+  const kept = (at: number) => ({ value: { issues: [issue(7, ["foundry", "foundry:fix", "foundry:working"])], runs: { workflow_runs: [] }, pulls: [], commits: [] }, at });
+
+  it("paints a fresh kept feed with its age, and a live answer clears the mark", () => {
+    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify(kept(Date.now() - 120_000)) });
+    paintKeptFoundry();
+    const s = useFoundry.getState();
+    expect(s.connected).toBe(true);
+    expect(s.keptAt).not.toBeNull();
+    expect(s.data.crates.map((c) => c.number)).toEqual([7]);
+    s.set(s.data);
+    expect(useFoundry.getState().keptAt).toBeNull();
+  });
+  it("paints nothing from a copy over a day old or of the wrong shape", () => {
+    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify(kept(Date.now() - 25 * 3_600_000)) });
+    paintKeptFoundry();
+    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({ value: { issues: 1 }, at: Date.now() }) });
+    paintKeptFoundry();
+    expect(useFoundry.getState().connected).toBe(false);
   });
 });

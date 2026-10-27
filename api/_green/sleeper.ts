@@ -425,6 +425,22 @@ export function shapeTransactions(raw: unknown): Move[] {
   return out.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
 }
 
+/**
+ * Players someone has just added or is claiming (#531): the adds of every pending, and every completed, waiver or
+ * free-agent move. Sleeper's public API has no waiver-status endpoint, so this is the nearest thing to "someone is
+ * already on him". Trades are left out. Anything unreadable adds nothing.
+ */
+export function shapeClaimed(raw: unknown): Set<string> {
+  const out = new Set<string>();
+  for (const v of arr(raw)) {
+    const t = obj(v);
+    if (t.status !== "pending" && t.status !== "complete") continue;
+    if (t.type !== "waiver" && t.type !== "free_agent") continue;
+    for (const k of Object.keys(obj(t.adds))) if (PLAYER_ID.test(k)) out.add(k);
+  }
+  return out;
+}
+
 export const urls = {
   state: () => `${SLEEPER}/state/nfl`,
   userLeagues: (season: string) => `${SLEEPER}/user/${USER_ID}/leagues/nfl/${season}`,

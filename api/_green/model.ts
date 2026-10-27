@@ -48,6 +48,8 @@ export interface ModelInput {
   slProj?: Record<string, SlProj> | null;
   /** The league's moves this week and last (#276). */
   moves?: Move[];
+  /** Player ids with a pending or just-completed waiver / free-agent add this week or last (#531); absent when Sleeper's transactions didn't answer. */
+  claimed?: string[];
   /** The rest of the regular season's matchups, next week first (#276): who plays whom. */
   future?: MatchupRow[][];
   at: string;
@@ -275,7 +277,15 @@ export function buildBoard(input: ModelInput): GreenBoard {
   // Pickups.
   const owned = new Set(rosters.flatMap((r) => [...r.players, ...r.reserve]));
   const wanted = new Set(league.slots.flatMap(slotTakes));
-  const free = Object.values(players).filter((p) => !owned.has(p.id) && wanted.has(p.pos));
+  // Unrostered is not the same as claimable (#531): Sleeper has no waiver-status feed, so drop who can't play this week
+  // (bye, out, IR, doubtful, suspended, inactive) and who someone has a pending or just-completed claim on.
+  const claimed = new Set(input.claimed ?? []);
+  const free = Object.values(players)
+    .filter((p) => !owned.has(p.id) && wanted.has(p.pos) && !claimed.has(p.id))
+    .filter((p) => {
+      const g = player(p.id);
+      return g.bye !== week && !(g.inj && (OUT.has(g.inj) || g.inj === "D"));
+    });
   const pickups = pickupsFor(free.map((p) => player(p.id)), adds, bench, meSide.starters, fp !== null && fp.ranks.length > 0, (id) => players[id]?.rank ?? 9999);
 
   // Standings.
@@ -491,7 +501,7 @@ function analystDesk(d: DeskIn): Pick<GreenBoard, "calls" | "teams" | "bids" | "
   const INJ_LINE: Partial<Record<GreenInjury, string>> = { Q: "questionable", D: "doubtful", O: "out", IR: "on injured reserve", SUS: "suspended" };
   const flagged = [...me.players, ...(oppId !== null ? (views.find((v) => v.rosterId === oppId)?.players ?? []) : [])].filter((p) => p.inj && INJ_LINE[p.inj] && !news.some((n) => n.id === p.id));
   for (const p of flagged) news.push({ id: p.id, name: p.name, text: `${INJ_LINE[p.inj!]}${p.bye === week ? ", and on bye" : ""}`, at: null, whose: whose(p.id), src: "sleeper" });
-  for (const p of pickups.slice(0, 3)) if (p.adds >= 1000) news.push({ id: p.player.id, name: p.player.name, text: `free agent, added in ${p.adds >= 100_000 ? `${Math.round(p.adds / 1000)}k` : `${Math.round(p.adds / 100) / 10}k`} leagues today`, at: null, whose: "free", src: "sleeper" });
+  for (const p of pickups.slice(0, 3)) if (p.adds >= 1000) news.push({ id: p.player.id, name: p.player.name, text: `unrostered, claim via waivers (status unconfirmed), added in ${p.adds >= 100_000 ? `${Math.round(p.adds / 1000)}k` : `${Math.round(p.adds / 100) / 10}k`} leagues today`, at: null, whose: "free", src: "sleeper" });
   const ORDER: Record<GreenNews["whose"], number> = { mine: 0, opp: 1, free: 2, league: 3 };
   news.sort((a, b) => ORDER[a.whose] - ORDER[b.whose] || (b.at ?? "").localeCompare(a.at ?? ""));
 
@@ -621,7 +631,7 @@ export function lineupSwaps(slots: string[], current: GreenSlot[], bench: GreenP
 
 const fmtAdds = (n: number) => (n >= 100_000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(n));
 
-/** Free agents worth a claim, best first, each with the bench player he'd replace when one is clearly worse. */
+/** Unrostered players worth a waiver claim (availability unconfirmed), best first, each with the bench player he'd replace when one is clearly worse. */
 export function pickupsFor(free: GreenPlayer[], adds: Record<string, number>, bench: GreenPlayer[], starters: GreenSlot[], useEcr: boolean, rankOf: (id: string) => number = () => 9999): GreenPickup[] {
   const ranked = useEcr
     ? free.filter((p) => p.ecr !== null && !(p.inj && OUT.has(p.inj))).sort((a, b) => a.ecr! - b.ecr! || (adds[b.id] ?? 0) - (adds[a.id] ?? 0))

@@ -20,7 +20,7 @@
 import { FP_PATH, PLAYERS_PATH, SCHEDULE_PATH, SL_PROJ_PATH, keptOrRead, peekKept, pickGreenStore, type GreenStore } from "./cache.js";
 import { FpUnavailable, fpKey, prevSnapshot, readFantasyPros, scoringOf, type FpData } from "./fantasypros.js";
 import { buildBoard, slotTakes } from "./model.js";
-import { LEAGUE_ID, getJson, pickLeague, readPlayers, readSchedule, readSlProjections, shapeLeague, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, shapeTransactions, shapeTrending, urls, type Fetcher, type League, type MatchupRow, type Move, type NflState, type Schedule, type SlProj } from "./sleeper.js";
+import { LEAGUE_ID, getJson, pickLeague, readPlayers, readSchedule, readSlProjections, shapeLeague, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, shapeClaimed, shapeTransactions, shapeTrending, urls, type Fetcher, type League, type MatchupRow, type Move, type NflState, type Schedule, type SlProj } from "./sleeper.js";
 import { GREEN_POS, type FpParts, type FpState, type GreenBoard, type GreenFeed, type GreenPos } from "./types.js";
 
 export const PATH = "/api/green-league";
@@ -145,10 +145,12 @@ export async function readBoard(deps: GreenDeps): Promise<GreenBoard> {
           .catch(() => null)
       : Promise.resolve(null),
     week >= 1
-      ? Promise.all([week, week - 1].filter((w) => w >= 1).map((w) => getJson(deps.fetcher, urls.transactions(league.id, w)).then(shapeTransactions)))
-          .then((m): Move[] => m.flat().sort((a, b) => (b.at ?? 0) - (a.at ?? 0)))
-          .catch((): Move[] | null => null)
-      : Promise.resolve([] as Move[]),
+      ? Promise.all([week, week - 1].filter((w) => w >= 1).map((w) => getJson(deps.fetcher, urls.transactions(league.id, w)).catch(() => null)))
+          .then((raws): { moves: Move[] | null; claimed: string[] } => ({
+            moves: raws.some((r) => r === null) ? null : raws.flatMap((r) => shapeTransactions(r)).sort((a, b) => (b.at ?? 0) - (a.at ?? 0)),
+            claimed: raws.flatMap((r) => (r === null ? [] : [...shapeClaimed(r)])),
+          }))
+      : Promise.resolve({ moves: [] as Move[], claimed: [] as string[] }),
     week >= 1 && week < league.playoffStart ? futureRows(deps, league, week) : Promise.resolve([] as MatchupRow[][]),
   ]);
   const [rosters, users, matchups, history, adds, drops, players, schedule] = await Promise.all([
@@ -164,9 +166,10 @@ export async function readBoard(deps: GreenDeps): Promise<GreenBoard> {
       .then((k): Schedule | null => k.value)
       .catch(() => null),
   ]);
-  const [{ fp, fpState, fpParts }, [slProj, moves, future]] = await Promise.all([fantasyPros(deps, league, state), extras]);
+  const [{ fp, fpState, fpParts }, [slProj, txns, future]] = await Promise.all([fantasyPros(deps, league, state), extras]);
+  const moves = txns.moves;
   const at = new Date(deps.now).toISOString();
-  const board = buildBoard({ league, state, rosters, teamNames: users, matchups, history, players, adds, drops, fp, fpState, schedule, slProj: slProj?.value ?? null, moves: moves ?? [], future, at });
+  const board = buildBoard({ league, state, rosters, teamNames: users, matchups, history, players, adds, drops, fp, fpState, schedule, slProj: slProj?.value ?? null, moves: moves ?? [], claimed: txns.claimed, future, at });
   if (fpParts && !board.sources.fpParts) board.sources.fpParts = fpParts;
   board.feeds = feedsOf({ at, fpState, fp, fpParts: board.sources.fpParts, slProjAt: slProj ? new Date(slProj.at).toISOString() : null, moves: moves !== null, schedule: schedule !== null });
   return board;

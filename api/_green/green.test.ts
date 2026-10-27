@@ -4,7 +4,7 @@ import { FpUnavailable, fpIndex, fpKey, nameKey, readFantasyPros, statusOf, scor
 import { LATE_GAME_RISK_GAP, buildBoard, byeTeams, formOf, formProjection, lineupSwaps, normCdf, slotTakes, winChance } from "./model.ts";
 import { callsFor } from "./analyst.ts";
 import { FP_SHAPE, forgetGreen, GET, isGreen, PATH, type GreenDeps } from "./route.ts";
-import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, cleanText, shapeLeague, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
+import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, cleanText, shapeLeague, shapeClaimed, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
 import type { GreenBoard, GreenPlayer } from "./types.ts";
 import { GET as worldGET } from "../world.ts";
 
@@ -220,6 +220,39 @@ describe("byes, whatever FantasyPros says (#259)", () => {
     expect(byesOf(s, 19)).toBeNull(); // no games that week: unknown, not a league-wide bye
     expect(byesOf(shapeSchedule(scheduleWith({ 3: [...NFL_TEAMS].slice(0, 12) })), 3)).toBeNull(); // twelve teams resting can't be right
     expect(byesOf(null, 3)).toBeNull();
+  });
+
+  it("never offers a pickup who is on bye, out, or already being claimed (#531)", () => {
+    const base = boardInput();
+    const names = (b: ReturnType<typeof buildBoard>) => b.pickups.map((p) => p.player.name);
+    // A free defence with adds shows up, until his team is on bye.
+    const withDef = { ...base, players: { ...base.players, JAX: { id: "JAX", n: "JAX D/ST", pos: "DEF" as const, team: "JAX", inj: null, rank: 9999, yh: null, sr: null } }, adds: { ...base.adds, JAX: 500 } };
+    expect(names(buildBoard(withDef))).toContain("JAX D/ST");
+    const byeBoard = buildBoard({ ...withDef, schedule: shapeSchedule(scheduleWith({ 3: ["JAX", "GB"] })) });
+    expect(names(byeBoard)).not.toContain("JAX D/ST");
+    expect(names(byeBoard)).not.toContain("Wes Waiver"); // GB is on bye too
+    expect(names(byeBoard)).toContain("Hot Pickup");
+    // An Out player is dropped, and so is a doubtful one.
+    for (const status of ["O", "D"] as const) {
+      const hurt = { ...base, players: { ...base.players, "14": { ...base.players["14"]!, inj: status } } };
+      expect(names(buildBoard(hurt))).toEqual(["Wes Waiver"]);
+    }
+    // A pending claim by another team drops him; with no claim read the others stay.
+    expect(names(buildBoard({ ...base, claimed: ["14"] }))).toEqual(["Wes Waiver"]);
+    expect(names(buildBoard(base))).toEqual(["Hot Pickup", "Wes Waiver"]);
+  });
+
+  it("reads pending and just-completed waiver and free-agent adds as claimed, and nothing else (#531)", () => {
+    const raw = [
+      { status: "pending", type: "waiver", adds: { "14": 3 }, roster_ids: [3] },
+      { status: "complete", type: "free_agent", adds: { "8": 4 }, roster_ids: [4] },
+      { status: "failed", type: "waiver", adds: { "15": 5 }, roster_ids: [5] },
+      { status: "complete", type: "trade", adds: { "16": 6 }, roster_ids: [6] },
+      { status: "pending", type: "waiver", adds: { "bad id!": 1 } },
+    ];
+    expect([...shapeClaimed(raw)].sort()).toEqual(["14", "8"]);
+    expect(shapeClaimed(null).size).toBe(0);
+    expect(shapeClaimed("nope").size).toBe(0);
   });
 
   it("puts a starter on bye from Sleeper's schedule alone: zero, a bye tag, and the call says so", () => {

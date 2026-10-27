@@ -70,8 +70,8 @@ const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 /** Where each trail step puts a job (docs/FOUNDRY.md): taken up, building, pictures posted, checks green, shipped. */
 export const TRAIL_PCT = { Assigned: 10, Work: 25, Pictures: 70, Checks: 85, Shipped: 100 } as const;
-/** Where its stage on the forge puts it: a pull request open is half way; checks running, red or green further on. */
-export const STAGE_PCT: Partial<Record<Stage, number>> = { building: 25, pr: 50, checks: 75, red: 75, green: 90, ready: 90 };
+/** Where its stage on the forge puts it: a pull request open is half way (red checks put it back there); checks running or green further on. */
+export const STAGE_PCT: Partial<Record<Stage, number>> = { building: 25, pr: 50, checks: 75, red: 50, green: 90, ready: 90 };
 
 /** How far the trail's own steps and the job's stage on the forge put it, without the builder's word. */
 export function stagePct(steps: readonly Trail[], stage: Stage | null): number {

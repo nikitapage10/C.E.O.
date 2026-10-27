@@ -65,6 +65,8 @@ describe("stagePct", () => {
     expect(stagePct([step(1, T0, "**Trail · Pictures:** x")], "checks")).toBe(75);
     expect(stagePct([step(1, T0, "**Trail · Checks:** green.")], "pr")).toBe(85);
     expect(stagePct([], "green")).toBe(90);
+    // Red checks put it back at its pull request, under the builder's own word.
+    expect(stagePct([step(1, T0, "**Trail · Work:** b")], "red")).toBe(50);
   });
 });
 

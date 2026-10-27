@@ -518,7 +518,7 @@ The Desk reads the newest Progress step on the issue (`apps/world/src/desk/found
 down from when it was posted; once that time is up it says "running long". It counts Progress steps only from the
 trail's trusted authors, like Pictures (`isTrail` in `api/foundry-usage.ts`), and shows their words plain and short.
 A job with no Progress step yet, or whose stage has run past what the builder said, is placed from its stage instead:
-Assigned about 10%, Work 25%, its pull request open 50%, Pictures 70%, checks running 75%, the Checks step 85%,
+Assigned about 10%, Work 25%, its pull request open (or its checks red) 50%, Pictures 70%, checks running 75%, the Checks step 85%,
 checks green 90%, Shipped 100%; its time left is the median of the recent shipped jobs of the same `**Size:**` (their
 `Claude Code: …, 1 h 50 min.` run times, else Assigned to Shipped), less the time it has run, and is left out when
 fewer than two such jobs have shipped. The Desk marks that number as an estimate ("≈" and a fainter bar); the

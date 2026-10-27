@@ -194,6 +194,29 @@ describe("the read key (SUBMIND_LOG_TOKEN)", () => {
   });
 });
 
+describe("the always-on responder's routes (#501)", () => {
+  it("opens PUT /api/kernel-brief and POST /api/kernel-agent to the feed key alone, with no query", async () => {
+    const c = await ctx();
+    const put = (path: string, key?: string, extra: Record<string, string> = {}) => new Request(`${ORIGIN}${path}`, { method: "PUT", headers: { ...(key && { Authorization: `Bearer ${key}` }), ...extra }, body: "notes" });
+    expect(decide(put("/api/kernel-brief", FEED), c)).toEqual({ allow: true, why: "room-feed" });
+    expect(decide(put("/api/kernel-brief", undefined, { [ROOM_KEY_HEADER]: FEED }), c)).toEqual({ allow: true, why: "room-feed" });
+    expect(decide(req("/api/kernel-agent", "POST", FEED), c)).toEqual({ allow: true, why: "room-feed" });
+    for (const r of [
+      put("/api/kernel-brief", LOG),
+      put("/api/kernel-brief"),
+      put("/api/kernel-brief?x=1", FEED),
+      put("/api/kernel-agent", FEED),
+      put("/api/room-feed", FEED),
+      req("/api/kernel-brief", "POST", FEED),
+      req("/api/kernel-brief", "GET", FEED),
+      req("/api/kernel-agent", "GET", FEED),
+      req("/api/kernel-agent", "POST", LOG),
+    ]) {
+      expect(decide(r, c).allow, `${r.method} ${r.url}`).toBe(false);
+    }
+  });
+});
+
 describe("the feed key (SUBMIND_FEED_TOKEN)", () => {
   it("passes the locked gate for POST /api/room-feed only", async () => {
     const c = await ctx();

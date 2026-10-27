@@ -34,6 +34,7 @@ import * as sitepassword from "../../api/_site/control.js";
 import * as skippy from "../../api/skippy.js";
 import * as skippyvoice from "../../api/skippy-voice.js";
 import * as skippytools from "../../api/_skippy/toolroute.js";
+import * as kernelroute from "../../api/_skippy/kernelroute.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
 import * as worldstep from "../../api/world-step.js";
 import * as world from "../../api/world.js";
@@ -48,6 +49,10 @@ import { tick, TICK_SCHEDULE } from "./tick.js";
 // WORLD_STORE=azureblob: the world, stories, Desk sign-ins and pictures in the `ceo-state` container.
 registerAzureBlob(azureBlobFromEnv);
 
+// A hand-off to Skippy that is kept starts the always-on responder (#501, api/_skippy/kernelroute.ts). Off with
+// KERNEL_AGENT_ENABLED=off; over its own $10 a month it does nothing and the thread's watcher takes the hand-off.
+kernelroute.registerKernelAgent();
+
 // The Key Vault (#330): the Keys form's write-only face, and the refresh that brings keys set from the Desk into this
 // instance without a restart (./keys.ts). Both off until the template has set KEY_VAULT_URI.
 const vault = vaultFromEnv(process.env);
@@ -57,7 +62,7 @@ const keysFresh = () => (keyRefresh ? keyRefresh.fresh() : Promise.resolve());
 
 const gateDeps = () => ({ env: process.env, store: pickSiteStore(), now: Date.now() });
 
-type Module = Partial<Record<"GET" | "POST", WebHandler>>;
+type Module = Partial<Record<"GET" | "POST" | "PUT", WebHandler>>;
 
 /** Each endpoint, by its Vercel name (the file name in api/), with how long its waitUntil work may hold the answer. */
 export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions]> = [
@@ -98,7 +103,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["setup-asks", setupasks],
   ["site-login", sitelogin],
   ["site-password", sitepassword],
-  ["skippy", skippy],
+  // A new hand-off to Skippy starts the always-on responder (#501) through a request the chat doesn't wait for, so
+  // its answer is held for a moment at most.
+  ["skippy", skippy, { settleMs: 2_500 }],
   // What Nikita asked Skippy, by room (#273): Desk session only; on Vercel a rewrite into api/skippy.ts.
   ["skippy-log", skippy],
   // A hand-off's answer coming back from Skippy's or a submind's thread (#312): SUBMIND_FEED_TOKEN only.
@@ -108,7 +115,11 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["skippy-voice", skippyvoice],
   // A Talk call's live lookups (#479): ElevenLabs calls them mid-call with the call's own tool token only (signed,
   // unexpired, kept with the call; api/_skippy/voicetoken.ts). Azure only; money leaves only to that call.
-  ["skippy-tools", skippytools],
+  ["skippy-tools", skippytools, { settleMs: 2_500 }],
+  // The always-on Kernel responder (#501, docs/AZURE.md, "The Kernel responder"): the private brief it reads, and the
+  // run itself, called by the Function App on its own address when a hand-off is kept. SUBMIND_FEED_TOKEN only.
+  ["kernel-brief", kernelroute.brief],
+  ["kernel-agent", kernelroute.agent],
   ["visual-qa-feed", visualqafeed],
   // Called on the Function App's own URL (no proxy cut), so the step waits for its day and week stories.
   ["world-step", worldstep, { settleMs: Infinity }],
@@ -116,13 +127,13 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
 ];
 
 for (const [name, mod, opts] of ENDPOINTS) {
-  const methods = (["GET", "POST"] as const).filter((m) => typeof mod[m] === "function");
+  const methods = (["GET", "POST", "PUT"] as const).filter((m) => typeof mod[m] === "function");
   app.http(name.replace(/-/g, "_"), {
     route: name,
     methods: methods as HttpMethod[],
     authLevel: "anonymous",
     handler: (req, context) => {
-      const handler = mod[req.method.toUpperCase() as "GET" | "POST"];
+      const handler = mod[req.method.toUpperCase() as "GET" | "POST" | "PUT"];
       if (!handler) return Promise.resolve({ status: 405, headers: { Allow: methods.join(", ") } });
       // The site lock (#236, #238): the same gate as Vercel's middleware, in front of every function. The Static Web
       // App's own files aren't behind it (docs/AZURE.md, "The site lock on Azure"). Keys set from the Desk first (#330).

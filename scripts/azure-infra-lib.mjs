@@ -16,6 +16,10 @@ export const LIVE_SETTINGS = {
   WORLD_BUDGET_USD: "worldBudgetUsd",
   SKIPPY_BUDGET_USD: "skippyBudgetUsd",
   EMAIL_BUDGET_USD: "emailBudgetUsd",
+  // The always-on Kernel responder (#501): its off switch and its own cap, kept as set (a setting turned off in the
+  // portal stays off through a deploy).
+  KERNEL_AGENT_ENABLED: "kernelAgentEnabled",
+  KERNEL_AGENT_BUDGET_USD: "kernelAgentBudgetUsd",
 };
 
 /**
@@ -39,6 +43,8 @@ export const RESOURCE_PARAMS = [
   "worldBudgetUsd",
   "skippyBudgetUsd",
   "emailBudgetUsd",
+  "kernelAgentEnabled",
+  "kernelAgentBudgetUsd",
   "paypalEnv",
   "siteOnCustomDomain",
   "tags",
@@ -95,6 +101,8 @@ export function buildParams({ main, live = {}, cap = "", deployer = "", github =
     worldBudgetUsd: pick("worldBudgetUsd", live.WORLD_BUDGET_USD, (v) => MONEY.test(v)),
     skippyBudgetUsd: pick("skippyBudgetUsd", live.SKIPPY_BUDGET_USD, (v) => MONEY.test(v)),
     emailBudgetUsd: pick("emailBudgetUsd", live.EMAIL_BUDGET_USD, (v) => MONEY.test(v)),
+    kernelAgentEnabled: pick("kernelAgentEnabled", live.KERNEL_AGENT_ENABLED, (v) => v === "true" || v === "false"),
+    kernelAgentBudgetUsd: pick("kernelAgentBudgetUsd", live.KERNEL_AGENT_BUDGET_USD, (v) => MONEY.test(v) && Number(v) <= 10),
     paypalEnv: pick("paypalEnv", live.PAYPAL_ENV, (v) => v === "sandbox" || v === "live"),
     siteOnCustomDomain,
     tags: defaultOf(main, "tags"),

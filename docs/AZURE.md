@@ -375,6 +375,54 @@ az functionapp deployment source config-zip -g rg-ceo-prod -n <functionAppName> 
 The unit tests for the adapter, the Key Vault guard and the store choice run with the rest (`npm test`, files in
 `azure/src/*.test.ts` and `api/_blob.test.ts`), with the Azure SDKs mocked.
 
+## The Kernel responder (#501)
+
+An always-on agent in the Function App that answers Skippy's hand-offs to his own thread in seconds, so a deeper Desk or
+Talk question no longer waits for a cloud chat to be awake. Nikita approved it with its own $10 a month (2026-10-27).
+Logic in `api/_skippy/kernelagent.ts`, the Claude loop in `kernelrun.ts`, the routes and trigger in `kernelroute.ts`.
+
+- **Trigger.** The hand-off write itself: when `BlobRoomLog.add` keeps a turn with `needs: "skippy"`, it calls the
+  listener `registerKernelAgent` set at start-up (`azure/src/index.ts`). The listener posts to the Function App's own
+  address (`WEBSITE_HOSTNAME`) at `POST /api/kernel-agent` with the write key and does not wait, so the responder runs in
+  an invocation of its own (up to the 10-minute function timeout) and never holds up the chat. The `skippy` and
+  `skippy-tools` routes wait for that request at most 2.5 seconds. No polling, no timer. Without the address (a local
+  run) it runs in-process.
+- **Off switch.** App setting `KERNEL_AGENT_ENABLED` (`true` by default; `false`, `off`, `0` or `no` stops it). It is a
+  template parameter (`kernelAgentEnabled` in `infra/main.bicep`, `plainSettings` in `infra/resources.bicep`) and the
+  deploy reads the live value back, so setting it to `false` in the portal (or the parameter) survives deploys. Off,
+  nothing runs and the thread's watcher (`scripts/submind-watch.sh kernel`) takes every hand-off, as before.
+- **Budget.** Its own key: `KERNEL_AGENT_BUDGET_USD` (`10` by default; it can only be lowered, the code never passes
+  $10) and its own month ledger, `desk/skippy/kernel-agent-spend.json` in the private blob container, apart from the
+  chat's, the world's and the email agent's. A hard stop: a run goes out only while this month's spend plus one run at
+  its most (five calls of 40,000 tokens in and 1,200 out, three searches; about $0.03 on Haiku, $0.28 on Sonnet) fits the
+  cap. Past it, or with an unreadable ledger, it does nothing and the watcher takes the hand-off. This is on top of the
+  Claude provider's cap on the key: raise that cap by the responder's share or the provider stops it first.
+- **Model.** Haiku 5.5 first (`claude-haiku-5-5`, $0.10 in / $0.50 out per million tokens, cached reads at 0.1x);
+  `KERNEL_AGENT_MODEL=sonnet` moves it to Sonnet 5.5 if Haiku's tool use proves weak. Thinking off on Haiku, effort low.
+  A typical answer reads about 12,000 tokens, most of them from the cached brief, and writes about 150: a fraction of a
+  cent on Haiku, plus one cent for each web search it runs (at most three). Every run's real cost is added to the ledger
+  from the response's own `usage`.
+- **The brief.** `PUT /api/kernel-brief`, Markdown or plain text of at most 40,000 bytes, with the subminds' write key
+  (`SUBMIND_FEED_TOKEN`, the same one `POST /api/skippy-answer` takes: the egress proxy adds it, so the thread sends no
+  key). It is kept as `desk/skippy/kernel-brief.md` in the private `ceo-state` container, never in the repo and never on a
+  public path, held back whole (422, kinds only) when it looks private, and only its time is logged. Every question loads
+  it behind a prompt-cache breakpoint.
+- **What it reads.** The brief, the Desk's state and the live rooms' lines (the same reads Desk Skippy has, minus the
+  ElevenLabs bill, with any dollar amount taken out), and the last three days of turns from every room (Desk chat, Talk
+  exchanges, earlier answers) as trimmed question and answer pairs. Web search: at most three a run.
+- **What it answers.** Facts and look-ups (scores, injuries, build status, room counts, web facts). Anything that hinges on a
+  decision, a plan, a preference or judgment gets an in-character "pondering" line as an interim answer, and the hand-off
+  stays open for Skippy, the Magnificent. Plain cases (`judgment` in `kernelagent.ts`) are settled without a model.
+  A build or change request files a `foundry` + `foundry:chat` issue from Nikita's own words (the model chooses only the
+  size) and answers with its number; it never writes code. Anything it can't settle, or that fails a check, is left open
+  for the watcher.
+- **Privacy.** Answers pass the Desk's privacy check again, plus a money check (no dollar amounts) and a check that none
+  says "thread", "Kernel" or "hand-off"; one that fails is not kept (the call is still counted). Nothing about a
+  question, an answer or the brief is logged; the run route says only a state and a cost.
+- **The log.** Every answer is kept on the turn through the same path as `POST /api/skippy-answer` with `from:
+  "kernel-agent"` (a final answer pings the phone as usual; the pondering line does not), and Skippy, the Magnificent can
+  correct a final one with a follow-up of his own (`from: "skippy"`).
+
 ## Deploys and backups
 
 Nikita OK'd GitHub signing in to Azure on 2026-10-21. Two workflows keep the Azure copy going; both skip themselves

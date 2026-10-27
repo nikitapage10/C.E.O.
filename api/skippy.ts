@@ -65,7 +65,7 @@ import { BlobChatLedger, CHAT_MAX_TOKENS, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
 import { advisoryCache, stackBrief, stackLines, wantsStack } from "./_skippy/advisories.js";
-import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, isLogRoom, isNeeds, isNeedsFilter, isTurnId, needsName, turnId, type LogRoom, type Needs, type RoomLog } from "./_skippy/log.js";
+import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, isLogRoom, isNeeds, isNeedsFilter, type FollowFrom, isTurnId, needsName, turnId, type LogRoom, type RoomLog } from "./_skippy/log.js";
 import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
 import { plainLine } from "./foundry.js";
@@ -332,7 +332,7 @@ export interface AnswerDeps {
   now: number;
 }
 
-function answerDeps(): AnswerDeps {
+export function answerDeps(): AnswerDeps {
   const env = process.env;
   const blob = pickBlob(env);
   const store = pickAuthStore(env);
@@ -351,9 +351,9 @@ function answerDeps(): AnswerDeps {
 }
 
 /** The words of an answer's ping: who answered, never what. Safe on a lock screen. */
-export const answerPing = (from: Needs, room: LogRoom): PingText => ({
+export const answerPing = (from: FollowFrom, room: LogRoom): PingText => ({
   title: "C.E.O. Desk",
-  body: `${from === "skippy" ? "Skippy" : needsName(from)} answered something you asked on the Desk.`,
+  body: `${from === "skippy" || from === "kernel-agent" ? "Skippy" : needsName(from)} answered something you asked on the Desk.`,
   url: ROOM_PAGE[room],
 });
 
@@ -375,11 +375,20 @@ export async function followUp(request: Request, deps: AnswerDeps): Promise<Resp
   if (body.card !== undefined && body.card !== null && !card) return json({ error: "bad-request" }, 400);
   const held = [text, ...(card ? cardText(card) : [])].flatMap((t) => privateParts(t));
   if (held.length) return json({ error: "private", held: [...new Set(held)].map((k) => PRIVATE_LABEL[k]) }, 422);
-  const f = cleanFollowUp({ from: body.from, text, at: new Date(deps.now).toISOString(), ...(card && { card }), ...(!final && { final: false }) });
+  return keepAnswer(deps, { id: body.id, from: body.from, text, final, ...(card && { card }) });
+}
+
+/**
+ * Keeps an answer on a hand-off's turn and pings (#312): the one path every answer takes, the thread's POST above and the
+ * always-on responder (#501, api/_skippy/kernelagent.ts), which has already put its text through the same checks.
+ */
+export async function keepAnswer(deps: Pick<AnswerDeps, "log" | "ping" | "now">, a: { id: string; from: FollowFrom; text: string; final: boolean; card?: ReturnType<typeof cleanCard>; ping?: boolean }): Promise<Response> {
+  if (!deps.log) return json({ error: "not-set-up" }, 503);
+  const f = cleanFollowUp({ from: a.from, text: a.text, at: new Date(deps.now).toISOString(), ...(a.card && { card: a.card }), ...(!a.final && { final: false }) });
   if (!f) return json({ error: "bad-request" }, 400);
   let result: Awaited<ReturnType<RoomLog["answer"]>>;
   try {
-    result = await deps.log.answer(body.id, f, deps.now);
+    result = await deps.log.answer(a.id, f, deps.now);
   } catch {
     return json({ error: "unreadable" }, 502);
   }
@@ -388,7 +397,7 @@ export async function followUp(request: Request, deps: AnswerDeps): Promise<Resp
     return json({ error: result.why }, status);
   }
   // Quiet hours hold the ping (the follow-up still shows on the Desk); a failed ping never loses the answer.
-  const pinged = isQuiet(deps.now) ? 0 : await deps.ping(answerPing(f.from, result.turn.room)).catch(() => 0);
+  const pinged = a.ping === false || isQuiet(deps.now) ? 0 : await deps.ping(answerPing(f.from, result.turn.room)).catch(() => 0);
   return json({ ok: true, room: result.turn.room, pinged });
 }
 

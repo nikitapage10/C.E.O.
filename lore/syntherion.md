@@ -167,6 +167,15 @@ done, it hands the mic back. The call never drops. Each one keeps its on-air man
 | **The Pessimist** | Bad news first, always. Something is leaking; it finds out what. Quietly delighted, in four words, when nothing is. |
 | **The Builder** | "Make it quick, the furnace is hot." What's building, who's on it, why it's stuck, in short sentences, then back to the boss. |
 
+**On the hologram.** On a call Skippy stands as a hologram over the C.E.O.'s chat dock, rising out of it like a
+projection from the dock's edge. When a submind takes the mic the channel glitches over and the projection becomes it,
+all of it: its room's colour on the beam, the scanlines and the glow, its name on the label, and its own face and
+body. The Pessimist stands slumped with a flat, unimpressed face, moves slow and heavy and sighs every few seconds.
+The Commentator grins wide the whole time, arms up like it's calling the play, bouncing on every word. The Bookie
+narrows one eye, cocks a brow and glances side to side as if someone's reading its book. The Messenger leans in,
+wide-eyed and brisk. The Builder looks down at its hands, which never stop working. When the mic comes home, so
+does the smirk.
+
 Each time a submind holds the mic, the Council of Skippies on the C.E.O.'s Desk keeps a note of it: who took the
 mic, the question in short and the gist of the answer. Those notes stay on the Desk.
 

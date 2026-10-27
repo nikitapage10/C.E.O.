@@ -50,6 +50,12 @@ export function modelOf(crate: Pick<Crate, "rung"> & Pick<Partial<Crate>, "model
   return who === "semicolon" ? "Haiku" : who === "caret" ? "Opus" : "Sonnet";
 }
 
+/** Every name a Builder line can carry: the three crew (Rivet, Rusty, Rocky), Rusty's dock crew and Skippy. */
+export type HandName = "Rivet" | "Rusty" | "Rocky" | "Dusty" | "Gusty" | "Musty" | "Skippy";
+const HAND_NAMES: readonly HandName[] = ["Rivet", "Rusty", "Rocky", "Dusty", "Gusty", "Musty", "Skippy"];
+/** The crew lane a named builder works in: Rusty's dock crew work in his lane; Skippy is not crew, so no lane of his own. */
+const HAND_LANE: Record<HandName, CrewId | null> = { Rivet: "semicolon", Rusty: "tessellate", Rocky: "caret", Dusty: "tessellate", Gusty: "tessellate", Musty: "tessellate", Skippy: null };
+
 export const CREW: Record<CrewId, { name: string; job: string }> = {
   semicolon: { name: "Rivet", job: "First responder and upkeep" },
   caret: { name: "Rocky", job: "Master builder" },
@@ -114,6 +120,8 @@ export interface Crate {
   auto?: boolean;
   /** Who an idea's card says builds it ("**Builder:** Rusty"), when it says. */
   builder?: CrewId | null;
+  /** The name its Builder line gives ("Gusty" in "**Builder:** Gusty (Opus)"): Rusty's dock crew keep their own name on the forge. */
+  hand?: HandName | null;
   /** The model its Builder line names ("**Builder:** Rusty (Opus)"), when it names one. */
   model?: Model | null;
   /**
@@ -580,18 +588,20 @@ export function parseCrates(issues: GhIssue[], now = Date.now()): Crate[] {
  * The pitch, size, short line and builder the Foundry writes into an issue ("**Pitch:** …", "**Size:** small",
  * "**Short:** Speeding up the Lattice", "**Builder:** Rusty (Opus)").
  */
-export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { short: string; images: string[]; model: Model | null; question: string } {
+export function readBody(body: string): Pick<Crate, "pitch" | "size" | "builder"> & { short: string; images: string[]; model: Model | null; question: string; hand: HandName | null } {
   const question = (/^\*\*Question:\*\*[ \t]*(.*)$/m.exec(body)?.[1] ?? "").trim();
   const pitch = /\*\*Pitch:\*\*\s*([^\n]+)/.exec(body)?.[1]?.trim() ?? "";
   const short = (/\*\*Short:\*\*[ \t]*([^\n]*)/.exec(body)?.[1] ?? "").replace(/[*_`]+/g, "").trim().replace(/[.!]+$/, "");
   const size = /\*\*Size:\*\*\s*(small|medium|large)/i.exec(body)?.[1]?.toLowerCase() as Crate["size"] | undefined;
-  const named = /\*\*Builder:\*\*\s*(Rivet|Rusty|Rocky)/i.exec(body)?.[1]?.toLowerCase();
-  const builder: CrewId | null = named === "rivet" ? "semicolon" : named === "rusty" ? "tessellate" : named === "rocky" ? "caret" : null;
+  const names = HAND_NAMES.join("|");
+  const named = new RegExp(`\\*\\*Builder:\\*\\*\\s*(${names})\\b`, "i").exec(body)?.[1]?.toLowerCase();
+  const hand = HAND_NAMES.find((n) => n.toLowerCase() === named) ?? null;
+  const builder: CrewId | null = hand ? HAND_LANE[hand] : null;
   // Only Nikita's own pictures, from the private store: a picture link to any other host is never shown (#127).
   const images = ownPictures(body);
-  const said = /\*\*Builder:\*\*\s*(?:Rivet|Rusty|Rocky)\s*\(\s*(Haiku|Sonnet|Opus)\b[^)]*\)/i.exec(body)?.[1]?.toLowerCase();
+  const said = new RegExp(`\\*\\*Builder:\\*\\*\\s*(?:${names})\\s*\\(\\s*(Haiku|Sonnet|Opus)\\b[^)]*\\)`, "i").exec(body)?.[1]?.toLowerCase();
   const model: Model | null = said === "haiku" ? "Haiku" : said === "sonnet" ? "Sonnet" : said === "opus" ? "Opus" : null;
-  return { pitch, size: size ?? null, short, builder, images, model, question };
+  return { pitch, size: size ?? null, short, builder, hand, images, model, question };
 }
 
 /** A crew member's last few shipped jobs, newest first: each with the issue's Short line (else its title). */
@@ -745,13 +755,36 @@ export function waitingTurn(crates: Crate[]): Set<number> {
 }
 
 /**
- * Who has hands on each of Rusty's running jobs: Rusty on the oldest, then Dusty, Gusty and Musty. Jobs waiting
- * their turn are left out.
+ * Who has hands on each of Rusty's running jobs. A job whose Builder line names Rusty, Dusty, Gusty or Musty
+ * gets that one (the first such job when two name the same hand); the rest take the free hands in bay order:
+ * Rusty on the oldest, then Dusty, Gusty and Musty. Jobs waiting their turn are left out.
  */
 export function rustyHands(crates: Crate[]): Map<number, string> {
-  const names = ["Rusty", ...DOCK_CREW.map((d) => d.name)];
-  return new Map(shifts(crates, "tessellate").running.map((c, i) => [c.number, names[i]!]));
+  const names: string[] = ["Rusty", ...DOCK_CREW.map((d) => d.name)];
+  const running = shifts(crates, "tessellate").running;
+  const out = new Map<number, string>();
+  const taken = new Set<string>();
+  for (const c of running) {
+    if (c.hand && names.includes(c.hand) && !taken.has(c.hand)) {
+      out.set(c.number, c.hand);
+      taken.add(c.hand);
+    }
+  }
+  const free = names.filter((n) => !taken.has(n));
+  for (const c of running) if (!out.has(c.number)) out.set(c.number, free.shift() ?? names[0]!);
+  return out;
 }
+
+/** The paint each named builder wears on the forge and the Desk: Rusty's dock crew in their own colours, Skippy in his shell blue. */
+export const HAND_COLOUR: Record<HandName, string> = {
+  Rivet: MODEL.semicolon.colour,
+  Rusty: "#c9742c",
+  Rocky: MODEL.caret.colour,
+  Dusty: "#ecc66a",
+  Gusty: "#3f8fea",
+  Musty: "#6fae4a",
+  Skippy: "#7fd8ff",
+};
 
 /**
  * How many of Rusty's dock crew are awake: one for each job really running past his own. One job, just Rusty;

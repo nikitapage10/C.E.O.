@@ -286,6 +286,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "I don't leave the corner office for less than a launch. Launching. Now.",
   ],
   ticker: [
+    "On the C.E.O.'s hologram. Glancing. Someone's always reading the book. Sixty percent sure.",
     "On the C.E.O.'s call now. Live. Seventy percent sure I won't stammer. Sixty.",
     "The call's private, so on the call I say the dollars. Only there. Not here. Never here.",
     "Skippy hands me the mic, I read the book, I hand it back. Ninety percent clean. The ten keeps me up.",
@@ -307,6 +308,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The marquee's running the C.E.O.'s positions. Behind the passkey. Signed out, you get the odds and my sweating.",
   ],
   turf: [
+    "AND THE COMMENTATOR IS ON THE HOLOGRAM! Lime green, folks! LOOK AT THAT GRIN!",
     "AND SKIPPY HANDS OFF TO THE COMMENTATOR! Live on the C.E.O.'s call, folks!",
     "THE BOOTH IS ON THE PHONE NOW. Same voice as the boss. LOUDER.",
     "Basic question? Skippy takes it. Play-by-play? THAT'S MY CUE, FOLKS.",
@@ -372,6 +374,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Best seat in the house, and it HOVERS. Iconic.",
   ],
   soot: [
+    "On the hologram. Grey. Slumped. Accurate.",
     "They put me on the C.E.O.'s call. Bad news first. That's the only order I know.",
     "Skippy hands me the mic when something's leaking. Something is always leaking.",
     "Same voice as Skippy. Lower. Slower. Closer to the floor, where the water ends up.",

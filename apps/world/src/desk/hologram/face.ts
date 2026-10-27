@@ -1,4 +1,4 @@
-import type { Expression } from "./signal.ts";
+import type { Face } from "./persona.ts";
 
 /**
  * Skippy's face on a call (#481), drawn on a 1024×512 canvas that wraps the front of his head (holoScene.ts). The
@@ -130,8 +130,8 @@ function openMouth(g: Ctx, w: number, h: number, lean = 0) {
   g.stroke();
 }
 
-/** Draws his face for an expression with the mouth `open` (0 shut, 1 wide). */
-export function drawFace(g: Ctx, expr: Expression, open: number) {
+/** Draws a face (his moods and the subminds' own, persona.ts) with the mouth `open` (0 shut, 1 wide). */
+export function drawFace(g: Ctx, expr: Face, open: number) {
   const o = Math.max(0, Math.min(1, open));
   base(g);
   const [l, r] = EX;
@@ -209,6 +209,84 @@ export function drawFace(g: Ctx, expr: Expression, open: number) {
           g.lineTo(42, -4);
           g.stroke();
         } else openMouth(g, 36, 8 + 26 * o, -4);
+      });
+      break;
+    // The Pessimist: heavy lids, flat brows, a flat line of a mouth that barely opens.
+    case "unimpressed":
+      eye(g, l, [0, 10], 0.58, 0.92);
+      eye(g, r, [0, 10], 0.58, 0.92);
+      brow(g, l, 0.02, 14, 78);
+      brow(g, r, -0.02, 14, 78);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-40, 6);
+          g.lineTo(40, 6);
+          g.stroke();
+        } else openMouth(g, 30, 6 + 16 * o, 0);
+      });
+      break;
+    // The Commentator: eyes wide, brows high, the biggest grin on the call, open even when he isn't talking.
+    case "grin":
+      eye(g, l, [0, -6], 0, 1.12);
+      eye(g, r, [0, -6], 0, 1.12);
+      brow(g, l, -0.2, -40);
+      brow(g, r, 0.2, -40);
+      mouth(g, () => {
+        const h = 34 + 40 * o;
+        g.beginPath();
+        g.moveTo(-74, -18);
+        g.quadraticCurveTo(0, -2, 74, -18);
+        g.quadraticCurveTo(60, h, 0, h + 4);
+        g.quadraticCurveTo(-60, h, -74, -18);
+        g.closePath();
+        g.fill();
+        g.stroke();
+        g.fillStyle = "#f4f6fb";
+        g.fillRect(-52, -12, 104, 12);
+      });
+      break;
+    // The Bookie: one eye narrowed, both sliding to the side, one brow cocked, a thin calculating smirk.
+    case "sly":
+      eye(g, l, [-22, 4], 0.5, 0.88);
+      eye(g, r, [-22, 4], 0.26);
+      brow(g, l, 0.3, 10);
+      brow(g, r, -0.34, -30);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-36, 6);
+          g.quadraticCurveTo(0, 8, 46, -14);
+          g.stroke();
+        } else openMouth(g, 34, 8 + 30 * o, 10);
+      });
+      break;
+    // The Messenger: wide, forward, all ears; a small round mouth.
+    case "attentive":
+      eye(g, l, [0, -10], 0, 1.08);
+      eye(g, r, [0, -10], 0, 1.08);
+      brow(g, l, -0.1, -30);
+      brow(g, r, 0.1, -30);
+      mouth(g, () => {
+        g.beginPath();
+        g.ellipse(0, 8, 14 + 14 * o, 10 + 30 * o, 0, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+      });
+      break;
+    // The Builder: eyes down on the work, brows knit, mouth set.
+    case "focused":
+      eye(g, l, [4, 18], 0.36);
+      eye(g, r, [-4, 18], 0.36);
+      brow(g, l, 0.34, 12, 80);
+      brow(g, r, -0.34, 12, 80);
+      mouth(g, () => {
+        if (o < 0.12) {
+          g.beginPath();
+          g.moveTo(-30, 4);
+          g.quadraticCurveTo(0, -2, 30, 4);
+          g.stroke();
+        } else openMouth(g, 32, 6 + 26 * o, 2);
       });
       break;
   }

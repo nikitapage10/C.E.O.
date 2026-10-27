@@ -110,7 +110,7 @@ function EmailCard({ load, status, now, onFlow }: { load: EmailLoad; status: Ema
             <dd>{load === "off" ? "–" : sinceWord(status?.lastCheck ?? null, now)}</dd>
           </div>
           <div>
-            <dt>FYI · noise</dt>
+            <dt>Can wait · noise</dt>
             <dd>{status ? `${status.fyi} · ${status.noise}` : "–"}</dd>
           </div>
         </dl>

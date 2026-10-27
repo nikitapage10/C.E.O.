@@ -107,6 +107,8 @@ export interface KeyView {
   set: boolean | null;
   updated: number | null;
   lastSet: number | null;
+  /** Whether the value is a list over several lines (the Desk shows a textarea). */
+  multiline?: boolean;
 }
 
 export async function handleGet(request: Request, deps: KeysDeps = liveKeysDeps()): Promise<Response> {
@@ -119,7 +121,7 @@ export async function handleGet(request: Request, deps: KeysDeps = liveKeysDeps(
   if (deps.writer) dates = await deps.writer.dates().catch(() => ((vault = "error"), null));
   const keys: KeyView[] = SETTABLE_KEYS.map((k) => {
     const d = dates?.get(k.secret);
-    return { name: k.secret, label: k.label, from: k.from, set: dates ? Boolean(d?.enabled && !d.placeholder) : null, updated: d?.updated ?? null, lastSet: lastSet(k.secret) };
+    return { name: k.secret, label: k.label, from: k.from, set: dates ? Boolean(d?.enabled && !d.placeholder) : null, updated: d?.updated ?? null, lastSet: lastSet(k.secret), ...(k.multiline && { multiline: true }) };
   });
   return json({ vault, stepUpSeconds: STEPUP_S, keys }, 200, [signed.cookie]);
 }
@@ -166,7 +168,7 @@ export async function handlePost(request: Request, deps: KeysDeps = liveKeysDeps
   if (body.action !== "set") return json({ error: "bad-request" }, 400, keep);
   const key = settable(body.name);
   if (!key) return json({ error: "not-allowed" }, 400, keep);
-  const value = cleanValue(body.value);
+  const value = cleanValue(body.value, key.multiline === true);
   if (value === null) return json({ error: "bad-value" }, 400, keep);
   if (!deps.writer) return json({ error: "no-vault" }, 503, keep);
 

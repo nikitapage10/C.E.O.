@@ -39,6 +39,22 @@ export function skipTermsFrom(raw: string | undefined): string[] {
   return [...new Set(v.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))];
 }
 
+/**
+ * Nikita's own priority list (EMAIL_PRIORITY, several lines) from its setting: control characters other than newlines
+ * dropped, trimmed, at most 4,000 characters. Missing, empty or an unresolved Key Vault reference is "" (no list, and
+ * the agent then behaves as it always did). It only ever informs Dialtone, after the hard rules (./sort.ts).
+ */
+export function priorityFrom(raw: string | undefined): string {
+  const v = (raw ?? "").replace(/\r\n?/g, "\n").replace(/[^\P{Cc}\n]/gu, " ").replace(/\p{Cf}/gu, "").trim();
+  if (!v || v.toLowerCase().startsWith(KEY_VAULT_PREFIX)) return "";
+  return v.slice(0, 4_000);
+}
+
+/** Mail Nikita sent to himself: from and every recipient are his own address (no model, #522). */
+export function selfSent(mail: { fromAddress: string; to?: readonly string[] }, own: string): boolean {
+  return Boolean(own) && mail.fromAddress === own && !!mail.to?.length && mail.to.every((a) => a === own);
+}
+
 /** Whether any term is in the sender, the subject or the body (case-insensitive). Never says which. */
 export function onSkipList(terms: readonly string[], mail: Pick<MailForSort, "from" | "fromAddress" | "subject">, body: string): boolean {
   if (!terms.length) return false;
@@ -122,8 +138,9 @@ export function automatedMail(mail: Pick<MailForSort, "fromAddress" | "subject">
  * automated sender whose subject and summary hold no explicit ask. Free: no model. A display name has no address, so
  * only the subject and summary are looked at then.
  */
-export function storedNotAction(item: Stored & { kind: string }): boolean {
-  if (item.kind === "fyi") return true;
+export function storedNotAction(item: Stored & { kind: string }, keepFyi = false): boolean {
+  // With a priority list (#522) Can wait (fyi) mail is kept on the Relay page.
+  if (item.kind === "fyi") return !keepFyi;
   if (item.kind !== "needs-you") return false;
   const at = item.from.lastIndexOf("@");
   const fromAddress = at > 0 ? item.from.replace(/^.*</, "").replace(/>.*$/, "").trim().toLowerCase() : "";

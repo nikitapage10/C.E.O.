@@ -198,7 +198,7 @@ function sinceCheck(lastCheck: number | null, now: number): string {
 /** The board's three counters: what Dialtone sorted, as numbers and nothing else. */
 const COUNTERS = [
   { key: "needsYou", label: "NEEDS YOU", x: -0.5 },
-  { key: "fyi", label: "FYI", x: 0 },
+  { key: "fyi", label: "CAN WAIT", x: 0 },
   { key: "noise", label: "NOISE", x: 0.5 },
 ] as const;
 

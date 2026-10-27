@@ -22,6 +22,8 @@ export interface SettableKey {
   label: string;
   /** Where it comes from, in a few words. */
   from: string;
+  /** A list written over several lines: the Desk gives it a textarea and the value keeps its newlines. */
+  multiline?: boolean;
 }
 
 export const SETTABLE_KEYS: readonly SettableKey[] = [
@@ -36,6 +38,7 @@ export const SETTABLE_KEYS: readonly SettableKey[] = [
   { secret: "elevenlabs", setting: "ELEVENLABS_API_KEY", label: "ElevenLabs", from: "elevenlabs.io, API keys" },
   { secret: "openai", setting: "OPENAI_STUDIO_KEY", label: "OpenAI (the Studio)", from: "platform.openai.com, API keys" },
   { secret: "email-skip-terms", setting: "EMAIL_SKIP_TERMS", label: "Email skip terms", from: "your own list, comma-separated" },
+  { secret: "email-priority", setting: "EMAIL_PRIORITY", label: "Email priorities", from: "your own priority list, one per line", multiline: true },
 ];
 
 /**
@@ -80,14 +83,18 @@ export const isPlaceholder = (value: string | null | undefined): boolean => type
 /** The most a value may be: far above any key on the list (Key Vault's own limit is 25 KB). */
 export const MAX_VALUE = 4096;
 
-/** A value as it will be stored (trimmed), or null when it is empty, too long, or not plain text on one line. */
-export function cleanValue(given: unknown): string | null {
+/**
+ * A value as it will be stored (trimmed), or null when it is empty, too long, or not plain text on one line. A
+ * `multiline` key (the email priority list) may also hold newlines and tabs; CRLF becomes LF.
+ */
+export function cleanValue(given: unknown, multiline = false): string | null {
   if (typeof given !== "string") return null;
-  const value = given.trim();
+  const value = (multiline ? given.replace(/\r\n?/g, "\n") : given).trim();
   if (!value || value.length > MAX_VALUE || isPlaceholder(value)) return null;
   // One line of printable text: a stray paste of something else (a file, a whole page) doesn't land as a key.
   for (const ch of value) {
     const code = ch.charCodeAt(0);
+    if (multiline && (code === 0x0a || code === 0x09)) continue;
     if (code < 0x20 || code === 0x7f) return null;
   }
   return value;

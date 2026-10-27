@@ -44,7 +44,7 @@ describe("room pulses", () => {
     const email = { v: 1 as const, at: NOW, gmail: "connected" as const, agent: "listening" as const, needsYou: 2, fyi: 3, noise: 9, newToday: 14, unsorted: 0, skipped: 0, budgetPct: 4, lastCheck: NOW - 30_000 };
     const relay = roomPulses(input({ email })).find((p) => p.id === "relay")!;
     expect(relay).toMatchObject({ real: true, state: "busy", status: "2 emails need you", short: "2 emails" });
-    expect(relay.report).toContain("14 new emails today, 2 need you, 3 FYI, 9 noise");
+    expect(relay.report).toContain("14 new emails today, 2 need you, 3 can wait, 9 noise");
     expect(relay.report).toContain("Texts still wait on the Mac");
     expect(relay.events).toEqual([NOW - 30_000]);
     const quiet = roomPulses(input({ email: { ...email, needsYou: 0 } })).find((p) => p.id === "relay")!;

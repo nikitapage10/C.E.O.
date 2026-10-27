@@ -186,7 +186,7 @@ export function roomPulses(input: PulseInput): RoomPulse[] {
         short: broken ? "email check failed" : mail.agent === "paused" ? "email paused" : needs ? `${needs} email${needs === 1 ? "" : "s"}` : "inbox quiet",
         report: broken
           ? "Line's crackling, the last email check didn't land. Dialtone's redialling. Texts still wait on the Mac."
-          : `${n(mail.newToday, "new email")} today, ${needs} need${needs === 1 ? "s" : ""} you, ${mail.fyi} FYI, ${mail.noise} noise. I won't read them out. Texts still wait on the Mac.`,
+          : `${n(mail.newToday, "new email")} today, ${needs} need${needs === 1 ? "s" : ""} you, ${mail.fyi} can wait, ${mail.noise} noise. I won't read them out. Texts still wait on the Mac.`,
         events: checked,
       }),
     );

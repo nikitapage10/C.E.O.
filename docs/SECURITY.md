@@ -331,7 +331,7 @@ Keys**, signed in. It is write-only by design:
 
 - **Only allowlisted names** (`api/_keys/allowlist.ts`): `claude-api-key`, `fantasypros`,
   `polymarket-us-key-id`, `polymarket-us-secret-key`, `gmail-client-id`, `gmail-client-secret`, `paypal-client-id`,
-  `paypal-client-secret`, `elevenlabs`, `openai` and `email-skip-terms`. Never anything that guards the lock, the crew
+  `paypal-client-secret`, `elevenlabs`, `openai`, `email-skip-terms` and `email-priority`. Never anything that guards the lock, the crew
   or sealed data: `foundry-desk-key`, `site-bypass-token`, `desk-pings-secret`, `foundry-github-token`,
   `foundry-app-*`, `desk-vapid-*`, `gmail-token-key` and `submind-*` are refused by name and by pattern, so a stolen
   session can't hand itself a way back in. A unit test pins both lists and puts every secret in the template on

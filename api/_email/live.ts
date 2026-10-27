@@ -10,7 +10,7 @@ import { liveSubs } from "../_desk/pings.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { emailBudget } from "./budget.js";
 import { clientFrom } from "./route.js";
-import { skipTermsFrom } from "./filter.js";
+import { priorityFrom, skipTermsFrom } from "./filter.js";
 import { claudeCall } from "./sort.js";
 import { pickEmailStore } from "./store.js";
 import { tick, type TickDeps, type TickResult } from "./tick.js";
@@ -29,6 +29,7 @@ export function liveTickDeps(env: Env = process.env): TickDeps | null {
     claude: claudeCall(env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY || ""),
     budget: emailBudget(env.EMAIL_BUDGET_USD),
     skipTerms: skipTermsFrom(env.EMAIL_SKIP_TERMS),
+    priority: priorityFrom(env.EMAIL_PRIORITY),
     now: Date.now(),
     ping: async (text) => {
       if (!pingsReady || !auth) return 0;

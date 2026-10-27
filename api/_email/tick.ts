@@ -23,12 +23,12 @@
 import { isQuiet, type PingText } from "../_desk/pings.js";
 import { monthOf } from "../_world/budget.js";
 import { addSpend, ADVISE_MODEL, budgetPct, canSpend, SORT_MODEL } from "./budget.js";
-import { onSkipList, preFilter, storedMailSkipped, storedNotAction } from "./filter.js";
-import { accessToken, catchUpIds, currentHistoryId, fullBody, historySince, HistoryGoneError, lastHistoryId, newInboxIds, readMessage, readMessageRaw, TokenRefusedError, type Fetcher, type OAuthClient } from "./gmail.js";
-import { adviseMail, sortMail, type ClaudeCall } from "./sort.js";
+import { onSkipList, preFilter, selfSent, storedMailSkipped, storedNotAction } from "./filter.js";
+import { accessToken, catchUpIds, currentHistoryId, fullBody, historySince, HistoryGoneError, lastHistoryId, newInboxIds, ownAddress, readMessage, readMessageRaw, threadStarter, TokenRefusedError, type Fetcher, type OAuthClient } from "./gmail.js";
+import { adviseMail, NO_ACTION, oneLine, sortMail, type ClaudeCall } from "./sort.js";
 import { EMAIL_STATUS_VERSION, type EmailStatus } from "./status.js";
 import type { EmailStore } from "./store.js";
-import { ITEM_KEEP_MS, MAX_ITEMS, MAX_PER_TICK, MAX_SEEN, type EmailItem, type EmailState } from "./types.js";
+import { ITEM_KEEP_MS, MAX_ITEMS, MAX_PER_TICK, MAX_SEEN, type EmailItem, type EmailKind, type EmailState } from "./types.js";
 
 /** A tick holds the state at most this long. */
 export const CLAIM_MS = 55_000;
@@ -44,6 +44,12 @@ export interface TickDeps {
   now: number;
   /** The private skip list (EMAIL_SKIP_TERMS, ./filter.ts, skipTermsFrom); empty or left out skips nothing. */
   skipTerms?: readonly string[];
+  /**
+   * Nikita's own priority list (EMAIL_PRIORITY, ./filter.ts, priorityFrom); "" or left out changes nothing. With it:
+   * Dialtone reads it after the hard rules, Can wait (fyi) mail is kept, plain application confirmations are counted,
+   * mail to himself is noise, and a thread he started is forced to needs-you (#522).
+   */
+  priority?: string;
   /** Sends one ping to every device that turned pings on; how many took it. */
   ping: (text: PingText) => Promise<number>;
 }
@@ -93,11 +99,19 @@ async function writeStatus(deps: TickDeps, state: EmailState): Promise<void> {
   await deps.store.saveStatus(statusOf(state, { ready: deps.client !== null, claude: deps.claude !== null, budget: deps.budget, now: deps.now })).catch(() => undefined);
 }
 
+/** What the tick learned from Gmail about one mail for the priority list's rules (#522): never sent to a model. */
+export interface SortContext {
+  /** The mailbox's own address, lower-cased ("" when unknown or no priority list). */
+  own: string;
+  /** The thread's first message is from the mailbox's own address. */
+  startedByMe: boolean;
+}
+
 /**
  * Sorts one new mail into an item (or null for noise and skipped mail), spending only what the cap allows. The
  * private skip list and the money and legal pre-filter come first, before any model (./filter.ts).
  */
-async function sortOne(deps: TickDeps, state: EmailState, raw: unknown): Promise<{ state: EmailState; item: EmailItem | null; claudeFailed: boolean }> {
+async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: SortContext = { own: "", startedByMe: false }): Promise<{ state: EmailState; item: EmailItem | null; claudeFailed: boolean }> {
   const mail = readMessage(raw);
   if (!mail) return { state, item: null, claudeFailed: false };
   let s: EmailState = { ...state, day: { ...state.day, newCount: state.day.newCount + 1 } };
@@ -110,20 +124,36 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown): Promise
   const verdict = preFilter(mail);
   if (verdict.kind === "skip") return skipped(s);
   if (verdict.kind === "heads-up") return urgent(s);
+  const priority = deps.priority ?? "";
+  const noise = (st: EmailState) => ({ state: { ...st, day: { ...st.day, noise: st.day.noise + 1 } }, item: null, claudeFailed: false });
+  // Mail Nikita sends to himself is noise, before any model (#522).
+  if (priority && selfSent(mail, ctx.own)) return noise(s);
   const base: EmailItem = { id: mail.id, at: mail.at, from: mail.from, subject: mail.subject, kind: "unsorted", summary: "", action: "", done: false };
   if (!deps.claude || !canSpend(s, SORT_MODEL, deps.budget, deps.now)) {
     // Paused (or no key): counted, not read by a model.
     return { state: { ...s, unsorted: s.unsorted + 1 }, item: base, claudeFailed: false };
   }
   try {
-    const { sorted, usage } = await sortMail(deps.claude, mail);
+    const { sorted: first, usage } = await sortMail(deps.claude, mail, priority);
     s = addSpend(s, SORT_MODEL, usage, deps.now);
-    if (!sorted) return { state: s, item: base, claudeFailed: true };
-    // FYI is not kept (#495): the Relay list holds only mail that needs Nikita to act. Counted with the noise.
-    if (sorted.kind === "noise" || sorted.kind === "fyi") return { state: { ...s, day: { ...s.day, noise: s.day.noise + 1 } }, item: null, claudeFailed: false };
-    // Money or legal mail Dialtone caught: skipped, or a heads-up when urgent. Never to Blasto.
+    if (!first) return { state: s, item: base, claudeFailed: true };
+    let sorted = first;
+    // Money or legal mail Dialtone caught: skipped, or a heads-up when urgent. Never to Blasto, and the list can't change it.
     if (sorted.kind === "skip") return sorted.urgent === "none" ? skipped(s) : urgent(s);
-    const item: EmailItem = { ...base, kind: sorted.kind, summary: sorted.summary, action: sorted.action };
+    // A thread Nikita started himself needs him, whatever Dialtone made of the reply (#522). Skip kinds were handled above.
+    if (priority && ctx.startedByMe && sorted.kind !== "needs-you") {
+      sorted = { kind: "needs-you", summary: sorted.summary, action: NO_ACTION.test(oneLine(sorted.action, 80)) || sorted.action === "Have a look" ? "Follow up on your thread" : sorted.action, urgent: "none" };
+    }
+    // A plain application confirmation is counted for the month and kept as nothing (#522); without a list it is noise.
+    if (sorted.kind === "applied") {
+      if (!priority) return noise(s);
+      const month = monthOf(deps.now);
+      return { state: { ...s, applied: { month, count: (s.applied.month === month ? s.applied.count : 0) + 1 } }, item: null, claudeFailed: false };
+    }
+    // Without a list FYI is not kept (#495): the Relay list holds only mail that needs Nikita to act, counted with the
+    // noise. With one, FYI is Can wait: kept, no ping, no Blasto (#522).
+    if (sorted.kind === "noise" || (sorted.kind === "fyi" && !priority)) return noise(s);
+    const item: EmailItem = { ...base, kind: sorted.kind as EmailKind, summary: sorted.summary, action: sorted.action };
     if (sorted.kind !== "needs-you" || !canSpend(s, ADVISE_MODEL, deps.budget, deps.now)) return { state: s, item, claudeFailed: false };
     const { advice, usage: u2 } = await adviseMail(deps.claude, mail);
     s = addSpend(s, ADVISE_MODEL, u2, deps.now);
@@ -134,8 +164,8 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown): Promise
 }
 
 /** The state without any kept item the skip list or the money and legal filter would skip today (#415). */
-export function purgeItems(state: EmailState, terms: readonly string[]): EmailState {
-  const items = state.items.filter((i) => !storedMailSkipped(terms, i) && !storedNotAction(i));
+export function purgeItems(state: EmailState, terms: readonly string[], keepFyi = false): EmailState {
+  const items = state.items.filter((i) => !storedMailSkipped(terms, i) && !storedNotAction(i, keepFyi));
   return items.length === state.items.length ? state : { ...state, items };
 }
 
@@ -163,7 +193,7 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
   if (!(await deps.store.save(claimed, loaded.version).catch(() => false))) return "busy";
 
   // Every tick clears what the filter would skip from the kept list: mail sorted before it existed or before it grew (#415).
-  let state: EmailState = purgeItems(claimed, deps.skipTerms ?? []);
+  let state: EmailState = purgeItems(claimed, deps.skipTerms ?? [], Boolean(deps.priority));
   const today = mountainDay(deps.now);
   if (state.day.day !== today) state = { ...state, day: { day: today, newCount: 0, noise: 0, skipped: 0, urgent: 0 } };
   // A new month lifts the pause, and its count of mail left unsorted starts again.
@@ -181,6 +211,21 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
       state = { ...state, gmail: "connected" };
       let read = 0;
       let claudeFailed = false;
+      // The priority list's rules need the mailbox's own address and who started the thread: headers only, asked for
+      // once per tick (the address) and once per reply thread, and never when there is no list (#522).
+      let own: string | null = null;
+      const contextFor = async (raw: unknown): Promise<SortContext> => {
+        if (!deps.priority) return { own: "", startedByMe: false };
+        try {
+          own ??= await ownAddress(deps.fetcher, access);
+          const m = readMessage(raw);
+          const starter = !own || !m ? "" : m.threadId === undefined || m.threadId === m.id ? m.fromAddress : await threadStarter(deps.fetcher, access, m.threadId, m.id);
+          return { own, startedByMe: Boolean(own) && starter === own };
+        } catch (e) {
+          if (e instanceof TokenRefusedError) throw e;
+          return { own: own ?? "", startedByMe: false };
+        }
+      };
       /** Reads and sorts one message, remembering it as seen; null when it vanished or was skipped. */
       const readAndSort = async (id: string): Promise<EmailItem | null> => {
         read += 1;
@@ -193,7 +238,7 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
           state = { ...state, seen: [...state.seen, id].slice(-MAX_SEEN) };
           return null;
         }
-        const got = await sortOne(deps, state, raw);
+        const got = await sortOne(deps, state, raw, await contextFor(raw));
         state = { ...got.state, seen: [...got.state.seen, id].slice(-MAX_SEEN) };
         if (got.claudeFailed) claudeFailed = true;
         return got.item;
@@ -265,7 +310,7 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
     await deps.ping(emailPing(state.pingPending)).catch(() => 0);
     state = { ...state, pingPending: 0 };
   }
-  state = { ...purgeItems(state, deps.skipTerms ?? []), lastCheck: deps.now, lastError, busyUntil: 0 };
+  state = { ...purgeItems(state, deps.skipTerms ?? [], Boolean(deps.priority)), lastCheck: deps.now, lastError, busyUntil: 0 };
   state = { ...state, items: pruneItems(state.items, deps.now) };
   // Saved over whatever is stored now, keeping any Done Nikita pressed on the Desk while this tick ran.
   // Disconnected on the Desk while this tick ran: nothing of the inbox is kept.

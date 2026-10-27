@@ -3,7 +3,7 @@ import { PRESET_BY_ID, type Look, type LookPreset } from "@ceo/core";
 /**
  * Some costumes come with a way of talking. The words are the agent's; the voice is how they arrive:
  * the stone engineer sings in chords (subtitled), the hanar never says "I", only "this one", the monolith
- * reports its humour setting, the spirit has a headache, and the power droid honks (subtitled). ("emotive", feelings first, is kept for any look
+ * reports its humour setting, the spirit has a headache, the astromech beeps (subtitled) and the protocol droid frets. ("emotive", feelings first, is kept for any look
  * that still asks for it.)
  */
 export type Voice = NonNullable<LookPreset["voice"]>;
@@ -34,7 +34,9 @@ const ERIDIAN_GLAD = ["Amaze amaze amaze!", "Good good good.", "Happy happy happ
 const PROFESSOR_PRE = ["Hm! Hm!", "Ah, ah, ah!", "Oh, splendid!", "Patience, patience…", "Now then.", "Hmm, fascinating."];
 const PROFESSOR_GLAD = ["…carefully, mind you.", "Slowly. Slowly!", "Progress, but with a steady hand.", "Make a note of that."];
 const PROFESSOR_SORRY = ["Oh dear. Back to the drawing board.", "Hm. A most educational failure.", "Too hasty. Far too hasty."];
-const HONKS = ["Honk.", "Honk honk.", "HONK.", "Hoooonk.", "Honk?"];
+const BEEPS = ["Bweep.", "Bee-doo-dweep.", "Bwoo-wee!", "Dweet dweet.", "Brrt-bwee.", "Bip-bop-bwoooo."];
+const FRET_PRE = ["Oh my.", "If I may:", "Strictly speaking,", "Oh dear, oh dear.", "For the record:"];
+const FRET_POST = ["I shall file a note.", "Counsel.exe will hear of this.", "In triplicate, naturally.", "We're doomed. Procedurally."];
 const MIGRAINE = ["Ow. My head.", "(headache intensifies)", "…why does it hurt.", "Hnnngh."];
 
 /** "I" becomes "this one", as a hanar would have it. */
@@ -94,10 +96,15 @@ export function voiced(voice: Voice | undefined, text: string): Voiced {
     }
     case "migraine":
       return h % 3 === 0 ? { text: t, post: pick(MIGRAINE, h >> 3) } : { text: t };
-    case "honk": {
-      // Gary only honks; the words arrive as subtitles. Lines already written as "Honk. (...)" pass through.
-      if (/^h+o+n+k/i.test(t)) return { text: t };
-      return { pre: t.endsWith("?") ? "Honk?" : pick(HONKS, h), text: `(${t})` };
+    case "beep": {
+      // Drop only beeps; the words arrive as subtitles. Lines already written as "Bweep. (...)" pass through.
+      if (/^[a-z-]+[.!?]\s*\(/i.test(t) && /^(b|d)/i.test(t)) return { text: t };
+      return { pre: t.endsWith("?") ? "Bwee-oo?" : pick(BEEPS, h), text: `(${t})` };
+    }
+    case "fussy": {
+      // Clause: a fret first, sometimes, and a procedure after when something has gone wrong.
+      const post = /\b(fail|failed|broke|broken|burst|error|wrong|bad|down)\b/i.test(t) ? pick(FRET_POST, h >> 2) : undefined;
+      return { pre: h % 3 === 0 ? pick(FRET_PRE, h >> 4) : undefined, text: t, post };
     }
   }
 }

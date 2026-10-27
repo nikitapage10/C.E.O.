@@ -86,6 +86,7 @@ const FURNITURE: Partial<Record<RoomId, readonly Box[]>> = {
   boiler: [
     b(3.2, 4.9, 1.25, 0.45), // tool bench
     b(6.5, 2.8, 1.25, 1.25), // the boiler, in the front-right corner (#283)
+    b(-3.75, 4.2, 0.3, 0.3), // Clause's compliance lectern
   ],
   workshop: [
     b(-2.6, 2.9, 1.3, 0.5), // workbench

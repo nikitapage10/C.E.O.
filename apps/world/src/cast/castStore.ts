@@ -30,6 +30,9 @@ const RENAMED: Record<string, [string[], string]> = {
   putty: [["Putty"], "The Artiste"],
 };
 
+/** Default agents who have left the cast (Gary retired from the Boiler Room when Drop and Clause arrived). */
+const RETIRED_AGENTS = ["gary"];
+
 /** Give every profile still wearing an old default name its new one. */
 function rename(profiles: Record<string, Profile>) {
   for (const [id, [was, now]] of Object.entries(RENAMED)) {
@@ -42,7 +45,7 @@ function rename(profiles: Record<string, Profile>) {
  * relationships once, keeping their looks (and any name you chose yourself).
  */
 const LORE_KEY = "ceo.cast.lore";
-const LORE_REV = 10;
+const LORE_REV = 11;
 
 function readRev(key: string) {
   try {
@@ -60,6 +63,7 @@ function load(): Cast {
       // New sample agents get their defaults; customised ones keep yours.
       const base = defaultCast();
       const profiles = { ...base.profiles, ...parsed.profiles };
+      for (const id of RETIRED_AGENTS) delete profiles[id];
       // Casts saved before dossiers existed pick up the default lore.
       for (const [id, p] of Object.entries(parsed.profiles)) {
         const seed = base.profiles[id]?.lore;
@@ -67,8 +71,9 @@ function load(): Cast {
       }
       // ...and the default relationships of agents that are new since the cast was saved.
       const added = base.relationships.filter((r) => !(r.a in parsed.profiles) || !(r.b in parsed.profiles));
-      let relationships = [...parsed.relationships, ...added];
-      let migrated = added.length > 0;
+      const kept = parsed.relationships.filter((r) => !RETIRED_AGENTS.includes(r.a) && !RETIRED_AGENTS.includes(r.b));
+      let relationships = [...kept, ...added];
+      let migrated = added.length > 0 || kept.length < parsed.relationships.length || RETIRED_AGENTS.some((id) => id in parsed.profiles);
       if (readRev(LORE_KEY) < LORE_REV) {
         migrated = true;
         for (const [id, p] of Object.entries(base.profiles)) {

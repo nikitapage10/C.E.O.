@@ -8,7 +8,8 @@ import { Rocky } from "./Rocky.tsx";
 import { Compactor } from "./Compactor.tsx";
 import { LibraryBody } from "./Library.tsx";
 import { Monolith } from "./Monolith.tsx";
-import { PowerBox } from "./PowerBox.tsx";
+import { Astromech } from "./Astromech.tsx";
+import { ProtocolDroid } from "./ProtocolDroid.tsx";
 import { KayKitBody, RobotBody } from "./Rigged.tsx";
 import { StreamIn } from "../../fx/Warm.tsx";
 import { BODY_HEIGHT, type BodyProps } from "./types.ts";
@@ -51,10 +52,11 @@ const BODIES: Record<Exclude<BodyKind, "classic">, ComponentType<BodyProps>> = {
   birb: LibraryBody,
   yeti: LibraryBody,
   monolith: Monolith,
-  powerbox: PowerBox,
   bard: Bard,
   coil: Coil,
   orb: Orb,
+  astromech: Astromech,
+  protocol: ProtocolDroid,
 };
 
 /** Any body but the classic figure, at the look's size. Models stream in; until then there's nothing to see. */

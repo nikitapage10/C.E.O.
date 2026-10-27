@@ -39,9 +39,9 @@ describe("room banners", () => {
     }
   });
 
-  it("puts the Pessimist on the Boiler Room banner and Gary on Compliance", () => {
+  it("puts the Pessimist on the Boiler Room banner and Clause on Compliance", () => {
     expect(BANNERS.boiler.voice.id).toBe("soot");
-    expect(BANNERS.compliance.voice.id).toBe("gary");
+    expect(BANNERS.compliance.voice.id).toBe("clause");
   });
 
   it("has a portrait on disk for every room's submind, the face on its pipe", () => {

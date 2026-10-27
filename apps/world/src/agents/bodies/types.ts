@@ -70,11 +70,13 @@ export const BODY_HEIGHT: Record<Exclude<Body, "classic">, number> = {
   birb: 1.45,
   yeti: 2.1,
   monolith: 1.78,
-  powerbox: 1.05,
   bard: 1.55,
   coil: 2.0,
   // The orb floats; this is the top of its halo.
   orb: 1.75,
+  // Drop, the astromech, comes up to a person's chest; Clause stands as tall as one.
+  astromech: 1.08,
+  protocol: 1.72,
 };
 
 /** Where a body holds what it carries, [height, distance in front], before `size`. Default: half its height, 0.42 out. */
@@ -83,4 +85,7 @@ export const CARRY_AT: Partial<Record<Exclude<Body, "classic">, [number, number]
   rocky: [0.55, 0.42],
   compactor: [0.62, 0.5],
   orb: [1.0, 0.5],
+  // Drop has no arms and carries things balanced on its dome; Clause holds them out on its free hand.
+  astromech: [1.13, 0],
+  protocol: [0.95, 0.42],
 };

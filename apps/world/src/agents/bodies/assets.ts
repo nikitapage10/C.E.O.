@@ -17,6 +17,6 @@ export function bodyModels(body: Body): string[] {
   if (body === "rocky") return [libUrl(ROCKY)];
   if (body === "hanar") return [libUrl(BLASTO)];
   if (body === "compactor") return [COMPACTOR_URL];
-  // The classic figure, the monolith and the power box are built in code.
+  // The classic figure, the monolith and the two droids are built in code.
   return [];
 }

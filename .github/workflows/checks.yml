@@ -45,7 +45,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Package provenance
-        run: npm audit signatures
+        # One retry: main failed once with invalid-attestation reports that cleared on re-run (#527). A real bad
+        # signature still fails both tries.
+        run: npm audit signatures || (echo "retrying once (#527)"; sleep 15; npm audit signatures)
       - name: Known vulnerabilities (high and above)
         # A finding fails the run. npm's audit service itself sometimes answers 400/503 (and npm takes minutes to give
         # up on it); then warn instead of failing. Dependency review and Dependabot still cover the run.

@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { readCrew } from "../hologram/crew.ts";
+import { readCrew, roomOfAgent } from "../hologram/crew.ts";
+import { setSpeaker } from "../hologram/signal.ts";
 import { stopSpeaking, useSkippy } from "./chat.ts";
 
 /**
@@ -321,8 +322,10 @@ export const useTalk = create<TalkStore>((set, get) => {
           token: got.token,
           desk: got.desk,
           ...(got.tool && { tool: got.tool }),
-          // Who has the mic (#481, #491): talkSession swaps the hologram on every transfer, from this crew map.
+          // Who has the mic (#481, #491): talkSession swaps the hologram on every transfer, from this crew map, then
+          // reports the agent here; setting it again is a no-op, and keeps a stand-in call (the browser tests) honest.
           crew: got.crew ?? {},
+          onAgent: (agent) => setSpeaker(roomOfAgent(agent, got.crew ?? {})),
           onMessage: (who, text) => useSkippy.getState().say(who, text),
           onMode: (mode) => set({ mode }),
           onTool: (name) => {

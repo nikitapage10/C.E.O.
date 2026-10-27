@@ -38,6 +38,8 @@ export interface Turn {
   from?: string;
   /** The answer's card: the numbers side by side, the verdict, what decided it, the sources. */
   card?: AskedCard;
+  /** The kept turn a voice call handed to the Kernel (#479), so it is waited on once and its answer can be told to the call. */
+  handed?: string;
 }
 
 /** What Nikita may send at once, and how many turns go with it: the function's own caps (api/_skippy/prompt.ts). */
@@ -184,6 +186,11 @@ interface SkippyStore {
   send: (text: string, doFetch?: typeof fetch) => Promise<Turn | null>;
   /** Adds a line said on a voice call (#434), or a note from the Desk about it, to the conversation. */
   say: (who: Turn["who"], text: string, note?: boolean) => void;
+  /**
+   * Waits on a hand-off a voice call made (#479: Skippy's hand_to_kernel), like a typed one: a pending bubble the round
+   * trip's timer settles with the answer. Resolves with the bubble's id, or null when it was already waiting or failed.
+   */
+  wait: (turn: string, room: AskedRoom, needs: string, doFetch?: typeof fetch) => Promise<number | null>;
   /** Marks a tapped button's state on its turn. */
   mark: (turn: number, index: number, state: ActionState) => void;
   clear: () => void;
@@ -229,6 +236,15 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
   say: (who, text, note = false) => {
     const words = clip(text, 700);
     if (words) set((s) => ({ turns: [...s.turns, { id: nextId++, who, text: words, ...(note && { note: true }) }].slice(-KEEP_TURNS) }));
+  },
+  wait: async (turn, room, needs, doFetch) => {
+    if (!/^[0-9a-f]{16}$/.test(turn) || get().turns.some((t) => t.pending?.turn === turn || t.handed === turn)) return null;
+    const rt = await loadRoundTrip().catch(() => null);
+    if (!rt || get().turns.some((t) => t.pending?.turn === turn || t.handed === turn)) return null;
+    const id = nextId++;
+    set((s) => ({ turns: [...s.turns, { id, who: "skippy" as const, text: rt.pendingText(needs), handed: turn, pending: { turn, room, needs, since: Date.now() } }].slice(-KEEP_TURNS) }));
+    rt.watchHandoffs(doFetch);
+    return id;
   },
   mark: (id, index, state) => set((s) => ({ turns: s.turns.map((t) => (t.id === id ? { ...t, done: { ...t.done, [index]: state } } : t)) })),
   clear: () => {

@@ -301,10 +301,24 @@ answer. But if it's something a little bit more specific to our room, then it ta
   for that call, signed with a key derived from `FOUNDRY_DESK_KEY` (no new secret) and good for the call's longest plus
   two minutes, and keeps its hash with the call (`desk/skippy/voice-tools.json`). The browser passes it to ElevenLabs
   as the secret dynamic variable `secret__ceo_tool`, which ElevenLabs binds only to tool headers and never shows the
-  LLM; each tool sends it back as `x-ceo-voice-tool`. The site gate lets exactly `GET /api/skippy-tools` through on a
-  signed, unexpired token; the route checks it is kept and not ended. The call's end revokes it.
+  LLM; each tool sends it back as `x-ceo-voice-tool`. The site gate lets exactly `GET` or `POST /api/skippy-tools`
+  through on a signed, unexpired token; the route checks it is kept and not ended, and holds a call to sixty tool calls.
+  The call's end revokes it.
+- **A beat to think.** Every tool is set to `pre_tool_speech: "force"` with a five-second `response_timeout_secs`, so
+  Skippy (or the submind on the mic) says a short in-character line first ("let's think about this…", "hold that
+  thought, checking the board"). The route gives each read 4.3 s; past that it answers `{ slow: true }` and the agent
+  says the data's slow and answers from what it already knows. Measured locally against the real upstreams: the Green
+  ~600 ms cold and ~2 ms warm, the Exchange ~190 ms cold and ~1 ms warm (server time only; ElevenLabs' network leg on
+  top).
+- **Handing work to the Kernel (#480).** Skippy's agent also carries `hand_to_kernel` (`POST ?act=kernel` with
+  `{ ask }`) and `check_answers` (`GET ?read=answers`). The first files the ask in the `kernel` room for Skippy's own
+  thread exactly as the typed chat does (privacy check first, at most five per call); Skippy says he's on it and keeps
+  talking. The answer comes back two ways: Skippy calls `check_answers` at a natural pause, and the Desk's chat, which
+  waits on the hand-off like a typed one (`GET /api/skippy-voice?handoffs=<conversation>` after each hand-off), tells
+  the live call the moment an answer lands with ElevenLabs' contextual update (`sendContextualUpdate`), so he reads it
+  out at the next pause. Once the call is over the answer simply lands in the typed chat.
 - **The mic.** Each active submind (the Commentator, the Bookie, the Messenger, the Pessimist, the Builder) has its own
-  ElevenLabs agent with its voice from the table above, its room's lookups only, Skippy's voice
+  ElevenLabs agent with its personality from the table above, its room's lookups only, Skippy's voice
   (`ELEVENLABS_VOICE_ID`) and the call's limits (`api/_skippy/voicecrew.ts`). Skippy's agent carries ElevenLabs'
   `transfer_to_agent` system tool with one rule per submind, and each submind one rule back to Skippy, so the mic moves
   inside the same conversation. Skippy answers basic questions himself from a lookup; he hands over only for an

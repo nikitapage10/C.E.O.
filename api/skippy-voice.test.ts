@@ -27,6 +27,9 @@ import {
 import { MemoryAuthStore } from "./_desk/store.ts";
 import { signedInCookie } from "./_desk/testing.ts";
 import { MemoryStoryStore, addStorySpend, storyMonth } from "./_world/story.ts";
+import { MemoryRoomLog } from "./_skippy/log.ts";
+import { MemoryCrewStore, checkToolToken, issueToolToken, noteHandoff } from "./_skippy/voicetoken.ts";
+import { TOOL_DEFS } from "./_skippy/voicecrew.ts";
 
 const NOW = Date.parse("2026-10-25T16:00:00Z");
 const KEY = "sk_test_eleven_key_that_must_never_leak_0123456789";
@@ -241,7 +244,7 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
 
   async function setup(over: Partial<VoiceDeps> = {}, eleven: { agent?: number; token?: number; done?: boolean } = {}) {
     const store = new MemoryAuthStore();
-    const cookie = await signedInCookie("test-desk-key", NOW, store);
+    const cookie = await signedInCookie("test-desk-key-0123456789", NOW, store);
     const calls: { url: string; method: string; key: string | null }[] = [];
     const fetcher = (async (input: string, init?: RequestInit) => {
       const url = String(input);
@@ -255,7 +258,7 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     const stories = new MemoryStoryStore();
     const voice = new MemoryVoiceStore();
     const deps: VoiceDeps = {
-      deskKey: "test-desk-key",
+      deskKey: "test-desk-key-0123456789",
       store,
       stories,
       voice,
@@ -314,7 +317,7 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
 
   it("refuses a cross-site request", async () => {
     const { deps, calls } = await setup();
-    const cookie = await signedInCookie("test-desk-key", NOW, deps.store!);
+    const cookie = await signedInCookie("test-desk-key-0123456789", NOW, deps.store!);
     const res = await talk(new Request("https://ceo.example/api/skippy-voice", { method: "POST", headers: { Cookie: cookie, Origin: "https://evil.example", "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }) }), deps);
     expect(res.status).toBe(403);
     expect(calls).toEqual([]);
@@ -377,10 +380,80 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     expect(storyMonth(stories.spend, NOW).voiceSecs).toBe(VOICE_SESSION_SECS);
     // Over: 50 seconds, the rest given back.
     const done = await setup({ stories, voice, store: deps.store }, { done: true });
-    const res = await done.post({ action: "end", conversation: "conv_0001" }, await signedInCookie("test-desk-key", NOW, deps.store!));
+    const res = await done.post({ action: "end", conversation: "conv_0001" }, await signedInCookie("test-desk-key-0123456789", NOW, deps.store!));
     expect(res.status).toBe(200);
     expect(storyMonth(stories.spend, NOW).voiceSecs).toBe(50);
     expect(voice.state.pending).toEqual([]);
+  });
+
+  it("with Skippy's crew (#479): makes the tools and subminds once, gives the call its own tool key, revokes it at the end, and logs the subminds' exchanges", async () => {
+    const crew = new MemoryCrewStore();
+    const roomLog = new MemoryRoomLog();
+    const made: { url: string; method: string; body: Record<string, unknown> }[] = [];
+    let n = 0;
+    let done = false;
+    const fetcher = (async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method !== "GET") made.push({ url, method, body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown> });
+      if (url.endsWith("/v1/convai/tools") && method === "POST") return Response.json({ id: `tool_${String(++n).padStart(4, "0")}` });
+      if (url.includes("/agents/create")) return Response.json({ agent_id: `agent_${String(++n).padStart(4, "0")}` });
+      if (method === "PATCH") return Response.json({});
+      if (url.includes("/conversation/token")) return Response.json({ token: "lk-token-abcdefgh", conversation_id: "conv_0001" });
+      if (url.includes("/conversations/")) {
+        const turf = (await crew.load(NOW)).agents.turf?.id;
+        return Response.json({
+          status: done ? "done" : "in-progress",
+          metadata: { call_duration_secs: 80, start_time_unix_secs: NOW / 1000 },
+          transcript: [
+            { role: "user", message: "Give me the full play-by-play on the waiver race", time_in_call_secs: 5 },
+            { role: "agent", message: "Handing you to the Commentator.", time_in_call_secs: 7, agent_metadata: { agent_id: "agent_0001" } },
+            { role: "agent", message: "Two managers are circling the same kicker, folks!", time_in_call_secs: 9, agent_metadata: { agent_id: turf } },
+          ],
+        });
+      }
+      return new Response("{}", { status: 404 });
+    }) as typeof fetch;
+    const { post } = await setup({ crew, roomLog, site: "https://ceo.example", fetcher });
+    const started = await post({ action: "start" });
+    const body = (await started.json()) as { tool?: string; conversation: string };
+    expect(started.status, JSON.stringify(body)).toBe(200);
+    expect(body.tool).toMatch(/^vt1\./);
+    expect(await checkToolToken(body.tool, "test-desk-key-0123456789", crew, NOW)).toMatchObject({ ok: true, conversation: "conv_0001" });
+    // Every lookup and each live submind exists on ElevenLabs, and Skippy's agent carries them.
+    const kept = await crew.load(NOW);
+    expect(Object.keys(kept.tools).sort()).toEqual(TOOL_DEFS.map((t) => t.name).sort());
+    expect(Object.keys(kept.agents).sort()).toEqual(["ember", "soot", "static", "ticker", "turf"]);
+    const skippy = made.filter((m) => m.method === "PATCH" && m.url.endsWith("/agents/agent_0001")).at(-1)!;
+    const prompt = ((skippy.body.conversation_config as Record<string, Record<string, Record<string, unknown>>>).agent!.prompt!) as { tool_ids: string[]; built_in_tools: { transfer_to_agent: unknown } };
+    expect(prompt.tool_ids).toHaveLength(TOOL_DEFS.length);
+    expect(prompt.built_in_tools.transfer_to_agent).toBeTruthy();
+    // A second call changes nothing on ElevenLabs.
+    const before = made.length;
+    await post({ action: "start" });
+    expect(made.filter((m, i) => i >= before && !m.url.includes("/conversation/token")).length).toBe(0);
+    // The end revokes the call's key; once the call is over the Commentator's stretch goes to the Council.
+    done = true;
+    await post({ action: "end", conversation: "conv_0001" });
+    expect(await checkToolToken(body.tool, "test-desk-key-0123456789", crew, NOW)).toEqual({ ok: false, why: "ended" });
+    const [logged] = await roomLog.list("green", NOW);
+    expect(logged).toMatchObject({ room: "green", via: "voice", by: "turf", question: "Give me the full play-by-play on the waiver race" });
+    expect(logged!.answer).toMatch(/circling the same kicker/);
+  });
+
+  it("lists a call's hand-offs to a signed-in Desk only", async () => {
+    const crew = new MemoryCrewStore();
+    const { deps } = await setup({ crew });
+    const cookie = await signedInCookie("test-desk-key-0123456789", NOW, deps.store!);
+    const ask = (q: string, c = cookie) => status(new Request(`https://ceo.example/api/skippy-voice?handoffs=${q}`, { headers: { Cookie: c } }), deps);
+    expect(await (await ask("conv_0001")).json()).toEqual({ handoffs: [] });
+    const t = await issueToolToken(crew, "test-desk-key-0123456789", "conv_0001", NOW + 60_000, NOW);
+    const check = await checkToolToken(t, "test-desk-key-0123456789", crew, NOW);
+    expect(check.ok).toBe(true);
+    if (check.ok) await noteHandoff(crew, check.hash, "0123456789abcdef", NOW);
+    expect(await (await ask("conv_0001")).json()).toEqual({ handoffs: ["0123456789abcdef"] });
+    expect((await ask("../x")).status).toBe(400);
+    expect((await ask("conv_0001", "")).status).toBe(401);
   });
 
   it("refuses a malformed request", async () => {

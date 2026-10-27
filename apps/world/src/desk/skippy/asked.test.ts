@@ -19,6 +19,20 @@ describe("Asked Skippy, browser side (#273)", () => {
     expect(readAsked(null, "green")).toBeNull();
   });
 
+  it("keeps who held the mic on a Talk call (#479), and only a known submind", () => {
+    const body = {
+      room: "green",
+      turns: [
+        { at: "2026-10-27T10:00:00Z", question: "Play-by-play on the waiver race?", answer: "Two managers circling one kicker.", model: "voice", via: "voice", by: "turf" },
+        { at: "2026-10-27T09:00:00Z", question: "Q", answer: "A", model: "voice", via: "voice", by: "<b>someone</b>" },
+      ],
+    };
+    const [onMic, unknown] = readAsked(body, "green")!;
+    expect(onMic).toMatchObject({ via: "voice", by: "turf" });
+    expect(handedName(onMic!.by!)).toBe("The Commentator");
+    expect(unknown).not.toHaveProperty("via");
+  });
+
   it("names the model and the time plainly", () => {
     expect(modelName("claude-opus-5-5")).toBe("Opus");
     expect(modelName("claude-sonnet-5-5")).toBe("Sonnet");

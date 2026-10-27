@@ -38,6 +38,8 @@
  * and counts from the Foundry's issues, the setup list's states and the world clock, scrubbed like the public feeds,
  * and the month's ElevenLabs bill (#477, billLines: talk minutes, calls, dollars against the talk's share and the cap,
  * the plan's credits when ElevenLabs answers). The bill is only ever in this signed-in answer, never on the Lattice.
+ * And a line or two per live room (#478, api/_skippy/rooms.ts): the Green's matchup and calls, Relay's counts, the
+ * Exchange's open positions and the Boiler Room's pipes, each read on its own inside one time budget.
  * He is also told what C.E.O. runs on (#312): the sheet generated from the repo at build time and an OSV.dev advisory
  * summary of the locked packages, cached (api/_skippy/advisories.ts). When he can't settle an ask, or it is work for a
  * room, he hands it off ("needs" in his answer) and the turn is kept flagged for Skippy's thread or the room's submind.
@@ -72,6 +74,8 @@ import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
 import { elevenFromEnv, pickStoryStore } from "./_world/story.js";
 import { billLines, creditsReader, voiceBudget, voiceUsage } from "./_skippy/voice.js";
+import { roomLines } from "./_skippy/rooms.js";
+import { liveRoomReads } from "./_skippy/roomReads.js";
 import type { WorldState } from "./_world/types.js";
 
 /** Sonnet answers; Opus takes the questions Sonnet marks "deeper"; Sonnet with web search runs a lookup. */
@@ -208,6 +212,8 @@ export interface ChatDeps {
   desk: (world: WorldState | null) => Promise<DeskContext>;
   /** The month's ElevenLabs bill as plain lines (#477, api/_skippy/voice.ts billLines), added to <desk>; "" or left out, none. */
   bill?: () => Promise<string>;
+  /** The live rooms as plain lines (#478, api/_skippy/rooms.ts), added to <desk>; "" or left out, none. */
+  rooms?: (world: WorldState | null) => Promise<string>;
   now: number;
   env: Record<string, string | undefined>;
 }
@@ -233,6 +239,7 @@ function defaultDeps(): ChatDeps {
       const [{ open, shipped }, setup] = await Promise.all([foundryIssues().catch(() => ({ open: [], shipped: [] })), setupList().catch((): SetupStatus | null => null)]);
       return deskContext(open, shipped, setup, world);
     },
+    rooms: (world) => roomLines({ ...liveRoomReads(env), clock: async () => world?.at ?? null }, Date.now()),
     bill: async () => {
       const eleven = elevenFromEnv(env);
       const stories = pickStoryStore(env);
@@ -426,10 +433,10 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
     return json({ reply: OVER_BUDGET[Math.floor(deps.now / 60_000) % OVER_BUDGET.length], actions: [], capped: true });
   }
 
-  const [desk, bill, stack] = await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.bill ? deps.bill().catch(() => "") : Promise.resolve(""), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")]);
+  const [desk, rooms, bill, stack] = await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.rooms ? deps.rooms(world).catch(() => "") : Promise.resolve(""), deps.bill ? deps.bill().catch(() => "") : Promise.resolve(""), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")]);
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(SKIPPY_PROMPT, chatInput(bill ? `${contextLines(desk, deps.now)}\n${bill}` : contextLines(desk, deps.now), said.history, said.message, stack, said.page));
+    got = await deps.ask(SKIPPY_PROMPT, chatInput([contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n"), said.history, said.message, stack, said.page));
   } catch {
     return json({ error: "model" }, 502);
   }

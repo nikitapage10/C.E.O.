@@ -90,6 +90,7 @@ describe("build progress on the Foundry feed (#488)", () => {
   it("lists the issues with a pushed branch, numbers only", async () => {
     const { branchIssues } = await import("./foundry-feed.ts");
     expect(branchIssues([{ name: "chat/488-build-progress" }, { name: "foundry/build/30-x" }, { name: "main" }, { name: "dependabot/npm/x-1" }, { name: "foundry-shots" }])).toEqual([30, 488]);
+    expect(branchIssues([{ ref: "refs/heads/chat/481-holo" }, { ref: "refs/heads/foundry/fix/12-red" }])).toEqual([12, 481]);
     expect(branchIssues(null)).toEqual([]);
   });
 

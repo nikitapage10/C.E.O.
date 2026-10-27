@@ -42,6 +42,7 @@ describe("readNote", () => {
   it("keeps the builder's words and drops any percent or time left", () => {
     expect(readNote("**Trail · Progress:** fixing the phone layout")).toBe("fixing the phone layout");
     expect(readNote("**Trail · Progress:** 60% · checks running on PR #489 · about 25 min left")).toBe("checks running on PR #489");
+    expect(readNote("**Trail · Progress:** step 1 of 7 · assigned to Dusty on Opus; reading the voice agents")).toBe("assigned to Dusty on Opus; reading the voice agents");
     expect(readNote("**Trail · Progress:** 95%")).toBeNull();
   });
 

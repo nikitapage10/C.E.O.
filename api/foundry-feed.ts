@@ -140,11 +140,11 @@ export function checkTimes(list: unknown): { checksAt: string | null; greenAt: s
   return { checksAt: start, greenAt: checksOf(list) === "pass" ? end : null };
 }
 
-/** The issues with a pushed branch in the Foundry's naming ("chat/488-…", "foundry/build/30-…"): numbers only. */
+/** The issues with a pushed branch in the Foundry's naming ("chat/488-…", "foundry/build/30-…"), from branches or refs: numbers only. */
 export function branchIssues(list: unknown): number[] {
   const out = new Set<number>();
   for (const b of Array.isArray(list) ? (list as Record<string, unknown>[]) : []) {
-    const n = /^(?:chat|foundry\/[a-z]+)\/(\d+)-/.exec(str(b.name) ?? "")?.[1];
+    const n = /^(?:refs\/heads\/)?(?:chat|foundry\/[a-z]+)\/(\d+)-/.exec(str(b.name) ?? str(b.ref) ?? "")?.[1];
     if (n) out.add(Number(n));
   }
   return [...out].sort((a, b) => a - b);
@@ -215,7 +215,11 @@ const openPulls = memo(OPEN_TTL * 1000, async () =>
 );
 
 /** The pushed branches, for build progress (#488): read with the open pull requests. */
-const branches = memo(OPEN_TTL * 1000, async () => branchIssues(await read("/branches?per_page=100").catch(() => [])));
+const branches = memo(OPEN_TTL * 1000, async () => {
+  // Matching refs, not the branch list: every chat and Foundry branch in two reads, however many others there are.
+  const [chat, foundry] = await Promise.all([read("/git/matching-refs/heads/chat").catch(() => []), read("/git/matching-refs/heads/foundry").catch(() => [])]);
+  return branchIssues([...(chat as unknown[]), ...(foundry as unknown[])]);
+});
 
 /** How long the merged pull requests' milestones are kept, in seconds: they never change once read. */
 const TIMINGS_TTL = 600;

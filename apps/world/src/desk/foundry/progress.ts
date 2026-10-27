@@ -53,8 +53,8 @@ const PROGRESS = "**Trail · Progress:**";
 const NOTE_MAX = 80;
 
 /**
- * A builder's Progress note, in plain words: `**Trail · Progress:** fixing the phone layout`. A percent or a time
- * left written in it is dropped, since the milestones set both. null when it isn't a Progress step or says nothing else.
+ * A builder's Progress note, in plain words: `**Trail · Progress:** fixing the phone layout`. A percent, a step or a
+ * time left written in it is dropped, since the milestones set them. null when it isn't a Progress step or says nothing else.
  */
 export function readNote(body: string): string | null {
   if (!body.startsWith(PROGRESS)) return null;
@@ -65,6 +65,7 @@ export function readNote(body: string): string | null {
       p
         .trim()
         .replace(/^\d{1,3}(?:\.\d+)?\s*%[\s,;:–-]*/, "")
+        .replace(/^step\s+\d+\s+of\s+\d+[\s,;:–-]*/i, "")
         .trim(),
     )
     .filter((p) => p && !/^(?:about|around|roughly|~)?\s*[\d.]+\s*(?:h|hrs?|hours?|m|mins?|minutes?)\b.*\b(?:left|to go)\.?$/i.test(p));

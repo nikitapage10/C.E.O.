@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { claimWaiting, commentatorCall, greenLinks, ordinal, readGreen, sayNumber, scoreboardLine, sleeperLeagueUrl, yardLine, type GreenBoard, type GreenPlayer } from "./league.ts";
-import { readAnalysis } from "./analysis.ts";
+import { claimWaiting, commentatorCall, greenLinks, ordinal, readGreen, sayNumber, scoreboardLine, sleeperLeagueUrl, tickerItems, yardLine, type GreenBoard, type GreenPlayer } from "./league.ts";
+import { readAnalysis, waitWords } from "./analysis.ts";
 import { roomPhrase, roomPulses, type PulseInput } from "../roomPulse.ts";
 import { EMPTY_FOUNDRY } from "../../foundry.ts";
 
@@ -122,5 +122,33 @@ describe("the analyst desk's parts in the browser (#276)", () => {
     expect(got.trigger).toBe("scheduled");
     expect(readAnalysis({ ...good, at: "not a date" })).toBeNull();
     expect(readAnalysis(null)).toBeNull();
+    // #261: the calls and the FantasyPros review are sections too.
+    const more = readAnalysis({ ...good, sections: [{ key: "calls", title: "The calls", text: "Lineup's set." }, { key: "review", title: "FantasyPros review", text: "Waiting on FantasyPros." }] })!;
+    expect(more.sections.map((s) => s.key)).toEqual(["calls", "review"]);
+  });
+
+  it("says how long until the next on-demand take (#261)", () => {
+    expect(waitWords(30_000)).toBe("1 min");
+    expect(waitWords(45 * 60_000)).toBe("45 min");
+    expect(waitWords(23.5 * 3_600_000)).toBe("24 h");
+  });
+});
+
+describe("the ticker (#261)", () => {
+  it("runs your news first, then the rest, then the league's moves, and nothing when there's nothing", () => {
+    expect(tickerItems(board())).toEqual([]);
+    const b = board({
+      news: [
+        { id: null, name: "Wire Guy", text: "signed to the practice squad", at: null, whose: "free", src: "sleeper" },
+        { id: "2", name: "Rex Runner", text: "ruled out", at: "2026-10-22T10:00:00.000Z", whose: "mine", src: "fp" },
+      ],
+      moves: [{ team: "5:30 Abdi", kind: "waiver", adds: ["Hot Pickup"], drops: ["Old Hand"], bid: 12, at: null }],
+    });
+    expect(tickerItems(b).map((t) => [t.tag, t.who, t.text, t.mine])).toEqual([
+      ["Yours", "Rex Runner", "ruled out", true],
+      ["Wire", "Wire Guy", "signed to the practice squad", false],
+      ["Claim", "5:30 Abdi", "adds Hot Pickup, drops Old Hand (FAAB bid 12)", false],
+    ]);
+    expect(tickerItems(b, 1)).toHaveLength(1);
   });
 });

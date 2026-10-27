@@ -191,6 +191,39 @@ export const onBye = (p: GreenPlayer | null | undefined, week: number) => !!p &&
 /** Where the start-or-sit calls come from, in words. */
 export const callsWord = (b: GreenBoard) => (b.sources.calls === "fp" ? "Calls from FantasyPros" : `Calls from form here (FantasyPros ${b.sources.fantasypros === "failed" ? "not answering" : b.sources.fantasypros === "live" ? "has no projections for this week yet" : "waiting"})`);
 
+/** How sure a start-or-sit call is (#261): the server's own rule, so the cards and the Commentator say the same word. */
+export { callConfidence, type Confidence } from "../../../../../api/_green/confidence.ts";
+
+/** One line on the ticker (#261): a headline on a player, or a move in the league. Real reads only. */
+export interface TickItem {
+  key: string;
+  /** "Yours", "Theirs", "Wire", "League" for news; "Claim", "Signing", "Trade" for a move. */
+  tag: string;
+  mine: boolean;
+  who: string;
+  text: string;
+  at: string | null;
+}
+
+const WHOSE_TAG: Record<GreenNews["whose"], string> = { mine: "Yours", opp: "Theirs", free: "Wire", league: "League" };
+const MOVE_TAG: Record<GreenMove["kind"], string> = { waiver: "Claim", free_agent: "Signing", trade: "Trade" };
+
+/**
+ * The ticker's lines: the news on your players first, then your opponent's, the wire's and the league's, with the
+ * league's latest moves after; at most `max`. Empty when Sleeper and FantasyPros have nothing (no line is made up).
+ */
+export function tickerItems(b: GreenBoard, max = 14): TickItem[] {
+  const order: Record<GreenNews["whose"], number> = { mine: 0, opp: 1, free: 2, league: 3 };
+  const news = [...(b.news ?? [])].sort((x, y) => order[x.whose] - order[y.whose]).map((n, i): TickItem => ({ key: `n${i}`, tag: WHOSE_TAG[n.whose], mine: n.whose === "mine", who: n.name, text: n.text, at: n.at }));
+  const moves = (b.moves ?? []).slice(0, 6).map((m, i): TickItem => {
+    const adds = m.adds.length ? `adds ${m.adds.join(", ")}` : "";
+    const drops = m.drops.length ? `drops ${m.drops.join(", ")}` : "";
+    const bid = m.bid !== null && m.bid > 0 ? ` (FAAB bid ${m.bid})` : "";
+    return { key: `m${i}`, tag: MOVE_TAG[m.kind], mine: m.team === b.me.team, who: m.team, text: [adds, drops].filter(Boolean).join(", ") + bid, at: m.at };
+  });
+  return [...news, ...moves].filter((t) => t.text).slice(0, max);
+}
+
 /* ── how the numbers read ── */
 
 export const pts = (n: number | null | undefined) => (n === null || n === undefined ? "–" : n.toFixed(1));

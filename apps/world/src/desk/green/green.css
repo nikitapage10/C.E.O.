@@ -1847,6 +1847,215 @@
     min-width: 0;
   }
 }
+
+/* ── #261: the scoreboard's labels and win-probability meter, call confidence and ranks, the ticker ── */
+
+.desk .gd-sb-side small.gd-sb-what {
+  letter-spacing: 0.2em;
+  font-size: 10px;
+  color: var(--wv-faint);
+  opacity: 0.8;
+}
+.desk .gd-wp {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 14px;
+  max-width: 560px;
+  margin: 16px auto 0;
+}
+.desk .gd-wp-end {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.desk .gd-wp-end.is-me {
+  justify-items: end;
+  text-align: right;
+}
+.desk .gd-wp-end b {
+  font-family: var(--gd-disp);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--wv-soft);
+}
+.desk .gd-wp-end.is-me b {
+  color: var(--lime);
+}
+.desk .gd-wp-end small {
+  max-width: 14ch;
+  overflow: hidden;
+  font-family: var(--gd-sans);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--wv-faint);
+}
+/* The meter is the kit's dotted line, filled in lime up to your chance. */
+.desk .gd-wp-bar {
+  position: relative;
+  display: block;
+  height: 4px;
+  background: radial-gradient(circle, rgba(236, 238, 243, 0.24) 1px, transparent 1.5px) 0 50% / 7px 4px repeat-x;
+}
+.desk .gd-wp-bar > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+  background: radial-gradient(circle, var(--lime) 1.2px, transparent 1.7px) 0 50% / 7px 4px repeat-x;
+  filter: drop-shadow(0 0 4px rgba(var(--fl-accent), 0.7));
+  transform-origin: left;
+  animation: fl-draw 1.1s 0.3s var(--gd-ease) backwards;
+}
+.desk .gd-wp-k {
+  grid-column: 1 / -1;
+  justify-self: center;
+  font-family: var(--gd-sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--wv-faint);
+}
+
+.desk .gd-du-n {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+.desk .gd-du-n small {
+  font-family: var(--gd-sans);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--wv-faint);
+}
+.desk .gd-rk {
+  padding: 1px 6px;
+  border: 1px solid var(--gd-line2);
+  border-radius: 4px;
+  font-family: var(--gd-sans);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--wv-soft);
+}
+.desk .gd-rk i {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--wv-faint);
+}
+.desk .gd-flag.is-sure.is-high {
+  border-color: var(--lime-l);
+  color: var(--lime);
+}
+.desk .gd-flag.is-sure.is-medium {
+  color: var(--wv-soft);
+}
+.desk .gd-flag.is-sure.is-low {
+  border-color: rgba(244, 194, 122, 0.4);
+  color: var(--gd-led);
+}
+
+.desk .gd-tick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin: 26px 0 22px;
+  padding: 9px 0;
+  border-top: 1px solid var(--gd-line);
+  border-bottom: 1px solid var(--gd-line);
+  overflow: hidden;
+}
+.desk .gd-tick-run {
+  min-width: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+}
+.desk .gd-tick-k {
+  padding: 3px 9px;
+  border-radius: 3px;
+  background: var(--lime);
+  font-family: var(--gd-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gd-night);
+}
+.desk .gd-tick-belt {
+  display: flex;
+  width: max-content;
+  animation: gd-crawl calc(var(--n, 8) * 6s) linear infinite;
+}
+.desk .gd-tick:hover .gd-tick-belt,
+.desk .gd-tick:focus-within .gd-tick-belt {
+  animation-play-state: paused;
+}
+.desk .gd-tick ul {
+  display: flex;
+  flex: none;
+  gap: 34px;
+  margin: 0;
+  padding: 0 34px 0 0;
+  list-style: none;
+}
+.desk .gd-tick li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--gd-sans);
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--wv-mute);
+}
+.desk .gd-tick li em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--wv-faint);
+}
+.desk .gd-tick li.is-mine em {
+  color: var(--lime);
+}
+.desk .gd-tick li b {
+  font-weight: 600;
+  color: var(--wv-ink);
+}
+.desk .gd-tick li small {
+  font-size: 11px;
+  color: var(--wv-faint);
+}
+@keyframes gd-crawl {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk .gd-tick-belt {
+    animation: none;
+  }
+  .desk .gd-tick-run {
+    overflow-x: auto;
+    mask-image: none;
+  }
+  .desk .gd-tick-belt ul[aria-hidden] {
+    display: none;
+  }
+  .desk .gd-wp-bar > i {
+    animation: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .desk .gd-rise,
   .desk .gd-stage.is-live .gd-board .fl-eyb > span::before,

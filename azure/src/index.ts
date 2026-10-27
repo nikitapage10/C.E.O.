@@ -152,7 +152,8 @@ app.timer("email_tick", {
 
 // The Commentator's weekly call (#276): Tuesday 5:39pm Mountain, before Wednesday's waivers. Azure's timers run on UTC,
 // so this fires at :39 past 23:00 and 00:00 UTC on Tuesdays and Wednesdays and the run itself checks it is Tuesday's 5pm
-// hour in Denver (daylight saving or not); it never writes more than once in six hours. Logs only what happened.
+// hour in Denver (daylight saving or not); it never writes more than once a week (#261), and writes nothing while no
+// league data is connected. Logs only what happened.
 app.timer("green_weekly", {
   schedule: "0 39 23,0 * * 2,3",
   runOnStartup: false,
@@ -162,5 +163,6 @@ app.timer("green_weekly", {
     const result = await greenanalysis.runGreenWeekly();
     if (result === "failed") context.warn("green weekly: failed");
     else if (result === "written") context.log("green weekly: written");
+    else if (result === "waiting") context.log("green weekly: waiting for league data");
   },
 });

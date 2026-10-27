@@ -7,9 +7,11 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
+import type { GreenBoard, GreenPlayer, GreenPos } from "../_green/types.js";
+import { lineupAlert } from "./voicereads.js";
 import { LEAGUE_ID, USER_ID, cleanText, getJson, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, urls, type Fetcher } from "../_green/sleeper.js";
 
-export const LEAGUE_READS = ["standings", "weeks", "week"] as const;
+export const LEAGUE_READS = ["standings", "weeks", "week", "roster"] as const;
 export type LeagueRead = (typeof LEAGUE_READS)[number];
 export interface LeagueArgs {
   read: LeagueRead;
@@ -21,7 +23,7 @@ export interface LeagueArgs {
 }
 
 /** Player names by Sleeper id, from the Green's kept copy of the players list (never a 15 MB read here). */
-export type PlayerNames = () => Promise<Record<string, { n: string; pos: string; team: string | null }>>;
+export type PlayerNames = () => Promise<Record<string, { n: string; pos: string; team: string | null; inj?: string | null }>>;
 
 /** The most weeks one read covers, and the most text it returns. */
 export const WEEKS_MAX = 8;
@@ -34,7 +36,7 @@ const pts = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
 /** The league's text for a read, or a plain sentence when Sleeper doesn't answer. Never throws. */
 export async function leagueText(args: unknown, fetcher: Fetcher, players: PlayerNames = async () => ({})): Promise<string> {
   const a = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
-  const read: LeagueRead = a.read === "standings" || a.read === "week" ? a.read : "weeks";
+  const read: LeagueRead = a.read === "standings" || a.read === "week" || a.read === "roster" ? a.read : "weeks";
   try {
     const [usersRaw, rostersRaw, stateRaw] = await Promise.all([getJson(fetcher, urls.users(LEAGUE_ID)), getJson(fetcher, urls.rosters(LEAGUE_ID)), getJson(fetcher, urls.state()).catch(() => null)]);
     const names = shapeTeamNames(usersRaw);
@@ -47,6 +49,7 @@ export async function leagueText(args: unknown, fetcher: Fetcher, players: Playe
       const rows = [...rosters].sort((x, y) => y.wins - x.wins || y.pf - x.pf);
       return rows.map((r, i) => `${i + 1}. ${team(r.rosterId)} ${r.wins}-${r.losses}${r.ties ? `-${r.ties}` : ""}, scored ${pts(r.pf)}, allowed ${pts(r.pa)}${r.streak ? `, streak ${r.streak}` : ""}`).join("\n").slice(0, LEAGUE_TEXT_MAX);
     }
+    if (read === "roster") return rosterText(rosters.find((r) => r.ownerId === USER_ID || r.coOwners.includes(USER_ID)), await players().catch(() => ({})), stateRaw ? shapeState(stateRaw).week : 0);
     if (read === "week") return await oneWeek(week(a.week), typeof a.team === "string" ? a.team : "", { fetcher, rosters, team, players, nowWeek: stateRaw ? shapeState(stateRaw).week : null });
     const now = stateRaw ? shapeState(stateRaw).week : null;
     const last = week(a.to) ?? Math.max(1, Math.min(LAST_WEEK, (now ?? 7) - 1));
@@ -113,4 +116,34 @@ async function oneWeek(w: number | null, wanted: string, c: WeekCtx): Promise<st
   ]
     .join("\n")
     .slice(0, LEAGUE_TEXT_MAX);
+}
+
+const INJ_WORD: Record<string, string> = { O: "Out", IR: "on IR", D: "Doubtful", Q: "Questionable", SUS: "suspended", PUP: "on the PUP list", NA: "not active" };
+
+/**
+ * Nikita's roster from Sleeper's own starters and bench (#526), every player with his injury status, led by the
+ * lineup heads-up the voice uses (lineupAlert). Projections play no part, so an Out player is never left out.
+ */
+export function rosterText(r: ReturnType<typeof shapeRosters>[number] | undefined, names: Awaited<ReturnType<PlayerNames>>, week: number): string {
+  if (!r) return "Couldn't tell which team is Nikita's.";
+  const mk = (id: string): GreenPlayer => {
+    const n = names[id];
+    const inj = n?.inj && n.inj in INJ_WORD ? (n.inj as GreenPlayer["inj"]) : null;
+    return { id, name: cleanText(n?.n || `Player ${id}`, 40), pos: (n?.pos ?? "WR") as GreenPos, team: n?.team ?? null, inj, proj: null, src: "none", avg: null, last: null, wk: null, ecr: null, posRank: null, bye: null } as GreenPlayer;
+  };
+  const starterIds = r.starters.filter((id) => id !== "0");
+  const reserveIds = new Set(r.reserve);
+  const starters = starterIds.map(mk);
+  const bench = r.players.filter((id) => !starterIds.includes(id) && !reserveIds.has(id)).map(mk);
+  const reserve = r.reserve.map(mk);
+  const board = { week, roster: { starters: starters.map((player) => ({ slot: player.pos, player, pts: 0 })), bench, reserve } } as unknown as GreenBoard;
+  const tag = (p: GreenPlayer) => `${p.name} ${p.pos}${p.team ? ` ${p.team}` : ""}${p.inj ? ` ${INJ_WORD[p.inj]}` : ""}`;
+  const alert = lineupAlert(board);
+  return [
+    alert,
+    `Nikita's starters: ${starters.map(tag).join("; ") || "none listed"}.`,
+    `Bench: ${bench.map(tag).join("; ") || "none"}.`,
+    reserve.length ? `Reserve/IR: ${reserve.map(tag).join("; ")}.` : "",
+    "Injury status is Sleeper's; byes are not checked here.",
+  ].filter(Boolean).join("\n").slice(0, LEAGUE_TEXT_MAX);
 }

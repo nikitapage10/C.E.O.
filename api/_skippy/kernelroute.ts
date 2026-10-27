@@ -123,7 +123,7 @@ export function liveAgent(env: Env = process.env): AgentDeps {
     },
     league: (args) =>
       leagueText(args, (url, init) => fetch(url, init), async () => {
-        const kept = await peekKept<Record<string, { n: string; pos: string; team: string | null }>>(pickGreenStore(env), PLAYERS_PATH).catch(() => null);
+        const kept = await peekKept<Record<string, { n: string; pos: string; team: string | null; inj?: string | null }>>(pickGreenStore(env), PLAYERS_PATH).catch(() => null);
         return kept?.value ?? {};
       }),
     fileIssue: async (title, body) => {

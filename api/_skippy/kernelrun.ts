@@ -16,8 +16,8 @@ const TOOLS = [
   { type: "web_search_20260209", name: "web_search", max_uses: RUN_LIMITS.searches },
   {
     name: "sleeper_league",
-    description: "Read Nikita's fantasy football league from Sleeper, read-only. read 'standings' gives every team's record, points scored and allowed. read 'weeks' gives every matchup of the weeks from..to (week numbers 1 to 18, at most eight weeks; leave them out for the last six played weeks). read 'week' gives one team's whole week: opponent, both totals, each starter and each bench player with their points; pass week and, for another team, part of its name (Nikita's own team when left out).",
-    input_schema: { type: "object", properties: { read: { type: "string", enum: ["standings", "weeks", "week"] }, from: { type: "integer" }, to: { type: "integer" }, week: { type: "integer" }, team: { type: "string" } }, required: ["read"], additionalProperties: false },
+    description: "Read Nikita's fantasy football league from Sleeper, read-only. read 'standings' gives every team's record, points scored and allowed. read 'weeks' gives every matchup of the weeks from..to (week numbers 1 to 18, at most eight weeks; leave them out for the last six played weeks). read 'roster' gives Nikita's own current roster: starters, bench and reserve with each player's Sleeper injury status, led by a Heads up when a starter is Out, on IR or Doubtful. Call it for ANY question about his team, his roster, a player of his, or whether to start or sit someone. read 'week' gives one team's whole week: opponent, both totals, each starter and each bench player with their points; pass week and, for another team, part of its name (Nikita's own team when left out).",
+    input_schema: { type: "object", properties: { read: { type: "string", enum: ["standings", "weeks", "week", "roster"] }, from: { type: "integer" }, to: { type: "integer" }, week: { type: "integer" }, team: { type: "string" } }, required: ["read"], additionalProperties: false },
   },
   {
     name: "file_build_request",

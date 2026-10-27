@@ -15,7 +15,7 @@
  */
 
 import { line } from "./context.js";
-import { weekFrame } from "./voicereads.js";
+import { lineupAlert, weekFrame } from "./voicereads.js";
 import type { GreenAnalysis, GreenBoard } from "../_green/types.js";
 import type { EmailStatus } from "../_email/status.js";
 
@@ -79,6 +79,8 @@ export function greenLines(b: GreenBoard): string[] {
     .slice(0, CALLS_MAX)
     .map((c) => `${c.slot} ${c.change ? "start" : "keep"} ${c.start.name} over ${c.sit.name} (edge ${num(Math.abs(c.edge))}${c.sleeper === "disagrees" ? ", Sleeper disagrees" : ""})`);
   const out = [line(head, 240)];
+  const alert = lineupAlert(b);
+  if (alert) out.unshift(line(alert, 300));
   if (calls.length) out.push(line(`Green start/sit (${b.sources.calls === "fp" ? "FantasyPros decides" : "on form, FantasyPros waiting"}): ${calls.join("; ")}.`, 300));
   return out;
 }

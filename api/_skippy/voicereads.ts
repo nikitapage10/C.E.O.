@@ -94,23 +94,54 @@ export function weekFrame(b: GreenBoard): { final: boolean; line: string } {
   return { final, line: `Week ${week} ${vs}, between games: ${pts(m.me.pts)} to ${pts(m.them.pts)} so far, ${odds}.` };
 }
 
+const INJ_WORD: Record<string, string> = { O: "Out", IR: "on IR", D: "Doubtful", SUS: "suspended", PUP: "on the PUP list", NA: "not active", Q: "Questionable" };
+const GRIM = new Set(["O", "IR", "D", "SUS", "PUP", "NA"]);
+
+/**
+ * The start/sit sanity flag (#520): every starter who is Out, on IR, Doubtful or on bye this week, said first, with the
+ * healthy bench player at his position. Built from Sleeper's starters and bench, never from a projection, so an Out
+ * player FantasyPros has no line on still shows. "" when the lineup is sound.
+ */
+export function lineupAlert(b: GreenBoard): string {
+  const week = b.week;
+  const bad = (b.roster?.starters ?? []).flatMap((s) => (s.player && (s.player.inj && GRIM.has(s.player.inj) || (s.player.bye !== null && s.player.bye === week)) ? [{ slot: s.slot, p: s.player }] : []));
+  if (!bad.length) return "";
+  const used = new Set<string>();
+  const out = bad.slice(0, 3).map(({ slot, p }) => {
+    const why = p.inj && GRIM.has(p.inj) ? INJ_WORD[p.inj] : "on bye this week";
+    const alt = [...(b.roster?.bench ?? [])].filter((x) => x.pos === p.pos && !used.has(x.id) && !(x.inj && GRIM.has(x.inj)) && !(x.bye !== null && x.bye === week)).sort((x, y) => (y.proj ?? -1) - (x.proj ?? -1))[0];
+    if (alt) used.add(alt.id);
+    return `your starting ${p.pos === "DEF" ? "D/ST" : slot.includes("FLEX") ? `${slot} ${p.pos}` : p.pos} ${said(p.name, 30)} is ${why}.${alt ? ` ${said(alt.name, 30)} is on your bench.` : ` No healthy ${p.pos} on your bench.`}`;
+  });
+  return `Heads up: ${out.join(" Also ")}`;
+}
+
+/** Every rostered player Sleeper lists with an injury, starters, bench and reserve alike. */
+function injuredRoster(b: GreenBoard): string {
+  const all = [...b.roster.starters.flatMap((s) => (s.player ? [s.player] : [])), ...(b.roster.bench ?? []), ...(b.roster.reserve ?? [])].filter((p) => p.inj);
+  return all.map((p) => `${said(p.name, 30)} ${p.pos} ${INJ_WORD[p.inj!] ?? p.inj}`).join("; ");
+}
+
 export function greenText(b: GreenBoard | null): string {
   if (!b || b.ok !== true) return "The Green's board isn't answering right now.";
   const m = b.matchup;
   const frame = weekFrame(b);
   const lines = [
     `Green, ${said(b.league.name, 60)}, week ${b.week}${frame.final ? " (final)" : ""}${b.stale ? " (last good read, Sleeper is slow)" : ""}. ${said(b.me.team, 40)} is ${b.me.record}, rank ${b.me.rank} of ${b.league.teams}.`,
+    lineupAlert(b),
     frame.line,
     `Start/sit: ${b.sources.calls === "fp" ? "FantasyPros decides, Sleeper beside it" : "form decides while FantasyPros waits"}.`,
   ];
+  const starters = b.roster.starters.filter((s) => s.player).map((s) => `${s.slot} ${said(s.player!.name, 30)} ${pts(s.player!.fp ?? s.player!.proj)}${s.player!.inj ? ` ${s.player!.inj}` : ""}${m?.live ? ` (${pts(s.pts)} scored)` : ""}`);
+  if (starters.length) lines.push(`Starters: ${starters.join("; ")}.`);
+  const bench = b.roster.bench.map((p) => `${said(p.name, 30)} ${p.pos} ${pts(p.fp ?? p.proj)}${p.inj ? ` ${p.inj}` : ""}`);
+  if (bench.length) lines.push(`Bench: ${bench.join("; ")}.`);
+  const hurt = injuredRoster(b);
+  if (hurt) lines.push(`Injury list (Sleeper): ${hurt}.`);
   for (const c of (b.calls ?? []).slice(0, 5)) {
     lines.push(`${c.slot}: ${c.change ? "start" : "keep"} ${who(c.start)} over ${who(c.sit)}, edge ${pts(Math.abs(c.edge))}; Sleeper ${c.sleeper}${c.split ? ", split decision" : ""}${c.tiebreak ? `; tiebreak: ${said(c.tiebreak, 140)}` : ""}${c.lateRisk ? `; late-game risk: ${said(c.lateRisk, 120)}` : ""}.`);
   }
   if (!b.calls?.length) for (const s of b.swaps.slice(0, 3)) lines.push(`${s.slot}: start ${who(s.in)}${s.out ? ` over ${who(s.out)}` : ""}, gains ${pts(s.gain)}.`);
-  const starters = b.roster.starters.filter((s) => s.player).map((s) => `${s.slot} ${said(s.player!.name, 30)} ${pts(s.player!.fp ?? s.player!.proj)}${s.player!.inj ? ` ${s.player!.inj}` : ""}${m?.live ? ` (${pts(s.pts)} scored)` : ""}`);
-  if (starters.length) lines.push(`Starters: ${starters.join("; ")}.`);
-  const bench = b.roster.bench.slice(0, 6).map((p) => `${said(p.name, 30)} ${p.pos} ${pts(p.fp ?? p.proj)}`);
-  if (bench.length) lines.push(`Bench: ${bench.join("; ")}.`);
   if (b.byes.length) lines.push(`On bye: ${b.byes.map((t) => said(t, 4)).join(", ")}.`);
   const bids = (b.bids ?? []).slice(0, 3).map((x) => `${said(x.player.name, 30)} ${x.player.pos}, bid ${x.bid} FAAB (${x.low} to ${x.high})${x.drop ? `, drop ${said(x.drop.name, 30)}` : ""}`);
   if (bids.length) lines.push(`Waiver bids${b.me.faabLeft !== null ? ` (${b.me.faabLeft} FAAB left)` : ""}: ${bids.join("; ")}.`);

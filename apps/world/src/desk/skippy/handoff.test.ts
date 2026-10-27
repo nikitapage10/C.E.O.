@@ -1,3 +1,4 @@
+import { setCallLive } from "./liveCall.ts";
 import { PONDER_LINES, UNSPOKEN } from "../../../../../api/_skippy/ponder.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GreenBoard, GreenPlayer } from "../green/league.ts";
@@ -5,7 +6,7 @@ import type { PmBoard } from "../exchange/polymarket.ts";
 import type { Link } from "../../systems.ts";
 import { readCard } from "./asked.ts";
 import { useSkippy } from "./chat.ts";
-import { WAIT_MAX_MS, answerIn, gaveUpText, pendingText, pollEvery } from "./handoff.ts";
+import { LIVE_POLL_MS, WAIT_MAX_MS, answerIn, gaveUpText, pendingText, pollEvery } from "./handoff.ts";
 import { PAGE_LINES, PAGE_MAX, boilerLines, exchangeLines, greenLines, pageContext } from "./page.ts";
 
 /** The Desk's side of a hand-off's round trip (#341): the page's data for the quick take, the pending bubble, the answer in place. */
@@ -72,6 +73,13 @@ describe("the pending bubble and the answer in its place (#341)", () => {
     expect(gaveUpText("turf", "green")).toBe("Still with The Commentator. The answer will show on the Green page, under Asked Skippy.");
     expect(pollEvery(0)).toBe(15_000);
     expect(pollEvery(10 * 60_000)).toBe(30_000);
+    // On a live call it looks every few seconds, so an answer reaches the call as it lands (#506).
+    setCallLive(true);
+    expect(pollEvery(0)).toBe(LIVE_POLL_MS);
+    expect(pollEvery(10 * 60_000)).toBe(LIVE_POLL_MS);
+    expect(LIVE_POLL_MS).toBeLessThanOrEqual(5_000);
+    setCallLive(false);
+    expect(pollEvery(0)).toBe(15_000);
   });
 
   it("finds the answer to its own turn only, with the card checked again", () => {

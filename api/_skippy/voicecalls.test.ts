@@ -31,11 +31,10 @@ describe("the call's rules on the prompt text (#491)", () => {
       expect(text, who).toMatch(/Never point Nikita somewhere else/);
       for (const banned of ["hit the injury tracker on your Desk", "check the beat reporters", "go look in the Lattice"]) expect(text, who).toContain(`no "${banned}"`);
       expect(text, who).toMatch(/call hand_to_kernel straight away/);
-      expect(text, who).toMatch(/check_answers/);
-      expect(text, who).toMatch(/read it back in your own words/);
+      expect(text, who).toMatch(/When the answer is put into the call, say it straight away in your own words/);
     }
-    for (const s of ON_AIR) expect(submindPrompt(s), s.name).toMatch(/checking with Skippy, the Magnificent/);
-    expect(voicePrompt(true)).toMatch(/getting the crew digging/);
+    for (const s of ON_AIR) expect(submindPrompt(s), s.name).toMatch(/one short line that you're asking Skippy, the Magnificent/);
+    expect(voicePrompt(true)).toMatch(/digging into your own mind \("Rummaging through my mainframe\."\)/);
     // What pushed him to refuse: "say so plainly when you don't know" is gone from the crewed call.
     expect(voicePrompt(true)).not.toMatch(/Say so plainly when you don't know/);
     expect(voicePrompt(true)).toMatch(/never just say you don't know or won't look/);
@@ -67,7 +66,7 @@ describe("the call's rules on the prompt text (#491)", () => {
       expect(p).toMatch(/Say it once per hand-over, only in your very first line right after a hand-over line that names you/);
       expect(p).toContain(s.handOver);
       expect(p).toMatch(/On every later turn: no sign-on, no greeting, no recap of your room/);
-      expect(p).toMatch(/two or three spoken sentences, the most important thing first, then offer more/);
+      expect(p).toMatch(/one or two spoken sentences, the most important thing first; no offer of more/);
       expect(p).toMatch(/Small talk \("hey, how's it going\?"\) gets one short line/);
     }
   });

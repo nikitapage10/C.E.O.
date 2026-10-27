@@ -15,6 +15,7 @@
  */
 
 import { line } from "./context.js";
+import { weekFrame } from "./voicereads.js";
 import type { GreenAnalysis, GreenBoard } from "../_green/types.js";
 import type { EmailStatus } from "../_email/status.js";
 
@@ -70,7 +71,10 @@ const money = (n: number) => `${n < 0 ? "minus " : ""}${Math.abs(n).toFixed(2)} 
 /** The Green: the week, record and rank, the matchup, and the top calls. */
 export function greenLines(b: GreenBoard): string[] {
   const m = b.matchup;
-  const head = `Green (week ${b.week}): record ${b.me.record}, ${b.me.rank ? `rank ${b.me.rank} of ${b.league.teams}` : "unranked"}${m?.them ? `; this week projected ${num(m.me.proj)} to ${num(m.them.proj)}${m.win != null ? `, win chance ${Math.round(m.win * 100)}%` : ""}${m.live ? ", game on" : ""}` : m ? "; bye this week" : ""}${b.stale ? " (Sleeper's last good read)" : ""}.`;
+  // A finished week is said as final, never as this week (#506): weekFrame words it the same way on the call.
+  const head = weekFrame(b).final
+    ? `Green: record ${b.me.record}, ${b.me.rank ? `rank ${b.me.rank} of ${b.league.teams}` : "unranked"}. ${weekFrame(b).line}${b.stale ? " (Sleeper's last good read)" : ""}`
+    : `Green (week ${b.week}): record ${b.me.record}, ${b.me.rank ? `rank ${b.me.rank} of ${b.league.teams}` : "unranked"}${m?.them ? `; this week projected ${num(m.me.proj)} to ${num(m.them.proj)}${m.win != null ? `, win chance ${Math.round(m.win * 100)}%` : ""}${m.live ? ", game on" : ""}` : m ? "; bye this week" : ""}${b.stale ? " (Sleeper's last good read)" : ""}.`;
   const calls = (b.calls ?? [])
     .slice(0, CALLS_MAX)
     .map((c) => `${c.slot} ${c.change ? "start" : "keep"} ${c.start.name} over ${c.sit.name} (edge ${num(Math.abs(c.edge))}${c.sleeper === "disagrees" ? ", Sleeper disagrees" : ""})`);

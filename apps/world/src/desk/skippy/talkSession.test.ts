@@ -2,17 +2,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { holoEvents, setCrew, useHolo } from "../hologram/signal.ts";
 
 // The call's own client, faked: the test fires the events ElevenLabs sends (#491, #490).
-const fake = vi.hoisted(() => ({ options: null as null | Record<string, (arg: unknown) => void> }));
+const fake = vi.hoisted(() => ({ options: null as null | Record<string, (arg: unknown) => void>, sent: [] as string[] }));
 vi.mock("@elevenlabs/client", () => ({
   Conversation: {
     startSession: async (o: Record<string, (arg: unknown) => void>) => {
       fake.options = o;
-      return { getOutputVolume: () => 0, getInputVolume: () => 0, setMicMuted: () => undefined, sendContextualUpdate: () => undefined, endSession: async () => undefined };
+      return {
+        getOutputVolume: () => 0,
+        getInputVolume: () => 0,
+        setMicMuted: () => undefined,
+        sendContextualUpdate: (t: string) => fake.sent.push(`context: ${t}`),
+        sendUserMessage: (t: string) => fake.sent.push(`user: ${t}`),
+        endSession: async () => undefined,
+      };
     },
   },
 }));
 
-const { openCall } = await import("./talkSession.ts");
+const { openCall, SPEAK_NOW } = await import("./talkSession.ts");
 
 // The crew map as /api/skippy-voice's start answer carries it: ElevenLabs agent id → submind id.
 const CREW = { agent_turf01: "turf", agent_soot01: "soot", agent_ember1: "ember" };
@@ -31,11 +38,25 @@ const transfer = (from: string, to: string) => ({
   },
 });
 
-async function call() {
+async function call(onMessage: (who: string, text: string) => void = () => undefined) {
   fake.options = null;
-  await openCall({ token: "t".repeat(20), desk: "", onMessage: () => undefined, onMode: () => undefined, onEnd: () => undefined, onError: () => undefined });
-  return fake.options!;
+  const session = await openCall({ token: "t".repeat(20), desk: "", onMessage, onMode: () => undefined, onEnd: () => undefined, onError: () => undefined });
+  return Object.assign(fake.options!, { session });
 }
+
+describe("an answer that lands is said at once (#506)", () => {
+  it("puts the note in and asks for the turn now, and never shows that ask in the chat", async () => {
+    const said: string[] = [];
+    const o = await call((who, text) => said.push(`${who}: ${text}`));
+    fake.sent.length = 0;
+    o.session.speakNow("The answer from the deeper you just landed: Lamar is a full go.");
+    expect(fake.sent).toEqual(["context: The answer from the deeper you just landed: Lamar is a full go.", `user: ${SPEAK_NOW}`]);
+    o.onMessage!({ message: SPEAK_NOW, role: "user" });
+    o.onMessage!({ message: "Lamar's a full go, monkey.", role: "agent" });
+    expect(said).toEqual(["skippy: Lamar's a full go, monkey."]);
+    expect(SPEAK_NOW).not.toMatch(/thread|kernel|crew|hand-?off/i);
+  });
+});
 
 describe("the hologram follows the mic on a call (#491, #490)", () => {
   beforeEach(() => {

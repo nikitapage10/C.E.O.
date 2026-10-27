@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { readCrew } from "../hologram/crew.ts";
 import { setCrew, setSpeaker } from "../hologram/signal.ts";
+import { setCallLive } from "./liveCall.ts";
 import { stopSpeaking, useSkippy } from "./chat.ts";
 
 /**
@@ -200,23 +201,30 @@ export async function readHandoffs(id: string, doFetch: typeof fetch = fetch): P
 }
 
 /**
- * What Skippy is told when what his deeper self worked out lands mid-call. He reads it out at the next natural pause,
- * in character (#498): the note itself never says "thread", "hand-off" or "Kernel", so he has nothing to echo.
+ * What Skippy is told when what his deeper self worked out lands mid-call (#506): say it now, answer first. It goes in
+ * with a request for a turn (talkSession.ts, speakNow), so he speaks it at once instead of at Nikita's next line. In
+ * character (#498): the note never says "thread", "hand-off", "Kernel" or "crew", so he has nothing to echo.
  */
 export const landedNote = (text: string, final: boolean): string =>
-  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${text.slice(0, 500)}". Read it out at the next natural pause, briefly, in your own words and in character.`;
+  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${text.slice(0, 500)}". Say it to him now, answer first, in one or two short sentences of your own, in character, with no recap and no question after.`;
 
 /** The chat bubbles this call is waiting on (chat turn id to the text last told to Skippy), and the watch on them. */
 let heard = new Map<number, string>();
 let unwatch: (() => void) | null = null;
 
-/** Waits in the chat on each hand-off the call made, and tells the live call when one's answer lands. */
+/**
+ * Waits in the chat on each hand-off the call made, and puts the answer into the live call the moment it lands (#506).
+ * On a live call it also takes up what the chat is already waiting on from earlier (a typed ask, a call before this
+ * one), so an answer that lands now is said now. Only a final answer is spoken: an interim "still pondering" stays in
+ * the chat, so the call keeps to one waiting line.
+ */
 async function followHandoffs(id: string): Promise<void> {
   const chat = useSkippy.getState();
   for (const turn of await readHandoffs(id)) {
     const bubble = await chat.wait(turn, "kernel", "skippy");
     if (bubble !== null && session) heard.set(bubble, useSkippy.getState().turns.find((t) => t.id === bubble)?.text ?? "");
   }
+  if (session) for (const t of useSkippy.getState().turns) if (t.pending?.needs === "skippy" && !heard.has(t.id)) heard.set(t.id, t.text);
   if (unwatch || !heard.size) return;
   unwatch = useSkippy.subscribe((s) => {
     for (const [bubble, last] of heard) {
@@ -227,9 +235,10 @@ async function followHandoffs(id: string): Promise<void> {
       }
       if (t.text === last) continue;
       heard.set(bubble, t.text);
-      if (!t.pending) heard.delete(bubble);
+      if (t.pending) continue;
+      heard.delete(bubble);
       try {
-        session?.tell(landedNote(t.text, !t.pending));
+        session?.speakNow(landedNote(t.text, true));
       } catch {
         /* the call is going: the answer is in the chat anyway */
       }
@@ -288,6 +297,7 @@ export const useTalk = create<TalkStore>((set, get) => {
     timer = null;
     const was = session;
     session = null;
+    setCallLive(false);
     if (was) await was.end().catch(() => undefined);
     const id = conversation;
     conversation = "";
@@ -413,6 +423,10 @@ export const useTalk = create<TalkStore>((set, get) => {
       }
       mark("connected");
       set({ phase: "live", startedAt: Date.now(), maxSecs: got.maxSecs });
+      // Answers land in the call as they come (#506): the chat looks every few seconds, and whatever it is already
+      // waiting on for Skippy is followed from now.
+      setCallLive(true);
+      void followHandoffs(got.conversation ?? "").catch(() => undefined);
       timer = setTimeout(() => void get().end(), got.maxSecs * 1000);
     },
     end: async () => {

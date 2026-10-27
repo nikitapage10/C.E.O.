@@ -148,6 +148,11 @@ export interface GreenBoard {
   at: string;
   season: string;
   week: number;
+  /**
+   * Sleeper's current week when it is past the one shown (#506): the shown week's games are over (final), and this
+   * one is up next. Absent when they are the same.
+   */
+  nflWeek?: number;
   /** The league: its Sleeper id (for the "Open in Sleeper" link), name, size, scoring and FAAB budget. */
   league: { id: string; name: string; teams: number; scoring: string; faab: number | null };
   me: {

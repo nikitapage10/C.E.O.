@@ -69,7 +69,7 @@ describe("Talk to Skippy in the browser", () => {
     expect(seen).toEqual(["/api/skippy-voice?handoffs=conv_live_123"]);
     expect(await readHandoffs("../x", doFetch)).toEqual([]);
     expect(await readHandoffs("conv_live_123", reply(401, {}))).toEqual([]);
-    expect(landedNote("Shipped in number 485.", true)).toMatch(/^The answer from the deeper you .*"Shipped in number 485\.".*next natural pause/);
+    expect(landedNote("Shipped in number 485.", true)).toMatch(/^The answer from the deeper you .*"Shipped in number 485\.".*Say it to him now, answer first/);
     // Nothing for him to echo (#498): the note never names the plumbing.
     expect(landedNote("Shipped.", true).replace(/"[^"]*"/, "")).not.toMatch(/thread|hand-?off|hand (it )?off|kernel/i);
     expect(landedNote("On it.", false)).toMatch(/^An update/);

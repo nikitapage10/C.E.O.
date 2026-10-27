@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MemoryRoomLog } from "./log.ts";
-import { PONDER_LINES, UNSPOKEN, inCharacter, ponderLine } from "./ponder.ts";
+import type { GreenBoard } from "../_green/types.ts";
+import { ANSWER_FIRST, ONE_WAITING_LINE, PONDER_LINES, UNSPOKEN, inCharacter, ponderLine } from "./ponder.ts";
+import { greenLines } from "./rooms.ts";
+import { greenText, weekFrame } from "./voicereads.ts";
 import { SKIPPY_PROMPT } from "./prompt.ts";
 import { CALL_REPLY, EARLIER_CALLS_MS, EARLIER_MAX, handle, type RoomSources } from "./toolroute.ts";
 import { voicePrompt } from "./voice.ts";
@@ -43,7 +46,7 @@ describe("the prompts say it in character (#498)", () => {
   it("every voice and the Desk's chat carry the rule, with the rotating lines for Skippy", () => {
     for (const { who, text, skippy } of prompts) {
       expect(text, who).toContain(inCharacter(skippy));
-      expect(text, who).toMatch(/never say "thread", "hand-off", "hand off", "handed off" or "Kernel" out loud/);
+      expect(text, who).toMatch(/never say "thread", "hand-off", "hand off", "handed off", "Kernel", "crew" or "team" out loud/);
       if (skippy) expect(text, who).toMatch(/"reaching into the recesses of my magnificent mind", "consulting the deeper me", "still pondering"/);
     }
   });
@@ -76,7 +79,7 @@ describe("the call's tool answers (#498)", () => {
     const { ask, log } = await setup();
     const got = await ask("Start a build for a waiver alarm");
     expect(got.ok).toBe(true);
-    expect(got.text.replace(/never "thread", "hand-off" or "Kernel"/, "")).not.toMatch(UNSPOKEN);
+    expect(got.text.replace(/\(never "thread"[^)]*\)/, "")).not.toMatch(UNSPOKEN);
     expect(PONDER_LINES.some((l) => got.text.includes(l.replace(/…$/, "")))).toBe(true);
     expect(CALL_REPLY).not.toMatch(UNSPOKEN);
     expect((await log.list("kernel", NOW))[0]!.answer).toBe(CALL_REPLY);
@@ -108,5 +111,80 @@ describe("the call's tool answers (#498)", () => {
     expect(await answers()).not.toMatch(UNSPOKEN);
     for (let i = 0; i < EARLIER_MAX + 3; i++) await log.add({ id: `bbbbbbbbbbbbbbb${i.toString(16)}`, at: new Date(NOW - (i + 1) * 60_000).toISOString(), question: `Ask ${i}`, answer: CALL_REPLY, room: "kernel", model: "voice", needs: "skippy" }, NOW);
     expect((await answers()).match(/Earlier call/g)).toHaveLength(EARLIER_MAX);
+  });
+});
+
+describe("Nikita's 09:11 call: the answer fast, one waiting line, his own mind (#506)", () => {
+  const voices = [{ who: "voice Skippy", text: voicePrompt(true) }, ...ON_AIR.map((s) => ({ who: s.name, text: submindPrompt(s) }))];
+
+  it("every voice puts the answer first and keeps to one waiting line", () => {
+    for (const { who, text } of voices) {
+      expect(text, who).toContain(ANSWER_FIRST);
+      expect(text, who).toContain(ONE_WAITING_LINE);
+    }
+    expect(ANSWER_FIRST).toMatch(/one or two short spoken sentences/);
+    expect(ANSWER_FIRST).toMatch(/No preamble/);
+    expect(ANSWER_FIRST).toMatch(/no trailing question/);
+    expect(ONE_WAITING_LINE).toMatch(/no "still digging", no "I'll check again", no "want to talk about something else"/);
+    expect(ONE_WAITING_LINE).toMatch(/twenty seconds/);
+  });
+
+  it("no voice or tool is told to fill the wait, poll, or offer more", () => {
+    const tools = TOOL_DEFS.map((t) => ({ who: t.name, text: t.description }));
+    for (const { who, text } of [...voices, ...tools]) {
+      const rest = text.replace(ONE_WAITING_LINE, "").replace(ANSWER_FIRST, "");
+      expect(rest, who).not.toMatch(/keep talking|keep chatting|keep the conversation going|at (?:a|the next) natural pause|so the call never goes quiet|want the rest\?\)|two to four|two or three/i);
+    }
+  });
+
+  it("there is no crew: he digs into his own mind, and says so in one short line", () => {
+    for (const { who, text } of voices) {
+      const rest = text.replace(inCharacter(true), "").replace(inCharacter(false), "");
+      expect(rest, who).not.toMatch(/\bcrew\b/i);
+    }
+    expect(voicePrompt(true)).toMatch(/digging into your own mind \("Rummaging through my mainframe\."\)/);
+    expect(inCharacter(true)).toMatch(/your own mind, your mainframe/);
+    expect(inCharacter(true)).toMatch(/never name a submind \(the Builder, say\) as the one looking it up/);
+    expect(PONDER_LINES).toContain("Rummaging through my mainframe…");
+    for (const { who, text } of [{ who: "Desk chat Skippy", text: SKIPPY_PROMPT }]) expect(text.replace(inCharacter(true), ""), who).not.toMatch(/\bcrew\b/i);
+  });
+
+  it("fewer hops: Skippy hands over only when asked or clearly needed, never to deliver what he has", () => {
+    expect(voicePrompt(true)).toMatch(/Hand over only when he names a room or a submind, or clearly wants something in-depth/);
+    expect(voicePrompt(true)).toMatch(/never transfer just to deliver an answer or a follow-up you already have; say it yourself/);
+  });
+
+  it("answers are pushed into the call, so nobody polls check_answers", () => {
+    expect(TOOL_DEFS.find((t) => t.name === "check_answers")!.description).toMatch(/never call it twice in a row to poll/);
+    expect(TOOL_DEFS.find((t) => t.name === "hand_to_kernel")!.description).toMatch(/put into the call the moment it lands/);
+    expect(voicePrompt(true)).toMatch(/don't poll check_answers for it/);
+  });
+});
+
+describe("which week the Green is in (#506)", () => {
+  const side = (pts: number, proj: number) => ({ team: "x", record: "5-2", pts, proj });
+  const board = (over: Record<string, unknown>) =>
+    ({ week: 7, matchup: { week: 7, me: side(128.4, 120), them: { ...side(75.2, 110), team: "Turf Burners", record: "3-4" }, win: 1, live: false }, ...over }) as unknown as GreenBoard;
+
+  it("says a finished week as final, with the next one up, never as this week", () => {
+    const f = weekFrame(board({ nflWeek: 8 }));
+    expect(f.final).toBe(true);
+    expect(f.line).toBe("Week 7 is final: 128.4 to 75.2 against Turf Burners (3-4), a win. Week 8 is up next and hasn't started.");
+    expect(f.line).not.toMatch(/this week|so far/i);
+  });
+
+  it("says a week under way as live, and one not started as upcoming", () => {
+    const live = weekFrame(board({ matchup: { week: 8, me: side(30, 120), them: { ...side(12, 110), team: "Turf Burners", record: "3-4" }, win: 0.6, live: true } }));
+    expect(live).toMatchObject({ final: false });
+    expect(live.line).toMatch(/^Week 8, live now against Turf Burners/);
+    const next = weekFrame(board({ week: 8, matchup: { week: 8, me: side(0, 120), them: { ...side(0, 110), team: "Turf Burners", record: "3-4" }, win: 0.6, live: false } }));
+    expect(next.line).toMatch(/^Week 8, upcoming against Turf Burners .*: no games yet, projected/);
+  });
+
+  it("the Green's read and the Desk's lines both use it", () => {
+    const b = { ...board({ nflWeek: 8 }), ok: true, league: { name: "L", teams: 10 }, me: { team: "Mine", record: "5-2", rank: 2 }, sources: { calls: "fp" }, roster: { starters: [], bench: [] }, byes: [], swaps: [], pickups: [] } as unknown as GreenBoard;
+    expect(greenText(b)).toMatch(/week 7 \(final\)[\s\S]*Week 7 is final: 128\.4 to 75\.2/);
+    expect(greenText(b)).not.toMatch(/This week against/);
+    expect(greenLines(b)[0]).toMatch(/Week 7 is final: 128\.4 to 75\.2 .* Week 8 is up next/);
   });
 });

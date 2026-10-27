@@ -56,7 +56,7 @@ export const PATH = "/api/skippy-tools";
 /** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
 export const READ_BUDGET_MS = 4_300;
 /** What the call hears when a room is too slow: the agent then answers from what it already knows. */
-export const SLOW_TEXT = "That data is slow right now. Don't guess and don't send Nikita anywhere: hand the question to hand_to_kernel, say you're checking with Skippy, the Magnificent, and keep talking.";
+export const SLOW_TEXT = "That data is slow right now. Don't guess and don't send Nikita anywhere: hand the question to hand_to_kernel and say one short in-character line about it, then stop until the answer is put into the call.";
 /** The most lookups one call may make. */
 export const READS_PER_CALL = 60;
 
@@ -214,14 +214,16 @@ async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenChe
   } catch {
     return json({ ok: false, text: UNREACHABLE });
   }
-  return json({ ok: true, turn: id, text: `The deeper you has it. Say so in character, like "${ponderLine(id).replace(/…$/, "")}", never "thread", "hand-off" or "Kernel"; keep talking, and check_answers at a natural pause.` });
+  return json({ ok: true, turn: id, text: `Passed to the deeper Skippy. Say one short in-character line, like "${ponderLine(id).replace(/…$/, "")}" (never "thread", "hand-off", "Kernel" or "crew"), then stop. The answer is put into the call the moment it lands; don't call check_answers for it.` });
 }
 
 /** One ask's line: its question and where its answer stands. */
 function answerLine(t: LoggedTurn, earlier: boolean): string {
   const q = `${earlier ? "Earlier call, " : ""}"${said(t.question, 120)}"`;
   if (!t.followUp) return `${q}: no answer yet.`;
-  return `${q}: ${t.followUp.final === false ? "so far" : "answered"}: ${said(t.followUp.text, 400)}`;
+  // The responder's interim "still pondering" (#501) is no answer (#506): said as such, so it is never read out as one.
+  if (t.followUp.final === false) return t.followUp.from === "kernel-agent" ? `${q}: no answer yet, still being worked out.` : `${q}: not final yet, so far: ${said(t.followUp.text, 400)}`;
+  return `${q}: answered: ${said(t.followUp.text, 400)}`;
 }
 
 /**

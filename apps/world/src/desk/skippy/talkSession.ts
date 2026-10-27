@@ -29,6 +29,13 @@ export interface CallHandlers {
   onError: () => void;
 }
 
+/**
+ * What makes the agent speak an answer the moment it lands (#506). A contextual update alone waits for Nikita's next
+ * turn, which is how a landed answer sat unspoken while Skippy said "still nothing"; this user message after it asks
+ * for the turn now. Never shown in the chat.
+ */
+export const SPEAK_NOW = "(The answer I was waiting on just landed. Tell me now.)";
+
 /** The secret dynamic variable the lookups' header carries (api/_skippy/voicetoken.ts, TOOL_VAR). */
 export const TOOL_VAR = "secret__ceo_tool";
 
@@ -39,7 +46,10 @@ export async function openCall(h: CallHandlers) {
     connectionType: "webrtc",
     textOnly: false,
     dynamicVariables: { desk: h.desk, ...(h.tool && { [TOOL_VAR]: h.tool }) },
-    onMessage: ({ message, role }) => h.onMessage(role === "user" ? "nikita" : "skippy", message),
+    onMessage: ({ message, role }) => {
+      if (role === "user" && message.trim() === SPEAK_NOW) return;
+      h.onMessage(role === "user" ? "nikita" : "skippy", message);
+    },
     onModeChange: ({ mode }) => {
       speaking = mode === "speaking";
       h.onMode(speaking ? "speaking" : "listening");
@@ -60,6 +70,11 @@ export async function openCall(h: CallHandlers) {
     mute: (muted: boolean) => call.setMicMuted(muted),
     /** A note for the agent that it doesn't speak by itself (ElevenLabs' contextual update): an answer that landed. */
     tell: (text: string) => call.sendContextualUpdate(text),
+    /** An answer that landed (#506): the note, then a turn asked for now, so he says it straight away. */
+    speakNow: (note: string) => {
+      call.sendContextualUpdate(note);
+      call.sendUserMessage(SPEAK_NOW);
+    },
     end: () => call.endSession(),
   };
 }

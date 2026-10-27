@@ -178,7 +178,7 @@ export const SEARCHES_PER_CALL = 6;
 const KEEP_MS = 15 * 60_000;
 
 export const STILL_SEARCHING =
-  "Still searching the web for that. Say you've got the crew digging, keep talking, and call web_search again with the same query in a few seconds. If it's still not back then, hand the question to hand_to_kernel.";
+  "Still searching the web for that. If you haven't yet, say one short in-character line, then call web_search again with the same query in a few seconds, without filling the wait with talk. If it's still not back then, hand the question to hand_to_kernel.";
 
 interface Search {
   at: number;

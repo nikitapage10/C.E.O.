@@ -1,4 +1,5 @@
 import { ponderLine } from "../../../../../api/_skippy/ponder.ts";
+import { callIsLive } from "./liveCall.ts";
 import { handedName, readAsked, type AskedCard, type AskedRoom, type AskedTurn } from "./asked.ts";
 
 /**
@@ -16,8 +17,11 @@ export const WAIT_ROOMS: readonly AskedRoom[] = ["green", "exchange", "boiler", 
 /** How long the chat keeps waiting before it says where the answer will show instead. */
 export const WAIT_MAX_MS = 2 * 60 * 60_000;
 
-/** How often it looks: every 15 seconds for the first five minutes, then every 30 (a submind's watcher wakes it in about 30 s). */
-export const pollEvery = (waitedMs: number): number => (waitedMs < 5 * 60_000 ? 15_000 : 30_000);
+/** How often it looks while a Talk call is live (#506): an answer reaches the call within a few seconds of landing. */
+export const LIVE_POLL_MS = 3_000;
+
+/** How often it looks: every 15 seconds for the first five minutes, then every 30 (a submind's watcher wakes it in about 30 s); every 3 on a live call. */
+export const pollEvery = (waitedMs: number): number => (callIsLive() ? LIVE_POLL_MS : waitedMs < 5 * 60_000 ? 15_000 : 30_000);
 
 /**
  * The pending bubble's words. For his deeper self Skippy stays in character (#498): a rotating line, picked by the kept

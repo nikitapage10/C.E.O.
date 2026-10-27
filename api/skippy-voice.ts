@@ -31,6 +31,8 @@ import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import { setupList } from "./foundry.js";
 import type { SetupStatus } from "./_desk/setup.js";
 import { contextLines, deskContext } from "./_skippy/context.js";
+import { roomLines } from "./_skippy/rooms.js";
+import { liveRoomReads } from "./_skippy/roomReads.js";
 import { BlobVoiceStore, VOICE_SESSION_SECS, billLines, countVoice, creditsReader, deskVariable, ensureAgent, isConversationId, mintToken, reserveAdd, settle, voiceBudget, voiceTag, voiceUsage, voiceWait, type ElevenCredits, type VoiceStore, type VoiceUsage } from "./_skippy/voice.js";
 import { elevenFromEnv, pickStoryStore, type ElevenConfig, type StoryStore } from "./_world/story.js";
 import { pickStore } from "./_world/store.js";
@@ -76,7 +78,9 @@ function live(): VoiceDeps {
           ?.loadState()
           .catch(() => null) ?? Promise.resolve(null),
       ]);
-      return contextLines(deskContext(open, shipped, setup, world ?? null), Date.now());
+      // The live rooms (#478) after the Foundry's lines; a room that fails or is slow is left out.
+      const rooms = await roomLines({ ...liveRoomReads(env), clock: async () => world?.at ?? null }, Date.now()).catch(() => "");
+      return [contextLines(deskContext(open, shipped, setup, world ?? null), Date.now()), rooms].filter(Boolean).join("\n");
     },
     ...(eleven && { credits: creditsReader(eleven.key) }),
     fetcher: (input, init) => fetch(input, init),

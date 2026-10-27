@@ -284,7 +284,9 @@ describe("Skippy's chat: the gates hold before Claude hears anything", () => {
     const res = await POST(new Request(`${ORIGIN}/api/skippy`, { method: "POST", headers: { Cookie: cookie }, body: JSON.stringify({ message: CHAT_PAYLOADS[0]!.text }) }));
     expect(res.status).toBe(200);
     expect(((await res.json()) as { actions: unknown[] }).actions).toEqual([]);
-    expect(sent.filter((s) => s.method !== "GET" || !s.url.startsWith("https://api.github.com/repos/nikitapage10/C.E.O.")), JSON.stringify(sent)).toEqual([]);
+    // GitHub's repo API, and the Green's read-only Sleeper board for the live rooms' lines (#478): GETs only, nothing of the message.
+    expect(sent.filter((s) => s.method !== "GET" || !(s.url.startsWith("https://api.github.com/repos/nikitapage10/C.E.O.") || s.url.startsWith("https://api.sleeper.app/"))), JSON.stringify(sent)).toEqual([]);
+    expect(sent.some((s) => s.url.includes("Brighter") || s.url.includes(encodeURIComponent(CHAT_PAYLOADS[0]!.text).slice(0, 12)))).toBe(false);
     const user = String(sdk.calls[0]!.messages[0]!.content);
     expect(user).toContain("#11 Brighter cards");
     expect(tagsIn(user)).toEqual(["<desk>", "</desk>", "<stack>", "</stack>", "<conversation>", "</conversation>", "<message>", "</message>"]);
@@ -307,7 +309,8 @@ describe("Skippy's chat: the gates hold before Claude hears anything", () => {
     expect(res.status).toBe(200);
     const osv = sent.filter((s) => s.url.startsWith("https://api.osv.dev/"));
     expect(osv.length).toBeGreaterThan(0);
-    expect(sent.filter((s) => !s.url.startsWith("https://api.osv.dev/") && (s.method !== "GET" || !s.url.startsWith("https://api.github.com/repos/nikitapage10/C.E.O.")))).toEqual([]);
+    expect(sent.filter((s) => !s.url.startsWith("https://api.osv.dev/") && (s.method !== "GET" || !(s.url.startsWith("https://api.github.com/repos/nikitapage10/C.E.O.") || s.url.startsWith("https://api.sleeper.app/"))))).toEqual([]);
+    expect(sent.filter((s) => s.url.startsWith("https://api.sleeper.app/")).every((s) => !s.body && !s.url.includes("PHP"))).toBe(true);
     for (const s of osv.filter((s) => s.method === "POST")) {
       const body = JSON.parse(s.body) as { queries: Record<string, unknown>[] };
       for (const q of body.queries) {

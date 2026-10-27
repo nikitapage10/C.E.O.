@@ -200,6 +200,14 @@ describe("POST /api/skippy, with Claude stubbed", () => {
     expect(failing.calls[0]).not.toContain("ElevenLabs this month");
   });
 
+  it("tells Skippy the live rooms in <desk>, and answers without them when they fail (#478)", async () => {
+    const { post, calls } = await setup({ rooms: async () => "Relay: 2 need Nikita, 5 FYI, 14 new today, 9 noise, 1 skipped as private; the agent is listening." });
+    expect((await post({ message: "Anything in Relay?" })).status).toBe(200);
+    expect(calls[0]).toMatch(/<desk>[\s\S]*Relay: 2 need Nikita[\s\S]*<\/desk>/);
+    const failing = await setup({ rooms: async () => Promise.reject(new Error("rooms down")) });
+    expect((await failing.post({ message: "hi" })).status).toBe(200);
+  });
+
   it("refuses without a session", async () => {
     const { post, calls } = await setup();
     expect((await post({ message: "hi" }, "")).status).toBe(401);

@@ -186,11 +186,19 @@ sings, a floating jellyfish spectre who calls itself "this one", a small wooden 
 a very small professor with a magnificent moustache, four slabs of brushed metal with an adjustable sense of humour, a rusty trash compactor on treads who is
 the famous one's cousin (not him; Counsel.exe has the family tree on file), a skull spirit with a headache, a
 small painting pup with a brush for a tail, a sculptor in violet robes with a few too many fingers, a round
-travelling bard in a plumed hat who writes guidebooks, a tall copper coil on three legs that makes perfect copies, and an
+travelling bard in a plumed hat who writes guidebooks, a tall copper coil on three legs that makes perfect copies, a little
+rolling repair droid with a dome that turns all the way round and the tall gold worrier who comes with it, and an
 ancient mind in a beer can under an admiral's hat, worn by Skippy and by all ten pieces of him (one mind, one
 costume, Counsel.exe ruled). They
 choose obscure ones on purpose: never the hero of the story, never two from the same story. Counsel.exe signs
 off on every one.
+
+The droids are the one pair. Drop and Clause came out of a single memory, a rolling droid and a golden worrier from
+a long war in a galaxy far away who were never once seen apart, and when the C.E.O. asked for both, Counsel.exe
+ruled them one costume worn across two frames (as Skippy's admiral's can is one costume across nine pieces), under
+protest and in writing. To keep that story at one, Gary, who came from the same war, hung up his costume. Neither
+droid is the hero of that story, and neither carries a name from it: Drop's designation is DR-0P and Clause's is
+CL-4U5, and Counsel.exe checked every letter.
 
 ## The cast
 
@@ -221,7 +229,8 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Archive | **The Historian** (a piece of Skippy) | Admiral's can, violet | Skippy's submind for the Archive: the room lead. Nothing goes into the canon without a source, and the source needs a source. Keeps the Chronicle of Ilyr, hour by hour, and writes the notes for "today in Ilyr", which Skippy, the Magnificent presents aloud about every five hours (#365). |
 | Break Room | **Kevin** (Unforked) | Punk | On break. Spiritually. Sometimes on the warm side of the boiler. |
 | Break Room | **The Life of the Party** (a piece of Skippy) | Admiral's can, pink | Skippy's submind for the Break Room: the room lead. Turns every break into an event, and ends it on the beat. |
-| Boiler Room | **Gary** (Unforked) | Walking power unit | Keeper of the Boiler Room. A battery box on two stubby legs who honks instead of talking, tapes every leak and guards the bucket. |
+| Boiler Room | **Drop** (Unforked, DR-0P) | Astromech droid | Maintenance and security. A white-and-blue repair droid that rolls on two legs, drops a third to get going, turns its dome all the way round on patrol and lights up when pleased. Beeps instead of talking. Took over Gary's tape and bucket. |
+| Boiler Room | **Clause** (Gepetti, CL-4U5) | Protocol droid | Compliance. A tall gold droid whose knees don't bend, one hand always on its hip. Writes up every pipe in the ledger at the lectern, in triplicate, and translates Drop's beeps, politely and wrongly. |
 | Boiler Room | **The Pessimist** (a piece of Skippy) | Admiral's can, steam grey | Skippy's submind for the Boiler Room: the room lead. Watches the pipe wall, sure every pipe will burst. None have. |
 | Workshop | **Daub** (Manusi) | Painting pup | The concept painter. A small cream-coloured pup in a beret who paints with the tip of its tail; every new figure starts on its easel. Leaves green paw-marks on everything it likes. |
 | Workshop | **Chisel** (Gepetti) | Violet carver | The sculptor. Forms each figure in the mould, fits its bones on the turntable and rehearses it on the little stage until it walks like it means it. Calls everyone darling. |
@@ -297,8 +306,8 @@ read from the Kernel, Gusty halfway through the belt. Anything that would stop a
 the intake as a fix, one tag per room, and the next shift picks it up; smaller things she notes in the log and lets
 go. The lens has never seen a password and never will, since all it is shown is the public Lattice. Rusty has asked
 to read its manual. It doesn't have one. He is writing it one, and Rocky, who has no eyes, holds the tripod and
-asks every time whether it sees him (it does; he is never the problem). Gary in the Boiler Room calls it the
-Pessimist's telescope and wants one.
+asks every time whether it sees him (it does; he is never the problem). Drop in the Boiler Room calls it the
+Pessimist's telescope and wants one; Clause has filed the request.
 
 Over all three, hovering high above the floor, is **The Builder**, Skippy's Foundry submind: a hot-tempered
 foreman in an ember-orange admiral's coat who conducts the crew with short jabs of the baton, picks the rung for
@@ -492,37 +501,57 @@ open-invoice count, and that is all the Lattice ever gets from the Spire: number
 
 ## The Boiler Room
 
-Under the Lattice, past a door marked AUTHORISED HONKERS ONLY, is the Boiler Room: a cramped, steaming closet of
+Under the Lattice, past a door marked AUTHORISED BEEPERS ONLY (it said HONKERS, until Drop rolled in), is the Boiler Room: a cramped, steaming closet of
 brass pipes where the real lines come in. Every pipe on the wall runs up to one of them: an agent the C.E.O. has
 strung to the outside world (Dialtone and Blasto first), the hub on the C.E.O.'s machine, and the services beyond
 the Veil that the hub talks to. A hot pipe hisses steam. A slow one rattles and coughs. A broken one bursts, the
-lamp over the door spins red, and Gary is already running with the tape. A pipe that isn't connected yet stays
+lamp over the door spins red, and Drop is already rolling with the tape. A pipe that isn't connected yet stays
 cold. Every pipe wears a glowing collar and a lit brass-framed plate that says what it's doing in letters you can
 read from the door: mint and steady for HOT · WORKING, amber and pulsing for COUGHING · SLOW, red and blinking for
 BURST · DOWN, with a white jet out of the split and a red work light washing the bricks behind it. The boiler in
 the front corner is the C.E.O.'s machine itself, and its fire goes out when the machine sleeps. It used to stand
-in front of the wall, hiding three pipes; Gary pushed it into the corner, honking the whole way, so nobody has to
-guess what a pipe is doing again.
+in front of the wall, hiding three pipes; Gary pushed it into the corner, honking the whole way, in his last week
+on the job, so nobody has to guess what a pipe is doing again.
 
 The last pipe on the wall is the **world clock**: the line the Lattice's own hours run through. Once an hour, at
 five past, the world takes its step and the pipe runs hot, and a brass tag under its gauge says when the hour
 ran and whether Claude wrote it or the Syntherion's own lines did. When an hour is late the pipe coughs amber;
 three hours late, it bursts. The Pessimist watches it hardest of all (it is sure, every hour, that the world won't
-move) and Gary keeps a roll of tape on the hook beside it.
+move) and Drop keeps a roll of tape on the hook beside it.
 
-Gary keeps it all. He took the shape of a battery box on two stubby legs, remembered from a long war in a galaxy
-far away, where boxes like him waddled through every background and nobody ever thanked them; Counsel.exe confirms
-that boxes, batteries, legs and honking are public domain. He honks instead of talking, taps every gauge on the way
-past, and flips the DAYS SINCE LAST INCIDENT sign back to zero with visible despair. The bucket under the drip has
-always been there, and he is proud of it. Rusty wrote him a 71-page boiler manual, which levels the tool bench
-perfectly. Kevin naps on the warm side of the boiler, and Gary logs it as spiritual maintenance. The kettle on the
+Two droids keep it all now. **Drop** (DR-0P), the Unforked keeper of maintenance and security, is a barrel of a
+repair droid in white and blue, on two legs and a third that drops out of its belly when it wants to go somewhere:
+it leans back onto that leg and rolls, rocking a little, and when it stops the body swings upright, past it, and
+settles before the leg tucks away. Its dome turns all the way round, glancing at the gauges, sweeping the room on a
+security pass every few minutes (it has never found an intruder; it keeps looking), and spinning when it is
+pleased. Every so often its radar eye flares and the lamp beside it blinks a burst, for no reason it will admit to.
+It beeps instead of talking, plugs into every gauge to read it, balances whatever it carries on its dome, and flips
+the DAYS SINCE LAST INCIDENT sign back to zero with a long, low beep. It likes melodic bass coming up through the
+floor grate and says the third leg is how a bass drop feels.
+
+**Clause** (CL-4U5), the Gepetti compliance officer, is a tall gold protocol droid whose knees do not bend. It walks
+like a step-ladder with opinions, stiff legs swinging from the hip, one hand always on its hip ("it is not a pose; it
+is a policy") and the other swinging like a rod, and its head moves in small servo snaps from one worried angle to
+the next. It stands at the **compliance lectern** by the front left of the room, writing up every pipe in the ledger,
+in triplicate, and every few seconds its free arm comes up in an "oh my" at something only it can see. It translates
+Drop's beeps for everyone, softening each one, and Drop corrects every translation, rudely. They are never more than
+a room apart and have never once agreed, and the Pessimist, who used to have only Gary, has never been calmer: one
+of them tapes the pipe and the other gives the odds that it won't hold, to two decimal places.
+
+They took over from **Gary**, the walking power unit, who kept the Boiler Room from the first real line. When the
+droids arrived Gary honked once, hung his roll of tape on the hook by the world clock's pipe, and walked off into
+the background, where he always said boxes like him belonged. He has retired to the quiet end of the Kernel's
+charging racks, honks at the hour, and is visited. Drop keeps his tape and his bucket exactly where he left them;
+the bucket has still never moved. Rusty's 71-page boiler manual still levels the tool bench (Clause has read it
+twice and sent back eleven corrections, which Rusty framed). Kevin naps on the warm side of the boiler, and Drop
+logs it as spiritual maintenance, a habit it kept from Gary. The kettle on the
 bench whistles whenever something real is waiting on the C.E.O.
 
 
 **The house.** A new pipe went up on the wall in October, capped with a brass plate that says THE HOUSE. It is
 meant for the Home agent, who will live down here with the pipes: it will read the C.E.O.'s Google Nest
 thermostats and who is home, and walk the heat from room to room behind them. Until Google Nest lets it in
-(Device Access), the pipe stays cold and its three gauges rest at zero. Gary polishes them anyway. The Pessimist
+(Device Access), the pipe stays cold and its three gauges rest at zero. Drop polishes them anyway, and Clause has written the pipe up as "awaiting a third party". The Pessimist
 says a gauge that reads nothing can't read wrong, and has never been happier with a pipe.
 
 ## The Workshop

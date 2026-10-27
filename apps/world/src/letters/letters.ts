@@ -68,6 +68,8 @@ const OPENERS: Record<string, string[]> = {
   daub: ["A letter! Can I paint it? I'm going to paint it.", "Read it. Left a green paw-mark on it. That means I love it."],
   chisel: ["A letter, darling. I've read it with all my fingers.", "Beautifully made. Who carved these words?"],
   kevin: ["Read it on my break. Which is always.", "Not a phase. This letter, I mean. It's forever."],
+  drop: ["Bweep! (A letter! Clause, read it to me. Exactly as written.)", "Bwoo-wee. (Read it with my eye. Lit up twice.)"],
+  clause: ["Oh my, a letter. I have read it, filed it, and read it again.", "How kind. I have drafted a reply, a cover note and a receipt."],
 };
 
 /** The agent's answer to a letter. `seed` picks between lines so the same letter always gets the same answer. */

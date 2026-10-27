@@ -24,7 +24,7 @@ export const DESK_ROOMS = {
   archive: { name: "Archive", accent: "var(--room-archive)", lead: "loremaster", what: "The Tide's canon" },
   workshop: { name: "Workshop", accent: "var(--room-workshop)", lead: "daub", what: "New models" },
   studio: { name: "Studio", accent: "var(--room-studio)", lead: "dot", what: "Explainer videos" },
-  boiler: { name: "Boiler Room", accent: "var(--room-boiler)", lead: "gary", what: "Systems and upkeep" },
+  boiler: { name: "Boiler Room", accent: "var(--room-boiler)", lead: "drop", what: "Systems and upkeep" },
 } as const;
 export type DeskRoom = keyof typeof DESK_ROOMS;
 
@@ -47,7 +47,8 @@ export const AGENTS: Record<string, { id: string; room: DeskRoom; job: string }>
   Dialtone: { id: "dialtone", room: "relay", job: "Switchboard" },
   Loremaster: { id: "loremaster", room: "archive", job: "Scribe" },
   Heimerdinger: { id: "heimerdinger", room: "archive", job: "Researcher" },
-  Gary: { id: "gary", room: "boiler", job: "Maintenance" },
+  Drop: { id: "drop", room: "boiler", job: "Maintenance and security" },
+  Clause: { id: "clause", room: "boiler", job: "Compliance" },
   Daub: { id: "daub", room: "workshop", job: "Concept painter" },
   Chisel: { id: "chisel", room: "workshop", job: "Sculptor" },
   Folio: { id: "folio", room: "studio", job: "Scriptwriter" },

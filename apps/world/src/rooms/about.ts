@@ -109,7 +109,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       pipes: "One pipe per real link. Its glowing collar and lit plate say its state from across the room: mint for working, amber for slow, blinking red with a burst jet for down, dark for not connected. The gauge is how busy it is.",
       boiler: "The MacBook. Its fire goes out if the Mac sleeps.",
       bucket: "Under the drip. It has always been there.",
-      sign: "Days since last incident. Gary resets it.",
+      sign: "Days since last incident. Drop resets it; Clause files the form.",
       bench: "Tools, tape, and a kettle that whistles when something waits on you.",
       "warm-side": "Kevin's spot. Spiritual maintenance.",
     },

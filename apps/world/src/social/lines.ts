@@ -102,9 +102,20 @@ export const PAIR_EXCHANGES: Record<string, [string, string][]> = {
     ["Kevin! Drop the bass! It's a PARTY!", "It's always a party. I'm always on break."],
     ["Party's over. Back you go. Love you.", "I don't have a go. I have a break."],
   ],
-  "soot|gary": [
-    ["Pipe four. It'll burst.", "Honk. (Taped it.)"],
-    ["...Huh. Didn't burst.", "Honk! (Never does.)"],
+  "soot|drop": [
+    ["Pipe four. It'll burst.", "Bweep. (Taped it.)"],
+    ["...Huh. Didn't burst.", "Bwoo-wee! (Never does.)"],
+  ],
+  "drop|clause": [
+    ["Bee-doo-dweep. (The pipe's fine. I fixed it an hour ago.)", "Drop says the pipe is fine. I have softened that considerably."],
+    ["Dweet. (Your knees are a compliance risk.)", "My knees are load-bearing, thank you. Unlike your manners."],
+    ["Brrt-bwee! (Lights. Look at my lights.)", "We all see the lights, Drop. They are not a security procedure."],
+    ["Bwee-oo? (Did you file me again?)", "In triplicate. One for you, one for me, one for Counsel.exe, who wept."],
+    ["Bip-bop-bwoooo. (I'm going to plug into the clock pipe.)", "Oh my. Not without a form. ...Fine. I'll write it while you do it."],
+  ],
+  "soot|clause": [
+    ["It'll burst.", "The odds are 412.06 to 1, sir."],
+    ["...Huh. Didn't.", "I shall note it. 'Did not burst.' Again."],
   ],
   "putty|daub": [
     ["What if the hands were—no. MORE.", "More hands! I'll paint more hands!"],

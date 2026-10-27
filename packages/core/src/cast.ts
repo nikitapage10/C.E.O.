@@ -16,7 +16,7 @@ export const BODIES = [
   "classic", "robot", "leela", "george", "mike", "stan",
   "suit", "formal", "casual", "worker", "hardhat", "punk", "medieval", "scifi", "spacesuit", "witch", "king",
   "mage", "rogue", "hooded", "knight", "barbarian",
-  "gestral", "yordle", "hanar", "rocky", "compactor", "skippy", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith", "powerbox", "bard", "coil", "orb",
+  "gestral", "yordle", "hanar", "rocky", "compactor", "skippy", "crawler", "masked", "orc", "bunny", "ghost", "flyer", "wizard", "birb", "yeti", "monolith", "bard", "coil", "orb", "astromech", "protocol",
 ] as const;
 export type Body = (typeof BODIES)[number];
 export const BODY_LABEL: Record<Body, string> = {
@@ -58,13 +58,14 @@ export const BODY_LABEL: Record<Body, string> = {
   birb: "Big bird",
   yeti: "Great grey beast",
   monolith: "Monolith",
-  powerbox: "Power droid",
   bard: "Plumed bard",
   coil: "Copper coil",
   orb: "Host orb",
+  astromech: "Astromech droid",
+  protocol: "Protocol droid",
 };
 /** Bodies that were retired, and what a saved look wearing one now gets. */
-const RETIRED_BODY: Record<string, Body> = { envoy: "yeti", duck: "birb" };
+const RETIRED_BODY: Record<string, Body> = { envoy: "yeti", duck: "birb", powerbox: "astromech" };
 /** Bodies that use the piece-by-piece wardrobe (head, hat, outfit…). The others take colours and size only. */
 export const DRESSABLE: ReadonlySet<Body> = new Set(["classic"]);
 
@@ -213,7 +214,7 @@ export interface LookPreset {
   /** What Counsel.exe insists this is. */
   disclaimer?: string;
   /** How they talk (see the world's voices). */
-  voice?: "chords" | "emotive" | "monolith" | "migraine" | "thisone" | "professor" | "honk";
+  voice?: "chords" | "emotive" | "monolith" | "migraine" | "thisone" | "professor" | "beep" | "fussy";
   look: Omit<Look, "preset">;
 }
 
@@ -221,7 +222,7 @@ const SKIN = { light: "#f2cfb3", warm: "#d9a882", tan: "#b9825b", deep: "#7a4e33
 
 /**
  * Avatar presets. "icon" ones are Ready-Player-One-style costumes from the Syntherion's memories: one per
- * work, never the protagonist (one exception, and he has five legs), always legally distinct. Counsel.exe has
+ * work (one pair, Drop and Clause, who came as one memory), never the protagonist (one exception, and he has five legs), always legally distinct. Counsel.exe has
  * reviewed all of them and would like to stop being asked.
  */
 export const LOOK_PRESETS: LookPreset[] = [
@@ -311,12 +312,23 @@ export const LOOK_PRESETS: LookPreset[] = [
     look: makeLook({ body: "monolith", shell: "#a7acb3", accent: "#cfefff", trim: "#2a2d33" }),
   },
   {
-    id: "power-droid",
-    name: "Walking Power Unit",
+    // Drop and Clause came out of one memory, a little rolling droid and a golden worrier who were never once seen
+    // apart, so Counsel.exe let the pair wear it between two frames (and retired the power droid, from the same
+    // far-away war, to keep the count at one). Neither is the hero of that story; neither carries a name from it.
+    id: "astromech",
+    name: "Astromech, Maintenance Grade",
     kind: "icon",
-    voice: "honk",
-    disclaimer: "A battery box on two stubby legs that honks. Boxes, batteries, legs and honking are all public domain.",
-    look: makeLook({ body: "powerbox", shell: "#5d636b", accent: "#ffb347", trim: "#23262b" }),
+    voice: "beep",
+    disclaimer: "A barrel-bodied repair droid on two legs and a fold-down third, with a domed head that turns all the way round. Barrels, domes and beeping are public domain. Its designation is its own; Counsel.exe checked every letter.",
+    look: makeLook({ body: "astromech", shell: "#eef0f3", accent: "#5aa8ff", trim: "#2f5fc4" }),
+  },
+  {
+    id: "protocol-droid",
+    name: "Protocol Unit, Compliance Grade",
+    kind: "icon",
+    voice: "fussy",
+    disclaimer: "A tall gold-plated android with stiff knees, fluent in six million forms of paperwork and worried about all of them. Gold plate and anxiety are public domain. Counsel.exe and it get on alarmingly well.",
+    look: makeLook({ body: "protocol", shell: "#d9a63c", accent: "#ffd36b", trim: "#5d4a2e" }),
   },
   {
     id: "painting-pup",

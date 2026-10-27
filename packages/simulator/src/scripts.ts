@@ -326,8 +326,9 @@ export const archiveDiceRoller: Script = ({ rng }) => [
 ];
 
 /**
- * Gary keeps the Boiler Room: taps the gauges, mops under the drip, glares at the incident sign, stokes the boiler.
- * No tasks and no approvals: the pipes report the real lines, and Gary only tends them.
+ * Drop keeps the Boiler Room running and its door shut: plugs into the pipe wall to read the gauges, checks the
+ * bucket, sweeps the room with its dome on a security pass, resets the incident sign, and now and then charges by
+ * the boiler. No tasks and no approvals: the pipes report the real lines, and Drop only tends them.
  */
 export const boilerKeeper: Script = ({ rng }) => [
   { kind: "go", station: "pipes" },
@@ -335,10 +336,28 @@ export const boilerKeeper: Script = ({ rng }) => [
   { kind: "quip", chance: 0.3 },
   { kind: "go", station: "bucket" },
   { kind: "do", activity: "working", ms: rng.int(2500, 4500), prop: null },
+  // The security pass: a full sweep of the room from the middle of it.
+  ...(rng.chance(0.5) ? [{ kind: "do", activity: "staring", ms: rng.int(3500, 6000) } as const] : []),
   { kind: "go", station: rng.pick(["sign", "boiler", "bench"]) },
   { kind: "do", activity: rng.pick(["staring", "working", "idle"]), ms: rng.int(3000, 6000) },
   { kind: "quip", chance: 0.25 },
-  ...(rng.chance(0.25) ? [{ kind: "go", station: "boiler" } as const, { kind: "do", activity: "napping", ms: rng.int(6000, 10000) } as const] : []),
+  ...(rng.chance(0.2) ? [{ kind: "go", station: "boiler" } as const, { kind: "do", activity: "napping", ms: rng.int(6000, 10000) } as const] : []),
+];
+
+/**
+ * Clause keeps the rules: writes up every pipe in the ledger at the lectern, walks over (stiffly) to inspect a gauge
+ * or the incident sign, frets about the kettle, and comes back to file it. Also no tasks and no approvals.
+ */
+export const boilerCompliance: Script = ({ rng }) => [
+  { kind: "go", station: "lectern" },
+  { kind: "do", activity: "typing", ms: rng.int(4000, 7000) },
+  { kind: "quip", chance: 0.3 },
+  { kind: "go", station: rng.pick(["pipes", "sign", "bench", "bucket"]) },
+  { kind: "do", activity: rng.pick(["staring", "idle", "waiting"]), ms: rng.int(3000, 5500) },
+  { kind: "quip", chance: 0.3 },
+  { kind: "go", station: "lectern" },
+  { kind: "do", activity: rng.pick(["typing", "idle"]), ms: rng.int(3000, 5000) },
+  ...(rng.chance(0.15) ? [{ kind: "do", activity: "napping", ms: rng.int(5000, 8000) } as const] : []),
 ];
 
 /**
@@ -520,6 +539,7 @@ export const SCRIPTS = {
   archiveResearcher,
   breakroomRegular,
   boilerKeeper,
+  boilerCompliance,
   workshopPainter,
   workshopSculptor,
   studioWriter,

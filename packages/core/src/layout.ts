@@ -241,11 +241,13 @@ export const ROOMS: Record<RoomId, RoomDef> = {
       // The pipe wall runs along the back left; each pipe is a real link, with a gauge at eye height.
       s("pipes", "The pipe wall", -3.6, -3.4, 0),
       // The boiler (the MacBook) stands in the front-right corner, out of the camera's view of the pipe wall (#283);
-      // the keeper stands front-left of it, facing its firebox, which turns toward him and the camera.
+      // Drop stands front-left of it, facing its firebox, which turns toward it and the camera, and charges there overnight.
       s("boiler", "The boiler", 5.54, 4.08, Math.atan2(-0.6, 0.8)),
       s("bucket", "The bucket", -0.6, 1.6, 0),
       s("sign", "The incident sign", -5.9, 2.4, Math.PI / 2),
       s("bench", "Tool bench", 3.2, 4.1, Math.PI),
+      // Clause's compliance lectern by the front left, with the ledger every leak is written up in.
+      s("lectern", "The compliance lectern", -3.0, 4.2, Math.PI / 2),
       // Kevin's spiritual maintenance spot: the warm side of the boiler, his back to it, facing the room.
       s("warm-side", "The warm side of the boiler", 7.0, 4.75, Math.PI),
       // The room lead: its command podium in the back-right corner, and the spot it floats out to for a command.

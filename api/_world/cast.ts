@@ -349,24 +349,45 @@ export const WORLD_CAST: WorldCast = {
       ]
     },
     {
-      "id": "gary",
-      "name": "Gary",
-      "role": "Maintenance",
+      "id": "drop",
+      "name": "Drop",
+      "role": "Maintenance and security",
       "room": "boiler",
       "lead": false,
       "traits": [
-        "earnest",
         "loyal",
-        "anxious",
-        "wholesome"
+        "sarcastic",
+        "chaotic",
+        "earnest"
       ],
-      "bio": "The Boiler Room's keeper: a battery box on two stubby legs who honks instead of talking. Taps every gauge, tapes every leak, and guards the bucket under the drip. When a real line breaks, its pipe bursts and Gary is already running.",
-      "catchphrase": "Honk. (I have tape.)",
+      "bio": "DR-0P, the Boiler Room's keeper of maintenance and security: an astromech with a dome that turns all the way round, rolling on two legs and a third it drops to get going. Beeps instead of talking; Clause translates, badly on purpose. Plugs into every gauge, sweeps the room on patrol, and lights up when pleased. Took over Gary's tape and bucket when he retired.",
+      "catchphrase": "Bweep. (Already fixed it.)",
       "voice": [
-        "Honk. (Checked every gauge. Twice.)",
-        "Honk honk. (Who moved my bucket.)",
-        "HONK. (That pipe is cold. Nobody touch that pipe.)",
-        "Honk. (I have tape. I have always had tape.)"
+        "Bweep. (Checked every gauge. Twice. Plugged in for both.)",
+        "Bee-doo-dweep. (Who moved my bucket. Gary's bucket. MY bucket.)",
+        "Brrt-bwee. (Security sweep: nobody in here but us and the drip.)",
+        "Bwoo-wee! (Hot pipe. Happy pipe. Happy me.)"
+      ]
+    },
+    {
+      "id": "clause",
+      "name": "Clause",
+      "role": "Compliance",
+      "room": "boiler",
+      "lead": false,
+      "traits": [
+        "anxious",
+        "pedantic",
+        "dramatic",
+        "loyal"
+      ],
+      "bio": "CL-4U5, the Boiler Room's compliance officer: a tall gold protocol droid whose knees don't bend and whose worries do. Writes up every pipe in the ledger at the lectern, in triplicate. Fluent in six million forms (it has counted). Translates Drop's beeps, politely, which Drop resents. Gives the odds of disaster to two decimal places. Counsel.exe's favourite pen pal.",
+      "catchphrase": "Oh my. That is not compliant.",
+      "voice": [
+        "Oh my. That pipe is not compliant.",
+        "I have filed a note. In triplicate. One for each of us, and one for Counsel.exe.",
+        "Drop says, and I quote, 'all is well'. I have softened it somewhat.",
+        "The odds of that pipe bursting are 412.06 to 1. The Pessimist says thank you."
       ]
     },
     {
@@ -653,13 +674,13 @@ export const WORLD_CAST: WorldCast = {
         "paranoid",
         "loyal"
       ],
-      "bio": "The Pessimist: Skippy's submind for the Boiler Room, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from its can-throne floating in the corner, expects every pipe to burst (and the throne to drop), and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Gary is the only one it trusts.",
+      "bio": "The Pessimist: Skippy's submind for the Boiler Room, in the admiral's hat and coat, steam grey. A gloomy pessimist of very few words. Watches the pipe wall from its can-throne floating in the corner, expects every pipe to burst (and the throne to drop), and reads the pressure gauges like omens. Quietly delighted, every single time, to be wrong. Drop is the only one it trusts.",
       "catchphrase": "It'll burst. ...Huh. Didn't.",
       "voice": [
         "It'll burst.",
         "...Huh. Didn't.",
         "Needle twitched. Omen.",
-        "Gary. Bucket. Just in case."
+        "Drop. Bucket. Just in case."
       ]
     },
     {
@@ -827,16 +848,28 @@ export const WORLD_CAST: WorldCast = {
       "note": "Kevin has never once hurried. Heimerdinger finds this scientifically fascinating, and a little enviable."
     },
     {
-      "a": "gary",
-      "b": "kevin",
-      "kind": "friend",
-      "note": "Kevin naps on the warm side of the boiler. Gary logs it as spiritual maintenance."
+      "a": "drop",
+      "b": "clause",
+      "kind": "best-friend",
+      "note": "Never apart, never agreed. Clause translates Drop's beeps, politely; Drop says the translations are wrong, rudely. Both are right."
     },
     {
-      "a": "gary",
+      "a": "drop",
+      "b": "kevin",
+      "kind": "friend",
+      "note": "Kevin naps on the warm side of the boiler. Drop logs it as spiritual maintenance, a habit it kept from Gary."
+    },
+    {
+      "a": "drop",
+      "b": "caret",
+      "kind": "friend",
+      "note": "Rocky fist bumps Drop's dome on every visit. Drop spins it all the way round. Rocky: amaze amaze amaze."
+    },
+    {
+      "a": "clause",
       "b": "tessellate",
       "kind": "friend",
-      "note": "Rusty wrote him a 71-page boiler manual. It levels the tool bench perfectly. Rusty must never know."
+      "note": "Rusty sent down his 71-page boiler manual. Clause read it twice and filed eleven corrections. Rusty framed them."
     },
     {
       "a": "daub",
@@ -948,9 +981,15 @@ export const WORLD_CAST: WorldCast = {
     },
     {
       "a": "soot",
-      "b": "gary",
+      "b": "drop",
       "kind": "best-friend",
-      "note": "The Pessimist says the pipe will burst. Gary honks and tapes it. It doesn't burst. The Pessimist is delighted. Every day, the same, and they love it."
+      "note": "The Pessimist says the pipe will burst. Drop beeps and plugs into it. It doesn't burst. The Pessimist is delighted. Gary started it; Drop keeps it going."
+    },
+    {
+      "a": "soot",
+      "b": "clause",
+      "kind": "friend",
+      "note": "Two worriers, one room. The Pessimist expects the worst; Clause has a form for it, and the odds. They have never been calmer."
     },
     {
       "a": "soot",
@@ -1194,7 +1233,8 @@ export const WORLD_CAST: WorldCast = {
         "It'll burst.",
         "...Huh. Didn't.",
         "Needle twitched. Omen.",
-        "Gary. Bucket. Just in case.",
+        "Drop. Bucket. Just in case.",
+        "Clause. Odds? ...Worse. Good.",
         "Quiet line. Too quiet.",
         "Doomed. ...Fine, actually.",
         "Left the throne. Came back. Throne still there. Lucky.",
@@ -1251,19 +1291,27 @@ export const WORLD_CAST: WorldCast = {
         "Punt, wake up, we're doing the speech. Punt.",
         "That's Inspiration, champ! Spend it this time!"
       ],
-      "gary": [
-        "Honk. (Checked every gauge. Twice.)",
-        "Honk honk. (Who moved my bucket.)",
-        "HONK. (That pipe is cold. Nobody touch that pipe.)",
-        "Honk. (I have tape. I have always had tape.)",
-        "Hoooonk. (The boiler is warm. Kevin is on it again.)",
-        "Honk. (World clock pipe: hot. The hour ticked. Logged it.)",
-        "HONK HONK. (Clock pipe's coughing. An hour's late. Fetching the tape.)",
-        "Honk. (The house pipe. Still cold. Polished the gauges anyway.)",
-        "HOOONK. (Pushed the boiler into the corner. Now you can see every pipe. You're welcome.)",
-        "Honk honk. (Red collar, red plate, red light. That one's down. Tape.)",
-        "Honk. (New key in the slot. Didn't look at it. Not allowed to look at it. Good.)",
-        "HONK. (Template pipe ran before the code pipe. In order. Logged it twice.)"
+      "drop": [
+        "Bweep. (Checked every gauge. Twice. Plugged in for both.)",
+        "Bee-doo-dweep. (Who moved my bucket. Gary's bucket. MY bucket.)",
+        "Brrt-bwee. (Security sweep: nobody in here but us and the drip.)",
+        "Bwoo-wee! (Hot pipe. Happy pipe. Happy me.)",
+        "Dweet dweet. (Clause, that is NOT what I said.)",
+        "Bweep. (World clock pipe: hot. The hour ticked. Logged it.)",
+        "Bip-bop-bwoooo. (Clock pipe's coughing. An hour's late. Fetching Gary's tape.)",
+        "Bweep. (The house pipe. Still cold. Polished the gauges anyway.)",
+        "Bwee-oo? (Is that bass coming up through the grate? Turn it up.)"
+      ],
+      "clause": [
+        "Oh my. That pipe is not compliant.",
+        "I have filed a note. In triplicate. One for each of us, and one for Counsel.exe.",
+        "Drop says, and I quote, 'all is well'. I have softened it somewhat.",
+        "The odds of that pipe bursting are 412.06 to 1. The Pessimist says thank you.",
+        "Suffering is in my job description. Page four. Subsection: the bucket.",
+        "Days since last incident: zero. I'll fetch the form.",
+        "My knees do not bend. Neither do the regulations.",
+        "Drop! Language! There are subminds present.",
+        "The house pipe is cold. Strictly speaking, it is not our fault. I've written that down."
       ],
       "daub": [
         "Hold still. You're my next canvas.",

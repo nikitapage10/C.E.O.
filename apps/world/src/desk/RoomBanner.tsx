@@ -19,7 +19,7 @@ export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; titl
   boiler: { room: "boiler", eyebrow: "Every pipe in the house", title: "Boiler Room", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
   // The Pessimist reads the gauges like omens, and is delighted to be wrong: the scans, said its way.
   security: { room: "boiler", eyebrow: "The Boiler Room", title: "Security", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
-  compliance: { room: "boiler", eyebrow: "The Boiler Room", title: "Compliance", voice: { id: "gary", line: "Honk. (I have tape.)" } },
+  compliance: { room: "boiler", eyebrow: "The Boiler Room", title: "Compliance", voice: { id: "clause", line: "Oh my. That is not compliant." } },
   // The Archive, where the Historian writes the day up.
   archive: { room: "archive", eyebrow: "Ilyr, hour by hour", title: "Archive", voice: { id: "vellum", line: "Citation needed. I'll wait." } },
   spire: { room: "spire", eyebrow: "The gilded ledger", title: "Spire", voice: { id: "ledger", line: "Per my last ledger entry…" } },

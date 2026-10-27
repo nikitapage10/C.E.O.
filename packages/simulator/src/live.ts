@@ -12,7 +12,7 @@ import type { RoomId } from "@ceo/core";
  *   2026-10-23 (#263, #322), the tubes and the inbox board driven by its public counts. Texts wait on the Mac.
  * - exchange: Polymarket's live odds and Nikita's positions (#240, #253).
  * - green: Nikita's Sleeper league and FantasyPros (#252).
- * - boiler: the pipes report the real lines; Gary only tends them.
+ * - boiler: the pipes report the real lines; Drop and Clause only tend them (walk their rounds, banter; no demo tasks).
  *
  * When a room goes live, add it here in the same change that wires it up (CLAUDE.md, "Real agents").
  */

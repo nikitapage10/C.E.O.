@@ -96,7 +96,7 @@ function demoDesk(now = Date.now()): DeskData {
       { room: "foundry", text: "Rivet fixed the slow page load you mentioned." },
       { room: "relay", text: "Dialtone set aside 14 group chats and promo texts." },
       { room: "exchange", text: "Noco closed the rain market. +$22." },
-      { room: "boiler", text: "Gary taped a pipe. All lines quiet." },
+      { room: "boiler", text: "Drop taped a pipe. All lines quiet." },
     ],
     doneToday: 3,
     nudges: [

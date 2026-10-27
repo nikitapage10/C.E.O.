@@ -435,7 +435,7 @@ function Drip({ position }: { position: [number, number] }) {
   );
 }
 
-/** DAYS SINCE LAST INCIDENT, hand-painted, with a number Gary has to keep resetting. */
+/** DAYS SINCE LAST INCIDENT, hand-painted, with a number Drop has to keep resetting (and Clause writes up). */
 function IncidentSign({ position, yaw }: { position: [number, number]; yaw: number }) {
   const days = useSystems((s) => daysSinceIncident(s.lastIncident));
   return (
@@ -450,6 +450,33 @@ function IncidentSign({ position, yaw }: { position: [number, number]; yaw: numb
       </Text>
       <Text font={FONTS.mono} fontSize={0.04} position={[0, -0.47, 0.04]} color="#5a4636" anchorX="center">
         (AS PER TRADITION)
+      </Text>
+    </group>
+  );
+}
+
+/** Clause's compliance lectern: a slanted ledger with every pipe written up in it, a rubber stamp and a brass plate. */
+function Lectern({ position, yaw }: { position: [number, number]; yaw: number }) {
+  return (
+    <group position={[position[0], 0, position[1]]} rotation={[0, yaw, 0]}>
+      <Block size={[0.5, 0.05, 0.4]} position={[0, 0.025, 0]} material={PBR.blackMetal()} radius={0.01} />
+      <mesh position={[0, 0.55, 0]} material={PBR.brass()} castShadow>
+        <cylinderGeometry args={[0.035, 0.05, 1.05, 12]} />
+      </mesh>
+      {/* The desk, tipped toward whoever is filing. */}
+      <group position={[0, 1.1, 0]} rotation={[0.38, 0, 0]}>
+        <Block size={[0.62, 0.04, 0.44]} material={PBR.wood("walnut")} radius={0.01} />
+        {/* The ledger, open, in triplicate. */}
+        {[-0.13, 0.13].map((x) => (
+          <Block key={x} size={[0.25, 0.012, 0.34]} position={[x, 0.028, 0]} rotation={[0, 0, x < 0 ? 0.04 : -0.04]} material={PBR.matte("#efe8d6", 0.9)} radius={0.004} />
+        ))}
+        <mesh position={[0.24, 0.06, -0.12]} material={PBR.lacquer("#8c2f2f", 0.4)}>
+          <cylinderGeometry args={[0.025, 0.03, 0.07, 12]} />
+        </mesh>
+      </group>
+      <Block size={[0.3, 0.06, 0.01]} position={[0, 0.82, 0.06]} material={PBR.brass()} radius={0.004} />
+      <Text font={FONTS.mono} fontSize={0.032} position={[0, 0.82, 0.068]} color="#3a2a14" letterSpacing={0.12} anchorX="center" anchorY="middle">
+        COMPLIANCE
       </Text>
     </group>
   );
@@ -545,6 +572,7 @@ export function BoilerRoom() {
   const bucket = ahead(getStation("boiler", "bucket"), 0.6);
   const sign = ahead(getStation("boiler", "sign"), 0.95);
   const bench = ahead(getStation("boiler", "bench"), 0.8);
+  const lectern = ahead(getStation("boiler", "lectern"), 0.75);
   const brick = PBR.matte("#2a1c16", 0.95);
   return (
     <group>
@@ -556,7 +584,7 @@ export function BoilerRoom() {
         THE BOILER ROOM
       </Text>
       <Text font={FONTS.mono} fontSize={0.1} position={[3.4, 4.62, -6.2]} letterSpacing={0.22} color="#a9a9b1">
-        MAINTENANCE · AUTHORISED HONKERS ONLY
+        MAINTENANCE · AUTHORISED BEEPERS ONLY
       </Text>
       {links.map((l, i) => (
         <Pipe key={l.id} link={l} x={pipeX(i, links.length)} />
@@ -570,6 +598,7 @@ export function BoilerRoom() {
       <Drip position={bucket.pos} />
       <IncidentSign position={sign.pos} yaw={sign.yaw} />
       <Bench position={bench.pos} yaw={bench.yaw} />
+      <Lectern position={lectern.pos} yaw={lectern.yaw} />
       <AlarmLamp />
       <Bulb />
       <pointLight position={[3, 3.5, 2]} color="#ff9a4a" intensity={8} distance={14} decay={1.7} />

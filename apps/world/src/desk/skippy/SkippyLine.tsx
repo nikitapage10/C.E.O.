@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { TALK_NOTE, clock, talkLevel, usageLine, useTalk } from "./talk.ts";
+import { TALK_NOTE, clock, creditsLine, talkLevel, usageLine, useTalk } from "./talk.ts";
 
 /**
  * The line (#434): while a call is on, the chat's composer becomes one strand of the Lattice's dots and lines, strung
@@ -101,12 +101,18 @@ export function SkippyLine() {
   );
 }
 
-/** The small line under the composer: this month's talk minutes, or why talking is off. */
+/** The small lines under the composer: this month's talk minutes and dollars, the plan's credits, or why talking is off. */
 export function TalkUsage() {
   const usage = useTalk((s) => s.usage);
+  const credits = useTalk((s) => s.credits);
   const ready = useTalk((s) => s.ready);
   const reason = useTalk((s) => s.reason);
   if (ready === false && reason && reason !== "signed-out" && reason !== "capped") return <p className="skp-talk-usage skp-talk-usage--off">{TALK_NOTE[reason]}</p>;
   if (!usage) return null;
-  return <p className={`skp-talk-usage${usage.canTalk ? "" : " skp-talk-usage--off"}`}>{usage.canTalk ? usageLine(usage) : `${usageLine(usage)}: spent, so it's typing until the month turns`}</p>;
+  return (
+    <>
+      <p className={`skp-talk-usage${usage.canTalk ? "" : " skp-talk-usage--off"}`}>{usage.canTalk ? usageLine(usage) : `${usageLine(usage)}: spent, so it's typing until the month turns`}</p>
+      {credits && <p className="skp-talk-usage skp-talk-usage--plan">{creditsLine(credits)}</p>}
+    </>
+  );
 }

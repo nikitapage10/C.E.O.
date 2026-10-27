@@ -107,12 +107,15 @@ test("Talk falls back to typing with a plain note when the month's minutes are s
       starts++;
       return r.fulfill({ json: { ok: false, reason: "capped", usage: capped } });
     }
-    return r.fulfill({ json: { ready: true, usage: { ...capped, usedMin: 3, canTalk: true } } });
+    return r.fulfill({ json: { ready: true, usage: { ...capped, usedMin: 3, canTalk: true, usedUsd: 0.36, budgetUsd: 5, elevenUsd: 1.1, capUsd: 10, calls: 2 }, credits: { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" } } });
   });
   await page.goto(BASE + "/");
   await page.getByRole("button", { name: "Ask Skippy", exact: true }).first().click();
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
   await expect(chat.getByText("3.0 of 41.6 talk min this month")).toBeVisible();
+  // The month's bill and the plan's credits beside Talk (#477).
+  await expect(chat.getByText("3.0 of 41.6 talk min this month · $0.36 of $5.00 share · $1.10 of $10.00 cap")).toBeVisible();
+  await expect(chat.getByText("Creator plan: 100,370 of 122,113 credits · resets Nov 5")).toBeVisible();
   const talk = chat.getByRole("button", { name: /live voice call/ });
   await expect(talk).toBeEnabled();
   await talk.click();

@@ -6,7 +6,7 @@ import { stopSpeaking, useSkippy } from "./chat.ts";
  * then for a one-session token from our own function (the ElevenLabs key never comes here), then joins ElevenLabs'
  * agent over WebRTC with the client in talkSession.ts, which loads only on that first tap so the Desk's first load
  * carries none of it. What is said on the call is added to the chat as it goes, so a typed message after it can
- * follow on. A call ends on a second tap, when Skippy hangs up, after `maxSecs` (three minutes) or when the page goes
+ * follow on. A call ends on a second tap, when Skippy hangs up, after `maxSecs` (ten minutes) or when the page goes
  * away. Past the month's minutes, or when ElevenLabs fails, a plain note says so and typing and dictation carry on.
  */
 
@@ -17,6 +17,20 @@ export interface TalkUsage {
   leftMin: number;
   sessionMin: number;
   canTalk: boolean;
+  /** The month's dollars (#477): the talk's estimate against its share, all of ElevenLabs against the cap. */
+  usedUsd?: number;
+  budgetUsd?: number;
+  elevenUsd?: number;
+  capUsd?: number;
+  calls?: number;
+}
+
+/** The plan's credits as ElevenLabs counts them (#477), when it answered. */
+export interface TalkCredits {
+  used: number;
+  limit: number;
+  resetAt: string | null;
+  tier: string | null;
 }
 
 export type TalkPhase = "idle" | "starting" | "live" | "ending";
@@ -47,11 +61,50 @@ export function readUsage(raw: unknown): TalkUsage | null {
   const left = n(r.leftMin);
   const session = n(r.sessionMin);
   if (used === null || budget === null || left === null || session === null) return null;
-  return { month: typeof r.month === "string" ? r.month.slice(0, 7) : "", usedMin: used, budgetMin: budget, leftMin: left, sessionMin: session, canTalk: r.canTalk === true };
+  const money = (k: string) => {
+    const v = n(r[k]);
+    return v === null ? {} : { [k]: v };
+  };
+  return {
+    month: typeof r.month === "string" ? r.month.slice(0, 7) : "",
+    usedMin: used,
+    budgetMin: budget,
+    leftMin: left,
+    sessionMin: session,
+    canTalk: r.canTalk === true,
+    ...money("usedUsd"),
+    ...money("budgetUsd"),
+    ...money("elevenUsd"),
+    ...money("capUsd"),
+    ...money("calls"),
+  };
 }
 
-/** "3.0 of 41.6 min this month": the small line under the call button. */
-export const usageLine = (u: TalkUsage) => `${u.usedMin.toFixed(1)} of ${u.budgetMin.toFixed(1)} talk min this month`;
+export function readCredits(raw: unknown): TalkCredits | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const ok = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1e10;
+  if (!ok(r.used) || !ok(r.limit) || r.limit <= 0) return null;
+  const resetAt = typeof r.resetAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.resetAt) ? r.resetAt : null;
+  const tier = typeof r.tier === "string" && /^[A-Za-z0-9 -]{1,30}$/.test(r.tier) ? r.tier : null;
+  return { used: r.used, limit: r.limit, resetAt, tier };
+}
+
+const usd = (n: number) => `$${n.toFixed(2)}`;
+
+/** "3.0 of 41.6 talk min this month · $0.36 of $5.00 share · $1.10 of $10.00 cap": the small line under the call button. */
+export const usageLine = (u: TalkUsage) => {
+  const parts = [`${u.usedMin.toFixed(1)} of ${u.budgetMin.toFixed(1)} talk min this month`];
+  if (u.usedUsd !== undefined && u.budgetUsd !== undefined) parts.push(`${usd(u.usedUsd)} of ${usd(u.budgetUsd)} share`);
+  if (u.elevenUsd !== undefined && u.capUsd !== undefined) parts.push(`${usd(u.elevenUsd)} of ${usd(u.capUsd)} cap`);
+  return parts.join(" · ");
+};
+
+/** "Creator plan: 100,370 of 122,113 credits · resets Nov 5": the plan's own count, under the usage line. */
+export const creditsLine = (c: TalkCredits) => {
+  const reset = c.resetAt ? ` · resets ${new Date(`${c.resetAt}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}` : "";
+  return `${c.tier ? `${c.tier[0]!.toUpperCase()}${c.tier.slice(1)} plan` : "Plan"}: ${c.used.toLocaleString("en-US")} of ${c.limit.toLocaleString("en-US")} credits${reset}`;
+};
 
 /** mm:ss. */
 export const clock = (secs: number) => {
@@ -73,7 +126,7 @@ export async function requestToken(doFetch: typeof fetch = fetch): Promise<Start
     const usage = readUsage(body.usage);
     if (res.ok && body.ok === false && body.reason === "capped") return { ok: false, reason: "capped", usage };
     if (!res.ok || body.ok !== true || typeof body.token !== "string" || !body.token) return { ok: false, reason: "eleven" };
-    const maxSecs = typeof body.maxSecs === "number" && body.maxSecs > 0 && body.maxSecs <= 600 ? body.maxSecs : 180;
+    const maxSecs = typeof body.maxSecs === "number" && body.maxSecs > 0 && body.maxSecs <= 600 ? body.maxSecs : 600;
     return { ok: true, token: body.token, conversation: typeof body.conversation === "string" ? body.conversation : "", maxSecs, desk: typeof body.desk === "string" ? body.desk : "", usage };
   } catch {
     return { ok: false, reason: "eleven" };
@@ -94,6 +147,8 @@ interface TalkStore {
   /** Who has the floor on a live call. */
   mode: "listening" | "speaking";
   usage: TalkUsage | null;
+  /** The plan's credits from ElevenLabs (#477), null when it didn't answer. */
+  credits: TalkCredits | null;
   /** Whether a call can start (null until asked). */
   ready: boolean | null;
   reason: TalkReason | null;
@@ -143,17 +198,18 @@ export const useTalk = create<TalkStore>((set, get) => {
     phase: "idle",
     mode: "listening",
     usage: null,
+    credits: null,
     ready: null,
     reason: null,
     startedAt: 0,
-    maxSecs: 180,
+    maxSecs: 600,
     refresh: async (doFetch = fetch) => {
       try {
         const res = await doFetch("/api/skippy-voice", { credentials: "same-origin" });
         if (!res.ok) return set({ ready: false, reason: res.status === 401 ? "signed-out" : "not-set-up" });
-        const body = (await res.json().catch(() => ({}))) as { ready?: unknown; reason?: unknown; usage?: unknown };
+        const body = (await res.json().catch(() => ({}))) as { ready?: unknown; reason?: unknown; usage?: unknown; credits?: unknown };
         const reason = typeof body.reason === "string" && body.reason in TALK_NOTE ? (body.reason as TalkReason) : null;
-        set({ ready: body.ready === true, reason: body.ready === true ? null : reason, usage: readUsage(body.usage) });
+        set({ ready: body.ready === true, reason: body.ready === true ? null : reason, usage: readUsage(body.usage), credits: readCredits(body.credits) });
       } catch {
         /* keep what we had */
       }

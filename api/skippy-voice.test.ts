@@ -7,7 +7,10 @@ import {
   VOICE_USD_PER_MIN,
   agentBody,
   agentSig,
+  billLines,
   classifyRefusal,
+  fetchCredits,
+  readCredits,
   countVoice,
   deskVariable,
   elevenReason,
@@ -45,10 +48,10 @@ describe("the talk's cap", () => {
 
   it("lets a session start only while its longest fits the share and the whole cap", () => {
     const fresh = voiceUsage({}, NOW, 5, 10);
-    expect(fresh).toMatchObject({ usedMin: 0, sessionMin: 3, canTalk: true });
+    expect(fresh).toMatchObject({ usedMin: 0, sessionMin: 10, canTalk: true });
     expect(fresh.budgetMin).toBeCloseTo(41.6, 1);
 
-    // The share nearly spent: one more three-minute session would pass it.
+    // The share nearly spent: one more ten-minute session would pass it.
     const nearShare = addStorySpend({}, NOW, { voiceUsd: 5 - voiceCost(VOICE_SESSION_SECS) / 2, voiceSecs: 2400, elevenUsd: 5 });
     expect(voiceUsage(nearShare, NOW, 5, 10).canTalk).toBe(false);
 
@@ -56,7 +59,7 @@ describe("the talk's cap", () => {
     const storiesFull = addStorySpend({}, NOW, { elevenUsd: 10 - voiceCost(VOICE_SESSION_SECS) / 2 });
     const u = voiceUsage(storiesFull, NOW, 5, 10);
     expect(u.canTalk).toBe(false);
-    expect(u.leftMin).toBeLessThan(3);
+    expect(u.leftMin).toBeLessThan(10);
 
     // A new month starts clean.
     expect(voiceUsage(nearShare, Date.parse("2026-11-01T00:00:00Z"), 5, 10).canTalk).toBe(true);
@@ -73,6 +76,46 @@ describe("the talk's cap", () => {
     expect(m.elevenUsd).toBeCloseTo(voiceCost(45), 10);
     expect(m.voiceCalls).toBe(1);
     expect(voiceUsage(spend, NOW, 5, 10).usedMin).toBe(0.8);
+  });
+});
+
+describe("the ElevenLabs bill Skippy is told (#477)", () => {
+  const spend = addStorySpend({}, NOW, { voiceSecs: 240, voiceUsd: voiceCost(240), voiceCalls: 4, elevenUsd: voiceCost(240) + 1.1 });
+
+  it("counts the month's minutes, calls and dollars against the share and the cap", () => {
+    expect(voiceUsage(spend, NOW, 5, 10)).toMatchObject({ usedMin: 4, calls: 4, usedUsd: 0.48, budgetUsd: 5, storyUsd: 1.1, elevenUsd: 1.58, capUsd: 10 });
+  });
+
+  it("writes it as plain lines, dollars in words so the Desk's scrub keeps them, credits only when ElevenLabs answered", () => {
+    const lines = billLines(voiceUsage(spend, NOW, 5, 10));
+    expect(lines).toContain("talk 4.0 min over 4 calls, 0.48 dollars of the talk's 5.00 dollars share");
+    expect(lines).toContain("the day's story 1.10 dollars; all ElevenLabs 1.58 dollars of the 10.00 dollars monthly cap");
+    expect(lines).not.toMatch(/credits/);
+    const plan = { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" };
+    const withPlan = billLines(voiceUsage(spend, NOW, 5, 10), plan);
+    expect(withPlan).toContain("creator plan credits: 100,370 of 122,113 used this cycle, resets 2026-11-05.");
+    // Through the voice agent's variable, every number survives.
+    const v = deskVariable(`${withPlan}\nBuilds in flight: 1`);
+    expect(v).toContain("0.48 dollars");
+    expect(v).toContain("100,370 of 122,113");
+    expect(v).not.toContain("[amount]");
+    expect(v).not.toContain("[private]");
+  });
+
+  it("reads the plan's credits from ElevenLabs' subscription, failing soft", async () => {
+    expect(readCredits({ tier: "creator", character_count: 100370, character_limit: 122113, next_character_count_reset_unix: 1793836800 })).toEqual({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" });
+    expect(readCredits({ character_count: 5, character_limit: 10 })).toEqual({ used: 5, limit: 10, resetAt: null, tier: null });
+    expect(readCredits({ character_count: "lots" })).toBeNull();
+    expect(readCredits(null)).toBeNull();
+    const seen: string[] = [];
+    const ok = (async (input: string, init?: RequestInit) => {
+      seen.push(`${String(input)} ${new Headers(init?.headers).get("xi-api-key") === KEY}`);
+      return Response.json({ character_count: 1, character_limit: 2 });
+    }) as typeof fetch;
+    expect(await fetchCredits(KEY, ok)).toMatchObject({ used: 1, limit: 2 });
+    expect(seen).toEqual(["https://api.elevenlabs.io/v1/user/subscription true"]);
+    expect(await fetchCredits(KEY, (async () => new Response("{}", { status: 401 })) as typeof fetch)).toBeNull();
+    expect(await fetchCredits(KEY, (async () => Promise.reject(new Error("down"))) as typeof fetch)).toBeNull();
   });
 });
 
@@ -100,7 +143,7 @@ describe("what Skippy is told and how the agent is set up", () => {
     for (const evil of ["<scr<script>ipt>alert(1)</script>", "<<script>script>", "＜script＞"]) expect(deskVariable(evil)).not.toMatch(/[<>＜＞]/);
   });
 
-  it("makes a private agent in Skippy's voice that hangs up at three minutes", () => {
+  it("makes a private agent in Skippy's voice that hangs up at ten minutes", () => {
     const body = agentBody("onwK4e9ZLuTAKqWW03F9");
     expect(body.conversation_config.tts.voice_id).toBe("onwK4e9ZLuTAKqWW03F9");
     expect(body.conversation_config.conversation.max_duration_seconds).toBe(VOICE_SESSION_SECS);
@@ -237,12 +280,29 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     const body = JSON.parse(text) as { ok: boolean; token: string; conversation: string; maxSecs: number; desk: string; usage: { usedMin: number } };
     expect(body).toMatchObject({ ok: true, token: "lk-token-abcdefgh", conversation: "conv_0001", maxSecs: VOICE_SESSION_SECS });
     expect(body.desk).toContain("Builds in flight: 1");
-    expect(body.usage.usedMin).toBe(3);
+    // The month's bill rides on top of the Desk's state (#477); no credits line when none were read.
+    expect(body.desk).toMatch(/^ElevenLabs this month .*talk 10\.0 min over 1 call, 1\.20 dollars of the talk's 5\.00 dollars share/);
+    expect(body.desk).not.toContain("credits:");
+    expect(body.usage.usedMin).toBe(10);
     expect(storyMonth(stories.spend, NOW).voiceCalls).toBe(1);
     expect(voice.state.agent?.id).toBe("agent_skippy01");
     expect(voice.state.pending.map((p) => p.id)).toEqual(["conv_0001"]);
     // The key only ever travels in ElevenLabs' header, never in a URL.
     expect(calls.every((c) => c.key === KEY && !c.url.includes(KEY))).toBe(true);
+  });
+
+  it("shows a signed-in Desk the month's dollars and the plan's credits, and leaves the credits out when ElevenLabs fails (#477)", async () => {
+    const plan = { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" };
+    const { get, post } = await setup({ credits: async () => plan });
+    const body = (await (await get()).json()) as { usage: { usedUsd: number; budgetUsd: number; capUsd: number }; credits?: unknown };
+    expect(body.usage).toMatchObject({ usedUsd: 0, budgetUsd: 5, capUsd: 10 });
+    expect(body.credits).toEqual(plan);
+    const started = (await (await post({ action: "start" })).json()) as { desk: string };
+    expect(started.desk).toContain("creator plan credits: 100,370 of 122,113 used this cycle, resets 2026-11-05.");
+    const failing = await setup({ credits: async () => Promise.reject(new Error("down")) });
+    const soft = (await (await failing.get()).json()) as { ready: boolean; credits?: unknown };
+    expect(soft.ready).toBe(true);
+    expect(soft).not.toHaveProperty("credits");
   });
 
   it("refuses without a session and calls nothing", async () => {

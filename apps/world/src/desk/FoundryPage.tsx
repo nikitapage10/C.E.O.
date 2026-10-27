@@ -9,6 +9,7 @@ import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CR
 import { useSystems, type LinkState } from "../systems.ts";
 import { FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
+import { ago } from "./foundryGraph.ts";
 import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
 import { useHide, useMasked } from "./hide.ts";
 import { Private } from "./Private.tsx";
@@ -68,6 +69,7 @@ export function FoundryPage({ now }: { now: number }) {
   const connected = useFoundry((s) => s.connected);
   const data = useFoundry((s) => s.data);
   const pending = useFoundry((s) => s.pending);
+  const keptAt = useFoundry((s) => s.keptAt);
   const setup = useSetup();
   // The cards keep the thread's numbering (Build 1, 2, 3), so they go by issue number, not by last change; a card
   // just sent from the Desk goes last until GitHub numbers it.
@@ -108,6 +110,11 @@ export function FoundryPage({ now }: { now: number }) {
 
   return (
     <div className="foundry-page wv-page fl-page fo" data-room="foundry" style={{ "--fl-accent": RC.foundry } as React.CSSProperties}>
+      {keptAt !== null && (
+        <p className="fo-note fo-asof" role="status">
+          As of {ago(keptAt, now)}, from this device; refreshing.
+        </p>
+      )}
       <ForgeStage data={data} ideas={ideas} progress={progress} now={now} connected={connected} lead={lead} stop={stop} onSuggest={toSuggest} onIdea={toIdea} onShips={toLog} />
 
       <section className="fl-below fo-bench" aria-label="Ideas waiting">

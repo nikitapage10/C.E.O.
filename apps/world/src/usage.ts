@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { keepFeed, readKept } from "./feedKeep.ts";
 import { crewFor, modelOf, readBody, REPO, type CrateKind, type Model } from "./foundry.ts";
 
 /**
@@ -302,17 +303,40 @@ async function readGitHub(): Promise<UsageFeed> {
   };
 }
 
-/** The usage feed, read now and every minute while the tab is showing; null until it first answers. */
-export function useUsage(): { feed: UsageFeed | null; failed: boolean } {
-  const [state, setState] = useState<{ feed: UsageFeed | null; failed: boolean }>({ feed: null, failed: false });
+const KEPT_USAGE = "ceo.foundryUsage";
+
+const isUsageFeed = (v: unknown): v is UsageFeed => {
+  const f = v as Partial<UsageFeed> | null;
+  return !!f && typeof f === "object" && Array.isArray(f.issues) && Array.isArray(f.trails);
+};
+
+interface UsageState {
+  feed: UsageFeed | null;
+  failed: boolean;
+  /** When the copy kept on this device was fetched, while it is what's showing (#513); null once a live answer lands. */
+  keptAt: number | null;
+}
+
+/** The usage feed, read now and every minute while the tab is showing. The last real answer is kept on this device and shown at once, marked by `keptAt`, until the first live one; null until either. */
+export function useUsage(): UsageState {
+  const [state, setState] = useState<UsageState>(() => {
+    const kept = typeof window === "undefined" ? null : readKept(KEPT_USAGE, isUsageFeed);
+    return { feed: kept?.value ?? null, failed: false, keptAt: kept?.at ?? null };
+  });
   useEffect(() => {
     if (typeof window === "undefined" || new URLSearchParams(window.location.search).has("offline")) return;
     let live = true;
-    const load = () =>
-      readFeed()
+    const load = () => {
+      let fromFeed = false;
+      return readFeed()
+        .then((f) => ((fromFeed = true), f))
         .catch(readGitHub)
-        .then((feed) => live && setState({ feed, failed: false }))
-        .catch(() => live && setState((s) => ({ feed: s.feed, failed: s.feed === null })));
+        .then((feed) => {
+          if (fromFeed && isUsageFeed(feed)) keepFeed(KEPT_USAGE, feed);
+          if (live) setState({ feed, failed: false, keptAt: null });
+        })
+        .catch(() => live && setState((s) => ({ feed: s.feed, failed: s.feed === null, keptAt: s.keptAt })));
+    };
     void load();
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void load();

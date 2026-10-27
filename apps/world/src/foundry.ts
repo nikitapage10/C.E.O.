@@ -3,6 +3,7 @@ import { useSystems, type LinkState } from "./systems.ts";
 import { UPKEEP_ANCHOR_MS, UPKEEP_EVERY_MS } from "./desk/crewRuns.ts";
 import type { GhJob } from "./desk/jobs.ts";
 import { ownPictures, pictureRef } from "../../../api/_pictures.ts";
+import { keepFeed, readKept } from "./feedKeep.ts";
 
 /**
  * The Foundry's real work, read from GitHub through the Desk's feed (api/foundry-feed.ts). Shared by the Desk (cards, Systems) and the Lattice (the Foundry
@@ -849,9 +850,13 @@ interface FoundryStore {
   /** True once GitHub has answered at least once. */
   connected: boolean;
   lastFetch: number | null;
+  /** While the board shows the copy kept on this device (#513): when that answer was fetched. null once a live answer lands. */
+  keptAt: number | null;
   /** Ideas Nikita just sent from the Desk, shown at once until GitHub's copy arrives (numbered below zero until then). */
   pending: Crate[];
   set: (data: FoundryData) => void;
+  /** Paint the kept copy until the first live answer replaces it. */
+  setKept: (data: FoundryData, at: number) => void;
   addPending: (crate: Crate) => void;
   /** GitHub answered: the pending card now has its real issue number (or `null` when sending failed). */
   settlePending: (temp: number, issue: number | null) => void;
@@ -870,10 +875,12 @@ export const useFoundry = create<FoundryStore>((set) => ({
   data: EMPTY_FOUNDRY,
   connected: false,
   lastFetch: null,
+  keptAt: null,
   pending: [],
   // A pending card stays until the feed carries its issue in at least the same shape, so the board never flickers
   // back to empty or back to the unshaped words.
-  set: (data) => set((s) => ({ data, connected: true, lastFetch: Date.now(), pending: s.pending.filter((p) => !data.crates.some((c) => c.number === p.number && (p.revising || !c.revising) && (!p.asking || c.asking))) })),
+  setKept: (data, at) => set((s) => (s.lastFetch === null ? { data, connected: true, keptAt: at } : {})),
+  set: (data) => set((s) => ({ data, connected: true, lastFetch: Date.now(), keptAt: null, pending: s.pending.filter((p) => !data.crates.some((c) => c.number === p.number && (p.revising || !c.revising) && (!p.asking || c.asking))) })),
   addPending: (crate) => set((s) => ({ pending: [...s.pending, crate] })),
   settlePending: (temp, issue) =>
     set((s) => ({
@@ -959,10 +966,36 @@ async function readGitHub(): Promise<Feed> {
   return { issues, runs, e2e, live, pulls, commits, open };
 }
 
+/** The Desk's feed, kept on this device: the last real `/api/foundry-feed` answer (never the direct-GitHub fallback). */
+const KEPT_FEED = "ceo.foundryFeed";
+
+const isFeed = (v: unknown): v is Feed => {
+  const f = v as Partial<Feed> | null;
+  return !!f && typeof f === "object" && Array.isArray(f.issues) && Array.isArray(f.pulls) && Array.isArray(f.commits) && !!f.runs && Array.isArray(f.runs.workflow_runs);
+};
+
+function parseFeed({ issues, runs, pulls, commits, jobs, open, branches, timings }: Feed): FoundryData {
+  return { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits), jobs, prs: parseOpenPrs(open), branches: Array.isArray(branches) ? branches.filter((n): n is number => typeof n === "number") : [], timings: parseTimings(timings) };
+}
+
+/** Paint the copy kept on this device, if it is under a day old and well-formed, before the first fetch lands. */
+export function paintKeptFoundry(): void {
+  const kept = readKept(KEPT_FEED, isFeed);
+  if (!kept) return;
+  try {
+    useFoundry.getState().setKept(parseFeed(kept.value), kept.at);
+  } catch {
+    // A copy that won't parse is never painted.
+  }
+}
+
 export async function refreshFoundry(): Promise<void> {
   try {
-    const { issues, runs, e2e, live, pulls, commits, jobs, open, branches, timings } = await readFeed().catch(readGitHub);
-    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits), jobs, prs: parseOpenPrs(open), branches: Array.isArray(branches) ? branches.filter((n): n is number => typeof n === "number") : [], timings: parseTimings(timings) };
+    let fromFeed = false;
+    const feed = await readFeed().then((f) => ((fromFeed = true), f)).catch(readGitHub);
+    const { e2e, live } = feed;
+    const data = parseFeed(feed);
+    if (fromFeed && isFeed(feed)) keepFeed(KEPT_FEED, feed);
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
     const { setLink } = useSystems.getState();
@@ -1004,6 +1037,7 @@ export function expectChange(): void {
 export function startFoundry(): void {
   if (started || typeof window === "undefined" || new URLSearchParams(window.location.search).has("offline")) return;
   started = true;
+  paintKeptFoundry();
   void refreshFoundry();
   setInterval(() => {
     if (document.visibilityState === "visible") void refreshFoundry();

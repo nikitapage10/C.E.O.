@@ -1,8 +1,8 @@
 import type { PoseMode } from "../behavior.ts";
 
 /**
- * How the Boiler Room's two droids move. Both are built from primitives as rigid parts on pivots (Astromech.tsx,
- * ProtocolDroid.tsx), so a pose is a handful of angles. Angles are about character axes (+Y up, +Z forward,
+ * How the Boiler Room's two droids move. Both are Nikita's sculpts, cut into rigid parts on pivots by
+ * scripts/build-droids.mjs, so a pose is a handful of angles. Angles are about character axes (+Y up, +Z forward,
  * +X the droid's left).
  *
  * Drop, the astromech, rolls on the feet of its two legs. To get going it drops its third leg out of its belly and
@@ -159,11 +159,10 @@ export interface ProtocolPose {
   eye: number;
 }
 
-/** How far a leg swings either way while walking, radians: not far, with no knees to help. */
-export const STRIDE = 0.2;
-/** Clause's hip height, metres before scale (ProtocolDroid.tsx hangs the legs from here). */
-export const PROTOCOL_HIP = 0.82;
-const HIP = PROTOCOL_HIP;
+/** How far a leg swings either way while walking, radians: short shuffling steps, with no knees to help. */
+export const STRIDE = 0.16;
+/** Hip height, metres before scale (scripts/build-droids.mjs puts the hips at 20.5 of 50 STL units, of 1.72 m). */
+const HIP = 0.705;
 
 export function protocolPose(mode: PoseMode, s: number, phase = 0, speaking = false): ProtocolPose {
   const p: ProtocolPose = { lift: 0, yaw: 0, roll: 0, pitch: 0, legL: 0, legR: 0, armL: 0, armLOut: 0.04, armR: 0, armROut: 0, headYaw: 0, headPitch: 0, headTilt: 0, eye: 1.6 };
@@ -239,13 +238,13 @@ export function protocolPose(mode: PoseMode, s: number, phase = 0, speaking = fa
       break;
     }
     default: {
-      // Idle and waiting: fussing. Every few seconds the free arm comes up, "oh my", and shakes a little at the wrist
+      // Idle and waiting: fussing. Every few seconds the stiff free arm lifts a little, "oh my", and shakes at the wrist
       // of the hand it doesn't have; the head tilts back in dismay.
       const beat = 5.5 + (phase % 2);
       const u = (s % beat) / beat;
       const fuss = u > 0.55 && u < 0.85 ? Math.sin(((u - 0.55) / 0.3) * Math.PI) : 0;
-      p.armL = fuss * 0.95 + Math.sin(s * 0.7) * 0.03;
-      p.armLOut = 0.04 + fuss * 0.25 + fuss * Math.sin(s * 18) * 0.04;
+      p.armL = fuss * 0.5 + Math.sin(s * 0.7) * 0.03;
+      p.armLOut = 0.04 + fuss * 0.12 + fuss * Math.sin(s * 18) * 0.03;
       p.headPitch = -fuss * 0.16;
       p.roll = Math.sin(s * 0.8) * 0.012;
       if (mode === "waiting") p.yaw = Math.sin(s * 0.5) * 0.08;
@@ -253,7 +252,7 @@ export function protocolPose(mode: PoseMode, s: number, phase = 0, speaking = fa
   }
   if (speaking) {
     // Talking with the free hand, in short stiff chops, and nodding along.
-    p.armL = Math.max(p.armL, 0.45 + Math.abs(Math.sin(s * 5)) * 0.35);
+    p.armL = Math.max(p.armL, 0.25 + Math.abs(Math.sin(s * 5)) * 0.2);
     p.headPitch += Math.sin(s * 9) * 0.05;
   }
   return p;

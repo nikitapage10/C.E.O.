@@ -78,9 +78,9 @@ describe("the protocol droid", () => {
     }
   });
 
-  it("fusses when idle: the free arm comes up now and then", () => {
+  it("fusses when idle: the free arm comes up a little now and then, stiffly", () => {
     const arms = Array.from({ length: 80 }, (_, i) => protocolPose("idle", i * 0.1).armL);
-    expect(Math.max(...arms)).toBeGreaterThan(0.6);
+    expect(Math.max(...arms)).toBeGreaterThan(0.35);
     expect(Math.min(...arms)).toBeLessThan(0.1);
   });
 

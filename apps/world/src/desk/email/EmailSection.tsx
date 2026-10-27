@@ -172,7 +172,7 @@ export function EmailSection({ now }: { now: number }) {
       ) : auth !== "in" ? (
         <div className="em-gate is-sealed">
           <p className="em-state">
-            {status ? `${status.needsYou} need you and ${status.fyi} are noted. Sign in to read them.` : "Sign in to read your mail."}
+            {status ? `${status.needsYou} need you and ${status.fyi} can wait. Sign in to read them.` : "Sign in to read your mail."}
           </p>
           <button type="button" className="wv-btn is-pri" onClick={() => void signIn()}>
             Sign in
@@ -204,7 +204,7 @@ export function EmailSection({ now }: { now: number }) {
           )}
           {fyi.length > 0 && (
             <details className="em-fyi">
-              <summary>Noted for your information · {fyi.length}</summary>
+              <summary>Can wait · {fyi.length}</summary>
               <ul>
                 {fyi.map((i) => (
                   <li key={i.id}>
@@ -219,6 +219,11 @@ export function EmailSection({ now }: { now: number }) {
                 ))}
               </ul>
             </details>
+          )}
+          {view.applied > 0 && (
+            <p className="em-note" role="status">
+              {view.applied === 1 ? "1 application confirmed" : `${view.applied} applications confirmed`} this month
+            </p>
           )}
           <div className="em-foot">
             <button type="button" className="wv-btn is-sm" disabled={busy} onClick={() => void disconnect()}>

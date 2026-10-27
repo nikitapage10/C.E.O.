@@ -463,7 +463,7 @@ export function RelayFilter({ now }: { now: number }) {
               <dd>{n(st?.noise)}</dd>
             </div>
             <div>
-              <dt>FYI</dt>
+              <dt>Can wait</dt>
               <dd>{n(st ? fyiN : undefined)}</dd>
             </div>
             <div className={needN ? "is-hot" : undefined}>
@@ -487,7 +487,7 @@ export function RelayFilter({ now }: { now: number }) {
           <button type="button" tabIndex={-1} className="rl-sink" data-rl="fyi" disabled={!signedIn || !fyi.length} onClick={openFyi}>
             <i />
             <b className="fl-num">{n(st ? fyiN : undefined)}</b>
-            <span>FYI · noted, no reply</span>
+            <span>Can wait · kept, no ping</span>
           </button>
           <p className="rl-sink is-quiet" data-rl="handled">
             <i />

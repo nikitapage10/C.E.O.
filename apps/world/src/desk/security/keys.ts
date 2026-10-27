@@ -17,6 +17,8 @@ export interface KeyRow {
   updated: number | null;
   /** When it was last set from the Desk (ms). */
   lastSet: number | null;
+  /** A list over several lines: the form gives it a textarea that keeps newlines. */
+  multiline?: boolean;
 }
 
 export interface KeysView {
@@ -55,7 +57,7 @@ export const SET_NOTE: Record<Exclude<SetResult, "ok">, string> = {
   cancelled: "The passkey was closed, so nothing was sent.",
   "step-up": "The passkey didn't check out. Nothing was set.",
   "not-allowed": "That key can't be set from the Desk.",
-  "bad-value": "That doesn't look like a key: one line, up to 4,096 characters.",
+  "bad-value": "That doesn't look like a key: one line (a list, several), up to 4,096 characters.",
   locked: "Too many in a row. Wait a few minutes and try again.",
   out: "Your session ended. Sign in again.",
   "no-vault": "The Key Vault isn't connected here yet.",

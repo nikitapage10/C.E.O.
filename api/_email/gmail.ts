@@ -3,7 +3,8 @@
  * Gmail API reads the agent makes. Nothing here can send, label, archive or delete: the scope doesn't allow it, and
  * the only calls are GETs to the profile, the history, the catch-up list and one message.
  *
- *   GET users/me/profile                 the mailbox's current history id (the first check starts there)
+ *   GET users/me/profile                 the mailbox's current history id (the first check starts there) and its own address
+ *   GET users/me/threads/{id}            headers only (From): who started a thread, when Nikita keeps a priority list (#522)
  *   GET users/me/history                 what changed since a history id: the minute check, free of Claude
  *   GET users/me/messages?q=…            once per connection: the unread inbox mail of the last 48 hours (#323)
  *   GET users/me/messages/{id}           one new inbox mail, read only to sort it
@@ -243,6 +244,10 @@ export interface MailForSort {
   promo: boolean;
   /** A List-Unsubscribe header: a mailing list. */
   bulk: boolean;
+  /** Gmail's thread id, to look at who started the thread (#522). */
+  threadId?: string;
+  /** Every address on the To line, lower-cased, for the filters only; never sent to a model. */
+  to?: string[];
 }
 
 interface Part {
@@ -337,5 +342,32 @@ export function readMessage(raw: unknown): MailForSort | null {
     body,
     promo: labels.includes("CATEGORY_PROMOTIONS") || labels.includes("CATEGORY_SOCIAL"),
     bulk: headers.has("list-unsubscribe"),
+    ...(typeof (m as { threadId?: unknown }).threadId === "string" && MESSAGE_ID.test((m as { threadId: string }).threadId) && { threadId: (m as { threadId: string }).threadId }),
+    to: [...(headers.get("to") ?? "").matchAll(/([A-Za-z0-9._%+'-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,24})/g)].map((x) => x[1]!.toLowerCase()),
   };
+}
+
+/** The mailbox's own address (users.getProfile, metadata only), lower-cased; "" when Gmail doesn't say. */
+export async function ownAddress(fetcher: Fetcher, token: string): Promise<string> {
+  const b = (await gmailGet(fetcher, token, "/profile")) as Record<string, unknown> | null;
+  return typeof b?.emailAddress === "string" ? b.emailAddress.trim().toLowerCase().slice(0, 120) : "";
+}
+
+/**
+ * The sender address of a thread's first message (headers only: format=metadata, From). "" when the thread can't be
+ * read. A one-message thread is its own first message, so it costs no call.
+ */
+export async function threadStarter(fetcher: Fetcher, token: string, threadId: string, messageId: string): Promise<string> {
+  if (!MESSAGE_ID.test(threadId) || threadId === messageId) return "";
+  const q = new URLSearchParams({ format: "metadata" });
+  q.append("metadataHeaders", "From");
+  const b = (await gmailGet(fetcher, token, `/threads/${threadId}`, q)) as { messages?: { internalDate?: unknown; payload?: Part }[] } | null;
+  let first: { at: number; from: string } | null = null;
+  for (const m of b?.messages ?? []) {
+    const at = Number(m.internalDate);
+    const from = (m.payload?.headers ?? []).find((h) => h.name?.toLowerCase() === "from")?.value;
+    if (typeof from !== "string" || !Number.isFinite(at)) continue;
+    if (!first || at < first.at) first = { at, from };
+  }
+  return first ? senderAddress(first.from) : "";
 }

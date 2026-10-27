@@ -111,7 +111,11 @@ function KeyItem({ row, now, open, canSet, onOpen, onDone }: { row: KeyRow; now:
         <form className="sx-kf-f" onSubmit={submit} autoComplete="off">
           <label>
             <span className="sx-note">New value, from {row.from}</span>
+            {row.multiline ? (
+              <textarea name={`key-${row.name}`} rows={8} value={value} onChange={(e) => setValue(e.target.value)} maxLength={4096} autoComplete="off" spellCheck={false} autoCapitalize="off" autoCorrect="off" disabled={busy} />
+            ) : (
             <input type="password" name={`key-${row.name}`} value={value} onChange={(e) => setValue(e.target.value)} maxLength={4096} autoComplete="new-password" spellCheck={false} autoCapitalize="off" autoCorrect="off" disabled={busy} />
+            )}
           </label>
           <button type="submit" className="fl-btn is-pri" disabled={busy || !value.trim()}>
             {busy ? "Waiting for the passkey…" : "Set with passkey"}

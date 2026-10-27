@@ -97,6 +97,9 @@ var secrets = [
   // A private skip list for the email agent (#323): comma-separated terms; mail holding one is counted, never read by
   // a model or kept. Optional: missing or empty skips nothing.
   { setting: 'EMAIL_SKIP_TERMS', secret: 'email-skip-terms' }
+  // Nikita's own priority list for Dialtone (several lines, ~1.3 KB): what needs him, what can wait, what is noise.
+  // Read after the hard rules above, never over them. Optional: missing or empty changes nothing.
+  { setting: 'EMAIL_PRIORITY', secret: 'email-priority' }
   // The Spire's invoices (#279, docs/PAYPAL.md): PayPal's REST app (client credentials). Sandbox or live is the plain
   // PAYPAL_ENV setting below; switching to live means pasting the Live app's id and secret here.
   { setting: 'PAYPAL_CLIENT_ID', secret: 'paypal-client-id' }

@@ -54,6 +54,8 @@ export interface EmailState {
   day: { day: string; newCount: number; noise: number; skipped: number; urgent: number };
   /** Mail counted while paused, this month. */
   unsorted: number;
+  /** Plain job-application confirmations counted this month ("2026-10"); a count only, never an item. Signed-in view only. */
+  applied: { month: string; count: number };
   gmail: GmailState;
   lastCheck: number | null;
   /** What went wrong on the last check, by kind only. */
@@ -89,7 +91,7 @@ export const MAX_PER_TICK = 12;
 export const CATCH_UP_MAX = 24;
 
 export function emptyEmailState(): EmailState {
-  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [] };
+  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, applied: { month: "", count: 0 }, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [] };
 }
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
@@ -110,6 +112,10 @@ export function readEmailState(v: unknown): EmailState {
     spend: o.spend && typeof o.spend === "object" && !Array.isArray(o.spend) ? (o.spend as Record<string, EmailMonth>) : {},
     day: { day: str(day.day, 10), newCount: num(day.newCount), noise: num(day.noise), skipped: num(day.skipped), urgent: num(day.urgent) },
     unsorted: num(o.unsorted),
+    applied: (() => {
+      const a = (o.applied && typeof o.applied === "object" ? o.applied : {}) as Record<string, unknown>;
+      return { month: /^\d{4}-\d{2}$/.test(String(a.month)) ? String(a.month) : "", count: Math.max(0, Math.floor(num(a.count))) };
+    })(),
     gmail: o.gmail === "connected" || o.gmail === "refused" ? o.gmail : "not-connected",
     lastCheck: typeof o.lastCheck === "number" ? o.lastCheck : null,
     lastError: o.lastError === "gmail" || o.lastError === "claude" || o.lastError === "token" || o.lastError === "store" ? o.lastError : null,
@@ -148,6 +154,8 @@ export interface EmailView {
   items: EmailItem[];
   /** Urgent money or legal alerts skipped today: a count only, nothing of the mail is kept (#415). */
   urgentSkipped: number;
+  /** Plain job-application confirmations this month: a count, shown to a signed-in Desk only (#522). */
+  applied: number;
   /** This month's Claude spend and the cap, in dollars. */
   spend: { usd: number; budget: number };
 }

@@ -72,6 +72,23 @@ To set or change the skip list (Azure Cloud Shell; the terms are typed hidden an
 KV=kv-ceo-besgu7fnckib2; read -rsp "Skip terms, comma-separated: " TERMS; echo; az keyvault secret set --vault-name $KV -n email-skip-terms --value "$TERMS" -o none && echo "set email-skip-terms"; unset TERMS; az functionapp config appsettings set -g rg-ceo-prod -n func-ceo-besgu7fnckib2 --settings "EMAIL_SKIP_TERMS=@Microsoft.KeyVault(VaultName=$KV;SecretName=email-skip-terms)" -o none && az functionapp restart -g rg-ceo-prod -n func-ceo-besgu7fnckib2 -o none && echo "skip list in; function app restarted"
 ```
 
+## Nikita's own priorities (#522)
+
+An optional private list (`EMAIL_PRIORITY`, the Key Vault secret `email-priority`, pasted on the Desk's Keys page into a
+multi-line box; about 1.3 KB, 4,096 characters at most). Missing or empty, the agent behaves exactly as above. With it:
+
+- **Dialtone reads it after the hard rules, below them.** The skip list, the money and legal pre-filter and the skip
+  kind still run first and cannot be overridden, even by a line that says "keep money mail".
+- **Three tiers.** *Needs you* (kept, pings, Blasto advises). *Can wait* (the old FYI: kept on the Relay page, no ping,
+  no Blasto spend). *Noise* (dropped and counted). Without the list, FYI is still dropped as before.
+- **Applications.** A plain "thanks for applying" confirmation leaves no item; it adds to "N applications confirmed",
+  counted per month (it restarts each month) and shown only to a signed-in Desk. The public status has no such count.
+- **His own threads.** When the Gmail thread's first message is from his own address (`users.getProfile`, and thread
+  headers only, covered by `gmail.readonly`), a reply is forced to needs you, unless the filters skip it.
+- **Mail to himself** (from and to are his own address) is noise before any model call.
+
+The list goes to Claude only as part of Dialtone's instructions, never to the public site, and nothing logs it.
+
 ## The cap
 
 Its own **$10 a month** (`EMAIL_BUDGET_USD`, an app setting; the template sets 10), separate from the world's,

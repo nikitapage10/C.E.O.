@@ -115,6 +115,7 @@ describe("the allowlist (#330)", () => {
       "elevenlabs",
       "openai",
       "email-skip-terms",
+      "email-priority",
     ]);
   });
 

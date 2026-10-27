@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { readCrew, roomOfAgent } from "../hologram/crew.ts";
-import { setSpeaker } from "../hologram/signal.ts";
+import { readCrew } from "../hologram/crew.ts";
+import { setCrew, setSpeaker } from "../hologram/signal.ts";
 import { stopSpeaking, useSkippy } from "./chat.ts";
 
 /**
@@ -374,6 +374,8 @@ export const useTalk = create<TalkStore>((set, get) => {
         return note(got.reason);
       }
       if (got.usage) set({ usage: got.usage });
+      // The hologram learns the call's crew (agent id → submind) the moment the start answer lands (#490).
+      setCrew(got.crew ?? {});
       conversation = got.conversation;
       if (get().phase !== "starting") return void (await finish(null));
       try {
@@ -382,10 +384,9 @@ export const useTalk = create<TalkStore>((set, get) => {
           token: got.token,
           desk: got.desk,
           ...(got.tool && { tool: got.tool }),
-          // Who has the mic (#481, #491): talkSession swaps the hologram on every transfer, from this crew map, then
-          // reports the agent here; setting it again is a no-op, and keeps a stand-in call (the browser tests) honest.
-          crew: got.crew ?? {},
-          onAgent: (agent) => setSpeaker(roomOfAgent(agent, got.crew ?? {})),
+          // Who has the mic (#490, #491): talkSession hands the call's events to the hologram; a stand-in call (the
+          // browser tests) reports the agent here instead. Either way the crew (set above) turns agent ids into rooms.
+          onAgent: (agent) => setSpeaker(agent),
           onMessage: (who, text) => useSkippy.getState().say(who, text),
           onMode: (mode) => {
             if (mode === "speaking" && get().timings?.firstWord === undefined) mark("firstWord");

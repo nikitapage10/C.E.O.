@@ -84,7 +84,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
   const shown = placement === "inline" || open;
   const talking = useTalk((s) => s.phase !== "idle");
   const signedIn = useDeskAuth((s) => s.auth.status === "in");
-  // This month's talk minutes (#434), asked for when the chat opens signed in.
+  // Whether talking is set up and the plan's credits (#434, #532), asked for when the chat opens signed in.
   useEffect(() => {
     if (shown && signedIn) void useTalk.getState().refresh();
   }, [shown, signedIn]);

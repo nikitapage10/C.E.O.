@@ -5,29 +5,27 @@
  * the same key and the same voice as the day's story). How the agent, the cap and the settling work is in
  * api/_skippy/voice.ts.
  *
- * GET  → { ready, reason?, usage, credits? }: whether a call can start now (reason "no-key", "capped", "not-set-up"),
- *        the month's minutes and dollars ({ usedMin, budgetMin, leftMin, sessionMin, canTalk, calls, usedUsd, budgetUsd,
- *        storyUsd, elevenUsd, capUsd }) and, when ElevenLabs answers, the plan's credits ({ used, limit, resetAt, tier },
- *        #477; left out when it doesn't). Settles sessions that have ended. Signed-in only, so the bill never goes public.
- * POST { action: "start" } → 200 { ok: true, token, conversation, maxSecs, desk, usage, crew? }: a one-session WebRTC token
- *        (short-lived, for the private agent only), the longest the call may run (ten minutes), and the Desk's state for
- *        Skippy, the month's ElevenLabs bill on top (billLines, #477).
- *        200 { ok: false, reason: "capped", usage } past the month's share or ElevenLabs' cap (the Desk goes back to
- *        typing); 429 { error: "slow-down", wait } past VOICE_RULES; 502 when ElevenLabs refused, with its reason
- *        (#470): { error: "key-invalid" } it doesn't accept the key, "agent-denied" the key lacks a permission,
- *        "plan" its plan or limits said no, "eleven" anything else; 503 not-set-up or no-key.
+ * GET  → { ready, reason?, credits? }: whether a call can start now (reason "no-key", "not-set-up") and, when ElevenLabs
+ *        answers, the plan's credits ({ used, limit, resetAt, tier }, #477; left out when it doesn't). The site holds
+ *        the talk to no budget and no call length of its own (#532): the plan's credits are the only limit. Settles
+ *        sessions that have ended. Signed-in only, so the credits never go public.
+ * POST { action: "start" } → 200 { ok: true, token, conversation, desk, credits?, crew? }: a one-session WebRTC token
+ *        (short-lived, for the private agent only) and the Desk's state for Skippy, the plan's credits on top (billLines).
+ *        429 { error: "slow-down", wait } past VOICE_RULES; 502 when ElevenLabs refused, with its reason (#470, #532):
+ *        { error: "key-invalid" } it doesn't accept the key, "agent-denied" the key lacks a permission, "quota" the
+ *        plan's credits are used up (a 402 or quota_exceeded), "plan" its plan or limits said no, "eleven" anything
+ *        else; 503 not-set-up or no-key.
  *        With Skippy's crew (#479) the answer also carries `tool`, the call's own key for its lookups (the browser passes
  *        it to ElevenLabs as the secret variable `secret__ceo_tool`; api/_skippy/voicetoken.ts), and (#481) `crew`, each
  *        submind's ElevenLabs agent id to its own id ("turf"), so the Desk's hologram shows whoever has the mic.
- * POST { action: "end", conversation } → { ok: true, usage }: the call is over; its tool token is revoked and its real
- *        length is asked for now (or on a later request, when ElevenLabs hasn't finished it yet); once it is, the
- *        subminds' exchanges on it go to the Council (api/_skippy/voicecouncil.ts).
+ * POST { action: "end", conversation } → { ok: true }: the call is over; its tool token is revoked and the conversation
+ *        is followed up now (or on a later request, when ElevenLabs hasn't finished it yet); once it is, the subminds'
+ *        exchanges on it go to the Council (api/_skippy/voicecouncil.ts).
  * GET ?handoffs=<conversation> → { handoffs: [turn ids] }: what the call handed to the Kernel (#480), so the Desk's chat
  *        waits on those answers like typed ones.
  * 401 signed-out, 403 cross-site, 400 bad-request.
  *
- * Environment: ELEVENLABS_API_KEY, optional ELEVENLABS_VOICE_ID, ELEVENLABS_BUDGET_USD (the $10 cap) and
- * ELEVENLABS_VOICE_BUDGET_USD (the talk's share, $5 by default); FOUNDRY_DESK_KEY and the blob store.
+ * Environment: ELEVENLABS_API_KEY, optional ELEVENLABS_VOICE_ID; FOUNDRY_DESK_KEY and the blob store.
  */
 
 import { pickBlob } from "./_blob.js";
@@ -44,8 +42,8 @@ import { exchangesOf } from "./_skippy/voicecouncil.js";
 import { ensureCrew, skippyToolIds, skippyTransfers } from "./_skippy/voicecrew.js";
 import { BlobCrewStore, TOOL_SLACK_MS, callHandoffs, endToolToken, issueToolToken, type CrewStore } from "./_skippy/voicetoken.js";
 import { siteUrl } from "./_site/hosts.js";
-import { BlobVoiceStore, VOICE_LLM, VOICE_SESSION_SECS, VOICE_SILENCE_SECS, billLines, countVoice, creditsReader, deskVariable, ensureAgent, isConversationId, mintToken, reserveAdd, settle, voiceBudget, voiceTag, voiceUsage, voiceWait, type AgentCrew, type ElevenCredits, type VoiceState, type VoiceStore, type VoiceUsage } from "./_skippy/voice.js";
-import { elevenFromEnv, pickStoryStore, type ElevenConfig, type StoryStore } from "./_world/story.js";
+import { BlobVoiceStore, VOICE_LLM, VOICE_MAX_SECS, VOICE_SILENCE_SECS, billLines, countVoice, creditsReader, deskVariable, ensureAgent, isConversationId, mintToken, settle, voiceTag, voiceWait, type AgentCrew, type ElevenCredits, type VoiceState, type VoiceStore } from "./_skippy/voice.js";
+import { elevenFromEnv, type ElevenConfig } from "./_world/story.js";
 import { pickStore } from "./_world/store.js";
 import { foundryIssues } from "./skippy.js";
 import { memo } from "./_feedcache.js";
@@ -53,12 +51,8 @@ import { memo } from "./_feedcache.js";
 export interface VoiceDeps {
   deskKey: string;
   store: AuthStore | null;
-  /** The month ledger the story keeps (ElevenLabs' one cap). */
-  stories: StoryStore | null;
   voice: VoiceStore | null;
   eleven: ElevenConfig | null;
-  /** The talk's share in dollars. */
-  budget: number;
   /** The Desk's state as plain lines (api/_skippy/context.ts). */
   desk: () => Promise<string>;
   /** The plan's credits from ElevenLabs (#477), null when it doesn't answer. Left out, none are asked for. */
@@ -129,10 +123,8 @@ function live(): VoiceDeps {
   return {
     deskKey: env.FOUNDRY_DESK_KEY ?? "",
     store: pickAuthStore(env),
-    stories: pickStoryStore(env),
     voice: blob ? new BlobVoiceStore(blob) : null,
     eleven,
-    budget: voiceBudget(env.ELEVENLABS_VOICE_BUDGET_USD, eleven?.budget ?? 10),
     desk: deskLines,
     ...(eleven && { credits: creditsReader(eleven.key) }),
     crew: blob ? new BlobCrewStore(blob) : null,
@@ -143,15 +135,10 @@ function live(): VoiceDeps {
   };
 }
 
-async function usageOf(deps: VoiceDeps & { stories: StoryStore }): Promise<VoiceUsage> {
-  return voiceUsage(await deps.stories.loadSpend(), deps.now, deps.budget, deps.eleven?.budget ?? 0);
-}
-
 const creditsOf = (deps: VoiceDeps) => (deps.credits ? deps.credits().catch(() => null) : Promise.resolve(null));
 
 async function settleQuietly(deps: VoiceDeps, only?: string): Promise<void> {
-  if (!deps.eleven || !deps.voice || !deps.stories) return;
-  const stories = deps.stories;
+  if (!deps.eleven || !deps.voice) return;
   const { crew, roomLog } = deps;
   // Once a call is over, each stretch a submind held the mic goes to the Council (#479, Desk-only).
   const onDone =
@@ -161,7 +148,7 @@ async function settleQuietly(deps: VoiceDeps, only?: string): Promise<void> {
           for (const t of exchangesOf(conversation, agents, p.at)) await roomLog.add(t, deps.now);
         }
       : undefined;
-  await settle({ key: deps.eleven.key, store: deps.voice, addSpend: (at, add) => stories.addSpend(at, add), fetcher: deps.fetcher, now: deps.now, only, onDone }).catch(() => 0);
+  await settle({ key: deps.eleven.key, store: deps.voice, fetcher: deps.fetcher, now: deps.now, only, onDone }).catch(() => 0);
 }
 
 /**
@@ -175,7 +162,7 @@ async function crewFor(deps: VoiceDeps, eleven: ElevenConfig, skippy: string): P
   const store = deps.crew;
   try {
     const known = await store.load(deps.now);
-    const got = await ensureCrew({ key: eleven.key, voice: eleven.voice, site: deps.site, skippy, limits: { sessionSecs: VOICE_SESSION_SECS, silenceSecs: VOICE_SILENCE_SECS, llm: VOICE_LLM }, fetcher: deps.fetcher }, known);
+    const got = await ensureCrew({ key: eleven.key, voice: eleven.voice, site: deps.site, skippy, limits: { sessionSecs: VOICE_MAX_SECS, silenceSecs: VOICE_SILENCE_SECS, llm: VOICE_LLM }, fetcher: deps.fetcher }, known);
     if (JSON.stringify(got) !== JSON.stringify({ tools: known.tools, agents: known.agents })) await store.update(deps.now, (s) => ({ ...s, ...got }));
     const toolIds = skippyToolIds(got.tools);
     // Who's who on the call (#481): each submind's ElevenLabs agent id to its own id. Agent ids only, never a key.
@@ -238,19 +225,12 @@ export async function status(request: Request, deps: VoiceDeps): Promise<Respons
     return withCookie(json({ handoffs: turns }), signed);
   }
   if (new URL(request.url).searchParams.get("warm") === "1") return withCookie(await warm(deps), signed);
-  if (!deps.stories || !deps.voice) return withCookie(json({ ready: false, reason: "not-set-up" }), signed);
+  if (!deps.voice) return withCookie(json({ ready: false, reason: "not-set-up" }), signed);
   // The chat just opened: start filling the Desk's lines for a call now (#496), without waiting on them.
   void deps.desk().catch(() => "");
   await settleQuietly(deps);
-  let usage: VoiceUsage;
-  try {
-    usage = await usageOf({ ...deps, stories: deps.stories });
-  } catch {
-    return withCookie(json({ ready: false, reason: "not-set-up" }), signed);
-  }
-  const reason = !deps.eleven ? "no-key" : !usage.canTalk ? "capped" : null;
   const plan = deps.eleven ? await creditsOf(deps) : null;
-  return withCookie(json({ ready: !reason, ...(reason && { reason }), usage, ...(plan && { credits: plan }) }), signed);
+  return withCookie(json({ ready: Boolean(deps.eleven), ...(!deps.eleven && { reason: "no-key" }), ...(plan && { credits: plan }) }), signed);
 }
 
 export async function talk(request: Request, deps: VoiceDeps): Promise<Response> {
@@ -264,9 +244,8 @@ export async function talk(request: Request, deps: VoiceDeps): Promise<Response>
 async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey: string): Promise<Response> {
   const body = (await request.json().catch(() => null)) as { action?: unknown; conversation?: unknown } | null;
   if (!body || typeof body !== "object" || (body.action !== "start" && body.action !== "end")) return json({ error: "bad-request" }, 400);
-  if (!deps.stories || !deps.voice) return json({ error: "not-set-up" }, 503);
+  if (!deps.voice) return json({ error: "not-set-up" }, 503);
   if (!deps.eleven) return json({ error: "no-key" }, 503);
-  const stories = deps.stories;
   const voice = deps.voice;
   const eleven = deps.eleven;
 
@@ -275,7 +254,7 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
     // The call is over: its tool token answers nothing more (#479).
     if (deps.crew) await endToolToken(deps.crew, body.conversation, deps.now);
     await settleQuietly(deps, body.conversation);
-    return json({ ok: true, usage: await usageOf({ ...deps, stories }).catch(() => null) });
+    return json({ ok: true });
   }
 
   // Timed, stage by stage, into a Server-Timing header (#496).
@@ -296,24 +275,10 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
   const deskP = t.time("desk", Promise.race([deps.desk().catch(() => ""), new Promise<string>((r) => setTimeout(() => r(DESK_LATE), DESK_WAIT_MS))]));
   const planP = t.time("credits", creditsOf(deps));
 
-  // The cap: refuse when one more session at its longest doesn't fit. Only then are ended sessions settled first (their
-  // unused minutes given back) and the month read again: settling asks ElevenLabs about each, so it stays off the
-  // common path (the chat's status read and the call's end settle too). Unreadable: no call.
-  let usage: VoiceUsage;
-  try {
-    await counted;
-    usage = await t.time("ledger", usageOf({ ...deps, stories }));
-    if (!usage.canTalk) {
-      await t.time("settle", settleQuietly(deps));
-      usage = await usageOf({ ...deps, stories });
-    }
-  } catch {
-    return json({ error: "not-set-up" }, 503);
-  }
-  if (!usage.canTalk) return json({ ok: false, reason: "capped", usage });
+  await counted;
 
-  // Skippy's agent, checked only once the cap allows a call (a capped month never calls ElevenLabs). With the stored
-  // signatures matching (the warm-up has usually seen to it), this is two reads of our own store.
+  // Skippy's agent. With the stored signatures matching (the warm-up has usually seen to it), this is two reads of our
+  // own store.
   let got;
   try {
     got = await t.time("agent", agentReady(deps, eleven, voice));
@@ -330,21 +295,18 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
     return json({ error: minted.why === "missing" ? "eleven" : minted.why }, 502);
   }
 
-  // Counted at its longest now; settled to its real length later. A failed write means no call (fail closed). The
-  // ledger, the pending list and the call's tool key are written side by side.
-  // The call's own key for its lookups (#479): good for the call's longest and a little more, kept as a hash with the
-  // call, passed to ElevenLabs as a secret dynamic variable that only the tools' header ever carries.
-  let after: VoiceUsage;
+  // The call is followed until it is over, and gets its own key for its lookups (#479): good for the call's longest and
+  // a little more, kept as a hash with the call, passed to ElevenLabs as a secret dynamic variable that only the tools'
+  // header ever carries. Nothing is counted against any site cap (#532).
   let tool: string | null;
   try {
-    const p = minted.conversation ? { id: minted.conversation, at: deps.now, secs: VOICE_SESSION_SECS } : null;
-    [after, tool] = await t.time(
+    const p = minted.conversation ? { id: minted.conversation, at: deps.now } : null;
+    [tool] = await t.time(
       "keep",
       Promise.all([
-        stories.addSpend(deps.now, reserveAdd()).then(() => usageOf({ ...deps, stories }).catch(() => usage)),
-        deps.crew && minted.conversation ? issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_SESSION_SECS * 1000 + TOOL_SLACK_MS, deps.now) : Promise.resolve(null),
+        deps.crew && minted.conversation ? issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_MAX_SECS * 1000 + TOOL_SLACK_MS, deps.now) : Promise.resolve(null),
         p ? voice.update((s) => ({ ...s, pending: [...s.pending.filter((x) => x.id !== p.id), p] })) : Promise.resolve(null),
-      ]).then(([a, k]) => [a, k] as const),
+      ]),
     );
   } catch {
     return json({ error: "not-set-up" }, 503);
@@ -352,8 +314,8 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
   // Who's who on the call (#481): each submind's ElevenLabs agent id, so the Desk's hologram can swap to whoever has
   // the mic after a transfer. Agent ids only, never a key.
   const crew = agents;
-  // The bill goes first, so the Desk's cut at DESK_MAX never drops it.
-  return json({ ok: true, token: minted.token, conversation: minted.conversation, maxSecs: VOICE_SESSION_SECS, desk: deskVariable(`${billLines(after, plan)}\n${lines}`), usage: after, ...(plan && { credits: plan }), ...(tool && { tool }), ...(Object.keys(crew).length && { crew }) }, 200, { "Server-Timing": t.header() });
+  // The credits go first, so the Desk's cut at DESK_MAX never drops it.
+  return json({ ok: true, token: minted.token, conversation: minted.conversation, desk: deskVariable(`${billLines(plan)}\n${lines}`.trim()), ...(plan && { credits: plan }), ...(tool && { tool }), ...(Object.keys(crew).length && { crew }) }, 200, { "Server-Timing": t.header() });
 }
 
 export async function GET(request: Request): Promise<Response> {

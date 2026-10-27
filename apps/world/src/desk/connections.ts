@@ -70,9 +70,9 @@ export const CONNECTIONS: Connection[] = [
     serves: "Live voice calls with Skippy on the Desk",
     kinds: ["REST API", "SDK", "WebSocket"],
     status: "live",
-    how: "Tap Talk in Skippy's chat: an Azure function keeps one private ElevenLabs agent (Skippy's rules, the day's story voice, calls of up to ten minutes) and mints a one-call token; the browser joins the call over WebRTC with ElevenLabs' own client, which loads only on that tap. Skippy is handed what the Desk already shows (titles, counts and states), plus this month's ElevenLabs minutes, dollars and plan credits for you alone, never other money, messages, contacts or keys, and what is said appears in the chat.",
+    how: "Tap Talk in Skippy's chat: an Azure function keeps one private ElevenLabs agent (Skippy's rules, the day's story voice) and mints a one-call token; the browser joins the call over WebRTC with ElevenLabs' own client, which loads only on that tap. Skippy is handed what the Desk already shows (titles, counts and states), plus the ElevenLabs plan's credits left for you alone, never other money, messages, contacts or keys, and what is said appears in the chat.",
     auth: "The server-side key in the Azure Key Vault (ELEVENLABS_API_KEY from the elevenlabs secret), the same as the story's. The browser only gets a one-call token, and only in your Desk session.",
-    when: "Only when you tap Talk: ten minutes a call at most, one call at a time. Inside ElevenLabs' $10 a month cap, with its own share (ELEVENLABS_VOICE_BUDGET_USD, $5 by default); past it the chat goes back to typing and the mic.",
+    when: "Only when you tap Talk, one call at a time. The site sets no budget or call length (#532): your ElevenLabs plan's credits are the only limit, and a call ends after two minutes of nobody speaking. When the credits run out the chat says so and goes back to typing and the mic.",
   },
   {
     id: "github-api",

@@ -15,8 +15,8 @@
  *                      world clock, Gmail, Sleeper, FantasyPros and Polymarket.
  *   foundry            the Foundry's board (api/_skippy/context.ts, the typed chat's own read) and its open pull
  *                      requests with their checks.
- *   voice_bill         the month's ElevenLabs ledger (api/_world/story.ts): the talk's minutes and dollars against its
- *                      share and the $10 cap. Private, like the positions.
+ *   voice_bill         the ElevenLabs plan's credits left this cycle (#532: the site caps the talk at nothing
+ *                      of its own). Private, like the positions.
  *
  * Every line from outside (a market's question, a player's name, an issue's title) goes through `scrub` as the public
  * feeds do (api/_world/digest.ts): no emails, links, keys, phone numbers or amounts. Only the two private reads write a
@@ -30,7 +30,7 @@ import type { GreenBoard, GreenPlayer } from "../_green/types.js";
 import type { PmBoard, PmPositions } from "../_exchange/types.js";
 import type { EmailStatus } from "../_email/status.js";
 import type { JobRun, OpenPull } from "../foundry-feed.js";
-import type { StoryMonth } from "../_world/story.js";
+import type { ElevenCredits } from "./voice.js";
 
 /** The reads the tools offer, by the name the webhook passes (`?read=`). */
 export const READS = ["green", "exchange", "exchange_positions", "relay", "boiler", "foundry", "voice_bill"] as const;
@@ -256,21 +256,14 @@ export function foundryText(board: string, open: OpenPull[] | null): string {
 }
 
 export interface BillInput {
-  month: Required<StoryMonth>;
-  /** The talk's share and ElevenLabs' whole cap, in dollars. */
-  share: number;
-  cap: number;
-  usdPerMin: number;
-  sessionSecs: number;
+  /** The ElevenLabs plan's credits (GET /v1/user/subscription), null when it didn't answer. */
+  credits: ElevenCredits | null;
 }
 
-/** The month's ElevenLabs ledger, with its dollars: only on the call. */
+/** The ElevenLabs plan's credits, only on the call. The site holds the talk to no cap of its own (#532). */
 export function billText(b: BillInput): string {
-  const m = b.month;
-  const leftUsd = Math.max(0, Math.min(b.share - m.voiceUsd, b.cap - m.elevenUsd));
-  const leftMin = Math.floor((leftUsd / b.usdPerMin) * 10) / 10;
-  return capLines([
-    `ElevenLabs this month: ${usd(m.elevenUsd)} of the ${usd(b.cap)} cap, the talk ${usd(m.voiceUsd)} of its ${usd(b.share)} share over ${plural(m.voiceCalls, "call")} and ${Math.round(m.voiceSecs / 6) / 10} minutes; the stories ${usd(Math.max(0, m.elevenUsd - m.voiceUsd))}.`,
-    `Left for talking: about ${leftMin} minutes. Each call is counted at its longest, ${Math.round(b.sessionSecs / 60)} minutes, until it settles.`,
-  ]);
+  if (!b.credits) return "ElevenLabs isn't telling me the plan's credits right now. Talking has no limit of the site's own, only the plan's.";
+  const c = b.credits;
+  const plan = c.tier ? `${c.tier} plan` : "The plan";
+  return capLines([`ElevenLabs ${plan}: ${Math.max(0, c.limit - c.used).toLocaleString("en-US")} credits left of ${c.limit.toLocaleString("en-US")} this cycle${c.resetAt ? `, resets ${c.resetAt}` : ""}. Talking has no limit of the site's own, only the plan's credits.`]);
 }

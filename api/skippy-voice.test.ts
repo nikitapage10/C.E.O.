@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { status, talk, type VoiceDeps } from "./skippy-voice.ts";
 import {
+  VOICE_MAX_SECS,
+  VOICE_SILENCE_SECS,
   MemoryVoiceStore,
   VOICE_RULES,
-  VOICE_SESSION_SECS,
-  VOICE_USD_PER_MIN,
   agentBody,
   agentSig,
   billLines,
@@ -16,17 +16,11 @@ import {
   elevenReason,
   ensureAgent,
   mintToken,
-  reserveAdd,
-  settleAdd,
-  voiceBudget,
-  voiceCost,
   voiceTag,
-  voiceUsage,
   voiceWait,
 } from "./_skippy/voice.ts";
 import { MemoryAuthStore } from "./_desk/store.ts";
 import { signedInCookie } from "./_desk/testing.ts";
-import { MemoryStoryStore, addStorySpend, storyMonth } from "./_world/story.ts";
 import { MemoryRoomLog } from "./_skippy/log.ts";
 import { MemoryCrewStore, checkToolToken, issueToolToken, noteHandoff } from "./_skippy/voicetoken.ts";
 import { TOOL_DEFS } from "./_skippy/voicecrew.ts";
@@ -34,73 +28,17 @@ import { TOOL_DEFS } from "./_skippy/voicecrew.ts";
 const NOW = Date.parse("2026-10-25T16:00:00Z");
 const KEY = "sk_test_eleven_key_that_must_never_leak_0123456789";
 
-describe("the talk's cap", () => {
-  it("takes its share from ELEVENLABS_VOICE_BUDGET_USD, never above ElevenLabs' cap", () => {
-    expect(voiceBudget(undefined, 10)).toBe(5);
-    expect(voiceBudget("2", 10)).toBe(2);
-    expect(voiceBudget("50", 10)).toBe(10);
-    expect(voiceBudget("-1", 10)).toBe(5);
-    expect(voiceBudget("4", 3)).toBe(3);
-  });
-
-  it("counts a minute at the API's rate with headroom, and a session at its longest", () => {
-    expect(voiceCost(60)).toBeCloseTo(VOICE_USD_PER_MIN, 10);
-    expect(reserveAdd()).toMatchObject({ voiceSecs: VOICE_SESSION_SECS, voiceCalls: 1 });
-    expect(reserveAdd().elevenUsd).toBeCloseTo(voiceCost(VOICE_SESSION_SECS), 10);
-  });
-
-  it("lets a session start only while its longest fits the share and the whole cap", () => {
-    const fresh = voiceUsage({}, NOW, 5, 10);
-    expect(fresh).toMatchObject({ usedMin: 0, sessionMin: 10, canTalk: true });
-    expect(fresh.budgetMin).toBeCloseTo(41.6, 1);
-
-    // The share nearly spent: one more ten-minute session would pass it.
-    const nearShare = addStorySpend({}, NOW, { voiceUsd: 5 - voiceCost(VOICE_SESSION_SECS) / 2, voiceSecs: 2400, elevenUsd: 5 });
-    expect(voiceUsage(nearShare, NOW, 5, 10).canTalk).toBe(false);
-
-    // The stories took the cap: the talk's share has room but ElevenLabs' $10 doesn't.
-    const storiesFull = addStorySpend({}, NOW, { elevenUsd: 10 - voiceCost(VOICE_SESSION_SECS) / 2 });
-    const u = voiceUsage(storiesFull, NOW, 5, 10);
-    expect(u.canTalk).toBe(false);
-    expect(u.leftMin).toBeLessThan(10);
-
-    // A new month starts clean.
-    expect(voiceUsage(nearShare, Date.parse("2026-11-01T00:00:00Z"), 5, 10).canTalk).toBe(true);
-    // No cap set (no key): nothing fits.
-    expect(voiceUsage({}, NOW, 0, 0).canTalk).toBe(false);
-  });
-
-  it("settles a session to its real length, giving back what it didn't use", () => {
-    let spend = addStorySpend({}, NOW, reserveAdd());
-    spend = addStorySpend(spend, NOW, settleAdd(VOICE_SESSION_SECS, 45));
-    const m = storyMonth(spend, NOW);
-    expect(m.voiceSecs).toBe(45);
-    expect(m.voiceUsd).toBeCloseTo(voiceCost(45), 10);
-    expect(m.elevenUsd).toBeCloseTo(voiceCost(45), 10);
-    expect(m.voiceCalls).toBe(1);
-    expect(voiceUsage(spend, NOW, 5, 10).usedMin).toBe(0.8);
-  });
-});
-
-describe("the ElevenLabs bill Skippy is told (#477)", () => {
-  const spend = addStorySpend({}, NOW, { voiceSecs: 240, voiceUsd: voiceCost(240), voiceCalls: 4, elevenUsd: voiceCost(240) + 1.1 });
-
-  it("counts the month's minutes, calls and dollars against the share and the cap", () => {
-    expect(voiceUsage(spend, NOW, 5, 10)).toMatchObject({ usedMin: 4, calls: 4, usedUsd: 0.48, budgetUsd: 5, storyUsd: 1.1, elevenUsd: 1.58, capUsd: 10 });
-  });
-
-  it("writes it as plain lines, dollars in words so the Desk's scrub keeps them, credits only when ElevenLabs answered", () => {
-    const lines = billLines(voiceUsage(spend, NOW, 5, 10));
-    expect(lines).toContain("talk 4.0 min over 4 calls, 0.48 dollars of the talk's 5.00 dollars share");
-    expect(lines).toContain("the day's story 1.10 dollars; all ElevenLabs 1.58 dollars of the 10.00 dollars monthly cap");
-    expect(lines).not.toMatch(/credits/);
+describe("the plan's credits Skippy is told (#477, #532)", () => {
+  it("writes them as plain lines, with no site cap, only when ElevenLabs answered", () => {
+    expect(billLines(null)).toBe("");
     const plan = { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" };
-    const withPlan = billLines(voiceUsage(spend, NOW, 5, 10), plan);
-    expect(withPlan).toContain("creator plan credits: 100,370 of 122,113 used this cycle, resets 2026-11-05.");
+    const lines = billLines(plan);
+    expect(lines).toContain("creator plan credits: 21,743 left of 122,113 this cycle (100,370 used), resets 2026-11-05.");
+    expect(lines).toContain("no limit of the site's own");
+    expect(lines).not.toMatch(/share|cap\b|dollars/);
     // Through the voice agent's variable, every number survives.
-    const v = deskVariable(`${withPlan}\nBuilds in flight: 1`);
-    expect(v).toContain("0.48 dollars");
-    expect(v).toContain("100,370 of 122,113");
+    const v = deskVariable(`${lines}\nBuilds in flight: 1`);
+    expect(v).toContain("21,743 left of 122,113");
     expect(v).not.toContain("[amount]");
     expect(v).not.toContain("[private]");
   });
@@ -146,15 +84,18 @@ describe("what Skippy is told and how the agent is set up", () => {
     for (const evil of ["<scr<script>ipt>alert(1)</script>", "<<script>script>", "＜script＞"]) expect(deskVariable(evil)).not.toMatch(/[<>＜＞]/);
   });
 
-  it("makes a private agent in Skippy's voice that hangs up at ten minutes", () => {
+  it("makes a private agent in Skippy's voice that hangs up after two minutes of silence and has no call-length cap of the site's own", () => {
     const body = agentBody("onwK4e9ZLuTAKqWW03F9");
     expect(body.conversation_config.tts.voice_id).toBe("onwK4e9ZLuTAKqWW03F9");
-    expect(body.conversation_config.conversation.max_duration_seconds).toBe(VOICE_SESSION_SECS);
+    expect(body.conversation_config.conversation.max_duration_seconds).toBe(VOICE_MAX_SECS);
+    expect(VOICE_MAX_SECS).toBeGreaterThan(600);
+    expect(body.conversation_config.turn?.silence_end_call_timeout).toBe(VOICE_SILENCE_SECS);
+    expect(VOICE_SILENCE_SECS).toBe(120);
     expect(body.platform_settings.auth.enable_auth).toBe(true);
     expect(body.conversation_config.agent.prompt.prompt).toContain("{{desk}}");
     const core = agentBody("onwK4e9ZLuTAKqWW03F9", "core");
     expect(core.platform_settings.auth.enable_auth).toBe(true);
-    expect(core.conversation_config.conversation.max_duration_seconds).toBe(VOICE_SESSION_SECS);
+    expect(core.conversation_config.conversation.max_duration_seconds).toBeUndefined();
   });
 
   it("falls back to the core settings when ElevenLabs refuses an optional one, and keeps a matching agent as it is", async () => {
@@ -190,7 +131,7 @@ describe("why ElevenLabs refused (#470)", () => {
     expect(classifyRefusal(401, "invalid_api_key")).toBe("key-invalid");
     expect(classifyRefusal(401, "")).toBe("key-invalid");
     expect(classifyRefusal(401, "unauthorized")).toBe("key-invalid");
-    expect(classifyRefusal(401, "quota_exceeded")).toBe("plan");
+    expect(classifyRefusal(401, "quota_exceeded")).toBe("quota");
     expect(classifyRefusal(401, "detected_unusual_activity")).toBe("plan");
     expect(classifyRefusal(401, "missing_permissions")).toBe("agent-denied");
     expect(classifyRefusal(403, "missing_permissions")).toBe("agent-denied");
@@ -198,8 +139,9 @@ describe("why ElevenLabs refused (#470)", () => {
     expect(classifyRefusal(403, "")).toBe("agent-denied");
     expect(classifyRefusal(403, "subscription_required")).toBe("plan");
     expect(classifyRefusal(403, "feature_not_available")).toBe("plan");
-    expect(classifyRefusal(402, "insufficient_credits")).toBe("plan");
-    expect(classifyRefusal(402, "")).toBe("plan");
+    expect(classifyRefusal(402, "insufficient_credits")).toBe("quota");
+    expect(classifyRefusal(402, "")).toBe("quota");
+    expect(classifyRefusal(200, "quota_exceeded")).toBe("quota");
     expect(classifyRefusal(429, "rate_limit_exceeded")).toBe("plan");
     expect(classifyRefusal(429, "concurrent_limit_exceeded")).toBe("plan");
     expect(classifyRefusal(500, "internal_error")).toBe("eleven");
@@ -229,11 +171,11 @@ describe("why ElevenLabs refused (#470)", () => {
     expect(await ensureAgent(KEY, "voice1234", undefined, broke, log)).toEqual({ ok: false, why: "eleven" });
     expect(n).toBe(1);
 
-    expect(await mintToken(KEY, "agent_abc123", (async () => refused(402, { detail: { code: "insufficient_credits" } })) as unknown as typeof fetch, log)).toEqual({ why: "plan" });
+    expect(await mintToken(KEY, "agent_abc123", (async () => refused(402, { detail: { code: "insufficient_credits" } })) as unknown as typeof fetch, log)).toEqual({ why: "quota" });
 
     expect(lines).toContain("ElevenLabs refused the agent's full settings: HTTP 403, feature_not_available (plan).");
     expect(lines).toContain("ElevenLabs refused the agent's core settings: HTTP 403, missing_permissions (agent-denied).");
-    expect(lines).toContain("ElevenLabs refused a call's token: HTTP 402, insufficient_credits (plan).");
+    expect(lines).toContain("ElevenLabs refused a call's token: HTTP 402, insufficient_credits (quota).");
     expect(lines.join("\n")).not.toContain(KEY);
     expect(lines.join("\n")).not.toMatch(/xi-api-key|nope|Invalid API key/);
   });
@@ -255,15 +197,12 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
       if (url.includes("/conversations/")) return Response.json({ status: eleven.done ? "done" : "in-progress", metadata: { call_duration_secs: 50 } });
       return new Response("{}", { status: 404 });
     }) as typeof fetch;
-    const stories = new MemoryStoryStore();
     const voice = new MemoryVoiceStore();
     const deps: VoiceDeps = {
       deskKey: "test-desk-key-0123456789",
       store,
-      stories,
       voice,
       eleven: { key: KEY, voice: "onwK4e9ZLuTAKqWW03F9", budget: 10 },
-      budget: 5,
       desk: async () => "Ideas waiting for Nikita's pick: 2\nBuilds in flight: 1",
       fetcher,
       now: NOW,
@@ -271,37 +210,38 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     };
     const post = (body: unknown, c = cookie) => talk(new Request(`${ORIGIN}/api/skippy-voice`, { method: "POST", headers: { Cookie: c, "Content-Type": "application/json" }, body: JSON.stringify(body) }), deps);
     const get = (c = cookie) => status(new Request(`${ORIGIN}/api/skippy-voice`, { headers: { Cookie: c } }), deps);
-    return { post, get, calls, stories, voice, deps };
+    return { post, get, calls, voice, deps };
   }
 
-  it("mints a one-session token for a signed-in Desk, counted at its longest, and never shows the key", async () => {
-    const { post, calls, stories, voice } = await setup();
+  it("mints a one-session token for a signed-in Desk, followed until it is over, and never shows the key", async () => {
+    const { post, calls, voice } = await setup();
     const res = await post({ action: "start" });
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).not.toContain(KEY);
-    const body = JSON.parse(text) as { ok: boolean; token: string; conversation: string; maxSecs: number; desk: string; usage: { usedMin: number } };
-    expect(body).toMatchObject({ ok: true, token: "lk-token-abcdefgh", conversation: "conv_0001", maxSecs: VOICE_SESSION_SECS });
+    const body = JSON.parse(text) as { ok: boolean; token: string; conversation: string; desk: string };
+    expect(body).toMatchObject({ ok: true, token: "lk-token-abcdefgh", conversation: "conv_0001" });
+    // No site cap rides along: no call length, no minutes, no budget (#532).
+    expect(body).not.toHaveProperty("maxSecs");
+    expect(body).not.toHaveProperty("usage");
     expect(body.desk).toContain("Builds in flight: 1");
-    // The month's bill rides on top of the Desk's state (#477); no credits line when none were read.
-    expect(body.desk).toMatch(/^ElevenLabs this month .*talk 10\.0 min over 1 call, 1\.20 dollars of the talk's 5\.00 dollars share/);
-    expect(body.desk).not.toContain("credits:");
-    expect(body.usage.usedMin).toBe(10);
-    expect(storyMonth(stories.spend, NOW).voiceCalls).toBe(1);
+    // No credits line when none were read.
+    expect(body.desk).not.toContain("credits");
     expect(voice.state.agent?.id).toBe("agent_skippy01");
     expect(voice.state.pending.map((p) => p.id)).toEqual(["conv_0001"]);
     // The key only ever travels in ElevenLabs' header, never in a URL.
     expect(calls.every((c) => c.key === KEY && !c.url.includes(KEY))).toBe(true);
   });
 
-  it("shows a signed-in Desk the month's dollars and the plan's credits, and leaves the credits out when ElevenLabs fails (#477)", async () => {
+  it("shows a signed-in Desk the plan's credits, and leaves the credits out when ElevenLabs fails (#477)", async () => {
     const plan = { used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" };
     const { get, post } = await setup({ credits: async () => plan });
-    const body = (await (await get()).json()) as { usage: { usedUsd: number; budgetUsd: number; capUsd: number }; credits?: unknown };
-    expect(body.usage).toMatchObject({ usedUsd: 0, budgetUsd: 5, capUsd: 10 });
+    const body = (await (await get()).json()) as { ready: boolean; usage?: unknown; credits?: unknown };
+    expect(body.ready).toBe(true);
+    expect(body).not.toHaveProperty("usage");
     expect(body.credits).toEqual(plan);
     const started = (await (await post({ action: "start" })).json()) as { desk: string };
-    expect(started.desk).toContain("creator plan credits: 100,370 of 122,113 used this cycle, resets 2026-11-05.");
+    expect(started.desk).toContain("creator plan credits: 21,743 left of 122,113 this cycle (100,370 used), resets 2026-11-05.");
     const failing = await setup({ credits: async () => Promise.reject(new Error("down")) });
     const soft = (await (await failing.get()).json()) as { ready: boolean; credits?: unknown };
     expect(soft.ready).toBe(true);
@@ -330,22 +270,10 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     expect((await (await setup({ deskKey: "" })).post({ action: "start" })).status).toBe(503);
   });
 
-  it("refuses a new token once the month's share is spent, without calling ElevenLabs", async () => {
-    const stories = new MemoryStoryStore();
-    stories.spend = addStorySpend({}, NOW, { voiceUsd: 4.9, voiceSecs: 2450, elevenUsd: 4.9 });
-    const { post, get, calls } = await setup({ stories });
-    const res = await post({ action: "start" });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: false, reason: "capped" });
-    expect(calls).toEqual([]);
-    expect(await (await get()).json()).toMatchObject({ ready: false, reason: "capped" });
-  });
-
-  it("refuses when the day's stories have taken ElevenLabs' whole cap", async () => {
-    const stories = new MemoryStoryStore();
-    stories.spend = addStorySpend({}, NOW, { elevenUsd: 9.9 });
-    const { post } = await setup({ stories });
-    expect(await (await post({ action: "start" })).json()).toMatchObject({ ok: false, reason: "capped" });
+  it("keeps no budget of its own (#532): a month of heavy talk and stories never stops a call", async () => {
+    const { post, get } = await setup({ eleven: { key: KEY, voice: "onwK4e9ZLuTAKqWW03F9", budget: 10 } });
+    expect(await (await get()).json()).toMatchObject({ ready: true });
+    for (let i = 0; i < VOICE_RULES.minute.max; i++) expect(await (await post({ action: "start" })).json()).toMatchObject({ ok: true });
   });
 
   it("holds a passkey to the pace", async () => {
@@ -357,14 +285,14 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
   });
 
   it("says why ElevenLabs refused, without echoing ElevenLabs' answer", async () => {
-    const { post, stories } = await setup({}, { agent: 401 });
+    const { post } = await setup({}, { agent: 401 });
     const res = await post({ action: "start" });
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: "key-invalid" });
     expect(await (await (await setup({}, { agent: 403 })).post({ action: "start" })).json()).toEqual({ error: "agent-denied" });
-    expect(await (await (await setup({}, { agent: 402 })).post({ action: "start" })).json()).toEqual({ error: "plan" });
+    expect(await (await (await setup({}, { agent: 402 })).post({ action: "start" })).json()).toEqual({ error: "quota" });
+    expect(await (await (await setup({}, { token: 402 })).post({ action: "start" })).json()).toEqual({ error: "quota" });
     expect(await (await (await setup({}, { token: 429 })).post({ action: "start" })).json()).toEqual({ error: "plan" });
-    expect(storyMonth(stories.spend, NOW).voiceCalls).toBe(0);
     const failed = await (await setup({}, { token: 500 })).post({ action: "start" });
     const text = await failed.text();
     expect(failed.status).toBe(502);
@@ -372,17 +300,17 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     expect(JSON.parse(text)).toEqual({ error: "eleven" });
   });
 
-  it("settles an ended call to its real length", async () => {
-    const { post, stories, voice, deps } = await setup();
+  it("follows an ended call and lets it go (#532: no money moves)", async () => {
+    const { post, voice, deps } = await setup();
     await post({ action: "start" });
-    // Still running: stays counted at its longest.
+    // Still running: stays followed.
     await post({ action: "end", conversation: "conv_0001" });
-    expect(storyMonth(stories.spend, NOW).voiceSecs).toBe(VOICE_SESSION_SECS);
-    // Over: 50 seconds, the rest given back.
-    const done = await setup({ stories, voice, store: deps.store }, { done: true });
+    expect(voice.state.pending.map((p) => p.id)).toEqual(["conv_0001"]);
+    // Over: let go.
+    const done = await setup({ voice, store: deps.store }, { done: true });
     const res = await done.post({ action: "end", conversation: "conv_0001" }, await signedInCookie("test-desk-key-0123456789", NOW, deps.store!));
     expect(res.status).toBe(200);
-    expect(storyMonth(stories.spend, NOW).voiceSecs).toBe(50);
+    expect(await res.json()).toEqual({ ok: true });
     expect(voice.state.pending).toEqual([]);
   });
 

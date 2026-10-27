@@ -31,14 +31,14 @@ import * as greenRoute from "../_green/route.js";
 import type { GreenAnalysis, GreenBoard } from "../_green/types.js";
 import * as foundryFeed from "../foundry-feed.js";
 import type { JobRun, OpenPull } from "../foundry-feed.js";
-import { elevenFromEnv, pickStoryStore, storyMonth } from "../_world/story.js";
+import { elevenFromEnv } from "../_world/story.js";
 import { pickStore } from "../_world/store.js";
 import type { WorldState } from "../_world/types.js";
 import { foundryIssues } from "../skippy.js";
 import { contextLines, deskContext } from "./context.js";
 import { liveRoomReads } from "./roomReads.js";
 import { takeLine } from "./rooms.js";
-import { VOICE_SESSION_SECS, VOICE_USD_PER_MIN, voiceBudget } from "./voice.js";
+import { creditsReader } from "./voice.js";
 import { billText, boilerText, capLines, said, exchangeText, foundryText, greenText, isRead, positionsText, relayText, type BillInput, type ReadName } from "./voicereads.js";
 import { BlobCrewStore, MAX_HANDOFFS, TOOL_HEADER, checkToolToken, noteHandoff, type CrewStore, type TokenCheck } from "./voicetoken.js";
 import { BlobRoomLog, turnId, type LoggedTurn, type RoomLog } from "./log.js";
@@ -119,7 +119,7 @@ export async function readText(read: ReadName, s: RoomSources, now: number): Pro
     }
     case "voice_bill": {
       const b = await q(s.bill(), null);
-      return b ? billText(b) : "The ElevenLabs ledger isn't answering right now.";
+      return b ? billText(b) : "ElevenLabs isn't set up for the plan's credits right now.";
     }
   }
 }
@@ -293,11 +293,8 @@ export function liveSources(env: Record<string, string | undefined> = process.en
     players: playerSources(env),
     web: webDeps(env),
     bill: async () => {
-      const stories = pickStoryStore(env);
       const eleven = elevenFromEnv(env);
-      if (!stories) return null;
-      const cap = eleven?.budget ?? 10;
-      return { month: storyMonth(await stories.loadSpend(), Date.now()), share: voiceBudget(env.ELEVENLABS_VOICE_BUDGET_USD, cap), cap, usdPerMin: VOICE_USD_PER_MIN, sessionSecs: VOICE_SESSION_SECS };
+      return eleven ? { credits: await creditsReader(eleven.key)() } : null;
     },
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TALK_NOTE, clock, readUsage, requestToken, usageLine } from "./talk.ts";
+import { TALK_NOTE, clock, creditsLine, readCredits, readUsage, requestToken, usageLine } from "./talk.ts";
 
 const usage = { month: "2026-10", usedMin: 3, budgetMin: 41.6, leftMin: 38.6, sessionMin: 3, canTalk: true };
 const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
@@ -12,6 +12,17 @@ describe("Talk to Skippy in the browser", () => {
     expect(usageLine(usage)).toBe("3.0 of 41.6 talk min this month");
     expect(clock(179.4)).toBe("2:59");
     expect(clock(-3)).toBe("0:00");
+  });
+
+  it("writes the month's dollars against the share and the cap, and the plan's credits (#477)", () => {
+    const billed = { ...usage, usedUsd: 0.36, budgetUsd: 5, elevenUsd: 1.1, capUsd: 10, calls: 2 };
+    expect(readUsage({ ...billed, storyUsd: 0.74 })).toEqual(billed);
+    expect(usageLine(billed)).toBe("3.0 of 41.6 talk min this month · $0.36 of $5.00 share · $1.10 of $10.00 cap");
+    expect(readCredits({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" })).toEqual({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" });
+    expect(creditsLine({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" })).toBe("Creator plan: 100,370 of 122,113 credits · resets Nov 5");
+    expect(creditsLine({ used: 5, limit: 10, resetAt: null, tier: null })).toBe("Plan: 5 of 10 credits");
+    expect(readCredits({ used: 5 })).toBeNull();
+    expect(readCredits({ used: 5, limit: 10, resetAt: "soon<script>", tier: "<b>" })).toEqual({ used: 5, limit: 10, resetAt: null, tier: null });
   });
 
   it("turns each refusal into a reason with a plain note that says typing still works", async () => {

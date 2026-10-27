@@ -3,6 +3,8 @@ import { libUrl, modelUrl } from "../../fx/library.ts";
 import { MODEL as BLASTO } from "./Hanar.tsx";
 import { LIBRARY_BODIES } from "./Library.tsx";
 import { KAYKIT, KAYKIT_ANIMS_URL, ROBOT_URL, url } from "./Rigged.tsx";
+import { ASTROMECH_URL } from "./Astromech.tsx";
+import { PROTOCOL_URL } from "./ProtocolDroid.tsx";
 import { MODEL as ROCKY } from "./Rocky.tsx";
 
 /** Compactor.tsx's model, exactly as that file asks for it. */
@@ -17,6 +19,8 @@ export function bodyModels(body: Body): string[] {
   if (body === "rocky") return [libUrl(ROCKY)];
   if (body === "hanar") return [libUrl(BLASTO)];
   if (body === "compactor") return [COMPACTOR_URL];
-  // The classic figure, the monolith and the two droids are built in code.
+  if (body === "astromech") return [ASTROMECH_URL];
+  if (body === "protocol") return [PROTOCOL_URL];
+  // The classic figure and the monolith are built in code.
   return [];
 }

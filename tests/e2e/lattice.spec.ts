@@ -36,6 +36,7 @@ const MOVE_WINDOW_MS = 4000;
 
 type Api = {
   renderInfo: () => { calls: number; triangles: number; programs: number };
+  still: () => { merged: number; pieces: number };
   map: () => { on: boolean; crew: number; frames: number; positions: Record<string, [number, number]> };
   three: () => { scene: { getObjectByName: (name: string) => unknown } };
   state: () => { agents: Record<string, unknown>; approvals: Record<string, { status: string; request: { room: string; agentId: string } }> };
@@ -283,10 +284,15 @@ test("the Lattice opens on its map, and a room picked there loads on its own", a
   await expect(page.locator('[data-room="foundry"]')).toHaveClass(/on/);
   const rooms = await api(page, (a) => ["foundry", "spire", "relay"].map((r) => !!a.three().scene.getObjectByName(`room-${r}`)));
   expect(rooms).toEqual([true, false, false]);
+  // Its still furniture baked first (#136): until StillFurniture's first pass, every prop draws on its own and the frame
+  // costs twice what the room does once it's settled (seen at ~600 calls a frame after #469, ~270 a few frames later).
+  await expect.poll(() => api(page, (a) => a.still().merged), { timeout: STEP_MS }).toBeGreaterThan(0);
+  await page.waitForTimeout(1000);
   // What one room costs to draw (#416): shader programs and draw calls a frame, under a budget with some headroom.
   // Programs built twice (once for the canvas behind the curtain, again for the frames) or for twice the lamps are
   // what made a room take 20 s to open; more draw calls are what made the Lattice run at 13 fps.
   const cost = await api(page, (a) => a.renderInfo());
+  console.log(`room cost: ${cost.calls} draw calls, ${cost.programs} programs`);
   expect(cost.programs).toBeLessThanOrEqual(ROOM_BUDGET.programs);
   expect(cost.calls).toBeLessThanOrEqual(ROOM_BUDGET.calls);
   await page.screenshot({ path: "test-results/shots/map-room-foundry.png" });

@@ -188,12 +188,23 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/hologram-today.png` });
 
   // A submind takes the mic (#479's transfer): the hologram becomes its can, and Skippy's own agent brings him back.
+  // The glitch class lasts SWAP_MS (0.9 s), shorter than a few assertions take on a busy CI runner, so it is caught
+  // as it happens by an observer armed before the swap, never polled for after it.
+  const sawSwitch = page.evaluate(
+    () =>
+      new Promise<boolean>((done) => {
+        const seen = () => Boolean(document.querySelector(".holo.holo--switch"));
+        const watch = new MutationObserver(() => seen() && (watch.disconnect(), done(true)));
+        watch.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+        setTimeout(() => (watch.disconnect(), done(seen())), 15_000);
+      }),
+  );
   await page.evaluate(() => (window as unknown as { __holoCall: { onAgent: (a: string) => void } }).__holoCall.onAgent("agent_turf01"));
   // The switch is unmistakable (#490): the whole projection in the Green's colour, the label renamed, a glitch.
   const sub = page.getByRole("region", { name: "Call with Skippy, the Commentator" });
   await expect(sub).toBeVisible();
   await expect(sub).toHaveAttribute("data-speaker", "green");
-  await expect(sub).toHaveClass(/holo--switch/);
+  expect(await sawSwitch).toBe(true);
   await expect(sub.locator(".holo__name")).toHaveText("Skippy, the Commentator");
   expect(await sub.evaluate((el) => getComputedStyle(el).getPropertyValue("--holo").trim().toLowerCase())).toBe("#a3e04f");
   // ...and its own persona: the Commentator grins all the time.

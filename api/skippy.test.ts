@@ -190,6 +190,24 @@ describe("POST /api/skippy, with Claude stubbed", () => {
     expect(chatMonth(ledger.spend, NOW).calls).toBe(1);
   });
 
+  it("tells Skippy the month's ElevenLabs bill in <desk>, and answers without it when it can't be read (#477)", async () => {
+    const bill = "ElevenLabs this month (2026-10): talk 4.0 min over 4 calls, 0.48 dollars of the talk's 5.00 dollars share.";
+    const { post, calls } = await setup({ bill: async () => bill });
+    expect((await post({ message: "What did ElevenLabs cost?" })).status).toBe(200);
+    expect(calls[0]).toMatch(/<desk>[\s\S]*0\.48 dollars of the talk's 5\.00 dollars share[\s\S]*<\/desk>/);
+    const failing = await setup({ bill: async () => Promise.reject(new Error("blob down")) });
+    expect((await failing.post({ message: "hi" })).status).toBe(200);
+    expect(failing.calls[0]).not.toContain("ElevenLabs this month");
+  });
+
+  it("tells Skippy the live rooms in <desk>, and answers without them when they fail (#478)", async () => {
+    const { post, calls } = await setup({ rooms: async () => "Relay: 2 need Nikita, 5 FYI, 14 new today, 9 noise, 1 skipped as private; the agent is listening." });
+    expect((await post({ message: "Anything in Relay?" })).status).toBe(200);
+    expect(calls[0]).toMatch(/<desk>[\s\S]*Relay: 2 need Nikita[\s\S]*<\/desk>/);
+    const failing = await setup({ rooms: async () => Promise.reject(new Error("rooms down")) });
+    expect((await failing.post({ message: "hi" })).status).toBe(200);
+  });
+
   it("refuses without a session", async () => {
     const { post, calls } = await setup();
     expect((await post({ message: "hi" }, "")).status).toBe(401);

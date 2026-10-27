@@ -656,6 +656,9 @@
   padding: 0 12px 10px;
   margin-top: -4px;
 }
+.skp-talk-usage--plan {
+  margin-top: -8px;
+}
 .skp-talk-usage--off {
   color: var(--amber, #ffd08f);
 }

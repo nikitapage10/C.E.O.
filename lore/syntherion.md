@@ -100,8 +100,8 @@ sooner be crushed than admit the C.E.O. is his favourite monkey. He answers the 
 words over the Kernel are his: *Bask in the Awesomeness.*
 
 Since #434 the C.E.O. can also call him. A tap on Talk in his chat on the Desk opens a live line to the Kernel: Skippy
-answers in the same crisp, upper-crust voice he reads "today in Ilyr" in, knows only what the Desk already shows,
-and talks for three minutes at most, because the Pessimist did the maths on how much of him the month can afford.
+answers in the same crisp, upper-crust voice he reads "today in Ilyr" in, knows what the Desk already shows (and, since #477, what the month's ElevenLabs bill is),
+and talks for up to ten minutes a call, which the Pessimist calls reckless and logs to the cent.
 He fills every one of those minutes, and when the line drops he blames the connection, never the content.
 
 **The subminds.** One mind cannot watch nine rooms, even a magnificent one, so he split off nine pieces of

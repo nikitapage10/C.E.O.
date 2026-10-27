@@ -126,6 +126,24 @@ advisories it names, counts by severity and the critical or high ones by id. It 
 and twelve in the private store (`desk/skippy/advisories.json`, for the same lockfile), and a failed lookup waits ten
 minutes. Any other ask gets one line ("TypeScript and JavaScript on Node.js 22, hosted on Azure; no PHP, Python, Java"). So "are we exposed to X" gets a yes or no from facts.
 
+## What Skippy knows about the live rooms and the bill
+
+Typed Desk Skippy (`<desk>`) and voice Skippy (the `desk` variable at call start) get the same short lines, read
+server-side in a signed-in session only, so none of it ever reaches the Lattice:
+
+- **The live rooms** (#478, `api/_skippy/rooms.ts`, reads in `api/_skippy/roomReads.ts`): a line or two per room in
+  `LIVE_ROOMS` besides the Foundry. The Green gets the record, rank, matchup and win chance, the top three start/sit
+  calls (FantasyPros decides) and the Commentator's latest headline. Relay gets counts and states only, never a subject,
+  sender or contact. The Exchange gets the open positions' count, value and P&L. The Boiler Room gets its pipes (which of
+  those reads answered), main's last checks and deploy runs, and the world step's age. Each read runs on its own inside
+  one 2.5 s budget, so a room that fails or is slow is said to be quiet and the rest go on. Every line is scrubbed.
+- **The ElevenLabs bill** (#477, `billLines` in `api/_skippy/voice.ts`): the month's talk minutes and calls, the
+  estimate against the talk's share and the $10 cap, the story's part, and the plan's credits from ElevenLabs'
+  `GET /v1/user/subscription` when it answers.
+
+When a question needs more than these lines, Skippy gives his first take from them and says he's checking with the
+room's submind. Typed, he hands it off (below). He never tells Nikita to go and look in the Lattice.
+
 ## Hand-offs: what Desk Skippy can't settle
 
 When Desk Skippy can't settle an ask from the Desk, the stack sheet and a lookup, or the ask is a build, a fix or work

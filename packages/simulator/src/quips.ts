@@ -355,7 +355,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "The C.E.O. was away. The Lattice was not. I wrote it all down.",
     "Today in Ilyr: my notes, Skippy's voice. He takes the credit. I keep the footnotes.",
     "Skippy reads it every five hours now. I've timed every edition. He runs long. Sourced.",
-    "He takes calls now, live, in the story voice. Three minutes each. He fills every second. I log the minutes.",
+    "He takes calls now, live, in the story voice. Ten minutes each. He fills every second. I log the minutes.",
     "Hook, what shipped, who built it, sign-off. I write the notes. He adds the boasting.",
     "Today's entry is filed. Tomorrow's is pending. Yesterday's is correct.",
   ],

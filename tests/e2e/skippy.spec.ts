@@ -139,7 +139,7 @@ async function startCall(page: Page) {
   });
   const usage = { month: "2026-10", usedMin: 3, budgetMin: 41.6, leftMin: 38.6, sessionMin: 3, canTalk: true };
   await page.route(`${BASE}/api/skippy-voice`, (r) =>
-    r.fulfill({ json: r.request().method() === "POST" ? { ok: true, token: "t", conversation: "", maxSecs: 180, desk: "", usage, crew: { agent_turf01: "turf" } } : { ready: true, usage } }),
+    r.fulfill({ json: r.request().method() === "POST" ? { ok: true, token: "t", conversation: "", maxSecs: 180, desk: "", usage, crew: { agent_turf01: "turf", agent_soot01: "soot" } } : { ready: true, usage } }),
   );
   await page.route(/\/assets\/talkSession-[\w-]+\.js$/, (r) => r.fulfill({ contentType: "text/javascript", body: FAKE_CALL }));
   const asked: string[] = [];
@@ -161,16 +161,25 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   await chat.getByRole("button", { name: /live voice call/ }).click();
   const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
   await expect(call).toBeVisible();
-  // On Today he rises out of his own constellation.
-  await expect(call).toHaveClass(/holo--today/);
+  // On Today too he rises out of the chat dock on the right, the emitter on its top edge (#490).
+  await expect(call).toHaveClass(/holo--dock/);
+  const offDock = async () => {
+    const fig = await call.locator(".holo__fig").boundingBox();
+    const dockBox = await chat.boundingBox();
+    return fig && dockBox ? Math.max(Math.abs(fig.y + fig.height - dockBox.y), Math.abs(fig.x + fig.width / 2 - (dockBox.x + dockBox.width / 2))) : 999;
+  };
+  await expect.poll(offDock).toBeLessThan(8);
   await page.waitForFunction(() => Boolean((window as { __holoCall?: unknown }).__holoCall));
   await page.evaluate(() => {
     const h = (window as unknown as { __holoCall: { onMode: (m: string) => void; onMessage: (w: string, t: string) => void } }).__holoCall;
     (window as { __holoLevel?: number }).__holoLevel = 0.6;
     h.onMode("speaking");
-    h.onMessage("skippy", "[laughs] Monkey, it was always fast. You were slow.");
+    h.onMessage("skippy", "[laughs] Monkey, it was always fast. [smug] You were slow.");
   });
   await expect(call.getByText("“Monkey, it was always fast. You were slow.”")).toBeVisible();
+  // The audio tags stay out of the transcript too (#490).
+  await expect(chat.getByText("Monkey, it was always fast. You were slow.", { exact: true })).toBeVisible();
+  await expect(chat.getByText(/\[smug\]|\[laughs\]/)).toHaveCount(0);
   await expect(call).toHaveAttribute("data-expr", "laughing");
   await expect(call.getByText("Live", { exact: true })).toBeVisible();
   await call.getByRole("button", { name: "Mute your microphone" }).click();
@@ -180,9 +189,32 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
 
   // A submind takes the mic (#479's transfer): the hologram becomes its can, and Skippy's own agent brings him back.
   await page.evaluate(() => (window as unknown as { __holoCall: { onAgent: (a: string) => void } }).__holoCall.onAgent("agent_turf01"));
-  await expect(page.getByRole("region", { name: "Call with Skippy, the Commentator" })).toBeVisible();
+  // The switch is unmistakable (#490): the whole projection in the Green's colour, the label renamed, a glitch.
+  const sub = page.getByRole("region", { name: "Call with Skippy, the Commentator" });
+  await expect(sub).toBeVisible();
+  await expect(sub).toHaveAttribute("data-speaker", "green");
+  await expect(sub).toHaveClass(/holo--switch/);
+  await expect(sub.locator(".holo__name")).toHaveText("Skippy, the Commentator");
+  expect(await sub.evaluate((el) => getComputedStyle(el).getPropertyValue("--holo").trim().toLowerCase())).toBe("#a3e04f");
+  // ...and its own persona: the Commentator grins all the time.
+  await page.evaluate(() => (window as unknown as { __holoCall: { onMessage: (w: string, t: string) => void } }).__holoCall.onMessage("skippy", "[fast] THE COMMENTATOR, live from the floating booth, folks!"));
+  await expect(sub).toHaveAttribute("data-face", "grin");
+  await expect(sub).not.toHaveClass(/holo--switch/);
+  await page.waitForTimeout(600);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/hologram-commentator.png` });
+  // The Pessimist: grey, unimpressed.
+  await page.evaluate(() => (window as unknown as { __holoCall: { onAgent: (a: string) => void } }).__holoCall.onAgent("agent_soot01"));
+  const soot = page.getByRole("region", { name: "Call with Skippy, the Pessimist" });
+  await page.evaluate(() => (window as unknown as { __holoCall: { onMessage: (w: string, t: string) => void } }).__holoCall.onMessage("skippy", "[slow] The Pessimist. Something's leaking. Let's see what."));
+  await expect(soot).toHaveAttribute("data-face", "unimpressed");
+  await expect(soot.locator(".holo__name")).toHaveText("Skippy, the Pessimist");
+  await expect(soot).not.toHaveClass(/holo--switch/);
+  await page.waitForTimeout(600);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/hologram-pessimist.png` });
   await page.evaluate(() => (window as unknown as { __holoCall: { onAgent: (a: string) => void } }).__holoCall.onAgent("agent_skippy1"));
   await expect(call).toBeVisible();
+  await expect(call).toHaveAttribute("data-speaker", "skippy");
+  await expect(call).toHaveAttribute("data-face", "smug");
 
   await call.getByRole("button", { name: "End the call" }).click();
   await expect(call).toHaveCount(0);
@@ -198,6 +230,8 @@ test("on a phone the hologram stands above the dock with the pill in reach (#481
   await chat.getByRole("button", { name: /live voice call/ }).click();
   const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
   await expect(call).toHaveClass(/holo--phone/);
+  await page.waitForTimeout(1000);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/hologram-phone.png` });
   const end = call.getByRole("button", { name: "End the call" });
   const pill = await end.boundingBox();
   const dock = await chat.boundingBox();

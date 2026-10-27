@@ -1,5 +1,6 @@
-/* Skippy's hologram call (#481): the projection, its beam and pad, his caption and the call's pill. Loaded with the
-   projection only, after Talk is tapped. */
+/* Skippy's hologram call (#481, #490): the projection rising out of the chat dock, its beam, scanlines and emitter, his
+   name, his caption and the call's pill, and the channel switch when a submind takes the mic. Loaded with the
+   projection only, after Talk is tapped. --holo is whoever has the mic: Skippy's cyan or the submind's room colour. */
 .holo {
   --holo: #6fe3ff;
   --holo-gold: #e8b84a;
@@ -15,18 +16,31 @@
 .holo__veil {
   position: absolute;
   inset: 0;
+  bottom: auto;
+  height: var(--he);
   opacity: 0;
   transition: opacity 0.6s var(--ease, ease);
-  background: radial-gradient(ellipse calc(var(--hw) * 1.6) calc(var(--hh) * 1.15) at var(--hx) calc(var(--hy) + var(--hh) * 0.55), rgba(5, 7, 12, 0.12), rgba(5, 7, 12, 0.66));
 }
-.holo--today .holo__veil {
-  opacity: 1;
-}
+/* Stacked (a phone, a narrow window): the page above the dock darkens so he and his words read. */
+.holo--stack .holo__veil,
 .holo--phone .holo__veil {
   opacity: 1;
-  bottom: auto;
-  height: 420px;
-  background: linear-gradient(180deg, rgba(5, 7, 12, 0.9), rgba(5, 7, 12, 0.82) 60%, rgba(5, 7, 12, 0.6));
+  background: linear-gradient(180deg, rgba(5, 7, 12, 0.9), rgba(5, 7, 12, 0.82) 60%, rgba(5, 7, 12, 0.55));
+}
+
+/* The emitter: the dock's top edge lights up in --holo, the projection's source. */
+.holo__edge {
+  position: absolute;
+  left: var(--hel);
+  width: var(--hew);
+  top: calc(var(--he) - 1px);
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--holo) 22%, #fff 50%, var(--holo) 78%, transparent);
+  box-shadow:
+    0 0 14px var(--holo),
+    0 -6px 26px color-mix(in srgb, var(--holo) 55%, transparent);
+  opacity: 0.95;
 }
 
 .holo__fig {
@@ -39,6 +53,34 @@
 }
 .holo--hidden .holo__fig {
   opacity: 0;
+}
+/* A pool of dark behind him so the page doesn't show through. */
+.holo__fig::before {
+  content: "";
+  position: absolute;
+  inset: -6% -24% 2%;
+  border-radius: 50% 50% 0 0 / 60% 60% 0 0;
+  background: radial-gradient(ellipse at 50% 70%, rgba(5, 7, 12, 0.84), rgba(5, 7, 12, 0.5) 55%, transparent 72%);
+}
+.holo--stack .holo__fig::before,
+.holo--phone .holo__fig::before {
+  display: none;
+}
+/* Scanlines in --holo over the beam and him, drifting up. */
+.holo__scan {
+  position: absolute;
+  inset: 0 6% 2%;
+  background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--holo) 22%, transparent) 0 1px, transparent 1px 4px);
+  mask-image: linear-gradient(0deg, #000 10%, rgba(0, 0, 0, 0.5) 70%, transparent);
+  clip-path: polygon(38% 100%, 62% 100%, 100% 0, 0 0);
+  mix-blend-mode: screen;
+  animation: holo-scan 3s linear infinite;
+  pointer-events: none;
+}
+@keyframes holo-scan {
+  to {
+    background-position: 0 -40px;
+  }
 }
 .holo__cv {
   position: absolute;
@@ -84,13 +126,13 @@
   position: absolute;
   left: 50%;
   bottom: 1%;
-  width: 72%;
-  height: 11%;
+  width: 78%;
+  height: 9%;
   translate: -50% 50%;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--holo) 60%, transparent);
   box-shadow: 0 0 22px color-mix(in srgb, var(--holo) 40%, transparent);
-  background: radial-gradient(ellipse, #e9fdff 0, color-mix(in srgb, var(--holo) 80%, transparent) 16%, transparent 52%);
+  background: radial-gradient(ellipse, #fff 0, color-mix(in srgb, var(--holo) 80%, transparent) 16%, transparent 52%);
 }
 .holo__wait {
   position: absolute;
@@ -111,15 +153,46 @@
   }
 }
 
-/* Under him: his latest line, then the pill. */
+/* His words: beside him on the dock's left, bottom on the dock's edge; or stacked above him. */
 .holo__under {
   position: absolute;
-  left: calc(var(--hx) - var(--uw) / 2);
+  left: var(--ux);
   width: var(--uw);
-  top: calc(var(--hy) + var(--hh) + 10px);
-  display: grid;
-  justify-items: center;
-  gap: 10px;
+  bottom: calc(100% - var(--he) + 8px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.holo--stack .holo__under,
+.holo--phone .holo__under {
+  bottom: calc(100% - var(--hy) + 4px);
+  align-items: center;
+}
+/* Who has the mic, in their colour: the label changes with the speaker. */
+.holo__name {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--holo) 70%, transparent);
+  background: color-mix(in srgb, var(--holo) 16%, rgba(5, 7, 12, 0.86));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--holo) 35%, transparent);
+  color: var(--holo);
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.holo__name-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--holo);
+  box-shadow: 0 0 10px var(--holo);
 }
 .holo__cap {
   margin: 0;
@@ -127,11 +200,11 @@
   border-radius: 12px;
   background: rgba(5, 7, 12, 0.62);
   backdrop-filter: blur(6px);
-  text-align: center;
   font-family: var(--serif, "Cormorant Garamond", Georgia, serif);
   font-style: italic;
-  font-size: 25px;
+  font-size: 21px;
   line-height: 1.22;
+  text-align: right;
   color: var(--text, #eef1f7);
   text-shadow:
     0 2px 14px #000,
@@ -241,33 +314,108 @@
   padding: 0 14px;
 }
 
-/* From the corner: a pool of dark behind him so the page doesn't show through, smaller words, and no name in the
-   pill (the dock beside him has it). */
-.holo--corner .holo__fig::before {
-  content: "";
-  position: absolute;
-  inset: -8% -22% -6%;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(5, 7, 12, 0.82), rgba(5, 7, 12, 0.5) 60%, transparent);
+.holo--stack .holo__cap,
+.holo--phone .holo__cap {
+  font-size: 18px;
+  text-align: center;
 }
-.holo--corner .holo__cap {
-  font-size: 19px;
-}
-.holo--corner .holo__who {
+/* The pill names no one: the label above it does. */
+.holo__who {
   display: none;
 }
 
-/* A phone: he stands small at the top, the pill under him, and the dock's sheet makes room below. */
-.holo--phone .holo__cap {
-  font-size: 18px;
+/* The channel switch (#490): when a submind takes the mic (or Skippy takes it back) the projection tears, flares and
+   settles in the new colour, and the label flickers over. */
+.holo--switch .holo__fig {
+  animation: holo-tear 0.7s steps(1) both;
 }
-.holo--phone .holo__who {
-  display: none;
+.holo--switch .holo__name {
+  animation: holo-flick 0.7s steps(1) both;
 }
-/* On Today he stands in for his own constellation, so its label steps back while he's there. */
-body.holo-call .cf-sk-t {
-  opacity: 0.12;
-  transition: opacity 0.5s;
+.holo--switch .holo__edge {
+  animation: holo-flare 0.7s ease-out both;
+}
+.holo__switch {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  translate: -50% 0;
+  padding: 3px 10px;
+  border: 1px solid var(--holo);
+  background: rgba(5, 7, 12, 0.78);
+  color: var(--holo);
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: holo-blink 0.18s steps(2) infinite;
+}
+@keyframes holo-tear {
+  0% {
+    translate: 6px 0;
+    filter: hue-rotate(90deg) brightness(1.8);
+    clip-path: inset(0 0 52% 0);
+  }
+  14% {
+    translate: -8px 0;
+    filter: hue-rotate(-60deg) brightness(2.2) saturate(2);
+    clip-path: inset(30% 0 0 0);
+  }
+  28% {
+    translate: 3px 0;
+    filter: brightness(0.4);
+    clip-path: inset(12% 0 40% 0);
+  }
+  42% {
+    translate: -4px 0;
+    filter: brightness(1.9);
+    clip-path: inset(0 0 0 0);
+  }
+  60% {
+    translate: 2px 0;
+    filter: none;
+  }
+  100% {
+    translate: 0 0;
+    filter: none;
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes holo-flick {
+  0%,
+  30% {
+    opacity: 0.2;
+    translate: 4px 0;
+  }
+  15%,
+  45% {
+    opacity: 1;
+    translate: -3px 0;
+  }
+  60%,
+  100% {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@keyframes holo-flare {
+  0% {
+    height: 8px;
+    box-shadow: 0 0 40px var(--holo), 0 -20px 60px var(--holo);
+  }
+  100% {
+    height: 2px;
+  }
+}
+
+/* The dock during a call: shorter, to make room above it for him, its top edge in whoever has the mic. */
+body.holo-call .skp-chat--dock {
+  height: clamp(300px, calc(100dvh - 400px), 560px);
+  border-top-color: var(--holo-call, #6fe3ff);
+  transition:
+    height 0.35s var(--ease, ease),
+    border-color 0.3s;
 }
 
 @media (max-width: 640px) {
@@ -278,8 +426,16 @@ body.holo-call .cf-sk-t {
 
 @media (prefers-reduced-motion: reduce) {
   .holo--ready .holo__cv,
-  .holo__wait {
+  .holo__wait,
+  .holo__scan,
+  .holo__switch,
+  .holo--switch .holo__fig,
+  .holo--switch .holo__name,
+  .holo--switch .holo__edge {
     animation: none;
+  }
+  body.holo-call .skp-chat--dock {
+    transition: none;
   }
   .holo__lvl i {
     transition: none;

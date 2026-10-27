@@ -498,6 +498,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["A clean weld", "Green checks on the first try", "Rocky's hands (denies it)", "Being first", "The furnace when it behaves"],
     dislikes: ["Waiting", "Sloppy seams", "Briefings longer than the fix", "Being called 'Skippy Junior'", "The 71-page manual", "Rivet finishing her coffee first"],
     chronicle: [
+      "On the C.E.O.'s hologram its hands never stop working at something in front of it. There is nothing in front of it. It is still unhappy with the welds.",
       "Took the Foundry the morning Skippy went up to the Kernel. Skippy's parting words: 'Don't embarrass me, monkey.' The Builder's reply: 'Already planned it.'",
       "Pointed the baton at a jam before Rusty finished the first caveat. Rivet had it fixed before the Builder finished pointing. The Builder took the credit. Rivet let it.",
       "Watches Rivet keep the night watch over Rocky from its throne up in the corner, complaining. Dims its glow so Rocky can sleep, and tells nobody. Skippy, from the Kernel, tells everybody.",
@@ -574,6 +575,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["A late comeback", "Punt's naps (great broadcast)", "Gridiron's roar", "Replays"],
     dislikes: ["Dead air", "The bye week", "Being asked to use its indoor voice", "Projections that say 'questionable'"],
     chronicle: [
+      "Came through on the C.E.O.'s hologram already grinning, arms up, bouncing on every word. Skippy's projection never bounces. That, it says, is why nobody watches him.",
       "Called a pickup game play by play that nobody had started. It went to overtime. Nobody played.",
       "Commentated Punt's nap for forty minutes. 'HE'S DOWN. HE'S STAYING DOWN.' Ratings, it claims, were huge.",
       "Escalated a lineup call to Skippy 'for the drama'. Skippy settled it in a nanosecond. The Commentator called it the play of the year.",
@@ -599,6 +601,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["A full switchboard", "Dialtone's gossip", "Being first to know", "Love letters (from a respectful distance)"],
     dislikes: ["Silence on a line", "Sealed envelopes", "Blasto's speeches about privacy", "Being last to know"],
     chronicle: [
+      "On the C.E.O.'s hologram it leans in so far the beam has to follow. Wide eyes, all ears, nothing it shouldn't say, said quickly.",
       "Knew the Relay was going live before the wiring was in. Told Dialtone. Dialtone told the rafters.",
       "Heard Blasto rehearsing a love letter to Dialtone and kept it to itself for an entire day. Its record.",
       "Routes every message it can't place up to Skippy, with a summary, the options, and three rumours.",
@@ -671,6 +674,7 @@ export const LORE: Record<string, Lore> = {
     likes: ["Being wrong about disasters", "Clause's odds of disaster", "Silence", "A steady needle (suspicious, but nice)"],
     dislikes: ["Leaks", "Optimism", "Anyone tapping the gauges but Drop", "Skippy singing near the pipes"],
     chronicle: [
+      "Took the mic on the C.E.O.'s hologram and the projection slumped: flat face, slow arms, a sigh every few seconds. The C.E.O. said it looked unimpressed. It was.",
       "Said 'it'll burst' on its first day. It didn't. The Pessimist said 'huh'. That was the whole report.",
       "Heard a link go quiet before the pipe burst, for once. Was at the wall with Gary before the steam was. Disappointed to be right.",
       "Skippy asked it for a full status. The Pessimist sent: 'Doomed.' Then: 'Fine.' Then, an hour later: 'Still fine. Huh.'",

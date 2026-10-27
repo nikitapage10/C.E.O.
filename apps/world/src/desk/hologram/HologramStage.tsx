@@ -3,48 +3,54 @@ import { submindOf } from "../../../../../packages/simulator/src/subminds.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { clock, talkLevel, talkMute, useTalk } from "../skippy/talk.ts";
 import type { Holo } from "./holoScene.ts";
+import { personaOf } from "./persona.ts";
 import { expressionOf, stripTags, useHolo, type Expression } from "./signal.ts";
 import "./hologram.css";
 
 /**
- * The hologram call (#481): Skippy, projected. On Today he rises out of his own constellation (the Confluence's
- * "Skippy, the Magnificent"); on any other page he projects from the corner nearest the chat dock; on a phone he
- * stands small at the top with the dock below. Under him: his latest line as a caption, and a pill with the call's
- * clock, its level, mute, hide and end. His face follows the call (signal.ts) and his mouth his voice.
+ * The hologram call (#481, #490): Skippy, projected out of the chat dock. On every page, Today included, he rises from
+ * the dock's top edge on the right, the emitter on that edge, with his name, his latest line and the call's pill
+ * beside him (above him when there's no room beside, as on a phone, where the dock is a sheet from the bottom). His
+ * face follows the call (signal.ts) and his mouth his voice. When a submind takes the mic the whole projection turns
+ * its room's colour, the label takes its name, and the channel glitches over.
  */
 
-/** Centre x and top y of the projection, its canvas size, and how wide the caption and pill may run (`uw`). */
-type Place = { kind: "today" | "corner" | "phone"; x: number; y: number; w: number; h: number; uw: number };
+/**
+ * Where he stands: the figure's centre x and top y and its canvas size; the dock's top edge (`edge`, with its left and
+ * width as `el` and `ew`); and his words, beside him (`side`, right-aligned to `ux + uw`) or stacked above him.
+ */
+type Place = { kind: "dock" | "stack" | "phone"; x: number; y: number; w: number; h: number; edge: number; el: number; ew: number; ux: number; uw: number };
 
 const PHONE = "(max-width: 640px)";
 const STILL = "(prefers-reduced-motion: reduce)";
+/** How long the channel-switch glitch runs when the mic changes hands, in ms. */
+const SWITCH_MS = 700;
 
 const media = (q: string) => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(q).matches;
 
-/** Where he stands, beside the dock and never under it. */
-function placeFor(route: string): Place {
+/** Where he stands: on the dock's top edge, or where the dock sits when it's closed. */
+function placeFor(): Place {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  if (media(PHONE)) {
-    const h = Math.round(Math.min(240, vh * 0.28));
-    return { kind: "phone", x: vw / 2, y: 58, w: Math.round(h * 0.84), h, uw: vw - 24 };
+  const r = document.getElementById("skippy-chat")?.getBoundingClientRect();
+  const open = !!r && r.width > 0 && r.height > 0;
+  const phone = media(PHONE);
+  // The dock's top edge; with the dock closed, the spot its foot would stand on.
+  const ew = open ? r!.width : Math.min(420, vw - 32);
+  const el = open ? r!.left : vw - (phone ? 0 : 24) - ew;
+  const edge = open ? r!.top : vh - (phone ? 0 : 24);
+  const x = el + ew / 2;
+  const roomBeside = el - 24;
+  if (!phone && roomBeside >= 280) {
+    const h = Math.round(Math.max(220, Math.min(340, edge - 70)));
+    const w = Math.round(h * 0.84);
+    const uw = Math.round(Math.min(380, roomBeside - 8));
+    return { kind: "dock", x, y: Math.round(edge - h * 0.99), w, h, edge, el, ew, ux: Math.round(el - 16 - uw), uw };
   }
-  const dock = document.getElementById("skippy-chat")?.getBoundingClientRect();
-  const right = dock && dock.width > 0 && dock.left > 400 ? dock.left - 16 : vw - 16;
-  const mark = route === "today" ? document.querySelector<HTMLElement>("[data-cf-sk]") : null;
-  const r = mark?.getBoundingClientRect();
-  if (r && r.width > 0 && r.bottom > 0 && r.top < vh) {
-    const h = Math.round(Math.min(420, vh * 0.48));
-    const x = Math.min(r.left + r.width / 2, right - 200);
-    return { kind: "today", x, y: Math.max(76, r.top + r.height / 2 - h * 0.42), w: Math.round(h * 0.84), h, uw: Math.round(2 * Math.min(380, x - 16, right - x)) };
-  }
-  // The corner nearest the dock: just left of it when it's open, the bottom-right corner when it isn't.
-  const h = Math.round(Math.min(320, vh * 0.38));
-  const w = Math.round(h * 0.84);
-  const uw = 360;
-  const x = right - uw / 2;
-  const below = 24 + 136; // room for the caption and the pill
-  return { kind: "corner", x, y: vh - below - h, w, h, uw };
+  // No room beside the dock (a phone, a narrow window): his words go above him.
+  const h = Math.round(Math.max(150, Math.min(phone ? 230 : 280, edge - 190)));
+  const uw = Math.round(Math.min(ew, vw - 24));
+  return { kind: phone ? "phone" : "stack", x, y: Math.round(edge - h * 0.99), w: Math.round(h * 0.84), h, edge, el, ew, ux: Math.round(x - uw / 2), uw };
 }
 
 export default function HologramStage({ route }: { route: string }) {
@@ -60,7 +66,9 @@ export default function HologramStage({ route }: { route: string }) {
   const firstTurn = useHolo((s) => s.fromTurn);
   const line = [...turns].reverse().find((t) => t.who === "skippy" && !t.note && t.id > firstTurn)?.text ?? "";
 
-  const [place, setPlace] = useState<Place>(() => placeFor(route));
+  const swappedAt = useHolo((s) => s.swappedAt);
+  const [place, setPlace] = useState<Place>(() => placeFor());
+  const [switching, setSwitching] = useState(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [expr, setExpr] = useState<Expression>("thinking");
@@ -71,23 +79,46 @@ export default function HologramStage({ route }: { route: string }) {
   const inputs = useRef({ phase, mode, line });
   inputs.current = { phase, mode, line };
 
-  // Where he stands, again whenever the window or the dock changes.
+  // Where he stands, again whenever the window or the dock changes (the dock shrinks for the call, opens, closes).
   useLayoutEffect(() => {
-    const again = () => setPlace(placeFor(route));
+    const again = () => setPlace((was) => {
+      const next = placeFor();
+      return JSON.stringify(next) === JSON.stringify(was) ? was : next;
+    });
     again();
     window.addEventListener("resize", again);
-    const late = window.setTimeout(again, 400); // the dock opens a moment after Talk on Today's Ask line
+    const dock = document.getElementById("skippy-chat");
+    const watch = typeof ResizeObserver === "function" && dock ? new ResizeObserver(again) : null;
+    if (dock) watch?.observe(dock);
+    // The dock opens a moment after Talk on Today's Ask line, and eases to its call height.
+    const late = [120, 400, 900].map((ms) => window.setTimeout(again, ms));
     return () => {
       window.removeEventListener("resize", again);
-      window.clearTimeout(late);
+      watch?.disconnect();
+      late.forEach((t) => window.clearTimeout(t));
     };
   }, [route, dockOpen]);
 
-  // A phone call shrinks the dock so he and the pill fit above it.
+  // The call makes room above the dock for him, and the dock's edge glows in whoever has the mic.
   useEffect(() => {
     document.body.classList.add("holo-call");
-    return () => document.body.classList.remove("holo-call");
+    return () => {
+      document.body.classList.remove("holo-call");
+      document.body.style.removeProperty("--holo-call");
+    };
   }, []);
+  useEffect(() => {
+    if (speaker) document.body.style.setProperty("--holo-call", submindOf(speaker).colour);
+    else document.body.style.removeProperty("--holo-call");
+  }, [speaker]);
+
+  // The channel switch (#490): a short glitch whenever the mic changes hands.
+  useEffect(() => {
+    if (!swappedAt) return;
+    setSwitching(true);
+    const t = window.setTimeout(() => setSwitching(false), SWITCH_MS);
+    return () => window.clearTimeout(t);
+  }, [swappedAt]);
 
   // The projection itself: three.js and his model, fetched now and not before.
   useEffect(() => {
@@ -143,7 +174,7 @@ export default function HologramStage({ route }: { route: string }) {
       }
       const level = i.phase === "live" ? talkLevel() : 0;
       if (levelBars.current) levelBars.current.style.setProperty("--lvl", level.toFixed(3));
-      if (!s.hidden) holo.current?.frame(step, { expr: e, level, speaking: i.mode === "speaking", still });
+      if (!s.hidden) holo.current?.frame(step, { expr: e, persona: personaOf(s.speaker), level, speaking: i.mode === "speaking", still });
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -158,18 +189,46 @@ export default function HologramStage({ route }: { route: string }) {
   const tint = speaker ? submindOf(speaker).colour : undefined;
   const caption = stripTags(line);
   const live = phase === "live";
-  const style = { "--hx": `${place.x}px`, "--hy": `${place.y}px`, "--hw": `${place.w}px`, "--hh": `${place.h}px`, "--uw": `${place.uw}px`, ...(tint && { "--holo": tint }) } as CSSProperties;
+  const px = (n: number) => `${n}px`;
+  const style = {
+    "--hx": px(place.x),
+    "--hy": px(place.y),
+    "--hw": px(place.w),
+    "--hh": px(place.h),
+    "--he": px(place.edge),
+    "--hel": px(place.el),
+    "--hew": px(place.ew),
+    "--ux": px(place.ux),
+    "--uw": px(place.uw),
+    ...(tint && { "--holo": tint }),
+  } as CSSProperties;
 
   return (
-    <div className={`holo holo--${place.kind}${hidden ? " holo--hidden" : ""}${ready ? " holo--ready" : ""}${failed ? " holo--failed" : ""}`} style={style} role="region" aria-label={`Call with ${who}`} data-expr={expr}>
+    <div
+      className={`holo holo--${place.kind}${hidden ? " holo--hidden" : ""}${ready ? " holo--ready" : ""}${failed ? " holo--failed" : ""}${switching ? " holo--switch" : ""}`}
+      style={style}
+      role="region"
+      aria-label={`Call with ${who}`}
+      data-expr={expr}
+      data-speaker={speaker ?? "skippy"}
+      data-face={personaOf(speaker).faces[expr]}
+      data-manner={personaOf(speaker).manner}
+    >
       <div className="holo__veil" aria-hidden="true" />
+      <div className="holo__edge" aria-hidden="true" />
       <div className="holo__fig" aria-hidden="true">
         <div className="holo__beam" />
+        <div className="holo__scan" />
         <canvas ref={canvas} className="holo__cv" />
         <div className="holo__pad" />
         {!ready && !failed && <span className="holo__wait">{phase === "starting" ? "Opening a channel…" : "Projecting…"}</span>}
+        {switching && <span className="holo__switch">Channel switch</span>}
       </div>
       <div className="holo__under">
+        <p className="holo__name" aria-live="polite">
+          <span className="holo__name-dot" aria-hidden="true" />
+          {who}
+        </p>
         {caption && !hidden && (
           <p className="holo__cap" aria-hidden="true">
             “{caption}”

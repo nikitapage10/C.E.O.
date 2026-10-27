@@ -46,7 +46,11 @@ export function agentOfEvent(ev: unknown): string | null {
     if (typeof result === "string") {
       try {
         const r = JSON.parse(result) as unknown;
-        return pick(get(r, "to_agent")) ?? pick(get(r, "agent_id")) ?? pick(get(r, "transferred_to")) ?? null;
+        for (const k of ["to_agent", "to_agent_id", "agent_id", "target_agent_id", "transferred_to", "new_agent_id"]) {
+          const a = pick(get(r, k)) ?? pick(get(get(r, "result"), k));
+          if (a) return a;
+        }
+        return null;
       } catch {
         return null;
       }

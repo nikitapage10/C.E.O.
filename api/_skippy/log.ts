@@ -28,8 +28,12 @@
 import { createHash } from "node:crypto";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.js";
 
-/** The rooms an ask can belong to; "none" for small talk and anything that fits no room. */
-export const LOG_ROOMS = ["green", "exchange", "boiler", "foundry", "relay", "none"] as const;
+/**
+ * The rooms an ask can belong to; "none" for small talk and anything that fits no room. "kernel" (#480) is Skippy,
+ * the Magnificent's own thread: builds, look-ups across rooms and anything that needs real work, always handed to
+ * "skippy", whose thread answers it (scripts/submind-watch.sh kernel).
+ */
+export const LOG_ROOMS = ["green", "exchange", "boiler", "foundry", "relay", "kernel", "none"] as const;
 export type LogRoom = (typeof LOG_ROOMS)[number];
 
 /** Kept per room: the last 200 turns, none older than 30 days. */
@@ -54,7 +58,7 @@ export const ROOM_SUBMINDS = {
   boiler: { id: "soot", name: "The Pessimist", active: true },
   foundry: { id: "ember", name: "The Builder", active: true },
   relay: { id: "static", name: "The Messenger", active: true },
-} as const satisfies Record<Exclude<LogRoom, "none">, { id: string; name: string; active: boolean }>;
+} as const satisfies Record<Exclude<LogRoom, "none" | "kernel">, { id: string; name: string; active: boolean }>;
 
 /** Who a turn can be handed to: Skippy's own thread, or a room's submind by its id. */
 export const NEEDS = ["skippy", ...Object.values(ROOM_SUBMINDS).map((m) => m.id)] as const;
@@ -65,7 +69,7 @@ export const isNeeds = (v: unknown): v is Needs => typeof v === "string" && (NEE
 export function handoffTo(ask: unknown, room: LogRoom): Needs | null {
   if (ask === "skippy") return "skippy";
   if (ask !== "submind") return null;
-  const m = room === "none" ? null : ROOM_SUBMINDS[room];
+  const m = room === "none" || room === "kernel" ? null : ROOM_SUBMINDS[room];
   return m && m.active ? m.id : "skippy";
 }
 
@@ -134,7 +138,15 @@ export interface FollowUp {
   at: string;
   /** The answer card (#341), when the thread sent one. */
   card?: AnswerCard;
+  /**
+   * `false` on an interim answer (#480: "on it, #481"): it shows in the Desk's bubble and the hand-off stays open for
+   * a later one. Left out (the default) on a final answer, which closes the hand-off.
+   */
+  final?: false;
 }
+
+/** Whether a turn's hand-off is still waiting on an answer: none yet, or only an interim one. */
+export const isOpen = (t: Pick<LoggedTurn, "needs" | "followUp">): boolean => !!t.needs && (!t.followUp || t.followUp.final === false);
 
 /** A turn's id: 16 hex characters, stable for a turn (its time and its question). */
 export const turnId = (at: string, question: string) => createHash("sha256").update(`${at}|${question}`).digest("hex").slice(0, 16);
@@ -174,7 +186,7 @@ export function cleanFollowUp(v: unknown): FollowUp | null {
   const at = isoOf(f.at);
   const text = line(f.text, ANSWER_MAX);
   const card = f.card === undefined ? null : cleanCard(f.card);
-  return at && text && isNeeds(f.from) ? { from: f.from, text, at, ...(card && { card }) } : null;
+  return at && text && isNeeds(f.from) ? { from: f.from, text, at, ...(card && { card }), ...(f.final === false && { final: false as const }) } : null;
 }
 
 export function cleanTurn(v: unknown): LoggedTurn | null {
@@ -200,7 +212,7 @@ export function cleanTurn(v: unknown): LoggedTurn | null {
 /** Which turns a read wants: every one, or only the hand-offs still open (to one thread, or to any). */
 export type NeedsFilter = Needs | "any";
 export const isNeedsFilter = (v: unknown): v is NeedsFilter => v === "any" || isNeeds(v);
-const fits = (t: LoggedTurn, needs?: NeedsFilter) => !needs || (!!t.needs && !t.followUp && (needs === "any" || t.needs === needs));
+const fits = (t: LoggedTurn, needs?: NeedsFilter) => !needs || (isOpen(t) && (needs === "any" || t.needs === needs));
 
 /** What answering a hand-off came to. */
 export type Answered = { ok: true; turn: LoggedTurn } | { ok: false; why: "missing" | "not-handed-off" | "answered" | "wrong-thread" };
@@ -211,7 +223,8 @@ export function withFollowUp(turns: LoggedTurn[], id: string, f: FollowUp): { tu
   const t = turns[i];
   if (!t) return { turns, result: { ok: false, why: "missing" } };
   if (!t.needs) return { turns, result: { ok: false, why: "not-handed-off" } };
-  if (t.followUp) return { turns, result: { ok: false, why: "answered" } };
+  // An interim answer (#480) keeps it open for the next one; a final one closes it.
+  if (!isOpen(t)) return { turns, result: { ok: false, why: "answered" } };
   // Skippy can answer anything handed off; a submind only what was handed to it.
   if (f.from !== "skippy" && f.from !== t.needs) return { turns, result: { ok: false, why: "wrong-thread" } };
   const turn = { ...t, followUp: f };

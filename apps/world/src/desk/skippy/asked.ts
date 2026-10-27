@@ -8,7 +8,8 @@ import { useDeskAuth } from "../signin.ts";
  * wraps it in <Private> for Hide mode, it is forgotten on sign-out, and none of it reaches the Lattice or a public page.
  */
 
-export type AskedRoom = "green" | "exchange" | "boiler" | "foundry" | "relay";
+/** "kernel" (#480) is Skippy, the Magnificent's own thread: builds, look-ups across rooms, real work. */
+export type AskedRoom = "green" | "exchange" | "boiler" | "foundry" | "relay" | "kernel";
 
 /** A submind's answer card (#341, api/_skippy/log.ts `AnswerCard`): the numbers side by side, the verdict, what decided it, the sources. */
 export interface AskedCard {
@@ -29,7 +30,7 @@ export interface AskedTurn {
   /** Handed off (#312): who it went to, "skippy" or a submind's id. */
   needs?: string;
   /** The answer that came back for a hand-off. */
-  followUp?: { from: string; text: string; at: string; card?: AskedCard };
+  followUp?: { from: string; text: string; at: string; card?: AskedCard; final?: false };
 }
 
 /** Who a hand-off went to, by name (api/_skippy/log.ts, ROOM_SUBMINDS). */
@@ -40,7 +41,7 @@ export const handedName = (id: string): string => HANDED_TO[id] ?? "Skippy";
 export type AskedStatus = "idle" | "signed-out" | "off" | "live" | "failed";
 
 const PATH = "/api/skippy-log";
-const ROOMS: readonly AskedRoom[] = ["green", "exchange", "boiler", "foundry", "relay"];
+const ROOMS: readonly AskedRoom[] = ["green", "exchange", "boiler", "foundry", "relay", "kernel"];
 /** The most the panel keeps of what the function sends (it sends at most fifty). */
 export const ASKED_MAX = 50;
 
@@ -81,7 +82,7 @@ export function readAsked(v: unknown, room: AskedRoom): AskedTurn[] | null {
     const fText = f ? clip(f.text, 700) : "";
     const fAt = f && typeof f.at === "string" && Number.isFinite(Date.parse(f.at)) ? f.at : "";
     const card = f ? readCard(f.card) : null;
-    const followUp = f && fText && fAt && typeof f.from === "string" && f.from in HANDED_TO ? { from: f.from, text: fText, at: fAt, ...(card && { card }) } : undefined;
+    const followUp = f && fText && fAt && typeof f.from === "string" && f.from in HANDED_TO ? { from: f.from, text: fText, at: fAt, ...(card && { card }), ...(f.final === false && { final: false as const }) } : undefined;
     const id = typeof r.id === "string" && /^[0-9a-f]{16}$/.test(r.id) ? r.id : undefined;
     out.push({ ...(id && { id }), at, question, answer, model: clip(r.model, 40), ...(needs && { needs }), ...(followUp && { followUp }) });
   }

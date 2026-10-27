@@ -131,7 +131,8 @@ describe("the subminds' doorbell (#341, scripts/submind-watch.sh)", () => {
     const mapped = Object.fromEntries([...script.matchAll(/^\s+([a-z]+)\) mind=([a-z]+) ;;$/gm)].map((m) => [m[1], m[2]]));
     const active = Object.fromEntries(Object.entries(ROOM_SUBMINDS).filter(([room, m]) => m.active && (KEY_LOG_ROOMS as readonly string[]).includes(room)).map(([room, m]) => [room, m.id]));
     expect(mapped.relay).toBeUndefined();
-    expect(mapped).toEqual(active);
+    // And the Kernel (#480): Skippy, the Magnificent's own thread, whose hand-offs are "skippy".
+    expect(mapped).toEqual({ ...active, kernel: "skippy" });
   });
 
   it("reads only the needs filter with the read key in its own header, from stdin, and never prints it", () => {

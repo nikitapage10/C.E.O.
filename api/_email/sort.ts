@@ -21,7 +21,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ADVISE_MAX_TOKENS, ADVISE_MODEL, SORT_MAX_TOKENS, SORT_MODEL, type EmailModel, type Usage } from "./budget.js";
 import { plainMail, type MailForSort } from "./gmail.js";
 
-import type { HeadsUpReason } from "./filter.js";
+import { automatedMail, type HeadsUpReason } from "./filter.js";
 
 export type SortKind = "needs-you" | "fyi" | "noise" | "skip";
 /** For skipped mail only: whether it is urgent, and why, from a fixed list (never words from the mail). */
@@ -77,6 +77,7 @@ export function mailInput(mail: MailForSort): string {
     `<body>\n${fenceMail(mail.body)}\n</body>`,
     "</email>",
     mail.bulk ? "\nThis mail came from a mailing list (it has an unsubscribe header)." : "",
+    automatedMail(mail) ? "\nThis mail looks automated (a no-reply, alert, notification or list sender). Sort it \"fyi\" unless it explicitly asks Nikita to do something specific." : "",
   ].join("\n");
 }
 
@@ -88,8 +89,8 @@ ${DATA_RULES}
 
 Sort the email into exactly one kind:
 - "skip": money or legal mail, which Nikita keeps out of this agent: bills, payments, debts, bank and card statements, invoices, receipts, collections, loans, taxes, and legal or contract mail. Skip it whoever sent it, even if it asks him to pay or sign. This rule comes before every other kind.
-- "needs-you": a real person or service expects Nikita to reply, decide, attend or act, soon: people, plans, work, school, appointments. Security alerts he didn't trigger count (a sign-in he didn't make).
-- "fyi": worth knowing but needs nothing (confirmations, shipping, a newsletter he would read).
+- "needs-you": ONLY mail where Nikita himself must do something concrete: reply, sign, pay, decide, show up or confirm. You must be able to name that action in "action" ("Reply to confirm Thursday", "Sign the lease"). If you cannot name one, it is not needs-you. Nikita wants his list to hold only things that require him.
+- "fyi": everything else that is not noise: sign-in and security alerts, receipts, order and shipping updates, confirmations, notifications, newsletters, status updates, and anything that only informs him. Automated senders (no-reply, notifications, alerts, security, receipts, shipping) are fyi by default. The exception is a mail that genuinely asks Nikita to act, such as "confirm this sign-in or your account locks" or "your payment failed, update your card": that is needs-you, with the action named.
 - "noise": promotions, marketing, social notifications, cold outreach, spam-like or manipulative mail.
 
 Set "urgent" to "none" unless the kind is "skip" and the mail is urgent: "fraud" for a fraud or suspicious-charge alert, "overdue" for a final or overdue notice, "legal" for a legal deadline, "account" for a locked or suspended account.
@@ -128,6 +129,9 @@ export const ADVISE_SCHEMA = {
 /** One plain line from a model: links out, folded, capped. */
 export const oneLine = (raw: unknown, max: number): string => (typeof raw === "string" ? plainMail(raw, max).replace(/\s+/g, " ") : "");
 
+/** An "action" that names nothing to do. */
+const NO_ACTION = /^(?:|none|n\/?a|nothing(?: to do)?|no action(?: needed| required)?|have a look|fyi|-+|\.+)$/i;
+
 /** Dialtone's answer, checked; null when it isn't one (an extra key, a wrong kind, an empty summary). */
 export function readSorted(answer: unknown): Sorted | null {
   if (!answer || typeof answer !== "object" || Array.isArray(answer)) return null;
@@ -139,6 +143,8 @@ export function readSorted(answer: unknown): Sorted | null {
   if (a.kind === "skip") return { kind: "skip", summary: "", action: "", urgent };
   const summary = oneLine(a.summary, 220);
   if (!summary) return null;
+  // Needs-you must name a concrete action; without one it is only for information (#495).
+  if (a.kind === "needs-you" && NO_ACTION.test(oneLine(a.action, 80))) return { kind: "fyi", summary, action: "Nothing to do", urgent: "none" };
   return { kind: a.kind, summary, action: oneLine(a.action, 80) || "Have a look", urgent: "none" };
 }
 

@@ -98,3 +98,35 @@ export function storedMailSkipped(terms: readonly string[], item: Stored): boole
   if (onSkipList(terms, { from: item.from, fromAddress, subject: item.subject }, item.summary)) return true;
   return preFilter({ fromAddress, fromDomain: domain, subject: item.subject }).kind !== "pass";
 }
+
+/** Local parts of automated senders: nobody reads a reply sent there. */
+const AUTOMATED_USER = /^(?:no-?reply|do-?not-?reply|donotreply|notifications?|notify|alerts?|security|account-?security|receipts?|shipping|shipment|tracking|newsletter|digest|mailer|mailer-daemon|bounce[sd]?|auto(?:mated)?)(?:[._+-]|$)/i;
+/** Subjects of automated notices: sign-in and security alerts, codes, shipping, digests. */
+const AUTOMATED_SUBJECT =
+  /\b(?:new (?:sign-?in|login|device)|sign-?in (?:alert|attempt|from|to)|login (?:alert|from|attempt)|security (?:alert|notice|code)|verification code|one-time (?:code|passcode|password)|(?:has )?shipped|out for delivery|delivered|tracking (?:number|update)|receipt|weekly (?:digest|summary)|daily (?:digest|summary)|newsletter)\b/i;
+/** Words that mean the mail may genuinely ask Nikita to do something. */
+const EXPLICIT_ASK = /\b(?:action required|confirm|verify|update (?:your|the) (?:card|payment|billing)|payment (?:failed|declined)|locked|suspend(?:ed)?|expires?|reply|respond|rsvp|sign (?:by|before)|approve|review and)\b/i;
+
+/**
+ * Mail from an automated sender (no-reply, notifications, alerts, security, receipts, shipping) or a mailing list
+ * (List-Unsubscribe) by its sender, subject and header only (#495). It defaults to FYI unless the model finds an
+ * explicit ask (./sort.ts tells it so).
+ */
+export function automatedMail(mail: Pick<MailForSort, "fromAddress" | "subject"> & { bulk?: boolean }): boolean {
+  const user = mail.fromAddress.split("@")[0] ?? "";
+  return mail.bulk === true || AUTOMATED_USER.test(user) || AUTOMATED_SUBJECT.test(mail.subject);
+}
+
+/**
+ * Whether a mail already kept would not be kept today (#495): anything stored as FYI, and needs-you mail from an
+ * automated sender whose subject and summary hold no explicit ask. Free: no model. A display name has no address, so
+ * only the subject and summary are looked at then.
+ */
+export function storedNotAction(item: Stored & { kind: string }): boolean {
+  if (item.kind === "fyi") return true;
+  if (item.kind !== "needs-you") return false;
+  const at = item.from.lastIndexOf("@");
+  const fromAddress = at > 0 ? item.from.replace(/^.*</, "").replace(/>.*$/, "").trim().toLowerCase() : "";
+  if (!automatedMail({ fromAddress, subject: item.subject })) return false;
+  return !EXPLICIT_ASK.test(`${item.subject}\n${item.summary}`);
+}

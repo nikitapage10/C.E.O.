@@ -23,7 +23,7 @@
 import { isQuiet, type PingText } from "../_desk/pings.js";
 import { monthOf } from "../_world/budget.js";
 import { addSpend, ADVISE_MODEL, budgetPct, canSpend, SORT_MODEL } from "./budget.js";
-import { onSkipList, preFilter, storedMailSkipped } from "./filter.js";
+import { onSkipList, preFilter, storedMailSkipped, storedNotAction } from "./filter.js";
 import { accessToken, catchUpIds, currentHistoryId, fullBody, historySince, HistoryGoneError, lastHistoryId, newInboxIds, readMessage, readMessageRaw, TokenRefusedError, type Fetcher, type OAuthClient } from "./gmail.js";
 import { adviseMail, sortMail, type ClaudeCall } from "./sort.js";
 import { EMAIL_STATUS_VERSION, type EmailStatus } from "./status.js";
@@ -119,7 +119,8 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown): Promise
     const { sorted, usage } = await sortMail(deps.claude, mail);
     s = addSpend(s, SORT_MODEL, usage, deps.now);
     if (!sorted) return { state: s, item: base, claudeFailed: true };
-    if (sorted.kind === "noise") return { state: { ...s, day: { ...s.day, noise: s.day.noise + 1 } }, item: null, claudeFailed: false };
+    // FYI is not kept (#495): the Relay list holds only mail that needs Nikita to act. Counted with the noise.
+    if (sorted.kind === "noise" || sorted.kind === "fyi") return { state: { ...s, day: { ...s.day, noise: s.day.noise + 1 } }, item: null, claudeFailed: false };
     // Money or legal mail Dialtone caught: skipped, or a heads-up when urgent. Never to Blasto.
     if (sorted.kind === "skip") return sorted.urgent === "none" ? skipped(s) : urgent(s);
     const item: EmailItem = { ...base, kind: sorted.kind, summary: sorted.summary, action: sorted.action };
@@ -134,7 +135,7 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown): Promise
 
 /** The state without any kept item the skip list or the money and legal filter would skip today (#415). */
 export function purgeItems(state: EmailState, terms: readonly string[]): EmailState {
-  const items = state.items.filter((i) => !storedMailSkipped(terms, i));
+  const items = state.items.filter((i) => !storedMailSkipped(terms, i) && !storedNotAction(i));
   return items.length === state.items.length ? state : { ...state, items };
 }
 

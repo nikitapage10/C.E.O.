@@ -41,6 +41,9 @@ export const TOOL_VAR = "secret__ceo_tool";
 
 export async function openCall(h: CallHandlers) {
   let speaking = false;
+  // An answer that lands while an agent is mid-sentence waits for the end of it (#521): a user turn sent now would cut
+  // the agent off.
+  let waiting: (() => void) | null = null;
   const call = await Conversation.startSession({
     conversationToken: h.token,
     connectionType: "webrtc",
@@ -52,6 +55,11 @@ export async function openCall(h: CallHandlers) {
     },
     onModeChange: ({ mode }) => {
       speaking = mode === "speaking";
+      if (!speaking && waiting) {
+        const go = waiting;
+        waiting = null;
+        go();
+      }
       h.onMode(speaking ? "speaking" : "listening");
     },
     // The hologram (#481): thinking while a lookup runs, annoyed when he's cut off, and who has the mic.
@@ -72,8 +80,12 @@ export async function openCall(h: CallHandlers) {
     tell: (text: string) => call.sendContextualUpdate(text),
     /** An answer that landed (#506): the note, then a turn asked for now, so he says it straight away. */
     speakNow: (note: string) => {
-      call.sendContextualUpdate(note);
-      call.sendUserMessage(SPEAK_NOW);
+      const go = () => {
+        call.sendContextualUpdate(note);
+        call.sendUserMessage(SPEAK_NOW);
+      };
+      if (speaking) waiting = go;
+      else go();
     },
     end: () => call.endSession(),
   };

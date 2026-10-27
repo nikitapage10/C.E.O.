@@ -270,6 +270,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Two bars of opera. Don't tell him. He'll make it four acts.",
     "Off the throne. Order. Back on the throne. That's leadership.",
     "Throne's up high so I see every weld. Every. Weld.",
+    "He's on a call again. Projected himself over Today, ten feet of blue light. Hat included. Of course the hat.",
+    "If he hands me the hologram, I'm wearing it in orange. And I'm not laughing at the monkey's jokes.",
   ],
   gilt: [
     "Love that. Let's circle back and make it synergy.",
@@ -374,6 +376,7 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Nine jobs on the board. All green. I don't trust it.",
     "New pipe. GitHub to the template. What-if first. ...It says nothing changes. Suspicious.",
     "Keys go in through a slot. Nothing comes back out. Finally, a pipe I like.",
+    "He talks as a hologram now. Flickers. Scanlines. One bad frame and he's a smudge. ...Held. Hm.",
   ],
   putty: [
     "Wait. No. Better idea.",

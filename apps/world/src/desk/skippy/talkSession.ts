@@ -1,4 +1,5 @@
 import { Conversation } from "@elevenlabs/client";
+import { holoEvents } from "../hologram/signal.ts";
 
 /**
  * The call itself (#434): ElevenLabs' own client (@elevenlabs/client), joined over WebRTC with the one-session token
@@ -26,11 +27,16 @@ export async function openCall(h: CallHandlers) {
       speaking = mode === "speaking";
       h.onMode(speaking ? "speaking" : "listening");
     },
+    // The hologram's face (#481): thinking while a lookup runs, annoyed when he's cut off.
+    onAgentToolRequest: () => holoEvents.toolStart(),
+    onAgentToolResponse: () => holoEvents.toolEnd(),
+    onInterruption: () => holoEvents.interrupted(),
     onDisconnect: () => h.onEnd(),
     onError: () => h.onError(),
   });
   return {
     level: () => Math.min(1, Math.max(0, speaking ? call.getOutputVolume() : call.getInputVolume())),
+    mute: (muted: boolean) => call.setMicMuted(muted),
     end: () => call.endSession(),
   };
 }

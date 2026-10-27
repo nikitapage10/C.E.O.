@@ -168,6 +168,15 @@ export const talkLevel = (): number => {
   }
 };
 
+/** Mutes or unmutes Nikita's microphone on a live call (the hologram's pill, #481). */
+export const talkMute = (muted: boolean): void => {
+  try {
+    session?.mute(muted);
+  } catch {
+    /* the call is going anyway */
+  }
+};
+
 export const useTalk = create<TalkStore>((set, get) => {
   const note = (reason: TalkReason) => useSkippy.getState().say("skippy", TALK_NOTE[reason], true);
 

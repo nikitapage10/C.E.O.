@@ -503,6 +503,7 @@ export const LORE: Record<string, Lore> = {
       "Watches Rivet keep the night watch over Rocky from its throne up in the corner, complaining. Dims its glow so Rocky can sleep, and tells nobody. Skippy, from the Kernel, tells everybody.",
       "Sits on a can-throne Rocky built from a relic out of the Foundry's foundations, which floats. Rocky fitted the coaster. The Builder called it 'adequate' and has sat on nothing else since.",
       "Escalated exactly one decision up to Skippy in its first week. Skippy settled it in a nanosecond and sang about it for an hour. The Builder now tries very hard to settle things itself.",
+      "Skippy took Nikita's calls as a hologram: cyan light over his constellation, his painted face moving at last. Handed the call, the Builder's turns ember-orange. It practises the smug face.",
     ],
   },
   gilt: {

@@ -351,6 +351,12 @@ answer. But if it's something a little bit more specific to our room, then it ta
   or in the Desk's chat: a rotating line says it ("reaching into the recesses of my magnificent mind", "consulting the
   deeper me", "still pondering"; `api/_skippy/ponder.ts`), in the prompts, the tool answers, the chat's hand-off line
   and the Desk's pending bubbles. `check_answers` also reads back what Nikita asked on his calls in the last two days.
+- **Hand-backs and direct passes (#504).** Every submind passes the mic straight to every other (twenty edges, each
+  with the sibling's in-depth rule), and back to Skippy last. Each transfer sets `preserve_voice_settings` and
+  `preserve_client_tts_overrides` to false, so the target speaks with its own voice settings: Skippy's own
+  (`SKIPPY_SOUND`) when the mic comes home, and each submind its own pace and steadiness on his voice (`sound` on
+  `ON_AIR`). Skippy's prompt makes him all Skippy again on return; a submind never speaks as him. The hologram goes
+  back to his can on the transfer home (`holoEvents.event`, hologram/signal.ts).
 - **The Council.** When the call is settled, its transcript is read once and each stretch a submind held the mic is
   kept in its room's log (`via: "voice"`, `by` the submind): the question in short and the answer's gist, scrubbed, a
   private-looking part held back whole (`api/_skippy/voicecouncil.ts`). The Council of Skippies shows them; the

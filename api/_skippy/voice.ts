@@ -44,7 +44,7 @@ import { prune, type Bucket, type Limits } from "../_desk/limits.js";
 import { memo } from "../_feedcache.js";
 import { scrub } from "../_world/digest.js";
 import { storyMonth, type StoryMonth, type StorySpend } from "../_world/story.js";
-import { CALL_RULES, CALL_TIMEZONE, CLIENT_EVENTS, SKIPPY_CREW_PROMPT, TURN_MAX_TOKENS, type skippyTransfers } from "./voicecrew.js";
+import { CALL_RULES, CALL_TIMEZONE, CLIENT_EVENTS, SKIPPY_CREW_PROMPT, SKIPPY_SOUND, TURN_MAX_TOKENS, type skippyTransfers } from "./voicecrew.js";
 import { TOOL_VAR } from "./voicetoken.js";
 
 export const ELEVEN_API = "https://api.elevenlabs.io";
@@ -295,7 +295,8 @@ export function agentBody(voice: string, tier: "full" | "core" = "full", crew: A
         // (its lookups are then refused and Skippy says the data's slow).
         dynamic_variables: { dynamic_variable_placeholders: { desk: "(nothing on the Desk right now)", ...(crew && { [TOOL_VAR]: "none" }) } },
       },
-      tts: { voice_id: voice },
+      // His own sound (#504): the mic comes home to these settings after any submind (voicecrew.ts, OWN_VOICE).
+      tts: { voice_id: voice, ...(tier === "full" && SKIPPY_SOUND) },
       // The tools' results reach the browser (#491): a transfer's names the agent taking the mic, for the hologram. The
       // first agent's client events are the ones ElevenLabs uses for every agent it hands to.
       conversation: { max_duration_seconds: VOICE_SESSION_SECS, client_events: [...CLIENT_EVENTS] },

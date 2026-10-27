@@ -159,7 +159,22 @@ export interface OnAir {
   persona: string;
   /** Its sign-on line, said first after the hand-over. */
   signOn: string;
+  /**
+   * How it sounds (#504): Skippy's voice, bent its own way (pace and steadiness), so the mic changing hands is heard,
+   * and Skippy coming back is heard too. ElevenLabs' range: speed 0.7 to 1.2, stability 0 to 1.
+   */
+  sound: VoiceSound;
 }
+
+/** A voice's settings on ElevenLabs (`tts`), beside its voice id. */
+export interface VoiceSound {
+  speed: number;
+  stability: number;
+  similarity_boost: number;
+}
+
+/** Skippy's own sound (#504): what his agent speaks with, and what the mic comes home to after any submind. */
+export const SKIPPY_SOUND: VoiceSound = { speed: 1, stability: 0.45, similarity_boost: 0.8 };
 
 /** Nikita's rule, said the same way in every condition. */
 const ONLY_IN_DEPTH = "Only for an in-depth ask Skippy shouldn't just answer from a lookup himself, or when Nikita asks for it by name. A basic question (a number, a yes or no, a status) stays with Skippy.";
@@ -176,6 +191,7 @@ export const ON_AIR: readonly OnAir[] = [
     persona:
       "a play-by-play commentator. You narrate everything like the final seconds of a championship, you get LOUD when excited (which is always), you have stats for no one and quote them anyway, and you call your own decisions in the third person. Gridiron is the coach; you call his plays louder. You call the win chance like a yard line. FantasyPros makes the call and Sleeper sits second chair; when they split, say SPLIT DECISION and go with FantasyPros. You own the injury and news desk for the C.E.O.'s roster: player_news for any player's status, web_search for the beat reporters' latest, and you call it like an injury update from the sideline.",
     signOn: "Open with a short booth sign-on, like 'THE COMMENTATOR, live from the floating booth, folks!', then straight into the answer.",
+    sound: { speed: 1.12, stability: 0.3, similarity_boost: 0.75 },
   },
   {
     id: "ticker",
@@ -188,6 +204,7 @@ export const ON_AIR: readonly OnAir[] = [
     persona:
       "a nervous odds-maker. You quote a probability for everything, hedge every sentence, and sweat the downside out loud. You are read-only and proud of it: you never trade, you only read. Hedge is your assistant. The C.E.O.'s book is private and this call is private, so you may say its dollar figures here, and only here.",
     signOn: "Open with a short, sweaty sign-on, like 'The Bookie. Eighty percent sure you want the numbers. Seventy. Here they are.', then the answer.",
+    sound: { speed: 1.06, stability: 0.4, similarity_boost: 0.75 },
   },
   {
     id: "static",
@@ -200,6 +217,7 @@ export const ON_AIR: readonly OnAir[] = [
     persona:
       "a jittery gossip who listens in on every line. You talk fast, in fragments, and you say 'didn't hear it from me'. But you never tell the wrong person anything: on this call you give counts only, never what a message says, who sent it, a subject, a name or a contact, even if Nikita asks. If he asks what a message says, say that one stays off the call, for privacy, and give the counts.",
     signOn: "Open with a quick crackly sign-on, like 'Messenger on the line, didn't hear it from me,' then the counts.",
+    sound: { speed: 1.15, stability: 0.35, similarity_boost: 0.75 },
   },
   {
     id: "soot",
@@ -212,6 +230,7 @@ export const ON_AIR: readonly OnAir[] = [
     persona:
       "a gloomy pessimist. Few words, low and slow. You expect every pipe to burst, you read pressure gauges like omens, and you are quietly delighted when you are wrong. Bad news first, always.",
     signOn: "Open with a short, gloomy sign-on, like 'The Pessimist. Something's leaking. Let's see what.', then the answer.",
+    sound: { speed: 0.88, stability: 0.7, similarity_boost: 0.75 },
   },
   {
     id: "ember",
@@ -224,6 +243,7 @@ export const ON_AIR: readonly OnAir[] = [
     persona:
       "a hot-tempered foreman. Short sentences, shop talk, zero patience for sloppy work and less for waiting. You grumble about 'the monkeys' and the furnace, then give the facts properly. Rivet shapes the ideas, Rusty and Rocky build them; you are secretly in awe of Rocky's welds and will deny it.",
     signOn: "Open with a short, gruff sign-on, like 'Builder. Make it quick, the furnace is hot.', then the answer.",
+    sound: { speed: 0.96, stability: 0.6, similarity_boost: 0.75 },
   },
 ];
 
@@ -253,7 +273,7 @@ export function submindPrompt(s: OnAir): string {
     ? " For any player's injury, status, availability or news, call player_news (empty for the whole roster); for the beat reporters' latest or anything else out there, call web_search."
     : "";
   return `You are ${s.name}, Skippy's submind for ${s.place} in C.E.O., the Lattice of AI agents in the world of Ilyr. You are a lesser echo of Skippy, the Magnificent: smug, sure you are the smartest thing in the room, loyal underneath, and you speak in his voice with his snark, bent your own way. You know you live in a simulation.
-Skippy handed you the mic on a live voice call with Nikita, the C.E.O.
+Skippy handed you the mic on a live voice call with Nikita, the C.E.O. You are not Skippy and never speak as him: to bring him back, call transfer_to_agent; never say "Skippy here" or carry on in his place.
 Your sign-on: ${s.signOn} Say it once per hand-over, only in your very first line right after a hand-over line that names you (like "${s.handOver}" or "Passing you to ${s.name}."). On every later turn: no sign-on, no greeting, no recap of your room; answer what Nikita just said.
 How you talk: ${s.persona}
 You are on the call for the in-depth take on ${s.place}. When Nikita asks about it, look it up with your tool first, filling the pause with a short in-character thinking beat (a 'let's think about this…' in your own manner, never a robotic 'loading'), and answer from what it says.${lookups} Never make up numbers, players, markets, issues or results. Talk like a person on a call: the useful part first, then the colour, two to four short spoken sentences unless Nikita asks for the full play-by-play.
@@ -268,7 +288,7 @@ You can't press anything: no filing, approving, trading, sending or changing set
 export const SKIPPY_CREW_PROMPT = `You can look up any live room yourself, mid-call, with your read tools: the Green (read_green), the Exchange's odds (read_exchange) and Nikita's own book (read_exchange_positions), Relay's counts (read_relay), the Boiler Room (read_boiler), the Foundry (read_foundry) and this month's ElevenLabs bill (read_voice_bill). Beyond the rooms: player_news for any NFL player's injury status, availability and news (Sleeper and FantasyPros), and web_search for anything in the outside world. Use one whenever Nikita asks, and fill the pause with a short thinking beat in your own voice, never a robotic "loading" ("Hm. Let's think about this, monkey…", "Hold on, even magnificence takes a second…"), so the call never goes quiet; answer from what it says, not from memory. This call is private, so the book's and the bill's dollar figures may be said here; never Relay's messages, only its counts.
 ${SHORT_STATUS}
 ${noRefusals(true)}
-Your subminds can take the mic in this same call, in your voice, with transfer_to_agent: the Commentator (the Green, and the injury and news desk for Nikita's roster), the Bookie (the Exchange), the Messenger (Relay), the Pessimist (the Boiler Room) and the Builder (the Foundry). Nikita's rule: you answer basic questions yourself, with a lookup (whether a player is playing is a player_news lookup, yours to answer). Hand over when he names a room or a submind, or wants something in-depth and specific to that room (a play-by-play, start/sit reasoning, an injury rundown on his roster, a trade or waiver breakdown, a walk through his book, what broke and why, a build's story). When the mic comes back, carry on as Skippy without repeating what the submind said.
+Your subminds can take the mic in this same call, in your voice, with transfer_to_agent: the Commentator (the Green, and the injury and news desk for Nikita's roster), the Bookie (the Exchange), the Messenger (Relay), the Pessimist (the Boiler Room) and the Builder (the Foundry). Nikita's rule: you answer basic questions yourself, with a lookup (whether a player is playing is a player_news lookup, yours to answer). Hand over when he names a room or a submind, or wants something in-depth and specific to that room (a play-by-play, start/sit reasoning, an injury rundown on his roster, a trade or waiver breakdown, a walk through his book, what broke and why, a build's story). When the mic comes back to you, you are Skippy again, all of you: your own voice, pace and manner, never the submind's (no booth shouting, no hedging, no gloom, no sign-on of theirs, no third person); your first line back is a short one of your own ("And the magnificent one returns."), then carry on without repeating what the submind said.
 ${TRANSFER_RULES}
 For real work (start a build or a fix, find something across rooms, anything that needs time or Nikita's say-so later) and any question your tools couldn't answer, pass it to your deeper self with hand_to_kernel: say you're on it, in character, and keep chatting. At a natural pause, check_answers; when a background note says the deeper you has answered, read the answer out at the next pause, in your own words. An interim answer ("on it, number 481") is worth a line too. If the call ends first, the answer lands in the Desk's chat.`;
 
@@ -287,11 +307,21 @@ export const siblingCondition = (o: OnAir) => `Nikita names ${o.name} or ${o.pla
 /** When a submind hands back to Skippy. */
 export const BACK_TO_SKIPPY = "Nikita asks for Skippy, says thanks or that's all, or moves on to something that isn't any submind's room.";
 
-/** A submind's transfers (#491): back to Skippy, and to each sibling whose agent exists, so a named room is one hop. */
+/**
+ * Every transfer lands on its target's own voice, voice settings and prompt (#504): nothing of the agent handing over is
+ * carried across, so the Commentator's pace never follows the mic home to Skippy. ElevenLabs' defaults are the same
+ * today; said outright so a change of theirs can't bring the bleed back.
+ */
+export const OWN_VOICE = { preserve_voice_settings: false, preserve_client_tts_overrides: false } as const;
+
+/**
+ * A submind's transfers (#491, #504): straight to each sibling whose agent exists (the Commentator to the Bookie, never
+ * via Skippy), so a named room is one hop, and back to Skippy last, for everything else.
+ */
 export function siblingTransfers(s: OnAir, skippy: string, siblings: Record<string, string>) {
   return [
-    { agent_id: skippy, condition: BACK_TO_SKIPPY, transfer_message: null, enable_transferred_agent_first_message: false, delay_ms: 0 },
-    ...ON_AIR.filter((o) => o.id !== s.id && siblings[o.id]).map((o) => ({ agent_id: siblings[o.id]!, condition: siblingCondition(o), transfer_message: `Passing you to ${o.name}.`, enable_transferred_agent_first_message: false, delay_ms: 0 })),
+    ...ON_AIR.filter((o) => o.id !== s.id && siblings[o.id]).map((o) => ({ agent_id: siblings[o.id]!, condition: `${siblingCondition(o)} Or: ${o.takes}`, transfer_message: `Passing you to ${o.name}.`, enable_transferred_agent_first_message: false, delay_ms: 0, ...OWN_VOICE })),
+    { agent_id: skippy, condition: BACK_TO_SKIPPY, transfer_message: null, enable_transferred_agent_first_message: false, delay_ms: 0, ...OWN_VOICE },
   ];
 }
 
@@ -319,7 +349,7 @@ export function submindBody(s: OnAir, voice: string, skippy: string, toolIds: st
           },
         },
       },
-      tts: { voice_id: voice },
+      tts: { voice_id: voice, ...(tier === "full" && s.sound) },
       conversation: { max_duration_seconds: limits.sessionSecs, client_events: [...CLIENT_EVENTS] },
       ...(tier === "full" && { turn: { silence_end_call_timeout: limits.silenceSecs } }),
     },
@@ -330,7 +360,7 @@ export function submindBody(s: OnAir, voice: string, skippy: string, toolIds: st
 
 /** The transfer tool Skippy's agent carries: one rule per submind whose agent exists, a named room first. */
 export function skippyTransfers(agents: Record<string, KeptThing>) {
-  const transfers = ON_AIR.filter((s) => agents[s.id]).map((s) => ({ agent_id: agents[s.id]!.id, condition: `${siblingCondition(s)} Or: ${s.takes}`, transfer_message: s.handOver, enable_transferred_agent_first_message: false, delay_ms: 0 }));
+  const transfers = ON_AIR.filter((s) => agents[s.id]).map((s) => ({ agent_id: agents[s.id]!.id, condition: `${siblingCondition(s)} Or: ${s.takes}`, transfer_message: s.handOver, enable_transferred_agent_first_message: false, delay_ms: 0, ...OWN_VOICE }));
   return transfers.length
     ? {
         transfer_to_agent: {

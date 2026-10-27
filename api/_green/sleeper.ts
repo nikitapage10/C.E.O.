@@ -84,12 +84,32 @@ export interface SlimPlayer {
   /** Yahoo and Sportradar ids, to match FantasyPros' players. */
   yh: string | null;
   sr: string | null;
+  /**
+   * Sleeper's injury detail, kept only for a player it lists injured (#491, for the call's player_news lookup): the
+   * body part (`injury_body_part`), its note (`injury_notes`), this week's practice (`practice_participation`) and when
+   * its news last changed (`news_updated`, epoch ms). Absent in copies kept before #491.
+   */
+  ib?: string | null;
+  inote?: string | null;
+  prac?: string | null;
+  nu?: number | null;
 }
 
 const INJURY: Record<string, GreenInjury> = { questionable: "Q", doubtful: "D", out: "O", ir: "IR", sus: "SUS", suspended: "SUS", pup: "PUP", na: "NA", dnr: "NA", cov: "IR" };
 
 export function injuryOf(v: unknown): GreenInjury | null {
   return typeof v === "string" ? (INJURY[v.trim().toLowerCase()] ?? null) : null;
+}
+
+/** An injured player's detail from Sleeper's list (#491): short, cleaned, and only what it sends. */
+function injuryDetail(p: Record<string, unknown>): Pick<SlimPlayer, "ib" | "inote" | "prac" | "nu"> {
+  const nu = num(p.news_updated);
+  return {
+    ib: cleanText(p.injury_body_part, 30) || null,
+    inote: cleanText(p.injury_notes, 140) || null,
+    prac: cleanText(p.practice_participation, 20) || null,
+    nu: nu !== null && nu > 1e12 && nu < 1e13 ? Math.round(nu) : null,
+  };
 }
 
 /** Trims Sleeper's players list to the fantasy positions on an NFL team (a few thousand players). */
@@ -105,7 +125,8 @@ export function slimPlayers(raw: unknown): Record<string, SlimPlayer> {
     const rank = num(p.search_rank);
     const yh = num(p.yahoo_id);
     const sr = typeof p.sportradar_id === "string" && /^[0-9a-f-]{36}$/i.test(p.sportradar_id) ? p.sportradar_id.toLowerCase() : null;
-    out[key] = { id: key, n: name, pos: pos as GreenPos, team, inj: injuryOf(p.injury_status), rank: rank !== null && rank >= 0 && rank < 1e7 ? Math.round(rank) : 9999, yh: yh !== null && yh > 0 ? String(Math.round(yh)) : null, sr };
+    const inj = injuryOf(p.injury_status);
+    out[key] = { id: key, n: name, pos: pos as GreenPos, team, inj, rank: rank !== null && rank >= 0 && rank < 1e7 ? Math.round(rank) : 9999, yh: yh !== null && yh > 0 ? String(Math.round(yh)) : null, sr, ...(inj && injuryDetail(p)) };
   }
   return out;
 }

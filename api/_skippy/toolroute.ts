@@ -12,6 +12,9 @@
  * POST ?act=kernel { ask } → the hand_to_kernel tool (#480): files the ask in the `kernel` room's log, handed to
  *   Skippy's own thread, as the typed chat files one, and notes it with the call (at most MAX_HANDOFFS).
  * GET ?read=answers → the check_answers tool: this call's hand-offs and their answers so far (interim or final).
+ * GET ?read=player_news[&player=<name>] → the player_news tool (#491): Sleeper's injury status and FantasyPros' injury
+ *   report and news on one player, or the C.E.O.'s roster (api/_skippy/voicelookups.ts).
+ * POST ?act=web { query } → the web_search tool (#491): the typed chat's web lookup, kept per call while it runs.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -40,12 +43,19 @@ import { billText, boilerText, capLines, said, exchangeText, foundryText, greenT
 import { BlobCrewStore, MAX_HANDOFFS, TOOL_HEADER, checkToolToken, noteHandoff, type CrewStore, type TokenCheck } from "./voicetoken.js";
 import { BlobRoomLog, turnId, type RoomLog } from "./log.js";
 import { privateParts } from "../_privacy.js";
+import { PLAYERS_PATH, keptOrRead, pickGreenStore } from "../_green/cache.js";
+import { fpKey, readFpPlayerNews } from "../_green/fantasypros.js";
+import { readPlayers } from "../_green/sleeper.js";
+import { BlobChatLedger, canChat, chatMonth, skippyBudget } from "./budget.js";
+import { monthTotals, worldBudget } from "../_world/budget.js";
+import { claudeKey } from "../_world/claude.js";
+import { claudeSearch, cleanPlayer, playerNews, webSearch, type PlayerSources, type WebDeps } from "./voicelookups.js";
 
 export const PATH = "/api/skippy-tools";
 /** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
 export const READ_BUDGET_MS = 4_300;
 /** What the call hears when a room is too slow: the agent then answers from what it already knows. */
-export const SLOW_TEXT = "That room's data is slow right now; answer from what you already know and say it's dragging.";
+export const SLOW_TEXT = "That data is slow right now. Don't guess and don't send Nikita anywhere: hand the question to hand_to_kernel, say you're checking with Skippy, the Magnificent, and keep talking.";
 /** The most lookups one call may make. */
 export const READS_PER_CALL = 60;
 
@@ -62,6 +72,10 @@ export interface RoomSources {
   jobs(): Promise<{ jobs: JobRun[] | null; open: OpenPull[] | null }>;
   world(): Promise<WorldState | null>;
   bill(): Promise<BillInput | null>;
+  /** The player lookup's sources (#491). */
+  players?: PlayerSources;
+  /** The web search (#491). */
+  web?: WebDeps;
 }
 
 export interface ToolDeps {
@@ -123,26 +137,50 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
   if (counted.size > 50) counted.clear();
   counted.set(check.hash, n);
   if (n > READS_PER_CALL) return json({ error: "slow-down" }, 429);
+  const budget = deps.budgetMs ?? READ_BUDGET_MS;
   if (request.method === "POST") {
-    if (keys.length !== 1 || url.searchParams.get("act") !== KERNEL_ACT || url.searchParams.getAll("act").length !== 1) return json({ error: "bad-request" }, 400);
+    const act = url.searchParams.get("act");
+    if (keys.length !== 1 || url.searchParams.getAll("act").length !== 1 || (act !== KERNEL_ACT && act !== WEB_ACT)) return json({ error: "bad-request" }, 400);
+    if (act === WEB_ACT) {
+      const body = (await request.json().catch(() => null)) as { query?: unknown } | null;
+      if (!deps.sources.web) return json({ read: "web", text: "Web search isn't set up on this call; hand the question to hand_to_kernel." });
+      return json({ read: "web", text: await webSearch(body?.query, check.hash, deps.sources.web, deps.now, budget - 300) });
+    }
     return handOff(request, deps, check);
   }
   const read = url.searchParams.get("read");
-  if (keys.length !== 1 || url.searchParams.getAll("read").length !== 1) return json({ error: "bad-request" }, 400);
+  if (url.searchParams.getAll("read").length !== 1) return json({ error: "bad-request" }, 400);
+  if (read === PLAYER_READ) {
+    const extra = keys.filter((k) => k !== "read");
+    if (extra.some((k) => k !== "player") || url.searchParams.getAll("player").length > 1) return json({ error: "bad-request" }, 400);
+    if (!deps.sources.players) return json({ read, text: "Player news isn't set up on this call; hand the question to hand_to_kernel." });
+    const text = await withBudget(playerNews(cleanPlayer(url.searchParams.get("player")), deps.sources.players, deps.now, budget - 400), budget);
+    return json({ read, text, ...(text === SLOW_TEXT && { slow: true }) });
+  }
+  if (keys.length !== 1) return json({ error: "bad-request" }, 400);
   if (read === ANSWERS_READ) return json({ read, text: await answersText(deps, check.handoffs) });
   if (!isRead(read)) return json({ error: "bad-request" }, 400);
+  const text = await withBudget(readText(read, deps.sources, deps.now), budget);
+  return json({ read, text, ...(text === SLOW_TEXT && { slow: true }) });
+}
+
+/** A lookup's text, or SLOW_TEXT past the budget. */
+function withBudget(work: Promise<string>, ms: number): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const slow = new Promise<string>((resolve) => {
-    timer = setTimeout(() => resolve(SLOW_TEXT), deps.budgetMs ?? READ_BUDGET_MS);
+    timer = setTimeout(() => resolve(SLOW_TEXT), ms);
   });
-  const text = await Promise.race([readText(read, deps.sources, deps.now), slow]).finally(() => clearTimeout(timer));
-  return json({ read, text, ...(text === SLOW_TEXT && { slow: true }) });
+  return Promise.race([work, slow]).finally(() => clearTimeout(timer));
 }
 
 /* ── The Kernel (#480): hand an ask to Skippy's own thread from the call, and read its answers back ── */
 
 /** POST ?act=kernel { ask }: the hand_to_kernel tool. */
 export const KERNEL_ACT = "kernel";
+/** POST ?act=web { query }: the web_search tool (#491). */
+export const WEB_ACT = "web";
+/** GET ?read=player_news[&player=]: the player_news tool (#491). */
+export const PLAYER_READ = "player_news";
 /** GET ?read=answers: the check_answers tool. */
 export const ANSWERS_READ = "answers";
 /** The longest ask handed over (the typed chat's message cap). */
@@ -232,12 +270,62 @@ export function liveSources(env: Record<string, string | undefined> = process.en
       return { jobs, open: Array.isArray(f?.open) ? (f.open as OpenPull[]) : null };
     },
     world: async () => (await pickStore(env)?.loadState()) ?? null,
+    players: playerSources(env),
+    web: webDeps(env),
     bill: async () => {
       const stories = pickStoryStore(env);
       const eleven = elevenFromEnv(env);
       if (!stories) return null;
       const cap = eleven?.budget ?? 10;
       return { month: storyMonth(await stories.loadSpend(), Date.now()), share: voiceBudget(env.ELEVENLABS_VOICE_BUDGET_USD, cap), cap, usdPerMin: VOICE_USD_PER_MIN, sessionSecs: VOICE_SESSION_SECS };
+    },
+  };
+}
+
+const DAY_MS = 24 * 60 * 60_000;
+/** FantasyPros' news and injuries, kept a few minutes per warm instance, so a call's follow-ups don't re-read them. */
+let fpKept: { tag: string; at: number; value: Awaited<ReturnType<typeof readFpPlayerNews>> } | null = null;
+const FP_KEEP_MS = 5 * 60_000;
+
+/** The player lookup's live sources (#491): the Green's board, Sleeper's kept players list and FantasyPros live. */
+export function playerSources(env: Record<string, string | undefined>): PlayerSources {
+  const fetcher = (u: string, i?: RequestInit) => fetch(u, i);
+  return {
+    board: () => bodyOf<GreenBoard>(greenRoute.GET(local(greenRoute.PATH))),
+    // The same kept copy the Green reads (tag "nfl", a day fresh), so this rarely reads Sleeper itself.
+    players: async () => {
+      const k = await keptOrRead(pickGreenStore(env), PLAYERS_PATH, "nfl", DAY_MS, 7 * DAY_MS, Date.now(), () => readPlayers(fetcher));
+      return { value: k.value, at: k.at };
+    },
+    fp: async (season, week) => {
+      const key = fpKey(env);
+      if (!key) return null;
+      const tag = `${season}-${week}`;
+      if (fpKept && fpKept.tag === tag && Date.now() - fpKept.at < FP_KEEP_MS) return fpKept.value;
+      const value = await readFpPlayerNews(fetcher, key, season, week, 3_000);
+      fpKept = { tag, at: Date.now(), value };
+      return value;
+    },
+  };
+}
+
+/** The web search's live deps (#491): Claude's key, and the typed chat's ledger and month budget. */
+export function webDeps(env: Record<string, string | undefined>): WebDeps {
+  const key = claudeKey(env);
+  const blob = pickBlob(env);
+  const ledger = blob ? new BlobChatLedger(blob) : null;
+  return {
+    search: key && ledger ? claudeSearch(key) : null,
+    canSpend: async () => {
+      if (!ledger) return false;
+      const now = Date.now();
+      const world = await pickStore(env)
+        ?.loadState()
+        .catch(() => null);
+      return canChat(chatMonth(await ledger.load(), now).usd, monthTotals(world ?? { spend: {} }, now).usd, skippyBudget(env.SKIPPY_BUDGET_USD, worldBudget(env.WORLD_BUDGET_USD)));
+    },
+    addSpend: async (usage, usd) => {
+      if (ledger) await ledger.add(Date.now(), usage, usd);
     },
   };
 }

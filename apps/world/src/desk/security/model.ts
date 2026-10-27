@@ -22,7 +22,7 @@ export const ZONES: Record<ZoneId, { name: string; trust: string; holds: string[
     trust: "Built from main",
     holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/desk-pings: pings to the phone", "api/foundry: Desk buttons, Rivet", "api/skippy: Skippy's chat", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Azure Blob: world, stories, pictures, passkeys"],
   },
-  claude: { name: "Claude, ElevenLabs and Gemini APIs", trust: "No tools", holds: ["Rivet, the world step and Skippy's chat (Haiku)", "The day's story (ElevenLabs speech, the only voice)", "Visual QA's review (Gemini, from CI)"] },
+  claude: { name: "Claude, ElevenLabs and Gemini APIs", trust: "No tools but the responder's four", holds: ["Rivet, the world step and Skippy's chat (Haiku)", "The Kernel responder (Haiku, with web search, a Sleeper look-up and an issue-filing tool)", "The day's story (ElevenLabs speech, the only voice)", "Visual QA's review (Gemini, from CI)"] },
   github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks, scans, Visual QA"] },
   builder: { name: "Claude Code sessions", trust: "Checked, not trusted", holds: ["The Builder and workers"] },
 };
@@ -158,7 +158,7 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM01",
     name: "Prompt Injection",
-    where: "Idea text and issue text into Rivet; Nikita's messages and the Desk's state into Skippy's chat; issue titles into the world step; issue comments into the builder; text visible in the Lattice's recordings into Gemini",
+    where: "Idea text and issue text into Rivet; Nikita's messages and the Desk's state into Skippy's chat; the same, the brief, the rooms' lines and the web search results into the Kernel responder (#501); issue titles into the world step; issue comments into the builder; text visible in the Lattice's recordings into Gemini",
     controls:
       "Data fencing with spoof-proof tags (`shapeInput`, `unfence`; `fence` in `api/_world/prompt.ts`; `chatInput`, `unfenceChat` for Skippy's chat, #224); system rules that say the blocks are data; constant system prompts; owner-only input for the builder (`scripts/foundry-issue.sh`, #59); world trail steps only from trusted authors (`TRAIL_AUTHORS`); the builder guard (`.claude/hooks/`, #119); the injection eval suite below",
     residual: "A model can still be talked into odd wording inside the schema; the builder's fence is a script and a rule it follows, not a platform control",
@@ -202,9 +202,9 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM06",
     name: "Excessive Agency",
-    where: "The builder session (shell, git, merges); Rivet; the world step; Skippy's chat",
+    where: "The builder session (shell, git, merges); Rivet; the world step; Skippy's chat; the Kernel responder",
     controls:
-      "Rivet, the world step and Skippy's chat have no tools at all: they return JSON only; Skippy's actions are a closed set of suggestions (file an idea, answer Rivet, open a page, enter the Lattice) that only Nikita's tap sends, through the Desk's own buttons, re-checked in code (`readReply`, #224); labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until code-owner review is turned on); the crew's GitHub App for the Desk's functions and CI's issue writes, with hour-long tokens for this repo only and no Administration or Workflows permission (`api/_github.ts`, #138); the builder guard, a hook that denies risky commands and secrets files before they run and logs every tool call on the machine (`.claude/hooks/`, #119)",
+      "Rivet, the world step and Skippy's chat have no tools at all: they return JSON only; Skippy's actions are a closed set of suggestions (file an idea, answer Rivet, open a page, enter the Lattice) that only Nikita's tap sends, through the Desk's own buttons, re-checked in code (`readReply`, #224); labels that start a build come only from Nikita's Build choice; checks, scans and the ruleset definitions for `main` (#60, #66); CODEOWNERS on the trust boundary (inert until code-owner review is turned on); the crew's GitHub App for the Desk's functions and CI's issue writes, with hour-long tokens for this repo only and no Administration or Workflows permission (`api/_github.ts`, #138); the builder guard, a hook that denies risky commands and secrets files before they run and logs every tool call on the machine (`.claude/hooks/`, #119); the Kernel responder (#501, #507) has exactly four tools and the model can reach nothing else: Anthropic's web search (at most three a run), a read-only Sleeper look-up for one fixed league whose URLs are built in code (`api/_skippy/kernelleague.ts`), a tool that files a `foundry` + `foundry:chat` issue from Nikita's own words (the model chooses only a size; it never writes code, merges or labels a build), and `deliver`; at most five calls a run, its answers go through the privacy and money checks again before they are kept, and it can be switched off (`KERNEL_AGENT_ENABLED`) (`api/_skippy/kernelagent.ts`, `kernelrun.ts`)",
     residual: "The builder's Claude Code sessions still act as Nikita on GitHub (their access comes from the environment, not from the repo), and its guard is a deny list, not a sandbox, so some of its limits are still rules it follows",
     tracking: "Agents' own identity (R2)",
   },
@@ -237,7 +237,7 @@ export const OWASP_LLM: LlmRisk[] = [
     name: "Unbounded Consumption",
     where: "Claude spend; ElevenLabs speech and Gemini Visual QA spend; GitHub token quota; function CPU",
     controls:
-      "Coded budget guard for the world step (`api/_world/budget.ts`); Skippy's chat has its own share of the month and a check against the whole cap before every call, and a per-passkey pace (`api/_skippy/budget.ts`, `api/_skippy/limits.ts`, #224); ElevenLabs' own coded monthly cap and each edition made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
+      "Coded budget guard for the world step (`api/_world/budget.ts`); Skippy's chat has its own share of the month and a check against the whole cap before every call, and a per-passkey pace (`api/_skippy/budget.ts`, `api/_skippy/limits.ts`, #224); the Kernel responder has its own $10 month ledger, a hard stop checked before each run at the run's most, five calls and three searches a run, and an off switch (`api/_skippy/kernelagent.ts`, #501); ElevenLabs' own coded monthly cap and each edition made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
     residual: "The world step's trigger stays open on purpose: calling it more often changes nothing, so the 55-minute spacing and the monthly budget guard bound the spend, and a key was left out",
     tracking: "Covered: 55-minute spacing and the monthly budget guard (closed #171)",
   },

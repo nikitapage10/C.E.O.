@@ -1,7 +1,7 @@
 /**
  * The always-on responder's Claude loop (#501, api/_skippy/kernelagent.ts): the rules and the private brief as the
  * system prompt (the brief behind a prompt-cache breakpoint), the live state and the question as the user turn, and
- * three tools: Anthropic's web search (at most three), "file_build_request" (the code files the issue from Nikita's own
+ * four tools: Anthropic's web search (at most three), "sleeper_league" (read-only, kernelleague.ts), "file_build_request" (the code files the issue from Nikita's own
  * words; the model picks only a size) and "deliver", which ends the run with the answer. At most five calls, each with
  * a hard max_tokens. The model has no other tool and cannot send, open a link or change anything.
  *

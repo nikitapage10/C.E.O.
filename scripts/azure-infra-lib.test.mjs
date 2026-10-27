@@ -15,7 +15,7 @@ function defaults() {
     return m ? m[1] : undefined;
   };
   const parameters = {};
-  for (const p of ["location", "staticSiteLocation", "logDailyCapGb", "worldBudgetUsd", "skippyBudgetUsd", "emailBudgetUsd", "paypalEnv"]) parameters[p] = { defaultValue: get(p) };
+  for (const p of ["location", "staticSiteLocation", "logDailyCapGb", "worldBudgetUsd", "skippyBudgetUsd", "emailBudgetUsd", "kernelAgentEnabled", "kernelAgentBudgetUsd", "paypalEnv"]) parameters[p] = { defaultValue: get(p) };
   parameters.tags = { defaultValue: { app: "ceo", env: "prod" } };
   return { parameters };
 }
@@ -50,19 +50,19 @@ describe("the template on every deploy (#330)", () => {
   it("keeps what is live: the home address, PayPal's mode, the budgets and the log cap", () => {
     const { file } = buildParams({
       main: defaults(),
-      live: { CEO_SITE_URL: "https://ceo.nikita.page", PAYPAL_ENV: "live", WORLD_BUDGET_USD: "3", SKIPPY_BUDGET_USD: "1", EMAIL_BUDGET_USD: "8" },
+      live: { CEO_SITE_URL: "https://ceo.nikita.page", PAYPAL_ENV: "live", WORLD_BUDGET_USD: "3", SKIPPY_BUDGET_USD: "1", EMAIL_BUDGET_USD: "8", KERNEL_AGENT_ENABLED: "false", KERNEL_AGENT_BUDGET_USD: "4" },
       cap: "0.5",
       deployer: ID,
       github: ID,
     });
     const v = Object.fromEntries(Object.entries(file.parameters).map(([k, p]) => [k, p.value]));
-    expect(v).toMatchObject({ siteOnCustomDomain: true, paypalEnv: "live", worldBudgetUsd: "3", skippyBudgetUsd: "1", emailBudgetUsd: "8", logDailyCapGb: "0.5", deployerPrincipalId: ID, githubPrincipalId: ID, location: "westus3", staticSiteLocation: "westus2" });
+    expect(v).toMatchObject({ siteOnCustomDomain: true, paypalEnv: "live", worldBudgetUsd: "3", skippyBudgetUsd: "1", emailBudgetUsd: "8", kernelAgentEnabled: "false", kernelAgentBudgetUsd: "4", logDailyCapGb: "0.5", deployerPrincipalId: ID, githubPrincipalId: ID, location: "westus3", staticSiteLocation: "westus2" });
   });
 
   it("falls back to the template's defaults, never to junk", () => {
     const { file } = buildParams({ main: defaults(), live: { CEO_SITE_URL: "https://thankful-forest-019308c1e.5.azurestaticapps.net", PAYPAL_ENV: "prod", WORLD_BUDGET_USD: "lots" }, cap: "", deployer: "me", github: "" });
     const v = Object.fromEntries(Object.entries(file.parameters).map(([k, p]) => [k, p.value]));
-    expect(v).toMatchObject({ siteOnCustomDomain: false, paypalEnv: "sandbox", worldBudgetUsd: "6", skippyBudgetUsd: "2", emailBudgetUsd: "10", logDailyCapGb: "0.2", deployerPrincipalId: "", githubPrincipalId: "" });
+    expect(v).toMatchObject({ siteOnCustomDomain: false, paypalEnv: "sandbox", worldBudgetUsd: "6", skippyBudgetUsd: "2", emailBudgetUsd: "10", kernelAgentEnabled: "true", kernelAgentBudgetUsd: "10", logDailyCapGb: "0.2", deployerPrincipalId: "", githubPrincipalId: "" });
   });
 
   it("summarises the what-if by change and property path, never by value", () => {

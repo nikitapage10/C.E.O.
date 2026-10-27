@@ -130,9 +130,16 @@ export function cleanCard(v: unknown): AnswerCard | null {
 /** Every string on a card, for the privacy check. */
 export const cardText = (c: AnswerCard): string[] => [c.verdict, ...c.cols, ...c.rows.map((r) => r.label), ...c.metrics, ...c.sources];
 
+/**
+ * Who a follow-up can come from (#501): Skippy's thread, a room's submind, or "kernel-agent", the always-on responder in
+ * the Function App. The responder is in-process only: POST /api/skippy-answer still takes a Needs.
+ */
+export type FollowFrom = Needs | "kernel-agent";
+export const isFollowFrom = (v: unknown): v is FollowFrom => v === "kernel-agent" || isNeeds(v);
+
 /** The thread side's answer to a hand-off, kept on the turn. */
 export interface FollowUp {
-  from: Needs;
+  from: FollowFrom;
   text: string;
   /** ISO time it came back. */
   at: string;
@@ -193,7 +200,7 @@ export function cleanFollowUp(v: unknown): FollowUp | null {
   const at = isoOf(f.at);
   const text = line(f.text, ANSWER_MAX);
   const card = f.card === undefined ? null : cleanCard(f.card);
-  return at && text && isNeeds(f.from) ? { from: f.from, text, at, ...(card && { card }), ...(f.final === false && { final: false as const }) } : null;
+  return at && text && isFollowFrom(f.from) ? { from: f.from, text, at, ...(card && { card }), ...(f.final === false && { final: false as const }) } : null;
 }
 
 export function cleanTurn(v: unknown): LoggedTurn | null {
@@ -233,9 +240,11 @@ export function withFollowUp(turns: LoggedTurn[], id: string, f: FollowUp): { tu
   if (!t) return { turns, result: { ok: false, why: "missing" } };
   if (!t.needs) return { turns, result: { ok: false, why: "not-handed-off" } };
   // An interim answer (#480) keeps it open for the next one; a final one closes it.
-  if (!isOpen(t)) return { turns, result: { ok: false, why: "answered" } };
-  // Skippy can answer anything handed off; a submind only what was handed to it.
-  if (f.from !== "skippy" && f.from !== t.needs) return { turns, result: { ok: false, why: "wrong-thread" } };
+  // The one exception (#501): Skippy, the Magnificent may correct a final answer the responder gave.
+  const correcting = t.followUp?.from === "kernel-agent" && f.from === "skippy";
+  if (!isOpen(t) && !correcting) return { turns, result: { ok: false, why: "answered" } };
+  // Skippy can answer anything handed off; a submind only what was handed to it; the responder only Skippy's own.
+  if (f.from === "kernel-agent" ? t.needs !== "skippy" : f.from !== "skippy" && f.from !== t.needs) return { turns, result: { ok: false, why: "wrong-thread" } };
   const turn = { ...t, followUp: f };
   return { turns: turns.map((x, j) => (j === i ? turn : x)), result: { ok: true, turn } };
 }
@@ -248,6 +257,23 @@ export function keepTurns(raw: unknown, now: number): LoggedTurn[] {
     .filter((t): t is LoggedTurn => t !== null && Date.parse(t.at) >= from)
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
     .slice(-LOG_KEEP);
+}
+
+/**
+ * The listener for a new hand-off to Skippy (#501), set once at start-up by the Function App (azure/src/index.ts).
+ * It is called after the turn is safely kept, never awaited by the write, and a failure in it never fails the write.
+ */
+let handoffListener: ((turn: LoggedTurn) => void) | null = null;
+export function onHandoff(listener: ((turn: LoggedTurn) => void) | null): void {
+  handoffListener = listener;
+}
+function announce(turn: LoggedTurn): void {
+  if (!handoffListener || turn.needs !== "skippy" || turn.followUp) return;
+  try {
+    handoffListener(turn);
+  } catch {
+    /* the listener is best effort: the turn is kept, and the thread's own watcher is the backup */
+  }
 }
 
 /** Where the turns live. */
@@ -295,6 +321,7 @@ export class BlobRoomLog implements RoomLog {
     const good = cleanTurn(turn);
     if (!good) return;
     await this.change(good.room, now, (cur) => ({ turns: [...cur, good], out: undefined }));
+    announce(good);
   }
   async answer(id: string, followUp: FollowUp, now: number): Promise<Answered> {
     const f = cleanFollowUp(followUp);

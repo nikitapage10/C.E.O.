@@ -164,6 +164,13 @@ line is added when Skippy's own words don't), and the room's "Asked Skippy" pane
   phone gets one ping that names who answered, never what (quiet hours hold it). A turn already answered, not handed
   off, or another submind's is refused.
 
+**The always-on responder (#501).** A hand-off to `skippy` no longer waits for a cloud chat: the moment it is written, an
+agent in the Azure Function App answers the facts and look-ups (final answers, logged with `from: "kernel-agent"`) and
+files build requests as `foundry:chat` issues, and leaves decisions, plans and preferences open with an in-character
+"pondering" line (an interim answer) for Skippy, the Magnificent, who can correct any of its answers with a follow-up. Its
+budget, off switch, brief (`PUT /api/kernel-brief`) and privacy rules are in [AZURE.md](AZURE.md#the-kernel-responder-501).
+The thread's watcher stays as the backup for whatever it leaves open.
+
 ## The round trip: Desk Skippy asks the submind (#341)
 
 Nikita (2026-10-23): when Desk Skippy is asked something a room's submind owns ("Why start Tre Tucker over Godwin?" on

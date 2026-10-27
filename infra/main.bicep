@@ -50,6 +50,13 @@ param skippyBudgetUsd string = '2'
 @description('The email agent\'s own monthly Claude cap on the Azure copy, in USD (EMAIL_BUDGET_USD, #263).')
 param emailBudgetUsd string = '10'
 
+@description('Whether the always-on Kernel responder answers Skippy\'s hand-offs (KERNEL_AGENT_ENABLED, #501): "true" or "false". The off switch.')
+@allowed(['true', 'false'])
+param kernelAgentEnabled string = 'true'
+
+@description('The Kernel responder\'s own monthly Claude cap, in USD (KERNEL_AGENT_BUDGET_USD, #501; Nikita: $10). The code never goes above $10.')
+param kernelAgentBudgetUsd string = '10'
+
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV, #279): sandbox until Nikita switches to live. Set it to live on the paste once the Live keys are in.')
 @allowed(['sandbox', 'live'])
 param paypalEnv string = 'sandbox'
@@ -82,6 +89,8 @@ module resources 'resources.bicep' = {
     worldBudgetUsd: worldBudgetUsd
     skippyBudgetUsd: skippyBudgetUsd
     emailBudgetUsd: emailBudgetUsd
+    kernelAgentEnabled: kernelAgentEnabled
+    kernelAgentBudgetUsd: kernelAgentBudgetUsd
     paypalEnv: paypalEnv
     siteOnCustomDomain: siteOnCustomDomain
     tags: tags

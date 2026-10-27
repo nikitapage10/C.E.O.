@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { readCrew, roomOfAgent } from "../hologram/crew.ts";
+import { setSpeaker } from "../hologram/signal.ts";
 import { stopSpeaking, useSkippy } from "./chat.ts";
 
 /**
@@ -116,10 +118,16 @@ export const clock = (secs: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export type Started = { ok: true; token: string; conversation: string; maxSecs: number; desk: string; usage: TalkUsage | null; tool?: string } | { ok: false; reason: TalkReason; usage?: TalkUsage | null };
+export type Started = { ok: true; token: string; conversation: string; maxSecs: number; desk: string; usage: TalkUsage | null; tool?: string; crew?: Record<string, string> } | { ok: false; reason: TalkReason; usage?: TalkUsage | null };
 
 /** The call's tool token as our function mints it (api/_skippy/voicetoken.ts): `vt1.<expiry>.<nonce>.<mac>`. */
 export const isToolToken = (v: unknown): v is string => typeof v === "string" && v.length <= 200 && /^vt1\.[0-9a-z]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(v);
+
+/** The crew's agents (#481), only when there are some. */
+const crewOf = (raw: unknown) => {
+  const crew = readCrew(raw);
+  return Object.keys(crew).length ? { crew } : {};
+};
 
 /** Ask our function for one call's token. */
 export async function requestToken(doFetch: typeof fetch = fetch): Promise<Started> {
@@ -134,7 +142,7 @@ export async function requestToken(doFetch: typeof fetch = fetch): Promise<Start
     if (res.ok && body.ok === false && body.reason === "capped") return { ok: false, reason: "capped", usage };
     if (!res.ok || body.ok !== true || typeof body.token !== "string" || !body.token) return { ok: false, reason: "eleven" };
     const maxSecs = typeof body.maxSecs === "number" && body.maxSecs > 0 && body.maxSecs <= 600 ? body.maxSecs : 600;
-    return { ok: true, token: body.token, conversation: typeof body.conversation === "string" ? body.conversation : "", maxSecs, desk: typeof body.desk === "string" ? body.desk : "", usage, ...(isToolToken(body.tool) && { tool: body.tool }) };
+    return { ok: true, token: body.token, conversation: typeof body.conversation === "string" ? body.conversation : "", maxSecs, desk: typeof body.desk === "string" ? body.desk : "", usage, ...(isToolToken(body.tool) && { tool: body.tool }), ...crewOf(body.crew) };
   } catch {
     return { ok: false, reason: "eleven" };
   }
@@ -223,6 +231,15 @@ export const talkLevel = (): number => {
   }
 };
 
+/** Mutes or unmutes Nikita's microphone on a live call (the hologram's pill, #481). */
+export const talkMute = (muted: boolean): void => {
+  try {
+    session?.mute(muted);
+  } catch {
+    /* the call is going anyway */
+  }
+};
+
 export const useTalk = create<TalkStore>((set, get) => {
   const note = (reason: TalkReason) => useSkippy.getState().say("skippy", TALK_NOTE[reason], true);
 
@@ -305,6 +322,8 @@ export const useTalk = create<TalkStore>((set, get) => {
           token: got.token,
           desk: got.desk,
           ...(got.tool && { tool: got.tool }),
+          // Who has the mic (#481): a submind's agent puts its can on the hologram; Skippy's own puts his back.
+          onAgent: (agent) => setSpeaker(roomOfAgent(agent, got.crew ?? {})),
           onMessage: (who, text) => useSkippy.getState().say(who, text),
           onMode: (mode) => set({ mode }),
           onTool: (name) => {

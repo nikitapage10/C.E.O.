@@ -1,4 +1,6 @@
 import { Conversation } from "@elevenlabs/client";
+import { agentOfEvent } from "../hologram/crew.ts";
+import { holoEvents } from "../hologram/signal.ts";
 
 /**
  * The call itself (#434): ElevenLabs' own client (@elevenlabs/client), joined over WebRTC with the one-session token
@@ -14,6 +16,8 @@ export interface CallHandlers {
   tool?: string;
   onMessage: (who: "nikita" | "skippy", text: string) => void;
   onMode: (mode: "listening" | "speaking") => void;
+  /** The ElevenLabs agent an event names (#481): Skippy's, or a submind's after a transfer. */
+  onAgent?: (agentId: string) => void;
   /** A tool the agent called came back (#479): its name only. */
   onTool?: (name: string) => void;
   onEnd: () => void;
@@ -35,14 +39,23 @@ export async function openCall(h: CallHandlers) {
       speaking = mode === "speaking";
       h.onMode(speaking ? "speaking" : "listening");
     },
+    // The hologram (#481): thinking while a lookup runs, annoyed when he's cut off, and who has the mic.
+    onAgentToolRequest: () => holoEvents.toolStart(),
     onAgentToolResponse: (r) => {
+      holoEvents.toolEnd();
       if (r && typeof r.tool_name === "string") h.onTool?.(r.tool_name);
+    },
+    onInterruption: () => holoEvents.interrupted(),
+    onIncomingEvent: (ev: unknown) => {
+      const agent = agentOfEvent(ev);
+      if (agent) h.onAgent?.(agent);
     },
     onDisconnect: () => h.onEnd(),
     onError: () => h.onError(),
   });
   return {
     level: () => Math.min(1, Math.max(0, speaking ? call.getOutputVolume() : call.getInputVolume())),
+    mute: (muted: boolean) => call.setMicMuted(muted),
     /** A note for the agent that it doesn't speak by itself (ElevenLabs' contextual update): an answer that landed. */
     tell: (text: string) => call.sendContextualUpdate(text),
     end: () => call.endSession(),

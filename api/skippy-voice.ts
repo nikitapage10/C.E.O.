@@ -9,7 +9,7 @@
  *        the month's minutes and dollars ({ usedMin, budgetMin, leftMin, sessionMin, canTalk, calls, usedUsd, budgetUsd,
  *        storyUsd, elevenUsd, capUsd }) and, when ElevenLabs answers, the plan's credits ({ used, limit, resetAt, tier },
  *        #477; left out when it doesn't). Settles sessions that have ended. Signed-in only, so the bill never goes public.
- * POST { action: "start" } → 200 { ok: true, token, conversation, maxSecs, desk, usage }: a one-session WebRTC token
+ * POST { action: "start" } → 200 { ok: true, token, conversation, maxSecs, desk, usage, crew? }: a one-session WebRTC token
  *        (short-lived, for the private agent only), the longest the call may run (ten minutes), and the Desk's state for
  *        Skippy, the month's ElevenLabs bill on top (billLines, #477).
  *        200 { ok: false, reason: "capped", usage } past the month's share or ElevenLabs' cap (the Desk goes back to
@@ -17,7 +17,8 @@
  *        (#470): { error: "key-invalid" } it doesn't accept the key, "agent-denied" the key lacks a permission,
  *        "plan" its plan or limits said no, "eleven" anything else; 503 not-set-up or no-key.
  *        With Skippy's crew (#479) the answer also carries `tool`, the call's own key for its lookups (the browser passes
- *        it to ElevenLabs as the secret variable `secret__ceo_tool`; api/_skippy/voicetoken.ts).
+ *        it to ElevenLabs as the secret variable `secret__ceo_tool`; api/_skippy/voicetoken.ts), and (#481) `crew`, each
+ *        submind's ElevenLabs agent id to its own id ("turf"), so the Desk's hologram shows whoever has the mic.
  * POST { action: "end", conversation } → { ok: true, usage }: the call is over; its tool token is revoked and its real
  *        length is asked for now (or on a later request, when ElevenLabs hasn't finished it yet); once it is, the
  *        subminds' exchanges on it go to the Council (api/_skippy/voicecouncil.ts).
@@ -263,8 +264,16 @@ async function act(request: Request, deps: VoiceDeps, store: AuthStore, passkey:
   // The call's own key for its lookups (#479): good for the call's longest and a little more, kept as a hash with the
   // call, passed to ElevenLabs as a secret dynamic variable that only the tools' header ever carries.
   const tool = deps.crew && minted.conversation ? await issueToolToken(deps.crew, deps.deskKey, minted.conversation, deps.now + VOICE_SESSION_SECS * 1000 + TOOL_SLACK_MS, deps.now) : null;
+  // Who's who on the call (#481): each submind's ElevenLabs agent id, so the Desk's hologram can swap to whoever has
+  // the mic after a transfer. Agent ids only, never a key.
+  const crew = deps.crew
+    ? await deps.crew
+        .load(deps.now)
+        .then((c) => Object.fromEntries(Object.entries(c.agents).map(([id, a]) => [a.id, id])))
+        .catch(() => ({}))
+    : {};
   // The bill goes first, so the Desk's cut at DESK_MAX never drops it.
-  return json({ ok: true, token: minted.token, conversation: minted.conversation, maxSecs: VOICE_SESSION_SECS, desk: deskVariable(`${billLines(after, plan)}\n${lines}`), usage: after, ...(plan && { credits: plan }), ...(tool && { tool }) });
+  return json({ ok: true, token: minted.token, conversation: minted.conversation, maxSecs: VOICE_SESSION_SECS, desk: deskVariable(`${billLines(after, plan)}\n${lines}`), usage: after, ...(plan && { credits: plan }), ...(tool && { tool }), ...(Object.keys(crew).length && { crew }) });
 }
 
 export async function GET(request: Request): Promise<Response> {

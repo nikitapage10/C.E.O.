@@ -416,7 +416,7 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     }) as typeof fetch;
     const { post } = await setup({ crew, roomLog, site: "https://ceo.example", fetcher });
     const started = await post({ action: "start" });
-    const body = (await started.json()) as { tool?: string; conversation: string };
+    const body = (await started.json()) as { tool?: string; conversation: string; crew?: Record<string, string> };
     expect(started.status, JSON.stringify(body)).toBe(200);
     expect(body.tool).toMatch(/^vt1\./);
     expect(await checkToolToken(body.tool, "test-desk-key-0123456789", crew, NOW)).toMatchObject({ ok: true, conversation: "conv_0001" });
@@ -424,6 +424,9 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     const kept = await crew.load(NOW);
     expect(Object.keys(kept.tools).sort()).toEqual(TOOL_DEFS.map((t) => t.name).sort());
     expect(Object.keys(kept.agents).sort()).toEqual(["ember", "soot", "static", "ticker", "turf"]);
+    // The hologram's crew (#481): each submind's agent id, to its own id.
+    expect(Object.values(body.crew ?? {}).sort()).toEqual(["ember", "soot", "static", "ticker", "turf"]);
+    expect(body.crew?.[kept.agents.turf!.id]).toBe("turf");
     const skippy = made.filter((m) => m.method === "PATCH" && m.url.endsWith("/agents/agent_0001")).at(-1)!;
     const prompt = ((skippy.body.conversation_config as Record<string, Record<string, Record<string, unknown>>>).agent!.prompt!) as { tool_ids: string[]; built_in_tools: { transfer_to_agent: unknown } };
     expect(prompt.tool_ids).toHaveLength(TOOL_DEFS.length);

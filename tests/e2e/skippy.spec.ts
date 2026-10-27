@@ -125,3 +125,84 @@ test("Talk falls back to typing with a plain note when the month's minutes are s
   await expect(chat.getByRole("button", { name: /talk minutes are spent/ })).toBeDisabled();
   expect(starts).toBe(1);
 });
+
+/** A stand-in for the ElevenLabs call (talkSession.ts's chunk): the test drives it from window.__holoCall. */
+const FAKE_CALL = `export async function openCall(h) {
+  window.__holoCall = h;
+  return { level: () => window.__holoLevel ?? 0, mute: (m) => { window.__holoMuted = m; }, end: async () => {} };
+}`;
+
+async function startCall(page: Page) {
+  await stub(page, true);
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async () => new AudioContext().createMediaStreamDestination().stream;
+  });
+  const usage = { month: "2026-10", usedMin: 3, budgetMin: 41.6, leftMin: 38.6, sessionMin: 3, canTalk: true };
+  await page.route(`${BASE}/api/skippy-voice`, (r) =>
+    r.fulfill({ json: r.request().method() === "POST" ? { ok: true, token: "t", conversation: "", maxSecs: 180, desk: "", usage, crew: { agent_turf01: "turf" } } : { ready: true, usage } }),
+  );
+  await page.route(/\/assets\/talkSession-[\w-]+\.js$/, (r) => r.fulfill({ contentType: "text/javascript", body: FAKE_CALL }));
+  const asked: string[] = [];
+  page.on("request", (r) => asked.push(r.url()));
+  return asked;
+}
+
+test("Talk projects Skippy as a hologram, and nothing of it loads before the tap (#481)", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const asked = await startCall(page);
+  await page.goto(BASE + "/");
+  await expect(page.locator(".today .desk__title")).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(asked.filter((u) => /holoScene|HologramStage|Skippy\.[\w]+\.glb/.test(u))).toEqual([]);
+
+  await page.locator(".desk__skippy").click();
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  await chat.getByRole("button", { name: /live voice call/ }).click();
+  const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
+  await expect(call).toBeVisible();
+  // On Today he rises out of his own constellation.
+  await expect(call).toHaveClass(/holo--today/);
+  await page.waitForFunction(() => Boolean((window as { __holoCall?: unknown }).__holoCall));
+  await page.evaluate(() => {
+    const h = (window as unknown as { __holoCall: { onMode: (m: string) => void; onMessage: (w: string, t: string) => void } }).__holoCall;
+    (window as { __holoLevel?: number }).__holoLevel = 0.6;
+    h.onMode("speaking");
+    h.onMessage("skippy", "[laughs] Monkey, it was always fast. You were slow.");
+  });
+  await expect(call.getByText("“Monkey, it was always fast. You were slow.”")).toBeVisible();
+  await expect(call).toHaveAttribute("data-expr", "laughing");
+  await expect(call.getByText("Live", { exact: true })).toBeVisible();
+  await call.getByRole("button", { name: "Mute your microphone" }).click();
+  expect(await page.evaluate(() => (window as { __holoMuted?: boolean }).__holoMuted)).toBe(true);
+  await expect(page.locator(".holo--ready")).toBeVisible({ timeout: 90_000 });
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/hologram-today.png` });
+
+  // A submind takes the mic (#479's transfer): the hologram becomes its can, and Skippy's own agent brings him back.
+  await page.evaluate(() => (window as unknown as { __holoCall: { onAgent: (a: string) => void } }).__holoCall.onAgent("agent_turf01"));
+  await expect(page.getByRole("region", { name: "Call with Skippy, the Commentator" })).toBeVisible();
+  await page.evaluate(() => (window as unknown as { __holoCall: { onAgent: (a: string) => void } }).__holoCall.onAgent("agent_skippy1"));
+  await expect(call).toBeVisible();
+
+  await call.getByRole("button", { name: "End the call" }).click();
+  await expect(call).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("on a phone the hologram stands above the dock with the pill in reach (#481)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startCall(page);
+  await page.goto(BASE + "/foundry");
+  await page.locator(".desk__skippy").click();
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  await chat.getByRole("button", { name: /live voice call/ }).click();
+  const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
+  await expect(call).toHaveClass(/holo--phone/);
+  const end = call.getByRole("button", { name: "End the call" });
+  const pill = await end.boundingBox();
+  const dock = await chat.boundingBox();
+  expect(pill && dock && pill.y + pill.height <= dock.y).toBe(true);
+  expect(pill && pill.x >= 0 && pill.x + pill.width <= 390).toBe(true);
+  await end.click();
+  await expect(call).toHaveCount(0);
+});

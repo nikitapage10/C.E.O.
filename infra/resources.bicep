@@ -38,6 +38,12 @@ param skippyBudgetUsd string
 @description('The email agent\'s own monthly Claude cap, in USD (EMAIL_BUDGET_USD), as a string.')
 param emailBudgetUsd string
 
+@description('Whether the always-on Kernel responder answers hand-offs (KERNEL_AGENT_ENABLED, #501), "true" or "false".')
+param kernelAgentEnabled string
+
+@description('The Kernel responder\'s own monthly Claude cap, in USD (KERNEL_AGENT_BUDGET_USD, #501), as a string.')
+param kernelAgentBudgetUsd string
+
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV): sandbox or live.')
 param paypalEnv string
 
@@ -275,6 +281,11 @@ var plainSettings = [
   { name: 'ELEVENLABS_VOICE_ID', value: 'UmB8prvfojxqchgnJYWe' }
   // The email agent's own cap (#263; Nikita: $10 a month), separate from the two above.
   { name: 'EMAIL_BUDGET_USD', value: emailBudgetUsd }
+  // The always-on Kernel responder (#501, docs/AZURE.md): its off switch ("false" stops it; the thread's watcher takes
+  // every hand-off again) and its own cap, separate from the others, with a hard stop in code at $10 a month. It runs on
+  // Haiku; KERNEL_AGENT_MODEL=sonnet (set by hand, kept by the deploy) moves it to Sonnet 5.5.
+  { name: 'KERNEL_AGENT_ENABLED', value: kernelAgentEnabled }
+  { name: 'KERNEL_AGENT_BUDGET_USD', value: kernelAgentBudgetUsd }
   // The Spire's invoices (#279): sandbox until Nikita switches to live (docs/PAYPAL.md).
   { name: 'PAYPAL_ENV', value: paypalEnv }
   // The site's home address (api/_site/hosts.ts): the pings' contact and the Gmail callback's fallback. The

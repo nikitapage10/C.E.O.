@@ -7,7 +7,8 @@
  *                        four active rooms, the Green's league board, the Exchange's board and Nikita's positions, the
  *                        world feed (and one day of it), the Foundry feed, the room feed itself, and the setup asks
  *                        (#324, whether Nikita approved one).
- *   SUBMIND_FEED_TOKEN   write-only. POST /api/room-feed, a short room event (api/_room/feed.ts), POST /api/setup-asks,
+ *   SUBMIND_FEED_TOKEN   write-only. PUT /api/kernel-brief, the always-on responder's private brief (#501), POST
+ *                        /api/room-feed, a short room event (api/_room/feed.ts), POST /api/setup-asks,
  *                        a setup ask or its Trail line (#324, api/_room/setup.ts), and POST
  *                        /api/skippy-answer, a hand-off's answer (#312; its own check in gate.ts and api/skippy.ts,
  *                        bearer only). It reads nothing: each answer says only that the write was kept.
@@ -176,10 +177,19 @@ export function isLogRead(request: Request): boolean {
   return queryFits(url, LOG_READS[url.pathname]!);
 }
 
-/** Whether a request is one of the writes the feed key opens: POST /api/room-feed or /api/setup-asks, with no query. */
+/** The always-on responder's two routes (#501, api/_skippy/kernelroute.ts): the private brief, and the run itself. */
+export const KERNEL_BRIEF_PATH = "/api/kernel-brief";
+export const KERNEL_AGENT_PATH = "/api/kernel-agent";
+
+/**
+ * Whether a request is one of the writes the feed key opens: POST /api/room-feed or /api/setup-asks, PUT
+ * /api/kernel-brief or POST /api/kernel-agent (#501), with no query.
+ */
 export function isFeedWrite(request: Request): boolean {
   const url = new URL(request.url);
-  return request.method === "POST" && FEED_WRITES.includes(url.pathname) && url.search === "";
+  if (url.search !== "") return false;
+  if (request.method === "PUT") return url.pathname === KERNEL_BRIEF_PATH;
+  return request.method === "POST" && (FEED_WRITES.includes(url.pathname) || url.pathname === KERNEL_AGENT_PATH);
 }
 
 /**

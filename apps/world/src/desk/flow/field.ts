@@ -2,6 +2,7 @@ import { clamp, gauss, Parts, Poly, reducedMotion, spr, TAU, vizTime, WHITE, typ
 import { knotAt, stream } from "./draw.ts";
 import { capCounts, flowCount, nearestLine, polyOf, pulseU, type PathSpec, type Pt } from "./path.ts";
 import { RiseField } from "./rise.ts";
+import { NEUTRAL, tempoLine, type Tempo } from "./tempo.ts";
 
 /**
  * The flow field (#428): one canvas of particle lines a page describes as data. The page hands over a layout function
@@ -104,6 +105,12 @@ export interface FlowField {
   line: (id: string) => Poly | null;
   /** Ask for a fresh layout (also redraws a still frame under reduced motion). */
   relayout: () => void;
+  /**
+   * The room's tempo (#262, tempo.ts): its real activity scaling every line's rate, density, brightness and spread.
+   * useFlow keeps it current; a change in density re-lays the field, the rest applies on the next frame.
+   */
+  tempo: Tempo;
+  setTempo: (t: Tempo) => void;
   /** Frames drawn so far (the browser test checks the loop pauses). */
   frames: number;
   rises: RiseField;
@@ -165,7 +172,7 @@ export function makeFlowField(layout: FlowLayoutFn, o: FlowOpts = {}): FlowField
     const out = F.layout({ W, H, phone, rel: V.rel });
     anchors = out.anchors ?? {};
     const polys = out.lines.map((L) => polyOf(L.path));
-    const want = capCounts(out.lines.map((L, i) => (L.waiting ? Math.min(12, flowCount(polys[i]!.len, 0.2, phone)) : flowCount(polys[i]!.len, L.density ?? 0.5, phone))));
+    const want = capCounts(out.lines.map((L, i) => (L.waiting ? Math.min(12, flowCount(polys[i]!.len, 0.2, phone)) : flowCount(polys[i]!.len, tempoLine(F.tempo, L).density, phone))));
     const next: Live[] = [];
     byId.clear();
     out.lines.forEach((L, i) => {
@@ -239,8 +246,9 @@ export function makeFlowField(layout: FlowLayoutFn, o: FlowOpts = {}): FlowField
     for (const X of lines) {
       const L = X.L;
       X.fade += ((on(L.id) ? 1 : 0.15) - X.fade) * k;
-      const a = X.fade * (L.bright ?? 0.85) * (L.waiting ? 0.5 : 1);
-      stream(c, X.poly, X.P, { rgb: X.rgb, a, v: L.waiting ? 16 : (L.rate ?? 40), sp: L.spread ?? 2, widen: L.widen, swell: L.widen ? 0.35 : 0, head: grow * 1.4, thin: L.thin, reverse: L.reverse }, t, dt);
+      const m = tempoLine(F.tempo, L);
+      const a = X.fade * m.bright * (L.waiting ? 0.5 : 1);
+      stream(c, X.poly, X.P, { rgb: X.rgb, a, v: L.waiting ? 16 : m.rate, sp: m.spread, widen: L.widen, swell: L.widen ? 0.35 : 0, head: grow * 1.4, thin: L.thin, reverse: L.reverse }, t, dt);
       if (L.knots) for (const u of L.knots) {
         const q = X.poly.at(L.reverse ? 1 - u : u);
         knotAt(c, q.x, q.y, X.rgb, X.fade, F.focus === L.id);
@@ -319,7 +327,7 @@ export function makeFlowField(layout: FlowLayoutFn, o: FlowOpts = {}): FlowField
       const X = byId.get(id);
       if (!X || reducedMotion()) return;
       if (pulses.length >= PULSE_MAX) pulses.shift();
-      pulses.push({ id, t0: vizTime(), speed: p.speed ?? Math.max(140, (X.L.rate ?? 40) * 3), rgb: p.rgb ?? X.rgb, size: p.size ?? 9 });
+      pulses.push({ id, t0: vizTime(), speed: p.speed ?? Math.max(140, tempoLine(F.tempo, X.L).rate * 3), rgb: p.rgb ?? X.rgb, size: p.size ?? 9 });
     },
     burst(id, b = {}) {
       const X = byId.get(id);
@@ -358,6 +366,14 @@ export function makeFlowField(layout: FlowLayoutFn, o: FlowOpts = {}): FlowField
     },
     line: (id) => byId.get(id)?.poly ?? null,
     relayout: () => view?.relayout(),
+    tempo: NEUTRAL,
+    setTempo(t) {
+      const old = F.tempo;
+      if (old.rate === t.rate && old.density === t.density && old.bright === t.bright && old.spread === t.spread) return;
+      F.tempo = t;
+      // Particle counts follow density, so only that needs a fresh layout (or a still frame under reduced motion).
+      if (old.density !== t.density || reducedMotion()) F.relayout();
+    },
   };
   return F;
 }

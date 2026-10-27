@@ -84,3 +84,13 @@
   :is(.desk,.fl-root) .fl-stage::before,:is(.desk,.fl-root) .fl-ledger::before{animation:none}
   :is(.desk,.fl-root) .fl-btn{transition:none}
 }
+
+/* ---------- the motion legend (#262): what drives the lines, laid in by useFlow on the page's largest stage ---------- */
+:is(.desk,.fl-root) .fl-drive.fl-drive{position:absolute;right:var(--fl-pad,16px);bottom:10px;z-index:3;display:flex;align-items:center;gap:7px;max-width:min(360px,calc(100% - 32px));margin:0;padding:3px 10px 3px 8px;border-radius:999px;background:rgba(9,10,14,.62);font-family:var(--fl-text,"Jost Variable",Jost,system-ui,sans-serif);font-size:11px;font-weight:500;letter-spacing:.06em;line-height:1.5;color:var(--wv-mute,#8a8f9c);white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+:is(.desk,.fl-root) .fl-drive>span{overflow:hidden;text-overflow:ellipsis}
+/* The dot breathes with the room: faster and brighter the busier it is; an idle room's dot is dim and still. */
+:is(.desk,.fl-root) .fl-drive>i{flex:none;width:6px;height:6px;border-radius:50%;background:rgb(var(--fl-accent,232,207,156));opacity:calc(.45 + .55 * var(--fl-tempo,.35));box-shadow:0 0 calc(4px + 8px * var(--fl-tempo,.35)) rgba(var(--fl-accent,232,207,156),.7);animation:fl-breathe calc(3.2s - 2.2s * var(--fl-tempo,.35)) ease-in-out infinite}
+:is(.desk,.fl-root) .fl-drive.is-idle>i{opacity:.3;box-shadow:none;animation:none}
+@keyframes fl-breathe{50%{transform:scale(.6);opacity:.35}}
+@media (max-width:760px){:is(.desk,.fl-root) .fl-drive.fl-drive{right:16px;bottom:6px;font-size:10.5px}}
+@media (prefers-reduced-motion:reduce){:is(.desk,.fl-root) .fl-drive>i{animation:none}}

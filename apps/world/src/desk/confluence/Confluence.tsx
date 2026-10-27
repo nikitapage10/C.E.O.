@@ -4,6 +4,7 @@ import { CREW, useFoundry } from "../../foundry.ts";
 import { ideaTitle } from "../IdeaCard.tsx";
 import { roomLink } from "../hero/roomLink.ts";
 import type { PulseState, RoomPulse } from "../roomPulse.ts";
+import { driveOf } from "../flow/tempo.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { mtTime } from "../todaySchedule.ts";
 import { RC, reducedMotion, useViz } from "../wvCanvas.ts";
@@ -172,6 +173,7 @@ export function Confluence({ pulses, now, since, hour, needs, skippySays, top, h
               </li>
             ))}
           </ol>
+          <Drive pulses={pulses} />
         </div>
       </div>
       <header className="cf-top">{top}</header>
@@ -181,6 +183,23 @@ export function Confluence({ pulses, now, since, hour, needs, skippySays, top, h
       <div className="cf-helm">{helm}</div>
       {sel && <Panel id={sel} pulses={pulses} now={now} since={since} skippySays={skippySays} active={active} onClose={() => open(null)} />}
     </section>
+  );
+}
+
+/** The small legend under the Council (#262): what is moving the streams, busiest first, and how many rooms idle. */
+function Drive({ pulses }: { pulses: RoomPulse[] }) {
+  const { lead, idle } = driveOf(pulses);
+  return (
+    <p className="cf-drive" title="Each stream runs faster, thicker and brighter with its room's real activity">
+      <span>Streams move with real work</span>
+      {lead.map((p) => (
+        <span key={p.id} style={{ "--c": RC[p.id] } as React.CSSProperties}>
+          <i aria-hidden="true" />
+          {p.name} · {p.drive}
+        </span>
+      ))}
+      {idle > 0 && <span>{idle} idle</span>}
+    </p>
   );
 }
 

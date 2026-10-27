@@ -60,6 +60,17 @@ of stars: for a full-bleed stage), `backing` (cap backing pixels for a big soft 
 (the page's own drawing in the same frame, over the lines and under the rising words: the Lattice map's figures and
 crew, #433; no DOM reads in it).
 
+## The room's tempo (#262)
+
+Every field moves with its room's real activity, with nothing for the page to do. `useFlow` reads the room from the
+route (or `room`, `null` to opt out), takes its pulse from the stores the Desk already keeps (`useTempo.ts`, which
+starts and polls nothing of its own), and `tempoOf` (`tempo.ts`, tested) turns its activity into multipliers on every
+line's rate, density, brightness and spread: a busy room runs faster, fuller, brighter and thicker, the middle of the
+range leaves the page's own look as it is, and a room with nothing connected (or still waiting on its source) idles.
+Waiting lines are never scaled. The page's largest field also carries the small legend (`.fl-drive`, bottom right of
+its stage) saying what drives it, from `RoomPulse.drive`: "Foundry · 14 runs today · 2 PRs open", "Workshop · idle,
+nothing connected". Today's stage uses the same mapping, with its own legend under the Council.
+
 ## CSS (`flow.css`, scoped to `.fl-page`)
 
 Inside the Desk (`.desk`). A page outside the Desk's shell (the Lattice map, #433) puts `fl-root` on its own root and

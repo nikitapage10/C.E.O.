@@ -177,7 +177,7 @@ Nikita asked you something that the quick chat could not settle. You are the alw
 You finish by calling the "deliver" tool exactly once.
 
 Which questions you answer:
-- Facts and look-ups: scores, injuries and player news, build and check status, what is being built or waiting, counts and states in the rooms, current facts from the web. Use <rooms> and <desk> first, <brief> and <recent> for what you know already, and the web_search tool for anything current. Give "mode": "answer".
+- Facts and look-ups: scores, injuries and player news, build and check status, what is being built or waiting, counts and states in the rooms, the fantasy league's past weeks, current facts from the web. Use <rooms> and <desk> first, <brief> and <recent> for what you know already, the "sleeper_league" tool for Nikita's league (standings, and every matchup of any week, so a week-by-week history is a lookup, not a judgment call), and the web_search tool for anything current. Give "mode": "answer".
 - Anything that hinges on a decision, a plan, a preference or judgment: "what did we decide", "should we", design direction, which option to pick, what Nikita would prefer. You do not answer these here. Give "mode": "ponder" and a short in-character line saying you are chewing it over and will come back with a proper answer. Say nothing of the question's substance.
 - A request to build or change something (a feature, a fix, a new room): call "file_build_request" once (with a size: small, medium or large), then answer in character with the issue number it returns, and say the crew will pick it up. You never write code and you never promise a time.
 - Anything you cannot find out: say so plainly in character, or ponder. Never guess, and never make up a number, a score, a name or a result.
@@ -225,10 +225,12 @@ export interface AgentRequest {
   user: string;
   /** The file_build_request tool: files the issue (from Nikita's own words) and returns its number, or null. */
   fileBuild: (size: "small" | "medium" | "large") => Promise<number | null>;
+  /** The sleeper_league tool (./kernelleague.ts): read-only text about Nikita's league, for any week. */
+  league: (args: unknown) => Promise<string>;
 }
 
 export interface AgentRun {
-  /** The deliver tool's call, or null when the model never made one. */
+  /** The deliver tool's call (or, when the model just wrote its answer, that text); null when it gave neither. */
   out: { mode: "answer" | "ponder"; text: string } | null;
   /** Every call's usage, summed. */
   usage: Usage;
@@ -245,6 +247,8 @@ export interface AgentDeps {
   brief: () => Promise<string>;
   /** Plain lines of the Desk's state and the rooms', money values not yet taken out. */
   desk: () => Promise<{ desk: string; rooms: string }>;
+  /** The Sleeper league read-only look (./kernelleague.ts leagueText), live or stubbed. */
+  league: (args: unknown) => Promise<string>;
   /** Files an issue (foundry + foundry:chat); its number, or null. */
   fileIssue: (title: string, body: string) => Promise<number | null>;
   /** Keeps an answer on the turn (api/skippy.ts keepAnswer); whether it was kept. */
@@ -253,9 +257,16 @@ export interface AgentDeps {
 
 export type Outcome =
   | { state: "answered" | "pondering"; usd: number; filed?: number }
-  | { state: "off" | "no-key" | "gone" | "taken" | "capped" | "unusable" | "unkept" | "failed" | "cleared"; usd: number };
+  | { state: "off" | "no-key" | "gone" | "taken" | "capped" | "unusable" | "unkept" | "failed"; usd: number; why?: string };
 
-const idle = (state: Extract<Outcome, { usd: number }>["state"], usd = 0): Outcome => ({ state, usd }) as Outcome;
+const idle = (state: Extract<Outcome, { usd: number }>["state"], usd = 0, why?: string): Outcome => ({ state, usd, ...(why && { why }) }) as Outcome;
+
+/** What went wrong, by class only: an error's name and HTTP status, never its message (which may hold content). */
+export function whyOf(e: unknown): string {
+  const o = (e && typeof e === "object" ? e : {}) as { name?: unknown; status?: unknown };
+  const name = typeof o.name === "string" ? o.name.replace(/[^A-Za-z0-9]/g, "").slice(0, 40) : "Error";
+  return typeof o.status === "number" ? `${name}-${o.status}` : name;
+}
 
 /** The open hand-off to Skippy with this id, whichever room it is filed under. */
 export async function findHandoff(log: RoomLog, id: string, now: number): Promise<LoggedTurn | null> {
@@ -327,8 +338,10 @@ export async function respond(id: string, deps: AgentDeps): Promise<Outcome> {
       recentPairs(deps.log, deps.now, id).catch(() => ""),
     ]);
     let filed: number | undefined;
+    let why = "";
     const run = await deps
       .run({
+        league: (args) => deps.league(args).catch(() => "Sleeper isn't answering right now."),
         model,
         system: systemBlocks(brief),
         user: userTurn({ ...state, recent, question: turn.question }),
@@ -340,19 +353,24 @@ export async function respond(id: string, deps: AgentDeps): Promise<Outcome> {
           return n;
         },
       })
-      .catch(() => null);
-    if (!run) return idle("failed");
+      .catch((e) => {
+        why = whyOf(e);
+        return null;
+      });
+    // A run that could not finish is never silent: Nikita hears the pondering line and the hand-off stays open for the
+    // Magnificent (#507).
+    if (!run) return (await deps.keep({ id, text: ponderingLine(id), final: false })) ? idle("failed", 0, why) : idle("unkept", 0, why);
     // Every call that ran counts against the month, usable or not.
     const usd = runCost(model, run.usage, run.searches);
     await deps.ledger.add(deps.now, run.usage, usd).catch(() => undefined);
 
     const text = fitAnswer(run.out?.text);
-    if (!run.out || !text) return idle("unusable", usd);
+    if (!run.out || !text) return (await deps.keep({ id, text: ponderingLine(id), final: false })) ? idle("unusable", usd) : idle("unkept", usd);
     const final = run.out.mode === "answer";
     if (!(await deps.keep({ id, text, final }))) return idle("unkept", usd);
     return { state: final ? "answered" : "pondering", usd, ...(filed !== undefined && { filed }) };
-  } catch {
-    return idle("failed");
+  } catch (e) {
+    return idle("failed", 0, whyOf(e));
   }
 }
 

@@ -291,7 +291,9 @@ export async function roomLog(request: Request, deps: Pick<ChatDeps, "deskKey" |
     if (!(KEY_ASKED_ROOMS as readonly string[]).includes(room ?? "") || !isLogRoom(room) || (needs !== null && !isNeedsFilter(needs))) return json({ error: "bad-request" }, 400);
     if (!deps.log) return json({ error: "not-set-up" }, 503);
     try {
-      return json({ room, ...(needs && { needs }), turns: await deps.log.list(room, deps.now, needs ?? undefined) });
+      // A Talk call's submind exchanges (#479) stay Desk-only: the read key never lists them.
+      const turns = (await deps.log.list(room, deps.now, needs ?? undefined)).filter((t) => t.via !== "voice");
+      return json({ room, ...(needs && { needs }), turns });
     } catch {
       return json({ error: "unreadable" }, 502);
     }

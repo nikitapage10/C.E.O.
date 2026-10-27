@@ -33,6 +33,7 @@ import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
 import * as skippy from "../../api/skippy.js";
 import * as skippyvoice from "../../api/skippy-voice.js";
+import * as skippytools from "../../api/_skippy/toolroute.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
 import * as worldstep from "../../api/world-step.js";
 import * as world from "../../api/world.js";
@@ -105,6 +106,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // Talk to Skippy (#434): a live voice call on ElevenLabs Agents. Desk session only; mints one-session tokens under
   // the talk's share of ElevenLabs' $10 cap (api/_skippy/voice.ts). The key never leaves this Function App.
   ["skippy-voice", skippyvoice],
+  // A Talk call's live lookups (#479): ElevenLabs calls them mid-call with the call's own tool token only (signed,
+  // unexpired, kept with the call; api/_skippy/voicetoken.ts). Azure only; money leaves only to that call.
+  ["skippy-tools", skippytools],
   ["visual-qa-feed", visualqafeed],
   // Called on the Function App's own URL (no proxy cut), so the step waits for its day and week stories.
   ["world-step", worldstep, { settleMs: Infinity }],

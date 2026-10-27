@@ -284,6 +284,52 @@ curl -fsS -X POST -H "Content-Type: application/json" "$SITE/api/skippy-answer" 
   -d '{ "id": "3f9c0a1b2c3d4e5f", "from": "skippy", "text": "Shipped in number 481, live on the site." }'
 ```
 
+## On the call: live lookups and the subminds on the mic (#479)
+
+Nikita (2026-10-27): Skippy should know "pretty much everything that's going on in all the rooms at any point" while
+they talk, and a room's submind can take over the call with its own personality, in the same voice, without the call
+dropping. And: "he doesn't have to transfer me all the time… if it's just basic questions or basic knowledge, he can
+answer. But if it's something a little bit more specific to our room, then it takes over."
+
+- **Lookups mid-call.** The voice agent has webhook tools (ElevenLabs' server tools) that call
+  `GET /api/skippy-tools?read=<room>` on the site (Azure only, `api/_skippy/toolroute.ts`): `green`, `exchange` (the
+  public odds), `exchange_positions` (Nikita's book, in dollars), `relay` (counts only), `boiler`, `foundry` and
+  `voice_bill` (the month's ElevenLabs ledger). Each answers a few short lines built from the same reads the Desk's
+  room pages use (`api/_skippy/voicereads.ts`), scrubbed like the public feeds; only the book and the bill carry a
+  dollar figure, and only to the call that asked.
+- **Who may call them.** Only a live call. When the call's token is minted, the function mints a random tool token
+  for that call, signed with a key derived from `FOUNDRY_DESK_KEY` (no new secret) and good for the call's longest plus
+  two minutes, and keeps its hash with the call (`desk/skippy/voice-tools.json`). The browser passes it to ElevenLabs
+  as the secret dynamic variable `secret__ceo_tool`, which ElevenLabs binds only to tool headers and never shows the
+  LLM; each tool sends it back as `x-ceo-voice-tool`. The site gate lets exactly `GET` or `POST /api/skippy-tools`
+  through on a signed, unexpired token; the route checks it is kept and not ended, and holds a call to sixty tool calls.
+  The call's end revokes it.
+- **A beat to think.** Every tool is set to `pre_tool_speech: "force"` with a five-second `response_timeout_secs`, so
+  Skippy (or the submind on the mic) says a short in-character line first ("let's think about this…", "hold that
+  thought, checking the board"). The route gives each read 4.3 s; past that it answers `{ slow: true }` and the agent
+  says the data's slow and answers from what it already knows. Measured locally against the real upstreams: the Green
+  ~600 ms cold and ~2 ms warm, the Exchange ~190 ms cold and ~1 ms warm (server time only; ElevenLabs' network leg on
+  top).
+- **Handing work to the Kernel (#480).** Skippy's agent also carries `hand_to_kernel` (`POST ?act=kernel` with
+  `{ ask }`) and `check_answers` (`GET ?read=answers`). The first files the ask in the `kernel` room for Skippy's own
+  thread exactly as the typed chat does (privacy check first, at most five per call); Skippy says he's on it and keeps
+  talking. The answer comes back two ways: Skippy calls `check_answers` at a natural pause, and the Desk's chat, which
+  waits on the hand-off like a typed one (`GET /api/skippy-voice?handoffs=<conversation>` after each hand-off), tells
+  the live call the moment an answer lands with ElevenLabs' contextual update (`sendContextualUpdate`), so he reads it
+  out at the next pause. Once the call is over the answer simply lands in the typed chat.
+- **The mic.** Each active submind (the Commentator, the Bookie, the Messenger, the Pessimist, the Builder) has its own
+  ElevenLabs agent with its personality from the table above, its room's lookups only, Skippy's voice
+  (`ELEVENLABS_VOICE_ID`) and the call's limits (`api/_skippy/voicecrew.ts`). Skippy's agent carries ElevenLabs'
+  `transfer_to_agent` system tool with one rule per submind, and each submind one rule back to Skippy, so the mic moves
+  inside the same conversation. Skippy answers basic questions himself from a lookup; he hands over only for an
+  in-depth, room-specific ask (a play-by-play, start/sit reasoning, a trade or waiver breakdown, a walk through the
+  book, what broke and why, a build's story) or when Nikita asks for the submind by name. Nobody can call a submind
+  directly: its agent takes no token. They are made or updated lazily, like Skippy's, with a signature each in the store.
+- **The Council.** When the call is settled, its transcript is read once and each stretch a submind held the mic is
+  kept in its room's log (`via: "voice"`, `by` the submind): the question in short and the answer's gist, scrubbed, a
+  private-looking part held back whole (`api/_skippy/voicecouncil.ts`). The Council of Skippies shows them; the
+  subminds' read key never lists them.
+
 ## Room keys
 
 Nikita approved "Both tokens" on 2026-10-22 (#281). Nothing server-side can post into a project thread, and a thread

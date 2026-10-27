@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { RoomId } from "../../chronicle.ts";
 import { Private } from "../Private.tsx";
+import { stripTags } from "../hologram/tags.ts";
 import { useDeskAuth } from "../signin.ts";
 import { handedName, useAsked, whenAsked, type AskedRoom } from "../skippy/asked.ts";
 import { useSkippy } from "../skippy/chat.ts";
@@ -84,7 +85,7 @@ export function Talks({ room, who, heading = false }: { room: RoomId; who: strin
                 <b>{t.via === "voice" ? "You said on the call" : "You asked"}</b> <Private>{t.question}</Private>
               </p>
               <p className={`td-tk-a${t.via === "voice" ? " is-sub" : ""}`}>
-                <b>{t.via === "voice" && t.by ? `${handedName(t.by)}, on the mic` : "Skippy"}</b> <Private>{t.answer}</Private>
+                <b>{t.via === "voice" && t.by ? `${handedName(t.by)}, on the mic` : "Skippy"}</b> <Private>{stripTags(t.answer)}</Private>
               </p>
               {t.followUp && (
                 <p className="td-tk-a is-sub">

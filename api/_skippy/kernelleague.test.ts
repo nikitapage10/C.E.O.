@@ -155,3 +155,21 @@ describe("past-week facts go to the model and its tools, not to silence", () => 
     expect(t.kept).toHaveLength(0);
   });
 });
+
+describe("the roster read (#526)", () => {
+  it("lists starters and bench with Sleeper's injury status and leads with the Out starter", async () => {
+    const fx = sleeper();
+    const rosters = [{ ...ROSTERS[0], players: ["100", "200", "300", "400"], starters: ["100", "200"] }, ROSTERS[1], ROSTERS[2]];
+    const f = async (url: string) => (url.endsWith("/rosters") ? new Response(JSON.stringify(rosters), { status: 200 }) : fx.fetcher(url));
+    const names = async () => ({
+      "100": { n: "Sample Passer", pos: "QB", team: "AAA", inj: "O" },
+      "200": { n: "Sample Catcher", pos: "WR", team: "BBB", inj: null },
+      "300": { n: "Sample Backup", pos: "QB", team: "CCC", inj: null },
+      "400": { n: "Sample Hurt", pos: "RB", team: "DDD", inj: "Q" },
+    });
+    const text = await leagueText({ read: "roster" }, f, names);
+    expect(text.split("\n")[0]).toBe("Heads up: your starting QB Sample Passer is Out. Sample Backup is on your bench.");
+    expect(text).toContain("Sample Passer QB AAA Out");
+    expect(text).toContain("Sample Hurt RB DDD Questionable");
+  });
+});

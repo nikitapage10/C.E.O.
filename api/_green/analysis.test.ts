@@ -98,7 +98,7 @@ describe("the facts and the words (#276)", () => {
   it("says the facts plainly without Claude", () => {
     const w = scripted(factsOf(board()), 8);
     expect(w.headline).toBe("Denver Dream Team projects 93.4 to 104.2 against Waiver Wire Wizards, a 33% win chance.");
-    expect(w.waiver).toBe("Bid 17 on Wire Back (12 to 24) of your 96 FAAB, dropping Spare Part. It also keeps him from The Audible.");
+    expect(w.waiver).toBe("Bid 17 on Wire Back (12 to 24) of your 96 FAAB, dropping Spare Part. It also keeps him from The Audible. Unrostered, claim via waivers (status unconfirmed).");
     expect(w.byes).toBe("Week 10: Quarter Back on bye, short at QB.");
   });
 

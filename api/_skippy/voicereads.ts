@@ -144,10 +144,10 @@ export function greenText(b: GreenBoard | null): string {
   if (!b.calls?.length) for (const s of b.swaps.slice(0, 3)) lines.push(`${s.slot}: start ${who(s.in)}${s.out ? ` over ${who(s.out)}` : ""}, gains ${pts(s.gain)}.`);
   if (b.byes.length) lines.push(`On bye: ${b.byes.map((t) => said(t, 4)).join(", ")}.`);
   const bids = (b.bids ?? []).slice(0, 3).map((x) => `${said(x.player.name, 30)} ${x.player.pos}, bid ${x.bid} FAAB (${x.low} to ${x.high})${x.drop ? `, drop ${said(x.drop.name, 30)}` : ""}`);
-  if (bids.length) lines.push(`Waiver bids${b.me.faabLeft !== null ? ` (${b.me.faabLeft} FAAB left)` : ""}: ${bids.join("; ")}.`);
+  if (bids.length) lines.push(`Waiver bids (unrostered, claim via waivers, status unconfirmed; say "worth a claim if he's still on your wire", never that he is available)${b.me.faabLeft !== null ? ` (${b.me.faabLeft} FAAB left)` : ""}: ${bids.join("; ")}.`);
   else {
     const ups = b.pickups.slice(0, 3).map((x) => `${said(x.player.name, 30)} ${x.player.pos}${x.drop ? `, drop ${said(x.drop.name, 30)}` : ""}`);
-    if (ups.length) lines.push(`Pickups: ${ups.join("; ")}.`);
+    if (ups.length) lines.push(`Pickups (unrostered, claim via waivers, status unconfirmed; say "worth a claim if he's still on your wire", never that he is available): ${ups.join("; ")}.`);
   }
   if (b.trade) lines.push(`Trade idea with ${said(b.trade.team, 40)}: give ${b.trade.give.map((p) => said(p.name, 30)).join(" and ")}, get ${b.trade.get.map((p) => said(p.name, 30)).join(" and ")}. ${said(b.trade.why, 160)}`);
   if (b.odds) lines.push(`Playoff chance ${pct(b.odds.playoff)}, ${plural(b.odds.weeksLeft, "week")} left, top ${b.odds.playoffTeams} make it.${b.odds.swing[0] ? ` Root for ${said(b.odds.swing[0].root, 40)} in ${said(b.odds.swing[0].a, 40)} against ${said(b.odds.swing[0].b, 40)}.` : ""}`);

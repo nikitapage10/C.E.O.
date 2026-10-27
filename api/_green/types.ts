@@ -246,7 +246,7 @@ export interface GreenTeam {
   playoff: number | null;
 }
 
-/** A free agent worth a claim, priced for FAAB against the league's needs and budgets. */
+/** An unrostered player worth a waiver claim (availability unconfirmed), priced for FAAB against the league's needs and budgets. */
 export interface GreenBid {
   player: GreenPlayer;
   /** Suggested bid in FAAB units (0 when claims are free), and the range around it. */

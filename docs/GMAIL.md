@@ -16,13 +16,18 @@ the message, made plain text, links taken out and trimmed to 2,500 characters.
   read by a model, never kept.
 - Gmail's own **Promotions** and **Social** tabs are noise by rule: counted, never sent to a model.
 - **Dialtone** (`claude-haiku-5-5`) sorts everything else: **needs you**, **FYI**, **noise** or **skip** (money and
-  legal mail the first look missed), with a one-line summary and a suggested next step.
+  legal mail the first look missed), with a one-line summary and a suggested next step. Only **needs you** is kept
+  (#495): it must name a concrete action Nikita has to take (reply, sign, pay, decide, show up, confirm). Sign-in and
+  security alerts, receipts, shipping, notifications and newsletters are FYI and are not kept (counted with the noise),
+  unless the mail genuinely asks him to act ("confirm this sign-in or your account locks"). Automated senders
+  (no-reply, notifications, alerts, security, receipts, shipping) and List-Unsubscribe mail are told to Dialtone as
+  FYI-by-default. Each tick also drops stored FYI items and automated needs-you items with no explicit ask, free.
 - For **needs-you** mail only, **Blasto** (`claude-sonnet-5-5`) writes two or three sentences of advice and, when a
   reply makes sense, a short draft for Nikita to copy and send himself.
 - New needs-you mail **pings the phone** (the Desk's own Web Push pings, `api/_desk/pings.ts`): "An email needs you"
   or "3 emails need you", a count and nothing else, never between 10pm and 7am Mountain (held for the morning).
 - The **Desk's Relay page** shows the needs-you list (sender, subject, summary, step, advice, draft with **Copy draft**,
-  **Open in Gmail**, **Done**) and then FYI, folded. **Today** shows "N emails need you". The Lattice's Relay room has a
+  **Open in Gmail**, **Done**). **Today** shows "N emails need you". The Lattice's Relay room has a
   brass inbox board with the counts (needs you, FYI, noise, and a dial and sounder for the last check), its tubes drop
   one canister per new mail, and the Boiler Room has a Gmail pipe; Systems has a Gmail card. Live since 2026-10-23
   (#322).

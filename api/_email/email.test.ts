@@ -8,7 +8,7 @@ import { seal, sealKey, unseal } from "./seal.ts";
 import { ADVISE_SYSTEM, SORT_SYSTEM, fenceMail, mailInput, readAdvice, readSorted, type ClaudeCall, type ClaudeRequest } from "./sort.ts";
 import { EMAIL_STATUS_KEYS, emptyEmailStatus, readEmailStatus } from "./status.ts";
 import { MemoryEmailStore } from "./store.ts";
-import { HEADS_UP_REASONS, onSkipList, preFilter, skipTermsFrom, storedMailSkipped } from "./filter.ts";
+import { HEADS_UP_REASONS, automatedMail, onSkipList, storedNotAction, preFilter, skipTermsFrom, storedMailSkipped } from "./filter.ts";
 import { emailPing, purgeItems, tick, type TickDeps } from "./tick.ts";
 import { MAX_PER_TICK, emptyEmailState, type EmailItem } from "./types.ts";
 
@@ -332,7 +332,8 @@ describe("the minute", () => {
     expect(needs.subject).toBe("Dinner Thursday?");
     expect(needs.advice).toContain("Thursday");
     expect(needs.draft).toContain("Nikita");
-    expect(s.items.find((i) => i.kind === "fyi")?.subject).toBe("Your hold is ready");
+    // FYI mail is not kept: the list holds only mail that needs Nikita to act (#495).
+    expect(s.items.some((i) => i.kind === "fyi" || i.subject === "Your hold is ready")).toBe(false);
     expect(s.items.some((i) => i.subject.includes("50%"))).toBe(false);
     expect(deps.pings).toEqual(["An email needs you"]);
     expect(s.spend["2026-10"]!.calls).toBe(3);
@@ -385,8 +386,8 @@ describe("privacy", () => {
     const json = JSON.stringify({ ok: true, email: status });
     for (const s of secrets) expect(json, s).not.toContain(s);
     expect(status.needsYou).toBe(1);
-    expect(status.fyi).toBe(1);
-    expect(status.noise).toBe(1);
+    expect(status.fyi).toBe(0);
+    expect(status.noise).toBe(2);
   });
 
   it("the public status refuses anything extra or any free string", () => {
@@ -644,13 +645,13 @@ describe("the catch-up", () => {
     let s = (await store.load()).state;
     expect(s.catchUpListed).toBe(true);
     expect(s.catchUp).toEqual([]);
-    expect(s.items.map((i) => i.subject).sort()).toEqual(["Dinner Thursday?", "Your hold is ready"]);
+    expect(s.items.map((i) => i.subject).sort()).toEqual(["Dinner Thursday?"]);
     const g2 = fakeGoogle({ inbox: MAILS.map((m) => m.id) });
     await tick(tickDeps(store, { fetcher: g2.fetcher }));
     expect(catchUpLists(g2.calls)).toBe(0);
     expect(messageReads(g2.calls)).toBe(0);
     s = (await store.load()).state;
-    expect(s.items).toHaveLength(2);
+    expect(s.items).toHaveLength(1);
   });
 
   it("asks Gmail for unread inbox mail of the last two days, at most 24", async () => {
@@ -714,7 +715,7 @@ describe("the catch-up", () => {
     expect(await tick(deps)).toBe("started");
     const s = (await store.load()).state;
     expect(s.historyId).toBe("1000");
-    expect(s.items).toHaveLength(2);
+    expect(s.items).toHaveLength(1);
     expect(deps.pings).toEqual([]);
   });
 
@@ -860,7 +861,7 @@ describe("the purge of stored items", () => {
   });
 
   it("purgeItems drops matches and keeps the others", () => {
-    const state = { ...emptyEmailState(), items: [item("a00001", "Gemini", "Hello"), item("a00006", "Priya Fakename", "Dinner Thursday?")] };
+    const state = { ...emptyEmailState(), items: [item("a00001", "Gemini", "Hello"), item("a00006", "Priya Fakename", "Dinner Thursday?", { kind: "needs-you" })] };
     expect(purgeItems(state, []).items.map((i) => i.id)).toEqual(["a00006"]);
   });
 
@@ -884,5 +885,68 @@ describe("the purge of stored items", () => {
     expect(s.items.map((i) => i.id)).toEqual(["18a1b2c3d4e5f704"]);
     for (const gone of ["Kalshi", "purchase", "Chase", HEADS_UP_REASONS.overdue]) expect(store.stateJson!, gone).not.toContain(gone);
     expect((await store.status())!.needsYou).toBe(1);
+  });
+});
+
+describe("only mail that needs an action (#495)", () => {
+  const mail = (over: Partial<Parameters<typeof mailInput>[0]> = {}) => ({ id: "m1", at: NOW, from: "Example Service", fromDomain: "example.com", fromAddress: "no-reply@example.com", subject: "Hello", body: "Made-up body.", promo: false, bulk: false, ...over });
+
+  it("spots automated senders, lists and automated subjects, and leaves people alone", () => {
+    for (const fromAddress of ["no-reply@example.com", "noreply@example.com", "notifications@example.com", "alerts@example.com", "security@example.com", "receipts@example.com", "shipping@example.com"]) {
+      expect(automatedMail({ fromAddress, subject: "Hello" }), fromAddress).toBe(true);
+    }
+    expect(automatedMail({ fromAddress: "news@example.com", subject: "Hello", bulk: true })).toBe(true);
+    expect(automatedMail({ fromAddress: "x@example.com", subject: "New sign-in to your account" })).toBe(true);
+    expect(automatedMail({ fromAddress: "x@example.com", subject: "Your package has shipped" })).toBe(true);
+    expect(automatedMail({ fromAddress: "priya@example.com", subject: "Dinner Thursday?" })).toBe(false);
+  });
+
+  it("tells the model an automated mail is fyi unless it asks for something", () => {
+    expect(mailInput(mail())).toContain("looks automated");
+    expect(mailInput(mail({ fromAddress: "priya@example.com", subject: "Dinner Thursday?" }))).not.toContain("looks automated");
+  });
+
+  it("the prompt asks for a named action and sends alerts and receipts to fyi", () => {
+    expect(SORT_SYSTEM).toContain("name that action");
+    expect(SORT_SYSTEM).toMatch(/sign-in and security alerts, receipts/);
+    expect(SORT_SYSTEM).toContain("update your card");
+  });
+
+  it("needs-you without a concrete action becomes fyi", () => {
+    for (const action of ["", "Nothing to do", "none", "No action needed", "Have a look"]) {
+      expect(readSorted({ kind: "needs-you", urgent: "none", summary: "A made-up sign-in alert.", action })?.kind, action).toBe("fyi");
+    }
+    expect(readSorted({ kind: "needs-you", urgent: "none", summary: "Priya asks about dinner.", action: "Reply to confirm" })?.kind).toBe("needs-you");
+  });
+
+  it("an automated alert sorted fyi leaves no item, and a real ask is kept", async () => {
+    const store = await connectedStore();
+    const call: ClaudeCall = async (req) => {
+      const usage = { input_tokens: 900, output_tokens: 80 };
+      if (req.model !== SORT_MODEL) return { answer: { advice: "Check the account.", draft: "" }, usage };
+      const ask = req.user.includes("Confirm this sign-in");
+      return { answer: { kind: ask ? "needs-you" : "fyi", urgent: "none", summary: ask ? "A service says to confirm a sign-in or the account locks." : "A service reports a new sign-in.", action: ask ? "Confirm the sign-in" : "Nothing to do" }, usage };
+    };
+    const mails = [
+      { id: "18a1b2c3d4e5f801", from: "Example Service <no-reply@example.com>", subject: "New sign-in to your account", body: "A new sign-in happened on a Mac." },
+      { id: "18a1b2c3d4e5f802", from: "Example Service <security@example.com>", subject: "Confirm this sign-in", body: "Confirm this sign-in within a day or your account locks." },
+    ];
+    const deps = tickDeps(store, { claude: call, fetcher: fakeGoogle({ mails, history: [page(mails.map((m) => m.id))] }).fetcher });
+    await tick(deps);
+    const s = (await store.load()).state;
+    expect(s.items.map((i) => [i.id, i.kind])).toEqual([["18a1b2c3d4e5f802", "needs-you"]]);
+    expect(s.day.noise).toBe(1);
+  });
+
+  it("the purge drops stored fyi and automated needs-you mail with no ask, and keeps people and real asks", () => {
+    const base = { at: NOW, done: false, action: "", summary: "" };
+    const it = (id: string, from: string, subject: string, kind: EmailItem["kind"], summary = ""): EmailItem => ({ ...base, id, from, subject, kind, summary });
+    expect(storedNotAction(it("b00001", "Anyone", "Your hold is ready", "fyi"))).toBe(true);
+    expect(storedNotAction(it("b00002", "Example <no-reply@example.com>", "New sign-in to your account", "needs-you"))).toBe(true);
+    expect(storedNotAction(it("b00003", "Example <no-reply@example.com>", "Confirm this sign-in", "needs-you"))).toBe(false);
+    expect(storedNotAction(it("b00004", "Priya Fakename", "Dinner Thursday?", "needs-you"))).toBe(false);
+    expect(storedNotAction(it("b00005", "Example <alerts@example.com>", "Heads up", "needs-you", "Update your card or the account locks."))).toBe(false);
+    const state = { ...emptyEmailState(), items: [it("b00001", "Anyone", "Your hold is ready", "fyi"), it("b00004", "Priya Fakename", "Dinner Thursday?", "needs-you")] };
+    expect(purgeItems(state, []).items.map((i) => i.id)).toEqual(["b00004"]);
   });
 });

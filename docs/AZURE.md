@@ -173,9 +173,9 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    `skippyBudgetUsd`, `emailBudgetUsd`, `paypalEnv=live`) on the first-time paste, and later deploys
    keep the new value. Any other setting added in the portal makes the deploy skip the template (it would remove it)
    and say so, so add new settings to the template instead.
-   ElevenLabs' settings (#365, #472) are the code's own defaults and need no app setting: `ELEVENLABS_BUDGET_USD`
+   ElevenLabs' settings (#365, #472) are the code's own defaults: `ELEVENLABS_BUDGET_USD`
    (default `10`, never above 10) and `ELEVENLABS_VOICE_ID` (default Daniel, `onwK4e9ZLuTAKqWW03F9`, a premade British
-   male voice), the **one** setting that picks the voice for everything spoken: the day's story, the week and Talk to
+   male voice; the template sets Nikita's custom Skippy voice, `UmB8prvfojxqchgnJYWe`, #475), the **one** setting that picks the voice for everything spoken: the day's story, the week and Talk to
    Skippy all read it through `elevenVoice` in `api/_world/story.ts`. Talk to Skippy (#434, `api/skippy-voice.ts`) uses the same key and voice and needs no setting either:
    `ELEVENLABS_VOICE_BUDGET_USD` (its share of that $10, default `5`, never above the cap), three-minute calls counted
    at $0.12 a minute (about 41 minutes a month), and its one private agent is made from code on the first call (the

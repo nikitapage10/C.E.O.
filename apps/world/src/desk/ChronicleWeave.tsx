@@ -228,7 +228,8 @@ export function Edition({ today, yesterday, entries, hourNow, onRead }: { today:
   const ready: Ready | null = mine && typeof mine === "object" && mine.ready ? mine : prev && typeof prev === "object" && prev.ready ? prev : null;
   const isToday = ready?.day !== yesterday;
   const why = mine && typeof mine === "object" && !mine.ready ? mine.reason : null;
-  const { lines, dur } = useMemo(() => (ready ? fromScript(ready.script, ready.durationSec) : fromHours(entries)), [ready, entries]);
+  // A script waiting on ElevenLabs (#472) has no length of its own yet: it reads along at a speaking pace.
+  const { lines, dur } = useMemo(() => (ready ? fromScript(ready.script, ready.audio ? ready.durationSec : Math.max(10, ready.script.split(" ").length / 2.6)) : fromHours(entries)), [ready, entries]);
   const { makeControls, noteLine } = useStoryMaker(today);
 
   const [on, setOn] = useState(false);
@@ -264,7 +265,7 @@ export function Edition({ today, yesterday, entries, hourNow, onRead }: { today:
     const a = audio.current;
     let last = performance.now();
     const id = window.setInterval(() => {
-      if (a && ready && !silent) {
+      if (a && ready?.audio && !silent) {
         setT(a.currentTime);
         if (a.ended) setOn(false);
       } else {
@@ -295,7 +296,7 @@ export function Edition({ today, yesterday, entries, hourNow, onRead }: { today:
       return;
     }
     const restart = t >= dur - 0.05;
-    if (ready && audio.current && !silent) {
+    if (ready?.audio && audio.current && !silent) {
       audio.current.currentTime = restart ? 0 : t;
       void audio.current.play().catch(() => setSilent(true));
     }
@@ -339,14 +340,14 @@ export function Edition({ today, yesterday, entries, hourNow, onRead }: { today:
         </article>
         <div className="ax-recto">
           <header className="ax-run ax-run-r">
-            <span>{ready ? `${made ? `Made ${made}` : "Read aloud"} · ${formatDuration(ready.durationSec)}` : lines.length ? "The hours so far" : "Nothing to read yet"}</span>
+            <span>{ready ? (ready.audio ? `${made ? `Made ${made}` : "Read aloud"} · ${formatDuration(ready.durationSec)}` : `${made ? `Written ${made}` : "Written"} · audio waiting on ElevenLabs`) : lines.length ? "The hours so far" : "Nothing to read yet"}</span>
           </header>
           <div className="ax-ed-ctl">
             <PlayRing on={on} pr={pr} onClick={play} disabled={!lines.length} label={on ? "Pause" : ready ? "Play Today in Ilyr" : "Read the hours along"} />
             <div className="ax-ed-by">
               <img src={SKIPPY_PORTRAIT} alt="" width={40} height={40} decoding="async" />
               <span>
-                <b>{ready ? "Read by Skippy, the Magnificent" : "Not read aloud yet"}</b>
+                <b>{ready?.audio ? "Read by Skippy, the Magnificent" : ready ? "Waiting on ElevenLabs" : "Not read aloud yet"}</b>
                 <small>{ready ? `${formatDuration(t)} of ${formatDuration(dur)}` : lines.length ? "Play reads the hours along, quietly" : "Nothing to read yet"}</small>
               </span>
             </div>
@@ -374,7 +375,8 @@ export function Edition({ today, yesterday, entries, hourNow, onRead }: { today:
           </p>
         </div>
       </div>
-      {ready && <audio ref={audio} preload="none" src={ready.audio} onPause={() => !silent && setOn(false)} onEnded={() => setOn(false)} onError={() => setSilent(true)} />}
+      {ready?.waiting && <p className="wv-note ax-ed-make">{STORY_WHY(ready.waiting)}</p>}
+      {ready?.audio && <audio ref={audio} preload="none" src={ready.audio} onPause={() => !silent && setOn(false)} onEnded={() => setOn(false)} onError={() => setSilent(true)} />}
       {ready?.stale && isToday && (
         <div className="ax-ed-make">
           <p className="wv-note">Read in an older voice. Make it now remakes it once in Skippy's.</p>
@@ -469,7 +471,7 @@ export function WeekTold({ weeks, monday, written }: { weeks: string[]; monday: 
             {story?.audio && <PlayRing on={on} pr={story.durationSec ? Math.min(1, t / story.durationSec) : 0} onClick={toggle} label={on ? "Pause the week" : "Play the week in Ilyr"} />}
             <span>
               <b>{lastWeek ? "Last week, told by the cast" : "The week, told by the cast"}</b>
-              <small>Sunday evening{story?.audio ? ` · ${formatDuration(story.durationSec)}` : " · not read aloud"}</small>
+              <small>Sunday evening{story?.audio ? ` · ${formatDuration(story.durationSec)}` : story ? " · audio waiting on ElevenLabs" : " · not read aloud"}</small>
             </span>
             {story && (
               <button className="ax-more" type="button" aria-expanded={read} onClick={() => setRead(!read)}>

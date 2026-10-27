@@ -127,12 +127,12 @@ jobs:
           APP: ${{ steps.az.outputs.name }}
           DEPLOYER: ${{ steps.az.outputs.deployer }}
           DEPLOY_OID: ${{ steps.roles.outputs.oid }}
-        # Values only of the six plain settings the paste could have set differently; names only of the rest.
+        # Values only of the five plain settings the paste could have set differently; names only of the rest.
         run: |
           az bicep install --version v0.37.4
           az bicep build -f infra/main.bicep --stdout > main.json
           az functionapp config appsettings list -g "$RG" -n "$APP" -o json \
-            --query "[?name=='CEO_SITE_URL'||name=='PAYPAL_ENV'||name=='WORLD_BUDGET_USD'||name=='GEMINI_BUDGET_USD'||name=='SKIPPY_BUDGET_USD'||name=='EMAIL_BUDGET_USD'].{name:name,value:value}" > live.json
+            --query "[?name=='CEO_SITE_URL'||name=='PAYPAL_ENV'||name=='WORLD_BUDGET_USD'||name=='SKIPPY_BUDGET_USD'||name=='EMAIL_BUDGET_USD'].{name:name,value:value}" > live.json
           az functionapp config appsettings list -g "$RG" -n "$APP" -o json --query "[].name" > names.json
           cap=$(az monitor log-analytics workspace show -g "$RG" -n log-ceo --query workspaceCapping.dailyQuotaGb -o tsv 2>/dev/null || true)
           if [ -z "$DEPLOYER" ]; then

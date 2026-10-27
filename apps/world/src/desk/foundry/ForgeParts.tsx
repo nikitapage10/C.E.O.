@@ -228,13 +228,13 @@ export function RunsLine({ now }: { now: number }) {
 
 export function UsageLine({ usage, world, now, children }: { usage: UsageFeed | null; world: WorldFeed | null; now: number; children?: ReactNode }) {
   const month = usage ? monthSpend(usage.trails, now) : null;
-  const speech = (world?.story?.usd ?? 0) + (world?.story?.elevenUsd ?? 0);
-  const speechCap = (world?.story?.budget ?? 0) + (world?.story?.elevenBudget ?? 0);
+  const speech = world?.story?.elevenUsd ?? 0;
+  const speechCap = world?.story?.elevenBudget ?? 0;
   const cap = SPEND_CAP_USD + speechCap;
-  // Today in Ilyr's voice (#365): ElevenLabs first, Gemini's speech when it fails or passes its cap.
+  // Today in Ilyr's voice: ElevenLabs only (#472), no fallback.
   const parts = [
     { k: "boiler", b: "The living Lattice", s: "Claude API, hourly", usd: world?.spend.usd ?? 0 },
-    { k: "archive", b: "Today in Ilyr", s: "ElevenLabs, Gemini fallback", usd: speech },
+    { k: "archive", b: "Today in Ilyr", s: "ElevenLabs", usd: speech },
     { k: "foundry", b: "Idea shaping", s: "Claude API, Rivet", usd: month?.usd ?? 0 },
     { k: "workshop", b: "Today's scripts", s: "Claude API, Skippy", usd: world?.story?.scriptUsd ?? 0 },
   ];

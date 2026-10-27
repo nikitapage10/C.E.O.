@@ -22,7 +22,7 @@ export const ZONES: Record<ZoneId, { name: string; trust: string; holds: string[
     trust: "Built from main",
     holds: ["Static site: Lattice and Desk", "api/desk-auth: passkeys, sessions", "api/desk-pings: pings to the phone", "api/foundry: Desk buttons, Rivet", "api/skippy: Skippy's chat", "api/foundry-image", "Read feeds: Foundry, usage, security", "api/world-step, api/world, api/day-story", "Azure Blob: world, stories, pictures, passkeys"],
   },
-  claude: { name: "Claude and Gemini APIs", trust: "No tools", holds: ["Rivet, the world step and Skippy's chat (Haiku)", "The day's story (Gemini speech)", "Visual QA's review (Gemini, from CI)"] },
+  claude: { name: "Claude, ElevenLabs and Gemini APIs", trust: "No tools", holds: ["Rivet, the world step and Skippy's chat (Haiku)", "The day's story (ElevenLabs speech, the only voice)", "Visual QA's review (Gemini, from CI)"] },
   github: { name: "GitHub, public repo", trust: "Public", holds: ["Issues, comments, labels", "Code and main", "Actions: checks, scans, Visual QA"] },
   builder: { name: "Claude Code sessions", trust: "Checked, not trusted", holds: ["The Builder and workers"] },
 };
@@ -235,9 +235,9 @@ export const OWASP_LLM: LlmRisk[] = [
   {
     id: "LLM10",
     name: "Unbounded Consumption",
-    where: "Claude spend; Gemini speech and Visual QA spend; GitHub token quota; function CPU",
+    where: "Claude spend; ElevenLabs speech and Gemini Visual QA spend; GitHub token quota; function CPU",
     controls:
-      "Coded budget guard for the world step (`api/_world/budget.ts`); Skippy's chat has its own share of the month and a check against the whole cap before every call, and a per-passkey pace (`api/_skippy/budget.ts`, `api/_skippy/limits.ts`, #224); Gemini's own coded monthly cap and one story per day, made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
+      "Coded budget guard for the world step (`api/_world/budget.ts`); Skippy's chat has its own share of the month and a check against the whole cap before every call, and a per-passkey pace (`api/_skippy/budget.ts`, `api/_skippy/limits.ts`, #224); ElevenLabs' own coded monthly cap and each edition made once (`api/_world/story.ts`); per-run and per-day caps for Visual QA (`api/_visualqa/review.ts`); provider-side monthly cap; `max_tokens` on every call; note and output length caps; feed cache hardening (#63); `scrub` now linear on long input (bounded patterns, titles cut before scrubbing)",
     residual: "The world step's trigger stays open on purpose: calling it more often changes nothing, so the 55-minute spacing and the monthly budget guard bound the spend, and a key was left out",
     tracking: "Covered: 55-minute spacing and the monthly budget guard (closed #171)",
   },

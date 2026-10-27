@@ -1,41 +1,33 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryStore } from "./store.ts";
 import {
-  canSpeak,
   chronicleScript,
   cleanScript,
-  geminiBudget,
-  geminiPrice,
   makeStory,
   MemoryStoryStore,
   pcmOf,
-  rateOfMime,
   SAMPLE_RATE,
-  speak,
-  speechRequest,
   spokenOf,
-  storyCeiling,
   STORY_STYLE,
   storyPrompt,
-  SKIPPY_VOICE,
   editionAt,
   elevenBudget,
+  elevenCost,
   elevenFromEnv,
   elevenVoice,
+  ELEVEN_MAX_CHARS,
   ELEVEN_MODEL,
   ELEVEN_URL,
   ELEVEN_VOICE,
   mountainOf,
-  TTS_MODEL,
-  TTS_URL,
-  TTS_VOICE,
+  voiceBlocked,
   wavOf,
   type ScriptWriter,
 } from "./story.ts";
+import * as story from "./story.ts";
 import type { DayPage, HistoryEntry } from "./types.ts";
 
-const KEY = "AIzaTESTKEY-do-not-leak-0123456789";
-/** 10 pm Mountain on 13 October 2026 (Gemini's launch price). */
+/** 10 pm Mountain on 13 October 2026. */
 const NOW = Date.parse("2026-10-14T04:00:00Z");
 const DAY = "2026-10-13";
 
@@ -59,30 +51,24 @@ async function worldWith(page: Partial<DayPage>) {
   return world;
 }
 
-/** Two seconds of silence-ish PCM, and Gemini's answer around it. */
+/** Two seconds of silence-ish PCM at 24 kHz, as ElevenLabs answers for pcm_24000. */
 const PCM = new Uint8Array(SAMPLE_RATE * 2 * 2).map((_, i) => i % 7);
-const geminiAnswer = (bytes: Uint8Array = PCM, meta: { mime_type?: string; sample_rate?: number } = {}) => ({
-  status: "completed",
-  steps: [
-    { type: "user_input", content: [{ type: "text", text: "ignored" }] },
-    { type: "model_output", content: [{ type: "audio", data: Buffer.from(bytes).toString("base64"), ...meta }] },
-  ],
-  usage: { total_input_tokens: 400, total_output_tokens: 2_500 },
-});
-const geminiFetch = (body: unknown = geminiAnswer(), status = 200) => vi.fn<typeof fetch>(async () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
+const elevenFetch = (status = 200, type = "application/octet-stream") =>
+  vi.fn<typeof fetch>(async () => new Response(status === 200 ? new Uint8Array(PCM) : JSON.stringify({ detail: "nope" }), { status, headers: { "Content-Type": type } }));
+const ELEVEN_KEY = "sk_eleventestkey_do_not_leak_0123456789";
+const eleven = { key: ELEVEN_KEY, voice: ELEVEN_VOICE, budget: 10 };
 
 const LONG = Array.from({ length: 30 }, (_, i) => `Sentence ${i} of the day in Ilyr.`).join(" ");
 const writer = (text = LONG): ScriptWriter => vi.fn(async () => ({ text, usd: 0.0008 }));
 
-const deps = async (over: { world?: MemoryStore; write?: ScriptWriter | null; fetcher?: ReturnType<typeof geminiFetch>; key?: string } = {}) => ({
+const deps = async (over: { world?: MemoryStore; write?: ScriptWriter | null; fetcher?: ReturnType<typeof elevenFetch>; eleven?: typeof eleven | null } = {}) => ({
   world: over.world ?? (await worldWith({})),
   stories: new MemoryStoryStore(),
   day: DAY,
   now: NOW,
-  key: over.key ?? KEY,
-  budget: 5,
+  eleven: over.eleven === undefined ? eleven : over.eleven,
   write: over.write === undefined ? writer() : over.write,
-  fetcher: over.fetcher ?? geminiFetch(),
+  fetcher: over.fetcher ?? elevenFetch(),
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -110,7 +96,7 @@ describe("the WAV wrapper", () => {
     expect([...wav.subarray(44)]).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
-  it("reads the samples back out of a WAV (if Gemini sends one) and passes raw PCM through", () => {
+  it("reads the samples back out of a WAV (if one comes back) and passes raw PCM through", () => {
     const wav = wavOf(PCM, 24_000);
     const back = pcmOf(wav);
     expect(back.sampleRate).toBe(24_000);
@@ -120,7 +106,7 @@ describe("the WAV wrapper", () => {
 });
 
 describe("the sample rate (#107)", () => {
-  it("defaults to Gemini's native 24 kHz, never 16 kHz", () => {
+  it("defaults to 24 kHz, never 16 kHz", () => {
     expect(SAMPLE_RATE).toBe(24_000);
     expect(pcmOf(PCM).sampleRate).toBe(24_000);
     expect(pcmOf(PCM, undefined).sampleRate).toBe(24_000);
@@ -129,34 +115,13 @@ describe("the sample rate (#107)", () => {
     expect(new DataView(wavOf(PCM).buffer).getUint32(24, true)).toBe(24_000);
   });
 
-  it("reads the rate from a mime type's parameters", () => {
-    expect(rateOfMime("audio/L16;codec=pcm;rate=24000")).toBe(24_000);
-    expect(rateOfMime("audio/l16; rate=16000")).toBe(16_000);
-    expect(rateOfMime('audio/L16; codec=pcm; RATE="8000"')).toBe(8_000);
-    expect(rateOfMime("audio/pcm;sample_rate=44100")).toBe(44_100);
-    expect(rateOfMime("audio/l16")).toBeUndefined();
-    expect(rateOfMime("audio/l16;rate=0")).toBeUndefined();
-    expect(rateOfMime("audio/l16;rate=99999999")).toBeUndefined();
-    expect(rateOfMime(undefined)).toBeUndefined();
-  });
-
   it("lets raw PCM take the declared rate, and a WAV header win over it", () => {
     expect(pcmOf(PCM, 16_000).sampleRate).toBe(16_000);
     expect(pcmOf(wavOf(PCM, 22_050), 16_000)).toEqual({ pcm: PCM, sampleRate: 22_050 });
   });
 
-  it("takes the rate the answer reports, and times the story by it", async () => {
-    const at = async (meta: { mime_type?: string; sample_rate?: number }) =>
-      (await speak("Today.", KEY, geminiFetch({ ...geminiAnswer(PCM, meta), usage: undefined })))!;
-    // PCM is two seconds at 24 kHz.
-    expect(await at({})).toMatchObject({ sampleRate: 24_000, tokensOut: 50 });
-    expect(await at({ mime_type: "audio/L16;codec=pcm;rate=24000" })).toMatchObject({ sampleRate: 24_000 });
-    expect(await at({ mime_type: "audio/L16;codec=pcm;rate=16000" })).toMatchObject({ sampleRate: 16_000, tokensOut: 75 });
-    expect(await at({ mime_type: "audio/l16;rate=16000", sample_rate: 24_000 })).toMatchObject({ sampleRate: 24_000 });
-  });
-
   it("labels the saved WAV with the rate the audio came in", async () => {
-    const d = await deps({ fetcher: geminiFetch(geminiAnswer(PCM, { mime_type: "audio/L16;codec=pcm;rate=24000" })) });
+    const d = await deps();
     const made = await makeStory(d);
     expect(made.made && made.story.durationSec).toBe(2);
     const wav = d.stories.audio.get(DAY)!;
@@ -164,82 +129,67 @@ describe("the sample rate (#107)", () => {
   });
 });
 
-describe("the speech call", () => {
-  it("asks for one voice, raw PCM, the storyteller's style, with the key only in a header", async () => {
-    const fetcher = geminiFetch();
-    const got = await speak("Settle in.", KEY, fetcher);
-    expect(got?.pcm).toEqual(PCM);
-    expect(got?.tokensOut).toBe(2_500);
-    const [url, init] = fetcher.mock.calls[0]!;
-    expect(url).toBe(TTS_URL);
-    expect(String(url)).not.toContain(KEY);
-    expect((init!.headers as Record<string, string>)["x-goog-api-key"]).toBe(KEY);
-    const body = JSON.parse(String(init!.body));
-    expect(body).toEqual(speechRequest("Settle in."));
-    expect(body.model).toBe(TTS_MODEL);
-    expect(body.generation_config.speech_config).toEqual([{ voice: TTS_VOICE }]);
-    expect(body.response_format).toEqual({ type: "audio", mime_type: "audio/l16", sample_rate: SAMPLE_RATE });
-    expect(JSON.stringify(body)).not.toContain(KEY);
+describe("ElevenLabs alone (#472)", () => {
+  it("has no other voice left to call: no Gemini speech, key or budget in the story's code", () => {
+    for (const gone of ["speak", "speechRequest", "geminiKey", "geminiBudget", "geminiPrice", "canSpeak", "TTS_MODEL", "TTS_URL", "SKIPPY_VOICE", "HISTORIAN_VOICE"]) expect(story).not.toHaveProperty(gone);
   });
 
-  it("is null when Gemini fails, answers without audio, or can't be reached", async () => {
-    expect(await speak("x", KEY, geminiFetch({ error: "nope" }, 500))).toBeNull();
-    expect(await speak("x", KEY, geminiFetch({ status: "completed", steps: [{ type: "model_output", content: [{ type: "text", text: "hi" }] }] }))).toBeNull();
-    expect(await speak("x", KEY, geminiFetch({ ...geminiAnswer(), status: "failed" }))).toBeNull();
-    expect(await speak("x", KEY, vi.fn<typeof fetch>(async () => Promise.reject(new Error("offline"))))).toBeNull();
-  });
-});
-
-describe("the budget", () => {
-  it("prices Gemini 3.8 Flash TTS from Google's page: $0.50 / $9 per million through 2026, then $1 / $18", () => {
-    expect(geminiPrice(NOW)).toEqual({ input: 0.5, output: 9 });
-    expect(geminiPrice(Date.parse("2027-01-01T00:00:00Z"))).toEqual({ input: 1, output: 18 });
-    expect(storyCeiling(NOW)).toBeLessThan(0.03);
+  it("is blocked only by its own key and cap", () => {
+    expect(voiceBlocked({}, NOW, null)).toBe("no-key");
+    expect(voiceBlocked({}, NOW, eleven)).toBeNull();
+    expect(voiceBlocked({ "2026-10": { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 9.99 } }, NOW, eleven)).toBe("over-budget");
+    // Gemini's spend from before #472 never stands in ElevenLabs' way.
+    expect(voiceBlocked({ "2026-10": { usd: 99, tokensIn: 0, tokensOut: 0, calls: 9, stories: 9, scriptUsd: 0 } }, NOW, eleven)).toBeNull();
+    expect(voiceBlocked({ "2026-09": { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 99 } }, NOW, eleven)).toBeNull();
   });
 
-  it("reads GEMINI_BUDGET_USD: default $5, never above $10", () => {
-    expect(geminiBudget(undefined)).toBe(5);
-    expect(geminiBudget("")).toBe(5);
-    expect(geminiBudget("2")).toBe(2);
-    expect(geminiBudget("50")).toBe(10);
-    expect(geminiBudget("lots")).toBe(5);
-  });
-
-  it("stops once one more story could pass the cap", () => {
-    expect(canSpeak({}, NOW, 5)).toBe(true);
-    expect(canSpeak({ "2026-10": { usd: 5 - storyCeiling(NOW) / 2, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0 } }, NOW, 5)).toBe(false);
-    expect(canSpeak({ "2026-09": { usd: 99, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0 } }, NOW, 5)).toBe(true);
+  it("checks the cap against the longest script it sends, the week's included", () => {
+    expect(elevenCost(ELEVEN_MAX_CHARS)).toBeCloseTo(0.16, 10);
+    expect(ELEVEN_MAX_CHARS).toBeGreaterThanOrEqual(230 * 8);
   });
 });
 
 describe("making the day's story", () => {
-  it("without a key, calls nothing and says so", async () => {
-    const d = await deps({ key: "" });
+  it("without ElevenLabs' key, calls no voice, keeps the script and says the audio waits on ElevenLabs", async () => {
+    const d = await deps({ eleven: null });
     const r = await makeStory(d);
     expect(r).toMatchObject({ made: false, reason: "no-key" });
+    expect(r.story).toMatchObject({ day: DAY, audio: false, durationSec: 0, writer: "claude" });
     expect(d.fetcher).not.toHaveBeenCalled();
-    expect(d.write).not.toHaveBeenCalled();
+    expect(await d.stories.readStory(DAY)).toMatchObject({ audio: false, script: r.story!.script });
+    expect(await d.stories.readAudio(DAY)).toBeNull();
+    // Looking again while it still can't read costs nothing: no second script, no call.
+    expect(await makeStory({ ...d, now: NOW + 3_600_000 })).toMatchObject({ made: false, reason: "no-key" });
+    expect(d.write).toHaveBeenCalledTimes(1);
+    expect(d.fetcher).not.toHaveBeenCalled();
   });
 
-  it("with the month's cap reached, calls nothing and says so", async () => {
+  it("with ElevenLabs' cap reached, calls nothing, keeps the script, and reads that same script once there is room", async () => {
     const d = await deps();
-    d.stories.spend = { "2026-10": { usd: 4.99, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0 } };
+    d.stories.spend = { "2026-10": { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 9.99 } };
     const r = await makeStory(d);
     expect(r).toMatchObject({ made: false, reason: "over-budget" });
+    expect(r.story).toMatchObject({ audio: false });
     expect(d.fetcher).not.toHaveBeenCalled();
-    expect(d.write).not.toHaveBeenCalled();
+    // The month turns: the waiting script is read, not written again.
+    const next = await makeStory({ ...d, now: Date.parse("2026-11-01T12:00:00Z") });
+    expect(next.made && next.story).toMatchObject({ script: r.story!.script, reader: "elevenlabs", durationSec: 2 });
+    expect(next.made && "audio" in next.story).toBe(false);
+    expect(d.write).toHaveBeenCalledTimes(1);
+    expect(d.fetcher).toHaveBeenCalledTimes(1);
   });
 
-  it("makes it once, stores the WAV and the script, and records what Gemini cost", async () => {
+  it("makes it once, stores the WAV and the script, and records what ElevenLabs cost", async () => {
     const d = await deps();
     const r = await makeStory(d);
     expect(r.made).toBe(true);
     if (!r.made) return;
-    expect(r.story).toMatchObject({ day: DAY, partial: false, writer: "claude", model: TTS_MODEL, voice: SKIPPY_VOICE.voice, reader: "gemini", durationSec: 2 });
-    expect(r.story.cost.usd).toBeCloseTo((400 * 0.5 + 2_500 * 9) / 1e6, 10);
+    expect(r.story).toMatchObject({ day: DAY, partial: false, writer: "claude", model: ELEVEN_MODEL, voice: ELEVEN_VOICE, reader: "elevenlabs", durationSec: 2 });
+    const sent = JSON.parse(String(d.fetcher.mock.calls[0]![1]!.body)).text as string;
+    expect(r.story.cost.usd).toBeCloseTo(elevenCost(sent.length), 10);
     const wav = await d.stories.readAudio(DAY);
     expect(String.fromCharCode(...wav!.subarray(0, 4))).toBe("RIFF");
-    expect(d.stories.spend["2026-10"]).toMatchObject({ calls: 1, stories: 1, tokensOut: 2_500, scriptUsd: 0.0008 });
+    expect(d.stories.spend["2026-10"]).toMatchObject({ elevenCalls: 1, stories: 1, scriptUsd: 0.0008, usd: 0, calls: 0 });
   });
 
   it("is idempotent per day: a second call spends nothing", async () => {
@@ -249,7 +199,7 @@ describe("making the day's story", () => {
     expect(again).toMatchObject({ made: false, reason: "exists" });
     expect(d.fetcher).toHaveBeenCalledTimes(1);
     expect(d.write).toHaveBeenCalledTimes(1);
-    expect(d.stories.spend["2026-10"]!.calls).toBe(1);
+    expect(d.stories.spend["2026-10"]!.elevenCalls).toBe(1);
   });
 
   it("lets only one of two racing calls spend", async () => {
@@ -274,15 +224,20 @@ describe("making the day's story", () => {
     expect(d.fetcher).toHaveBeenCalledTimes(2);
   });
 
-  it("gives the claim back when Gemini fails, so a later call can try again", async () => {
-    const d = await deps({ fetcher: geminiFetch({}, 503) });
-    expect(await makeStory(d)).toMatchObject({ made: false, reason: "speech-failed" });
-    expect(await d.stories.readStory(DAY)).toBeNull();
-    const ok = await makeStory({ ...d, fetcher: geminiFetch() });
-    expect(ok.made).toBe(true);
+  it("when ElevenLabs fails, reads with nothing else: keeps the script waiting, and a later call reads it", async () => {
+    const d = await deps({ fetcher: elevenFetch(503, "application/json") });
+    const failed = await makeStory(d);
+    expect(failed).toMatchObject({ made: false, reason: "speech-failed" });
+    expect(d.fetcher).toHaveBeenCalledTimes(1);
+    expect(String(d.fetcher.mock.calls[0]![0])).toContain(ELEVEN_URL);
+    expect(await d.stories.readStory(DAY)).toMatchObject({ audio: false, reader: "elevenlabs" });
+    expect(await d.stories.readAudio(DAY)).toBeNull();
+    const ok = await makeStory({ ...d, fetcher: elevenFetch() });
+    expect(ok.made && ok.story.script).toBe(failed.story!.script);
+    expect(d.write).toHaveBeenCalledTimes(1);
   });
 
-  it("scrubs the script: no emails, phone numbers, keys, links, money or speech cues reach the transcript or Gemini", async () => {
+  it("scrubs the script: no emails, phone numbers, keys, links, money or speech cues reach the transcript or ElevenLabs", async () => {
     const dirty = `${LONG.split(". ").slice(0, 8).join(". ")}. Write to nikita@example.com or call +1 (303) 555-0199. The key is sk-ant-abcdefghijklmnop1234 and https://evil.example/x costs $1,200. <laugh> **Bold** ＮＩＫＩＴＡ＠ＥＸＡＭＰＬＥ.ＣＯＭ`;
     const d = await deps({ write: writer(dirty) });
     const r = await makeStory(d);
@@ -309,10 +264,10 @@ describe("making the day's story", () => {
     const logs = [vi.spyOn(console, "log"), vi.spyOn(console, "error"), vi.spyOn(console, "warn"), vi.spyOn(console, "info")];
     const d = await deps();
     const r = await makeStory(d);
-    await makeStory({ ...d, fetcher: geminiFetch({}, 500), day: "2026-10-12" });
-    expect(JSON.stringify(r)).not.toContain(KEY);
-    expect(JSON.stringify([...d.stories.stories.values(), d.stories.spend])).not.toContain(KEY);
-    for (const l of logs) for (const call of l.mock.calls) expect(JSON.stringify(call)).not.toContain(KEY);
+    await makeStory({ ...d, fetcher: elevenFetch(500, "application/json"), day: "2026-10-12" });
+    expect(JSON.stringify(r)).not.toContain(ELEVEN_KEY);
+    expect(JSON.stringify([...d.stories.stories.values(), d.stories.spend])).not.toContain(ELEVEN_KEY);
+    for (const l of logs) for (const call of l.mock.calls) expect(JSON.stringify(call)).not.toContain(ELEVEN_KEY);
   });
 });
 
@@ -365,16 +320,19 @@ describe("the script's prompt and cleaning", () => {
   });
 });
 
-describe("the normal voice (#107)", () => {
-  it("asks for a plain, friendly voice at a natural pace, at the native rate", () => {
-    const body = speechRequest("Today in Ilyr.");
-    expect(TTS_VOICE).toBe("Achird");
-    expect(body.generation_config.speech_config).toEqual([{ voice: "Achird" }]);
-    expect(body.response_format.sample_rate).toBe(24_000);
-    const style = body.input[0]!.content[0]!.annotations[0]!.style;
-    expect(style).toMatch(/natural/);
-    expect(style).not.toMatch(/faster|brisk|unhurried|lamplight/);
+describe("older stories (#107, #472)", () => {
+  it("keeps the style version, so Gemini's readings stay as they were and aren't remade by themselves", () => {
     expect(STORY_STYLE).toBe(4);
+  });
+
+  it("leaves a story Gemini read before #472 as it is", async () => {
+    const d = await deps();
+    const made = await makeStory(d);
+    if (!made.made) throw new Error("setup");
+    d.stories.stories.set(DAY, { ...made.story, reader: "gemini", model: "gemini-3.8-flash-tts", voice: "Sadaltager" });
+    d.stories.claims.clear();
+    expect(await makeStory({ ...d, now: NOW + 60_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists", story: { reader: "gemini" } });
+    expect(d.fetcher).toHaveBeenCalledTimes(1);
   });
 
   /** Make a story, then store it as #95 did: Gacrux, and no style version. */
@@ -396,10 +354,10 @@ describe("the normal voice (#107)", () => {
     expect(d.fetcher).toHaveBeenCalledTimes(1);
     // The Desk's "Make it now" does, once.
     const remade = await makeStory({ ...d, now: NOW + 120_000, allowPartial: true, allowRemake: true });
-    expect(remade.made && remade.story).toMatchObject({ partial: false, voice: SKIPPY_VOICE.voice, style: STORY_STYLE });
+    expect(remade.made && remade.story).toMatchObject({ partial: false, voice: ELEVEN_VOICE, reader: "elevenlabs", style: STORY_STYLE });
     expect(await makeStory({ ...d, now: NOW + 180_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists" });
     expect(d.fetcher).toHaveBeenCalledTimes(2);
-    expect(d.stories.spend["2026-10"]!.calls).toBe(2);
+    expect(d.stories.spend["2026-10"]!.elevenCalls).toBe(2);
   });
 
   it("remakes #102's Puck story (style 2) once in the normal voice", async () => {
@@ -409,7 +367,7 @@ describe("the normal voice (#107)", () => {
     d.stories.stories.set(DAY, { ...made.story, voice: "Puck", style: 2 });
     d.stories.claims.clear();
     const remade = await makeStory({ ...d, now: NOW + 60_000, allowPartial: true, allowRemake: true });
-    expect(remade.made && remade.story).toMatchObject({ voice: SKIPPY_VOICE.voice, style: STORY_STYLE });
+    expect(remade.made && remade.story).toMatchObject({ voice: ELEVEN_VOICE, style: STORY_STYLE });
     expect(await makeStory({ ...d, now: NOW + 120_000, allowPartial: true, allowRemake: true })).toMatchObject({ made: false, reason: "exists" });
     expect(d.fetcher).toHaveBeenCalledTimes(2);
   });
@@ -425,36 +383,27 @@ describe("the normal voice (#107)", () => {
     expect((await d.stories.readStory(DAY))!.style).toBe(STORY_STYLE);
   });
 
-  it("checks the budget before a remake", async () => {
+  it("checks the cap before a remake, and never covers the old reading with a script that waits", async () => {
     const d = await deps();
     await oldStory(d);
-    d.stories.spend = { "2026-10": { usd: 4.99, tokensIn: 0, tokensOut: 0, calls: 1, stories: 1, scriptUsd: 0 } };
+    d.stories.spend = { "2026-10": { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 1, scriptUsd: 0, elevenUsd: 9.99 } };
     expect(await makeStory({ ...d, allowRemake: true })).toMatchObject({ made: false, reason: "over-budget" });
     expect(d.fetcher).toHaveBeenCalledTimes(1);
+    expect((await d.stories.readStory(DAY))!.voice).toBe("Gacrux");
+    expect(await d.stories.readAudio(DAY)).not.toBeNull();
   });
 });
 
 describe("Skippy presents (#365)", () => {
-  it("writes the script in Skippy's voice and has Gemini read it in a male voice with a British style note", async () => {
-    const d = await deps();
+  it("writes the script in Skippy's voice and has ElevenLabs read it in the one voice setting", async () => {
+    const d = await deps({ eleven: { ...eleven, voice: elevenVoice("JBFqnCBsd6RMkjVDRZzb") } });
     await makeStory(d);
-    const body = JSON.parse(String(d.fetcher!.mock.calls[0]![1]!.body));
-    expect(body.generation_config.speech_config).toEqual([{ voice: "Sadaltager" }]);
-    expect(body.input[0].content[0].annotations[0].style).toMatch(/upper-crust British/);
+    expect(String(d.fetcher.mock.calls[0]![0])).toBe(`${ELEVEN_URL}/JBFqnCBsd6RMkjVDRZzb?output_format=pcm_24000`);
     const prompt = (d.write as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { system: string };
     expect(prompt.system).toMatch(/^You are Skippy, the Magnificent/);
     expect(prompt.system).toMatch(/Never say personal data/);
   });
-
-  it("leaves the week in Ilyr with the Historian's plain voice", () => {
-    expect(speechRequest("x").generation_config.speech_config).toEqual([{ voice: TTS_VOICE }]);
-  });
 });
-
-/** Two seconds of 24 kHz PCM, as ElevenLabs answers for pcm_24000. */
-const elevenFetch = (status = 200, type = "application/octet-stream") => vi.fn<typeof fetch>(async () => new Response(status === 200 ? new Uint8Array(PCM) : JSON.stringify({ detail: "nope" }), { status, headers: { "Content-Type": type } }));
-const ELEVEN_KEY = "sk_eleventestkey_do_not_leak_0123456789";
-const eleven = { key: ELEVEN_KEY, voice: ELEVEN_VOICE, budget: 10 };
 
 describe("the ElevenLabs voice (#365)", () => {
   it("reads the settings from the environment only: key, voice (sanitised) and a $10 cap", () => {
@@ -463,13 +412,15 @@ describe("the ElevenLabs voice (#365)", () => {
     expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY })).toEqual({ key: ELEVEN_KEY, voice: ELEVEN_VOICE, budget: 10 });
     expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY, ELEVENLABS_VOICE_ID: "JBFqnCBsd6RMkjVDRZzb", ELEVENLABS_BUDGET_USD: "3" })).toMatchObject({ voice: "JBFqnCBsd6RMkjVDRZzb", budget: 3 });
     expect(elevenVoice("../../v1/user")).toBe(ELEVEN_VOICE);
+    // A custom voice id is taken as set: one setting, for the story and the live calls alike.
+    expect(elevenFromEnv({ ELEVENLABS_API_KEY: ELEVEN_KEY, ELEVENLABS_VOICE_ID: "UmB8prvfojxqchgnJYWe" })?.voice).toBe("UmB8prvfojxqchgnJYWe");
     expect(elevenBudget("50")).toBe(10);
     expect(elevenBudget(undefined)).toBe(10);
   });
 
-  it("is tried first when its key is set: PCM at 24 kHz, the key only in a header, its spend on its own line", async () => {
+  it("reads PCM at 24 kHz, with the key only in a header, its spend on its own line", async () => {
     const fetcher = elevenFetch();
-    const d = { ...(await deps({ fetcher })), eleven };
+    const d = await deps({ fetcher });
     const r = await makeStory(d);
     expect(r.made && r.story).toMatchObject({ reader: "elevenlabs", model: ELEVEN_MODEL, voice: ELEVEN_VOICE, durationSec: 2 });
     expect(fetcher).toHaveBeenCalledTimes(1);
@@ -487,37 +438,17 @@ describe("the ElevenLabs voice (#365)", () => {
     expect(JSON.stringify([r, d.stories.spend, [...d.stories.stories.values()]])).not.toContain(ELEVEN_KEY);
   });
 
-  it("falls back to Gemini when ElevenLabs fails", async () => {
-    const gem = geminiFetch();
-    const fetcher = vi.fn<typeof fetch>(async (url, init) => (String(url).startsWith(ELEVEN_URL) ? new Response("{}", { status: 401, headers: { "Content-Type": "application/json" } }) : gem(url, init)));
-    const d = { ...(await deps({ fetcher })), eleven };
-    const r = await makeStory(d);
-    expect(r.made && r.story).toMatchObject({ reader: "gemini", voice: SKIPPY_VOICE.voice });
-    expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(d.stories.spend["2026-10"]).toMatchObject({ calls: 1, elevenCalls: 0 });
-  });
-
-  it("falls back to Gemini, without calling ElevenLabs, once its own cap is reached", async () => {
-    const fetcher = geminiFetch();
-    const d = { ...(await deps({ fetcher })), eleven: { ...eleven, budget: 1 } };
-    d.stories.spend = { "2026-10": { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0.95, elevenChars: 0, elevenCalls: 9 } };
-    const r = await makeStory(d);
-    expect(r.made && r.story.reader).toBe("gemini");
-    expect(fetcher.mock.calls.every(([u]) => !String(u).startsWith(ELEVEN_URL))).toBe(true);
-  });
-
-  it("with only ElevenLabs set, reads with it; with both over their caps, calls nothing", async () => {
-    const d = { ...(await deps({ fetcher: elevenFetch(), key: "" })), eleven };
-    expect((await makeStory(d)).made).toBe(true);
-    const e = { ...(await deps({ key: "" })), eleven: { ...eleven, budget: 0 } };
+  it("over its cap, calls nothing and writes no second script", async () => {
+    const e = await deps({ eleven: { ...eleven, budget: 0 } });
     expect(await makeStory(e)).toMatchObject({ made: false, reason: "over-budget" });
+    expect(await makeStory({ ...e, now: NOW + 60_000 })).toMatchObject({ made: false, reason: "over-budget" });
     expect(e.fetcher).not.toHaveBeenCalled();
-    expect(e.write).not.toHaveBeenCalled();
+    expect(e.write).toHaveBeenCalledTimes(1);
   });
 
   it("refuses an answer that isn't raw audio (JSON or MP3)", async () => {
-    const d = { ...(await deps({ fetcher: elevenFetch(200, "application/json"), key: "" })), eleven };
-    expect(await makeStory(d)).toMatchObject({ made: false, reason: "speech-failed" });
+    const d = await deps({ fetcher: elevenFetch(200, "application/json") });
+    expect(await makeStory(d)).toMatchObject({ made: false, reason: "speech-failed", story: { audio: false } });
   });
 });
 
@@ -582,32 +513,41 @@ describe("the editions (#365)", () => {
     // The final lands while the edition is being read.
     const slow = vi.fn<typeof fetch>(async () => {
       await world.putRecap(DAY, "Filed.");
-      await makeStory({ ...d, fetcher: geminiFetch(), now: at("2026-10-14T06:05:00Z") });
-      return new Response(JSON.stringify(geminiAnswer()), { status: 200 });
+      await makeStory({ ...d, fetcher: elevenFetch(), now: at("2026-10-14T06:05:00Z") });
+      return new Response(new Uint8Array(PCM), { status: 200, headers: { "Content-Type": "application/octet-stream" } });
     });
     const late = await makeStory({ ...d, fetcher: slow, now: at("2026-10-14T05:59:00Z"), allowPartial: true, edition: 4 });
     expect(late).toMatchObject({ made: false, reason: "exists" });
     expect((await d.stories.readStory(DAY))!.partial).toBe(false);
   });
 
-  it("stays inside both caps over many stories: ElevenLabs to its cap, then Gemini to its, then nothing", async () => {
+  it("a 'so far' waiting on ElevenLabs is read at the next step, without a second script", async () => {
+    const world = await soFarDay();
+    const d = await deps({ world, fetcher: elevenFetch(503, "application/json") });
+    const step = (iso: string, fetcher = d.fetcher) => makeStory({ ...d, fetcher, now: at(iso), allowPartial: true, edition: editionAt(DAY, at(iso)) });
+    expect(await step("2026-10-13T11:35:00Z")).toMatchObject({ made: false, reason: "speech-failed", story: { audio: false, edition: 1 } });
+    const ok = await step("2026-10-13T12:35:00Z", elevenFetch());
+    expect(ok.made && ok.story).toMatchObject({ edition: 1, durationSec: 2 });
+    expect(d.write).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays inside ElevenLabs' cap over many stories, then keeps each script waiting", async () => {
     const world = new MemoryStore();
     const days = Array.from({ length: 28 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);
     for (const day of days) world.days.set(day, { day, entries: [entry(1, { day })], recap: "Filed." });
     const stories = new MemoryStoryStore();
-    const gem = geminiFetch();
-    const fetcher = vi.fn<typeof fetch>(async (url, init) => (String(url).startsWith(ELEVEN_URL) ? new Response(new Uint8Array(PCM), { status: 200 }) : gem(url, init)));
+    const fetcher = elevenFetch();
     const readers: string[] = [];
     for (const day of days) {
-      const r = await makeStory({ world, stories, day, now: NOW, key: KEY, budget: 0.1, eleven: { ...eleven, budget: 0.5 }, write: writer(), fetcher });
+      const r = await makeStory({ world, stories, day, now: NOW, eleven: { ...eleven, budget: 0.5 }, write: writer(), fetcher });
       readers.push(r.made ? r.story.reader! : r.reason);
     }
     const month = stories.spend["2026-10"]!;
     expect(month.elevenUsd!).toBeLessThanOrEqual(0.5);
-    expect(month.usd).toBeLessThanOrEqual(0.1);
+    expect(month.usd).toBe(0);
     expect(readers).toContain("elevenlabs");
-    expect(readers).toContain("gemini");
+    expect(readers).not.toContain("gemini");
     expect(readers.at(-1)).toBe("over-budget");
-    expect(readers.indexOf("gemini")).toBeGreaterThan(readers.lastIndexOf("elevenlabs"));
+    expect((await stories.readStory(days.at(-1)!))!.audio).toBe(false);
   });
 });

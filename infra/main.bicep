@@ -44,9 +44,6 @@ param logDailyCapGb string = '0.2'
 @description('Monthly Claude budget for the world, in USD (the Function App\'s WORLD_BUDGET_USD). The code\'s own default; Azure took less while Vercel shared the key, and is the only home since #313.')
 param worldBudgetUsd string = '6'
 
-@description('Monthly Gemini budget for the Azure copy\'s stories, in USD (GEMINI_BUDGET_USD; the code never goes above 10).')
-param geminiBudgetUsd string = '5'
-
 @description('Monthly Claude budget for Skippy\'s chat on the Azure copy, in USD (SKIPPY_BUDGET_USD).')
 param skippyBudgetUsd string = '2'
 
@@ -83,7 +80,6 @@ module resources 'resources.bicep' = {
     repositoryToken: repositoryToken
     logDailyCapGb: logDailyCapGb
     worldBudgetUsd: worldBudgetUsd
-    geminiBudgetUsd: geminiBudgetUsd
     skippyBudgetUsd: skippyBudgetUsd
     emailBudgetUsd: emailBudgetUsd
     paypalEnv: paypalEnv

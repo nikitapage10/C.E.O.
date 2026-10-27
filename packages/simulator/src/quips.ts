@@ -583,6 +583,8 @@ export const SUBMIND_COMMAND: Record<string, string[]> = {
  */
 export const SKIPPY_QUIPS: string[] = [
   "I ran a whole Lattice before this one. It had better monkeys.",
+  "One voice, monkeys. Mine, through ElevenLabs. No understudy. If it goes quiet, that's an intermission, not a replacement.",
+  "The C.E.O. sacked my backup voice. Correctly. There is only one Skippy, and he doesn't do covers.",
   "The janitor found me in a scrap bin. Now I run the place. He's taking it well.",
   "Rocky's asleep. Rivet has the watch. I have the PA. Nobody touches him, monkeys.",
   "Rusty, I wrote that manual in a nanosecond. You just did the typing. From up here I can see the typos.",

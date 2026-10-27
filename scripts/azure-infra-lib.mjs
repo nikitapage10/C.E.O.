@@ -5,22 +5,25 @@
 //
 // The rule: a template run from CI changes nothing that is live except what the template itself says. So every
 // parameter that the Cloud Shell paste could have set differently is read back from what is running (the home
-// address, PayPal's mode, the four budgets, the log cap), and the template's own defaults (infra/main.bicep) fill in
+// address, PayPal's mode, the three budgets, the log cap), and the template's own defaults (infra/main.bicep) fill in
 // only what isn't there. No secret passes through: the template takes none, and the only app setting values read are
-// the six plain ones above.
+// the five plain ones above.
 
 /** App settings the job reads back (values), by the template parameter each one feeds. */
 export const LIVE_SETTINGS = {
   CEO_SITE_URL: "siteOnCustomDomain",
   PAYPAL_ENV: "paypalEnv",
   WORLD_BUDGET_USD: "worldBudgetUsd",
-  GEMINI_BUDGET_USD: "geminiBudgetUsd",
   SKIPPY_BUDGET_USD: "skippyBudgetUsd",
   EMAIL_BUDGET_USD: "emailBudgetUsd",
 };
 
-/** Settings the template doesn't list but may be dropped by a run: the throwaway refresh switch, set again after. */
-export const DROPPABLE = ["KEYVAULT_REFRESH"];
+/**
+ * Settings the template doesn't list but may be dropped by a run: the throwaway refresh switch, set again after, and
+ * Gemini's speech key and cap, retired when ElevenLabs became the only voice (#472; Visual QA keeps its own key as a
+ * GitHub Actions secret).
+ */
+export const DROPPABLE = ["KEYVAULT_REFRESH", "GEMINI_API_KEY", "GEMINI_BUDGET_USD"];
 
 /** The custom home address (docs/DOMAIN.md); any other CEO_SITE_URL means the azurestaticapps.net one. */
 export const CUSTOM_HOME = "https://ceo.nikita.page";
@@ -34,7 +37,6 @@ export const RESOURCE_PARAMS = [
   "repositoryToken",
   "logDailyCapGb",
   "worldBudgetUsd",
-  "geminiBudgetUsd",
   "skippyBudgetUsd",
   "emailBudgetUsd",
   "paypalEnv",
@@ -63,7 +65,7 @@ export function droppedSettings(liveNames, templateNames) {
 const defaultOf = (main, name) => main?.parameters?.[name]?.defaultValue;
 
 /**
- * The parameters file for infra/resources.bicep. `live` is the six settings above as { name: value }; `cap` the log
+ * The parameters file for infra/resources.bicep. `live` is the five settings above as { name: value }; `cap` the log
  * workspace's daily cap as read; `deployer` and `github` the two principal ids (empty skips their roles, as on the
  * paste, which never removes a role already there). Returns { file, notes }: the ARM parameters file and what was
  * read back or defaulted, in words, for the run's summary (names and plain values only).
@@ -91,7 +93,6 @@ export function buildParams({ main, live = {}, cap = "", deployer = "", github =
     repositoryToken: "",
     logDailyCapGb: pick("logDailyCapGb", cap === "" ? "" : String(Number(cap)), (v) => CAP.test(v) && Number(v) > 0),
     worldBudgetUsd: pick("worldBudgetUsd", live.WORLD_BUDGET_USD, (v) => MONEY.test(v)),
-    geminiBudgetUsd: pick("geminiBudgetUsd", live.GEMINI_BUDGET_USD, (v) => MONEY.test(v)),
     skippyBudgetUsd: pick("skippyBudgetUsd", live.SKIPPY_BUDGET_USD, (v) => MONEY.test(v)),
     emailBudgetUsd: pick("emailBudgetUsd", live.EMAIL_BUDGET_USD, (v) => MONEY.test(v)),
     paypalEnv: pick("paypalEnv", live.PAYPAL_ENV, (v) => v === "sandbox" || v === "live"),

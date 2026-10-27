@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BlobStore } from "../api/_world/store.ts";
-import { BlobStoryStore, STORY_STYLE as API_STORY_STYLE, TTS_MODEL as API_TTS_MODEL, TTS_VOICE as API_TTS_VOICE } from "../api/_world/story.ts";
+import { BlobStoryStore, STORY_STYLE as API_STORY_STYLE } from "../api/_world/story.ts";
 import { RECENT_KEEP as API_RECENT_KEEP } from "../api/_world/prompt.ts";
 import { runStep } from "../api/_world/step.ts";
 import { mondayOf, publicSeedFiles, RECENT_KEEP, seedTarget, STORY_STYLE, TTS_MODEL, TTS_VOICE } from "./seed-azure-lib.mjs";
@@ -112,8 +112,9 @@ describe("the public seed", () => {
   it("uses the same constants as the Azure store's code", () => {
     expect(RECENT_KEEP).toBe(API_RECENT_KEEP);
     expect(STORY_STYLE).toBe(API_STORY_STYLE);
-    expect(TTS_MODEL).toBe(API_TTS_MODEL);
-    expect(TTS_VOICE).toBe(API_TTS_VOICE);
+    // Production's old stories were Gemini's readings (before #472): the seed labels them so.
+    expect(TTS_MODEL).toBe("gemini-3.8-flash-tts");
+    expect(TTS_VOICE).toBe("Achird");
   });
 
   it("names a week by its Monday", () => {

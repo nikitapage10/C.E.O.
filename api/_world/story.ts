@@ -8,35 +8,18 @@
  * then the final edition once the recap is filed after midnight. Each edition is claimed once per day, edition and
  * style, so two runners never pay for the same one. The latest edition is the one kept and served.
  *
- * The voice (#365): ElevenLabs when ELEVENLABS_API_KEY is set and its own monthly cap (ELEVENLABS_BUDGET_USD) has room,
- * a premade British male voice (ELEVENLABS_VOICE_ID to change it); else, or when it fails, Gemini with a male voice
- * and a style note for a crisp, upper-crust British accent. The audio and the script are kept in the private Blob
- * store and served from our own origin (api/day-story.ts).
+ * The voice (#472): ElevenLabs only, never a fallback. ELEVENLABS_VOICE_ID picks the one voice every spoken thing in
+ * C.E.O. uses: the day's story, the week in Ilyr (api/_world/week.ts) and Skippy's live voice calls
+ * (api/_skippy/voice.ts) all read it through `elevenFromEnv` (default Daniel, a premade British male voice). Its own
+ * monthly cap is ELEVENLABS_BUDGET_USD. When ElevenLabs can't read (no key, past its cap, refused, down) the script is
+ * still kept and shown, and the Desk says plainly that the audio is waiting on ElevenLabs. Stories Gemini read before
+ * #472 stay as they were (`reader: "gemini"`). The audio and the script are kept in the private Blob store and served
+ * from our own origin (api/day-story.ts).
  *
  * The script is written by Claude Haiku on the world's own path (the cast and the Historian's voice are already here,
  * and a script costs about a tenth of a cent), or, without a Claude key or when it doesn't answer, put together from
- * the Chronicle's own lines. Everything in it is scrubbed (the Lattice is public). Gemini gets the script and nothing
- * else.
- *
- * Gemini's speech (checked against Google's docs on 2026-10-13):
- *   - The call, voices and output format: https://ai.google.dev/gemini-api/docs/speech-generation
- *     POST https://generativelanguage.googleapis.com/v1beta/interactions, header `x-goog-api-key`, the text in
- *     `input[].content[]` with a `speech_metadata` style annotation, `response_format: { type: "audio", mime_type,
- *     sample_rate }`, `generation_config.speech_config: [{ voice }]` for one speaker. The audio comes back base64 in
- *     `steps[type=model_output].content[type=audio].data`; `audio/l16` is headerless 16-bit little-endian mono PCM,
- *     which we wrap as WAV ourselves (no dependencies).
- *   - Sample rate (#107): the guide gives the default output as 24 kHz mono 16-bit (unary `audio/wav` with a RIFF
- *     header, streaming `audio/l16` headerless) and shows `sample_rate` only by example ("24000, 16000, or 8000");
- *     the Interactions reference gives each audio block its own `mime_type` and `sample_rate`. Headerless PCM
- *     carries no rate of its own, so labelling 24 kHz samples as 16 kHz plays them at two-thirds speed and a fifth
- *     lower: the deep, slow, distorted voice of #95 and #102. So we ask for the native 24 kHz and always take the rate
- *     from what comes back (the block's `sample_rate`, a `rate=` in its mime type, or a RIFF header), else 24 kHz.
- *   - The response's `usage` (total_input_tokens, total_output_tokens): https://ai.google.dev/api/interactions-api
- *   - Prices: https://ai.google.dev/gemini-api/docs/pricing (Gemini 3.8 Flash TTS, paid tier: $0.50 per million text
- *     tokens in and $9.00 per million audio tokens out through 31 December 2026, then $1.00 and $18.00; audio is 25
- *     tokens a second). A 40-second story is about 1,000 audio tokens: about a cent, two from 2027.
- *   - Pace: the API has no speaking-rate setting; the guide steers pace with the style note and suggests keeping it
- *     short, so the style note asks only for a natural, clear, conversational pace.
+ * the Chronicle's own lines. Everything in it is scrubbed (the Lattice is public). ElevenLabs gets the script and
+ * nothing else.
  */
 
 import { BlobPreconditionError, pickBlob, vercelBlob, type BlobBackend } from "../_blob.js";
@@ -46,33 +29,6 @@ import { scrub } from "./digest.js";
 import { DAY, type WorldStore } from "./store.js";
 import type { DayPage, StepCost, WorldCast } from "./types.js";
 
-/* ── Gemini: the model, the voice, the price ── */
-
-export const TTS_MODEL = "gemini-3.8-flash-tts";
-export const TTS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-/**
- * "Achird" is Gemini's "Friendly" prebuilt voice: an ordinary, clear, mid-pitched speaker, the way a colleague would
- * read out a short daily update (#107). Gacrux ("Mature", #95) and Puck ("Upbeat", #102) both came out deep and
- * distorted, most likely because their 24 kHz audio was played back as 16 kHz; with the rate fixed, a plain voice is
- * what "something that makes sense" asks for, rather than a character.
- */
-export const TTS_VOICE = "Achird";
-/** Kept short, as the docs ask: the text itself is read verbatim. Pace is set here (the API has no rate control). */
-export const TTS_STYLE = "a friendly, natural speaker reading a short daily update: clear and conversational, at a normal pace";
-/** A Gemini voice and its style note. The week in Ilyr (api/_world/week.ts) keeps the Historian's plain one above. */
-export interface GeminiVoice {
-  voice: string;
-  style: string;
-}
-export const HISTORIAN_VOICE: GeminiVoice = { voice: TTS_VOICE, style: TTS_STYLE };
-/**
- * Skippy, the Magnificent, presenting the day (#365): "Sadaltager" is one of Gemini's male prebuilt voices
- * ("Knowledgeable", which Skippy would insist on), and the style note asks for the accent and the manner.
- */
-export const SKIPPY_VOICE: GeminiVoice = {
-  voice: "Sadaltager",
-  style: "a grand, crisp, upper-crust British gentleman presenting the day's news: a little pompous and smug, theatrical but clear, at a natural pace",
-};
 /**
  * The story's style version. A story made with an older one (the slow Gacrux readings of #95 carry none, so 1) may be
  * remade once from the Desk's "Make it now"; the claims carry the version, so each version is paid for at most once
@@ -80,45 +36,14 @@ export const SKIPPY_VOICE: GeminiVoice = {
  */
 export const STORY_STYLE = 4;
 /**
- * Gemini's native rate, asked for and assumed when a response doesn't say (#107). 24 kHz mono 16-bit is 48 KB a
- * second: a 45-second story is about 2.2 MB, and the route serves ranges, so even a long one stays under Vercel's
- * 4.5 MB response cap per request.
+ * The audio's rate: ElevenLabs is asked for 24 kHz PCM. 24 kHz mono 16-bit is 48 KB a second: a 45-second story is
+ * about 2.2 MB, and the route serves ranges, so even a long one stays under a function's 4.5 MB response cap.
  */
 export const SAMPLE_RATE = 24_000;
 
 /** A sane rate, or undefined: rejects zero, negatives, fractions and nonsense. */
 const rateOk = (n: unknown): number | undefined =>
   typeof n === "number" && Number.isInteger(n) && n >= 4_000 && n <= 192_000 ? n : undefined;
-
-/** The rate in a mime type's parameters (`audio/L16;codec=pcm;rate=24000`), or undefined when it names none. */
-export function rateOfMime(mime: string | undefined): number | undefined {
-  const m = /;\s*(?:rate|sample_rate|samplerate)\s*=\s*"?(\d+)/i.exec(mime ?? "");
-  return m ? rateOk(Number(m[1])) : undefined;
-}
-export const AUDIO_TOKENS_PER_SECOND = 25;
-
-/** Dollars per million tokens: text in, audio out. The launch price runs to the end of 2026. */
-export function geminiPrice(at: number): { input: number; output: number } {
-  return at < Date.UTC(2027, 0, 1) ? { input: 0.5, output: 9 } : { input: 1, output: 18 };
-}
-
-/** The audio a story can run to at its most: the capped script is about a minute aloud, with room to spare. */
-export const STORY_CEILING_SEC = 120;
-
-/** The most one story can cost: a long prompt and two minutes of audio, at the price of the moment. */
-export function storyCeiling(at: number): number {
-  const p = geminiPrice(at);
-  return (2_000 * p.input + STORY_CEILING_SEC * AUDIO_TOKENS_PER_SECOND * p.output) / 1_000_000;
-}
-
-/** Gemini's own monthly cap (GEMINI_BUDGET_USD), default $5, never above $10. */
-export const GEMINI_BUDGET_USD = 5;
-export function geminiBudget(env: string | undefined): number {
-  const n = Number(env);
-  return Number.isFinite(n) && n >= 0 && env !== undefined && env !== "" ? Math.min(n, 10) : GEMINI_BUDGET_USD;
-}
-
-export const geminiKey = (env: Record<string, string | undefined> = process.env) => env.GEMINI_API_KEY ?? "";
 
 /* ── ElevenLabs: the voice, the price, the cap (#365) ── */
 
@@ -127,18 +52,25 @@ export const geminiKey = (env: Record<string, string | undefined> = process.env)
  * https://elevenlabs.io/docs/api-reference/text-to-speech/convert
  *   POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=pcm_24000, header `xi-api-key`, JSON
  *   `{ text, model_id, voice_settings }`; the answer is the audio itself. `pcm_24000` is headerless 16-bit
- *   little-endian mono PCM at 24 kHz (no tier needed), which we wrap as WAV like Gemini's.
+ *   little-endian mono PCM at 24 kHz (no tier needed), which we wrap as WAV ourselves (no dependencies).
  * Prices: https://elevenlabs.io/pricing/api (Multilingual v2: $0.08 per 1,000 characters, the API's own rate; a plan's
  * credits come cheaper, so counting at this rate keeps the cap on the safe side). A story is under 1,000 characters:
  * under 8 cents.
  */
 export const ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech";
 export const ELEVEN_MODEL = "eleven_multilingual_v2";
-/** "Daniel", a premade voice: a British man, authoritative, a news presenter's delivery. ELEVENLABS_VOICE_ID changes it. */
+/**
+ * "Daniel", a premade voice: a British man, authoritative, a news presenter's delivery. The one voice setting for all
+ * of C.E.O. (#472): ELEVENLABS_VOICE_ID changes it for the day's story, the week's and Skippy's live calls at once,
+ * all read through `elevenVoice` below. Nothing else names a voice.
+ */
 export const ELEVEN_VOICE = "onwK4e9ZLuTAKqWW03F9";
 export const ELEVEN_USD_PER_1K_CHARS = 0.08;
-/** The longest script ElevenLabs is sent (a capped script is well under this); also what the cap is checked against. */
-export const ELEVEN_MAX_CHARS = 1_500;
+/**
+ * The longest script ElevenLabs is sent (a capped day's script is well under this, and the week's 230-word cap fits);
+ * also what the cap is checked against.
+ */
+export const ELEVEN_MAX_CHARS = 2_000;
 /** ElevenLabs' own monthly cap (ELEVENLABS_BUDGET_USD), default $10, never above $10. */
 export const ELEVENLABS_BUDGET_USD = 10;
 export function elevenBudget(env: string | undefined): number {
@@ -181,14 +113,22 @@ export interface DayStory {
   at: string;
   /** Which "so far" edition of the day it is (#365): the 5-hour mark it was made after, 0 to 4, or 5 for a day already over; missing on a final one and on stories before #365. */
   edition?: number;
-  /** Who read it aloud (#365); missing means Gemini. */
+  /**
+   * False on a script kept while its audio waits on ElevenLabs (#472: no key, past its cap, refused or down), with no
+   * duration and no audio behind it; missing on every story that was read aloud.
+   */
+  audio?: false;
+  /** Who read it aloud (#365): ElevenLabs only since #472; "gemini" (or missing) on a story read before then. */
   reader?: "elevenlabs" | "gemini";
   cost: StepCost;
   /** The script's Claude cost, when Claude wrote it (part of the shared Claude cap). */
   scriptUsd: number;
 }
 
-/** Gemini's spend in one month (UTC, as Google bills it), and the Claude cost of the scripts. */
+/**
+ * The voice's spend in one month (UTC), and the Claude cost of the scripts. `usd`, `tokensIn`, `tokensOut` and `calls`
+ * are Gemini's speech before #472: kept as recorded, never added to now.
+ */
 export interface StoryMonth {
   usd: number;
   tokensIn: number;
@@ -214,8 +154,6 @@ export type StorySpend = Record<string, StoryMonth>;
 const EMPTY: Required<StoryMonth> = { usd: 0, tokensIn: 0, tokensOut: 0, calls: 0, stories: 0, scriptUsd: 0, elevenUsd: 0, elevenChars: 0, elevenCalls: 0, voiceUsd: 0, voiceSecs: 0, voiceCalls: 0 };
 export const storyMonth = (spend: StorySpend, now: number): Required<StoryMonth> => ({ ...EMPTY, ...spend[monthOf(now)] });
 
-/** Whether one more story, at its most, still fits in the month's Gemini budget. */
-export const canSpeak = (spend: StorySpend, now: number, budget: number) => storyMonth(spend, now).usd + storyCeiling(now) <= budget;
 /** Whether one more story, at its longest, still fits in the month's ElevenLabs budget. */
 export const canSpeakEleven = (spend: StorySpend, now: number, budget: number) => storyMonth(spend, now).elevenUsd + elevenCost(ELEVEN_MAX_CHARS) <= budget;
 
@@ -266,7 +204,7 @@ export interface WeekStory {
   scriptUsd: number;
 }
 
-/** The story store: one story per day (and its audio), a claim so a day is made once, and Gemini's ledger. */
+/** The story store: one story per day (and its audio), a claim so a day is made once, and the voice's ledger. */
 export interface StoryStore {
   readStory(day: string): Promise<DayStory | null>;
   readAudio(day: string): Promise<Uint8Array | null>;
@@ -278,7 +216,8 @@ export interface StoryStore {
   claim(day: string, kind: ClaimKind, now: number): Promise<boolean>;
   /** Give a claim back after a failure, so a later call may try again. */
   release(day: string, kind: ClaimKind): Promise<void>;
-  putStory(story: DayStory, wav: Uint8Array): Promise<void>;
+  /** Keep the day's story; `wav` is null for a script whose audio waits on ElevenLabs (#472). */
+  putStory(story: DayStory, wav: Uint8Array | null): Promise<void>;
   loadSpend(): Promise<StorySpend>;
   /** Add to the ledger (read, change, write with an ETag check; retried once). */
   addSpend(now: number, add: Partial<StoryMonth>): Promise<void>;
@@ -288,9 +227,14 @@ export interface StoryStore {
 export const styleOf = (s: Pick<DayStory, "style">) => s.style ?? 1;
 /** Whether a story was made with the current style (an older one may be remade once from the Desk). */
 export const isCurrent = (s: Pick<DayStory, "style">) => styleOf(s) >= STORY_STYLE;
-/** Whether a claim's work is done: the day has a current-style story of that edition or later (a final covers all). */
+/** Whether a story has its audio: false on a script still waiting on ElevenLabs (#472). */
+export const hasAudio = (s: Pick<DayStory, "audio">) => s.audio !== false;
+/**
+ * Whether a claim's work is done: the day has a current-style story of that edition or later (a final covers all),
+ * read aloud (a script waiting on ElevenLabs is not done).
+ */
 function claimDone(story: DayStory | null | undefined, kind: ClaimKind): boolean {
-  if (kind === "week" || !story || !isCurrent(story)) return false;
+  if (kind === "week" || !story || !isCurrent(story) || !hasAudio(story)) return false;
   if (kind === "final") return !story.partial;
   return editionOf(story) >= Number(kind.slice("so-far-".length));
 }
@@ -364,9 +308,9 @@ export class BlobStoryStore implements StoryStore {
   async release(day: string, kind: ClaimKind): Promise<void> {
     await this.blob.del(claimPath(day, kind)).catch(() => undefined);
   }
-  async putStory(story: DayStory, wav: Uint8Array): Promise<void> {
+  async putStory(story: DayStory, wav: Uint8Array | null): Promise<void> {
     // The audio first: a story file only ever points at audio that is already there.
-    await this.blob.put(audioPath(story.day), Buffer.from(wav), { contentType: "audio/wav", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+    if (wav) await this.blob.put(audioPath(story.day), Buffer.from(wav), { contentType: "audio/wav", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
     await this.blob.put(storyPath(story.day), JSON.stringify(story), { contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
   }
   async loadSpend(): Promise<StorySpend> {
@@ -427,8 +371,8 @@ export class MemoryStoryStore implements StoryStore {
   async release(day: string, kind: ClaimKind) {
     this.claims.delete(`${day}.${kind}.v${STORY_STYLE}`);
   }
-  async putStory(story: DayStory, wav: Uint8Array) {
-    this.audio.set(story.day, wav);
+  async putStory(story: DayStory, wav: Uint8Array | null) {
+    if (wav) this.audio.set(story.day, wav);
     this.stories.set(story.day, structuredClone(story));
   }
   async loadSpend() {
@@ -497,7 +441,7 @@ export function cleanScript(text: string, words = SCRIPT_WORDS): string {
   return end > cut.length / 2 ? cut.slice(0, end + 1) : `${cut}.`;
 }
 
-/** What Gemini reads: the script with scrub's placeholders said in words rather than read out as "bracket private". */
+/** What ElevenLabs reads: the script with scrub's placeholders said in words rather than read out as "bracket private". */
 export function spokenOf(script: string): string {
   return script
     .replace(/\[private\]/g, "something private")
@@ -642,8 +586,8 @@ export function wavOf(pcm: Uint8Array, sampleRate = SAMPLE_RATE): Uint8Array {
 }
 
 /**
- * The samples inside a WAV (if Gemini sends one) or the bytes as they are (raw L16). A WAV's own rate wins; raw PCM
- * takes the rate the response reported (`declared`), else Gemini's native 24 kHz, never a guess of 16 kHz.
+ * The samples inside a WAV (if one comes back) or the bytes as they are (raw L16). A WAV's own rate wins; raw PCM
+ * takes the rate asked for (`declared`), else 24 kHz, never a guess of 16 kHz (#107).
  */
 export function pcmOf(bytes: Uint8Array, declared?: number): { pcm: Uint8Array; sampleRate: number } {
   const fallback = rateOk(declared) ?? SAMPLE_RATE;
@@ -661,74 +605,14 @@ export function pcmOf(bytes: Uint8Array, declared?: number): { pcm: Uint8Array; 
   return { pcm: new Uint8Array(0), sampleRate: rate };
 }
 
-export interface Spoken {
-  pcm: Uint8Array;
-  sampleRate: number;
-  tokensIn: number;
-  tokensOut: number;
-}
-
-/** The speech request (single speaker), exactly as Google's REST example shapes it. */
-export function speechRequest(text: string, voice: GeminiVoice = HISTORIAN_VOICE) {
-  return {
-    model: TTS_MODEL,
-    input: [{ type: "user_input", content: [{ type: "text", text, annotations: [{ type: "speech_metadata", style: voice.style }] }] }],
-    response_format: { type: "audio", mime_type: "audio/l16", sample_rate: SAMPLE_RATE },
-    generation_config: { speech_config: [{ voice: voice.voice }] },
-  };
-}
-
-type Interaction = {
-  status?: string;
-  steps?: { type?: string; content?: { type?: string; data?: string; mime_type?: string; sample_rate?: number }[] }[];
-  usage?: { total_input_tokens?: number; total_output_tokens?: number };
-};
-
-/**
- * Read a script aloud with Gemini. Null when it didn't answer with audio. The key goes only in the request header,
- * never in the URL, a log or an error.
- */
-export async function speak(text: string, key: string, fetcher: typeof fetch = fetch, voice: GeminiVoice = HISTORIAN_VOICE): Promise<Spoken | null> {
-  let res: Response;
-  try {
-    res = await fetcher(TTS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(speechRequest(text, voice)),
-      signal: AbortSignal.timeout(100_000),
-    });
-  } catch {
-    return null;
-  }
-  if (!res.ok) return null;
-  const body = (await res.json().catch(() => null)) as Interaction | null;
-  if (!body || (body.status && body.status !== "completed")) return null;
-  const audio = (body.steps ?? [])
-    .filter((s) => s.type === "model_output")
-    .flatMap((s) => s.content ?? [])
-    .filter((c) => c.type === "audio" && typeof c.data === "string")
-    .at(-1);
-  if (!audio?.data) return null;
-  const declared = rateOk(audio.sample_rate) ?? rateOfMime(audio.mime_type);
-  const { pcm, sampleRate } = pcmOf(new Uint8Array(Buffer.from(audio.data, "base64")), declared);
-  if (pcm.length < 2) return null;
-  const seconds = pcm.length / (sampleRate * 2);
-  return {
-    pcm,
-    sampleRate,
-    tokensIn: body.usage?.total_input_tokens ?? Math.ceil(text.length / 4),
-    tokensOut: body.usage?.total_output_tokens ?? Math.ceil(seconds * AUDIO_TOKENS_PER_SECOND),
-  };
-}
-
 /** ElevenLabs' request body (#365): the model, and settings leaning a little theatrical for Skippy. */
 export function elevenRequest(text: string) {
   return { text, model_id: ELEVEN_MODEL, voice_settings: { stability: 0.4, similarity_boost: 0.75, style: 0.35, use_speaker_boost: true } };
 }
 
 /**
- * Read a script aloud with ElevenLabs (#365): raw 24 kHz PCM back. Null when it didn't answer with audio, so Gemini
- * can take over. The key goes only in the request header, never in the URL, a log or an error.
+ * Read a script aloud with ElevenLabs (#365): raw 24 kHz PCM back. Null when it didn't answer with audio: nothing
+ * else reads in its place (#472). The key goes only in the request header, never in the URL, a log or an error.
  */
 export async function speakEleven(text: string, config: ElevenConfig, fetcher: typeof fetch = fetch): Promise<{ pcm: Uint8Array; sampleRate: number; chars: number } | null> {
   if (text.length > ELEVEN_MAX_CHARS) return null;
@@ -759,11 +643,8 @@ export interface StoryDeps {
   stories: StoryStore;
   day: string;
   now: number;
-  /** Gemini's key ("" when it isn't set) and its monthly cap. */
-  key: string;
-  budget: number;
-  /** ElevenLabs (#365), when its key is set: tried first, with Gemini behind it. */
-  eleven?: ElevenConfig | null;
+  /** ElevenLabs, the only voice (#472): null when its key isn't set. */
+  eleven: ElevenConfig | null;
   /** Claude, when set up; null puts the script together from the Chronicle's own lines. */
   write: ScriptWriter | null;
   fetcher?: typeof fetch;
@@ -773,12 +654,10 @@ export interface StoryDeps {
 export type StoryReason = "exists" | "no-news" | "no-key" | "over-budget" | "no-recap" | "empty" | "busy" | "speech-failed" | "bad-day";
 export type StoryResult = { made: true; story: DayStory } | { made: false; reason: StoryReason; story: DayStory | null };
 
-/** Why no voice can read a story now, or null when one can (ElevenLabs first, then Gemini). */
-export function voiceBlocked(spend: StorySpend, now: number, d: { key: string; budget: number; eleven?: ElevenConfig | null }): "no-key" | "over-budget" | null {
-  if (!d.key && !d.eleven) return "no-key";
-  const eleven = !!d.eleven && canSpeakEleven(spend, now, d.eleven.budget);
-  const gemini = !!d.key && canSpeak(spend, now, d.budget);
-  return eleven || gemini ? null : "over-budget";
+/** Why ElevenLabs can't read a story now (no key, or its month's cap reached), or null when it can. */
+export function voiceBlocked(spend: StorySpend, now: number, eleven: ElevenConfig | null | undefined): "no-key" | "over-budget" | null {
+  if (!eleven) return "no-key";
+  return canSpeakEleven(spend, now, eleven.budget) ? null : "over-budget";
 }
 
 /**
@@ -786,98 +665,113 @@ export function voiceBlocked(spend: StorySpend, now: number, d: { key: string; b
  * recap (`allowPartial`), a "so far" edition (#365), made once per edition (`edition`, else the 5-hour mark of now) and
  * only when the Chronicle has something new since the last one. A story made with an older style (`STORY_STYLE`) may
  * be remade once in the current one when asked (`allowRemake`, the Desk's "Make it now"); the world step never remakes
- * a final one. No key, or no room in either voice's monthly budget, and nothing is called.
+ * a final one.
+ *
+ * ElevenLabs alone reads it (#472). When it can't (no key, past its cap, refused or down), nothing reads in its place:
+ * the script is kept with `audio: false` and shown, waiting on ElevenLabs, and the next try reads that same script
+ * (no second Claude write). While it is still blocked, a waiting script costs nothing to look at again.
  */
 export async function makeStory(deps: StoryDeps & { allowPartial?: boolean; allowRemake?: boolean; edition?: number }): Promise<StoryResult> {
-  const { stories, day, now } = deps;
+  const { stories, day, now, eleven } = deps;
   if (!DAY.test(day)) return { made: false, reason: "bad-day", story: null };
   const existing = await stories.readStory(day);
   const current = !!existing && isCurrent(existing);
-  // A final story stands in the way, unless it is in an older style and a remake was asked for.
-  if (existing && !existing.partial && (current || !deps.allowRemake)) return { made: false, reason: "exists", story: existing };
-  if (!deps.key && !deps.eleven) return { made: false, reason: "no-key", story: existing };
+  const waiting = !!existing && current && !hasAudio(existing);
+  // A final story stands in the way, unless it waits on its audio, or is in an older style and a remake was asked for.
+  if (existing && !existing.partial && !waiting && (current || !deps.allowRemake)) return { made: false, reason: "exists", story: existing };
 
   const page = await deps.world.readDay(day);
   const partial = !page.recap;
   const edition = partial ? (deps.edition ?? editionAt(day, now)) : undefined;
+  // The script already waiting on ElevenLabs, when it is still the one to read.
+  let retry: DayStory | null = null;
   if (partial) {
     if (!deps.allowPartial) return { made: false, reason: "no-recap", story: existing };
     if (existing?.partial && current) {
-      // This edition (or a later one) is made already; and a new edition waits for something new in the Chronicle.
-      if (editionOf(existing) >= edition!) return { made: false, reason: "exists", story: existing };
-      const since = Date.parse(existing.at);
-      if (!page.entries.some((e) => Date.parse(e.at) > since)) return { made: false, reason: "no-news", story: existing };
+      // A new edition is made only after its 5-hour mark, and only when the Chronicle has something new.
+      const fresh = editionOf(existing) < edition! && page.entries.some((e) => Date.parse(e.at) > Date.parse(existing.at));
+      if (!fresh) {
+        if (hasAudio(existing)) return { made: false, reason: editionOf(existing) >= edition! ? "exists" : "no-news", story: existing };
+        retry = existing;
+      }
     }
+  } else if (waiting && !existing.partial) {
+    retry = existing;
   }
-  if (!page.recap && page.entries.length === 0) return { made: false, reason: "empty", story: existing };
-  const blocked = voiceBlocked(await stories.loadSpend(), now, deps);
-  if (blocked) return { made: false, reason: blocked, story: existing };
+  if (!retry && !page.recap && page.entries.length === 0) return { made: false, reason: "empty", story: existing };
+  const blocked = voiceBlocked(await stories.loadSpend(), now, eleven);
+  // Still waiting, and ElevenLabs still can't read: nothing to do and nothing spent.
+  if (retry && blocked) return { made: false, reason: blocked, story: retry };
 
-  const kind: ClaimKind = partial ? soFarKind(edition!) : "final";
+  const kind: ClaimKind = (retry ? retry.partial : partial) ? soFarKind(retry ? editionOf(retry) : edition!) : "final";
   if (!(await stories.claim(day, kind, now))) return { made: false, reason: "busy", story: existing };
 
   try {
-    const cast = deps.cast ?? WORLD_CAST;
-    let script = "";
-    let writer: DayStory["writer"] = "chronicle";
+    let script = retry?.script ?? "";
+    let writer: DayStory["writer"] = retry?.writer ?? "chronicle";
+    // Only a new script is paid for here; a waiting one was paid for when it was written.
     let scriptUsd = 0;
-    if (deps.write) {
-      const got = await deps.write(storyPrompt(page, partial, cast)).catch(() => null);
-      scriptUsd = got?.usd ?? 0;
-      const text = got ? cleanScript(got.text) : "";
-      if (wordCount(text) >= SCRIPT_MIN_USABLE) {
-        script = text;
-        writer = "claude";
+    if (!retry) {
+      const cast = deps.cast ?? WORLD_CAST;
+      if (deps.write) {
+        const got = await deps.write(storyPrompt(page, partial, cast)).catch(() => null);
+        scriptUsd = got?.usd ?? 0;
+        const text = got ? cleanScript(got.text) : "";
+        if (wordCount(text) >= SCRIPT_MIN_USABLE) {
+          script = text;
+          writer = "claude";
+        }
       }
+      if (!script) script = chronicleScript(page, partial, cast);
     }
-    if (!script) script = chronicleScript(page, partial, cast);
-    const said = spokenOf(script);
-
-    // ElevenLabs first, while its own cap has room; Gemini when it isn't set, is over its cap, or fails.
-    const spend = await stories.loadSpend();
-    let voiced: { pcm: Uint8Array; sampleRate: number; reader: "elevenlabs" | "gemini"; model: string; voice: string; cost: StepCost; add: Partial<StoryMonth> } | null = null;
-    if (deps.eleven && canSpeakEleven(spend, now, deps.eleven.budget)) {
-      const got = await speakEleven(said, deps.eleven, deps.fetcher);
-      if (got) {
-        const usd = elevenCost(got.chars);
-        voiced = { ...got, reader: "elevenlabs", model: ELEVEN_MODEL, voice: deps.eleven.voice, cost: { usd, tokensIn: got.chars, tokensOut: 0 }, add: { elevenUsd: usd, elevenChars: got.chars, elevenCalls: 1 } };
-      }
-    }
-    if (!voiced && deps.key && canSpeak(spend, now, deps.budget)) {
-      const got = await speak(said, deps.key, deps.fetcher, SKIPPY_VOICE);
-      if (got) {
-        const price = geminiPrice(now);
-        const usd = (got.tokensIn * price.input + got.tokensOut * price.output) / 1_000_000;
-        voiced = { ...got, reader: "gemini", model: TTS_MODEL, voice: SKIPPY_VOICE.voice, cost: { usd, tokensIn: got.tokensIn, tokensOut: got.tokensOut }, add: { usd, tokensIn: got.tokensIn, tokensOut: got.tokensOut, calls: 1 } };
-      }
-    }
-    if (!voiced) {
-      await stories.release(day, kind);
-      if (scriptUsd) await stories.addSpend(now, { scriptUsd });
-      return { made: false, reason: "speech-failed", story: existing };
-    }
-    const wav = wavOf(voiced.pcm, voiced.sampleRate);
-    const story: DayStory = {
+    const base: DayStory = retry ?? {
       day,
       script,
       partial,
       writer,
       style: STORY_STYLE,
-      durationSec: Math.round((voiced.pcm.length / (voiced.sampleRate * 2)) * 10) / 10,
-      bytes: wav.length,
-      model: voiced.model,
-      voice: voiced.voice,
-      reader: voiced.reader,
+      durationSec: 0,
+      bytes: 0,
+      model: ELEVEN_MODEL,
+      voice: eleven?.voice ?? elevenVoice(undefined),
+      audio: false,
+      reader: "elevenlabs",
       at: new Date(now).toISOString(),
       ...(partial ? { edition } : {}),
-      cost: voiced.cost,
+      cost: { usd: 0, tokensIn: 0, tokensOut: 0 },
       scriptUsd,
     };
+
+    // ElevenLabs alone (#472): when it doesn't answer, nothing reads in its place.
+    const got = eleven && !blocked ? await speakEleven(spokenOf(script), eleven, deps.fetcher) : null;
+    if (!eleven || !got) {
+      await stories.release(day, kind);
+      if (scriptUsd) await stories.addSpend(now, { scriptUsd });
+      // Keep the new script, waiting on its audio, so it shows; never over a final story that has its own.
+      if (!retry && !(existing && !existing.partial)) {
+        const latest = partial ? await stories.readStory(day) : null;
+        if (!(latest && !latest.partial && isCurrent(latest))) await stories.putStory(base, null);
+      }
+      return { made: false, reason: blocked ?? "speech-failed", story: retry ?? base };
+    }
+    const usd = elevenCost(got.chars);
+    const wav = wavOf(got.pcm, got.sampleRate);
+    const { audio: _waiting, ...rest } = base;
+    const story: DayStory = {
+      ...rest,
+      durationSec: Math.round((got.pcm.length / (got.sampleRate * 2)) * 10) / 10,
+      bytes: wav.length,
+      model: ELEVEN_MODEL,
+      voice: eleven.voice,
+      reader: "elevenlabs",
+      at: new Date(now).toISOString(),
+      cost: { usd, tokensIn: got.chars, tokensOut: 0 },
+    };
     // Spend first: the call has been paid for, whatever happens to the write.
-    await stories.addSpend(now, { ...voiced.add, stories: 1, scriptUsd });
+    await stories.addSpend(now, { elevenUsd: usd, elevenChars: got.chars, elevenCalls: 1, stories: 1, scriptUsd });
     // A "so far" that finished after the final one landed never covers it.
-    const latest = partial ? await stories.readStory(day) : null;
-    if (latest && !latest.partial && isCurrent(latest)) return { made: false, reason: "exists", story: latest };
+    const latest = story.partial ? await stories.readStory(day) : null;
+    if (latest && !latest.partial && isCurrent(latest) && hasAudio(latest)) return { made: false, reason: "exists", story: latest };
     await stories.putStory(story, wav);
     return { made: true, story };
   } catch (e) {

@@ -51,10 +51,10 @@ describe("the Keys form's face of the vault", () => {
 
   it("marks the role paste's placeholders by their tag, never by a value", async () => {
     const { vault } = vaultWith(() =>
-      json({ value: [{ id: `${BASE}/secrets/gemini-api-key`, attributes: { enabled: true, updated: 3 }, tags: { "ceo-placeholder": "1" } }, { id: `${BASE}/secrets/openai`, attributes: { enabled: true, updated: 4 }, tags: null }] }),
+      json({ value: [{ id: `${BASE}/secrets/fantasypros`, attributes: { enabled: true, updated: 3 }, tags: { "ceo-placeholder": "1" } }, { id: `${BASE}/secrets/openai`, attributes: { enabled: true, updated: 4 }, tags: null }] }),
     );
     expect([...(await secretDates(vault))]).toEqual([
-      ["gemini-api-key", { enabled: true, updated: 3000, placeholder: true }],
+      ["fantasypros", { enabled: true, updated: 3000, placeholder: true }],
       ["openai", { enabled: true, updated: 4000 }],
     ]);
   });
@@ -95,18 +95,18 @@ describe("keys set from the Desk reach the running app (azure/src/keys.ts)", () 
 
   it("looks at most every two minutes, and reads again only what is newer", async () => {
     const env: Record<string, string | undefined> = {};
-    const dates: Record<string, number> = { "gemini-api-key": 1 };
-    const values: Record<string, string> = { "gemini-api-key": "g1" };
+    const dates: Record<string, number> = { "fantasypros": 1 };
+    const values: Record<string, string> = { "fantasypros": "g1" };
     const { source: s, reads } = source(values, dates);
     const r = new KeyRefresh(s, env);
     await r.refresh(0);
     expect(await r.refresh(KEYS_FRESH_MS - 1)).toEqual([]);
     await r.refresh(KEYS_FRESH_MS);
-    expect(reads).toEqual(["gemini-api-key"]);
-    dates["gemini-api-key"] = 2;
-    values["gemini-api-key"] = "g2";
-    expect(await r.refresh(2 * KEYS_FRESH_MS)).toEqual(["GEMINI_API_KEY"]);
-    expect(env.GEMINI_API_KEY).toBe("g2");
+    expect(reads).toEqual(["fantasypros"]);
+    dates["fantasypros"] = 2;
+    values["fantasypros"] = "g2";
+    expect(await r.refresh(2 * KEYS_FRESH_MS)).toEqual(["FANTASYPROS"]);
+    expect(env.FANTASYPROS).toBe("g2");
   });
 
   it("takes a key written on this instance at once, without reading it back", async () => {
@@ -125,7 +125,7 @@ describe("keys set from the Desk reach the running app (azure/src/keys.ts)", () 
     const reads: string[] = [];
     const r = new KeyRefresh(
       {
-        dates: async () => new Map([["claude-api-key", { enabled: true, updated: 1, placeholder: true }], ["gemini-api-key", { enabled: true, updated: 1 }]]),
+        dates: async () => new Map([["claude-api-key", { enabled: true, updated: 1, placeholder: true }], ["fantasypros", { enabled: true, updated: 1 }]]),
         read: async (name: string) => (reads.push(name), KEY_PLACEHOLDER),
       },
       env,
@@ -133,7 +133,7 @@ describe("keys set from the Desk reach the running app (azure/src/keys.ts)", () 
     expect(await r.refresh(0)).toEqual([]);
     r.noteSet("openai", KEY_PLACEHOLDER, 2);
     expect(env).toEqual({});
-    expect(reads).toEqual(["gemini-api-key"]);
+    expect(reads).toEqual(["fantasypros"]);
   });
 
   it("never throws when the vault is away, and logs names only", async () => {

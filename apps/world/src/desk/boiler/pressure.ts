@@ -64,7 +64,8 @@ const BY_FIT: Record<string, string | ((room: string) => string | undefined)> = 
   bluebubbles: "bluebubbles",
   openai: "openai",
   github: (room) => (room === "boiler" ? "world-trigger" : "github-api"),
-  gemini: (room) => (room === "archive" ? "gemini-speech" : "gemini-visual-qa"),
+  gemini: "gemini-visual-qa",
+  speech: "elevenlabs-speech",
   lattice: (room) => (room === "relay" ? "hub-socket" : undefined),
 };
 

@@ -5,7 +5,8 @@
  * CSP's media-src is 'self').
  *
  * GET  ?day=2026-10-13          → { day, ready: true, script, durationSec, partial, edition, reader, stale, at, audio } or
- *                                  { day, ready: false, reason } ("no-key", "over-budget", "not-yet").
+ *                                  { day, ready: false, reason } ("no-key", "over-budget", "not-yet"). The voice is
+ *                                  ElevenLabs alone (#472): "no-key" and "over-budget" mean the audio waits on it.
  * GET  ?day=2026-10-13&audio=1  → the WAV (audio/wav). Under 4 MB it is one cacheable 200; a longer one is served in
  *                                  ranges (206), since a function's response is capped at 4.5 MB.
  * POST { day? }                 → make today's or yesterday's story now, once (the Desk's "Make it now"). Only in the
@@ -22,11 +23,10 @@
  * (api/world-step.ts, waitUntil).
  *
  * Environment (Vercel → Settings → Environment Variables):
- *   ELEVENLABS_API_KEY    optional (#365): ElevenLabs reads the story first (Key Vault secret `elevenlabs` on Azure)
- *   ELEVENLABS_VOICE_ID   optional: its voice (default Daniel, a premade British male voice)
- *   ELEVENLABS_BUDGET_USD optional: ElevenLabs' own monthly cap (default 10, never above 10); past it, Gemini reads
- *   GEMINI_API_KEY     Gemini's speech, and the fallback when ElevenLabs is unset, over its cap or failing
- *   GEMINI_BUDGET_USD  optional: Gemini's own monthly cap (default 5, never above 10)
+ *   ELEVENLABS_API_KEY    the only voice (#365, #472; Key Vault secret `elevenlabs`): without it the script shows and
+ *                         the audio waits on ElevenLabs
+ *   ELEVENLABS_VOICE_ID   optional: the one voice for every spoken thing, Skippy's calls included (default Daniel)
+ *   ELEVENLABS_BUDGET_USD optional: ElevenLabs' own monthly cap (default 10, never above 10); past it, the audio waits
  *   FOUNDRY_DESK_KEY   the root of the Desk's sign-in (api/_desk/keys.ts), for POST
  *   CLAUDE_API_KEY     optional: Claude Haiku writes the script (else it is put together from the Chronicle's lines)
  *   BLOB_STORE_ID      the private Blob store (Vercel's OIDC sign-in)
@@ -35,7 +35,7 @@
 import { requireSession, withCookie } from "./_desk/session.js";
 import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import { claudeStoryWriter } from "./_world/claude.js";
-import { backfillDays, elevenFromEnv, geminiBudget, geminiKey, isCurrent, makeStory, pickStoryStore, voiceBlocked, type DayStory, type StoryStore, type WeekStory } from "./_world/story.js";
+import { backfillDays, elevenFromEnv, hasAudio, isCurrent, makeStory, pickStoryStore, voiceBlocked, type DayStory, type StoryStore, type WeekStory } from "./_world/story.js";
 import { DAY, pickStore, type WorldStore } from "./_world/store.js";
 import type { DayStoryView, WeekStoryView } from "./_world/types.js";
 
@@ -46,8 +46,11 @@ function json(body: unknown, status = 200, cache = "no-store"): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": status === 200 ? cache : "no-store" } });
 }
 
-/** What the Desk is told about a story: the transcript and where to hear it. */
-export function storyView(s: DayStory): DayStoryView {
+/**
+ * What the Desk is told about a story: the transcript and where to hear it. A script still waiting on ElevenLabs
+ * (#472) has no audio link, and `waiting` says why: no key, past its cap, or it didn't answer last time.
+ */
+export function storyView(s: DayStory, waiting: "no-key" | "over-budget" | "speech-failed" = "speech-failed"): DayStoryView {
   return {
     day: s.day,
     ready: true as const,
@@ -55,11 +58,12 @@ export function storyView(s: DayStory): DayStoryView {
     durationSec: s.durationSec,
     partial: s.partial,
     edition: s.partial ? (s.edition ?? null) : null,
+    // Stories read before #472 (Gemini) stay as they were; a missing reader is one of those.
     reader: s.reader ?? "gemini",
     writer: s.writer,
     stale: !isCurrent(s),
     at: s.at,
-    audio: `/api/day-story?day=${s.day}&audio=1&v=${Date.parse(s.at)}`,
+    ...(hasAudio(s) ? { audio: `/api/day-story?day=${s.day}&audio=1&v=${Date.parse(s.at)}` } : { audio: null, waiting }),
   };
 }
 
@@ -140,12 +144,11 @@ export async function handleGet(request: Request, deps: DayStoryEnv = live()): P
       return audioResponse(wav, request.headers.get("range"), !!story && v === String(Date.parse(story.at)));
     }
     const story = await deps.stories.readStory(day);
-    if (story) return json(storyView(story), 200, "public, s-maxage=60, stale-while-revalidate=600");
-    const view: DayStoryView = {
-      day,
-      ready: false,
-      reason: voiceBlocked(await deps.stories.loadSpend(), deps.now, { key: geminiKey(deps.env), budget: geminiBudget(deps.env.GEMINI_BUDGET_USD), eleven: elevenFromEnv(deps.env) }) ?? "not-yet",
-    };
+    if (story && hasAudio(story)) return json(storyView(story), 200, "public, s-maxage=60, stale-while-revalidate=600");
+    // Why ElevenLabs can't read now, or null when it can (a waiting script then failed last time, and is retried).
+    const blocked = voiceBlocked(await deps.stories.loadSpend(), deps.now, elevenFromEnv(deps.env));
+    if (story) return json(storyView(story, blocked ?? "speech-failed"), 200, "public, s-maxage=60");
+    const view: DayStoryView = { day, ready: false, reason: blocked ?? "not-yet" };
     return json(view, 200, "public, s-maxage=60");
   } catch {
     return json({ error: "store" }, 502);
@@ -175,15 +178,14 @@ async function make(request: Request, deps: DayStoryEnv & { world: WorldStore; s
       stories: deps.stories,
       day,
       now: deps.now,
-      key: geminiKey(deps.env),
-      budget: geminiBudget(deps.env.GEMINI_BUDGET_USD),
       eleven: elevenFromEnv(deps.env),
       write: claudeStoryWriter(deps.env.CLAUDE_API_KEY || deps.env.ANTHROPIC_API_KEY || ""),
       fetcher: deps.fetcher,
       allowPartial: true,
       allowRemake: true,
     });
-    return json({ day, made: result.made, ...(result.made ? {} : { reason: result.reason }), story: result.story ? storyView(result.story) : null });
+    const waiting = !result.made && (result.reason === "no-key" || result.reason === "over-budget") ? result.reason : "speech-failed";
+    return json({ day, made: result.made, ...(result.made ? {} : { reason: result.reason }), story: result.story ? storyView(result.story, waiting) : null });
   } catch {
     return json({ error: "story" }, 502);
   }

@@ -32,9 +32,6 @@ param logDailyCapGb string
 @description('The Azure copy\'s monthly Claude budget for the world, in USD (WORLD_BUDGET_USD), as a string.')
 param worldBudgetUsd string
 
-@description('The Azure copy\'s monthly Gemini budget for the stories, in USD (GEMINI_BUDGET_USD), as a string.')
-param geminiBudgetUsd string
-
 @description('The Azure copy\'s monthly Claude budget for Skippy\'s chat, in USD (SKIPPY_BUDGET_USD), as a string.')
 param skippyBudgetUsd string
 
@@ -69,7 +66,6 @@ var secrets = [
   { setting: 'FOUNDRY_APP_PRIVATE_KEY', secret: 'foundry-app-private-key' }
   { setting: 'FOUNDRY_GITHUB_TOKEN', secret: 'foundry-github-token' } // fallback when the App isn't set
   { setting: 'CLAUDE_API_KEY', secret: 'claude-api-key' } // world steps and stories (ANTHROPIC_API_KEY also works)
-  { setting: 'GEMINI_API_KEY', secret: 'gemini-api-key' } // day and week stories
   { setting: 'DESK_VAPID_PUBLIC_KEY', secret: 'desk-vapid-public-key' } // phone pings
   { setting: 'DESK_VAPID_PRIVATE_KEY', secret: 'desk-vapid-private-key' }
   { setting: 'DESK_VAPID_SUBJECT', secret: 'desk-vapid-subject' } // the pings' contact (mailto: or https:)
@@ -270,12 +266,11 @@ var plainSettings = [
   { name: 'AZURE_STORAGE_ACCOUNT', value: storage.name }
   { name: 'AZURE_STORAGE_BLOB_ENDPOINT', value: storage.properties.primaryEndpoints.blob }
   { name: 'AZURE_STORAGE_CONTAINER', value: stateContainer }
-  // Each copy keeps its own spend ledger in its own store, so these cap the Azure copy alone. They default lower
-  // than Vercel's ($6 world, $5 Gemini, $1 chat): the same Claude and Gemini keys serve both copies.
+  // Each copy keeps its own spend ledger in its own store, so these cap the Azure copy alone. The voice is
+  // ElevenLabs alone (#472), capped in code by ELEVENLABS_BUDGET_USD; Gemini's speech key and cap are retired.
   { name: 'WORLD_BUDGET_USD', value: worldBudgetUsd }
-  { name: 'GEMINI_BUDGET_USD', value: geminiBudgetUsd }
   { name: 'SKIPPY_BUDGET_USD', value: skippyBudgetUsd }
-  // The email agent's own cap (#263; Nikita: $10 a month), separate from the three above.
+  // The email agent's own cap (#263; Nikita: $10 a month), separate from the two above.
   { name: 'EMAIL_BUDGET_USD', value: emailBudgetUsd }
   // The Spire's invoices (#279): sandbox until Nikita switches to live (docs/PAYPAL.md).
   { name: 'PAYPAL_ENV', value: paypalEnv }

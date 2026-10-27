@@ -26,7 +26,6 @@ export interface SettableKey {
 
 export const SETTABLE_KEYS: readonly SettableKey[] = [
   { secret: "claude-api-key", setting: "CLAUDE_API_KEY", label: "Claude", from: "console.anthropic.com, API keys" },
-  { secret: "gemini-api-key", setting: "GEMINI_API_KEY", label: "Gemini", from: "aistudio.google.com, Get API key" },
   { secret: "fantasypros", setting: "FANTASYPROS", label: "FantasyPros", from: "FantasyPros' API page" },
   { secret: "polymarket-us-key-id", setting: "POLYMARKET_US_KEY_ID", label: "Polymarket US key ID", from: "polymarket.us/developer" },
   { secret: "polymarket-us-secret-key", setting: "POLYMARKET_US_SECRET_KEY", label: "Polymarket US secret key", from: "polymarket.us/developer, shown once" },

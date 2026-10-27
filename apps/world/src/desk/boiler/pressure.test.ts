@@ -38,7 +38,9 @@ describe("the Boiler Room's pressure", () => {
   it("explains each valve with its real connection, by room where it matters", () => {
     expect(connectionFor("github", "boiler")?.id).toBe("world-trigger");
     expect(connectionFor("github", "foundry")?.id).toBe("github-api");
-    expect(connectionFor("gemini", "archive")?.id).toBe("gemini-speech");
+    // The Archive's voice is ElevenLabs alone (#472); Gemini is only Visual QA now.
+    expect(connectionFor("speech", "archive")?.id).toBe("elevenlabs-speech");
+    expect(connectionFor("gemini", "archive")?.id).toBe("gemini-visual-qa");
     expect(connectionFor("gemini", "foundry")?.id).toBe("gemini-visual-qa");
     expect(connectionFor("lattice", "boiler")).toBeUndefined();
     expect(connectionFor("desk", "foundry")).toBeUndefined();

@@ -328,7 +328,7 @@ in the Key Vault and restart the Function App.
 Since #330, a third-party key is set or replaced on the Desk instead of in Cloud Shell: **Boiler Room → Security →
 Keys**, signed in. It is write-only by design:
 
-- **Only allowlisted names** (`api/_keys/allowlist.ts`): `claude-api-key`, `gemini-api-key`, `fantasypros`,
+- **Only allowlisted names** (`api/_keys/allowlist.ts`): `claude-api-key`, `fantasypros`,
   `polymarket-us-key-id`, `polymarket-us-secret-key`, `gmail-client-id`, `gmail-client-secret`, `paypal-client-id`,
   `paypal-client-secret`, `elevenlabs`, `openai` and `email-skip-terms`. Never anything that guards the lock, the crew
   or sealed data: `foundry-desk-key`, `site-bypass-token`, `desk-pings-secret`, `foundry-github-token`,
@@ -374,8 +374,9 @@ writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environme
 | Variable | What it is for | Without it |
 | --- | --- | --- |
 | `CLAUDE_API_KEY` | Claude Haiku: Rivet's shaping, the world step's hours, the day's story script, Skippy's chat on Today (#224) | Shaping and Skippy's chat are off; hours and scripts come from the agents' own lines |
-| `GEMINI_API_KEY` | Gemini's text to speech: the day's story, read aloud (#95). Sent only in a request header, with only the day's scrubbed script | No audio; the Chronicle says so |
-| `GEMINI_BUDGET_USD` | Gemini's monthly cap, enforced in code (`api/_world/story.ts`); default 5, never above 10 | $5 |
+| `ELEVENLABS_API_KEY` | The only voice (#365, #472): the day's story, the week in Ilyr and Skippy's live calls. Sent only in a request header, with only the scrubbed script | The script still shows; the audio says it is waiting on ElevenLabs. Nothing else reads |
+| `ELEVENLABS_VOICE_ID` | The one voice for everything spoken (default Daniel, a premade British male voice); letters and digits only | Daniel |
+| `ELEVENLABS_BUDGET_USD` | ElevenLabs' monthly cap, enforced in code (`api/_world/story.ts`), shared by the stories and the live calls; default 10, never above 10 | $10 |
 | `FOUNDRY_DESK_KEY` | The Desk's enrolment secret: typed once per device to add its passkey, and the root every Desk signing key is derived from (#132). Long and random | Sign-in, the buttons and the story backfill say "not set up" |
 | `FOUNDRY_APP_ID`, `FOUNDRY_APP_PRIVATE_KEY` | The crew's GitHub App (#138, below): every function mints its own hour-long token for this repo, as `ceo-foundry[bot]`. Production only | The functions use `FOUNDRY_GITHUB_TOKEN`, as before |
 | `FOUNDRY_APP_INSTALLATION_ID` | Optional: the App's installation, to skip one lookup | Looked up once per warm function |

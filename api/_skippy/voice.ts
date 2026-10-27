@@ -20,7 +20,7 @@
  * Counted at VOICE_USD_PER_MIN: ElevenLabs' API rate for Agents is $0.08 a minute (elevenlabs.io/pricing/api, checked
  * 2026-10-25), plus headroom for the LLM it runs on (Claude Haiku 4.5). A plan's own minutes come cheaper, so the cap
  * errs on the safe side. The talk's spend lives in the story's month ledger (`voiceUsd`, `voiceSecs`, `voiceCalls`,
- * and inside `elevenUsd`), so the story sees it too and falls back to Gemini when the cap is reached.
+ * and inside `elevenUsd`), so the story sees it too: once the cap is reached its audio waits (ElevenLabs only, #472).
  *
  * What Skippy knows: the Desk's own state as the typed chat sees it (api/_skippy/context.ts: titles, numbers, labels
  * and counts, scrubbed), passed as one dynamic variable at the session's start. Never money, a message's words, a

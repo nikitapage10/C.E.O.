@@ -18,11 +18,10 @@
  *   FOUNDRY_GITHUB_TOKEN   optional: the same with the older fine-grained token, until the App is set up
  *   WORLD_STORE            optional: "blob" (default) or "supabase" once it is connected (api/_world/store.ts)
  *   WORLD_BUDGET_USD       optional: the world's share of the $10 monthly Claude API cap (default 6)
- *   GEMINI_API_KEY         optional: the day's story, read aloud about every five hours and once the recap is filed
- *                          (api/_world/story.ts), and the week in Ilyr on Sunday evening (api/_world/week.ts)
- *   GEMINI_BUDGET_USD      optional: Gemini's own monthly cap (default 5, never above 10)
- *   ELEVENLABS_API_KEY     optional (#365): ElevenLabs reads the day's story first, under ELEVENLABS_BUDGET_USD
- *                          (default 10), with ELEVENLABS_VOICE_ID; Gemini reads when it can't
+ *   ELEVENLABS_API_KEY     optional: the only voice (#365, #472). It reads the day's story about every five hours and
+ *                          once the recap is filed (api/_world/story.ts), and the week in Ilyr on Sunday evening
+ *                          (api/_world/week.ts), under ELEVENLABS_BUDGET_USD (default 10), in ELEVENLABS_VOICE_ID.
+ *                          When it can't, the script is kept and the audio waits on it.
  */
 
 import { waitUntil } from "./_waitUntil.js";
@@ -33,23 +32,20 @@ import { readFeed } from "./_world/digest.js";
 import { runStep } from "./_world/step.js";
 import { makeWeekStory } from "./_world/week.js";
 import { weekDue } from "./_world/weeks.js";
-import { editionAt, elevenFromEnv, geminiBudget, geminiKey, makeStory, mountainOf, pickStoryStore } from "./_world/story.js";
+import { editionAt, elevenFromEnv, makeStory, mountainOf, pickStoryStore } from "./_world/story.js";
 import { pickStore, StaleStateError, type WorldStore } from "./_world/store.js";
 import type { WorldState } from "./_world/types.js";
 
 /**
  * Once the day's recap is filed, Skippy reads the day aloud (api/_world/story.ts, #365): after the answer has gone,
- * so the step stays fast. Without a voice key (ELEVENLABS_API_KEY or GEMINI_API_KEY), or past both caps, nothing is
- * called.
+ * so the step stays fast. Without ElevenLabs' key (ELEVENLABS_API_KEY), or past its cap, the script is still written
+ * and kept, its audio waiting on ElevenLabs (#472); nothing else reads it.
  */
 function tellTheDay(world: WorldStore, day: string): void {
   const stories = pickStoryStore();
-  const key = geminiKey();
   const eleven = elevenFromEnv();
-  if (!stories || (!key && !eleven)) return;
-  waitUntil(
-    makeStory({ world, stories, day, now: Date.now(), key, eleven, budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write: claudeStoryWriter() }).catch(() => undefined),
-  );
+  if (!stories) return;
+  waitUntil(makeStory({ world, stories, day, now: Date.now(), eleven, write: claudeStoryWriter() }).catch(() => undefined));
 }
 
 /**
@@ -62,18 +58,17 @@ function tellSoFar(world: WorldStore, state: WorldState, now: number): void {
   const { day } = mountainOf(now);
   const edition = editionAt(day, now);
   const stories = pickStoryStore();
-  const key = geminiKey();
   const eleven = elevenFromEnv();
-  if (edition < 1 || !stories || (!key && !eleven)) return;
+  if (edition < 1 || !stories) return;
   const write = canSpend(state, now, worldBudget(process.env.WORLD_BUDGET_USD)) ? claudeStoryWriter() : null;
   waitUntil(
-    makeStory({ world, stories, day, now, key, eleven, budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write, allowPartial: true, edition }).catch(() => undefined),
+    makeStory({ world, stories, day, now, eleven, write, allowPartial: true, edition }).catch(() => undefined),
   );
 }
 
 /**
  * On Sunday evening (the first steps from 6 pm Mountain) the Historian tells the week (api/_world/week.ts, #211): one
- * Claude write, only while the world's budget has room, else a script from the recaps, then one Gemini reading. Told
+ * Claude write, only while the world's budget has room, else a script from the recaps, then one ElevenLabs reading. Told
  * once; the hours after retry only a reading that failed.
  */
 function tellTheWeek(world: WorldStore, state: WorldState, now: number): void {
@@ -81,7 +76,7 @@ function tellTheWeek(world: WorldStore, state: WorldState, now: number): void {
   const stories = pickStoryStore();
   if (!week || !stories) return;
   const claude = canSpend(state, now, worldBudget(process.env.WORLD_BUDGET_USD)) ? claudeStoryWriter() : null;
-  waitUntil(makeWeekStory({ world, stories, week, now, key: geminiKey(), budget: geminiBudget(process.env.GEMINI_BUDGET_USD), write: claude }).catch(() => undefined));
+  waitUntil(makeWeekStory({ world, stories, week, now, eleven: elevenFromEnv(), write: claude }).catch(() => undefined));
 }
 
 function json(body: unknown, status = 200): Response {

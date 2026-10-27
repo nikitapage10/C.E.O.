@@ -857,19 +857,18 @@ function WorldSpend({ now, world }: { now: number; world: { status: ChronicleSta
 
 /**
  * Today in Ilyr (issue #95, #365, docs/WORLD.md): Skippy writes it (Claude Haiku, on the shared Claude cap) and
- * presents it, ElevenLabs reading first under its own cap (ELEVENLABS_BUDGET_USD) and Gemini's speech taking over on a
- * failure or past the cap (GEMINI_BUDGET_USD). This month's voice spend against both caps; without a key, it says so.
+ * presents it, read by ElevenLabs alone (#472) under its own cap (ELEVENLABS_BUDGET_USD). This month's voice spend
+ * against that cap; without a key, or past it, it says the audio waits on ElevenLabs.
  */
 function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
   const s = world.feed?.story;
   const mask = useMasked();
   const hidden = useHide((h) => h.on);
   const month = s ? new Date(`${s.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
-  const usd = s ? s.usd + (s.elevenUsd ?? 0) : 0;
-  const budget = s ? s.budget + (s.elevenBudget ?? 0) : 0;
+  const usd = s ? (s.elevenUsd ?? 0) : 0;
+  const budget = s?.elevenBudget ?? 0;
   const share = budget > 0 ? Math.min(1, usd / budget) : 0;
   const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
-  const voices = s ? [s.eleven ? "ElevenLabs" : null, s.gemini ? "Gemini" : null].filter(Boolean).join(", then ") : "";
   return (
     <section className="fy-world" aria-label="Voice spend on Today in Ilyr, this month">
       <h3 className="fy-usage__head">Today in Ilyr · Skippy's voice · this month</h3>
@@ -885,7 +884,7 @@ function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFe
               <span>{month}</span>
             </p>
             <p className="fy-spend__calls">
-              {s.stories} {s.stories === 1 ? "edition" : "editions"} read aloud · ElevenLabs <Private>{formatUsd(s.elevenUsd ?? 0)}</Private> · Gemini <Private>{formatUsd(s.usd)}</Private> · scripts on Claude Haiku <Private>{formatUsd(s.scriptUsd)}</Private>
+              {s.stories} {s.stories === 1 ? "edition" : "editions"} read aloud · ElevenLabs <Private>{formatUsd(s.elevenUsd ?? 0)}</Private> · scripts on Claude Haiku <Private>{formatUsd(s.scriptUsd)}</Private>
             </p>
           </div>
           <div
@@ -894,16 +893,14 @@ function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFe
             aria-valuemin={0}
             aria-valuemax={budget}
             aria-valuenow={hidden ? undefined : Number(usd.toFixed(4))}
-            aria-label={`${mask(formatUsd(usd))} of the voices' $${budget} monthly caps`}
+            aria-label={`${mask(formatUsd(usd))} of ElevenLabs' $${budget} monthly cap`}
           >
             <i style={{ width: `${usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
           </div>
           <p className="fy-world__line">
-            {!s.eleven && !s.gemini
-              ? "No voice key is set (elevenlabs or gemini-api-key in the Key Vault), so Skippy writes Today but doesn't read it aloud."
-              : !s.eleven
-                ? "No ElevenLabs key (elevenlabs in the Key Vault), so Gemini reads Today in Skippy's place."
-                : `Skippy reads with ${voices}. Guard: each voice stops once one more edition could pass its cap; the Archive says so until the month turns.`}{" "}
+            {!s.eleven
+              ? "No ElevenLabs key (elevenlabs in the Key Vault), so Skippy writes Today and its audio waits on ElevenLabs."
+              : "Skippy reads with ElevenLabs, the only voice, in the same voice as his live calls. Guard: it stops once one more edition could pass the cap, and the audio waits on ElevenLabs until the month turns."}{" "}
             <a href="/archive" onClick={link("archive")}>
               Hear it in the Archive →
             </a>

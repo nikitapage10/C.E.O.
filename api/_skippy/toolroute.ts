@@ -35,6 +35,10 @@ import { billText, boilerText, exchangeText, foundryText, greenText, isRead, pos
 import { BlobCrewStore, TOOL_HEADER, checkToolToken, tokenHash, type CrewStore } from "./voicetoken.js";
 
 export const PATH = "/api/skippy-tools";
+/** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
+export const READ_BUDGET_MS = 4_300;
+/** What the call hears when a room is too slow: the agent then answers from what it already knows. */
+export const SLOW_TEXT = "That room's data is slow right now; answer from what you already know and say it's dragging.";
 /** The most lookups one call may make. */
 export const READS_PER_CALL = 60;
 
@@ -56,6 +60,8 @@ export interface ToolDeps {
   crew: CrewStore | null;
   sources: RoomSources;
   now: number;
+  /** For tests: the read budget (ms). */
+  budgetMs?: number;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -106,7 +112,12 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
   if (counted.size > 50) counted.clear();
   counted.set(tag, n);
   if (n > READS_PER_CALL) return json({ error: "slow-down" }, 429);
-  return json({ read, text: await readText(read, deps.sources, deps.now) });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const slow = new Promise<string>((resolve) => {
+    timer = setTimeout(() => resolve(SLOW_TEXT), deps.budgetMs ?? READ_BUDGET_MS);
+  });
+  const text = await Promise.race([readText(read, deps.sources, deps.now), slow]).finally(() => clearTimeout(timer));
+  return json({ read, text, ...(text === SLOW_TEXT && { slow: true }) });
 }
 
 /* ── The live sources ── */

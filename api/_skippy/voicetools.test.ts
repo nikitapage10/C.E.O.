@@ -140,6 +140,12 @@ describe("the lookups' route", () => {
     expect(body.text).toContain("split decision");
   });
 
+  it("answers 'slow' inside ElevenLabs' five seconds when a room drags", async () => {
+    const { token, deps: d } = await deps();
+    const res = await handle(toolReq("green", token), { ...d, budgetMs: 20, sources: sources({ green: () => new Promise(() => undefined) }) });
+    expect(await res.json()).toMatchObject({ read: "green", slow: true });
+  });
+
   it("takes exactly one known read and nothing else", async () => {
     const { token, deps: d } = await deps();
     expect((await handle(toolReq("spire", token), d)).status).toBe(400);
@@ -207,6 +213,8 @@ describe("the crew on ElevenLabs", () => {
     for (const def of TOOL_DEFS) {
       const c = toolConfig(def, SITE);
       expect(c.type).toBe("webhook");
+      expect(c.pre_tool_speech).toBe("force");
+      expect(c.response_timeout_secs).toBe(5);
       expect(c.api_schema.url).toBe(`${SITE}/api/skippy-tools`);
       expect(c.api_schema.query_params_schema.properties.read).toEqual({ type: "string", constant_value: def.read });
       expect(c.api_schema.request_headers).toEqual({ [TOOL_HEADER]: { variable_name: TOOL_VAR } });

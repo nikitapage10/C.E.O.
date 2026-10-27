@@ -3,6 +3,8 @@ import { Keeper } from "./parts.tsx";
 import { SetupAsks } from "../skippy/SetupAsks.tsx";
 import { clamp, reducedMotion } from "../wvCanvas.ts";
 import {
+  callConfidence,
+  tickerItems,
   onBye,
   ordinal,
   pct,
@@ -20,7 +22,7 @@ import {
   type GreenSlot,
   type GreenStatus,
 } from "../green/league.ts";
-import { useGreenAnalysis, type GreenAnalysis } from "../green/analysis.ts";
+import { useGreenAnalysis, waitWords, type GreenAnalysis } from "../green/analysis.ts";
 import { formation, modeFor, paintField, place, yardAt, type Mode, type Tok, type TokState } from "../green/stadium.ts";
 import { useFlow, RC, type FlowLayoutFn, type FlowLine } from "../flow/index.ts";
 import "./rooms.css";
@@ -32,8 +34,9 @@ import "../green/green.css";
  * starters of both teams stand as tokens on the turf in formation, each on a pool of floodlight haze that is his points
  * (bright motes rising are what he has scored, dim ones hanging are what FantasyPros still projects), and the line of
  * scrimmage sits at the win chance. New points flare their player and lift that side's crowd (green/stadium.ts).
- * Under the field: FantasyPros' start-or-sit calls as broadcast strips, each a duel of faces with its late-game-risk,
- * tiebreak, split and bye flags and why on a tap; then the stat rail, each stat opening one drawer: the full lineup
+ * The scoreboard carries a labelled win-probability meter (#261). Under the field: the ticker (the league's news and
+ * moves, #261), then FantasyPros' start-or-sit calls as broadcast strips, each a duel of faces with its confidence,
+ * FantasyPros rank this week, late-game-risk, tiebreak, split and bye flags and why on a tap; then the stat rail, each stat opening one drawer: the full lineup
  * with FantasyPros' range, tier, rank move and roster share; the playoff race; the wire; one trade idea; the byes; the
  * table; the league's moves; the news; the Commentator's written call; and where every number came from.
  *
@@ -402,6 +405,7 @@ function Stadium({ board, status, onLineup }: { board: GreenBoard | null; status
                 {m.me.record}
                 {board?.me.rank ? ` · ${ordinal(board.me.rank)} of ${board.league.teams}` : ""}
               </small>
+              <small className="gd-sb-what">{live ? "points so far" : "projected points"}</small>
             </div>
             <b className="gd-sb-n fl-num is-me" data-gd-score="me">
               {pts(mine)}
@@ -422,6 +426,7 @@ function Stadium({ board, status, onLineup }: { board: GreenBoard | null; status
             <div className="gd-sb-side is-them">
               <b>{them?.team ?? "Bye week"}</b>
               <small>{them?.record ?? ""}</small>
+              {them && <small className="gd-sb-what">{live ? "points so far" : "projected points"}</small>}
             </div>
           </div>
         ) : (
@@ -433,6 +438,7 @@ function Stadium({ board, status, onLineup }: { board: GreenBoard | null; status
             {yd && <> · {yd.words.toLowerCase()}</>}
           </p>
         )}
+        {m && them && win !== null && <WinMeter win={win} me={m.me.team} them={them.team} />}
       </div>
       <div className="gd-pitch" ref={pitch}>
         {los && yd && (
@@ -468,6 +474,30 @@ function Stadium({ board, status, onLineup }: { board: GreenBoard | null; status
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * The scoreboard's win-probability meter (#261): your share of the bar in lime, theirs in the stands' grey, both ends
+ * labelled. The chance is the board's own (both teams' projections and what's scored), never one made up here.
+ */
+function WinMeter({ win, me, them }: { win: number; me: string; them: string }) {
+  const mine = Math.round(win * 100);
+  return (
+    <div className="gd-wp" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={mine} aria-label={`Win probability: ${me} ${mine}%, ${them} ${100 - mine}%`}>
+      <span className="gd-wp-end is-me">
+        <b>{mine}%</b>
+        <small>{me}</small>
+      </span>
+      <span className="gd-wp-bar" aria-hidden="true">
+        <i style={{ width: `${mine}%` }} />
+      </span>
+      <span className="gd-wp-end">
+        <b>{100 - mine}%</b>
+        <small>{them}</small>
+      </span>
+      <small className="gd-wp-k">Win probability</small>
+    </div>
   );
 }
 
@@ -514,19 +544,38 @@ function Duelist({ p, week, role }: { p: GreenPlayer; week: number; role: "start
         <b>{p.name}</b>
         <small>
           <Logo team={p.team} />
-          {p.opp && <> v {p.opp}</>} <Tag p={p} week={week} />
+          {p.opp && <> v {p.opp}</>}
+          {p.wk !== null && (
+            <em className="gd-rk" title={`FantasyPros' consensus rank at ${p.pos} this week`}>
+              {p.pos}
+              {p.wk}
+              <i> this week</i>
+            </em>
+          )}
+          <Tag p={p} week={week} />
         </small>
       </span>
-      <strong title={fpTitle(p)}>{pts(fpPts(p))}</strong>
+      <span className="gd-du-n">
+        <strong title={fpTitle(p)}>{pts(fpPts(p))}</strong>
+        <small>{p.src === "form" ? "pts on form" : "FP proj pts"}</small>
+      </span>
     </span>
   );
 }
+
+const SURE_WORD = { high: "High confidence", medium: "Medium confidence", low: "Low confidence" } as const;
+const SURE_WHY = {
+  high: "FantasyPros has him 3 points or more ahead and Sleeper doesn't disagree",
+  medium: "A clear FantasyPros edge, but under 3 points or with Sleeper the other way",
+  low: "A split, a tiebreak, a late-game risk, or a close call on form",
+} as const;
 
 function CallRow({ c, week, fp, i, most }: { c: GreenCall; week: number; fp: boolean; i: number; most: number }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const sl = c.sleeper;
   const edge = Math.abs(c.edge);
+  const sure = callConfidence(c, fp ? "fp" : "form");
   return (
     <li className={`gd-cl gd-rise${c.change ? " is-change" : ""}${c.lateRisk ? " is-risk" : ""}`} style={rise(i + 2)}>
       <span className="gd-cl-slot">
@@ -539,11 +588,14 @@ function CallRow({ c, week, fp, i, most }: { c: GreenCall; week: number; fp: boo
         <i aria-hidden="true">
           <i style={{ width: `${Math.max(6, (edge / Math.max(most, 1)) * 100)}%` }} />
         </i>
-        <small>{fp ? "FantasyPros" : "on form"}</small>
+        <small>{fp ? "FantasyPros edge, pts" : "edge on form, pts"}</small>
       </span>
       <Duelist p={c.sit} week={week} role="sit" />
       <span className="gd-cl-tail">
         <span className="gd-cl-flags">
+          <em className={`gd-flag is-sure is-${sure}`} title={SURE_WHY[sure]}>
+            {SURE_WORD[sure]}
+          </em>
           {c.lateRisk && (
             <em className="gd-flag is-risk" title={c.lateRisk}>
               Late-game risk
@@ -780,7 +832,7 @@ function Commentator({ now }: { now: number }) {
   useEffect(() => {
     void useGreenAnalysis.getState().load();
   }, []);
-  const wait = refreshAfter !== null && refreshAfter > now ? Math.ceil((refreshAfter - now) / 60_000) : 0;
+  const wait = refreshAfter !== null && refreshAfter > now ? refreshAfter - now : 0;
   return (
     <section className="gd-cc" aria-label="The Commentator's call">
       <header className="gd-cc-head">
@@ -790,8 +842,8 @@ function Commentator({ now }: { now: number }) {
           <p className="gd-cc-when">{a ? `Week ${a.week} · ${fmtWhen(a.at)} · ${a.trigger === "scheduled" ? "the Tuesday call" : "on request"}` : "Tuesdays 5:39pm Mountain, before waivers"}</p>
         </div>
         {status !== "off" && status !== "signed-out" && (
-          <button type="button" className="gd-btn" onClick={() => void useGreenAnalysis.getState().refresh()} disabled={busy || wait > 0} title={wait > 0 ? `Next refresh in ${wait} min` : "Write a fresh one now"}>
-            {busy ? "Writing…" : wait > 0 ? `Again in ${wait} min` : "Refresh"}
+          <button type="button" className="gd-btn" onClick={() => void useGreenAnalysis.getState().refresh()} disabled={busy || wait > 0} title={wait > 0 ? `One fresh take a day: next in ${waitWords(wait)}` : "Write a fresh one now (once a day)"}>
+            {busy ? "Writing…" : wait > 0 ? `Again in ${waitWords(wait)}` : "Refresh"}
           </button>
         )}
       </header>
@@ -843,7 +895,9 @@ function Commentator({ now }: { now: number }) {
                 ? "The Commentator's call isn't set up on this copy."
                 : status === "failed"
                   ? "The call didn't load. Try again in a minute."
-                  : "No call written yet. The next lands Tuesday at 5:39pm Mountain, or press Refresh."}
+                  : status === "waiting"
+                    ? "Waiting on the league: no data is connected yet, so the Commentator has nothing to write from."
+                    : "Waiting for the first take: it lands Tuesday at 5:39pm Mountain, or press Refresh."}
         </p>
       )}
       {note && (
@@ -920,10 +974,10 @@ function BidRow({ b, faab }: { b: GreenBid; faab: boolean }) {
       </span>
       {faab ? (
         <span className="gd-bid-n" title={`Suggested FAAB bid; ${b.low} to ${b.high} is the sensible range`}>
-          <small>Bid</small>
+          <small>FAAB bid</small>
           <b>{b.bid}</b>
           <small>
-            {b.low}–{b.high}
+            range {b.low}–{b.high}
           </small>
         </span>
       ) : (
@@ -1117,7 +1171,7 @@ function Moves({ board, now }: { board: GreenBoard; now: number }) {
   );
 }
 
-/* ── the newsdesk (a drawer now, no longer a ticker) ── */
+/* ── the newsdesk (the full list in a drawer; the ticker under the chyron crawls it, #261) ── */
 
 const WHOSE: Record<GreenNews["whose"], string> = {
   mine: "Yours",
@@ -1166,6 +1220,35 @@ function News({ board, now }: { board: GreenBoard; now: number }) {
       ) : (
         <p className="gd-note">Quiet: no news on anyone who matters to you.</p>
       )}
+    </section>
+  );
+}
+
+/**
+ * The ticker (#261): the broadcast's bottom line, one row that crawls the league's news (yours first) and its latest
+ * moves. Only what Sleeper and FantasyPros sent; with nothing to say it isn't drawn. Under prefers-reduced-motion it
+ * stands still and scrolls by hand. The full newsdesk is still a drawer below.
+ */
+function Ticker({ board, now }: { board: GreenBoard; now: number }) {
+  const items = tickerItems(board);
+  if (!items.length) return null;
+  const row = (copy: boolean) =>
+    items.map((t) => (
+      <li key={`${copy ? "c" : ""}${t.key}`} className={t.mine ? "is-mine" : undefined}>
+        <em>{t.tag}</em>
+        <b>{t.who}</b> {t.text}
+        {t.at && <small>{ago(t.at, now)}</small>}
+      </li>
+    ));
+  return (
+    <section className="gd-tick gd-rise" style={{ ...rise(2), "--n": items.length } as React.CSSProperties} aria-label="Ticker: league news and moves">
+      <span className="gd-tick-k">Ticker</span>
+      <div className="gd-tick-run">
+        <div className="gd-tick-belt">
+          <ul>{row(false)}</ul>
+          <ul aria-hidden="true">{row(true)}</ul>
+        </div>
+      </div>
     </section>
   );
 }
@@ -1380,6 +1463,7 @@ export function Green() {
 
       {board && (
         <>
+          <Ticker board={board} now={now} />
           <Calls board={board} onLineup={() => setOpen("lineup")} />
           <Deeper board={board} now={now} open={open} setOpen={setOpen} />
         </>

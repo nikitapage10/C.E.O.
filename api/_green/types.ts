@@ -349,9 +349,16 @@ export interface AnalysisFacts {
   waiver: { action: "bid" | "claim" | "hold"; player: string | null; pos: string | null; bid: number | null; low: number | null; high: number | null; faabLeft: number | null; drop: string | null; rivals: number; blocks: string | null };
   splits: { slot: string; start: string; sit: string; fp: [number, number]; sl: [number, number] }[];
   odds: { playoff: number; seeds: number[]; swing: { root: string; other: string; ifWin: number; ifLose: number }[] } | null;
+  /**
+   * The start-or-sit calls (#261), FantasyPros' (or, while it waits, form's): who to start over whom, the margin, how
+   * sure (api/_green/confidence.ts), and each one's FantasyPros rank this week ("WR14"). Absent on an older analysis.
+   */
+  calls?: { slot: string; start: string; sit: string; edge: number; sure: "high" | "medium" | "low"; startRank: string | null; sitRank: string | null; change: boolean }[];
+  /** A short review of FantasyPros' week (#261): its state, how its calls sat with Sleeper's, and the roster's biggest rank movers. */
+  review?: { state: FpState; calls: CallSource; agree: number; disagree: number; splits: number; movers: { name: string; delta: number }[] };
 }
 
-export type AnalysisKey = "matchup" | "weak" | "byes" | "injuries" | "trade" | "waiver";
+export type AnalysisKey = "matchup" | "calls" | "weak" | "byes" | "injuries" | "trade" | "waiver" | "review";
 
 export interface GreenAnalysis {
   at: string;

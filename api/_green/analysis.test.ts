@@ -2,14 +2,15 @@ import { describe, expect, it } from "vitest";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
 import { MemoryChatLedger } from "../_skippy/budget.ts";
-import { AUTO_GAP_MS, MANUAL_GAP_MS, MemoryAnalysisStore, WEEKLY_PING, checkWords, factsOf, handleGet, handlePost, isAnalysis, isWeeklySlot, makeAnalysis, runWeekly, scripted, type AnalysisDeps, type Writer } from "./analysis.ts";
-import { canGreen, greenBudget, GREEN_CEILING_USD } from "./budget.ts";
+import { ANALYSIS_MODEL, AUTO_GAP_MS, FP_WAITING, MANUAL_GAP_MS, MemoryAnalysisStore, WEEKLY_PING, checkWords, claudeWriter, factsInput, factsOf, handleGet, handlePost, isAnalysis, isWeeklySlot, makeAnalysis, runWeekly, scripted, type AnalysisDeps, type Writer } from "./analysis.ts";
+import { canGreen, greenBudget, GREEN_CEILING_USD, GREEN_MAX_INPUT_TOKENS, GREEN_MAX_TOKENS } from "./budget.ts";
+import { callConfidence } from "./confidence.ts";
 import type { GreenBoard, GreenPlayer } from "./types.ts";
 
 /**
  * The Commentator's call (#276): words from the board's numbers only (a section carrying any other number is replaced
  * by the numbers said plainly), the month's Claude cap respected, a Sources footer on every analysis, a signed-in GET,
- * an on-demand refresh at most every ten minutes, and the Tuesday run at most every six hours with a Desk ping.
+ * an on-demand refresh at most once a day, and the Tuesday run at most once a week with a Desk ping (#261).
  */
 
 const ORIGIN = "https://ceo.test";
@@ -107,7 +108,99 @@ describe("the facts and the words (#276)", () => {
     expect(words.headline).toBe("A 33% shot at 104.2");
     expect(words.waiver).toBe("Go get Wire Back for 17");
     expect(words.matchup).toBe(scripted(f, 8).matchup);
-    expect(replaced).toBe(3);
+    expect(replaced).toBe(5); // the three bad sections, and the calls and review it left out
+  });
+});
+
+describe("the weekly take's coverage (#261)", () => {
+  it("builds the calls and the FantasyPros review from the board's own numbers", () => {
+    const b = board();
+    b.calls![0]!.start.wk = 31;
+    b.calls![0]!.sit.wk = 34;
+    b.roster.bench[0]!.delta = -4;
+    const f = factsOf(b);
+    expect(f.calls).toEqual([{ slot: "WR", start: "Starting Wideout", sit: "Bench Wideout", edge: 0.4, sure: "low", startRank: "WR31", sitRank: "WR34", change: false }]);
+    expect(f.review).toEqual({ state: "live", calls: "fp", agree: 0, disagree: 1, splits: 1, movers: [{ name: "Bench Wideout", delta: -4 }] });
+    const w = scripted(f, 8);
+    expect(w.calls).toBe("WR: start Starting Wideout (WR31) over Bench Wideout (WR34) by 0.4, low confidence.");
+    expect(w.review).toBe("FantasyPros decides the calls this week. Sleeper agreed on 0 of 1 call, 1 a split decision. Rest-of-season movers: Bench Wideout down 4.");
+  });
+
+  it("the prompt's input is the facts from the real board, fenced and within the input cap", () => {
+    const input = factsInput(factsOf(board()));
+    expect(input.startsWith("<facts>\n")).toBe(true);
+    expect(input).toContain('"team":"Denver Dream Team"');
+    expect(input).toContain('"start":"Starting Wideout"');
+    expect(input).toContain('"bid":17');
+    expect(input.length).toBeLessThanOrEqual(GREEN_MAX_INPUT_TOKENS * 3);
+    const huge = factsOf(board());
+    huge.injuries = Array.from({ length: 4000 }, (_, i) => ({ name: `Player ${i}`, pos: "WR", status: "out", starting: false }));
+    expect(factsInput(huge).length).toBe(GREEN_MAX_INPUT_TOKENS * 3);
+  });
+
+  it("asks Haiku with the hard token cap, and reads its structured answer", async () => {
+    const sent: Record<string, unknown>[] = [];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      sent.push(JSON.parse(String(init?.body)));
+      const answer = { ...scripted(factsOf(board()), 8), headline: "Underdogs at 33%." };
+      return new Response(JSON.stringify({ id: "msg_test", type: "message", role: "assistant", model: ANALYSIS_MODEL, stop_reason: "end_turn", stop_sequence: null, content: [{ type: "text", text: JSON.stringify(answer) }], usage: { input_tokens: 1800, output_tokens: 420 } }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    const got = await claudeWriter("a test key, not a real one", fetcher)(factsOf(board()));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ model: "claude-haiku-5-5", max_tokens: GREEN_MAX_TOKENS });
+    expect(JSON.stringify(sent[0]!.messages)).toContain("Denver Dream Team");
+    expect((got.answer as { headline: string }).headline).toBe("Underdogs at 33%.");
+    expect(got.usage).toMatchObject({ input_tokens: 1800, output_tokens: 420 });
+  });
+
+  it("while FantasyPros waits, the review says it is waiting, whatever the model wrote", () => {
+    const b = board();
+    b.sources = { ...b.sources, fantasypros: "waiting", calls: "form" };
+    const f = factsOf(b);
+    expect(scripted(f, 8).review).toBe(FP_WAITING);
+    const { words } = checkWords({ ...scripted(f, 8), review: "FantasyPros loves your roster." }, f, 8);
+    expect(words.review).toBe(FP_WAITING);
+  });
+
+  it("rates each call: low on a split or tiebreak, high on a clean 3-point FantasyPros edge", () => {
+    const base = { edge: 4, split: false, tiebreak: null, lateRisk: null, sleeper: "agrees" as const };
+    expect(callConfidence(base, "fp")).toBe("high");
+    expect(callConfidence({ ...base, sleeper: "disagrees" }, "fp")).toBe("medium");
+    expect(callConfidence({ ...base, edge: 1.2 }, "fp")).toBe("medium");
+    expect(callConfidence({ ...base, split: true }, "fp")).toBe("low");
+    expect(callConfidence({ ...base, tiebreak: "ceiling" }, "fp")).toBe("low");
+    expect(callConfidence({ ...base, lateRisk: "late kick" }, "fp")).toBe("low");
+    expect(callConfidence(base, "form")).toBe("medium");
+    expect(callConfidence({ ...base, edge: 2 }, "form")).toBe("low");
+  });
+
+  it("with no league data connected, it waits: nothing written, nothing counted, nobody pinged", async () => {
+    let calls = 0;
+    const write: Writer = async () => {
+      calls++;
+      return { answer: null, usage: null };
+    };
+    const { deps, store, pings, cookie } = await setup({
+      write,
+      board: async () => {
+        throw new Error("no league");
+      },
+    });
+    const res = await handlePost(post(cookie), deps);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ state: "waiting" });
+    expect(await runWeekly(deps)).toBe("waiting");
+    expect(store.saved).toEqual({ analysis: null, manualAt: null, autoAt: null });
+    expect(calls).toBe(0);
+    expect(pings).toEqual([]);
+  });
+
+  it("stays far inside the month's $10 cap: a month of weekly takes and daily refreshes at the token cap", () => {
+    expect(MANUAL_GAP_MS).toBe(24 * 3_600_000);
+    expect(AUTO_GAP_MS).toBeGreaterThanOrEqual(6 * 24 * 3_600_000);
+    const most = (5 + 31) * GREEN_CEILING_USD;
+    expect(GREEN_CEILING_USD).toBeLessThan(0.002);
+    expect(most).toBeLessThan(0.25);
   });
 });
 

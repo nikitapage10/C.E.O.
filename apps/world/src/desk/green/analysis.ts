@@ -4,18 +4,27 @@ import { readFeeds } from "./league.ts";
 
 /**
  * The Commentator's call (#276), browser side: GET /api/green-analysis (signed-in Desk only) when the Green page opens,
- * and POST { action: "refresh" } from its button, at most once every ten minutes (the server holds the line; the page
- * just shows when the next one is allowed). The words were written on the server from the board's numbers only.
+ * and POST { action: "refresh" } from its button, at most once a day (#261; the server holds the line; the page just
+ * shows when the next one is allowed). The words were written on the server from the board's numbers only.
  */
 
 export type { GreenAnalysis };
 
 const PATH = "/api/green-analysis";
 
-/** "signed-out": the Desk's passkey session is needed; "off": the route isn't here (a local preview). */
-export type AnalysisStatus = "idle" | "ready" | "none" | "signed-out" | "off" | "failed";
+/**
+ * "signed-out": the Desk's passkey session is needed; "off": the route isn't here (a local preview); "waiting": no
+ * league data is connected yet, so nothing was written (#261).
+ */
+export type AnalysisStatus = "idle" | "ready" | "none" | "waiting" | "signed-out" | "off" | "failed";
 
-const KEYS: AnalysisKey[] = ["matchup", "weak", "byes", "injuries", "trade", "waiver"];
+const KEYS: AnalysisKey[] = ["matchup", "calls", "waiver", "review", "weak", "byes", "injuries", "trade"];
+
+/** "in 40 min", "in 6 h": how long until the next on-demand take. */
+export function waitWords(ms: number): string {
+  const min = Math.max(1, Math.ceil(ms / 60_000));
+  return min < 90 ? `${min} min` : `${Math.ceil(min / 60)} h`;
+}
 const str = (v: unknown, max = 600) => (typeof v === "string" && v.length <= max ? v : null);
 
 /** The analysis as the server sent it, every string capped; null when it isn't one. */
@@ -85,8 +94,8 @@ export const useGreenAnalysis = create<AnalysisStore>((set, get) => ({
       const res = await fetch(PATH, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, credentials: "same-origin", body: JSON.stringify({ action: "refresh" }) });
       if (res.status === 429) {
         const body = (await res.json().catch(() => null)) as { wait?: unknown } | null;
-        const wait = typeof body?.wait === "number" ? body.wait : 600;
-        set({ busy: false, refreshAfter: Date.now() + wait * 1000, note: `The Commentator just wrote one; next refresh in ${Math.ceil(wait / 60)} min.` });
+        const wait = typeof body?.wait === "number" ? body.wait : 86_400;
+        set({ busy: false, refreshAfter: Date.now() + wait * 1000, note: `The Commentator wrote one today; next refresh in ${waitWords(wait * 1000)}.` });
         return;
       }
       const bad = statusOf(res);
@@ -94,7 +103,11 @@ export const useGreenAnalysis = create<AnalysisStore>((set, get) => ({
         set({ busy: false, status: bad === "failed" ? get().status : bad, note: bad === "signed-out" ? "Sign in to the Desk to ask for a fresh one." : "The refresh didn't go through. Try again in a few minutes." });
         return;
       }
-      const body = (await res.json()) as { analysis?: unknown; refreshAfter?: unknown };
+      const body = (await res.json()) as { state?: unknown; analysis?: unknown; refreshAfter?: unknown };
+      if (body.state === "waiting") {
+        set({ busy: false, status: get().analysis ? get().status : "waiting", note: "Waiting on the league: no data is connected yet, so nothing was written." });
+        return;
+      }
       const analysis = readAnalysis(body.analysis);
       set(analysis ? { busy: false, status: "ready", analysis, refreshAfter: after(body.refreshAfter) } : { busy: false, note: "The refresh came back empty." });
     } catch {

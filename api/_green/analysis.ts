@@ -7,10 +7,17 @@
  *
  * GET  /api/green-analysis                      → signed-in Desk only (requireSession): { state: "ready", analysis,
  *                                                 refreshAfter } with the latest analysis, or { state: "none" }.
- * POST /api/green-analysis { action: "refresh" } → signed-in Desk only: writes a fresh one now. At most once every ten
- *                                                 minutes (429 { error: "slow-down", wait } sooner).
- * The timer writes one at most every six hours, and pings Nikita's devices ("The Commentator's weekly call is in"),
- * through the Desk's own pings (api/desk-pings.ts), never in the quiet hours.
+ * POST /api/green-analysis { action: "refresh" } → signed-in Desk only: writes a fresh one now. At most once a day
+ *                                                 (429 { error: "slow-down", wait } sooner, #261). When no league data
+ *                                                 is connected it answers { state: "waiting" } and writes nothing.
+ * The timer writes one at most once a week (#261), and pings Nikita's devices ("The Commentator's weekly call is in"),
+ * through the Desk's own pings (api/desk-pings.ts), never in the quiet hours. So Claude writes at most about five
+ * weekly takes and thirty on-demand ones a month, each capped at GREEN_MAX_INPUT_TOKENS in and GREEN_MAX_TOKENS out
+ * (./budget.ts): under six cents at the very most, inside the month's $10 cap.
+ *
+ * What it covers (#261): the matchup, the start/sit calls (with how sure each is), the waiver targets and a short
+ * FantasyPros review, then the weak spots, byes, injuries and one trade idea. While FantasyPros waits, its review says
+ * it is waiting, whatever the model wrote.
  *
  * How it is written. Every number comes from the board (api/_green/model.ts and analyst.ts: FantasyPros, Sleeper's
  * league, projections and transactions), gathered into `facts`. Claude Haiku turns the facts into a few short
@@ -38,16 +45,17 @@ import { monthTotals } from "../_world/budget.js";
 import { claudeKey } from "../_world/claude.js";
 import { pickStore } from "../_world/store.js";
 import { canGreen, greenBudget, GREEN_MAX_INPUT_TOKENS, GREEN_MAX_TOKENS, GREEN_SPEND_PATH } from "./budget.js";
+import { callConfidence } from "./confidence.js";
 import { cleanText } from "./sleeper.js";
 import type { AnalysisFacts, AnalysisKey, GreenAnalysis, GreenBoard, GreenFeed } from "./types.js";
 
 export const ANALYSIS_PATH = "/api/green-analysis";
 export const ANALYSIS_BLOB = "desk/green/analysis.json";
 export const ANALYSIS_MODEL = "claude-haiku-5-5";
-/** On-demand refreshes: at most one every ten minutes. */
-export const MANUAL_GAP_MS = 10 * 60_000;
-/** Automatic ones: never more than one every six hours. */
-export const AUTO_GAP_MS = 6 * 3_600_000;
+/** On-demand refreshes: at most one a day (#261). */
+export const MANUAL_GAP_MS = 24 * 3_600_000;
+/** Automatic ones: at most one a week (#261); six days, so a timer that fires a little late still makes next Tuesday. */
+export const AUTO_GAP_MS = 6 * 24 * 3_600_000;
 /** When the weekly one is written: Tuesday at 5:39pm Mountain, before Wednesday's waivers. */
 export const WEEKLY = { day: "Tue", hour: 17, minute: 39, timeZone: "America/Denver" } as const;
 export const OPENAI_DEFAULT_MODEL = "gpt-4.1-mini";
@@ -88,6 +96,31 @@ export function factsOf(b: GreenBoard): AnalysisFacts {
   const waiver: AnalysisFacts["waiver"] = top && worthIt
     ? { action: b.league.faab === null ? "claim" : "bid", player: top.player.name, pos: top.player.pos, bid: b.league.faab === null ? null : top.bid, low: b.league.faab === null ? null : top.low, high: b.league.faab === null ? null : top.high, faabLeft: b.me.faabLeft, drop: top.drop?.name ?? null, rivals: top.rivals.length, blocks: top.blocks }
     : { action: "hold", player: null, pos: null, bid: null, low: null, high: null, faabLeft: b.me.faabLeft, drop: null, rivals: 0, blocks: null };
+  const rankOf = (p: { pos: string; wk: number | null }) => (p.wk !== null ? `${p.pos}${p.wk}` : null);
+  const allCalls = b.calls ?? [];
+  const calls: NonNullable<AnalysisFacts["calls"]> = allCalls.map((c) => ({
+    slot: c.slot,
+    start: c.start.name,
+    sit: c.sit.name,
+    edge: Math.round(Math.abs(c.edge) * 10) / 10,
+    sure: callConfidence(c, b.sources.calls),
+    startRank: rankOf(c.start),
+    sitRank: rankOf(c.sit),
+    change: c.change,
+  }));
+  const movers = everyone
+    .filter((p) => typeof p.delta === "number" && p.delta !== 0)
+    .sort((x, y) => Math.abs(y.delta!) - Math.abs(x.delta!))
+    .slice(0, 3)
+    .map((p) => ({ name: p.name, delta: p.delta! }));
+  const review: NonNullable<AnalysisFacts["review"]> = {
+    state: b.sources.fantasypros,
+    calls: b.sources.calls,
+    agree: allCalls.filter((c) => c.sleeper === "agrees").length,
+    disagree: allCalls.filter((c) => c.sleeper === "disagrees").length,
+    splits: allCalls.filter((c) => c.split).length,
+    movers,
+  };
   return {
     team: b.me.team,
     record: b.me.record,
@@ -101,6 +134,8 @@ export function factsOf(b: GreenBoard): AnalysisFacts {
     waiver,
     splits: (b.calls ?? []).filter((c) => c.split).map((c) => ({ slot: c.slot, start: c.start.name, sit: c.sit.name, fp: [c.start.proj ?? 0, c.sit.proj ?? 0], sl: [c.start.sl ?? 0, c.sit.sl ?? 0] })),
     odds: b.odds ? { playoff: b.odds.playoff, seeds: b.odds.seeds, swing: b.odds.swing.map((s) => ({ root: s.root, other: s.root === s.a ? s.b : s.a, ifWin: s.ifWin, ifLose: s.ifLose })) } : null,
+    calls,
+    review,
   };
 }
 
@@ -132,8 +167,21 @@ export function onlyKnownNumbers(text: string, allowed: Set<string>): boolean {
 }
 
 export type Words = Record<"headline" | AnalysisKey, string>;
-export const TITLES: Record<AnalysisKey, string> = { matchup: "The matchup and the playoff race", weak: "Weak spots", byes: "Bye calendar", injuries: "Injury watch", trade: "One trade idea", waiver: "The waiver call" };
-const KEYS: AnalysisKey[] = ["matchup", "waiver", "weak", "byes", "injuries", "trade"];
+export const TITLES: Record<AnalysisKey, string> = {
+  matchup: "The matchup and the playoff race",
+  calls: "The calls",
+  waiver: "The waiver targets",
+  review: "FantasyPros review",
+  weak: "Weak spots",
+  byes: "Bye calendar",
+  injuries: "Injury watch",
+  trade: "One trade idea",
+};
+const KEYS: AnalysisKey[] = ["matchup", "calls", "waiver", "review", "weak", "byes", "injuries", "trade"];
+
+/** FantasyPros' review while it isn't live: says it is waiting, never anything more. */
+export const FP_WAITING = "Waiting on FantasyPros: its projections and ranks aren't connected yet, so the calls are on form.";
+export const FP_FAILED = "Waiting on FantasyPros: it didn't answer this read, so the calls are on form.";
 
 const ordinal = (k: number) => {
   const t = k % 100;
@@ -172,7 +220,25 @@ export function scripted(f: AnalysisFacts, week: number): Words {
       : w.action === "claim"
         ? `Claim ${w.player}${w.drop ? `, dropping ${w.drop}` : ""}.${w.rivals ? ` ${w.rivals} rival${w.rivals === 1 ? "" : "s"} need a ${w.pos}.` : ""}`
         : `Bid ${w.bid} on ${w.player} (${w.low} to ${w.high}) of your ${w.faabLeft} FAAB${w.drop ? `, dropping ${w.drop}` : ""}.${w.blocks ? ` It also keeps him from ${w.blocks}.` : ""}`;
-  return { headline, matchup, weak, byes, injuries, trade, waiver };
+  const cs = f.calls ?? [];
+  const calls = cs.length
+    ? cs
+        .slice(0, 4)
+        .map((c) => `${c.slot}: start ${c.start}${c.startRank ? ` (${c.startRank})` : ""} over ${c.sit}${c.sitRank ? ` (${c.sitRank})` : ""} by ${c.edge.toFixed(1)}, ${c.sure} confidence${c.change ? ", a change" : ""}`)
+        .join("; ") + "."
+    : "No close start-or-sit calls this week: the lineup's set.";
+  return { headline, matchup, calls, weak, byes, injuries, trade, waiver, review: reviewWords(f) };
+}
+
+/** The FantasyPros review said plainly; while FantasyPros isn't live, only that it is waiting. */
+function reviewWords(f: AnalysisFacts): string {
+  const r = f.review;
+  if (!r || r.state === "waiting") return FP_WAITING;
+  if (r.state === "failed") return FP_FAILED;
+  const n = r.agree + r.disagree;
+  const side = n ? `Sleeper agreed on ${r.agree} of ${n} call${n === 1 ? "" : "s"}${r.splits ? `, ${r.splits} a split decision` : ""}.` : "No close calls to weigh against Sleeper.";
+  const moves = r.movers.length ? ` Rest-of-season movers: ${r.movers.map((m) => `${m.name} ${m.delta > 0 ? "up" : "down"} ${Math.abs(m.delta)}`).join(", ")}.` : "";
+  return `FantasyPros decides the calls this week. ${side}${moves}`;
 }
 
 /** Claude's answer read back: each section a plain capped line, links out, and checked against the facts' numbers. */
@@ -187,6 +253,8 @@ export function checkWords(raw: unknown, f: AnalysisFacts, week: number): { word
     if (text && onlyKnownNumbers(text, allowed)) words[key] = text;
     else replaced++;
   }
+  // Nothing about FantasyPros' week is written while it isn't connected: the review only says it is waiting.
+  if (f.review?.state !== "live") words.review = plain.review;
   return { words, replaced };
 }
 
@@ -205,16 +273,22 @@ export const ANALYSIS_PROMPT = [
   "Rules: use only numbers that appear in FACTS, written exactly as there (a share like 0.62 may be written 62%). Never add a stat, a projection, a rank or a dollar figure of your own. If a fact is missing, say less.",
   "FantasyPros decides start and sit; Sleeper is a second view. FAAB is the league's waiver budget, in units, not money.",
   "Write plain sentences, no markdown, no links, no emoji. Each section one or two short sentences (under 60 words); the headline one line.",
-  "Sections: headline (the week in one line), matchup (the matchup and the playoff race, who to root for), waiver (the waiver call: pick up and bid, or hold), weak (roster weak spots), byes (the bye calendar's holes), injuries (injury watch), trade (one trade idea, or say none lines up).",
+  "Sections: headline (the week in one line), matchup (the matchup and the playoff race, who to root for), calls (the start-or-sit calls in FACTS.calls: who starts over whom, by how much and how sure; none means the lineup's set), waiver (the waiver targets: pick up and bid, or hold), review (a short FantasyPros review from FACTS.review: whether Sleeper agreed with its calls and its rank movers; if its state is not live, say only that FantasyPros is waiting), weak (roster weak spots), byes (the bye calendar's holes), injuries (injury watch), trade (one trade idea, or say none lines up).",
 ].join("\n");
 
 /** One call to Claude: the parsed answer (null when unusable) and its token use (null when it never answered). */
 export type Writer = (facts: AnalysisFacts) => Promise<{ answer: unknown; usage: Usage | null }>;
 
-export function claudeWriter(key: string): Writer {
-  const client = new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 1 });
+/** The user turn Claude gets: the facts as a fenced data block, cut to the input cap (about three characters a token). */
+export function factsInput(facts: AnalysisFacts): string {
+  return `<facts>\n${JSON.stringify(facts).replace(/<\/?facts>/gi, "")}\n</facts>`.slice(0, GREEN_MAX_INPUT_TOKENS * 3);
+}
+
+/** Claude Haiku as the writer, with the server's one key (`claudeKey`); `fetcher` only for tests. */
+export function claudeWriter(key: string, fetcher?: typeof fetch): Writer {
+  const client = new Anthropic({ apiKey: key, timeout: 25_000, maxRetries: 1, ...(fetcher && { fetch: fetcher }) });
   return async (facts) => {
-    const input = `<facts>\n${JSON.stringify(facts).replace(/<\/?facts>/gi, "")}\n</facts>`.slice(0, GREEN_MAX_INPUT_TOKENS * 3);
+    const input = factsInput(facts);
     const res = await client.messages.create({
       model: ANALYSIS_MODEL,
       max_tokens: GREEN_MAX_TOKENS,
@@ -347,7 +421,7 @@ export async function makeAnalysis(deps: AnalysisDeps, board: GreenBoard, trigge
           writer = "claude";
           why = undefined;
           modelFeed = { name: `Claude Haiku (${ANALYSIS_MODEL}), the words`, state: "live", at, note: checked.replaced ? `${checked.replaced} section${checked.replaced === 1 ? "" : "s"} carried a number not in the facts and were replaced by the facts said plainly` : "from the numbers above only" };
-          if (checked.replaced === 7) {
+          if (checked.replaced === KEYS.length + 1) {
             writer = "scripted";
             why = "checked";
           }
@@ -399,17 +473,20 @@ export function isWeeklySlot(now: number): boolean {
 export const WEEKLY_PING: PingText = { title: "C.E.O. Desk", body: "The Commentator's weekly call is in: lineup, waivers and a trade idea.", url: "/green" };
 
 /**
- * The timer's run: in the weekly slot (or `force`), and only when the last automatic one is six hours old or more.
- * Returns what happened, by kind; never anything from the analysis.
+ * The timer's run: in the weekly slot (or `force`), and only when the last automatic one is six days old or more.
+ * With no league data connected it writes nothing ("waiting"). Returns what happened, by kind; never anything from
+ * the analysis.
  */
-export async function runWeekly(deps: AnalysisDeps, force = false): Promise<"written" | "not-now" | "too-soon" | "no-store" | "failed"> {
+export async function runWeekly(deps: AnalysisDeps, force = false): Promise<"written" | "not-now" | "too-soon" | "no-store" | "waiting" | "failed"> {
   if (!deps.store) return "no-store";
   if (!force && !isWeeklySlot(deps.now)) return "not-now";
   const saved = await deps.store.load();
   if (saved.autoAt !== null && deps.now - saved.autoAt < AUTO_GAP_MS) return "too-soon";
+  const board = await deps.board().catch(() => null);
+  if (!board) return "waiting";
   await deps.store.save({ ...saved, autoAt: deps.now });
   try {
-    const analysis = await makeAnalysis(deps, await deps.board(), "scheduled");
+    const analysis = await makeAnalysis(deps, board, "scheduled");
     await deps.store.save({ ...(await deps.store.load()), analysis, autoAt: deps.now });
   } catch {
     return "failed";
@@ -441,11 +518,14 @@ export async function handlePost(request: Request, deps: AnalysisDeps): Promise<
     const wait = Math.ceil((saved.manualAt + MANUAL_GAP_MS - deps.now) / 1000);
     return withCookie(json({ error: "slow-down", wait }, 429, { "Retry-After": String(wait) }), signed);
   }
-  // Counted before the work, so a failed refresh still waits its ten minutes.
+  // No league data connected: the take waits, and nothing is written or counted (#261).
+  const board = await deps.board().catch(() => null);
+  if (!board) return withCookie(json({ state: "waiting", refreshAfter: null }), signed);
+  // Counted before Claude's work, so a failed refresh still waits its day.
   await deps.store.save({ ...saved, manualAt: deps.now });
   let analysis: GreenAnalysis;
   try {
-    analysis = await makeAnalysis(deps, await deps.board(), "manual");
+    analysis = await makeAnalysis(deps, board, "manual");
   } catch {
     return withCookie(json({ error: "upstream" }, 502), signed);
   }

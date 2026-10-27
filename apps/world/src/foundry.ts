@@ -307,6 +307,39 @@ export interface FoundryData {
   jobs?: GhJob[];
   /** The open pull requests, each with the issue it works on and its checks (#432); absent from an older feed. */
   prs?: OpenPr[];
+  /** The issues with a pushed branch (#488); absent from an older feed or when the Desk read GitHub directly. */
+  branches?: number[];
+  /** The recently merged pull requests' milestones, for build progress's time left (#488); absent likewise. */
+  timings?: PullTiming[];
+}
+
+/** One merged pull request's milestones as Date.now() values (null where GitHub didn't say), from the feed's `timings`. */
+export interface PullTiming {
+  issue: number | null;
+  pushed: number | null;
+  opened: number;
+  checksAt: number | null;
+  greenAt: number | null;
+  merged: number;
+  deployed: number | null;
+}
+
+const time = (v: unknown): number | null => {
+  const t = typeof v === "string" ? Date.parse(v) : NaN;
+  return Number.isNaN(t) ? null : t;
+};
+
+/** The feed's `timings`, dropping any that don't parse. */
+export function parseTimings(list: unknown): PullTiming[] {
+  if (!Array.isArray(list)) return [];
+  const out: PullTiming[] = [];
+  for (const t of list as Record<string, unknown>[]) {
+    const opened = time(t.opened);
+    const merged = time(t.merged);
+    if (opened === null || merged === null) continue;
+    out.push({ issue: typeof t.issue === "number" ? t.issue : null, pushed: time(t.pushed), opened, checksAt: time(t.checksAt), greenAt: time(t.greenAt), merged, deployed: time(t.deployed) });
+  }
+  return out;
 }
 
 /** An open pull request as the Foundry page reads it (api/foundry-feed.ts, `open`). */
@@ -320,6 +353,9 @@ export interface OpenPr {
   issue: number | null;
   /** Its head commit's checks summed up; "unknown" before any ran, or when the Desk read GitHub directly. */
   checks: ChecksState;
+  /** When its head's checks started, and finished green (#488); null when unknown or not yet. */
+  checksAt?: number | null;
+  greenAt?: number | null;
 }
 
 /** The feed's open pull requests (or GitHub's own list, read directly) as OpenPr, dropping any that don't parse. */
@@ -332,7 +368,7 @@ export function parseOpenPrs(list: unknown): OpenPr[] {
     const head = (p.head ?? {}) as { ref?: unknown };
     const issue = typeof p.issue === "number" ? p.issue : typeof head.ref === "string" ? branchIssue(head.ref) ?? closes(`${String(p.title ?? "")}\n${String(p.body ?? "")}`) : null;
     const c = p.checks;
-    out.push({ number: p.number, url: p.html_url, at, draft: p.draft === true, issue, checks: c === "pass" || c === "fail" || c === "running" ? c : "unknown" });
+    out.push({ number: p.number, url: p.html_url, at, draft: p.draft === true, issue, checks: c === "pass" || c === "fail" || c === "running" ? c : "unknown", checksAt: time(p.checksAt), greenAt: time(p.greenAt) });
   }
   return out;
 }
@@ -863,6 +899,9 @@ interface Feed {
   jobs?: GhJob[];
   /** The open pull requests with their checks (#432); an older cached feed has none. */
   open?: unknown[];
+  /** Build progress (#488): the issues with a pushed branch, and the merged pull requests' milestones. */
+  branches?: unknown;
+  timings?: unknown;
 }
 
 /** The Desk's own feed (api/foundry-feed.ts): one request, read with the Foundry's token and shared by every tab. */
@@ -889,8 +928,8 @@ async function readGitHub(): Promise<Feed> {
 
 export async function refreshFoundry(): Promise<void> {
   try {
-    const { issues, runs, e2e, live, pulls, commits, jobs, open } = await readFeed().catch(readGitHub);
-    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits), jobs, prs: parseOpenPrs(open) };
+    const { issues, runs, e2e, live, pulls, commits, jobs, open, branches, timings } = await readFeed().catch(readGitHub);
+    const data: FoundryData = { crates: parseCrates(issues), changelog: parseChangelog(issues, pulls, commits), checks: parseChecks(runs.workflow_runs), shelved: countShelved(issues), lastCommit: parseLastCommit(commits), jobs, prs: parseOpenPrs(open), branches: Array.isArray(branches) ? branches.filter((n): n is number => typeof n === "number") : [], timings: parseTimings(timings) };
     useFoundry.getState().set(data);
     // The Foundry's two pipes in the Boiler Room and on Systems.
     const { setLink } = useSystems.getState();

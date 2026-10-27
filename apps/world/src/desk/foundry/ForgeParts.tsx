@@ -11,6 +11,7 @@ import { ROOM_META, ROOM_ORDER } from "../roomPulse.ts";
 import { DeskSignIn } from "../SignIn.tsx";
 import { describeRun, useVisualQa } from "../visualqa/feed.ts";
 import { isBuild } from "./forge.ts";
+import { progressWords, type Progress } from "./progress.ts";
 
 /**
  * The Foundry below its stage (#432), in the flow kit's type: the ideas on the bench as cards with their pictures
@@ -136,7 +137,7 @@ function IdeaAnswers({ c, crate, setup }: { c: ReturnType<typeof useIdeaChoice>;
 /* ── The crew ── */
 
 /** The crew at their stations: who holds what, and what each shipped last. */
-export function CrewStations({ data, now, children }: { data: FoundryData; now: number; children?: ReactNode }) {
+export function CrewStations({ data, now, progress, children }: { data: FoundryData; now: number; progress?: Map<number, Progress>; children?: ReactNode }) {
   const runs = nextRuns(new Date(now));
   const awake = sparesAwake(data.crates);
   const held = (id: CrewId) => data.crates.filter((c) => isBuild(c) && c.state !== "shipped" && c.state !== "queued" && crewOf(c, data.crates) === id);
@@ -151,8 +152,9 @@ export function CrewStations({ data, now, children }: { data: FoundryData; now: 
         {CREW_ORDER.map((id) => {
           const jobs = held(id);
           const last = recentWork(data.changelog, id, 1)[0];
+          const at = jobs[0] && jobs[0].state === "working" ? progress?.get(jobs[0].number) : undefined;
           const line = jobs.length
-            ? `${jobs[0]!.state === "working" ? "Building" : jobs[0]!.state === "ready" ? "A test needs you on" : "Stuck on"} “${ideaTitle(jobs[0]!.title)}”${jobs.length > 1 ? `, and ${words(jobs.length - 1).toLowerCase()} more` : ""}.`
+            ? `${jobs[0]!.state === "working" ? "Building" : jobs[0]!.state === "ready" ? "A test needs you on" : "Stuck on"} “${ideaTitle(jobs[0]!.title)}”${at ? `, ${progressWords(at)}` : ""}${jobs.length > 1 ? `, and ${words(jobs.length - 1).toLowerCase()} more` : ""}.`
             : last
               ? `Free. Last shipped “${last.name}”, ${ago(now - last.at)} ago.`
               : "Free, and nothing shipped yet.";

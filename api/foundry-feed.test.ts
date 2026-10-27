@@ -49,8 +49,8 @@ describe("the Desk's GitHub feeds", () => {
       const { GET } = await load();
       await Promise.all([1, 2, 3].map(() => GET(new Request(url))));
       const together = fetchMock.mock.calls.length;
-      // Past every memo, the job board's two minutes included, so the next call makes the same full set of reads.
-      vi.advanceTimersByTime(121_000);
+      // Past every memo, the build timings' ten minutes included, so the next call makes the same full set of reads.
+      vi.advanceTimersByTime(601_000);
       fetchMock.mockClear();
       await GET(new Request(url));
       expect(together).toBe(fetchMock.mock.calls.length);
@@ -70,7 +70,43 @@ describe("the open pull requests on the Foundry feed (#432)", () => {
     expect(checksOf({ check_runs: [{ status: "completed", conclusion: "failure" }, { status: "in_progress", conclusion: null }] })).toBe("fail");
     expect(checksOf({ check_runs: [{ status: "completed", conclusion: "success" }, { status: "completed", conclusion: "skipped" }] })).toBe("pass");
     const list = [{ number: 5, html_url: "https://github.com/x/pull/5", created_at: "2026-10-25T00:00:00Z", draft: true, title: "Secret-ish title", body: "Closes #3", head: { ref: "x", sha: "abc1234" } }];
-    const got = await readOpen(list, async () => ({ check_runs: [{ status: "completed", conclusion: "success" }] }));
-    expect(got).toEqual([{ number: 5, html_url: "https://github.com/x/pull/5", created_at: "2026-10-25T00:00:00Z", draft: true, issue: 3, checks: "pass" }]);
+    const got = await readOpen(list, async () => ({ check_runs: [{ status: "completed", conclusion: "success", started_at: "2026-10-25T00:01:00Z", completed_at: "2026-10-25T00:09:00Z" }] }));
+    expect(got).toEqual([{ number: 5, html_url: "https://github.com/x/pull/5", created_at: "2026-10-25T00:00:00Z", draft: true, issue: 3, checks: "pass", checksAt: "2026-10-25T00:01:00Z", greenAt: "2026-10-25T00:09:00Z" }]);
+  });
+});
+
+describe("build progress on the Foundry feed (#488)", () => {
+  it("times a head commit's checks: first start, and last finish only once green", async () => {
+    const { checkTimes } = await import("./foundry-feed.ts");
+    expect(checkTimes({ check_runs: [] })).toEqual({ checksAt: null, greenAt: null });
+    const runs = [
+      { status: "completed", conclusion: "success", started_at: "2026-10-27T07:02:00Z", completed_at: "2026-10-27T07:06:00Z" },
+      { status: "completed", conclusion: "success", started_at: "2026-10-27T07:01:00Z", completed_at: "2026-10-27T07:14:00Z" },
+    ];
+    expect(checkTimes({ check_runs: runs })).toEqual({ checksAt: "2026-10-27T07:01:00Z", greenAt: "2026-10-27T07:14:00Z" });
+    expect(checkTimes({ check_runs: [...runs, { status: "in_progress", conclusion: null, started_at: "2026-10-27T07:03:00Z", completed_at: null }] })).toEqual({ checksAt: "2026-10-27T07:01:00Z", greenAt: null });
+  });
+
+  it("lists the issues with a pushed branch, numbers only", async () => {
+    const { branchIssues } = await import("./foundry-feed.ts");
+    expect(branchIssues([{ name: "chat/488-build-progress" }, { name: "foundry/build/30-x" }, { name: "main" }, { name: "dependabot/npm/x-1" }, { name: "foundry-shots" }])).toEqual([30, 488]);
+    expect(branchIssues([{ ref: "refs/heads/chat/481-holo" }, { ref: "refs/heads/foundry/fix/12-red" }])).toEqual([12, 481]);
+    expect(branchIssues(null)).toEqual([]);
+  });
+
+  it("times each merged pull request's milestones, with no title, body or branch", async () => {
+    const { readTimings } = await import("./foundry-feed.ts");
+    const closed = [
+      { number: 487, created_at: "2026-10-27T07:10:00Z", merged_at: "2026-10-27T07:30:00Z", merge_commit_sha: "m487", title: "t", body: "Closes #481", head: { ref: "chat/481-holo", sha: "abc1234" } },
+      { number: 470, created_at: "2026-10-26T07:10:00Z", merged_at: null, head: { ref: "x", sha: "abc1235" } },
+    ];
+    const deploys = { workflow_runs: [{ head_sha: "m487", conclusion: "success", updated_at: "2026-10-27T07:36:00Z" }] };
+    const got = await readTimings(
+      closed,
+      async () => [{ commit: { committer: { date: "2026-10-27T07:05:00Z" } } }],
+      async () => ({ check_runs: [{ status: "completed", conclusion: "success", started_at: "2026-10-27T07:11:00Z", completed_at: "2026-10-27T07:25:00Z" }] }),
+      deploys,
+    );
+    expect(got).toEqual([{ issue: 481, pushed: "2026-10-27T07:05:00Z", opened: "2026-10-27T07:10:00Z", checksAt: "2026-10-27T07:11:00Z", greenAt: "2026-10-27T07:25:00Z", merged: "2026-10-27T07:30:00Z", deployed: "2026-10-27T07:36:00Z" }]);
   });
 });

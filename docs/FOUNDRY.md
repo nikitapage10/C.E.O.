@@ -172,7 +172,8 @@ The path for every change:
 4. **No preview site** (Azure, the only home since #313, deploys `main` only): `checks` builds the PR and the boot
    check loads that build in Chromium. The change ships once its checks pass.
 5. **Pictures** on the issue before it ships: screenshots for a visual change, a change card for anything else
-   ("Pictures on every change" below). The Trail runs Work, Pictures, Checks, Shipped.
+   ("Pictures on every change" below). The Trail runs Work, Pictures, Checks, Shipped, and a Progress note at a
+   milestone when there's something worth saying; the Desk measures how far along it is itself ("Build progress" below).
 6. **Merge** with a squash commit through GitHub's auto-merge, turned on when the PR opens (until "Allow auto-merge"
    and the gated ruleset are on, the Builder squash-merges it once `checks` is green), then delete the branch. Deploy to Azure ships `main` to the site.
 7. **Watch:** the push to `main` runs the checks again. If they go red there, the merge is reverted with a
@@ -492,14 +493,38 @@ Each step is one short comment that starts with `**Trail ·`, newest last:
 | Decision | Who decided, and what | `**Trail · Decision:** Approved by Nikita on the Desk.` / `Auto-approved by Skippy, the Builder (low risk: a colour tweak on the idea board).` / `Stopped by Nikita on the Desk.` / `Undo requested by Nikita on the Desk. The Builder reverts it through the fix lane and ships the revert once its checks are green.` / `Small green fix: ships as upkeep, no approval needed.` |
 | Assigned | Who builds it, on which model, and why (the Builder's call) | `**Trail · Assigned:** Rusty on Opus: it's design and animation.` |
 | Work | The branch, and each try or rung change | `**Trail · Work:** foundry/build/30-… · try 1 on Opus.` |
+| Progress | Optional words on what is happening now, posted at a milestone (started, PR up, checks running, merging). Words only: the percent and the time left come from GitHub's milestones, never from this note ("Build progress" below). No links, secrets or message contents | `**Trail · Progress:** started, reading the forge` / `**Trail · Progress:** fixing the phone layout after review` |
 | Pictures | Required before Shipped on every issue that ships a change, so it can be checked at a glance (Nikita, 2026-10-15, #158; "Pictures on every change" below). A visual change gets an after-screenshot, or a before/after pair when the difference matters, at wide and phone sizes where the layout changed; a non-visual change gets a change card (`scripts/change-card.mjs`); the Builder may add both. Posted with `scripts/issue-shots.sh <issue> "<what they show>" <files…>`; the pictures live on the `foundry-shots` branch (never merged, never deployed) and show inline on the issue | `**Trail · Pictures:** the throne mid-command in the Spire, before and after, wide and phone.` / `**Trail · Pictures:** change card: Docs · Scripts, checks green.` |
 | Checks | The result, with a link | `**Trail · Checks:** green (run <link>).` |
 | Shipped | The commit or PR on main | `**Trail · Shipped:** 661cef7 on main, live on the site.` then one line per job: `Claude Code: 291k tokens on Opus, 1 h 50 min.` (or `64k tokens on Haiku, 3 min.`) |
 
 The Desk's function writes Origin, Shaped and Decision for clicks on the Desk; the checks workflow writes Origin for
-red checks; the Builder writes Assigned, Work, Pictures, Checks and Shipped, and Origin for chat work. A step that
+red checks; the Builder writes Assigned, Work, Pictures, Checks and Shipped (and Progress notes when useful), and Origin for chat work. A step that
 didn't happen is left out, never invented. Skip none that did, and Pictures always happens: an issue that ships a
 change has a Pictures step before its Shipped step, every time.
+
+### Build progress (#488)
+
+Every job in flight on the Desk's Foundry shows how far along it is and roughly how long is left: seven hairline
+segments under its title and "57% · about 12 min left" (Nikita, 2026-10-27: "right now he's building the hologram,
+and it's going to take about…"). Both come from real milestones, never from a guess
+(`apps/world/src/desk/foundry/progress.ts`):
+
+- **The percent is step N of 7**, each at a fixed share: assigned (14%), branch pushed (29%), pull request open
+  (43%), checks running (57%), checks green (71%), merged (86%), deployed (100%). Which one a job has reached comes from
+  GitHub: the working label and its Assigned step, a pushed `chat/<issue>-…` or `foundry/<lane>/<issue>-…` branch, its
+  open pull request, and that pull request's checks. Red checks put it back at "pull request open".
+- **The time left is measured.** For the recently merged pull requests the Desk's feed (`api/foundry-feed.ts`,
+  `timings`) reads when each milestone happened: the first commit, the pull request opening, its head's checks starting
+  and finishing green (the check runs' own start and finish times, browser jobs included), the merge, and Deploy to
+  Azure finishing on the merge commit; assignment comes from the issue's Assigned step. The time left is the median
+  of the step the job is on, less how long it has been on it (the live CI run's elapsed time while checks run), plus
+  the medians of every step after. It reads "about", and is left out while any step still to go has fewer than two
+  measurements.
+- **A builder's Progress note adds words** ("Now: fixing the phone layout" in the opened lane), never the percent or
+  the time. It counts only from the trail's trusted authors, like Pictures (`isTrail` in `api/foundry-usage.ts`).
+
+Waiting, paused and stuck jobs show no progress.
 
 ### Pictures on every change
 

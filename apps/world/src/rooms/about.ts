@@ -2,7 +2,7 @@ import type { RoomId } from "@ceo/core";
 
 /**
  * What each room is for, in plain words: shown under the room's title ("About this room").
- * `today` is what happens in phase 1 (simulated); `next` is what will drive it once real agents connect.
+ * `today` is what the room does now (a live room says what is really live, never "simulated"); `next` is what comes once more real agents connect.
  */
 export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string, string>; today: string; next: string }> = {
   foundry: {
@@ -46,7 +46,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       "desk-w": "Pricing desk.",
       vault: "The approval vault: it opens while a trade is waiting on you.",
     },
-    today: "Live Polymarket odds on the ticker ring and the odds board. The quants are still simulated, and no money moves: Nikita's own positions are read-only, on the Desk only.",
+    today: "Live Polymarket odds on the ticker ring and the odds board. The quants' chatter is theatre, and no money moves: Nikita's own positions are read-only, on the Desk only.",
     next: "The Bookie's own estimates beside the odds, and paper trades. Real trades stay off; any later would be approval-gated with caps.",
   },
   green: {
@@ -59,7 +59,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       huddle: "Morale.",
       bench: "Sitting. Thinking. Mostly sitting.",
     },
-    today: "Live from your Sleeper league (Horse Meat): the scoreboard shows this week's matchup and win chance, the depth chart the week, and the mailbox flag a pickup worth claiming. The coaches' chatter is still simulated.",
+    today: "Live from your Sleeper league (Horse Meat): the scoreboard shows this week's matchup and win chance, the depth chart the week, and the mailbox flag a pickup worth claiming. The coaches' chatter is just banter.",
     next: "FantasyPros' projections on every copy, and the Commentator's weekly take. You tap the final move in the Sleeper app.",
   },
   relay: {
@@ -113,8 +113,8 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       bench: "Tools, tape, and a kettle that whistles when something waits on you.",
       "warm-side": "Kevin's spot. Spiritual maintenance.",
     },
-    today: "Nothing is connected yet, so every pipe is cold. ?boiler=demo plays every state.",
-    next: "The hub on your MacBook reports each link, and the pipes come alive.",
+    today: "Live: one pipe per real link, lit from what each reports. A pipe stays dark until its link has checked in, and the boiler's fire is the MacBook's own.",
+    next: "More links as they come online: each new agent or service gets its own pipe.",
   },
   workshop: {
     blurb: "Where new things for the Lattice get made: a new character, a costume, a pet, a prop. An idea goes along the line left to right: Daub paints it, Chisel forms it in the mould, fits its frame on the turntable, and rehearses it on the little stage until it walks like it means it. Then it goes in the crate by the exit, ready to join the world.",

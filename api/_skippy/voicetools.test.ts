@@ -203,7 +203,7 @@ describe("the Kernel from the call (#480)", () => {
     expect((await handle(post(""), d)).status).toBe(400);
   });
 
-  it("the kernel tool posts a body the LLM fills, and only Skippy carries the Kernel's tools", () => {
+  it("the kernel tool posts a body the LLM fills; the Kernel's tools come on top of each submind's room tools (#491)", () => {
     const c = toolConfig(TOOL_DEFS.find((t) => t.name === "hand_to_kernel")!, SITE);
     expect(c.api_schema).toMatchObject({ method: "POST", query_params_schema: { properties: { act: { constant_value: "kernel" } } }, request_body_schema: { required: ["ask"] } });
     for (const s of ON_AIR) for (const k of KERNEL_TOOLS) expect(s.tools).not.toContain(k);
@@ -253,8 +253,8 @@ describe("what each lookup says", () => {
 });
 
 describe("the crew on ElevenLabs", () => {
-  it("each tool is a GET to the site with a constant read and the token from the secret variable", () => {
-    for (const def of TOOL_DEFS.filter((d) => d.read !== "kernel")) {
+  it("each room tool is a GET to the site with a constant read and the token from the secret variable", () => {
+    for (const def of TOOL_DEFS.filter((d) => d.read !== "kernel" && d.read !== "web" && d.read !== "player_news")) {
       const c = toolConfig(def, SITE);
       expect(c.type).toBe("webhook");
       expect(c.pre_tool_speech).toBe("force");
@@ -268,7 +268,7 @@ describe("the crew on ElevenLabs", () => {
   });
 
   it("each submind keeps Skippy's voice, the call's limits, its own room's tools and a way back", () => {
-    const limits = { sessionSecs: 600, silenceSecs: 20, llm: "claude-haiku-4-5" };
+    const limits = { sessionSecs: 600, silenceSecs: 20, llm: "claude-sonnet-5-5" };
     for (const s of ON_AIR) {
       const b = submindBody(s, "voice123", "agent_skippy", ["tool_1"], limits);
       expect(b.conversation_config.tts.voice_id).toBe("voice123");
@@ -300,13 +300,13 @@ describe("the crew on ElevenLabs", () => {
       const body = url.includes("/tools") ? { id: `tool_${++n}xx` } : { agent_id: `agent_${++n}xx` };
       return new Response(JSON.stringify(body), { status: 200 });
     }) as typeof fetch;
-    const d = { key: "k", voice: "v", site: SITE, skippy: "agent_skippy", limits: { sessionSecs: 600, silenceSecs: 20, llm: "claude-haiku-4-5" }, fetcher, log: () => undefined };
+    const d = { key: "k", voice: "v", site: SITE, skippy: "agent_skippy", limits: { sessionSecs: 600, silenceSecs: 20, llm: "claude-sonnet-5-5" }, fetcher, log: () => undefined };
     const first = await ensureCrew(d, { tools: {}, agents: {} });
     expect(Object.keys(first.tools)).toHaveLength(TOOL_DEFS.length);
     expect(Object.keys(first.agents).sort()).toEqual(["ember", "static", "ticker", "turf"]);
     const made = calls.length;
     const again = await ensureCrew(d, first);
-    expect(calls.length).toBe(made + 2); // only the Pessimist is tried again (full, then core)
+    expect(calls.length).toBe(made + 2); // only the Pessimist is tried again (full, then core), once a call
     expect(again.agents).toEqual(first.agents);
     calls.length = 0;
     await ensureCrew({ ...d, voice: "new-voice" }, first);

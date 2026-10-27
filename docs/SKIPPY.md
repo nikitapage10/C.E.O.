@@ -318,13 +318,29 @@ answer. But if it's something a little bit more specific to our room, then it ta
   the live call the moment an answer lands with ElevenLabs' contextual update (`sendContextualUpdate`), so he reads it
   out at the next pause. Once the call is over the answer simply lands in the typed chat.
 - **The mic.** Each active submind (the Commentator, the Bookie, the Messenger, the Pessimist, the Builder) has its own
-  ElevenLabs agent with its personality from the table above, its room's lookups only, Skippy's voice
+  ElevenLabs agent with its personality from the table above, its room's lookups (and, since #491, the Kernel's two), Skippy's voice
   (`ELEVENLABS_VOICE_ID`) and the call's limits (`api/_skippy/voicecrew.ts`). Skippy's agent carries ElevenLabs'
   `transfer_to_agent` system tool with one rule per submind, and each submind one rule back to Skippy, so the mic moves
   inside the same conversation. Skippy answers basic questions himself from a lookup; he hands over only for an
   in-depth, room-specific ask (a play-by-play, start/sit reasoning, a trade or waiver breakdown, a walk through the
   book, what broke and why, a build's story) or when Nikita asks for the submind by name. Nobody can call a submind
   directly: its agent takes no token. They are made or updated lazily, like Skippy's, with a signature each in the store.
+- **After the first live call (#491).** Two open lookups beside the rooms' reads: `player_news`
+  (`GET ?read=player_news&player=<name>`, the LLM fills only the name; no name reads the roster): Sleeper's injury
+  status, body part, practice and note from the Green's kept players list, and FantasyPros' injury report and news,
+  live with the `FANTASYPROS` key (`/nfl/injuries`, `/nfl/news`); and `web_search` (`POST ?act=web { query }`): the
+  typed chat's web lookup (Sonnet 5.5 with Anthropic's web search, under the chat's month budget and ledger), which
+  answers "still searching" inside the 4.3 s budget and brings the answer when asked again with the same query.
+  Skippy and the Commentator (the injury and news desk for Nikita's roster) carry both; every agent carries
+  `hand_to_kernel` and `check_answers`. The rules on every agent's prompt: never refuse a lookup a tool can do, never
+  send Nikita off to look for himself (the Desk, the Lattice, beat reporters); what no tool answers goes to
+  `hand_to_kernel` ("checking with Skippy, the Magnificent") and is read back when it lands. A hand-over is one action:
+  the LLM calls `transfer_to_agent` with no line of its own, and the transfer's message says it, so a transfer can't be
+  announced and not made (the first call's miss: the prompt asked for a line before the hand-over, and the model said
+  it and stopped). Every submind has a transfer to each sibling and back to Skippy, so a named room is one hop. Openers
+  fire once per hand-over, status answers are two or three sentences, and a turn has 1,024 tokens. Every agent sends
+  the browser `agent_tool_response_full_payload`: agent lines carry no agent id over the socket, so the transfer's
+  result (`to_agent`) is how the hologram knows who has the mic (`apps/world/src/desk/skippy/talkSession.ts`).
 - **The Council.** When the call is settled, its transcript is read once and each stretch a submind held the mic is
   kept in its room's log (`via: "voice"`, `by` the submind): the question in short and the answer's gist, scrubbed, a
   private-looking part held back whole (`api/_skippy/voicecouncil.ts`). The Council of Skippies shows them; the

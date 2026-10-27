@@ -391,3 +391,78 @@ export function fpIndex(fp: FpData): (p: SlimPlayer) => FpView | null {
     };
   };
 }
+
+/* ── The call's player lookup (#491) ── */
+
+/** One player on FantasyPros' injury report, with what it says about the injury (for the call's player_news tool). */
+export interface FpInjuryDetail {
+  name: string;
+  team: string | null;
+  pos: string | null;
+  /** Its status in words ("Questionable"), else its short code. */
+  status: string | null;
+  /** The body part or injury ("Knee"). */
+  injury: string | null;
+  /** Its latest note or practice line, when it sends one. */
+  note: string | null;
+  at: string | null;
+}
+
+/** A headline with a line of its body, for the call. */
+export interface FpNewsDetail extends FpNews {
+  desc: string | null;
+}
+
+const isoOf = (v: unknown): string | null => {
+  if (typeof v !== "string" && typeof v !== "number") return null;
+  const t = typeof v === "number" ? (v > 1e12 ? v : v * 1000) : Date.parse(v);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+};
+
+/** FantasyPros' injury report with each injury's detail. Field names vary by version, so each is read from the names it has used. */
+export function shapeInjuryDetail(raw: unknown): FpInjuryDetail[] {
+  const out: FpInjuryDetail[] = [];
+  for (const v of arr(obj(raw).injuries ?? obj(raw).players ?? (Array.isArray(raw) ? raw : [])).slice(0, 600)) {
+    const p = obj(v);
+    const name = cleanText(p.name ?? p.player_name, 40);
+    if (!name) continue;
+    const team = cleanText(p.team_id ?? p.player_team_id ?? p.team, 4) || null;
+    const pos = cleanText(p.position_id ?? p.player_position_id ?? p.position, 4) || null;
+    const status = cleanText(p.status ?? p.injury_status, 30) || cleanText(p.status_short, 8) || null;
+    const injury = cleanText(p.injury ?? p.injury_type ?? p.body_part ?? p.injury_body_part, 40) || null;
+    const note = cleanText(p.notes ?? p.note ?? p.injury_notes ?? p.update ?? p.practice_status ?? p.practice, 160) || null;
+    out.push({ name, team, pos, status, injury, note, at: isoOf(p.last_update ?? p.updated ?? p.date) });
+  }
+  return out;
+}
+
+/** FantasyPros' news with a line of each item's body. */
+export function shapeNewsDetail(raw: unknown): FpNewsDetail[] {
+  const o = obj(raw);
+  const list = arr(o.items ?? o.news ?? o.players ?? (Array.isArray(raw) ? raw : []));
+  const base = shapeNews(raw);
+  const out: FpNewsDetail[] = [];
+  let i = 0;
+  for (const v of list.slice(0, 60)) {
+    const n = obj(v);
+    if (!cleanText(n.title ?? n.headline ?? n.desc ?? n.description, 140)) continue;
+    const item = base[i++];
+    if (!item) break;
+    const desc = cleanText(n.impact ?? n.analysis ?? n.desc ?? n.description ?? n.body, 220);
+    out.push({ ...item, desc: desc && desc !== item.text ? desc : null });
+  }
+  return out;
+}
+
+/**
+ * The latest news and this week's injury report, live (#491, the call's player lookup): two calls at once, each held
+ * to `timeoutMs`. A part that fails is empty; both failing throws.
+ */
+export async function readFpPlayerNews(fetcher: Fetcher, key: string, season: string, week: number, timeoutMs: number): Promise<{ news: FpNewsDetail[]; injuries: FpInjuryDetail[] }> {
+  const init: RequestInit = { headers: { "x-api-key": key } };
+  const get = (path: string) =>
+    Promise.race([getJson(fetcher, `${FP_BASE}${path}`, FP_MAX_BYTES, init), new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), timeoutMs).unref?.())]);
+  const [news, injuries] = await Promise.allSettled([get(`/nfl/news?limit=60`).then(shapeNewsDetail), get(`/nfl/injuries?year=${encodeURIComponent(season)}&week=${week}`).then(shapeInjuryDetail)]);
+  if (news.status === "rejected" && injuries.status === "rejected") throw new Error("fantasypros unavailable");
+  return { news: news.status === "fulfilled" ? news.value : [], injuries: injuries.status === "fulfilled" ? injuries.value : [] };
+}

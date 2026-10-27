@@ -1,6 +1,7 @@
 import type { RoomPulse } from "../roomPulse.ts";
 import { clamp, frac, lerp, Parts, Poly, RC, reducedMotion, smoothPts, spr, TAU, weave, WHITE, type Viz, type VizSpec } from "../wvCanvas.ts";
 import { knotAt, stream } from "../flow/draw.ts";
+import { tempoOf } from "../flow/tempo.ts";
 import { Being } from "./beings.ts";
 import type { RiseAt } from "../flow/rise.ts";
 import { RISES } from "./sand.ts";
@@ -44,6 +45,8 @@ interface Stream {
   P: Parts;
   v: number;
   sp: number;
+  /** Brightness, from the room's activity (#262). */
+  a: number;
   knots: number[];
 }
 interface Eddy {
@@ -102,7 +105,10 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
   };
 
   const build = () => {
-    const key = `${S.pulses.map((p) => `${p.id}:${p.real ? 1 : 0}:${Math.round(p.activity * 10)}`).join("|")}|${phone ? 1 : 0}`;
+    // Each stream moves with its room's real activity (#262, flow/tempo.ts): an idle room (nothing connected, or still
+    // waiting on its source) only drifts.
+    const tempo = new Map(S.pulses.map((p) => [p.id, tempoOf(p)]));
+    const key = `${S.pulses.map((p) => `${p.id}:${tempo.get(p.id)!.idle ? 0 : 1}:${tempo.get(p.id)!.level}`).join("|")}|${phone ? 1 : 0}`;
     if (key === built) return;
     built = key;
     const dens = phone ? 0.36 : 0.42;
@@ -120,10 +126,12 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
       return b;
     };
     sk = mk("kernel", GOLD, 1, 0);
-    order = S.pulses.map((p, i) => mk(p.id, RC[p.id] ?? WHITE, p.real ? p.activity : 0.08, i + 1));
+    order = S.pulses.map((p, i) => mk(p.id, RC[p.id] ?? WHITE, tempo.get(p.id)!.idle ? 0.08 : p.activity, i + 1));
     streams = S.pulses.map((p) => {
-      const n = p.real ? Math.round(clamp(40 + p.activity * 200, STREAM_MIN, STREAM_MAX) * (phone ? 0.55 : 1)) : 12;
-      return { id: p.id, rgb: RC[p.id] ?? WHITE, real: p.real, poly: new Poly(), P: new Parts(n, 0.07), v: p.real ? 34 + p.activity * 70 : 16, sp: p.real ? 2 + p.activity * 3 : 1.2, knots: [] };
+      const t = tempo.get(p.id)!;
+      const live = !t.idle;
+      const n = live ? Math.round(clamp(40 + t.level * 200, STREAM_MIN, STREAM_MAX) * (phone ? 0.55 : 1)) : 12;
+      return { id: p.id, rgb: RC[p.id] ?? WHITE, real: live, poly: new Poly(), P: new Parts(n, 0.07), v: live ? 34 + t.level * 70 : 16, sp: live ? 2 + t.level * 3 : 1.2, a: live ? Math.min(1, 0.78 + t.level * 0.4) : 0.5, knots: [] };
     });
   };
 
@@ -346,7 +354,7 @@ export function makeStage(root: () => HTMLElement | null, S: StageState): { spec
       const P = T.P;
       const poly = T.poly;
       if (poly.n < 2) continue;
-      stream(c, poly, P, { rgb: T.rgb, a: fa * (T.real ? 1 : 0.5), v: T.v, sp: T.sp, widen: 3, swell: 0.35, head: grow * 1.4 }, t, dt);
+      stream(c, poly, P, { rgb: T.rgb, a: fa * T.a, v: T.v, sp: T.sp, widen: 3, swell: 0.35, head: grow * 1.4 }, t, dt);
       // Today's real moments, riding the stream.
       for (const u of T.knots) {
         const q = poly.at(u);

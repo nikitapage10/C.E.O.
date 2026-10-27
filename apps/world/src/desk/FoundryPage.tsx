@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { mountainHour } from "./ilyrTime.ts";
 import { heldMessage, IdeaCard, nextCheck, propose, send, soon, useSetup, ideaTitle, type Setup } from "./IdeaCard.tsx";
 export { heldMessage, IdeaCard, ideaTitle, nextCheck, useSetup };
@@ -21,7 +21,8 @@ import { SetupAsks } from "./skippy/SetupAsks.tsx";
 import { RC } from "./flow/index.ts";
 import { ForgeStage } from "./foundry/ForgeStage.tsx";
 import { BenchCard, CrewStations, RunsLine, UsageLine, VqaLine } from "./foundry/ForgeParts.tsx";
-import { queueOf } from "./foundry/forge.ts";
+import { forgeLanes, queueOf } from "./foundry/forge.ts";
+import { progressMap, progressWords, sourceWords, type Progress } from "./foundry/progress.ts";
 import "./foundry/foundry.css";
 
 /**
@@ -86,6 +87,11 @@ export function FoundryPage({ now }: { now: number }) {
   // The issue trails: the Usage panel counts from them, and the Changelog reads each change's Origin and Decision.
   const usage = useUsage();
   const changelog = withTrails(data.changelog, usage.feed?.trails ?? []);
+  // How far along each job in flight is, and roughly how long it has left (#488), recounted on the minute's tick.
+  const progress = useMemo(() => {
+    const { lanes, more } = forgeLanes(data.crates, data.prs ?? []);
+    return progressMap([...lanes, ...more], usage.feed, now);
+  }, [data.crates, data.prs, usage.feed, now]);
   const suggest = useRef<HTMLElement>(null);
   const log = useRef<HTMLElement>(null);
   const toSuggest = () => {
@@ -102,7 +108,7 @@ export function FoundryPage({ now }: { now: number }) {
 
   return (
     <div className="foundry-page wv-page fl-page fo" data-room="foundry" style={{ "--fl-accent": RC.foundry } as React.CSSProperties}>
-      <ForgeStage data={data} ideas={ideas} now={now} connected={connected} lead={lead} stop={stop} onSuggest={toSuggest} onIdea={toIdea} onShips={toLog} />
+      <ForgeStage data={data} ideas={ideas} progress={progress} now={now} connected={connected} lead={lead} stop={stop} onSuggest={toSuggest} onIdea={toIdea} onShips={toLog} />
 
       <section className="fl-below fo-bench" aria-label="Ideas waiting">
         <div className="fo-sec">
@@ -135,12 +141,12 @@ export function FoundryPage({ now }: { now: number }) {
         )}
       </section>
 
-      <CrewStations data={data} now={now}>
+      <CrewStations data={data} progress={progress} now={now}>
         <details className="fo-more-d">
           <summary>
             Every job in hand, and the queue <span className="fl-num">{inFlight}</span>
           </summary>
-          <Crew now={now} setup={setup} />
+          <Crew now={now} setup={setup} progress={progress} />
         </details>
       </CrewStations>
 
@@ -467,7 +473,7 @@ const STATE_ORDER: Record<CrateState, number> = { stuck: 0, working: 1, ready: 2
  * yet. Rusty's jobs past his own are tagged with whichever of his dock crew has them (Dusty, Gusty, Musty); past four
  * jobs across the crew (one for Rocky), the rest are tagged as waiting their turn; Rivet's extra fixes run as clones.
  */
-function Crew({ now, setup }: { now: number; setup: Setup }) {
+function Crew({ now, setup, progress }: { now: number; setup: Setup; progress: Map<number, Progress> }) {
   const connected = useFoundry((s) => s.connected);
   const crates = useFoundry((s) => s.data.crates);
   const changelog = useFoundry((s) => s.data.changelog);
@@ -509,6 +515,7 @@ function Crew({ now, setup }: { now: number; setup: Setup }) {
                     const hand = id === "tessellate" ? hands.get(c.number) : undefined;
                     const colour = hand ? DOCK_COLOUR.get(hand) : undefined;
                     const held = waiting.has(c.number) ? { tone: "off" as LinkState, label: "Waiting its turn" } : c.paused ? { tone: "slow" as LinkState, label: "Paused for a fix" } : null;
+                    const p = progress.get(c.number);
                     return (
                       <li key={c.number} className={`fy-job fy-job--${c.state}`}>
                         <a className="fy-job__n" href={c.url} target="_blank" rel="noreferrer">
@@ -526,6 +533,11 @@ function Crew({ now, setup }: { now: number; setup: Setup }) {
                           {id === "semicolon" && n > 0 && !held && <b className="fy-job__tag">Clone</b>}
                           {c.auto && <ApprovalMark approval="auto" />}
                           {KIND_LABEL[c.kind]} · {modelOf(c, id)} · {formatWait(now - c.updatedAt)} ago
+                          {p && (
+                            <span className="fy-job__prog" data-src={p.source} title={sourceWords(p)}>
+                              {progressWords(p)}
+                            </span>
+                          )}
                           {c.auto && <StopAuto crate={c} setup={setup} />}
                         </span>
                         <span className={`pill pill--${held ? held.tone : CREW_STATE[c.state]}`}>

@@ -5,6 +5,7 @@ import { FOUNDRY_THREAD, formatWait } from "../deskData.ts";
 import { RC, samplePath, useFlow, type FlowLayoutFn, type FlowLine, type PathSpec, type Pt } from "../flow/index.ts";
 import { ideaTitle } from "../IdeaCard.tsx";
 import { BAD, clamp, HOT, mixRgb, OK, RUN, WHITE } from "../wvCanvas.ts";
+import { leftWords, progressWords, sourceWords, type Progress } from "./progress.ts";
 import { forgeEvents, forgeLanes, GATE_U, LANES, queueOf, shipWords, snapshot, STAGE_U, STAGE_WORDS, type Lane, type Stage } from "./forge.ts";
 
 /**
@@ -78,6 +79,8 @@ const nearest = (xs: number[], ys: number[], p: Pt) => {
 export interface ForgeProps {
   data: FoundryData;
   ideas: Crate[];
+  /** How far along each job in flight is and how long it has left, by issue (#488); empty until the trails arrive. */
+  progress?: Map<number, Progress>;
   now: number;
   connected: boolean;
   lead: string;
@@ -90,7 +93,7 @@ export interface ForgeProps {
   onShips: () => void;
 }
 
-export function ForgeStage({ data, ideas, now, connected, lead, stop, onSuggest, onIdea, onShips }: ForgeProps) {
+export function ForgeStage({ data, ideas, progress, now, connected, lead, stop, onSuggest, onIdea, onShips }: ForgeProps) {
   const stage = useRef<HTMLElement>(null);
   const line = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState<number | "more" | null>(null);
@@ -388,7 +391,7 @@ export function ForgeStage({ data, ideas, now, connected, lead, stop, onSuggest,
           </p>
           <ol className="fo-lane-l" aria-label="Jobs in flight">
             {lanes.map((l) => (
-              <LaneRow key={l.crate.number} lane={l} now={now} open={open === l.crate.number} lit={hotLane === l.crate.number} onOpen={() => setOpen((o) => (o === l.crate.number ? null : l.crate.number))} onHot={(on) => field.setFocus(on ? `L:${l.crate.number}` : typeof open === "number" ? `L:${open}` : null)} stop={stop} />
+              <LaneRow key={l.crate.number} lane={l} progress={progress?.get(l.crate.number)} now={now} open={open === l.crate.number} lit={hotLane === l.crate.number} onOpen={() => setOpen((o) => (o === l.crate.number ? null : l.crate.number))} onHot={(on) => field.setFocus(on ? `L:${l.crate.number}` : typeof open === "number" ? `L:${open}` : null)} stop={stop} />
             ))}
             {freeHands.map((h, i) => (
               <li key={h} className="fo-lane is-free">
@@ -414,6 +417,7 @@ export function ForgeStage({ data, ideas, now, connected, lead, stop, onSuggest,
                         </a>
                         <span>
                           {l.hand}, {STAGE_WORDS[l.stage]}
+                          {progress?.get(l.crate.number) ? `, ${progressWords(progress.get(l.crate.number)!)}` : ""}
                         </span>
                       </li>
                     ))}
@@ -455,7 +459,7 @@ export function ForgeStage({ data, ideas, now, connected, lead, stop, onSuggest,
 }
 
 /** One job in flight: who has it, what it is, where it stands; open for its pull request, its stage and its history. */
-function LaneRow({ lane, now, open, lit, onOpen, onHot, stop }: { lane: Lane; now: number; open: boolean; lit: boolean; onOpen: () => void; onHot: (on: boolean) => void; stop: (c: Crate) => ReactNode }) {
+function LaneRow({ lane, progress, now, open, lit, onOpen, onHot, stop }: { lane: Lane; progress?: Progress; now: number; open: boolean; lit: boolean; onOpen: () => void; onHot: (on: boolean) => void; stop: (c: Crate) => ReactNode }) {
   const c = lane.crate;
   const id = `fo-lane-${c.number}`;
   const step = stepOf(lane.stage);
@@ -468,6 +472,7 @@ function LaneRow({ lane, now, open, lit, onOpen, onHot, stop }: { lane: Lane; no
           <small>
             #{c.number} · {modelOf(c, lane.who)} · {c.kind === "chat" ? "from chat" : c.kind} · {formatWait(now - c.updatedAt)}
           </small>
+          {progress && <ProgressBar p={progress} />}
         </span>
         <span className={`fo-pill is-${PILL[lane.stage]}`}>{STAGE_WORDS[lane.stage]}</span>
         <i className="fo-rail" data-fo-rail={c.number} aria-hidden="true" />
@@ -522,6 +527,15 @@ function LaneRow({ lane, now, open, lit, onOpen, onHot, stop }: { lane: Lane; no
               <dt>Last change</dt>
               <dd>{formatWait(now - c.updatedAt)} ago</dd>
             </div>
+            {progress && (
+              <div>
+                <dt>Progress</dt>
+                <dd>
+                  {progress.pct}%{progress.doing ? `, ${progress.doing}` : ""}
+                  {leftWords(progress) ? `; ${leftWords(progress)}` : ""} <span className="fo-prog-src">({sourceWords(progress)})</span>
+                </dd>
+              </div>
+            )}
             {c.short && (
               <div>
                 <dt>In short</dt>
@@ -532,6 +546,25 @@ function LaneRow({ lane, now, open, lit, onOpen, onHot, stop }: { lane: Lane; no
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * A job's progress under its title (#488): a slim bar in the forge's orange, filled as far as it has got, and "60% ·
+ * about 25 min left". The builder's own word draws solid; an estimate from the stage draws fainter, with "≈".
+ */
+function ProgressBar({ p }: { p: Progress }) {
+  const said = p.source === "builder";
+  return (
+    <span className="fo-prog" data-src={p.source} data-long={p.long || undefined} title={`${p.doing ? `${p.doing}. ` : ""}${said ? "The builder's estimate" : "Estimated from its stage and past jobs of its size"}.`}>
+      <span className="fo-prog-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p.pct} aria-label="Progress">
+        <i style={{ width: `${p.pct}%` }} />
+      </span>
+      <span className="fo-prog-t">
+        {said ? "" : "≈"}
+        {progressWords(p)}
+      </span>
+    </span>
   );
 }
 

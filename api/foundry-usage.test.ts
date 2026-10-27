@@ -15,6 +15,12 @@ describe("the usage feed's trail steps", () => {
     }
   });
 
+  it("keeps a Progress step only from the trail's trusted authors (#488)", () => {
+    const body = "**Trail · Progress:** 60% · checks running · about 25 min left";
+    expect(isTrail({ issue_url: url, created_at: at, body, user: { login: "nikitapage10" } })).toBe(true);
+    expect(isTrail({ issue_url: url, created_at: at, body, user: { login: "someone-else" } })).toBe(false);
+  });
+
   it("reads other steps as before, and nothing that isn't a step", () => {
     expect(isTrail({ issue_url: url, created_at: at, body: "**Trail · Work:** foundry/build/162-x" })).toBe(true);
     expect(isTrail({ issue_url: url, created_at: at, body: `Nice! ${pics}`, user: { login: "nikitapage10" } })).toBe(false);

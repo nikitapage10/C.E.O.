@@ -87,6 +87,16 @@
 .desk .fo-lane-t{display:grid;gap:3px;min-width:0}
 .desk .fo-lane-t b{font-weight:500;font-size:17px;line-height:1.25;color:var(--wv-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .3s}
 .desk .fo-lane-t small{font-size:12.5px;color:var(--wv-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Build progress (#488): a hairline in the forge's orange, filled as far as the job has got, then "60% · about 25 min
+   left". The builder's own word draws solid; an estimate from the stage draws fainter. */
+.desk .fo-prog{display:flex;align-items:center;gap:10px;min-width:0;margin-top:3px}
+.desk .fo-prog-bar{position:relative;flex:0 1 160px;min-width:60px;height:3px;border-radius:2px;background:rgba(var(--fl-accent),.14);overflow:hidden}
+.desk .fo-prog-bar>i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:rgb(var(--fl-accent));box-shadow:0 0 8px rgba(var(--fl-accent),.7);transition:width .8s var(--fl-ease)}
+.desk .fo-prog[data-src=stage] .fo-prog-bar>i{background:rgba(var(--fl-accent),.5);box-shadow:none}
+.desk .fo-prog-t{font-size:12px;font-variant-numeric:tabular-nums;letter-spacing:.02em;color:var(--fl-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.desk .fo-prog[data-src=stage] .fo-prog-t{color:var(--wv-mute)}
+.desk .fo-prog[data-long] .fo-prog-t{color:var(--fo-hot)}
+.desk .fo-prog-src{color:var(--wv-faint);font-size:.9em}
 .desk .fo-lane.is-free .fo-lane-t{font-size:16px}
 /* The rail: the line runs along it, under the row's words. */
 .desk .fo-rail{position:absolute;left:0;right:0;bottom:6px;height:1px;pointer-events:none}
@@ -298,5 +308,6 @@
 
 @media (prefers-reduced-motion:reduce){
   .desk .fo-lane-x,.desk .fo-card,.desk .fo-slots>li{animation:none}
+  .desk .fo-prog-bar>i{transition:none}
   .desk .fo-more-d>summary::after{transition:none}
 }

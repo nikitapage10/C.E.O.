@@ -5,7 +5,7 @@ import { FOUNDRY_THREAD, formatWait } from "../deskData.ts";
 import { RC, samplePath, useFlow, type FlowLayoutFn, type FlowLine, type PathSpec, type Pt } from "../flow/index.ts";
 import { ideaTitle } from "../IdeaCard.tsx";
 import { BAD, clamp, HOT, mixRgb, OK, RUN, WHITE } from "../wvCanvas.ts";
-import { leftWords, progressWords, sourceWords, type Progress } from "./progress.ts";
+import { leftWords, MILESTONES, progressWords, sourceWords, stepWords, type Progress } from "./progress.ts";
 import { forgeEvents, forgeLanes, GATE_U, LANES, queueOf, shipWords, snapshot, STAGE_U, STAGE_WORDS, type Lane, type Stage } from "./forge.ts";
 
 /**
@@ -531,8 +531,8 @@ function LaneRow({ lane, progress, now, open, lit, onOpen, onHot, stop }: { lane
               <div>
                 <dt>Progress</dt>
                 <dd>
-                  {progress.pct}%{progress.doing ? `, ${progress.doing}` : ""}
-                  {leftWords(progress) ? `; ${leftWords(progress)}` : ""} <span className="fo-prog-src">({sourceWords(progress)})</span>
+                  {stepWords(progress)} ({progress.pct}%){leftWords(progress) ? `; ${leftWords(progress)}` : ""}
+                  {progress.doing ? `. Now: ${progress.doing}` : ""} <span className="fo-prog-src">({sourceWords(progress)})</span>
                 </dd>
               </div>
             )}
@@ -550,20 +550,19 @@ function LaneRow({ lane, progress, now, open, lit, onOpen, onHot, stop }: { lane
 }
 
 /**
- * A job's progress under its title (#488): a slim bar in the forge's orange, filled as far as it has got, and "60% ·
- * about 25 min left". The builder's own word draws solid; an estimate from the stage draws fainter, with "≈".
+ * A job's progress under its title (#488): seven hairline segments in the forge's orange, one per milestone (assigned,
+ * branch pushed, pull request open, checks running, checks green, merged, deployed), lit as far as it has really got,
+ * then "57% · about 12 min left", the time measured from past jobs' steps.
  */
 function ProgressBar({ p }: { p: Progress }) {
-  const said = p.source === "builder";
   return (
-    <span className="fo-prog" data-src={p.source} data-long={p.long || undefined} title={`${p.doing ? `${p.doing}. ` : ""}${said ? "The builder's estimate" : "Estimated from its stage and past jobs of its size"}.`}>
-      <span className="fo-prog-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p.pct} aria-label="Progress">
-        <i style={{ width: `${p.pct}%` }} />
+    <span className="fo-prog" title={`${stepWords(p)}${p.doing ? `: ${p.doing}` : ""}.`}>
+      <span className="fo-prog-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p.pct} aria-valuetext={`${stepWords(p)}, ${p.pct}%`} aria-label="Progress">
+        {MILESTONES.map((m, i) => (
+          <i key={m} data-on={i < p.step || undefined} />
+        ))}
       </span>
-      <span className="fo-prog-t">
-        {said ? "" : "≈"}
-        {progressWords(p)}
-      </span>
+      <span className="fo-prog-t">{progressWords(p)}</span>
     </span>
   );
 }

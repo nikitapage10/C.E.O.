@@ -16,7 +16,12 @@
  * commit's check runs. Nothing else from the pull request (no title, no body) leaves this function. They are read every
  * 30 seconds, so the Foundry page sees a job's pull request open and its checks go green.
  *
- * GET → { issues, runs, e2e, live, pulls, commits, jobs, open }: the GitHub JSON the Desk parses (apps/world/src/foundry.ts,
+ * Build progress (#488) comes along as `branches` (the issues with a pushed `chat/` or `foundry/` branch, numbers only)
+ * and `timings`: for the recently merged pull requests, only when each milestone happened (first commit, opened, checks
+ * started, checks green, merged, deployed by Deploy to Azure), so the Desk can measure how long each step takes. The
+ * open pull requests carry their own checks' start and finish times too. Read every ten minutes; branches every 30 s.
+ *
+ * GET → { issues, runs, e2e, live, pulls, commits, jobs, open, branches, timings }: the GitHub JSON the Desk parses (apps/world/src/foundry.ts,
  * apps/world/src/desk/jobs.ts).
  */
 
@@ -94,6 +99,9 @@ export interface OpenPull {
   /** The issue it works on: its branch's number ("chat/432-foundry-fit"), else a "Closes #n" in its title or body. */
   issue: number | null;
   checks: PullChecks;
+  /** When its head commit's first check started, and when the last one finished green (null until then; #488). */
+  checksAt?: string | null;
+  greenAt?: string | null;
 }
 
 /** The issue a pull request works on, from its branch name or a closing keyword; null when it names none. */
@@ -117,6 +125,65 @@ export function checksOf(list: unknown): PullChecks {
   return running ? "running" : "pass";
 }
 
+/** When a head commit's checks started (the earliest run), and when they all finished green (the latest), or null. */
+export function checkTimes(list: unknown): { checksAt: string | null; greenAt: string | null } {
+  const runs = (list as { check_runs?: unknown[] } | null)?.check_runs;
+  if (!Array.isArray(runs) || !runs.length) return { checksAt: null, greenAt: null };
+  let start: string | null = null;
+  let end: string | null = null;
+  for (const r of runs as Record<string, unknown>[]) {
+    const a = str(r.started_at);
+    const b = str(r.completed_at);
+    if (a && (!start || a < start)) start = a;
+    if (b && (!end || b > end)) end = b;
+  }
+  return { checksAt: start, greenAt: checksOf(list) === "pass" ? end : null };
+}
+
+/** The issues with a pushed branch in the Foundry's naming ("chat/488-…", "foundry/build/30-…"): numbers only. */
+export function branchIssues(list: unknown): number[] {
+  const out = new Set<number>();
+  for (const b of Array.isArray(list) ? (list as Record<string, unknown>[]) : []) {
+    const n = /^(?:chat|foundry\/[a-z]+)\/(\d+)-/.exec(str(b.name) ?? "")?.[1];
+    if (n) out.add(Number(n));
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** One merged pull request's milestones, as ISO times (null where GitHub didn't say): no title, no body, no branch. */
+export interface PullTiming {
+  issue: number | null;
+  pushed: string | null;
+  opened: string;
+  checksAt: string | null;
+  greenAt: string | null;
+  merged: string;
+  deployed: string | null;
+}
+
+/** The most merged pull requests measured. */
+const TIMED = 12;
+
+/**
+ * The recently merged pull requests' milestones: its first commit (the branch pushed), when it opened, when its head's
+ * checks started and finished green, when it merged, and when Deploy to Azure finished shipping its merge commit.
+ */
+export async function readTimings(closed: unknown, firstCommit: (n: number) => Promise<unknown>, checks: (sha: string) => Promise<unknown>, deploys: unknown): Promise<PullTiming[]> {
+  const pulls = (Array.isArray(closed) ? (closed as Record<string, unknown>[]) : []).filter((p) => str(p.merged_at) && str(p.created_at) && typeof p.number === "number").slice(0, TIMED);
+  const runs = ((deploys as { workflow_runs?: unknown[] } | null)?.workflow_runs ?? []) as Record<string, unknown>[];
+  return Promise.all(
+    pulls.map(async (p): Promise<PullTiming> => {
+      const head = (p.head ?? {}) as Record<string, unknown>;
+      const sha = str(head.sha);
+      const merge = str(p.merge_commit_sha);
+      const [first, list] = await Promise.all([firstCommit(p.number as number).catch(() => null), sha && /^[0-9a-f]{7,40}$/.test(sha) ? checks(sha).catch(() => null) : Promise.resolve(null)]);
+      const c = (Array.isArray(first) ? (first[0] as { commit?: { committer?: { date?: unknown } } } | undefined) : undefined)?.commit?.committer?.date;
+      const deploy = runs.find((r) => merge && r.head_sha === merge && r.conclusion === "success");
+      return { issue: linkedIssue(str(head.ref) ?? "", `${str(p.title) ?? ""}\n${str(p.body) ?? ""}`), pushed: str(c), opened: p.created_at as string, ...checkTimes(list), merged: p.merged_at as string, deployed: deploy ? str(deploy.updated_at) : null };
+    }),
+  );
+}
+
 /** GitHub's open pull requests cut down to what the page shows, newest first, each with its checks. */
 export async function readOpen(list: unknown, checks: (sha: string) => Promise<unknown>): Promise<OpenPull[]> {
   const pulls = Array.isArray(list) ? (list as Record<string, unknown>[]) : [];
@@ -127,13 +194,14 @@ export async function readOpen(list: unknown, checks: (sha: string) => Promise<u
     const created = str(p.created_at);
     const head = (p.head ?? {}) as Record<string, unknown>;
     if (number === null || !url || !created) continue;
-    out.push({ number, html_url: url, created_at: created, draft: p.draft === true, issue: linkedIssue(str(head.ref) ?? "", `${str(p.title) ?? ""}\n${str(p.body) ?? ""}`), checks: "unknown" });
+    out.push({ number, html_url: url, created_at: created, draft: p.draft === true, issue: linkedIssue(str(head.ref) ?? "", `${str(p.title) ?? ""}\n${str(p.body) ?? ""}`), checks: "unknown", checksAt: null, greenAt: null });
   }
   await Promise.all(
     out.slice(0, OPEN_CHECKED).map(async (o, i) => {
       const sha = str(((pulls.find((p) => p.number === o.number)?.head ?? {}) as Record<string, unknown>).sha);
       if (!sha || !/^[0-9a-f]{7,40}$/.test(sha)) return;
-      out[i] = { ...o, checks: checksOf(await checks(sha).catch(() => null)) };
+      const list = await checks(sha).catch(() => null);
+      out[i] = { ...o, checks: checksOf(list), ...checkTimes(list) };
     }),
   );
   return out;
@@ -146,8 +214,24 @@ const openPulls = memo(OPEN_TTL * 1000, async () =>
   ),
 );
 
+/** The pushed branches, for build progress (#488): read with the open pull requests. */
+const branches = memo(OPEN_TTL * 1000, async () => branchIssues(await read("/branches?per_page=100").catch(() => [])));
+
+/** How long the merged pull requests' milestones are kept, in seconds: they never change once read. */
+const TIMINGS_TTL = 600;
+
+const timings = memo(TIMINGS_TTL * 1000, async () => {
+  const [closed, deploys] = await Promise.all([read("/pulls?state=closed&sort=updated&direction=desc&per_page=30"), read("/actions/workflows/deploy-azure.yml/runs?branch=main&per_page=40").catch(() => ({ workflow_runs: [] }))]);
+  return readTimings(
+    closed,
+    (n) => read(`/pulls/${n}/commits?per_page=1`),
+    (sha) => read(`/commits/${sha}/check-runs?per_page=50`),
+    deploys,
+  );
+});
+
 const feed = memo(TTL * 1000, async () => {
-  const [issues, runs, e2e, live, pulls, commits, board, prs] = await Promise.all([
+  const [issues, runs, e2e, live, pulls, commits, board, prs, pushed, timed] = await Promise.all([
     read("/issues?labels=foundry&state=all&sort=updated&per_page=40"),
     read("/actions/workflows/checks.yml/runs?branch=main&per_page=1").catch(() => ({ workflow_runs: [] })),
     read("/actions/workflows/e2e.yml/runs?branch=main&per_page=5").catch(() => ({ workflow_runs: [] })),
@@ -156,8 +240,10 @@ const feed = memo(TTL * 1000, async () => {
     read("/commits?sha=main&per_page=40").catch(() => []),
     jobs(),
     openPulls().catch((): OpenPull[] => []),
+    branches().catch((): number[] => []),
+    timings().catch((): PullTiming[] => []),
   ]);
-  return JSON.stringify({ issues, runs, e2e, live, pulls, commits, jobs: board, open: prs });
+  return JSON.stringify({ issues, runs, e2e, live, pulls, commits, jobs: board, open: prs, branches: pushed, timings: timed });
 });
 
 export async function GET(req: Request): Promise<Response> {

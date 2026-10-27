@@ -1,57 +1,75 @@
-import { readBody, type Crate } from "../../foundry.ts";
-import { foundryJobs, readClaudeCode, readDuration, type Trail, type UsageFeed } from "../../usage.ts";
+import type { Crate, OpenPr, PullTiming } from "../../foundry.ts";
+import type { Trail } from "../../usage.ts";
 import type { Stage } from "./forge.ts";
 
 /**
- * How far along each job in flight is, and roughly how long it has left (#488): "60% · about 25 min left".
+ * How far along each job in flight is, and roughly how long it has left (#488): "57% · about 12 min left".
  *
- * The builder says so on the issue's trail, a `**Trail · Progress:** 60% · checks running · about 25 min left` step at
- * each milestone (docs/FOUNDRY.md, "The trail on every issue"), and the newest one wins. A job with none yet (or one
- * whose stage has since run past what the builder said) is placed from its stage instead: the trail's own steps
- * (Assigned, Work, Pictures, Checks) and its pull request on the forge; its time left then comes from how long past
- * jobs of the same size took. No canvas and no DOM here, so it is unit tested (progress.test.ts).
+ * Both come from real milestones, never from a guess (Nikita, 2026-10-27). The bar is step N of the seven every job
+ * passes (assigned, branch pushed, pull request open, checks running, checks green, merged, deployed), each at a fixed
+ * percent; which steps a job has reached comes from GitHub (its Assigned step, its pushed branch, its open pull request
+ * and that pull request's checks). The time left is the sum of the median measured durations of the steps still to
+ * go, from the recently merged pull requests (api/foundry-feed.ts, `timings`), less the time the current step has
+ * already run (the live CI run's own elapsed time while checks are running); it is left out when there's no history
+ * for a step still to go. A builder's `**Trail · Progress:**` note adds words ("fixing the phone layout"), never the
+ * percent. No canvas and no DOM here, so it is unit tested (progress.test.ts).
  */
 
-export type ProgressSource = "builder" | "stage";
+/** The milestones every job passes, in order. */
+export const MILESTONES = ["assigned", "pushed", "open", "checks", "green", "merged", "deployed"] as const;
+export type Milestone = (typeof MILESTONES)[number];
+
+/** Each milestone in a few plain words. */
+export const MILESTONE_WORDS: Record<Milestone, string> = {
+  assigned: "assigned",
+  pushed: "branch pushed",
+  open: "pull request open",
+  checks: "checks running",
+  green: "checks green",
+  merged: "merged",
+  deployed: "deployed",
+};
+
+/** Step N of M's fixed percent: an even share of the seven. */
+export const stepPct = (n: number) => Math.round((n / MILESTONES.length) * 100);
 
 export interface Progress {
-  /** 0–100. */
+  /** Milestones reached, 1..7 (step N of M). */
+  step: number;
+  /** The newest milestone reached. */
+  at: Milestone;
+  /** 0–100, fixed by the step. */
   pct: number;
-  /** What's happening now in a few plain words ("checks running"), when the builder said; "" otherwise. */
+  /** The builder's note on what is happening now, when they left one; "" otherwise. */
   doing: string;
-  /** Minutes left, rounded; null when there's no estimate. */
+  /** Minutes left, rounded, at least one; null when a step still to go has no history. */
   leftMin: number | null;
-  /** Past its estimate: the job is taking longer than the builder said, or than past jobs of its size took. */
-  long: boolean;
-  /** Whether the builder said it (a Progress step) or the Desk worked it out from the stage. */
-  source: ProgressSource;
+  /** How many merged pull requests the time left was measured from (the fewest across the steps it sums). */
+  measured: number;
 }
 
 const PROGRESS = "**Trail · Progress:**";
-/** Longest "what's happening" the Desk shows. */
-const DOING_MAX = 80;
+/** Longest note the Desk shows. */
+const NOTE_MAX = 80;
 
 /**
- * A Progress step's three parts: `**Trail · Progress:** 60% · checks running · about 25 min left`. The percent
- * leads; the time left is any part ending in "left"; the rest is what's happening. null when it isn't a Progress
- * step or has no percent.
+ * A builder's Progress note, in plain words: `**Trail · Progress:** fixing the phone layout`. A percent or a time
+ * left written in it is dropped, since the milestones set both. null when it isn't a Progress step or says nothing else.
  */
-export function readProgress(body: string): { pct: number; doing: string; leftMs: number | null } | null {
+export function readNote(body: string): string | null {
   if (!body.startsWith(PROGRESS)) return null;
-  const line = body.slice(PROGRESS.length).split("\n")[0]!.trim();
-  const parts = line.split(/\s+·\s+|\s+\|\s+/).map((p) => p.trim()).filter(Boolean);
-  const pct = /^(\d{1,3}(?:\.\d+)?)\s*%/.exec(parts[0] ?? "");
-  if (!pct) return null;
-  let leftMs: number | null = null;
-  const doing: string[] = [];
-  const rest = [parts[0]!.slice(pct[0].length).replace(/^[\s,;:–-]+/, ""), ...parts.slice(1)].filter(Boolean);
-  for (const p of rest) {
-    const left = /^(?:about|around|roughly|~)?\s*(.+?)\s+(?:left|to go)\.?$/i.exec(p);
-    const ms = left ? readDuration(left[1]!) : null;
-    if (ms !== null && leftMs === null) leftMs = ms;
-    else doing.push(p);
-  }
-  return { pct: clampPct(Number(pct[1])), doing: tidy(doing.join(" · ")), leftMs };
+  const line = body.slice(PROGRESS.length).split("\n")[0]!;
+  const parts = line
+    .split(/\s+·\s+|\s+\|\s+/)
+    .map((p) =>
+      p
+        .trim()
+        .replace(/^\d{1,3}(?:\.\d+)?\s*%[\s,;:–-]*/, "")
+        .trim(),
+    )
+    .filter((p) => p && !/^(?:about|around|roughly|~)?\s*[\d.]+\s*(?:h|hrs?|hours?|m|mins?|minutes?)\b.*\b(?:left|to go)\.?$/i.test(p));
+  const t = tidy(parts.join(" · "));
+  return t || null;
 }
 
 /** Plain words only: no markdown, links or anything address-shaped, short enough for one line. */
@@ -59,33 +77,18 @@ function tidy(raw: string): string {
   const t = raw
     .replace(/https?:\/\/\S+/g, "")
     .replace(/\S+@\S+/g, "")
-    .replace(/[*_`#<>[\]]+/g, "")
+    .replace(/[*_`<>[\]]+/g, "")
+    .replace(/#(?!\d)/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/[.!\s]+$/, "");
-  return t.length > DOING_MAX ? `${t.slice(0, DOING_MAX - 1).trimEnd()}…` : t;
+  return t.length > NOTE_MAX ? `${t.slice(0, NOTE_MAX - 1).trimEnd()}…` : t;
 }
 
-const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
-
-/** Where each trail step puts a job (docs/FOUNDRY.md): taken up, building, pictures posted, checks green, shipped. */
-export const TRAIL_PCT = { Assigned: 10, Work: 25, Pictures: 70, Checks: 85, Shipped: 100 } as const;
-/** Where its stage on the forge puts it: a pull request open is half way (red checks put it back there); checks running or green further on. */
-export const STAGE_PCT: Partial<Record<Stage, number>> = { building: 25, pr: 50, checks: 75, red: 50, green: 90, ready: 90 };
-
-/** How far the trail's own steps and the job's stage on the forge put it, without the builder's word. */
-export function stagePct(steps: readonly Trail[], stage: Stage | null): number {
-  let pct = 0;
-  for (const t of steps) for (const [name, p] of Object.entries(TRAIL_PCT)) if (t.body.startsWith(`**Trail · ${name}:**`)) pct = Math.max(pct, p);
-  if (stage) pct = Math.max(pct, STAGE_PCT[stage] ?? 0);
-  return pct;
-}
-
-/** The fewest shipped jobs of a size it takes to estimate from them, and the most recent ones counted. */
+/** The fewest measured pull requests a step's median needs. */
 export const MIN_HISTORY = 2;
-const HISTORY = 20;
-/** A "job" longer than this sat open rather than being worked; it says nothing about how long the next one takes. */
-const MAX_JOB_MS = 3 * 24 * 3_600_000;
+/** A step longer than this sat waiting rather than being worked; it says nothing about the next one. */
+const MAX_STEP_MS = 3 * 24 * 3_600_000;
 
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
@@ -93,99 +96,120 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
 };
 
+/** The six steps between the seven milestones, each as a measured median, with how many it was measured from. */
+export type StepTimes = { ms: number | null; n: number }[];
+
 /**
- * How long a job of each size usually takes, from the recent shipped ones: the Claude Code run times on their Shipped
- * steps when they give them ("Claude Code: 291k tokens on Opus, 1 h 50 min."), else from taken up to shipped. null for
- * a size with fewer than {@link MIN_HISTORY} shipped jobs.
+ * How long each step takes, measured from the recently merged pull requests: assigned (the issue's Assigned step) to
+ * the branch pushed (its first commit), pushed to opened, opened to checks started, checks started to green, green to
+ * merged, merged to deployed. A step with fewer than {@link MIN_HISTORY} measurements has no median.
  */
-export function typicalBySize(feed: UsageFeed): Record<"small" | "medium" | "large", number | null> {
-  const byIssue = trailsByIssue(feed.trails);
-  const size = new Map(feed.issues.map((i) => [i.number, readBody(i.body ?? "").size]));
-  const took: Record<"small" | "medium" | "large", { at: number; ms: number }[]> = { small: [], medium: [], large: [] };
-  for (const job of foundryJobs(feed.issues, feed.trails)) {
-    const s = size.get(job.issue);
-    if (!s || job.end === null) continue;
-    const issue = feed.issues.find((i) => i.number === job.issue);
-    if (!issue || issue.state !== "closed") continue;
-    const runs = (byIssue.get(job.issue) ?? []).filter((t) => t.body.startsWith("**Trail · Shipped:**")).flatMap((t) => readClaudeCode(t.body));
-    const ran = runs.reduce((sum, r) => sum + (r.ms ?? 0), 0);
-    const ms = ran > 0 ? ran : job.end - job.start;
-    if (ms > 0 && ms <= MAX_JOB_MS) took[s].push({ at: job.end, ms });
+export function stepTimes(timings: readonly PullTiming[], assignedAt: ReadonlyMap<number, number>): StepTimes {
+  const gaps: number[][] = [[], [], [], [], [], []];
+  for (const t of timings) {
+    const at = [t.issue !== null ? (assignedAt.get(t.issue) ?? null) : null, t.pushed, t.opened, t.checksAt, t.greenAt, t.merged, t.deployed];
+    for (let i = 0; i < 6; i++) {
+      const a = at[i];
+      const b = at[i + 1];
+      if (a == null || b == null) continue;
+      const d = b - a;
+      if (d >= 0 && d <= MAX_STEP_MS) gaps[i]!.push(d);
+    }
   }
-  const pick = (xs: { at: number; ms: number }[]) => (xs.length >= MIN_HISTORY ? median(xs.sort((a, b) => b.at - a.at).slice(0, HISTORY).map((x) => x.ms)) : null);
-  return { small: pick(took.small), medium: pick(took.medium), large: pick(took.large) };
+  return gaps.map((g) => ({ ms: g.length >= MIN_HISTORY ? median(g) : null, n: g.length }));
 }
 
-export function trailsByIssue(trails: readonly Trail[]): Map<number, Trail[]> {
-  const by = new Map<number, Trail[]>();
-  for (const t of trails) by.set(t.issue, [...(by.get(t.issue) ?? []), t]);
-  for (const list of by.values()) list.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  return by;
+/** When each issue was assigned: its first Assigned step, else its first Work step. */
+export function assignedTimes(trails: readonly Trail[]): Map<number, number> {
+  const out = new Map<number, number>();
+  const work = new Map<number, number>();
+  for (const t of trails) {
+    const at = Date.parse(t.at);
+    if (Number.isNaN(at)) continue;
+    const into = t.body.startsWith("**Trail · Assigned:**") ? out : t.body.startsWith("**Trail · Work:**") ? work : null;
+    if (into && (!into.has(t.issue) || at < into.get(t.issue)!)) into.set(t.issue, at);
+  }
+  for (const [issue, at] of work) if (!out.has(issue)) out.set(issue, at);
+  return out;
 }
 
-/** When the job was taken up: its Assigned step, else its first Work step, else when the issue was opened. */
-function startedAt(crate: Pick<Crate, "createdAt" | "updatedAt">, steps: readonly Trail[]): number {
-  const step = steps.find((t) => t.body.startsWith("**Trail · Assigned:**")) ?? steps.find((t) => t.body.startsWith("**Trail · Work:**"));
-  return step ? Date.parse(step.at) : (crate.createdAt ?? crate.updatedAt);
+/**
+ * The newest milestone a job has reached, its step, and when it got there (null where GitHub doesn't say). Red
+ * checks go back to the pull request being open: the fix and its checks are still to come.
+ */
+export function reached(crate: Pick<Crate, "createdAt">, pr: OpenPr | null, pushed: boolean, assignedAt: number | null): { at: Milestone; since: number | null; step: number } {
+  if (pr) {
+    if (pr.checks === "pass") return { at: "green", since: pr.greenAt ?? null, step: 5 };
+    if (pr.checks === "running") return { at: "checks", since: pr.checksAt ?? null, step: 4 };
+    return { at: "open", since: pr.at, step: 3 };
+  }
+  if (pushed) return { at: "pushed", since: null, step: 2 };
+  return { at: "assigned", since: assignedAt ?? crate.createdAt ?? null, step: 1 };
 }
 
 const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));
 
 /**
- * One job's progress: the builder's newest Progress step, its time left counted down from when it was written; or,
- * with none (or once the stage has run past it), the stage's percent and the typical time for its size less the time
- * it has run. Paused, waiting and stuck jobs aren't moving, so they get none.
+ * One job's progress. Paused, waiting and stuck jobs aren't moving, so they get none. The time left is the median of
+ * the step it is on less how long it has been on it (never below nothing), plus the medians of every step after.
  */
-export function progressOf(crate: Crate, stage: Stage | null, steps: readonly Trail[], typical: Record<"small" | "medium" | "large", number | null>, now: number): Progress | null {
+export function progressOf(crate: Crate, stage: Stage | null, pr: OpenPr | null, pushed: boolean, steps: readonly Trail[], times: StepTimes, assignedAt: number | null, now: number): Progress | null {
   if (stage === "paused" || stage === "waiting" || stage === "stuck") return null;
-  const fromStage = stagePct(steps, stage);
-  // The typical time for its size, less the time it has run: the estimate when the builder gave none.
-  const usual = crate.size ? typical[crate.size] : null;
-  const typicalLeft = usual === null ? null : usual - (now - startedAt(crate, steps));
-  for (let i = steps.length - 1; i >= 0; i--) {
-    const said = readProgress(steps[i]!.body);
-    if (!said) continue;
-    if (said.pct < fromStage) break;
-    const left = said.leftMs !== null ? said.leftMs - (now - Date.parse(steps[i]!.at)) : typicalLeft;
-    return { pct: said.pct, doing: said.doing, ...timeLeft(said.pct < 100 ? left : null), source: "builder" };
+  const where = reached(crate, pr, pushed, assignedAt);
+  let note = "";
+  for (let i = steps.length - 1; i >= 0 && !note; i--) note = readNote(steps[i]!.body) ?? "";
+  let left: number | null = 0;
+  let measured = Infinity;
+  for (let i = where.step - 1; i < times.length; i++) {
+    const t = times[i]!;
+    if (t.ms === null) {
+      left = null;
+      break;
+    }
+    measured = Math.min(measured, t.n);
+    left += i === where.step - 1 && where.since !== null ? Math.max(0, t.ms - (now - where.since)) : t.ms;
   }
-  return { pct: fromStage, doing: "", ...timeLeft(typicalLeft), source: "stage" };
+  const known = left !== null && measured !== Infinity;
+  return { step: where.step, at: where.at, pct: stepPct(where.step), doing: note, leftMin: known ? minutes(left!) : null, measured: known ? measured : 0 };
 }
 
-function timeLeft(left: number | null): Pick<Progress, "leftMin" | "long"> {
-  if (left === null) return { leftMin: null, long: false };
-  return left > 0 ? { leftMin: minutes(left), long: false } : { leftMin: null, long: true };
-}
-
-/** Every lane's progress at once, keyed by issue: the trails grouped and the typical times worked out once. */
-export function progressMap(jobs: readonly { crate: Crate; stage: Stage | null }[], feed: UsageFeed | null, now: number): Map<number, Progress> {
+/** Every lane's progress at once, keyed by issue: the trails grouped and the steps measured once. */
+export function progressMap(jobs: readonly { crate: Crate; stage: Stage | null; pr: OpenPr | null }[], trails: readonly Trail[] | null, timings: readonly PullTiming[], branches: readonly number[], now: number): Map<number, Progress> {
   const out = new Map<number, Progress>();
-  if (!feed) return out;
-  const byIssue = trailsByIssue(feed.trails);
-  const typical = typicalBySize(feed);
-  for (const { crate, stage } of jobs) {
-    const p = progressOf(crate, stage, byIssue.get(crate.number) ?? [], typical, now);
+  const all = trails ?? [];
+  const assigned = assignedTimes(all);
+  const times = stepTimes(timings, assigned);
+  const byIssue = new Map<number, Trail[]>();
+  for (const t of all) byIssue.set(t.issue, [...(byIssue.get(t.issue) ?? []), t]);
+  for (const list of byIssue.values()) list.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const pushed = new Set(branches);
+  for (const { crate, stage, pr } of jobs) {
+    const p = progressOf(crate, stage, pr, pushed.has(crate.number), byIssue.get(crate.number) ?? [], times, assigned.get(crate.number) ?? null, now);
     if (p) out.set(crate.number, p);
   }
   return out;
 }
 
-/** "about 25 min left", "about 2 h left", "running long"; "" with no estimate. */
-export function leftWords(p: Pick<Progress, "leftMin" | "long">): string {
-  if (p.long) return "running long";
+/** "about 25 min left", "about 2 h left"; "" with no history. */
+export function leftWords(p: Pick<Progress, "leftMin">): string {
   if (p.leftMin === null) return "";
   if (p.leftMin < 90) return `about ${p.leftMin} min left`;
   const h = Math.round(p.leftMin / 30) / 2;
   return `about ${h % 1 ? h.toFixed(1) : h} h left`;
 }
 
-/** "60% · about 25 min left", or just "60%". */
+/** "57% · about 12 min left", or just "57%". */
 export function progressWords(p: Progress): string {
   const left = leftWords(p);
   return left ? `${p.pct}% · ${left}` : `${p.pct}%`;
 }
 
-/** The subtle note on where the number came from. */
+/** "Step 4 of 7, checks running". */
+export function stepWords(p: Pick<Progress, "step" | "at">): string {
+  return `Step ${p.step} of ${MILESTONES.length}, ${MILESTONE_WORDS[p.at]}`;
+}
+
+/** Where the time left came from, for the opened lane. */
 export function sourceWords(p: Progress): string {
-  return p.source === "builder" ? "the builder's estimate" : "estimated from its stage and past jobs of its size";
+  return p.leftMin === null ? "no time yet: a step still to go has no history" : `measured from the last ${p.measured} merged pull requests`;
 }

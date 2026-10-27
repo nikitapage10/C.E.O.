@@ -3475,9 +3475,6 @@ a.fy-chip:hover {
   font-variant-numeric: tabular-nums;
   color: var(--ice);
 }
-.fy-job__prog[data-src="stage"] {
-  color: var(--faint);
-}
 .fy-job__tag {
   padding: 1px 6px;
   border: 1px dashed color-mix(in srgb, var(--tone) 60%, transparent);

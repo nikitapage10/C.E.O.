@@ -68,12 +68,12 @@ export interface Comment {
 /** The comments the panel reads: the trail steps, and the older "Approved for building" note from before the trail. */
 const TRAIL = /^(\*\*Trail ·|Approved for building)/;
 const PICTURES = "**Trail · Pictures:**";
-/** A builder's progress on a job in flight (#488): its percent and words show on the Desk's forge. */
+/** A builder's progress note on a job in flight (#488): its words show on the Desk's forge. */
 const PROGRESS = "**Trail · Progress:**";
 
 /**
  * Whether the Desk may read a comment as a trail step. A Pictures step puts images on the Desk's Changelog, and a
- * Progress step puts its words and percent on a job in flight, so those count only from the trail's trusted authors
+ * Progress step puts its words on a job in flight, so those count only from the trail's trusted authors
  * (Nikita's account, the Checks workflow and the crew's App); the repo is public, and anyone could post one. The Desk
  * still checks every picture link itself (`pictureUrl` in foundry.ts) and keeps a Progress step's words plain.
  */

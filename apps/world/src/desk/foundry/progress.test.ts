@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { Crate } from "../../foundry.ts";
-import type { Trail, UsageFeed, UsageIssue } from "../../usage.ts";
-import { leftWords, progressMap, progressOf, progressWords, readProgress, stagePct, typicalBySize } from "./progress.ts";
+import type { Crate, OpenPr, PullTiming } from "../../foundry.ts";
+import type { Trail } from "../../usage.ts";
+import { assignedTimes, leftWords, progressMap, progressOf, progressWords, readNote, reached, stepPct, stepTimes, stepWords, type StepTimes } from "./progress.ts";
 
-/** Build progress on the jobs in flight (#488): the builder's Progress steps, and the stage-and-history fallback. */
+/** Build progress on the jobs in flight (#488): step N of seven real milestones, and time left from measured steps. */
 
 const MIN = 60_000;
-const T0 = Date.parse("2026-10-27T08:00:00Z");
+const T0 = Date.parse("2026-10-27T07:00:00Z");
 const iso = (ms: number) => new Date(ms).toISOString();
 const step = (issue: number, at: number, body: string): Trail => ({ issue, at: iso(at), body });
 
@@ -25,123 +25,118 @@ const crate = (o: Partial<Crate> = {}): Crate => ({
   ...o,
 });
 
-const shipped = (number: number, size: string, start: number, end: number): UsageIssue => ({
-  number,
-  title: `Job ${number}`,
-  state: "closed",
-  created_at: iso(start),
-  closed_at: iso(end),
-  body: `**Pitch:** x\n**Size:** ${size}`,
-  labels: ["foundry", "foundry:chat", "foundry:shipped"],
+const pr = (o: Partial<OpenPr> = {}): OpenPr => ({ number: 487, url: "https://github.com/x/pull/487", at: T0 + 10 * MIN, draft: false, issue: 481, checks: "unknown", checksAt: null, greenAt: null, ...o });
+
+/** A merged pull request whose steps took 5, 3, 1, 12, 2 and 6 minutes after its Assigned step at `start`. */
+const timed = (issue: number, start: number, k = 1): PullTiming => ({
+  issue,
+  pushed: start + 5 * k * MIN,
+  opened: start + 8 * k * MIN,
+  checksAt: start + 9 * k * MIN,
+  greenAt: start + 21 * k * MIN,
+  merged: start + 23 * k * MIN,
+  deployed: start + 29 * k * MIN,
 });
 
-describe("readProgress", () => {
-  it("reads the percent, what's happening and the time left", () => {
-    expect(readProgress("**Trail · Progress:** 60% · checks running · about 25 min left")).toEqual({ pct: 60, doing: "checks running", leftMs: 25 * MIN });
-    expect(readProgress("**Trail · Progress:** 40% · PR up · about 1 h 10 min left.")).toEqual({ pct: 40, doing: "PR up", leftMs: 70 * MIN });
+describe("readNote", () => {
+  it("keeps the builder's words and drops any percent or time left", () => {
+    expect(readNote("**Trail · Progress:** fixing the phone layout")).toBe("fixing the phone layout");
+    expect(readNote("**Trail · Progress:** 60% · checks running on PR #489 · about 25 min left")).toBe("checks running on PR #489");
+    expect(readNote("**Trail · Progress:** 95%")).toBeNull();
   });
 
-  it("takes a step with no time left, or no words", () => {
-    expect(readProgress("**Trail · Progress:** 10% · started")).toEqual({ pct: 10, doing: "started", leftMs: null });
-    expect(readProgress("**Trail · Progress:** 95%")).toEqual({ pct: 95, doing: "", leftMs: null });
-  });
-
-  it("only reads the first line, clamps the percent and keeps the words plain", () => {
-    const got = readProgress("**Trail · Progress:** 140% · see **https://example.com/x** or a@b.co · about 5 min left\n\nmore text · 2 h left");
-    expect(got).toEqual({ pct: 100, doing: "see or", leftMs: 5 * MIN });
-  });
-
-  it("ignores other steps and steps without a percent", () => {
-    expect(readProgress("**Trail · Work:** chat/488 · try 1 on Opus.")).toBeNull();
-    expect(readProgress("**Trail · Progress:** nearly there")).toBeNull();
+  it("only reads the first line and keeps the words plain", () => {
+    expect(readNote("**Trail · Progress:** see **https://example.com/x** or a@b.co\n\nmore")).toBe("see or");
+    expect(readNote("**Trail · Work:** chat/488 · try 1 on Opus.")).toBeNull();
   });
 });
 
-describe("stagePct", () => {
-  it("counts the furthest trail step or forge stage", () => {
-    expect(stagePct([], null)).toBe(0);
-    expect(stagePct([step(1, T0, "**Trail · Assigned:** Rusty on Opus.")], "building")).toBe(25);
-    expect(stagePct([step(1, T0, "**Trail · Work:** b")], "pr")).toBe(50);
-    expect(stagePct([step(1, T0, "**Trail · Pictures:** x")], "checks")).toBe(75);
-    expect(stagePct([step(1, T0, "**Trail · Checks:** green.")], "pr")).toBe(85);
-    expect(stagePct([], "green")).toBe(90);
-    // Red checks put it back at its pull request, under the builder's own word.
-    expect(stagePct([step(1, T0, "**Trail · Work:** b")], "red")).toBe(50);
+describe("the milestones", () => {
+  it("gives each step a fixed share of seven", () => {
+    expect([1, 2, 3, 4, 5, 6, 7].map(stepPct)).toEqual([14, 29, 43, 57, 71, 86, 100]);
+    expect(stepWords({ step: 4, at: "checks" })).toBe("Step 4 of 7, checks running");
+  });
+
+  it("reads where a job is from GitHub: its pull request's checks, its branch, else assigned", () => {
+    expect(reached(crate(), null, false, T0 + MIN)).toEqual({ at: "assigned", since: T0 + MIN, step: 1 });
+    expect(reached(crate(), null, true, T0)).toEqual({ at: "pushed", since: null, step: 2 });
+    expect(reached(crate(), pr(), true, T0)).toEqual({ at: "open", since: T0 + 10 * MIN, step: 3 });
+    expect(reached(crate(), pr({ checks: "running", checksAt: T0 + 11 * MIN }), true, T0)).toEqual({ at: "checks", since: T0 + 11 * MIN, step: 4 });
+    expect(reached(crate(), pr({ checks: "pass", greenAt: T0 + 20 * MIN }), true, T0)).toEqual({ at: "green", since: T0 + 20 * MIN, step: 5 });
+    // Red checks: back at the pull request, the fix still to come.
+    expect(reached(crate(), pr({ checks: "fail" }), true, T0).step).toBe(3);
   });
 });
 
-describe("typicalBySize", () => {
-  it("takes the median of recent shipped jobs of each size, preferring Claude Code run times", () => {
-    const feed: UsageFeed = {
-      issues: [shipped(1, "medium", T0, T0 + 60 * MIN), shipped(2, "medium", T0, T0 + 30 * MIN), shipped(3, "medium", T0, T0 + 999 * MIN), shipped(4, "small", T0, T0 + 10 * MIN)],
-      trails: [step(3, T0 + 999 * MIN, "**Trail · Shipped:** abc on main.\nClaude Code: 120k tokens on Opus, 40 min.")],
-    };
-    const t = typicalBySize(feed);
-    expect(t.medium).toBe(40 * MIN);
-    // One small job isn't enough history.
-    expect(t.small).toBeNull();
-    expect(t.large).toBeNull();
+describe("stepTimes", () => {
+  it("measures each step's median from merged pull requests and their Assigned steps", () => {
+    const assigned = new Map([[1, T0], [2, T0], [3, T0]]);
+    const times = stepTimes([timed(1, T0), timed(2, T0, 2), timed(3, T0, 3)], assigned);
+    expect(times.map((t) => t.ms! / MIN)).toEqual([10, 6, 2, 24, 4, 12]);
+    expect(times.every((t) => t.n === 3)).toBe(true);
   });
 
-  it("leaves out jobs that sat open for days", () => {
-    const feed: UsageFeed = { issues: [shipped(1, "large", T0, T0 + 5 * 24 * 60 * MIN), shipped(2, "large", T0, T0 + 90 * MIN)], trails: [] };
-    expect(typicalBySize(feed).large).toBeNull();
+  it("has no median for a step measured fewer than twice, or only from days-long gaps", () => {
+    const times = stepTimes([timed(1, T0), { ...timed(2, T0), deployed: null }, { ...timed(3, T0), deployed: T0 + 9 * 24 * 60 * MIN }], new Map());
+    // No Assigned steps: the first step has no history.
+    expect(times[0]).toEqual({ ms: null, n: 0 });
+    expect(times[5]).toEqual({ ms: null, n: 1 });
+    expect(times[3]!.ms).toBe(12 * MIN);
+  });
+
+  it("dates assignment from the first Assigned step, else the first Work step", () => {
+    const got = assignedTimes([step(1, T0 + 5 * MIN, "**Trail · Assigned:** Rusty on Opus."), step(1, T0 + 2 * MIN, "**Trail · Work:** b"), step(2, T0 + 3 * MIN, "**Trail · Work:** b"), step(2, T0 + 9 * MIN, "**Trail · Work:** b again")]);
+    expect(got).toEqual(new Map([[1, T0 + 5 * MIN], [2, T0 + 3 * MIN]]));
   });
 });
 
 describe("progressOf", () => {
-  const typical = { small: 20 * MIN, medium: 60 * MIN, large: null };
+  // Measured: 5, 3, 1, 12, 2 and 6 minutes.
+  const times: StepTimes = [5, 3, 1, 12, 2, 6].map((m) => ({ ms: m * MIN, n: 4 }));
 
-  it("uses the builder's newest Progress step and counts its time down", () => {
-    const steps = [step(481, T0, "**Trail · Assigned:** Musty on Opus."), step(481, T0 + 5 * MIN, "**Trail · Progress:** 25% · started · about 50 min left"), step(481, T0 + 20 * MIN, "**Trail · Progress:** 60% · PR up · about 25 min left")];
-    const p = progressOf(crate(), "pr", steps, typical, T0 + 30 * MIN)!;
-    expect(p).toEqual({ pct: 60, doing: "PR up", leftMin: 15, long: false, source: "builder" });
-    expect(progressWords(p)).toBe("60% · about 15 min left");
+  it("sums the steps still to go, less the live CI run's elapsed time", () => {
+    const p = progressOf(crate(), "checks", pr({ checks: "running", checksAt: T0 + 11 * MIN }), true, [], times, T0, T0 + 15 * MIN)!;
+    // Checks: 12 − 4 run so far = 8, then 2 to merge and 6 to deploy.
+    expect(p).toEqual({ step: 4, at: "checks", pct: 57, doing: "", leftMin: 16, measured: 4 });
+    expect(progressWords(p)).toBe("57% · about 16 min left");
   });
 
-  it("says running long once the builder's time is up", () => {
-    const steps = [step(481, T0, "**Trail · Progress:** 60% · PR up · about 10 min left")];
-    const p = progressOf(crate(), "pr", steps, typical, T0 + 30 * MIN)!;
-    expect(p.long).toBe(true);
-    expect(progressWords(p)).toBe("60% · running long");
+  it("never counts a step past its median below nothing", () => {
+    const p = progressOf(crate(), "green", pr({ checks: "pass", greenAt: T0 }), true, [], times, T0, T0 + 60 * MIN)!;
+    expect(p.leftMin).toBe(6);
   });
 
-  it("falls back to the stage once it has run past what the builder said", () => {
-    const steps = [step(481, T0, "**Trail · Assigned:** Musty on Opus."), step(481, T0 + MIN, "**Trail · Progress:** 30% · building · about 40 min left")];
-    const p = progressOf(crate(), "green", steps, typical, T0 + 20 * MIN)!;
-    expect(p).toMatchObject({ pct: 90, source: "stage", leftMin: 40 });
+  it("takes the builder's note as words, never as the percent", () => {
+    const steps = [step(481, T0, "**Trail · Progress:** 95% · wiring the call · about 1 min left")];
+    const p = progressOf(crate(), "building", null, false, steps, times, T0, T0 + 2 * MIN)!;
+    expect(p).toMatchObject({ step: 1, pct: 14, doing: "wiring the call" });
+    expect(p.leftMin).toBe(27);
   });
 
-  it("estimates from the stage and past jobs of its size with no Progress step", () => {
-    const steps = [step(481, T0 + 10 * MIN, "**Trail · Assigned:** Musty on Opus."), step(481, T0 + 12 * MIN, "**Trail · Work:** chat/481 · try 1.")];
-    expect(progressOf(crate(), "building", steps, typical, T0 + 40 * MIN)).toEqual({ pct: 25, doing: "", leftMin: 30, long: false, source: "stage" });
-    expect(progressOf(crate(), "building", steps, typical, T0 + 90 * MIN)).toMatchObject({ long: true });
-  });
-
-  it("omits the time with no history for its size", () => {
-    const p = progressOf(crate({ size: "large" }), "pr", [], typical, T0)!;
-    expect(p).toEqual({ pct: 50, doing: "", leftMin: null, long: false, source: "stage" });
-    expect(progressWords(p)).toBe("50%");
+  it("drops the time when a step still to go has no history", () => {
+    const thin: StepTimes = times.map((t, i) => (i === 5 ? { ms: null, n: 1 } : t));
+    const p = progressOf(crate(), "pr", pr(), true, [], thin, T0, T0)!;
+    expect(p).toMatchObject({ step: 3, leftMin: null, measured: 0 });
+    expect(progressWords(p)).toBe("43%");
   });
 
   it("gives none to jobs that aren't moving", () => {
-    expect(progressOf(crate(), "paused", [], typical, T0)).toBeNull();
-    expect(progressOf(crate(), "waiting", [], typical, T0)).toBeNull();
-    expect(progressOf(crate(), "stuck", [], typical, T0)).toBeNull();
+    for (const s of ["paused", "waiting", "stuck"] as const) expect(progressOf(crate(), s, null, false, [], times, T0, T0)).toBeNull();
   });
 });
 
 describe("progressMap and words", () => {
-  it("is empty until the trails arrive, then keyed by issue", () => {
-    expect(progressMap([{ crate: crate(), stage: "pr" }], null, T0).size).toBe(0);
-    const feed: UsageFeed = { issues: [], trails: [step(481, T0, "**Trail · Progress:** 60% · checks running · about 25 min left")] };
-    expect(progressMap([{ crate: crate(), stage: "pr" }], feed, T0).get(481)?.pct).toBe(60);
+  it("measures from the feed and keys by issue", () => {
+    const trails = [1, 2, 3].map((n) => step(n, T0, "**Trail · Assigned:** Rusty on Opus."));
+    const got = progressMap([{ crate: crate(), stage: "pr", pr: pr() }], trails, [timed(1, T0), timed(2, T0), timed(3, T0)], [481], T0 + 10 * MIN);
+    // Pull request open: 1 + 12 + 2 + 6.
+    expect(got.get(481)).toMatchObject({ step: 3, leftMin: 21, measured: 3 });
   });
 
   it("rounds long estimates to half hours", () => {
-    expect(leftWords({ leftMin: 25, long: false })).toBe("about 25 min left");
-    expect(leftWords({ leftMin: 130, long: false })).toBe("about 2 h left");
-    expect(leftWords({ leftMin: 100, long: false })).toBe("about 1.5 h left");
-    expect(leftWords({ leftMin: null, long: false })).toBe("");
+    expect(leftWords({ leftMin: 25 })).toBe("about 25 min left");
+    expect(leftWords({ leftMin: 130 })).toBe("about 2 h left");
+    expect(leftWords({ leftMin: 100 })).toBe("about 1.5 h left");
+    expect(leftWords({ leftMin: null })).toBe("");
   });
 });

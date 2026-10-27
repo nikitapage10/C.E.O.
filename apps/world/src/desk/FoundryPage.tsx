@@ -22,7 +22,7 @@ import { RC } from "./flow/index.ts";
 import { ForgeStage } from "./foundry/ForgeStage.tsx";
 import { BenchCard, CrewStations, RunsLine, UsageLine, VqaLine } from "./foundry/ForgeParts.tsx";
 import { forgeLanes, queueOf } from "./foundry/forge.ts";
-import { progressMap, progressWords, sourceWords, type Progress } from "./foundry/progress.ts";
+import { progressMap, progressWords, stepWords, type Progress } from "./foundry/progress.ts";
 import "./foundry/foundry.css";
 
 /**
@@ -90,8 +90,8 @@ export function FoundryPage({ now }: { now: number }) {
   // How far along each job in flight is, and roughly how long it has left (#488), recounted on the minute's tick.
   const progress = useMemo(() => {
     const { lanes, more } = forgeLanes(data.crates, data.prs ?? []);
-    return progressMap([...lanes, ...more], usage.feed, now);
-  }, [data.crates, data.prs, usage.feed, now]);
+    return progressMap([...lanes, ...more], usage.feed?.trails ?? null, data.timings ?? [], data.branches ?? [], now);
+  }, [data.crates, data.prs, data.timings, data.branches, usage.feed, now]);
   const suggest = useRef<HTMLElement>(null);
   const log = useRef<HTMLElement>(null);
   const toSuggest = () => {
@@ -534,7 +534,7 @@ function Crew({ now, setup, progress }: { now: number; setup: Setup; progress: M
                           {c.auto && <ApprovalMark approval="auto" />}
                           {KIND_LABEL[c.kind]} · {modelOf(c, id)} · {formatWait(now - c.updatedAt)} ago
                           {p && (
-                            <span className="fy-job__prog" data-src={p.source} title={sourceWords(p)}>
+                            <span className="fy-job__prog" title={stepWords(p)}>
                               {progressWords(p)}
                             </span>
                           )}

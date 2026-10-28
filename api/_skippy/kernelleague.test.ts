@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { LEAGUE_ID, USER_ID } from "../_green/sleeper.ts";
+import { LEAGUE_ID, USER_ID, lineupSlots, shapeRosters } from "../_green/sleeper.ts";
 import { ENABLED_SETTING, forgetTaken, judgment, respond, type AgentDeps, type AgentRequest, type AgentRun } from "./kernelagent.ts";
-import { leagueText } from "./kernelleague.ts";
+import { leagueText, rosterGroups, rosterText } from "./kernelleague.ts";
 import { MemoryChatLedger } from "./budget.ts";
 import { MemoryRoomLog } from "./log.ts";
 
@@ -171,5 +171,48 @@ describe("the roster read (#526)", () => {
     expect(text.split("\n")[0]).toBe("Heads up: your starting QB Sample Passer is Out. Sample Backup is on your bench.");
     expect(text).toContain("Sample Passer QB AAA Out");
     expect(text).toContain("Sample Hurt RB DDD Questionable");
+  });
+});
+
+describe("rosterGroups and rosterText (#544)", () => {
+  const slots = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "DEF", "BN", "BN", "IR"];
+  const playable = lineupSlots({ roster_positions: slots });
+  const roster = shapeRosters([{ roster_id: 1, owner_id: USER_ID, players: ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"], starters: ["11", "12", "13", "14", "0", "16", "17", "18"], reserve: ["21"], settings: {} }])[0]!;
+  const names = Object.fromEntries(
+    ["Quinn Sample", "Rex Sample", "Rory Sample", "Wes Sample", "Wanda Sample", "Tess Sample", "Flo Sample", "Dee Sample", "Ben Sample", "Bo Sample", "Ivy Sample"].map((n, i) => [String(11 + i), { n, pos: ["QB", "RB", "RB", "WR", "WR", "TE", "WR", "DEF", "RB", "WR", "RB"][i]!, team: "SMP", inj: i === 10 ? "IR" : i === 9 ? "Q" : null }]),
+  );
+
+  it("drops BN, IR and taxi from the slots and keeps the order", () => {
+    expect(playable).toEqual(["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "DEF"]);
+  });
+
+  it("labels slots from starters[] in order, an empty slot is 0", () => {
+    const g = rosterGroups(roster, playable);
+    expect(g.starters.map((s) => `${s.slot}:${s.id}`)).toEqual(["QB:11", "RB1:12", "RB2:13", "WR1:14", "WR2:null", "TE:16", "FLEX:17", "DEF:18"]);
+  });
+
+  it("never puts a player in two groups", () => {
+    const withTaxi = { ...roster, taxi: ["20"] };
+    const g = rosterGroups(withTaxi, playable);
+    const all = [...g.starters.flatMap((s) => (s.id ? [s.id] : [])), ...g.bench, ...g.reserve, ...g.taxi];
+    expect(new Set(all).size).toBe(all.length);
+    expect(g.bench).toEqual(["15", "19"]);
+    expect(g.reserve).toEqual(["21"]);
+    expect(g.taxi).toEqual(["20"]);
+    // A feed that lists a starter again in reserve still leaves him in one group.
+    const dup = rosterGroups({ ...roster, reserve: ["13", "21"] }, playable);
+    expect(dup.reserve).toEqual(["21"]);
+  });
+
+  it("says slots, bench and reserve apart and labels the injury tag", () => {
+    const t = rosterText(roster, names, 8, playable);
+    expect(t).toContain("RB2 Rory Sample RB SMP");
+    expect(t).toContain("WR2 empty");
+    expect(t).toMatch(/Bench \(not starting\): Wanda Sample[^;]*; Ben Sample RB SMP/);
+    expect(t).toMatch(/Reserve\/IR slot: Ivy Sample RB SMP on IR \(per Sleeper feed\)/);
+    expect(t).toContain("Bo Sample WR SMP Questionable (per Sleeper feed)");
+    const starterLine = t.split("\n").find((l) => l.startsWith("Nikita's starters"))!;
+    expect(starterLine).not.toContain("Ben Sample");
+    expect(starterLine).not.toContain("Ivy Sample");
   });
 });

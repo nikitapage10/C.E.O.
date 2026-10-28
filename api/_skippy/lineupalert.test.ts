@@ -32,7 +32,7 @@ describe("the lineup flag (#520)", () => {
   it("lists every starter and bench player with the injury, no projection needed", () => {
     const t = greenText(board());
     expect(t).toMatch(/Starters: QB Lamar Jackson[^;]* O;/);
-    expect(t).toMatch(/Injury list \(Sleeper\): Lamar Jackson QB Out\./);
+    expect(t).toMatch(/Injury list \(per Sleeper feed\): Lamar Jackson QB Out\./);
   });
 
   it("flags a bye, IR and Doubtful starter, and says when the bench has nobody", () => {

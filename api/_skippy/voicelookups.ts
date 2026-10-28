@@ -82,7 +82,7 @@ function rosterOf(b: GreenBoard | null): GreenPlayer[] {
 function sleeperLine(p: SlimPlayer, listAt: number, now: number): string {
   const status = p.inj ? STATUS[p.inj] ?? p.inj : "no injury listed";
   const parts = [p.ib ? `${said(p.ib, 30)}` : "", p.prac ? `practice: ${said(p.prac, 20)}` : "", p.inote ? said(p.inote, 140) : "", p.nu ? `news updated ${hoursAgo(p.nu, now)}` : ""].filter(Boolean);
-  return `Sleeper: ${status}${parts.length ? ` (${parts.join("; ")})` : ""}; Sleeper's list read ${hoursAgo(listAt, now) || "today"}.`;
+  return `Sleeper: ${status} (per Sleeper feed)${parts.length ? ` (${parts.join("; ")})` : ""}; Sleeper's list read ${hoursAgo(listAt, now) || "today"}.`;
 }
 
 function fpInjuryLine(i: FpInjuryDetail, now: number): string {

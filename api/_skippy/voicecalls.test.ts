@@ -182,7 +182,7 @@ describe("player_news (#491)", () => {
   it("answers 'will Lamar play?' from Sleeper and FantasyPros, with the C.E.O.'s QB on bye", () => {
     const text = playerNewsText("Lamar Jackson", { board: BOARD, players: PLAYERS, fp: FP, now: NOW });
     expect(text).toContain("Lamar Jackson (QB, BAL).");
-    expect(text).toContain("Sleeper: questionable (Knee; practice: Limited; Limited Thursday with a knee bruise; news updated 5 hours ago)");
+    expect(text).toContain("Sleeper: questionable (per Sleeper feed) (Knee; practice: Limited; Limited Thursday with a knee bruise; news updated 5 hours ago)");
     expect(text).toContain("FantasyPros injury report: Questionable, Knee, Expected to play, per the team, updated 2 hours ago.");
     expect(text).toContain("FantasyPros news (1 hours ago): Jackson (knee) practices in full Friday He is on track to start Sunday.");
     expect(playerNewsText("lamar", { board: BOARD, players: PLAYERS, fp: FP, now: NOW })).toContain("Lamar Jackson (QB, BAL)");

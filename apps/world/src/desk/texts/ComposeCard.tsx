@@ -38,7 +38,7 @@ export function ComposeCard({ id }: { id: string }) {
         </p>
       </div>
     );
-  if (c.phase === "error" || c.phase === "none" || c.phase === "off")
+  if (c.phase === "error" || c.phase === "none" || c.phase === "off" || c.phase === "nochat" || c.phase === "moved")
     return (
       <div className="txc txc--quiet">
         <p className="txc__k">New text</p>
@@ -49,6 +49,12 @@ export function ComposeCard({ id }: { id: string }) {
             </>
           ) : c.phase === "off" ? (
             "Relay keeps that one from Blasto (money, legal, a code or the skip list). Text it yourself."
+          ) : c.phase === "nochat" ? (
+            <>
+              <Private>{card?.name ?? c.who}</Private>’s number has no country code and Messages has no chat with it yet, so Relay won’t guess one. Text this one yourself.
+            </>
+          ) : c.phase === "moved" ? (
+            "Not sent: you’ve texted them since this card was written. Check Messages, and ask again if you still want it."
           ) : (
             c.note || "That didn't work."
           )}

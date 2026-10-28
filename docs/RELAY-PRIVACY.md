@@ -255,28 +255,42 @@ never on a public surface, and nothing sends without his confirmation of the exa
    the text from the **placeholdered ask and the style examples only** (`readComposeInput`, `composeRequest`: no
    thread lines at all, 300 characters of ask, the same style caps, fenced in `<ask>`). The site runs the rules over
    the ask again before it calls. Names go back in only on the Mac.
+   **The chat, never a guessed number** (`chatFor`, `chatHandle` in `apps/hub/src/engine.ts`): Relay's own thread with
+   that handle, else a one-to-one chat Messages already has with it (an address exactly, a number by its last 10
+   digits, iMessage before SMS), else a new iMessage chat **only** for an address or a number saved in full
+   international form (`+` and the country code). No country code is ever added: a number saved without one that
+   Messages has no chat with is a "nochat" card, and Nikita texts that one himself. A choice that can't be reached
+   this way is left off the choices.
 4. **The card.** The list carries the card to the Desk: the contact's name, `ending 0123` (the number's last 4 digits)
    or `r•••@e•••.com`, the channel and the full text. It shows in Skippy's chat with Send, Edit and Cancel. An edit
    makes a new version of the card and asks again; a confirmation never carries from one version to the next.
 5. **The send.** Send on the card is the ordinary send request above: this device's 72-hour unlock, single use, 10
    minutes, signed, bound to the card and to the version Blasto wrote (`draftAt`), with the text on screen (Nikita's
-   edit, if any). Only one send per card; a card that went takes no other. The hub's `act` checks it all again and
-   that Messages doesn't already show that text from Nikita since the card was made (a send that timed out but went),
-   then sends through BlueBubbles to the card's own recipient. "Not sent, Mac was offline" and Resend work as above.
+   edit, if any). Only one send per card; a card that went takes no other. The hub's `act` checks it all again, and
+   that Messages shows **no message from Nikita in that chat since the card was made**: the same text means a send
+   that timed out but went (the card turns "sent"); any other means the card is behind the chat (the card turns
+   "moved": "Not sent: you've texted them since this card was written"). Either way nothing sends. Only then it sends
+   through BlueBubbles to the card's own recipient. "Not sent, Mac was offline" and Resend work as above.
 6. **On a call.** Skippy reads both aloud, the recipient and the exact text, and waits for "send" or a tap. The
-   agent's `send_text` tool only asks: the browser sends only when Nikita's own transcribed words said "send" (with
-   no no, wait or change in them) after Skippy was handed that very version to read (`apps/world/src/desk/texts/compose.ts`),
-   or after his tap. An edit (`edit_text`) is a new version: read again, asked again. A locked device says so and
-   waits for the passkey.
+   agent's `send_text` tool only asks: the browser sends only when one of Nikita's own transcribed lines is a plain,
+   whole-line yes ("send", "send it", "yes, send it", "ok send", "go ahead and send", "send it now"; never a line
+   with a "?", "to", "instead", "myself" or "I'll" in it, so "Did you send it?" or "Send it to Sam instead" never
+   count), said after Skippy was handed that very version to read and within 2 minutes of it, with the send itself
+   within 2 minutes of the yes (`saidSend`, `confirmed` in `apps/world/src/desk/texts/compose.ts`). Only the card the
+   call is on takes it. Or after his tap. An edit (`edit_text`) is a new version: read again, asked again. A locked
+   device says so and waits for the passkey.
 
 What this adds to each boundary:
 
 - **Skippy's chat model** (Claude, the Desk's own chat) sees Nikita's ask as he typed it, as any ask; Skippy never
   sees the contact's details, Blasto's draft or the card.
 - **On a Talk call, ElevenLabs** (the call's speech and its agent model) hears the ask and gets the card's name, mask
-  and text from the browser so Skippy can read them aloud. ElevenLabs keeps a call's transcript under its own
-  retention, as for every call; that copy is the residual risk of texting by voice. Typed, the card never leaves the
-  Desk.
+  and text from the browser so Skippy can read them aloud. Skippy's agent and every submind's are set to
+  `platform_settings.privacy: { record_voice: false, retention_days: 1 }` (`VOICE_PRIVACY`,
+  `api/_skippy/voicecrew.ts`): no audio is recorded, and the transcript is kept 1 day. Both names are from ElevenLabs'
+  agent docs (privacy: retention, audio saving). 1 is the shortest that keeps the Council's read of the transcript
+  once a call is over (#479); `0` schedules deletion at once and would lose it. That day's copy at ElevenLabs is the
+  residual risk of texting by voice. Typed, the card never leaves the Desk.
 - **Blasto** sees only the placeholdered ask, Nikita's own placeholdered past texts to that contact and the style
   numbers.
 - **Logs** on the Mac add only the kinds "text composed" and "compose settled", with counts.

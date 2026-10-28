@@ -19,7 +19,7 @@ import { errorWords, useTexts, type TextCard, type TextRequestView } from "./tex
  * use, 10 minutes, signed, bound to the card and its text, and only the hub's `act` sends. There is no auto-send.
  */
 
-export type ComposePhase = "asking" | "drafting" | "ready" | "choices" | "none" | "off" | "sending" | "sent" | "unsent" | "cancelled" | "error";
+export type ComposePhase = "asking" | "drafting" | "ready" | "choices" | "none" | "off" | "nochat" | "moved" | "sending" | "sent" | "unsent" | "cancelled" | "error";
 
 export interface Compose {
   /** This tab's own id for it. */
@@ -41,8 +41,9 @@ export interface Compose {
   /** On a call: the version Skippy was handed to read aloud, and when. */
   readVersion: number;
   readAt: number;
-  /** On a call: the version Nikita said "send" for, after it was read. */
+  /** On a call: the version Nikita said "send" for, after it was read, and when he said it. */
   saidVersion: number;
+  saidAt: number;
   /** The send request in flight or done. */
   rid: string | null;
   /** When the ask went in (for the drafting wait). */
@@ -54,14 +55,21 @@ export const DRAFT_WAIT_MS = 3 * 60_000;
 /** How often the card is looked for while it is being drafted or sent. */
 export const FAST_POLL_MS = 3_000;
 
+/** How long after Skippy was handed a version to read aloud Nikita's "send" for it counts, and how long that "send" holds. */
+export const SAID_WINDOW_MS = 2 * 60_000;
+
+const YES_SEND = /^(?:(?:yes|yeah|yep|ok|okay|sure)[, ]+)?(?:go ahead and )?send(?: it)?(?: now| please)?[.!]?$/;
+const NOT_A_YES = /\?|\b(?:to|instead|myself|i'll|ill|i will)\b/;
+
 /**
- * Whether Nikita's own words say "send". "Send", "send it", "yes, send it", "go ahead and send"; never with a no, a
- * don't, a wait or a cancel in the same breath.
+ * Whether one of Nikita's lines is a plain yes to sending: the whole line, nothing else in it. "Send", "send it",
+ * "Yes, send it.", "ok send", "go ahead and send", "send it now". Never a question ("Did you send it?", "Send it?"),
+ * never one that redirects it ("Send it to Sam instead") or keeps it ("I'll send it myself"), never with a no in it.
  */
 export function saidSend(words: string): boolean {
-  const w = words.toLowerCase().replace(/[^a-z' ]+/g, " ");
-  if (!/\bsend\b/.test(w)) return false;
-  return !/\b(?:don't|dont|do not|not|no|never|wait|hold|cancel|stop|change|edit|before|unless|later|don't send)\b/.test(w);
+  const w = words.normalize("NFKC").toLowerCase().replace(/[\u2019`]/g, "'").replace(/\s+/g, " ").trim();
+  if (!w || NOT_A_YES.test(w)) return false;
+  return YES_SEND.test(w);
 }
 
 /** A card's recipient as said aloud: "ending 0123" digit by digit, an address by its first letters. */
@@ -76,13 +84,15 @@ export function spokenMask(mask: string | null): string {
 /** What the card is doing now, from the site's read of it and its send request. */
 export function phaseOf(c: Compose, card: TextCard | undefined, req: TextRequestView | undefined, now: number): ComposePhase {
   if (c.phase === "cancelled" || c.phase === "asking" || c.phase === "error") return c.phase;
+  // The Mac's word on the card wins over the request's: it went (or Messages shows it did), or Nikita texted them since
+  // the card was made and nothing was sent.
+  if (card?.state === "moved" || card?.state === "sent") return card.state;
   if (req && req.kind === "send") {
     const s: RequestState = req.state;
     if (s === "waiting" || s === "taken") return "sending";
     if (s === "sent") return "sent";
     if (s === "expired" || s === "failed" || s === "refused") return "unsent";
   }
-  if (card?.state === "sent") return "sent";
   if (!card) return now - c.since > DRAFT_WAIT_MS ? "error" : "drafting";
   if (card.state === "ready") return "ready";
   return card.state;
@@ -112,8 +122,8 @@ interface ComposeStore {
   cancel: (key: string) => Promise<void>;
   /** On a call: Skippy was handed this version to read aloud. */
   readOut: (key: string) => void;
-  /** On a call: one of Nikita's own lines, as transcribed. */
-  heard: (words: string) => void;
+  /** On a call: one of Nikita's own lines, as transcribed, and when it came. */
+  heard: (words: string, at?: number) => void;
   /** The site's latest read, folded in. */
   sync: () => void;
 }
@@ -150,7 +160,7 @@ export const useCompose = create<ComposeStore>((set, get) => {
     items: {},
     start: (who, gist, via) => {
       const key = `c${nextKey++}`;
-      set((s) => ({ items: { ...s.items, [key]: { key, via, who, gist, card: null, phase: "asking", note: "", text: "", draftAt: 0, version: 0, readVersion: -1, readAt: 0, saidVersion: -1, rid: null, since: Date.now() } } }));
+      set((s) => ({ items: { ...s.items, [key]: { key, via, who, gist, card: null, phase: "asking", note: "", text: "", draftAt: 0, version: 0, readVersion: -1, readAt: 0, saidVersion: -1, saidAt: 0, rid: null, since: Date.now() } } }));
       void useTexts
         .getState()
         .compose({ who, gist })
@@ -185,7 +195,7 @@ export const useCompose = create<ComposeStore>((set, get) => {
       const c = get().items[key];
       if (!c?.card || c.phase !== "ready" || !c.text.trim()) return "not-ready";
       // On a call, the agent asking is not enough: Nikita said "send" after this very version was read to him.
-      if ("said" in how && !(c.readVersion === c.version && c.saidVersion === c.version)) return "unconfirmed";
+      if ("said" in how && !confirmed(c, Date.now())) return "unconfirmed";
       const view = useTexts.getState().view;
       if (!view?.unlockedUntil || view.unlockedUntil <= Date.now()) return "locked";
       patch(key, { phase: "sending", note: "" });
@@ -215,13 +225,13 @@ export const useCompose = create<ComposeStore>((set, get) => {
     },
     readOut: (key) => {
       const c = get().items[key];
-      if (c) patch(key, { readVersion: c.version, readAt: Date.now(), saidVersion: -1 });
+      if (c) patch(key, { readVersion: c.version, readAt: Date.now(), saidVersion: -1, saidAt: 0 });
     },
-    heard: (words) => {
-      if (!saidSend(words)) return;
-      for (const c of Object.values(get().items)) {
-        if (c.via === "talk" && c.phase === "ready" && c.readVersion === c.version) patch(c.key, { saidVersion: c.version });
-      }
+    heard: (words, at = Date.now()) => {
+      // Only the card the call is on, only for the version just handed to Skippy, and only soon after it was.
+      const c = talkCard();
+      if (!c || c.phase !== "ready" || c.readVersion !== c.version || at <= c.readAt || at - c.readAt > SAID_WINDOW_MS) return;
+      if (saidSend(words)) patch(c.key, { saidVersion: c.version, saidAt: at });
     },
     sync: () => {
       const view = useTexts.getState().view;
@@ -242,6 +252,13 @@ export const useCompose = create<ComposeStore>((set, get) => {
     },
   };
 });
+
+/**
+ * Whether a spoken "send" stands for the card as it is: said for this version, after it was read out and within
+ * SAID_WINDOW_MS of that, and not stale itself. An edit makes a new version, so it never carries over.
+ */
+export const confirmed = (c: Compose, now: number) =>
+  c.readVersion === c.version && c.saidVersion === c.version && c.saidAt > c.readAt && c.saidAt - c.readAt <= SAID_WINDOW_MS && now - c.saidAt <= SAID_WINDOW_MS;
 
 /** The latest card a call is working on. */
 export const talkCard = (): Compose | null =>

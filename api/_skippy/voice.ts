@@ -32,7 +32,7 @@ import { BlobPreconditionError, type BlobBackend } from "../_blob.js";
 import { prune, type Bucket, type Limits } from "../_desk/limits.js";
 import { memo } from "../_feedcache.js";
 import { scrub } from "../_world/digest.js";
-import { CALL_RULES, CALL_TIMEZONE, CLIENT_EVENTS, SKIPPY_CREW_PROMPT, SKIPPY_SOUND, TURN_MAX_TOKENS, type skippyTransfers } from "./voicecrew.js";
+import { CALL_RULES, CALL_TIMEZONE, CLIENT_EVENTS, SKIPPY_CREW_PROMPT, SKIPPY_SOUND, TURN_MAX_TOKENS, VOICE_PRIVACY, type skippyTransfers } from "./voicecrew.js";
 import { TOOL_VAR } from "./voicetoken.js";
 
 export const ELEVEN_API = "https://api.elevenlabs.io";
@@ -227,6 +227,7 @@ export function agentBody(voice: string, tier: "full" | "core" = "full", crew: A
     },
     platform_settings: {
       auth: { enable_auth: true },
+      privacy: { ...VOICE_PRIVACY },
       ...(tier === "full" && { call_limits: { daily_limit: VOICE_DAILY_CALLS, agent_concurrency_limit: 1 } }),
     },
   };

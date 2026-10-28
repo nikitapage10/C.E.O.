@@ -8,7 +8,7 @@ import { MemoryRoomLog, keepTurns } from "./log.ts";
 import { roomLog } from "../skippy.ts";
 import { handle, readText, type RoomSources } from "./toolroute.ts";
 import { exchangesOf } from "./voicecouncil.ts";
-import { KERNEL_TOOLS, ON_AIR, SKIPPY_CREW_PROMPT, TEXT_TOOLS, TOOL_DEFS, clientToolConfig, ensureCrew, skippyToolIds, skippyTransfers, submindBody, toolConfig } from "./voicecrew.ts";
+import { KERNEL_TOOLS, ON_AIR, SKIPPY_CREW_PROMPT, TEXT_TOOLS, TOOL_DEFS, clientToolConfig, ensureCrew, skippyToolIds, skippyTransfers, submindBody, toolConfig, VOICE_PRIVACY } from "./voicecrew.ts";
 import { READS, billText, boilerText, exchangeText, greenText, positionsText, relayText } from "./voicereads.ts";
 import { MAX_HANDOFFS, MemoryCrewStore, TOOL_HEADER, TOOL_VAR, callHandoffs, checkToolToken, endToolToken, issueToolToken, mintToolToken, signedUntil, toolTokenSigned } from "./voicetoken.ts";
 
@@ -323,7 +323,18 @@ describe("texting on the call (#536)", () => {
       expect(c.expects_response).toBe(true);
       expect(c.response_timeout_secs).toBeLessThanOrEqual(60);
       expect(JSON.stringify(c)).not.toMatch(/https?:|api_schema|request_headers/);
+      // ElevenLabs' ClientToolConfig: a timeout of 1 to 120 s; parameters an object schema of literal types, or left out.
+      expect(c.response_timeout_secs).toBeGreaterThanOrEqual(1);
+      if ("parameters" in c && c.parameters) {
+        expect(c.parameters.type).toBe("object");
+        for (const [name, p] of Object.entries(c.parameters.properties)) {
+          expect(["string", "integer", "number", "boolean"], name).toContain(p.type);
+          expect(p.description, name).toBeTruthy();
+        }
+        expect(c.parameters.required.every((n) => n in c.parameters!.properties)).toBe(true);
+      } else expect(Object.keys(def.params)).toEqual([]);
     }
+    expect((clientToolConfig(TEXT_TOOLS.find((t) => t.name === "pick_contact")!) as { parameters?: { properties: Record<string, { type: string }> } }).parameters?.properties.choice?.type).toBe("integer");
     expect(TEXT_TOOLS.map((t) => t.name).sort()).toEqual(["cancel_text", "draft_text", "edit_text", "pick_contact", "send_text"]);
     const tools = Object.fromEntries([...TOOL_DEFS, ...TEXT_TOOLS].map((t, i) => [t.name, { id: `tool_${i}xxxx`, sig: "s" }]));
     const ids = skippyToolIds(tools);
@@ -332,6 +343,11 @@ describe("texting on the call (#536)", () => {
       const body = JSON.stringify(submindBody(s, "v", "agent_skippy", s.tools.map((n) => tools[n]?.id ?? ""), { sessionSecs: 600, silenceSecs: 20, llm: "x" }));
       for (const t of TEXT_TOOLS) expect(body).not.toContain(tools[t.name]!.id);
     }
+  });
+
+  it("asks ElevenLabs to keep no voice recording and the transcript for 1 day, on Skippy and every submind", () => {
+    expect(VOICE_PRIVACY).toEqual({ record_voice: false, retention_days: 1 });
+    for (const s of ON_AIR) expect(submindBody(s, "v", "agent_skippy", [], { sessionSecs: 600, silenceSecs: 20, llm: "x" }).platform_settings.privacy).toEqual(VOICE_PRIVACY);
   });
 
   it("tells Skippy to read the recipient and the text aloud and send only on Nikita's word", () => {

@@ -7,7 +7,7 @@ import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { BlueBubbles, Contact, Message } from "./bluebubbles.ts";
 import { readWebhook } from "./bluebubbles.ts";
 import { DEFAULT_CONFIG, HOST } from "./config.ts";
-import { DRAFT_KEEP_MS, Engine, SEEN_KEEP_MS, SETTLE_MS, THREAD_KEEP_MS } from "./engine.ts";
+import { DRAFT_KEEP_MS, Engine, SEEN_KEEP_MS, SETTLE_MS, THREAD_KEEP_MS, chatHandle } from "./engine.ts";
 import { line, memoryLogger } from "./log.ts";
 import { Placeholders } from "./placeholders.ts";
 import { settleByRule } from "./rules.ts";
@@ -43,6 +43,11 @@ class FakeBB implements BlueBubbles {
   async send(chat: string, text: string) {
     this.sent.push({ chat, text });
     return true;
+  }
+  /** Messages' one-to-one chats (#536). */
+  known: string[] = [CHAT];
+  async chats() {
+    return this.known;
   }
 }
 
@@ -507,6 +512,62 @@ describe("texts Skippy asks for (#536)", () => {
     await h.engine.act();
     expect(h.bb.sent).toEqual([]);
     expect(h.store.load().cards[0]!.state).toBe("sent");
+  });
+
+  it("never invents a country code: a bare number with no chat in Messages isn't texted, and Nikita is told to text it himself", async () => {
+    expect(chatHandle("(555) 555-0177")).toBe("5555550177");
+    expect(chatHandle("+91 55555 50177")).toBe("+915555550177");
+    const h = setup();
+    h.bb.people = [{ names: ["Casey Example"], handles: ["(555) 555-0177"] }];
+    h.bb.known = [CHAT];
+    h.site.waiting = [ask("Casey", "running late")];
+    await h.engine.act();
+    await h.engine.report(true);
+    expect(h.store.load().cards[0]).toMatchObject({ state: "nochat", target: null, draft: null });
+    expect(h.site.composes).toEqual([]);
+    expect(h.site.views.at(-1)!.cards![0]).toMatchObject({ state: "nochat", mask: null, draft: null });
+    expect(readTextsView(h.site.views.at(-1), NOW)).not.toBeNull();
+    // No card to send, and nothing in any chat, let alone a +1 one.
+    h.site.waiting = [req({ rid: "d".repeat(24), thread: CARD, draftAt: NOW, text: "Running late!" }, KEY, NOW)];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([]);
+    // The same, when BlueBubbles can't list its chats.
+    const down = setup();
+    down.bb.people = h.bb.people;
+    down.bb.chats = async () => {
+      throw new Error("down");
+    };
+    down.site.waiting = [ask("Casey", "running late")];
+    await down.engine.act();
+    expect(down.store.load().cards[0]!.state).toBe("nochat");
+  });
+
+  it("finds the chat Messages already has for a number saved without its country code (+91 here), and sends there", async () => {
+    const h = setup();
+    const INDIA = "iMessage;-;+915555550177";
+    h.bb.people = [{ names: ["Casey Example"], handles: ["55555 50177"] }];
+    h.bb.known = [CHAT, "SMS;-;+915555550177", INDIA]; // iMessage first
+    h.site.waiting = [ask("Casey", "running late")];
+    await h.engine.act();
+    const card = h.store.load().cards[0]!;
+    expect(card).toMatchObject({ state: "ready", target: { chat: INDIA, channel: "iMessage" } });
+    h.site.waiting = [req({ rid: "e".repeat(24), thread: CARD, draftAt: card.draft!.at, text: "Running late!" }, KEY, NOW)];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([{ chat: INDIA, text: "Running late!" }]);
+  });
+
+  it("refuses to send once Nikita texted them since the card was made, and the card says why", async () => {
+    const h = await composed();
+    const at = h.card!.draft!.at;
+    h.bb.history.push(text("actually here already", at + 1_000, true));
+    h.site.waiting = [req({ rid: "f".repeat(24), thread: CARD, draftAt: at, text: "Running late!" }, KEY, NOW)];
+    await h.engine.act();
+    await h.engine.report(true);
+    expect(h.bb.sent).toEqual([]);
+    expect(h.site.reported.at(-1)!.result).toBe("refused");
+    expect(h.store.load().cards[0]).toMatchObject({ state: "moved", draft: null });
+    expect(h.site.views.at(-1)!.cards![0]).toMatchObject({ state: "moved", mask: null, draft: null });
+    expect(readTextsView(h.site.views.at(-1), NOW)).not.toBeNull();
   });
 
   it("drops a card on done and by the sweep, and logs nothing of it", async () => {

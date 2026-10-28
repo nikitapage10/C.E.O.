@@ -134,15 +134,30 @@ export const TEXT_TOOLS: readonly ClientToolDef[] = [
   { name: "cancel_text", description: "Drop the drafted text when Nikita says not to send it.", params: {} },
 ];
 
-/** One client tool's config for ElevenLabs: run in the browser, which answers within a minute. */
+/**
+ * What ElevenLabs keeps of a call (#536, docs/RELAY-PRIVACY.md, "Texts Skippy writes"): no voice recording, and the
+ * transcript for 1 day, the shortest that still lets the call be settled and its subminds' exchanges reach the Council
+ * (voicecouncil.ts reads the transcript once the call is over). 0 would schedule the transcript's deletion at once and
+ * lose that read. `platform_settings.privacy.record_voice` and `.retention_days` are ElevenLabs' documented names.
+ */
+export const VOICE_PRIVACY = { record_voice: false, retention_days: 1 } as const;
+
+/**
+ * One client tool's config for ElevenLabs: run in the browser, which answers within a minute. The shape is the tools
+ * API's ClientToolConfig (POST /v1/convai/tools, `tool_config`): `type: "client"`, `expects_response` (the call waits
+ * for the browser's answer), `response_timeout_secs` (1 to 120) and `parameters` as an object schema whose literal
+ * properties are string, integer, number or boolean. A tool with no parameters leaves `parameters` out, as the docs'
+ * own example does.
+ */
 export function clientToolConfig(def: ClientToolDef) {
+  const names = Object.keys(def.params);
   return {
     type: "client",
     name: def.name,
     description: def.description,
     expects_response: true,
     response_timeout_secs: 60,
-    parameters: { type: "object", properties: def.params, required: Object.keys(def.params) },
+    ...(names.length > 0 && { parameters: { type: "object", properties: def.params, required: names } }),
   };
 }
 
@@ -413,7 +428,7 @@ export function submindBody(s: OnAir, voice: string, skippy: string, toolIds: st
       ...(tier === "full" && { turn: { silence_end_call_timeout: limits.silenceSecs } }),
     },
     // Auth on and no token is ever minted for it: nobody can call a submind directly, only reach it through Skippy.
-    platform_settings: { auth: { enable_auth: true } },
+    platform_settings: { auth: { enable_auth: true }, privacy: { ...VOICE_PRIVACY } },
   };
 }
 

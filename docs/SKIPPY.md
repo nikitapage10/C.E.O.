@@ -317,7 +317,9 @@ answer. But if it's something a little bit more specific to our room, then it ta
   `edit_text`, `send_text` and `cancel_text` (`TEXT_TOOLS` in `api/_skippy/voicecrew.ts`), which run in Nikita's
   browser (`apps/world/src/desk/texts/talkTools.ts`), so a send uses that device's passkey unlock and Relay's ordinary
   send request. He reads the recipient and the exact text aloud and waits for "send" or a tap; the browser checks
-  Nikita's own transcript before it sends, whatever the agent asks.
+  Nikita's own transcript before it sends, whatever the agent asks: a whole-line yes, said within 2 minutes of the
+  read, never a question or a "send it to …" (docs/RELAY-PRIVACY.md, "Texts Skippy writes"). Skippy's agent and every
+  submind's record no audio and keep transcripts 1 day (`VOICE_PRIVACY`).
 - **Who may call them.** Only a live call. When the call's token is minted, the function mints a random tool token
   for that call, signed with a key derived from `FOUNDRY_DESK_KEY` (no new secret) and good for the call's longest (an hour) plus
   two minutes, and keeps its hash with the call (`desk/skippy/voice-tools.json`). The browser passes it to ElevenLabs

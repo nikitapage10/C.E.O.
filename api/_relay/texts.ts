@@ -75,8 +75,13 @@ export const CARD_KEEP_MS = 24 * 60 * 60_000;
  */
 export const MASK = /^(?:ending \d{4}|[\p{L}\p{N}]•••@[\p{L}\p{N}]•••\.[a-z]{2,10})$/u;
 
-/** "ready": Blasto's text is on it. "choices": the name fits several, pick one. "none": no contact by that name. "off": the rules keep it from the model (money, legal, a code, the skip list). "sent": done. */
-export const CARD_STATES = ["ready", "choices", "none", "off", "sent"] as const;
+/**
+ * "ready": Blasto's text is on it. "choices": the name fits several, pick one. "none": no contact by that name. "off":
+ * the rules keep it from the model (money, legal, a code, the skip list). "nochat": the contact's number has no country
+ * code and Messages has no chat with it, so Relay won't guess one: Nikita texts them himself. "moved": Nikita texted
+ * them since the card was made, so it wasn't sent. "sent": done.
+ */
+export const CARD_STATES = ["ready", "choices", "none", "off", "nochat", "moved", "sent"] as const;
 export type CardState = (typeof CARD_STATES)[number];
 
 export interface CardChoice {

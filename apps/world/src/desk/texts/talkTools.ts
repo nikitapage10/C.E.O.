@@ -57,6 +57,10 @@ function describe(c: Compose | null): string {
       return `There's no contact called "${c.who}" on the Mac. Ask Nikita who he means, then call draft_text again.`;
     case "off":
       return "Relay keeps that one away from Blasto (money, legal, a code or someone on the skip list). Tell Nikita to text it himself.";
+    case "nochat":
+      return "That contact's number has no country code and Messages has no chat with them, so Relay won't guess one. Tell Nikita to text this one himself.";
+    case "moved":
+      return "Not sent: Nikita has texted them since the card was written. Tell him to check Messages and ask again if he still wants it.";
     case "error":
       return `${c.note || "That didn't work."} Tell Nikita in one line.`;
     case "drafting":

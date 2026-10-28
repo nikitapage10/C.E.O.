@@ -383,7 +383,12 @@ test("on a call Skippy reads the card aloud and it sends only after Nikita says 
   const tool = (name: string, p: Record<string, unknown> = {}) => page.evaluate(([n, args]) => (window as unknown as { __holoCall: { clientTools: Tools } }).__holoCall.clientTools[n as string]!(args as Record<string, unknown>), [name, p] as const);
   const heard = (words: string) => page.evaluate((w) => (window as unknown as { __holoCall: { onMessage: (who: string, t: string) => void } }).__holoCall.onMessage("nikita", w), words);
 
+  // The call carries the five texting tools, by the names Skippy's agent has them under (api/_skippy/voicecrew.ts, TEXT_TOOLS).
+  const names = await page.evaluate(() => Object.keys((window as unknown as { __holoCall: { clientTools: Record<string, unknown> } }).__holoCall.clientTools).sort());
+  expect(names).toEqual(["cancel_text", "draft_text", "edit_text", "pick_contact", "send_text"]);
   const drafted = await tool("draft_text", { who: "Riley", gist: "running 10 late, save me a seat" });
+  // The tool fired: the site was asked for this card, and the card is in the chat.
+  expect(posts.filter((p) => p.action === "compose")).toHaveLength(1);
   expect(drafted).toContain("Riley Test");
   expect(drafted).toContain("the number ending 0 1 2 3");
   expect(drafted).toContain(TEXT);
@@ -393,6 +398,11 @@ test("on a call Skippy reads the card aloud and it sends only after Nikita says 
   expect(await tool("send_text")).toMatch(/^Not sent/);
   await heard("hmm, sounds about right");
   expect(await tool("send_text")).toMatch(/^Not sent/);
+  // A question or a redirect with "send" in it isn't a yes.
+  for (const line of ["Did you send it?", "Send it to Sam instead", "I'll send it myself"]) {
+    await heard(line);
+    expect(await tool("send_text"), line).toMatch(/^Not sent/);
+  }
   // An edit is a new card: read again, asked again; a send said before it doesn't count.
   await heard("send it");
   const edited = await tool("edit_text", { text: "Running 15 late, sorry!" });

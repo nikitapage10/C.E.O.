@@ -69,6 +69,8 @@ export interface CardTarget {
   /** The Messages chat id the text goes to (holds the handle: this file only). */
   chat: string;
   channel: "iMessage" | "SMS";
+  /** A new chat this card starts (an address or a +country number Messages has no chat with yet). */
+  fresh?: true;
 }
 
 /**
@@ -78,7 +80,7 @@ export interface CardTarget {
 export interface Card {
   /** The compose request's thread id (made by the site): sends bind to it. */
   id: string;
-  state: "ready" | "choices" | "none" | "off" | "sent";
+  state: "ready" | "choices" | "none" | "off" | "nochat" | "moved" | "sent";
   /** The contact's name; for "none", what was asked. */
   name: string;
   target: CardTarget | null;
@@ -139,7 +141,7 @@ function readThread(v: unknown): Thread | null {
   };
 }
 
-const CARD_STATES: Card["state"][] = ["ready", "choices", "none", "off", "sent"];
+const CARD_STATES: Card["state"][] = ["ready", "choices", "none", "off", "nochat", "moved", "sent"];
 
 function readTarget(v: unknown): CardTarget | null {
   const o = v as Record<string, unknown> | null;
@@ -149,7 +151,7 @@ function readTarget(v: unknown): CardTarget | null {
   const handle = s(o.handle, 200);
   const chat = s(o.chat, 300);
   if (pick === null || !/^(?:[0-9a-f]{8})?$/.test(pick) || !name || !handle || !chat || (o.channel !== "iMessage" && o.channel !== "SMS")) return null;
-  return { pick, name, handle, chat, channel: o.channel };
+  return { pick, name, handle, chat, channel: o.channel, ...(o.fresh === true && { fresh: true as const }) };
 }
 
 function readCard(v: unknown): Card | null {

@@ -80,15 +80,28 @@ const median = (xs: number[]): number | null => {
 
 const digits = (h: string) => h.replace(/\D/g, "").slice(-10);
 
-/** A contact's handle as Messages' chat ids write it: an address lower-cased, a number in +digits form. */
+/**
+ * A contact's handle as Messages' chat ids write it: an address lower-cased, a number with its own + kept. A number
+ * saved without a country code stays bare digits: no country code is ever added, since "+1" in front of someone's
+ * local number can be a stranger's (#536). Such a number is only texted in a chat Messages already has (`chatFor`).
+ */
 export function chatHandle(h: string): string {
   const t = h.trim();
   if (t.includes("@")) return t.toLowerCase();
   const d = t.replace(/\D/g, "");
-  if (t.startsWith("+")) return `+${d}`;
-  if (d.length === 10) return `+1${d}`;
-  if (d.length === 11 && d.startsWith("1")) return `+${d}`;
-  return d.length > 11 ? `+${d}` : d;
+  return t.startsWith("+") ? `+${d}` : d;
+}
+/** Whether a new chat may be started with this handle: an address, or a number already in full international form. */
+export const startable = (h: string) => h.includes("@") || /^\+\d{7,15}$/.test(h);
+/** A contact's handles with one entry per number (the same last 10 digits), the +international form kept when there is one. */
+function onePerNumber(handles: string[]): string[] {
+  const by = new Map<string, string>();
+  for (const h of handles) {
+    const k = h.includes("@") ? h : digits(h);
+    const had = by.get(k);
+    if (!had || (!had.startsWith("+") && h.startsWith("+"))) by.set(k, h);
+  }
+  return [...by.values()];
 }
 const sameHandle = (a: string, b: string) => (a.includes("@") || b.includes("@") ? a.trim().toLowerCase() === b.trim().toLowerCase() : digits(a).length >= 7 && digits(a) === digits(b));
 
@@ -489,17 +502,20 @@ export class Engine {
     return "done";
   }
 
-  /** The chat a new text to `handle` goes in: Relay's own thread with them, else the one Messages has, else a new iMessage. */
-  private async chatFor(handle: string, state: RelayState): Promise<{ chat: string; channel: "iMessage" | "SMS" }> {
+  /**
+   * The chat a new text to `handle` goes in, never a guessed number: Relay's own thread with them; else a one-to-one
+   * chat Messages already has with that handle (an address exactly, a number by its last 10 digits), iMessage first;
+   * else, only for an address or a +country number, a new iMessage chat. A bare number with no chat is null: the card
+   * tells Nikita to text that one himself.
+   */
+  private async chatFor(handle: string, state: RelayState, chats: () => Promise<string[] | null>): Promise<{ chat: string; channel: "iMessage" | "SMS"; fresh?: true } | null> {
     const known = state.threads.filter((t) => !t.group && sameHandle(t.chat.split(";").pop() ?? "", handle)).sort((a, b) => b.lastIn - a.lastIn)[0];
     if (known) return { chat: known.chat, channel: channelOf(known.chat) };
+    const have = ((await chats()) ?? []).filter((g) => sameHandle(g.split(";").pop() ?? "", handle));
+    const found = have.find((g) => channelOf(g) === "iMessage") ?? have[0];
+    if (found) return { chat: found, channel: channelOf(found) };
     const h = chatHandle(handle);
-    for (const svc of h.includes("@") ? (["iMessage"] as const) : (["iMessage", "SMS"] as const)) {
-      const chat = `${svc};-;${h}`;
-      const got = await this.d.bb.messages(chat, 1).catch(() => null);
-      if (got && got.length) return { chat, channel: svc };
-    }
-    return { chat: `iMessage;-;${h}`, channel: "iMessage" };
+    return startable(h) ? { chat: `iMessage;-;${h}`, channel: "iMessage", fresh: true } : null;
   }
 
   /**
@@ -534,19 +550,31 @@ export class Engine {
         return "refused";
       }
       const found = matchContacts(contacts, who);
-      const options = found.flatMap((c) => [...new Set(c.handles.map(chatHandle))].filter((h) => maskHandle(h)).map((h) => ({ name: (c.names[0] ?? who).slice(0, 80), handle: h })));
+      const options = found.flatMap((c) => onePerNumber(c.handles.map(chatHandle)).filter((h) => maskHandle(h)).map((h) => ({ name: (c.names[0] ?? who).slice(0, 80), handle: h })));
       if (!options.length) {
         put({ id: req.thread, state: "none", name, target: null, choices: [], draft: null, at: now });
         return "done";
       }
-      if (options.length > 1) {
-        const choices: CardTarget[] = [];
-        for (const o of options.slice(0, 6)) choices.push({ pick: randomBytes(4).toString("hex"), ...o, ...(await this.chatFor(o.handle, state)) });
-        put({ id: req.thread, state: "choices", name, target: null, choices, draft: null, at: now });
-        this.d.log.log("text composed", { choices: choices.length });
+      // Messages' chats, read once for this ask (null when BlueBubbles didn't answer: then only Relay's own threads
+      // and full international numbers or addresses can be texted).
+      let list: Promise<string[] | null> | null = null;
+      const chats = () => (list ??= this.d.bb.chats().catch(() => null));
+      const reachable: CardTarget[] = [];
+      for (const o of options.slice(0, 6)) {
+        const where = await this.chatFor(o.handle, state, chats);
+        if (where) reachable.push({ pick: randomBytes(4).toString("hex"), ...o, ...where });
+      }
+      if (!reachable.length) {
+        put({ id: req.thread, state: "nochat", name: options[0]!.name, target: null, choices: [], draft: null, at: now });
+        this.d.log.log("compose settled");
         return "done";
       }
-      target = { pick: "", ...options[0]!, ...(await this.chatFor(options[0]!.handle, state)) };
+      if (reachable.length > 1) {
+        put({ id: req.thread, state: "choices", name, target: null, choices: reachable, draft: null, at: now });
+        this.d.log.log("text composed", { choices: reachable.length });
+        return "done";
+      }
+      target = { ...reachable[0]!, pick: "" };
       name = target.name;
     }
     const contact = this.contactOf(target.handle);
@@ -604,13 +632,17 @@ export class Engine {
     };
     if (card.state !== "ready" || !card.target || !card.draft || req.draftAt !== card.draft.at || !req.text.trim() || req.text.length > 2_000) return refuse();
     const target = card.target;
-    // Already sent (a send that timed out but went): Messages shows this very text from Nikita since the card was made.
-    const latest = await this.d.bb.messages(target.chat, 5).catch(() => null);
+    // Messages shows Nikita texted them since the card was made: this very text (a send that timed out but went) marks
+    // the card sent; anything else means the card is behind the chat, so it says so and sends nothing. A chat this card
+    // starts has no messages yet.
+    const latest = await this.d.bb.messages(target.chat, 10).catch(() => (target.fresh ? [] : null));
     if (!latest) return refuse();
-    if (latest.some((m) => m.fromMe && m.at >= card.at && m.text.trim() === req.text.trim())) {
+    const mine = latest.filter((m) => m.fromMe && m.at >= card.at);
+    if (mine.length) {
+      const went = mine.some((m) => m.text.trim() === req.text.trim());
       this.change((s) => {
         const c = s.cards.find((x) => x.id === card.id);
-        if (c) Object.assign(c, { state: "sent", draft: null });
+        if (c) Object.assign(c, { state: went ? "sent" : "moved", draft: null });
       });
       return refuse();
     }

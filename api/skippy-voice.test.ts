@@ -95,6 +95,8 @@ describe("what Skippy is told and how the agent is set up", () => {
     expect(body.conversation_config.agent.prompt.prompt).toContain("{{desk}}");
     const core = agentBody("onwK4e9ZLuTAKqWW03F9", "core");
     expect(core.platform_settings.auth.enable_auth).toBe(true);
+    // #536: no voice recording, the transcript kept a day (api/_skippy/voicecrew.ts, VOICE_PRIVACY).
+    for (const b of [body, core]) expect(b.platform_settings.privacy).toEqual({ record_voice: false, retention_days: 1 });
     expect(core.conversation_config.conversation.max_duration_seconds).toBeUndefined();
   });
 

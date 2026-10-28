@@ -176,6 +176,7 @@ const SERVICES = [
   { name: "Polymarket", hosts: ["polymarket.com", "polymarket.us"] },
   { name: "Sleeper", hosts: ["api.sleeper.app", "api.sleeper.com"] },
   { name: "FantasyPros", hosts: ["api.fantasypros.com"] },
+  { name: "ESPN scoreboard", hosts: ["site.api.espn.com"] },
   { name: "PayPal", hosts: ["api-m.paypal.com", "api-m.sandbox.paypal.com"] },
   { name: "Vercel Blob", packages: ["@vercel/blob"] },
   { name: "Azure Blob Storage", packages: ["@azure/storage-blob"] },

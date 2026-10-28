@@ -58,17 +58,41 @@ describe("an answer that lands is said at once (#506)", () => {
   });
 });
 
-describe("an answer waits for the agent to finish, and goes in once (#521)", () => {
-  it("holds the push while an agent is speaking, then sends the note and one turn, never the answer as a user message", async () => {
+describe("an answer interrupts an agent mid-sentence and goes in once (#537)", () => {
+  it("sends the note and one turn at once while an agent is speaking, never the answer as a user message", async () => {
     const o = await call();
     fake.sent.length = 0;
     o.onModeChange!({ mode: "speaking" });
     o.session.speakNow("The answer from the deeper you just landed: five percent.");
-    expect(fake.sent).toEqual([]);
-    o.onModeChange!({ mode: "listening" });
-    o.onModeChange!({ mode: "listening" });
     expect(fake.sent).toEqual(["context: The answer from the deeper you just landed: five percent.", `user: ${SPEAK_NOW}`]);
+    o.onModeChange!({ mode: "listening" });
+    expect(fake.sent).toHaveLength(2);
     expect(fake.sent.filter((x) => x.startsWith("user:") && x.includes("five percent"))).toEqual([]);
+  });
+});
+
+describe("a reconnect does not replay the greeting (#537)", () => {
+  const init = { type: "conversation_initiation_metadata", conversation_initiation_metadata_event: { conversation_id: "c" } };
+  it("keeps the opener once and drops it when the link comes back", async () => {
+    const said: string[] = [];
+    const o = await call((who, text) => said.push(`${who}: ${text}`));
+    o.onIncomingEvent!(init);
+    o.onMessage!({ message: "Ah, the C.E.O. calls.", role: "agent" });
+    o.onMessage!({ message: "Lamar is out.", role: "agent" });
+    o.onIncomingEvent!(init); // reconnect
+    o.onMessage!({ message: "Ah, the C.E.O.  calls.", role: "agent" });
+    o.onMessage!({ message: "Anything else?", role: "agent" });
+    expect(said).toEqual(["skippy: Ah, the C.E.O. calls.", "skippy: Lamar is out.", "skippy: Anything else?"]);
+  });
+  it("greetingGuard only drops a repeat of the opener right after a reconnect", async () => {
+    const { greetingGuard } = await import("./talkSession.ts");
+    const g = greetingGuard();
+    expect(g.event(init)).toBe(false);
+    expect(g.keep("Hello there.")).toBe(true);
+    expect(g.keep("Hello there.")).toBe(true); // no reconnect: a repeated line is just said
+    expect(g.event(init)).toBe(true);
+    expect(g.keep("Hello there.")).toBe(false);
+    expect(g.keep("Hello there.")).toBe(true);
   });
 });
 

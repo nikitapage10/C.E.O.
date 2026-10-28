@@ -39,11 +39,43 @@ export const SPEAK_NOW = "(The answer I was waiting on just landed. Tell me now.
 /** The secret dynamic variable the lookups' header carries (api/_skippy/voicetoken.ts, TOOL_VAR). */
 export const TOOL_VAR = "secret__ceo_tool";
 
+/**
+ * A reconnect must not replay the greeting (#537). The first `conversation_initiation_metadata` of a call is the start;
+ * any later one is the link coming back, and the opener the agent may speak again then is dropped from the chat (the
+ * first agent line of a call is its opener, so a repeat of it after a reconnect is the replay). Pure, for the tests.
+ */
+export function greetingGuard() {
+  let starts = 0;
+  let opener: string | null = null;
+  let replay = false;
+  const norm = (t: string) => t.replace(/\s+/g, " ").trim().toLowerCase();
+  return {
+    /** A raw event of the call: true when it marks a reconnect. */
+    event(ev: unknown): boolean {
+      if (!ev || typeof ev !== "object" || (ev as { type?: unknown }).type !== "conversation_initiation_metadata") return false;
+      starts += 1;
+      if (starts > 1) replay = true;
+      return starts > 1;
+    },
+    /** An agent line: false when it is the opener coming back after a reconnect. */
+    keep(text: string): boolean {
+      if (opener === null) {
+        opener = norm(text);
+        return true;
+      }
+      if (replay && norm(text) === opener) {
+        replay = false;
+        return false;
+      }
+      if (replay) replay = false;
+      return true;
+    },
+  };
+}
+
 export async function openCall(h: CallHandlers) {
   let speaking = false;
-  // An answer that lands while an agent is mid-sentence waits for the end of it (#521): a user turn sent now would cut
-  // the agent off.
-  let waiting: (() => void) | null = null;
+  const guard = greetingGuard();
   const call = await Conversation.startSession({
     conversationToken: h.token,
     connectionType: "webrtc",
@@ -51,15 +83,11 @@ export async function openCall(h: CallHandlers) {
     dynamicVariables: { desk: h.desk, ...(h.tool && { [TOOL_VAR]: h.tool }) },
     onMessage: ({ message, role }) => {
       if (role === "user" && message.trim() === SPEAK_NOW) return;
+      if (role !== "user" && !guard.keep(message)) return;
       h.onMessage(role === "user" ? "nikita" : "skippy", message);
     },
     onModeChange: ({ mode }) => {
       speaking = mode === "speaking";
-      if (!speaking && waiting) {
-        const go = waiting;
-        waiting = null;
-        go();
-      }
       h.onMode(speaking ? "speaking" : "listening");
     },
     // The hologram (#481): thinking while a lookup runs, annoyed when he's cut off, and who has the mic.
@@ -69,7 +97,10 @@ export async function openCall(h: CallHandlers) {
       if (r && typeof r.tool_name === "string") h.onTool?.(r.tool_name);
     },
     onInterruption: () => holoEvents.interrupted(),
-    onIncomingEvent: (ev: unknown) => holoEvents.event(ev),
+    onIncomingEvent: (ev: unknown) => {
+      guard.event(ev);
+      holoEvents.event(ev);
+    },
     onDisconnect: () => h.onEnd(),
     onError: () => h.onError(),
   });
@@ -78,14 +109,13 @@ export async function openCall(h: CallHandlers) {
     mute: (muted: boolean) => call.setMicMuted(muted),
     /** A note for the agent that it doesn't speak by itself (ElevenLabs' contextual update): an answer that landed. */
     tell: (text: string) => call.sendContextualUpdate(text),
-    /** An answer that landed (#506): the note, then a turn asked for now, so he says it straight away. */
+    /**
+     * An answer that landed (#506, #537): the note, then a turn asked for now. It goes in at once, even while an agent
+     * is mid-sentence: the user turn cuts the agent off, so the answer is heard first and a stale line never finishes.
+     */
     speakNow: (note: string) => {
-      const go = () => {
-        call.sendContextualUpdate(note);
-        call.sendUserMessage(SPEAK_NOW);
-      };
-      if (speaking) waiting = go;
-      else go();
+      call.sendContextualUpdate(note);
+      call.sendUserMessage(SPEAK_NOW);
     },
     end: () => call.endSession(),
   };

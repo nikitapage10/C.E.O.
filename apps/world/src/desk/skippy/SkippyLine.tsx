@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { CREDITS_OUT, TALK_NOTE, clock, creditsLine, talkLevel, useTalk } from "./talk.ts";
 
 /**
@@ -63,13 +63,7 @@ function Strand() {
 
 /** How long the call has run: a count up, since the site sets no length (#532). */
 function Elapsed() {
-  const startedAt = useTalk((s) => s.startedAt);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const secs = startedAt ? (now - startedAt) / 1000 : 0;
+  const secs = useTalk((s) => s.elapsed);
   return (
     <span className="skp-line__clock" aria-label={`${clock(secs)} on the call`}>
       {clock(secs)}

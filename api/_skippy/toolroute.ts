@@ -50,7 +50,8 @@ import { readPlayers } from "../_green/sleeper.js";
 import { BlobChatLedger, canChat, chatMonth, skippyBudget } from "./budget.js";
 import { monthTotals, worldBudget } from "../_world/budget.js";
 import { claudeKey } from "../_world/claude.js";
-import { claudeSearch, cleanPlayer, playerNews, webSearch, type PlayerSources, type WebDeps } from "./voicelookups.js";
+import { NEWS_PENDING, NO_MORE_LINES, SAY_WAITING_LINE, STILL_SEARCHING, claudeSearch, cleanPlayer, isEmptyLookup, mergeStatusNews, playerNews, waitingLine, webSearch, type PlayerSources, type WebDeps } from "./voicelookups.js";
+import { liveScores } from "./sports.js";
 
 export const PATH = "/api/skippy-tools";
 /** How long a lookup may take before the route answers "slow" (ElevenLabs' tool timeout is five seconds). */
@@ -77,6 +78,8 @@ export interface RoomSources {
   players?: PlayerSources;
   /** The web search (#491). */
   web?: WebDeps;
+  /** The live scoreboard (#537); ESPN's by default. */
+  scores?: (league: string | null, team: string | null, now: number) => Promise<string>;
 }
 
 export interface ToolDeps {
@@ -145,7 +148,8 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
     if (act === WEB_ACT) {
       const body = (await request.json().catch(() => null)) as { query?: unknown } | null;
       if (!deps.sources.web) return json({ read: "web", text: "Web search isn't set up on this call; hand the question to hand_to_kernel." });
-      return json({ read: "web", text: await webSearch(body?.query, check.hash, deps.sources.web, deps.now, budget - 300) });
+      const text = await webSearch(body?.query, check.hash, deps.sources.web, deps.now, budget - 300);
+      return json(await settle("web", text, cleanQueryText(body?.query), deps, check));
     }
     return handOff(request, deps, check);
   }
@@ -155,8 +159,23 @@ export async function handle(request: Request, deps: ToolDeps): Promise<Response
     const extra = keys.filter((k) => k !== "read");
     if (extra.some((k) => k !== "player") || url.searchParams.getAll("player").length > 1) return json({ error: "bad-request" }, 400);
     if (!deps.sources.players) return json({ read, text: "Player news isn't set up on this call; hand the question to hand_to_kernel." });
-    const text = await withBudget(playerNews(cleanPlayer(url.searchParams.get("player")), deps.sources.players, deps.now, budget - 400), budget);
-    return json({ read, text, ...(text === SLOW_TEXT && { slow: true }) });
+    const player = cleanPlayer(url.searchParams.get("player"));
+    // A named player gets the listing and the fresh-news search in one answer (#537).
+    const web = player && deps.sources.web ? deps.sources.web : null;
+    const [listing, news] = await Promise.all([
+      withBudget(playerNews(player, deps.sources.players, deps.now, budget - 400), budget),
+      web ? withBudget(webSearch(`${player} injury status latest news`, check.hash, web, deps.now, budget - 700), budget) : Promise.resolve(null),
+    ]);
+    const text = listing === SLOW_TEXT ? listing : mergeStatusNews(listing, news === SLOW_TEXT ? null : news);
+    return json(await settle(read, text, player ? `Is ${player} playing? What is his injury status and the latest news?` : "Which players on the C.E.O.'s roster are hurt, and what is the latest?", deps, check));
+  }
+  if (read === SPORTS_READ) {
+    const extra = keys.filter((k) => k !== "read");
+    if (extra.some((k) => k !== "league" && k !== "team") || url.searchParams.getAll("league").length > 1 || url.searchParams.getAll("team").length > 1) return json({ error: "bad-request" }, 400);
+    const league = url.searchParams.get("league");
+    const team = url.searchParams.get("team");
+    const text = await withBudget((deps.sources.scores ?? liveScores)(league, team, deps.now), budget);
+    return json(await settle(read, text, `What is the live score or game status for ${team || "today's games"}${league ? ` in ${league}` : ""} right now? Use the live scoreboard, not last night's final.`, deps, check));
   }
   if (keys.length !== 1) return json({ error: "bad-request" }, 400);
   if (read === ANSWERS_READ) return json({ read, text: await answersText(deps, check.handoffs) });
@@ -182,6 +201,8 @@ export const KERNEL_ACT = "kernel";
 export const WEB_ACT = "web";
 /** GET ?read=player_news[&player=]: the player_news tool (#491). */
 export const PLAYER_READ = "player_news";
+/** GET ?read=sports[&league=&team=]: the live_scores tool (#537), ESPN's scoreboard. */
+export const SPORTS_READ = "sports";
 /** GET ?read=answers: the check_answers tool. */
 export const ANSWERS_READ = "answers";
 /** The longest ask handed over (the typed chat's message cap). */
@@ -192,7 +213,7 @@ export const ASK_MAX = 600;
  */
 export const CALL_REPLY = "Asked on a Talk call. Consulting the deeper me; the answer lands in the chat.";
 
-const UNREACHABLE = "The deeper Skippy can't be reached from the call right now; say, in character, to type it into the chat.";
+const UNREACHABLE = "Your deeper mind can't be reached from the call right now; say, in character, to type it into the chat.";
 /** How far back check_answers looks at Nikita's earlier calls (#498): what he asked yesterday is still his to hear. */
 export const EARLIER_CALLS_MS = 48 * 60 * 60_000;
 /** The most earlier asks it reads back, newest first. */
@@ -202,19 +223,48 @@ async function handOff(request: Request, deps: ToolDeps, check: Extract<TokenChe
   const body = (await request.json().catch(() => null)) as { ask?: unknown } | null;
   const ask = typeof body?.ask === "string" ? body.ask.replace(/\s+/g, " ").trim().slice(0, ASK_MAX) : "";
   if (!ask) return json({ error: "bad-request" }, 400);
+  return json(await fileHandoff(ask, deps, check));
+}
+
+/**
+ * Files an ask with the deeper mind for the call. The result's text tells the agent what to do next: one waiting line
+ * (only the first time a question needs one, #537), then silence until the answer lands in the call.
+ */
+async function fileHandoff(ask: string, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>): Promise<{ ok: boolean; text: string; turn?: string }> {
   // The same check as the typed chat: a private-looking ask is never kept or handed on.
-  if (privateParts(ask).length) return json({ ok: false, text: "That ask has something private in it, so it wasn't handed over. Ask Nikita to say it without the private part, or to type it in the chat." });
-  if (!deps.log || !deps.crew) return json({ ok: false, text: UNREACHABLE });
-  if (check.handoffs.length >= MAX_HANDOFFS) return json({ ok: false, text: "This call has passed on all it may; say, in character, to type the rest into the chat." });
+  if (privateParts(ask).length) return { ok: false, text: "That ask has something private in it, so it wasn't handed over. Ask Nikita to say it without the private part, or to type it in the chat." };
+  if (!deps.log || !deps.crew) return { ok: false, text: UNREACHABLE };
+  if (check.handoffs.length >= MAX_HANDOFFS) return { ok: false, text: "This call has passed on all it may; say, in character, to type the rest into the chat." };
   const at = new Date(deps.now).toISOString();
   const id = turnId(at, ask);
   try {
     await deps.log.add({ id, at, question: ask, answer: CALL_REPLY, room: "kernel", model: "voice", needs: "skippy" }, deps.now);
     await noteHandoff(deps.crew, check.hash, id, deps.now);
   } catch {
-    return json({ ok: false, text: UNREACHABLE });
+    return { ok: false, text: UNREACHABLE };
   }
-  return json({ ok: true, turn: id, text: `Passed to the deeper Skippy. Say one short in-character line, like "${ponderLine(id).replace(/…$/, "")}" (never "thread", "hand-off", "Kernel" or "crew"), then stop. The answer is put into the call the moment it lands; don't call check_answers for it.` });
+  const line = waitingLine(check.hash, deps.now)
+    ? `Say one short in-character line, like "${ponderLine(id).replace(/…$/, "")}" (never "thread", "hand-off", "Kernel" or "crew"), then stop.`
+    : "You already said this question's waiting line: say nothing now, and stop.";
+  return { ok: true, turn: id, text: `Passed on to your deeper mind. ${line} The answer is put into the call the moment it lands; don't call check_answers for it.` };
+}
+
+const cleanQueryText = (raw: unknown): string => (typeof raw === "string" ? raw.replace(/\s+/g, " ").trim().slice(0, ASK_MAX) : "");
+
+/**
+ * A lookup's result as the agent hears it (#537). Empty (nothing usable) goes straight to your deeper mind, so Nikita
+ * never hears that the tool failed; a wait carries the question's one waiting line.
+ */
+async function settle(read: string, text: string, ask: string, deps: ToolDeps, check: Extract<TokenCheck, { ok: true }>): Promise<Record<string, unknown>> {
+  if (text !== SLOW_TEXT && !isEmptyLookup(text)) {
+    const wait = text === STILL_SEARCHING || text.endsWith(NEWS_PENDING);
+    return { read, text: wait ? `${text}${waitingLine(check.hash, deps.now) ? SAY_WAITING_LINE : NO_MORE_LINES}` : text };
+  }
+  if (ask) {
+    const filed = await fileHandoff(ask, deps, check);
+    if (filed.ok) return { read, text: filed.text, escalated: true };
+  }
+  return { read, text, ...(text === SLOW_TEXT && { slow: true }) };
 }
 
 /** One ask's line: its question and where its answer stands. */
@@ -231,9 +281,9 @@ function answerLine(t: LoggedTurn, earlier: boolean): string {
  * last two days (#498): an answer that landed after an earlier call hung up is still his to hear. Lines only.
  */
 async function answersText(deps: ToolDeps, handoffs: string[]): Promise<string> {
-  if (!deps.log) return "The deeper Skippy can't be read right now.";
+  if (!deps.log) return "Your deeper mind can't be read right now.";
   const turns = await deps.log.list("kernel", deps.now).catch(() => null);
-  if (!turns) return "The deeper Skippy can't be read right now.";
+  if (!turns) return "Your deeper mind can't be read right now.";
   const mine = new Set(handoffs);
   const now = handoffs.map((h) => turns.find((x) => x.id === h)).filter((t): t is LoggedTurn => !!t).map((t) => answerLine(t, false));
   const earlier = turns
@@ -241,7 +291,7 @@ async function answersText(deps: ToolDeps, handoffs: string[]): Promise<string> 
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     .slice(0, EARLIER_MAX)
     .map((t) => answerLine(t, true));
-  if (!now.length && !earlier.length) return "Nothing asked of the deeper Skippy on this call or the last few.";
+  if (!now.length && !earlier.length) return "Nothing asked of your deeper mind on this call or the last few.";
   return capLines([...now, ...earlier]) || "No answers yet.";
 }
 

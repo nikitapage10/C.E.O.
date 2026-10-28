@@ -73,6 +73,9 @@ export const creditsLine = (c: TalkCredits) => {
 /** What Talk shows when ElevenLabs' credits are spent. */
 export const CREDITS_OUT = "ElevenLabs credits used up";
 
+/** Whole seconds from `startedAt` to `now`; 0 before a call has started or if the clock stepped back. */
+export const elapsedSecs = (startedAt: number, now: number): number => (startedAt > 0 ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0);
+
 /** mm:ss. */
 export const clock = (secs: number) => {
   const s = Math.max(0, Math.round(secs));
@@ -177,7 +180,7 @@ export function clipSentence(text: string, max: number): string {
  * character (#498): the note never says "thread", "hand-off", "Kernel" or "crew", so he has nothing to echo.
  */
 export const landedNote = (text: string, final: boolean): string =>
-  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${clipSentence(text, LANDED_MAX)}". Say it to him now, answer first, in one or two short sentences of your own, in character, with no recap and no question after.`;
+  `${final ? "The answer" : "An update"} from the deeper you just landed on what Nikita asked you to dig into: "${clipSentence(text, LANDED_MAX)}". Say it to him now, answer first, in one or two short sentences of your own, in character, with no recap and no question after. Drop whatever else you were about to say, and no waiting line.`;
 
 /** The chat bubbles this call is waiting on (chat turn id to the text last told to Skippy), and the watch on them. */
 let heard = new Map<number, string>();
@@ -198,6 +201,7 @@ async function followHandoffs(id: string): Promise<void> {
   if (session) for (const t of useSkippy.getState().turns) if (t.pending?.needs === "skippy" && !heard.has(t.id)) heard.set(t.id, t.text);
   if (unwatch || !heard.size) return;
   unwatch = useSkippy.subscribe((s) => {
+    let landed: string | null = null;
     for (const [bubble, last] of heard) {
       const t = s.turns.find((x) => x.id === bubble);
       if (!t) {
@@ -208,11 +212,15 @@ async function followHandoffs(id: string): Promise<void> {
       heard.set(bubble, t.text);
       if (t.pending) continue;
       heard.delete(bubble);
-      try {
-        session?.speakNow(landedNote(t.text, true));
-      } catch {
-        /* the call is going: the answer is in the chat anyway */
-      }
+      landed = t.text;
+    }
+    // Several answers in one look: only the newest is spoken, so a stale line never queues behind it (#537).
+    if (landed === null) return;
+    const text: string = landed;
+    try {
+      session?.speakNow(landedNote(text, true));
+    } catch {
+      /* the call is going: the answer is in the chat anyway */
     }
   });
 }
@@ -227,6 +235,8 @@ interface TalkStore {
   ready: boolean | null;
   reason: TalkReason | null;
   startedAt: number;
+  /** Seconds on the live call, ticked by the store itself once a second (#537), so no view depends on its own timer. */
+  elapsed: number;
   /** The last start's stages (#496). */
   timings: StartTimings | null;
   refresh: (doFetch?: typeof fetch) => Promise<void>;
@@ -274,7 +284,7 @@ export const useTalk = create<TalkStore>((set, get) => {
     unwatch?.();
     unwatch = null;
     heard = new Map();
-    set({ phase: "idle", mode: "listening", ...(reason && { reason }) });
+    set({ phase: "idle", mode: "listening", elapsed: 0, ...(reason && { reason }) });
     if (reason) note(reason);
     if (id) {
       try {
@@ -294,6 +304,7 @@ export const useTalk = create<TalkStore>((set, get) => {
     ready: null,
     reason: null,
     startedAt: 0,
+    elapsed: 0,
     timings: null,
     warm: (doFetch = fetch) => {
       if (get().phase !== "idle" || get().ready === false || Date.now() - warmedAt < WARM_MS) return;
@@ -394,7 +405,7 @@ export const useTalk = create<TalkStore>((set, get) => {
         return;
       }
       mark("connected");
-      set({ phase: "live", startedAt: Date.now() });
+      set({ phase: "live", startedAt: Date.now(), elapsed: 0 });
       // Answers land in the call as they come (#506): the chat looks every few seconds, and whatever it is already
       // waiting on for Skippy is followed from now.
       setCallLive(true);
@@ -405,6 +416,7 @@ export const useTalk = create<TalkStore>((set, get) => {
       quiet = guard;
       timer = setInterval(() => {
         guard.level(talkLevel());
+        set({ elapsed: elapsedSecs(get().startedAt, Date.now()) });
         if (guard.over() && get().phase === "live") void finish("silence");
       }, SILENCE_CHECK_MS);
     },

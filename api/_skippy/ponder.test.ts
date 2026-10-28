@@ -107,7 +107,7 @@ describe("the call's tool answers (#498)", () => {
 
   it("caps the earlier calls it reads back, and says so plainly when there's nothing", async () => {
     const { log, answers } = await setup();
-    expect(await answers()).toMatch(/^Nothing asked of the deeper Skippy/);
+    expect(await answers()).toMatch(/^Nothing asked of your deeper mind/);
     expect(await answers()).not.toMatch(UNSPOKEN);
     for (let i = 0; i < EARLIER_MAX + 3; i++) await log.add({ id: `bbbbbbbbbbbbbbb${i.toString(16)}`, at: new Date(NOW - (i + 1) * 60_000).toISOString(), question: `Ask ${i}`, answer: CALL_REPLY, room: "kernel", model: "voice", needs: "skippy" }, NOW);
     expect((await answers()).match(/Earlier call/g)).toHaveLength(EARLIER_MAX);

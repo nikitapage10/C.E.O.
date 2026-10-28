@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { useSkippy } from "../skippy/chat.ts";
 import { useTalk } from "../skippy/talk.ts";
 import { holoEvents } from "./signal.ts";
@@ -27,16 +27,28 @@ export function preloadHologram() {
     .catch(() => undefined);
 }
 
+/** How long he takes to sink back into the chat box when the call ends (#538), in ms; a plain fade with less motion. */
+export const LEAVE_MS = 700;
+const STILL_LEAVE_MS = 300;
+
 export function HologramCall({ route }: { route: string }) {
   const phase = useTalk((s) => s.phase);
   const on = phase === "starting" || phase === "live";
+  // Kept up a moment after the call ends, so he sinks back down and the chat comes back (#538).
+  const [up, setUp] = useState(on);
   useEffect(() => {
     if (phase === "starting") holoEvents.reset(useSkippy.getState().turns.at(-1)?.id ?? 0);
   }, [phase]);
-  if (!on) return null;
+  useEffect(() => {
+    if (on) return setUp(true);
+    const still = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const t = window.setTimeout(() => setUp(false), still ? STILL_LEAVE_MS : LEAVE_MS);
+    return () => window.clearTimeout(t);
+  }, [on]);
+  if (!on && !up) return null;
   return (
     <Suspense fallback={null}>
-      <HologramStage route={route} />
+      <HologramStage route={route} leaving={!on} />
     </Suspense>
   );
 }

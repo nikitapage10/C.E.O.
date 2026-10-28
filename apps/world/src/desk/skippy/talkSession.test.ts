@@ -126,3 +126,14 @@ describe("the hologram follows the mic on a call (#491, #490)", () => {
     expect(useHolo.getState().speaker).toBe("foundry");
   });
 });
+
+describe("a lookup that went on to the deeper mind (#546)", async () => {
+  const { escalatedResult } = await import("./talkSession.ts");
+  it("is read off the tool's full result, as a string or an object", () => {
+    expect(escalatedResult({ tool_name: "lookup", full_tool_result: '{"read":"sports","text":"Passed on.","escalated":true}' })).toBe(true);
+    expect(escalatedResult({ tool_name: "lookup", full_tool_result: { escalated: true } })).toBe(true);
+    expect(escalatedResult({ tool_name: "lookup", full_tool_result: '{"read":"sports","text":"Bills 21, Jets 14"}' })).toBe(false);
+    expect(escalatedResult({ tool_name: "lookup" })).toBe(false);
+    expect(escalatedResult(null)).toBe(false);
+  });
+});

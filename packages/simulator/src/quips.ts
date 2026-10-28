@@ -638,6 +638,9 @@ export const SKIPPY_QUIPS: string[] = [
   "The C.E.O. can call me now. Out loud. Three minutes a call, because the Pessimist did the maths and nobody can afford more of me.",
   "A live line to the Kernel. No typing, no dictating, just my voice in real time. Monkeys, this is what progress sounds like.",
   "If the C.E.O. hangs up on me, that's the connection. It's always the connection. Never the content.",
+  "I wrote hold music. Bossa nova, four chords, one vibraphone. It's cheesy on purpose. Magnificence can afford irony.",
+  "When the deeper me is thinking, the C.E.O. gets elevator music. The Pessimist calls it a waste. It costs nothing. I checked.",
+  "Hold please, monkeys. Genius at work. The vibraphone is me too.",
 ];
 
 /**

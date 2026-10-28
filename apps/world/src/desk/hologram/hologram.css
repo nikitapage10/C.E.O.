@@ -430,6 +430,33 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* Hold music (#546): a small note and "On hold", or his rare aside, while the loop plays under the call. */
+.holo__hold {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(5, 7, 12, 0.62);
+  backdrop-filter: blur(6px);
+  color: color-mix(in srgb, var(--holo) 70%, var(--text, #eef1f7));
+  font-family: var(--serif, "Cormorant Garamond", Georgia, serif);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.25;
+}
+.holo__hold-note {
+  font-style: normal;
+  color: var(--holo);
+  animation: holo-hold 1.07s ease-in-out infinite alternate;
+}
+@keyframes holo-hold {
+  to {
+    transform: translateY(-3px) rotate(-8deg);
+  }
+}
 .holo__pill {
   pointer-events: auto;
   display: inline-flex;
@@ -672,5 +699,8 @@ body.holo-call--above .skp-chat--dock {
   }
   .holo__lvl i {
     transition: none;
+  }
+  .holo__hold-note {
+    animation: none;
   }
 }

@@ -5,6 +5,7 @@ import { setCallLive } from "./liveCall.ts";
 import { stopSpeaking, useSkippy } from "./chat.ts";
 import { sendTalkTiming } from "./talkBeacon.ts";
 import { SILENCE_CHECK_MS, silenceGuard, type SilenceGuard } from "./silence.ts";
+import { holdBegin, holdCheck, holdEnd, holdHeard } from "./hold.ts";
 
 /**
  * Talking to Skippy out loud (#434), browser side; the function is api/skippy-voice.ts. A tap asks for the microphone,
@@ -185,6 +186,13 @@ export const landedNote = (text: string, final: boolean): string =>
 /** The chat bubbles this call is waiting on (chat turn id to the text last told to Skippy), and the watch on them. */
 let heard = new Map<number, string>();
 let unwatch: (() => void) | null = null;
+/** The bubbles this call's own hand-offs wait on (#546): only these hold the line with music, not an older ask. */
+let mine = new Set<number>();
+/** The call's lookups in flight (#546). */
+let inFlight = 0;
+
+/** Whether the call is waiting on an answer right now: a lookup out, or one of its hand-offs not back (#546). */
+const waiting = (): boolean => inFlight > 0 || [...mine].some((b) => heard.has(b));
 
 /**
  * Waits in the chat on each hand-off the call made, and puts the answer into the live call the moment it lands (#506).
@@ -196,7 +204,10 @@ async function followHandoffs(id: string): Promise<void> {
   const chat = useSkippy.getState();
   for (const turn of await readHandoffs(id)) {
     const bubble = await chat.wait(turn, "kernel", "skippy");
-    if (bubble !== null && session) heard.set(bubble, useSkippy.getState().turns.find((t) => t.id === bubble)?.text ?? "");
+    if (bubble !== null && session) {
+      heard.set(bubble, useSkippy.getState().turns.find((t) => t.id === bubble)?.text ?? "");
+      mine.add(bubble);
+    }
   }
   if (session) for (const t of useSkippy.getState().turns) if (t.pending?.needs === "skippy" && !heard.has(t.id)) heard.set(t.id, t.text);
   if (unwatch || !heard.size) return;
@@ -216,6 +227,8 @@ async function followHandoffs(id: string): Promise<void> {
     }
     // Several answers in one look: only the newest is spoken, so a stale line never queues behind it (#537).
     if (landed === null) return;
+    // The answer is in: the hold music is out before he says it (#546).
+    holdHeard();
     const text: string = landed;
     try {
       session?.speakNow(landedNote(text, true));
@@ -275,6 +288,9 @@ export const useTalk = create<TalkStore>((set, get) => {
     if (timer) clearInterval(timer);
     timer = null;
     quiet = null;
+    holdEnd();
+    inFlight = 0;
+    mine = new Set();
     const was = session;
     session = null;
     setCallLive(false);
@@ -378,21 +394,31 @@ export const useTalk = create<TalkStore>((set, get) => {
           onAgent: (agent) => setSpeaker(agent),
           onMessage: (who, text) => {
             quiet?.heard();
+            holdHeard();
             // Nikita's own words are the only thing a spoken "send" counts from (texts/compose.ts).
             if (who === "nikita") tx?.heard(text);
             useSkippy.getState().say(who, text);
           },
           onMode: (mode) => {
             quiet?.heard();
+            if (mode === "speaking") holdHeard();
             if (mode === "speaking" && get().timings?.firstWord === undefined) {
               mark("firstWord");
               sendTalkTiming(get().timings ?? {}, true);
             }
             set({ mode });
           },
-          onTool: (name) => {
-            if (name === "hand_to_kernel" && conversation) void followHandoffs(conversation).catch(() => undefined);
+          onToolStart: () => {
+            inFlight += 1;
+            holdCheck();
           },
+          onTool: (name, escalated) => {
+            inFlight = Math.max(0, inFlight - 1);
+            // A hand-off, or a lookup that went on to the deeper mind (#546): its answer is waited on in the chat.
+            if ((name === "hand_to_kernel" || escalated) && conversation) void followHandoffs(conversation).catch(() => undefined);
+            holdCheck();
+          },
+          onInterrupt: () => holdHeard(),
           onEnd: () => {
             if (get().phase === "live") void finish(null);
           },
@@ -415,6 +441,8 @@ export const useTalk = create<TalkStore>((set, get) => {
       // Answers land in the call as they come (#506): the chat looks every few seconds, and whatever it is already
       // waiting on for Skippy is followed from now.
       setCallLive(true);
+      // Hold music (#546): a wait on a lookup or a hand-off, after two quiet seconds, gets a quiet loop until it lands.
+      holdBegin({ pending: waiting, agentSpeaking: () => get().mode === "speaking", micLevel: () => (get().mode === "listening" ? talkLevel() : 0) });
       void followHandoffs(got.conversation ?? "").catch(() => undefined);
       // The one safety (#532): two minutes of nobody speaking ends the call. Skippy's mode, any message and the
       // level (his voice while he speaks, the mic otherwise) all count as someone speaking.

@@ -21,7 +21,7 @@ import { fileStore } from "./store.ts";
  *   webhook         registers the hub's webhook with BlueBubbles
  *   check           whether BlueBubbles answers with the stored password
  *   control <what>  pause | resume | report, to the running hub
- *   wipe-report     sends the site a final "wiped" status with every count at zero, and an empty list
+ *   wipe-report     sends the site a final "wiped" status, then unpairs there: the token, the list and the requests go
  *   wipe-keys       removes the BlueBubbles webhook and every Relay Keychain item
  */
 
@@ -41,6 +41,14 @@ async function need(item: (typeof KEYCHAIN_ITEMS)[number]): Promise<string> {
 async function serve(): Promise<void> {
   const paths = pathsFor();
   const log = fileLogger(paths.logs);
+  // No stack trace ever reaches launchd.log (it could hold a fragment of a message): an error class in the log, then
+  // a clean exit, and launchd starts the hub again.
+  const crash = (e: unknown) => {
+    log.error("error", e);
+    process.exit(1);
+  };
+  process.on("uncaughtException", crash);
+  process.on("unhandledRejection", crash);
   let config = readConfig(null);
   try {
     config = readConfig(readFileSync(paths.config, "utf8"));
@@ -101,6 +109,15 @@ async function readStdin(): Promise<string> {
 
 async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
+  if (cmd !== "serve") {
+    // The commands print plain words, never a stack trace.
+    const fail = () => {
+      out("Relay: something went wrong.");
+      process.exit(1);
+    };
+    process.on("uncaughtException", fail);
+    process.on("unhandledRejection", fail);
+  }
   if (cmd === "serve") return serve();
   if (cmd === "init") {
     if (!(await macKeychain.get("local-key"))) await macKeychain.set("local-key", randomBytes(32).toString("base64url"));
@@ -141,10 +158,10 @@ async function main(argv: string[]): Promise<void> {
     const token = await macKeychain.get("hub-token");
     if (!token) return out("Relay: not paired; no status to send.");
     const site = siteClient(token);
-    const ok = await site.status(emptyRelayStatus(Date.now(), "wiped")).catch(() => false);
-    // And an empty list, so the site keeps nothing of the old one.
-    await site.texts({ v: 1, at: Date.now(), items: [] }).catch(() => false);
-    return out(ok ? "Relay: the site now shows Relay as wiped." : "Relay: couldn't reach the site to say wiped (the Desk's Unpair clears it too).");
+    await site.status(emptyRelayStatus(Date.now(), "wiped")).catch(() => false);
+    // Then the site forgets this pairing: the token stops working, and the list and the requests go.
+    const ok = await site.unpair().catch(() => false);
+    return out(ok ? "Relay: the site now shows Relay as wiped, and has forgotten this Mac." : "Relay: couldn't reach the site. Press Unpair on the Desk's Relay page to clear it there.");
   }
   if (cmd === "wipe-keys") {
     const password = await macKeychain.get("bluebubbles-password");

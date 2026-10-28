@@ -3,7 +3,7 @@
 #
 #   curl -fsSL https://ceo.nikita.page/relay/install.sh | bash
 #
-# The same file is the `relay` command afterwards:
+# It writes the `relay` command from its own functions (nothing is downloaded twice):
 #
 #   relay status          is it running, and what the site shows (counts only)
 #   relay off | relay on  pause or resume: no reading, no model calls, no nudges, no sends while off
@@ -19,28 +19,38 @@
 #   ~/.local/bin/relay                         this command (and one PATH line in ~/.zprofile, marked "CEO Relay")
 #   the login Keychain, service "CEO Relay"    the BlueBubbles password, the hub token, the send key, the local key
 # No API key: the model calls go through the site (Claude, with the site's own key and Relay's own $10 a month).
+#
+# Integrity: Node is checked against nodejs.org's published SHA-256 list; the hub against the SHA-256 the site's build
+# stamped into this very script (HUB_SHA256 below). Both guard against a broken or swapped download only, not against
+# the site itself: nothing here is signed.
 
 set -euo pipefail
 umask 077
 
-SITE="https://ceo.nikita.page"
-NODE_VERSION="22.20.0"
-LABEL="page.nikita.ceo.relay"
-SERVICE="CEO Relay"
-HOME_DIR="$HOME/Library/Application Support/CEO Relay"
-LOG_DIR="$HOME/Library/Logs/CEO Relay"
-PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-NODE="$HOME_DIR/runtime/node"
-HUB="$HOME_DIR/hub/relay-hub.mjs"
-BIN_LINK="$HOME/.local/bin/relay"
-UID_NOW="$(id -u)"
-# Where the questions are read from: the Terminal (stdin is the download when piped from curl).
-TTY="${RELAY_TTY:-/dev/tty}"
+relay_settings() {
+  SITE="https://ceo.nikita.page"
+  NODE_VERSION="22.20.0"
+  # Stamped by apps/hub/build.mjs with the SHA-256 of the relay-hub.mjs it built alongside this script.
+  HUB_SHA256="__HUB_SHA256__"
+  LABEL="page.nikita.ceo.relay"
+  SERVICE="CEO Relay"
+  HOME_DIR="$HOME/Library/Application Support/CEO Relay"
+  LOG_DIR="$HOME/Library/Logs/CEO Relay"
+  PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+  NODE="$HOME_DIR/runtime/node"
+  HUB="$HOME_DIR/hub/relay-hub.mjs"
+  BIN_LINK="$HOME/.local/bin/relay"
+  UID_NOW="$(id -u)"
+  # Where the questions are read from: the Terminal (stdin is the download when piped from curl).
+  TTY="${RELAY_TTY:-/dev/tty}"
+}
 
 say() { printf '%s\n' "$*"; }
 step() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 fail() { printf '\nRelay: %s\n' "$*" >&2; exit 1; }
 ask() { local a; read -r -p "$1 " a < "$TTY" || a=""; printf '%s' "$a"; }
+# Not echoed (the pair code).
+ask_secret() { local a; read -rs -p "$1 " a < "$TTY" || a=""; printf '\n' >&2; printf '%s' "$a"; }
 
 hub() { "$NODE" "$HUB" "$@"; }
 
@@ -48,6 +58,29 @@ running() { launchctl print "gui/$UID_NOW/$LABEL" >/dev/null 2>&1; }
 listening() { nc -z 127.0.0.1 7420 >/dev/null 2>&1; }
 
 site_status() { curl -fsS --max-time 15 "$SITE/api/relay?view=status" 2>/dev/null || true; }
+
+# BlueBubbles must not be reachable from the network: it listens on 127.0.0.1 only, or the macOS firewall blocks
+# incoming connections to it (the firewall never filters this Mac's own loopback, so the hub still reaches it).
+bb_addresses() { lsof -nP -iTCP:1234 -sTCP:LISTEN 2>/dev/null | awk 'NR > 1 { print $9 }' | sort -u; }
+bb_safe() {
+  local a fw=/usr/libexec/ApplicationFirewall/socketfilterfw
+  a="$(bb_addresses)"
+  [ -n "$a" ] || return 2
+  if ! printf '%s\n' "$a" | grep -qvE '^(127\.0\.0\.1|\[::1\]|localhost):1234$'; then return 0; fi
+  [ -x "$fw" ] && "$fw" --getglobalstate 2>/dev/null | grep -qi "enabled" && "$fw" --getappblocked /Applications/BlueBubbles.app 2>/dev/null | grep -qi "is blocked"
+}
+bb_how() {
+  say "  BlueBubbles is listening on your network, not only on this Mac (port 1234). Anyone on the same Wi-Fi who learns"
+  say "  its password could reach it. To close it: System Settings › Network › Firewall: turn it on, then Options ›"
+  say "  BlueBubbles › Block incoming connections. The hub on this Mac still reaches it."
+}
+
+# The `relay` command, written from this script's own functions, so it is exactly the script that was checked.
+write_command() {
+  printf '#!/bin/bash\n# The relay command, written by the CEO Relay installer (#535).\nset -euo pipefail\numask 077\n'
+  declare -f relay_settings say step fail ask ask_secret hub running listening site_status bb_addresses bb_safe bb_how install_relay pause_relay resume_relay status_relay verify_relay wipe_relay write_command main
+  printf 'main "$@"\n'
+}
 
 install_relay() {
   [ "$(uname -s)" = "Darwin" ] || fail "this installer is for macOS."
@@ -82,10 +115,10 @@ install_relay() {
   tar -xzf "$TMP/node.tar.gz" -C "$TMP" "$NAME/bin/node"
   install -m 700 "$TMP/$NAME/bin/node" "$NODE"
   curl -fsSL "$SITE/relay/relay-hub.mjs" -o "$TMP/relay-hub.mjs"
-  curl -fsSL "$SITE/relay/relay-hub.mjs.sha256" -o "$TMP/relay-hub.mjs.sha256"
-  (cd "$TMP" && shasum -a 256 -c relay-hub.mjs.sha256 >/dev/null) || fail "the hub's download didn't match its checksum."
+  GOT="$(shasum -a 256 "$TMP/relay-hub.mjs" | cut -d' ' -f1)"
+  [ "${#HUB_SHA256}" = 64 ] && [ "$GOT" = "$HUB_SHA256" ] || fail "the hub's download didn't match the checksum in this installer; nothing was installed."
   install -m 600 "$TMP/relay-hub.mjs" "$HUB"
-  curl -fsSL "$SITE/relay/install.sh" -o "$TMP/relay"
+  write_command > "$TMP/relay"
   install -m 700 "$TMP/relay" "$HOME_DIR/bin/relay"
   ln -sf "$HOME_DIR/bin/relay" "$BIN_LINK"
   grep -q '# CEO Relay' "$HOME/.zprofile" 2>/dev/null || printf '\nexport PATH="$HOME/.local/bin:$PATH" # CEO Relay\n' >> "$HOME/.zprofile"
@@ -97,10 +130,14 @@ install_relay() {
     [ "$(ask "  Try the password again? [Y/n]")" = "n" ] && fail "BlueBubbles didn't answer. Open BlueBubbles, check it's running with the local connection, then paste the install line again."
   done
   hub init >/dev/null
+  if ! bb_safe; then
+    bb_how
+    [ "$(ask "  Done that, or carry on anyway? [y/N]")" = "y" ] || fail "stopped so you can close BlueBubbles to the network. Paste the install line again after."
+  fi
 
   step "4/6  Pair with the Desk"
   say "  On the Desk: Relay → Texts → Pair a Mac. It shows an 8-character code for 10 minutes."
-  until CODE="$(ask "  Pair code:")" && printf '%s' "$CODE" | hub pair; do
+  until CODE="$(ask_secret "  Pair code (typing is hidden):")" && printf '%s' "$CODE" | hub pair; do
     [ "$(ask "  Try another code? [Y/n]")" = "n" ] && fail "not paired. Paste the install line again when you have a code."
   done
   unset CODE
@@ -156,6 +193,10 @@ resume_relay() {
 status_relay() {
   if running; then say "Hub: running"; else say "Hub: not running"; fi
   if listening; then say "Listening on 127.0.0.1:7420 (BlueBubbles' webhook only)"; fi
+  if bb_safe; then say "BlueBubbles: closed to the network"; else
+    local rc=$?
+    if [ "$rc" = 2 ]; then say "BlueBubbles: not running"; else say "BlueBubbles: WARNING, open to the network"; bb_how; fi
+  fi
   S="$(site_status)"
   if [ -n "$S" ]; then
     printf 'Site: hub %s, %s owed, %s drafts ready\n' "$(printf '%s' "$S" | sed -n 's/.*"hub":"\([a-z]*\)".*/\1/p')" "$(printf '%s' "$S" | sed -n 's/.*"owed":\([0-9]*\).*/\1/p')" "$(printf '%s' "$S" | sed -n 's/.*"draftsReady":\([0-9]*\).*/\1/p')"
@@ -216,14 +257,20 @@ wipe_relay() {
   fi
 }
 
-case "${1:-install}" in
-  install) install_relay ;;
-  on) resume_relay ;;
-  off) pause_relay ;;
-  status) status_relay ;;
-  wipe)
-    if [ "${2:-}" = "--verify" ]; then verify_relay; else wipe_relay "${2:-}"; fi
-    ;;
-  verify) verify_relay ;;
-  *) say "relay: install | status | on | off | wipe [--all] | wipe --verify" ;;
-esac
+main() {
+  relay_settings
+  case "${1:-install}" in
+    install) install_relay ;;
+    on) resume_relay ;;
+    off) pause_relay ;;
+    status) status_relay ;;
+    wipe)
+      if [ "${2:-}" = "--verify" ]; then verify_relay; else wipe_relay "${2:-}"; fi
+      ;;
+    verify) verify_relay ;;
+    print-command) write_command ;;
+    *) say "relay: install | status | on | off | wipe [--all] | wipe --verify" ;;
+  esac
+}
+
+main "$@"

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readRelayStatus, RELAY_STATUS_VERSION, type RelayStatus } from "@ceo/core";
-import { readDraft, readSort, type Line, type StyleProfile } from "../../../api/_relay/models.ts";
+import { CAPS, readDraft, readSort, within, type Line, type StyleProfile } from "../../../api/_relay/models.ts";
 import { readTextRequest, type RequestResult, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
 import { requestSigned } from "../../../api/_relay/tokens.ts";
 import { channelOf, type BlueBubbles, type Contact, type Inbound, type Message } from "./bluebubbles.ts";
@@ -174,11 +174,13 @@ export class Engine {
       const contact = this.contactOf(m.message.handle);
       const why = settleByRule({ handle: m.message.handle, names: contact?.names ?? [], text: m.message.text }, this.skipTerms);
       if (why) {
-        if (t.state !== "owed" && t.state !== "later") {
-          t.state = "settled";
-          t.why = why;
-          t.draft = null;
-        }
+        // Settled whatever it was: a money or legal text, a code or a skip-listed sender never reaches a model, even
+        // in a thread that was already owed (its draft goes too; Nikita still sees the thread in Messages).
+        t.state = "settled";
+        t.why = why;
+        t.draft = null;
+        t.laterUntil = null;
+        this.queue.delete(t.id);
         this.d.log.log("thread settled", { rule: 1 });
         return;
       }
@@ -265,7 +267,22 @@ export class Engine {
       members: handles.map((h) => ({ names: this.contactOf(h)?.names ?? [], handle: h })),
       others: contacts.flatMap((c) => c.names),
     });
-    const lines: Line[] = since.map((m) => ({ from: m.fromMe ? "me" : `Member ${handles.indexOf(m.handle) + 1}`, text: ph.swap(m.text), ago: (this.d.now() - m.at) / 60_000 }));
+    // The rules over every message in the run, each with its own sender: a money or legal text, a code or a
+    // skip-listed member keeps the whole group away from the model (and drops any summary it had).
+    if (since.some((m) => !m.fromMe && settleByRule({ handle: m.handle, names: this.contactOf(m.handle)?.names ?? [], text: m.text }, this.skipTerms) !== null)) {
+      this.change((s) => {
+        const x = s.threads.find((y) => y.id === t.id);
+        if (x) x.summary = null;
+      });
+      this.d.log.log("thread settled", { rule: 1, group: 1 });
+      return;
+    }
+    // Trimmed here, on the Mac, to the privacy page's caps: only what the call may see leaves the Mac.
+    const lines: Line[] = within(
+      since.map((m) => ({ from: m.fromMe ? "me" : `Member ${handles.indexOf(m.handle) + 1}`, text: ph.swap(m.text), ago: (this.d.now() - m.at) / 60_000 })),
+      CAPS.groupMessages,
+      CAPS.groupChars,
+    );
     const got = await this.d.site.sort({ group: true, lines });
     if ("paused" in got) return this.budgetStop();
     const answer = readSort(got.answer, true);
@@ -289,19 +306,22 @@ export class Engine {
     const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
     const unanswered = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
     if (!unanswered.length) return;
-    // The skip list once more, over the whole unanswered run: a private contact's texts never reach a model.
-    if (unanswered.some((m) => settleByRule({ handle: theirs, names: contact?.names ?? [], text: m.text }, this.skipTerms) === "skip")) {
+    // Every rule once more, over the whole unanswered run: a skip-listed contact, a money or legal text, a code or a
+    // promo anywhere in it settles the thread before anything reaches a model.
+    const ruled = unanswered.map((m) => settleByRule({ handle: theirs, names: contact?.names ?? [], text: m.text }, this.skipTerms)).find((w) => w !== null);
+    if (ruled) {
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
-        if (x) Object.assign(x, { state: "settled", why: "skip", draft: null, gist: "" });
+        if (x) Object.assign(x, { state: "settled", why: ruled, draft: null, gist: "", laterUntil: null });
       });
+      this.d.log.log("thread settled", { rule: 1 });
       return;
     }
     const line = (m: Message): Line => ({ from: m.fromMe ? "me" : "them", text: ph.swap(m.text), ago: (this.d.now() - m.at) / 60_000 });
     const restyle = this.restyles.get(t.id);
     this.restyles.delete(t.id);
     if (!t.sort || !restyle) {
-      const got = await this.d.site.sort({ group: false, lines: unanswered.map(line) });
+      const got = await this.d.site.sort({ group: false, lines: within(unanswered.map(line), CAPS.sortMessages, CAPS.sortChars) });
       if ("paused" in got) return this.budgetStop();
       this.linkModels = "up";
       this.d.log.log("model call", { sort: 1 });
@@ -319,9 +339,19 @@ export class Engine {
       this.d.log.log("sorted", { sooner: answer.sort === "sooner" ? 1 : 0 });
       if (settled) return;
     }
-    const context = msgs.slice(Math.max(0, lastMine - 4));
-    const examples = msgs.filter((m) => m.fromMe).slice(-8).map((m) => m.text);
-    const got = await this.d.site.draft({ lines: context.map(line), examples: examples.map((e) => ph.swap(e).slice(0, 1_500)), profile: profileOf(examples), ...(restyle && { dictated: ph.swap(restyle) }) });
+    // Trimmed here, on the Mac: the answered run and a few turns before it, the newest kept first, within the caps;
+    // up to 8 of Nikita's own replies as examples, 1,500 characters in all.
+    const context = within(msgs.slice(Math.max(0, lastMine - (CAPS.draftEarlier - 1))).map(line), CAPS.draftEarlier + CAPS.sortMessages, CAPS.draftChars);
+    const mine = msgs.filter((m) => m.fromMe).map((m) => m.text);
+    const examples: string[] = [];
+    let used = 0;
+    for (const e of mine.slice(-CAPS.styleExamples).reverse()) {
+      const x = ph.swap(e).slice(0, CAPS.styleChars - used);
+      if (!x) break;
+      examples.unshift(x);
+      used += x.length;
+    }
+    const got = await this.d.site.draft({ lines: context, examples, profile: profileOf(mine.slice(-CAPS.styleExamples)), ...(restyle && { dictated: ph.swap(restyle).slice(0, CAPS.dictatedChars) }) });
     if ("paused" in got) return this.budgetStop();
     this.linkModels = "up";
     this.d.log.log("model call", { draft: 1 });
@@ -380,6 +410,18 @@ export class Engine {
     if (!t) return refuse();
     if (req.kind === "send") {
       if (t.group || (t.state !== "owed" && t.state !== "later") || req.draftAt !== (t.draft?.at ?? 0) || !req.text.trim() || req.text.length > 2_000) return refuse();
+      // Already answered (an earlier send that timed out but went, or a reply from the phone the webhook missed):
+      // BlueBubbles shows a message of Nikita's newer than the last one in. Never send twice.
+      const latest = await this.d.bb.messages(t.chat, 5).catch(() => null);
+      if (!latest) return refuse();
+      const answered = latest.filter((m) => m.fromMe).reduce((a, m) => Math.max(a, m.at), 0);
+      if (answered > t.lastIn) {
+        this.change((s) => {
+          const x = s.threads.find((y) => y.id === t.id);
+          if (x) this.replied(s, x, answered);
+        });
+        return refuse();
+      }
       const ok = await this.d.bb.send(t.chat, req.text, `relay-${randomUUID()}`).catch(() => false);
       if (!ok) {
         this.d.log.log("send failed");

@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, rmSync, truncateSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -6,7 +6,8 @@ import { join } from "node:path";
  * No message text, name, number, chat id, draft, prompt, answer or header can be written, because the only string a
  * line takes is one of LOG_KINDS and every field must be a finite number (anything else is dropped, not written).
  * Errors are logged by class name only, from ERROR_CLASSES. One file per day in ~/Library/Logs/CEO Relay, mode 0600,
- * 14 days kept.
+ * 14 days kept. launchd's own launchd.log (stdout and stderr, which the hub never writes to on purpose) is emptied once a
+ * day, so a stray line can't outlive a day.
  */
 
 export const LOG_KINDS = [
@@ -85,6 +86,7 @@ export function fileLogger(dir: string, now: () => number = Date.now): Logger {
           const m = /^hub-(\d{4}-\d{2}-\d{2})\.log$/.exec(f);
           if (m && m[1]! < cutoff) rmSync(join(dir, f), { force: true });
         }
+        if (existsSync(join(dir, "launchd.log"))) truncateSync(join(dir, "launchd.log"), 0);
       }
     } catch {
       // A log that can't be written is dropped; the hub carries on.

@@ -4,7 +4,7 @@ import { SESSION_COOKIE } from "../_desk/session.ts";
 import { SoftPasskey } from "../_desk/softPasskey.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { handlePost as authPost } from "../desk-auth.ts";
-import { CEILING, MemorySpendStore, relayBudget, SPEND_PATH } from "./budget.ts";
+import { CEILING, MemorySpendStore, relayBudget, SPEND_PATH, type Ledger } from "./budget.ts";
 import { DRAFT_MODEL, draftRequest, readDraft, readSort, SORT_MODEL, sortRequest, type ClaudeBody } from "./models.ts";
 import { GET, HUB_PATH, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeRequest, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
@@ -120,7 +120,10 @@ class Desk {
   }
   async paired() {
     await this.enrol();
+    // A pair code needs the send unlock; the tests then start locked, as a fresh device would be.
+    await this.unlock();
     const code = ((await (await this.post({ action: "pair-code" })).json()) as { code: string }).code;
+    await this.post({ action: "lock" });
     const res = await this.pair(code);
     expect(res.status).toBe(200);
     const got = (await res.json()) as { token: string; sendKey: string };
@@ -151,6 +154,7 @@ describe("pairing", () => {
   it("trades a one-time code for a hub token, once", async () => {
     const d = new Desk();
     await d.enrol();
+    await d.unlock();
     const res = await d.post({ action: "pair-code" });
     const { code } = (await res.json()) as { code: string };
     expect(code).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
@@ -166,6 +170,7 @@ describe("pairing", () => {
   it("allows five wrong tries, then the code is gone", async () => {
     const d = new Desk();
     await d.enrol();
+    await d.unlock();
     const { code } = (await (await d.post({ action: "pair-code" })).json()) as { code: string };
     for (let i = 0; i < 5; i++) expect((await d.pair("2222-2222")).status).toBe(403);
     expect((await d.pair(code)).status).toBe(404);
@@ -174,6 +179,7 @@ describe("pairing", () => {
   it("ends after ten minutes", async () => {
     const d = new Desk();
     await d.enrol();
+    await d.unlock();
     const { code } = (await (await d.post({ action: "pair-code" })).json()) as { code: string };
     d.now += 10 * 60_000;
     expect((await d.pair(code)).status).toBe(404);
@@ -184,6 +190,33 @@ describe("pairing", () => {
     const res = await POST(new Request(`${ORIGIN}${PAIR_PATH}`, { method: "POST", headers: { "Content-Type": "application/json", Origin: ORIGIN }, body: JSON.stringify({ code: "2222-2222" }) }), d.deps());
     expect(res.status).toBe(403);
     expect((await POST(new Request(`${ORIGIN}${RELAY_PATH}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "pair-code" }) }), d.deps())).status).toBe(401);
+  });
+
+  it("needs the send unlock, and never replaces a paired Mac", async () => {
+    const d = new Desk();
+    await d.enrol();
+    const locked = await d.post({ action: "pair-code" });
+    expect(locked.status).toBe(401);
+    expect(((await locked.json()) as { error: string }).error).toBe("locked");
+    expect(d.relay.pairRec).toBeNull();
+    const p = await ready();
+    await p.unlock();
+    const again = await p.post({ action: "pair-code" });
+    expect(again.status).toBe(409);
+    expect(((await again.json()) as { error: string }).error).toBe("paired");
+  });
+
+  it("the wipe on the Mac unpairs on the site too", async () => {
+    const d = await ready();
+    await d.unlock();
+    await d.send();
+    expect((await d.hub("POST", "?view=unpair", {})).status).toBe(200);
+    expect(d.relay.hubRec).toBeNull();
+    expect(d.relay.statusRec?.hub).toBe("wiped");
+    expect((await d.hub("GET", "?view=requests")).status).toBe(401);
+    const listed = await d.listed();
+    expect(listed.texts).toEqual([]);
+    expect(listed.requests).toEqual([]);
   });
 
   it("reads codes the way people type them", () => {
@@ -483,6 +516,32 @@ describe("model calls through the site (no key on the Mac)", () => {
     expect(relayBudget(undefined)).toBe(10);
   });
 
+  it("never overrun the cap when calls race at its edge: the reservation is written before the call", async () => {
+    const d = await ready();
+    const month = new Date(NOW).toISOString().slice(0, 7);
+    await d.spend.save({ [month]: { usd: 10 - CEILING[SORT_MODEL] * 1.5, calls: 100, tokensIn: 0, tokensOut: 0 } }, null);
+    const answers = await Promise.all(Array.from({ length: 4 }, async () => (await d.hub("POST", "?view=sort", sortBody)).json() as Promise<{ ok: boolean; paused?: boolean }>));
+    expect(answers.filter((a) => a.ok).length).toBe(1);
+    expect(answers.filter((a) => a.paused).length).toBe(3);
+    expect(d.calls.length).toBe(1);
+    expect(((await d.spend.load()).ledger as Ledger)[month]!.usd).toBeLessThanOrEqual(10);
+  });
+
+  it("release the reservation when the call fails, and fail closed when the ledger can't be read", async () => {
+    const d = await ready();
+    const deps = d.deps();
+    const failing = { ...deps, claude: async () => Promise.reject(new Error("down")) };
+    const res = await POST(new Request(`${ORIGIN}${HUB_PATH}?view=sort`, { method: "POST", headers: { Authorization: `Bearer ${d.hubToken}`, "Content-Type": "application/json" }, body: JSON.stringify(sortBody) }), failing);
+    expect(res.status).toBe(502);
+    const m = Object.values((await d.spend.load()).ledger!)[0]!;
+    expect(m.usd).toBe(0);
+    expect(m.calls).toBe(0);
+    d.spend.json = "not json";
+    d.spend.ver = 9;
+    await expect(d.spend.load()).rejects.toThrow();
+    expect(await (await d.hub("POST", "?view=sort", sortBody)).json()).toEqual({ ok: false, paused: true });
+  });
+
   it("record what each call cost", async () => {
     const d = await ready();
     await d.hub("POST", "?view=sort", sortBody);
@@ -512,6 +571,15 @@ describe("the site gate lets the hub through on its token alone", () => {
       expect(decide(at(path, method, token), c), `${method} ${path}`).toEqual({ allow: true, why: "relay-hub" });
     }
     expect(decide(at("/api/relay-pair", "POST"), c)).toEqual({ allow: true, why: "relay-pair" });
+    expect(decide(at("/api/relay-hub?view=unpair", "POST", token), c)).toEqual({ allow: true, why: "relay-hub" });
+  });
+
+  it("opens the public counts, GET /api/relay?view=status, and nothing else of /api/relay", async () => {
+    const c = await gateCtx();
+    expect(decide(at("/api/relay?view=status", "GET"), c)).toEqual({ allow: true, why: "relay-status" });
+    for (const [path, method] of [["/api/relay", "GET"], ["/api/relay?view=status&x=1", "GET"], ["/api/relay?view=status", "POST"], ["/api/relay?view=texts", "GET"], ["/api/relay-hub?view=status", "GET"]] as const) {
+      expect(decide(at(path, method), c).allow, `${method} ${path}`).toBe(false);
+    }
   });
 
   it("opens nothing else: other views, other routes, another key's token, no token", async () => {

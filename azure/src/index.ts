@@ -100,9 +100,11 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["foundry", foundry],
   // The subminds' room events (#281, docs/SKIPPY.md "Room keys"): POST with the feed key only; GET full for a Desk
   // session or the read key, scrubbed titles for the Lattice. Azure only: both keys live only in this Key Vault.
-  // Relay's texts line (#535, docs/RELAY-PRIVACY.md): ?view=status is the public counts; the rest needs the passkey
-  // session. relay-pair is the installer's one-time code trade; relay-hub takes the Mac hub's counts (its own token).
-  // Names, drafts and approvals never come here: the Desk talks to the hub straight over localhost or the tailnet.
+  // Relay's texts line (#535, docs/RELAY-PRIVACY.md): relay ?view=status is the public counts; the rest of relay is
+  // the Desk's Texts panel (passkey session: the sealed list, send requests with the device's unlock). relay-pair is
+  // the installer's one-time code trade. relay-hub is the Mac hub's own calls on its paired token: its counts, its
+  // sealed list, its model snippets (Claude with this Key Vault's key), its poll for requests, and the wipe's unpair.
+  // The hub only calls out; nothing here calls the Mac.
   ["relay", relay],
   ["relay-pair", relay],
   ["relay-hub", relay],

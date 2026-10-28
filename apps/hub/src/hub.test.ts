@@ -1,7 +1,7 @@
 import { request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import type { DraftInput, SortInput } from "../../../api/_relay/models.ts";
+import { CAPS, readDraftInput, readSortInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
 import type { RequestResult, TextRequest, TextsView } from "../../../api/_relay/texts.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { BlueBubbles, Contact, Message } from "./bluebubbles.ts";
@@ -80,6 +80,9 @@ class FakeSite implements Site {
   async skipTerms() {
     return ["Private Person"];
   }
+  async unpair() {
+    return true;
+  }
 }
 
 const setup = () => {
@@ -130,6 +133,7 @@ describe("rules settle on the Mac", () => {
     expect(settleByRule({ handle: "72345", names: [], text: "Alert" }, [])).toBe("short-code");
     expect(settleByRule({ handle: "+15555550123", names: [], text: "20% off today, reply STOP to opt out" }, [])).toBe("promo");
     expect(settleByRule({ handle: "+15555550123", names: ["Private Person"], text: "hey" }, ["private person"])).toBe("skip");
+    expect(settleByRule({ handle: "+15555550123", names: [], text: "The court date for the settlement moved to Friday" }, [])).toBe("money");
     expect(settleByRule({ handle: "+15555550123", names: ["Riley Test"], text: "Dinner Saturday?" }, [])).toBeNull();
   });
 });
@@ -246,6 +250,98 @@ describe("the engine", () => {
     const s = h.store.load();
     expect(s.seen).toEqual([]);
     expect(s.threads).toEqual([]);
+  });
+});
+
+describe("the rules reach every model call (#541 review)", () => {
+  const GROUP = "iMessage;+;chat000000000000000001";
+  const inGroup = (text: string, handle: string, at: number) => ({ chat: GROUP, group: true, groupName: "Test group", message: { text, fromMe: false, at, handle } });
+
+  it("a group with a money or legal text gets no call", async () => {
+    const h = setup();
+    await h.engine.refreshSkipTerms(true);
+    h.bb.history = [{ text: "Who's driving Sunday?", fromMe: false, at: NOW - 2_000, handle: HANDLE }, { text: "The court date for the settlement moved", fromMe: false, at: NOW - 1_000, handle: "+15555550199" }];
+    await h.engine.onMessage(inGroup(h.bb.history[1]!.text, "+15555550199", NOW - 1_000));
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    expect(h.site.sorts).toEqual([]);
+  });
+
+  it("a group with a skip-listed member gets no call", async () => {
+    const h = setup();
+    await h.engine.refreshSkipTerms(true);
+    h.bb.contacts = async () => [CONTACT, { names: ["Private Person"], handles: ["+15555550111"] }];
+    h.bb.history = [{ text: "See you all Sunday", fromMe: false, at: NOW - 1_000, handle: "+15555550111" }];
+    await h.engine.onMessage(inGroup("See you all Sunday", "+15555550111", NOW - 1_000));
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    expect(h.site.sorts).toEqual([]);
+  });
+
+  it("an owed thread that then gets a money text is settled, with no call and no draft", async () => {
+    const h = await owedWithDraft();
+    const calls = h.site.sorts.length + h.site.drafts.length;
+    const money = text("Also the court settlement papers came", h.now() + 1_000);
+    h.bb.history.push(money);
+    await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: money });
+    h.at(h.now() + SETTLE_MS + 2_000);
+    await h.engine.work();
+    const t = h.store.load().threads[0]!;
+    expect(t.state).toBe("settled");
+    expect(t.draft).toBeNull();
+    expect(h.site.sorts.length + h.site.drafts.length).toBe(calls);
+  });
+
+  it("a long thread is trimmed on the Mac to what the site accepts", async () => {
+    const h = setup();
+    h.bb.history = [text("ok", NOW - 100 * 60_000, true), ...Array.from({ length: 40 }, (_, i) => text(`Message ${i} `.repeat(30), NOW - (40 - i) * 60_000))];
+    await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history.at(-1)! });
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    const sort = h.site.sorts[0]!;
+    const draft = h.site.drafts[0]!;
+    expect(sort.lines.length).toBeLessThanOrEqual(CAPS.sortMessages);
+    expect(sort.lines.reduce((a, l) => a + l.text.length, 0)).toBeLessThanOrEqual(CAPS.sortChars);
+    expect(draft.lines.length).toBeLessThanOrEqual(CAPS.draftEarlier + CAPS.sortMessages);
+    expect(draft.lines.reduce((a, l) => a + l.text.length, 0)).toBeLessThanOrEqual(CAPS.draftChars);
+    expect(readSortInput(JSON.parse(JSON.stringify(sort)))).not.toBeNull();
+    expect(readDraftInput(JSON.parse(JSON.stringify(draft)))).not.toBeNull();
+    expect(h.store.load().threads[0]!.draft).not.toBeNull();
+  });
+
+  it("a busy group is trimmed too", async () => {
+    const h = setup();
+    const GROUPCHAT = "iMessage;+;chat000000000000000002";
+    h.bb.history = Array.from({ length: 60 }, (_, i) => ({ text: `Plan ${i} `.repeat(20), fromMe: false, at: NOW - (60 - i) * 60_000, handle: i % 2 ? HANDLE : "+15555550199" }));
+    h.site.sortAnswer = { summary: "Planning a trip.", asked: false };
+    await h.engine.onMessage({ chat: GROUPCHAT, group: true, groupName: "Test group", message: h.bb.history.at(-1)! });
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    const sort = h.site.sorts[0]!;
+    expect(sort.lines.length).toBeLessThanOrEqual(CAPS.groupMessages);
+    expect(readSortInput(JSON.parse(JSON.stringify(sort)))).not.toBeNull();
+  });
+
+  it("after a send that timed out but went, a resend is refused", async () => {
+    const h = await owedWithDraft();
+    h.bb.send = async () => {
+      throw Object.assign(new Error("timeout"), { name: "TimeoutError" });
+    };
+    const first = req({ thread: h.thread.id, draftAt: h.thread.draft!.at });
+    h.site.waiting = [first];
+    await h.engine.act();
+    expect(h.site.reported.at(-1)!.result).toBe("failed");
+    // It did go: Messages shows Nikita's reply, newer than the last message in.
+    h.bb.history.push(text("On my way", h.now() + 500, true));
+    h.bb.send = async (chat, body) => {
+      h.bb.sent.push({ chat, text: body });
+      return true;
+    };
+    h.site.waiting = [req({ rid: "9".repeat(24), thread: h.thread.id, draftAt: h.thread.draft!.at })];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([]);
+    expect(h.site.reported.at(-1)!.result).toBe("refused");
+    expect(h.store.load().threads[0]!.state).toBe("replied");
   });
 });
 

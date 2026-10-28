@@ -4,8 +4,11 @@
  * Skippy's and the Kernel's. It mirrors the email agent's (api/_email/budget.ts) and prices each call from the same one
  * table (Haiku 5.5 sorts, Sonnet 5.5 drafts).
  *
- * The hard stop: a call goes out only while this month's spend plus that call at its most stays within the cap
- * (RELAY_BUDGET_USD, $10 by default, never more than $10). Past it, /api/relay-hub answers "paused": the hub keeps
+ * The hard stop: a call goes out only once its worst case is reserved on the ledger, in a conditional write over the
+ * version read, while this month's spend plus that reservation stays within the cap (RELAY_BUDGET_USD, $10 by
+ * default, never more than $10). Two calls racing at the edge can't both fit: the second write loses, reads again and
+ * finds no room. After the call the reservation is settled to what it really cost (or released if the call failed);
+ * if that write never lands, the larger reservation stays, so the ledger fails closed. Past it, /api/relay-hub answers "paused": the hub keeps
  * counting texts as owed, without a sort or a draft, and the Desk says the texts cap is reached until the month
  * (UTC) turns. An unreadable ledger also stops the calls. The ledger holds dollars, calls and token counts only.
  *
@@ -120,5 +123,41 @@ export async function recordSpend(store: SpendStore, model: RelayModel, usage: U
   for (let i = 0; i < 4; i++) {
     const { ledger, version } = await store.load();
     if (await store.save(addSpend(ledger ?? {}, model, usage, now), version)) return;
+  }
+}
+
+const keepYear = (ledger: Ledger, now: number): Ledger => {
+  const out: Ledger = {};
+  for (const [k, v] of Object.entries(ledger)) if (k >= monthOf(now - 365 * 86_400_000)) out[k] = v;
+  return out;
+};
+
+/**
+ * Reserves one call's worst case before it goes out. True only when it fits under the cap and the reservation was
+ * written over the version read; false (no call) when it doesn't fit, the ledger can't be read, or the write keeps
+ * losing races.
+ */
+export async function reserveSpend(store: SpendStore, model: RelayModel, budget: number, now: number): Promise<boolean> {
+  for (let i = 0; i < 6; i++) {
+    const { ledger, version } = await store.load();
+    if (!ledger || !canSpend(ledger, model, budget, now)) return false;
+    const m = monthSpend(ledger, now);
+    const next = { ...keepYear(ledger, now), [monthOf(now)]: { ...m, usd: m.usd + CEILING[model], calls: m.calls + 1 } };
+    if (await store.save(next, version)) return true;
+  }
+  return false;
+}
+
+/** Turns a reservation into the call's real cost (usage), or releases it (null: the call failed and cost nothing). */
+export async function settleSpend(store: SpendStore, model: RelayModel, usage: Usage | null, now: number): Promise<void> {
+  for (let i = 0; i < 6; i++) {
+    const { ledger, version } = await store.load();
+    if (!ledger) return;
+    const m = monthSpend(ledger, now);
+    const delta = (usage ? costFor(model, usage) : 0) - CEILING[model];
+    const month = usage
+      ? { usd: Math.max(0, m.usd + delta), calls: m.calls, tokensIn: m.tokensIn + usage.input_tokens, tokensOut: m.tokensOut + usage.output_tokens }
+      : { ...m, usd: Math.max(0, m.usd + delta), calls: Math.max(0, m.calls - 1) };
+    if (await store.save({ ...keepYear(ledger, now), [monthOf(now)]: month }, version)) return;
   }
 }

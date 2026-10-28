@@ -40,9 +40,10 @@ export function requestWords(r: Pick<TextRequestView, "kind" | "state">): { text
     case "expired":
       return { text: "Not sent, Mac was offline", resend: true, warn: true };
     case "failed":
-      return { text: "Not sent: Messages didn't take it", resend: true, warn: true };
+      // A timeout can't tell us it didn't go. Resend is safe: the Mac refuses it if Messages shows the reply went.
+      return { text: "Not confirmed: it may have sent. Check Messages before you resend", resend: true, warn: true };
     case "refused":
-      return { text: "Not sent: the Mac refused this request (the draft changed, or it was too late)", resend: false, warn: true };
+      return { text: "Not sent: the Mac refused this request (already answered, the draft changed, or it was too late)", resend: false, warn: true };
     default:
       return null;
   }
@@ -69,10 +70,11 @@ function CopyLine({ text }: { text: string }) {
   );
 }
 
-function Pairing({ now }: { now: number }) {
+function Pairing({ now, unlocked }: { now: number; unlocked: boolean }) {
   const code = useTexts((s) => s.code);
   const busy = useTexts((s) => s.busy);
   const pairCode = useTexts((s) => s.pairCode);
+  const unlock = useTexts((s) => s.unlock);
   const live = code && code.until > now ? code : null;
   return (
     <div className="tx-pair">
@@ -88,9 +90,14 @@ function Pairing({ now }: { now: number }) {
             <>
               <b className="tx-code fl-num">{live.code}</b> <small>good for {formatWait(live.until - now)} more, once</small>
             </>
-          ) : (
+          ) : unlocked ? (
             <button type="button" className="fl-btn" disabled={busy === "pair"} onClick={() => void pairCode()}>
               Show a pair code
+            </button>
+          ) : (
+            // A paired Mac can push the list and poll for sends, so a code needs this device's send unlock first.
+            <button type="button" className="fl-btn" disabled={busy === "unlock"} onClick={() => void unlock()}>
+              Unlock with your passkey to show a code
             </button>
           )}
         </li>
@@ -258,7 +265,7 @@ export function TextsSection({ now }: { now: number }) {
           {error && <p className="tx-req" data-warn="">{error}</p>}
           {!view.paired ? (
             view.ready ? (
-              <Pairing now={now} />
+              <Pairing now={now} unlocked={unlocked} />
             ) : (
               <p className="tx-note">Texts aren't set up on this copy yet.</p>
             )

@@ -67,7 +67,8 @@ The parts:
 
 ### Mac to the model, through the site
 
-The hub never calls a model. It builds one snippet at a time, sends it to `POST /api/relay-hub?view=sort|draft` over
+The hub never calls a model. It builds one snippet at a time, **trimmed on the Mac to the caps below** (and read and
+trimmed again on the site), sends it to `POST /api/relay-hub?view=sort|draft` over
 its paired token, and gets back only the model's checked answer. The site function reads the snippet again against a
 closed shape (`readSortInput`, `readDraftInput` in `api/_relay/models.ts`), trims it to the caps below, builds the one
 Messages API request (`sortRequest`, `draftRequest`), calls Claude with the Key Vault key, checks the answer, adds the
@@ -96,14 +97,20 @@ cost (tokens and dollars) is kept.
 - **Never sent at all:** settled on the Mac by rule, without a model (`apps/hub/src/rules.ts`): verification and
   one-time-code messages, short-code senders, promos, money and legal texts (the email line's own pre-filter), and
   contacts on the private skip list (the email line's `EMAIL_SKIP_TERMS`, fetched over the paired token and held in
-  memory only), which are counted, never read by a model. The skip list is checked again over the whole unanswered
-  run just before a call. Also never sent: attachments and images, and anything older than the windows above.
+  memory only), which are counted, never read by a model. Every rule applies to one-to-one threads and group chats
+  alike. A rule-matching message settles a thread even when it was already owed (its draft goes). Just before any
+  call, every rule runs again over every message the call would carry, each with its own sender (in a group, each
+  member's name and handle). One match and there is no call, and a group loses its summary. Also never sent:
+  attachments and images, and anything older than the windows above.
 - **How the calls are made.** The Messages API with only `model`, `max_tokens`, `system`, `messages`, `thinking` and
   `output_config` (a closed JSON schema). No tools, no `metadata`, no prompt caching, no Files, no Batch. The texts
   line has its own monthly budget, **$10 by default and never more** (`RELAY_BUDGET_USD` can only lower it), on its
-  own ledger (`relay/spend.json`), apart from email's. The function checks the month's spend plus the call's
-  worst-case cost before each call and stops hard at the cap: the hub is told it is paused for models and reports
-  `models: "down"`. Anthropic doesn't train on API data. It keeps API inputs and outputs for a limited time under its
+  own ledger (`relay/spend.json`), apart from email's. Before each call the function **reserves** the call's
+  worst-case cost on the ledger in a conditional write over the version it read, and only if this month's spend plus
+  that reservation stays within the cap. Two calls racing at the edge can't both get in: the losing write reads again
+  and finds no room. After the call the reservation is settled to the real cost, or released if the call failed. If
+  that write never lands, the larger reservation stays (fail closed). An unreadable ledger stops the calls. Past the
+  cap the hub is told it is paused for models and reports `models: "down"`. Anthropic doesn't train on API data. It keeps API inputs and outputs for a limited time under its
   retention policy (30 days at the time of writing, longer only for traffic flagged for a usage-policy breach),
   unless zero data retention is arranged. That copy is the residual risk on this boundary, and the placeholders limit
   it.
@@ -127,14 +134,16 @@ The hub makes only these calls, all outbound to `https://ceo.nikita.page`, all w
 | `GET /api/relay-hub?view=requests` | Nothing; it gets the Desk's waiting requests | The send path, below |
 | `POST /api/relay-hub?view=results` | Per request it took: its id and `sent`, `done`, `failed` or `refused` | Taken requests only |
 | `GET /api/relay-hub?view=skip` | Nothing; it gets the skip list's terms | |
+| `POST /api/relay-hub?view=unpair` | Nothing; the wipe (`relay wipe`): the site forgets this pairing, the list and the requests | |
 | `POST /api/relay-pair` | Once, at install: the pair code | Below |
 
 The list never holds a message body: the gist and summary are the models' own words about the thread, and the draft is
 Blasto's. It never holds a phone number, email address or Messages chat id either. A name is the contact's name as
 Nikita's contacts have it, "Unknown sender", or a group's name.
 
-**The pairing.** The Desk makes a one-time code (8 characters from a 32-letter alphabet, 10 minutes, 5 wrong tries;
-the site keeps only its hash). The installer trades it once at `POST /api/relay-pair`, which refuses anything with an
+**The pairing.** The Desk makes a one-time code only with this device's send unlock (below), since a paired Mac can
+push the list and poll for sends, and never while a Mac is paired (Unpair first). The code is 8 characters from a 32-letter alphabet, good 10 minutes and 5 wrong tries;
+the site keeps only its hash. The installer trades it once at `POST /api/relay-pair`, which refuses anything with an
 `Origin` header, so a web page can't pair. The answer is the hub token (`rh1.<pairing id>.<HMAC>`, signed with a key
 derived from the Desk key) and the send key. Both go straight into the Mac's Keychain. The site keeps only the
 pairing's id and the token's hash. A new pairing clears the sealed list. **Unpair** on the Desk forgets the pairing,
@@ -142,7 +151,9 @@ so the token stops working at once, and clears the list and the requests.
 
 **The site gate** lets the hub's own calls through on its token alone (`isRelayHub` in `api/_site/gate.ts`): exactly
 the methods and views above, with a token this Desk key signed. The route then checks the token's hash against the
-pairing on record. `POST /api/relay-pair`, with no query, is the gate's other exemption; the pair code is its lock.
+pairing on record. `POST /api/relay-pair`, with no query, is another exemption; the pair code is its lock. And
+`GET /api/relay?view=status`, exactly, is open behind the site lock: it is the public counts (below), which `relay
+status` and `relay wipe --verify` on the Mac read.
 
 **The public status.** The Lattice and the Desk's public pages see `RelayStatus` in `packages/core/src/relay.ts`, and
 nothing else:
@@ -197,11 +208,15 @@ the pairing, the sealed list and the requests. It never talks to the Mac.
 3. **The hub polls** every 15 seconds. Each waiting, unexpired request is handed out once and marked taken in the same
    conditional write, so a second poll never gets it. The hub checks the signature, the 10 minutes, that it has never
    seen the id (it records the id before acting), and the thread and draft again on its own list. Only then does it
+   asks BlueBubbles for the thread's latest messages: a reply of Nikita's newer than the last message in means it was
+   already answered (a send that timed out but went, or a reply from the phone), and it refuses. Only then does it
    send through BlueBubbles, and it reports `sent` or `failed`. Anything else is `refused`. `act` is the only code in
    the hub that sends.
 4. **Not taken in 10 minutes** (the Mac was offline): the request is `expired`, never sent late. The Desk says "Not
    sent, Mac was offline" with **Resend**, which makes a new request (steps 2 and 3 again, the unlock still needed). A
-   request taken but never answered shows `failed` 5 minutes after its end, with Resend too.
+   `failed` send (BlueBubbles didn't confirm it, or the hub never answered within 5 minutes of the end) says "Not
+   confirmed: it may have sent. Check Messages before you resend", with Resend; the check in step 3 refuses a resend
+   once Messages shows the reply went.
 
 "Later", "Done" and "Put it in my style" are requests the same way (single-use, 10 minutes, signed). They need the
 session but not the send unlock, because none of them can send. "Say it" uses the browser's own speech recognition:
@@ -217,7 +232,9 @@ it in my style".
   email address, e.g. `iMessage;-;+1555…`), Relay's thread ids, drafts, summaries, dictation, prompts, model answers,
   request or response bodies, headers, Keychain values, error messages.
 - No core dumps (the `launchd` job sets the core limit to zero). No third-party telemetry or error reporting.
-  `launchd` writes stdout and stderr into the same 0600 folder, so a stray `console.log` follows the same retention.
+  An uncaught error or rejection is logged by class only and the hub exits (launchd restarts it), so no stack trace
+  is printed. `launchd` writes stdout and stderr into `launchd.log` in the same 0600 folder, which the hub empties
+  once a day.
 - **The site** logs nothing in the Relay routes. Azure's own request log has the path and status code of each call,
   never a body.
 
@@ -232,7 +249,7 @@ it in my style".
 | Seen request ids | 24 hours | Hourly sweep |
 | Style examples and profile | One call | Never written down |
 | Daily counts | 7 days | Hourly sweep |
-| Logs on the Mac | 14 days | Daily |
+| Logs on the Mac | 14 days; `launchd.log` a day | Daily |
 | The site's public status | The latest only | Replaced on each push; reset by Unpair and the wipe |
 | The site's sealed list | Replaced on each push (on every change, and at least every 5 minutes); items 7 days at most | The next push, `readTextsView`, Unpair, the wipe |
 | Requests on the site | A day after their 10 minutes end | Dropped on each read and write |
@@ -247,8 +264,8 @@ request, stops the nudges, and reports `hub: "paused"`. Data stays until it ages
 **Wipe.** `relay wipe` on the Mac (and only there, so a stolen session can't use it) asks to confirm, then:
 
 1. Pauses as above.
-2. Sends a final status with `hub: "wiped"` and every count at zero, and an empty list, so the site keeps nothing of
-   the old one.
+2. Sends a final status with `hub: "wiped"` and every count at zero, then unpairs on the site
+   (`?view=unpair`): the hub's token stops working, and the list and the requests go.
 3. Unloads and deletes the `launchd` job.
 4. Removes BlueBubbles' webhook to the hub, then deletes Relay's four Keychain items (the BlueBubbles password, the
    hub token, the send key, the local key).
@@ -257,8 +274,8 @@ request, stops the nudges, and reports `hub: "paused"`. Data stays until it ages
 
 It doesn't touch Messages: those are Nikita's messages, and Relay never owned them. It doesn't remove BlueBubbles;
 `relay wipe --all` also quits BlueBubbles and deletes its folder. The wipe ends by naming what only Nikita can do:
-**Unpair on the Desk** (it forgets the hub's token and the sealed list on the site), and, after `--all`, turn
-BlueBubbles off in System Settings › Privacy & Security.
+**Unpair on the Desk** if the Mac couldn't reach the site (it forgets the hub's token and the sealed list), and,
+after `--all`, turn BlueBubbles off in System Settings › Privacy & Security.
 
 **Checking it worked.** `relay wipe --verify` (also run at the end of every wipe) checks each of these and prints pass
 or fail: Relay's two folders don't exist; `security find-generic-password -s "CEO Relay"` finds nothing; `launchctl`
@@ -272,8 +289,12 @@ reads `wiped`. Time Machine never held Relay's folder, because it is excluded fr
 - **The hub listens on `127.0.0.1:7420` only**, never `0.0.0.0`, and only for BlueBubbles' webhook and the `relay`
   command's own control calls. Each needs the local key (a random value in the Keychain; the webhook's URL carries
   it, so BlueBubbles' own settings hold a copy). The listener refuses any request with an `Origin` header, so a web
-  page in a browser on the Mac can't reach it, and it sends no CORS headers. BlueBubbles also listens locally, with
-  its proxy service set to none (no Cloudflare, ngrok or zrok tunnel) and no Firebase or Google sign-in.
+  page in a browser on the Mac can't reach it, and it sends no CORS headers. BlueBubbles' proxy service is set to
+  none (no Cloudflare, ngrok or zrok tunnel), with no Firebase or Google sign-in. BlueBubbles must not be reachable
+  from the network. The installer and `relay status` check that it listens on `127.0.0.1` only, or that the macOS
+  firewall is on and blocks incoming connections to it. If neither holds, they warn and say which setting closes
+  it, and the installer stops unless Nikita carries on. The firewall doesn't filter the Mac's own loopback, so the
+  hub still reaches BlueBubbles.
 - **No inbound path from the internet or a browser to the Mac.** No Tailscale, no tunnel, no port forward. The Desk
   reaches the Mac only through requests the hub polls for.
 - **Keychain.** The four secrets are generic passwords in the login Keychain under the service "CEO Relay". They are
@@ -281,8 +302,10 @@ reads `wiped`. Time Machine never held Relay's folder, because it is excluded fr
   program running as Nikita can ask `security` for them. Never in the `launchd` plist, an environment file, the repo
   or a log.
 - **The installer** downloads Node from nodejs.org and checks it against nodejs.org's published SHA-256 list. It
-  downloads the hub from the site and checks it against the site's published SHA-256. It asks only for the
-  BlueBubbles password and the pair code, read from the Terminal, never echoed.
+  downloads the hub from the site and checks it against the SHA-256 the site's build stamped into the installer
+  itself. It writes the `relay` command from its own functions and downloads nothing twice. **These checks guard
+  against a broken or swapped download only, not against the site itself: nothing is signed for now.** It asks only
+  for the BlueBubbles password and the pair code, read from the Terminal, never echoed.
 - **The Mac.** FileVault stays on (DELIVERY.md, "Environments"), and the Mac locks itself.
 
 ## What a breach of each store would expose
@@ -292,7 +315,7 @@ reads `wiped`. Time Machine never held Relay's folder, because it is excluded fr
 | The Mac itself, unlocked | Everything in Messages, not only Relay | FileVault and the lock screen; the biggest risk, and not Relay's to fix |
 | Relay's state file | Who Nikita owes and since when (by chat id), gists, drafts and group summaries from the last few days | No message bodies; short retention; 0600; no backups |
 | Logs | When Relay was busy | No content by rule and by test |
-| The Keychain items | With the hub token and send key: the right to push a list, poll requests and spend on the model calls up to the cap (not to make send requests); with the local key: the local webhook; with the BlueBubbles password: BlueBubbles itself | Unpair kills the token; the $10 cap; send requests are made only on the Desk |
+| The Keychain items | With the hub token and send key: the right to push a list, poll requests and spend on the model calls up to the cap (not to make send requests); with the local key: the local webhook; with the BlueBubbles password: BlueBubbles itself | The hub token never expires on its own: it works until Unpair or `relay wipe`. The $10 cap; send requests are made only on the Desk |
 | BlueBubbles | Everything in Messages, and sending as Nikita | Local only, no tunnel, its own password |
 | The site's sealed list | Names, gists, drafts and the requests' text from the last week, for whoever holds both the Azure store and `GMAIL_TOKEN_KEY` | Sealed; 7 days; no message bodies; no numbers |
 | A Desk session | The list, and with this device's unlock, send requests for drafts already on it, for 72 hours | Passkey sign-in; the unlock is per device and per passkey; one thread, one draft, 10 minutes; Lock and Unpair |
@@ -306,8 +329,9 @@ Run by `npm test`:
 - **`packages/core/src/relay.test.ts`** holds the public status to counts only: message text, names, numbers, keys
   and chat ids in every field and as extra keys never pass. It walks the schema and pins its keys.
 - **`api/_relay/relay.test.ts`** covers:
-  - the pairing: one use, 5 tries, 10 minutes, no `Origin`, Unpair;
-  - the hub token, and the gate opening exactly the hub's calls;
+  - the pairing: one use, 5 tries, 10 minutes, no `Origin`, needs the send unlock, never replaces a paired Mac,
+    Unpair, and the wipe's unpair;
+  - the hub token, the gate opening exactly the hub's calls, and the public status alone of `/api/relay`;
   - a refused status stores nothing, and a list with anything extra or older than 7 days is refused;
   - the sealed store holds no name or draft in the clear, and another key can't open it;
   - the send unlock: needed, fresh, single-use, 2 minutes, HttpOnly and Strict, 72 hours and not a minute more,
@@ -315,10 +339,14 @@ Run by `npm test`:
   - requests: single-use, signed over every field, 10 minutes then expired, Resend only for expired or failed and
     only with the unlock, bound to the thread and the draft, never a group, results only for taken requests;
   - model calls: no tools, metadata or caching, hostile answers refused, off-shape snippets refused before any call,
-    the caps, and the hard stop at $10 on its own ledger.
+    the caps, the hard stop at $10 on its own ledger, four calls racing at the cap's edge (one gets in), a failed
+    call's reservation released, and an unreadable ledger stopping the calls.
 - **`apps/hub/src/hub.test.ts`** covers:
   - placeholders swap whole names, name parts, numbers and addresses;
-  - the rules settle codes, short codes, promos and the skip list;
+  - the rules settle codes, short codes, promos, money and legal texts, and the skip list;
+  - a group with a money text or a skip-listed member, and an owed thread that then gets a money text, get no call;
+  - a 40-message thread and a 60-message group are trimmed on the Mac to what the site accepts;
+  - after a send that timed out but went, a resend is refused;
   - snippets to the site hold no names or numbers;
   - the skip list stops a call, and a hostile answer is refused;
   - nothing sends without a request, and a good request sends once;
@@ -330,7 +358,9 @@ Run by `npm test`:
   - the server binds `127.0.0.1` and refuses a missing key, a wrong key or an `Origin`.
 - **`apps/hub/src/install.test.ts`** runs `relay wipe` and `relay wipe --verify` on a made-up home folder with
   macOS's commands stubbed: every file, the job, the four Keychain items and the PATH line go, and the check passes.
-  It does nothing without "wipe" typed, and the check names what is left.
+  It does nothing without "wipe" typed, and the check names what is left. `relay status` warns when BlueBubbles is
+  open to the network. The hub's hash is stamped into the installer, the `relay` command is written from the
+  script's own functions (valid bash, no download), and the pair code is read hidden.
 - **`apps/hub/build.mjs`** fails the build if the hub's bundle contains the Anthropic SDK or an API-key header.
 - **`apps/world/src/desk/security/model.test.ts`** keeps the Desk's copy of THREAT-MODEL.md word for word, and
   **`api/_world/prompt.test.ts`** proves the world step never carries Relay-style messages or contacts.

@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { PLACEHOLDER, stampInstaller } from "../stamp.mjs";
 
 /**
  * `relay wipe` and `relay wipe --verify` (apps/hub/install.sh, docs/RELAY-PRIVACY.md, "The off switch and the full
@@ -11,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 const SCRIPT = join(import.meta.dirname, "..", "install.sh");
 
-const fixture = () => {
+const fixture = (lsof = "") => {
   const root = mkdtempSync(join(tmpdir(), "relay-wipe-"));
   const home = join(root, "home");
   const bin = join(root, "bin");
@@ -33,6 +34,7 @@ const fixture = () => {
   stub("nc", "exit 1");
   stub("osascript", "exit 0");
   stub("curl", `echo '{"ok":true,"status":{"hub":"wiped"}}'`);
+  stub("lsof", lsof ? `printf 'COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\\nBlueBubbles 1 u 1u IPv4 0 0t0 TCP %s (LISTEN)\\n' '${lsof}'` : "exit 1");
   const tty = join(root, "tty");
   writeFileSync(tty, "wipe\n");
   const run = (...args: string[]) => spawnSync("bash", [SCRIPT, ...args], { env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home, RELAY_TTY: tty }, encoding: "utf8" });
@@ -69,5 +71,54 @@ describe("relay wipe", () => {
     expect(out.status).not.toBe(0);
     expect(out.stdout).toContain("FAIL  Relay's folder is gone");
     expect(out.stdout).toContain("pass  nothing listens on port 7420");
+  });
+});
+
+describe("relay status checks BlueBubbles is closed to the network", () => {
+  it("says so when it listens on loopback only", () => {
+    const out = fixture("127.0.0.1:1234").run("status");
+    expect(out.stdout).toContain("BlueBubbles: closed to the network");
+  });
+
+  it("warns, and says which setting closes it, when it listens on every address", () => {
+    const out = fixture("*:1234").run("status");
+    expect(out.stdout).toContain("BlueBubbles: WARNING, open to the network");
+    expect(out.stdout).toContain("Block incoming connections");
+  });
+
+  it("says when BlueBubbles isn't running", () => {
+    expect(fixture().run("status").stdout).toContain("BlueBubbles: not running");
+  });
+});
+
+describe("the installer's integrity", () => {
+  const script = readFileSync(SCRIPT, "utf8");
+
+  it("checks the hub against a hash stamped into the script, and fetches nothing twice", () => {
+    expect(script.split(PLACEHOLDER).length).toBe(2);
+    expect(script).not.toMatch(/relay-hub\.mjs\.sha256"/);
+    expect(script).not.toMatch(/curl[^\n]*relay\/install\.sh"? -o/);
+    const sha = "a".repeat(64);
+    const stamped = stampInstaller(script, sha);
+    expect(stamped).toContain(`HUB_SHA256="${sha}"`);
+    expect(stamped).not.toContain("__HUB_SHA256__");
+    expect(() => stampInstaller(script, "nope")).toThrow();
+    expect(() => stampInstaller("no placeholder", sha)).toThrow();
+  });
+
+  it("writes the relay command from its own functions: valid bash, the same commands, no download", () => {
+    const f = fixture();
+    const out = f.run("print-command");
+    expect(out.status).toBe(0);
+    expect(out.stdout.startsWith("#!/bin/bash")).toBe(true);
+    expect(out.stdout).toContain('main "$@"');
+    expect(out.stdout).toContain("wipe_relay");
+    const check = spawnSync("bash", ["-n"], { input: out.stdout, encoding: "utf8" });
+    expect(check.status).toBe(0);
+  });
+
+  it("hides the pair code as it is typed", () => {
+    expect(script).toMatch(/ask_secret\(\) \{ local a; read -rs /);
+    expect(script).toMatch(/CODE="\$\(ask_secret /);
   });
 });

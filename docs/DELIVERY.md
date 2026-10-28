@@ -253,7 +253,8 @@ fixes what they find or explains why not on the pull request, and adds the resul
 **The Relay MacBook** holds the most sensitive data in C.E.O. (messages and contacts), so it never runs code the
 moment it lands on `main`. The site publishes the hub's one-file build at `/relay/relay-hub.mjs` with its SHA-256,
 and the Mac takes it only when Nikita runs the installer (`/relay/install.sh`) again: it downloads the file, checks
-the hash, and restarts the hub; on a mismatch it stays where it was. Nothing on the Mac updates by itself and nothing
+it against the hash the build stamped into the installer, and restarts the hub; on a mismatch it stays where it was.
+That check guards against a broken or swapped download only: the bundle isn't signed, so the site itself is trusted. Nothing on the Mac updates by itself and nothing
 can push to it. FileVault stays on. The public site never receives message text.
 
 ## 10. Who the agents are (the identity problem)

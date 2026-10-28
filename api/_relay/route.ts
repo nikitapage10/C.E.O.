@@ -9,7 +9,8 @@
  *                                 (names, Dialtone's gist, Blasto's drafts), the requests and whether this device's
  *                                 send unlock is on.
  *   POST /api/relay { action }
- *          "pair-code"        → { code, until }: a one-time code for the installer (10 minutes, 5 tries)
+ *          "pair-code"        → { code, until }: a one-time code for the installer (10 minutes, 5 tries); needs
+ *                                the send unlock, since a paired Mac can push the list and poll for sends
  *          "unpair"           → forgets the pairing (the hub's token stops working at once) and clears the list
  *          "unlock-options"   → a passkey request for this session's own passkey (2 minutes)
  *          "unlock", response → the fresh passkey answer: sets this device's send unlock (an HttpOnly cookie, 72 hours)
@@ -29,6 +30,7 @@
  *   GET  /api/relay-hub?view=requests  the Desk's waiting requests, each handed out once (then "taken")
  *   POST /api/relay-hub?view=results   what became of the requests it took
  *   GET  /api/relay-hub?view=skip      the private skip list's terms (EMAIL_SKIP_TERMS), memory only on the Mac
+ *   POST /api/relay-hub?view=unpair    the wipe: forgets this pairing, clears the list and the requests, shows "wiped"
  *
  * The send path (the part to review hardest). Nothing sends without Nikita's tap:
  *   1. Unlock, once per device: a fresh passkey answer (the device's own unlock, user verification required) to a
@@ -61,7 +63,7 @@ import { pickAuthStore, type AuthStore } from "../_desk/store.js";
 import { deliver, webPushSend } from "../desk-pings.js";
 import { skipTermsFrom } from "../_email/filter.js";
 import { pickBlob } from "../_blob.js";
-import { BlobSpendStore, canSpend, monthSpend, recordSpend, relayBudget, type SpendStore } from "./budget.js";
+import { BlobSpendStore, monthSpend, relayBudget, reserveSpend, settleSpend, type SpendStore } from "./budget.js";
 import { liveClaude } from "./claude.js";
 import { claudeProvider, DRAFT_MODEL, readDraftInput, readSortInput, SORT_MODEL, type ClaudeCall } from "./models.js";
 import { pickRelayStore, update, type PrivateState, type RelayStore, type RequestEntry } from "./store.js";
@@ -252,6 +254,10 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
   const action = body?.action;
 
   if (action === "pair-code") {
+    // Pairing hands a Mac the right to push the list and poll for sends, so it needs the send unlock, like a send.
+    if ((await unlockedUntil(request, deps.desk.deskKey, signed.passkey.id, deps.now)) === null) return json({ error: "locked" }, 401, keep);
+    // Never silently replaces a paired Mac: Unpair first.
+    if (await store.hub()) return json({ error: "paired" }, 409, keep);
     const code = mintPairCode();
     const until = deps.now + PAIR_CODE_MS;
     await store.savePair({ codeHash: sha256(code), until, tries: 0 });
@@ -394,7 +400,7 @@ async function pairHub(request: Request, deps: RelayRouteDeps): Promise<Response
 async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promise<Response> {
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
   const view = url.searchParams.get("view");
-  if ([...url.searchParams.keys()].length > 1 || (url.search && !["texts", "results", "sort", "draft"].includes(view ?? ""))) return json({ error: "bad-request" }, 400);
+  if ([...url.searchParams.keys()].length > 1 || (url.search && !["texts", "results", "sort", "draft", "unpair"].includes(view ?? ""))) return json({ error: "bad-request" }, 400);
   if (!(await hubOf(request, deps)) || !deps.store) return json({ error: "unauthorized" }, 401);
   const store = deps.store;
   const raw = await request.text().catch(() => "");
@@ -409,6 +415,15 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
     // Dialtone's nudge: once, when the nudge time the hub last reported has passed; a count, never in quiet hours.
     const s = read.status;
     if (before?.nextNudgeAt && before.nextNudgeAt <= s.at && s.owed > 0 && s.hub === "listening" && !isQuiet(deps.now)) await deps.ping(relayPing(s.owed)).catch(() => 0);
+    return json({ ok: true });
+  }
+
+  if (view === "unpair") {
+    // The wipe on the Mac (`relay wipe`): the hub forgets itself on the site too. Its token stops working, and the
+    // list and the requests go, as with Unpair on the Desk.
+    await store.saveHub(null);
+    await update(store, () => ({ next: { texts: null, requests: [] }, result: true }));
+    await store.saveStatus(emptyRelayStatus(deps.now, "wiped"));
     return json({ ok: true });
   }
 
@@ -437,26 +452,22 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
     return json({ ok: true });
   }
 
-  // A model call: the hub's placeholdered snippet, read again, trimmed, under the texts line's own cap.
+  // A model call: the hub's placeholdered snippet, read again, trimmed, under the texts line's own cap. The worst case
+  // is reserved on the ledger before the call (a conditional write), then settled to the real cost.
   if (!deps.claude || !deps.spend) return json({ error: "not-set-up" }, 503);
-  const model = view === "sort" ? SORT_MODEL : DRAFT_MODEL;
-  const { ledger } = await deps.spend.load().catch(() => ({ ledger: null }));
-  if (!ledger || !canSpend(ledger, model, deps.budget, deps.now)) return json({ ok: false, paused: true });
+  const spend = deps.spend;
+  const sortInput = view === "sort" ? readSortInput(body) : null;
+  const draftInput = view === "draft" ? readDraftInput(body) : null;
+  if (!sortInput && !draftInput) return json({ error: "bad-request" }, 400);
+  const model = sortInput ? SORT_MODEL : DRAFT_MODEL;
+  if (!(await reserveSpend(spend, model, deps.budget, deps.now).catch(() => false))) return json({ ok: false, paused: true });
   const provider = claudeProvider(deps.claude);
   try {
-    if (view === "sort") {
-      const input = readSortInput(body);
-      if (!input) return json({ error: "bad-request" }, 400);
-      const got = await provider.sort(input);
-      await recordSpend(deps.spend, got.model, got.usage, deps.now).catch(() => undefined);
-      return json({ ok: true, answer: got.answer });
-    }
-    const input = readDraftInput(body);
-    if (!input) return json({ error: "bad-request" }, 400);
-    const got = await provider.draft(input);
-    await recordSpend(deps.spend, got.model, got.usage, deps.now).catch(() => undefined);
+    const got = sortInput ? await provider.sort(sortInput) : await provider.draft(draftInput!);
+    await settleSpend(spend, model, got.usage, deps.now).catch(() => undefined);
     return json({ ok: true, answer: got.answer });
   } catch {
+    await settleSpend(spend, model, null, deps.now).catch(() => undefined);
     return json({ error: "model" }, 502);
   }
 }

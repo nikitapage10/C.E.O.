@@ -140,6 +140,7 @@ const ERRORS: Record<string, string> = {
   "bad-text": "The reply is empty or too long.",
   "no-resend": "That request can't be sent again.",
   "not-paired": "No Mac is paired yet.",
+  paired: "A Mac is already paired. Unpair it first to pair another.",
 };
 
 export const useTexts = create<TextsStore>((set, get) => ({
@@ -187,9 +188,9 @@ export const useTexts = create<TextsStore>((set, get) => ({
     set({ busy: "pair", error: null });
     try {
       const res = await post({ action: "pair-code" });
-      const got = isJson(res) ? ((await res.json()) as { code?: unknown; until?: unknown }) : {};
+      const got = isJson(res) ? ((await res.json()) as { code?: unknown; until?: unknown; error?: unknown }) : {};
       if (typeof got.code === "string" && isNum(got.until)) set({ code: { code: got.code, until: got.until } });
-      else set({ error: res.status === 503 ? "Texts aren't set up on this copy yet." : "Couldn't make a pair code." });
+      else set({ error: res.status === 503 ? "Texts aren't set up on this copy yet." : (typeof got.error === "string" && ERRORS[got.error]) || "Couldn't make a pair code." });
     } finally {
       set({ busy: null });
     }

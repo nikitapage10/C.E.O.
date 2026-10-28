@@ -14,6 +14,7 @@ import { SITE } from "./config.ts";
  *   requests  the Desk's waiting requests (each handed out once)
  *   results   what became of the ones it took
  *   skip      the private skip list's terms, held in memory only
+ *   unpair    the wipe: the site forgets this pairing (the token stops working), the list and the requests
  */
 
 export interface Site {
@@ -24,6 +25,8 @@ export interface Site {
   requests(): Promise<unknown[]>;
   results(results: { rid: string; result: RequestResult }[]): Promise<boolean>;
   skipTerms(): Promise<string[] | null>;
+  /** The wipe: the site forgets this pairing, its list and its requests. */
+  unpair(): Promise<boolean>;
 }
 
 const httpError = () => Object.assign(new Error("site"), { name: "HttpError" });
@@ -56,6 +59,7 @@ export function siteClient(token: string, fetcher: typeof fetch = fetch, base = 
       return Array.isArray(got.requests) ? got.requests : [];
     },
     results: async (results) => (await post("results", { results })).ok === true,
+    unpair: async () => (await post("unpair", {})).ok === true,
     skipTerms: async () => {
       try {
         const got = await get("skip");

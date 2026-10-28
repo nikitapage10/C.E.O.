@@ -33,12 +33,14 @@
  *                                             environment alone; api/_skippy/toolroute.ts checks it is kept and live
  *                                             (#281, api/_site/roomkeys.ts: each key opens only its own exact
  *                                             method, path and query; the handlers check the key again)
- *        POST /api/relay-hub (?view=texts|results|sort|draft), or GET ?view=skip|requests, + Authorization: Bearer
+ *        POST /api/relay-hub (?view=texts|results|sort|draft|unpair), or GET ?view=skip|requests, + Authorization: Bearer
  *                                             <a hub token>   Relay's Mac hub
  *                                             (#535): signed by this Desk key (api/_relay/tokens.ts), checked here with
  *                                             the environment alone; api/_relay/route.ts checks it is the pairing on record
  *        POST /api/relay-pair                 the Relay installer trading a one-time pair code (#535). The code is the
- *                                             key: 10 minutes, 5 tries, made only in a Desk session
+ *                                             key: 10 minutes, 5 tries, made only in a Desk session with the send unlock
+ *        GET /api/relay?view=status            Relay's public counts (#535: RelayStatus, counts and states only, public
+ *                                             by design), for `relay status` and `relay wipe --verify` on the Mac
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
  *   6. Anything else: an API route gets 401 { error: "site-locked" }; a page gets the login page, with 401.
  *
@@ -71,7 +73,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -142,7 +144,7 @@ function isVoiceTool(request: Request, pathname: string, env: Env, now: number):
 /** Relay's Mac hub (#535): its own calls on /api/relay-hub, with a hub token this Desk key signed. */
 function isRelayHub(request: Request, url: URL, env: Env): boolean {
   if (url.pathname !== "/api/relay-hub") return false;
-  const ok = request.method === "POST" ? ["", "?view=texts", "?view=results", "?view=sort", "?view=draft"].includes(url.search) : request.method === "GET" && ["?view=skip", "?view=requests"].includes(url.search);
+  const ok = request.method === "POST" ? ["", "?view=texts", "?view=results", "?view=sort", "?view=draft", "?view=unpair"].includes(url.search) : request.method === "GET" && ["?view=skip", "?view=requests"].includes(url.search);
   if (!ok) return false;
   const auth = request.headers.get("authorization") ?? "";
   return auth.startsWith("Bearer ") && hubTokenPair(auth.slice(7).trim(), env.FOUNDRY_DESK_KEY ?? "") !== null;
@@ -193,6 +195,7 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if (isVoiceTool(request, pathname, env, ctx.now)) return { allow: true, why: "voice-tool" };
   if (isRelayHub(request, url, env)) return { allow: true, why: "relay-hub" };
   if (request.method === "POST" && pathname === "/api/relay-pair" && url.search === "") return { allow: true, why: "relay-pair" };
+  if (request.method === "GET" && pathname === "/api/relay" && url.search === "?view=status") return { allow: true, why: "relay-status" };
   const room = roomKeyPass(request, env);
   if (room) return { allow: true, why: room };
   // The passkey works only where the Desk key is set; without it, the login page says signing in isn't set up.

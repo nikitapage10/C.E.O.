@@ -99,8 +99,10 @@ cost (tokens and dollars) is kept.
   contacts on the private skip list (the email line's `EMAIL_SKIP_TERMS`, fetched over the paired token and held in
   memory only), which are counted, never read by a model. Every rule applies to one-to-one threads and group chats
   alike. A rule-matching message settles a thread even when it was already owed (its draft goes). Just before any
-  call, every rule runs again over every message the call would carry, each with its own sender (in a group, each
-  member's name and handle). One match and there is no call, and a group loses its summary. Also never sent:
+  call, every rule runs again over every message the call would carry, both sides, each with its own sender (in a
+  group, each member's name and handle), including the earlier turns a draft sees from before Nikita's last reply.
+  One match and there is no call (the thread settles, a group loses its summary). A past reply of Nikita's that
+  matches a rule is left out of the style examples. Also never sent:
   attachments and images, and anything older than the windows above.
 - **How the calls are made.** The Messages API with only `model`, `max_tokens`, `system`, `messages`, `thinking` and
   `output_config` (a closed JSON schema). No tools, no `metadata`, no prompt caching, no Files, no Batch. The texts
@@ -108,7 +110,8 @@ cost (tokens and dollars) is kept.
   own ledger (`relay/spend.json`), apart from email's. Before each call the function **reserves** the call's
   worst-case cost on the ledger in a conditional write over the version it read, and only if this month's spend plus
   that reservation stays within the cap. Two calls racing at the edge can't both get in: the losing write reads again
-  and finds no room. After the call the reservation is settled to the real cost, or released if the call failed. If
+  and finds no room. After the call the reservation is settled to the real cost, or released if Anthropic refused the call with an error status. A timeout or a dropped
+  connection may still have been billed, so its reservation stays at the worst case. If
   that write never lands, the larger reservation stays (fail closed). An unreadable ledger stops the calls. Past the
   cap the hub is told it is paused for models and reports `models: "down"`. Anthropic doesn't train on API data. It keeps API inputs and outputs for a limited time under its
   retention policy (30 days at the time of writing, longer only for traffic flagged for a usage-policy breach),
@@ -340,11 +343,13 @@ Run by `npm test`:
     only with the unlock, bound to the thread and the draft, never a group, results only for taken requests;
   - model calls: no tools, metadata or caching, hostile answers refused, off-shape snippets refused before any call,
     the caps, the hard stop at $10 on its own ledger, four calls racing at the cap's edge (one gets in), a failed
-    call's reservation released, and an unreadable ledger stopping the calls.
+    call's reservation released and a timed-out call's kept, and an unreadable ledger stopping the calls.
 - **`apps/hub/src/hub.test.ts`** covers:
   - placeholders swap whole names, name parts, numbers and addresses;
   - the rules settle codes, short codes, promos, money and legal texts, and the skip list;
   - a group with a money text or a skip-listed member, and an owed thread that then gets a money text, get no call;
+  - a money text before Nikita's reply keeps the thread from the model when a harmless text follows, and a past reply
+    that trips a rule never becomes a style example;
   - a 40-message thread and a 60-message group are trimmed on the Mac to what the site accepts;
   - after a send that timed out but went, a resend is refused;
   - snippets to the site hold no names or numbers;

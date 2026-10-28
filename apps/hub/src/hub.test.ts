@@ -292,6 +292,41 @@ describe("the rules reach every model call (#541 review)", () => {
     expect(h.site.sorts.length + h.site.drafts.length).toBe(calls);
   });
 
+  it("a money text before Nikita's reply keeps the thread from the model when a harmless text follows", async () => {
+    const h = setup();
+    await h.engine.refreshSkipTerms(true);
+    h.bb.history = [
+      text("The court date for the settlement moved", NOW - 180_000),
+      text("Thanks, noted", NOW - 120_000, true),
+      text("See you Saturday?", NOW - 60_000),
+    ];
+    await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history[2]! });
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    expect(h.site.sorts).toEqual([]);
+    expect(h.site.drafts).toEqual([]);
+    expect(JSON.stringify(h.site.drafts)).not.toContain("settlement");
+    const t = h.store.load().threads[0]!;
+    expect(t.state).toBe("settled");
+    expect(t.draft).toBeNull();
+  });
+
+  it("an old reply of Nikita's that trips a rule is left out of the style examples, and drafting goes on", async () => {
+    const h = setup();
+    await h.engine.refreshSkipTerms(true);
+    h.bb.history = [
+      text("Sent the settlement papers to court", NOW - 60 * 60_000, true),
+      ...Array.from({ length: 6 }, (_, i) => text(`Sounds good ${i}`, NOW - (50 - i) * 60_000, i % 2 === 0)),
+      text("Lunch tomorrow?", NOW - 60_000),
+    ];
+    await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history.at(-1)! });
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    expect(h.site.drafts.length).toBe(1);
+    expect(JSON.stringify(h.site.drafts[0])).not.toContain("settlement");
+    expect(JSON.stringify(h.site.sorts)).not.toContain("settlement");
+  });
+
   it("a long thread is trimmed on the Mac to what the site accepts", async () => {
     const h = setup();
     h.bb.history = [text("ok", NOW - 100 * 60_000, true), ...Array.from({ length: 40 }, (_, i) => text(`Message ${i} `.repeat(30), NOW - (40 - i) * 60_000))];

@@ -527,15 +527,20 @@ describe("model calls through the site (no key on the Mac)", () => {
     expect(((await d.spend.load()).ledger as Ledger)[month]!.usd).toBeLessThanOrEqual(10);
   });
 
-  it("release the reservation when the call fails, and fail closed when the ledger can't be read", async () => {
+  it("release the reservation when the call is refused, keep it when it timed out, and fail closed when the ledger can't be read", async () => {
     const d = await ready();
     const deps = d.deps();
-    const failing = { ...deps, claude: async () => Promise.reject(new Error("down")) };
-    const res = await POST(new Request(`${ORIGIN}${HUB_PATH}?view=sort`, { method: "POST", headers: { Authorization: `Bearer ${d.hubToken}`, "Content-Type": "application/json" }, body: JSON.stringify(sortBody) }), failing);
-    expect(res.status).toBe(502);
-    const m = Object.values((await d.spend.load()).ledger!)[0]!;
+    const call = (claude: typeof deps.claude) =>
+      POST(new Request(`${ORIGIN}${HUB_PATH}?view=sort`, { method: "POST", headers: { Authorization: `Bearer ${d.hubToken}`, "Content-Type": "application/json" }, body: JSON.stringify(sortBody) }), { ...deps, claude });
+    const refused = Object.assign(new Error("refused"), { status: 400 });
+    expect((await call(async () => Promise.reject(refused))).status).toBe(502);
+    let m = Object.values((await d.spend.load()).ledger!)[0]!;
     expect(m.usd).toBe(0);
     expect(m.calls).toBe(0);
+    expect((await call(async () => Promise.reject(new Error("timed out")))).status).toBe(502);
+    m = Object.values((await d.spend.load()).ledger!)[0]!;
+    expect(m.usd).toBeCloseTo(CEILING[SORT_MODEL]);
+    expect(m.calls).toBe(1);
     d.spend.json = "not json";
     d.spend.ver = 9;
     await expect(d.spend.load()).rejects.toThrow();

@@ -466,8 +466,10 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
     const got = sortInput ? await provider.sort(sortInput) : await provider.draft(draftInput!);
     await settleSpend(spend, model, got.usage, deps.now).catch(() => undefined);
     return json({ ok: true, answer: got.answer });
-  } catch {
-    await settleSpend(spend, model, null, deps.now).catch(() => undefined);
+  } catch (e) {
+    // Released only when Anthropic answered with an error status (not billed). A timeout or a dropped connection may
+    // have been billed, so its reservation (the worst case) stays on the ledger.
+    if (typeof (e as { status?: unknown } | null)?.status === "number") await settleSpend(spend, model, null, deps.now).catch(() => undefined);
     return json({ error: "model" }, 502);
   }
 }

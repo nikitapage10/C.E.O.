@@ -7,7 +7,7 @@
  * The hard stop: a call goes out only once its worst case is reserved on the ledger, in a conditional write over the
  * version read, while this month's spend plus that reservation stays within the cap (RELAY_BUDGET_USD, $10 by
  * default, never more than $10). Two calls racing at the edge can't both fit: the second write loses, reads again and
- * finds no room. After the call the reservation is settled to what it really cost (or released if the call failed);
+ * finds no room. After the call the reservation is settled to what it really cost (or released if Anthropic refused it with an error status; a timeout keeps the worst case, as it may have been billed);
  * if that write never lands, the larger reservation stays, so the ledger fails closed. Past it, /api/relay-hub answers "paused": the hub keeps
  * counting texts as owed, without a sort or a draft, and the Desk says the texts cap is reached until the month
  * (UTC) turns. An unreadable ledger also stops the calls. The ledger holds dollars, calls and token counts only.

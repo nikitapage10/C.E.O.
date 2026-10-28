@@ -306,9 +306,13 @@ export class Engine {
     const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
     const unanswered = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
     if (!unanswered.length) return;
-    // Every rule once more, over the whole unanswered run: a skip-listed contact, a money or legal text, a code or a
-    // promo anywhere in it settles the thread before anything reaches a model.
-    const ruled = unanswered.map((m) => settleByRule({ handle: theirs, names: contact?.names ?? [], text: m.text }, this.skipTerms)).find((w) => w !== null);
+    // Every rule once more, over everything the calls below could carry: the whole unanswered run and the earlier
+    // turns the draft sees (both sides). A skip-listed contact, a money or legal text, a code or a promo anywhere in
+    // it settles the thread before anything reaches a model, so a thread with money talk is never sent, even after
+    // Nikita answered it and a harmless text came in.
+    const earliest = Math.max(0, lastMine - (CAPS.draftEarlier - 1));
+    const seen = msgs.slice(earliest);
+    const ruled = seen.map((m) => settleByRule({ handle: theirs, names: contact?.names ?? [], text: m.text }, this.skipTerms)).find((w) => w !== null);
     if (ruled) {
       this.change((s) => {
         const x = s.threads.find((y) => y.id === t.id);
@@ -341,8 +345,10 @@ export class Engine {
     }
     // Trimmed here, on the Mac: the answered run and a few turns before it, the newest kept first, within the caps;
     // up to 8 of Nikita's own replies as examples, 1,500 characters in all.
-    const context = within(msgs.slice(Math.max(0, lastMine - (CAPS.draftEarlier - 1))).map(line), CAPS.draftEarlier + CAPS.sortMessages, CAPS.draftChars);
-    const mine = msgs.filter((m) => m.fromMe).map((m) => m.text);
+    const context = within(seen.map(line), CAPS.draftEarlier + CAPS.sortMessages, CAPS.draftChars);
+    // Style examples come from further back, so one that trips a rule is left out (not settled on: an old reply about
+    // money shouldn't stop every draft in the thread for good); the context above is already clean.
+    const mine = msgs.filter((m) => m.fromMe && settleByRule({ handle: theirs, names: contact?.names ?? [], text: m.text }, this.skipTerms) === null).map((m) => m.text);
     const examples: string[] = [];
     let used = 0;
     for (const e of mine.slice(-CAPS.styleExamples).reverse()) {

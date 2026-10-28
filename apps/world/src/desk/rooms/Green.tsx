@@ -4,6 +4,10 @@ import { SetupAsks } from "../skippy/SetupAsks.tsx";
 import { clamp, reducedMotion } from "../wvCanvas.ts";
 import {
   callConfidence,
+  locked,
+  needToWin,
+  sideDone,
+  stillToPlay,
   tickerItems,
   onBye,
   ordinal,
@@ -19,6 +23,7 @@ import {
   type GreenFeed,
   type GreenNews,
   type GreenPlayer,
+  type GreenSide,
   type GreenSlot,
   type GreenStatus,
 } from "../green/league.ts";
@@ -439,6 +444,7 @@ function Stadium({ board, status, onLineup }: { board: GreenBoard | null; status
           </p>
         )}
         {m && them && win !== null && <WinMeter win={win} me={m.me.team} them={them.team} />}
+        {board && live && <StillToPlay board={board} />}
       </div>
       <div className="gd-pitch" ref={pitch}>
         {los && yd && (
@@ -498,6 +504,53 @@ function WinMeter({ win, me, them }: { win: number; me: string; them: string }) 
       </span>
       <small className="gd-wp-k">Win probability</small>
     </div>
+  );
+}
+
+/** One side's starters who haven't finished (#551): name and what is projected to come; "done" when nothing is left. */
+function StillSide({ side, who }: { side: GreenSide; who: string }) {
+  if (side.left === undefined) return null;
+  const left = stillToPlay(side);
+  return (
+    <div className="gd-still-side" data-gd-still={who}>
+      <small className="gd-still-h">
+        Still to play · {sideDone(side) ? "all done" : `${side.toPlay} ${side.toPlay === 1 ? "starter" : "starters"}, ${pts(side.left)} to come`}
+        {side.unknown ? ` · ${side.unknown} not known` : ""}
+      </small>
+      {left.length > 0 && (
+        <ul>
+          {left.map((s, i) => (
+            <li key={`${s.player!.id}-${i}`}>
+              <b>{s.player!.name}</b>
+              <small>
+                {s.game === "playing" ? "playing now" : "yet to play"} · {pts(Math.max(0, (s.player!.fp ?? s.player!.proj ?? 0) - (s.game === "playing" ? s.pts : 0)))}
+              </small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Who is still to play on each side, and what the C.E.O. needs once the opponent is done (#551). */
+function StillToPlay({ board }: { board: GreenBoard }) {
+  const m = board.matchup;
+  if (!m?.them || (m.me.left === undefined && m.them.left === undefined)) return null;
+  const need = needToWin(m);
+  return (
+    <section className="gd-still" aria-label="Who is still to play">
+      {need !== null && (
+        <p className="gd-need">
+          Need <b>{pts(need)}</b> to win
+        </p>
+      )}
+      {locked(m) && <p className="gd-need is-won">Their side is done and you are ahead</p>}
+      <div className="gd-still-grid">
+        <StillSide side={m.me} who="me" />
+        <StillSide side={m.them} who="them" />
+      </div>
+    </section>
   );
 }
 

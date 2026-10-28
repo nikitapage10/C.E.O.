@@ -4,8 +4,9 @@ import { FpUnavailable, fpIndex, fpKey, nameKey, readFantasyPros, statusOf, scor
 import { LATE_GAME_RISK_GAP, buildBoard, byeTeams, formOf, formProjection, lineupSwaps, normCdf, slotTakes, winChance } from "./model.ts";
 import { callsFor } from "./analyst.ts";
 import { FP_SHAPE, forgetGreen, GET, isGreen, PATH, type GreenDeps } from "./route.ts";
-import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, cleanText, shapeLeague, shapeClaimed, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
-import type { GreenBoard, GreenPlayer } from "./types.ts";
+import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, shapeGames, cleanText, shapeLeague, shapeClaimed, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
+import type { GreenBoard, GreenMatchup, GreenPlayer, GreenSide } from "./types.ts";
+import { locked, needToWin, sideDone, stillLine, stillToPlay, stillWords } from "./still.ts";
 import { GET as worldGET } from "../world.ts";
 
 const NOW = Date.parse("2026-10-22T12:00:00Z");
@@ -642,5 +643,96 @@ describe("late-game risk: a Q/D starter in a later window than a close bench alt
     expect(kickoffOf(null)).toBeNull();
     const [r] = shapeRankings({ players: [{ player_id: 1, player_name: "Dallas Goedert", player_team_id: "PHI", player_position_id: "TE", rank_ecr: 9, pos_rank: "TE9", player_game_kickoff_ts: "2026-10-27T00:15:00Z" }] });
     expect(r!.ko).toBe(MON_ET);
+  });
+});
+
+describe("who is still to play, live (#551)", () => {
+  const teamsOf = (b: GreenBoard) => [...b.matchup!.me.starters, ...b.matchup!.them!.starters].flatMap((s) => (s.player?.team ? [s.player.team] : []));
+  it("reads each team's game from the schedule status and leaves odd statuses unknown", () => {
+    const g = shapeGames([
+      { week: 3, home: "KC", away: "DAL", status: "complete" },
+      { week: 3, home: "GB", away: "CHI", status: "in_progress" },
+      { week: 3, home: "BUF", away: "MIA", status: "pre_game" },
+      { week: 3, home: "SEA", away: "SF", status: "postponed" },
+      { week: 4, home: "NE", away: "NYJ", status: "complete" },
+      "junk",
+    ], 3);
+    expect(g).toEqual({ KC: "played", DAL: "played", GB: "playing", CHI: "playing", BUF: "yet", MIA: "yet" });
+  });
+
+  it("with no game states the old rule stands and nothing is called done", () => {
+    const b = sleeperOnlyBoard();
+    expect(b.matchup!.me.left).toBeUndefined();
+    expect(needToWin(b.matchup)).toBeNull();
+    expect(stillWords(b.matchup!.me)).toBe("");
+  });
+
+  it("counts what is left per side and moves the win chance with it", () => {
+    const base = sleeperOnlyBoard();
+    const teams = [...new Set(teamsOf(base))];
+    const allYet = Object.fromEntries(teams.map((t) => [t, "yet" as const]));
+    const allPlayed = Object.fromEntries(teams.map((t) => [t, "played" as const]));
+    const yet = buildBoard({ ...boardInput(), games: allYet }).matchup!;
+    const done = buildBoard({ ...boardInput(), games: allPlayed }).matchup!;
+    expect(yet.me.toPlay).toBe(yet.me.starters.filter((s) => s.player).length);
+    expect(yet.me.unknown).toBe(0);
+    expect(yet.me.left).toBeGreaterThan(0);
+    expect(stillToPlay(yet.me)).toHaveLength(yet.me.toPlay!);
+    expect(done.me.left).toBe(0);
+    expect(done.me.toPlay).toBe(0);
+    expect(sideDone(done.me) && sideDone(done.them!)).toBe(true);
+    // Everyone done: the score decides, so the chance is 0, 0.5 or 1.
+    expect([0, 0.5, 1]).toContain(done.win);
+  });
+
+  it("says what is needed only once the opponent's side is done, and only when every game is known", () => {
+    const base = boardInput();
+    const b0 = buildBoard(base).matchup!;
+    const themIds = b0.them!.starters.flatMap((x) => (x.player ? [x.player.id] : []));
+    const myRow = base.matchups.find((r) => r.rosterId === b0.me.rosterId)!;
+    const theirRow = base.matchups.find((r) => r.rosterId === b0.them!.rosterId)!;
+    // They have scored 61.5 across their starters and their games are final; mine are all yet to play at 40.
+    const matchups = base.matchups.map((r) => (r === theirRow ? { ...r, points: 61.5, playerPoints: Object.fromEntries(themIds.map((id, i) => [id, i === 0 ? 61.5 : 0])) } : r === myRow ? { ...r, points: 40 } : r));
+    const mineTeams = [...new Set(b0.me.starters.flatMap((x) => (x.player?.team ? [x.player.team] : [])))];
+    const theirTeams = [...new Set(b0.them!.starters.flatMap((x) => (x.player?.team ? [x.player.team] : [])))];
+    const games = { ...Object.fromEntries(mineTeams.map((t) => [t, "yet" as const])), ...Object.fromEntries(theirTeams.map((t) => [t, "played" as const])) };
+    const m = buildBoard({ ...base, matchups, games }).matchup!;
+    expect(sideDone(m.them!)).toBe(true);
+    expect(sideDone(m.me)).toBe(false);
+    expect(needToWin(m)).toBe(21.6); // 61.5 - 40, and a tenth more to win
+    expect(locked(m)).toBe(false);
+    expect(m.live).toBe(true);
+    // Their score is final, so it is projected-to-come on my side alone that moves the win chance.
+    expect(m.win).toBeGreaterThan(0);
+    expect(m.win).toBeLessThan(1);
+    // One of their games unknown: not done, no figure.
+    const { [theirTeams[0]!]: _gone, ...unknownOne } = games;
+    const m2 = buildBoard({ ...base, matchups, games: unknownOne }).matchup!;
+    expect(sideDone(m2.them!)).toBe(false);
+    expect(needToWin(m2)).toBeNull();
+    // Ahead with their side done: locked, nothing to need.
+    const m3 = buildBoard({ ...base, matchups: matchups.map((r) => (r.rosterId === myRow.rosterId ? { ...r, points: 70 } : r)), games }).matchup!;
+    expect(locked(m3)).toBe(true);
+    expect(needToWin(m3)).toBeNull();
+  });
+});
+
+describe("the still-to-play line Talk and the Desk chat read (#551)", () => {
+  it("is empty without game states, and names who is left with the need once they are done", () => {
+    expect(stillLine(sleeperOnlyBoard().matchup)).toBe("");
+    const side = (over: Partial<GreenSide>): GreenSide => ({ rosterId: 1, team: "Fake Team", record: "1-0", pts: 40, proj: 60, starters: [], ...over });
+    const p = (name: string): GreenPlayer => ({ id: "1", name, pos: "WR", team: "KC", inj: null, proj: 12, src: "fp", avg: null, last: null, wk: null, ecr: null, posRank: null, bye: null, fp: 12 });
+    const m: GreenMatchup = {
+      week: 3,
+      live: true,
+      win: 0.2,
+      me: side({ pts: 40, left: 24, toPlay: 2, unknown: 0, starters: [{ slot: "WR", player: p("Wes Fake"), pts: 0, game: "yet" }, { slot: "WR", player: p("Ray Pretend"), pts: 8, game: "playing" }] }),
+      them: side({ pts: 61.5, left: 0, toPlay: 0, unknown: 0 }),
+    };
+    const text = stillLine(m);
+    expect(text).toContain("C.E.O.: 2 still to play, 24.0 projected to come (Wes Fake 12.0, Ray Pretend 12.0 (playing))");
+    expect(text).toContain("opponent: done");
+    expect(text).toContain("Need 21.6 to win.");
+    expect(stillLine({ ...m, them: { ...m.them!, unknown: 1 } })).not.toContain("Need");
   });
 });

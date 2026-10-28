@@ -70,7 +70,15 @@ export interface GreenSlot {
   player: GreenPlayer | null;
   /** Points so far this week (live), 0 before kick-off. */
   pts: number;
+  /**
+   * Where his game stands (#551): "yet" before kick-off, "playing" under way, "played" when final, "bye" with no game. Absent
+   * when it can't be known (no schedule read, no team): never guessed.
+   */
+  game?: GameState;
 }
+
+/** Where a starter's NFL game stands: Sleeper's schedule status, in the Green's words. */
+export type GameState = "yet" | "playing" | "played" | "bye";
 
 export interface GreenSide {
   rosterId: number;
@@ -81,6 +89,14 @@ export interface GreenSide {
   /** Expected final: points already scored plus projections for starters who haven't. */
   proj: number;
   starters: GreenSlot[];
+  /**
+   * Projected points still to come (#551): starters whose game is yet or under way, their projection less what they have
+   * scored. Absent when no starter's game state is known.
+   */
+  left?: number;
+  /** Starters whose game isn't final yet (yet or playing), and how many have a game state that can't be known. */
+  toPlay?: number;
+  unknown?: number;
 }
 
 export interface GreenMatchup {

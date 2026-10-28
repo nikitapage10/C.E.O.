@@ -358,6 +358,42 @@ export function byesOf(schedule: Schedule | null, week: number): string[] | null
   return [...NFL_TEAMS].filter((t) => !set.has(t)).sort();
 }
 
+/* ── who has played (#551) ── */
+
+/** One week's games by team: the status Sleeper's schedule gives each ("pre_game", "in_progress", "complete"). */
+export type Games = Record<string, "yet" | "playing" | "played">;
+
+const GAME_STATUS: Record<string, "yet" | "playing" | "played"> = { pre_game: "yet", in_progress: "playing", complete: "played" };
+
+/**
+ * The state of each team's game in a week, from the schedule's own `status`. A status it doesn't know (postponed,
+ * suspended…) leaves that game's teams out: unknown, never guessed.
+ */
+export function shapeGames(raw: unknown, week: number): Games {
+  const out: Games = {};
+  const bad = new Set<string>();
+  for (const v of arr(raw)) {
+    const g = obj(v);
+    const home = typeof g.home === "string" ? g.home.trim().toUpperCase() : "";
+    const away = typeof g.away === "string" ? g.away.trim().toUpperCase() : "";
+    if (num(g.week) !== week || !NFL_TEAMS.has(home) || !NFL_TEAMS.has(away) || home === away) continue;
+    const st = typeof g.status === "string" ? GAME_STATUS[g.status.trim().toLowerCase()] : undefined;
+    for (const t of [home, away]) {
+      if (!st || t in out) bad.add(t);
+      else out[t] = st;
+    }
+  }
+  for (const t of bad) delete out[t];
+  return out;
+}
+
+/** Reads the week's game states; refuses a week with too few games to be real. */
+export async function readGames(fetcher: Fetcher, season: string, week: number): Promise<Games> {
+  const g = shapeGames(await getJson(fetcher, urls.schedule(season)), week);
+  if (Object.keys(g).length < 10) throw new Error("games too few");
+  return g;
+}
+
 /* ── Sleeper's own projections (#276) ── */
 
 /** One player's projection this week: points in the league's scoring, and his opponent ("@KC" away, "KC" home). */

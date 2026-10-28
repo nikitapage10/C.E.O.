@@ -17,6 +17,7 @@
 import { line } from "./context.js";
 import { lineupAlert, weekFrame } from "./voicereads.js";
 import type { GreenAnalysis, GreenBoard } from "../_green/types.js";
+import { stillLine } from "../_green/still.js";
 import type { EmailStatus } from "../_email/status.js";
 
 /** How long all the rooms' reads may take together before the chat goes on without the slow ones. */
@@ -79,6 +80,8 @@ export function greenLines(b: GreenBoard): string[] {
     .slice(0, CALLS_MAX)
     .map((c) => `${c.slot} ${c.change ? "start" : "keep"} ${c.start.name} over ${c.sit.name} (edge ${num(Math.abs(c.edge))}${c.sleeper === "disagrees" ? ", Sleeper disagrees" : ""})`);
   const out = [line(head, 240)];
+  const still = stillLine(m);
+  if (still && !weekFrame(b).final) out.push(line(still, 300));
   const alert = lineupAlert(b);
   if (alert) out.unshift(line(alert, 300));
   if (calls.length) out.push(line(`Green start/sit (${b.sources.calls === "fp" ? "FantasyPros decides" : "on form, FantasyPros waiting"}): ${calls.join("; ")}.`, 300));

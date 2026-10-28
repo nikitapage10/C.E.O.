@@ -3,7 +3,8 @@ import { BLUEBUBBLES } from "./config.ts";
 /**
  * BlueBubbles Server's local API (http://127.0.0.1:1234, its own password), the hub's only way to Messages: the
  * hub never opens chat.db itself, so it needs no Full Disk Access. Read: contacts (names for placeholders and the
- * Desk), a chat's recent messages (fetched for one call and dropped). Write: one text, only when Nikita's signed send
+ * Desk), a chat's recent messages (fetched for one call and dropped), the one-to-one chats' ids (to find the chat a
+ * new text goes in, #536; read for one ask and dropped). Write: one text, only when Nikita's signed send
  * request says so (./engine.ts, `act`). Attachments are never asked for.
  */
 
@@ -36,6 +37,8 @@ export interface BlueBubbles {
   messages(chat: string, limit: number): Promise<Message[]>;
   /** Sends one text; true when BlueBubbles took it. */
   send(chat: string, text: string, tempGuid: string): Promise<boolean>;
+  /** The guids of Messages' one-to-one chats (iMessage;-;… and SMS;-;…), for finding the chat a new text goes in (#536). */
+  chats(): Promise<string[]>;
 }
 
 /** Whether a chat id is a group's (iMessage;+;chat…) rather than one person's (iMessage;-;+1…). */
@@ -92,6 +95,12 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
     messages: async (chat, limit) => {
       const data = await get(`/api/v1/chat/${encodeURIComponent(chat)}/message`, { limit: String(Math.min(100, limit)), sort: "DESC", with: "handle" });
       return Array.isArray(data) ? (data as Record<string, unknown>[]).map(readMessage).filter((m): m is Message => m !== null) : [];
+    },
+    chats: async () => {
+      const res = await fetcher(url("/api/v1/chat/query"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ limit: 1000, offset: 0, sort: "lastmessage" }), signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) throw Object.assign(new Error("bluebubbles"), { name: "HttpError" });
+      const data = ((await res.json()) as { data?: unknown }).data;
+      return Array.isArray(data) ? (data as Record<string, unknown>[]).map((c) => str(c?.guid, 300)).filter((g) => /^(?:iMessage|SMS);-;/i.test(g)) : [];
     },
     send: async (chat, text, tempGuid) => {
       const res = await fetcher(url("/api/v1/message/text"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chatGuid: chat, tempGuid, message: text, method: "apple-script" }), signal: AbortSignal.timeout(30_000) });

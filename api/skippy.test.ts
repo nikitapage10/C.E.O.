@@ -153,6 +153,19 @@ describe("Skippy's answer, checked again", () => {
       { kind: "lattice", label: "Go" },
     ]);
   });
+  it("takes a text to draft (#536): who and the gist, plain, once, and never with a number or address", () => {
+    const r = readReply({ reply: "On it.", actions: [{ kind: "text", label: "Text Mom", who: "my Mom", text: "running late" }, { kind: "text", label: "Again", who: "Riley", text: "hi" }] }, desk);
+    expect(r!.actions).toEqual([{ kind: "text", label: "Text Mom", who: "Mom", text: "running late" }]);
+    for (const a of [
+      { kind: "text", label: "x", who: "303 555 0123", text: "hi" },
+      { kind: "text", label: "x", who: "Riley", text: "call me at 303-555-0123" },
+      { kind: "text", label: "x", who: "riley@example.com", text: "hi" },
+      { kind: "text", label: "x", who: "", text: "hi" },
+      { kind: "text", label: "x", who: "Riley" },
+    ])
+      expect(readReply({ reply: "ok", actions: [a] }, desk)!.actions, JSON.stringify(a)).toEqual([]);
+  });
+
   it("keeps at most three, once each", () => {
     const many = Array.from({ length: 6 }, (_, i) => ({ kind: "open", label: `Open ${i}`, page: ["today", "relay", "foundry", "boiler", "archive", "today"][i] }));
     expect(readReply({ reply: "ok", actions: many }, desk)!.actions).toHaveLength(ACTIONS_MAX);
@@ -322,6 +335,22 @@ describe("Skippy's room log (#273)", () => {
     const { post, log } = await setup({ reply: "Fine.", actions: [], room: "boiler" });
     log.add = async () => Promise.reject(new Error("blob"));
     expect((await post("Is everything up?")).status).toBe(200);
+  });
+
+  it("drafts a text (#536): the action goes to the Desk, the ask is never kept in the log, and the relay's rules drop a money one", async () => {
+    const answer = { reply: "Having Blasto draft it; you'll see it before anything goes.", actions: [{ kind: "text", label: "Text Riley", who: "Riley", text: "running 10 min late" }], room: "relay", needs: "none" };
+    const { post, read } = await setup(answer);
+    const got = (await (await post("text Riley I'm running 10 min late")).json()) as { actions: unknown[]; turn?: string; needs?: string };
+    expect(got.actions).toEqual([{ kind: "text", label: "Text Riley", who: "Riley", text: "running 10 min late" }]);
+    expect(got.turn).toBeUndefined();
+    expect(((await (await read("relay")).json()) as { turns: unknown[] }).turns).toEqual([]);
+    const money = await setup({ ...answer, actions: [{ kind: "text", label: "Text Riley", who: "Riley", text: "send me the rent invoice money" }] });
+    const ruled = (await (await money.post("text Riley about the rent")).json()) as { actions: unknown[]; reply: string };
+    expect(ruled.actions).toEqual([]);
+    expect(ruled.reply).toMatch(/text yourself/);
+    const skip = await setup(answer);
+    skip.deps.env = { EMAIL_SKIP_TERMS: "riley" };
+    expect(((await (await skip.post("text Riley")).json()) as { actions: unknown[] }).actions).toEqual([]);
   });
 
   it("knows its address on both hosts", () => {

@@ -1,7 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readRelayStatus, RELAY_STATUS_VERSION, type RelayStatus } from "@ceo/core";
 import { CAPS, readDraft, readSort, within, type Line, type StyleProfile } from "../../../api/_relay/models.ts";
-import { readTextRequest, type RequestResult, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
+import { CARD_KEEP_MS, readTextRequest, type RequestResult, type TextCard, type TextItem, type TextsView } from "../../../api/_relay/texts.ts";
+import { maskHandle, matchContacts } from "../../../api/_relay/compose.ts";
 import { requestSigned } from "../../../api/_relay/tokens.ts";
 import { channelOf, type BlueBubbles, type Contact, type Inbound, type Message } from "./bluebubbles.ts";
 import type { HubConfig } from "./config.ts";
@@ -9,7 +10,7 @@ import type { Logger } from "./log.ts";
 import { Placeholders } from "./placeholders.ts";
 import { settleByRule } from "./rules.ts";
 import type { Site } from "./site.ts";
-import { newThreadId, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
+import { newThreadId, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
 
 /**
  * Relay's texts line on the Mac (#535, docs/RELAY-PRIVACY.md): the engine the launchd job runs.
@@ -26,6 +27,10 @@ import { newThreadId, type Day, type RelayState, type StateStore, type Thread } 
  *   act    the Desk's requests, polled from the site. A send goes out through BlueBubbles only when its signature,
  *          its 10 minutes, its single use and its thread and draft all check out here (`act`). Nothing else in the hub
  *          calls `bb.send`.
+ *   card   a new text Skippy asked for (#536, a "compose" request): the contact found here, on the Mac, by name (the
+ *          choices when it fits several, never a guess), the rules run over the ask and every past text used as a
+ *          style example, Blasto writes it from the placeholdered ask, and the card (name, last 4 digits or a masked
+ *          address, the text) goes to the site with the list. Its send is an ordinary send request, through `act`.
  *
  * Logs carry kinds and counts only (./log.ts). Message text lives in memory for one call at a time.
  */
@@ -74,6 +79,30 @@ const median = (xs: number[]): number | null => {
 };
 
 const digits = (h: string) => h.replace(/\D/g, "").slice(-10);
+
+/**
+ * A contact's handle as Messages' chat ids write it: an address lower-cased, a number with its own + kept. A number
+ * saved without a country code stays bare digits: no country code is ever added, since "+1" in front of someone's
+ * local number can be a stranger's (#536). Such a number is only texted in a chat Messages already has (`chatFor`).
+ */
+export function chatHandle(h: string): string {
+  const t = h.trim();
+  if (t.includes("@")) return t.toLowerCase();
+  const d = t.replace(/\D/g, "");
+  return t.startsWith("+") ? `+${d}` : d;
+}
+/** Whether a new chat may be started with this handle: an address, or a number already in full international form. */
+export const startable = (h: string) => h.includes("@") || /^\+\d{7,15}$/.test(h);
+/** A contact's handles with one entry per number (the same last 10 digits), the +international form kept when there is one. */
+function onePerNumber(handles: string[]): string[] {
+  const by = new Map<string, string>();
+  for (const h of handles) {
+    const k = h.includes("@") ? h : digits(h);
+    const had = by.get(k);
+    if (!had || (!had.startsWith("+") && h.startsWith("+"))) by.set(k, h);
+  }
+  return [...by.values()];
+}
 const sameHandle = (a: string, b: string) => (a.includes("@") || b.includes("@") ? a.trim().toLowerCase() === b.trim().toLowerCase() : digits(a).length >= 7 && digits(a) === digits(b));
 
 /** A style profile from Nikita's own past replies: numbers only, no text kept. */
@@ -412,7 +441,17 @@ export class Engine {
       s.seen.push({ rid: req.rid, at: now });
     });
     if (state.paused) return refuse();
+    if (req.kind === "compose") return this.compose(req, state);
     const t = state.threads.find((x) => x.id === req.thread);
+    // A card Skippy asked for (#536): its send is checked and sent right here too, and "done" dismisses it.
+    const card = t ? undefined : state.cards.find((c) => c.id === req.thread);
+    if (card && req.kind === "send") return this.sendCard(req, card);
+    if (card && req.kind === "done") {
+      this.change((s) => {
+        s.cards = s.cards.filter((c) => c.id !== card.id);
+      });
+      return "done";
+    }
     if (!t) return refuse();
     if (req.kind === "send") {
       if (t.group || (t.state !== "owed" && t.state !== "later") || req.draftAt !== (t.draft?.at ?? 0) || !req.text.trim() || req.text.length > 2_000) return refuse();
@@ -463,6 +502,163 @@ export class Engine {
     return "done";
   }
 
+  /**
+   * The chat a new text to `handle` goes in, never a guessed number: Relay's own thread with them; else a one-to-one
+   * chat Messages already has with that handle (an address exactly, a number by its last 10 digits), iMessage first;
+   * else, only for an address or a +country number, a new iMessage chat. A bare number with no chat is null: the card
+   * tells Nikita to text that one himself.
+   */
+  private async chatFor(handle: string, state: RelayState, chats: () => Promise<string[] | null>): Promise<{ chat: string; channel: "iMessage" | "SMS"; fresh?: true } | null> {
+    const known = state.threads.filter((t) => !t.group && sameHandle(t.chat.split(";").pop() ?? "", handle)).sort((a, b) => b.lastIn - a.lastIn)[0];
+    if (known) return { chat: known.chat, channel: channelOf(known.chat) };
+    const have = ((await chats()) ?? []).filter((g) => sameHandle(g.split(";").pop() ?? "", handle));
+    const found = have.find((g) => channelOf(g) === "iMessage") ?? have[0];
+    if (found) return { chat: found, channel: channelOf(found) };
+    const h = chatHandle(handle);
+    return startable(h) ? { chat: `iMessage;-;${h}`, channel: "iMessage", fresh: true } : null;
+  }
+
+  /**
+   * A new text Skippy asked for (#536). Who is found here, on the Mac: no match is a "none" card, several (or one
+   * contact with several numbers) a "choices" card for Nikita to pick from, never a guess. The rules run over the ask
+   * with the contact's names and handle (the skip list, money and legal, codes) and over every past text used as a
+   * style example; a match is an "off" card, with no model call. Blasto then writes it from the placeholdered ask.
+   */
+  private async compose(req: NonNullable<ReturnType<typeof readTextRequest>>, state: RelayState): Promise<RequestResult> {
+    const who = req.who ?? "";
+    const now = this.d.now();
+    const contacts = await this.contactList();
+    const existing = state.cards.find((c) => c.id === req.thread);
+    const put = (card: Card) =>
+      this.change((s) => {
+        s.cards = [...s.cards.filter((c) => c.id !== card.id), card].slice(-20);
+      });
+    let target: CardTarget | null = null;
+    let name = who.slice(0, 80);
+    if (who.startsWith("pick:")) {
+      // One of the choices this Mac offered on that card: its own id, never a handle from the Desk.
+      const choice = existing?.state === "choices" ? existing.choices.find((c) => c.pick === who.slice(5)) : undefined;
+      if (!choice) {
+        this.d.log.log("request refused");
+        return "refused";
+      }
+      target = choice;
+      name = choice.name;
+    } else {
+      if (existing) {
+        this.d.log.log("request refused");
+        return "refused";
+      }
+      const found = matchContacts(contacts, who);
+      const options = found.flatMap((c) => onePerNumber(c.handles.map(chatHandle)).filter((h) => maskHandle(h)).map((h) => ({ name: (c.names[0] ?? who).slice(0, 80), handle: h })));
+      if (!options.length) {
+        put({ id: req.thread, state: "none", name, target: null, choices: [], draft: null, at: now });
+        return "done";
+      }
+      // Messages' chats, read once for this ask (null when BlueBubbles didn't answer: then only Relay's own threads
+      // and full international numbers or addresses can be texted).
+      let list: Promise<string[] | null> | null = null;
+      const chats = () => (list ??= this.d.bb.chats().catch(() => null));
+      const reachable: CardTarget[] = [];
+      for (const o of options.slice(0, 6)) {
+        const where = await this.chatFor(o.handle, state, chats);
+        if (where) reachable.push({ pick: randomBytes(4).toString("hex"), ...o, ...where });
+      }
+      if (!reachable.length) {
+        put({ id: req.thread, state: "nochat", name: options[0]!.name, target: null, choices: [], draft: null, at: now });
+        this.d.log.log("compose settled");
+        return "done";
+      }
+      if (reachable.length > 1) {
+        put({ id: req.thread, state: "choices", name, target: null, choices: reachable, draft: null, at: now });
+        this.d.log.log("text composed", { choices: reachable.length });
+        return "done";
+      }
+      target = { ...reachable[0]!, pick: "" };
+      name = target.name;
+    }
+    const contact = this.contactOf(target.handle);
+    const names = contact?.names ?? [target.name];
+    // The rules over the ask itself, with who it goes to: the skip list, money and legal, codes. No model call after one.
+    if (settleByRule({ handle: target.handle, names, text: req.text }, this.skipTerms)) {
+      put({ id: req.thread, state: "off", name, target: null, choices: [], draft: null, at: now });
+      this.d.log.log("compose settled");
+      return "done";
+    }
+    const ph = new Placeholders({ contact: { names, handle: target.handle }, others: contacts.filter((c) => c !== contact).flatMap((c) => c.names) });
+    const msgs = (await this.recent(target.chat, 100)) ?? [];
+    // Style examples only: Nikita's own past texts to them, each through the rules first. No thread goes with it.
+    const mine = msgs.filter((m) => m.fromMe && settleByRule({ handle: target!.handle, names, text: m.text }, this.skipTerms) === null).map((m) => m.text);
+    const examples: string[] = [];
+    let used = 0;
+    for (const e of mine.slice(-CAPS.styleExamples).reverse()) {
+      const x = ph.swap(e).slice(0, CAPS.styleChars - used);
+      if (!x) break;
+      examples.unshift(x);
+      used += x.length;
+    }
+    const intent = ph.swap(req.text).slice(0, CAPS.composeChars).trim();
+    if (!intent) return "refused";
+    let got: Awaited<ReturnType<Site["compose"]>>;
+    try {
+      got = await this.d.site.compose({ intent, examples, profile: profileOf(mine.slice(-CAPS.styleExamples)) });
+    } catch (e) {
+      this.d.log.error("model error", e);
+      this.linkModels = "down";
+      return "failed";
+    }
+    if ("paused" in got) {
+      this.budgetStop();
+      return "failed";
+    }
+    this.linkModels = "up";
+    this.d.log.log("model call", { compose: 1 });
+    const answer = readDraft(got.answer);
+    if (!answer) {
+      this.d.log.log("draft refused");
+      return "failed";
+    }
+    const at = this.d.now();
+    put({ id: req.thread, state: "ready", name, target, choices: [], draft: { text: ph.restore(answer.draft).slice(0, 600), at }, at });
+    this.d.log.log("text composed", { ready: 1 });
+    return "done";
+  }
+
+  /** A card's send (#536): the card's own recipient, the very text version on screen, and never twice. */
+  private async sendCard(req: NonNullable<ReturnType<typeof readTextRequest>>, card: Card): Promise<RequestResult> {
+    const refuse = () => {
+      this.d.log.log("request refused");
+      return "refused" as const;
+    };
+    if (card.state !== "ready" || !card.target || !card.draft || req.draftAt !== card.draft.at || !req.text.trim() || req.text.length > 2_000) return refuse();
+    const target = card.target;
+    // Messages shows Nikita texted them since the card was made: this very text (a send that timed out but went) marks
+    // the card sent; anything else means the card is behind the chat, so it says so and sends nothing. A chat this card
+    // starts has no messages yet.
+    const latest = await this.d.bb.messages(target.chat, 10).catch(() => (target.fresh ? [] : null));
+    if (!latest) return refuse();
+    const mine = latest.filter((m) => m.fromMe && m.at >= card.at);
+    if (mine.length) {
+      const went = mine.some((m) => m.text.trim() === req.text.trim());
+      this.change((s) => {
+        const c = s.cards.find((x) => x.id === card.id);
+        if (c) Object.assign(c, { state: went ? "sent" : "moved", draft: null });
+      });
+      return refuse();
+    }
+    const ok = await this.d.bb.send(target.chat, req.text, `relay-${randomUUID()}`).catch(() => false);
+    if (!ok) {
+      this.d.log.log("send failed");
+      return "failed";
+    }
+    this.change((s) => {
+      const c = s.cards.find((x) => x.id === card.id);
+      if (c) Object.assign(c, { state: "sent", draft: null });
+    });
+    this.d.log.log("sent", { card: 1 });
+    return "sent";
+  }
+
   /** The hourly sweep (and at start-up): every kind of row ends by its deadline (docs/RELAY-PRIVACY.md, "Retention"). */
   sweep(): void {
     const now = this.d.now();
@@ -483,6 +679,7 @@ export class Engine {
       }
       s.days = s.days.filter((d) => today - d.day < 7 * 86_400_000);
       s.seen = s.seen.filter((e) => now - e.at < SEEN_KEEP_MS);
+      s.cards = s.cards.filter((c) => now - c.at < CARD_KEEP_MS);
       s.sweptAt = now;
     });
     this.d.log.log("sweep");
@@ -573,7 +770,29 @@ export class Engine {
           summary: t.summary ? { text: t.summary.text.slice(0, 300), asked: t.summary.asked } : null,
         };
       });
-    return { v: 1, at: now, items };
+    // The cards (#536): who (name and mask, never the handle), the text, the choices. Newest first.
+    const cards: TextCard[] = s.cards
+      .filter((c) => now - c.at < CARD_KEEP_MS)
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 10)
+      .flatMap((c): TextCard[] => {
+        const mask = c.target ? maskHandle(c.target.handle) : null;
+        if (c.state === "ready" && (!mask || !c.draft)) return [];
+        return [
+          {
+            id: c.id,
+            state: c.state,
+            name: c.name.replace(/\s+/g, " ").slice(0, 80) || "Someone",
+            mask: c.state === "ready" || c.state === "sent" ? mask : null,
+            channel: c.target?.channel ?? "iMessage",
+            draft: c.state === "ready" && c.draft ? { text: c.draft.text.slice(0, 600), at: Math.floor(c.draft.at) } : null,
+            choices: c.state === "choices" ? c.choices.flatMap((x) => { const m = maskHandle(x.handle); return m ? [{ pick: x.pick, name: x.name.replace(/\s+/g, " ").slice(0, 80), mask: m, channel: x.channel }] : []; }) : [],
+            at: Math.max(Date.UTC(2026, 0, 1), Math.floor(c.at)),
+          },
+        ];
+      })
+      .filter((c) => c.state !== "choices" || c.choices.length > 0);
+    return { v: 1, at: now, items, cards };
   }
 
   /** Sends the status and the list when something changed (or `force`). */

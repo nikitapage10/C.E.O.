@@ -525,6 +525,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "A text is owed. This one has drafted it in the C.E.O.'s own voice. This one has never sounded so casual.",
     "One tap, one slip, ten minutes. This one seals it and waits. This one is excellent at waiting.",
     "The slip expired unsent. The Mac was asleep. This one keeps it in the drawer of letters that missed the boat.",
+    "Skippy dictated. Badly. This one has rewritten it in the C.E.O.'s voice. The card awaits the C.E.O.'s word.",
+    "Two people answer to that name. This one does not guess at a recipient. This one asks.",
+    "One word changed? Then it is a new letter, and this one asks again. That is the law of the tubes.",
   ],
   dialtone: [
     "Please hold. There's nobody on the line yet, but please hold.",

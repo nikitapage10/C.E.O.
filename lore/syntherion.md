@@ -254,7 +254,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Green | **Gridiron** (Claudari) | Orc | Seven-foot coach. Roars the plays, then apologises for the volume. |
 | Green | **Punt** (Unforked) | Big bunny | Morale. Hops, naps, wins anyway. |
 | Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. Since the Green went live it finally has stats for someone: the C.E.O.'s real Sleeper league on the scoreboard, the win chance as the ball's yard line, start-or-sit calls from the booth and the pickups worth a claim, read-only. The scoreboard names both teams and runs projected first, then live, then the win chance, and the Commentator reads it out loud; Gridiron's practice reviews and pretend claims are gone. Now it runs an analyst desk too: FantasyPros makes the call, Sleeper's number stands beside it and a split decision gets flagged, every rival's needs and FAAB get read, and the playoff race gets played out three thousand times. Every Tuesday at 5:39pm Denver time it files the Commentator's call to the Desk (weak spots, byes, injuries, one trade, the waiver bid), using only numbers from the board, and it always ends with where each one came from. |
-| Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O., and a draft in the C.E.O.'s own voice for each text owed; sends a text only when the C.E.O. taps Send. Live on the inbox since 2026-10-23, on the texts since #535. |
+| Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O., and a draft in the C.E.O.'s own voice for each text owed; sends a text only when the C.E.O. taps Send. Live on the inbox since 2026-10-23, on the texts since #535; writes new texts when the C.E.O. asks Skippy for one (#536), sent only on the C.E.O.'s own "send". |
 | Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute (needs you, can wait or noise) and keeps the board of who the C.E.O. owes a text, sooner or normal. Live on the inbox since 2026-10-23, on the texts since #535. |
 | Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. Picks the inbox's models and keeps the meter on its ten dollars a month. Awake, with its own thread, since the inbox went live. |
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
@@ -543,6 +543,22 @@ In the Relay the switchboard's lamps now light from the texts: one lamp per repl
 burning brighter, under a brass plate that reads TEXTS · BY WIRE. The outbox beacon over the tubes glows when Blasto
 has drafts ready. Dialtone took the record off the second jack and put on something with a bass drop. The Lattice, as
 ever, gets numbers and states. Who is waiting, and what Blasto wrote, stays behind the passkey.
+
+## Letters Skippy asks for
+
+Then Skippy learned to dictate (#536). The C.E.O. says "text Riley I'm running late" to the beer can, typed on the
+Desk or out loud on a call, and Skippy, who considers the whole of correspondence beneath him, passes the gist down
+the tube to Blasto with a flourish. The hub on the Mac finds who "Riley" is in the C.E.O.'s own address book, never
+anywhere else; when two people answer to the name, it sends up both and waits, because this one does not guess at a
+recipient. Blasto writes the letter in the C.E.O.'s voice from the gist alone, the names held back as placeholders
+until the Mac puts them in, and the Messenger checks the private list, the money and the legal lines before a single
+word reaches the model.
+
+Then the card comes up: the name, the last four digits of the number and nothing more of it, and the whole letter.
+Nothing goes until the C.E.O. taps Send on that very card. Change one word and the card is new, and asks again. On a
+call Skippy reads the C.E.O. both, the recipient and the letter, word for word, in a voice of profound condescension,
+and waits for one word: "send". The Lattice still gets only numbers. Blasto calls it "the most important seal this one
+has ever been handed: the C.E.O.'s own word".
 
 ## The ledger by PayPal
 

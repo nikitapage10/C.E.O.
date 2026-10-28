@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { runAction } from "./actions.ts";
 import { AnswerCard } from "./AnswerCard.tsx";
+import { ComposeCard } from "../texts/ComposeCard.tsx";
 import { handedName } from "./asked.ts";
 import { canSpeak, stopSpeaking, useSkippy, type ActionState, type SkippyAction, type Turn } from "./chat.ts";
 import { useHide } from "../hide.ts";
@@ -31,7 +32,7 @@ function ActionChips({ turn }: { turn: Turn }) {
     mark(turn.id, i, state);
     if (state === "done" && (a.kind === "open" || a.kind === "lattice")) useSkippy.getState().setOpen(false);
   };
-  if (!turn.actions?.length) return null;
+  if (!turn.actions?.some((a) => a.kind !== "text")) return null;
   return (
     <div className="skp-chips">
       {turn.actions.map((a, i) => {
@@ -155,7 +156,8 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
                 {handedName(t.from)} {t.pending ? "says, still pondering" : "answered"}
               </p>
             )}
-            <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{spoken(t)}</Private>}</p>
+            {t.text && <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{spoken(t)}</Private>}</p>}
+            {t.compose && <ComposeCard id={t.compose} />}
             {t.card && (
               <Private block as="div">
                 <AnswerCard card={t.card} />

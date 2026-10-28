@@ -1,0 +1,153 @@
+/*
+ * A text card in Skippy's chat (#536): who it goes to, the full text, Send, Edit and Cancel. Self-contained (the chat
+ * floats over every Desk page, not only Relay's), on the chat's own palette; scoped to .txc.
+ */
+
+.txc {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 12px;
+  max-width: 100%;
+  border: 1px solid rgba(127, 216, 255, 0.3);
+  border-radius: 12px;
+  background: rgba(10, 46, 98, 0.45);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text, #e8f1ff);
+}
+.skp-turn .txc p,
+.txc p {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.txc--quiet {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--soft, #b9c7dc);
+}
+.skp-turn .txc .txc__k {
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--skp-ice, #7fd8ff);
+}
+.txc__wait::after {
+  content: "";
+  display: inline-block;
+  width: 1.2em;
+  text-align: left;
+  animation: txc-dots 1.4s steps(4) infinite;
+}
+@keyframes txc-dots {
+  0% { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75% { content: "..."; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .txc__wait::after { animation: none; }
+}
+.txc__to {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+}
+.txc__to dt {
+  font-size: 12px;
+  color: var(--mute, #8a9bb5);
+}
+.txc__to dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  min-width: 0;
+}
+.txc__to b {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.txc__to small,
+.txc__choices small {
+  font-size: 12.5px;
+  color: var(--soft, #b9c7dc);
+  font-variant-numeric: tabular-nums;
+}
+.skp-turn .txc .txc__text {
+  padding: 10px 12px;
+  border-left: 3px solid var(--skp-ice, #7fd8ff);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 15px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.txc textarea {
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 12px;
+  border: 1px solid rgba(127, 216, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  resize: vertical;
+}
+.txc__do,
+.txc__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.txc button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.txc button:hover:not(:disabled) {
+  border-color: rgba(127, 216, 255, 0.6);
+}
+.txc button:focus-visible {
+  outline: 2px solid var(--skp-ice, #7fd8ff);
+  outline-offset: 2px;
+}
+.txc button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.txc .txc__go {
+  border-color: rgba(120, 220, 160, 0.7);
+  background: rgba(120, 220, 160, 0.16);
+  font-weight: 600;
+}
+.txc__choices button {
+  min-height: 44px;
+  text-align: left;
+}
+.skp-turn .txc .txc__note {
+  font-size: 13px;
+  color: var(--soft, #b9c7dc);
+}
+.skp-turn .txc .txc__note--ok {
+  color: #8fe0b0;
+}
+.skp-turn .txc .txc__note--warn {
+  color: var(--amber, #ffd08f);
+}

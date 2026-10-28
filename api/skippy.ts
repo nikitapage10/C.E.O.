@@ -75,6 +75,8 @@ import { pickStore } from "./_world/store.js";
 import { elevenFromEnv } from "./_world/story.js";
 import { billLines, creditsReader } from "./_skippy/voice.js";
 import { roomLines } from "./_skippy/rooms.js";
+import { askRuled } from "./_relay/compose.js";
+import { skipTermsFrom } from "./_email/filter.js";
 import { liveRoomReads } from "./_skippy/roomReads.js";
 import type { WorldState } from "./_world/types.js";
 
@@ -248,6 +250,9 @@ function defaultDeps(): ChatDeps {
     env,
   };
 }
+
+/** What Skippy adds when the relay's rules keep a text from Blasto (#536). */
+export const TEXT_RULED = "That one you text yourself, monkey: Relay keeps money, legal and the skip list away from Blasto.";
 
 /** The room log's own address; on Vercel vercel.json rewrites it to /api/skippy?log=1. */
 export const LOG_PATH = "/api/skippy-log";
@@ -453,8 +458,15 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   }
   // Every call that answered counts against the month, usable or not.
   if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd).catch(() => undefined);
-  const reply = readReply(got.answer, desk);
-  if (!reply) return json({ error: "model" }, 502);
+  const read = readReply(got.answer, desk);
+  if (!read) return json({ error: "model" }, 502);
+  // A text to draft (#536) passes the relay's own rules before the Desk ever asks the Mac for it: the skip list, money
+  // and legal, codes. One that trips them is dropped, and Skippy says Nikita texts that one himself.
+  const asked = read.actions.find((a) => a.kind === "text");
+  const ruled = asked?.kind === "text" && askRuled(asked.who, asked.text, skipTermsFrom(deps.env.EMAIL_SKIP_TERMS)) !== null;
+  const reply = ruled ? { ...read, actions: read.actions.filter((a) => a.kind !== "text"), reply: `${read.reply.slice(0, 700 - TEXT_RULED.length - 1)} ${TEXT_RULED}` } : read;
+  // A texting ask isn't kept in the room log: who and what to say stay out of every log (docs/RELAY-PRIVACY.md).
+  if (asked) return json({ reply: reply.reply, actions: reply.actions, room: "relay" });
   // Kept under its room for the room's Desk page (#273): the question (already through the privacy check), the answer,
   // the room, the time and the model. A failed write never costs Nikita the answer.
   const at = new Date(deps.now).toISOString();

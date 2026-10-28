@@ -60,10 +60,41 @@ export interface Day {
   minutes: number[];
 }
 
+/** One recipient a new text could go to (#536): the handle stays in this file, the Desk sees only its mask. */
+export interface CardTarget {
+  /** The hub's own random id for it, when it is one of several choices (8 hex). */
+  pick: string;
+  name: string;
+  handle: string;
+  /** The Messages chat id the text goes to (holds the handle: this file only). */
+  chat: string;
+  channel: "iMessage" | "SMS";
+  /** A new chat this card starts (an address or a +country number Messages has no chat with yet). */
+  fresh?: true;
+}
+
+/**
+ * A new text Skippy asked for (#536): who it goes to, Blasto's text, or the choices when a name fits several. Kept a
+ * day at most (CARD_KEEP_MS); a send clears its text.
+ */
+export interface Card {
+  /** The compose request's thread id (made by the site): sends bind to it. */
+  id: string;
+  state: "ready" | "choices" | "none" | "off" | "nochat" | "moved" | "sent";
+  /** The contact's name; for "none", what was asked. */
+  name: string;
+  target: CardTarget | null;
+  choices: CardTarget[];
+  draft: { text: string; at: number } | null;
+  at: number;
+}
+
 export interface RelayState {
   v: 1;
   paused: boolean;
   threads: Thread[];
+  /** New texts Skippy asked for (#536). */
+  cards: Card[];
   days: Day[];
   streak: { days: number; lastDay: number | null };
   /** Desk requests already acted on (their ids and when), a day at most: a replayed request is refused. */
@@ -72,7 +103,7 @@ export interface RelayState {
   sweptAt: number | null;
 }
 
-export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null });
+export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null });
 
 export const newThreadId = () => randomBytes(8).toString("hex");
 
@@ -110,6 +141,38 @@ function readThread(v: unknown): Thread | null {
   };
 }
 
+const CARD_STATES: Card["state"][] = ["ready", "choices", "none", "off", "nochat", "moved", "sent"];
+
+function readTarget(v: unknown): CardTarget | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return null;
+  const pick = s(o.pick, 8);
+  const name = s(o.name, 80);
+  const handle = s(o.handle, 200);
+  const chat = s(o.chat, 300);
+  if (pick === null || !/^(?:[0-9a-f]{8})?$/.test(pick) || !name || !handle || !chat || (o.channel !== "iMessage" && o.channel !== "SMS")) return null;
+  return { pick, name, handle, chat, channel: o.channel, ...(o.fresh === true && { fresh: true as const }) };
+}
+
+function readCard(v: unknown): Card | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return null;
+  const id = s(o.id, 16);
+  const name = s(o.name, 80);
+  const at = n(o.at);
+  if (!id || !/^[0-9a-f]{16}$/.test(id) || !name || at === null || !CARD_STATES.includes(o.state as Card["state"])) return null;
+  const d = o.draft as Record<string, unknown> | null;
+  return {
+    id,
+    state: o.state as Card["state"],
+    name,
+    target: o.target ? readTarget(o.target) : null,
+    choices: Array.isArray(o.choices) ? o.choices.map(readTarget).filter((t): t is CardTarget => t !== null).slice(0, 6) : [],
+    draft: d && s(d.text, 2_000) !== null && n(d.at) !== null ? { text: d.text as string, at: d.at as number } : null,
+    at,
+  };
+}
+
 /** The state from the file's text, each row checked; a bad row is dropped, a bad file is a fresh state. */
 export function readState(raw: string | null): RelayState {
   let o: Record<string, unknown>;
@@ -127,6 +190,7 @@ export function readState(raw: string | null): RelayState {
     v: 1,
     paused: o.paused === true,
     threads: Array.isArray(o.threads) ? o.threads.map(readThread).filter((t): t is Thread => t !== null) : [],
+    cards: Array.isArray(o.cards) ? o.cards.map(readCard).filter((c): c is Card => c !== null).slice(-20) : [],
     days,
     streak: { days: n(streak?.days) ?? 0, lastDay: n(streak?.lastDay) },
     seen: Array.isArray(o.seen) ? (o.seen as Record<string, unknown>[]).flatMap((e) => (typeof e?.rid === "string" && /^[0-9a-f]{24}$/.test(e.rid) && n(e.at) !== null ? [{ rid: e.rid, at: e.at as number }] : [])).slice(-500) : [],

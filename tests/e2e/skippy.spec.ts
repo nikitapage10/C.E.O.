@@ -266,3 +266,150 @@ test("on a phone the hologram takes the sheet over with the pill above it, in re
   await end.click();
   await expect(call).toHaveCount(0);
 });
+
+/* ── Texts Skippy drafts and sends on a tap (#536). Every name, number and text here is made up. ── */
+
+const CARD = "aaaabbbbccccdddd";
+const TEXT = "Running 10 late, sorry! Save me a seat.";
+
+/** /api/relay as the signed-in Desk reads it: the card comes back a beat after the compose, and a send goes at once. */
+async function relayStub(page: Page, unlocked: boolean) {
+  const posts: Record<string, unknown>[] = [];
+  let reads = 0;
+  let composedAt = 0;
+  let requests: Record<string, unknown>[] = [];
+  const status = () => ({ v: 1, at: Date.now(), hub: "listening", messages: "up", models: "up", owed: 0, sooner: 0, overdue: 0, later: 0, settled: 0, draftsReady: 0, sentToday: 0, streakDays: 0, week: [], nextNudgeAt: null });
+  await page.route(/\/api\/relay(\?.*)?$/, async (r) => {
+    const url = new URL(r.request().url());
+    if (r.request().method() === "GET") {
+      if (url.searchParams.get("view") === "status") return r.fulfill({ json: { ok: true, status: status() } });
+      reads += 1;
+      const cards = composedAt && reads > 1 ? [{ id: CARD, state: "ready", name: "Riley Test", mask: "ending 0123", channel: "iMessage", draft: { text: TEXT, at: composedAt }, choices: [], at: composedAt }] : [];
+      return r.fulfill({ json: { ok: true, status: status(), ready: true, paired: true, pairedAt: Date.now() - 86_400_000, lastSeen: Date.now(), unlockedUntil: unlocked ? Date.now() + 3_600_000 : null, texts: [], cards, textsAt: Date.now(), requests, spend: { usd: 0.01, budget: 10 } } });
+    }
+    const body = r.request().postDataJSON() as Record<string, unknown>;
+    posts.push(body);
+    if (body.action === "compose") {
+      composedAt = Date.now() - 1_000;
+      reads = 0;
+      return r.fulfill({ json: { ok: true, card: CARD, rid: "a".repeat(24), until: Date.now() + 600_000 } });
+    }
+    if (body.action === "send") {
+      requests = [{ rid: "b".repeat(24), kind: "send", thread: CARD, text: body.text, created: Date.now(), until: Date.now() + 600_000, state: "sent" }];
+      return r.fulfill({ json: { ok: true, rid: "b".repeat(24), until: Date.now() + 600_000 } });
+    }
+    return r.fulfill({ json: { ok: true, rid: "c".repeat(24), until: Date.now() + 600_000 } });
+  });
+  return posts;
+}
+
+const TEXT_REPLY = { reply: "Fine. Blasto is drafting it, and you'll see it before a single letter goes, monkey.", actions: [{ kind: "text", label: "Text Riley", who: "Riley", text: "running 10 late, save me a seat" }], room: "relay" };
+
+for (const width of [1280, 400]) {
+  test(`Skippy drafts a text, an edit asks again, and only a tap sends it (#536, ${width} wide)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width > 600 ? 860 : 820 });
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await stub(page, true);
+    await page.route(`${BASE}/api/skippy`, (r) => r.fulfill({ json: r.request().method() === "POST" ? TEXT_REPLY : { ready: true } }));
+    const posts = await relayStub(page, true);
+    await page.goto(BASE + "/");
+    await page.locator(".desk__skippy").click();
+    const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+    const box = chat.getByRole("textbox", { name: "Message to Skippy" });
+    await box.fill("text Riley I'm running 10 late, save me a seat");
+    await box.press("Enter");
+    await expect(chat.getByText(/Blasto is drafting it/)).toBeVisible();
+    // The card: who it goes to (the name and the last 4 digits only) and the whole text, with Send, Edit and Cancel.
+    const card = chat.locator(".txc");
+    await expect(card.getByText(TEXT)).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("Riley Test")).toBeVisible();
+    await expect(card.getByText("ending 0123")).toBeVisible();
+    for (const name of ["Send", "Edit", "Cancel"]) await expect(card.getByRole("button", { name, exact: true })).toBeVisible();
+    // No chip for the text action, and nothing sent yet: only the compose went.
+    await expect(chat.getByRole("button", { name: "Text Riley" })).toHaveCount(0);
+    expect(posts.map((p) => p.action)).toEqual(["compose"]);
+    expect(posts[0]).toEqual({ action: "compose", who: "Riley", gist: "running 10 late, save me a seat" });
+    if (SHOTS) await card.screenshot({ path: `${SHOTS}/536-card-${width}.png` });
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/536-chat-${width}.png` });
+
+    // An edit refreshes the card and asks again.
+    await card.getByRole("button", { name: "Edit", exact: true }).click();
+    await card.getByRole("textbox", { name: "The text" }).fill("Running 15 late, sorry! Save me a seat.");
+    await card.getByRole("button", { name: "Done editing" }).click();
+    await expect(card.getByText("Running 15 late, sorry! Save me a seat.")).toBeVisible();
+    await expect(card.getByText("Edited. Check the card again before you send.")).toBeVisible();
+    expect(posts.map((p) => p.action)).toEqual(["compose"]);
+    if (SHOTS && width === 1280) await card.screenshot({ path: `${SHOTS}/536-edited.png` });
+
+    await card.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(card.getByText("Sent.")).toBeVisible({ timeout: 10_000 });
+    const sends = posts.filter((p) => p.action === "send");
+    expect(sends).toEqual([{ action: "send", thread: CARD, draftAt: expect.any(Number), text: "Running 15 late, sorry! Save me a seat." }]);
+    expect(errors).toEqual([]);
+  });
+}
+
+test("a locked device unlocks first, and Cancel sends nothing (#536)", async ({ page }) => {
+  await stub(page, true);
+  await page.route(`${BASE}/api/skippy`, (r) => r.fulfill({ json: r.request().method() === "POST" ? TEXT_REPLY : { ready: true } }));
+  const posts = await relayStub(page, false);
+  await page.goto(BASE + "/");
+  await page.locator(".desk__skippy").click();
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  const box = chat.getByRole("textbox", { name: "Message to Skippy" });
+  await box.fill("text Riley I'm running 10 late");
+  await box.press("Enter");
+  const card = chat.locator(".txc");
+  await expect(card.getByText(TEXT)).toBeVisible({ timeout: 15_000 });
+  await expect(card.getByRole("button", { name: "Send", exact: true })).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Unlock sending" })).toBeVisible();
+  if (SHOTS) await card.screenshot({ path: `${SHOTS}/536-locked.png` });
+  await card.getByRole("button", { name: "Cancel" }).click();
+  await expect(chat.getByText("Dropped. Nothing was sent.")).toBeVisible();
+  expect(posts.map((p) => p.action)).toEqual(["compose", "done"]);
+});
+
+test("on a call Skippy reads the card aloud and it sends only after Nikita says send (#536)", async ({ page }) => {
+  test.setTimeout(120_000);
+  await startCall(page);
+  const posts = await relayStub(page, true);
+  await page.goto(BASE + "/");
+  await page.locator(".desk__skippy").click();
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  await chat.getByRole("button", { name: /live voice call/ }).click();
+  await page.waitForFunction(() => Boolean((window as { __holoCall?: { clientTools?: unknown } }).__holoCall?.clientTools));
+  type Tools = Record<string, (p: Record<string, unknown>) => Promise<string>>;
+  const tool = (name: string, p: Record<string, unknown> = {}) => page.evaluate(([n, args]) => (window as unknown as { __holoCall: { clientTools: Tools } }).__holoCall.clientTools[n as string]!(args as Record<string, unknown>), [name, p] as const);
+  const heard = (words: string) => page.evaluate((w) => (window as unknown as { __holoCall: { onMessage: (who: string, t: string) => void } }).__holoCall.onMessage("nikita", w), words);
+
+  // The call carries the five texting tools, by the names Skippy's agent has them under (api/_skippy/voicecrew.ts, TEXT_TOOLS).
+  const names = await page.evaluate(() => Object.keys((window as unknown as { __holoCall: { clientTools: Record<string, unknown> } }).__holoCall.clientTools).sort());
+  expect(names).toEqual(["cancel_text", "draft_text", "edit_text", "pick_contact", "send_text"]);
+  const drafted = await tool("draft_text", { who: "Riley", gist: "running 10 late, save me a seat" });
+  // The tool fired: the site was asked for this card, and the card is in the chat.
+  expect(posts.filter((p) => p.action === "compose")).toHaveLength(1);
+  expect(drafted).toContain("Riley Test");
+  expect(drafted).toContain("the number ending 0 1 2 3");
+  expect(drafted).toContain(TEXT);
+  await expect(chat.locator(".txc").getByText(TEXT)).toBeVisible();
+  await expect(chat.getByText("Say “send”, or tap Send.")).toBeVisible();
+  // The agent asking is not enough: nothing goes until Nikita's own words say send.
+  expect(await tool("send_text")).toMatch(/^Not sent/);
+  await heard("hmm, sounds about right");
+  expect(await tool("send_text")).toMatch(/^Not sent/);
+  // A question or a redirect with "send" in it isn't a yes.
+  for (const line of ["Did you send it?", "Send it to Sam instead", "I'll send it myself"]) {
+    await heard(line);
+    expect(await tool("send_text"), line).toMatch(/^Not sent/);
+  }
+  // An edit is a new card: read again, asked again; a send said before it doesn't count.
+  await heard("send it");
+  const edited = await tool("edit_text", { text: "Running 15 late, sorry!" });
+  expect(edited).toContain("Running 15 late, sorry!");
+  expect(posts.filter((p) => p.action === "send")).toEqual([]);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/536-talk.png` });
+  await heard("yes, send it");
+  expect(await tool("send_text")).toMatch(/^Sent/);
+  expect(posts.filter((p) => p.action === "send")).toEqual([{ action: "send", thread: CARD, draftAt: expect.any(Number), text: "Running 15 late, sorry!" }]);
+});

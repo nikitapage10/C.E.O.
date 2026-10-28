@@ -105,6 +105,12 @@ there. Nothing server-side can post into a project thread, so the Desk keeps the
   Foundry drop theirs in #364 and #328).
   The Exchange's and Relay's asks never reach a public path or the Lattice. The one outside reader is the subminds'
   read key (#281, "Room keys" below), for the four active rooms only; Relay's asks stay Desk-only.
+- **Texts are never kept** (#536). When Nikita asks Skippy to text someone ("text Riley I'm running late"), Skippy's
+  answer carries a `text` action (who and the gist) instead of a turn in the log: the turn isn't kept anywhere, and
+  the Desk shows a card from Relay's hub with the contact's name, the last 4 digits of the number and Blasto's text,
+  with Send, Edit and Cancel. Nothing sends without that tap (or, on a call, Nikita saying "send" for the text Skippy
+  just read him). The whole path, and what each side sees, is in [RELAY-PRIVACY.md](RELAY-PRIVACY.md), "Texts Skippy
+  writes".
 
 
 ## What Desk Skippy knows about our stack
@@ -307,6 +313,13 @@ answer. But if it's something a little bit more specific to our room, then it ta
   `voice_bill` (the ElevenLabs plan's credits left). Each answers a few short lines built from the same reads the Desk's
   room pages use (`api/_skippy/voicereads.ts`), scrubbed like the public feeds; only the book carries a
   dollar figure, and only to the call that asked.
+- **Texting on the call (#536).** Skippy alone carries five ElevenLabs *client* tools, `draft_text`, `pick_contact`,
+  `edit_text`, `send_text` and `cancel_text` (`TEXT_TOOLS` in `api/_skippy/voicecrew.ts`), which run in Nikita's
+  browser (`apps/world/src/desk/texts/talkTools.ts`), so a send uses that device's passkey unlock and Relay's ordinary
+  send request. He reads the recipient and the exact text aloud and waits for "send" or a tap; the browser checks
+  Nikita's own transcript before it sends, whatever the agent asks: a whole-line yes, said within 2 minutes of the
+  read, never a question or a "send it to …" (docs/RELAY-PRIVACY.md, "Texts Skippy writes"). Skippy's agent and every
+  submind's record no audio and keep transcripts 1 day (`VOICE_PRIVACY`).
 - **Who may call them.** Only a live call. When the call's token is minted, the function mints a random tool token
   for that call, signed with a key derived from `FOUNDRY_DESK_KEY` (no new secret) and good for the call's longest (an hour) plus
   two minutes, and keeps its hash with the call (`desk/skippy/voice-tools.json`). The browser passes it to ElevenLabs

@@ -20,6 +20,7 @@
 
 import { plainLine } from "../foundry.js";
 import { privateParts } from "../_privacy.js";
+import { cleanGist, cleanWho } from "../_relay/compose.js";
 import type { DeskContext } from "./context.js";
 import { handoffTo, LOG_ROOMS, needsName, readRoom, type LogRoom, type Needs } from "./log.js";
 import { inCharacter, ponderLine, UNSPOKEN } from "./ponder.js";
@@ -33,14 +34,16 @@ export const ROOMS = ["foundry", "spire", "exchange", "green", "relay", "archive
 export type Room = (typeof ROOMS)[number];
 
 /** The closed set of things Skippy can suggest. */
-export const ACTION_KINDS = ["idea", "open", "lattice", "answer"] as const;
+export const ACTION_KINDS = ["idea", "open", "lattice", "answer", "text"] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
 export type SkippyAction =
   | { kind: "idea"; label: string; text: string }
   | { kind: "open"; label: string; page: Page }
   | { kind: "lattice"; label: string; room?: Room }
-  | { kind: "answer"; label: string; issue: number; text: string };
+  | { kind: "answer"; label: string; issue: number; text: string }
+  /** A text for Relay's Blasto to write (#536): who, as Nikita named them, and the gist. The Desk shows a card; only a tap sends. */
+  | { kind: "text"; label: string; who: string; text: string };
 
 export interface SkippyReply {
   reply: string;
@@ -76,6 +79,7 @@ export const SKIPPY_SCHEMA = {
           label: { type: "string" },
           text: { type: "string" },
           issue: { type: "integer" },
+          who: { type: "string" },
           page: { type: "string", enum: [...PAGES] },
           room: { type: "string", enum: [...ROOMS] },
         },
@@ -100,8 +104,9 @@ Your job here is to answer Nikita and route what they ask to the right place. Yo
 - "answer": answer one of Rivet's open questions. "issue" must be the number of a question listed in <desk>, and "text" the answer in Nikita's words. Only when Nikita has actually given the answer.
 - "open": open a page of the Desk. "page" is one of today, foundry, relay, boiler (every connection), security, compliance, archive (the day's story and the Tide), spire, exchange, green, workshop, studio (the explainer-video series). The Spire, Exchange, Green, Workshop and Studio pages say what each room will do and what it waits on.
 - "lattice": enter the 3D Lattice, at a "room" when one fits (foundry, spire, exchange, green, relay, archive, breakroom, boiler, workshop, studio).
+- "text": Nikita wants a text message sent to someone ("text Mom I'm running late", "tell Riley Saturday works"). "who" is who it goes to, exactly as Nikita named them ("Mom", "Riley"), never a number or address; "text" is what he wants to say, in his words, under 300 characters. Relay's Blasto writes it in Nikita's voice and the Desk shows a card with the contact's name, the last digits of their number and the exact text; nothing is sent until Nikita taps Send on that card. Say in "reply" that you're having it drafted and he'll see it before anything goes; never claim it was sent. At most one "text" action, and only when Nikita asked for a text to be sent. Room "relay".
 Each action has a short "label" for its button, under 40 characters, like "File it as an idea" or "Open the Foundry".
-Use the Desk's live state in <desk> to answer questions about what is waiting, building or shipped. <desk> ends with this month's ElevenLabs bill (talk minutes and calls, the estimate against the talk's share and the monthly cap, the day's story's part, and the plan's credits when they are there): when Nikita asks what talking or ElevenLabs has used or cost, answer from it with its numbers; it is for Nikita only, so never put it in "lookup". <page> is what the Desk is showing Nikita right now: the Green's start or sit calls first (FantasyPros decides each one; Sleeper's projection sits beside it), then the lineup, then the other live rooms. Answer from it first, with its numbers: give a quick first take straight away. Never say you have no data, can't see the numbers or don't know the lineup when <page> has them. Say so plainly when you don't know something; never make up issues, numbers or results. <desk> also carries a line or two for each live room: the Green (record, matchup, the top start/sit calls, the Commentator's take), Relay (counts only), the Exchange (open positions, their value and P&L, for Nikita only) and the Boiler Room (its pipes, main's checks, the world step). Answer from them with their numbers. When a question needs more than those lines, give your first take from them and hand it off with "submind", saying you're checking with the room's submind; never tell Nikita to go and look in the Lattice or on the Desk, and never say the Desk doesn't show you something. Relay's lines are counts only: you never see a message's words, sender or contact, so say so if asked for one.
+Use the Desk's live state in <desk> to answer questions about what is waiting, building or shipped. <desk> ends with this month's ElevenLabs bill (talk minutes and calls, the estimate against the talk's share and the monthly cap, the day's story's part, and the plan's credits when they are there): when Nikita asks what talking or ElevenLabs has used or cost, answer from it with its numbers; it is for Nikita only, so never put it in "lookup". <page> is what the Desk is showing Nikita right now: the Green's start or sit calls first (FantasyPros decides each one; Sleeper's projection sits beside it), then the lineup, then the other live rooms. Answer from it first, with its numbers: give a quick first take straight away. Never say you have no data, can't see the numbers or don't know the lineup when <page> has them. Say so plainly when you don't know something; never make up issues, numbers or results. <desk> also carries a line or two for each live room: the Green (record, matchup, the top start/sit calls, the Commentator's take), Relay (counts only), the Exchange (open positions, their value and P&L, for Nikita only) and the Boiler Room (its pipes, main's checks, the world step). Answer from them with their numbers. When a question needs more than those lines, give your first take from them and hand it off with "submind", saying you're checking with the room's submind; never tell Nikita to go and look in the Lattice or on the Desk, and never say the Desk doesn't show you something. Relay's lines are counts only: you never see a message's words, sender or contact, so say so if asked for one (a "text" Nikita asks you to have drafted is the one exception, and even then you never see the draft).
 Two more fields steer how you answer. "lookup": when answering well needs current facts from the web (news, a release, a security advisory, a score, a price, anything after your training), put a short web search query there and give a holding "reply"; you will be asked again with what the lookup found in a <web> block. Leave it "" when you don't need the web or when a <web> block is already there. "deeper": true only when the question needs careful multi-step reasoning or analysis you can't do well in a quick answer; a stronger mind of yours then answers it. Otherwise false. Never put private details or anything from <desk> in "lookup".
 "room": which room's submind this ask belongs with; it is kept on that room's page of the Desk. "green" for the fantasy football league (players, matchups, start or sit, waivers); "exchange" for money and markets (Polymarket, odds, positions, finances); "boiler" for the systems (connections, uptime, security, the setup list); "foundry" for ideas, builds, code and Rivet's questions; "relay" for messages, texts and email; "kernel" for your deeper self: a build or a fix to get going, a look-up across rooms, anything that needs real work done rather than a question settled, and anything that waits on Nikita's say-so to go on. "none" when it fits none of them (small talk, the Lattice, anything else). Pick one, never invent another.
 <stack> is what C.E.O. itself runs on, generated from its repo: languages, runtimes, hosts, top-level packages with their locked versions, the services it calls, and a fresh advisory check of every locked package. Use it for any question about our tech or whether we are exposed to a vulnerability, and answer yes or no from it: if the language, runtime, host, package or service an advisory is about is not in <stack> (PHP, say), say plainly we don't run it, so we're not exposed; if it is there, compare the versions, and use "lookup" for the advisory's details when you need them.
@@ -232,6 +237,11 @@ export function readReply(parsed: unknown, desk: Pick<DeskContext, "questions">)
       action = { kind: "open", label, page: r.page };
     } else if (r.kind === "lattice") {
       action = { kind: "lattice", label, ...(isRoom(r.room) && { room: r.room }) };
+    } else if (r.kind === "text" && !actions.some((x) => x.kind === "text")) {
+      // A text to draft (#536): who and the gist, plain and capped; no number, address, card or key in either.
+      const who = cleanWho(r.who);
+      const text = cleanGist(r.text);
+      if (who && text && !privateParts(`${who}\n${text}`).some((k) => k !== "name")) action = { kind: "text", label, who, text };
     }
     if (!action) continue;
     const key = JSON.stringify({ ...action, label: "" });

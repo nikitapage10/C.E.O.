@@ -19,6 +19,10 @@
  *          "resend", rid      → a new send request for one that expired (the Mac was offline) or failed
  *          "later" | "done", thread        → a request to push a thread to the next nudge, or mark it handled
  *          "restyle", thread, text         → Nikita's dictated words, for Blasto to put in his style
+ *          "compose", who, gist [, card, pick] → a new text Skippy was asked for (#536): the hub finds who on the Mac
+ *                                and Blasto writes it onto a card (`cards` in the GET). The relay's rules run first
+ *                                (skip list, money and legal, codes: ./compose.ts). It sends nothing. A card's "send" is
+ *                                the ordinary send below, with `thread` the card's id and `draftAt` its text's time.
  *
  * The hub (Authorization: Bearer <hub token>; api/_relay/tokens.ts):
  *   POST /api/relay-pair { code }      the installer: trades an open code for the hub token and send key, once
@@ -65,9 +69,11 @@ import { skipTermsFrom } from "../_email/filter.js";
 import { pickBlob } from "../_blob.js";
 import { BlobSpendStore, monthSpend, relayBudget, reserveSpend, settleSpend, type SpendStore } from "./budget.js";
 import { liveClaude } from "./claude.js";
-import { claudeProvider, DRAFT_MODEL, readDraftInput, readSortInput, SORT_MODEL, type ClaudeCall } from "./models.js";
+import { claudeProvider, DRAFT_MODEL, readComposeInput, readDraftInput, readSortInput, SORT_MODEL, type ClaudeCall } from "./models.js";
 import { pickRelayStore, update, type PrivateState, type RelayStore, type RequestEntry } from "./store.js";
-import { DICTATED_MAX, readTextsView, RESULTS, RID, SEND_MAX, type RequestKind, type RequestResult, type RequestState, type TextItem, type TextRequest } from "./texts.js";
+import { DICTATED_MAX, MAX_CARDS, readTextsView, RESULTS, RID, SEND_MAX, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
+import { askRuled, cleanGist, cleanWho } from "./compose.js";
+import { privateParts } from "../_privacy.js";
 import { bearer, hubKey, hubTokenPair, mintPairCode, mintPairing, normalCode, PAIR_CODE_MS, PAIR_TRIES, REQUEST_MS, sendKeyFor, sha256, showCode, signRequest, UNLOCK_MS } from "./tokens.js";
 
 export const RELAY_PATH = "/api/relay";
@@ -197,8 +203,9 @@ export async function GET(request: Request, deps: RelayRouteDeps = liveRelayDeps
         lastSeen: hub?.lastSeen ?? null,
         unlockedUntil: await unlockedUntil(request, deps.desk.deskKey, signed.passkey.id, deps.now),
         texts: hub ? (priv.texts?.items ?? []) : [],
+        cards: hub ? (priv.texts?.cards ?? []) : [],
         textsAt: hub ? (priv.texts?.at ?? null) : null,
-        requests: priv.requests.map((e) => ({ rid: e.req.rid, kind: e.req.kind, thread: e.req.thread, text: e.req.kind === "send" ? e.req.text : "", created: e.req.created, until: e.req.until, state: shownState(e, deps.now) })),
+        requests: priv.requests.map((e) => ({ rid: e.req.rid, kind: e.req.kind, thread: e.req.thread, text: e.req.kind === "send" || e.req.kind === "compose" ? e.req.text : "", created: e.req.created, until: e.req.until, state: shownState(e, deps.now) })),
         spend: { usd: spent ? Math.round(monthSpend(spent, deps.now).usd * 10_000) / 10_000 : 0, budget: deps.budget },
       }),
       signed,
@@ -292,6 +299,19 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
     });
     return requestAnswer(made, keep);
   }
+  if (action === "compose") {
+    // A new text Skippy was asked for (#536). It can't send, so it needs the session but not the unlock; the send that
+    // may follow is the ordinary one above. The relay's rules and the privacy check run before anything is kept.
+    const who = cleanWho(body?.who);
+    const gist = cleanGist(body?.gist);
+    if (!who || !gist) return json({ error: "bad-text" }, 400, keep);
+    // No numbers, addresses, cards or keys in either (a name is the point of who, so names may pass).
+    if (privateParts(`${who}\n${gist}`).some((k) => k !== "name")) return json({ error: "private" }, 422, keep);
+    if (askRuled(who, gist, deps.skipTerms)) return json({ error: "off-limits" }, 422, keep);
+    const made = await update(store, (s) => makeCompose(s, sendKey, { who, gist, card: body?.card, pick: body?.pick }, deps.now));
+    if (made && !("error" in made)) return json({ ok: true, card: made.card, rid: made.rid, until: made.until }, 200, keep);
+    return requestAnswer(made, keep);
+  }
   if (action === "later" || action === "done" || action === "restyle") {
     const made = await update(store, (s) => makeRequest(s, sendKey, action, { thread: body?.thread, draftAt: body?.draftAt ?? 0, text: action === "restyle" ? body?.text : "" }, deps.now));
     return requestAnswer(made, keep);
@@ -300,6 +320,7 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
 }
 
 type Made = { rid: string; until: number } | { error: "no-thread" | "changed" | "busy" | "bad-text" | "no-resend" };
+type MadeCompose = { rid: string; until: number; card: string } | Extract<Made, { error: string }>;
 
 function requestAnswer(made: Made | null, keep: string[]): Response {
   if (!made) return json({ error: "store" }, 502, keep);
@@ -313,7 +334,12 @@ function requestAnswer(made: Made | null, keep: string[]): Response {
  */
 export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind, given: { thread: unknown; draftAt: unknown; text: unknown }, now: number): { next: PrivateState; result: Made } {
   const no = (error: Exclude<Made, { rid: string }>["error"]) => ({ next: s, result: { error } as Made });
-  const item: TextItem | undefined = typeof given.thread === "string" ? s.texts?.items.find((i) => i.id === given.thread) : undefined;
+  if (kind === "compose") return no("no-thread");
+  const found: TextItem | undefined = typeof given.thread === "string" ? s.texts?.items.find((i) => i.id === given.thread) : undefined;
+  // A card Skippy asked for (#536) takes a send (bound to its text's time, like a draft) or a "done" (dismiss), nothing else.
+  const card: TextCard | undefined = !found && typeof given.thread === "string" ? s.texts?.cards?.find((c) => c.id === given.thread) : undefined;
+  if (card && kind !== "send" && kind !== "done") return no("no-thread");
+  const item = found ?? (card ? { id: card.id, group: false, state: card.state === "ready" ? ("owed" as const) : ("settled" as const), draft: card.draft } : undefined);
   if (!item) return no("no-thread");
   const draftAt = typeof given.draftAt === "number" && Number.isInteger(given.draftAt) ? given.draftAt : -1;
   const text = typeof given.text === "string" ? given.text.replace(/\r\n?/g, "\n").replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")).trim() : "";
@@ -325,11 +351,38 @@ export function makeRequest(s: PrivateState, sendKey: Buffer, kind: RequestKind,
     if (item.state === "settled") return no("no-thread");
     // Bound to the draft on screen: a newer draft (or none) since the Desk last read the list refuses it.
     if (draftAt !== (item.draft?.at ?? 0)) return no("changed");
+    // A card that already went (or one being sent) takes no second send, whatever its state shows.
+    if (card && s.requests.some((e) => e.req.thread === card.id && e.req.kind === "send" && shownState(e, now) === "sent")) return no("no-thread");
   }
   if (s.requests.some((e) => e.req.thread === item.id && e.req.kind === kind && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"))) return no("busy");
   const fields = { rid: randomBytes(12).toString("hex"), kind, thread: item.id, draftAt: kind === "send" ? draftAt : 0, text: kind === "send" || kind === "restyle" ? text : "", until: now + REQUEST_MS };
   const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
   return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until } };
+}
+
+/** The most new-text asks waiting for the Mac at once. */
+export const MAX_COMPOSING = 3;
+
+/**
+ * A compose request (#536): a new card id (or, for a pick, the card that offered the choice), who and the gist, signed,
+ * 10 minutes, like every request. The hub writes the card; this side keeps only the request.
+ */
+export function makeCompose(s: PrivateState, sendKey: Buffer, given: { who: string; gist: string; card?: unknown; pick?: unknown }, now: number): { next: PrivateState; result: MadeCompose } {
+  const no = (error: Exclude<Made, { rid: string }>["error"]) => ({ next: s, result: { error } as MadeCompose });
+  let thread = randomBytes(8).toString("hex");
+  let who = given.who;
+  if (given.card !== undefined || given.pick !== undefined) {
+    // One of a card's choices: the same card, and the hub's own id for that choice, never a handle from the browser.
+    const card = typeof given.card === "string" ? s.texts?.cards?.find((c) => c.id === given.card) : undefined;
+    if (!card || card.state !== "choices" || typeof given.pick !== "string" || !card.choices.some((c) => c.pick === given.pick)) return no("no-thread");
+    thread = card.id;
+    who = `pick:${given.pick}`;
+  }
+  const open = s.requests.filter((e) => e.req.kind === "compose" && (shownState(e, now) === "waiting" || shownState(e, now) === "taken"));
+  if (open.length >= MAX_COMPOSING || open.some((e) => e.req.thread === thread) || (s.texts?.cards?.length ?? 0) >= MAX_CARDS * 2) return no("busy");
+  const fields = { rid: randomBytes(12).toString("hex"), kind: "compose" as const, thread, draftAt: 0, text: given.gist, who, until: now + REQUEST_MS };
+  const req: TextRequest = { ...fields, created: now, sig: signRequest(sendKey, fields) };
+  return { next: { ...s, requests: [...s.requests, { req, state: "waiting", takenAt: null, doneAt: null }] }, result: { rid: req.rid, until: req.until, card: thread } };
 }
 
 /** The step-up for the send unlock, the Keys form's way (api/_keys/route.ts): this passkey, fresh, once. */
@@ -457,13 +510,17 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
   if (!deps.claude || !deps.spend) return json({ error: "not-set-up" }, 503);
   const spend = deps.spend;
   const sortInput = view === "sort" ? readSortInput(body) : null;
-  const draftInput = view === "draft" ? readDraftInput(body) : null;
-  if (!sortInput && !draftInput) return json({ error: "bad-request" }, 400);
+  // A new text (#536) comes on the draft view with `intent` in place of thread lines; the rules run here too.
+  const composing = view === "draft" && !!body && typeof body === "object" && "intent" in body;
+  const composeInput = composing ? readComposeInput(body) : null;
+  if (composeInput && askRuled("", composeInput.intent, deps.skipTerms)) return json({ error: "bad-request" }, 400);
+  const draftInput = view === "draft" && !composing ? readDraftInput(body) : null;
+  if (!sortInput && !draftInput && !composeInput) return json({ error: "bad-request" }, 400);
   const model = sortInput ? SORT_MODEL : DRAFT_MODEL;
   if (!(await reserveSpend(spend, model, deps.budget, deps.now).catch(() => false))) return json({ ok: false, paused: true });
   const provider = claudeProvider(deps.claude);
   try {
-    const got = sortInput ? await provider.sort(sortInput) : await provider.draft(draftInput!);
+    const got = sortInput ? await provider.sort(sortInput) : composeInput ? await provider.compose(composeInput) : await provider.draft(draftInput!);
     await settleSpend(spend, model, got.usage, deps.now).catch(() => undefined);
     return json({ ok: true, answer: got.answer });
   } catch (e) {

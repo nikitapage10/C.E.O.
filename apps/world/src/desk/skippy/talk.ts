@@ -343,6 +343,8 @@ export const useTalk = create<TalkStore>((set, get) => {
         set((st) => ({ timings: { ...st.timings, [stage]: Math.round(performance.now() - tap) } }));
       };
       const mod = loadSession().then((m) => (mark("code"), m));
+      // Texting on the call (#536): its client tools, loaded with the call's own code.
+      const texting = import("../texts/talkTools.ts").catch(() => null);
       // The microphone prompt comes only now, straight after the tap, and before anything is spent.
       try {
         const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -365,7 +367,9 @@ export const useTalk = create<TalkStore>((set, get) => {
       if (get().phase !== "starting") return void (await finish(null));
       try {
         const m = await mod;
+        const tx = await texting;
         session = await m.openCall({
+          ...(tx && { clientTools: tx.talkTools((key) => useSkippy.getState().addCard(key)) as unknown as Record<string, (p: Record<string, unknown>) => Promise<string>> }),
           token: got.token,
           desk: got.desk,
           ...(got.tool && { tool: got.tool }),
@@ -374,6 +378,8 @@ export const useTalk = create<TalkStore>((set, get) => {
           onAgent: (agent) => setSpeaker(agent),
           onMessage: (who, text) => {
             quiet?.heard();
+            // Nikita's own words are the only thing a spoken "send" counts from (texts/compose.ts).
+            if (who === "nikita") tx?.heard(text);
             useSkippy.getState().say(who, text);
           },
           onMode: (mode) => {

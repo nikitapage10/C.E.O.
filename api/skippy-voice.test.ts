@@ -23,7 +23,7 @@ import { MemoryAuthStore } from "./_desk/store.ts";
 import { signedInCookie } from "./_desk/testing.ts";
 import { MemoryRoomLog } from "./_skippy/log.ts";
 import { MemoryCrewStore, checkToolToken, issueToolToken, noteHandoff } from "./_skippy/voicetoken.ts";
-import { TOOL_DEFS } from "./_skippy/voicecrew.ts";
+import { TEXT_TOOLS, TOOL_DEFS } from "./_skippy/voicecrew.ts";
 
 const NOW = Date.parse("2026-10-25T16:00:00Z");
 const KEY = "sk_test_eleven_key_that_must_never_leak_0123456789";
@@ -95,6 +95,8 @@ describe("what Skippy is told and how the agent is set up", () => {
     expect(body.conversation_config.agent.prompt.prompt).toContain("{{desk}}");
     const core = agentBody("onwK4e9ZLuTAKqWW03F9", "core");
     expect(core.platform_settings.auth.enable_auth).toBe(true);
+    // #536: no voice recording, the transcript kept a day (api/_skippy/voicecrew.ts, VOICE_PRIVACY).
+    for (const b of [body, core]) expect(b.platform_settings.privacy).toEqual({ record_voice: false, retention_days: 1 });
     expect(core.conversation_config.conversation.max_duration_seconds).toBeUndefined();
   });
 
@@ -350,14 +352,14 @@ describe("POST /api/skippy-voice, with ElevenLabs stubbed", () => {
     expect(await checkToolToken(body.tool, "test-desk-key-0123456789", crew, NOW)).toMatchObject({ ok: true, conversation: "conv_0001" });
     // Every lookup and each live submind exists on ElevenLabs, and Skippy's agent carries them.
     const kept = await crew.load(NOW);
-    expect(Object.keys(kept.tools).sort()).toEqual(TOOL_DEFS.map((t) => t.name).sort());
+    expect(Object.keys(kept.tools).sort()).toEqual([...TOOL_DEFS, ...TEXT_TOOLS].map((t) => t.name).sort());
     expect(Object.keys(kept.agents).sort()).toEqual(["ember", "soot", "static", "ticker", "turf"]);
     // The hologram's crew (#481): each submind's agent id, to its own id.
     expect(Object.values(body.crew ?? {}).sort()).toEqual(["ember", "soot", "static", "ticker", "turf"]);
     expect(body.crew?.[kept.agents.turf!.id]).toBe("turf");
     const skippy = made.filter((m) => m.method === "PATCH" && m.url.endsWith("/agents/agent_0001")).at(-1)!;
     const prompt = ((skippy.body.conversation_config as Record<string, Record<string, Record<string, unknown>>>).agent!.prompt!) as { tool_ids: string[]; built_in_tools: { transfer_to_agent: unknown } };
-    expect(prompt.tool_ids).toHaveLength(TOOL_DEFS.length);
+    expect(prompt.tool_ids).toHaveLength(TOOL_DEFS.length + TEXT_TOOLS.length);
     expect(prompt.built_in_tools.transfer_to_agent).toBeTruthy();
     // A second call changes nothing on ElevenLabs.
     const before = made.length;

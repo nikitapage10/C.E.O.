@@ -19,7 +19,9 @@ export type SkippyAction =
   | { kind: "idea"; label: string; text: string }
   | { kind: "open"; label: string; page: Page }
   | { kind: "lattice"; label: string; room?: Room }
-  | { kind: "answer"; label: string; issue: number; text: string };
+  | { kind: "answer"; label: string; issue: number; text: string }
+  /** A text for Blasto to write (#536): the chat shows its card, which starts drafting at once; only a tap sends. */
+  | { kind: "text"; label: string; who: string; text: string };
 
 /** How a tapped button went: sending, done, held back by the privacy check, signed out, or failed. */
 export type ActionState = "busy" | "done" | "held" | "signed-out" | "failed";
@@ -41,6 +43,8 @@ export interface Turn {
   card?: AskedCard;
   /** The kept turn a voice call handed to the Kernel (#479), so it is waited on once and its answer can be told to the call. */
   handed?: string;
+  /** A text card (#536): its key in the compose store (texts/compose.ts). */
+  compose?: string;
 }
 
 /** What Nikita may send at once, and how many turns go with it: the function's own caps (api/_skippy/prompt.ts). */
@@ -82,6 +86,7 @@ export function readActions(raw: unknown): SkippyAction[] {
     else if (r.kind === "answer" && typeof r.issue === "number" && Number.isInteger(r.issue) && r.issue > 0 && clip(r.text, 600)) out.push({ kind: "answer", label, issue: r.issue, text: clip(r.text, 600) });
     else if (r.kind === "open" && typeof r.page === "string" && Object.hasOwn(PAGES, r.page)) out.push({ kind: "open", label, page: r.page as Page });
     else if (r.kind === "lattice") out.push({ kind: "lattice", label, ...(typeof r.room === "string" && (ROOMS as readonly string[]).includes(r.room) && { room: r.room as Room }) });
+    else if (r.kind === "text" && clip(r.who, 80) && clip(r.text, 300) && !out.some((x) => x.kind === "text")) out.push({ kind: "text", label, who: clip(r.who, 80), text: clip(r.text, 300) });
     if (out.length === 3) break;
   }
   return out;
@@ -97,7 +102,7 @@ export function actionPath(a: SkippyAction): string | null {
 /** The turns that go with a message: Skippy's and Nikita's own words only, never the Desk's notes or a pending bubble, the last few. */
 export function historyFor(turns: Turn[]): { who: Turn["who"]; text: string }[] {
   return turns
-    .filter((t) => !t.note && !t.pending)
+    .filter((t) => !t.note && !t.pending && !(t.compose && !t.text))
     .slice(-HISTORY_TURNS)
     .map((t) => ({ who: t.who, text: t.text.slice(0, MESSAGE_MAX) }));
 }
@@ -194,6 +199,8 @@ interface SkippyStore {
   wait: (turn: string, room: AskedRoom, needs: string, doFetch?: typeof fetch) => Promise<number | null>;
   /** Marks a tapped button's state on its turn. */
   mark: (turn: number, index: number, state: ActionState) => void;
+  /** Puts a text card (#536) in the conversation, by its key in the compose store. */
+  addCard: (key: string) => void;
   clear: () => void;
 }
 
@@ -225,7 +232,10 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     set((s) => ({ busy: true, turns: [...s.turns, { id: nextId++, who: "nikita" as const, text: message }].slice(-KEEP_TURNS) }));
     const rt = await loadRoundTrip().catch(() => null);
     const got = await askSkippy(message, history, doFetch, rt?.pageNow() ?? "");
-    const turn: Turn = got.ok ? { id: nextId++, who: "skippy", text: got.reply, actions: got.actions } : { id: nextId++, who: "skippy", text: got.message, note: true };
+    // A text to draft (#536): its card starts at once (drafting can't send anything) and sits under the reply.
+    const asked = got.ok ? got.actions.find((a) => a.kind === "text") : undefined;
+    const compose = asked?.kind === "text" ? await import("../texts/compose.ts").then((m) => m.useCompose.getState().start(asked.who, asked.text, "chat")).catch(() => undefined) : undefined;
+    const turn: Turn = got.ok ? { id: nextId++, who: "skippy", text: got.reply, actions: got.actions.filter((a) => a.kind !== "text"), ...(compose && { compose }) } : { id: nextId++, who: "skippy", text: got.message, note: true };
     // A hand-off (#341): Skippy's quick take stays, and a pending bubble waits for the room's answer under it.
     const waits = rt && got.ok && got.turn && got.needs && (rt.WAIT_ROOMS as readonly string[]).includes(got.room ?? "");
     const pending: Turn | null = rt && waits ? { id: nextId++, who: "skippy", text: rt.pendingText(got.needs!, got.turn), pending: { turn: got.turn!, room: got.room as AskedRoom, needs: got.needs!, since: Date.now() } } : null;
@@ -248,6 +258,7 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     return id;
   },
   mark: (id, index, state) => set((s) => ({ turns: s.turns.map((t) => (t.id === id ? { ...t, done: { ...t.done, [index]: state } } : t)) })),
+  addCard: (key) => set((s) => ({ turns: [...s.turns, { id: nextId++, who: "skippy" as const, text: "", compose: key }].slice(-KEEP_TURNS) })),
   clear: () => {
     stopSpeaking();
     set({ turns: [], unread: false });

@@ -54,6 +54,7 @@ export const STACK_FACTS: StackFacts = {
     "Polymarket",
     "Sleeper",
     "FantasyPros",
+    "ESPN scoreboard",
     "PayPal",
     "Vercel Blob",
     "Azure Blob Storage",

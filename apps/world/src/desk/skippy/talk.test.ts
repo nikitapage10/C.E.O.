@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import { speak, useSkippy } from "./chat.ts";
 import { setCallLive } from "./liveCall.ts";
-import { CREDITS_OUT, TALK_NOTE, clock, elapsedSecs, creditsLine, clipSentence, isToolToken, landedNote, readCredits, readHandoffs, requestToken } from "./talk.ts";
+import { CREDITS_OUT, TALK_NOTE, clock, elapsedSecs, creditsLine, clipSentence, isToolToken, landedNote, planWarnings, readCredits, runsDryOn, readHandoffs, requestToken } from "./talk.ts";
 
 const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 
@@ -10,12 +10,43 @@ describe("Talk to Skippy in the browser", () => {
   it("writes the clock, and the plan's credits left with no site budget (#532)", () => {
     expect(clock(179.4)).toBe("2:59");
     expect(clock(-3)).toBe("0:00");
-    expect(readCredits({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" })).toEqual({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" });
+    expect(readCredits({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" })).toEqual({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator", startedAt: null, endsAt: null, status: null });
     expect(creditsLine({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" })).toBe("Creator plan: 21,743 credits left of 122,113 · resets Nov 5");
     expect(creditsLine({ used: 5, limit: 10, resetAt: null, tier: null })).toBe("Plan: 5 credits left of 10");
     expect(creditsLine({ used: 10, limit: 10, resetAt: "2026-11-05", tier: "creator" })).toBe(`${CREDITS_OUT} · resets Nov 5`);
     expect(readCredits({ used: 5 })).toBeNull();
-    expect(readCredits({ used: 5, limit: 10, resetAt: "soon<script>", tier: "<b>" })).toEqual({ used: 5, limit: 10, resetAt: null, tier: null });
+    expect(readCredits({ used: 5, limit: 10, resetAt: "soon<script>", tier: "<b>" })).toEqual({ used: 5, limit: 10, resetAt: null, tier: null, startedAt: null, endsAt: null, status: null });
+  });
+
+  it("warns about the voice plan only when there is something to say (#550)", () => {
+    const now = Date.parse("2026-10-28T12:00:00Z");
+    const plan = { used: 1000, limit: 100000, resetAt: "2026-11-05", tier: "creator", startedAt: "2026-10-05", endsAt: null, status: null };
+    expect(planWarnings(null, now)).toEqual([]);
+    expect(planWarnings(plan, now)).toEqual([]);
+    expect(planWarnings({ ...plan, endsAt: "2026-11-08" }, now)).toEqual(["Voice plan ends Nov 8, 11 days"]);
+    expect(planWarnings({ ...plan, endsAt: "2026-10-29" }, now)).toEqual(["Voice plan ends Oct 29, 1 day"]);
+    expect(planWarnings({ ...plan, endsAt: "2026-10-28" }, now)).toEqual(["Voice plan ends Oct 28, today"]);
+    expect(planWarnings({ ...plan, endsAt: "2026-10-20" }, now)).toEqual([]);
+    expect(planWarnings({ ...plan, status: "past_due" }, now)).toEqual(["Voice plan payment is overdue"]);
+    expect(planWarnings({ ...plan, used: 100000 }, now)).toEqual(["Voice credits used up, they reset Nov 5"]);
+    expect(planWarnings({ ...plan, used: 100000, resetAt: null }, now)).toEqual(["Voice credits used up"]);
+  });
+
+  it("projects the cycle's pace to the day the credits run out (#550)", () => {
+    const now = Date.parse("2026-10-28T12:00:00Z");
+    const plan = { used: 0, limit: 100000, resetAt: "2026-11-05", tier: "creator", startedAt: "2026-10-05", endsAt: null, status: null };
+    // 23.5 days in, 90,000 used: 3,830 a day, 10,000 left lasts 2.6 more days, to Oct 31
+    expect(runsDryOn({ ...plan, used: 90000 }, now)).toBe("2026-10-31");
+    expect(planWarnings({ ...plan, used: 90000 }, now)).toEqual(["Credits run out around Oct 31 at this pace, before they reset Nov 5"]);
+    // on pace to last, nothing used, too early in the cycle, a past reset, or no cycle start: nothing to say
+    expect(runsDryOn({ ...plan, used: 50000 }, now)).toBeNull();
+    expect(runsDryOn(plan, now)).toBeNull();
+    expect(runsDryOn({ ...plan, used: 90000 }, Date.parse("2026-10-06T12:00:00Z"))).toBeNull();
+    expect(runsDryOn({ ...plan, used: 90000 }, Date.parse("2026-11-06T12:00:00Z"))).toBeNull();
+    expect(runsDryOn({ ...plan, used: 90000, startedAt: null }, now)).toBeNull();
+    expect(runsDryOn({ ...plan, used: 100000 }, now)).toBeNull();
+    // both lines, the ending first
+    expect(planWarnings({ ...plan, used: 90000, endsAt: "2026-11-08" }, now)).toHaveLength(2);
   });
 
   it("turns each refusal into a reason with a plain note that says typing still works", async () => {

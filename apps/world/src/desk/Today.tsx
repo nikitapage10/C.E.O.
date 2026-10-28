@@ -12,6 +12,7 @@ import { fires, TodayNow } from "./TodayNow.tsx";
 import { DAY_STRIP_MS, usePulses } from "./usePulses.ts";
 import { TodayBroadcast } from "./DayStory.tsx";
 import { nextEdition, roman, until } from "./todaySchedule.ts";
+import { PlanWatch } from "./skippy/PlanWatch.tsx";
 import { SkippyAsk } from "./skippy/index.ts";
 import { greeting, skippyLine } from "./roomPulse.ts";
 import { Ephemeris, useRuns } from "./TodayRail.tsx";
@@ -174,6 +175,7 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
             <div className="td-comm">
               <SkippyAsk className="td-ask" />
             </div>
+            <PlanWatch className="plan-watch--td" />
             <div className="cf-chips">
               <TodayBroadcast now={now} next={until(nextEdition(now).at, now)} />
               <ComingUp />

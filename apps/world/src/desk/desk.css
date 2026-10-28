@@ -5099,3 +5099,16 @@ a.fy-chip:hover {
 @media (prefers-reduced-motion: reduce) {
   .desk__loading { animation: none; }
 }
+
+/* The voice plan's watch (#550): one plain amber line, only while there is something to say. */
+.plan-watch {
+  margin: 8px 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--amber, #ffd08f);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--amber, #ffd08f);
+}
+.plan-watch p {
+  margin: 0;
+}

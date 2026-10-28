@@ -28,6 +28,10 @@ export interface TalkCredits {
   limit: number;
   resetAt: string | null;
   tier: string | null;
+  /** When this cycle began, the day the plan ends (a pending cancellation) and "past_due", when ElevenLabs says (#550). */
+  startedAt?: string | null;
+  endsAt?: string | null;
+  status?: string | null;
 }
 
 export type TalkPhase = "idle" | "starting" | "live" | "ending";
@@ -57,7 +61,41 @@ export function readCredits(raw: unknown): TalkCredits | null {
   if (!ok(r.used) || !ok(r.limit) || r.limit <= 0) return null;
   const resetAt = typeof r.resetAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.resetAt) ? r.resetAt : null;
   const tier = typeof r.tier === "string" && /^[A-Za-z0-9 -]{1,30}$/.test(r.tier) ? r.tier : null;
-  return { used: r.used, limit: r.limit, resetAt, tier };
+  const day = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  return { used: r.used, limit: r.limit, resetAt, tier, startedAt: day(r.startedAt), endsAt: day(r.endsAt), status: r.status === "past_due" ? "past_due" : null };
+}
+
+const DAY = 86_400_000;
+const at = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+const shortDay = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** The day the credits run out at this cycle's pace, when that is before the reset; null when they last, or when there is too little to project from (#550). */
+export function runsDryOn(c: TalkCredits, now: number): string | null {
+  if (!c.startedAt || !c.resetAt || creditsOut(c) || c.used <= 0) return null;
+  const start = at(c.startedAt);
+  const reset = at(c.resetAt);
+  const days = (now - start) / DAY;
+  if (!(reset > start) || days < 2 || now >= reset) return null;
+  const dry = now + ((c.limit - c.used) / (c.used / days)) * DAY;
+  return dry < reset - DAY / 2 ? new Date(dry).toISOString().slice(0, 10) : null;
+}
+
+/** The plain lines about the voice plan, only while there is something to say: it is ending, behind on payment, out, or will run dry before it resets. */
+export function planWarnings(c: TalkCredits | null, now: number): string[] {
+  if (!c) return [];
+  const out: string[] = [];
+  const end = c.endsAt ? at(c.endsAt) : NaN;
+  if (Number.isFinite(end) && end + DAY > now) {
+    const left = Math.max(0, Math.ceil((end - now) / DAY));
+    out.push(`Voice plan ends ${shortDay(c.endsAt!)}, ${left === 0 ? "today" : left === 1 ? "1 day" : `${left} days`}`);
+  }
+  if (c.status === "past_due") out.push("Voice plan payment is overdue");
+  if (creditsOut(c)) out.push(`Voice credits used up${c.resetAt ? `, they reset ${shortDay(c.resetAt)}` : ""}`);
+  else {
+    const dry = runsDryOn(c, now);
+    if (dry) out.push(`Credits run out around ${shortDay(dry)} at this pace${c.resetAt ? `, before they reset ${shortDay(c.resetAt)}` : ""}`);
+  }
+  return out;
 }
 
 /** Whether the plan has no credits left. */

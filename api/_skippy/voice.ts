@@ -66,7 +66,16 @@ export interface ElevenCredits {
   /** The next reset (ISO date), when ElevenLabs says. */
   resetAt: string | null;
   tier: string | null;
+  /** When this cycle began (ISO date): the reset less the plan's refresh period. Null unless ElevenLabs names both (#550). */
+  startedAt?: string | null;
+  /** The day the plan ends, when ElevenLabs reports a pending cancellation (pending_change.kind "cancellation"), else null (#550). */
+  endsAt?: string | null;
+  /** ElevenLabs' own word when the plan needs attention (only "past_due" is kept), else null (#550). */
+  status?: string | null;
 }
+
+const PERIOD_MONTHS: Record<string, number> = { monthly_period: 1, "3_month_period": 3, "6_month_period": 6, annual_period: 12 };
+const isoDay = (unix: number) => (Number.isFinite(unix) && unix > 1e9 && unix < 1e11 ? new Date(unix * 1000).toISOString().slice(0, 10) : null);
 
 /** ElevenLabs' subscription answer, cut to the credits; null when it doesn't carry them. */
 export function readCredits(raw: unknown): ElevenCredits | null {
@@ -78,7 +87,18 @@ export function readCredits(raw: unknown): ElevenCredits | null {
   const reset = Number(r.next_character_count_reset_unix);
   const resetAt = Number.isFinite(reset) && reset > 1e9 && reset < 1e11 ? new Date(reset * 1000).toISOString().slice(0, 10) : null;
   const tier = typeof r.tier === "string" && /^[A-Za-z0-9_ -]{1,30}$/.test(r.tier) ? r.tier.replace(/_/g, " ") : null;
-  return { used: Math.round(used), limit: Math.round(limit), resetAt, tier };
+  // The plan's watch (#550): only fields ElevenLabs documents; a missing or odd one is simply no warning.
+  const months = PERIOD_MONTHS[String(r.character_refresh_period ?? r.billing_period)];
+  let startedAt: string | null = null;
+  if (resetAt && months) {
+    const d = new Date(`${resetAt}T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - months);
+    startedAt = d.toISOString().slice(0, 10);
+  }
+  const pending = r.pending_change && typeof r.pending_change === "object" ? (r.pending_change as Record<string, unknown>) : null;
+  const endsAt = pending && pending.kind === "cancellation" ? isoDay(Number(pending.timestamp_seconds)) : null;
+  const status = r.status === "past_due" ? "past_due" : null;
+  return { used: Math.round(used), limit: Math.round(limit), resetAt, tier, startedAt, endsAt, status };
 }
 
 /** The plan's credits from ElevenLabs. Fails soft: any refusal, timeout or odd answer is null, and nothing is logged. */

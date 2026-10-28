@@ -23,10 +23,10 @@
 
 import type { FpData, FpView } from "./fantasypros.js";
 import { fpIndex, nameKey } from "./fantasypros.js";
-import type { League, MatchupRow, Move, NflState, Roster, Schedule, SlimPlayer, SlProj } from "./sleeper.js";
+import type { Games, League, MatchupRow, Move, NflState, Roster, Schedule, SlimPlayer, SlProj } from "./sleeper.js";
 import { NFL_TEAMS, USER_ID, byesOf } from "./sleeper.js";
 import { bidCandidates, bidsFor, bestLineup, callsFor, simulate, teamsFor, tradeFor, worth, type OddsGame, type OddsTeam, type RosterView } from "./analyst.js";
-import { GREEN_PICKUPS_MAX, type FpState, type GreenBoard, type GreenByeWeek, type GreenInjury, type GreenMove, type GreenNews, type GreenPickup, type GreenPlayer, type GreenPos, type GreenSide, type GreenSlot, type GreenStanding, type GreenSwap } from "./types.js";
+import { GREEN_PICKUPS_MAX, type FpState, type GreenBoard, type GreenByeWeek, type GreenInjury, type GreenMove, type GreenNews, type GreenPickup, type GreenPlayer, type GreenPos, type GameState, type GreenSide, type GreenSlot, type GreenStanding, type GreenSwap } from "./types.js";
 
 export interface ModelInput {
   league: League;
@@ -44,6 +44,8 @@ export interface ModelInput {
   fpState: FpState;
   /** Sleeper's schedule for the season, for the byes; null when it didn't answer. */
   schedule?: Schedule | null;
+  /** This week's game state by team (#551): who has played, is playing or is yet to play; null when it didn't answer. */
+  games?: Games | null;
   /** Sleeper's own projections for this week (#276), by player id; null when they didn't answer. */
   slProj?: Record<string, SlProj> | null;
   /** The league's moves this week and last (#276). */
@@ -231,25 +233,58 @@ export function buildBoard(input: ModelInput): GreenBoard {
   for (const row of matchups) for (const [id, p] of Object.entries(row.playerPoints)) weekPts.set(id, p);
   const ptsOf = (id: string) => weekPts.get(id) ?? 0;
 
+  // Where a starter's game stands (#551): from Sleeper's schedule status for his team; a bye is a bye; nothing known, nothing said.
+  const gameOf = (p: GreenPlayer, pts: number): GameState | undefined => {
+    if (p.bye !== null && p.bye === week) return "bye";
+    const g = p.team ? input.games?.[p.team] : undefined;
+    if (!g) return undefined;
+    // Points on the board before the schedule says "playing" (a status a poll behind): he is playing.
+    return g === "yet" && pts !== 0 ? "playing" : g;
+  };
+
   const slotsFor = (starters: string[]): GreenSlot[] => league.slots.map((slot, i) => {
     const id = starters[i];
-    return { slot, player: id && id !== "0" ? player(id) : null, pts: id && id !== "0" ? round1(ptsOf(id)) : 0 };
+    const pl = id && id !== "0" ? player(id) : null;
+    const pts = pl ? round1(ptsOf(id!)) : 0;
+    const game = pl ? gameOf(pl, pts) : undefined;
+    return { slot, player: pl, pts, ...(game && { game }) };
   });
 
   const sideOf = (r: Roster, row: MatchupRow | undefined): GreenSide & { varr: number } => {
     const starters = slotsFor(row?.starters.length ? row.starters : r.starters);
     let proj = 0;
     let varr = 0;
+    let left = 0;
+    let toPlay = 0;
+    let unknown = 0;
+    let known = 0;
     for (const s of starters) {
       if (!s.player) continue;
-      if (s.pts !== 0) proj += s.pts;
+      const p = s.player.proj ?? 0;
+      if (s.game === undefined) {
+        // Game state unknown: the old rule, a scored player is banked and an unscored one is his projection. Not "done".
+        unknown++;
+        if (s.pts !== 0) proj += s.pts;
+        else {
+          proj += p;
+          if (p > 0) varr += sdOf(p) ** 2;
+        }
+        continue;
+      }
+      known++;
+      if (s.game === "played" || s.game === "bye") proj += s.pts;
       else {
-        const p = s.player.proj ?? 0;
-        proj += p;
-        if (p > 0) varr += sdOf(p) ** 2;
+        // Yet to play or playing: what he has scored plus what his projection still leaves.
+        const rest = Math.max(0, p - (s.game === "playing" ? s.pts : 0));
+        proj += s.pts + rest;
+        left += rest;
+        toPlay++;
+        if (rest > 0) varr += sdOf(rest) ** 2;
       }
     }
-    return { rosterId: r.rosterId, team: teamName(r), record: record(r), pts: round1(row?.points ?? 0), proj: round1(proj), starters, varr };
+    // Only a side with at least one known game says what is left.
+    const still = known > 0 ? { left: round1(left), toPlay, unknown } : {};
+    return { rosterId: r.rosterId, team: teamName(r), record: record(r), pts: round1(row?.points ?? 0), proj: round1(proj), starters, varr, ...still };
   };
 
   const myRow = matchups.find((m) => m.rosterId === mine.rosterId);
@@ -257,7 +292,7 @@ export function buildBoard(input: ModelInput): GreenBoard {
   const theirs = theirRow ? rosters.find((r) => r.rosterId === theirRow.rosterId) : undefined;
   const meSide = sideOf(mine, myRow);
   const themSide = theirs ? sideOf(theirs, theirRow) : null;
-  const live = [...meSide.starters, ...(themSide?.starters ?? [])].some((s) => s.pts !== 0);
+  const live = [...meSide.starters, ...(themSide?.starters ?? [])].some((s) => s.pts !== 0 || s.game === "playing");
   const anyProj = meSide.starters.some((s) => s.player?.proj != null);
   const strip = ({ varr: _v, ...s }: GreenSide & { varr: number }): GreenSide => s;
   const matchup = myRow

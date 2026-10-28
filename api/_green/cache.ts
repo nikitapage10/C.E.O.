@@ -16,6 +16,8 @@ export const FP_PATH = "desk/green/fantasypros.json";
 /** Sleeper's NFL schedule, trimmed to who plays each week (for the byes), read at most once a day. */
 export const SCHEDULE_PATH = "desk/green/schedule.json";
 /** Sleeper's own weekly projections, trimmed to points and opponent (#276), read at most every three hours. */
+/** This week's game states by team (#551), kept for a minute or two: who has played moves through Sunday. */
+export const GAMES_PATH = "desk/green/games.json";
 export const SL_PROJ_PATH = "desk/green/sleeper-projections.json";
 
 export interface Kept<T> {

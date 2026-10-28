@@ -208,6 +208,58 @@
   text-align: center;
   color: var(--wv-mute);
 }
+/* Who is still to play (#551). */
+.desk .gd-still {
+  margin: 16px 0 0;
+}
+.desk .gd-need {
+  margin: 0 0 10px;
+  text-align: center;
+  font-family: var(--gd-disp);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--wv-soft);
+}
+.desk .gd-need b {
+  font-style: normal;
+  color: var(--fl-accent);
+}
+.desk .gd-still-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.desk .gd-still-h {
+  display: block;
+  font-family: var(--gd-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--wv-faint);
+}
+.desk .gd-still-side ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 3px;
+}
+.desk .gd-still-side li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--wv-soft);
+}
+.desk .gd-still-side li small {
+  color: var(--wv-mute);
+}
+@media (max-width: 640px) {
+  .desk .gd-still-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .desk .gd-sb-empty {
   margin: 30px 0 20px;
   font-family: var(--gd-disp);

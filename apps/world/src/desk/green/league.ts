@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { CallSource, FpParts, FpState, GreenAnalysis, GreenBid, GreenBoard, GreenByeWeek, GreenCall, GreenFeed, GreenMove, GreenNews, GreenOdds, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap, GreenTeam, GreenTrade } from "../../../../../api/_green/types.ts";
+import { locked, needToWin } from "../../../../../api/_green/still.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 
 /**
@@ -48,15 +49,18 @@ export function isPlayer(v: unknown): v is GreenPlayer {
   );
 }
 
+const GAMES = new Set(["yet", "playing", "played", "bye"]);
 const isSlot = (v: unknown): v is GreenSlot => {
   const s = v as Partial<GreenSlot> | null;
-  return !!s && isStr(s.slot, 12) && (s.player === null || isPlayer(s.player)) && isNum(s.pts, -100, 300);
+  return !!s && isStr(s.slot, 12) && (s.player === null || isPlayer(s.player)) && isNum(s.pts, -100, 300) && (s.game === undefined || GAMES.has(s.game));
 };
 
 const side = (v: unknown): GreenSide | null => {
   const s = v as Partial<GreenSide> | null;
   if (!s || typeof s !== "object" || !isStr(s.team) || !isNum(s.pts) || !isNum(s.proj) || !Array.isArray(s.starters)) return null;
-  return { rosterId: Number(s.rosterId) || 0, team: s.team!, record: isStr(s.record, 12) ? s.record! : "", pts: s.pts!, proj: s.proj!, starters: s.starters.filter(isSlot) };
+  // Game states and what is left (#551) come together or not at all: a figure without its states would be a guess.
+  const still = isNum(s.left, 0, 500) && isNum(s.toPlay, 0, 40) && isNum(s.unknown, 0, 40) ? { left: s.left!, toPlay: s.toPlay!, unknown: s.unknown! } : {};
+  return { rosterId: Number(s.rosterId) || 0, team: s.team!, record: isStr(s.record, 12) ? s.record! : "", pts: s.pts!, proj: s.proj!, starters: s.starters.filter(isSlot), ...still };
 };
 
 const count = (n: unknown) => (isNum(n, 0, 100_000) ? Math.round(n as number) : 0);
@@ -193,6 +197,7 @@ export const callsWord = (b: GreenBoard) => (b.sources.calls === "fp" ? "Calls f
 
 /** How sure a start-or-sit call is (#261): the server's own rule, so the cards and the Commentator say the same word. */
 export { callConfidence, type Confidence } from "../../../../../api/_green/confidence.ts";
+export { locked, needToWin, sideDone, stillToPlay, stillWords } from "../../../../../api/_green/still.ts";
 
 /** One line on the ticker (#261): a headline on a player, or a move in the league. Real reads only. */
 export interface TickItem {
@@ -277,7 +282,15 @@ export function scoreboardLine(board: GreenBoard | null): string {
   const m = board?.matchup;
   if (!board || !m) return board ? `WEEK ${board.week} · NO GAME` : "-- · --";
   if (!m.them) return `WEEK ${m.week} · BYE`;
-  if (m.live) return `US ${m.me.pts.toFixed(1)} · THEM ${m.them.pts.toFixed(1)}`;
+  if (m.live) {
+    const base = `US ${m.me.pts.toFixed(1)} · THEM ${m.them.pts.toFixed(1)}`;
+    // Who is still to play (#551): what it takes once their side is done, else how many starters are left on each side.
+    const need = needToWin(m);
+    if (need !== null) return `${base} · NEED ${need.toFixed(1)}`;
+    if (locked(m)) return `${base} · WON`;
+    if (m.me.toPlay !== undefined && m.them.toPlay !== undefined) return `${base} · TO PLAY ${m.me.toPlay}-${m.them.toPlay}`;
+    return base;
+  }
   return m.win === null ? `WEEK ${m.week} · KICKOFF` : `WEEK ${m.week} · WIN ${Math.round(m.win * 100)}%`;
 }
 

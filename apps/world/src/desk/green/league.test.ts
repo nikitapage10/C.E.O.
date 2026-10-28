@@ -68,6 +68,27 @@ describe("the Green's board in the browser (#252)", () => {
     expect(claimWaiting(board({ pickups: [{ ...board().pickups[0]!, why: "Added in 5k leagues today" }] }))).toBe(false);
   });
 
+  it("shows who is still to play on the scoreboard line, and what is needed once their side is done (#551)", () => {
+    const b = board();
+    const m = b.matchup!;
+    const slot = (game: "yet" | "playing" | "played", pts: number) => ({ slot: "QB", player: m.me.starters[0]!.player, pts, game });
+    const live = (me: Partial<typeof m.me>, them: Partial<typeof m.me>) => board({ matchup: { ...m, live: true, me: { ...m.me, pts: 40, ...me }, them: { ...m.them!, pts: 61.5, ...them } } });
+    // Both sides have starters to come: the counts.
+    expect(scoreboardLine(live({ left: 30, toPlay: 3, unknown: 0 }, { left: 10, toPlay: 1, unknown: 0 }))).toBe("US 40.0 · THEM 61.5 · TO PLAY 3-1");
+    // Their side done: what it takes.
+    expect(scoreboardLine(live({ left: 30, toPlay: 3, unknown: 0 }, { left: 0, toPlay: 0, unknown: 0 }))).toBe("US 40.0 · THEM 61.5 · NEED 21.6");
+    // One of their games unknown: never called done.
+    expect(scoreboardLine(live({ left: 30, toPlay: 3, unknown: 0 }, { left: 0, toPlay: 0, unknown: 1 }))).toBe("US 40.0 · THEM 61.5 · TO PLAY 3-0");
+    // Ahead and they're done.
+    expect(scoreboardLine(live({ pts: 70, left: 0, toPlay: 0, unknown: 0 }, { left: 0, toPlay: 0, unknown: 0 }))).toBe("US 70.0 · THEM 61.5 · WON");
+    // The browser keeps the game states, and drops a figure without its counts.
+    const kept = readGreen(JSON.parse(JSON.stringify(live({ left: 30, toPlay: 3, unknown: 0, starters: [slot("yet", 0)] }, {}))))!;
+    expect(kept.matchup!.me.starters[0]!.game).toBe("yet");
+    expect(kept.matchup!.me.toPlay).toBe(3);
+    const partial = readGreen(JSON.parse(JSON.stringify(live({ left: 30 }, {}))))!;
+    expect(partial.matchup!.me.left).toBeUndefined();
+  });
+
   it("sets the Sleeper and FantasyPros links for Systems and the Boiler Room", () => {
     expect(greenLinks("ready", board())).toEqual({ sleeper: "ok", fantasypros: "off" });
     expect(greenLinks("ready", board({ stale: true, sources: { sleeper: "live", fantasypros: "live", fpAt: null, calls: "fp", fpParts: null } }))).toEqual({ sleeper: "slow", fantasypros: "ok" });

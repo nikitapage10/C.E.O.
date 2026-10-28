@@ -27,6 +27,7 @@
 
 import { scrub } from "../_world/digest.js";
 import type { GreenBoard, GreenPlayer } from "../_green/types.js";
+import { stillLine } from "../_green/still.js";
 import type { PmBoard, PmPositions } from "../_exchange/types.js";
 import type { EmailStatus } from "../_email/status.js";
 import type { JobRun, OpenPull } from "../foundry-feed.js";
@@ -89,7 +90,7 @@ export function weekFrame(b: GreenBoard): { final: boolean; line: string } {
     return { final, line: `Week ${week} is final: ${pts(m.me.pts)} to ${pts(m.them.pts)} ${vs}, ${how}.${next}` };
   }
   const odds = `projected ${pts(m.me.proj)} to ${pts(m.them.proj)}, win chance ${pct(m.win)}`;
-  if (m.live) return { final, line: `Week ${week}, live now ${vs}: ${pts(m.me.pts)} to ${pts(m.them.pts)} so far, ${odds}.` };
+  if (m.live) return { final, line: `Week ${week}, live now ${vs}: ${pts(m.me.pts)} to ${pts(m.them.pts)} so far, ${odds}. ${stillLine(m)}`.trim() };
   if (!m.me.pts && !m.them.pts) return { final, line: `Week ${week}, upcoming ${vs}: no games yet, ${odds}.` };
   return { final, line: `Week ${week} ${vs}, between games: ${pts(m.me.pts)} to ${pts(m.them.pts)} so far, ${odds}.` };
 }

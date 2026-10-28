@@ -17,10 +17,10 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { FP_PATH, PLAYERS_PATH, SCHEDULE_PATH, SL_PROJ_PATH, keptOrRead, peekKept, pickGreenStore, type GreenStore } from "./cache.js";
+import { FP_PATH, GAMES_PATH, PLAYERS_PATH, SCHEDULE_PATH, SL_PROJ_PATH, keptOrRead, peekKept, pickGreenStore, type GreenStore } from "./cache.js";
 import { FpUnavailable, fpKey, prevSnapshot, readFantasyPros, scoringOf, type FpData } from "./fantasypros.js";
 import { buildBoard, slotTakes } from "./model.js";
-import { LEAGUE_ID, getJson, pickLeague, readPlayers, readSchedule, readSlProjections, shapeLeague, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, shapeClaimed, shapeTransactions, shapeTrending, urls, type Fetcher, type League, type MatchupRow, type Move, type NflState, type Schedule, type SlProj } from "./sleeper.js";
+import { LEAGUE_ID, getJson, pickLeague, readPlayers, readGames, readSchedule, readSlProjections, shapeLeague, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, shapeClaimed, shapeTransactions, shapeTrending, urls, type Fetcher, type League, type MatchupRow, type Move, type NflState, type Games, type Schedule, type SlProj } from "./sleeper.js";
 import { GREEN_POS, type FpParts, type FpState, type GreenBoard, type GreenFeed, type GreenPos } from "./types.js";
 
 export const PATH = "/api/green-league";
@@ -30,6 +30,8 @@ export const FRESH_S = 120;
 const STALE_MS = 30 * 60_000;
 const DAY_MS = 24 * 3_600_000;
 const FP_TTL_MS = 6 * 3_600_000;
+/** Game states move through Sunday and Monday night (#551). */
+const GAMES_TTL_MS = 60_000;
 const SL_PROJ_TTL_MS = 3 * 3_600_000;
 
 export interface GreenDeps {
@@ -153,7 +155,10 @@ export async function readBoard(deps: GreenDeps): Promise<GreenBoard> {
       : Promise.resolve({ moves: [] as Move[], claimed: [] as string[] }),
     week >= 1 && week < league.playoffStart ? futureRows(deps, league, week) : Promise.resolve([] as MatchupRow[][]),
   ]);
-  const [rosters, users, matchups, history, adds, drops, players, schedule] = await Promise.all([
+  // The byes and the game states read the same schedule answer: one request, whichever of them needs it.
+  let schedAnswer: Promise<Response> | null = null;
+  const schedFetcher: Fetcher = (url, init) => (url === urls.schedule(state.season) ? (schedAnswer ??= deps.fetcher(url, init)).then((r) => r.clone()) : deps.fetcher(url, init));
+  const [rosters, users, matchups, history, adds, drops, players, schedule, games] = await Promise.all([
     getJson(deps.fetcher, urls.rosters(league.id)).then(shapeRosters),
     getJson(deps.fetcher, urls.users(league.id)).then(shapeTeamNames),
     week >= 1 ? getJson(deps.fetcher, urls.matchups(league.id, week)).then(shapeMatchups) : Promise.resolve([]),
@@ -162,14 +167,20 @@ export async function readBoard(deps: GreenDeps): Promise<GreenBoard> {
     getJson(deps.fetcher, urls.trending("drop")).then(shapeTrending).catch(() => ({})),
     keptOrRead(deps.store, PLAYERS_PATH, "nfl", DAY_MS, 7 * DAY_MS, deps.now, () => readPlayers(deps.fetcher)).then((k) => k.value),
     // The byes, from the schedule (independent of FantasyPros); without it the board still answers.
-    keptOrRead(deps.store, SCHEDULE_PATH, state.season, DAY_MS, 7 * DAY_MS, deps.now, () => readSchedule(deps.fetcher, state.season))
+    keptOrRead(deps.store, SCHEDULE_PATH, state.season, DAY_MS, 7 * DAY_MS, deps.now, () => readSchedule(schedFetcher, state.season))
       .then((k): Schedule | null => k.value)
       .catch(() => null),
+    // Who has played, from the same schedule's game statuses, kept a minute (#551); without it nobody's state is guessed.
+    week >= 1
+      ? keptOrRead(deps.store, GAMES_PATH, `${state.season}-${week}`, GAMES_TTL_MS, 15 * 60_000, deps.now, () => readGames(schedFetcher, state.season, week))
+          .then((k): Games | null => k.value)
+          .catch(() => null)
+      : Promise.resolve(null),
   ]);
   const [{ fp, fpState, fpParts }, [slProj, txns, future]] = await Promise.all([fantasyPros(deps, league, state), extras]);
   const moves = txns.moves;
   const at = new Date(deps.now).toISOString();
-  const board = buildBoard({ league, state, rosters, teamNames: users, matchups, history, players, adds, drops, fp, fpState, schedule, slProj: slProj?.value ?? null, moves: moves ?? [], claimed: txns.claimed, future, at });
+  const board = buildBoard({ league, state, rosters, teamNames: users, matchups, history, players, adds, drops, fp, fpState, schedule, games, slProj: slProj?.value ?? null, moves: moves ?? [], claimed: txns.claimed, future, at });
   if (fpParts && !board.sources.fpParts) board.sources.fpParts = fpParts;
   board.feeds = feedsOf({ at, fpState, fp, fpParts: board.sources.fpParts, slProjAt: slProj ? new Date(slProj.at).toISOString() : null, moves: moves !== null, schedule: schedule !== null });
   return board;

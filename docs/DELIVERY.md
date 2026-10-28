@@ -248,12 +248,14 @@ fixes what they find or explains why not on the pull request, and adds the resul
 | CI | GitHub Actions: `checks`, `e2e`, `report`, `world-step`, `desk-pings` | The built-in token, read-only except `report`; the two `report` jobs use the crew's App key for an issues-only token when it is set (#138); `world-step`, `desk-pings`, `live-watch`, `deploy-azure` and `backup-azure` sign in to Azure with OIDC from `main` only; `desk-pings` and `live-watch` read their one secret each from the Key Vault at run time and send it only to the site (#135, #313) | Every PR, push and night; `desk-pings` on Foundry issue events and hourly |
 | The Foundry's sessions | Claude Code threads and their worktrees, with `.claude/settings.json` permissions | The session's GitHub access (today Nikita's) | Each job starts from the latest `main` |
 | Production | Azure (Static Web App + Function App), from `main`; the hourly world step | In the Key Vault: Claude key, the crew's App key (or the Foundry token until it is set up), Desk key, the Desk's push key pair, the pings secret (#135) and the site lock's bypass (#313); the state in Azure Blob (`ceo-state`) through the Function App's identity | Every merge to `main` (`deploy-azure.yml`) |
-| The Relay MacBook | The hub (`apps/hub`, not built yet) under `launchd`, BlueBubbles | The OpenAI key and the hub's token, in the Keychain or a file only the hub's user can read | Pull, never push (below) |
+| The Relay MacBook | The hub (`apps/hub`, #535) under `launchd`, BlueBubbles | The BlueBubbles password, the hub token, the send key and the local key, in the login Keychain; no model key (the site makes the model calls) | Pull, never push (below) |
 
 **The Relay MacBook** holds the most sensitive data in C.E.O. (messages and contacts), so it never runs code the
-moment it lands on `main`. It runs a pinned daily release. Updating is a tap on the Desk that pulls that tag,
-checks that its commit is signed and its checks were green, runs `npm ci` and the tests, and restarts the hub;
-anything else and it stays where it was. FileVault stays on. The public site never receives message text.
+moment it lands on `main`. The site publishes the hub's one-file build at `/relay/relay-hub.mjs` with its SHA-256,
+and the Mac takes it only when Nikita runs the installer (`/relay/install.sh`) again: it downloads the file, checks
+it against the hash the build stamped into the installer, and restarts the hub; on a mismatch it stays where it was.
+That check guards against a broken or swapped download only: the bundle isn't signed, so the site itself is trusted. Nothing on the Mac updates by itself and nothing
+can push to it. FileVault stays on. The public site never receives message text.
 
 ## 10. Who the agents are (the identity problem)
 

@@ -234,6 +234,13 @@ is off, #313), but only Azure serves it.
 - **The email agent (#263) is Azure only.** `azure/src/index.ts` also registers `/api/email` and `/api/gmail-callback`
   (behind the same gate) and one timer function, `email_tick`, every minute. Vercel has neither, so its Desk shows the
   email agent as living on the Azure copy. Setup, privacy and the cap: [GMAIL.md](GMAIL.md).
+- **Relay's texts line (#535) is Azure only too.** `azure/src/index.ts` registers `/api/relay` (the Desk's Texts panel
+  and `?view=status`, the public counts), `/api/relay-hub` (the Mac hub's own calls on its paired token) and
+  `/api/relay-pair` (the installer's one-time pair code), all behind the gate. The model calls for texts are made
+  here with the same Key Vault Claude key, under their own cap (`RELAY_BUDGET_USD`, default and most 10; no template
+  setting needed) and ledger (`relay/spend.json`). The sealed list uses `GMAIL_TOKEN_KEY` with Relay's own label. The
+  hub's one-file build and its installer are static files at `/relay/` (no-cache). Privacy and the send path:
+  [RELAY-PRIVACY.md](RELAY-PRIVACY.md).
 - **The Spire's invoices (#279) are Azure only.** `azure/src/index.ts` registers `/api/invoices` (behind the same
   gate), which talks to PayPal's Invoicing API with `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `PAYPAL_ENV`.
   Vercel has no route for it, so its Spire page says invoicing lives on the Azure copy. [PAYPAL.md](PAYPAL.md).

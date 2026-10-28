@@ -130,7 +130,7 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     blob: { id: "blob", l: "Azure Blob", s: "ceo-state, private", k: "store", state: world || fnode("blob")?.state === "ok" ? "ok" : "wait" },
     lattice: { id: "lattice", l: "The Lattice", s: "public", k: "service", state: "ok" },
     bluebubbles: { id: "bluebubbles", l: "BlueBubbles", s: "iMessage and SMS", k: "service", state: L("bluebubbles") },
-    openai: { id: "openai", l: "OpenAI", s: "sorting, drafts", k: "service", state: L("openai") },
+    openai: { id: "openai", l: "Claude", s: "sorting, drafts, via the site", k: "service", state: L("openai") },
     cron: { id: "cron", l: "GitHub Actions", s: "at :05 hourly", k: "service", state: "ok" },
     doorbell: { id: "doorbell", l: "The doorbell", s: "every 10 min", k: "service", state: connected ? "ok" : "wait" },
     step: { id: "step", l: "World step", s: "/api/world-step", k: "service", state: G_STATE[clock.state] },
@@ -268,8 +268,8 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
       sub: relayLive ? "the hub on the MacBook" : "planned, waiting on the Mac",
       room: "relay",
       p: relayLive
-        ? "The hub on the MacBook is up. Messages stay on the Mac; only counts and states ever reach the site."
-        : "Nothing here runs yet. Every thread is dashed until the hub on the MacBook comes online. Messages stay on the Mac; only counts and states ever reach the site.",
+        ? "The hub on the MacBook is up. Messages stay on the Mac; the site gets counts, and your passkey sees who is waiting with Blasto's draft. Only placeholdered snippets go on to Claude, through the site."
+        : "Nothing here runs yet. Every thread is dashed until the hub on the MacBook is installed and paired. Messages stay on the Mac; the site gets counts, and your passkey sees who is waiting.",
       st: relayLive ? (hub === "bad" ? "The hub is down" : "Live") : "Not connected yet",
       stc: relayLive ? hub : "wait",
       edges: [
@@ -277,10 +277,10 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
         { a: "hub", b: "bluebubbles", room: "relay", state: nodes.bluebubbles!.state, label: "Reads and sends", how: conn("bluebubbles")?.how ?? "", ...fromConn("bluebubbles") },
         { a: "hub", b: "messages", room: "relay", state: nodes.messages!.state, label: "Signed in", kinds: [], how: "Messages stays signed in on the Mac. Nothing leaves it.", auth: "Your Apple account, on the Mac only.", when: "Always." },
         { a: "hub", b: "openai", room: "relay", state: nodes.openai!.state, label: "Sort and draft", how: conn("openai")?.how ?? "", ...fromConn("openai") },
-        { a: "bluebubbles", b: "dialtone", room: "relay", state: nodes.dialtone!.state, label: "Who you owe", kinds: ["Agent"], how: "Dialtone keeps track of who is waiting on you, and how long.", auth: "Local to the hub.", when: "Every message in." },
-        { a: "messages", b: "dialtone", room: "relay", state: nodes.dialtone!.state, label: "Threads", kinds: ["Agent"], how: "Dialtone reads thread state, never sends.", auth: "Local to the hub.", when: "Every message in." },
-        { a: "openai", b: "blasto", room: "relay", state: nodes.blasto!.state, label: "Drafts in your voice", kinds: ["Agent"], how: "Blasto writes a reply in your voice and waits for your tap.", auth: "Local to the hub.", when: "Only for replies you owe." },
-        { a: "blasto", b: "you", room: "relay", state: nodes.blasto!.state, label: "A tap to send", kinds: [], how: "Nothing is ever sent without you.", auth: "You.", when: "When you say so." },
+        { a: "bluebubbles", b: "dialtone", room: "relay", state: nodes.dialtone!.state, label: "Who you owe", kinds: ["Agent"], how: "Dialtone keeps track of who is waiting on you, and how long.", auth: "On the hub; the sort runs through the site.", when: "Every message in." },
+        { a: "messages", b: "dialtone", room: "relay", state: nodes.dialtone!.state, label: "Threads", kinds: ["Agent"], how: "Dialtone reads thread state, never sends.", auth: "On the hub.", when: "Every message in." },
+        { a: "openai", b: "blasto", room: "relay", state: nodes.blasto!.state, label: "Drafts in your voice", kinds: ["Agent"], how: "Blasto writes a reply in your voice and waits for your tap.", auth: "Claude with the site's key; names go back in only on the Mac.", when: "Only for replies you owe." },
+        { a: "blasto", b: "you", room: "relay", state: nodes.blasto!.state, label: "A tap to send", kinds: [], how: "Nothing is ever sent without you. Send makes one request, good for 10 minutes, that the hub picks up.", auth: "Your passkey, unlocked on this device for 72 hours.", when: "When you say so." },
         { a: "hub", b: "lattice", room: "relay", state: nodes.hub!.state, label: "Live events", how: conn("hub-socket")?.how ?? "", ...fromConn("hub-socket") },
         { a: "gmail", b: "dialtone", room: "relay", state: nodes.gmail!.state, label: "Sorts new mail", how: conn("gmail")?.how ?? "", ...fromConn("gmail") },
         { a: "gmail", b: "blasto", room: "relay", state: nodes.gmail!.state, label: "Advice and drafts", kinds: ["Agent"], how: "For mail that needs you, Blasto writes short advice and a draft for you to copy. Nothing is sent.", auth: "Read-only Gmail; your passkey to see it.", when: "Only for needs-you mail, under the email cap." },

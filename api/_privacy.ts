@@ -157,3 +157,16 @@ export function heldWords(kinds: PrivateKind[]): string {
   const words = kinds.map((k) => PRIVATE_LABEL[k]);
   return words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
 }
+
+/**
+ * The same patterns, for Relay's hub (#535, docs/RELAY-PRIVACY.md, "Names and numbers become placeholders"): it
+ * swaps what they match for `[phone]`, `[email]`… before any model call, rather than holding the text back.
+ */
+export const PRIVACY_PATTERNS = {
+  email: [EMAIL, SPELLED_EMAIL, SPOKEN_EMAIL],
+  phone: [PHONE_INTL, PHONE_NA],
+  address: [STREET, PO_BOX, UNIT],
+  card: [CARD],
+  account: [ACCOUNT_CUE, IBAN, SSN],
+  key: [KEY_PREFIX, JWT, PEM, SECRET_CUE],
+} as const;

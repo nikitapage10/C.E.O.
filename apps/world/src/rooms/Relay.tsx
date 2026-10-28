@@ -8,7 +8,7 @@ import { Dust, Haze } from "../fx/atmos.tsx";
 import { Model, ModelInstances } from "../fx/Model.tsx";
 import { PBR } from "../fx/pbr.ts";
 import { emailLine, startEmail, useEmail } from "../desk/email/email.ts";
-import { useWorld } from "../store.ts";
+import { startTexts, STALE_MS, textsLine, useTexts } from "../desk/texts/texts.ts";
 import { Block, Chair, FONTS, Plinth, ahead } from "./primitives.tsx";
 
 const dummy = new Object3D();
@@ -121,7 +121,12 @@ function Tubes({ position }: { position: [number, number] }) {
   );
 }
 
-/** A switchboard: walnut cabinet, jack panel, patch cords looping between sockets. */
+/**
+ * The switchboard: walnut cabinet, jack panel, patch cords looping between sockets. Since the texts line went live
+ * (#535) its thirty lamps are the replies owed, driven by the hub's public counts (desk/texts/texts.ts): one lamp per
+ * owed thread, the ones Dialtone sorted "sooner" in coral, the rest dark. A slow breath while the hub listens; all dark
+ * while it is off, paused or quiet. Counts only: no name or message ever reaches the Lattice.
+ */
 function Switchboard({ position, yaw }: { position: [number, number]; yaw: number }) {
   const lamps = useRef<Group>(null);
   const cords = useMemo(
@@ -142,18 +147,32 @@ function Switchboard({ position, yaw }: { position: [number, number]; yaw: numbe
       }),
     [],
   );
+  useEffect(() => startTexts(), []);
+  const load = useTexts((s) => s.load);
+  const status = useTexts((s) => s.status);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const on = !!status && status.hub === "listening" && now - status.at < STALE_MS;
+  const owed = on ? Math.min(30, status.owed) : 0;
+  const sooner = on ? Math.min(owed, status.sooner) : 0;
   useFrame(({ clock }) => {
+    const breath = 0.85 + Math.sin(clock.elapsedTime * 1.4) * 0.15;
     lamps.current?.children.forEach((l, i) => {
-      l.visible = Math.sin(clock.elapsedTime * (0.9 + (i % 5) * 0.5) + i * 2.1) > 0.2;
+      l.visible = i < owed;
+      l.scale.setScalar(i < sooner ? breath * 1.15 : breath);
     });
   });
+  const line = textsLine(load, status, now).replace(/^Texts:?\s*/i, "").toUpperCase();
   return (
     <group position={[position[0], 0, position[1]]} rotation={[0, yaw, 0]}>
       <Block size={[2.2, 2.5, 0.6]} position={[0, 1.25, -0.3]} material={PBR.wood("walnut")} radius={0.05} />
       <Block size={[1.8, 1.2, 0.04]} position={[0, 1.7, 0.01]} material={PBR.matte("#14100c", 0.8)} radius={0.01} />
       <group ref={lamps} position={[-0.75, 1.3, 0.04]}>
         {Array.from({ length: 30 }, (_, i) => (
-          <mesh key={i} position={[(i % 6) * 0.3, Math.floor(i / 6) * 0.2, 0]} material={PBR.light(i % 4 ? "#ffcf8a" : "#ff8a6a", 3)}>
+          <mesh key={i} position={[(i % 6) * 0.3, Math.floor(i / 6) * 0.2, 0]} material={PBR.light(i < sooner ? "#ff8a6a" : "#ffcf8a", 3)} visible={false}>
             <circleGeometry args={[0.03, 16]} />
           </mesh>
         ))}
@@ -162,6 +181,12 @@ function Switchboard({ position, yaw }: { position: [number, number]; yaw: numbe
         <mesh key={i} geometry={c.geo} material={PBR.lacquer(c.color, 0.5)} castShadow />
       ))}
       <Block size={[2.2, 0.06, 0.5]} position={[0, 1, 0.15]} material={PBR.brass()} radius={0.02} />
+      <Text font={FONTS.mono} fontSize={0.075} position={[0, 2.42, 0.05]} letterSpacing={0.2} color="#c9a25c">
+        TEXTS · BY WIRE
+      </Text>
+      <Text font={FONTS.mono} fontSize={0.06} maxWidth={1.7} textAlign="center" position={[0, 2.3, 0.05]} letterSpacing={0.12} color={owed > 0 ? "#ffcf8a" : "#8a7a60"}>
+        {line}
+      </Text>
     </group>
   );
 }
@@ -220,7 +245,7 @@ function Counter({ label, value, x, hot }: { label: string; value: number | null
 
 /**
  * The inbox board (#263, live since #322): a brass telegraph board by the post-office boxes, driven by the email
- * agent's public counts (desk/email/email.ts, ?view=status). Three counters (needs the C.E.O., FYI, noise today), the
+ * agent's public counts (desk/email/email.ts, ?view=status). Three counters (needs the C.E.O., can wait, noise today), the
  * line's state, and when Dialtone last checked: a sweep dial runs round once a minute from the last check, and the
  * sounder taps out a short click each time a new check lands. Counts only: no subject or sender ever reaches the
  * Lattice. The lamp burns while something needs the C.E.O.
@@ -322,7 +347,8 @@ function InboxBoard() {
 /** The Relay: an art-deco post office, where messages arrive by tube and wait in the outbox for your nod. */
 export function Relay() {
   const beacon = useRef<Mesh>(null);
-  const pendingMsg = useWorld((s) => Object.values(s.lattice.approvals).some((a) => a.status === "pending" && a.request.action === "message.send"));
+  // The outbox beacon burns while Blasto has drafts ready and waiting on the C.E.O.'s tap (the texts line's counts, #535).
+  const pendingMsg = useTexts((s) => !!s.status && s.status.hub === "listening" && s.status.draftsReady > 0);
   const tubes = getStation("relay", "tubes");
   const draft = getStation("relay", "draft-desk");
   const outbox = ahead(getStation("relay", "outbox"), 0.85);

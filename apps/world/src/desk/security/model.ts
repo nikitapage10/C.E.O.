@@ -97,9 +97,9 @@ export const BOUNDARIES: Boundary[] = [
   {
     id: "TB7",
     name: "Relay to the site (planned)",
-    crosses: "Counts and states, never message text",
+    crosses: "Public counts and states; for the signed-in Desk, a sealed who's-waiting list (names, gists, drafts); placeholdered snippets for the model calls; never a stored message body",
     controls:
-      'The Relay privacy spec, docs/RELAY-PRIVACY.md (#149): only `RelayStatus`, an allowlisted shape of counts, enum states and timestamps, checked with `readRelayStatus` (`packages/core/src/relay.ts`) before the hub sends it and again where the site receives it; an unknown key or a free string refuses the whole status; names, previews and drafts never pass through Vercel; design rules in docs/DELIVERY.md, "Environments"',
+      'The Relay privacy spec, docs/RELAY-PRIVACY.md (#149, #535): the hub only calls out, with a paired token the gate checks (`api/_site/gate.ts`); the public status is `RelayStatus`, an allowlisted shape of counts, enum states and timestamps, checked with `readRelayStatus` (`packages/core/src/relay.ts`) before the hub sends it and again where the site receives it; the who\'s-waiting list is read against a closed allowlist (`api/_relay/texts.ts`), sealed at rest and shown only to a passkey session; snippets go to Claude with the site\'s key under their own $10 and are never stored; a send is a single-use, signed, 10-minute request made only on the Desk with a per-device passkey unlock; design rules in docs/DELIVERY.md, "Environments"',
     from: "relay",
     to: "vercel",
     planned: true,

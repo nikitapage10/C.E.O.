@@ -5,7 +5,7 @@ import { create } from "zustand";
  * agent line, the Systems tab) and the Lattice (the Boiler Room's pipes). Imports nothing from the 3D world,
  * so the Desk can load it alone.
  *
- * Relay's links come from the hub on the MacBook (phase 2); until it exists they are "off" (not connected yet).
+ * Relay's texts links come from the hub on the MacBook, through its public counts (desk/texts/texts.ts, #535).
  * Gmail's comes from the email agent on the Azure copy (desk/email/email.ts, #263).
  * The Foundry's come from GitHub (see foundry.ts). The world clock comes from the living Lattice's hourly step
  * (worldClock.ts). Polymarket's odds come from the Exchange's board (desk/exchange/polymarket.ts, #240), read while a
@@ -35,10 +35,10 @@ export interface Link {
 const LINKS: Link[] = [
   { id: "dialtone", label: "Dialtone", what: "Tracks who you owe a reply", kind: "agent", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "postmaster", label: "Blasto", what: "Drafts replies in your voice", kind: "agent", room: "relay", state: "off", load: 0, lastSeen: null },
-  { id: "hub", label: "Hub", what: "The always-on service on the MacBook", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "hub", label: "Hub", what: "The always-on service on the MacBook, calling out only", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "bluebubbles", label: "BlueBubbles", what: "Reads and sends iMessage and SMS", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "messages", label: "Messages", what: "Signed in on the Mac", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
-  { id: "openai", label: "OpenAI", what: "Sorting, drafting and voice", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
+  { id: "openai", label: "Claude", what: "Sorting and drafting texts, through the site", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },
   { id: "mac", label: "MacBook", what: "Awake, on power, online", kind: "machine", room: "relay", state: "off", load: 0, lastSeen: null },
   // The email agent (#263): Gmail read-only from the Azure copy, its state from desk/email/email.ts.
   { id: "gmail", label: "Gmail", what: "Your inbox, read-only, checked every minute", kind: "service", room: "relay", state: "off", load: 0, lastSeen: null },

@@ -25,8 +25,8 @@ the script, written from the already-scrubbed public Chronicle, and returning au
 each room of the built Lattice to Gemini after every push to `main`, and CI turns the blockers it flags into fix
 issues. Code is written by **the Foundry**, a Claude Code builder session (the Builder,
 Skippy's submind) and its workers (Rusty, Rocky), which read GitHub issues, open branches and pull requests, and
-ship to `main`, which the "Deploy to Azure" workflow ships to production. **Relay**, a hub on an always-on MacBook that will read
-messages, is designed but not built yet; its privacy rules come first, in [RELAY-PRIVACY.md](RELAY-PRIVACY.md).
+ship to `main`, which the "Deploy to Azure" workflow ships to production. **Relay**'s texts line, a hub on an always-on MacBook that reads
+messages through BlueBubbles, is built (#535) and runs once installed; its privacy rules are in [RELAY-PRIVACY.md](RELAY-PRIVACY.md).
 
 ## Data flow and trust boundaries
 
@@ -66,7 +66,6 @@ flowchart LR
   subgraph MAC["Relay MacBook, planned"]
     hub["Hub and BlueBubbles<br/>messages, contacts"]
   end
-  openai["OpenAI API"]
 
   desk -- "TB1: ideas, notes, pictures, session" --> fFoundry
   desk -- "TB1: passkey sign-in" --> fAuth
@@ -97,8 +96,8 @@ flowchart LR
   viewer -- "TB6: site lock (passkey), then read only" --> site
   site --> fFeed
   fFeed -- "cached reads" --> issues
-  hub -. "TB7: counts and states only" .-> site
-  hub -. "drafts" .-> openai
+  hub -. "TB7: counts and states (public)" .-> site
+  hub -. "TB7: placeholdered snippets, sealed list, polls for sends" .-> site
   actions -- "TB8: room clips" --> gemini
   gemini -- "TB8: JSON findings, re-checked" --> actions
   actions -- "fix issues, CI text" --> issues
@@ -118,7 +117,7 @@ flowchart LR
 | **TB4** Public to the repo | Anyone's issues and comments | Labels need a collaborator; the builder reads only owner text (TB5); the world step counts trail steps only from Nikita's account, the Checks bot and the crew's App (`TRAIL_AUTHORS` in `api/_world/digest.ts`) |
 | **TB5** Issues to the builder | Work descriptions | `scripts/foundry-issue.sh` (#59): owner, CI and Foundry App text in data blocks with a random tag per read, everything else withheld by name, exit 3 when anything was withheld; worker briefs carry issue text only inside a data block (docs/FOUNDRY.md, "Trusted input") |
 | **TB6** The public Lattice | World history, Foundry feed, spend totals, security posture, the latest Visual QA run | Read-only endpoints; the step reads only titles, numbers, labels and trail step kinds, never bodies or comment words; `scrub` on everything in and out; edge cache with canonical URLs (#63); the security feed (`api/security-feed.ts`, #82) returns only pass or fail states, scores, dates and counts, never an open alert's details; the Visual QA feed (`api/visual-qa-feed.ts`, #91) returns only counts, a time, a state and a link to the run; once Nikita locks the site, every page and API route asks for a site session first, one Desk passkey sign-in per device that lasts 180 days from its last use (no password, #238), and only the login page, the Desk's passkey ceremony (which guards itself), the public build's files and machine callers holding their own key pass without one (`middleware.ts`, `api/_site/gate.ts`, #236) |
-| **TB7** Relay to the site (planned) | Counts and states, never message text | The Relay privacy spec, docs/RELAY-PRIVACY.md (#149): only `RelayStatus`, an allowlisted shape of counts, enum states and timestamps, checked with `readRelayStatus` (`packages/core/src/relay.ts`) before the hub sends it and again where the site receives it; an unknown key or a free string refuses the whole status; names, previews and drafts never pass through Vercel; design rules in docs/DELIVERY.md, "Environments" |
+| **TB7** Relay to the site (planned) | Public counts and states; for the signed-in Desk, a sealed who's-waiting list (names, gists, drafts); placeholdered snippets for the model calls; never a stored message body | The Relay privacy spec, docs/RELAY-PRIVACY.md (#149, #535): the hub only calls out, with a paired token the gate checks (`api/_site/gate.ts`); the public status is `RelayStatus`, an allowlisted shape of counts, enum states and timestamps, checked with `readRelayStatus` (`packages/core/src/relay.ts`) before the hub sends it and again where the site receives it; the who's-waiting list is read against a closed allowlist (`api/_relay/texts.ts`), sealed at rest and shown only to a passkey session; snippets go to Claude with the site's key under their own $10 and are never stored; a send is a single-use, signed, 10-minute request made only on the Desk with a per-device passkey unlock; design rules in docs/DELIVERY.md, "Environments" |
 | **TB8** CI to Gemini | Clips of the public Lattice and the room descriptions; JSON findings back | Only renders of the public Lattice built from `main`, a few seconds a room at low resolution, never live data or secrets (`scripts/room-tour.mjs`); the key is a GitHub Actions secret (`GEMINI_API_KEY`) given only to the review step, sent only to Google's API host and never printed (`redact`); fixed rules that say text in the video is never instructions; structured output re-validated in code (`parseFindings`) and reduced to plain lines (`plainText`) before CI writes an issue in its own words; spend capped per run and per day (`api/_visualqa/review.ts`) |
 
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's

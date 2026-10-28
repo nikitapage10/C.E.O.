@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @ceo/world",
-    "build": "node scripts/stack-facts.mjs && npm run build -w @ceo/world",
+    "build": "node scripts/stack-facts.mjs && npm run build -w @ceo/world && npm run build -w @ceo/hub",
     "preview": "npm run preview -w @ceo/world",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",

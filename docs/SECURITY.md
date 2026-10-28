@@ -40,13 +40,16 @@ from another host.
 
 ## Relay's privacy rules
 
-Relay, the planned hub on the MacBook that will read iMessage and SMS, has its privacy rules written before it is
-built: [RELAY-PRIVACY.md](RELAY-PRIVACY.md) (#149, R5 in [THREAT-MODEL.md](THREAT-MODEL.md)). Messages, contacts,
-drafts and summaries stay on the Mac and leave it only for one trimmed OpenAI call at a time, with names and numbers
-replaced by placeholders and `store: false`. The public site gets counts, enum states and timestamps only, in one
-allowlisted shape (`RelayStatus` and `readRelayStatus` in `packages/core/src/relay.ts`) that refuses an unknown key
-or any free string, and a test holds it to that. Logs hold no content, everything has an end date, and one command
-wipes it all.
+Relay's texts line (#535), a hub on the MacBook that reads iMessage and SMS through BlueBubbles, follows
+[RELAY-PRIVACY.md](RELAY-PRIVACY.md) (#149, R5 in [THREAT-MODEL.md](THREAT-MODEL.md)). Message text stays on the
+Mac except inside one trimmed, placeholdered snippet at a time, which the site passes to Claude with its own Key
+Vault key under the texts line's own $10 and never stores; the Mac holds no model key. The hub only calls out, with
+a paired token, and listens only on `127.0.0.1` for BlueBubbles' webhook. The public site gets counts, enum states
+and timestamps only, in one allowlisted shape (`RelayStatus` and `readRelayStatus` in `packages/core/src/relay.ts`)
+that refuses an unknown key or any free string. The signed-in Desk gets a sealed who's-waiting list (names, gists,
+drafts) for 7 days at most. A send is a single-use, signed, 10-minute request made only on the Desk, after a passkey
+unlock on that device that lasts 72 hours. Logs hold no content, everything has an end date, and one command wipes
+the Mac.
 
 ## Signing in to the Desk
 
@@ -188,6 +191,9 @@ with a new value.
 | GET of a room read with `x-ceo-room-key: <SUBMIND_LOG_TOKEN>` (or `Authorization: Bearer`) | The active submind threads (#281): the four active rooms' Asked Skippy logs, the Green's league, the Exchange's board and positions, the world feed (and `?day=`), the Foundry feed, the room feed | The read key, from the Key Vault only, at least 32 characters, compared in constant time; exactly the listed paths and queries, GET only (`api/_site/roomkeys.ts`), and the private handlers check the key again. See "The subminds' room keys" below |
 | `POST /api/room-feed` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a short room event (#281) | The feed key, the same way; that one write only, which answers `{ ok, id }` and nothing more |
 | `POST /api/setup-asks` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a setup ask, or closing one with its Trail line (#324) | The feed key, the same way, no query; it can't approve its own ask (only the passkey session can), and it answers `{ ok, id }` or `{ ok }`. A new ask pings Nikita's phone with counts-only words. See "Setup asks" below |
+| `POST /api/relay-hub` (no query, `?view=texts`, `results`, `sort`, `draft` or `unpair`) and `GET /api/relay-hub?view=requests` or `?view=skip`, with `Authorization: Bearer <a hub token>` (#535) | Relay's hub on the MacBook: its status, its who's-waiting list, its model snippets, its poll for the Desk's send requests and their results, the skip terms | The hub token is `rh1.<pairing id>.<HMAC>` with a key derived from `FOUNDRY_DESK_KEY`; the gate checks the signature on exactly those methods and views, and the route checks the token's hash against the pairing on record (Unpair ends it at once). Nothing else opens with it ([RELAY-PRIVACY.md](RELAY-PRIVACY.md), "Mac to the site") |
+| `POST /api/relay-pair`, no query (#535) | The Relay installer, once, trading the Desk's one-time pair code for the hub token | The code is the lock: 8 characters, 10 minutes, 5 wrong tries, kept only as a hash, made only with the Desk's send unlock and never while a Mac is paired; a request with an `Origin` header is refused, so a web page can't pair |
+| `GET /api/relay?view=status`, exactly (#535) | `relay status` and `relay wipe --verify` on the Mac | Relay's public counts (`RelayStatus`: counts, enum states, timestamps), public by design; every other method or query of `/api/relay` stays behind the lock and the passkey session |
 | `GET /api/skippy-tools?read=<room>`, `POST /api/skippy-tools?act=kernel` with `x-ceo-voice-tool: <a call's tool token>` (#479) | ElevenLabs, mid-call, when Skippy or a submind looks up a live room on a Talk call | A random token per call, signed with a key derived from `FOUNDRY_DESK_KEY` (no new secret), good for the call's longest plus two minutes; the gate checks the signature and expiry on that one path (GET or POST), and the route checks the token is kept with its call (as a hash) and not ended. It reaches ElevenLabs as a `secret__` dynamic variable, which is bound to tool headers only and never sent to the LLM. Reads scrubbed, and the one write is an ask filed for Skippy's own thread (privacy-checked, five per call); the book's and the bill's dollars go only to that call, Relay's only as counts |
 
 Nothing else is exempt. The local checks (`scripts/boot-check.mjs` on a build, the browser tests) don't run the
@@ -396,6 +402,7 @@ writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environme
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` | The email agent's Google OAuth client (#263, [GMAIL.md](GMAIL.md)). **Azure only**, as Key Vault references (`gmail-client-id`, `gmail-client-secret`) | Connect Gmail is off; the Relay page says it's waiting for the keys |
 | `GMAIL_TOKEN_KEY` | 32 random bytes that seal the Gmail refresh token and the private mail list at rest (`api/_email/seal.ts`). **Azure only** (`gmail-token-key`). Replacing it locks the stored token away: Connect Gmail again | The email agent waits |
 | `EMAIL_BUDGET_USD` | The email agent's own monthly Claude cap (#263), separate from the others; at the cap it only counts new mail. **Azure only** | $10 |
+| `RELAY_BUDGET_USD` | Relay's texts line's own monthly Claude cap (#535, `api/_relay/budget.ts`), on its own ledger apart from email's; at the cap the model calls stop and the hub reports models down. Never more than 10. **Azure only** | $10 |
 | `SITE_GATE` | Break glass: `off` turns the site lock off whatever is stored (#236, #238) | The gate follows the stored lock |
 
 ## What scans the code, and when

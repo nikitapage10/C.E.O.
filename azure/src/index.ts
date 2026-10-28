@@ -27,6 +27,7 @@ import * as talktiming from "../../api/_boot/talkTiming.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
+import * as relay from "../../api/_relay/route.js";
 import * as roomfeed from "../../api/_room/feed.js";
 import * as setupasks from "../../api/_room/setup.js";
 import * as securityfeed from "../../api/security-feed.js";
@@ -99,6 +100,14 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["foundry", foundry],
   // The subminds' room events (#281, docs/SKIPPY.md "Room keys"): POST with the feed key only; GET full for a Desk
   // session or the read key, scrubbed titles for the Lattice. Azure only: both keys live only in this Key Vault.
+  // Relay's texts line (#535, docs/RELAY-PRIVACY.md): relay ?view=status is the public counts; the rest of relay is
+  // the Desk's Texts panel (passkey session: the sealed list, send requests with the device's unlock). relay-pair is
+  // the installer's one-time code trade. relay-hub is the Mac hub's own calls on its paired token: its counts, its
+  // sealed list, its model snippets (Claude with this Key Vault's key), its poll for requests, and the wipe's unpair.
+  // The hub only calls out; nothing here calls the Mac.
+  ["relay", relay],
+  ["relay-pair", relay],
+  ["relay-hub", relay],
   ["room-feed", roomfeed],
   ["security-feed", securityfeed],
   // Setup asks (#324, docs/SKIPPY.md "Setup asks"): a thread posts one with the feed key; Nikita approves or declines it

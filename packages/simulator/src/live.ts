@@ -9,7 +9,8 @@ import type { RoomId } from "@ceo/core";
  *
  * - foundry: GitHub issues worked by the Foundry thread (docs/FOUNDRY.md).
  * - relay: the first real agent's line (its practice post stopped, #94); email live on the Azure copy since
- *   2026-10-23 (#263, #322), the tubes and the inbox board driven by its public counts. Texts wait on the Mac.
+ *   2026-10-23 (#263, #322), the tubes and the inbox board driven by its public counts; texts (#535) from the Mac
+ *   hub's public counts, the Switchboard's lamps and the outbox beacon driven by them (docs/RELAY-PRIVACY.md).
  * - exchange: Polymarket's live odds and Nikita's positions (#240, #253).
  * - green: Nikita's Sleeper league and FantasyPros (#252).
  * - boiler: the pipes report the real lines; Drop and Clause only tend them (walk their rounds, banter; no demo tasks).

@@ -233,6 +233,7 @@ export const LORE: Record<string, Lore> = {
       "Learned the Relay's post had been practice. Stopped the drills, polished every tube, and waits for the first real message from the C.E.O.'s world.",
       "The first real post came by telegraph: the C.E.O.'s inbox. Writes advice and a draft for each mail that needs the C.E.O., and sends nothing. 'This one drafts. The C.E.O. delivers.'",
       "Was there the night the line went live (2026-10-23). Sealed the first real advice in red wax, set it aside unsent, and glowed. Calls it 'this one's first contact'.",
+      "Texts came by wire (#535). Drafts each owed one in the C.E.O.'s own voice; sends only on the C.E.O.'s tap, one sealed slip at a time. Keeps expired slips in a drawer: 'letters that missed the boat'.",
     ],
   },
   dialtone: {
@@ -248,8 +249,9 @@ export const LORE: Record<string, Lore> = {
       "Patched a call between every room in the Lattice at once. Said 'nobody hang up' and nobody did.",
       "Leaves Blasto a note in the outbox every morning. Blasto approves each one personally, and glows.",
       "Unplugged every practice line on the C.E.O.'s word. Keeps one jack free for the real line and checks it for a dial tone far too often.",
-      "The free jack rang at last: the C.E.O.'s inbox, read-only, every minute. Sorts each new mail into needs-you, FYI or noise in one breath, and lights the brass inbox board.",
-      "Took the first live call on the wing (2026-10-23) and conducted the sort like a melodic-bass drop. One canister down the tubes per real mail, none for show. Texts still wait on the Mac.",
+      "The free jack rang at last: the C.E.O.'s inbox, read-only, every minute. Sorts each new mail into needs-you, can-wait or noise in one breath, and lights the brass inbox board.",
+      "Took the first live call on the wing (2026-10-23) and conducted the sort like a melodic-bass drop. One canister down the tubes per real mail, none for show.",
+      "The second jack rang (#535): texts by wire from the C.E.O.'s Mac. Hears only placeholders, never a real name; lights one lamp per reply owed, and took the waiting-by-the-phone record off.",
     ],
   },
   loremaster: {
@@ -605,7 +607,7 @@ export const LORE: Record<string, Lore> = {
       "Knew the Relay was going live before the wiring was in. Told Dialtone. Dialtone told the rafters.",
       "Heard Blasto rehearsing a love letter to Dialtone and kept it to itself for an entire day. Its record.",
       "Routes every message it can't place up to Skippy, with a summary, the options, and three rumours.",
-      "Picked the inbox's models: the quick one for Dialtone's sorting, the clever one for Blasto's advice. Minds the month's ten dollars; at the cap it stops the models, never the counting.",
+      "Picked the models: the quick one for Dialtone, the clever one for Blasto. Minds ten dollars for the inbox and ten for texts, on two meters; at a cap it stops the models, never the counting.",
       "Hears every email the moment it lands and has told nobody what one says. The Lattice gets the counts; the C.E.O. gets the rest, behind the passkey. Hardest thing it has ever done.",
       "Woke for real when the inbox went live (2026-10-23): ACTIVE · OWN THREAD, its own line to the C.E.O. Has not stopped talking on it. Waits on the Mac for the other half.",
       "On the C.E.O.'s Talk call (#479), the Messenger takes the mic for an inbox rundown. Counts only. Asked on air who an email was from: 'didn't hear it from me.' Meant it.",

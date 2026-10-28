@@ -306,7 +306,7 @@ export const ROADMAP: { id: string; item: string; closes: string; status: string
   },
   {
     id: "R5",
-    item: "Relay privacy spec before the hub is built (what stays on the Mac, what OpenAI and the site may see, retention, the wipe; a counts-only check on the site boundary)",
+    item: "Relay privacy spec before the hub is built (what stays on the Mac, what the model (Claude) and the site may see, retention, the wipe; a counts-only check on the site boundary)",
     closes: "Messages and contacts",
     status: "Shipped #149",
   },

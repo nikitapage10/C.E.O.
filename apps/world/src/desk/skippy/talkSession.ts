@@ -23,8 +23,12 @@ export interface CallHandlers {
   onMode: (mode: "listening" | "speaking") => void;
   /** The ElevenLabs agent that just took the mic: only a stand-in call (the browser tests) reports it; the real one goes through holoEvents. */
   onAgent?: (agentId: string) => void;
-  /** A tool the agent called came back (#479): its name only. */
-  onTool?: (name: string) => void;
+  /** A tool the agent called went out (#546: hold music waits on it). */
+  onToolStart?: () => void;
+  /** A tool the agent called came back (#479): its name ("" when it carries none), and whether it went to the deeper mind (#546). */
+  onTool?: (name: string, escalated?: boolean) => void;
+  /** Nikita cut an agent off (#546: hold music ducks on a barge-in). */
+  onInterrupt?: () => void;
   /** The tools that run here, in the browser (#536: drafting and sending a text through this device's own unlock). */
   clientTools?: Record<string, (params: Record<string, unknown>) => Promise<string>>;
   onEnd: () => void;
@@ -75,6 +79,12 @@ export function greetingGuard() {
   };
 }
 
+/** Whether a lookup's full result says it went on to the deeper mind (api/_skippy/toolroute.ts, `escalated`). */
+export function escalatedResult(r: unknown): boolean {
+  const full = r && typeof r === "object" ? (r as { full_tool_result?: unknown }).full_tool_result : undefined;
+  return typeof full === "string" ? /"escalated"\s*:\s*true/.test(full) : !!full && typeof full === "object" && (full as { escalated?: unknown }).escalated === true;
+}
+
 export async function openCall(h: CallHandlers) {
   let speaking = false;
   const guard = greetingGuard();
@@ -94,12 +104,18 @@ export async function openCall(h: CallHandlers) {
       h.onMode(speaking ? "speaking" : "listening");
     },
     // The hologram (#481): thinking while a lookup runs, annoyed when he's cut off, and who has the mic.
-    onAgentToolRequest: () => holoEvents.toolStart(),
+    onAgentToolRequest: () => {
+      holoEvents.toolStart();
+      h.onToolStart?.();
+    },
     onAgentToolResponse: (r) => {
       holoEvents.toolEnd();
-      if (r && typeof r.tool_name === "string") h.onTool?.(r.tool_name);
+      h.onTool?.(r && typeof r.tool_name === "string" ? r.tool_name : "", escalatedResult(r));
     },
-    onInterruption: () => holoEvents.interrupted(),
+    onInterruption: () => {
+      holoEvents.interrupted();
+      h.onInterrupt?.();
+    },
     onIncomingEvent: (ev: unknown) => {
       guard.event(ev);
       holoEvents.event(ev);

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { submindOf } from "../../../../../packages/simulator/src/subminds.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { clock, talkLevel, talkMute, useTalk } from "../skippy/talk.ts";
+import { setHoldMuted, useHold } from "../skippy/hold.ts";
 import type { Holo } from "./holoScene.ts";
 import { personaOf } from "./persona.ts";
 import { expressionOf, stripTags, useHolo, type Expression } from "./signal.ts";
@@ -36,6 +37,9 @@ export default function HologramStage({ route, leaving = false }: { route: strin
   const speaker = useHolo((s) => s.speaker);
   const muted = useHolo((s) => s.muted);
   const hidden = useHolo((s) => s.hidden);
+  const holding = useHold((s) => s.playing);
+  const holdMuted = useHold((s) => s.muted);
+  const aside = useHold((s) => s.aside);
   const dockOpen = useSkippy((s) => s.open);
   const turns = useSkippy((s) => s.turns);
   const firstTurn = useHolo((s) => s.fromTurn);
@@ -187,6 +191,7 @@ export default function HologramStage({ route, leaving = false }: { route: strin
       data-speaker={speaker ?? "skippy"}
       data-face={personaOf(speaker).faces[expr]}
       data-manner={personaOf(speaker).manner}
+      data-hold={holding ? "playing" : holdMuted ? "muted" : "ready"}
     >
       <div className="holo__veil" aria-hidden="true" />
       {/* The chat box he takes over: it dims, boots with a glitch, and he rises from its foot. */}
@@ -220,6 +225,15 @@ export default function HologramStage({ route, leaving = false }: { route: strin
             “{caption}”
           </p>
         )}
+        {/* Hold music (#546): a small note while it plays, and his rare aside as a caption (voicing it would cost credits). */}
+        {holding && !leaving && (
+          <p className="holo__hold" aria-live="polite">
+            <span className="holo__hold-note" aria-hidden="true">
+              ♪
+            </span>
+            <span>{aside ? `“${aside}”` : "On hold"}</span>
+          </p>
+        )}
         <div className="holo__pill">
           <span className="holo__dot" aria-hidden="true" />
           <span className="holo__live">{leaving ? "Ended" : live ? "Live" : "Calling"}</span>
@@ -249,6 +263,21 @@ export default function HologramStage({ route, leaving = false }: { route: strin
               <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
               <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
               {muted && <path d="M4 4l16 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
+            </svg>
+          </button>
+          <button
+            type="button"
+            className={`holo__btn holo__hold-btn${holdMuted ? " is-on" : ""}`}
+            aria-pressed={holdMuted}
+            aria-label={holdMuted ? "Turn hold music on" : "Mute hold music"}
+            title={holdMuted ? "Hold music: off" : "Hold music: on"}
+            onClick={() => setHoldMuted(!holdMuted)}
+          >
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+              <path d="M9 17V6l10-2v11" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinejoin="round" />
+              <circle cx="6.5" cy="17" r="2.5" fill="currentColor" />
+              <circle cx="16.5" cy="15" r="2.5" fill="currentColor" />
+              {holdMuted && <path d="M4 4l16 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
             </svg>
           </button>
           <button

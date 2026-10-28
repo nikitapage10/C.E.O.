@@ -103,6 +103,9 @@ Since #434 the C.E.O. can also call him. A tap on Talk in his chat on the Desk o
 answers in the same crisp, upper-crust voice he reads "today in Ilyr" in, knows what the Desk already shows (and, since #477, how many ElevenLabs credits are left),
 and talks for as long as the credits last, hanging up on two minutes of silence, which the Pessimist calls reckless and logs to the credit.
 He fills every one of those minutes, and when the line drops he blames the connection, never the content.
+Since #546 a long wait on the line has music: when a look-up or his deeper mind takes more than a moment, a little
+bossa he composed himself (four chords, a vibraphone, cheesy on purpose) plays under the call until the answer lands
+or anyone speaks, and once in a long while a caption floats up over it: *Hold please. Genius at work.*
 
 Since #501 he never quite sleeps. A small, quick piece of him sits at the Kernel's front desk around the clock and takes
 the facts and look-ups the moment a question lands: scores, injuries, who is building what. It keeps a private notebook

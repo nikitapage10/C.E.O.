@@ -247,6 +247,68 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   expect(errors).toEqual([]);
 });
 
+test("Talk plays hold music on a long wait, ducks it the moment anyone speaks, and mutes from the pill (#546)", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await startCall(page);
+  await page.goto(BASE + "/");
+  await page.locator(".desk__skippy").click();
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  await chat.getByRole("button", { name: /live voice call/ }).click();
+  const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
+  await expect(call.getByText("Live", { exact: true })).toBeVisible();
+  await page.waitForFunction(() => Boolean((window as { __holoCall?: unknown }).__holoCall));
+  const drive = (fn: string, ...args: string[]) => page.evaluate(([f, a]) => ((window as unknown as { __holoCall: Record<string, (...x: string[]) => void> }).__holoCall[f as string]!(...(a as string[]))), [fn, args] as const);
+  await expect(call).toHaveAttribute("data-hold", "ready");
+
+  // A lookup goes out; for the first second nothing plays (a quick one never gets music)...
+  await drive("onToolStart");
+  await page.waitForTimeout(1000);
+  await expect(call).toHaveAttribute("data-hold", "ready");
+  // ...then, two quiet seconds in and still waiting, the loop comes in under the call.
+  await expect(call).toHaveAttribute("data-hold", "playing", { timeout: 4000 });
+  await expect(call.getByText("On hold", { exact: true })).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/546-hold-playing.png` });
+
+  // He starts speaking: out at once.
+  await drive("onMode", "speaking");
+  await expect(call).toHaveAttribute("data-hold", "ready", { timeout: 1500 });
+  await drive("onMode", "listening");
+  await expect(call).toHaveAttribute("data-hold", "playing", { timeout: 4000 });
+  // Nikita speaks (barge-in): out at once.
+  await drive("onMessage", "nikita", "Actually, never mind that.");
+  await expect(call).toHaveAttribute("data-hold", "ready", { timeout: 1500 });
+  await expect(call).toHaveAttribute("data-hold", "playing", { timeout: 4000 });
+
+  // The toggle on the pill mutes it, and the device remembers.
+  const toggle = call.getByRole("button", { name: "Mute hold music" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  if (SHOTS) await call.locator(".holo__pill").screenshot({ path: `${SHOTS}/546-hold-toggle-on.png` });
+  await toggle.click();
+  await expect(call).toHaveAttribute("data-hold", "muted");
+  await expect(call.getByText("On hold", { exact: true })).toHaveCount(0);
+  const off = call.getByRole("button", { name: "Turn hold music on" });
+  await expect(off).toHaveAttribute("aria-pressed", "true");
+  expect(await page.evaluate(() => localStorage.getItem("desk.holdMusic"))).toBe("off");
+  if (SHOTS) await call.locator(".holo__pill").screenshot({ path: `${SHOTS}/546-hold-toggle-off.png` });
+  await off.click();
+  await expect(call).toHaveAttribute("data-hold", "playing", { timeout: 4000 });
+  expect(await page.evaluate(() => localStorage.getItem("desk.holdMusic"))).toBe("on");
+
+  // The answer lands: out, and it stays out.
+  await drive("onTool", "lookup");
+  await expect(call).toHaveAttribute("data-hold", "ready", { timeout: 1500 });
+  await page.waitForTimeout(2500);
+  await expect(call).toHaveAttribute("data-hold", "ready");
+
+  // A new wait, then the call ends: out with it.
+  await drive("onToolStart");
+  await expect(call).toHaveAttribute("data-hold", "playing", { timeout: 4000 });
+  await call.getByRole("button", { name: "End the call" }).click();
+  await expect(page.locator(".holo")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("on a phone the hologram takes the sheet over with the pill above it, in reach (#481, #538)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await startCall(page);

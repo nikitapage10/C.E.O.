@@ -329,7 +329,7 @@ export const ROADMAP_EXPLAIN: Record<string, Explain> = {
     why: "What Nikita types or dictates would otherwise go public as written; now a slip is caught before it does, and the Desk shows only Nikita's own pictures.",
   },
   R5: {
-    what: "A privacy spec for Relay written before its hub is built: what stays on the Mac, what OpenAI and the site may see, how long anything is kept and how to wipe it, with a check that lets the site take counts and states only.",
+    what: "A privacy spec for Relay written before its hub is built: what stays on the Mac, what the model (Claude) and the site may see, how long anything is kept and how to wipe it, with a check that lets the site take counts and states only.",
     connects: "Relay, the planned hub that will read messages and contacts, and the Desk's and the Lattice's Relay pages.",
     why: "Messages are the most sensitive data C.E.O. will touch, so the rules come first, and a test holds the public site to counts.",
   },

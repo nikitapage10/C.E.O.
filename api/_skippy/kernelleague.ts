@@ -9,7 +9,7 @@
 
 import type { GreenBoard, GreenPlayer, GreenPos } from "../_green/types.js";
 import { lineupAlert } from "./voicereads.js";
-import { LEAGUE_ID, USER_ID, cleanText, getJson, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, urls, type Fetcher } from "../_green/sleeper.js";
+import { LEAGUE_ID, USER_ID, cleanText, getJson, shapeMatchups, shapeRosters, shapeState, shapeTeamNames, lineupSlots, urls, type Fetcher } from "../_green/sleeper.js";
 
 export const LEAGUE_READS = ["standings", "weeks", "week", "roster"] as const;
 export type LeagueRead = (typeof LEAGUE_READS)[number];
@@ -49,7 +49,10 @@ export async function leagueText(args: unknown, fetcher: Fetcher, players: Playe
       const rows = [...rosters].sort((x, y) => y.wins - x.wins || y.pf - x.pf);
       return rows.map((r, i) => `${i + 1}. ${team(r.rosterId)} ${r.wins}-${r.losses}${r.ties ? `-${r.ties}` : ""}, scored ${pts(r.pf)}, allowed ${pts(r.pa)}${r.streak ? `, streak ${r.streak}` : ""}`).join("\n").slice(0, LEAGUE_TEXT_MAX);
     }
-    if (read === "roster") return rosterText(rosters.find((r) => r.ownerId === USER_ID || r.coOwners.includes(USER_ID)), await players().catch(() => ({})), stateRaw ? shapeState(stateRaw).week : 0);
+    if (read === "roster") {
+      const slots = lineupSlots(await getJson(fetcher, urls.league(LEAGUE_ID)).catch(() => null));
+      return rosterText(rosters.find((r) => r.ownerId === USER_ID || r.coOwners.includes(USER_ID)), await players().catch(() => ({})), stateRaw ? shapeState(stateRaw).week : 0, slots);
+    }
     if (read === "week") return await oneWeek(week(a.week), typeof a.team === "string" ? a.team : "", { fetcher, rosters, team, players, nowWeek: stateRaw ? shapeState(stateRaw).week : null });
     const now = stateRaw ? shapeState(stateRaw).week : null;
     const last = week(a.to) ?? Math.max(1, Math.min(LAST_WEEK, (now ?? 7) - 1));
@@ -121,29 +124,62 @@ async function oneWeek(w: number | null, wanted: string, c: WeekCtx): Promise<st
 const INJ_WORD: Record<string, string> = { O: "Out", IR: "on IR", D: "Doubtful", Q: "Questionable", SUS: "suspended", PUP: "on the PUP list", NA: "not active" };
 
 /**
+ * Sleeper's roster split into disjoint groups (#544): starter slots read strictly from `starters[]` in order, each
+ * labelled by the league's `roster_positions` (an empty slot is "0"); the reserve (IR) is `reserve[]` and the taxi
+ * squad `taxi[]`; the bench is everyone else on `players[]`. A player lands in exactly one group.
+ */
+export function rosterGroups(r: { players: string[]; starters: string[]; reserve: string[]; taxi?: string[] }, slots: string[]): { starters: { slot: string; id: string | null }[]; bench: string[]; reserve: string[]; taxi: string[] } {
+  const seen = new Map<string, number>();
+  const total = new Map<string, number>();
+  for (const s of slots) total.set(s, (total.get(s) ?? 0) + 1);
+  const label = (i: number): string => {
+    const base = slots[i];
+    if (!base) return `Slot ${i + 1}`;
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return (total.get(base) ?? 0) > 1 ? `${base}${n}` : base;
+  };
+  const used = new Set<string>();
+  const starters = r.starters.map((id, i) => {
+    const slot = label(i);
+    if (id === "0" || used.has(id)) return { slot, id: null };
+    used.add(id);
+    return { slot, id };
+  });
+  const take = (list: string[]) => list.filter((id) => !used.has(id) && (used.add(id), true));
+  const reserve = take(r.reserve);
+  const taxi = take(r.taxi ?? []);
+  const bench = take(r.players);
+  return { starters, bench, reserve, taxi };
+}
+
+/**
  * Nikita's roster from Sleeper's own starters and bench (#526), every player with his injury status, led by the
  * lineup heads-up the voice uses (lineupAlert). Projections play no part, so an Out player is never left out.
+ * Slots come from `starters[]` against the league's roster_positions (#544); the injury tag is Sleeper's feed, which
+ * can differ from what the Sleeper app shows.
  */
-export function rosterText(r: ReturnType<typeof shapeRosters>[number] | undefined, names: Awaited<ReturnType<PlayerNames>>, week: number): string {
+export function rosterText(r: ReturnType<typeof shapeRosters>[number] | undefined, names: Awaited<ReturnType<PlayerNames>>, week: number, slots: string[] = []): string {
   if (!r) return "Couldn't tell which team is Nikita's.";
   const mk = (id: string): GreenPlayer => {
     const n = names[id];
     const inj = n?.inj && n.inj in INJ_WORD ? (n.inj as GreenPlayer["inj"]) : null;
     return { id, name: cleanText(n?.n || `Player ${id}`, 40), pos: (n?.pos ?? "WR") as GreenPos, team: n?.team ?? null, inj, proj: null, src: "none", avg: null, last: null, wk: null, ecr: null, posRank: null, bye: null } as GreenPlayer;
   };
-  const starterIds = r.starters.filter((id) => id !== "0");
-  const reserveIds = new Set(r.reserve);
-  const starters = starterIds.map(mk);
-  const bench = r.players.filter((id) => !starterIds.includes(id) && !reserveIds.has(id)).map(mk);
-  const reserve = r.reserve.map(mk);
-  const board = { week, roster: { starters: starters.map((player) => ({ slot: player.pos, player, pts: 0 })), bench, reserve } } as unknown as GreenBoard;
-  const tag = (p: GreenPlayer) => `${p.name} ${p.pos}${p.team ? ` ${p.team}` : ""}${p.inj ? ` ${INJ_WORD[p.inj]}` : ""}`;
+  const g = rosterGroups(r, slots);
+  const slotted = g.starters.map((s) => ({ slot: s.slot, player: s.id ? mk(s.id) : null }));
+  const bench = g.bench.map(mk);
+  const reserve = g.reserve.map(mk);
+  const taxi = g.taxi.map(mk);
+  const board = { week, roster: { starters: slotted.map((s) => ({ slot: s.slot, player: s.player, pts: 0 })), bench, reserve } } as unknown as GreenBoard;
+  const tag = (p: GreenPlayer) => `${p.name} ${p.pos}${p.team ? ` ${p.team}` : ""}${p.inj ? ` ${INJ_WORD[p.inj]} (per Sleeper feed)` : ""}`;
   const alert = lineupAlert(board);
   return [
     alert,
-    `Nikita's starters: ${starters.map(tag).join("; ") || "none listed"}.`,
-    `Bench: ${bench.map(tag).join("; ") || "none"}.`,
-    reserve.length ? `Reserve/IR: ${reserve.map(tag).join("; ")}.` : "",
-    "Injury status is Sleeper's; byes are not checked here.",
+    `Nikita's starters, slot by slot: ${slotted.map((s) => `${s.slot} ${s.player ? tag(s.player) : "empty"}`).join("; ") || "none listed"}.`,
+    `Bench (not starting): ${bench.map(tag).join("; ") || "none"}.`,
+    reserve.length ? `Reserve/IR slot: ${reserve.map(tag).join("; ")}.` : "",
+    taxi.length ? `Taxi squad: ${taxi.map(tag).join("; ")}.` : "",
+    "A player is in one group only. Injury tags are Sleeper's players feed, which can differ from the Sleeper app; say \"per the Sleeper feed\". Byes are not checked here.",
   ].filter(Boolean).join("\n").slice(0, LEAGUE_TEXT_MAX);
 }

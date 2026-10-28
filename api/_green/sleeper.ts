@@ -174,6 +174,11 @@ export interface League {
   playoffTeams: number;
 }
 
+/** The league's starting slots exactly as `roster_positions` lists them, in order, bench (BN), IR and taxi left out: `starters[i]` is the player in slot i. */
+export function lineupSlots(raw: unknown): string[] {
+  return arr(obj(raw).roster_positions).filter((x): x is string => typeof x === "string" && x !== "" && !/^(BN|IR|TAXI)$/i.test(x));
+}
+
 const SLOT = /^(QB|RB|WR|TE|K|DEF|FLEX|WRRB_FLEX|REC_FLEX|SUPER_FLEX|WRT)$/;
 
 export function shapeLeague(raw: unknown): League {
@@ -204,6 +209,8 @@ export interface Roster {
   players: string[];
   starters: string[];
   reserve: string[];
+  /** Taxi squad (Sleeper's `taxi`), empty when the league has none. */
+  taxi: string[];
   wins: number;
   losses: number;
   ties: number;
@@ -232,6 +239,7 @@ export function shapeRosters(raw: unknown): Roster[] {
         players: ids(r.players),
         starters: arr(r.starters).map((x) => (typeof x === "string" && PLAYER_ID.test(x) ? x : "0")),
         reserve: ids(r.reserve),
+        taxi: ids(r.taxi),
         wins: num(s.wins) ?? 0,
         losses: num(s.losses) ?? 0,
         ties: num(s.ties) ?? 0,

@@ -136,8 +136,10 @@ export function greenText(b: GreenBoard | null): string {
   if (starters.length) lines.push(`Starters: ${starters.join("; ")}.`);
   const bench = b.roster.bench.map((p) => `${said(p.name, 30)} ${p.pos} ${pts(p.fp ?? p.proj)}${p.inj ? ` ${p.inj}` : ""}`);
   if (bench.length) lines.push(`Bench: ${bench.join("; ")}.`);
+  const ir = (b.roster.reserve ?? []).map((p) => `${said(p.name, 30)} ${p.pos}${p.inj ? ` ${p.inj}` : ""}`);
+  if (ir.length) lines.push(`Reserve/IR slot: ${ir.join("; ")}.`);
   const hurt = injuredRoster(b);
-  if (hurt) lines.push(`Injury list (Sleeper): ${hurt}.`);
+  if (hurt) lines.push(`Injury list (per Sleeper feed): ${hurt}.`);
   for (const c of (b.calls ?? []).slice(0, 5)) {
     lines.push(`${c.slot}: ${c.change ? "start" : "keep"} ${who(c.start)} over ${who(c.sit)}, edge ${pts(Math.abs(c.edge))}; Sleeper ${c.sleeper}${c.split ? ", split decision" : ""}${c.tiebreak ? `; tiebreak: ${said(c.tiebreak, 140)}` : ""}${c.lateRisk ? `; late-game risk: ${said(c.lateRisk, 120)}` : ""}.`);
   }

@@ -245,7 +245,7 @@ function Counter({ label, value, x, hot }: { label: string; value: number | null
 
 /**
  * The inbox board (#263, live since #322): a brass telegraph board by the post-office boxes, driven by the email
- * agent's public counts (desk/email/email.ts, ?view=status). Three counters (needs the C.E.O., FYI, noise today), the
+ * agent's public counts (desk/email/email.ts, ?view=status). Three counters (needs the C.E.O., can wait, noise today), the
  * line's state, and when Dialtone last checked: a sweep dial runs round once a minute from the last check, and the
  * sounder taps out a short click each time a new check lands. Counts only: no subject or sender ever reaches the
  * Lattice. The lamp burns while something needs the C.E.O.

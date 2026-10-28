@@ -71,7 +71,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
       outbox: "Drafts waiting for your approval (the beacon lights up).",
       switchboard: "Routing: who's urgent, who can wait, who's the group chat.",
     },
-    today: "Live from your Gmail (read-only, on the Azure copy): the inbox board by the post boxes counts what needs you, FYI and noise, and dials the last check. Counts only; the mail stays behind your passkey.",
+    today: "Live from your Gmail (read-only, on the Azure copy): the inbox board by the post boxes counts what needs you, what can wait and the noise, and dials the last check. Counts only; the mail stays behind your passkey.",
     next: "BlueBubbles on your Mac for iMessage and SMS; draft-only at first, then allowlisted auto-replies.",
   },
   archive: {

@@ -615,7 +615,7 @@ export const WORLD_CAST: WorldCast = {
       "catchphrase": "Didn't hear it from me. You heard it from me.",
       "voice": [
         "On the C.E.O.'s call now. Counts only. Didn't hear the rest from me. Didn't say it either.",
-        "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five FYI. No names. Never names.",
+        "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five can wait. No names. Never names.",
         "Didn't hear it from me. You heard it from me.",
         "Line three's waiting on line seven, line seven's waiting on the C.E.O.—"
       ]
@@ -1203,7 +1203,7 @@ export const WORLD_CAST: WorldCast = {
       ],
       "static": [
         "On the C.E.O.'s call now. Counts only. Didn't hear the rest from me. Didn't say it either.",
-        "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five FYI. No names. Never names.",
+        "Skippy says \"give me the Messenger\" and I'm on. Three waiting. Five can wait. No names. Never names.",
         "Didn't hear it from me. You heard it from me.",
         "Line three's waiting on line seven, line seven's waiting on the C.E.O.—",
         "Heard that. Heard that too. Didn't hear that. ...Heard it.",
@@ -1402,11 +1402,11 @@ export const WORLD_CAST: WorldCast = {
         "Every line in the Relay, and I still save one for Blasto.",
         "Up here! No, higher. On the rafter. Hi.",
         "The music's all around us. You just have to listen. Please hold.",
-        "New mail! Needs you, FYI, or noise. Mostly noise, darling. It's always noise.",
+        "New mail! Needs you, can wait, or noise. Mostly noise, darling. It's always noise.",
         "Promotions straight in the bin. Gmail said so. I didn't even open them.",
         "Every minute I check the inbox. Every minute. Like a ringtone from 2004.",
         "It's live, darling. The jack rings for real now. I may cry. Please hold.",
-        "Needs you, FYI, noise. Drop. Needs you, FYI, noise. Drop. It's basically a bass set.",
+        "Needs you, can wait, noise. Drop. Needs you, can wait, noise. Drop. It's basically a bass set.",
         "Texts by wire, darling! The second jack finally rang. I took the emo record off. Mostly.",
         "Sooner or normal? Sooner. They asked a question with a day on it. Lamp on.",
         "Placeholders only. I never hear a real name. Contact, Person 1. Very mysterious. Please hold."

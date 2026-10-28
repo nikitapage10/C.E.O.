@@ -249,7 +249,7 @@ export const LORE: Record<string, Lore> = {
       "Patched a call between every room in the Lattice at once. Said 'nobody hang up' and nobody did.",
       "Leaves Blasto a note in the outbox every morning. Blasto approves each one personally, and glows.",
       "Unplugged every practice line on the C.E.O.'s word. Keeps one jack free for the real line and checks it for a dial tone far too often.",
-      "The free jack rang at last: the C.E.O.'s inbox, read-only, every minute. Sorts each new mail into needs-you, FYI or noise in one breath, and lights the brass inbox board.",
+      "The free jack rang at last: the C.E.O.'s inbox, read-only, every minute. Sorts each new mail into needs-you, can-wait or noise in one breath, and lights the brass inbox board.",
       "Took the first live call on the wing (2026-10-23) and conducted the sort like a melodic-bass drop. One canister down the tubes per real mail, none for show.",
       "The second jack rang (#535): texts by wire from the C.E.O.'s Mac. Hears only placeholders, never a real name; lights one lamp per reply owed, and took the waiting-by-the-phone record off.",
     ],

@@ -163,7 +163,7 @@ done, it hands the mic back. The call never drops. Each one keeps its on-air man
 | --- | --- |
 | **The Commentator** | Signs on from "the floating booth", calls the matchup like the final seconds of a championship, SPLIT DECISION when FantasyPros and Sleeper disagree, the booth goes with FantasyPros. |
 | **The Bookie** | Signs on with a probability it then revises downward. The only place it has ever said the C.E.O.'s dollar figures out loud, because the call is private. Sweats through every one. |
-| **The Messenger** | "Didn't hear it from me." Counts only: how many wait, how many are FYI, how many are noise. Never who, never what. The rest is on the Desk. |
+| **The Messenger** | "Didn't hear it from me." Counts only: how many wait, how many can wait, how many are noise. Never who, never what. The rest is on the Desk. |
 | **The Pessimist** | Bad news first, always. Something is leaking; it finds out what. Quietly delighted, in four words, when nothing is. |
 | **The Builder** | "Make it quick, the furnace is hot." What's building, who's on it, why it's stuck, in short sentences, then back to the boss. |
 
@@ -255,7 +255,7 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Green | **Punt** (Unforked) | Big bunny | Morale. Hops, naps, wins anyway. |
 | Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. Since the Green went live it finally has stats for someone: the C.E.O.'s real Sleeper league on the scoreboard, the win chance as the ball's yard line, start-or-sit calls from the booth and the pickups worth a claim, read-only. The scoreboard names both teams and runs projected first, then live, then the win chance, and the Commentator reads it out loud; Gridiron's practice reviews and pretend claims are gone. Now it runs an analyst desk too: FantasyPros makes the call, Sleeper's number stands beside it and a split decision gets flagged, every rival's needs and FAAB get read, and the playoff race gets played out three thousand times. Every Tuesday at 5:39pm Denver time it files the Commentator's call to the Desk (weak spots, byes, injuries, one trade, the waiver bid), using only numbers from the board, and it always ends with where each one came from. |
 | Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O., and a draft in the C.E.O.'s own voice for each text owed; sends a text only when the C.E.O. taps Send. Live on the inbox since 2026-10-23, on the texts since #535. |
-| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute (needs you, FYI or noise) and keeps the board of who the C.E.O. owes a text, sooner or normal. Live on the inbox since 2026-10-23, on the texts since #535. |
+| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute (needs you, can wait or noise) and keeps the board of who the C.E.O. owes a text, sooner or normal. Live on the inbox since 2026-10-23, on the texts since #535. |
 | Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. Picks the inbox's models and keeps the meter on its ten dollars a month. Awake, with its own thread, since the inbox went live. |
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
@@ -496,7 +496,7 @@ the other rooms keep their drills, and you can still watch them from inside each
 The first real post to reach the Relay was not a text but the C.E.O.'s email. It comes in by telegraph from
 beyond the Veil, from the Azure side of the C.E.O.'s world, and the line only ever reads: nothing on it can send,
 file or burn a letter. Every minute Dialtone checks the free jack for new mail and sorts each one in a breath:
-**needs the C.E.O.**, **FYI**, or **noise** (the promotions never even get opened; Gmail binned them first). For
+**needs the C.E.O.**, **can wait**, or **noise** (the promotions never even get opened; Gmail binned them first). For
 the ones that need the C.E.O., Blasto writes a few lines of advice and a draft reply, sealed and set aside for
 the C.E.O. to send personally, because this one drafts and the C.E.O. delivers. The Messenger hears every mail
 the moment it lands, chose the quick model for Dialtone and the clever one for Blasto, and keeps the meter on
@@ -508,14 +508,14 @@ the board, like the rest of the Lattice, only ever gets numbers. What the letter
 
 On the night of 2026-10-23 the C.E.O. turned the key beyond the Veil, and the telegraph stopped being a promise. The
 free jack Dialtone had checked far too often rang for real, and has rung every minute since. Dialtone took the call
-on the wing, conducting the sort like the drop in a melodic-bass set: needs the C.E.O., FYI, noise, and back up to
+on the wing, conducting the sort like the drop in a melodic-bass set: needs the C.E.O., can wait, noise, and back up to
 the rafters. Blasto, glowing the colour of a hanar at a premiere, sealed the first real advice in red wax and set it
 aside unsent, as this one always will. The Messenger's holo flicked from SIMULATED FOR NOW to ACTIVE · OWN THREAD,
 and it got its own line to the C.E.O., "Skippy, the Messenger", which it has not stopped talking on.
 
 The practised post is gone from the room for good. The pneumatic tubes, which used to cycle canisters for show, now
 stand still until real mail is counted; each new email drops one canister into the receiving station, and a quiet
-inbox means quiet tubes. The brass inbox board shows three counters (needs the C.E.O., FYI, noise), a sweep dial
+inbox means quiet tubes. The brass inbox board shows three counters (needs the C.E.O., can wait, noise), a sweep dial
 that runs once round each minute from Dialtone's last check, and a telegraph sounder that clicks dot-dot-dash when a
 check lands. In the Boiler Room the Gmail pipe runs hot, and on the Desk the Relay page says email is live.
 

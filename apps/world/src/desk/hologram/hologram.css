@@ -1,13 +1,14 @@
-/* Skippy's hologram call (#481, #490): the projection rising out of the chat dock, its beam, scanlines and emitter, his
-   name, his caption and the call's pill, and the channel switch when a submind takes the mic. Loaded with the
-   projection only, after Talk is tapped. --holo is whoever has the mic: Skippy's cyan or the submind's room colour. */
+/* Skippy's hologram call (#481, #490, #538): the chat box dimming and booting him up, the projection rising from its
+   foot to take it over, its beam, scanlines and emitter, his name, his caption and the call's pill beside it, and the
+   channel switch when a submind takes the mic. Loaded with the projection only, after Talk is tapped. --holo is
+   whoever has the mic: Skippy's cyan or the submind's room colour. Only transform and opacity move. */
 .holo {
   --holo: #6fe3ff;
   --holo-gold: #e8b84a;
   position: fixed;
   inset: 0;
-  /* Under the dock (40), so the chat stays clear and in reach. */
-  z-index: 39;
+  /* Over the dock (40): he takes the chat box over. Nothing of his catches the pointer but the pill. */
+  z-index: 41;
   pointer-events: none;
   font-family: var(--sans, "IBM Plex Sans", system-ui, sans-serif);
   color: var(--text, #eef1f7);
@@ -17,7 +18,7 @@
   position: absolute;
   inset: 0;
   bottom: auto;
-  height: var(--he);
+  height: var(--pt);
   opacity: 0;
   transition: opacity 0.6s var(--ease, ease);
 }
@@ -28,31 +29,233 @@
   background: linear-gradient(180deg, rgba(5, 7, 12, 0.9), rgba(5, 7, 12, 0.82) 60%, rgba(5, 7, 12, 0.55));
 }
 
-/* The emitter: the dock's top edge lights up in --holo, the projection's source. */
+/* The chat box he takes over, laid exactly on the dock: everything of his below is clipped to it. */
+.holo__panel {
+  position: absolute;
+  left: var(--pl);
+  top: var(--pt);
+  width: var(--pw);
+  height: var(--ph);
+  overflow: hidden;
+  border-radius: 8px;
+  contain: layout paint;
+  transition: opacity 0.45s var(--ease, ease);
+}
+/* Hidden, the call carries on and the chat comes back. */
+.holo--hidden .holo__panel {
+  opacity: 0;
+}
+/* The chat dims, a little of --holo welling up from where he'll stand. */
+.holo__dim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 100%, color-mix(in srgb, var(--holo) 16%, transparent), transparent 70%),
+    rgba(3, 5, 10, 0.88);
+  animation: holo-dim 0.4s var(--ease, ease) both;
+}
+@keyframes holo-dim {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The boot: scanlines rolling down the box, bands of glitch tearing across it, and a line saying so. */
+.holo__boot {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: holo-boot-settle 0.5s ease-out 1s both;
+}
+@keyframes holo-boot-settle {
+  to {
+    opacity: 0.32;
+  }
+}
+.holo__lines {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -50%;
+  height: 200%;
+  background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--holo) 20%, transparent) 0 1px, transparent 1px 3px);
+  mix-blend-mode: screen;
+  will-change: transform;
+  animation: holo-roll 4s linear infinite;
+}
+@keyframes holo-roll {
+  to {
+    transform: translateY(25%);
+  }
+}
+.holo__boot::before,
+.holo__boot::after {
+  content: "";
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  height: 14%;
+  top: 30%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--holo) 45%, transparent) 20%, rgba(255, 255, 255, 0.5) 50%, color-mix(in srgb, var(--holo) 45%, transparent) 80%, transparent);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: holo-glitch 1s steps(1) both;
+}
+.holo__boot::after {
+  top: 62%;
+  height: 6%;
+  animation-delay: 0.12s;
+  animation-duration: 0.9s;
+}
+@keyframes holo-glitch {
+  0% {
+    opacity: 0.9;
+    transform: translate(-6%, 0) scaleY(1);
+  }
+  12% {
+    opacity: 0.2;
+    transform: translate(8%, -180%) scaleY(0.4);
+  }
+  24% {
+    opacity: 0.8;
+    transform: translate(-3%, 120%) scaleY(1.6);
+  }
+  36% {
+    opacity: 0;
+  }
+  48% {
+    opacity: 0.7;
+    transform: translate(5%, -60%) scaleY(0.3);
+  }
+  62% {
+    opacity: 0.35;
+    transform: translate(-8%, 240%) scaleY(1);
+  }
+  76% {
+    opacity: 0.6;
+    transform: translate(2%, -260%) scaleY(0.25);
+  }
+  88%,
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+.holo__booting {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--holo);
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--holo) 70%, transparent);
+  animation: holo-booting 1.15s steps(1) both;
+}
+/* The progress bar under it, filling as he boots. */
+.holo__booting i {
+  display: block;
+  width: 120px;
+  height: 2px;
+  background: var(--holo);
+  box-shadow: 0 0 8px var(--holo);
+  transform-origin: left;
+  animation: holo-fill 0.95s cubic-bezier(0.6, 0, 0.3, 1) both;
+}
+@keyframes holo-booting {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  20% {
+    opacity: 1;
+    transform: translateX(calc(-50% + 3px));
+  }
+  14% {
+    opacity: 0.3;
+  }
+  26%,
+  86% {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes holo-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* The emitter: the dock's foot lights up in --holo, the projection's source. */
 .holo__edge {
   position: absolute;
-  left: var(--hel);
-  width: var(--hew);
-  top: calc(var(--he) - 1px);
+  left: 0;
+  right: 0;
+  bottom: 0;
   height: 2px;
-  border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--holo) 22%, #fff 50%, var(--holo) 78%, transparent);
   box-shadow:
     0 0 14px var(--holo),
     0 -6px 26px color-mix(in srgb, var(--holo) 55%, transparent);
   opacity: 0.95;
+  animation: holo-dim 0.3s ease-out 0.5s both;
 }
 
-.holo__fig {
+/* He rises from the box's foot once it has booted; the riser moves him, the figure itself glitches on a switch. */
+.holo__riser {
   position: absolute;
-  left: calc(var(--hx) - var(--hw) / 2);
-  top: var(--hy);
+  left: calc(50% - var(--hw) / 2);
+  bottom: 4px;
   width: var(--hw);
   height: var(--hh);
-  transition: opacity 0.4s var(--ease, ease);
+  will-change: transform;
+  animation: holo-rise 0.8s cubic-bezier(0.16, 0.84, 0.3, 1) 0.75s both;
 }
-.holo--hidden .holo__fig {
-  opacity: 0;
+@keyframes holo-rise {
+  from {
+    transform: translateY(104%);
+  }
+}
+.holo__fig {
+  position: absolute;
+  inset: 0;
+}
+
+/* The call ends: he sinks back down, the boot lines go, and the chat comes back. */
+.holo--leaving .holo__riser {
+  animation: holo-sink 0.45s cubic-bezier(0.5, 0, 0.8, 0.4) both;
+}
+@keyframes holo-sink {
+  to {
+    transform: translateY(104%);
+  }
+}
+.holo--leaving .holo__dim,
+.holo--leaving .holo__edge {
+  animation: holo-out 0.3s ease-in 0.38s both;
+}
+.holo--leaving .holo__boot,
+.holo--leaving .holo__veil,
+.holo--leaving .holo__under {
+  animation: holo-out 0.3s ease-in both;
+}
+.holo--leaving .holo__pill {
+  pointer-events: none;
+}
+@keyframes holo-out {
+  to {
+    opacity: 0;
+  }
 }
 /* A pool of dark behind him so the page doesn't show through. */
 .holo__fig::before {
@@ -153,21 +356,34 @@
   }
 }
 
-/* His words: beside him on the dock's left, bottom on the dock's edge; or stacked above him. */
+/* His words: beside the dock on its left, level with his foot; or stacked above the dock. */
 .holo__under {
   position: absolute;
   left: var(--ux);
   width: var(--uw);
-  bottom: calc(100% - var(--he) + 8px);
+  bottom: var(--ub);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
+  animation: holo-dim 0.4s ease-out 0.35s both;
+}
+/* A pool of dark behind his words, so the page under them doesn't read through. */
+.holo__under::before {
+  content: "";
+  position: absolute;
+  inset: -36px -28px -24px -60px;
+  z-index: -1;
+  background: radial-gradient(ellipse at 70% 60%, rgba(5, 7, 12, 0.88), rgba(5, 7, 12, 0.6) 55%, transparent 75%);
+  pointer-events: none;
 }
 .holo--stack .holo__under,
 .holo--phone .holo__under {
-  bottom: calc(100% - var(--hy) + 4px);
   align-items: center;
+}
+.holo--stack .holo__under::before,
+.holo--phone .holo__under::before {
+  display: none;
 }
 /* Who has the mic, in their colour: the label changes with the speaker. */
 .holo__name {
@@ -409,21 +625,25 @@
   }
 }
 
-/* The dock during a call: shorter, to make room above it for him, its top edge in whoever has the mic. */
+/* The dock during a call: its edge in whoever has the mic. With his words above it (a phone, a narrow window), it
+   leaves them room. */
 body.holo-call .skp-chat--dock {
-  height: clamp(300px, calc(100dvh - 400px), 560px);
-  border-top-color: var(--holo-call, #6fe3ff);
-  transition:
-    height 0.35s var(--ease, ease),
-    border-color 0.3s;
+  border-color: color-mix(in srgb, var(--holo-call, #6fe3ff) 55%, transparent);
+  transition: border-color 0.3s;
 }
-
+body.holo-call--above .skp-chat--dock {
+  height: clamp(300px, calc(100dvh - 230px), 600px);
+}
 @media (max-width: 640px) {
-  body.holo-call .skp-chat--dock {
-    height: max(260px, calc(100dvh - 410px));
+  body.holo-call--above .skp-chat--dock {
+    height: max(300px, calc(100dvh - 210px));
+  }
+  .holo__panel {
+    border-radius: 12px 12px 0 0;
   }
 }
 
+/* Less motion: no boot, no rise; the box dims and he fades in over it, and out again on End. */
 @media (prefers-reduced-motion: reduce) {
   .holo--ready .holo__cv,
   .holo__wait,
@@ -434,8 +654,21 @@ body.holo-call .skp-chat--dock {
   .holo--switch .holo__edge {
     animation: none;
   }
-  body.holo-call .skp-chat--dock {
-    transition: none;
+  .holo__boot {
+    display: none;
+  }
+  .holo__riser,
+  .holo__dim,
+  .holo__edge,
+  .holo__under {
+    animation: holo-dim 0.3s ease both;
+  }
+  .holo--leaving .holo__riser,
+  .holo--leaving .holo__dim,
+  .holo--leaving .holo__edge,
+  .holo--leaving .holo__veil,
+  .holo--leaving .holo__under {
+    animation: holo-out 0.25s ease both;
   }
   .holo__lvl i {
     transition: none;

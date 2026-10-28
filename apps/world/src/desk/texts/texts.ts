@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { readRelayStatus, type RelayStatus } from "@ceo/core";
-import { readTextItem, REQUEST_STATES, type RequestState, type TextItem } from "../../../../../api/_relay/texts.ts";
+import { readTextCard, readTextItem, REQUEST_STATES, type RequestState, type TextCard, type TextItem } from "../../../../../api/_relay/texts.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 import { assertionJson, canPasskey, requestOptions, useDeskAuth } from "../signin.ts";
 
@@ -15,7 +15,7 @@ import { assertionJson, canPasskey, requestOptions, useDeskAuth } from "../signi
  * send needs this device's unlock (one fresh passkey check, good 72 hours), and is single-use with 10 minutes to live.
  */
 
-export type { TextItem };
+export type { TextCard, TextItem };
 
 const PATH = "/api/relay";
 const POLL_MS = 20_000;
@@ -26,7 +26,7 @@ export type TextsLoad = "idle" | "off" | "live" | "failed";
 
 export interface TextRequestView {
   rid: string;
-  kind: "send" | "later" | "done" | "restyle";
+  kind: "send" | "later" | "done" | "restyle" | "compose";
   thread: string;
   text: string;
   created: number;
@@ -41,6 +41,8 @@ export interface TextsPrivate {
   lastSeen: number | null;
   unlockedUntil: number | null;
   items: TextItem[];
+  /** The texts Skippy asked Blasto to write (#536). */
+  cards: TextCard[];
   textsAt: number | null;
   requests: TextRequestView[];
   spend: { usd: number; budget: number };
@@ -56,7 +58,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
   if (!st.ok || !Array.isArray(o.texts) || !Array.isArray(o.requests)) return null;
   const spend = o.spend as Record<string, unknown> | null;
   const requests: TextRequestView[] = (o.requests as Record<string, unknown>[]).flatMap((r) =>
-    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
+    r && typeof r.rid === "string" && /^[0-9a-f]{24}$/.test(r.rid) && typeof r.thread === "string" && ["send", "later", "done", "restyle", "compose"].includes(r.kind as string) && (REQUEST_STATES as readonly string[]).includes(r.state as string) && isNum(r.created) && isNum(r.until)
       ? [{ rid: r.rid, kind: r.kind as TextRequestView["kind"], thread: r.thread, text: typeof r.text === "string" ? r.text.slice(0, 2_000) : "", created: r.created, until: r.until, state: r.state as RequestState }]
       : [],
   );
@@ -68,6 +70,7 @@ export function readPrivateView(b: unknown): (TextsPrivate & { status: RelayStat
     lastSeen: isNum(o.lastSeen) ? o.lastSeen : null,
     unlockedUntil: isNum(o.unlockedUntil) ? o.unlockedUntil : null,
     items: (o.texts as unknown[]).map(readTextItem).filter((i): i is TextItem => i !== null),
+    cards: (Array.isArray(o.cards) ? (o.cards as unknown[]) : []).map(readTextCard).filter((c): c is TextCard => c !== null),
     textsAt: isNum(o.textsAt) ? o.textsAt : null,
     requests,
     spend: { usd: isNum(spend?.usd) ? spend.usd : 0, budget: isNum(spend?.budget) ? spend.budget : 10 },
@@ -127,6 +130,8 @@ interface TextsStore {
   lock: () => Promise<void>;
   /** One request; false (with `error` set) when the site refused it. */
   ask: (body: Record<string, unknown>) => Promise<boolean>;
+  /** A new text for Blasto to write (#536): the card's id, or the site's error code. */
+  compose: (body: { who: string; gist: string; card?: string; pick?: string }) => Promise<{ card: string } | { error: string }>;
 }
 
 const isJson = (res: Response) => (res.headers.get("content-type") ?? "").includes("json");
@@ -140,8 +145,14 @@ const ERRORS: Record<string, string> = {
   "bad-text": "The reply is empty or too long.",
   "no-resend": "That request can't be sent again.",
   "not-paired": "No Mac is paired yet.",
+  "not-set-up": "Texts aren't set up on this copy yet.",
   paired: "A Mac is already paired. Unpair it first to pair another.",
+  "off-limits": "Relay keeps that one from Blasto (money, legal, a code or the skip list). Text it yourself.",
+  private: "That has a number, address or key in it. Say it another way.",
 };
+
+/** What the site said about a request, in the Desk's words. */
+export const errorWords = (code: string) => ERRORS[code] ?? "That didn't go through. Try again.";
 
 export const useTexts = create<TextsStore>((set, get) => ({
   load: "idle",
@@ -253,6 +264,19 @@ export const useTexts = create<TextsStore>((set, get) => ({
     } finally {
       set({ busy: null });
       await get().refresh();
+    }
+  },
+  compose: async (body) => {
+    try {
+      const res = await post({ action: "compose", ...body });
+      const got = isJson(res) ? ((await res.json().catch(() => ({}))) as { card?: unknown; error?: unknown }) : {};
+      if (res.status === 401 && got.error === "signed-out") useDeskAuth.getState().lost();
+      if (res.ok && typeof got.card === "string" && /^[0-9a-f]{16}$/.test(got.card)) return { card: got.card };
+      return { error: typeof got.error === "string" ? got.error : res.status === 503 ? "not-set-up" : "failed" };
+    } catch {
+      return { error: "failed" };
+    } finally {
+      void get().refresh();
     }
   },
 }));

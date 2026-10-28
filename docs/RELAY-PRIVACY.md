@@ -2,7 +2,8 @@
 
 The rules for what Relay may read, keep, send and show. Issue #149, roadmap R5 in [THREAT-MODEL.md](THREAT-MODEL.md);
 the texts line itself is #535. Status as of 2026-10-28: the hub (`apps/hub`), its installer, the site's Relay routes
-(`api/_relay`) and the Desk's Texts panel are built to these rules; the hub runs once Nikita installs it on the Mac.
+(`api/_relay`), the Desk's Texts panel and the texts Skippy drafts for Nikita (#536) are built to these rules; the hub
+runs once Nikita installs it on the Mac.
 
 These rules bind the hub and the site's Relay routes. Code that breaks one doesn't merge. To change a rule, change
 this page in the same pull request as the code, and say so in the pull request.
@@ -43,6 +44,8 @@ The parts:
    that it worked; **Unpair** on the Desk clears the site.
 6. **Nothing sends without a tap.** A send is a request Nikita makes on the Desk with a fresh passkey unlock. Each
    request works once, for one thread and one draft, for 10 minutes. No message, model answer or webhook can make one.
+   A new text Skippy has drafted (#536) goes the same way, after a card shows Nikita who it goes to and the exact text;
+   on a Talk call his own spoken "send" for the text Skippy just read him counts as the tap (below).
 
 ## Data inventory
 
@@ -50,7 +53,7 @@ The parts:
 | --- | --- | --- | --- |
 | Messages | Every message and attachment | Apple's `chat.db`. Relay never opens it; it asks BlueBubbles for a chat's latest messages when it needs them | Apple's choice, not Relay's |
 | BlueBubbles | Its own cache, settings and server password | `~/Library/Application Support/bluebubbles-server/` | Until BlueBubbles is removed (see the wipe) |
-| Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time; daily counts; the ids of send requests already seen. **Never a copy of a message body** | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
+| Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time; daily counts; the ids of send requests already seen. Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. **Never a copy of a message body** | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
 | Style profile | Four numbers made at draft time from Nikita's own past replies to that contact (usual length, and how often he starts with a capital, uses emoji, ends with a full stop). No text | Memory, for one call | The call |
 | Style examples | Up to 8 of Nikita's own past replies to that contact | Memory only, for one Blasto call | The call |
 | Contacts | Names and handles, from BlueBubbles | The hub's memory, refreshed hourly | While the hub runs |
@@ -58,7 +61,7 @@ The parts:
 | Logs | Event kinds, counts, error classes | `~/Library/Logs/CEO Relay/`, mode 0600 | 14 days, one file a day |
 | Mac secrets | The BlueBubbles password, the hub token, the send key, the local webhook key | The login Keychain, service "CEO Relay" | Until the wipe |
 | The site's public status | The latest `RelayStatus`: counts, states, times | Azure blob `relay/status.json` (private container, served by a function) | The latest only |
-| The site's sealed list | The who's-waiting list (names, gists, drafts, summaries) and the Desk's requests, including the text of each send and dictation | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push, items 7 days at most. Requests: a day after they end |
+| The site's sealed list | The who's-waiting list (names, gists, drafts, summaries), the new-text cards (#536: name, the last 4 digits of the number or a masked address, the text, the choices) and the Desk's requests, including the text of each send and dictation and the who and gist of each new-text ask | Azure blob `relay/private.json`, sealed with AES-256-GCM under a key derived from `GMAIL_TOKEN_KEY` with Relay's own label | List: replaced on each push, items 7 days at most. Requests: a day after they end |
 | The pairing | The pairing's id and the SHA-256 of the hub's token; an open pair code's SHA-256 | Azure blobs `relay/hub.json`, `relay/pair.json` | Until Unpair; a code 10 minutes |
 | The spend ledger | Per month: calls, tokens, dollars | Azure blob `relay/spend.json` | A year |
 | Anthropic's copy | What one call sent and got back | Anthropic | Anthropic's API retention (below); never used for training |
@@ -132,8 +135,8 @@ The hub makes only these calls, all outbound to `https://ceo.nikita.page`, all w
 | Call | What goes | Checked by |
 | --- | --- | --- |
 | `POST /api/relay-hub` | The counts (`RelayStatus`) | `parseRelayStatus`, 4 KB, the allowlist below; kept whole or not at all |
-| `POST /api/relay-hub?view=texts` | The who's-waiting list (`TextsView`): per thread its Relay id, name, channel, group or not, state, sort, since, later-until, gist, draft, summary | `readTextsView` (`api/_relay/texts.ts`): a closed allowlist with length caps; one bad item refuses the list. 128 KB |
-| `POST /api/relay-hub?view=sort` and `?view=draft` | One placeholdered snippet | Above |
+| `POST /api/relay-hub?view=texts` | The who's-waiting list (`TextsView`): per thread its Relay id, name, channel, group or not, state, sort, since, later-until, gist, draft, summary; and the new-text cards (#536): id, state, name, mask, channel, text, choices | `readTextsView` (`api/_relay/texts.ts`): a closed allowlist with length caps; one bad item refuses the list. A card's mask must be `ending 0123` or `r•••@e•••.com` exactly, so no whole number or address can ride on it. 128 KB |
+| `POST /api/relay-hub?view=sort` and `?view=draft` | One placeholdered snippet, or a new text's placeholdered ask (#536) | Above |
 | `GET /api/relay-hub?view=requests` | Nothing; it gets the Desk's waiting requests | The send path, below |
 | `POST /api/relay-hub?view=results` | Per request it took: its id and `sent`, `done`, `failed` or `refused` | Taken requests only |
 | `GET /api/relay-hub?view=skip` | Nothing; it gets the skip list's terms | |
@@ -141,7 +144,9 @@ The hub makes only these calls, all outbound to `https://ceo.nikita.page`, all w
 | `POST /api/relay-pair` | Once, at install: the pair code | Below |
 
 The list never holds a message body: the gist and summary are the models' own words about the thread, and the draft is
-Blasto's. It never holds a phone number, email address or Messages chat id either. A name is the contact's name as
+Blasto's. It never holds a phone number, email address or Messages chat id either; a new-text card shows only the last
+4 digits of the number or the address masked to its first letters (#536), which is a change from #535's rule of no
+number at all, made so Nikita can check who a text goes to before he sends it. A name is the contact's name as
 Nikita's contacts have it, "Unknown sender", or a group's name.
 
 **The pairing.** The Desk makes a one-time code only with this device's send unlock (below), since a paired Mac can
@@ -227,6 +232,55 @@ in Chrome and Edge, the audio goes to the browser maker's speech service (Google
 or it stays on the device. The words land in the text box. Nothing goes anywhere else until Nikita taps Send or "Put
 it in my style".
 
+### Texts Skippy writes (#536)
+
+Nikita can ask Skippy for a text in his signed-in chat or on a Talk call ("text Riley I'm running 10 late"). It is
+never on a public surface, and nothing sends without his confirmation of the exact card.
+
+1. **The ask.** Skippy's answer names who and the gist as a `text` action (`api/_skippy/prompt.ts`): one plain line
+   each, capped, never with a number, address, card or key in either (the privacy check). On a call, the agent's
+   `draft_text` tool carries the same two, and it runs in Nikita's browser, not on a server. The site runs the relay's
+   own rules over the ask before anything is kept (`askRuled`, `api/_relay/compose.ts`): the private skip list over
+   who and the gist, the money and legal pre-filter and one-time codes over the gist. A match is refused (Skippy says
+   Nikita texts that one himself). A texting ask is never kept in Skippy's room log.
+2. **The compose request.** The Desk asks `POST /api/relay { action: "compose", who, gist }` with its session (no
+   unlock: it can't send). It is a request like the others: single-use, 10 minutes, signed with the send key over
+   every field and over who, at most three waiting at once. The site makes a fresh card id for it.
+3. **On the Mac.** The hub finds the contact by name in its own memory (`matchContacts`): an exact name first, else
+   every contact whose name holds all of the words. **No guessing**: none is a "none" card, more than one (or one
+   contact with several numbers) a "choices" card with up to 6 names and masks, and Nikita picks; the pick names the
+   hub's own random id for that choice, never a handle from the browser. For one contact, every rule runs over the
+   ask with that contact's names and handle, and a match is an "off" card with no model call. Then the hub reads
+   Nikita's own past texts to them from BlueBubbles, each through the rules (a match is left out), and Blasto writes
+   the text from the **placeholdered ask and the style examples only** (`readComposeInput`, `composeRequest`: no
+   thread lines at all, 300 characters of ask, the same style caps, fenced in `<ask>`). The site runs the rules over
+   the ask again before it calls. Names go back in only on the Mac.
+4. **The card.** The list carries the card to the Desk: the contact's name, `ending 0123` (the number's last 4 digits)
+   or `r•••@e•••.com`, the channel and the full text. It shows in Skippy's chat with Send, Edit and Cancel. An edit
+   makes a new version of the card and asks again; a confirmation never carries from one version to the next.
+5. **The send.** Send on the card is the ordinary send request above: this device's 72-hour unlock, single use, 10
+   minutes, signed, bound to the card and to the version Blasto wrote (`draftAt`), with the text on screen (Nikita's
+   edit, if any). Only one send per card; a card that went takes no other. The hub's `act` checks it all again and
+   that Messages doesn't already show that text from Nikita since the card was made (a send that timed out but went),
+   then sends through BlueBubbles to the card's own recipient. "Not sent, Mac was offline" and Resend work as above.
+6. **On a call.** Skippy reads both aloud, the recipient and the exact text, and waits for "send" or a tap. The
+   agent's `send_text` tool only asks: the browser sends only when Nikita's own transcribed words said "send" (with
+   no no, wait or change in them) after Skippy was handed that very version to read (`apps/world/src/desk/texts/compose.ts`),
+   or after his tap. An edit (`edit_text`) is a new version: read again, asked again. A locked device says so and
+   waits for the passkey.
+
+What this adds to each boundary:
+
+- **Skippy's chat model** (Claude, the Desk's own chat) sees Nikita's ask as he typed it, as any ask; Skippy never
+  sees the contact's details, Blasto's draft or the card.
+- **On a Talk call, ElevenLabs** (the call's speech and its agent model) hears the ask and gets the card's name, mask
+  and text from the browser so Skippy can read them aloud. ElevenLabs keeps a call's transcript under its own
+  retention, as for every call; that copy is the residual risk of texting by voice. Typed, the card never leaves the
+  Desk.
+- **Blasto** sees only the placeholdered ask, Nikita's own placeholdered past texts to that contact and the style
+  numbers.
+- **Logs** on the Mac add only the kinds "text composed" and "compose settled", with counts.
+
 ### Mac to logs
 
 - **Allowed:** timestamps, event kinds from a closed list ("thread owed", "draft ready", "status sent", "sent",
@@ -256,6 +310,7 @@ it in my style".
 | The site's public status | The latest only | Replaced on each push; reset by Unpair and the wipe |
 | The site's sealed list | Replaced on each push (on every change, and at least every 5 minutes); items 7 days at most | The next push, `readTextsView`, Unpair, the wipe |
 | Requests on the site | A day after their 10 minutes end | Dropped on each read and write |
+| New-text cards (#536), on the Mac and the site | A day; a sent card loses its text at once | The hourly sweep; `readTextsView`; Unpair, the wipe |
 | Snippets on the site | One call | Never written down |
 | Anthropic's copy | Anthropic's API retention (above) | Anthropic's policy |
 
@@ -361,6 +416,16 @@ Run by `npm test`:
   - a whole day's log lines hold only kinds and numbers;
   - the sweep ends each row by its deadline;
   - the server binds `127.0.0.1` and refuses a missing key, a wrong key or an `Origin`.
+- **Texts Skippy writes (#536)**: `api/_relay/relay.test.ts` (a compose needs the session and is signed over who; the
+  rules and the privacy check stop an ask before anything is kept; a card never carries a whole number or address;
+  a card's send needs the unlock, is bound to the card's version, goes once, and only for a ready card; a pick names
+  only the hub's own choice; Blasto's new text carries the ask and style only, and the rules run on the site too),
+  `apps/hub/src/hub.test.ts` (the contact is found on the Mac without guessing; the snippet holds no name or number;
+  the card shows the last 4 digits only; money, legal, codes and the skip list get no call; a card sends once, through
+  `act`, with the text on screen; a resend after it went is refused; no log line names anything),
+  `apps/world/src/desk/texts/compose.test.ts` (a spoken send counts only from Nikita's own words for the version he
+  was read; an edit asks again; the unlock is needed), `api/skippy.test.ts` (the text action, never logged, the rules
+  in the chat) and `api/_skippy/voicetools.test.ts` (the texting tools run in the browser and only Skippy has them).
 - **`apps/hub/src/install.test.ts`** runs `relay wipe` and `relay wipe --verify` on a made-up home folder with
   macOS's commands stubbed: every file, the job, the four Keychain items and the PATH line go, and the check passes.
   It does nothing without "wipe" typed, and the check names what is left. `relay status` warns when BlueBubbles is

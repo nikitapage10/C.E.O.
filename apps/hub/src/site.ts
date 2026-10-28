@@ -1,5 +1,5 @@
 import type { RelayStatus } from "@ceo/core";
-import type { DraftAnswer, DraftInput, SortAnswer, SortInput } from "../../../api/_relay/models.ts";
+import type { ComposeInput, DraftAnswer, DraftInput, SortAnswer, SortInput } from "../../../api/_relay/models.ts";
 import type { RequestResult, TextsView } from "../../../api/_relay/texts.ts";
 import { SITE } from "./config.ts";
 
@@ -11,6 +11,7 @@ import { SITE } from "./config.ts";
  *   texts     the who's-waiting list: names, Dialtone's gist, Blasto's drafts; never a message body
  *   sort      one placeholdered, trimmed snippet for Dialtone; the answer comes back, nothing is kept there
  *   draft     the same for Blasto
+ *   compose   a new text Skippy asked for (#536): the placeholdered ask and style examples, on the draft view
  *   requests  the Desk's waiting requests (each handed out once)
  *   results   what became of the ones it took
  *   skip      the private skip list's terms, held in memory only
@@ -22,6 +23,7 @@ export interface Site {
   texts(view: TextsView): Promise<boolean>;
   sort(input: SortInput): Promise<{ answer: SortAnswer | null } | { paused: true }>;
   draft(input: DraftInput): Promise<{ answer: DraftAnswer | null } | { paused: true }>;
+  compose(input: ComposeInput): Promise<{ answer: DraftAnswer | null } | { paused: true }>;
   requests(): Promise<unknown[]>;
   results(results: { rid: string; result: RequestResult }[]): Promise<boolean>;
   skipTerms(): Promise<string[] | null>;
@@ -51,6 +53,10 @@ export function siteClient(token: string, fetcher: typeof fetch = fetch, base = 
       return got.paused === true ? { paused: true } : { answer: (got.answer ?? null) as SortAnswer | null };
     },
     draft: async (input) => {
+      const got = await post("draft", input);
+      return got.paused === true ? { paused: true } : { answer: (got.answer ?? null) as DraftAnswer | null };
+    },
+    compose: async (input) => {
       const got = await post("draft", input);
       return got.paused === true ? { paused: true } : { answer: (got.answer ?? null) as DraftAnswer | null };
     },

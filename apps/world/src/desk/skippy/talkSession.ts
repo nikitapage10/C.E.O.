@@ -25,6 +25,8 @@ export interface CallHandlers {
   onAgent?: (agentId: string) => void;
   /** A tool the agent called came back (#479): its name only. */
   onTool?: (name: string) => void;
+  /** The tools that run here, in the browser (#536: drafting and sending a text through this device's own unlock). */
+  clientTools?: Record<string, (params: Record<string, unknown>) => Promise<string>>;
   onEnd: () => void;
   onError: () => void;
 }
@@ -81,6 +83,7 @@ export async function openCall(h: CallHandlers) {
     connectionType: "webrtc",
     textOnly: false,
     dynamicVariables: { desk: h.desk, ...(h.tool && { [TOOL_VAR]: h.tool }) },
+    ...(h.clientTools && { clientTools: h.clientTools }),
     onMessage: ({ message, role }) => {
       if (role === "user" && message.trim() === SPEAK_NOW) return;
       if (role !== "user" && !guard.keep(message)) return;

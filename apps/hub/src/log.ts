@@ -38,6 +38,8 @@ export const LOG_KINDS = [
   "skip terms failed",
   "sweep",
   "request refused",
+  "text composed",
+  "compose settled",
   "error",
 ] as const;
 export type LogKind = (typeof LOG_KINDS)[number];

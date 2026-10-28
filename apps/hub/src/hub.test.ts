@@ -1,8 +1,8 @@
 import { request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { CAPS, readDraftInput, readSortInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
-import type { RequestResult, TextRequest, TextsView } from "../../../api/_relay/texts.ts";
+import { CAPS, readComposeInput, readDraftInput, readSortInput, type ComposeInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
+import { CARD_KEEP_MS, readTextsView, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
 import type { BlueBubbles, Contact, Message } from "./bluebubbles.ts";
 import { readWebhook } from "./bluebubbles.ts";
@@ -30,11 +30,12 @@ const UTC = () => 0;
 class FakeBB implements BlueBubbles {
   sent: { chat: string; text: string }[] = [];
   history: Message[] = [];
+  people: Contact[] = [CONTACT, { names: ["Jordan Sample"], handles: ["+15555550199"] }];
   async ping() {
     return true;
   }
   async contacts() {
-    return [CONTACT, { names: ["Jordan Sample"], handles: ["+15555550199"] }];
+    return this.people;
   }
   async messages() {
     return [...this.history].reverse();
@@ -51,8 +52,10 @@ class FakeSite implements Site {
   views: TextsView[] = [];
   waiting: unknown[] = [];
   reported: { rid: string; result: RequestResult }[] = [];
+  composes: ComposeInput[] = [];
   sortAnswer: unknown = { needsReply: true, sort: "sooner", gist: "Contact asks if Person 1 can come" };
   draftAnswer: unknown = { draft: "Yes, Contact, see you at [code]" };
+  composeAnswer: unknown = { draft: "Running 10 late Contact, Person 1 too" };
   async status() {
     return true;
   }
@@ -67,6 +70,10 @@ class FakeSite implements Site {
   async draft(input: DraftInput) {
     this.drafts.push(input);
     return { answer: this.draftAnswer as never };
+  }
+  async compose(input: ComposeInput) {
+    this.composes.push(input);
+    return { answer: this.composeAnswer as never };
   }
   async requests() {
     const out = this.waiting;
@@ -377,6 +384,142 @@ describe("the rules reach every model call (#541 review)", () => {
     expect(h.bb.sent).toEqual([]);
     expect(h.site.reported.at(-1)!.result).toBe("refused");
     expect(h.store.load().threads[0]!.state).toBe("replied");
+  });
+});
+
+describe("texts Skippy asks for (#536)", () => {
+  const CARD = "aaaabbbbccccdddd";
+  const ask = (who: string, gist: string, rid = "1".repeat(24), thread = CARD): TextRequest => {
+    const f = { rid, kind: "compose" as const, thread, draftAt: 0, text: gist, who, until: NOW + REQUEST_MS };
+    return { ...f, created: NOW, sig: signRequest(KEY, f) };
+  };
+  const composed = async (who = "Riley", gist = "running 10 min late, Jordan Sample too") => {
+    const h = setup();
+    await h.engine.refreshSkipTerms(true);
+    h.bb.history = [text("Where are you?", NOW - 3_600_000), text("omw Riley!", NOW - 3_500_000, true), text("see you soon", NOW - 600_000, true)];
+    h.site.waiting = [ask(who, gist)];
+    await h.engine.act();
+    await h.engine.report(true);
+    return { ...h, card: h.store.load().cards.find((c) => c.id === CARD), listed: h.site.views.at(-1)! };
+  };
+
+  it("finds the contact on the Mac and has Blasto write it from the placeholdered ask and Nikita's own texts only", async () => {
+    const h = await composed();
+    expect(h.site.composes).toHaveLength(1);
+    const sent = JSON.stringify(h.site.composes);
+    expect(sent).not.toMatch(/Riley|Jordan|555|\+1|Where are you/);
+    expect(h.site.composes[0]!.examples).toEqual(["omw Contact!", "see you soon"]);
+    expect(readComposeInput(JSON.parse(sent)[0])).not.toBeNull();
+    expect(h.card).toMatchObject({ state: "ready", name: "Riley Test", draft: { text: "Running 10 late Riley, Jordan Sample too" } });
+    expect(h.site.reported).toEqual([{ rid: "1".repeat(24), result: "done" }]);
+    // Nothing sends on a compose.
+    expect(h.bb.sent).toEqual([]);
+  });
+
+  it("puts the card in the list with the name, the last 4 digits and the text, never the number or chat id", async () => {
+    const h = await composed();
+    expect(readTextsView(h.listed, NOW)).not.toBeNull();
+    expect(h.listed.cards).toEqual([{ id: CARD, state: "ready", name: "Riley Test", mask: "ending 0123", channel: "iMessage", draft: { text: "Running 10 late Riley, Jordan Sample too", at: NOW }, choices: [], at: NOW }]);
+    expect(JSON.stringify(h.listed)).not.toMatch(/555555|\+1555|iMessage;-;/);
+  });
+
+  it("shows the choices when the name fits several, never a guess, and drafts for the one picked", async () => {
+    const h = setup();
+    h.bb.people = [CONTACT, { names: ["Riley Sample"], handles: ["+15555550188", "riley.s@example.com"] }];
+    h.site.waiting = [ask("Riley", "running late")];
+    await h.engine.act();
+    await h.engine.report(true);
+    expect(h.site.composes).toEqual([]);
+    const c = h.site.views.at(-1)!.cards![0]!;
+    expect(c.state).toBe("choices");
+    expect(c.choices.map((x) => `${x.name} ${x.mask}`)).toEqual(["Riley Test ending 0123", "Riley Sample ending 0188", "Riley Sample r•••@e•••.com"]);
+    expect(JSON.stringify(c)).not.toMatch(/example\.com|\+1555/);
+    h.site.waiting = [ask(`pick:${c.choices[1]!.pick}`, "running late", "2".repeat(24))];
+    await h.engine.act();
+    const card = h.store.load().cards[0]!;
+    expect(card).toMatchObject({ state: "ready", name: "Riley Sample" });
+    expect(card.target!.chat).toBe("iMessage;-;+15555550188");
+    // A pick that isn't one of this card's choices does nothing.
+    h.site.waiting = [ask("pick:0000ffff", "running late", "3".repeat(24))];
+    await h.engine.act();
+    expect(h.site.reported.at(-1)!.result).toBe("refused");
+  });
+
+  it("says so when no contact has that name, with no model call", async () => {
+    const h = await composed("Nobody Known", "hi");
+    expect(h.card).toMatchObject({ state: "none", name: "Nobody Known", target: null });
+    expect(h.site.composes).toEqual([]);
+  });
+
+  it("keeps money, legal, codes and the skip list from the model, and leaves rule-tripping past texts out of the examples", async () => {
+    for (const gist of ["can you cover the rent invoice", "the lawsuit settlement is signed", "the code is 482913"]) {
+      const h = await composed("Riley", gist);
+      expect(h.card?.state, gist).toBe("off");
+      expect(h.site.composes, gist).toEqual([]);
+    }
+    const skip = setup();
+    await skip.engine.refreshSkipTerms(true);
+    skip.bb.people = [CONTACT, { names: ["Private Person"], handles: ["+15555550111"] }];
+    skip.site.waiting = [ask("Private Person", "hi there")];
+    await skip.engine.act();
+    expect(skip.store.load().cards[0]!.state).toBe("off");
+    expect(skip.site.composes).toEqual([]);
+    const h = setup();
+    h.bb.history = [text("I paid the invoice, here is the receipt", NOW - 60_000, true), text("see you soon", NOW - 30_000, true)];
+    h.site.waiting = [ask("Riley", "running late")];
+    await h.engine.act();
+    expect(h.site.composes[0]!.examples).toEqual(["see you soon"]);
+  });
+
+  it("sends a card once, through act, with the text on screen; a changed version, a replay or a second send is refused", async () => {
+    const h = await composed();
+    const at = h.card!.draft!.at;
+    const send = (rid: string, over: Partial<TextRequest> = {}) => req({ rid, thread: CARD, draftAt: at, text: "Running 15 late, sorry (edited)", ...over }, KEY, NOW);
+    h.site.waiting = [send("4".repeat(24), { draftAt: at - 1 }), { ...send("5".repeat(24)), text: "something else" }];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([]);
+    const good = send("6".repeat(24));
+    h.site.waiting = [good];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([{ chat: CHAT, text: "Running 15 late, sorry (edited)" }]);
+    expect(h.site.reported.at(-1)).toEqual({ rid: good.rid, result: "sent" });
+    expect(h.store.load().cards[0]).toMatchObject({ state: "sent", draft: null });
+    h.site.waiting = [good, send("7".repeat(24))];
+    await h.engine.act();
+    expect(h.bb.sent).toHaveLength(1);
+  });
+
+  it("refuses a resend once Messages shows the text went", async () => {
+    const h = await composed();
+    const at = h.card!.draft!.at;
+    h.bb.send = async () => {
+      throw Object.assign(new Error("timeout"), { name: "TimeoutError" });
+    };
+    h.site.waiting = [req({ rid: "8".repeat(24), thread: CARD, draftAt: at, text: "Running late!" }, KEY, NOW)];
+    await h.engine.act();
+    expect(h.site.reported.at(-1)!.result).toBe("failed");
+    h.bb.history.push(text("Running late!", NOW + 1_000, true));
+    h.bb.send = async (chat, body) => {
+      h.bb.sent.push({ chat, text: body });
+      return true;
+    };
+    h.site.waiting = [req({ rid: "9".repeat(24), thread: CARD, draftAt: at, text: "Running late!" }, KEY, NOW)];
+    await h.engine.act();
+    expect(h.bb.sent).toEqual([]);
+    expect(h.store.load().cards[0]!.state).toBe("sent");
+  });
+
+  it("drops a card on done and by the sweep, and logs nothing of it", async () => {
+    const h = await composed();
+    expect(h.log.lines.join("\n")).not.toMatch(/Riley|Jordan|555|late|iMessage|[0-9a-f]{16}/);
+    h.at(NOW + CARD_KEEP_MS + 1);
+    h.engine.sweep();
+    expect(h.store.load().cards).toEqual([]);
+    const d = await composed();
+    h.site.waiting = [];
+    d.site.waiting = [req({ rid: "c".repeat(24), kind: "done", thread: CARD, text: "" }, KEY, NOW)];
+    await d.engine.act();
+    expect(d.store.load().cards).toEqual([]);
   });
 });
 

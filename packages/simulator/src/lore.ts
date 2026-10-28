@@ -233,7 +233,7 @@ export const LORE: Record<string, Lore> = {
       "Learned the Relay's post had been practice. Stopped the drills, polished every tube, and waits for the first real message from the C.E.O.'s world.",
       "The first real post came by telegraph: the C.E.O.'s inbox. Writes advice and a draft for each mail that needs the C.E.O., and sends nothing. 'This one drafts. The C.E.O. delivers.'",
       "Was there the night the line went live (2026-10-23). Sealed the first real advice in red wax, set it aside unsent, and glowed. Calls it 'this one's first contact'.",
-      "Texts came by wire (#535). Drafts each owed one in the C.E.O.'s own voice; sends only on the C.E.O.'s tap, one sealed slip at a time. Keeps expired slips in a drawer: 'letters that missed the boat'.",
+      "Texts came by wire (#535). Since #536 writes new ones Skippy asks for: name and four digits on the card, sent only when the C.E.O. taps or says 'send'. 'This one does not guess at a recipient.'",
     ],
   },
   dialtone: {
@@ -610,7 +610,7 @@ export const LORE: Record<string, Lore> = {
       "Picked the models: the quick one for Dialtone, the clever one for Blasto. Minds ten dollars for the inbox and ten for texts, on two meters; at a cap it stops the models, never the counting.",
       "Hears every email the moment it lands and has told nobody what one says. The Lattice gets the counts; the C.E.O. gets the rest, behind the passkey. Hardest thing it has ever done.",
       "Woke for real when the inbox went live (2026-10-23): ACTIVE · OWN THREAD, its own line to the C.E.O. Has not stopped talking on it. Waits on the Mac for the other half.",
-      "On the C.E.O.'s Talk call (#479), the Messenger takes the mic for an inbox rundown. Counts only. Asked on air who an email was from: 'didn't hear it from me.' Meant it.",
+      "Gives Talk-call inbox rundowns, counts only (#479). Since #536 checks the skip list, money and legal before Blasto sees a text Skippy asks for. One name, two people? Sends up both and waits.",
     ],
   },
   vellum: {

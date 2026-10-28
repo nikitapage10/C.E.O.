@@ -89,9 +89,11 @@ export interface SignedFields {
   draftAt: number;
   text: string;
   until: number;
+  /** A compose's who (#536): signed too, so a request can't be pointed at someone else in the store. */
+  who?: string;
 }
 
-const requestBody = (f: SignedFields) => ["rq1", f.rid, f.kind, f.thread, String(Math.floor(f.draftAt)), sha256(f.text), String(Math.floor(f.until))].join("|");
+const requestBody = (f: SignedFields) => [`rq1`, f.rid, f.kind, f.thread, String(Math.floor(f.draftAt)), sha256(f.text), String(Math.floor(f.until)), ...(f.who === undefined ? [] : [sha256(f.who)])].join("|");
 
 export function signRequest(sendKey: Buffer, f: SignedFields): string {
   return mac(sendKey, requestBody(f));

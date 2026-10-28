@@ -9,15 +9,19 @@
   },
   "routes": [
     { "route": "/sw.js", "headers": { "Cache-Control": "no-cache" } },
-    { "route": "/assets/*", "headers": { "Cache-Control": "public, max-age=31536000, immutable" } }
+    { "route": "/assets/*", "headers": { "Cache-Control": "public, max-age=31536000, immutable" } },
+    { "route": "/relay/*", "headers": { "Cache-Control": "no-cache" } }
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/assets/*", "/models/*", "/desk/*", "/tide/*", "/*.{js,css,json,map,png,webp,jpg,svg,ico,glb,wasm,webmanifest,woff,woff2,txt}"]
+    "exclude": ["/api/*", "/relay/*", "/assets/*", "/models/*", "/desk/*", "/tide/*", "/*.{js,css,json,map,png,webp,jpg,svg,ico,glb,wasm,webmanifest,woff,woff2,txt}"]
   },
   "mimeTypes": {
     ".glb": "model/gltf-binary",
     ".webmanifest": "application/manifest+json",
-    ".wasm": "application/wasm"
+    ".wasm": "application/wasm",
+    ".mjs": "text/javascript",
+    ".sh": "text/plain; charset=utf-8",
+    ".sha256": "text/plain; charset=utf-8"
   }
 }

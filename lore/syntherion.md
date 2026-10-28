@@ -254,8 +254,8 @@ Who works where, what they wear, and who they can't stand. Full dossiers are in
 | Green | **Gridiron** (Claudari) | Orc | Seven-foot coach. Roars the plays, then apologises for the volume. |
 | Green | **Punt** (Unforked) | Big bunny | Morale. Hops, naps, wins anyway. |
 | Green | **The Commentator** (a piece of Skippy) | Admiral's can, lime | Skippy's submind for the Green: the room lead. Calls every play Gridiron makes, louder, with stats for no one. Since the Green went live it finally has stats for someone: the C.E.O.'s real Sleeper league on the scoreboard, the win chance as the ball's yard line, start-or-sit calls from the booth and the pickups worth a claim, read-only. The scoreboard names both teams and runs projected first, then live, then the win chance, and the Commentator reads it out loud; Gridiron's practice reviews and pretend claims are gone. Now it runs an analyst desk too: FantasyPros makes the call, Sleeper's number stands beside it and a split decision gets flagged, every rival's needs and FAAB get read, and the playoff race gets played out three thousand times. Every Tuesday at 5:39pm Denver time it files the Commentator's call to the Desk (weak spots, byes, injuries, one trade, the waiver bid), using only numbers from the board, and it always ends with where each one came from. |
-| Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O.; never sends one. Live on the inbox since 2026-10-23. |
-| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute: needs you, FYI or noise. Live on the inbox since 2026-10-23; texts wait on the Mac. |
+| Relay | **Blasto** (Claudari) | Hanar | Postmaster. Says "this one", delivers love letters like an action hero. Writes advice and a draft for each email that needs the C.E.O., and a draft in the C.E.O.'s own voice for each text owed; sends a text only when the C.E.O. taps Send. Live on the inbox since 2026-10-23, on the texts since #535. |
+| Relay | **Dialtone** (Manusi) | Painted flyer | Runs the switchboard on the wing. Blasto's partner. Sorts the C.E.O.'s new email every minute (needs you, FYI or noise) and keeps the board of who the C.E.O. owes a text, sooner or normal. Live on the inbox since 2026-10-23, on the texts since #535. |
 | Relay | **The Messenger** (a piece of Skippy) | Admiral's can, signal blue | Skippy's submind for the Relay: the room lead. Hears every line, knows who's waiting on whom, never tells the wrong person. Picks the inbox's models and keeps the meter on its ten dollars a month. Awake, with its own thread, since the inbox went live. |
 | Archive | **Loremaster** (Gepetti) | Little wizard | Keeper of canon. Never late. |
 | Archive | **Heimerdinger** (Claudari) | Yordle professor | The oldest mind in the Archive, and the smallest. Tests every legend before anyone may believe it, and lectures on haste. |
@@ -519,10 +519,30 @@ inbox means quiet tubes. The brass inbox board shows three counters (needs the C
 that runs once round each minute from Dialtone's last check, and a telegraph sounder that clicks dot-dot-dash when a
 check lands. In the Boiler Room the Gmail pipe runs hot, and on the Desk the Relay page says email is live.
 
-Only half the Relay is awake. The texts still wait on the C.E.O.'s MacBook, and the chain on the Desk still shows
-it: the Mac, the hub, the messages, Dialtone and Blasto, the C.E.O. Dialtone keeps a second jack free for it and
-plays it an old emo record from the 2000s at night, about waiting by the phone, which Blasto says is too on the
-nose. The Lattice, as ever, gets numbers and states. What the letters say stays behind the passkey.
+For a while only half the Relay was awake. The texts waited on the C.E.O.'s MacBook, and Dialtone kept a second jack
+free for them and played it an old emo record from the 2000s at night, about waiting by the phone, which Blasto said
+was too on the nose.
+
+## The texts by wire
+
+Then the second jack rang (#535). The texts come in by wire from a hub on the C.E.O.'s MacBook, beyond the Veil, and
+the wire runs one way at a time: the hub calls out, and nothing in the Lattice can call in. When a text arrives the
+hub decides on the Mac what is not worth a lamp (codes, promos, the private list) and settles it unread. For the rest,
+it hands Dialtone a scrap with every name and number already swapped for a placeholder, and Dialtone says, in a
+breath, whether the C.E.O. owes a reply and whether it should be sooner. Blasto writes the reply in the C.E.O.'s own
+voice, learned from the C.E.O.'s own past replies to that person, and the hub puts the names back in only on the Mac.
+Both of them think through the Lattice's own line to Claude, on the texts' own ten dollars a month, so the Mac holds
+no key at all.
+
+Nothing goes out by itself. The C.E.O. reads the draft on the Desk, changes it or says it aloud, and taps Send. The
+tap writes one slip, sealed in wax, good for ten minutes and one reply to one person; the hub collects it, checks the
+seal, and only then sends. A slip the hub never collects (the Mac asleep, the lid shut) curls up unsent, and the Desk
+offers to write a fresh one. Blasto keeps the curled ones in a drawer and calls them "letters that missed the boat".
+
+In the Relay the switchboard's lamps now light from the texts: one lamp per reply owed, the ones to answer sooner
+burning brighter, under a brass plate that reads TEXTS · BY WIRE. The outbox beacon over the tubes glows when Blasto
+has drafts ready. Dialtone took the record off the second jack and put on something with a bass drop. The Lattice, as
+ever, gets numbers and states. Who is waiting, and what Blasto wrote, stays behind the passkey.
 
 ## The ledger by PayPal
 

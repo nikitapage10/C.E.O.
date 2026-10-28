@@ -3,11 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Phase 2+: the always-on hub that runs on the MacBook. Stub only in phase 1.",
+  "description": "Relay's texts hub on the MacBook (#535): BlueBubbles in, counts and the who's-waiting list out to the site, sends only on Nikita's signed tap. Built into one file the site serves at /relay/.",
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "build": "node build.mjs"
+  },
   "dependencies": {
     "@ceo/core": "0.1.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
   }
 }

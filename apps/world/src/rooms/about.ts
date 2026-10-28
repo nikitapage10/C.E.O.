@@ -103,7 +103,7 @@ export const ROOM_ABOUT: Record<RoomId, { blurb: string; stations: Record<string
     next: "Same, but with real agents. Morale is a feature.",
   },
   boiler: {
-    blurb: "Where you see whether the real lines are working. Every brass pipe is one of them: a live agent, the hub on your MacBook, BlueBubbles, Messages, OpenAI. The boiler is the MacBook itself.",
+    blurb: "Where you see whether the real lines are working. Every brass pipe is one of them: a live agent, the hub on your MacBook, BlueBubbles, Messages, Claude. The boiler is the MacBook itself.",
     stations: {
       post: "The Pessimist's floating command podium, high in the back-right corner. The Boiler Room's submind watches the pipe wall from here, expecting the worst. It glides out over the room when it gives an order.",
       pipes: "One pipe per real link. Its glowing collar and lit plate say its state from across the room: mint for working, amber for slow, blinking red with a burst jet for down, dark for not connected. The gauge is how busy it is.",

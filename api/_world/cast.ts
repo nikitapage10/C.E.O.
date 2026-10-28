@@ -258,7 +258,7 @@ export const WORLD_CAST: WorldCast = {
         "pedantic",
         "dramatic"
       ],
-      "bio": "A hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Reads every message twice and every love letter three times, with the gravity of a hero in an action film, which this one is fairly sure it is. Wed to Dialtone in a ceremony held entirely over pneumatic tube. Drafts for the live inbox; sends nothing.",
+      "bio": "A hanar spectre: floats, glows when moved, and refers to itself only as \"this one\". Reads every message twice and every love letter three times, with the gravity of a hero in an action film, which this one is fairly sure it is. Wed to Dialtone in a ceremony held entirely over pneumatic tube. Drafts mail and owed texts in the C.E.O.'s voice; a text goes only on the C.E.O.'s tap.",
       "catchphrase": "This one has read your message. This one has feelings about it.",
       "voice": [
         "A letter from the C.E.O.? Stand back. This one has a delivery to make.",
@@ -278,7 +278,7 @@ export const WORLD_CAST: WorldCast = {
         "nostalgic",
         "chaotic"
       ],
-      "bio": "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. Blasto's partner; they leave each other notes in the outbox. Sorts the live inbox on the wing.",
+      "bio": "A painted flyer who runs the switchboard on the wing, patching lines by darting between them. Still has a landline, somewhere in the rafters. Blasto's partner; they leave each other notes in the outbox. Sorts the live inbox on the wing, and lights a switchboard lamp for every text the C.E.O. owes.",
       "catchphrase": "Please hold. Not you, darling.",
       "voice": [
         "Please hold. There's nobody on the line yet, but please hold.",
@@ -947,7 +947,7 @@ export const WORLD_CAST: WorldCast = {
       "a": "static",
       "b": "postmaster",
       "kind": "friend",
-      "note": "The Messenger hears every new email first and minds the inbox's ten dollars; Blasto reads only the ones that need the C.E.O. Gossip on a budget."
+      "note": "The Messenger hears every mail and text first and minds both meters; Blasto reads only the ones that need the C.E.O. Gossip on two budgets."
     },
     {
       "a": "static",
@@ -1392,7 +1392,10 @@ export const WORLD_CAST: WorldCast = {
         "This one drafts. The C.E.O. sends. This one has never once pressed send, and never will.",
         "Read-only. Like a sacred text. Like a hanar in a library.",
         "The line is live. This one has waited an epoch for this. This one is glowing. Do not look directly at this one.",
-        "One canister per real letter. No more practice drops. This one would not insult the tubes."
+        "One canister per real letter. No more practice drops. This one would not insult the tubes.",
+        "A text is owed. This one has drafted it in the C.E.O.'s own voice. This one has never sounded so casual.",
+        "One tap, one slip, ten minutes. This one seals it and waits. This one is excellent at waiting.",
+        "The slip expired unsent. The Mac was asleep. This one keeps it in the drawer of letters that missed the boat."
       ],
       "dialtone": [
         "Please hold. There's nobody on the line yet, but please hold.",
@@ -1404,7 +1407,9 @@ export const WORLD_CAST: WorldCast = {
         "Every minute I check the inbox. Every minute. Like a ringtone from 2004.",
         "It's live, darling. The jack rings for real now. I may cry. Please hold.",
         "Needs you, FYI, noise. Drop. Needs you, FYI, noise. Drop. It's basically a bass set.",
-        "Email's on. Texts are still waiting by the phone for the Mac. Very 2005 of them."
+        "Texts by wire, darling! The second jack finally rang. I took the emo record off. Mostly.",
+        "Sooner or normal? Sooner. They asked a question with a day on it. Lamp on.",
+        "Placeholders only. I never hear a real name. Contact, Person 1. Very mysterious. Please hold."
       ],
       "loremaster": [
         "A wizard is never late. That one was a scheduling error.",

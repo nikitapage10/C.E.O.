@@ -1,0 +1,179 @@
+/*
+ * Relay's line 2, texts (#535): the Texts panel under the filter. Built on the Relay page's own tokens (relay.css,
+ * flow.css); scoped to .tx so nothing leaks.
+ */
+
+.desk .tx-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.desk .tx-note {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--wv-mute);
+}
+.desk .tx-pair ol {
+  display: grid;
+  gap: 12px;
+  margin: 10px 0 0;
+  padding-left: 20px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--wv-soft);
+}
+.desk .tx-copy {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.desk .tx-copy code {
+  padding: 6px 10px;
+  border: 1px solid var(--rl-line);
+  border-radius: 8px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  color: var(--wv-ink);
+}
+.desk .tx-code {
+  font-size: 22px;
+  letter-spacing: 0.12em;
+  color: var(--fl-hi);
+}
+.desk .tx-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rl-line);
+}
+.desk .tx-row {
+  border-bottom: 1px solid var(--rl-line);
+}
+.desk .tx-row-h {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 2fr) auto;
+  align-items: baseline;
+  gap: 6px 18px;
+  width: 100%;
+  padding: 14px 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.desk .tx-row-h:focus-visible {
+  outline: 2px solid rgb(var(--fl-accent));
+  outline-offset: 2px;
+}
+.desk .tx-who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.desk .tx-who b {
+  font-weight: 500;
+  color: var(--wv-ink);
+  overflow-wrap: anywhere;
+}
+.desk .tx-who small {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--wv-faint);
+}
+.desk .tx-who em {
+  font-style: normal;
+  color: var(--rl-warn);
+}
+.desk .tx-who em[data-tag="later"],
+.desk .tx-who em[data-tag="group"] {
+  color: var(--wv-mute);
+}
+.desk .tx-gist {
+  min-width: 0;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--wv-soft);
+}
+.desk .tx-wait {
+  font-size: 13px;
+  color: var(--wv-faint);
+}
+.desk .tx-row[data-late] .tx-wait {
+  color: var(--rl-bad);
+}
+.desk .tx-row-x {
+  display: grid;
+  gap: 10px;
+  padding: 0 4px 18px;
+}
+.desk .tx-draft {
+  width: 100%;
+  min-height: 84px;
+  padding: 12px 14px;
+  border: 1px solid rgba(var(--fl-accent), 0.32);
+  border-radius: 14px;
+  background: rgba(var(--fl-accent), 0.06);
+  color: var(--wv-ink);
+  font: inherit;
+  font-size: 15.5px;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.desk .tx-said {
+  margin: 0;
+  font-size: 14px;
+  color: var(--wv-mute);
+}
+.desk .tx-do {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.desk .tx .fl-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.desk .tx .fl-btn.is-go {
+  border-color: rgb(var(--fl-accent));
+  background: rgba(var(--fl-accent), 0.18);
+}
+.desk .tx .fl-btn[data-live] {
+  border-color: var(--rl-bad);
+}
+.desk .tx-req {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--wv-mute);
+}
+.desk .tx-req[data-warn] {
+  color: var(--rl-warn);
+}
+.desk .tx-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  font-size: 13px;
+  color: var(--wv-faint);
+}
+@media (max-width: 640px) {
+  .desk .tx-row-h {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .desk .tx-gist {
+    grid-column: 1 / -1;
+  }
+}

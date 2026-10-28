@@ -8,13 +8,15 @@ import { LATE_MS, linkOf, startEmail, takeGmailReturn, useEmail, type EmailItem,
 import { RC, safeTitle, useFlow, type FlowLayoutFn, type FlowLine, type Pt } from "../flow/index.ts";
 import { clamp, mixRgb, WHITE } from "../wvCanvas.ts";
 import { arrivals, densityOf, filterPaths, homeward, keepOf, lenOf, rateOf, threadsOf, volumeOf, type Counts, type Sampled } from "./filter.ts";
+import { startTexts, textsLine, useTexts } from "../texts/texts.ts";
+import { TextsSection } from "../texts/TextsSection.tsx";
 import "./relay.css";
 
 /**
  * Relay, the filter (#429; Nikita, 2026-10-24: "the whole idea of Relay is it's supposed to be kind of like a filtering
  * animation… but without being corny"). Built on the Desk's flow kit (desk/flow), in Today's language: the day's mail
- * comes in from the left as a line of light (Gmail; texts wait beside it as a dashed bed until the MacBook's hub is
- * up), runs into Dialtone's sort, and splits. Most of it goes down to Handled and thins away there; FYI goes on, a
+ * comes in from the left as a line of light (Gmail, and texts beside it once the MacBook's hub reports, #535; a
+ * dashed bed until then), runs into Dialtone's sort, and splits. Most of it goes down to Handled and thins away there; FYI goes on, a
  * little thinner; and the few that need Nikita each run on as their own line to their own row in the docket on the
  * right. The counts drive it: the feed's density and pace follow the mail in today, each branch's share follows its
  * count, a new arrival runs a pulse down the branch it was sorted into, and Done sends that mail back down its line
@@ -79,7 +81,6 @@ const CREW = [
   { id: "postmaster", name: "Blasto", role: "Drafts" },
 ];
 
-const CHAIN = ["MacBook awake", "The hub", "Messages", "Sort and draft", "Your tap"];
 
 const WORDS = ["Nothing", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
 const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n.toLocaleString()} ${many}`);
@@ -214,6 +215,11 @@ interface Want {
 
 export function RelayFilter({ now }: { now: number }) {
   useEffect(() => startEmail(), []);
+  useEffect(() => startTexts(), []);
+  const textsLoad = useTexts((s) => s.load);
+  const textsStatus = useTexts((s) => s.status);
+  const textsOn = !!textsStatus && textsStatus.hub === "listening" && now - textsStatus.at < 15 * 60_000;
+  const textsOwed = textsOn ? textsStatus.owed : 0;
   const load = useEmail((s) => s.load);
   const status = useEmail((s) => s.status);
   const view = useEmail((s) => s.view);
@@ -330,13 +336,19 @@ export function RelayFilter({ now }: { now: number }) {
           bed: w.kind === "handled" ? 0.045 : undefined,
         });
       });
-      // Texts: a dashed bed into the same sort until the MacBook's hub is up. Never fake flow.
-      if (texts) lines.push({ id: "texts", path: { from: [-12, texts[1]], to: gate, bend: -0.06 }, waiting: true, rgb: ACCENT });
+      // Texts: a dashed bed into the same sort until the MacBook's hub reports; then a live line, as busy as the replies
+      // owed (#535). Never fake flow.
+      if (texts)
+        lines.push(
+          textsOn
+            ? { id: "texts", path: { from: [-12, texts[1]], to: gate, bend: -0.06 }, rgb: ACCENT, density: volumeOf(Math.max(4, textsOwed * 6)) * 0.6, rate: rateOf(Math.max(4, textsOwed * 6)) * 0.8, spread: 2.2, bright: 0.85 }
+            : { id: "texts", path: { from: [-12, texts[1]], to: gate, bend: -0.06 }, waiting: true, rgb: ACCENT },
+        );
       // Done: the mail's way home, drawn faint for the moment its pulse takes.
       for (const g of ghosts) lines.push({ id: g.id, path: g.path, rgb: HANDLED_RGB, density: 0, bright: 0, bed: 0.02 });
       return { lines, anchors: { sort: [gate[0], gate[1] - 34] } };
     },
-    [wants, counts, held, ghosts],
+    [wants, counts, held, ghosts, textsOn, textsOwed],
   );
 
   const { cv, field, bind } = useFlow(layout, {
@@ -477,8 +489,8 @@ export function RelayFilter({ now }: { now: number }) {
           <p className="rl-src" data-rl="mail" data-on={counted || undefined}>
             <b>Gmail</b> {mailState}
           </p>
-          <p className="rl-src is-wait" data-rl="texts">
-            <b>Texts</b> waiting on the MacBook
+          <p className={`rl-src${textsOn ? "" : " is-wait"}`} data-rl="texts" data-on={textsOn || undefined}>
+            <b>Texts</b> {textsOn ? textsLine(textsLoad, textsStatus, now).toLowerCase() : "waiting on the MacBook"}
           </p>
           <p className="rl-gate" data-rl="gate">
             <span>Dialtone sorts</span>
@@ -614,21 +626,8 @@ export function RelayFilter({ now }: { now: number }) {
         </div>
       </section>
 
-      <section className="fl-below rl-texts" aria-label="Line 2, texts">
-        <div>
-          <p className="fl-k">
-            <span>Line 2</span> · iMessage and SMS
-          </p>
-          <h2 className="fl-h2">Waiting on the MacBook.</h2>
-          <p className="rl-texts-p">Once its hub is up, the texts you owe run into the same sort, with drafts in your voice that go only on your tap.</p>
-        </div>
-        <ol className="rl-chain">
-          {CHAIN.map((c, i) => (
-            <li key={c} data-at={i === 0 ? "" : undefined}>
-              {c}
-            </li>
-          ))}
-        </ol>
+      <TextsSection now={now} />
+      <section className="fl-below rl-texts rl-crewband" aria-label="Relay's crew">
         <ul className="rl-crew" aria-label="Relay's crew on shift">
           {CREW.map((c) => (
             <li key={c.id}>

@@ -4,7 +4,7 @@ import type { DeskRoom } from "./deskData.ts";
  * How C.E.O.'s notable connections work: what kind each one is (a REST API, an MCP server, a CLI, a scheduled job…),
  * who calls whom, how it signs in and how often. Only the distinct ones (Nikita, 2026-10-13: "call out the big ones…
  * not the obvious ones"), so nothing like the site loading its own files. Every line is backed by the code or the
- * docs (api/, docs/FOUNDRY.md, docs/WORLD.md, the Relay setup notes); Relay's are planned until the hub exists.
+ * docs (api/, docs/FOUNDRY.md, docs/WORLD.md, the Relay setup notes); Relay's texts went live with the hub (#535).
  *
  * Each one is explained where it belongs (issue #99): in the pop-over of the part it serves in its room's system
  * diagram on the Systems page, or in the world clock's for the Boiler Room's hourly step. The two the Foundry and the
@@ -284,36 +284,36 @@ export const CONNECTIONS: Connection[] = [
     name: "BlueBubbles",
     room: "relay",
     at: [{ system: "relay", part: "bluebubbles" }],
-    serves: "iMessage and SMS",
+    serves: "iMessage and SMS, on the MacBook",
     kinds: ["Webhook", "REST API"],
-    status: "planned",
-    how: "BlueBubbles Server on the MacBook will send the hub a webhook for each new message, and the hub will call its REST API on the same Mac to read threads and send replies you approve.",
-    auth: "BlueBubbles' server password, kept on the Mac in the hub's settings file.",
+    status: "live",
+    how: "BlueBubbles Server on the MacBook sends the hub a webhook for each new message on 127.0.0.1, and the hub calls its local REST API to read a thread's last few messages into memory for one sort or draft, and to send a reply. It sends only when your signed Send request from the Desk checks out on the Mac.",
+    auth: "BlueBubbles' own server password, kept in the Mac's login Keychain; the webhook carries the hub's local key. Both stay on the Mac.",
     when: "On every message in, and every reply you send.",
   },
   {
     id: "openai",
-    name: "OpenAI API",
+    name: "Claude for texts",
     room: "relay",
     at: [{ system: "relay", part: "openai" }],
-    serves: "Dialtone and Blasto",
-    kinds: ["REST API"],
-    status: "planned",
-    how: "The hub will call OpenAI for Dialtone's sorting (gpt-5.4-mini, JSON out), Blasto's drafts (gpt-6.1-sol) and speech to text for voice replies.",
-    auth: "An OpenAI key kept only on the Mac, never in the repo or on the site.",
-    when: "Sorting on every message; a draft only for replies you owe.",
+    serves: "Dialtone's sorts and Blasto's drafts for texts",
+    kinds: ["REST API", "SDK"],
+    status: "live",
+    how: "The hub swaps names and numbers for placeholders and trims each snippet on the Mac, then sends it to an Azure function (relay-hub), which asks Claude Haiku whether a reply is owed and Claude Sonnet for a draft in your voice. No tools, nothing stored but the sealed list and drafts; the hub puts names back into the draft on the Mac.",
+    auth: "The site's Claude key (CLAUDE_API_KEY, a Key Vault secret); the hub signs in with its paired token. No key on the Mac.",
+    when: "A sort for each owed thread, a draft only for replies you owe, under the texts line's own cap (RELAY_BUDGET_USD, $10 a month).",
   },
   {
     id: "hub-socket",
-    name: "Hub to the Lattice",
+    name: "Hub to the site",
     room: "relay",
     at: [{ system: "relay", part: "hub" }],
-    serves: "Relay's live events",
-    kinds: ["WebSocket"],
-    status: "planned",
-    how: "The hub on the MacBook will stream Relay's events (new message, sorted, draft ready) to the Lattice and the Desk over a WebSocket.",
-    auth: "Listens on the Mac only (or your Tailscale network) and accepts only the Lattice's own origin.",
-    when: "Live, as things happen.",
+    serves: "Relay's counts, the who's-waiting list and your send requests",
+    kinds: ["REST API", "Polling"],
+    status: "live",
+    how: "The hub on the MacBook calls out only, over HTTPS: it pushes the counts (public) and the who's-waiting list (sealed, behind your passkey) to /api/relay-hub, and polls every 15 seconds for the requests you make on the Desk. A send request is single-use, signed, bound to one draft and good for 10 minutes; the hub checks all of it before BlueBubbles sends.",
+    auth: "A hub token from a one-time pair code on the Desk, kept in the Mac's Keychain; the site keeps only its hash. Unpair ends it at once.",
+    when: "Every 15 seconds for requests; the counts and list when they change.",
   },
 ];
 

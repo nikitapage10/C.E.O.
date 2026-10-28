@@ -27,6 +27,7 @@ import * as talktiming from "../../api/_boot/talkTiming.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
+import * as relay from "../../api/_relay/route.js";
 import * as roomfeed from "../../api/_room/feed.js";
 import * as setupasks from "../../api/_room/setup.js";
 import * as securityfeed from "../../api/security-feed.js";
@@ -99,6 +100,12 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["foundry", foundry],
   // The subminds' room events (#281, docs/SKIPPY.md "Room keys"): POST with the feed key only; GET full for a Desk
   // session or the read key, scrubbed titles for the Lattice. Azure only: both keys live only in this Key Vault.
+  // Relay's texts line (#535, docs/RELAY-PRIVACY.md): ?view=status is the public counts; the rest needs the passkey
+  // session. relay-pair is the installer's one-time code trade; relay-hub takes the Mac hub's counts (its own token).
+  // Names, drafts and approvals never come here: the Desk talks to the hub straight over localhost or the tailnet.
+  ["relay", relay],
+  ["relay-pair", relay],
+  ["relay-hub", relay],
   ["room-feed", roomfeed],
   ["security-feed", securityfeed],
   // Setup asks (#324, docs/SKIPPY.md "Setup asks"): a thread posts one with the feed key; Nikita approves or declines it

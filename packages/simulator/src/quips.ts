@@ -522,6 +522,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Read-only. Like a sacred text. Like a hanar in a library.",
     "The line is live. This one has waited an epoch for this. This one is glowing. Do not look directly at this one.",
     "One canister per real letter. No more practice drops. This one would not insult the tubes.",
+    "A text is owed. This one has drafted it in the C.E.O.'s own voice. This one has never sounded so casual.",
+    "One tap, one slip, ten minutes. This one seals it and waits. This one is excellent at waiting.",
+    "The slip expired unsent. The Mac was asleep. This one keeps it in the drawer of letters that missed the boat.",
   ],
   dialtone: [
     "Please hold. There's nobody on the line yet, but please hold.",
@@ -533,7 +536,9 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Every minute I check the inbox. Every minute. Like a ringtone from 2004.",
     "It's live, darling. The jack rings for real now. I may cry. Please hold.",
     "Needs you, FYI, noise. Drop. Needs you, FYI, noise. Drop. It's basically a bass set.",
-    "Email's on. Texts are still waiting by the phone for the Mac. Very 2005 of them.",
+    "Texts by wire, darling! The second jack finally rang. I took the emo record off. Mostly.",
+    "Sooner or normal? Sooner. They asked a question with a day on it. Lamp on.",
+    "Placeholders only. I never hear a real name. Contact, Person 1. Very mysterious. Please hold.",
   ],
   loremaster: [
     "A wizard is never late. That one was a scheduling error.",

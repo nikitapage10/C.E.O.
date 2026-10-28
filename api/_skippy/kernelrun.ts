@@ -1,7 +1,7 @@
 /**
  * The always-on responder's Claude loop (#501, api/_skippy/kernelagent.ts): the rules and the private brief as the
  * system prompt (the brief behind a prompt-cache breakpoint), the live state and the question as the user turn, and
- * four tools: Anthropic's web search (at most three), "sleeper_league" (read-only, kernelleague.ts), "file_build_request" (the code files the issue from Nikita's own
+ * five tools: Anthropic's web search (at most three), "sleeper_league" (read-only, kernelleague.ts), "live_scores" (ESPN's scoreboard, sports.ts), "file_build_request" (the code files the issue from Nikita's own
  * words; the model picks only a size) and "deliver", which ends the run with the answer. At most five calls, each with
  * a hard max_tokens. The model has no other tool and cannot send, open a link or change anything.
  *
@@ -11,6 +11,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { SORT_MODEL, type Usage } from "../_email/budget.js";
 import { RUN_LIMITS, type AgentRequest, type AgentRun } from "./kernelagent.js";
+import { liveScores } from "./sports.js";
 
 const TOOLS = [
   { type: "web_search_20260209", name: "web_search", max_uses: RUN_LIMITS.searches },
@@ -18,6 +19,11 @@ const TOOLS = [
     name: "sleeper_league",
     description: "Read Nikita's fantasy football league from Sleeper, read-only. read 'standings' gives every team's record, points scored and allowed. read 'weeks' gives every matchup of the weeks from..to (week numbers 1 to 18, at most eight weeks; leave them out for the last six played weeks). read 'roster' gives Nikita's own current roster: starters, bench and reserve with each player's Sleeper injury status, led by a Heads up when a starter is Out, on IR or Doubtful. Call it for ANY question about his team, his roster, a player of his, or whether to start or sit someone. read 'week' gives one team's whole week: opponent, both totals, each starter and each bench player with their points; pass week and, for another team, part of its name (Nikita's own team when left out).",
     input_schema: { type: "object", properties: { read: { type: "string", enum: ["standings", "weeks", "week", "roster"] }, from: { type: "integer" }, to: { type: "integer" }, week: { type: "integer" }, team: { type: "string" } }, required: ["read"], additionalProperties: false },
+  },
+  {
+    name: "live_scores",
+    description: "ESPN's live scoreboard, no key: the score, the game's status (inning, quarter, final, start time) and a postseason series' state. Use it for every score, 'is the game on', 'right now' or 'tonight' question, before and instead of web search. league is mlb, nfl, nba, nhl, wnba, ncaaf, mls or epl (leave it out to search the big leagues); team is a team name ('Brewers'), or leave it out for the league's day.",
+    input_schema: { type: "object", properties: { league: { type: "string" }, team: { type: "string" } }, additionalProperties: false },
   },
   {
     name: "file_build_request",
@@ -69,6 +75,8 @@ export function claudeAgent(key: string): (req: AgentRequest) => Promise<AgentRu
           results.push({ type: "tool_result", tool_use_id: block.id, content: "Delivered." });
         } else if (block.name === "sleeper_league") {
           results.push({ type: "tool_result", tool_use_id: block.id, content: await req.league(input) });
+        } else if (block.name === "live_scores") {
+          results.push({ type: "tool_result", tool_use_id: block.id, content: await liveScores(input.league, input.team, Date.now()).catch(() => "ESPN isn't answering right now.") });
         } else if (block.name === "file_build_request") {
           const size = input.size === "small" || input.size === "large" ? input.size : "medium";
           const n = await req.fileBuild(size);

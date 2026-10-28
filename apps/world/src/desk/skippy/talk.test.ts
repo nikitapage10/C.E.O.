@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import { speak, useSkippy } from "./chat.ts";
 import { setCallLive } from "./liveCall.ts";
-import { CREDITS_OUT, TALK_NOTE, clock, creditsLine, clipSentence, isToolToken, landedNote, readCredits, readHandoffs, requestToken } from "./talk.ts";
+import { CREDITS_OUT, TALK_NOTE, clock, elapsedSecs, creditsLine, clipSentence, isToolToken, landedNote, readCredits, readHandoffs, requestToken } from "./talk.ts";
 
 const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 
@@ -106,5 +106,18 @@ describe("a live call keeps local read-aloud quiet and answers whole (#521)", ()
     const cut = clipSentence(long.repeat(3), 1500);
     expect(cut.length).toBeLessThanOrEqual(1500);
     expect(cut.endsWith("in.")).toBe(true);
+  });
+});
+
+describe("the call timer counts up (#537)", () => {
+  it("is whole seconds since the call went live, never negative, 0 before it starts", () => {
+    expect(elapsedSecs(0, 5_000)).toBe(0);
+    expect(elapsedSecs(1_000, 1_000)).toBe(0);
+    expect(elapsedSecs(1_000, 66_400)).toBe(65);
+    expect(clock(elapsedSecs(1_000, 66_400))).toBe("1:05");
+    expect(elapsedSecs(9_000, 1_000)).toBe(0);
+  });
+  it("tells him to drop any other line when an answer lands", () => {
+    expect(landedNote("Out.", true)).toMatch(/Drop whatever else you were about to say, and no waiting line/);
   });
 });

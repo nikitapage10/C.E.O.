@@ -149,10 +149,10 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
         )}
         {turns.map((t) => (
           <li key={t.id} className={`skp-turn skp-turn--${t.who}${t.note ? " skp-turn--note" : ""}${t.pending ? " skp-turn--pending" : ""}${t.from ? " skp-turn--answer" : ""}`} aria-busy={t.pending ? true : undefined}>
-            <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : t.from ? `${t.from === "skippy" ? "The deeper Skippy" : handedName(t.from)}:` : "Skippy:"}</span>
-            {t.from && (
+            <span className="skp-sr">{t.who === "nikita" ? "You:" : t.note ? "Desk:" : t.from ? (t.from === "skippy" ? "Skippy:" : `${handedName(t.from)}:`) : "Skippy:"}</span>
+            {t.from && t.from !== "skippy" && (
               <p className="skp-turn__from" aria-hidden="true">
-                {t.from === "skippy" ? "The deeper Skippy" : handedName(t.from)} {t.pending ? "says, still pondering" : "answered"}
+                {handedName(t.from)} {t.pending ? "says, still pondering" : "answered"}
               </p>
             )}
             <p>{t.note || (t.pending && !t.from) ? t.text : <Private>{spoken(t)}</Private>}</p>

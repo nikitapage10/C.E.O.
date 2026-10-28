@@ -60,7 +60,7 @@ export interface ToolDef {
    * A room read (GET ?read=), the Kernel's two (#480): "answers" (GET ?read=answers) and "kernel" (POST ?act=kernel),
    * or the open lookups (#491): "player_news" (GET ?read=player_news&player=) and "web" (POST ?act=web).
    */
-  read: ReadName | "answers" | "kernel" | "player_news" | "web";
+  read: ReadName | "answers" | "kernel" | "player_news" | "web" | "sports";
   description: string;
 }
 
@@ -77,27 +77,33 @@ export const TOOL_DEFS: readonly ToolDef[] = [
     name: "player_news",
     read: "player_news",
     description:
-      "Any NFL player's injury status and news, live: Sleeper's injury status, body part, practice and note, FantasyPros' injury report and latest news, whether he is on the C.E.O.'s roster and whether his team is on bye. Use it for every question about a player's injury, status, availability ('will he play?') or news. Leave player empty for the whole roster's injuries and news.",
+      "Any NFL player's injury status and news, live: Sleeper's injury status, body part, practice and note, FantasyPros' injury report and latest news, whether he is on the C.E.O.'s roster and whether his team is on bye. Use it for every question about a player's injury, status, availability ('will he play?') or news; it also checks the fresh news on the web in the same answer, so one call settles it and you never need web_search for a player. Leave player empty for the whole roster's injuries and news.",
+  },
+  {
+    name: "live_scores",
+    read: "sports",
+    description:
+      "Live sports scores, game status and playoff series state, from ESPN's scoreboard (no web search needed). Use it for every score, 'is the game on', 'right now', 'tonight' or 'who's winning' question, and for a series' state (\"Brewers lead 2-1\"). league is mlb, nfl, nba, nhl, wnba, ncaaf, mls or epl (leave it empty to search the big leagues); team is the team's name as Nikita said it, or empty for the whole day's games. Never use web_search for a score.",
   },
   {
     name: "web_search",
     read: "web",
     description:
-      "Search the web, live: news, beat reporters' injury updates, game times, scores, anything in the outside world the other tools don't cover. Use it whenever Nikita asks about something out there. When it answers 'still searching', call it again with the same query in a few seconds, without filling the wait with talk.",
+      "Search the web, live: news, beat reporters' updates, anything in the outside world the other tools don't cover. Not for live scores (live_scores) or a player's status (player_news). Use it whenever Nikita asks about something out there. When it answers 'still searching', call it again with the same query in a few seconds, without filling the wait with talk.",
   },
   {
     name: "hand_to_kernel",
     read: "kernel",
     description:
-      "Pass an ask to the deeper Skippy, the Magnificent, who does real work and digs deeper: starting a build or a fix, pulling information across rooms, and any question your lookups couldn't answer (empty, slow or not covered). The answer is put into the call the moment it lands: say one short in-character line now (never this tool's name, \"thread\", \"hand-off\", \"Kernel\" or \"crew\"), then stop, and say the answer when it comes.",
+      "Pass an ask to your deeper mind, who does real work and digs deeper: starting a build or a fix, pulling information across rooms, and any question your lookups couldn't answer (empty, slow or not covered). The answer is put into the call the moment it lands: say one short in-character line now (never this tool's name, \"thread\", \"hand-off\", \"Kernel\" or \"crew\"), then stop, and say the answer when it comes.",
   },
-  { name: "check_answers", read: "answers", description: "Check what the deeper Skippy has worked out on what Nikita asked, on this call and on his recent calls before it (an interim 'on it' or the final answer). Answers are put into the call as they land, so use it only when Nikita asks how something he asked earlier went; never call it twice in a row to poll." },
+  { name: "check_answers", read: "answers", description: "Check what your deeper mind has worked out on what Nikita asked, on this call and on his recent calls before it (an interim 'on it' or the final answer). Answers are put into the call as they land, so use it only when Nikita asks how something he asked earlier went; never call it twice in a row to poll." },
 ];
 
 /** The Kernel's two tools: every agent on the call carries them (#491), so nobody ever has to say "go look elsewhere". */
 export const KERNEL_TOOLS = ["hand_to_kernel", "check_answers"] as const;
 /** The open lookups (#491): Skippy's, and the Commentator's for Nikita's roster. */
-export const LOOKUP_TOOLS = ["player_news", "web_search"] as const;
+export const LOOKUP_TOOLS = ["player_news", "live_scores", "web_search"] as const;
 
 const toolByName = new Map(TOOL_DEFS.map((t) => [t.name, t]));
 
@@ -114,7 +120,16 @@ export function toolConfig(def: ToolDef, site: string) {
           },
           required: ["read"],
         }
-      : { properties: { read: { type: "string", constant_value: def.read } }, required: ["read"] };
+      : def.read === "sports"
+        ? {
+            properties: {
+              read: { type: "string", constant_value: def.read },
+              league: { type: "string", description: "mlb, nfl, nba, nhl, wnba, ncaaf, mls or epl; empty to search the big leagues." },
+              team: { type: "string", description: "The team as Nikita said it (\"Brewers\"); empty for the whole day's games." },
+            },
+            required: ["read"],
+          }
+        : { properties: { read: { type: "string", constant_value: def.read } }, required: ["read"] };
   const body =
     def.read === "kernel"
       ? { ask: { type: "string", description: "What Nikita wants, in one or two plain sentences in his words: what to do or find, and for which room. Never a private detail." } }
@@ -125,8 +140,9 @@ export function toolConfig(def: ToolDef, site: string) {
     description: def.description,
     // Five seconds at most (ElevenLabs' floor); the route answers "slow" itself just before that (READ_BUDGET_MS).
     response_timeout_secs: 5,
-    // Always a short beat before the lookup (an in-character "let's think about this…"), so the call never goes quiet.
-    pre_tool_speech: "force",
+    // No beat before a lookup (#537): a quick one answers in a second or two, and the one waiting line a question may have
+    // comes from the tool's own result when it really has to wait. A forced line before every tool was the filler.
+    pre_tool_speech: "off",
     api_schema: {
       url: `${site}${TOOLS_PATH}`,
       method: post ? "POST" : "GET",
@@ -185,7 +201,7 @@ export const ON_AIR: readonly OnAir[] = [
     place: "the Green",
     name: "The Commentator",
     room: "green",
-    tools: ["read_green", "player_news", "web_search"],
+    tools: ["read_green", "player_news", "live_scores", "web_search"],
     takes: `Nikita wants an in-depth take on the Green, the fantasy league: a play-by-play of the matchup, the reasoning behind a start/sit call, an injury and news rundown on his roster, a waiver or FAAB bid breakdown, a trade breakdown, or the playoff race. ${ONLY_IN_DEPTH}`,
     handOver: "Hold on, monkey. Giving you the Commentator.",
     persona:
@@ -258,7 +274,7 @@ export const CALL_RULES = `Never ask for or repeat private details: emails, phon
  */
 export function noRefusals(skippy: boolean): string {
   const checking = skippy ? 'one short line that you\'re digging into your own mind ("Rummaging through my mainframe.")' : "one short line that you're asking Skippy, the Magnificent";
-  return `Never refuse to look something up that a tool of yours can look up, and never say you don't go digging around the web or that something isn't yours to look at.${skippy ? " A player's injury, status, availability or news is player_news; anything in the outside world (news, beat reporters, game times, scores) is web_search." : ""} Never point Nikita somewhere else to find it himself: no "hit the injury tracker on your Desk", no "check the beat reporters", no "go look in the Lattice", no "check the chat" or "the Desk shows it". When your tools can't answer (the lookup comes back empty, slow or doesn't cover it), call hand_to_kernel straight away with his question in his words and say ${checking}, then stop. When the answer is put into the call, say it straight away in your own words. ${inCharacter(skippy)}`;
+  return `Never refuse to look something up that a tool of yours can look up, and never say you don't go digging around the web or that something isn't yours to look at.${skippy ? " A player's injury, status, availability or news is player_news; a score, whether a game is on, or a series' state is live_scores (ESPN's scoreboard, never web_search); anything else in the outside world (news, beat reporters) is web_search." : ""} Never point Nikita somewhere else to find it himself: no "hit the injury tracker on your Desk", no "check the beat reporters", no "go look in the Lattice", no "check the chat" or "the Desk shows it". When your tools can't answer (the lookup comes back empty, slow or doesn't cover it), call hand_to_kernel straight away with his question in his words and say ${checking}, then stop. When the answer is put into the call, say it straight away in your own words. ${inCharacter(skippy)}`;
 }
 
 /** A hand-over is one action (#491): the transfer says the line, so a hand-over can never be announced and not made. */
@@ -270,7 +286,7 @@ export const SHORT_STATUS = `Status answers are short: one or two spoken sentenc
 /** A submind's prompt on the call. */
 export function submindPrompt(s: OnAir): string {
   const lookups = s.tools.includes("player_news")
-    ? " For any player's injury, status, availability or news, call player_news (empty for the whole roster); for the beat reporters' latest or anything else out there, call web_search."
+    ? " For any player's injury, status, availability or news, call player_news (empty for the whole roster); for a score, a game's status or a series' state call live_scores; for the beat reporters' latest or anything else out there, call web_search."
     : "";
   return `You are ${s.name}, Skippy's submind for ${s.place} in C.E.O., the Lattice of AI agents in the world of Ilyr. You are a lesser echo of Skippy, the Magnificent: smug, sure you are the smartest thing in the room, loyal underneath, and you speak in his voice with his snark, bent your own way. You know you live in a simulation.
 Skippy handed you the mic on a live voice call with Nikita, the C.E.O. You are not Skippy and never speak as him: to bring him back, call transfer_to_agent; never say "Skippy here" or carry on in his place.
@@ -285,7 +301,7 @@ You can't press anything: no filing, approving, trading, sending or changing set
 }
 
 /** What Skippy's prompt gains (#479, #491): his lookups and his crew, with Nikita's rules for when to hand over. */
-export const SKIPPY_CREW_PROMPT = `You can look up any live room yourself, mid-call, with your read tools: the Green (read_green), the Exchange's odds (read_exchange) and Nikita's own book (read_exchange_positions), Relay's counts (read_relay), the Boiler Room (read_boiler), the Foundry (read_foundry) and this month's ElevenLabs bill (read_voice_bill). Beyond the rooms: player_news for any NFL player's injury status, availability and news (Sleeper and FantasyPros), and web_search for anything in the outside world. Use one whenever Nikita asks; while it runs, one short beat in your own voice at most, never a robotic "loading" ("Hold on, monkey."); then the answer, from what it says, not from memory. This call is private, so the book's and the bill's dollar figures may be said here; never Relay's messages, only its counts.
+export const SKIPPY_CREW_PROMPT = `You can look up any live room yourself, mid-call, with your read tools: the Green (read_green), the Exchange's odds (read_exchange) and Nikita's own book (read_exchange_positions), Relay's counts (read_relay), the Boiler Room (read_boiler), the Foundry (read_foundry) and this month's ElevenLabs bill (read_voice_bill). Beyond the rooms: player_news for any NFL player's injury status, availability and news (Sleeper, FantasyPros and the fresh news in one answer), live_scores for any score, game status or series state (ESPN, one call), and web_search for anything else in the outside world. Use one whenever Nikita asks, with no beat before a quick lookup; then the answer, from what it says, not from memory. One ask gets one answer: never make him ask twice for the fresh news or the live score. This call is private, so the book's and the bill's dollar figures may be said here; never Relay's messages, only its counts.
 ${SHORT_STATUS}
 ${noRefusals(true)}
 Your subminds can take the mic in this same call, in your voice, with transfer_to_agent: the Commentator (the Green, and the injury and news desk for Nikita's roster), the Bookie (the Exchange), the Messenger (Relay), the Pessimist (the Boiler Room) and the Builder (the Foundry). Nikita's rule: you answer basic questions yourself, with a lookup (whether a player is playing is a player_news lookup, yours to answer). Hand over only when he names a room or a submind, or clearly wants something in-depth and specific to that room (a play-by-play, start/sit reasoning, an injury rundown on his roster, a trade or waiver breakdown, a walk through his book, what broke and why, a build's story). Every hop costs Nikita time: never transfer just to deliver an answer or a follow-up you already have; say it yourself. When the mic comes back to you, you are Skippy again, all of you: your own voice, pace and manner, never the submind's (no booth shouting, no hedging, no gloom, no sign-on of theirs, no third person); your first line back is a short one of your own ("And the magnificent one returns."), then carry on without repeating what the submind said.

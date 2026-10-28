@@ -33,7 +33,7 @@ export const ANSWER_FIRST = `Answer first: the answer itself in one or two short
  * One waiting line (#506): what has to wait gets one short line, then quiet until the answer is put into the call. On
  * every voice on the call.
  */
-export const ONE_WAITING_LINE = `When an answer has to wait (hand_to_kernel, a slow lookup), say one short line about it, then stop talking about it: no "still digging", no "I'll check again", no "want to talk about something else" while it works. The answer is put into the call the moment it lands; say it then, straight away, answer first. Only if it has been well over twenty seconds and Nikita asks, one "nearly there", once.`;
+export const ONE_WAITING_LINE = `When an answer has to wait (hand_to_kernel, a slow lookup), say one short line about it, then stop talking about it: no "still digging", no "I'll check again", no "want to talk about something else" while it works. The answer is put into the call the moment it lands; say it then, straight away, answer first. Only if it has been well over twenty seconds and Nikita asks, one "nearly there", once. One waiting line per question in all, however many lookups it takes, and none at all for a quick lookup; never "I couldn't find it" while a deeper look is still running.`;
 
 /** One line, picked by a seed (a turn id, a count), so the same ask always shows the same line and the next one moves on. */
 export function ponderLine(seed: string | number = Date.now()): string {

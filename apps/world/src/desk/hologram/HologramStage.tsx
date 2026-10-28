@@ -56,7 +56,7 @@ function placeFor(): Place {
 export default function HologramStage({ route }: { route: string }) {
   const phase = useTalk((s) => s.phase);
   const mode = useTalk((s) => s.mode);
-  const startedAt = useTalk((s) => s.startedAt);
+  const elapsed = useTalk((s) => s.elapsed);
   const end = useTalk((s) => s.end);
   const speaker = useHolo((s) => s.speaker);
   const muted = useHolo((s) => s.muted);
@@ -72,7 +72,6 @@ export default function HologramStage({ route }: { route: string }) {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [expr, setExpr] = useState<Expression>("thinking");
-  const [now, setNow] = useState(() => Date.now());
   const canvas = useRef<HTMLCanvasElement>(null);
   const holo = useRef<Holo | null>(null);
   const levelBars = useRef<HTMLSpanElement>(null);
@@ -180,11 +179,6 @@ export default function HologramStage({ route }: { route: string }) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
   const who = speaker ? `Skippy, the ${submindOf(speaker).job}` : "Skippy, the Magnificent";
   const tint = speaker ? submindOf(speaker).colour : undefined;
   const caption = stripTags(line);
@@ -237,7 +231,7 @@ export default function HologramStage({ route }: { route: string }) {
         <div className="holo__pill">
           <span className="holo__dot" aria-hidden="true" />
           <span className="holo__live">{live ? "Live" : "Calling"}</span>
-          <span className="holo__clock">{live ? clock((now - startedAt) / 1000) : "0:00"}</span>
+          <span className="holo__clock">{live ? clock(elapsed) : "0:00"}</span>
           <span className="holo__who">{who}</span>
           <span ref={levelBars} className="holo__lvl" aria-hidden="true">
             <i />

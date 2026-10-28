@@ -28,6 +28,7 @@ import { costOf, type Usage } from "../foundry.js";
 import { LOOKUP_MODEL } from "../skippy.js";
 import { SEARCH_USD, SONNET_PRICE } from "./budget.js";
 import { LOOKUP_PROMPT, lookupInput } from "./prompt.js";
+import { NO_GAME } from "./sports.js";
 import { capLines, said } from "./voicereads.js";
 
 /* ── player_news ── */
@@ -178,7 +179,11 @@ export const SEARCHES_PER_CALL = 6;
 const KEEP_MS = 15 * 60_000;
 
 export const STILL_SEARCHING =
-  "Still searching the web for that. If you haven't yet, say one short in-character line, then call web_search again with the same query in a few seconds, without filling the wait with talk. If it's still not back then, hand the question to hand_to_kernel.";
+  "Still searching the web for that. Call web_search again with the same query in a few seconds, without filling the wait with talk, and never say you couldn't find it while this runs. If it's still not back then, hand the question to hand_to_kernel.";
+
+/** Added to a wait's result the first time a question needs a waiting line (waitingLine), so there is one and no more. */
+export const SAY_WAITING_LINE = " Say one short in-character line about it now (this question's only waiting line), then silence until the answer.";
+export const NO_MORE_LINES = " You already said this question's waiting line: say nothing now.";
 
 interface Search {
   at: number;
@@ -265,4 +270,51 @@ export function claudeSearch(key: string): (query: string) => Promise<{ text: st
     const n = Math.min(VOICE_SEARCH_MAX, (res.usage as { server_tool_use?: { web_search_requests?: number } | null }).server_tool_use?.web_search_requests ?? 0);
     return { text, usage, usd: costOf(usage, SONNET_PRICE) + n * SEARCH_USD };
   };
+}
+
+
+/* ── One ask, one answer (#537) ── */
+
+/**
+ * Whether a lookup came back with nothing usable: no such player, a search with nothing reliable or that failed, no
+ * game on ESPN's board, a source that didn't answer. The route then escalates to the deeper Skippy itself, instead of
+ * leaving the agent to tell Nikita it failed (toolroute.ts).
+ */
+export const isEmptyLookup = (text: string): boolean =>
+  /^No player matching|found nothing reliable|^The web search for .* failed|^The C\.E\.O\.'s roster isn't answering|^ESPN isn't answering|isn't set up on this call|search budget is spent|all the web searches/i.test(text) || text.startsWith(NO_GAME);
+
+/** Marks a listing whose fresh-news half is still running. */
+export const NEWS_PENDING = "Fresh news is still being checked. Don't answer from the listing alone: call player_news again with the same player in a few seconds, silently, then answer once with both.";
+
+/**
+ * A player-status ask answered once (#537): the Sleeper/FantasyPros listing and the fresh-news web search together.
+ * `news` is the web search's text, null when there is no search on this call, or STILL_SEARCHING while it runs.
+ * When both are in, the agent is told to say a conflict in one line ("listed Out, but the coach says Wednesday decides").
+ */
+export function mergeStatusNews(listing: string, news: string | null): string {
+  if (news === null) return listing;
+  if (news === STILL_SEARCHING || !news.trim()) return `${listing} ${NEWS_PENDING}`;
+  if (isEmptyLookup(news)) return listing;
+  return capLines([
+    `${listing}`,
+    `Fresh news from the web, newer than the listing: ${news.replace(/^Web search for "[^"]*":\s*/, "")}`,
+    'Answer once from both, status first. If the listing and the fresh news disagree, say so in one line ("listed Out, but the coach says Wednesday decides"), and go with the fresher word.',
+  ]);
+}
+
+/** How long one question's waiting line holds: a second tool result inside it is told to stay quiet. */
+export const WAIT_LINE_MS = 25_000;
+const lined = new Map<string, number>();
+export const forgetWaitingLines = () => lined.clear();
+
+/**
+ * The one-waiting-line rule (#537): true the first time a call needs a waiting line for a question, false for any
+ * further wait inside WAIT_LINE_MS, so the tool results tell him to say one line and then nothing.
+ */
+export function waitingLine(call: string, now: number): boolean {
+  const last = lined.get(call);
+  if (last !== undefined && now - last < WAIT_LINE_MS) return false;
+  if (lined.size > 200) lined.clear();
+  lined.set(call, now);
+  return true;
 }

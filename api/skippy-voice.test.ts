@@ -43,9 +43,18 @@ describe("the plan's credits Skippy is told (#477, #532)", () => {
     expect(v).not.toContain("[private]");
   });
 
+  it("reads the plan's watch fields only when ElevenLabs sends them (#550)", () => {
+    const base = { tier: "creator", character_count: 100, character_limit: 1000, next_character_count_reset_unix: 1793836800 };
+    expect(readCredits({ ...base, character_refresh_period: "monthly_period", pending_change: { kind: "cancellation", timestamp_seconds: 1794096000 }, status: "active" })).toMatchObject({ startedAt: "2026-10-05", endsAt: "2026-11-08", status: null });
+    expect(readCredits({ ...base, billing_period: "annual_period", status: "past_due" })).toMatchObject({ startedAt: "2025-11-05", endsAt: null, status: "past_due" });
+    // a plan change is not a cancellation; odd or missing fields mean nothing to say
+    expect(readCredits({ ...base, pending_change: { kind: "change", next_tier: "pro", timestamp_seconds: 1794096000 } })).toMatchObject({ startedAt: null, endsAt: null });
+    expect(readCredits({ ...base, pending_change: { kind: "cancellation", timestamp_seconds: "soon" }, character_refresh_period: "weekly" })).toMatchObject({ startedAt: null, endsAt: null });
+  });
+
   it("reads the plan's credits from ElevenLabs' subscription, failing soft", async () => {
-    expect(readCredits({ tier: "creator", character_count: 100370, character_limit: 122113, next_character_count_reset_unix: 1793836800 })).toEqual({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator" });
-    expect(readCredits({ character_count: 5, character_limit: 10 })).toEqual({ used: 5, limit: 10, resetAt: null, tier: null });
+    expect(readCredits({ tier: "creator", character_count: 100370, character_limit: 122113, next_character_count_reset_unix: 1793836800 })).toEqual({ used: 100370, limit: 122113, resetAt: "2026-11-05", tier: "creator", startedAt: null, endsAt: null, status: null });
+    expect(readCredits({ character_count: 5, character_limit: 10 })).toEqual({ used: 5, limit: 10, resetAt: null, tier: null, startedAt: null, endsAt: null, status: null });
     expect(readCredits({ character_count: "lots" })).toBeNull();
     expect(readCredits(null)).toBeNull();
     const seen: string[] = [];

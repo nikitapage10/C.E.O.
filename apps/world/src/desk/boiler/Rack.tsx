@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { Connection } from "../connections.ts";
 import { RC, useFlow, type FlowLayoutFn, type FlowLine, type Pt } from "../flow/index.ts";
+import { PlanWatch } from "../skippy/PlanWatch.tsx";
 import { roomLink } from "../hero/roomLink.ts";
 import { ROOM_META } from "../roomPulse.ts";
 import type { Fitting, GState, PipeRow } from "../systemsGraph.ts";
@@ -41,6 +42,7 @@ function ConnFacts({ c }: { c: Connection }) {
         ))}
         {c.status === "planned" && <i className="is-planned">Planned</i>}
       </p>
+      {c.id === "elevenlabs-agents" && <PlanWatch className="plan-watch--bx" />}
       <dl className="bx-facts">
         <div>
           <dt>How it works</dt>

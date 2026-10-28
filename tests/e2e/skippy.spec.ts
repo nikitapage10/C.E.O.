@@ -158,14 +158,19 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   await chat.getByRole("button", { name: /live voice call/ }).click();
   const call = page.getByRole("region", { name: "Call with Skippy, the Magnificent" });
   await expect(call).toBeVisible();
-  // On Today too he rises out of the chat dock on the right, the emitter on its top edge (#490).
+  // He boots up over the chat box and rises from its foot to take it over, his words and pill beside it on the left (#538).
   await expect(call).toHaveClass(/holo--dock/);
   const offDock = async () => {
     const fig = await call.locator(".holo__fig").boundingBox();
     const dockBox = await chat.boundingBox();
-    return fig && dockBox ? Math.max(Math.abs(fig.y + fig.height - dockBox.y), Math.abs(fig.x + fig.width / 2 - (dockBox.x + dockBox.width / 2))) : 999;
+    return fig && dockBox ? Math.max(Math.abs(fig.y + fig.height - (dockBox.y + dockBox.height)), Math.abs(fig.x + fig.width / 2 - (dockBox.x + dockBox.width / 2))) : 999;
   };
   await expect.poll(offDock).toBeLessThan(8);
+  const panel = await call.locator(".holo__panel").boundingBox();
+  const dockBox = await chat.boundingBox();
+  expect(panel && dockBox && Math.abs(panel.x - dockBox.x) < 2 && Math.abs(panel.width - dockBox.width) < 2).toBe(true);
+  const pillBox = await call.locator(".holo__pill").boundingBox();
+  expect(pillBox && dockBox && pillBox.x + pillBox.width <= dockBox.x).toBe(true);
   await page.waitForFunction(() => Boolean((window as { __holoCall?: unknown }).__holoCall));
   await page.evaluate(() => {
     const h = (window as unknown as { __holoCall: { onMode: (m: string) => void; onMessage: (w: string, t: string) => void } }).__holoCall;
@@ -224,12 +229,25 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   await expect(call).toHaveAttribute("data-speaker", "skippy");
   await expect(call).toHaveAttribute("data-face", "smug");
 
+  // On End he sinks back down into the box, and then the chat is back.
+  // Caught by an observer armed before the tap, like the switch above: the sink is shorter than a busy runner's poll.
+  const sawSink = page.evaluate(
+    () =>
+      new Promise<boolean>((done) => {
+        const seen = () => Boolean(document.querySelector(".holo.holo--leaving"));
+        const watch = new MutationObserver(() => seen() && (watch.disconnect(), done(true)));
+        watch.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+        setTimeout(() => (watch.disconnect(), done(seen())), 15_000);
+      }),
+  );
   await call.getByRole("button", { name: "End the call" }).click();
+  expect(await sawSink).toBe(true);
   await expect(call).toHaveCount(0);
+  await expect(page.locator(".holo")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("on a phone the hologram stands above the dock with the pill in reach (#481)", async ({ page }) => {
+test("on a phone the hologram takes the sheet over with the pill above it, in reach (#481, #538)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await startCall(page);
   await page.goto(BASE + "/foundry");

@@ -8,6 +8,7 @@ import { useAwaySince } from "./awaySince.ts";
 import { useHide } from "./hide.ts";
 import { DeskNav, KEY_ORDER, ROOM_TABS } from "./DeskNav.tsx";
 import { DeskSky } from "./DeskSky.tsx";
+import { startDeskTiming } from "./deskBeacon.ts";
 import { useDeskData } from "./deskData.ts";
 import { useNow } from "./motion.tsx";
 import { startDeskWorker } from "./pings.ts";
@@ -85,6 +86,7 @@ export function Desk({ route }: { route: DeskTab }) {
   }, []);
 
   useEffect(() => {
+    startDeskTiming();
     startFoundry();
     startWorldClock();
     startDeskAuth();

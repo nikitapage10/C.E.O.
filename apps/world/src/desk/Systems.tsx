@@ -9,6 +9,7 @@ import { nextCheck, useSetup } from "./IdeaCard.tsx";
 import { useSetupStatus } from "./SetupCard.tsx";
 import { JobBoard } from "./JobBoard.tsx";
 import { LatticeTimings } from "./LatticeTimings.tsx";
+import { DeskTimings } from "./DeskTimings.tsx";
 import { TalkTimings } from "./TalkTimings.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId, type GState } from "./systemsGraph.ts";
@@ -319,6 +320,7 @@ export function Systems({ now }: { now: number }) {
 
       <div className="bx-folds fl-below">
         <LatticeTimings />
+        <DeskTimings />
         <TalkTimings />
 
         <details className="bx-more">

@@ -14,6 +14,7 @@
  * GET/POST ?green=analysis → the Commentator's call, signed-in Desk only (#276; the rewrite of /api/green-analysis):
  *               api/_green/analysis.ts.
  * GET/POST ?timing=talk → the Talk calls' start timings (#512): api/_boot/talkTiming.ts.
+ * GET/POST ?timing=desk → the Desk's load timings (#561; the rewrite of /api/desk-timing): api/_boot/deskTiming.ts.
  * GET/POST ?timing=lattice → the Lattice's boot timings (#373; the rewrite of /api/lattice-timing): api/_boot/timing.ts.
  *
  * The world moves once an hour, so answers are cached at Vercel's edge for a few minutes: every open tab shares one
@@ -22,6 +23,7 @@
 
 import * as timing from "./_boot/timing.js";
 import * as talkTiming from "./_boot/talkTiming.js";
+import * as deskTiming from "./_boot/deskTiming.js";
 import { readPublicEmailStatus } from "./_email/store.js";
 import * as positions from "./_exchange/positions.js";
 import * as exchange from "./_exchange/route.js";
@@ -47,6 +49,7 @@ export async function GET(request: Request): Promise<Response> {
   if (greenAnalysis.isAnalysis(request)) return greenAnalysis.GET(request);
   if (timing.isTiming(request)) return timing.GET(request);
   if (talkTiming.isTalkTiming(request)) return talkTiming.GET(request);
+  if (deskTiming.isDeskTiming(request)) return deskTiming.GET(request);
   const store = pickStore();
   if (!store) return json({ error: "not-set-up" }, 503);
   const day = new URL(request.url).searchParams.get("day");
@@ -94,5 +97,6 @@ export async function POST(request: Request): Promise<Response> {
   if (greenAnalysis.isAnalysis(request)) return greenAnalysis.POST(request);
   if (timing.isTiming(request)) return timing.POST(request);
   if (talkTiming.isTalkTiming(request)) return talkTiming.POST(request);
+  if (deskTiming.isDeskTiming(request)) return deskTiming.POST(request);
   return new Response(JSON.stringify({ error: "method" }), { status: 405, headers: { "Content-Type": "application/json", Allow: "GET", "Cache-Control": "no-store" } });
 }

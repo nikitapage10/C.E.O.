@@ -58,6 +58,7 @@
     { "source": "/api/skippy-answer", "destination": "/api/skippy?answer=1" },
     { "source": "/api/green-analysis", "destination": "/api/world?green=analysis" },
     { "source": "/api/lattice-timing", "destination": "/api/world?timing=lattice" },
-    { "source": "/api/talk-timing", "destination": "/api/world?timing=talk" }
+    { "source": "/api/talk-timing", "destination": "/api/world?timing=talk" },
+    { "source": "/api/desk-timing", "destination": "/api/world?timing=desk" }
   ]
 }

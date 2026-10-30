@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DeskLoad, DeskLoadsView } from "../../../../api/_boot/deskTiming.ts";
 import { median } from "./LatticeTimings.tsx";
+import { slowdownLine } from "./slowdown.ts";
 
 /**
  * How fast the Desk opens on real loads (#561): the last loads the Desk beacon recorded (deskBeacon.ts,
@@ -38,6 +39,7 @@ export function DeskTimings() {
   const list = view?.loads ?? [];
   const paint = median(list.map((c) => c.firstPaint));
   const data = median(list.map((c) => c.dataReady));
+  const slower = slowdownLine(list.map((c) => c.firstPaint));
 
   return (
     <details className="bx-more bx-ltime" aria-label="How fast the Desk opens">
@@ -72,6 +74,7 @@ export function DeskTimings() {
               <dd>{list.length}</dd>
             </div>
           </dl>
+          {slower && <p className="bx-note">{slower}</p>}
           <div className="bx-ltime-scroll">
             <table className="bx-ltime-t">
               <thead>

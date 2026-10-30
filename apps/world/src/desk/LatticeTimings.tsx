@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Timing, TimingsView, TripKind } from "../../../../api/_boot/types.ts";
 import { TRIP_KINDS } from "../../../../api/_boot/types.ts";
+import { median, slowdownLine } from "./slowdown.ts";
 
 /**
  * How the Lattice loads on the real machine (#373): the last arrivals the boot-timing beacon recorded
@@ -23,13 +24,7 @@ export function isTimingsView(v: unknown): v is TimingsView {
   );
 }
 
-/** The median of a list of numbers, or null for none. */
-export function median(xs: number[]): number | null {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid]! : Math.round((s[mid - 1]! + s[mid]!) / 2);
-}
+export { median };
 
 export function LatticeTimings() {
   const [view, setView] = useState<TimingsView | null>(null);
@@ -55,6 +50,7 @@ export function LatticeTimings() {
   const firsts = median(list.filter((t) => t.kind !== "return" && t.kind !== "direct").map((t) => t.firstFrame));
   const returns = median(list.filter((t) => t.kind === "return").map((t) => t.firstFrame));
   const fps = median(list.map((t) => t.fps));
+  const slower = slowdownLine(list.filter((t) => t.kind !== "return" && t.kind !== "direct").map((t) => t.firstFrame));
 
   return (
     <details className="bx-more bx-ltime" aria-label="How the Lattice loads">
@@ -84,6 +80,7 @@ export function LatticeTimings() {
               <dd>{fps === null ? "–" : `${fps} fps`}</dd>
             </div>
           </dl>
+          {slower && <p className="bx-note">{slower}</p>}
           <div className="bx-ltime-scroll">
             <table className="bx-ltime-t">
               <thead>

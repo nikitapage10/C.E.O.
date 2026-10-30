@@ -4,6 +4,7 @@ import type {
   TalkCallsView,
 } from "../../../../api/_boot/talkTiming.ts";
 import { median } from "./LatticeTimings.tsx";
+import { slowdownLine } from "./slowdown.ts";
 
 /**
  * How fast Talk starts on real calls (#512): the last calls the Talk beacon recorded (skippy/talkBeacon.ts,
@@ -96,6 +97,7 @@ export function TalkTimings() {
   const good = list.filter((c) => c.ok && c.stages.firstWord !== undefined);
   const first = median(good.map((c) => c.stages.firstWord!));
   const slow = slowestStage(good);
+  const slower = slowdownLine(good.map((c) => c.stages.firstWord!));
   const failed = list.length - good.length;
 
   return (
@@ -136,6 +138,7 @@ export function TalkTimings() {
               </dd>
             </div>
           </dl>
+          {slower && <p className="bx-note">{slower}</p>}
           <div className="bx-ltime-scroll">
             <table className="bx-ltime-t">
               <thead>

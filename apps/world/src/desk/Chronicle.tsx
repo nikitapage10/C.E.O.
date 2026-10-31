@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { mountainHour, ThreadedWeek, type Reading } from "./ChronicleHours.tsx";
 import { TideFolio } from "./ChronicleTide.tsx";
+import { ShipWeeksFolio } from "./ShipWeeks.tsx";
 import { RC } from "./flow/index.ts";
 import { chronicleDay, dayTitle, hourLabel, useChronicle, useWorldFeed, type HistoryEntry, type RoomId } from "../chronicle.ts";
 import { previousWeek, weekDaysOf, weekStartOf } from "../../../../api/_world/weeks.ts";
@@ -247,6 +248,8 @@ export function Chronicle({ now, awaySince }: { now: number; awaySince: number }
       </div>
 
       <TideFolio week={weekEntries} />
+
+      <ShipWeeksFolio now={now} />
 
       <details className="ax-drawer ax-how">
         <summary>

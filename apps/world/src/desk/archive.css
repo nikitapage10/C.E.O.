@@ -1685,3 +1685,66 @@
     transition: none;
   }
 }
+
+/* ---- Week by week: what the Foundry shipped (ShipWeeks.tsx) ---- */
+.desk .ax-ships {
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 1px solid var(--ax-line);
+}
+.desk .ax-ship-week {
+  margin-top: 22px;
+}
+.desk .ax-ship-week h3 {
+  margin: 0 0 8px;
+  font-family: var(--ax-disp);
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--ax-ink);
+}
+.desk .ax-ship-week h3 small {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ax-mute);
+}
+.desk .ax-ship-week ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.desk .ax-ship-week li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--ax-line2);
+}
+.desk .ax-ship-week li > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-family: var(--ax-text);
+  font-size: 17px;
+  line-height: 1.4;
+}
+.desk .ax-ship-week li a,
+.desk .ax-ship-week li b {
+  color: var(--ax-ink);
+  font-weight: 500;
+}
+.desk .ax-ship-week li a:hover {
+  color: var(--ax-v);
+}
+.desk .ax-ship-week li em {
+  font-style: normal;
+  color: var(--ax-soft);
+}
+.desk .ax-ship-week li small {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ax-mute);
+}

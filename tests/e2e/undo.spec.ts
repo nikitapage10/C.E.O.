@@ -124,3 +124,39 @@ test("the Undo shows at phone width without breaking the entry", async ({ page }
     await log.screenshot({ path: `${SHOTS}/changelog-undo-phone.png` });
   }
 });
+
+test("the Archive lists what shipped, week by week, newest first", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await stub(page);
+  const day = 24;
+  const shipped = (n: number, title: string, hours: number, extra = "") => issue(n, title, ["foundry", "foundry:build", "foundry:shipped"], "closed", hoursAgo(hours), `**Pitch:** x.\n**Size:** small\n**Short:** ${extra}\n**Builder:** Rusty (Sonnet)`);
+  await page.route(`${BASE}/api/foundry-feed`, (r) =>
+    r.fulfill({
+      json: {
+        ...FEED,
+        issues: [
+          shipped(61, "Idea: Podium in the Spire", 2, "Adding a podium"),
+          shipped(62, "Idea: Brighter idea cards", 5 * day, "Brightening idea cards"),
+          shipped(63, "Idea: Quieter Boiler Room", 12 * day, "Quieting the Boiler Room"),
+          shipped(64, "Idea: Faster Lattice", 19 * day, "Speeding up the Lattice"),
+        ],
+        pulls: [],
+      },
+    }),
+  );
+  await page.goto(BASE + "/archive");
+  const ships = page.locator(".ax-ships");
+  await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toBeVisible();
+  await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toContainText("Adding a podium");
+  await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toContainText("Built by Rusty");
+  // Newest two weeks stand open; older ones fold away behind a button.
+  await expect(ships.locator(".ax-ship-week")).toHaveCount(2);
+  await ships.getByRole("button", { name: /earlier week/ }).click();
+  await expect(ships.locator(".ax-ship-week").nth(2)).toBeVisible();
+  if (SHOTS) {
+    await ships.scrollIntoViewIfNeeded();
+    await ships.screenshot({ path: `${SHOTS}/archive-week-by-week.png` });
+  }
+  expect(errors).toEqual([]);
+});

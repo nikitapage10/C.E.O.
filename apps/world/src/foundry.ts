@@ -139,6 +139,8 @@ export interface Change {
   key: string;
   /** Date.now() style: when it shipped. */
   at: number;
+  /** Date.now() the issue was opened, when it has one; `at` minus this is how long the change took. */
+  openedAt?: number;
   title: string;
   kind: CrateKind;
   /** The issue that tracked it, when there is one. */
@@ -494,6 +496,7 @@ export function parseChangelog(issues: GhIssue[], pulls: GhPull[], commits: GhCo
     out.push({
       key: `issue-${issue.number}`,
       at: Date.parse(issue.closed_at ?? issue.updated_at),
+      ...(issue.created_at && { openedAt: Date.parse(issue.created_at) }),
       title: issue.title,
       kind: shipped,
       issue: { number: issue.number, url: issue.html_url },

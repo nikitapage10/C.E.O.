@@ -1710,6 +1710,9 @@
   text-transform: uppercase;
   color: var(--ax-mute);
 }
+.desk .ax-ship-week h3 small + small::before {
+  content: "· ";
+}
 .desk .ax-ship-week ul {
   margin: 0;
   padding: 0;

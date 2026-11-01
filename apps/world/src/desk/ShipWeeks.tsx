@@ -3,7 +3,7 @@ import { useFoundry, withTrails } from "../foundry.ts";
 import { useUsage } from "../usage.ts";
 import { ChangePictures } from "./ChangePictures.tsx";
 import { Chevron } from "./ChronicleWeave.tsx";
-import { shipWeeks, WEEKS_OPEN } from "./shipWeeks.ts";
+import { formatSpan, shipWeeks, WEEKS_OPEN } from "./shipWeeks.ts";
 
 const day = (monday: string) => new Date(Date.UTC(Number(monday.slice(0, 4)), Number(monday.slice(5, 7)) - 1, Number(monday.slice(8, 10)), 12)).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "long" });
 
@@ -29,6 +29,7 @@ export function ShipWeeksFolio({ now }: { now: number }) {
             <div key={w.monday} className="ax-ship-week">
               <h3>
                 Week of {day(w.monday)} <small>{w.entries.length} shipped</small>
+                {w.median !== null ? <small>median {formatSpan(w.median)}</small> : null}
               </h3>
               <ul>
                 {w.entries.map((e) => (
@@ -43,7 +44,13 @@ export function ShipWeeksFolio({ now }: { now: number }) {
                         <b>{e.title}</b>
                       )}
                       {e.short ? <em>{e.short}</em> : null}
-                      {e.builder ? <small>Built by {e.builder}</small> : null}
+                      {e.builder || e.took !== null ? (
+                        <small>
+                          {e.builder ? `Built by ${e.builder}` : ""}
+                          {e.builder && e.took !== null ? " · " : ""}
+                          {e.took !== null ? `in ${formatSpan(e.took)}` : ""}
+                        </small>
+                      ) : null}
                     </span>
                   </li>
                 ))}

@@ -130,7 +130,11 @@ test("the Archive lists what shipped, week by week, newest first", async ({ page
   page.on("pageerror", (e) => errors.push(e.message));
   await stub(page);
   const day = 24;
-  const shipped = (n: number, title: string, hours: number, extra = "") => issue(n, title, ["foundry", "foundry:build", "foundry:shipped"], "closed", hoursAgo(hours), `**Pitch:** x.\n**Size:** small\n**Short:** ${extra}\n**Builder:** Rusty (Sonnet)`);
+  // Each opened `took` hours before it closed.
+  const shipped = (n: number, title: string, hours: number, extra = "", took = 3) => ({
+    ...issue(n, title, ["foundry", "foundry:build", "foundry:shipped"], "closed", hoursAgo(hours), `**Pitch:** x.\n**Size:** small\n**Short:** ${extra}\n**Builder:** Rusty (Sonnet)`),
+    created_at: hoursAgo(hours + took),
+  });
   await page.route(`${BASE}/api/foundry-feed`, (r) =>
     r.fulfill({
       json: {
@@ -138,8 +142,8 @@ test("the Archive lists what shipped, week by week, newest first", async ({ page
         issues: [
           shipped(61, "Idea: Podium in the Spire", 2, "Adding a podium"),
           shipped(62, "Idea: Brighter idea cards", 5 * day, "Brightening idea cards"),
-          shipped(63, "Idea: Quieter Boiler Room", 12 * day, "Quieting the Boiler Room"),
-          shipped(64, "Idea: Faster Lattice", 19 * day, "Speeding up the Lattice"),
+          shipped(63, "Idea: Quieter Boiler Room", 12 * day, "Quieting the Boiler Room", 2 * day),
+          shipped(64, "Idea: Faster Lattice", 19 * day, "Speeding up the Lattice", 0.7),
         ],
         pulls: [],
       },
@@ -150,6 +154,8 @@ test("the Archive lists what shipped, week by week, newest first", async ({ page
   await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toBeVisible();
   await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toContainText("Adding a podium");
   await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toContainText("Built by Rusty");
+  await expect(ships.locator("li", { hasText: "Podium in the Spire" })).toContainText("in 3 h");
+  await expect(ships.locator(".ax-ship-week h3").first()).toContainText("median 3 h");
   // Newest two weeks stand open; older ones fold away behind a button.
   await expect(ships.locator(".ax-ship-week")).toHaveCount(2);
   await ships.getByRole("button", { name: /earlier week/ }).click();

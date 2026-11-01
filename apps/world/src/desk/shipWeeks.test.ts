@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Change } from "../foundry.ts";
-import { shipWeeks } from "./shipWeeks.ts";
+import { formatSpan, medianSpan, shipWeeks } from "./shipWeeks.ts";
 
 const change = (key: string, at: number, extra: Partial<Change> = {}): Change => ({ key, at, title: `Idea: ${key}`, kind: "build", issue: { number: 1, url: `https://x/${key}` }, landed: null, by: "tessellate", short: "", approval: "auto", origin: "builder", ...extra });
 // 2026-10-31 is a Saturday; its week starts Monday 2026-10-26 (Mountain time).
@@ -31,5 +31,45 @@ describe("shipWeeks", () => {
     const [w] = shipWeeks([change("a", now - 1000, { short: "Filing the week's ships", pictures: [{ src: "p.png", alt: "l", note: "" }] })], now);
     expect(w!.entries[0]).toMatchObject({ title: "A", short: "Filing the week's ships", builder: "Rusty", href: "https://x/a" });
     expect(w!.entries[0]!.pictures).toHaveLength(1);
+  });
+});
+
+const MIN = 60_000;
+const HOUR = 60 * MIN;
+
+describe("formatSpan", () => {
+  it("writes minutes, hours and days short", () => {
+    expect(formatSpan(42 * MIN)).toBe("42 min");
+    expect(formatSpan(3 * HOUR)).toBe("3 h");
+    expect(formatSpan(2 * 24 * HOUR)).toBe("2 d");
+  });
+  it("rounds, and never says 0 min", () => {
+    expect(formatSpan(0)).toBe("1 min");
+    expect(formatSpan(59.6 * MIN)).toBe("1 h");
+    expect(formatSpan(23.6 * HOUR)).toBe("1 d");
+    expect(formatSpan(5.4 * HOUR)).toBe("5 h");
+  });
+});
+
+describe("medianSpan", () => {
+  it("is null for none, the middle for odd and the mean of the middle two for even", () => {
+    expect(medianSpan([])).toBeNull();
+    expect(medianSpan([9, 1, 5])).toBe(5);
+    expect(medianSpan([8, 2, 4, 10])).toBe(6);
+  });
+});
+
+describe("shipWeeks, how long it took", () => {
+  it("is closing minus opening, and null when the opening is missing", () => {
+    const at = Date.UTC(2026, 9, 28, 12);
+    const [w] = shipWeeks([change("a", at, { openedAt: at - 3 * HOUR }), change("b", at - 1)], now);
+    expect(w!.entries.map((e) => [e.key, e.took])).toEqual([["a", 3 * HOUR], ["b", null]]);
+  });
+  it("takes the week's median over the changes that have a time, null when none has", () => {
+    const at = Date.UTC(2026, 9, 28, 12);
+    const timed = (k: string, h: number) => change(k, at, { openedAt: at - h * HOUR });
+    expect(shipWeeks([timed("a", 1), timed("b", 2), timed("c", 9), change("d", at)], now)[0]!.median).toBe(2 * HOUR);
+    expect(shipWeeks([timed("a", 1), timed("b", 3)], now)[0]!.median).toBe(2 * HOUR);
+    expect(shipWeeks([change("d", at)], now)[0]!.median).toBeNull();
   });
 });

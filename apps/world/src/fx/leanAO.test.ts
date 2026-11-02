@@ -1,7 +1,7 @@
 import { BufferGeometry, Group, Mesh, MeshBasicMaterial, PerspectiveCamera, Scene, type WebGLRenderer, type WebGLRenderTarget } from "three";
 import { describe, expect, it } from "vitest";
 import { frames } from "../scene/frameCount.ts";
-import { TRANSPARENCY_EVERY, leanAO, transparencySets, type AOPass } from "./leanAO.ts";
+import { TRANSPARENCY_EVERY, leanAO, mendHalfRes, transparencySets, type AOPass, type HalfResPass } from "./leanAO.ts";
 
 const mat = (o: { transparent?: boolean; depthWrite?: boolean }) => new MeshBasicMaterial(o);
 
@@ -139,5 +139,27 @@ describe("leanAO", () => {
       moving.push(...step(1));
     }
     expect(moving).toEqual([1, 1, 1]);
+  });
+});
+
+describe("mendHalfRes (#597)", () => {
+  it("gives n8ao's half-resolution texture array the mipmaps three.js 0.187 reads, now and when n8ao rebuilds it", async () => {
+    // @ts-expect-error n8ao ships no type declarations
+    const { N8AOPostPass } = (await import("n8ao")) as { N8AOPostPass: new (...a: unknown[]) => unknown };
+    const pass = new N8AOPostPass(new Scene(), new PerspectiveCamera(), 64, 64) as unknown as HalfResPass & { configuration: { halfRes: boolean } };
+    pass.configuration.halfRes = true;
+    expect((pass.depthDownsampleTarget?.texture as { mipmaps?: unknown }).mipmaps).toBeUndefined();
+    const undo = mendHalfRes(pass);
+    expect((pass.depthDownsampleTarget?.texture as { mipmaps?: unknown }).mipmaps).toEqual([]);
+    pass.configuration.halfRes = false;
+    pass.configuration.halfRes = true; // n8ao builds a new target
+    expect((pass.depthDownsampleTarget?.texture as { mipmaps?: unknown }).mipmaps).toEqual([]);
+    undo();
+    expect(Object.prototype.hasOwnProperty.call(pass, "configureHalfResTargets")).toBe(false);
+  });
+
+  it("leaves a pass without a half-resolution target alone", () => {
+    const pass: HalfResPass = { depthDownsampleTarget: null };
+    expect(() => mendHalfRes(pass)()).not.toThrow();
   });
 });

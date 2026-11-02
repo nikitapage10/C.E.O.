@@ -4,7 +4,7 @@ import { BlendFunction, GlitchMode, ToneMappingMode, type ChromaticAberrationEff
 import { useCallback, useMemo, useRef } from "react";
 import { Vector2 } from "three";
 import { useWorld } from "../store.ts";
-import { leanAO, type AOPass } from "./leanAO.ts";
+import { leanAO, mendHalfRes, type AOPass, type HalfResPass } from "./leanAO.ts";
 import { makeSanitizePass } from "./sanitize.ts";
 
 /**
@@ -21,9 +21,17 @@ export function PostFX() {
   const sanitize = useMemo(() => makeSanitizePass(), []);
   // N8AO without the scene walks and matrix updates it repeats every frame (fx/leanAO.ts): same pixels.
   const unlean = useRef<(() => void) | undefined>(undefined);
-  const aoRef = useCallback((pass: AOPass | null) => {
+  // And its half-resolution target set up the way three.js 0.187 needs (fx/leanAO.ts, mendHalfRes, #597).
+  const aoRef = useCallback((pass: (AOPass & HalfResPass) | null) => {
     unlean.current?.();
-    unlean.current = pass ? leanAO(pass) : undefined;
+    unlean.current = undefined;
+    if (!pass) return;
+    const unmend = mendHalfRes(pass);
+    const restore = leanAO(pass);
+    unlean.current = () => {
+      restore();
+      unmend();
+    };
   }, []);
 
   useFrame(() => {

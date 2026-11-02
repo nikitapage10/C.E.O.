@@ -147,3 +147,36 @@ export function leanAO(pass: AOPass): () => void {
     else delete (pass as Partial<AOPass>).renderTransparency;
   };
 }
+
+/** The members of n8ao's pass that mendHalfRes touches. */
+export interface HalfResPass {
+  depthDownsampleTarget?: { texture?: unknown } | null;
+  configureHalfResTargets?: () => void;
+}
+
+/**
+ * n8ao 2.0.1's half-resolution target (#597) is a two-texture render target whose `texture` returns its array of
+ * textures. three.js up to 0.186 checked `texture.mipmaps` before reading its length; 0.187 reads it straight, so the
+ * first frame N8AO draws to that target threw ("reading 'length'") and the 3D scene fell over, again and again, on
+ * high quality. An empty `mipmaps` on the array is what three.js used to assume: the target is set up as before.
+ * Mended now and whenever n8ao builds the target again (a halfRes or size change). Returns a function that puts
+ * the pass back.
+ */
+export function mendHalfRes(pass: HalfResPass): () => void {
+  const mend = () => {
+    const texture = pass.depthDownsampleTarget?.texture as { mipmaps?: unknown[] } | undefined;
+    if (Array.isArray(texture) && texture.mipmaps === undefined) texture.mipmaps = [];
+  };
+  mend();
+  const configure = pass.configureHalfResTargets;
+  if (typeof configure !== "function") return () => undefined;
+  const own = Object.prototype.hasOwnProperty.call(pass, "configureHalfResTargets");
+  pass.configureHalfResTargets = function (this: HalfResPass) {
+    configure.call(this);
+    mend();
+  };
+  return () => {
+    if (own) pass.configureHalfResTargets = configure;
+    else delete pass.configureHalfResTargets;
+  };
+}

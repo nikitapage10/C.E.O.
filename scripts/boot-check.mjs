@@ -96,7 +96,9 @@ async function visit(path, check, timeout, measureJs = false, warm = false) {
   const threw = new Promise((_, reject) => (thrown = reject)); // a page that throws won't get better: stop waiting
   threw.catch(() => {});
   // A fetch to an outside service (GitHub's API for usage) that can't be reached is the network, not the bundle.
-  page.on("pageerror", (e) => !/^(Failed to fetch|NetworkError|Load failed)/.test(e.message) && (errors.push(`pageerror: ${e.message}`), thrown(new Error("the page threw"))));
+  // With where it threw (the top frames, file:line:column in the built chunks), so a throw seen only on CI can be traced.
+  const frames = (e) => (e.stack ?? "").split("\n").filter((l) => /^\s+at /.test(l)).slice(0, 6).map((l) => l.trim().replace(/https?:\/\/[^/]+\//g, "/")).join(" | ");
+  page.on("pageerror", (e) => !/^(Failed to fetch|NetworkError|Load failed)/.test(e.message) && (errors.push(`pageerror: ${e.message}${frames(e) && ` (${frames(e)})`}`), thrown(new Error("the page threw"))));
   page.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(`console.error: ${m.text()}`));
   // First load = scripts fetched before the load event; the Desk's idle tab prefetch comes after and is left out.
   const scripts = [];

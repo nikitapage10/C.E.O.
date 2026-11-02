@@ -66,6 +66,8 @@ describe("the job board's rows", () => {
     const vqa = jobRows(feed("visual-qa.yml", run()), now).find((r) => r.file === "visual-qa.yml")!;
     expect(vqa).toMatchObject({ state: "pass", lateMin: null, missed: false });
     expect(lateLabel(vqa)).toBe("–");
+    const deploy = jobRows(feed("deploy-azure.yml", run({ name: "Deploy to Azure", conclusion: "failure" })), now).find((r) => r.file === "deploy-azure.yml")!;
+    expect(deploy).toMatchObject({ name: "Deploy to Azure", when: "after each push to main", state: "fail", lateMin: null, missed: false });
   });
 
   it("formats lateness in plain words", () => {
@@ -110,6 +112,16 @@ describe("the feed's side of the board", () => {
     expect(trimmed).toEqual({ ...run(), run_started_at: null });
     expect(trimRun({ workflow_runs: [] })).toBeNull();
     expect(trimRun(null)).toBeNull();
+  });
+
+  it("reads the push workflows' runs on main, and they trigger on push to main", () => {
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "../../../../.github/workflows");
+    for (const file of ["visual-qa.yml", "deploy-azure.yml"]) {
+      const lines = readFileSync(join(dir, file), "utf8").split("\n");
+      const push = lines.indexOf("  push:", lines.indexOf("on:"));
+      expect(push, file).toBeGreaterThan(0);
+      expect(lines[push + 1]?.trim(), file).toBe("branches: [main]");
+    }
   });
 
   it("lists every scheduled workflow, with the same crons as .github/workflows", () => {

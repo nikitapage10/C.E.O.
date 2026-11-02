@@ -8,7 +8,7 @@
  * its last answer for the same few seconds (api/_feedcache.ts).
  *
  * The scheduled jobs on the Boiler Room's board (#301) come along as `jobs`: the newest scheduled run of each workflow
- * with a cron, plus Visual QA's newest push run, trimmed to the workflow's name, the run's state and times and its
+ * with a cron, plus the newest push runs of Visual QA and Deploy to Azure, trimmed to the workflow's name, the run's state and times and its
  * link. Nothing else from the run leaves this function. They change at most hourly, so they are read every two minutes.
  *
  * The open pull requests come along as `open` (#432): each one's number, link, when it opened, whether it is a draft,
@@ -43,8 +43,11 @@ async function read(path: string): Promise<unknown> {
 /** Cache lifetime in seconds, for both the edge header and the in-function memo. */
 const TTL = 5;
 
-/** The workflows on the Boiler Room's job board: every one with a `schedule:` trigger, and Visual QA (after each push). */
-export const JOB_FILES = ["backup-azure.yml", "checks.yml", "e2e.yml", "world-step.yml", "desk-pings.yml", "live-watch.yml", "codeql.yml", "scorecard.yml", "visual-qa.yml"] as const;
+/** The workflows on the Boiler Room's job board: every one with a `schedule:` trigger, Visual QA and Deploy to Azure (after each push to main). */
+export const JOB_FILES = ["backup-azure.yml", "checks.yml", "e2e.yml", "world-step.yml", "desk-pings.yml", "live-watch.yml", "codeql.yml", "scorecard.yml", "visual-qa.yml", "deploy-azure.yml"] as const;
+
+/** The jobs that run after each push to main, read by that event instead of `schedule`. */
+const PUSH_FILES: ReadonlySet<string> = new Set(["visual-qa.yml", "deploy-azure.yml"]);
 
 /** How long the jobs' reads are kept, in seconds: the board's runs change at most hourly. */
 const JOBS_TTL = 120;
@@ -76,7 +79,7 @@ export function trimRun(list: unknown): JobRun | null {
 const jobs = memo(JOBS_TTL * 1000, () =>
   Promise.all(
     JOB_FILES.map((file) =>
-      read(`/actions/workflows/${file}/runs?${file === "visual-qa.yml" ? "branch=main&event=push" : "event=schedule"}&per_page=1`)
+      read(`/actions/workflows/${file}/runs?${PUSH_FILES.has(file) ? "branch=main&event=push" : "event=schedule"}&per_page=1`)
         .then((list) => ({ file, run: trimRun(list) }))
         .catch(() => ({ file, run: null })),
     ),

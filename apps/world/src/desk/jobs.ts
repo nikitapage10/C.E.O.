@@ -1,6 +1,6 @@
 /**
- * The Boiler Room's board of scheduled jobs (#301): every GitHub Actions workflow with a cron, and Visual QA after each
- * push, with its last run, whether it passed, and how late GitHub started it against its cron minute. The runs come
+ * The Boiler Room's board of scheduled jobs (#301): every GitHub Actions workflow with a cron, and Visual QA and Deploy to Azure
+ * after each push to main, with its last run, whether it passed, and how late GitHub started it against its cron minute. The runs come
  * from the Desk's feed (api/foundry-feed.ts, `jobs`), trimmed there to names, states, times and links. Real states
  * only: a job GitHub hasn't listed says so.
  */
@@ -24,6 +24,7 @@ export const JOBS: JobDef[] = [
   { file: "codeql.yml", name: "CodeQL scan", when: "Mondays, 04:29 UTC", cron: "29 4 * * 1" },
   { file: "scorecard.yml", name: "Scorecard", when: "Mondays, 05:41 UTC", cron: "41 5 * * 1" },
   { file: "visual-qa.yml", name: "Visual QA", when: "after each push", cron: null },
+  { file: "deploy-azure.yml", name: "Deploy to Azure", when: "after each push to main", cron: null },
 ];
 
 /** A run as the feed hands it over (api/foundry-feed.ts, JobRun). */

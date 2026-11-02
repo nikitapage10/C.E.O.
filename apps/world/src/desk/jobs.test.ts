@@ -117,7 +117,10 @@ describe("the feed's side of the board", () => {
   it("reads the push workflows' runs on main, and they trigger on push to main", () => {
     const dir = join(dirname(fileURLToPath(import.meta.url)), "../../../../.github/workflows");
     for (const file of ["visual-qa.yml", "deploy-azure.yml"]) {
-      expect(readFileSync(join(dir, file), "utf8"), file).toMatch(/\non:\s*\n(?:\s+.*\n)*?\s+push:\s*\n\s+branches:\s*\[main\]/);
+      const lines = readFileSync(join(dir, file), "utf8").split("\n");
+      const push = lines.indexOf("  push:", lines.indexOf("on:"));
+      expect(push, file).toBeGreaterThan(0);
+      expect(lines[push + 1]?.trim(), file).toBe("branches: [main]");
     }
   });
 

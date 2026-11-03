@@ -91,8 +91,8 @@ async function postForm(fetcher: Fetcher, url: string, form: Record<string, stri
   return { status: res.status, body: await readBody(res) };
 }
 
-/** Full Gmail access (read, send, delete): a grant that carries it is refused. */
-const FULL_MAIL_SCOPE = "https://mail.google.com/";
+/** The only scopes a grant may hold: read, and optionally send. */
+const GRANT_ALLOWED: ReadonlySet<string> = new Set([GMAIL_SCOPE, GMAIL_SEND_SCOPE]);
 
 /**
  * Trades the callback's one-time code for tokens. Takes the grant only when Google granted gmail.readonly, maybe
@@ -110,8 +110,9 @@ export async function exchangeCode(fetcher: Fetcher, client: OAuthClient, code: 
   const b = (body ?? {}) as Record<string, unknown>;
   if (status !== 200 || typeof b.refresh_token !== "string" || !b.refresh_token) throw new Error(`gmail code exchange ${status}`);
   const scopes = typeof b.scope === "string" ? b.scope.split(/\s+/).filter(Boolean) : [];
-  const allowed = new Set([GMAIL_SCOPE, GMAIL_SEND_SCOPE]);
-  if (!scopes.includes(GMAIL_SCOPE) || scopes.some((s) => s.startsWith("https://www.googleapis.com/auth/gmail.") && !allowed.has(s)) || scopes.includes(FULL_MAIL_SCOPE)) {
+  // An exact allowlist: every granted scope must be one of these two strings, so nothing wider (modify, labels, full
+  // mail, or any other API) can ride along on the grant.
+  if (!scopes.includes(GMAIL_SCOPE) || scopes.some((s) => !GRANT_ALLOWED.has(s))) {
     throw new Error("gmail scope not allowed");
   }
   return { refresh: b.refresh_token, send: scopes.includes(GMAIL_SEND_SCOPE) };

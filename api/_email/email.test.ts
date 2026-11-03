@@ -542,7 +542,16 @@ describe("the OAuth state check", () => {
 
   it("refuses a grant wider than read and send, or send without read", async () => {
     const opts = { clientId: "c", clientSecret: "s", redirectUri: "r" };
-    for (const scope of [`${GMAIL_SCOPE} https://www.googleapis.com/auth/gmail.modify`, `${GMAIL_SCOPE} https://mail.google.com/`, GMAIL_SEND_SCOPE]) {
+    for (const scope of [
+      `${GMAIL_SCOPE} https://www.googleapis.com/auth/gmail.modify`,
+      `${GMAIL_SCOPE} https://mail.google.com/`,
+      // Lookalikes and anything else: only the two exact scope strings pass.
+      `${GMAIL_SCOPE} https://mail.google.com.evil.example/`,
+      `${GMAIL_SCOPE} https://evil.example/https://mail.google.com/`,
+      `${GMAIL_SCOPE} https://www.googleapis.com/auth/gmail.readonly.extra`,
+      `${GMAIL_SCOPE} https://www.googleapis.com/auth/drive`,
+      GMAIL_SEND_SCOPE,
+    ]) {
       await expect(exchangeCode(fakeGoogle({ scope }).fetcher, opts, "code")).rejects.toThrow();
     }
   });

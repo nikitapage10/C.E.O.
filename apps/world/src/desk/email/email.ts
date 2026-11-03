@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { EmailItem, EmailView } from "../../../../../api/_email/types.ts";
+import type { EmailItem, EmailView, FilterRule, StyleProfile } from "../../../../../api/_email/types.ts";
 import { readEmailStatus, type EmailStatus } from "../../../../../api/_email/status.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 import { useDeskAuth } from "../signin.ts";
@@ -17,7 +17,11 @@ import { useDeskAuth } from "../signin.ts";
  * lives on the Azure copy.
  */
 
-export type { EmailItem, EmailStatus, EmailView };
+export type { EmailItem, EmailStatus, EmailView, StyleProfile };
+export type EmailRule = Pick<FilterRule, "id" | "kind" | "label" | "at">;
+
+/** What a Thread action on the email line answered (#615): ok with its result, or the site's error code. */
+export type Answer<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const PATH = "/api/email";
 const POLL_MS = 30_000;
@@ -46,7 +50,22 @@ export function readItem(v: unknown): EmailItem | null {
     ...(typeof o.advice === "string" && o.advice && { advice: o.advice.slice(0, 800) }),
     ...(typeof o.draft === "string" && o.draft && { draft: o.draft.slice(0, 2000) }),
     done: o.done === true,
+    ...(typeof o.said === "string" && o.said && { said: o.said.slice(0, 400) }),
+    ...(typeof o.sentAt === "number" && o.sentAt > 0 && { sentAt: o.sentAt }),
   };
+}
+
+const okRule = (r: unknown): r is EmailRule => {
+  const o = r as Record<string, unknown> | null;
+  return !!o && typeof o.id === "string" && /^[0-9a-f]{12}$/.test(o.id) && (o.kind === "block" || o.kind === "filter") && typeof o.label === "string" && typeof o.at === "number";
+};
+
+/** The style traits, checked; null when there are none. */
+export function readStyleView(v: unknown): StyleProfile | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object" || !Array.isArray(o.traits)) return null;
+  const traits = (o.traits as unknown[]).filter((t): t is string => typeof t === "string" && !!t).map((t) => t.slice(0, 48)).slice(0, 8);
+  return traits.length ? { traits, from: typeof o.from === "number" ? o.from : 0, at: typeof o.at === "number" ? o.at : 0 } : null;
 }
 
 /** The private view, checked; null when it isn't one. */
@@ -56,7 +75,7 @@ export function readView(v: unknown): EmailView | null {
   const status = readEmailStatus(b.status);
   const spend = b.spend as Record<string, unknown> | null;
   if (!status || !Array.isArray(b.items) || !spend || typeof spend.usd !== "number" || typeof spend.budget !== "number") return null;
-  return { ok: true, status, canConnect: b.canConnect === true, items: b.items.map(readItem).filter((x): x is EmailItem => x !== null), applied: typeof b.applied === "number" && b.applied > 0 ? Math.min(9_999, Math.floor(b.applied)) : 0, urgentSkipped: typeof b.urgentSkipped === "number" && b.urgentSkipped > 0 ? Math.min(9_999, Math.floor(b.urgentSkipped)) : 0, spend: { usd: spend.usd, budget: spend.budget } };
+  return { ok: true, status, canConnect: b.canConnect === true, canSend: b.canSend === true, items: b.items.map(readItem).filter((x): x is EmailItem => x !== null), applied: typeof b.applied === "number" && b.applied > 0 ? Math.min(9_999, Math.floor(b.applied)) : 0, urgentSkipped: typeof b.urgentSkipped === "number" && b.urgentSkipped > 0 ? Math.min(9_999, Math.floor(b.urgentSkipped)) : 0, spend: { usd: spend.usd, budget: spend.budget }, rules: Array.isArray(b.rules) ? (b.rules as unknown[]).filter(okRule).map((r) => ({ id: r.id, kind: r.kind, label: r.label.slice(0, 80), at: r.at })) : [], ruled: typeof b.ruled === "number" && b.ruled > 0 ? Math.min(9_999, Math.floor(b.ruled)) : 0, style: readStyleView(b.style) };
 }
 
 /** The Boiler Room's Gmail pipe and the Systems light, from the public counts. */
@@ -94,13 +113,37 @@ interface EmailStore {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   done: (id: string) => Promise<void>;
+  /** Takes a Done back (the Thread's Undo). */
+  undone: (id: string) => Promise<void>;
+  /** Blasto's draft from Nikita's few words (#615). */
+  reply: (id: string, said: string) => Promise<Answer<string>>;
+  /** A sender rule from one mail: its address ("block") or its domain ("filter"). */
+  rule: (id: string, kind: "block" | "filter") => Promise<Answer<EmailRule>>;
+  unrule: (rule: string) => Promise<boolean>;
+  learnStyle: () => Promise<Answer<StyleProfile>>;
+  /** Sends the draft on screen as an in-thread reply. Only after Nikita's yes and the undo window; the server checks it is still that draft. */
+  send: (id: string, draft: string) => Promise<Answer<number>>;
+}
+
+/** POST one action and read its answer; refreshes after. */
+async function act<T>(body: object, pick: (got: Record<string, unknown>) => T | null): Promise<Answer<T>> {
+  try {
+    const res = await post(body);
+    const got = isJson(res) ? ((await res.json().catch(() => ({}))) as Record<string, unknown>) : {};
+    if (res.status === 401) useDeskAuth.getState().lost();
+    const v = res.ok ? pick(got) : null;
+    if (v !== null) return { ok: true, value: v };
+    return { ok: false, error: typeof got.error === "string" ? got.error : res.status === 404 ? "off" : "failed" };
+  } catch {
+    return { ok: false, error: "failed" };
+  }
 }
 
 const isJson = (res: Response) => (res.headers.get("content-type") ?? "").includes("json");
 
-function setLink(status: EmailStatus | null) {
+function setLink(status: EmailStatus | null, canSend = false) {
   const state = linkOf(status);
-  useSystems.getState().setLink("gmail", { state, load: status ? Math.min(1, 0.25 + status.newToday / 40) : 0, lastSeen: status?.lastCheck ?? null, note: state === "ok" ? "READ-ONLY" : undefined });
+  useSystems.getState().setLink("gmail", { state, load: status ? Math.min(1, 0.25 + status.newToday / 40) : 0, lastSeen: status?.lastCheck ?? null, note: state === "ok" ? (canSend ? "SENDS ON YES" : "READ-ONLY") : undefined });
 }
 
 async function post(body: object): Promise<Response> {
@@ -130,7 +173,7 @@ export const useEmail = create<EmailStore>((set, get) => ({
           const view = readView(await res.json());
           if (view) {
             set({ load: "live", view, status: view.status, checkedAt: Date.now(), privateFail: null });
-            setLink(view.status);
+            setLink(view.status, view.canSend);
             return;
           }
           privateFail = "shape";
@@ -180,6 +223,44 @@ export const useEmail = create<EmailStore>((set, get) => ({
     if (view) set({ view: { ...view, items: view.items.map((i) => (i.id === id ? { ...i, done: true } : i)) } });
     await post({ action: "done", id }).catch(() => undefined);
     await get().refresh();
+  },
+  undone: async (id) => {
+    const view = get().view;
+    if (view) set({ view: { ...view, items: view.items.map((i) => (i.id === id ? { ...i, done: false } : i)) } });
+    await post({ action: "undone", id }).catch(() => undefined);
+    await get().refresh();
+  },
+  reply: async (id, said) => {
+    const got = await act({ action: "reply", id, said }, (g) => (typeof g.draft === "string" && g.draft ? g.draft.slice(0, 2_000) : null));
+    if (got.ok) {
+      const view = get().view;
+      if (view) set({ view: { ...view, items: view.items.map((i) => (i.id === id ? { ...i, draft: got.value, said } : i)) } });
+    }
+    return got;
+  },
+  rule: async (id, kind) => {
+    const got = await act({ action: kind, id }, (g) => (okRule(g.rule) ? g.rule : null));
+    void get().refresh();
+    return got;
+  },
+  unrule: async (rule) => {
+    const got = await act({ action: "unblock", rule }, (g) => (g.ok === true ? true : null));
+    void get().refresh();
+    return got.ok;
+  },
+  learnStyle: async () => {
+    const got = await act({ action: "learn-style" }, (g) => readStyleView(g.style));
+    void get().refresh();
+    return got;
+  },
+  send: async (id, draft) => {
+    const got = await act({ action: "send", id, draft }, (g) => (g.ok === true && typeof g.sentAt === "number" ? g.sentAt : null));
+    if (got.ok) {
+      const view = get().view;
+      if (view) set({ view: { ...view, items: view.items.map((i) => (i.id === id ? { ...i, done: true, sentAt: got.value } : i)) } });
+    }
+    void get().refresh();
+    return got;
   },
 }));
 

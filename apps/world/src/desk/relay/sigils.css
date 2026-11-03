@@ -1,0 +1,14 @@
+/* Sigils (#615, ./sigils.ts): the canvas over its host, and text hidden while its glyphs are in flight. */
+.sg-cv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 20;
+}
+[data-sg-ghost],
+[data-sg-ghost] * {
+  color: transparent !important;
+  text-shadow: none !important;
+}

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { TEST_PASSKEY, signedInCookie } from "../_desk/testing.ts";
 import { ADVISE_MODEL, CEILING, SORT_MODEL, addSpend, canSpend, costFor, emailBudget } from "./budget.ts";
-import { GMAIL_SCOPE, authUrl, exchangeCode, lastHistoryId, newInboxIds, plainMail, readMessage, type Fetcher, type HistoryPage } from "./gmail.ts";
+import { GMAIL_SCOPE, GMAIL_SEND_SCOPE, authUrl, exchangeCode, lastHistoryId, newInboxIds, plainMail, readMessage, type Fetcher, type HistoryPage } from "./gmail.ts";
 import { CALLBACK_PATH, EMAIL_PATH, GET, POST, STATE_COOKIE, checkState, makeState, type EmailRouteDeps } from "./route.ts";
 import { seal, sealKey, unseal } from "./seal.ts";
 import { ADVISE_SYSTEM, SORT_SYSTEM, fenceMail, mailInput, readAdvice, readSorted, type ClaudeCall, type ClaudeRequest } from "./sort.ts";
@@ -474,10 +474,10 @@ describe("the OAuth state check", () => {
     expect(await checkState(DESK_KEY, value, null, NOW)).toBeNull();
   });
 
-  it("asks Google for gmail.readonly only, offline, with consent and the state", () => {
+  it("asks Google for gmail.readonly and gmail.send only, offline, with consent and the state", () => {
     const url = new URL(authUrl({ clientId: "cid", redirectUri: `${SITE}${CALLBACK_PATH}` }, "nonce123"));
     expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
-    expect(url.searchParams.get("scope")).toBe(GMAIL_SCOPE);
+    expect(url.searchParams.get("scope")).toBe(`${GMAIL_SCOPE} ${GMAIL_SEND_SCOPE}`);
     expect(url.searchParams.get("access_type")).toBe("offline");
     expect(url.searchParams.get("prompt")).toBe("consent");
     expect(url.searchParams.get("state")).toBe("nonce123");
@@ -521,12 +521,39 @@ describe("the OAuth state check", () => {
     expect(await res.text()).toBe("");
     expect(res.headers.getSetCookie().some((c) => c.startsWith(`${STATE_COOKIE}=;`) && c.includes("Max-Age=0"))).toBe(true);
     expect(store.tokenRec?.refresh).toBe("1//fake-refresh");
+    expect(store.tokenRec?.send).toBeUndefined();
     expect((await store.load()).state.historyId).toBeNull();
   });
 
-  it("refuses a grant wider than read-only", async () => {
-    const g = fakeGoogle({ scope: `${GMAIL_SCOPE} https://www.googleapis.com/auth/gmail.send` });
-    await expect(exchangeCode(g.fetcher, { clientId: "c", clientSecret: "s", redirectUri: "r" }, "code")).rejects.toThrow();
+  it("the callback keeps whether Google granted send", async () => {
+    const store = new MemoryEmailStore();
+    const deps = await routeDeps(store, fakeGoogle({ scope: `${GMAIL_SCOPE} ${GMAIL_SEND_SCOPE}` }).fetcher);
+    const { nonce, cookie } = await makeState(DESK_KEY, TEST_PASSKEY.id, NOW);
+    const res = await GET(new Request(`${SITE}${CALLBACK_PATH}?code=one-time&state=${nonce}`, { headers: { cookie: `${STATE_COOKIE}=${cookieValue(cookie)}` } }), deps);
+    expect(res.headers.get("location")).toBe("/relay?gmail=connected");
+    expect(store.tokenRec?.send).toBe(true);
+  });
+
+  it("takes read-only alone, or read-only with send, and says which", async () => {
+    const opts = { clientId: "c", clientSecret: "s", redirectUri: "r" };
+    expect((await exchangeCode(fakeGoogle({ scope: GMAIL_SCOPE }).fetcher, opts, "code")).send).toBe(false);
+    expect((await exchangeCode(fakeGoogle({ scope: `${GMAIL_SCOPE} ${GMAIL_SEND_SCOPE}` }).fetcher, opts, "code")).send).toBe(true);
+  });
+
+  it("refuses a grant wider than read and send, or send without read", async () => {
+    const opts = { clientId: "c", clientSecret: "s", redirectUri: "r" };
+    for (const scope of [
+      `${GMAIL_SCOPE} https://www.googleapis.com/auth/gmail.modify`,
+      `${GMAIL_SCOPE} https://mail.google.com/`,
+      // Lookalikes and anything else: only the two exact scope strings pass.
+      `${GMAIL_SCOPE} https://mail.google.com.evil.example/`,
+      `${GMAIL_SCOPE} https://evil.example/https://mail.google.com/`,
+      `${GMAIL_SCOPE} https://www.googleapis.com/auth/gmail.readonly.extra`,
+      `${GMAIL_SCOPE} https://www.googleapis.com/auth/drive`,
+      GMAIL_SEND_SCOPE,
+    ]) {
+      await expect(exchangeCode(fakeGoogle({ scope }).fetcher, opts, "code")).rejects.toThrow();
+    }
   });
 });
 

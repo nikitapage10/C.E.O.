@@ -12,8 +12,8 @@ this page in the same pull request as the code, and say so in the pull request.
 
 Relay is C.E.O.'s first real agent. Its texts line runs on Nikita's always-on MacBook and covers iMessage and SMS
 only. It is not an urgency filter. It keeps track of who Nikita owes a reply, sorts them so the ones to answer sooner
-come first, lets him push a reply to later, nudges him gently once or twice a day, and drafts replies in his own
-voice, learned from his own past replies to that contact. A dictated reply is lightly restyled. **Nothing is sent
+come first, lets them push a reply to later, nudges them gently once or twice a day, and drafts replies in their own
+voice, learned from their own past replies to that contact. A dictated reply is lightly restyled. **Nothing is sent
 without Nikita's tap on the Desk.** Group chats are only summarised, never drafted for.
 
 The parts:
@@ -28,7 +28,7 @@ The parts:
   (Claude Sonnet) drafts. They run under the texts line's own $10 a month, on a ledger apart from email's. The Mac
   holds no model key.
 
-**Email is a separate line** (#263): Gmail, read-only, sorted by Claude on the Azure copy. Its own rules are in
+**Email is a separate line** (#263): Gmail, read and (on Nikita's yes) reply, sorted by Claude on the Azure copy. Its own rules are in
 [GMAIL.md](GMAIL.md). Like the texts line, it gives the public site counts and states only.
 
 ## The rules in brief
@@ -45,7 +45,7 @@ The parts:
 6. **Nothing sends without a tap.** A send is a request Nikita makes on the Desk with a fresh passkey unlock. Each
    request works once, for one thread and one draft, for 10 minutes. No message, model answer or webhook can make one.
    A new text Skippy has drafted (#536) goes the same way, after a card shows Nikita who it goes to and the exact text;
-   on a Talk call his own spoken "send" for the text Skippy just read him counts as the tap (below).
+   on a Talk call their own spoken "send" for the text Skippy just read them counts as the tap (below).
 
 ## Data inventory
 
@@ -54,7 +54,7 @@ The parts:
 | Messages | Every message and attachment | Apple's `chat.db`. Relay never opens it; it asks BlueBubbles for a chat's latest messages when it needs them | Apple's choice, not Relay's |
 | BlueBubbles | Its own cache, settings and server password | `~/Library/Application Support/bluebubbles-server/` | Until BlueBubbles is removed (see the wipe) |
 | Relay's state file | Per thread: a random Relay id, the Messages chat id, when the last unanswered message came, the state (owed, later, settled, replied), Dialtone's sort and gist, Blasto's draft, a group's summary, the reply-later time; daily counts; the ids of send requests already seen. Per new-text card (#536): its id, the contact's name, handle and chat id (or the choices'), Blasto's text. **Never a copy of a message body** | `~/Library/Application Support/CEO Relay/relay.json`, mode 0600, written whole through a temp file, in a folder that is mode 0700 and kept out of Time Machine and Spotlight | Per row, below |
-| Style profile | Four numbers made at draft time from Nikita's own past replies to that contact (usual length, and how often he starts with a capital, uses emoji, ends with a full stop). No text | Memory, for one call | The call |
+| Style profile | Four numbers made at draft time from Nikita's own past replies to that contact (usual length, and how often they start with a capital, use emoji, end with a full stop). No text | Memory, for one call | The call |
 | Style examples | Up to 8 of Nikita's own past replies to that contact | Memory only, for one Blasto call | The call |
 | Contacts | Names and handles, from BlueBubbles | The hub's memory, refreshed hourly | While the hub runs |
 | Dictation | Nikita's spoken words, as text | The Desk's browser, then a sealed restyle request on the site, then one Blasto call | As a request (below) |
@@ -87,7 +87,7 @@ cost (tokens and dollars) is kept.
   site refuses a draft snippet with a Member line in it.
 - **Blasto, drafting** (Claude Sonnet) sees, for one one-to-one thread: the messages being answered and up to 5
   earlier turns (2,000 characters in all), up to 8 of Nikita's own past replies to that same contact as style
-  examples (1,500 characters in all), the style profile's four numbers, and, when Nikita dictated, his words to
+  examples (1,500 characters in all), the style profile's four numbers, and, when Nikita dictated, their words to
   restyle (1,000 characters at most). Never another contact's messages.
 - **Names and numbers become placeholders**, on the Mac, before anything leaves it (`apps/hub/src/placeholders.ts`).
   The contact's name, each part of it, and their handle become "Contact" (or "Member 1"…). Every name from Nikita's
@@ -95,7 +95,7 @@ cost (tokens and dollars) is kept.
   street addresses, card and account numbers and keys become `[phone]`, `[email]`, `[address]`, `[card]`,
   `[account]`, `[key]`, using the Desk privacy check's own patterns (`api/_privacy.ts`), and 4- to 8-digit codes
   become `[code]`. The map back lives in memory for that one call, and the hub puts names back only into the gist
-  and draft Nikita sees. A name the hub doesn't know (a nickname, someone not in his contacts) can still go through as
+  and draft Nikita sees. A name the hub doesn't know (a nickname, someone not in their contacts) can still go through as
   written; that is the residual risk.
 - **Never sent at all:** settled on the Mac by rule, without a model (`apps/hub/src/rules.ts`): verification and
   one-time-code messages, short-code senders, promos, money and legal texts (the email line's own pre-filter), and
@@ -146,7 +146,7 @@ The hub makes only these calls, all outbound to `https://ceo.nikita.page`, all w
 The list never holds a message body: the gist and summary are the models' own words about the thread, and the draft is
 Blasto's. It never holds a phone number, email address or Messages chat id either; a new-text card shows only the last
 4 digits of the number or the address masked to its first letters (#536), which is a change from #535's rule of no
-number at all, made so Nikita can check who a text goes to before he sends it. A name is the contact's name as
+number at all, made so Nikita can check who a text goes to before they send it. A name is the contact's name as
 Nikita's contacts have it, "Unknown sender", or a group's name.
 
 **The pairing.** The Desk makes a one-time code only with this device's send unlock (below), since a paired Mac can
@@ -234,15 +234,15 @@ it in my style".
 
 ### Texts Skippy writes (#536)
 
-Nikita can ask Skippy for a text in his signed-in chat or on a Talk call ("text Riley I'm running 10 late"). It is
-never on a public surface, and nothing sends without his confirmation of the exact card.
+Nikita can ask Skippy for a text in their signed-in chat or on a Talk call ("text Riley I'm running 10 late"). It is
+never on a public surface, and nothing sends without their confirmation of the exact card.
 
 1. **The ask.** Skippy's answer names who and the gist as a `text` action (`api/_skippy/prompt.ts`): one plain line
    each, capped, never with a number, address, card or key in either (the privacy check). On a call, the agent's
    `draft_text` tool carries the same two, and it runs in Nikita's browser, not on a server. The site runs the relay's
    own rules over the ask before anything is kept (`askRuled`, `api/_relay/compose.ts`): the private skip list over
    who and the gist, the money and legal pre-filter and one-time codes over the gist. A match is refused (Skippy says
-   Nikita texts that one himself). A texting ask is never kept in Skippy's room log.
+   Nikita texts that one themselves). A texting ask is never kept in Skippy's room log.
 2. **The compose request.** The Desk asks `POST /api/relay { action: "compose", who, gist }` with its session (no
    unlock: it can't send). It is a request like the others: single-use, 10 minutes, signed with the send key over
    every field and over who, at most three waiting at once. The site makes a fresh card id for it.
@@ -259,7 +259,7 @@ never on a public surface, and nothing sends without his confirmation of the exa
    that handle, else a one-to-one chat Messages already has with it (an address exactly, a number by its last 10
    digits, iMessage before SMS), else a new iMessage chat **only** for an address or a number saved in full
    international form (`+` and the country code). No country code is ever added: a number saved without one that
-   Messages has no chat with is a "nochat" card, and Nikita texts that one himself. A choice that can't be reached
+   Messages has no chat with is a "nochat" card, and Nikita texts that one themselves. A choice that can't be reached
    this way is left off the choices.
 4. **The card.** The list carries the card to the Desk: the contact's name, `ending 0123` (the number's last 4 digits)
    or `r•••@e•••.com`, the channel and the full text. It shows in Skippy's chat with Send, Edit and Cancel. An edit
@@ -277,12 +277,12 @@ never on a public surface, and nothing sends without his confirmation of the exa
    with a "?", "to", "instead", "myself" or "I'll" in it, so "Did you send it?" or "Send it to Sam instead" never
    count), said after Skippy was handed that very version to read and within 2 minutes of it, with the send itself
    within 2 minutes of the yes (`saidSend`, `confirmed` in `apps/world/src/desk/texts/compose.ts`). Only the card the
-   call is on takes it. Or after his tap. An edit (`edit_text`) is a new version: read again, asked again. A locked
+   call is on takes it. Or after their tap. An edit (`edit_text`) is a new version: read again, asked again. A locked
    device says so and waits for the passkey.
 
 What this adds to each boundary:
 
-- **Skippy's chat model** (Claude, the Desk's own chat) sees Nikita's ask as he typed it, as any ask; Skippy never
+- **Skippy's chat model** (Claude, the Desk's own chat) sees Nikita's ask as they typed it, as any ask; Skippy never
   sees the contact's details, Blasto's draft or the card.
 - **On a Talk call, ElevenLabs** (the call's speech and its agent model) hears the ask and gets the card's name, mask
   and text from the browser so Skippy can read them aloud. Skippy's agent and every submind's are set to
@@ -437,8 +437,8 @@ Run by `npm test`:
   `apps/hub/src/hub.test.ts` (the contact is found on the Mac without guessing; the snippet holds no name or number;
   the card shows the last 4 digits only; money, legal, codes and the skip list get no call; a card sends once, through
   `act`, with the text on screen; a resend after it went is refused; no log line names anything),
-  `apps/world/src/desk/texts/compose.test.ts` (a spoken send counts only from Nikita's own words for the version he
-  was read; an edit asks again; the unlock is needed), `api/skippy.test.ts` (the text action, never logged, the rules
+  `apps/world/src/desk/texts/compose.test.ts` (a spoken send counts only from Nikita's own words for the version
+  they heard read; an edit asks again; the unlock is needed), `api/skippy.test.ts` (the text action, never logged, the rules
   in the chat) and `api/_skippy/voicetools.test.ts` (the texting tools run in the browser and only Skippy has them).
 - **`apps/hub/src/install.test.ts`** runs `relay wipe` and `relay wipe --verify` on a made-up home folder with
   macOS's commands stubbed: every file, the job, the four Keychain items and the PATH line go, and the check passes.

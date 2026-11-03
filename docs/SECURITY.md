@@ -261,8 +261,10 @@ When a submind's thread needs something set up only Nikita can allow (#324; [SKI
 
 ## The email agent
 
-Relay's email agent (#263, [GMAIL.md](GMAIL.md)) runs only on the Azure copy. It reads Gmail with the read-only
-scope (`gmail.readonly`), so nothing can be sent, archived or deleted. The refresh token and the private mail list
+Relay's email agent (#263, [GMAIL.md](GMAIL.md)) runs only on the Azure copy. It reads Gmail with
+`gmail.readonly` and, since #615, may send with `gmail.send`, so nothing can be archived, labelled or deleted. A send
+is only the reply on screen, after Nikita's yes and a 5-second undo, bound to that draft, single-use and capped
+(GMAIL.md, "Sending a reply"). The refresh token and the private mail list
 are sealed (AES-256-GCM, `GMAIL_TOKEN_KEY`) in the private store; the list reaches only the Desk's passkey session and
 is masked by Hide; the public site gets counts and states only (`EmailStatus`, an allowlist with a test). Mail is
 untrusted input to Claude: fenced as data, no tools, structured output checked in code. Connect Gmail is the OAuth

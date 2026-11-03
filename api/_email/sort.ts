@@ -22,6 +22,8 @@ import { ADVISE_MAX_TOKENS, ADVISE_MODEL, SORT_MAX_TOKENS, SORT_MODEL, type Emai
 import { plainMail, type MailForSort } from "./gmail.js";
 
 import { automatedMail, type HeadsUpReason } from "./filter.js";
+import { styleNotes } from "./reply.js";
+import type { StyleProfile } from "./types.js";
 
 /** "fyi" is the Can wait tier on the Desk; "applied" is a plain job-application confirmation (counted, never an item). */
 export type SortKind = "needs-you" | "fyi" | "noise" | "skip" | "applied";
@@ -185,8 +187,8 @@ export async function sortMail(call: ClaudeCall, mail: MailForSort, priorities =
   return { sorted: readSorted(answer), usage };
 }
 
-export async function adviseMail(call: ClaudeCall, mail: MailForSort): Promise<{ advice: Advice | null; usage: Usage }> {
-  const { answer, usage } = await call({ model: ADVISE_MODEL, system: ADVISE_SYSTEM, user: mailInput(mail), schema: ADVISE_SCHEMA, maxTokens: ADVISE_MAX_TOKENS });
+export async function adviseMail(call: ClaudeCall, mail: MailForSort, style: StyleProfile | null = null): Promise<{ advice: Advice | null; usage: Usage }> {
+  const { answer, usage } = await call({ model: ADVISE_MODEL, system: ADVISE_SYSTEM + styleNotes(style), user: mailInput(mail), schema: ADVISE_SCHEMA, maxTokens: ADVISE_MAX_TOKENS });
   return { advice: readAdvice(answer), usage };
 }
 

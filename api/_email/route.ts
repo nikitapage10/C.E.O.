@@ -9,6 +9,11 @@
  *          "connect"     → { url }: Google's consent page for gmail.readonly, and a short state cookie (below)
  *          "disconnect"  → forgets the token (and asks Google to revoke it) and clears the private list
  *          "done", id    → marks one mail handled
+ *          "undone", id  → takes Done back (the Thread's Undo, #615)
+ *          "reply", id, said   → Blasto's draft from Nikita's few words (./reply.ts), on the agent's own cap → { draft }
+ *          "block" | "filter", id → a sender rule from that mail's sender (address) or domain → { rule }
+ *          "unblock", rule     → takes a rule back
+ *          "learn-style"       → reads a sample of his own sent mail once and keeps a few style traits → { style }
  *   GET  /api/gmail-callback      where Google sends the browser back with a one-time code
  *
  * The OAuth state (CSRF): "connect" makes 24 random bytes, sends them to Google as `state`, and sets them in a signed,
@@ -33,7 +38,13 @@ import { emptyEmailStatus, type EmailStatus } from "./status.js";
 import { pickEmailStore, type EmailStore } from "./store.js";
 import { markDone, mountainDay, statusOf } from "./tick.js";
 import { monthOf } from "../_world/budget.js";
-import { emptyEmailState, type EmailView } from "./types.js";
+import { emptyEmailState, type EmailItem, type EmailState, type EmailView } from "./types.js";
+import { accessToken, TokenRefusedError } from "./gmail.js";
+import { skipTermsFrom } from "./filter.js";
+import { claudeCall, type ClaudeCall } from "./sort.js";
+import { cleanSaid, gmailSent, learnStyle, MAX_RULES, replyFromWords, RULE_ID, ruleFrom, sentSample, type SentReader } from "./reply.js";
+import { addSpend, ADVISE_MODEL, canSpend } from "./budget.js";
+import { privateParts } from "../_privacy.js";
 
 export const EMAIL_PATH = "/api/email";
 export const CALLBACK_PATH = "/api/gmail-callback";
@@ -58,6 +69,11 @@ export interface EmailRouteDeps {
   budget: number;
   fetcher: Fetcher;
   now: number;
+  /** Claude for the Thread's replies and the style (#615); null or left out without a key. */
+  call?: ClaudeCall | null;
+  skipTerms?: readonly string[];
+  /** Reads Nikita's sent mail for the style; left out, the live Gmail reader on the stored token. */
+  sent?: () => Promise<SentReader>;
 }
 
 /** The OAuth client from the settings, or null. */
@@ -90,8 +106,24 @@ export function liveRouteDeps(env: Env = process.env): EmailRouteDeps {
     budget: emailBudget(env.EMAIL_BUDGET_USD),
     fetcher: (url, init) => fetch(url, init),
     now: Date.now(),
+    call: claudeCall(env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY || ""),
+    skipTerms: skipTermsFrom(env.EMAIL_SKIP_TERMS),
   };
 }
+
+/** One change to the state, saved against its version, retried once on a lost race; the change's answer, or null. */
+async function change<T>(store: EmailStore, fn: (s: EmailState) => { state: EmailState; out: T } | null): Promise<T | null> {
+  for (let i = 0; i < 2; i++) {
+    const { state, version } = await store.load();
+    const got = fn(state);
+    if (!got) return null;
+    if (await store.save(got.state, version)) return got.out;
+  }
+  return null;
+}
+
+/** An item as the Desk sees it: the sender keys stay on the server. */
+const forDesk = ({ senderKey: _a, domainKey: _b, ...rest }: EmailItem) => rest;
 
 function json(body: unknown, status = 200): Response {
   // Mail is private: never cached by the edge or the browser.
@@ -157,7 +189,10 @@ export async function GET(request: Request, deps: EmailRouteDeps = liveRouteDeps
       ok: true,
       status,
       canConnect: deps.client !== null && deps.store !== null,
-      items: state.items,
+      items: state.items.map(forDesk),
+      rules: state.rules.map(({ id, kind, label, at }) => ({ id, kind, label, at })),
+      ruled: state.ruled.day === mountainDay(deps.now) ? Math.min(9_999, state.ruled.count) : 0,
+      style: state.style,
       applied: state.applied.month === monthOf(deps.now) ? Math.min(9_999, state.applied.count) : 0,
       urgentSkipped: state.day.day === mountainDay(deps.now) ? Math.min(9_999, state.day.urgent) : 0,
       spend: { usd: Math.round(monthSpend(state, deps.now).usd * 10_000) / 10_000, budget: deps.budget },
@@ -211,7 +246,112 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
     return withCookie(json({ ok }), signed);
   }
 
-  return withCookie(json({ error: "bad-request" }, 400), signed);
+  const reply = (body: unknown, status = 200) => withCookie(json(body, status), signed);
+  const okId = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{6,32}$/.test(v);
+  const saveStatus = async () => {
+    const { state } = await store.load();
+    await store.saveStatus(statusOf(state, { ready: deps.client !== null, claude: deps.claude, budget: deps.budget, now: deps.now })).catch(() => undefined);
+  };
+
+  if (body.action === "undone") {
+    if (!okId(body.id)) return reply({ error: "bad-request" }, 400);
+    const id = body.id;
+    const ok = await change(store, (s) => (s.items.some((x) => x.id === id) ? { state: { ...s, items: s.items.map((x) => (x.id === id ? { ...x, done: false } : x)) }, out: true } : null));
+    if (ok) await saveStatus();
+    return reply({ ok: Boolean(ok) });
+  }
+
+  if (body.action === "reply") {
+    const b = body as { id?: unknown; said?: unknown };
+    const said = cleanSaid(b.said);
+    if (!okId(b.id) || !said) return reply({ error: "bad-request" }, 400);
+    // His words go to Claude: never a number, an address, a card or a key (a name is fine in a reply).
+    if (privateParts(said).some((k) => k !== "name")) return reply({ error: "private" }, 422);
+    if (!deps.call) return reply({ error: "not-set-up" }, 503);
+    const { state } = await store.load();
+    const item = state.items.find((x) => x.id === b.id && !x.done && x.kind !== "noise");
+    if (!item) return reply({ error: "no-item" }, 404);
+    if (!canSpend(state, ADVISE_MODEL, deps.budget, deps.now)) return reply({ error: "cap" }, 429);
+    let got: Awaited<ReturnType<typeof replyFromWords>>;
+    try {
+      got = await replyFromWords(deps.call, item, said, state.style);
+    } catch {
+      return reply({ error: "claude" }, 502);
+    }
+    const draft = got.draft;
+    await change(store, (s) => ({ state: { ...addSpend(s, ADVISE_MODEL, got.usage, deps.now), items: draft ? s.items.map((x) => (x.id === item.id ? { ...x, draft, said } : x)) : s.items }, out: true }));
+    return draft ? reply({ ok: true, draft, said }) : reply({ error: "claude" }, 502);
+  }
+
+  if (body.action === "block" || body.action === "filter") {
+    const kind = body.action;
+    if (!okId(body.id)) return reply({ error: "bad-request" }, 400);
+    const id = body.id;
+    const rule = await change(store, (s) => {
+      const item = s.items.find((x) => x.id === id);
+      const r = item ? ruleFrom(item, kind, deps.now) : null;
+      if (!r) return null;
+      const rules = [...s.rules.filter((x) => !(x.kind === r.kind && x.key === r.key)), r].slice(-MAX_RULES);
+      // What the rule covers leaves the list now, marked done so Undo can bring it back.
+      const covered = (x: EmailItem) => (kind === "block" ? x.senderKey === r.key : x.domainKey === r.key);
+      return { state: { ...s, rules, items: s.items.map((x) => (covered(x) ? { ...x, done: true } : x)) }, out: r };
+    });
+    if (!rule) return reply({ error: "no-key" }, 409);
+    await saveStatus();
+    return reply({ ok: true, rule: { id: rule.id, kind: rule.kind, label: rule.label, at: rule.at } });
+  }
+
+  if (body.action === "unblock") {
+    const rid = (body as { rule?: unknown }).rule;
+    if (typeof rid !== "string" || !RULE_ID.test(rid)) return reply({ error: "bad-request" }, 400);
+    const ok = await change(store, (s) => {
+      const r = s.rules.find((x) => x.id === rid);
+      if (!r) return null;
+      // Undo brings back what the rule took off the list just now (the last ten minutes).
+      const back = (x: EmailItem) => x.done && deps.now - r.at < 10 * 60_000 && (r.kind === "block" ? x.senderKey === r.key : x.domainKey === r.key);
+      return { state: { ...s, rules: s.rules.filter((x) => x.id !== rid), items: s.items.map((x) => (back(x) ? { ...x, done: false } : x)) }, out: true };
+    });
+    if (ok) await saveStatus();
+    return reply({ ok: Boolean(ok) });
+  }
+
+  if (body.action === "learn-style") {
+    if (!deps.call) return reply({ error: "not-set-up" }, 503);
+    const { state } = await store.load();
+    if (!canSpend(state, ADVISE_MODEL, deps.budget, deps.now)) return reply({ error: "cap" }, 429);
+    let reader: SentReader;
+    try {
+      reader = deps.sent ? await deps.sent() : await liveSent(deps, store);
+    } catch (e) {
+      return reply({ error: e instanceof TokenRefusedError ? "refused" : "gmail" }, 502);
+    }
+    let sample: string[];
+    try {
+      sample = await sentSample(reader, deps.skipTerms ?? []);
+    } catch {
+      return reply({ error: "gmail" }, 502);
+    }
+    if (sample.length < 3) return reply({ error: "too-few" }, 409);
+    let got: Awaited<ReturnType<typeof learnStyle>>;
+    try {
+      got = await learnStyle(deps.call, sample);
+    } catch {
+      return reply({ error: "claude" }, 502);
+    }
+    const style = got.traits.length ? { traits: got.traits, from: sample.length, at: deps.now } : null;
+    await change(store, (s) => ({ state: { ...addSpend(s, ADVISE_MODEL, got.usage, deps.now), ...(style && { style }) }, out: true }));
+    return style ? reply({ ok: true, style }) : reply({ error: "claude" }, 502);
+  }
+
+  return reply({ error: "bad-request" }, 400);
+}
+
+/** The live sent-mail reader: a fresh access token from the stored refresh token. */
+async function liveSent(deps: EmailRouteDeps, store: EmailStore): Promise<SentReader> {
+  const token = await store.token();
+  if (!token || !deps.client) throw new Error("not connected");
+  const access = await accessToken(deps.fetcher, deps.client, token.refresh);
+  return gmailSent(deps.fetcher, access);
 }
 
 /** Google's redirect back: check the state, trade the code, seal the token, send the browser to the Relay page. */

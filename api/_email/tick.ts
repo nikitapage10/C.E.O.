@@ -25,6 +25,7 @@ import { monthOf } from "../_world/budget.js";
 import { addSpend, ADVISE_MODEL, budgetPct, canSpend, SORT_MODEL } from "./budget.js";
 import { onSkipList, preFilter, selfSent, storedMailSkipped, storedNotAction } from "./filter.js";
 import { accessToken, catchUpIds, currentHistoryId, fullBody, historySince, HistoryGoneError, lastHistoryId, newInboxIds, ownAddress, readMessage, readMessageRaw, threadStarter, TokenRefusedError, type Fetcher, type OAuthClient } from "./gmail.js";
+import { itemRuled, keysOf, ruleFor } from "./reply.js";
 import { adviseMail, NO_ACTION, oneLine, sortMail, type ClaudeCall } from "./sort.js";
 import { EMAIL_STATUS_VERSION, type EmailStatus } from "./status.js";
 import type { EmailStore } from "./store.js";
@@ -50,6 +51,8 @@ export interface TickDeps {
    * mail to himself is noise, and a thread he started is forced to needs-you (#522).
    */
   priority?: string;
+  /** The key the sender rules' hashes are made under (GMAIL_TOKEN_KEY, #615, ./reply.ts); "" keeps no keys. */
+  senderSecret?: string;
   /** Sends one ping to every device that turned pings on; how many took it. */
   ping: (text: PingText) => Promise<number>;
 }
@@ -128,7 +131,13 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: Sor
   const noise = (st: EmailState) => ({ state: { ...st, day: { ...st.day, noise: st.day.noise + 1 } }, item: null, claudeFailed: false });
   // Mail Nikita sends to himself is noise, before any model (#522).
   if (priority && selfSent(mail, ctx.own)) return noise(s);
-  const base: EmailItem = { id: mail.id, at: mail.at, from: mail.from, subject: mail.subject, kind: "unsorted", summary: "", action: "", done: false };
+  // Nikita's own sender rules (#615): after the money and legal rules, before any model. Counted as filtered, kept as nothing.
+  const keys = keysOf(deps.senderSecret ?? "", mail);
+  if (ruleFor(s.rules, keys)) {
+    const day = mountainDay(deps.now);
+    return { state: { ...s, day: { ...s.day, noise: s.day.noise + 1 }, ruled: { day, count: (s.ruled.day === day ? s.ruled.count : 0) + 1 } }, item: null, claudeFailed: false };
+  }
+  const base: EmailItem = { id: mail.id, at: mail.at, from: mail.from, subject: mail.subject, kind: "unsorted", summary: "", action: "", done: false, ...keys };
   if (!deps.claude || !canSpend(s, SORT_MODEL, deps.budget, deps.now)) {
     // Paused (or no key): counted, not read by a model.
     return { state: { ...s, unsorted: s.unsorted + 1 }, item: base, claudeFailed: false };
@@ -155,7 +164,7 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: Sor
     if (sorted.kind === "noise" || (sorted.kind === "fyi" && !priority)) return noise(s);
     const item: EmailItem = { ...base, kind: sorted.kind as EmailKind, summary: sorted.summary, action: sorted.action };
     if (sorted.kind !== "needs-you" || !canSpend(s, ADVISE_MODEL, deps.budget, deps.now)) return { state: s, item, claudeFailed: false };
-    const { advice, usage: u2 } = await adviseMail(deps.claude, mail);
+    const { advice, usage: u2 } = await adviseMail(deps.claude, mail, s.style);
     s = addSpend(s, ADVISE_MODEL, u2, deps.now);
     return { state: s, item: advice ? { ...item, advice: advice.advice, ...(advice.draft && { draft: advice.draft }) } : item, claudeFailed: !advice };
   } catch {
@@ -165,7 +174,7 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: Sor
 
 /** The state without any kept item the skip list or the money and legal filter would skip today (#415). */
 export function purgeItems(state: EmailState, terms: readonly string[], keepFyi = false): EmailState {
-  const items = state.items.filter((i) => !storedMailSkipped(terms, i) && !storedNotAction(i, keepFyi));
+  const items = state.items.filter((i) => !storedMailSkipped(terms, i) && !storedNotAction(i, keepFyi) && !itemRuled(state.rules, i));
   return items.length === state.items.length ? state : { ...state, items };
 }
 
@@ -319,8 +328,18 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
   for (let i = 0; i < 2 && !saved; i++) {
     const current = await deps.store.load().catch(() => null);
     if (!current) break;
-    const doneNow = new Set(current.state.items.filter((x) => x.done).map((x) => x.id));
-    const merged = { ...state, items: state.items.map((x) => (doneNow.has(x.id) ? { ...x, done: true } : x)) };
+    // The Desk's own changes while this tick ran win: Done, a draft from Nikita's words, the sender rules, the style (#615).
+    const desk = new Map(current.state.items.map((x) => [x.id, x]));
+    const merged: EmailState = {
+      ...state,
+      rules: current.state.rules,
+      style: current.state.style,
+      items: state.items.map((x) => {
+        const c = desk.get(x.id);
+        if (!c) return x;
+        return { ...x, ...(c.done && { done: true }), ...(c.said && { said: c.said, ...(c.draft && { draft: c.draft }) }) };
+      }),
+    };
     saved = await deps.store.save(merged, current.version).catch(() => false);
     if (saved) state = merged;
   }

@@ -218,6 +218,12 @@ export async function catchUpIds(fetcher: Fetcher, token: string): Promise<strin
   return out;
 }
 
+/** The ids of Nikita's own sent mail matching `q` (#615, the style profile), newest first: ids only. */
+export async function sentIds(fetcher: Fetcher, token: string, q: string, max: number): Promise<string[]> {
+  const b = (await gmailGet(fetcher, token, "/messages", new URLSearchParams({ q, labelIds: "SENT", maxResults: String(max) }))) as { messages?: { id?: unknown }[] } | null;
+  return (b?.messages ?? []).map((m) => m?.id).filter((id): id is string => typeof id === "string" && MESSAGE_ID.test(id)).slice(0, max);
+}
+
 /** One message, fully. */
 export async function readMessageRaw(fetcher: Fetcher, token: string, id: string): Promise<unknown> {
   if (!MESSAGE_ID.test(id)) throw new Error("not a message id");

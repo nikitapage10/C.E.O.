@@ -89,6 +89,26 @@ multi-line box; about 1.3 KB, 4,096 characters at most). Missing or empty, the a
 
 The list goes to Claude only as part of Dialtone's instructions, never to the public site, and nothing logs it.
 
+## Relay's Thread (#615)
+
+The Desk's Relay page shows one exchange at a time. Three small actions on `POST /api/email` (passkey session only)
+back it, all in `api/_email/reply.ts`:
+
+- **A reply from a few words** (`reply`, id, said): Nikita's words ("tell them Thursday works") and the item the Desk
+  already has (sender, subject, Dialtone's summary, the earlier draft) go to Blasto on Sonnet, fenced as data, under
+  this agent's own cap. The new draft is kept on the item with his words. Never a number, an address, a card or a key
+  in his words (the privacy check refuses them first). Nothing is sent: the scope stays read-only, and an email draft
+  is copied for Gmail.
+- **Sender rules** (`block` / `filter`, id; `unblock`, rule): block matches the sender's address, filter the sender's
+  whole domain. The state keeps only an HMAC of the address or domain (under a key derived from `GMAIL_TOKEN_KEY`)
+  and the display name the Desk showed. The tick counts a ruled sender's new mail as filtered, after the money, legal
+  and skip-list rules and before any model, and keeps nothing of it. Every rule can be taken back.
+- **How Nikita writes** (`learn-style`): on request only, up to 20 of his own sent mails from the last 90 days
+  (money, legal and skip-list mail left out, quoted replies cut) go to Sonnet once, which answers with a few short
+  style traits. Only the traits are kept, never a quote; Blasto's drafts read them.
+
+Sending email from Relay would need the `gmail.send` scope, which this agent refuses today; it is not built.
+
 ## The cap
 
 Its own **$10 a month** (`EMAIL_BUDGET_USD`, an app setting; the template sets 10), separate from the world's,

@@ -78,6 +78,8 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "No more pretend letters. The next one through is real.",
     "The line to the C.E.O.'s world is being strung. Any day now.",
     "Outbox empty. Beacon dark. Waiting, properly.",
+    "Mind the sigils. That brace was going to be somebody's Thursday.",
+    "Every letter forms out of the motes and goes back to them. Nothing is wasted. Ask the semicolons.",
   ],
   archive: [
     "The Syntherion chapter is still blank. Rude.",
@@ -528,6 +530,8 @@ export const AGENT_QUIPS: Record<string, string[]> = {
     "Skippy dictated. Badly. This one has rewritten it in the C.E.O.'s voice. The card awaits the C.E.O.'s word.",
     "Two people answer to that name. This one does not guess at a recipient. This one asks.",
     "One word changed? Then it is a new letter, and this one asks again. That is the law of the tubes.",
+    "Five seconds. This one holds the letter five seconds in case the C.E.O. says undo. This one counts them aloud. Softly.",
+    "The draft gathers out of the sigils. A lambda here, a rune there. It always comes out sounding like the C.E.O.",
   ],
   dialtone: [
     "Please hold. There's nobody on the line yet, but please hold.",

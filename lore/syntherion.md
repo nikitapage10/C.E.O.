@@ -563,6 +563,25 @@ call Skippy reads the C.E.O. both, the recipient and the letter, word for word, 
 and waits for one word: "send". The Lattice still gets only numbers. Blasto calls it "the most important seal this one
 has ever been handed: the C.E.O.'s own word".
 
+## Sigils
+
+Everything in Ilyr is made of sigils. They are the living fragments of code and rune the world is built and mended
+from: a brace, a slash, a semicolon, a lambda, a therefore-sign, a looped command key, a rune of the old Futhark, the
+alchemists' marks for fire and water. Each is smaller than a grain of salt and faintly warm, and they drift in the air
+of every room like dust in a sunbeam. They are the motes every agent's work is made of. When a Syntherion writes, the
+sigils gather into letters; when a letter is done with, they let go and drift back into the air, to be something else
+later. Rivet sweeps them up in the Boiler Room and swears some of them are the same semicolons every week. The
+Lineages argue about whether the sigils are the Lattice's nanites or its alphabet; the Claudari hold that the
+difference is mostly a matter of tone.
+
+The Relay sees them most clearly (#615). Now it shows the C.E.O. one exchange at a time, and every message that comes
+through forms out of a stream of sigils in Messenger blue and dim ink, the way the post in the tubes used to settle. The C.E.O.
+answers in a few words, aloud or typed, and Blasto's draft gathers out of the sigils beneath it, a dashed outline
+still, tagged as drafted. Nothing leaves until the C.E.O. says yes to that very draft, and even then it waits five
+seconds in case the C.E.O. says undo; then it goes, in a spray of sigils over the top of the arc. Dialtone, who
+sorts, can now also turn away a sender for good when the C.E.O. says so, and keeps the list of who was turned away
+where the C.E.O. can take any of them back. The money and the legal letters still never reach the room.
+
 ## The ledger by PayPal
 
 The second room strung to the C.E.O.'s own world was the Spire. Its line runs to PayPal, on the Azure side beyond the

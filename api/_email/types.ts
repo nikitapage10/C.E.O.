@@ -34,8 +34,11 @@ export interface EmailItem {
   /** Keyed hashes of the sender's address and domain, for the sender rules (#615, ./reply.ts). Never sent to the Desk. */
   senderKey?: string;
   domainKey?: string;
-  /** The draft was written from Nikita's own few words (#615): his words, shown beside it on the Desk. */
+  /** The draft was written from Nikita's own few words (#615): their words, shown beside it on the Desk. */
   said?: string;
+  /** A reply is going out (a claim, ms) or went (#615): one send per mail. */
+  sending?: number;
+  sentAt?: number;
 }
 
 /** A sender rule Nikita set on the Desk (#615): "block" matches the address, "filter" the whole domain. */
@@ -49,7 +52,7 @@ export interface FilterRule {
   at: number;
 }
 
-/** How Nikita writes, learned from his sent mail (#615): a few short traits, never a quote. */
+/** How Nikita writes, learned from their sent mail (#615): a few short traits, never a quote. */
 export interface StyleProfile {
   traits: string[];
   /** How many sent mails it was learned from. */
@@ -100,6 +103,8 @@ export interface EmailState {
   /** Mail the rules filtered today (Mountain day), a count. */
   ruled: { day: string; count: number };
   style: StyleProfile | null;
+  /** Replies sent from the Desk today (Mountain day), a count against SEND_DAY_MAX (#615). */
+  sends: { day: string; count: number };
 }
 
 /** The refresh token's record, sealed at rest. */
@@ -107,6 +112,8 @@ export interface TokenRecord {
   refresh: string;
   /** When Gmail was connected (ms). */
   connectedAt: number;
+  /** Nikita granted gmail.send with it (#615): replies can go from the Desk. */
+  send?: boolean;
 }
 
 /** At most this many items, and this many seen ids. */
@@ -120,7 +127,7 @@ export const MAX_PER_TICK = 12;
 export const CATCH_UP_MAX = 24;
 
 export function emptyEmailState(): EmailState {
-  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, applied: { month: "", count: 0 }, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [], rules: [], ruled: { day: "", count: 0 }, style: null };
+  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, applied: { month: "", count: 0 }, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [], rules: [], ruled: { day: "", count: 0 }, style: null, sends: { day: "", count: 0 } };
 }
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
@@ -157,6 +164,10 @@ export function readEmailState(v: unknown): EmailState {
       return { day: str(r.day, 10), count: Math.max(0, Math.floor(num(r.count))) };
     })(),
     style: readStyle(o.style),
+    sends: (() => {
+      const r = (o.sends && typeof o.sends === "object" ? o.sends : {}) as Record<string, unknown>;
+      return { day: str(r.day, 10), count: Math.max(0, Math.floor(num(r.count))) };
+    })(),
     catchUp: Array.isArray(o.catchUp) ? (o.catchUp as unknown[]).filter((s): s is string => typeof s === "string" && /^[0-9a-f]{6,32}$/.test(s)).slice(0, CATCH_UP_MAX) : [],
   };
 }
@@ -195,6 +206,8 @@ function readItem(v: unknown): EmailItem | null {
     ...(typeof o.senderKey === "string" && HEX(32).test(o.senderKey) && { senderKey: o.senderKey }),
     ...(typeof o.domainKey === "string" && HEX(32).test(o.domainKey) && { domainKey: o.domainKey }),
     ...(typeof o.said === "string" && o.said && { said: o.said.slice(0, 400) }),
+    ...(typeof o.sending === "number" && o.sending > 0 && { sending: o.sending }),
+    ...(typeof o.sentAt === "number" && o.sentAt > 0 && { sentAt: o.sentAt }),
   };
 }
 
@@ -216,4 +229,6 @@ export interface EmailView {
   /** Mail the rules filtered today. */
   ruled: number;
   style: StyleProfile | null;
+  /** Gmail was connected with gmail.send: replies can go from the Desk (#615). */
+  canSend: boolean;
 }

@@ -7,7 +7,8 @@
   pointer-events: none;
   z-index: 20;
 }
-.sg-ghost,
-.sg-ghost * {
+[data-sg-ghost],
+[data-sg-ghost] * {
   color: transparent !important;
+  text-shadow: none !important;
 }

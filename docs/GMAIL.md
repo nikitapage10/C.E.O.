@@ -19,11 +19,11 @@ the message, made plain text, links taken out and trimmed to 2,500 characters.
   legal mail the first look missed), with a one-line summary and a suggested next step. Only **needs you** is kept
   (#495): it must name a concrete action Nikita has to take (reply, sign, pay, decide, show up, confirm). Sign-in and
   security alerts, receipts, shipping, notifications and newsletters are FYI and are not kept (counted with the noise),
-  unless the mail genuinely asks him to act ("confirm this sign-in or your account locks"). Automated senders
+  unless the mail genuinely asks them to act ("confirm this sign-in or your account locks"). Automated senders
   (no-reply, notifications, alerts, security, receipts, shipping) and List-Unsubscribe mail are told to Dialtone as
   FYI-by-default. Each tick also drops stored FYI items and automated needs-you items with no explicit ask, free.
 - For **needs-you** mail only, **Blasto** (`claude-sonnet-5-5`) writes two or three sentences of advice and, when a
-  reply makes sense, a short draft for Nikita to copy and send himself.
+  reply makes sense, a short draft for Nikita to copy and send themselves.
 - New needs-you mail **pings the phone** (the Desk's own Web Push pings, `api/_desk/pings.ts`): "An email needs you"
   or "3 emails need you", a count and nothing else, never between 10pm and 7am Mountain (held for the morning).
 - The **Desk's Relay page** shows the needs-you list (sender, subject, summary, step, advice, draft with **Copy draft**,
@@ -39,9 +39,11 @@ the same path over the next minutes, in whatever room each minute's limit of 12 
 what new mail costs, under the same cap; it **never pings** (it isn't new); its queue is message ids only, in the sealed
 state. The Relay page's empty list says it watches mail that arrives after connecting, plus that catch-up.
 
-**Nothing is ever sent, archived, labelled or deleted.** The OAuth scope is `gmail.readonly`, so Gmail itself refuses
-anything else, and the code only makes four kinds of GET (profile, history, the catch-up list, one message). A draft is
-text on the Desk.
+**Nothing is ever archived, labelled or deleted, and nothing is sent without Nikita's yes.** The OAuth grant is
+`gmail.readonly` plus, since #615, `gmail.send` (send only: it can't read, label, archive or delete), so Gmail itself
+refuses anything else. The sorting only ever makes four kinds of GET (profile, history, the catch-up list, one
+message). The one write is a reply Nikita confirmed on the Desk (see "Sending a reply" below). A grant without
+`gmail.send` still works: the agent reads, and a draft is copied for Gmail.
 
 ## What it skips
 
@@ -83,9 +85,9 @@ multi-line box; about 1.3 KB, 4,096 characters at most). Missing or empty, the a
   no Blasto spend). *Noise* (dropped and counted). Without the list, FYI is still dropped as before.
 - **Applications.** A plain "thanks for applying" confirmation leaves no item; it adds to "N applications confirmed",
   counted per month (it restarts each month) and shown only to a signed-in Desk. The public status has no such count.
-- **His own threads.** When the Gmail thread's first message is from his own address (`users.getProfile`, and thread
+- **Their own threads.** When the Gmail thread's first message is from their own address (`users.getProfile`, and thread
   headers only, covered by `gmail.readonly`), a reply is forced to needs you, unless the filters skip it.
-- **Mail to himself** (from and to are his own address) is noise before any model call.
+- **Mail to themselves** (from and to are their own address) is noise before any model call.
 
 The list goes to Claude only as part of Dialtone's instructions, never to the public site, and nothing logs it.
 
@@ -96,18 +98,33 @@ back it, all in `api/_email/reply.ts`:
 
 - **A reply from a few words** (`reply`, id, said): Nikita's words ("tell them Thursday works") and the item the Desk
   already has (sender, subject, Dialtone's summary, the earlier draft) go to Blasto on Sonnet, fenced as data, under
-  this agent's own cap. The new draft is kept on the item with his words. Never a number, an address, a card or a key
-  in his words (the privacy check refuses them first). Nothing is sent: the scope stays read-only, and an email draft
-  is copied for Gmail.
+  this agent's own cap. The new draft is kept on the item with their words. Never a number, an address, a card or a key
+  in their words (the privacy check refuses them first). Writing a draft never sends it.
 - **Sender rules** (`block` / `filter`, id; `unblock`, rule): block matches the sender's address, filter the sender's
   whole domain. The state keeps only an HMAC of the address or domain (under a key derived from `GMAIL_TOKEN_KEY`)
   and the display name the Desk showed. The tick counts a ruled sender's new mail as filtered, after the money, legal
   and skip-list rules and before any model, and keeps nothing of it. Every rule can be taken back.
-- **How Nikita writes** (`learn-style`): on request only, up to 20 of his own sent mails from the last 90 days
+- **How Nikita writes** (`learn-style`): on request only, up to 20 of their own sent mails from the last 90 days
   (money, legal and skip-list mail left out, quoted replies cut) go to Sonnet once, which answers with a few short
   style traits. Only the traits are kept, never a quote; Blasto's drafts read them.
 
-Sending email from Relay would need the `gmail.send` scope, which this agent refuses today; it is not built.
+### Sending a reply
+
+`send`, id, draft: the reply goes out on the mail's own thread (`In-Reply-To` and `References` from the mail's
+`Message-ID`, Gmail's `threadId`), to its `Reply-To` or else its `From`, plain text. The guard rails, each in code and
+each tested (`api/_email/thread.test.ts`):
+
+- **Only on Nikita's yes.** The Desk calls it only after a spoken "yes" or a tap on the item in focus, with its draft on
+  screen, and only once the 5-second Undo window has passed. Nothing auto-sends.
+- **Only the draft on screen.** The request carries the draft's text; the server sends it only when it equals the draft
+  it keeps for that item (`changed`, 409, otherwise).
+- **Single use.** The item is claimed (`sending`) before Gmail is called; a sent item is done and keeps `sentAt`, so a
+  second yes finds nothing to send.
+- **Counted against the agent's cap.** At most 40 sends a Mountain day, and none once the month's $10 cap is spent
+  (`cap`, 429).
+- **Needs the grant.** Without `gmail.send` in the stored grant the answer is `no-send` (403), and the Desk shows
+  Copy and Open in Gmail with a quiet "Reconnect Gmail to send from here".
+- Header values from the mail are stripped of line breaks before they are reused; the body is base64 UTF-8.
 
 ## The cap
 
@@ -156,10 +173,11 @@ role: everything else in the vault stays **Key Vault Secrets User** (read) for t
 The **Connect Gmail** button on the Relay page works only in the passkey session. It asks `POST /api/email
 {action:"connect"}`, which makes a random state, sets it in a signed, HttpOnly, Secure, SameSite=Lax `__Host-` cookie
 good for ten minutes (naming the passkey that asked), and sends the browser to Google's consent page for
-`gmail.readonly` with `access_type=offline` and `prompt=consent`. Google sends the browser back to
+`gmail.readonly` and `gmail.send` with `access_type=offline` and `prompt=consent`. Google sends the browser back to
 `/api/gmail-callback`, behind the site gate, which takes the code only when the cookie is ours, unexpired, its passkey
 still enrolled, and its value equals `state` (constant-time). The code is traded for tokens server-side; a grant
-wider than read-only is refused. The browser never sees a token.
+must hold `gmail.readonly`, may hold `gmail.send`, and anything wider (modify, labels, full mail) is refused. Whether
+send was granted is kept beside the sealed token. The browser never sees a token.
 
 ## Setup for Nikita (from the PC's browser)
 
@@ -178,8 +196,9 @@ About ten minutes. Signed in to Google as the Gmail account Relay should read, a
    - Tick **I agree to the Google API Services: User Data Policy** → **Continue** → **Create**.
 5. **Add yourself as a test user.** Left menu of that page → **Audience** → under **Test users**, **+ Add users** →
    your Gmail address → **Save**. Leave **Publishing status** on **Testing**.
-6. **The scope.** Left menu → **Data Access** → **Add or remove scopes** → in the filter type `gmail.readonly` → tick
-   the row `.../auth/gmail.readonly` ("View your email messages and settings") → **Update** → **Save**.
+6. **The scopes.** Left menu → **Data Access** → **Add or remove scopes** → in the filter type `gmail.readonly` → tick
+   the row `.../auth/gmail.readonly` ("View your email messages and settings"); then filter `gmail.send` → tick
+   `.../auth/gmail.send` ("Send email on your behalf") → **Update** → **Save**.
 7. **The OAuth client.** Left menu → **Clients** → **+ Create client**.
    - Application type: **Web application**. Name: `C.E.O. Azure`.
    - **Authorized redirect URIs** → **+ Add URI** →
@@ -222,9 +241,26 @@ references (`infra/resources.bicep`, `secrets`, and `emailBudgetUsd`), so nothin
 1. Wait for the pull request to merge and **Deploy to Azure** to finish (Actions tab, 3 to 4 minutes).
 2. Open <https://ceo.nikita.page/relay> (or the azurestaticapps.net address) and sign in with your passkey.
 3. In the **Email** section, press **Connect Gmail** → pick your Gmail account → if Google says the app isn't
-   verified, **Continue** → tick **View your email messages and settings** → **Continue**.
+   verified, **Continue** → tick **View your email messages and settings** (and **Send email on your behalf**, to
+   send replies from Relay) → **Continue**.
 4. Back on Relay it says **"Gmail is connected"**. Unread mail from the last two days is caught up over the next few
    minutes, and every new email shows within about a minute.
+
+### 5. Sending from Relay (once, when Gmail was connected before #615)
+
+A grant from before #615 is read-only, so Relay offers Copy and Open in Gmail with a quiet "Reconnect Gmail to send
+from here". To turn sending on:
+
+1. Google Cloud Console → the `CEO Relay` project → **APIs & Services** → **OAuth consent screen** → **Data Access**
+   → **Add or remove scopes** → filter `gmail.send` → tick `.../auth/gmail.send` ("Send email on your behalf") →
+   **Update** → **Save**. It is a restricted scope; while the app stays in **Testing** with you as the test user, no
+   Google review is needed.
+2. On <https://ceo.nikita.page/relay>, signed in: **Open the codex** → **Gmail** → **Reconnect Gmail**.
+3. On Google's page, **Continue** past "isn't verified", tick both **View your email messages and settings** and
+   **Send email on your behalf** → **Continue**.
+4. Back on Relay, an email's "Yes" now sends the reply on its thread after the 5-second Undo.
+
+Unticking send on Google's page keeps Relay read-only; it still works, with Copy and Open in Gmail.
 
 For pings on the phone, turn on **Pings on this device** on the Azure Desk (Foundry tab) on the phone, as in
 SECURITY.md, "Pings on the phone": the Azure copy has its own subscriptions.
@@ -240,7 +276,7 @@ mail stays inside its blocks, the models are told it's data, schemas are closed,
 budget stop (no Claude past the cap, mail still counted, the status says paused); privacy (the public status and the
 world feed's `email` carry no subject or sender; the private list needs the passkey; sealed blobs are unreadable
 without the key); the OAuth state check (only our signed, unexpired state for the same nonce; the callback stores
-nothing on a mismatch; a grant wider than read-only is refused); the skip rules (the private skip list, the money and
+nothing on a mismatch; a grant wider than read and send is refused; whether send was granted is kept); the skip rules (the private skip list, the money and
 legal pre-filter, the urgent count with nothing kept, the purge of stored items, Dialtone's skip, and nothing stored for skipped mail); the
 catch-up (queued once, drained within the per-minute limit, never pinged, re-armed by a reconnect); and that a whole
 minute logs nothing.

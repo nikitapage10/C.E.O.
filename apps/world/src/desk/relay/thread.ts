@@ -5,7 +5,7 @@ import type { RelayStatus } from "@ceo/core";
 /**
  * Relay's Thread (#615), the logic with no DOM: one exchange at a time, from the two live lines.
  *
- *   queueOf      the email that needs Nikita (Gmail, #263) and the texts he owes (the Mac hub, #535), as one queue of
+ *   queueOf      the email that needs Nikita (Gmail, #263) and the texts they owe (the Mac hub, #535), as one queue of
  *                exchanges, the ones to answer sooner and the longest waiting first; skipped ones go to the back.
  *   commandOf    what a spoken or typed line means: yes, no, skip, later, change it, filter these out, block this
  *                sender, undo, or (anything else) words for a reply.
@@ -14,8 +14,11 @@ import type { RelayStatus } from "@ceo/core";
  *   undoable     a send waits UNDO_MS before it goes; Undo in that window and nothing is sent.
  *   metricsOf    the four numbers under the stage.
  *
+ *   pendingOf    the Open the codex dashboard: counts by line, who has waited longest, and what is high priority.
+ *
  * Nothing here sends. The page asks the existing endpoints: a text's send is the texts line's send request (the
- * device's 72-hour passkey unlock, single-use, bound to the draft on screen); email stays read-only.
+ * device's 72-hour passkey unlock, single-use, bound to the draft on screen); an email's is /api/email's send (only
+ * with Gmail's send grant, single-use, bound to the draft on screen), and without that grant it is copied for Gmail.
  */
 
 export type Line = "email" | "text";
@@ -46,7 +49,9 @@ export interface Exchange {
   said: string;
   sooner: boolean;
   later: boolean;
-  /** Only a one-to-one text can be sent from here; email is read-only (Gmail's scope), groups are never drafted for. */
+  /** Dialtone put it in the needs-you tier (email); a text is owed either way. */
+  needsYou: boolean;
+  /** A one-to-one text can be sent from here; an email only once Gmail granted send; groups are never drafted for. */
   sendable: boolean;
 }
 
@@ -55,20 +60,20 @@ const firstName = (who: string) => who.trim().split(/\s+/)[0] || who;
 /** The letter on an avatar. */
 export const initialOf = (who: string) => (who.trim()[0] ?? "?").toUpperCase();
 
-/** One email item as an exchange. */
-export function fromEmail(i: EmailItem): Exchange {
-  return { key: `e:${i.id}`, line: "email", id: i.id, who: i.from || "Unknown sender", channel: "Email", at: i.at, subject: i.subject, body: i.summary || i.subject, action: i.action, advice: i.advice ?? "", draft: i.draft ?? null, draftAt: 0, said: i.said ?? "", sooner: false, later: false, sendable: false };
+/** One email item as an exchange; sendable only when Gmail granted send. */
+export function fromEmail(i: EmailItem, canSend = false): Exchange {
+  return { key: `e:${i.id}`, line: "email", id: i.id, who: i.from || "Unknown sender", channel: "Email", at: i.at, subject: i.subject, body: i.summary || i.subject, action: i.action, advice: i.advice ?? "", draft: i.draft ?? null, draftAt: 0, said: i.said ?? "", sooner: false, later: false, needsYou: i.kind === "needs-you", sendable: canSend };
 }
 
 /** One text thread as an exchange. */
 export function fromText(i: TextItem): Exchange {
-  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", sendable: !i.group };
+  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group };
 }
 
-/** The queue: email that needs Nikita and texts he owes (not groups, not settled), sooner first, then oldest; skipped and later at the back. */
-export function queueOf(email: EmailItem[] | undefined, texts: TextItem[] | undefined, skipped: readonly string[] = []): Exchange[] {
+/** The queue: email that needs Nikita and texts they owe (not groups, not settled), sooner first, then oldest; skipped and later at the back. */
+export function queueOf(email: EmailItem[] | undefined, texts: TextItem[] | undefined, skipped: readonly string[] = [], canSend = false): Exchange[] {
   const all = [
-    ...(email ?? []).filter((i) => !i.done && (i.kind === "needs-you" || i.kind === "unsorted")).map(fromEmail),
+    ...(email ?? []).filter((i) => !i.done && (i.kind === "needs-you" || i.kind === "unsorted")).map((i) => fromEmail(i, canSend)),
     ...(texts ?? []).filter((i) => !i.group && i.state !== "settled").map(fromText),
   ];
   const back = (x: Exchange) => {
@@ -119,11 +124,11 @@ export type Phase =
   | "empty"
   /** An exchange on screen with no draft yet: Nikita answers in a few words, or skips. */
   | "incoming"
-  /** His words went to Blasto; the draft is on its way. */
+  /** Their words went to Blasto; the draft is on its way. */
   | "drafting"
   /** A draft on screen and "Send to X?". */
   | "ask"
-  /** He said yes: the send waits UNDO_MS, Undo takes it back. */
+  /** They said yes: the send waits UNDO_MS, Undo takes it back. */
   | "undo"
   /** Gone to the line; the next exchange comes up. */
   | "sent";
@@ -248,4 +253,51 @@ export const lastRequest = (requests: TextRequestView[] | undefined, thread: str
 export function agoShort(ms: number): string {
   const m = Math.max(1, Math.round(ms / 60_000));
   return m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`;
+}
+
+/* ── Open the codex: the dashboard ── */
+
+/** Waiting this long is overdue, whatever the tier. */
+export const OVERDUE_MS = 24 * 3_600_000;
+
+export type Why = "sooner" | "needs-you" | "overdue";
+
+export interface Pending {
+  /** Waiting on Nikita, by line; null when that line isn't readable (signed out uses the public counts). */
+  texts: number | null;
+  email: number | null;
+  /** Oldest first, with how long. */
+  longest: { ex: Exchange; waited: number }[];
+  /** The needs-you tier and the urgency signals: Dialtone's "sooner", the needs-you tier, waiting past a day. */
+  high: { ex: Exchange; why: Why[] }[];
+}
+
+/**
+ * The dashboard's three sections from the queue. High priority says only why in Relay's own words ("sooner",
+ * "needs you", "waiting 2 d"): never which line of the private priority list put a mail there.
+ */
+export function pendingOf(queue: Exchange[] | null, now: number, fallback: { email: number | null; texts: number | null } = { email: null, texts: null }, n = 6): Pending {
+  if (!queue) return { texts: fallback.texts, email: fallback.email, longest: [], high: [] };
+  const longest = [...queue]
+    .sort((a, b) => a.at - b.at)
+    .slice(0, n)
+    .map((ex) => ({ ex, waited: Math.max(0, now - ex.at) }));
+  const high = queue
+    .map((ex) => {
+      const why: Why[] = [];
+      if (ex.sooner) why.push("sooner");
+      if (ex.line === "email" && ex.needsYou) why.push("needs-you");
+      if (now - ex.at > OVERDUE_MS) why.push("overdue");
+      return { ex, why };
+    })
+    .filter((h) => h.why.length > 0)
+    .sort((a, b) => Number(b.why.includes("sooner")) - Number(a.why.includes("sooner")) || b.why.length - a.why.length || a.ex.at - b.ex.at)
+    .slice(0, n);
+  return { texts: queue.filter((x) => x.line === "text").length, email: queue.filter((x) => x.line === "email").length, longest, high };
+}
+
+/** The checks a draft passed, shown ticking between Nikita's words and the draft: the learned style first. */
+export function passesOf(ex: Exchange, traits: readonly string[] | null): string[] {
+  const own = ex.line === "email" && traits?.length ? traits.slice(0, 4) : [];
+  return [...own, ...(own.length ? [] : ["in your voice"]), ex.line === "email" ? "under 120 words" : "one text", "nothing made up"];
 }

@@ -574,13 +574,18 @@ later. Rivet sweeps them up in the Boiler Room and swears some of them are the s
 Lineages argue about whether the sigils are the Lattice's nanites or its alphabet; the Claudari hold that the
 difference is mostly a matter of tone.
 
-The Relay sees them most clearly (#615). Now it shows the C.E.O. one exchange at a time, and every message that comes
-through forms out of a stream of sigils in Messenger blue and dim ink, the way the post in the tubes used to settle. The C.E.O.
-answers in a few words, aloud or typed, and Blasto's draft gathers out of the sigils beneath it, a dashed outline
-still, tagged as drafted. Nothing leaves until the C.E.O. says yes to that very draft, and even then it waits five
-seconds in case the C.E.O. says undo; then it goes, in a spray of sigils over the top of the arc. Dialtone, who
-sorts, can now also turn away a sender for good when the C.E.O. says so, and keeps the list of who was turned away
-where the C.E.O. can take any of them back. The money and the legal letters still never reach the room.
+The Relay sees them most clearly (#615). It keeps a codex now: a long book of everything that waits on the C.E.O.,
+one entry to a page, with a spine of light down its gutter. Whoever wrote stands in the margin in slanted ink under a
+great glowing initial, and their words are written in from the spine by a quill of sigils, left to right, each glyph
+flickering until it locks into its letter. Turn the page and the sigils let go and run back into the spine, and the
+next entry is written in. The C.E.O. answers in a few words, aloud or typed, and the words climb from the ear at the
+foot of the spine; between what was said and Blasto's draft, the little passes of how they write tick past (in your voice,
+nothing made up) before the draft is written. Nothing leaves until the C.E.O. says yes to the very draft on the page
+in front of them, and even then it waits five seconds in case they say undo; then it is sealed, and its sigils run up
+the spine and out the top of the book. Letters can go out the same way now, on the thread they answer, once the
+C.E.O. gave Gmail its leave. Dialtone, who sorts, can turn away a sender for good when the C.E.O. says so, and keeps
+the list where any of them can be taken back. At the back of the codex is its index: what waits, who has waited
+longest, what shouldn't wait. The money and the legal letters still never reach the room.
 
 ## The ledger by PayPal
 

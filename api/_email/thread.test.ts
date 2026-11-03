@@ -7,7 +7,7 @@ import { keysOf, ownWords, readReply, readTraits, replyInput, ruleFor, senderKey
 import { CALLBACK_PATH, EMAIL_PATH, GET, POST, type EmailRouteDeps } from "./route.ts";
 import type { ClaudeCall, ClaudeRequest } from "./sort.ts";
 import { MemoryEmailStore } from "./store.ts";
-import { tick } from "./tick.ts";
+import { mountainDay, tick } from "./tick.ts";
 import { emptyEmailState, type EmailItem } from "./types.ts";
 
 /* Relay's Thread (#615): a reply from a few words, sender rules, how Nikita writes. Every person, address and mail here is made up. */
@@ -58,7 +58,7 @@ async function setup(over: Partial<EmailRouteDeps> = {}) {
 }
 
 describe("a reply from a few words", () => {
-  it("writes Blasto's draft from Nikita's words, fenced, and keeps it with his words", async () => {
+  it("writes Blasto's draft from Nikita's words, fenced, and keeps it with their words", async () => {
     const c = claude(() => ({ draft: "Yes, I'll bring the big blanket. See you Saturday! N" }));
     const { store, post, view } = await setup({ call: c.call });
     const got = await post({ action: "reply", id: ITEM.id, said: "tell them yes I'll bring the blanket" });
@@ -69,7 +69,7 @@ describe("a reply from a few words", () => {
     const s = (await store.load()).state;
     expect(s.items.find((i) => i.id === ITEM.id)).toMatchObject({ draft: expect.stringContaining("blanket"), said: "tell them yes I'll bring the blanket" });
     expect(s.spend["2026-11"]!.calls).toBe(1);
-    // The Desk gets the draft and his words, and never the sender keys.
+    // The Desk gets the draft and their words, and never the sender keys.
     const item = (await view()).items.find((i) => i.id === ITEM.id)!;
     expect(item.said).toBe("tell them yes I'll bring the blanket");
     expect(item).not.toHaveProperty("senderKey");
@@ -182,7 +182,7 @@ describe("how Nikita writes", () => {
     },
   };
 
-  it("samples only his own words, without money, legal or skip-list mail", async () => {
+  it("samples only their own words, without money, legal or skip-list mail", async () => {
     const sample = await sentSample(reader, ["zzfaketerm"]);
     expect(sample).toEqual(["sounds good! bring the frisbee", "can't tonight, thursday works better for me", "the lake one for sure, it's kinder to first-timers"]);
     expect(ownWords("hi\n-- \nNikita\nsome signature")).toBe("hi");
@@ -212,5 +212,122 @@ describe("how Nikita writes", () => {
     const { post } = await setup({ call: c.call, sent: async () => ({ list: async () => [], read: async () => null }) });
     expect((await post({ action: "learn-style" })).status).toBe(409);
     expect(c.requests).toHaveLength(0);
+  });
+});
+
+/* ── sending the draft on screen (#615) ── */
+
+const DRAFT = "Yes, I'll bring the big blanket. See you Saturday!";
+
+/** A Gmail that answers the token refresh, one metadata read and the send, and keeps what was sent. */
+function gmailFor(opts: { send?: number; from?: string } = {}) {
+  const sent: { raw: string; threadId?: string }[] = [];
+  const fetcher: Fetcher = async (url, init) => {
+    const j = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    if (url.startsWith("https://oauth2.googleapis.com/token")) return j({ access_token: "fake-access", expires_in: 3599 });
+    const u = new URL(url);
+    if (u.pathname.endsWith("/messages/send")) {
+      if (opts.send && opts.send !== 200) return j({ error: { code: opts.send } }, opts.send);
+      sent.push(JSON.parse(String(init?.body)) as { raw: string; threadId?: string });
+      return j({ id: "9ff9ff9ff9ff9ff9" });
+    }
+    if (u.pathname.endsWith(`/messages/${ITEM.id}`)) {
+      return j({
+        id: ITEM.id,
+        threadId: "1aa1bb2cc3dd4e00",
+        payload: {
+          headers: [
+            { name: "From", value: opts.from ?? "Robin Madeup <robin@picnic.example>" },
+            { name: "Subject", value: "Picnic Saturday?" },
+            { name: "Message-ID", value: "<b2@picnic.example>" },
+            { name: "References", value: "<a1@picnic.example>" },
+          ],
+        },
+      });
+    }
+    return j({ error: "not found" }, 404);
+  };
+  return { fetcher, sent, text: (i: number) => Buffer.from(sent[i]!.raw, "base64url").toString("utf8") };
+}
+
+async function sendSetup(opts: { send?: boolean; status?: number; from?: string } = {}) {
+  const g = gmailFor({ send: opts.status, from: opts.from });
+  const s = await setup({ fetcher: g.fetcher });
+  await s.store.saveToken({ refresh: "1//fake-refresh", connectedAt: NOW - 86_400_000, ...(opts.send !== false && { send: true }) });
+  const { state, version } = await s.store.load();
+  await s.store.save({ ...state, items: state.items.map((i) => (i.id === ITEM.id ? { ...i, draft: DRAFT, said: "tell them yes" } : i)) }, version);
+  return { ...s, g };
+}
+
+describe("sending the draft on screen", () => {
+  it("replies on the mail's thread with In-Reply-To and References, once", async () => {
+    const { post, store, g, view } = await sendSetup();
+    expect((await view()).canSend).toBe(true);
+    const got = await post({ action: "send", id: ITEM.id, draft: DRAFT });
+    expect(got).toEqual({ status: 200, body: { ok: true, sentAt: NOW } });
+    expect(g.sent).toHaveLength(1);
+    expect(g.sent[0]!.threadId).toBe("1aa1bb2cc3dd4e00");
+    const msg = g.text(0);
+    expect(msg).toContain("To: robin@picnic.example\r\n");
+    expect(msg).toContain("Subject: Re: Picnic Saturday?\r\n");
+    expect(msg).toContain("In-Reply-To: <b2@picnic.example>\r\n");
+    expect(msg).toContain("References: <a1@picnic.example> <b2@picnic.example>\r\n");
+    const body = msg.split("\r\n\r\n")[1]!;
+    expect(Buffer.from(body.replace(/\r\n/g, ""), "base64").toString("utf8")).toBe(DRAFT);
+    const s = (await store.load()).state;
+    expect(s.items.find((i) => i.id === ITEM.id)).toMatchObject({ done: true, sentAt: NOW });
+    expect(s.sends).toEqual({ day: expect.any(String), count: 1 });
+    // Single use: the same yes again sends nothing.
+    expect((await post({ action: "send", id: ITEM.id, draft: DRAFT })).status).toBe(404);
+    expect(g.sent).toHaveLength(1);
+  });
+
+  it("sends only the draft on screen: a changed draft is refused", async () => {
+    const { post, g } = await sendSetup();
+    expect(await post({ action: "send", id: ITEM.id, draft: `${DRAFT} P.S. bring cash` })).toEqual({ status: 409, body: { error: "changed" } });
+    expect(await post({ action: "send", id: NEWS.id, draft: DRAFT })).toEqual({ status: 409, body: { error: "changed" } });
+    expect(g.sent).toHaveLength(0);
+  });
+
+  it("needs the send grant; read-only falls back to Copy and Open in Gmail", async () => {
+    const { post, g, view } = await sendSetup({ send: false });
+    expect((await view()).canSend).toBe(false);
+    expect(await post({ action: "send", id: ITEM.id, draft: DRAFT })).toEqual({ status: 403, body: { error: "no-send" } });
+    expect(g.sent).toHaveLength(0);
+  });
+
+  it("a refused send keeps the item open and frees the claim", async () => {
+    const { post, store } = await sendSetup({ status: 403 });
+    expect(await post({ action: "send", id: ITEM.id, draft: DRAFT })).toEqual({ status: 502, body: { error: "no-send" } });
+    const item = (await store.load()).state.items.find((i) => i.id === ITEM.id)!;
+    expect(item.done).toBe(false);
+    expect(item.sending).toBeUndefined();
+    expect(item.sentAt).toBeUndefined();
+  });
+
+  it("refuses a second send while one is on its way", async () => {
+    const { post, store, g } = await sendSetup();
+    const { state, version } = await store.load();
+    await store.save({ ...state, items: state.items.map((i) => (i.id === ITEM.id ? { ...i, sending: NOW - 1_000 } : i)) }, version);
+    expect(await post({ action: "send", id: ITEM.id, draft: DRAFT })).toEqual({ status: 409, body: { error: "already-sent" } });
+    expect(g.sent).toHaveLength(0);
+  });
+
+  it("counts against the email agent's cap: the day's sends and the month's budget", async () => {
+    const { post, store, g } = await sendSetup();
+    const { state, version } = await store.load();
+    const day = mountainDay(NOW);
+    await store.save({ ...state, sends: { day, count: 40 } }, version);
+    expect(await post({ action: "send", id: ITEM.id, draft: DRAFT })).toEqual({ status: 429, body: { error: "cap" } });
+    const again = await store.load();
+    await store.save({ ...again.state, sends: { day, count: 0 }, spend: { "2026-11": { usd: 10, calls: 1, tokensIn: 0, tokensOut: 0 } } }, again.version);
+    expect(await post({ action: "send", id: ITEM.id, draft: DRAFT })).toEqual({ status: 429, body: { error: "cap" } });
+    expect(g.sent).toHaveLength(0);
+  });
+
+  it("strips line breaks from the headers it reuses", async () => {
+    const { post, g } = await sendSetup({ from: "Robin <robin@picnic.example>\r\nBcc: someone@else.example" });
+    expect((await post({ action: "send", id: ITEM.id, draft: DRAFT })).status).toBe(200);
+    expect(g.text(0)).not.toContain("Bcc:");
   });
 });

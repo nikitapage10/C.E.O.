@@ -334,10 +334,11 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
       ...state,
       rules: current.state.rules,
       style: current.state.style,
+      sends: current.state.sends,
       items: state.items.map((x) => {
         const c = desk.get(x.id);
         if (!c) return x;
-        return { ...x, ...(c.done && { done: true }), ...(c.said && { said: c.said, ...(c.draft && { draft: c.draft }) }) };
+        return { ...x, ...(c.done && { done: true }), ...(c.said && { said: c.said, ...(c.draft && { draft: c.draft }) }), ...(c.sending && { sending: c.sending }), ...(c.sentAt && { sentAt: c.sentAt }) };
       }),
     };
     saved = await deps.store.save(merged, current.version).catch(() => false);

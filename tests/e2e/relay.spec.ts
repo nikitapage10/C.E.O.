@@ -6,10 +6,11 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * Relay's Thread (#615) on the built site, with a signed-in session and /api/email and /api/relay stubbed in the
- * browser. One exchange at a time; voice commands only work in their state ("yes" only with a draft on screen); a
- * yes waits five seconds and Undo sends nothing; the sender rules have Undo; reduced motion draws no sigils.
- * Every person, mail and text here is made up.
+ * Relay's Thread (#615), the Codex, on the built site, with a signed-in session and /api/email and /api/relay stubbed
+ * in the browser. The queue is one scrolling codex; only the entry in focus answers voice and keys ("yes" only with
+ * its draft on screen); a yes waits five seconds and Undo sends nothing; an email sends only with Gmail's send grant,
+ * and otherwise offers Copy and Open in Gmail; the sender rules have Undo; Open the codex counts what waits; reduced
+ * motion draws no sigils. Every person, mail and text here is made up.
  */
 
 const PORT = Number(process.env.E2E_RELAY_PORT ?? 5187);
@@ -60,7 +61,7 @@ const FAKE_SPEECH = () => {
   };
 };
 
-async function stub(page: Page, opts: { signedIn?: boolean } = {}) {
+async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean } = {}) {
   const signedIn = opts.signedIn ?? true;
   const posts: Record<string, unknown>[] = [];
   let samDraft: { text: string; at: number } | null = null;
@@ -80,6 +81,7 @@ async function stub(page: Page, opts: { signedIn?: boolean } = {}) {
           ok: true,
           status: emailStatus,
           canConnect: true,
+          canSend: opts.canSend === true,
           items: [{ id: PRIYA, at: now - 3_600_000, from: "Priya Madeup", subject: "Saturday hike, which trail?", kind: "needs-you", summary: "Priya asks which trail is kinder to a first-timer, the ridge loop or the lake.", action: "Reply with a pick", advice: "She wants a quick pick.", draft: "The lake one, easily. The ridge has a scramble near the top. N", done: false }],
           applied: 0,
           urgentSkipped: 0,
@@ -101,6 +103,7 @@ async function stub(page: Page, opts: { signedIn?: boolean } = {}) {
       rules = [];
       return r.fulfill({ json: { ok: true } });
     }
+    if (body.action === "send") return r.fulfill({ json: { ok: true, sentAt: Date.now() } });
     return r.fulfill({ json: { ok: true } });
   });
   const textsStatus = () => ({ v: 1, at: Date.now(), hub: "listening", messages: "up", models: "up", owed: 2, sooner: 1, overdue: 0, later: 0, settled: 4, draftsReady: 1, sentToday: 7, streakDays: 2, week: [], nextNudgeAt: null });
@@ -125,9 +128,18 @@ async function stub(page: Page, opts: { signedIn?: boolean } = {}) {
 
 const say = (page: Page, words: string) => page.evaluate((w) => (window as unknown as { __say: (t: string) => boolean }).__say(w), words);
 const sends = (posts: Record<string, unknown>[]) => posts.filter((p) => p.action === "send");
+const focused = (page: Page) => page.locator(".cx-entry[data-focus]");
+const undoLine = (page: Page) => page.locator(".cx-undo");
+/** Scrolls the codex's pages to the entry for `name`. */
+const scrollTo = (page: Page, name: string) =>
+  page.evaluate((n) => {
+    const el = [...document.querySelectorAll<HTMLElement>(".cx-entry")].find((e) => e.textContent?.includes(n));
+    const root = document.querySelector<HTMLElement>(".cx-pages");
+    if (el && root) root.scrollTo({ top: el.offsetTop });
+  }, name);
 
 for (const width of [1440, 400]) {
-  test(`one exchange at a time: words make a draft, yes waits out the undo, and only then sends (${width} wide)`, async ({ page }) => {
+  test(`the codex: words make a draft, yes waits out the undo, and only then sends (${width} wide)`, async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
     await page.addInitScript(FAKE_SPEECH);
@@ -135,91 +147,172 @@ for (const width of [1440, 400]) {
     page.on("pageerror", (e) => errors.push(e.message));
     const posts = await stub(page);
     await page.goto(`${BASE}/relay`);
-    const stage = page.getByRole("region", { name: "Relay at a glance" });
-    const conv = stage.locator(".rt-conv");
-    await expect(conv.getByText("Sam Test")).toBeVisible();
-    await expect(conv.getByText(/should start without you/)).toBeVisible();
-    await expect(page.locator(".rt-metrics")).toContainText("3waiting");
-    if (SHOTS) await page.waitForTimeout(1_600);
-    if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-incoming-${width}.png` });
+    await expect(page.getByRole("region", { name: "Relay at a glance" })).toBeVisible();
+    // Sooner first: Sam is in focus, written in from the spine.
+    await expect(focused(page)).toContainText("Sam Test");
+    await expect(focused(page).getByText(/should start without you/)).toBeVisible();
+    await expect(page.locator(".cx-metrics")).toContainText("3waiting");
+    await expect(page.locator(".cx-index")).toContainText("Priya");
+    if (SHOTS) await page.waitForTimeout(3_000);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-focus-${width}.png` });
 
-    // Listening is opt-in. With no draft on screen, "yes" is not a send.
+    // Listening is opt-in. With no draft on screen, "yes" is not a send, and Jordan's draft (not in focus) never goes.
     await page.getByRole("button", { name: "Listen hands-free" }).click();
     expect(await say(page, "yes")).toBe(true);
-    await expect(page.getByText("Nothing to send yet.")).toBeVisible();
+    await expect(undoLine(page)).toContainText("Nothing to send yet.");
+    await page.keyboard.press("y");
     expect(sends(posts)).toEqual([]);
 
-    // A few words become a draft in his voice (the Mac's Blasto, via restyle).
+    // A few words become a draft in their voice (the Mac's Blasto, via restyle), and the passes tick.
     await say(page, "tell them I'll be 10 late");
     await expect.poll(() => posts.filter((p) => p.action === "restyle")).toEqual([{ line: "texts", action: "restyle", thread: SAM, text: "tell them I'll be 10 late" }]);
-    await expect(conv.getByText(SAM_DRAFT)).toBeVisible({ timeout: 15_000 });
-    await expect(conv.getByText("Send to Sam?")).toBeVisible();
-    if (SHOTS) await page.waitForTimeout(1_600);
+    await expect(focused(page).getByText(SAM_DRAFT)).toBeVisible({ timeout: 15_000 });
+    await expect(focused(page).getByText("Send to Sam?")).toBeVisible();
+    await expect(focused(page).locator(".cx-pass span[data-on]")).not.toHaveCount(0);
+    if (SHOTS) await page.waitForTimeout(3_200);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-ask-${width}.png` });
 
     // Yes, then undo inside the five seconds: nothing is sent.
     await say(page, "send it");
-    await expect(page.locator(".rt-toast")).toContainText("Sending to Sam Test");
+    await expect(undoLine(page)).toContainText("Sending to Sam Test");
     await say(page, "undo");
-    await expect(page.locator(".rt-toast")).toContainText("Not sent.");
+    await expect(undoLine(page)).toContainText("Not sent.");
     await page.waitForTimeout(5_600);
     expect(sends(posts)).toEqual([]);
 
-    // Y on the keyboard: the send goes only after the window, bound to the draft on screen.
+    // Y on the keyboard: sealed, and the send goes only after the window, bound to the draft on screen.
     await page.keyboard.press("y");
-    await expect(page.locator(".rt-toast")).toContainText("Sending to Sam Test");
-    if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-undo-${width}.png` });
-    await page.waitForTimeout(2_000);
+    await expect(undoLine(page)).toContainText("Sending to Sam Test");
+    await expect(focused(page)).toContainText("Sealed");
+    if (SHOTS) await page.waitForTimeout(500);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-seal-${width}.png` });
+    await page.waitForTimeout(1_500);
     expect(sends(posts)).toEqual([]);
     await expect.poll(() => sends(posts), { timeout: 8_000 }).toEqual([{ line: "texts", action: "send", thread: SAM, draftAt: expect.any(Number), text: SAM_DRAFT }]);
-    // The next one is already up.
-    await expect(conv.getByText("Priya Madeup").first()).toBeVisible();
-    await expect(conv.getByText("Saturday hike, which trail?")).toBeVisible();
+    // Sam leaves the codex; the next entry takes focus.
+    await expect(page.locator(".cx-entry", { hasText: "Sam Test" })).toHaveCount(0);
+    await expect(focused(page)).toHaveCount(1);
+    await expect(page.locator(".cx-index")).toContainText("Sent today");
     expect(errors).toEqual([]);
+  });
+
+  test(`scrolling moves the focus, and keys act only on the entry in focus (${width} wide)`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+    const posts = await stub(page);
+    await page.goto(`${BASE}/relay`);
+    await expect(focused(page)).toContainText("Sam Test");
+    // Half way between two entries: nothing changes focus yet.
+    await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>(".cx-pages")!;
+      root.scrollTo({ top: root.clientHeight * 0.45 });
+    });
+    if (SHOTS) await page.waitForTimeout(500);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-scroll-${width}.png` });
+    await scrollTo(page, "Jordan Test");
+    await expect(focused(page)).toContainText("Jordan Test");
+    await expect(focused(page).getByText("Send to Jordan?")).toBeVisible();
+    // J and K move through the codex.
+    await page.keyboard.press("k");
+    await expect(focused(page)).toContainText("Priya Madeup");
+    await page.keyboard.press("j");
+    await expect(focused(page)).toContainText("Jordan Test");
+    await page.keyboard.press("y");
+    await expect(undoLine(page)).toContainText("Sending to Jordan Test");
+    await page.keyboard.press("z");
+    await expect(undoLine(page)).toContainText("Not sent.");
+    await page.waitForTimeout(5_400);
+    expect(sends(posts)).toEqual([]);
   });
 }
 
-test("email is read-only: no send, but filter and block each come with Undo", async ({ page }) => {
+test("email sends from the codex once Gmail grants send: after the undo, the draft on screen, once", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.addInitScript(FAKE_SPEECH);
+  const posts = await stub(page, { canSend: true });
+  await page.goto(`${BASE}/relay`);
+  await page.locator(".cx-index").getByRole("button", { name: /Priya/ }).click();
+  await expect(focused(page)).toContainText("Saturday hike, which trail?");
+  await expect(focused(page).getByText("Send to Priya?")).toBeVisible();
+  await focused(page).getByRole("button", { name: /^Yes/ }).click();
+  await expect(undoLine(page)).toContainText("Sending to Priya Madeup");
+  await page.waitForTimeout(3_000);
+  expect(sends(posts)).toEqual([]);
+  await expect.poll(() => sends(posts), { timeout: 6_000 }).toEqual([{ line: "email", action: "send", id: PRIYA, draft: "The lake one, easily. The ridge has a scramble near the top. N" }]);
+  await expect(undoLine(page)).toContainText("Sent to Priya Madeup");
+  await page.waitForTimeout(1_000);
+  expect(sends(posts)).toHaveLength(1);
+});
+
+test("email without the send grant: Copy, Open in Gmail and a quiet reconnect; filter and block come with Undo", async ({ page }) => {
   await page.addInitScript(FAKE_SPEECH);
   const posts = await stub(page);
   await page.goto(`${BASE}/relay`);
-  await page.getByRole("listitem").filter({ hasText: "Priya Madeup" }).first().getByRole("button").click();
-  const conv = page.locator(".rt-conv");
-  await expect(conv.getByText("Saturday hike, which trail?")).toBeVisible();
-  await expect(conv.getByText("Email sends from Gmail for now.")).toBeVisible();
-  await expect(conv.getByRole("button", { name: /^Yes/ })).toHaveCount(0);
+  await page.locator(".cx-index").getByRole("button", { name: /Priya/ }).click();
+  await expect(focused(page)).toContainText("Saturday hike, which trail?");
+  await expect(focused(page).getByText("Send it from Gmail?")).toBeVisible();
+  await expect(focused(page).getByRole("button", { name: "Copy" })).toBeVisible();
+  await expect(focused(page).getByRole("link", { name: "Open in Gmail" }).first()).toBeVisible();
+  await expect(focused(page).getByRole("button", { name: "Reconnect Gmail to send from here" })).toBeVisible();
+  await expect(focused(page).getByRole("button", { name: /^Yes/ })).toHaveCount(0);
   await page.keyboard.press("y");
   await page.getByRole("button", { name: "Listen hands-free" }).click();
   await say(page, "yes");
   expect(sends(posts)).toEqual([]);
 
   await say(page, "block this sender");
-  await expect(page.locator(".rt-toast")).toContainText("Blocked Priya Madeup.");
+  await expect(undoLine(page)).toContainText("Blocked Priya Madeup.");
   expect(posts.filter((p) => p.action === "block")).toEqual([{ line: "email", action: "block", id: PRIYA }]);
-  await page.locator(".rt-toast").getByRole("button", { name: "Undo" }).click();
+  await undoLine(page).getByRole("button", { name: "Undo" }).click();
   await expect.poll(() => posts.filter((p) => p.action === "unblock")).toEqual([{ line: "email", action: "unblock", rule: "abcdefabcdef" }]);
-  if (SHOTS) {
-    await page.locator("#rt-all").scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${SHOTS}/615-everything-1440.png`, fullPage: true });
-  }
 });
+
+for (const width of [1440, 400]) {
+  test(`Open the codex: pending by line, waiting longest, high priority (${width} wide)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+    await stub(page);
+    await page.goto(`${BASE}/relay`);
+    await page.getByRole("link", { name: /Open the codex/ }).click();
+    const codex = page.getByRole("region", { name: "The codex" });
+    await expect(codex.locator(".cx-counts")).toContainText("3waiting on you");
+    await expect(codex.locator(".cx-counts")).toContainText("2texts");
+    await expect(codex.locator(".cx-counts")).toContainText("1email");
+    const longest = codex.locator(".cx-sec", { hasText: "Waiting longest" }).locator("li");
+    await expect(longest.first()).toContainText("Priya Madeup");
+    await expect(longest.first()).toContainText("1 h");
+    const high = codex.locator(".cx-sec", { hasText: "High priority" });
+    await expect(high.locator("li", { hasText: "Sam Test" })).toContainText("sooner");
+    await expect(high.locator("li", { hasText: "Priya Madeup" })).toContainText("needs you");
+    await expect(high.locator("li", { hasText: "Jordan Test" })).toHaveCount(0);
+    await expect(codex).toContainText("How you write");
+    await expect(codex).toContainText("Filter rules");
+    if (SHOTS) {
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${SHOTS}/615-codex-${width}.png` });
+      await page.screenshot({ path: `${SHOTS}/615-codex-full-${width}.png`, fullPage: true });
+    }
+    // A row puts that exchange in focus, back up in the codex.
+    await high.locator("li", { hasText: "Priya Madeup" }).getByRole("button").click();
+    await expect(focused(page)).toContainText("Priya Madeup");
+  });
+}
 
 test("reduced motion draws no sigils and shows the words at once", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await stub(page);
   await page.goto(`${BASE}/relay`);
-  await expect(page.locator(".rt-conv").getByText(/should start without you/)).toBeVisible();
+  await expect(focused(page).getByText(/should start without you/)).toBeVisible();
   await expect(page.locator(".sg-cv")).toHaveCount(0);
-  await expect(page.locator(".sg-ghost")).toHaveCount(0);
+  await expect(page.locator("[data-sg-ghost]")).toHaveCount(0);
 });
 
-test("with motion, the words form out of sigils on a capped canvas", async ({ page }) => {
+test("with motion, the words are written in on a capped canvas", async ({ page }) => {
   await stub(page);
   await page.goto(`${BASE}/relay`);
   await expect(page.locator(".sg-cv")).toHaveCount(1);
   const live = await page.evaluate(() => (window as unknown as { __relaySigils: { live: number } }).__relaySigils.live);
   expect(live).toBeLessThanOrEqual(1600);
-  await expect(page.locator(".rt-body .sg-ghost, .rt-body.sg-ghost")).toHaveCount(0, { timeout: 5_000 });
+  await expect(focused(page).locator(".cx-msg[data-sg-ghost]")).toHaveCount(0, { timeout: 8_000 });
 });
 
 test("signed out: counts only, never a name", async ({ page }) => {

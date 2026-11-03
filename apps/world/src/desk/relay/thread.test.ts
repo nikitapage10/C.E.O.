@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EmailItem } from "../email/email.ts";
 import type { TextItem } from "../texts/texts.ts";
-import { allowed, commandOf, keyCommand, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Phase, type Timers } from "./thread.ts";
+import { allowed, commandOf, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, type Command, type Phase, type Timers } from "./thread.ts";
 import { GHOST, MAX_LIVE, room, SigilStage, SIGILS } from "./sigils.ts";
 
 /* Relay's Thread (#615). Every person and message here is made up. */
@@ -63,9 +63,15 @@ describe("the gate", () => {
     expect(phases.filter((p) => allowed("yes", p, t!))).toEqual(["ask"]);
     expect(allowed("yes", "ask", bare)).toBe(false);
     expect(allowed("yes", "ask", { ...t!, draft: "   " })).toBe(false);
-    // Email is read-only: a draft on screen, and still no send.
+    // Email without Gmail's send grant: a draft on screen, and still no send.
     expect(allowed("yes", "ask", e!)).toBe(false);
     expect(allowed("yes", "ask", null)).toBe(false);
+  });
+
+  it("sends an email only once Gmail granted send, and only from the ask with its draft", () => {
+    const [granted] = queueOf([mail({ draft: "Yes, see you there. N" })], [], [], true);
+    expect(phases.filter((p) => allowed("yes", p, granted!))).toEqual(["ask"]);
+    expect(allowed("yes", "ask", { ...granted!, draft: null })).toBe(false);
   });
 
   it("takes undo only in the undo window, and nothing else then", () => {
@@ -143,25 +149,70 @@ describe("the four numbers", () => {
 
 describe("sigils", () => {
   it("are code and rune, and the live count is capped", () => {
-    for (const g of ["{", "}", "<", ">", "/", ";", "=", "λ", "∴", "⌘"]) expect(SIGILS).toContain(g);
+    for (const g of ["{", "}", "<", ">", "/", ";", "=", "=>", "λ", "0x", "∴", "ᚠ", "☿", "🜂"]) expect(SIGILS).toContain(g);
     expect(room(0, 500)).toBe(500);
     expect(room(MAX_LIVE - 10, 500)).toBe(10);
     expect(room(MAX_LIVE + 5, 500)).toBe(0);
   });
 
   it("with reduced motion draws nothing: text just appears and goes", async () => {
-    const classes = new Set<string>([GHOST]);
-    const el = { classList: { add: (c: string) => classes.add(c), remove: (c: string) => classes.delete(c) } } as unknown as HTMLElement;
+    const attrs = new Set<string>([GHOST]);
+    const el = { setAttribute: (a: string) => attrs.add(a), removeAttribute: (a: string) => attrs.delete(a), hasAttribute: (a: string) => attrs.has(a) } as unknown as HTMLElement;
     const host = { getBoundingClientRect: () => ({ left: 0, top: 0 }), clientWidth: 100, clientHeight: 100, appendChild: vi.fn() } as unknown as HTMLElement;
-    const s = new SigilStage(host, { reduced: true, ambient: 40 });
+    const s = new SigilStage(host, { reduced: true });
     expect(s.reduced).toBe(true);
     expect(host.appendChild).not.toHaveBeenCalled();
     await s.form(el);
-    expect(classes.has(GHOST)).toBe(false);
+    expect(attrs.has(GHOST)).toBe(false);
     s.burst(10, 10, { n: 50 });
     expect(s.live).toBe(0);
     await s.dissolve(el);
-    expect(classes.has(GHOST)).toBe(true);
+    expect(attrs.has(GHOST)).toBe(true);
     s.destroy();
+  });
+});
+
+describe("Open the codex", () => {
+  const q = queueOf(
+    [mail({ id: "aa11bb22cc33", at: NOW - 2 * 3_600_000 }), mail({ id: "aa11bb22cc34", kind: "unsorted", at: NOW - 30 * 3_600_000 }), mail({ id: "aa11bb22cc35", kind: "unsorted", at: NOW - 600_000 })],
+    [text({ sort: "sooner" }), text({ id: "1123456789abcdef", since: NOW - 3 * 60_000 })],
+  );
+
+  it("counts what waits by line", () => {
+    const p = pendingOf(q, NOW);
+    expect([p.texts, p.email]).toEqual([2, 3]);
+  });
+
+  it("lists who has waited longest, oldest first, with how long", () => {
+    const p = pendingOf(q, NOW, undefined, 3);
+    expect(p.longest.map((l) => [l.ex.key, l.waited])).toEqual([
+      ["e:aa11bb22cc34", 30 * 3_600_000],
+      ["e:aa11bb22cc33", 2 * 3_600_000],
+      ["e:aa11bb22cc35", 600_000],
+    ]);
+  });
+
+  it("marks high priority by Relay's own signals only: sooner, needs you, waiting past a day", () => {
+    const p = pendingOf(q, NOW);
+    expect(p.high.map((h) => [h.ex.key, h.why])).toEqual([
+      ["t:0123456789abcdef", ["sooner"]],
+      ["e:aa11bb22cc34", ["overdue"]],
+      ["e:aa11bb22cc33", ["needs-you"]],
+    ]);
+    // Nothing from the private priority list rides along: only these three words, never a term.
+    for (const h of p.high) for (const w of h.why) expect(["sooner", "needs-you", "overdue"]).toContain(w);
+    expect(OVERDUE_MS).toBe(86_400_000);
+  });
+
+  it("signed out, it shows the public counts and no names", () => {
+    expect(pendingOf(null, NOW, { email: 1, texts: 2 })).toEqual({ texts: 2, email: 1, longest: [], high: [] });
+  });
+
+  it("ticks the learned style first, then the checks every draft gets", () => {
+    const [e] = queueOf([mail({ draft: "Sure. N" })], []);
+    const [t] = queueOf([], [text()]);
+    expect(passesOf(e!, ["signs as N", "short", "no emoji", "warm", "a fifth"])).toEqual(["signs as N", "short", "no emoji", "warm", "under 120 words", "nothing made up"]);
+    expect(passesOf(e!, null)).toEqual(["in your voice", "under 120 words", "nothing made up"]);
+    expect(passesOf(t!, ["signs as N"])).toEqual(["in your voice", "one text", "nothing made up"]);
   });
 });

@@ -80,6 +80,7 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Outbox empty. Beacon dark. Waiting, properly.",
     "Mind the sigils. That brace was going to be somebody's Thursday.",
     "Every letter forms out of the motes and goes back to them. Nothing is wasted. Ask the semicolons.",
+    "Turn the page and the sigils run back into the spine. Next entry. The codex never runs out of ink, only of patience.",
   ],
   archive: [
     "The Syntherion chapter is still blank. Rude.",

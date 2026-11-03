@@ -6,14 +6,17 @@
  *   GET  /api/email?view=status   the public counts (EmailStatus): what the Lattice's Relay room reads. No session.
  *   GET  /api/email               the private list (EmailView): the Desk's Relay page. Passkey session only.
  *   POST /api/email { action }    passkey session only:
- *          "connect"     → { url }: Google's consent page for gmail.readonly, and a short state cookie (below)
+ *          "connect"     → { url }: Google's consent page for gmail.readonly and gmail.send, and a short state cookie (below)
  *          "disconnect"  → forgets the token (and asks Google to revoke it) and clears the private list
  *          "done", id    → marks one mail handled
  *          "undone", id  → takes Done back (the Thread's Undo, #615)
  *          "reply", id, said   → Blasto's draft from Nikita's few words (./reply.ts), on the agent's own cap → { draft }
  *          "block" | "filter", id → a sender rule from that mail's sender (address) or domain → { rule }
  *          "unblock", rule     → takes a rule back
- *          "learn-style"       → reads a sample of his own sent mail once and keeps a few style traits → { style }
+ *          "learn-style"       → reads a sample of their own sent mail once and keeps a few style traits → { style }
+ *          "send", id, draft   → sends the draft on screen as a reply on the mail's thread (#615): only with a
+ *                                gmail.send grant, only that exact draft, once per mail, under SEND_DAY_MAX a day and
+ *                                the agent's monthly cap. The Desk posts it only after Nikita's yes and its undo window.
  *   GET  /api/gmail-callback      where Google sends the browser back with a one-time code
  *
  * The OAuth state (CSRF): "connect" makes 24 random bytes, sends them to Google as `state`, and sets them in a signed,
@@ -39,11 +42,11 @@ import { pickEmailStore, type EmailStore } from "./store.js";
 import { markDone, mountainDay, statusOf } from "./tick.js";
 import { monthOf } from "../_world/budget.js";
 import { emptyEmailState, type EmailItem, type EmailState, type EmailView } from "./types.js";
-import { accessToken, TokenRefusedError } from "./gmail.js";
+import { accessToken, replyHeaders, SendNotAllowedError, sendReply, TokenRefusedError } from "./gmail.js";
 import { skipTermsFrom } from "./filter.js";
 import { claudeCall, type ClaudeCall } from "./sort.js";
 import { cleanSaid, gmailSent, learnStyle, MAX_RULES, replyFromWords, RULE_ID, ruleFrom, sentSample, type SentReader } from "./reply.js";
-import { addSpend, ADVISE_MODEL, canSpend } from "./budget.js";
+import { addSpend, ADVISE_MODEL, canSpend, SORT_MODEL } from "./budget.js";
 import { privateParts } from "../_privacy.js";
 
 export const EMAIL_PATH = "/api/email";
@@ -122,6 +125,11 @@ async function change<T>(store: EmailStore, fn: (s: EmailState) => { state: Emai
   return null;
 }
 
+/** The most replies sent from the Desk in one Mountain day (#615): a seatbelt, far above a real day. */
+export const SEND_DAY_MAX = 40;
+/** A send claim older than this is stale (the function died mid-send) and may be tried again. */
+const SEND_CLAIM_MS = 60_000;
+
 /** An item as the Desk sees it: the sender keys stay on the server. */
 const forDesk = ({ senderKey: _a, domainKey: _b, ...rest }: EmailItem) => rest;
 
@@ -189,6 +197,7 @@ export async function GET(request: Request, deps: EmailRouteDeps = liveRouteDeps
       ok: true,
       status,
       canConnect: deps.client !== null && deps.store !== null,
+      canSend: deps.store ? Boolean((await deps.store.token().catch(() => null))?.send) : false,
       items: state.items.map(forDesk),
       rules: state.rules.map(({ id, kind, label, at }) => ({ id, kind, label, at })),
       ruled: state.ruled.day === mountainDay(deps.now) ? Math.min(9_999, state.ruled.count) : 0,
@@ -265,7 +274,7 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
     const b = body as { id?: unknown; said?: unknown };
     const said = cleanSaid(b.said);
     if (!okId(b.id) || !said) return reply({ error: "bad-request" }, 400);
-    // His words go to Claude: never a number, an address, a card or a key (a name is fine in a reply).
+    // Their words go to Claude: never a number, an address, a card or a key (a name is fine in a reply).
     if (privateParts(said).some((k) => k !== "name")) return reply({ error: "private" }, 422);
     if (!deps.call) return reply({ error: "not-set-up" }, 503);
     const { state } = await store.load();
@@ -343,6 +352,45 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
     return style ? reply({ ok: true, style }) : reply({ error: "claude" }, 502);
   }
 
+  if (body.action === "send") {
+    const b = body as { id?: unknown; draft?: unknown };
+    if (!okId(b.id) || typeof b.draft !== "string" || !b.draft.trim() || b.draft.length > 2_000) return reply({ error: "bad-request" }, 400);
+    const id = b.id;
+    const text = b.draft;
+    const token = await store.token().catch(() => null);
+    if (!token || !deps.client) return reply({ error: "not-connected" }, 409);
+    if (!token.send) return reply({ error: "no-send" }, 403);
+    const day = mountainDay(deps.now);
+    // Claim it first, against the state's version: the exact draft on screen, once, under the day's count and the cap.
+    const claim = await change<{ ok: true } | { ok: false; error: string; status: number }>(store, (s) => {
+      const item = s.items.find((x) => x.id === id);
+      if (!item || item.done || item.kind === "noise") return { state: s, out: { ok: false, error: "no-item", status: 404 } };
+      if (item.sentAt || (item.sending && deps.now - item.sending < SEND_CLAIM_MS)) return { state: s, out: { ok: false, error: "already-sent", status: 409 } };
+      if (item.draft !== text) return { state: s, out: { ok: false, error: "changed", status: 409 } };
+      const count = s.sends.day === day ? s.sends.count : 0;
+      if (count >= SEND_DAY_MAX || !canSpend(s, SORT_MODEL, deps.budget, deps.now)) return { state: s, out: { ok: false, error: "cap", status: 429 } };
+      return { state: { ...s, sends: { day, count: count + 1 }, items: s.items.map((x) => (x.id === id ? { ...x, sending: deps.now } : x)) }, out: { ok: true } };
+    });
+    if (!claim) return reply({ error: "busy" }, 409);
+    if (!claim.ok) return reply({ error: claim.error }, claim.status);
+    const release = () => change(store, (s) => ({ state: { ...s, items: s.items.map((x) => (x.id === id ? { ...x, sending: undefined } : x)) }, out: true }));
+    try {
+      const access = await accessToken(deps.fetcher, deps.client, token.refresh);
+      const to = await replyHeaders(deps.fetcher, access, id);
+      if (!to) {
+        await release();
+        return reply({ error: "no-address" }, 422);
+      }
+      await sendReply(deps.fetcher, access, to, text);
+    } catch (e) {
+      await release();
+      return reply({ error: e instanceof SendNotAllowedError ? "no-send" : e instanceof TokenRefusedError ? "refused" : "gmail" }, 502);
+    }
+    await change(store, (s) => ({ state: { ...s, items: s.items.map((x) => (x.id === id ? { ...x, sending: undefined, sentAt: deps.now, done: true } : x)) }, out: true }));
+    await saveStatus();
+    return reply({ ok: true, sentAt: deps.now });
+  }
+
   return reply({ error: "bad-request" }, 400);
 }
 
@@ -368,8 +416,8 @@ export async function callback(request: Request, deps: EmailRouteDeps): Promise<
   if (!code || code.length > 2048 || !deps.client || !deps.store) return back("failed");
   try {
     // The same redirect the connect sent to Google: Google refuses a code traded with any other.
-    const refresh = await exchangeCode(deps.fetcher, redirectFor(deps.client, request), code);
-    await deps.store.saveToken({ refresh, connectedAt: deps.now });
+    const { refresh, send } = await exchangeCode(deps.fetcher, redirectFor(deps.client, request), code);
+    await deps.store.saveToken({ refresh, connectedAt: deps.now, ...(send && { send: true }) });
     // Start the history afresh on the next tick, from the new connection, and catch up on its unread mail (#323).
     for (let i = 0; i < 2; i++) {
       const { state, version } = await deps.store.load();

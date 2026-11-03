@@ -51,6 +51,7 @@ export function readItem(v: unknown): EmailItem | null {
     ...(typeof o.draft === "string" && o.draft && { draft: o.draft.slice(0, 2000) }),
     done: o.done === true,
     ...(typeof o.said === "string" && o.said && { said: o.said.slice(0, 400) }),
+    ...(typeof o.sentAt === "number" && o.sentAt > 0 && { sentAt: o.sentAt }),
   };
 }
 
@@ -74,7 +75,7 @@ export function readView(v: unknown): EmailView | null {
   const status = readEmailStatus(b.status);
   const spend = b.spend as Record<string, unknown> | null;
   if (!status || !Array.isArray(b.items) || !spend || typeof spend.usd !== "number" || typeof spend.budget !== "number") return null;
-  return { ok: true, status, canConnect: b.canConnect === true, items: b.items.map(readItem).filter((x): x is EmailItem => x !== null), applied: typeof b.applied === "number" && b.applied > 0 ? Math.min(9_999, Math.floor(b.applied)) : 0, urgentSkipped: typeof b.urgentSkipped === "number" && b.urgentSkipped > 0 ? Math.min(9_999, Math.floor(b.urgentSkipped)) : 0, spend: { usd: spend.usd, budget: spend.budget }, rules: Array.isArray(b.rules) ? (b.rules as unknown[]).filter(okRule).map((r) => ({ id: r.id, kind: r.kind, label: r.label.slice(0, 80), at: r.at })) : [], ruled: typeof b.ruled === "number" && b.ruled > 0 ? Math.min(9_999, Math.floor(b.ruled)) : 0, style: readStyleView(b.style) };
+  return { ok: true, status, canConnect: b.canConnect === true, canSend: b.canSend === true, items: b.items.map(readItem).filter((x): x is EmailItem => x !== null), applied: typeof b.applied === "number" && b.applied > 0 ? Math.min(9_999, Math.floor(b.applied)) : 0, urgentSkipped: typeof b.urgentSkipped === "number" && b.urgentSkipped > 0 ? Math.min(9_999, Math.floor(b.urgentSkipped)) : 0, spend: { usd: spend.usd, budget: spend.budget }, rules: Array.isArray(b.rules) ? (b.rules as unknown[]).filter(okRule).map((r) => ({ id: r.id, kind: r.kind, label: r.label.slice(0, 80), at: r.at })) : [], ruled: typeof b.ruled === "number" && b.ruled > 0 ? Math.min(9_999, Math.floor(b.ruled)) : 0, style: readStyleView(b.style) };
 }
 
 /** The Boiler Room's Gmail pipe and the Systems light, from the public counts. */
@@ -120,6 +121,8 @@ interface EmailStore {
   rule: (id: string, kind: "block" | "filter") => Promise<Answer<EmailRule>>;
   unrule: (rule: string) => Promise<boolean>;
   learnStyle: () => Promise<Answer<StyleProfile>>;
+  /** Sends the draft on screen as an in-thread reply. Only after Nikita's yes and the undo window; the server checks it is still that draft. */
+  send: (id: string, draft: string) => Promise<Answer<number>>;
 }
 
 /** POST one action and read its answer; refreshes after. */
@@ -138,9 +141,9 @@ async function act<T>(body: object, pick: (got: Record<string, unknown>) => T | 
 
 const isJson = (res: Response) => (res.headers.get("content-type") ?? "").includes("json");
 
-function setLink(status: EmailStatus | null) {
+function setLink(status: EmailStatus | null, canSend = false) {
   const state = linkOf(status);
-  useSystems.getState().setLink("gmail", { state, load: status ? Math.min(1, 0.25 + status.newToday / 40) : 0, lastSeen: status?.lastCheck ?? null, note: state === "ok" ? "READ-ONLY" : undefined });
+  useSystems.getState().setLink("gmail", { state, load: status ? Math.min(1, 0.25 + status.newToday / 40) : 0, lastSeen: status?.lastCheck ?? null, note: state === "ok" ? (canSend ? "SENDS ON YES" : "READ-ONLY") : undefined });
 }
 
 async function post(body: object): Promise<Response> {
@@ -170,7 +173,7 @@ export const useEmail = create<EmailStore>((set, get) => ({
           const view = readView(await res.json());
           if (view) {
             set({ load: "live", view, status: view.status, checkedAt: Date.now(), privateFail: null });
-            setLink(view.status);
+            setLink(view.status, view.canSend);
             return;
           }
           privateFail = "shape";
@@ -247,6 +250,15 @@ export const useEmail = create<EmailStore>((set, get) => ({
   },
   learnStyle: async () => {
     const got = await act({ action: "learn-style" }, (g) => readStyleView(g.style));
+    void get().refresh();
+    return got;
+  },
+  send: async (id, draft) => {
+    const got = await act({ action: "send", id, draft }, (g) => (g.ok === true && typeof g.sentAt === "number" ? g.sentAt : null));
+    if (got.ok) {
+      const view = get().view;
+      if (view) set({ view: { ...view, items: view.items.map((i) => (i.id === id ? { ...i, done: true, sentAt: got.value } : i)) } });
+    }
     void get().refresh();
     return got;
   },

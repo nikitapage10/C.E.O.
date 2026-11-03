@@ -81,7 +81,7 @@ export class BlobEmailStore implements EmailStore {
 
   async token(): Promise<TokenRecord | null> {
     const got = unseal(this.key("token"), await readJson(this.blob, TOKEN_PATH)) as Partial<TokenRecord> | null;
-    return got && typeof got.refresh === "string" && got.refresh ? { refresh: got.refresh, connectedAt: Number(got.connectedAt) || 0 } : null;
+    return got && typeof got.refresh === "string" && got.refresh ? { refresh: got.refresh, connectedAt: Number(got.connectedAt) || 0, ...(got.send === true && { send: true }) } : null;
   }
 
   async saveToken(token: TokenRecord): Promise<void> {

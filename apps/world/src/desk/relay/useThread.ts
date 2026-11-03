@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHide } from "../hide.ts";
 import { useDeskAuth } from "../signin.ts";
 import { startEmail, useEmail } from "../email/email.ts";
 import { startTexts, useTexts } from "../texts/texts.ts";
@@ -9,9 +10,12 @@ import { allowed, commandOf, keyCommand, metricsOf, offered, queueOf, undoable, 
  * (incoming → drafting → ask → undo → sent → the next), and every command through the gate in ./thread.ts. The view
  * (RelayThread.tsx) only draws what this hands it, so the look can change without touching any of this.
  *
- * Sends are texts only (the texts line's send request: this device's passkey unlock, single-use, bound to the draft
- * on screen) and wait out UNDO_MS first: nothing is posted until the undo window has passed. Email is read-only, so
- * an email's draft is copied for Gmail instead.
+ * The exchange in focus is the one the codex scrolled to (the view tells it with `pick`); voice and keys act only on
+ * it. A send needs its draft on screen (not masked by Hide), Nikita's yes (said, keyed or tapped), and then waits out
+ * UNDO_MS: nothing is posted until the undo window has passed. A text goes through the texts line's send request
+ * (this device's passkey unlock, single-use, bound to the draft); an email through /api/email's send, only when Gmail
+ * granted send (bound to the draft, single-use, under the agent's cap). Without that grant an email's draft is copied
+ * for Gmail instead.
  */
 
 export interface Notice {
@@ -36,12 +40,25 @@ const ERR: Record<string, string> = {
   "no-key": "That mail came in before Relay kept sender rules. The next one from them can be filtered.",
   "too-few": "Not enough sent mail in the last 90 days to learn from yet.",
   refused: "Gmail needs reconnecting first.",
+  "no-send": "Gmail hasn't granted sending yet. Reconnect Gmail to send from here.",
+  "not-connected": "Gmail isn't connected.",
+  changed: "That draft changed. Look again, then say yes.",
+  "already-sent": "That one already went.",
+  "no-address": "That mail has no address to reply to.",
+  busy: "Relay was busy. Try again.",
   gmail: "Gmail didn't answer. Try again in a minute.",
   off: "Relay's mail lives on the Azure copy.",
 };
 export const errorText = (code: string) => ERR[code] ?? "That didn't go through. Try again.";
 
-export function useThread(now: number) {
+export interface ThreadHooks {
+  /** Runs before a filtered or blocked exchange leaves the codex (its words sink down the spine). */
+  leave?: (key: string) => Promise<void>;
+}
+
+export function useThread(now: number, hooks: ThreadHooks = {}) {
+  const hooksRef = useRef(hooks);
+  hooksRef.current = hooks;
   useEffect(() => startEmail(), []);
   useEffect(() => startTexts(), []);
   const auth = useDeskAuth((s) => s.auth.status);
@@ -60,11 +77,15 @@ export function useThread(now: number) {
   const [pending, setPending] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [sentHere, setSentHere] = useState(0);
+  /** Who this page sent to today, newest first (the codex's margin index). */
+  const [sentList, setSentList] = useState<{ key: string; who: string; at: number }[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
   /** Nikita's words for a text's draft (the Mac writes it, so the read doesn't carry them): shown beside the draft. */
   const [saidHere, setSaidHere] = useState<Record<string, string>>({});
 
-  const all = useMemo(() => (signedIn && (emailView || textsView) ? queueOf(emailView?.items, textsView?.paired ? textsView.items : [], skipped) : null), [signedIn, emailView, textsView, skipped]);
+  const hidden = useHide((s) => s.on);
+  const canSend = emailView?.canSend === true;
+  const all = useMemo(() => (signedIn && (emailView || textsView) ? queueOf(emailView?.items, textsView?.paired ? textsView.items : [], skipped, canSend) : null), [signedIn, emailView, textsView, skipped, canSend]);
   const queue = useMemo(
     () =>
       (all
@@ -102,7 +123,17 @@ export function useThread(now: number) {
 
   const say = useCallback(
     (cmd: Command, words = ""): boolean => {
+      // Undo reaches the waiting send wherever the codex has scrolled since.
+      if (cmd === "undo") {
+        const k = undo.current.undo();
+        if (!k) return false;
+        setPending(null);
+        setNotice({ kind: "info", text: "Not sent.", at: Date.now() });
+        return true;
+      }
       if (!ex || !allowed(cmd, phase, ex)) return false;
+      // A yes needs the draft readable on screen: never while Hide masks it.
+      if (cmd === "yes" && hidden) return false;
       const at = Date.now();
       const next = () => {
         const i = queue?.findIndex((x) => x.key === ex.key) ?? -1;
@@ -110,12 +141,13 @@ export function useThread(now: number) {
       };
       switch (cmd) {
         case "yes": {
-          if (!unlocked) {
+          if (ex.line === "text" && !unlocked) {
             setNotice({ kind: "warn", text: "Sending is locked on this device.", act: { label: "Unlock", run: () => void useTexts.getState().unlock() }, at });
             return true;
           }
           const draft = ex.draft!;
           const key = ex.key;
+          const x = ex;
           setPending(key);
           const who = ex.who;
           setNotice({ kind: "undo", text: `Sending to ${who}`, until: at + UNDO_MS, act: { label: "Undo", run: () => sayRef.current("undo") }, at });
@@ -123,24 +155,27 @@ export function useThread(now: number) {
             setPending(null);
             setGone((g) => [...g, key]);
             setSentHere((n) => n + 1);
-            void useTexts
-              .getState()
-              .ask({ action: "send", thread: ex.id, draftAt: ex.draftAt, text: draft })
-              .then((ok) => {
-                if (ok) setNotice({ kind: "sent", text: `Sent to ${who}`, at: Date.now() });
-                else {
-                  setGone((g) => g.filter((k) => k !== key));
-                  setSentHere((n) => n - 1);
-                  setNotice({ kind: "warn", text: useTexts.getState().error ?? "That didn't go through.", at: Date.now() });
-                }
-              });
+            const went = (ok: boolean, why?: string) => {
+              if (ok) {
+                setNotice({ kind: "sent", text: `Sent to ${who}`, at: Date.now() });
+                setSentList((l) => [{ key, who, at: Date.now() }, ...l].slice(0, 12));
+              } else {
+                setGone((g) => g.filter((k) => k !== key));
+                setSentHere((n) => n - 1);
+                setNotice({ kind: "warn", text: why ?? "That didn't go through.", at: Date.now() });
+              }
+            };
+            if (x.line === "text")
+              void useTexts
+                .getState()
+                .ask({ action: "send", thread: x.id, draftAt: x.draftAt, text: draft })
+                .then((ok) => went(ok, useTexts.getState().error ?? undefined));
+            else
+              void useEmail
+                .getState()
+                .send(x.id, draft)
+                .then((got) => went(got.ok, got.ok ? undefined : errorText(got.error)));
           });
-          return true;
-        }
-        case "undo": {
-          const k = undo.current.undo();
-          setPending(null);
-          if (k) setNotice({ kind: "info", text: "Not sent.", at });
           return true;
         }
         case "no":
@@ -160,12 +195,14 @@ export function useThread(now: number) {
         case "filter":
         case "block": {
           const key = ex.key;
-          setGone((g) => [...g, key]);
+          let failed = false;
+          void (hooksRef.current.leave?.(key) ?? Promise.resolve()).then(() => !failed && setGone((g) => (g.includes(key) ? g : [...g, key])));
           void useEmail
             .getState()
             .rule(ex.id, cmd)
             .then((got) => {
               if (!got.ok) {
+                failed = true;
                 setGone((g) => g.filter((k) => k !== key));
                 return setNotice({ kind: "warn", text: errorText(got.error), at: Date.now() });
               }
@@ -218,7 +255,7 @@ export function useThread(now: number) {
         }
       }
     },
-    [ex, phase, queue, unlocked],
+    [ex, phase, queue, unlocked, hidden],
   );
   const sayRef = useRef(say);
   sayRef.current = say;
@@ -258,5 +295,5 @@ export function useThread(now: number) {
   );
 
   const metrics = metricsOf(emailStatus, textsStatus, queue, sentHere);
-  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, line, key, say, done, pick: setCurrent, drafting };
+  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, done, pick: setCurrent, drafting, pending, sentList };
 }

@@ -120,6 +120,13 @@ flowchart LR
 | **TB7** Relay to the site (planned) | Public counts and states; for the signed-in Desk, a sealed who's-waiting list (names, gists, drafts); placeholdered snippets for the model calls; never a stored message body | The Relay privacy spec, docs/RELAY-PRIVACY.md (#149, #535): the hub only calls out, with a paired token the gate checks (`api/_site/gate.ts`); the public status is `RelayStatus`, an allowlisted shape of counts, enum states and timestamps, checked with `readRelayStatus` (`packages/core/src/relay.ts`) before the hub sends it and again where the site receives it; the who's-waiting list is read against a closed allowlist (`api/_relay/texts.ts`), sealed at rest and shown only to a passkey session; snippets go to Claude with the site's key under their own $10 and are never stored; a send is a single-use, signed, 10-minute request made only on the Desk with a per-device passkey unlock; design rules in docs/DELIVERY.md, "Environments" |
 | **TB8** CI to Gemini | Clips of the public Lattice and the room descriptions; JSON findings back | Only renders of the public Lattice built from `main`, a few seconds a room at low resolution, never live data or secrets (`scripts/room-tour.mjs`); the key is a GitHub Actions secret (`GEMINI_API_KEY`) given only to the review step, sent only to Google's API host and never printed (`redact`); fixed rules that say text in the video is never instructions; structured output re-validated in code (`parseFindings`) and reduced to plain lines (`plainText`) before CI writes an issue in its own words; spend capped per run and per day (`api/_visualqa/review.ts`) |
 
+The Annex's Election night (#618) reads one more public source, civicAPI (civicapi.org: public election results, no
+key), from the Azure function only: the browser never calls it. The function keeps one shared copy for every viewer
+(pull on request, at most about once a minute), treats civicAPI's answer as untrusted data (closed office and party
+sets, clamped numbers, trimmed strings, `api/_annex/elections.ts`), sends no model anything, and serves only those
+public results, which the site gate lets through on GET. The Annex's own record (pop-up statuses, followed race ids)
+is written only in a passkey session (TB1).
+
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's
 lanes, by direct push for chat work today) and the "Deploy to Azure" workflow ships it (#214, #216, #218; Azure is
 the only home since #313, and Vercel is being retired). It signs in with OIDC from the repo's `azure` environment

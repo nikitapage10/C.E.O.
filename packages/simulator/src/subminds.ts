@@ -34,6 +34,22 @@ export const SUBMINDS: readonly Submind[] = [
   { id: "tally", name: "The Director", room: "studio", colour: "#ff3b3b", job: "Director", active: false },
 ];
 
+/**
+ * Subminds of the Desk-only rooms (#618): rooms with a page on the Desk and no room in the Lattice, so no body, no
+ * simulator rounds and no demo work. The Annex is the first. Its submind is active because the Annex reads a real API
+ * (civicAPI, for Election night); there is nothing to add to LIVE_ROOMS, since the simulator never runs anything there.
+ */
+export interface DeskSubmind {
+  id: string;
+  name: string;
+  room: "annex";
+  colour: string;
+  job: string;
+  active: boolean;
+}
+
+export const DESK_SUBMINDS: readonly DeskSubmind[] = [{ id: "stagehand", name: "The Stagehand", room: "annex", colour: "#f2dd5c", job: "Stagehand", active: true }];
+
 export const SUBMIND_IDS: ReadonlySet<string> = new Set(SUBMINDS.map((m) => m.id));
 export const isSubmind = (id: string) => SUBMIND_IDS.has(id);
 export const submindOf = (room: RoomId): Submind => SUBMINDS.find((m) => m.room === room)!;

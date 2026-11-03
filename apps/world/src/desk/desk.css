@@ -36,6 +36,8 @@
   --room-workshop: #62c4c0;
   --room-studio: #e8706f;
   --room-boiler: #a8aebc;
+  /* The Annex (#618): a Desk-only staging room, the Stagehand's highlighter yellow. */
+  --room-annex: #f2dd5c;
   --room-breakroom: #e28fb6;
   --tone: var(--ice);
   /* Type, blended from the Lattice (#336, Nikita 2026-10-23: "I like the fonts on the Lattice more"): Cormorant

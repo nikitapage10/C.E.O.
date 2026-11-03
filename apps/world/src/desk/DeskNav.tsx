@@ -13,7 +13,7 @@ import { useSkippy } from "./skippy/chat.ts";
  * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
  * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Skippy and the way into the
  * Lattice, both quiet, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
- * Keys 1 to 9 open them in order, 0 the tenth. The Boiler Room comes last (Nikita, 05:35Z), after the Annex (#618), so it is the eleventh page and has no key. Beside the account button, Hide: an eye
+ * Keys 1 to 9 open them in order, 0 the tenth. The Boiler Room comes last of the rooms (Nikita, 05:35Z); the Annex, the staging room off to the side (#618), follows it as the eleventh page, with no number key, so every other key stays as it was. Beside the account button, Hide: an eye
  * that veils every personal value for showing the Desk to someone (Nikita, 05:36Z; hide.ts).
  */
 

@@ -9,7 +9,7 @@ import { useSyncExternalStore } from "react";
 export type Route = "today" | "foundry" | "relay" | "boiler" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio" | "annex" | "lattice";
 
 /** The rooms with a page of their own past Today, the Foundry and Relay. */
-export const ROOM_ROUTES = ["archive", "spire", "exchange", "green", "workshop", "studio", "annex", "boiler"] as const;
+export const ROOM_ROUTES = ["archive", "spire", "exchange", "green", "workshop", "studio", "boiler", "annex"] as const;
 export type RoomRoute = (typeof ROOM_ROUTES)[number];
 /** Desk pages with no room in the Lattice behind them, so no still, banner or simulator room: the Annex (#618). */
 export const DESK_ONLY_ROUTES: readonly RoomRoute[] = ["annex"];

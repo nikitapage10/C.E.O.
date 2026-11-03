@@ -2,6 +2,7 @@ import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { LINEAGE_IDS, ROOM_IDS, type RoomId } from "@ceo/core";
 import { LIVE_ROOMS } from "@ceo/simulator";
+import { DESK_SUBMINDS } from "../../simulator/src/subminds.ts";
 import { PATHS, ROOM_ROUTES } from "../../../apps/world/src/route.ts";
 import { ENGINE_ENDPOINTS, ENGINE_KEYS, KERNEL_LEAD, RoomManifestSchema, type RoomManifest } from "./manifest.ts";
 import { AGENT_QUIPS, HOUSES, LORE, ROOM_QUIPS, SAMPLE_AGENTS, SKIPPY_LORE, SKIPPY_QUIPS, SUBMINDS, defaultCast } from "./lore.ts";
@@ -47,7 +48,9 @@ function check(name: string, fn: () => void) {
   else it.todo(name);
 }
 
-const EXPECTED = ["today", "relay", "foundry", "boiler", "archive", "spire", "exchange", "green", "workshop", "studio"];
+const EXPECTED = ["today", "relay", "foundry", "boiler", "archive", "spire", "exchange", "green", "workshop", "studio", "annex"];
+/** Leads of the pages with no Lattice room: Skippy for Today, and the Desk-only rooms' own subminds (the Annex's Stagehand, #618). */
+const DESK_LEADS = [KERNEL_LEAD, ...DESK_SUBMINDS.map((s) => s.id)];
 const roomDirs = readdirSync(REPO_ROOT + "rooms", { withFileTypes: true })
   .filter((d) => d.isDirectory())
   .map((d) => d.name)
@@ -73,7 +76,7 @@ const endpoints = azureEndpoints();
 const settings = secretSettings();
 
 describe("the room manifests", () => {
-  it("there is one for each of the ten rooms, in rooms/<id>/room.ts", () => {
+  it("there is one for each of the rooms, in rooms/<id>/room.ts", () => {
     expect(roomDirs).toEqual([...EXPECTED].sort());
     for (const dir of roomDirs) expect(byId.get(dir)?.id, `rooms/${dir}/room.ts`).toBe(dir);
   });
@@ -86,7 +89,7 @@ describe("the room manifests", () => {
     const unique = (xs: string[]) => expect(new Set(xs).size, xs.join(", ")).toBe(xs.length);
     unique(manifests.map((m) => m.id));
     unique(manifests.map((m) => m.path));
-    unique(manifests.map((m) => m.navKey));
+    unique(manifests.flatMap((m) => (m.navKey ? [m.navKey] : [])));
     unique(manifests.flatMap((m) => m.keys));
     unique(manifests.flatMap((m) => Object.keys(m.auth)));
   });
@@ -98,7 +101,8 @@ describe("the room manifests", () => {
   });
 
   it("nav keys follow the Desk's key order, and names its labels (DeskNav.tsx)", () => {
-    expect(KEY_ORDER).toHaveLength(NAV_KEYS.length);
+    // Ten keys: a page past the tenth (the Annex, #618) has none.
+    expect(KEY_ORDER.length).toBeGreaterThanOrEqual(NAV_KEYS.length);
     KEY_ORDER.forEach((id, i) => expect(byId.get(id)?.navKey, id).toBe(NAV_KEYS[i]));
     for (const m of manifests) expect(m.name, m.id).toBe(tabLabel(m.id));
   });
@@ -137,14 +141,21 @@ describe("the room contract, room by room", () => {
     describe(m.id, () => {
       check(`${m.id}: its submind exists and leads this room`, () => {
         expect(m.lore.submind).toBe(m.submind);
-        if (!isRoomId(m.id)) return expect(m.submind).toBe(KERNEL_LEAD);
+        if (!isRoomId(m.id)) {
+          expect(DESK_LEADS).toContain(m.submind);
+          const desk = DESK_SUBMINDS.find((s) => s.id === m.submind);
+          return desk ? expect(desk.room).toBe(m.id) : undefined;
+        }
         const sub = SUBMINDS.find((s) => s.id === m.submind);
         expect(sub, m.submind).toBeDefined();
         expect(sub!.room).toBe(m.id);
       });
 
       check(`${m.id}: its submind is active exactly when the room is live`, () => {
-        if (!isRoomId(m.id)) return expect(m.live).toBe(true);
+        if (!isRoomId(m.id)) {
+          const desk = DESK_SUBMINDS.find((s) => s.id === m.submind);
+          return expect(m.live).toBe(desk ? desk.active : true);
+        }
         expect(SUBMINDS.find((s) => s.id === m.submind)?.active).toBe(m.live);
       });
 

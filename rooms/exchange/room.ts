@@ -1,0 +1,26 @@
+import { defineRoom } from "@ceo/engine/manifest";
+
+/** The Exchange: markets, research and money. Data only (docs/ROOMS.md). */
+export default defineRoom({
+  id: "exchange",
+  name: "Exchange",
+  path: "/exchange",
+  navKey: "6",
+  accent: "--room-exchange",
+  submind: "ticker",
+  live: true,
+  auth: {
+    "exchange-markets": ["site"],
+    "exchange-positions": ["passkey"],
+  },
+  keys: ["POLYMARKET_US_KEY_ID", "POLYMARKET_US_SECRET_KEY"],
+  usesClaude: false,
+  threat: ["TB1", "TB6"],
+  budgetKb: 40,
+  purpose: {
+    goal: "Brings Polymarket's live odds and Nikita's read-only positions to an agent desk, practice for agents that read markets without ever trading.",
+    agents: [{ name: "Polymarket", use: "the public odds board and the read-only book" }],
+    measure: "markets on the board and positions held",
+  },
+  lore: { submind: "ticker", agents: ["odds", "hedge"], house: ["gepetti", "claudari"], section: "The cast", lines: "exchange" },
+});

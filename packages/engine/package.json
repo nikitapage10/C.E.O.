@@ -1,0 +1,17 @@
+{
+  "name": "@ceo/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The rule set every Desk room follows: the room contract, its manifest schema and the lore it reaches through (docs/ROOMS.md).",
+  "exports": {
+    "./manifest": "./src/manifest.ts",
+    "./lore": "./src/lore.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "dependencies": {
+    "@ceo/core": "0.1.0",
+    "@ceo/simulator": "0.1.0",
+    "zod": "^4.6.7"
+  }
+}

@@ -486,7 +486,9 @@ real; "nothing shipped" is only for a tick where every rung comes up empty, and 
     the findings on the upkeep issue as a short numbered list with screenshots, ship the best small fix from it in
     the same tick, and file what's bigger (a new layout, a new paradigm, a redesign) as idea cards with concept
     pictures, since redesigns still go mockups-first.
-  Every design change ships with before and after pictures, wide and phone;
+  Every design change ships with before and after pictures, wide and phone. Form follows the room's function, and the engine supplies only the particles
+  and the shared chrome (Nikita, 2026-11-03; docs/ROOMS.md, "Design"): a new room or feature is designed as its own
+  app, never by default in the house theme;
 - add tests where a live room's parser, API handler or Desk view has none;
 - retire a workaround whose reason has gone (a shim for a library bug that is fixed upstream, a fallback for a
   service no longer used);

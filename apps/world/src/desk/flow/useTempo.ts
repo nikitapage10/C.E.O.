@@ -12,9 +12,9 @@ import { roomPulses, type RoomPulse } from "../roomPulse.ts";
 import { useInvoices } from "../spire/invoices.ts";
 import { legendOf, NEUTRAL, tempoOf, type Tempo } from "./tempo.ts";
 
-/** The Desk page a route shows, as the room whose activity moves its lines; Today and the Lattice have none. */
+/** The Desk page a route shows, as the room whose activity moves its lines; Today, the Lattice and the Annex (a Desk-only room, #618) have none. */
 export function roomOfRoute(route: Route): RoomId | null {
-  return route === "today" || route === "lattice" ? null : route;
+  return route === "today" || route === "lattice" || route === "annex" ? null : route;
 }
 
 /**

@@ -1,0 +1,118 @@
+/*
+ * The Annex (#618): a plain staging room, function-first (docs: desk-identities, "Annex"). The shared Desk type
+ * (IBM Plex Sans, Plex Mono for the small labels), neutrals, and one accent: a highlighter yellow for what is live
+ * and followed. Each pop-up below it lays itself out for its own job.
+ */
+.an {
+  --an-accent: #f2dd5c;
+  max-width: 1216px;
+  margin: 0 auto;
+  padding: 8px 32px 72px;
+}
+.an-head {
+  max-width: 760px;
+  margin-bottom: 18px;
+}
+.an-eyb {
+  margin: 0 0 6px;
+  color: var(--faint);
+  font: 500 11px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.an-h1 {
+  margin: 0;
+  font: 600 34px/1.1 var(--sans);
+  letter-spacing: -0.015em;
+}
+.an-sub {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.an-h2 {
+  margin: 0 0 10px;
+  font: 600 15px var(--sans);
+}
+.an-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+.an-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.an-status {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font: 600 11px var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border: 1px solid var(--hair-strong);
+}
+.an-row[data-status="live"] .an-status {
+  border-color: var(--an-accent);
+  color: var(--an-accent);
+}
+.an-row-text {
+  display: grid;
+  min-width: 0;
+}
+.an-row-text b {
+  font-weight: 600;
+}
+.an-row-text span,
+.an-until {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.an-btn {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: 500 13px var(--sans);
+  cursor: pointer;
+}
+.an-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.an-btn--go {
+  border-color: var(--an-accent);
+}
+.an-shelf {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hair);
+}
+.an-note {
+  margin: 4px 0 8px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+@media (max-width: 640px) {
+  .an {
+    padding: 4px 16px 56px;
+  }
+  .an-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .an-until {
+    display: none;
+  }
+  .an-h1 {
+    font-size: 28px;
+  }
+}

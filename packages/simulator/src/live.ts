@@ -15,6 +15,9 @@ import type { RoomId } from "@ceo/core";
  * - green: Nikita's Sleeper league and FantasyPros (#252).
  * - boiler: the pipes report the real lines; Drop and Clause only tend them (walk their rounds, banter; no demo tasks).
  *
+ * The Annex (#618) is a Desk-only room with no room in the Lattice, so it has no demo to stop: its submind is on
+ * DESK_SUBMINDS (subminds.ts) instead.
+ *
  * When a room goes live, add it here in the same change that wires it up (CLAUDE.md, "Real agents").
  */
 export const LIVE_ROOMS: ReadonlySet<RoomId> = new Set<RoomId>(["foundry", "relay", "exchange", "green", "boiler"]);

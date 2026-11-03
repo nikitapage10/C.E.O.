@@ -2,15 +2,17 @@ import { useSyncExternalStore } from "react";
 
 /**
  * The app's few addresses. The Desk lives at `/` (Today), `/foundry`, `/relay` and one page per room: `/boiler` (with
- * its Security and Compliance subpages), `/archive`, `/spire`, `/exchange`, `/green`, `/workshop` and `/studio`; the 3D Lattice
+ * its Security and Compliance subpages), `/archive`, `/spire`, `/exchange`, `/green`, `/workshop`, `/studio` and `/annex` (the staging room for pop-ups, #618); the 3D Lattice
  * at `/lattice`. The old `/systems` and `/chronicle` addresses still open the Boiler Room and the Archive (#225).
  * Kept free of imports on purpose: the Desk loads this, and must not pull in anything from the Lattice.
  */
-export type Route = "today" | "foundry" | "relay" | "boiler" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio" | "lattice";
+export type Route = "today" | "foundry" | "relay" | "boiler" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio" | "annex" | "lattice";
 
 /** The rooms with a page of their own past Today, the Foundry and Relay. */
-export const ROOM_ROUTES = ["archive", "spire", "exchange", "green", "workshop", "studio", "boiler"] as const;
+export const ROOM_ROUTES = ["archive", "spire", "exchange", "green", "workshop", "studio", "annex", "boiler"] as const;
 export type RoomRoute = (typeof ROOM_ROUTES)[number];
+/** Desk pages with no room in the Lattice behind them, so no still, banner or simulator room: the Annex (#618). */
+export const DESK_ONLY_ROUTES: readonly RoomRoute[] = ["annex"];
 
 const first = (pathname: string) => pathname.split("/")[1] ?? "";
 
@@ -44,6 +46,7 @@ export const PATHS: Record<Route, string> = {
   green: "/green",
   workshop: "/workshop",
   studio: "/studio",
+  annex: "/annex",
   lattice: "/lattice",
 };
 

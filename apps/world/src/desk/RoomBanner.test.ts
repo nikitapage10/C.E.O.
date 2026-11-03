@@ -1,7 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import { defaultCast, SAMPLE_AGENTS } from "@ceo/simulator";
 import { describe, expect, it } from "vitest";
-import { PATHS } from "../route.ts";
+import { DESK_ONLY_ROUTES, PATHS } from "../route.ts";
 import { DESK_ROOMS, roomImage } from "./deskData.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { BANNERS, roomImage2x } from "./RoomBanner.tsx";
@@ -12,7 +12,8 @@ const file = (src: string) => new URL(`../../public${src}`, import.meta.url);
 
 describe("room banners", () => {
   it("gives every Desk page past Today, and each Boiler Room subpage, a banner from one of the Lattice's rooms", () => {
-    const pages: string[] = (Object.keys(PATHS) as (keyof typeof PATHS)[]).filter((r) => r !== "today" && r !== "lattice");
+    // The Desk-only pages (the Annex, #618) have no Lattice room to take a still from, and lay themselves out without one.
+    const pages: string[] = (Object.keys(PATHS) as (keyof typeof PATHS)[]).filter((r) => r !== "today" && r !== "lattice" && !(DESK_ONLY_ROUTES as readonly string[]).includes(r));
     // The Boiler Room's subpages each carry the banner too.
     for (const sub of ["/boiler/security", "/boiler/compliance"]) pages.push(systemsPageOf(sub));
     expect(Object.keys(BANNERS).sort()).toEqual(pages.sort());

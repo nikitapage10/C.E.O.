@@ -688,6 +688,15 @@ hit, plus hero art Nikita makes by hand), each character speaks in its own fixed
 a job renders them tall, and nothing posts without Nikita's tap. Voice and images each have their own $10 a month cap,
 with a hard stop.
 
+## The Annex
+
+Not a room of the Lattice but a door off the Desk (#618): the Annex is staging. Short-run things set up there for a
+night or a week, each a **pop-up** with its own small kit, and one that earns it graduates into a room of its own. When
+a pop-up is done it goes on the **Shelf**, packed but kept, nothing running, and comes back down as it was with one tap.
+The **Stagehand**, a piece of Skippy who wears a headset and no costume, sets the pop-ups up and strikes them; he gives
+cues, not speeches, and thinks the main rooms are a bit precious. The first pop-up was **Election night**, the 2026
+midterms read live from civicAPI's public results, with the races Nikita follows pinned to the top.
+
 ## The Hallowed Veil
 
 On the nights the C.E.O. calls it, the Veil between the Lattice and Ilyr runs thin, and the Break Room club

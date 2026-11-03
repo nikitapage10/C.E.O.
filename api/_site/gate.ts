@@ -41,6 +41,8 @@
  *                                             key: 10 minutes, 5 tries, made only in a Desk session with the send unlock
  *        GET /api/relay?view=status            Relay's public counts (#535: RelayStatus, counts and states only, public
  *                                             by design), for `relay status` and `relay wipe --verify` on the Mac
+ *        GET /api/annex-elections             the Annex's Election night (#618): public election results from civicAPI,
+ *                                             and its freshness counts (?debug=fresh); nothing private is in either
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
  *   6. Anything else: an API route gets 401 { error: "site-locked" }; a page gets the login page, with 401.
  *
@@ -73,7 +75,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "annex-results" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -196,6 +198,7 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if (isRelayHub(request, url, env)) return { allow: true, why: "relay-hub" };
   if (request.method === "POST" && pathname === "/api/relay-pair" && url.search === "") return { allow: true, why: "relay-pair" };
   if (request.method === "GET" && pathname === "/api/relay" && url.search === "?view=status") return { allow: true, why: "relay-status" };
+  if ((request.method === "GET" || request.method === "HEAD") && pathname === "/api/annex-elections") return { allow: true, why: "annex-results" };
   const room = roomKeyPass(request, env);
   if (room) return { allow: true, why: room };
   // The passkey works only where the Desk key is set; without it, the login page says signing in isn't set up.

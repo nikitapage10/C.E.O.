@@ -9,6 +9,7 @@ import "./env.js";
 
 import { app, type HttpMethod } from "@azure/functions";
 import { registerAzureBlob } from "../../api/_blob.js";
+import * as annex from "../../api/_annex/route.js";
 import * as daystory from "../../api/day-story.js";
 import * as deskauth from "../../api/desk-auth.js";
 import * as deskpings from "../../api/desk-pings.js";
@@ -69,6 +70,10 @@ type Module = Partial<Record<"GET" | "POST" | "PUT", WebHandler>>;
 
 /** Each endpoint, by its Vercel name (the file name in api/), with how long its waitUntil work may hold the answer. */
 export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions]> = [
+  // The Annex (#618): the pop-ups' statuses and follows, and Election night's results from civicAPI, read on request
+  // and shared by every viewer (api/_annex/route.ts). annex-elections GET is public, like the results themselves.
+  ["annex", annex],
+  ["annex-elections", annex],
   ["day-story", daystory],
   ["desk-auth", deskauth],
   ["desk-pings", deskpings],

@@ -4,7 +4,7 @@ import { FpUnavailable, fpIndex, fpKey, nameKey, readFantasyPros, statusOf, scor
 import { LATE_GAME_RISK_GAP, buildBoard, byeTeams, formOf, formProjection, lineupSwaps, normCdf, slotTakes, winChance } from "./model.ts";
 import { callsFor } from "./analyst.ts";
 import { FP_SHAPE, forgetGreen, GET, isGreen, PATH, type GreenDeps } from "./route.ts";
-import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, shapeGames, cleanText, shapeLeague, shapeClaimed, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
+import { LEAGUE_ID, NFL_TEAMS, USER_ID, byesOf, shapeGames, cleanText, shapeLeague, shapeState, tradeDeadlineOf, shapeClaimed, shapeSchedule, shapeMatchups, shapeRosters, shapeTeamNames, slimPlayers, type Fetcher } from "./sleeper.ts";
 import type { GreenBoard, GreenMatchup, GreenPlayer, GreenSide } from "./types.ts";
 import { locked, needToWin, sideDone, stillLine, stillToPlay, stillWords } from "./still.ts";
 import { GET as worldGET } from "../world.ts";
@@ -148,6 +148,16 @@ describe("Sleeper's answers, trimmed (#252)", () => {
     expect(shapeTeamNames(USERS)).toEqual({ [USER_ID]: "Denver Dream Team", [THEM]: "5:30 Abdi" });
     expect(shapeMatchups([{ roster_id: 1, matchup_id: 2, players_points: { "1": 5, "x y": 3, "2": 9999 } }])[0]!.playerPoints).toEqual({ "1": 5 });
     expect(() => shapeLeague({ league_id: "nope" })).toThrow();
+  });
+
+  it("reads the trade deadline from the league's settings (#608): 0 and 99 mean none", () => {
+    const withDeadline = (v: unknown) => shapeLeague({ ...LEAGUE, settings: { ...LEAGUE.settings, trade_deadline: v } }).tradeDeadline;
+    expect([withDeadline(10), withDeadline("10"), withDeadline(0), withDeadline(99), withDeadline(undefined), withDeadline(-3), withDeadline(4.5)]).toEqual([10, 10, null, null, null, null, null]);
+    const st = shapeState({ season: "2026", league_season: "2026", display_week: 8, week: 9, season_type: "regular", season_start_date: "2026-09-09" });
+    expect(st.seasonStart).toBe("2026-09-09");
+    expect(shapeState({ season: "2026", week: 3, season_start_date: "2026-13-45" }).seasonStart).toBeUndefined();
+    expect(tradeDeadlineOf(10, st.seasonStart)).toEqual({ week: 10, ends: "2026-11-18" });
+    expect(tradeDeadlineOf(10, undefined)).toEqual({ week: 10, ends: null });
   });
 });
 

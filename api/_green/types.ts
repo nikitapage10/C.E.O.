@@ -158,6 +158,12 @@ export interface FpParts {
 /** Where the start-or-sit calls come from. */
 export type CallSource = "fp" | "form";
 
+/** The league's trade deadline (#608): the week it falls after, and the day that week ends (YYYY-MM-DD) when Sleeper dates the season. */
+export interface GreenTradeDeadline {
+  week: number;
+  ends: string | null;
+}
+
 export interface GreenBoard {
   ok: true;
   /** When the server put this together (ISO). */
@@ -170,7 +176,7 @@ export interface GreenBoard {
    */
   nflWeek?: number;
   /** The league: its Sleeper id (for the "Open in Sleeper" link), name, size, scoring and FAAB budget. */
-  league: { id: string; name: string; teams: number; scoring: string; faab: number | null };
+  league: { id: string; name: string; teams: number; scoring: string; faab: number | null; tradeDeadline?: GreenTradeDeadline };
   me: {
     rosterId: number;
     team: string;

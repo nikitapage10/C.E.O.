@@ -24,7 +24,7 @@
 import type { FpData, FpView } from "./fantasypros.js";
 import { fpIndex, nameKey } from "./fantasypros.js";
 import type { Games, League, MatchupRow, Move, NflState, Roster, Schedule, SlimPlayer, SlProj } from "./sleeper.js";
-import { NFL_TEAMS, USER_ID, byesOf } from "./sleeper.js";
+import { NFL_TEAMS, USER_ID, byesOf, tradeDeadlineOf } from "./sleeper.js";
 import { bidCandidates, bidsFor, bestLineup, callsFor, simulate, teamsFor, tradeFor, worth, type OddsGame, type OddsTeam, type RosterView } from "./analyst.js";
 import { GREEN_PICKUPS_MAX, type FpState, type GreenBoard, type GreenByeWeek, type GreenInjury, type GreenMove, type GreenNews, type GreenPickup, type GreenPlayer, type GreenPos, type GameState, type GreenSide, type GreenSlot, type GreenStanding, type GreenSwap } from "./types.js";
 
@@ -343,7 +343,7 @@ export function buildBoard(input: ModelInput): GreenBoard {
     season: state.season,
     week,
     ...(state.nflWeek !== undefined && { nflWeek: state.nflWeek }),
-    league: { id: league.id, name: league.name, teams: league.teams, scoring: league.rec >= 0.75 ? "PPR" : league.rec >= 0.25 ? "Half PPR" : "Standard", faab: league.faab },
+    league: { id: league.id, name: league.name, teams: league.teams, scoring: league.rec >= 0.75 ? "PPR" : league.rec >= 0.25 ? "Half PPR" : "Standard", faab: league.faab, ...(league.tradeDeadline !== null && { tradeDeadline: tradeDeadlineOf(league.tradeDeadline, state.seasonStart) }) },
     me: {
       rosterId: mine.rosterId,
       team: teamName(mine),

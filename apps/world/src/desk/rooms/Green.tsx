@@ -9,6 +9,7 @@ import {
   sideDone,
   stillToPlay,
   tickerItems,
+  tradeDeadlineLine,
   onBye,
   ordinal,
   pct,
@@ -1070,10 +1071,14 @@ function Waivers({ board }: { board: GreenBoard }) {
   );
 }
 
+const CLOSED = "Trades are closed";
+
 function Trade({ board }: { board: GreenBoard }) {
   const t = board.trade;
+  const deadline = tradeDeadlineLine(board.league.tradeDeadline, board.week, Date.now());
   return (
     <section className="gd-sec gd-trade" aria-label="Trade idea">
+      {deadline && <p className={`gd-deadline${deadline === CLOSED ? " is-closed" : ""}`}>{deadline}</p>}
       <p className="gd-k">One trade idea</p>
       {t ? (
         <>

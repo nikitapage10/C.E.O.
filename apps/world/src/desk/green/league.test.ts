@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimWaiting, commentatorCall, greenLinks, ordinal, readGreen, sayNumber, scoreboardLine, sleeperLeagueUrl, tickerItems, yardLine, type GreenBoard, type GreenPlayer } from "./league.ts";
+import { claimWaiting, commentatorCall, greenLinks, ordinal, readGreen, sayNumber, scoreboardLine, sleeperLeagueUrl, tickerItems, tradeDeadlineLine, yardLine, type GreenBoard, type GreenPlayer } from "./league.ts";
 import { readAnalysis, waitWords } from "./analysis.ts";
 import { roomPhrase, roomPulses, type PulseInput } from "../roomPulse.ts";
 import { EMPTY_FOUNDRY } from "../../foundry.ts";
@@ -171,5 +171,30 @@ describe("the ticker (#261)", () => {
       ["Claim", "5:30 Abdi", "adds Hot Pickup, drops Old Hand (FAAB bid 12)", false],
     ]);
     expect(tickerItems(b, 1)).toHaveLength(1);
+  });
+});
+
+describe("the trade deadline on the Green (#608)", () => {
+  const day = (iso: string) => Date.parse(`${iso}T12:00:00Z`);
+  it("counts the days left to the day the deadline week ends", () => {
+    const td = { week: 10, ends: "2026-11-18" };
+    expect(tradeDeadlineLine(td, 8, day("2026-11-03"))).toBe("Trade deadline after Week 10 · 15 days left");
+    expect(tradeDeadlineLine(td, 10, day("2026-11-17"))).toBe("Trade deadline after Week 10 · last day");
+    expect(tradeDeadlineLine(td, 11, day("2026-11-18"))).toBe("Trades are closed");
+    expect(tradeDeadlineLine(td, 12, day("2026-12-01"))).toBe("Trades are closed");
+  });
+  it("falls back to the week when the season isn't dated, and hides when there is no deadline", () => {
+    expect(tradeDeadlineLine({ week: 10, ends: null }, 8, 0)).toBe("Trade deadline after Week 10");
+    expect(tradeDeadlineLine({ week: 10, ends: null }, 11, 0)).toBe("Trades are closed");
+    expect(tradeDeadlineLine(undefined, 8, 0)).toBeNull();
+  });
+  it("keeps a good deadline on the board and drops a bad one", () => {
+    const b = board();
+    const good = readGreen(JSON.parse(JSON.stringify({ ...b, league: { ...b.league, tradeDeadline: { week: 10, ends: "2026-11-18" } } })))!;
+    expect(good.league.tradeDeadline).toEqual({ week: 10, ends: "2026-11-18" });
+    for (const bad of [{ week: 99, ends: null }, { week: 0, ends: null }, { week: 2.5, ends: null }, "10", null]) {
+      expect(readGreen(JSON.parse(JSON.stringify({ ...b, league: { ...b.league, tradeDeadline: bad } })))!.league.tradeDeadline).toBeUndefined();
+    }
+    expect(readGreen(JSON.parse(JSON.stringify({ ...b, league: { ...b.league, tradeDeadline: { week: 10, ends: "soon" } } })))!.league.tradeDeadline).toEqual({ week: 10, ends: null });
   });
 });

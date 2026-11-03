@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CallSource, FpParts, FpState, GreenAnalysis, GreenBid, GreenBoard, GreenByeWeek, GreenCall, GreenFeed, GreenMove, GreenNews, GreenOdds, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap, GreenTeam, GreenTrade } from "../../../../../api/_green/types.ts";
+import type { CallSource, FpParts, FpState, GreenAnalysis, GreenBid, GreenBoard, GreenByeWeek, GreenCall, GreenFeed, GreenMove, GreenNews, GreenOdds, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap, GreenTeam, GreenTrade, GreenTradeDeadline } from "../../../../../api/_green/types.ts";
 import { locked, needToWin } from "../../../../../api/_green/still.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 
@@ -10,7 +10,7 @@ import { useSystems, type LinkState } from "../../systems.ts";
  * and FantasyPros links on Systems and in the Boiler Room. Read-only: the moves are made in Sleeper.
  */
 
-export type { CallSource, FpParts, FpState, GreenAnalysis, GreenBid, GreenBoard, GreenByeWeek, GreenCall, GreenFeed, GreenMove, GreenNews, GreenOdds, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap, GreenTeam, GreenTrade };
+export type { CallSource, FpParts, FpState, GreenAnalysis, GreenBid, GreenBoard, GreenByeWeek, GreenCall, GreenFeed, GreenMove, GreenNews, GreenOdds, GreenPickup, GreenPlayer, GreenSide, GreenSlot, GreenStanding, GreenSwap, GreenTeam, GreenTrade, GreenTradeDeadline };
 
 const PATH = "/api/green-league";
 const POLL_MS = 120_000;
@@ -153,6 +153,29 @@ export function readFeeds(v: unknown): GreenFeed[] {
     .slice(0, 16);
 }
 
+/** The trade deadline (#608), kept only when it is a week 1 to 25 and, if dated, a real day. */
+function readDeadline(v: unknown): { tradeDeadline?: GreenTradeDeadline } {
+  const d = v as Partial<GreenTradeDeadline> | null | undefined;
+  if (!d || typeof d !== "object" || typeof d.week !== "number" || !isNum(d.week, 1, 25) || !Number.isInteger(d.week)) return {};
+  const ends = typeof d.ends === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.ends) && !Number.isNaN(Date.parse(`${d.ends}T00:00:00Z`)) ? d.ends : null;
+  return { tradeDeadline: { week: d.week, ends } };
+}
+
+/**
+ * The trade deadline in words (#608): "Trade deadline after Week 10 · 15 days left", "... · last day" or a quiet "Trades are
+ * closed"; null when the league has no deadline. Dated by the day the deadline week ends; without it, by the week alone.
+ */
+export function tradeDeadlineLine(td: GreenTradeDeadline | undefined, week: number, now: number): string | null {
+  if (!td) return null;
+  const head = `Trade deadline after Week ${td.week}`;
+  if (td.ends) {
+    const days = Math.ceil((Date.parse(`${td.ends}T00:00:00Z`) - now) / 86_400_000);
+    if (days <= 0) return "Trades are closed";
+    return `${head} · ${days === 1 ? "last day" : `${days} days left`}`;
+  }
+  return week > td.week ? "Trades are closed" : head;
+}
+
 /** The board as the server sent it, anything off-shape dropped; null when it isn't a board. */
 export function readGreen(v: unknown): GreenBoard | null {
   const b = v as Partial<GreenBoard> | null;
@@ -164,7 +187,7 @@ export function readGreen(v: unknown): GreenBoard | null {
     at: b.at,
     season: isStr(b.season, 8) ? b.season! : "",
     week: b.week!,
-    league: { id: /^\d{1,24}$/.test(b.league.id ?? "") ? b.league.id : "", name: isStr(b.league.name) ? b.league.name : "The league", teams: Number(b.league.teams) || 0, scoring: isStr(b.league.scoring, 20) ? b.league.scoring : "", faab: isNum(b.league.faab, 0, 10000) ? b.league.faab : null },
+    league: { id: /^\d{1,24}$/.test(b.league.id ?? "") ? b.league.id : "", name: isStr(b.league.name) ? b.league.name : "The league", teams: Number(b.league.teams) || 0, scoring: isStr(b.league.scoring, 20) ? b.league.scoring : "", faab: isNum(b.league.faab, 0, 10000) ? b.league.faab : null, ...readDeadline(b.league.tradeDeadline) },
     me: {
       rosterId: Number(b.me.rosterId) || 0,
       team: isStr(b.me.team) ? b.me.team : "Your team",

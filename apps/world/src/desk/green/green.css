@@ -1519,6 +1519,14 @@
   text-decoration: none;
   border-bottom: 1px solid var(--gd-line2);
 }
+.desk .gd-deadline {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--turf);
+}
+.desk .gd-deadline.is-closed {
+  color: var(--wv-faint);
+}
 .desk .gd-trade-swap {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);

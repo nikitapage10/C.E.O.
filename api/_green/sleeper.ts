@@ -19,7 +19,7 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { GREEN_POS, GREEN_TEXT_MAX, type GreenInjury, type GreenPos } from "./types.js";
+import { GREEN_POS, GREEN_TEXT_MAX, type GreenInjury, type GreenPos, type GreenTradeDeadline } from "./types.js";
 
 export const SLEEPER = "https://api.sleeper.app/v1";
 /** Sleeper's schedule lives on its other host. */
@@ -147,6 +147,16 @@ export interface NflState {
   type: string;
   /** Sleeper's own current week (`week`), when it differs from the shown one: the next week, after a week goes final (#506). */
   nflWeek?: number;
+  /** The day week 1 starts (`season_start_date`, YYYY-MM-DD), to date the trade deadline (#608); absent when Sleeper doesn't say. */
+  seasonStart?: string;
+}
+
+/** A real calendar day written YYYY-MM-DD. */
+export function isoDay(v: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v && Number(m[1]) >= 2000 && Number(m[1]) < 2100;
 }
 
 export function shapeState(raw: unknown): NflState {
@@ -156,7 +166,8 @@ export function shapeState(raw: unknown): NflState {
   if (!season || week === null || week < 0 || week > 25) throw new Error("bad state");
   const current = num(s.week);
   const nflWeek = current !== null && current >= 0 && current <= 25 && Math.round(current) !== Math.round(week) ? Math.round(current) : undefined;
-  return { season, week: Math.round(week), type: typeof s.season_type === "string" ? s.season_type : "regular", ...(nflWeek !== undefined && { nflWeek }) };
+  const seasonStart = typeof s.season_start_date === "string" && isoDay(s.season_start_date) ? s.season_start_date : undefined;
+  return { season, week: Math.round(week), type: typeof s.season_type === "string" ? s.season_type : "regular", ...(nflWeek !== undefined && { nflWeek }), ...(seasonStart !== undefined && { seasonStart }) };
 }
 
 export interface League {
@@ -172,6 +183,20 @@ export interface League {
   playoffStart: number;
   /** How many teams make the playoffs (Sleeper's `playoff_teams`). */
   playoffTeams: number;
+  /** The week the trade deadline falls after (Sleeper's `trade_deadline`, #608); null when the league has none (Sleeper sends 0 or 99). */
+  tradeDeadline: number | null;
+}
+
+/** Sleeper's `trade_deadline` as a week: 1 to 25, else null (0 and 99 both mean no deadline). */
+export function tradeDeadlineWeek(v: unknown): number | null {
+  const n = num(v);
+  return n !== null && Number.isInteger(n) && n >= 1 && n <= 25 ? n : null;
+}
+
+/** The deadline as the feed carries it: its week, and the day that week ends (week 1's start plus 7 days a week) when the season's start is known. */
+export function tradeDeadlineOf(week: number, seasonStart: string | undefined): GreenTradeDeadline {
+  if (!seasonStart || !isoDay(seasonStart)) return { week, ends: null };
+  return { week, ends: new Date(Date.parse(`${seasonStart}T00:00:00Z`) + week * 7 * 86_400_000).toISOString().slice(0, 10) };
 }
 
 /** The league's starting slots exactly as `roster_positions` lists them, in order, bench (BN), IR and taxi left out: `starters[i]` is the player in slot i. */
@@ -199,6 +224,7 @@ export function shapeLeague(raw: unknown): League {
     faab: num(s.waiver_type) === 2 && budget !== null ? budget : null,
     playoffStart: num(s.playoff_week_start) ?? 15,
     playoffTeams: Math.max(0, Math.min(16, num(s.playoff_teams) ?? 6)),
+    tradeDeadline: tradeDeadlineWeek(s.trade_deadline),
   };
 }
 

@@ -460,24 +460,47 @@ first. The issue's `**Builder:**` line names the model she really used, e.g. `**
    reason is an item that is too big or needs Nikita, file that item as an idea card (`foundry:idea`) for Nikita's pick
    as well and link it from the upkeep card.
 
-**What to pick, in this order** (one change per tick):
+**What to pick, in this order** (one change per tick, small or medium). Work down the whole list until one item is
+real; "nothing shipped" is only for a tick where every rung comes up empty, and its card says what was checked
+(Nikita, 2026-11-03: upkeep should be "a little bit more impactful without necessarily needing input"):
 
 - **security and compliance first:** the most pressing open item on the Desk's Security and Compliance pages (risks
   R1–R6 and the open OWASP LLM, NIST AI RMF and SAIF gaps in [THREAT-MODEL.md](THREAT-MODEL.md), or a failing scan).
   A small, safe fix ships as upkeep, with the threat model and `apps/world/src/desk/security/model.ts` updated
   together so the Desk shows it; anything bigger becomes an idea card for Nikita's pick;
-- make a flaky or slow test reliable;
-- shrink the bundle or the 3D assets so the world loads faster;
-- remove dead code, tidy types, clear lint warnings;
-- bump one dependency, with the checks as proof (only packages already in `package.json`, and `npm audit signatures` must pass; see [SECURITY.md](SECURITY.md));
 - take in Dependabot's grouped minor and patch update (Nikita, 2026-10-21, #204): when Dependabot's grouped
   minor-and-patch PR is open and its `checks` and CodeQL are green, merge main into it locally, run typecheck, lint,
   tests, build and `scripts/boot-check.mjs` on the result, and squash-merge it once all pass. Only Dependabot's own
   grouped minor or patch PRs qualify; a major version, or anything adding a package, becomes an idea card for
   Nikita's pick. A red run is left unmerged with one comment saying which check failed;
+- **fix a real bug:** a console error or warning the boot check or the browser tests print, a failing nightly run, a
+  Boiler Room timing that got slower, a room page that breaks on empty or odd data;
+- **design polish and design reviews** (Nikita, 2026-11-03: "improving small design elements, doing design
+  reviews"; Nikita isn't happy with how the Desk and the Lattice look yet). Always on **Opus**. Either:
+  - *polish:* one small design fix to something already there, on the Desk or the Lattice: spacing and alignment,
+    type scale and hierarchy, contrast and colour consistency, the phone layout, empty, loading and error states,
+    icons, focus and hover states, motion that stutters, copy that reads badly; or
+  - *a design review:* at most once a day, review one Desk page or one Lattice room at wide and phone sizes against
+    its own identity (each Desk page has its own paradigm, fonts and accent; Nikita, 2026-10-24) and the rest of
+    the site. Post
+    the findings on the upkeep issue as a short numbered list with screenshots, ship the best small fix from it in
+    the same tick, and file what's bigger (a new layout, a new paradigm, a redesign) as idea cards with concept
+    pictures, since redesigns still go mockups-first.
+  Every design change ships with before and after pictures, wide and phone;
+- add tests where a live room's parser, API handler or Desk view has none;
+- retire a workaround whose reason has gone (a shim for a library bug that is fixed upstream, a fallback for a
+  service no longer used);
+- make a flaky or slow test reliable;
+- shrink the bundle or the 3D assets so the world loads faster;
+- remove dead code, tidy types, clear lint warnings;
+- bump one dependency, with the checks as proof (only packages already in `package.json`, and `npm audit signatures` must pass; see [SECURITY.md](SECURITY.md));
 - keep docs and setup notes in step with the code.
 
-Upkeep never changes what Nikita sees or how the agents behave. If a change would, it becomes an idea instead.
+**What upkeep may and may not change.** Upkeep may change what Nikita sees when it fixes or polishes something that
+is already there: a bug, a design detail, a broken phone layout, an unclear empty state, accessibility. It never adds
+a feature, a page or a room, never changes a page's design direction (that's a redesign: mockups first, Nikita
+picks), and never changes how the agents behave; those become idea cards. Nothing on the "Auto-approval" never-list
+is upkeep's either.
 
 ## The trail on every issue
 

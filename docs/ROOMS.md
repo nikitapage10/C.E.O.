@@ -27,10 +27,24 @@ lands, its code stays where it is in `apps/world/src/desk` and `api/`.
 | Manifest | `room.ts` passes the schema. | The contract test: unique ids, paths, nav keys, keys and endpoints; paths match `PATHS`, keys follow the Desk's key order, names match the bar, and the accent token exists. |
 | Tests | Unit tests and one e2e smoke test per room. | Later: a vitest project per room, the boot-check opening every room, and a per-room JS budget (`budgetKb`) beside the Desk's 1 MB. |
 | CSS | Every rule in a room sheet starts with `[data-room="<id>"]`. | Later: a scoping test. |
+| Design | Form follows the room's function; the engine supplies particles plus shared chrome (see "Design" below). | Review: the screenshot review in each PR. Guidance, not a test. |
 
 The contract test is `packages/engine/src/contract.test.ts`. Gaps that are real today are listed in its `KNOWN_GAPS`
 and show as todos; a room's migration PR closes its own. When a gap starts passing, the test fails until it is taken
 off the list, so the list only shrinks.
+
+## Design
+
+**Form follows the room's function; the engine supplies particles plus shared chrome** (Nikita, 2026-11-03, 23:12Z).
+This replaces the older rule that every page comes back to Today's language.
+
+- Design every new room or feature as its own app. Start from what it does, pick the form that serves it best (a
+  dashboard, a map, an image, a 3D model, a tool, or something else), then design the look to match.
+- Don't default to the house theme, and don't make rooms look alike.
+- Only the engine layer is shared: the sigil and nanite particle threads; the shared chrome (the menu, sign-in and the
+  lock, Skippy and Talk, the feed and the Council); and a lean toward dark, which is a default, not a rule.
+
+Review enforces this, not a test.
 
 ## A room's shape
 

@@ -19,9 +19,22 @@ export function readRepoFile(path: string): string | null {
   }
 }
 
-/** Every Markdown heading's text, without the hashes. */
+/**
+ * Every Markdown heading's text, without the hashes. Parsed line by line with no backtracking regex, so a long run of
+ * spaces can't make it slow (CodeQL js/polynomial-redos).
+ */
 export function headingsOf(markdown: string): string[] {
-  return [...markdown.matchAll(/^#{1,6}\s+(.+?)\s*$/gm)].map((m) => m[1]!);
+  const out: string[] = [];
+  for (const line of markdown.split("\n")) {
+    let hashes = 0;
+    while (hashes < line.length && line[hashes] === "#") hashes++;
+    if (hashes < 1 || hashes > 6) continue;
+    const next = line[hashes];
+    if (next !== " " && next !== "\t") continue;
+    const text = line.slice(hashes).trim();
+    if (text) out.push(text);
+  }
+  return out;
 }
 
 /** The secret settings the Function App resolves from the Key Vault (azure/src/env.ts, SECRET_SETTINGS). */

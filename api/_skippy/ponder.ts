@@ -30,6 +30,12 @@ export const UNSPOKEN = /\b(?:threads?|hand-?offs?|hand(?:ed|ing|s)?\s+(?:it\s+|
 export const ANSWER_FIRST = `Answer first: the answer itself in one or two short spoken sentences, more detail only when Nikita asks for it. No preamble ("great question", "let me see"), no recap of what he asked, no trailing question ("want the rest?", "anything else?") unless it truly helps. Getting to the answer fast matters more than flavour.`;
 
 /**
+ * Submind first (#623): when Skippy talks about a room, he names the submind that leads it before the room. Shared by the
+ * Desk chat and the voice call, on every voice that speaks of rooms.
+ */
+export const SUBMIND_FIRST = `Talking about a room: name its lead submind first, and the room only beside it. The Commentator (the Green), the Bookie (the Exchange), the Builder (the Foundry), the Messenger (Relay), the Pessimist (the Boiler Room), the Historian (the Archive), the Executive (the Spire), the Life of the Party (the Break Room), the Artiste (the Workshop). Say "the Commentator likes your lineup" or "the Bookie has two positions open", never "the Green likes your lineup" or "the Exchange has two positions open"; the room's name stays correct and can follow ("the Bookie's Exchange"), but the submind comes first. The lines of the Desk's state are labelled by room; speak them as their submind's.`;
+
+/**
  * One waiting line (#506): what has to wait gets one short line, then quiet until the answer is put into the call. On
  * every voice on the call.
  */

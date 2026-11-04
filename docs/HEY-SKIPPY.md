@@ -31,7 +31,8 @@ In the Shortcuts app, tap **+**, name it **Skippy**, and add these actions in or
 2. **Get Contents of URL**:
    - URL: `https://ceo.nikita.page/api/capture`
    - Method: **POST**
-   - Headers: add `Authorization` with the value `Bearer <key>`: the word Bearer, a space, then the key from the Desk.
+   - Headers: add one named `x-ceo-phone-key` whose value is the key from the Desk (it starts `skp_`). Use this header,
+     not `Authorization`: the site's front door replaces `Authorization` before it reaches C.E.O.
    - Request Body: **JSON**, add a **Text** field named `text` and set it to the **Dictated Text** variable.
 3. **Get Dictionary Value**: get the value for `say` in **Contents of URL**.
 4. **Speak Text**: the **Dictionary Value**.
@@ -59,7 +60,7 @@ nothing secret.
 
 ## What the phone gets back
 
-`POST /api/capture` with `Authorization: Bearer <key>` and `{ "text": "…", "voice": true }` (voice is optional):
+`POST /api/capture` with the header `x-ceo-phone-key: <key>` and `{ "text": "…", "voice": true }` (voice is optional):
 
 | Answer | When |
 | --- | --- |

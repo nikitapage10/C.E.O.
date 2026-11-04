@@ -11,6 +11,19 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 export const KEY_PREFIX = "skp_";
 /** A phone key's shape: the prefix and 32 random bytes as base64url (43 characters). */
 export const KEY_SHAPE = /^skp_[A-Za-z0-9_-]{43}$/;
+/**
+ * The header the shortcut sends the key in. The Static Web App in front of the site replaces `Authorization` on its
+ * way to the Function App, so a Bearer token only arrives on the Function App's own address; this one arrives either way.
+ */
+export const PHONE_KEY_HEADER = "x-ceo-phone-key";
+
+/** The phone key a request carries: `x-ceo-phone-key: <key>` first, else `Authorization: Bearer <key>`. Null for none. */
+export function phoneKeyOf(request: Request): string | null {
+  const own = request.headers.get(PHONE_KEY_HEADER)?.trim();
+  if (own) return own;
+  const auth = request.headers.get("authorization") ?? "";
+  return auth.startsWith("Bearer ") ? auth.slice(7).trim() : null;
+}
 
 const B64 = /^[A-Za-z0-9_-]+$/;
 /** A stored answer's id: 12 random bytes as base64url. */

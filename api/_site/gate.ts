@@ -43,7 +43,7 @@
  *                                             by design), for `relay status` and `relay wipe --verify` on the Mac
  *        GET /api/annex-elections             the Annex's Election night (#618): public election results from civicAPI,
  *                                             and its freshness counts (?debug=fresh); nothing private is in either
- *        POST /api/capture + Authorization: Bearer <a phone key>   Hey Skippy from the iPhone (#627): only a key of
+ *        POST /api/capture + x-ceo-phone-key: <a phone key> (or Authorization: Bearer)   Hey Skippy from the iPhone (#627): only a key of
  *                                             the right shape passes here; api/_haven/route.ts checks it against the
  *                                             stored hashes (unknown or revoked: 401) and paces it
  *        GET /api/capture?a=<signed audio link>   that answer's audio (#627): signed by this Desk key and unexpired,
@@ -65,7 +65,7 @@ import { SITE_COOKIE, renewedSite, sessionFits, siteCookie, siteSessionOf } from
 import { roomKeyPass } from "./roomkeys.js";
 import { TOOL_HEADER, toolTokenSigned } from "../_skippy/voicetoken.js";
 import { hubTokenPair } from "../_relay/tokens.js";
-import { audioIdOf, KEY_SHAPE } from "../_haven/links.js";
+import { audioIdOf, KEY_SHAPE, phoneKeyOf } from "../_haven/links.js";
 import { currentState, siteKeys, type SiteKeys, type SiteState, type SiteStore } from "./state.js";
 
 type Env = Record<string, string | undefined>;
@@ -159,10 +159,9 @@ function isRelayHub(request: Request, url: URL, env: Env): boolean {
   return auth.startsWith("Bearer ") && hubTokenPair(auth.slice(7).trim(), env.FOUNDRY_DESK_KEY ?? "") !== null;
 }
 
-/** Hey Skippy (#627): a bearer token shaped like a phone key. The handler checks it against the stored hashes. */
+/** Hey Skippy (#627): a phone key (its own header, or a bearer) of the right shape. The handler checks it against the stored hashes. */
 function isPhoneKey(request: Request): boolean {
-  const auth = request.headers.get("authorization") ?? "";
-  return auth.startsWith("Bearer ") && KEY_SHAPE.test(auth.slice(7).trim());
+  return KEY_SHAPE.test(phoneKeyOf(request) ?? "");
 }
 
 /** An answer's audio link (#627): the one `a` query, signed by this Desk key and unexpired. */

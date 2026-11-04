@@ -32,10 +32,10 @@ export interface ActExtra {
   water?: "off" | "on";
 }
 /** The Haven's other connections (#637): their states come with the devices' answers. */
-export type Link = "tasks" | "instacart";
+export type Link = "tasks" | "kroger";
 
 export const VENDORS: readonly Vendor[] = ["roborock", "petlibro", "whisker", "nest"];
-export const LINKS: readonly Link[] = ["tasks", "instacart"];
+export const LINKS: readonly Link[] = ["tasks", "kroger"];
 export const VENDOR_NAME: Record<Vendor, string> = { roborock: "Roborock", petlibro: "Petlibro", whisker: "Whisker", nest: "Google Nest" };
 const KINDS: readonly DeviceKind[] = ["thermostat", "vacuum", "dry-feeder", "wet-feeder", "fountain", "litter"];
 const MODES: readonly ThermoMode[] = ["heat", "cool", "heatcool", "off"];
@@ -106,7 +106,7 @@ function vendorsOf(v: unknown): Record<Vendor, VendorState> {
 function linksOf(v: unknown): Record<Link, VendorState> {
   const b = o(v);
   const pick = (s: unknown): VendorState => (s === "live" || s === "down" ? s : "waiting");
-  return { tasks: pick(b.tasks), instacart: pick(b.instacart) };
+  return { tasks: pick(b.tasks), kroger: pick(b.kroger) };
 }
 
 /** The public face, checked; null when it isn't one. */
@@ -292,7 +292,6 @@ export interface HavenGoogle {
   google: boolean;
   nest: { project: boolean; connected: boolean; refused: boolean };
   tasks: { connected: boolean; refused: boolean; list: string; lastRun: string | null; lastResult: string | null; lastImported: number };
-  instacart: { ready: boolean; env: string | null };
 }
 
 export function readGoogle(v: unknown): HavenGoogle | null {
@@ -300,12 +299,10 @@ export function readGoogle(v: unknown): HavenGoogle | null {
   if (typeof b.google !== "boolean") return null;
   const n = o(b.nest);
   const t = o(b.tasks);
-  const i = o(b.instacart);
   return {
     google: b.google,
     nest: { project: n.project === true, connected: n.connected === true, refused: n.refused === true },
     tasks: { connected: t.connected === true, refused: t.refused === true, list: short(t.list, 60) || "Shopping", lastRun: typeof t.lastRun === "string" ? t.lastRun : null, lastResult: short(t.lastResult, 12) || null, lastImported: num(t.lastImported) ?? 0 },
-    instacart: { ready: i.ready === true, env: short(i.env, 12) || null },
   };
 }
 

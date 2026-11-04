@@ -89,6 +89,7 @@ export function Haven() {
   const [plan, setPlan] = useState<PlanLoad>({ state: "idle" });
   const [open, setOpen] = useState<Open>(null);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
+  // Sent from the Kitchen chip or Controls (?open=kitchen): the Kitchen opens (#664).
   const houseHost = useRef<HTMLDivElement>(null);
   const labelHost = useRef<HTMLDivElement>(null);
   const skyCv = useRef<HTMLCanvasElement>(null);
@@ -97,6 +98,14 @@ export function Haven() {
   const utilRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => startHome(), []);
+  useEffect(() => {
+    if (!signedIn) return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("open") !== "kitchen") return;
+    setOpen({ tab: "kitchen" });
+    q.delete("open");
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${q.size ? `?${q}` : ""}${window.location.hash}`);
+  }, [signedIn]);
   useEffect(() => {
     if (auth === "checking") return;
     void useTodos.getState().refresh();

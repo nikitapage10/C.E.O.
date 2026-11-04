@@ -22,7 +22,7 @@ import { startInvoices } from "../spire/invoices.ts";
 import { SystemsNav } from "../SystemsNav.tsx";
 import { mtTime } from "../todaySchedule.ts";
 import { startHome } from "../homeDevices.ts";
-import { GoogleLinks, HAVEN_RESULT, RoborockSetup } from "./HouseSetup.tsx";
+import { GoogleLinks, HAVEN_RESULT, KrogerSetup, RoborockSetup } from "./HouseSetup.tsx";
 import { ACCENT } from "./Rack.tsx";
 import { actionOf, actionWord, costumeState, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD, type MeterTone, type Share } from "./controls.ts";
 import "./controls.css";
@@ -554,18 +554,20 @@ function Connections({ now, signedIn }: { now: number; signedIn: boolean }) {
 function HouseSetup() {
   const [said] = useState(() => {
     try {
-      return HAVEN_RESULT[new URLSearchParams(window.location.search).get("haven") ?? ""] ?? null;
+      const q = new URLSearchParams(window.location.search);
+      if (q.get("kroger")) return null;
+      return HAVEN_RESULT[q.get("haven") ?? ""] ?? null;
     } catch {
       return null;
     }
   });
   useEffect(() => startHome(), []);
   useEffect(() => {
-    if (said) requestAnimationFrame(() => document.getElementById("ct-house")?.scrollIntoView({ block: "start" }));
+    if (said || new URLSearchParams(window.location.search).get("kroger")) requestAnimationFrame(() => document.getElementById("ct-house")?.scrollIntoView({ block: "start" }));
   }, [said]);
   return (
     <div className="ct-house" id="ct-house">
-      <h3>The house · Google and Roborock</h3>
+      <h3>The house · Google, Roborock and King Soopers</h3>
       {said ? (
         <p className="ct-note ct-said" role="status">
           {said}
@@ -573,6 +575,7 @@ function HouseSetup() {
       ) : null}
       <GoogleLinks />
       <RoborockSetup />
+      <KrogerSetup />
     </div>
   );
 }

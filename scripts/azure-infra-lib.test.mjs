@@ -15,7 +15,7 @@ function defaults() {
     return m ? m[1] : undefined;
   };
   const parameters = {};
-  for (const p of ["location", "staticSiteLocation", "logDailyCapGb", "worldBudgetUsd", "skippyBudgetUsd", "emailBudgetUsd", "kernelAgentEnabled", "kernelAgentBudgetUsd", "homeFeedCap", "instacartEnv", "paypalEnv"]) parameters[p] = { defaultValue: get(p) };
+  for (const p of ["location", "staticSiteLocation", "logDailyCapGb", "worldBudgetUsd", "skippyBudgetUsd", "emailBudgetUsd", "kernelAgentEnabled", "kernelAgentBudgetUsd", "homeFeedCap", "paypalEnv"]) parameters[p] = { defaultValue: get(p) };
   parameters.tags = { defaultValue: { app: "ceo", env: "prod" } };
   return { parameters };
 }
@@ -34,6 +34,8 @@ describe("the template on every deploy (#330)", () => {
     expect(droppedSettings([...names, "KEYVAULT_REFRESH"], names)).toEqual([]);
     // Gemini's speech key and cap, retired by #472, go without holding the template back.
     expect(droppedSettings([...names, "GEMINI_API_KEY", "GEMINI_BUDGET_USD"], names)).toEqual([]);
+    // Send to Instacart's key and environment, retired by #664, likewise.
+    expect(droppedSettings([...names, "INSTACART_API_KEY", "INSTACART_ENV"], names)).toEqual([]);
     expect(names).not.toContain("GEMINI_API_KEY");
     expect(names).not.toContain("GEMINI_BUDGET_USD");
     expect(droppedSettings([...names, "OPENAI_API_KEY", "GREEN_BUDGET_USD"], names)).toEqual(["GREEN_BUDGET_USD", "OPENAI_API_KEY"]);
@@ -50,19 +52,19 @@ describe("the template on every deploy (#330)", () => {
   it("keeps what is live: the home address, PayPal's mode, the budgets and the log cap", () => {
     const { file } = buildParams({
       main: defaults(),
-      live: { CEO_SITE_URL: "https://ceo.nikita.page", PAYPAL_ENV: "live", WORLD_BUDGET_USD: "3", SKIPPY_BUDGET_USD: "1", EMAIL_BUDGET_USD: "8", KERNEL_AGENT_ENABLED: "false", KERNEL_AGENT_BUDGET_USD: "4", HOME_FEED_CAP: "3", INSTACART_ENV: "production" },
+      live: { CEO_SITE_URL: "https://ceo.nikita.page", PAYPAL_ENV: "live", WORLD_BUDGET_USD: "3", SKIPPY_BUDGET_USD: "1", EMAIL_BUDGET_USD: "8", KERNEL_AGENT_ENABLED: "false", KERNEL_AGENT_BUDGET_USD: "4", HOME_FEED_CAP: "3" },
       cap: "0.5",
       deployer: ID,
       github: ID,
     });
     const v = Object.fromEntries(Object.entries(file.parameters).map(([k, p]) => [k, p.value]));
-    expect(v).toMatchObject({ siteOnCustomDomain: true, paypalEnv: "live", worldBudgetUsd: "3", skippyBudgetUsd: "1", emailBudgetUsd: "8", kernelAgentEnabled: "false", kernelAgentBudgetUsd: "4", homeFeedCap: "3", instacartEnv: "production", logDailyCapGb: "0.5", deployerPrincipalId: ID, githubPrincipalId: ID, location: "westus3", staticSiteLocation: "westus2" });
+    expect(v).toMatchObject({ siteOnCustomDomain: true, paypalEnv: "live", worldBudgetUsd: "3", skippyBudgetUsd: "1", emailBudgetUsd: "8", kernelAgentEnabled: "false", kernelAgentBudgetUsd: "4", homeFeedCap: "3", logDailyCapGb: "0.5", deployerPrincipalId: ID, githubPrincipalId: ID, location: "westus3", staticSiteLocation: "westus2" });
   });
 
   it("falls back to the template's defaults, never to junk", () => {
     const { file } = buildParams({ main: defaults(), live: { CEO_SITE_URL: "https://thankful-forest-019308c1e.5.azurestaticapps.net", PAYPAL_ENV: "prod", WORLD_BUDGET_USD: "lots" }, cap: "", deployer: "me", github: "" });
     const v = Object.fromEntries(Object.entries(file.parameters).map(([k, p]) => [k, p.value]));
-    expect(v).toMatchObject({ siteOnCustomDomain: false, paypalEnv: "sandbox", worldBudgetUsd: "6", skippyBudgetUsd: "60", emailBudgetUsd: "10", kernelAgentEnabled: "true", kernelAgentBudgetUsd: "10", homeFeedCap: "2", instacartEnv: "development", logDailyCapGb: "0.2", deployerPrincipalId: "", githubPrincipalId: "" });
+    expect(v).toMatchObject({ siteOnCustomDomain: false, paypalEnv: "sandbox", worldBudgetUsd: "6", skippyBudgetUsd: "60", emailBudgetUsd: "10", kernelAgentEnabled: "true", kernelAgentBudgetUsd: "10", homeFeedCap: "2", logDailyCapGb: "0.2", deployerPrincipalId: "", githubPrincipalId: "" });
   });
 
   it("summarises the what-if by change and property path, never by value", () => {

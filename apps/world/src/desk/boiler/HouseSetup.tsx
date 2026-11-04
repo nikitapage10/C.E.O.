@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { googleAction, loadGoogle, useHome, type HavenGoogle } from "../homeDevices.ts";
+import { Private } from "../Private.tsx";
+import { CONNECT_NOTE, groceryAction, GROCERY_NOTE, isKrogerSignIn, loadGroceries, type GAction, type Groceries } from "../haven/groceries.ts";
 
 /**
  * The house's connections (#637, #632), set up from Boiler Room > Controls (#647; Nikita, 05:53Z: connection setup
  * belongs in the Boiler Room, not on Today): Connect Nest, Connect Google Tasks, the Tasks list it reads and Check
- * now, and Connect Roborock. Moved from Today's Home chip, which keeps the readings and the device buttons.
+ * now, and Connect Roborock. Moved from Today's Home chip, which keeps the readings and the device buttons. Since #664
+ * also King Soopers: the ZIP, the home store and Connect King Soopers; the picks and the send are on the Haven Kitchen.
  */
 
 /** What Google sent back after a connect (`/?haven=nest-connected`, api/_haven/google/route.ts), in words. */
@@ -151,6 +154,91 @@ export function ConnectRoborock({ connected }: { connected: boolean }) {
   );
 }
 
+/**
+ * King Soopers' setup (#664, api/_haven/kroger/route.ts): the ZIP the store picker searches near (kept in the private
+ * store), the home store, and Connect King Soopers for the cart. Kroger sends the browser back here (?kroger=…).
+ */
+export function KrogerSetup() {
+  const [v, setV] = useState<Groceries | null>(null);
+  const [read, setRead] = useState<"idle" | "off" | "failed" | "ready">("idle");
+  const [zip, setZip] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(() => {
+    try {
+      return CONNECT_NOTE[new URLSearchParams(window.location.search).get("kroger") ?? ""] ?? null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    void loadGroceries().then((l) => {
+      if (l.state === "ready") {
+        setV(l.view);
+        setZip(l.view.zip);
+      }
+      setRead(l.state === "out" ? "failed" : l.state);
+    });
+  }, []);
+  if (read === "off") return <p className="hd-note">King Soopers connects on the Azure copy of the Desk.</p>;
+  if (!v) return <p className="hd-note">{read === "failed" ? "King Soopers didn't answer here." : "Reading King Soopers…"}</p>;
+  if (!v.ready) return <p className="hd-note">King Soopers: waiting for the Kroger app's keys in the Key Vault (docs/HOME-DEVICES.md).</p>;
+  const run = async (body: GAction, done?: string) => {
+    setBusy(true);
+    setNote(null);
+    const r = await groceryAction(body);
+    setBusy(false);
+    if (r.view) setV(r.view);
+    if (r.ok && body.action === "connect" && r.url && isKrogerSignIn(r.url)) {
+      window.location.assign(r.url);
+      return r;
+    }
+    setNote(r.ok ? (done ?? null) : (GROCERY_NOTE[r.error ?? "failed"] ?? GROCERY_NOTE.failed!));
+    return r;
+  };
+  return (
+    <div className="hd-connect">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void (async () => {
+            if (zip !== v.zip && !(await run({ action: "set-zip", zip })).ok) return;
+            await run({ action: "find-stores" });
+          })();
+        }}
+      >
+        <b>King Soopers</b>
+        <input inputMode="numeric" pattern="\d{5}" maxLength={5} placeholder="ZIP" value={zip} onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))} aria-label="ZIP to find King Soopers stores near" />
+        <button type="submit" disabled={busy || zip.length !== 5}>Find stores</button>
+        <small>
+          {v.store ? <>Home store: <Private>{v.store.name}{v.store.line ? ` · ${v.store.line}, ${v.store.city}` : ""}</Private>. </> : "No home store yet. "}
+          The ZIP and the store stay in the private store, only for your passkey.
+        </small>
+      </form>
+      {v.found.length ? (
+        <ul className="hd-stores" aria-label="King Soopers stores near the ZIP">
+          {v.found.map((s) => (
+            <li key={s.id}>
+              <Private>{s.name}{s.line ? ` · ${s.line}, ${s.city}` : ""}</Private>
+              <button type="button" disabled={busy || v.store?.id === s.id} onClick={() => void run({ action: "pick-store", id: s.id }, "Home store saved. Match the list on the Haven's Kitchen.")}>
+                {v.store?.id === s.id ? "Home store" : "Use this"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p>
+        <b>King Soopers cart</b>{" "}
+        {v.connected ? (
+          <button type="button" disabled={busy} onClick={() => void run({ action: "disconnect" }, "King Soopers disconnected.")}>Disconnect</button>
+        ) : (
+          <button type="button" disabled={busy} onClick={() => void run({ action: "connect" })}>{v.refused ? "Reconnect King Soopers" : "Connect King Soopers"}</button>
+        )}
+        <a href="/haven?open=kitchen">Picks and send on the Haven Kitchen →</a>
+      </p>
+      {note ? <small role="status">{note}</small> : null}
+    </div>
+  );
+}
 
 /** Roborock's connect, once the home devices route answers; it holds the account's login on the server. */
 export function RoborockSetup() {

@@ -3,11 +3,12 @@ import { Private } from "../Private.tsx";
 import { useHome, type DeviceReading } from "../homeDevices.ts";
 import type { KitchenItem } from "../haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
+import { Groceries } from "./Groceries.tsx";
 
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
- * Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet (the pantry, the meals, Instacart,
- * Instacart) says it is waiting, in plain type, and invents nothing.
+ * Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet (the pantry, the meals) says it
+ * is waiting, in plain type, and invents nothing.
  */
 
 export const TAB_NAME: Record<Tab, string> = { kitchen: "Kitchen", hall: "Hall", pets: "Pets", gym: "Gym" };
@@ -79,6 +80,7 @@ const find = (devices: DeviceReading[] | null, kind: DeviceReading["kind"]) => d
 
 export function KitchenTab({ items, onTick }: { items: KitchenItem[] | null; onTick: (i: KitchenItem) => void }) {
   const open = items?.filter((i) => !i.done) ?? [];
+  const kroger = useHome((s) => s.view?.links.kroger ?? s.pub?.links.kroger ?? "waiting");
   return (
     <>
       <p className="hv-say">{items === null ? "Reading the Kitchen list…" : open.length ? `${open.length} thing${open.length === 1 ? "" : "s"} on the list.` : "Nothing on the list."}</p>
@@ -86,7 +88,7 @@ export function KitchenTab({ items, onTick }: { items: KitchenItem[] | null; onT
         <Num v={items === null ? "–" : open.length} k="on the Kitchen list" />
         <Num v="–" k="pantry: waiting" tone="wait" />
         <Num v="–" k="meals: waiting" tone="wait" />
-        <Num v="–" k="Instacart: waiting" tone="wait" />
+        <Num v={kroger === "live" ? "Live" : kroger === "down" ? "Down" : "–"} k={`King Soopers: ${kroger}`} tone={kroger === "live" ? "ok" : kroger === "down" ? "warn" : "wait"} />
       </div>
       <div className="hv-grid">
         <Card title="Shopping list" tag={`${open.length} open`}>
@@ -106,10 +108,9 @@ export function KitchenTab({ items, onTick }: { items: KitchenItem[] | null; onT
           ) : (
             <p className="hv-note">Empty. Say "Skippy, add garlic and lemons" on the phone.</p>
           )}
-          <button type="button" className="hv-btn is-pri" disabled title="Waiting for Instacart">
-            Send to Instacart
-          </button>
-          <p className="hv-note">Waiting for Instacart: the list goes over once its link is connected.</p>
+        </Card>
+        <Card title="King Soopers" tag={kroger} wide>
+          <Groceries listOpen={open.length} />
         </Card>
         <Card title="This week's meals" tag="waiting" wide>
           <Waiting>Waiting for a meal plan. Nothing is planned here until recipes are connected.</Waiting>

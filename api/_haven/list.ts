@@ -9,7 +9,7 @@
  *   - A new name is dropped when an open item already has it, ignoring case, spacing and a trailing plural "s".
  *   - Ticked items stay a day (so a mis-tap can be undone), then go; at most LIST_MAX items are kept.
  *   - A removed item (the Desk's ×, or "remove garlic" by voice, #657) is hidden at once and kept ten minutes so Undo
- *     can bring it back; it never counts, is never listed and never goes to Instacart.
+ *     can bring it back; it never counts, is never listed and never goes to King Soopers.
  *
  * Until the Haven room ships, the Desk shows it as a small "Kitchen list" card on Today (apps/world/src/desk/KitchenList.tsx).
  *

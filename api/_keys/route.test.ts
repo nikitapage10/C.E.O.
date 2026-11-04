@@ -120,7 +120,7 @@ describe("the allowlist (#330)", () => {
   });
 
   it("never lets the lock's, the crew's or the sealed data's keys through", () => {
-    const never = ["foundry-desk-key", "site-bypass-token", "desk-pings-secret", "foundry-github-token", "foundry-app-id", "foundry-app-installation-id", "foundry-app-private-key", "desk-vapid-public-key", "desk-vapid-private-key", "desk-vapid-subject", "gmail-token-key", "submind-feed-token", "home-token-key", "petlibro-email", "petlibro-login-digest", "whisker-email", "whisker-srp-digest", "haven-google-client-id", "haven-google-client-secret", "haven-nest-project-id", "haven-instacart-key"];
+    const never = ["foundry-desk-key", "site-bypass-token", "desk-pings-secret", "foundry-github-token", "foundry-app-id", "foundry-app-installation-id", "foundry-app-private-key", "desk-vapid-public-key", "desk-vapid-private-key", "desk-vapid-subject", "gmail-token-key", "submind-feed-token", "home-token-key", "petlibro-email", "petlibro-login-digest", "whisker-email", "whisker-srp-digest", "kroger-client-id", "kroger-client-secret", "haven-google-client-id", "haven-google-client-secret", "haven-nest-project-id", "haven-mealme-key"];
     for (const name of never) expect(settable(name), name).toBeNull();
     // Even a future name of the same kind.
     for (const name of ["foundry-app-new", "desk-vapid-x", "submind-relay-token", "site-session-secret", "some-token"]) expect(settable(name), name).toBeNull();

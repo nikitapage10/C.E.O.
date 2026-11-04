@@ -49,7 +49,7 @@ function DialFace({ inside, set, live, heat, mood }: { inside: string; set: numb
   }
   const ka = set !== null ? angleOf(set) : null;
   return (
-    <svg className="hv-dialFace" viewBox="-4 -4 108 108" aria-hidden="true" data-live={live ? "" : undefined} data-mood={mood}>
+    <svg className="hv-dialFace" viewBox="-4 -4 108 108" aria-hidden="true" data-live={live ? "" : undefined} data-mood={mood} data-side={heat ? "heat" : "cool"}>
       <Weather mood={mood} />
       <circle cx={C} cy={C} r={R} className="hv-dialRim" />
       {/* Blue (cool) to orange (heat) round the sweep (#729), the same arc as the Climate control's. */}

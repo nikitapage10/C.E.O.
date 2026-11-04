@@ -2912,3 +2912,37 @@
   display: inline-block;
   margin-top: 4px;
 }
+
+/* Heat warm, cool blue, by what each set point does (#742): the strip's lit ticks follow the mode, not the weather, and
+   the control's "holding" dot takes its mode's colour instead of gold. */
+[data-room="haven"] .hv-dialFace[data-side="cool"] .hv-dialTicks line.is-lit {
+  stroke: #7cc2ff;
+}
+[data-room="haven"] .hv-th[data-mode="heat"] .hv-th-run[data-run="holding"] i {
+  background: #ff8a3a;
+}
+[data-room="haven"] .hv-th[data-mode="cool"] .hv-th-run[data-run="holding"] i {
+  background: #5faaff;
+}
+[data-room="haven"] .hv-th[data-mode="heatcool"] .hv-th-run[data-run="holding"] i {
+  background: linear-gradient(90deg, #ff8a3a 50%, #5faaff 50%);
+}
+/* The heat-and-cool mode chip reads left to right as the dial's knobs do: heat (low) orange, cool (high) blue. */
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[data-m="heatcool"] i {
+  background: linear-gradient(90deg, #ff8a3a 50%, #5faaff 50%);
+}
+/* A smooth drag (#742): the dial takes every touch itself, and the knob being moved grows a little. */
+[data-room="haven"] .hv-cd {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+[data-room="haven"] .hv-cd[data-drag] {
+  cursor: grabbing;
+}
+[data-room="haven"] .hv-cd-knob circle {
+  transition: r 0.12s ease;
+}
+[data-room="haven"] .hv-cd-knob[data-dragging] circle:first-child {
+  r: 16px;
+}

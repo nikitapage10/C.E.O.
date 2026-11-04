@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useHome, type DeviceReading } from "../homeDevices.ts";
-import { HOLD_MS, moodOf, sameAs, useClimateQueue } from "./climateQueue.ts";
-import { gaugesOf, orderGauges } from "./plinth.ts";
+import { HOLD_MS, moodOf, sameAs, SENT_MS, shownChange, useClimateQueue } from "./climateQueue.ts";
+import { GAP_F, gaugesOf, moveSide, orderGauges } from "./plinth.ts";
 
 /** The Climate's held change and the strip's order (#718), from made-up readings. */
 
@@ -9,6 +9,7 @@ const nest = (over: Partial<DeviceReading>): DeviceReading => ({ id: "0123456789
 
 afterEach(() => {
   useClimateQueue.getState().cancel();
+  useClimateQueue.setState({ sent: null });
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -73,5 +74,49 @@ describe("the strip's order", () => {
     const ids = orderGauges(gauges, ["gym", "whisker", "climate", "roborock"]).map((g) => g.id);
     expect(ids).toEqual(["gym", "whisker", "petlibro", "climate", "kitchen", "roborock", "todos"]);
     expect(orderGauges(gauges, null).map((g) => g.id)).toEqual(gauges.map((g) => g.id));
+  });
+});
+
+describe("heat and cool never cross (#742)", () => {
+  it("clamps a knob to 60 to 80 °F and stops it the gap short of the other, which stays put", () => {
+    expect(moveSide("heat", 70.4, 68, 76)).toEqual({ heatF: 70, coolF: 76 });
+    expect(moveSide("heat", 75, 68, 76)).toEqual({ heatF: 76 - GAP_F, coolF: 76 });
+    expect(moveSide("heat", 90, 68, 76)).toEqual({ heatF: 73, coolF: 76 });
+    expect(moveSide("heat", 40, 68, 76)).toEqual({ heatF: 60, coolF: 76 });
+    expect(moveSide("cool", 69, 68, 76)).toEqual({ heatF: 68, coolF: 68 + GAP_F });
+    expect(moveSide("cool", 99, 68, 76)).toEqual({ heatF: 68, coolF: 80 });
+    expect(moveSide("cool", 74, 68, 76)).toEqual({ heatF: 68, coolF: 74 });
+    // Every result keeps the gap, wherever the finger goes.
+    for (let f = 50; f <= 90; f += 0.5)
+      for (const side of ["heat", "cool"] as const) {
+        const r = moveSide(side, f, 66, 74);
+        expect(r.coolF - r.heatF).toBeGreaterThanOrEqual(GAP_F);
+        expect(r.heatF).toBeGreaterThanOrEqual(60);
+        expect(r.coolF).toBeLessThanOrEqual(80);
+      }
+  });
+});
+
+describe("a sent change shows at once, and goes back if it fails (#742)", () => {
+  it("keeps showing the sent setting until the reading has it, then the reading", async () => {
+    vi.useFakeTimers();
+    useHome.setState({ act: vi.fn(async () => true) });
+    const d = nest({ mode: "heatcool", heatF: 68, coolF: 76 });
+    useClimateQueue.getState().hold(d.id, 66, { heatF: 66, coolF: 74 });
+    useClimateQueue.getState().flush();
+    await vi.advanceTimersByTimeAsync(0);
+    const { pending, sent } = useClimateQueue.getState();
+    expect(shownChange(d, pending, sent)?.extra).toEqual({ heatF: 66, coolF: 74 });
+    expect(shownChange({ ...d, heatF: 66, coolF: 74 }, pending, sent)).toBeNull();
+    expect(shownChange(d, pending, sent, Date.now() + SENT_MS + 1)).toBeNull();
+  });
+
+  it("rolls back when the thermostat refuses", async () => {
+    useHome.setState({ act: vi.fn(async () => false) });
+    useClimateQueue.getState().hold("0123456789ab", 66, { tempF: 66 });
+    useClimateQueue.getState().flush();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(useClimateQueue.getState().sent).toBeNull();
   });
 });

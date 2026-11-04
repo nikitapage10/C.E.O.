@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from "react";
 import { THERMO_MAX_F, THERMO_MIN_F, useHome, type DeviceReading, type ThermoMode } from "../homeDevices.ts";
-import { HOLD_MS, moodOf, sameAs, useClimateQueue, type PendingClimate } from "./climateQueue.ts";
-import { angleOf, DIAL_A0, DIAL_SWEEP, GAP_F, setOf } from "./plinth.ts";
+import { HOLD_MS, moodOf, sameAs, shownChange, useClimateQueue, type PendingClimate } from "./climateQueue.ts";
+import { angleOf, DIAL_A0, DIAL_SWEEP, GAP_F, moveSide, setOf } from "./plinth.ts";
 
 /**
  * The Haven's thermostat control (#671): opened from the rail's Climate dial (#680) or the Nest's marker, passkey only.
@@ -26,12 +26,11 @@ const arc = (a0: number, a1: number, r = R) => {
   const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r);
   return `M ${x0} ${y0} A ${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1} ${y1}`;
 };
-/** The arc's colour at a temperature: blue at the cool end, orange at the warm end (as the gradient runs). */
-export function hueAt(f: number): string {
-  const k = (clampF(f) - THERMO_MIN_F) / (THERMO_MAX_F - THERMO_MIN_F);
-  const mix = (a: number, b: number) => Math.round(a + (b - a) * k);
-  return `rgb(${mix(96, 255)},${mix(170, 138)},${mix(255, 58)})`;
-}
+/**
+ * Each set point's colour, by what it does, not where it sits on the arc (#742): the heat side is always ember orange
+ * (it is the low one in heat-and-cool), the cool side always ice blue (the high one). `ink` is the same for text.
+ */
+export const SIDE = { heat: { knob: "#ff8a3a", ink: "#ffb27a" }, cool: { knob: "#5faaff", ink: "#a9d2ff" } } as const;
 
 /** What the knobs show: the held change while there is one, else the thermostat's own. */
 function shownOf(d: DeviceReading, mine: PendingClimate | null) {
@@ -40,10 +39,17 @@ function shownOf(d: DeviceReading, mine: PendingClimate | null) {
   return { heatF: typeof heatF === "number" ? heatF : null, coolF: typeof coolF === "number" ? coolF : null };
 }
 
-function Dial({ d, mine, locked, onSet }: { d: DeviceReading; mine: PendingClimate | null; locked: boolean; onSet: (side: "heat" | "cool", f: number) => void }) {
-  const { heatF, coolF } = shownOf(d, mine);
+/**
+ * The dial. A drag lives in the control's own state (#742): the knob and the numbers follow the finger, nothing is
+ * held or sent while it moves, and a reading arriving mid-drag can't pull it back; on release the final setting goes
+ * to the hold once (`onSet`), and from there to the thermostat once.
+ */
+type Drag = { side: "heat" | "cool"; id: number; heatF: number | null; coolF: number | null };
+
+function Dial({ d, mine, locked, onSet, drag, setDrag }: { d: DeviceReading; mine: PendingClimate | null; locked: boolean; onSet: (side: "heat" | "cool", f: number) => void; drag: Drag | null; setDrag: (d: Drag | null) => void }) {
+  const shown = shownOf(d, mine);
   const svg = useRef<SVGSVGElement>(null);
-  const drag = useRef<"heat" | "cool" | null>(null);
+  const { heatF, coolF } = drag ?? shown;
   const both = d.mode === "heatcool";
   const one: "heat" | "cool" = d.mode === "cool" ? "cool" : "heat";
   const target = one === "cool" ? coolF : heatF;
@@ -52,25 +58,40 @@ function Dial({ d, mine, locked, onSet }: { d: DeviceReading; mine: PendingClima
     const b = svg.current!.getBoundingClientRect();
     return setOf(Math.atan2(((e.clientY - b.top) / b.height) * 240 - C, ((e.clientX - b.left) / b.width) * 240 - C));
   };
+  /** Where a knob goes for the pointer at f: one set point, or one side of heat-and-cool short of the other. */
+  const place = (side: "heat" | "cool", f: number, from: { heatF: number | null; coolF: number | null }) => {
+    if (both) return moveSide(side, f, from.heatF, from.coolF);
+    const at = clampF(Math.round(f));
+    return side === "cool" ? { heatF: from.heatF, coolF: at } : { heatF: at, coolF: from.coolF };
+  };
   const down = (e: PointerEvent<SVGSVGElement>) => {
-    if (locked || e.button !== 0) return;
+    if (locked || e.button !== 0 || drag) return;
+    e.preventDefault();
     const f = at(e);
-    // In heat-and-cool the nearer knob moves.
+    // In heat-and-cool the nearer knob moves (the heat one when they're level and the finger is below them).
     const side = both ? (heatF !== null && coolF !== null && Math.abs(f - heatF) <= Math.abs(f - coolF) ? "heat" : "cool") : one;
-    drag.current = side;
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    onSet(side, f);
+    setDrag({ side, id: e.pointerId, ...place(side, f, shown) });
   };
   const move = (e: PointerEvent<SVGSVGElement>) => {
-    if (drag.current) onSet(drag.current, at(e));
+    if (!drag || e.pointerId !== drag.id) return;
+    const next = place(drag.side, at(e), drag);
+    if (next.heatF !== drag.heatF || next.coolF !== drag.coolF) setDrag({ ...drag, ...next });
   };
-  const up = () => void (drag.current = null);
+  const up = (e: PointerEvent<SVGSVGElement>) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    setDrag(null);
+    // Let go: the final setting, once. A cancelled pointer (the system took it) sends nothing.
+    if (e.type === "pointercancel") return;
+    const f = drag.side === "cool" ? drag.coolF : drag.heatF;
+    if (f !== null) onSet(drag.side, f);
+  };
   const knob = (f: number | null, side: "heat" | "cool") => {
     if (f === null) return null;
     const [x, y] = pt(angleOf(f));
     return (
-      <g className="hv-cd-knob" data-side={side}>
-        <circle cx={x} cy={y} r={13} style={{ fill: hueAt(f) }} />
+      <g className="hv-cd-knob" data-side={side} data-dragging={drag?.side === side ? "" : undefined}>
+        <circle cx={x} cy={y} r={13} style={{ fill: SIDE[side].knob, color: SIDE[side].knob }} />
         <circle cx={x} cy={y} r={4.5} className="hv-cd-knobIn" />
       </g>
     );
@@ -94,7 +115,7 @@ function Dial({ d, mine, locked, onSet }: { d: DeviceReading; mine: PendingClima
   const [ix0, iy0] = inside !== null ? pt(angleOf(inside), R + 10) : [0, 0];
   const [ix1, iy1] = inside !== null ? pt(angleOf(inside), R - 10) : [0, 0];
   return (
-    <svg ref={svg} className="hv-cd" viewBox="0 0 240 240" data-locked={locked ? "" : undefined} aria-hidden="true" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+    <svg ref={svg} className="hv-cd" viewBox="0 0 240 240" data-locked={locked ? "" : undefined} data-drag={drag ? drag.side : undefined} aria-hidden="true" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up}>
       <defs>
         <linearGradient id="hv-cd-grad" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#5faaff" />
@@ -120,7 +141,7 @@ function Dial({ d, mine, locked, onSet }: { d: DeviceReading; mine: PendingClima
       ) : d.mode === "off" ? null : (
         knob(target, one)
       )}
-      {mine && (
+      {mine && mine.at > Date.now() && (
         // The held change's seconds round the centre: the ring drains to Send, a step each quarter second.
         <circle key={mine.at} cx={C} cy={C} r={60} pathLength={100} className="hv-cd-count" style={{ strokeDashoffset: 100 - (100 * left) / HOLD_MS }} />
       )}
@@ -146,10 +167,14 @@ export function ClimatePop({ d, onClose }: { d: DeviceReading; onClose: () => vo
   }, [onClose]);
 
   const pending = useClimateQueue((s) => s.pending);
+  const sent = useClimateQueue((s) => s.sent);
   const hold = useClimateQueue((s) => s.hold);
   const cancel = useClimateQueue((s) => s.cancel);
   const flush = useClimateQueue((s) => s.flush);
   const mine = pending && pending.device === d.id ? pending : null;
+  // What the dial shows: the held change, else the one just sent until the thermostat reports it (#742).
+  const showing = shownChange(d, pending, sent);
+  const [drag, setDrag] = useState<Drag | null>(null);
   const [, tick] = useState(0);
   useEffect(() => {
     if (!mine) return;
@@ -161,7 +186,7 @@ export function ClimatePop({ d, onClose }: { d: DeviceReading; onClose: () => vo
   const locked = off || !!d.eco || d.mode === "off" || !d.mode;
   const modes = d.modes?.length ? d.modes : ALL_MODES;
   const running = d.hvac === "heating" ? "Heating" : d.hvac === "cooling" ? "Cooling" : "Holding";
-  const { heatF, coolF } = shownOf(d, mine);
+  const { heatF, coolF } = drag ?? shownOf(d, showing);
   const both = d.mode === "heatcool";
   const one: "heat" | "cool" = d.mode === "cool" ? "cool" : "heat";
   const target = one === "cool" ? coolF : heatF;
@@ -170,13 +195,9 @@ export function ClimatePop({ d, onClose }: { d: DeviceReading; onClose: () => vo
   const setSide = (side: "heat" | "cool", raw: number) => {
     const f = clampF(Math.round(raw));
     if (!both) return set({ tempF: f }, f);
-    if (side === "heat") {
-      const h = Math.min(f, THERMO_MAX_F - GAP_F);
-      return set({ heatF: h, coolF: Math.max(coolF ?? h + GAP_F, h + GAP_F) }, h);
-    }
-    const c = Math.max(f, THERMO_MIN_F + GAP_F);
-    const h = Math.min(heatF ?? c - GAP_F, c - GAP_F);
-    return set({ heatF: h, coolF: c }, h);
+    // The knobs never cross: the moved one stops the gap short of the other (#742).
+    const next = moveSide(side, f, heatF, coolF);
+    return set(next, next.heatF);
   };
   const mood = moodOf(d, mine?.f ?? null);
   const left = mine ? Math.max(0, Math.ceil((mine.at - Date.now()) / 1000)) : 0;
@@ -209,18 +230,18 @@ export function ClimatePop({ d, onClose }: { d: DeviceReading; onClose: () => vo
       </div>
 
       <div className="hv-th-dial" onKeyDown={keys}>
-        <Dial d={d} mine={mine} locked={locked} onSet={setSide} />
+        <Dial d={d} mine={showing} locked={locked} onSet={setSide} drag={drag} setDrag={setDrag} />
         <div className="hv-th-mid">
           {isOff ? (
             <b className="hv-th-big is-off">{typeof d.tempF === "number" ? `${d.tempF}°` : "–"}</b>
           ) : both ? (
             <b className="hv-th-big is-pair">
-              <span style={{ color: heatF !== null ? hueAt(heatF) : undefined }}>{heatF ?? "–"}°</span>
+              <span style={{ color: SIDE.heat.ink }}>{heatF ?? "–"}°</span>
               <i>–</i>
-              <span style={{ color: coolF !== null ? hueAt(coolF) : undefined }}>{coolF ?? "–"}°</span>
+              <span style={{ color: SIDE.cool.ink }}>{coolF ?? "–"}°</span>
             </b>
           ) : (
-            <b className="hv-th-big" style={{ color: target !== null ? hueAt(target) : undefined }}>
+            <b className="hv-th-big" style={{ color: SIDE[one].ink }}>
               {target ?? "–"}°
             </b>
           )}

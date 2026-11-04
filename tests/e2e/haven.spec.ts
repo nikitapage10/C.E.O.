@@ -275,6 +275,64 @@ test("signed in: the plinth's Climate dial opens the control and turns the set p
   expect(sent.length).toBe(1);
 });
 
+test("signed in, phone: heat-and-cool reads heat warm and cool blue, and a drag sends once, the knobs never crossing (#742)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stub(page, { signedIn: true, plan: FAKE_PLAN });
+  const now = Date.now();
+  const thermo = { id: "a00000000009", vendor: "nest", kind: "thermostat", model: "Test thermostat", place: "", online: true, state: "holding", alerts: [], tempF: 71, humidity: 41, mode: "heatcool", modes: ["heat", "cool", "heatcool", "off"], eco: false, hvac: "off", heatF: 68, coolF: 76 };
+  const sent: Record<string, unknown>[] = [];
+  let reads = 0;
+  await page.route(/\/api\/haven\/devices(\?.*)?$/, (r) => {
+    reads++;
+    const all = [...devices(now), thermo];
+    if (new URL(r.request().url()).searchParams.get("view") === "status") return r.fulfill({ json: { vendors: { ...VENDORS, nest: "live" }, devices: all.map((d) => ({ kind: d.kind, state: d.state, online: d.online })) } });
+    return r.fulfill({ json: { vendors: { ...VENDORS, nest: "live" }, devices: all, feedCap: 2, roborockConnected: true } });
+  });
+  await page.route(/\/api\/haven\/devices\/action$/, (r) => {
+    sent.push(r.request().postDataJSON() as Record<string, unknown>);
+    return r.fulfill({ json: { ok: true, say: "Set." } });
+  });
+  await page.goto(`${BASE}/haven`);
+  const strip = page.getByRole("complementary", { name: "House-wide" });
+  await strip.getByRole("button", { name: /^Climate: 71°/ }).click();
+  const climate = page.getByRole("dialog", { name: "Climate" });
+  await expect(climate).toBeVisible();
+
+  // Heat is the low one, on the left, warm; cool is the high one, on the right, blue.
+  const pair = climate.locator(".hv-th-big.is-pair span");
+  await expect(pair.first()).toHaveText("68°");
+  await expect(pair.first()).toHaveCSS("color", "rgb(255, 178, 122)");
+  await expect(pair.last()).toHaveText("76°");
+  await expect(pair.last()).toHaveCSS("color", "rgb(169, 210, 255)");
+  await expect(climate.locator('.hv-cd-knob[data-side="heat"] circle').first()).toHaveCSS("fill", "rgb(255, 138, 58)");
+  await expect(climate.locator('.hv-cd-knob[data-side="cool"] circle').first()).toHaveCSS("fill", "rgb(95, 170, 255)");
+
+  // Drag the heat knob up past the cool knob: it stops the gap short, nothing is sent while it moves.
+  const centre = async (side: string) => {
+    const b = (await climate.locator(`.hv-cd-knob[data-side="${side}"] circle`).first().boundingBox())!;
+    return [b.x + b.width / 2, b.y + b.height / 2] as const;
+  };
+  const [hx, hy] = await centre("heat");
+  const [cx, cy] = await centre("cool");
+  await page.mouse.move(hx, hy);
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i++) await page.mouse.move(hx + ((cx - hx) * i) / 8, hy + ((cy - hy) * i) / 8);
+  await expect(climate.locator(".hv-cd")).toHaveAttribute("data-drag", "heat");
+  await expect(pair.first()).toHaveText("73°");
+  await expect(pair.last()).toHaveText("76°");
+  await expect(climate.getByRole("status")).toHaveCount(0);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-742-climate-phone.png` });
+  await page.mouse.up();
+  // Let go: held once, with the final setting, then sent once.
+  await expect(climate.getByRole("status")).toContainText("Sending 73° – 76°");
+  await climate.getByRole("button", { name: "Send now" }).click();
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0]).toMatchObject({ action: "thermostat.set", device: "a00000000009", heatF: 73, coolF: 76 });
+  // The sent setting shows at once, though the thermostat's reading still says 68°.
+  await expect(pair.first()).toHaveText("73°");
+  expect(reads).toBeGreaterThan(0);
+});
+
 test("signed in: the wet tray says when it closes itself, and Close shuts it now (#713)", async ({ page }) => {
   await stub(page, { signedIn: true, plan: FAKE_PLAN });
   const now = Date.now();

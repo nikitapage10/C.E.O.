@@ -26,6 +26,8 @@
  *
  * The live watch (#181): `node scripts/boot-check.mjs --url=https://…` runs the same three pages against a deployed
  * site instead of the local build (no build or server needed), hourly from .github/workflows/live-watch.yml.
+ * Live, it also asks a couple of real /api routes (#704, scripts/boot-check-lib.mjs): a 404 or 5xx there, or no answer,
+ * fails the run even when every page loads, as on Nov 4 (#695) when the API was gone for hours behind a working site.
  *
  * The site lock (#236, #238): when the live site is locked, SITE_BYPASS_TOKEN (the same value as in the Azure Key Vault) is sent in
  * the x-ceo-site-bypass header on the site's own requests only (never to another host), and never printed. Without
@@ -33,6 +35,7 @@
  */
 import { chromium } from "@playwright/test";
 import { startDistServer } from "../tests/e2e/dist-server.ts";
+import { probeApi } from "./boot-check-lib.mjs";
 
 const args = process.argv.slice(2);
 const live = args.find((a) => a.startsWith("--url="))?.slice("--url=".length).replace(/\/+$/, "");
@@ -79,7 +82,16 @@ const fail = (where, what) => {
   console.error(`boot-check: FAIL ${where}: ${what}`);
 };
 
-/** One page with its errors collected. Only the app's own failures count: a 404 for /api/* is expected (no functions here). */
+// The API (#704): live only, since the local build has no functions. Pages that load can hide an API that is gone.
+if (live) {
+  const get = (url) =>
+    fetch(url, { headers: BYPASS ? { "x-ceo-site-bypass": BYPASS } : {}, redirect: "manual", signal: AbortSignal.timeout(30_000) }).then((r) => (r.body?.cancel().catch(() => {}), r.status));
+  const misses = await probeApi(base, get);
+  for (const m of misses) fail("/api", `${m}; the site's functions look down`);
+  if (misses.length === 0) console.log("boot-check: ok /api answers");
+}
+
+/** One page with its errors collected. Only the app's own failures count: a 404 for /api/* is expected locally (no functions here); live, the API is probed above. */
 async function visit(path, check, timeout, measureJs = false, warm = false) {
   const t0 = Date.now();
   // With a bypass, no service worker: its page loads wouldn't pass through the route that adds the header.

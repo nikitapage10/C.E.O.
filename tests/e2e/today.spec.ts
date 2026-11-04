@@ -108,12 +108,13 @@ test("signed in: the list stands alone, the Council lights on a hover and opens 
   await expect(list.locator(".td-ni.is-mine")).toHaveCount(2);
   await expect(list.getByRole("textbox", { name: "Add a to-do" })).toBeVisible();
 
-  // The Council: Skippy and the ten, one button each.
+  // The Council: Skippy, the ten and the Desk's own two (the Steward and the Stagehand, #717), one button each.
   const council = page.getByRole("group", { name: /The Council of Skippies/ });
-  await expect(council.locator(".ti-seat")).toHaveCount(11);
+  await expect(council.locator(".ti-seat")).toHaveCount(13);
   const builder = council.getByRole("button", { name: /^The Builder, Foundry/ });
   await builder.hover();
-  await expect(page.locator(".ti-cone")).toBeVisible();
+  // Its light: the shaft in 3D once the Council has loaded, the page's cone before (#717).
+  await expect(builder).toHaveClass(/is-lit/);
   await expect(page.locator(".ti-tip")).toContainText("Foundry");
   await builder.click();
   const card = page.getByRole("complementary", { name: "The Builder, Foundry" });
@@ -147,7 +148,7 @@ test("signed out: the Council and the counts, no private words", async ({ page }
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await expect(page.getByText("Book the vet")).toHaveCount(0);
   const council = page.getByRole("group", { name: /The Council of Skippies/ });
-  await expect(council.locator(".ti-seat")).toHaveCount(11);
+  await expect(council.locator(".ti-seat")).toHaveCount(13);
   await council.getByRole("button", { name: /^The Messenger, Relay/ }).click();
   const card = page.getByRole("complementary", { name: "The Messenger, Relay" });
   await expect(card).toBeVisible();

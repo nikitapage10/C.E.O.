@@ -10,6 +10,7 @@ import { fires, TodayNow } from "./TodayNow.tsx";
 import { DAY_STRIP_MS, usePulses } from "./usePulses.ts";
 import { skippyLine } from "./roomPulse.ts";
 import { Iris } from "./council/Iris.tsx";
+import { useDeskPulses } from "./council/deskPulses.ts";
 import { forwardHavenResult } from "./homeDevices.ts";
 import { clockState, useWorldClock } from "../worldClock.ts";
 import { useTodoSync } from "./todos/TodoBits.tsx";
@@ -61,6 +62,9 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
   useEffect(forwardHavenResult, []);
   const todo = replies.length + decisions.length + questions.length + emailNeeds;
   const pulses = usePulses(owed.length, now);
+  // The Council seats the ten rooms' subminds and the Desk's own, the Steward and the Stagehand (#717).
+  const deskPulses = useDeskPulses(now);
+  const council = useMemo(() => [...pulses, ...deskPulses], [pulses, deskPulses]);
   const [ticked] = useState(readTicked);
   const setupLeft = setupList ? remaining(setupList, ticked).length : 0;
   const shipped = useMemo(() => foundry.changelog.filter((c) => c.at > awaySince && c.at <= now).sort((a, b) => b.at - a.at), [foundry.changelog, awaySince, now]);
@@ -117,7 +121,7 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
             onHot={(r) => hot.current(r)}
           />
         </div>
-        <Iris pulses={pulses} now={now} since={since} held={heldBy} skippySays={says} hotRef={hot} />
+        <Iris pulses={council} now={now} since={since} held={heldBy} skippySays={says} hotRef={hot} />
       </section>
 
       <section className={`td-later cf-later${more ? " is-open" : ""}`} aria-label="Not worth knowing now">

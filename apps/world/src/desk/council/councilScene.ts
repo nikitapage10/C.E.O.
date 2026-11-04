@@ -1,9 +1,13 @@
 import {
   AnimationMixer,
   Box3,
+  BufferAttribute,
+  BufferGeometry,
   CanvasTexture,
   Color,
+  CylinderGeometry,
   DirectionalLight,
+  DoubleSide,
   Euler,
   Group,
   HemisphereLight,
@@ -14,10 +18,12 @@ import {
   Object3D,
   OrthographicCamera,
   PlaneGeometry,
+  Points,
   Quaternion,
   Raycaster,
   SRGBColorSpace,
   Scene,
+  ShaderMaterial,
   SphereGeometry,
   SpotLight,
   Vector3,
@@ -34,9 +40,11 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { recolor } from "../../agents/bodies/recolor.ts";
 import { modelUrl } from "../../modelUrl.ts";
+import { cachedModel } from "../modelCache.ts";
 import { drawFace, FACE_H, FACE_W } from "../hologram/face.ts";
 import { ARMS, CHILD, fitCap, HEAD, NAVY, PHI, POSES, TH0, TH1, type Aims } from "../hologram/rig.ts";
 import type { IrisLayout } from "./layout.ts";
+import { SKIPPY_MODEL } from "./live.ts";
 import { drawMark } from "./marks.ts";
 import { STILL_MANNER as STILL, type CouncilPose, type Manner } from "./manner.ts";
 
@@ -49,6 +57,12 @@ import { STILL_MANNER as STILL, type CouncilPose, type Manner } from "./manner.t
  * since he floats, and poses and procedural motion for the rest. The camera is orthographic in the stage's own CSS
  * pixels, so the seats in layout.ts are where the cans stand and the buttons over them line up exactly. Lazy loaded
  * with three.js (Iris.tsx), never in the Desk's first load.
+ *
+ * #717: the model is fetched and parsed once a visit (modelCache.ts), so coming back to Today builds the Council at
+ * once. The chamber is dark: a member is lit only while something real is happening for it (`live`, live.ts), and
+ * then it stands in a shaft of light from above, a soft cone with falloff, a pool where it lands and a few motes of
+ * dust drifting through it, all in a couple of cheap additive draws. Pointed at, its shaft brightens and a real spot
+ * light falls on the model. Reduced motion: the dust and the shafts hold still.
  */
 
 export interface CouncilMember {
@@ -56,8 +70,10 @@ export interface CouncilMember {
   /** The coat's colour, hex; null for Skippy's own navy. */
   colour: string | null;
   manner: Manner;
-  /** False: dim and still (a submind that isn't active). */
+  /** False: still (a submind that isn't active). */
   alive: boolean;
+  /** 0..1, how lit it is: something real is happening for it (live.ts). Dark at 0. */
+  live: number;
 }
 
 export interface Council {
@@ -69,7 +85,7 @@ export interface Council {
   dispose: () => void;
 }
 
-const MODEL = "lib/custom/Skippy.glb";
+const MODEL = SKIPPY_MODEL;
 /** The extra poses the Council strikes, on top of the hologram's: each bone aims its child along a direction. */
 const COUNCIL_POSES: Record<Exclude<CouncilPose, keyof typeof POSES>, Aims> = {
   // The party: one arm up, one low, then swapped.
@@ -124,31 +140,39 @@ interface Fig {
   size: number;
   yaw: number;
   glow: number;
+  /** How lit it is now, eased toward `m.live` (or 1 while pointed at), and its shaft's strength. */
+  lit: number;
+  shaft: number;
+  beam: Beam;
   hot: boolean;
   /** Set when its pose must land at once (the first frame, reduced motion). */
   snap: boolean;
 }
 
 export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: boolean }): Promise<Council> {
-  const loader = new GLTFLoader();
-  loader.setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.loadAsync(modelUrl(MODEL));
+  // Once a visit (modelCache.ts): every Council after the first starts from the parsed model.
+  const gltf = await cachedModel(MODEL, () => {
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    return loader.loadAsync(modelUrl(MODEL));
+  });
 
   const renderer = new WebGLRenderer({ canvas, antialias: !opts.phone, alpha: true, powerPreference: "low-power" });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
 
   const scene = new Scene();
-  // A dim chamber: moonlight from above, cool silver and violet, almost nothing from below.
-  scene.add(new HemisphereLight(0xc9c4ff, 0x0c0b14, 1.1));
-  const over = new DirectionalLight(0xe6e2ff, 2.1);
+  // A dark chamber: faint moonlight from above, cool silver and violet, almost nothing from below. The members' own
+  // brightness (`lit`) does the rest.
+  scene.add(new HemisphereLight(0xc9c4ff, 0x0c0b14, 0.8));
+  const over = new DirectionalLight(0xe6e2ff, 1.9);
   scene.add(over);
   scene.add(over.target);
   const front = new DirectionalLight(0x9aa6d6, 0.55);
   scene.add(front);
   scene.add(front.target);
-  // The hover's light from above (the cone itself is drawn over the page in Iris.tsx).
-  const spot = new SpotLight(0xffffff, 0, 0, 0.16, 0.55, 0);
+  // The hover's real light from above, on the model; its shaft is the member's beam.
+  const spot = new SpotLight(0xfff6ea, 0, 0, 0.16, 0.85, 0);
   scene.add(spot);
   scene.add(spot.target);
 
@@ -180,6 +204,7 @@ export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: bo
   const rc = new Raycaster(new Vector3(0, chestY, 2), new Vector3(0, 0, -1));
   const hitZ = rc.intersectObject(protoBody, false)[0]?.point.z ?? box.max.z * 0.8;
   const emblemGeo = new PlaneGeometry(0.15, 0.15);
+  const beams = beamKit(opts.phone);
 
   // Every pose's arm rotations, worked out once on the prototype from its bind pose.
   const protoBones = new Map<string, Bone>();
@@ -288,7 +313,9 @@ export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: bo
       }
     }
 
-    const fig: Fig = { id: m.id, m, root, model, bones, mat, baseMap: protoMap, face, emblem, mixer: null, action: null, pt: hash(m.id) * 10, x: 0, y: 0, size: 100, yaw: 0, glow: 0, hot: false, snap: true };
+    const beam = beams.make(m.colour ?? "#d9d4ff", hash(m.id) * 50);
+    scene.add(beam.group);
+    const fig: Fig = { id: m.id, m, root, model, bones, mat, baseMap: protoMap, face, emblem, mixer: null, action: null, pt: hash(m.id) * 10, x: 0, y: 0, size: 100, yaw: 0, glow: 0, lit: 0, shaft: 0, beam, hot: false, snap: true };
     dress(fig, m);
     return fig;
   };
@@ -297,12 +324,9 @@ export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: bo
   const dress = (f: Fig, m: CouncilMember) => {
     f.m = m;
     if (f.baseMap && m.colour) f.mat.map = recolor(`council-${m.colour}`, f.baseMap, [{ band: NAVY, color: m.colour }]);
-    f.mat.color.setScalar(m.alive ? 1 : 0.34);
     f.mat.emissive = new Color(m.colour ?? "#8f9cff");
     f.mat.emissiveIntensity = 0;
     f.mat.needsUpdate = true;
-    if (f.emblem) f.emblem.mat.opacity = m.alive ? 1 : 0.3;
-    if (f.face) f.face.mat.color.setScalar(m.alive ? 1 : 0.4);
     const clip = m.alive && m.manner.clip ? clips.get(m.manner.clip) : undefined;
     if (clip && !f.action) {
       f.mixer = new AnimationMixer(f.model);
@@ -336,6 +360,7 @@ export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: bo
         // Each turns a little toward the pupil.
         f.yaw = -Math.sin(seat.a) * 0.35;
       }
+      beams.place(f.beam, f.x, f.y, f.size, f.id === "kernel" ? 0 : 40);
     }
     over.position.set(L.cx, 1200, 900);
     over.target.position.set(L.cx, -L.cy, 0);
@@ -413,7 +438,16 @@ export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: bo
     f.glow += ((f.hot ? 1 : 0) - f.glow) * (still ? 1 : Math.min(1, dt * 8));
     const grow = 1 + f.glow * 0.08;
     f.root.scale.set(s * grow * (1 + sq * 0.5), s * grow * (1 - sq), s * grow * (1 + sq * 0.5));
-    f.mat.emissiveIntensity = f.glow * 0.22 + (f.id === "kernel" ? 0.04 : 0);
+    // Dark until something happens for it; pointed at, it's lit whatever it's doing.
+    const ease = still || f.snap ? 1 : Math.min(1, dt * 2.5);
+    const lit = Math.max(f.m.live, f.hot ? 1 : 0);
+    f.lit += (lit - f.lit) * ease;
+    f.shaft += ((f.hot ? 1 : f.id === "kernel" ? 0 : f.m.live * 0.55) - f.shaft) * ease;
+    f.mat.color.setScalar(0.06 + 0.94 * f.lit);
+    f.mat.emissiveIntensity = f.glow * 0.22 + f.lit * 0.05;
+    if (f.emblem) f.emblem.mat.opacity = 0.12 + 0.88 * f.lit;
+    if (f.face) f.face.mat.color.setScalar(0.1 + 0.9 * f.lit);
+    beams.set(f.beam, f.shaft, dt);
 
     // Its face: drawn when it changes; the Commentator and the party keep talking.
     if (f.face) {
@@ -433,6 +467,7 @@ export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: bo
   return {
     layout: (next, dpr) => {
       L = next;
+      beams.dpr(dpr);
       renderer.setPixelRatio(dpr);
       renderer.setSize(next.w, next.h, false);
       camera.left = 0;
@@ -459,7 +494,8 @@ export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: bo
         spot.position.set(f.x, -f.y + 900, 260);
         spot.target.position.set(f.x, -f.y, 0);
         spot.angle = Math.atan((f.size * 0.9) / 900);
-        spot.intensity = 5;
+        spot.color.set(f.m.colour ?? "#ffffff").lerp(new Color(0xfff6ea), 0.7);
+        spot.intensity = 7;
       } else spot.intensity = 0;
     },
     frame: (dt) => {
@@ -478,13 +514,12 @@ export async function createCouncil(canvas: HTMLCanvasElement, opts: { phone: bo
         f.face?.mat.dispose();
         f.emblem?.tex.dispose();
         f.emblem?.mat.dispose();
+        f.beam.dispose();
       }
+      beams.dispose();
       capGeo.dispose();
       emblemGeo.dispose();
-      proto.traverse((o) => {
-        const m = o as Mesh;
-        if (m.isMesh) m.geometry.dispose();
-      });
+      // The model itself stays in modelCache.ts for the next Council; this renderer's copies go with it.
       renderer.dispose();
       renderer.forceContextLoss();
     },
@@ -497,4 +532,158 @@ function hash(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return ((h >>> 0) % 1000) / 1000;
+}
+
+/** A member's shaft of light: the cone, the pool where it lands and its dust. */
+interface Beam {
+  group: Group;
+  cone: Mesh;
+  pool: Mesh;
+  dust: Points;
+  u: { uColor: { value: Color }; uI: { value: number }; uTime: { value: number }; uSize: { value: number } };
+  dispose: () => void;
+}
+
+const BEAM_VERT = `
+varying vec2 vUv;
+varying float vEdge;
+void main() {
+  vUv = uv;
+  vec3 n = normalize(normalMatrix * normal);
+  vEdge = abs(n.z);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+// Brightest down the middle and near the source, soft at the sides (the cone's surface turning away), with faint
+// shafts drifting through it and a little dither so the falloff never bands.
+const BEAM_FRAG = `
+uniform vec3 uColor;
+uniform float uI;
+uniform float uTime;
+varying vec2 vUv;
+varying float vEdge;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  float y = vUv.y;
+  float core = pow(vEdge, 2.4);
+  float along = mix(0.4, 1.0, y * y) * smoothstep(0.0, 0.5, 1.0 - y) * smoothstep(0.0, 0.18, y);
+  float shaft = 0.78 + 0.22 * sin(vUv.x * 37.7 + uTime * 0.31) * sin(vUv.x * 12.6 - uTime * 0.19 + y * 2.5);
+  float a = core * along * shaft * uI * 0.3 + (h(gl_FragCoord.xy) - 0.5) / 255.0;
+  gl_FragColor = vec4(uColor, max(a, 0.0));
+}`;
+const POOL_FRAG = `
+uniform vec3 uColor;
+uniform float uI;
+varying vec2 vUv;
+void main() {
+  float d = length((vUv - 0.5) * 2.0);
+  float a = pow(max(0.0, 1.0 - d), 2.2) * uI * 0.45;
+  gl_FragColor = vec4(uColor, a);
+}`;
+const POOL_VERT = `
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+// Motes: each drifts down through the cone at its own pace, turning slowly, brightest mid-fall, twinkling a little.
+const DUST_VERT = `
+uniform float uTime;
+uniform float uI;
+uniform float uSize;
+attribute vec3 aSeed;
+varying float vA;
+void main() {
+  float t = fract(aSeed.y + uTime * (0.012 + 0.02 * aSeed.z));
+  float ly = 0.45 - t * 0.9;
+  float r = mix(1.0, 0.12, ly + 0.5) * sqrt(aSeed.x) * 0.85;
+  float ang = aSeed.z * 6.2832 + uTime * 0.12 * (aSeed.x - 0.5);
+  vec3 p = vec3(cos(ang) * r, ly, sin(ang) * r);
+  vA = uI * sin(t * 3.1416) * (0.55 + 0.45 * sin(uTime * (1.0 + aSeed.x * 2.0) + aSeed.y * 40.0));
+  gl_PointSize = uSize * (0.6 + aSeed.x * 0.8);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+}`;
+const DUST_FRAG = `
+uniform vec3 uColor;
+varying float vA;
+void main() {
+  float d = length(gl_PointCoord - 0.5) * 2.0;
+  float a = smoothstep(1.0, 0.2, d) * vA * 0.8;
+  gl_FragColor = vec4(mix(uColor, vec3(1.0), 0.7), a);
+}`;
+/** The cone's top radius as a share of its foot (the dust shader repeats it). */
+const CONE_TOP = 0.12;
+
+/** The shared pieces of every beam: one cone, one pool and one cloud of dust, drawn per member with its own colour. */
+function beamKit(phone: boolean) {
+  const coneGeo = new CylinderGeometry(CONE_TOP, 1, 1, phone ? 20 : 32, 1, true);
+  const poolGeo = new PlaneGeometry(1, 1);
+  const motes = phone ? 10 : 22;
+  const seeds = new Float32Array(motes * 3);
+  for (let i = 0; i < seeds.length; i++) seeds[i] = hash(`mote${i}`);
+  const dustGeo = new BufferGeometry();
+  dustGeo.setAttribute("position", new BufferAttribute(new Float32Array(motes * 3), 3));
+  dustGeo.setAttribute("aSeed", new BufferAttribute(seeds, 3));
+  let dpr = 1;
+  const all = new Set<Beam>();
+  const add = { transparent: true, depthWrite: false, blending: AdditiveBlending } as const;
+
+  return {
+    make(colour: string, t0: number): Beam {
+      const tint = new Color(colour).lerp(new Color(0xfff4e6), 0.62);
+      const u = { uColor: { value: tint }, uI: { value: 0 }, uTime: { value: t0 }, uSize: { value: 2.4 * dpr } };
+      const coneMat = new ShaderMaterial({ uniforms: u, vertexShader: BEAM_VERT, fragmentShader: BEAM_FRAG, side: DoubleSide, ...add });
+      const poolMat = new ShaderMaterial({ uniforms: u, vertexShader: POOL_VERT, fragmentShader: POOL_FRAG, ...add });
+      const dustMat = new ShaderMaterial({ uniforms: u, vertexShader: DUST_VERT, fragmentShader: DUST_FRAG, ...add });
+      const group = new Group();
+      const cone = new Mesh(coneGeo, coneMat);
+      const pool = new Mesh(poolGeo, poolMat);
+      const dust = new Points(dustGeo, dustMat);
+      cone.renderOrder = pool.renderOrder = 4;
+      dust.renderOrder = 5;
+      cone.frustumCulled = pool.frustumCulled = dust.frustumCulled = false;
+      group.add(cone, pool, dust);
+      group.visible = false;
+      const b: Beam = {
+        group,
+        cone,
+        pool,
+        dust,
+        u,
+        dispose: () => {
+          coneMat.dispose();
+          poolMat.dispose();
+          dustMat.dispose();
+          all.delete(b);
+        },
+      };
+      all.add(b);
+      return b;
+    },
+    /** Down onto the member's feet at (x, y) in stage pixels, from out of the dark a little way above its head. */
+    place(b: Beam, x: number, y: number, size: number, z: number) {
+      const foot = -(y + size * 0.56);
+      const top = Math.min(40, foot + size * 2.8);
+      const H = top - foot;
+      const R = size * 0.52;
+      b.group.position.set(x, 0, z);
+      b.cone.position.set(0, (top + foot) / 2, 0);
+      b.cone.scale.set(R, H, R);
+      b.dust.position.copy(b.cone.position);
+      b.dust.scale.copy(b.cone.scale);
+      b.pool.position.set(0, foot + size * 0.04, -30);
+      b.pool.scale.set(R * 2.3, R * 0.5, 1);
+    },
+    /** Its strength (0 hides it) and the dust's clock (dt 0 holds it). */
+    set(b: Beam, i: number, dt: number) {
+      b.u.uI.value = i;
+      b.u.uTime.value += dt;
+      b.group.visible = i > 0.004;
+    },
+    dpr(v: number) {
+      dpr = v;
+      for (const b of all) b.u.uSize.value = 2.4 * v;
+    },
+    dispose() {
+      coneGeo.dispose();
+      poolGeo.dispose();
+      dustGeo.dispose();
+    },
+  };
 }

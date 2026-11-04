@@ -103,6 +103,19 @@ export const MANNERS: Record<RoomId, Manner> = {
   studio: { ...BASE, word: "framing", face: "annoyed", pose: "frame", poseB: "frameB", swing: "snap", tempo: 0.9, bob: 0.015, sway: 0.3, swayRate: 0.2, head: [0.04, 0.12, 0.06], lean: 0.12 },
 };
 
+/**
+ * The Desk's own subminds (DESK_SUBMINDS, #717), seated with the ten: the rooms that live only on the Desk.
+ * The Steward keeps the house (the Haven): calm and attentive, hands folded, a slow nod as he checks each device.
+ * The Stagehand runs the pop-ups (the Annex): quick and keen, pointing where the next set goes, a small hop on cue.
+ */
+export const DESK_MANNERS: Record<"haven" | "annex", Manner> = {
+  haven: { ...BASE, word: "keeping house", face: "attentive", pose: "hands", poseB: "rest", swing: "sine", tempo: 0.55, bob: 0.02, sway: 0.12, swayRate: 0.08, head: [0.1, 0, 0.05], lean: 0.04 },
+  annex: { ...BASE, word: "setting the stage", face: "grin", pose: "point", poseB: "ready", swing: "snap", tempo: 1.4, bob: 0.015, bounce: 0.04, glance: 0.2, glanceRate: 0.5, sway: 0.15, swayRate: 0.3, head: [-0.06, 0.1, 0], lean: 0.08 },
+};
+
+/** Any member's manner: the ten rooms', then the Desk's own. */
+export const mannerOf = (id: string): Manner => (MANNERS as Record<string, Manner>)[id] ?? (DESK_MANNERS as Record<string, Manner>)[id] ?? STILL_MANNER;
+
 /** A submind that isn't active yet (docs/SKIPPY.md): dim, arms at its sides, no motion. */
 export const STILL_MANNER: Manner = { ...BASE, word: "waiting", face: "listening", pose: "rest", tempo: 0, bob: 0, sway: 0, head: [0.12, 0, 0] };
 

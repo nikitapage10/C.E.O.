@@ -127,6 +127,35 @@ export const MARKS: Record<string, Mark> = {
     }
     c.stroke();
   },
+  // The Haven (the Steward): a house, a warm window lit in it.
+  haven: (c) => {
+    poly(c, [
+      [-0.8, -0.05],
+      [0, -0.8],
+      [0.8, -0.05],
+      [0.62, -0.05],
+      [0.62, 0.75],
+      [-0.62, 0.75],
+      [-0.62, -0.05],
+    ]);
+    c.strokeRect(-0.2, 0.2, 0.4, 0.55);
+  },
+  // The Annex (the Stagehand): a pop-up tent, its curtain drawn back.
+  annex: (c) => {
+    poly(c, [
+      [-0.85, 0.7],
+      [0, -0.85],
+      [0.85, 0.7],
+    ]);
+    poly(c, [
+      [0, -0.85],
+      [-0.3, 0.7],
+    ], false);
+    poly(c, [
+      [0, -0.85],
+      [0.3, 0.7],
+    ], false);
+  },
   // The Studio: a camera, two reels on a body.
   studio: (c) => {
     circle(c, -0.38, -0.5, 0.3);

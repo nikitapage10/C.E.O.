@@ -279,9 +279,14 @@ function Drawer({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => 
 /** A drawer over the planner: the catalog or the taste profile. */
 function Over({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    // Escape closes this drawer only, not the Kitchen under it (HavenPage listens on window too, after this).
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
   }, [onClose]);
   return (
     <div className="mp-over" role="dialog" aria-modal="true" aria-label={title}>

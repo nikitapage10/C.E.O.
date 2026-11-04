@@ -6,6 +6,8 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 import { FAKE_PLAN } from "../../api/_haven/plan.fixture.ts";
 import { DEFAULT_GYM_PLAN } from "../../api/_haven/gymShape.ts";
+import { fakeMeals } from "../../api/_haven/meals.fixture.ts";
+import { allComponents, applyEdit, readEdit, type MealsFile } from "../../api/_haven/mealShape.ts";
 
 /**
  * The Haven (#616) on the built site, with its endpoints stubbed in the browser. Signed out it shows counts and states
@@ -287,4 +289,69 @@ test("signed in, the Kitchen removes an item with ×, with five seconds to Undo 
     { action: "remove", id: "k1" },
     { action: "undo-remove", id: "k1" },
   ]);
+});
+
+test("signed in, the Kitchen's meal planner: the week strip, a night customized live, HelloFresh, and Confirm week (#678)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  // The made-up planner file (api/_haven/meals.fixture.ts), changed in the browser by the same edits the server runs.
+  let file: MealsFile = fakeMeals();
+  const posts: Array<Record<string, unknown>> = [];
+  await page.route(`${BASE}/api/haven-meals`, (r) => {
+    if (r.request().method() !== "POST") return r.fulfill({ json: { meals: file, components: allComponents(file) } });
+    const body = r.request().postDataJSON() as Record<string, unknown>;
+    posts.push(body);
+    if (body.action === "confirm") {
+      const got = applyEdit(file, { op: "confirm" }, Date.now());
+      if (got.ok) file = got.file;
+      return r.fulfill({ json: { ok: true, changes: got.ok ? got.changes : [], added: 12, already: 1, photos: file.week!.photoQueue.length, meals: file } });
+    }
+    const edit = readEdit(body.edit);
+    const got = edit ? applyEdit(file, edit, Date.now()) : null;
+    if (!got?.ok) return r.fulfill({ status: 409, json: { error: got && !got.ok ? got.error : "bad-request" } });
+    file = got.file;
+    return r.fulfill({ json: { ok: true, changes: got.changes, meals: file } });
+  });
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  const week = sheet.getByRole("list", { name: "This week's dinners" });
+  await expect(week.getByRole("listitem")).toHaveCount(7);
+  // The list and King Soopers sit in the rail beside the planner, on the same page.
+  await expect(sheet.getByRole("list", { name: "Kitchen list" }).getByText("Lemons")).toBeVisible();
+
+  await week.getByRole("button", { name: /^Wednesday: sausage pasta/ }).click();
+  const drawer = sheet.getByRole("region", { name: "Wednesday's dinner" });
+  await expect(drawer.getByRole("heading", { name: "sausage pasta" })).toBeVisible();
+  await expect(drawer.locator(".mp-macros .is-p b")).toHaveText("62");
+  await drawer.getByRole("group", { name: "Carb for Wednesday" }).getByRole("button", { name: /^Protein pasta/ }).click();
+  await expect(drawer.locator(".mp-macros .is-p b")).toHaveText(String(62 - 14 + 28));
+  await expect(drawer.getByText("Protein pasta for rigatoni")).toBeVisible();
+  await expect(week.getByRole("listitem").nth(2).getByText("photo pending")).toBeVisible();
+  expect(posts.at(-1)).toEqual({ action: "edit", edit: { op: "customize", day: "wed", part: { index: 1, option: "protein-pasta" } } });
+
+  await drawer.getByRole("switch", { name: "HelloFresh" }).click();
+  await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toBeVisible();
+  await drawer.getByRole("switch", { name: "HelloFresh" }).click();
+  await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toHaveCount(0);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-678-planner.png`, fullPage: false });
+
+  await sheet.getByRole("button", { name: "Confirm week" }).click();
+  await expect(sheet.getByText(/Confirmed\. 12 things went on the Kitchen list \(1 already there\)/)).toBeVisible();
+  await expect(sheet.getByText("1 customized meal will get its own photo.", { exact: false })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Week confirmed" })).toBeDisabled();
+  expect(posts.at(-1)).toEqual({ action: "confirm" });
+
+  await sheet.getByRole("button", { name: "Catalog" }).click();
+  const cat = page.getByRole("dialog", { name: "Meal catalog" });
+  await expect(cat.getByRole("row")).toHaveCount(11);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-678-catalog.png` });
+  await cat.getByRole("button", { name: "Close" }).last().click();
+  await expect(cat).toHaveCount(0);
+
+  if (SHOTS) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await week.getByRole("button", { name: /^Monday:/ }).click();
+    await page.screenshot({ path: `${SHOTS}/haven-678-planner-phone.png` });
+    await sheet.evaluate((el) => el.scrollBy(0, 700));
+    await page.screenshot({ path: `${SHOTS}/haven-678-planner-phone-2.png` });
+  }
 });

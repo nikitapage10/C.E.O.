@@ -250,7 +250,7 @@ keys"; Nikita's steps in [AZURE.md](AZURE.md), "The subminds' room keys"):
 Since #627 the iPhone's Action Button runs a "Skippy" shortcut that posts what Nikita says to `POST /api/capture`
 ([HEY-SKIPPY.md](HEY-SKIPPY.md); TB9 in [THREAT-MODEL.md](THREAT-MODEL.md)). Azure only (`api/_haven/route.ts`).
 
-- **Phone keys.** One per phone, made on the Desk (**Boiler Room → Security → Phones → Add a phone**, passkey session):
+- **Phone keys.** One per phone, made on the Desk (**Boiler Room → Controls → Phones → Add a phone**, passkey session):
   32 random bytes behind a `skp_` prefix, shown once with Copy, never again. Only HMAC-SHA256 of the key is stored
   (`haven/phones.json`, private blob store), under a pepper derived from `FOUNDRY_DESK_KEY` (`deskKeyFor(…, "phone")`,
   scrypt-stretched and split by purpose: no new secret), with the phone's label, when it was added, when it was last
@@ -414,7 +414,7 @@ in the Key Vault and restart the Function App.
 
 ## Setting keys from the Desk
 
-Since #330, a third-party key is set or replaced on the Desk instead of in Cloud Shell: **Boiler Room → Security →
+Since #330, a third-party key is set or replaced on the Desk instead of in Cloud Shell: **Boiler Room → Controls →
 Keys**, signed in. It is write-only by design:
 
 - **Only allowlisted names** (`api/_keys/allowlist.ts`): `claude-api-key`, `fantasypros`,

@@ -8,12 +8,16 @@
  *                        - a missing, malformed, unknown or revoked key: 401 { error: "unauthorized" }, nothing more;
  *                        - past the key's 30 an hour: 429 { say } with Retry-After;
  *                        - text over 300 characters: 400 { say };
- *                        - otherwise 200 { say, audio? }: rules sort the words first (api/_haven/classify.ts):
+ *                        - otherwise 200 { say, quiet, audio? }: rules sort the words first (api/_haven/classify.ts):
  *                          shopping items go on the Kitchen list (api/_haven/list.ts), a home-device ask ("feed the
  *                          cat", "clean the kitchen", "clean the litter box") through api/_haven/devices/home.ts and
  *                          its rails (#632), a to-do into the to-dos
  *                          (api/_haven/todos.ts, into Today's store), and anything else to Desk Skippy's own chat (`phoneAnswer` in
- *                          api/skippy.ts: the same prompt, router, caps and hand-offs, marked "phone"). With
+ *                          api/skippy.ts: the same prompt, router, caps and hand-offs, marked "phone"). A finished
+ *                          action (a list add, a to-do, a device action that worked with nothing to warn of) answers
+ *                          `quiet: true` with a short `say` and never an `audio` link or an ElevenLabs call (#652): the
+ *                          shortcut shows it as a notification. A question, an answer, a refusal, a failure or a
+ *                          warning is `quiet: false`. With
  *                          `voice: true`, `audio` is a five-minute, single-use link to `say` in Skippy's voice
  *                          (api/_haven/audio.ts), left out when ElevenLabs' cap is spent or it doesn't answer.
  *                      The words are never logged; a log line says only which way a capture went.
@@ -150,6 +154,8 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
   const before = await convo.read(check.phone.id, now).catch(() => null);
   const sorted = classify(text, before?.last ?? null);
   let say: string;
+  // A finished action the person isn't waiting to hear about (#652): shown as a notification, never read out.
+  let quiet = false;
   try {
     if (sorted.kind === "shopping") {
       // "Not as a task" right after a to-do (#641): that to-do moves onto the list.
@@ -162,16 +168,21 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
       else {
         const { added, already } = await new KitchenList(deps.blob).add(items, now);
         say = sayAdded(added, already);
+        quiet = added.length > 0 || already.length > 0;
       }
     } else if (sorted.kind === "device") {
       // The home devices (#632): the same rails as the Desk's buttons, and the Council keeps the words as said.
       const home = deps.devices?.() ?? null;
-      say = home
-        ? (await home.act({ action: sorted.action, rooms: sorted.rooms, portions: sorted.portions, plate: sorted.plate, suction: sorted.suction, water: sorted.water, via: "phone", said: text })).say
-        : "The home devices aren't set up here yet.";
+      if (home) {
+        const done = await home.act({ action: sorted.action, rooms: sorted.rooms, portions: sorted.portions, plate: sorted.plate, suction: sorted.suction, water: sorted.water, via: "phone", said: text });
+        say = done.say;
+        // Only a plain success: a refusal, a warning or a "what's in the tray" question is spoken.
+        quiet = done.ok && !done.warned && sorted.action !== "wet.status";
+      } else say = "The home devices aren't set up here yet.";
     } else if (sorted.kind === "todo") {
       const todo = await deps.todos(deps.blob).addTodo(sorted.text, now);
       say = sayTodo(todo.text, todo.due, now);
+      quiet = true;
     } else {
       // A turn that looks private is left out of what Skippy is shown again, so it can't hold up the next ask.
       const history = (before?.turns ?? []).filter((t) => privateParts(t.text).length === 0);
@@ -185,11 +196,13 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
   // Which way it went, never what was said.
   deps.log(`capture: ${sorted.kind}`);
   await convo.add(check.phone.id, text, say, sorted.kind, now).catch(() => undefined);
-  if (body?.voice !== true || !deps.voice) return json({ say });
+  // A quiet ack makes no ElevenLabs call and carries no audio link; the shortcut shows `say` as a notification.
+  if (quiet) return json({ say, quiet: true });
+  if (body?.voice !== true || !deps.voice) return json({ say, quiet: false });
   const token = await speakForPhone(say, { ...deps.voice, blob: deps.blob }, now).catch(() => null);
-  if (!token) return json({ say });
+  if (!token) return json({ say, quiet: false });
   const url = new URL(request.url);
-  return json({ say, audio: `${url.origin}/api/capture?a=${encodeURIComponent(token)}` });
+  return json({ say, quiet: false, audio: `${url.origin}/api/capture?a=${encodeURIComponent(token)}` });
 }
 
 /** GET /api/capture?a=…: the answer's audio, once. */

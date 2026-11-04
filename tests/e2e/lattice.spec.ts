@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { ROOM_IDS } from "@ceo/core";
+import { NAV_ORDER } from "../../apps/world/src/route.ts";
 
 /**
  * Smoke test for the whole Lattice: it boots, agents move, every room is reachable, an approval can be
@@ -309,7 +310,8 @@ test("the Desk opens first without loading the Lattice", async ({ page }) => {
   page.on("request", (r) => r.resourceType() === "script" && scripts.push(r.url()));
   await page.goto("/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
-  await page.keyboard.press("3");
+  // Relay's number key follows the bar's order (route.ts NAV_ORDER, reordered in #700), not a fixed digit.
+  await page.keyboard.press(String(NAV_ORDER.indexOf("relay") + 1));
   await expect(page).toHaveURL(/\/relay$/);
   // Relay's heading says what's waiting since #438, not the page's name: the page's own stage and title say it's Relay.
   await expect(page.getByRole("region", { name: "Relay at a glance" })).toBeVisible();

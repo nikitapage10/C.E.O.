@@ -30,6 +30,8 @@ import {
 } from "./meals.ts";
 import { confirmPhotos, PHOTO_WORD, photoStates, photoUrl, shootOf, type PhotoState } from "./mealPhotos.ts";
 import { onWrote, touchesList, touchesMeals } from "../skippy/wrote.ts";
+import { cookOf } from "./cook.ts";
+import { CookMode } from "./CookMode.tsx";
 import "./meals.css";
 
 /**
@@ -193,6 +195,9 @@ function Drawer({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => 
   const comps = allComponents(f);
   const portions = portionsOf(f.week!)[DAYS.indexOf(day)]!;
   const [recipe, setRecipe] = useState(false);
+  const [cooking, setCooking] = useState(false);
+  // Built from the night as it stands, so a change Skippy makes while it's open shows in cook mode too.
+  const cook = cooking ? cookOf(f, s) : null;
   return (
     <section className="mp-drawer" key={`${day}-${d.meal.id}`} aria-label={`${DAY_NAME[day]}'s dinner`}>
       <div className="mp-dHead">
@@ -218,6 +223,16 @@ function Drawer({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => 
             <Toggle on={s.forTwo} label="For two" onChange={(v) => edit({ op: "night", day, forTwo: v })} />
             <Toggle on={s.inCart} label="In the cart" disabled={s.helloFresh} onChange={(v) => edit({ op: "night", day, inCart: v })} />
           </div>
+          {s.helloFresh ? null : (
+            <button type="button" className="mp-cook" onClick={() => setCooking(true)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 11h14v3a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5v-3zM17 12.5h4M8 4.5c-.6.8-.6 1.7 0 2.5M12 4.5c-.6.8-.6 1.7 0 2.5" />
+              </svg>
+              Cook mode
+              <small>step by step</small>
+            </button>
+          )}
+          {cook ? <CookMode cook={cook} onClose={() => setCooking(false)} /> : null}
         </div>
       </div>
 

@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { SIGILS } from "../relay/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
 import { makeNight, type Night } from "./night.ts";
+import { introDue, introStarted } from "./intro.ts";
+import { THREAD_TO, threadPoint, type GaugeId, type Tone } from "./plinth.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
 
 /**
@@ -28,6 +30,17 @@ export interface HouseOpts {
   onSpot?: (spot: Spot) => void;
   /** Pixels at the top of the house's box to keep clear on a narrow screen (the page's heading sits there). */
   clearTop?: () => number;
+  /** A box (px, in the house's own frame) the fitted view keeps the rooms out of: the instrument strip (#680). */
+  keepClear?: () => { x: number; y: number; w: number; h: number } | null;
+  /** Where a gauge's lamp is (px, in the house's own frame), for its thread; null when it's out of sight. */
+  lampAt?: (id: GaugeId) => [number, number] | null;
+}
+
+/** A gauge's thread (#680): its lamp's tone and how busy its nanites are (0 to 1). */
+export interface ThreadState {
+  id: GaugeId;
+  tone: Tone;
+  level: number;
 }
 
 export interface RoomFacts {
@@ -222,6 +235,13 @@ export class House {
   private size!: Float32Array;
   private pathLen = 0;
   private walls: Seg[];
+  /** The gauges' threads (#680): a 2D layer over the scene, from each lamp on the strip to its device. */
+  private thr = document.createElement("canvas");
+  private thrCtx: CanvasRenderingContext2D | null = null;
+  private threads: ThreadState[] = [];
+  private ends = new Map<GaugeId, THREE.Vector3>();
+  private dot: HTMLCanvasElement | null = null;
+  private tints = new Map<string, HTMLCanvasElement>();
 
   constructor(
     private host: HTMLElement,
@@ -238,6 +258,14 @@ export class House {
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.domElement.className = "hv-gl";
     host.appendChild(this.renderer.domElement);
+    this.thr.className = "hv-thr";
+    this.thr.setAttribute("aria-hidden", "true");
+    host.appendChild(this.thr);
+    this.thrCtx = this.thr.getContext("2d");
+    for (const [id, to] of Object.entries(THREAD_TO) as [GaugeId, (typeof THREAD_TO)[GaugeId]][]) {
+      const p = threadPoint(plan, to);
+      if (p) this.ends.set(id, new THREE.Vector3(this.wx(p[0]), p[2] / U, this.wz(p[1])));
+    }
     this.scene.add(this.world);
     this.atlasCanvas.width = this.atlasCanvas.height = 1024;
     drawAtlas(this.atlasCanvas);
@@ -266,8 +294,9 @@ export class House {
     this.resize();
     this.cam = { ...this.home };
     // The intro (#671): the camera starts low, looking out over the plain to the range and the sky, and sweeps down
-    // to the house's view. Reduced motion starts on the house's view.
-    if (!opts.reduce) {
+    // to the house's view. Once per page load (#680): back on the Haven from another Desk page it starts on the
+    // house. Reduced motion starts on the house's view.
+    if (!opts.reduce && introDue()) {
       const ph = 1.46, r = this.home.r * 1.08;
       this.cam = { ...this.home, ph, r, th: this.home.th - 0.12, ly: r * Math.cos(ph) + r * 0.09 };
       this.tween = { from: { ...this.cam }, to: this.home, t0: -1, ms: 3200, sweep: true };
@@ -783,15 +812,56 @@ export class House {
     const narrow = this.W < 600;
     const top = narrow ? Math.max(this.H * 0.04, (this.opts.clearTop?.() ?? 0) + 6) : this.H * 0.05;
     // Snug (#671): the rooms' own corners fill the box, with only a sliver of margin.
-    const m = narrow ? { l: this.W * 0.02, r: this.W * 0.02, t: top, b: this.H * 0.04 } : { l: this.W * 0.015, r: this.W * 0.02, t: top, b: this.H * 0.04 };
+    const m0 = narrow ? { l: this.W * 0.02, r: this.W * 0.02, t: top, b: this.H * 0.04 } : { l: this.W * 0.015, r: this.W * 0.02, t: top, b: this.H * 0.04 };
     const corners: [number, number][] = [];
     for (const r of this.plan.rooms) for (const [px, py, pw, ph] of r.parts) for (const [cx, cy] of [[px, py], [px + pw, py], [px, py + ph], [px + pw, py + ph]] as const) corners.push([this.wx(cx) - tx, this.wz(cy) - tz]);
-    const fit = fitView({ x0: -hw, x1: hw, z0: -hd, z1: hd, h: WH, corners }, HOME_TH, HOME_PH, this.W, this.H, m);
-    // A touch closer than the fit (Nikita, 07:17Z): the box's outermost corners (the near walls' tops) may just touch the edge.
-    const r = fit.r * 0.93;
-    this.fitR = r;
-    this.pan = fit.pan;
-    this.home = { tx, tz, th: HOME_TH, ph: HOME_PH, r };
+    const fitWith = (m: typeof m0) => {
+      const fit = fitView({ x0: -hw, x1: hw, z0: -hd, z1: hd, h: WH, corners }, HOME_TH, HOME_PH, this.W, this.H, m);
+      // A touch closer than the fit (Nikita, 07:17Z): the box's outermost corners (the near walls' tops) may just touch the edge.
+      return { home: { tx, tz, th: HOME_TH, ph: HOME_PH, r: fit.r * 0.93 } as Cam, pan: fit.pan };
+    };
+    let best = fitWith(m0);
+    // The instrument strip (#680) sits in the dark to the lower right of the house: when the rooms would run under it,
+    // give the fit more room below or to the right, whichever leaves the house bigger.
+    const keep = this.opts.keepClear?.();
+    if (keep && keep.w > 0 && keep.h > 0 && this.hits(best, corners, tx, tz, keep)) {
+      let found: typeof best | null = null;
+      for (let k = 1; k <= 24 && !found; k++) {
+        const below = fitWith({ ...m0, b: m0.b + k * this.H * 0.025 });
+        const beside = fitWith({ ...m0, r: m0.r + k * this.W * 0.025 });
+        const ok = [below, beside].filter((f) => !this.hits(f, corners, tx, tz, keep)).sort((a, b) => a.home.r - b.home.r);
+        found = ok[0] ?? null;
+      }
+      if (found) best = found;
+    }
+    this.fitR = best.home.r;
+    this.pan = best.pan;
+    this.home = best.home;
+  }
+
+  /** Would the rooms, seen from this view, run under the box (px)? Their outline's corners and edges against it. */
+  private hits(view: { home: Cam; pan: [number, number] }, corners: [number, number][], tx: number, tz: number, box: { x: number; y: number; w: number; h: number }): boolean {
+    const was = { cam: this.cam, pan: this.pan };
+    this.cam = view.home;
+    this.pan = view.pan;
+    const c = this.cam, sp = Math.sin(c.ph), cp = Math.cos(c.ph);
+    this.camera.aspect = this.W / this.H;
+    this.camera.position.set(c.tx + c.r * sp * Math.sin(c.th), c.r * cp, c.tz + c.r * sp * Math.cos(c.th));
+    this.camera.lookAt(c.tx, 0, c.tz);
+    this.camera.setViewOffset(this.W, this.H, this.pan[0], this.pan[1], this.W, this.H);
+    this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld();
+    const pts: [number, number][] = [];
+    for (const [x, z] of corners)
+      for (const y of [0, WH]) {
+        this.v.set(x + tx, y, z + tz).project(this.camera);
+        pts.push([((this.v.x + 1) / 2) * this.W, ((1 - this.v.y) / 2) * this.H]);
+      }
+    this.cam = was.cam;
+    this.pan = was.pan;
+    // Pad the box a little, so the walls don't graze it.
+    const pad = 10, bx0 = box.x - pad, by0 = box.y - pad, bx1 = box.x + box.w + pad, by1 = box.y + box.h + pad;
+    return hullHits(hullOf(pts), [bx0, by0, bx1, by1]);
   }
 
   private setAway(on: boolean) {
@@ -848,11 +918,14 @@ export class House {
     this.W = W;
     this.H = H;
     this.renderer.setSize(W, H, false);
+    const pr = this.renderer.getPixelRatio();
+    this.thr.width = Math.round(W * pr);
+    this.thr.height = Math.round(H * pr);
     this.frameHome();
     if (!this.focusId && !this.tween) {
       this.cam = { ...this.home };
       this.setAway(false);
-    }
+    } else if (this.tween?.sweep) this.tween.to = this.home;
     else if (this.focusId) this.cam = this.roomView(this.focusId) ?? this.cam;
     this.apply();
   }
@@ -998,6 +1071,27 @@ export class House {
   setBackdrop(on: boolean) {
     this.backdrop = on;
     this.renderer.domElement.style.pointerEvents = on ? "none" : "";
+    this.thr.style.visibility = on ? "hidden" : "";
+    this.dirty = true;
+  }
+
+  /** The strip's box changed: fit the default view round it again (#680). */
+  refit() {
+    this.frameHome();
+    if (!this.focusId && !this.tween && !this.away) this.cam = { ...this.home };
+    else if (this.tween?.sweep) this.tween.to = this.home;
+    this.apply();
+  }
+
+  /** The gauges' threads: their tones and how busy each is (#680). */
+  setThreads(list: ThreadState[]) {
+    this.threads = list;
+    this.dirty = true;
+  }
+
+  /** Lamp positions move when the strip scrolls or the page lays out again: draw the threads again. */
+  touch() {
+    this.dirty = true;
   }
 
   private loop = (now: number) => {
@@ -1007,7 +1101,10 @@ export class House {
     if (!this.visible || document.visibilityState === "hidden") return;
     if (this.tween && this.tween.t0 < 0) {
       // The intro's clock starts once the first frame is drawn (the shaders compile on it), after a short hold.
-      if (!this.dirty) this.tween.t0 = now + 450;
+      if (!this.dirty) {
+        this.tween.t0 = now + 450;
+        introStarted();
+      }
     } else if (this.tween) {
       const f = Math.max(0, Math.min(1, (now - this.tween.t0) / this.tween.ms)), e = this.tween.sweep ? f * f * (3 - 2 * f) : ease(f);
       const { from, to } = this.tween;
@@ -1038,9 +1135,96 @@ export class House {
       this.night.update(this.renderer.domElement.width, this.renderer.domElement.height, t, this.camera, this.renderer.getPixelRatio());
     }
     this.renderer.render(this.scene, this.camera);
+    this.drawThreads(t);
     this.placeLabels();
     this.dirty = false;
   };
+
+  /**
+   * The threads (#680): a faint curve from each gauge's lamp, rising, into its device, with nanites drifting up it,
+   * quick and bright for a busy reading, few and slow for a quiet one, ember for a device that's down, and only the
+   * faint curve while it waits. Still in reduced motion (the motes evenly spaced).
+   */
+  private drawThreads(t: number) {
+    const x = this.thrCtx;
+    if (!x) return;
+    const pr = this.renderer.getPixelRatio();
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.clearRect(0, 0, this.thr.width, this.thr.height);
+    if (this.backdrop || !this.opts.lampAt || !this.threads.length) return;
+    x.setTransform(pr, 0, 0, pr, 0, 0);
+    if (!this.dot) {
+      const c = document.createElement("canvas");
+      c.width = c.height = 32;
+      const g = c.getContext("2d");
+      if (g) {
+        const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+        gr.addColorStop(0, "rgba(255,255,255,1)");
+        gr.addColorStop(0.35, "rgba(255,255,255,.55)");
+        gr.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = gr;
+        g.fillRect(0, 0, 32, 32);
+      }
+      this.dot = c;
+    }
+    const tint = this.tints;
+    const dotOf = (rgb: string) => {
+      let c = tint.get(rgb);
+      if (c) return c;
+      c = document.createElement("canvas");
+      c.width = c.height = 32;
+      const g = c.getContext("2d")!;
+      g.drawImage(this.dot!, 0, 0);
+      g.globalCompositeOperation = "source-in";
+      g.fillStyle = `rgb(${rgb})`;
+      g.fillRect(0, 0, 32, 32);
+      tint.set(rgb, c);
+      return c;
+    };
+    this.threads.forEach((th, k) => {
+      const end = this.ends.get(th.id);
+      const a = this.opts.lampAt?.(th.id);
+      if (!end || !a) return;
+      this.v.copy(end).project(this.camera);
+      if (this.v.z >= 1 || Math.abs(this.v.x) > 1.05 || Math.abs(this.v.y) > 1.05) return;
+      const b: [number, number] = [((this.v.x + 1) / 2) * this.W, ((1 - this.v.y) / 2) * this.H];
+      // Rise straight up off the lamp, then lean over into the device.
+      const rise = Math.max(40, (a[1] - b[1]) * 0.55);
+      const c1: [number, number] = [a[0], a[1] - rise];
+      const c2: [number, number] = [b[0] + (a[0] - b[0]) * 0.25, b[1] + Math.min(60, rise * 0.4)];
+      const at = (u: number): [number, number] => {
+        const v = 1 - u;
+        return [v * v * v * a[0] + 3 * v * v * u * c1[0] + 3 * v * u * u * c2[0] + u * u * u * b[0], v * v * v * a[1] + 3 * v * v * u * c1[1] + 3 * v * u * u * c2[1] + u * u * u * b[1]];
+      };
+      const rgb = th.tone === "down" ? "255,154,106" : "240,201,135";
+      x.globalCompositeOperation = "source-over";
+      x.strokeStyle = `rgba(${rgb},${th.tone === "wait" ? 0.1 : 0.2})`;
+      x.lineWidth = 1;
+      x.setLineDash(th.tone === "wait" ? [2, 5] : []);
+      x.beginPath();
+      x.moveTo(a[0], a[1]);
+      x.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], b[0], b[1]);
+      x.stroke();
+      x.setLineDash([]);
+      if (th.tone === "wait") return;
+      const n = th.tone === "down" ? 10 : Math.round(14 + th.level * 22);
+      const speed = th.tone === "down" ? 0.04 : 0.07 + th.level * 0.12;
+      const img = dotOf(rgb);
+      x.globalCompositeOperation = "lighter";
+      for (let i = 0; i < n; i++) {
+        const sd = this.seeds[(k * 41 + i * 3) % this.seeds.length]!, sd2 = this.seeds[(k * 41 + i * 3 + 1) % this.seeds.length]!;
+        const u = this.opts.reduce ? (i + 0.5) / n : fract(sd + t * speed * (0.7 + sd2 * 0.6));
+        const [px, py] = at(u);
+        const wob = Math.sin(t * 2 + sd * 40) * 2.2 * (1 - Math.abs(u - 0.5) * 2);
+        const fade = Math.min(1, u * 6, (1 - u) * 6);
+        const r = 2.2 + sd2 * 2.4;
+        x.globalAlpha = (0.35 + 0.55 * sd2) * fade;
+        x.drawImage(img, px + wob - r, py - r, r * 2, r * 2);
+      }
+      x.globalAlpha = 1;
+      x.globalCompositeOperation = "source-over";
+    });
+  }
 
   private updateLights(t: number) {
     const ranked = this.plan.rooms.map((r) => ({ r, v: this.litNow.get(r.id) ?? 0 })).filter((x) => x.v > 0.01).sort((a, b) => b.v - a.v);
@@ -1068,8 +1252,42 @@ export class House {
     this.night?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
+    this.thr.remove();
     this.labelHost.replaceChildren();
   }
+}
+
+/** The convex hull of points (px), counter-clockwise in screen terms. */
+export function hullOf(p: [number, number][]): [number, number][] {
+  const pts = [...p].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (pts.length < 3) return pts;
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo: [number, number][] = [], hi: [number, number][] = [];
+  for (const q of pts) {
+    while (lo.length >= 2 && cross(lo[lo.length - 2]!, lo[lo.length - 1]!, q) <= 0) lo.pop();
+    lo.push(q);
+  }
+  for (const q of pts.reverse()) {
+    while (hi.length >= 2 && cross(hi[hi.length - 2]!, hi[hi.length - 1]!, q) <= 0) hi.pop();
+    hi.push(q);
+  }
+  return [...lo.slice(0, -1), ...hi.slice(0, -1)];
+}
+
+/** Does a convex polygon touch a box [x0, y0, x1, y1]? (separating axes: the box's two and the polygon's edges) */
+export function hullHits(h: [number, number][], b: [number, number, number, number]): boolean {
+  if (!h.length) return false;
+  const xs = h.map((p) => p[0]), ys = h.map((p) => p[1]);
+  if (Math.max(...xs) < b[0] || Math.min(...xs) > b[2] || Math.max(...ys) < b[1] || Math.min(...ys) > b[3]) return false;
+  const box: [number, number][] = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]];
+  for (let i = 0; i < h.length; i++) {
+    const p = h[i]!, q = h[(i + 1) % h.length]!;
+    const nx = q[1] - p[1], ny = p[0] - q[0];
+    const proj = (v: [number, number]) => v[0] * nx + v[1] * ny;
+    const hp = h.map(proj), bp = box.map(proj);
+    if (Math.max(...hp) < Math.min(...bp) || Math.min(...hp) > Math.max(...bp)) return false;
+  }
+  return true;
 }
 
 /** For the page: can this browser draw it at all? */

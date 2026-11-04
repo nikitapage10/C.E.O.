@@ -6,15 +6,16 @@ import { link } from "./nav.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { useDeskAuth } from "./signin.ts";
 import { useHide } from "./hide.ts";
-import { useSkippy } from "./skippy/chat.ts";
+import { HandsFree } from "./roomvoice/RoomMic.tsx";
 
 /**
  * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the Lattice C and the wordmark (#640), then every page as a plain word
  * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
- * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Skippy and the way into the
- * Lattice, both quiet, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
+ * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Hands-free (#638), the way into
+ * the Lattice, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
  * Keys 1 to 9 open them in order, 0 the tenth. The Boiler Room comes last of the rooms (Nikita, 05:35Z); the Annex, the staging room off to the side (#618), follows it as the eleventh page, with no number key, so every other key stays as it was. Beside the account button, Hide: an eye
- * that veils every personal value for showing the Desk to someone (Nikita, 05:36Z; hide.ts).
+ * that veils every personal value for showing the Desk to someone (Nikita, 05:36Z; hide.ts). Ask Skippy moved to the
+ * bottom right of every page (#638, roomvoice/RoomMic.tsx).
  */
 
 export const MAIN_TABS: { id: Exclude<Route, "lattice" | RoomRoute>; label: string }[] = [
@@ -157,8 +158,6 @@ function AccountMenu() {
 
 export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">; owed: number; now: number }) {
   const tabs = useRef<HTMLElement>(null);
-  const skippyOpen = useSkippy((s) => s.open);
-  const setSkippy = useSkippy((s) => s.setOpen);
   const pages: { id: Exclude<Route, "lattice">; label: string }[] = [...MAIN_TABS, ...ROOM_ROUTES.map((id) => ({ id, label: ROOM_TABS[id].label }))];
 
   // On a phone the row scrolls: keep the page you're on in view. Asked in the next frame, once the new page has mounted,
@@ -195,16 +194,8 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
       <div className="wv-navr">
         <IlyrClock now={now} />
         <HideButton />
+        <HandsFree />
         <AccountMenu />
-        <button type="button" className="wv-navbtn desk__skippy" onClick={() => setSkippy(!skippyOpen)} aria-expanded={skippyOpen} aria-controls="skippy-chat" title="Ask Skippy">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3.8 7.6C5.9 4.7 8.7 3.4 12 3.4s6.1 1.3 8.2 4.2c-2.5-.8-5.2-1.1-8.2-1.1s-5.7.3-8.2 1.1z" fill="currentColor" />
-            <rect x="7.4" y="8.2" width="9.2" height="12.6" rx="2.3" fill="none" stroke="currentColor" strokeWidth="1.3" />
-            <circle cx="10.3" cy="14.4" r="1" fill="currentColor" />
-            <circle cx="13.7" cy="14.4" r="1" fill="currentColor" />
-          </svg>
-          <span>Ask Skippy</span>
-        </button>
         <a className="wv-navbtn wv-navlat" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()} title="Enter the Lattice">
           <span>Lattice</span>
           <svg viewBox="0 0 16 16" aria-hidden="true">

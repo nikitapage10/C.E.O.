@@ -82,10 +82,10 @@ export function Talks({ room, who, heading = false }: { room: RoomId; who: strin
           {turns.map((t) => (
             <li key={`a${t.at}|${t.question}`}>
               <p className="td-tk-q">
-                <b>{t.via === "voice" ? "You said on the call" : "You asked"}</b> <Private>{t.question}</Private>
+                <b>{t.via === "voice" ? "You said on the call" : t.via === "room" ? "You said on its mic" : "You asked"}</b> <Private>{t.question}</Private>
               </p>
-              <p className={`td-tk-a${t.via === "voice" ? " is-sub" : ""}`}>
-                <b>{t.via === "voice" && t.by ? `${handedName(t.by)}, on the mic` : "Skippy"}</b> <Private>{stripTags(t.answer)}</Private>
+              <p className={`td-tk-a${t.via ? " is-sub" : ""}`}>
+                <b>{t.via && t.by ? `${handedName(t.by)}, on the mic` : "Skippy"}</b> <Private>{stripTags(t.answer)}</Private>
               </p>
               {t.followUp && (
                 <p className="td-tk-a is-sub">

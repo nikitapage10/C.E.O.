@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LINEAGE_IDS, ROOM_IDS } from "@ceo/core";
+import type { RoomVoiceModule } from "./voice.ts";
 
 /**
  * The room manifest (#617, docs/ROOMS.md): what every room under `rooms/<id>/room.ts` declares about itself, so the
@@ -78,6 +79,8 @@ export type RoomLore = z.infer<typeof RoomLoreSchema>;
 
 /** A lazy page loader. Optional at step 1: the Desk still loads its pages itself until step 3. */
 const pageLoader = z.custom<() => Promise<unknown>>((v) => typeof v === "function", "a function that imports the page");
+/** A lazy loader of the room's voice intent module (`@ceo/engine/voice`, RoomVoiceModule). */
+const voiceLoader = z.custom<() => Promise<RoomVoiceModule>>((v) => typeof v === "function", "a function that imports the room's voice intent module");
 
 export const RoomManifestSchema = z.strictObject({
   id,
@@ -104,6 +107,12 @@ export const RoomManifestSchema = z.strictObject({
   /** Its lazy-loaded JS budget, in raw KB, beside the Desk's 1 MB first-load budget. */
   budgetKb: z.number().int().positive().max(1024),
   page: pageLoader.optional(),
+  /**
+   * Its voice intent handler (#638, `@ceo/engine/voice`): a lazy loader of a module exporting `intent`, which sees each
+   * thing Nikita says on the room's page first and returns `{ say, actions? }`, or null to let the room's submind
+   * answer. Optional: without one, the submind answers everything.
+   */
+  voice: voiceLoader.optional(),
   purpose: PurposeSchema,
   lore: RoomLoreSchema,
 });
@@ -147,6 +156,7 @@ export const ENGINE_ENDPOINTS: readonly string[] = [
   "skippy-log",
   "skippy-answer",
   "skippy-voice",
+  "skippy-room",
   "skippy-tools",
   "kernel-brief",
   "kernel-agent",

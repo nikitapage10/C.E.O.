@@ -42,6 +42,7 @@ import * as sitepassword from "../../api/_site/control.js";
 import * as skippy from "../../api/skippy.js";
 import * as todaytodos from "../../api/_today/route.js";
 import * as skippyvoice from "../../api/skippy-voice.js";
+import * as skippyroom from "../../api/_skippy/roomroute.js";
 import * as skippytools from "../../api/_skippy/toolroute.js";
 import * as kernelroute from "../../api/_skippy/kernelroute.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
@@ -155,6 +156,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["skippy-log", skippy],
   // A hand-off's answer coming back from Skippy's or a submind's thread (#312): SUBMIND_FEED_TOKEN only.
   ["skippy-answer", skippy],
+  // The mic on each Desk room's page (#638): Nikita's words to the room's submind, the answer in Skippy's voice.
+  // Passkey session only; the chat's own pace and caps, and ElevenLabs' one cap (api/_skippy/roomroute.ts).
+  ["skippy-room", skippyroom.route, { settleMs: 2_500 }],
   // Talk to Skippy (#434): a live voice call on ElevenLabs Agents. Desk session only; mints one-session tokens under
   // the talk's share of ElevenLabs' $10 cap (api/_skippy/voice.ts). The key never leaves this Function App.
   ["skippy-voice", skippyvoice],

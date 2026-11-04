@@ -64,11 +64,11 @@ import { BlobChatLedger, CHAT_MAX_TOKENS, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
 import { advisoryCache, stackBrief, stackLines, wantsStack } from "./_skippy/advisories.js";
-import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, isLogRoom, isNeeds, isNeedsFilter, type FollowFrom, isTurnId, needsName, turnId, type LogRoom, type RoomLog } from "./_skippy/log.js";
+import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, handoffTo, isLogRoom, isNeeds, isNeedsFilter, type FollowFrom, isTurnId, needsName, turnId, type LogRoom, type Needs, type RoomLog } from "./_skippy/log.js";
 import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
 import { plainLine } from "./foundry.js";
-import { LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb } from "./_skippy/prompt.js";
+import { LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb, type SkippyReply } from "./_skippy/prompt.js";
 import { monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
@@ -322,7 +322,7 @@ export async function POST(request: Request): Promise<Response> {
 /** The shortest SUBMIND_FEED_TOKEN that counts, as for the site's bypass token. */
 export const MIN_TOKEN = 32;
 /** The Desk page each room's asks live on, for the ping to open. */
-const ROOM_PAGE: Record<LogRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry", relay: "/relay", kernel: "/", none: "/" };
+const ROOM_PAGE: Record<LogRoom, string> = { green: "/green", exchange: "/exchange", boiler: "/boiler", foundry: "/foundry", relay: "/relay", haven: "/haven", kernel: "/", none: "/" };
 
 export interface AnswerDeps {
   /** SUBMIND_FEED_TOKEN, or "" (then the return leg is off). */
@@ -424,8 +424,15 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   return skippyTurn(said, deps, store, passkey, "desk");
 }
 
-/** Where Nikita is talking from: the Desk's chat, or the iPhone's "Skippy" shortcut (#627). */
-export type Surface = "desk" | "phone";
+/** Where Nikita is talking from: the Desk's chat, the iPhone's "Skippy" shortcut (#627), or a room's mic (#638). */
+export type Surface = "desk" | "phone" | "room";
+
+/** A room's voice (#638, api/_skippy/roomvoice.ts): the extra rules, the room its turns are kept under, who answers. */
+export interface RoomTurn {
+  rules: string;
+  log: LogRoom | null;
+  by: Needs | null;
+}
 
 /**
  * One turn of Skippy's chat, after the caller has signed it in: the privacy check, the pace, the month's budget, the
@@ -433,7 +440,7 @@ export type Surface = "desk" | "phone";
  * so the phone gets the same prompt, router, caps and hand-offs as the Desk. `paceId` names who is paced (a passkey's
  * id, or "phone:<id>").
  */
-async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: ChatDeps, store: AuthStore, paceId: string, surface: Surface): Promise<Response> {
+async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: ChatDeps, store: AuthStore, paceId: string, surface: Surface, room?: RoomTurn): Promise<Response> {
   const passkey = paceId;
   if (!deps.ask || !deps.ledger) return json({ error: "not-set-up" }, 503);
   // The privacy check (#127), on everything that would reach Claude: text that looks private is held back whole.
@@ -466,14 +473,17 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const [desk, rooms, bill, stack] = await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.rooms ? deps.rooms(world).catch(() => "") : Promise.resolve(""), deps.bill ? deps.bill().catch(() => "") : Promise.resolve(""), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")]);
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : SKIPPY_PROMPT, chatInput([contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n"), said.history, said.message, stack, said.page));
+    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : SKIPPY_PROMPT, chatInput([contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n"), said.history, said.message, stack, said.page));
   } catch {
     return json({ error: "model" }, 502);
   }
   // Every call that answered counts against the month, usable or not.
   if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd).catch(() => undefined);
-  const read = readReply(got.answer, desk);
-  if (!read) return json({ error: "model" }, 502);
+  const first = readReply(got.answer, desk);
+  if (!first) return json({ error: "model" }, 502);
+  // A room's voice keeps its turns under its own room (#638), real work for the deeper self aside; a hand-off to "the
+  // submind" then goes to that room's.
+  const read = room?.log && first.room !== "kernel" ? withRoom(first, room.log) : first;
   // A text to draft (#536) passes the relay's own rules before the Desk ever asks the Mac for it: the skip list, money
   // and legal, codes. One that trips them is dropped, and Skippy says Nikita texts that one himself.
   const asked = read.actions.find((a) => a.kind === "text");
@@ -488,12 +498,18 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   let kept = false;
   if (deps.log) {
     kept = await deps.log
-      .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }), ...(surface === "phone" && { via: "phone" as const }) }, deps.now)
+      .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }), ...(surface === "phone" && { via: "phone" as const }), ...(surface === "room" && { via: "room" as const, ...(room?.by && { by: room.by }) }) }, deps.now)
       .then(() => true)
       .catch(() => false);
   }
   // A hand-off that was kept carries its turn's id (#341), so the Desk's chat can wait for the answer in place.
   return json(reply.needs && kept ? { ...reply, turn: id } : reply);
+}
+
+/** A reply refiled under a room: the room, and a hand-off to "the submind" re-pointed at that room's. */
+function withRoom(r: SkippyReply, room: LogRoom): SkippyReply {
+  const needs = r.needs && r.needs !== "skippy" ? (handoffTo("submind", room) ?? "skippy") : r.needs;
+  return { ...r, room, ...(needs && { needs }) };
 }
 
 /** What the phone gets back from a Skippy turn: the reply, whether it was handed off, and whether the month's cap stopped it. */
@@ -516,13 +532,31 @@ export async function phoneAnswer(message: string, phoneId: string, history: { w
   // The phone's last few turns (api/_haven/convo.ts) are its history, as the Desk's browser sends its own.
   const said = readChat({ message, history });
   if (!said) return { reply: "", handedOff: false, error: "model" };
-  const res = await skippyTurn(said, deps, deps.store, `phone:${phoneId}`, "phone");
+  return turnOf(await skippyTurn(said, deps, deps.store, `phone:${phoneId}`, "phone"));
+}
+
+/**
+ * A room's voice (#638, api/_skippy/roomroute.ts): Nikita's words from the mic on a room's Desk page, after the route has
+ * checked the passkey session, answered by Desk Skippy's own chat as the room's submind: the same prompt plus the
+ * room's rules (roomRules), the same router, budget caps, pace (per passkey, the Desk chat's own), room log (marked
+ * `via: "room"`, `by` the submind) and hand-offs. The reply comes back whole; the route cuts it for speaking.
+ */
+export async function roomAnswer(message: string, history: { who: "nikita" | "skippy"; text: string }[], passkey: string, room: RoomTurn, deps: ChatDeps = defaultDeps()): Promise<PhoneTurn> {
+  if (!deps.deskKey || !deps.store) return { reply: "", handedOff: false, error: "not-set-up" };
+  const said = readChat({ message, history });
+  if (!said) return { reply: "", handedOff: false, error: "model" };
+  const res = await skippyTurn(said, deps, deps.store, passkey, "room", room);
+  return turnOf(res);
+}
+
+/** A turn's answer as the phone and a room's voice read it. */
+async function turnOf(res: Response): Promise<PhoneTurn> {
   const body = (await res.json().catch(() => ({}))) as { reply?: unknown; needs?: unknown; capped?: unknown; error?: unknown; actions?: { kind?: unknown }[] };
   if (res.status === 422) return { reply: "", handedOff: false, error: "private" };
   if (res.status === 429) return { reply: "", handedOff: false, error: "slow-down" };
   if (res.status === 503) return { reply: "", handedOff: false, error: "not-set-up" };
   if (!res.ok || typeof body.reply !== "string") return { reply: "", handedOff: false, error: "model" };
-  // A text to draft needs the Desk's card to show it before anything goes; the phone can't show one.
+  // A text to draft needs the Desk's card to show it before anything goes; a voice can't show one.
   if (Array.isArray(body.actions) && body.actions.some((a) => a?.kind === "text")) return { reply: body.reply, handedOff: false, error: "text" };
   return { reply: body.reply, handedOff: typeof body.needs === "string", ...(body.capped === true && { capped: true }) };
 }

@@ -77,6 +77,51 @@ thing in the room, loyal underneath. Each bends it its own way.
 Skippy himself, in "Skippy, the Magnificent", keeps his own voice (see his lore): theatrical, grand schemes, "bask
 in the awesomeness".
 
+## The room voice: talking to a room without a call (#638)
+
+Nikita, 2026-11-04: "I don't want to have to initiate a call every time we want to do a command." So there is no call
+and no greeting. Three pieces, one listener (shared chrome, `apps/world/src/desk/roomvoice/`; who a page reaches is
+`@ceo/engine/voice`, `packages/engine/src/voice.ts`):
+
+- **Ask Skippy**, the large button at the bottom right of every page (02:05Z: "more prominent… in the bottom right"):
+  his chat, and Talk from there.
+- **The room mic**, beside it on every room's page but Today, in the submind's colour: press it (or hold Space) and it
+  listens at once; release, or tap and pause, and the words go.
+- **Hands-free**, in the bar by the account button (02:05Z: "when I go from room to room, it actually will be always
+  listening for that room by the submind"): one tap and it keeps listening, page to page; each thing said (a pause
+  ends it) goes to the lead of the page Nikita is on, Skippy himself on Today. The bar and the dock say
+  "listening · <who>" in that lead's colour. It waits while Skippy's chat or a call is open, steps aside while the mic
+  or an answer has the floor (so Skippy never hears himself), and turns off on a tap, after ten quiet minutes, or if
+  the browser blocks the microphone. Browser speech recognition only (Chrome, Edge, Safari); elsewhere it doesn't show.
+  Relay's Thread still has its own listener (#615) until its intent layer moves onto the room's `voice` hook: there it
+  keeps Space, and while it listens hands-free waits (`setOwnVoice`), so only one thing ever listens.
+
+Each utterance goes first to the room's own intent handler, if its manifest registers one (docs/ROOMS.md); otherwise,
+and whenever the handler passes, to `POST /api/skippy-room` (`api/_skippy/roomroute.ts`).
+
+- **Who answers.** Desk Skippy's own chat (`roomAnswer` in `api/skippy.ts`), told to answer as the room's submind in its
+  voice above (`roomRules`, `api/_skippy/roomvoice.ts`): no sign-on, answer first in one or two spoken sentences, never
+  crew, team, thread, Builder or Kernel. Same prompt, router, pace, monthly budget and hand-offs as the Desk's chat; a
+  hand-off to "the submind" goes to that room's, and the mic says the rest goes on the Desk. At most one waiting line
+  (a `PONDER_LINES` line, shown only when the answer takes over a second). On Today, Skippy answers as himself. Each
+  utterance is one chat call against the chat's own pace and monthly budget, the same caps as typing to him.
+- **A room's own answer.** When a room's intent handler answers, only its line is read aloud (`{ room, speak }`, no
+  model call; a line that looks private comes back unspoken).
+- **Room actions.** In the Haven, Hey Skippy's rules sort the words first with no model call
+  (`api/_haven/classify.ts`): "vacuum the kitchen" or "feed the cat" runs through the devices' own rails
+  (`api/_haven/devices/home.ts`, `via: "desk"`), shopping goes on the Kitchen list, a to-do into the to-dos.
+- **The voice.** The answer is read in Skippy's ElevenLabs voice (`ELEVENLABS_VOICE_ID`) on Flash, bent the submind's
+  way (its pace and steadiness, as on Talk), and comes back inside the answer as MP3; its text shows for a moment.
+  Past ElevenLabs' one monthly cap, or when it doesn't answer, the text still shows.
+- **The words.** The browser's own speech recognition where it has one (Chrome, Edge, Safari); elsewhere a short clip
+  (at most 512 kB) goes to the same route and ElevenLabs Scribe writes the words. The clip is never kept.
+- **The Council.** Each exchange with a submind is kept in the room log under its room (`via: "room"`, `by` the
+  submind) and shows with Nikita's talks in the Council on Today; device asks are kept by the devices themselves. No
+  "Ask Skippy" panel on any room page. Rooms with no log of their own (the Spire, the Archive, the Workshop, the Studio,
+  the Annex) file under whatever room Skippy tags.
+- **Privacy.** Signed in only (the passkey session); private-looking words are held back before anything is sent;
+  no log line carries what Nikita said, only the room and which way it went.
+
 ## How a task flows
 
 1. **In.** A task arrives one of two ways:

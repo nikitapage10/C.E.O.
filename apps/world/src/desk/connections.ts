@@ -183,6 +183,18 @@ export const CONNECTIONS: Connection[] = [
     when: "Each message you send, at most 8 a minute and 60 an hour. On Claude Sonnet and Opus 5.5, with its own share of the Claude cap, $2 a month by default (SKIPPY_BUDGET_USD); nothing is stored.",
   },
   {
+    id: "room-voice",
+    name: "The room voice (Skippy's chat and ElevenLabs)",
+    room: "foundry",
+    at: [{ system: "foundry", part: "desk" }],
+    serves: "Talking to a room's submind with one tap, or hands-free page to page",
+    kinds: ["REST API"],
+    status: "live",
+    how: "The mic beside Ask Skippy on a room's page (or Space held down), or Hands-free in the bar, hears your words with the browser's own speech recognition (a short clip and ElevenLabs Scribe where the browser has none). A room's own intent handler sees them first, if it has one; otherwise /api/skippy-room asks Skippy's chat to answer as that room's submind (Skippy himself on Today), and ElevenLabs Flash reads the answer in Skippy's voice, bent the submind's way. Each exchange is kept with the room's talks in the Council on Today. In the Haven, the home's own rules run device asks, shopping and to-dos with no model call.",
+    auth: "Only in your passkey session on the Desk. The Claude and ElevenLabs keys stay in the Azure Key Vault. Text that looks private is held back before it is sent; no log line carries what you said, and a clip is never kept.",
+    when: "Each thing you say: one chat call under the chat's own pace and monthly budget (SKIPPY_BUDGET_USD), and the answer read aloud under ElevenLabs' one monthly cap (ELEVENLABS_BUDGET_USD). Hands-free turns off after ten quiet minutes.",
+  },
+  {
     id: "desk-pings",
     name: "Pings to your phone",
     room: "foundry",

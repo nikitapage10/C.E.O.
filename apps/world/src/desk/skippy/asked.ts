@@ -31,13 +31,13 @@ export interface AskedTurn {
   needs?: string;
   /** The answer that came back for a hand-off. */
   followUp?: { from: string; text: string; at: string; card?: AskedCard; final?: false };
-  /** Said on a Talk call (#479): a submind on the mic, `by` its id, the answer its gist. */
-  via?: "voice";
+  /** Said on a Talk call (#479): a submind on the mic, `by` its id, the answer its gist. "room" (#638): said to a room's mic. */
+  via?: "voice" | "room";
   by?: string;
 }
 
 /** Who a hand-off went to, by name (api/_skippy/log.ts, ROOM_SUBMINDS). */
-const HANDED_TO: Record<string, string> = { skippy: "Skippy", ember: "The Builder", ticker: "The Bookie", turf: "The Commentator", soot: "The Pessimist", static: "The Messenger" };
+const HANDED_TO: Record<string, string> = { skippy: "Skippy", ember: "The Builder", ticker: "The Bookie", turf: "The Commentator", soot: "The Pessimist", static: "The Messenger", hearth: "The Steward" };
 export const handedName = (id: string): string => HANDED_TO[id] ?? "Skippy";
 
 /** "idle" before the first read; "signed-out" without the Desk session; "off" where the route doesn't exist (a local preview). */
@@ -87,7 +87,7 @@ export function readAsked(v: unknown, room: AskedRoom): AskedTurn[] | null {
     const card = f ? readCard(f.card) : null;
     const followUp = f && fText && fAt && typeof f.from === "string" && f.from in HANDED_TO ? { from: f.from, text: fText, at: fAt, ...(card && { card }), ...(f.final === false && { final: false as const }) } : undefined;
     const id = typeof r.id === "string" && /^[0-9a-f]{16}$/.test(r.id) ? r.id : undefined;
-    const voice = r.via === "voice" && typeof r.by === "string" && r.by in HANDED_TO ? { via: "voice" as const, by: r.by } : undefined;
+    const voice = (r.via === "voice" || r.via === "room") && typeof r.by === "string" && r.by in HANDED_TO ? { via: r.via as "voice" | "room", by: r.by } : undefined;
     out.push({ ...(id && { id }), at, question, answer, model: clip(r.model, 40), ...(needs && { needs }), ...(followUp && { followUp }), ...voice });
   }
   return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, ASKED_MAX);

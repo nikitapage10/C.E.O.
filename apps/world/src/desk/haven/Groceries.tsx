@@ -36,7 +36,7 @@ function Stock({ p }: { p: GProduct }) {
   return p.stock === "out" ? <span className="hv-gStock is-out">out of stock</span> : p.stock === "low" ? <span className="hv-gStock">low stock</span> : null;
 }
 
-function Line({ l, busy, run }: { l: GLine; busy: boolean; run: (b: GAction) => void }) {
+function Line({ l, busy, run, onRemove }: { l: GLine; busy: boolean; run: (b: GAction) => void; onRemove?: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState(l.name);
   const p = l.pick?.product ?? null;
@@ -50,6 +50,11 @@ function Line({ l, busy, run }: { l: GLine; busy: boolean; run: (b: GAction) => 
         {l.pick ? (
           <button type="button" className="hv-gSwap" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
             {open ? "Done" : "Swap"}
+          </button>
+        ) : null}
+        {onRemove ? (
+          <button type="button" className="hv-x" aria-label={`Remove ${l.name} from the list`} onClick={() => onRemove(l.id)}>
+            ×
           </button>
         ) : null}
       </div>
@@ -103,7 +108,7 @@ function Line({ l, busy, run }: { l: GLine; busy: boolean; run: (b: GAction) => 
   );
 }
 
-export function Groceries({ listOpen }: { listOpen: number }) {
+export function Groceries({ listOpen, onRemove }: { listOpen: number; onRemove?: (id: string) => void }) {
   const [view, setView] = useState<View | null>(null);
   const [load, setLoad] = useState<"idle" | "off" | "failed" | "ready">("idle");
   const [busy, setBusy] = useState(false);
@@ -178,7 +183,7 @@ export function Groceries({ listOpen }: { listOpen: number }) {
           {view.lines.length ? (
             <ul className="hv-gLines" aria-label="Picks at King Soopers">
               {view.lines.map((l) => (
-                <Line key={l.key} l={l} busy={busy} run={(b) => void run(b)} />
+                <Line key={l.key} l={l} busy={busy} run={(b) => void run(b)} onRemove={onRemove} />
               ))}
             </ul>
           ) : (

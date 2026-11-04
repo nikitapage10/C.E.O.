@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Private } from "../Private.tsx";
 import { useHome, type DeviceReading } from "../homeDevices.ts";
-import type { KitchenItem } from "../haven.ts";
+import { removeItem, undoRemoveItem, type KitchenItem } from "../haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 import { Groceries } from "./Groceries.tsx";
 
@@ -78,8 +78,32 @@ const find = (devices: DeviceReading[] | null, kind: DeviceReading["kind"]) => d
 
 /* ── Kitchen ── */
 
-export function KitchenTab({ items, onTick }: { items: KitchenItem[] | null; onTick: (i: KitchenItem) => void }) {
+export function KitchenTab({ items, onTick, onDrop, onReread }: { items: KitchenItem[] | null; onTick: (i: KitchenItem) => void; onDrop: (i: KitchenItem) => void; onReread: () => void }) {
   const open = items?.filter((i) => !i.done) ?? [];
+  // The last item removed, kept five seconds so Undo can bring it back (#673, as Today's Kitchen chip does, #657).
+  const [undo, setUndo] = useState<KitchenItem | null>(null);
+  const undoTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(undoTimer.current), []);
+  const remove = (item: KitchenItem) => {
+    onDrop(item);
+    window.clearTimeout(undoTimer.current);
+    setUndo(item);
+    undoTimer.current = window.setTimeout(() => setUndo(null), 5000);
+    void removeItem(item.id).then((r) => {
+      if (!r.ok) {
+        setUndo(null);
+        onReread();
+      }
+    });
+  };
+  const takeBack = () => {
+    if (!undo) return;
+    const item = undo;
+    window.clearTimeout(undoTimer.current);
+    setUndo(null);
+    void undoRemoveItem(item.id).then(() => onReread());
+  };
+  const byId = new Map((items ?? []).map((i) => [i.id, i]));
   const kroger = useHome((s) => s.view?.links.kroger ?? s.pub?.links.kroger ?? "waiting");
   return (
     <>
@@ -102,15 +126,26 @@ export function KitchenTab({ items, onTick }: { items: KitchenItem[] | null; onT
                     <input type="checkbox" checked={i.done} onChange={() => onTick(i)} />
                     <Private>{i.name}</Private>
                   </label>
+                  <button type="button" className="hv-x" aria-label={`Remove ${i.name}`} onClick={() => remove(i)}>
+                    ×
+                  </button>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="hv-note">Empty. Say "Skippy, add garlic and lemons" on the phone.</p>
           )}
+          {undo ? (
+            <p className="hv-undo" role="status">
+              <span>Removed.</span>
+              <button type="button" onClick={takeBack}>
+                Undo
+              </button>
+            </p>
+          ) : null}
         </Card>
         <Card title="King Soopers" tag={kroger} wide>
-          <Groceries listOpen={open.length} />
+          <Groceries listOpen={open.length} onRemove={(id) => byId.get(id) && remove(byId.get(id)!)} />
         </Card>
         <Card title="This week's meals" tag="waiting" wide>
           <Waiting>Waiting for a meal plan. Nothing is planned here until recipes are connected.</Waiting>

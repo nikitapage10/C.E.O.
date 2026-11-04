@@ -2586,3 +2586,329 @@
 [data-room="haven"] .hv-grid.is-hall .hv-vs-modes {
   margin: 12px 0 0;
 }
+
+/* The Kitchen's one Shopping card (#737, Groceries.tsx): List and King Soopers tabs over one scrolling body. */
+[data-room="haven"] .hv-shop {
+  display: flex;
+  flex-direction: column;
+}
+[data-room="haven"] .hv-shop > header {
+  margin-bottom: 10px;
+}
+[data-room="haven"] .hv-shopTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--hv-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+[data-room="haven"] .hv-shopTabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--hv-mute);
+  font: 500 14px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-shopTabs button b {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+[data-room="haven"] .hv-shopTabs button[aria-selected="true"] {
+  background: rgba(var(--hv-gold), 0.16);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-shopTabs button[aria-selected="true"] b {
+  background: rgba(var(--hv-gold), 0.3);
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-shopBody {
+  max-height: min(58vh, 520px);
+  margin-top: 10px;
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+[data-room="haven"] .hv-shopBody:focus-visible {
+  outline: 2px solid rgba(var(--hv-gold), 0.6);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+[data-room="haven"] .hv-shopGroups {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-shopGroups > li + li {
+  margin-top: 12px;
+}
+[data-room="haven"] .hv-shopGroups h4 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 2px;
+  font: 600 11px var(--hv-text);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-shopGroups h4 small {
+  color: var(--hv-faint);
+  font-size: 11px;
+}
+[data-room="haven"] .hv-shopGroups > li.is-done h4 {
+  color: var(--hv-faint);
+}
+[data-room="haven"] .hv-shopGroups .hv-list {
+  margin-top: 0;
+}
+[data-room="haven"] .hv-shopFoot {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .hv-shopFoot .hv-gTotal {
+  margin-top: 0;
+}
+[data-room="haven"] .hv-gTotal small {
+  color: var(--hv-mute);
+  font-size: 12px;
+}
+[data-room="haven"] .hv-cartNote {
+  font-size: 12px;
+}
+[data-room="haven"] .hv-clear {
+  margin-top: 8px;
+}
+[data-room="haven"] .hv-clear.is-armed {
+  border-color: var(--hv-warn);
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-shopProg {
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-gActs {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+[data-room="haven"] .hv-gIn {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(134, 212, 180, 0.14);
+  color: var(--hv-ok);
+  font: 500 11px var(--hv-text);
+}
+[data-room="haven"] p.hv-gIn {
+  display: inline-block;
+  margin: 10px 0 0;
+}
+[data-room="haven"] .hv-gLines > li.is-in .hv-gPick {
+  opacity: 0.7;
+}
+[data-room="haven"] .hv-gOpen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 28px);
+  padding: 4px 6px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-gOpen:hover,
+[data-room="haven"] .hv-gOpen:focus-visible {
+  border-color: var(--hv-line);
+  background: rgba(255, 255, 255, 0.04);
+}
+[data-room="haven"] .hv-gOpen .hv-gThumb {
+  flex: none;
+  cursor: inherit;
+}
+[data-room="haven"] .hv-gAisle {
+  display: block;
+  color: var(--hv-faint);
+  font-size: 11px;
+}
+[data-room="haven"] .hv-pSheet {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 7, 10, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+[data-room="haven"] .hv-pCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  width: min(640px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 20px;
+  border: 1px solid var(--hv-line);
+  border-radius: 22px;
+  background: rgba(24, 22, 28, 0.96);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-pClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+[data-room="haven"] .hv-pHero {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+}
+[data-room="haven"] .hv-pHero img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+[data-room="haven"] .hv-pTxt small {
+  color: var(--hv-mute);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+[data-room="haven"] .hv-pTxt h4 {
+  margin: 4px 30px 8px 0;
+  font: 500 22px/1.2 var(--hv-disp);
+}
+[data-room="haven"] .hv-pMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin: 0 0 12px;
+  color: var(--hv-soft);
+  font-size: 14px;
+}
+[data-room="haven"] .hv-pMeta .hv-gPrice {
+  font-size: 18px;
+}
+[data-room="haven"] .hv-pSale {
+  color: var(--hv-warn);
+  font-size: 12px;
+}
+[data-room="haven"] .hv-pIn {
+  color: var(--hv-ok);
+  font-size: 12px;
+}
+[data-room="haven"] .hv-pFacts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+[data-room="haven"] .hv-pFacts dt {
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-pFacts dd {
+  margin: 0;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-pAlts {
+  grid-column: 1 / -1;
+  padding-top: 12px;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .hv-pAlts h5 {
+  margin: 0 0 6px;
+  font: 600 11px var(--hv-text);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-pAlts ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-pAlts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+}
+[data-room="haven"] .hv-pAltImg {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #fff;
+}
+[data-room="haven"] .hv-pAltImg img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+[data-room="haven"] .hv-pAltTxt {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+[data-room="haven"] .hv-pAltTxt small {
+  display: block;
+  color: var(--hv-faint);
+  font-size: 11px;
+}
+[data-room="haven"] .hv-pAlts li .hv-gSwap {
+  margin-left: auto;
+}
+@media (max-width: 560px) {
+  [data-room="haven"] .hv-pCard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .hv-pHero {
+    width: min(200px, 60vw);
+    margin: 0 auto;
+  }
+}
+[data-room="haven"].hv-portal {
+  background: none;
+}
+[data-room="haven"] .hv-pHero.is-empty {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hv-faint);
+  font-size: 12px;
+}
+[data-room="haven"] .hv-gOpen .hv-gIn {
+  display: inline-block;
+  margin-top: 4px;
+}

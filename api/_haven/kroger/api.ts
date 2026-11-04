@@ -198,7 +198,25 @@ export interface Product {
   stock: Stock | null;
   /** The product's photo on Kroger's image host (the featured or front view), or null. */
   image: string | null;
+  /** Where it is in the store, as the Products API says ("Aisle 12"), or null (#737). */
+  aisle?: string | null;
+  /** Its departments ("Pantry", "Baking Goods"), at most three (#737). */
+  categories?: string[];
 }
+
+/** The first aisle location's words, as Kroger gives them: "Aisle 12", "Produce", with the side when it says. */
+export function aisleOf(v: unknown): string | null {
+  const a = o(Array.isArray(v) ? v[0] : null);
+  const what = line(a.description, 40) || (typeof a.number === "string" || typeof a.number === "number" ? `Aisle ${line(String(a.number), 8)}` : "");
+  return what || null;
+}
+const cats = (v: unknown): string[] =>
+  Array.isArray(v)
+    ? v
+        .slice(0, 3)
+        .map((c) => line(c, 40))
+        .filter(Boolean)
+    : [];
 
 /** A photo URL only when it's https on Kroger's own image host (kroger.com or a subdomain): anything else is dropped. */
 export function krogerImage(v: unknown): string | null {
@@ -245,7 +263,19 @@ export function readProduct(v: unknown): Product | null {
   if (regular === null) return null;
   const promo = cents(price.promo);
   const stock = STOCK[String(o(item.inventory).stockLevel ?? "")] ?? null;
-  return { productId, upc, description, brand: line(p.brand, 60), size: line(item.size, 40), price: regular, promo: promo !== null && promo < regular ? promo : null, stock, image: imageOf(p.images) };
+  return {
+    productId,
+    upc,
+    description,
+    brand: line(p.brand, 60),
+    size: line(item.size, 40),
+    price: regular,
+    promo: promo !== null && promo < regular ? promo : null,
+    stock,
+    image: imageOf(p.images),
+    aisle: aisleOf(p.aisleLocations),
+    categories: cats(p.categories),
+  };
 }
 
 /** The same check for a product read back from the private store. */
@@ -257,7 +287,7 @@ export function readStoredProduct(v: unknown): Product | null {
   if (!description) return null;
   const promo = typeof p.promo === "number" && Number.isInteger(p.promo) && p.promo > 0 && p.promo < price ? p.promo : null;
   const stock = p.stock === "high" || p.stock === "low" || p.stock === "out" ? p.stock : null;
-  return { productId: p.productId, upc: p.upc, description, brand: line(p.brand, 60), size: line(p.size, 40), price, promo, stock, image: krogerImage(p.image) };
+  return { productId: p.productId, upc: p.upc, description, brand: line(p.brand, 60), size: line(p.size, 40), price, promo, stock, image: krogerImage(p.image), aisle: line(p.aisle, 40) || null, categories: cats(p.categories) };
 }
 
 /** What one pick costs now: the sale price when there is one. */
@@ -284,10 +314,42 @@ export async function findStores(fetchFn: Fetch, token: string, zip: string): Pr
   return rows.map(readStore).filter((s): s is StoreRow => s !== null).slice(0, STORE_LIMIT);
 }
 
-/** The search term Kroger takes for a list item: 3 characters at least, 8 words at most; "" when there's none. */
+/** Quantities and units a list line carries ("snow peas (3 oz)", "panko, 1 cup"): never part of what to search for. */
+const UNIT_WORDS = new Set(
+  "oz ozs ounce ounces lb lbs pound pounds g gs gram grams kg kgs ml mls l liter liters litre litres cup cups c tbsp tbsps tbs tablespoon tablespoons tsp tsps teaspoon teaspoons pint pints quart quarts qt gal gallon gallons fl floz can cans jar jars bag bags box boxes pack packs package packages pkg pkgs bunch bunches clove cloves slice slices head heads stick sticks piece pieces pc pcs ct count each ea dozen doz pinch pinches dash dashes sprig sprigs handful handfuls bottle bottles carton cartons container containers loaf loaves tub tubs".split(" "),
+);
+/** How it's cut or measured: the recipe's business, not the store's. */
+const PREP_WORDS = new Set(
+  "chopped diced minced sliced fresh freshly grated shredded peeled crushed finely roughly thinly halved quartered cubed packed divided softened melted trimmed rinsed drained optional about approx approximately plus extra taste to large small medium heaping level whole".split(" "),
+);
+const QTY = /^(?:\d+(?:[.,/]\d+)?(?:[a-z]{1,3})?|[¼½¾⅓⅔⅛⅜⅝⅞]|x\d+|\d+x|a|an|one|two|three|four|five|six|seven|eight|nine|ten|half|couple)$/;
+
+/**
+ * The search term Kroger takes for a list item (#737): the food words only, without the quantity, the unit, the size
+ * or how it's prepped ("snow peas (3 oz)" → "snow peas", "panko, 1 cup" → "panko"), 3 characters at least, 8 words at
+ * most; "" when there's none.
+ */
 export function termOf(name: string): string {
-  const t = line(name, 60).replace(/[^\p{L}\p{N}' -]/gu, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 8).join(" ");
+  const raw = line(name, 60)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}'¼½¾⅓⅔⅛⅜⅝⅞./ -]/gu, " ");
+  const tokens = raw
+    .split(/\s+/)
+    .map((w) => w.replace(/^[.'/-]+|[.'/-]+$/g, ""))
+    .filter(Boolean);
+  const kept = tokens.filter((w) => !QTY.test(w) && !UNIT_WORDS.has(w) && !PREP_WORDS.has(w) && !/^\d/.test(w));
+  // "1 cup of rice": the "of" that tied a unit to the food goes with it.
+  while (kept[0] === "of") kept.shift();
+  const t = kept.join(" ").replace(/[./]/g, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 8).join(" ");
   return t.length >= 3 ? t : "";
+}
+
+/** A broader term to try when the item's own finds nothing: its last noun or two ("fire roasted tomatoes" → "roasted tomatoes"), or "". */
+export function broaderTerm(term: string): string {
+  const w = term.split(" ").filter(Boolean);
+  if (w.length < 2) return "";
+  const t = w.slice(w.length > 2 ? -2 : -1).join(" ");
+  return t.length >= 3 && t !== term ? t : "";
 }
 
 /** Products at the store for a term, in Kroger's order, only those with a price there. */

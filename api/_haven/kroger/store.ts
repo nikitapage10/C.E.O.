@@ -8,6 +8,9 @@
  *            matches to swap to, whether Nikita chose it himself, whether to leave it out of the send
  *   last     the last Kroger call's time and whether it worked (Systems' live or down; never what it was)
  *   sent     the last send's time, item count and whether it worked
+ *   inCart   by list item: the product already added to the King Soopers cart from here, and when (#737), so a resend
+ *            doesn't add it twice. Kroger's public Cart API only adds (no reading or removing the cart), so this is the
+ *            Desk's own record; Clear matches forgets it along with the picks.
  *
  * The cart grant's refresh token is not here: it is sealed with HOME_TOKEN_KEY (api/_haven/devices/vault.ts, `kroger`).
  *
@@ -40,9 +43,10 @@ export interface KrogerState {
   picks: Record<string, ItemPick>;
   last: { at: string; ok: boolean } | null;
   sent: { at: string; items: number; ok: boolean } | null;
+  inCart: Record<string, { productId: string; at: string }>;
 }
 
-export const EMPTY: KrogerState = { zip: "", found: [], store: null, picks: {}, last: null, sent: null };
+export const EMPTY: KrogerState = { zip: "", found: [], store: null, picks: {}, last: null, sent: null, inCart: {} };
 
 export const ZIP = /^\d{5}$/;
 
@@ -74,6 +78,11 @@ export function readState(v: unknown): KrogerState {
   }
   const last = o(s.last);
   const sent = o(s.sent);
+  const inCart: KrogerState["inCart"] = {};
+  for (const [k, raw] of Object.entries(o(s.inCart)).slice(0, PICKS_MAX)) {
+    const key = line(k, 60), r = o(raw), at = iso(r.at);
+    if (key && at && typeof r.productId === "string" && /^[A-Za-z0-9-]{1,32}$/.test(r.productId)) inCart[key] = { productId: r.productId, at };
+  }
   return {
     zip: typeof s.zip === "string" && ZIP.test(s.zip) ? s.zip : "",
     found: (Array.isArray(s.found) ? s.found : []).map(readStore).filter((x): x is StoreRow => x !== null).slice(0, 10),
@@ -81,6 +90,7 @@ export function readState(v: unknown): KrogerState {
     picks,
     last: iso(last.at) && typeof last.ok === "boolean" ? { at: last.at as string, ok: last.ok } : null,
     sent: iso(sent.at) && typeof sent.ok === "boolean" && typeof sent.items === "number" && Number.isInteger(sent.items) ? { at: sent.at as string, items: sent.items, ok: sent.ok } : null,
+    inCart,
   };
 }
 

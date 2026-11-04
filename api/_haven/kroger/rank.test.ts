@@ -44,4 +44,9 @@ describe("the default pick (#677)", () => {
   it("folds plurals", () => {
     expect(["lemons", "tomatoes", "berries", "peaches", "glass", "eggs"].map(stem)).toEqual(["lemon", "tomato", "berry", "peach", "glass", "egg"]);
   });
+
+  it("puts panko over a plastic cup, and marks a unit-only hit below any food (#737)", () => {
+    expect(scoreProduct("panko", p("Solo Plastic Snack Cups 9 oz"))).toBeLessThan(scoreProduct("panko", p("Kroger Plain Bread Crumbs")));
+    expect(rankProducts("panko", [p("Party Cups 16 oz"), p("Kikkoman Panko Bread Crumbs")])[0]!.description).toBe("Kikkoman Panko Bread Crumbs");
+  });
 });

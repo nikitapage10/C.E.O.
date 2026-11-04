@@ -505,7 +505,8 @@ describe("the Petlibro feeders and fountain", () => {
   });
 
   it("reads as signed out when a fresh sign-in is taken back at once (the phone app)", async () => {
-    const vault = new HomeVault(memoryBlob(), SEAL);
+    const blob = memoryBlob();
+    const vault = new HomeVault(blob, SEAL);
     let logins = 0;
     const f = fakeFetch([
       [/member\/auth\/login$/, () => (logins++, { code: 0, data: { token: `t${logins}` } })],
@@ -514,7 +515,54 @@ describe("the Petlibro feeders and fountain", () => {
     const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW });
     await expect(c.status()).rejects.toThrow();
     expect(c.problem()).toBe("signed-out");
-    expect(logins).toBe(2);
+    // One sign-in, not two: a second would only cancel the first (#683).
+    expect(logins).toBe(1);
+    expect(blob.files.has("haven/devices/petlibro.lease.json")).toBe(false);
+  });
+
+  it("waits for the token of an instance holding the sign-in lease instead of signing in too (#683)", async () => {
+    const blob = memoryBlob();
+    const vault = new HomeVault(blob, SEAL);
+    await vault.write("petlibro", { token: "stale" });
+    expect(await vault.lease("petlibro", 20_000, NOW)).toBe(true);
+    expect(await vault.lease("petlibro", 20_000, NOW + 1_000)).toBe(false);
+    let logins = 0;
+    const f = fakeFetch([
+      [/member\/auth\/login$/, () => (logins++, { code: 0, data: { token: "mine" } })],
+      [/device\/device\/list$/, (_u, init) => ((init.headers as Record<string, string>).token === "theirs" ? { code: 0, data: [] } : { code: 1009 })],
+    ]);
+    let waits = 0;
+    // The other instance stores its token while this one waits.
+    const pause = async () => void (++waits === 2 && (await vault.write("petlibro", { token: "theirs" })));
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW, pause });
+    expect(await c.status()).toEqual([]);
+    expect(logins).toBe(0);
+    expect(c.problem()).toBeNull();
+    // A lease left by an instance that stopped runs out on its own.
+    expect(await vault.lease("petlibro", 20_000, NOW + 20_001)).toBe(true);
+  });
+
+  it("two instances that find the token stale at once sign in only once, and neither reads as signed out (#683)", async () => {
+    // Petlibro keeps one session per account: each sign-in cancels every token before it.
+    const blob = memoryBlob();
+    await new HomeVault(blob, SEAL).write("petlibro", { token: "stale" });
+    let logins = 0;
+    let live = "";
+    const later = <T,>(ms: number, v: () => T) => new Promise<T>((r) => setTimeout(() => r(v()), ms));
+    const petlibro: Fetch = async (url, init = {}) => {
+      if (url.endsWith("/member/auth/login")) return jsonRes(await later(20, () => ((live = `t${++logins}`), { code: 0, data: { token: live } })));
+      const t = (init.headers as Record<string, string>).token;
+      return jsonRes(await later(5, () => (t === live ? { code: 0, data: [] } : { code: 1009, msg: "NOT_YET_LOGIN" })));
+    };
+    // Two Function App instances: a client each, one private store between them.
+    const instance = () => new PetlibroClient({ fetch: petlibro, vault: new HomeVault(blob, SEAL), idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW, pause: (ms) => new Promise((r) => setTimeout(r, ms / 50)) });
+    const a = instance();
+    const b = instance();
+    const got = await Promise.allSettled([a.status(), b.status()]);
+    expect(got.map((g) => g.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect([a.problem(), b.problem()]).toEqual([null, null]);
+    expect(logins).toBe(1);
+    expect((await new HomeVault(blob, SEAL).read<{ token: string }>("petlibro"))!.token).toBe(live);
   });
 });
 

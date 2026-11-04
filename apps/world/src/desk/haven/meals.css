@@ -1156,3 +1156,334 @@
   flex: none;
   white-space: nowrap;
 }
+
+/* ── #721: the weeks, the four steps, the list on the left and the open meal on the right ── */
+[data-room="haven"] .mp-weeks {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+[data-room="haven"] .mp-weekBtn {
+  display: grid;
+  flex: none;
+  gap: 1px;
+  min-width: 132px;
+  padding: 8px 14px;
+  border: 1px solid var(--hv-line);
+  border-radius: 14px;
+  background: rgba(14, 13, 18, 0.6);
+  color: var(--hv-soft);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+[data-room="haven"] .mp-weekBtn[aria-pressed="true"] {
+  border-color: rgba(var(--hv-gold), 0.7);
+  background: rgba(var(--hv-gold), 0.1);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-weekBtn small,
+[data-room="haven"] .mp-weekBtn i {
+  font-size: 11px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-weekBtn b {
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 16px;
+}
+[data-room="haven"] .mp-weekBtn i.is-ok {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .mp-weekBtn i.is-draft {
+  color: var(--mp-gold);
+}
+[data-room="haven"] .mp-weekBtn.is-add {
+  border-style: dashed;
+}
+[data-room="haven"] .mp-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .mp-steps button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--hv-line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--hv-soft);
+  text-align: left;
+  cursor: pointer;
+}
+[data-room="haven"] .mp-steps i {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--hv-line);
+  font: 600 13px var(--hv-text);
+  font-style: normal;
+}
+[data-room="haven"] .mp-steps b {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-steps small {
+  display: block;
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-steps button.is-past i {
+  border-color: var(--hv-ok);
+  color: var(--hv-ok);
+}
+[data-room="haven"] .mp-steps button[aria-current="step"] {
+  border-color: rgba(var(--hv-gold), 0.7);
+  background: rgba(var(--hv-gold), 0.1);
+}
+[data-room="haven"] .mp-steps button[aria-current="step"] i {
+  border-color: rgb(var(--hv-gold));
+  background: rgb(var(--hv-gold));
+  color: #1a140c;
+}
+[data-room="haven"] .mp-plan {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+[data-room="haven"] .mp-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .mp-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--hv-line);
+  border-radius: 16px;
+  background: var(--hv-glass);
+  animation: mp-open 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+[data-room="haven"] .mp-rowDay {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  padding-top: 4px;
+}
+[data-room="haven"] .mp-rowDay b {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+[data-room="haven"] .mp-rowDay small {
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-rowMeals {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+[data-room="haven"] .mp-rowMeal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  color: var(--hv-ink);
+  text-align: left;
+  cursor: pointer;
+}
+[data-room="haven"] .mp-rowMeal:hover {
+  border-color: var(--hv-line);
+}
+[data-room="haven"] .mp-rowMeal[aria-pressed="true"] {
+  border-color: rgba(var(--hv-gold), 0.7);
+  background: rgba(var(--hv-gold), 0.08);
+}
+[data-room="haven"] .mp-rowMeal > span:last-child {
+  min-width: 0;
+}
+[data-room="haven"] .mp-rowMeal small {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-rowMeal b {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 500;
+}
+[data-room="haven"] .mp-rowMeal.is-lunch b {
+  font-size: 13px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .mp-rowMeal.is-lunch.is-quick b {
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-rowMeal.is-lunch .mp-photo.is-mini,
+[data-room="haven"] .mp-rowMeal.is-lunch .mp-lunchDot {
+  width: 32px;
+  height: 32px;
+  margin: 0 6px;
+}
+[data-room="haven"] .mp-row.is-hf .mp-rowMeal:first-child b {
+  color: #b9e58f;
+}
+[data-room="haven"] .mp-detail {
+  min-width: 0;
+  position: sticky;
+  top: 12px;
+}
+[data-room="haven"] .mp-detail > .mp-drawer > .mp-lunch:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+[data-room="haven"] .mp-overview h3 {
+  margin: 0 0 6px;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 26px;
+}
+[data-room="haven"] .mp-overActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+[data-room="haven"] .mp-next {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 18px;
+  border: 1px solid rgba(var(--hv-gold), 0.55);
+  border-radius: 999px;
+  background: rgba(var(--hv-gold), 0.1);
+  color: var(--hv-ink);
+  font: 600 14px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .mp-next small {
+  font-weight: 400;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-shopStep {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 14px;
+  align-items: start;
+}
+[data-room="haven"] .mp-railIn {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+[data-room="haven"] .mp-cookList ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .mp-cookRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 8px 12px 8px 8px;
+  border: 1px solid var(--hv-line);
+  border-radius: 16px;
+  background: var(--hv-glass);
+}
+[data-room="haven"] .mp-cookRow .mp-recipe {
+  flex-basis: 100%;
+}
+[data-room="haven"] .mp-cookRow .mp-cook {
+  margin-top: 0;
+}
+[data-room="haven"] .mp-cookTxt {
+  flex: 1;
+  min-width: 160px;
+}
+[data-room="haven"] .mp-cookTxt small {
+  display: block;
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-cookTxt b {
+  display: block;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 17px;
+}
+@media (max-width: 1000px) {
+  [data-room="haven"] .mp-plan,
+  [data-room="haven"] .mp-shopStep {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .mp-detail {
+    position: static;
+  }
+}
+@media (max-width: 640px) {
+  [data-room="haven"] .mp-steps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  [data-room="haven"] .mp-steps button {
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 4px;
+    text-align: center;
+  }
+  [data-room="haven"] .mp-steps small {
+    display: none;
+  }
+  [data-room="haven"] .mp-steps b {
+    font-size: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .mp-row {
+    animation: none;
+  }
+}
+/* A thumbnail in the list is too small for the photo's word; the open meal says it. */
+[data-room="haven"] .mp-rowMeal .mp-pend {
+  display: none;
+}

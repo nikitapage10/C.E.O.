@@ -357,7 +357,7 @@ test("signed in, the Kitchen removes an item with ×, with five seconds to Undo 
   ]);
 });
 
-test("signed in, the Kitchen's meal planner: the week strip, a night customized live, HelloFresh, and Confirm week (#678)", async ({ page }) => {
+test("signed in, the Kitchen's meal planner: the week list, a night customized live, HelloFresh, and Finalize (#678, #721)", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   // The made-up planner file (api/_haven/meals.fixture.ts), changed in the browser by the same edits the server runs.
   let file: MealsFile = fakeMeals();
@@ -389,24 +389,31 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
   });
   await page.goto(`${BASE}/haven?open=kitchen`);
   const sheet = page.getByRole("dialog", { name: "Kitchen" });
-  const week = sheet.getByRole("list", { name: "This week's dinners" });
+  const week = sheet.getByRole("list", { name: "This week's meals" });
+  const steps = sheet.getByRole("list", { name: "Steps" });
   await expect(week.getByRole("listitem")).toHaveCount(7);
-  // The list and King Soopers sit in the rail beside the planner, on the same page.
-  await expect(sheet.getByRole("list", { name: "Kitchen list" }).getByText("Lemons")).toBeVisible();
+  // Plan first (#721): the list on the left, nothing open, no customization in sight.
+  await expect(steps.getByRole("button", { name: /Plan/ })).toHaveAttribute("aria-current", "step");
+  await expect(sheet.getByRole("region", { name: "Finalize the week" })).toBeVisible();
+  await expect(sheet.getByRole("group", { name: /^Carb for/ })).toHaveCount(0);
 
-  await week.getByRole("button", { name: /^Wednesday: sausage pasta/ }).click();
-  const drawer = sheet.getByRole("region", { name: "Wednesday's dinner" });
-  await expect(drawer.getByRole("heading", { name: "sausage pasta" })).toBeVisible();
-  await expect(drawer.locator(".mp-macros .is-p b")).toHaveText("62");
+  await week.getByRole("button", { name: "Wednesday's dinner: sausage pasta" }).click();
+  const plan = sheet.getByRole("region", { name: "Wednesday's dinner" });
+  await expect(plan.getByRole("heading", { name: "sausage pasta" })).toBeVisible();
+  await expect(plan.locator(".mp-macros .is-p b")).toHaveText("62");
+  await plan.getByRole("button", { name: /^Customize this meal/ }).click();
+  await expect(steps.getByRole("button", { name: /Customize/ })).toHaveAttribute("aria-current", "step");
+  const drawer = sheet.getByRole("region", { name: "Customize Wednesday's dinner" });
   await drawer.getByRole("group", { name: "Carb for Wednesday" }).getByRole("button", { name: /^Protein pasta/ }).click();
   await expect(drawer.locator(".mp-macros .is-p b")).toHaveText(String(62 - 14 + 28));
   await expect(drawer.getByText("Protein pasta for rigatoni")).toBeVisible();
   await expect(week.getByRole("listitem").nth(2).getByText("photo pending")).toBeVisible();
   expect(posts.at(-1)).toEqual({ action: "edit", edit: { op: "customize", day: "wed", part: { index: 1, option: "protein-pasta" } } });
 
-  await drawer.getByRole("switch", { name: "HelloFresh" }).click();
+  await steps.getByRole("button", { name: /Plan/ }).click();
+  await plan.getByRole("switch", { name: "HelloFresh" }).click();
   await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toBeVisible();
-  await drawer.getByRole("switch", { name: "HelloFresh" }).click();
+  await plan.getByRole("switch", { name: "HelloFresh" }).click();
   await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toHaveCount(0);
   if (SHOTS) {
     await sheet.evaluate((el) => el.scrollTo(0, 300));
@@ -414,14 +421,18 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
     await page.screenshot({ path: `${SHOTS}/haven-678-planner.png` });
   }
 
-  await sheet.getByRole("button", { name: "Confirm week" }).click();
-  await expect(sheet.getByText(/Confirmed\. 12 things went on the Kitchen list \(1 already there\)/)).toBeVisible();
+  await sheet.getByRole("button", { name: "Finalize the week" }).click();
+  await expect(sheet.getByText(/Finalized\. 12 things went on the Kitchen list \(1 already there\)/)).toBeVisible();
   await expect(sheet.getByText("1 customized meal is getting its own photo.", { exact: false })).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Week confirmed" })).toBeDisabled();
+  await expect(sheet.getByRole("button", { name: "Week finalized" })).toBeDisabled();
+  // Finalizing moves on to Shop: the list and King Soopers.
+  await expect(steps.getByRole("button", { name: /Shop/ })).toHaveAttribute("aria-current", "step");
+  await expect(sheet.getByRole("list", { name: "Kitchen list" }).getByText("Lemons")).toBeVisible();
   expect(posts.find((p) => p.action === "confirm")).toEqual({ action: "confirm" });
   // The library got the night as customized, and the night keeps the id it answered.
   expect(shots).toEqual([{ meal: "sausage-pasta", name: "sausage pasta", description: expect.stringContaining("Protein pasta for rigatoni"), components: ["Italian sausage", "Protein pasta"], style: "plate" }]);
   expect(posts.at(-1)).toEqual({ action: "edit", edit: { op: "photo", day: "wed", photo: "sausage-pasta-01234567" } });
+  await steps.getByRole("button", { name: /Plan/ }).click();
   await expect(week.getByRole("listitem").nth(2).getByText(/photo queued|making the photo/)).toBeVisible();
 
   await sheet.getByRole("button", { name: "Catalog" }).click();
@@ -434,7 +445,7 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
 
   if (SHOTS) {
     await page.setViewportSize({ width: 390, height: 844 });
-    await week.getByRole("button", { name: /^Monday:/ }).click();
+    await week.getByRole("button", { name: /^Monday's dinner/ }).click();
     await sheet.evaluate((el) => el.scrollTo(0, 250));
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${SHOTS}/haven-678-planner-phone.png` });
@@ -484,11 +495,17 @@ test("signed in, the Kitchen's cook mode: a night as customized, one step at a t
 
   await page.goto(`${BASE}/haven?open=kitchen`);
   const sheet = page.getByRole("dialog", { name: "Kitchen" });
-  await sheet.getByRole("list", { name: "This week's dinners" }).getByRole("button", { name: /^Wednesday: sausage pasta/ }).click();
-  const drawer = sheet.getByRole("region", { name: "Wednesday's dinner" });
-  await drawer.getByRole("group", { name: "Carb for Wednesday" }).getByRole("button", { name: /^Protein pasta/ }).click();
-  await expect(drawer.getByText("Protein pasta for rigatoni")).toBeVisible();
+  const steps = sheet.getByRole("list", { name: "Steps" });
+  await sheet.getByRole("list", { name: "This week's meals" }).getByRole("button", { name: "Wednesday's dinner: sausage pasta" }).click();
+  await steps.getByRole("button", { name: /Customize/ }).click();
+  const custom = sheet.getByRole("region", { name: "Customize Wednesday's dinner" });
+  await custom.getByRole("group", { name: "Carb for Wednesday" }).getByRole("button", { name: /^Protein pasta/ }).click();
+  await expect(custom.getByText("Protein pasta for rigatoni")).toBeVisible();
 
+  // Cook (#721): the week's recipes, each with cook mode.
+  await steps.getByRole("button", { name: /Cook/ }).click();
+  const drawer = sheet.getByRole("region", { name: "Recipes this week" }).getByRole("listitem").filter({ hasText: "Wednesday · dinner" });
+  await expect(drawer.getByText("Protein pasta for rigatoni")).toBeVisible();
   await drawer.getByRole("button", { name: /^Cook mode/ }).click();
   const cook = page.getByRole("dialog", { name: "Cook mode: sausage pasta" });
   const text = cook.locator(".ck-text");
@@ -574,8 +591,8 @@ test("signed in, the Kitchen follows what Skippy changes: a swap said in his cha
   });
   await page.goto(`${BASE}/haven?open=kitchen`);
   const sheet = page.getByRole("dialog", { name: "Kitchen" });
-  const week = sheet.getByRole("list", { name: "This week's dinners" });
-  await expect(week.getByRole("button", { name: /^Tuesday: chicken plate/ })).toBeVisible();
+  const week = sheet.getByRole("list", { name: "This week's meals" });
+  await expect(week.getByRole("button", { name: "Tuesday's dinner: chicken plate" })).toBeVisible();
   const before = reads;
 
   await page.evaluate(() => (document.querySelector(".desk__skippy") as HTMLElement | null)?.click());
@@ -586,7 +603,7 @@ test("signed in, the Kitchen follows what Skippy changes: a swap said in his cha
   expect(asked).toEqual(["swap Tuesday for kofta"]);
 
   // The planner read itself again and says what Skippy changed, with that night open.
-  await expect(week.getByRole("button", { name: /^Tuesday: kofta/ })).toBeVisible();
+  await expect(week.getByRole("button", { name: "Tuesday's dinner: kofta" })).toBeVisible();
   expect(reads).toBeGreaterThan(before);
   await expect(sheet.getByText("Skippy changed it: Tuesday: kofta instead of chicken plate.")).toBeVisible();
   await expect(sheet.getByRole("region", { name: "Tuesday's dinner" }).getByRole("heading", { name: "kofta" })).toBeVisible();

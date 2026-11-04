@@ -12,6 +12,7 @@
  *                                                       Kitchen list (source "meals", where the King Soopers matcher
  *                                                       picks it up) → { changes, added, already, photos (the
  *                                                       customized nights waiting for a photo), meals }.
+ *                                                       `week` (a Monday) aims confirm or send at a week ahead (#721).
  *   POST /api/haven-meals { action: "send" }            passkey session: the week's shopping onto the list again
  *                                                       → { added, already, meals }.
  *   POST /api/haven-meals { action: "seed", meals, replace? }   passkey session: load a whole file (checked by
@@ -35,7 +36,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { readJson, updateJson } from "./json.js";
 import { KitchenList } from "./list.js";
-import { addLunches, allComponents, applyEdit, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
+import { addLunches, allComponents, applyEdit, viewOf, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
 export * from "./mealShape.js";
 
@@ -77,25 +78,27 @@ export class MealsStore {
     });
   }
 
-  /** Marks the week sent (no Undo: the list keeps its own). */
-  async sent(now: number): Promise<MealsFile | null> {
+  /** Marks a week sent (no Undo: the list keeps its own): the current one, or one ahead by its Monday (#721). */
+  async sent(now: number, start?: string): Promise<MealsFile | null> {
     return updateJson<unknown, MealsFile | null>(this.blob, MEALS_PATH, null, (raw) => {
       const file = readMeals(raw);
       if (!file?.week) return { next: null, result: file };
-      const next = { ...file, week: { ...file.week, sentAt: new Date(now).toISOString() } };
+      const at = new Date(now).toISOString();
+      const ahead = file.ahead.map((w) => (w.start === start ? { ...w, sentAt: at } : w));
+      const next = { ...file, week: !start || start === file.week.start ? { ...file.week, sentAt: at } : file.week, ahead };
       return { next, result: next };
     });
   }
 }
 
 /** The week's shopping onto the Kitchen list (source "meals"), then the week marked sent. Null when there's nothing to send. */
-export async function sendWeek(blob: BlobBackend, now: number): Promise<{ added: number; already: number; meals: MealsFile | null } | null> {
+export async function sendWeek(blob: BlobBackend, now: number, start?: string): Promise<{ added: number; already: number; meals: MealsFile | null } | null> {
   const store = new MealsStore(blob);
   const meals = await store.read();
-  const lines = meals?.week ? shoppingList(meals).map(shopLine) : [];
+  const lines = meals?.week ? shoppingList(viewOf(meals, start)).map(shopLine) : [];
   if (!lines.length) return null;
   const { added, already } = await new KitchenList(blob).add(lines, now, "meals");
-  return { added: added.length, already: already.length, meals: await store.sent(now) };
+  return { added: added.length, already: already.length, meals: await store.sent(now, start) };
 }
 
 /** The counts for the Haven's status view. */
@@ -167,18 +170,20 @@ export async function mealsPost(request: Request, deps: MealsDeps): Promise<Resp
     deps.log(`haven: meals ${edit.op}`);
     return reply({ ok: true, changes: got.changes, ...view(got.file) });
   }
+  // A week ahead by its Monday (#721); without one, the current week.
+  const week = typeof body.week === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.week) ? body.week : undefined;
   if (body.action === "confirm") {
-    const got = await store.edit({ op: "confirm" }, now);
+    const got = await store.edit({ op: "confirm", ...(week && { week }) }, now);
     if (!got.ok) return reply({ error: got.error }, got.error === "not-seeded" ? 404 : 409);
-    const sent = await sendWeek(deps.blob, now);
+    const sent = await sendWeek(deps.blob, now, week);
     // The customized nights to photograph (`week.photoQueue`): the Desk hands them to the photo library
     // (POST /api/haven-photos, api/_haven/photos.ts) and writes the ids back with the `photo` edit.
-    const photos = photoJobs(got.file).length;
+    const photos = photoJobs(viewOf(got.file, week)).length;
     deps.log(`haven: the week was confirmed (${sent?.added ?? 0} to the list, ${photos} photos to make)`);
     return reply({ ok: true, changes: got.changes, added: sent?.added ?? 0, already: sent?.already ?? 0, photos, ...view(sent?.meals ?? got.file) });
   }
   if (body.action === "send") {
-    const got = await sendWeek(deps.blob, now);
+    const got = await sendWeek(deps.blob, now, week);
     if (!got) return reply({ error: "empty" }, 409);
     deps.log(`haven: the week went to the list (${got.added} added, ${got.already} already there)`);
     return reply({ ok: true, added: got.added, already: got.already, ...view(got.meals) });

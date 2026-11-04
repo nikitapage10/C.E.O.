@@ -174,7 +174,12 @@ export interface MealsState {
   /** Components beyond the library (Talk to edit may add one). */
   components: Component[];
   week: Week | null;
+  /** Weeks planned ahead of `week` (#721), the next first, up to AHEAD_MAX. A file from before them has none. */
+  ahead: Week[];
 }
+
+/** The most weeks planned past the current one: a month in all. */
+export const AHEAD_MAX = 3;
 
 export interface MealsFile extends MealsState {
   v: 1;
@@ -408,16 +413,47 @@ function stateOf(x: Record<string, unknown>): MealsState {
     meal: l.meal && course.get(l.meal) === "lunch" ? l.meal : null,
     backups: l.backups.filter((b) => course.get(b) === "lunch" && b !== l.meal).slice(0, 2),
   });
-  const okWeek =
-    week && week.slots.every((s) => course.get(s.meal) === "dinner")
-      ? { ...week, slots: week.slots.map((s) => ({ ...s, backups: s.backups.filter((b) => course.get(b) === "dinner" && b !== s.meal), lunch: lunchFix(s.lunch) })), picks: week.picks.filter((p) => course.get(p) === "dinner") }
+  const fix = (w: Week | null): Week | null =>
+    w && w.slots.every((s) => course.get(s.meal) === "dinner")
+      ? { ...w, slots: w.slots.map((s) => ({ ...s, backups: s.backups.filter((b) => course.get(b) === "dinner" && b !== s.meal), lunch: lunchFix(s.lunch) })), picks: w.picks.filter((p) => course.get(p) === "dinner") }
       : null;
+  const okWeek = fix(week);
+  // The weeks ahead: each a whole week after the current one, in order, no start twice.
+  const starts = new Set<string>();
+  const ahead = okWeek
+    ? arr(x.ahead)
+        .slice(0, AHEAD_MAX + 2)
+        .map((w) => fix(weekOf(w)))
+        .filter((w): w is Week => w !== null && w.start > okWeek.start && !starts.has(w.start) && Boolean(starts.add(w.start)))
+        .sort((a, b) => a.start.localeCompare(b.start))
+        .slice(0, AHEAD_MAX)
+    : [];
   return {
     profile: profileOf(x.profile),
     catalog,
     components: arr(x.components).map(componentOf).filter((cp): cp is Component => cp !== null).slice(0, COMPONENTS_MAX),
     week: okWeek,
+    ahead,
   };
+}
+
+/** Every planned week, the current one first. */
+export const allWeeks = (f: Pick<MealsState, "week" | "ahead">): Week[] => (f.week ? [f.week, ...f.ahead] : []);
+
+/** The file as seen from one of its weeks (#721): that week as `week`, for showing it and for its shopping. */
+export function viewOf<T extends MealsState>(f: T, start: string | null | undefined): T {
+  const w = start ? f.ahead.find((x) => x.start === start) : undefined;
+  return w ? { ...f, week: w } : f;
+}
+
+/** Runs `fn` once with each planned week as `f.week` (the edits that touch every week: an avoid, a pass, the heat). */
+function forEachWeek(f: MealsState, fn: () => void): void {
+  const cur = f.week;
+  for (const w of allWeeks(f)) {
+    f.week = w;
+    fn();
+  }
+  f.week = cur;
 }
 
 /** A whole file (or a seed), checked. Null when it holds no catalog at all. */
@@ -649,7 +685,10 @@ export function planWeek(f: MealsState, start: string, prev: Week | null = null)
 
 /* ── The edits: one closed set, the same on the Desk, the server and Skippy's tools ── */
 
-export type MealEdit =
+/** An edit, aimed at a week ahead by its Monday (`week`, #721); without one, the current week. */
+export type MealEdit = BaseEdit & { week?: string };
+
+type BaseEdit =
   | { op: "swap"; day: Day; meal: string }
   | { op: "nope"; day: Day }
   | { op: "night"; day: Day; helloFresh?: boolean; forTwo?: boolean; inCart?: boolean }
@@ -665,6 +704,8 @@ export type MealEdit =
   /** A day's lunch (#719): a quick lunch from the catalog (`meal`), or last night's leftovers (`leftovers`). */
   | { op: "lunch"; day: Day; meal?: string; leftovers?: true }
   | { op: "next-week" }
+  /** Plans one more week after the last one planned, up to a month out (#721). */
+  | { op: "plan-ahead" }
   | { op: "confirm" }
   | { op: "undo" }
   /** The photo library's id, written back by the Desk: a night's own photo (`day`) or a catalog meal's (`meal`). No Undo. */
@@ -676,6 +717,13 @@ const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
 /** An edit from a request or a tool call, checked; null when it isn't one. */
 export function readEdit(v: unknown): MealEdit | null {
   const x = o(v);
+  const e = readBase(x);
+  if (!e) return null;
+  const week = typeof x.week === "string" && DATE.test(x.week) && Number.isFinite(Date.parse(x.week)) ? x.week : null;
+  return week && e.op !== "undo" && e.op !== "next-week" && e.op !== "plan-ahead" ? { ...e, week } : e;
+}
+
+function readBase(x: Record<string, unknown>): BaseEdit | null {
   switch (x.op) {
     case "swap":
       return isDay(x.day) && isId(x.meal) ? { op: "swap", day: x.day, meal: x.meal } : null;
@@ -719,6 +767,7 @@ export function readEdit(v: unknown): MealEdit | null {
       if (!isDay(x.day) || (x.leftovers === true) === isId(x.meal)) return null;
       return x.leftovers === true ? { op: "lunch", day: x.day, leftovers: true } : { op: "lunch", day: x.day, meal: x.meal as string };
     case "next-week":
+    case "plan-ahead":
     case "confirm":
     case "undo":
       return { op: x.op };
@@ -730,7 +779,7 @@ export function readEdit(v: unknown): MealEdit | null {
   }
 }
 
-export type EditResult = { ok: true; file: MealsFile; changes: string[] } | { ok: false; error: "no-week" | "not-found" | "no-backup" | "no-undo" | "bad-meal" | "short" };
+export type EditResult = { ok: true; file: MealsFile; changes: string[] } | { ok: false; error: "no-week" | "not-found" | "no-backup" | "no-undo" | "bad-meal" | "short" | "full" };
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const nameOf = (f: MealsState, id: string) => mealNamed(f, id)?.name ?? id;
@@ -810,11 +859,30 @@ function refill(f: MealsState) {
 
 /** Applies one edit (pure). The file comes back new, with Undo set for anything that changed the plan. */
 export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditResult {
+  if (!edit.week || !file.week || edit.week === file.week.start) return applyNow(file, edit, now);
+  // A week ahead (#721): it stands in as `week` for the edit, then goes back to its place, and so does its Undo.
+  const k = file.ahead.findIndex((w) => w.start === edit.week);
+  if (k < 0) return { ok: false, error: "no-week" };
+  const swap = <T extends MealsState>(x: T): T => {
+    const ahead = [...x.ahead];
+    const w = ahead[k]!;
+    ahead[k] = x.week!;
+    return { ...x, week: w, ahead };
+  };
+  const swapped = swap(file);
+  const got = applyNow(swapped, edit, now);
+  if (!got.ok) return got;
+  const out = swap(got.file);
+  const undo = got.file.undo && got.file.undo !== swapped.undo ? { ...got.file.undo, state: swap(got.file.undo.state) } : got.file.undo;
+  return { ...got, file: { ...out, undo } };
+}
+
+function applyNow(file: MealsFile, edit: MealEdit, now: number): EditResult {
   if (edit.op === "undo") {
     if (!file.undo) return { ok: false, error: "no-undo" };
     return { ok: true, file: { v: 1, ...clone(file.undo.state), undo: null }, changes: [`Undid: ${file.undo.label}`] };
   }
-  const f: MealsState = clone({ profile: file.profile, catalog: file.catalog, components: file.components, week: file.week });
+  const f: MealsState = clone({ profile: file.profile, catalog: file.catalog, components: file.components, week: file.week, ahead: file.ahead });
   const before: MealsState = clone(f);
   const stamp = new Date(now).toISOString();
   const changes: string[] = [];
@@ -919,17 +987,19 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
       const rule: Avoid = { term: edit.term, ...(edit.unless && { unless: edit.unless }) };
       f.profile.avoid = [...f.profile.avoid.filter((a) => a.term !== rule.term), rule].slice(-40);
       changes.push(`Noted: no ${rule.term}${rule.unless ? ` unless there's ${rule.unless}` : ""}.`);
-      for (const s of f.week?.slots ?? []) {
-        const meal = mealNamed(f, s.meal)!;
-        if (!dishBreaks(f, meal, s.custom)) continue;
-        const said = replaceMain(f, s.day);
-        changes.push(said ?? `${DAY_NAME[s.day]}: ${meal.name} has ${rule.term}, and nothing else fits. Swap it by hand.`);
-      }
-      for (const s of f.week?.slots ?? []) {
-        const lunch = s.lunch.meal ? mealNamed(f, s.lunch.meal) : undefined;
-        if (lunch && dishBreaks(f, lunch)) changes.push(replaceLunch(f, s));
-      }
-      if (f.week) refill(f);
+      forEachWeek(f, () => {
+        for (const s of f.week?.slots ?? []) {
+          const meal = mealNamed(f, s.meal)!;
+          if (!dishBreaks(f, meal, s.custom)) continue;
+          const said = replaceMain(f, s.day);
+          changes.push(said ?? `${DAY_NAME[s.day]}: ${meal.name} has ${rule.term}, and nothing else fits. Swap it by hand.`);
+        }
+        for (const s of f.week?.slots ?? []) {
+          const lunch = s.lunch.meal ? mealNamed(f, s.lunch.meal) : undefined;
+          if (lunch && dishBreaks(f, lunch)) changes.push(replaceLunch(f, s));
+        }
+        if (f.week) refill(f);
+      });
       if (breaks([rule], [f.profile.topUp.text, ...f.profile.topUp.shop.map((i) => i.item)])) changes.push(`The daily top-up has ${rule.term} in it; change it in the taste profile.`);
       if (f.week?.slots.some((s) => !s.lunch.meal && breaks([rule], [s.lunch.text, ...s.lunch.shop.map((i) => i.item)]))) changes.push(`A lunch has ${rule.term} in it.`);
       label = `No ${rule.term}`;
@@ -954,7 +1024,7 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
     case "heat": {
       f.profile.spice = edit.spice;
       // A night set to what is now the house heat no longer needs its own.
-      for (const s of f.week?.slots ?? []) if (s.custom.spice && s.custom.spice === edit.spice) delete s.custom.spice;
+      for (const s of allWeeks(f).flatMap((w) => w.slots)) if (s.custom.spice && s.custom.spice === edit.spice) delete s.custom.spice;
       changes.push(edit.spice ? `Every night is cooked ${edit.spice === "medium" ? "at medium heat" : edit.spice} now, unless a night says otherwise.` : "Every night is back to the heat its recipe says.");
       label = edit.spice ? `Heat: ${edit.spice}` : "Heat as written";
       break;
@@ -969,9 +1039,11 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
       if (!meal) return { ok: false, error: "not-found" };
       meal.passed = edit.passed;
       changes.push(edit.passed ? `Passed on ${meal.name}.` : `${meal.name} is back in the catalog.`);
-      if (edit.passed) for (const s of f.week?.slots ?? []) if (s.meal === meal.id) changes.push(replaceMain(f, s.day) ?? "");
-      if (edit.passed) for (const s of f.week?.slots ?? []) if (s.lunch.meal === meal.id) changes.push(replaceLunch(f, s));
-      if (f.week) refill(f);
+      forEachWeek(f, () => {
+        if (edit.passed) for (const s of f.week?.slots ?? []) if (s.meal === meal.id) changes.push(replaceMain(f, s.day) ?? "");
+        if (edit.passed) for (const s of f.week?.slots ?? []) if (s.lunch.meal === meal.id) changes.push(replaceLunch(f, s));
+        if (f.week) refill(f);
+      });
       label = edit.passed ? `Passed on ${meal.name}` : `${meal.name} back`;
       break;
     }
@@ -988,12 +1060,33 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
         meal.timesHad += 1;
         meal.lastHad = stamp;
       }
+      // A week planned ahead (#721) becomes this week as it was planned; otherwise a fresh one.
+      const [next, ...rest] = f.ahead;
+      if (next) {
+        f.week = next;
+        f.ahead = rest;
+        changes.push(`On to the week of ${next.start}, as planned.`);
+        label = "On to next week";
+        break;
+      }
       const start = prev ? addDays(prev.start, 7) : stamp.slice(0, 10);
       const week = planWeek(f, start, prev);
       if (!week) return { ok: false, error: "short" };
       f.week = week;
       changes.push(`Planned the week of ${start}.`);
       label = "Planned next week";
+      break;
+    }
+    case "plan-ahead": {
+      if (!f.week) return { ok: false, error: "no-week" };
+      if (f.ahead.length >= AHEAD_MAX) return { ok: false, error: "full" };
+      const last = f.ahead[f.ahead.length - 1] ?? f.week;
+      const start = addDays(last.start, 7);
+      const week = planWeek(f, start, last);
+      if (!week) return { ok: false, error: "short" };
+      f.ahead = [...f.ahead, week];
+      changes.push(`Planned the week of ${start}.`);
+      label = "Planned a week ahead";
       break;
     }
     case "confirm": {
@@ -1009,7 +1102,7 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
   }
   if (!changes.length) changes.push("Nothing changed.");
   // Any change to the plan makes the week a draft again until it's confirmed.
-  if (f.week && JSON.stringify(f.week.slots) !== JSON.stringify(before.week?.slots)) {
+  if (f.week && before.week?.start === f.week.start && JSON.stringify(f.week.slots) !== JSON.stringify(before.week.slots)) {
     f.week.confirmedAt = null;
     f.week.photoQueue = [];
   }
@@ -1033,7 +1126,7 @@ export interface LunchMerge {
  * the taste profile's rules and every edit since stay as they are. Undo puts it back; a second run changes nothing.
  */
 export function addLunches(file: MealsFile, seed: MealsFile, now: number): LunchMerge {
-  const before: MealsState = clone({ profile: file.profile, catalog: file.catalog, components: file.components, week: file.week });
+  const before: MealsState = clone({ profile: file.profile, catalog: file.catalog, components: file.components, week: file.week, ahead: file.ahead });
   const f: MealsState = clone(before);
   const have = new Set(f.catalog.map((x) => x.id));
   const fresh = seed.catalog.filter((x) => x.course === "lunch" && !have.has(x.id)).slice(0, Math.max(0, CATALOG_MAX - f.catalog.length));

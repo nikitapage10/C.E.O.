@@ -1,0 +1,334 @@
+/* The Haven's devices drawn (#718, DeviceArt.tsx): line art in the night palette, moving with each device's state. */
+.da {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  --da-line: rgba(240, 201, 135, 0.55);
+  --da-gold: rgb(240, 201, 135);
+  --da-ink: #f4efe6;
+  --da-water: #5fb2ff;
+  --da-warn: #ff9a6a;
+}
+.da .da-body {
+  fill: #121118;
+  stroke: var(--da-line);
+  stroke-width: 1.4;
+}
+.da .da-led {
+  fill: #39ff7a;
+  filter: drop-shadow(0 0 3px #39ff7a);
+}
+
+/* ── the dry feeder ── */
+.da-dry .da-kibbleFill {
+  fill: rgba(196, 140, 78, 0.35);
+}
+.da-dry .da-kib {
+  fill: #c48c4e;
+}
+.da-dry[data-low] .da-kibbleFill {
+  fill: rgba(255, 154, 106, 0.3);
+}
+.da-dry .da-lid,
+.da-dry .da-chute {
+  fill: #1b1a22;
+  stroke: var(--da-line);
+}
+.da-dry .da-bowl {
+  fill: #1b1a22;
+  stroke: var(--da-gold);
+  stroke-width: 1.4;
+}
+.da-dry .da-drop {
+  fill: #d9a05f;
+  opacity: 0;
+}
+.da-dry[data-on] .da-drop {
+  animation: da-drop 0.9s cubic-bezier(0.5, 0, 1, 1) infinite;
+}
+.da-dry[data-on] .da-chute {
+  stroke: var(--da-gold);
+  animation: da-jiggle 0.25s linear infinite;
+}
+@keyframes da-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes da-jiggle {
+  50% {
+    transform: translateX(0.6px);
+  }
+}
+
+/* ── the wet feeder ── */
+.da-wet .da-tray {
+  transform-origin: 70px 70px;
+  transition: transform 1.6s cubic-bezier(0.6, 0, 0.3, 1);
+}
+.da-wet .da-wetBowl {
+  fill: #1b1a22;
+  stroke: rgba(240, 201, 135, 0.35);
+}
+.da-wet .da-bowlOn .da-wetBowl {
+  fill: rgba(196, 120, 90, 0.35);
+  stroke: var(--da-gold);
+  stroke-width: 1.6;
+}
+.da-wet .da-num {
+  fill: var(--da-ink);
+  font: 600 13px "Geist Mono Variable", ui-monospace, monospace;
+}
+.da-wet .da-bowlOff .da-num {
+  fill: rgba(244, 239, 230, 0.45);
+}
+.da-wet .da-wetLid {
+  fill: rgba(30, 29, 38, 0.45);
+  stroke: var(--da-line);
+  transform-origin: 70px 70px;
+  transition: transform 0.9s ease;
+}
+.da-wet[data-open] .da-wetLid {
+  transform: translateY(-40px) scaleY(0.3);
+  opacity: 0.6;
+}
+.da-wet .da-front {
+  stroke: var(--da-gold);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.da-wet[data-turning] .da-tray {
+  filter: drop-shadow(0 0 6px rgba(240, 201, 135, 0.4));
+}
+
+/* ── the fountain ── */
+.da-fountain .da-basin {
+  fill: none;
+}
+.da-fountain .da-water {
+  fill: rgba(95, 178, 255, 0.28);
+}
+.da-fountain[data-low] .da-water {
+  fill: rgba(255, 154, 106, 0.25);
+}
+.da-fountain .da-wave {
+  fill: none;
+  stroke: rgba(150, 205, 255, 0.8);
+  stroke-width: 1.4;
+}
+.da-fountain[data-on] .da-wave {
+  animation: da-wave 2.4s linear infinite;
+}
+.da-fountain .da-spout {
+  fill: #1b1a22;
+  stroke: var(--da-line);
+  stroke-width: 1.4;
+}
+.da-fountain .da-stream {
+  fill: none;
+  stroke: rgba(150, 205, 255, 0.85);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-dasharray: 6 5;
+  opacity: 0;
+}
+.da-fountain[data-on] .da-stream {
+  opacity: 1;
+  animation: da-flow 0.7s linear infinite;
+}
+.da-fountain .da-ripples ellipse {
+  fill: none;
+  stroke: rgba(150, 205, 255, 0.7);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.da-fountain[data-on] .da-ripples ellipse {
+  animation: da-ripple 1.6s ease-out infinite;
+}
+@keyframes da-wave {
+  to {
+    transform: translateX(-40px);
+  }
+}
+@keyframes da-flow {
+  to {
+    stroke-dashoffset: -11;
+  }
+}
+@keyframes da-ripple {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+/* ── the Litter-Robot ── */
+.da-litter .da-globe {
+  transform-origin: 70px 64px;
+}
+.da-litter[data-on] .da-globe {
+  animation: da-cycle 6s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+.da-litter .da-litterIn {
+  fill: none;
+  stroke: rgba(214, 196, 160, 0.35);
+  stroke-width: 10;
+  stroke-dasharray: 125 300;
+  stroke-dashoffset: -60;
+}
+.da-litter .da-opening {
+  fill: #07070a;
+  stroke: var(--da-line);
+}
+.da-litter .da-seam {
+  stroke: rgba(240, 201, 135, 0.25);
+}
+.da-litter .da-drawerBg {
+  fill: #1b1a22;
+}
+.da-litter .da-drawer {
+  fill: var(--da-gold);
+}
+.da-litter .da-drawer.is-full {
+  fill: var(--da-warn);
+}
+.da-litter[data-on] .da-led {
+  fill: #ffd27a;
+  filter: drop-shadow(0 0 3px #ffd27a);
+  animation: da-blink 0.8s steps(2) infinite;
+}
+.da-litter[data-cat] .da-opening {
+  fill: rgba(240, 201, 135, 0.18);
+}
+@keyframes da-cycle {
+  0% {
+    transform: rotate(0);
+  }
+  40% {
+    transform: rotate(-150deg);
+  }
+  55% {
+    transform: rotate(-150deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+@keyframes da-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* ── the vacuum ── */
+.da-vac .da-dock {
+  fill: #121118;
+  stroke: var(--da-line);
+}
+.da-vac .da-dockLed {
+  stroke: rgba(57, 255, 122, 0.25);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.da-vac[data-docked] .da-dockLed {
+  stroke: #39ff7a;
+  animation: da-blink 2.4s ease-in-out infinite;
+}
+.da-vac .da-robot {
+  transform: translate(60px, 60px);
+}
+.da-vac[data-docked] .da-robot {
+  transform: translate(86px, 60px);
+}
+.da-vac[data-on] .da-robot {
+  animation: da-roam 9s ease-in-out infinite;
+}
+.da-vac[data-going] .da-robot {
+  animation: da-home 3s ease-in-out infinite;
+}
+.da-vac .da-lidar {
+  fill: #1f1e27;
+  stroke: var(--da-line);
+}
+.da-vac .da-bump {
+  fill: none;
+  stroke: rgba(240, 201, 135, 0.35);
+  stroke-width: 2;
+}
+.da-vac .da-brush path {
+  stroke: var(--da-gold);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.da-vac .da-brush {
+  transform-origin: -22px 18px;
+}
+.da-vac[data-on] .da-brush {
+  animation: da-spin 0.5s linear infinite;
+}
+.da-vac[data-on] .da-lidar {
+  stroke: var(--da-gold);
+  animation: da-blink 1.2s ease-in-out infinite;
+}
+.da-vac .da-batt {
+  fill: none;
+  stroke: rgba(244, 239, 230, 0.4);
+}
+.da-vac .da-battIn {
+  fill: #39ff7a;
+}
+@keyframes da-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes da-roam {
+  0% {
+    transform: translate(40px, 40px) rotate(0);
+  }
+  25% {
+    transform: translate(80px, 34px) rotate(90deg);
+  }
+  50% {
+    transform: translate(76px, 84px) rotate(200deg);
+  }
+  75% {
+    transform: translate(34px, 80px) rotate(290deg);
+  }
+  100% {
+    transform: translate(40px, 40px) rotate(360deg);
+  }
+}
+@keyframes da-home {
+  0% {
+    transform: translate(40px, 60px);
+  }
+  100% {
+    transform: translate(86px, 60px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .da *,
+  .da {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -283,6 +283,48 @@ test("signed in: the wet tray says when it closes itself, and Close shuts it now
   expect(sent[0]).toMatchObject({ action: "wet.close", device: "a00000000005" });
 });
 
+test("signed in: each device gauge opens its controls, and they send the existing actions (#718)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: FAKE_PLAN });
+  const sent: Record<string, unknown>[] = [];
+  await page.route(/\/api\/haven\/devices\/action$/, (r) => {
+    sent.push(r.request().postDataJSON() as Record<string, unknown>);
+    return r.fulfill({ json: { ok: true, say: "Done." } });
+  });
+  await page.goto(`${BASE}/haven`);
+  const strip = page.getByRole("complementary", { name: "House-wide" });
+  // Roborock: rooms picked on the floor plan, with a mode word.
+  await strip.locator('[data-gauge="roborock"]').click();
+  const vac = page.getByRole("dialog", { name: "Roborock" });
+  await expect(vac).toBeVisible();
+  await vac.getByRole("checkbox", { name: "Clean Kitchen" }).click();
+  await vac.getByRole("checkbox", { name: "Clean Bedroom" }).click();
+  await vac.getByRole("button", { name: "Quiet" }).click();
+  await vac.getByRole("button", { name: "Clean Kitchen, Bedroom" }).click();
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0]).toMatchObject({ action: "vacuum.rooms", device: "a00000000001", rooms: ["Kitchen", "Bedroom"], suction: "quiet" });
+  await vac.getByRole("button", { name: "Dock" }).click();
+  await expect.poll(() => sent.length).toBe(2);
+  expect(sent[1]).toMatchObject({ action: "vacuum.dock" });
+  await page.keyboard.press("Escape");
+  await expect(vac).toHaveCount(0);
+  // Petlibro: two portions of dry food, then the wet tray's next bowl.
+  await strip.locator('[data-gauge="petlibro"]').click();
+  const pet = page.getByRole("dialog", { name: "Petlibro" });
+  await pet.getByRole("button", { name: "One portion more" }).click();
+  await pet.getByRole("button", { name: "Feed 2 portions" }).click();
+  await expect.poll(() => sent.length).toBe(3);
+  expect(sent[2]).toMatchObject({ action: "feeder.feed", device: "a00000000002", portions: 2 });
+  await pet.getByRole("button", { name: "Next bowl" }).click();
+  await expect.poll(() => sent.length).toBe(4);
+  expect(sent[3]).toMatchObject({ action: "wet.rotate", device: "a00000000005" });
+  await pet.getByRole("button", { name: "Close Petlibro" }).click();
+  // Whisker: a clean cycle.
+  await strip.locator('[data-gauge="whisker"]').click();
+  await page.getByRole("dialog", { name: "Whisker" }).getByRole("button", { name: "Run a clean cycle" }).click();
+  await expect.poll(() => sent.length).toBe(5);
+  expect(sent[4]).toMatchObject({ action: "litter.clean", device: "a00000000004" });
+});
+
 test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and total, and sends exactly the shown picks", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   const posts: Record<string, unknown>[] = [];

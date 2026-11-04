@@ -1240,8 +1240,8 @@
 [data-room="haven"] .hv-popAt {
   position: absolute;
   bottom: calc(100% + 12px);
-  left: clamp(0px, calc(var(--at, 160px) - 160px), calc(100% - 320px));
-  width: 320px;
+  left: clamp(0px, calc(var(--at, 180px) - 180px), calc(100% - 360px));
+  width: 360px;
   z-index: 4;
 }
 [data-room="haven"] .hv-plinth .hv-th {
@@ -1542,5 +1542,267 @@
   [data-room="haven"] .hv-gauge {
     min-width: 68px;
     padding: 2px 9px 4px;
+  }
+}
+
+/* ── the gauges' device pop-ups (#718, DevicePops.tsx) ── */
+[data-room="haven"] .hv-dp {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  gap: 12px;
+  max-height: min(70svh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px 14px;
+  border: 1px solid rgba(var(--hv-gold), 0.28);
+  border-radius: 16px;
+  background: rgba(14, 13, 18, 0.92);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  outline: none;
+  animation: hv-dp-in 0.22s ease-out;
+}
+@keyframes hv-dp-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+[data-room="haven"] .hv-dp .hv-uk em {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: rgba(var(--hv-gold), 0.85);
+}
+[data-room="haven"] .hv-dp-hero {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+[data-room="haven"] .hv-dp-hero p {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+[data-room="haven"] .hv-dp-hero b {
+  font: 500 34px/1 var(--hv-disp);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-dp-hero span,
+[data-room="haven"] .hv-dp-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-dp .is-warn {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-dp-k {
+  margin: 4px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(var(--hv-gold), 0.75);
+}
+[data-room="haven"] .hv-dp-dev {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(var(--hv-gold), 0.12);
+}
+[data-room="haven"] .hv-dp-dev:first-of-type {
+  border-top: 0;
+}
+[data-room="haven"] .hv-dp-dev > div {
+  display: grid;
+  gap: 6px;
+}
+[data-room="haven"] .hv-dp-name {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+[data-room="haven"] .hv-dp-name span {
+  font-weight: 400;
+  font-size: 12px;
+  color: rgba(var(--hv-gold), 0.85);
+}
+[data-room="haven"] .hv-dp .hv-btn {
+  margin-top: 0;
+  padding: 7px 12px;
+  font-size: 13px;
+}
+[data-room="haven"] .hv-dp-btns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+[data-room="haven"] .hv-dp-btns .hv-btn.is-pri {
+  grid-column: 1 / -1;
+}
+[data-room="haven"] .hv-dp-btns.is-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+[data-room="haven"] .hv-dp-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+[data-room="haven"] .hv-dp-step > button:not(.hv-btn) {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(var(--hv-gold), 0.35);
+  border-radius: 50%;
+  background: none;
+  color: var(--hv-ink);
+  font-size: 16px;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-dp-step > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+[data-room="haven"] .hv-dp-step b {
+  min-width: 18px;
+  text-align: center;
+  font: 500 22px var(--hv-disp);
+}
+[data-room="haven"] .hv-dp-step .hv-btn.is-pri {
+  width: auto;
+  flex: 1;
+}
+[data-room="haven"] .hv-dp-modes {
+  display: grid;
+  gap: 6px;
+}
+[data-room="haven"] .hv-dp-modes [role="group"] {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid rgba(var(--hv-gold), 0.15);
+  border-radius: 999px;
+}
+[data-room="haven"] .hv-dp-modes button {
+  flex: 1;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-mute);
+  font: 500 12px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-dp-modes button[aria-pressed="true"] {
+  background: rgba(var(--hv-gold), 0.18);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-dp-said {
+  min-height: 1em;
+  margin: 0;
+  font-size: 12px;
+  color: rgba(var(--hv-gold), 0.9);
+}
+[data-room="haven"] .hv-dp-said:empty {
+  display: none;
+}
+[data-room="haven"] .hv-dp .hv-chips {
+  max-height: 72px;
+  overflow-y: auto;
+}
+
+/* Where to send the vacuum, on the floor plan (#718, RoomMap.tsx). */
+[data-room="haven"] .hv-rmap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 210px;
+}
+[data-room="haven"] .hv-rmapRoom rect {
+  fill: rgba(255, 255, 255, 0.035);
+  stroke: rgba(var(--hv-gold), 0.4);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  transition: fill 0.25s;
+}
+[data-room="haven"] .hv-rmapRoom text {
+  fill: var(--hv-ink);
+  font-family: var(--hv-disp);
+  font-style: italic;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+[data-room="haven"] .hv-rmapRoom.is-off rect {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+}
+[data-room="haven"] .hv-rmapRoom.is-off text {
+  fill: var(--hv-faint);
+}
+[data-room="haven"] .hv-rmapRoom[role="checkbox"] {
+  cursor: pointer;
+  outline: none;
+}
+[data-room="haven"] .hv-rmapRoom[role="checkbox"]:hover rect,
+[data-room="haven"] .hv-rmapRoom[role="checkbox"]:focus-visible rect {
+  fill: rgba(var(--hv-gold), 0.1);
+}
+[data-room="haven"] .hv-rmapRoom[role="checkbox"]:focus-visible rect {
+  stroke: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-rmapRoom.is-on rect {
+  fill: rgba(var(--hv-gold), 0.16);
+  stroke: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-rmapFill rect {
+  stroke: none;
+}
+[data-room="haven"] .hv-rmapSweep {
+  fill: rgba(var(--hv-gold), 0.16);
+  animation: hv-rmap-sweep 1.6s linear infinite;
+}
+@keyframes hv-rmap-sweep {
+  to {
+    transform: translateX(40px);
+  }
+}
+[data-room="haven"] .hv-rmapDock circle {
+  fill: #39ff7a;
+}
+[data-room="haven"] .hv-rmapDock .hv-rmapPulse {
+  fill: rgba(57, 255, 122, 0.25);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hv-rmap-pulse 2s ease-out infinite;
+}
+@keyframes hv-rmap-pulse {
+  from {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@media (max-width: 860px) {
+  [data-room="haven"] .hv-dp {
+    max-height: 62svh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .hv-dp,
+  [data-room="haven"] .hv-rmapSweep,
+  [data-room="haven"] .hv-rmapPulse {
+    animation: none;
   }
 }

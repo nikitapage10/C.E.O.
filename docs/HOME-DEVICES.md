@@ -29,6 +29,12 @@ new npm packages (the MQTT client is a few dozen lines over `node:tls`, [`mqtt.t
 | Fountain | online, water level, filter life left, alerts (water low, filter due, needs a clean); today's intake (mL, shown in oz), visits and average visit, and the days until the filter change and the clean (overdue in ember) (#685) | none |
 | Litter-Robot 5 Pro | state (ready, cycling, cat inside, drawer full, paused, offline…), waste drawer %, litter level %, last visit, alerts (drawer full, drawer out, bonnet off, sensors need a wipe, litter low) | **Clean now** (a clean cycle) |
 
+On the Desk's Haven (#718), tapping a device's gauge on the strip opens its controls over it: Roborock (the rooms
+picked on the floor plan, a mode word, clean everywhere, pause, dock), Petlibro (the dry feeder's portions, the wet
+tray's open, next bowl, close and what's in it, the fountain's readings) and Whisker (a clean cycle). They are the
+actions below, nothing new, through the same rails. The Climate dial holds a change three seconds after the last turn
+or tap and sends it once, with Cancel and Send now while it waits.
+
 ## The API
 
 - `GET /api/haven/devices`: a passkey session or a phone key in `x-ceo-phone-key` ([HEY-SKIPPY.md](HEY-SKIPPY.md)). Every device's

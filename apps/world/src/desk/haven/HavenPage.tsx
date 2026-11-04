@@ -377,7 +377,7 @@ export function Haven() {
             {openTab === "kitchen" ? (
               <KitchenTab items={items} onTick={tick} onDrop={drop} onReread={reread} />
             ) : openTab === "hall" ? (
-              <HallTab devices={devices} connected={vendors.roborock !== "waiting"} room={openRoom} />
+              <HallTab devices={devices} connected={vendors.roborock !== "waiting"} room={openRoom} plan={thePlan} />
             ) : openTab === "pets" ? (
               <PetsTab devices={devices} petlibro={stateWord[vendors.petlibro]} whisker={stateWord[vendors.whisker]} />
             ) : openTab === "gym" ? (

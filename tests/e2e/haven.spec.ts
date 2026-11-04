@@ -334,6 +334,15 @@ test("signed in: each device gauge opens its controls, and they send the existin
   await page.getByRole("dialog", { name: "Whisker" }).getByRole("button", { name: "Run a clean cycle" }).click();
   await expect.poll(() => sent.length).toBe(5);
   expect(sent[4]).toMatchObject({ action: "litter.clean", device: "a00000000004" });
+  await page.keyboard.press("Escape");
+  // The Hall page picks rooms on the same floor plan, with the vacuum drawn beside it.
+  await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Hall" }).click();
+  const hall = page.getByRole("dialog", { name: "Hall" });
+  await hall.getByRole("checkbox", { name: "Clean Living room" }).click();
+  await hall.getByRole("button", { name: "Max" }).click();
+  await hall.getByRole("button", { name: "Clean Living room" }).click();
+  await expect.poll(() => sent.length).toBe(6);
+  expect(sent[5]).toMatchObject({ action: "vacuum.rooms", rooms: ["Living room"], suction: "max" });
 });
 
 test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and total, and sends exactly the shown picks", async ({ page }) => {

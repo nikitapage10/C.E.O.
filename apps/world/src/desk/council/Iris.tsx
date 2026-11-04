@@ -1,16 +1,21 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { eyeSpec, type EyeState } from "./nanites.ts";
 import { irisLayout, type IrisLayout } from "./layout.ts";
-import { MANNERS, SKIPPY_MANNER } from "./manner.ts";
+import { mannerOf, SKIPPY_MANNER } from "./manner.ts";
 import type { Council, CouncilMember } from "./councilScene.ts";
 import { CREW, useFoundry } from "../../foundry.ts";
 import { ideaTitle } from "../IdeaCard.tsx";
 import { roomLink } from "../hero/roomLink.ts";
-import type { PulseState, RoomPulse } from "../roomPulse.ts";
+import { ROOM_ORDER, type PulseState } from "../roomPulse.ts";
+import type { RoomId } from "../../chronicle.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { mtTime } from "../todaySchedule.ts";
-import { RC, reducedMotion, useViz } from "../wvCanvas.ts";
+import { reducedMotion, useViz } from "../wvCanvas.ts";
+import { COUNCIL_RC as RC } from "./deskPulses.ts";
 import { Talks, useTalks } from "../confluence/Talks.tsx";
+import { useWorldFeed } from "../../chronicle.ts";
+import { modelReady } from "../modelCache.ts";
+import { councilLines, kernelLive, memberLive, SKIPPY_MODEL, type CouncilLine, type CouncilPulse } from "./live.ts";
 import "./iris.css";
 
 /**
@@ -24,6 +29,11 @@ import "./iris.css";
  * three.js once the page has painted; until then, and on a device without WebGL, the nanites draw each room's sigil
  * on its seat. Reduced motion: every member holds its pose and the nanites hold still. Phones: the ring sits under the
  * list, drawn at a lower resolution and at most 30 frames a second.
+ *
+ * #717: the Council sits dark until something real happens for a member (live.ts); then that member is lit, stands
+ * in a shaft of light (councilScene.ts) and says what it's doing in a small line over its head, from the same real
+ * feed Today shows. Once the model has loaded in a visit the Council comes back at once (modelCache.ts). The Desk's
+ * own subminds, the Steward (the Haven) and the Stagehand (the Annex), sit on the ring with the ten (deskPulses.ts).
  */
 
 const STATE_WORD: Record<PulseState, string> = { busy: "busy", steady: "steady", waiting: "waiting", down: "needs a look", sim: "not set up" };
@@ -31,10 +41,13 @@ const MOMENT: Partial<Record<string, string>> = { archive: "An hour of Ilyr writ
 const job = (title: string) => title.replace(/^The /, "");
 const hex = (rgb: string) => `#${rgb.split(",").map((v) => Number(v).toString(16).padStart(2, "0")).join("")}`;
 const PHONE_Q = "(max-width: 760px)";
+/** How many members speak at once, and how long each of a member's lines stays up. */
+const SAY_MAX = { wide: 4, phone: 2 };
+const SAY_MS = 7000;
 const isPhoneNow = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(PHONE_Q).matches;
 
 export interface IrisProps {
-  pulses: RoomPulse[];
+  pulses: CouncilPulse[];
   now: number;
   since: number;
   /** How many things are held for Nikita in each room. */
@@ -56,14 +69,19 @@ export function Iris({ pulses, now, since, held, skippySays, hotRef }: IrisProps
   const [hot, setHot] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   useTalks();
+  const changelog = useFoundry((s) => s.data.changelog);
+  const world = useWorldFeed().feed;
+
+  const lives = useMemo(() => Object.fromEntries(pulses.map((p) => [p.id, memberLive(p, now)])), [pulses, now]);
+  const lines = useMemo(() => councilLines({ pulses, changes: changelog, ilyr: world?.recent ?? [], now }), [pulses, changelog, world, now]);
 
   const ids = useMemo(() => pulses.map((p) => p.id), [pulses]);
   const members: CouncilMember[] = useMemo(
     () => [
-      { id: "kernel", colour: null, manner: SKIPPY_MANNER, alive: true },
-      ...pulses.map((p) => ({ id: p.id, colour: hex(RC[p.id] ?? "200,200,220"), manner: MANNERS[p.id], alive: p.submind.active && p.state !== "sim" })),
+      { id: "kernel", colour: null, manner: SKIPPY_MANNER, alive: true, live: kernelLive(Object.values(lives)) },
+      ...pulses.map((p) => ({ id: p.id, colour: hex(RC[p.id] ?? "200,200,220"), manner: mannerOf(p.id), alive: p.submind.active && p.state !== "sim", live: lives[p.id] ?? 0 })),
     ],
-    [pulses],
+    [pulses, lives],
   );
 
   // What the nanites read each frame: changed in place, never a render per frame.
@@ -151,13 +169,15 @@ export function Iris({ pulses, now, since, held, skippySays, hotRef }: IrisProps
         : null;
     io?.observe(el);
     const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
-    const idle = typeof w.requestIdleCallback === "function" ? w.requestIdleCallback(start, { timeout: 1500 }) : window.setTimeout(start, 400);
+    // Already loaded this visit: build it now, with no wait for the page to settle.
+    const idle = modelReady(SKIPPY_MODEL) ? window.setTimeout(start, 0) : typeof w.requestIdleCallback === "function" ? w.requestIdleCallback(start, { timeout: 1500 }) : window.setTimeout(start, 400);
+    const viaIdle = !modelReady(SKIPPY_MODEL) && typeof w.requestIdleCallback === "function";
     const vis = () => document.visibilityState === "visible" && kick();
     document.addEventListener("visibilitychange", vis);
     kickRef.current = kick;
     return () => {
       dead = true;
-      if (typeof w.cancelIdleCallback === "function" && typeof w.requestIdleCallback === "function") w.cancelIdleCallback(idle);
+      if (viaIdle && typeof w.cancelIdleCallback === "function") w.cancelIdleCallback(idle);
       else window.clearTimeout(idle);
       cancelAnimationFrame(raf);
       io?.disconnect();
@@ -208,7 +228,7 @@ export function Iris({ pulses, now, since, held, skippySays, hotRef }: IrisProps
       <canvas ref={eye} className="ti-eye" aria-hidden="true" />
       <div ref={stage} className="ti-stage" role="group" aria-label={`The Council of Skippies: ${active} of ${pulses.length} subminds active`}>
         <canvas ref={gl} className="ti-gl" aria-hidden="true" />
-        {litSeat && (
+        {litSeat && glState !== "on" && (
           <span
             key={lit}
             className="ti-cone"
@@ -258,6 +278,7 @@ export function Iris({ pulses, now, since, held, skippySays, hotRef }: IrisProps
                 </button>
               );
             })}
+            <Says lines={lines} L={L} lit={lit} sel={sel} />
             {litPulse && litSeat && !sel && (
               <p className={`ti-tip${litSeat.x > L.w * 0.62 ? " is-left" : ""}`} style={{ left: litSeat.x, top: litSeat.y - litSeat.size * 0.62, "--c": RC[litPulse.id] } as CSSProperties} aria-hidden="true">
                 <b>{litPulse.name}</b> · {litPulse.state === "sim" ? "not set up yet" : litPulse.status}
@@ -271,7 +292,48 @@ export function Iris({ pulses, now, since, held, skippySays, hotRef }: IrisProps
   );
 }
 
-function Card({ id, L, pulses, now, since, held, skippySays, active, onClose }: { id: string; L: IrisLayout; pulses: RoomPulse[]; now: number; since: number; held: Record<string, number>; skippySays: string; active: number; onClose: () => void }) {
+/**
+ * What the lit members are doing, one short line over each one's head (#717), the newest work first and at most a few
+ * at once; a member with several lines turns through them. Hidden for the one pointed at (its tip says it) and while a
+ * card is open.
+ */
+function Says({ lines, L, lit, sel }: { lines: Record<string, CouncilLine[]>; L: IrisLayout; lit: string | null; sel: string | null }) {
+  const [turn, setTurn] = useState(0);
+  const many = Object.values(lines).some((l) => l.length > 1);
+  useEffect(() => {
+    if (!many || reducedMotion()) return;
+    const t = window.setInterval(() => setTurn((n) => n + 1), SAY_MS);
+    return () => window.clearInterval(t);
+  }, [many]);
+  if (sel) return null;
+  const order = Object.values(lines)
+    .filter((l) => l.length && l[0]!.room !== lit)
+    .sort((a, b) => b[0]!.at - a[0]!.at)
+    .slice(0, L.phone ? SAY_MAX.phone : SAY_MAX.wide);
+  return (
+    <>
+      {order.map((l) => {
+        const s = L.seats.find((x) => x.id === l[0]!.room);
+        if (!s) return null;
+        const line = l[turn % l.length]!;
+        // Above its head on the upper half of the ring, under its name on the lower half, so no line crosses Skippy.
+        const below = s.y > L.cy + L.r * 0.2;
+        return (
+          <p
+            key={`${line.room}:${line.text}`}
+            className={`ti-say${below ? " is-below" : ""}`}
+            style={{ left: s.x, top: below ? s.y + L.member * 0.66 : s.y - L.member * 0.6, "--c": RC[line.room] } as CSSProperties}
+            aria-live="off"
+          >
+            {line.text}
+          </p>
+        );
+      })}
+    </>
+  );
+}
+
+function Card({ id, L, pulses, now, since, held, skippySays, active, onClose }: { id: string; L: IrisLayout; pulses: CouncilPulse[]; now: number; since: number; held: Record<string, number>; skippySays: string; active: number; onClose: () => void }) {
   const setOpen = useSkippy((s) => s.setOpen);
   const changelog = useFoundry((s) => s.data.changelog);
   const box = useRef<HTMLElement>(null);
@@ -359,7 +421,7 @@ function Card({ id, L, pulses, now, since, held, skippySays, active, onClose }: 
           <dd>{n ? `${n} ${n === 1 ? "thing" : "things"} held for you here` : "Nothing held for you here"} · {p.drive}</dd>
         </div>
       </dl>
-      <Talks room={p.id} who={p.submind.title} />
+      {(ROOM_ORDER as readonly string[]).includes(p.id) && <Talks room={p.id as RoomId} who={p.submind.title} />}
       <div className="ti-card-acts">
         <a className="ti-btn" href={p.href} onClick={roomLink(p.href)}>
           Open {p.name} ›

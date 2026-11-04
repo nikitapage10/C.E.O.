@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../../../api/_haven/plan.fixture.ts";
 import type { DeviceReading } from "../homeDevices.ts";
-import { deviceLit, litRooms, roomAt, summaryOf, tabOf } from "./data.ts";
+import { climateOf, deviceLit, litRooms, roomAt, summaryOf, tabOf } from "./data.ts";
 import { wallsOf } from "./house.ts";
 
 /** The Haven's lit rooms (#616), from made-up readings on a made-up plan. */
@@ -73,5 +73,16 @@ describe("litRooms", () => {
   it("sums up what needs Nikita first", () => {
     expect(summaryOf({}, FAKE_PLAN)).toMatch(/All quiet/);
     expect(summaryOf({ nook: { level: 0.85, needs: true, why: ["food low"] }, kitchen: { level: 0.5, needs: false, why: ["2 to get"] } }, FAKE_PLAN)).toBe("Dining: food low");
+  });
+});
+
+describe("the climate from the Nest (#637)", () => {
+  it("waits without a thermostat reading, and reads one once it's there", () => {
+    expect(climateOf(null)).toEqual({ state: "waiting" });
+    expect(climateOf([dev({ kind: "vacuum", vendor: "roborock" })])).toEqual({ state: "waiting" });
+    expect(climateOf([dev({ kind: "thermostat", vendor: "nest", online: false, tempF: 66 })])).toEqual({ state: "waiting" });
+    expect(climateOf([dev({ kind: "thermostat", vendor: "nest", tempF: 66, mode: "heat", heatF: 68, hvac: "heating" })])).toEqual({ state: "live", inside: 66, target: 68, mode: "heat", running: true });
+    expect(climateOf([dev({ kind: "thermostat", vendor: "nest", tempF: 74, mode: "heatcool", heatF: 66, coolF: 72, hvac: "cooling" })])).toEqual({ state: "live", inside: 74, target: null, mode: "cool", running: true });
+    expect(climateOf([dev({ kind: "thermostat", vendor: "nest", tempF: 70, mode: "heat", eco: true, hvac: "off" })])).toMatchObject({ mode: "eco", running: false });
   });
 });

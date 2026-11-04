@@ -50,8 +50,18 @@ export const PLAN_NOTE: Record<string, string> = {
   failed: "That didn't save. Try again.",
 };
 
-/** The house-wide climate (the Nest). Not connected yet: it shows as waiting until its endpoint lands. */
+/** The house-wide climate (the Nest, #637): waiting until its thermostat reading is there (signed in, connected). */
 export type Climate = { state: "waiting" } | { state: "live"; inside: number; target: number | null; mode: "heat" | "cool" | "off" | "eco"; running: boolean };
+
+/** The climate from the thermostat's reading (signed in only); waiting without one, or while it's offline. */
+export function climateOf(devices: DeviceReading[] | null): Climate {
+  const t = devices?.find((d) => d.kind === "thermostat");
+  if (!t || !t.online || typeof t.tempF !== "number") return { state: "waiting" };
+  const running = t.hvac === "heating" || t.hvac === "cooling";
+  const mode = t.eco ? "eco" : t.mode === "off" ? "off" : t.mode === "cool" || (t.mode === "heatcool" && t.hvac === "cooling") ? "cool" : "heat";
+  const target = t.mode === "heat" ? (t.heatF ?? null) : t.mode === "cool" ? (t.coolF ?? null) : null;
+  return { state: "live", inside: t.tempF, target, mode, running };
+}
 
 /** The room a plan point is in, or null. */
 export function roomAt(plan: HavenPlan, x: number, y: number): PlanRoom | null {

@@ -201,6 +201,11 @@
 .desk .kl-list input{width:18px;height:18px;accent-color:var(--wv-hot)}
 .desk .kl-list .is-done label{color:var(--wv-faint);text-decoration:line-through}
 .desk .kl-empty{margin:0;font-size:14px;color:var(--wv-mute)}
+.desk .kl-cart{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 0;font-size:13px;color:var(--wv-mute)}
+.desk .kl-cart button{font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft);cursor:pointer}
+.desk .kl-cart button:disabled{opacity:.45;cursor:default}
+.desk .kl-cart small{flex-basis:100%}
+.desk .kl-cart a{color:var(--wv-soft)}
 
 /* The Home chip (#632, HomeDevices.tsx): the vacuum, feeders, fountain and Litter-Robot. Counts only signed out. */
 .desk .hd-btn{cursor:default}
@@ -223,3 +228,9 @@
 .desk .hd-connect{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:12px 0 0;font-size:13px;color:var(--wv-mute)}
 .desk .hd-connect input{border-radius:8px;min-width:0;flex:1 1 160px}
 .desk .hd-connect small{flex-basis:100%}
+.desk .hd-connect>p,.desk .hd-connect>form{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0;flex-basis:100%}
+.desk .hd-acts select{font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft)}
+/* #637: the Home chip's panel grew (thermostat, the wet tray, Google): it stays above the rest of Today and scrolls. */
+.desk .cf-hero:has(.cf-cu-pop:not([hidden])){z-index:2}
+.desk .hd-pop{max-height:min(72vh,640px);overflow-y:auto;overscroll-behavior:contain}
+.desk:has(.cf-hero .cf-cu-pop:not([hidden])) .desk__foot{visibility:hidden}

@@ -22,6 +22,8 @@ export const LIVE_SETTINGS = {
   KERNEL_AGENT_BUDGET_USD: "kernelAgentBudgetUsd",
   // The home devices' manual feeds a day per feeder (#632), kept as set.
   HOME_FEED_CAP: "homeFeedCap",
+  // Send to Instacart's environment (#637): development or production, kept as set.
+  INSTACART_ENV: "instacartEnv",
 };
 
 /**
@@ -48,6 +50,7 @@ export const RESOURCE_PARAMS = [
   "kernelAgentEnabled",
   "kernelAgentBudgetUsd",
   "homeFeedCap",
+  "instacartEnv",
   "paypalEnv",
   "siteOnCustomDomain",
   "tags",
@@ -107,6 +110,7 @@ export function buildParams({ main, live = {}, cap = "", deployer = "", github =
     kernelAgentEnabled: pick("kernelAgentEnabled", live.KERNEL_AGENT_ENABLED, (v) => v === "true" || v === "false"),
     kernelAgentBudgetUsd: pick("kernelAgentBudgetUsd", live.KERNEL_AGENT_BUDGET_USD, (v) => MONEY.test(v) && Number(v) <= 10),
     homeFeedCap: pick("homeFeedCap", live.HOME_FEED_CAP, (v) => /^[0-6]$/.test(v)),
+    instacartEnv: pick("instacartEnv", live.INSTACART_ENV, (v) => v === "development" || v === "production"),
     paypalEnv: pick("paypalEnv", live.PAYPAL_ENV, (v) => v === "sandbox" || v === "live"),
     siteOnCustomDomain,
     tags: defaultOf(main, "tags"),

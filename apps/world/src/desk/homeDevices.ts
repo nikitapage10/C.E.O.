@@ -9,18 +9,39 @@ import { useDeskAuth } from "./signin.ts";
  *   GET  /api/haven/devices               signed in: every device's reading (model and place are private).
  *   POST /api/haven/devices/action        signed in: one action, through the server's safety rails.
  *   POST /api/haven/devices/connect       signed in: Connect Roborock (email, code, disconnect).
+ *   GET  /api/haven/google                signed in: Connect Nest and Connect Google Tasks, the Tasks list (#637).
+ *   POST /api/haven/google                signed in: connect, disconnect, the Tasks list's title, a sync now.
  *
  * Where the route doesn't exist (the Vercel copy, a local build) everything stays hidden.
  */
 
-export type Vendor = "roborock" | "petlibro" | "whisker";
+export type Vendor = "roborock" | "petlibro" | "whisker" | "nest";
 export type VendorState = "waiting" | "live" | "down";
-export type DeviceKind = "vacuum" | "dry-feeder" | "wet-feeder" | "fountain" | "litter";
-export type ActionId = "vacuum.start" | "vacuum.pause" | "vacuum.dock" | "vacuum.rooms" | "feeder.feed" | "wet.open" | "litter.clean";
+export type DeviceKind = "vacuum" | "dry-feeder" | "wet-feeder" | "fountain" | "litter" | "thermostat";
+export type ActionId = "vacuum.start" | "vacuum.pause" | "vacuum.dock" | "vacuum.rooms" | "feeder.feed" | "wet.open" | "wet.rotate" | "wet.close" | "wet.status" | "litter.clean" | "thermostat.set" | "thermostat.mode";
+export type ThermoMode = "heat" | "cool" | "heatcool" | "off";
+/** An action's own fields: the thermostat's (#637), dry portions, the wet bowl, the vacuum's mode words. */
+export interface ActExtra {
+  tempF?: number;
+  heatF?: number;
+  coolF?: number;
+  mode?: ThermoMode;
+  portions?: number;
+  plate?: number;
+  suction?: "quiet" | "max";
+  water?: "off" | "on";
+}
+/** The Haven's other connections (#637): their states come with the devices' answers. */
+export type Link = "tasks" | "instacart";
 
-export const VENDORS: readonly Vendor[] = ["roborock", "petlibro", "whisker"];
-export const VENDOR_NAME: Record<Vendor, string> = { roborock: "Roborock", petlibro: "Petlibro", whisker: "Whisker" };
-const KINDS: readonly DeviceKind[] = ["vacuum", "dry-feeder", "wet-feeder", "fountain", "litter"];
+export const VENDORS: readonly Vendor[] = ["roborock", "petlibro", "whisker", "nest"];
+export const LINKS: readonly Link[] = ["tasks", "instacart"];
+export const VENDOR_NAME: Record<Vendor, string> = { roborock: "Roborock", petlibro: "Petlibro", whisker: "Whisker", nest: "Google Nest" };
+const KINDS: readonly DeviceKind[] = ["thermostat", "vacuum", "dry-feeder", "wet-feeder", "fountain", "litter"];
+const MODES: readonly ThermoMode[] = ["heat", "cool", "heatcool", "off"];
+/** The thermostat's rails, as the server keeps them (api/_haven/devices/rails.ts). */
+export const THERMO_MIN_F = 60;
+export const THERMO_MAX_F = 80;
 
 export interface DeviceReading {
   id: string;
@@ -37,16 +58,27 @@ export interface DeviceReading {
   lastFed?: string | null;
   manualToday?: number;
   manualCap?: number;
+  /** The wet feeder's bowl in front (1 to 3). */
+  plate?: number;
   water?: number | null;
   filter?: number | null;
   drawer?: number | null;
   litter?: number | null;
   lastUse?: string | null;
   catInside?: boolean;
+  tempF?: number | null;
+  humidity?: number | null;
+  mode?: ThermoMode;
+  modes?: ThermoMode[];
+  eco?: boolean;
+  hvac?: string;
+  heatF?: number | null;
+  coolF?: number | null;
 }
 
 export interface HomePrivate {
   vendors: Record<Vendor, VendorState>;
+  links: Record<Link, VendorState>;
   devices: DeviceReading[];
   feedCap: number;
   roborockConnected: boolean;
@@ -54,6 +86,7 @@ export interface HomePrivate {
 
 export interface HomePublic {
   vendors: Record<Vendor, VendorState>;
+  links: Record<Link, VendorState>;
   devices: { kind: DeviceKind; state: string; online: boolean }[];
 }
 
@@ -67,7 +100,13 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : n
 function vendorsOf(v: unknown): Record<Vendor, VendorState> {
   const b = o(v);
   const pick = (s: unknown): VendorState => (s === "live" || s === "down" ? s : "waiting");
-  return { roborock: pick(b.roborock), petlibro: pick(b.petlibro), whisker: pick(b.whisker) };
+  return { roborock: pick(b.roborock), petlibro: pick(b.petlibro), whisker: pick(b.whisker), nest: pick(b.nest) };
+}
+
+function linksOf(v: unknown): Record<Link, VendorState> {
+  const b = o(v);
+  const pick = (s: unknown): VendorState => (s === "live" || s === "down" ? s : "waiting");
+  return { tasks: pick(b.tasks), instacart: pick(b.instacart) };
 }
 
 /** The public face, checked; null when it isn't one. */
@@ -78,7 +117,7 @@ export function readPublic(v: unknown): HomePublic | null {
     .map(o)
     .filter((d) => KINDS.includes(d.kind as DeviceKind))
     .map((d) => ({ kind: d.kind as DeviceKind, state: short(d.state, 24), online: d.online === true }));
-  return { vendors: vendorsOf(b.vendors), devices };
+  return { vendors: vendorsOf(b.vendors), links: linksOf(b.links), devices };
 }
 
 /** One private reading, checked; null when it isn't one. */
@@ -100,12 +139,23 @@ export function readDevice(v: unknown): DeviceReading | null {
     lastFed: typeof d.lastFed === "string" ? d.lastFed : null,
     manualToday: num(d.manualToday) ?? undefined,
     manualCap: num(d.manualCap) ?? undefined,
+    plate: num(d.plate) ?? undefined,
     water: num(d.water),
     filter: num(d.filter),
     drawer: num(d.drawer),
     litter: num(d.litter),
     lastUse: typeof d.lastUse === "string" ? d.lastUse : null,
     catInside: d.catInside === true,
+    ...(d.kind === "thermostat" && {
+      tempF: num(d.tempF),
+      humidity: num(d.humidity),
+      ...(MODES.includes(d.mode as ThermoMode) && { mode: d.mode as ThermoMode }),
+      modes: Array.isArray(d.modes) ? d.modes.filter((m): m is ThermoMode => MODES.includes(m as ThermoMode)) : [],
+      eco: d.eco === true,
+      hvac: short(d.hvac, 12),
+      heatF: num(d.heatF),
+      coolF: num(d.coolF),
+    }),
   };
 }
 
@@ -114,6 +164,7 @@ export function readPrivate(v: unknown): HomePrivate | null {
   if (!b.vendors || !Array.isArray(b.devices)) return null;
   return {
     vendors: vendorsOf(b.vendors),
+    links: linksOf(b.links),
     devices: b.devices.map(readDevice).filter((d): d is DeviceReading => d !== null),
     feedCap: num(b.feedCap) ?? 2,
     roborockConnected: b.roborockConnected === true,
@@ -143,7 +194,7 @@ interface HomeStore {
   /** Skippy's line after the last action, or the reason it was refused. */
   said: string | null;
   refresh: () => Promise<void>;
-  act: (action: ActionId, device?: string, rooms?: string[]) => Promise<boolean>;
+  act: (action: ActionId, device?: string, rooms?: string[], extra?: ActExtra) => Promise<boolean>;
   connect: (body: { step: "send"; email: string } | { step: "code"; code: string } | { step: "disconnect" }) => Promise<{ ok: boolean; say?: string }>;
 }
 
@@ -169,7 +220,7 @@ export const useHome = create<HomeStore>((set, get) => ({
         } else if (res.ok) {
           const view = readPrivate(await res.json());
           if (view) {
-            set({ load: "live", view, pub: { vendors: view.vendors, devices: view.devices.map((d) => ({ kind: d.kind, state: d.state, online: d.online })) } });
+            set({ load: "live", view, pub: { vendors: view.vendors, links: view.links, devices: view.devices.map((d) => ({ kind: d.kind, state: d.state, online: d.online })) } });
             return;
           }
         }
@@ -186,10 +237,10 @@ export const useHome = create<HomeStore>((set, get) => ({
       set({ load: "failed" });
     }
   },
-  act: async (action, device, rooms) => {
+  act: async (action, device, rooms, extra) => {
     set({ busy: action, said: null });
     try {
-      const res = await post(`${PATH}/action`, { action, ...(device ? { device } : {}), ...(rooms?.length ? { rooms } : {}) });
+      const res = await post(`${PATH}/action`, { action, ...(device ? { device } : {}), ...(rooms?.length ? { rooms } : {}), ...(extra ?? {}) });
       if (res.status === 401) useDeskAuth.getState().lost();
       const got = isJson(res) ? o(await res.json().catch(() => ({}))) : {};
       set({ busy: null, said: short(got.say, 300) || (res.ok ? "Done." : "That didn't go through. Try again.") });
@@ -233,4 +284,51 @@ export function startHome(): void {
       if (was !== "checking") refresh();
     }
   });
+}
+
+/* ── The Haven's Google connections (#637, api/_haven/google/route.ts) ── */
+
+export interface HavenGoogle {
+  google: boolean;
+  nest: { project: boolean; connected: boolean; refused: boolean };
+  tasks: { connected: boolean; refused: boolean; list: string; lastRun: string | null; lastResult: string | null; lastImported: number };
+  instacart: { ready: boolean; env: string | null };
+}
+
+export function readGoogle(v: unknown): HavenGoogle | null {
+  const b = o(v);
+  if (typeof b.google !== "boolean") return null;
+  const n = o(b.nest);
+  const t = o(b.tasks);
+  const i = o(b.instacart);
+  return {
+    google: b.google,
+    nest: { project: n.project === true, connected: n.connected === true, refused: n.refused === true },
+    tasks: { connected: t.connected === true, refused: t.refused === true, list: short(t.list, 60) || "Shopping", lastRun: typeof t.lastRun === "string" ? t.lastRun : null, lastResult: short(t.lastResult, 12) || null, lastImported: num(t.lastImported) ?? 0 },
+    instacart: { ready: i.ready === true, env: short(i.env, 12) || null },
+  };
+}
+
+/** The signed-in Desk's view of the Google connections; null when the route isn't there or signed out. */
+export async function loadGoogle(): Promise<HavenGoogle | null> {
+  try {
+    const res = await fetch("/api/haven/google", { headers: { Accept: "application/json" }, credentials: "same-origin", cache: "no-store" });
+    if (res.status === 401) useDeskAuth.getState().lost();
+    return res.ok && isJson(res) ? readGoogle(await res.json()) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One Google action; `url` comes back for a connect, to send the browser to Google. */
+export async function googleAction(body: { action: "connect" | "disconnect"; grant: "nest" | "tasks" } | { action: "tasks-list"; title: string } | { action: "tasks-sync" }): Promise<{ ok: boolean; url?: string; error?: string; imported?: number }> {
+  try {
+    const res = await post("/api/haven/google", body);
+    if (res.status === 401) useDeskAuth.getState().lost();
+    const got = isJson(res) ? o(await res.json().catch(() => ({}))) : {};
+    const url = typeof got.url === "string" && /^https:\/\/(accounts\.google\.com|nestservices\.google\.com)\//.test(got.url) ? got.url : undefined;
+    return { ok: res.ok, url, error: short(got.error ?? got.result, 20) || undefined, imported: num(got.imported) ?? undefined };
+  } catch {
+    return { ok: false, error: "failed" };
+  }
 }

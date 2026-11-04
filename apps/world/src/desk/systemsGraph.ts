@@ -166,6 +166,10 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     roborock: { id: "roborock", l: "Roborock", s: L("roborock") === "wait" ? "not connected yet" : "the vacuum", k: "service", state: L("roborock") },
     petlibro: { id: "petlibro", l: "Petlibro", s: L("petlibro") === "wait" ? "not connected yet" : "feeders and fountain", k: "service", state: L("petlibro") },
     whisker: { id: "whisker", l: "Whisker", s: L("whisker") === "wait" ? "not connected yet" : "the Litter-Robot", k: "service", state: L("whisker") },
+    // The Haven's connections (#637): the Nest thermostat, Google Tasks quick-add and Send to Instacart.
+    nest: { id: "nest", l: "Google Nest", s: L("nest") === "wait" ? "not connected yet" : "the thermostat", k: "service", state: L("nest") },
+    tasks: { id: "tasks", l: "Google Tasks", s: L("tasks") === "wait" ? "not connected yet" : "quick-adds, every 5 min", k: "service", state: L("tasks") },
+    instacart: { id: "instacart", l: "Instacart", s: L("instacart") === "wait" ? "no key yet" : "shopping list pages", k: "service", state: L("instacart") },
     fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "no key yet" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
@@ -209,6 +213,9 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     { ...e("boiler", "roborock", "boiler", nodes.roborock!.state), label: "The vacuum", how: conn("roborock")?.how, ...fromConn("roborock") },
     { ...e("boiler", "petlibro", "boiler", nodes.petlibro!.state), label: "Feeders and fountain", how: conn("petlibro")?.how, ...fromConn("petlibro") },
     { ...e("boiler", "whisker", "boiler", nodes.whisker!.state), label: "The Litter-Robot", how: conn("whisker")?.how, ...fromConn("whisker") },
+    { ...e("boiler", "nest", "boiler", nodes.nest!.state), label: "The thermostat", how: conn("nest")?.how, ...fromConn("nest") },
+    { ...e("boiler", "tasks", "boiler", nodes.tasks!.state), label: "Tasks quick-add", how: conn("google-tasks")?.how, ...fromConn("google-tasks") },
+    { ...e("boiler", "instacart", "boiler", nodes.instacart!.state), label: "Send to Instacart", how: conn("instacart")?.how, ...fromConn("instacart") },
   ];
 
   // The Foundry's flow: foundryGraph's edges, with their connections' kinds, sign-in and timing.

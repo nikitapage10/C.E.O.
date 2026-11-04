@@ -4,7 +4,8 @@
  * Vercel's private Blob store, or the Function App's `ceo-state` container on Azure), read in full only in a Desk
  * passkey session. Anyone else gets the counts (`counts`).
  *
- *   - Each item: id, name, addedAt, source ("phone"), done (and doneAt once ticked off).
+ *   - Each item: id, name, addedAt, source ("phone", or "tasks" when Google Tasks quick-add brought it in, #637),
+ *     done (and doneAt once ticked off).
  *   - A new name is dropped when an open item already has it, ignoring case, spacing and a trailing plural "s".
  *   - Ticked items stay a day (so a mis-tap can be undone), then go; at most LIST_MAX items are kept.
  *
@@ -23,11 +24,14 @@ export const NAME_MAX = 60;
 /** How long a ticked item stays before it is cleared. */
 export const DONE_KEEP_MS = 24 * 60 * 60_000;
 
+/** Where an item came from: Hey Skippy on the phone, or the Google Tasks import (#637). */
+export type ListSource = "phone" | "tasks";
+
 export interface ListItem {
   id: string;
   name: string;
   addedAt: string;
-  source: "phone";
+  source: ListSource;
   done: boolean;
   doneAt?: string;
 }
@@ -55,7 +59,7 @@ function cleanItems(raw: unknown, now: number): ListItem[] {
       const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
       const name = cleanName(o.name);
       if (typeof o.id !== "string" || !name || typeof o.addedAt !== "string") return null;
-      return { id: o.id, name, addedAt: o.addedAt, source: "phone", done: o.done === true, ...(o.done === true && typeof o.doneAt === "string" && { doneAt: o.doneAt }) };
+      return { id: o.id, name, addedAt: o.addedAt, source: o.source === "tasks" ? "tasks" : "phone", done: o.done === true, ...(o.done === true && typeof o.doneAt === "string" && { doneAt: o.doneAt }) };
     })
     .filter((i): i is ListItem => i !== null && !(i.done && i.doneAt && Date.parse(i.doneAt) < now - DONE_KEEP_MS))
     .slice(-LIST_MAX);
@@ -70,7 +74,7 @@ export interface Added {
 }
 
 /** Adds names to a list (pure): dedupes against open items and within the batch itself. */
-export function addTo(items: ListItem[], names: string[], now: number, id: () => string = () => randomBytes(6).toString("hex")): { items: ListItem[]; result: Added } {
+export function addTo(items: ListItem[], names: string[], now: number, id: () => string = () => randomBytes(6).toString("hex"), source: ListSource = "phone"): { items: ListItem[]; result: Added } {
   const open = new Set(items.filter((i) => !i.done).map((i) => sameKey(i.name)));
   const added: string[] = [];
   const already: string[] = [];
@@ -85,7 +89,7 @@ export function addTo(items: ListItem[], names: string[], now: number, id: () =>
     }
     open.add(key);
     added.push(name);
-    next.push({ id: id(), name, addedAt: new Date(now).toISOString(), source: "phone", done: false });
+    next.push({ id: id(), name, addedAt: new Date(now).toISOString(), source, done: false });
   }
   return { items: next.slice(-LIST_MAX), result: { added, already } };
 }
@@ -102,9 +106,9 @@ export class KitchenList {
     return countsOf(await this.items(now));
   }
 
-  async add(names: string[], now: number): Promise<Added> {
+  async add(names: string[], now: number, source: ListSource = "phone"): Promise<Added> {
     return updateJson(this.blob, LIST_PATH, [] as unknown, (raw) => {
-      const { items, result } = addTo(cleanItems(raw, now), names, now);
+      const { items, result } = addTo(cleanItems(raw, now), names, now, undefined, source);
       return { next: result.added.length ? items : null, result };
     });
   }

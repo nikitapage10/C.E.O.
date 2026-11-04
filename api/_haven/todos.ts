@@ -28,7 +28,12 @@ export interface AddedTodo {
 export interface TodoSink {
   addTodo(text: string, now: number): Promise<AddedTodo>;
   openCount(now?: number): Promise<number>;
+  /** Takes back the phone's latest to-do, kept in the last ten minutes, and gives its words (#641); null if none. */
+  takeBackLast?(now: number): Promise<string | null>;
 }
+
+/** How recent a phone to-do must be to be taken back by "not as a task". */
+export const TAKE_BACK_MS = 10 * 60_000;
 
 interface Legacy {
   id: string;
@@ -82,6 +87,15 @@ export class PhoneTodos implements TodoSink {
     const todo: Todo = { id, text: said.text, at, updated: at, ...(said.due !== undefined && { due: new Date(said.due).toISOString() }) };
     await this.store.change(now, (state) => ({ state: { ...state, todos: [...state.todos, todo] }, out: undefined }));
     return { text: todo.text, ...(todo.due && { due: todo.due }) };
+  }
+
+  async takeBackLast(now: number): Promise<string | null> {
+    return this.store.change(now, (state) => {
+      const mine = state.todos.filter((t) => t.id.startsWith("phone-") && now - Date.parse(t.at) <= TAKE_BACK_MS && now >= Date.parse(t.at) - 60_000);
+      const last = mine.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+      if (!last) return { state: null, out: null };
+      return { state: { ...state, todos: state.todos.filter((t) => t.id !== last.id) }, out: last.text };
+    });
   }
 
   async openCount(now = Date.now()): Promise<number> {

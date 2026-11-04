@@ -8,6 +8,8 @@
  *   haven/devices/roborock-pending.json  a Connect Roborock in progress: the email, region and client id, 10 minutes
  *   haven/devices/whisker.json           the Whisker Cognito tokens (refreshed from the stored refresh token)
  *   haven/devices/petlibro.json          the Petlibro login token
+ *   haven/devices/google-nest.json       the Google refresh token for the Nest thermostat (Connect Nest, #637)
+ *   haven/devices/google-tasks.json      the Google refresh token for Google Tasks (Connect Google Tasks, #637)
  *
  * The Petlibro and Whisker emails and login digests are never written here: they live only in the Key Vault
  * (`petlibro-email`, `petlibro-login-digest`, `whisker-email`, `whisker-srp-digest`) and reach the app as settings.
@@ -25,7 +27,8 @@ import type { Vendor } from "./types.js";
 /** The shortest HOME_TOKEN_KEY that counts (the paste in docs/HOME-DEVICES.md makes 43 characters). */
 export const MIN_HOME_KEY = 32;
 
-export type VaultName = Vendor | "roborock-pending";
+/** Each vendor's login, Connect Roborock's pending code, and the Haven's two Google grants (#637, api/_haven/google/). */
+export type VaultName = Vendor | "roborock-pending" | "google-nest" | "google-tasks";
 export const vaultPath = (name: VaultName) => `haven/devices/${name}.json`;
 
 /** The sealing key, or null when HOME_TOKEN_KEY isn't set (or is too short to trust). */

@@ -172,11 +172,13 @@ export function Haven() {
           const el = lamps.current[id], s = strip.current?.getBoundingClientRect();
           if (!el || !s) return null;
           const b = el.getBoundingClientRect(), h = host.getBoundingClientRect();
-          const x = b.left + b.width / 2;
-          if (!b.width || x < s.left + 4 || x > s.right - 4) return null;
-          return [x - h.left, b.top + b.height / 2 - h.top];
+          const x = b.left + b.width / 2, y = b.top + b.height / 2;
+          // Out of sight when the strip (or the rail, #729) has scrolled it away.
+          if (!b.width || x < s.left + 4 || x > s.right - 4 || y < s.top + 2 || y > s.bottom - 2) return null;
+          return [x - h.left, y - h.top];
         };
-        house.current = new House(host, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, keepClear, lampAt, onOrder: setOrder, onSpot: (spot) => spot === "thermostat" && setPop("climate") });
+        const rail = () => strip.current?.dataset.rail === "side";
+        house.current = new House(host, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, keepClear, lampAt, rail, onOrder: setOrder, onSpot: (spot) => spot === "thermostat" && setPop("climate") });
         setGl("on");
       } catch {
         setGl("none");

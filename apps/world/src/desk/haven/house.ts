@@ -5,7 +5,8 @@ import { makeNight, type Night } from "./night.ts";
 import { introDue, introStarted } from "./intro.ts";
 import { THREAD_TO, threadPoint, type GaugeId, type Tone } from "./plinth.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
-import { gymRoom, withGym } from "./gymFill.ts";
+import { gymBeyond, gymRoom, withGym } from "./gymFill.ts";
+import { emittersOf, type EmitterIn } from "./emitters.ts";
 import { disposeMats, GYM_MODELS, GymGeo, gymMats, gymModel } from "./gymKit.ts";
 
 /**
@@ -38,6 +39,8 @@ export interface HouseOpts {
   lampAt?: (id: GaugeId) => [number, number] | null;
   /** The gauges in the order their threads land, left to right in the fitted view (#718), so the strip can follow it. */
   onOrder?: (ids: GaugeId[]) => void;
+  /** The gauges stand in a rail down the side (#729): ordered top to bottom, their threads leave the lamps sideways. */
+  rail?: () => boolean;
 }
 
 /** A gauge's thread (#680): its lamp's tone and how busy its nanites are (0 to 1). */
@@ -193,7 +196,7 @@ void main(){ vec2 pc = gl_PointCoord; float g = floor(vG + .5); vec2 cell = vec2
  float d = length(pc - .5); a = max(a, .22 * smoothstep(.5, .0, d)); if (a * vC.a < .004) discard; gl_FragColor = vec4(vC.rgb, a * vC.a); }`;
 
 /** A particle's job this frame: dust in a lit room's light, a mote in its glass, a stream off a working device, a swarm round one that needs Nikita, a trickle along the path, or the faint field over the whole house. */
-type Role = { k: "dust"; room: PlanRoom; level: number } | { k: "wall"; seg: Seg; needs: boolean } | { k: "rise"; x: number; y: number; lift: number } | { k: "swarm"; x: number; y: number } | { k: "path" } | { k: "field" };
+type Role = { k: "dust"; room: PlanRoom; level: number } | { k: "wall"; seg: Seg; needs: boolean } | { k: "rise"; x: number; y: number; lift: number; spread: number } | { k: "swarm"; x: number; y: number; spread: number } | { k: "path" } | { k: "field" };
 
 const fract = (v: number) => v - Math.floor(v);
 const ease = (x: number) => 1 - Math.pow(1 - x, 3);
@@ -257,7 +260,8 @@ export class House {
     private opts: HouseOpts,
   ) {
     // The Gym drawn filled out (#718): whatever of the kit the plan doesn't place, placed in its free floor.
-    this.plan = withGym(plan);
+    // Drawn beyond the home (#729), at the top of the default view, not in front of it.
+    this.plan = withGym(gymBeyond(plan));
     const phone = Math.min(window.innerWidth, window.innerHeight) < 600;
     this.N = phone ? 700 : 1400;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -708,12 +712,18 @@ export class House {
       const segs = this.walls.filter((w) => room.parts.some(([x, y, ww, hh]) => w[0] >= x - 1 && w[2] <= x + ww + 1 && w[1] >= y - 1 && w[3] <= y + hh + 1));
       segs.forEach((seg) => jobs.push({ role: () => ({ k: "wall", seg, needs: l.needs }), weight: (l.needs ? 26 : 12) * Math.max(0.5, (Math.abs(seg[2] - seg[0]) + Math.abs(seg[3] - seg[1])) / 200) }));
     }
+    // Devices standing together share one wider, calmer emitter (#729), so the pets' corner isn't one dense cloud.
+    const live: EmitterIn[] = [];
     for (const d of P.devices) {
       const room = d.lights ?? roomAt(P, d.x, d.y)?.id;
       const l = room ? this.lit[room] : undefined;
       if (!l || d.kind === "thermostat") continue;
-      jobs.push({ role: () => ({ k: "rise", x: d.x, y: d.y, lift: d.lift }), weight: 40 });
-      if (l.needs) jobs.push({ role: () => ({ k: "swarm", x: d.x, y: d.y }), weight: 46 });
+      live.push({ x: d.x, y: d.y, lift: d.lift, needs: l.needs });
+    }
+    for (const e of emittersOf(live)) {
+      const spread = e.spread / U;
+      jobs.push({ role: () => ({ k: "rise", x: e.x, y: e.y, lift: e.lift, spread }), weight: 40 * e.weight * (e.n > 1 ? 0.8 : 1) });
+      if (e.needs) jobs.push({ role: () => ({ k: "swarm", x: e.x, y: e.y, spread }), weight: 46 * (e.n > 1 ? 0.7 : 1) });
     }
     if (this.pathLen > 0) jobs.push({ role: () => ({ k: "path" }), weight: 60 });
     const budget = Math.round(this.N * 0.82);
@@ -748,9 +758,10 @@ export class House {
         else [cr, cg, cb] = [0.86, 0.92, 1];
         sz = 0.07;
       } else if (r.k === "rise") {
-        const f = fract(t * 0.22 * sp + a);
-        const ang = b * 6.283 + t * 1.4 * sp;
-        const rad = 0.04 + f * 0.14;
+        // A shared emitter rises slower, over its devices' spread.
+        const f = fract(t * (r.spread ? 0.15 : 0.22) * sp + a);
+        const ang = b * 6.283 + t * (r.spread ? 0.8 : 1.4) * sp;
+        const rad = 0.04 + f * 0.14 + r.spread * fract(c * 3.7);
         x = this.wx(r.x) + Math.cos(ang) * rad;
         z = this.wz(r.y) + Math.sin(ang) * rad;
         y = r.lift / U + 0.15 + f * 1.5;
@@ -758,8 +769,8 @@ export class House {
         [cr, cg, cb] = [0.62, 1, 0.78];
         sz = 0.075;
       } else if (r.k === "swarm") {
-        const ang = a * 6.283 + t * (0.8 + c) * (b > 0.5 ? 1 : -1);
-        const rad = 0.16 + b * 0.14;
+        const ang = a * 6.283 + t * (0.8 + c) * (b > 0.5 ? 1 : -1) * (r.spread ? 0.6 : 1);
+        const rad = 0.16 + b * 0.14 + r.spread;
         x = this.wx(r.x) + Math.cos(ang) * rad;
         z = this.wz(r.y) + Math.sin(ang) * rad;
         y = 0.08 + c * 0.45 + Math.sin(t * 2 + a * 9) * 0.03;
@@ -914,8 +925,9 @@ export class House {
     if (!this.opts.onOrder || !this.ends.size) return;
     const ids = [...this.ends.keys()];
     const xs = this.screenAt(view, ids.map((id) => this.ends.get(id)!));
-    const order = ids.map((id, i) => ({ id, x: xs[i]![0] })).sort((a, b) => a.x - b.x).map((o) => o.id);
-    const key = order.join(",");
+    const side = this.opts.rail?.() ?? false;
+    const order = ids.map((id, i) => ({ id, x: xs[i]![side ? 1 : 0] })).sort((a, b) => a.x - b.x).map((o) => o.id);
+    const key = `${side ? "side" : "foot"}:${order.join(",")}`;
     if (key === this.orderKey) return;
     this.orderKey = key;
     this.opts.onOrder(order);
@@ -1286,10 +1298,11 @@ export class House {
       this.v.copy(end).project(this.camera);
       if (this.v.z >= 1 || Math.abs(this.v.x) > 1.05 || Math.abs(this.v.y) > 1.05) return;
       const b: [number, number] = [((this.v.x + 1) / 2) * this.W, ((1 - this.v.y) / 2) * this.H];
-      // Rise straight up off the lamp, then lean over into the device.
-      const rise = Math.max(40, (a[1] - b[1]) * 0.55);
-      const c1: [number, number] = [a[0], a[1] - rise];
-      const c2: [number, number] = [b[0] + (a[0] - b[0]) * 0.25, b[1] + Math.min(60, rise * 0.4)];
+      // Rise straight up off the lamp, then lean over into the device; from the side rail (#729), leave it sideways.
+      const side = this.opts.rail?.() ?? false;
+      const rise = side ? Math.max(40, (a[0] - b[0]) * 0.5) : Math.max(40, (a[1] - b[1]) * 0.55);
+      const c1: [number, number] = side ? [a[0] - rise, a[1]] : [a[0], a[1] - rise];
+      const c2: [number, number] = side ? [b[0] + Math.min(60, rise * 0.4), b[1] + (a[1] - b[1]) * 0.25] : [b[0] + (a[0] - b[0]) * 0.25, b[1] + Math.min(60, rise * 0.4)];
       const at = (u: number): [number, number] => {
         const v = 1 - u;
         return [v * v * v * a[0] + 3 * v * v * u * c1[0] + 3 * v * u * u * c2[0] + u * u * u * b[0], v * v * v * a[1] + 3 * v * v * u * c1[1] + 3 * v * u * u * c2[1] + u * u * u * b[1]];

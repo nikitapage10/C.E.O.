@@ -82,3 +82,58 @@ export function withGym(plan: HavenPlan): HavenPlan {
   const add = gymFill(plan);
   return add.length ? { ...plan, items: [...plan.items, ...add] } : plan;
 }
+
+/** The gap between the home and the Gym when it is drawn beyond it, in plan units (about cm). */
+const GYM_GAP = 140;
+
+/**
+ * The Gym drawn beyond the home (#729, Nikita: "above, not physically above"): the detached block moves to the far side
+ * of the apartment, the top of the screen in the default view, its right edge in line with the home's, so it fills the
+ * open dark up and to the right instead of sitting in front. Everything standing in it moves with it (the kit, its
+ * devices, its doors and windows); the walk to it is dropped, since it no longer leads there. Then the whole plan is
+ * shifted back to start at 0. Drawing only: the stored plan is untouched. A block already beyond the home stays.
+ */
+export function gymBeyond(plan: HavenPlan): HavenPlan {
+  const det = plan.rooms.filter((r) => r.detached);
+  const main = plan.rooms.filter((r) => !r.detached);
+  if (!det.length || !main.length) return plan;
+  const box = (rooms: PlanRoom[]) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const r of rooms)
+      for (const [x, y, w, h] of r.parts) {
+        x0 = Math.min(x0, x);
+        y0 = Math.min(y0, y);
+        x1 = Math.max(x1, x + w);
+        y1 = Math.max(y1, y + h);
+      }
+    return [x0, y0, x1, y1] as const;
+  };
+  const [, my0, mx1] = box(main);
+  const [dx0, dy0, dx1, dy1] = box(det);
+  if (dy1 <= my0) return plan;
+  const tx = mx1 - dx1, ty = my0 - GYM_GAP - dy1;
+  const inDet = (x: number, y: number) => x >= dx0 && x <= dx1 && y >= dy0 && y <= dy1 && det.some((r) => r.parts.some(([px, py, pw, ph]) => x >= px - 1 && x <= px + pw + 1 && y >= py - 1 && y <= py + ph + 1));
+  const itemC = (it: PlanItem): [number, number] => (it.round ? [it.x, it.y] : [it.x + it.w / 2, it.y + it.h / 2]);
+  // First the move, then the shift that brings the whole plan back to 0, 0.
+  const moved = {
+    rooms: plan.rooms.map((r) => (r.detached ? { ...r, parts: r.parts.map(([x, y, w, h]) => [x + tx, y + ty, w, h] as PlanRoom["parts"][number]) } : r)),
+    items: plan.items.map((it) => (inDet(...itemC(it)) ? { ...it, x: it.x + tx, y: it.y + ty } : it)),
+    devices: plan.devices.map((d) => (inDet(d.x, d.y) ? { ...d, x: d.x + tx, y: d.y + ty } : d)),
+    doors: plan.doors.map((s) => (inDet((s[0] + s[2]) / 2, (s[1] + s[3]) / 2) ? ([s[0] + tx, s[1] + ty, s[2] + tx, s[3] + ty] as typeof s) : s)),
+    windows: plan.windows.map((s) => (inDet((s[0] + s[2]) / 2, (s[1] + s[3]) / 2) ? ([s[0] + tx, s[1] + ty, s[2] + tx, s[3] + ty] as typeof s) : s)),
+  };
+  const [ax0, ay0, ax1, ay1] = box(moved.rooms);
+  const sx = Math.min(0, ax0), sy = Math.min(0, ay0);
+  const S = <T extends number[]>(s: T): T => s.map((v, i) => v - (i % 2 ? sy : sx)) as T;
+  return {
+    ...plan,
+    w: Math.max(plan.w, ax1) - sx,
+    h: Math.max(ay1, ...main.flatMap((r) => r.parts.map(([, y, , h]) => y + h))) - sy,
+    rooms: moved.rooms.map((r) => ({ ...r, parts: r.parts.map(([x, y, w, h]) => [x - sx, y - sy, w, h] as PlanRoom["parts"][number]) })),
+    items: moved.items.map((it) => ({ ...it, x: it.x - sx, y: it.y - sy })),
+    devices: moved.devices.map((d) => ({ ...d, x: d.x - sx, y: d.y - sy })),
+    doors: moved.doors.map(S),
+    windows: moved.windows.map(S),
+    path: [],
+  };
+}

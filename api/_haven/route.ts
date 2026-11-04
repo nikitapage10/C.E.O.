@@ -22,7 +22,8 @@
  *                          (api/_haven/audio.ts), left out when ElevenLabs' cap is spent or it doesn't answer.
  *                      The words are never logged; a log line says only which way a capture went.
  *   GET  /api/capture?a=<signed link>   the answer's audio, once (WAV). 404 when used, expired or never made.
- *   GET  /api/haven?view=status          the counts only (the Kitchen list's open and ticked items, open phone to-dos).
+ *   GET  /api/haven?view=status          the counts only (the Kitchen list's open and ticked items, open phone to-dos,
+ *                                        the meal planner's nights, #678).
  *   GET  /api/haven?view=list            passkey session: the Kitchen list's items.
  *   GET  /api/haven?view=gym             passkey session: the Gym's plan, this week's log and the last weeks' counts
  *                                        (#660, api/_haven/gym.ts). The status view carries its counts only.
@@ -58,6 +59,7 @@ import { classify, itemsOf, sayAdded, sayRemoved, sayTodo, spokenOf } from "./cl
 import { PhoneConvo, type ConvoTurn } from "./convo.js";
 import { privateParts } from "../_privacy.js";
 import { KitchenList } from "./list.js";
+import { mealCountsOf } from "./meals.js";
 import { PhoneKeys, KEY_SHAPE } from "./phones.js";
 import { phoneKeyOf } from "./links.js";
 import { PhoneTodos, type TodoSink } from "./todos.js";
@@ -233,14 +235,16 @@ export async function havenGet(request: Request, deps: HavenDeps): Promise<Respo
   const view = new URL(request.url).searchParams.get("view");
   const now = deps.desk.now;
   if (view === "status") {
-    if (!deps.blob) return json({ kitchen: { open: 0, done: 0 }, todos: 0, gym: null, ready: false });
-    const [kitchen, todos, gym] = await Promise.all([
+    if (!deps.blob) return json({ kitchen: { open: 0, done: 0 }, todos: 0, gym: null, meals: null, ready: false });
+    const [kitchen, todos, gym, meals] = await Promise.all([
       new KitchenList(deps.blob).counts(now).catch(() => ({ open: 0, done: 0 })),
       deps.todos(deps.blob).openCount(now).catch(() => 0),
       // The Gym (#660): sessions a week and done this week, never an exercise.
       gymCounts(deps.blob, now).catch(() => null),
+      // The meal planner (#678): nights planned, cooking and HelloFresh, never a meal or a taste.
+      mealCountsOf(deps.blob).catch(() => null),
     ]);
-    return json({ kitchen, todos, gym, ready: true });
+    return json({ kitchen, todos, gym, meals, ready: true });
   }
   if (view !== "list" && view !== "phones" && view !== "gym") return json({ error: "bad-request" }, 400);
   const signed = await requireSession(request, deps.desk);

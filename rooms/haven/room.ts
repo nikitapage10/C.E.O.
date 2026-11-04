@@ -17,6 +17,7 @@ export default defineRoom({
   live: true,
   auth: {
     "haven-plan": ["passkey"],
+    "haven-meals": ["passkey"],
   },
   keys: [],
   usesClaude: false,

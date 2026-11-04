@@ -74,11 +74,28 @@ export interface DeviceReading {
   manualCap?: number;
   /** Wet feeder: which bowl of the tray's three is in front (1 to 3), when Petlibro says. */
   plate?: number;
-  /** Wet feeder: its schedule from the Petlibro app, each meal's Mountain time ("18:00") and bowl when the plan says. */
+  /** Wet feeder: its schedule from the Petlibro app, each meal's Mountain time ("18:00") and bowl when the plan says,
+   * and (#685) when its window closes and where it stands today. */
   meals?: WetMeal[];
   /** Fountain: water level and filter life, in percent. */
   water?: number | null;
   filter?: number | null;
+  /** Fountain (#685): days until the filter change and the clean are due, below 0 when overdue. */
+  filterDays?: number;
+  cleanDays?: number;
+  /** Fountain (#685): water drunk today, in mL. */
+  drankMl?: number;
+  /** Today's visits (#685): drinks at the fountain, or the wet feeder's eating visits, with their total and average
+   * length in seconds. Each only when Petlibro says. */
+  visits?: number;
+  visitSec?: number;
+  avgSec?: number;
+  /** Dry feeder (#685): portions dispensed today (a Granary portion is 1/12 cup), how many dispenses, the unit the
+   * Petlibro app shows amounts in, and today's schedule. */
+  fedPortions?: number;
+  feeds?: number;
+  feedUnit?: FeedUnit;
+  plan?: DryMeal[];
   /** Litter-Robot: waste drawer and litter level in percent, and the last time a cat used it. */
   drawer?: number | null;
   litter?: number | null;
@@ -133,11 +150,33 @@ export type Water = (typeof WATERS)[number];
 export const isSuction = (v: unknown): v is Suction => typeof v === "string" && (SUCTIONS as readonly string[]).includes(v);
 export const isWater = (v: unknown): v is Water => typeof v === "string" && (WATERS as readonly string[]).includes(v);
 
-/** One scheduled wet meal: its time of day ("HH:MM", Mountain) and the bowl the plan gives it, when it says. */
+/** One scheduled wet meal: its time of day ("HH:MM", Mountain) and the bowl the plan gives it, when it says; (#685)
+ * when its window closes and where it stands today. */
 export interface WetMeal {
   time: string;
   plate?: number;
+  end?: string;
+  status?: MealStatus;
 }
+
+/**
+ * Where a meal on today's plan stands (#685): served, open now (a wet meal's window), the next one to come, later
+ * today, skipped, or set to be skipped. Read from Petlibro's own state where it gives one, else from the clock.
+ */
+export const MEAL_STATUSES = ["done", "now", "next", "later", "skipped", "skip"] as const;
+export type MealStatus = (typeof MEAL_STATUSES)[number];
+
+/** One meal on the dry feeder's plan for today (#685): its time, portions, whether it's switched on, and its status. */
+export interface DryMeal {
+  time: string;
+  portions?: number;
+  on: boolean;
+  status?: MealStatus;
+}
+
+/** The unit the Petlibro app shows feed amounts in (realInfo.unitType: 1 cups, 2 oz, 3 g, 4 mL). */
+export const FEED_UNITS = ["cup", "oz", "g", "ml"] as const;
+export type FeedUnit = (typeof FEED_UNITS)[number];
 
 /** One vendor's client behind the common interface. */
 export interface DeviceClient<R = unknown> {

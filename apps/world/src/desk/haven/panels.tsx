@@ -4,6 +4,7 @@ import { useHome, type DeviceReading } from "../homeDevices.ts";
 import { removeItem, undoRemoveItem, type KitchenItem } from "../haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 import { Groceries } from "./Groceries.tsx";
+import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";
 
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
@@ -232,7 +233,14 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
   const act = useHome((s) => s.act);
   const busy = useHome((s) => s.busy);
   const dry = find(devices, "dry-feeder"), wet = find(devices, "wet-feeder"), water = find(devices, "fountain"), litter = find(devices, "litter");
-  const say = [dry?.foodLow && "Dry food is low", water && typeof water.water === "number" && water.water < 25 && "the fountain is low", litter && (litter.drawer ?? 0) >= 85 && "the drawer is full"].filter(Boolean) as string[];
+  // The due list says when the filter and the clean are due (#685), so their alerts aren't said twice.
+  const waterAlerts = water?.alerts.filter((a) => !(a === "filter due" && water.filterDays !== undefined) && !(a === "needs a clean" && water.cleanDays !== undefined)) ?? [];
+  const say = [
+    dry?.foodLow && "Dry food is low",
+    water && typeof water.water === "number" && water.water < 25 && "the fountain is low",
+    water && (water.filterDays ?? 1) <= 0 && "the fountain's filter is due",
+    litter && (litter.drawer ?? 0) >= 85 && "the drawer is full",
+  ].filter(Boolean) as string[];
   return (
     <>
       <p className="hv-say">{say.length ? `${say.join(", ")}.` : dry || wet || water || litter ? `Last fed ${ago(dry?.lastFed ?? wet?.lastFed)}. All good.` : "The cat's things aren't connected yet."}</p>
@@ -254,6 +262,7 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
                   <p className="hv-note">
                     Last fed {ago(dry.lastFed)} · {dry.manualToday ?? 0} of {dry.manualCap ?? 2} extra portions today
                   </p>
+                  <DryDay d={dry} />
                   <button type="button" className="hv-btn" disabled={!dry.online || busy !== null || (dry.manualToday ?? 0) >= (dry.manualCap ?? 2)} onClick={() => void act("feeder.feed", dry.id)}>
                     Feed 1 portion
                   </button>
@@ -267,6 +276,7 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
                   <p className="hv-note">
                     Last opened {ago(wet.lastFed)} · {wet.manualToday ?? 0} of {wet.manualCap ?? 2} today
                   </p>
+                  <WetDay d={wet} />
                   <button type="button" className="hv-btn" disabled={!wet.online || busy !== null || (wet.manualToday ?? 0) >= (wet.manualCap ?? 2)} onClick={() => void act("wet.open", wet.id)}>
                     Open the tray
                   </button>
@@ -283,10 +293,13 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
               <div className="hv-water" style={{ ["--lvl" as string]: `${water.water ?? 0}%` }}>
                 <b>{pct(water.water)}%</b>
               </div>
-              <p className="hv-row">
-                <span className="hv-k">Filter</span> <Bar v={water.filter} warn={(water.filter ?? 100) < 15} /> <span>{pct(water.filter)}%</span>
-              </p>
-              {water.alerts.length > 0 && <p className="hv-note is-warn">{water.alerts.join(", ")}</p>}
+              {water.filterDays === undefined && (
+                <p className="hv-row">
+                  <span className="hv-k">Filter</span> <Bar v={water.filter} warn={(water.filter ?? 100) < 15} /> <span>{pct(water.filter)}%</span>
+                </p>
+              )}
+              <FountainDay d={water} />
+              {waterAlerts.length > 0 && <p className="hv-note is-warn">{waterAlerts.join(", ")}</p>}
             </>
           ) : (
             <Waiting>Waiting for Petlibro.</Waiting>

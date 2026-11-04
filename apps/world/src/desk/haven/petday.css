@@ -1,0 +1,143 @@
+/*
+ * The Petlibro day on the Pets cards (#685): small numbers under each device, the fountain's due dates (overdue in
+ * ember) and today's meals as a quiet list. In the Haven's glass, with its own type and colours.
+ */
+[data-room="haven"] .pd-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 12px 0 4px;
+}
+[data-room="haven"] .pd-stat b {
+  display: block;
+  font-family: var(--hv-disp);
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1.05;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+[data-room="haven"] .pd-stat small {
+  margin-left: 3px;
+  font-size: 14px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-stat span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-due {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .pd-due li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--hv-line);
+  font-size: 14px;
+}
+[data-room="haven"] .pd-due li span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-due li b {
+  font-weight: 500;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .pd-due li.is-over b {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .pd-k {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-next {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .pd-meals {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .pd-meal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .pd-meal + .pd-meal {
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .pd-meal em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-meal.is-done .pd-when,
+[data-room="haven"] .pd-meal.is-skipped .pd-when {
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-meal.is-now em,
+[data-room="haven"] .pd-meal.is-next em {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .pd-meal.is-off {
+  color: var(--hv-faint);
+}
+[data-room="haven"] .pd-bowl {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--hv-line);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .pd-meal.is-now .pd-bowl {
+  border-color: var(--hv-ok);
+  color: var(--hv-ok);
+}
+[data-room="haven"] .pd-amt {
+  color: var(--hv-mute);
+}
+[data-room="haven"] .pd-sw {
+  padding: 1px 7px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hv-faint);
+}
+[data-room="haven"] .pd-sw.is-on {
+  border-color: rgba(134, 212, 180, 0.4);
+  color: var(--hv-ok);
+}

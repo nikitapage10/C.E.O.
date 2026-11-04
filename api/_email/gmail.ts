@@ -261,7 +261,12 @@ export interface MailForSort {
   threadId?: string;
   /** Every address on the To line, lower-cased, for the filters only; never sent to a model. */
   to?: string[];
+  /** A calendar invite (#642): its iCal UID when it carries one, "" when only its subject says so; undefined otherwise. Never sent to a model. */
+  invite?: string;
 }
+
+/** Subjects calendar apps give invitations and their updates. */
+export const INVITE_SUBJECT = /^(?:(?:updated |new |canceled |cancelled )?(?:invitation|event)(?: from google calendar)?:|invitation:|(?:accepted|declined|tentatively accepted|tentative):|updated invitation with note:)/i;
 
 interface Part {
   mimeType?: string;
@@ -357,7 +362,42 @@ export function readMessage(raw: unknown): MailForSort | null {
     bulk: headers.has("list-unsubscribe"),
     ...(typeof (m as { threadId?: unknown }).threadId === "string" && MESSAGE_ID.test((m as { threadId: string }).threadId) && { threadId: (m as { threadId: string }).threadId }),
     to: [...(headers.get("to") ?? "").matchAll(/([A-Za-z0-9._%+'-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,24})/g)].map((x) => x[1]!.toLowerCase()),
+    ...inviteOf(m.payload, headers.get("subject") ?? ""),
   };
+}
+
+/** A calendar invite's UID from its text/calendar part, or "" when only the subject says it is one (#642). */
+export function inviteOf(payload: Part | undefined, subject: string): { invite?: string } {
+  const ics = findPart(payload, "text/calendar") ?? findPart(payload, "application/ics");
+  const uid = ics ? /^UID[^:\r\n]*:([^\r\n]{1,300})/m.exec(ics)?.[1]?.trim() : undefined;
+  if (uid) return { invite: uid };
+  return ics || INVITE_SUBJECT.test(subject.trim()) ? { invite: "" } : {};
+}
+
+/** One message of a thread as the closing check sees it: metadata only (#642). */
+export interface ThreadMessage {
+  id: string;
+  at: number;
+  /** Nikita sent it (Gmail's SENT label). */
+  sent: boolean;
+  /** Gmail's own snippet, made plain: only ever Nikita's own reply goes on, to Dialtone, as context. */
+  snippet: string;
+}
+
+/** A thread's messages, oldest first: ids, times, who sent them and Gmail's snippet, never a body (format=metadata). */
+export async function threadView(fetcher: Fetcher, token: string, threadId: string): Promise<ThreadMessage[]> {
+  if (!MESSAGE_ID.test(threadId)) return [];
+  const q = new URLSearchParams({ format: "metadata" });
+  q.append("metadataHeaders", "From");
+  const b = (await gmailGet(fetcher, token, `/threads/${threadId}`, q)) as { messages?: { id?: unknown; internalDate?: unknown; labelIds?: unknown; snippet?: unknown }[] } | null;
+  const out: ThreadMessage[] = [];
+  for (const m of b?.messages ?? []) {
+    const at = Number(m.internalDate);
+    if (typeof m.id !== "string" || !MESSAGE_ID.test(m.id) || !Number.isFinite(at)) continue;
+    const labels = Array.isArray(m.labelIds) ? m.labelIds : [];
+    out.push({ id: m.id, at, sent: labels.includes("SENT"), snippet: typeof m.snippet === "string" ? plainMail(m.snippet, 300) : "" });
+  }
+  return out.sort((a, b) => a.at - b.at);
 }
 
 /** The mailbox's own address (users.getProfile, metadata only), lower-cased; "" when Gmail doesn't say. */

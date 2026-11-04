@@ -16,12 +16,19 @@ import { hkdfSync } from "node:crypto";
 import { readRelayStatus, type RelayStatus } from "../../packages/core/src/relay.ts";
 import { BlobPreconditionError, pickBlob, type BlobBackend } from "../_blob.js";
 import { MIN_TOKEN_KEY, seal, unseal } from "../_email/seal.js";
+import { readPhotoIndex } from "./photos.js";
 import { readTextRequest, readTextsView, REQUEST_STATES, type RequestState, type TextRequest, type TextsView } from "./texts.js";
 
 export const STATUS_PATH = "relay/status.json";
 export const HUB_PATH = "relay/hub.json";
 export const PAIR_PATH = "relay/pair.json";
 export const PRIVATE_PATH = "relay/private.json";
+/** The Mac's contact photos (#642, ./photos.ts): an index, and one sealed blob per photo id. */
+export const PHOTOS_PATH = "relay/photos.json";
+export const photoPath = (id: string) => {
+  if (!/^[0-9a-f]{32}$/.test(id)) throw new Error("not a photo id");
+  return `relay/photos/${id}.json`;
+};
 
 export interface HubRecord {
   pairId: string;
@@ -67,6 +74,13 @@ export interface RelayStore {
   load(): Promise<{ state: PrivateState; version: string | null }>;
   /** Saves only over `version` (or only when there was none); false when someone else wrote first. */
   save(state: PrivateState, version: string | null): Promise<boolean>;
+  /** The photo index, sealed (#642): read back with readPhotoIndex. */
+  photoIndex(): Promise<unknown>;
+  savePhotoIndex(index: unknown | null): Promise<void>;
+  /** One photo's PNG bytes, sealed. */
+  photo(id: string): Promise<Uint8Array | null>;
+  savePhoto(id: string, png: Uint8Array): Promise<void>;
+  dropPhoto(id: string): Promise<void>;
 }
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -165,6 +179,23 @@ export class BlobRelayStore implements RelayStore {
       throw e;
     }
   }
+  async photoIndex() {
+    return unseal(this.key, await readJson(this.blob, PHOTOS_PATH));
+  }
+  async savePhotoIndex(index: unknown | null) {
+    if (index === null) await this.blob.del(PHOTOS_PATH);
+    else await this.blob.put(PHOTOS_PATH, JSON.stringify(seal(this.key, index)), { contentType: "application/json", allowOverwrite: true });
+  }
+  async photo(id: string) {
+    const got = unseal(this.key, await readJson(this.blob, photoPath(id))) as { png?: unknown } | null;
+    return got && typeof got.png === "string" && got.png.length < 80_000 ? new Uint8Array(Buffer.from(got.png, "base64")) : null;
+  }
+  async savePhoto(id: string, png: Uint8Array) {
+    await this.blob.put(photoPath(id), JSON.stringify(seal(this.key, { png: Buffer.from(png).toString("base64") })), { contentType: "application/json", allowOverwrite: true });
+  }
+  async dropPhoto(id: string) {
+    await this.blob.del(photoPath(id));
+  }
 }
 
 /** For tests: the same contract, in memory, with versions, and the sealed half kept as JSON as the blob would be. */
@@ -204,6 +235,32 @@ export class MemoryRelayStore implements RelayStore {
     this.ver += 1;
     return true;
   }
+  photoIndexRec: unknown = null;
+  photos = new Map<string, Uint8Array>();
+  async photoIndex() {
+    return this.photoIndexRec;
+  }
+  async savePhotoIndex(index: unknown | null) {
+    this.photoIndexRec = index === null ? null : JSON.parse(JSON.stringify(index));
+  }
+  async photo(id: string) {
+    photoPath(id);
+    return this.photos.get(id) ?? null;
+  }
+  async savePhoto(id: string, png: Uint8Array) {
+    photoPath(id);
+    this.photos.set(id, png);
+  }
+  async dropPhoto(id: string) {
+    this.photos.delete(id);
+  }
+}
+
+/** Forgets every photo and the index (#642): Unpair and the wipe. */
+export async function dropPhotos(store: RelayStore): Promise<void> {
+  const index = readPhotoIndex(await store.photoIndex().catch(() => null));
+  for (const id of Object.keys(index.ids)) await store.dropPhoto(id).catch(() => undefined);
+  await store.savePhotoIndex(null).catch(() => undefined);
 }
 
 /** Load, change, save over the version read; again on a lost race (a few times). The change's result, or null. */

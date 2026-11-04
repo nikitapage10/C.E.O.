@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CAPS, readComposeInput, readDraftInput, readSortInput, type ComposeInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
 import { CARD_KEEP_MS, readTextsView, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
-import type { BlueBubbles, Contact, Message } from "./bluebubbles.ts";
+import type { BlueBubbles, Contact, ContactPhoto, Message } from "./bluebubbles.ts";
 import { readWebhook } from "./bluebubbles.ts";
 import { DEFAULT_CONFIG, HOST } from "./config.ts";
 import { DRAFT_KEEP_MS, Engine, SEEN_KEEP_MS, SETTLE_MS, THREAD_KEEP_MS, chatHandle } from "./engine.ts";
@@ -48,6 +48,11 @@ class FakeBB implements BlueBubbles {
   known: string[] = [CHAT];
   async chats() {
     return this.known;
+  }
+  /** Contact pictures (#642): made-up bytes. */
+  pictures: ContactPhoto[] = [];
+  async contactPhotos() {
+    return this.pictures;
   }
 }
 
@@ -94,6 +99,20 @@ class FakeSite implements Site {
   }
   async unpair() {
     return true;
+  }
+  photoKeyValue: Buffer | null = Buffer.alloc(32, 7);
+  uploaded: { id: string; png: Uint8Array }[] = [];
+  lists: { keep: string[]; emails: [string, string][] }[] = [];
+  async photoKey() {
+    return this.photoKeyValue;
+  }
+  async photo(id: string, png: Uint8Array) {
+    this.uploaded.push({ id, png });
+    return true;
+  }
+  async photos(keep: string[], emails: [string, string][]) {
+    this.lists.push({ keep, emails });
+    return keep;
   }
 }
 

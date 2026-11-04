@@ -111,7 +111,7 @@ function fakeClaude(): { call: ClaudeCall; requests: ClaudeRequest[] } {
       const needs = req.user.includes("Dinner Thursday");
       return { answer: { kind: needs ? "needs-you" : "fyi", summary: needs ? "Priya asks if you're free for dinner Thursday at 7." : "Your library hold is ready.", action: needs ? "Reply to confirm" : "Nothing to do" }, usage };
     }
-    return { answer: { advice: "Priya wants an answer by tomorrow. Check Thursday evening.", draft: "Hi Priya, Thursday at 7 works. See you then! Nikita" }, usage };
+    return { answer: { advice: "Priya wants an answer by tomorrow. Check Thursday evening." }, usage };
   };
   return { call, requests };
 }
@@ -265,7 +265,9 @@ describe("sorting prompt shaping", () => {
     expect(readSorted({ kind: "fyi", summary: "", action: "y" })).toBeNull();
     expect(readSorted({ kind: "fyi", summary: "See https://phish.example/login now", action: "Click http://x.example" })).toEqual({ kind: "fyi", summary: "See [link] now", action: "Click [link]", urgent: "none" });
     expect(readAdvice({ advice: "ok", draft: "hi", tools: [] })).toBeNull();
-    expect(readAdvice({ advice: "Pay at https://phish.example", draft: "Visit www.phish.example" })).toEqual({ advice: "Pay at [link]", draft: "Visit [link]" });
+    expect(readAdvice({ advice: "Pay at https://phish.example" })).toEqual({ advice: "Pay at [link]" });
+    // Advice only on arrival (#642): an answer that still carries a draft is refused.
+    expect(readAdvice({ advice: "ok", draft: "hi" })).toBeNull();
   });
 });
 
@@ -331,7 +333,8 @@ describe("the minute", () => {
     const needs = s.items.find((i) => i.kind === "needs-you")!;
     expect(needs.subject).toBe("Dinner Thursday?");
     expect(needs.advice).toContain("Thursday");
-    expect(needs.draft).toContain("Nikita");
+    // Draft on request (#642): advice on arrival, no draft until Nikita asks.
+    expect(needs.draft).toBeUndefined();
     // FYI mail is not kept: the list holds only mail that needs Nikita to act (#495).
     expect(s.items.some((i) => i.kind === "fyi" || i.subject === "Your hold is ready")).toBe(false);
     expect(s.items.some((i) => i.subject.includes("50%"))).toBe(false);
@@ -950,7 +953,7 @@ describe("only mail that needs an action (#495)", () => {
     const store = await connectedStore();
     const call: ClaudeCall = async (req) => {
       const usage = { input_tokens: 900, output_tokens: 80 };
-      if (req.model !== SORT_MODEL) return { answer: { advice: "Check the account.", draft: "" }, usage };
+      if (req.model !== SORT_MODEL) return { answer: { advice: "Check the account." }, usage };
       const ask = req.user.includes("Confirm this sign-in");
       return { answer: { kind: ask ? "needs-you" : "fyi", urgent: "none", summary: ask ? "A service says to confirm a sign-in or the account locks." : "A service reports a new sign-in.", action: ask ? "Confirm the sign-in" : "Nothing to do" }, usage };
     };

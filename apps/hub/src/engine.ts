@@ -8,6 +8,9 @@ import { channelOf, type BlueBubbles, type Contact, type Inbound, type Message }
 import type { HubConfig } from "./config.ts";
 import type { Logger } from "./log.ts";
 import { Placeholders } from "./placeholders.ts";
+import { photoIdOf } from "../../../api/_relay/photos.ts";
+import { closingReply, onlyAcks } from "../../../api/_email/intentWords.ts";
+import { syncPhotos, type Resize } from "./photos.ts";
 import { settleByRule } from "./rules.ts";
 import type { Site } from "./site.ts";
 import { newThreadId, type Card, type CardTarget, type Day, type RelayState, type StateStore, type Thread } from "./store.ts";
@@ -55,6 +58,10 @@ export interface EngineDeps {
   now: () => number;
   /** The local time zone's offset for a time, in minutes east of UTC (Date's own by default). */
   offsetAt?: (t: number) => number;
+  /** The Mac's photo key (#642, api/_relay/photos.ts, macPhotoKey); left out, no photos are synced. */
+  photoKey?: Buffer;
+  /** Shrinks a contact picture to a small PNG (macOS sips, ./photos.ts). */
+  resize?: Resize;
 }
 
 /** Local midnight of `t`. */
@@ -334,7 +341,21 @@ export class Engine {
     const ph = new Placeholders({ contact: { names: contact?.names ?? [], handle: theirs }, others: contacts.filter((c) => c !== contact).flatMap((c) => c.names) });
     const lastMine = msgs.map((m) => m.fromMe).lastIndexOf(true);
     const unanswered = msgs.slice(lastMine + 1).filter((m) => !m.fromMe);
-    if (!unanswered.length) return;
+    // Nikita's own message is the newest (#642): he answered, on his phone or here, so the thread closes. No draft.
+    if (!unanswered.length) {
+      if (lastMine >= 0) this.closeReplied(t.id, msgs[lastMine]!.at);
+      return;
+    }
+    // After Nikita's closing reply ("no worries", "sounds good", "already did it"), an acknowledgement owes nothing (#642):
+    // settled without a model, and Blasto never drafts after it.
+    if (lastMine >= 0 && closingReply(msgs[lastMine]!.text) && onlyAcks(unanswered.map((m) => m.text))) {
+      this.change((s) => {
+        const x = s.threads.find((y) => y.id === t.id);
+        if (x) Object.assign(x, { state: "settled", why: "no-reply", draft: null, gist: "", laterUntil: null });
+      });
+      this.d.log.log("thread settled", { closing: 1 });
+      return;
+    }
     // Every rule once more, over everything the calls below could carry: the whole unanswered run and the earlier
     // turns the draft sees (both sides). A skip-listed contact, a money or legal text, a code or a promo anywhere in
     // it settles the thread before anything reaches a model, so a thread with money talk is never sent, even after
@@ -354,7 +375,9 @@ export class Engine {
     const restyle = this.restyles.get(t.id);
     this.restyles.delete(t.id);
     if (!t.sort || !restyle) {
-      const got = await this.d.site.sort({ group: false, lines: within(unanswered.map(line), CAPS.sortMessages, CAPS.sortChars) });
+      // Nikita's own last message goes first, as context (#642): a thanks for his "no worries" reads as closed.
+      const mineBefore = lastMine >= 0 ? [line(msgs[lastMine]!)] : [];
+      const got = await this.d.site.sort({ group: false, lines: within([...mineBefore, ...unanswered.map(line)], CAPS.sortMessages, CAPS.sortChars) });
       if ("paused" in got) return this.budgetStop();
       this.linkModels = "up";
       this.d.log.log("model call", { sort: 1 });
@@ -397,6 +420,44 @@ export class Engine {
       if (x && (x.state === "owed" || x.state === "later")) x.draft = { text: ph.restore(answer.draft).slice(0, 600), at: this.d.now(), by: restyle ? "restyled" : "blasto" };
     });
     this.d.log.log("draft ready");
+  }
+
+  /** A thread Nikita answered elsewhere closes as replied (#642): no draft, out of the owed count. */
+  private closeReplied(id: string, at: number) {
+    this.change((s) => {
+      const x = s.threads.find((y) => y.id === id);
+      if (x && (x.state === "owed" || x.state === "later")) this.replied(s, x, at);
+    });
+    this.d.log.log("thread closed");
+  }
+
+  /**
+   * The closing check (#642), every few minutes: an owed one-to-one thread whose newest message in Messages is
+   * Nikita's own (a reply the webhook missed, or sent from his phone) closes. It resurfaces only when they write again.
+   */
+  async recheck(): Promise<void> {
+    const owed = this.d.store.load().threads.filter((t) => !t.group && (t.state === "owed" || t.state === "later"));
+    for (const t of owed.slice(0, 30)) {
+      const latest = await this.d.bb.messages(t.chat, 3).catch(() => null);
+      if (!latest) return;
+      const newest = latest.reduce<Message | null>((a, m) => (!a || m.at >= a.at ? m : a), null);
+      if (newest?.fromMe && newest.at > t.lastIn) this.closeReplied(t.id, newest.at);
+    }
+  }
+
+  /** Contact photos (#642, ./photos.ts): once a day and at start, only with the Mac's photo key. Counts in the log only. */
+  async syncPhotos(): Promise<void> {
+    if (!this.d.photoKey || !this.d.resize) return;
+    try {
+      const got = await syncPhotos({ bb: this.d.bb, site: this.d.site, key: this.d.photoKey, resize: this.d.resize }, this.d.store.load().photos);
+      this.change((s) => {
+        s.photos = got.photos;
+        s.photosAt = this.d.now();
+      });
+      this.d.log.log("photos synced", { count: got.count });
+    } catch (e) {
+      this.d.log.error("photos failed", e);
+    }
   }
 
   private budgetStop() {
@@ -755,7 +816,10 @@ export class Engine {
       .slice(0, 60)
       .map((t) => {
         const handle = t.chat.split(";").pop() ?? "";
-        const name = t.group ? this.groupNames.get(t.chat) || "Group chat" : this.contactOf(handle)?.names[0] || "Unknown sender";
+        const contact = t.group ? undefined : this.contactOf(handle);
+        const name = t.group ? this.groupNames.get(t.chat) || "Group chat" : contact?.names[0] || "Unknown sender";
+        // The contact's photo id (#642), only when that photo is on the site: an opaque id, never the handle.
+        const photo = contact && this.d.photoKey ? photoIdOf(this.d.photoKey, contact.handles) : "";
         return {
           id: t.id,
           name: name.slice(0, 80),
@@ -768,6 +832,7 @@ export class Engine {
           gist: t.gist.slice(0, 160),
           draft: t.draft ? { text: t.draft.text.slice(0, 600), at: Math.floor(t.draft.at) } : null,
           summary: t.summary ? { text: t.summary.text.slice(0, 300), asked: t.summary.asked } : null,
+          ...(photo && s.photos[photo] && { photo }),
         };
       });
     // The cards (#536): who (name and mask, never the handle), the text, the choices. Newest first.

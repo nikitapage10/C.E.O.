@@ -6,11 +6,14 @@
  *   2. Only for those new ones, the message itself, made plain and trimmed (./gmail.ts, readMessage).
  *   3. The private skip list and the money and legal pre-filter (./filter.ts) come first: such mail is counted as
  *      skipped (urgent money or legal mail becomes a one-line heads-up), never read by a model, never kept.
- *      Gmail's own Promotions and Social tabs are noise by rule. Everything else Dialtone sorts on Haiku; for
- *      needs-you mail Blasto writes advice and a draft on Sonnet. Each call is priced from its usage and checked
+ *      Gmail's own Promotions and Social tabs are noise by rule. Nikita's rules come next (#615, #642). Everything
+ *      else Dialtone sorts on Haiku, with Nikita's own last reply in the thread as context (#642); for needs-you mail
+ *      Blasto writes advice on Sonnet (a draft only when Nikita asks, #642). Each call is priced from its usage and checked
  *      against the month's cap first (./budget.ts): past it, mail is counted, not read by a model.
  *   3b. Once per connection, the catch-up (#323): the unread inbox mail of the last 48 hours, sorted the same way in
  *      the room each tick's MAX_PER_TICK leaves, without pings.
+ *   3c. The closing check (#642): a few open items' threads (metadata only); one whose newest message is Nikita's own
+ *      closes by itself. One open item per thread or calendar invite (`dedupe`). A few new sender domains' logos.
  *   4. New needs-you mail pings the phone (the Desk's own Web Push pings), counts only, never 10pm to 7am Mountain.
  *   5. The sealed state is saved, and the public counts (./status.ts) written beside it.
  *
@@ -23,9 +26,11 @@
 import { isQuiet, type PingText } from "../_desk/pings.js";
 import { monthOf } from "../_world/budget.js";
 import { addSpend, ADVISE_MODEL, budgetPct, canSpend, SORT_MODEL } from "./budget.js";
-import { onSkipList, preFilter, selfSent, storedMailSkipped, storedNotAction } from "./filter.js";
-import { accessToken, catchUpIds, currentHistoryId, fullBody, historySince, HistoryGoneError, lastHistoryId, newInboxIds, ownAddress, readMessage, readMessageRaw, threadStarter, TokenRefusedError, type Fetcher, type OAuthClient } from "./gmail.js";
-import { itemRuled, keysOf, ruleFor } from "./reply.js";
+import { emailPhotoHash } from "../_relay/photos.js";
+import { automatedMail, onSkipList, preFilter, selfSent, storedMailSkipped, storedNotAction } from "./filter.js";
+import { accessToken, catchUpIds, currentHistoryId, fullBody, historySince, HistoryGoneError, INVITE_SUBJECT, lastHistoryId, newInboxIds, ownAddress, readMessage, readMessageRaw, threadStarter, threadView, TokenRefusedError, type Fetcher, type OAuthClient, type ThreadMessage } from "./gmail.js";
+import { LOGO_KEEP_MS, LOGOS_PER_TICK, type Logo } from "./logos.js";
+import { itemRuled, keysOf, ruleFor, ruleSends, senderKey } from "./reply.js";
 import { adviseMail, NO_ACTION, oneLine, sortMail, type ClaudeCall } from "./sort.js";
 import { EMAIL_STATUS_VERSION, type EmailStatus } from "./status.js";
 import type { EmailStore } from "./store.js";
@@ -55,7 +60,16 @@ export interface TickDeps {
   senderSecret?: string;
   /** Sends one ping to every device that turned pings on; how many took it. */
   ping: (text: PingText) => Promise<number>;
+  /** Fetches one sender domain's logo with every guard (#642, ./logos.ts); left out, no logos are fetched. */
+  logoFetch?: (domain: string) => Promise<Logo | null>;
+  /** The key sender addresses are hashed under for the Mac's contact photos (#642, api/_relay/photos.ts); left out, none. */
+  photoKey?: Buffer | null;
 }
+
+/** The closing check looks at an open item's thread at most this often (#642)… */
+export const CHECK_EVERY_MS = 3 * 60_000;
+/** …and at most this many threads a tick. */
+export const CHECKS_PER_TICK = 8;
 
 export type TickResult = "waiting" | "busy" | "not-connected" | "refused" | "started" | "resynced" | "checked" | "error";
 
@@ -108,13 +122,18 @@ export interface SortContext {
   own: string;
   /** The thread's first message is from the mailbox's own address. */
   startedByMe: boolean;
+  /** Nikita's own latest message earlier in the thread, Gmail's snippet (#642): context for Dialtone. "" when none. */
+  lastReply?: string;
 }
+
+/** The title an invite's subject carries, for the invite key when it has no iCal UID. */
+const inviteTitle = (subject: string) => subject.trim().replace(INVITE_SUBJECT, "").replace(/\s*@.*$/, "").trim().toLowerCase();
 
 /**
  * Sorts one new mail into an item (or null for noise and skipped mail), spending only what the cap allows. The
  * private skip list and the money and legal pre-filter come first, before any model (./filter.ts).
  */
-async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: SortContext = { own: "", startedByMe: false }): Promise<{ state: EmailState; item: EmailItem | null; claudeFailed: boolean }> {
+async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: SortContext = { own: "", startedByMe: false }): Promise<{ state: EmailState; item: EmailItem | null; claudeFailed: boolean; domain?: string }> {
   const mail = readMessage(raw);
   if (!mail) return { state, item: null, claudeFailed: false };
   let s: EmailState = { ...state, day: { ...state.day, newCount: state.day.newCount + 1 } };
@@ -131,19 +150,39 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: Sor
   const noise = (st: EmailState) => ({ state: { ...st, day: { ...st.day, noise: st.day.noise + 1 } }, item: null, claudeFailed: false });
   // Mail Nikita sends to himself is noise, before any model (#522).
   if (priority && selfSent(mail, ctx.own)) return noise(s);
-  // Nikita's own sender rules (#615): after the money and legal rules, before any model. Counted as filtered, kept as nothing.
+  // Nikita's own rules (#615, #642): after the money and legal rules and the skip list, before any model. A filtering
+  // rule counts the mail as filtered and keeps nothing; a Can wait rule keeps it off the Thread (below).
   const keys = keysOf(deps.senderSecret ?? "", mail);
-  if (ruleFor(s.rules, keys)) {
+  const flags = { invite: mail.invite !== undefined, list: mail.bulk, auto: automatedMail(mail) };
+  const rule = ruleFor(s.rules, { ...keys, ...flags });
+  if (rule && ruleSends(rule) === "filtered") {
     const day = mountainDay(deps.now);
     return { state: { ...s, day: { ...s.day, noise: s.day.noise + 1 }, ruled: { day, count: (s.ruled.day === day ? s.ruled.count : 0) + 1 } }, item: null, claudeFailed: false };
   }
-  const base: EmailItem = { id: mail.id, at: mail.at, from: mail.from, subject: mail.subject, kind: "unsorted", summary: "", action: "", done: false, ...keys };
+  const invite = mail.invite !== undefined ? senderKey(deps.senderSecret ?? "", "invite", mail.invite || `${mail.fromAddress}|${inviteTitle(mail.subject)}`) : "";
+  const photoKey = deps.photoKey ? emailPhotoHash(deps.photoKey, mail.fromAddress) : "";
+  const base: EmailItem = {
+    id: mail.id,
+    at: mail.at,
+    from: mail.from,
+    subject: mail.subject,
+    kind: "unsorted",
+    summary: "",
+    action: "",
+    done: false,
+    ...keys,
+    ...(mail.threadId && { threadId: mail.threadId }),
+    ...(invite && { invite }),
+    ...(flags.list && { list: true }),
+    ...(flags.auto && { auto: true }),
+    ...(photoKey && { photoKey }),
+  };
   if (!deps.claude || !canSpend(s, SORT_MODEL, deps.budget, deps.now)) {
     // Paused (or no key): counted, not read by a model.
     return { state: { ...s, unsorted: s.unsorted + 1 }, item: base, claudeFailed: false };
   }
   try {
-    const { sorted: first, usage } = await sortMail(deps.claude, mail, priority);
+    const { sorted: first, usage } = await sortMail(deps.claude, mail, priority, ctx.lastReply ?? "");
     s = addSpend(s, SORT_MODEL, usage, deps.now);
     if (!first) return { state: s, item: base, claudeFailed: true };
     let sorted = first;
@@ -162,11 +201,15 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: Sor
     // Without a list FYI is not kept (#495): the Relay list holds only mail that needs Nikita to act, counted with the
     // noise. With one, FYI is Can wait: kept, no ping, no Blasto (#522).
     if (sorted.kind === "noise" || (sorted.kind === "fyi" && !priority)) return noise(s);
+    const domain = mail.fromDomain;
+    // A Can wait rule (#642): kept, summarised, no ping, no Blasto, off the Thread; Undo puts back the kind it had.
+    if (rule) return { state: s, item: { ...base, kind: "fyi", summary: sorted.summary, action: sorted.action, byRule: rule.id, prevKind: sorted.kind as EmailKind }, claudeFailed: false, domain };
     const item: EmailItem = { ...base, kind: sorted.kind as EmailKind, summary: sorted.summary, action: sorted.action };
-    if (sorted.kind !== "needs-you" || !canSpend(s, ADVISE_MODEL, deps.budget, deps.now)) return { state: s, item, claudeFailed: false };
+    if (sorted.kind !== "needs-you" || !canSpend(s, ADVISE_MODEL, deps.budget, deps.now)) return { state: s, item, claudeFailed: false, domain };
+    // Advice only on arrival (#642): Blasto drafts when Nikita asks ("Draft it", ./reply.ts).
     const { advice, usage: u2 } = await adviseMail(deps.claude, mail, s.style);
     s = addSpend(s, ADVISE_MODEL, u2, deps.now);
-    return { state: s, item: advice ? { ...item, advice: advice.advice, ...(advice.draft && { draft: advice.draft }) } : item, claudeFailed: !advice };
+    return { state: s, item: advice ? { ...item, advice: advice.advice } : item, claudeFailed: !advice, domain };
   } catch {
     return { state: s, item: base, claudeFailed: true };
   }
@@ -174,8 +217,42 @@ async function sortOne(deps: TickDeps, state: EmailState, raw: unknown, ctx: Sor
 
 /** The state without any kept item the skip list or the money and legal filter would skip today (#415). */
 export function purgeItems(state: EmailState, terms: readonly string[], keepFyi = false): EmailState {
-  const items = state.items.filter((i) => !storedMailSkipped(terms, i) && !storedNotAction(i, keepFyi) && !itemRuled(state.rules, i));
+  // Mail a Can wait rule moved is kept as Can wait whatever the list says (#642): its Undo needs it.
+  const items = state.items.filter((i) => !storedMailSkipped(terms, i) && (i.byRule !== undefined || !storedNotAction(i, keepFyi)) && !itemRuled(state.rules, i));
   return items.length === state.items.length ? state : { ...state, items };
+}
+
+/** The kinds an open item can be on the Thread or Can wait. */
+const OPEN_KINDS: readonly EmailKind[] = ["needs-you", "unsorted", "fyi"];
+
+/**
+ * One open item per conversation (#642): newest first, an older open item in the same Gmail thread, or the same
+ * calendar invite (by its iCal UID, or by sender and title for one sorted before #642), is closed as merged.
+ */
+export function dedupe(items: EmailItem[]): EmailItem[] {
+  const seen = new Set<string>();
+  const order = [...items].sort((a, b) => b.at - a.at);
+  const out = new Map<string, EmailItem>();
+  for (const i of order) {
+    if (i.done || !OPEN_KINDS.includes(i.kind)) {
+      out.set(i.id, i);
+      continue;
+    }
+    const keys = [i.threadId && `t:${i.threadId}`, i.invite && `i:${i.invite}`, !i.invite && INVITE_SUBJECT.test(i.subject.trim()) && `s:${i.from.toLowerCase()}|${inviteTitle(i.subject)}`].filter((k): k is string => !!k);
+    const dup = keys.some((k) => seen.has(k));
+    for (const k of keys) seen.add(k);
+    out.set(i.id, dup ? { ...i, done: true, closed: "merged" } : i);
+  }
+  return items.map((i) => out.get(i.id) ?? i);
+}
+
+/**
+ * The closing check on one item (#642): Gmail's thread, metadata only. Closed when Nikita's own message is the newest
+ * in it and newer than the item (he answered in Gmail, or on his phone). Pure, so it is tested on its own.
+ */
+export function repliedIn(view: readonly ThreadMessage[], item: Pick<EmailItem, "at">): boolean {
+  const last = view.reduce<ThreadMessage | null>((a, m) => (!a || m.at >= a.at ? m : a), null);
+  return !!last && last.sent && last.at > item.at;
 }
 
 /** New items into the list, replacing any with the same id. */
@@ -224,17 +301,28 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
       // once per tick (the address) and once per reply thread, and never when there is no list (#522).
       let own: string | null = null;
       const contextFor = async (raw: unknown): Promise<SortContext> => {
-        if (!deps.priority) return { own: "", startedByMe: false };
+        const m = readMessage(raw);
+        // Nikita's own latest reply in a thread he already answered (#642): Gmail's snippet, metadata only.
+        let lastReply = "";
+        if (m?.threadId && m.threadId !== m.id) {
+          try {
+            lastReply = [...(await threadView(deps.fetcher, access, m.threadId))].reverse().find((x) => x.sent && x.at < m.at)?.snippet ?? "";
+          } catch (e) {
+            if (e instanceof TokenRefusedError) throw e;
+          }
+        }
+        if (!deps.priority) return { own: "", startedByMe: false, lastReply };
         try {
           own ??= await ownAddress(deps.fetcher, access);
-          const m = readMessage(raw);
           const starter = !own || !m ? "" : m.threadId === undefined || m.threadId === m.id ? m.fromAddress : await threadStarter(deps.fetcher, access, m.threadId, m.id);
-          return { own, startedByMe: Boolean(own) && starter === own };
+          return { own, startedByMe: Boolean(own) && starter === own, lastReply };
         } catch (e) {
           if (e instanceof TokenRefusedError) throw e;
-          return { own: own ?? "", startedByMe: false };
+          return { own: own ?? "", startedByMe: false, lastReply };
         }
       };
+      /** Sender domains of kept mail whose logo isn't known yet, this tick only (#642). */
+      const domains = new Map<string, string>();
       /** Reads and sorts one message, remembering it as seen; null when it vanished or was skipped. */
       const readAndSort = async (id: string): Promise<EmailItem | null> => {
         read += 1;
@@ -250,6 +338,8 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
         const got = await sortOne(deps, state, raw, await contextFor(raw));
         state = { ...got.state, seen: [...got.state.seen, id].slice(-MAX_SEEN) };
         if (got.claudeFailed) claudeFailed = true;
+        const dk = got.item?.domainKey;
+        if (dk && got.domain && (!state.logos[dk] || deps.now - state.logos[dk]!.at > LOGO_KEEP_MS)) domains.set(dk, got.domain);
         return got.item;
       };
 
@@ -302,6 +392,39 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
         if (item) caught.push(item);
       }
       state = withItems(state, caught, deps.now);
+
+      // The closing check (#642): an open item whose thread now ends with Nikita's own message closes by itself.
+      const due = state.items
+        .filter((i) => !i.done && i.threadId && OPEN_KINDS.includes(i.kind) && deps.now - (i.checkedAt ?? 0) >= CHECK_EVERY_MS)
+        .sort((a, b) => (a.checkedAt ?? 0) - (b.checkedAt ?? 0))
+        .slice(0, CHECKS_PER_TICK);
+      for (const i of due) {
+        let view: ThreadMessage[] | null = null;
+        try {
+          view = await threadView(deps.fetcher, access, i.threadId!);
+        } catch (e) {
+          if (e instanceof TokenRefusedError) throw e;
+        }
+        const close = view !== null && repliedIn(view, i);
+        state = { ...state, items: state.items.map((x) => (x.id === i.id ? { ...x, checkedAt: deps.now, ...(close && { done: true, closed: "replied" as const }) } : x)) };
+      }
+
+      // Sender logos (#642): a few new domains a tick, each fetched once with every guard, kept 30 days.
+      if (deps.logoFetch) {
+        let logos = { ...state.logos };
+        for (const [k, domain] of [...domains].slice(0, LOGOS_PER_TICK)) {
+          const logo = await deps.logoFetch(domain).catch(() => null);
+          if (logo) await deps.store.saveLogo(k, logo).catch(() => undefined);
+          logos[k] = { at: deps.now, ok: !!logo };
+        }
+        for (const [k, e] of Object.entries(logos)) {
+          if (deps.now - e.at <= LOGO_KEEP_MS) continue;
+          if (e.ok) await deps.store.dropLogo(k).catch(() => undefined);
+          const { [k]: _gone, ...rest } = logos;
+          logos = rest;
+        }
+        state = { ...state, logos };
+      }
       if (claudeFailed) lastError = "claude";
     }
   } catch (e) {
@@ -320,7 +443,7 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
     state = { ...state, pingPending: 0 };
   }
   state = { ...purgeItems(state, deps.skipTerms ?? [], Boolean(deps.priority)), lastCheck: deps.now, lastError, busyUntil: 0 };
-  state = { ...state, items: pruneItems(state.items, deps.now) };
+  state = { ...state, items: dedupe(pruneItems(state.items, deps.now)) };
   // Saved over whatever is stored now, keeping any Done Nikita pressed on the Desk while this tick ran.
   // Disconnected on the Desk while this tick ran: nothing of the inbox is kept.
   if (!(await deps.store.token().catch(() => null))) state = { ...state, items: [], historyId: null, seen: [], gmail: "not-connected", pingPending: 0, catchUpListed: false, catchUp: [] };
@@ -335,10 +458,13 @@ export async function tick(deps: TickDeps): Promise<TickResult> {
       rules: current.state.rules,
       style: current.state.style,
       sends: current.state.sends,
+      sendLog: current.state.sendLog,
       items: state.items.map((x) => {
         const c = desk.get(x.id);
         if (!c) return x;
-        return { ...x, ...(c.done && { done: true }), ...(c.said && { said: c.said, ...(c.draft && { draft: c.draft }) }), ...(c.sending && { sending: c.sending }), ...(c.sentAt && { sentAt: c.sentAt }) };
+        // A draft Nikita asked for, a skip, or a rule that moved it, all made on the Desk while this tick ran (#642).
+        const moved = c.byRule !== x.byRule ? { kind: c.kind, byRule: c.byRule, prevKind: c.prevKind } : {};
+        return { ...x, ...moved, ...(c.done && { done: true }), ...(c.skipped && { skipped: true }), ...(c.draft && { draft: c.draft }), ...(c.said && { said: c.said }), ...(c.sending && { sending: c.sending }), ...(c.sentAt && { sentAt: c.sentAt }) };
       }),
     };
     saved = await deps.store.save(merged, current.version).catch(() => false);

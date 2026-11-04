@@ -35,6 +35,11 @@
  *   POST /api/relay-hub?view=results   what became of the requests it took
  *   GET  /api/relay-hub?view=skip      the private skip list's terms (EMAIL_SKIP_TERMS), memory only on the Mac
  *   POST /api/relay-hub?view=unpair    the wipe: forgets this pairing, clears the list and the requests, shows "wiped"
+ *   GET  /api/relay-hub?view=photo-key the key the hub hashes email addresses under for the photo match (#642, ./photos.ts)
+ *   POST /api/relay-hub?view=photo     one contact photo: an opaque id and a small PNG, cleaned again here, sealed
+ *   POST /api/relay-hub?view=photos    the ids the Mac has now (the rest are deleted) and the email-hash → id map
+ *
+ * The Desk also reads GET /api/relay?photo=<id>: one contact photo, passkey session only (#642).
  *
  * The send path (the part to review hardest). Nothing sends without Nikita's tap:
  *   1. Unlock, once per device: a fresh passkey answer (the device's own unlock, user verification required) to a
@@ -74,6 +79,8 @@ import { pickRelayStore, update, type PrivateState, type RelayStore, type Reques
 import { DICTATED_MAX, MAX_CARDS, readTextsView, RESULTS, RID, SEND_MAX, type RequestKind, type RequestResult, type RequestState, type TextCard, type TextItem, type TextRequest } from "./texts.js";
 import { askRuled, cleanGist, cleanWho } from "./compose.js";
 import { privateParts } from "../_privacy.js";
+import { cleanPng, emptyPhotoIndex, MAX_PHOTOS, PHOTO_ID, photoEmailKey, readPhotoIndex, readPhotoList } from "./photos.js";
+import { dropPhotos } from "./store.js";
 import { bearer, hubKey, hubTokenPair, mintPairCode, mintPairing, normalCode, PAIR_CODE_MS, PAIR_TRIES, REQUEST_MS, sendKeyFor, sha256, showCode, signRequest, UNLOCK_MS } from "./tokens.js";
 
 export const RELAY_PATH = "/api/relay";
@@ -100,7 +107,12 @@ export interface RelayRouteDeps {
   /** Sends one ping to every device that turned pings on (counts only); how many took it. */
   ping: (text: PingText) => Promise<number>;
   now: number;
+  /** The key email addresses are hashed under for the photo match (#642); null without GMAIL_TOKEN_KEY. */
+  photoKey?: Buffer | null;
 }
+
+/** The most a hub's photo list may be (bytes). */
+export const MAX_PHOTOS_BYTES = 512 * 1024;
 
 export function liveRelayDeps(env: Env = process.env): RelayRouteDeps {
   const blob = pickBlob(env);
@@ -119,6 +131,7 @@ export function liveRelayDeps(env: Env = process.env): RelayRouteDeps {
       return subs.length ? deliver(auth, subs, text, webPushSend) : 0;
     },
     now: Date.now(),
+    photoKey: photoEmailKey(env.GMAIL_TOKEN_KEY),
   };
 }
 
@@ -188,6 +201,7 @@ export async function GET(request: Request, deps: RelayRouteDeps = liveRelayDeps
   }
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
+  if (url.searchParams.has("photo")) return withCookie(await photoAnswer(url, deps), signed);
   if ([...url.searchParams.keys()].length) return withCookie(json({ error: "bad-request" }, 400), signed);
   try {
     const hub = deps.store ? await deps.store.hub() : null;
@@ -215,11 +229,26 @@ export async function GET(request: Request, deps: RelayRouteDeps = liveRelayDeps
   }
 }
 
+/** One contact photo for the passkey Desk (#642): only an id the paired Mac sent, sealed; never cached by the edge. */
+async function photoAnswer(url: URL, deps: RelayRouteDeps): Promise<Response> {
+  const id = url.searchParams.get("photo") ?? "";
+  if ([...url.searchParams.keys()].length !== 1 || !PHOTO_ID.test(id) || !deps.store) return json({ error: "bad-request" }, 400);
+  try {
+    const index = readPhotoIndex(await deps.store.photoIndex());
+    const png = index.ids[id] !== undefined ? await deps.store.photo(id) : null;
+    if (!png) return json({ error: "not-found" }, 404);
+    return new Response(Buffer.from(png), { headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox" } });
+  } catch {
+    return json({ error: "store" }, 502);
+  }
+}
+
 async function hubGet(request: Request, url: URL, deps: RelayRouteDeps): Promise<Response> {
   const view = url.searchParams.get("view");
-  if ([...url.searchParams.keys()].length !== 1 || (view !== "skip" && view !== "requests")) return json({ error: "bad-request" }, 400);
+  if ([...url.searchParams.keys()].length !== 1 || (view !== "skip" && view !== "requests" && view !== "photo-key")) return json({ error: "bad-request" }, 400);
   if (!(await hubOf(request, deps)) || !deps.store) return json({ error: "unauthorized" }, 401);
   if (view === "skip") return json({ ok: true, terms: deps.skipTerms });
+  if (view === "photo-key") return deps.photoKey ? json({ ok: true, key: deps.photoKey.toString("base64url") }) : json({ error: "not-set-up" }, 503);
   // Single-use: every waiting, unexpired request is handed out in the same conditional write that marks it taken.
   const now = deps.now;
   const taken = await update(deps.store, (s) => {
@@ -274,6 +303,7 @@ export async function POST(request: Request, deps: RelayRouteDeps = liveRelayDep
     await store.saveHub(null);
     await store.savePair(null);
     await update(store, () => ({ next: { texts: null, requests: [] }, result: true }));
+    await dropPhotos(store);
     await store.saveStatus(emptyRelayStatus(deps.now, "off"));
     return json({ ok: true }, 200, keep);
   }
@@ -445,15 +475,16 @@ async function pairHub(request: Request, deps: RelayRouteDeps): Promise<Response
   if (!minted) return json({ error: "not-set-up" }, 503);
   await store.savePair(null);
   await store.saveHub({ pairId: minted.pairId, tokenHash: sha256(minted.token), pairedAt: deps.now, lastSeen: null });
-  // A new pairing starts with an empty list: nothing of an earlier Mac carries over.
+  // A new pairing starts with an empty list: nothing of an earlier Mac carries over, its photos included.
   await update(store, () => ({ next: { texts: null, requests: [] }, result: true }));
+  await dropPhotos(store);
   return json({ ok: true, token: minted.token, sendKey: minted.sendKey });
 }
 
 async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promise<Response> {
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
   const view = url.searchParams.get("view");
-  if ([...url.searchParams.keys()].length > 1 || (url.search && !["texts", "results", "sort", "draft", "unpair"].includes(view ?? ""))) return json({ error: "bad-request" }, 400);
+  if ([...url.searchParams.keys()].length > 1 || (url.search && !["texts", "results", "sort", "draft", "unpair", "photo", "photos"].includes(view ?? ""))) return json({ error: "bad-request" }, 400);
   if (!(await hubOf(request, deps)) || !deps.store) return json({ error: "unauthorized" }, 401);
   const store = deps.store;
   const raw = await request.text().catch(() => "");
@@ -476,8 +507,30 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
     // list and the requests go, as with Unpair on the Desk.
     await store.saveHub(null);
     await update(store, () => ({ next: { texts: null, requests: [] }, result: true }));
+    await dropPhotos(store);
     await store.saveStatus(emptyRelayStatus(deps.now, "wiped"));
     return json({ ok: true });
+  }
+
+  if (view === "photos") {
+    // The ids the Mac has now and the email map: a photo the Mac no longer has is deleted here.
+    if (raw.length > MAX_PHOTOS_BYTES) return json({ error: "too-big" }, 413);
+    let list: ReturnType<typeof readPhotoList> = null;
+    try {
+      list = readPhotoList(JSON.parse(raw));
+    } catch {
+      list = null;
+    }
+    if (!list) return json({ error: "refused" }, 422);
+    const before = readPhotoIndex(await store.photoIndex().catch(() => null));
+    const keep = new Set(list.keep);
+    for (const id of Object.keys(before.ids)) if (!keep.has(id)) await store.dropPhoto(id).catch(() => undefined);
+    const ids: Record<string, number> = {};
+    for (const id of list.keep) if (before.ids[id] !== undefined) ids[id] = before.ids[id]!;
+    const emails: Record<string, string> = {};
+    for (const [k, p] of list.emails) if (ids[p] !== undefined) emails[k] = p;
+    await store.savePhotoIndex({ ids, emails, at: deps.now });
+    return json({ ok: true, have: Object.keys(ids) });
   }
 
   if (raw.length > MAX_TEXTS_BYTES) return json({ error: "too-big" }, 413);
@@ -486,6 +539,19 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
     body = JSON.parse(raw);
   } catch {
     return json({ error: "bad-request" }, 400);
+  }
+
+  if (view === "photo") {
+    // One photo: an opaque id and a PNG, cleaned again here (only the image chunks, small), sealed at rest.
+    const o = body as { id?: unknown; png?: unknown } | null;
+    if (!o || typeof o !== "object" || Object.keys(o).some((k) => k !== "id" && k !== "png") || typeof o.id !== "string" || !PHOTO_ID.test(o.id) || typeof o.png !== "string" || o.png.length > 80_000) return json({ error: "refused" }, 422);
+    const png = cleanPng(new Uint8Array(Buffer.from(o.png, "base64")));
+    if (!png) return json({ error: "refused" }, 422);
+    const index = readPhotoIndex(await store.photoIndex().catch(() => null));
+    if (index.ids[o.id] === undefined && Object.keys(index.ids).length >= MAX_PHOTOS) return json({ error: "full" }, 409);
+    await store.savePhoto(o.id, png);
+    await store.savePhotoIndex({ ...(Object.keys(index.ids).length ? index : emptyPhotoIndex()), ids: { ...index.ids, [o.id]: deps.now }, at: deps.now });
+    return json({ ok: true });
   }
 
   if (view === "texts") {

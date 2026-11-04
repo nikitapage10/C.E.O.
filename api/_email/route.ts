@@ -10,13 +10,19 @@
  *          "disconnect"  → forgets the token (and asks Google to revoke it) and clears the private list
  *          "done", id    → marks one mail handled
  *          "undone", id  → takes Done back (the Thread's Undo, #615)
- *          "reply", id, said   → Blasto's draft from Nikita's few words (./reply.ts), on the agent's own cap → { draft }
+ *          "reply", id, said   → Blasto's draft from Nikita's few words (./reply.ts), on the agent's own cap → { draft };
+ *                                said "" is "Draft it" (#642): the reply his advice points to
+ *          "skip", id    → gone like Done, until the sender writes again (#642); "undone" takes it back
+ *          "intent", key, said → what Nikita meant about the item in focus (#642, ./intent.ts): the free phrases first,
+ *                                else one Haiku call under the cap. A rule is made and applied here (undoable with
+ *                                "unblock"); everything else the Desk carries out through the actions above. Never sends.
  *          "block" | "filter", id → a sender rule from that mail's sender (address) or domain → { rule }
  *          "unblock", rule     → takes a rule back
  *          "learn-style"       → reads a sample of their own sent mail once and keeps a few style traits → { style }
  *          "send", id, draft   → sends the draft on screen as a reply on the mail's thread (#615): only with a
  *                                gmail.send grant, only that exact draft, once per mail, under SEND_DAY_MAX a day and
  *                                the agent's monthly cap. The Desk posts it only after Nikita's yes and its undo window.
+ *   GET  /api/email?logo=<key>    a sender's logo (#642, ./logos.ts), by its domain's keyed hash. Passkey session only.
  *   GET  /api/gmail-callback      where Google sends the browser back with a one-time code
  *
  * The OAuth state (CSRF): "connect" makes 24 random bytes, sends them to Google as `state`, and sets them in a signed,
@@ -45,9 +51,17 @@ import { emptyEmailState, type EmailItem, type EmailState, type EmailView } from
 import { accessToken, replyHeaders, SendNotAllowedError, sendReply, TokenRefusedError } from "./gmail.js";
 import { skipTermsFrom } from "./filter.js";
 import { claudeCall, type ClaudeCall } from "./sort.js";
-import { cleanSaid, gmailSent, learnStyle, MAX_RULES, replyFromWords, RULE_ID, ruleFrom, sentSample, type SentReader } from "./reply.js";
+import { cleanSaid, gmailSent, learnStyle, MAX_RULES, replyFromWords, RULE_ID, ruleFor, ruleFrom, sentSample, type SentReader } from "./reply.js";
 import { addSpend, ADVISE_MODEL, canSpend, SORT_MODEL } from "./budget.js";
 import { privateParts } from "../_privacy.js";
+import { intentOf, SAID_MAX, type IntentContext } from "./intent.js";
+import { quickIntent } from "./intentWords.js";
+import { oneLine } from "./sort.js";
+import { ruleSends, subjectOf, tierRule } from "./reply.js";
+import type { FilterRule } from "./types.js";
+import { readPhotoIndex, type PhotoIndex } from "../_relay/photos.js";
+import { pickRelayStore } from "../_relay/store.js";
+import type { TextItem } from "../_relay/texts.js";
 
 export const EMAIL_PATH = "/api/email";
 export const CALLBACK_PATH = "/api/gmail-callback";
@@ -77,6 +91,10 @@ export interface EmailRouteDeps {
   skipTerms?: readonly string[];
   /** Reads Nikita's sent mail for the style; left out, the live Gmail reader on the stored token. */
   sent?: () => Promise<SentReader>;
+  /** The texts line's who's-waiting list, for an utterance about a text (#642); left out, none. */
+  texts?: () => Promise<TextItem[]>;
+  /** The Mac's contact photo index (#642, api/_relay/photos.ts); left out, no photos. */
+  photos?: () => Promise<PhotoIndex | null>;
 }
 
 /** The OAuth client from the settings, or null. */
@@ -111,6 +129,14 @@ export function liveRouteDeps(env: Env = process.env): EmailRouteDeps {
     now: Date.now(),
     call: claudeCall(env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY || ""),
     skipTerms: skipTermsFrom(env.EMAIL_SKIP_TERMS),
+    texts: async () => {
+      const relay = pickRelayStore(env);
+      return relay ? ((await relay.load()).state.texts?.items ?? []) : [];
+    },
+    photos: async () => {
+      const relay = pickRelayStore(env);
+      return relay ? readPhotoIndex(await relay.photoIndex()) : null;
+    },
   };
 }
 
@@ -130,8 +156,21 @@ export const SEND_DAY_MAX = 40;
 /** A send claim older than this is stale (the function died mid-send) and may be tried again. */
 const SEND_CLAIM_MS = 60_000;
 
-/** An item as the Desk sees it: the sender keys stay on the server. */
-const forDesk = ({ senderKey: _a, domainKey: _b, ...rest }: EmailItem) => rest;
+/**
+ * An item as the Desk sees it: the keys, the thread and the flags stay on the server (#615, #642). `logo` and `photo`
+ * are opaque ids, there only when a logo was found for the sender's domain or the Mac sent a photo for the address.
+ */
+const forDesk = (logos: EmailState["logos"], photos: PhotoIndex | null) => (item: EmailItem) => {
+  const { senderKey: _a, domainKey, threadId: _t, invite: _i, photoKey, checkedAt: _c, byRule: _r, prevKind: _p, list: _l, auto: _u, ...rest } = item;
+  const photo = photoKey && photos ? photos.emails[photoKey] : undefined;
+  return { ...rest, ...(domainKey && logos[domainKey]?.ok && { logo: domainKey }), ...(photo && { photo }) };
+};
+
+/** A rule as the Desk sees it: no key. */
+const ruleView = ({ id, kind, label, at, match, to }: FilterRule) => ({ id, kind, label, at, ...(match && { match }), ...(to && { to }) });
+
+/** The send log, the last seven days. */
+const WEEK_MS = 7 * 86_400_000;
 
 function json(body: unknown, status = 200): Response {
   // Mail is private: never cached by the edge or the browser.
@@ -189,17 +228,20 @@ export async function GET(request: Request, deps: EmailRouteDeps = liveRouteDeps
   }
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
+  if (url.searchParams.has("logo")) return withCookie(await logoAnswer(url, deps), signed);
   if ([...url.searchParams.keys()].length) return withCookie(json({ error: "bad-request" }, 400), signed);
   try {
     const status = await currentStatus(deps);
     const state = deps.store ? (await deps.store.load()).state : emptyEmailState();
+    const photos = deps.photos ? await deps.photos().catch(() => null) : null;
     const view: EmailView = {
       ok: true,
       status,
       canConnect: deps.client !== null && deps.store !== null,
       canSend: deps.store ? Boolean((await deps.store.token().catch(() => null))?.send) : false,
-      items: state.items.map(forDesk),
-      rules: state.rules.map(({ id, kind, label, at }) => ({ id, kind, label, at })),
+      items: state.items.map(forDesk(state.logos, photos)),
+      rules: state.rules.map(ruleView),
+      sentWeek: Math.min(9_999, state.sendLog.filter((t) => deps.now - t < WEEK_MS).length),
       ruled: state.ruled.day === mountainDay(deps.now) ? Math.min(9_999, state.ruled.count) : 0,
       style: state.style,
       applied: state.applied.month === monthOf(deps.now) ? Math.min(9_999, state.applied.count) : 0,
@@ -210,6 +252,37 @@ export async function GET(request: Request, deps: EmailRouteDeps = liveRouteDeps
   } catch {
     return withCookie(json({ error: "store" }, 502), signed);
   }
+}
+
+/** One sender logo, by its domain's keyed hash: only one the tick found, sealed; never cached by the edge. */
+async function logoAnswer(url: URL, deps: EmailRouteDeps): Promise<Response> {
+  const key = url.searchParams.get("logo") ?? "";
+  if ([...url.searchParams.keys()].length !== 1 || !/^[0-9a-f]{32}$/.test(key) || !deps.store) return json({ error: "bad-request" }, 400);
+  try {
+    const { state } = await deps.store.load();
+    const logo = state.logos[key]?.ok ? await deps.store.logo(key) : null;
+    if (!logo) return json({ error: "not-found" }, 404);
+    return new Response(Buffer.from(logo.bytes), {
+      headers: { "Content-Type": logo.type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox", "Content-Disposition": "inline" },
+    });
+  } catch {
+    return json({ error: "store" }, 502);
+  }
+}
+
+/** Every open item a new rule covers moves now, marked with the rule so Undo puts each back as it was (#642). */
+export function applyRule(s: EmailState, r: FilterRule): { state: EmailState; moved: number } {
+  const to = ruleSends(r);
+  let moved = 0;
+  const open = (x: EmailItem) => !x.done && x.kind !== "noise" && !(to === "can-wait" && x.kind === "fyi");
+  const items = s.items.map((x) => {
+    if (!open(x)) return x;
+    const hit = r.kind === "block" ? x.senderKey === r.key : r.kind === "filter" ? x.domainKey === r.key : ruleFor([r], subjectOf(x)) !== null;
+    if (!hit) return x;
+    moved += 1;
+    return to === "filtered" ? { ...x, done: true, byRule: r.id, prevKind: x.kind } : { ...x, kind: "fyi" as const, byRule: r.id, prevKind: x.kind };
+  });
+  return { state: { ...s, rules: [...s.rules.filter((x) => !(x.kind === r.kind && x.key === r.key && x.match === r.match)), r].slice(-MAX_RULES), items }, moved };
 }
 
 export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDeps()): Promise<Response> {
@@ -265,7 +338,7 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
   if (body.action === "undone") {
     if (!okId(body.id)) return reply({ error: "bad-request" }, 400);
     const id = body.id;
-    const ok = await change(store, (s) => (s.items.some((x) => x.id === id) ? { state: { ...s, items: s.items.map((x) => (x.id === id ? { ...x, done: false } : x)) }, out: true } : null));
+    const ok = await change(store, (s) => (s.items.some((x) => x.id === id) ? { state: { ...s, items: s.items.map((x) => (x.id === id ? { ...x, done: false, skipped: undefined, closed: undefined } : x)) }, out: true } : null));
     if (ok) await saveStatus();
     return reply({ ok: Boolean(ok) });
   }
@@ -273,7 +346,8 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
   if (body.action === "reply") {
     const b = body as { id?: unknown; said?: unknown };
     const said = cleanSaid(b.said);
-    if (!okId(b.id) || !said) return reply({ error: "bad-request" }, 400);
+    // An empty said is "Draft it" (#642): Blasto writes what his advice points to.
+    if (!okId(b.id) || (!said && b.said !== "")) return reply({ error: "bad-request" }, 400);
     // Their words go to Claude: never a number, an address, a card or a key (a name is fine in a reply).
     if (privateParts(said).some((k) => k !== "name")) return reply({ error: "private" }, 422);
     if (!deps.call) return reply({ error: "not-set-up" }, 503);
@@ -288,8 +362,62 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
       return reply({ error: "claude" }, 502);
     }
     const draft = got.draft;
-    await change(store, (s) => ({ state: { ...addSpend(s, ADVISE_MODEL, got.usage, deps.now), items: draft ? s.items.map((x) => (x.id === item.id ? { ...x, draft, said } : x)) : s.items }, out: true }));
+    await change(store, (s) => ({ state: { ...addSpend(s, ADVISE_MODEL, got.usage, deps.now), items: draft ? s.items.map((x) => (x.id === item.id ? { ...x, draft, ...(said ? { said } : { said: undefined }) } : x)) : s.items }, out: true }));
     return draft ? reply({ ok: true, draft, said }) : reply({ error: "claude" }, 502);
+  }
+
+  if (body.action === "skip") {
+    if (!okId(body.id)) return reply({ error: "bad-request" }, 400);
+    const id = body.id;
+    const ok = await change(store, (s) => (s.items.some((x) => x.id === id) ? { state: { ...s, items: s.items.map((x) => (x.id === id ? { ...x, done: true, skipped: true } : x)) }, out: true } : null));
+    if (ok) await saveStatus();
+    return reply({ ok: Boolean(ok) });
+  }
+
+  if (body.action === "intent") {
+    const b = body as { key?: unknown; said?: unknown };
+    const said = typeof b.said === "string" ? oneLine(b.said, SAID_MAX) : "";
+    const m = typeof b.key === "string" ? /^(e|t):([0-9a-f]{6,32})$/.exec(b.key) : null;
+    if (!m || !said) return reply({ error: "bad-request" }, 400);
+    const line = m[1] === "e" ? "email" : "text";
+    const id = m[2]!;
+    // The free phrases first: "already did it", "skip", "later", "draft it" never reach a model.
+    const quick = quickIntent(said);
+    if (quick) return reply({ ok: true, intent: quick.kind === "draft" ? { kind: "reply", words: "" } : quick });
+    // What Nikita said goes to Claude: never a number, an address, a card or a key (a name is fine).
+    if (privateParts(said).some((k) => k !== "name")) return reply({ error: "private" }, 422);
+    if (!deps.call) return reply({ error: "not-set-up" }, 503);
+    const { state } = await store.load();
+    let ctx: IntentContext | null = null;
+    if (line === "email") {
+      const item = state.items.find((x) => x.id === id && !x.done);
+      if (item) ctx = { line, who: item.from, subject: item.subject, gist: item.summary || item.subject, advice: item.advice ?? "", drafted: !!item.draft };
+    } else {
+      const t = deps.texts ? (await deps.texts().catch(() => [] as TextItem[])).find((x) => x.id === id && !x.group) : undefined;
+      if (t) ctx = { line, who: t.name, subject: "", gist: t.gist, advice: "", drafted: !!t.draft };
+    }
+    if (!ctx) return reply({ error: "no-item" }, 404);
+    if (!canSpend(state, SORT_MODEL, deps.budget, deps.now)) return reply({ error: "cap" }, 429);
+    let got: Awaited<ReturnType<typeof intentOf>>;
+    try {
+      got = await intentOf(deps.call, ctx, said);
+    } catch {
+      return reply({ error: "claude" }, 502);
+    }
+    await change(store, (s) => ({ state: addSpend(s, SORT_MODEL, got.usage, deps.now), out: true }));
+    const intent = got.intent;
+    if (!intent) return reply({ error: "claude" }, 502);
+    if (intent.kind !== "rule") return reply({ ok: true, intent });
+    const made = await change(store, (s) => {
+      const item = s.items.find((x) => x.id === id);
+      const r = item ? tierRule(item, intent.match, intent.to, deps.now) : null;
+      if (!r) return null;
+      const applied = applyRule(s, r);
+      return { state: applied.state, out: { rule: r, moved: applied.moved } };
+    });
+    if (!made) return reply({ error: "no-key" }, 409);
+    await saveStatus();
+    return reply({ ok: true, intent, rule: ruleView(made.rule), moved: made.moved });
   }
 
   if (body.action === "block" || body.action === "filter") {
@@ -299,11 +427,8 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
     const rule = await change(store, (s) => {
       const item = s.items.find((x) => x.id === id);
       const r = item ? ruleFrom(item, kind, deps.now) : null;
-      if (!r) return null;
-      const rules = [...s.rules.filter((x) => !(x.kind === r.kind && x.key === r.key)), r].slice(-MAX_RULES);
-      // What the rule covers leaves the list now, marked done so Undo can bring it back.
-      const covered = (x: EmailItem) => (kind === "block" ? x.senderKey === r.key : x.domainKey === r.key);
-      return { state: { ...s, rules, items: s.items.map((x) => (covered(x) ? { ...x, done: true } : x)) }, out: r };
+      // What the rule covers leaves the list now, marked with the rule so Undo can bring it back.
+      return r ? { state: applyRule(s, r).state, out: r } : null;
     });
     if (!rule) return reply({ error: "no-key" }, 409);
     await saveStatus();
@@ -316,9 +441,16 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
     const ok = await change(store, (s) => {
       const r = s.rules.find((x) => x.id === rid);
       if (!r) return null;
-      // Undo brings back what the rule took off the list just now (the last ten minutes).
-      const back = (x: EmailItem) => x.done && deps.now - r.at < 10 * 60_000 && (r.kind === "block" ? x.senderKey === r.key : x.domainKey === r.key);
-      return { state: { ...s, rules: s.rules.filter((x) => x.id !== rid), items: s.items.map((x) => (back(x) ? { ...x, done: false } : x)) }, out: true };
+      // Undo puts back what the rule moved, as it was (#642); an older rule's covered items within ten minutes (#615).
+      const legacy = (x: EmailItem) => !x.byRule && x.done && deps.now - r.at < 10 * 60_000 && (r.kind === "block" ? x.senderKey === r.key : r.kind === "filter" && x.domainKey === r.key);
+      const back = (x: EmailItem): EmailItem => {
+        if (x.byRule === rid) {
+          const { byRule: _r, prevKind, ...rest } = x;
+          return { ...rest, kind: prevKind ?? x.kind, done: ruleSends(r) === "filtered" ? false : x.done };
+        }
+        return legacy(x) ? { ...x, done: false } : x;
+      };
+      return { state: { ...s, rules: s.rules.filter((x) => x.id !== rid), items: s.items.map(back) }, out: true };
     });
     if (ok) await saveStatus();
     return reply({ ok: Boolean(ok) });
@@ -386,7 +518,7 @@ export async function POST(request: Request, deps: EmailRouteDeps = liveRouteDep
       await release();
       return reply({ error: e instanceof SendNotAllowedError ? "no-send" : e instanceof TokenRefusedError ? "refused" : "gmail" }, 502);
     }
-    await change(store, (s) => ({ state: { ...s, items: s.items.map((x) => (x.id === id ? { ...x, sending: undefined, sentAt: deps.now, done: true } : x)) }, out: true }));
+    await change(store, (s) => ({ state: { ...s, sendLog: [...s.sendLog.filter((t) => deps.now - t < WEEK_MS), deps.now].slice(-300), items: s.items.map((x) => (x.id === id ? { ...x, sending: undefined, sentAt: deps.now, done: true } : x)) }, out: true }));
     await saveStatus();
     return reply({ ok: true, sentAt: deps.now });
   }

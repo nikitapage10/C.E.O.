@@ -22,6 +22,12 @@ export interface Contact {
   handles: string[];
 }
 
+/** A contact's picture as BlueBubbles has it (#642): its handles and the image bytes, for one photo sync, then dropped. */
+export interface ContactPhoto {
+  handles: string[];
+  image: Uint8Array;
+}
+
 export interface Inbound {
   chat: string;
   group: boolean;
@@ -39,6 +45,20 @@ export interface BlueBubbles {
   send(chat: string, text: string, tempGuid: string): Promise<boolean>;
   /** The guids of Messages' one-to-one chats (iMessage;-;… and SMS;-;…), for finding the chat a new text goes in (#536). */
   chats(): Promise<string[]>;
+  /** The contacts that have a picture (#642), with it: read for one photo sync and dropped. */
+  contactPhotos(): Promise<ContactPhoto[]>;
+}
+
+/** The most of one contact picture the hub reads (bytes): bigger ones are skipped. */
+export const AVATAR_MAX = 2 * 1024 * 1024;
+
+/** A contact's avatar from BlueBubbles' contact data: base64, or a data: URL; null when there isn't a usable one. */
+export function readAvatar(v: unknown): Uint8Array | null {
+  if (typeof v !== "string" || !v || v.length > (AVATAR_MAX * 4) / 3 + 64) return null;
+  const b64 = v.startsWith("data:") ? v.slice(v.indexOf(",") + 1) : v;
+  if (!/^[A-Za-z0-9+/=\s]+$/.test(b64)) return null;
+  const bytes = new Uint8Array(Buffer.from(b64, "base64"));
+  return bytes.length >= 64 && bytes.length <= AVATAR_MAX ? bytes : null;
 }
 
 /** Whether a chat id is a group's (iMessage;+;chat…) rather than one person's (iMessage;-;+1…). */
@@ -95,6 +115,17 @@ export function blueBubbles(password: string, fetcher: typeof fetch = fetch, bas
     messages: async (chat, limit) => {
       const data = await get(`/api/v1/chat/${encodeURIComponent(chat)}/message`, { limit: String(Math.min(100, limit)), sort: "DESC", with: "handle" });
       return Array.isArray(data) ? (data as Record<string, unknown>[]).map(readMessage).filter((m): m is Message => m !== null) : [];
+    },
+    contactPhotos: async () => {
+      const data = await get("/api/v1/contact", { extraProperties: "avatar" });
+      if (!Array.isArray(data)) return [];
+      const out: ContactPhoto[] = [];
+      for (const c of data as Record<string, unknown>[]) {
+        const image = readAvatar(c.avatar);
+        const handles = [...(Array.isArray(c.phoneNumbers) ? c.phoneNumbers : []), ...(Array.isArray(c.emails) ? c.emails : [])].map((h) => str((h as Record<string, unknown>)?.address, 200)).filter(Boolean);
+        if (image && handles.length) out.push({ handles, image });
+      }
+      return out;
     },
     chats: async () => {
       const res = await fetcher(url("/api/v1/chat/query"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ limit: 1000, offset: 0, sort: "lastmessage" }), signal: AbortSignal.timeout(15_000) });

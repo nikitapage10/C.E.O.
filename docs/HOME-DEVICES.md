@@ -379,10 +379,14 @@ The Kitchen's meal planner (#678) shows a photo on every night; this is where th
 its own (#687, [`api/_haven/photos.ts`](../api/_haven/photos.ts), shapes in
 [`api/_haven/photoShape.ts`](../api/_haven/photoShape.ts)). Azure only.
 
-The Gym's exercise art (#718) lives here too, in the style `workout`. The Gym page asks the library once a page
-load for one picture per exercise of the plan, at most ten
-([`gymArt.ts`](../apps/world/src/desk/haven/gymArt.ts); id `gym-<exercise>`). It makes each picture only the first
-time, under the same key and the same $10 a month cap, and the pictures show only to the passkey session.
+The Gym's exercise art (#718) was made here too, in the style `workout`. Since #729 the Gym no longer asks for it
+(Nikita: the generated pictures were a waste): the style stays in the library and the pictures already made stay in
+the private store, untouched, but nothing requests or shows them. The Gym's cards show the exercise reference instead:
+entries of [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (by yuhonas, released under the Unlicense,
+public domain), trimmed to the ones the Gym can use and vendored with their two photographed frames under
+`apps/world/public/gym/exercises/` (index.json, `<id>/0.jpg`, `<id>/1.jpg`, resized to 440 px), matched to the plan's
+names in [`gymRef.ts`](../apps/world/src/desk/haven/gymRef.ts). One entry's steps (side bridge) are the Desk's own,
+marked `stepsBy: "desk"`; "Watch a demo" opens a YouTube search, never an embed.
 
 - **Where.** The private container `haven-meals` in the storage account (`stceobesgu7fnckib2`; infra/resources.bicep,
   no public access, no account keys), reached only with the Function App's identity: `catalog.json` (every photo's

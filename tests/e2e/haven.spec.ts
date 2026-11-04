@@ -190,10 +190,16 @@ for (const [label, size] of [
     await expect(sheet.getByRole("list", { name: "Core day A, in order" }).getByRole("listitem")).toHaveCount(4);
     await expect(sheet.getByText("3 × 10 / side").first()).toBeVisible();
     await expect(sheet.getByText("3 × 30 s / side").first()).toBeVisible();
-    // The exercises as cards (#718), their pictures asked of the photo library in the workout style.
-    await expect(sheet.getByRole("list", { name: "Core day A: the exercises" }).getByRole("listitem")).toHaveCount(4);
-    await expect.poll(() => artAsked.length).toBeGreaterThan(0);
-    expect(artAsked[0]!.every((m) => m.style === "workout" && m.meal.startsWith("gym-"))).toBe(true);
+    // The exercises as cards (#718) with the exercise reference's frames (#729); no generated art is asked for.
+    const cards = sheet.getByRole("list", { name: "Core day A: the exercises" });
+    await expect(cards.getByRole("listitem")).toHaveCount(4);
+    await expect(cards.locator(".gy-frames img").first()).toHaveAttribute("src", "/gym/exercises/dead-bug/0.jpg");
+    await cards.getByRole("button", { name: /^Dead bugs/ }).click();
+    const how = sheet.getByRole("region", { name: "Dead bugs: how to" });
+    await expect(how.getByRole("list", { name: "Muscles worked" })).toContainText(/abdominals/i);
+    await expect(how.getByRole("link", { name: /Watch a demo/ })).toHaveAttribute("href", /youtube\.com\/results\?search_query=Dead%20bugs/);
+    await expect.poll(() => how.locator(".gy-frames img").first().evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
+    expect(artAsked).toEqual([]);
     await page.waitForTimeout(800);
     await shoot(page, `gym-${label}`);
 

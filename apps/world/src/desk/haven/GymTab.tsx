@@ -24,8 +24,7 @@ import {
   type GymView,
   type Weekday,
 } from "./gym.ts";
-import { artIdOf, useGymArt, type Art } from "./gymArt.ts";
-import { photoUrl } from "./mealPhotos.ts";
+import { demoUrl, frameUrl, refFor, useExerciseRefs, type ExerciseRef, type RefMatch } from "./gymRef.ts";
 import "@fontsource-variable/geist-mono";
 import "./gym.css";
 
@@ -128,35 +127,99 @@ function Score({ session, rest, editing, onEdit }: { session: GymSession; rest: 
   );
 }
 
-/**
- * The session's exercises as cards (#718), each with its picture from the photo library once it's made (a slow
- * shimmer and the exercise's number until then), its dose, and a ring that fills set by set as the cards come in.
- */
-function Cards({ session, art }: { session: GymSession; art: Map<string, Art> }) {
+/** An exercise's two frames, crossfading in a loop like a flip book (still on the first in reduced motion). */
+function Frames({ ex: r, big }: { ex: ExerciseRef; big?: boolean }) {
   return (
-    <ol className="gy-cards" aria-label={`${session.name}: the exercises`}>
-      {session.exercises.map((e, i) => {
-        const a = art.get(artIdOf(e.name));
-        const ready = a?.status === "ready";
-        return (
-          <li key={`${e.name}-${i}`} className="gy-card" style={{ ["--i" as string]: i }}>
-            <div className={`gy-art${ready ? " is-ready" : ""}`}>
-              {ready ? <img src={photoUrl(a.id)} alt="" loading="lazy" decoding="async" /> : <span className="gy-artN">{String(i + 1).padStart(2, "0")}</span>}
-              <span className="gy-artSets" aria-hidden="true">
-                {Array.from({ length: e.sets }, (_, k) => (
-                  <i key={k} style={{ animationDelay: `${0.4 + i * 0.12 + k * 0.18}s` }} />
-                ))}
+    <span className={`gy-frames${big ? " is-big" : ""}`} data-two={r.frames > 1 ? "" : undefined}>
+      {Array.from({ length: Math.max(1, r.frames) }, (_, k) => (
+        <img key={k} src={frameUrl(r.id, k)} alt="" loading="lazy" decoding="async" />
+      ))}
+    </span>
+  );
+}
+
+/** The open exercise, in full: its frames, the steps, the muscles it works, its kit and a demo to watch. */
+function Detail({ e, m }: { e: GymExercise; m: RefMatch | null }) {
+  return (
+    <section className="gy-detail" aria-label={`${e.name}: how to`}>
+      {m ? <Frames ex={m.ref} big /> : <span className="gy-frames is-big is-none" aria-hidden="true" />}
+      <div className="gy-detailTxt">
+        <p className="gy-k">{doseOf(e)}</p>
+        <h4>{e.name}</h4>
+        {m && !m.exact ? <p className="gy-detailNote">Closest in the reference: {m.ref.name}</p> : null}
+        {m ? (
+          <>
+            <ul className="gy-muscles" aria-label="Muscles worked">
+              {m.ref.primary.map((x) => (
+                <li key={x} className="is-main">
+                  {x}
+                </li>
+              ))}
+              {m.ref.secondary.map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+            <p className="gy-detailMeta">
+              <span>
+                <span className="gy-k">Equipment</span> {m.ref.equipment === "body only" ? "none (body weight)" : m.ref.equipment}
               </span>
-            </div>
-            <p className="gy-cardT">
-              <b>{e.name}</b>
-              <span>{doseOf(e)}</span>
+              <span>
+                <span className="gy-k">Level</span> {m.ref.level}
+              </span>
             </p>
-            {a && !ready && <span className="gy-artWait">{a.status === "budget" ? "picture waits for next month's cap" : a.status === "failed" ? "no picture yet" : "picture on its way"}</span>}
-          </li>
-        );
-      })}
-    </ol>
+            <ol className="gy-steps">
+              {m.ref.instructions.map((t, k) => (
+                <li key={k}>{t}</li>
+              ))}
+            </ol>
+          </>
+        ) : (
+          <p className="gy-detailNote">No reference card for this one yet: the demo below shows the form.</p>
+        )}
+        <a className="gy-demo" href={demoUrl(e.name)} target="_blank" rel="noopener noreferrer">
+          Watch a demo <span aria-hidden="true">↗</span>
+        </a>
+        <p className="gy-credit">Pictures and steps: free-exercise-db, public domain.</p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The session's exercises as cards (#718): since #729 each shows its two photographed frames from the exercise
+ * reference (gymRef.ts), looping, with its dose and a ring that fills set by set. Tap one for the steps, the muscles,
+ * the equipment and a demo.
+ */
+function Cards({ session, refs }: { session: GymSession; refs: ExerciseRef[] }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const shown = open !== null ? session.exercises[open] : undefined;
+  return (
+    <>
+      <ol className="gy-cards" aria-label={`${session.name}: the exercises`}>
+        {session.exercises.map((e, i) => {
+          const m = refFor(e.name, refs);
+          return (
+            <li key={`${e.name}-${i}`} className="gy-card" style={{ ["--i" as string]: i }}>
+              <button type="button" className="gy-cardBtn" aria-expanded={open === i} aria-label={`${e.name}, ${doseOf(e)}: how to`} onClick={() => setOpen((v) => (v === i ? null : i))}>
+                <span className={`gy-art${m ? " is-ready" : ""}`}>
+                  {m ? <Frames ex={m.ref} /> : <span className="gy-artN">{String(i + 1).padStart(2, "0")}</span>}
+                  <span className="gy-artSets" aria-hidden="true">
+                    {Array.from({ length: e.sets }, (_, k) => (
+                      <i key={k} style={{ animationDelay: `${0.4 + i * 0.12 + k * 0.18}s` }} />
+                    ))}
+                  </span>
+                </span>
+                <span className="gy-cardT">
+                  <b>{e.name}</b>
+                  <span>{doseOf(e)}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      {shown ? <Detail e={shown} m={refFor(shown.name, refs)} key={open} /> : null}
+    </>
   );
 }
 
@@ -190,7 +253,7 @@ export function GymTab({ onCounts }: { onCounts?: (gym: { perWeek: number; doneT
   const [note, setNote] = useState<string | null>(null);
   const [just, setJust] = useState<GymLogEntry | null>(null);
   const [draft, setDraft] = useState<GymPlan | null>(null);
-  const art = useGymArt(load.state === "ready" ? load.view.plan : null);
+  const refs = useExerciseRefs();
 
   useEffect(() => {
     let gone = false;
@@ -362,7 +425,7 @@ export function GymTab({ onCounts }: { onCounts?: (gym: { perWeek: number; doneT
           )}
         </div>
 
-        {!draft && <Cards session={session} art={art} />}
+        {!draft && <Cards session={session} refs={refs} key={session.id} />}
 
         <Score session={session} rest={plan.rest} editing={draft !== null} onEdit={editExercise} />
 

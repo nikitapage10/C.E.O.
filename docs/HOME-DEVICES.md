@@ -274,10 +274,13 @@ before King Soopers replaced MealMe.
 
 ## The meal planner
 
-The Kitchen page is the meal planner (#678, [`MealPlanner.tsx`](../apps/world/src/desk/haven/MealPlanner.tsx)) with the
-Kitchen list and King Soopers as its rail: the week as seven day cards (the dinner's photo and the day's protein ring
-against the goal, at least 200 g), the open night in a drawer (recipe, macros, parts to swap, portion, spice,
-HelloFresh, for two, in the cart, backups, Not for me), "Try something new?" picks, and the catalog and taste profile
+The Kitchen page is the meal planner (#678, [`MealPlanner.tsx`](../apps/world/src/desk/haven/MealPlanner.tsx)) in four
+steps (#721): **Plan** (the week as a list on the left, each day's dinner and lunch with its protein ring against the
+goal, at least 200 g; nothing open at first, then the meal picked opens on the right with its swaps: backups, Not for
+me, "Try something new?", the night's switches for HelloFresh, for two and in the cart; Finalize the week), **Customize**
+(the picked dinner's parts, portion and spice, and its recipe), **Shop** (the week's shopping, the Kitchen list and
+King Soopers with its product swaps and Send) and **Cook** (the week's recipes, each with cook mode). A week picker
+above holds this week and up to three planned ahead ("Plan ahead": a month in all). The catalog and taste profile open
 as drawers. Every week plans as cook-yourself; HelloFresh is a switch per night (it counts a fixed protein and buys
 nothing). Server side: [`api/_haven/meals.ts`](../api/_haven/meals.ts); the shapes and every edit, pure and shared by
 the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_haven/mealShape.ts).
@@ -285,7 +288,8 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
 - **Where.** One file in the private store, `haven/meals.json`: the taste profile (protein goal, top-up, avoid rules
   with an `unless`, likes, rules, and the budget, which is only ever there), the catalog (each meal's ingredients, its
   swappable `parts`, macros as built, a photo id, times had, passed, and its `course`: a dinner, or a quick lunch) and
-  the week (seven slots: meal, two backups, lunch, for two, HelloFresh, in the cart, `custom`, the night's own `photo`). Nothing of it is in the repo; signed out,
+  the week (seven slots: meal, two backups, lunch, for two, HelloFresh, in the cart, `custom`, the night's own `photo`),
+  and `ahead`, the weeks planned past it (up to three, #721; a file without it reads as it is). Nothing of it is in the repo; signed out,
   `/api/haven?view=status` carries `meals: { planned, cooking, helloFresh, confirmed }` only.
 - **The swap model.** A meal's protein, carb and side are parts pointing into a component library (`COMPONENTS`, plus
   any the file adds): each component has its own ingredients and macros for one portion. A swap takes the old
@@ -311,11 +315,13 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   | `{ op: "like", term, liked }` | a like in the taste profile (or taken off); a meal with it is planned first among equals |
   | `{ op: "heat", spice \| null }` | the house heat: every night cooked mild, medium or hot unless the night says otherwise (null: as written). It isn't a customization, so it never asks for a photo |
   | `{ op: "goal", protein }`, `{ op: "pass", meal, passed }` | the protein goal; pass on (or bring back) a catalog meal |
-  | `{ op: "next-week" }` | counts the cooked nights as had and plans the next week from the catalog |
+  | `{ op: "next-week" }` | counts the cooked nights as had and moves on to the first week planned ahead, or plans the next week from the catalog |
+  | `{ op: "plan-ahead" }` | plans one more week after the last one planned, up to three ahead |
   | `{ op: "confirm" }`, `{ op: "photo", day \| meal, photo }`, `{ op: "undo" }` | see below; the photo library's id; Undo |
 
-  Any change to the plan makes a confirmed week a draft again.
-- **Confirm week.** `POST /api/haven-meals { action: "confirm" }` confirms the week, puts its shopping (cooked nights
+  Any change to the plan makes a confirmed week a draft again. Any edit takes `week` (its Monday) to change a week
+  ahead instead of this one; Undo puts it back the same way. An avoid, a pass or the house heat reaches every week.
+- **Confirm week** (the Kitchen's "Finalize the week"). `POST /api/haven-meals { action: "confirm", week? }` confirms the week, puts its shopping (cooked nights
   in the cart, by portions: for two, plus one for each lunch left over, staples left out) on the Kitchen list with
   source `meals`, where the King Soopers rail matches and sends it, and queues the customized nights in
   `week.photoQueue` (`photoJobs`). The Desk then hands those nights to the photo library (`POST /api/haven-photos

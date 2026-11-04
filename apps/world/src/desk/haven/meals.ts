@@ -27,7 +27,7 @@ export async function loadMeals(f: typeof fetch = fetch): Promise<MealsLoad> {
   }
 }
 
-export type MealsAction = { action: "edit"; edit: MealEdit } | { action: "confirm" } | { action: "send" } | { action: "seed"; meals: unknown; replace?: boolean };
+export type MealsAction = { action: "edit"; edit: MealEdit } | { action: "confirm"; week?: string } | { action: "send"; week?: string } | { action: "seed"; meals: unknown; replace?: boolean };
 
 export interface MealsAnswer {
   ok: boolean;
@@ -90,6 +90,7 @@ export const MEALS_NOTE: Record<string, string> = {
   short: "The catalog is too small to plan a whole week.",
   empty: "Nothing to send: every night is HelloFresh or left out.",
   "bad-meals": "That file isn't a meal planner file.",
+  full: "A month is planned: four weeks is the most.",
   already: "The planner is already loaded.",
   "signed-out": "Your session ended. Sign in again.",
   failed: "That didn't go through. Try again.",

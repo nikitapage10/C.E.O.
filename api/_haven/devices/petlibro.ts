@@ -22,7 +22,9 @@
  * so the rails can tell when a manual turn or opening may throw off the next scheduled meal (rails.ts, the wet tray).
  *
  * Every request carries the app's own headers and, once signed in, `token`. Code 1009 means the token lapsed or
- * another sign-in took the account's one session (the phone app, or another instance): see `post`. A refused sign-in
+ * another sign-in took the account's one session (the phone app, or another instance): see `post`. Each sign-in
+ * cancels every token before it, so only one Function App instance signs in at a time, behind a short lease in the
+ * private store (`SIGNIN_LEASE_MS`), and the others wait for the token it stores (#683). A refused sign-in
  * (1101 no such account, or any other code) says why in fixed words (`problem`, #672) and holds off for 15 minutes.
  * The email and the login digest come from the Key Vault only: Petlibro's app sends the MD5 hex of the password, so
  * the setup paste (docs/HOME-DEVICES.md) makes that digest in Cloud Shell and the vault keeps it. The password itself
@@ -154,12 +156,19 @@ export const PETLIBRO_CODE = { ok: 0, notLoggedIn: 1009, noMember: 1101, illegal
 /** How long a refused sign-in holds off the next one (#672), so a wrong digest never hammers Petlibro's login. */
 export const LOGIN_HOLD_MS = 15 * 60_000;
 
+/** How long one instance's sign-in holds the others off (#683): they wait for its token instead of signing in too. */
+export const SIGNIN_LEASE_MS = 20_000;
+/** How an instance that finds the lease taken waits for the new token: a look every half second, 8 seconds at most. */
+export const SIGNIN_WAIT_MS = 500;
+export const SIGNIN_WAIT_STEPS = 16;
+
 export class PetlibroClient implements DeviceClient<PetlibroRef> {
   readonly vendor = "petlibro" as const;
   readonly actions = ["feeder.feed", "wet.open", "wet.rotate", "wet.close", "wet.status"] as const;
   private why: VendorProblem | null = null;
   private holdUntil = 0;
   private signingIn: Promise<string> | null = null;
+  private reading: Promise<Found<PetlibroRef>[]> | null = null;
   constructor(private readonly deps: PetlibroDeps) {}
 
   async connected(): Promise<boolean> {
@@ -176,16 +185,46 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
     throw new VendorError(status);
   }
 
-  /** One sign-in at a time in this instance: two reads that both find the token lapsed share one new token. */
-  private login(): Promise<string> {
-    this.signingIn ??= this.signIn().finally(() => (this.signingIn = null));
+  /**
+   * One sign-in at a time in this instance: two reads that both find the token lapsed share one new token. `lapsed`
+   * is the token Petlibro just refused, so a token another instance stores meanwhile can be told from it.
+   */
+  private login(lapsed: string): Promise<string> {
+    this.signingIn ??= this.leased(lapsed).finally(() => (this.signingIn = null));
     return this.signingIn;
+  }
+
+  /**
+   * One sign-in at a time across instances (#683). Several instances (and the public status poll on each) find the
+   * token lapsed at the same moment; if each signed in, every token but the last would be cancelled at once and read
+   * as "signed-out", and the store could keep a cancelled one. So the instance that takes the lease signs in, and
+   * the others wait for the token it stores, taking the lease themselves if it is let go without one.
+   */
+  private async leased(lapsed: string): Promise<string> {
+    const { vault, now } = this.deps;
+    // A refused sign-in is held off for a while: the same email and digest won't work a minute later.
+    if (now() < this.holdUntil) this.fail(this.why ?? "refused", 401);
+    if (!vault) return this.signIn();
+    const pause = this.deps.pause ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    for (let step = 0; ; step++) {
+      if (await vault.lease("petlibro", SIGNIN_LEASE_MS, now())) {
+        try {
+          // Another instance may have stored a token between our refusal and the lease.
+          const newer = await this.stored();
+          return newer && newer !== lapsed ? newer : await this.signIn();
+        } finally {
+          await vault.release("petlibro");
+        }
+      }
+      if (step >= SIGNIN_WAIT_STEPS) this.fail("vendor", 503);
+      await pause(SIGNIN_WAIT_MS);
+      const newer = await this.stored();
+      if (newer && newer !== lapsed) return newer;
+    }
   }
 
   private async signIn(): Promise<string> {
     const { fetch: f, email, loginDigest, vault, now } = this.deps;
-    // A refused sign-in is held off for a while: the same email and digest won't work a minute later.
-    if (now() < this.holdUntil) this.fail(this.why ?? "refused", 401);
     let a: Answer;
     try {
       a = (await callJson(f, `${PETLIBRO_API}/member/auth/login`, {
@@ -214,15 +253,20 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
 
   /**
    * One API call with the stored token. Petlibro keeps one session per account, so a token stops working (1009)
-   * whenever anything else signs in: the phone app, or another Function App instance. The first 1009 looks in the
-   * store for a newer token (another instance may have just signed in) and otherwise signs in again; a second one,
-   * right after a fresh sign-in, means something else took the session back, and reads as "signed-out".
+   * whenever anything else signs in: the phone app, or another Function App instance. Every 1009 looks in the store
+   * for a newer token first (another instance may have just signed in) and otherwise signs in again, behind the
+   * lease; a 1009 right after a fresh sign-in, with nothing newer stored, means something outside C.E.O. took the
+   * session back (the phone app, or another integration on the same account), and reads as "signed-out".
    */
   async post(path: string, body: Record<string, unknown>): Promise<unknown> {
     if (!this.deps.vault || !(await this.connected())) throw new VendorError(401);
-    let token = (await this.stored()) || (await this.login());
+    let token = await this.stored();
     let fresh = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    if (!token) {
+      token = await this.login("");
+      fresh = true;
+    }
+    for (let attempt = 0; attempt < 4; attempt++) {
       let a: Answer;
       try {
         a = (await callJson(this.deps.fetch, `${PETLIBRO_API}${path}`, { method: "POST", headers: { ...HEADERS, token }, body: JSON.stringify(body) })) as Answer;
@@ -230,11 +274,11 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
         this.fail(e instanceof VendorError && e.status === 0 ? "unreachable" : "vendor", e instanceof VendorError ? e.status : 502);
       }
       if (Number(a.code) === PETLIBRO_CODE.notLoggedIn) {
-        if (fresh) break;
         const newer = await this.stored();
         if (newer && newer !== token) token = newer;
+        else if (fresh) break;
         else {
-          token = await this.login();
+          token = await this.login(token);
           fresh = true;
         }
         continue;
@@ -246,7 +290,13 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
     this.fail("signed-out", 401);
   }
 
-  async status(): Promise<Found<PetlibroRef>[]> {
+  /** Every device's reading. Reads that overlap in this instance share one pass over Petlibro. */
+  status(): Promise<Found<PetlibroRef>[]> {
+    this.reading ??= this.readAll().finally(() => (this.reading = null));
+    return this.reading;
+  }
+
+  private async readAll(): Promise<Found<PetlibroRef>[]> {
     const { idKey } = this.deps;
     if (!idKey || !(await this.connected())) return [];
     const list = await this.post("/device/device/list", {});

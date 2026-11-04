@@ -118,9 +118,13 @@ keep the state alone), in fixed words, never the vendor's own answer:
   in the app, or use a second account, and run the paste again.
 - *sign-in refused*: any other refusal of the digest (the password changed, or it is over Petlibro's 18 characters).
   Run the paste again. A refused sign-in is held off for 15 minutes, so a wrong digest never hammers the login.
-- *signed out*: a fresh sign-in was taken back at once, so something else holds the account's one session (most
-  likely the phone app). Use a second account shared to the feeders, as above. A lapsed token (1009) on its own is
-  not a fault: the client first takes a newer token another Function App instance stored, then signs in again.
+- *signed out*: a fresh sign-in was taken back at once and no newer token is stored, so something outside C.E.O.
+  holds the account's one session (the phone app, or another integration such as Home Assistant on the same
+  account). Use a second account shared to the feeders, as above. A lapsed token (1009) on its own is not a fault:
+  the client first takes a newer token another Function App instance stored, then signs in again. Only one instance
+  signs in at a time (#683): it takes a 20-second lease in the private store (`haven/devices/petlibro.lease.json`,
+  a time only), and the others wait for the token it stores instead of signing in over it, since every sign-in
+  cancels the tokens before it.
 - *no answer*: the vendor's cloud didn't answer; it tries again on the next read.
 
 ### 2. The Desk: Connect Roborock

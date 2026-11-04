@@ -379,6 +379,11 @@ The Kitchen's meal planner (#678) shows a photo on every night; this is where th
 its own (#687, [`api/_haven/photos.ts`](../api/_haven/photos.ts), shapes in
 [`api/_haven/photoShape.ts`](../api/_haven/photoShape.ts)). Azure only.
 
+The Gym's exercise art (#718) lives here too, in the style `workout`. The Gym page asks the library once a page
+load for one picture per exercise of the plan, at most ten
+([`gymArt.ts`](../apps/world/src/desk/haven/gymArt.ts); id `gym-<exercise>`). It makes each picture only the first
+time, under the same key and the same $10 a month cap, and the pictures show only to the passkey session.
+
 - **Where.** The private container `haven-meals` in the storage account (`stceobesgu7fnckib2`; infra/resources.bicep,
   no public access, no account keys), reached only with the Function App's identity: `catalog.json` (every photo's
   id, meal, key, prompt, style `plate` or `prep`, source `openai`, `upload` or `seed`, state and times),

@@ -5,7 +5,7 @@
  * server's answer replaces it.
  *
  * One file holds it all (`haven/meals.json` in the private store, passkey-only):
- *   - the taste profile: the protein goal, the budget, the top-up, what to avoid (`avoid`, with an `unless`, so "no
+ *   - the taste profile: the protein goal, the budget (only ever in the store), the top-up, what to avoid (`avoid`, with an `unless`, so "no
  *     avocado unless it's guac with chips" is one rule), likes and plain rules;
  *   - the catalog: every meal, its own ingredients, its swappable parts (protein, carb, side: ids in the component
  *     library), its macros as built, a photo id, how often it was had, and whether Nikita passed on it;
@@ -80,7 +80,7 @@ export interface Meal {
   /** The whole meal as built, parts included, for one portion. */
   macros: Macros;
   spice: Spice;
-  /** The photo's id in the private store (`haven/meals/<id>.jpg`), or null. */
+  /** The photo's id in the photo library (part 3, its own private store), or null. */
   photo: string | null;
   timesHad: number;
   lastHad: string | null;
@@ -125,8 +125,8 @@ export interface Avoid {
 
 export interface Profile {
   proteinGoal: number;
-  /** Dollars a week. */
-  budget: { min: number; max: number };
+  /** Dollars a week, set only in the private store (never a number in the repo); null when not set. */
+  budget: { min: number; max: number } | null;
   topUp: { text: string; protein: number; shop: Ingredient[] };
   /** What a HelloFresh night counts for, protein-wise. */
   helloFreshProtein: number;
@@ -327,8 +327,8 @@ function weekOf(v: unknown): Week | null {
 const words = (v: unknown, max: number, cap = 20) => arr(v).map((s) => plain(s, max)).filter(Boolean).slice(0, cap);
 
 export const DEFAULT_PROFILE: Profile = {
-  proteinGoal: 180,
-  budget: { min: 200, max: 300 },
+  proteinGoal: 200,
+  budget: null,
   topUp: { text: "A protein shake", protein: 50, shop: [] },
   helloFreshProtein: 45,
   salad: { text: "A quick salad with chicken", protein: 50, leftoverOf: null, shop: [] },
@@ -342,10 +342,11 @@ function profileOf(v: unknown): Profile {
   const x = o(v);
   const b = o(x.budget);
   const t = o(x.topUp);
-  const min = int(b.min, 0, 2000, DEFAULT_PROFILE.budget.min);
+  const min = typeof b.min === "number" ? int(b.min, 0, 2000, 0) : null;
+  const max = typeof b.max === "number" ? int(b.max, 0, 2000, 0) : null;
   return {
     proteinGoal: int(x.proteinGoal, 40, 400, DEFAULT_PROFILE.proteinGoal),
-    budget: { min, max: Math.max(min, int(b.max, 0, 2000, DEFAULT_PROFILE.budget.max)) },
+    budget: min !== null && max !== null ? { min, max: Math.max(min, max) } : null,
     topUp: { text: plain(t.text, 80) || DEFAULT_PROFILE.topUp.text, protein: int(t.protein, 0, 200, DEFAULT_PROFILE.topUp.protein), shop: ingredientsOf(t.shop).slice(0, 8) },
     helloFreshProtein: int(x.helloFreshProtein, 0, 200, DEFAULT_PROFILE.helloFreshProtein),
     salad: x.salad ? { ...lunchOf(x.salad), leftoverOf: null } : DEFAULT_PROFILE.salad,
@@ -537,7 +538,9 @@ export type MealEdit =
   | { op: "pass"; meal: string; passed: boolean }
   | { op: "next-week" }
   | { op: "confirm" }
-  | { op: "undo" };
+  | { op: "undo" }
+  /** The photo step (PR3) writes back: a night's own photo (`day`) or a catalog meal's (`meal`). No Undo. */
+  | { op: "photo"; day?: Day; meal?: string; photo: string };
 
 const isDay = (v: unknown): v is Day => (DAYS as readonly unknown[]).includes(v);
 const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
@@ -582,6 +585,9 @@ export function readEdit(v: unknown): MealEdit | null {
     case "confirm":
     case "undo":
       return { op: x.op };
+    case "photo":
+      if (!isId(x.photo) || isDay(x.day) === isId(x.meal)) return null;
+      return isDay(x.day) ? { op: "photo", day: x.day, photo: x.photo } : { op: "photo", meal: x.meal as string, photo: x.photo };
     default:
       return null;
   }
@@ -649,6 +655,20 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
   const changes: string[] = [];
   let label = "";
   const needWeek = (): Week | null => f.week;
+
+  if (edit.op === "photo") {
+    // Set by the photo step, never by a tap: it changes nothing about what's cooked, so the Undo stays as it was.
+    if (edit.day) {
+      if (!f.week) return { ok: false, error: "no-week" };
+      f.week.slots[DAYS.indexOf(edit.day)]!.photo = edit.photo;
+      f.week.photoQueue = f.week.photoQueue.filter((d) => d !== edit.day);
+    } else {
+      const meal = mealNamed(f, edit.meal ?? "");
+      if (!meal) return { ok: false, error: "not-found" };
+      meal.photo = edit.photo;
+    }
+    return { ok: true, file: { v: 1, ...f, undo: file.undo }, changes: ["Photo saved."] };
+  }
 
   switch (edit.op) {
     case "swap": {
@@ -847,6 +867,32 @@ export function shoppingList(f: MealsState): Ingredient[] {
   });
   for (const x of f.profile.topUp.shop) put(x, 1);
   return [...sum.values()];
+}
+
+/**
+ * One customized night that needs its own photo: what the photo step (PR3) is handed when a week is confirmed. It
+ * makes the picture from `name` and `changes` (and the ingredients as cooked), stores it in its own private library,
+ * and writes the id back with the `photo` edit ({ op: "photo", day, photo }), which takes the night off the queue.
+ */
+export interface PhotoJob {
+  day: Day;
+  meal: string;
+  name: string;
+  /** "Quinoa for jasmine rice", "Hot". */
+  changes: string[];
+  ingredients: string[];
+  /** The meal's own photo, for the look to follow, or null. */
+  basePhoto: string | null;
+}
+
+export function photoJobs(f: MealsState): PhotoJob[] {
+  const w = f.week;
+  if (!w) return [];
+  return w.photoQueue.flatMap((day) => {
+    const s = w.slots[DAYS.indexOf(day)]!;
+    const d = slotDish(f, s);
+    return d ? [{ day, meal: d.meal.id, name: d.meal.name, changes: d.changes, ingredients: d.ingredients.map((i) => i.item), basePhoto: d.meal.photo }] : [];
+  });
 }
 
 /** The counts the public status view may show: never a meal, an ingredient or a taste. */

@@ -13,7 +13,7 @@
  *                        /api/skippy-answer, a hand-off's answer (#312; its own check in gate.ts and api/skippy.ts,
  *                        bearer only), and PUT /api/haven-plan, the Haven's floor plan (#655; api/_haven/plan.ts,
  *                        saved so the Builder can load it with no tap; GET of it stays passkey-only, neither key
- *                        reads it), and PUT /api/haven-meals, the meal planner's seed or one photo (#678, the same
+ *                        reads it), and PUT /api/haven-meals, the meal planner's seed (#678, the same
  *                        way: counts back, passkey-only reads). It reads nothing: each answer says only that the write was kept (the plan's, counts).
  *
  * Neither key can change a setting (no other POST, and the Desk's own writes still need a passkey session), trade
@@ -185,7 +185,7 @@ export const KERNEL_BRIEF_PATH = "/api/kernel-brief";
 export const KERNEL_AGENT_PATH = "/api/kernel-agent";
 /** The Haven's floor plan (#655, api/_haven/plan.ts): the feed key may PUT it; nothing but a passkey session reads it. */
 export const HAVEN_PLAN_PATH = "/api/haven-plan";
-/** The Kitchen's meal planner (#678, api/_haven/meals.ts): the feed key may PUT a seed or a photo; only a passkey session reads it. */
+/** The Kitchen's meal planner (#678, api/_haven/meals.ts): the feed key may PUT a seed; only a passkey session reads it. */
 export const HAVEN_MEALS_PATH = "/api/haven-meals";
 
 /**

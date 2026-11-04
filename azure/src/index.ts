@@ -108,8 +108,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // The Haven's floor plan (#616): the home's shape for the Desk's 3D house, kept only in the private store and served
   // only to a passkey session (api/_haven/plan.ts). Signed out, the Haven shows counts and states, never a map.
   ["haven-plan", havenplan.planRoute],
-  // The Kitchen's meal planner (#678): profile, catalog, week and photos, read and changed only by a passkey session;
-  // the feed key may PUT a seed or a photo (api/_haven/meals.ts). Signed out, /api/haven?view=status has its counts.
+  // The Kitchen's meal planner (#678): profile, catalog and week, read and changed only by a passkey session;
+  // the feed key may PUT a seed (api/_haven/meals.ts). Signed out, /api/haven?view=status has its counts.
   ["haven-meals", havenmeals.mealsRoute],
   ["day-story", daystory],
   ["desk-auth", deskauth],

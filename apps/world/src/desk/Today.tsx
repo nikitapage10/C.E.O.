@@ -15,6 +15,7 @@ import { forwardHavenResult } from "./homeDevices.ts";
 import { clockState, useWorldClock } from "../worldClock.ts";
 import { useTodoSync } from "./todos/TodoBits.tsx";
 import { awayRefs, useTodos } from "./todos/todos.ts";
+import { Lists } from "./Lists.tsx";
 import "@fontsource-variable/bodoni-moda/opsz.css";
 import "@fontsource-variable/bodoni-moda/opsz-italic.css";
 import "@fontsource-variable/jost/wght.css";
@@ -32,7 +33,8 @@ const TodayMore = lazy(() => loadTodayMore().then((m) => ({ default: m.TodayMore
  * from above and what it's doing, click for its card. Under the fold, everything that can wait stays folded away under
  * "Not worth knowing now" (TodayMore, loaded on demand). What used to crowd the page moved: the stat row's clock, Coming
  * up, Hide and Hands-free to the Boiler Room's Settings (/boiler/controls), Today in Ilyr to the Archive's edition,
- * the Kitchen list to the Haven, Enter the Lattice to the bar. Ask Skippy stays bottom right. Real data only.
+ * the Kitchen list to the Haven, Enter the Lattice to the bar. Ask Skippy stays bottom right. Real data only. Under
+ * the to-dos, the Lists (#735, Lists.tsx): Groceries and Things to buy, signed in to read and tick off.
  */
 
 /** Replies that make "Held for you": the ones marked sooner, and anything waiting longer than this. */
@@ -120,6 +122,7 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
             awaySince={awaySince}
             onHot={(r) => hot.current(r)}
           />
+          <Lists />
         </div>
         <Iris pulses={council} now={now} since={since} held={heldBy} skippySays={says} hotRef={hot} />
       </section>

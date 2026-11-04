@@ -2,9 +2,19 @@ import type { RoomTool } from "@ceo/engine/tools";
 
 /**
  * Skippy's own tools on Today (#646): his private memory of Nikita, behind the passkey (api/_skippy/agent/memory.ts).
- * Looking things up changes nothing; saving or forgetting a fact waits for Nikita's Yes tap. Data only.
+ * Looking things up changes nothing; saving or forgetting a fact waits for Nikita's Yes tap. And the Things to buy list
+ * (#735, api/_haven/list.ts), shown with every list on Today. Data only.
  */
 export const TOOLS: readonly RoomTool[] = [
+  {
+    name: "buy_add",
+    room: "today",
+    title: "Add to Things to buy",
+    description:
+      "Put things that aren't groceries on the Things to buy list (his Amazon list: a phone charger, batteries, a desk lamp), one item per entry, in plain words. Use it when he says Amazon, \"things to buy\" or \"I need to buy\" something that isn't food. Groceries go on kitchen_add. Nothing is bought.",
+    input: { type: "object", properties: { items: { type: "array", items: { type: "string", maxLength: 60 }, maxItems: 12 } }, required: ["items"], additionalProperties: false },
+    effect: "write",
+  },
   {
     name: "memory_lookup",
     room: "today",

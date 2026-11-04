@@ -41,6 +41,8 @@ export interface ToolHost {
   read: (name: ReadName) => Promise<string>;
   memory: MemoryStore | null;
   kitchenAdd: ((items: string[]) => Promise<{ added: string[]; already: string[] }>) | null;
+  /** The Things to buy list (#735, api/_haven/list.ts); absent or null where there's no private store. */
+  buyAdd?: ((items: string[]) => Promise<{ added: string[]; already: string[] }>) | null;
   /** The Kitchen's meal planner (#678, api/_haven/meals.ts): the same store and edits as the Kitchen's buttons. */
   meals?: {
     read: () => Promise<MealsFile | null>;
@@ -242,6 +244,16 @@ const EXECUTORS: Record<string, Executor> = {
       const { added, already } = await host.kitchenAdd(items);
       const text = `${added.length ? `Added ${added.join(", ")}.` : ""}${already.length ? ` Already on it: ${already.join(", ")}.` : ""}`.trim() || "Nothing new to add.";
       return { ok: true, text, ...(added.length && { did: `Added ${added.length === 1 ? added[0] : `${added.length} things`} to the Kitchen list` }) };
+    },
+  },
+  buy_add: {
+    run: async (i, host) => {
+      if (!host.buyAdd) return { ok: false, text: "The Things to buy list isn't set up on this copy." };
+      const items = (i.items as string[]).map((x) => plainLine(x, 60)).filter((x) => x && !privateParts(x).length);
+      if (!items.length) return { ok: false, text: "Nothing plain enough to put on the list." };
+      const { added, already } = await host.buyAdd(items);
+      const text = `${added.length ? `Added ${added.join(", ")} to Things to buy.` : ""}${already.length ? ` Already on it: ${already.join(", ")}.` : ""}`.trim() || "Nothing new to add.";
+      return { ok: true, text, ...(added.length && { did: `Added ${added.length === 1 ? added[0] : `${added.length} things`} to Things to buy` }) };
     },
   },
   meals_week: {

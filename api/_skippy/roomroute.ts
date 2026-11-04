@@ -33,7 +33,7 @@ import { privateParts } from "../_privacy.js";
 import { classify, sayAdded, sayTodo, type Capture } from "../_haven/classify.js";
 import type { Home } from "../_haven/devices/home.js";
 import { homeFromEnv } from "../_haven/devices/live.js";
-import { KitchenList } from "../_haven/list.js";
+import { listOf } from "../_haven/list.js";
 import { PhoneTodos, type TodoSink } from "../_haven/todos.js";
 import { elevenFromEnv, pickStoryStore, type ElevenConfig, type StoryStore } from "../_world/story.js";
 import { roomAnswer, type PhoneTurn, type RoomTurn } from "../skippy.js";
@@ -203,9 +203,10 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
   // The tools that changed something on the submind's turn (#698): the page reads itself again.
   let wrote: { wrote: string[]; did: string[] } | null = null;
   if (sorted.kind === "shopping" && deps.blob) {
-    const { added, already } = await new KitchenList(deps.blob).add(sorted.items, now);
-    say = sayAdded(added, already);
-    if (added.length) wrote = { wrote: ["kitchen_add"], did: [] };
+    // Things to buy (#735) when the words said so; the Kitchen list otherwise.
+    const { added, already } = await listOf(deps.blob, sorted.list ?? "kitchen").add(sorted.items, now);
+    say = sayAdded(added, already, sorted.list);
+    if (added.length) wrote = { wrote: [sorted.list === "buy" ? "buy_add" : "kitchen_add"], did: [] };
   } else if (sorted.kind === "device") {
     // The same rails as the Desk's buttons; the devices keep the words in the Council themselves.
     const home = deps.devices();

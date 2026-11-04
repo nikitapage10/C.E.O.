@@ -11,7 +11,11 @@
  *   - A removed item (the Desk's ×, or "remove garlic" by voice, #657) is hidden at once and kept ten minutes so Undo
  *     can bring it back; it never counts, is never listed and never goes to King Soopers.
  *
- * Until the Haven room ships, the Desk shows it as a small "Kitchen list" card on Today (apps/world/src/desk/KitchenList.tsx).
+ * Lists (#735): the Kitchen list is one of the private lists (`LISTS`): "Groceries" (the Kitchen list, this file's
+ * original) and "Things to buy" (`haven/lists/buy.json`: the Amazon-style list of things that aren't groceries, a phone
+ * charger, batteries). Each is its own JSON file with the same rules; a new list is one more entry in `LISTS`. Nothing
+ * here buys anything. The Desk shows every list on Today (apps/world/src/desk/Lists.tsx); the Kitchen page keeps its
+ * own view of the groceries.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -28,8 +32,8 @@ export const DONE_KEEP_MS = 24 * 60 * 60_000;
 /** How long a removed item can still be brought back. */
 export const REMOVED_KEEP_MS = 10 * 60_000;
 
-/** Where an item came from: Hey Skippy on the phone, or the Google Tasks import (#637). */
-export type ListSource = "phone" | "tasks" | "meals";
+/** Where an item came from: Hey Skippy on the phone, the Google Tasks import (#637), the meal planner, or the Desk's quick add (#735). */
+export type ListSource = "phone" | "tasks" | "meals" | "desk";
 
 export interface ListItem {
   id: string;
@@ -65,7 +69,7 @@ function cleanItems(raw: unknown, now: number): ListItem[] {
       const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
       const name = cleanName(o.name);
       if (typeof o.id !== "string" || !name || typeof o.addedAt !== "string") return null;
-      return { id: o.id, name, addedAt: o.addedAt, source: o.source === "tasks" || o.source === "meals" ? o.source : "phone", done: o.done === true, ...(o.done === true && typeof o.doneAt === "string" && { doneAt: o.doneAt }), ...(typeof o.removedAt === "string" && { removedAt: o.removedAt }) };
+      return { id: o.id, name, addedAt: o.addedAt, source: o.source === "tasks" || o.source === "meals" || o.source === "desk" ? o.source : "phone", done: o.done === true, ...(o.done === true && typeof o.doneAt === "string" && { doneAt: o.doneAt }), ...(typeof o.removedAt === "string" && { removedAt: o.removedAt }) };
     })
     .filter((i): i is ListItem => i !== null && !(i.done && i.doneAt && Date.parse(i.doneAt) < now - DONE_KEEP_MS) && !(i.removedAt && !(Date.parse(i.removedAt) >= now - REMOVED_KEEP_MS)))
     .slice(-LIST_MAX);
@@ -102,12 +106,23 @@ export function addTo(items: ListItem[], names: string[], now: number, id: () =>
   return { items: next.slice(-LIST_MAX), result: { added, already } };
 }
 
-/** The Kitchen list in the private store. */
-export class KitchenList {
-  constructor(private readonly blob: BlobBackend) {}
+/** The private lists, in the order the Desk shows them. `kitchen` is the Kitchen list (groceries). */
+export const LISTS = [
+  { id: "kitchen", name: "Groceries", path: LIST_PATH },
+  { id: "buy", name: "Things to buy", path: "haven/lists/buy.json" },
+] as const;
+export type ListId = (typeof LISTS)[number]["id"];
+export const isListId = (v: unknown): v is ListId => LISTS.some((l) => l.id === v);
+
+/** One list in the private store (`LISTS`). */
+export class PrivateList {
+  constructor(
+    protected readonly blob: BlobBackend,
+    private readonly path: string,
+  ) {}
 
   async items(now: number): Promise<ListItem[]> {
-    return shown(cleanItems(await readJson(this.blob, LIST_PATH, []), now));
+    return shown(cleanItems(await readJson(this.blob, this.path, []), now));
   }
 
   async counts(now: number): Promise<ListCounts> {
@@ -115,7 +130,7 @@ export class KitchenList {
   }
 
   async add(names: string[], now: number, source: ListSource = "phone"): Promise<Added> {
-    return updateJson(this.blob, LIST_PATH, [] as unknown, (raw) => {
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
       const { items, result } = addTo(cleanItems(raw, now), names, now, undefined, source);
       return { next: result.added.length ? items : null, result };
     });
@@ -124,7 +139,7 @@ export class KitchenList {
   /** Ticks an item off (or back on). False when there is no such item. */
   async tick(id: unknown, done: boolean, now: number): Promise<boolean> {
     if (typeof id !== "string") return false;
-    return updateJson(this.blob, LIST_PATH, [] as unknown, (raw) => {
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
       const cur = cleanItems(raw, now);
       const found = cur.find((i) => i.id === id);
       if (!found) return { next: null, result: false };
@@ -136,7 +151,7 @@ export class KitchenList {
   /** Removes an item by id (hidden now, restorable for ten minutes). False when there is no such item. */
   async remove(id: unknown, now: number): Promise<boolean> {
     if (typeof id !== "string") return false;
-    return updateJson(this.blob, LIST_PATH, [] as unknown, (raw) => {
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
       const cur = cleanItems(raw, now);
       const found = cur.find((i) => i.id === id && !i.removedAt);
       if (!found) return { next: null, result: false };
@@ -147,7 +162,7 @@ export class KitchenList {
   /** Brings a removed item back (Undo). False when it is gone for good or was never removed. */
   async restore(id: unknown, now: number): Promise<boolean> {
     if (typeof id !== "string") return false;
-    return updateJson(this.blob, LIST_PATH, [] as unknown, (raw) => {
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
       const cur = cleanItems(raw, now);
       const found = cur.find((i) => i.id === id && i.removedAt);
       if (!found) return { next: null, result: false };
@@ -162,11 +177,40 @@ export class KitchenList {
    * (nothing removed for that name), none is `missing`.
    */
   async removeByName(names: string[], now: number): Promise<Removal> {
-    return updateJson(this.blob, LIST_PATH, [] as unknown, (raw) => {
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
       const { items, result } = removeNamed(cleanItems(raw, now), names, now);
       return { next: result.removed.length ? items : null, result };
     });
   }
+
+  /** Clears every ticked item now (the Desk's "Clear ticked"). How many went. */
+  async clearDone(now: number): Promise<number> {
+    return updateJson(this.blob, this.path, [] as unknown, (raw) => {
+      const cur = cleanItems(raw, now);
+      const gone = cur.filter((i) => i.done && !i.removedAt).length;
+      return { next: gone ? cur.filter((i) => !(i.done && !i.removedAt)) : null, result: gone };
+    });
+  }
+}
+
+/** The Kitchen list (groceries) in the private store. */
+export class KitchenList extends PrivateList {
+  constructor(blob: BlobBackend) {
+    super(blob, LIST_PATH);
+  }
+}
+
+/** A list by its id (`LISTS`). */
+export const listOf = (blob: BlobBackend, id: ListId): PrivateList => (id === "kitchen" ? new KitchenList(blob) : new PrivateList(blob, LISTS.find((l) => l.id === id)!.path));
+
+/** Every list with its items (signed in only). */
+export async function allLists(blob: BlobBackend, now: number): Promise<Array<{ id: ListId; name: string; items: ListItem[] }>> {
+  return Promise.all(LISTS.map(async (l) => ({ id: l.id, name: l.name, items: await listOf(blob, l.id).items(now) })));
+}
+
+/** Every list's counts, never a name (the public face). */
+export async function listCounts(blob: BlobBackend, now: number): Promise<Array<{ id: ListId; name: string } & ListCounts>> {
+  return Promise.all(LISTS.map(async (l) => ({ id: l.id, name: l.name, ...(await listOf(blob, l.id).counts(now).catch(() => ({ open: 0, done: 0 }))) })));
 }
 
 /** What removing by name came to. `ambiguous` holds, for each name, the item names it could have meant. */

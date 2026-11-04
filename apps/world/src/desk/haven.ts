@@ -8,7 +8,7 @@ export interface KitchenItem {
   id: string;
   name: string;
   addedAt: string;
-  source: "phone" | "tasks" | "meals";
+  source: "phone" | "tasks" | "meals" | "desk";
   done: boolean;
 }
 
@@ -19,7 +19,23 @@ export interface HavenCounts {
   gym?: { perWeek: number; doneThisWeek: number } | null;
   /** The meal planner (#678): nights planned, cooking, HelloFresh, and whether the week is confirmed. Never a meal. */
   meals?: { planned: number; cooking: number; helloFresh: number; confirmed: boolean } | null;
+  /** Every list's counts (#735): its name and how many, never an item. Absent on an older server. */
+  lists?: ListCount[];
   ready: boolean;
+}
+
+/** The private lists (#735, api/_haven/list.ts `LISTS`): the Kitchen list (groceries) and Things to buy. */
+export type ListId = "kitchen" | "buy";
+export interface ListCount {
+  id: ListId;
+  name: string;
+  open: number;
+  done: number;
+}
+export interface ListView {
+  id: ListId;
+  name: string;
+  items: KitchenItem[];
 }
 
 export interface PhoneRow {
@@ -53,6 +69,7 @@ async function load<T>(path: string, f: typeof fetch): Promise<Load<T>> {
 
 export const loadCounts = (f: typeof fetch = fetch) => load<HavenCounts>("/api/haven?view=status", f);
 export const loadKitchen = (f: typeof fetch = fetch) => load<{ items: KitchenItem[] }>("/api/haven?view=list", f);
+export const loadLists = (f: typeof fetch = fetch) => load<{ lists: ListView[] }>("/api/haven?view=lists", f);
 export const loadPhones = (f: typeof fetch = fetch) => load<PhonesView>("/api/haven?view=phones", f);
 
 async function post<T>(body: unknown, f: typeof fetch): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string }> {
@@ -68,6 +85,12 @@ async function post<T>(body: unknown, f: typeof fetch): Promise<{ ok: true; data
 export const tickItem = (id: string, done: boolean, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "tick", id, done }, f);
 export const removeItem = (id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "remove", id }, f);
 export const undoRemoveItem = (id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "undo-remove", id }, f);
+/** The Lists view on Today (#735): each list action names its list. */
+export const tickOn = (list: ListId, id: string, done: boolean, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "tick", list, id, done }, f);
+export const removeOn = (list: ListId, id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "remove", list, id }, f);
+export const undoRemoveOn = (list: ListId, id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "undo-remove", list, id }, f);
+export const addOn = (list: ListId, text: string, f: typeof fetch = fetch) => post<{ added: string[]; already: string[]; items: KitchenItem[] }>({ action: "list-add", list, text }, f);
+export const clearDoneOn = (list: ListId, f: typeof fetch = fetch) => post<{ cleared: number }>({ action: "clear-done", list }, f);
 export const addPhone = (label: string, f: typeof fetch = fetch) => post<{ phone: PhoneRow; key: string }>({ action: "add-phone", label }, f);
 export const revokePhone = (id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "revoke-phone", id }, f);
 export const makeGreetings = (f: typeof fetch = fetch) => post<{ clips: number }>({ action: "make-greetings" }, f);

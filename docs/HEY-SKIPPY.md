@@ -5,8 +5,10 @@ Skippy on the iPhone's Action Button (#627): press it, say something, and Skippy
 ## What this does
 
 - Press the Action Button and say what you need. A "Skippy" shortcut sends the words to C.E.O. (`POST /api/capture`).
-- Shopping ("garlic and lemons", "we're out of coffee") goes on the Kitchen list; a reminder ("remind me to call the
-  dermatologist tomorrow") goes on your to-dos. Both are sorted by plain rules, so they cost nothing.
+- Shopping ("garlic and lemons", "we're out of coffee") goes on the Kitchen list; things that aren't groceries ("add a
+  phone charger to my Amazon list", "I need to buy batteries") go on the **Things to buy** list (#735); a reminder
+  ("remind me to call the dermatologist tomorrow") goes on your to-dos. All of it is sorted by plain rules, so it costs
+  nothing.
 - Anything else goes to Desk Skippy, with the same brain, caps and hand-offs as on the Desk. He answers in a sentence
   or two, and puts anything long on the Desk.
 - He speaks back with the phone's own voice or, in the second version below, his ElevenLabs voice.
@@ -83,7 +85,7 @@ ElevenLabs call at all. The audio link works once and for five minutes, and carr
 
 | Answer | When |
 | --- | --- |
-| `200 { "say": "Added garlic and lemons to the list.", "quiet": true }` | A finished action (list add, to-do, device action that worked): show `say`, no `audio` |
+| `200 { "say": "Added garlic and lemons to the list.", "quiet": true }` | A finished action (list add, to-do, device action that worked): show `say`, no `audio`. A Things to buy add says "Added phone charger to Things to buy." |
 | `200 { "say": "…", "quiet": false }` | A question, answer, refusal, failure or warning: speak it; `audio` is added when `voice` was true and ElevenLabs read it |
 | `401 { "error": "unauthorized" }` | No key, a wrong key, or a revoked one. Nothing else is said |
 | `429 { "say": … }` | More than 30 in an hour from this phone; it says when to try again (`Retry-After`) |
@@ -94,6 +96,19 @@ ElevenLabs call at all. The audio link works once and for five minutes, and carr
 - "Garlic and lemons." "Add oat milk." "We need eggs, bread and coffee." "We're out of dish soap." Each thing goes on
   the Kitchen list once: something already on it isn't added twice. One word on its own ("milk") goes to Skippy, so
   say "add milk".
+- Things to buy (#735), the Amazon-style list for things that aren't groceries: "Add a phone charger to my Amazon
+  list." "Put batteries on things to buy." "Add a yoga mat to my to-buy list." "Order a bath mat from Amazon." "I need
+  to buy a phone charger." "Buy light bulbs." It answers quietly ("Added phone charger to Things to buy."). How it
+  picks the list:
+  - Naming the list (Amazon, the Amazon list or cart, things to buy, the to-buy list, things I need) always sends it
+    to Things to buy.
+  - "I need to buy …", "we have to order …", "gotta buy …" go to Things to buy, unless it's food: "I need to buy eggs"
+    is groceries. "Remind me to buy …" stays a to-do.
+  - Anything else goes on the Kitchen list unless every item is plainly not groceries (a charger, batteries, light
+    bulbs, a lamp): "we need batteries and milk", "add salt" and "we're out of dish soap" are groceries. Saying
+    "grocery list", "shopping list" or "kitchen list" always means the Kitchen list.
+  - Taking things off works the same way: "remove the phone charger from my Amazon list", "take batteries off things
+    to buy". Nothing is ever bought; there's no Amazon connection.
 - "Remind me to call the dermatologist tomorrow." "To-do: renew the passport." "Email Sam on Friday."
 - The home devices (#632, [HOME-DEVICES.md](HOME-DEVICES.md)): "Vacuum, go clean the kitchen." "Pause the vacuum."
   "Vacuum, go home." "Feed the cat a portion." "Give the cat wet food." "Run a litter clean cycle." The server's rails
@@ -107,7 +122,10 @@ ElevenLabs call at all. The audio link works once and for five minutes, and carr
 Skippy remembers the last few turns from each phone for ten quiet minutes, so a second press follows on from the
 first: "garlic and lemons", then "and milk too"; or "who do I start at flex?", then "what about Godwin?".
 
-The Kitchen list shows on **Today** as a small **Kitchen list** chip (signed in: open it and tick things off, or × one away with five seconds to Undo). Phone
+Every list shows on **Today** under your to-dos, under **lists** (#735): a tab for Groceries (the Kitchen list) and
+one for Things to buy, each with its count. Signed in, tick things off, × one away (Undo for a few seconds), add with
+the quick-add line, or **Clear ticked**; signed out it shows the counts only. The Haven's Kitchen page keeps its own
+view of the groceries. On the Desk, Skippy's chat puts things on it too ("add a desk lamp to my Amazon list"). Phone
 to-dos are kept privately until Today's own voice to-dos (#622) take them over.
 
 ## Privacy and limits

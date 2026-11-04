@@ -32,8 +32,10 @@ function devices(now: number) {
   const ago = (min: number) => new Date(now - min * 60_000).toISOString();
   return [
     { id: "a00000000001", vendor: "roborock", kind: "vacuum", model: "Test vacuum", place: "", online: true, state: "cleaning", battery: 81, alerts: [], rooms: ["Hall", "Kitchen", "Living room", "Bedroom"] },
-    { id: "a00000000002", vendor: "petlibro", kind: "dry-feeder", model: "Test feeder", place: "", online: true, state: "ok", alerts: [], foodLow: true, lastFed: ago(20), manualToday: 0, manualCap: 2 },
-    { id: "a00000000003", vendor: "petlibro", kind: "fountain", model: "Test fountain", place: "", online: true, state: "flowing", alerts: [], water: 72, filter: 40 },
+    // The Petlibro day (#685): made-up numbers and plans, not anyone's real schedule.
+    { id: "a00000000002", vendor: "petlibro", kind: "dry-feeder", model: "Test feeder", place: "", online: true, state: "ok", alerts: [], foodLow: true, lastFed: ago(20), manualToday: 0, manualCap: 2, fedPortions: 3, feeds: 1, feedUnit: "cup", plan: [{ time: "06:30", portions: 3, on: true, status: "done" }, { time: "13:00", portions: 1, on: false }, { time: "19:30", portions: 3, on: true, status: "next" }] },
+    { id: "a00000000005", vendor: "petlibro", kind: "wet-feeder", model: "Test wet feeder", place: "", online: true, state: "closed", alerts: [], foodLow: false, lastFed: null, manualToday: 0, manualCap: 2, plate: 2, visits: 4, visitSec: 151, meals: [{ time: "07:15", end: "09:15", plate: 1, status: "done" }, { time: "11:45", end: "13:45", plate: 2, status: "now" }, { time: "18:30", end: "20:30", plate: 3, status: "next" }] },
+    { id: "a00000000003", vendor: "petlibro", kind: "fountain", model: "Test fountain", place: "", online: true, state: "flowing", alerts: ["filter due"], water: 58, filter: 0, filterDays: -3, cleanDays: 5, drankMl: 210, visits: 9, avgSec: 17 },
     { id: "a00000000004", vendor: "whisker", kind: "litter", model: "Test litter box", place: "", online: true, state: "ready", alerts: [], drawer: 30, litter: 80, lastUse: ago(95) },
   ];
 }
@@ -132,9 +134,16 @@ for (const [label, size] of [
     await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Pets" }).click();
     const sheet = page.getByRole("dialog", { name: "Pets" });
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByText("Dry food is low.")).toBeVisible();
+    await expect(sheet.getByText(/^Dry food is low/)).toBeVisible();
+    // The Petlibro day (#685): the fountain's overdue filter in ember, the wet bowls, the dry schedule's next meal.
+    await expect(sheet.getByText("3 days overdue")).toBeVisible();
+    await expect(sheet.getByText("Today's bowls")).toBeVisible();
+    await expect(sheet.getByText("Feeding now")).toBeVisible();
+    await expect(sheet.getByText("next 7:30 PM")).toBeVisible();
     await page.waitForTimeout(600);
     await shoot(page, `room-${label}`);
+    await sheet.getByText("Today's bowls").scrollIntoViewIfNeeded();
+    await shoot(page, `pets-day-${label}`);
 
     await sheet.getByRole("button", { name: "Kitchen" }).click();
     await expect(page.getByRole("dialog", { name: "Kitchen" }).getByText("Lemons")).toBeVisible();
@@ -195,3 +204,87 @@ for (const [label, size] of [
     await expect(sheet.getByText("3 × 45 s")).toBeVisible();
   });
 }
+
+test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and total, and sends exactly the shown picks", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  const posts: Record<string, unknown>[] = [];
+  const product = (productId: string, description: string, price: number, promo: number | null = null) => ({ productId, upc: productId, description, brand: "Test", size: "1 ct", price, promo, stock: "high" });
+  const view = {
+    ready: true,
+    state: "live",
+    connected: true,
+    refused: false,
+    zip: "12345",
+    found: [],
+    store: { id: "62000001", name: "King Soopers - Test Town", line: "1 Test Ave", city: "Testville", state: "CO", zip: "12345" },
+    lines: [
+      { id: "k0", name: "Lemons", key: "lemon", pick: { product: product("0001111000004", "Organic Lemons", 119), alts: [product("0001111000005", "Meyer Lemons", 199)], chosen: false, skip: false, at: new Date().toISOString() } },
+      { id: "k1", name: "Garlic", key: "garlic", pick: { product: product("0001111000006", "Garlic Bulb", 59, 49), alts: [], chosen: false, skip: false, at: new Date().toISOString() } },
+      { id: "k2", name: "Oat milk", key: "oat milk", pick: null },
+    ],
+    total: 168,
+    count: 2,
+    sent: null,
+  };
+  await page.route(/\/api\/haven\/kroger(\?.*)?$/, (r) => {
+    if (r.request().method() === "POST") {
+      const body = r.request().postDataJSON() as Record<string, unknown>;
+      posts.push(body);
+      return r.fulfill({ json: body.action === "send" ? { ok: true, items: 2, url: "https://www.kingsoopers.com/cart", ...view } : { ok: true, ...view } });
+    }
+    return r.fulfill({ json: view });
+  });
+  await page.addInitScript(() => {
+    window.open = () => null;
+  });
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("King Soopers - Test Town · 1 Test Ave, Testville")).toBeVisible();
+  await expect(sheet.getByText("Organic Lemons · 1 ct")).toBeVisible();
+  await expect(sheet.locator(".hv-gTotal")).toContainText("$1.68");
+  await expect(sheet.getByRole("button", { name: "Match 1 item at this store" })).toBeVisible();
+  await expect(page).toHaveURL(`${BASE}/haven`);
+  if (SHOTS) await sheet.screenshot({ path: `${SHOTS}/haven-664-groceries.png` });
+  await sheet.getByRole("button", { name: "Send 2 to King Soopers" }).click();
+  await expect(sheet.getByText("Added 2 to your King Soopers cart.", { exact: false })).toBeVisible();
+  await expect(sheet.getByRole("link", { name: "Open the cart" })).toHaveAttribute("href", "https://www.kingsoopers.com/cart");
+  expect(posts).toEqual([
+    {
+      action: "send",
+      picks: [
+        { key: "lemon", productId: "0001111000004" },
+        { key: "garlic", productId: "0001111000006" },
+      ],
+    },
+  ]);
+});
+
+test("signed in, the Kitchen removes an item with ×, with five seconds to Undo (#673)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  const posts: Record<string, unknown>[] = [];
+  await page.route(/\/api\/haven(\?.*)?$/, (r) => {
+    if (r.request().method() === "POST") {
+      posts.push(r.request().postDataJSON() as Record<string, unknown>);
+      return r.fulfill({ json: { ok: true } });
+    }
+    const view = new URL(r.request().url()).searchParams.get("view");
+    if (view === "status") return r.fulfill({ json: { kitchen: { open: 2, done: 0 }, todos: 0, ready: true } });
+    const items = ["Lemons", "Garlic"].map((name, i) => ({ id: `k${i}`, name, addedAt: new Date().toISOString(), source: "phone", done: false }));
+    // After an Undo the list is read again: Garlic is back.
+    return r.fulfill({ json: { items } });
+  });
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  const list = sheet.getByRole("list", { name: "Kitchen list" });
+  await expect(list.getByRole("checkbox")).toHaveCount(2);
+  await list.getByRole("button", { name: "Remove Garlic" }).click();
+  await expect(list.getByRole("checkbox")).toHaveCount(1);
+  await expect(sheet.getByText("2 things on the list.")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Undo" }).click();
+  await expect(list.getByRole("checkbox")).toHaveCount(2);
+  expect(posts).toEqual([
+    { action: "remove", id: "k1" },
+    { action: "undo-remove", id: "k1" },
+  ]);
+});

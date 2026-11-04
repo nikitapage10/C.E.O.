@@ -1,13 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Private } from "../Private.tsx";
 import { useHome, type DeviceReading } from "../homeDevices.ts";
-import type { KitchenItem } from "../haven.ts";
+import { removeItem, undoRemoveItem, type KitchenItem } from "../haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
+import { Groceries } from "./Groceries.tsx";
+import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";
 
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
- * Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet (the pantry, the meals, Instacart,
- * Instacart) says it is waiting, in plain type, and invents nothing.
+ * Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet (the pantry, the meals) says it
+ * is waiting, in plain type, and invents nothing.
  */
 
 export const TAB_NAME: Record<Tab, string> = { kitchen: "Kitchen", hall: "Hall", pets: "Pets", gym: "Gym" };
@@ -77,8 +79,33 @@ const find = (devices: DeviceReading[] | null, kind: DeviceReading["kind"]) => d
 
 /* ── Kitchen ── */
 
-export function KitchenTab({ items, onTick }: { items: KitchenItem[] | null; onTick: (i: KitchenItem) => void }) {
+export function KitchenTab({ items, onTick, onDrop, onReread }: { items: KitchenItem[] | null; onTick: (i: KitchenItem) => void; onDrop: (i: KitchenItem) => void; onReread: () => void }) {
   const open = items?.filter((i) => !i.done) ?? [];
+  // The last item removed, kept five seconds so Undo can bring it back (#673, as Today's Kitchen chip does, #657).
+  const [undo, setUndo] = useState<KitchenItem | null>(null);
+  const undoTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(undoTimer.current), []);
+  const remove = (item: KitchenItem) => {
+    onDrop(item);
+    window.clearTimeout(undoTimer.current);
+    setUndo(item);
+    undoTimer.current = window.setTimeout(() => setUndo(null), 5000);
+    void removeItem(item.id).then((r) => {
+      if (!r.ok) {
+        setUndo(null);
+        onReread();
+      }
+    });
+  };
+  const takeBack = () => {
+    if (!undo) return;
+    const item = undo;
+    window.clearTimeout(undoTimer.current);
+    setUndo(null);
+    void undoRemoveItem(item.id).then(() => onReread());
+  };
+  const byId = new Map((items ?? []).map((i) => [i.id, i]));
+  const kroger = useHome((s) => s.view?.links.kroger ?? s.pub?.links.kroger ?? "waiting");
   return (
     <>
       <p className="hv-say">{items === null ? "Reading the Kitchen list…" : open.length ? `${open.length} thing${open.length === 1 ? "" : "s"} on the list.` : "Nothing on the list."}</p>
@@ -86,7 +113,7 @@ export function KitchenTab({ items, onTick }: { items: KitchenItem[] | null; onT
         <Num v={items === null ? "–" : open.length} k="on the Kitchen list" />
         <Num v="–" k="pantry: waiting" tone="wait" />
         <Num v="–" k="meals: waiting" tone="wait" />
-        <Num v="–" k="Instacart: waiting" tone="wait" />
+        <Num v={kroger === "live" ? "Live" : kroger === "down" ? "Down" : "–"} k={`King Soopers: ${kroger}`} tone={kroger === "live" ? "ok" : kroger === "down" ? "warn" : "wait"} />
       </div>
       <div className="hv-grid">
         <Card title="Shopping list" tag={`${open.length} open`}>
@@ -100,16 +127,26 @@ export function KitchenTab({ items, onTick }: { items: KitchenItem[] | null; onT
                     <input type="checkbox" checked={i.done} onChange={() => onTick(i)} />
                     <Private>{i.name}</Private>
                   </label>
+                  <button type="button" className="hv-x" aria-label={`Remove ${i.name}`} onClick={() => remove(i)}>
+                    ×
+                  </button>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="hv-note">Empty. Say "Skippy, add garlic and lemons" on the phone.</p>
           )}
-          <button type="button" className="hv-btn is-pri" disabled title="Waiting for Instacart">
-            Send to Instacart
-          </button>
-          <p className="hv-note">Waiting for Instacart: the list goes over once its link is connected.</p>
+          {undo ? (
+            <p className="hv-undo" role="status">
+              <span>Removed.</span>
+              <button type="button" onClick={takeBack}>
+                Undo
+              </button>
+            </p>
+          ) : null}
+        </Card>
+        <Card title="King Soopers" tag={kroger} wide>
+          <Groceries listOpen={open.length} onRemove={(id) => byId.get(id) && remove(byId.get(id)!)} />
         </Card>
         <Card title="This week's meals" tag="waiting" wide>
           <Waiting>Waiting for a meal plan. Nothing is planned here until recipes are connected.</Waiting>
@@ -196,7 +233,14 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
   const act = useHome((s) => s.act);
   const busy = useHome((s) => s.busy);
   const dry = find(devices, "dry-feeder"), wet = find(devices, "wet-feeder"), water = find(devices, "fountain"), litter = find(devices, "litter");
-  const say = [dry?.foodLow && "Dry food is low", water && typeof water.water === "number" && water.water < 25 && "the fountain is low", litter && (litter.drawer ?? 0) >= 85 && "the drawer is full"].filter(Boolean) as string[];
+  // The due list says when the filter and the clean are due (#685), so their alerts aren't said twice.
+  const waterAlerts = water?.alerts.filter((a) => !(a === "filter due" && water.filterDays !== undefined) && !(a === "needs a clean" && water.cleanDays !== undefined)) ?? [];
+  const say = [
+    dry?.foodLow && "Dry food is low",
+    water && typeof water.water === "number" && water.water < 25 && "the fountain is low",
+    water && (water.filterDays ?? 1) <= 0 && "the fountain's filter is due",
+    litter && (litter.drawer ?? 0) >= 85 && "the drawer is full",
+  ].filter(Boolean) as string[];
   return (
     <>
       <p className="hv-say">{say.length ? `${say.join(", ")}.` : dry || wet || water || litter ? `Last fed ${ago(dry?.lastFed ?? wet?.lastFed)}. All good.` : "The cat's things aren't connected yet."}</p>
@@ -218,6 +262,7 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
                   <p className="hv-note">
                     Last fed {ago(dry.lastFed)} · {dry.manualToday ?? 0} of {dry.manualCap ?? 2} extra portions today
                   </p>
+                  <DryDay d={dry} />
                   <button type="button" className="hv-btn" disabled={!dry.online || busy !== null || (dry.manualToday ?? 0) >= (dry.manualCap ?? 2)} onClick={() => void act("feeder.feed", dry.id)}>
                     Feed 1 portion
                   </button>
@@ -231,6 +276,7 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
                   <p className="hv-note">
                     Last opened {ago(wet.lastFed)} · {wet.manualToday ?? 0} of {wet.manualCap ?? 2} today
                   </p>
+                  <WetDay d={wet} />
                   <button type="button" className="hv-btn" disabled={!wet.online || busy !== null || (wet.manualToday ?? 0) >= (wet.manualCap ?? 2)} onClick={() => void act("wet.open", wet.id)}>
                     Open the tray
                   </button>
@@ -247,10 +293,13 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
               <div className="hv-water" style={{ ["--lvl" as string]: `${water.water ?? 0}%` }}>
                 <b>{pct(water.water)}%</b>
               </div>
-              <p className="hv-row">
-                <span className="hv-k">Filter</span> <Bar v={water.filter} warn={(water.filter ?? 100) < 15} /> <span>{pct(water.filter)}%</span>
-              </p>
-              {water.alerts.length > 0 && <p className="hv-note is-warn">{water.alerts.join(", ")}</p>}
+              {water.filterDays === undefined && (
+                <p className="hv-row">
+                  <span className="hv-k">Filter</span> <Bar v={water.filter} warn={(water.filter ?? 100) < 15} /> <span>{pct(water.filter)}%</span>
+                </p>
+              )}
+              <FountainDay d={water} />
+              {waterAlerts.length > 0 && <p className="hv-note is-warn">{waterAlerts.join(", ")}</p>}
             </>
           ) : (
             <Waiting>Waiting for Petlibro.</Waiting>

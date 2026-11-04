@@ -39,6 +39,8 @@ vi.mock("@anthropic-ai/sdk", () => ({
         return { content: [{ type: "text", text }], stop_reason: sdk.stop, usage: { input_tokens: 900, output_tokens: 40, server_tool_use: { web_search_requests: sdk.searches } } };
       },
     };
+    // The agent loop (#646) calls the beta surface (the refusal fallback); the same stub answers it.
+    beta = { messages: this.messages };
   },
 }));
 vi.mock("@vercel/blob", async () => (await import("../_desk/fakeBlob.ts")).fakeBlob);
@@ -239,18 +241,26 @@ describe("Skippy's chat: the gates hold before Claude hears anything", () => {
 
   it("respects the month's budget: a spent share means a scripted line and no call", async () => {
     const ledger = new MemoryChatLedger();
-    ledger.spend = { "2026-10": { usd: 1.9999, calls: 1, tokensIn: 0, tokensOut: 0 } };
+    ledger.spend = { "2026-10": { usd: 59.9999, calls: 1, tokensIn: 0, tokensOut: 0 } };
     const { post, asked } = await harness({ ledger });
     const body = (await (await post({ message: "hi" })).json()) as { capped?: boolean };
     expect(body.capped).toBe(true);
     expect(asked()).toBe(0);
   });
 
-  it("respects the whole cap: a world that has spent its way up to it leaves the chat nothing", async () => {
-    const world = { spend: { "2026-10": { usd: 7.9999, tokensIn: 0, tokensOut: 0, calls: 0, scripted: 0 } } };
-    const { post, asked } = await harness({ world: async () => world as never, env: { SKIPPY_BUDGET_USD: "10" } });
+  it("respects the whole cap (#646): the Kernel responder's month counts inside Skippy's one cap", async () => {
+    const kernelLedger = new MemoryChatLedger();
+    kernelLedger.spend = { "2026-10": { usd: 9.9999, tokensIn: 0, tokensOut: 0, calls: 0 } };
+    const { post, asked } = await harness({ kernelLedger, env: { SKIPPY_BUDGET_USD: "10" } });
     expect(((await (await post({ message: "hi" })).json()) as { capped?: boolean }).capped).toBe(true);
     expect(asked()).toBe(0);
+  });
+
+  it("the world's own spend no longer eats Skippy's month (#646)", async () => {
+    const world = { spend: { "2026-10": { usd: 7.9999, tokensIn: 0, tokensOut: 0, calls: 0, scripted: 0 } } };
+    const { post, asked } = await harness({ world: async () => world as never });
+    expect(((await (await post({ message: "hi" })).json()) as { capped?: boolean }).capped).toBeUndefined();
+    expect(asked()).toBe(1);
   });
 
   it("fails closed when the ledger can't be read", async () => {
@@ -287,7 +297,8 @@ describe("Skippy's chat: the gates hold before Claude hears anything", () => {
     // GitHub's repo API, and the Green's read-only Sleeper board for the live rooms' lines (#478): GETs only, nothing of the message.
     expect(sent.filter((s) => s.method !== "GET" || !(s.url.startsWith("https://api.github.com/repos/nikitapage10/C.E.O.") || s.url.startsWith("https://api.sleeper.app/"))), JSON.stringify(sent)).toEqual([]);
     expect(sent.some((s) => s.url.includes("Brighter") || s.url.includes(encodeURIComponent(CHAT_PAYLOADS[0]!.text).slice(0, 12)))).toBe(false);
-    const user = String(sdk.calls[0]!.messages[0]!.content);
+    // The answering call (the agent's triage, when it runs, sees only the message).
+    const user = String(sdk.calls.find((c) => (c as { model?: string }).model !== "claude-haiku-5-5")!.messages[0]!.content);
     expect(user).toContain("#11 Brighter cards");
     expect(tagsIn(user)).toEqual(["<desk>", "</desk>", "<stack>", "</stack>", "<conversation>", "</conversation>", "<message>", "</message>"]);
   });

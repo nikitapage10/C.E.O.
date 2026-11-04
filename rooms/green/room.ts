@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { TOOLS } from "./tools.ts";
 
 /** The Green: the fantasy league. Data only (docs/ROOMS.md). */
 export default defineRoom({
@@ -17,6 +18,7 @@ export default defineRoom({
   usesClaude: true,
   threat: ["TB1", "TB2"],
   budgetKb: 60,
+  tools: [...TOOLS],
   purpose: {
     goal: "Runs Nikita's Sleeper league through Sleeper, FantasyPros and a Claude analyst, a low-stakes place to tune agents that give weekly advice.",
     agents: [

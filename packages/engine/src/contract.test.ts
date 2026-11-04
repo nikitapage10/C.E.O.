@@ -5,6 +5,7 @@ import { LIVE_ROOMS } from "@ceo/simulator";
 import { DESK_SUBMINDS } from "../../simulator/src/subminds.ts";
 import { roomMicOf, voiceTargetOf } from "./voice.ts";
 import { NAV_ORDER, PATHS, ROOM_ROUTES } from "../../../apps/world/src/route.ts";
+import { isRoomTool, needsConfirm } from "./tools.ts";
 import { ENGINE_ENDPOINTS, ENGINE_KEYS, KERNEL_LEAD, RoomManifestSchema, type RoomManifest } from "./manifest.ts";
 import { AGENT_QUIPS, HOUSES, LORE, ROOM_QUIPS, SAMPLE_AGENTS, SKIPPY_LORE, SKIPPY_QUIPS, SUBMINDS, defaultCast } from "./lore.ts";
 import { REPO_ROOT, azureEndpoints, cssTokens, headingsOf, readRepoFile, secretSettings } from "./testing.ts";
@@ -93,6 +94,17 @@ describe("the room manifests", () => {
     unique(manifests.flatMap((m) => (m.navKey ? [m.navKey] : [])));
     unique(manifests.flatMap((m) => m.keys));
     unique(manifests.flatMap((m) => Object.keys(m.auth)));
+  });
+
+  it("each room's tools are its own, uniquely named, and well formed (#646, @ceo/engine/tools)", () => {
+    const all = manifests.flatMap((m) => m.tools ?? []);
+    expect(new Set(all.map((t) => t.name)).size, all.map((t) => t.name).join(", ")).toBe(all.length);
+    for (const m of manifests) for (const t of m.tools ?? []) {
+      expect(t.room, `${m.id}: ${t.name}`).toBe(m.id);
+      expect(isRoomTool(t), `${m.id}: ${t.name}`).toBe(true);
+    }
+    // Anything that sends, spends or deletes waits for the tap: no tool may declare its way out of it.
+    for (const t of all) if (t.effect !== "read" && t.effect !== "write") expect(needsConfirm(t), t.name).toBe(true);
   });
 
   it("paths match the site's routes (route.ts PATHS)", () => {

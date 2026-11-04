@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FAKE_PLAN } from "../../../../../api/_haven/plan.fixture.ts";
 import type { DeviceReading } from "../homeDevices.ts";
-import { climateOf, deviceLit, litRooms, roomAt, summaryOf, tabOf } from "./data.ts";
+import { climateOf, deviceLit, litRooms, roomAt, roomsLitBy, summaryOf, tabOf } from "./data.ts";
 import { wallsOf } from "./house.ts";
 
 /** The Haven's lit rooms (#616), from made-up readings on a made-up plan. */
@@ -37,8 +37,42 @@ describe("the plan's rooms", () => {
 });
 
 describe("litRooms", () => {
-  it("leaves a quiet house dim", () => {
-    expect(litRooms(FAKE_PLAN, { devices: [dev({ kind: "vacuum", vendor: "roborock", state: "docked" })], kitchenOpen: 0, climate: { state: "waiting" }, now: NOW })).toEqual({});
+  it("leaves a house with nothing connected dim", () => {
+    expect(litRooms(FAKE_PLAN, { devices: [], kitchenOpen: null, climate: { state: "waiting" }, now: NOW })).toEqual({});
+  });
+
+  it("keeps a room lit while what's in it is connected, even with nothing running (#671)", () => {
+    const lit = litRooms(FAKE_PLAN, {
+      devices: [dev({ kind: "vacuum", vendor: "roborock", state: "docked" }), dev({ kind: "fountain", state: "flowing", water: 80 })],
+      kitchenOpen: 0,
+      climate: { state: "live", inside: 70, target: 70, mode: "heat", running: false },
+      gym: true,
+      now: NOW,
+    });
+    expect(Object.keys(lit).sort()).toEqual(["gym", "hall", "kitchen", "living", "nook"]);
+    for (const l of Object.values(lit)) expect(l).toEqual({ level: 0.3, needs: false, why: [] });
+    // Running burns brighter on top of the glow.
+    const busy = litRooms(FAKE_PLAN, { devices: [dev({ kind: "vacuum", vendor: "roborock", state: "cleaning" })], kitchenOpen: null, climate: { state: "live", inside: 66, target: 70, mode: "heat", running: true }, now: NOW });
+    expect(busy.hall?.level).toBe(1);
+    expect(busy.living).toMatchObject({ level: 0.75, why: ["heating"] });
+    // A device that stops answering doesn't glow: it asks for a look.
+    expect(litRooms(FAKE_PLAN, { devices: [dev({ kind: "fountain", online: false })], kitchenOpen: null, climate: { state: "waiting" }, now: NOW }).nook).toMatchObject({ needs: true, why: ["offline"] });
+  });
+
+  it("lets a device in a passage light the room beside it too, from the plan alone", () => {
+    const plan = {
+      ...FAKE_PLAN,
+      rooms: [
+        ...FAKE_PLAN.rooms,
+        { id: "passage", name: "Passage", parts: [[960, 460, 30, 120]] as [number, number, number, number][], floor: "wood" as const, tab: null, vacuum: null, detached: false },
+      ],
+      devices: [{ kind: "litter" as const, x: 975, y: 520, lift: 0, lights: null }],
+    };
+    expect(roomsLitBy(plan, plan.devices[0]!)).toEqual(["passage", "study"]);
+    expect(roomsLitBy(FAKE_PLAN, FAKE_PLAN.devices.find((d) => d.kind === "litter")!)).toEqual(["hall"]);
+    expect(roomsLitBy(FAKE_PLAN, FAKE_PLAN.devices.find((d) => d.kind === "thermostat")!)).toEqual(["living"]);
+    const lit = litRooms(plan, { devices: [dev({ kind: "litter", vendor: "whisker", state: "ready" })], kitchenOpen: null, climate: { state: "waiting" }, now: NOW });
+    expect(Object.keys(lit).sort()).toEqual(["passage", "study"]);
   });
 
   it("lights the room where the vacuum runs, the feeders' room when food is low, and the kitchen with things to get", () => {
@@ -122,5 +156,22 @@ describe("the default view (#658)", () => {
       expect(Math.abs((x0 + x1) / 2 - (m.l + (W - m.r)) / 2)).toBeLessThan(1);
       expect(Math.abs((y0 + y1) / 2 - (m.t + (H - m.b)) / 2)).toBeLessThan(1);
     }
+  });
+});
+
+describe("the night round the house (#665)", () => {
+  it("lays the city's lights on the plain, clear of the house, mostly along streets in step with its walls", async () => {
+    const { cityLights } = await import("./night.ts");
+    const keep = { x0: -5, x1: 5, z0: -6.5, z1: 6.5 };
+    const p = cityLights(4000, keep);
+    expect(p.length / 3).toBe(4000);
+    let onStreet = 0;
+    for (let i = 0; i < p.length; i += 3) {
+      const [x, y, z] = [p[i]!, p[i + 1]!, p[i + 2]!];
+      expect(y).toBeGreaterThan(0);
+      expect(x > keep.x0 - 2.5 && x < keep.x1 + 2.5 && z > keep.z0 - 2.5 && z < keep.z1 + 2.5).toBe(false);
+      if (Math.abs(x / 6 - Math.round(x / 6)) < 0.02 || Math.abs(z / 6 - Math.round(z / 6)) < 0.02) onStreet++;
+    }
+    expect(onStreet / 4000).toBeGreaterThan(0.85);
   });
 });

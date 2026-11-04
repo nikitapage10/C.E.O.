@@ -47,8 +47,7 @@ import { privateParts } from "../_privacy.js";
 import { PLAYERS_PATH, keptOrRead, pickGreenStore } from "../_green/cache.js";
 import { fpKey, readFpPlayerNews } from "../_green/fantasypros.js";
 import { readPlayers } from "../_green/sleeper.js";
-import { BlobChatLedger, canChat, chatMonth, skippyBudget } from "./budget.js";
-import { monthTotals, worldBudget } from "../_world/budget.js";
+import { BlobChatLedger, KERNEL_LEDGER_PATH, canChat, skippyBudget, skippySpent } from "./budget.js";
 import { claudeKey } from "../_world/claude.js";
 import { NEWS_PENDING, NO_MORE_LINES, SAY_WAITING_LINE, STILL_SEARCHING, claudeSearch, cleanPlayer, isEmptyLookup, mergeStatusNews, playerNews, waitingLine, webSearch, type PlayerSources, type WebDeps } from "./voicelookups.js";
 import { liveScores } from "./sports.js";
@@ -386,10 +385,8 @@ export function webDeps(env: Record<string, string | undefined>): WebDeps {
     canSpend: async () => {
       if (!ledger) return false;
       const now = Date.now();
-      const world = await pickStore(env)
-        ?.loadState()
-        .catch(() => null);
-      return canChat(chatMonth(await ledger.load(), now).usd, monthTotals(world ?? { spend: {} }, now).usd, skippyBudget(env.SKIPPY_BUDGET_USD, worldBudget(env.WORLD_BUDGET_USD)));
+      // Skippy's whole month (#646): the chat's and the Kernel responder's spend under his one cap.
+      return canChat(await skippySpent(ledger, blob ? new BlobChatLedger(blob, KERNEL_LEDGER_PATH) : null, now), skippyBudget(env.SKIPPY_BUDGET_USD));
     },
     addSpend: async (usage, usd) => {
       if (ledger) await ledger.add(Date.now(), usage, usd);

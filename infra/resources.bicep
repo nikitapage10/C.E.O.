@@ -32,7 +32,7 @@ param logDailyCapGb string
 @description('The Azure copy\'s monthly Claude budget for the world, in USD (WORLD_BUDGET_USD), as a string.')
 param worldBudgetUsd string
 
-@description('The Azure copy\'s monthly Claude budget for Skippy\'s chat, in USD (SKIPPY_BUDGET_USD), as a string.')
+@description('Skippy\'s one monthly Claude cap, in USD (SKIPPY_BUDGET_USD, #646), as a string.')
 param skippyBudgetUsd string
 
 @description('The email agent\'s own monthly Claude cap, in USD (EMAIL_BUDGET_USD), as a string.')
@@ -47,8 +47,6 @@ param kernelAgentBudgetUsd string
 @description('Manual feeds a day per Petlibro feeder (HOME_FEED_CAP, #632), as a string.')
 param homeFeedCap string
 
-@description('Which Instacart Developer Platform environment Send to Instacart uses (INSTACART_ENV, #637): development or production.')
-param instacartEnv string
 
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV): sandbox or live.')
 param paypalEnv string
@@ -126,13 +124,19 @@ var secrets = [
   { setting: 'WHISKER_EMAIL', secret: 'whisker-email' }
   { setting: 'WHISKER_SRP_DIGEST', secret: 'whisker-srp-digest' }
   // The Haven's connections (#637, docs/HOME-DEVICES.md): the Google OAuth client and the Device Access project
-  // for the Nest thermostat and Google Tasks quick-add, and the Instacart Developer Platform key for Send to Instacart,
-  // typed by Nikita into the vault in Cloud Shell. The functions only read these; none is settable from the Desk
+  // for the Nest thermostat and Google Tasks quick-add, typed by Nikita into the vault in Cloud Shell. The functions only read these; none is settable from the Desk
   // (api/_keys/allowlist.ts, `haven-`). The two Google grants come from the Desk and are sealed with home-token-key.
   { setting: 'HAVEN_GOOGLE_CLIENT_ID', secret: 'haven-google-client-id' }
   { setting: 'HAVEN_GOOGLE_CLIENT_SECRET', secret: 'haven-google-client-secret' }
   { setting: 'HAVEN_NEST_PROJECT_ID', secret: 'haven-nest-project-id' }
-  { setting: 'INSTACART_API_KEY', secret: 'haven-instacart-key' }
+  // Send to King Soopers (#664): the Kroger app registered at developer.kroger.com (client credentials for Locations
+  // and Products; the cart grant comes from Connect King Soopers on the Desk, sealed with home-token-key). Set by
+  // Nikita in Cloud Shell; never settable from the Desk (api/_keys/allowlist.ts, `kroger-`).
+  { setting: 'KROGER_CLIENT_ID', secret: 'kroger-client-id' }
+  { setting: 'KROGER_CLIENT_SECRET', secret: 'kroger-client-secret' }
+  // MealMe's key (#664), stored before King Soopers replaced MealMe. Nothing reads it; kept so a deploy doesn't stop
+  // on a setting made outside the template. Remove this line and the setting together to retire it.
+  { setting: 'MEALME_API_KEY', secret: 'haven-mealme-key' }
 ]
 
 // Built-in role IDs (the same in every tenant).
@@ -314,8 +318,6 @@ var plainSettings = [
   { name: 'KERNEL_AGENT_BUDGET_USD', value: kernelAgentBudgetUsd }
   // The home devices' feed cap (#632): manual feeds a Mountain day, per feeder (dry and wet each). Kept as live.
   { name: 'HOME_FEED_CAP', value: homeFeedCap }
-  // Send to Instacart (#637): development until Instacart approves a production key (docs/HOME-DEVICES.md). Kept as live.
-  { name: 'INSTACART_ENV', value: instacartEnv }
   // The Spire's invoices (#279): sandbox until Nikita switches to live (docs/PAYPAL.md).
   { name: 'PAYPAL_ENV', value: paypalEnv }
   // The site's home address (api/_site/hosts.ts): the pings' contact and the Gmail callback's fallback. The

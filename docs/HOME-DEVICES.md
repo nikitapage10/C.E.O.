@@ -1,7 +1,7 @@
 # Home devices: the vacuum, the cat's feeders and fountain, the Litter-Robot, the thermostat
 
-Since #637 also the Google Nest thermostat, Google Tasks' "Shopping" list and Send to Instacart (see
-["Nest, Google Tasks and Instacart"](#nest-google-tasks-and-instacart) below).
+Since #637 also the Google Nest thermostat and Google Tasks' "Shopping" list, and since #664 Send to King Soopers (see
+["Nest, Google Tasks and King Soopers"](#nest-google-tasks-and-king-soopers) below).
 
 Nikita's home devices, read and run straight from the Azure Function App (#632; Nikita, 2026-11-04: "integrate
 directly, not through Home Assistant", "Vacuum, go clean the kitchen", "Feed the cat a portion", "Run a litter clean
@@ -24,9 +24,9 @@ new npm packages (the MQTT client is a few dozen lines over `node:tls`, [`mqtt.t
 | --- | --- | --- |
 | Thermostat (Nest) | inside temperature, humidity, mode, set point(s), eco, heating or cooling | **±1°**, **mode** (only the modes it offers) |
 | Vacuum | state (docked, cleaning, returning, paused, charging…), battery, alerts (bin missing, dock bin problems, clean water tank empty or low, dirty water tank full, "needs a look" for any other error code), its map's room names | Start, Pause, Dock, **clean named rooms** (`app_segment_clean` with the map's segment ids, matched to the room names from the Roborock app); an optional mode word for a start or rooms clean: quiet or max suction, vacuum only or mop too |
-| Dry food feeder | online, food low, last feed, manual portions today and the cap | **Feed N portions** (`portions`, 1 to 6; every portion counts against the cap) |
-| Wet food feeder | online, lid open or closed, which bowl is in front, its schedule from the Petlibro app, openings today and the cap | **Open the tray** (opens the bowl in front), **Next bowl** / **bowl N** (`wet.rotate`), **Close the lid** (`wet.close`), **What's in it** (`wet.status`) |
-| Fountain | online, water level, filter life left, alerts (water low, filter due, needs a clean) | none |
+| Dry food feeder | online, food low, last feed, manual portions today and the cap; today's amount (in the app's unit; a portion is 1/12 cup) and feedings, and today's schedule (time, portions, on or off, served / skipped / next) (#685) | **Feed N portions** (`portions`, 1 to 6; every portion counts against the cap) |
+| Wet food feeder | online, lid open or closed, which bowl is in front, its schedule from the Petlibro app (each bowl's window, completed / feeding now / next by the clock), openings today and the cap; today's eating visits and eating time when the feeder reports them (#685) | **Open the tray** (opens the bowl in front), **Next bowl** / **bowl N** (`wet.rotate`), **Close the lid** (`wet.close`), **What's in it** (`wet.status`) |
+| Fountain | online, water level, filter life left, alerts (water low, filter due, needs a clean); today's intake (mL, shown in oz), visits and average visit, and the days until the filter change and the clean (overdue in ember) (#685) | none |
 | Litter-Robot 5 Pro | state (ready, cycling, cat inside, drawer full, paused, offline…), waste drawer %, litter level %, last visit, alerts (drawer full, drawer out, bonnet off, sensors need a wipe, litter low) | **Clean now** (a clean cycle) |
 
 ## The API
@@ -111,6 +111,22 @@ Leave an email empty to skip that vendor (it stays "waiting"). Petlibro lets one
 so the app on the phone may be signed out once the Function App signs in; to keep both, make a second Petlibro
 account, share the three devices to it from the app, and use that one here.
 
+**When Petlibro or Whisker reads "down"** (#672), Boiler Room > Controls says why, signed in only (the public pages
+keep the state alone), in fixed words, never the vendor's own answer:
+- *no such account*: Petlibro answered 1101 (`MEMBER_NOT_EXIST`) for the email in the Key Vault. An account made with
+  Apple or Google sign-in (or behind an Apple relay address) has no email and password to match: give it a password
+  in the app, or use a second account, and run the paste again.
+- *sign-in refused*: any other refusal of the digest (the password changed, or it is over Petlibro's 18 characters).
+  Run the paste again. A refused sign-in is held off for 15 minutes, so a wrong digest never hammers the login.
+- *signed out*: a fresh sign-in was taken back at once and no newer token is stored, so something outside C.E.O.
+  holds the account's one session (the phone app, or another integration such as Home Assistant on the same
+  account). Use a second account shared to the feeders, as above. A lapsed token (1009) on its own is not a fault:
+  the client first takes a newer token another Function App instance stored, then signs in again. Only one instance
+  signs in at a time (#683): it takes a 20-second lease in the private store (`haven/devices/petlibro.lease.json`,
+  a time only), and the others wait for the token it stores instead of signing in over it, since every sign-in
+  cancels the tokens before it.
+- *no answer*: the vendor's cloud didn't answer; it tries again on the next read.
+
 ### 2. The Desk: Connect Roborock
 
 > **What this does.** Service: Roborock. On the Desk (signed in with your passkey), **Today → Home → Connect
@@ -124,29 +140,31 @@ If Roborock says to accept its user agreement, open the Roborock app once, accep
 `HOME_FEED_CAP` is a plain app setting (2 by default). To change it, set it on the Function App
 (**Configuration → Application settings**, 0 to 6); each deploy keeps the live value.
 
-## Nest, Google Tasks and Instacart
+## Nest, Google Tasks and King Soopers
 
-Three more connections from the Function App (#637), Azure only, each "waiting" on the Desk and in Systems until it
+Three more connections from the Function App (#637, #664), Azure only, each "waiting" on the Desk and in Systems until it
 is set up (never a made-up reading):
 
 | Connection | Code | What it does |
 | --- | --- | --- |
 | Google Nest thermostat | [`api/_haven/google/nest.ts`](../api/_haven/google/nest.ts) | Reads the thermostat through Google's Smart Device Management API and sets it, inside the rails above; every change, done or refused, goes to the Council. It sits on the Home chip beside the other devices. |
 | Google Tasks quick-add | [`api/_haven/google/tasks.ts`](../api/_haven/google/tasks.ts) | Every five minutes, the open tasks in the Tasks list called "Shopping" (the name can be changed on the Desk) go onto the Kitchen list, then are marked completed in Tasks so they come over once. "Hey Google, add oat milk to my Shopping list in Google Tasks." |
-| Send to Instacart | [`api/_haven/instacart.ts`](../api/_haven/instacart.ts) | **Send to Instacart** on the Kitchen list turns its open items into an Instacart shopping list page through the Instacart Developer Platform and opens it; you pick the store and check out there. Nothing is bought from here; Instacart gets only the items' names. |
+| Send to King Soopers | [`api/_haven/kroger/`](../api/_haven/kroger/) | On the Haven's Kitchen page, each open list item is matched to a product at your home King Soopers through Kroger's public API (price and stock), you swap any pick, and **Send to King Soopers** adds the shown picks to your King Soopers cart and opens it. You check out (pickup or delivery) in the King Soopers app: nothing is bought from here. See ["King Soopers"](#king-soopers) below. |
 
 - **Keys.** The Google OAuth client (`haven-google-client-id`, `haven-google-client-secret`), the Device Access
-  project id (`haven-nest-project-id`) and the Instacart key (`haven-instacart-key`) live only in the Key Vault
+  project id (`haven-nest-project-id`) and the Kroger app (`kroger-client-id`, `kroger-client-secret`) live only in the Key Vault
   `kv-ceo-besgu7fnckib2`, read by the Function App; the Desk's Keys form can't set or read them. The two Google grants
-  (Connect Nest, Connect Google Tasks) are made on the Desk in a passkey session and sealed with `home-token-key` in
+  (Connect Nest, Connect Google Tasks) and the King Soopers cart grant are made on the Desk in a passkey session and sealed with `home-token-key` in
   the private store; the browser never sees a token, and no log line holds one.
-- **Private.** Signed out, the Desk and `GET /api/haven/google?view=status` show each connection's state only
-  (`waiting`, `live`, `down`) and the Kitchen list's count; temperatures, list names, items and links need the passkey.
+- **Private.** Signed out, the Desk, `GET /api/haven/google?view=status` and `GET /api/haven/kroger?view=status` show
+  each connection's state only (`waiting`, `live`, `down`) and counts; temperatures, list names, the ZIP, the store,
+  items, prices and links need the passkey.
 - **API.** `GET /api/haven/google` (passkey) and `POST /api/haven/google` `{ action: "connect" | "disconnect", grant:
   "nest" | "tasks" }`, `{ action: "tasks-list", title }`, `{ action: "tasks-sync" }`; Google comes back to
-  `/api/haven/google-callback`. Send to Instacart is `POST /api/haven` `{ action: "instacart" }`.
+  `/api/haven/google-callback`. King Soopers is `GET`/`POST /api/haven/kroger` (actions in
+  [`api/_haven/kroger/route.ts`](../api/_haven/kroger/route.ts)); Kroger comes back to `/api/haven/kroger-callback`.
 
-### Nikita's setup for these three (browser and Cloud Shell only)
+### Nikita's setup for Nest and Google Tasks (browser and Cloud Shell only)
 
 About fifteen minutes, from the PC's browser, signed in to Google as the account the Nest and Google Tasks belong to.
 Nothing to install, no checkout.
@@ -170,33 +188,27 @@ Nothing to install, no checkout.
 While the app is in **Testing**, Google ends a grant after 7 days and the Desk says "Reconnect". To stop that, as for
 Relay: **Audience** → **Publish app** → **Confirm**, then click past "Google hasn't verified this app" when connecting.
 
-#### B. Device Access and Instacart (clicks)
+#### B. Device Access (clicks)
 
-> **What this does.** Services: Google's Device Access program and the Instacart Developer Platform. Device Access
-> lets your own OAuth client reach your own Nest; Google charges a **one-time, non-refundable US$5** for it. The
-> Instacart account gives a developer API key (free) that makes shopping list pages. Undo: delete the Device Access
-> project; revoke the Instacart key in its dashboard.
+> **What this does.** Service: Google's Device Access program. It lets your own OAuth client reach your own Nest;
+> Google charges a **one-time, non-refundable US$5** for it. Undo: delete the Device Access project.
 
 1. Open <https://console.nest.google.com/device-access>, accept the terms and pay the US$5 fee.
 2. **Create project** → name `C.E.O.` → **OAuth client ID**: paste the Client ID from step A → skip **Events**
    (leave Pub/Sub off) → **Create project**. Copy the **Project ID** (a long id with dashes) for step C.
-3. Open <https://www.instacart.com/company/business/developers> → sign up for the Developer Platform → in its
-   dashboard, **API keys** → create a **development** key. Copy it for step C. (Development keys make test links;
-   once a production key is approved, see "Switching Instacart to production" below.)
+Skip it to leave the Nest "waiting".
 
-Skip either part to leave that connection "waiting".
-
-#### C. Azure Cloud Shell: the four secrets (one paste)
+#### C. Azure Cloud Shell: the three secrets (one paste)
 
 > **What this does.** Services: Azure (the Key Vault and the Function App). It asks for the Google client ID, the
-> client secret (typed hidden), the Device Access project ID and the Instacart key (typed hidden), stores each one
+> client secret (typed hidden) and the Device Access project ID, stores each one
 > that isn't empty in `kv-ceo-besgu7fnckib2`, points the Function App's settings at them and restarts it. Nothing is
 > printed or written to a file. Free. Undo: delete the secrets and restart.
 
 Open <https://shell.azure.com> (Bash) and paste:
 
 ```bash
-KV=kv-ceo-besgu7fnckib2; RG=rg-ceo-prod; APP=func-ceo-besgu7fnckib2; read -rp "Google client ID: " GID; read -rsp "Google client secret: " GSEC; echo; read -rp "Device Access project ID: " NPID; read -rsp "Instacart API key: " IKEY; echo; S=(); put() { if [ -n "$3" ]; then az keyvault secret set --vault-name $KV -n "$1" --value "$3" -o none && S+=("$2=@Microsoft.KeyVault(VaultName=$KV;SecretName=$1)") && echo "set $1"; fi; }; put haven-google-client-id HAVEN_GOOGLE_CLIENT_ID "$GID"; put haven-google-client-secret HAVEN_GOOGLE_CLIENT_SECRET "$GSEC"; put haven-nest-project-id HAVEN_NEST_PROJECT_ID "$NPID"; put haven-instacart-key INSTACART_API_KEY "$IKEY"; unset GSEC IKEY; [ ${#S[@]} -gt 0 ] && az functionapp config appsettings set -g $RG -n $APP --settings "${S[@]}" -o none; az functionapp restart -g $RG -n $APP -o none && echo "restarted; Haven connections ready to connect"
+KV=kv-ceo-besgu7fnckib2; RG=rg-ceo-prod; APP=func-ceo-besgu7fnckib2; read -rp "Google client ID: " GID; read -rsp "Google client secret: " GSEC; echo; read -rp "Device Access project ID: " NPID; S=(); put() { if [ -n "$3" ]; then az keyvault secret set --vault-name $KV -n "$1" --value "$3" -o none && S+=("$2=@Microsoft.KeyVault(VaultName=$KV;SecretName=$1)") && echo "set $1"; fi; }; put haven-google-client-id HAVEN_GOOGLE_CLIENT_ID "$GID"; put haven-google-client-secret HAVEN_GOOGLE_CLIENT_SECRET "$GSEC"; put haven-nest-project-id HAVEN_NEST_PROJECT_ID "$NPID"; unset GSEC; [ ${#S[@]} -gt 0 ] && az functionapp config appsettings set -g $RG -n $APP --settings "${S[@]}" -o none; az functionapp restart -g $RG -n $APP -o none && echo "restarted; Haven connections ready to connect"
 ```
 
 Leave a prompt empty to skip it. The deploy template writes the same Key Vault references on every run
@@ -214,20 +226,38 @@ there: it seals the Google grants.
    pick the home, turn on the thermostat → **Next** → **Allow**. Back on the Desk, the thermostat shows within a minute.
 2. **Connect Google Tasks** → pick the account → **Continue** → **Allow**. The list read is "Shopping"; change the name
    under it if yours is called something else. **Check now** runs it at once; otherwise every five minutes.
-3. Open the Kitchen chip: **Send to Instacart** is live once the Instacart key is in.
 
 If "Hey Google, add … to my shopping list" lands in Google Keep instead of Tasks for your account, say "… to my
 Shopping list in Google Tasks", or make Tasks the default shopping list in the Google Home app if it offers it.
 
-#### Switching Instacart to production (later, one paste)
+### King Soopers
 
-> **What this does.** Service: Azure. Once Instacart approves a production key: it stores the new key and sets
-> `INSTACART_ENV=production` on the Function App (each deploy keeps that value), then restarts. Undo: run it again
-> with `development` and the development key.
+Send to King Soopers (#664) uses Kroger's free public API (developer.kroger.com), since Instacart's developer platform
+closed and MealMe offered only King Soopers here. Kroger's app **CEO Haven** is registered (Production; Cart,
+Locations, Products and Profile) with both redirect URIs, `https://ceo.nikita.page/api/haven/kroger-callback` and
+`https://thankful-forest-019308c1e.5.azurestaticapps.net/api/haven/kroger-callback`. Its id and secret are the Key
+Vault secrets `kroger-client-id` and `kroger-client-secret`, read through the app settings `KROGER_CLIENT_ID` and
+`KROGER_CLIENT_SECRET` (Key Vault references in `infra/resources.bicep`, so each deploy keeps them). Until both are
+in, King Soopers shows "waiting".
 
-```bash
-read -rsp "Instacart production key: " IKEY; echo; az keyvault secret set --vault-name kv-ceo-besgu7fnckib2 -n haven-instacart-key --value "$IKEY" -o none && unset IKEY && az functionapp config appsettings set -g rg-ceo-prod -n func-ceo-besgu7fnckib2 --settings INSTACART_ENV=production -o none && az functionapp restart -g rg-ceo-prod -n func-ceo-besgu7fnckib2 -o none && echo "Instacart on production"
-```
+On the Desk, signed in with your passkey. Setup is in **Boiler Room → Controls → Connections** (the house block):
+
+1. Under **King Soopers**, type your ZIP → **Find stores** → **Use this** on your home store. The ZIP and the store
+   stay in the Haven's private store, read only by your passkey; picking another store starts the picks over.
+2. **Connect King Soopers** once: Kroger's sign-in, for the cart only. Kroger sends you back to Controls. The refresh
+   token is sealed with `home-token-key`; **Disconnect** forgets it.
+
+Then **Haven → Kitchen** (or **Order at King Soopers** on Today's Kitchen chip):
+
+3. **Match N items at this store**: each open item gets the first in-stock product at that store, with its price (the sale price
+   when there is one) and stock. **Swap** shows the other matches, or searches another way; untick an item to leave it
+   out. A match is kept, so an item is looked up once (again after three days unless you chose it yourself).
+4. **Send N to King Soopers** adds exactly the picks shown to your King Soopers cart and opens it. Pick pickup or
+   delivery and check out in the King Soopers app. Nothing is bought from the Desk.
+
+Calls happen only on those taps (Kroger's limits: 10,000 product calls and 1,600 location calls a day, 5,000 cart calls
+a day), never on a timer. `MEALME_API_KEY` (Key Vault `haven-mealme-key`) stays on the Function App, unread, from
+before King Soopers replaced MealMe.
 
 ## Vendor limits
 
@@ -238,6 +268,11 @@ read -rsp "Instacart production key: " IKEY; echo; az keyvault secret set --vaul
   (`pv 1.0`) is spoken, which the Qrevo line uses; the email code is the only sign-in (no password is ever stored).
 - **Petlibro.** The US region only (`api.us.petlibro.com`). One session per account (see above). The wet feeder opens
   the current plate's lid; it can't choose a tray or a portion size.
+- **Petlibro's day (#685).** Read only, from the endpoints the community integration uses: `todayDrinkData` (the
+  fountain), `grainStatus` (feeders), `feedingPlan/list` and `feedingPlan/todayNew` (the dry schedule), and the wet
+  plan's windows. Each field is taken only when it has the expected shape and hidden otherwise; a side read Petlibro
+  refuses leaves only its part out. The app's optional daily water goal has no known field in the API and isn't
+  shown. These are private readings: the public face stays each device's kind and state.
 - **Whisker.** The Litter-Robot 5 and 5 Pro are supported through pylitterbot's LR5 REST path; a Litter-Robot 4 (a
   different, GraphQL API) is not implemented. Night light, sleep mode and cycle delay are not exposed.
 - **Petlibro's wet tray.** `platePositionChange` and `stopFeedNow` come from the community integration, not a
@@ -246,4 +281,8 @@ read -rsp "Instacart production key: " IKEY; echo; az keyvault secret set --vaul
 - **Nest.** Through Device Access only (no local control); eco mode can't be changed through SDM, so the Desk says to
   change it in the Home app.
 - **Google Tasks.** It reads the one list by name; Google Keep lists have no API.
-- **Pace.** Readings are cached 30 seconds per warm instance; a phone key's device calls share its 30 an hour.
+- **Pace.** Readings are cached 30 seconds per warm instance, and callers at once share one read; a phone key's device
+  calls share its 30 an hour. After a command, its vendor's reading is taken as the command left it for 20 seconds
+  instead of being read again (the Nest's set point and mode; Google SDM rate-limits reads per user), and a read that
+  fails in passing (429, a 5xx, a timeout) keeps the vendor's last good reading, marked stale, for up to 10 minutes
+  before it reads "down" (#681). A refused login is down at once.

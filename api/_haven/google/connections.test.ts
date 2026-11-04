@@ -8,10 +8,7 @@ import type { Fetch } from "../devices/http.ts";
 import { THERMO_MAX_F, THERMO_MIN_F, thermostatPlan } from "../devices/rails.ts";
 import type { DeviceReading } from "../devices/types.ts";
 import { HomeVault, homeKey, vaultPath } from "../devices/vault.ts";
-import { havenPost, type HavenDeps } from "../route.ts";
-import { IDP_BASE, instacartFrom, linkBody, sendToInstacart } from "../instacart.ts";
 import { KitchenList } from "../list.ts";
-import { PhoneTodos } from "../todos.ts";
 import { commandFor, cToF, fToC, NestClient, readThermostat } from "./nest.ts";
 import { authUrl, exchangeCode, forgetTokens, havenClientFrom, nestProjectFrom, SDM_SCOPE, TASKS_SCOPE, type HavenClient } from "./oauth.ts";
 import { checkState, googleCallback, googleGet, googlePost, makeState, STATE_COOKIE, type GoogleRouteDeps } from "./route.ts";
@@ -19,8 +16,7 @@ import { readTasksState, setTasksList, syncTasks } from "./tasks.ts";
 
 /**
  * The Haven's connections (#637): the Nest thermostat through Google's SDM API and its rails, Connect Nest and Connect
- * Google Tasks (the OAuth state, the scope allowlist, the sealed grants), the Tasks quick-add onto the Kitchen list,
- * and Send to Instacart. Every vendor is mocked; every id, token and key here is made up.
+ * Google Tasks (the OAuth state, the scope allowlist, the sealed grants), the Tasks quick-add onto the Kitchen list. Every vendor is mocked; every id, token and key here is made up.
  */
 
 const NOW = Date.parse("2026-11-04T18:00:00Z");
@@ -32,7 +28,7 @@ const ID_KEY = homeKey(HOME_KEY, "id")!;
 const PROJECT = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0";
 const CLIENT: HavenClient = { clientId: "test-client.apps.googleusercontent.com", clientSecret: "test-client-secret", redirectUri: "https://thankful-forest-019308c1e.5.azurestaticapps.net/api/haven/google-callback" };
 const DEVICE = `enterprises/${PROJECT}/devices/AVPHwEtestDEVICEid0001`;
-const SECRETS = ["test-refresh-nest", "test-refresh-tasks", "test-access", "test-client-secret", "AVPHwEtestDEVICEid0001", "keys.testinstacartkey0000"];
+const SECRETS = ["test-refresh-nest", "test-refresh-tasks", "test-access", "test-client-secret", "AVPHwEtestDEVICEid0001"];
 
 function memoryBlob(): BlobBackend & { files: Map<string, Uint8Array> } {
   const files = new Map<string, Uint8Array>();
@@ -93,19 +89,20 @@ function sdmDevice(over: { mode?: string; eco?: string; heat?: number; cool?: nu
   };
 }
 
-async function nestSetup(device = sdmDevice(), opts: { tokenStatus?: number; command?: (init: RequestInit) => Response | unknown; grant?: boolean } = {}) {
+async function nestSetup(device = sdmDevice(), opts: { tokenStatus?: number; command?: (init: RequestInit) => Response | unknown; grant?: boolean; list?: () => Response | unknown; now?: () => number } = {}) {
   forgetTokens();
   const blob = memoryBlob();
   const vault = new HomeVault(blob, SEAL);
   const f = fakeFetch([
     [/POST https:\/\/oauth2\.googleapis\.com\/token$/, () => (opts.tokenStatus ? jsonRes({ error: "invalid_grant" }, opts.tokenStatus) : { access_token: "test-access", expires_in: 3599 })],
-    [/GET https:\/\/smartdevicemanagement\.googleapis\.com\/v1\/enterprises\/[^/]+\/devices$/, () => ({ devices: [device, { name: `enterprises/${PROJECT}/devices/cam1`, type: "sdm.devices.types.CAMERA", traits: {} }] })],
+    [/GET https:\/\/smartdevicemanagement\.googleapis\.com\/v1\/enterprises\/[^/]+\/devices$/, () => opts.list?.() ?? { devices: [device, { name: `enterprises/${PROJECT}/devices/cam1`, type: "sdm.devices.types.CAMERA", traits: {} }] }],
     [/POST https:\/\/smartdevicemanagement\.googleapis\.com\/v1\/enterprises\/.+:executeCommand$/, (_u, init) => (opts.command ? opts.command(init) : {})],
   ]);
-  const nest = new NestClient({ fetch: f, vault, idKey: ID_KEY, client: CLIENT, project: PROJECT, now: () => NOW });
+  const now = opts.now ?? (() => NOW);
+  const nest = new NestClient({ fetch: f, vault, idKey: ID_KEY, client: CLIENT, project: PROJECT, now });
   const council = new MemoryRoomLog();
   const lines: string[] = [];
-  const home = new Home({ blob, clients: [nest], feedCap: 2, council, log: (l) => lines.push(l), now: () => NOW });
+  const home = new Home({ blob, clients: [nest], feedCap: 2, council, log: (l) => lines.push(l), now });
   if (opts.grant !== false) await vault.write("google-nest", { refresh: "test-refresh-nest", connectedAt: NOW });
   return { blob, vault, f, nest, council, home, lines };
 }
@@ -177,6 +174,57 @@ describe("the Nest thermostat (#637)", () => {
     expect((await gone.home.status(true)).vendors.nest).toBe("waiting");
   });
 
+  it("stays up after a set point change while Google rate-limits the reads (Nikita, 2026-11-04)", async () => {
+    // Google's SDM API keeps a per-user quota of reads a minute and answers 429 RESOURCE_EXHAUSTED past it. A change
+    // costs a read for the rails and the command, and the Desk reads again straight after: that read must not knock
+    // the thermostat down.
+    let clock = NOW;
+    let limited = false;
+    const lists = () => n.f.calls.filter((c) => /\/devices$/.test(c.url)).length;
+    const n = await nestSetup(sdmDevice(), { now: () => clock, list: () => (limited ? jsonRes({ error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "Rate limited." } }, 429) : undefined) });
+    expect((await n.home.status(true)).vendors.nest).toBe("live");
+    clock += 5_000;
+    expect(await n.home.act({ action: "thermostat.set", tempF: 70, via: "desk" })).toMatchObject({ ok: true });
+    limited = true;
+    const before = lists();
+    // Straight after: the new set point, without asking Google again.
+    clock += 1_000;
+    const after = await n.home.status();
+    expect(after.vendors.nest).toBe("live");
+    expect(after.devices[0]).toMatchObject({ kind: "thermostat", heatF: 70, online: true });
+    expect(lists()).toBe(before);
+    // A minute on, Google still says slow down: the last good reading stays, marked stale, not down.
+    clock += 60_000;
+    const later = await n.home.status(true);
+    expect(later.vendors.nest).toBe("live");
+    expect(later.problems.nest).toBeUndefined();
+    expect(later.devices[0]).toMatchObject({ kind: "thermostat", heatF: 70, stale: true });
+    expect(Home.publicOf(later).devices).toEqual([{ kind: "thermostat", state: "heating", online: true }]);
+    expect(await n.vault.read("google-nest")).not.toMatchObject({ refused: true });
+    // Long past any rate limit, it reads down.
+    clock += 60 * 60_000;
+    expect((await n.home.status(true)).vendors.nest).toBe("down");
+    // Two changes in a row: the second uses the reading the first left, so it costs Google one command and no read.
+    limited = false;
+    clock += 1_000;
+    expect((await n.home.status(true)).vendors.nest).toBe("live");
+    const cmds = commands(n.f).length;
+    const reads = lists();
+    expect(await n.home.act({ action: "thermostat.set", tempF: 71, via: "desk" })).toMatchObject({ ok: true });
+    expect(await n.home.act({ action: "thermostat.set", tempF: 72, via: "desk" })).toMatchObject({ ok: true });
+    expect(commands(n.f).length).toBe(cmds + 2);
+    expect(lists()).toBe(reads + 1);
+  });
+
+  it("shares one token refresh between calls at once, and never marks the grant refused for a hiccup", async () => {
+    const n = await nestSetup();
+    await Promise.all([n.nest.status(), n.nest.status(), n.nest.status()]);
+    expect(n.f.calls.filter((c) => c.url.endsWith("/token")).length).toBe(1);
+    const flaky = await nestSetup(sdmDevice(), { tokenStatus: 503 });
+    expect((await flaky.home.status(true)).vendors.nest).toBe("down");
+    expect(await flaky.vault.read("google-nest")).not.toMatchObject({ refused: true });
+  });
+
   it("waits until the client, the project and the grant are all there, and keeps the grant sealed", async () => {
     const { nest, vault, blob, home } = await nestSetup(sdmDevice(), { grant: false });
     expect(await nest.connected()).toBe(false);
@@ -201,7 +249,7 @@ async function googleSetup(over: Partial<GoogleRouteDeps> = {}) {
   const vault = new HomeVault(blob, SEAL);
   const lines: string[] = [];
   const cookie = await signedInCookie(DESK, NOW, store);
-  const deps: GoogleRouteDeps = { desk: { deskKey: DESK, store, now: NOW }, blob, vault, client: CLIENT, project: PROJECT, instacart: null, fetch: fakeFetch([]), now: NOW, log: (l) => lines.push(l), ...over };
+  const deps: GoogleRouteDeps = { desk: { deskKey: DESK, store, now: NOW }, blob, vault, client: CLIENT, project: PROJECT, fetch: fakeFetch([]), now: NOW, log: (l) => lines.push(l), ...over };
   return { deps, blob, vault, cookie, lines, store };
 }
 
@@ -275,7 +323,7 @@ describe("Connect Nest and Connect Google Tasks (#637)", () => {
     expect((await googleGet(get("/api/haven/google"), deps)).status).toBe(401);
     await setTasksList(blob, "Groceries for Nikita");
     const pub = await (await googleGet(get("/api/haven/google?view=status"), deps)).text();
-    expect(JSON.parse(pub)).toEqual({ ready: true, nest: "waiting", tasks: "waiting", instacart: "waiting" });
+    expect(JSON.parse(pub)).toEqual({ ready: true, nest: "waiting", tasks: "waiting" });
     expect(pub).not.toContain("Groceries");
     const priv = (await (await googleGet(get("/api/haven/google", { Cookie: cookie }), deps)).json()) as { tasks: { list: string } };
     expect(priv.tasks.list).toBe("Groceries for Nikita");
@@ -342,60 +390,5 @@ describe("Google Tasks quick-add (#637)", () => {
     expect((await syncTasks(deps(refuse))).result).toBe("refused");
     expect(await vault.read("google-tasks")).toMatchObject({ refused: true });
     expect(lines.join("\n")).not.toContain("eggs");
-  });
-});
-
-/* ── Send to Instacart ── */
-
-describe("Send to Instacart (#637)", () => {
-  it("reads the key and environment, development by default", () => {
-    expect(instacartFrom({})).toBeNull();
-    expect(instacartFrom({ INSTACART_API_KEY: "keys.testinstacartkey0000" })).toEqual({ key: "keys.testinstacartkey0000", env: "development" });
-    expect(instacartFrom({ INSTACART_API_KEY: "keys.x", INSTACART_ENV: "production" })?.env).toBe("production");
-    const body = linkBody(["oat milk", "Lemons"], NOW, "https://ceo.nikita.page");
-    expect(body).toMatchObject({ link_type: "shopping_list", line_items: [{ name: "oat milk", display_text: "oat milk" }, { name: "Lemons", display_text: "Lemons" }] });
-  });
-
-  it("makes a shopping list page from the open items, on the development host", async () => {
-    const blob = memoryBlob();
-    await new KitchenList(blob).add(["oat milk", "lemons"], NOW);
-    const f = fakeFetch([[/POST https:\/\/connect\.dev\.instacart\.tools\/idp\/v1\/products\/products_link$/, () => ({ products_link_url: "https://customers.dev.instacart.tools/store/shopping_lists/123" })]]);
-    const lines: string[] = [];
-    const got = await sendToInstacart({ fetch: f, config: { key: "keys.testinstacartkey0000", env: "development" }, blob, now: NOW, env: {}, log: (l) => lines.push(l) }, await new KitchenList(blob).items(NOW));
-    expect(got).toEqual({ ok: true, url: "https://customers.dev.instacart.tools/store/shopping_lists/123", items: 2 });
-    expect(f.calls[0]!.url.startsWith(IDP_BASE.development)).toBe(true);
-    expect((f.calls[0]!.init.headers as Record<string, string>).Authorization).toBe("Bearer keys.testinstacartkey0000");
-    expect(lines).toEqual(["instacart: list made (2 items)"]);
-    for (const s of SECRETS) expect(allText(blob)).not.toContain(s);
-  });
-
-  it("refuses a link that isn't Instacart's, and needs a key, items and a passkey session", async () => {
-    const blob = memoryBlob();
-    await new KitchenList(blob).add(["eggs"], NOW);
-    const evil = fakeFetch([[/products_link$/, () => ({ products_link_url: "https://evil.example/phish" })]]);
-    expect(await sendToInstacart({ fetch: evil, config: { key: "k", env: "development" }, blob, now: NOW, env: {}, log: () => undefined }, await new KitchenList(blob).items(NOW))).toEqual({ ok: false, error: "vendor" });
-
-    const store = new MemoryAuthStore();
-    const cookie = await signedInCookie(DESK, NOW, store);
-    const deps: HavenDeps = {
-      desk: { deskKey: DESK, store, now: NOW },
-      blob,
-      pepper: async () => Buffer.alloc(32, 7),
-      todos: (b) => new PhoneTodos(b),
-      skippy: async () => ({ reply: "", handedOff: false }),
-      voice: null,
-      log: () => undefined,
-      random: () => 0,
-      instacart: null,
-    };
-    const req = (headers: Record<string, string> = {}) => new Request(`${ORIGIN}/api/haven`, { method: "POST", headers: { "Content-Type": "application/json", Origin: ORIGIN, ...headers }, body: JSON.stringify({ action: "instacart" }) });
-    expect((await havenPost(req(), deps)).status).toBe(401);
-    expect((await havenPost(req({ Cookie: cookie }), deps)).status).toBe(503);
-    const ok = fakeFetch([[/products_link$/, () => ({ products_link_url: "https://customers.dev.instacart.tools/store/shopping_lists/9" })]]);
-    const res = await havenPost(req({ Cookie: cookie }), { ...deps, instacart: { key: "k", env: "development" }, fetch: ok });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, items: 1 });
-    await new KitchenList(blob).tick((await new KitchenList(blob).items(NOW))[0]!.id, true, NOW);
-    expect((await havenPost(req({ Cookie: cookie }), { ...deps, instacart: { key: "k", env: "development" }, fetch: ok })).status).toBe(409);
   });
 });

@@ -2,20 +2,19 @@ import "./houseChips.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDeskAuth } from "./signin.ts";
 import { Private } from "./Private.tsx";
-import { INSTACART_NOTE, isInstacartLink, loadCounts, loadKitchen, removeItem, sendInstacart, tickItem, undoRemoveItem, type KitchenItem } from "./haven.ts";
+import { loadCounts, loadKitchen, removeItem, tickItem, undoRemoveItem, type KitchenItem } from "./haven.ts";
 
 /**
  * The Kitchen list chip (#627; on Today until the Iris, #666, on the Haven since): what "Hey Skippy" put on it from the iPhone. A chip in
  * Today's helm with how many things are still to get; signed in, it opens the list, and each item ticks off (and back
- * on, for a day) or is removed with the ×, with five seconds to Undo (#657). Signed out, the count only. Hidden where there's no haven route (the Vercel copy). Send to Instacart
- * (#637) turns the open items into an Instacart shopping list page and opens it, to pick the store and check out there.
+ * on, for a day) or is removed with the ×, with five seconds to Undo (#657). Signed out, the count only. Hidden where there's no haven route (the Vercel copy). Order at King
+ * Soopers (#664) opens the Haven's Kitchen page, where the items are matched at the store, priced, and sent to the cart.
  */
 export function KitchenList() {
   const status = useDeskAuth((s) => s.auth.status);
   const [count, setCount] = useState<number | null>(null);
   const [items, setItems] = useState<KitchenItem[] | null>(null);
   const [open, setOpen] = useState(false);
-  const [cart, setCart] = useState<{ busy: boolean; note: string | null; url: string | null }>({ busy: false, note: null, url: null });
   // The last item removed, kept five seconds so Undo can bring it back (#657).
   const [undo, setUndo] = useState<KitchenItem | null>(null);
   const undoTimer = useRef<number | undefined>(undefined);
@@ -88,25 +87,6 @@ export function KitchenList() {
     void undoRemoveItem(item.id).then(() => refresh());
   };
 
-  const toInstacart = () => {
-    // A window opened now, in the tap, so the link isn't blocked as a pop-up once Instacart answers.
-    const win = window.open("about:blank", "_blank");
-    setCart({ busy: true, note: null, url: null });
-    void sendInstacart().then((r) => {
-      if (r.ok && isInstacartLink(r.data.url)) {
-        if (win) {
-          win.opener = null;
-          win.location.href = r.data.url;
-        }
-        setCart({ busy: false, note: `Sent ${r.data.items} to Instacart. Pick the store there.`, url: r.data.url });
-      } else {
-        win?.close();
-        if (!r.ok && r.status === 401) useDeskAuth.getState().lost();
-        setCart({ busy: false, note: INSTACART_NOTE[r.ok ? "vendor" : r.error] ?? INSTACART_NOTE.failed!, url: null });
-      }
-    });
-  };
-
   const words = count === 0 ? "nothing to get" : `${count} to get`;
   if (!signedIn) {
     return (
@@ -150,15 +130,7 @@ export function KitchenList() {
               </p>
             ) : null}
             <p className="kl-cart">
-              <button type="button" disabled={cart.busy || !count} onClick={toInstacart}>
-                Send to Instacart
-              </button>
-              {cart.note ? <small role="status">{cart.note}</small> : null}
-              {cart.url ? (
-                <a href={cart.url} target="_blank" rel="noopener noreferrer">
-                  Open the list
-                </a>
-              ) : null}
+              {count ? <a href="/haven?open=kitchen">Order at King Soopers</a> : null}
             </p>
           </>
         )}

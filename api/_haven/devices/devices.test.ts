@@ -12,7 +12,7 @@ import { claimSignature, clientSecret, cognitoTimestamp, G, hkdf, K, modPow, N, 
 import { Home, type HomeDeps } from "./home.ts";
 import type { Fetch } from "./http.ts";
 import { connectPacket, publishPacket, readPackets, readPublish } from "./mqtt.ts";
-import { PetlibroClient, petlibroKind } from "./petlibro.ts";
+import { LOGIN_HOLD_MS, PetlibroClient, petlibroKind } from "./petlibro.ts";
 import { FeedLedger, feedCap, litterBlock, mountainDay } from "./rails.ts";
 import { crc32, decodeMessage, encodeMessage, hawk, loginWithCode, mqttParams, requestPayload, responseResult, RoborockClient, scrambledTs, sendCode, vacuumReading, type RoborockLogin } from "./roborock.ts";
 import { matchRooms, namedRooms, roomKey, segmentPairs } from "./rooms.ts";
@@ -419,6 +419,10 @@ function petlibroFetch() {
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/device\/realInfo$/, (_u, init) => real[JSON.parse(String(init.body)).deviceSn]],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/workRecord\/list$/, () => petWorkFixture],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/wetFeedingPlan\/wetListV3$/, () => ({ code: 0, data: { templateName: "Test plan", plan: [] } })],
+    [/POST https:\/\/api\.us\.petlibro\.com\/device\/data\/grainStatus$/, (_u, init) => (JSON.parse(String(init.body)).deviceSn === "AF0400TESTDRY01" ? { code: 0, data: { todayFeedingQuantity: 4, todayFeedingTimes: 2 } } : { code: 0, data: { todayEatingTimes: 3, petEatingTime: 95 } })],
+    [/POST https:\/\/api\.us\.petlibro\.com\/device\/feedingPlan\/list$/, () => ({ code: 0, data: [{ id: 1, executionTime: "05:00", grainNum: 2, enable: true, repeatDay: "[1,2,3,4,5,6,7]" }, { id: 2, executionTime: "21:00", grainNum: 2, enable: true, repeatDay: "[1,2,3,4,5,6,7]" }] })],
+    [/POST https:\/\/api\.us\.petlibro\.com\/device\/feedingPlan\/todayNew$/, () => ({ code: 999, msg: "unsupported" })],
+    [/POST https:\/\/api\.us\.petlibro\.com\/data\/deviceDrinkWater\/todayDrinkData$/, () => ({ code: 0, data: { todayTotalMl: 180, todayTotalTimes: 6, avgDrinkDuration: 18 } })],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/device\/manualFeeding$/, () => ({ code: 0, data: 1 })],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/wetFeedingPlan\/manualFeedNow$/, () => ({ code: 0, data: null })],
   ]);
@@ -444,6 +448,11 @@ describe("the Petlibro feeders and fountain", () => {
     expect(found[0]!.reading).toMatchObject({ model: "Granary Smart Feeder", foodLow: false, lastFed: new Date(1762272000000).toISOString(), place: "Kitchen" });
     expect(found[1]!.reading).toMatchObject({ model: "Polar Wet Food Feeder", foodLow: true, state: "closed", alerts: ["food low"] });
     expect(found[2]!.reading).toMatchObject({ water: 64, filter: 40, state: "running" });
+    // The day's numbers (#685); a side read Petlibro refuses (todayNew here) only leaves its part out.
+    expect(found[0]!.reading).toMatchObject({ fedPortions: 4, feeds: 2, plan: [{ time: "05:00", portions: 2, on: true }, { time: "21:00", portions: 2, on: true, status: "next" }] });
+    expect(found[1]!.reading).toMatchObject({ visits: 3, visitSec: 95 });
+    expect(found[2]!.reading).toMatchObject({ filterDays: 12, cleanDays: 4, drankMl: 180, visits: 6, avgSec: 18 });
+    expect(c.problem()).toBeNull();
     expect((await vault.read<{ token: string }>("petlibro"))!.token).toBe("pl-token-1");
     // One portion from the dry feeder; the wet feeder opens on the bowl in front.
     expect(await c.run("feeder.feed", found[0]!)).toEqual({ ok: true });
@@ -451,6 +460,118 @@ describe("the Petlibro feeders and fountain", () => {
     expect(await c.run("wet.open", found[1]!)).toEqual({ ok: true });
     expect(JSON.parse(String(f.calls.at(-1)!.init.body))).toEqual({ deviceSn: "PLAF7TESTWET01", plate: 2 });
     expect(await c.run("feeder.feed", found[2]!)).toEqual({ ok: false, code: "unsupported" });
+  });
+
+  it("says why it is down: no such account, then holds off signing in again (#672)", async () => {
+    const vault = new HomeVault(memoryBlob(), SEAL);
+    let logins = 0;
+    const f = fakeFetch([[/member\/auth\/login$/, () => (logins++, { code: 1101, msg: "MEMBER_NOT_EXIST", data: null })]]);
+    let now = NOW;
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => now });
+    const { home, lines } = homeWith([c]);
+    const view = await home.status(true);
+    expect(view.vendors.petlibro).toBe("down");
+    expect(view.problems).toEqual({ petlibro: "no-account" });
+    expect(lines).toEqual(["home: petlibro status failed (no-account)"]);
+    expect(Home.publicOf(view)).not.toHaveProperty("problems");
+    // The same email won't work a minute later: no second sign-in until the hold runs out.
+    now += 60_000;
+    expect((await home.status(true)).problems.petlibro).toBe("no-account");
+    expect(logins).toBe(1);
+    now += LOGIN_HOLD_MS;
+    await home.status(true);
+    expect(logins).toBe(2);
+  });
+
+  it("a refused digest reads as refused", async () => {
+    const vault = new HomeVault(memoryBlob(), SEAL);
+    const c = new PetlibroClient({ fetch: petlibroFetch(), vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: "0".repeat(32), now: () => NOW });
+    await expect(c.status()).rejects.toThrow();
+    expect(c.problem()).toBe("refused");
+  });
+
+  it("takes a newer token another instance stored before signing in itself", async () => {
+    const vault = new HomeVault(memoryBlob(), SEAL);
+    await vault.write("petlibro", { token: "stale" });
+    let logins = 0;
+    const f = fakeFetch([
+      [/member\/auth\/login$/, () => (logins++, { code: 0, data: { token: "mine" } })],
+      [/device\/device\/list$/, (_u, init) => {
+        const t = (init.headers as Record<string, string>).token;
+        if (t === "stale") {
+          // Another instance signs in meanwhile and stores its token.
+          void vault.write("petlibro", { token: "theirs" });
+          return { code: 1009, msg: "NOT_YET_LOGIN" };
+        }
+        return t === "theirs" ? { code: 0, data: [] } : { code: 1009 };
+      }],
+    ]);
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await c.status()).toEqual([]);
+    expect(logins).toBe(0);
+    expect(c.problem()).toBeNull();
+  });
+
+  it("reads as signed out when a fresh sign-in is taken back at once (the phone app)", async () => {
+    const blob = memoryBlob();
+    const vault = new HomeVault(blob, SEAL);
+    let logins = 0;
+    const f = fakeFetch([
+      [/member\/auth\/login$/, () => (logins++, { code: 0, data: { token: `t${logins}` } })],
+      [/device\/device\/list$/, () => ({ code: 1009, msg: "NOT_YET_LOGIN" })],
+    ]);
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW });
+    await expect(c.status()).rejects.toThrow();
+    expect(c.problem()).toBe("signed-out");
+    // One sign-in, not two: a second would only cancel the first (#683).
+    expect(logins).toBe(1);
+    expect(blob.files.has("haven/devices/petlibro.lease.json")).toBe(false);
+  });
+
+  it("waits for the token of an instance holding the sign-in lease instead of signing in too (#683)", async () => {
+    const blob = memoryBlob();
+    const vault = new HomeVault(blob, SEAL);
+    await vault.write("petlibro", { token: "stale" });
+    expect(await vault.lease("petlibro", 20_000, NOW)).toBe(true);
+    expect(await vault.lease("petlibro", 20_000, NOW + 1_000)).toBe(false);
+    let logins = 0;
+    const f = fakeFetch([
+      [/member\/auth\/login$/, () => (logins++, { code: 0, data: { token: "mine" } })],
+      [/device\/device\/list$/, (_u, init) => ((init.headers as Record<string, string>).token === "theirs" ? { code: 0, data: [] } : { code: 1009 })],
+    ]);
+    let waits = 0;
+    // The other instance stores its token while this one waits.
+    const pause = async () => void (++waits === 2 && (await vault.write("petlibro", { token: "theirs" })));
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW, pause });
+    expect(await c.status()).toEqual([]);
+    expect(logins).toBe(0);
+    expect(c.problem()).toBeNull();
+    // A lease left by an instance that stopped runs out on its own.
+    expect(await vault.lease("petlibro", 20_000, NOW + 20_001)).toBe(true);
+  });
+
+  it("two instances that find the token stale at once sign in only once, and neither reads as signed out (#683)", async () => {
+    // Petlibro keeps one session per account: each sign-in cancels every token before it.
+    const blob = memoryBlob();
+    await new HomeVault(blob, SEAL).write("petlibro", { token: "stale" });
+    let logins = 0;
+    let live = "";
+    const later = <T,>(ms: number, v: () => T) => new Promise<T>((r) => setTimeout(() => r(v()), ms));
+    const petlibro: Fetch = async (url, init = {}) => {
+      if (url.endsWith("/member/auth/login")) return jsonRes(await later(20, () => ((live = `t${++logins}`), { code: 0, data: { token: live } })));
+      const t = (init.headers as Record<string, string>).token;
+      return jsonRes(await later(5, () => (t === live ? { code: 0, data: [] } : { code: 1009, msg: "NOT_YET_LOGIN" })));
+    };
+    // Two Function App instances: a client each, one private store between them.
+    const instance = () => new PetlibroClient({ fetch: petlibro, vault: new HomeVault(blob, SEAL), idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW, pause: (ms) => new Promise((r) => setTimeout(r, ms / 50)) });
+    const a = instance();
+    const b = instance();
+    const got = await Promise.allSettled([a.status(), b.status()]);
+    expect(got.map((g) => g.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect([a.problem(), b.problem()]).toEqual([null, null]);
+    expect(logins).toBe(1);
+    expect((await new HomeVault(blob, SEAL).read<{ token: string }>("petlibro"))!.token).toBe(live);
   });
 });
 
@@ -624,7 +745,7 @@ describe("the devices API", () => {
     const { deps } = await routeDeps();
     const res = await devicesGet(get("/api/haven/devices?view=status"), deps);
     const body = await res.text();
-    expect(JSON.parse(body)).toEqual({ ready: true, links: { tasks: "waiting", instacart: "waiting" }, vendors: { roborock: "waiting", petlibro: "live", whisker: "waiting", nest: "waiting" }, devices: [{ kind: "dry-feeder", state: "idle", online: true }, { kind: "wet-feeder", state: "closed", online: true }, { kind: "fountain", state: "running", online: true }] });
+    expect(JSON.parse(body)).toEqual({ ready: true, links: { tasks: "waiting", kroger: "waiting" }, vendors: { roborock: "waiting", petlibro: "live", whisker: "waiting", nest: "waiting" }, devices: [{ kind: "dry-feeder", state: "idle", online: true }, { kind: "wet-feeder", state: "closed", online: true }, { kind: "fountain", state: "running", online: true }] });
     for (const leak of ["Granary", "Kitchen", "model", "place", '"id"', ...SERIALS]) expect(body).not.toContain(leak);
   });
 

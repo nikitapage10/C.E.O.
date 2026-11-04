@@ -548,8 +548,8 @@ export function liveAnalysisDeps(env: Record<string, string | undefined> = proce
     ledger: blob ? new BlobChatLedger(blob, GREEN_SPEND_PATH) : null,
     others: async () => {
       const world = await pickStore(env)?.loadState().catch(() => null);
-      const skippy = blob ? chatMonth(await new BlobChatLedger(blob).load(), Date.now()).usd : 0;
-      return monthTotals(world ?? { spend: {} }, Date.now()).usd + skippy;
+      // Skippy's chat has its own $60 month since #646, outside this cap.
+      return monthTotals(world ?? { spend: {} }, Date.now()).usd;
     },
     write: key ? claudeWriter(key) : null,
     second: openai ? openAiSecond(openai, env.OPENAI_MODEL?.trim() || OPENAI_DEFAULT_MODEL) : null,

@@ -4,6 +4,7 @@ import { useDeskAuth } from "./signin.ts";
 import { Private } from "./Private.tsx";
 import { homeLine, loadGoogle, startHome, THERMO_MAX_F, THERMO_MIN_F, useHome, VENDOR_NAME, type DeviceReading, type HavenGoogle, type ThermoMode } from "./homeDevices.ts";
 import { navigateTo } from "../route.ts";
+import { petFacts } from "./petDay.ts";
 
 /**
  * The Home chip on Today (#632, docs/HOME-DEVICES.md): the vacuum, the Petlibro feeders and fountain, and the
@@ -41,6 +42,7 @@ function Device({ d }: { d: DeviceReading }) {
   if (d.kind === "dry-feeder" || d.kind === "wet-feeder") facts.push(d.foodLow ? "food low" : "food ok", `last fed ${ago(d.lastFed)}`, `${d.manualToday ?? 0} of ${d.manualCap ?? 2} today`);
   if (d.kind === "wet-feeder" && d.plate) facts.push(`bowl ${d.plate} in front`);
   if (d.kind === "fountain") facts.push(`water ${pctOf(d.water)}`, `filter ${pctOf(d.filter)}`);
+  if (d.vendor === "petlibro") facts.push(...petFacts(d));
   if (d.kind === "litter") facts.push(`drawer ${pctOf(d.drawer)}`, `last use ${ago(d.lastUse)}`);
   if (d.kind === "thermostat") {
     facts.push(typeof d.tempF === "number" ? `${d.tempF}°F inside` : "no reading", `humidity ${pctOf(d.humidity)}`);

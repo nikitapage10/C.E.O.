@@ -39,30 +39,6 @@
   inset: 0;
   z-index: 1;
 }
-/*
- * The night sky (#658) bleeds past the house's box to the stage's edges and under the house-wide strip, over the
- * field's own night and under the house. The shader fades its own edges into the page, and the ground under the
- * horizon fades out fast so the flow lines into the house still read through it.
- */
-[data-room="haven"] .hv-sky {
-  position: absolute;
-  z-index: -1;
-  top: -18px;
-  bottom: -18px;
-  left: calc(-1 * var(--fl-pad, 24px));
-  right: calc(-324px - var(--fl-pad, 24px));
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 1.2s ease;
-}
-[data-room="haven"] .hv-sky canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-[data-room="haven"] .hv-sky[data-on] {
-  opacity: 1;
-}
 [data-room="haven"] .hv-house .hv-gl {
   display: block;
   width: 100%;
@@ -354,7 +330,6 @@
 [data-room="haven"][data-open] .hv-head,
 [data-room="haven"][data-open] .hv-util,
 [data-room="haven"][data-open] .hv-hintRow,
-[data-room="haven"][data-open] .hv-sky,
 [data-room="haven"][data-open] .hv-tabs,
 [data-room="haven"][data-open] .hv-out,
 [data-room="haven"][data-open] .fl-cv {
@@ -641,6 +616,10 @@
   list-style: none;
 }
 [data-room="haven"] .hv-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 7px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   font-size: 15px;
@@ -732,10 +711,6 @@
   [data-room="haven"] .hv-houseWrap {
     min-height: min(78svh, 620px);
   }
-  [data-room="haven"] .hv-sky {
-    right: calc(-1 * var(--fl-pad, 16px));
-    bottom: 0;
-  }
   [data-room="haven"] .hv-util {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -789,8 +764,344 @@
   [data-room="haven"] .hv-sheet {
     animation: none;
   }
-  [data-room="haven"][data-open] .hv-house,
-  [data-room="haven"] .hv-sky {
+  [data-room="haven"][data-open] .hv-house {
     transition: none;
+  }
+}
+
+/* Send to King Soopers on the Kitchen page (#664, Groceries.tsx): the store, each pick with its price, the swap. */
+[data-room="haven"] .hv-groc > .hv-row:first-child {
+  margin-top: 0;
+}
+[data-room="haven"] .hv-groc form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+[data-room="haven"] .hv-groc input:not([type="checkbox"]) {
+  min-width: 0;
+  flex: 1 1 120px;
+  padding: 8px 10px;
+  border: 1px solid var(--hv-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hv-ink);
+  font: 400 14px var(--hv-text);
+}
+[data-room="haven"] .hv-groc form .hv-btn {
+  margin-top: 0;
+}
+[data-room="haven"] .hv-gRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+[data-room="haven"] .hv-gItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 15px;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-gItem input {
+  width: 18px;
+  height: 18px;
+  accent-color: #f3dcae;
+}
+[data-room="haven"] .hv-gSwap,
+[data-room="haven"] .hv-gAlts button {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 12px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] a.hv-gSwap {
+  text-decoration: none;
+}
+[data-room="haven"] .hv-gSwap:disabled,
+[data-room="haven"] .hv-gAlts button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+[data-room="haven"] .hv-gLines {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-gLines > li {
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+[data-room="haven"] .hv-gLines > li.is-skip .hv-gPick {
+  opacity: 0.5;
+}
+[data-room="haven"] .hv-gPick {
+  margin: 4px 0 0 28px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-gPick.is-none {
+  color: var(--hv-faint);
+}
+[data-room="haven"] .hv-gPrice {
+  color: var(--hv-ink);
+  font-weight: 600;
+}
+[data-room="haven"] .hv-gPrice s {
+  color: var(--hv-faint);
+  font-weight: 400;
+}
+[data-room="haven"] .hv-gStock {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-gStock.is-out {
+  color: var(--hv-faint);
+}
+[data-room="haven"] .hv-gAlts {
+  margin: 8px 0 0 28px;
+}
+[data-room="haven"] .hv-gAlts ul {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-gAlts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-gAlts li button {
+  margin-left: auto;
+}
+[data-room="haven"] .hv-gPhoto {
+  position: relative;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+[data-room="haven"] .hv-gThumb {
+  display: block;
+  width: 40px;
+  height: 40px;
+  padding: 2px;
+  border: 1px solid var(--hv-line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: zoom-in;
+}
+[data-room="haven"] .hv-gThumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+[data-room="haven"] .hv-gBig {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(220px, 70vw);
+  height: auto;
+  padding: 6px;
+  border: 1px solid var(--hv-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+[data-room="haven"] .hv-gTotal {
+  margin-top: 12px;
+  font-size: 15px;
+}
+[data-room="haven"] .hv-gTotal b {
+  margin-left: auto;
+  font-size: 18px;
+}
+
+/* Remove with Undo on the Kitchen page (#673), as on Today's Kitchen chip (#657). */
+[data-room="haven"] .hv-x {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-faint);
+  font: 400 20px/1 var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-x:hover,
+[data-room="haven"] .hv-x:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-gRow .hv-gSwap {
+  margin-left: auto;
+}
+[data-room="haven"] .hv-undo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-undo button {
+  padding: 4px 12px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 13px var(--hv-text);
+  cursor: pointer;
+}
+
+/* ── the thermostat control (#671): a floating card from the Climate card or the Nest's marker ── */
+[data-room="haven"] .hv-dev.is-tap {
+  pointer-events: auto;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-dev.is-tap i {
+  width: 12px;
+  height: 12px;
+}
+[data-room="haven"] .hv-th {
+  position: fixed;
+  z-index: 45;
+  top: 140px;
+  right: max(24px, calc((100vw - 1280px) / 2 + 340px));
+  width: 300px;
+  box-sizing: border-box;
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  border: 1px solid rgba(var(--hv-gold), 0.28);
+  border-radius: 16px;
+  background: rgba(14, 13, 18, 0.88);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  outline: none;
+}
+[data-room="haven"] .hv-th-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+[data-room="haven"] .hv-th-x {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--hv-line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--hv-soft);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-th-now {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+}
+[data-room="haven"] .hv-th-now b {
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 46px;
+  line-height: 1;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-th-now span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-th-step {
+  display: grid;
+  grid-template-columns: 1fr 40px 64px 40px;
+  align-items: center;
+  gap: 6px;
+}
+[data-room="haven"] .hv-th-k {
+  font-size: 12px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-th-step b {
+  text-align: center;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 28px;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-th-step button,
+[data-room="haven"] .hv-th-modes button {
+  border: 1px solid var(--hv-line);
+  background: var(--hv-glass2);
+  color: var(--hv-ink);
+  font: inherit;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-th-step button {
+  height: 40px;
+  border-radius: 50%;
+  font-size: 18px;
+}
+[data-room="haven"] .hv-th-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+[data-room="haven"] .hv-th-modes button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+[data-room="haven"] .hv-th-modes button[aria-pressed="true"] {
+  border-color: rgba(var(--hv-gold), 0.6);
+  background: rgba(var(--hv-gold), 0.16);
+  color: rgb(var(--hv-gold));
+  cursor: default;
+  opacity: 1;
+}
+[data-room="haven"] .hv-th button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+[data-room="haven"] .hv-th-step button:hover:not(:disabled),
+[data-room="haven"] .hv-th-modes button:hover:not(:disabled),
+[data-room="haven"] .hv-th button:focus-visible {
+  border-color: rgba(var(--hv-gold), 0.5);
+  outline: none;
+}
+[data-room="haven"] .hv-th-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--hv-mute);
+}
+@media (max-width: 860px) {
+  [data-room="haven"] .hv-th {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 96px;
+    width: auto;
   }
 }

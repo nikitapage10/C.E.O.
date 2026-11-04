@@ -94,6 +94,58 @@ test("signed out, Skippy's box is off with a sign-in hint", async ({ page }) => 
   await expect(chat.getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 
+test("the agent's chips, a call waiting for the tap, the month, and the memory panel (#646)", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await stub(page, true);
+  // Made-up sample data only.
+  await page.route(`${BASE}/api/skippy`, (r) =>
+    r.request().method() !== "POST"
+      ? r.fulfill({ json: { ready: true } })
+      : r.fulfill({
+          json: {
+            reply: "Added basil to the Kitchen list. Want me to remember the other thing?",
+            actions: [],
+            looked: ["The Green's board"],
+            did: ["Added 1 to the Kitchen list"],
+            confirm: [{ id: "0123456789abcdef0123", label: "Remember it", summary: "Remember: likes a window seat" }],
+            spend: { usd: 12.5, cap: 60, warn: 50 },
+          },
+        }),
+  );
+  const acted: unknown[] = [];
+  await page.route(`${BASE}/api/skippy-act`, (r) => {
+    acted.push(r.request().postDataJSON());
+    return r.fulfill({ json: { ok: true, text: "Kept.", did: "Remembered it" } });
+  });
+  const posted: unknown[] = [];
+  await page.route(`${BASE}/api/skippy-memory`, (r) => {
+    if (r.request().method() === "GET") return r.fulfill({ json: { core: "Short answers first.", facts: [{ id: "f0123456789ab", text: "Waters the plants on Sundays", topic: "home", source: "desk", at: "2026-11-01T00:00:00Z" }], pages: [], journal: 3 } });
+    posted.push(r.request().postDataJSON());
+    return r.fulfill({ json: { ok: true } });
+  });
+  await page.goto(BASE + "/");
+  await page.locator(".desk__skippy").click();
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  const box = chat.getByRole("textbox", { name: "Message to Skippy" });
+  await box.fill("Add basil");
+  await box.press("Enter");
+  await expect(chat.getByRole("list", { name: "What Skippy looked at and did" })).toContainText("The Green's board");
+  await expect(chat.getByText("$12.50")).toBeVisible();
+  // Nothing runs until the tap; the tap sends only the kept call's id.
+  expect(acted).toEqual([]);
+  await chat.getByRole("button", { name: "Remember it" }).click();
+  await expect(chat.getByText("Remembered it")).toBeVisible();
+  expect(acted).toEqual([{ confirm: "0123456789abcdef0123", yes: true }]);
+
+  await chat.getByRole("button", { name: "What Skippy remembers" }).click();
+  await expect(chat.getByText("Waters the plants on Sundays")).toBeVisible();
+  await chat.getByRole("button", { name: "Forget this" }).click();
+  await expect(chat.getByText("Waters the plants on Sundays")).toHaveCount(0);
+  expect(posted).toEqual([{ action: "forget", id: "f0123456789ab" }]);
+  expect(errors).toEqual([]);
+});
+
 test("Talk has no site budget: it shows the plan's credits left, and falls back to typing with ElevenLabs' own note when they are used up (#532)", async ({ page }) => {
   await stub(page, true);
   // A stand-in microphone, so the call gets past the browser's prompt in a headless run.

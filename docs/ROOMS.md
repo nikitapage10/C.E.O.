@@ -19,6 +19,7 @@ kits into the engine (below). Until a room's own step lands, its code stays wher
 | `@ceo/engine/lore` | The lore a room reaches (re-exports only) | |
 | `@ceo/engine/testing` | Test helpers | |
 | `@ceo/engine/voice` | The room voice's contract (#638): who a page's mic and hands-free reach (`roomMicOf`, `voiceTargetOf`) and a room's intent handler (`RoomIntent`, `RoomUtterance`, `RoomIntentReply`). Its UI (the dock, the bar's Hands-free) is in `desk/roomvoice/` until Skippy's chat moves in | |
+| `@ceo/engine/tools` | The rooms' tools (#646): `RoomTool` (a name, a title, a description, a strict input schema and an effect: `read`, `write`, `send`, `spend` or `delete`), `needsConfirm`, `checkInput` and `ToolOutcome`. One registry for Desk Skippy's agent and the room voice | |
 | `@ceo/engine/sigils/*` | The particle layer: `wvCanvas.ts` (the Desk's one shared loop and canvas helpers), `motion.tsx`, the flow kit's core (`field.ts`, `draw.ts`, `path.ts`, `rise.ts`, `motes.ts`, `tempo.ts`, `flow.css`) and the glyph engine (`sigils.ts`, `sigils.css`, #615) | `desk/wvCanvas.ts`, `desk/motion.tsx`, `desk/flow/`, `desk/relay/sigils.ts` |
 | `@ceo/engine/web/*` | The sign-in shell: `signin.ts`, `SignIn.tsx`, `SitePassword.tsx`, the Hide veil (`hide.ts`, `Private.tsx`) and the device pings (`pings.ts`, `PingSwitch.tsx`) | the same names in `desk/` |
 
@@ -84,6 +85,9 @@ This replaces the older rule that every page comes back to Today's language.
   endpoints, under their auth and caps, and loads only when the room is first spoken to. Relay is the first (#642):
   its handler hands the words to the Thread on screen (`apps/world/src/desk/relay/bridge.ts`), which reads them as a
   command or through the intent layer (one Haiku call, `api/_email/intent.ts`) and answers in the Messenger's voice.
+  To run one of the rooms' tools a handler calls `tool(name, input)` from the utterance (the same registry and server
+  checks as Desk Skippy's agent, `POST /api/skippy-act`); a tool that sends, spends or deletes comes back as
+  `{ confirm }`, so offer a Yes action that calls `confirmTool(id, true)`.
 
 Review enforces this, not a test.
 
@@ -116,6 +120,7 @@ So far each room has only its `room.ts`.
 | `budgetKb` | Its lazy-loaded JS budget, in raw KB. |
 | `page` | Optional: the lazy page loader. |
 | `purpose` | `goal` (one sentence, at most 200 characters), `agents` (its real integrations: `{ name, use }`, named as THREAT-MODEL.md names them) and `measure`. |
+| `tools` | Optional (#646): the room's tools for Skippy, data only, from `rooms/<id>/tools.ts` (`RoomTool[]`, `@ceo/engine/tools`). Names are unique across rooms and each has a server executor in `api/_skippy/agent/tools.ts`; anything that sends, spends or deletes needs Nikita's tap (a contract test holds both). |
 | `lore` | `submind`, `agents`, `house`, `section` (a heading in `lore/syntherion.md`) and `lines` (the flavour pool: a `ROOM_QUIPS` room, or `skippy`). |
 
 ### Purpose

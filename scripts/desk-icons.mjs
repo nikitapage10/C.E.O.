@@ -12,7 +12,9 @@
  *   apple-touch-icon.png (180)      the iPhone and iPad home screen
  *   badge-96.png                    the small monochrome badge Android shows in the status bar
  *
- * Usage: node scripts/desk-icons.mjs (sharp is already a dev dependency). Run it again if the mark changes.
+ * Usage: node scripts/desk-icons.mjs (sharp is already a dev dependency). Run it again if the mark changes, and bump the
+ * `?v=` on every icon URL (index.html, manifest.webmanifest, public/sw.js) so installed apps and browsers fetch the
+ * new files instead of the ones they cached (#668; it reads 648, the logo of #648).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import sharp from "sharp";

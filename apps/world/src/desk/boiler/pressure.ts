@@ -66,7 +66,7 @@ const BY_FIT: Record<string, string | ((room: string) => string | undefined)> = 
   whisker: "whisker",
   nest: "nest",
   tasks: "google-tasks",
-  instacart: "instacart",
+  kroger: "kroger",
   bluebubbles: "bluebubbles",
   openai: "openai",
   github: (room) => (room === "boiler" ? "world-trigger" : "github-api"),

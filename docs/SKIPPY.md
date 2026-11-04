@@ -32,7 +32,7 @@ are still played by the simulator until their room goes real. The list lives in 
 | Break Room | The Life of the Party | pink | Simulated for now | (simulated for now) |
 | Workshop | The Artiste | teal | Simulated for now | Image model, Meshy, import (when the pipeline is real) |
 | Annex | The Stagehand | highlighter yellow | **Active** (Desk-only, `DESK_SUBMINDS`; civicAPI live since #618); its thread when Nikita opens one | Which pop-ups run, sit on the Shelf or graduate, and which public source each one reads (Election night: civicAPI) |
-| Haven | The Steward | lamplight gold | **Active** (Desk-only, `DESK_SUBMINDS`; Roborock, Petlibro and Whisker live since #632, the Haven page since #616); its thread when Nikita opens one | The home devices' actions (always through the rails: the feed cap, the litter gate, named rooms), the Kitchen list, and which rooms light up; the Nest, Instacart and training when they connect |
+| Haven | The Steward | lamplight gold | **Active** (Desk-only, `DESK_SUBMINDS`; Roborock, Petlibro and Whisker live since #632, the Haven page since #616); its thread when Nikita opens one | The home devices' actions (always through the rails: the feed cap, the litter gate, named rooms), the Kitchen list, and which rooms light up; the Nest (#637) and the King Soopers cart (#664, on Nikita's tap only), and training when it connects |
 | Studio | The Director | tally-light red | Simulated for now | OpenAI images (style presets) or Claude-drawn vector art past the cap, ElevenLabs voices, the render job (when the line is real, #311) |
 
 The choice of engine follows Nikita's provider rule: anything that needs a computer (code, files, a terminal, a
@@ -201,6 +201,62 @@ server-side in a signed-in session only, so none of it ever reaches the Lattice:
 
 When a question needs more than these lines, Skippy gives his first take from them and says he's checking with the
 room's submind. Typed, he hands it off (below). He never tells Nikita to go and look in the Lattice.
+
+## Desk Skippy as an agent (#646, phase 1)
+
+Typed Desk Skippy is a small agent loop (`api/_skippy/agent/loop.ts`) on top of the chat route (`/api/skippy`) and the
+Kernel (#501), signed-in only:
+
+- **Models.** Claude Haiku 5.5 triages each ask of 40 characters or more (hard or not, a few hundred tokens); Claude Sonnet 5.5 talks (effort low, thinking only between tools); Claude Opus 5.5 takes the hard ones
+  (effort medium). The tools, Skippy's frozen rules and the surface
+  rules plus his core card are three prompt-cached blocks, so a typical turn pays for the cached prefix at a tenth of
+  the price. At most four rounds, about 60k input tokens and 2,500 output tokens a turn; the last round can't call a
+  tool. Anthropic's server-side fallback is on, so a refusal falls back instead of failing.
+- **Tools: one registry.** Each room declares its tools as data in `rooms/<id>/tools.ts` (`@ceo/engine/tools`, the
+  manifest's `tools`), and the server runs them (`api/_skippy/agent/tools.ts`). The same registry and checks serve the
+  room voice hook (`RoomUtterance.tool`, through `POST /api/skippy-act`). Today has the memory (`memory_lookup`,
+  `memory_read`, `remember`, `forget`); the Foundry has `foundry_board` and `implement_it`; Relay has its counts and
+  `draft_text` (the existing Send/Edit/Cancel card); the Green, the Exchange and the Boiler Room have their reads; the
+  Haven has `kitchen_add` and `home_device`. Every input is checked against its schema on the server.
+- **The tap.** Anything that sends, spends or deletes (and anything marked `confirm`, like `remember` and the home
+  devices) never runs from the model: the call is kept for 15 minutes, once only (`desk/skippy/pending.json`), and the
+  chat shows exactly what will happen with a Yes and a No. `POST /api/skippy-act { confirm, yes }` runs it with the
+  input it was kept with. On a call or a room mic Skippy gets only the tools that need no tap.
+- **Fetched content never acts.** Once a web search result is in a turn, only reads run for the rest of it.
+- **"Implement it."** `implement_it` files a `foundry`, `foundry:chat` issue (title, `**Pitch:**`, `**Size:**`) for
+  the Builder, after the tap. Skippy never writes code through the API.
+- **Chips.** Under each reply: "looked" chips (what he read: a room, a memory page, a web search) in ice and "did" chips
+  (what changed) in gold. Words only, never the data.
+
+**Memory.** Private, in the store behind the passkey (`api/_skippy/agent/memory.ts`, `desk/skippy/memory/`): a core
+card (at most 1,500 characters, read every turn), facts (at most 300 characters each, with a topic), KB pages (title,
+summary and body, read on demand), and a journal of recent turns (at most 600, only its count is shown). Search is local word
+matching, so a lookup costs nothing. Every write goes through the same check: nothing that looks private (the
+Lattice's privacy rule), no money amounts, no legal matters, nothing on the skip list (`EMAIL_SKIP_TERMS`) and never the
+priority or skip lists themselves; a refused write says why in one line and is never logged. "Remember that…" becomes
+a `remember` call that waits for Nikita's Yes. The Memory panel (the hex button in Skippy's header) shows the card,
+the facts and the pages, forgets any of them, and takes a paste of the project's memory, one fact a line
+(`/api/skippy-memory`, below).
+
+**The month.** One cap covers his chat, the Kernel, Opus research and web lookups: `SKIPPY_BUDGET_USD` (an app setting,
+not a secret; $60 by default, warn at $50, aiming for about $50). The Kernel keeps its own ledger and its own lower
+share (`KERNEL_AGENT_BUDGET_USD`) and also stops when the shared month is spent. Email and texts keep their own $10
+caps. At the cap Skippy stops calling Claude and says so; the gauge under his name shows the month.
+
+**Endpoints** (passkey session only; 401 signed out, 403 cross-site, 503 not set up):
+
+- `POST /api/skippy-act`: `{ confirm, yes }` (the tap) or `{ tool, input }` (a room's voice hook) →
+  `{ ok, text, did? }`, `{ ok, confirm: { id, label, summary } }` or `{ ok: false, text }`.
+- `GET /api/skippy-memory` → `{ core, facts: [{ id, text, topic, source, at }], pages: [{ id, title, topic, summary,
+  source, at }], journal }` (the journal's count only). `POST` with `action`: `core { text }`, `facts { facts[],
+  topic?, source? }` (at most 200, answered `{ kept, refused: { reason: count } }`), `page { title, topic, summary,
+  body }`, `forget { id }`.
+- `GET /api/skippy-spend` → `{ month, capUsd, warnUsd, spentUsd, leftUsd, state: "ok" | "warn" | "capped", parts:
+  { triage, talk, research, web, kernel, agents }, calls, others: { emailCapUsd, textsCapUsd } }`. The Boiler Room's
+  Controls (#647) read this shape.
+
+**Later phases** (not built yet): a nightly distiller from the journal into facts and pages, a ChatGPT and file import,
+an interview mode, sub-agents, Managed Agents (inside the same cap), and a remote MCP server.
 
 ## Hand-offs: what Desk Skippy can't settle
 

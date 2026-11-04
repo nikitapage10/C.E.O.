@@ -44,9 +44,15 @@
  * summary of the locked packages, cached (api/_skippy/advisories.ts). When he can't settle an ask, or it is work for a
  * room, he hands it off ("needs" in his answer) and the turn is kept flagged for Skippy's thread or the room's submind.
  *
+ * Since #646 the answer comes from Skippy's agent loop (api/_skippy/agent/loop.ts): Haiku triages, Sonnet talks with
+ * the rooms' tools (the one registry shared with the room voice hook) and web search, Opus takes the hard asks, his
+ * private memory's core card rides in the cached prefix, and the answer adds `looked` (what it read), `did` (what it
+ * changed), `confirm` (Yes buttons for anything that sends, spends or deletes, run by POST /api/skippy-act) and `spend`
+ * (Skippy's month against his cap).
+ *
  * Environment: FOUNDRY_DESK_KEY and the blob store (the Desk's sign-in), CLAUDE_API_KEY (or ANTHROPIC_API_KEY),
- * optional SKIPPY_BUDGET_USD (the chat's share of the $10 monthly Claude cap, $2 by default). Skippy answers on Claude
- * Sonnet 5.5, goes to Claude Opus 5.5 for the hard questions, and can run a web lookup (claudeChat below).
+ * optional SKIPPY_BUDGET_USD (Skippy's one month cap, $60 by default, a hard stop, #646; the Kernel responder's month
+ * counts inside it).
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -60,7 +66,7 @@ import { memo } from "./_feedcache.js";
 import { githubToken } from "./_github.js";
 import { PRIVATE_LABEL, privateParts } from "./_privacy.js";
 import { costOf, setupList, type Usage } from "./foundry.js";
-import { BlobChatLedger, CHAT_MAX_TOKENS, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, type ChatLedger } from "./_skippy/budget.js";
+import { AGENT_CEILING_USD, BlobChatLedger, CHAT_MAX_TOKENS, KERNEL_LEDGER_PATH, LOOKUP_MAX_TOKENS, OPUS_PRICE, SEARCH_MAX, SEARCH_USD, SONNET_PRICE, canChat, chatMonth, skippyBudget, skippyWarn, type ChatLedger } from "./_skippy/budget.js";
 import { contextLines, deskContext, EMPTY_CONTEXT, type ContextIssue, type DeskContext } from "./_skippy/context.js";
 import { chatTag, chatWait, countChat } from "./_skippy/limits.js";
 import { advisoryCache, stackBrief, stackLines, wantsStack } from "./_skippy/advisories.js";
@@ -69,7 +75,6 @@ import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
 import { plainLine } from "./foundry.js";
 import { LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb, type SkippyReply } from "./_skippy/prompt.js";
-import { monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
 import { elevenFromEnv } from "./_world/story.js";
@@ -79,6 +84,12 @@ import { askRuled } from "./_relay/compose.js";
 import { skipTermsFrom } from "./_email/filter.js";
 import { liveRoomReads } from "./_skippy/roomReads.js";
 import type { WorldState } from "./_world/types.js";
+import type { PendingConfirm } from "@ceo/engine/tools";
+import { claudeModel, runAgent, type AgentCtx } from "./_skippy/agent/loop.js";
+import { liveHost, livePending } from "./_skippy/agent/host.js";
+import { BlobMemory, coreBlock, type MemoryStore } from "./_skippy/agent/memory.js";
+import type { PendingStore } from "./_skippy/agent/pending.js";
+import type { TextAction, ToolHost } from "./_skippy/agent/tools.js";
 
 /** Sonnet answers; Opus takes the questions Sonnet marks "deeper"; Sonnet with web search runs a lookup. */
 export const SKIPPY_MODEL = "claude-sonnet-5-5";
@@ -96,7 +107,18 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
  * One answer from Claude: the parsed answer (null when unusable), what it used in all (null when nothing answered),
  * what that cost, and the model whose answer it is (kept with the turn, #273).
  */
-export type Ask = (system: string, input: string) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string }>;
+export type Ask = (
+  system: string,
+  input: string,
+  ctx?: AgentCtx,
+) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction }>;
+
+/** The live answer (#646): the agent loop when the turn brings its tools, else the one-shot chat. */
+export function agentChat(key: string): Ask {
+  const call = claudeModel(key);
+  const oneShot = claudeChat(key);
+  return (system, input, ctx) => (ctx ? runAgent(call, system, input, ctx) : oneShot(system, input));
+}
 
 const sumUsage = (a: Usage, b: Usage): Usage => ({
   input_tokens: a.input_tokens + b.input_tokens,
@@ -203,7 +225,15 @@ export interface ChatDeps {
   deskKey: string;
   store: AuthStore | null;
   ledger: ChatLedger | null;
+  /** The Kernel responder's ledger (#501): its month counts inside Skippy's cap (#646). */
+  kernelLedger?: ChatLedger | null;
   ask: Ask | null;
+  /** Skippy's private memory of Nikita (#646): its core card rides in every turn; the journal keeps the turns. */
+  memory?: MemoryStore | null;
+  /** The rooms' tools' reach (#646); left out, the turn runs without tools (the one-shot chat). */
+  host?: () => ToolHost;
+  /** Where calls that wait for Nikita's tap are kept (#646). */
+  pending?: PendingStore | null;
   /** Where each answered ask is kept by room (#273); null or left out keeps nothing. */
   log?: RoomLog | null;
   /** The <stack> block (#312): the whole sheet with the advisory summary when `full`, else one line. Left out, no block. */
@@ -234,8 +264,12 @@ function defaultDeps(): ChatDeps {
     deskKey: env.FOUNDRY_DESK_KEY ?? "",
     store: pickAuthStore(env),
     ledger: blob ? new BlobChatLedger(blob) : null,
+    kernelLedger: blob ? new BlobChatLedger(blob, KERNEL_LEDGER_PATH) : null,
     log: blob ? new BlobRoomLog(blob) : null,
-    ask: key ? claudeChat(key) : null,
+    ask: key ? agentChat(key) : null,
+    memory: blob ? new BlobMemory(blob, skipTermsFrom(env.EMAIL_SKIP_TERMS)) : null,
+    host: () => liveHost(env),
+    pending: livePending(env),
     world: async () => (await pickStore(env)?.loadState().catch(() => null)) ?? null,
     desk: async (world) => {
       const [{ open, shipped }, setup] = await Promise.all([foundryIssues().catch(() => ({ open: [], shipped: [] })), setupList().catch((): SetupStatus | null => null)]);
@@ -457,29 +491,43 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   }
   await store.saveLimits(countChat(limits, tag, deps.now));
 
-  // The month's budget: the world's spend and the chat's own ledger. Unreadable means no call (fail closed).
+  // Skippy's month (#646): the chat's ledger and the Kernel responder's, under his one cap, a hard stop. Unreadable
+  // means no call (fail closed).
   const world = await deps.world();
+  const cap = skippyBudget(deps.env.SKIPPY_BUDGET_USD);
   let spent: number;
   try {
-    spent = chatMonth(await deps.ledger.load(), deps.now).usd;
+    spent = chatMonth(await deps.ledger.load(), deps.now).usd + (deps.kernelLedger ? chatMonth(await deps.kernelLedger.load(), deps.now).usd : 0);
   } catch {
     return json({ error: "not-set-up" }, 503);
   }
-  const worldUsd = monthTotals(world ?? { spend: {} }, deps.now).usd;
-  if (!canChat(spent, worldUsd, skippyBudget(deps.env.SKIPPY_BUDGET_USD, worldBudget(deps.env.WORLD_BUDGET_USD)))) {
-    return json({ reply: OVER_BUDGET[Math.floor(deps.now / 60_000) % OVER_BUDGET.length], actions: [], capped: true });
+  const meter = (usd: number) => ({ usd: Math.round(usd * 10_000) / 10_000, cap, warn: skippyWarn(cap) });
+  if (!canChat(spent, cap, deps.host ? AGENT_CEILING_USD : undefined)) {
+    return json({ reply: OVER_BUDGET[Math.floor(deps.now / 60_000) % OVER_BUDGET.length], actions: [], capped: true, spend: meter(spent) });
   }
 
   const [desk, rooms, bill, stack] = await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.rooms ? deps.rooms(world).catch(() => "") : Promise.resolve(""), deps.bill ? deps.bill().catch(() => "") : Promise.resolve(""), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")]);
+  // The agent's turn (#646): the core card of Nikita's memory, the rooms' tools and the taps' store.
+  const core = deps.memory ? coreBlock(await deps.memory.load().catch(() => ({ core: "", pages: [], facts: [] }))) : "";
+  const ctx: AgentCtx | undefined = deps.host ? { surface, message: said.message, core, host: deps.host(), pending: deps.pending ?? null } : undefined;
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : SKIPPY_PROMPT, chatInput([contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n"), said.history, said.message, stack, said.page));
+    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : room ? `${SKIPPY_PROMPT}\n${room.rules}` : SKIPPY_PROMPT, chatInput([contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n"), said.history, said.message, stack, said.page), ctx);
   } catch {
     return json({ error: "model" }, 502);
   }
   // Every call that answered counts against the month, usable or not.
-  if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd).catch(() => undefined);
-  const first = readReply(got.answer, desk);
+  if (got.usage) await deps.ledger.add(deps.now, got.usage, got.usd, got.parts).catch(() => undefined);
+  // What the turn read, changed and left waiting for a tap (#646), and the month so far.
+  const extra = {
+    ...(got.looked?.length && { looked: got.looked.slice(0, 6) }),
+    ...(got.did?.length && { did: got.did.slice(0, 4) }),
+    ...(got.confirm?.length && { confirm: got.confirm.slice(0, 3) }),
+    spend: meter(spent + (got.usd ?? 0)),
+  };
+  // A text the agent had drafted (draft_text) goes through the same checks as the chat's own "text" action.
+  const answered = got.textAction && got.answer && typeof got.answer === "object" ? { ...(got.answer as object), actions: [...(Array.isArray((got.answer as { actions?: unknown }).actions) ? ((got.answer as { actions: unknown[] }).actions) : []), got.textAction] } : got.answer;
+  const first = readReply(answered, desk);
   if (!first) return json({ error: "model" }, 502);
   // A room's voice keeps its turns under its own room (#638), real work for the deeper self aside; a hand-off to "the
   // submind" then goes to that room's.
@@ -490,7 +538,7 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const ruled = asked?.kind === "text" && askRuled(asked.who, asked.text, skipTermsFrom(deps.env.EMAIL_SKIP_TERMS)) !== null;
   const reply = ruled ? { ...read, actions: read.actions.filter((a) => a.kind !== "text"), reply: `${read.reply.slice(0, 700 - TEXT_RULED.length - 1)} ${TEXT_RULED}` } : read;
   // A texting ask isn't kept in the room log: who and what to say stay out of every log (docs/RELAY-PRIVACY.md).
-  if (asked) return json({ reply: reply.reply, actions: reply.actions, room: "relay" });
+  if (asked) return json({ reply: reply.reply, actions: reply.actions, room: "relay", ...extra });
   // Kept under its room for the room's Desk page (#273): the question (already through the privacy check), the answer,
   // the room, the time and the model. A failed write never costs Nikita the answer.
   const at = new Date(deps.now).toISOString();
@@ -502,8 +550,10 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
       .then(() => true)
       .catch(() => false);
   }
+  // The journal of Skippy's memory (#646): the turn, trimmed; one that trips the memory's rules is left out whole.
+  if (deps.memory) await deps.memory.journal({ at, via: surface, q: said.message, a: reply.reply }, deps.now).catch(() => false);
   // A hand-off that was kept carries its turn's id (#341), so the Desk's chat can wait for the answer in place.
-  return json(reply.needs && kept ? { ...reply, turn: id } : reply);
+  return json({ ...(reply.needs && kept ? { ...reply, turn: id } : reply), ...extra });
 }
 
 /** A reply refiled under a room: the room, and a hand-off to "the submind" re-pointed at that room's. */

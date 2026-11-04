@@ -44,8 +44,8 @@ param logDailyCapGb string = '0.2'
 @description('Monthly Claude budget for the world, in USD (the Function App\'s WORLD_BUDGET_USD). The code\'s own default; Azure took less while Vercel shared the key, and is the only home since #313.')
 param worldBudgetUsd string = '6'
 
-@description('Monthly Claude budget for Skippy\'s chat on the Azure copy, in USD (SKIPPY_BUDGET_USD).')
-param skippyBudgetUsd string = '2'
+@description('Skippy\'s one monthly Claude cap, in USD (SKIPPY_BUDGET_USD, #646): his chat, the Kernel, Opus research and web lookups together; warns at five sixths. Nikita: $60, aiming for about $50.')
+param skippyBudgetUsd string = '60'
 
 @description('The email agent\'s own monthly Claude cap on the Azure copy, in USD (EMAIL_BUDGET_USD, #263).')
 param emailBudgetUsd string = '10'
@@ -54,15 +54,11 @@ param emailBudgetUsd string = '10'
 @allowed(['true', 'false'])
 param kernelAgentEnabled string = 'true'
 
-@description('The Kernel responder\'s own monthly Claude cap, in USD (KERNEL_AGENT_BUDGET_USD, #501; Nikita: $10). The code never goes above $10.')
+@description('The Kernel responder\'s own monthly Claude cap, in USD (KERNEL_AGENT_BUDGET_USD, #501; Nikita: $10). It also counts toward Skippy\'s one monthly cap (SKIPPY_BUDGET_USD, #646).')
 param kernelAgentBudgetUsd string = '10'
 
 @description('Manual feeds a day per Petlibro feeder (HOME_FEED_CAP, #632; Nikita: 2).')
 param homeFeedCap string = '2'
-
-@description('Which Instacart Developer Platform environment Send to Instacart uses (INSTACART_ENV, #637): development until a production key exists.')
-@allowed(['development', 'production'])
-param instacartEnv string = 'development'
 
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV, #279): sandbox until Nikita switches to live. Set it to live on the paste once the Live keys are in.')
 @allowed(['sandbox', 'live'])
@@ -99,7 +95,6 @@ module resources 'resources.bicep' = {
     kernelAgentEnabled: kernelAgentEnabled
     kernelAgentBudgetUsd: kernelAgentBudgetUsd
     homeFeedCap: homeFeedCap
-    instacartEnv: instacartEnv
     paypalEnv: paypalEnv
     siteOnCustomDomain: siteOnCustomDomain
     tags: tags

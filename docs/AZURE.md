@@ -163,8 +163,9 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
 
    **Budgets** aren't secrets: the template sets them as plain app settings. They were lower while Vercel shared the
    same Claude account; with Vercel no longer spending (#313) they are the code's own defaults, the ones Vercel ran
-   on: `WORLD_BUDGET_USD=6` and `SKIPPY_BUDGET_USD=2` (agreed 2026-10-22), so the total a month is what it was across
-   both. `GEMINI_BUDGET_USD` and `GEMINI_API_KEY` were retired with Gemini's speech (#472): the next template run
+   on: `WORLD_BUDGET_USD=6` (agreed 2026-10-22). `SKIPPY_BUDGET_USD=60` is Skippy's one cap since #646 (his chat, the
+   Kernel and Opus research together; warns at $50); a Function App that still has the old `2` keeps it until it is
+   changed in the portal, since the deploy keeps live values. `GEMINI_BUDGET_USD` and `GEMINI_API_KEY` were retired with Gemini's speech (#472): the next template run
    drops them from the Function App (the `gemini-api-key` secret can be deleted from the vault; Visual QA keeps its
    own key as a GitHub Actions secret). The email agent's own cap, `EMAIL_BUDGET_USD=10` (`emailBudgetUsd`,
    #263), is separate from those and exists only here. `PAYPAL_ENV` (`paypalEnv`, #279) starts as `sandbox`. The
@@ -407,9 +408,9 @@ Logic in `api/_skippy/kernelagent.ts`, the Claude loop in `kernelrun.ts`, the ro
   template parameter (`kernelAgentEnabled` in `infra/main.bicep`, `plainSettings` in `infra/resources.bicep`) and the
   deploy reads the live value back, so setting it to `false` in the portal (or the parameter) survives deploys. Off,
   nothing runs and the thread's watcher (`scripts/submind-watch.sh kernel`) takes every hand-off, as before.
-- **Budget.** Its own key: `KERNEL_AGENT_BUDGET_USD` (`10` by default; it can only be lowered, the code never passes
-  $10) and its own month ledger, `desk/skippy/kernel-agent-spend.json` in the private blob container, apart from the
-  chat's, the world's and the email agent's. A hard stop: a run goes out only while this month's spend plus one run at
+- **Budget.** Its own key: `KERNEL_AGENT_BUDGET_USD` (`10` by default, never above Skippy's one cap) and its own month
+  ledger, `desk/skippy/kernel-agent-spend.json` in the private blob container. Since #646 it also counts toward
+  Skippy's one monthly cap (`SKIPPY_BUDGET_USD`, $60) with his chat, and stops when that month is spent too. A hard stop: a run goes out only while this month's spend plus one run at
   its most (five calls of 40,000 tokens in and 1,200 out, three searches; about $0.03 on Haiku, $0.28 on Sonnet) fits the
   cap. Past it, or with an unreadable ledger, it does nothing and the watcher takes the hand-off. This is on top of the
   Claude provider's cap on the key: raise that cap by the responder's share or the provider stops it first.

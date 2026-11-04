@@ -22,16 +22,14 @@ export const LIVE_SETTINGS = {
   KERNEL_AGENT_BUDGET_USD: "kernelAgentBudgetUsd",
   // The home devices' manual feeds a day per feeder (#632), kept as set.
   HOME_FEED_CAP: "homeFeedCap",
-  // Send to Instacart's environment (#637): development or production, kept as set.
-  INSTACART_ENV: "instacartEnv",
 };
 
 /**
  * Settings the template doesn't list but may be dropped by a run: the throwaway refresh switch, set again after, and
  * Gemini's speech key and cap, retired when ElevenLabs became the only voice (#472; Visual QA keeps its own key as a
- * GitHub Actions secret).
+ * GitHub Actions secret), and Send to Instacart's key and environment, retired when King Soopers replaced it (#664).
  */
-export const DROPPABLE = ["KEYVAULT_REFRESH", "GEMINI_API_KEY", "GEMINI_BUDGET_USD"];
+export const DROPPABLE = ["KEYVAULT_REFRESH", "GEMINI_API_KEY", "GEMINI_BUDGET_USD", "INSTACART_API_KEY", "INSTACART_ENV"];
 
 /** The custom home address (docs/DOMAIN.md); any other CEO_SITE_URL means the azurestaticapps.net one. */
 export const CUSTOM_HOME = "https://ceo.nikita.page";
@@ -50,7 +48,6 @@ export const RESOURCE_PARAMS = [
   "kernelAgentEnabled",
   "kernelAgentBudgetUsd",
   "homeFeedCap",
-  "instacartEnv",
   "paypalEnv",
   "siteOnCustomDomain",
   "tags",
@@ -108,9 +105,8 @@ export function buildParams({ main, live = {}, cap = "", deployer = "", github =
     skippyBudgetUsd: pick("skippyBudgetUsd", live.SKIPPY_BUDGET_USD, (v) => MONEY.test(v)),
     emailBudgetUsd: pick("emailBudgetUsd", live.EMAIL_BUDGET_USD, (v) => MONEY.test(v)),
     kernelAgentEnabled: pick("kernelAgentEnabled", live.KERNEL_AGENT_ENABLED, (v) => v === "true" || v === "false"),
-    kernelAgentBudgetUsd: pick("kernelAgentBudgetUsd", live.KERNEL_AGENT_BUDGET_USD, (v) => MONEY.test(v) && Number(v) <= 10),
+    kernelAgentBudgetUsd: pick("kernelAgentBudgetUsd", live.KERNEL_AGENT_BUDGET_USD, (v) => MONEY.test(v) && Number(v) <= 60),
     homeFeedCap: pick("homeFeedCap", live.HOME_FEED_CAP, (v) => /^[0-6]$/.test(v)),
-    instacartEnv: pick("instacartEnv", live.INSTACART_ENV, (v) => v === "development" || v === "production"),
     paypalEnv: pick("paypalEnv", live.PAYPAL_ENV, (v) => v === "sandbox" || v === "live"),
     siteOnCustomDomain,
     tags: defaultOf(main, "tags"),

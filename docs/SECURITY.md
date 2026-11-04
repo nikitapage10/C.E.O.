@@ -304,21 +304,23 @@ Litter-Robot 5 Pro (Whisker) straight from their clouds ([HOME-DEVICES.md](HOME-
 
 ## The Haven's connections
 
-Since #637 the Function App also reaches Nikita's Google Nest thermostat, a Google Tasks list and the Instacart
-Developer Platform ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest, Google Tasks and Instacart"; TB11 in [THREAT-MODEL.md](THREAT-MODEL.md)). Azure
-only (`api/_haven/google/`, `api/_haven/instacart.ts`).
+Since #637 the Function App also reaches Nikita's Google Nest thermostat and a Google Tasks list, and since #664
+Kroger's public API for King Soopers ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest, Google Tasks and King Soopers"; TB11 in
+[THREAT-MODEL.md](THREAT-MODEL.md)). Azure only (`api/_haven/google/`, `api/_haven/kroger/`).
 
 - **Keys.** The Google OAuth client (`haven-google-client-id`, `haven-google-client-secret`), the Device Access
-  project id (`haven-nest-project-id`) and the Instacart key (`haven-instacart-key`) are Key Vault secrets set from
-  Cloud Shell, never settable from the Desk's Keys form (`haven-` is on `NEVER_SETTABLE`).
-- **Grants.** Connect Nest and Connect Google Tasks run only in a passkey session (a phone key or bearer is refused)
+  project id (`haven-nest-project-id`) and the Kroger app (`kroger-client-id`, `kroger-client-secret`) are Key Vault
+  secrets set from Cloud Shell, never settable from the Desk's Keys form (`haven-` and `kroger-` are on `NEVER_SETTABLE`).
+- **Grants.** Connect Nest, Connect Google Tasks and Connect King Soopers (cart scope only) run only in a passkey session (a phone key or bearer is refused)
   with Connect Gmail's state check; each grant is kept only for exactly its own scope (`sdm.service`, `tasks`), and
-  both refresh tokens are sealed with `HOME_TOKEN_KEY` in the private store. Disconnect revokes and forgets one.
+  every refresh token is sealed with `HOME_TOKEN_KEY` in the private store. Disconnect forgets one (and asks Google to
+  revoke its own).
 - **Rails.** The thermostat takes set points only from 60 to 80 °F, only its own modes, nothing while off or in eco,
   checked on the server before Google is called; every change is logged to the Council.
 - **Privacy.** The public status gives each connection's state only. Task titles and Kitchen items are data, kept
-  only in the private store; Instacart gets only the open items' names, on Nikita's tap. Logs carry counts and
-  results only.
+  only in the private store; so are King Soopers' ZIP, store, picks and prices, read only by a passkey session. Kroger
+  gets the open items' names as search terms and, on Nikita's tap, the confirmed picks for his cart; nothing is bought
+  from the Desk (checkout stays in the King Soopers app). Logs carry counts and results only.
 
 ## Setup asks
 
@@ -447,6 +449,23 @@ Keys**, signed in. It is write-only by design:
   allowlisted key newer than its own copy into that one setting (`azure/src/keys.ts`); the instance that wrote it takes
   it at once. That needs only Key Vault Secrets User, which the app already had.
 
+## Skippy's agent (#646)
+
+Desk Skippy can use the rooms' tools and keep a private memory (docs/SKIPPY.md, "Desk Skippy as an agent"). The rules:
+
+- **Passkey only.** `/api/skippy`, `/api/skippy-act`, `/api/skippy-memory` and `/api/skippy-spend` need the Desk's
+  session, checked before a body is read; nothing of the memory, the tools' results or the spend reaches the Lattice.
+- **The tap.** A tool that sends, spends or deletes, and any tool marked `confirm`, never runs from the model's call.
+  The server keeps the exact input for 15 minutes, once only, and runs it only on Nikita's Yes (`POST /api/skippy-act`).
+  The schema check runs on the server on every call, and a model can't widen a kept call.
+- **Fetched content never acts.** Once web content is in a turn, only read tools run for the rest of it, so a page
+  can't make Skippy send, file or change anything.
+- **"Implement it" files an issue.** It never writes code, opens a pull request or pushes through the API.
+- **Memory rules.** In the private store only. Every write is checked: nothing the privacy rule flags, no money
+  amounts, no legal matters, nothing on the skip list, and never the priority or skip lists. A refused write is
+  counted by reason and never echoed or logged. Nikita can see and forget every fact from the Memory panel.
+- **Spoken surfaces** (a call, a room mic) get only the tools that need no tap.
+
 ## Keys and settings in the Key Vault
 
 Every secret lives only in the Azure Key Vault (#313), as a Key Vault reference in the Function App's settings, read
@@ -468,7 +487,7 @@ writes. Which environments get each is in [DELIVERY.md](DELIVERY.md), "Environme
 | `FOUNDRY_APP_INSTALLATION_ID` | Optional: the App's installation, to skip one lookup | Looked up once per warm function |
 | `FOUNDRY_GITHUB_TOKEN` | The fallback until the App is set up: a fine-grained token that acts as Nikita. The Desk's buttons write issues with it; the feeds read with it | With the App set, nothing is lost; without either, buttons say "not set up" and the feeds read anonymously |
 | `WORLD_BUDGET_USD` | The world's share of the $10 Claude cap (default 6) | $6 |
-| `SKIPPY_BUDGET_USD` | Skippy's chat's share of the $10 Claude cap (#224, `api/_skippy/budget.ts`; Claude Sonnet 5.5 with Opus 5.5 for hard questions and a fenced web lookup since #264); never more than the cap leaves after the world's share and $2 kept for Rivet's shaping | $2 |
+| `SKIPPY_BUDGET_USD` | Skippy's one monthly Claude cap (#646, `api/_skippy/budget.ts`): his chat (Haiku triage, Sonnet talk, Opus for hard asks, web lookups), the Kernel responder and, later, hosted agents together; warns at five sixths, stops calling Claude at the cap. A setting, not a secret; never above $500 | $60 |
 | `WORLD_STORE` | Which store the world uses (`blob`, `supabase`, `memory`) | `blob` |
 | `WORLD_STORE=azureblob`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_CONTAINER` | Set by the template: the private `ceo-state` container, signed in with the Function App's managed identity (no key). `BLOB_STORE_ID` was Vercel's counterpart | The world isn't saved, and the Desk can't sign in |
 | `DESK_VAPID_PUBLIC_KEY`, `DESK_VAPID_PRIVATE_KEY` | The Desk's Web Push key pair (#135): pings are signed with the private key, and browsers subscribe to the public one (public by design, handed to the Desk). Made by the secrets paste, or the browser paste in "Setting up pings" above | The switch says pings aren't set up |

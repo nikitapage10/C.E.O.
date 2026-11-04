@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { TOOLS } from "./tools.ts";
 
 /** The Exchange: markets, research and money. Data only (docs/ROOMS.md). */
 export default defineRoom({
@@ -17,6 +18,7 @@ export default defineRoom({
   usesClaude: false,
   threat: ["TB1", "TB6"],
   budgetKb: 40,
+  tools: [...TOOLS],
   purpose: {
     goal: "Brings Polymarket's live odds and Nikita's read-only positions to an agent desk, practice for agents that read markets without ever trading.",
     agents: [{ name: "Polymarket", use: "the public odds board and the read-only book" }],

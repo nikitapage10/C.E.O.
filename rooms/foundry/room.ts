@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { TOOLS } from "./tools.ts";
 
 /** The Foundry: the coding crew (docs/FOUNDRY.md). Data only (docs/ROOMS.md). */
 export default defineRoom({
@@ -19,6 +20,7 @@ export default defineRoom({
   usesClaude: true,
   threat: ["TB3", "TB4", "TB5", "R1", "R2"],
   budgetKb: 90,
+  tools: [...TOOLS],
   purpose: {
     goal: "Turns Nikita's ideas into shipped code through Claude Code agents working GitHub issues, the proving ground for running a coding crew end to end.",
     agents: [

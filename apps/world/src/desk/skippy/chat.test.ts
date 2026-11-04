@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { runAction, type ActionDeps } from "./actions.ts";
-import { ASK_ERROR, HISTORY_TURNS, MESSAGE_MAX, actionPath, askSkippy, historyFor, readActions, speakable, useSkippy, type Turn } from "./chat.ts";
+import { ASK_ERROR, HISTORY_TURNS, MESSAGE_MAX, actionPath, askSkippy, historyFor, readActions, speakable, tapConfirm, useSkippy, type Turn } from "./chat.ts";
 
 const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch;
 
@@ -48,7 +48,32 @@ describe("the conversation", () => {
 describe("askSkippy", () => {
   it("returns the reply and the checked buttons", async () => {
     const got = await askSkippy("hi", [], reply(200, { reply: "Bask.", actions: [{ kind: "open", label: "Open", page: "foundry" }, { kind: "merge", label: "x" }] }));
-    expect(got).toEqual({ ok: true, reply: "Bask.", actions: [{ kind: "open", label: "Open", page: "foundry" }], capped: false });
+    expect(got).toEqual({ ok: true, reply: "Bask.", actions: [{ kind: "open", label: "Open", page: "foundry" }], capped: false, looked: [], did: [], confirm: [] });
+  });
+  it("reads the agent's chips, the calls waiting for a tap and the month (#646), and drops anything malformed", async () => {
+    const got = await askSkippy(
+      "hi",
+      [],
+      reply(200, {
+        reply: "Done.",
+        looked: ["Memory: plants", 7, "x".repeat(200)],
+        did: ["Added 2 to the Kitchen list"],
+        confirm: [{ id: "0123456789abcdef0123", label: "Remember it", summary: "Remember: likes window seats" }, { id: "nope", label: "x", summary: "y" }],
+        spend: { usd: 12.5, cap: 60, warn: 50 },
+      }),
+    );
+    expect(got).toMatchObject({ ok: true, did: ["Added 2 to the Kitchen list"], confirm: [{ id: "0123456789abcdef0123", label: "Remember it" }], spend: { usd: 12.5, cap: 60, warn: 50 } });
+    expect(got.ok && got.looked[0]).toBe("Memory: plants");
+    expect(got.ok && got.confirm).toHaveLength(1);
+  });
+  it("posts Nikita's tap to the act endpoint", async () => {
+    const calls: { url: string; body: string }[] = [];
+    const doFetch = (async (url: string, init: RequestInit) => {
+      calls.push({ url, body: String(init.body) });
+      return new Response(JSON.stringify({ ok: true, text: "Kept.", did: "Remembered it" }), { status: 200 });
+    }) as unknown as typeof fetch;
+    expect(await tapConfirm("0123456789abcdef0123", true, doFetch)).toMatchObject({ ok: true, did: "Remembered it" });
+    expect(calls[0]).toEqual({ url: "/api/skippy-act", body: JSON.stringify({ confirm: "0123456789abcdef0123", yes: true }) });
   });
   it("says why when it can't answer", async () => {
     expect(await askSkippy("hi", [], reply(401, { error: "signed-out" }))).toMatchObject({ ok: false, error: "signed-out" });

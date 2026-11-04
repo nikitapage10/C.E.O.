@@ -7,10 +7,9 @@ import { startHome, useHome, VENDOR_NAME, VENDORS, type Vendor, type VendorState
 import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "../haven.ts";
 import { openTodos, useTodos } from "../todos/todos.ts";
 import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type Spot, type Tab } from "./data.ts";
-import { KitchenList } from "../KitchenList.tsx";
-import { HomeDevices } from "../HomeDevices.tsx";
 import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
+import { ClimatePop } from "./ClimatePop.tsx";
 import type { House } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
@@ -91,14 +90,22 @@ export function Haven() {
   const [plan, setPlan] = useState<PlanLoad>({ state: "idle" });
   const [open, setOpen] = useState<Open>(null);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
+  // Sent from the Kitchen chip or Controls (?open=kitchen): the Kitchen opens (#664).
   const houseHost = useRef<HTMLDivElement>(null);
   const labelHost = useRef<HTMLDivElement>(null);
-  const skyCv = useRef<HTMLCanvasElement>(null);
   const [away, setAway] = useState(false);
   const house = useRef<House | null>(null);
   const utilRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => startHome(), []);
+  useEffect(() => {
+    if (!signedIn) return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("open") !== "kitchen") return;
+    setOpen({ tab: "kitchen" });
+    q.delete("open");
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${q.size ? `?${q}` : ""}${window.location.hash}`);
+  }, [signedIn]);
   useEffect(() => {
     if (auth === "checking") return;
     void useTodos.getState().refresh();
@@ -127,7 +134,12 @@ export function Haven() {
   const openList = useMemo(() => (signedIn ? openTodos(todos, Date.now()) : []), [todos, signedIn]);
   const todoCount = signedIn ? openList.length : (counts?.todos ?? null);
   const thePlan = plan.state === "ready" ? plan.plan : null;
-  const lit = useMemo(() => (thePlan ? litRooms(thePlan, { devices, kitchenOpen, climate, now: Date.now() }) : {}), [thePlan, devices, kitchenOpen, climate]);
+  const hasGym = !!counts?.gym;
+  const lit = useMemo(() => (thePlan ? litRooms(thePlan, { devices, kitchenOpen, climate, gym: hasGym, now: Date.now() }) : {}), [thePlan, devices, kitchenOpen, climate, hasGym]);
+  // The thermostat control (#671): from the Climate card or the Nest's marker, passkey only.
+  const thermo = signedIn ? (devices?.find((d) => d.kind === "thermostat") ?? null) : null;
+  const [climateOpen, setClimateOpen] = useState(false);
+  const closeClimate = useCallback(() => setClimateOpen(false), []);
   const vendors: Record<Vendor, VendorState> = useMemo(() => (signedIn ? home?.vendors : pub?.vendors) ?? { roborock: "waiting", petlibro: "waiting", whisker: "waiting", nest: "waiting" }, [signedIn, home, pub]);
 
   /* ── the 3D house, only with a plan ── */
@@ -143,7 +155,7 @@ export function Haven() {
       try {
         const head = houseHost.current.parentElement?.querySelector(".hv-head");
         const clearTop = () => (head && houseHost.current ? head.getBoundingClientRect().bottom - houseHost.current.getBoundingClientRect().top : 0);
-        house.current = new House(houseHost.current, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, ...(skyCv.current && { sky: skyCv.current }) });
+        house.current = new House(houseHost.current, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, onSpot: (spot) => spot === "thermostat" && setClimateOpen(true) });
         setGl("on");
       } catch {
         setGl("none");
@@ -228,6 +240,9 @@ export function Haven() {
     setItems((cur) => cur?.map((i) => (i.id === item.id ? { ...i, done } : i)) ?? cur);
     void tickItem(item.id, done).then((r) => !r.ok && loadKitchen().then((l) => l.state === "ready" && setItems(l.view.items)));
   };
+  // Remove with Undo (#673): the Kitchen tab hides the item at once and keeps Undo; these keep the list in step.
+  const drop = (item: KitchenItem) => setItems((cur) => cur?.filter((i) => i.id !== item.id) ?? cur);
+  const reread = () => void loadKitchen().then((l) => l.state === "ready" && setItems(l.view.items));
 
   const summary = thePlan ? summaryOf(lit, thePlan) : signedIn ? "The house, the pets and the kitchen, from what's connected." : "Counts and states only. Sign in to see the house.";
   const util = (id: string) => (el: HTMLElement | null) => void (utilRefs.current[id] = el);
@@ -240,11 +255,6 @@ export function Haven() {
       <section className="hv-stage fl-stage" {...bind} aria-label="The house">
         <canvas ref={cv} className="fl-cv" aria-hidden="true" />
         <div className="hv-houseWrap">
-          {thePlan && (
-            <div className="hv-sky" aria-hidden="true" data-on={gl === "on" ? "" : undefined}>
-              <canvas ref={skyCv} />
-            </div>
-          )}
           <div className="hv-house" ref={houseHost} data-gl={gl} />
           <div className="hv-labs" ref={labelHost} aria-hidden="true" />
           <header className="hv-head">
@@ -255,11 +265,6 @@ export function Haven() {
             </p>
             <h1 className="hv-h1">The Haven</h1>
             <p className="hv-sum">{summary}</p>
-            {/* The Kitchen list and the home devices' chips, moved here from Today (#666). */}
-            <div className="hv-chips">
-              <KitchenList />
-              <HomeDevices />
-            </div>
           </header>
           {!signedIn && (
             <div className="hv-out">
@@ -299,6 +304,22 @@ export function Haven() {
 
         <aside className="hv-util" aria-label="House-wide">
           <h2 className="hv-utilH">House-wide</h2>
+          {thermo ? (
+            <button type="button" className="hv-u is-btn" ref={util("climate")} aria-expanded={climateOpen} onClick={() => setClimateOpen((v) => !v)}>
+              <span className="hv-uk">Climate</span>
+              {climate.state === "live" ? (
+                <>
+                  <b className="hv-uv is-live">{climate.inside}°F</b>
+                  <span className="hv-un">{climate.mode === "off" ? "Off" : climate.mode === "eco" ? "Eco" : `${climate.running ? (climate.mode === "cool" ? "Cooling" : "Heating") : "Holding"}${climate.target !== null ? ` to ${climate.target}°F` : ""}`} · set</span>
+                </>
+              ) : (
+                <>
+                  <b className="hv-uv is-down">Offline</b>
+                  <span className="hv-un">The thermostat isn't answering.</span>
+                </>
+              )}
+            </button>
+          ) : (
           <div className="hv-u" ref={util("climate")}>
             <span className="hv-uk">Climate</span>
             {climate.state === "live" ? (
@@ -313,6 +334,7 @@ export function Haven() {
               </>
             )}
           </div>
+          )}
           {VENDORS.filter((v) => v !== "nest").map((v) => (
             <div className="hv-u" key={v} ref={util(`devices-${v}`)}>
               <span className="hv-uk">{VENDOR_NAME[v]}</span>
@@ -346,6 +368,7 @@ export function Haven() {
           </a>
         </aside>
       </section>
+      {climateOpen && thermo && !open && <ClimatePop d={thermo} onClose={closeClimate} />}
 
       {signedIn && (
         <nav className="hv-tabs" aria-label="Haven rooms">
@@ -375,7 +398,7 @@ export function Haven() {
             <p className="hv-eyb">Haven · {sheetTitle}</p>
             <h2 className="hv-h2">{sheetTitle}</h2>
             {openTab === "kitchen" ? (
-              <KitchenTab items={items} onTick={tick} />
+              <KitchenTab items={items} onTick={tick} onDrop={drop} onReread={reread} />
             ) : openTab === "hall" ? (
               <HallTab devices={devices} connected={vendors.roborock !== "waiting"} room={openRoom} />
             ) : openTab === "pets" ? (

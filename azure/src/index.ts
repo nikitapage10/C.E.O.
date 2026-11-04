@@ -29,6 +29,7 @@ import * as desktiming from "../../api/_boot/deskTiming.js";
 import * as haven from "../../api/_haven/route.js";
 import * as homedevices from "../../api/_haven/devices/live.js";
 import * as havengoogle from "../../api/_haven/google/live.js";
+import * as havenkroger from "../../api/_haven/kroger/live.js";
 import * as havenplan from "../../api/_haven/plan.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
@@ -45,6 +46,7 @@ import * as skippyvoice from "../../api/skippy-voice.js";
 import * as skippyroom from "../../api/_skippy/roomroute.js";
 import * as skippytools from "../../api/_skippy/toolroute.js";
 import * as kernelroute from "../../api/_skippy/kernelroute.js";
+import * as skippyagent from "../../api/_skippy/agent/routes.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
 import * as worldstep from "../../api/world-step.js";
 import * as world from "../../api/world.js";
@@ -94,9 +96,14 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["haven/devices/connect", homedevices.connectRoute],
   // The Haven's connections (#637, docs/HOME-DEVICES.md): Connect Nest and Connect Google Tasks (passkey session
   // only; ?view=status is the public states), and where Google sends the browser back. The thermostat itself reads and
-  // acts through haven/devices; Send to Instacart is POST /api/haven { action: "instacart" }.
+  // acts through haven/devices.
   ["haven/google", havengoogle.googleRoute],
   ["haven/google-callback", havengoogle.googleCallbackRoute],
+  // Send to King Soopers (#664, docs/HOME-DEVICES.md): the Kitchen list matched at the home store through Kroger's
+  // public API and the confirmed picks added to the cart (passkey session only; ?view=status is the public state and a
+  // count), and where Kroger sends the browser back after Connect King Soopers. Checkout stays in the King Soopers app.
+  ["haven/kroger", havenkroger.krogerRoute],
+  ["haven/kroger-callback", havenkroger.krogerCallbackRoute],
   // The Haven's floor plan (#616): the home's shape for the Desk's 3D house, kept only in the private store and served
   // only to a passkey session (api/_haven/plan.ts). Signed out, the Haven shows counts and states, never a map.
   ["haven-plan", havenplan.planRoute],
@@ -165,6 +172,11 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // A Talk call's live lookups (#479): ElevenLabs calls them mid-call with the call's own tool token only (signed,
   // unexpired, kept with the call; api/_skippy/voicetoken.ts). Azure only; money leaves only to that call.
   ["skippy-tools", skippytools, { settleMs: 2_500 }],
+  // Desk Skippy's agent (#646, api/_skippy/agent): Nikita's Yes tap on a tool call that waits for it (and a room's voice
+  // hook running one of the rooms' tools), his private memory of Nikita, and the month's spend meter. Passkey session only.
+  ["skippy-act", skippyagent.actRoute],
+  ["skippy-memory", skippyagent.memoryRoute],
+  ["skippy-spend", skippyagent.spendRoute],
   // The always-on Kernel responder (#501, docs/AZURE.md, "The Kernel responder"): the private brief it reads, and the
   // run itself, called by the Function App on its own address when a hand-off is kept. SUBMIND_FEED_TOKEN only.
   ["kernel-brief", kernelroute.brief],

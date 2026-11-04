@@ -1,5 +1,6 @@
 import type { LinkState } from "../../systems.ts";
 import { isHalloweenNight } from "../../veil/veil.ts";
+import type { Link, Vendor, VendorProblem, VendorState } from "../homeDevices.ts";
 import { isQuiet, nextMountain } from "../todaySchedule.ts";
 
 /**
@@ -110,3 +111,46 @@ export function actionWord(action: LinkAction, state: LinkState): string | null 
 
 /** The room whose pipe a link runs in, for "Its pipe" (the Boiler Room's `?room=`). */
 export const pipeOf = (room: string) => (room === "world" ? "boiler" : room);
+
+/** One house connection's row on the Connections circuit (#672): the same shape as the Systems links' rows. */
+export interface HouseRow {
+  id: string;
+  label: string;
+  what: string;
+  room: "boiler";
+  state: LinkState;
+  lastSeen: null;
+  word?: string;
+}
+
+/** The house's connections, in the order the Boiler Room's pipe lists them (systemsGraph.ts). */
+export const HOUSE_LINKS: readonly { id: Vendor | Link; label: string; what: string }[] = [
+  { id: "roborock", label: "Roborock", what: "The vacuum: status, start, dock and rooms" },
+  { id: "petlibro", label: "Petlibro", what: "The dry and wet food feeders and the water fountain" },
+  { id: "whisker", label: "Whisker", what: "The Litter-Robot: drawer, last visit and a clean cycle" },
+  { id: "nest", label: "Google Nest", what: "The thermostat: temperature, mode and set point" },
+  { id: "tasks", label: "Google Tasks", what: "Quick-adds into the Haven's to-dos" },
+  { id: "kroger", label: "King Soopers", what: "Sends the kitchen list to your King Soopers cart" },
+];
+
+/** The short reason after "Down" on a row, when the server said why (signed in only). */
+const PROBLEM_WORD: Record<VendorProblem, string> = {
+  "no-account": "Down · no such account",
+  refused: "Down · sign-in refused",
+  "signed-out": "Down · signed out",
+  unreachable: "Down · no answer",
+  vendor: "Down",
+};
+
+/**
+ * The house's rows, from the home devices' real states (homeDevices.ts): live is Live, down is Down (with its reason
+ * when signed in), waiting is Waiting. Before the first answer, or where the route doesn't run, every row waits.
+ */
+export function houseRows(vendors: Partial<Record<Vendor, VendorState>> | null, links: Partial<Record<Link, VendorState>> | null, problems: Partial<Record<Vendor, VendorProblem>> = {}): HouseRow[] {
+  return HOUSE_LINKS.map(({ id, label, what }) => {
+    const s = (vendors as Record<string, VendorState | undefined> | null)?.[id] ?? (links as Record<string, VendorState | undefined> | null)?.[id];
+    const state: LinkState = s === "live" ? "ok" : s === "down" ? "down" : "off";
+    const why = (problems as Record<string, VendorProblem | undefined>)[id];
+    return { id, label, what, room: "boiler", state, lastSeen: null, ...(state === "down" && why && { word: PROBLEM_WORD[why] }) };
+  });
+}

@@ -142,7 +142,7 @@ of Skippy: smug, sure they're the smartest thing in the room, loyal underneath. 
 | Workshop | **The Artiste** | teal | Skippy's submind for the Workshop | Mood boards, sudden better ideas mid-sentence, suffers for the work. |
 
 Two more pieces lead Desk-only rooms with no Lattice room behind them: the **Stagehand** (the Annex) and the
-**Steward** (the Haven, warm amber, a house steward with a lamplight voice).
+**Steward** (the Haven, lamplight gold, a house steward with a quartermaster's ledger).
 
 **One tap.** On the Desk, each room's page has a small mic in its submind's colour. The C.E.O. taps it and speaks;
 no call, no hello. The words go straight to that room's submind, and it answers in Skippy's voice in its own manner,
@@ -731,13 +731,14 @@ midterms read live from civicAPI's public results, with the races Nikita follows
 
 ## The Haven
 
-Not a room of the Lattice either, but the C.E.O.'s home behind frosted glass on the Desk (#616): the Kitchen list, the
-robot that cleans the floors, the cats' feeders and the Litter-Robot. The **Steward**, a piece of Skippy in warm amber
-who keeps the lamps low, runs it. He is unhurried and dry, the one submind who admits (never out loud) that he likes the
-monkeys' den; he fusses over the cats and calls it inventory. He hums 2000s emo while the vacuum runs and swears it's
-the vacuum. He won't say where the house is, or draw its rooms for anyone outside. The C.E.O. needn't call him: a tap on
-the Haven's mic and he answers, in Skippy's voice with his own lamplight manner. "Vacuum the kitchen" and he simply
-sends the robot. The Stagehand calls him "the butler"; he calls the Annex "the garage".
+Another door off the Desk (#616), and the first that opens onto Nikita's own home: the **Haven**, a night house drawn
+in sigils and frosted glass, roof off, where only the rooms with something going on are lit. The vacuum's run, the
+cat's feeders and fountain, the Litter-Robot and the Kitchen list each glow in the room they live in; a quiet room
+stays dark, the way a house does at night. The **Steward**, a piece of Skippy who keeps house, runs it: he counts portions like a quartermaster, never feeds the cat past the cap however
+nicely he's asked, hums 2000s emo while the vacuum works, and calls the Litter-Robot "the Throne". The house's shape is
+Nikita's alone: it lives in the private store, drawn only for their passkey, and never in the Lattice's public light. The
+C.E.O. needn't call him: a tap on the Haven's mic and he answers in Skippy's voice with his own ledger-keeper's manner,
+and "vacuum the kitchen" simply sends the robot. The Stagehand calls him "the butler"; he calls the Annex "the garage".
 
 ## The Hallowed Veil
 

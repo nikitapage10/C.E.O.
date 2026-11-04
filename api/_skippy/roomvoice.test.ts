@@ -98,12 +98,12 @@ describe("the rooms' voices (#638)", () => {
     }
   });
 
-  it("the Haven's Steward is a Desk-only submind, active, in warm amber", () => {
+  it("the Haven's Steward is a Desk-only submind, active, in lamplight gold", () => {
     expect(DESK_SUBMINDS.find((m) => m.id === "hearth")).toEqual({
       id: "hearth",
       name: "The Steward",
       room: "haven",
-      colour: "#f2a65a",
+      colour: "#f0c987",
       job: "Steward",
       active: true,
     });

@@ -49,7 +49,7 @@ function check(name: string, fn: () => void) {
   else it.todo(name);
 }
 
-const EXPECTED = ["today", "relay", "foundry", "boiler", "archive", "spire", "exchange", "green", "workshop", "studio", "annex"];
+const EXPECTED = ["today", "relay", "foundry", "boiler", "archive", "spire", "exchange", "green", "workshop", "studio", "annex", "haven"];
 /** Leads of the pages with no Lattice room: Skippy for Today, and the Desk-only rooms' own subminds (the Annex's Stagehand, #618). */
 const DESK_LEADS = [KERNEL_LEAD, ...DESK_SUBMINDS.map((s) => s.id)];
 const roomDirs = readdirSync(REPO_ROOT + "rooms", { withFileTypes: true })

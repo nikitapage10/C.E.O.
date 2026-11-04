@@ -28,6 +28,7 @@ import * as talktiming from "../../api/_boot/talkTiming.js";
 import * as desktiming from "../../api/_boot/deskTiming.js";
 import * as haven from "../../api/_haven/route.js";
 import * as homedevices from "../../api/_haven/devices/live.js";
+import * as havenplan from "../../api/_haven/plan.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
@@ -90,6 +91,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["haven/devices", homedevices.devicesRoute],
   ["haven/devices/action", homedevices.actionRoute, { settleMs: 2_500 }],
   ["haven/devices/connect", homedevices.connectRoute],
+  // The Haven's floor plan (#616): the home's shape for the Desk's 3D house, kept only in the private store and served
+  // only to a passkey session (api/_haven/plan.ts). Signed out, the Haven shows counts and states, never a map.
+  ["haven-plan", havenplan.planRoute],
   ["day-story", daystory],
   ["desk-auth", deskauth],
   ["desk-pings", deskpings],

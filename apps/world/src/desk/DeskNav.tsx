@@ -33,6 +33,7 @@ export const ROOM_TABS: Record<RoomRoute, { label: string; line: string }> = {
   workshop: { label: "Workshop", line: "From a prompt to a print" },
   studio: { label: "Studio", line: "Short videos that explain the internet" },
   annex: { label: "Annex", line: "Pop-ups: short-run projects, election night first" },
+  haven: { label: "Haven", line: "Home and health: the house, the pets, the kitchen" },
 };
 
 /** Every page in key order: 1 Today, 2 Foundry, 3 Relay, then the rooms. */

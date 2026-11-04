@@ -30,6 +30,9 @@
  *                                                  same upload, so the Builder can load the seed photos with no tap.
  *                                                  It answers { ok, id, bytes } only, never a photo or the catalog.
  *
+ * An upload answers 400 bad-photo only when the bytes aren't an image it can read; when the library can't keep it, 503
+ * store, and the log says the error's class (errorClassOf), never the photo, its meal or a path.
+ *
  * The generator (api/_haven/photoGen.ts) runs after a confirm's answer and every ten minutes while anything is queued
  * (azure/src/index.ts, `haven_photos`), one run at a time under a lease in the catalog, under the $10 a month images
  * cap. Logs say counts and states, never a meal, a prompt or a key.
@@ -96,6 +99,25 @@ function trim(cat: PhotoCatalog): PhotoCatalog {
   const order = (p: PhotoEntry) => (p.status === "failed" ? 0 : p.status === "budget" ? 1 : 2);
   const drop = new Set([...cat.photos].sort((a, b) => order(a) - order(b) || a.updated.localeCompare(b.updated)).slice(0, cat.photos.length - CATALOG_MAX).map((p) => p.id));
   return { ...cat, photos: cat.photos.filter((p) => !drop.has(p.id)) };
+}
+
+/** The bytes aren't an image this library can read (as opposed to the store failing). */
+export class BadImageError extends Error {
+  constructor(message = "not a readable image") {
+    super(message);
+    this.name = "BadImageError";
+  }
+}
+
+/**
+ * What kind of error an upload hit, for the log: its class and, from Azure's SDK, its error code (both fixed words,
+ * never a meal, a name, a path or the bytes).
+ */
+export function errorClassOf(e: unknown): string {
+  if (!(e instanceof Error)) return typeof e;
+  const code = (e as { code?: unknown }).code;
+  const name = /^[A-Za-z][\w]{0,40}$/.test(e.name) ? e.name : "Error";
+  return typeof code === "string" && /^[A-Za-z][\w]{0,60}$/.test(code) ? `${name} ${code}` : name;
 }
 
 /** The library in its container. */
@@ -187,8 +209,13 @@ export class PhotoLibrary {
   /** Writes both sizes of a photo; returns where the full one went and its size. */
   async store(id: string, bytes: Uint8Array): Promise<{ full: string; width: number; height: number }> {
     const kind = kindOf(bytes);
-    if (!kind) throw new Error("not an image");
-    const small = smallJpeg(bytes);
+    if (!kind) throw new BadImageError("not an image");
+    let small: ReturnType<typeof smallJpeg>;
+    try {
+      small = smallJpeg(bytes);
+    } catch {
+      throw new BadImageError();
+    }
     const full = `full/${id}.${kind === "png" ? "png" : "jpg"}`;
     const put = { addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 0 } as const;
     await this.blob.put(full, bytes, { ...put, contentType: kind === "png" ? "image/png" : "image/jpeg" });
@@ -403,6 +430,21 @@ async function readBody(request: Request): Promise<Record<string, unknown> | "to
   }
 }
 
+/**
+ * One upload, or why not: "bad-photo" when the bytes couldn't be read as an image, "store" when the library couldn't
+ * keep it. Either way the log gets the error's class (never the photo, its meal or a path), so a failing store no
+ * longer passes for a bad photo.
+ */
+async function uploadOrWhy(library: PhotoLibrary, u: Upload, now: number, log: (line: string) => void): Promise<PhotoEntry | "bad-photo" | "store"> {
+  try {
+    return await library.upload(u, now);
+  } catch (e) {
+    const why = e instanceof BadImageError ? "bad-photo" : "store";
+    log(`haven photos: an upload failed (${why}: ${errorClassOf(e)})`);
+    return why;
+  }
+}
+
 /** POST /api/haven-photos. */
 export async function photosPost(request: Request, deps: PhotoDeps): Promise<Response> {
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
@@ -433,8 +475,10 @@ export async function photosPost(request: Request, deps: PhotoDeps): Promise<Res
     const u = readUpload(body, "upload");
     if (u === "too-big") return reply({ error: "too-big" }, 413);
     if (u === "bad-photo") return reply({ error: "bad-photo" }, 400);
-    const photo = await library.upload(u, now).catch(() => null);
-    if (!photo) return reply({ error: "bad-photo" }, 400);
+    const got = await uploadOrWhy(library, u, now, deps.log);
+    if (got === "bad-photo") return reply({ error: "bad-photo" }, 400);
+    if (got === "store") return reply({ error: "store" }, 503);
+    const photo = got;
     deps.log(`haven photos: one uploaded (${photo.source})`);
     return reply({ photo });
   }
@@ -458,8 +502,9 @@ export async function photosPut(request: Request, deps: PhotoDeps): Promise<Resp
   const u = readUpload(body, "seed");
   if (u === "too-big") return json({ error: "too-big" }, 413);
   if (u === "bad-photo") return json({ error: "bad-photo" }, 400);
-  const photo = await deps.library.upload(u, deps.desk.now).catch(() => null);
-  if (!photo) return json({ error: "bad-photo" }, 400);
+  const photo = await uploadOrWhy(deps.library, u, deps.desk.now, deps.log);
+  if (photo === "bad-photo") return json({ error: "bad-photo" }, 400);
+  if (photo === "store") return json({ error: "store" }, 503);
   deps.log("haven photos: one uploaded with the feed key");
   return json({ ok: true, id: photo.id, bytes: u.bytes.length });
 }

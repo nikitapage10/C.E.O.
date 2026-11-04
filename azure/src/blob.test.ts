@@ -5,13 +5,21 @@ const files = new Map<string, { bytes: Uint8Array; etag: string; type?: string; 
 let version = 0;
 const made: { endpoint?: string; container?: string; credential?: unknown } = {};
 
+/** The containers that exist; a write into any other answers 404 ContainerNotFound, as Azure does. */
+const containers = new Set<string>();
+let creates = 0;
+
 class RestError extends Error {
-  constructor(public statusCode: number) {
+  constructor(
+    public statusCode: number,
+    public code?: string,
+  ) {
     super(`status ${statusCode}`);
+    this.name = "RestError";
   }
 }
 
-function blockBlob(name: string) {
+function blockBlob(name: string, container = "ceo-state") {
   return {
     async download() {
       const f = files.get(name);
@@ -25,6 +33,7 @@ function blockBlob(name: string) {
       return { etag: f.etag };
     },
     async upload(bytes: Uint8Array, length: number, opts: { blobHTTPHeaders?: { blobContentType?: string; blobCacheControl?: string }; conditions?: { ifMatch?: string; ifNoneMatch?: string } } = {}) {
+      if (!containers.has(container)) throw new RestError(404, "ContainerNotFound");
       const was = files.get(name);
       if (opts.conditions?.ifNoneMatch === "*" && was) throw new RestError(409);
       if (opts.conditions?.ifMatch && was?.etag !== opts.conditions.ifMatch) throw new RestError(412);
@@ -47,7 +56,16 @@ vi.mock("@azure/storage-blob", () => ({
     }
     getContainerClient(name: string) {
       made.container = name;
-      return { getBlockBlobClient: blockBlob };
+      return {
+        getBlockBlobClient: (blob: string) => blockBlob(blob, name),
+        async createIfNotExists(opts: { access?: string } = {}) {
+          expect(opts.access).toBeUndefined();
+          creates++;
+          const had = containers.has(name);
+          containers.add(name);
+          return { succeeded: !had };
+        },
+      };
     }
   },
 }));
@@ -58,11 +76,16 @@ const { BlobPreconditionError, pickBlob, registerAzureBlob, vercelBlob } = await
 const { BlobStore, pickStore, StaleStateError } = await import("../../api/_world/store.ts");
 const { BlobStoryStore, pickStoryStore } = await import("../../api/_world/story.ts");
 const { BlobAuthStore, pickAuthStore } = await import("../../api/_desk/store.ts");
+const { PhotoLibrary } = await import("../../api/_haven/photos.ts");
+const { encode: encodeJpeg } = (await import("jpeg-js")).default;
 
 const AZURE = { WORLD_STORE: "azureblob", AZURE_STORAGE_ACCOUNT: "stceotest", AZURE_STORAGE_CONTAINER: "ceo-state" };
 
 beforeEach(() => {
   files.clear();
+  containers.clear();
+  containers.add("ceo-state");
+  creates = 0;
   registerAzureBlob(azureBlobFromEnv);
 });
 
@@ -120,6 +143,42 @@ describe("the Azure blob store", () => {
     await b.loadState();
     await a.saveState(state);
     await expect(b.saveState(state)).rejects.toBeInstanceOf(StaleStateError);
+  });
+});
+
+describe("a container the template hasn't made yet", () => {
+  // #711: the deploy can't apply the template until the role paste has run, so `haven-meals` (#687) shipped without
+  // its container and every photo write failed (answered as a bad photo). The first write now makes the container.
+  const MEALS = { ...AZURE, AZURE_STORAGE_CONTAINER: "haven-meals" };
+  /** A synthetic 32 × 48 JPEG (a gradient), nothing real. */
+  const jpegBytes = () => {
+    const data = new Uint8Array(32 * 48 * 4).map((_, i) => (i % 4 === 3 ? 255 : (i * 5) & 0xff));
+    return new Uint8Array(encodeJpeg({ width: 32, height: 48, data }, 80).data);
+  };
+
+  it("reads as empty, and the first write makes it once, private, then writes", async () => {
+    const blob = azureBlobFromEnv(MEALS);
+    expect(await blob.get("catalog.json")).toBeNull();
+    await blob.put("a.json", "1", { contentType: "application/json", allowOverwrite: true });
+    await blob.put("b.json", "2", { contentType: "application/json", allowOverwrite: true });
+    expect(containers.has("haven-meals")).toBe(true);
+    expect(creates).toBe(1);
+    expect(new TextDecoder().decode(files.get("b.json")!.bytes)).toBe("2");
+  });
+
+  it("an uploaded meal photo lands, both sizes and the catalog", async () => {
+    const library = new PhotoLibrary(azureBlobFromEnv(MEALS));
+    const photo = await library.upload({ meal: "test-bowl", name: "Test bowl", components: [], style: "plate", source: "seed", bytes: jpegBytes() }, Date.now());
+    expect(photo).toMatchObject({ id: "test-bowl", status: "ready", full: "full/test-bowl.jpg", width: 32, height: 48 });
+    expect([...files.keys()].sort()).toEqual(["720/test-bowl.jpg", "catalog.json", "full/test-bowl.jpg"]);
+    expect((await library.catalog()).photos.map((p) => p.id)).toEqual(["test-bowl"]);
+  });
+
+  it("still keeps the write rules once it exists, and passes any other error on", async () => {
+    const blob = azureBlobFromEnv(MEALS);
+    await blob.put("c.claim", "1", { contentType: "application/json" });
+    await expect(blob.put("c.claim", "2", { contentType: "application/json" })).rejects.toBeInstanceOf(BlobPreconditionError);
+    expect(creates).toBe(1);
   });
 });
 

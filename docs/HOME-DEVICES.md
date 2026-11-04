@@ -348,6 +348,8 @@ its own (#687, [`api/_haven/photos.ts`](../api/_haven/photos.ts), shapes in
   id, meal, key, prompt, style `plate` or `prep`, source `openai`, `upload` or `seed`, state and times),
   `full/<id>.png|jpg` (as made or uploaded) and `720/<id>.jpg` (the Desk's copy, 720 px wide). Nothing is in the repo
   and no blob URL is ever handed out: a photo comes back only through `GET /api/haven-photos` to the passkey session.
+  The template makes the container; until the deploy can apply it (the role paste, docs/AZURE.md) the first write
+  makes it instead, private (azure/src/blob.ts, #711).
 - **Made.** OpenAI's images API with the Studio's key (Key Vault secret `openai`, `OPENAI_STUDIO_KEY`):
   `gpt-image-2`, 1024 × 1536, quality medium, streamed with one partial image (the final
   `image_generation.completed` event's image is kept), then low once if medium fails. The prompt is the demo's two
@@ -390,7 +392,8 @@ capped.
 | `PUT /api/haven-photos { meal, image, id?, name?, style?, components? }` with the feed key (`x-ceo-room-key` or `Authorization: Bearer`), no query | `{ ok, id, bytes }` only, source `seed`: the Builder loads photos with no tap. Neither room key can read a photo. |
 
 `budget` is `{ month, images, usd, capUsd, left, reached }`. Errors: 401 without the session, 400 `bad-meals`,
-`bad-photo` or `bad-request`, 413 `too-big`, 503 `not-set-up` or `store`.
+`bad-photo` (the bytes aren't an image it can read) or `bad-request`, 413 `too-big`, 503 `not-set-up` or `store`
+(an upload the library couldn't keep; the log says the error's class and code, never the photo or its meal).
 
 ## Vendor limits
 

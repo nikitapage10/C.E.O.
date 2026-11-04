@@ -37,6 +37,31 @@
 [data-room="haven"] .hv-house {
   position: absolute;
   inset: 0;
+  z-index: 1;
+}
+/*
+ * The night sky (#658) bleeds past the house's box to the stage's edges and under the house-wide strip, over the
+ * field's own night and under the house. The shader fades its own edges into the page, and the ground under the
+ * horizon fades out fast so the flow lines into the house still read through it.
+ */
+[data-room="haven"] .hv-sky {
+  position: absolute;
+  z-index: -1;
+  top: -18px;
+  bottom: -18px;
+  left: calc(-1 * var(--fl-pad, 24px));
+  right: calc(-324px - var(--fl-pad, 24px));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+[data-room="haven"] .hv-sky canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+[data-room="haven"] .hv-sky[data-on] {
+  opacity: 1;
 }
 [data-room="haven"] .hv-house .hv-gl {
   display: block;
@@ -48,6 +73,7 @@
 [data-room="haven"] .hv-labs {
   position: absolute;
   inset: 0;
+  z-index: 1;
   overflow: hidden;
   pointer-events: none;
 }
@@ -74,11 +100,32 @@
   color: var(--hv-soft);
   text-wrap: pretty;
 }
-[data-room="haven"] .hv-hint {
+[data-room="haven"] .hv-hintRow {
   position: absolute;
   left: 0;
   bottom: 0;
   z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+[data-room="haven"] .hv-reset {
+  padding: 4px 12px;
+  border: 1px solid rgba(var(--hv-gold), 0.45);
+  border-radius: 999px;
+  background: rgba(9, 10, 14, 0.6);
+  color: rgb(var(--hv-gold));
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-reset:hover,
+[data-room="haven"] .hv-reset:focus-visible {
+  background: rgba(var(--hv-gold), 0.14);
+  outline: none;
+}
+[data-room="haven"] .hv-hint {
   margin: 0;
   padding: 4px 12px;
   border-radius: 999px;
@@ -306,7 +353,8 @@
 [data-room="haven"][data-open] .hv-labs,
 [data-room="haven"][data-open] .hv-head,
 [data-room="haven"][data-open] .hv-util,
-[data-room="haven"][data-open] .hv-hint,
+[data-room="haven"][data-open] .hv-hintRow,
+[data-room="haven"][data-open] .hv-sky,
 [data-room="haven"][data-open] .hv-tabs,
 [data-room="haven"][data-open] .hv-out,
 [data-room="haven"][data-open] .fl-cv {
@@ -684,6 +732,10 @@
   [data-room="haven"] .hv-houseWrap {
     min-height: min(78svh, 620px);
   }
+  [data-room="haven"] .hv-sky {
+    right: calc(-1 * var(--fl-pad, 16px));
+    bottom: 0;
+  }
   [data-room="haven"] .hv-util {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -737,7 +789,8 @@
   [data-room="haven"] .hv-sheet {
     animation: none;
   }
-  [data-room="haven"][data-open] .hv-house {
+  [data-room="haven"][data-open] .hv-house,
+  [data-room="haven"] .hv-sky {
     transition: none;
   }
 }

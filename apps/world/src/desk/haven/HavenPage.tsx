@@ -90,6 +90,8 @@ export function Haven() {
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
   const houseHost = useRef<HTMLDivElement>(null);
   const labelHost = useRef<HTMLDivElement>(null);
+  const skyCv = useRef<HTMLCanvasElement>(null);
+  const [away, setAway] = useState(false);
   const house = useRef<House | null>(null);
   const utilRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -137,7 +139,9 @@ export function Haven() {
       if (gone || !houseHost.current || !labelHost.current) return;
       if (!canDraw3D()) return setGl("none");
       try {
-        house.current = new House(houseHost.current, labelHost.current, thePlan, { reduce: reduce(), onPick });
+        const head = houseHost.current.parentElement?.querySelector(".hv-head");
+        const clearTop = () => (head && houseHost.current ? head.getBoundingClientRect().bottom - houseHost.current.getBoundingClientRect().top : 0);
+        house.current = new House(houseHost.current, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, ...(skyCv.current && { sky: skyCv.current }) });
         setGl("on");
       } catch {
         setGl("none");
@@ -147,6 +151,7 @@ export function Haven() {
       gone = true;
       house.current?.dispose();
       house.current = null;
+      setAway(false);
     };
   }, [thePlan, onPick]);
 
@@ -233,6 +238,11 @@ export function Haven() {
       <section className="hv-stage fl-stage" {...bind} aria-label="The house">
         <canvas ref={cv} className="fl-cv" aria-hidden="true" />
         <div className="hv-houseWrap">
+          {thePlan && (
+            <div className="hv-sky" aria-hidden="true" data-on={gl === "on" ? "" : undefined}>
+              <canvas ref={skyCv} />
+            </div>
+          )}
           <div className="hv-house" ref={houseHost} data-gl={gl} />
           <div className="hv-labs" ref={labelHost} aria-hidden="true" />
           <header className="hv-head">
@@ -268,7 +278,16 @@ export function Haven() {
               <p>This browser can't draw the house in 3D. Everything else is below.</p>
             </div>
           )}
-          {gl === "on" && <p className="hv-hint">Drag to turn · pinch or scroll to zoom · tap a room</p>}
+          {gl === "on" && (
+            <div className="hv-hintRow">
+              <p className="hv-hint">Drag to turn · pinch or scroll to zoom · tap a room</p>
+              {away && (
+                <button type="button" className="hv-reset" onClick={() => house.current?.resetView()}>
+                  Reset view
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <aside className="hv-util" aria-label="House-wide">

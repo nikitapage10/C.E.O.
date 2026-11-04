@@ -38,7 +38,7 @@ import "./meals.css";
  * night's switches, the backups, Not for me), the week's shopping recomputed as it changes, and Confirm week, which
  * puts the shopping on the Kitchen list for the King Soopers rail beside it. The catalog and the taste profile open
  * as drawers over it. Every change is one edit of the closed set the server runs (api/_haven/mealShape.ts), shown at
- * once and replaced by the server's answer; Talk to edit (PR2) makes the same edits.
+ * once and replaced by the server's answer; Skippy makes the same edits when Nikita talks to him (#698), and the page reads itself again when he does.
  */
 
 const ROLE_NAME: Record<Role, string> = {

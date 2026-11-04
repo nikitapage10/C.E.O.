@@ -1,24 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { converge, useFlow, type FlowLayoutFn, type FlowLine } from "../flow/index.ts";
-import { BAD, OK, WHITE } from "../wvCanvas.ts";
 import { useDeskAuth } from "../signin.ts";
-import { Private } from "../Private.tsx";
-import { startHome, useHome, VENDOR_NAME, VENDORS, type Vendor, type VendorState } from "../homeDevices.ts";
+import { startHome, useHome, type Vendor, type VendorState } from "../homeDevices.ts";
 import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "../haven.ts";
 import { openTodos, useTodos } from "../todos/todos.ts";
 import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type Spot, type Tab } from "./data.ts";
 import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import { ClimatePop } from "./ClimatePop.tsx";
-import type { House } from "./house.ts";
+import { Plinth } from "./Plinth.tsx";
+import { gaugesOf, type GaugeId } from "./plinth.ts";
+import type { House, ThreadState } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
 import "./haven.css";
 
 /**
  * The Haven (#616): home and health on the Desk. Nikita's round-6 pick: the house in 3D, night-lit behind frosted
- * glass, where only the rooms with something going on light up, with the Desk's flow lines carrying each source's real
- * activity in from the house-wide strip beside it. Tap a room and the camera flies in (300 ms), the house blurs behind,
+ * glass, where only the rooms with something going on light up, with the house-wide readings on the instrument plinth
+ * in the dark to its lower right (#680), a thread of nanites from each gauge's lamp to its device. Tap a room and the camera flies in (300 ms), the house blurs behind,
  * and the room's content opens over it (Kitchen, Hall, Pets, Gym, or the room's own sheet).
  *
  * Privacy: the floor plan lives in the private store and is read only by a passkey session (/api/haven-plan); signed
@@ -95,7 +94,8 @@ export function Haven() {
   const labelHost = useRef<HTMLDivElement>(null);
   const [away, setAway] = useState(false);
   const house = useRef<House | null>(null);
-  const utilRefs = useRef<Record<string, HTMLElement | null>>({});
+  const lamps = useRef<Partial<Record<GaugeId, HTMLElement | null>>>({});
+  const strip = useRef<HTMLElement>(null);
 
   useEffect(() => startHome(), []);
   useEffect(() => {
@@ -155,7 +155,22 @@ export function Haven() {
       try {
         const head = houseHost.current.parentElement?.querySelector(".hv-head");
         const clearTop = () => (head && houseHost.current ? head.getBoundingClientRect().bottom - houseHost.current.getBoundingClientRect().top : 0);
-        house.current = new House(houseHost.current, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, onSpot: (spot) => spot === "thermostat" && setClimateOpen(true) });
+        const host = houseHost.current;
+        // The strip's box and each lamp, in the house's own frame (#680): the fit keeps the rooms clear of the strip,
+        // and each thread starts at its lamp (none for a gauge scrolled out of sight on a phone).
+        const keepClear = () => {
+          const s = strip.current?.getBoundingClientRect(), h = host.getBoundingClientRect();
+          return s && s.width ? { x: s.left - h.left, y: s.top - h.top, w: s.width, h: s.height } : null;
+        };
+        const lampAt = (id: GaugeId): [number, number] | null => {
+          const el = lamps.current[id], s = strip.current?.getBoundingClientRect();
+          if (!el || !s) return null;
+          const b = el.getBoundingClientRect(), h = host.getBoundingClientRect();
+          const x = b.left + b.width / 2;
+          if (!b.width || x < s.left + 4 || x > s.right - 4) return null;
+          return [x - h.left, b.top + b.height / 2 - h.top];
+        };
+        house.current = new House(host, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, keepClear, lampAt, onSpot: (spot) => spot === "thermostat" && setClimateOpen(true) });
         setGl("on");
       } catch {
         setGl("none");
@@ -205,35 +220,42 @@ export function Haven() {
     return () => window.removeEventListener("keydown", key);
   }, [open]);
 
-  /* ── the flow lines: each source's real activity, from the house-wide strip into the house ── */
-  const sources = useMemo(() => {
-    const vend = (v: Vendor): { waiting: boolean; density: number; rgb?: string } => (vendors[v] === "live" ? { waiting: false, density: 0.55 } : vendors[v] === "down" ? { waiting: false, density: 0.15, rgb: BAD } : { waiting: true, density: 0 });
-    return [
-      { id: "climate", waiting: climate.state !== "live", density: climate.state === "live" ? (climate.running ? 0.55 : 0.2) : 0 },
-      { id: "devices-roborock", ...vend("roborock") },
-      { id: "devices-petlibro", ...vend("petlibro") },
-      { id: "devices-whisker", ...vend("whisker") },
-      { id: "kitchen", waiting: kitchenOpen === null, density: kitchenOpen ? Math.min(1, 0.2 + kitchenOpen / 10) : 0.08, rgb: OK },
-      { id: "todos", waiting: todoCount === null, density: todoCount ? Math.min(1, 0.2 + todoCount / 10) : 0.08, rgb: WHITE },
-    ];
-  }, [vendors, kitchenOpen, todoCount, climate]);
-  const layout = useCallback<FlowLayoutFn>(
-    ({ W, H, phone, rel }) => {
-      const stage = houseHost.current ? rel(houseHost.current) : { x: 0, y: 0, w: W, h: H };
-      const to: [number, number] = [stage.x + stage.w / 2, stage.y + stage.h / 2];
-      const from = sources.map((s) => {
-        const el = utilRefs.current[s.id];
-        if (!el) return [phone ? W / 2 : W - 20, H - 20] as [number, number];
-        const b = rel(el);
-        return (phone ? [b.x + b.w / 2, b.y] : [b.x, b.y + b.h / 2]) as [number, number];
-      });
-      const paths = converge(from, to, { trunk: 0.3 });
-      const lines: FlowLine[] = sources.map((s, i) => ({ id: s.id, path: paths[i]!, density: s.density, waiting: s.waiting, rate: s.waiting ? 12 : 28 + s.density * 40, ...(s.rgb && { rgb: s.rgb }) }));
-      return { lines };
-    },
-    [sources],
+  /* ── the instrument plinth (#680): the gauges, and their threads into the house ── */
+  const gauges = useMemo(
+    () => gaugesOf({ signedIn, loading: homeLoad === "idle", vendors, devices: pub?.devices ?? [], climate, kitchenOpen, gym: counts?.gym ?? null, todos: todoCount }),
+    [signedIn, homeLoad, vendors, pub, climate, kitchenOpen, counts, todoCount],
   );
-  const { cv, bind } = useFlow(layout, { accent: ACCENT, ground: true, room: null });
+  useEffect(() => {
+    const busy = (id: GaugeId, n: number | null) => (n === null ? 0 : Math.min(1, 0.15 + n / 8));
+    const level: Record<GaugeId, number> = {
+      climate: climate.state === "live" && climate.running ? 0.8 : 0.3,
+      roborock: devices?.some((d) => d.kind === "vacuum" && /clean/i.test(d.state)) ? 0.9 : 0.4,
+      petlibro: 0.4,
+      whisker: 0.4,
+      kitchen: busy("kitchen", kitchenOpen),
+      gym: counts?.gym ? Math.min(1, 0.2 + counts.gym.doneThisWeek / Math.max(1, counts.gym.perWeek)) : 0,
+      todos: busy("todos", todoCount),
+    };
+    const list: ThreadState[] = gauges.map((g) => ({ id: g.id, tone: g.tone, level: level[g.id] }));
+    house.current?.setThreads(list);
+  }, [gauges, climate, devices, kitchenOpen, counts, todoCount, gl]);
+  // The strip's size changes with its readings and the page's width: fit the house round it again.
+  useEffect(() => {
+    const el = strip.current;
+    const wrap = el?.parentElement;
+    if (!el || !wrap) return;
+    const ro = new ResizeObserver(() => {
+      wrap.style.setProperty("--hv-ph", `${Math.round(el.offsetHeight)}px`);
+      house.current?.refit();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [gl]);
+  const lamp = useCallback((id: GaugeId) => (el: HTMLElement | null) => void (lamps.current[id] = el), []);
+  const toggleClimate = useCallback(() => setClimateOpen((v) => !v), []);
+  const openGauge = useCallback((id: GaugeId) => (id === "kitchen" || id === "gym") && setOpen({ tab: id }), []);
+  const canOpen = useCallback((id: GaugeId) => signedIn && (id === "kitchen" || id === "gym"), [signedIn]);
+  const touch = useCallback(() => house.current?.touch(), []);
 
   const tick = (item: KitchenItem) => {
     const done = !item.done;
@@ -245,15 +267,13 @@ export function Haven() {
   const reread = () => void loadKitchen().then((l) => l.state === "ready" && setItems(l.view.items));
 
   const summary = thePlan ? summaryOf(lit, thePlan) : signedIn ? "The house, the pets and the kitchen, from what's connected." : "Counts and states only. Sign in to see the house.";
-  const util = (id: string) => (el: HTMLElement | null) => void (utilRefs.current[id] = el);
   const openRoom = open && "room" in open ? thePlan?.rooms.find((r) => r.id === open.room) : undefined;
   const openTab: Tab | null = open && "tab" in open ? open.tab : openRoom && thePlan ? tabOf(thePlan, openRoom) : null;
   const sheetTitle = openTab ? TAB_NAME[openTab] : (openRoom?.name ?? "");
 
   return (
     <div className="hv fl-page" data-room="haven" data-open={open ? "" : undefined} style={{ ["--fl-accent" as string]: ACCENT }}>
-      <section className="hv-stage fl-stage" {...bind} aria-label="The house">
-        <canvas ref={cv} className="fl-cv" aria-hidden="true" />
+      <section className="hv-stage fl-stage" aria-label="The house">
         <div className="hv-houseWrap">
           <div className="hv-house" ref={houseHost} data-gl={gl} />
           <div className="hv-labs" ref={labelHost} aria-hidden="true" />
@@ -300,75 +320,12 @@ export function Haven() {
               )}
             </div>
           )}
+          <Plinth gauges={gauges} thermo={thermo} climateOpen={climateOpen} onClimate={toggleClimate} onOpen={openGauge} canOpen={canOpen} lamp={lamp} onScroll={touch} stripRef={strip}>
+            {climateOpen && thermo && !open && <ClimatePop d={thermo} onClose={closeClimate} />}
+          </Plinth>
         </div>
 
-        <aside className="hv-util" aria-label="House-wide">
-          <h2 className="hv-utilH">House-wide</h2>
-          {thermo ? (
-            <button type="button" className="hv-u is-btn" ref={util("climate")} aria-expanded={climateOpen} onClick={() => setClimateOpen((v) => !v)}>
-              <span className="hv-uk">Climate</span>
-              {climate.state === "live" ? (
-                <>
-                  <b className="hv-uv is-live">{climate.inside}°F</b>
-                  <span className="hv-un">{climate.mode === "off" ? "Off" : climate.mode === "eco" ? "Eco" : `${climate.running ? (climate.mode === "cool" ? "Cooling" : "Heating") : "Holding"}${climate.target !== null ? ` to ${climate.target}°F` : ""}`} · set</span>
-                </>
-              ) : (
-                <>
-                  <b className="hv-uv is-down">Offline</b>
-                  <span className="hv-un">The thermostat isn't answering.</span>
-                </>
-              )}
-            </button>
-          ) : (
-          <div className="hv-u" ref={util("climate")}>
-            <span className="hv-uk">Climate</span>
-            {climate.state === "live" ? (
-              <>
-                <b className="hv-uv is-live">{climate.inside}°F</b>
-                <span className="hv-un">{climate.mode === "off" ? "Off" : climate.mode === "eco" ? "Eco" : `${climate.running ? (climate.mode === "cool" ? "Cooling" : "Heating") : "Holding"}${climate.target !== null ? ` to ${climate.target}°F` : ""}`}</span>
-              </>
-            ) : (
-              <>
-                <b className={`hv-uv is-${vendors.nest === "waiting" ? "wait" : vendors.nest}`}>{vendors.nest === "live" ? "Live" : vendors.nest === "down" ? "Down" : "Waiting"}</b>
-                <span className="hv-un">{vendors.nest === "waiting" ? "The Nest isn't connected yet (Today's Home chip). Then the climate lights the living room." : signedIn ? "The thermostat" : "The thermostat; the temperature shows signed in."}</span>
-              </>
-            )}
-          </div>
-          )}
-          {VENDORS.filter((v) => v !== "nest").map((v) => (
-            <div className="hv-u" key={v} ref={util(`devices-${v}`)}>
-              <span className="hv-uk">{VENDOR_NAME[v]}</span>
-              <b className={`hv-uv is-${vendors[v]}`}>{homeLoad === "idle" ? "…" : stateWord[vendors[v]]}</b>
-              <span className="hv-un">{v === "roborock" ? "The vacuum" : v === "petlibro" ? "Feeders and fountain" : "The Litter-Robot"}</span>
-            </div>
-          ))}
-          <button type="button" className="hv-u is-btn" ref={util("kitchen")} disabled={!signedIn} onClick={() => setOpen({ tab: "kitchen" })}>
-            <span className="hv-uk">Kitchen list</span>
-            <b className="hv-uv">{kitchenOpen ?? "–"}</b>
-            <span className="hv-un">to get</span>
-          </button>
-          <button type="button" className="hv-u is-btn" disabled={!signedIn} onClick={() => setOpen({ tab: "gym" })}>
-            <span className="hv-uk">Gym</span>
-            <b className="hv-uv">{counts?.gym ? `${counts.gym.doneThisWeek} of ${counts.gym.perWeek}` : "–"}</b>
-            <span className="hv-un">{counts?.gym ? `sessions this week · ${counts.gym.perWeek} a week` : "sessions this week"}</span>
-          </button>
-          <a className="hv-u is-btn" ref={util("todos")} href="/">
-            <span className="hv-uk">To-dos</span>
-            <b className="hv-uv">{todoCount ?? "–"}</b>
-            <span className="hv-un">
-              {openList.length ? (
-                <Private>{openList
-                  .slice(0, 2)
-                  .map((t) => t.text)
-                  .join(" · ")}</Private>
-              ) : (
-                "open, on Today"
-              )}
-            </span>
-          </a>
-        </aside>
       </section>
-      {climateOpen && thermo && !open && <ClimatePop d={thermo} onClose={closeClimate} />}
 
       {signedIn && (
         <nav className="hv-tabs" aria-label="Haven rooms">

@@ -5,11 +5,12 @@
  */
 let played = false;
 
-/** True the first time it's asked on this page load (the intro plays), false every time after. */
-export function takeIntro(): boolean {
-  if (played) return false;
+/** Whether the intro is still to play on this page load. */
+export const introDue = (): boolean => !played;
+
+/** The intro has started (its clock is running): it won't play again until the page reloads. */
+export function introStarted(): void {
   played = true;
-  return true;
 }
 
 /** For tests: as if the page had just loaded. */

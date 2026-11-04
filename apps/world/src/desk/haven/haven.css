@@ -21,11 +21,10 @@
   background: radial-gradient(80% 60% at 40% 30%, #12131a 0%, #07080b 70%);
 }
 
-/* ── the stage: the house, with the house-wide strip beside it ── */
+/* ── the stage: the house, with the instrument plinth in the dark to its lower right (#680) ── */
 [data-room="haven"] .hv-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 0 24px;
+  grid-template-columns: minmax(0, 1fr);
   min-height: max(620px, min(calc(100svh - 62px), 980px));
   padding-top: 18px;
   padding-bottom: 18px;
@@ -195,83 +194,6 @@
   display: inline-block;
 }
 
-/* ── the house-wide strip: outside the map, not tied to one room ── */
-[data-room="haven"] .hv-util {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 10px;
-}
-[data-room="haven"] .hv-utilH {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--hv-faint);
-}
-[data-room="haven"] .hv-u {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--hv-line);
-  border-radius: 14px;
-  background: var(--hv-glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-}
-[data-room="haven"] .hv-u.is-btn {
-  cursor: pointer;
-}
-[data-room="haven"] .hv-u.is-btn:hover:not(:disabled),
-[data-room="haven"] .hv-u.is-btn:focus-visible {
-  border-color: rgba(var(--hv-gold), 0.45);
-}
-[data-room="haven"] .hv-u:disabled {
-  cursor: default;
-}
-[data-room="haven"] .hv-uk {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--hv-mute);
-}
-[data-room="haven"] .hv-uv {
-  grid-row: span 2;
-  align-self: center;
-  font-family: var(--hv-disp);
-  font-weight: 500;
-  font-size: 26px;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-[data-room="haven"] .hv-uv.is-wait,
-[data-room="haven"] .hv-uv.is-waiting {
-  font-style: italic;
-  font-size: 20px;
-  color: var(--hv-mute);
-}
-[data-room="haven"] .hv-uv.is-live {
-  color: var(--hv-ok);
-}
-[data-room="haven"] .hv-uv.is-down {
-  color: var(--hv-warn);
-}
-[data-room="haven"] .hv-un {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: var(--hv-soft);
-  text-overflow: ellipsis;
-}
-
 /* ── the room tabs under the stage ── */
 [data-room="haven"] .hv-tabs,
 [data-room="haven"] .hv-sheetTabs {
@@ -328,7 +250,7 @@
 }
 [data-room="haven"][data-open] .hv-labs,
 [data-room="haven"][data-open] .hv-head,
-[data-room="haven"][data-open] .hv-util,
+[data-room="haven"][data-open] .hv-plinth,
 [data-room="haven"][data-open] .hv-hintRow,
 [data-room="haven"][data-open] .hv-tabs,
 [data-room="haven"][data-open] .hv-out,
@@ -704,19 +626,16 @@
 }
 
 @media (max-width: 860px) {
-  [data-room="haven"] .hv-stage {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-  }
   [data-room="haven"] .hv-houseWrap {
-    min-height: min(78svh, 620px);
+    min-height: min(92svh, 760px);
   }
-  [data-room="haven"] .hv-util {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* On a phone the plinth runs under the house, full width, and scrolls sideways. */
+  [data-room="haven"] .hv-plinth {
+    left: 0;
+    max-width: none;
   }
-  [data-room="haven"] .hv-utilH {
-    grid-column: 1 / -1;
+  [data-room="haven"] .hv-hintRow {
+    bottom: calc(var(--hv-ph, 0px) + 10px);
   }
   [data-room="haven"] .hv-nums {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -753,9 +672,6 @@
   }
 }
 @media (max-width: 440px) {
-  [data-room="haven"] .hv-util {
-    grid-template-columns: minmax(0, 1fr);
-  }
   [data-room="haven"] .hv-tab {
     padding: 8px 12px;
   }
@@ -984,7 +900,7 @@
   position: fixed;
   z-index: 45;
   top: 140px;
-  right: max(24px, calc((100vw - 1280px) / 2 + 340px));
+  right: max(24px, calc((100vw - 1280px) / 2 + 24px));
   width: 300px;
   box-sizing: border-box;
   display: grid;
@@ -1102,6 +1018,237 @@
     left: 12px;
     right: 12px;
     bottom: 96px;
+    width: auto;
+  }
+}
+
+/* ── the instrument plinth (#680): a hi-fi faceplate of engraved gauges, each lamp threaded into the house ── */
+[data-room="haven"] .hv-thr {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+[data-room="haven"] .hv-plinth {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  max-width: min(100%, 780px);
+}
+[data-room="haven"] .hv-plate {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 10px 6px;
+  border: 1px solid rgba(var(--hv-gold), 0.3);
+  border-radius: 12px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #15141a 0%, #0c0b10 100%);
+  box-shadow:
+    inset 0 0 0 5px #0d0c11,
+    inset 0 0 0 6px rgba(var(--hv-gold), 0.2),
+    inset 0 1px 0 6px rgba(255, 255, 255, 0.03),
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    0 0 40px rgba(var(--hv-gold), 0.05);
+}
+[data-room="haven"] .hv-plate::-webkit-scrollbar {
+  display: none;
+}
+[data-room="haven"] .hv-gauge {
+  position: relative;
+  flex: none;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  min-width: 82px;
+  padding: 6px 12px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  text-decoration: none;
+}
+/* The engraved rule between gauges. */
+[data-room="haven"] .hv-gauge + .hv-gauge::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(var(--hv-gold), 0.22), transparent);
+}
+[data-room="haven"] .hv-gauge.is-btn {
+  cursor: pointer;
+}
+[data-room="haven"] .hv-gauge.is-btn:hover:not(:disabled),
+[data-room="haven"] .hv-gauge.is-btn:focus-visible {
+  background: rgba(var(--hv-gold), 0.07);
+  outline: none;
+}
+[data-room="haven"] .hv-gauge.is-btn:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(var(--hv-gold), 0.5);
+}
+[data-room="haven"] .hv-gauge:disabled {
+  cursor: default;
+}
+[data-room="haven"] .hv-lamp {
+  display: block;
+  width: 7px;
+  height: 7px;
+  margin: 2px 0 4px;
+  border-radius: 50%;
+  background: rgb(var(--hv-gold));
+  box-shadow: 0 0 8px 2px rgba(var(--hv-gold), 0.55);
+}
+[data-room="haven"] .hv-lamp[data-tone="down"] {
+  background: var(--hv-warn);
+  box-shadow: 0 0 9px 2px rgba(255, 154, 106, 0.6);
+}
+[data-room="haven"] .hv-lamp[data-tone="wait"] {
+  background: #4a4752;
+  box-shadow: none;
+}
+[data-room="haven"] .hv-gV {
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-gauge[data-tone="down"] .hv-gV,
+[data-room="haven"] .hv-gauge[data-tone="down"] .hv-gState {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-gauge[data-tone="wait"] .hv-gV {
+  font-style: italic;
+  font-size: 24px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-gName {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-gState {
+  font-size: 11px;
+  white-space: nowrap;
+  color: rgba(var(--hv-gold), 0.85);
+}
+[data-room="haven"] .hv-gauge[data-tone="wait"] .hv-gState {
+  color: var(--hv-faint);
+}
+/* Climate: the rotary dial at the left end. */
+[data-room="haven"] .hv-gauge.is-dial {
+  grid-auto-flow: column;
+  align-items: center;
+  align-content: center;
+  gap: 10px;
+  padding-right: 16px;
+  text-align: left;
+  touch-action: none;
+}
+[data-room="haven"] .hv-dialWrap {
+  position: relative;
+  display: grid;
+  justify-items: center;
+}
+[data-room="haven"] .hv-dialWrap .hv-lamp {
+  margin: 0 0 2px;
+}
+[data-room="haven"] .hv-dialFace {
+  width: 92px;
+  height: 92px;
+  overflow: visible;
+}
+[data-room="haven"] .hv-dialRim {
+  fill: #0e0d12;
+  stroke: rgba(var(--hv-gold), 0.45);
+  stroke-width: 1.4;
+}
+[data-room="haven"] .hv-dialIn {
+  fill: none;
+  stroke: rgba(var(--hv-gold), 0.12);
+  stroke-width: 1;
+}
+[data-room="haven"] .hv-dialTicks line {
+  stroke: rgba(var(--hv-gold), 0.45);
+  stroke-linecap: round;
+}
+[data-room="haven"] .hv-dialTicks line.is-lit {
+  stroke: #ffb36b;
+}
+[data-room="haven"] .hv-dialKnob {
+  stroke: var(--hv-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+[data-room="haven"] .hv-dialV {
+  fill: var(--hv-ink);
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 28px;
+}
+[data-room="haven"] .hv-gauge.is-dial[data-tone="wait"] .hv-dialV {
+  fill: var(--hv-mute);
+  font-style: italic;
+  font-size: 17px;
+}
+[data-room="haven"] .hv-gauge.is-dial[data-tone="down"] .hv-dialV {
+  fill: var(--hv-warn);
+  font-size: 22px;
+}
+[data-room="haven"] .hv-gauge[data-turning] .hv-dialKnob {
+  stroke: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-gTxt {
+  display: grid;
+  gap: 2px;
+}
+[data-room="haven"] .hv-gTxt .hv-gName {
+  margin: 0;
+}
+[data-room="haven"] .hv-gHint {
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(var(--hv-gold), 0.6);
+}
+[data-room="haven"] .hv-uk {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+/* The Climate control opens over the dial, at the strip's left end. */
+[data-room="haven"] .hv-plinth .hv-th {
+  position: absolute;
+  top: auto;
+  right: auto;
+  left: 0;
+  bottom: calc(100% + 12px);
+}
+@media (max-width: 860px) {
+  [data-room="haven"] .hv-plinth .hv-th {
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 10px);
     width: auto;
   }
 }

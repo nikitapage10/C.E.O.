@@ -406,6 +406,29 @@ describe("/api/haven-photos", () => {
     expect((await s.library.catalog()).photos.find((p) => p.id === "seed-one")).toMatchObject({ source: "seed", style: "prep", status: "ready" });
   });
 
+  it("tells a failing store from a bad photo, and logs the error's class, never the meal (#711)", async () => {
+    const s = setup();
+    class RestError extends Error {
+      code = "ContainerNotFound";
+      statusCode = 404;
+      name = "RestError";
+    }
+    s.lib.put = async () => {
+      throw new RestError("The specified container does not exist.");
+    };
+    const res = await photosPut(put({ meal: "seed-one", name: "Seed one", image: `data:image/jpeg;base64,${b64(smallJpeg(IMAGE).jpeg)}` }, FEED), s.deps);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "store" });
+    expect(s.lines).toEqual(["haven photos: an upload failed (store: RestError ContainerNotFound)"]);
+    // A JPEG that only looks like one is still a bad photo.
+    const broken = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    const bad = await photosPut(put({ meal: "seed-two", image: b64(broken) }, FEED), s.deps);
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ error: "bad-photo" });
+    expect(s.lines[1]).toBe("haven photos: an upload failed (bad-photo: BadImageError)");
+    expect(s.lines.join("\n")).not.toMatch(/seed-|Seed one/);
+  });
+
   it("is one of the feed key's writes as a PUT with no query, and nothing else", () => {
     expect(isFeedWrite(new Request(`${ORIGIN}/api/haven-photos`, { method: "PUT" }))).toBe(true);
     expect(isFeedWrite(new Request(`${ORIGIN}/api/haven-photos?id=a`, { method: "PUT" }))).toBe(false);

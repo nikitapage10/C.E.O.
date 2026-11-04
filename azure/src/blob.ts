@@ -28,6 +28,13 @@ export function blobEndpoint(env: Env): string {
 
 const statusOf = (e: unknown): number | undefined => (e && typeof e === "object" && "statusCode" in e ? Number((e as { statusCode: unknown }).statusCode) : undefined);
 
+/** Whether Azure answered that the container itself isn't there (a 404 on a write, `ContainerNotFound`). */
+export const containerMissing = (e: unknown): boolean => {
+  if (statusOf(e) !== 404 || !e || typeof e !== "object") return false;
+  const x = e as { code?: unknown; details?: { errorCode?: unknown } };
+  return x.code === "ContainerNotFound" || x.details?.errorCode === "ContainerNotFound";
+};
+
 /** A name with a random part before its extension ("a.jpg" → "a-k3j9…x.jpg"), as Vercel Blob's random suffix. */
 export function withRandomSuffix(path: string): string {
   const random = crypto.randomUUID().replace(/-/g, "").slice(0, 21);
@@ -38,8 +45,22 @@ export function withRandomSuffix(path: string): string {
 const toBytes = (body: string | ArrayBuffer | Uint8Array): Uint8Array =>
   typeof body === "string" ? new TextEncoder().encode(body) : body instanceof ArrayBuffer ? new Uint8Array(body) : body;
 
-/** The blob store over one container. */
+/**
+ * The blob store over one container. The containers are the template's (infra/resources.bicep), but a deploy whose
+ * identity can't apply it yet (the role paste, docs/AZURE.md) ships code before its container exists: `haven-meals`
+ * (#687) went live that way and every photo write failed. So the first write that finds the container missing makes
+ * it (private: no public access, which the account forbids anyway) and tries once more. Reads of a missing container
+ * stay null, as for a missing file.
+ */
 export function azureBlob(container: ContainerClient): BlobBackend {
+  let creating: Promise<unknown> | null = null;
+  const ensureContainer = () => {
+    creating ??= container.createIfNotExists().catch((e: unknown) => {
+      creating = null;
+      throw e;
+    });
+    return creating;
+  };
   return {
     kind: "azureblob",
     async get(path) {
@@ -70,14 +91,22 @@ export function azureBlob(container: ContainerClient): BlobBackend {
       const bytes = toBytes(body);
       // Vercel Blob's rules: ifMatch writes only over that version; otherwise overwrite only when allowed.
       const conditions = opts.ifMatch ? { ifMatch: opts.ifMatch } : opts.allowOverwrite ? undefined : { ifNoneMatch: "*" };
-      try {
-        await container.getBlockBlobClient(name).upload(bytes, bytes.byteLength, {
+      const upload = () =>
+        container.getBlockBlobClient(name).upload(bytes, bytes.byteLength, {
           blobHTTPHeaders: {
             blobContentType: opts.contentType,
             ...(opts.cacheControlMaxAge !== undefined && { blobCacheControl: `private, max-age=${opts.cacheControlMaxAge}` }),
           },
           ...(conditions && { conditions }),
         });
+      try {
+        try {
+          await upload();
+        } catch (e) {
+          if (!containerMissing(e)) throw e;
+          await ensureContainer();
+          await upload();
+        }
       } catch (e) {
         const status = statusOf(e);
         if (status === 412 || status === 409) throw new BlobPreconditionError(`blob ${status === 412 ? "changed" : "already exists"}`);

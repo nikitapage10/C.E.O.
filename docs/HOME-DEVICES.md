@@ -271,13 +271,19 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
 
 - **Where.** One file in the private store, `haven/meals.json`: the taste profile (protein goal, top-up, avoid rules
   with an `unless`, likes, rules, and the budget, which is only ever there), the catalog (each meal's ingredients, its
-  swappable `parts`, macros as built, a photo id, times had, passed) and the week (seven slots: meal, two backups, lunch,
-  for two, HelloFresh, in the cart, `custom`, the night's own `photo`). Nothing of it is in the repo; signed out,
+  swappable `parts`, macros as built, a photo id, times had, passed, and its `course`: a dinner, or a quick lunch) and
+  the week (seven slots: meal, two backups, lunch, for two, HelloFresh, in the cart, `custom`, the night's own `photo`). Nothing of it is in the repo; signed out,
   `/api/haven?view=status` carries `meals: { planned, cooking, helloFresh, confirmed }` only.
 - **The swap model.** A meal's protein, carb and side are parts pointing into a component library (`COMPONENTS`, plus
   any the file adds): each component has its own ingredients and macros for one portion. A swap takes the old
   component's ingredients out and the new one's in and moves the macros by the difference, so the ring and the week's
   shopping follow at once. A night's `custom` is `{ parts: { "<part index>": "<component id>" }, portion, spice }`.
+- **Lunches (#719).** Each day has a lunch: last night's leftovers (that dinner is cooked one portion bigger and the
+  lunch counts as one more portion of it, as customized), or a quick lunch from the catalog (`course: "lunch"`:
+  high-protein salads and a few cook-yourself lunches, with two backups, macros, a recipe and cook mode, bought for
+  one). A planned week gives Monday (no leftovers yet) and the taste profile's `lunchDays` a quick lunch, the rest
+  leftovers. The day cards show the lunch under the dinner; the open day's drawer has a Lunch panel to swap it; the
+  catalog has Dinners and Lunches. A file from before lunches (no `course`, lunches as text) still reads as it was.
 - **Edits** (`MealEdit`, the one closed set; `POST /api/haven-meals { action: "edit", edit }` answers `{ meals,
   changes }`, and Undo holds the state before the last edit):
 
@@ -287,6 +293,7 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   | `{ op: "nope", day }` | Not for me: passes on the meal, its first usable backup goes on |
   | `{ op: "customize", day, part?: { index, option }, portion?: 0.75 \| 1 \| 1.25 \| 1.5, spice?: "mild" \| "medium" \| "hot", reset? }` | changes a part, the portion or the spice; `reset` puts it back as written |
   | `{ op: "night", day, helloFresh?, forTwo?, inCart? }` | the night's switches |
+  | `{ op: "lunch", day, meal }` / `{ op: "lunch", day, leftovers: true }` | a quick lunch on a day (what was there becomes a backup), or last night's leftovers (not Monday) |
   | `{ op: "avoid", term, unless? }` / `{ op: "unavoid", term }` | a taste rule; every night that breaks it is swapped for a backup without it |
   | `{ op: "like", term, liked }` | a like in the taste profile (or taken off); a meal with it is planned first among equals |
   | `{ op: "heat", spice \| null }` | the house heat: every night cooked mild, medium or hot unless the night says otherwise (null: as written). It isn't a customization, so it never asks for a photo |
@@ -303,6 +310,9 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   edit; a night shows its own photo once the library says `ready`, its meal's photo (or a placeholder) until then.
 - **Seeding.** `PUT /api/haven-meals { meals, replace? }` with the feed key (counts back), or the Kitchen's "Load a
   planner file" when nothing is loaded. Without `replace` it never overwrites a planner that's there.
+  `PUT /api/haven-meals { meals, merge: "lunches" }` (feed key) adds only the file's lunches to the planner that's
+  there (`addLunches`: new quick lunches, the lunch days, and a lunch plan when the week has none), leaving the
+  dinners and every edit alone, with Undo; a second run changes nothing. Counts back.
 - **Cook mode (#705).** "Cook mode" in a night's drawer (not on a HelloFresh night) opens the dinner full screen, one
   step at a time in big type ([`CookMode.tsx`](../apps/world/src/desk/haven/CookMode.tsx), built by `cookOf` in
   [`cook.ts`](../apps/world/src/desk/haven/cook.ts) from `slotDish`, so it is the night as customized). A step that
@@ -322,6 +332,7 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   | --- | --- | --- |
   | "what's for dinner this week?" | `meals_week` | reads the week (never the budget) |
   | "swap Tuesday for the kofta", "not for me" | `meals_swap` | `swap` by the meal's name, or `nope` |
+  | "steak salad for Thursday's lunch", "leftovers Wednesday" | `meals_swap` with `lunch` | `lunch` by the lunch's name, or leftovers |
   | "quinoa instead of rice on Monday", "no carb Friday", "a bigger portion Thursday", "make Wednesday hot" | `meals_customize` | `customize`: a part by name (`componentFor`), portion, that night's spice, reset |
   | "Friday's a HelloFresh night", "Saturday for two" | `meals_night` | `night` |
   | "I don't like mushrooms", "mushrooms are fine again" | `meals_avoid` | `avoid` / `unavoid` |

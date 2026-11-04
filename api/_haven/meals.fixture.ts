@@ -1,7 +1,7 @@
 import { readMeals, type MealsFile } from "./mealShape.ts";
 
 /**
- * A made-up meal planner file (#678) for the tests and the browser tests: ten generic meals and a week. Never
+ * A made-up meal planner file (#678) for the tests and the browser tests: ten generic dinners, three quick lunches and a week. Never
  * Nikita's catalog or taste profile, which live only in the Haven's private store.
  */
 
@@ -20,8 +20,10 @@ const meal = (id: string, cuisine: string, protein: number, parts: Array<[string
   ...extra,
 });
 const lunch = (leftoverOf: number | null) => ({ text: leftoverOf === null ? "Salad" : "Leftovers", protein: 50, leftoverOf, shop: [] });
+/** A quick lunch from the catalog (#719), with its two backups. */
+const quick = (meal: string, backups: string[]) => ({ text: meal, protein: 0, leftoverOf: null, shop: [], meal, backups });
 
-/** Ten made-up meals and a week of seven, a fresh copy each call. */
+/** Ten made-up dinners, three quick lunches and a week of seven, a fresh copy each call. */
 export function fakeMeals(): MealsFile {
   const catalog = [
     meal("beef-bowl", "Korean", 80, [
@@ -81,12 +83,43 @@ export function fakeMeals(): MealsFile {
       ["protein", "ground-beef"],
       ["carb", "jasmine-rice"],
     ]),
+    // Three made-up quick lunches (#719).
+    meal(
+      "chicken-salad",
+      "Salad",
+      82,
+      [
+        ["protein", "chicken-breast"],
+        ["side", "romaine"],
+      ],
+      { course: "lunch", minutes: 15, steps: ["Sear the chicken breast, then slice it.", "Lay it over the plain romaine."], ingredients: [ing("Lemon", 0.5, "each")] },
+    ),
+    meal(
+      "steak-salad",
+      "Salad",
+      80,
+      [
+        ["protein", "sirloin"],
+        ["side", "snow-peas"],
+      ],
+      { course: "lunch", minutes: 15, steps: ["Sear the sirloin steak and rest it.", "Slice it over the raw snow peas."], ingredients: [] },
+    ),
+    meal(
+      "chicken-wrap",
+      "Wrap",
+      78,
+      [
+        ["protein", "chicken-thigh"],
+        ["carb", "flour-tortillas"],
+      ],
+      { course: "lunch", minutes: 20 },
+    ),
   ];
   const mains = ["beef-bowl", "chicken-plate", "sausage-pasta", "tacos", "katsu", "surf-turf", "scampi"];
   const backups: Record<string, string[]> = { "beef-bowl": ["steak-bowl"], "chicken-plate": ["kofta"], "sausage-pasta": ["scampi"] };
   return readMeals({
-    profile: { proteinGoal: 200, topUp: { text: "A shake", protein: 75, shop: [] }, avoid: [{ term: "avocado", unless: "tortilla chips" }], forTwo: ["sat"] },
+    profile: { proteinGoal: 200, topUp: { text: "A shake", protein: 75, shop: [] }, avoid: [{ term: "avocado", unless: "tortilla chips" }], forTwo: ["sat"], lunchDays: ["fri"] },
     catalog,
-    week: { start: "2026-11-09", slots: mains.map((m, i) => ({ meal: m, backups: backups[m] ?? [], lunch: lunch(i === 0 ? null : i - 1), forTwo: i === 5 })), picks: ["new-thing"] },
+    week: { start: "2026-11-09", slots: mains.map((m, i) => ({ meal: m, backups: backups[m] ?? [], lunch: i === 0 ? quick("chicken-salad", ["steak-salad", "chicken-wrap"]) : i === 4 ? quick("steak-salad", ["chicken-salad", "chicken-wrap"]) : lunch(i - 1), forTwo: i === 5 })), picks: ["new-thing"] },
   })!;
 }

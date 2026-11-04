@@ -32,6 +32,7 @@ describe("the template on every deploy (#330)", () => {
   it("refuses to drop a setting made outside the template, but not the refresh switch", () => {
     const names = templateSettings(bicep);
     expect(droppedSettings([...names, "KEYVAULT_REFRESH"], names)).toEqual([]);
+    expect(droppedSettings([...names, "CONFIG_REFRESH"], names)).toEqual([]);
     // Gemini's speech key and cap, retired by #472, go without holding the template back.
     expect(droppedSettings([...names, "GEMINI_API_KEY", "GEMINI_BUDGET_USD"], names)).toEqual([]);
     // Send to Instacart's key and environment, retired by #664, likewise.

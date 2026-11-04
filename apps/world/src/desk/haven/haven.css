@@ -888,6 +888,42 @@
 [data-room="haven"] .hv-gAlts li button {
   margin-left: auto;
 }
+[data-room="haven"] .hv-gPhoto {
+  position: relative;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+[data-room="haven"] .hv-gThumb {
+  display: block;
+  width: 40px;
+  height: 40px;
+  padding: 2px;
+  border: 1px solid var(--hv-line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: zoom-in;
+}
+[data-room="haven"] .hv-gThumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+[data-room="haven"] .hv-gBig {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(220px, 70vw);
+  height: auto;
+  padding: 6px;
+  border: 1px solid var(--hv-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
 [data-room="haven"] .hv-gTotal {
   margin-top: 12px;
   font-size: 15px;

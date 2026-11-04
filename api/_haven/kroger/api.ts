@@ -190,6 +190,37 @@ export interface Product {
   /** The sale price, when there is one below the regular price. */
   promo: number | null;
   stock: Stock | null;
+  /** The product's photo on Kroger's image host (the featured or front view), or null. */
+  image: string | null;
+}
+
+/** A photo URL only when it's https on Kroger's own image host (kroger.com or a subdomain): anything else is dropped. */
+export function krogerImage(v: unknown): string | null {
+  if (typeof v !== "string" || v.length > 300) return null;
+  let u: URL;
+  try {
+    u = new URL(v);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase();
+  if (u.protocol !== "https:" || u.port || u.username || u.password || !(host === "kroger.com" || host.endsWith(".kroger.com"))) return null;
+  return u.toString();
+}
+
+const SIZES = ["medium", "small", "large", "thumbnail", "xlarge"];
+
+/** The featured photo (else the front, else the first), at medium size or the nearest one; null without a good one. */
+export function imageOf(images: unknown): string | null {
+  const list = (Array.isArray(images) ? images : []).slice(0, 20).map(o);
+  const pick = list.find((i) => i.featured === true) ?? list.find((i) => i.perspective === "front") ?? list[0];
+  if (!pick) return null;
+  const sizes = (Array.isArray(pick.sizes) ? pick.sizes : []).slice(0, 10).map(o);
+  for (const size of SIZES) {
+    const url = krogerImage(sizes.find((s) => s.size === size)?.url);
+    if (url) return url;
+  }
+  return null;
 }
 
 const cents = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 && v < 10_000 ? Math.round(v * 100) : null);
@@ -208,7 +239,7 @@ export function readProduct(v: unknown): Product | null {
   if (regular === null) return null;
   const promo = cents(price.promo);
   const stock = STOCK[String(o(item.inventory).stockLevel ?? "")] ?? null;
-  return { productId, upc, description, brand: line(p.brand, 60), size: line(item.size, 40), price: regular, promo: promo !== null && promo < regular ? promo : null, stock };
+  return { productId, upc, description, brand: line(p.brand, 60), size: line(item.size, 40), price: regular, promo: promo !== null && promo < regular ? promo : null, stock, image: imageOf(p.images) };
 }
 
 /** The same check for a product read back from the private store. */
@@ -220,7 +251,7 @@ export function readStoredProduct(v: unknown): Product | null {
   if (!description) return null;
   const promo = typeof p.promo === "number" && Number.isInteger(p.promo) && p.promo > 0 && p.promo < price ? p.promo : null;
   const stock = p.stock === "high" || p.stock === "low" || p.stock === "out" ? p.stock : null;
-  return { productId: p.productId, upc: p.upc, description, brand: line(p.brand, 60), size: line(p.size, 40), price, promo, stock };
+  return { productId: p.productId, upc: p.upc, description, brand: line(p.brand, 60), size: line(p.size, 40), price, promo, stock, image: krogerImage(p.image) };
 }
 
 /** What one pick costs now: the sale price when there is one. */

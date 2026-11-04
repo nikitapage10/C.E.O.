@@ -9,7 +9,7 @@ import { useHide } from "./hide.ts";
 import { useSkippy } from "./skippy/chat.ts";
 
 /**
- * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the woven wordmark, then every page as a plain word
+ * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the Lattice C and the wordmark (#640), then every page as a plain word
  * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
  * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Skippy and the way into the
  * Lattice, both quiet, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
@@ -40,21 +40,46 @@ export const KEY_ORDER: Exclude<Route, "lattice">[] = [...MAIN_TABS.map((t) => t
 
 export const pathOf = (id: Exclude<Route, "lattice">) => (id === "today" ? "/" : `/${id}`);
 
-/** The woven mark: one thread looped through itself, its two ends in the Foundry's and Relay's colours. */
-export function WovenMark() {
+/**
+ * The C.E.O. mark (#640): the Lattice C. A pointy-top hexagon of silver lines and nodes, open on the right so it reads
+ * as a C, its mouth running in to one gold core. The same geometry as the icons in scripts/desk-icons.mjs (radius 20
+ * on a 48 grid); here the C itself is drawn a touch heavier than the inner lattice so it holds at header size.
+ */
+const MARK_C = "M41.32 14L24 4L6.68 14L6.68 34L24 44L41.32 34M41.32 14L24 24L41.32 34";
+const MARK_LATTICE =
+  "M24 4L24 44M6.68 14L24 24M6.68 24L24 24M6.68 34L24 24M15.34 9L32.66 19M32.66 9L15.34 19M15.34 39L32.66 29M32.66 39L15.34 29M15.34 19L15.34 29";
+const MARK_NODES: [number, number][] = [
+  [24, 4],
+  [6.68, 14],
+  [6.68, 24],
+  [6.68, 34],
+  [24, 44],
+  [41.32, 14],
+  [41.32, 34],
+  [24, 14],
+  [24, 34],
+];
+
+export function LatticeMark() {
   return (
-    <svg className="wv-mark" viewBox="0 0 30 22" aria-hidden="true">
+    <svg className="wv-mark" viewBox="3 1 42 46" aria-hidden="true">
       <defs>
-        <linearGradient id="wv-mark-g" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#e4985e" />
-          <stop offset="0.55" stopColor="#ffdcaa" />
-          <stop offset="1" stopColor="#7d9fe2" />
-        </linearGradient>
+        <radialGradient id="wv-mark-core">
+          <stop offset="0" stopColor="#e8cf9c" stopOpacity="0.85" />
+          <stop offset="0.45" stopColor="#e8cf9c" stopOpacity="0.22" />
+          <stop offset="1" stopColor="#e8cf9c" stopOpacity="0" />
+        </radialGradient>
       </defs>
-      <path className="wv-mark__under" d="M2 17C9 17 10 4 15.5 4C20.5 4 20.5 13 15 13C10 13 11.5 6 28 6" />
-      <path className="wv-mark__t" d="M2 17C9 17 10 4 15.5 4C20.5 4 20.5 13 15 13C10 13 11.5 6 28 6" stroke="url(#wv-mark-g)" />
-      <path className="wv-mark__gap" d="M12.1 9.6 13.2 7.4" />
-      <circle cx="15" cy="13" r="1.5" fill="#ffdcaa" />
+      <path className="wv-mark__lattice" d={MARK_LATTICE} />
+      <path className="wv-mark__c" d={MARK_C} />
+      <g className="wv-mark__nodes">
+        {MARK_NODES.map(([x, y]) => (
+          <circle key={`${x},${y}`} cx={x} cy={y} r="1.85" />
+        ))}
+      </g>
+      <circle className="wv-mark__halo" cx="24" cy="24" r="10" fill="url(#wv-mark-core)" />
+      <circle className="wv-mark__ring" cx="24" cy="24" r="3.9" />
+      <circle className="wv-mark__core" cx="24" cy="24" r="2.5" />
     </svg>
   );
 }
@@ -152,7 +177,7 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
   return (
     <header className="wv-nav">
       <a className="wv-logo" href="/" onClick={link("today")} aria-label="C.E.O., the Desk: Today">
-        <WovenMark />
+        <LatticeMark />
         <span>C.E.O.</span>
       </a>
       <nav className="wv-tabs desk__tabs" aria-label="Desk" ref={tabs}>

@@ -1470,12 +1470,17 @@
 
 .desk .wv-nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:26px;height:60px;padding:0 var(--wv-pad);border-bottom:1px solid var(--wv-line);background:linear-gradient(rgba(11,12,16,.9),rgba(11,12,16,.72));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .desk .wv-logo{display:flex;align-items:center;gap:10px;font-family:var(--wv-serif);font-size:21px;line-height:1;letter-spacing:.02em;color:var(--wv-ink);white-space:nowrap}
-.desk .wv-mark{width:30px;height:22px;flex:none;overflow:visible}
-.desk .wv-mark path{fill:none;stroke-width:1.6;stroke-linecap:round}
-.desk .wv-mark__under{stroke:#0b0c10;stroke-width:4.2!important}
-.desk .wv-mark__gap{stroke:#0b0c10;stroke-width:3.4!important}
-.desk .wv-logo:hover .wv-mark__t{stroke-dasharray:60;animation:wv-mark-run 1.2s var(--wv-ease)}
-@keyframes wv-mark-run{from{stroke-dashoffset:60}}
+.desk .wv-mark{width:28px;height:31px;flex:none;overflow:visible}
+.desk .wv-mark path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.desk .wv-mark__lattice{stroke:#c9cfd8;stroke-width:1.05;opacity:.5;transition:opacity .4s var(--wv-ease)}
+.desk .wv-mark__c{stroke:#d6dbe3;stroke-width:1.7}
+.desk .wv-mark__nodes{fill:#0b0c10;stroke:#aab1bc;stroke-width:1.15}
+.desk .wv-mark__halo{transform-origin:24px 24px;transition:transform .5s var(--wv-ease),opacity .5s var(--wv-ease);opacity:.8}
+.desk .wv-mark__ring{fill:#0b0c10;stroke:#e8cf9c;stroke-width:1.5}
+.desk .wv-mark__core{fill:#e8cf9c}
+.desk .wv-logo:hover .wv-mark__lattice,.desk .wv-logo:focus-visible .wv-mark__lattice{opacity:.85}
+.desk .wv-logo:hover .wv-mark__halo,.desk .wv-logo:focus-visible .wv-mark__halo{transform:scale(1.35);opacity:1}
+@media (prefers-reduced-motion:reduce){.desk .wv-mark__lattice,.desk .wv-mark__halo{transition:none}}
 .desk .wv-tabs{display:flex;gap:0;height:100%;align-items:stretch;min-width:0;overflow-x:auto;scrollbar-width:none}
 .desk .wv-tabs::-webkit-scrollbar{display:none}
 .desk .wv-tab{position:relative;display:flex;flex:none;align-items:center;gap:7px;padding:0 10px;background:none;border:0;color:var(--wv-mute);font-size:14px;cursor:pointer;transition:color .3s;white-space:nowrap}

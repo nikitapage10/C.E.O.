@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionOf, actionWord, costumeState, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD } from "./controls.ts";
+import { actionOf, actionWord, costumeState, houseRows, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD } from "./controls.ts";
 
 const at = (s: string) => Date.parse(s);
 
@@ -75,5 +75,24 @@ describe("Controls: the connections", () => {
     expect(actionWord(actionOf("polymarket"), "ok")).toBeNull();
     expect(pipeOf("world")).toBe("boiler");
     expect(pipeOf("relay")).toBe("relay");
+  });
+});
+
+describe("the house's connections (#672)", () => {
+  it("lists Petlibro and Whisker beside Roborock and Nest, from their real states", () => {
+    const rows = houseRows({ roborock: "live", petlibro: "down", whisker: "live", nest: "waiting" }, { tasks: "live", kroger: "waiting" }, { petlibro: "signed-out" });
+    expect(rows.map((r) => [r.id, r.state, r.word])).toEqual([
+      ["roborock", "ok", undefined],
+      ["petlibro", "down", "Down · signed out"],
+      ["whisker", "ok", undefined],
+      ["nest", "off", undefined],
+      ["tasks", "ok", undefined],
+      ["kroger", "off", undefined],
+    ]);
+    expect(rows.every((r) => r.room === "boiler")).toBe(true);
+  });
+
+  it("waits on every row before the first answer", () => {
+    expect(houseRows(null, null).every((r) => r.state === "off" && !r.word)).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { googleAction, loadGoogle, useHome, type HavenGoogle } from "../homeDevices.ts";
+import { googleAction, loadGoogle, problemSay, useHome, VENDOR_NAME, type HavenGoogle } from "../homeDevices.ts";
 import { Private } from "../Private.tsx";
 import { CONNECT_NOTE, groceryAction, GROCERY_NOTE, isKrogerSignIn, loadGroceries, type GAction, type Groceries } from "../haven/groceries.ts";
 
@@ -8,6 +8,8 @@ import { CONNECT_NOTE, groceryAction, GROCERY_NOTE, isKrogerSignIn, loadGrocerie
  * belongs in the Boiler Room, not on Today): Connect Nest, Connect Google Tasks, the Tasks list it reads and Check
  * now, and Connect Roborock. Moved from Today's Home chip, which keeps the readings and the device buttons. Since #664
  * also King Soopers: the ZIP, the home store and Connect King Soopers; the picks and the send are on the Haven Kitchen.
+ * Petlibro and Whisker sign in from Key Vault secrets (no connect button), so they show their real state and why one
+ * is down (#672).
  */
 
 /** What Google sent back after a connect (`/?haven=nest-connected`, api/_haven/google/route.ts), in words. */
@@ -250,4 +252,32 @@ export function RoborockSetup() {
   const load = useHome((s) => s.load);
   if (!view) return <p className="hd-note">Roborock: {load === "off" ? "the home devices route runs on the Azure copy." : "reading the home devices…"}</p>;
   return <ConnectRoborock connected={view.roborockConnected} />;
+}
+
+/**
+ * Petlibro and Whisker (#672): no connect flow (their email and digest are Key Vault secrets, set by the setup paste
+ * in docs/HOME-DEVICES.md), so each shows its real state, how many devices it reads, and, when it is down, why.
+ */
+export function PetSetup() {
+  const view = useHome((s) => s.view);
+  const load = useHome((s) => s.load);
+  if (!view) return <p className="hd-note">Petlibro and Whisker: {load === "off" ? "the home devices route runs on the Azure copy." : "reading the home devices…"}</p>;
+  return (
+    <div className="hd-connect">
+      {(["petlibro", "whisker"] as const).map((v) => {
+        const st = view.vendors[v];
+        const n = view.devices.filter((d) => d.vendor === v).length;
+        return (
+          <p key={v}>
+            <b>{VENDOR_NAME[v]}</b>{" "}
+            {st === "live"
+              ? `is live, reading ${n} ${n === 1 ? "device" : "devices"}.`
+              : st === "down"
+                ? `is down. ${problemSay(v, view.problems[v])}`
+                : "is waiting for its email and digest in the Key Vault (the setup paste, docs/HOME-DEVICES.md)."}
+          </p>
+        );
+      })}
+    </div>
+  );
 }

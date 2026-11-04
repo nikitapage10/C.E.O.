@@ -148,7 +148,18 @@ export interface DeviceClient<R = unknown> {
   actions: readonly ActionId[];
   /** Runs one action on one of its devices. The rails (api/_haven/devices/rails.ts) have already said yes. */
   run(action: ActionId, found: Found<R>, args: RunArgs): Promise<RunResult>;
+  /** Why its last read failed, when it can tell (#672): shown to a signed-in Desk only, never the vendor's own words. */
+  problem?(): VendorProblem | null;
 }
+
+/**
+ * Why a vendor reads "down" (#672), in fixed words only: no such account at the vendor, the sign-in refused (the
+ * password changed, or the account signs in with Apple or Google and has no password), signed out by another
+ * sign-in on the same account (Petlibro keeps one session, so the phone app signing in ends ours), the vendor's
+ * cloud unreachable, or any other refusal. Passkey views only; the public face keeps the state alone.
+ */
+export const VENDOR_PROBLEMS = ["no-account", "refused", "signed-out", "unreachable", "vendor"] as const;
+export type VendorProblem = (typeof VENDOR_PROBLEMS)[number];
 
 /**
  * Where each device stands (Nikita, 2026-11-04): private metadata, shown only to a signed-in Desk and used for the

@@ -12,7 +12,7 @@ import { claimSignature, clientSecret, cognitoTimestamp, G, hkdf, K, modPow, N, 
 import { Home, type HomeDeps } from "./home.ts";
 import type { Fetch } from "./http.ts";
 import { connectPacket, publishPacket, readPackets, readPublish } from "./mqtt.ts";
-import { PetlibroClient, petlibroKind } from "./petlibro.ts";
+import { LOGIN_HOLD_MS, PetlibroClient, petlibroKind } from "./petlibro.ts";
 import { FeedLedger, feedCap, litterBlock, mountainDay } from "./rails.ts";
 import { crc32, decodeMessage, encodeMessage, hawk, loginWithCode, mqttParams, requestPayload, responseResult, RoborockClient, scrambledTs, sendCode, vacuumReading, type RoborockLogin } from "./roborock.ts";
 import { matchRooms, namedRooms, roomKey, segmentPairs } from "./rooms.ts";
@@ -451,6 +451,70 @@ describe("the Petlibro feeders and fountain", () => {
     expect(await c.run("wet.open", found[1]!)).toEqual({ ok: true });
     expect(JSON.parse(String(f.calls.at(-1)!.init.body))).toEqual({ deviceSn: "PLAF7TESTWET01", plate: 2 });
     expect(await c.run("feeder.feed", found[2]!)).toEqual({ ok: false, code: "unsupported" });
+  });
+
+  it("says why it is down: no such account, then holds off signing in again (#672)", async () => {
+    const vault = new HomeVault(memoryBlob(), SEAL);
+    let logins = 0;
+    const f = fakeFetch([[/member\/auth\/login$/, () => (logins++, { code: 1101, msg: "MEMBER_NOT_EXIST", data: null })]]);
+    let now = NOW;
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => now });
+    const { home, lines } = homeWith([c]);
+    const view = await home.status(true);
+    expect(view.vendors.petlibro).toBe("down");
+    expect(view.problems).toEqual({ petlibro: "no-account" });
+    expect(lines).toEqual(["home: petlibro status failed (no-account)"]);
+    expect(Home.publicOf(view)).not.toHaveProperty("problems");
+    // The same email won't work a minute later: no second sign-in until the hold runs out.
+    now += 60_000;
+    expect((await home.status(true)).problems.petlibro).toBe("no-account");
+    expect(logins).toBe(1);
+    now += LOGIN_HOLD_MS;
+    await home.status(true);
+    expect(logins).toBe(2);
+  });
+
+  it("a refused digest reads as refused", async () => {
+    const vault = new HomeVault(memoryBlob(), SEAL);
+    const c = new PetlibroClient({ fetch: petlibroFetch(), vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: "0".repeat(32), now: () => NOW });
+    await expect(c.status()).rejects.toThrow();
+    expect(c.problem()).toBe("refused");
+  });
+
+  it("takes a newer token another instance stored before signing in itself", async () => {
+    const vault = new HomeVault(memoryBlob(), SEAL);
+    await vault.write("petlibro", { token: "stale" });
+    let logins = 0;
+    const f = fakeFetch([
+      [/member\/auth\/login$/, () => (logins++, { code: 0, data: { token: "mine" } })],
+      [/device\/device\/list$/, (_u, init) => {
+        const t = (init.headers as Record<string, string>).token;
+        if (t === "stale") {
+          // Another instance signs in meanwhile and stores its token.
+          void vault.write("petlibro", { token: "theirs" });
+          return { code: 1009, msg: "NOT_YET_LOGIN" };
+        }
+        return t === "theirs" ? { code: 0, data: [] } : { code: 1009 };
+      }],
+    ]);
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await c.status()).toEqual([]);
+    expect(logins).toBe(0);
+    expect(c.problem()).toBeNull();
+  });
+
+  it("reads as signed out when a fresh sign-in is taken back at once (the phone app)", async () => {
+    const vault = new HomeVault(memoryBlob(), SEAL);
+    let logins = 0;
+    const f = fakeFetch([
+      [/member\/auth\/login$/, () => (logins++, { code: 0, data: { token: `t${logins}` } })],
+      [/device\/device\/list$/, () => ({ code: 1009, msg: "NOT_YET_LOGIN" })],
+    ]);
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW });
+    await expect(c.status()).rejects.toThrow();
+    expect(c.problem()).toBe("signed-out");
+    expect(logins).toBe(2);
   });
 });
 

@@ -195,3 +195,58 @@ for (const [label, size] of [
     await expect(sheet.getByText("3 × 45 s")).toBeVisible();
   });
 }
+
+test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and total, and sends exactly the shown picks", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  const posts: Record<string, unknown>[] = [];
+  const product = (productId: string, description: string, price: number, promo: number | null = null) => ({ productId, upc: productId, description, brand: "Test", size: "1 ct", price, promo, stock: "high" });
+  const view = {
+    ready: true,
+    state: "live",
+    connected: true,
+    refused: false,
+    zip: "12345",
+    found: [],
+    store: { id: "62000001", name: "King Soopers - Test Town", line: "1 Test Ave", city: "Testville", state: "CO", zip: "12345" },
+    lines: [
+      { id: "k0", name: "Lemons", key: "lemon", pick: { product: product("0001111000004", "Organic Lemons", 119), alts: [product("0001111000005", "Meyer Lemons", 199)], chosen: false, skip: false, at: new Date().toISOString() } },
+      { id: "k1", name: "Garlic", key: "garlic", pick: { product: product("0001111000006", "Garlic Bulb", 59, 49), alts: [], chosen: false, skip: false, at: new Date().toISOString() } },
+      { id: "k2", name: "Oat milk", key: "oat milk", pick: null },
+    ],
+    total: 168,
+    count: 2,
+    sent: null,
+  };
+  await page.route(/\/api\/haven\/kroger(\?.*)?$/, (r) => {
+    if (r.request().method() === "POST") {
+      const body = r.request().postDataJSON() as Record<string, unknown>;
+      posts.push(body);
+      return r.fulfill({ json: body.action === "send" ? { ok: true, items: 2, url: "https://www.kingsoopers.com/cart", ...view } : { ok: true, ...view } });
+    }
+    return r.fulfill({ json: view });
+  });
+  await page.addInitScript(() => {
+    window.open = () => null;
+  });
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("King Soopers - Test Town · 1 Test Ave, Testville")).toBeVisible();
+  await expect(sheet.getByText("Organic Lemons · 1 ct")).toBeVisible();
+  await expect(sheet.locator(".hv-gTotal")).toContainText("$1.68");
+  await expect(sheet.getByRole("button", { name: "Match 1 item at this store" })).toBeVisible();
+  await expect(page).toHaveURL(`${BASE}/haven`);
+  if (SHOTS) await sheet.screenshot({ path: `${SHOTS}/haven-664-groceries.png` });
+  await sheet.getByRole("button", { name: "Send 2 to King Soopers" }).click();
+  await expect(sheet.getByText("Added 2 to your King Soopers cart.", { exact: false })).toBeVisible();
+  await expect(sheet.getByRole("link", { name: "Open the cart" })).toHaveAttribute("href", "https://www.kingsoopers.com/cart");
+  expect(posts).toEqual([
+    {
+      action: "send",
+      picks: [
+        { key: "lemon", productId: "0001111000004" },
+        { key: "garlic", productId: "0001111000006" },
+      ],
+    },
+  ]);
+});

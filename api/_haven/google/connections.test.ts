@@ -8,10 +8,7 @@ import type { Fetch } from "../devices/http.ts";
 import { THERMO_MAX_F, THERMO_MIN_F, thermostatPlan } from "../devices/rails.ts";
 import type { DeviceReading } from "../devices/types.ts";
 import { HomeVault, homeKey, vaultPath } from "../devices/vault.ts";
-import { havenPost, type HavenDeps } from "../route.ts";
-import { IDP_BASE, instacartFrom, linkBody, sendToInstacart } from "../instacart.ts";
 import { KitchenList } from "../list.ts";
-import { PhoneTodos } from "../todos.ts";
 import { commandFor, cToF, fToC, NestClient, readThermostat } from "./nest.ts";
 import { authUrl, exchangeCode, forgetTokens, havenClientFrom, nestProjectFrom, SDM_SCOPE, TASKS_SCOPE, type HavenClient } from "./oauth.ts";
 import { checkState, googleCallback, googleGet, googlePost, makeState, STATE_COOKIE, type GoogleRouteDeps } from "./route.ts";
@@ -19,8 +16,7 @@ import { readTasksState, setTasksList, syncTasks } from "./tasks.ts";
 
 /**
  * The Haven's connections (#637): the Nest thermostat through Google's SDM API and its rails, Connect Nest and Connect
- * Google Tasks (the OAuth state, the scope allowlist, the sealed grants), the Tasks quick-add onto the Kitchen list,
- * and Send to Instacart. Every vendor is mocked; every id, token and key here is made up.
+ * Google Tasks (the OAuth state, the scope allowlist, the sealed grants), the Tasks quick-add onto the Kitchen list. Every vendor is mocked; every id, token and key here is made up.
  */
 
 const NOW = Date.parse("2026-11-04T18:00:00Z");
@@ -32,7 +28,7 @@ const ID_KEY = homeKey(HOME_KEY, "id")!;
 const PROJECT = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0";
 const CLIENT: HavenClient = { clientId: "test-client.apps.googleusercontent.com", clientSecret: "test-client-secret", redirectUri: "https://thankful-forest-019308c1e.5.azurestaticapps.net/api/haven/google-callback" };
 const DEVICE = `enterprises/${PROJECT}/devices/AVPHwEtestDEVICEid0001`;
-const SECRETS = ["test-refresh-nest", "test-refresh-tasks", "test-access", "test-client-secret", "AVPHwEtestDEVICEid0001", "keys.testinstacartkey0000"];
+const SECRETS = ["test-refresh-nest", "test-refresh-tasks", "test-access", "test-client-secret", "AVPHwEtestDEVICEid0001"];
 
 function memoryBlob(): BlobBackend & { files: Map<string, Uint8Array> } {
   const files = new Map<string, Uint8Array>();
@@ -201,7 +197,7 @@ async function googleSetup(over: Partial<GoogleRouteDeps> = {}) {
   const vault = new HomeVault(blob, SEAL);
   const lines: string[] = [];
   const cookie = await signedInCookie(DESK, NOW, store);
-  const deps: GoogleRouteDeps = { desk: { deskKey: DESK, store, now: NOW }, blob, vault, client: CLIENT, project: PROJECT, instacart: null, fetch: fakeFetch([]), now: NOW, log: (l) => lines.push(l), ...over };
+  const deps: GoogleRouteDeps = { desk: { deskKey: DESK, store, now: NOW }, blob, vault, client: CLIENT, project: PROJECT, fetch: fakeFetch([]), now: NOW, log: (l) => lines.push(l), ...over };
   return { deps, blob, vault, cookie, lines, store };
 }
 
@@ -275,7 +271,7 @@ describe("Connect Nest and Connect Google Tasks (#637)", () => {
     expect((await googleGet(get("/api/haven/google"), deps)).status).toBe(401);
     await setTasksList(blob, "Groceries for Nikita");
     const pub = await (await googleGet(get("/api/haven/google?view=status"), deps)).text();
-    expect(JSON.parse(pub)).toEqual({ ready: true, nest: "waiting", tasks: "waiting", instacart: "waiting" });
+    expect(JSON.parse(pub)).toEqual({ ready: true, nest: "waiting", tasks: "waiting" });
     expect(pub).not.toContain("Groceries");
     const priv = (await (await googleGet(get("/api/haven/google", { Cookie: cookie }), deps)).json()) as { tasks: { list: string } };
     expect(priv.tasks.list).toBe("Groceries for Nikita");
@@ -342,60 +338,5 @@ describe("Google Tasks quick-add (#637)", () => {
     expect((await syncTasks(deps(refuse))).result).toBe("refused");
     expect(await vault.read("google-tasks")).toMatchObject({ refused: true });
     expect(lines.join("\n")).not.toContain("eggs");
-  });
-});
-
-/* ── Send to Instacart ── */
-
-describe("Send to Instacart (#637)", () => {
-  it("reads the key and environment, development by default", () => {
-    expect(instacartFrom({})).toBeNull();
-    expect(instacartFrom({ INSTACART_API_KEY: "keys.testinstacartkey0000" })).toEqual({ key: "keys.testinstacartkey0000", env: "development" });
-    expect(instacartFrom({ INSTACART_API_KEY: "keys.x", INSTACART_ENV: "production" })?.env).toBe("production");
-    const body = linkBody(["oat milk", "Lemons"], NOW, "https://ceo.nikita.page");
-    expect(body).toMatchObject({ link_type: "shopping_list", line_items: [{ name: "oat milk", display_text: "oat milk" }, { name: "Lemons", display_text: "Lemons" }] });
-  });
-
-  it("makes a shopping list page from the open items, on the development host", async () => {
-    const blob = memoryBlob();
-    await new KitchenList(blob).add(["oat milk", "lemons"], NOW);
-    const f = fakeFetch([[/POST https:\/\/connect\.dev\.instacart\.tools\/idp\/v1\/products\/products_link$/, () => ({ products_link_url: "https://customers.dev.instacart.tools/store/shopping_lists/123" })]]);
-    const lines: string[] = [];
-    const got = await sendToInstacart({ fetch: f, config: { key: "keys.testinstacartkey0000", env: "development" }, blob, now: NOW, env: {}, log: (l) => lines.push(l) }, await new KitchenList(blob).items(NOW));
-    expect(got).toEqual({ ok: true, url: "https://customers.dev.instacart.tools/store/shopping_lists/123", items: 2 });
-    expect(f.calls[0]!.url.startsWith(IDP_BASE.development)).toBe(true);
-    expect((f.calls[0]!.init.headers as Record<string, string>).Authorization).toBe("Bearer keys.testinstacartkey0000");
-    expect(lines).toEqual(["instacart: list made (2 items)"]);
-    for (const s of SECRETS) expect(allText(blob)).not.toContain(s);
-  });
-
-  it("refuses a link that isn't Instacart's, and needs a key, items and a passkey session", async () => {
-    const blob = memoryBlob();
-    await new KitchenList(blob).add(["eggs"], NOW);
-    const evil = fakeFetch([[/products_link$/, () => ({ products_link_url: "https://evil.example/phish" })]]);
-    expect(await sendToInstacart({ fetch: evil, config: { key: "k", env: "development" }, blob, now: NOW, env: {}, log: () => undefined }, await new KitchenList(blob).items(NOW))).toEqual({ ok: false, error: "vendor" });
-
-    const store = new MemoryAuthStore();
-    const cookie = await signedInCookie(DESK, NOW, store);
-    const deps: HavenDeps = {
-      desk: { deskKey: DESK, store, now: NOW },
-      blob,
-      pepper: async () => Buffer.alloc(32, 7),
-      todos: (b) => new PhoneTodos(b),
-      skippy: async () => ({ reply: "", handedOff: false }),
-      voice: null,
-      log: () => undefined,
-      random: () => 0,
-      instacart: null,
-    };
-    const req = (headers: Record<string, string> = {}) => new Request(`${ORIGIN}/api/haven`, { method: "POST", headers: { "Content-Type": "application/json", Origin: ORIGIN, ...headers }, body: JSON.stringify({ action: "instacart" }) });
-    expect((await havenPost(req(), deps)).status).toBe(401);
-    expect((await havenPost(req({ Cookie: cookie }), deps)).status).toBe(503);
-    const ok = fakeFetch([[/products_link$/, () => ({ products_link_url: "https://customers.dev.instacart.tools/store/shopping_lists/9" })]]);
-    const res = await havenPost(req({ Cookie: cookie }), { ...deps, instacart: { key: "k", env: "development" }, fetch: ok });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, items: 1 });
-    await new KitchenList(blob).tick((await new KitchenList(blob).items(NOW))[0]!.id, true, NOW);
-    expect((await havenPost(req({ Cookie: cookie }), { ...deps, instacart: { key: "k", env: "development" }, fetch: ok })).status).toBe(409);
   });
 });

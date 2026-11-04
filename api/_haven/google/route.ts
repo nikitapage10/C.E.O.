@@ -2,10 +2,10 @@
  * The Haven's connections (#637, docs/HOME-DEVICES.md): Connect Nest, Connect Google Tasks, the Tasks list choice,
  * and every Haven connection's state. Azure only: azure/src/index.ts registers these behind the site gate.
  *
- *   GET  /api/haven/google?view=status   public: { ready, nest, tasks, instacart }, each "waiting", "live" or "down".
+ *   GET  /api/haven/google?view=status   public: { ready, nest, tasks }, each "waiting", "live" or "down".
  *                                        States only, never a list's title, an item or a link.
- *   GET  /api/haven/google               passkey session: what is set up and connected, the Tasks list's title and its
- *                                        last run's counts, and Instacart's last send (time, item count, ok).
+ *   GET  /api/haven/google               passkey session: what is set up and connected, and the Tasks list's title and
+ *                                        its last run's counts.
  *   POST /api/haven/google               passkey session only (a phone key or bearer is refused):
  *          { action: "connect", grant: "nest" | "tasks" }   → { url }: Google's page, and a short state cookie
  *          { action: "disconnect", grant }                   forgets that grant (and asks Google to revoke it)
@@ -29,7 +29,6 @@ import type { Fetch } from "../devices/http.js";
 import type { VendorState } from "../devices/home.js";
 import type { HomeVault } from "../devices/vault.js";
 import { PHONE_KEY_HEADER } from "../links.js";
-import { readInstacart, type InstacartConfig } from "../instacart.js";
 import { SDM_API } from "./nest.js";
 import { accessToken, authUrl, exchangeCode, forgetTokens, isGrant, redirectFor, revoke, type Grant, type HavenClient, type StoredGrant } from "./oauth.js";
 import { listTitle, readTasksState, setTasksList, syncTasks, type TasksResult } from "./tasks.js";
@@ -44,7 +43,6 @@ export interface GoogleRouteDeps {
   vault: HomeVault | null;
   client: HavenClient | null;
   project: string | null;
-  instacart: InstacartConfig | null;
   fetch: Fetch;
   now: number;
   log: (line: string) => void;
@@ -87,22 +85,16 @@ async function grantOf(deps: GoogleRouteDeps, g: Grant): Promise<StoredGrant | n
   return deps.vault ? await deps.vault.read<StoredGrant>(vaultName(g)).catch(() => null) : null;
 }
 
-/** Every Haven connection's state: waiting until set up and connected, down when Google refused or a run failed. */
-export async function havenLinks(deps: Pick<GoogleRouteDeps, "blob" | "vault" | "client" | "project" | "instacart">): Promise<{ nest: VendorState; tasks: VendorState; instacart: VendorState }> {
+/** The Google connections' states: waiting until set up and connected, down when Google refused or a run failed. */
+export async function havenLinks(deps: Pick<GoogleRouteDeps, "blob" | "vault" | "client" | "project">): Promise<{ nest: VendorState; tasks: VendorState }> {
   const read = (g: Grant) => (deps.vault ? deps.vault.read<StoredGrant>(vaultName(g)).catch(() => null) : Promise.resolve(null));
-  const [nest, tasks, tasksState, ic] = await Promise.all([
-    read("nest"),
-    read("tasks"),
-    deps.blob ? readTasksState(deps.blob).catch(() => null) : null,
-    deps.blob ? readInstacart(deps.blob).catch(() => null) : null,
-  ]);
+  const [nest, tasks, tasksState] = await Promise.all([read("nest"), read("tasks"), deps.blob ? readTasksState(deps.blob).catch(() => null) : null]);
   const grantState = (g: StoredGrant | null, ready: boolean): VendorState => (!ready || !g ? "waiting" : g.refused ? "down" : "live");
   const down: TasksResult[] = ["refused", "failed"];
   const t = grantState(tasks, Boolean(deps.client));
   return {
     nest: grantState(nest, Boolean(deps.client && deps.project)),
     tasks: t === "live" && tasksState?.lastResult && down.includes(tasksState.lastResult) ? "down" : t,
-    instacart: !deps.instacart ? "waiting" : ic?.lastOk === false ? "down" : "live",
   };
 }
 
@@ -116,14 +108,12 @@ export async function googleGet(request: Request, deps: GoogleRouteDeps): Promis
   const reply = (body: unknown, status = 200) => withCookie(json(body, status), signed);
   const [nest, tasks, links] = await Promise.all([grantOf(deps, "nest"), grantOf(deps, "tasks"), havenLinks(deps)]);
   const tasksState = deps.blob ? await readTasksState(deps.blob).catch(() => null) : null;
-  const ic = deps.blob ? await readInstacart(deps.blob).catch(() => null) : null;
   return reply({
     ready: Boolean(deps.blob && deps.vault),
     links,
     google: Boolean(deps.client),
     nest: { project: Boolean(deps.project), connected: Boolean(nest && !nest.refused), refused: Boolean(nest?.refused) },
     tasks: { connected: Boolean(tasks && !tasks.refused), refused: Boolean(tasks?.refused), ...(tasksState ?? {}) },
-    instacart: { ready: Boolean(deps.instacart), env: deps.instacart?.env ?? null, ...(ic ?? {}) },
   });
 }
 

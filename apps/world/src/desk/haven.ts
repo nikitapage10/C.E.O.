@@ -69,20 +69,6 @@ export const undoRemoveItem = (id: string, f: typeof fetch = fetch) => post<{ ok
 export const addPhone = (label: string, f: typeof fetch = fetch) => post<{ phone: PhoneRow; key: string }>({ action: "add-phone", label }, f);
 export const revokePhone = (id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "revoke-phone", id }, f);
 export const makeGreetings = (f: typeof fetch = fetch) => post<{ clips: number }>({ action: "make-greetings" }, f);
-/** Send to Instacart (#637): the open items as an Instacart shopping list page; its link comes back. */
-export const sendInstacart = (f: typeof fetch = fetch) => post<{ url: string; items: number }>({ action: "instacart" }, f);
-
-/** What the Kitchen list says when Send to Instacart didn't work. */
-export const INSTACART_NOTE: Record<string, string> = {
-  "not-set-up": "Instacart isn't connected yet: its key goes in the Key Vault (docs/HOME-DEVICES.md).",
-  empty: "Nothing on the list to send.",
-  vendor: "Instacart didn't make the list. Try again in a bit.",
-  failed: "That didn't go through. Try again.",
-};
-
-/** Only a link on Instacart's own hosts is opened. */
-export const isInstacartLink = (url: unknown): url is string => typeof url === "string" && /^https:\/\/([a-z0-9-]+\.)*instacart\.(com|tools)\//i.test(url);
-
 /** What the Desk says when adding a phone didn't work. */
 export const ADD_NOTE: Record<string, string> = {
   "too-many": "Five phones already hold a key. Revoke one first.",

@@ -20,7 +20,7 @@ export default defineRoom({
   },
   keys: [],
   usesClaude: false,
-  threat: ["TB1", "TB10"],
+  threat: ["TB1", "TB10", "TB11"],
   budgetKb: 120,
   tools: [...TOOLS],
   purpose: {
@@ -29,6 +29,7 @@ export default defineRoom({
       { name: "Roborock", use: "the vacuum: state, alerts, clean by room" },
       { name: "Petlibro", use: "the feeders and the fountain" },
       { name: "Whisker", use: "the Litter-Robot" },
+      { name: "Kroger", use: "the Kitchen list matched at King Soopers and sent to the cart on a tap" },
     ],
     measure: "devices live, rooms lit, and Kitchen list items open",
   },

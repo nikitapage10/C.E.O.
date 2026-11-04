@@ -5,8 +5,8 @@
  *   GET  /api/haven/devices               a passkey session or a phone key: every device's reading, each vendor's
  *                                         state and the feed cap.
  *   GET  /api/haven/devices?view=status   the public face: each vendor's state, and each device's kind and state,
- *                                         and `links`: the Haven's other connections' states (Google Tasks,
- *                                         Instacart; #637). Never a name, a model, a place, a room or a serial.
+ *                                         and `links`: the Haven's other connections' states (Google Tasks, #637;
+ *                                         King Soopers, #664). Never a name, a model, a place, a room or a serial.
  *   POST /api/haven/devices/action        { action, device?, rooms?, tempF?, heatF?, coolF?, mode?, portions?, plate?, suction?, water? }, a passkey
  *                                         session or a phone key (the thermostat's fields: #637): runs one
  *                                         action through the rails (api/_haven/devices/rails.ts) and answers
@@ -51,7 +51,7 @@ export interface DevicesDeps {
   fetch: Fetch;
   log: (line: string) => void;
   /** The Haven's other connections' states (#637, api/_haven/google/route.ts): Systems reads them here. */
-  links?: () => Promise<{ tasks: VendorState; instacart: VendorState }>;
+  links?: () => Promise<{ tasks: VendorState; kroger: VendorState }>;
 }
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -100,7 +100,7 @@ export async function devicesGet(request: Request, deps: DevicesDeps): Promise<R
   const home = deps.home();
   const links = async () => {
     const l = deps.links ? await deps.links().catch(() => null) : null;
-    return { tasks: l?.tasks ?? "waiting", instacart: l?.instacart ?? "waiting" };
+    return { tasks: l?.tasks ?? "waiting", kroger: l?.kroger ?? "waiting" };
   };
   if (view === "status") {
     if (!home) return json({ ready: false, vendors: { roborock: "waiting", petlibro: "waiting", whisker: "waiting", nest: "waiting" }, devices: [], links: await links() });

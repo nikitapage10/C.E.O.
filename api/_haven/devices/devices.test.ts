@@ -624,7 +624,7 @@ describe("the devices API", () => {
     const { deps } = await routeDeps();
     const res = await devicesGet(get("/api/haven/devices?view=status"), deps);
     const body = await res.text();
-    expect(JSON.parse(body)).toEqual({ ready: true, links: { tasks: "waiting", instacart: "waiting" }, vendors: { roborock: "waiting", petlibro: "live", whisker: "waiting", nest: "waiting" }, devices: [{ kind: "dry-feeder", state: "idle", online: true }, { kind: "wet-feeder", state: "closed", online: true }, { kind: "fountain", state: "running", online: true }] });
+    expect(JSON.parse(body)).toEqual({ ready: true, links: { tasks: "waiting", kroger: "waiting" }, vendors: { roborock: "waiting", petlibro: "live", whisker: "waiting", nest: "waiting" }, devices: [{ kind: "dry-feeder", state: "idle", online: true }, { kind: "wet-feeder", state: "closed", online: true }, { kind: "fountain", state: "running", online: true }] });
     for (const leak of ["Granary", "Kitchen", "model", "place", '"id"', ...SERIALS]) expect(body).not.toContain(leak);
   });
 

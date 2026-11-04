@@ -304,21 +304,23 @@ Litter-Robot 5 Pro (Whisker) straight from their clouds ([HOME-DEVICES.md](HOME-
 
 ## The Haven's connections
 
-Since #637 the Function App also reaches Nikita's Google Nest thermostat, a Google Tasks list and the Instacart
-Developer Platform ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest, Google Tasks and Instacart"; TB11 in [THREAT-MODEL.md](THREAT-MODEL.md)). Azure
-only (`api/_haven/google/`, `api/_haven/instacart.ts`).
+Since #637 the Function App also reaches Nikita's Google Nest thermostat and a Google Tasks list, and since #664
+Kroger's public API for King Soopers ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest, Google Tasks and King Soopers"; TB11 in
+[THREAT-MODEL.md](THREAT-MODEL.md)). Azure only (`api/_haven/google/`, `api/_haven/kroger/`).
 
 - **Keys.** The Google OAuth client (`haven-google-client-id`, `haven-google-client-secret`), the Device Access
-  project id (`haven-nest-project-id`) and the Instacart key (`haven-instacart-key`) are Key Vault secrets set from
-  Cloud Shell, never settable from the Desk's Keys form (`haven-` is on `NEVER_SETTABLE`).
-- **Grants.** Connect Nest and Connect Google Tasks run only in a passkey session (a phone key or bearer is refused)
+  project id (`haven-nest-project-id`) and the Kroger app (`kroger-client-id`, `kroger-client-secret`) are Key Vault
+  secrets set from Cloud Shell, never settable from the Desk's Keys form (`haven-` and `kroger-` are on `NEVER_SETTABLE`).
+- **Grants.** Connect Nest, Connect Google Tasks and Connect King Soopers (cart scope only) run only in a passkey session (a phone key or bearer is refused)
   with Connect Gmail's state check; each grant is kept only for exactly its own scope (`sdm.service`, `tasks`), and
-  both refresh tokens are sealed with `HOME_TOKEN_KEY` in the private store. Disconnect revokes and forgets one.
+  every refresh token is sealed with `HOME_TOKEN_KEY` in the private store. Disconnect forgets one (and asks Google to
+  revoke its own).
 - **Rails.** The thermostat takes set points only from 60 to 80 °F, only its own modes, nothing while off or in eco,
   checked on the server before Google is called; every change is logged to the Council.
 - **Privacy.** The public status gives each connection's state only. Task titles and Kitchen items are data, kept
-  only in the private store; Instacart gets only the open items' names, on Nikita's tap. Logs carry counts and
-  results only.
+  only in the private store; so are King Soopers' ZIP, store, picks and prices, read only by a passkey session. Kroger
+  gets the open items' names as search terms and, on Nikita's tap, the confirmed picks for his cart; nothing is bought
+  from the Desk (checkout stays in the King Soopers app). Logs carry counts and results only.
 
 ## Setup asks
 

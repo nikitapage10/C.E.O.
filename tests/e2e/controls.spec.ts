@@ -8,7 +8,7 @@ import { startDistServer } from "./dist-server.ts";
 /**
  * Boiler Room > Controls (#647) on the built site, with the APIs stubbed in the browser: signed out the meters show
  * states only (no money), and signed in the house's Google connections (Connect Nest, Connect Google Tasks) are there
- * on their own, with no home device set up. The figures here are made up.
+ * on their own, with no home device set up, and so is King Soopers' setup (#664). The figures here are made up.
  */
 
 const PORT = Number(process.env.E2E_CONTROLS_PORT ?? 5191);
@@ -46,7 +46,7 @@ async function stub(page: Page, signedIn: boolean) {
       posts.push(r.request().postDataJSON() as Record<string, unknown>);
       return r.fulfill({ json: { ok: true } });
     }
-    return r.fulfill({ json: { google: true, nest: { project: true, connected: false, refused: false }, tasks: { connected: false, refused: false, list: "Shopping", lastRun: null, lastResult: null, lastImported: 0 }, instacart: { ready: false, env: null } } });
+    return r.fulfill({ json: { google: true, nest: { project: true, connected: false, refused: false }, tasks: { connected: false, refused: false, list: "Shopping", lastRun: null, lastResult: null, lastImported: 0 } } });
   });
   return posts;
 }
@@ -70,4 +70,32 @@ test("signed in, Connect Nest and Connect Google Tasks are on Controls without a
   await house.getByRole("button", { name: "Connect Nest" }).click();
   await expect.poll(() => posts.length).toBe(1);
   expect(posts[0]).toEqual({ action: "connect", grant: "nest" });
+});
+
+test("signed in, King Soopers is set up on Controls: ZIP, store picker, Connect King Soopers (#664)", async ({ page }) => {
+  await stub(page, true);
+  const posts: Record<string, unknown>[] = [];
+  const base = { ready: true, state: "waiting", connected: false, refused: false, zip: "", found: [] as unknown[], store: null as unknown, lines: [], total: 0, count: 0, sent: null };
+  let view = { ...base };
+  await page.route(/\/api\/haven\/kroger(\?.*)?$/, (r) => {
+    if (r.request().method() !== "POST") return r.fulfill({ json: view });
+    const body = r.request().postDataJSON() as Record<string, unknown>;
+    posts.push(body);
+    if (body.action === "set-zip") view = { ...view, zip: String(body.zip) };
+    if (body.action === "find-stores") view = { ...view, found: [{ id: "62000001", name: "King Soopers - Test Town", line: "1 Test Ave", city: "Testville", state: "CO", zip: "12345" }] };
+    if (body.action === "pick-store") view = { ...view, store: view.found[0] };
+    if (body.action === "connect") return r.fulfill({ json: { ok: true, url: "https://api.kroger.com/v1/connect/oauth2/authorize?scope=cart.basic%3Awrite&state=x" } });
+    return r.fulfill({ json: { ok: true, ...view } });
+  });
+  await page.route("https://api.kroger.com/**", (r) => r.fulfill({ body: "kroger sign-in (stubbed)" }));
+  await page.goto(`${BASE}/boiler/controls`);
+  const house = page.locator("#ct-house");
+  await house.getByRole("textbox", { name: "ZIP to find King Soopers stores near" }).fill("12345");
+  await house.getByRole("button", { name: "Find stores" }).click();
+  await house.getByRole("button", { name: "Use this" }).click();
+  await expect(house.getByRole("button", { name: "Home store" })).toBeVisible();
+  await expect(house.getByText("Home store: King Soopers - Test Town", { exact: false })).toBeVisible();
+  await house.getByRole("button", { name: "Connect King Soopers" }).click();
+  await expect(page).toHaveURL("https://api.kroger.com/v1/connect/oauth2/authorize?scope=cart.basic%3Awrite&state=x");
+  expect(posts).toEqual([{ action: "set-zip", zip: "12345" }, { action: "find-stores" }, { action: "pick-store", id: "62000001" }, { action: "connect" }]);
 });

@@ -4,7 +4,6 @@
  *   HAVEN_GOOGLE_CLIENT_ID, HAVEN_GOOGLE_CLIENT_SECRET   the Google OAuth client (Key Vault)
  *   HAVEN_NEST_PROJECT_ID                                 the Device Access project's id (Key Vault)
  *   HOME_TOKEN_KEY                                        seals the two Google grants in the private store
- *   INSTACART_API_KEY, INSTACART_ENV                      Send to Instacart (api/_haven/instacart.ts)
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -12,7 +11,7 @@
 import { pickBlob } from "../../_blob.js";
 import { pickAuthStore } from "../../_desk/store.js";
 import { HomeVault, homeKey } from "../devices/vault.js";
-import { instacartFrom } from "../instacart.js";
+import { krogerLinkFromEnv } from "../kroger/live.js";
 import { googleCallback, googleGet, googlePost, havenLinks, type GoogleRouteDeps } from "./route.js";
 import { havenClientFrom, nestProjectFrom } from "./oauth.js";
 import { syncTasks, type TasksResult } from "./tasks.js";
@@ -28,15 +27,17 @@ export function googleDeps(env: Env = process.env): GoogleRouteDeps {
     vault: blob && sealKey ? new HomeVault(blob, sealKey) : null,
     client: havenClientFrom(env),
     project: nestProjectFrom(env),
-    instacart: instacartFrom(env),
     fetch: (url, init) => fetch(url, init),
     now: Date.now(),
     log: (line) => console.log(line),
   };
 }
 
-/** Every Haven connection's state, for the devices route's answers (and so Systems). */
-export const linksFromEnv = (env: Env = process.env) => havenLinks(googleDeps(env));
+/** Every Haven connection's state (Google's and King Soopers', #664), for the devices route's answers (and so Systems). */
+export const linksFromEnv = async (env: Env = process.env) => {
+  const [google, kroger] = await Promise.all([havenLinks(googleDeps(env)), krogerLinkFromEnv(env)]);
+  return { ...google, kroger };
+};
 
 /** One run of the Google Tasks quick-add, for the Function App's timer. */
 export async function runTasksTick(env: Env = process.env): Promise<TasksResult> {

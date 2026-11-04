@@ -41,10 +41,6 @@
  *   POST /api/haven { action: "revoke-phone", id }       passkey session: that phone's key opens nothing from now on.
  *   POST /api/haven { action: "make-greetings" }         passkey session: (re)make the greeting clips, under
  *                                                        ElevenLabs' cap.
- *   POST /api/haven { action: "instacart" }              passkey session: Send to Instacart (#637,
- *                                                        api/_haven/instacart.ts): the open items become an Instacart
- *                                                        shopping list page → { url, items }. 503 without the key,
- *                                                        409 when nothing is open, 502 when Instacart said no.
  *   GET  /api/hey-skippy (and /hey-skippy/hello.mp3)    one of the greeting clips at random (MP3), public by design.
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -67,8 +63,6 @@ import { phoneKeyOf } from "./links.js";
 import { PhoneTodos, type TodoSink } from "./todos.js";
 import type { Home } from "./devices/home.js";
 import { homeFromEnv } from "./devices/live.js";
-import { instacartFrom, sendToInstacart, type InstacartConfig } from "./instacart.js";
-import type { Fetch } from "./devices/http.js";
 
 type Env = Record<string, string | undefined>;
 
@@ -92,9 +86,6 @@ export interface HavenDeps {
   random: () => number;
   /** The home devices (#632, api/_haven/devices/home.ts), or null when they aren't set up here. */
   devices?: () => Home | null;
-  /** Send to Instacart (#637): the IDP key and environment, or null until the key is in the Key Vault. */
-  instacart?: InstacartConfig | null;
-  fetch?: Fetch;
 }
 
 export function liveDeps(env: Env = process.env): HavenDeps {
@@ -110,8 +101,6 @@ export function liveDeps(env: Env = process.env): HavenDeps {
     log: (line) => console.log(line),
     random: Math.random,
     devices: () => homeFromEnv(env),
-    instacart: instacartFrom(env),
-    fetch: (url, init) => fetch(url, init),
   };
 }
 
@@ -308,11 +297,6 @@ export async function havenPost(request: Request, deps: HavenDeps): Promise<Resp
     // Counts only in the log: never an exercise.
     deps.log(`haven: the gym plan was changed (${edit.op}, ${got.plan.sessions.length} sessions)`);
     return reply({ ok: true, view: await gymView(deps.blob, now) });
-  }
-  if (body.action === "instacart") {
-    const sent = await sendToInstacart({ fetch: deps.fetch ?? fetch, config: deps.instacart ?? null, blob: deps.blob, now, log: deps.log }, await new KitchenList(deps.blob).items(now));
-    if (sent.ok) return reply({ ok: true, url: sent.url, items: sent.items });
-    return reply({ error: sent.error }, sent.error === "not-set-up" ? 503 : sent.error === "empty" ? 409 : 502);
   }
   const phones = new PhoneKeys(deps.blob, await deps.pepper());
   if (body.action === "add-phone") {

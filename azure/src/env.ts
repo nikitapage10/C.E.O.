@@ -63,11 +63,15 @@ export const SECRET_SETTINGS = [
   "WHISKER_EMAIL",
   "WHISKER_SRP_DIGEST",
   // The Haven's connections (#637, docs/HOME-DEVICES.md): the Google OAuth client and Device Access project for
-  // the Nest thermostat and Google Tasks, and the Instacart Developer Platform key. Never settable from the Desk.
+  // the Nest thermostat and Google Tasks. Never settable from the Desk.
   "HAVEN_GOOGLE_CLIENT_ID",
   "HAVEN_GOOGLE_CLIENT_SECRET",
   "HAVEN_NEST_PROJECT_ID",
-  "INSTACART_API_KEY",
+  // Send to King Soopers (#664): the Kroger app's id and secret. Never settable from the Desk.
+  "KROGER_CLIENT_ID",
+  "KROGER_CLIENT_SECRET",
+  // MealMe's key (#664): set before King Soopers replaced MealMe, kept so a deploy doesn't drop it. Nothing reads it.
+  "MEALME_API_KEY",
 ] as const;
 
 /** Whether a setting's value is an unresolved Key Vault reference (the platform's own spelling, in any case). */

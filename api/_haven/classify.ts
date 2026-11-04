@@ -146,7 +146,7 @@ export function deviceAsk(text: string): Extract<Capture, { kind: "device" }> | 
   if (LITTER.test(t0) && /\b(?:clean|cycle|run|empty|scoop|start)\b/i.test(t0)) return { kind: "device", action: "litter.clean" };
   // The wet feeder's questions and its lid.
   if (/\bwhat'?s (?:in|on) (?:the )?wet (?:food )?feeder\b|\bwet (?:food )?feeder(?:'s)? (?:status|schedule|plan)\b|\bwhich bowl\b/i.test(t0)) return { kind: "device", action: "wet.status" };
-  if (/\bclose (?:the )?(?:wet (?:food )?feeder|wet feeder'?s lid|lid on the wet (?:food )?feeder|feeder'?s lid)\b/i.test(t0)) return { kind: "device", action: "wet.close" };
+  if (/\bclose (?:the )?(?:wet (?:food )?(?:feeder|tray)|wet feeder'?s lid|lid on the wet (?:food )?feeder|feeder'?s lid)\b/i.test(t0)) return { kind: "device", action: "wet.close" };
   // The wet tray's turn first: "give the cat the next bowl" is a turn, not an opening.
   if (ROTATE.test(t0) && (/\b(?:wet|feeder|cat|cats|kitty|bowl|tray)\b/i.test(t0) || /^next (?:bowl|tray)/i.test(t0))) {
     const p = PLATE.exec(t0);
@@ -161,7 +161,8 @@ export function deviceAsk(text: string): Extract<Capture, { kind: "device" }> | 
   }
   // The vacuum's mode words come out before the rooms are read: "clean the kitchen on max" is the kitchen.
   const { rest: t, ...mode } = vacuumMode(t0);
-  if (/\bopen (?:the )?wet (?:food )?feeder\b/i.test(t)) return { kind: "device", action: "wet.open" };
+  // "Open the wet food tray" (#713): open for two hours, then it closes itself.
+  if (/\bopen (?:up )?(?:the )?wet (?:food )?(?:feeder|tray|bowl)\b/i.test(t)) return { kind: "device", action: "wet.open" };
   const vac = VACUUM.test(t);
   if (vac && /\b(?:pause|stop|hold on|wait)\b/i.test(t)) return { kind: "device", action: "vacuum.pause" };
   if (vac && /\b(?:home|dock|base|charger|charge|back)\b/i.test(t) && !/\bclean\b.*\bhome\b/i.test(t)) return { kind: "device", action: "vacuum.dock" };

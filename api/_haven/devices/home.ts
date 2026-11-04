@@ -12,7 +12,7 @@
 
 import type { BlobBackend } from "../../_blob.js";
 import type { RoomLog } from "../../_skippy/log.js";
-import { FeedLedger, litterBlock, PLATES, portionsOf, PORTIONS_MAX, rotateSteps, TrayLog, traySummary, trayWarning, THERMO_MAX_F, THERMO_MIN_F, thermostatPlan } from "./rails.js";
+import { clockAt, clockWords, closeAtFor, CLOSE_GIVE_UP_MS, FeedLedger, litterBlock, mealInWindow, PLATES, portionsOf, PORTIONS_MAX, rotateSteps, TrayLog, traySummary, trayWarning, THERMO_MAX_F, THERMO_MIN_F, thermostatPlan, WetCloseNote } from "./rails.js";
 import { VendorError } from "./http.js";
 import { joinRooms } from "./roborock.js";
 import { ACTION_KIND, isSuction, isWater, SPOKEN, VENDORS, type ActionId, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunArgs, type Vendor, type VendorProblem } from "./types.js";
@@ -157,7 +157,7 @@ export function tapAsked(req: Pick<ActRequest, "action" | "rooms" | "portions" |
 }
 
 /** Skippy's line for an action that went through. */
-export function sayDone(action: ActionId, extra: { count?: number; cap?: number; rooms?: string[]; heatF?: number; coolF?: number; mode?: string; portions?: number; plate?: number } = {}): string {
+export function sayDone(action: ActionId, extra: { count?: number; cap?: number; rooms?: string[]; heatF?: number; coolF?: number; mode?: string; portions?: number; plate?: number; closing?: string } = {}): string {
   const ofCap = extra.count !== undefined && extra.cap !== undefined ? ` That's ${extra.count} of ${extra.cap} today.` : "";
   switch (action) {
     case "vacuum.start":
@@ -171,7 +171,7 @@ export function sayDone(action: ActionId, extra: { count?: number; cap?: number;
     case "feeder.feed":
       return `${extra.portions && extra.portions > 1 ? `${extra.portions} portions are` : "One portion is"} coming out of the dry food feeder.${ofCap}`;
     case "wet.open":
-      return `The wet food feeder's lid is open.${ofCap}`;
+      return `The wet food feeder's lid is open.${extra.closing ?? ""}${ofCap}`;
     case "wet.rotate":
       return `${extra.plate ? `Bowl ${extra.plate}` : "The next bowl"} is turning to the front of the wet food feeder.`;
     case "wet.close":
@@ -234,11 +234,18 @@ export function sayRefused(action: ActionId, code: ActCode, extra: { cap?: numbe
     case "bad-portions":
       return `I give 1 to ${PORTIONS_MAX} portions at a time.`;
     case "lid-open":
+      if (action === "wet.open") return "The wet food feeder's lid is already open, from its schedule or the Petlibro app, so I'll leave it to them.";
       return "The wet food feeder's lid is open. Say close the wet feeder first, then switch bowls.";
     case "bad-plate":
       return "The wet food feeder has bowls 1, 2 and 3, and I can't tell which one is in front right now.";
   }
 }
+
+/** The line when a scheduled meal opens inside the two hours (#713): the schedule wins and the auto-close stands down. */
+const scheduleWins = (time: string) => ` The ${clockWords(time)} scheduled meal comes up within two hours, so I'll leave the closing to the schedule.`;
+
+/** What the auto-close's tick came to (#713), for the timer's log: nothing due, not yet, shut, stood down, or retrying. */
+export type CloseTick = "idle" | "waiting" | "closed" | "dropped" | "retry";
 
 /** How long a status read is kept in this instance. */
 export const STATUS_TTL_MS = 30_000;
@@ -326,6 +333,12 @@ export class Home {
         d.manualCap = this.deps.feedCap;
       }
     }
+    // The wet tray's auto-close (#713): when an opening from here shuts, while it is still open.
+    if (this.deps.blob && devices.some((d) => d.kind === "wet-feeder" && d.state === "lid open")) {
+      const due = await new WetCloseNote(this.deps.blob).read().catch(() => null);
+      const d = due && devices.find((x) => x.id === due.id && x.state === "lid open");
+      if (d && due) d.closesAt = new Date(due.closeAt).toISOString();
+    }
     const view = { vendors, problems, devices, feedCap: this.deps.feedCap };
     if (gen === this.gen) this.cache = { at: now, view };
     return view;
@@ -351,6 +364,76 @@ export class Home {
         .catch(() => undefined);
     }
     return result;
+  }
+
+  /** Notes the opening's auto-close and says when, or that the schedule takes it (#713). */
+  private async planClose(closer: WetCloseNote, r: DeviceReading, feedId: number | string | undefined): Promise<string> {
+    const now = this.deps.now();
+    const closeAt = closeAtFor(now);
+    const meal = mealInWindow(r.meals, now, closeAt);
+    try {
+      if (meal) {
+        await closer.clear(r.id);
+        return scheduleWins(meal.time);
+      }
+      await closer.set({ id: r.id, ...(feedId !== undefined && { feedId }), from: now, closeAt });
+      return ` It closes at ${clockAt(closeAt)}.`;
+    } catch {
+      return " I couldn't set it to close by itself, so close it when the cat's done.";
+    }
+  }
+
+  /**
+   * The auto-close's tick (#713), from the Function timer: when an opening from here is due, closes it, unless it is
+   * already shut or a scheduled meal opened inside its window (the schedule wins). A close that can't get through is
+   * tried on the next beats for an hour, then dropped. Every close is kept in the Council. Logs the outcome only.
+   */
+  async closeDue(): Promise<CloseTick> {
+    const blob = this.deps.blob;
+    if (!blob) return "idle";
+    const note = new WetCloseNote(blob);
+    const due = await note.read();
+    const now = this.deps.now();
+    if (!due) return "idle";
+    if (due.closeAt > now) return "waiting";
+    const drop = async (why: string): Promise<CloseTick> => {
+      await note.clear(due.id, due.closeAt);
+      this.deps.log(`home: wet auto-close stood down (${why})`);
+      return "dropped";
+    };
+    const retry = async (why: string): Promise<CloseTick> => {
+      if (now - due.closeAt > CLOSE_GIVE_UP_MS) return drop(`gave up: ${why}`);
+      this.deps.log(`home: wet auto-close retrying (${why})`);
+      return "retry";
+    };
+    const client = this.deps.clients.find((c) => c.actions.includes("wet.close"));
+    if (!client || !(await client.connected().catch(() => false))) return retry("not connected");
+    let found: Found[];
+    try {
+      found = await client.status();
+    } catch {
+      return retry("vendor");
+    }
+    const target = found.find((f) => f.reading.id === due.id);
+    if (!target) return drop("no device");
+    const r = target.reading;
+    if (!r.online) return retry("offline");
+    if (r.state !== "lid open") return drop("already closed");
+    if (mealInWindow(r.meals, due.from, now)) return drop("schedule");
+    const ran = await client.run("wet.close", target, due.feedId !== undefined ? { feedId: due.feedId } : {}).catch(() => ({ ok: false as const, code: "vendor" as const }));
+    if (!ran.ok) return retry(ran.code);
+    await note.clear(due.id, due.closeAt);
+    this.gen++;
+    this.cache = null;
+    this.last.delete(client.vendor);
+    this.deps.log("home: wet.close done (auto-close)");
+    if (this.deps.council) {
+      const at = this.deps.now();
+      await this.deps.council
+        .add({ at: new Date(at).toISOString(), question: "Close the wet food feeder after its two hours", answer: "The wet food feeder's lid is closing: its two hours are up.", room: "kernel", model: "home" }, at)
+        .catch(() => undefined);
+    }
+    return "closed";
   }
 
   private async attempt(req: ActRequest): Promise<ActResult> {
@@ -410,6 +493,22 @@ export class Home {
       return { ok: true, say: traySummary(r, t ?? { day: "", front: null, served: [] }, this.deps.now()) };
     }
     if (action === "wet.rotate" && r.state === "lid open") return refuse("lid-open", { vendor });
+    // The auto-close (#713): asked to open while an opening from here is still open, the two hours start again; no
+    // vendor call and nothing counted. Open from the schedule or the app, it is theirs, and left alone.
+    const closer = kind === "wet-feeder" && this.deps.blob ? new WetCloseNote(this.deps.blob) : null;
+    if (action === "wet.open" && r.state === "lid open") {
+      const mine = closer ? await closer.read().catch(() => null) : null;
+      if (!closer || !mine || mine.id !== r.id) return refuse("lid-open", { vendor });
+      const now = this.deps.now();
+      const closeAt = closeAtFor(now);
+      const meal = mealInWindow(r.meals, now, closeAt);
+      if (meal) {
+        await closer.clear(r.id).catch(() => undefined);
+        return { ok: true, say: `The wet food feeder's lid is already open.${scheduleWins(meal.time)}` };
+      }
+      await closer.set({ ...mine, from: now, closeAt });
+      return { ok: true, say: `The wet food feeder's lid is already open. I've started its two hours again: it closes at ${clockAt(closeAt)}.` };
+    }
     let steps = 0;
     let plate: number | undefined;
     if (action === "wet.rotate") {
@@ -449,6 +548,11 @@ export class Home {
       const at = this.deps.now();
       this.last.set(vendor, { at, found: found.map((f) => (f === target ? { ...f, reading: settled } : f)), hold: at + SETTLE_MS });
     }
+    // The auto-close (#713): an opening shuts itself two hours on, unless a scheduled meal opens inside that window;
+    // a close from here cancels it.
+    let closing: string | undefined;
+    if (closer && action === "wet.open") closing = await this.planClose(closer, r, ran.feedId);
+    if (closer && action === "wet.close") await closer.clear(r.id).catch(() => undefined);
     let heads = "";
     if (tray && (action === "wet.rotate" || action === "wet.open")) {
       // Remember the tray, then say if the next scheduled meal is now off: the plan opens whichever bowl is in front.
@@ -458,6 +562,6 @@ export class Home {
       const t = await tray.note(now, front, action === "wet.open" ? (was ?? undefined) : undefined).catch(() => null);
       if (t) heads = trayWarning(front, t, r.meals, now);
     }
-    return { ok: true, say: (ran.say ?? sayDone(action, { count, cap: this.deps.feedCap, ...(thermo ?? {}), portions, ...(plate && { plate }) })) + heads, ...(heads && { warned: true as const }) };
+    return { ok: true, say: (ran.say ?? sayDone(action, { count, cap: this.deps.feedCap, ...(thermo ?? {}), portions, ...(plate && { plate }), ...(closing && { closing }) })) + heads, ...(heads && { warned: true as const }) };
   }
 }

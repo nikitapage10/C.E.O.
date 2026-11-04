@@ -9,7 +9,7 @@ import { classify, uncorrected } from "../classify.ts";
 import { Home } from "./home.ts";
 import type { Fetch } from "./http.ts";
 import { PetlibroClient, planTime, wetMeals } from "./petlibro.ts";
-import { clockWords, FeedLedger, nextMeal, portionsOf, rotateSteps, TrayLog, traySummary, trayWarning } from "./rails.ts";
+import { clockAt, clockWords, closeAtFor, FeedLedger, mealInWindow, nextMeal, portionsOf, rotateSteps, TrayLog, traySummary, trayWarning, WET_CLOSE_PATH, WetCloseNote } from "./rails.ts";
 import { modeCalls, modeWords } from "./roborock.ts";
 import type { DeviceClient, DeviceReading, Found, RunArgs } from "./types.ts";
 import { HomeVault, homeKey } from "./vault.ts";
@@ -165,7 +165,7 @@ describe("the wet tray remembers the schedule", () => {
     const { home } = homeWith([wet]);
     const opened = await home.act({ action: "wet.open", via: "desk" });
     // Bowl 2 is now served, and the 6pm meal is set for bowl 2: the reply says so.
-    expect(opened.say).toBe("The wet food feeder's lid is open. That's 1 of 2 today. Heads up: the next scheduled meal at 6pm will open bowl 2, which was already served today.");
+    expect(opened.say).toBe("The wet food feeder's lid is open. It closes at 1pm. That's 1 of 2 today. Heads up: the next scheduled meal at 6pm will open bowl 2, which was already served today.");
     const said = (await home.act({ action: "wet.status", via: "phone" })).say;
     expect(said).toBe("Bowl 2 is in front, lid closed. Served from here today: bowl 2. Scheduled: 7am (bowl 1), 6pm (bowl 2). Heads up: the next scheduled meal at 6pm will open bowl 2, which was already served today.");
     expect(wet.ran.map((r) => r.action)).toEqual(["wet.open"]);
@@ -188,6 +188,201 @@ describe("the wet tray remembers the schedule", () => {
     expect(await c.run("wet.close", found, {})).toEqual({ ok: true });
     expect(calls.at(-1)).toEqual({ path: "/device/wetFeedingPlan/stopFeedNow", body: { deviceSn: "WET-TEST", feedId: 42 } });
     expect(await c.run("wet.close", { ...found, ref: { serial: "WET-TEST", plate: 1 } }, {})).toEqual({ ok: true, say: "The wet food feeder's lid is already closed." });
+  });
+});
+
+/* ── The wet tray's auto-close (#713) ── */
+
+/** A wet feeder whose lid really opens and shuts: wet.open answers with an opening id, wet.close shuts it. */
+function wetFeeder(over: Partial<DeviceReading> = {}) {
+  const ran: { action: string; args: RunArgs }[] = [];
+  let open = false;
+  let online = true;
+  let fail = false;
+  const client: DeviceClient = {
+    vendor: "petlibro",
+    actions: ["wet.open", "wet.close", "wet.rotate", "wet.status"],
+    connected: async () => true,
+    status: async () => [{ reading: reading({ id: "00000000000e", kind: "wet-feeder", plate: 1, online, state: online ? (open ? "lid open" : "closed") : "offline", ...over }), ref: {} }],
+    run: async (action, _f, args) => {
+      ran.push({ action, args });
+      if (fail) return { ok: false, code: "vendor" };
+      if (action === "wet.open") {
+        open = true;
+        return { ok: true, feedId: 7001 };
+      }
+      if (action === "wet.close") open = false;
+      return { ok: true };
+    },
+  };
+  return {
+    client,
+    ran,
+    setOpen: (v: boolean) => void (open = v),
+    setOnline: (v: boolean) => void (online = v),
+    setFail: (v: boolean) => void (fail = v),
+  };
+}
+
+function homeAt(clients: DeviceClient[], clock: { now: number }) {
+  const blob = memoryBlob();
+  const council = new MemoryRoomLog();
+  return { home: new Home({ blob, clients, feedCap: 2, council, log: () => undefined, now: () => clock.now }), blob, council };
+}
+
+const HOUR = 60 * 60_000;
+
+describe("the wet tray closes itself after two hours (#713)", () => {
+  it("rounds the close up to the timer's five-minute beat and says it on Nikita's clock", () => {
+    expect(closeAtFor(NOW)).toBe(NOW + 2 * HOUR);
+    expect(closeAtFor(NOW + 60_000)).toBe(NOW + 2 * HOUR + 5 * 60_000);
+    expect(clockAt(NOW + 2 * HOUR)).toBe("1pm");
+    expect(clockAt(NOW + 2 * HOUR + 15 * 60_000)).toBe("1:15pm");
+  });
+
+  it("finds a scheduled meal that starts inside the window, across midnight too", () => {
+    expect(mealInWindow([{ time: "12:30" }, { time: "18:00" }], NOW, NOW + 2 * HOUR)).toEqual({ time: "12:30" });
+    expect(mealInWindow([{ time: "07:00" }, { time: "18:00" }], NOW, NOW + 2 * HOUR)).toBeNull();
+    // 11pm in Denver: a 12:30am meal is inside the two hours.
+    const late = NOW + 12 * HOUR;
+    expect(mealInWindow([{ time: "00:30" }], late, late + 2 * HOUR)).toEqual({ time: "00:30" });
+    expect(mealInWindow(undefined, NOW, NOW + 2 * HOUR)).toBeNull();
+  });
+
+  it("opens for two hours, keeps the opening, shows when it closes, and the timer closes it", async () => {
+    const clock = { now: NOW };
+    const wet = wetFeeder();
+    const { home, blob, council } = homeAt([wet.client], clock);
+    const opened = await home.act({ action: "wet.open", via: "phone", said: "open the wet food tray" });
+    expect(opened).toEqual({ ok: true, say: "The wet food feeder's lid is open. It closes at 1pm. That's 1 of 2 today." });
+    expect(await new WetCloseNote(blob).read()).toEqual({ id: "00000000000e", feedId: 7001, from: NOW, closeAt: NOW + 2 * HOUR });
+    expect((await home.status(true)).devices[0]).toMatchObject({ state: "lid open", closesAt: new Date(NOW + 2 * HOUR).toISOString() });
+
+    clock.now = NOW + HOUR;
+    expect(await home.closeDue()).toBe("waiting");
+    expect(wet.ran.map((r) => r.action)).toEqual(["wet.open"]);
+
+    clock.now = NOW + 2 * HOUR;
+    expect(await home.closeDue()).toBe("closed");
+    expect(wet.ran.at(-1)).toEqual({ action: "wet.close", args: { feedId: 7001 } });
+    expect(await new WetCloseNote(blob).read()).toBeNull();
+    expect(await home.closeDue()).toBe("idle");
+    const view = await home.status(true);
+    expect(view.devices[0]!.state).toBe("closed");
+    expect(view.devices[0]!.closesAt).toBeUndefined();
+    expect((await council.list("kernel", clock.now)).map((t) => t.question)).toContain("Close the wet food feeder after its two hours");
+  });
+
+  it("restarts the two hours when asked again while open, with no new opening and nothing counted", async () => {
+    const clock = { now: NOW };
+    const wet = wetFeeder();
+    const { home, blob } = homeAt([wet.client], clock);
+    await home.act({ action: "wet.open", via: "desk" });
+    clock.now = NOW + HOUR + 60_000;
+    const again = await home.act({ action: "wet.open", via: "desk" });
+    expect(again).toEqual({ ok: true, say: "The wet food feeder's lid is already open. I've started its two hours again: it closes at 2:05pm." });
+    expect(wet.ran.map((r) => r.action)).toEqual(["wet.open"]);
+    expect(await new FeedLedger(blob).today(NOW)).toEqual({ "00000000000e": 1 });
+    expect(await new WetCloseNote(blob).read()).toMatchObject({ feedId: 7001, from: clock.now, closeAt: NOW + 3 * HOUR + 5 * 60_000 });
+    // The old time passes: nothing closes.
+    clock.now = NOW + 2 * HOUR;
+    expect(await home.closeDue()).toBe("waiting");
+  });
+
+  it("a close from here shuts it now and cancels the auto-close", async () => {
+    const clock = { now: NOW };
+    const wet = wetFeeder();
+    const { home, blob } = homeAt([wet.client], clock);
+    await home.act({ action: "wet.open", via: "desk" });
+    expect((await home.act({ action: "wet.close", via: "desk" })).ok).toBe(true);
+    expect(await new WetCloseNote(blob).read()).toBeNull();
+    clock.now = NOW + 2 * HOUR;
+    expect(await home.closeDue()).toBe("idle");
+    expect(wet.ran.map((r) => r.action)).toEqual(["wet.open", "wet.close"]);
+  });
+
+  it("leaves an opening from the schedule or the app alone", async () => {
+    const wet = wetFeeder();
+    wet.setOpen(true);
+    const { home, blob } = homeAt([wet.client], { now: NOW });
+    const r = await home.act({ action: "wet.open", via: "desk" });
+    expect(r).toMatchObject({ ok: false, code: "lid-open" });
+    expect(r.say).toBe("The wet food feeder's lid is already open, from its schedule or the Petlibro app, so I'll leave it to them.");
+    expect(wet.ran).toHaveLength(0);
+    expect(await new FeedLedger(blob).today(NOW)).toEqual({});
+  });
+
+  it("lets a scheduled meal inside the window win: no auto-close", async () => {
+    const wet = wetFeeder({ meals: [{ time: "12:30", plate: 2 }] });
+    const { home, blob } = homeAt([wet.client], { now: NOW });
+    const opened = await home.act({ action: "wet.open", via: "desk" });
+    expect(opened.say).toBe("The wet food feeder's lid is open. The 12:30pm scheduled meal comes up within two hours, so I'll leave the closing to the schedule. That's 1 of 2 today. Heads up: bowl 1 is in front, but the next scheduled meal at 12:30pm is set for bowl 2.");
+    expect(await new WetCloseNote(blob).read()).toBeNull();
+  });
+
+  it("stands down at close time when a meal was added inside the window, or the lid is already shut", async () => {
+    const clock = { now: NOW };
+    let meals: DeviceReading["meals"] = [];
+    const wet = wetFeeder();
+    const status = wet.client.status.bind(wet.client);
+    wet.client.status = async () => (await status()).map((f) => ({ ...f, reading: { ...f.reading, meals } }));
+    const { home, blob } = homeAt([wet.client], clock);
+    await home.act({ action: "wet.open", via: "desk" });
+    meals = [{ time: "12:00" }];
+    clock.now = NOW + 2 * HOUR;
+    expect(await home.closeDue()).toBe("dropped");
+    expect(wet.ran.map((r) => r.action)).toEqual(["wet.open"]);
+    expect(await new WetCloseNote(blob).read()).toBeNull();
+
+    // The schedule has it now; once it shuts, a fresh opening, then shut from the app before its time.
+    wet.setOpen(false);
+    meals = [];
+    clock.now = NOW + 3 * HOUR;
+    await home.act({ action: "wet.open", via: "desk" });
+    wet.setOpen(false);
+    clock.now = NOW + 5 * HOUR;
+    expect(await home.closeDue()).toBe("dropped");
+    expect(wet.ran.map((r) => r.action)).toEqual(["wet.open", "wet.open"]);
+  });
+
+  it("retries a close that can't get through, then gives up after an hour", async () => {
+    const clock = { now: NOW };
+    const wet = wetFeeder();
+    const { home, blob } = homeAt([wet.client], clock);
+    await home.act({ action: "wet.open", via: "desk" });
+    wet.setFail(true);
+    clock.now = NOW + 2 * HOUR;
+    expect(await home.closeDue()).toBe("retry");
+    wet.setOnline(false);
+    clock.now = NOW + 2 * HOUR + 30 * 60_000;
+    expect(await home.closeDue()).toBe("retry");
+    clock.now = NOW + 3 * HOUR + 5 * 60_000;
+    expect(await home.closeDue()).toBe("dropped");
+    expect(await new WetCloseNote(blob).read()).toBeNull();
+  });
+
+  it("keeps the note private and well-formed: a bad note reads as none", async () => {
+    const blob = memoryBlob();
+    await blob.put(WET_CLOSE_PATH, JSON.stringify({ id: "not-an-id", from: 1, closeAt: 2 }), { contentType: "application/json", addRandomSuffix: false });
+    expect(await new WetCloseNote(blob).read()).toBeNull();
+    expect(WET_CLOSE_PATH.startsWith("haven/")).toBe(true);
+  });
+
+  it("Petlibro keeps the opening id from the plan after manualFeedNow, and closes with it when the feeder no longer says", async () => {
+    const calls: { path: string; body: Record<string, unknown> }[] = [];
+    const f = (async (url: string, init: RequestInit = {}) => {
+      if (url.endsWith("/member/auth/login")) return Response.json({ code: 0, data: { token: "t" } });
+      const path = new URL(url).pathname;
+      calls.push({ path, body: JSON.parse(String(init.body)) });
+      if (path.endsWith("/wetListV3")) return Response.json({ code: 0, data: { plan: [], manualFeedId: 555 } });
+      return Response.json({ code: 0, data: null });
+    }) as Fetch;
+    const c = new PetlibroClient({ fetch: f, vault: new HomeVault(memoryBlob(), SEAL), idKey: ID_KEY, email: "test@example.com", loginDigest: "0".repeat(32), now: () => NOW });
+    const found = { reading: reading({ kind: "wet-feeder" }), ref: { serial: "WET-TEST", plate: 2 } };
+    expect(await c.run("wet.open", found, {})).toEqual({ ok: true, feedId: 555 });
+    expect(calls.map((x) => x.path)).toEqual(["/device/wetFeedingPlan/manualFeedNow", "/device/wetFeedingPlan/wetListV3"]);
+    expect(await c.run("wet.close", found, { feedId: 555 })).toEqual({ ok: true });
+    expect(calls.at(-1)).toEqual({ path: "/device/wetFeedingPlan/stopFeedNow", body: { deviceSn: "WET-TEST", feedId: 555 } });
   });
 });
 
@@ -221,6 +416,10 @@ describe("what the phone hears for them", () => {
     expect(classify("give the cat wet food")).toEqual({ kind: "device", action: "wet.open" });
     expect(classify("what's in the wet feeder")).toEqual({ kind: "device", action: "wet.status" });
     expect(classify("close the wet feeder")).toEqual({ kind: "device", action: "wet.close" });
+    // #713: the tray by name.
+    expect(classify("open the wet food tray")).toEqual({ kind: "device", action: "wet.open" });
+    expect(classify("open up the wet tray")).toEqual({ kind: "device", action: "wet.open" });
+    expect(classify("close the wet food tray")).toEqual({ kind: "device", action: "wet.close" });
   });
 
   it("reads the vacuum's mode words and keeps the rooms clean of them", () => {

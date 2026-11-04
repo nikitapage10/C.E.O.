@@ -358,6 +358,9 @@ describe("Skippy's voice on the phone (#627)", () => {
     expect(warned.audio).toBeTruthy();
     const tray = await ask("what's in the wet food feeder", home({ ok: true, say: "Bowl 2 is in front." }));
     expect(tray.quiet).toBe(false);
+    // #713: an opening says when it closes, so it is spoken too.
+    const opened = await ask("open the wet food tray", home({ ok: true, say: "The wet food feeder's lid is open. It closes at 1pm." }));
+    expect(opened.quiet).toBe(false);
     const down = await ask("clean the litter box", (() => null) as HavenDeps["devices"]);
     expect(down.quiet).toBe(false);
     const broke = await ask("feed the cat", (() => { throw new Error("boom"); }) as HavenDeps["devices"]);

@@ -246,9 +246,10 @@ app.timer("haven_tasks", {
   },
 });
 
-// The meal photo library's generator (#687): every ten minutes, a run when a photo waits (a confirm's own run may have
+// The meal photo library's generator (#687), named apart from the haven-photos route (a shared name stops the host
+// registering any function): every ten minutes, a run when a photo waits (a confirm's own run may have
 // been cut short). One blob read when nothing waits; one run at a time under the catalog's lease; logs counts only.
-app.timer("haven_photos", {
+app.timer("haven_photos_tick", {
   schedule: "0 */10 * * * *",
   runOnStartup: false,
   useMonitor: false,

@@ -9,7 +9,7 @@
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "vite";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -43,6 +43,32 @@ await build({
     },
   },
 });
+
+// Two functions sharing a name (an http route and a timer, say) make the host register none of them, so every /api
+// route 404s (#694). Load the bundle against a stand-in for the worker's registry and refuse a duplicate.
+{
+  const core = join(out, "node_modules/@azure/functions-core");
+  mkdirSync(core, { recursive: true });
+  writeFileSync(join(core, "package.json"), '{"name":"@azure/functions-core","type":"module","main":"index.mjs"}\n');
+  writeFileSync(
+    join(core, "index.mjs"),
+    "globalThis.__ceoFunctionNames = [];\n" +
+      "export const registerFunction = (m) => { globalThis.__ceoFunctionNames.push(m && m.name); return { dispose() {} }; };\n" +
+      "export const registerHook = () => ({ dispose() {} });\n" +
+      "export const setProgrammingModel = () => {};\n" +
+      "export const getProgrammingModel = () => ({});\n",
+  );
+  try {
+    await import(pathToFileURL(join(out, "index.mjs")).href);
+    const names = globalThis.__ceoFunctionNames;
+    const dupes = names.filter((n, i) => names.indexOf(n) !== i);
+    if (names.length === 0) throw new Error("the Functions bundle registered no functions");
+    if (dupes.length > 0) throw new Error(`duplicate function names in the Functions bundle: ${dupes.join(", ")}`);
+    console.log(`${names.length} functions, names unique`);
+  } finally {
+    rmSync(join(out, "node_modules"), { recursive: true, force: true });
+  }
+}
 
 copyFileSync(join(here, "host.json"), join(out, "host.json"));
 writeFileSync(

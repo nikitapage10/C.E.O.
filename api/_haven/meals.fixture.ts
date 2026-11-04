@@ -49,7 +49,16 @@ export function fakeMeals(): MealsFile {
         ["protein", "italian-sausage"],
         ["carb", "rigatoni"],
       ],
-      { ingredients: [ing("Greek yogurt", 0.25, "cup")] },
+      {
+        ingredients: [ing("Greek yogurt", 0.25, "cup")],
+        steps: [
+          "Bring a big pot of well-salted water to a boil.",
+          "Brown the Italian sausage in a wide pan over medium-high heat, breaking it up, about 6 minutes.",
+          "Cook the rigatoni two minutes short of the box, then save a cup of the water.",
+          "Toss the rigatoni into the pan with a splash of the pasta water until it's glossy.",
+          "Off the heat, stir in the Greek yogurt and finish with black pepper.",
+        ],
+      },
     ),
     meal("tacos", "Mexican", 84, [
       ["protein", "skirt-steak"],

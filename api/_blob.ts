@@ -104,12 +104,13 @@ export const blobReady = (env: Env) => Boolean(env.BLOB_STORE_ID || env.BLOB_REA
 /* ── Azure Blob Storage, registered by the azure/ package ── */
 
 let azureFactory: ((env: Env) => BlobBackend) | null = null;
-let azureCached: { key: string; backend: BlobBackend } | null = null;
+/** One backend per account and container (the state and the Haven's meal photos, #687, live side by side). */
+const azureCached = new Map<string, BlobBackend>();
 
 /** Called once by the Azure Functions entry (azure/src/index.ts) with its Azure Blob Storage backend. */
 export function registerAzureBlob(factory: ((env: Env) => BlobBackend) | null): void {
   azureFactory = factory;
-  azureCached = null;
+  azureCached.clear();
 }
 
 /** Whether the settings name an Azure storage account to use. */
@@ -128,8 +129,36 @@ export function pickBlob(env: Env = process.env): BlobBackend | null {
   if (storeKind(env) === "azureblob") {
     if (!azureFactory || !azureReady(env)) return null;
     const key = `${env.AZURE_STORAGE_ACCOUNT ?? ""}|${env.AZURE_STORAGE_BLOB_ENDPOINT ?? ""}|${env.AZURE_STORAGE_CONTAINER ?? ""}`;
-    if (azureCached?.key !== key) azureCached = { key, backend: azureFactory(env) };
-    return azureCached.backend;
+    let backend = azureCached.get(key);
+    if (!backend) azureCached.set(key, (backend = azureFactory(env)));
+    return backend;
   }
   return blobReady(env) ? vercelBlob : null;
+}
+
+/** Names under a fixed prefix of another store (Vercel Blob has one store, so a "container" is a folder there). */
+export function prefixed(inner: BlobBackend, prefix: string): BlobBackend {
+  const at = (path: string) => `${prefix}${path}`;
+  return {
+    kind: inner.kind,
+    get: (path, opts) => inner.get(at(path), opts),
+    etag: (path) => inner.etag(at(path)),
+    put: async (path, body, opts) => {
+      const done = await inner.put(at(path), body, opts);
+      return { pathname: done.pathname.startsWith(prefix) ? done.pathname.slice(prefix.length) : done.pathname };
+    },
+    del: (path) => inner.del(at(path)),
+  };
+}
+
+/**
+ * The store over another private container of the same account (#687: `haven-meals`, the Kitchen's meal photos), or
+ * null when none is set up. On Azure it is that container, reached with the same identity; on Vercel, a folder of the
+ * one store named after it.
+ */
+export function pickBlobIn(container: string, env: Env = process.env): BlobBackend | null {
+  if (!/^[a-z0-9](?:[a-z0-9-]{1,61})[a-z0-9]$/.test(container)) throw new Error("not a container name");
+  if (storeKind(env) === "azureblob") return pickBlob({ ...env, AZURE_STORAGE_CONTAINER: container });
+  const base = pickBlob(env);
+  return base ? prefixed(base, `${container}/`) : null;
 }

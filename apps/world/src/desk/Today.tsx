@@ -19,6 +19,8 @@ import { Ephemeris, useRuns } from "./TodayRail.tsx";
 import { mountainHour, PART } from "./ilyrTime.ts";
 import { clockState, useWorldClock } from "../worldClock.ts";
 import { Confluence } from "./confluence/Confluence.tsx";
+import { useTodoSync } from "./todos/TodoBits.tsx";
+import { awayRefs, openTodos, useTodos } from "./todos/todos.ts";
 import "@fontsource-variable/bodoni-moda/opsz.css";
 import "@fontsource-variable/bodoni-moda/opsz-italic.css";
 import "@fontsource-variable/jost/wght.css";
@@ -71,7 +73,12 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
   const shipped = useMemo(() => foundry.changelog.filter((c) => c.at > awaySince && c.at <= now).sort((a, b) => b.at - a.at), [foundry.changelog, awaySince, now]);
   const reading = useWorldClock((s) => s.reading);
   const clock = useWorldClock((s) => s.status);
-  const fire = fires(pulses, clockState(reading, clock, now));
+  // Nikita's own to-dos, and the held rows they put away for now (#622): counted the way "Held for you" lists them.
+  useTodoSync();
+  const todoState = useTodos((s) => s.state);
+  const away = awayRefs(todoState, now);
+  const mine = openTodos(todoState, now).length;
+  const fire = fires(pulses, clockState(reading, clock, now)).filter((f) => !away.has(f.key));
 
   const [more, setMore] = useState(() => typeof window !== "undefined" && window.location.hash === "#more");
   const waiting = later.length + otherReplies;
@@ -97,7 +104,14 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
   const shippedNow = shippedToday(foundry.changelog, now);
   const g = greeting(now);
   const comma = g.indexOf(", ");
-  const held = todo + fire.length + (toPick.length ? 1 : 0) + (setupLeft ? 1 : 0);
+  const putAway =
+    replies.filter((o) => away.has(o.id)).length +
+    decisions.filter((a) => away.has(a.id)).length +
+    questions.filter((c) => away.has(`q${c.number}`)).length +
+    (away.has("email") ? emailNeeds : 0) +
+    (toPick.length && away.has("ideas") ? 1 : 0) +
+    (setupLeft && away.has("setup") ? 1 : 0);
+  const held = todo + fire.length + (toPick.length ? 1 : 0) + (setupLeft ? 1 : 0) - putAway + mine;
 
   return (
     <div className="today wv-page td cf-page">

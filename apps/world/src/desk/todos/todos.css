@@ -1,0 +1,63 @@
+/* Today's quick words (#622): the capture line, the line that says what a word did, the talk-back strip and the
+   row's mic. In Today's own type and colours (today.css): one quiet line, nothing that looks like a chat. */
+
+.desk .td-cap-wrap{margin:14px 0 2px}
+.desk .td-cap,.desk .td-tb-f{display:flex;align-items:center;gap:8px;height:42px;padding:0 8px 0 6px;border-radius:999px;border:1px solid var(--wv-line2);background:rgba(236,238,243,.025);transition:border-color .3s,background .3s}
+.desk .td-cap:focus-within,.desk .td-tb-f:focus-within,.desk .td-cap.is-listening,.desk .td-tb.is-listening .td-tb-f{border-color:var(--wv-hot-line);background:var(--wv-hot-bg)}
+.desk .td-cap-in{flex:1;min-width:0;height:100%;border:0;background:none;color:var(--wv-ink);font-family:var(--td-sans);font-size:14px;outline:none}
+.desk .td-cap-in:focus,.desk .td-cap-in:focus-visible{outline:none;box-shadow:none}
+.desk .td-cap-in::placeholder{color:var(--wv-faint)}
+.desk .td-cap-k{flex:none;display:grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;border:1px solid var(--wv-line2);font-family:var(--td-sans);font-size:10.5px;color:var(--wv-faint)}
+.desk .td-cap:focus-within .td-cap-k{display:none}
+
+.desk .td-mic{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:1px solid var(--wv-line2);background:none;color:var(--wv-soft);cursor:pointer;transition:color .3s,border-color .3s,background .3s}
+.desk .td-mic .td-ic{width:15px;height:15px}
+.desk .td-mic:hover,.desk .td-mic:focus-visible{color:var(--wv-hot);border-color:var(--wv-hot-line);outline:none}
+.desk .td-mic.is-on{color:#0d0f14;background:var(--wv-hot);border-color:var(--wv-hot);animation:td-mic 1.4s ease-in-out infinite}
+@keyframes td-mic{50%{box-shadow:0 0 0 6px rgba(255,220,170,.12)}}
+
+.desk .td-cap-err,.desk .td-cap-note{margin:6px 14px 0;font-family:var(--td-sans);font-size:12px;color:var(--wv-mute)}
+.desk .td-cap-err{color:var(--wv-bad)}
+
+.desk .td-did{display:flex;align-items:center;gap:8px;min-height:22px;margin:6px 14px 0;font-family:var(--td-sans);font-size:12.5px;color:var(--wv-soft)}
+.desk .td-did:empty{min-height:0;margin:0}
+.desk .td-did .td-ic{width:14px;height:14px;color:var(--wv-ok)}
+.desk .td-did-undo{margin-left:2px;padding:2px 10px;border-radius:999px;border:1px solid var(--wv-line2);background:none;color:var(--wv-hot);font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.desk .td-did-undo:hover,.desk .td-did-undo:focus-visible{border-color:var(--wv-hot-line);outline:none}
+
+/* The row's mic, at the end of its second line. */
+.desk .td-ni-line{position:relative}
+.desk .td-ni-talk{position:absolute;right:10px;bottom:11px;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:1px solid transparent;background:none;color:var(--wv-faint);cursor:pointer;transition:color .3s,border-color .3s,opacity .3s}
+.desk .td-ni-talk .td-ic{width:15px;height:15px}
+.desk .td-ni-talk:hover,.desk .td-ni-talk:focus-visible,.desk .td-ni-talk.is-on{color:var(--wv-hot);border-color:var(--wv-hot-line);outline:none}
+@media (hover:hover){
+  .desk .td-ni-talk{opacity:.55}
+  .desk .td-ni:hover .td-ni-talk,.desk .td-ni-talk:focus-visible,.desk .td-ni-talk.is-on{opacity:1}
+}
+
+.desk .td-tb{margin:2px 0 10px 76px;animation:weave-rise .35s var(--wv-ease)}
+.desk .td-tb-x{flex:none;width:26px;height:26px;border:0;border-radius:50%;background:none;color:var(--wv-faint);font-size:18px;line-height:1;cursor:pointer}
+.desk .td-tb-x:hover,.desk .td-tb-x:focus-visible{color:var(--wv-ink);outline:none}
+.desk .td-tb-ask{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--td-sans);font-size:13px;color:var(--wv-soft)}
+.desk .td-tb-ask>span{flex-basis:100%}
+.desk .td-chip{height:30px;padding:0 13px;border-radius:999px;border:1px solid var(--wv-line2);background:none;color:var(--wv-ink);font-family:var(--td-sans);font-size:12.5px;cursor:pointer;transition:border-color .3s,background .3s,color .3s}
+.desk .td-chip:hover,.desk .td-chip:focus-visible{border-color:var(--wv-hot-line);background:var(--wv-hot-bg);color:var(--wv-hot);outline:none}
+.desk .td-chip.is-main{border-color:var(--wv-hot-line);color:var(--wv-hot);background:var(--wv-hot-bg)}
+
+/* Nikita's own, and a reminder come due. */
+.desk .td-ni.is-mine .td-ni-ic{border-style:solid;color:var(--wv-ink);border-color:var(--wv-line2);box-shadow:none}
+.desk .td-ni.is-due .td-ni-ic{color:var(--wv-hot);border-color:var(--wv-hot);box-shadow:0 0 22px -6px rgba(255,220,170,.7)}
+.desk .td-ni.is-due .td-ni-t em{color:var(--wv-hot)}
+.desk .td-todo-card{display:grid;gap:10px}
+.desk .td-todo-notes{margin:0;padding:0 0 0 16px;font-size:13px;line-height:1.5;color:var(--wv-soft)}
+.desk .td-todo-acts{display:flex;gap:8px}
+
+@media (max-width:640px){
+  .desk .td-tb{margin-left:0}
+  .desk .td-cap-k{display:none}
+  .desk .td-cap-in{font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){
+  .desk .td-mic.is-on{animation:none}
+  .desk .td-tb{animation:none}
+}

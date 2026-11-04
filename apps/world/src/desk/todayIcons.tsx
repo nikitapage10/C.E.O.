@@ -3,7 +3,7 @@
  * each takes its room's tint from CSS. Strokes only, so they can draw themselves in (`pathLength` 1, see today.css).
  */
 
-export type TodayIcon = "ask" | "decide" | "reply" | "mail" | "idea" | "setup" | "alert" | "shipped" | "clear" | "queue" | "upkeep" | "dawn" | "story" | "hour" | "moon" | "later" | "short" | "warm" | "rooms";
+export type TodayIcon = "ask" | "decide" | "reply" | "mail" | "idea" | "setup" | "alert" | "shipped" | "clear" | "queue" | "upkeep" | "dawn" | "story" | "hour" | "moon" | "later" | "short" | "warm" | "rooms" | "todo" | "bell" | "mic";
 
 const P: Record<TodayIcon, string[]> = {
   // A speech bubble with a question mark: Rivet asks.
@@ -35,6 +35,12 @@ const P: Record<TodayIcon, string[]> = {
   short: ["M4 5h12", "M4 8.5h12", "M4 12h8", "M4 15.5h5"],
   warm: ["M10 2.8c2.6 3 4.6 5.3 4.6 8.4a4.6 4.6 0 0 1-9.2 0c0-1.5.6-2.7 1.5-3.8.3 1.3 1 2 1.8 2.3-.3-2.5.3-4.7 1.3-6.9z"],
   rooms: ["M3 3.5h6v6H3z", "M11 3.5h6v6h-6z", "M3 11.5h6v5H3z", "M11 11.5h6v5h-6z"],
+  // A box with a tick: a to-do of Nikita's own (#622).
+  todo: ["M4.5 4h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5z", "M7 10.2l2.1 2.1L13.2 8"],
+  // A bell: a reminder that has come due.
+  bell: ["M5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5l1.2 1.5H4.3z", "M8.5 17a1.6 1.6 0 0 0 3 0"],
+  // A microphone: say it.
+  mic: ["M10 3a2.2 2.2 0 0 1 2.2 2.2v4.4a2.2 2.2 0 0 1-4.4 0V5.2A2.2 2.2 0 0 1 10 3z", "M5.5 9.5a4.5 4.5 0 0 0 9 0", "M10 14v3"],
 };
 
 /** One of Today's icons, decorative: whatever it marks says the same thing in words beside it. */

@@ -13,6 +13,9 @@
  *                                         `Authorization: Bearer <DESK_PINGS_SECRET>`: reads the Foundry's open
  *                                         issues, decides what needs Nikita (planPings) and sends one ping to every
  *                                         enrolled device that turned pings on. { pinged, held, devices }: counts only.
+ *                                         The same scan pings the reminders Nikita set on Today that have come due
+ *                                         (#622, api/_today/remind.ts), outside quiet hours: "A reminder you set is
+ *                                         due", never what it says.
  * Signing out (api/desk-auth.ts, "signout" with the device's endpoint) and removing a device drop its pings too.
  *
  * Pushes are standard Web Push (RFC 8030, 8291, 8292) through `web-push`: the payload is encrypted for the device,
@@ -26,11 +29,12 @@
 
 import webpush from "web-push";
 import { keyMatches } from "./_desk/keys.js";
-import { dropEndpoint, liveSubs, needsOf, PING_TTL_S, pingText, planPings, readSubscription, WELCOME, withSub, type GhIssueLite, type PingSub, type PingText } from "./_desk/pings.js";
+import { dropEndpoint, isQuiet, liveSubs, needsOf, PING_TTL_S, pingText, planPings, readSubscription, WELCOME, withSub, type GhIssueLite, type PingSub, type PingText } from "./_desk/pings.js";
 import { requireSession, withCookie, type DeskDeps } from "./_desk/session.js";
 import { pickAuthStore, type AuthStore } from "./_desk/store.js";
 import { githubToken } from "./_github.js";
 import { siteUrl } from "./_site/hosts.js";
+import { REMINDER_PING, todayReminders } from "./_today/remind.js";
 
 const REPO = "nikitapage10/C.E.O.";
 
@@ -49,6 +53,8 @@ export interface PingDeps extends DeskDeps {
   send: (sub: PingSub, text: PingText) => Promise<Sent>;
   /** The Foundry's open issues. */
   issues: () => Promise<GhIssueLite[]>;
+  /** Today's reminders that have come due (#622): marks them pinged and says how many. Left out, none. */
+  reminders?: () => Promise<number>;
 }
 
 const env = (name: string) => process.env[name] ?? "";
@@ -93,6 +99,7 @@ const live = (): PingDeps => ({
   secret: env("DESK_PINGS_SECRET"),
   send: webPushSend,
   issues: openIssues,
+  reminders: todayReminders(),
 });
 
 const ready = (deps: PingDeps) => Boolean(deps.publicKey && deps.deskKey && deps.store);
@@ -114,6 +121,12 @@ export async function deliver(store: AuthStore, subs: PingSub[], text: PingText,
 
 /** The workflow's scan: one ping for whatever newly needs Nikita, or nothing. */
 export async function scan(deps: PingDeps & { store: AuthStore }): Promise<Response> {
+  // Today's reminders first (#622): they don't wait on GitHub. In quiet hours they wait for the morning's scan.
+  const reminded = deps.reminders && !isQuiet(deps.now) ? await deps.reminders().catch(() => 0) : 0;
+  if (reminded) {
+    const subs = liveSubs((await deps.store.pings()).subs, await deps.store.passkeys());
+    if (subs.length) await deliver(deps.store, subs, REMINDER_PING, deps.send);
+  }
   let issues: GhIssueLite[];
   try {
     issues = await deps.issues();

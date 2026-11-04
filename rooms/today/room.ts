@@ -9,15 +9,15 @@ export default defineRoom({
   accent: "--ice",
   submind: "skippy",
   live: true,
-  auth: {},
+  auth: { "today-todos": ["public", "passkey"] },
   keys: [],
-  usesClaude: false,
+  usesClaude: true,
   threat: ["TB1", "TB2"],
   budgetKb: 16,
   purpose: {
     goal: "Puts every room's live agents, their submind reports and Skippy's hand-offs on one page, so Nikita can steer the whole agent system from one place.",
     agents: [
-      { name: "Claude", use: "Skippy's chat and the Kernel responder's hand-offs" },
+      { name: "Claude", use: "Skippy's chat, the Kernel responder's hand-offs, and Haiku for quick words the rules can't read" },
       { name: "ElevenLabs", use: "Talk calls with Skippy" },
     ],
     measure: "hand-offs answered and room events in the Council today",

@@ -282,6 +282,24 @@ Since #627 the iPhone's Action Button runs a "Skippy" shortcut that posts what N
   Desk under ElevenLabs' cap.
 - **If a phone is lost**, revoke it on the Desk. If a key may have leaked, revoke that phone and add it again.
 
+## Home devices
+
+Since #632 the Function App reads and runs Nikita's vacuum (Roborock), cat feeders and fountain (Petlibro) and
+Litter-Robot 5 Pro (Whisker) straight from their clouds ([HOME-DEVICES.md](HOME-DEVICES.md); TB10 in
+[THREAT-MODEL.md](THREAT-MODEL.md)). Azure only (`api/_haven/devices/`).
+
+- **Logins.** Petlibro and Whisker email and password are Key Vault secrets (`petlibro-*`, `whisker-*`), typed once in
+  Cloud Shell, never settable from the Desk's Keys form. The Roborock login comes from Connect Roborock, an emailed code
+  entered in a passkey session (a bearer is refused). Every vendor token is sealed (AES-256-GCM, a key derived from
+  `HOME_TOKEN_KEY`) in the private store.
+- **Who can act.** `GET /api/haven/devices` and `POST /api/haven/devices/action` answer a passkey session or a phone
+  key (paced with its captures); the gate lets a phone key reach only those two, with no query. `?view=status` is
+  public: vendor states and each device's kind and state, never a name, model, place, room or serial.
+- **Rails.** Manual feeds capped per feeder a day (`HOME_FEED_CAP`, 2 by default), a litter cycle only when the robot
+  reports it is ready, the vacuum only start, pause, dock or rooms on its map; all on the server, before the vendor.
+- **Logs.** Each action goes to the Council (the Kernel's room log); log lines hold the action and its result only,
+  never a credential, token, code, email, serial or device name.
+
 ## Setup asks
 
 When a submind's thread needs something set up only Nikita can allow (#324; [SKIPPY.md](SKIPPY.md), "Setup asks"):

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { linkOf as homeLinkOf, startHome, useHome, VENDORS as HOME_VENDORS } from "./homeDevices.ts";
 import { useWorldFeed } from "../chronicle.ts";
 import { CREW, crewOf, useFoundry } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
@@ -178,7 +179,14 @@ export function Systems({ now }: { now: number }) {
   // And PayPal, through the Spire's invoice counts (#279).
   useEffect(() => startInvoices(), []);
   const linkList = useSystems((s) => s.links);
-  const links = useMemo(() => Object.fromEntries(linkList.map((l) => [l.id, l.state])) as Record<string, LinkState>, [linkList]);
+  // The home devices (#632): their vendors' states, merged here only so the 3D Boiler Room grows no new pipes.
+  useEffect(() => startHome(), []);
+  const homeVendors = useHome((s) => s.pub?.vendors ?? null);
+  const links = useMemo(() => {
+    const m = Object.fromEntries(linkList.map((l) => [l.id, l.state])) as Record<string, LinkState>;
+    for (const v of HOME_VENDORS) m[v] = homeLinkOf(homeVendors?.[v]);
+    return m;
+  }, [linkList, homeVendors]);
   const connected = useFoundry((s) => s.connected);
   const data = useFoundry((s) => s.data);
   const setup = useSetup();

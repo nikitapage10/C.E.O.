@@ -57,6 +57,9 @@ param kernelAgentEnabled string = 'true'
 @description('The Kernel responder\'s own monthly Claude cap, in USD (KERNEL_AGENT_BUDGET_USD, #501; Nikita: $10). The code never goes above $10.')
 param kernelAgentBudgetUsd string = '10'
 
+@description('Manual feeds a day per Petlibro feeder (HOME_FEED_CAP, #632; Nikita: 2).')
+param homeFeedCap string = '2'
+
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV, #279): sandbox until Nikita switches to live. Set it to live on the paste once the Live keys are in.')
 @allowed(['sandbox', 'live'])
 param paypalEnv string = 'sandbox'
@@ -91,6 +94,7 @@ module resources 'resources.bicep' = {
     emailBudgetUsd: emailBudgetUsd
     kernelAgentEnabled: kernelAgentEnabled
     kernelAgentBudgetUsd: kernelAgentBudgetUsd
+    homeFeedCap: homeFeedCap
     paypalEnv: paypalEnv
     siteOnCustomDomain: siteOnCustomDomain
     tags: tags

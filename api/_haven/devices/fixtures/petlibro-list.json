@@ -1,0 +1,9 @@
+{
+  "code": 0,
+  "msg": null,
+  "data": [
+    { "deviceSn": "AF0400TESTDRY01", "name": "Dry feeder", "productName": "Granary Smart Feeder", "productIdentifier": "PLAF103", "mac": "00:00:00:00:00:01", "online": true, "surplusGrain": true, "softwareVersion": "1.0.6" },
+    { "deviceSn": "PLAF7TESTWET01", "name": "Wet feeder", "productName": "Polar Wet Food Feeder", "productIdentifier": "PLAF701", "mac": "00:00:00:00:00:02", "online": true, "surplusGrain": false },
+    { "deviceSn": "PLWF1TESTWTR01", "name": "Fountain", "productName": "Dockstream Smart Fountain", "productIdentifier": "PLWF105", "mac": "00:00:00:00:00:03", "online": true }
+  ]
+}

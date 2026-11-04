@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "result": {
+    "id": 1234567,
+    "name": "Test home",
+    "products": [
+      { "id": "prod-qrevo", "name": "Roborock Qrevo", "model": "roborock.vacuum.a75", "category": "robot.vacuum.cleaner" },
+      { "id": "prod-other", "name": "Roborock Dyad", "model": "roborock.wetdryvac.a56", "category": "roborock.wetdryvac" }
+    ],
+    "devices": [
+      { "duid": "TESTDUID000000000001", "name": "Qrevo in the hall", "localKey": "abcdefghijklmnop", "productId": "prod-qrevo", "pv": "1.0", "online": true, "fv": "02.10.42" },
+      { "duid": "TESTDUID000000000002", "name": "Dyad", "localKey": "ponmlkjihgfedcba", "productId": "prod-other", "pv": "A01", "online": true }
+    ],
+    "receivedDevices": [],
+    "rooms": [
+      { "id": 11100001, "name": "Kitchen" },
+      { "id": 11100002, "name": "Hall" },
+      { "id": 11100003, "name": "Dining room" },
+      { "id": 11100004, "name": "Studio" }
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+{ "code": 0, "data": [ { "day": "2026-11-04", "workRecords": [ { "type": "GRAIN_OUTPUT_SUCCESS", "recordTime": 1762272000000, "actualGrainNum": 1 } ] } ] }

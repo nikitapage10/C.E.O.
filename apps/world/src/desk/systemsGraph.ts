@@ -162,6 +162,10 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     // The Spire's invoices (#279): PayPal's Invoicing API.
     spire: { id: "spire", l: "Spire", s: L("paypal") === "wait" ? "invoices not connected" : "PayPal invoices", k: "room", room: "spire", state: L("paypal") },
     paypal: { id: "paypal", l: "PayPal", s: L("paypal") === "wait" ? "not connected yet" : "drafts, sent on your tap", k: "service", state: L("paypal") },
+    // Nikita's home devices (#632): straight from the vendors' clouds on the Azure copy, counts and states only here.
+    roborock: { id: "roborock", l: "Roborock", s: L("roborock") === "wait" ? "not connected yet" : "the vacuum", k: "service", state: L("roborock") },
+    petlibro: { id: "petlibro", l: "Petlibro", s: L("petlibro") === "wait" ? "not connected yet" : "feeders and fountain", k: "service", state: L("petlibro") },
+    whisker: { id: "whisker", l: "Whisker", s: L("whisker") === "wait" ? "not connected yet" : "the Litter-Robot", k: "service", state: L("whisker") },
     fantasypros: { id: "fantasypros", l: "FantasyPros", s: L("fantasypros") === "wait" ? "no key yet" : "projections", k: "service", state: L("fantasypros") },
   };
   // The Foundry's own parts, with their live readings.
@@ -202,6 +206,9 @@ export function systemsModel(input: SystemsInput): { nodes: Record<string, GNode
     { ...e("green", "fantasypros", "green", nodes.fantasypros!.state), label: "Projections", how: conn("fantasypros")?.how, ...fromConn("fantasypros") },
     e("desk", "spire", "spire", nodes.spire!.state),
     { ...e("spire", "paypal", "spire", nodes.paypal!.state), label: "Invoices", how: conn("paypal")?.how, ...fromConn("paypal") },
+    { ...e("boiler", "roborock", "boiler", nodes.roborock!.state), label: "The vacuum", how: conn("roborock")?.how, ...fromConn("roborock") },
+    { ...e("boiler", "petlibro", "boiler", nodes.petlibro!.state), label: "Feeders and fountain", how: conn("petlibro")?.how, ...fromConn("petlibro") },
+    { ...e("boiler", "whisker", "boiler", nodes.whisker!.state), label: "The Litter-Robot", how: conn("whisker")?.how, ...fromConn("whisker") },
   ];
 
   // The Foundry's flow: foundryGraph's edges, with their connections' kinds, sign-in and timing.

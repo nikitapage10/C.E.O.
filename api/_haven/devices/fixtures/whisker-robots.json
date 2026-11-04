@@ -1,0 +1,28 @@
+[
+  {
+    "serial": "LR5PTESTSERIAL0001",
+    "name": "Litter box in the corridor",
+    "type": "LR5_PRO",
+    "timezone": "America/Denver",
+    "nextFilterReplacementDate": "2026-12-01T00:00:00Z",
+    "litterRobotSettings": { "cycleDelay": 7 },
+    "state": {
+      "isOnline": true,
+      "state": "StRobotIdle",
+      "displayCode": "DcModeIdle",
+      "cycleState": "StCycleIdle",
+      "statusIndicator": { "type": "READY" },
+      "catDetect": "CatDetectClear",
+      "dfiLevelPercent": 42,
+      "litterLevelPercent": 87,
+      "isDrawerFull": false,
+      "isBonnetRemoved": false,
+      "isDrawerRemoved": false,
+      "isLaserDirty": false,
+      "globeLitterLevelIndicator": "OPTIMAL",
+      "powerStatus": "On",
+      "weightSensor": 512,
+      "odometerCleanCycles": 311
+    }
+  }
+]

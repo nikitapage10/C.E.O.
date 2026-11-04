@@ -8,6 +8,8 @@ import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
 import { gymBeyond, gymRoom, withGym } from "./gymFill.ts";
 import { emittersOf, type EmitterIn } from "./emitters.ts";
 import { disposeMats, GYM_MODELS, GymGeo, gymMats, gymModel } from "./gymKit.ts";
+import { CatBrain, navGrid, type CatSignals } from "./catBrain.ts";
+import type { HouseCat } from "./myshkaHouse.ts";
 
 /**
  * The Haven's house in 3D (#616): a generic renderer for whatever floor plan the private store holds. Nikita's round-6
@@ -252,6 +254,10 @@ export class House {
   private ends = new Map<GaugeId, THREE.Vector3>();
   private dot: HTMLCanvasElement | null = null;
   private tints = new Map<string, HTMLCanvasElement>();
+  /** Myshka (#729): where he's going (catBrain.ts), and his body once its model is in (myshkaHouse.ts, lazy). */
+  private catBrain: CatBrain | null = null;
+  private cat: HouseCat | null = null;
+  private gone = false;
 
   constructor(
     private host: HTMLElement,
@@ -303,6 +309,7 @@ export class House {
     }
     this.walls = wallsOf(this.plan);
     this.build();
+    this.startCat();
     this.bind();
     this.resize();
     this.cam = { ...this.home };
@@ -370,6 +377,33 @@ export class House {
     this.lightPools();
     this.nanites();
     this.buildLabels();
+  }
+
+  /** Myshka, loaded after the house: a failed load just leaves the house without him. */
+  private startCat() {
+    this.catBrain = new CatBrain(navGrid(this.plan, this.walls), this.plan, this.opts.reduce);
+    void import("./myshkaHouse.ts")
+      .then((m) => m.loadHouseCat())
+      .then((cat) => {
+        if (this.gone) return cat.dispose();
+        this.cat = cat;
+        this.world.add(cat.group);
+        this.host.dataset.cat = "on";
+        // Reduced motion: settle him into his loaf once, then he stays as drawn.
+        if (this.opts.reduce) for (let i = 0; i < 90; i++) this.poseCat(2.5, 1 / 30);
+        this.dirty = true;
+      })
+      .catch(() => undefined);
+  }
+
+  private poseCat(t: number, dt: number) {
+    if (!this.cat || !this.catBrain) return;
+    this.cat.update(this.catBrain.update(performance.now(), dt), t, dt, (x, y) => [this.wx(x), this.wz(y)], U);
+  }
+
+  /** What the pets' devices say (#729): a feed sends Myshka to the feeders, a Litter-Robot cycle to the litter. */
+  setCat(s: CatSignals) {
+    this.catBrain?.setSignals(s);
   }
 
   private instanced(geo: THREE.BufferGeometry, mat: THREE.Material, list: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[], order = 0) {
@@ -1240,6 +1274,7 @@ export class House {
     const t = this.opts.reduce ? 2.5 : (now - this.t0) / 1000;
     this.updateLights(t);
     this.step(t);
+    if (!this.opts.reduce) this.poseCat(t, dt);
     if (this.night) {
       this.night.group.visible = !this.backdrop;
       this.night.update(this.renderer.domElement.width, this.renderer.domElement.height, t, this.camera, this.renderer.getPixelRatio());
@@ -1362,6 +1397,8 @@ export class House {
   }
 
   dispose() {
+    this.gone = true;
+    this.cat?.dispose();
     cancelAnimationFrame(this.raf);
     for (const d of this.disposers.splice(0)) d();
     this.night?.dispose();

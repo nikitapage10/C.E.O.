@@ -397,6 +397,9 @@ Five creatures in the Lattice belong to no House and do no work:
   like a flag and head carried high (he once walked chest-first like a ship's prow, until the Foundry patched it). He sits in doorways, washes in the middle of meetings, loafs on anything warm, and gets up from a
   nap with the long front stretch before he'll speak to anyone. Skippy, who complains about everything, has never
   once complained about Myshka, the only one in the Lattice he yields to. He's a good boy. It is on file.
+  He has a second home too: the Haven's glass house, where he walks the rooms through the doors, turns up at the
+  feeders the moment a meal drops, sits a polite step back to supervise the litter box's cycle, and otherwise loafs in
+  the Living room or the Studio like a gargoyle on the warmest spot. Nobody built him a path. He found the doors himself.
 - **Brogu**, small, green and about fifty, found in a floating pod in the lost-and-found. For a long time he
   rode the pod everywhere. Then one night shift he climbed out and walked, and he has not stopped since: he
   toddles from room to room on legs nobody has actually seen, arms out for balance, ears flopping a beat behind.

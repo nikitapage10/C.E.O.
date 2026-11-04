@@ -275,7 +275,11 @@ function Card({ id, L, pulses, now, since, held, skippySays, active, onClose }: 
   const setOpen = useSkippy((s) => s.setOpen);
   const changelog = useFoundry((s) => s.data.changelog);
   const box = useRef<HTMLElement>(null);
-  useEffect(() => box.current?.focus({ preventScroll: true }), [id]);
+  // On a phone the card sits at the foot of the ring: brought into view clear of Ask Skippy's dock (scroll-margin).
+  useEffect(() => {
+    box.current?.focus({ preventScroll: true });
+    if (L.phone) box.current?.scrollIntoView?.({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+  }, [id, L.phone]);
   const p = pulses.find((x) => x.id === id) ?? null;
   const seat = L.seats.find((s) => s.id === id);
   // Beside its member on a wide screen, toward the middle; under the ring on a phone.

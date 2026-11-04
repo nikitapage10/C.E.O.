@@ -27,6 +27,7 @@ import * as latticetiming from "../../api/_boot/timing.js";
 import * as talktiming from "../../api/_boot/talkTiming.js";
 import * as desktiming from "../../api/_boot/deskTiming.js";
 import * as haven from "../../api/_haven/route.js";
+import * as homedevices from "../../api/_haven/devices/live.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
@@ -82,6 +83,12 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["capture", haven.captureRoute, { settleMs: 2_500 }],
   ["haven", haven.havenRoute],
   ["hey-skippy", haven.greetRoute],
+  // Nikita's home devices (#632, docs/HOME-DEVICES.md): the Roborock vacuum, the Petlibro feeders and fountain and the
+  // Litter-Robot, read and run from here with their logins in this Key Vault (or sealed in the private store). A
+  // passkey session or a phone key; ?view=status is the public counts and states; connect is Connect Roborock, Desk only.
+  ["haven/devices", homedevices.devicesRoute],
+  ["haven/devices/action", homedevices.actionRoute, { settleMs: 2_500 }],
+  ["haven/devices/connect", homedevices.connectRoute],
   ["day-story", daystory],
   ["desk-auth", deskauth],
   ["desk-pings", deskpings],
@@ -158,7 +165,7 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
 
 for (const [name, mod, opts] of ENDPOINTS) {
   const methods = (["GET", "POST", "PUT"] as const).filter((m) => typeof mod[m] === "function");
-  app.http(name.replace(/-/g, "_"), {
+  app.http(name.replace(/[-/]/g, "_"), {
     route: name,
     methods: methods as HttpMethod[],
     authLevel: "anonymous",

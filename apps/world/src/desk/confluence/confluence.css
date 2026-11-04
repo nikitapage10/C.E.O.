@@ -201,3 +201,25 @@
 .desk .kl-list input{width:18px;height:18px;accent-color:var(--wv-hot)}
 .desk .kl-list .is-done label{color:var(--wv-faint);text-decoration:line-through}
 .desk .kl-empty{margin:0;font-size:14px;color:var(--wv-mute)}
+
+/* The Home chip (#632, HomeDevices.tsx): the vacuum, feeders, fountain and Litter-Robot. Counts only signed out. */
+.desk .hd-btn{cursor:default}
+.desk button.hd-btn{cursor:pointer}
+.desk .hd-pop{min-width:min(340px,calc(100vw - 32px))}
+.desk .hd-list{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.desk .hd-head{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-size:15px;color:var(--wv-ink)}
+.desk .hd-head b{font-weight:500}
+.desk .hd-head small{font-size:12px;color:var(--wv-faint)}
+.desk .hd-state{font-size:13px;color:var(--wv-hot)}
+.desk .hd-state.is-off{color:var(--wv-faint)}
+.desk .hd-facts,.desk .hd-note,.desk .hd-said{margin:4px 0 0;font-size:13px;color:var(--wv-mute)}
+.desk .hd-alerts{margin:4px 0 0;font-size:13px;color:var(--wv-hot)}
+.desk .hd-said{color:var(--wv-ink)}
+.desk .hd-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.desk .hd-acts button,.desk .hd-connect button,.desk .hd-room select,.desk .hd-connect input{font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft)}
+.desk .hd-acts button:not(:disabled),.desk .hd-connect button:not(:disabled){cursor:pointer}
+.desk .hd-acts button:disabled,.desk .hd-connect button:disabled{opacity:.45}
+.desk .hd-room{display:inline-flex;gap:6px}
+.desk .hd-connect{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:12px 0 0;font-size:13px;color:var(--wv-mute)}
+.desk .hd-connect input{border-radius:8px;min-width:0;flex:1 1 160px}
+.desk .hd-connect small{flex-basis:100%}

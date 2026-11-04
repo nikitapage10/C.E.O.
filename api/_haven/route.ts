@@ -9,7 +9,9 @@
  *                        - past the key's 30 an hour: 429 { say } with Retry-After;
  *                        - text over 300 characters: 400 { say };
  *                        - otherwise 200 { say, audio? }: rules sort the words first (api/_haven/classify.ts):
- *                          shopping items go on the Kitchen list (api/_haven/list.ts), a to-do into the to-dos
+ *                          shopping items go on the Kitchen list (api/_haven/list.ts), a home-device ask ("feed the
+ *                          cat", "clean the kitchen", "clean the litter box") through api/_haven/devices/home.ts and
+ *                          its rails (#632), a to-do into the to-dos
  *                          (api/_haven/todos.ts, into Today's store), and anything else to Desk Skippy's own chat (`phoneAnswer` in
  *                          api/skippy.ts: the same prompt, router, caps and hand-offs, marked "phone"). With
  *                          `voice: true`, `audio` is a five-minute, single-use link to `say` in Skippy's voice
@@ -44,6 +46,8 @@ import { KitchenList } from "./list.js";
 import { PhoneKeys, KEY_SHAPE } from "./phones.js";
 import { phoneKeyOf } from "./links.js";
 import { PhoneTodos, type TodoSink } from "./todos.js";
+import type { Home } from "./devices/home.js";
+import { homeFromEnv } from "./devices/live.js";
 
 type Env = Record<string, string | undefined>;
 
@@ -63,6 +67,8 @@ export interface HavenDeps {
   voice: Omit<VoiceDeps, "blob"> | null;
   log: (line: string) => void;
   random: () => number;
+  /** The home devices (#632, api/_haven/devices/home.ts), or null when they aren't set up here. */
+  devices?: () => Home | null;
 }
 
 export function liveDeps(env: Env = process.env): HavenDeps {
@@ -77,6 +83,7 @@ export function liveDeps(env: Env = process.env): HavenDeps {
     voice: { eleven, ledger: pickStoryStore(env), deskKey },
     log: (line) => console.log(line),
     random: Math.random,
+    devices: () => homeFromEnv(env),
   };
 }
 
@@ -136,6 +143,10 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
     if (sorted.kind === "shopping") {
       const { added, already } = await new KitchenList(deps.blob).add(sorted.items, now);
       say = sayAdded(added, already);
+    } else if (sorted.kind === "device") {
+      // The home devices (#632): the same rails as the Desk's buttons, and the Council keeps the words as said.
+      const home = deps.devices?.() ?? null;
+      say = home ? (await home.act({ action: sorted.action, rooms: sorted.rooms, via: "phone", said: text })).say : "The home devices aren't set up here yet.";
     } else if (sorted.kind === "todo") {
       const todo = await deps.todos(deps.blob).addTodo(sorted.text, now);
       say = sayTodo(todo.text, todo.due, now);

@@ -48,6 +48,9 @@
  *                                             stored hashes (unknown or revoked: 401) and paces it
  *        GET /api/capture?a=<signed audio link>   that answer's audio (#627): signed by this Desk key and unexpired,
  *                                             checked here with the environment alone; served once (api/_haven/audio.ts)
+ *        GET /api/haven/devices, POST /api/haven/devices/action + x-ceo-phone-key (or Bearer)   the home devices
+ *                                             (#632): the same phone-key shape check; api/_haven/devices/route.ts checks
+ *                                             it against the stored hashes and paces it with the captures
  *        GET /api/hey-skippy, /hey-skippy/hello.mp3   the shortcut's greeting clips (#627): a few spoken words, public
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
  *   6. Anything else: an API route gets 401 { error: "site-locked" }; a page gets the login page, with 401.
@@ -219,6 +222,8 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if ((request.method === "GET" || request.method === "HEAD") && pathname === "/api/annex-elections") return { allow: true, why: "annex-results" };
   if (request.method === "POST" && pathname === "/api/capture" && url.search === "" && isPhoneKey(request)) return { allow: true, why: "phone-key" };
   if (request.method === "GET" && pathname === "/api/capture" && isPhoneAudio(url, env, ctx.now)) return { allow: true, why: "phone-audio" };
+  // The home devices (#632) take the same phone key: GET the readings, POST one action. The handler checks the key.
+  if (url.search === "" && isPhoneKey(request) && ((request.method === "GET" && pathname === "/api/haven/devices") || (request.method === "POST" && pathname === "/api/haven/devices/action"))) return { allow: true, why: "phone-key" };
   if ((request.method === "GET" || request.method === "HEAD") && (pathname === "/api/hey-skippy" || pathname === "/hey-skippy/hello.mp3") && url.search === "") return { allow: true, why: "greeting" };
   const room = roomKeyPass(request, env);
   if (room) return { allow: true, why: room };

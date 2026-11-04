@@ -20,6 +20,8 @@ export const LIVE_SETTINGS = {
   // portal stays off through a deploy).
   KERNEL_AGENT_ENABLED: "kernelAgentEnabled",
   KERNEL_AGENT_BUDGET_USD: "kernelAgentBudgetUsd",
+  // The home devices' manual feeds a day per feeder (#632), kept as set.
+  HOME_FEED_CAP: "homeFeedCap",
 };
 
 /**
@@ -45,6 +47,7 @@ export const RESOURCE_PARAMS = [
   "emailBudgetUsd",
   "kernelAgentEnabled",
   "kernelAgentBudgetUsd",
+  "homeFeedCap",
   "paypalEnv",
   "siteOnCustomDomain",
   "tags",
@@ -103,6 +106,7 @@ export function buildParams({ main, live = {}, cap = "", deployer = "", github =
     emailBudgetUsd: pick("emailBudgetUsd", live.EMAIL_BUDGET_USD, (v) => MONEY.test(v)),
     kernelAgentEnabled: pick("kernelAgentEnabled", live.KERNEL_AGENT_ENABLED, (v) => v === "true" || v === "false"),
     kernelAgentBudgetUsd: pick("kernelAgentBudgetUsd", live.KERNEL_AGENT_BUDGET_USD, (v) => MONEY.test(v) && Number(v) <= 10),
+    homeFeedCap: pick("homeFeedCap", live.HOME_FEED_CAP, (v) => /^[0-6]$/.test(v)),
     paypalEnv: pick("paypalEnv", live.PAYPAL_ENV, (v) => v === "sandbox" || v === "live"),
     siteOnCustomDomain,
     tags: defaultOf(main, "tags"),

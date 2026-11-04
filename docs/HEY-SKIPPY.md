@@ -75,6 +75,10 @@ nothing secret.
   the Kitchen list once: something already on it isn't added twice. One word on its own ("milk") goes to Skippy, so
   say "add milk".
 - "Remind me to call the dermatologist tomorrow." "To-do: renew the passport." "Email Sam on Friday."
+- The home devices (#632, [HOME-DEVICES.md](HOME-DEVICES.md)): "Vacuum, go clean the kitchen." "Pause the vacuum."
+  "Vacuum, go home." "Feed the cat a portion." "Give the cat wet food." "Run a litter clean cycle." The server's rails
+  still apply (the daily feed cap per feeder, the Litter-Robot only when it says it's ready), and Skippy says what
+  happened.
 - Anything else: "How's the Green looking?" "Is anything broken?" Skippy answers in a sentence or two; for real work he
   gives the quick take and says he'll put the rest on the Desk, where his answer arrives like any Desk hand-off.
 

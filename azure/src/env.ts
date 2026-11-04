@@ -55,6 +55,13 @@ export const SECRET_SETTINGS = [
   // write key opens only POST /api/room-feed and POST /api/skippy-answer (a hand-off's answer coming back).
   "SUBMIND_LOG_TOKEN",
   "SUBMIND_FEED_TOKEN",
+  // The home devices (#632, docs/HOME-DEVICES.md): the key that seals their logins, and the Petlibro and Whisker
+  // accounts, typed into the vault by Nikita. Never settable from the Desk.
+  "HOME_TOKEN_KEY",
+  "PETLIBRO_EMAIL",
+  "PETLIBRO_LOGIN_DIGEST",
+  "WHISKER_EMAIL",
+  "WHISKER_SRP_DIGEST",
 ] as const;
 
 /** Whether a setting's value is an unresolved Key Vault reference (the platform's own spelling, in any case). */

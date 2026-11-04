@@ -5,6 +5,9 @@
  *             of nouns ("garlic and lemons"): the items go on the Kitchen list.
  *   todo      "remind me to call the dermatologist tomorrow", "to-do: renew the passport", "call the vet on Friday",
  *             "email Sam tomorrow": a private to-do.
+ *   device    the home devices (#632): "vacuum, go clean the kitchen", "clean the hall and the dining room", "start the
+ *             vacuum", "pause the vacuum", "send the vacuum home", "feed the cat", "give the cat wet food", "clean the
+ *             litter box", "run a litter cycle". Runs through the rails in api/_haven/devices/home.ts.
  *   skippy    anything else (a question, small talk, a bare single word): Desk Skippy's own chat answers it, under its
  *             own caps (api/skippy.ts, phoneAnswer).
  *
@@ -15,7 +18,14 @@
 
 import { whenLabel } from "../_today/parse.js";
 
-export type Capture = { kind: "shopping"; items: string[] } | { kind: "todo"; text: string } | { kind: "skippy"; text: string };
+export type Capture =
+  | { kind: "shopping"; items: string[] }
+  | { kind: "todo"; text: string }
+  | { kind: "device"; action: DeviceAction; rooms?: string[] }
+  | { kind: "skippy"; text: string };
+
+/** The home devices' actions a capture can ask for (#632; api/_haven/devices/types.ts names the same ones). */
+export type DeviceAction = "vacuum.start" | "vacuum.pause" | "vacuum.dock" | "vacuum.rooms" | "feeder.feed" | "wet.open" | "litter.clean";
 
 /** The most items one capture adds, and the longest one. */
 export const ITEMS_MAX = 12;
@@ -51,6 +61,37 @@ export function todoText(text: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+/* ── The home devices (#632) ── */
+
+const VACUUM = /\b(?:vacuum|robot|roborock|hoover|roomba)\b/i;
+const LITTER = /\blitter(?:[ -]?(?:box|robot))?\b/i;
+/** Room words that make a bare "clean the <room>" a vacuum job, not a to-do. */
+const ROOM_WORDS = /^(?:the\s+)?(?:kitchen|hall|hallway|entry|entryway|foyer|living room|lounge|dining room|dining area|dining|bedroom|master bedroom|bathroom|office|studio|corridor|den|family room|guest room|kids'? room)(?:\s*(?:,|and|&)\s*(?:the\s+)?(?:kitchen|hall|hallway|entry|entryway|foyer|living room|lounge|dining room|dining area|dining|bedroom|master bedroom|bathroom|office|studio|corridor|den|family room|guest room|kids'? room))*$/i;
+const EVERYWHERE = /^(?:the\s+)?(?:house|whole house|home|whole place|place|apartment|flat|everywhere|floors?|all(?: the)? rooms)$/i;
+
+/** A home-device ask, or null. Never calls anything. */
+export function deviceAsk(text: string): Extract<Capture, { kind: "device" }> | null {
+  const t = text.replace(/^(?:please\s+|can you\s+|could you\s+)/i, "").trim();
+  // The litter box first: "clean the litter box" is never a vacuum job.
+  if (LITTER.test(t) && /\b(?:clean|cycle|run|empty|scoop|start)\b/i.test(t)) return { kind: "device", action: "litter.clean" };
+  if (/\b(?:feed|give)\b.*\b(?:cat|cats|kitty|kitten|kitties)\b|\bfeed (?:a|one) portion\b/i.test(t) || /^(?:dispense|drop) (?:a |one )?portion\b/i.test(t)) {
+    return { kind: "device", action: /\bwet\b|\bcan\b|\bpate\b|\bpâté\b|\btray\b|\bbowl\b|\blid\b/i.test(t) ? "wet.open" : "feeder.feed" };
+  }
+  if (/\bopen (?:the )?wet (?:food )?feeder\b/i.test(t)) return { kind: "device", action: "wet.open" };
+  const vac = VACUUM.test(t);
+  if (vac && /\b(?:pause|stop|hold on|wait)\b/i.test(t)) return { kind: "device", action: "vacuum.pause" };
+  if (vac && /\b(?:home|dock|base|charger|charge|back)\b/i.test(t) && !/\bclean\b.*\bhome\b/i.test(t)) return { kind: "device", action: "vacuum.dock" };
+  const m = /\b(?:clean|vacuum|hoover|do)\s+(.+)$/i.exec(t.replace(/^(?:hey\s+)?(?:vacuum|robot)[,:]?\s+(?:go\s+)?/i, ""));
+  const where = m?.[1]?.replace(/[.!?]+$/, "").trim() ?? "";
+  if (where && (vac || ROOM_WORDS.test(where) || EVERYWHERE.test(where))) {
+    if (EVERYWHERE.test(where)) return { kind: "device", action: "vacuum.start" };
+    const rooms = where.replace(/^(?:up\s+)?(?:the\s+)?/i, "").split(/\s*(?:,|&|\band\b)\s*/i).map((r) => r.replace(/^the\s+/i, "").trim()).filter(Boolean);
+    if (rooms.length) return { kind: "device", action: "vacuum.rooms", rooms: rooms.slice(0, 8) };
+  }
+  if (vac && /\b(?:start|go|run|clean|vacuum)\b/i.test(t)) return { kind: "device", action: "vacuum.start" };
+  return null;
+}
+
 /** A follow-on to the last capture: "and milk too", "also eggs", "plus bread as well". */
 const FOLLOW_START = /^(?:oh,?\s+)?(?:and|also|plus)\b,?\s*/i;
 const FOLLOW_END = /,?\s+(?:too|as well|also)$/i;
@@ -66,8 +107,11 @@ export function classify(raw: string, last: Capture["kind"] | null = null): Capt
     const items = itemsOf(text.replace(FOLLOW_START, "").replace(FOLLOW_END, ""));
     if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return { kind: "shopping", items };
   }
-  // A to-do says so, starts with a to-do verb, or says when.
+  // A to-do says so, starts with a to-do verb, or says when. A home-device ask comes before the to-do verbs, so
+  // "clean the kitchen" runs the vacuum, while "remind me to clean the kitchen" stays a to-do.
   if (TODO_START.test(text)) return { kind: "todo", text: todoText(text) };
+  const device = deviceAsk(text);
+  if (device) return device;
   if (TODO_VERB.test(text)) return { kind: "todo", text: todoText(text) };
   // Shopping: "add …", "we need …", "out of …", with or without "to the list".
   const shop = SHOP_START.exec(text);

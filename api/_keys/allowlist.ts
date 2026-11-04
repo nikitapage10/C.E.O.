@@ -58,6 +58,10 @@ export const NEVER_SETTABLE: readonly (string | RegExp)[] = [
   /^desk-/,
   /^foundry-/,
   /token/,
+  // The home devices' accounts and sealing key (#632): passwords to physical devices stay with the Cloud Shell paste.
+  /^home-/,
+  /^petlibro-/,
+  /^whisker-/,
 ];
 
 const blocked = (name: string) => NEVER_SETTABLE.some((n) => (typeof n === "string" ? n === name : n.test(name)));

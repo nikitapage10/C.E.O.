@@ -1,0 +1,4 @@
+[
+  { "type": "PET_VISIT", "timestamp": "2026-11-04T16:41:07Z", "duration": 64, "wasteType": "URINE" },
+  { "type": "PET_VISIT", "timestamp": "2026-11-04T09:12:55Z", "duration": 88, "wasteType": "FECES" }
+]

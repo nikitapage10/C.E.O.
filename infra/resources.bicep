@@ -44,6 +44,9 @@ param kernelAgentEnabled string
 @description('The Kernel responder\'s own monthly Claude cap, in USD (KERNEL_AGENT_BUDGET_USD, #501), as a string.')
 param kernelAgentBudgetUsd string
 
+@description('Manual feeds a day per Petlibro feeder (HOME_FEED_CAP, #632), as a string.')
+param homeFeedCap string
+
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV): sandbox or live.')
 param paypalEnv string
 
@@ -110,6 +113,15 @@ var secrets = [
   // secret. Without one, what it opens stays off.
   { setting: 'SUBMIND_LOG_TOKEN', secret: 'submind-log-token' }
   { setting: 'SUBMIND_FEED_TOKEN', secret: 'submind-feed-token' }
+  // Nikita's home devices (#632, docs/HOME-DEVICES.md): 32 random bytes that seal the device logins in `ceo-state` and
+  // key the devices' opaque ids, and the Petlibro and Whisker accounts' email and password, typed by Nikita into the
+  // vault in Cloud Shell. The functions only read these; none is settable from the Desk (api/_keys/allowlist.ts).
+  // The Roborock login comes from Connect Roborock on the Desk and is sealed in the store, never written here.
+  { setting: 'HOME_TOKEN_KEY', secret: 'home-token-key' }
+  { setting: 'PETLIBRO_EMAIL', secret: 'petlibro-email' }
+  { setting: 'PETLIBRO_LOGIN_DIGEST', secret: 'petlibro-login-digest' }
+  { setting: 'WHISKER_EMAIL', secret: 'whisker-email' }
+  { setting: 'WHISKER_SRP_DIGEST', secret: 'whisker-srp-digest' }
 ]
 
 // Built-in role IDs (the same in every tenant).
@@ -289,6 +301,8 @@ var plainSettings = [
   // Haiku; KERNEL_AGENT_MODEL=sonnet (set by hand, kept by the deploy) moves it to Sonnet 5.5.
   { name: 'KERNEL_AGENT_ENABLED', value: kernelAgentEnabled }
   { name: 'KERNEL_AGENT_BUDGET_USD', value: kernelAgentBudgetUsd }
+  // The home devices' feed cap (#632): manual feeds a Mountain day, per feeder (dry and wet each). Kept as live.
+  { name: 'HOME_FEED_CAP', value: homeFeedCap }
   // The Spire's invoices (#279): sandbox until Nikita switches to live (docs/PAYPAL.md).
   { name: 'PAYPAL_ENV', value: paypalEnv }
   // The site's home address (api/_site/hosts.ts): the pings' contact and the Gmail callback's fallback. The

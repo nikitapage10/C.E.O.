@@ -13,10 +13,10 @@ import type { DeskRoom } from "./deskData.ts";
  * The page is public: name env vars at most, never a value (connections.test.ts checks for anything key-like).
  */
 
-export type ConnectionKind = "REST API" | "SDK" | "MCP server" | "CLI" | "Scheduled" | "Webhook" | "Polling" | "Storage" | "WebSocket" | "Agent";
+export type ConnectionKind = "REST API" | "SDK" | "MCP server" | "CLI" | "Scheduled" | "Webhook" | "Polling" | "Storage" | "WebSocket" | "MQTT" | "Agent";
 
-/** Where a connection is explained: a part of Relay's or the Foundry's diagram, the world clock, or the Exchange's or the Green's page. */
-export type ConnectionPlace = { system: "relay" | "foundry"; part: string } | { system: "world" } | { system: "exchange" } | { system: "green" } | { system: "spire" };
+/** Where a connection is explained: a part of Relay's or the Foundry's diagram, the world clock, the Exchange's, the Green's or the Spire's page, or the home devices (#632). */
+export type ConnectionPlace = { system: "relay" | "foundry"; part: string } | { system: "world" } | { system: "exchange" } | { system: "green" } | { system: "spire" } | { system: "home" };
 
 export interface Connection {
   id: string;
@@ -278,6 +278,42 @@ export const CONNECTIONS: Connection[] = [
     how: "An Azure function calls PayPal's Invoicing API (v2) over HTTPS. The Spire page's Invoices panel makes a draft invoice (a client, lines, a due date, a note); nothing reaches the client until you press Send and confirm it, which is a separate call. The panel lists the newest invoices and where each stands (draft, sent, viewed, paid, overdue, cancelled). The Lattice, Systems and the Boiler Room get counts only, never a client, an email or an amount.",
     auth: "OAuth client credentials for your PayPal REST app (PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET), Key Vault secrets; the short-lived access token is kept in memory and never leaves the function. PAYPAL_ENV picks the sandbox or live. Making, sending and cancelling need your passkey on the Desk. Without them it shows as waiting.",
     when: "Every minute while the Spire page is open; the public counts at most every five minutes. Sends only when you confirm.",
+  },
+  {
+    id: "roborock",
+    name: "Roborock",
+    room: "boiler",
+    at: [{ system: "home" }],
+    serves: "The vacuum: status, start, pause, dock and a clean of named rooms",
+    kinds: ["REST API", "MQTT"],
+    status: "live",
+    how: "An Azure function signs in to Roborock's cloud with an emailed code, reads the home's devices and room names over HTTPS, then talks to the vacuum through Roborock's own MQTT broker over TLS (each message encrypted with the device's key): its status and map, and start, pause, dock or a clean of the rooms you name. Not through Home Assistant. The public pages get counts and states only, never a room or a place.",
+    auth: "Connect Roborock on the Desk (your passkey): you enter the account email, Roborock emails a code, you enter it, and the login is sealed in the private store with HOME_TOKEN_KEY from the Key Vault. Disconnect forgets it. Without it it shows as waiting.",
+    when: "When the Desk is open (a 30 second cache), and on a tap or a phone command. The home's device list is read at most every six hours.",
+  },
+  {
+    id: "petlibro",
+    name: "Petlibro",
+    room: "boiler",
+    at: [{ system: "home" }],
+    serves: "The dry and wet food feeders and the water fountain",
+    kinds: ["REST API"],
+    status: "live",
+    how: "An Azure function calls Petlibro's cloud API over HTTPS: each device's food level, last feed, water level and filter life, a one portion feed for the dry feeder and opening the tray for the wet one. Not through Home Assistant. Manual feeds are capped per feeder each day (HOME_FEED_CAP, 2 by default), counted on the server before Petlibro is asked.",
+    auth: "The Petlibro account's email and login digest (made from the password in Cloud Shell, so the password never reaches Azure) as Key Vault secrets (PETLIBRO_EMAIL, PETLIBRO_LOGIN_DIGEST), set once from Cloud Shell and never settable from the site; the session token is sealed in the private store. Feeding needs your passkey or a phone key. Without them it shows as waiting.",
+    when: "When the Desk is open (a 30 second cache), and on a tap or a phone command.",
+  },
+  {
+    id: "whisker",
+    name: "Whisker",
+    room: "boiler",
+    at: [{ system: "home" }],
+    serves: "The Litter-Robot 5 Pro: drawer level, last use and a clean cycle",
+    kinds: ["REST API"],
+    status: "live",
+    how: "An Azure function signs in to Whisker's account service and calls the Litter-Robot 5 API over HTTPS: the robot's state, drawer and litter levels, the last visit, and a clean cycle. Not through Home Assistant. A cycle starts only when the robot itself says it is ready: online, idle, no cat inside and the drawer not full.",
+    auth: "The Whisker account's email and SRP digest (made from the password in Cloud Shell, so the password never reaches Azure) as Key Vault secrets (WHISKER_EMAIL, WHISKER_SRP_DIGEST), set once from Cloud Shell and never settable from the site; the short-lived tokens are sealed in the private store and refreshed. A cycle needs your passkey or a phone key. Without them it shows as waiting.",
+    when: "When the Desk is open (a 30 second cache), and on a tap or a phone command.",
   },
   {
     id: "bluebubbles",

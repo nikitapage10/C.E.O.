@@ -78,17 +78,19 @@ function HandsFreeChip() {
   const hf = useRoomMic((s) => s.hf);
   const target = useRoomMic((s) => s.target);
   const busy = useRoomMic((s) => s.phase !== "idle" && s.phase !== "said");
+  const ownListening = useRoomMic((s) => !!s.own?.listening);
   if (hf !== "on") return null;
+  const live = target && !ownListening;
   return (
     <button
       type="button"
       className="vdock__hf"
-      data-state={!target ? "waiting" : busy ? "busy" : "on"}
+      data-state={!live ? "waiting" : busy ? "busy" : "on"}
       style={{ "--hf": target?.colour ?? "#8fd8ff" } as React.CSSProperties}
       onClick={() => handsFreeOff()}
       title="Hands-free is on. Tap to stop."
     >
-      {target ? `listening · ${target.name}` : "hands-free · waiting"}
+      {live ? `listening · ${target.name}` : "hands-free · waiting"}
     </button>
   );
 }
@@ -138,12 +140,12 @@ function MicButton({ room, name }: { room: string; name: string }) {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "Escape" && useRoomMic.getState().phase !== "idle") return micReset();
-      if (e.code !== "Space" || e.metaKey || e.ctrlKey || e.altKey || editable(e.target)) return;
+      if (e.code !== "Space" || e.metaKey || e.ctrlKey || e.altKey || editable(e.target) || useRoomMic.getState().own?.space) return;
       e.preventDefault();
       if (!e.repeat) micPress(room);
     };
     const up = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || editable(e.target)) return;
+      if (e.code !== "Space" || editable(e.target) || useRoomMic.getState().own?.space) return;
       e.preventDefault();
       micRelease();
     };
@@ -204,15 +206,19 @@ export function HandsFree() {
   const hf = useRoomMic((s) => s.hf);
   const target = useRoomMic((s) => s.target);
   const busy = useRoomMic((s) => s.phase !== "idle" && s.phase !== "said");
+  const ownListening = useRoomMic((s) => !!s.own?.listening);
   if (auth !== "in" || !handsFreeSupported()) return null;
   const on = hf === "on";
-  const state = !on ? "off" : !target ? "waiting" : busy ? "busy" : "on";
-  const label = !on ? "Hands-free" : target ? `Listening · ${target.name}` : "Hands-free · waiting";
+  const live = target && !ownListening;
+  const state = !on ? "off" : !live ? "waiting" : busy ? "busy" : "on";
+  const label = !on ? "Hands-free" : live ? `Listening · ${target.name}` : "Hands-free · waiting";
   const title = !on
     ? "Hands-free: keep listening, page to page, for whoever leads the page you're on"
-    : target
+    : live
       ? `Listening for ${target.name}. Tap to stop.`
-      : "Hands-free waits while Skippy's chat or a call is open. Tap to stop.";
+      : ownListening
+        ? "Hands-free waits while this page's own listening is on. Tap to stop."
+        : "Hands-free waits while Skippy's chat or a call is open. Tap to stop.";
   return (
     <button
       type="button"

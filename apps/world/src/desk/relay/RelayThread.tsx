@@ -13,6 +13,7 @@ import { ghost, ghosted, INK, quill, rise, SigilStage, sink } from "./sigils.ts"
 import { agoShort, askLine, initialOf, lastRequest, passesOf, pendingOf, type Command, type Exchange, type Why } from "./thread.ts";
 import { errorText, useThread, type Notice } from "./useThread.ts";
 import { useVoice } from "./voice.ts";
+import { setOwnVoice } from "../roomvoice/roomVoice.ts";
 import "./thread.css";
 
 /**
@@ -338,6 +339,12 @@ export function RelayThread({ now }: { now: number }) {
   const t = useThread(now, { leave });
   const { ex, phase, hidden } = t;
   const voice = useVoice((l) => void t.line(l));
+  // One listener (#638): the Thread keeps Space for its own hold-to-talk, and while its hands-free is on the Desk's
+  // waits. Its intent layer moves onto the room's `voice` hook (@ceo/engine/voice) in its own round.
+  useEffect(() => {
+    setOwnVoice({ space: voice.supported, listening: voice.mode !== "off" });
+    return () => setOwnVoice(null);
+  }, [voice.supported, voice.mode]);
   const [typed, setTyped] = useState("");
   const [back] = useState(() => takeGmailReturn());
   const style = useEmail((s) => s.view?.style ?? null);

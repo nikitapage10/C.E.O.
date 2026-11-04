@@ -93,6 +93,8 @@ and no greeting. Three pieces, one listener (shared chrome, `apps/world/src/desk
   "listening · <who>" in that lead's colour. It waits while Skippy's chat or a call is open, steps aside while the mic
   or an answer has the floor (so Skippy never hears himself), and turns off on a tap, after ten quiet minutes, or if
   the browser blocks the microphone. Browser speech recognition only (Chrome, Edge, Safari); elsewhere it doesn't show.
+  Relay's Thread still has its own listener (#615) until its intent layer moves onto the room's `voice` hook: there it
+  keeps Space, and while it listens hands-free waits (`setOwnVoice`), so only one thing ever listens.
 
 Each utterance goes first to the room's own intent handler, if its manifest registers one (docs/ROOMS.md); otherwise,
 and whenever the handler passes, to `POST /api/skippy-room` (`api/_skippy/roomroute.ts`).

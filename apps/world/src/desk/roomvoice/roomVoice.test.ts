@@ -13,6 +13,7 @@ import {
   intentFor,
   micReset,
   recall,
+  setOwnVoice,
   remember,
   setVoiceTarget,
   silentWav,
@@ -252,6 +253,17 @@ describe("hands-free (#638): one toggle, listening page to page", () => {
     await vi.advanceTimersByTimeAsync(HF_IDLE_MS + 10);
     expect(useRoomMic.getState().hf).toBe("off");
     expect(FakeRec.live).toHaveLength(0);
+  });
+
+  it("waits while a page's own listener is on (Relay's Thread), so only one thing listens", () => {
+    setVoiceTarget(voiceTargetOf("relay"));
+    handsFreeOn();
+    expect(FakeRec.live).toHaveLength(1);
+    setOwnVoice({ space: true, listening: true });
+    expect(FakeRec.live).toHaveLength(0);
+    setOwnVoice({ space: true, listening: false });
+    expect(FakeRec.live).toHaveLength(1);
+    setOwnVoice(null);
   });
 
   it("turns off when the browser blocks the microphone", () => {

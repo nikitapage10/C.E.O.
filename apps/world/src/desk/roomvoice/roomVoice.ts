@@ -398,6 +398,8 @@ export interface MicStore {
   hfHeard: string;
   /** Who hands-free talks to: the lead of the page Nikita is on. */
   target: RoomMic | null;
+  /** A page with a listener of its own (Relay's Thread, #615): it has Space, and while it listens hands-free waits. */
+  own: { space: boolean; listening: boolean } | null;
   set: (patch: Partial<Omit<MicStore, "set">>) => void;
 }
 
@@ -413,6 +415,7 @@ export const useRoomMic = create<MicStore>((set) => ({
   hf: "off",
   hfHeard: "",
   target: null,
+  own: null,
   set: (patch) => set(patch),
 }));
 
@@ -669,7 +672,7 @@ function hfStop(): void {
 /** Whether hands-free should be listening right now: on, a lead on this page, and the mic free (nothing asked or said). */
 function hfShouldListen(): boolean {
   const s = useRoomMic.getState();
-  return s.hf === "on" && !!s.target && !listener && (s.phase === "idle" || s.phase === "said");
+  return s.hf === "on" && !!s.target && !s.own?.listening && !listener && (s.phase === "idle" || s.phase === "said");
 }
 
 /** Starts or stops the one hands-free recognition to match the state. Called on every change that matters. */
@@ -750,5 +753,16 @@ export function setVoiceTarget(target: RoomMic | null): void {
 // One listener at a time: hands-free steps aside while the room mic listens or an answer is on its way or being said,
 // and comes back when the mic is free.
 useRoomMic.subscribe((s, prev) => {
-  if (s.phase !== prev.phase || s.hf !== prev.hf || s.target !== prev.target) handsFreeTick();
+  if (s.phase !== prev.phase || s.hf !== prev.hf || s.target !== prev.target || s.own !== prev.own) handsFreeTick();
 });
+
+/**
+ * A page that still runs a listener of its own says so (Relay's Thread, #615, until its intent layer moves onto the
+ * room's `voice` hook): it keeps Space, and while it is listening hands-free waits, so only one thing listens. Null when
+ * it goes.
+ */
+export function setOwnVoice(own: { space: boolean; listening: boolean } | null): void {
+  const was = useRoomMic.getState().own;
+  if (was?.space === own?.space && was?.listening === own?.listening) return;
+  patch({ own });
+}

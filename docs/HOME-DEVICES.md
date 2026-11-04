@@ -8,8 +8,8 @@ runs on Vercel.
 | Device | Vendor client | How it signs in | How it talks |
 | --- | --- | --- | --- |
 | Roborock Qrevo (vacuum, dock in the Hall) | [`api/_haven/devices/roborock.ts`](../api/_haven/devices/roborock.ts) | **Connect Roborock** on the Desk: an emailed code | Roborock's cloud API for the home and room names, then its MQTT broker over TLS, each message AES-encrypted with the device's own key |
-| Petlibro dry food feeder, wet food feeder, water fountain (kitchen) | [`api/_haven/devices/petlibro.ts`](../api/_haven/devices/petlibro.ts) | Email and password, Key Vault secrets | Petlibro's cloud REST API (US region) |
-| Whisker Litter-Robot 5 Pro (Corridor, by the Studio) | [`api/_haven/devices/whisker.ts`](../api/_haven/devices/whisker.ts) | Email and password, Key Vault secrets, signed in with Cognito SRP ([`cognito.ts`](../api/_haven/devices/cognito.ts)) | Whisker's Litter-Robot 5 REST API |
+| Petlibro dry food feeder, wet food feeder, water fountain (kitchen) | [`api/_haven/devices/petlibro.ts`](../api/_haven/devices/petlibro.ts) | Email and login digest (MD5, made at setup), Key Vault secrets | Petlibro's cloud REST API (US region) |
+| Whisker Litter-Robot 5 Pro (Corridor, by the Studio) | [`api/_haven/devices/whisker.ts`](../api/_haven/devices/whisker.ts) | Email and SRP digest (made at setup), Key Vault secrets, signed in with Cognito SRP ([`cognito.ts`](../api/_haven/devices/cognito.ts)) | Whisker's Litter-Robot 5 REST API |
 
 None of the three has an official public API. The clients follow the paths the open-source Home Assistant
 integrations use (python-roborock, the Petlibro integration, pylitterbot's LR5 support), ported to TypeScript with no
@@ -60,7 +60,8 @@ Checked on the server, before the vendor is called, whoever asks ([`rails.ts`](.
   Hide), the public view and the Lattice never do.
 - A device is named by an opaque id (an HMAC of the vendor and serial under a key derived from `HOME_TOKEN_KEY`),
   never its serial; serials, local keys and duids stay on the server.
-- Logins and tokens: Petlibro and Whisker email and password only in the Key Vault (never settable from the Desk's
+- Logins and tokens: Petlibro and Whisker email and login digest only in the Key Vault (the passwords never reach
+  Azure) (never settable from the Desk's
   Keys form); the Roborock login and every session token sealed with AES-256-GCM in the private store
   (`haven/devices/*.json`). No log line holds a credential, token, code, email, serial or device name.
 
@@ -70,16 +71,22 @@ After this change is deployed (the template adds the five Key Vault references a
 
 ### 1. Azure Cloud Shell: the sealing key and the two logins (one paste)
 
-> **What this does.** Service: Azure (the Key Vault and the Function App). It makes `home-token-key` (a random key
-> that seals the device logins and names devices by an opaque id) if it isn't there yet, asks for the Petlibro and
-> Whisker email and password (the passwords typed hidden, never printed) and stores all four in the Key Vault, then
-> restarts the Function App so it reads them. Undo: delete the secrets in the vault and restart.
+> **What this does.** Services: Azure (the Key Vault and the Function App) and Whisker's sign-in service. It makes
+> `home-token-key` (a random key that seals the device logins and names devices by an opaque id) if it isn't there
+> yet. It asks for the Petlibro and Whisker email and password (passwords typed hidden, never printed or stored) and
+> turns each password into the one-way digest that vendor's sign-in takes (Petlibro: MD5; Whisker: SRP's SHA-256
+> digest, after asking Whisker for the account's sign-in id). It stores the emails and digests in the Key Vault, then
+> restarts the Function App. Undo: delete the secrets in the vault and restart.
 
 Open <https://shell.azure.com> (Bash) and paste:
 
 ```bash
-KV=kv-ceo-besgu7fnckib2; if [ -n "$(az keyvault secret show --vault-name $KV -n home-token-key --query value -o tsv 2>/dev/null)" ]; then echo "kept home-token-key"; else az keyvault secret set --vault-name $KV -n home-token-key --value "$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')" -o none && echo "set home-token-key"; fi; read -rp "Petlibro email: " PE; read -rsp "Petlibro password: " PP; echo; read -rp "Whisker email: " WE; read -rsp "Whisker password: " WP; echo; az keyvault secret set --vault-name $KV -n petlibro-email --value "$PE" -o none && az keyvault secret set --vault-name $KV -n petlibro-password --value "$PP" -o none && echo "set petlibro"; az keyvault secret set --vault-name $KV -n whisker-email --value "$WE" -o none && az keyvault secret set --vault-name $KV -n whisker-password --value "$WP" -o none && echo "set whisker"; unset PP WP; az functionapp restart -g rg-ceo-prod -n func-ceo-besgu7fnckib2 -o none && echo "restarted; home devices reading"
+KV=kv-ceo-besgu7fnckib2; if [ -n "$(az keyvault secret show --vault-name $KV -n home-token-key --query value -o tsv 2>/dev/null)" ]; then echo "kept home-token-key"; else az keyvault secret set --vault-name $KV -n home-token-key --value "$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')" -o none && echo "set home-token-key"; fi; read -rp "Petlibro email: " PE; read -rsp "Petlibro password: " PP; echo; read -rp "Whisker email: " WE; read -rsp "Whisker password: " WP; echo; if [ -n "$PE" ]; then PD=$(printf '%s' "$PP" | md5sum | cut -d' ' -f1); az keyvault secret set --vault-name $KV -n petlibro-email --value "$PE" -o none && az keyvault secret set --vault-name $KV -n petlibro-login-digest --value "$PD" -o none && echo "set petlibro"; fi; if [ -n "$WE" ]; then WU=$(curl -s https://cognito-idp.us-east-1.amazonaws.com/ -H 'Content-Type: application/x-amz-json-1.1' -H 'X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth' -d "$(jq -nc --arg u "$WE" '{AuthFlow:"USER_SRP_AUTH",ClientId:"4552ujeu3aic90nf8qn53levmn",AuthParameters:{USERNAME:$u,SRP_A:"02"}}')" | jq -r '.ChallengeParameters.USER_ID_FOR_SRP // empty'); if [ -n "$WU" ]; then WD=$(printf '%s%s:%s' rjhNnZVAm "$WU" "$WP" | sha256sum | cut -d' ' -f1); az keyvault secret set --vault-name $KV -n whisker-email --value "$WE" -o none && az keyvault secret set --vault-name $KV -n whisker-srp-digest --value "$WD" -o none && echo "set whisker"; else echo "Whisker didn't answer with a sign-in id for that email; whisker skipped"; fi; fi; unset PP WP PD WD; az functionapp restart -g rg-ceo-prod -n func-ceo-besgu7fnckib2 -o none && echo "restarted; home devices reading"
 ```
+
+The passwords never reach Azure: the Function App only ever holds the digests, which each vendor's sign-in accepts in
+their place (so treat them like passwords; they are Key Vault secrets the site can't set or read back). Change a
+password in the vendor's app, and run the paste again.
 
 Leave an email empty to skip that vendor (it stays "waiting"). Petlibro lets one phone stay signed in per account,
 so the app on the phone may be signed out once the Function App signs in; to keep both, make a second Petlibro

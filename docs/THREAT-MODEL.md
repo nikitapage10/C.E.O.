@@ -170,7 +170,7 @@ secret scanning, pinned actions, least-privilege workflows and npm provenance ch
 | World state and history | Azure Blob (private) | The Lattice's memory |
 | Nightly backups | Azure Storage `ceo-backups` (private, Cool tier), kept 90 days; deletes and overwrites recoverable for 14 days | A copy of the world's public state, the Azure copy's state and the models; restores either copy |
 | Idea pictures | Azure Blob (private), shown only on short-lived signed links (#127) | May show Nikita's screen |
-| Home device logins | Petlibro and Whisker email and password in the Azure Key Vault only; the Roborock login and the vendors' tokens sealed in Azure Blob (private) under `HOME_TOKEN_KEY` (#632) | Read and run the vacuum, feeders, fountain and Litter-Robot; feeding is capped and the litter cycle gated on the server |
+| Home device logins | Petlibro and Whisker email and login digest (made from the password in Cloud Shell; the password never reaches Azure) in the Azure Key Vault only; the Roborock login and the vendors' tokens sealed in Azure Blob (private) under `HOME_TOKEN_KEY` (#632) | Read and run the vacuum, feeders, fountain and Litter-Robot; feeding is capped and the litter cycle gated on the server |
 | Nikita's words | GitHub issues (public) | Dictated, may mention people |
 | Messages and contacts (planned) | Relay MacBook only; what may leave it is in [RELAY-PRIVACY.md](RELAY-PRIVACY.md) | The most sensitive data C.E.O. will touch |
 

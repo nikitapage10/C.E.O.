@@ -264,8 +264,8 @@ is off, #313), but only Azure serves it.
   the ElevenLabs key and cap already here. [HEY-SKIPPY.md](HEY-SKIPPY.md).
 - **The home devices (#632) are Azure only.** `azure/src/index.ts` registers `/api/haven/devices` (readings, and the
   public `?view=status`), `/api/haven/devices/action` and `/api/haven/devices/connect`, behind the same gate. The
-  template wires five Key Vault references (`home-token-key`, `petlibro-email`, `petlibro-password`, `whisker-email`,
-  `whisker-password`) and the plain `HOME_FEED_CAP` (2), kept at its live value on each deploy. The one paste and
+  template wires five Key Vault references (`home-token-key`, `petlibro-email`, `petlibro-login-digest`, `whisker-email`,
+  `whisker-srp-digest`) and the plain `HOME_FEED_CAP` (2), kept at its live value on each deploy. The one paste and
   Connect Roborock are in [HOME-DEVICES.md](HOME-DEVICES.md).
 - **Passkeys are per domain.** The Desk's passkeys are tied to the address they were made on, so signing in to the
   Desk on the Azure address needs its own passkey, enrolled there with the Desk key as on Vercel. Azure's store

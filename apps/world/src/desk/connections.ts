@@ -300,7 +300,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["REST API"],
     status: "live",
     how: "An Azure function calls Petlibro's cloud API over HTTPS: each device's food level, last feed, water level and filter life, a one portion feed for the dry feeder and opening the tray for the wet one. Not through Home Assistant. Manual feeds are capped per feeder each day (HOME_FEED_CAP, 2 by default), counted on the server before Petlibro is asked.",
-    auth: "The Petlibro account's email and password as Key Vault secrets (PETLIBRO_EMAIL, PETLIBRO_PASSWORD), set once from Cloud Shell and never settable from the site; the session token is sealed in the private store. Feeding needs your passkey or a phone key. Without them it shows as waiting.",
+    auth: "The Petlibro account's email and login digest (made from the password in Cloud Shell, so the password never reaches Azure) as Key Vault secrets (PETLIBRO_EMAIL, PETLIBRO_LOGIN_DIGEST), set once from Cloud Shell and never settable from the site; the session token is sealed in the private store. Feeding needs your passkey or a phone key. Without them it shows as waiting.",
     when: "When the Desk is open (a 30 second cache), and on a tap or a phone command.",
   },
   {
@@ -312,7 +312,7 @@ export const CONNECTIONS: Connection[] = [
     kinds: ["REST API"],
     status: "live",
     how: "An Azure function signs in to Whisker's account service and calls the Litter-Robot 5 API over HTTPS: the robot's state, drawer and litter levels, the last visit, and a clean cycle. Not through Home Assistant. A cycle starts only when the robot itself says it is ready: online, idle, no cat inside and the drawer not full.",
-    auth: "The Whisker account's email and password as Key Vault secrets (WHISKER_EMAIL, WHISKER_PASSWORD), set once from Cloud Shell and never settable from the site; the short-lived tokens are sealed in the private store and refreshed. A cycle needs your passkey or a phone key. Without them it shows as waiting.",
+    auth: "The Whisker account's email and SRP digest (made from the password in Cloud Shell, so the password never reaches Azure) as Key Vault secrets (WHISKER_EMAIL, WHISKER_SRP_DIGEST), set once from Cloud Shell and never settable from the site; the short-lived tokens are sealed in the private store and refreshed. A cycle needs your passkey or a phone key. Without them it shows as waiting.",
     when: "When the Desk is open (a 30 second cache), and on a tap or a phone command.",
   },
   {

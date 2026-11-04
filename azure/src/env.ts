@@ -59,9 +59,9 @@ export const SECRET_SETTINGS = [
   // accounts, typed into the vault by Nikita. Never settable from the Desk.
   "HOME_TOKEN_KEY",
   "PETLIBRO_EMAIL",
-  "PETLIBRO_PASSWORD",
+  "PETLIBRO_LOGIN_DIGEST",
   "WHISKER_EMAIL",
-  "WHISKER_PASSWORD",
+  "WHISKER_SRP_DIGEST",
 ] as const;
 
 /** Whether a setting's value is an unresolved Key Vault reference (the platform's own spelling, in any case). */

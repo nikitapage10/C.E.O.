@@ -3,8 +3,8 @@
  * Function App's Key Vault, and nothing here runs on Vercel.
  *
  *   HOME_TOKEN_KEY                         seals the logins in the private store and keys the device ids (required)
- *   PETLIBRO_EMAIL, PETLIBRO_PASSWORD      the Petlibro account (Key Vault only; without them Petlibro waits)
- *   WHISKER_EMAIL, WHISKER_PASSWORD        the Whisker account (Key Vault only; without them Whisker waits)
+ *   PETLIBRO_EMAIL, PETLIBRO_LOGIN_DIGEST  the Petlibro account and the digest its login takes (Key Vault only)
+ *   WHISKER_EMAIL, WHISKER_SRP_DIGEST      the Whisker account and its SRP digest (Key Vault only); without them it waits
  *   HOME_FEED_CAP                          manual feeds a day per feeder (default 2)
  *
  * The Roborock login comes from Connect Roborock on the Desk and is sealed in the store.
@@ -34,7 +34,7 @@ export function homeFromEnv(env: Env = process.env): Home | null {
   const sealKey = homeKey(env.HOME_TOKEN_KEY, "seal");
   const idKey = homeKey(env.HOME_TOKEN_KEY, "id");
   if (!blob || !sealKey || !idKey) return null;
-  const sig = [env.HOME_TOKEN_KEY, env.PETLIBRO_EMAIL, env.PETLIBRO_PASSWORD, env.WHISKER_EMAIL, env.WHISKER_PASSWORD, env.HOME_FEED_CAP].join("\u0000");
+  const sig = [env.HOME_TOKEN_KEY, env.PETLIBRO_EMAIL, env.PETLIBRO_LOGIN_DIGEST, env.WHISKER_EMAIL, env.WHISKER_SRP_DIGEST, env.HOME_FEED_CAP].join("\u0000");
   if (kept?.sig === sig) return kept.home;
   const vault = new HomeVault(blob, sealKey);
   const now = () => Date.now();
@@ -43,8 +43,8 @@ export function homeFromEnv(env: Env = process.env): Home | null {
     blob,
     clients: [
       new RoborockClient({ fetch: f, vault, idKey, now }),
-      new PetlibroClient({ fetch: f, vault, idKey, email: (env.PETLIBRO_EMAIL ?? "").trim(), password: env.PETLIBRO_PASSWORD ?? "", now }),
-      new WhiskerClient({ fetch: f, vault, idKey, email: (env.WHISKER_EMAIL ?? "").trim(), password: env.WHISKER_PASSWORD ?? "", now }),
+      new PetlibroClient({ fetch: f, vault, idKey, email: (env.PETLIBRO_EMAIL ?? "").trim(), loginDigest: (env.PETLIBRO_LOGIN_DIGEST ?? "").trim().toLowerCase(), now }),
+      new WhiskerClient({ fetch: f, vault, idKey, email: (env.WHISKER_EMAIL ?? "").trim(), srpDigest: (env.WHISKER_SRP_DIGEST ?? "").trim().toLowerCase(), now }),
     ],
     feedCap: feedCap(env.HOME_FEED_CAP),
     council: new BlobRoomLog(blob),

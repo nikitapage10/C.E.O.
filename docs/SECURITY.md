@@ -288,9 +288,10 @@ Since #632 the Function App reads and runs Nikita's vacuum (Roborock), cat feede
 Litter-Robot 5 Pro (Whisker) straight from their clouds ([HOME-DEVICES.md](HOME-DEVICES.md); TB10 in
 [THREAT-MODEL.md](THREAT-MODEL.md)). Azure only (`api/_haven/devices/`).
 
-- **Logins.** Petlibro and Whisker email and password are Key Vault secrets (`petlibro-*`, `whisker-*`), typed once in
-  Cloud Shell, never settable from the Desk's Keys form. The Roborock login comes from Connect Roborock, an emailed code
-  entered in a passkey session (a bearer is refused). Every vendor token is sealed (AES-256-GCM, a key derived from
+- **Logins.** Petlibro and Whisker email and login digest (the password made one-way in Cloud Shell; the passwords
+  never reach Azure and the code hashes none) are Key Vault secrets (`petlibro-*`, `whisker-*`), never settable from
+  the Desk's Keys form. The Roborock login comes from Connect Roborock, an emailed code entered in a passkey session
+  (a phone key is refused). Every vendor token is sealed (AES-256-GCM, a key derived from
   `HOME_TOKEN_KEY`) in the private store.
 - **Who can act.** `GET /api/haven/devices` and `POST /api/haven/devices/action` answer a passkey session or a phone
   key (paced with its captures); the gate lets a phone key reach only those two, with no query. `?view=status` is

@@ -3,7 +3,7 @@
  * (pylitterbot/robot/litterrobot5.py, pylitterbot/session.py). The LR5 and LR5 Pro speak plain REST, unlike the LR4's
  * GraphQL:
  *
- *   Sign-in   Whisker's Cognito user pool (us-east-1), SRP with the email and password from the Key Vault
+ *   Sign-in   Whisker's Cognito user pool (us-east-1), SRP with the email and the SRP digest from the Key Vault
  *             (api/_haven/devices/cognito.ts); the tokens are sealed and refreshed with the refresh token.
  *   GET  https://ub.prod.iothings.site/robots                         every robot: serial, name, type, state
  *   GET  https://ub.prod.iothings.site/robots/{serial}/activities     the last pet visit (`type=PET_VISIT`)
@@ -15,7 +15,7 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { srpSignIn, refreshTokens, type CognitoPool, type CognitoTokens } from "./cognito.js";
+import { srpSignIn, refreshTokens, SRP_DIGEST, type CognitoPool, type CognitoTokens } from "./cognito.js";
 import { callJson, VendorError, withQuery, type Fetch } from "./http.js";
 import { isoOf, obj, pct, PLACES, str, type DeviceClient, type DeviceReading, type Found, type RunResult } from "./types.js";
 import { deviceId, type HomeVault } from "./vault.js";
@@ -112,7 +112,8 @@ export interface WhiskerDeps {
   vault: HomeVault | null;
   idKey: Buffer | null;
   email: string;
-  password: string;
+  /** SRP's inner digest of the account (WHISKER_SRP_DIGEST), made at setup: the password never reaches Azure. */
+  srpDigest: string;
   now: () => number;
 }
 
@@ -126,13 +127,13 @@ export class WhiskerClient implements DeviceClient<WhiskerRef> {
   constructor(private readonly deps: WhiskerDeps) {}
 
   async connected(): Promise<boolean> {
-    return Boolean(this.deps.email && this.deps.password && this.deps.vault && this.deps.idKey);
+    return Boolean(this.deps.email && SRP_DIGEST.test(this.deps.srpDigest) && this.deps.vault && this.deps.idKey);
   }
 
   /** A good id token: the sealed one, refreshed when it is within a minute of expiring, or a fresh sign-in. */
   private async token(force = false): Promise<string | null> {
-    const { vault, email, password, fetch: f } = this.deps;
-    if (!vault || !email || !password) return null;
+    const { vault, email, srpDigest, fetch: f } = this.deps;
+    if (!vault || !email || !SRP_DIGEST.test(srpDigest)) return null;
     const now = this.deps.now();
     let t = force ? null : await vault.read<CognitoTokens>("whisker").catch(() => null);
     if (t && t.expires - now < 60_000) {
@@ -140,7 +141,7 @@ export class WhiskerClient implements DeviceClient<WhiskerRef> {
       if (t) await vault.write("whisker", t);
     }
     if (!t) {
-      t = await srpSignIn(f, WHISKER_POOL, email, password, now);
+      t = await srpSignIn(f, WHISKER_POOL, email, srpDigest, now);
       await vault.write("whisker", t);
     }
     return t.idToken;

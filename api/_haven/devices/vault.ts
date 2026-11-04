@@ -9,8 +9,8 @@
  *   haven/devices/whisker.json           the Whisker Cognito tokens (refreshed from the stored refresh token)
  *   haven/devices/petlibro.json          the Petlibro login token
  *
- * The Petlibro and Whisker email and password are never written here: they live only in the Key Vault
- * (`petlibro-email`, `petlibro-password`, `whisker-email`, `whisker-password`) and reach the app as settings.
+ * The Petlibro and Whisker emails and login digests are never written here: they live only in the Key Vault
+ * (`petlibro-email`, `petlibro-login-digest`, `whisker-email`, `whisker-srp-digest`) and reach the app as settings.
  * The device id hash is keyed from the same secret, so an id says nothing about the serial behind it.
  *
  * Underscore folder: Vercel never serves it as a function.

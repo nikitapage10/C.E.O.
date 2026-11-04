@@ -4,7 +4,7 @@
  * feeder, a wet food feeder (the Polar kind, a rotating tray of three bowls with a lid) and a water fountain. Their
  * exact models come from the account's own device list (`productName`).
  *
- *   POST /member/auth/login                       email and md5(password) for a token (sealed, reused until it lapses)
+ *   POST /member/auth/login                       email and the login digest for a token (sealed, reused until it lapses)
  *   POST /device/device/list                      every device: deviceSn, productName, surplusGrain, online…
  *   POST /device/device/realInfo                  live state: online, food left, the fountain's water and filter
  *   POST /device/data/grainStatus                 today's feeds (dry feeders)
@@ -14,12 +14,14 @@
  *   POST /device/wetFeedingPlan/manualFeedNow     opens the wet feeder's lid on the bowl in front (plate)
  *
  * Every request carries the app's own headers and, once signed in, `token`. Code 1009 means the token lapsed: sign in
- * again once. The email and password come from the Key Vault only.
+ * again once. The email and the login digest come from the Key Vault only: Petlibro's app sends the MD5 hex of the
+ * password, so the setup paste (docs/HOME-DEVICES.md) makes that digest in Cloud Shell and the vault keeps it. The
+ * password itself never reaches Azure, and this code hashes nothing.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { callJson, VendorError, type Fetch } from "./http.js";
 import { isoOf, obj, pct, PLACES, str, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunResult } from "./types.js";
 import { deviceId, type HomeVault } from "./vault.js";
@@ -86,7 +88,8 @@ export interface PetlibroDeps {
   vault: HomeVault | null;
   idKey: Buffer | null;
   email: string;
-  password: string;
+  /** The MD5 hex Petlibro's login takes (PETLIBRO_LOGIN_DIGEST), made at setup. */
+  loginDigest: string;
   now: () => number;
 }
 
@@ -97,21 +100,24 @@ export interface PetlibroRef {
 
 type Answer = { code?: unknown; data?: unknown };
 
+/** The login digest's shape: 32 lowercase hex characters. */
+export const LOGIN_DIGEST = /^[0-9a-f]{32}$/;
+
 export class PetlibroClient implements DeviceClient<PetlibroRef> {
   readonly vendor = "petlibro" as const;
   readonly actions = ["feeder.feed", "wet.open"] as const;
   constructor(private readonly deps: PetlibroDeps) {}
 
   async connected(): Promise<boolean> {
-    return Boolean(this.deps.email && this.deps.password && this.deps.vault && this.deps.idKey);
+    return Boolean(this.deps.email && LOGIN_DIGEST.test(this.deps.loginDigest) && this.deps.vault && this.deps.idKey);
   }
 
   private async login(): Promise<string> {
-    const { fetch: f, email, password, vault } = this.deps;
+    const { fetch: f, email, loginDigest, vault } = this.deps;
     const a = (await callJson(f, `${PETLIBRO_API}/member/auth/login`, {
       method: "POST",
       headers: HEADERS,
-      body: JSON.stringify({ ...APP, country: "US", email, password: createHash("md5").update(password, "utf8").digest("hex"), phoneBrand: "", phoneSystemVersion: "", timezone: HEADERS.timezone, thirdId: null, type: null }),
+      body: JSON.stringify({ ...APP, country: "US", email, password: loginDigest, phoneBrand: "", phoneSystemVersion: "", timezone: HEADERS.timezone, thirdId: null, type: null }),
     })) as Answer;
     const token = str(obj(a.data).token);
     if (a.code !== 0 || !token) throw new VendorError(401);

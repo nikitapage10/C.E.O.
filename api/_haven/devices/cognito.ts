@@ -1,7 +1,12 @@
 /**
  * Amazon Cognito's SRP sign-in (USER_SRP_AUTH, then PASSWORD_VERIFIER), for the Whisker account (#632). Whisker's app
  * signs in through a Cognito user pool, as pylitterbot does with pycognito; this is the same exchange in TypeScript,
- * with node:crypto and BigInt only: the password itself never leaves the function, only an SRP proof of it.
+ * with node:crypto and BigInt only.
+ *
+ * The password never reaches Azure. SRP's private value is x = H(salt | H(poolName | userId | ":" | password)); the
+ * inner digest depends only on the account, so the setup paste (docs/HOME-DEVICES.md) makes it once in Cloud Shell
+ * (asking Cognito for the account's USER_ID_FOR_SRP first) and the Key Vault keeps that digest (WHISKER_SRP_DIGEST).
+ * This file only ever combines it with the salt Cognito sends for each sign-in.
  *
  * The maths (RFC 5054's 3072-bit group, g = 2, and Cognito's own HKDF and claim) follows AWS's published
  * amazon-cognito-identity-js AuthenticationHelper. A refresh needs no password: REFRESH_TOKEN_AUTH with the stored
@@ -40,7 +45,8 @@ export function padHex(n: bigint): string {
 }
 
 const hashHex = (hex: string) => createHash("sha256").update(Buffer.from(hex, "hex")).digest("hex");
-const hashStr = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
+/** The SRP digest's shape: SHA-256 as 64 lowercase hex characters. */
+export const SRP_DIGEST = /^[0-9a-f]{64}$/;
 export const K = BigInt(`0x${hashHex(`${padHex(N)}${padHex(G)}`)}`);
 
 /** Cognito's 16-byte key: HKDF-SHA256 over S with u as the salt and "Caldera Derived Key" as the info. */
@@ -49,11 +55,12 @@ export function hkdf(ikmHex: string, saltHex: string): Buffer {
   return createHmac("sha256", prk).update(Buffer.concat([Buffer.from("Caldera Derived Key", "utf8"), Buffer.from([1])])).digest().subarray(0, 16);
 }
 
-/** The shared secret S for the client, from the server's salt and B. */
-export function clientSecret(a: bigint, A: bigint, B: bigint, saltHex: string, poolName: string, userId: string, password: string): { S: bigint; u: bigint } {
+/** The shared secret S for the client, from the server's salt and B and the account's SRP digest. */
+export function clientSecret(a: bigint, A: bigint, B: bigint, saltHex: string, srpDigest: string): { S: bigint; u: bigint } {
   const u = BigInt(`0x${hashHex(padHex(A) + padHex(B))}`);
   if (u === 0n || B % N === 0n) throw new VendorError(502);
-  const x = BigInt(`0x${hashHex(padHex(BigInt(`0x${saltHex}`)) + hashStr(`${poolName}${userId}:${password}`))}`);
+  if (!SRP_DIGEST.test(srpDigest)) throw new VendorError(401);
+  const x = BigInt(`0x${hashHex(padHex(BigInt(`0x${saltHex}`)) + srpDigest)}`);
   const base = (B - K * modPow(G, x, N)) % N;
   return { S: modPow(base, a + u * x, N), u };
 }
@@ -116,8 +123,8 @@ function tokensOf(auth: unknown, refreshFallback = ""): CognitoTokens {
   return { idToken, accessToken, refreshToken, expires: jwtExpiry(idToken) };
 }
 
-/** Signs in with the email and password (SRP). VendorError(401) when Cognito says no. */
-export async function srpSignIn(fetchFn: Fetch, pool: CognitoPool, username: string, password: string, now: number, rand: () => Buffer = () => randomBytes(128)): Promise<CognitoTokens> {
+/** Signs in with the email and the account's SRP digest. VendorError(401) when Cognito says no. */
+export async function srpSignIn(fetchFn: Fetch, pool: CognitoPool, username: string, srpDigest: string, now: number, rand: () => Buffer = () => randomBytes(128)): Promise<CognitoTokens> {
   const a = BigInt(`0x${rand().toString("hex")}`) % N;
   const A = modPow(G, a, N);
   let init: Record<string, unknown>;
@@ -133,7 +140,7 @@ export async function srpSignIn(fetchFn: Fetch, pool: CognitoPool, username: str
   const B = BigInt(`0x${str(c.SRP_B) || "0"}`);
   const secretBlock = str(c.SECRET_BLOCK);
   const poolName = pool.poolId.split("_")[1] ?? "";
-  const { S, u } = clientSecret(a, A, B, salt, poolName, userId, password);
+  const { S, u } = clientSecret(a, A, B, salt, srpDigest);
   const key = hkdf(padHex(S), padHex(u));
   const timestamp = cognitoTimestamp(new Date(now));
   let answer: Record<string, unknown>;

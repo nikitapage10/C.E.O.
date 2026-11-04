@@ -119,9 +119,9 @@ var secrets = [
   // The Roborock login comes from Connect Roborock on the Desk and is sealed in the store, never written here.
   { setting: 'HOME_TOKEN_KEY', secret: 'home-token-key' }
   { setting: 'PETLIBRO_EMAIL', secret: 'petlibro-email' }
-  { setting: 'PETLIBRO_PASSWORD', secret: 'petlibro-password' }
+  { setting: 'PETLIBRO_LOGIN_DIGEST', secret: 'petlibro-login-digest' }
   { setting: 'WHISKER_EMAIL', secret: 'whisker-email' }
-  { setting: 'WHISKER_PASSWORD', secret: 'whisker-password' }
+  { setting: 'WHISKER_SRP_DIGEST', secret: 'whisker-srp-digest' }
 ]
 
 // Built-in role IDs (the same in every tenant).

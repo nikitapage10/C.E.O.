@@ -31,7 +31,7 @@ import petWorkFixture from "./fixtures/petlibro-workrecord.json";
 
 /**
  * Nikita's home devices (#632): each vendor client against recorded-shape fixtures (every serial, key, email and
- * password here is made up), the safety rails, the room names, the Council log, the routes' sign-in and what never
+ * login digest here is made up), the safety rails, the room names, the Council log, the routes' sign-in and what never
  * leaves the server.
  */
 
@@ -43,7 +43,10 @@ const SEAL = homeKey(HOME_KEY, "seal")!;
 const ID_KEY = homeKey(HOME_KEY, "id")!;
 const PEPPER = Buffer.alloc(32, 7);
 const SERIALS = ["TESTDUID000000000001", "LR5PTESTSERIAL0001", "AF0400TESTDRY01", "PLAF7TESTWET01", "PLWF1TESTWTR01"];
-const SECRETS = ["abcdefghijklmnop", "rr-test-token", "test-rriot-h", "test-rriot-s", "nikita.test@example.com", "test-password-not-real", "pl-token-1", "whisker-id-token"];
+/** Made-up login digests: the setup paste makes the real ones in Cloud Shell, and the code never hashes a password. */
+const PL_TEST = "0123456789abcdef0123456789abcdef";
+const SRP_TEST = "ab".repeat(32);
+const SECRETS = ["abcdefghijklmnop", "rr-test-token", "test-rriot-h", "test-rriot-s", "nikita.test@example.com", PL_TEST, SRP_TEST, "pl-token-1", "whisker-id-token"];
 
 function memoryBlob(): BlobBackend & { files: Map<string, Uint8Array> } {
   const files = new Map<string, Uint8Array>();
@@ -303,12 +306,12 @@ describe("Roborock's client, end to end over a fake broker", () => {
 
 const POOL_NAME = "rjhNnZVAm";
 
-/** A Cognito stand-in that holds a password and checks the SRP proof the way Cognito does. */
-function fakeCognito(password: string) {
+/** A Cognito stand-in that holds the account's SRP digest and checks the SRP proof the way Cognito does. */
+function fakeCognito(srpDigest: string) {
   const salt = "a1b2c3d4e5f60718";
   const userId = "user-id-for-srp-test";
   const b = 0x1234567890abcdef1234567890abcdefn;
-  const x = BigInt(`0x${createHash("sha256").update(Buffer.from(padHex(BigInt(`0x${salt}`)) + createHash("sha256").update(`${POOL_NAME}${userId}:${password}`).digest("hex"), "hex")).digest("hex")}`);
+  const x = BigInt(`0x${createHash("sha256").update(Buffer.from(padHex(BigInt(`0x${salt}`)) + srpDigest, "hex")).digest("hex")}`);
   const v = modPow(G, x, N);
   const B = (K * v + modPow(G, b, N)) % N;
   let A = 0n;
@@ -343,11 +346,11 @@ describe("Whisker's sign-in (Cognito SRP)", () => {
     const a = 0xabcdef0123456789n;
     const A = modPow(G, a, N);
     const salt = "0f0e0d0c";
-    const x = BigInt(`0x${createHash("sha256").update(Buffer.from(padHex(BigInt("0x0f0e0d0c")) + createHash("sha256").update("poolusr:pw").digest("hex"), "hex")).digest("hex")}`);
+    const x = BigInt(`0x${createHash("sha256").update(Buffer.from(padHex(BigInt("0x0f0e0d0c")) + "cd".repeat(32), "hex")).digest("hex")}`);
     const v = modPow(G, x, N);
     const b = 0x55555555n;
     const B = (K * v + modPow(G, b, N)) % N;
-    const { S, u } = clientSecret(a, A, B, salt, "pool", "usr", "pw");
+    const { S, u } = clientSecret(a, A, B, salt, "cd".repeat(32));
     expect(S).toBe(modPow((A * modPow(v, u, N)) % N, b, N));
   });
 
@@ -355,11 +358,11 @@ describe("Whisker's sign-in (Cognito SRP)", () => {
     expect(cognitoTimestamp(new Date("2026-11-04T08:05:09Z"))).toBe("Wed Nov 4 08:05:09 UTC 2026");
   });
 
-  it("signs in with the right password and is refused with a wrong one", async () => {
+  it("signs in with the right SRP digest and is refused with a wrong one", async () => {
     const pool = { poolId: `us-east-1_${POOL_NAME}`, clientId: "client-test" };
-    const t = await srpSignIn(fakeCognito("test-password-not-real"), pool, "nikita.test@example.com", "test-password-not-real", NOW);
+    const t = await srpSignIn(fakeCognito(SRP_TEST), pool, "nikita.test@example.com", SRP_TEST, NOW);
     expect(t).toMatchObject({ accessToken: "access-test", refreshToken: "refresh-test", expires: NOW + 3_600_000 });
-    await expect(srpSignIn(fakeCognito("test-password-not-real"), pool, "nikita.test@example.com", "wrong", NOW)).rejects.toMatchObject({ status: 401 });
+    await expect(srpSignIn(fakeCognito(SRP_TEST), pool, "nikita.test@example.com", "ef".repeat(32), NOW)).rejects.toMatchObject({ status: 401 });
   });
 });
 
@@ -391,7 +394,7 @@ describe("the Litter-Robot 5 Pro", () => {
       [/GET https:\/\/ub\.prod\.iothings\.site\/robots\/LR5PTESTSERIAL0001\/activities$/, () => activitiesFixture],
       [/POST https:\/\/ub\.prod\.iothings\.site\/robots\/LR5PTESTSERIAL0001\/commands$/, () => ({})],
     ]);
-    const c = new WhiskerClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", password: "test-password-not-real", now: () => NOW });
+    const c = new WhiskerClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", srpDigest: SRP_TEST, now: () => NOW });
     const [found] = await c.status();
     expect(found!.reading).toMatchObject({ id: deviceId(ID_KEY, "whisker", "LR5PTESTSERIAL0001"), lastUse: "2026-11-04T16:41:07.000Z" });
     expect(await c.run("litter.clean", found!)).toEqual({ ok: true });
@@ -410,7 +413,7 @@ function petlibroFetch() {
     [/POST https:\/\/api\.us\.petlibro\.com\/member\/auth\/login$/, (_u, init) => {
       logins++;
       const b = JSON.parse(String(init.body));
-      return b.password === createHash("md5").update("test-password-not-real").digest("hex") ? { code: 0, data: { token: `pl-token-${logins}` } } : { code: 1002, msg: "bad password" };
+      return b.password === PL_TEST ? { code: 0, data: { token: `pl-token-${logins}` } } : { code: 1002, msg: "bad password" };
     }],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/device\/list$/, (_u, init) => ((init.headers as Record<string, string>).token === "stale" ? { code: 1009, msg: "NOT_YET_LOGIN" } : petListFixture)],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/device\/realInfo$/, (_u, init) => real[JSON.parse(String(init.body)).deviceSn]],
@@ -435,7 +438,7 @@ describe("the Petlibro feeders and fountain", () => {
     const vault = new HomeVault(blob, SEAL);
     await vault.write("petlibro", { token: "stale" });
     const f = petlibroFetch();
-    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", password: "test-password-not-real", now: () => NOW });
+    const c = new PetlibroClient({ fetch: f, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW });
     const found = await c.status();
     expect(found.map((x) => x.reading.kind)).toEqual(["dry-feeder", "wet-feeder", "fountain"]);
     expect(found[0]!.reading).toMatchObject({ model: "Granary Smart Feeder", foodLow: false, lastFed: new Date(1762272000000).toISOString(), place: "Kitchen" });
@@ -562,7 +565,7 @@ describe("the devices API", () => {
     const vault = new HomeVault(blob, SEAL);
     const lines: string[] = [];
     const petF = petlibroFetch();
-    const pet = new PetlibroClient({ fetch: petF, vault, idKey: ID_KEY, email: "nikita.test@example.com", password: "test-password-not-real", now: () => NOW });
+    const pet = new PetlibroClient({ fetch: petF, vault, idKey: ID_KEY, email: "nikita.test@example.com", loginDigest: PL_TEST, now: () => NOW });
     const council = new MemoryRoomLog();
     const home = new Home({ blob, clients: [pet], feedCap: 2, council, log: (l) => lines.push(l), now: () => NOW });
     const deps: DevicesDeps = { desk: { deskKey: DESK, store, now: NOW }, blob, pepper: async () => PEPPER, home: () => home, vault, fetch: petF, log: (l) => lines.push(l), ...over };
@@ -653,7 +656,7 @@ describe("the devices API", () => {
     for (const action of ["feeder.feed", "wet.open", "feeder.feed", "feeder.feed", "litter.clean"]) bodies.push(await (await devicesAction(post("/api/haven/devices/action", { action }, { Cookie: cookie }), deps)).text());
     const turns = JSON.stringify(await council.list("kernel", NOW));
     const everything = [...bodies, ...lines, turns].join("\n");
-    for (const s of [...SERIALS, ...SECRETS, createHash("md5").update("test-password-not-real").digest("hex")]) expect(everything, s).not.toContain(s);
+    for (const s of [...SERIALS, ...SECRETS]) expect(everything, s).not.toContain(s);
   });
 });
 

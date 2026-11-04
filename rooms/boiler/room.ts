@@ -17,7 +17,7 @@ export default defineRoom({
     "talk-timing": ["site"],
   },
   // The home devices (#632, docs/HOME-DEVICES.md): the sealing key and the Petlibro and Whisker logins.
-  keys: ["HOME_TOKEN_KEY", "PETLIBRO_EMAIL", "PETLIBRO_PASSWORD", "WHISKER_EMAIL", "WHISKER_PASSWORD"],
+  keys: ["HOME_TOKEN_KEY", "PETLIBRO_EMAIL", "PETLIBRO_LOGIN_DIGEST", "WHISKER_EMAIL", "WHISKER_SRP_DIGEST"],
   usesClaude: false,
   threat: ["TB6", "TB8", "TB10", "R7", "R8"],
   budgetKb: 200,

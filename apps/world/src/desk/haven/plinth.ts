@@ -160,6 +160,20 @@ export function turnTo(d: DeviceReading, f: number): { tempF?: number; heatF?: n
   return { heatF, coolF };
 }
 
+/**
+ * One knob of heat-and-cool moved to `f` (#742): whole degrees inside 60 to 80 °F, and never past the other knob, which
+ * stays put: the heat side stops `GAP_F` below the cool side and the cool side `GAP_F` above the heat side.
+ */
+export function moveSide(side: "heat" | "cool", f: number, heatF: number | null, coolF: number | null): { heatF: number; coolF: number } {
+  const at = Math.max(THERMO_MIN_F, Math.min(THERMO_MAX_F, Math.round(f)));
+  if (side === "heat") {
+    const c = coolF ?? Math.min(THERMO_MAX_F, at + GAP_F);
+    return { heatF: Math.min(at, c - GAP_F), coolF: c };
+  }
+  const h = heatF ?? Math.max(THERMO_MIN_F, at - GAP_F);
+  return { heatF: h, coolF: Math.max(at, h + GAP_F) };
+}
+
 /** The point a thread lands on, in plan units (x, y and height), or null when the plan has nothing there. */
 export function threadPoint(plan: HavenPlan, to: ThreadTo): [number, number, number] | null {
   if ("spot" in to) {

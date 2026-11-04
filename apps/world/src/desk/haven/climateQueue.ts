@@ -20,8 +20,13 @@ export interface PendingClimate {
   at: number;
 }
 
+/** How long a sent change shows before the thermostat's own reading must have caught up. */
+export const SENT_MS = 60_000;
+
 interface ClimateQueue {
   pending: PendingClimate | null;
+  /** The last change sent (#742), shown until the thermostat reports it, or dropped (rolled back) if the send failed. */
+  sent: (PendingClimate & { until: number }) | null;
   /** Hold a change: replaces any held one and starts the three seconds again. */
   hold: (device: string, f: number, extra: PendingClimate["extra"], ms?: number) => void;
   cancel: () => void;
@@ -33,6 +38,7 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 
 export const useClimateQueue = create<ClimateQueue>((set, get) => ({
   pending: null,
+  sent: null,
   hold: (device, f, extra, ms = HOLD_MS) => {
     clearTimeout(timer);
     set({ pending: { device, f, extra, at: Date.now() + ms } });
@@ -45,10 +51,25 @@ export const useClimateQueue = create<ClimateQueue>((set, get) => ({
   flush: () => {
     clearTimeout(timer);
     const p = get().pending;
-    set({ pending: null });
-    if (p) void useHome.getState().act("thermostat.set", p.device, undefined, p.extra);
+    if (!p) return set({ pending: null });
+    const sent = { ...p, until: Date.now() + SENT_MS };
+    set({ pending: null, sent });
+    void useHome
+      .getState()
+      .act("thermostat.set", p.device, undefined, p.extra)
+      .then((ok) => {
+        // Refused or failed: the dial goes back to what the thermostat has.
+        if (!ok && get().sent === sent) set({ sent: null });
+      });
   },
 }));
+
+/** What the dial shows for a thermostat: the held change, else the one just sent until the reading has caught up. */
+export function shownChange(d: DeviceReading, pending: PendingClimate | null, sent: (PendingClimate & { until: number }) | null, now = Date.now()): PendingClimate | null {
+  if (pending && pending.device === d.id) return pending;
+  if (sent && sent.device === d.id && now < sent.until && !sameAs(d, sent.extra)) return sent;
+  return null;
+}
 
 /** Is the held change the same as what the thermostat already has? Then there's nothing to send. */
 export function sameAs(d: DeviceReading, extra: PendingClimate["extra"]): boolean {

@@ -77,6 +77,8 @@ export interface DeviceReading {
   /** Wet feeder: its schedule from the Petlibro app, each meal's Mountain time ("18:00") and bowl when the plan says,
    * and (#685) when its window closes and where it stands today. */
   meals?: WetMeal[];
+  /** Wet feeder (#713): when the lid opened from here closes itself (ISO), while it is open and the auto-close stands. */
+  closesAt?: string;
   /** Fountain: water level and filter life, in percent. */
   water?: number | null;
   filter?: number | null;
@@ -121,8 +123,8 @@ export interface Found<R = unknown> {
   ref: R;
 }
 
-/** What a vendor call came to. `say` is Skippy's line when it worked. */
-export type RunResult = { ok: true; say?: string } | { ok: false; code: RunError };
+/** What a vendor call came to. `say` is Skippy's line when it worked; `feedId` the wet feeder's opening (#713). */
+export type RunResult = { ok: true; say?: string; feedId?: number | string } | { ok: false; code: RunError };
 export type RunError = "vendor" | "offline" | "not-connected" | "unknown-room" | "unsupported" | "eco";
 
 export interface RunArgs {
@@ -137,6 +139,8 @@ export interface RunArgs {
   portions?: number;
   /** For wet.rotate: how many bowls to turn the tray on (1 or 2: a Polar tray holds three). */
   steps?: number;
+  /** For wet.close (#713): the opening kept from wet.open, used when the feeder no longer reports which one is open. */
+  feedId?: number | string;
   /** For vacuum.start and vacuum.rooms: an optional suction and mop choice; without one the vacuum keeps its own. */
   suction?: Suction;
   water?: Water;

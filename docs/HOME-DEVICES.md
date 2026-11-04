@@ -25,7 +25,7 @@ new npm packages (the MQTT client is a few dozen lines over `node:tls`, [`mqtt.t
 | Thermostat (Nest) | inside temperature, humidity, mode, set point(s), eco, heating or cooling | **±1°**, **mode** (only the modes it offers) |
 | Vacuum | state (docked, cleaning, returning, paused, charging…), battery, alerts (bin missing, dock bin problems, clean water tank empty or low, dirty water tank full, "needs a look" for any other error code), its map's room names | Start, Pause, Dock, **clean named rooms** (`app_segment_clean` with the map's segment ids, matched to the room names from the Roborock app); an optional mode word for a start or rooms clean: quiet or max suction, vacuum only or mop too |
 | Dry food feeder | online, food low, last feed, manual portions today and the cap; today's amount (in the app's unit; a portion is 1/12 cup) and feedings, and today's schedule (time, portions, on or off, served / skipped / next) (#685) | **Feed N portions** (`portions`, 1 to 6; every portion counts against the cap) |
-| Wet food feeder | online, lid open or closed, which bowl is in front, its schedule from the Petlibro app (each bowl's window, completed / feeding now / next by the clock), openings today and the cap; today's eating visits and eating time when the feeder reports them (#685) | **Open the tray** (opens the bowl in front), **Next bowl** / **bowl N** (`wet.rotate`), **Close the lid** (`wet.close`), **What's in it** (`wet.status`) |
+| Wet food feeder | online, lid open or closed, which bowl is in front, its schedule from the Petlibro app (each bowl's window, completed / feeding now / next by the clock), openings today and the cap; today's eating visits and eating time when the feeder reports them (#685) | **Open for 2 hours** (opens the bowl in front; it closes itself two hours later, #713), **Two more hours** while it's open, **Close** (shuts it now), **Next bowl** / **bowl N** (`wet.rotate`), **Close the lid** (`wet.close`), **What's in it** (`wet.status`) |
 | Fountain | online, water level, filter life left, alerts (water low, filter due, needs a clean); today's intake (mL, shown in oz), visits and average visit, and the days until the filter change and the clean (overdue in ember) (#685) | none |
 | Litter-Robot 5 Pro | state (ready, cycling, cat inside, drawer full, paused, offline…), waste drawer %, litter level %, last visit, alerts (drawer full, drawer out, bonnet off, sensors need a wipe, litter low) | **Clean now** (a clean cycle) |
 
@@ -45,7 +45,7 @@ new npm packages (the MQTT client is a few dozen lines over `node:tls`, [`mqtt.t
   `code`, `disconnect`.
 - Hey Skippy on the phone ([`api/_haven/classify.ts`](../api/_haven/classify.ts)) turns "vacuum the kitchen",
   "vacuum, go home", "pause the vacuum", "feed the cat", "feed the cat 2 portions", "give the cat wet food", "next
-  bowl", "switch the wet feeder to tray 2", "what's in the wet feeder", "close the wet feeder", "clean the kitchen on
+  bowl", "switch the wet feeder to tray 2", "what's in the wet feeder", "open the wet food tray", "close the wet feeder", "clean the kitchen on
   max, vacuum only" and "run a litter clean cycle" into the same actions, with no model call. Everything else goes to Skippy's chat as before.
 
 ## Safety rails
@@ -63,6 +63,19 @@ Checked on the server, before the vendor is called, whoever asks ([`rails.ts`](.
   opening the reply warns when the next scheduled meal would open the wrong bowl or one already served today ("Heads
   up: bowl 3 is in front, but the next scheduled meal at 6pm is set for bowl 2."). It warns rather than turning back
   by itself, so a cat mid-meal never sees the tray move. Meals the schedule opened on its own aren't known to it.
+- **The wet tray's two hours (#713; Nikita, 2026-11-04: "when I request to open the wet food tray, it opens it up for
+  2 hours and then closes it").** An opening from here (`wet.open`, `manualFeedNow`) closes itself two hours later,
+  rounded up to the next five minutes, and Skippy says when ("The wet food feeder's lid is open. It closes at
+  6:15pm."). The phone speaks that line rather than staying quiet. The Function App keeps one private note
+  (`haven/devices/wet-close.json`: the feeder's opaque id, the opening's `feedId` from the plan's `manualFeedId`
+  just after the open, and the times), and the `haven_tasks` timer, every five minutes, closes it with `stopFeedNow`
+  once it is due. Nothing waits in memory, so a restart or a cold start loses nothing. The Haven's wet feeder card
+  reads "Open, closes at 6:15pm" (Mountain time). **Close** (or "close the wet feeder") shuts it now and cancels the
+  timer. Asking to open again while it's open starts the two hours over, with no new opening and nothing counted. An
+  open lid that came from the schedule or the Petlibro app is theirs: "open" is refused and nothing is timed. If a
+  scheduled meal starts inside the two hours, the schedule wins and the auto-close is dropped, both when the tray opens
+  and again at close time (a meal added in the app meanwhile). A close that can't get through (offline, Petlibro down)
+  is tried on each tick for an hour, then dropped. Every auto-close is kept in the Council.
 - **Thermostat.** Set points only from 60 to 80 °F in whole degrees (anything outside is refused before Google is
   called, so Nest never gets one), the cool point at least 3 °F above the heat point, only the modes it offers,
   nothing while it is off or in eco.

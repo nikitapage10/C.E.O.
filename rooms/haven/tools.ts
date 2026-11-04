@@ -126,7 +126,7 @@ export const TOOLS: readonly RoomTool[] = [
     room: "haven",
     title: "Run a home device",
     description:
-      "Ask a home device to do something: vacuum.start, vacuum.rooms (with rooms by name), vacuum.pause, vacuum.dock, feeder.feed (portions, under the daily cap), wet.open, wet.rotate, wet.close, litter.clean. It runs only after Nikita taps Yes, through the device's own rails.",
+      "Ask a home device to do something: vacuum.start, vacuum.rooms (with rooms by name), vacuum.pause, vacuum.dock, feeder.feed (portions, under the daily cap), wet.open ('open the wet food tray': opens the bowl in front for two hours, then it closes itself; asked again while open, the two hours start over; a scheduled meal inside the window takes over the closing), wet.rotate, wet.close (closes it now and cancels the auto-close), litter.clean. It runs only after Nikita taps Yes, through the device's own rails; tell Nikita the time it closes from the reply.",
     input: {
       type: "object",
       properties: {

@@ -211,6 +211,89 @@ export function traySummary(r: Pick<DeviceReading, "plate" | "meals" | "state" |
   return lines.filter(Boolean).join(" ");
 }
 
+/* ── The wet tray's auto-close (#713; Nikita, 2026-11-04: "it opens it up for 2 hours and then closes it") ── */
+
+/** The auto-close's private note: which feeder, the opening to close, and when. One at a time. Never in the repo. */
+export const WET_CLOSE_PATH = "haven/devices/wet-close.json";
+/** How long an opening from here stays open. */
+export const WET_OPEN_MS = 2 * 60 * 60_000;
+/** The beat of the Function timer that closes it (azure/src/index.ts, haven_tasks: every five minutes). */
+export const CLOSE_BEAT_MS = 5 * 60_000;
+/** How long past its time a close that can't get through (offline, Petlibro down) is tried before it is dropped. */
+export const CLOSE_GIVE_UP_MS = 60 * 60_000;
+
+export interface WetClose {
+  /** The feeder's opaque id. */
+  id: string;
+  /** The opening wet.open answered with, when it did (stopFeedNow closes it). */
+  feedId?: number | string;
+  /** When the window began: the opening, or the latest reset. */
+  from: number;
+  /** When it closes: two hours on, rounded up to the timer's next beat, so the time shown is the time it shuts. */
+  closeAt: number;
+}
+
+/** When an opening at `now` closes: two hours later, on the timer's next five-minute beat. */
+export function closeAtFor(now: number): number {
+  return Math.ceil((now + WET_OPEN_MS) / CLOSE_BEAT_MS) * CLOSE_BEAT_MS;
+}
+
+const goodTime = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+
+export function cleanWetClose(raw: unknown): WetClose | null {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  if (typeof o.id !== "string" || !/^[0-9a-f]{12}$/.test(o.id) || !goodTime(o.from) || !goodTime(o.closeAt)) return null;
+  const feedId = (typeof o.feedId === "number" && Number.isFinite(o.feedId)) || (typeof o.feedId === "string" && /^[\w-]{1,40}$/.test(o.feedId)) ? o.feedId : undefined;
+  return { id: o.id, ...(feedId !== undefined && { feedId }), from: o.from, closeAt: o.closeAt };
+}
+
+/** The pending auto-close, in the private store. */
+export class WetCloseNote {
+  constructor(private readonly blob: BlobBackend) {}
+
+  async read(): Promise<WetClose | null> {
+    return cleanWetClose(await readJson(this.blob, WET_CLOSE_PATH, null));
+  }
+
+  async set(next: WetClose): Promise<void> {
+    await updateJson<unknown, void>(this.blob, WET_CLOSE_PATH, null, () => ({ next, result: undefined }));
+  }
+
+  /** Drops the pending close for this feeder; with `closeAt`, only if it is still that one (not reset meanwhile). */
+  async clear(id: string, closeAt?: number): Promise<boolean> {
+    return updateJson<unknown, boolean>(this.blob, WET_CLOSE_PATH, null, (raw) => {
+      const cur = cleanWetClose(raw);
+      if (!cur || cur.id !== id || (closeAt !== undefined && cur.closeAt !== closeAt)) return { next: null, result: false };
+      return { next: {}, result: true };
+    });
+  }
+}
+
+/**
+ * The first scheduled meal that starts after `from` and by `to`, or null. A meal that opens inside the window is the
+ * schedule's to finish, so the auto-close stands down for it (the schedule wins).
+ */
+export function mealInWindow(meals: WetMeal[] | undefined, from: number, to: number): WetMeal | null {
+  if (to <= from) return null;
+  const at = denverMinutes(from);
+  const span = (to - from) / 60_000;
+  let best: { m: WetMeal; d: number } | null = null;
+  for (const m of meals ?? []) {
+    const start = minutesOf(m.time);
+    if (start === null) continue;
+    // Minutes from `from` to the meal's next start; a window of two hours never wraps a whole day.
+    const d = (start - at + 24 * 60) % (24 * 60);
+    if (d > 0 && d <= span && (!best || d < best.d)) best = { m, d };
+  }
+  return best?.m ?? null;
+}
+
+/** A moment as Nikita's clock reads it in Denver: "6:15pm". */
+export function clockAt(ms: number): string {
+  const mins = denverMinutes(ms);
+  return clockWords(`${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`);
+}
+
 /** Why the litter gate said no, in a word, or null when it may run. */
 export function litterBlock(r: DeviceReading): "offline" | "cat" | "cycling" | "drawer" | "not-ready" | null {
   if (litterReady(r)) return null;

@@ -96,7 +96,7 @@ const HOME_WORDS: Record<string, string> = {
   "vacuum.pause": "Pause the vacuum",
   "vacuum.dock": "Send the vacuum home",
   "feeder.feed": "Feed the cat",
-  "wet.open": "Open the wet feeder",
+  "wet.open": "Open the wet feeder for 2 hours",
   "wet.rotate": "Turn the wet feeder to the next bowl",
   "wet.close": "Close the wet feeder",
   "litter.clean": "Run the Litter-Robot",

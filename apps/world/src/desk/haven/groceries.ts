@@ -17,6 +17,8 @@ export interface GProduct {
   price: number;
   promo: number | null;
   stock: Stock | null;
+  /** The product's photo on Kroger's image host, or null. */
+  image: string | null;
 }
 
 export interface GStore {
@@ -55,12 +57,24 @@ const s = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) 
 const cents = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 10_000_000 ? v : null);
 const state = (v: unknown): LinkState => (v === "live" || v === "down" ? v : "waiting");
 
+/** Only an https photo on Kroger's own image host (kroger.com or a subdomain) is ever shown. */
+export function krogerImage(v: unknown): string | null {
+  if (typeof v !== "string" || v.length > 300) return null;
+  try {
+    const u = new URL(v);
+    const host = u.hostname.toLowerCase();
+    return u.protocol === "https:" && !u.port && !u.username && !u.password && (host === "kroger.com" || host.endsWith(".kroger.com")) ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function product(v: unknown): GProduct | null {
   const p = o(v);
   const price = cents(p.price);
   const productId = s(p.productId, 32);
   if (price === null || !productId) return null;
-  return { productId, description: s(p.description, 120), brand: s(p.brand, 60), size: s(p.size, 40), price, promo: cents(p.promo), stock: p.stock === "high" || p.stock === "low" || p.stock === "out" ? p.stock : null };
+  return { productId, description: s(p.description, 120), brand: s(p.brand, 60), size: s(p.size, 40), price, promo: cents(p.promo), stock: p.stock === "high" || p.stock === "low" || p.stock === "out" ? p.stock : null, image: krogerImage(p.image) };
 }
 
 function store(v: unknown): GStore | null {

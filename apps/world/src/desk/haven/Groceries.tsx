@@ -36,6 +36,21 @@ function Stock({ p }: { p: GProduct }) {
   return p.stock === "out" ? <span className="hv-gStock is-out">out of stock</span> : p.stock === "low" ? <span className="hv-gStock">low stock</span> : null;
 }
 
+/** The product's photo beside a pick: small in the row, larger on hover or a tap. None when Kroger has none. */
+function Photo({ p }: { p: GProduct }) {
+  const [big, setBig] = useState(false);
+  const [broken, setBroken] = useState(false);
+  if (!p.image || broken) return null;
+  return (
+    <Private className="hv-gPhoto">
+      <button type="button" className="hv-gThumb" aria-expanded={big} aria-label={`${big ? "Hide" : "Show"} the photo of ${p.description}`} onClick={() => setBig((v) => !v)} onPointerEnter={(e) => e.pointerType === "mouse" && setBig(true)} onPointerLeave={(e) => e.pointerType === "mouse" && setBig(false)} onBlur={() => setBig(false)}>
+        <img src={p.image} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      </button>
+      {big ? <img className="hv-gBig" src={p.image} alt={p.description} referrerPolicy="no-referrer" /> : null}
+    </Private>
+  );
+}
+
 function Line({ l, busy, run, onRemove }: { l: GLine; busy: boolean; run: (b: GAction) => void; onRemove?: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState(l.name);
@@ -62,6 +77,7 @@ function Line({ l, busy, run, onRemove }: { l: GLine; busy: boolean; run: (b: GA
         <p className="hv-gPick is-none">Not matched yet.</p>
       ) : p ? (
         <p className="hv-gPick">
+          <Photo p={p} />
           <Private>
             {p.description}
             {p.size ? ` · ${p.size}` : ""}
@@ -77,6 +93,7 @@ function Line({ l, busy, run, onRemove }: { l: GLine; busy: boolean; run: (b: GA
             <ul aria-label={`Other matches for ${l.name}`}>
               {l.pick.alts.map((a) => (
                 <li key={a.productId}>
+                  <Photo p={a} />
                   <Private>
                     {a.description}
                     {a.size ? ` · ${a.size}` : ""}

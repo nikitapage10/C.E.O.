@@ -40,6 +40,7 @@ import type { HomeVault } from "../devices/vault.js";
 import { PHONE_KEY_HEADER } from "../links.js";
 import { KitchenList, sameKey, type ListItem } from "../list.js";
 import { addToCart, appToken, authUrl, cartToken, CART_URL, costOf, exchangeCode, findStores, forgetKrogerTokens, KrogerRefusedError, line, redirectFor, searchProducts, termOf, type KrogerClient, type Product } from "./api.js";
+import { rankProducts } from "./rank.js";
 import { ALTS_MAX, changeKroger, readKroger, ZIP, type KrogerState, type ItemPick } from "./store.js";
 
 export const STATE_COOKIE = "__Host-ceo-haven-kroger";
@@ -295,10 +296,9 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
           continue;
         }
         try {
-          const found = await searchProducts(deps.fetch, token, term, store.id, ALTS_MAX + 1);
-          // The first match that's in stock, else the first; the rest to swap to.
-          const best = found.find((p) => p.stock !== "out") ?? found[0] ?? null;
-          made[sameKey(i.name)] = { term, at: stamp, product: best, alts: found.filter((p) => p !== best).slice(0, ALTS_MAX), chosen: false, skip: was?.skip ?? false };
+          // Best fit first (rank.ts: the real thing over imitation, mixes, brand-name hits and out of stock); the rest to swap to.
+          const [best = null, ...rest] = rankProducts(term, await searchProducts(deps.fetch, token, term, store.id, ALTS_MAX + 1));
+          made[sameKey(i.name)] = { term, at: stamp, product: best, alts: rest.slice(0, ALTS_MAX), chosen: false, skip: was?.skip ?? false };
         } catch {
           failed++;
         }
@@ -323,7 +323,7 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
     if (!cur.store || !cur.picks[key]) return reply({ error: cur.store ? "not-found" : "no-store" }, cur.store ? 404 : 409);
     const storeId = cur.store.id;
     try {
-      const found = await searchProducts(deps.fetch, await appToken(deps.fetch, client, now), term, storeId, ALTS_MAX);
+      const found = rankProducts(term, await searchProducts(deps.fetch, await appToken(deps.fetch, client, now), term, storeId, ALTS_MAX));
       await changeKroger(blob, (c) => {
         const pick = c.picks[key];
         if (!pick || c.store?.id !== storeId) return { next: null, result: undefined };

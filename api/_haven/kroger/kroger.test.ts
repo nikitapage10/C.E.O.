@@ -5,7 +5,7 @@ import { signedInCookie } from "../../_desk/testing.ts";
 import type { Fetch } from "../devices/http.ts";
 import { HomeVault, homeKey } from "../devices/vault.ts";
 import { KitchenList } from "../list.ts";
-import { authUrl, CART_SCOPE, CART_URL, forgetKrogerTokens, krogerClientFrom, readProduct, readStore, redirectFor, termOf, type KrogerClient } from "./api.ts";
+import { authUrl, CART_SCOPE, CART_URL, forgetKrogerTokens, imageOf, krogerClientFrom, krogerImage, readProduct, readStoredProduct, readStore, redirectFor, termOf, type KrogerClient } from "./api.ts";
 import { krogerCallback, krogerGet, krogerPost, linkState, STATE_COOKIE, viewOf, type KrogerDeps } from "./route.ts";
 
 type Got = ReturnType<typeof viewOf> & { ok?: boolean; error?: string; items?: number; url?: string };
@@ -85,7 +85,7 @@ const STORES = {
 };
 
 const PRODUCTS: Record<string, unknown[]> = {
-  "oat milk": [kp("0001111000001", "0001111000001", "Test Oat Milk", 4.29, 3.99), kp("0001111000002", "0001111000002", "Other Oat Milk", 5.49)],
+  "oat milk": [{ ...kp("0001111000001", "0001111000001", "Test Oat Milk", 4.29, 3.99), images: [{ perspective: "front", featured: true, sizes: [{ size: "medium", url: "https://www.kroger.com/product/images/medium/front/0001111000001" }] }] }, kp("0001111000002", "0001111000002", "Other Oat Milk", 5.49)],
   lemons: [kp("0001111000003", "0001111000003", "Lemons", 0.79, 0, "TEMPORARILY_OUT_OF_STOCK"), kp("0001111000004", "0001111000004", "Organic Lemons", 1.19, 0, "LOW")],
   "meyer lemons": [kp("0001111000005", "0001111000005", "Meyer Lemons", 1.99)],
 };
@@ -135,11 +135,26 @@ describe("Kroger's answers (#664)", () => {
   });
 
   it("keeps prices in cents, a sale only below the regular price, and drops what isn't sold at the store", () => {
-    expect(readProduct(kp("0001111000001", "0001111000001", "Test Oat Milk", 4.29, 3.99))).toEqual({ productId: "0001111000001", upc: "0001111000001", description: "Test Oat Milk", brand: "Test Brand", size: "1 gal", price: 429, promo: 399, stock: "high" });
+    expect(readProduct(kp("0001111000001", "0001111000001", "Test Oat Milk", 4.29, 3.99))).toEqual({ productId: "0001111000001", upc: "0001111000001", description: "Test Oat Milk", brand: "Test Brand", size: "1 gal", price: 429, promo: 399, stock: "high", image: null });
     expect(readProduct(kp("0001111000001", "0001111000001", "X", 2, 0, "TEMPORARILY_OUT_OF_STOCK"))).toMatchObject({ promo: null, stock: "out" });
     expect(readProduct({ ...kp("0001111000001", "0001111000001", "X", 2), items: [{}] })).toBeNull();
     expect(readProduct({ ...kp("0001111000001", "not-a-upc", "X", 2) })).toBeNull();
     expect(readProduct(kp("0001111000001", "0001111000001", "<b>Oat</b>\u0000 milk", 2))?.description).toBe("bOat/b milk");
+  });
+
+  it("keeps the featured photo, only from Kroger's image host (#677)", () => {
+    const img = (perspective: string, featured: boolean, host = "www.kroger.com") => ({ perspective, featured, sizes: ["thumbnail", "small", "medium", "large"].map((size) => ({ size, url: `https://${host}/product/images/${size}/${perspective}/0001111000001` })) });
+    expect(readProduct({ ...kp("0001111000001", "0001111000001", "Oat", 2), images: [img("back", false), img("front", true)] })?.image).toBe("https://www.kroger.com/product/images/medium/front/0001111000001");
+    expect(imageOf([img("back", false), img("front", false)])).toBe("https://www.kroger.com/product/images/medium/front/0001111000001");
+    expect(imageOf([{ perspective: "front", featured: true, sizes: [{ size: "small", url: "https://www.kroger.com/s.jpg" }] }])).toBe("https://www.kroger.com/s.jpg");
+    expect(imageOf([img("front", true, "evil.example")])).toBeNull();
+    expect(imageOf([img("front", true, "kroger.com.evil.example")])).toBeNull();
+    expect(imageOf("nope")).toBeNull();
+    for (const bad of ["http://www.kroger.com/a.jpg", "https://www.kroger.com:8443/a.jpg", "https://user@www.kroger.com/a.jpg", "javascript:alert(1)", "https://notkroger.com/a.jpg", 7]) expect(krogerImage(bad)).toBeNull();
+    expect(krogerImage("https://kroger.com/a.jpg")).toBe("https://kroger.com/a.jpg");
+    const stored = { productId: "0001111000001", upc: "0001111000001", description: "Oat", brand: "", size: "", price: 200, promo: null, stock: null };
+    expect(readStoredProduct({ ...stored, image: "https://www.kroger.com/a.jpg" })?.image).toBe("https://www.kroger.com/a.jpg");
+    expect(readStoredProduct({ ...stored, image: "https://evil.example/a.jpg" })?.image).toBeNull();
     expect(readStore(STORES.data[2])).toBeNull();
     expect(readStore(STORES.data[0])).toEqual({ id: "62000001", name: "King Soopers - Test Town", line: "1 Test Ave", city: "Testville", state: "CO", zip: ZIP });
   });
@@ -191,7 +206,7 @@ describe("Send to King Soopers (#664)", () => {
     const matched = await call({ action: "match" });
     expect(matched.status).toBe(200);
     const byKey = Object.fromEntries(matched.body.lines.map((l) => [l.key, l.pick]));
-    expect(byKey["oat milk"]?.product).toMatchObject({ description: "Test Oat Milk", price: 429, promo: 399 });
+    expect(byKey["oat milk"]?.product).toMatchObject({ description: "Test Oat Milk", price: 429, promo: 399, image: "https://www.kroger.com/product/images/medium/front/0001111000001" });
     // The first in-stock match, not the out-of-stock one.
     expect(byKey["lemon"]?.product).toMatchObject({ description: "Organic Lemons", stock: "low" });
     expect(byKey["ox"]?.product).toBeNull();

@@ -5,7 +5,7 @@ import { Private } from "../Private.tsx";
 import { ADD_NOTE, GREET_NOTE, addPhone, loadPhones, makeGreetings, revokePhone, type Load, type PhonesView } from "../haven.ts";
 
 /**
- * Boiler Room > Security, signed in only (#627): Phones. Each phone that may talk to Skippy holds a capture key for the
+ * Boiler Room > Controls (#647; on Security before), signed in only (#627): Phones. Each phone that may talk to Skippy holds a capture key for the
  * iPhone's "Skippy" shortcut (docs/HEY-SKIPPY.md). "Add a phone" shows the new key once, with Copy; the Desk keeps only
  * its hash, so it can never show it again. Each phone shows when it was last used, and Revoke stops its key at once.
  * Below, the greeting clips the shortcut can play when it opens.

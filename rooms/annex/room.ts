@@ -2,13 +2,14 @@ import { defineRoom } from "@ceo/engine/manifest";
 
 /**
  * The Annex: the Desk's staging room for short-run pop-ups (#618), Election night first. A Desk-only room with no
- * Lattice room behind it; led by the Stagehand (DESK_SUBMINDS). Past the tenth page, so no number key. Data only
+ * Lattice room behind it; led by the Stagehand (DESK_SUBMINDS). Its number key follows the bar (route.ts NAV_ORDER). Data only
  * (docs/ROOMS.md). Its code is in apps/world/src/desk/annex and api/_annex until its migration step.
  */
 export default defineRoom({
   id: "annex",
   name: "Annex",
   path: "/annex",
+  navKey: "8",
   accent: "--room-annex",
   submind: "stagehand",
   live: true,

@@ -61,6 +61,8 @@ async function stub(page: Page, signedIn: boolean) {
 test("the Phones panel isn't there signed out", async ({ page }) => {
   await stub(page, false);
   await page.goto(`${BASE}/boiler/controls`);
+  // Wait for Controls to render first, so the absence checks below mean something.
+  await expect(page.getByText("Signed in only.", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Set a key, never see one" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Phones" })).toHaveCount(0);
 });
@@ -81,7 +83,7 @@ test("signed in: add a phone shows its key once, with Copy; Revoke stops one", a
   if (SHOTS) await panel.screenshot({ path: `${SHOTS}/phones-new-key.png` });
   await panel.getByRole("button", { name: "Copy" }).click();
   await expect(panel.getByRole("button", { name: "Copied" })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(FAKE_KEY);
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(FAKE_KEY);
   await panel.getByRole("button", { name: "Done" }).click();
   // Gone once dismissed: the Desk never shows it again.
   await expect(keyBox).toHaveCount(0);
@@ -91,30 +93,11 @@ test("signed in: add a phone shows its key once, with Copy; Revoke stops one", a
   await panel.getByRole("button", { name: "Revoke Old phone" }).click();
   await expect(panel.getByText(/Revoked\. That phone's key opens nothing now\./)).toBeVisible();
   if (SHOTS) await panel.screenshot({ path: `${SHOTS}/phones-list.png` });
-  expect(posts).toEqual([
-    { action: "add-phone", label: "iPhone 17" },
-    { action: "revoke-phone", id: "aaaaaaaaaaaa" },
-  ]);
-});
-
-test("signed in, Today's Kitchen list chip opens the list and ticks things off", async ({ page }) => {
-  await stub(page, true);
-  const ticks: Record<string, unknown>[] = [];
-  await page.route(/\/api\/haven(\?.*)?$/, async (r) => {
-    if (r.request().method() === "POST") {
-      ticks.push(r.request().postDataJSON() as Record<string, unknown>);
-      return r.fulfill({ json: { ok: true } });
-    }
-    const view = new URL(r.request().url()).searchParams.get("view");
-    if (view === "list") return r.fulfill({ json: { items: [{ id: "i1", name: "garlic", addedAt: new Date().toISOString(), source: "phone", done: false }, { id: "i2", name: "lemons", addedAt: new Date().toISOString(), source: "phone", done: false }] } });
-    return r.fulfill({ json: { kitchen: { open: 2, done: 0 }, todos: 0, ready: true } });
-  });
-  await page.goto(`${BASE}/`);
-  const chip = page.getByRole("button", { name: /Kitchen list/ });
-  await expect(chip).toContainText("2 to get");
-  await chip.click();
-  await page.getByRole("checkbox", { name: "garlic" }).check();
-  await expect(chip).toContainText("1 to get");
-  if (SHOTS) await page.locator(".kl").screenshot({ path: `${SHOTS}/kitchen-list.png` });
-  expect(ticks).toEqual([{ action: "tick", id: "i1", done: true }]);
+  // Polled, not read once: the route handler records a POST on its own schedule, not the page's.
+  await expect
+    .poll(() => posts)
+    .toEqual([
+      { action: "add-phone", label: "iPhone 17" },
+      { action: "revoke-phone", id: "aaaaaaaaaaaa" },
+    ]);
 });

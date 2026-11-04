@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useDeskAuth } from "./signin.ts";
+import { navigateTo } from "../route.ts";
 
 /**
  * Nikita's home devices on the Desk (#632, docs/HOME-DEVICES.md; api/_haven/devices/route.ts). Azure copy only:
@@ -441,5 +442,20 @@ export async function googleAction(body: { action: "connect" | "disconnect"; gra
     return { ok: res.ok, url, error: short(got.error ?? got.result, 20) || undefined, imported: num(got.imported) ?? undefined };
   } catch {
     return { ok: false, error: "failed" };
+  }
+}
+
+/**
+ * Google sends a Nest or Tasks connect back to Today (`/?haven=…`); the house setup lives on the Boiler Room's Controls,
+ * so the result goes on there. Today calls it once on mount (the home devices' chip did until the Iris, #666).
+ */
+export function forwardHavenResult() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const r = q.get("haven");
+    if (!r || !/^(nest|tasks)-(connected|cancelled|failed)$|^refused$/.test(r)) return;
+    navigateTo(`/boiler/controls?haven=${r}`);
+  } catch {
+    /* no address to read */
   }
 }

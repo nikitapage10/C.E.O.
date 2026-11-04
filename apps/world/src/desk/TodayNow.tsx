@@ -89,6 +89,11 @@ export interface NowInput {
   onHot?: (room: string | null) => void;
   /** The eyebrow over the list: "Held for you" on Today since #413. */
   label?: string;
+  /**
+   * The Iris (#666): the list is the page's left side, standing alone. The date over "N things, Nikita.", what needs
+   * him numbered, then his own to-dos under "still left", and the add line last.
+   */
+  iris?: { name: string };
 }
 
 export function TodayNow(p: NowInput) {
@@ -283,6 +288,105 @@ export function TodayNow(p: NowInput) {
     else (e.currentTarget as HTMLElement).click();
   };
 
+  const row = (r: Row, i: number, numeral: string) => {
+    const isOpen = open === r.key;
+    const inner = (
+      <>
+        <span className="td-ni-n" aria-hidden="true">
+          {numeral}
+        </span>
+        <span className="td-ni-ic">
+          <Icon name={r.icon} />
+        </span>
+        <span className="td-ni-t">
+          <em>{r.label}</em>
+          <b>{r.title}</b>
+          {r.sub && <span>{r.sub}</span>}
+        </span>
+        <span className="td-ni-end">
+          {r.at ? <time dateTime={new Date(r.at).toISOString()}>{age(r.at, now)}</time> : null}
+          <span className="td-ni-go">
+            {r.card ? (isOpen ? "Fold" : "Answer") : "Open"}
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d={r.card ? "m4 6 4 4 4-4" : "M6 4l4 4-4 4"} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </span>
+      </>
+    );
+    return (
+      <li
+        key={r.key}
+        className={`td-ni is-${r.tier}${isOpen ? " is-open" : ""}${r.due ? " is-due" : ""}${r.room === "today" ? " is-mine" : ""}`}
+        data-room={r.room}
+        style={{ "--i": i } as React.CSSProperties}
+        onPointerEnter={() => p.onHot?.(r.room === "today" ? null : r.room)}
+        onPointerLeave={() => p.onHot?.(null)}
+      >
+        <div className="td-ni-line">
+          {r.card ? (
+            <button type="button" className="td-ni-row" aria-expanded={isOpen} aria-controls={`td-ni-${r.key}`} onClick={() => setOpen(isOpen ? null : r.key)} onKeyDown={(e) => spaceDown(r, e)} onKeyUp={(e) => spaceUp(r, e)}>
+              {inner}
+            </button>
+          ) : (
+            <a className="td-ni-row" href={r.href} onClick={roomLink(r.href ?? "/")} onKeyDown={(e) => spaceDown(r, e)} onKeyUp={(e) => spaceUp(r, e)}>
+              {inner}
+            </a>
+          )}
+          {talkOn && r.talk && (
+            <button
+              type="button"
+              className={`td-ni-talk${talk?.key === r.key ? " is-on" : ""}`}
+              aria-label="Talk back to this: snooze, remind, note, done or to-do"
+              title="Talk back: snooze, remind, note, done (or hold Space on the row)"
+              aria-expanded={talk?.key === r.key}
+              onClick={() => setTalk(talk?.key === r.key ? null : { key: r.key, listen: true })}
+            >
+              <Icon name="mic" />
+            </button>
+          )}
+        </div>
+        {talk?.key === r.key && r.talk && <TalkBack key={r.key} target={r.talk} listen={talk.listen} holding={talk.holding} onClose={() => setTalk(null)} />}
+        {r.card && (
+          <div id={`td-ni-${r.key}`} className="td-ni-card" hidden={!isOpen}>
+            {isOpen && r.card()}
+          </div>
+        )}
+      </li>
+    );
+  };
+
+  if (p.iris) {
+    // The Iris: what needs him, numbered; then his own, still left; the add line last.
+    const need = rows.filter((r) => r.room !== "today");
+    const left = rows.filter((r) => r.room === "today");
+    const things = fire + ask;
+    const title = things ? `${cap(words(things))} ${things === 1 ? "thing" : "things"}, ${p.iris.name}.` : `Nothing needs you, ${p.iris.name}.`;
+    return (
+      <section className={`td-now is-iris${fire ? " has-fire" : ask ? " has-ask" : " is-clear"}`} aria-labelledby="td-now-h" data-in>
+        <header className="td-now-head">
+          <p className="ti-date">{new Date(now).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+          <h1 id="td-now-h" className="desk__title ti-h1">
+            {title}
+          </h1>
+        </header>
+        {need.length > 0 ? (
+          <ol className="td-now-l ti-need">{need.map((r, i) => row(r, i, String(i + 1)))}</ol>
+        ) : (
+          <p className="ti-clear" role="status">
+            {busy.length ? `${busy.join(" and ")} ${busy.length === 1 ? "is" : "are"} working on ${busy.length === 1 ? "its" : "their"} own. ` : "The rooms are quiet. "}
+            <NextLine />
+          </p>
+        )}
+        <p className="ti-left-k">
+          <span>still left</span>
+        </p>
+        {left.length > 0 && <ol className="td-now-l ti-left">{left.map((r, i) => row(r, need.length + i, "○"))}</ol>}
+        <TodoCapture />
+      </section>
+    );
+  }
+
   return (
     <section className={`td-now${fire ? " has-fire" : ask ? " has-ask" : " is-clear"}`} aria-labelledby="td-now-h" data-in>
       <header className="td-now-head">
@@ -310,77 +414,7 @@ export function TodayNow(p: NowInput) {
           </p>
         </div>
       )}
-      {rows.length > 0 && (
-        <ol className="td-now-l">
-          {rows.map((r, i) => {
-            const isOpen = open === r.key;
-            const inner = (
-              <>
-                <span className="td-ni-n" aria-hidden="true">
-                  {roman(i + 1).toLowerCase()}
-                </span>
-                <span className="td-ni-ic">
-                  <Icon name={r.icon} />
-                </span>
-                <span className="td-ni-t">
-                  <em>{r.label}</em>
-                  <b>{r.title}</b>
-                  {r.sub && <span>{r.sub}</span>}
-                </span>
-                <span className="td-ni-end">
-                  {r.at ? <time dateTime={new Date(r.at).toISOString()}>{age(r.at, now)}</time> : null}
-                  <span className="td-ni-go">
-                    {r.card ? (isOpen ? "Fold" : "Answer") : "Open"}
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d={r.card ? "m4 6 4 4 4-4" : "M6 4l4 4-4 4"} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
-                </span>
-              </>
-            );
-            return (
-              <li
-                key={r.key}
-                className={`td-ni is-${r.tier}${isOpen ? " is-open" : ""}${r.due ? " is-due" : ""}${r.room === "today" ? " is-mine" : ""}`}
-                data-room={r.room}
-                style={{ "--i": i } as React.CSSProperties}
-                onPointerEnter={() => p.onHot?.(r.room === "today" ? null : r.room)}
-                onPointerLeave={() => p.onHot?.(null)}
-              >
-                <div className="td-ni-line">
-                  {r.card ? (
-                    <button type="button" className="td-ni-row" aria-expanded={isOpen} aria-controls={`td-ni-${r.key}`} onClick={() => setOpen(isOpen ? null : r.key)} onKeyDown={(e) => spaceDown(r, e)} onKeyUp={(e) => spaceUp(r, e)}>
-                      {inner}
-                    </button>
-                  ) : (
-                    <a className="td-ni-row" href={r.href} onClick={roomLink(r.href ?? "/")} onKeyDown={(e) => spaceDown(r, e)} onKeyUp={(e) => spaceUp(r, e)}>
-                      {inner}
-                    </a>
-                  )}
-                  {talkOn && r.talk && (
-                    <button
-                      type="button"
-                      className={`td-ni-talk${talk?.key === r.key ? " is-on" : ""}`}
-                      aria-label="Talk back to this: snooze, remind, note, done or to-do"
-                      title="Talk back: snooze, remind, note, done (or hold Space on the row)"
-                      aria-expanded={talk?.key === r.key}
-                      onClick={() => setTalk(talk?.key === r.key ? null : { key: r.key, listen: true })}
-                    >
-                      <Icon name="mic" />
-                    </button>
-                  )}
-                </div>
-                {talk?.key === r.key && r.talk && <TalkBack key={r.key} target={r.talk} listen={talk.listen} holding={talk.holding} onClose={() => setTalk(null)} />}
-                {r.card && (
-                  <div id={`td-ni-${r.key}`} className="td-ni-card" hidden={!isOpen}>
-                    {isOpen && r.card()}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      )}
+      {rows.length > 0 && <ol className="td-now-l">{rows.map((r, i) => row(r, i, roman(i + 1).toLowerCase()))}</ol>}
     </section>
   );
 }

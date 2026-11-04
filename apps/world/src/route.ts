@@ -9,8 +9,15 @@ import { useSyncExternalStore } from "react";
 export type Route = "today" | "foundry" | "relay" | "boiler" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio" | "annex" | "haven" | "lattice";
 
 /** The rooms with a page of their own past Today, the Foundry and Relay. */
-export const ROOM_ROUTES = ["archive", "spire", "exchange", "green", "workshop", "studio", "boiler", "annex", "haven"] as const;
+export const ROOM_ROUTES = ["haven", "green", "exchange", "archive", "annex", "spire", "workshop", "studio", "boiler"] as const;
 export type RoomRoute = (typeof ROOM_ROUTES)[number];
+/**
+ * The Desk's pages in the bar's order, by what actually works (Nikita, 2026-11-04 07:06Z): Today, the Haven, the
+ * Foundry, Relay, the Green, the Exchange, the Archive, the Annex, the Spire, the Workshop, the Studio, and the Boiler
+ * Room last, far right. Keys 1 to 9 then 0 open the first ten; the Studio and the Boiler Room have none. The one list:
+ * the bar, the keys and the room manifests' `navKey` all follow it.
+ */
+export const NAV_ORDER = ["today", "haven", "foundry", "relay", "green", "exchange", "archive", "annex", "spire", "workshop", "studio", "boiler"] as const satisfies readonly Exclude<Route, "lattice">[];
 /** Desk pages with no room in the Lattice behind them, so no still, banner or simulator room: the Annex (#618) and the Haven (#616; its Lattice room comes later). */
 export const DESK_ONLY_ROUTES: readonly RoomRoute[] = ["annex", "haven"];
 

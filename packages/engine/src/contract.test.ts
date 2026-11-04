@@ -4,7 +4,7 @@ import { LINEAGE_IDS, ROOM_IDS, type RoomId } from "@ceo/core";
 import { LIVE_ROOMS } from "@ceo/simulator";
 import { DESK_SUBMINDS } from "../../simulator/src/subminds.ts";
 import { roomMicOf, voiceTargetOf } from "./voice.ts";
-import { PATHS, ROOM_ROUTES } from "../../../apps/world/src/route.ts";
+import { NAV_ORDER, PATHS, ROOM_ROUTES } from "../../../apps/world/src/route.ts";
 import { isRoomTool, needsConfirm } from "./tools.ts";
 import { ENGINE_ENDPOINTS, ENGINE_KEYS, KERNEL_LEAD, RoomManifestSchema, type RoomManifest } from "./manifest.ts";
 import { AGENT_QUIPS, HOUSES, LORE, ROOM_QUIPS, SAMPLE_AGENTS, SKIPPY_LORE, SKIPPY_QUIPS, SUBMINDS, defaultCast } from "./lore.ts";
@@ -62,8 +62,8 @@ const manifests: RoomManifest[] = await Promise.all(
 );
 const byId = new Map(manifests.map((m) => [m.id, m]));
 
-/** The Desk's key order: Today, Foundry, Relay, then the rooms (apps/world/src/desk/DeskNav.tsx, KEY_ORDER). */
-const KEY_ORDER = ["today", "foundry", "relay", ...ROOM_ROUTES];
+/** The Desk's key order: the bar's order (route.ts NAV_ORDER, read by DeskNav.tsx's KEY_ORDER). */
+const KEY_ORDER: readonly string[] = NAV_ORDER;
 const NAV_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
 /** The Desk bar's labels (MAIN_TABS and ROOM_TABS in DeskNav.tsx, read as text so the test loads no React). */
 const deskNav = readRepoFile("apps/world/src/desk/DeskNav.tsx") ?? "";
@@ -114,9 +114,10 @@ describe("the room manifests", () => {
   });
 
   it("nav keys follow the Desk's key order, and names its labels (DeskNav.tsx)", () => {
-    // Ten keys: a page past the tenth (the Annex, #618) has none.
+    // Ten keys: a page past the tenth (the Studio and the Boiler Room since 2026-11-04) has none.
     expect(KEY_ORDER.length).toBeGreaterThanOrEqual(NAV_KEYS.length);
     KEY_ORDER.forEach((id, i) => expect(byId.get(id)?.navKey, id).toBe(NAV_KEYS[i]));
+    expect(new Set(KEY_ORDER).size, "each page once").toBe(manifests.length);
     for (const m of manifests) expect(m.name, m.id).toBe(tabLabel(m.id));
   });
 

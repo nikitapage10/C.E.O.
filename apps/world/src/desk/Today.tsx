@@ -1,48 +1,37 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { byWait, type DeskData } from "./deskData.ts";
-import { ideaCounts, openIdeas, shippedToday, useFoundry } from "../foundry.ts";
-import { loadLattice } from "../route.ts";
+import { ideaCounts, openIdeas, useFoundry } from "../foundry.ts";
 import { useSetup } from "./IdeaCard.tsx";
-import { link } from "./nav.ts";
 import { useSetupStatus } from "./SetupCard.tsx";
 import { readTicked, remaining, SETUP_LIST } from "./setupList.ts";
 import { startEmail, useEmail } from "./email/email.ts";
 import { Icon } from "./todayIcons.tsx";
 import { fires, TodayNow } from "./TodayNow.tsx";
 import { DAY_STRIP_MS, usePulses } from "./usePulses.ts";
-import { TodayBroadcast } from "./DayStory.tsx";
-import { nextEdition, roman, until } from "./todaySchedule.ts";
-import { PlanWatch } from "./skippy/PlanWatch.tsx";
-import { SkippyAsk } from "./skippy/index.ts";
-import { greeting, skippyLine } from "./roomPulse.ts";
-import { Ephemeris, useRuns } from "./TodayRail.tsx";
-import { mountainHour, PART } from "./ilyrTime.ts";
+import { skippyLine } from "./roomPulse.ts";
+import { Iris } from "./council/Iris.tsx";
+import { forwardHavenResult } from "./homeDevices.ts";
 import { clockState, useWorldClock } from "../worldClock.ts";
-import { Confluence } from "./confluence/Confluence.tsx";
 import { useTodoSync } from "./todos/TodoBits.tsx";
-import { awayRefs, openTodos, useTodos } from "./todos/todos.ts";
-import { KitchenList } from "./KitchenList.tsx";
-import { HomeDevices } from "./HomeDevices.tsx";
+import { awayRefs, useTodos } from "./todos/todos.ts";
 import "@fontsource-variable/bodoni-moda/opsz.css";
 import "@fontsource-variable/bodoni-moda/opsz-italic.css";
 import "@fontsource-variable/jost/wght.css";
 import "./today.css";
-import "./confluence/confluence.css";
 
 /** The rest of Today, loaded the first time "Not worth knowing now" is opened (or in the idle time after first paint). */
 export const loadTodayMore = () => import("./TodayMore.tsx");
 const TodayMore = lazy(() => loadTodayMore().then((m) => ({ default: m.TodayMore })));
 
 /**
- * Today, as a confluence (#413; round 9's T1, Nikita's pick 2026-10-24 21:30Z, with Nikita's changes): one full-bleed
- * stage where every room's real work streams up into Skippy (confluence/). The Council of Skippies stands along the
- * bottom as figures of light that turn into Skippy's own shape and back, words rising off them and crumbling into sand
- * whenever something real happens. Over it in plain type: the top face (Skippy's greeting and the day's ledger), the
- * helm (the channel to Skippy, typed or said; the day's broadcast; what the crew runs next; the way into the Lattice),
- * and in the top right "Held for you", what needs Nikita now, each held thing an eddy on its room's stream. Tap a
- * figure to see what happened in its room today, and your talks with it. Below the stage, everything that can wait,
- * folded away under "Not worth knowing now" (TodayMore, loaded on demand). Bodoni Moda and Jost, Today's lane, set
- * larger. Real data only: anything not connected says it is waiting.
+ * Today, as the Iris (#666; concept 2 of 2026-11-04, Nikita: "too much going on... Can we get a much simplified
+ * view?"). Two things only. On the left, standing alone, the priority: the date, "N things, Nikita.", what needs him
+ * numbered with its Answer, then his own to-dos under "still left" and the add line (TodayNow). On the right, the
+ * Council of Skippies in 3D round Skippy, the pupil of a nanite eye (council/Iris.tsx): point at a member for a light
+ * from above and what it's doing, click for its card. Under the fold, everything that can wait stays folded away under
+ * "Not worth knowing now" (TodayMore, loaded on demand). What used to crowd the page moved: the stat row's clock, Coming
+ * up, Hide and Hands-free to the Boiler Room's Settings (/boiler/controls), Today in Ilyr to the Archive's edition,
+ * the Kitchen list to the Haven, Enter the Lattice to the bar. Ask Skippy stays bottom right. Real data only.
  */
 
 /** Replies that make "Held for you": the ones marked sooner, and anything waiting longer than this. */
@@ -68,6 +57,8 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
   // The email agent's count (#263): mail Dialtone sorted as needing you, from the public counts (no subjects here).
   const emailNeeds = useEmail((s) => s.status?.needsYou ?? 0);
   useEffect(() => startEmail(), []);
+  // Google sends a Nest or Tasks connect back here (`/?haven=…`): on to Controls, where the house setup lives.
+  useEffect(forwardHavenResult, []);
   const todo = replies.length + decisions.length + questions.length + emailNeeds;
   const pulses = usePulses(owed.length, now);
   const [ticked] = useState(readTicked);
@@ -79,97 +70,37 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
   useTodoSync();
   const todoState = useTodos((s) => s.state);
   const away = awayRefs(todoState, now);
-  const mine = openTodos(todoState, now).length;
   const fire = fires(pulses, clockState(reading, clock, now)).filter((f) => !away.has(f.key));
 
   const [more, setMore] = useState(() => typeof window !== "undefined" && window.location.hash === "#more");
   const waiting = later.length + otherReplies;
   const hot = useRef<(room: string | null) => void>(() => {});
 
-  // The rooms with something held: their figures wear the hot ring.
-  const needs = [
-    ...fire.map((f) => f.room),
-    ...decisions.map((a) => a.room),
-    ...(replies.length || emailNeeds ? ["relay"] : []),
-    ...(questions.length || toPick.length ? ["foundry"] : []),
-    ...(setupLeft ? ["boiler"] : []),
-  ].filter((r, i, a) => a.indexOf(r) === i);
 
   const openMore = () => {
     setMore((m) => !m);
     if (!more) window.setTimeout(() => document.getElementById("today-more")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   };
   const since = Math.min(new Date(now).setHours(0, 0, 0, 0), now - DAY_STRIP_MS);
-  const hour = mountainHour(now);
   const says = skippyLine(todo, pulses);
-  const live = pulses.filter((p) => p.real && p.state !== "sim").length;
-  const shippedNow = shippedToday(foundry.changelog, now);
-  const g = greeting(now);
-  const comma = g.indexOf(", ");
-  const putAway =
-    replies.filter((o) => away.has(o.id)).length +
-    decisions.filter((a) => away.has(a.id)).length +
-    questions.filter((c) => away.has(`q${c.number}`)).length +
-    (away.has("email") ? emailNeeds : 0) +
-    (toPick.length && away.has("ideas") ? 1 : 0) +
-    (setupLeft && away.has("setup") ? 1 : 0);
-  const held = todo + fire.length + (toPick.length ? 1 : 0) + (setupLeft ? 1 : 0) - putAway + mine;
+
+  // How many things are held for him in each room: each member's card says it.
+  const heldBy: Record<string, number> = {};
+  const add = (room: string, k = 1) => (heldBy[room] = (heldBy[room] ?? 0) + k);
+  fire.forEach((f) => add(f.room));
+  decisions.filter((a) => !away.has(a.id)).forEach((a) => add(a.room));
+  const repliesHeld = replies.filter((o) => !away.has(o.id)).length + (emailNeeds && !away.has("email") ? 1 : 0);
+  if (repliesHeld) add("relay", repliesHeld);
+  const foundryHeld = questions.filter((c) => !away.has(`q${c.number}`)).length + (toPick.length && !away.has("ideas") ? 1 : 0);
+  if (foundryHeld) add("foundry", foundryHeld);
+  if (setupLeft && !away.has("setup")) add("boiler");
 
   return (
-    <div className="today wv-page td cf-page">
-      <Confluence
-        pulses={pulses}
-        now={now}
-        since={since}
-        hour={hour}
-        needs={needs}
-        skippySays={says}
-        hotRef={hot}
-        top={
-          <>
-            <p className="cf-eyb">
-              <span>Today</span> {new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
-            </p>
-            <h1 className="desk__title cf-greet">
-              {comma > 0 ? (
-                <>
-                  {g.slice(0, comma + 1)} <em>{g.slice(comma + 2)}</em>
-                </>
-              ) : (
-                g
-              )}
-            </h1>
-            <p className="cf-say">{says}</p>
-            <dl className="cf-ledger">
-              <div className={held ? "is-hot" : ""}>
-                <dt>Held for you</dt>
-                <dd>{held}</dd>
-              </div>
-              <div>
-                <dt>Rooms live</dt>
-                <dd>
-                  {live}
-                  <small> of {pulses.length}</small>
-                </dd>
-              </div>
-              <div>
-                <dt>Shipped today</dt>
-                <dd>{shippedNow}</dd>
-              </div>
-              <div className="is-ilyr">
-                <dt>{PART(hour)} in Ilyr</dt>
-                <dd>
-                  <span className="td-sr">Hour {Math.floor(hour) || 24} of 24</span>
-                  <span aria-hidden="true">{roman(Math.floor(hour) || 24)}</span>
-                  <small aria-hidden="true"> of XXIV</small>
-                </dd>
-              </div>
-            </dl>
-          </>
-        }
-        held={
+    <div className="today wv-page td ti-page">
+      <section className="ti" aria-label="Today">
+        <div className="ti-list">
           <TodayNow
-            label="Held for you"
+            iris={{ name: "Nikita" }}
             now={now}
             pulses={pulses}
             questions={questions}
@@ -185,33 +116,9 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
             awaySince={awaySince}
             onHot={(r) => hot.current(r)}
           />
-        }
-        helm={
-          <>
-            <div className="td-comm">
-              <SkippyAsk className="td-ask" />
-            </div>
-            <PlanWatch className="plan-watch--td" />
-            <div className="cf-chips">
-              <TodayBroadcast now={now} next={until(nextEdition(now).at, now)} />
-              <ComingUp />
-              <KitchenList />
-              <HomeDevices />
-              <a className="td-door" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
-                <svg viewBox="0 0 28 28" aria-hidden="true">
-                  <circle cx="14" cy="14" r="12.5" />
-                  <path d="M3 14c4-5 7-5 11 0s7 5 11 0" />
-                  <path d="M14 1.5v25" />
-                </svg>
-                <span>
-                  <b>Enter the Lattice</b>
-                  <small>Walk the ten rooms</small>
-                </span>
-              </a>
-            </div>
-          </>
-        }
-      />
+        </div>
+        <Iris pulses={pulses} now={now} since={since} held={heldBy} skippySays={says} hotRef={hot} />
+      </section>
 
       <section className={`td-later cf-later${more ? " is-open" : ""}`} aria-label="Not worth knowing now">
         <button type="button" className="td-later-bar" aria-expanded={more} aria-controls="today-more" onClick={openMore} onPointerEnter={() => void loadTodayMore()} onFocus={() => void loadTodayMore()}>
@@ -246,45 +153,6 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-/** "Coming up": the crew's next run as a chip, the whole ephemeris in a pop-over under it. */
-function ComingUp() {
-  const [open, setOpen] = useState(false);
-  // Closed, the chip shows minutes, so it needn't redraw Today's helm every second (#417); open, the ephemeris counts
-  // the last minute down in seconds.
-  const { now, runs } = useRuns(open ? 1000 : 15_000);
-  const [hotRun, setHotRun] = useState<string | null>(null);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const off = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("pointerdown", off);
-    window.addEventListener("keydown", key);
-    return () => {
-      window.removeEventListener("pointerdown", off);
-      window.removeEventListener("keydown", key);
-    };
-  }, [open]);
-  const next = runs[0];
-  return (
-    <div className="cf-cu" ref={box}>
-      <button type="button" className="cf-cu-btn" aria-expanded={open} aria-controls="cf-cu-pop" onClick={() => setOpen((o) => !o)}>
-        <span className="cf-cu-k">Coming up</span>
-        {next ? (
-          <span>
-            {next.what.toLowerCase()} <b>{until(next.at, now)}</b>
-          </span>
-        ) : (
-          <span>nothing scheduled</span>
-        )}
-      </button>
-      <div id="cf-cu-pop" className="cf-cu-pop" hidden={!open}>
-        {open && <Ephemeris runs={runs} now={now} hotRun={hotRun} onHotRun={setHotRun} />}
-      </div>
     </div>
   );
 }

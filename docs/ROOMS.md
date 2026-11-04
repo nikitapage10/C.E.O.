@@ -64,7 +64,7 @@ This replaces the older rule that every page comes back to Today's language.
   lock, Skippy and Talk, the room voice, the feed and the Council); and a lean toward dark, which is a default, not a rule.
 - The room voice (#638, `@ceo/engine/voice`): Ask Skippy is the large button at the bottom right of every page (his
   chat and Talk); every room page but Today gets a one-tap mic beside it to its submind, from its manifest's `submind`
-  (`roomMicOf`; the contract test holds them together); and Hands-free in the bar keeps listening page to page, each
+  (`roomMicOf`; the contract test holds them together); and Hands-free (switched in the Boiler Room's Settings, shown in the bar while on) keeps listening page to page, each
   thing said going to the page's lead (`voiceTargetOf`: Skippy on Today). A room adds nothing for any of it; how it
   works is in [SKIPPY.md](SKIPPY.md), "The room voice".
 - **A room's intent handler (optional).** A room that wants to act on what's said itself (Relay's replies, rules,

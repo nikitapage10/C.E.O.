@@ -124,3 +124,20 @@ describe("the default view (#658)", () => {
     }
   });
 });
+
+describe("the night round the house (#665)", () => {
+  it("lays the city's lights on the plain, clear of the house, mostly along streets in step with its walls", async () => {
+    const { cityLights } = await import("./night.ts");
+    const keep = { x0: -5, x1: 5, z0: -6.5, z1: 6.5 };
+    const p = cityLights(4000, keep);
+    expect(p.length / 3).toBe(4000);
+    let onStreet = 0;
+    for (let i = 0; i < p.length; i += 3) {
+      const [x, y, z] = [p[i]!, p[i + 1]!, p[i + 2]!];
+      expect(y).toBeGreaterThan(0);
+      expect(x > keep.x0 - 2.5 && x < keep.x1 + 2.5 && z > keep.z0 - 2.5 && z < keep.z1 + 2.5).toBe(false);
+      if (Math.abs(x / 6 - Math.round(x / 6)) < 0.02 || Math.abs(z / 6 - Math.round(z / 6)) < 0.02) onStreet++;
+    }
+    expect(onStreet / 4000).toBeGreaterThan(0.85);
+  });
+});

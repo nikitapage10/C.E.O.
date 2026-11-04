@@ -6,7 +6,7 @@ C.E.O.'s home, as Bicep in [`infra/`](../infra): **Azure is production and the o
 nothing runs against it any more except the one final copy of its world, and what Nikita switches off there is in
 [Retiring Vercel](#retiring-vercel). One paste in Azure Cloud Shell created all of it (the app's Vercel adapter code
 stays until Vercel is off, see [The port](#the-port)); the deploy workflow and nightly backup are in
-[Deploys and backups](#deploys-and-backups). No Azure OpenAI or Speech: the functions call Claude and ElevenLabs directly (Gemini only reviews the Lattice's look in CI, Visual QA).
+[Deploys and backups](#deploys-and-backups). No Azure OpenAI or Speech: the functions call Claude, ElevenLabs and (for the Kitchen's meal photos, #687) OpenAI's images API directly (Gemini only reviews the Lattice's look in CI, Visual QA).
 
 **Since #330, changes ship with the deploy and keys go in on the Desk.** Every merge into `main` applies
 `infra/resources.bicep` to `rg-ceo-prod` ([The template on every deploy](#the-template-on-every-deploy)), so new app
@@ -23,7 +23,7 @@ In the resource group `rg-ceo-prod` (West US 3, the Static Web App in West US 2:
 | --- | --- | --- |
 | Static Web App `swa-ceo`, Standard | The site (`apps/world/dist`), with the Function App linked as its `/api` | about $9 |
 | Function App `func-ceo-…`, Flex Consumption, Node 22 | The `api/` functions, system-assigned identity, 10-minute timeout | $0–5 (the hourly world step is most of it) |
-| Storage account `stceo…`, Standard LRS | `ceo-state` (the world, its stories, idea pictures and the Desk's store), `ceo-backups` and the functions' code package. No public blobs, no account keys, TLS 1.2 | under $1 |
+| Storage account `stceo…`, Standard LRS | `ceo-state` (the world, its stories, idea pictures and the Desk's store), `haven-meals` (the Kitchen's meal photos, #687), `ceo-backups` and the functions' code package. No public blobs, no account keys, TLS 1.2 | under $1 |
 | Key Vault `kv-ceo-…`, RBAC | Every secret the functions read, as Key Vault references in their app settings | under $1 |
 | Log Analytics `log-ceo` + Application Insights `appi-ceo` | Logs and traces, capped at 0.2 GB a day (the first 5 GB a month are free) | $0–3 |
 

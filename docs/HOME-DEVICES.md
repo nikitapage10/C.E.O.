@@ -259,6 +259,61 @@ Calls happen only on those taps (Kroger's limits: 10,000 product calls and 1,600
 a day), never on a timer. `MEALME_API_KEY` (Key Vault `haven-mealme-key`) stays on the Function App, unread, from
 before King Soopers replaced MealMe.
 
+## The meal photo library
+
+The Kitchen's meal planner (#678) shows a photo on every night; this is where they live and how a customized meal gets
+its own (#687, [`api/_haven/photos.ts`](../api/_haven/photos.ts), shapes in
+[`api/_haven/photoShape.ts`](../api/_haven/photoShape.ts)). Azure only.
+
+- **Where.** The private container `haven-meals` in the storage account (`stceobesgu7fnckib2`; infra/resources.bicep,
+  no public access, no account keys), reached only with the Function App's identity: `catalog.json` (every photo's
+  id, meal, key, prompt, style `plate` or `prep`, source `openai`, `upload` or `seed`, state and times),
+  `full/<id>.png|jpg` (as made or uploaded) and `720/<id>.jpg` (the Desk's copy, 720 px wide). Nothing is in the repo
+  and no blob URL is ever handed out: a photo comes back only through `GET /api/haven-photos` to the passkey session.
+- **Made.** OpenAI's images API with the Studio's key (Key Vault secret `openai`, `OPENAI_STUDIO_KEY`):
+  `gpt-image-2`, 1024 × 1536, quality medium, streamed with one partial image (the final
+  `image_generation.completed` event's image is kept), then low once if medium fails. The prompt is the demo's two
+  styles (plated on off-white ceramic in daylight; meal-prep containers on grey stone) with the dish's name,
+  description and components after Customize ([`api/_haven/photoGen.ts`](../api/_haven/photoGen.ts)).
+- **The cap.** The project's OpenAI images cap, **$10 a month**, in the ledger `openai/images-<YYYY-MM>.json` in the
+  private store. Each attempt is counted before the call at $0.10 (medium) or $0.03 (low), above list price, and
+  handed back only when OpenAI answered with an error status. About 100 photos a month; past the cap nothing is
+  called and the waiting photos read `budget` until the month turns and the week is confirmed again.
+- **One at a time.** Photos are made after the answer, oldest first, one run at a time under a lease in the catalog;
+  the timer `haven_photos` runs every ten minutes while anything waits, so a run cut short is picked up again.
+- **Idempotent.** A photo's `key` is the SHA-256 (16 hex) of its meal id, its components as a set (case and order don't
+  matter) and its style; its id is `<meal>-<first 8 of the key>`. Confirming the same week again returns the same ids
+  and makes nothing; a `failed` or `budget` photo is tried once more. A `ready` photo with the same key wins, an
+  upload included.
+- **Logs** say counts and states only, never a meal, a prompt or the key.
+
+### The contract (for the planner's UI and Talk to edit)
+
+Every call is the Desk's passkey session except the feed key's PUT. A meal to photograph (`MealToShoot`):
+
+```json
+{ "meal": "gochujang-chicken-bowl", "name": "Gochujang chicken bowl",
+  "description": "Sticky chicken thighs over rice with a crunchy slaw.",
+  "components": ["Chicken thighs", "Quinoa", "Cabbage slaw"], "style": "plate" }
+```
+
+`meal` is the planner's meal id (`/^[a-z0-9][a-z0-9-]{1,47}$/`), `components` the component names as customized (up to
+8), `style` `plate` or `prep`. Text is taken as untrusted: control characters and `<>{}` are dropped and each field
+capped.
+
+| Call | Answer |
+| --- | --- |
+| `POST /api/haven-photos { action: "confirm", meals: MealToShoot[] }` (1–14 meals): the confirm-week hook | `{ photos: [{ meal, key, id, status }], budget }` at once. `status` is `queued`, `making`, `ready`, `failed` or `budget`; put `id` on the night (`slot.photo`) and show it once `ready`. |
+| `POST /api/haven-photos { action: "generate", meal: MealToShoot }`: one meal | `{ photo: { meal, key, id, status }, budget }` |
+| `GET /api/haven-photos?view=catalog[&ids=a,b,…]`: poll the tickets (up to 50 ids) or list the library | `{ photos: PhotoEntry[], budget, ready }`; `ready` is false until the OpenAI key is set |
+| `GET /api/haven-photos?id=<id>[&size=full]`: the photo (`photoUrl(id)` in photoShape.ts) | the 720 px JPEG (or the original), `Cache-Control: private, max-age=3600`; 404 when there is none |
+| `POST /api/haven-photos { action: "upload", meal, image, id?, name?, style?, components?, source? }` | `{ photo: PhotoEntry }`. `image` is base64 PNG or JPEG (a `data:` prefix is fine), at most 4 MB decoded; the id is `id` or the meal's own, and an upload under an id already there replaces it. |
+| `POST /api/haven-photos { action: "remove", id }` | `{ ok: true }`, or 404 |
+| `PUT /api/haven-photos { meal, image, id?, name?, style?, components? }` with the feed key (`x-ceo-room-key` or `Authorization: Bearer`), no query | `{ ok, id, bytes }` only, source `seed`: the Builder loads photos with no tap. Neither room key can read a photo. |
+
+`budget` is `{ month, images, usd, capUsd, left, reached }`. Errors: 401 without the session, 400 `bad-meals`,
+`bad-photo` or `bad-request`, 413 `too-big`, 503 `not-set-up` or `store`.
+
 ## Vendor limits
 
 - **No official APIs.** Each vendor can change its cloud without notice; a change shows as that vendor "down" on the

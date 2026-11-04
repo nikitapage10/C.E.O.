@@ -22,6 +22,9 @@ export function stem(word: string): string {
 const UNIT = /^(\d.*|oz|lb|lbs|ct|pk|pack|count|fl|gal|ml|l|g|kg|each|ea)$/;
 const words = (text: string) => text.split(/[^\p{L}\p{N}'’]+/u).filter(Boolean).map(stem).filter((w) => !UNIT.test(w));
 
+/** Container and unit words a product can match on without being food. */
+const CONTAINER = /\b(?:cups?|oz|ounces?|cans?|jars?|bags?)\b/i;
+
 /** Words that make a product something other than the item itself, unless the item names them too. */
 const OFF: Record<string, number> = { imitation: 14, flavored: 7, flavor: 6, flavour: 6, style: 6, mix: 7, seasoning: 7, ravioli: 4, soup: 4, bisque: 4, sauce: 4, dip: 4, chip: 4, cracker: 4, broth: 3, spread: 3 };
 /** Words after the item's word that keep it the main thing: lobster tails, lobster meat, chicken breasts. */
@@ -41,7 +44,11 @@ export function scoreProduct(term: string, p: Pick<Product, "description" | "bra
   const found = want.filter((w) => body.includes(w)).length;
   if (found === want.length) score += 10;
   else if (found) score += 4 * (found / want.length);
-  else score -= desc.some((w) => want.includes(w)) ? 12 : 20; // only in the brand's name, or not at all
+  else {
+    score -= desc.some((w) => want.includes(w)) ? 12 : 20; // only in the brand's name, or not at all
+    // A hit on a unit word alone ("panko, 1 cup" finding a plastic cup, #737): the container, not the food.
+    if (CONTAINER.test(p.description)) score -= 10;
+  }
 
   // The main noun: the item's last word ends the description, or only a form word follows it.
   const at = body.lastIndexOf(want[want.length - 1]!);

@@ -1449,6 +1449,10 @@
   gap: 14px;
   align-items: start;
 }
+[data-room="haven"] .mp-shopStep.is-solo {
+  grid-template-columns: minmax(0, 760px);
+  justify-content: center;
+}
 [data-room="haven"] .mp-railIn {
   display: grid;
   gap: 14px;

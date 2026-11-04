@@ -355,11 +355,34 @@ test("signed in: each device gauge opens its controls, and they send the existin
   expect(sent[5]).toMatchObject({ action: "vacuum.rooms", rooms: ["Living room"], suction: "max" });
 });
 
-test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and total, and sends exactly the shown picks", async ({ page }) => {
+test("signed in, ?open=kitchen: one Shopping card; Finalize & match matches all in batches and turns to King Soopers, which sends exactly the shown picks (#664, #737)", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   const posts: Record<string, unknown>[] = [];
-  const product = (productId: string, description: string, price: number, promo: number | null = null) => ({ productId, upc: productId, description, brand: "Test", size: "1 ct", price, promo, stock: "high" });
-  const view = {
+  const product = (productId: string, description: string, price: number, promo: number | null = null, more: Record<string, unknown> = {}) => ({
+    productId,
+    upc: productId,
+    description,
+    brand: "Test",
+    size: "1 ct",
+    price,
+    promo,
+    stock: "high",
+    aisle: null,
+    categories: [],
+    image: `https://www.kroger.com/product/images/medium/front/${productId}`,
+    ...more,
+  });
+  const at = new Date().toISOString();
+  const lemons = {
+    id: "k0",
+    name: "Lemons",
+    key: "lemon",
+    inCart: false,
+    pick: { term: "lemons", product: product("0001111000004", "Organic Lemons", 119, null, { aisle: "Produce", categories: ["Produce"] }), alts: [product("0001111000005", "Meyer Lemons", 199)], chosen: false, skip: false, at },
+  };
+  const garlic = { id: "k1", name: "Garlic", key: "garlic", inCart: false, pick: { term: "garlic", product: product("0001111000006", "Garlic Bulb", 59, 49, { aisle: "Aisle 3" }), alts: [], chosen: false, skip: false, at } };
+  const oat = { id: "k2", name: "Oat milk", key: "oat milk", inCart: true, pick: { term: "oat milk", product: product("0001111000001", "Test Oat Milk", 429, null, { categories: ["Dairy"] }), alts: [], chosen: false, skip: false, at } };
+  const base = {
     ready: true,
     state: "live",
     connected: true,
@@ -367,22 +390,50 @@ test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and 
     zip: "12345",
     found: [],
     store: { id: "62000001", name: "King Soopers - Test Town", line: "1 Test Ave", city: "Testville", state: "CO", zip: "12345" },
-    lines: [
-      { id: "k0", name: "Lemons", key: "lemon", pick: { product: product("0001111000004", "Organic Lemons", 119), alts: [product("0001111000005", "Meyer Lemons", 199)], chosen: false, skip: false, at: new Date().toISOString() } },
-      { id: "k1", name: "Garlic", key: "garlic", pick: { product: product("0001111000006", "Garlic Bulb", 59, 49), alts: [], chosen: false, skip: false, at: new Date().toISOString() } },
-      { id: "k2", name: "Oat milk", key: "oat milk", pick: null },
-    ],
-    total: 168,
-    count: 2,
+    count: 3,
     sent: null,
   };
-  await page.route(/\/api\/haven\/kroger(\?.*)?$/, (r) => {
-    if (r.request().method() === "POST") {
-      const body = r.request().postDataJSON() as Record<string, unknown>;
-      posts.push(body);
-      return r.fulfill({ json: body.action === "send" ? { ok: true, items: 2, url: "https://www.kingsoopers.com/cart", ...view } : { ok: true, ...view } });
+  let view: Record<string, unknown> = {
+    ...base,
+    lines: [
+      { ...lemons, pick: null },
+      { ...garlic, pick: null },
+      { ...oat, pick: null, inCart: false },
+    ],
+    total: 0,
+  };
+  const matched = { ...base, lines: [lemons, garlic, oat], total: 119 + 49 + 429 };
+  let matches = 0;
+  await page.route(/\/api\/haven\/kroger(\?.*)?$/, async (r) => {
+    if (r.request().method() !== "POST") return r.fulfill({ json: view });
+    const body = r.request().postDataJSON() as Record<string, unknown>;
+    posts.push(body);
+    if (body.action === "match") {
+      // Two batches: 25 of 38, then the last 13 (a made-up count: the server matches 25 a call, #737).
+      matches++;
+      if (matches === 2) await new Promise((ok) => setTimeout(ok, 700));
+      view = matched;
+      return r.fulfill({ json: { ok: true, matched: matches === 1 ? 25 : 13, failed: 0, left: matches === 1 ? 13 : 0, ...view } });
     }
-    return r.fulfill({ json: view });
+    if (body.action === "clear")
+      return r.fulfill({
+        json: {
+          ok: true,
+          ...base,
+          lines: [
+            { ...lemons, pick: null },
+            { ...garlic, pick: null },
+            { ...oat, pick: null, inCart: false },
+          ],
+          total: 0,
+        },
+      });
+    return r.fulfill({ json: body.action === "send" ? { ok: true, items: 2, already: 1, url: "https://www.kingsoopers.com/cart", ...view } : { ok: true, ...view } });
+  });
+  // Made-up product photos: a plain disc per product, served for Kroger's image host.
+  await page.route("https://www.kroger.com/product/images/**", (r) => {
+    const hue = Number(r.request().url().slice(-2)) * 47;
+    return r.fulfill({ contentType: "image/svg+xml", body: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="52" r="34" fill="hsl(${hue} 70% 58%)"/><ellipse cx="40" cy="40" rx="10" ry="6" fill="#fff" opacity=".35"/></svg>` });
   });
   await page.addInitScript(() => {
     window.open = () => null;
@@ -390,23 +441,72 @@ test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and 
   await page.goto(`${BASE}/haven?open=kitchen`);
   const sheet = page.getByRole("dialog", { name: "Kitchen" });
   await expect(sheet).toBeVisible();
+  await expect(page).toHaveURL(`${BASE}/haven`);
+
+  // One card, two tabs with their counts; the List by shelf.
+  const tabs = sheet.getByRole("tablist", { name: "Shopping" });
+  await expect(tabs.getByRole("tab", { name: "List 3" })).toHaveAttribute("aria-selected", "true");
+  await expect(tabs.getByRole("tab", { name: "King Soopers 0" })).toBeVisible();
+  await expect(sheet.getByRole("heading", { name: "King Soopers", exact: true })).toHaveCount(0);
+  const list = sheet.getByRole("list", { name: "Kitchen list" });
+  await expect(list.getByRole("heading", { name: /^Produce/ })).toBeVisible();
+  await expect(list.getByRole("heading", { name: /^Dairy & eggs/ })).toBeVisible();
+
+  if (SHOTS) await sheet.locator(".hv-shop").screenshot({ path: `${SHOTS}/haven-737-list.png` });
+  // Finalize & match: every item in one press, with progress, then the King Soopers tab.
+  await sheet.getByRole("button", { name: "Finalize & match" }).click();
+  await expect(sheet.getByText("Matching 25 of 38…")).toBeVisible();
+  await expect(tabs.getByRole("tab", { name: "King Soopers 3" })).toHaveAttribute("aria-selected", "true");
+  expect(posts).toEqual([{ action: "match" }, { action: "match" }]);
+  posts.length = 0;
+  // Matched, the List groups by Kroger's own department.
   await expect(sheet.getByText("King Soopers - Test Town · 1 Test Ave, Testville")).toBeVisible();
   await expect(sheet.getByText("Organic Lemons · 1 ct")).toBeVisible();
-  await expect(sheet.locator(".hv-gTotal")).toContainText("$1.68");
-  await expect(sheet.getByRole("button", { name: "Match 1 item at this store" })).toBeVisible();
-  await expect(page).toHaveURL(`${BASE}/haven`);
-  if (SHOTS) await sheet.screenshot({ path: `${SHOTS}/haven-664-groceries.png` });
+  await expect(sheet.getByText("Already in your cart")).toHaveCount(1);
+  await expect(sheet.locator(".hv-gTotal")).toContainText("$5.97");
+  await expect(sheet.getByRole("link", { name: "King Soopers app" })).toHaveAttribute("href", "https://www.kingsoopers.com/cart");
+  if (SHOTS) {
+    await page.waitForTimeout(300);
+    await sheet.locator(".hv-shop").screenshot({ path: `${SHOTS}/haven-737-shopping-desktop.png` });
+    const was = page.viewportSize()!;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(400);
+    await sheet.locator(".hv-shop").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${SHOTS}/haven-737-shopping-phone.png` });
+    await page.setViewportSize(was);
+  }
+
+  // The product's own sheet, and Choose this from its swaps.
+  await sheet.getByRole("button", { name: "Organic Lemons: details" }).click();
+  const detail = page.getByRole("dialog", { name: "Lemons: Organic Lemons" });
+  await expect(detail.getByText("Produce", { exact: true }).first()).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-737-product.png` });
+  await detail.getByRole("button", { name: "Choose this" }).click();
+  await expect(detail).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Rematch Garlic" }).click();
+
+  // Send adds only what isn't in the cart already.
   await sheet.getByRole("button", { name: "Send 2 to King Soopers" }).click();
-  await expect(sheet.getByText("Added 2 to your King Soopers cart.", { exact: false })).toBeVisible();
+  await expect(sheet.getByText("Added 2 to your King Soopers cart (1 already there, not added again).", { exact: false })).toBeVisible();
   await expect(sheet.getByRole("link", { name: "Open the cart" })).toHaveAttribute("href", "https://www.kingsoopers.com/cart");
+
+  // Clear matches takes two taps.
+  await sheet.getByRole("button", { name: "Clear matches" }).click();
+  expect(posts.some((p) => p.action === "clear")).toBe(false);
+  await sheet.getByRole("button", { name: "Tap again to clear every match" }).click();
+  await expect(tabs.getByRole("tab", { name: "King Soopers 0" })).toBeVisible();
   expect(posts).toEqual([
+    { action: "choose", key: "lemon", productId: "0001111000005" },
+    { action: "rematch", key: "garlic" },
     {
       action: "send",
       picks: [
         { key: "lemon", productId: "0001111000004" },
         { key: "garlic", productId: "0001111000006" },
+        { key: "oat milk", productId: "0001111000001" },
       ],
     },
+    { action: "clear" },
   ]);
 });
 

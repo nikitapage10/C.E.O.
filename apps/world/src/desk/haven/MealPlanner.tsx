@@ -1169,17 +1169,22 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
             </div>
           </div>
         ) : step === "shop" ? (
-          <div className="mp-shopStep">
-            <div className="mp-main">
-              <WeekShopping f={view} open />
-              {w.confirmedAt ? null : (
-                <section className="mp-drawer mp-overview" aria-label="Finalize the week">
-                  <p className="mp-note">Finalize the week (above) to put its shopping on the Kitchen list, then match each item at King Soopers, swap any pick, and send it to the cart.</p>
-                </section>
-              )}
+          w.confirmedAt ? (
+            // Finalized, the week's shopping is on the Kitchen list: the one Shopping card says it, not a second copy (#737).
+            <div className="mp-shopStep is-solo">
+              <div className="mp-railIn">{rail}</div>
             </div>
-            <div className="mp-railIn">{rail}</div>
-          </div>
+          ) : (
+            <div className="mp-shopStep">
+              <div className="mp-main">
+                <WeekShopping f={view} open />
+                <section className="mp-drawer mp-overview" aria-label="Finalize the week">
+                  <p className="mp-note">Finalize the week (above) to put its shopping on the Kitchen list, then Finalize &amp; match there: every item matched at King Soopers, ready to check and send to the cart.</p>
+                </section>
+              </div>
+              <div className="mp-railIn">{rail}</div>
+            </div>
+          )
         ) : (
           <CookList f={view} />
         )}

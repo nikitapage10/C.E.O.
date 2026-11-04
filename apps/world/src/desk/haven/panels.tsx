@@ -3,7 +3,7 @@ import { Private } from "../Private.tsx";
 import { closeClock, useHome, type DeviceReading } from "../homeDevices.ts";
 import { removeItem, undoRemoveItem, type KitchenItem } from "../haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
-import { Groceries } from "./Groceries.tsx";
+import { Shopping } from "./Groceries.tsx";
 import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";
 import { MealPlanner } from "./MealPlanner.tsx";
 import { DryFeederArt, FountainArt, LitterArt, VacuumArt, WetFeederArt } from "./DeviceArt.tsx";
@@ -108,43 +108,25 @@ export function KitchenTab({ items, onTick, onDrop, onReread }: { items: Kitchen
     setUndo(null);
     void undoRemoveItem(item.id).then(() => onReread());
   };
-  const byId = new Map((items ?? []).map((i) => [i.id, i]));
   const kroger = useHome((s) => s.view?.links.kroger ?? s.pub?.links.kroger ?? "waiting");
+  // One Shopping card (#737): the list by shelf and King Soopers as two tabs, not two cards saying the same items.
   const rail = (
-    <>
-      <Card title="Shopping list" tag={`${open.length} open`}>
-        {items === null ? (
-          <Waiting>Reading the list…</Waiting>
-        ) : items.length ? (
-          <ul className="hv-list" aria-label="Kitchen list">
-            {items.map((i) => (
-              <li key={i.id} className={i.done ? "is-done" : ""}>
-                <label>
-                  <input type="checkbox" checked={i.done} onChange={() => onTick(i)} />
-                  <Private>{i.name}</Private>
-                </label>
-                <button type="button" className="hv-x" aria-label={`Remove ${i.name}`} onClick={() => remove(i)}>
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="hv-note">Empty. Say "Skippy, add garlic and lemons" on the phone, or confirm the week's meals.</p>
-        )}
-        {undo ? (
+    <Shopping
+      items={items}
+      onTick={onTick}
+      onRemove={remove}
+      tag={kroger}
+      undo={
+        undo ? (
           <p className="hv-undo" role="status">
             <span>Removed.</span>
             <button type="button" onClick={takeBack}>
               Undo
             </button>
           </p>
-        ) : null}
-      </Card>
-      <Card title="King Soopers" tag={kroger}>
-        <Groceries listOpen={open.length} onRemove={(id) => byId.get(id) && remove(byId.get(id)!)} />
-      </Card>
-    </>
+        ) : null
+      }
+    />
   );
   return (
     <>

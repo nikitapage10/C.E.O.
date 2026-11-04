@@ -5,10 +5,10 @@ import { signedInCookie } from "../../_desk/testing.ts";
 import type { Fetch } from "../devices/http.ts";
 import { HomeVault, homeKey } from "../devices/vault.ts";
 import { KitchenList } from "../list.ts";
-import { authUrl, CART_SCOPE, findStores, CART_URL, forgetKrogerTokens, imageOf, krogerClientFrom, krogerImage, readProduct, readStoredProduct, readStore, redirectFor, termOf, type KrogerClient } from "./api.ts";
-import { krogerCallback, krogerGet, krogerPost, linkState, STATE_COOKIE, viewOf, type KrogerDeps } from "./route.ts";
+import { authUrl, CART_SCOPE, findStores, CART_URL, forgetKrogerTokens, imageOf, krogerClientFrom, krogerImage, readProduct, readStoredProduct, readStore, redirectFor, termOf, broaderTerm, type KrogerClient } from "./api.ts";
+import { krogerCallback, krogerGet, krogerPost, linkState, MATCH_MAX, STATE_COOKIE, viewOf, type KrogerDeps } from "./route.ts";
 
-type Got = ReturnType<typeof viewOf> & { ok?: boolean; error?: string; items?: number; url?: string };
+type Got = ReturnType<typeof viewOf> & { ok?: boolean; error?: string; items?: number; already?: number; url?: string; left?: number; more?: boolean };
 import { KROGER_PATH, readKroger } from "./store.ts";
 
 /**
@@ -135,7 +135,9 @@ describe("Kroger's answers (#664)", () => {
   });
 
   it("keeps prices in cents, a sale only below the regular price, and drops what isn't sold at the store", () => {
-    expect(readProduct(kp("0001111000001", "0001111000001", "Test Oat Milk", 4.29, 3.99))).toEqual({ productId: "0001111000001", upc: "0001111000001", description: "Test Oat Milk", brand: "Test Brand", size: "1 gal", price: 429, promo: 399, stock: "high", image: null });
+    expect(readProduct(kp("0001111000001", "0001111000001", "Test Oat Milk", 4.29, 3.99))).toEqual({ productId: "0001111000001", upc: "0001111000001", description: "Test Oat Milk", brand: "Test Brand", size: "1 gal", price: 429, promo: 399, stock: "high", image: null, aisle: null, categories: [] });
+    // Where it is and its departments (#737), only as the Products API gives them.
+    expect(readProduct({ ...kp("0001111000001", "0001111000001", "X", 2), aisleLocations: [{ description: "Aisle 12", number: "12" }], categories: ["Dairy", "<b>x</b>", "Natural", "Extra"] })).toMatchObject({ aisle: "Aisle 12", categories: ["Dairy", "bx/b", "Natural"] });
     expect(readProduct(kp("0001111000001", "0001111000001", "X", 2, 0, "TEMPORARILY_OUT_OF_STOCK"))).toMatchObject({ promo: null, stock: "out" });
     expect(readProduct({ ...kp("0001111000001", "0001111000001", "X", 2), items: [{}] })).toBeNull();
     expect(readProduct({ ...kp("0001111000001", "not-a-upc", "X", 2) })).toBeNull();
@@ -162,8 +164,27 @@ describe("Kroger's answers (#664)", () => {
   it("turns a list item into a search term Kroger takes", () => {
     expect(termOf("oat milk")).toBe("oat milk");
     expect(termOf("ox")).toBe("");
-    expect(termOf("eggs (a dozen!)")).toBe("eggs a dozen");
-    expect(termOf("one two three four five six seven eight nine")).toBe("one two three four five six seven eight");
+    expect(termOf("eggs (a dozen!)")).toBe("eggs");
+    expect(termOf("alpha bravo charlie delta echo foxtrot golf hotel india")).toBe("alpha bravo charlie delta echo foxtrot golf hotel");
+  });
+
+  it("searches for the food, not its quantity, unit or prep (#737, the misses from a real week)", () => {
+    expect(termOf("snow peas (3 oz)")).toBe("snow peas");
+    expect(termOf("snow peas 3 oz")).toBe("snow peas");
+    expect(termOf("tomato paste (6 oz can)")).toBe("tomato paste");
+    expect(termOf("heavy cream (1 cup)")).toBe("heavy cream");
+    expect(termOf("panko, 1 cup")).toBe("panko");
+    expect(termOf("panko (1 cup)")).toBe("panko");
+    expect(termOf("garlic (4 cloves)")).toBe("garlic");
+    expect(termOf("fresh basil, chopped (1 bunch)")).toBe("basil");
+    expect(termOf("chicken thighs (1½ lb)")).toBe("chicken thighs");
+    expect(termOf("1/2 cup of rice")).toBe("rice");
+    expect(termOf("lemons x2")).toBe("lemons");
+    expect(termOf("ground beef 1lb")).toBe("ground beef");
+    expect(termOf("2 oz")).toBe("");
+    expect(broaderTerm("fire roasted diced tomatoes")).toBe("diced tomatoes");
+    expect(broaderTerm("tomato paste")).toBe("paste");
+    expect(broaderTerm("panko")).toBe("");
   });
 });
 
@@ -173,8 +194,8 @@ describe("Send to King Soopers (#664)", () => {
     const pub = await (await krogerGet(get("/api/haven/kroger?view=status"), deps)).json();
     expect(pub).toEqual({ ready: false, state: "waiting", picks: 0 });
     expect(linkState(CLIENT, null, null)).toBe("waiting");
-    expect(linkState(CLIENT, { zip: "", found: [], store: null, picks: {}, last: { at: "x", ok: false }, sent: null }, null)).toBe("down");
-    expect(linkState(CLIENT, { zip: "", found: [], store: null, picks: {}, last: { at: "x", ok: true }, sent: null }, { refresh: "r", connectedAt: 0, refused: true })).toBe("down");
+    expect(linkState(CLIENT, { zip: "", found: [], store: null, picks: {}, last: { at: "x", ok: false }, sent: null, inCart: {} }, null)).toBe("down");
+    expect(linkState(CLIENT, { zip: "", found: [], store: null, picks: {}, last: { at: "x", ok: true }, sent: null, inCart: {} }, { refresh: "r", connectedAt: 0, refused: true })).toBe("down");
     expect((await krogerGet(get("/api/haven/kroger"), deps)).status).toBe(401);
     expect((await krogerPost(post({ action: "set-zip", zip: ZIP }), deps)).status).toBe(401);
     expect((await krogerPost(post({ action: "set-zip", zip: ZIP }, { Cookie: cookie, Authorization: "Bearer x" }), deps)).status).toBe(401);
@@ -256,6 +277,25 @@ describe("Send to King Soopers (#664)", () => {
     expect(JSON.parse(String(put.init.body))).toEqual({ items: [{ upc: "0001111000001", quantity: 1 }, { upc: "0001111000005", quantity: 1 }] });
     expect((put.init.headers as Record<string, string>).Authorization).toBe("Bearer test-cart-access");
 
+    // Sent once is remembered (#737): the lines say so, and a resend adds nothing twice.
+    const view = await call({ action: "skip", key: "oat milk", skip: false });
+    expect(
+      view.body.lines
+        .filter((l) => l.inCart)
+        .map((l) => l.key)
+        .sort(),
+    ).toEqual(["lemon", "oat milk"]);
+    const again = await call({ action: "send", picks });
+    expect(again.body).toMatchObject({ ok: true, items: 0, already: 2 });
+    expect(f.calls.filter((c) => c.init.method === "PUT")).toHaveLength(1);
+
+    // Rematch one item from scratch: a fresh search, its own pick again, no longer marked as sent.
+    const before = products();
+    const re = await call({ action: "rematch", key: "lemon" });
+    expect(products()).toBe(before + 1);
+    expect(re.body.lines.find((l) => l.key === "lemon")).toMatchObject({ inCart: false, pick: { chosen: false, product: { description: "Organic Lemons" } } });
+    expect((await call({ action: "rematch", key: "nope" })).status).toBe(404);
+
     // Signed out, still only a state and a count.
     const pub = await (await krogerGet(get("/api/haven/kroger?view=status"), deps)).json();
     expect(pub).toEqual({ ready: true, state: "live", picks: 2 });
@@ -266,6 +306,11 @@ describe("Send to King Soopers (#664)", () => {
     for (const s of SECRETS) expect(allText(blob)).not.toContain(s);
     expect((await readKroger(blob)).sent).toMatchObject({ items: 2, ok: true });
     expect(blob.files.has(KROGER_PATH)).toBe(true);
+
+    // Clear: every pick and the sent record gone, ready to match afresh.
+    const cleared = await call({ action: "clear" });
+    expect(cleared.body.lines.every((l) => l.pick === null && !l.inCart)).toBe(true);
+    expect((await readKroger(blob)).inCart).toEqual({});
   });
 
   it("calls the grant gone when Kroger refuses its refresh token, and starts the picks over for a new store", async () => {
@@ -285,6 +330,27 @@ describe("Send to King Soopers (#664)", () => {
     expect(moved.lines[0]?.pick).toBeNull();
     const kept = await call({ action: "disconnect" });
     expect(kept).toMatchObject({ connected: false, refused: false });
+  });
+});
+
+describe("Match all in one press (#737)", () => {
+  it("matches MATCH_MAX a request and says how many are left, so the Kitchen calls again until none are", async () => {
+    const { deps, cookie, blob, f } = await setup();
+    await new KitchenList(blob).add(
+      Array.from({ length: MATCH_MAX + 3 }, (_, i) => `test item ${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}`),
+      NOW,
+    );
+    const call = async (body: unknown) => (await krogerPost(post(body, { Cookie: cookie }), deps).then((r) => r.json())) as Got;
+    await call({ action: "set-zip", zip: ZIP });
+    await call({ action: "find-stores" });
+    await call({ action: "pick-store", id: "62000001" });
+    const first = await call({ action: "match" });
+    expect(first).toMatchObject({ left: 3, more: true });
+    const second = await call({ action: "match" });
+    expect(second).toMatchObject({ left: 0, more: false });
+    expect(Object.keys((await readKroger(blob)).picks)).toHaveLength(MATCH_MAX + 3);
+    // Each item searched by its words, then once more by its last noun when nothing came back.
+    expect(f.calls.filter((c) => c.url.includes("/products")).length).toBe((MATCH_MAX + 3) * 2);
   });
 });
 

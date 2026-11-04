@@ -19,6 +19,10 @@ export interface GProduct {
   stock: Stock | null;
   /** The product's photo on Kroger's image host, or null. */
   image: string | null;
+  /** Where it is in the store ("Aisle 12"), or null (#737). */
+  aisle: string | null;
+  /** Its departments as Kroger names them, at most three (#737). */
+  categories: string[];
 }
 
 export interface GStore {
@@ -34,7 +38,9 @@ export interface GLine {
   id: string;
   name: string;
   key: string;
-  pick: { product: GProduct | null; alts: GProduct[]; chosen: boolean; skip: boolean; at: string } | null;
+  pick: { product: GProduct | null; alts: GProduct[]; chosen: boolean; skip: boolean; at: string; term: string } | null;
+  /** This pick already went to the King Soopers cart from here (#737): a send skips it. */
+  inCart: boolean;
 }
 
 export interface Groceries {
@@ -74,7 +80,7 @@ function product(v: unknown): GProduct | null {
   const price = cents(p.price);
   const productId = s(p.productId, 32);
   if (price === null || !productId) return null;
-  return { productId, description: s(p.description, 120), brand: s(p.brand, 60), size: s(p.size, 40), price, promo: cents(p.promo), stock: p.stock === "high" || p.stock === "low" || p.stock === "out" ? p.stock : null, image: krogerImage(p.image) };
+  return { productId, description: s(p.description, 120), brand: s(p.brand, 60), size: s(p.size, 40), price, promo: cents(p.promo), stock: p.stock === "high" || p.stock === "low" || p.stock === "out" ? p.stock : null, image: krogerImage(p.image), aisle: s(p.aisle, 40) || null, categories: (Array.isArray(p.categories) ? p.categories : []).slice(0, 3).map((c) => s(c, 40)).filter(Boolean) };
 }
 
 function store(v: unknown): GStore | null {
@@ -103,7 +109,8 @@ export function readGroceries(v: unknown): Groceries | null {
         id: s(l.id, 32),
         name: s(l.name, 60),
         key: s(l.key, 60),
-        pick: p ? { product: p.product ? product(p.product) : null, alts: (Array.isArray(p.alts) ? p.alts : []).map(product).filter((x): x is GProduct => x !== null).slice(0, 8), chosen: p.chosen === true, skip: p.skip === true, at: s(p.at, 32) } : null,
+        pick: p ? { product: p.product ? product(p.product) : null, alts: (Array.isArray(p.alts) ? p.alts : []).map(product).filter((x): x is GProduct => x !== null).slice(0, 8), chosen: p.chosen === true, skip: p.skip === true, at: s(p.at, 32), term: s(p.term, 60) } : null,
+        inCart: l.inCart === true,
       };
     }),
     total: cents(b.total) ?? 0,
@@ -116,6 +123,8 @@ export function readGroceries(v: unknown): Groceries | null {
 export const costOf = (p: GProduct) => p.promo ?? p.price;
 /** Whether a line goes in the send: a product, in stock, not left out. */
 export const goes = (l: GLine) => Boolean(l.pick?.product && !l.pick.skip && l.pick.product.stock !== "out");
+/** Whether a send would add it now: it goes, and it isn't in the cart from an earlier send (#737). */
+export const adds = (l: GLine) => goes(l) && !l.inCart;
 export const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 
 export type GLoad = { state: "ready"; view: Groceries } | { state: "off" } | { state: "out" } | { state: "failed" };
@@ -137,6 +146,8 @@ export type GAction =
   | { action: "find-stores" }
   | { action: "pick-store"; id: string }
   | { action: "match" }
+  | { action: "rematch"; key: string }
+  | { action: "clear" }
   | { action: "search"; key: string; term: string }
   | { action: "choose"; key: string; productId: string }
   | { action: "skip"; key: string; skip: boolean }
@@ -144,15 +155,80 @@ export type GAction =
   | { action: "disconnect" }
   | { action: "send"; picks: { key: string; productId: string }[] };
 
+export interface GReply {
+  ok: boolean;
+  status: number;
+  error: string | null;
+  view: Groceries | null;
+  url: string | null;
+  /** Added by a send. */
+  items: number;
+  /** Skipped by a send: already in the cart from here (#737). */
+  already: number;
+  /** Matched by this Match call, and how many still wait for the next (#737). */
+  matched: number;
+  left: number;
+}
+
+/**
+ * Match every open item in one press (#737): the server matches up to 25 a call, a few at a time, and says how many are
+ * left; this asks again until none are, telling `progress` how far it got. It stops on a failure or a call that matched
+ * nothing (so a stuck store can't loop), and never asks more than `max` times.
+ */
+export async function matchAll(progress: (done: number, of: number) => void, act: (b: GAction) => Promise<GReply> = groceryAction, max = 12): Promise<GReply> {
+  let done = 0;
+  let r: GReply = await act({ action: "match" });
+  for (let n = 1; ; n++) {
+    done += r.matched;
+    progress(done, done + r.left);
+    if (!r.ok || r.left === 0 || r.matched === 0 || n >= max) return r;
+    r = await act({ action: "match" });
+  }
+}
+
+/** The shelf an item sits on, for the List tab (#737): Kroger's department once matched, else a guess from its words. */
+export const SHELVES = ["Produce", "Meat & seafood", "Dairy & eggs", "Bakery", "Frozen", "Pantry", "Drinks", "Household", "Other"] as const;
+const SHELF_WORDS: [(typeof SHELVES)[number], RegExp][] = [
+  // Jarred and boxed first, so chicken stock and tomato paste don't land with the meat and the vegetables.
+  ["Pantry", /\b(stock|broth|paste|sauce|peanut butter|canned|powder|dried|ground (?:cumin|cinnamon|ginger|coriander))\b/i],
+  ["Meat & seafood", /\b(beef|steak|chicken|pork|bacon|sausage|turkey|lamb|salmon|shrimp|fish|tuna|cod|ham|chorizo|meatballs?|thighs?|breasts?)\b/i],
+  ["Dairy & eggs", /\b(milk|cream|butter|cheese|cheddar|parmesan|mozzarella|feta|yogurt|yoghurt|eggs?|sour cream|cottage)\b/i],
+  [
+    "Produce",
+    /\b(lemons?|limes?|apples?|bananas?|berries|onions?|garlic|ginger|potatoes?|tomatoes|lettuce|spinach|kale|basil|cilantro|parsley|herbs?|peppers?|carrots?|celery|cucumbers?|avocados?|peas|bean sprouts|broccoli|zucchini|mushrooms?|scallions?|shallots?|cabbage|greens|fruit)\b/i,
+  ],
+  ["Bakery", /\b(bread|buns?|rolls?|tortillas?|bagels?|pita|naan|baguette)\b/i],
+  ["Frozen", /\b(frozen|ice cream)\b/i],
+  ["Drinks", /\b(coffee|tea|juice|soda|water|wine|beer|kombucha)\b/i],
+  ["Household", /\b(paper|towels?|soap|detergent|foil|wrap|bags|sponges?|litter|trash)\b/i],
+  ["Pantry", /\b(rice|pasta|noodles|flour|sugar|oil|vinegar|sauce|paste|stock|broth|beans|lentils|oats|panko|spices?|salt|pepper|honey|syrup|canned|cans?|cereal|nuts|peanut|soy|tahini|mustard|ketchup|mayo)\b/i],
+];
+export function shelfOf(name: string, product?: GProduct | null): string {
+  const dept = product?.categories[0];
+  if (dept) return dept;
+  for (const [shelf, re] of SHELF_WORDS) if (re.test(name)) return shelf;
+  return "Other";
+}
+
 /** One action; the fresh view comes back with it (and `url`: Kroger's sign-in for a connect, the cart after a send). */
-export async function groceryAction(body: GAction, f: typeof fetch = fetch): Promise<{ ok: boolean; status: number; error: string | null; view: Groceries | null; url: string | null; items: number }> {
+export async function groceryAction(body: GAction, f: typeof fetch = fetch): Promise<GReply> {
   try {
     const res = await f(PATH, { method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body) });
     const got = o(await res.json().catch(() => ({})));
     const url = typeof got.url === "string" && (isKrogerSignIn(got.url) || isCartLink(got.url)) ? got.url : null;
-    return { ok: res.ok, status: res.status, error: res.ok ? null : s(got.error, 20) || "failed", view: readGroceries(got), url, items: cents(got.items) ?? 0 };
+    return {
+      ok: res.ok,
+      status: res.status,
+      error: res.ok ? null : s(got.error, 20) || "failed",
+      view: readGroceries(got),
+      url,
+      items: cents(got.items) ?? 0,
+      already: cents(got.already) ?? 0,
+      matched: cents(got.matched) ?? 0,
+      left: cents(got.left) ?? 0,
+    };
   } catch {
-    return { ok: false, status: 0, error: "failed", view: null, url: null, items: 0 };
+    return { ok: false, status: 0, error: "failed", view: null, url: null, items: 0, already: 0, matched: 0, left: 0 };
   }
 }
 
@@ -169,6 +245,7 @@ export const GROCERY_NOTE: Record<string, string> = {
   "not-connected": "Connect King Soopers first, so the picks can go in your cart.",
   refused: "King Soopers let go of the connection. Connect it again.",
   changed: "The list changed since you looked. Check the picks and send again.",
+  "not-found": "That item isn't on the list any more.",
   empty: "Nothing to send.",
   vendor: "King Soopers didn't answer. Try again in a bit.",
   "signed-out": "Your session ended. Sign in again.",

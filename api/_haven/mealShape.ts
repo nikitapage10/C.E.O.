@@ -18,7 +18,7 @@
  * a part takes the old component's ingredients out and the new one's in, and moves the macros by the difference, so
  * the protein ring and the shopping list follow at once. Talk to edit (PR2) drives the same `customize` edit. A
  * customized night shows "photo pending" until the week is confirmed; `confirm` queues those nights in
- * `week.photoQueue`, the hook the photo step (PR3) reads to make each one's own picture (`slot.photo`).
+ * `week.photoQueue`, the hook the photo library (#687) reads to make each one's own picture (`slot.photo`).
  *
  * Underscore folder: Vercel never serves it as a function.
  */
@@ -80,7 +80,7 @@ export interface Meal {
   /** The whole meal as built, parts included, for one portion. */
   macros: Macros;
   spice: Spice;
-  /** The photo's id in the photo library (part 3, its own private store), or null. */
+  /** The photo's id in the photo library (#687, api/_haven/photos.ts), or null. */
   photo: string | null;
   timesHad: number;
   lastHad: string | null;
@@ -113,7 +113,7 @@ export interface Slot {
   helloFresh: boolean;
   inCart: boolean;
   custom: Custom;
-  /** This night's own photo once the photo step made one for a customized meal (PR3), else null. */
+  /** This night's own photo from the photo library (#687) for a customized meal, else null. */
   photo: string | null;
 }
 
@@ -146,7 +146,7 @@ export interface Week {
   /** "Try something new?": meal ids not had yet. */
   picks: string[];
   confirmedAt: string | null;
-  /** Days whose customized meal needs its own photo (the photo step's queue, PR3). */
+  /** Days whose customized meal needs its own photo (the photo library's queue, #687). */
   photoQueue: Day[];
   sentAt: string | null;
 }
@@ -539,7 +539,7 @@ export type MealEdit =
   | { op: "next-week" }
   | { op: "confirm" }
   | { op: "undo" }
-  /** The photo step (PR3) writes back: a night's own photo (`day`) or a catalog meal's (`meal`). No Undo. */
+  /** The photo library's id, written back by the Desk: a night's own photo (`day`) or a catalog meal's (`meal`). No Undo. */
   | { op: "photo"; day?: Day; meal?: string; photo: string };
 
 const isDay = (v: unknown): v is Day => (DAYS as readonly unknown[]).includes(v);
@@ -657,7 +657,7 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
   const needWeek = (): Week | null => f.week;
 
   if (edit.op === "photo") {
-    // Set by the photo step, never by a tap: it changes nothing about what's cooked, so the Undo stays as it was.
+    // Set when the photo library answers, never by a tap: it changes nothing about what's cooked, so the Undo stays as it was.
     if (edit.day) {
       if (!f.week) return { ok: false, error: "no-week" };
       f.week.slots[DAYS.indexOf(edit.day)]!.photo = edit.photo;
@@ -797,7 +797,7 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
       if (!needWeek()) return { ok: false, error: "no-week" };
       const w = f.week!;
       w.confirmedAt = stamp;
-      // The photo step's hook (PR3): every cooked night customized and still without its own photo.
+      // The photo library's queue (#687): every cooked night customized and still without its own photo.
       w.photoQueue = w.slots.filter((s) => !s.helloFresh && !s.photo && slotDish(f, s)?.customized).map((s) => s.day);
       changes.push(`Confirmed the week.${w.photoQueue.length ? ` ${w.photoQueue.length} customized meal${w.photoQueue.length === 1 ? "" : "s"} will get ${w.photoQueue.length === 1 ? "its" : "their"} own photo.` : ""}`);
       // Confirming keeps the Undo that was there: it changes nothing about what's cooked.
@@ -870,9 +870,9 @@ export function shoppingList(f: MealsState): Ingredient[] {
 }
 
 /**
- * One customized night that needs its own photo: what the photo step (PR3) is handed when a week is confirmed. It
- * makes the picture from `name` and `changes` (and the ingredients as cooked), stores it in its own private library,
- * and writes the id back with the `photo` edit ({ op: "photo", day, photo }), which takes the night off the queue.
+ * One customized night that needs its own photo once the week is confirmed. The Desk turns it into the photo
+ * library's `MealToShoot` (api/_haven/photoShape.ts: name, description, the components as customized), and writes
+ * the id the library answers back with the `photo` edit ({ op: "photo", day, photo }), which takes it off the queue.
  */
 export interface PhotoJob {
   day: Day;

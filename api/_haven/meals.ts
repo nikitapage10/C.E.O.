@@ -2,15 +2,16 @@
  * The Haven Kitchen's meal planner, server side (#678; the shapes and the edits are api/_haven/mealShape.ts). The taste
  * profile, the catalog and the week are one JSON file in the private store (`haven/meals.json`). Nothing of it is in
  * the repo, and nothing is public: signed out, the Haven's status view carries the counts only (`mealCounts`: nights
- * planned, cooking, HelloFresh, confirmed). The photos are the photo step's (PR3: its own private library); this file
- * only keeps their ids and hands it the nights to picture when a week is confirmed (`onConfirmPhotos`).
+ * planned, cooking, HelloFresh, confirmed). The photos are the photo library's (#687, api/_haven/photos.ts); this file
+ * only keeps their ids; Confirm week answers which customized nights need one (`photoJobs`), and the Desk asks the
+ * photo library (/api/haven-photos, api/_haven/photos.ts) for them and writes each id back with the `photo` edit.
  *
  *   GET  /api/haven-meals                    passkey session: { meals, components } (meals null until it's seeded).
  *   POST /api/haven-meals { action: "edit", edit }      passkey session: one edit (`readEdit`) → { meals, changes }.
  *   POST /api/haven-meals { action: "confirm" }         passkey session: the week confirmed, its shopping onto the
  *                                                       Kitchen list (source "meals", where the King Soopers matcher
- *                                                       picks it up), and its customized nights handed to the photo
- *                                                       step → { changes, added, already, photos, meals }.
+ *                                                       picks it up) → { changes, added, already, photos (the
+ *                                                       customized nights waiting for a photo), meals }.
  *   POST /api/haven-meals { action: "send" }            passkey session: the week's shopping onto the list again
  *                                                       → { added, already, meals }.
  *   POST /api/haven-meals { action: "seed", meals, replace? }   passkey session: load a whole file (checked by
@@ -30,7 +31,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { readJson, updateJson } from "./json.js";
 import { KitchenList } from "./list.js";
-import { allComponents, applyEdit, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile, type PhotoJob } from "./mealShape.js";
+import { allComponents, applyEdit, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
 export * from "./mealShape.js";
 
@@ -87,13 +88,6 @@ export async function sendWeek(blob: BlobBackend, now: number): Promise<{ added:
 export async function mealCountsOf(blob: BlobBackend): Promise<MealCounts | null> {
   return mealCounts(await new MealsStore(blob).read());
 }
-
-/**
- * The photo step's call site (PR3). When a week is confirmed, each customized night (`photoJobs`) is handed here; the
- * photo step makes its picture in its own private library and writes the id back with the `photo` edit. Until it is
- * wired, nothing is made: the Kitchen shows the meal's own photo, or a placeholder, with "photo pending".
- */
-export const onConfirmPhotos: { run: ((jobs: PhotoJob[], deps: MealsDeps) => Promise<void>) | null } = { run: null };
 
 export interface MealsDeps {
   desk: DeskDeps;
@@ -163,13 +157,11 @@ export async function mealsPost(request: Request, deps: MealsDeps): Promise<Resp
     const got = await store.edit({ op: "confirm" }, now);
     if (!got.ok) return reply({ error: got.error }, got.error === "not-seeded" ? 404 : 409);
     const sent = await sendWeek(deps.blob, now);
-    const jobs = photoJobs(got.file);
-    if (jobs.length && onConfirmPhotos.run) {
-      // The photo step runs on its own: a slow or failed picture never holds up the week or the list.
-      void onConfirmPhotos.run(jobs, deps).catch(() => deps.log("haven: the meal photos didn't start"));
-    }
-    deps.log(`haven: the week was confirmed (${sent?.added ?? 0} to the list, ${jobs.length} photos queued)`);
-    return reply({ ok: true, changes: got.changes, added: sent?.added ?? 0, already: sent?.already ?? 0, photos: jobs.length, ...view(sent?.meals ?? got.file) });
+    // The customized nights to photograph (`week.photoQueue`): the Desk hands them to the photo library
+    // (POST /api/haven-photos, api/_haven/photos.ts) and writes the ids back with the `photo` edit.
+    const photos = photoJobs(got.file).length;
+    deps.log(`haven: the week was confirmed (${sent?.added ?? 0} to the list, ${photos} photos to make)`);
+    return reply({ ok: true, changes: got.changes, added: sent?.added ?? 0, already: sent?.already ?? 0, photos, ...view(sent?.meals ?? got.file) });
   }
   if (body.action === "send") {
     const got = await sendWeek(deps.blob, now);

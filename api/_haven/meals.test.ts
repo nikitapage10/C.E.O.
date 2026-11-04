@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
@@ -16,7 +16,6 @@ import {
   mealsGet,
   mealsPost,
   mealsPut,
-  onConfirmPhotos,
   photoJobs,
   readEdit,
   readMeals,
@@ -25,7 +24,6 @@ import {
   statusOf,
   type MealsDeps,
   type MealsFile,
-  type PhotoJob,
 } from "./meals.ts";
 
 /** The Kitchen's meal planner (#678): the file's shape, the swap model, the edits and the passkey-only route. Made-up meals. */
@@ -221,10 +219,6 @@ const post = (body: unknown, cookie = "") => new Request(`${ORIGIN}/api/haven-me
 const put = (body: unknown, key?: string) => new Request(`${ORIGIN}/api/haven-meals`, { method: "PUT", headers: { "Content-Type": "application/json", ...(key && { Authorization: `Bearer ${key}` }) }, body: JSON.stringify(body) });
 
 describe("/api/haven-meals", () => {
-  afterEach(() => {
-    onConfirmPhotos.run = null;
-  });
-
   it("is passkey-only to read and change; the feed key may only seed, and gets counts back", async () => {
     const d = deps();
     expect((await mealsGet(new Request(`${ORIGIN}/api/haven-meals`), d)).status).toBe(401);
@@ -239,7 +233,7 @@ describe("/api/haven-meals", () => {
     expect(await mealCountsOf(d.blob)).toEqual({ planned: 7, cooking: 7, helloFresh: 0, confirmed: false });
   });
 
-  it("signed in: reads the plan, makes an edit, and confirm puts the shopping on the Kitchen list and hands the photo step its nights", async () => {
+  it("signed in: reads the plan, makes an edit, and confirm puts the shopping on the Kitchen list and queues the customized nights for photos", async () => {
     const d = deps();
     const cookie = await signedInCookie(DESK, NOW, d.store);
     const empty = await mealsGet(new Request(`${ORIGIN}/api/haven-meals`, { headers: { Cookie: cookie } }), d);
@@ -251,8 +245,6 @@ describe("/api/haven-meals", () => {
     expect(d.lines).toContain("haven: meals customize");
     expect((await mealsPost(post({ action: "edit", edit: { op: "swap", day: "nope" } }, cookie), d)).status).toBe(400);
 
-    const handed: PhotoJob[][] = [];
-    onConfirmPhotos.run = async (jobs) => void handed.push(jobs);
     const res = await mealsPost(post({ action: "confirm" }, cookie), d);
     const body = (await res.json()) as { added: number; photos: number; meals: MealsFile };
     expect(res.status).toBe(200);
@@ -260,7 +252,7 @@ describe("/api/haven-meals", () => {
     expect(body.added).toBeGreaterThan(10);
     expect(body.meals.week!.confirmedAt).not.toBeNull();
     expect(body.meals.week!.sentAt).not.toBeNull();
-    expect(handed[0]!.map((j) => j.day)).toEqual(["mon"]);
+    expect(body.meals.week!.photoQueue).toEqual(["mon"]);
     const list = await new KitchenList(d.blob).items(NOW);
     expect(list.every((i) => i.source === "meals")).toBe(true);
     expect(list.map((i) => i.name)).toContain("Quinoa (1 cup)");

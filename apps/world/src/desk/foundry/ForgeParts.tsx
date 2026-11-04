@@ -1,8 +1,5 @@
 import type { ReactNode } from "react";
 import { CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, crewOf, recentWork, sparesAwake, type Crate, type CrewId, type FoundryData } from "../../foundry.ts";
-import type { WorldFeed } from "../../chronicle.ts";
-import { formatUsd, foundryJobs, monthSpend, SPEND_CAP_USD, workByModel, type UsageFeed } from "../../usage.ts";
-import { Private } from "../Private.tsx";
 import { countdown, nextRuns, runTime } from "../crewRuns.ts";
 import { FOUNDRY_THREAD } from "../deskData.ts";
 import { ideaTitle, Mic, soon, useIdeaChoice, type Setup } from "../IdeaCard.tsx";
@@ -222,59 +219,6 @@ export function RunsLine({ now }: { now: number }) {
           );
         })}
       </ul>
-    </section>
-  );
-}
-
-/* ── Usage ── */
-
-export function UsageLine({ usage, world, now, children }: { usage: UsageFeed | null; world: WorldFeed | null; now: number; children?: ReactNode }) {
-  const month = usage ? monthSpend(usage.trails, now) : null;
-  const speech = world?.story?.elevenUsd ?? 0;
-  const speechCap = world?.story?.elevenBudget ?? 0;
-  const cap = SPEND_CAP_USD + speechCap;
-  // Today in Ilyr's voice: ElevenLabs only (#472), no fallback.
-  const parts = [
-    { k: "boiler", b: "The living Lattice", s: "Claude API, hourly", usd: world?.spend.usd ?? 0 },
-    { k: "archive", b: "Today in Ilyr", s: "ElevenLabs", usd: speech },
-    { k: "foundry", b: "Idea shaping", s: "Claude API, Rivet", usd: month?.usd ?? 0 },
-    { k: "workshop", b: "Today's scripts", s: "Claude API, Skippy", usd: world?.story?.scriptUsd ?? 0 },
-  ];
-  const total = parts.reduce((a, p) => a + p.usd, 0);
-  const known = Boolean(usage || world);
-  const week = usage ? workByModel(foundryJobs(usage.issues, usage.trails), "week", now) : null;
-  return (
-    <section className="fo-usage" aria-label="Usage">
-      <p className="fl-k">
-        <span>Usage</span> · this month
-      </p>
-      <p className="fo-usage-h">
-        {known ? (
-          <>
-            <b className="fl-num">
-              <Private>{formatUsd(total)}</Private>
-            </b>{" "}
-            of {formatUsd(cap)} in caps
-          </>
-        ) : (
-          <span className="fl-wait">Reading the ledgers…</span>
-        )}
-      </p>
-      <ul className="fo-usage-l">
-        {parts.map((p) => (
-          <li key={p.k} data-room={p.k}>
-            <i className="wv-dot" />
-            <b>{p.b}</b>
-            <span>{p.s}</span>
-            <em className="fl-num">{known ? <Private>{formatUsd(p.usd)}</Private> : "…"}</em>
-          </li>
-        ))}
-      </ul>
-      <p className="fo-note">
-        Foundry work runs on the Claude Code plan, so it costs no API money.{" "}
-        {week ? `This week: ${week.Sonnet.jobs} on Sonnet, ${week.Opus.jobs} on Opus, ${week.Haiku.jobs} on Haiku.` : "Waiting for the issue trails from GitHub…"}
-      </p>
-      {children}
     </section>
   );
 }

@@ -1,22 +1,23 @@
 import { navigateTo, usePathname } from "../route.ts";
 
 /**
- * The Boiler Room's sub-navigation (#82; the Systems hub until #225) and its addresses: /boiler, /boiler/security,
- * /boiler/compliance (the old /systems ones still work). Each subpage has its own address, so it can be linked to and
+ * The Boiler Room's sub-navigation (#82; the Systems hub until #225) and its addresses: /boiler, /boiler/controls (#647),
+ * /boiler/security, /boiler/compliance (the old /systems ones still work). Each subpage has its own address, so it can be linked to and
  * reloaded. SystemsHub.tsx picks the page.
  */
 
-export type SystemsPage = "systems" | "security" | "compliance";
+export type SystemsPage = "systems" | "controls" | "security" | "compliance";
 
 const PAGES: { id: SystemsPage; label: string; path: string; hint: string }[] = [
   { id: "systems", label: "The pipes", path: "/boiler", hint: "What's connected, and the house" },
+  { id: "controls", label: "Controls", path: "/boiler/controls", hint: "Usage, budgets, switches, connections and keys" },
   { id: "security", label: "Security", path: "/boiler/security", hint: "Threat model and scans" },
   { id: "compliance", label: "Compliance", path: "/boiler/compliance", hint: "Frameworks and controls" },
 ];
 
 export function systemsPageOf(pathname: string): SystemsPage {
   const sub = pathname.replace(/\/+$/, "").split("/")[2];
-  return sub === "security" || sub === "compliance" ? sub : "systems";
+  return sub === "controls" || sub === "security" || sub === "compliance" ? sub : "systems";
 }
 
 /** The browser tab's title for a Boiler Room page. */

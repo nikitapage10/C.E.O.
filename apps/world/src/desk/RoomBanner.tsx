@@ -5,18 +5,20 @@ import { PORTRAITS } from "./portraits.ts";
  * The banner over each Desk page past Today: a wide still of the room the page belongs to, rendered from the Lattice
  * (scripts/desk-images.mjs, 2x for retina), in the room's colour, with the page's title, a line in the room's own
  * voice (its keeper's catchphrase, from the cast) and the page's lead, built from real data by the page. Shorter
- * than Today's hero, so the work stays near the top. Systems, Security and Compliance share the Boiler Room's banner,
+ * than Today's hero, so the work stays near the top. Systems, Controls, Security and Compliance share the Boiler Room's banner,
  * with the hub's sub-navigation (SystemsNav) right under it.
  */
 
-/** The Desk's pages past Today, and the Systems hub's subpages (all three in the Boiler Room). */
-export type BannerPage = "relay" | "foundry" | "boiler" | "security" | "compliance" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio";
+/** The Desk's pages past Today, and the Systems hub's subpages (all four in the Boiler Room). */
+export type BannerPage = "relay" | "foundry" | "boiler" | "controls" | "security" | "compliance" | "archive" | "spire" | "exchange" | "green" | "workshop" | "studio";
 
 export const BANNERS: Record<BannerPage, { room: DeskRoom; eyebrow: string; title: string; voice: { id: string; line: string } }> = {
   relay: { room: "relay", eyebrow: "The switchboard", title: "Relay", voice: { id: "dialtone", line: "Please hold. Not you, darling." } },
   foundry: { room: "foundry", eyebrow: "The coding crew", title: "Foundry", voice: { id: "ember", line: "Weld it. Test it. Ship it. Why are we still talking?" } },
   // The Boiler Room carries every link: the Pessimist watches the gauges.
   boiler: { room: "boiler", eyebrow: "Every pipe in the house", title: "Boiler Room", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
+  // Drop keeps the panel: every meter, switch and key (#647).
+  controls: { room: "boiler", eyebrow: "The Boiler Room", title: "Controls", voice: { id: "drop", line: "Bweep. (Already fixed it.)" } },
   // The Pessimist reads the gauges like omens, and is delighted to be wrong: the scans, said its way.
   security: { room: "boiler", eyebrow: "The Boiler Room", title: "Security", voice: { id: "soot", line: "It'll burst. ...Huh. Didn't." } },
   compliance: { room: "boiler", eyebrow: "The Boiler Room", title: "Compliance", voice: { id: "clause", line: "Oh my. That is not compliant." } },

@@ -40,6 +40,7 @@
     { "source": "/systems/compliance", "destination": "/index.html" },
     { "source": "/chronicle", "destination": "/index.html" },
     { "source": "/boiler", "destination": "/index.html" },
+    { "source": "/boiler/controls", "destination": "/index.html" },
     { "source": "/boiler/security", "destination": "/index.html" },
     { "source": "/boiler/compliance", "destination": "/index.html" },
     { "source": "/archive", "destination": "/index.html" },

@@ -239,20 +239,17 @@
 /* How far to the next run: a hairline that fills. */
 .desk .fo-runs i{position:absolute;left:0;right:12px;bottom:0;height:1px;background:linear-gradient(90deg,rgba(var(--fl-accent),.7) calc(var(--f) * 100%),var(--wv-line) 0)}
 .desk .fo-runs li:not(:first-child) i{left:12px}
-.desk .fo-usage-h{margin:0 0 var(--fl-s3);font-size:15px;color:var(--wv-mute)}
-.desk .fo-usage-h b{font-size:38px;font-weight:500;color:var(--wv-ink)}
-.desk .fo-usage-l{list-style:none;margin:0 0 var(--fl-s3);padding:0;display:grid}
-.desk .fo-usage-l li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:10px;align-items:baseline;padding:9px 0;border-top:1px solid var(--wv-line)}
-.desk .fo-usage-l .wv-dot{align-self:center}
-.desk .fo-usage-l b{font-weight:500;font-size:14.5px;color:var(--wv-ink)}
-.desk .fo-usage-l span{grid-column:2;font-size:12px;color:var(--wv-faint)}
-.desk .fo-usage-l em{grid-column:3;grid-row:1;font-style:normal;font-size:19px;color:var(--wv-soft)}
+/* Usage lives in the Boiler Room now (#647): the Foundry keeps one link across. */
+.desk .fo-usage-go{display:grid;gap:4px;padding:var(--fl-s3) 0;border-top:1px solid var(--wv-line);border-bottom:1px solid var(--wv-line);color:inherit;text-decoration:none}
+.desk .fo-usage-go b{font-weight:500;font-size:19px;color:var(--wv-ink);transition:color .25s}
+.desk .fo-usage-go small{font-size:12.5px;color:var(--wv-faint)}
+.desk .fo-usage-go:hover b{color:var(--fl-hi)}
+.desk .fo-usage-go:focus-visible{outline:1px solid rgba(var(--fl-accent),.7);outline-offset:3px}
 .desk .fo-vqa-l{list-style:none;margin:var(--fl-s3) 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px}
 .desk .fo-vqa-l li{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--wv-soft)}
 .desk .fo-vqa-l li i{width:6px;height:6px;border-radius:50%;background:var(--rc,var(--wv-mute))}
 .desk .fo-vqa-l li.is-off{color:var(--wv-faint)}
 .desk .fo-vqa-l li.is-off i{background:none;border:1px solid var(--wv-faint)}
-.desk .fo-conn{margin-top:0}
 
 /* ---------- narrower: the side panel goes under the headline ---------- */
 @media (max-width:1180px){

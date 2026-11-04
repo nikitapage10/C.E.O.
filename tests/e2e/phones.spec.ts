@@ -6,7 +6,7 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 
 /**
- * Hey Skippy's Phones panel (#627) on the built site, Boiler Room > Security, with /api/haven stubbed in the browser:
+ * Hey Skippy's Phones panel (#627) on the built site, Boiler Room > Controls (#647; on Security before), with /api/haven stubbed in the browser:
  * signed out it isn't there; signed in, "Add a phone" shows the new key once with Copy, the list shows when each phone
  * was last used, and Revoke stops one. The key here is made up.
  */
@@ -60,7 +60,7 @@ async function stub(page: Page, signedIn: boolean) {
 
 test("the Phones panel isn't there signed out", async ({ page }) => {
   await stub(page, false);
-  await page.goto(`${BASE}/boiler/security`);
+  await page.goto(`${BASE}/boiler/controls`);
   await expect(page.getByRole("heading", { name: "Set a key, never see one" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Phones" })).toHaveCount(0);
 });
@@ -68,7 +68,7 @@ test("the Phones panel isn't there signed out", async ({ page }) => {
 test("signed in: add a phone shows its key once, with Copy; Revoke stops one", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
   const posts = await stub(page, true);
-  await page.goto(`${BASE}/boiler/security`);
+  await page.goto(`${BASE}/boiler/controls`);
   const panel = page.getByRole("region", { name: "Phones" });
   await expect(panel).toBeVisible();
   await expect(panel.getByText("Old phone")).toBeVisible();

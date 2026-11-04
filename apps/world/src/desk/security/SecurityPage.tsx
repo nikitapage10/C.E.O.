@@ -7,8 +7,7 @@ import { alertState, scanState, scoreState, switchState, type CheckState } from 
 import { ACCENT, CheckRack, Key, type Check, type Group } from "./Checks.tsx";
 import { ALERT_EXPLAIN, EVAL_EXPLAIN, ROADMAP_EXPLAIN, SCAN_EXPLAIN, STAT_EXPLAIN, featureExplain, scorecardExplain, type ScanId } from "./explain.ts";
 import { Chips, DOC_URL, Facts, Out, REPO_URL, Rich } from "./parts.tsx";
-import { KeysPanel } from "./KeysPanel.tsx";
-import { PhonesPanel } from "./PhonesPanel.tsx";
+import { navigateTo } from "../../route.ts";
 
 /**
  * Boiler Room > Security (#82; on Today's flow kit since #445): every check as a particle line. On the stage, the
@@ -336,15 +335,26 @@ export function SecurityPage({ now }: { now: number }) {
   return (
     <div className="sx-page wv-page fl-page" data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
       <CheckRack groups={top} header={header} label="Security: every check as a line" />
-      {/* The Keys form (#330): signed in only, write-only, a passkey for each key. */}
-      <KeysPanel now={now} />
-      {/* Phones (#627): the iPhone's "Skippy" shortcut keys. Signed in only; a new key shows once. */}
-      <PhonesPanel now={now} />
+      {/* The Keys form (#330) and Phones (#627) live on Controls now (#647). */}
+      <p className="fl-below sx-note sx-moved">
+        Keys and Phones moved to{" "}
+        <a href="/boiler/controls#ct-keys" onClick={toControls}>
+          Controls →
+        </a>
+      </p>
       <div className="fl-below">
         <CheckRack groups={more} stage={false} label="The switches, the trust boundaries and the roadmap" />
       </div>
     </div>
   );
+}
+
+/** Keys and Phones moved to Controls (#647): the old spot links across. */
+function toControls(e: React.MouseEvent) {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  navigateTo("/boiler/controls" + window.location.search);
+  requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("ct-keys")?.scrollIntoView({ block: "start" })));
 }
 
 function FeedLine({ state, now }: { state: FeedState; now: number }) {

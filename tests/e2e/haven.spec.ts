@@ -171,6 +171,13 @@ for (const [label, size] of [
   test(`signed in: the Gym's plan, laid out in time, logs a session by tap (${label}, #660)`, async ({ page }) => {
     await page.setViewportSize(size);
     await stub(page, { signedIn: true, plan: FAKE_PLAN });
+    const artAsked: { meal: string; style: string }[][] = [];
+    await page.route(/\/api\/haven-photos(\?.*)?$/, (r) => {
+      if (r.request().method() !== "POST") return r.fulfill({ json: { photos: [] } });
+      const meals = (r.request().postDataJSON() as { meals: { meal: string; style: string }[] }).meals;
+      artAsked.push(meals);
+      return r.fulfill({ json: { photos: meals.map((m) => ({ meal: m.meal, key: "0000000000000000", id: `${m.meal}-00000000`, status: "queued" })), budget: null } });
+    });
     await page.goto(`${BASE}/haven`);
     await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Gym" }).click();
     const sheet = page.getByRole("dialog", { name: "Gym" });
@@ -182,12 +189,16 @@ for (const [label, size] of [
     await expect(sheet.getByText(/Done \w{3} .* · from the phone/)).toBeVisible();
     await expect(sheet.getByRole("list", { name: "Core day A, in order" }).getByRole("listitem")).toHaveCount(4);
     await expect(sheet.getByText("3 × 10 / side").first()).toBeVisible();
-    await expect(sheet.getByText("3 × 30 s / side")).toBeVisible();
+    await expect(sheet.getByText("3 × 30 s / side").first()).toBeVisible();
+    // The exercises as cards (#718), their pictures asked of the photo library in the workout style.
+    await expect(sheet.getByRole("list", { name: "Core day A: the exercises" }).getByRole("listitem")).toHaveCount(4);
+    await expect.poll(() => artAsked.length).toBeGreaterThan(0);
+    expect(artAsked[0]!.every((m) => m.style === "workout" && m.meal.startsWith("gym-"))).toBe(true);
     await page.waitForTimeout(800);
     await shoot(page, `gym-${label}`);
 
     await week.getByRole("button", { name: /Core day B/ }).click();
-    await expect(sheet.getByText("3 × 45 s")).toBeVisible();
+    await expect(sheet.getByText("3 × 45 s").first()).toBeVisible();
     await sheet.getByRole("button", { name: "Log day B" }).click();
     await expect(sheet.getByRole("status").filter({ hasText: "Done" })).toBeVisible();
     await expect(week.getByRole("button", { name: /Core day B, Friday, done/ })).toBeVisible();
@@ -203,7 +214,7 @@ for (const [label, size] of [
     await expect(sheet.getByRole("group", { name: "Front plank seconds" })).toContainText("50");
     await shoot(page, `gym-adjust-${label}`);
     await sheet.getByRole("button", { name: "Cancel" }).click();
-    await expect(sheet.getByText("3 × 45 s")).toBeVisible();
+    await expect(sheet.getByText("3 × 45 s").first()).toBeVisible();
   });
 }
 

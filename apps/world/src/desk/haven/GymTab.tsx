@@ -4,6 +4,7 @@ import { useDeskAuth } from "../signin.ts";
 import {
   GYM_NOTE,
   WEEKDAY_LONG,
+  doseOf,
   WEEKDAY_SHORT,
   gymLine,
   loadGym,
@@ -23,6 +24,8 @@ import {
   type GymView,
   type Weekday,
 } from "./gym.ts";
+import { artIdOf, useGymArt, type Art } from "./gymArt.ts";
+import { photoUrl } from "./mealPhotos.ts";
 import "@fontsource-variable/geist-mono";
 import "./gym.css";
 
@@ -125,6 +128,38 @@ function Score({ session, rest, editing, onEdit }: { session: GymSession; rest: 
   );
 }
 
+/**
+ * The session's exercises as cards (#718), each with its picture from the photo library once it's made (a slow
+ * shimmer and the exercise's number until then), its dose, and a ring that fills set by set as the cards come in.
+ */
+function Cards({ session, art }: { session: GymSession; art: Map<string, Art> }) {
+  return (
+    <ol className="gy-cards" aria-label={`${session.name}: the exercises`}>
+      {session.exercises.map((e, i) => {
+        const a = art.get(artIdOf(e.name));
+        const ready = a?.status === "ready";
+        return (
+          <li key={`${e.name}-${i}`} className="gy-card" style={{ ["--i" as string]: i }}>
+            <div className={`gy-art${ready ? " is-ready" : ""}`}>
+              {ready ? <img src={photoUrl(a.id)} alt="" loading="lazy" decoding="async" /> : <span className="gy-artN">{String(i + 1).padStart(2, "0")}</span>}
+              <span className="gy-artSets" aria-hidden="true">
+                {Array.from({ length: e.sets }, (_, k) => (
+                  <i key={k} style={{ animationDelay: `${0.4 + i * 0.12 + k * 0.18}s` }} />
+                ))}
+              </span>
+            </div>
+            <p className="gy-cardT">
+              <b>{e.name}</b>
+              <span>{doseOf(e)}</span>
+            </p>
+            {a && !ready && <span className="gy-artWait">{a.status === "budget" ? "picture waits for next month's cap" : a.status === "failed" ? "no picture yet" : "picture on its way"}</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function History({ weeks, per }: { weeks: number[]; per: number }) {
   return (
     <figure className="gy-hist">
@@ -155,6 +190,7 @@ export function GymTab({ onCounts }: { onCounts?: (gym: { perWeek: number; doneT
   const [note, setNote] = useState<string | null>(null);
   const [just, setJust] = useState<GymLogEntry | null>(null);
   const [draft, setDraft] = useState<GymPlan | null>(null);
+  const art = useGymArt(load.state === "ready" ? load.view.plan : null);
 
   useEffect(() => {
     let gone = false;
@@ -325,6 +361,8 @@ export function GymTab({ onCounts }: { onCounts?: (gym: { perWeek: number; doneT
             </div>
           )}
         </div>
+
+        {!draft && <Cards session={session} art={art} />}
 
         <Score session={session} rest={plan.rest} editing={draft !== null} onEdit={editExercise} />
 

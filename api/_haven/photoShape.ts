@@ -14,8 +14,9 @@
 /** A meal id, a component id or a photo id: the planner's own shape (api/_haven/mealShape.ts, `ID`). */
 export const PHOTO_ID = /^[a-z0-9][a-z0-9-]{1,47}$/;
 
-export const PHOTO_STYLES = ["plate", "prep"] as const;
-/** `plate`: plated on off-white ceramic in daylight. `prep`: portioned into meal-prep containers. */
+export const PHOTO_STYLES = ["plate", "prep", "workout"] as const;
+/** `plate`: plated on off-white ceramic in daylight. `prep`: portioned into meal-prep containers. `workout`: the
+ * Gym's exercise art (#718), one picture per exercise of the plan, made through the same library and cap. */
 export type PhotoStyle = (typeof PHOTO_STYLES)[number];
 
 export const PHOTO_SOURCES = ["openai", "upload", "seed"] as const;
@@ -167,8 +168,14 @@ export const STYLE_PREP =
   "Photorealistic professional meal-prep food blog photograph, 45-degree or top-down angle, portioned into kraft paper bowls or glass meal-prep containers with lids beside them, several matching containers partly visible at the frame edges, on a light grey stone countertop, bright soft natural daylight, crisp detail, small bowls of garnish nearby.";
 const PROMPT_TAIL = "Only raw vegetables if any vegetables appear. No text, no labels, no logos, no people, no hands.";
 
+/** The Gym's exercise art (#718): the house's night gym, the exercise shown with good form, nobody recognisable. */
+export const STYLE_WORKOUT =
+  "Cinematic editorial fitness illustration, painterly digital art. One athletic adult performing the exercise named below with correct form, full body in frame, three-quarter view, in a dark modern home gym at night: black rubber floor tiles, a black steel power rack and dumbbells softly out of focus behind, warm amber key light from one side and a cool blue rim light, a little haze, high contrast, calm and focused mood, vertical composition.";
+const WORKOUT_TAIL = "No text, no labels, no logos, no brand names, no mirrors facing the viewer; the face turned away or in shadow, nobody recognisable.";
+
 /** The image prompt for one meal as built. */
 export function promptFor(m: MealToShoot): string {
+  if (m.style === "workout") return `${STYLE_WORKOUT} Exercise: ${[m.name, m.description].filter(Boolean).join(": ").replace(/\.$/, "")}. ${WORKOUT_TAIL}`;
   const style = m.style === "prep" ? STYLE_PREP : STYLE_PLATE;
   const dish = [m.name, m.description].filter(Boolean).join(": ").replace(/\.$/, "");
   const made = m.components.length ? ` Made with ${m.components.join(", ")}.` : "";

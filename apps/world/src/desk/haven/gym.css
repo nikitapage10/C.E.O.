@@ -552,3 +552,143 @@
     transition: none;
   }
 }
+
+/* ── the exercises as cards (#718): each with its picture from the photo library, a shimmer until it's made ── */
+[data-room="haven"] .gy-cards {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(140px, 176px);
+  gap: 12px;
+  margin: 18px 0 6px;
+  padding: 0 0 6px;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+[data-room="haven"] .gy-card {
+  scroll-snap-align: start;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  opacity: 0;
+  animation: gy-card-in 0.5s ease-out forwards;
+  animation-delay: calc(var(--i, 0) * 0.08s);
+}
+@keyframes gy-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+[data-room="haven"] .gy-art {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--gy-line);
+  border-radius: 3px;
+  background:
+    linear-gradient(110deg, transparent 30%, rgba(var(--gy-sig), 0.07) 50%, transparent 70%) 0 0 / 250% 100%,
+    radial-gradient(80% 60% at 50% 30%, #1a1c21, #0b0c0e);
+  animation: gy-shimmer 2.4s linear infinite;
+}
+[data-room="haven"] .gy-art.is-ready {
+  animation: none;
+  background: #0b0c0e;
+}
+@keyframes gy-shimmer {
+  to {
+    background-position:
+      -250% 0,
+      0 0;
+  }
+}
+[data-room="haven"] .gy-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: gy-art-in 0.9s ease-out;
+  transition: transform 6s ease-out;
+}
+[data-room="haven"] .gy-card:hover .gy-art img {
+  transform: scale(1.06);
+}
+@keyframes gy-art-in {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+  }
+}
+/* A soft fade to the card's foot, so the set pips read over any picture. */
+[data-room="haven"] .gy-art::after {
+  content: "";
+  position: absolute;
+  inset: 55% 0 0;
+  background: linear-gradient(180deg, transparent, rgba(11, 12, 14, 0.85));
+  pointer-events: none;
+}
+[data-room="haven"] .gy-artN {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 300 44px var(--gy-mono);
+  color: rgba(var(--gy-sig), 0.35);
+}
+[data-room="haven"] .gy-artSets {
+  position: absolute;
+  z-index: 1;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 4px;
+}
+[data-room="haven"] .gy-artSets i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(var(--gy-sig), 0.85);
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: gy-set-fill 0.5s ease-out forwards;
+}
+@keyframes gy-set-fill {
+  to {
+    transform: scaleX(1);
+  }
+}
+[data-room="haven"] .gy-cardT {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+[data-room="haven"] .gy-cardT b {
+  font-size: 13px;
+  font-weight: 600;
+}
+[data-room="haven"] .gy-cardT span,
+[data-room="haven"] .gy-artWait {
+  font: 11px var(--gy-mono);
+  color: var(--gy-mute);
+}
+@media (max-width: 600px) {
+  [data-room="haven"] .gy-cards {
+    grid-auto-columns: 62%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .gy-card,
+  [data-room="haven"] .gy-art,
+  [data-room="haven"] .gy-art img,
+  [data-room="haven"] .gy-artSets i {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

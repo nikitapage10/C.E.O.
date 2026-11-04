@@ -5,6 +5,8 @@ import { makeNight, type Night } from "./night.ts";
 import { introDue, introStarted } from "./intro.ts";
 import { THREAD_TO, threadPoint, type GaugeId, type Tone } from "./plinth.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
+import { gymRoom, withGym } from "./gymFill.ts";
+import { disposeMats, GYM_MODELS, GymGeo, gymMats, gymModel } from "./gymKit.ts";
 
 /**
  * The Haven's house in 3D (#616): a generic renderer for whatever floor plan the private store holds. Nikita's round-6
@@ -221,6 +223,7 @@ export class House {
   private last = performance.now();
   private disposers: (() => void)[] = [];
   private lights: THREE.PointLight[] = [];
+  private gymLights: THREE.PointLight[] = [];
   private pools: THREE.Mesh[] = [];
   private poolMat: THREE.MeshBasicMaterial[] = [];
   private lit: Record<string, Lit> = {};
@@ -253,6 +256,8 @@ export class House {
     private plan: HavenPlan,
     private opts: HouseOpts,
   ) {
+    // The Gym drawn filled out (#718): whatever of the kit the plan doesn't place, placed in its free floor.
+    this.plan = withGym(plan);
     const phone = Math.min(window.innerWidth, window.innerHeight) < 600;
     this.N = phone ? 700 : 1400;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -267,7 +272,7 @@ export class House {
     host.appendChild(this.thr);
     this.thrCtx = this.thr.getContext("2d");
     for (const [id, to] of Object.entries(THREAD_TO) as [GaugeId, (typeof THREAD_TO)[GaugeId]][]) {
-      const p = threadPoint(plan, to);
+      const p = threadPoint(this.plan, to);
       if (p) this.ends.set(id, new THREE.Vector3(this.wx(p[0]), p[2] / U, this.wz(p[1])));
     }
     this.scene.add(this.world);
@@ -292,7 +297,7 @@ export class House {
       s = (s * 16807) % 2147483647;
       this.seeds[i] = s / 2147483647;
     }
-    this.walls = wallsOf(plan);
+    this.walls = wallsOf(this.plan);
     this.build();
     this.bind();
     this.resize();
@@ -419,6 +424,16 @@ export class House {
           c.lineWidth = 0.8;
           for (let xx = x; xx < x + w; xx += 30) c.strokeRect(xx, y, 30, h);
           for (let yy = y; yy < y + h; yy += 15) c.strokeRect(x, yy, w, 15);
+        } else if (paint.grain === "rubber") {
+          // Gym tiles (#718): metre squares with fine seams and a fleck of colour.
+          for (let k = 0; k < (w * h) / 40; k++) {
+            c.fillStyle = rnd() < 0.15 ? `rgba(120,140,170,${0.25 + rnd() * 0.2})` : `rgba(255,255,255,${0.02 + rnd() * 0.05})`;
+            c.fillRect(x + rnd() * w, y + rnd() * h, 1.6, 1.6);
+          }
+          c.strokeStyle = "rgba(0,0,0,.45)";
+          c.lineWidth = 1.2;
+          for (let xx = x; xx < x + w; xx += 100) c.strokeRect(xx, y, 100, h);
+          for (let yy = y; yy < y + h; yy += 100) c.strokeRect(x, yy, w, 100);
         } else if (paint.grain === "weave") {
           for (let k = 0; k < (w * h) / 60; k++) {
             c.fillStyle = `rgba(255,255,255,${rnd() * 0.04})`;
@@ -523,9 +538,10 @@ export class House {
 
   private furniture() {
     const groups = new Map<string, { x: number; y: number; z: number; sx: number; sy: number; sz: number }[]>();
+    this.gymKit();
     for (const it of this.plan.items) {
       const st = KIND_STYLE[it.k];
-      if (st.height <= 2) continue;
+      if (st.height <= 2 || GYM_MODELS.has(it.k)) continue;
       const h = st.height / U;
       const key = `${it.k}:${it.round ? "c" : "b"}`;
       const list = groups.get(key) ?? [];
@@ -547,6 +563,54 @@ export class House {
       this.disposers.push(() => mat.dispose());
       const geo = shape === "c" ? new THREE.CylinderGeometry(0.5, 0.5, 1, 20) : new THREE.BoxGeometry(1, 1, 1);
       this.world.add(this.instanced(geo, mat, list, 1));
+    }
+  }
+
+  /** The Gym's equipment, modelled (#718, gymKit.ts), and its own lights: a cool white overhead, always on. */
+  private gymKit() {
+    const mats = gymMats();
+    const G = new GymGeo(mats);
+    this.disposers.push(() => (G.dispose(), disposeMats(mats)));
+    const bar = !this.plan.items.some((i) => i.k === "barbell");
+    for (const it of this.plan.items) {
+      if (!GYM_MODELS.has(it.k)) continue;
+      const st = KIND_STYLE[it.k];
+      const w = (it.round ? it.w : it.w) / U, d = (it.round ? it.w : it.h) / U;
+      const along = w >= d;
+      const m = gymModel(G, it.k, along ? w : d, along ? d : w, st.height / U, st.lift / U, bar);
+      if (!m) continue;
+      m.position.set(this.wx(it.round ? it.x : it.x + it.w / 2), 0, this.wz(it.round ? it.y : it.y + it.h / 2));
+      // Its front (local -Z, where a rack holds its bar) faces into the room, away from the nearer wall.
+      const cx = it.round ? it.x : it.x + it.w / 2, cy = it.round ? it.y : it.y + it.h / 2;
+      const part = this.plan.rooms.flatMap((r) => r.parts).find(([x, y, pw, ph]) => cx >= x && cx < x + pw && cy >= y && cy < y + ph);
+      const flip = part ? (along ? cy - part[1] < part[1] + part[3] - cy : cx - part[0] < part[0] + part[2] - cx) : false;
+      m.rotation.y = (along ? 0 : Math.PI / 2) + (flip ? Math.PI : 0);
+      this.world.add(m);
+    }
+    const room = gymRoom(this.plan);
+    if (!room) return;
+    const bar0 = new THREE.MeshBasicMaterial({ color: 0xf4f7ff });
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    this.disposers.push(() => (bar0.dispose(), geo.dispose()));
+    for (const [x, y, w, h] of room.parts) {
+      const along = w >= h;
+      const n = Math.max(1, Math.round((along ? w : h) / 220));
+      for (let i = 0; i < n; i++) {
+        const f = (i + 0.5) / n;
+        const px = along ? x + w * f : x + w / 2, py = along ? y + h / 2 : y + h * f;
+        // A linear ceiling light, drawn bright, and a point light under it.
+        for (const off of [-0.25, 0.25]) {
+          const strip = new THREE.Mesh(geo, bar0);
+          strip.scale.set(along ? 0.5 : 0.04, 0.015, along ? 0.04 : 0.5);
+          strip.position.set(this.wx(px) + (along ? 0 : (off * h) / U), WH - 0.02, this.wz(py) + (along ? (off * h) / U : 0));
+          strip.renderOrder = 4;
+          this.world.add(strip);
+        }
+        const l = new THREE.PointLight(LIGHT.gym, 1.6, 4.5, 1.4);
+        l.position.set(this.wx(px), WH * 0.9, this.wz(py));
+        this.scene.add(l);
+        this.gymLights.push(l);
+      }
     }
   }
 
@@ -1261,6 +1325,10 @@ export class House {
   }
 
   private updateLights(t: number) {
+    // The Gym's overhead (#718): on whatever the readings say, brighter while its week has sessions to do.
+    const gym = gymRoom(this.plan);
+    const gv = gym ? (this.litNow.get(gym.id) ?? 0) : 0;
+    for (const l of this.gymLights) l.intensity = 1.5 + gv * 1.4;
     const ranked = this.plan.rooms.map((r) => ({ r, v: this.litNow.get(r.id) ?? 0 })).filter((x) => x.v > 0.01).sort((a, b) => b.v - a.v);
     this.lights.forEach((l, i) => {
       const x = ranked[i];

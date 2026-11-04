@@ -77,13 +77,13 @@ export const KIND_STYLE: Record<Kind, KindStyle> = {
 };
 
 /** Floor finishes, drawn into the floor's texture. */
-export const FLOOR_PAINT: Record<Floor, { base: string; grain: "planks" | "tiles" | "flat" | "weave" }> = {
+export const FLOOR_PAINT: Record<Floor, { base: string; grain: "planks" | "tiles" | "flat" | "weave" | "rubber" }> = {
   wood: { base: "#7d7975", grain: "planks" },
   tile: { base: "#b7b5b0", grain: "tiles" },
-  rubber: { base: "#2c2e33", grain: "flat" },
+  rubber: { base: "#3a3d44", grain: "rubber" },
   stone: { base: "#5d5e62", grain: "tiles" },
   carpet: { base: "#4a4646", grain: "weave" },
 };
 
 /** The light a lit room glows with: lamplight; a room that needs Nikita leans to the accent's warm coral. */
-export const LIGHT = { lamp: 0xffd6a0, needs: 0xff9a6a, cool: 0xa9c4ff } as const;
+export const LIGHT = { lamp: 0xffd6a0, needs: 0xff9a6a, cool: 0xa9c4ff, gym: 0xeef2ff } as const;

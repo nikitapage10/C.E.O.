@@ -238,8 +238,18 @@ test("signed in: the plinth's Climate dial opens the control and turns the set p
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowUp");
   await expect(dial).toHaveAccessibleName(/set to 72°F/);
+  // Held three seconds after the last turn (#718), then sent once with the final setting.
+  await expect(strip.getByRole("status")).toContainText("Setting 72°");
+  await page.waitForTimeout(1500);
+  expect(sent.length).toBe(0);
   await expect.poll(() => sent.length, { timeout: 5000 }).toBe(1);
   expect(sent[0]).toMatchObject({ action: "thermostat.set", device: "a00000000009", tempF: 72 });
+  // Cancel drops a held change: nothing more is sent.
+  await dial.focus();
+  await page.keyboard.press("ArrowDown");
+  await strip.getByRole("status").getByRole("button", { name: "Cancel" }).click();
+  await page.waitForTimeout(3500);
+  expect(sent.length).toBe(1);
 });
 
 test("signed in: the wet tray says when it closes itself, and Close shuts it now (#713)", async ({ page }) => {

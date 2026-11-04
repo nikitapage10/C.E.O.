@@ -106,6 +106,7 @@ const COMPONENTS_MAX = 8;
 export function plain(v: unknown, max: number): string {
   if (typeof v !== "string") return "";
   return v
+    // eslint-disable-next-line no-control-regex -- control characters are exactly what this strips
     .replace(/[\u0000-\u001f\u007f<>{}]/g, " ")
     .replace(/\s+/g, " ")
     .trim()

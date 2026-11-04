@@ -165,7 +165,8 @@ export function allowed(cmd: Command, phase: Phase, ex: Exchange | null): boolea
     case "done":
       return phase === "incoming" || phase === "ask";
     case "draft":
-      return (phase === "incoming" || phase === "ask") && ex.sendable;
+      // An email drafts even without Gmail's send grant (the draft is copied for Gmail); a group text never.
+      return (phase === "incoming" || phase === "ask") && (ex.line === "email" || ex.sendable);
     case "filter":
     case "block":
       return (phase === "incoming" || phase === "ask") && ex.line === "email";
@@ -334,6 +335,11 @@ export function codexOf(queue: Exchange[] | null, now: number, fallback: { email
   if (!queue) return { waiting: fallback.email === null && fallback.texts === null ? null : (fallback.email ?? 0) + (fallback.texts ?? 0), oldest: null, email: [], texts: [] };
   const rows = [...queue].sort((a, b) => a.at - b.at).map((ex) => ({ ex, waited: Math.max(0, now - ex.at) }));
   return { waiting: queue.length, oldest: rows[0]?.waited ?? null, email: rows.filter((r) => r.ex.line === "email"), texts: rows.filter((r) => r.ex.line === "text") };
+}
+
+/** Sent this week, both lines: the hub's last seven days of texts and the email agent's own count. */
+export function weekSent(texts: Pick<RelayStatus, "week"> | null, emailWeek: number): number {
+  return (texts?.week ?? []).reduce((n, d) => n + d.sent, 0) + Math.max(0, emailWeek);
 }
 
 /** The checks a draft passed, shown ticking between Nikita's words and the draft: the learned style first. */

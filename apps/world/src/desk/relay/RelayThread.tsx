@@ -9,58 +9,50 @@ import { gmailHref } from "../email/EmailSection.tsx";
 import { takeGmailReturn, useEmail } from "../email/email.ts";
 import { useTexts } from "../texts/texts.ts";
 import { TextsSection } from "../texts/TextsSection.tsx";
+import { setRelayHandler } from "./bridge.ts";
 import { ghost, ghosted, INK, quill, rise, SigilStage, sink } from "./sigils.ts";
-import { agoShort, askLine, initialOf, lastRequest, passesOf, pendingOf, type Command, type Exchange, type Why } from "./thread.ts";
+import { agoShort, askLine, codexOf, initialOf, lastRequest, weekSent, type Exchange } from "./thread.ts";
 import { errorText, useThread, type Notice } from "./useThread.ts";
 import { useVoice } from "./voice.ts";
 import "./thread.css";
 
 /**
- * Relay's Thread (#615) in the Codex look Nikita picked: a glowing spine down the page, the sender in serif italic in
- * its margin under a large glowing initial, and one column of text written in, left to right, by a quill of sigils
- * from the spine. Your words climb from the listening point at the spine's foot (the ear); the "how you write" passes
- * tick between what you said and the draft; a yes seals it, and the sigils run up the spine and out the top.
+ * Relay's Thread (#615, simplified in #642) in the Codex look Nikita picked: a glowing spine down the page, the sender
+ * in serif italic in its margin under their photo, their logo or a large glowing initial, and one column written in by
+ * a quill of sigils from the spine. Each entry is one gist, Blasto's advice for a mail, and one row of actions: Draft it
+ * (or Reply), Done, Later, and "…" for the rest. A draft appears only when asked for, with Send and Change. What you
+ * say shows at the spine's foot while you speak, then fades; the keys hide behind "?".
  *
- * The to-do queue is one continuous codex: each exchange a full-height entry, soft-snapped, sigils dissolving and
- * re-forming as you scroll across. The entry in focus is the only one voice and keys act on, and a send needs its
- * draft on screen there. "Open the codex" is the dashboard below: what's pending, who has waited longest, what is
- * high priority, then the rules Relay keeps.
+ * The to-do queue is one continuous codex: each exchange a full-height entry, soft-snapped. The entry in focus is the
+ * only one voice and keys act on, and a send needs its draft on screen there. The Codex below is one line of numbers,
+ * then Email and Texts, oldest first; everything else sits behind Settings.
  *
  * This file only draws: the queue, the state machine and the gate live in ./useThread.ts and ./thread.ts, the glyph
  * engine in ./sigils.ts, listening in ./voice.ts. Every word of mail or text is wrapped in <Private> for Hide mode, and
  * only the signed-in passkey session ever has any; signed out, the page shows counts and states.
  */
 
-const CMD_WORDS: Record<Command, string> = { yes: "yes", no: "no", change: "change it", skip: "skip", later: "later", filter: "filter these out", block: "block this sender", undo: "undo", words: "" };
-const WHY: Record<Why, string> = { sooner: "sooner", "needs-you": "needs you", overdue: "overdue" };
-const PARTS = ".cx-init, .cx-subj, .cx-msg, .cx-draft";
+const PARTS = ".cx-init, .cx-msg, .cx-adv, .cx-draft";
+/** How long what you said stays at the spine's foot after you stop speaking. */
+const HEARD_MS = 2_500;
 const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 const rnd = Math.random;
-const clock = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const first = (who: string) => who.trim().split(/\s+/)[0] || who;
 
-function CopyLink({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
+/** The sender's face: the Mac's contact photo, else their domain's logo, else the initial (#642). */
+function Face({ x, hidden }: { x: Exchange; hidden: boolean }) {
+  const srcs = hidden ? [] : [x.photo ? `/api/relay?photo=${x.photo}` : "", x.logo ? `/api/email?logo=${x.logo}` : ""].filter(Boolean);
+  const [bad, setBad] = useState(0);
+  const src = srcs[bad];
+  if (src) return <img className="cx-face" src={src} alt="" width={64} height={64} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBad((b) => b + 1)} />;
   return (
-    <button
-      type="button"
-      className="cx-opt"
-      onClick={() =>
-        void navigator.clipboard
-          ?.writeText(text)
-          .then(() => {
-            setDone(true);
-            window.setTimeout(() => setDone(false), 1_600);
-          })
-          .catch(() => undefined)
-      }
-    >
-      {done ? "Copied" : "Copy"}
-    </button>
+    <span className="cx-init" aria-hidden="true">
+      {hidden ? "·" : initialOf(x.who)}
+    </span>
   );
 }
 
-/** The dock's right line: the undo countdown with its sigils, a send that went, or a quiet notice. */
+/** The dock's notice: the undo countdown with its sigils, a send that went, or the Messenger's one line. */
 function UndoLine({ n, now, sg }: { n: Notice | null; now: number; sg: SigilStage | null }) {
   const live = !!n && now - n.at < (n.kind === "rule" ? 12_000 : n.kind === "undo" ? 6_000 : 5_000);
   const left = n?.until ? Math.max(0, Math.ceil((n.until - now) / 1000)) : 0;
@@ -72,7 +64,7 @@ function UndoLine({ n, now, sg }: { n: Notice | null; now: number; sg: SigilStag
           {n.kind === "undo" ? (
             <>
               <span>
-                <Private>{n.text}</Private> in <span className="cx-n">{left}</span>
+                <Private>{n.text}</Private> <span className="cx-n">{left}</span>
               </span>
               <span className="cx-sig" aria-hidden="true">
                 {sigs}
@@ -90,7 +82,7 @@ function UndoLine({ n, now, sg }: { n: Notice | null; now: number; sg: SigilStag
           {n.act && (
             <button type="button" onClick={n.act.run}>
               {n.act.label}
-              {n.act.label === "Undo" && n.kind === "undo" ? " · Z" : ""}
+              {n.act.label === "Undo" ? " · Z" : ""}
             </button>
           )}
         </>
@@ -117,10 +109,10 @@ function Waiting({ signedIn, waiting }: { signedIn: boolean; waiting: number | n
     p = "Dialtone and Blasto work on the Azure copy, where their keys are. Open the Desk there.";
   } else if (!gmailOn && !textsOn) {
     h = "Waiting for a line.";
-    p = "Connect Gmail or pair the MacBook in the codex below, and what needs you is written in here, one at a time.";
+    p = "Connect Gmail or pair the MacBook under Settings in the codex below, and what needs you is written in here, one at a time.";
   } else if (!signedIn) {
     h = waiting ? `${waiting} waiting on you.` : "Nothing waiting on you.";
-    p = "Who they are, what they said and Blasto's drafts show only when you sign in.";
+    p = "Who they are, what they said and Blasto's advice show only when you sign in.";
   } else if (!textsView && !emailView) {
     h = "Reading…";
     p = "";
@@ -155,17 +147,66 @@ function Waiting({ signedIn, waiting }: { signedIn: boolean; waiting: number | n
   );
 }
 
-interface EntryProps {
-  x: Exchange;
-  focus: boolean;
-  now: number;
-  t: ReturnType<typeof useThread>;
-  passes: string[];
-  passOn: number;
+/** "…": what is there but rarely needed. */
+function More({ x, t }: { x: Exchange; t: ReturnType<typeof useThread> }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const [copied, setCopied] = useState(false);
+  const close = () => ref.current?.removeAttribute("open");
+  const pick = (fn: () => void) => () => {
+    fn();
+    close();
+  };
+  return (
+    <details className="cx-more" ref={ref}>
+      <summary aria-label="More actions" title="More">
+        …
+      </summary>
+      <div className="cx-menu" role="menu">
+        <button type="button" role="menuitem" onClick={pick(() => t.say("skip"))}>
+          Skip <kbd>S</kbd>
+        </button>
+        {x.line === "email" && (
+          <>
+            <button type="button" role="menuitem" onClick={pick(() => t.say("filter"))}>
+              Filter these out
+            </button>
+            <button type="button" role="menuitem" className="is-danger" onClick={pick(() => t.say("block"))}>
+              Block this sender
+            </button>
+            <a role="menuitem" href={gmailHref(x.id)} target="_blank" rel="noopener noreferrer" onClick={close}>
+              Open in Gmail
+            </a>
+          </>
+        )}
+        {x.draft && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() =>
+              void navigator.clipboard
+                ?.writeText(x.draft ?? "")
+                .then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => {
+                    setCopied(false);
+                    close();
+                  }, 1_200);
+                })
+                .catch(() => undefined)
+            }
+          >
+            {copied ? "Copied" : "Copy the draft"}
+          </button>
+        )}
+      </div>
+    </details>
+  );
 }
 
-/** One exchange: what came in, then you. Only the entry in focus asks "Send to X?". */
-function Entry({ x, focus, now, t, passes, passOn }: EntryProps) {
+const focusWords = () => document.getElementById("cx-words")?.focus();
+
+/** One exchange: who, the gist, Blasto's advice, one row of actions; a draft only once asked for. */
+function Entry({ x, focus, now, t }: { x: Exchange; focus: boolean; now: number; t: ReturnType<typeof useThread> }) {
   const hidden = t.hidden;
   const sealed = t.pending === x.key;
   const phase = focus ? t.phase : null;
@@ -173,140 +214,140 @@ function Entry({ x, focus, now, t, passes, passOn }: EntryProps) {
   const canConnect = useEmail((s) => s.view?.canConnect === true);
   const textsView = useTexts((s) => s.view);
   const req = x.line === "text" ? lastRequest(textsView?.requests, x.id) : undefined;
+  const reading = t.reading === x.key;
   return (
     <article className="cx-entry" data-key={x.key} data-focus={focus || undefined} aria-label={`From ${hidden ? "someone" : x.who}`} aria-current={focus || undefined}>
       <div className="cx-folio">
         <div className="cx-verse cx-them">
           <div className="cx-mar">
-            <span className="cx-init" aria-hidden="true">
-              {hidden ? "·" : initialOf(x.who)}
-            </span>
+            <Face x={x} hidden={hidden} />
             <Private className="cx-rub">{x.who}</Private>
             <span className="cx-meta">
               {x.line === "email" ? "email" : x.channel === "SMS" ? "sms" : "text"} · {agoShort(now - x.at)}
             </span>
           </div>
           <div className="cx-body">
-            {x.line === "email" && (
-              <>
-                <div className="cx-subj">
-                  <Private>{x.subject}</Private>
-                </div>
-                <div className="cx-addr">
-                  <Private>{x.who}</Private> to you · {clock(x.at)}
-                </div>
-              </>
-            )}
             <p className="cx-msg">
-              <Private>{x.body || "No summary yet: the agent hasn't read this one."}</Private>
+              <Private>{x.body || "No gist yet: Dialtone hasn't read this one."}</Private>
             </p>
-            {x.line === "text" && <p className="cx-note">Dialtone's gist · the text itself stays on your Mac</p>}
+            {x.line === "email" && x.advice && (
+              <p className="cx-adv">
+                <span className="cx-lab">Blasto</span> <Private>{x.advice}</Private>
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="cx-verse cx-you">
-          <div className="cx-mar">
-            <span className="cx-rub is-you">you</span>
-            <span className="cx-meta">
-              {x.said ? (
-                <>
+        {(focus || x.draft) && (
+          <div className="cx-verse cx-you">
+            <div className="cx-mar">
+              <span className="cx-rub is-you">you</span>
+              {x.said && (
+                <span className="cx-meta">
                   heard{" "}
                   <q>
                     <Private>{x.said}</Private>
                   </q>
-                </>
-              ) : x.draft ? (
-                "drafted ahead"
-              ) : (
-                ""
-              )}
-            </span>
-          </div>
-          <div className="cx-body">
-            {x.draft && (
-              <p className="cx-pass" aria-label="How you write: the checks this draft passed">
-                <span className="cx-lam" aria-hidden="true">
-                  λ
                 </span>
-                {passes.map((p, i) => (
-                  <span key={p} data-on={!focus || i < passOn || undefined}>
-                    {p}
-                  </span>
-                ))}
-              </p>
-            )}
-            {focus && phase === "drafting" ? (
-              <p className="cx-quiet">Blasto is writing it in your voice…</p>
-            ) : x.draft ? (
-              <>
-                <p className="cx-draft" data-sent={sealed || undefined}>
-                  <Private>{x.draft}</Private>
-                </p>
-                <div className="cx-tag">
-                  <span>{sealed ? <>Sealed · sending to {hidden ? "them" : <Private>{first(x.who)}</Private>}</> : x.said ? "Drafted · in your voice" : "Drafted ahead · in your voice"}</span>
-                  {focus && !sealed && (
+              )}
+            </div>
+            <div className="cx-body">
+              {focus && reading ? (
+                <p className="cx-quiet">Reading that…</p>
+              ) : focus && phase === "drafting" ? (
+                <p className="cx-quiet">Blasto is writing it in your voice…</p>
+              ) : x.draft ? (
+                <>
+                  <p className="cx-draft" data-sent={sealed || undefined}>
+                    <Private>{x.draft}</Private>
+                  </p>
+                  {sealed && (
+                    <p className="cx-tag">
+                      Sealed · sending to {hidden ? "them" : <Private>{first(x.who)}</Private>}
+                    </p>
+                  )}
+                </>
+              ) : null}
+
+              {focus && phase === "incoming" && !reading && (
+                <div className="cx-ask cx-acts">
+                  {x.line === "email" || x.ready ? (
+                    <button type="button" className="cx-opt is-yes" onClick={() => t.say("draft")}>
+                      {x.line === "email" ? "Draft it" : "Reply"} <kbd>R</kbd>
+                    </button>
+                  ) : (
+                    <button type="button" className="cx-opt is-yes" onClick={focusWords} disabled={!x.sendable}>
+                      Reply
+                    </button>
+                  )}
+                  <button type="button" className="cx-opt" onClick={() => t.say("done")}>
+                    Done <kbd>D</kbd>
+                  </button>
+                  <button type="button" className="cx-opt" onClick={() => t.say("later")}>
+                    Later <kbd>L</kbd>
+                  </button>
+                  <More x={x} t={t} />
+                </div>
+              )}
+
+              {focus && phase === "ask" && x.draft && (
+                <div className="cx-ask">
+                  {hidden ? (
+                    <p>Turn off Hide to send.</p>
+                  ) : x.sendable ? (
                     <>
-                      {x.line === "email" && (
-                        <a href={gmailHref(x.id)} target="_blank" rel="noopener noreferrer">
-                          Open in Gmail
-                        </a>
+                      <p>{askLine(x)}</p>
+                      {x.line === "text" && !t.unlocked ? (
+                        <button type="button" className="cx-opt is-yes" onClick={() => void useTexts.getState().unlock()} title="One passkey check unlocks sending on this device for 72 hours">
+                          Unlock to send
+                        </button>
+                      ) : (
+                        <button type="button" className="cx-opt is-yes" onClick={() => t.say("yes")}>
+                          Send <kbd>Y</kbd>
+                        </button>
                       )}
-                      <button type="button" onClick={() => t.done(x)}>
-                        Done
+                      <button
+                        type="button"
+                        className="cx-opt"
+                        onClick={() => {
+                          t.say("change");
+                          focusWords();
+                        }}
+                      >
+                        Change
                       </button>
+                      <More x={x} t={t} />
+                    </>
+                  ) : (
+                    <>
+                      <p>Send it from Gmail?</p>
+                      <a className="cx-opt is-yes" href={gmailHref(x.id)} target="_blank" rel="noopener noreferrer">
+                        Open in Gmail
+                      </a>
+                      <button
+                        type="button"
+                        className="cx-opt"
+                        onClick={() => {
+                          t.say("change");
+                          focusWords();
+                        }}
+                      >
+                        Change
+                      </button>
+                      <More x={x} t={t} />
+                      {canConnect && (
+                        <button type="button" className="cx-reconnect" onClick={() => void connect()}>
+                          Reconnect Gmail to send from here
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
-              </>
-            ) : (
-              <p className="cx-quiet">{focus ? "Say what to tell them, or skip." : "Waiting for your words."}</p>
-            )}
-
-            {focus && phase === "ask" && x.draft && (
-              <div className="cx-ask">
-                {hidden ? (
-                  <p>Turn off Hide to send.</p>
-                ) : x.sendable ? (
-                  <>
-                    <p>{askLine(x)}</p>
-                    {x.line === "text" && !t.unlocked ? (
-                      <button type="button" className="cx-opt is-yes" onClick={() => void useTexts.getState().unlock()} title="One passkey check unlocks sending on this device for 72 hours">
-                        Unlock to send
-                      </button>
-                    ) : (
-                      <button type="button" className="cx-opt is-yes" onClick={() => t.say("yes")}>
-                        Yes <kbd>Y</kbd>
-                      </button>
-                    )}
-                    <button type="button" className="cx-opt" onClick={() => t.say("no")}>
-                      No <kbd>N</kbd>
-                    </button>
-                    <button type="button" className="cx-opt" onClick={() => t.say("change")}>
-                      Change it
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p>Send it from Gmail?</p>
-                    <CopyLink text={x.draft} />
-                    <a className="cx-opt is-yes" href={gmailHref(x.id)} target="_blank" rel="noopener noreferrer">
-                      Open in Gmail
-                    </a>
-                    <button type="button" className="cx-opt" onClick={() => t.say("no")}>
-                      No <kbd>N</kbd>
-                    </button>
-                    {canConnect && (
-                      <button type="button" className="cx-reconnect" onClick={() => void connect()}>
-                        Reconnect Gmail to send from here
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            {focus && req && (req.state === "expired" || req.state === "failed" || req.state === "refused") && req.kind === "send" && <p className="cx-warn">The last send didn't go: {req.state === "expired" ? "the Mac was offline." : req.state === "failed" ? "it may have sent, check Messages." : "the Mac refused it."}</p>}
+              )}
+              {focus && req && (req.state === "expired" || req.state === "failed" || req.state === "refused") && req.kind === "send" && <p className="cx-warn">The last send didn't go: {req.state === "expired" ? "the Mac was offline." : req.state === "failed" ? "it may have sent, check Messages." : "the Mac refused it."}</p>}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </article>
   );
@@ -337,15 +378,37 @@ export function RelayThread({ now }: { now: number }) {
 
   const t = useThread(now, { leave });
   const { ex, phase, hidden } = t;
+  const tRef = useRef(t);
+  tRef.current = t;
   const voice = useVoice((l) => void t.line(l));
   const [typed, setTyped] = useState("");
+  const [hints, setHints] = useState(false);
   const [back] = useState(() => takeGmailReturn());
-  const style = useEmail((s) => s.view?.style ?? null);
-  const traits = style?.traits ?? null;
-  const [passOn, setPassOn] = useState(0);
   const run = useRef(0);
   fx.current.listening = voice.listening;
   fx.current.loud = voice.tail ? 1 : 0;
+
+  // What you said shows while you speak, then fades (#642).
+  const [heardOn, setHeardOn] = useState(false);
+  useEffect(() => {
+    if (!voice.heard) return;
+    setHeardOn(true);
+    const id = window.setTimeout(() => setHeardOn(false), HEARD_MS);
+    return () => window.clearTimeout(id);
+  }, [voice.heard]);
+
+  // One listener (#638): the room voice hands what's said on /relay to this Thread (rooms/relay/voice.ts).
+  useEffect(
+    () =>
+      setRelayHandler(async (text) => {
+        const r = tRef.current.line(text);
+        if (!r.cmd) return null;
+        if (r.cmd === "words" && !r.ok) return null;
+        const say = (await r.said) || (r.ok ? "" : "That doesn't apply right now.");
+        return say ? { say } : null;
+      }),
+    [],
+  );
 
   // The engine, and the spine's field: the lit stretch beside the entry in focus, a slow fall of sigils, the ear's wick.
   // A layout effect, so entries are blanked before their first paint.
@@ -432,19 +495,12 @@ export function RelayThread({ now }: { now: number }) {
     for (const p of pagesRef.current?.querySelectorAll<HTMLElement>(PARTS) ?? []) ghost(p, false);
   }, [hidden]);
 
-  /** Your draft climbs from the ear and the quill writes it in, after the passes tick one by one. */
+  /** Your draft climbs from the ear and the quill writes it in. */
   const writeDraft = useCallback(async (el: HTMLElement, id: number) => {
     const s = sg.current;
     const d = el.querySelector<HTMLElement>(".cx-draft");
-    if (!s || !d) return;
+    if (!s || !d || run.current !== id || !earRef.current) return;
     ghost(d, !s.reduced);
-    const n = el.querySelectorAll(".cx-pass span:not(.cx-lam)").length;
-    for (let i = 1; i <= n; i++) {
-      if (run.current !== id) return;
-      setPassOn(i);
-      if (!s.reduced) await sleep(220);
-    }
-    if (run.current !== id || !earRef.current) return;
     const X = spineX();
     const E = s.rel(earRef.current);
     fx.current.rush = 0.3;
@@ -462,23 +518,19 @@ export function RelayThread({ now }: { now: number }) {
     shown.current = key;
     draftShown.current = ex?.draft ?? null;
     const id = ++run.current;
-    setPassOn(0);
     const old = entryOf(prev);
     const el = entryOf(key);
     fx.current.lit = el?.querySelector(".cx-them") ?? null;
     fx.current.to = el ? 1 : 0;
-    if (hidden) {
-      setPassOn(99);
-      return;
-    }
+    if (hidden) return;
     const X = spineX();
     if (old && !s.reduced) for (const p of old.querySelectorAll<HTMLElement>(PARTS)) void s.dissolve(p, { dur: 700, stagger: 200, to: (_i, _x, y) => [X + (rnd() - 0.5) * 8, y + (rnd() - 0.5) * 60] });
     if (!el) return;
     void (async () => {
       fx.current.rush = 1;
       const init = el.querySelector<HTMLElement>(".cx-init");
-      const subj = el.querySelector<HTMLElement>(".cx-subj");
       const msg = el.querySelector<HTMLElement>(".cx-msg");
+      const adv = el.querySelector<HTMLElement>(".cx-adv");
       for (const p of el.querySelectorAll<HTMLElement>(PARTS)) ghost(p, !s.reduced);
       // The illuminated initial gathers first, poured down the spine.
       if (init) void s.form(init, { gap: 3, size: 8, ltr: false, swirl: 120, dur: 1300, stagger: 300, glow: 0.3, from: () => [X + (rnd() - 0.5) * 6, -10 - rnd() * 140] });
@@ -486,27 +538,22 @@ export function RelayThread({ now }: { now: number }) {
       if (run.current !== id) return;
       const vb = s.rel(el.querySelector(".cx-them") ?? el);
       const top = (): [number, number] => [X + (rnd() - 0.5) * 4, Math.max(0, vb.y - 20 - rnd() * 160)];
-      if (subj) void s.form(subj, { from: top, path: quill(X), dur: 1000, stagger: 700, jitter: 80, max: 300 });
       if (msg) await s.form(msg, { from: top, path: quill(X), dur: 1100, stagger: 1100, jitter: 90, max: 620, pre: 0 });
       if (run.current !== id) return;
+      if (adv) void s.form(adv, { from: top, path: quill(X), dur: 800, stagger: 600, jitter: 60, max: 300 });
       if (el.querySelector(".cx-draft")) await writeDraft(el, id);
-      else setPassOn(99);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ex?.key, engine]);
 
-  // A new draft on the entry in focus (from your words): the passes tick, then it climbs from the ear.
+  // A new draft on the entry in focus (Draft it, or your words): it climbs from the ear.
   useLayoutEffect(() => {
     const d = ex?.draft ?? null;
     if (!ex || shown.current !== ex.key || d === draftShown.current || phase === "drafting") return;
     draftShown.current = d;
-    if (!d || hidden) {
-      setPassOn(99);
-      return;
-    }
+    if (!d || hidden) return;
     const el = entryOf(ex.key);
     const id = ++run.current;
-    setPassOn(0);
     if (el) void writeDraft(el, id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ex?.draft, ex?.key, phase]);
@@ -571,7 +618,8 @@ export function RelayThread({ now }: { now: number }) {
     [pick],
   );
 
-  // Keys: Y yes, N no, S skip, Z undo, L later; J and K move through the codex; hold Space to talk. Never while typing.
+  // Keys: Y send, N no, R draft it, D done, L later, S skip, Z undo; J and K move; hold Space to talk; ? the list.
+  // Never while typing.
   useEffect(() => {
     const typing = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
@@ -583,6 +631,15 @@ export function RelayThread({ now }: { now: number }) {
         if (!voice.supported) return;
         e.preventDefault();
         if (!e.repeat) voice.hold(true);
+        return;
+      }
+      if (e.key === "?") {
+        setHints((h) => !h);
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "Escape") {
+        setHints(false);
         return;
       }
       const k = e.key.toLowerCase();
@@ -608,19 +665,11 @@ export function RelayThread({ now }: { now: number }) {
 
   const submit = (raw: string) => {
     const r = t.line(raw);
-    voice.setHeard(raw);
     if (r.ok) setTyped("");
   };
 
-  const m = t.metrics;
-  const prevM = useRef(m);
-  const bumped = (k: keyof typeof m) => prevM.current[k] !== null && m[k] !== null && prevM.current[k] !== m[k];
-  useEffect(() => {
-    const id = window.setTimeout(() => (prevM.current = m), 900);
-    return () => window.clearTimeout(id);
-  });
-  const num = (v: number | null) => (v === null ? "—" : v.toLocaleString());
-  const rest = t.queue ? t.queue.filter((x) => x.key !== ex?.key).slice(0, 5) : [];
+  const waiting = t.metrics.waiting;
+  const speaking = !!voice.tail;
 
   return (
     <div className="cx" data-phase={phase} data-still={engine?.reduced || undefined}>
@@ -630,107 +679,67 @@ export function RelayThread({ now }: { now: number }) {
             <b>Relay</b>
             <span>C.E.O.</span>
           </h1>
-          <a href="#cx-codex">Open the codex ↓</a>
+          <p className="cx-count">
+            <span>{waiting === null ? "—" : waiting.toLocaleString()} waiting</span>
+            <a href="#cx-codex">Codex ↓</a>
+          </p>
         </header>
 
-        <nav className="cx-index" aria-label="The margin index">
-          {rest.length > 0 && (
-            <>
-              <h4>Waiting</h4>
-              {rest.map((x) => (
-                <button type="button" className="cx-i" key={x.key} onClick={() => goTo(x.key)}>
-                  <Private>{first(x.who)}</Private>
-                  <em>{x.draft ? "drafted" : agoShort(now - x.at)}</em>
-                </button>
-              ))}
-            </>
-          )}
-          {t.sentList.length > 0 && (
-            <>
-              <span className="cx-gap" />
-              <h4>Sent today</h4>
-              {t.sentList.slice(0, 2).map((s) => (
-                <span className="cx-i is-sent" key={`${s.key}${s.at}`}>
-                  <Private>{first(s.who)}</Private>
-                  <em>{clock(s.at)}</em>
-                </span>
-              ))}
-            </>
-          )}
-        </nav>
-
         <div className="cx-pages" ref={pagesRef} tabIndex={-1}>
-          {t.queue && t.queue.length > 0 ? t.queue.map((x) => <Entry key={x.key} x={x} focus={x.key === ex?.key} now={now} t={t} passes={passesOf(x, traits)} passOn={passOn} />) : <Waiting signedIn={t.signedIn} waiting={m.waiting} />}
+          {t.queue && t.queue.length > 0 ? t.queue.map((x) => <Entry key={x.key} x={x} focus={x.key === ex?.key} now={now} t={t} />) : <Waiting signedIn={t.signedIn} waiting={waiting} />}
         </div>
 
         <div className="cx-dock">
           <div className="cx-dl">
-            <span className="cx-labrow">
-              {voice.supported && (
-                <button type="button" className="cx-listen" aria-pressed={voice.mode === "on"} onClick={() => voice.turn(voice.mode !== "on")}>
-                  {voice.mode === "on" ? "Stop listening" : "Listen hands-free"}
-                </button>
-              )}
-              <span className="cx-lab">{!voice.supported ? "Type" : voice.mode === "on" ? "Listening" : voice.mode === "hold" ? "Listening while you hold Space" : "Not listening"}</span>
-            </span>
-            <span className="cx-heard" data-private="" data-loud={!!voice.tail || undefined}>
+            {voice.supported && (
+              <button type="button" className="cx-mic" aria-pressed={voice.mode === "on"} data-on={voice.listening || undefined} onClick={() => voice.turn(voice.mode !== "on")} title={voice.mode === "on" ? "Stop listening" : "Listen hands-free (or hold Space)"}>
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M6 11a6 6 0 0 0 12 0M12 17v4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                <span>{voice.mode === "on" ? "Listening" : voice.mode === "hold" ? "Listening" : "Talk"}</span>
+              </button>
+            )}
+            <span className="cx-heard" data-private="" data-on={speaking || heardOn || undefined} data-loud={speaking || undefined} aria-live="off">
               {voice.tail || voice.heard}
-            </span>
-            {ex && (phase === "incoming" || phase === "ask") && (
-              <form
-                className="cx-type"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (typed.trim()) submit(typed);
-                }}
-              >
-                <label className="cx-sr" htmlFor="cx-words">
-                  Reply in a few words, or a command
-                </label>
-                <input id="cx-words" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={phase === "ask" ? "or say what to write instead" : "tell them I'll be 10 late"} autoComplete="off" maxLength={400} data-private="" />
-                <button type="submit" disabled={!typed.trim()}>
-                  Draft it
-                </button>
-              </form>
-            )}
-            {t.offered.length > 0 && (
-              <span className="cx-say">
-                {t.offered.map((c) => (
-                  <span key={c}>{CMD_WORDS[c]}</span>
-                ))}
-              </span>
-            )}
-            <span className="cx-keys">
-              <b>Y</b> yes · <b>N</b> no · <b>S</b> skip · <b>Z</b> undo · <b>J K</b> move
-              {voice.supported ? (
-                <>
-                  {" "}
-                  · hold <b>Space</b> to talk
-                </>
-              ) : null}
             </span>
             {voice.error && <span className="cx-warn">{voice.error}</span>}
           </div>
           <div className="cx-dr">
             <UndoLine n={t.notice} now={now} sg={engine} />
-            <dl className="cx-metrics" aria-label="Today">
-              {(
-                [
-                  ["waiting", "waiting", " on you"],
-                  ["drafted", "drafted", ""],
-                  ["sent", "sent", " today"],
-                  ["filtered", "filtered", ""],
-                ] as const
-              ).map(([k, w, lg]) => (
-                <div key={k}>
-                  <dd data-bump={bumped(k) || undefined}>{num(m[k])}</dd>
-                  <dt>
-                    {w}
-                    {lg && <span className="cx-lg">{lg}</span>}
-                  </dt>
-                </div>
-              ))}
-            </dl>
+            <div className="cx-dockrow">
+              {ex && (phase === "incoming" || phase === "ask") && (
+                <form
+                  className="cx-type"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (typed.trim()) submit(typed);
+                  }}
+                >
+                  <label className="cx-sr" htmlFor="cx-words">
+                    Say what to tell them, or what to do with it
+                  </label>
+                  <input id="cx-words" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={phase === "ask" ? "or say what to change" : ex.line === "email" ? "tell them yes, or: invites can wait" : "tell them I'll be 10 late"} autoComplete="off" maxLength={300} data-private="" />
+                  <button type="submit" disabled={!typed.trim()}>
+                    Go
+                  </button>
+                </form>
+              )}
+              <button type="button" className="cx-help" aria-expanded={hints} aria-controls="cx-keys" onClick={() => setHints((h) => !h)} title="Keys">
+                ?
+              </button>
+            </div>
+            {hints && (
+              <p className="cx-keys" id="cx-keys">
+                <b>Y</b> send · <b>N</b> no · <b>R</b> draft it · <b>D</b> done · <b>L</b> later · <b>S</b> skip · <b>Z</b> undo · <b>J K</b> move
+                {voice.supported ? (
+                  <>
+                    {" "}
+                    · hold <b>Space</b> to talk
+                  </>
+                ) : null}
+              </p>
+            )}
           </div>
           <span className="cx-ear" ref={earRef} data-on={voice.listening || undefined} aria-hidden="true" />
         </div>
@@ -748,7 +757,32 @@ const RETURN_TEXT: Record<string, string> = {
   failed: "Google didn't hand over access. Try Connect Gmail again.",
 };
 
-/** Open the codex: the dashboard. Pending, waiting longest, high priority; then the rules Relay keeps. */
+/** How a rule reads in Settings. */
+function ruleText(r: { kind: string; label: string; to?: string }): { lead: string; label: string; tail: string; undo: string } {
+  if (r.kind === "block") return { lead: "Blocked ", label: r.label, tail: "", undo: "Unblock" };
+  if (r.kind === "tier") return { lead: "", label: r.label, tail: r.to === "can-wait" ? " can wait" : " filtered out", undo: "Undo" };
+  return { lead: "Filtered ", label: r.label, tail: "", undo: "Undo" };
+}
+
+/** One list of the Codex: who · gist · age, oldest first; a tap opens it in the Thread. */
+function Rows({ rows, cur, goTo, empty }: { rows: ReturnType<typeof codexOf>["email"]; cur: string | null; goTo: (key: string) => void; empty: string }) {
+  if (!rows.length) return <p className="cx-quiet">{empty}</p>;
+  return (
+    <ol className="cx-rows">
+      {rows.map(({ ex: x, waited }) => (
+        <li key={x.key} data-cur={x.key === cur || undefined}>
+          <button type="button" onClick={() => goTo(x.key)}>
+            <Private as="b">{x.who}</Private>
+            <Private className="cx-what">{x.body || x.subject}</Private>
+            <em>{agoShort(waited)}</em>
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The Codex (#642): one line of numbers, Email and Texts, then everything else behind Settings. */
 function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useThread>; back: string | null; goTo: (key: string) => void }) {
   const ex = t.ex;
   const view = useEmail((s) => s.view);
@@ -764,9 +798,9 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
   const style = view?.style ?? null;
   const gmailOn = !!status && status.gmail === "connected" && status.agent !== "waiting";
   const textsOn = !!textsStatus && textsStatus.hub !== "off" && textsStatus.hub !== "wiped";
-  const p = pendingOf(t.queue, now, { email: gmailOn ? status.needsYou : null, texts: textsOn ? textsStatus.owed : null });
+  const c = codexOf(t.queue, now, { email: gmailOn ? status.needsYou : null, texts: textsOn ? textsStatus.owed : null });
   const num = (v: number | null) => (v === null ? "—" : v.toLocaleString());
-  const total = p.email === null && p.texts === null ? null : (p.email ?? 0) + (p.texts ?? 0);
+  const sent = weekSent(textsOn ? textsStatus : null, view?.sentWeek ?? 0);
 
   return (
     <section className="cx-all" id="cx-codex" aria-label="The codex">
@@ -775,212 +809,169 @@ function Codex({ now, t, back, goTo }: { now: number; t: ReturnType<typeof useTh
           <h2>The codex</h2>
         </div>
         <div className="cx-body">
-          <p className="cx-sub">What waits on you, who has waited longest, and what shouldn't wait. Then the rules Relay keeps.</p>
+          <p className="cx-line" aria-label="This week">
+            <span>
+              <b>{num(c.waiting)}</b> waiting
+            </span>
+            <span>
+              oldest <b>{c.oldest === null ? "—" : agoShort(c.oldest)}</b>
+            </span>
+            <span>
+              <b>{num(sent)}</b> sent this week
+            </span>
+            <span>
+              <b>{num(t.metrics.filtered)}</b> filtered
+            </span>
+          </p>
           {back && <p className="cx-note">{RETURN_TEXT[back]}</p>}
           {error && <p className="cx-warn">{error}</p>}
-        </div>
-      </div>
-
-      <div className="cx-verse cx-sec">
-        <div className="cx-mar">
-          <span className="cx-lab">Pending</span>
-        </div>
-        <div className="cx-body">
-          <dl className="cx-counts">
-            <div>
-              <dd>{num(total)}</dd>
-              <dt>waiting on you</dt>
-            </div>
-            <div>
-              <dd>{num(p.texts)}</dd>
-              <dt>texts</dt>
-            </div>
-            <div>
-              <dd>{num(p.email)}</dd>
-              <dt>email</dt>
-            </div>
-          </dl>
           {!t.signedIn && <p className="cx-note">Counts only until you sign in.</p>}
         </div>
       </div>
 
       {t.queue && (
         <>
-          <div className="cx-verse cx-sec">
+          <div className="cx-verse cx-sec" data-list="email">
             <div className="cx-mar">
-              <span className="cx-lab">Waiting longest</span>
+              <span className="cx-lab">Email</span>
             </div>
             <div className="cx-body">
-              {p.longest.length ? (
-                <ol className="cx-rows">
-                  {p.longest.map(({ ex: x, waited }) => (
-                    <li key={x.key} data-cur={x.key === ex?.key || undefined}>
-                      <button type="button" onClick={() => goTo(x.key)}>
-                        <Private as="b">{x.who}</Private>
-                        <Private className="cx-what">{x.line === "email" ? x.subject : x.body}</Private>
-                        <em>
-                          {x.line === "email" ? "email" : "text"} · {agoShort(waited)}
-                        </em>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="cx-quiet">Nothing waiting. Quiet is the point.</p>
-              )}
+              <Rows rows={c.email} cur={ex?.key ?? null} goTo={goTo} empty={gmailOn ? "No mail needs you." : "Gmail isn't connected."} />
             </div>
           </div>
-
-          <div className="cx-verse cx-sec">
+          <div className="cx-verse cx-sec" data-list="texts">
             <div className="cx-mar">
-              <span className="cx-lab">High priority</span>
+              <span className="cx-lab">Texts</span>
             </div>
             <div className="cx-body">
-              {p.high.length ? (
-                <ol className="cx-rows">
-                  {p.high.map(({ ex: x, why }) => (
-                    <li key={x.key} data-cur={x.key === ex?.key || undefined}>
-                      <button type="button" onClick={() => goTo(x.key)}>
-                        <Private as="b">{x.who}</Private>
-                        <Private className="cx-what">{x.line === "email" ? x.subject : x.body}</Private>
-                        <em>{why.map((w) => (w === "overdue" ? `waiting ${agoShort(now - x.at)}` : WHY[w])).join(" · ")}</em>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="cx-quiet">Nothing urgent. This lists what needs you, what a texter wants sooner, and anything waiting past a day.</p>
-              )}
+              <Rows rows={c.texts} cur={ex?.key ?? null} goTo={goTo} empty={textsView?.paired ? "Nobody's waiting on a text." : "The MacBook isn't paired."} />
             </div>
           </div>
         </>
       )}
 
-      <div className="cx-verse cx-sec">
-        <div className="cx-mar">
-          <span className="cx-lab">Marginalia</span>
-        </div>
-        <div className="cx-body cx-wide">
-          <div className="cx-cols">
-            <div>
-              <h3>{ex && !t.hidden ? <Private>{ex.who}</Private> : "The sender in focus"}</h3>
-              {ex?.line === "email" ? (
-                <>
+      <details className="cx-settings">
+        <summary>
+          <span className="cx-verse">
+            <span className="cx-mar">
+              <span className="cx-lab">Settings</span>
+            </span>
+            <span className="cx-body cx-sub">Rules, how you write, the lines</span>
+          </span>
+        </summary>
+        <div className="cx-verse cx-sec">
+          <div className="cx-mar" />
+          <div className="cx-body cx-wide">
+            <div className="cx-cols">
+              <div>
+                <h3>Filter rules</h3>
+                {rules.length === 0 && <p className="cx-quiet">None yet. Say “invites can wait” or “filter these out” on a mail.</p>}
+                {rules.map((r) => {
+                  const rt = ruleText(r);
+                  return (
+                    <div className="cx-row" key={r.id}>
+                      <span>
+                        {rt.lead}
+                        <Private>{rt.label}</Private>
+                        {rt.tail}
+                      </span>
+                      <span>
+                        <button type="button" className="cx-lnk" onClick={() => void useEmail.getState().unrule(r.id)}>
+                          {rt.undo}
+                        </button>
+                      </span>
+                    </div>
+                  );
+                })}
+                {view && view.ruled > 0 && (
                   <div className="cx-row">
-                    <button type="button" className="cx-lnk" onClick={() => t.say("filter")}>
-                      Filter these out
-                    </button>
-                    <span>their whole domain · or say it</span>
+                    By your rules today<span>{view.ruled} cleared</span>
                   </div>
-                  <div className="cx-row">
-                    <button type="button" className="cx-lnk is-danger" onClick={() => t.say("block")}>
-                      Block this sender
-                    </button>
-                    <span>this address · or say it</span>
-                  </div>
-                </>
-              ) : ex ? (
-                <>
-                  <div className="cx-row">
-                    Filter or block a texter<span className="cx-coming">coming: the Mac hub's skip list</span>
-                  </div>
-                  <div className="cx-row">
-                    Later<span>say “later” · back at the next nudge</span>
-                  </div>
-                </>
-              ) : (
-                <p className="cx-quiet">No one in focus.</p>
-              )}
-              <h3 className="cx-h3gap">Filter rules</h3>
-              {rules.map((r) => (
-                <div className="cx-row" key={r.id}>
-                  <span>
-                    {r.kind === "block" ? "Blocked " : "Filtered "}
-                    <Private>{r.label}</Private>
-                  </span>
-                  <span>
-                    <button type="button" className="cx-lnk" onClick={() => void useEmail.getState().unrule(r.id)}>
-                      {r.kind === "block" ? "Unblock" : "Undo"}
-                    </button>
-                  </span>
-                </div>
-              ))}
-              {view && view.ruled > 0 && (
-                <div className="cx-row">
-                  By your rules today<span>{view.ruled} cleared</span>
-                </div>
-              )}
-              <div className="cx-row">
-                Money, bills, payments, legal<span>never shown · {status ? `${status.skipped} today` : "kept out"}</span>
-              </div>
-              <div className="cx-row">
-                Promotions and noise<span>{status ? `${status.noise} cleared today` : "cleared without you"}</span>
-              </div>
-              {view && view.urgentSkipped > 0 && <p className="cx-warn">{view.urgentSkipped} urgent money or legal {view.urgentSkipped === 1 ? "alert" : "alerts"} skipped; check those accounts directly.</p>}
-            </div>
-
-            <div>
-              <h3>How you write</h3>
-              {style ? (
-                <ul className="cx-tones">
-                  {style.traits.map((s) => (
-                    <li key={s}>{s}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="cx-quiet">{view ? "Not learned yet from your email." : "Waiting for Gmail."}</p>
-              )}
-              <p className="cx-ex">
-                {style ? `Learned from ${style.from} sent emails. ` : ""}Texts learn from your past replies to each person, on the Mac.{" "}
-                {view && status?.gmail === "connected" && (
-                  <button
-                    type="button"
-                    className="cx-lnk"
-                    disabled={learning === "busy"}
-                    onClick={() => {
-                      setLearning("busy");
-                      void useEmail
-                        .getState()
-                        .learnStyle()
-                        .then((g) => setLearning(g.ok ? null : errorText(g.error)));
-                    }}
-                  >
-                    {learning === "busy" ? "Reading your sent mail…" : style ? "Learn again" : "Learn from my sent mail"}
-                  </button>
                 )}
-              </p>
-              {learning && learning !== "busy" && <p className="cx-warn">{learning}</p>}
-            </div>
-
-            <div>
-              <h3>The lines</h3>
-              <GmailLine busy={busy} />
-              <div className="cx-row">
-                Texts sending
-                <span>
-                  {textsView?.paired ? (
-                    t.unlocked ? (
-                      <button type="button" className="cx-lnk" onClick={() => void lock()}>
-                        Unlocked here · Lock
-                      </button>
-                    ) : (
-                      <button type="button" className="cx-lnk" onClick={() => void unlock()}>
-                        Locked · Unlock for 72 h
-                      </button>
-                    )
-                  ) : (
-                    "waiting on the MacBook"
-                  )}
-                </span>
+                <div className="cx-row">
+                  Money, bills, payments, legal<span>never shown · {status ? `${status.skipped} today` : "kept out"}</span>
+                </div>
+                <div className="cx-row">
+                  Promotions and noise<span>{status ? `${status.noise} cleared today` : "cleared without you"}</span>
+                </div>
+                {view && view.urgentSkipped > 0 && <p className="cx-warn">{view.urgentSkipped} urgent money or legal {view.urgentSkipped === 1 ? "alert" : "alerts"} skipped; check those accounts directly.</p>}
               </div>
-              <div className="cx-row">
-                Send without asking<span className="cx-off">never</span>
+
+              <div>
+                <h3>How you write</h3>
+                {style ? (
+                  <ul className="cx-tones">
+                    {style.traits.map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="cx-quiet">{view ? "Not learned yet from your email." : "Waiting for Gmail."}</p>
+                )}
+                <p className="cx-ex">
+                  {style ? `Learned from ${style.from} sent emails. ` : ""}Texts learn from your past replies to each person, on the Mac.{" "}
+                  {view && status?.gmail === "connected" && (
+                    <button
+                      type="button"
+                      className="cx-lnk"
+                      disabled={learning === "busy"}
+                      onClick={() => {
+                        setLearning("busy");
+                        void useEmail
+                          .getState()
+                          .learnStyle()
+                          .then((g) => setLearning(g.ok ? null : errorText(g.error)));
+                      }}
+                    >
+                      {learning === "busy" ? "Reading your sent mail…" : style ? "Learn again" : "Learn from my sent mail"}
+                    </button>
+                  )}
+                </p>
+                {learning && learning !== "busy" && <p className="cx-warn">{learning}</p>}
+              </div>
+
+              <div>
+                <h3>The lines</h3>
+                <GmailLine busy={busy} />
+                <div className="cx-row">
+                  Texts sending
+                  <span>
+                    {textsView?.paired ? (
+                      t.unlocked ? (
+                        <button type="button" className="cx-lnk" onClick={() => void lock()}>
+                          Unlocked here · Lock
+                        </button>
+                      ) : (
+                        <button type="button" className="cx-lnk" onClick={() => void unlock()}>
+                          Locked · Unlock for 72 h
+                        </button>
+                      )
+                    ) : (
+                      "waiting on the MacBook"
+                    )}
+                  </span>
+                </div>
+                {textsView?.paired && (
+                  <div className="cx-row">
+                    The MacBook
+                    <span>
+                      paired ·{" "}
+                      <button type="button" className="cx-lnk" onClick={() => void useTexts.getState().unpair()}>
+                        Unpair
+                      </button>
+                    </span>
+                  </div>
+                )}
+                <div className="cx-row">
+                  Send without asking<span className="cx-off">never</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-      {!textsView?.paired && <TextsSection now={now} />}
+        {/* Paired, the texts are the Texts list above; the section only pairs (once is enough). */}
+        {!textsView?.paired && <TextsSection now={now} />}
+      </details>
     </section>
   );
 }

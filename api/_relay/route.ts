@@ -515,7 +515,7 @@ async function hubPost(request: Request, url: URL, deps: RelayRouteDeps): Promis
   if (view === "photos") {
     // The ids the Mac has now and the email map: a photo the Mac no longer has is deleted here.
     if (raw.length > MAX_PHOTOS_BYTES) return json({ error: "too-big" }, 413);
-    let list: ReturnType<typeof readPhotoList> = null;
+    let list: ReturnType<typeof readPhotoList>;
     try {
       list = readPhotoList(JSON.parse(raw));
     } catch {

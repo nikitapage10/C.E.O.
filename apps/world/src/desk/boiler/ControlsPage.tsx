@@ -21,10 +21,10 @@ import { useDeskAuth } from "../signin.ts";
 import { startInvoices } from "../spire/invoices.ts";
 import { SystemsNav } from "../SystemsNav.tsx";
 import { mtTime } from "../todaySchedule.ts";
-import { startHome } from "../homeDevices.ts";
-import { GoogleLinks, HAVEN_RESULT, KrogerSetup, RoborockSetup } from "./HouseSetup.tsx";
+import { startHome, useHome } from "../homeDevices.ts";
+import { GoogleLinks, HAVEN_RESULT, KrogerSetup, PetSetup, RoborockSetup } from "./HouseSetup.tsx";
 import { ACCENT } from "./Rack.tsx";
-import { actionOf, actionWord, costumeState, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD, type MeterTone, type Share } from "./controls.ts";
+import { actionOf, actionWord, costumeState, houseRows, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD, type MeterTone, type Share } from "./controls.ts";
 import "./controls.css";
 
 /**
@@ -485,7 +485,12 @@ function Connections({ now, signedIn }: { now: number; signedIn: boolean }) {
     { id: "images", label: "Pictures on ideas", what: "Paste, attach or drop pictures on an idea (Azure Blob)", room: "foundry", state: setup === null ? "off" : setup.images ? "ok" : "slow", lastSeen: null, word: setup && !setup.images ? "Needs setup" : undefined },
     { id: "shaping", label: "Quick shaping", what: "Rivet shapes an idea in a second or two (Claude)", room: "foundry", state: setup === null ? "off" : setup.shape ? "ok" : "off", lastSeen: null },
   ];
-  const rows = [...links.map((l) => ({ id: l.id, label: l.label, what: l.what, room: l.room as string, state: l.state, lastSeen: l.lastSeen, word: undefined as string | undefined })), ...extra];
+  // The house's own links (#672): Roborock, Petlibro, Whisker, Nest, Tasks and Instacart, from the home devices' real states.
+  useEffect(() => startHome(), []);
+  const homePub = useHome((s) => s.pub);
+  const homeProblems = useHome((s) => s.view?.problems);
+  const house = houseRows(homePub?.vendors ?? null, homePub?.links ?? null, homeProblems);
+  const rows = [...links.map((l) => ({ id: l.id, label: l.label, what: l.what, room: l.room as string, state: l.state, lastSeen: l.lastSeen, word: undefined as string | undefined })), ...house, ...extra];
   const live = rows.filter((r) => r.state === "ok" || r.state === "slow").length;
 
   const toKeys = () => document.getElementById("ct-keys")?.scrollIntoView({ block: "start" });
@@ -548,7 +553,7 @@ function Connections({ now, signedIn }: { now: number; signedIn: boolean }) {
 
 /**
  * The house's own connections (#647; Nikita, 05:53Z): Connect Nest, Google Tasks and its list, Check now, and
- * Roborock, moved here from Today's Home chip. Google's controls read /api/haven/google on their own, so they show
+ * Roborock, moved here from Today's Home chip, with Petlibro's and Whisker's state and why one is down (#672). Google's controls read /api/haven/google on their own, so they show
  * even before any home device is set up. Signed in only.
  */
 function HouseSetup() {
@@ -567,7 +572,7 @@ function HouseSetup() {
   }, [said]);
   return (
     <div className="ct-house" id="ct-house">
-      <h3>The house · Google, Roborock and King Soopers</h3>
+      <h3>The house · Google, Roborock, Petlibro, Whisker and King Soopers</h3>
       {said ? (
         <p className="ct-note ct-said" role="status">
           {said}
@@ -575,6 +580,7 @@ function HouseSetup() {
       ) : null}
       <GoogleLinks />
       <RoborockSetup />
+      <PetSetup />
       <KrogerSetup />
     </div>
   );

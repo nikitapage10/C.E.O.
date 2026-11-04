@@ -76,8 +76,40 @@ export interface DeviceReading {
   coolF?: number | null;
 }
 
+/** Why a vendor reads "down" (#672; api/_haven/devices/types.ts, VendorProblem), signed in only. */
+export type VendorProblem = "no-account" | "refused" | "signed-out" | "unreachable" | "vendor";
+const PROBLEMS: readonly VendorProblem[] = ["no-account", "refused", "signed-out", "unreachable", "vendor"];
+
+/** Each problem in words, by vendor where the fix differs (Petlibro keeps one session per account). */
+export function problemSay(vendor: Vendor, why: VendorProblem | undefined): string {
+  const name = VENDOR_NAME[vendor];
+  switch (why) {
+    case "no-account":
+      return `${name} has no account under the email in the Key Vault. An account made with Apple or Google sign-in has no password to match: give it a password in the app, or use a second account, then run the setup paste again.`;
+    case "refused":
+      return `${name} refused the sign-in: the password changed since the setup paste, or the account signs in with Apple or Google. Run the setup paste again (docs/HOME-DEVICES.md).`;
+    case "signed-out":
+      return vendor === "petlibro"
+        ? "Signed out by another sign-in, most likely the phone app: Petlibro keeps one session per account, so signing in on the phone ends ours. Share the feeders to a second Petlibro account and put that one in the Key Vault."
+        : `Signed out by another sign-in on the same ${name} account. It signs in again on the next read.`;
+    case "unreachable":
+      return `${name}'s cloud didn't answer. It tries again on the next read.`;
+    default:
+      return `${name} refused a read. It tries again on the next read.`;
+  }
+}
+
+function problemsOf(v: unknown): Partial<Record<Vendor, VendorProblem>> {
+  const b = o(v);
+  const out: Partial<Record<Vendor, VendorProblem>> = {};
+  for (const k of VENDORS) if (PROBLEMS.includes(b[k] as VendorProblem)) out[k] = b[k] as VendorProblem;
+  return out;
+}
+
 export interface HomePrivate {
   vendors: Record<Vendor, VendorState>;
+  /** Why each "down" vendor is down (#672). */
+  problems: Partial<Record<Vendor, VendorProblem>>;
   links: Record<Link, VendorState>;
   devices: DeviceReading[];
   feedCap: number;
@@ -164,6 +196,7 @@ export function readPrivate(v: unknown): HomePrivate | null {
   if (!b.vendors || !Array.isArray(b.devices)) return null;
   return {
     vendors: vendorsOf(b.vendors),
+    problems: problemsOf(b.problems),
     links: linksOf(b.links),
     devices: b.devices.map(readDevice).filter((d): d is DeviceReading => d !== null),
     feedCap: num(b.feedCap) ?? 2,

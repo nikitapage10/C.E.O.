@@ -13,13 +13,16 @@
 import type { BlobBackend } from "../../_blob.js";
 import type { RoomLog } from "../../_skippy/log.js";
 import { FeedLedger, litterBlock, PLATES, portionsOf, PORTIONS_MAX, rotateSteps, TrayLog, traySummary, trayWarning, THERMO_MAX_F, THERMO_MIN_F, thermostatPlan } from "./rails.js";
+import { VendorError } from "./http.js";
 import { joinRooms } from "./roborock.js";
-import { ACTION_KIND, isSuction, isWater, SPOKEN, VENDORS, type ActionId, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunArgs, type Vendor } from "./types.js";
+import { ACTION_KIND, isSuction, isWater, SPOKEN, VENDORS, type ActionId, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunArgs, type Vendor, type VendorProblem } from "./types.js";
 
 export type VendorState = "waiting" | "live" | "down";
 
 export interface HomeView {
   vendors: Record<Vendor, VendorState>;
+  /** Why each "down" vendor is down, in fixed words (#672). Passkey views only: publicOf leaves it out. */
+  problems: Partial<Record<Vendor, VendorProblem>>;
   devices: DeviceReading[];
   feedCap: number;
 }
@@ -249,6 +252,7 @@ export class Home {
     const now = this.deps.now();
     if (!fresh && this.cache && now - this.cache.at < STATUS_TTL_MS) return this.cache.view;
     const vendors = Object.fromEntries(VENDORS.map((v) => [v, "waiting"])) as Record<Vendor, VendorState>;
+    const problems: Partial<Record<Vendor, VendorProblem>> = {};
     const devices: DeviceReading[] = [];
     const counts = this.deps.blob ? await new FeedLedger(this.deps.blob).today(now).catch(() => ({}) as Record<string, number>) : {};
     await Promise.all(
@@ -258,9 +262,11 @@ export class Home {
           const found = await c.status();
           vendors[c.vendor] = "live";
           for (const f of found) devices.push(f.reading);
-        } catch {
+        } catch (e) {
           vendors[c.vendor] = "down";
-          this.deps.log(`home: ${c.vendor} status failed`);
+          const why = c.problem?.() ?? (e instanceof VendorError && e.status === 0 ? "unreachable" : "vendor");
+          problems[c.vendor] = why;
+          this.deps.log(`home: ${c.vendor} status failed (${why})`);
         }
       }),
     );
@@ -272,7 +278,7 @@ export class Home {
         d.manualCap = this.deps.feedCap;
       }
     }
-    const view = { vendors, devices, feedCap: this.deps.feedCap };
+    const view = { vendors, problems, devices, feedCap: this.deps.feedCap };
     this.cache = { at: now, view };
     return view;
   }

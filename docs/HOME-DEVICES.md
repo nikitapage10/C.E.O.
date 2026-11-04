@@ -111,6 +111,18 @@ Leave an email empty to skip that vendor (it stays "waiting"). Petlibro lets one
 so the app on the phone may be signed out once the Function App signs in; to keep both, make a second Petlibro
 account, share the three devices to it from the app, and use that one here.
 
+**When Petlibro or Whisker reads "down"** (#672), Boiler Room > Controls says why, signed in only (the public pages
+keep the state alone), in fixed words, never the vendor's own answer:
+- *no such account*: Petlibro answered 1101 (`MEMBER_NOT_EXIST`) for the email in the Key Vault. An account made with
+  Apple or Google sign-in (or behind an Apple relay address) has no email and password to match: give it a password
+  in the app, or use a second account, and run the paste again.
+- *sign-in refused*: any other refusal of the digest (the password changed, or it is over Petlibro's 18 characters).
+  Run the paste again. A refused sign-in is held off for 15 minutes, so a wrong digest never hammers the login.
+- *signed out*: a fresh sign-in was taken back at once, so something else holds the account's one session (most
+  likely the phone app). Use a second account shared to the feeders, as above. A lapsed token (1009) on its own is
+  not a fault: the client first takes a newer token another Function App instance stored, then signs in again.
+- *no answer*: the vendor's cloud didn't answer; it tries again on the next read.
+
 ### 2. The Desk: Connect Roborock
 
 > **What this does.** Service: Roborock. On the Desk (signed in with your passkey), **Today → Home → Connect

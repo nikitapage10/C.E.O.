@@ -14,6 +14,8 @@ describe("the home devices on the Desk (#632)", () => {
     expect(d?.drawer).toBe(40);
     expect(d?.alerts).toEqual(["drawer full"]);
     expect(readPrivate({ vendors: {}, devices: [d], feedCap: 3, roborockConnected: true })?.feedCap).toBe(3);
+    // Why a vendor is down (#672): fixed words only, anything else dropped.
+    expect(readPrivate({ vendors: {}, devices: [], problems: { petlibro: "signed-out", whisker: "Code: 1102 ILLEGAL_PASSWORD", nope: "refused" } })?.problems).toEqual({ petlibro: "signed-out" });
   });
 
   it("says counts only, and maps vendor states to Systems lights", () => {

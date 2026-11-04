@@ -21,17 +21,19 @@
  * The wet plan (wetListV3's `plan`: each meal's `plate` and `executionStartTime`) is read into the reading as `meals`,
  * so the rails can tell when a manual turn or opening may throw off the next scheduled meal (rails.ts, the wet tray).
  *
- * Every request carries the app's own headers and, once signed in, `token`. Code 1009 means the token lapsed: sign in
- * again once. The email and the login digest come from the Key Vault only: Petlibro's app sends the MD5 hex of the
- * password, so the setup paste (docs/HOME-DEVICES.md) makes that digest in Cloud Shell and the vault keeps it. The
- * password itself never reaches Azure, and this code hashes nothing.
+ * Every request carries the app's own headers and, once signed in, `token`. Code 1009 means the token lapsed or
+ * another sign-in took the account's one session (the phone app, or another instance): see `post`. A refused sign-in
+ * (1101 no such account, or any other code) says why in fixed words (`problem`, #672) and holds off for 15 minutes.
+ * The email and the login digest come from the Key Vault only: Petlibro's app sends the MD5 hex of the password, so
+ * the setup paste (docs/HOME-DEVICES.md) makes that digest in Cloud Shell and the vault keeps it. The password itself
+ * never reaches Azure, and this code hashes nothing.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
 import { randomUUID } from "node:crypto";
 import { callJson, VendorError, type Fetch } from "./http.js";
-import { isoOf, obj, pct, PLACES, str, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunArgs, type RunResult, type WetMeal } from "./types.js";
+import { isoOf, obj, pct, PLACES, str, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunArgs, type RunResult, type VendorProblem, type WetMeal } from "./types.js";
 import { deviceId, type HomeVault } from "./vault.js";
 
 export const PETLIBRO_API = "https://api.us.petlibro.com";
@@ -146,43 +148,102 @@ type Answer = { code?: unknown; data?: unknown };
 /** The login digest's shape: 32 lowercase hex characters. */
 export const LOGIN_DIGEST = /^[0-9a-f]{32}$/;
 
+/** Petlibro's answer codes that matter here (probed against api.us.petlibro.com, and the community integration). */
+export const PETLIBRO_CODE = { ok: 0, notLoggedIn: 1009, noMember: 1101, illegalPassword: 1102 } as const;
+
+/** How long a refused sign-in holds off the next one (#672), so a wrong digest never hammers Petlibro's login. */
+export const LOGIN_HOLD_MS = 15 * 60_000;
+
 export class PetlibroClient implements DeviceClient<PetlibroRef> {
   readonly vendor = "petlibro" as const;
   readonly actions = ["feeder.feed", "wet.open", "wet.rotate", "wet.close", "wet.status"] as const;
+  private why: VendorProblem | null = null;
+  private holdUntil = 0;
+  private signingIn: Promise<string> | null = null;
   constructor(private readonly deps: PetlibroDeps) {}
 
   async connected(): Promise<boolean> {
     return Boolean(this.deps.email && LOGIN_DIGEST.test(this.deps.loginDigest) && this.deps.vault && this.deps.idKey);
   }
 
-  private async login(): Promise<string> {
-    const { fetch: f, email, loginDigest, vault } = this.deps;
-    const a = (await callJson(f, `${PETLIBRO_API}/member/auth/login`, {
-      method: "POST",
-      headers: HEADERS,
-      body: JSON.stringify({ ...APP, country: "US", email, password: loginDigest, phoneBrand: "", phoneSystemVersion: "", timezone: HEADERS.timezone, thirdId: null, type: null }),
-    })) as Answer;
+  /** Why the last call failed, in fixed words (types.ts, VendorProblem); null once a call goes through. */
+  problem(): VendorProblem | null {
+    return this.why;
+  }
+
+  private fail(why: VendorProblem, status: number): never {
+    this.why = why;
+    throw new VendorError(status);
+  }
+
+  /** One sign-in at a time in this instance: two reads that both find the token lapsed share one new token. */
+  private login(): Promise<string> {
+    this.signingIn ??= this.signIn().finally(() => (this.signingIn = null));
+    return this.signingIn;
+  }
+
+  private async signIn(): Promise<string> {
+    const { fetch: f, email, loginDigest, vault, now } = this.deps;
+    // A refused sign-in is held off for a while: the same email and digest won't work a minute later.
+    if (now() < this.holdUntil) this.fail(this.why ?? "refused", 401);
+    let a: Answer;
+    try {
+      a = (await callJson(f, `${PETLIBRO_API}/member/auth/login`, {
+        method: "POST",
+        headers: HEADERS,
+        body: JSON.stringify({ ...APP, country: "US", email, password: loginDigest, phoneBrand: "", phoneSystemVersion: "", timezone: HEADERS.timezone, thirdId: null, type: null }),
+      })) as Answer;
+    } catch (e) {
+      this.fail(e instanceof VendorError && e.status === 0 ? "unreachable" : "vendor", e instanceof VendorError ? e.status : 502);
+    }
     const token = str(obj(a.data).token);
-    if (a.code !== 0 || !token) throw new VendorError(401);
+    if (Number(a.code) !== PETLIBRO_CODE.ok || !token) {
+      // 1101: Petlibro has no account under that email (one made with Apple or Google sign-in has no password to
+      // match, and an Apple relay address isn't the email typed at setup). Anything else: the digest was refused.
+      this.holdUntil = now() + LOGIN_HOLD_MS;
+      this.fail(Number(a.code) === PETLIBRO_CODE.noMember ? "no-account" : "refused", 401);
+    }
+    this.holdUntil = 0;
     await vault?.write("petlibro", { token });
     return token;
   }
 
-  /** One API call with the stored token; a lapsed token (1009) signs in again once. */
+  private async stored(): Promise<string> {
+    return str(obj(await this.deps.vault?.read("petlibro").catch(() => null)).token);
+  }
+
+  /**
+   * One API call with the stored token. Petlibro keeps one session per account, so a token stops working (1009)
+   * whenever anything else signs in: the phone app, or another Function App instance. The first 1009 looks in the
+   * store for a newer token (another instance may have just signed in) and otherwise signs in again; a second one,
+   * right after a fresh sign-in, means something else took the session back, and reads as "signed-out".
+   */
   async post(path: string, body: Record<string, unknown>): Promise<unknown> {
-    const { vault } = this.deps;
-    if (!vault || !(await this.connected())) throw new VendorError(401);
-    let token = str(obj(await vault.read("petlibro").catch(() => null)).token) || (await this.login());
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const a = (await callJson(this.deps.fetch, `${PETLIBRO_API}${path}`, { method: "POST", headers: { ...HEADERS, token }, body: JSON.stringify(body) })) as Answer;
-      if (Number(a.code) === 1009 && attempt === 0) {
-        token = await this.login();
+    if (!this.deps.vault || !(await this.connected())) throw new VendorError(401);
+    let token = (await this.stored()) || (await this.login());
+    let fresh = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let a: Answer;
+      try {
+        a = (await callJson(this.deps.fetch, `${PETLIBRO_API}${path}`, { method: "POST", headers: { ...HEADERS, token }, body: JSON.stringify(body) })) as Answer;
+      } catch (e) {
+        this.fail(e instanceof VendorError && e.status === 0 ? "unreachable" : "vendor", e instanceof VendorError ? e.status : 502);
+      }
+      if (Number(a.code) === PETLIBRO_CODE.notLoggedIn) {
+        if (fresh) break;
+        const newer = await this.stored();
+        if (newer && newer !== token) token = newer;
+        else {
+          token = await this.login();
+          fresh = true;
+        }
         continue;
       }
-      if (a.code !== 0) throw new VendorError(502);
+      if (Number(a.code) !== PETLIBRO_CODE.ok) this.fail("vendor", 502);
+      this.why = null;
       return a.data ?? {};
     }
-    throw new VendorError(401);
+    this.fail("signed-out", 401);
   }
 
   async status(): Promise<Found<PetlibroRef>[]> {

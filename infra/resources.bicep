@@ -64,6 +64,7 @@ var keyVaultName = 'kv-ceo-${suffix}'
 var stateContainer = 'ceo-state'
 var packageContainer = 'app-package'
 var backupContainer = 'ceo-backups'
+var havenMealsContainer = 'haven-meals'
 
 // Every secret the functions read (process.env under api/), by app setting and its Key Vault secret. Key Vault
 // names take letters, digits and dashes only, hence the two spellings. Values come from the first-time secrets paste,
@@ -214,6 +215,15 @@ resource state 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-0
   properties: { publicAccess: 'None' }
 }
 
+// The Haven Kitchen's meal photos (#687, api/_haven/photos.ts): every photo and its catalog, private like the state.
+// The functions reach it with the same identity and role as `ceo-state` (Storage Blob Data Owner on the account); the
+// Desk sees a photo only through /api/haven-photos behind its passkey session, never a blob URL.
+resource havenMeals 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-01-01' = {
+  parent: blobs
+  name: havenMealsContainer
+  properties: { publicAccess: 'None' }
+}
+
 // Where Flex Consumption keeps the deployed code package.
 resource packages 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-01-01' = {
   parent: blobs
@@ -302,6 +312,7 @@ var plainSettings = [
   { name: 'AZURE_STORAGE_ACCOUNT', value: storage.name }
   { name: 'AZURE_STORAGE_BLOB_ENDPOINT', value: storage.properties.primaryEndpoints.blob }
   { name: 'AZURE_STORAGE_CONTAINER', value: stateContainer }
+  { name: 'HAVEN_MEALS_CONTAINER', value: havenMealsContainer } // the meal photo library (#687)
   // Each copy keeps its own spend ledger in its own store, so these cap the Azure copy alone. The voice is
   // ElevenLabs alone (#472), capped in code by ELEVENLABS_BUDGET_USD; Gemini's speech key and cap are retired.
   { name: 'WORLD_BUDGET_USD', value: worldBudgetUsd }

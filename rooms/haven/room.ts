@@ -17,6 +17,8 @@ export default defineRoom({
   live: true,
   auth: {
     "haven-plan": ["passkey"],
+    // The meal photo library (#687): passkey session; the feed key may PUT one upload.
+    "haven-photos": ["passkey", "token"],
   },
   keys: [],
   usesClaude: false,

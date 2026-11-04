@@ -205,7 +205,8 @@ amber while running, off until a run is read) next to the checks.
 
 **The live watch (#181).** Every hour `.github/workflows/live-watch.yml` opens the live site the way the boot check
 opens a build (`node scripts/boot-check.mjs --url=https://thankful-forest-019308c1e.5.azurestaticapps.net`, past the site lock with `site-bypass-token` from the Key Vault): the Desk's Today, a
-Desk tab and the Lattice. A miss is tried again a minute later; two in a row open one `foundry:fix` issue titled "Live
+Desk tab and the Lattice, and a couple of real `/api` routes (#704: a 404, a 5xx or no answer is a miss even when the
+pages load; a 401 that wants a key is fine). A miss is tried again a minute later; two in a row open one `foundry:fix` issue titled "Live
 site not loading", labelled `foundry:down`, which rings the doorbell and pings Nikita's phone ("The live site isn't
 loading; the Foundry is on it"). While it is open a later miss only comments on it. When the site loads again the run
 takes `foundry:down` off with a comment; the Builder still finds and fixes the cause (or, for an Azure blip that left

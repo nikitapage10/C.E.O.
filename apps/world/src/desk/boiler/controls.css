@@ -219,3 +219,18 @@
   .desk .ct-page *,.desk .ct-page *::before,.desk .ct-page *::after,.desk .ct-page .ct-board::after{animation:none!important;transition:none!important}
   .desk .ct-page .ct-board::after{display:none}
 }
+
+/* The house's connections (#647, HouseSetup.tsx): Nest, Google Tasks and Roborock, moved here from Today's Home chip. */
+.desk .ct-page .ct-house{margin:0 0 var(--fl-s4);padding:18px 20px;border:1px solid var(--ct-seam);background:#0b0c10;background-image:var(--ct-plate);scroll-margin-top:88px}
+.desk .ct-page .ct-house h3{margin:0 0 6px;font-family:var(--ct-disp);font-weight:700;font-size:21px;letter-spacing:.04em;text-transform:uppercase;color:var(--wv-ink)}
+.desk .ct-page .ct-house .ct-said{color:var(--ct-amber)}
+.desk .ct-page .ct-house .hd-note{margin:10px 0 0;font-size:12px;line-height:1.55;color:var(--wv-faint)}
+.desk .ct-page .ct-house .hd-connect{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 0;font-size:12.5px;color:var(--wv-mute)}
+.desk .ct-page .ct-house .hd-connect>p,.desk .ct-page .ct-house .hd-connect>form,.desk .ct-page .ct-house form.hd-connect{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;flex-basis:100%}
+.desk .ct-page .ct-house .hd-connect>p{padding:8px 0;border-bottom:1px solid var(--ct-line)}
+.desk .ct-page .ct-house .hd-connect b{min-width:140px;font-family:var(--ct-disp);font-weight:600;font-size:18px;letter-spacing:.04em;text-transform:uppercase;color:var(--wv-ink)}
+.desk .ct-page .ct-house .hd-connect small{flex-basis:100%;font-size:11.5px;color:var(--wv-faint)}
+.desk .ct-page .ct-house .hd-connect button{padding:7px 12px;border:1px solid rgba(196,205,218,.32);border-radius:2px;background:transparent;font-family:var(--ct-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--wv-soft);cursor:pointer}
+.desk .ct-page .ct-house .hd-connect button:hover:not(:disabled){border-color:var(--ct-amber);color:var(--ct-amber)}
+.desk .ct-page .ct-house .hd-connect button:disabled{opacity:.45;cursor:default}
+.desk .ct-page .ct-house .hd-connect input{flex:1 1 180px;min-width:0;padding:7px 10px;border:1px solid var(--ct-line);border-radius:2px;background:#07080b;font-family:var(--ct-mono);font-size:12px;color:var(--wv-ink)}

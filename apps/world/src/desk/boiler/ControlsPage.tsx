@@ -21,6 +21,8 @@ import { useDeskAuth } from "../signin.ts";
 import { startInvoices } from "../spire/invoices.ts";
 import { SystemsNav } from "../SystemsNav.tsx";
 import { mtTime } from "../todaySchedule.ts";
+import { startHome } from "../homeDevices.ts";
+import { GoogleLinks, HAVEN_RESULT, RoborockSetup } from "./HouseSetup.tsx";
 import { ACCENT } from "./Rack.tsx";
 import { actionOf, actionWord, costumeState, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD, type MeterTone, type Share } from "./controls.ts";
 import "./controls.css";
@@ -245,7 +247,7 @@ function Meters({ now, signedIn }: { now: number; signedIn: boolean }) {
     {
       id: "claude",
       name: "Claude API",
-      what: "The world, Today's scripts and Rivet, on one $10 cap",
+      what: signedIn ? "The world, Today's scripts and Rivet, on one $10 cap" : "The world, Today's scripts and Rivet, on one shared cap",
       used: claudeKnown ? claude.reduce((a, x) => a + x.usd, 0) : null,
       cap: SPEND_CAP_USD,
       shares: claude,
@@ -261,7 +263,7 @@ function Meters({ now, signedIn }: { now: number; signedIn: boolean }) {
       cap: SKIPPY_AGENT_CAP_USD,
       warnAt: SKIPPY_AGENT_WARN_USD,
       capFrom: "SKIPPY_BUDGET_USD once #646 ships",
-      waiting: `Waiting on #646: its ledger isn't built yet. The cap will be $${SKIPPY_AGENT_CAP_USD}, with a warning at $${SKIPPY_AGENT_WARN_USD}.`,
+      waiting: signedIn ? `Waiting on #646: its ledger isn't built yet. The cap will be $${SKIPPY_AGENT_CAP_USD}, with a warning at $${SKIPPY_AGENT_WARN_USD}.` : "Waiting on #646: its ledger isn't built yet.",
     },
     {
       id: "voice",
@@ -544,6 +546,37 @@ function Connections({ now, signedIn }: { now: number; signedIn: boolean }) {
   );
 }
 
+/**
+ * The house's own connections (#647; Nikita, 05:53Z): Connect Nest, Google Tasks and its list, Check now, and
+ * Roborock, moved here from Today's Home chip. Google's controls read /api/haven/google on their own, so they show
+ * even before any home device is set up. Signed in only.
+ */
+function HouseSetup() {
+  const [said] = useState(() => {
+    try {
+      return HAVEN_RESULT[new URLSearchParams(window.location.search).get("haven") ?? ""] ?? null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => startHome(), []);
+  useEffect(() => {
+    if (said) requestAnimationFrame(() => document.getElementById("ct-house")?.scrollIntoView({ block: "start" }));
+  }, [said]);
+  return (
+    <div className="ct-house" id="ct-house">
+      <h3>The house · Google and Roborock</h3>
+      {said ? (
+        <p className="ct-note ct-said" role="status">
+          {said}
+        </p>
+      ) : null}
+      <GoogleLinks />
+      <RoborockSetup />
+    </div>
+  );
+}
+
 /* ── the page ── */
 
 function Circuit({ n, id, title, aside, children }: { n: number; id: string; title: string; aside?: ReactNode; children: ReactNode }) {
@@ -628,6 +661,7 @@ export function ControlsPage({ now }: { now: number }) {
           <Breakers now={now} signedIn={signedIn} />
         </Circuit>
         <Circuit n={2} id="ct-links" title="Connections">
+          {signedIn ? <HouseSetup /> : null}
           <Connections now={now} signedIn={signedIn} />
         </Circuit>
         <Circuit n={3} id="ct-keys" title="Keys" aside={<p className="ct-sub">write-only · each one asks for your passkey</p>}>

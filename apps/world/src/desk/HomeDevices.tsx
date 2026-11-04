@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useDeskAuth } from "./signin.ts";
 import { Private } from "./Private.tsx";
-import { googleAction, homeLine, loadGoogle, startHome, THERMO_MAX_F, THERMO_MIN_F, useHome, VENDOR_NAME, type DeviceReading, type HavenGoogle, type ThermoMode } from "./homeDevices.ts";
+import { homeLine, loadGoogle, startHome, THERMO_MAX_F, THERMO_MIN_F, useHome, VENDOR_NAME, type DeviceReading, type HavenGoogle, type ThermoMode } from "./homeDevices.ts";
+import { navigateTo } from "../route.ts";
 
 /**
  * The Home chip on Today (#632, docs/HOME-DEVICES.md): the vacuum, the Petlibro feeders and fountain, and the
  * Litter-Robot. Signed out, how many devices and how many are offline, nothing more. Signed in, it opens each device's
  * state and its buttons (every action goes through the server's rails: the feed cap, the litter gate, named rooms),
- * and Connect Roborock. Since #637 it also holds the Nest thermostat (its set point stepped a degree at a time and its
- * mode, inside the server's 60 to 80 °F rails) and the Haven's Google connections (Connect Nest, Connect Google Tasks
- * and the Tasks list it reads), until the Haven room (#616) gives them a page. Hidden where there's no devices route
- * (the Vercel copy, a local build).
+ * Since #637 it also holds the Nest thermostat (its set point stepped a degree at a time and its mode, inside the
+ * server's 60 to 80 °F rails). Readings and device buttons only: connecting Roborock, Nest and Google Tasks is set up on
+ * Boiler Room > Controls (#647, boiler/HouseSetup.tsx), and the chip links there while something waits. Hidden where
+ * there's no devices route (the Vercel copy, a local build).
  */
 
 const KIND_WORD: Record<DeviceReading["kind"], string> = { thermostat: "Thermostat", vacuum: "Vacuum", "dry-feeder": "Dry food feeder", "wet-feeder": "Wet food feeder", fountain: "Fountain", litter: "Litter-Robot" };
@@ -154,125 +155,24 @@ function ThermoControls({ d, off }: { d: DeviceReading; off: boolean }) {
   );
 }
 
-/** Connect Nest, Connect Google Tasks and the Tasks list it reads (#637). */
-function GoogleLinks() {
-  const [g, setG] = useState<HavenGoogle | null>(null);
-  const [note, setNote] = useState<string | null>(null);
-  const [list, setList] = useState("");
-  const [busy, setBusy] = useState(false);
-  const refresh = () => void loadGoogle().then((v) => (setG(v), v && setList(v.tasks.list)));
-  useEffect(refresh, []);
-  if (!g) return null;
-  const run = async (body: Parameters<typeof googleAction>[0], done?: string) => {
-    setBusy(true);
-    setNote(null);
-    const r = await googleAction(body);
-    setBusy(false);
-    if (r.url) {
-      window.location.assign(r.url);
-      return;
-    }
-    setNote(r.ok ? (done ?? null) : r.error === "no-list" ? `There's no Tasks list called "${list}".` : r.error === "no-project" ? "The Device Access project isn't set up yet." : "That didn't go through. Try again.");
-    refresh();
-  };
-  if (!g.google) return <p className="hd-note">Google Nest and Google Tasks: waiting for the Google client in the Key Vault (docs/HOME-DEVICES.md).</p>;
-  return (
-    <div className="hd-connect">
-      <p>
-        <b>Google Nest</b>{" "}
-        {!g.nest.project ? (
-          "waiting for the Device Access project in the Key Vault."
-        ) : g.nest.connected ? (
-          <button type="button" disabled={busy} onClick={() => void run({ action: "disconnect", grant: "nest" }, "Nest disconnected.")}>Disconnect</button>
-        ) : (
-          <button type="button" disabled={busy} onClick={() => void run({ action: "connect", grant: "nest" })}>{g.nest.refused ? "Reconnect Nest" : "Connect Nest"}</button>
-        )}
-      </p>
-      <p>
-        <b>Google Tasks</b>{" "}
-        {g.tasks.connected ? (
-          <>
-            <button type="button" disabled={busy} onClick={() => void run({ action: "tasks-sync" }, "Checked Tasks.")}>Check now</button>{" "}
-            <button type="button" disabled={busy} onClick={() => void run({ action: "disconnect", grant: "tasks" }, "Google Tasks disconnected.")}>Disconnect</button>
-          </>
-        ) : (
-          <button type="button" disabled={busy} onClick={() => void run({ action: "connect", grant: "tasks" })}>{g.tasks.refused ? "Reconnect Google Tasks" : "Connect Google Tasks"}</button>
-        )}
-      </p>
-      {g.tasks.connected ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run({ action: "tasks-list", title: list }, "Saved.");
-          }}
-        >
-          <input aria-label="Google Tasks list to read" value={list} maxLength={60} onChange={(e) => setList(e.target.value)} />
-          <button type="submit" disabled={busy || !list.trim()}>Use this list</button>
-          <small>
-            {g.tasks.lastRun ? `Last check ${ago(g.tasks.lastRun)}: ${g.tasks.lastResult === "no-list" ? "no such list" : `${g.tasks.lastImported} added`}.` : "Checked every five minutes."}
-          </small>
-        </form>
-      ) : null}
-      {note ? <small role="status">{note}</small> : null}
-    </div>
-  );
+/** To the house's setup on Boiler Room > Controls (#647). */
+function toSetup(e: React.MouseEvent) {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  navigateTo("/boiler/controls" + window.location.search);
+  requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("ct-house")?.scrollIntoView({ block: "start" })));
 }
 
-function ConnectRoborock({ connected }: { connected: boolean }) {
-  const connect = useHome((s) => s.connect);
-  const [step, setStep] = useState<"email" | "code">("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [note, setNote] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const go = async (body: Parameters<typeof connect>[0]) => {
-    setBusy(true);
-    setNote(null);
-    const r = await connect(body);
-    setBusy(false);
-    return r;
-  };
-  if (connected) {
-    return (
-      <p className="hd-connect">
-        Roborock is connected.{" "}
-        <button type="button" disabled={busy} onClick={() => void go({ step: "disconnect" })}>Disconnect</button>
-      </p>
-    );
+/** Google sends a connect back to Today (`/?haven=…`); the setup lives on Controls now, so the result goes on there. */
+function forwardHavenResult() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const r = q.get("haven");
+    if (!r || !/^(nest|tasks)-(connected|cancelled|failed)$|^refused$/.test(r)) return;
+    navigateTo(`/boiler/controls?haven=${r}`);
+  } catch {
+    /* no address to read */
   }
-  return (
-    <form
-      className="hd-connect"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (step === "email") {
-          void go({ step: "send", email }).then((r) => {
-            if (r.ok) {
-              setStep("code");
-              setNote("Roborock emailed you a code. Enter it here.");
-            } else setNote(r.say ?? null);
-          });
-        } else {
-          void go({ step: "code", code }).then((r) => {
-            setCode("");
-            if (r.ok) {
-              setEmail("");
-              setStep("email");
-            } else setNote(r.say ?? null);
-          });
-        }
-      }}
-    >
-      <b>Connect Roborock</b>
-      {step === "email" ? (
-        <input type="email" autoComplete="off" placeholder="Roborock account email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      ) : (
-        <input inputMode="numeric" autoComplete="one-time-code" placeholder="Code from the email" value={code} onChange={(e) => setCode(e.target.value)} required />
-      )}
-      <button type="submit" disabled={busy}>{step === "email" ? "Send code" : "Connect"}</button>
-      {note ? <small>{note}</small> : null}
-    </form>
-  );
 }
 
 export function HomeDevices() {
@@ -286,6 +186,11 @@ export function HomeDevices() {
   const signedIn = status === "in";
 
   useEffect(() => startHome(), []);
+  useEffect(forwardHavenResult, []);
+  const [google, setGoogle] = useState<HavenGoogle | null>(null);
+  useEffect(() => {
+    if (open && signedIn) void loadGoogle().then(setGoogle);
+  }, [open, signedIn]);
 
   useEffect(() => {
     if (!open) return;
@@ -315,6 +220,7 @@ export function HomeDevices() {
   }
   const waiting = (["petlibro", "whisker"] as const).filter((v) => view.vendors[v] === "waiting");
   const down = (["roborock", "petlibro", "whisker", "nest"] as const).filter((v) => view.vendors[v] === "down");
+  const setupWaiting = !view.roborockConnected || (google !== null && (!google.google || !google.nest.connected || !google.tasks.connected));
   return (
     <div className="cf-cu hd" ref={box}>
       <button type="button" className="cf-cu-btn hd-btn" aria-expanded={open} aria-controls="hd-pop" onClick={() => setOpen((x) => !x)}>
@@ -336,8 +242,13 @@ export function HomeDevices() {
             )}
             {down.length ? <p className="hd-note">{down.map((v) => VENDOR_NAME[v]).join(" and ")} didn't answer. Trying again in a minute.</p> : null}
             {waiting.length ? <p className="hd-note">{waiting.map((v) => VENDOR_NAME[v]).join(" and ")}: waiting for the login in the Key Vault (docs/HOME-DEVICES.md).</p> : null}
-            <ConnectRoborock connected={view.roborockConnected} />
-            <GoogleLinks />
+            {setupWaiting ? (
+              <p className="hd-note">
+                <a href="/boiler/controls#ct-house" onClick={toSetup}>
+                  Set up in Boiler Room →
+                </a>
+              </p>
+            ) : null}
           </>
         )}
       </div>

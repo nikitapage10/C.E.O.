@@ -246,13 +246,6 @@ test("signed in: the plinth's Climate dial opens the control and turns the set p
   // The big dial (#729): a nudge holds the change, counted down in the card with Cancel and Send now.
   await climate.getByRole("button", { name: "Heat to: one degree warmer" }).click();
   await expect(climate.getByRole("status")).toContainText("Sending 71°");
-  if (SHOTS) {
-    // A picture of the 3D page can outlast the three seconds: hold it again after, and forget what that sent.
-    await page.screenshot({ path: `${SHOTS}/haven-729-climate.png` });
-    await climate.getByRole("button", { name: "Heat to: one degree cooler" }).click();
-    await climate.getByRole("button", { name: "Heat to: one degree warmer" }).click();
-    sent.length = 0;
-  }
   await climate.getByRole("button", { name: "Cancel" }).click();
   await expect(climate.getByRole("status")).toHaveCount(0);
   await page.keyboard.press("Escape");

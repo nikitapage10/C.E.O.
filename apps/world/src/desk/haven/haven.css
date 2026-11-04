@@ -39,30 +39,6 @@
   inset: 0;
   z-index: 1;
 }
-/*
- * The night sky (#658) bleeds past the house's box to the stage's edges and under the house-wide strip, over the
- * field's own night and under the house. The shader fades its own edges into the page, and the ground under the
- * horizon fades out fast so the flow lines into the house still read through it.
- */
-[data-room="haven"] .hv-sky {
-  position: absolute;
-  z-index: -1;
-  top: -18px;
-  bottom: -18px;
-  left: calc(-1 * var(--fl-pad, 24px));
-  right: calc(-324px - var(--fl-pad, 24px));
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 1.2s ease;
-}
-[data-room="haven"] .hv-sky canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-[data-room="haven"] .hv-sky[data-on] {
-  opacity: 1;
-}
 [data-room="haven"] .hv-house .hv-gl {
   display: block;
   width: 100%;
@@ -354,7 +330,6 @@
 [data-room="haven"][data-open] .hv-head,
 [data-room="haven"][data-open] .hv-util,
 [data-room="haven"][data-open] .hv-hintRow,
-[data-room="haven"][data-open] .hv-sky,
 [data-room="haven"][data-open] .hv-tabs,
 [data-room="haven"][data-open] .hv-out,
 [data-room="haven"][data-open] .fl-cv {
@@ -732,10 +707,6 @@
   [data-room="haven"] .hv-houseWrap {
     min-height: min(78svh, 620px);
   }
-  [data-room="haven"] .hv-sky {
-    right: calc(-1 * var(--fl-pad, 16px));
-    bottom: 0;
-  }
   [data-room="haven"] .hv-util {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -789,8 +760,7 @@
   [data-room="haven"] .hv-sheet {
     animation: none;
   }
-  [data-room="haven"][data-open] .hv-house,
-  [data-room="haven"] .hv-sky {
+  [data-room="haven"][data-open] .hv-house {
     transition: none;
   }
 }

@@ -91,7 +91,6 @@ export function Haven() {
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
   const houseHost = useRef<HTMLDivElement>(null);
   const labelHost = useRef<HTMLDivElement>(null);
-  const skyCv = useRef<HTMLCanvasElement>(null);
   const [away, setAway] = useState(false);
   const house = useRef<House | null>(null);
   const utilRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -141,7 +140,7 @@ export function Haven() {
       try {
         const head = houseHost.current.parentElement?.querySelector(".hv-head");
         const clearTop = () => (head && houseHost.current ? head.getBoundingClientRect().bottom - houseHost.current.getBoundingClientRect().top : 0);
-        house.current = new House(houseHost.current, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, ...(skyCv.current && { sky: skyCv.current }) });
+        house.current = new House(houseHost.current, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop });
         setGl("on");
       } catch {
         setGl("none");
@@ -238,11 +237,6 @@ export function Haven() {
       <section className="hv-stage fl-stage" {...bind} aria-label="The house">
         <canvas ref={cv} className="fl-cv" aria-hidden="true" />
         <div className="hv-houseWrap">
-          {thePlan && (
-            <div className="hv-sky" aria-hidden="true" data-on={gl === "on" ? "" : undefined}>
-              <canvas ref={skyCv} />
-            </div>
-          )}
           <div className="hv-house" ref={houseHost} data-gl={gl} />
           <div className="hv-labs" ref={labelHost} aria-hidden="true" />
           <header className="hv-head">

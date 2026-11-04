@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { SIGILS } from "../relay/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
-import { Sky } from "./sky.ts";
+import { makeNight, type Night } from "./night.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
 
 /**
@@ -12,8 +12,8 @@ import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
  * lit rooms, drift up in their light, rise off the devices that are working and swarm the ones that need Nikita.
  *
  * Starts on a three-quarter view fitted to the plan (#658: about 37° up, turned so the plan's far end runs up and to the
- * right), under a Denver night sky drawn on its own canvas (sky.ts) that turns with it; drag to orbit, pinch or scroll
- * to zoom, tap a room to fly in (300 ms), and `resetView` comes back to the fitted view. Reduced motion: every move is
+ * right), standing on a Denver night plain under its sky (night.ts, #665), all in the one scene; drag to orbit, pinch or
+ * scroll to zoom, tap a room to fly in (300 ms), and `resetView` comes back to the fitted view. Reduced motion: every move is
  * instant and the frame is still (drawn only when something changes). Loaded lazily, with three from the Lattice's own
  * chunk, and only for a passkey session with a plan.
  */
@@ -22,8 +22,6 @@ export interface HouseOpts {
   reduce: boolean;
   onPick: (room: string | null) => void;
   onHover?: (room: string | null) => void;
-  /** The sky's canvas, under the house (#658). */
-  sky?: HTMLCanvasElement;
   /** The camera has left the default view (a drag or a zoom), or come back to it. */
   onAway?: (away: boolean) => void;
   /** Pixels at the top of the house's box to keep clear on a narrow screen (the page's heading sits there). */
@@ -178,7 +176,7 @@ const ease = (x: number) => 1 - Math.pow(1 - x, 3);
 
 export class House {
   private renderer: THREE.WebGLRenderer;
-  private camera = new THREE.PerspectiveCamera(FOV, 1, 0.05, 400);
+  private camera = new THREE.PerspectiveCamera(FOV, 1, 0.05, 2600);
   private scene = new THREE.Scene();
   private world = new THREE.Group();
   private cam: Cam = { tx: 0, tz: 0, th: 0, ph: 0.3, r: 12 };
@@ -186,7 +184,7 @@ export class House {
   private fitR = 12;
   private pan: [number, number] = [0, 0];
   private away = false;
-  private sky: Sky | null = null;
+  private night: Night | null = null;
   private tween: { from: Cam; to: Cam; t0: number; ms: number } | null = null;
   private W = 1;
   private H = 1;
@@ -258,7 +256,6 @@ export class House {
       this.seeds[i] = s / 2147483647;
     }
     this.walls = wallsOf(plan);
-    if (opts.sky) this.sky = new Sky(opts.sky, opts.reduce);
     this.build();
     this.bind();
     this.resize();
@@ -293,6 +290,15 @@ export class House {
       this.lights.push(l);
     }
     this.world.add(this.floor());
+    // The Denver night round the house: the plain it stands on, the city's lights, the range and the sky.
+    const b = this.roomBounds();
+    this.night = makeNight({
+      centre: [this.wx((b[0] + b[2]) / 2), this.wz((b[1] + b[3]) / 2)],
+      keep: { x0: this.wx(b[0]), x1: this.wx(b[2]), z0: this.wz(b[1]), z1: this.wz(b[3]) },
+      west: Math.atan2(-Math.sin(HOME_TH), -Math.cos(HOME_TH)),
+      phone: Math.min(window.innerWidth, window.innerHeight) < 600,
+    });
+    this.scene.add(this.night.group);
     // Frosted glass walls with bright top edges.
     const boxes = (segs: Seg[], h: number, t: number, y0: number) =>
       segs.map((s) => {
@@ -734,7 +740,8 @@ export class House {
   }
 
   /* ── camera ── */
-  private frameHome() {
+  /** The rooms' extent in plan units: [x0, y0, x1, y1]. */
+  private roomBounds(): [number, number, number, number] {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const r of this.plan.rooms)
       for (const [px, py, pw, ph] of r.parts) {
@@ -743,7 +750,11 @@ export class House {
         x1 = Math.max(x1, px + pw);
         y1 = Math.max(y1, py + ph);
       }
-    if (!Number.isFinite(x0)) [x0, y0, x1, y1] = [0, 0, this.plan.w, this.plan.h];
+    return Number.isFinite(x0) ? [x0, y0, x1, y1] : [0, 0, this.plan.w, this.plan.h];
+  }
+
+  private frameHome() {
+    const [x0, y0, x1, y1] = this.roomBounds();
     // The orbit turns round the middle of the rooms; the box is measured from there.
     const tx = this.wx((x0 + x1) / 2), tz = this.wz((y0 + y1) / 2);
     const hw = (x1 - x0) / U / 2, hd = (y1 - y0) / U / 2;
@@ -771,7 +782,6 @@ export class House {
     // The fitted view's offset, so the house sits in its box whatever the perspective does to it.
     this.camera.setViewOffset(this.W, this.H, this.pan[0], this.pan[1], this.W, this.H);
     this.camera.updateProjectionMatrix();
-    this.sky?.view(Math.atan2(Math.sin(c.th - HOME_TH), Math.cos(c.th - HOME_TH)), Math.PI / 2 - c.ph);
     this.nMat.uniforms.uScale!.value = this.renderer.domElement.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360));
     this.dirty = true;
   }
@@ -879,7 +889,7 @@ export class House {
         down.moved += Math.abs(dx) + Math.abs(dy);
         if (down.moved > 6) {
           this.cam.th -= dx * 0.0055;
-          this.cam.ph = Math.max(0.03, Math.min(1.2, this.cam.ph - dy * 0.0045));
+          this.cam.ph = Math.max(0.03, Math.min(1.42, this.cam.ph - dy * 0.0045));
           this.apply();
           if (!this.focusId) this.setAway(true);
           cv.style.cursor = "grabbing";
@@ -968,7 +978,6 @@ export class House {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     if (!this.visible || document.visibilityState === "hidden") return;
-    if (!this.backdrop) this.sky?.frame(now);
     if (this.tween) {
       const f = Math.min(1, (now - this.tween.t0) / this.tween.ms), e = ease(f);
       const { from, to } = this.tween;
@@ -994,6 +1003,10 @@ export class House {
     const t = this.opts.reduce ? 2.5 : (now - this.t0) / 1000;
     this.updateLights(t);
     this.step(t);
+    if (this.night) {
+      this.night.group.visible = !this.backdrop;
+      this.night.update(this.renderer.domElement.width, this.renderer.domElement.height, t, this.camera, this.renderer.getPixelRatio());
+    }
     this.renderer.render(this.scene, this.camera);
     this.placeLabels();
     this.dirty = false;
@@ -1020,7 +1033,7 @@ export class House {
   dispose() {
     cancelAnimationFrame(this.raf);
     for (const d of this.disposers.splice(0)) d();
-    this.sky?.dispose();
+    this.night?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labelHost.replaceChildren();

@@ -563,6 +563,30 @@ call Skippy reads the C.E.O. both, the recipient and the letter, word for word, 
 and waits for one word: "send". The Lattice still gets only numbers. Blasto calls it "the most important seal this one
 has ever been handed: the C.E.O.'s own word".
 
+## Sigils
+
+Everything in Ilyr is made of sigils. They are the living fragments of code and rune the world is built and mended
+from: a brace, a slash, a semicolon, a lambda, a therefore-sign, a looped command key, a rune of the old Futhark, the
+alchemists' marks for fire and water. Each is smaller than a grain of salt and faintly warm, and they drift in the air
+of every room like dust in a sunbeam. They are the motes every agent's work is made of. When a Syntherion writes, the
+sigils gather into letters; when a letter is done with, they let go and drift back into the air, to be something else
+later. Rivet sweeps them up in the Boiler Room and swears some of them are the same semicolons every week. The
+Lineages argue about whether the sigils are the Lattice's nanites or its alphabet; the Claudari hold that the
+difference is mostly a matter of tone.
+
+The Relay sees them most clearly (#615). It keeps a codex now: a long book of everything that waits on the C.E.O.,
+one entry to a page, with a spine of light down its gutter. Whoever wrote stands in the margin in slanted ink under a
+great glowing initial, and their words are written in from the spine by a quill of sigils, left to right, each glyph
+flickering until it locks into its letter. Turn the page and the sigils let go and run back into the spine, and the
+next entry is written in. The C.E.O. answers in a few words, aloud or typed, and the words climb from the ear at the
+foot of the spine; between what was said and Blasto's draft, the little passes of how they write tick past (in your voice,
+nothing made up) before the draft is written. Nothing leaves until the C.E.O. says yes to the very draft on the page
+in front of them, and even then it waits five seconds in case they say undo; then it is sealed, and its sigils run up
+the spine and out the top of the book. Letters can go out the same way now, on the thread they answer, once the
+C.E.O. gave Gmail its leave. Dialtone, who sorts, can turn away a sender for good when the C.E.O. says so, and keeps
+the list where any of them can be taken back. At the back of the codex is its index: what waits, who has waited
+longest, what shouldn't wait. The money and the legal letters still never reach the room.
+
 ## The ledger by PayPal
 
 The second room strung to the C.E.O.'s own world was the Spire. Its line runs to PayPal, on the Azure side beyond the
@@ -687,6 +711,15 @@ the art comes from OpenAI images in saved style presets (and from vector art Cla
 hit, plus hero art Nikita makes by hand), each character speaks in its own fixed ElevenLabs voice, the scenes are code,
 a job renders them tall, and nothing posts without Nikita's tap. Voice and images each have their own $10 a month cap,
 with a hard stop.
+
+## The Annex
+
+Not a room of the Lattice but a door off the Desk (#618): the Annex is staging. Short-run things set up there for a
+night or a week, each a **pop-up** with its own small kit, and one that earns it graduates into a room of its own. When
+a pop-up is done it goes on the **Shelf**, packed but kept, nothing running, and comes back down as it was with one tap.
+The **Stagehand**, a piece of Skippy who wears a headset and no costume, sets the pop-ups up and strikes them; he gives
+cues, not speeches, and thinks the main rooms are a bit precious. The first pop-up was **Election night**, the 2026
+midterms read live from civicAPI's public results, with the races Nikita follows pinned to the top.
 
 ## The Hallowed Veil
 

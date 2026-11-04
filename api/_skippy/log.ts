@@ -177,8 +177,9 @@ export interface LoggedTurn {
   /**
    * Said on a Talk call (#479): a submind took the mic and this is its exchange, the question in short and the
    * answer's gist (api/_skippy/voicecouncil.ts). Desk-only: the read key never lists these.
+   * "phone" (#627): asked from the iPhone's "Skippy" shortcut (api/_haven/route.ts), otherwise a turn like the Desk's.
    */
-  via?: "voice";
+  via?: "voice" | "phone";
   /** Who answered on the call: the submind's id. */
   by?: Needs;
 }
@@ -220,7 +221,7 @@ export function cleanTurn(v: unknown): LoggedTurn | null {
     model: model || "unknown",
     ...(isNeeds(t.needs) && { needs: t.needs }),
     ...(followUp && { followUp }),
-    ...(t.via === "voice" && { via: "voice" as const }),
+    ...((t.via === "voice" || t.via === "phone") && { via: t.via }),
     ...(isNeeds(t.by) && { by: t.by }),
   };
 }

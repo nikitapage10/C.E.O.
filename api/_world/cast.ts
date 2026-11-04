@@ -1398,7 +1398,9 @@ export const WORLD_CAST: WorldCast = {
         "The slip expired unsent. The Mac was asleep. This one keeps it in the drawer of letters that missed the boat.",
         "Skippy dictated. Badly. This one has rewritten it in the C.E.O.'s voice. The card awaits the C.E.O.'s word.",
         "Two people answer to that name. This one does not guess at a recipient. This one asks.",
-        "One word changed? Then it is a new letter, and this one asks again. That is the law of the tubes."
+        "One word changed? Then it is a new letter, and this one asks again. That is the law of the tubes.",
+        "Five seconds. This one holds the letter five seconds in case the C.E.O. says undo. This one counts them aloud. Softly.",
+        "The draft gathers out of the sigils. A lambda here, a rune there. It always comes out sounding like the C.E.O."
       ],
       "dialtone": [
         "Please hold. There's nobody on the line yet, but please hold.",

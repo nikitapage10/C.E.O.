@@ -176,3 +176,9 @@
 @media (prefers-reduced-motion:reduce){
   .desk .sx-page *,.desk .sx-page *::before,.desk .sx-page *::after{animation:none!important;transition:none!important}
 }
+
+/* Phones (#627): the new key, shown once, and the greeting clips' line. */
+.desk .sx-page .sx-phone-new{margin-top:16px;padding:12px 14px;border:1px solid rgba(var(--fl-accent),.45);border-radius:12px}
+.desk .sx-page .sx-phone-new input{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;width:100%}
+.desk .sx-page .sx-phone-greet{align-items:center;justify-content:space-between}
+.desk .sx-page .sx-phone-greet p{margin:0;flex:1 1 280px}

@@ -116,12 +116,18 @@ interface TodoStore {
 }
 
 export const useTodos = create<TodoStore>((set, get) => {
-  const save = async (changes: { todos?: Todo[]; marks?: Mark[]; drop?: string[] }, doFetch: typeof fetch) => {
+  // Saves go one at a time, in order: an Undo can't overtake the change it undoes on its way to the store.
+  let queue: Promise<void> = Promise.resolve();
+  const save = (changes: { todos?: Todo[]; marks?: Mark[]; drop?: string[] }, doFetch: typeof fetch): Promise<void> => {
     const now = Date.now();
     // At once on screen; then to the store, whose merged answer is the truth.
     set((s) => ({ state: mergeState(s.state, changes, now) }));
-    if (get().status === "local") return writeLocal(get().state);
-    if (get().status !== "live") return;
+    if (get().status === "local") return Promise.resolve(writeLocal(get().state));
+    if (get().status !== "live") return Promise.resolve();
+    queue = queue.then(() => send(changes, doFetch));
+    return queue;
+  };
+  const send = async (changes: { todos?: Todo[]; marks?: Mark[]; drop?: string[] }, doFetch: typeof fetch) => {
     try {
       const res = await doFetch(PATH, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, credentials: "same-origin", cache: "no-store", body: JSON.stringify({ action: "save", ...changes }) });
       if (res.status === 401) {

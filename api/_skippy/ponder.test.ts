@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MemoryRoomLog } from "./log.ts";
 import type { GreenBoard } from "../_green/types.ts";
-import { ANSWER_FIRST, ONE_WAITING_LINE, PONDER_LINES, UNSPOKEN, inCharacter, ponderLine } from "./ponder.ts";
+import { ANSWER_FIRST, ONE_WAITING_LINE, PONDER_LINES, SUBMIND_FIRST, UNSPOKEN, inCharacter, ponderLine } from "./ponder.ts";
 import { greenLines } from "./rooms.ts";
 import { greenText, weekFrame } from "./voicereads.ts";
 import { SKIPPY_PROMPT } from "./prompt.ts";
@@ -186,5 +186,15 @@ describe("which week the Green is in (#506)", () => {
     expect(greenText(b)).toMatch(/week 7 \(final\)[\s\S]*Week 7 is final: 128\.4 to 75\.2/);
     expect(greenText(b)).not.toMatch(/This week against/);
     expect(greenLines(b)[0]).toMatch(/Week 7 is final: 128\.4 to 75\.2 .* Week 8 is up next/);
+  });
+});
+
+describe("Skippy names the submind before the room (#623)", () => {
+  it("both the voice call and the Desk's chat carry the rule, with all nine pairs", () => {
+    for (const text of [voicePrompt(true), voicePrompt(false), SKIPPY_PROMPT]) {
+      expect(text).toContain(SUBMIND_FIRST);
+      expect(text).toMatch(/name its lead submind first, and the room only beside it/);
+      for (const pair of ["Commentator (the Green)", "the Bookie (the Exchange)", "the Builder (the Foundry)", "the Messenger (Relay)", "the Pessimist (the Boiler Room)", "the Historian (the Archive)", "the Executive (the Spire)", "the Life of the Party (the Break Room)", "the Artiste (the Workshop)"]) expect(text).toContain(pair);
+    }
   });
 });

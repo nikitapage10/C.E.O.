@@ -177,3 +177,90 @@
     grid-column: 1 / -1;
   }
 }
+
+.desk .rl-spend {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--wv-faint);
+}
+
+/* Line 2 below Relay's stage (moved from relay.css with the Thread, #615). */
+.desk .rl-texts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  align-items: end;
+  gap: 24px 56px;
+  padding-top: var(--fl-s5);
+  border-top: 1px solid rgba(236, 238, 243, 0.08);
+}
+.desk .rl-texts .fl-h2 {
+  margin-top: 10px;
+}
+.desk .rl-texts-p {
+  max-width: 36em;
+  margin: 10px 0 0;
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--wv-mute);
+}
+.desk .rl-chain {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.desk .rl-chain li {
+  position: relative;
+  padding: 22px 8px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--wv-faint);
+}
+.desk .rl-chain li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--wv-faint);
+}
+.desk .rl-chain li::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 6px;
+  top: 8px;
+  border-top: 1px dashed var(--wv-line2);
+}
+.desk .rl-chain li:last-child::after {
+  display: none;
+}
+.desk .rl-chain li[data-at] {
+  color: var(--fl-hi);
+}
+.desk .rl-chain li[data-at]::before {
+  border-color: rgb(var(--fl-accent));
+  background: rgb(var(--fl-accent));
+  box-shadow: 0 0 8px rgb(var(--fl-accent));
+}
+
+@media (max-width: 1020px) {
+  .desk .rl-texts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .desk .rl-chain {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .desk .rl-chain li {
+    padding: 0 0 0 18px;
+  }
+  .desk .rl-chain li::after {
+    display: none;
+  }
+}

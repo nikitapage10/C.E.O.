@@ -66,9 +66,9 @@ At step 1 each room has only its `room.ts`.
 
 | Field | What it is |
 | --- | --- |
-| `id`, `name`, `path`, `navKey` | The room's id, its label in the Desk's bar, its address, and the number key that opens it (1 to 9, then 0). |
+| `id`, `name`, `path`, `navKey` | The room's id, its label in the Desk's bar, its address, and the number key that opens it (1 to 9, then 0; a page past the tenth, like the Annex, has none). |
 | `accent` | The colour token from `desk.css`, e.g. `--room-green`. |
-| `submind`, `live` | Its lead (a `SUBMINDS` id, or `skippy` for Today) and whether its agents are real work, not the demo. |
+| `submind`, `live` | Its lead (a `SUBMINDS` id, `skippy` for Today, or a `DESK_SUBMINDS` id for a Desk-only room such as the Annex, #618) and whether its agents are real work, not the demo. |
 | `auth` | Each of its endpoints (an `azure/src/index.ts` name) and the ways in: `public`, `site`, `passkey`, `token`. |
 | `keys`, `usesClaude` | The secret settings only it reads, and whether any endpoint calls Claude. |
 | `threat` | Its THREAT-MODEL.md ids (`TB1`, `R5`). |

@@ -31,6 +31,33 @@ export interface EmailItem {
   draft?: string;
   /** Nikita marked it handled on the Desk. */
   done: boolean;
+  /** Keyed hashes of the sender's address and domain, for the sender rules (#615, ./reply.ts). Never sent to the Desk. */
+  senderKey?: string;
+  domainKey?: string;
+  /** The draft was written from Nikita's own few words (#615): their words, shown beside it on the Desk. */
+  said?: string;
+  /** A reply is going out (a claim, ms) or went (#615): one send per mail. */
+  sending?: number;
+  sentAt?: number;
+}
+
+/** A sender rule Nikita set on the Desk (#615): "block" matches the address, "filter" the whole domain. */
+export interface FilterRule {
+  id: string;
+  kind: "block" | "filter";
+  /** The keyed hash of the address or domain (./reply.ts, senderKey); never the address itself. */
+  key: string;
+  /** The sender's display name as the Desk showed it. */
+  label: string;
+  at: number;
+}
+
+/** How Nikita writes, learned from their sent mail (#615): a few short traits, never a quote. */
+export interface StyleProfile {
+  traits: string[];
+  /** How many sent mails it was learned from. */
+  from: number;
+  at: number;
 }
 
 export interface EmailMonth {
@@ -71,6 +98,13 @@ export interface EmailState {
   catchUpListed: boolean;
   /** The catch-up's message ids still to sort, at most CATCH_UP_MAX; ids only, sealed with the rest. */
   catchUp: string[];
+  /** Sender rules (#615): mail under one is counted as filtered before any model, and kept as nothing. */
+  rules: FilterRule[];
+  /** Mail the rules filtered today (Mountain day), a count. */
+  ruled: { day: string; count: number };
+  style: StyleProfile | null;
+  /** Replies sent from the Desk today (Mountain day), a count against SEND_DAY_MAX (#615). */
+  sends: { day: string; count: number };
 }
 
 /** The refresh token's record, sealed at rest. */
@@ -78,6 +112,8 @@ export interface TokenRecord {
   refresh: string;
   /** When Gmail was connected (ms). */
   connectedAt: number;
+  /** Nikita granted gmail.send with it (#615): replies can go from the Desk. */
+  send?: boolean;
 }
 
 /** At most this many items, and this many seen ids. */
@@ -91,7 +127,7 @@ export const MAX_PER_TICK = 12;
 export const CATCH_UP_MAX = 24;
 
 export function emptyEmailState(): EmailState {
-  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, applied: { month: "", count: 0 }, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [] };
+  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, applied: { month: "", count: 0 }, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [], rules: [], ruled: { day: "", count: 0 }, style: null, sends: { day: "", count: 0 } };
 }
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
@@ -122,8 +158,33 @@ export function readEmailState(v: unknown): EmailState {
     pingPending: num(o.pingPending),
     busyUntil: num(o.busyUntil),
     catchUpListed: o.catchUpListed === true,
+    rules: Array.isArray(o.rules) ? (o.rules as unknown[]).map(readRule).filter((r): r is FilterRule => r !== null).slice(-200) : [],
+    ruled: (() => {
+      const r = (o.ruled && typeof o.ruled === "object" ? o.ruled : {}) as Record<string, unknown>;
+      return { day: str(r.day, 10), count: Math.max(0, Math.floor(num(r.count))) };
+    })(),
+    style: readStyle(o.style),
+    sends: (() => {
+      const r = (o.sends && typeof o.sends === "object" ? o.sends : {}) as Record<string, unknown>;
+      return { day: str(r.day, 10), count: Math.max(0, Math.floor(num(r.count))) };
+    })(),
     catchUp: Array.isArray(o.catchUp) ? (o.catchUp as unknown[]).filter((s): s is string => typeof s === "string" && /^[0-9a-f]{6,32}$/.test(s)).slice(0, CATCH_UP_MAX) : [],
   };
+}
+
+const HEX = (n: number) => new RegExp(`^[0-9a-f]{${n}}$`);
+
+export function readRule(v: unknown): FilterRule | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object" || typeof o.id !== "string" || !HEX(12).test(o.id) || (o.kind !== "block" && o.kind !== "filter") || typeof o.key !== "string" || !HEX(32).test(o.key)) return null;
+  return { id: o.id, kind: o.kind, key: o.key, label: str(o.label, 80), at: num(o.at) };
+}
+
+export function readStyle(v: unknown): StyleProfile | null {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object" || !Array.isArray(o.traits)) return null;
+  const traits = (o.traits as unknown[]).filter((t): t is string => typeof t === "string" && t.length > 0).map((t) => t.slice(0, 48)).slice(0, 8);
+  return traits.length ? { traits, from: Math.max(0, Math.floor(num(o.from))), at: num(o.at) } : null;
 }
 
 function readItem(v: unknown): EmailItem | null {
@@ -142,6 +203,11 @@ function readItem(v: unknown): EmailItem | null {
     ...(typeof o.advice === "string" && o.advice && { advice: o.advice.slice(0, 800) }),
     ...(typeof o.draft === "string" && o.draft && { draft: o.draft.slice(0, 2000) }),
     done: o.done === true,
+    ...(typeof o.senderKey === "string" && HEX(32).test(o.senderKey) && { senderKey: o.senderKey }),
+    ...(typeof o.domainKey === "string" && HEX(32).test(o.domainKey) && { domainKey: o.domainKey }),
+    ...(typeof o.said === "string" && o.said && { said: o.said.slice(0, 400) }),
+    ...(typeof o.sending === "number" && o.sending > 0 && { sending: o.sending }),
+    ...(typeof o.sentAt === "number" && o.sentAt > 0 && { sentAt: o.sentAt }),
   };
 }
 
@@ -158,4 +224,11 @@ export interface EmailView {
   applied: number;
   /** This month's Claude spend and the cap, in dollars. */
   spend: { usd: number; budget: number };
+  /** The sender rules, without their keys (#615). */
+  rules: Pick<FilterRule, "id" | "kind" | "label" | "at">[];
+  /** Mail the rules filtered today. */
+  ruled: number;
+  style: StyleProfile | null;
+  /** Gmail was connected with gmail.send: replies can go from the Desk (#615). */
+  canSend: boolean;
 }

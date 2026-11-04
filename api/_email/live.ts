@@ -30,6 +30,7 @@ export function liveTickDeps(env: Env = process.env): TickDeps | null {
     budget: emailBudget(env.EMAIL_BUDGET_USD),
     skipTerms: skipTermsFrom(env.EMAIL_SKIP_TERMS),
     priority: priorityFrom(env.EMAIL_PRIORITY),
+    senderSecret: env.GMAIL_TOKEN_KEY ?? "",
     now: Date.now(),
     ping: async (text) => {
       if (!pingsReady || !auth) return 0;

@@ -85,8 +85,8 @@ export const RoomManifestSchema = z.strictObject({
   name: z.string().min(2).max(24),
   /** Its address on the site. */
   path: z.string().regex(/^\/[a-z-]*$/, "a path such as /green"),
-  /** The number key that opens it: 1 to 9, then 0 for the tenth. */
-  navKey: z.enum(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]),
+  /** The number key that opens it: 1 to 9, then 0 for the tenth. A page past the tenth (the Annex, #618) has none. */
+  navKey: z.enum(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]).optional(),
   /** The CSS custom property that colours it, defined in apps/world/src/desk/desk.css (e.g. "--room-green"). */
   accent: z.string().regex(/^--[a-z][a-z-]+$/),
   /** Its lead's id (the same as lore.submind; kept at the top level because the feed and the Council read it). */
@@ -150,6 +150,9 @@ export const ENGINE_ENDPOINTS: readonly string[] = [
   "skippy-tools",
   "kernel-brief",
   "kernel-agent",
+  "capture",
+  "haven",
+  "hey-skippy",
   "world",
   "world-step",
 ];

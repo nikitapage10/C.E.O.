@@ -41,6 +41,14 @@
  *                                             key: 10 minutes, 5 tries, made only in a Desk session with the send unlock
  *        GET /api/relay?view=status            Relay's public counts (#535: RelayStatus, counts and states only, public
  *                                             by design), for `relay status` and `relay wipe --verify` on the Mac
+ *        GET /api/annex-elections             the Annex's Election night (#618): public election results from civicAPI,
+ *                                             and its freshness counts (?debug=fresh); nothing private is in either
+ *        POST /api/capture + Authorization: Bearer <a phone key>   Hey Skippy from the iPhone (#627): only a key of
+ *                                             the right shape passes here; api/_haven/route.ts checks it against the
+ *                                             stored hashes (unknown or revoked: 401) and paces it
+ *        GET /api/capture?a=<signed audio link>   that answer's audio (#627): signed by this Desk key and unexpired,
+ *                                             checked here with the environment alone; served once (api/_haven/audio.ts)
+ *        GET /api/hey-skippy, /hey-skippy/hello.mp3   the shortcut's greeting clips (#627): a few spoken words, public
  *   5. A good site session cookie (api/_site/session.ts) for the current version, renewed once a day of use.
  *   6. Anything else: an API route gets 401 { error: "site-locked" }; a page gets the login page, with 401.
  *
@@ -57,6 +65,7 @@ import { SITE_COOKIE, renewedSite, sessionFits, siteCookie, siteSessionOf } from
 import { roomKeyPass } from "./roomkeys.js";
 import { TOOL_HEADER, toolTokenSigned } from "../_skippy/voicetoken.js";
 import { hubTokenPair } from "../_relay/tokens.js";
+import { audioIdOf, KEY_SHAPE } from "../_haven/links.js";
 import { currentState, siteKeys, type SiteKeys, type SiteState, type SiteStore } from "./state.js";
 
 type Env = Record<string, string | undefined>;
@@ -73,7 +82,7 @@ const STATIC_PREFIXES = ["/assets/", "/models/", "/desk/", "/tide/"];
 const STATIC_FILES = new Set(["/manifest.webmanifest", "/sw.js", "/favicon.ico", "/robots.txt"]);
 
 /** Why a request was let through (for tests, and the x-ceo-site-gate header on the way out). */
-export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "session";
+export type Pass = "off" | "login" | "passkey" | "static" | "world-step" | "pings-secret" | "submind-token" | "bypass" | "room-log" | "room-feed" | "voice-tool" | "relay-hub" | "relay-pair" | "relay-status" | "annex-results" | "phone-key" | "phone-audio" | "greeting" | "session";
 
 export type Decision = { allow: true; why: Pass; setCookie?: string } | { allow: false; response: Response };
 
@@ -150,6 +159,18 @@ function isRelayHub(request: Request, url: URL, env: Env): boolean {
   return auth.startsWith("Bearer ") && hubTokenPair(auth.slice(7).trim(), env.FOUNDRY_DESK_KEY ?? "") !== null;
 }
 
+/** Hey Skippy (#627): a bearer token shaped like a phone key. The handler checks it against the stored hashes. */
+function isPhoneKey(request: Request): boolean {
+  const auth = request.headers.get("authorization") ?? "";
+  return auth.startsWith("Bearer ") && KEY_SHAPE.test(auth.slice(7).trim());
+}
+
+/** An answer's audio link (#627): the one `a` query, signed by this Desk key and unexpired. */
+function isPhoneAudio(url: URL, env: Env, now: number): boolean {
+  const keys = [...url.searchParams.keys()];
+  return keys.length === 1 && keys[0] === "a" && audioIdOf(url.searchParams.get("a"), env.FOUNDRY_DESK_KEY ?? "", now) !== null;
+}
+
 const SECURITY_HEADERS = {
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
@@ -196,6 +217,10 @@ export function decide(request: Request, ctx: GateContext): Decision {
   if (isRelayHub(request, url, env)) return { allow: true, why: "relay-hub" };
   if (request.method === "POST" && pathname === "/api/relay-pair" && url.search === "") return { allow: true, why: "relay-pair" };
   if (request.method === "GET" && pathname === "/api/relay" && url.search === "?view=status") return { allow: true, why: "relay-status" };
+  if ((request.method === "GET" || request.method === "HEAD") && pathname === "/api/annex-elections") return { allow: true, why: "annex-results" };
+  if (request.method === "POST" && pathname === "/api/capture" && url.search === "" && isPhoneKey(request)) return { allow: true, why: "phone-key" };
+  if (request.method === "GET" && pathname === "/api/capture" && isPhoneAudio(url, env, ctx.now)) return { allow: true, why: "phone-audio" };
+  if ((request.method === "GET" || request.method === "HEAD") && (pathname === "/api/hey-skippy" || pathname === "/hey-skippy/hello.mp3") && url.search === "") return { allow: true, why: "greeting" };
   const room = roomKeyPass(request, env);
   if (room) return { allow: true, why: room };
   // The passkey works only where the Desk key is set; without it, the login page says signing in isn't set up.

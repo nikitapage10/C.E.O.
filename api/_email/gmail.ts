@@ -1,13 +1,15 @@
 /**
- * Gmail, read-only (#263, docs/GMAIL.md): Google's OAuth 2.0 web flow for one scope, `gmail.readonly`, and the three
- * Gmail API reads the agent makes. Nothing here can send, label, archive or delete: the scope doesn't allow it, and
- * the only calls are GETs to the profile, the history, the catch-up list and one message.
+ * Gmail (#263, docs/GMAIL.md): Google's OAuth 2.0 web flow for `gmail.readonly` and, since #615, `gmail.send`, and the
+ * Gmail API calls the agent makes. Nothing here can label, archive or delete: no scope that allows it is ever accepted.
+ * The reads are GETs to the profile, the history, the catch-up list and one message. The one write is a reply Nikita
+ * confirmed on the Desk (sendReply, below), and only when they granted gmail.send.
  *
  *   GET users/me/profile                 the mailbox's current history id (the first check starts there) and its own address
  *   GET users/me/threads/{id}            headers only (From): who started a thread, when Nikita keeps a priority list (#522)
  *   GET users/me/history                 what changed since a history id: the minute check, free of Claude
  *   GET users/me/messages?q=…            once per connection: the unread inbox mail of the last 48 hours (#323)
  *   GET users/me/messages/{id}           one new inbox mail, read only to sort it
+ *   POST users/me/messages/send          a reply on its thread, after Nikita's yes and the undo window (#615)
  *
  * `fetcher` is passed in everywhere, so the tests never touch the network.
  *
@@ -22,8 +24,10 @@ export const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 export const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
-/** The one scope asked for. Read-only: Gmail itself refuses a send, a label change or a delete with it. */
+/** Reading: Gmail itself refuses a send, a label change or a delete with it. */
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+/** Sending only (#615): it can't read, label, archive or delete. Asked for beside gmail.readonly; optional in a grant. */
+export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 
 const TIMEOUT_MS = 10_000;
 const MAX_BYTES = 3_000_000;
@@ -50,13 +54,13 @@ export class HistoryGoneError extends Error {
   }
 }
 
-/** Where Connect Gmail sends the browser: Google's consent page for gmail.readonly, offline, asking every time. */
+/** Where Connect Gmail sends the browser: Google's consent page for gmail.readonly and gmail.send, offline, asking every time. */
 export function authUrl(client: Pick<OAuthClient, "clientId" | "redirectUri">, state: string): string {
   const q = new URLSearchParams({
     client_id: client.clientId,
     redirect_uri: client.redirectUri,
     response_type: "code",
-    scope: GMAIL_SCOPE,
+    scope: `${GMAIL_SCOPE} ${GMAIL_SEND_SCOPE}`,
     access_type: "offline",
     // Always show consent, so Google always hands back a refresh token (it only does on consent).
     prompt: "consent",
@@ -87,14 +91,15 @@ async function postForm(fetcher: Fetcher, url: string, form: Record<string, stri
   return { status: res.status, body: await readBody(res) };
 }
 
-/**
- * Trades the callback's one-time code for tokens. Returns the refresh token only when Google granted gmail.readonly
- * and nothing that could write; anything else is refused (and the access it came with simply expires).
- */
-/** Full Gmail access (read, send, delete): a grant that carries it is refused. */
-const FULL_MAIL_SCOPE = "https://mail.google.com/";
+/** The only scopes a grant may hold: read, and optionally send. */
+const GRANT_ALLOWED: ReadonlySet<string> = new Set([GMAIL_SCOPE, GMAIL_SEND_SCOPE]);
 
-export async function exchangeCode(fetcher: Fetcher, client: OAuthClient, code: string): Promise<string> {
+/**
+ * Trades the callback's one-time code for tokens. Takes the grant only when Google granted gmail.readonly, maybe
+ * gmail.send, and no other Gmail scope (nothing that could label, archive or delete); anything else is refused (and the
+ * access it came with simply expires). `send` says whether Nikita granted sending.
+ */
+export async function exchangeCode(fetcher: Fetcher, client: OAuthClient, code: string): Promise<{ refresh: string; send: boolean }> {
   const { status, body } = await postForm(fetcher, TOKEN_URL, {
     code,
     client_id: client.clientId,
@@ -105,10 +110,12 @@ export async function exchangeCode(fetcher: Fetcher, client: OAuthClient, code: 
   const b = (body ?? {}) as Record<string, unknown>;
   if (status !== 200 || typeof b.refresh_token !== "string" || !b.refresh_token) throw new Error(`gmail code exchange ${status}`);
   const scopes = typeof b.scope === "string" ? b.scope.split(/\s+/).filter(Boolean) : [];
-  if (!scopes.includes(GMAIL_SCOPE) || scopes.some((s) => s.startsWith("https://www.googleapis.com/auth/gmail.") && s !== GMAIL_SCOPE) || new Set(scopes).has(FULL_MAIL_SCOPE)) {
-    throw new Error("gmail scope not read-only");
+  // An exact allowlist: every granted scope must be one of these two strings, so nothing wider (modify, labels, full
+  // mail, or any other API) can ride along on the grant.
+  if (!scopes.includes(GMAIL_SCOPE) || scopes.some((s) => !GRANT_ALLOWED.has(s))) {
+    throw new Error("gmail scope not allowed");
   }
-  return b.refresh_token;
+  return { refresh: b.refresh_token, send: scopes.includes(GMAIL_SEND_SCOPE) };
 }
 
 /** A short-lived access token from the refresh token. TokenRefusedError when Google says the grant is gone. */
@@ -216,6 +223,12 @@ export async function catchUpIds(fetcher: Fetcher, token: string): Promise<strin
     if (out.length >= CATCH_UP_MAX) break;
   }
   return out;
+}
+
+/** The ids of Nikita's own sent mail matching `q` (#615, the style profile), newest first: ids only. */
+export async function sentIds(fetcher: Fetcher, token: string, q: string, max: number): Promise<string[]> {
+  const b = (await gmailGet(fetcher, token, "/messages", new URLSearchParams({ q, labelIds: "SENT", maxResults: String(max) }))) as { messages?: { id?: unknown }[] } | null;
+  return (b?.messages ?? []).map((m) => m?.id).filter((id): id is string => typeof id === "string" && MESSAGE_ID.test(id)).slice(0, max);
 }
 
 /** One message, fully. */
@@ -370,4 +383,93 @@ export async function threadStarter(fetcher: Fetcher, token: string, threadId: s
     if (!first || at < first.at) first = { at, from };
   }
   return first ? senderAddress(first.from) : "";
+}
+
+/* ── one reply, sent (#615) ── */
+
+/** What a reply needs from the mail it answers: headers only (format=metadata). */
+export interface ReplyTo {
+  /** The address the reply goes to: Reply-To when there is one, else From. */
+  to: string;
+  subject: string;
+  messageId: string;
+  references: string;
+  threadId: string;
+}
+
+const HEADER_SAFE = (v: string, max: number) => v.replace(/[\r\n\0]+/g, " ").trim().slice(0, max);
+const MSG_ID = /^<[^<>\s]{3,250}>$/;
+
+/** The headers of one mail, for a reply; null when it can't be answered (no sender address). */
+export async function replyHeaders(fetcher: Fetcher, token: string, id: string): Promise<ReplyTo | null> {
+  if (!MESSAGE_ID.test(id)) throw new Error("not a message id");
+  const q = new URLSearchParams({ format: "metadata" });
+  for (const h of ["From", "Reply-To", "Subject", "Message-ID", "References"]) q.append("metadataHeaders", h);
+  const m = (await gmailGet(fetcher, token, `/messages/${id}`, q)) as { threadId?: unknown; payload?: Part } | null;
+  return readReplyTo(m);
+}
+
+/** The reply headers from a metadata read, checked. Pure, so it is tested on its own. */
+export function readReplyTo(m: { threadId?: unknown; payload?: Part } | null): ReplyTo | null {
+  if (!m) return null;
+  const h = new Map<string, string>();
+  for (const x of m.payload?.headers ?? []) if (x.name && typeof x.value === "string") h.set(x.name.toLowerCase(), x.value);
+  const to = senderAddress(h.get("reply-to") ?? "") || senderAddress(h.get("from") ?? "");
+  if (!to) return null;
+  const mid = HEADER_SAFE(h.get("message-id") ?? "", 300);
+  const refs = HEADER_SAFE(h.get("references") ?? "", 4_000)
+    .split(/\s+/)
+    .filter((r) => MSG_ID.test(r));
+  return {
+    to,
+    subject: HEADER_SAFE(h.get("subject") ?? "", 300),
+    messageId: MSG_ID.test(mid) ? mid : "",
+    references: [...refs, ...(MSG_ID.test(mid) ? [mid] : [])].slice(-20).join(" "),
+    threadId: typeof m.threadId === "string" && MESSAGE_ID.test(m.threadId) ? m.threadId : "",
+  };
+}
+
+/** A header value in RFC 2047 when it isn't plain ASCII. */
+const encodeWord = (v: string) => (/^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, "utf8").toString("base64")}?=`);
+
+/** The reply as an RFC 5322 message: on the same thread (In-Reply-To, References), plain text, UTF-8. */
+export function replyMessage(r: ReplyTo, text: string): string {
+  const subject = /^re:/i.test(r.subject) ? r.subject : `Re: ${r.subject || "(no subject)"}`;
+  const lines = [
+    `To: ${r.to}`,
+    `Subject: ${encodeWord(subject)}`,
+    ...(r.messageId ? [`In-Reply-To: ${r.messageId}`] : []),
+    ...(r.references ? [`References: ${r.references}`] : []),
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    (Buffer.from(text.replace(/\r?\n/g, "\r\n"), "utf8").toString("base64").match(/.{1,76}/g) ?? []).join("\r\n"),
+  ];
+  return lines.join("\r\n");
+}
+
+/** Sends one reply on its thread; Gmail's id for the sent message. */
+export async function sendReply(fetcher: Fetcher, token: string, r: ReplyTo, text: string): Promise<string> {
+  const raw = Buffer.from(replyMessage(r, text), "utf8").toString("base64url");
+  const res = await fetcher(`${GMAIL_API}/messages/send`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ raw, ...(r.threadId && { threadId: r.threadId }) }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    redirect: "error",
+  });
+  if (res.status === 401) throw new TokenRefusedError();
+  if (res.status === 403) throw new SendNotAllowedError();
+  if (!res.ok) throw new Error(`gmail send ${res.status}`);
+  const b = (await readBody(res)) as { id?: unknown } | null;
+  return typeof b?.id === "string" ? b.id : "";
+}
+
+/** Gmail refused the send (the grant has no gmail.send). */
+export class SendNotAllowedError extends Error {
+  constructor() {
+    super("gmail send not allowed");
+    this.name = "SendNotAllowedError";
+  }
 }

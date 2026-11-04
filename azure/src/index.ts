@@ -9,6 +9,7 @@ import "./env.js";
 
 import { app, type HttpMethod } from "@azure/functions";
 import { registerAzureBlob } from "../../api/_blob.js";
+import * as annex from "../../api/_annex/route.js";
 import * as daystory from "../../api/day-story.js";
 import * as deskauth from "../../api/desk-auth.js";
 import * as deskpings from "../../api/desk-pings.js";
@@ -25,6 +26,7 @@ import * as invoices from "../../api/_paypal/route.js";
 import * as latticetiming from "../../api/_boot/timing.js";
 import * as talktiming from "../../api/_boot/talkTiming.js";
 import * as desktiming from "../../api/_boot/deskTiming.js";
+import * as haven from "../../api/_haven/route.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
@@ -70,6 +72,16 @@ type Module = Partial<Record<"GET" | "POST" | "PUT", WebHandler>>;
 
 /** Each endpoint, by its Vercel name (the file name in api/), with how long its waitUntil work may hold the answer. */
 export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions]> = [
+  // The Annex (#618): the pop-ups' statuses and follows, and Election night's results from civicAPI, read on request
+  // and shared by every viewer (api/_annex/route.ts). annex-elections GET is public, like the results themselves.
+  ["annex", annex],
+  ["annex-elections", annex],
+  // Hey Skippy from the iPhone (#627, docs/HEY-SKIPPY.md): POST with a phone key (hashed in the private store, paced
+  // 30 an hour), and GET a signed, single-use link to the spoken answer. The Desk's Phones panel and Kitchen list read
+  // and write through /api/haven (passkey session; ?view=status is counts only); /api/hey-skippy is the greeting clips.
+  ["capture", haven.captureRoute, { settleMs: 2_500 }],
+  ["haven", haven.havenRoute],
+  ["hey-skippy", haven.greetRoute],
   ["day-story", daystory],
   ["desk-auth", deskauth],
   ["desk-pings", deskpings],

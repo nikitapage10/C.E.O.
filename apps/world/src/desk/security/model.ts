@@ -113,6 +113,15 @@ export const BOUNDARIES: Boundary[] = [
     from: "github",
     to: "claude",
   },
+  {
+    id: "TB9",
+    name: "Phone to the capture endpoint",
+    crosses: "What Nikita says to the iPhone's \"Skippy\" shortcut (at most 300 characters), a phone key; a short spoken line and a one-time audio link back",
+    controls:
+      "A phone key per phone, made only in a passkey session and shown once; only its HMAC-SHA256 under a pepper derived from the Desk key is stored, with a label and last-used time, and Revoke stops it at once (`api/_haven/phones.ts`, #627); the gate lets only a key-shaped bearer reach `POST /api/capture`, and the handler answers a missing, unknown or revoked key with a bare 401; 30 captures an hour per key; rules sort shopping and to-dos with no model call (`api/_haven/classify.ts`), into private stores only (`api/_haven/list.ts`, `api/_haven/todos.ts`); anything else is a turn of Skippy's chat with the Desk's own privacy check, fenced input, closed schema, monthly share and room log, marked as from the phone (`phoneAnswer` in `api/skippy.ts`); the last six turns per phone are kept privately for ten quiet minutes, never logged (`api/_haven/convo.ts`); the words are never logged; the spoken answer's audio is a signed, five-minute, single-use link that never carries the key, under ElevenLabs' existing cap (`api/_haven/audio.ts`)",
+    from: "public",
+    to: "vercel",
+  },
 ];
 
 /**

@@ -94,13 +94,13 @@ for (const width of [1440, 400]) {
     const did = page.locator(".td-did");
     await expect(did).toContainText("Added for tomorrow 9:00 am");
     await expect(box).toHaveValue("");
-    expect(api.state().todos.map((t) => t.text)).toEqual(["Respond to the dermatologist"]);
+    await expect.poll(() => api.state().todos.map((t) => t.text)).toEqual(["Respond to the dermatologist"]);
     if (SHOTS) await shot(page, `${SHOTS}/622-todo-${width}.png`);
 
     // Undo takes it back, on the store too.
     await did.getByRole("button", { name: "Undo" }).click();
     await expect(mine).toHaveCount(0);
-    expect(api.state().todos).toEqual([]);
+    await expect.poll(() => api.state().todos).toEqual([]);
 
     // Talk back to a held row: a bare time asks with two chips.
     const setupRow = held.locator(".td-ni").filter({ hasText: "Setup, only you can do" });
@@ -120,7 +120,7 @@ for (const width of [1440, 400]) {
     await page.keyboard.press("Enter");
     await expect(did).toContainText("Snoozed till tomorrow 9:00 am");
     await expect(held.getByText("Setup, only you can do")).toHaveCount(0);
-    expect(api.state().marks).toEqual([expect.objectContaining({ ref: "setup", until: expect.any(String) })]);
+    await expect.poll(() => api.state().marks).toEqual([expect.objectContaining({ ref: "setup", until: expect.any(String) })]);
     if (SHOTS) await shot(page, `${SHOTS}/622-snoozed-${width}.png`);
     await did.getByRole("button", { name: "Undo" }).click();
     await expect(held.getByText("Setup, only you can do")).toBeVisible();

@@ -21,6 +21,7 @@ import { clockState, useWorldClock } from "../worldClock.ts";
 import { Confluence } from "./confluence/Confluence.tsx";
 import { useTodoSync } from "./todos/TodoBits.tsx";
 import { awayRefs, openTodos, useTodos } from "./todos/todos.ts";
+import { KitchenList } from "./KitchenList.tsx";
 import "@fontsource-variable/bodoni-moda/opsz.css";
 import "@fontsource-variable/bodoni-moda/opsz-italic.css";
 import "@fontsource-variable/jost/wght.css";
@@ -193,6 +194,7 @@ export function Today({ data, now, awaySince }: { data: DeskData; now: number; c
             <div className="cf-chips">
               <TodayBroadcast now={now} next={until(nextEdition(now).at, now)} />
               <ComingUp />
+              <KitchenList />
               <a className="td-door" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()}>
                 <svg viewBox="0 0 28 28" aria-hidden="true">
                   <circle cx="14" cy="14" r="12.5" />

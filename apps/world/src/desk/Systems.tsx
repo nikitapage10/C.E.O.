@@ -14,33 +14,34 @@ import { DeskTimings } from "./DeskTimings.tsx";
 import { TalkTimings } from "./TalkTimings.tsx";
 import { SystemsGraph } from "./SystemsGraph.tsx";
 import { pipeRows, systemsModel, type FlowId, type GState } from "./systemsGraph.ts";
-import { SystemsNav } from "./SystemsNav.tsx";
+import { SystemsNav, type TabScores } from "./SystemsNav.tsx";
 import { emailLine, linkOf, startEmail, useEmail, type EmailLoad, type EmailStatus } from "./email/email.ts";
 import { startInvoices } from "./spire/invoices.ts";
 import { startPolymarket } from "./exchange/polymarket.ts";
 import { startGreen } from "./green/league.ts";
 import { roomLink } from "./hero/roomLink.ts";
-import { navigateTo } from "../route.ts";
 import { Private } from "./Private.tsx";
 import { Home } from "./rooms/Home.tsx";
 import { SetupAsks } from "./skippy/SetupAsks.tsx";
 import { useSecurityFeed } from "./security/feed.ts";
-import { OWASP_LLM, owaspTally, EVALS } from "./security/model.ts";
-import { pressureHeadline, rackPressure } from "./boiler/pressure.ts";
-import { ACCENT, Arrow, Rack, RoomDetail } from "./boiler/Rack.tsx";
+import { OWASP_LLM, owaspTally } from "./security/model.ts";
+import { ACCENT, Arrow, RoomDetail } from "./boiler/Rack.tsx";
+import { PipeBoard } from "./boiler/PipeBoard.tsx";
+import { readPipes } from "./boiler/pipes.ts";
+import { jobRows } from "./jobs.ts";
+import { useDeskAuth } from "./signin.ts";
 import { reducedMotion } from "./wvCanvas.ts";
 import "./rooms/rooms.css";
 import "./boiler/boiler.css";
 import { describeRun, useVisualQa } from "./visualqa/feed.ts";
 
 /**
- * The Boiler Room (#390, on Today's flow kit; #369 before it): every real link C.E.O. depends on, drawn as particle
- * lines. On the stage, the headline and ledger read the whole rack's state in plain words, security stands beside them
- * as pass/fail and counts, and below them each room is one straight line of its connections (boiler/Rack.tsx): flowing,
- * under load, waiting or broken. A valve opens that one connection, a room's name opens its whole flow
- * (SystemsGraph.tsx, or RoomDetail for a room with no flow drawn yet). Under the stage, the instruments (the world
- * clock, Gmail, the scheduled jobs), the Lattice's load timings, what's still to build and the house. Counts and
- * states only, signed in or out; nothing is made up.
+ * The Boiler Room's Map (#732, the B4 schematic; the particle rack of #390 before it): every real link C.E.O. depends
+ * on as brass pipes around the boiler (boiler/PipeBoard.tsx, drawn by boiler/pipeScene.ts), each station read from
+ * the feeds below (boiler/pipes.ts), with the fault panel walking whatever is broken, one Fix at a time. The tabs open
+ * Controls, Security and Compliance. A line's "whole line" opens its flow under the map (SystemsGraph.tsx, or
+ * RoomDetail for a room with no flow drawn yet). Under that, the instruments (the world clock, Gmail, the scheduled
+ * jobs), the load timings, what's still to build and the house. Counts and states only, signed in or out.
  */
 
 /** Rooms whose real systems are still to come, in the order they're likely to be built; each page says what it waits on. */
@@ -125,48 +126,6 @@ function EmailCard({ load, status, now, onFlow }: { load: EmailLoad; status: Ema
   );
 }
 
-/** Security and compliance, as the public may see them: pass or fail, scores and counts. The details stay inside. */
-function Posture() {
-  const sec = useSecurityFeed().feed;
-  const reported = sec?.workflows.filter((w) => w.state === "pass" || w.state === "fail") ?? [];
-  const failing = reported.filter((w) => w.state === "fail").length;
-  const alerts = sec ? (sec.alerts.codeScanning?.open ?? 0) + (sec.alerts.dependabot?.open ?? 0) : null;
-  const alertsKnown = !!sec && (sec.alerts.codeScanning !== null || sec.alerts.dependabot !== null);
-  const tally = owaspTally();
-  const covered = tally.covered + tally.tracked;
-  const go = (path: string) => (e: React.MouseEvent) => {
-    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    e.preventDefault();
-    navigateTo(path + window.location.search);
-  };
-  const cells: { k: string; v: string; s: string; tone: GState; href: string }[] = [
-    { k: "Scans", v: reported.length ? `${reported.length - failing}/${reported.length}` : "–", s: !reported.length ? "waiting on GitHub" : failing ? `${failing} failing` : "all passing", tone: !reported.length ? "wait" : failing ? "bad" : "ok", href: "/boiler/security" },
-    { k: "Scorecard", v: sec?.scorecard ? sec.scorecard.score.toFixed(1) : "–", s: sec?.scorecard ? "of 10, OpenSSF" : "not reported", tone: !sec?.scorecard ? "wait" : sec.scorecard.score >= 4 ? "ok" : "bad", href: "/boiler/security" },
-    { k: "Open alerts", v: alertsKnown && alerts !== null ? String(alerts) : "–", s: alertsKnown ? "code and dependencies" : "not reported", tone: !alertsKnown ? "wait" : alerts ? "run" : "ok", href: "/boiler/security" },
-    { k: "Injection evals", v: `${EVALS.passing}/${EVALS.total}`, s: "pass, every build", tone: EVALS.passing + EVALS.expectedFail === EVALS.total ? "ok" : "bad", href: "/boiler/security" },
-    { k: "OWASP LLM", v: `${covered}/${OWASP_LLM.length}`, s: "risks covered", tone: covered === OWASP_LLM.length ? "ok" : "run", href: "/boiler/compliance" },
-  ];
-  return (
-    <section className="bx-sec" aria-label="Security and compliance">
-      <p className="fl-k">
-        <span>Security</span> · pass or fail
-      </p>
-      <ul>
-        {cells.map((c) => (
-          <li key={c.k}>
-            <a className={`is-${c.tone}`} href={c.href} onClick={go(c.href)}>
-              <i aria-hidden="true" />
-              <span>{c.k}</span>
-              <b className="fl-num">{c.v}</b>
-              <small>{c.s}</small>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 export function Systems({ now }: { now: number }) {
   const [open, setOpen] = useState<string | null>(firstOpen);
   // Polymarket's thread is real (#240): read its odds while this page is open, so the thread shows its true state.
@@ -208,16 +167,40 @@ export function Systems({ now }: { now: number }) {
   const model = systemsModel({ links, foundry: fg, connected, building, clock: { state: cstate, headline }, world, pings, vqa: vqa ? (VQA_STATE[describeRun(vqa).tone] ?? "off") : "off" });
 
   const rows = pipeRows(model.nodes, model.over, model.flows);
-  const p = rackPressure(rows);
-  const head = pressureHeadline(p);
   const row = rows.find((r) => r.id === open) ?? null;
   const hour = reading?.step ?? null;
   const today = world?.recent.filter((e) => new Date(e.at).toDateString() === new Date(now).toDateString()).length ?? 0;
 
-  // The rack is re-laid only when a state really changes, not on every tick of the clock.
-  const sig = JSON.stringify(rows);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const stable = useMemo(() => rows, [sig]);
+  // The pipe map (#732): every station read from the feeds this page already has.
+  const signedIn = useDeskAuth((s) => s.auth.status === "in");
+  const jobs = useFoundry((s) => s.data.jobs);
+  const jobList = useMemo(() => jobRows(jobs, now), [jobs, now]);
+  const sec = useSecurityFeed().feed;
+  const problems = useHome((s) => s.view?.problems);
+  const reported = sec?.workflows.filter((w) => w.state === "pass" || w.state === "fail") ?? [];
+  const failing = reported.filter((w) => w.state === "fail");
+  const alertsKnown = !!sec && (sec.alerts.codeScanning !== null || sec.alerts.dependabot !== null);
+  const alerts = alertsKnown ? (sec.alerts.codeScanning?.open ?? 0) + (sec.alerts.dependabot?.open ?? 0) : null;
+  const pipes = readPipes({
+    now,
+    nodes: model.nodes,
+    links,
+    jobs: jobList,
+    vqa,
+    security: sec ? { failing: failing.map((w) => ({ name: w.name, url: w.url })), reported: reported.length, alerts } : null,
+    clock: { state: cstate, at: reading?.at ? Date.parse(reading.at) : null },
+    problems: signedIn ? problems : undefined,
+  });
+  // The tabs' counts: connections live, scans passing, OWASP risks covered. Counts only.
+  const linkCount = Object.values(links);
+  const liveLinks = linkCount.filter((x) => x === "ok" || x === "slow").length;
+  const tally = owaspTally();
+  const covered = tally.covered + tally.tracked;
+  const scores: TabScores = {
+    controls: { v: `${liveLinks}/${linkCount.length}` },
+    security: reported.length ? { v: `${reported.length - failing.length}/${reported.length}`, warn: failing.length > 0 } : undefined,
+    compliance: { v: `${covered}/${OWASP_LLM.length}`, warn: covered < OWASP_LLM.length },
+  };
 
   const detail = useRef<HTMLDivElement>(null);
   const openLine = (id: string | null) => setOpen(id);
@@ -231,62 +214,10 @@ export function Systems({ now }: { now: number }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
   const ctone: GState = cstate === "ok" ? "ok" : cstate === "down" ? "bad" : cstate === "slow" ? "run" : "wait";
-  const day = new Date(now).toLocaleDateString(undefined, { weekday: "long" });
-
-  const header = (
-    <>
-      <SystemsNav />
-      <header className="bx-top">
-        <div className="bx-top-t">
-          <p className="fl-eyb">
-            <span>Boiler Room</span>
-            <i />
-            {day} · {rows.length} rooms · {p.total} links
-          </p>
-          <h1 className="fl-h1 desk__title">
-            {head.lead} <em className={`is-${head.tone}`}>{head.em}</em>
-          </h1>
-          <p className="fl-say">
-            {p.flowing} of {p.total} links carry real data{p.dry ? `, ${p.dry} wait to be connected` : ""}. Tap a valve for one link, or a room for its whole flow.
-          </p>
-          <dl className="fl-ledger bx-ledger">
-            <div className="is-ok">
-              <dt>Flowing</dt>
-              <dd>{p.flowing - p.run}</dd>
-            </div>
-            <div className="is-run">
-              <dt>Under load</dt>
-              <dd>{p.run}</dd>
-            </div>
-            <div className="is-wait">
-              <dt>Waiting</dt>
-              <dd>{p.dry}</dd>
-            </div>
-            <div className={`is-bad${p.burst ? " is-hot" : ""}`}>
-              <dt>Broken</dt>
-              <dd>{p.burst}</dd>
-            </div>
-          </dl>
-        </div>
-        <Posture />
-      </header>
-      <div className="bx-mhead">
-        <p className="fl-k">
-          <span>Every link</span> · one line a room, in the order its data flows
-        </p>
-        <ul className="bx-key" aria-label="Key">
-          <li className="is-ok">Flowing</li>
-          <li className="is-run">Under load</li>
-          <li className="is-wait">Waiting</li>
-          <li className="is-bad">Broken</li>
-        </ul>
-      </div>
-    </>
-  );
 
   return (
     <div className={`systems-page wv-page fl-page bx-page${row ? " is-open" : ""}`} data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
-      <Rack rows={stable} open={row ? row.id : null} onOpen={openLine} header={header} />
+      <PipeBoard map={pipes} signedIn={signedIn} tabs={<SystemsNav scores={scores} className="bp-tabs" />} onOpenRoom={openLine} />
 
       {row && (
         <div className="bx-detail fl-below" key={row.id} ref={detail}>

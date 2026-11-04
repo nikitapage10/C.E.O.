@@ -4,8 +4,10 @@ import { angleOf, dialOf, DIAL_A0, DIAL_SWEEP, orderGauges, turnTo, type Gauge, 
 import { moodOf, sameAs, useClimateQueue, type ClimateMood } from "./climateQueue.ts";
 
 /**
- * The instrument plinth (#680, Nikita's pick of four): the house-wide readings as a hi-fi faceplate in the dark to the
- * lower right of the house (under it on a phone, scrolling sideways). One engraved gauge per reading, its lamp lit
+ * The instrument plinth (#680, Nikita's pick of four): the house-wide readings as a hi-fi faceplate in the dark. Since
+ * #729 it is a glass rail down the right side of the house on a wide screen, its gauges top to bottom in the order their
+ * rooms stand on screen and each thread leaving its lamp sideways into the house; on a phone it runs under the house
+ * and scrolls sideways. One engraved gauge per reading, its lamp lit
  * amber (ember when the device is down, dim while it waits), and a thread of nanites from each lamp to its device in
  * the scene (house.ts). Since #718 it is docked along the foot of the house, its gauges in the order their rooms stand
  * left to right on screen, so no two threads cross. Climate is the rotary dial: tap it for the Climate control
@@ -50,6 +52,15 @@ function DialFace({ inside, set, live, heat, mood }: { inside: string; set: numb
     <svg className="hv-dialFace" viewBox="-4 -4 108 108" aria-hidden="true" data-live={live ? "" : undefined} data-mood={mood}>
       <Weather mood={mood} />
       <circle cx={C} cy={C} r={R} className="hv-dialRim" />
+      {/* Blue (cool) to orange (heat) round the sweep (#729), the same arc as the Climate control's. */}
+      <defs>
+        <linearGradient id="hv-dial-grad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#5faaff" />
+          <stop offset="50%" stopColor="#c7b3f0" />
+          <stop offset="100%" stopColor="#ff8a3a" />
+        </linearGradient>
+      </defs>
+      <path className="hv-dialArc" d={`M ${pt(DIAL_A0, R + 5).join(" ")} A ${R + 5} ${R + 5} 0 1 1 ${pt(DIAL_A0 + DIAL_SWEEP, R + 5).join(" ")}`} stroke="url(#hv-dial-grad)" />
       <circle cx={C} cy={C} r={R - 6} className="hv-dialIn" />
       <g className="hv-dialTicks">{ticks}</g>
       {ka !== null && <line className="hv-dialKnob" {...seg(ka, R - 16, R - 4)} />}
@@ -227,9 +238,21 @@ export interface PlinthProps {
   children?: ReactNode;
 }
 
+/** Wide enough for the side rail (#729); narrower, the gauges run along the foot of the house and scroll sideways. */
+export const RAIL_MQ = "(min-width: 861px)";
+const railNow = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(RAIL_MQ).matches;
+
 export function Plinth({ gauges, order, thermo, pop, onPop, canPop, onOpen, canOpen, lamp, onScroll, stripRef, children }: PlinthProps) {
   const plate = useRef<HTMLDivElement>(null);
   const [anchor, setAnchor] = useState<number | null>(null);
+  const [side, setSide] = useState(railNow);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(RAIL_MQ);
+    const on = () => setSide(mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
   // The pop-up sits over its gauge (clamped to the strip): measured when it opens and when the strip scrolls.
   useEffect(() => {
     const p = plate.current;
@@ -250,7 +273,7 @@ export function Plinth({ gauges, order, thermo, pop, onPop, canPop, onOpen, canO
   }, [pop, order]);
   const list = orderGauges(gauges, order ?? null);
   return (
-    <aside className="hv-plinth" aria-label="House-wide" ref={stripRef}>
+    <aside className="hv-plinth" aria-label="House-wide" ref={stripRef} data-rail={side ? "side" : "foot"}>
       <div className="hv-plate" ref={plate} onScroll={onScroll}>
         {list.map((g) => {
           if (g.id === "climate") return <ClimateDial key={g.id} g={g} thermo={thermo} open={pop === "climate"} onToggle={() => onPop("climate")} lamp={lamp(g.id)} />;
@@ -289,7 +312,7 @@ export function Plinth({ gauges, order, thermo, pop, onPop, canPop, onOpen, canO
       </div>
       <ClimateHeld thermo={thermo} />
       {children && (
-        <div className="hv-popAt" style={anchor !== null ? { ["--at" as string]: `${anchor}px` } : undefined}>
+        <div className="hv-popAt" data-pop={pop ?? undefined} style={anchor !== null && !side ? { ["--at" as string]: `${anchor}px` } : undefined}>
           {children}
         </div>
       )}

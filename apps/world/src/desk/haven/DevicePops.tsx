@@ -24,7 +24,7 @@ function ago(iso: string | null | undefined): string {
 }
 
 /** A pop-up's frame: its name, a close, Escape to close, and Skippy's last line at the foot. */
-function Pop({ title, tag, onClose, children }: { title: string; tag?: string; onClose: () => void; children: ReactNode }) {
+function Pop({ title, tag, onClose, children, className }: { title: string; tag?: string; onClose: () => void; children: ReactNode; className?: string }) {
   const box = useRef<HTMLDivElement>(null);
   const said = useHome((s) => s.said);
   const busy = useHome((s) => s.busy);
@@ -42,7 +42,7 @@ function Pop({ title, tag, onClose, children }: { title: string; tag?: string; o
     return () => window.removeEventListener("keydown", key, true);
   }, [onClose]);
   return (
-    <div className="hv-dp" role="dialog" aria-label={title} tabIndex={-1} ref={box}>
+    <div className={`hv-dp${className ? ` ${className}` : ""}`} role="dialog" aria-label={title} tabIndex={-1} ref={box}>
       <div className="hv-th-top">
         <span className="hv-uk">
           {title}
@@ -64,29 +64,73 @@ function Waiting({ vendor, state }: { vendor: string; state: VendorState }) {
   return <p className="hv-dp-note">{state === "down" ? `${vendor} isn't answering. It tries again on the next read.` : `${vendor} isn't connected yet.`}</p>;
 }
 
-/* ── Roborock ── */
+/* ── Roborock: a device sheet (#729) ── */
 
 export type Suction = "" | "quiet" | "max";
 export type Water = "" | "off" | "on";
 
-/** The vacuum's mode words for a clean: suction (standard, quiet, max) and the mop (as set, vacuum only, mop too). */
+const SUCTION: { v: Suction; name: string }[] = [
+  { v: "quiet", name: "Quiet" },
+  { v: "", name: "Standard" },
+  { v: "max", name: "Max" },
+];
+const WATER: { v: Water; name: string }[] = [
+  { v: "off", name: "Vacuum only" },
+  { v: "", name: "As set" },
+  { v: "on", name: "Mop too" },
+];
+
+/** Where the vacuum is, in a word, from its state. */
+export function whereVacuum(state: string, online: boolean): { word: string; tone: "ok" | "busy" | "warn" } {
+  if (!online) return { word: "Offline", tone: "warn" };
+  const s = state.toLowerCase();
+  if (/error|stuck|trapped|fault/.test(s)) return { word: "Needs a hand", tone: "warn" };
+  if (/return/.test(s)) return { word: "Heading home", tone: "busy" };
+  if (/clean|vacuum|mop|segment|room|zone|spot/.test(s)) return { word: "Cleaning", tone: "busy" };
+  if (/pause/.test(s)) return { word: "Paused", tone: "busy" };
+  if (/charg/.test(s)) return { word: "Docked · charging", tone: "ok" };
+  if (/dock|idle|sleep|full/.test(s)) return { word: "Docked", tone: "ok" };
+  return { word: state ? state[0]!.toUpperCase() + state.slice(1) : "Ready", tone: "ok" };
+}
+
+/** The battery as a ring. */
+function Battery({ pct }: { pct: number | null | undefined }) {
+  const v = typeof pct === "number" ? Math.max(0, Math.min(100, pct)) : null;
+  const r = 20, c = 2 * Math.PI * r;
+  return (
+    <span className={`hv-vs-batt${v !== null && v < 20 ? " is-low" : ""}`} role="img" aria-label={v === null ? "Battery unknown" : `Battery ${v}%`}>
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <circle cx="24" cy="24" r={r} className="hv-vs-battBg" />
+        {v !== null && <circle cx="24" cy="24" r={r} className="hv-vs-battFg" strokeDasharray={`${(c * v) / 100} ${c}`} />}
+      </svg>
+      <b>{v === null ? "–" : v}</b>
+      <small>%</small>
+    </span>
+  );
+}
+
+function Segmented<T extends string>({ label, list, value, onPick }: { label: string; list: { v: T; name: string }[]; value: T; onPick: (v: T) => void }) {
+  return (
+    <div className="hv-vs-seg">
+      <span className="hv-vs-k">{label}</span>
+      <div role="group" aria-label={label} style={{ ["--n" as string]: list.length, ["--i" as string]: Math.max(0, list.findIndex((x) => x.v === value)) }}>
+        <i aria-hidden="true" />
+        {list.map((x) => (
+          <button key={x.v || "std"} type="button" aria-pressed={value === x.v} onClick={() => onPick(x.v)}>
+            {x.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The vacuum's mode words for a clean, as two segmented controls (#729): suction and the mop. The Hall uses them too. */
 export function VacuumModes({ suction, water, onSuction, onWater }: { suction: Suction; water: Water; onSuction: (s: Suction) => void; onWater: (w: Water) => void }) {
   return (
-    <div className="hv-dp-modes">
-      <div role="group" aria-label="Suction">
-        {(["", "quiet", "max"] as Suction[]).map((s) => (
-          <button key={s || "std"} type="button" aria-pressed={suction === s} onClick={() => onSuction(s)}>
-            {s === "" ? "Standard" : s === "quiet" ? "Quiet" : "Max"}
-          </button>
-        ))}
-      </div>
-      <div role="group" aria-label="Mop">
-        {(["", "off", "on"] as Water[]).map((w) => (
-          <button key={w || "std"} type="button" aria-pressed={water === w} onClick={() => onWater(w)}>
-            {w === "" ? "As set" : w === "off" ? "Vacuum only" : "Mop too"}
-          </button>
-        ))}
-      </div>
+    <div className="hv-vs-modes">
+      <Segmented label="Suction" list={SUCTION} value={suction} onPick={onSuction} />
+      <Segmented label="Mop" list={WATER} value={water} onPick={onWater} />
     </div>
   );
 }
@@ -115,44 +159,80 @@ export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceRe
   const toggle = (r: string) => setPick((p) => (p.includes(r) ? p.filter((x) => x !== r) : [...p, r]));
   const mode: ActExtra = { ...(suction && { suction }), ...(water && { water }) };
   const { onPlan, chips } = chipsBeside(names, plan);
-  const cleaning = /clean|vacuum|mop|segment|room|zone|spot/i.test(v.state) && !/return|dock|charg/i.test(v.state);
+  const where = whereVacuum(v.state, v.online);
+  const cleaning = where.word === "Cleaning";
+  const docked = where.word.startsWith("Docked");
+  // One primary action: the rooms picked; else Pause while it cleans; else everywhere.
+  const primary = pick.length
+    ? { name: `Clean ${pick.join(", ")}`, run: () => void act("vacuum.rooms", v.id, pick, mode).then((ok) => ok && setPick([])) }
+    : cleaning
+      ? { name: "Pause", run: () => void act("vacuum.pause", v.id) }
+      : { name: "Clean everywhere", run: () => void act("vacuum.start", v.id, undefined, mode) };
   return (
-    <Pop title="Roborock" tag={v.online ? v.state : "offline"} onClose={onClose}>
-      <div className="hv-dp-hero">
-        <VacuumArt state={v.online ? v.state : ""} battery={v.battery} />
-        <p>
-          <b>{typeof v.battery === "number" ? `${v.battery}%` : "–"}</b>
-          <span>battery</span>
-          {v.alerts.length > 0 && <span className="is-warn">{v.alerts.join(", ")}</span>}
-        </p>
+    <Pop title="Roborock" tag={v.online ? v.model : "offline"} onClose={onClose} className="is-sheet">
+      <div className="hv-vs-head" data-tone={where.tone}>
+        <span className="hv-vs-art">
+          <VacuumArt state={v.online ? v.state : ""} battery={v.battery} />
+        </span>
+        <div className="hv-vs-now">
+          <b>{where.word}</b>
+          <span>{docked ? "On the dock" : cleaning ? "Out on the floor" : v.online ? "Off the dock" : "Not answering"}</span>
+        </div>
+        <Battery pct={v.battery} />
       </div>
+      {v.alerts.length > 0 ? (
+        <ul className="hv-vs-alerts" aria-label="Needs attention">
+          {v.alerts.map((a) => (
+            <li key={a} data-kind={/tank|water/i.test(a) ? "water" : /bin|dust|bag/i.test(a) ? "bin" : "alert"}>
+              <i aria-hidden="true" />
+              {a[0]!.toUpperCase() + a.slice(1)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {names.length > 0 && (
-        <>
-          <p className="hv-dp-k">Where to clean {pick.length ? `· ${pick.length} picked` : "· tap rooms"}</p>
+        <section className="hv-vs-map" aria-label="Where to clean">
+          <div className="hv-vs-mapTop">
+            <span className="hv-vs-k">Where to clean</span>
+            <span className="hv-vs-count">{pick.length ? `${pick.length} of ${names.length} picked` : "Tap rooms on the plan"}</span>
+            {pick.length ? (
+              <button type="button" className="hv-vs-link" onClick={() => setPick([])}>
+                Clear
+              </button>
+            ) : (
+              <button type="button" className="hv-vs-link" disabled={off} onClick={() => setPick(names)}>
+                All rooms
+              </button>
+            )}
+          </div>
           {plan ? <RoomMap plan={plan} names={names} picked={pick} onToggle={toggle} cleaning={cleaning} disabled={off} /> : null}
           {chips.length > 0 && (
-          <div className="hv-chips" role="group" aria-label={onPlan.size ? "More rooms on the vacuum's map" : "Rooms on the vacuum's map"}>
-            {chips.map((r) => (
-              <button key={r} type="button" className="hv-chip" aria-pressed={pick.includes(r)} disabled={off} onClick={() => toggle(r)}>
-                {r}
-              </button>
-            ))}
-          </div>
+            <div className="hv-chips" role="group" aria-label={onPlan.size ? "More rooms on the vacuum's map" : "Rooms on the vacuum's map"}>
+              {chips.map((r) => (
+                <button key={r} type="button" className="hv-chip" aria-pressed={pick.includes(r)} disabled={off} onClick={() => toggle(r)}>
+                  {r}
+                </button>
+              ))}
+            </div>
           )}
-        </>
+        </section>
       )}
       <VacuumModes suction={suction} water={water} onSuction={setSuction} onWater={setWater} />
-      <div className="hv-dp-btns">
-        <button type="button" className="hv-btn is-pri" disabled={off || !pick.length} onClick={() => void act("vacuum.rooms", v.id, pick, mode).then((ok) => ok && setPick([]))}>
-          {pick.length ? `Clean ${pick.join(", ")}` : "Pick rooms to clean"}
-        </button>
-        <button type="button" className="hv-btn" disabled={off} onClick={() => void act("vacuum.start", v.id, undefined, mode)}>
-          Clean everywhere
-        </button>
-        <button type="button" className="hv-btn" disabled={off} onClick={() => void act("vacuum.pause", v.id)}>
-          Pause
-        </button>
-        <button type="button" className="hv-btn" disabled={off} onClick={() => void act("vacuum.dock", v.id)}>
+      <button type="button" className="hv-vs-go" disabled={off} onClick={primary.run}>
+        {primary.name}
+      </button>
+      <div className="hv-vs-more">
+        {primary.name !== "Clean everywhere" && (
+          <button type="button" disabled={off} onClick={() => void act("vacuum.start", v.id, undefined, mode)}>
+            Clean everywhere
+          </button>
+        )}
+        {primary.name !== "Pause" && (
+          <button type="button" disabled={off} onClick={() => void act("vacuum.pause", v.id)}>
+            Pause
+          </button>
+        )}
+        <button type="button" disabled={off || docked} onClick={() => void act("vacuum.dock", v.id)}>
           Dock
         </button>
       </div>

@@ -27,6 +27,9 @@
  *   GET  /api/haven?view=phones          passkey session: the phones (label, added, last used, revoked) and the
  *                                        greeting clips' state. Never a key or a hash.
  *   POST /api/haven { action: "tick", id, done }         passkey session: tick an item off, or back on.
+ *   POST /api/haven { action: "remove", id }            passkey session: take an item off the list (hidden at once, kept
+ *                                                        ten minutes, #657). 404 when there is no such item.
+ *   POST /api/haven { action: "undo-remove", id }        passkey session: bring a removed item back. 404 when it is gone.
  *   POST /api/haven { action: "add-phone", label }       passkey session: a new phone; its key comes back this once.
  *   POST /api/haven { action: "revoke-phone", id }       passkey session: that phone's key opens nothing from now on.
  *   POST /api/haven { action: "make-greetings" }         passkey session: (re)make the greeting clips, under
@@ -47,7 +50,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { phoneAnswer, type PhoneTurn } from "../skippy.js";
 import { elevenFromEnv, pickStoryStore } from "../_world/story.js";
 import { audioIdOf, greetClip, greetState, makeGreetings, speakForPhone, takeAudio, type VoiceDeps } from "./audio.js";
-import { classify, itemsOf, sayAdded, sayTodo, spokenOf } from "./classify.js";
+import { classify, itemsOf, sayAdded, sayRemoved, sayTodo, spokenOf } from "./classify.js";
 import { PhoneConvo, type ConvoTurn } from "./convo.js";
 import { privateParts } from "../_privacy.js";
 import { KitchenList } from "./list.js";
@@ -170,6 +173,11 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
         say = sayAdded(added, already);
         quiet = added.length > 0 || already.length > 0;
       }
+    } else if (sorted.kind === "remove") {
+      // Off the Kitchen list (#657): quiet when everything asked for went; spoken when one is missing or could be two.
+      const out = await new KitchenList(deps.blob).removeByName(sorted.items, now);
+      say = sayRemoved(out);
+      quiet = out.removed.length > 0 && !out.missing.length && !out.ambiguous.length;
     } else if (sorted.kind === "device") {
       // The home devices (#632): the same rails as the Desk's buttons, and the Council keeps the words as said.
       const home = deps.devices?.() ?? null;
@@ -254,6 +262,11 @@ export async function havenPost(request: Request, deps: HavenDeps): Promise<Resp
   if (body.action === "tick") {
     if (typeof body.done !== "boolean") return reply({ error: "bad-request" }, 400);
     const ok = await new KitchenList(deps.blob).tick(body.id, body.done, now);
+    return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
+  }
+  if (body.action === "remove" || body.action === "undo-remove") {
+    const list = new KitchenList(deps.blob);
+    const ok = body.action === "remove" ? await list.remove(body.id, now) : await list.restore(body.id, now);
     return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
   }
   if (body.action === "instacart") {

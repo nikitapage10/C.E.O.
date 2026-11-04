@@ -276,7 +276,7 @@ Since #627 the iPhone's Action Button runs a "Skippy" shortcut that posts what N
   cap, and kept as a WAV for one fetch: the answer carries `/api/capture?a=pa1.<expiry>.<id>.<mac>`, signed with a key
   derived from the Desk key, good for five minutes and deleted as it is served. It never carries the phone's key. Past
   the cap, `audio` is left out and the phone speaks `say`.
-- **The Desk's side.** `GET /api/haven?view=list|phones` and every `POST /api/haven` (tick an item, add or revoke a
+- **The Desk's side.** `GET /api/haven?view=list|phones` and every `POST /api/haven` (tick an item, remove one or bring it back, add or revoke a
   phone, record the greeting clips) need a passkey session; `?view=status` gives the counts only. The greeting clips
   (`GET /api/hey-skippy`, `/hey-skippy/hello.mp3`) are a few spoken words, public by design, recorded only from the
   Desk under ElevenLabs' cap.

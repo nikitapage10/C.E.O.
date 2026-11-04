@@ -99,13 +99,14 @@ ElevenLabs call at all. The audio link works once and for five minutes, and carr
   "Vacuum, go home." "Feed the cat a portion." "Give the cat wet food." "Run a litter clean cycle." The server's rails
   still apply (the daily feed cap per feeder, the Litter-Robot only when it says it's ready), and Skippy says what
   happened.
+- Taking things off the list (#657): "remove garlic", "take milk off the list", "cross off eggs". It answers quietly when everything went; if something wasn't on the list, or "milk" could be two items, Skippy says so out loud.
 - Anything else: "How's the Green looking?" "Is anything broken?" Skippy answers in a sentence or two; for real work he
   gives the quick take and says he'll put the rest on the Desk, where his answer arrives like any Desk hand-off.
 
 Skippy remembers the last few turns from each phone for ten quiet minutes, so a second press follows on from the
 first: "garlic and lemons", then "and milk too"; or "who do I start at flex?", then "what about Godwin?".
 
-The Kitchen list shows on **Today** as a small **Kitchen list** chip (signed in: open it and tick things off). Phone
+The Kitchen list shows on **Today** as a small **Kitchen list** chip (signed in: open it and tick things off, or × one away with five seconds to Undo). Phone
 to-dos are kept privately until Today's own voice to-dos (#622) take them over.
 
 ## Privacy and limits

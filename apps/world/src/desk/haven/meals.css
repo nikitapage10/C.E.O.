@@ -708,6 +708,12 @@
   color: var(--hv-soft);
   animation: mp-rise 0.3s ease both;
 }
+/* What Skippy just changed (#698): the same line, his gold brighter, so a change made by voice is plain at a glance. */
+[data-room="haven"] .mp-said.is-skippy {
+  border-left-color: rgb(var(--hv-gold));
+  background: linear-gradient(90deg, rgba(var(--hv-gold), 0.1), transparent 70%);
+  color: var(--hv-ink);
+}
 
 /* ── the rail: the week's shopping, the list, King Soopers ── */
 [data-room="haven"] .mp-rail .hv-card {

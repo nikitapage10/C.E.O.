@@ -106,6 +106,8 @@ export interface AgentResult {
   looked: string[];
   /** "Did" chips: what it changed. */
   did: string[];
+  /** The tools that changed something this turn, by name, so the page showing it can read it again (#698). */
+  wrote: string[];
   /** Yes buttons waiting for Nikita's tap. */
   confirm: PendingConfirm[];
   /** A text for Relay's card (draft_text). */
@@ -195,6 +197,7 @@ export async function runAgent(call: CallModel, system: string, input: string, c
 
   const looked: string[] = [];
   const did: string[] = [];
+  const wrote: string[] = [];
   const confirm: PendingConfirm[] = [];
   let textAction: TextAction | undefined;
   let tainted = false;
@@ -267,13 +270,14 @@ export async function runAgent(call: CallModel, system: string, input: string, c
       if (got.action) textAction = got.action;
       if (got.tool?.effect === "read") note(looked, got.tool.title);
       if (got.did) note(did, got.did);
+      if (got.tool && got.tool.effect !== "read" && !wrote.includes(got.tool.name)) wrote.push(got.tool.name);
       results.push({ type: "tool_result", tool_use_id: b.id, content: got.text });
     }
     messages.push({ role: "user", content: results });
     // A turn that has grown past its input bound answers with what it has.
     if (u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) > AGENT_INPUT && !last) round = AGENT_ROUNDS - 2;
   }
-  return { answer, usage: called ? usage : null, usd, model: answeredBy, parts, looked, did, confirm: confirm.slice(0, 3), ...(textAction && { textAction }) };
+  return { answer, usage: called ? usage : null, usd, model: answeredBy, parts, looked, did, wrote, confirm: confirm.slice(0, 3), ...(textAction && { textAction }) };
 }
 
 /** The live client: the Azure copy's Claude key, no retries past one, a timeout that fits the Function's window. */

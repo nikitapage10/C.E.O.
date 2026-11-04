@@ -29,6 +29,7 @@ import {
   type Slot,
 } from "./meals.ts";
 import { confirmPhotos, PHOTO_WORD, photoStates, photoUrl, shootOf, type PhotoState } from "./mealPhotos.ts";
+import { onWrote, touchesList, touchesMeals } from "../skippy/wrote.ts";
 import "./meals.css";
 
 /**
@@ -578,6 +579,8 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
   const [over, setOver] = useState<"catalog" | "taste" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The last thing Skippy changed (#698), said over the week until the next change. */
+  const [skippy, setSkippy] = useState<string | null>(null);
   const [photos, setPhotos] = useState<ReadonlyMap<string, PhotoState>>(new Map());
   const seq = useRef(0);
 
@@ -609,10 +612,36 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
     });
   }, []);
 
+  // Skippy changed the plan (#698: the Desk's chat, a Yes tap, a room's mic): read it again the way the page loads, and
+  // say what changed. The night he changed opens; an edit of Nikita's still in flight gives way to the newer file.
+  useEffect(
+    () =>
+      onWrote((w) => {
+        if (touchesList(w)) onListChanged();
+        if (!touchesMeals(w)) return;
+        const n = ++seq.current;
+        void loadMeals().then((l) => {
+          if (n !== seq.current) return;
+          setBusy(false);
+          if (l.state === "out") return useDeskAuth.getState().lost();
+          if (l.state !== "ready") return;
+          setFile(l.file);
+          setLoad("ready");
+          setNote(null);
+          const line = w.did.join(" ").trim();
+          setSkippy(line ? `Skippy changed it: ${line}` : "Skippy changed the plan.");
+          const day = DAYS.findIndex((d) => line.startsWith(DAY_NAME[d]));
+          if (day >= 0) setSel(day);
+        });
+      }),
+    [onListChanged],
+  );
+
   const send = useCallback(async (body: MealsAction, shown: MealsFile | null, before: MealsFile | null) => {
     const n = ++seq.current;
     if (shown) setFile(shown);
     setBusy(true);
+    setSkippy(null);
     const r = await mealsAction(body);
     if (n !== seq.current) return r;
     setBusy(false);
@@ -761,6 +790,10 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
         {note ? (
           <p className="mp-said" role="status">
             {note}
+          </p>
+        ) : skippy ? (
+          <p className="mp-said is-skippy" role="status">
+            {skippy}
           </p>
         ) : null}
         {pending && !w.confirmedAt ? (

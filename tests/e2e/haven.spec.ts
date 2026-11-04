@@ -412,3 +412,41 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
     await page.screenshot({ path: `${SHOTS}/haven-678-planner-phone-2.png` });
   }
 });
+
+test("signed in, the Kitchen follows what Skippy changes: a swap said in his chat shows on the week at once (#698)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  // The made-up planner file again; Skippy's turn changes it server side, as his meal tools do.
+  let file: MealsFile = fakeMeals();
+  let reads = 0;
+  await page.route(`${BASE}/api/haven-meals`, (r) => {
+    reads++;
+    return r.fulfill({ json: { meals: file, components: allComponents(file) } });
+  });
+  await page.route(/\/api\/haven-photos(\?.*)?$/, (r) => r.fulfill({ status: 404, json: { error: "not-found" } }));
+  const asked: string[] = [];
+  await page.route(`${BASE}/api/skippy`, (r) => {
+    if (r.request().method() !== "POST") return r.fulfill({ json: { ready: true } });
+    asked.push((r.request().postDataJSON() as { message: string }).message);
+    const got = applyEdit(file, { op: "swap", day: "tue", meal: "kofta" }, Date.now());
+    if (got.ok) file = got.file;
+    return r.fulfill({ json: { reply: "Kofta on Tuesday. Undo is on the Kitchen page.", actions: [], did: [got.ok ? got.changes[0] : ""], wrote: ["meals_swap"], spend: { usd: 1, cap: 60, warn: 50 } } });
+  });
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  const week = sheet.getByRole("list", { name: "This week's dinners" });
+  await expect(week.getByRole("button", { name: /^Tuesday: chicken plate/ })).toBeVisible();
+  const before = reads;
+
+  await page.evaluate(() => (document.querySelector(".desk__skippy") as HTMLElement | null)?.click());
+  const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });
+  await chat.getByRole("textbox", { name: "Message to Skippy" }).fill("swap Tuesday for kofta");
+  await chat.getByRole("textbox", { name: "Message to Skippy" }).press("Enter");
+  await expect(chat.getByText("Kofta on Tuesday.", { exact: false })).toBeVisible();
+  expect(asked).toEqual(["swap Tuesday for kofta"]);
+
+  // The planner read itself again and says what Skippy changed, with that night open.
+  await expect(week.getByRole("button", { name: /^Tuesday: kofta/ })).toBeVisible();
+  expect(reads).toBeGreaterThan(before);
+  await expect(sheet.getByText("Skippy changed it: Tuesday: kofta instead of chicken plate.")).toBeVisible();
+  await expect(sheet.getByRole("region", { name: "Tuesday's dinner" }).getByRole("heading", { name: "kofta" })).toBeVisible();
+});

@@ -375,6 +375,18 @@ describe("POST /api/skippy-room (#638)", () => {
     expect(told).toEqual([{ text: "add Tre Tucker", room: "green" }]);
   });
 
+  it("in the Haven, meal talk goes to the submind, and the answer names what its tools changed (#698)", async () => {
+    const { d, told, store } = deps({
+      skippy: async (text, _h, _p, room) => (told.push({ text, room: room.log ?? "" }), { reply: "Tacos on Tuesday it is.", handedOff: false, wrote: ["meals_swap"], did: ["Tuesday: tacos instead of kofta."] }),
+    });
+    const cookie = await signedInCookie(DESK, NOW, store);
+    const body = (await (await roomVoicePost(post({ room: "haven", text: "swap Tuesday for tacos" }, cookie), d)).json()) as Record<string, unknown>;
+    expect(told.map((t) => t.text)).toEqual(["swap Tuesday for tacos"]);
+    expect(body).toMatchObject({ kind: "skippy", wrote: ["meals_swap"], did: ["Tuesday: tacos instead of kofta."] });
+    const list = (await (await roomVoicePost(post({ room: "haven", text: "we need basil" }, cookie), d)).json()) as Record<string, unknown>;
+    expect(list).toMatchObject({ kind: "shopping", wrote: ["kitchen_add"] });
+  });
+
   it("refuses a room without a voice, nothing heard, and words that are too long", async () => {
     const { d, store } = deps();
     const cookie = await signedInCookie(DESK, NOW, store);

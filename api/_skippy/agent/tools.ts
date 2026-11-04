@@ -158,7 +158,7 @@ const mealEdit = async (host: ToolHost, ...edits: Array<MealEdit | string>): Pro
       return said.length ? { ok: true, text: `${said.join(" ")} But: ${no}`, did: last } : { ok: false, text: no };
     }
     said.push(...got.changes);
-    last = plainLine(got.changes[got.changes.length - 1] ?? "Changed the meal plan", 40);
+    last = plainLine(got.changes[got.changes.length - 1] ?? "Changed the meal plan", 60);
   }
   return { ok: true, text: `${said.join(" ")} The Kitchen page shows it; Undo is there too.`, did: last };
 };

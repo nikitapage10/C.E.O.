@@ -74,14 +74,17 @@ export async function act(request: Request, deps: ActDeps): Promise<Response> {
     if (!isPendingId(body.confirm) || typeof body.yes !== "boolean") return send({ error: "bad-request" }, 400);
     const got = await confirmTool(body.confirm, body.yes, deps.host(), deps.pending);
     const { tool: _t, ...out } = got;
-    return send(out, got.ok ? 200 : 409);
+    return send({ ...out, ...wroteOf(got, body.yes) }, got.ok ? 200 : 409);
   }
   if (typeof body.tool !== "string" || (body.input !== undefined && (typeof body.input !== "object" || body.input === null || Array.isArray(body.input)))) return send({ error: "bad-request" }, 400);
   // A room's voice hook: it can show a Yes button, so confirm-gated tools come back waiting; never Relay's card.
   const got = await callTool(body.tool, body.input ?? {}, deps.host(), { pending: deps.pending, surface: "desk", direct: true });
   const { tool: _t, action: _a, ...out } = got;
-  return send(out, got.ok ? 200 : 422);
+  return send({ ...out, ...wroteOf(got, true) }, got.ok ? 200 : 422);
 }
+
+/** The tool that changed something (#698), so the page showing it reads itself again. Not for a read, a wait or a No. */
+const wroteOf = (got: Awaited<ReturnType<typeof callTool>>, ran: boolean) => (ran && got.ok && !("confirm" in got) && got.tool && got.tool.effect !== "read" ? { wrote: [got.tool.name] } : {});
 
 /* ── /api/skippy-memory ── */
 

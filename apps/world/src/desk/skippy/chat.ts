@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { callIsLive } from "./liveCall.ts";
 import type { AskedCard, AskedRoom } from "./asked.ts";
 import type { Pending } from "./handoff.ts";
+import { announceWrote, readWrote } from "./wrote.ts";
 
 /**
  * Skippy's chat, browser side (#224; the function is api/skippy.ts). The conversation lives only in this tab's
@@ -147,8 +148,10 @@ export function readSpend(raw: unknown): Spend | null {
 export async function tapConfirm(id: string, yes: boolean, doFetch: typeof fetch = fetch): Promise<{ ok: boolean; text: string; did?: string }> {
   try {
     const res = await doFetch("/api/skippy-act", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: id, yes }), credentials: "same-origin" });
-    const body = (await res.json().catch(() => ({}))) as { ok?: unknown; text?: unknown; did?: unknown };
+    const body = (await res.json().catch(() => ({}))) as { ok?: unknown; text?: unknown; did?: unknown; wrote?: unknown };
     if (res.status === 401) return { ok: false, text: ASK_ERROR["signed-out"] };
+    // The page showing what the tap changed reads itself again (#698).
+    if (res.ok && body.ok === true) announceWrote(readWrote(body));
     return { ok: res.ok && body.ok === true, text: clip(body.text, 300) || (res.ok ? "Done." : "That didn't work."), ...(typeof body.did === "string" && { did: clip(body.did, 60) }) };
   } catch {
     return { ok: false, text: "That didn't work." };
@@ -201,7 +204,7 @@ export async function askSkippy(message: string, history: { who: Turn["who"]; te
       body: JSON.stringify({ message: message.slice(0, MESSAGE_MAX), history, ...(page && { page }) }),
       credentials: "same-origin",
     });
-    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown; looked?: unknown; did?: unknown; confirm?: unknown; spend?: unknown };
+    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown; looked?: unknown; did?: unknown; wrote?: unknown; confirm?: unknown; spend?: unknown };
     if (res.status === 401) return { ok: false, error: "signed-out", message: ASK_ERROR["signed-out"] };
     if (res.status === 422) {
       const kinds = Array.isArray(body.held) ? body.held.filter((k): k is string => typeof k === "string" && k.length < 60) : [];
@@ -214,6 +217,8 @@ export async function askSkippy(message: string, history: { who: Turn["who"]; te
     if (res.status === 503) return { ok: false, error: "off", message: ASK_ERROR.off };
     const reply = clip(body.reply, 700);
     if (!res.ok || !reply) return { ok: false, error: "failed", message: ASK_ERROR.failed };
+    // What Skippy's tools changed (#698): the page showing it reads itself again.
+    announceWrote(readWrote(body));
     const handed = typeof body.turn === "string" && /^[0-9a-f]{16}$/.test(body.turn) && typeof body.needs === "string" && /^[a-z]{2,12}$/.test(body.needs) && typeof body.room === "string";
     const spend = readSpend(body.spend);
     return {

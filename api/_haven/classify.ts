@@ -13,7 +13,9 @@
  *   workout   the Gym's plan (#660): "did core day A", "log core workout", "finished my core workout", "done with the
  *             gym": that session is logged (api/_haven/gym.ts). A question ("did I do core this week?") isn't a log.
  *   skippy    anything else (a question, small talk, a bare single word): Desk Skippy's own chat answers it, under its
- *             own caps (api/skippy.ts, phoneAnswer).
+ *             own caps (api/skippy.ts, phoneAnswer). Talk about the meal plan always goes here (#698): "swap Tuesday
+ *             for tacos", "make Friday a HelloFresh night", "quinoa instead of rice on Monday", "more spicy", "send the
+ *             week to King Soopers" are Skippy's meal tools (rooms/haven/tools.ts), never a to-do or shopping.
  *
  * Since #637 a device ask also carries its numbers and words: "feed the cat 2 portions" (portions), "next bowl" or
  * "switch the wet feeder to tray 2" (wet.rotate, plate), "clean the kitchen quietly, vacuum only" (suction, water).
@@ -192,6 +194,16 @@ export function removeAsk(text: string): Extract<Capture, { kind: "remove" }> | 
   return { kind: "remove", items };
 }
 
+/**
+ * The meal planner's words (#698): a night's dinner, its parts, its switches, the heat, the week's plan and its cart.
+ * Said with them, a day name is the night to change, not when to do something, so the words go to Skippy's tools.
+ */
+const MEAL_TALK =
+  /\b(?:dinners?|meals?|meal plan|recipes?|hello ?fresh|for two|for one|(?:bigger|smaller|larger|half|double|extra) portions?|portions? (?:size|bigger|smaller)|spic(?:y|ier|iest|iness|e level)|milder|less hot|hotter|heat level|swap|instead of|not for me|backups?|the week'?s (?:groceries|shopping|meals|dinners|plan)|(?:this|next) week'?s (?:meals|dinners|plan|menu)|plan (?:the|next|a) week|king soopers|(?:my|the) cart|meal catalog|protein goal|taste profile|undo (?:that|the) (?:swap|change)|put (?:it|that) back)\b/i;
+
+/** Whether the words are about the meal plan (`MEAL_TALK`), so Skippy's tools take them. */
+export const mealTalk = (text: string): boolean => MEAL_TALK.test(text);
+
 /** A follow-on to the last capture: "and milk too", "also eggs", "plus bread as well". */
 const FOLLOW_START = /^(?:oh,?\s+)?(?:and|also|plus)\b,?\s*/i;
 const FOLLOW_END = /,?\s+(?:too|as well|also)$/i;
@@ -247,6 +259,8 @@ export function classify(raw: string, last: Capture["kind"] | null = null): Capt
   if (TODO_START.test(text)) return { kind: "todo", text: todoText(text) };
   const device = deviceAsk(text);
   if (device) return device;
+  // The meal plan (#698): Skippy's tools, before the to-do verbs ("send the week to King Soopers") and the days.
+  if (mealTalk(text)) return { kind: "skippy", text };
   if (TODO_VERB.test(text)) return { kind: "todo", text: todoText(text) };
   // Shopping: "add …", "we need …", "out of …", with or without "to the list".
   const shop = SHOP_START.exec(text);

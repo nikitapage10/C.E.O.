@@ -276,6 +276,24 @@ describe("the agent loop (#646)", () => {
     expect(r.parts.web).toBeCloseTo(0.01, 6);
   });
 
+  it("names the tools that changed something (#698), so the page showing it reads itself again", async () => {
+    const s = script([
+      () =>
+        msg(
+          [
+            { type: "tool_use", id: "t1", name: "green_board", input: {} },
+            { type: "tool_use", id: "t2", name: "kitchen_add", input: { items: ["basil"] } },
+            { type: "tool_use", id: "t3", name: "remember", input: { fact: "Likes melodic bass", topic: "music" } },
+          ],
+          "tool_use",
+        ),
+      () => answer("Basil's on the list."),
+    ]);
+    const r = await runAgent(s.call, SKIPPY_PROMPT, "x", ctx());
+    // A read and a call still waiting for the tap changed nothing yet.
+    expect(r.wrote).toEqual(["kitchen_add"]);
+  });
+
   it("the last round may not call a tool, so a turn always ends", async () => {
     const loop = () => msg([{ type: "tool_use", id: "t", name: "green_board", input: {} }], "tool_use");
     const s = script([loop, loop, loop, (p) => (expect(p.tool_choice).toEqual({ type: "none" }), answer("Done looking."))]);
@@ -313,7 +331,7 @@ describe("the agent's endpoints (#646)", () => {
     expect(h.acted).toEqual([]);
     const ok = await act(req("/api/skippy-act", cookie, { confirm: id, yes: true }), deps);
     expect(ok.status).toBe(200);
-    expect(await ok.json()).toMatchObject({ ok: true, did: "Run the Litter-Robot" });
+    expect(await ok.json()).toMatchObject({ ok: true, did: "Run the Litter-Robot", wrote: ["home_device"] });
     expect((await act(req("/api/skippy-act", cookie, { confirm: id, yes: true }), deps)).status).toBe(409);
     expect(h.acted).toEqual(["litter.clean"]);
   });
@@ -322,7 +340,8 @@ describe("the agent's endpoints (#646)", () => {
     const { desk, cookie } = await signed();
     const h = host();
     const deps = { desk, host: () => h, pending: new MemoryPending() };
-    expect(await (await act(req("/api/skippy-act", cookie, { tool: "kitchen_add", input: { items: ["basil"] } }), deps)).json()).toMatchObject({ ok: true });
+    expect(await (await act(req("/api/skippy-act", cookie, { tool: "kitchen_add", input: { items: ["basil"] } }), deps)).json()).toMatchObject({ ok: true, wrote: ["kitchen_add"] });
+    expect(await (await act(req("/api/skippy-act", cookie, { tool: "green_board", input: {} }), deps)).json()).not.toHaveProperty("wrote");
     const gated = (await (await act(req("/api/skippy-act", cookie, { tool: "forget", input: { id: "f000000000000" } }), deps)).json()) as { ok: boolean };
     expect(gated.ok).toBe(false); // no such memory: nothing to wait for
     expect((await act(req("/api/skippy-act", cookie, { tool: 7 }), deps)).status).toBe(400);

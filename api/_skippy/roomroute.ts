@@ -200,9 +200,12 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
   const sorted: Capture = voice.room === "haven" ? classify(text, last) : { kind: "skippy", text };
   let say: string;
   let status = 200;
+  // The tools that changed something on the submind's turn (#698): the page reads itself again.
+  let wrote: { wrote: string[]; did: string[] } | null = null;
   if (sorted.kind === "shopping" && deps.blob) {
     const { added, already } = await new KitchenList(deps.blob).add(sorted.items, now);
     say = sayAdded(added, already);
+    if (added.length) wrote = { wrote: ["kitchen_add"], did: [] };
   } else if (sorted.kind === "device") {
     // The same rails as the Desk's buttons; the devices keep the words in the Council themselves.
     const home = deps.devices();
@@ -228,6 +231,7 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
     });
     say = turn.error ? ROOM_SAYS[turn.error] : spokenRoom(turn.reply, turn.handedOff);
     status = turn.error ? STATUS[turn.error] : 200;
+    if (!turn.error && turn.wrote?.length) wrote = { wrote: turn.wrote, did: turn.did ?? [] };
   }
   const kind = sorted.kind === "shopping" || sorted.kind === "todo" ? (deps.blob ? sorted.kind : "skippy") : sorted.kind;
   // Which room and which way, never what was said.
@@ -237,6 +241,7 @@ async function answer(request: Request, deps: RoomRouteDeps, passkey: string, au
   return json({
     say,
     kind,
+    ...wrote,
     ...(spoken && { audio: Buffer.from(spoken).toString("base64") }),
   });
 }

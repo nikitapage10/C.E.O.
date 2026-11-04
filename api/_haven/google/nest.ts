@@ -11,7 +11,9 @@
  *          sdm.devices.commands.ThermostatTemperatureSetpoint.SetRange  { heatCelsius, coolCelsius }
  *
  * The rails (api/_haven/devices/rails.ts) have already said yes before run() is called: 60 to 80 °F, the modes the
- * thermostat offers, nothing in eco or while off. SDM speaks Celsius; the Desk speaks whole °F. The device's resource
+ * thermostat offers, nothing in eco or while off. SDM speaks Celsius; the Desk speaks whole °F. SDM keeps a per-user
+ * quota of calls a minute (429 RESOURCE_EXHAUSTED past it), so after a command the Home serves settle()'s reading for a
+ * moment instead of reading again, and a rate-limited read keeps the last good one (api/_haven/devices/home.ts). The device's resource
  * name stays on the server (the reading carries an opaque id), and its own name from the Home app is never read.
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -109,6 +111,17 @@ export function commandFor(action: ActionId, args: RunArgs, mode: ThermoMode | u
   return null;
 }
 
+/** The reading as a command that Google took leaves it: the new set point or mode, the rest as it was. Pure. */
+export function settledReading(action: ActionId, r: DeviceReading, args: RunArgs): DeviceReading | null {
+  if (action === "thermostat.mode" && args.mode) {
+    const mode = args.mode;
+    const state = !r.online ? "offline" : r.eco ? "eco" : mode === "off" ? "off" : r.hvac && r.hvac !== "off" ? r.hvac : "idle";
+    return { ...r, mode, state, ...(mode === "off" && { hvac: "off" as const }) };
+  }
+  if (action !== "thermostat.set" || (args.heatF === undefined && args.coolF === undefined)) return null;
+  return { ...r, ...(args.heatF !== undefined && { heatF: args.heatF }), ...(args.coolF !== undefined && { coolF: args.coolF }) };
+}
+
 export class NestClient implements DeviceClient<NestRef> {
   readonly vendor = "nest" as const;
   readonly actions = ["thermostat.set", "thermostat.mode"] as const;
@@ -143,6 +156,10 @@ export class NestClient implements DeviceClient<NestRef> {
     const got = obj(await callJson(this.deps.fetch, `${SDM_API}/enterprises/${project}/devices`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, redirect: "error" }));
     const list = Array.isArray(got.devices) ? got.devices : [];
     return list.map((d) => readThermostat(d, idKey)).filter((f): f is Found<NestRef> => f !== null);
+  }
+
+  settle(action: ActionId, reading: DeviceReading, args: RunArgs): DeviceReading | null {
+    return settledReading(action, reading, args);
   }
 
   async run(action: ActionId, found: Found<NestRef>, args: RunArgs): Promise<RunResult> {

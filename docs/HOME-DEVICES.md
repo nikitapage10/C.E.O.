@@ -272,4 +272,8 @@ before King Soopers replaced MealMe.
 - **Nest.** Through Device Access only (no local control); eco mode can't be changed through SDM, so the Desk says to
   change it in the Home app.
 - **Google Tasks.** It reads the one list by name; Google Keep lists have no API.
-- **Pace.** Readings are cached 30 seconds per warm instance; a phone key's device calls share its 30 an hour.
+- **Pace.** Readings are cached 30 seconds per warm instance, and callers at once share one read; a phone key's device
+  calls share its 30 an hour. After a command, its vendor's reading is taken as the command left it for 20 seconds
+  instead of being read again (the Nest's set point and mode; Google SDM rate-limits reads per user), and a read that
+  fails in passing (429, a 5xx, a timeout) keeps the vendor's last good reading, marked stale, for up to 10 minutes
+  before it reads "down" (#681). A refused login is down at once.

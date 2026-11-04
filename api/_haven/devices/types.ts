@@ -94,6 +94,8 @@ export interface DeviceReading {
   hvac?: "heating" | "cooling" | "off";
   heatF?: number | null;
   coolF?: number | null;
+  /** The vendor's cloud didn't answer this read (rate limited, or its own trouble), so this is its last good reading. */
+  stale?: true;
 }
 
 /** A device found by a client: the reading and what the client keeps to act on it (never sent anywhere). */
@@ -150,6 +152,9 @@ export interface DeviceClient<R = unknown> {
   run(action: ActionId, found: Found<R>, args: RunArgs): Promise<RunResult>;
   /** Why its last read failed, when it can tell (#672): shown to a signed-in Desk only, never the vendor's own words. */
   problem?(): VendorProblem | null;
+  /** The reading as a command that went through leaves it, when the client can tell without asking again: the Home
+   * serves it for a short while instead of reading the vendor straight after (whose quota a read would spend). */
+  settle?(action: ActionId, reading: DeviceReading, args: RunArgs): DeviceReading | null;
 }
 
 /**

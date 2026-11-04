@@ -242,15 +242,62 @@ export function sayRefused(action: ActionId, code: ActCode, extra: { cap?: numbe
 
 /** How long a status read is kept in this instance. */
 export const STATUS_TTL_MS = 30_000;
+/** How long after a command its vendor's reading is taken as the command left it (DeviceClient.settle), without
+ * asking the vendor again: the read straight after a change is what spends a quota like Google SDM's. */
+export const SETTLE_MS = 20_000;
+/** How long a vendor's last good reading stands in, marked stale, while its cloud says slow down or doesn't answer. */
+export const STALE_MAX_MS = 10 * 60_000;
+
+/** A read that failed in passing (rate limited, the vendor's own 5xx, no answer), not a refused or missing login. */
+export const passing = (e: unknown): boolean => e instanceof VendorError && (e.status === 0 || e.status === 408 || e.status === 429 || e.status >= 500);
+
+interface LastGood {
+  /** When it was read (or settled). */
+  at: number;
+  found: Found[];
+  /** Until when it is served without asking the vendor (after a command; 0 otherwise). */
+  hold: number;
+}
 
 export class Home {
   private cache: { at: number; view: HomeView } | null = null;
+  /** The read under way, shared by every caller at once (the Desk, the public status, Systems). */
+  private pending: Promise<HomeView> | null = null;
+  /** Bumped by every action, so a read begun before it never caches a view from before it. */
+  private gen = 0;
+  /** Each vendor's last good reading. */
+  private readonly last = new Map<Vendor, LastGood>();
   constructor(private readonly deps: HomeDeps) {}
 
   /** Every vendor's devices; a vendor that isn't connected is "waiting", one that failed is "down". */
   async status(fresh = false): Promise<HomeView> {
     const now = this.deps.now();
     if (!fresh && this.cache && now - this.cache.at < STATUS_TTL_MS) return this.cache.view;
+    if (this.pending) return this.pending;
+    const going = this.readAll(now).finally(() => {
+      if (this.pending === going) this.pending = null;
+    });
+    this.pending = going;
+    return going;
+  }
+
+  /** One vendor's devices: held after a command, else read, else (a passing failure) its last good reading, stale. */
+  private async read(c: DeviceClient, now: number): Promise<{ found: Found[]; stale: boolean }> {
+    const last = this.last.get(c.vendor);
+    if (last && now < last.hold) return { found: last.found, stale: false };
+    try {
+      const found = await c.status();
+      const cur = this.last.get(c.vendor);
+      if (!cur || cur.at <= now) this.last.set(c.vendor, { at: now, found, hold: 0 });
+      return { found, stale: false };
+    } catch (e) {
+      if (last && passing(e) && !c.problem?.() && now - last.at < STALE_MAX_MS) return { found: last.found, stale: true };
+      throw e;
+    }
+  }
+
+  private async readAll(now: number): Promise<HomeView> {
+    const gen = this.gen;
     const vendors = Object.fromEntries(VENDORS.map((v) => [v, "waiting"])) as Record<Vendor, VendorState>;
     const problems: Partial<Record<Vendor, VendorProblem>> = {};
     const devices: DeviceReading[] = [];
@@ -259,9 +306,10 @@ export class Home {
       this.deps.clients.map(async (c) => {
         if (!(await c.connected().catch(() => false))) return;
         try {
-          const found = await c.status();
+          const { found, stale } = await this.read(c, now);
           vendors[c.vendor] = "live";
-          for (const f of found) devices.push(f.reading);
+          for (const f of found) devices.push({ ...f.reading, ...(stale && { stale: true as const }) });
+          if (stale) this.deps.log(`home: ${c.vendor} status kept from the last good read`);
         } catch (e) {
           vendors[c.vendor] = "down";
           const why = c.problem?.() ?? (e instanceof VendorError && e.status === 0 ? "unreachable" : "vendor");
@@ -279,7 +327,7 @@ export class Home {
       }
     }
     const view = { vendors, problems, devices, feedCap: this.deps.feedCap };
-    this.cache = { at: now, view };
+    if (gen === this.gen) this.cache = { at: now, view };
     return view;
   }
 
@@ -290,8 +338,10 @@ export class Home {
 
   /** Runs one action through the rails, says how it went, and keeps it in the Council. */
   async act(req: ActRequest): Promise<ActResult> {
+    this.gen++;
     const result = await this.attempt(req);
     const asked = thermoAsked(req);
+    this.gen++;
     this.cache = null;
     this.deps.log(`home: ${req.action} ${result.ok ? "done" : `refused (${result.code})`}`);
     if (this.deps.council) {
@@ -312,11 +362,19 @@ export class Home {
     if (!client) return refuse("unsupported");
     const vendor = client.vendor;
     if (!(await client.connected().catch(() => false))) return refuse("not-connected", { vendor });
+    // Straight after a command, the reading it left (SETTLE_MS) serves the rails, so a run of steps costs Google one
+    // command each and no reads; otherwise a fresh read, kept as the vendor's last good one.
     let found: Found[];
-    try {
-      found = await client.status();
-    } catch {
-      return refuse("vendor", { vendor });
+    const held = this.last.get(vendor);
+    const started = this.deps.now();
+    if (held && started < held.hold) found = held.found;
+    else {
+      try {
+        found = await client.status();
+      } catch {
+        return refuse("vendor", { vendor });
+      }
+      this.last.set(vendor, { at: started, found, hold: 0 });
     }
     const mine = found.filter((f) => f.reading.kind === kind);
     const target = req.device ? mine.find((f) => f.reading.id === req.device) : mine[0];
@@ -385,6 +443,11 @@ export class Home {
       if (ledger) await ledger.release(r.id, this.deps.now(), take).catch(() => undefined);
       if (ran.code === "unknown-room") return refuse("unknown-room", { rooms: r.rooms });
       return refuse(ran.code, { vendor });
+    }
+    const settled = client.settle?.(action, r, args);
+    if (settled) {
+      const at = this.deps.now();
+      this.last.set(vendor, { at, found: found.map((f) => (f === target ? { ...f, reading: settled } : f)), hold: at + SETTLE_MS });
     }
     let heads = "";
     if (tray && (action === "wet.rotate" || action === "wet.open")) {

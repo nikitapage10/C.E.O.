@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EmailItem } from "../email/email.ts";
 import type { TextItem } from "../texts/texts.ts";
-import { allowed, commandOf, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, type Command, type Phase, type Timers } from "./thread.ts";
+import { allowed, codexOf, commandOf, keyCommand, metricsOf, offered, OVERDUE_MS, passesOf, pendingOf, queueOf, undoable, UNDO_MS, weekSent, type Command, type Phase, type Timers } from "./thread.ts";
 import { GHOST, MAX_LIVE, room, SigilStage, SIGILS } from "./sigils.ts";
 
 /* Relay's Thread (#615). Every person and message here is made up. */
@@ -46,10 +46,32 @@ describe("commands", () => {
     ["haha that was funny", "words"],
     ["send it?", "words"],
     ["send it to Sam instead", "words"],
+    // #642: closing intent, skip and draft on request, with no model.
+    ["already did it", "done"],
+    ["I already replied", "done"],
+    ["sent it", "done"],
+    ["handled", "done"],
+    ["no worries", "done"],
+    ["taken care of", "done"],
+    ["Oh, done.", "done"],
+    ["pass", "skip"],
+    ["nah", "skip"],
+    ["not this one", "skip"],
+    ["draft it", "draft"],
+    ["write back", "draft"],
+    ["did you already send it?", "words"],
+    ["done with the old one, now tell them Friday", "words"],
+    ["invites can wait", "words"],
   ])("%s → %s", (said, cmd) => expect(commandOf(said)).toBe(cmd));
 
+  it("hears \"nah\" as no while a draft asks, and as skip before there is one", () => {
+    expect(commandOf("nah", "ask")).toBe("no");
+    expect(commandOf("nah", "incoming")).toBe("skip");
+    expect(commandOf("not this one", "ask")).toBe("skip");
+  });
+
   it("maps the keys", () => {
-    expect(["y", "N", "s", "z", "l", "q"].map(keyCommand)).toEqual(["yes", "no", "skip", "undo", "later", null]);
+    expect(["y", "N", "s", "z", "l", "r", "d", "q"].map(keyCommand)).toEqual(["yes", "no", "skip", "undo", "later", "draft", "done", null]);
   });
 });
 
@@ -85,8 +107,15 @@ describe("the gate", () => {
     expect(allowed("block", "incoming", t!)).toBe(false);
     expect(allowed("words", "drafting", t!)).toBe(false);
     expect(allowed("words", "undo", t!)).toBe(false);
-    expect(offered("incoming", bare)).toEqual(["skip", "later"]);
-    expect(offered("ask", t!)).toEqual(["yes", "no", "change", "skip", "later"]);
+    expect(offered("incoming", bare)).toEqual(["draft", "done", "skip", "later"]);
+    expect(offered("ask", t!)).toEqual(["yes", "no", "change", "draft", "done", "skip", "later"]);
+  });
+
+  it("drafts an email on request even without Gmail's send grant, and never a group text", () => {
+    expect(allowed("draft", "incoming", { ...e!, draft: null })).toBe(true);
+    expect(allowed("draft", "incoming", { ...bare, sendable: false })).toBe(false);
+    expect(allowed("done", "incoming", e!)).toBe(true);
+    expect(allowed("done", "drafting", e!)).toBe(false);
   });
 });
 
@@ -214,5 +243,40 @@ describe("Open the codex", () => {
     expect(passesOf(e!, ["signs as N", "short", "no emoji", "warm", "a fifth"])).toEqual(["signs as N", "short", "no emoji", "warm", "under 120 words", "nothing made up"]);
     expect(passesOf(e!, null)).toEqual(["in your voice", "under 120 words", "nothing made up"]);
     expect(passesOf(t!, ["signs as N"])).toEqual(["in your voice", "one text", "nothing made up"]);
+  });
+});
+
+describe("the Codex (#642)", () => {
+  const q = queueOf([mail(), mail({ id: "aa11bb22cc36", at: NOW - 2 * 86_400_000 })], [text(), text({ id: "4123456789abcdef", since: NOW - 3 * 3_600_000 })]);
+
+  it("is one line of numbers and two lists, oldest first, each exchange once", () => {
+    const c = codexOf(q, NOW);
+    expect(c.waiting).toBe(4);
+    expect(c.oldest).toBe(2 * 86_400_000);
+    expect(c.email.map((r) => r.ex.id)).toEqual(["aa11bb22cc36", "aa11bb22cc33"]);
+    expect(c.texts.map((r) => r.ex.id)).toEqual(["4123456789abcdef", "0123456789abcdef"]);
+    const keys = [...c.email, ...c.texts].map((r) => r.ex.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("drops an exchange the moment it leaves the queue (Done shows at once)", () => {
+    const c = codexOf(q.filter((x) => x.id !== "aa11bb22cc36"), NOW);
+    expect(c.email.map((r) => r.ex.id)).toEqual(["aa11bb22cc33"]);
+    expect(c.waiting).toBe(3);
+  });
+
+  it("signed out, counts only", () => {
+    expect(codexOf(null, NOW, { email: 2, texts: 1 })).toEqual({ waiting: 3, oldest: null, email: [], texts: [] });
+    expect(codexOf(null, NOW).waiting).toBeNull();
+  });
+
+  it("sums the week's sends from both lines", () => {
+    expect(weekSent({ week: [{ day: NOW - 86_400_000, sent: 4, medianMinutes: 10 }, { day: NOW, sent: 2, medianMinutes: null }] }, 3)).toBe(9);
+    expect(weekSent(null, 0)).toBe(0);
+  });
+
+  it("a text's photo and a sender's logo ride along as opaque ids only", () => {
+    const [x] = queueOf([mail({ logo: "0123456789abcdef0123456789abcdef", photo: "fedcba9876543210fedcba9876543210" })], []);
+    expect(x).toMatchObject({ logo: "0123456789abcdef0123456789abcdef", photo: "fedcba9876543210fedcba9876543210" });
   });
 });

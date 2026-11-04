@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { EmailItem, EmailView, FilterRule, StyleProfile } from "../../../../../api/_email/types.ts";
+import type { DeskEmailItem as EmailItem, EmailView, FilterRule, StyleProfile } from "../../../../../api/_email/types.ts";
+import type { Intent } from "../../../../../api/_email/intent.ts";
 import { readEmailStatus, type EmailStatus } from "../../../../../api/_email/status.ts";
 import { useSystems, type LinkState } from "../../systems.ts";
 import { useDeskAuth } from "../signin.ts";
@@ -18,7 +19,33 @@ import { useDeskAuth } from "../signin.ts";
  */
 
 export type { EmailItem, EmailStatus, EmailView, StyleProfile };
-export type EmailRule = Pick<FilterRule, "id" | "kind" | "label" | "at">;
+export type EmailRule = Pick<FilterRule, "id" | "kind" | "label" | "at" | "match" | "to">;
+export type { Intent };
+
+/** What the intent layer answered (#642): the intent, and for a rule the rule made and how many open items it moved. */
+export interface IntentAnswer {
+  intent: Intent;
+  rule?: EmailRule;
+  moved?: number;
+}
+
+const okIntent = (v: unknown): v is Intent => {
+  const o = v as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return false;
+  switch (o.kind) {
+    case "reply":
+      return typeof o.words === "string";
+    case "rule":
+      return typeof o.match === "string" && (o.to === "can-wait" || o.to === "filtered");
+    case "disposition":
+      return o.disposition === "done" || o.disposition === "skip" || o.disposition === "later";
+    case "question":
+    case "unclear":
+      return typeof o.answer === "string";
+    default:
+      return false;
+  }
+};
 
 /** What a Thread action on the email line answered (#615): ok with its result, or the site's error code. */
 export type Answer<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -52,12 +79,15 @@ export function readItem(v: unknown): EmailItem | null {
     done: o.done === true,
     ...(typeof o.said === "string" && o.said && { said: o.said.slice(0, 400) }),
     ...(typeof o.sentAt === "number" && o.sentAt > 0 && { sentAt: o.sentAt }),
+    ...(o.skipped === true && { skipped: true }),
+    ...(typeof o.logo === "string" && /^[0-9a-f]{32}$/.test(o.logo) && { logo: o.logo }),
+    ...(typeof o.photo === "string" && /^[0-9a-f]{32}$/.test(o.photo) && { photo: o.photo }),
   };
 }
 
 const okRule = (r: unknown): r is EmailRule => {
   const o = r as Record<string, unknown> | null;
-  return !!o && typeof o.id === "string" && /^[0-9a-f]{12}$/.test(o.id) && (o.kind === "block" || o.kind === "filter") && typeof o.label === "string" && typeof o.at === "number";
+  return !!o && typeof o.id === "string" && /^[0-9a-f]{12}$/.test(o.id) && (o.kind === "block" || o.kind === "filter" || o.kind === "tier") && typeof o.label === "string" && typeof o.at === "number";
 };
 
 /** The style traits, checked; null when there are none. */
@@ -75,7 +105,7 @@ export function readView(v: unknown): EmailView | null {
   const status = readEmailStatus(b.status);
   const spend = b.spend as Record<string, unknown> | null;
   if (!status || !Array.isArray(b.items) || !spend || typeof spend.usd !== "number" || typeof spend.budget !== "number") return null;
-  return { ok: true, status, canConnect: b.canConnect === true, canSend: b.canSend === true, items: b.items.map(readItem).filter((x): x is EmailItem => x !== null), applied: typeof b.applied === "number" && b.applied > 0 ? Math.min(9_999, Math.floor(b.applied)) : 0, urgentSkipped: typeof b.urgentSkipped === "number" && b.urgentSkipped > 0 ? Math.min(9_999, Math.floor(b.urgentSkipped)) : 0, spend: { usd: spend.usd, budget: spend.budget }, rules: Array.isArray(b.rules) ? (b.rules as unknown[]).filter(okRule).map((r) => ({ id: r.id, kind: r.kind, label: r.label.slice(0, 80), at: r.at })) : [], ruled: typeof b.ruled === "number" && b.ruled > 0 ? Math.min(9_999, Math.floor(b.ruled)) : 0, style: readStyleView(b.style) };
+  return { ok: true, status, canConnect: b.canConnect === true, canSend: b.canSend === true, items: b.items.map(readItem).filter((x): x is EmailItem => x !== null), applied: typeof b.applied === "number" && b.applied > 0 ? Math.min(9_999, Math.floor(b.applied)) : 0, urgentSkipped: typeof b.urgentSkipped === "number" && b.urgentSkipped > 0 ? Math.min(9_999, Math.floor(b.urgentSkipped)) : 0, spend: { usd: spend.usd, budget: spend.budget }, rules: Array.isArray(b.rules) ? (b.rules as unknown[]).filter(okRule).map((r) => ({ id: r.id, kind: r.kind, label: r.label.slice(0, 80), at: r.at, ...(r.to && { to: r.to }), ...(r.match && { match: r.match }) })) : [], sentWeek: typeof b.sentWeek === "number" && b.sentWeek > 0 ? Math.min(9_999, Math.floor(b.sentWeek)) : 0, ruled: typeof b.ruled === "number" && b.ruled > 0 ? Math.min(9_999, Math.floor(b.ruled)) : 0, style: readStyleView(b.style) };
 }
 
 /** The Boiler Room's Gmail pipe and the Systems light, from the public counts. */
@@ -115,6 +145,10 @@ interface EmailStore {
   done: (id: string) => Promise<void>;
   /** Takes a Done back (the Thread's Undo). */
   undone: (id: string) => Promise<void>;
+  /** Gone like Done, until the sender writes again (#642). */
+  skip: (id: string) => Promise<void>;
+  /** What Nikita meant about the item in focus (#642): "e:<id>" or "t:<id>", and what they said. Never sends. */
+  intent: (key: string, said: string) => Promise<Answer<IntentAnswer>>;
   /** Blasto's draft from Nikita's few words (#615). */
   reply: (id: string, said: string) => Promise<Answer<string>>;
   /** A sender rule from one mail: its address ("block") or its domain ("filter"). */
@@ -229,6 +263,17 @@ export const useEmail = create<EmailStore>((set, get) => ({
     if (view) set({ view: { ...view, items: view.items.map((i) => (i.id === id ? { ...i, done: false } : i)) } });
     await post({ action: "undone", id }).catch(() => undefined);
     await get().refresh();
+  },
+  skip: async (id) => {
+    const view = get().view;
+    if (view) set({ view: { ...view, items: view.items.map((i) => (i.id === id ? { ...i, done: true, skipped: true } : i)) } });
+    await post({ action: "skip", id }).catch(() => undefined);
+    await get().refresh();
+  },
+  intent: async (key, said) => {
+    const got = await act({ action: "intent", key, said }, (g) => (okIntent(g.intent) ? { intent: g.intent, ...(okRule(g.rule) && { rule: g.rule }), ...(typeof g.moved === "number" && { moved: g.moved }) } : null));
+    if (got.ok && got.value.rule) void get().refresh();
+    return got;
   },
   reply: async (id, said) => {
     const got = await act({ action: "reply", id, said }, (g) => (typeof g.draft === "string" && g.draft ? g.draft.slice(0, 2_000) : null));

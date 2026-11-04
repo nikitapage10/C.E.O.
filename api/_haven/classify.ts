@@ -3,6 +3,8 @@
  *
  *   shopping  "add garlic and lemons", "we need milk, eggs and bread", "out of coffee", "buy oat milk", or a bare list
  *             of nouns ("garlic and lemons"): the items go on the Kitchen list.
+ *   remove    "remove garlic", "take milk off the list", "cross off eggs", "delete bread from my shopping list" (#657):
+ *             those items come off the Kitchen list.
  *   todo      "remind me to call the dermatologist tomorrow", "to-do: renew the passport", "call the vet on Friday",
  *             "email Sam tomorrow": a private to-do.
  *   device    the home devices (#632): "vacuum, go clean the kitchen", "clean the hall and the dining room", "start the
@@ -27,6 +29,7 @@ import { whenLabel } from "../_today/parse.js";
 
 export type Capture =
   | { kind: "shopping"; items: string[]; fromLastTodo?: boolean }
+  | { kind: "remove"; items: string[] }
   | { kind: "todo"; text: string }
   | { kind: "device"; action: DeviceAction; rooms?: string[]; portions?: number; plate?: number; suction?: "quiet" | "max"; water?: "off" | "on" }
   | { kind: "skippy"; text: string };
@@ -168,6 +171,24 @@ export function deviceAsk(text: string): Extract<Capture, { kind: "device" }> | 
   return null;
 }
 
+/* ── Taking things off the Kitchen list (#657) ── */
+
+const ON_LIST = "(?:on |from |off |in |of )?(?:the |my |our )?(?:kitchen |shopping |grocery |groceries )?(?:list|groceries)";
+/** "remove garlic [from the list]", "delete eggs", "cross off eggs", "scratch milk", "get rid of bread". */
+const REMOVE_A = new RegExp(`^(?:remove|delete|cross off|cross out|scratch|strike off|strike|take out|get rid of|drop|clear)\\s+(.+?)(?:\\s+${ON_LIST})?$`, "i");
+/** "take milk off the list", "cross eggs off my list", "take garlic and lemons off". */
+const REMOVE_B = new RegExp(`^(?:take|cross|scratch|strike|knock|get)\\s+(.+?)\\s+off(?:\\s+${ON_LIST})?$`, "i");
+
+/** Items to take off the Kitchen list, or null when the words aren't that. */
+export function removeAsk(text: string): Extract<Capture, { kind: "remove" }> | null {
+  const t = text.replace(/^(?:please\s+|can you\s+|could you\s+)/i, "").trim();
+  const m = REMOVE_B.exec(t) ?? REMOVE_A.exec(t);
+  if (!m?.[1]) return null;
+  const items = itemsOf(m[1].replace(/\s+(?:please|now)$/i, ""));
+  if (!items.length || items.length > ITEMS_MAX || !items.every(looksLikeItem)) return null;
+  return { kind: "remove", items };
+}
+
 /** A follow-on to the last capture: "and milk too", "also eggs", "plus bread as well". */
 const FOLLOW_START = /^(?:oh,?\s+)?(?:and|also|plus)\b,?\s*/i;
 const FOLLOW_END = /,?\s+(?:too|as well|also)$/i;
@@ -186,6 +207,9 @@ export function classify(raw: string, last: Capture["kind"] | null = null): Capt
     const items = itemsOf(text.replace(FOLLOW_START, "").replace(FOLLOW_END, ""));
     if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return { kind: "shopping", items };
   }
+  // Taking things off the list comes before everything else ("get rid of …" would read as a buy).
+  const gone = removeAsk(text);
+  if (gone) return gone;
   // A to-do says so, starts with a to-do verb, or says when. A home-device ask comes before the to-do verbs, so
   // "clean the kitchen" runs the vacuum, while "remind me to clean the kitchen" stays a to-do.
   if (TODO_START.test(text)) return { kind: "todo", text: todoText(text) };
@@ -223,6 +247,15 @@ export function sayAdded(added: string[], already: string[]): string {
   const first = `Added ${joinNames(added)} to the list.`;
   if (!already.length) return first;
   return `${first} ${cap(joinNames(already))} ${already.length === 1 ? "was" : "were"} already on it.`;
+}
+
+/** What the shortcut says after taking items off the list (#657). Quiet only when everything asked for went. */
+export function sayRemoved(r: { removed: string[]; missing: string[]; ambiguous: Array<{ said: string; could: string[] }> }): string {
+  const parts: string[] = [];
+  if (r.removed.length) parts.push(`Took ${joinNames(r.removed)} off the list.`);
+  if (r.missing.length) parts.push(`I couldn't find ${joinNames(r.missing)} on the list.`);
+  for (const a of r.ambiguous) parts.push(`Which ${a.said}: ${joinNames(a.could.slice(0, 4))}?`);
+  return parts.join(" ") || "I didn't catch what to take off.";
 }
 
 /** What the shortcut says after keeping a to-do. */

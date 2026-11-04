@@ -40,6 +40,9 @@ export const LOG_KINDS = [
   "request refused",
   "text composed",
   "compose settled",
+  "photos synced",
+  "photos failed",
+  "thread closed",
   "error",
 ] as const;
 export type LogKind = (typeof LOG_KINDS)[number];

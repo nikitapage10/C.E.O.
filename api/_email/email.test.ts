@@ -111,7 +111,7 @@ function fakeClaude(): { call: ClaudeCall; requests: ClaudeRequest[] } {
       const needs = req.user.includes("Dinner Thursday");
       return { answer: { kind: needs ? "needs-you" : "fyi", summary: needs ? "Priya asks if you're free for dinner Thursday at 7." : "Your library hold is ready.", action: needs ? "Reply to confirm" : "Nothing to do" }, usage };
     }
-    return { answer: { advice: "Priya wants an answer by tomorrow. Check Thursday evening.", draft: "Hi Priya, Thursday at 7 works. See you then! Nikita" }, usage };
+    return { answer: { advice: "Priya wants an answer by tomorrow. Check Thursday evening." }, usage };
   };
   return { call, requests };
 }
@@ -265,7 +265,9 @@ describe("sorting prompt shaping", () => {
     expect(readSorted({ kind: "fyi", summary: "", action: "y" })).toBeNull();
     expect(readSorted({ kind: "fyi", summary: "See https://phish.example/login now", action: "Click http://x.example" })).toEqual({ kind: "fyi", summary: "See [link] now", action: "Click [link]", urgent: "none" });
     expect(readAdvice({ advice: "ok", draft: "hi", tools: [] })).toBeNull();
-    expect(readAdvice({ advice: "Pay at https://phish.example", draft: "Visit www.phish.example" })).toEqual({ advice: "Pay at [link]", draft: "Visit [link]" });
+    expect(readAdvice({ advice: "Pay at https://phish.example" })).toEqual({ advice: "Pay at [link]" });
+    // Advice only on arrival (#642): an answer that still carries a draft is refused.
+    expect(readAdvice({ advice: "ok", draft: "hi" })).toBeNull();
   });
 });
 
@@ -331,7 +333,8 @@ describe("the minute", () => {
     const needs = s.items.find((i) => i.kind === "needs-you")!;
     expect(needs.subject).toBe("Dinner Thursday?");
     expect(needs.advice).toContain("Thursday");
-    expect(needs.draft).toContain("Nikita");
+    // Draft on request (#642): advice on arrival, no draft until Nikita asks.
+    expect(needs.draft).toBeUndefined();
     // FYI mail is not kept: the list holds only mail that needs Nikita to act (#495).
     expect(s.items.some((i) => i.kind === "fyi" || i.subject === "Your hold is ready")).toBe(false);
     expect(s.items.some((i) => i.subject.includes("50%"))).toBe(false);
@@ -950,7 +953,7 @@ describe("only mail that needs an action (#495)", () => {
     const store = await connectedStore();
     const call: ClaudeCall = async (req) => {
       const usage = { input_tokens: 900, output_tokens: 80 };
-      if (req.model !== SORT_MODEL) return { answer: { advice: "Check the account.", draft: "" }, usage };
+      if (req.model !== SORT_MODEL) return { answer: { advice: "Check the account." }, usage };
       const ask = req.user.includes("Confirm this sign-in");
       return { answer: { kind: ask ? "needs-you" : "fyi", urgent: "none", summary: ask ? "A service says to confirm a sign-in or the account locks." : "A service reports a new sign-in.", action: ask ? "Confirm the sign-in" : "Nothing to do" }, usage };
     };
@@ -975,5 +978,66 @@ describe("only mail that needs an action (#495)", () => {
     expect(storedNotAction(it("b00005", "Example <alerts@example.com>", "Heads up", "needs-you", "Update your card or the account locks."))).toBe(false);
     const state = { ...emptyEmailState(), items: [it("b00001", "Anyone", "Your hold is ready", "fyi"), it("b00004", "Priya Fakename", "Dinner Thursday?", "needs-you")] };
     expect(purgeItems(state, []).items.map((i) => i.id)).toEqual(["b00004"]);
+  });
+});
+
+/* ── #642: sender logos once per domain, and the closing check, in the minute ── */
+
+describe("the minute's logos and closing check (#642)", () => {
+  /** Gmail with threads: each made-up mail is its own thread, and `replied` threads end with Nikita's message. */
+  function threaded(replied: string[] = []) {
+    const g = fakeGoogle({ history: [page(MAILS.map((m) => m.id))] });
+    const fetcher: Fetcher = async (url, init) => {
+      const u = new URL(url);
+      const t = /\/threads\/([0-9a-f]+)$/.exec(u.pathname);
+      if (t) {
+        g.calls.push(`GET ${url.split("?")[0]}`);
+        expect(u.searchParams.get("format")).toBe("metadata");
+        const msgs = [{ id: t[1], internalDate: String(NOW - 60_000), labelIds: ["INBOX"] }];
+        if (replied.includes(t[1]!)) msgs.push({ id: "19ffffffffffff01", internalDate: String(NOW + 60_000), labelIds: ["SENT"] });
+        return new Response(JSON.stringify({ id: t[1], messages: msgs }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      const res = await g.fetcher(url, init);
+      if (/\/messages\/[0-9a-f]+$/.test(u.pathname) && res.ok) {
+        const b = (await res.json()) as Record<string, unknown>;
+        return new Response(JSON.stringify({ ...b, threadId: b.id }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return res;
+    };
+    return { fetcher, calls: g.calls };
+  }
+
+  it("fetches each sender domain's logo once, keeps it sealed, and not again for 30 days", async () => {
+    const store = await connectedStore();
+    const asked: string[] = [];
+    const logoFetch = async (d: string) => (asked.push(d), { type: "image/png", bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]) });
+    await tick(tickDeps(store, { fetcher: threaded().fetcher, logoFetch, senderSecret: TOKEN_KEY }));
+    expect(asked).toEqual(["example.org"]);
+    const s = (await store.load()).state;
+    const [key] = Object.keys(s.logos);
+    expect(s.logos[key!]).toEqual({ at: NOW, ok: true });
+    expect(key).toMatch(/^[0-9a-f]{32}$/);
+    expect(JSON.stringify(s.logos)).not.toContain("example.org");
+    expect((await store.logo(key!))?.type).toBe("image/png");
+    // Another mail from the same domain the next minute: no second fetch.
+    const again = [{ id: "18a1b2c3d4e5f6a1", from: "Priya Fakename <priya@example.org>", subject: "Also Friday?", body: "Or Friday?" }];
+    await tick(tickDeps(store, { now: NOW + 60_000, fetcher: fakeGoogle({ mails: again, history: [page(again.map((m) => m.id))] }).fetcher, logoFetch, senderSecret: TOKEN_KEY }));
+    expect(asked).toEqual(["example.org"]);
+  });
+
+  it("closes an open item when Nikita's own message is now the newest in its thread, with no model call", async () => {
+    const store = await connectedStore();
+    await tick(tickDeps(store, { fetcher: threaded().fetcher }));
+    let s = (await store.load()).state;
+    const dinner = s.items.find((i) => i.subject === "Dinner Thursday?")!;
+    expect(dinner.threadId).toBe(dinner.id);
+    expect(dinner.done).toBe(false);
+    const c = fakeClaude();
+    const g = threaded([dinner.id]);
+    await tick(tickDeps(store, { now: NOW + 4 * 60_000, fetcher: g.fetcher, claude: c.call }));
+    s = (await store.load()).state;
+    expect(s.items.find((i) => i.id === dinner.id)).toMatchObject({ done: true, closed: "replied" });
+    expect(c.requests).toHaveLength(0);
+    expect(g.calls.filter((x) => x.includes("/threads/"))).toHaveLength(1);
   });
 });

@@ -5,6 +5,37 @@ import { startEmail, useEmail } from "../email/email.ts";
 import { startTexts, useTexts } from "../texts/texts.ts";
 import { allowed, commandOf, keyCommand, metricsOf, offered, queueOf, undoable, UNDO_MS, type Command, type Exchange, type Phase } from "./thread.ts";
 
+const firstOf = (who: string) => who.trim().split(/\s+/)[0] || who;
+
+/** The Messenger's one line for what just happened (#642): plain, short, said aloud through the room's voice. */
+export function sayFor(cmd: Command | "skip" | "done" | "later", x: Pick<Exchange, "who" | "line">): string {
+  const who = firstOf(x.who);
+  switch (cmd) {
+    case "done":
+      return `Closed. Nothing owed to ${who}.`;
+    case "skip":
+      return `Skipped. ${who} comes back only if they write again.`;
+    case "later":
+      return x.line === "text" ? `Later. ${who} comes back at the next nudge.` : `Later. ${who} waits at the back.`;
+    case "draft":
+      return x.line === "text" ? `Here's the reply for ${who}.` : `Writing it in your voice.`;
+    case "yes":
+      return `Sending to ${who}. Z takes it back.`;
+    case "no":
+      return "Not sending that. Say what to write instead.";
+    case "change":
+      return "Say what to change.";
+    default:
+      return "";
+  }
+}
+
+/** A rule's line: what it covers from now on, and how many open ones moved. */
+export function ruleLine(label: string, to: "can-wait" | "filtered", moved: number): string {
+  const what = to === "can-wait" ? "can wait" : "are filtered out";
+  return `From now on, ${label} ${what}.${moved ? ` ${moved} moved off your list.` : ""}`;
+}
+
 /**
  * Relay's Thread (#615), the controller: the live queue from both lines, the one exchange on screen, where it is
  * (incoming → drafting → ask → undo → sent → the next), and every command through the gate in ./thread.ts. The view
@@ -16,10 +47,15 @@ import { allowed, commandOf, keyCommand, metricsOf, offered, queueOf, undoable, 
  * (this device's passkey unlock, single-use, bound to the draft); an email through /api/email's send, only when Gmail
  * granted send (bound to the draft, single-use, under the agent's cap). Without that grant an email's draft is copied
  * for Gmail instead.
+ *
+ * Since #642: anything said or typed that isn't a gate command goes to the intent layer (api/_email/intent.ts: one Haiku
+ * call under the email cap) and comes back as a reply, a rule, a disposition, an answer or one question back. Done and
+ * skip wait out a few seconds of Undo (Z) before they reach the server. An email gets its draft only on "Draft it";
+ * a text's ready draft shows on "Reply". Every confirmation is one short line in the Messenger's voice (`say`).
  */
 
 export interface Notice {
-  kind: "undo" | "sent" | "rule" | "info" | "warn";
+  kind: "undo" | "sent" | "rule" | "info" | "warn" | "say";
   text: string;
   /** A button on the notice: Undo, Unlock, … */
   act?: { label: string; run: () => void };
@@ -69,6 +105,10 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   const signedIn = auth === "in";
 
   const [skipped, setSkipped] = useState<string[]>([]);
+  /** Texts whose ready draft Nikita opened with Reply (#642): until then the draft stays folded. */
+  const [revealed, setRevealed] = useState<string[]>([]);
+  /** The intent layer is reading a line about this exchange. */
+  const [reading, setReading] = useState<string | null>(null);
   /** Exchanges this page already acted on (sent, done, filtered): hidden until the next read drops them. */
   const [gone, setGone] = useState<string[]>([]);
   /** Drafts Nikita said no to (by key and the draft's text): the exchange goes back to incoming. */
@@ -90,10 +130,13 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
     () =>
       (all
         ? all
-            .filter((x) => !gone.includes(x.key)).map((x) => (declined[x.key] !== undefined && declined[x.key] === x.draft ? { ...x, draft: null } : x))
+            .filter((x) => !gone.includes(x.key))
+            .map((x) => (declined[x.key] !== undefined && declined[x.key] === x.draft ? { ...x, draft: null } : x))
             .map((x) => (!x.said && saidHere[x.key] && x.draft ? { ...x, said: saidHere[x.key]! } : x))
+            // A text's ready draft folds until Reply (#642), unless it was written from Nikita's own words.
+            .map((x) => (x.line === "text" && x.draft && !revealed.includes(x.key) && !saidHere[x.key] ? { ...x, draft: null, ready: true } : x))
         : null),
-    [all, gone, declined, saidHere],
+    [all, gone, declined, saidHere, revealed],
   );
   const ex = useMemo(() => (queue ? (queue.find((x) => x.key === current) ?? queue[0] ?? null) : null), [queue, current]);
   useEffect(() => setCurrent(ex?.key ?? null), [ex?.key]);
@@ -119,16 +162,30 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   }, [drafting]);
 
   const undo = useRef(undoable());
-  useEffect(() => () => undo.current.flush(), []);
+  /** Done and skip wait out their own Undo window (#642), apart from a send's. */
+  const held = useRef(undoable());
+  useEffect(
+    () => () => {
+      undo.current.flush();
+      held.current.flush();
+    },
+    [],
+  );
 
   const say = useCallback(
     (cmd: Command, words = ""): boolean => {
-      // Undo reaches the waiting send wherever the codex has scrolled since.
+      // Undo reaches the waiting send wherever the codex has scrolled since; else the waiting done or skip.
       if (cmd === "undo") {
         const k = undo.current.undo();
-        if (!k) return false;
-        setPending(null);
-        setNotice({ kind: "info", text: "Not sent.", at: Date.now() });
+        if (k) {
+          setPending(null);
+          setNotice({ kind: "info", text: "Not sent.", at: Date.now() });
+          return true;
+        }
+        const h = held.current.undo();
+        if (!h) return false;
+        setGone((g) => g.filter((x) => x !== h));
+        setNotice({ kind: "info", text: "Back on your list.", at: Date.now() });
         return true;
       }
       if (!ex || !allowed(cmd, phase, ex)) return false;
@@ -183,15 +240,46 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
           setDeclined((d) => ({ ...d, [ex.key]: ex.draft ?? "" }));
           setNotice({ kind: "info", text: cmd === "no" ? "Not sending that. Say what to write instead, or skip." : "Say what to change.", at });
           return true;
-        case "skip":
-          setSkipped((s) => [...s.filter((k) => k !== ex.key), ex.key]);
+        case "done":
+        case "skip": {
+          // Gone now, for good after the Undo window: email marks it done (or skipped), a text settles on the Mac.
+          // Either comes back only when the sender writes again.
+          const x = ex;
           next();
+          setGone((g) => [...g, x.key]);
+          held.current.start(x.key, () => {
+            if (x.line === "email") void (cmd === "skip" ? useEmail.getState().skip(x.id) : useEmail.getState().done(x.id));
+            else void useTexts.getState().ask({ action: "done", thread: x.id });
+          });
+          setNotice({ kind: "undo", text: sayFor(cmd, x), until: at + UNDO_MS, act: { label: "Undo", run: () => sayRef.current("undo") }, at });
           return true;
+        }
         case "later":
           if (ex.line === "text") void useTexts.getState().ask({ action: "later", thread: ex.id });
           setSkipped((s) => [...s.filter((k) => k !== ex.key), ex.key]);
+          setNotice({ kind: "say", text: sayFor("later", ex), at });
           next();
           return true;
+        case "draft": {
+          // Draft on request (#642): an email goes to Blasto (Sonnet) from his advice; a text's ready draft unfolds.
+          if (ex.line === "text") {
+            if (ex.ready) {
+              setRevealed((r) => [...r, ex.key]);
+              return true;
+            }
+            setNotice({ kind: "say", text: "Say what to tell them, and Blasto puts it in your voice.", at });
+            return true;
+          }
+          setDrafting({ key: ex.key, since: at, was: ex.draft ?? "" });
+          void useEmail
+            .getState()
+            .reply(ex.id, "")
+            .then((got) => {
+              setDrafting(null);
+              if (!got.ok) setNotice({ kind: "warn", text: errorText(got.error), at: Date.now() });
+            });
+          return true;
+        }
         case "filter":
         case "block": {
           const key = ex.key;
@@ -226,6 +314,7 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
         case "words": {
           const said = words.trim();
           if (!said) return false;
+          if (ex.line === "text") setRevealed((r) => (r.includes(ex.key) ? r : [...r, ex.key]));
           setDeclined((d) => {
             const { [ex.key]: _drop, ...rest } = d;
             return rest;
@@ -253,6 +342,8 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
           }
           return true;
         }
+        default:
+          return false;
       }
     },
     [ex, phase, queue, unlocked, hidden],
@@ -260,17 +351,81 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
   const sayRef = useRef(say);
   sayRef.current = say;
 
-  /** One heard or typed line: a command when it is one and works now, else words for a reply. */
+  const exRef = useRef(ex);
+  exRef.current = ex;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+
+  /**
+   * What a line means beyond the gate (#642): the intent layer's one Haiku call. Its answer is carried out here
+   * through the same gate as a tap, and comes back as one short line to show (and, through the room's voice, to say).
+   */
+  const understand = useCallback(async (x: Exchange, raw: string): Promise<string> => {
+    setReading(x.key);
+    const got = await useEmail.getState().intent(x.key, raw);
+    setReading(null);
+    const at = Date.now();
+    if (!got.ok) {
+      // No model here (no key, the cap, a refusal): the words are a reply, as before the intent layer.
+      if (got.error === "private") {
+        setNotice({ kind: "warn", text: errorText("private"), at });
+        return errorText("private");
+      }
+      sayRef.current("words", raw);
+      return "Writing it in your voice.";
+    }
+    const { intent } = got.value;
+    switch (intent.kind) {
+      case "reply":
+        sayRef.current(intent.words ? "words" : "draft", intent.words || raw);
+        return "Writing it in your voice.";
+      case "disposition":
+        sayRef.current(intent.disposition);
+        return sayFor(intent.disposition, x);
+      case "rule": {
+        const r = got.value.rule;
+        const text = ruleLine(r?.label ?? "mail like this", intent.to, got.value.moved ?? 0);
+        if (r) setGone((g) => (got.value.moved ? [...g, x.key] : g));
+        setNotice({
+          kind: "rule",
+          text,
+          act: r
+            ? {
+                label: "Undo",
+                run: () => {
+                  setGone((g) => g.filter((k) => k !== x.key));
+                  void useEmail.getState().unrule(r.id);
+                  setNotice({ kind: "info", text: "Rule taken back.", at: Date.now() });
+                },
+              }
+            : undefined,
+          at,
+        });
+        return text;
+      }
+      case "question":
+      case "unclear":
+        setNotice({ kind: "say", text: intent.answer, at });
+        return intent.answer;
+    }
+  }, []);
+
+  /** One heard or typed line: a command when it is one and works now, else the intent layer reads it. */
   const line = useCallback(
-    (raw: string): { cmd: Command | null; ok: boolean } => {
-      const cmd = commandOf(raw);
+    (raw: string): { cmd: Command | null; ok: boolean; said?: Promise<string> } => {
+      const cmd = commandOf(raw, phaseRef.current);
       if (!cmd) return { cmd, ok: false };
+      const x = exRef.current;
+      if (cmd === "words") {
+        if (!x || !raw.trim() || !allowed("words", phaseRef.current, x)) return { cmd, ok: false };
+        return { cmd, ok: true, said: understand(x, raw.trim()) };
+      }
       const ok = sayRef.current(cmd, raw);
       // A command that doesn't work now says so quietly; it never falls through to anything else.
-      if (!ok && cmd !== "words") setNotice({ kind: "info", text: cmd === "yes" ? "Nothing to send yet." : `"${raw.trim()}" doesn't apply right now.`, at: Date.now() });
-      return { cmd, ok };
+      if (!ok) setNotice({ kind: "info", text: cmd === "yes" ? "Nothing to send yet." : `"${raw.trim()}" doesn't apply right now.`, at: Date.now() });
+      return { cmd, ok, said: Promise.resolve(ok && x ? sayFor(cmd, x) : "") };
     },
-    [],
+    [understand],
   );
 
   /** A key press: Y, N, S, Z, L. */
@@ -279,21 +434,6 @@ export function useThread(now: number, hooks: ThreadHooks = {}) {
     return cmd ? sayRef.current(cmd) : false;
   }, []);
 
-  const done = useCallback(
-    (x: Exchange) => {
-      setGone((g) => [...g, x.key]);
-      if (x.line === "email") void useEmail.getState().done(x.id);
-      else void useTexts.getState().ask({ action: "done", thread: x.id });
-      setNotice({
-        kind: "info",
-        text: `Marked done.`,
-        act: x.line === "email" ? { label: "Undo", run: () => (setGone((g) => g.filter((k) => k !== x.key)), void useEmail.getState().undone(x.id)) } : undefined,
-        at: Date.now(),
-      });
-    },
-    [],
-  );
-
   const metrics = metricsOf(emailStatus, textsStatus, queue, sentHere);
-  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, done, pick: setCurrent, drafting, pending, sentList };
+  return { signedIn, queue, ex, phase, offered: offered(phase, ex), notice, setNotice, metrics, unlocked, canSend, hidden, line, key, say, pick: setCurrent, drafting, pending, sentList, reading };
 }

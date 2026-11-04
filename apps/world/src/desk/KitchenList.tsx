@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDeskAuth } from "./signin.ts";
 import { Private } from "./Private.tsx";
-import { INSTACART_NOTE, isInstacartLink, loadCounts, loadKitchen, sendInstacart, tickItem, type KitchenItem } from "./haven.ts";
+import { INSTACART_NOTE, isInstacartLink, loadCounts, loadKitchen, removeItem, sendInstacart, tickItem, undoRemoveItem, type KitchenItem } from "./haven.ts";
 
 /**
  * The Kitchen list on Today (#627), until the Haven room ships: what "Hey Skippy" put on it from the iPhone. A chip in
  * Today's helm with how many things are still to get; signed in, it opens the list, and each item ticks off (and back
- * on, for a day). Signed out, the count only. Hidden where there's no haven route (the Vercel copy). Send to Instacart
+ * on, for a day) or is removed with the ×, with five seconds to Undo (#657). Signed out, the count only. Hidden where there's no haven route (the Vercel copy). Send to Instacart
  * (#637) turns the open items into an Instacart shopping list page and opens it, to pick the store and check out there.
  */
 export function KitchenList() {
@@ -15,6 +15,9 @@ export function KitchenList() {
   const [items, setItems] = useState<KitchenItem[] | null>(null);
   const [open, setOpen] = useState(false);
   const [cart, setCart] = useState<{ busy: boolean; note: string | null; url: string | null }>({ busy: false, note: null, url: null });
+  // The last item removed, kept five seconds so Undo can bring it back (#657).
+  const [undo, setUndo] = useState<KitchenItem | null>(null);
+  const undoTimer = useRef<number | undefined>(undefined);
   const box = useRef<HTMLDivElement>(null);
   const signedIn = status === "in";
 
@@ -60,6 +63,28 @@ export function KitchenList() {
     void tickItem(item.id, done).then((r) => {
       if (!r.ok) refresh();
     });
+  };
+
+  const remove = (item: KitchenItem) => {
+    setItems((cur) => cur?.filter((i) => i.id !== item.id) ?? cur);
+    if (!item.done) setCount((c) => (c === null ? c : Math.max(0, c - 1)));
+    window.clearTimeout(undoTimer.current);
+    setUndo(item);
+    undoTimer.current = window.setTimeout(() => setUndo(null), 5000);
+    void removeItem(item.id).then((r) => {
+      if (!r.ok) {
+        setUndo(null);
+        refresh();
+      }
+    });
+  };
+
+  const takeBack = () => {
+    if (!undo) return;
+    const item = undo;
+    window.clearTimeout(undoTimer.current);
+    setUndo(null);
+    void undoRemoveItem(item.id).then(() => refresh());
   };
 
   const toInstacart = () => {
@@ -109,9 +134,20 @@ export function KitchenList() {
                     <input type="checkbox" checked={i.done} onChange={() => tick(i)} />
                     <Private>{i.name}</Private>
                   </label>
+                  <button type="button" className="kl-x" aria-label={`Remove ${i.name}`} onClick={() => remove(i)}>
+                    ×
+                  </button>
                 </li>
               ))}
             </ul>
+            {undo ? (
+              <p className="kl-undo" role="status">
+                <span>Removed.</span>
+                <button type="button" onClick={takeBack}>
+                  Undo
+                </button>
+              </p>
+            ) : null}
             <p className="kl-cart">
               <button type="button" disabled={cart.busy || !count} onClick={toInstacart}>
                 Send to Instacart

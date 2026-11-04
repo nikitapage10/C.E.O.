@@ -82,10 +82,12 @@ This replaces the older rule that every page comes back to Today's language.
   It sees each utterance first, in the browser, and returns `{ say, actions? }` (`say` is read aloud in Skippy's voice
   bent the submind's way, `actions` show as up to three buttons under it), or `null` to let the submind answer (the
   default: Desk Skippy's chat as the submind, `POST /api/skippy-room`). It does its work through its own room's
-  endpoints, under their auth and caps, and loads only when the room is first spoken to. To run one of the rooms' tools
-  it calls `tool(name, input)` from the utterance (the same registry and server checks as Desk Skippy's agent,
-  `POST /api/skippy-act`); a tool that sends, spends or deletes comes back as `{ confirm }`, so offer a Yes action that
-  calls `confirmTool(id, true)`.
+  endpoints, under their auth and caps, and loads only when the room is first spoken to. Relay is the first (#642):
+  its handler hands the words to the Thread on screen (`apps/world/src/desk/relay/bridge.ts`), which reads them as a
+  command or through the intent layer (one Haiku call, `api/_email/intent.ts`) and answers in the Messenger's voice.
+  To run one of the rooms' tools a handler calls `tool(name, input)` from the utterance (the same registry and server
+  checks as Desk Skippy's agent, `POST /api/skippy-act`); a tool that sends, spends or deletes comes back as
+  `{ confirm }`, so offer a Yes action that calls `confirmTool(id, true)`.
 
 Review enforces this, not a test.
 

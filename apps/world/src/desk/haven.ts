@@ -62,6 +62,8 @@ async function post<T>(body: unknown, f: typeof fetch): Promise<{ ok: true; data
 }
 
 export const tickItem = (id: string, done: boolean, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "tick", id, done }, f);
+export const removeItem = (id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "remove", id }, f);
+export const undoRemoveItem = (id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "undo-remove", id }, f);
 export const addPhone = (label: string, f: typeof fetch = fetch) => post<{ phone: PhoneRow; key: string }>({ action: "add-phone", label }, f);
 export const revokePhone = (id: string, f: typeof fetch = fetch) => post<{ ok: true }>({ action: "revoke-phone", id }, f);
 export const makeGreetings = (f: typeof fetch = fetch) => post<{ clips: number }>({ action: "make-greetings" }, f);

@@ -415,7 +415,7 @@ export interface MicStore {
   hfHeard: string;
   /** Who hands-free talks to: the lead of the page Nikita is on. */
   target: RoomMic | null;
-  /** A page with a listener of its own (Relay's Thread, #615): it has Space, and while it listens hands-free waits. */
+  /** A page with a listener of its own: it has Space, and while it listens hands-free waits. None since Relay moved onto its `voice` hook (#642). */
   own: { space: boolean; listening: boolean } | null;
   set: (patch: Partial<Omit<MicStore, "set">>) => void;
 }
@@ -774,9 +774,8 @@ useRoomMic.subscribe((s, prev) => {
 });
 
 /**
- * A page that still runs a listener of its own says so (Relay's Thread, #615, until its intent layer moves onto the
- * room's `voice` hook): it keeps Space, and while it is listening hands-free waits, so only one thing listens. Null when
- * it goes.
+ * A page that runs a listener of its own says so: it keeps Space, and while it is listening hands-free waits, so only
+ * one thing listens. Null when it goes. No page does since Relay's Thread moved onto its `voice` hook (#642).
  */
 export function setOwnVoice(own: { space: boolean; listening: boolean } | null): void {
   const was = useRoomMic.getState().own;

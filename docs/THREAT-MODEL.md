@@ -144,8 +144,8 @@ is written only in a passkey session (TB1).
 
 The Haven (#616) draws Nikita's home in 3D from a floor plan that is never in the repo: the repo holds only a generic
 renderer and the plan's shape (`api/_haven/planShape.ts`). The plan (rooms, walls, doors, furniture and where each
-device stands) is JSON in the private store (`haven/plan.json`), read and written only through `/api/haven-plan` in a
-passkey session (TB1); it is checked on the way in as untrusted data (closed sets, clamped numbers, plain names without
+device stands) is JSON in the private store (`haven/plan.json`), read only through `/api/haven-plan` in a
+passkey session (TB1) and written there or by `PUT /api/haven-plan` with the write-only feed key (#655, which answers counts and never the plan; neither room key can read it); it is checked on the way in as untrusted data (closed sets, clamped numbers, plain names without
 markup, capped lists, 96 KB at most), and its log line holds counts only. Signed out, the Haven shows counts and states
 only, never a map; the Lattice never sees the plan.
 

@@ -92,6 +92,8 @@ export interface ActResult {
   ok: boolean;
   say: string;
   code?: ActCode;
+  /** True when the done line carries a warning (the wet tray's), so a phone should say it aloud (#652). */
+  warned?: true;
 }
 
 const VENDOR_NAME: Record<Vendor, string> = { roborock: "Roborock", petlibro: "Petlibro", whisker: "Whisker", nest: "Google Nest" };
@@ -387,6 +389,6 @@ export class Home {
       const t = await tray.note(now, front, action === "wet.open" ? (was ?? undefined) : undefined).catch(() => null);
       if (t) heads = trayWarning(front, t, r.meals, now);
     }
-    return { ok: true, say: (ran.say ?? sayDone(action, { count, cap: this.deps.feedCap, ...(thermo ?? {}), portions, ...(plate && { plate }) })) + heads };
+    return { ok: true, say: (ran.say ?? sayDone(action, { count, cap: this.deps.feedCap, ...(thermo ?? {}), portions, ...(plate && { plate }) })) + heads, ...(heads && { warned: true as const }) };
   }
 }

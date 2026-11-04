@@ -22,6 +22,8 @@ export default defineRoom({
   threat: ["TB7", "R5"],
   budgetKb: 64,
   tools: [...TOOLS],
+  // The intent layer (#642): what's said on /relay reaches the Thread first (./voice.ts); else Static answers.
+  voice: () => import("./voice.ts"),
   purpose: {
     goal: "Hands Nikita's email and texts to Claude agents that sort, summarise and draft, with nothing sent without their tap and nothing private leaving the hub.",
     agents: [

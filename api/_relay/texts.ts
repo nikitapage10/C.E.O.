@@ -49,6 +49,8 @@ export interface TextItem {
   draft: { text: string; at: number } | null;
   /** A group's summary: two sentences at most, and whether Nikita was asked something. */
   summary: { text: string; asked: boolean } | null;
+  /** The contact's photo id (#642, ./photos.ts): opaque, the Desk asks for it passkey-only. Left out without one. */
+  photo?: string;
 }
 
 export interface TextsView {
@@ -136,7 +138,7 @@ const isTime = (v: unknown): v is number => typeof v === "number" && Number.isIn
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.length <= max ? v.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" ? "\n" : "")) : null);
 const keysOnly = (o: Record<string, unknown>, keys: readonly string[]) => Object.keys(o).every((k) => keys.includes(k));
 
-const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary"] as const;
+const ITEM_KEYS = ["id", "name", "channel", "group", "state", "sort", "since", "laterUntil", "gist", "draft", "summary", "photo"] as const;
 
 /** One item, rebuilt from the allowlist; null for anything else (an unknown key, a long string, a bad time). */
 export function readTextItem(v: unknown): TextItem | null {
@@ -163,7 +165,8 @@ export function readTextItem(v: unknown): TextItem | null {
     if (!text || typeof g.asked !== "boolean") return null;
     summary = { text, asked: g.asked };
   }
-  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary };
+  if (o.photo !== undefined && (typeof o.photo !== "string" || !/^[0-9a-f]{32}$/.test(o.photo))) return null;
+  return { id: o.id, name, channel: o.channel, group: o.group === true, state: o.state as TextState, sort: o.sort as TextItem["sort"], since: o.since, laterUntil: o.laterUntil as number | null, gist, draft, summary, ...(typeof o.photo === "string" && { photo: o.photo }) };
 }
 
 const channelOk = (v: unknown): v is "iMessage" | "SMS" => v === "iMessage" || v === "SMS";

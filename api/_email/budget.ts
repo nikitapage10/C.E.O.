@@ -62,12 +62,17 @@ export function costFor(model: EmailModel, usage: Usage): number {
 export const MAX_INPUT_TOKENS = 4_000;
 export const SORT_MAX_TOKENS = 400;
 export const ADVISE_MAX_TOKENS = 1_200;
+/** Blasto's advice on arrival, without a draft (#642): a few sentences. */
+export const ADVICE_MAX_TOKENS = 300;
 
 /** One call at its most: the ceiling checked before it goes out. */
 export const CEILING: Record<EmailModel, number> = {
   [SORT_MODEL]: costFor(SORT_MODEL, { input_tokens: MAX_INPUT_TOKENS, output_tokens: SORT_MAX_TOKENS }),
   [ADVISE_MODEL]: costFor(ADVISE_MODEL, { input_tokens: MAX_INPUT_TOKENS, output_tokens: ADVISE_MAX_TOKENS }),
 };
+
+/** The intent layer's one Haiku call at its most (#642): its prompt, the item and the utterance, and a short answer. */
+export const INTENT_CEILING = costFor(SORT_MODEL, { input_tokens: 1_500, output_tokens: 200 });
 
 export const DEFAULT_EMAIL_BUDGET_USD = 10;
 

@@ -16,6 +16,8 @@ import { SITE } from "./config.ts";
  *   results   what became of the ones it took
  *   skip      the private skip list's terms, held in memory only
  *   unpair    the wipe: the site forgets this pairing (the token stops working), the list and the requests
+ *   photo-key, photo, photos   contact photos (#642): an opaque id and a small cleaned PNG each, never a name or a
+ *             number; the email match travels as keyed hashes only (api/_relay/photos.ts)
  */
 
 export interface Site {
@@ -29,6 +31,12 @@ export interface Site {
   skipTerms(): Promise<string[] | null>;
   /** The wipe: the site forgets this pairing, its list and its requests. */
   unpair(): Promise<boolean>;
+  /** The key email addresses are hashed under for the photo match (#642); null when the site has none. Memory only. */
+  photoKey(): Promise<Buffer | null>;
+  /** One contact photo: its opaque id and a cleaned PNG (#642). */
+  photo(id: string, png: Uint8Array): Promise<boolean>;
+  /** The photo ids the Mac has now and the email-hash → id map; the ids the site holds after. */
+  photos(keep: string[], emails: [string, string][]): Promise<string[]>;
 }
 
 const httpError = () => Object.assign(new Error("site"), { name: "HttpError" });
@@ -66,6 +74,19 @@ export function siteClient(token: string, fetcher: typeof fetch = fetch, base = 
     },
     results: async (results) => (await post("results", { results })).ok === true,
     unpair: async () => (await post("unpair", {})).ok === true,
+    photoKey: async () => {
+      try {
+        const got = await get("photo-key");
+        return typeof got.key === "string" && /^[A-Za-z0-9_-]{40,50}$/.test(got.key) ? Buffer.from(got.key, "base64url") : null;
+      } catch {
+        return null;
+      }
+    },
+    photo: async (id, png) => (await post("photo", { id, png: Buffer.from(png).toString("base64") })).ok === true,
+    photos: async (keep, emails) => {
+      const got = await post("photos", { keep, emails });
+      return Array.isArray(got.have) ? got.have.filter((x): x is string => typeof x === "string") : [];
+    },
     skipTerms: async () => {
       try {
         const got = await get("skip");

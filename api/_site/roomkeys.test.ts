@@ -270,3 +270,15 @@ describe("through the whole gate", () => {
     }
   });
 });
+
+describe("the Haven plan (#655)", () => {
+  it("opens PUT /api/haven-plan to the feed key alone, and no GET to either key", async () => {
+    const c = await ctx();
+    const put = (key?: string, path = "/api/haven-plan") => new Request(`${ORIGIN}${path}`, { method: "PUT", headers: { ...(key && { Authorization: `Bearer ${key}` }) }, body: "{}" });
+    expect(decide(put(FEED), c)).toEqual({ allow: true, why: "room-feed" });
+    for (const r of [put(LOG), put(), put(FEED, "/api/haven-plan?x=1"), req("/api/haven-plan", "GET", LOG), req("/api/haven-plan", "GET", FEED), req("/api/haven-plan", "POST", FEED)]) {
+      expect(decide(r, c).allow, `${r.method} ${r.url}`).toBe(false);
+    }
+    expect(isLogRead(req("/api/haven-plan", "GET", LOG))).toBe(false);
+  });
+});

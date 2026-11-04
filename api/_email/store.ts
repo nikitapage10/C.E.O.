@@ -31,6 +31,24 @@ export interface EmailStore {
   dropToken(): Promise<void>;
   status(): Promise<EmailStatus | null>;
   saveStatus(status: EmailStatus): Promise<void>;
+  /** A sender logo by its domain's keyed hash (#642, ./logos.ts), sealed at rest. */
+  logo(key: string): Promise<{ type: string; bytes: Uint8Array } | null>;
+  saveLogo(key: string, logo: { type: string; bytes: Uint8Array }): Promise<void>;
+  dropLogo(key: string): Promise<void>;
+}
+
+/** Where one sender logo lives (#642): by its domain's keyed hash, never the domain. */
+export const logoPath = (key: string) => {
+  if (!/^[0-9a-f]{32}$/.test(key)) throw new Error("not a logo key");
+  return `email/logos/${key}.json`;
+};
+
+const LOGO_TYPES = new Set(["image/png", "image/x-icon", "image/jpeg", "image/gif", "image/webp"]);
+/** A logo read back from its sealed record; null for anything odd. */
+export function readLogo(v: unknown): { type: string; bytes: Uint8Array } | null {
+  const o = v as { type?: unknown; b64?: unknown } | null;
+  if (!o || typeof o.type !== "string" || !LOGO_TYPES.has(o.type) || typeof o.b64 !== "string" || o.b64.length > 300_000) return null;
+  return { type: o.type, bytes: new Uint8Array(Buffer.from(o.b64, "base64")) };
 }
 
 async function readJson(blob: BlobBackend, path: string): Promise<unknown> {
@@ -101,6 +119,18 @@ export class BlobEmailStore implements EmailStore {
     if (!clean) throw new Error("email status refused");
     await this.blob.put(STATUS_PATH, JSON.stringify(clean), { contentType: "application/json", allowOverwrite: true, cacheControlMaxAge: 60 });
   }
+
+  async logo(key: string) {
+    return readLogo(unseal(this.key("state"), await readJson(this.blob, logoPath(key))));
+  }
+
+  async saveLogo(key: string, logo: { type: string; bytes: Uint8Array }) {
+    await this.blob.put(logoPath(key), JSON.stringify(seal(this.key("state"), { type: logo.type, b64: Buffer.from(logo.bytes).toString("base64") })), { contentType: "application/json", allowOverwrite: true });
+  }
+
+  async dropLogo(key: string) {
+    await this.blob.del(logoPath(key));
+  }
 }
 
 /** For tests: the same contract, in memory, with versions. */
@@ -138,6 +168,18 @@ export class MemoryEmailStore implements EmailStore {
     const clean = readEmailStatus(status);
     if (!clean) throw new Error("email status refused");
     this.statusRec = clean;
+  }
+  logos = new Map<string, { type: string; bytes: Uint8Array }>();
+  async logo(key: string) {
+    logoPath(key);
+    return this.logos.get(key) ?? null;
+  }
+  async saveLogo(key: string, logo: { type: string; bytes: Uint8Array }) {
+    logoPath(key);
+    this.logos.set(key, logo);
+  }
+  async dropLogo(key: string) {
+    this.logos.delete(key);
   }
 }
 

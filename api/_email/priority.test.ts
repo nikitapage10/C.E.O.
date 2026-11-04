@@ -78,7 +78,7 @@ function claude() {
   const call: ClaudeCall = async (req) => {
     requests.push(req);
     const usage = { input_tokens: 900, output_tokens: 80 };
-    if (req.model !== SORT_MODEL) return { answer: { advice: "Check Friday.", draft: "" }, usage };
+    if (req.model !== SORT_MODEL) return { answer: { advice: "Check Friday." }, usage };
     const kind = req.user.includes("Demo on Friday") ? "needs-you" : req.user.includes("Thanks for applying") ? "applied" : req.user.includes("Moss news") ? "fyi" : req.user.includes("Moss extra") ? "noise" : req.user.includes("my question") ? "noise" : "fyi";
     return { answer: { kind, urgent: "none", summary: "A made-up summary.", action: kind === "needs-you" ? "Reply about Friday" : "Nothing to do" }, usage };
   };
@@ -139,13 +139,14 @@ describe("Dialtone's prompt with a list (#522)", () => {
 });
 
 describe("the three tiers (#522)", () => {
-  it("without a list: fyi is noise, applied is noise, nothing is looked up, nothing changes", async () => {
+  it("without a list: fyi is noise, applied is noise, no profile is looked up, nothing changes", async () => {
     const { deps, store, g } = await setup(["18a1b2c3d4e5f902", "18a1b2c3d4e5f903", "18a1b2c3d4e5f904", "18a1b2c3d4e5f905"]);
     await tick(deps);
     const s = (await store.load()).state;
     expect(s.items).toHaveLength(0);
     expect(s.applied.count).toBe(0);
-    expect(g.calls.some((c) => c.includes("/threads/"))).toBe(false);
+    // A reply's thread is read for Nikita's own last message (#642), metadata only; never the profile without a list.
+    expect(g.calls.filter((c) => c.includes("/threads/")).every((c) => c.includes("format=metadata"))).toBe(true);
     expect(g.calls.filter((c) => c.endsWith("/profile"))).toHaveLength(0);
   });
 

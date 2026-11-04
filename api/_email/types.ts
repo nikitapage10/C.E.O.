@@ -5,6 +5,7 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
+import type { RuleMatch, RuleTo } from "./intent.js";
 import type { GmailState } from "./status.js";
 
 /** How Dialtone sorted a mail. "unsorted": it came in while the month's cap was reached, so no model read it. */
@@ -39,14 +40,38 @@ export interface EmailItem {
   /** A reply is going out (a claim, ms) or went (#615): one send per mail. */
   sending?: number;
   sentAt?: number;
+  /** Gmail's thread id (#642): the closing check and the de-dupe. Never sent to the Desk. */
+  threadId?: string;
+  /** A calendar invite (#642): a keyed hash of its iCal UID, or of its sender and event title. Never sent to the Desk. */
+  invite?: string;
+  /** From a mailing list, or an automated sender (#642): what the "newsletters" and "automated" rules match. */
+  list?: boolean;
+  auto?: boolean;
+  /** A keyed hash of the sender's address for the Mac's contact photos (#642, api/_relay/photos.ts). Never sent to the Desk. */
+  photoKey?: string;
+  /** When the closing check last looked at its thread (#642). */
+  checkedAt?: number;
+  /** Nikita skipped it (#642): gone like Done, until the sender writes again. */
+  skipped?: boolean;
+  /** How it closed by itself (#642): Nikita replied in Gmail, or a newer mail in the same thread or invite replaced it. */
+  closed?: "replied" | "merged";
+  /** A Can wait rule moved it (#642): the rule's id and the kind it had, so Undo puts it back. */
+  byRule?: string;
+  prevKind?: EmailKind;
 }
 
-/** A sender rule Nikita set on the Desk (#615): "block" matches the address, "filter" the whole domain. */
+/**
+ * A rule Nikita set on the Desk. "block" matches the address and "filter" the whole domain (#615); both filter.
+ * "tier" (#642) is a rule the intent layer made: what it matches (`match`, a closed list) and where such mail goes
+ * (`to`: Can wait or filtered). Rules run after the money and legal filter and the skip list, never before.
+ */
 export interface FilterRule {
   id: string;
-  kind: "block" | "filter";
-  /** The keyed hash of the address or domain (./reply.ts, senderKey); never the address itself. */
+  kind: "block" | "filter" | "tier";
+  /** The keyed hash of the address or domain (./reply.ts, senderKey); never the address itself. "" for a tier rule on invites, newsletters or automated mail. */
   key: string;
+  match?: RuleMatch;
+  to?: RuleTo;
   /** The sender's display name as the Desk showed it. */
   label: string;
   at: number;
@@ -105,6 +130,10 @@ export interface EmailState {
   style: StyleProfile | null;
   /** Replies sent from the Desk today (Mountain day), a count against SEND_DAY_MAX (#615). */
   sends: { day: string; count: number };
+  /** When each reply from the Desk went, the last seven days (#642): the Codex's "sent this week". Times only. */
+  sendLog: number[];
+  /** Sender logos fetched (#642, ./logos.ts), by the domain's keyed hash: when, and whether one was found. 30 days. */
+  logos: Record<string, { at: number; ok: boolean }>;
 }
 
 /** The refresh token's record, sealed at rest. */
@@ -127,7 +156,7 @@ export const MAX_PER_TICK = 12;
 export const CATCH_UP_MAX = 24;
 
 export function emptyEmailState(): EmailState {
-  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, applied: { month: "", count: 0 }, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [], rules: [], ruled: { day: "", count: 0 }, style: null, sends: { day: "", count: 0 } };
+  return { v: 1, historyId: null, seen: [], items: [], spend: {}, day: { day: "", newCount: 0, noise: 0, skipped: 0, urgent: 0 }, unsorted: 0, applied: { month: "", count: 0 }, gmail: "not-connected", lastCheck: null, lastError: null, pingPending: 0, busyUntil: 0, catchUpListed: false, catchUp: [], rules: [], ruled: { day: "", count: 0 }, style: null, sends: { day: "", count: 0 }, sendLog: [], logos: {} };
 }
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
@@ -168,16 +197,32 @@ export function readEmailState(v: unknown): EmailState {
       const r = (o.sends && typeof o.sends === "object" ? o.sends : {}) as Record<string, unknown>;
       return { day: str(r.day, 10), count: Math.max(0, Math.floor(num(r.count))) };
     })(),
+    sendLog: Array.isArray(o.sendLog) ? (o.sendLog as unknown[]).filter((t): t is number => typeof t === "number" && Number.isFinite(t)).slice(-300) : [],
+    logos: (() => {
+      const out: Record<string, { at: number; ok: boolean }> = {};
+      const l = o.logos && typeof o.logos === "object" && !Array.isArray(o.logos) ? (o.logos as Record<string, unknown>) : {};
+      for (const [k, v] of Object.entries(l).slice(0, 500)) {
+        const e = v as Record<string, unknown> | null;
+        if (HEX(32).test(k) && e && typeof e.at === "number") out[k] = { at: e.at, ok: e.ok === true };
+      }
+      return out;
+    })(),
     catchUp: Array.isArray(o.catchUp) ? (o.catchUp as unknown[]).filter((s): s is string => typeof s === "string" && /^[0-9a-f]{6,32}$/.test(s)).slice(0, CATCH_UP_MAX) : [],
   };
 }
 
 const HEX = (n: number) => new RegExp(`^[0-9a-f]{${n}}$`);
 
+const MATCHES: readonly string[] = ["invites", "newsletters", "automated", "sender", "domain"];
+
 export function readRule(v: unknown): FilterRule | null {
   const o = v as Record<string, unknown> | null;
-  if (!o || typeof o !== "object" || typeof o.id !== "string" || !HEX(12).test(o.id) || (o.kind !== "block" && o.kind !== "filter") || typeof o.key !== "string" || !HEX(32).test(o.key)) return null;
-  return { id: o.id, kind: o.kind, key: o.key, label: str(o.label, 80), at: num(o.at) };
+  if (!o || typeof o !== "object" || typeof o.id !== "string" || !HEX(12).test(o.id) || typeof o.key !== "string") return null;
+  if (o.kind === "block" || o.kind === "filter") return HEX(32).test(o.key) ? { id: o.id, kind: o.kind, key: o.key, label: str(o.label, 80), at: num(o.at) } : null;
+  if (o.kind !== "tier" || !MATCHES.includes(o.match as string) || (o.to !== "can-wait" && o.to !== "filtered")) return null;
+  const keyed = o.match === "sender" || o.match === "domain";
+  if (keyed ? !HEX(32).test(o.key) : o.key !== "") return null;
+  return { id: o.id, kind: "tier", key: o.key, match: o.match as RuleMatch, to: o.to as RuleTo, label: str(o.label, 80), at: num(o.at) };
 }
 
 export function readStyle(v: unknown): StyleProfile | null {
@@ -208,8 +253,24 @@ function readItem(v: unknown): EmailItem | null {
     ...(typeof o.said === "string" && o.said && { said: o.said.slice(0, 400) }),
     ...(typeof o.sending === "number" && o.sending > 0 && { sending: o.sending }),
     ...(typeof o.sentAt === "number" && o.sentAt > 0 && { sentAt: o.sentAt }),
+    ...(typeof o.threadId === "string" && /^[0-9a-f]{6,32}$/.test(o.threadId) && { threadId: o.threadId }),
+    ...(typeof o.invite === "string" && HEX(32).test(o.invite) && { invite: o.invite }),
+    ...(o.list === true && { list: true }),
+    ...(o.auto === true && { auto: true }),
+    ...(typeof o.photoKey === "string" && HEX(32).test(o.photoKey) && { photoKey: o.photoKey }),
+    ...(typeof o.checkedAt === "number" && o.checkedAt > 0 && { checkedAt: o.checkedAt }),
+    ...(o.skipped === true && { skipped: true }),
+    ...((o.closed === "replied" || o.closed === "merged") && { closed: o.closed }),
+    ...(typeof o.byRule === "string" && HEX(12).test(o.byRule) && { byRule: o.byRule }),
+    ...(typeof o.prevKind === "string" && (EMAIL_KINDS as readonly string[]).includes(o.prevKind) && { prevKind: o.prevKind as EmailKind }),
   };
 }
+
+/**
+ * An item as the Desk gets it (#642): the keyed hashes and the thread stay on the server; `logo` (the sender's domain
+ * logo) and `photo` (the Mac's contact photo) are opaque ids the Desk asks for, passkey-only, when there is one.
+ */
+export type DeskEmailItem = Omit<EmailItem, "senderKey" | "domainKey" | "threadId" | "invite" | "photoKey" | "checkedAt" | "byRule" | "prevKind" | "list" | "auto"> & { logo?: string; photo?: string };
 
 /** What GET /api/email answers a signed-in Desk: the status plus the private list. */
 export interface EmailView {
@@ -217,15 +278,17 @@ export interface EmailView {
   status: import("./status.js").EmailStatus;
   /** Whether Connect Gmail can work here (the client id and secret and the token key are set). */
   canConnect: boolean;
-  items: EmailItem[];
+  items: DeskEmailItem[];
   /** Urgent money or legal alerts skipped today: a count only, nothing of the mail is kept (#415). */
   urgentSkipped: number;
   /** Plain job-application confirmations this month: a count, shown to a signed-in Desk only (#522). */
   applied: number;
   /** This month's Claude spend and the cap, in dollars. */
   spend: { usd: number; budget: number };
-  /** The sender rules, without their keys (#615). */
-  rules: Pick<FilterRule, "id" | "kind" | "label" | "at">[];
+  /** The rules, without their keys (#615, #642). */
+  rules: Pick<FilterRule, "id" | "kind" | "label" | "at" | "match" | "to">[];
+  /** Replies sent from the Desk in the last seven days (#642). */
+  sentWeek: number;
   /** Mail the rules filtered today. */
   ruled: number;
   style: StyleProfile | null;

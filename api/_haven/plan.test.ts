@@ -3,12 +3,15 @@ import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
 import { signedInCookie } from "../_desk/testing.ts";
 import { FAKE_PLAN } from "./plan.fixture.ts";
-import { PLAN_BODY_MAX, PLAN_PATH, planGet, planPost, readPlan, type PlanDeps } from "./plan.ts";
+import { FEED_TOKEN, LOG_TOKEN } from "../_site/roomkeys.ts";
+import { PLAN_BODY_MAX, PLAN_PATH, planGet, planPost, PlanStore, planPut, readPlan, type PlanDeps } from "./plan.ts";
 
 /** The Haven's floor plan (#616): the shape it takes, and the passkey-only store. The plan here is made up. */
 
 const DESK = "a test desk key, not a real one";
 const ORIGIN = "https://ceo.test";
+const LOG = "test-log-key-not-a-real-one-0123456789abcdef";
+const FEED = "test-feed-key-not-a-real-one-0123456789abcdef";
 const NOW = Date.parse("2026-11-04T18:00:00Z");
 
 function memoryBlob(): BlobBackend & { files: Map<string, Uint8Array> } {
@@ -29,7 +32,7 @@ function memoryBlob(): BlobBackend & { files: Map<string, Uint8Array> } {
 
 function deps(blob = memoryBlob(), store = new MemoryAuthStore()): PlanDeps & { lines: string[]; blob: ReturnType<typeof memoryBlob>; store: MemoryAuthStore } {
   const lines: string[] = [];
-  return { desk: { deskKey: DESK, store, now: NOW }, blob, log: (l) => lines.push(l), lines, store };
+  return { desk: { deskKey: DESK, store, now: NOW }, blob, env: { [LOG_TOKEN]: LOG, [FEED_TOKEN]: FEED }, log: (l) => lines.push(l), lines, store };
 }
 
 const post = (body: unknown, cookie = "") =>
@@ -103,5 +106,51 @@ describe("/api/haven-plan", () => {
     const form = new Request(`${ORIGIN}/api/haven-plan`, { method: "POST", headers: { "Content-Type": "text/plain", Cookie: cookie }, body: "{}" });
     expect((await planPost(form, d)).status).toBe(415);
     expect(d.blob.files.size).toBe(0);
+  });
+});
+
+describe("PUT /api/haven-plan with the feed key (#655)", () => {
+  const put = (body: unknown, key?: string, type = "application/json") =>
+    new Request(`${ORIGIN}/api/haven-plan`, { method: "PUT", headers: { "Content-Type": type, ...(key && { Authorization: `Bearer ${key}` }) }, body: typeof body === "string" ? body : JSON.stringify(body) });
+
+  it("saves a good plan and answers counts only", async () => {
+    const d = deps();
+    const res = await planPut(put(FAKE_PLAN, FEED), d);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, rooms: FAKE_PLAN.rooms.length, pieces: FAKE_PLAN.items.length });
+    expect(d.blob.files.has(PLAN_PATH)).toBe(true);
+    expect(d.lines.join("\n")).toMatch(/\d+ rooms, \d+ pieces/);
+    expect(d.lines.join("\n")).not.toContain(FAKE_PLAN.rooms[0]!.name);
+    // And a passkey session reads it back.
+    const cookie = await signedInCookie(DESK, NOW, d.store);
+    const back = await planGet(new Request(`${ORIGIN}/api/haven-plan`, { headers: { Cookie: cookie } }), d);
+    expect(((await back.json()) as { plan: unknown }).plan).toEqual(FAKE_PLAN);
+  });
+
+  it("refuses no key, the read key and a passkey session alone, and saves nothing", async () => {
+    const d = deps();
+    const cookie = await signedInCookie(DESK, NOW, d.store);
+    const withCookie = new Request(`${ORIGIN}/api/haven-plan`, { method: "PUT", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify(FAKE_PLAN) });
+    for (const r of [put(FAKE_PLAN), put(FAKE_PLAN, LOG), put(FAKE_PLAN, "wrong-key-wrong-key-wrong-key-wrong-key"), withCookie]) expect((await planPut(r, d)).status).toBe(401);
+    expect(d.blob.files.size).toBe(0);
+  });
+
+  it("refuses a bad plan, a non-JSON body and an outsized one", async () => {
+    const d = deps();
+    expect((await planPut(put({ v: 1 }, FEED), d)).status).toBe(400);
+    expect((await planPut(put("{nope", FEED), d)).status).toBe(400);
+    expect((await planPut(put(FAKE_PLAN, FEED, "text/plain"), d)).status).toBe(415);
+    expect((await planPut(put(" ".repeat(PLAN_BODY_MAX + 1), FEED), d)).status).toBe(413);
+    expect(d.blob.files.size).toBe(0);
+  });
+
+  it("is never readable with either room key", async () => {
+    const d = deps();
+    await new PlanStore(d.blob).write(FAKE_PLAN);
+    for (const key of [LOG, FEED]) {
+      const res = await planGet(new Request(`${ORIGIN}/api/haven-plan`, { headers: { Authorization: `Bearer ${key}`, "x-ceo-room-key": key } }), d);
+      expect([401, 403]).toContain(res.status);
+      expect(await res.text()).not.toContain(FAKE_PLAN.rooms[0]!.name);
+    }
   });
 });

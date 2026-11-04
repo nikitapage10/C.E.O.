@@ -1,6 +1,7 @@
 import type { EmailItem, EmailStatus } from "../email/email.ts";
 import type { TextItem, TextRequestView } from "../texts/texts.ts";
 import type { RelayStatus } from "@ceo/core";
+import { closingOf, draftAsk, skipOf } from "../../../../../api/_email/intentWords.ts";
 
 /**
  * Relay's Thread (#615), the logic with no DOM: one exchange at a time, from the two live lines.
@@ -53,6 +54,11 @@ export interface Exchange {
   needsYou: boolean;
   /** A one-to-one text can be sent from here; an email only once Gmail granted send; groups are never drafted for. */
   sendable: boolean;
+  /** The Mac's contact photo id, or the sender domain's logo id (#642): opaque, asked for passkey-only. */
+  photo?: string;
+  logo?: string;
+  /** A text whose ready draft is folded until Reply (#642). */
+  ready?: boolean;
 }
 
 const firstName = (who: string) => who.trim().split(/\s+/)[0] || who;
@@ -62,12 +68,12 @@ export const initialOf = (who: string) => (who.trim()[0] ?? "?").toUpperCase();
 
 /** One email item as an exchange; sendable only when Gmail granted send. */
 export function fromEmail(i: EmailItem, canSend = false): Exchange {
-  return { key: `e:${i.id}`, line: "email", id: i.id, who: i.from || "Unknown sender", channel: "Email", at: i.at, subject: i.subject, body: i.summary || i.subject, action: i.action, advice: i.advice ?? "", draft: i.draft ?? null, draftAt: 0, said: i.said ?? "", sooner: false, later: false, needsYou: i.kind === "needs-you", sendable: canSend };
+  return { key: `e:${i.id}`, line: "email", id: i.id, who: i.from || "Unknown sender", channel: "Email", at: i.at, subject: i.subject, body: i.summary || i.subject, action: i.action, advice: i.advice ?? "", draft: i.draft ?? null, draftAt: 0, said: i.said ?? "", sooner: false, later: false, needsYou: i.kind === "needs-you", sendable: canSend, ...(i.photo && { photo: i.photo }), ...(i.logo && { logo: i.logo }) };
 }
 
 /** One text thread as an exchange. */
 export function fromText(i: TextItem): Exchange {
-  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group };
+  return { key: `t:${i.id}`, line: "text", id: i.id, who: i.name || "Unknown sender", channel: i.channel, at: i.since, subject: "", body: i.group ? (i.summary?.text ?? "") : i.gist, action: "", advice: "", draft: i.group ? null : (i.draft?.text ?? null), draftAt: i.draft?.at ?? 0, said: "", sooner: i.sort === "sooner", later: i.state === "later", needsYou: true, sendable: !i.group, ...(i.photo && { photo: i.photo }) };
 }
 
 /** The queue: email that needs Nikita and texts they owe (not groups, not settled), sooner first, then oldest; skipped and later at the back. */
@@ -85,7 +91,7 @@ export function queueOf(email: EmailItem[] | undefined, texts: TextItem[] | unde
 
 /* ── commands ── */
 
-export type Command = "yes" | "no" | "skip" | "later" | "change" | "filter" | "block" | "undo" | "words";
+export type Command = "yes" | "no" | "skip" | "later" | "change" | "filter" | "block" | "undo" | "done" | "draft" | "words";
 
 const norm = (w: string) =>
   w
@@ -108,13 +114,21 @@ const COMMANDS: [Command, RegExp][] = [
   ["block", new RegExp(`^(?:block(?: (?:this|the|them))?(?: sender| person)?)${PLEASE}$`)],
 ];
 
-/** What one line, said or typed, means. Anything that isn't a command is words for a reply ("tell them I'll be 10 late"). */
-export function commandOf(raw: string): Command | null {
+/**
+ * What one line, said or typed, means, with no model (#642): a gate command, "already did it" (done), "skip / pass /
+ * nah / not this one" (skip), "draft it" (draft). Anything else is "words", which the intent layer reads (one Haiku
+ * call, api/_email/intent.ts). "nah" is "no" while a draft asks "Send to X?", and skip before there is one.
+ */
+export function commandOf(raw: string, phase: Phase = "incoming"): Command | null {
   const w = norm(raw);
   if (!w) return null;
   // A question is never a command ("send it?", "did you send it?"), and neither is a line that redirects one.
   if (/\?/.test(raw)) return "words";
+  // "nah" and "nope" answer "Send to X?" (no) while a draft asks; every other skip word skips in any phase.
+  if (skipOf(raw) && !(phase === "ask" && /^(?:nah|nope)$/.test(w))) return "skip";
   for (const [c, re] of COMMANDS) if (re.test(w)) return c;
+  if (closingOf(raw)) return "done";
+  if (draftAsk(raw)) return "draft";
   return "words";
 }
 
@@ -149,7 +163,11 @@ export function allowed(cmd: Command, phase: Phase, ex: Exchange | null): boolea
       return phase === "ask";
     case "skip":
     case "later":
+    case "done":
       return phase === "incoming" || phase === "ask";
+    case "draft":
+      // An email drafts even without Gmail's send grant (the draft is copied for Gmail); a group text never.
+      return (phase === "incoming" || phase === "ask") && (ex.line === "email" || ex.sendable);
     case "filter":
     case "block":
       return (phase === "incoming" || phase === "ask") && ex.line === "email";
@@ -160,14 +178,14 @@ export function allowed(cmd: Command, phase: Phase, ex: Exchange | null): boolea
 
 /** The commands to offer on screen for a phase (said aloud or keyed). */
 export function offered(phase: Phase, ex: Exchange | null): Command[] {
-  const all: Command[] = ["yes", "no", "change", "skip", "later", "filter", "block", "undo"];
+  const all: Command[] = ["yes", "no", "change", "draft", "done", "skip", "later", "filter", "block", "undo"];
   return all.filter((c) => allowed(c, phase, ex));
 }
 
-/** Keys: Y yes, N no, S skip, Z undo, L later. */
+/** Keys: Y yes, N no, R reply (draft it), D done, L later, S skip, Z undo. */
 export function keyCommand(key: string): Command | null {
   const k = key.toLowerCase();
-  return k === "y" ? "yes" : k === "n" ? "no" : k === "s" ? "skip" : k === "z" ? "undo" : k === "l" ? "later" : null;
+  return k === "y" ? "yes" : k === "n" ? "no" : k === "s" ? "skip" : k === "z" ? "undo" : k === "l" ? "later" : k === "d" ? "done" : k === "r" ? "draft" : null;
 }
 
 /** "Send to Sam?" */
@@ -294,6 +312,35 @@ export function pendingOf(queue: Exchange[] | null, now: number, fallback: { ema
     .sort((a, b) => Number(b.why.includes("sooner")) - Number(a.why.includes("sooner")) || b.why.length - a.why.length || a.ex.at - b.ex.at)
     .slice(0, n);
   return { texts: queue.filter((x) => x.line === "text").length, email: queue.filter((x) => x.line === "email").length, longest, high };
+}
+
+/* ── The Codex (#642): one line of numbers, then two lists ── */
+
+export interface CodexRow {
+  ex: Exchange;
+  waited: number;
+}
+
+export interface Codex {
+  /** Waiting on Nikita, both lines; null when neither line is readable. */
+  waiting: number | null;
+  /** How long the oldest has waited (ms); null with nothing waiting or signed out. */
+  oldest: number | null;
+  /** Email that needs action, oldest first; texts owed, oldest first. Each exchange once. */
+  email: CodexRow[];
+  texts: CodexRow[];
+}
+
+/** The Codex from the queue: the same exchanges the Thread holds, so a Done leaves both at once. */
+export function codexOf(queue: Exchange[] | null, now: number, fallback: { email: number | null; texts: number | null } = { email: null, texts: null }): Codex {
+  if (!queue) return { waiting: fallback.email === null && fallback.texts === null ? null : (fallback.email ?? 0) + (fallback.texts ?? 0), oldest: null, email: [], texts: [] };
+  const rows = [...queue].sort((a, b) => a.at - b.at).map((ex) => ({ ex, waited: Math.max(0, now - ex.at) }));
+  return { waiting: queue.length, oldest: rows[0]?.waited ?? null, email: rows.filter((r) => r.ex.line === "email"), texts: rows.filter((r) => r.ex.line === "text") };
+}
+
+/** Sent this week, both lines: the hub's last seven days of texts and the email agent's own count. */
+export function weekSent(texts: Pick<RelayStatus, "week"> | null, emailWeek: number): number {
+  return (texts?.week ?? []).reduce((n, d) => n + d.sent, 0) + Math.max(0, emailWeek);
 }
 
 /** The checks a draft passed, shown ticking between Nikita's words and the draft: the learned style first. */

@@ -11,7 +11,9 @@
  *                        /api/room-feed, a short room event (api/_room/feed.ts), POST /api/setup-asks,
  *                        a setup ask or its Trail line (#324, api/_room/setup.ts), and POST
  *                        /api/skippy-answer, a hand-off's answer (#312; its own check in gate.ts and api/skippy.ts,
- *                        bearer only). It reads nothing: each answer says only that the write was kept.
+ *                        bearer only), and PUT /api/haven-plan, the Haven's floor plan (#655; api/_haven/plan.ts,
+ *                        saved so the Builder can load it with no tap; GET of it stays passkey-only, neither key
+ *                        reads it). It reads nothing: each answer says only that the write was kept (the plan's, counts).
  *
  * Neither key can change a setting (no other POST, and the Desk's own writes still need a passkey session), trade
  * (positions are read through the allow-listed GETs in api/_exchange/positions.ts), send anything (no email, invoice
@@ -180,15 +182,17 @@ export function isLogRead(request: Request): boolean {
 /** The always-on responder's two routes (#501, api/_skippy/kernelroute.ts): the private brief, and the run itself. */
 export const KERNEL_BRIEF_PATH = "/api/kernel-brief";
 export const KERNEL_AGENT_PATH = "/api/kernel-agent";
+/** The Haven's floor plan (#655, api/_haven/plan.ts): the feed key may PUT it; nothing but a passkey session reads it. */
+export const HAVEN_PLAN_PATH = "/api/haven-plan";
 
 /**
  * Whether a request is one of the writes the feed key opens: POST /api/room-feed or /api/setup-asks, PUT
- * /api/kernel-brief or POST /api/kernel-agent (#501), with no query.
+ * /api/kernel-brief or /api/haven-plan, or POST /api/kernel-agent (#501), with no query.
  */
 export function isFeedWrite(request: Request): boolean {
   const url = new URL(request.url);
   if (url.search !== "") return false;
-  if (request.method === "PUT") return url.pathname === KERNEL_BRIEF_PATH;
+  if (request.method === "PUT") return url.pathname === KERNEL_BRIEF_PATH || url.pathname === HAVEN_PLAN_PATH;
   return request.method === "POST" && (FEED_WRITES.includes(url.pathname) || url.pathname === KERNEL_AGENT_PATH);
 }
 

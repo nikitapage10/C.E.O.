@@ -6,6 +6,10 @@
  *   GET  /api/haven-plan                    passkey session: { plan } (null until one is saved).
  *   POST /api/haven-plan { action: "save", plan }   passkey session: checks it (`readPlan`) and saves it.
  *   POST /api/haven-plan { action: "clear" }        passkey session: forgets it; the Haven waits for one again.
+ *   PUT  /api/haven-plan <plan JSON>        the feed key (SUBMIND_FEED_TOKEN, write-only) alone: checks it the same way
+ *                                           and saves it, so the Builder can load it with no tap. It answers only
+ *                                           { ok, rooms, pieces } (counts), never the plan. Reading stays passkey-only:
+ *                                           the room keys can't GET it (the gate's read list doesn't hold this path).
  *
  * Nothing here is public: signed out, the Haven shows counts and states only, with no map. The plan is read as
  * untrusted data on the way in (closed sets, clamped numbers, trimmed plain names, capped lists), so a bad paste can't
@@ -17,6 +21,7 @@
 import { pickBlob, type BlobBackend } from "../_blob.js";
 import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
+import { roomKeyOf } from "../_site/roomkeys.js";
 import { PLAN_BODY_MAX, readPlan, type HavenPlan } from "./planShape.js";
 
 export * from "./planShape.js";
@@ -45,11 +50,13 @@ export class PlanStore {
 export interface PlanDeps {
   desk: DeskDeps;
   blob: BlobBackend | null;
+  /** The server's settings, for the feed key (PUT). */
+  env: Record<string, string | undefined>;
   log: (line: string) => void;
 }
 
 export function livePlanDeps(env: Record<string, string | undefined> = process.env): PlanDeps {
-  return { desk: { deskKey: env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(env), now: Date.now() }, blob: pickBlob(env), log: (line) => console.log(line) };
+  return { desk: { deskKey: env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(env), now: Date.now() }, blob: pickBlob(env), env, log: (line) => console.log(line) };
 }
 
 function json(body: unknown, status = 200): Response {
@@ -98,7 +105,33 @@ export async function planPost(request: Request, deps: PlanDeps): Promise<Respon
   return reply({ ok: true, plan });
 }
 
+/** PUT /api/haven-plan: the plan JSON as the body, the feed key alone. Counts back, never the plan. */
+export async function planPut(request: Request, deps: PlanDeps): Promise<Response> {
+  if (roomKeyOf(request, deps.env) !== "feed") return json({ error: "unauthorized" }, 401);
+  if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
+  if (Number(request.headers.get("content-length") ?? 0) > PLAN_BODY_MAX) return json({ error: "too-big" }, 413);
+  if (!deps.blob) return json({ error: "not-set-up" }, 503);
+  const raw = await request.text().catch(() => "");
+  if (raw.length > PLAN_BODY_MAX) return json({ error: "too-big" }, 413);
+  let got: unknown;
+  try {
+    got = JSON.parse(raw);
+  } catch {
+    return json({ error: "bad-request" }, 400);
+  }
+  const plan = readPlan(got);
+  if (!plan) return json({ error: "bad-plan" }, 400);
+  try {
+    await new PlanStore(deps.blob).write(plan);
+  } catch {
+    return json({ error: "store" }, 503);
+  }
+  deps.log(`haven: a floor plan was saved with the feed key (${plan.rooms.length} rooms, ${plan.items.length} pieces)`);
+  return json({ ok: true, rooms: plan.rooms.length, pieces: plan.items.length });
+}
+
 export const planRoute = {
   GET: (request: Request) => planGet(request, livePlanDeps()),
   POST: (request: Request) => planPost(request, livePlanDeps()),
+  PUT: (request: Request) => planPut(request, livePlanDeps()),
 };

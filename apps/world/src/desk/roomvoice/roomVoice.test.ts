@@ -210,10 +210,14 @@ describe("hands-free (#638): one toggle, listening page to page", () => {
       return Response.json({ say: "Done.", kind: "skippy" });
     });
   });
-  // The rooms' manifests load for real (none has a handler yet); load them before the clock is faked.
+  // The rooms' manifests load for real; load them before the clock is faked. Relay has a handler (#642): with no Thread
+  // on screen it hands everything to its submind (null), like a room without one.
   beforeAll(async () => {
     forgetIntents();
-    for (const room of ["relay", "today", "green", "haven"]) expect(await intentFor(room)).toBeNull();
+    for (const room of ["today", "green", "haven"]) expect(await intentFor(room)).toBeNull();
+    const relay = await intentFor("relay");
+    expect(relay).toBeTypeOf("function");
+    expect(await relay!({ text: "what's waiting", room: "relay", via: "hands-free", history: [] })).toBeNull();
   });
   afterEach(() => {
     micReset();

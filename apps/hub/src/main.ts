@@ -9,6 +9,8 @@ import { fileLogger } from "./log.ts";
 import { listen } from "./server.ts";
 import { siteClient } from "./site.ts";
 import { fileStore } from "./store.ts";
+import { macPhotoKey } from "../../../api/_relay/photos.ts";
+import { sipsResize } from "./photos.ts";
 
 /**
  * The hub's one file on the Mac (built into relay-hub.mjs, served by the site at /relay/relay-hub.mjs). Its commands,
@@ -57,7 +59,7 @@ async function serve(): Promise<void> {
   }
   const [password, token, sendKey, localKey] = await Promise.all([need("bluebubbles-password"), need("hub-token"), need("send-key"), need("local-key")]);
   const site = siteClient(token);
-  const engine = new Engine({ store: fileStore(paths.state), bb: blueBubbles(password), site, log, config, sendKey: Buffer.from(sendKey, "base64url"), now: Date.now });
+  const engine = new Engine({ store: fileStore(paths.state), bb: blueBubbles(password), site, log, config, sendKey: Buffer.from(sendKey, "base64url"), now: Date.now, photoKey: macPhotoKey(localKey), resize: sipsResize });
   await listen({
     localKey,
     log,
@@ -74,6 +76,7 @@ async function serve(): Promise<void> {
   await engine.checkMessages();
   engine.setHub(engine.status()?.hub === "paused" ? "paused" : "listening");
   await engine.report(true);
+  void engine.syncPhotos().then(() => engine.report(true));
 
   let busy = false;
   const round = async () => {
@@ -88,7 +91,8 @@ async function serve(): Promise<void> {
     }
   };
   setInterval(() => void round(), 15_000);
-  setInterval(() => void engine.checkMessages().then(() => engine.report(true)), 5 * 60_000);
+  setInterval(() => void engine.checkMessages().then(() => engine.recheck()).then(() => engine.report(true)), 5 * 60_000);
+  setInterval(() => void engine.syncPhotos().then(() => engine.report(true)), 24 * 60 * 60_000);
   setInterval(() => {
     engine.sweep();
     void engine.refreshSkipTerms();

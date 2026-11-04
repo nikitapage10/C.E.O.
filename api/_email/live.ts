@@ -12,6 +12,8 @@ import { emailBudget } from "./budget.js";
 import { clientFrom } from "./route.js";
 import { priorityFrom, skipTermsFrom } from "./filter.js";
 import { claudeCall } from "./sort.js";
+import { fetchLogo } from "./logos.js";
+import { photoEmailKey } from "../_relay/photos.js";
 import { pickEmailStore } from "./store.js";
 import { tick, type TickDeps, type TickResult } from "./tick.js";
 
@@ -32,6 +34,9 @@ export function liveTickDeps(env: Env = process.env): TickDeps | null {
     priority: priorityFrom(env.EMAIL_PRIORITY),
     senderSecret: env.GMAIL_TOKEN_KEY ?? "",
     now: Date.now(),
+    // Sender logos (#642): fetched with plain fetch and every guard in ./logos.ts, never with Gmail's token.
+    logoFetch: (domain) => fetchLogo(domain, { fetcher: (url, init) => fetch(url, init) }, skipTermsFrom(env.EMAIL_SKIP_TERMS)),
+    photoKey: photoEmailKey(env.GMAIL_TOKEN_KEY),
     ping: async (text) => {
       if (!pingsReady || !auth) return 0;
       const [state, passkeys] = await Promise.all([auth.pings(), auth.passkeys()]);

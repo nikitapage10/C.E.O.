@@ -126,6 +126,46 @@ each tested (`api/_email/thread.test.ts`):
   Copy and Open in Gmail with a quiet "Reconnect Gmail to send from here".
 - Header values from the mail are stripped of line breaks before they are reused; the body is base64 UTF-8.
 
+
+## What Nikita says, and the simpler Thread (#642)
+
+- **Advice on arrival, the draft on request.** A needs-you mail arrives with Dialtone's summary and Blasto's advice
+  only (Sonnet, at most 300 output tokens, `ADVICE_MAX_TOKENS`). The draft is written only when Nikita taps **Draft it**
+  (or says "draft it"): `reply` with an empty `said` asks Blasto for a draft from his own advice. Texts keep their ready
+  drafts from the Mac, folded until **Reply**. Mail Nikita deals with elsewhere never costs a draft.
+- **Closing intent, free.** "already did it", "sent it", "done", "handled", "no worries", "taken care of" mark the item
+  done with no draft and no question; "skip", "pass", "nah", "not this one" remove it like Done until the sender writes
+  again (`skip`, with a few seconds of Undo on the Desk, Z). Both are matched in code
+  ([`api/_email/intentWords.ts`](../api/_email/intentWords.ts)), shared by the Desk and the server, before any model.
+- **The closing check.** Each minute up to 8 open items whose thread hasn't been looked at for 3 minutes get one
+  `threads.get` (format=metadata: ids, dates and labels, never a body). When Nikita's own message (label `SENT`) is the
+  newest in the thread, the item closes silently (`closed: "replied"`). It comes back only when the other side writes
+  again. Dialtone sees Nikita's latest reply snippet in that thread as context (`<nikita-last-reply>`, fenced), so a
+  "thanks" after his answer sorts as nothing to do.
+- **One item per thread or invite.** `dedupe` keeps the newest open item per Gmail thread and per calendar invite (the
+  iCal UID from the `text/calendar` part, hashed; older items by sender and title), so an updated invite doesn't show
+  twice.
+- **The intent layer.** Anything else Nikita says or types goes to one Haiku call
+  ([`api/_email/intent.ts`](../api/_email/intent.ts)) with a closed answer: `reply` (words for Blasto), `rule`,
+  `disposition` (done, skip, later), `question` (answered only from what the Desk already shows) or `unclear` (one
+  question back). The utterance and the item are fenced as data; the call runs under this agent's cap (`SORT_MODEL`,
+  200 output tokens at most) and the privacy check refuses a number, address, card or key first. About 800 tokens in
+  and 80 out: **about $0.00012 an utterance**, $0.00025 at its ceiling; the free phrases cost nothing. Texts get reply,
+  disposition and question only. It never sends: the Desk carries out the answer through the same gate as a tap.
+- **Rules from a sentence.** "calendar invites can wait", "stop showing me newsletters", "filter everyone from this
+  company" become a `tier` rule: what it matches (invites, newsletters, automated, this sender, this domain) and where
+  it sends them (`can-wait`: kept off the to-do list; `filtered`: never shown). A new rule applies to the open items it
+  matches at once and says how many moved; Undo puts them back as they were. A rule only ever moves mail already kept:
+  the money and legal pre-filter and the skip list run first and no rule can bring that mail back.
+- **Sender logos** ([`api/_email/logos.ts`](../api/_email/logos.ts)). For a kept mail's sender domain, the tick fetches
+  `/apple-touch-icon.png` then `/favicon.ico` once per domain (at most 3 new domains a tick), with every guard tested:
+  200 KB at most (by length and as it streams), image types only (PNG, ICO, JPEG, GIF, WebP; never SVG) and the bytes
+  must match the type, one 3-second budget for the whole domain, https only, redirects followed by hand and only within
+  the sender's own domain, and no private or local address. Freemail, money, legal and skip-list senders are never
+  fetched. The logo is sealed in the private store under the domain's keyed hash for 30 days and served only to the
+  passkey Desk (`GET /api/email?logo=`, `nosniff`, a sandboxing CSP). The Desk shows the Mac's contact photo first,
+  then the logo, then the initial.
+
 ## The cap
 
 Its own **$10 a month** (`EMAIL_BUDGET_USD`, an app setting; the template sets 10), separate from the world's,

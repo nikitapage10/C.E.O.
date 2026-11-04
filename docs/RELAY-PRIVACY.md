@@ -38,7 +38,7 @@ The parts:
 2. **The public site sees counts and states only**, in one allowlisted shape (`RelayStatus`).
 3. **The signed-in Desk sees who is waiting**: their name, when, Dialtone's one-line gist and Blasto's draft. That
    list is sealed on the site, readable only with a passkey session, and gone after 7 days. It never holds a message
-   body.
+   body. Since #642 it may show a small contact photo, sent under an opaque id with nothing that says whose (below).
 4. **Logs hold no content**: kinds, counts, times and error classes only.
 5. **Everything has an end date** (the retention table below), and **one command wipes the Mac**, with a way to check
    that it worked; **Unpair** on the Desk clears the site.
@@ -196,6 +196,37 @@ Also on this boundary:
 - **Nothing about Relay goes to GitHub**: no issue, comment, commit, log, screenshot or test fixture with a real
   message, name or number. Test fixtures are made up.
 
+### Contact photos: the one exception (#642)
+
+Besides a contact's name, the only thing of Nikita's contacts that leaves the Mac is **a small picture**, so the Desk
+can show a face beside a text or a mail. Nothing says whose it is:
+
+- **On the Mac.** Once a day and at start the hub reads each contact's picture from BlueBubbles' contact data, shrinks
+  it with macOS's `sips` to 96 px (in a private temp folder, deleted straight after) and keeps only the image chunks of
+  the PNG (`cleanPng`: no EXIF, location, text or colour profile). It is named by an **opaque id**: an HMAC of the
+  contact's normalised handle under a key derived from the hub's own local key (Keychain), which never leaves the Mac.
+  The site can't turn an id back into a number. A photo already sent and unchanged isn't sent again.
+- **What goes.** `POST /api/relay-hub?view=photo` with `{ id, png }` and nothing else; the site cleans the PNG again
+  and refuses anything over 40 KB or larger than 144 px. `POST /api/relay-hub?view=photos` with the ids the Mac has now
+  (the rest are deleted) and an email map. **Names, numbers and addresses never travel with photos.**
+- **The email match.** So a mail from someone in Mac Contacts shows their photo, the hub sends `[hash, id]` pairs where
+  the hash is an HMAC of the email address under a key the site derives from `GMAIL_TOKEN_KEY` (Key Vault) and hands
+  only to the paired hub (`GET /api/relay-hub?view=photo-key`). The email tick hashes each sender the same way, so the
+  site matches without the hub ever sending an address. Phone numbers never get a site-side key, because a short number
+  space could be guessed through one.
+- **On the site.** Each photo sealed in the private store, one blob per id, plus the sealed index; read only by the
+  passkey Desk (`GET /api/relay?photo=`, `nosniff`, a sandboxing CSP). The public status and the Lattice never see one.
+  Unpair, a new pairing and the wipe delete them all.
+
+### What Nikita says on the Desk (#642)
+
+What Nikita says or types about an item goes first to the free phrases in code ("already did it", "skip", "draft
+it"), then, only if those don't settle it, to one Haiku call through `POST /api/email` (`intent`) under the email cap,
+with the item as the Desk already has it (name, gist, advice; never a message body) and the words fenced as data. The
+privacy check refuses words with a number, address, card or key before any call. A text's closing reply is handled on
+the Mac: when Nikita's own message is the newest in Messages the thread closes (`replied`), and after his closing reply
+("no worries", "sounds good") an acknowledgement settles the thread with no model call; Blasto never drafts after it.
+
 ### The Desk's Texts panel and the send path
 
 The Relay page's Texts panel (`apps/world/src/desk/texts`) reads `GET /api/relay` with a passkey session: the counts,
@@ -325,6 +356,8 @@ What this adds to each boundary:
 | The site's sealed list | Replaced on each push (on every change, and at least every 5 minutes); items 7 days at most | The next push, `readTextsView`, Unpair, the wipe |
 | Requests on the site | A day after their 10 minutes end | Dropped on each read and write |
 | New-text cards (#536), on the Mac and the site | A day; a sent card loses its text at once | The hourly sweep; `readTextsView`; Unpair, the wipe |
+| Contact photos (#642), on the site | While the Mac still has them; re-sent daily | `?view=photos` drops the rest; Unpair, a new pairing, the wipe |
+| Sender logos (#642), on the site | 30 days per domain | The tick drops older ones |
 | Snippets on the site | One call | Never written down |
 | Anthropic's copy | Anthropic's API retention (above) | Anthropic's policy |
 

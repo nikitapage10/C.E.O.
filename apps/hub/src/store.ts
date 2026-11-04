@@ -101,9 +101,16 @@ export interface RelayState {
   seen: { rid: string; at: number }[];
   /** When the hourly sweep last ran. */
   sweptAt: number | null;
+  /**
+   * Contact photos sent to the site (#642, api/_relay/photos.ts): each opaque photo id and the SHA-256 of the cleaned
+   * PNG sent, so an unchanged photo isn't sent again. Ids and hashes only: never a name, a handle or a picture.
+   */
+  photos: Record<string, string>;
+  /** When the photos were last synced. */
+  photosAt: number | null;
 }
 
-export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null });
+export const emptyState = (): RelayState => ({ v: 1, paused: false, threads: [], cards: [], days: [], streak: { days: 0, lastDay: null }, seen: [], sweptAt: null, photos: {}, photosAt: null });
 
 export const newThreadId = () => randomBytes(8).toString("hex");
 
@@ -195,6 +202,13 @@ export function readState(raw: string | null): RelayState {
     streak: { days: n(streak?.days) ?? 0, lastDay: n(streak?.lastDay) },
     seen: Array.isArray(o.seen) ? (o.seen as Record<string, unknown>[]).flatMap((e) => (typeof e?.rid === "string" && /^[0-9a-f]{24}$/.test(e.rid) && n(e.at) !== null ? [{ rid: e.rid, at: e.at as number }] : [])).slice(-500) : [],
     sweptAt: n(o.sweptAt),
+    photos: (() => {
+      const out: Record<string, string> = {};
+      const p = o.photos && typeof o.photos === "object" && !Array.isArray(o.photos) ? (o.photos as Record<string, unknown>) : {};
+      for (const [k, v] of Object.entries(p).slice(0, 2_000)) if (/^[0-9a-f]{32}$/.test(k) && typeof v === "string" && /^[0-9a-f]{64}$/.test(v)) out[k] = v;
+      return out;
+    })(),
+    photosAt: n(o.photosAt),
   };
 }
 

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CAPS, readComposeInput, readDraftInput, readSortInput, type ComposeInput, type DraftInput, type SortInput } from "../../../api/_relay/models.ts";
 import { CARD_KEEP_MS, readTextsView, type RequestResult, type TextRequest, type TextsView } from "../../../api/_relay/texts.ts";
 import { REQUEST_MS, signRequest } from "../../../api/_relay/tokens.ts";
-import type { BlueBubbles, Contact, Message } from "./bluebubbles.ts";
+import type { BlueBubbles, Contact, ContactPhoto, Message } from "./bluebubbles.ts";
 import { readWebhook } from "./bluebubbles.ts";
 import { DEFAULT_CONFIG, HOST } from "./config.ts";
 import { DRAFT_KEEP_MS, Engine, SEEN_KEEP_MS, SETTLE_MS, THREAD_KEEP_MS, chatHandle } from "./engine.ts";
@@ -48,6 +48,11 @@ class FakeBB implements BlueBubbles {
   known: string[] = [CHAT];
   async chats() {
     return this.known;
+  }
+  /** Contact pictures (#642): made-up bytes. */
+  pictures: ContactPhoto[] = [];
+  async contactPhotos() {
+    return this.pictures;
   }
 }
 
@@ -94,6 +99,20 @@ class FakeSite implements Site {
   }
   async unpair() {
     return true;
+  }
+  photoKeyValue: Buffer | null = Buffer.alloc(32, 7);
+  uploaded: { id: string; png: Uint8Array }[] = [];
+  lists: { keep: string[]; emails: [string, string][] }[] = [];
+  async photoKey() {
+    return this.photoKeyValue;
+  }
+  async photo(id: string, png: Uint8Array) {
+    this.uploaded.push({ id, png });
+    return true;
+  }
+  async photos(keep: string[], emails: [string, string][]) {
+    this.lists.push({ keep, emails });
+    return keep;
   }
 }
 
@@ -611,5 +630,99 @@ describe("the local server", () => {
     expect(await call(addr.port, "/bluebubbles?k=local-test-key", {}, hook)).toBe(204);
     expect(got.length).toBe(readWebhook(JSON.parse(hook)) ? 1 : 0);
     expect(typeof handler).toBe("function");
+  });
+});
+
+/* ── #642: closing intent and contact photos on the Mac ── */
+
+/** A tiny made-up PNG with a text chunk that must not leave the Mac. */
+function tinyPng(): Uint8Array {
+  const chunk = (type: string, data: Uint8Array) => {
+    const out = new Uint8Array(12 + data.length);
+    new DataView(out.buffer).setUint32(0, data.length);
+    out.set(new TextEncoder().encode(type), 4);
+    out.set(data, 8);
+    return out;
+  };
+  const ihdr = new Uint8Array(13);
+  new DataView(ihdr.buffer).setUint32(0, 96);
+  new DataView(ihdr.buffer).setUint32(4, 96);
+  const parts = [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("tEXt", new TextEncoder().encode("Author\0Riley Test")), chunk("IDAT", new Uint8Array(30).fill(3)), chunk("IEND", new Uint8Array(0))];
+  const all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    all.set(p, o);
+    o += p.length;
+  }
+  return all;
+}
+
+describe("closing intent on the Mac (#642)", () => {
+  it("after Nikita's closing reply, a thanks owes nothing: settled with no model call and no draft", async () => {
+    const h = setup();
+    await h.engine.refreshSkipTerms(true);
+    h.bb.history = [text("Can you send the photos?", NOW - 300_000), text("no worries, already did it", NOW - 120_000, true), text("thanks!", NOW - 60_000)];
+    await h.engine.onMessage({ chat: CHAT, group: false, groupName: "", message: h.bb.history[2]! });
+    h.at(NOW + SETTLE_MS + 1);
+    await h.engine.work();
+    expect(h.site.sorts).toHaveLength(0);
+    expect(h.site.drafts).toHaveLength(0);
+    expect(h.store.load().threads[0]).toMatchObject({ state: "settled", why: "no-reply", draft: null });
+  });
+
+  it("closes an owed thread when Nikita's own message is now the newest in Messages", async () => {
+    const { bb, engine, store, at, site } = await owedWithDraft();
+    expect(store.load().threads[0]!.state).toBe("owed");
+    bb.history.push(text("yep, see you Saturday", NOW + SETTLE_MS + 30_000, true));
+    at(NOW + SETTLE_MS + 60_000);
+    const drafts = site.drafts.length;
+    await engine.recheck();
+    const t = store.load().threads[0]!;
+    expect(t.state).not.toBe("owed");
+    expect(site.drafts).toHaveLength(drafts);
+    // It comes back only when they write again.
+    bb.history.push(text("Also, bring chairs?", NOW + SETTLE_MS + 120_000));
+    await engine.onMessage({ chat: CHAT, group: false, groupName: "", message: bb.history.at(-1)! });
+    expect(store.load().threads[0]!.state).toBe("owed");
+  });
+});
+
+describe("contact photos (#642)", () => {
+  const withPhotos = () => {
+    const h = setup();
+    const resized: number[] = [];
+    const engine = new Engine({ store: h.store, bb: h.bb, site: h.site, log: h.log, config: DEFAULT_CONFIG, sendKey: KEY, now: h.now, offsetAt: UTC, photoKey: Buffer.alloc(32, 9), resize: async (img) => (resized.push(img.length), tinyPng()) });
+    h.bb.pictures = [
+      { handles: [HANDLE, "riley@example.com"], image: new Uint8Array(500).fill(1) },
+      { handles: ["+15555550199"], image: new Uint8Array(400).fill(2) },
+    ];
+    return { ...h, engine, resized };
+  };
+
+  it("sends small cleaned photos under opaque ids, emails only as keyed hashes, and nothing about who", async () => {
+    const h = withPhotos();
+    await h.engine.syncPhotos();
+    expect(h.site.uploaded).toHaveLength(2);
+    for (const u of h.site.uploaded) {
+      expect(u.id).toMatch(/^[0-9a-f]{32}$/);
+      expect(Buffer.from(u.png).includes(Buffer.from("Riley"))).toBe(false);
+    }
+    const sent = JSON.stringify(h.site.lists);
+    for (const secret of ["5555550123", "5555550199", "riley@example.com", "Riley", "Jordan"]) expect(sent, secret).not.toContain(secret);
+    expect(h.site.lists[0]!.emails).toHaveLength(1);
+    expect(h.site.lists[0]!.emails[0]![1]).toBe(h.site.uploaded[0]!.id);
+    expect(Object.keys(h.store.load().photos)).toHaveLength(2);
+    // The next day, unchanged photos aren't sent again.
+    await h.engine.syncPhotos();
+    expect(h.site.uploaded).toHaveLength(2);
+    // The list in the log is counts only.
+    expect(h.log.lines.join("\n")).not.toContain("Riley");
+  });
+
+  it("does nothing without the Mac's photo key", async () => {
+    const h = setup();
+    h.bb.pictures = [{ handles: [HANDLE], image: new Uint8Array(10) }];
+    await h.engine.syncPhotos();
+    expect(h.site.uploaded).toHaveLength(0);
   });
 });

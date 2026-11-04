@@ -3,7 +3,7 @@ import { useDeskAuth } from "../signin.ts";
 import { keyLine, loadKeys, prepareStepUp, setKey, SET_NOTE, type KeyRow, type KeysLoad } from "./keys.ts";
 
 /**
- * Boiler Room > Security, signed in only (#330): the Keys form. Set or replace one of the allowlisted keys in the Key
+ * Boiler Room > Controls (#647; on Security before), signed in only (#330): the Keys form. Set or replace one of the allowlisted keys in the Key
  * Vault without Cloud Shell; each write asks for the passkey again (the device's own unlock). Write-only: the page
  * shows each key's name and whether it is set, and when, never the value. The Desk key, the site bypass, the crew's
  * tokens and the sealing keys aren't on the list; they stay with the Cloud Shell paste (docs/AZURE.md).

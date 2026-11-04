@@ -192,6 +192,8 @@ with a new value.
 | `POST /api/room-feed` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a short room event (#281) | The feed key, the same way; that one write only, which answers `{ ok, id }` and nothing more |
 | `POST /api/setup-asks` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The active submind threads posting a setup ask, or closing one with its Trail line (#324) | The feed key, the same way, no query; it can't approve its own ask (only the passkey session can), and it answers `{ ok, id }` or `{ ok }`. A new ask pings Nikita's phone with counts-only words. See "Setup asks" below |
 | `PUT /api/haven-plan` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The Builder thread saving Nikita's floor plan without a tap (#655) | The feed key alone (not the read key, not a passkey session without it), no query; the body is checked as untrusted data like a Desk save (`readPlan`, 96 KB at most) and the answer is `{ ok, rooms, pieces }`, counts only, never the plan. Reading the plan stays passkey-session-only: `GET /api/haven-plan` takes neither room key, and the gate's read list doesn't hold the path |
+| `PUT /api/haven-photos` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The Builder thread loading meal photos into the Kitchen's library without a tap (#687) | The feed key alone, no query; the body is one PNG or JPEG (its own magic bytes and a full decode; 4 MB at most; served back only as `image/png` or `image/jpeg` with `nosniff`) and the answer is `{ ok, id, bytes }`, never a photo or the catalog. Reading a photo stays passkey-session-only (`GET /api/haven-photos` takes neither room key) |
+| `PUT /api/haven-meals` with `x-ceo-room-key: <SUBMIND_FEED_TOKEN>` (or `Authorization: Bearer`) | The Builder thread loading the Kitchen's meal planner (taste profile, catalog, first week) without a tap (#678) | The feed key alone, no query; the body is checked as untrusted data like a Desk seed (`readMeals`, 600 KB at most), it never replaces a planner already there unless `replace` is set, and the answer is `{ ok, meals, nights }`, counts only. Reading or changing the planner stays passkey-session-only (`/api/haven-meals` takes neither room key for a GET or POST) |
 | `POST /api/relay-hub` (no query, `?view=texts`, `results`, `sort`, `draft` or `unpair`) and `GET /api/relay-hub?view=requests` or `?view=skip`, with `Authorization: Bearer <a hub token>` (#535) | Relay's hub on the MacBook: its status, its who's-waiting list, its model snippets, its poll for the Desk's send requests and their results, the skip terms | The hub token is `rh1.<pairing id>.<HMAC>` with a key derived from `FOUNDRY_DESK_KEY`; the gate checks the signature on exactly those methods and views, and the route checks the token's hash against the pairing on record (Unpair ends it at once). Nothing else opens with it ([RELAY-PRIVACY.md](RELAY-PRIVACY.md), "Mac to the site") |
 | `POST /api/relay-pair`, no query (#535) | The Relay installer, once, trading the Desk's one-time pair code for the hub token | The code is the lock: 8 characters, 10 minutes, 5 wrong tries, kept only as a hash, made only with the Desk's send unlock and never while a Mac is paired; a request with an `Origin` header is refused, so a web page can't pair |
 | `GET /api/relay?view=status`, exactly (#535) | `relay status` and `relay wipe --verify` on the Mac | Relay's public counts (`RelayStatus`: counts, enum states, timestamps), public by design; every other method or query of `/api/relay` stays behind the lock and the passkey session |
@@ -222,7 +224,7 @@ Nikita approved two narrow keys for the subminds' project threads on 2026-10-22 
 keys"; Nikita's steps in [AZURE.md](AZURE.md), "The subminds' room keys"):
 
 - **Two keys, two directions.** `SUBMIND_LOG_TOKEN` reads (GET only, the listed room data, the Asked Skippy log's `needs` filter included); `SUBMIND_FEED_TOKEN` writes
-  (POST `/api/room-feed`, POST `/api/setup-asks` for a setup ask or its Trail line, #324, POST `/api/skippy-answer` for a hand-off's answer, #312, and PUT `/api/haven-plan`, the Haven's floor plan, #655) and reads nothing. Each opens only its own exact method, path and query
+  (POST `/api/room-feed`, POST `/api/setup-asks` for a setup ask or its Trail line, #324, POST `/api/skippy-answer` for a hand-off's answer, #312, PUT `/api/haven-plan`, the Haven's floor plan, #655, PUT `/api/haven-photos`, one meal photo, #687, and PUT `/api/haven-meals`, the meal planner's seed, #678) and reads nothing. Each opens only its own exact method, path and query
   (`LOG_READS`, `isFeedWrite` in `api/_site/roomkeys.ts`): another route, an extra or repeated query key, an encoded
   path, HEAD or any other POST is refused by the gate, and the handlers that hold private data
   (`/api/skippy-log`, `/api/exchange-positions`, `/api/room-feed`, `/api/setup-asks`) check the key again, so the same holds while the site
@@ -249,7 +251,7 @@ keys"; Nikita's steps in [AZURE.md](AZURE.md), "The subminds' room keys"):
 Since #627 the iPhone's Action Button runs a "Skippy" shortcut that posts what Nikita says to `POST /api/capture`
 ([HEY-SKIPPY.md](HEY-SKIPPY.md); TB9 in [THREAT-MODEL.md](THREAT-MODEL.md)). Azure only (`api/_haven/route.ts`).
 
-- **Phone keys.** One per phone, made on the Desk (**Boiler Room → Security → Phones → Add a phone**, passkey session):
+- **Phone keys.** One per phone, made on the Desk (**Boiler Room → Controls → Phones → Add a phone**, passkey session):
   32 random bytes behind a `skp_` prefix, shown once with Copy, never again. Only HMAC-SHA256 of the key is stored
   (`haven/phones.json`, private blob store), under a pepper derived from `FOUNDRY_DESK_KEY` (`deskKeyFor(…, "phone")`,
   scrypt-stretched and split by purpose: no new secret), with the phone's label, when it was added, when it was last
@@ -413,7 +415,7 @@ in the Key Vault and restart the Function App.
 
 ## Setting keys from the Desk
 
-Since #330, a third-party key is set or replaced on the Desk instead of in Cloud Shell: **Boiler Room → Security →
+Since #330, a third-party key is set or replaced on the Desk instead of in Cloud Shell: **Boiler Room → Controls →
 Keys**, signed in. It is write-only by design:
 
 - **Only allowlisted names** (`api/_keys/allowlist.ts`): `claude-api-key`, `fantasypros`,

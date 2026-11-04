@@ -151,6 +151,18 @@ passkey session (TB1) and written there or by `PUT /api/haven-plan` with the wri
 markup, capped lists, 96 KB at most), and its log line holds counts only. Signed out, the Haven shows counts and states
 only, never a map; the Lattice never sees the plan.
 
+The Kitchen's meal photos (#687) sit in their own private container, `haven-meals` (no public access, reached only with
+the Function App's identity), and come back only through `/api/haven-photos` in a passkey session (TB1); the write-only
+feed key may PUT one photo and hears back an id and a byte count. A photo is made by OpenAI's images API from the dish's
+name, description and components (no personal data), under the $10 a month images cap counted before each call; uploads
+must carry a PNG or JPEG's magic bytes and decode in full, and are served only as `image/png` or `image/jpeg` with `nosniff`.
+
+The Kitchen's meal planner (#678: the taste profile, the meal catalog and the week) is one JSON file in the private
+store (`haven/meals.json`), read and changed only through `/api/haven-meals` in a passkey session (TB1); the write-only
+feed key may PUT a seed and hears back counts. Every body is checked as untrusted data (closed sets of edits, roles,
+units and days, clamped numbers, plain capped text), the weekly budget lives only there (never in the repo), and the
+Haven's public status view carries counts only (nights planned, cooking, HelloFresh, confirmed), never a meal or a taste.
+
 Code reaches production through its own boundary: a change lands on `main` (by pull request for the Foundry's
 lanes, by direct push for chat work today) and the "Deploy to Azure" workflow ships it (#214, #216, #218; Azure is
 the only home since #313, and Vercel is being retired). It signs in with OIDC from the repo's `azure` environment

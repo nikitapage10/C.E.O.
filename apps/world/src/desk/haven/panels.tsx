@@ -5,11 +5,12 @@ import { removeItem, undoRemoveItem, type KitchenItem } from "../haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 import { Groceries } from "./Groceries.tsx";
 import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";
+import { MealPlanner } from "./MealPlanner.tsx";
 
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
- * Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet (the pantry, the meals) says it
- * is waiting, in plain type, and invents nothing.
+ * Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet says it is waiting, in plain
+ * type, and invents nothing. The Kitchen is the meal planner (#678, MealPlanner.tsx) with the list and King Soopers beside it.
  */
 
 export const TAB_NAME: Record<Tab, string> = { kitchen: "Kitchen", hall: "Hall", pets: "Pets", gym: "Gym" };
@@ -106,55 +107,47 @@ export function KitchenTab({ items, onTick, onDrop, onReread }: { items: Kitchen
   };
   const byId = new Map((items ?? []).map((i) => [i.id, i]));
   const kroger = useHome((s) => s.view?.links.kroger ?? s.pub?.links.kroger ?? "waiting");
+  const rail = (
+    <>
+      <Card title="Shopping list" tag={`${open.length} open`}>
+        {items === null ? (
+          <Waiting>Reading the list…</Waiting>
+        ) : items.length ? (
+          <ul className="hv-list" aria-label="Kitchen list">
+            {items.map((i) => (
+              <li key={i.id} className={i.done ? "is-done" : ""}>
+                <label>
+                  <input type="checkbox" checked={i.done} onChange={() => onTick(i)} />
+                  <Private>{i.name}</Private>
+                </label>
+                <button type="button" className="hv-x" aria-label={`Remove ${i.name}`} onClick={() => remove(i)}>
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="hv-note">Empty. Say "Skippy, add garlic and lemons" on the phone, or confirm the week's meals.</p>
+        )}
+        {undo ? (
+          <p className="hv-undo" role="status">
+            <span>Removed.</span>
+            <button type="button" onClick={takeBack}>
+              Undo
+            </button>
+          </p>
+        ) : null}
+      </Card>
+      <Card title="King Soopers" tag={kroger}>
+        <Groceries listOpen={open.length} onRemove={(id) => byId.get(id) && remove(byId.get(id)!)} />
+      </Card>
+    </>
+  );
   return (
     <>
       <p className="hv-say">{items === null ? "Reading the Kitchen list…" : open.length ? `${open.length} thing${open.length === 1 ? "" : "s"} on the list.` : "Nothing on the list."}</p>
-      <div className="hv-nums">
-        <Num v={items === null ? "–" : open.length} k="on the Kitchen list" />
-        <Num v="–" k="pantry: waiting" tone="wait" />
-        <Num v="–" k="meals: waiting" tone="wait" />
-        <Num v={kroger === "live" ? "Live" : kroger === "down" ? "Down" : "–"} k={`King Soopers: ${kroger}`} tone={kroger === "live" ? "ok" : kroger === "down" ? "warn" : "wait"} />
-      </div>
-      <div className="hv-grid">
-        <Card title="Shopping list" tag={`${open.length} open`}>
-          {items === null ? (
-            <Waiting>Reading the list…</Waiting>
-          ) : items.length ? (
-            <ul className="hv-list" aria-label="Kitchen list">
-              {items.map((i) => (
-                <li key={i.id} className={i.done ? "is-done" : ""}>
-                  <label>
-                    <input type="checkbox" checked={i.done} onChange={() => onTick(i)} />
-                    <Private>{i.name}</Private>
-                  </label>
-                  <button type="button" className="hv-x" aria-label={`Remove ${i.name}`} onClick={() => remove(i)}>
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="hv-note">Empty. Say "Skippy, add garlic and lemons" on the phone.</p>
-          )}
-          {undo ? (
-            <p className="hv-undo" role="status">
-              <span>Removed.</span>
-              <button type="button" onClick={takeBack}>
-                Undo
-              </button>
-            </p>
-          ) : null}
-        </Card>
-        <Card title="King Soopers" tag={kroger} wide>
-          <Groceries listOpen={open.length} onRemove={(id) => byId.get(id) && remove(byId.get(id)!)} />
-        </Card>
-        <Card title="This week's meals" tag="waiting" wide>
-          <Waiting>Waiting for a meal plan. Nothing is planned here until recipes are connected.</Waiting>
-        </Card>
-        <Card title="Pantry" tag="waiting">
-          <Waiting>Waiting for a pantry source: what's in the fridge and on the shelf shows here once it's tracked.</Waiting>
-        </Card>
-      </div>
+      {/* The meal planner (#678) with the list and King Soopers as its rail: one page, no second row of tabs. */}
+      <MealPlanner onListChanged={onReread} rail={rail} />
     </>
   );
 }

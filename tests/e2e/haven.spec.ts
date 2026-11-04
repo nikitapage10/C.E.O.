@@ -6,6 +6,8 @@ import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 import { FAKE_PLAN } from "../../api/_haven/plan.fixture.ts";
 import { DEFAULT_GYM_PLAN } from "../../api/_haven/gymShape.ts";
+import { fakeMeals } from "../../api/_haven/meals.fixture.ts";
+import { allComponents, applyEdit, readEdit, type MealsFile } from "../../api/_haven/mealShape.ts";
 
 /**
  * The Haven (#616) on the built site, with its endpoints stubbed in the browser. Signed out it shows counts and states
@@ -119,7 +121,7 @@ for (const [label, size] of [
     const house = page.locator(".hv-house");
     await expect(house).not.toHaveAttribute("data-gl", "idle", { timeout: 20_000 });
     const gl = await house.getAttribute("data-gl");
-    if (gl === "on") await expect(house.locator("canvas")).toHaveCount(1);
+    if (gl === "on") await expect(house.locator("canvas.hv-gl")).toHaveCount(1);
     // The lit rooms come from the readings: the vacuum is running in the Hall and the dry food is low by the feeders.
     await expect(page.locator(".hv-sum")).toContainText("food low");
     await page.waitForTimeout(1200);
@@ -158,7 +160,7 @@ test("signed out: the Gym is a count, never an exercise (#660)", async ({ page }
   const util = page.getByRole("complementary", { name: "House-wide" });
   await expect(util.getByText("Gym", { exact: true })).toBeVisible();
   await expect(util.getByText("1 of 2", { exact: true })).toBeVisible();
-  await expect(util.getByText("sessions this week · 2 a week")).toBeVisible();
+  await expect(util.getByText("this week", { exact: true })).toBeVisible();
   await expect(page.getByText(/dead bugs|pallof|plank/i)).toHaveCount(0);
 });
 
@@ -204,6 +206,41 @@ for (const [label, size] of [
     await expect(sheet.getByText("3 × 45 s")).toBeVisible();
   });
 }
+
+test("signed in: the plinth's Climate dial opens the control and turns the set point (#680)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: FAKE_PLAN });
+  const now = Date.now();
+  const thermo = { id: "a00000000009", vendor: "nest", kind: "thermostat", model: "Test thermostat", place: "", online: true, state: "heating", alerts: [], tempF: 68, humidity: 41, mode: "heat", modes: ["heat", "cool", "heatcool", "off"], eco: false, hvac: "heating", heatF: 70, coolF: null };
+  const vendors = { ...VENDORS, petlibro: "down", nest: "live" };
+  const sent: Record<string, unknown>[] = [];
+  await page.route(/\/api\/haven\/devices(\?.*)?$/, (r) => {
+    const all = [...devices(now), thermo];
+    if (new URL(r.request().url()).searchParams.get("view") === "status") return r.fulfill({ json: { vendors, devices: all.map((d) => ({ kind: d.kind, state: d.state, online: d.online })) } });
+    return r.fulfill({ json: { vendors, devices: all, feedCap: 2, roborockConnected: true } });
+  });
+  await page.route(/\/api\/haven\/devices\/action$/, (r) => {
+    sent.push(r.request().postDataJSON() as Record<string, unknown>);
+    return r.fulfill({ json: { ok: true, say: "Set." } });
+  });
+  await page.goto(`${BASE}/haven`);
+  const strip = page.getByRole("complementary", { name: "House-wide" });
+  // A down device lights its lamp ember.
+  await expect(strip.locator('[data-gauge="petlibro"]')).toHaveAttribute("data-tone", "down");
+  await expect(strip.locator('[data-gauge="petlibro"]').getByText("Down", { exact: true })).toBeVisible();
+  const dial = strip.getByRole("button", { name: /^Climate: 68°/ });
+  await expect(dial).toBeVisible();
+  await dial.click();
+  await expect(page.getByRole("dialog", { name: "Climate" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Climate" })).toHaveCount(0);
+  // The arrow keys turn it a degree at a time, and it sends once, through the control's own action.
+  await dial.focus();
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await expect(dial).toHaveAccessibleName(/set to 72°F/);
+  await expect.poll(() => sent.length, { timeout: 5000 }).toBe(1);
+  expect(sent[0]).toMatchObject({ action: "thermostat.set", device: "a00000000009", tempF: 72 });
+});
 
 test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and total, and sends exactly the shown picks", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
@@ -287,4 +324,91 @@ test("signed in, the Kitchen removes an item with ×, with five seconds to Undo 
     { action: "remove", id: "k1" },
     { action: "undo-remove", id: "k1" },
   ]);
+});
+
+test("signed in, the Kitchen's meal planner: the week strip, a night customized live, HelloFresh, and Confirm week (#678)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  // The made-up planner file (api/_haven/meals.fixture.ts), changed in the browser by the same edits the server runs.
+  let file: MealsFile = fakeMeals();
+  const posts: Array<Record<string, unknown>> = [];
+  await page.route(`${BASE}/api/haven-meals`, (r) => {
+    if (r.request().method() !== "POST") return r.fulfill({ json: { meals: file, components: allComponents(file) } });
+    const body = r.request().postDataJSON() as Record<string, unknown>;
+    posts.push(body);
+    if (body.action === "confirm") {
+      const got = applyEdit(file, { op: "confirm" }, Date.now());
+      if (got.ok) file = got.file;
+      return r.fulfill({ json: { ok: true, changes: got.ok ? got.changes : [], added: 12, already: 1, photos: file.week!.photoQueue.length, meals: file } });
+    }
+    const edit = readEdit(body.edit);
+    const got = edit ? applyEdit(file, edit, Date.now()) : null;
+    if (!got?.ok) return r.fulfill({ status: 409, json: { error: got && !got.ok ? got.error : "bad-request" } });
+    file = got.file;
+    return r.fulfill({ json: { ok: true, changes: got.changes, meals: file } });
+  });
+  // The photo library (#687): no photos in it (the placeholders show), and a customized night's photo being made.
+  const shots: unknown[] = [];
+  await page.route(/\/api\/haven-photos(\?.*)?$/, (r) => {
+    const url = new URL(r.request().url());
+    if (url.searchParams.has("id")) return r.fulfill({ status: 404, json: { error: "not-found" } });
+    if (url.searchParams.get("view") === "catalog") return r.fulfill({ json: { photos: (url.searchParams.get("ids") ?? "").split(",").map((id) => ({ id, status: "making" })), budget: null, ready: true } });
+    const body = r.request().postDataJSON() as { meals: Array<{ meal: string }> };
+    shots.push(...body.meals);
+    return r.fulfill({ json: { photos: body.meals.map((m) => ({ meal: m.meal, key: "0123456789abcdef", id: `${m.meal}-01234567`, status: "queued" })), budget: { month: "2026-11", images: 1, usd: 0.1, capUsd: 10, left: 99, reached: false } } });
+  });
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  const week = sheet.getByRole("list", { name: "This week's dinners" });
+  await expect(week.getByRole("listitem")).toHaveCount(7);
+  // The list and King Soopers sit in the rail beside the planner, on the same page.
+  await expect(sheet.getByRole("list", { name: "Kitchen list" }).getByText("Lemons")).toBeVisible();
+
+  await week.getByRole("button", { name: /^Wednesday: sausage pasta/ }).click();
+  const drawer = sheet.getByRole("region", { name: "Wednesday's dinner" });
+  await expect(drawer.getByRole("heading", { name: "sausage pasta" })).toBeVisible();
+  await expect(drawer.locator(".mp-macros .is-p b")).toHaveText("62");
+  await drawer.getByRole("group", { name: "Carb for Wednesday" }).getByRole("button", { name: /^Protein pasta/ }).click();
+  await expect(drawer.locator(".mp-macros .is-p b")).toHaveText(String(62 - 14 + 28));
+  await expect(drawer.getByText("Protein pasta for rigatoni")).toBeVisible();
+  await expect(week.getByRole("listitem").nth(2).getByText("photo pending")).toBeVisible();
+  expect(posts.at(-1)).toEqual({ action: "edit", edit: { op: "customize", day: "wed", part: { index: 1, option: "protein-pasta" } } });
+
+  await drawer.getByRole("switch", { name: "HelloFresh" }).click();
+  await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toBeVisible();
+  await drawer.getByRole("switch", { name: "HelloFresh" }).click();
+  await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toHaveCount(0);
+  if (SHOTS) {
+    await sheet.evaluate((el) => el.scrollTo(0, 300));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/haven-678-planner.png` });
+  }
+
+  await sheet.getByRole("button", { name: "Confirm week" }).click();
+  await expect(sheet.getByText(/Confirmed\. 12 things went on the Kitchen list \(1 already there\)/)).toBeVisible();
+  await expect(sheet.getByText("1 customized meal is getting its own photo.", { exact: false })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Week confirmed" })).toBeDisabled();
+  expect(posts.find((p) => p.action === "confirm")).toEqual({ action: "confirm" });
+  // The library got the night as customized, and the night keeps the id it answered.
+  expect(shots).toEqual([{ meal: "sausage-pasta", name: "sausage pasta", description: expect.stringContaining("Protein pasta for rigatoni"), components: ["Italian sausage", "Protein pasta"], style: "plate" }]);
+  expect(posts.at(-1)).toEqual({ action: "edit", edit: { op: "photo", day: "wed", photo: "sausage-pasta-01234567" } });
+  await expect(week.getByRole("listitem").nth(2).getByText(/photo queued|making the photo/)).toBeVisible();
+
+  await sheet.getByRole("button", { name: "Catalog" }).click();
+  const cat = page.getByRole("dialog", { name: "Meal catalog" });
+  await expect(cat.getByRole("row")).toHaveCount(11);
+  await expect(cat.getByRole("heading", { name: "Meal catalog" })).toBeVisible();
+  if (SHOTS) await page.waitForTimeout(500).then(() => page.screenshot({ path: `${SHOTS}/haven-678-catalog.png` }));
+  await cat.getByRole("button", { name: "Close" }).last().click();
+  await expect(cat).toHaveCount(0);
+
+  if (SHOTS) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await week.getByRole("button", { name: /^Monday:/ }).click();
+    await sheet.evaluate((el) => el.scrollTo(0, 250));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/haven-678-planner-phone.png` });
+    await sheet.evaluate((el) => el.scrollBy(0, 700));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/haven-678-planner-phone-2.png` });
+  }
 });

@@ -6,13 +6,13 @@ C.E.O.'s home, as Bicep in [`infra/`](../infra): **Azure is production and the o
 nothing runs against it any more except the one final copy of its world, and what Nikita switches off there is in
 [Retiring Vercel](#retiring-vercel). One paste in Azure Cloud Shell created all of it (the app's Vercel adapter code
 stays until Vercel is off, see [The port](#the-port)); the deploy workflow and nightly backup are in
-[Deploys and backups](#deploys-and-backups). No Azure OpenAI or Speech: the functions call Claude and ElevenLabs directly (Gemini only reviews the Lattice's look in CI, Visual QA).
+[Deploys and backups](#deploys-and-backups). No Azure OpenAI or Speech: the functions call Claude, ElevenLabs and (for the Kitchen's meal photos, #687) OpenAI's images API directly (Gemini only reviews the Lattice's look in CI, Visual QA).
 
 **Since #330, changes ship with the deploy and keys go in on the Desk.** Every merge into `main` applies
 `infra/resources.bicep` to `rg-ceo-prod` ([The template on every deploy](#the-template-on-every-deploy)), so new app
 settings, Key Vault references and roles go live with the code, and a third-party key (Claude, FantasyPros,
 Polymarket US, Gmail's client, PayPal, ElevenLabs, OpenAI, the email skip list) is set or replaced on the Desk, in
-**Boiler Room → Security → Keys**, behind the passkey. The pastes below are the **first-time setup** of a new
+**Boiler Room → Controls → Keys**, behind the passkey. The pastes below are the **first-time setup** of a new
 subscription; with everything in place, the only paste left is the one-time role paste in that section.
 
 ## What gets created
@@ -23,7 +23,7 @@ In the resource group `rg-ceo-prod` (West US 3, the Static Web App in West US 2:
 | --- | --- | --- |
 | Static Web App `swa-ceo`, Standard | The site (`apps/world/dist`), with the Function App linked as its `/api` | about $9 |
 | Function App `func-ceo-…`, Flex Consumption, Node 22 | The `api/` functions, system-assigned identity, 10-minute timeout | $0–5 (the hourly world step is most of it) |
-| Storage account `stceo…`, Standard LRS | `ceo-state` (the world, its stories, idea pictures and the Desk's store), `ceo-backups` and the functions' code package. No public blobs, no account keys, TLS 1.2 | under $1 |
+| Storage account `stceo…`, Standard LRS | `ceo-state` (the world, its stories, idea pictures and the Desk's store), `haven-meals` (the Kitchen's meal photos, #687), `ceo-backups` and the functions' code package. No public blobs, no account keys, TLS 1.2 | under $1 |
 | Key Vault `kv-ceo-…`, RBAC | Every secret the functions read, as Key Vault references in their app settings | under $1 |
 | Log Analytics `log-ceo` + Application Insights `appi-ceo` | Logs and traces, capped at 0.2 GB a day (the first 5 GB a month are free) | $0–3 |
 
@@ -62,7 +62,7 @@ names and URLs it made.
 ## After the paste (first-time setup only)
 
 **On a running setup, skip this section.** Since #330 the deploy applies the template on every merge (no template
-paste), and the third-party keys go in on the Desk (**Boiler Room → Security → Keys**). What is left here is for a new
+paste), and the third-party keys go in on the Desk (**Boiler Room → Controls → Keys**). What is left here is for a new
 subscription: minting the secrets that are ours to make (the Desk key, the bypass, the pings secret, the push keys),
 and, on purpose, replacing them all (`FORCE=1`). Those never go through the Desk.
 
@@ -120,7 +120,7 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
 ```
 
    **The keys from other services.** The third-party ones (`claude-api-key`, `elevenlabs`, the Polymarket US
-   pair and the rest of the allowlist in `api/_keys/allowlist.ts`) go in on the Desk: **Boiler Room → Security →
+   pair and the rest of the allowlist in `api/_keys/allowlist.ts`) go in on the Desk: **Boiler Room → Controls →
    Keys**, signed in, **Set** or **Replace**, paste, and tap the passkey. The app takes a new one within two minutes,
    with no restart. `foundry-github-token` isn't on that list (it is the crew's access), so it goes in the portal:
    [Azure portal](https://portal.azure.com) → **Key vaults** → **kv-ceo-besgu7fnckib2** → **Objects → Secrets** →
@@ -132,6 +132,7 @@ az functionapp config appsettings set -g $RG -n "$FA" --settings "KEYVAULT_REFRE
    | `claude-api-key` | A new key from [console.anthropic.com](https://console.anthropic.com) → **API keys** → **Create key**, in the same workspace as Vercel's (so the same monthly spend limit covers both copies) |
    | `elevenlabs` | A key from [elevenlabs.io](https://elevenlabs.io) → **Developers → API keys** (text to speech, and Agents: Write for Talk to Skippy). The only voice since #472: without it the scripts show and the audio waits |
    | `foundry-github-token` | A fine-grained token: GitHub → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**. Resource owner `nikitapage10`, **Only select repositories** → `nikitapage10/C.E.O.`, and under **Repository permissions**: Actions *Read-only*, Code scanning alerts *Read-only*, Contents *Read-only*, Dependabot alerts *Read-only*, Issues *Read and write*, Pull requests *Read-only* (Metadata *Read-only* comes with it). Nothing else |
+   | `fantasypros` | Optional (#252, the Green's projections and rankings). The API key from FantasyPros' API page, set on the Desk like the others. Without it the Green runs on Sleeper alone and says FantasyPros is waiting |
    | `polymarket-us-key-id`, `polymarket-us-secret-key` | Optional (#253, the Exchange's positions). On the Polymarket US app, finish identity verification; then at [polymarket.us/developer](https://polymarket.us/developer), signed in the same way as in the app (Apple, Google or email), create an API key. Paste its **Key ID** (a UUID) as `polymarket-us-key-id` and its **Secret Key** (shown only once) as `polymarket-us-secret-key`. The key could trade (Polymarket US has no read-only keys); the code only ever reads two portfolio paths. Revoke it there if in doubt |
 
    `foundry-app-id`, `foundry-app-installation-id` and `foundry-app-private-key` stay empty until the crew's GitHub

@@ -4,7 +4,7 @@
  * Vercel's private Blob store, or the Function App's `ceo-state` container on Azure), read in full only in a Desk
  * passkey session. Anyone else gets the counts (`counts`).
  *
- *   - Each item: id, name, addedAt, source ("phone", or "tasks" when Google Tasks quick-add brought it in, #637),
+ *   - Each item: id, name, addedAt, source ("phone", "tasks" when Google Tasks quick-add brought it in, #637, or "meals" when the meal planner sent its week, #678),
  *     done (and doneAt once ticked off).
  *   - A new name is dropped when an open item already has it, ignoring case, spacing and a trailing plural "s".
  *   - Ticked items stay a day (so a mis-tap can be undone), then go; at most LIST_MAX items are kept.
@@ -29,7 +29,7 @@ export const DONE_KEEP_MS = 24 * 60 * 60_000;
 export const REMOVED_KEEP_MS = 10 * 60_000;
 
 /** Where an item came from: Hey Skippy on the phone, or the Google Tasks import (#637). */
-export type ListSource = "phone" | "tasks";
+export type ListSource = "phone" | "tasks" | "meals";
 
 export interface ListItem {
   id: string;
@@ -65,7 +65,7 @@ function cleanItems(raw: unknown, now: number): ListItem[] {
       const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
       const name = cleanName(o.name);
       if (typeof o.id !== "string" || !name || typeof o.addedAt !== "string") return null;
-      return { id: o.id, name, addedAt: o.addedAt, source: o.source === "tasks" ? "tasks" : "phone", done: o.done === true, ...(o.done === true && typeof o.doneAt === "string" && { doneAt: o.doneAt }), ...(typeof o.removedAt === "string" && { removedAt: o.removedAt }) };
+      return { id: o.id, name, addedAt: o.addedAt, source: o.source === "tasks" || o.source === "meals" ? o.source : "phone", done: o.done === true, ...(o.done === true && typeof o.doneAt === "string" && { doneAt: o.doneAt }), ...(typeof o.removedAt === "string" && { removedAt: o.removedAt }) };
     })
     .filter((i): i is ListItem => i !== null && !(i.done && i.doneAt && Date.parse(i.doneAt) < now - DONE_KEEP_MS) && !(i.removedAt && !(Date.parse(i.removedAt) >= now - REMOVED_KEEP_MS)))
     .slice(-LIST_MAX);

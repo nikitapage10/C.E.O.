@@ -243,6 +243,43 @@ keys"; Nikita's steps in [AZURE.md](AZURE.md), "The subminds' room keys"):
   nothing from then on ([AZURE.md](AZURE.md), step 3).
 
 
+## Hey Skippy from the iPhone
+
+Since #627 the iPhone's Action Button runs a "Skippy" shortcut that posts what Nikita says to `POST /api/capture`
+([HEY-SKIPPY.md](HEY-SKIPPY.md); TB9 in [THREAT-MODEL.md](THREAT-MODEL.md)). Azure only (`api/_haven/route.ts`).
+
+- **Phone keys.** One per phone, made on the Desk (**Boiler Room → Security → Phones → Add a phone**, passkey session):
+  32 random bytes behind a `skp_` prefix, shown once with Copy, never again. Only HMAC-SHA256 of the key is stored
+  (`haven/phones.json`, private blob store), under a pepper derived from `FOUNDRY_DESK_KEY` (`deskKeyFor(…, "phone")`,
+  scrypt-stretched and split by purpose: no new secret), with the phone's label, when it was added, when it was last
+  used and, once revoked, when. **Revoke** stops a key at once; changing `foundry-desk-key` in the vault revokes every
+  phone. At most five live phones. Keys are never logged, written to an issue or kept in a file.
+- **The endpoint.** `Authorization: Bearer <key>` only. A missing, malformed, unknown or revoked key gets `401
+  { error: "unauthorized" }` and nothing else (the same answer for each). The site gate lets a key-shaped bearer
+  through to the handler, which checks it against every stored hash in constant time. Each key is paced at 30
+  captures an hour (429 with `Retry-After`); text is capped at 300 characters and the body at 4 KB.
+- **What it does.** Rules sort the words first, with no model call (`api/_haven/classify.ts`): shopping items go on
+  the private Kitchen list (`haven/kitchen.json`, deduped case-insensitively against open items), a reminder into the
+  phone to-dos (`haven/phone-todos.json`, until #622's store takes them). Anything else is a turn of Desk Skippy's own
+  chat (`phoneAnswer` in `api/skippy.ts`): the same privacy check before Claude, the same prompt (plus a short rule to
+  answer in one or two spoken sentences), the same model router, monthly share (`SKIPPY_BUDGET_USD`) and pace, the room
+  log (turns marked `via: "phone"`) and hand-offs. No new paid spend: shopping and to-dos cost nothing, and the voice
+  comes out of ElevenLabs' existing cap.
+- **The words are never logged.** A log line says only which way a capture went (`capture: shopping`).
+- **A short memory per phone.** The last six turns (what was said and the `say` that answered) and which way the last
+  capture went, in `haven/convo/<phone id>.json` in the private store only, so "and milk too" or "what about Godwin?"
+  follows on. Forgotten after ten quiet minutes, deleted when the phone is revoked, and passed to Skippy's chat as its
+  prior turns (a turn that looks private is left out). It is never logged or shown anywhere.
+- **The voice.** With `voice: true`, `say` is read by ElevenLabs in the one voice, counted in its existing ledger and
+  cap, and kept as a WAV for one fetch: the answer carries `/api/capture?a=pa1.<expiry>.<id>.<mac>`, signed with a key
+  derived from the Desk key, good for five minutes and deleted as it is served. It never carries the phone's key. Past
+  the cap, `audio` is left out and the phone speaks `say`.
+- **The Desk's side.** `GET /api/haven?view=list|phones` and every `POST /api/haven` (tick an item, add or revoke a
+  phone, record the greeting clips) need a passkey session; `?view=status` gives the counts only. The greeting clips
+  (`GET /api/hey-skippy`, `/hey-skippy/hello.mp3`) are a few spoken words, public by design, recorded only from the
+  Desk under ElevenLabs' cap.
+- **If a phone is lost**, revoke it on the Desk. If a key may have leaked, revoke that phone and add it again.
+
 ## Setup asks
 
 When a submind's thread needs something set up only Nikita can allow (#324; [SKIPPY.md](SKIPPY.md), "Setup asks"):

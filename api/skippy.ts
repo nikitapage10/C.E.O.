@@ -68,7 +68,7 @@ import { BlobRoomLog, cardText, cleanCard, cleanFollowUp, isLogRoom, isNeeds, is
 import { deliver, webPushSend } from "./desk-pings.js";
 import { isQuiet, liveSubs, type PingText } from "./_desk/pings.js";
 import { plainLine } from "./foundry.js";
-import { LOOKUP_PROMPT, OVER_BUDGET, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb } from "./_skippy/prompt.js";
+import { LOOKUP_PROMPT, OVER_BUDGET, PHONE_RULES, SKIPPY_PROMPT, SKIPPY_SCHEMA, chatInput, lookupInput, readChat, readDeeper, readLookup, readReply, withWeb } from "./_skippy/prompt.js";
 import { monthTotals, worldBudget } from "./_world/budget.js";
 import { claudeKey } from "./_world/claude.js";
 import { pickStore } from "./_world/store.js";
@@ -421,7 +421,21 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   }
   const said = readChat(body);
   if (!said) return json({ error: "bad-request" }, 400);
+  return skippyTurn(said, deps, store, passkey, "desk");
+}
 
+/** Where Nikita is talking from: the Desk's chat, or the iPhone's "Skippy" shortcut (#627). */
+export type Surface = "desk" | "phone";
+
+/**
+ * One turn of Skippy's chat, after the caller has signed it in: the privacy check, the pace, the month's budget, the
+ * model, the room log and the hand-off. The Desk (above) and the phone (`phoneAnswer`, below) both come through here,
+ * so the phone gets the same prompt, router, caps and hand-offs as the Desk. `paceId` names who is paced (a passkey's
+ * id, or "phone:<id>").
+ */
+async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: ChatDeps, store: AuthStore, paceId: string, surface: Surface): Promise<Response> {
+  const passkey = paceId;
+  if (!deps.ask || !deps.ledger) return json({ error: "not-set-up" }, 503);
   // The privacy check (#127), on everything that would reach Claude: text that looks private is held back whole.
   const held = [...new Set([said.message, ...said.history.map((t) => t.text)].flatMap((t) => privateParts(t)))];
   if (held.length) return json({ error: "private", held: held.map((k) => PRIVATE_LABEL[k]) }, 422);
@@ -452,7 +466,7 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   const [desk, rooms, bill, stack] = await Promise.all([deps.desk(world).catch(() => EMPTY_CONTEXT), deps.rooms ? deps.rooms(world).catch(() => "") : Promise.resolve(""), deps.bill ? deps.bill().catch(() => "") : Promise.resolve(""), deps.stack ? deps.stack(wantsStack([said.message, ...said.history.slice(-2).map((t) => t.text)].join(" "))).catch(() => "") : Promise.resolve("")]);
   let got: Awaited<ReturnType<Ask>>;
   try {
-    got = await deps.ask(SKIPPY_PROMPT, chatInput([contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n"), said.history, said.message, stack, said.page));
+    got = await deps.ask(surface === "phone" ? `${SKIPPY_PROMPT}\n${PHONE_RULES}` : SKIPPY_PROMPT, chatInput([contextLines(desk, deps.now), rooms, bill].filter(Boolean).join("\n"), said.history, said.message, stack, said.page));
   } catch {
     return json({ error: "model" }, 502);
   }
@@ -474,10 +488,41 @@ async function answer(request: Request, deps: ChatDeps, store: AuthStore, passke
   let kept = false;
   if (deps.log) {
     kept = await deps.log
-      .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }) }, deps.now)
+      .add({ id, at, question: said.message, answer: reply.reply, room: reply.room, model: got.model ?? SKIPPY_MODEL, ...(reply.needs && { needs: reply.needs }), ...(surface === "phone" && { via: "phone" as const }) }, deps.now)
       .then(() => true)
       .catch(() => false);
   }
   // A hand-off that was kept carries its turn's id (#341), so the Desk's chat can wait for the answer in place.
   return json(reply.needs && kept ? { ...reply, turn: id } : reply);
+}
+
+/** What the phone gets back from a Skippy turn: the reply, whether it was handed off, and whether the month's cap stopped it. */
+export interface PhoneTurn {
+  reply: string;
+  handedOff: boolean;
+  capped?: boolean;
+  /** Why there is no reply: the privacy check held it, the pace, or the chat isn't working here. */
+  error?: "private" | "slow-down" | "not-set-up" | "model" | "text";
+}
+
+/**
+ * Hey Skippy from the iPhone (#627, api/_haven/route.ts): the capture endpoint has already checked the phone's key, so
+ * this is the Desk's own turn with the phone as the surface: the same prompt plus PHONE_RULES (one or two spoken
+ * sentences, no buttons), the same model router, budget caps, room log (marked `via: "phone"`) and hand-offs. Paced
+ * per phone, beside the phone's own 30 an hour. `history` is the phone's last few turns, kept ten quiet minutes.
+ */
+export async function phoneAnswer(message: string, phoneId: string, history: { who: "nikita" | "skippy"; text: string }[] = [], deps: ChatDeps = defaultDeps()): Promise<PhoneTurn> {
+  if (!deps.deskKey || !deps.store) return { reply: "", handedOff: false, error: "not-set-up" };
+  // The phone's last few turns (api/_haven/convo.ts) are its history, as the Desk's browser sends its own.
+  const said = readChat({ message, history });
+  if (!said) return { reply: "", handedOff: false, error: "model" };
+  const res = await skippyTurn(said, deps, deps.store, `phone:${phoneId}`, "phone");
+  const body = (await res.json().catch(() => ({}))) as { reply?: unknown; needs?: unknown; capped?: unknown; error?: unknown; actions?: { kind?: unknown }[] };
+  if (res.status === 422) return { reply: "", handedOff: false, error: "private" };
+  if (res.status === 429) return { reply: "", handedOff: false, error: "slow-down" };
+  if (res.status === 503) return { reply: "", handedOff: false, error: "not-set-up" };
+  if (!res.ok || typeof body.reply !== "string") return { reply: "", handedOff: false, error: "model" };
+  // A text to draft needs the Desk's card to show it before anything goes; the phone can't show one.
+  if (Array.isArray(body.actions) && body.actions.some((a) => a?.kind === "text")) return { reply: body.reply, handedOff: false, error: "text" };
+  return { reply: body.reply, handedOff: typeof body.needs === "string", ...(body.capped === true && { capped: true }) };
 }

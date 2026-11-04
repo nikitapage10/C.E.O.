@@ -646,6 +646,7 @@ export const SKIPPY_QUIPS: string[] = [
   "I wrote hold music. Bossa nova, four chords, one vibraphone. It's cheesy on purpose. Magnificence can afford irony.",
   "When the deeper me is thinking, the C.E.O. gets elevator music. The Pessimist calls it a waste. It costs nothing. I checked.",
   "Hold please, monkeys. Genius at work. The vibraphone is me too.",
+  "The C.E.O. pressed a button on his phone and said 'garlic and lemons'. I commanded fleets once. Now I keep the shopping list. Magnificently.",
 ];
 
 /**

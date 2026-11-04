@@ -7,7 +7,8 @@ import { startHome, useHome, VENDOR_NAME, VENDORS, type Vendor, type VendorState
 import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "../haven.ts";
 import { openTodos, useTodos } from "../todos/todos.ts";
 import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type Spot, type Tab } from "./data.ts";
-import { GymTab, HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
+import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
+import { GymTab } from "./GymTab.tsx";
 import type { House } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
@@ -84,7 +85,7 @@ export function Haven() {
   const homeLoad = useHome((s) => s.load);
   const todos = useTodos((s) => s.state);
   const [items, setItems] = useState<KitchenItem[] | null>(null);
-  const [counts, setCounts] = useState<{ kitchen: number; todos: number } | null>(null);
+  const [counts, setCounts] = useState<{ kitchen: number; todos: number; gym: { perWeek: number; doneThisWeek: number } | null } | null>(null);
   const [plan, setPlan] = useState<PlanLoad>({ state: "idle" });
   const [open, setOpen] = useState<Open>(null);
   const [gl, setGl] = useState<"idle" | "on" | "none">("idle");
@@ -106,10 +107,9 @@ export function Haven() {
           if (l.state === "ready") setItems(l.view.items);
           else if (l.state === "out") useDeskAuth.getState().lost();
         });
-      else {
-        setItems(null);
-        void loadCounts().then((l) => setCounts(l.state === "ready" && l.view.ready ? { kitchen: l.view.kitchen.open, todos: l.view.todos } : null));
-      }
+      else setItems(null);
+      // The status view's counts: all there is signed out, and the Gym's sessions (#660) signed in too.
+      void loadCounts().then((l) => setCounts(l.state === "ready" && l.view.ready ? { kitchen: l.view.kitchen.open, todos: l.view.todos, gym: l.view.gym ?? null } : null));
     };
     read();
     const t = window.setInterval(read, 120_000);
@@ -299,6 +299,11 @@ export function Haven() {
             <b className="hv-uv">{kitchenOpen ?? "–"}</b>
             <span className="hv-un">to get</span>
           </button>
+          <button type="button" className="hv-u is-btn" disabled={!signedIn} onClick={() => setOpen({ tab: "gym" })}>
+            <span className="hv-uk">Gym</span>
+            <b className="hv-uv">{counts?.gym ? `${counts.gym.doneThisWeek} of ${counts.gym.perWeek}` : "–"}</b>
+            <span className="hv-un">{counts?.gym ? `sessions this week · ${counts.gym.perWeek} a week` : "sessions this week"}</span>
+          </button>
           <a className="hv-u is-btn" ref={util("todos")} href="/">
             <span className="hv-uk">To-dos</span>
             <b className="hv-uv">{todoCount ?? "–"}</b>
@@ -350,7 +355,7 @@ export function Haven() {
             ) : openTab === "pets" ? (
               <PetsTab devices={devices} petlibro={stateWord[vendors.petlibro]} whisker={stateWord[vendors.whisker]} />
             ) : openTab === "gym" ? (
-              <GymTab />
+              <GymTab onCounts={(gym) => setCounts((c) => (c ? { ...c, gym } : c))} />
             ) : openRoom && thePlan ? (
               <RoomTab room={openRoom} lit={lit[openRoom.id]} plan={thePlan} devices={devices} />
             ) : null}

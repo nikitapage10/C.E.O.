@@ -24,6 +24,13 @@
  *   GET  /api/capture?a=<signed link>   the answer's audio, once (WAV). 404 when used, expired or never made.
  *   GET  /api/haven?view=status          the counts only (the Kitchen list's open and ticked items, open phone to-dos).
  *   GET  /api/haven?view=list            passkey session: the Kitchen list's items.
+ *   GET  /api/haven?view=gym             passkey session: the Gym's plan, this week's log and the last weeks' counts
+ *                                        (#660, api/_haven/gym.ts). The status view carries its counts only.
+ *   POST /api/haven { action: "gym-log", session? }      passkey session: log a session done now (the named letter,
+ *                                                        or today's) → { entry, view }.
+ *   POST /api/haven { action: "gym-unlog", id }          passkey session: take a logged session back.
+ *   POST /api/haven { action: "gym-edit", edit }         passkey session: change the plan through `editGymPlan` (set,
+ *                                                        put-session, remove-session, reset).
  *   GET  /api/haven?view=phones          passkey session: the phones (label, added, last used, revoked) and the
  *                                        greeting clips' state. Never a key or a hash.
  *   POST /api/haven { action: "tick", id, done }         passkey session: tick an item off, or back on.
@@ -50,6 +57,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { phoneAnswer, type PhoneTurn } from "../skippy.js";
 import { elevenFromEnv, pickStoryStore } from "../_world/story.js";
 import { audioIdOf, greetClip, greetState, makeGreetings, speakForPhone, takeAudio, type VoiceDeps } from "./audio.js";
+import { GYM_BODY_MAX, gymCounts, gymView, editGymPlan, logGymSession, readGymEdit, sayGymLogged, unlogGymSession } from "./gym.js";
 import { classify, itemsOf, sayAdded, sayRemoved, sayTodo, spokenOf } from "./classify.js";
 import { PhoneConvo, type ConvoTurn } from "./convo.js";
 import { privateParts } from "../_privacy.js";
@@ -68,6 +76,8 @@ type Env = Record<string, string | undefined>;
 export const TEXT_MAX = 300;
 /** The most a request body may be (bytes). */
 const BODY_MAX = 4 * 1024;
+/** The most a Desk POST to /api/haven may be: room for a whole Gym plan (#660). */
+const POST_MAX = GYM_BODY_MAX;
 
 export interface HavenDeps {
   desk: DeskDeps;
@@ -178,6 +188,13 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
       const out = await new KitchenList(deps.blob).removeByName(sorted.items, now);
       say = sayRemoved(out);
       quiet = out.removed.length > 0 && !out.missing.length && !out.ambiguous.length;
+    } else if (sorted.kind === "workout") {
+      // The Gym's plan (#660): a session logged is a finished action, so quiet; a day not in the plan is said aloud.
+      const got = await logGymSession(deps.blob, sorted.session ?? null, "phone", now);
+      if (got.ok) {
+        say = sayGymLogged(got);
+        quiet = true;
+      } else say = `There's no day ${(sorted.session ?? "").toUpperCase()} in the Gym's plan.`;
     } else if (sorted.kind === "device") {
       // The home devices (#632): the same rails as the Desk's buttons, and the Council keeps the words as said.
       const home = deps.devices?.() ?? null;
@@ -227,15 +244,21 @@ export async function havenGet(request: Request, deps: HavenDeps): Promise<Respo
   const view = new URL(request.url).searchParams.get("view");
   const now = deps.desk.now;
   if (view === "status") {
-    if (!deps.blob) return json({ kitchen: { open: 0, done: 0 }, todos: 0, ready: false });
-    const [kitchen, todos] = await Promise.all([new KitchenList(deps.blob).counts(now).catch(() => ({ open: 0, done: 0 })), deps.todos(deps.blob).openCount(now).catch(() => 0)]);
-    return json({ kitchen, todos, ready: true });
+    if (!deps.blob) return json({ kitchen: { open: 0, done: 0 }, todos: 0, gym: null, ready: false });
+    const [kitchen, todos, gym] = await Promise.all([
+      new KitchenList(deps.blob).counts(now).catch(() => ({ open: 0, done: 0 })),
+      deps.todos(deps.blob).openCount(now).catch(() => 0),
+      // The Gym (#660): sessions a week and done this week, never an exercise.
+      gymCounts(deps.blob, now).catch(() => null),
+    ]);
+    return json({ kitchen, todos, gym, ready: true });
   }
-  if (view !== "list" && view !== "phones") return json({ error: "bad-request" }, 400);
+  if (view !== "list" && view !== "phones" && view !== "gym") return json({ error: "bad-request" }, 400);
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   if (!deps.blob) return withCookie(json({ error: "not-set-up" }, 503), signed);
   if (view === "list") return withCookie(json({ items: await new KitchenList(deps.blob).items(now) }), signed);
+  if (view === "gym") return withCookie(json(await gymView(deps.blob, now)), signed);
   const phones = new PhoneKeys(deps.blob, await deps.pepper());
   const [list, greet] = await Promise.all([phones.list(), greetState(deps.blob).catch(() => ({ made: null, clips: 0 }))]);
   return withCookie(json({ phones: list, greetings: greet, voice: Boolean(deps.voice?.eleven) }), signed);
@@ -244,13 +267,13 @@ export async function havenGet(request: Request, deps: HavenDeps): Promise<Respo
 /** POST /api/haven. */
 export async function havenPost(request: Request, deps: HavenDeps): Promise<Response> {
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
-  if (Number(request.headers.get("content-length") ?? 0) > BODY_MAX) return json({ error: "too-big" }, 413);
+  if (Number(request.headers.get("content-length") ?? 0) > POST_MAX) return json({ error: "too-big" }, 413);
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   const reply = (body: unknown, status = 200) => withCookie(json(body, status), signed);
   if (!deps.blob) return reply({ error: "not-set-up" }, 503);
   const raw = await request.text().catch(() => "");
-  if (raw.length > BODY_MAX) return reply({ error: "too-big" }, 413);
+  if (raw.length > POST_MAX) return reply({ error: "too-big" }, 413);
   let body: Record<string, unknown> = {};
   try {
     const got: unknown = JSON.parse(raw);
@@ -268,6 +291,23 @@ export async function havenPost(request: Request, deps: HavenDeps): Promise<Resp
     const list = new KitchenList(deps.blob);
     const ok = body.action === "remove" ? await list.remove(body.id, now) : await list.restore(body.id, now);
     return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
+  }
+  if (body.action === "gym-log") {
+    const got = await logGymSession(deps.blob, typeof body.session === "string" ? body.session : null, "desk", now);
+    return got.ok ? reply({ ok: true, entry: got.entry, view: await gymView(deps.blob, now) }) : reply({ error: got.error }, 404);
+  }
+  if (body.action === "gym-unlog") {
+    const ok = await unlogGymSession(deps.blob, body.id, now);
+    return ok ? reply({ ok: true, view: await gymView(deps.blob, now) }) : reply({ error: "not-found" }, 404);
+  }
+  if (body.action === "gym-edit") {
+    const edit = readGymEdit(body.edit);
+    if (!edit) return reply({ error: "bad-request" }, 400);
+    const got = await editGymPlan(deps.blob, edit, now);
+    if (!got.ok) return reply({ error: got.error }, got.error === "not-found" ? 404 : 400);
+    // Counts only in the log: never an exercise.
+    deps.log(`haven: the gym plan was changed (${edit.op}, ${got.plan.sessions.length} sessions)`);
+    return reply({ ok: true, view: await gymView(deps.blob, now) });
   }
   if (body.action === "instacart") {
     const sent = await sendToInstacart({ fetch: deps.fetch ?? fetch, config: deps.instacart ?? null, blob: deps.blob, now, log: deps.log }, await new KitchenList(deps.blob).items(now));

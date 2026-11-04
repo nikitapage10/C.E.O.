@@ -1,0 +1,554 @@
+/*
+ * The Haven's Gym (#660): the gym's own small app inside the Haven's sheet. Not the Haven's glass cards: a square,
+ * near-black instrument with one signal colour (chalk lime), Geist Mono for every number and dose, and the session laid
+ * out in time. Solid blocks are sets of reps, hollow blocks are holds, the thin line under them is the rest between.
+ */
+[data-room="haven"] .gy {
+  --gy-sig: 205, 240, 128;
+  --gy-bg: #0b0c0e;
+  --gy-ink: #f2f1ec;
+  --gy-mute: #8d8f96;
+  --gy-faint: #3a3d44;
+  --gy-line: rgba(255, 255, 255, 0.08);
+  --gy-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --gy-label: 300px;
+  position: relative;
+  padding: 22px 26px 24px;
+  border: 1px solid var(--gy-line);
+  border-radius: 4px;
+  background: var(--gy-bg);
+  color: var(--gy-ink);
+  box-shadow: 0 30px 80px -40px rgba(0, 0, 0, 0.9);
+}
+[data-room="haven"] .gy-empty {
+  padding: 28px;
+}
+
+/* ── the top: the plan's name and its numbers ── */
+[data-room="haven"] .gy-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+[data-room="haven"] .gy-name {
+  margin: 0;
+  font: 600 13px var(--gy-mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+[data-room="haven"] .gy-meta {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-meta b {
+  font: 500 14px var(--gy-mono);
+  color: var(--gy-ink);
+}
+[data-room="haven"] .gy-acts {
+  display: flex;
+  gap: 8px;
+}
+[data-room="haven"] .gy-btn {
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--gy-ink);
+  font: 500 13px var(--gy-mono);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+[data-room="haven"] .gy-btn:hover:not(:disabled) {
+  border-color: rgba(var(--gy-sig), 0.6);
+}
+[data-room="haven"] .gy-btn.is-pri,
+[data-room="haven"] .gy-btn.is-log {
+  border-color: transparent;
+  background: rgb(var(--gy-sig));
+  color: #10140a;
+  font-weight: 600;
+}
+[data-room="haven"] .gy-btn.is-log {
+  padding: 12px 20px;
+  font-size: 14px;
+}
+[data-room="haven"] .gy-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+[data-room="haven"] .gy-link {
+  margin-left: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(var(--gy-sig));
+  font: 500 13px var(--gy-mono);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+[data-room="haven"] .gy :is(button, select):focus-visible {
+  outline: 2px solid rgb(var(--gy-sig));
+  outline-offset: 2px;
+}
+
+/* ── the week: seven columns, a letter where a session falls ── */
+[data-room="haven"] .gy-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--gy-line);
+  border-bottom: 1px solid var(--gy-line);
+}
+[data-room="haven"] .gy-day {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 0 14px;
+  border-left: 1px solid var(--gy-line);
+}
+[data-room="haven"] .gy-day:first-child {
+  border-left: 0;
+}
+[data-room="haven"] .gy-dayK {
+  font: 500 11px var(--gy-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-day.is-today .gy-dayK {
+  color: var(--gy-ink);
+}
+[data-room="haven"] .gy-day.is-today .gy-dayK::after {
+  content: "";
+  display: block;
+  height: 2px;
+  margin-top: 4px;
+  background: rgb(var(--gy-sig));
+}
+[data-room="haven"] .gy-day > i {
+  width: 6px;
+  height: 6px;
+  margin: 13px 0;
+  border-radius: 50%;
+  background: var(--gy-faint);
+}
+[data-room="haven"] .gy-day button {
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid rgba(var(--gy-sig), 0.55);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--gy-ink);
+  font: 600 13px var(--gy-mono);
+  cursor: pointer;
+  transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+}
+[data-room="haven"] .gy-day.is-on button {
+  box-shadow: 0 0 0 4px rgba(var(--gy-sig), 0.14);
+}
+[data-room="haven"] .gy-day.is-done button {
+  border-color: transparent;
+  background: rgb(var(--gy-sig));
+  color: #10140a;
+}
+
+/* ── the session: its letter, its day, the log button ── */
+[data-room="haven"] .gy-sess {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  margin-top: 22px;
+}
+[data-room="haven"] .gy-letter {
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 84px;
+  line-height: 0.8;
+  color: rgb(var(--gy-sig));
+}
+[data-room="haven"] .gy-sessT h4 {
+  margin: 0;
+  font: 500 22px var(--hv-text);
+}
+[data-room="haven"] .gy-sessT p {
+  margin: 4px 0 0;
+  font: 13px var(--gy-mono);
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-dayPick select {
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: #15171a;
+  color: var(--gy-ink);
+  font: 13px var(--gy-mono);
+}
+[data-room="haven"] .gy-done {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  font: 500 13px var(--gy-mono);
+  color: var(--gy-ink);
+}
+[data-room="haven"] .gy-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  position: relative;
+  background: rgb(var(--gy-sig));
+  animation: gy-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+[data-room="haven"] .gy-check::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  width: 4px;
+  height: 8px;
+  border: solid #10140a;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+@keyframes gy-pop {
+  from {
+    transform: scale(0.2);
+  }
+}
+
+/* ── the score: the session laid out in time ── */
+[data-room="haven"] .gy-score {
+  margin-top: 22px;
+}
+[data-room="haven"] .gy-axis,
+[data-room="haven"] .gy-row {
+  display: grid;
+  grid-template-columns: var(--gy-label) minmax(0, 1fr);
+  gap: 18px;
+}
+[data-room="haven"] .gy-axisK {
+  align-self: end;
+  justify-self: end;
+  font: 11px var(--gy-mono);
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-axisT {
+  position: relative;
+  height: 18px;
+  margin-right: 44px;
+}
+[data-room="haven"] .gy-axisT i,
+[data-room="haven"] .gy-axisT b {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  font: normal 11px var(--gy-mono);
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-axisT b {
+  transform: translateX(8px);
+  color: rgb(var(--gy-sig));
+  font-weight: 600;
+  white-space: nowrap;
+}
+[data-room="haven"] .gy-rows {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .gy-row {
+  align-items: center;
+  min-height: 52px;
+  border-top: 1px solid var(--gy-line);
+}
+[data-room="haven"] .gy-row:last-child {
+  border-bottom: 1px solid var(--gy-line);
+}
+[data-room="haven"] .gy-ex {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0;
+}
+[data-room="haven"] .gy-n {
+  font: 11px var(--gy-mono);
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-ex b {
+  font-weight: 500;
+  font-size: 15px;
+}
+[data-room="haven"] .gy-dose {
+  font: 500 14px var(--gy-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+[data-room="haven"] .gy-track {
+  position: relative;
+  height: 22px;
+  margin-right: 44px;
+}
+[data-room="haven"] .gy-track u {
+  position: absolute;
+  top: -15px;
+  bottom: -15px;
+  width: 1px;
+  background: var(--gy-line);
+}
+[data-room="haven"] .gy-track s {
+  position: absolute;
+  top: 50%;
+  height: 1px;
+  background: rgba(var(--gy-sig), 0.35);
+}
+[data-room="haven"] .gy-track i {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  min-width: 3px;
+  border-radius: 1px;
+  background: rgb(var(--gy-sig));
+  transform-origin: left center;
+  animation: gy-set 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms + var(--k, 0) * 40ms);
+}
+[data-room="haven"] .gy-track i.is-hold {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgb(var(--gy-sig));
+}
+@keyframes gy-set {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+[data-room="haven"] .gy-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin: 12px 0 0;
+  font: 12px var(--gy-mono);
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+[data-room="haven"] .gy-legend i {
+  width: 16px;
+  height: 10px;
+  border-radius: 1px;
+  background: rgb(var(--gy-sig));
+}
+[data-room="haven"] .gy-legend i.is-hold {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgb(var(--gy-sig));
+}
+[data-room="haven"] .gy-legend s {
+  width: 16px;
+  height: 1px;
+  background: rgba(var(--gy-sig), 0.5);
+}
+[data-room="haven"] .gy-legendNote {
+  margin-left: auto;
+  font-family: var(--hv-text);
+}
+
+/* ── Adjust: steppers in place of the doses ── */
+[data-room="haven"] .gy-steps {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+[data-room="haven"] .gy-step {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+}
+[data-room="haven"] .gy-step button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--gy-ink);
+  font: 500 15px var(--gy-mono);
+  cursor: pointer;
+}
+[data-room="haven"] .gy-step button:disabled {
+  color: var(--gy-faint);
+  cursor: default;
+}
+[data-room="haven"] .gy-step output {
+  min-width: 52px;
+  text-align: center;
+  font: 600 13px var(--gy-mono);
+  font-variant-numeric: tabular-nums;
+}
+[data-room="haven"] .gy-step small {
+  margin-left: 3px;
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy.is-editing {
+  border-color: rgba(var(--gy-sig), 0.35);
+}
+
+/* ── the foot: progress, the phone, and the last eight weeks ── */
+[data-room="haven"] .gy-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  margin-top: 22px;
+}
+[data-room="haven"] .gy-notes p {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-k {
+  display: inline-block;
+  min-width: 76px;
+  font: 600 11px var(--gy-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gy-ink);
+}
+[data-room="haven"] .gy-notes .gy-link {
+  margin: 6px 0 0;
+}
+[data-room="haven"] .gy-hist {
+  margin: 0;
+}
+[data-room="haven"] .gy-hist figcaption {
+  margin-bottom: 8px;
+  font: 11px var(--gy-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-hist ol {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .gy-hist li {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+[data-room="haven"] .gy-pips {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+}
+[data-room="haven"] .gy-pips i {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--gy-faint);
+}
+[data-room="haven"] .gy-pips i.is-on {
+  background: rgb(var(--gy-sig));
+  box-shadow: none;
+}
+[data-room="haven"] .gy-pips i.is-extra {
+  background: rgba(var(--gy-sig), 0.45);
+  box-shadow: none;
+}
+[data-room="haven"] .gy-hist small {
+  font: 10px var(--gy-mono);
+  color: var(--gy-mute);
+}
+[data-room="haven"] .gy-hist li.is-now small {
+  color: var(--gy-ink);
+}
+
+@media (max-width: 860px) {
+  [data-room="haven"] .gy {
+    --gy-label: 1fr;
+    padding: 18px 16px 20px;
+  }
+  [data-room="haven"] .gy-axis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .gy-axisK {
+    display: none;
+  }
+  [data-room="haven"] .gy-axisT b {
+    display: none;
+  }
+  [data-room="haven"] .gy-axisT,
+  [data-room="haven"] .gy-track {
+    margin-right: 8px;
+  }
+  [data-room="haven"] .gy-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-bottom: 12px;
+  }
+  [data-room="haven"] .gy-ex {
+    padding-bottom: 8px;
+  }
+  [data-room="haven"] .gy-sess {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  [data-room="haven"] .gy-log {
+    grid-column: 1 / -1;
+  }
+  [data-room="haven"] .gy-btn.is-log {
+    width: 100%;
+  }
+  [data-room="haven"] .gy-letter {
+    font-size: 64px;
+  }
+  [data-room="haven"] .gy-foot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .gy-legendNote {
+    margin-left: 0;
+  }
+}
+@media (max-width: 440px) {
+  [data-room="haven"] .gy-top {
+    flex-direction: column;
+  }
+  [data-room="haven"] .gy-ex {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+  [data-room="haven"] .gy-ex > :last-child {
+    grid-column: 2;
+  }
+  [data-room="haven"] .gy-day button {
+    width: 28px;
+    height: 28px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .gy-track i,
+  [data-room="haven"] .gy-check {
+    animation: none;
+  }
+  [data-room="haven"] .gy-day button,
+  [data-room="haven"] .gy-btn {
+    transition: none;
+  }
+}

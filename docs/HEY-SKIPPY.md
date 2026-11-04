@@ -100,6 +100,7 @@ ElevenLabs call at all. The audio link works once and for five minutes, and carr
   still apply (the daily feed cap per feeder, the Litter-Robot only when it says it's ready), and Skippy says what
   happened.
 - Taking things off the list (#657): "remove garlic", "take milk off the list", "cross off eggs". It answers quietly when everything went; if something wasn't on the list, or "milk" could be two items, Skippy says so out loud.
+- Logging a workout (#660): "did core day A", "log core workout", "core workout done". The session goes in the Haven Gym's log (`api/_haven/gym.ts`, private store) with a quiet "Logged Core day A. 1 of 2 this week."; a question ("did I do core this week?") or "remind me to…" isn't a log, and a day the plan doesn't have is said out loud.
 - Anything else: "How's the Green looking?" "Is anything broken?" Skippy answers in a sentence or two; for real work he
   gives the quick take and says he'll put the rest on the Desk, where his answer arrives like any Desk hand-off.
 

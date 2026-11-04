@@ -10,6 +10,8 @@
  *   device    the home devices (#632): "vacuum, go clean the kitchen", "clean the hall and the dining room", "start the
  *             vacuum", "pause the vacuum", "send the vacuum home", "feed the cat", "give the cat wet food", "clean the
  *             litter box", "run a litter cycle". Runs through the rails in api/_haven/devices/home.ts.
+ *   workout   the Gym's plan (#660): "did core day A", "log core workout", "finished my core workout", "done with the
+ *             gym": that session is logged (api/_haven/gym.ts). A question ("did I do core this week?") isn't a log.
  *   skippy    anything else (a question, small talk, a bare single word): Desk Skippy's own chat answers it, under its
  *             own caps (api/skippy.ts, phoneAnswer).
  *
@@ -30,6 +32,7 @@ import { whenLabel } from "../_today/parse.js";
 export type Capture =
   | { kind: "shopping"; items: string[]; fromLastTodo?: boolean }
   | { kind: "remove"; items: string[] }
+  | { kind: "workout"; session?: string }
   | { kind: "todo"; text: string }
   | { kind: "device"; action: DeviceAction; rooms?: string[]; portions?: number; plate?: number; suction?: "quiet" | "max"; water?: "off" | "on" }
   | { kind: "skippy"; text: string };
@@ -193,6 +196,30 @@ export function removeAsk(text: string): Extract<Capture, { kind: "remove" }> | 
 const FOLLOW_START = /^(?:oh,?\s+)?(?:and|also|plus)\b,?\s*/i;
 const FOLLOW_END = /,?\s+(?:too|as well|also)$/i;
 
+/* ── The Gym's plan (#660) ── */
+
+const WORKOUT_DONE = /^(?:i\s+)?(?:just\s+)?(?:did|done|finished|completed|crushed|smashed|knocked out|log(?:ged)?|track(?:ed)?|record(?:ed)?|mark(?:ed)?)\b/i;
+const WORKOUT_DONE_TAIL = /\b(?:done|finished|complete|completed|in the bag)$/i;
+const WORKOUT_NOUN = /\b(?:core|abs|workout|work-?out|gym|training|session|day [a-g])\b/i;
+/** "did I…", "have I…", "how many…": asking about the log, not adding to it. */
+const WORKOUT_ASK = /^(?:did|have|has|had)\s+(?:i|we|you)\b|^(?:how|what|when|which|is|are|was|were|should|can|could|do|does)\b/i;
+const SESSION_NAMED = /\b(?:day|session|workout)\s+([a-g])\b|\bcore\s+([a-g])\b|\b([a-g])\s+(?:day|session|workout)\b/i;
+
+/** A logged session ("did core day A", "log core workout", "core workout done"), or null. Never calls anything. */
+export function workoutAsk(raw: string, text: string): Extract<Capture, { kind: "workout" }> | null {
+  if (/\?\s*$/.test(raw) || WORKOUT_ASK.test(text) || !WORKOUT_NOUN.test(text)) return null;
+  const t = text.replace(/^(?:i\s+)?(?:just\s+)?/i, "");
+  if (!WORKOUT_DONE.test(t) && !WORKOUT_DONE_TAIL.test(t)) return null;
+  // "log the gym's wifi password" isn't a session: the words left must be about the workout.
+  const rest = t.replace(WORKOUT_DONE, "").replace(WORKOUT_DONE_TAIL, "").replace(/\b(?:my|the|a|today'?s|this morning'?s|tonight'?s|with|for|today|tonight|this morning|this evening)\b/gi, " ").replace(/\s+/g, " ").trim();
+  if (rest.split(" ").length > 5) return null;
+  const m = SESSION_NAMED.exec(t);
+  const letter = (m?.[1] ?? m?.[2] ?? m?.[3])?.toLowerCase();
+  // A bare "a" in "did a core workout" is an article, not day A.
+  const named = letter && !(letter === "a" && /\ba\s+(?:core\s+)?(?:workout|session|day)\b/i.test(t) && !/\b(?:day|session|workout|core)\s+a\b/i.test(t)) ? letter : undefined;
+  return { kind: "workout", ...(named && { session: named }) };
+}
+
 /**
  * Sorts one dictated line. Never calls anything. `last` is which way this phone's previous capture went, in the last
  * ten minutes (api/_haven/convo.ts): after shopping, "and milk too" is more shopping.
@@ -210,6 +237,11 @@ export function classify(raw: string, last: Capture["kind"] | null = null): Capt
   // Taking things off the list comes before everything else ("get rid of …" would read as a buy).
   const gone = removeAsk(text);
   if (gone) return gone;
+  // A logged workout (#660) before the to-dos: "did core day A" is done, not to do. "Remind me to…" stays a to-do.
+  if (!TODO_START.test(text)) {
+    const workout = workoutAsk(raw, text);
+    if (workout) return workout;
+  }
   // A to-do says so, starts with a to-do verb, or says when. A home-device ask comes before the to-do verbs, so
   // "clean the kitchen" runs the vacuum, while "remind me to clean the kitchen" stays a to-do.
   if (TODO_START.test(text)) return { kind: "todo", text: todoText(text) };

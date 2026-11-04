@@ -259,6 +259,51 @@ Calls happen only on those taps (Kroger's limits: 10,000 product calls and 1,600
 a day), never on a timer. `MEALME_API_KEY` (Key Vault `haven-mealme-key`) stays on the Function App, unread, from
 before King Soopers replaced MealMe.
 
+## The meal planner
+
+The Kitchen page is the meal planner (#678, [`MealPlanner.tsx`](../apps/world/src/desk/haven/MealPlanner.tsx)) with the
+Kitchen list and King Soopers as its rail: the week as seven day cards (the dinner's photo and the day's protein ring
+against the goal, at least 200 g), the open night in a drawer (recipe, macros, parts to swap, portion, spice,
+HelloFresh, for two, in the cart, backups, Not for me), "Try something new?" picks, and the catalog and taste profile
+as drawers. Every week plans as cook-yourself; HelloFresh is a switch per night (it counts a fixed protein and buys
+nothing). Server side: [`api/_haven/meals.ts`](../api/_haven/meals.ts); the shapes and every edit, pure and shared by
+the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_haven/mealShape.ts).
+
+- **Where.** One file in the private store, `haven/meals.json`: the taste profile (protein goal, top-up, avoid rules
+  with an `unless`, likes, rules, and the budget, which is only ever there), the catalog (each meal's ingredients, its
+  swappable `parts`, macros as built, a photo id, times had, passed) and the week (seven slots: meal, two backups, lunch,
+  for two, HelloFresh, in the cart, `custom`, the night's own `photo`). Nothing of it is in the repo; signed out,
+  `/api/haven?view=status` carries `meals: { planned, cooking, helloFresh, confirmed }` only.
+- **The swap model.** A meal's protein, carb and side are parts pointing into a component library (`COMPONENTS`, plus
+  any the file adds): each component has its own ingredients and macros for one portion. A swap takes the old
+  component's ingredients out and the new one's in and moves the macros by the difference, so the ring and the week's
+  shopping follow at once. A night's `custom` is `{ parts: { "<part index>": "<component id>" }, portion, spice }`.
+- **Edits** (`MealEdit`, the one closed set; `POST /api/haven-meals { action: "edit", edit }` answers `{ meals,
+  changes }`, and Undo holds the state before the last edit):
+
+  | Edit | Does |
+  | --- | --- |
+  | `{ op: "swap", day, meal }` | puts a catalog meal on a night (a backup trades places) |
+  | `{ op: "nope", day }` | Not for me: passes on the meal, its first usable backup goes on |
+  | `{ op: "customize", day, part?: { index, option }, portion?: 0.75 \| 1 \| 1.25 \| 1.5, spice?: "mild" \| "medium" \| "hot", reset? }` | changes a part, the portion or the spice; `reset` puts it back as written |
+  | `{ op: "night", day, helloFresh?, forTwo?, inCart? }` | the night's switches |
+  | `{ op: "avoid", term, unless? }` / `{ op: "unavoid", term }` | a taste rule; every night that breaks it is swapped for a backup without it |
+  | `{ op: "goal", protein }`, `{ op: "pass", meal, passed }` | the protein goal; pass on (or bring back) a catalog meal |
+  | `{ op: "next-week" }` | counts the cooked nights as had and plans the next week from the catalog |
+  | `{ op: "confirm" }`, `{ op: "photo", day \| meal, photo }`, `{ op: "undo" }` | see below; the photo library's id; Undo |
+
+  Any change to the plan makes a confirmed week a draft again.
+- **Confirm week.** `POST /api/haven-meals { action: "confirm" }` confirms the week, puts its shopping (cooked nights
+  in the cart, by portions: for two, plus one for each lunch left over, staples left out) on the Kitchen list with
+  source `meals`, where the King Soopers rail matches and sends it, and queues the customized nights in
+  `week.photoQueue` (`photoJobs`). The Desk then hands those nights to the photo library (`POST /api/haven-photos
+  { action: "confirm", meals }`, below, with the components as customized) and writes each id back with the `photo`
+  edit; a night shows its own photo once the library says `ready`, its meal's photo (or a placeholder) until then.
+- **Seeding.** `PUT /api/haven-meals { meals, replace? }` with the feed key (counts back), or the Kitchen's "Load a
+  planner file" when nothing is loaded. Without `replace` it never overwrites a planner that's there.
+- **Skippy.** The Haven's tools (`meals_week`, `meals_swap`, `meals_customize`, `meals_night`, `meals_avoid`,
+  `meals_send`, `meals_next_week`, rooms/haven/tools.ts) make the same edits, for Talk to edit.
+
 ## The meal photo library
 
 The Kitchen's meal planner (#678) shows a photo on every night; this is where they live and how a customized meal gets

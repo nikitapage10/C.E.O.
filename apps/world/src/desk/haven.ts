@@ -15,6 +15,8 @@ export interface KitchenItem {
 export interface HavenCounts {
   kitchen: { open: number; done: number };
   todos: number;
+  /** The Gym's plan (#660): sessions a week and done this week, never an exercise. Absent on an older server. */
+  gym?: { perWeek: number; doneThisWeek: number } | null;
   ready: boolean;
 }
 

@@ -5,12 +5,13 @@ import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
 import { startDistServer } from "./dist-server.ts";
 import { FAKE_PLAN } from "../../api/_haven/plan.fixture.ts";
+import { DEFAULT_GYM_PLAN } from "../../api/_haven/gymShape.ts";
 
 /**
  * The Haven (#616) on the built site, with its endpoints stubbed in the browser. Signed out it shows counts and states
  * and no map; signed in with no plan it waits for one; signed in with a plan it draws the house and opens a room over
  * it. The plan here is the made-up fixture (api/_haven/plan.fixture.ts), never Nikita's home, and the readings are
- * made up for the run. E2E_SHOTS=<dir> also saves pictures of the fixture house.
+ * made up for the run, as is the Gym's log (#660). E2E_SHOTS=<dir> also saves pictures of the fixture house.
  */
 
 const PORT = Number(process.env.E2E_HAVEN_PORT ?? 5191);
@@ -37,15 +38,33 @@ function devices(now: number) {
   ];
 }
 
+/** The Gym's view (#660): the shipped default plan, with a made-up log: day A done yesterday, and eight made-up weeks. */
+function gymView(now: number, extra: Array<{ id: string; session: string; at: string; via: string }> = []) {
+  const done = [{ id: "g-test-a", session: "a", at: new Date(now - 26 * 3_600_000).toISOString(), via: "phone" }, ...extra];
+  return { plan: DEFAULT_GYM_PLAN, isDefault: true, week: { start: new Date(now - 3 * 86_400_000).toISOString(), done }, weeks: [1, 2, 2, 0, 1, 2, 2, done.length] };
+}
+
 async function stub(page: Page, opts: { signedIn: boolean; plan: unknown }) {
   const now = Date.now();
+  const gymLog: Array<{ id: string; session: string; at: string; via: string }> = [];
   await page.route("https://api.github.com/**", (r) => r.fulfill({ json: [] }));
   await page.route(`${BASE}/api/foundry-feed`, (r) => r.fulfill({ json: { issues: [], runs: { workflow_runs: [] }, e2e: { workflow_runs: [] }, pulls: [], commits: [] } }));
   await page.route(`${BASE}/api/desk-auth`, (r) => r.fulfill({ json: opts.signedIn ? { ready: true, signedIn: true, until: now + 30 * 60_000, hardUntil: now + 8 * 3_600_000, device: "Test device", devices: [] } : { ready: true, signedIn: false } }));
   await page.route(/\/api\/haven(\?.*)?$/, (r) => {
     const view = new URL(r.request().url()).searchParams.get("view");
-    if (view === "status") return r.fulfill({ json: { kitchen: { open: 3, done: 1 }, todos: 2, ready: true } });
+    if (view === "status") return r.fulfill({ json: { kitchen: { open: 3, done: 1 }, todos: 2, gym: { perWeek: 2, doneThisWeek: 1 + gymLog.length }, ready: true } });
     if (!opts.signedIn) return r.fulfill({ status: 401, json: { error: "signed-out" } });
+    if (view === "gym") return r.fulfill({ json: gymView(now, gymLog) });
+    const body = r.request().method() === "POST" ? (r.request().postDataJSON() as { action?: string; session?: string; id?: string }) : {};
+    if (body.action === "gym-log") {
+      const entry = { id: `g-test-${gymLog.length + 1}`, session: body.session ?? "b", at: new Date().toISOString(), via: "desk" };
+      gymLog.push(entry);
+      return r.fulfill({ json: { ok: true, entry, view: gymView(now, gymLog) } });
+    }
+    if (body.action === "gym-unlog") {
+      gymLog.splice(gymLog.findIndex((e) => e.id === body.id), 1);
+      return r.fulfill({ json: { ok: true, view: gymView(now, gymLog) } });
+    }
     if (view === "list")
       return r.fulfill({
         json: {
@@ -121,5 +140,58 @@ for (const [label, size] of [
     await expect(page.getByRole("dialog", { name: "Kitchen" }).getByText("Lemons")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+}
+
+test("signed out: the Gym is a count, never an exercise (#660)", async ({ page }) => {
+  await stub(page, { signedIn: false, plan: null });
+  await page.goto(`${BASE}/haven`);
+  const util = page.getByRole("complementary", { name: "House-wide" });
+  await expect(util.getByText("Gym", { exact: true })).toBeVisible();
+  await expect(util.getByText("1 of 2", { exact: true })).toBeVisible();
+  await expect(util.getByText("sessions this week · 2 a week")).toBeVisible();
+  await expect(page.getByText(/dead bugs|pallof|plank/i)).toHaveCount(0);
+});
+
+for (const [label, size] of [
+  ["desktop", { width: 1440, height: 900 }],
+  ["phone", { width: 390, height: 844 }],
+] as const) {
+  test(`signed in: the Gym's plan, laid out in time, logs a session by tap (${label}, #660)`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await stub(page, { signedIn: true, plan: FAKE_PLAN });
+    await page.goto(`${BASE}/haven`);
+    await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Gym" }).click();
+    const sheet = page.getByRole("dialog", { name: "Gym" });
+    await expect(sheet.getByText("2 sessions a week", { exact: false })).toBeVisible();
+    // The week: day A is done (from the phone), day B is still to do.
+    const week = sheet.getByRole("list", { name: "This week" });
+    await expect(week.getByRole("button", { name: /Core day A, Tuesday, done/ })).toBeVisible();
+    await week.getByRole("button", { name: /Core day A/ }).click();
+    await expect(sheet.getByText(/Done \w{3} .* · from the phone/)).toBeVisible();
+    await expect(sheet.getByRole("list", { name: "Core day A, in order" }).getByRole("listitem")).toHaveCount(4);
+    await expect(sheet.getByText("3 × 10 / side").first()).toBeVisible();
+    await expect(sheet.getByText("3 × 30 s / side")).toBeVisible();
+    await page.waitForTimeout(800);
+    await shoot(page, `gym-${label}`);
+
+    await week.getByRole("button", { name: /Core day B/ }).click();
+    await expect(sheet.getByText("3 × 45 s")).toBeVisible();
+    await sheet.getByRole("button", { name: "Log day B" }).click();
+    await expect(sheet.getByRole("status").filter({ hasText: "Done" })).toBeVisible();
+    await expect(week.getByRole("button", { name: /Core day B, Friday, done/ })).toBeVisible();
+    await expect(sheet.getByText("The week is done.")).toBeVisible();
+    await shoot(page, `gym-logged-${label}`);
+    await sheet.getByRole("button", { name: "Undo" }).click();
+    await expect(sheet.getByRole("button", { name: "Log day B" })).toBeVisible();
+
+    // Adjust turns the doses into steppers.
+    await sheet.getByRole("button", { name: "Adjust" }).click();
+    await expect(sheet.getByRole("group", { name: "Front plank seconds" })).toBeVisible();
+    await sheet.getByRole("button", { name: "More: Front plank seconds" }).click();
+    await expect(sheet.getByRole("group", { name: "Front plank seconds" })).toContainText("50");
+    await shoot(page, `gym-adjust-${label}`);
+    await sheet.getByRole("button", { name: "Cancel" }).click();
+    await expect(sheet.getByText("3 × 45 s")).toBeVisible();
   });
 }

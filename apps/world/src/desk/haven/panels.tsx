@@ -7,7 +7,7 @@ import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
  * Pets and Gym, or a room's own sheet. Real readings only. A part with no source yet (the pantry, the meals, Instacart,
- * training) says it is waiting, in plain type, and invents nothing.
+ * Instacart) says it is waiting, in plain type, and invents nothing.
  */
 
 export const TAB_NAME: Record<Tab, string> = { kitchen: "Kitchen", hall: "Hall", pets: "Pets", gym: "Gym" };
@@ -281,25 +281,7 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
   );
 }
 
-/* ── Gym ── */
-
-export function GymTab() {
-  return (
-    <>
-      <p className="hv-say">Training isn't connected yet.</p>
-      <div className="hv-nums">
-        <Num v="–" k="sessions this week: waiting" tone="wait" />
-        <Num v="–" k="next session: waiting" tone="wait" />
-        <Num v="–" k="off days: waiting" tone="wait" />
-      </div>
-      <div className="hv-grid">
-        <Card title="Training" tag="waiting" wide>
-          <Waiting>Waiting for a training source: sessions with your trainer and the off days between them show here once they're logged.</Waiting>
-        </Card>
-      </div>
-    </>
-  );
-}
+/* ── Gym: its own app (#660), in GymTab.tsx ── */
 
 /* ── A room of its own ── */
 

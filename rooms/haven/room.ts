@@ -1,0 +1,34 @@
+import { defineRoom } from "@ceo/engine/manifest";
+
+/**
+ * The Haven: home and health (#616). A Desk-only room for now (its Lattice room comes later), led by the Steward
+ * (DESK_SUBMINDS). Past the tenth page, so no number key. Data only (docs/ROOMS.md). Its page is in
+ * apps/world/src/desk/haven and its endpoints in api/_haven until its migration step. The home devices' and Hey
+ * Skippy's endpoints (`haven/devices*`, `haven`, `capture`) stay where #627 and #632 put them; this room adds the
+ * floor plan, which only a passkey session reads or writes.
+ */
+export default defineRoom({
+  id: "haven",
+  name: "Haven",
+  path: "/haven",
+  accent: "--room-haven",
+  submind: "hearth",
+  live: true,
+  auth: {
+    "haven-plan": ["passkey"],
+  },
+  keys: [],
+  usesClaude: false,
+  threat: ["TB1", "TB10"],
+  budgetKb: 120,
+  purpose: {
+    goal: "Runs Nikita's home through its own agents: the vacuum, the cat's feeders and fountain and the Litter-Robot, the Kitchen list Hey Skippy fills, shown on a 3D house that lights where they work.",
+    agents: [
+      { name: "Roborock", use: "the vacuum: state, alerts, clean by room" },
+      { name: "Petlibro", use: "the feeders and the fountain" },
+      { name: "Whisker", use: "the Litter-Robot" },
+    ],
+    measure: "devices live, rooms lit, and Kitchen list items open",
+  },
+  lore: { submind: "hearth", agents: [], house: [], section: "The Haven", lines: "skippy" },
+});

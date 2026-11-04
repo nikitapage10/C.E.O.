@@ -1,0 +1,104 @@
+/**
+ * The Haven's floor plan (#616): the shape of Nikita's home that the Desk draws in 3D, kept as JSON in the private
+ * store and never in the repo. The repo holds only this generic shape and the renderer; which rooms there are, where
+ * the walls, doors, furniture and devices stand, all of it is data in `haven/plan.json`.
+ *
+ *   GET  /api/haven-plan                    passkey session: { plan } (null until one is saved).
+ *   POST /api/haven-plan { action: "save", plan }   passkey session: checks it (`readPlan`) and saves it.
+ *   POST /api/haven-plan { action: "clear" }        passkey session: forgets it; the Haven waits for one again.
+ *
+ * Nothing here is public: signed out, the Haven shows counts and states only, with no map. The plan is read as
+ * untrusted data on the way in (closed sets, clamped numbers, trimmed plain names, capped lists), so a bad paste can't
+ * put markup or anything outsized on the page.
+ *
+ * Underscore folder: Vercel never serves it as a function.
+ */
+
+import { pickBlob, type BlobBackend } from "../_blob.js";
+import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
+import { pickAuthStore } from "../_desk/store.js";
+import { PLAN_BODY_MAX, readPlan, type HavenPlan } from "./planShape.js";
+
+export * from "./planShape.js";
+
+export const PLAN_PATH = "haven/plan.json";
+
+/** The plan in the private store. */
+export class PlanStore {
+  constructor(private readonly blob: BlobBackend) {}
+
+  async read(): Promise<HavenPlan | null> {
+    const found = await this.blob.get(PLAN_PATH);
+    if (!found) return null;
+    return readPlan(await new Response(found.stream).json().catch(() => null));
+  }
+
+  async write(plan: HavenPlan): Promise<void> {
+    await this.blob.put(PLAN_PATH, JSON.stringify(plan), { contentType: "application/json", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 0 });
+  }
+
+  async clear(): Promise<void> {
+    await this.blob.del(PLAN_PATH);
+  }
+}
+
+export interface PlanDeps {
+  desk: DeskDeps;
+  blob: BlobBackend | null;
+  log: (line: string) => void;
+}
+
+export function livePlanDeps(env: Record<string, string | undefined> = process.env): PlanDeps {
+  return { desk: { deskKey: env.FOUNDRY_DESK_KEY ?? "", store: pickAuthStore(env), now: Date.now() }, blob: pickBlob(env), log: (line) => console.log(line) };
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "private, no-store" } });
+}
+
+/** GET /api/haven-plan. */
+export async function planGet(request: Request, deps: PlanDeps): Promise<Response> {
+  const signed = await requireSession(request, deps.desk);
+  if (!signed.ok) return signed.response;
+  if (!deps.blob) return withCookie(json({ error: "not-set-up" }, 503), signed);
+  const plan = await new PlanStore(deps.blob).read().catch(() => undefined);
+  if (plan === undefined) return withCookie(json({ error: "store" }, 503), signed);
+  return withCookie(json({ plan }), signed);
+}
+
+/** POST /api/haven-plan. */
+export async function planPost(request: Request, deps: PlanDeps): Promise<Response> {
+  if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
+  if (Number(request.headers.get("content-length") ?? 0) > PLAN_BODY_MAX) return json({ error: "too-big" }, 413);
+  const signed = await requireSession(request, deps.desk);
+  if (!signed.ok) return signed.response;
+  const reply = (body: unknown, status = 200) => withCookie(json(body, status), signed);
+  if (!deps.blob) return reply({ error: "not-set-up" }, 503);
+  const raw = await request.text().catch(() => "");
+  if (raw.length > PLAN_BODY_MAX) return reply({ error: "too-big" }, 413);
+  let body: Record<string, unknown>;
+  try {
+    const got: unknown = JSON.parse(raw);
+    body = got && typeof got === "object" && !Array.isArray(got) ? (got as Record<string, unknown>) : {};
+  } catch {
+    return reply({ error: "bad-request" }, 400);
+  }
+  const store = new PlanStore(deps.blob);
+  if (body.action === "clear") {
+    await store.clear();
+    deps.log("haven: the floor plan was cleared");
+    return reply({ ok: true });
+  }
+  if (body.action !== "save") return reply({ error: "bad-request" }, 400);
+  const plan = readPlan(body.plan);
+  if (!plan) return reply({ error: "bad-plan" }, 400);
+  await store.write(plan);
+  // Counts only: never a room's name or where anything stands.
+  deps.log(`haven: a floor plan was saved (${plan.rooms.length} rooms, ${plan.items.length} pieces)`);
+  return reply({ ok: true, plan });
+}
+
+export const planRoute = {
+  GET: (request: Request) => planGet(request, livePlanDeps()),
+  POST: (request: Request) => planPost(request, livePlanDeps()),
+};

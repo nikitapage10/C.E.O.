@@ -59,15 +59,6 @@ export function preview(file: MealsFile, edit: MealEdit): MealsFile {
   return got.ok ? got.file : file;
 }
 
-/**
- * Where a meal's photo comes from: the photo step's private library (PR3), which isn't wired yet, so every meal shows
- * its placeholder. When the library serves photos to a passkey session, this returns its URL for the id.
- */
-export function mealPhotoSrc(id: string | null): string | null {
-  void id;
-  return null;
-}
-
 /** What the Kitchen says when a planner action didn't work. */
 export const MEALS_NOTE: Record<string, string> = {
   "not-seeded": "The meal planner isn't loaded yet.",

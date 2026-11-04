@@ -311,6 +311,16 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
     file = got.file;
     return r.fulfill({ json: { ok: true, changes: got.changes, meals: file } });
   });
+  // The photo library (#687): no photos in it (the placeholders show), and a customized night's photo being made.
+  const shots: unknown[] = [];
+  await page.route(/\/api\/haven-photos(\?.*)?$/, (r) => {
+    const url = new URL(r.request().url());
+    if (url.searchParams.has("id")) return r.fulfill({ status: 404, json: { error: "not-found" } });
+    if (url.searchParams.get("view") === "catalog") return r.fulfill({ json: { photos: (url.searchParams.get("ids") ?? "").split(",").map((id) => ({ id, status: "making" })), budget: null, ready: true } });
+    const body = r.request().postDataJSON() as { meals: Array<{ meal: string }> };
+    shots.push(...body.meals);
+    return r.fulfill({ json: { photos: body.meals.map((m) => ({ meal: m.meal, key: "0123456789abcdef", id: `${m.meal}-01234567`, status: "queued" })), budget: { month: "2026-11", images: 1, usd: 0.1, capUsd: 10, left: 99, reached: false } } });
+  });
   await page.goto(`${BASE}/haven?open=kitchen`);
   const sheet = page.getByRole("dialog", { name: "Kitchen" });
   const week = sheet.getByRole("list", { name: "This week's dinners" });
@@ -340,9 +350,13 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
 
   await sheet.getByRole("button", { name: "Confirm week" }).click();
   await expect(sheet.getByText(/Confirmed\. 12 things went on the Kitchen list \(1 already there\)/)).toBeVisible();
-  await expect(sheet.getByText("1 customized meal will get its own photo.", { exact: false })).toBeVisible();
+  await expect(sheet.getByText("1 customized meal is getting its own photo.", { exact: false })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Week confirmed" })).toBeDisabled();
-  expect(posts.at(-1)).toEqual({ action: "confirm" });
+  expect(posts.find((p) => p.action === "confirm")).toEqual({ action: "confirm" });
+  // The library got the night as customized, and the night keeps the id it answered.
+  expect(shots).toEqual([{ meal: "sausage-pasta", name: "sausage pasta", description: expect.stringContaining("Protein pasta for rigatoni"), components: ["Italian sausage", "Protein pasta"], style: "plate" }]);
+  expect(posts.at(-1)).toEqual({ action: "edit", edit: { op: "photo", day: "wed", photo: "sausage-pasta-01234567" } });
+  await expect(week.getByRole("listitem").nth(2).getByText(/photo queued|making the photo/)).toBeVisible();
 
   await sheet.getByRole("button", { name: "Catalog" }).click();
   const cat = page.getByRole("dialog", { name: "Meal catalog" });

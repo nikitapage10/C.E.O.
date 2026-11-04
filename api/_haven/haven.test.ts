@@ -13,6 +13,7 @@ import { classify, sayAdded, sayTodo, spokenOf } from "./classify.ts";
 import { KitchenList, addTo, sameKey } from "./list.ts";
 import { KEY_SHAPE, PHONE_RATE, PhoneKeys, keyHash } from "./phones.ts";
 import { PhoneTodos } from "./todos.ts";
+import { keepState, TODO_STORE_PATH } from "../_today/todos.ts";
 import { CONVO_IDLE_MS, CONVO_TURNS, PhoneConvo, convoPath } from "./convo.ts";
 import { capture, captureAudio, havenGet, havenPost, type HavenDeps } from "./route.ts";
 
@@ -204,7 +205,8 @@ describe("what the shortcut says (#627)", () => {
     expect(sayAdded(["milk"], ["garlic"])).toBe("Added milk to the list. Garlic was already on it.");
     expect(sayAdded([], ["garlic", "lemons"])).toBe("Garlic and lemons are already on the list.");
     expect(sayAdded([], ["garlic"])).toBe("Garlic is already on the list.");
-    expect(sayTodo("Call the dermatologist tomorrow")).toBe("On your to-dos: Call the dermatologist tomorrow.");
+    expect(sayTodo("Call the dermatologist")).toBe("On your to-dos: Call the dermatologist.");
+    expect(sayTodo("Call the dermatologist", new Date(NOW + 86_400_000).toISOString(), NOW)).toMatch(/^On your to-dos: Call the dermatologist, .+\.$/);
   });
   it("cuts Skippy's reply to two spoken sentences, and a hand-off to the quick take and the Desk", () => {
     expect(spokenOf("One. Two. Three.", false)).toBe("One. Two.");
@@ -216,9 +218,38 @@ describe("what the shortcut says (#627)", () => {
     const deps = havenDeps(blob);
     expect(await (await capture(post(key, { text: "garlic and lemons" }), deps)).json()).toEqual({ say: "Added garlic and lemons to the list." });
     expect(await (await capture(post(key, { text: "add Garlic" }), deps)).json()).toEqual({ say: "Garlic is already on the list." });
-    expect(await (await capture(post(key, { text: "remind me to call the dermatologist tomorrow" }), deps)).json()).toEqual({ say: "On your to-dos: Call the dermatologist tomorrow." });
-    expect(await new PhoneTodos(blob).openCount()).toBe(1);
+    const said = (await (await capture(post(key, { text: "remind me to call the dermatologist tomorrow" }), deps)).json()) as { say: string };
+    expect(said.say).toMatch(/^On your to-dos: Call the dermatologist, tomorrow 9:00 am\.$/);
+    expect(await new PhoneTodos(blob).openCount(NOW)).toBe(1);
     expect(await (await capture(post(key, { text: "how is Ilyr" }), deps)).json()).toEqual({ say: "Ilyr is fine. Go to bed, monkey." });
+  });
+});
+
+describe("phone to-dos land in Today's store (#627, #622)", () => {
+  it("puts a capture in desk/today/todos.json with its due time, like a Today to-do", async () => {
+    const blob = memoryBlob();
+    const got = await new PhoneTodos(blob).addTodo("Call the dermatologist tomorrow", NOW);
+    expect(got.text).toBe("Call the dermatologist");
+    expect(got.due).toBeTruthy();
+    const state = keepState(JSON.parse(new TextDecoder().decode(blob.files.get(TODO_STORE_PATH))), NOW);
+    expect(state.todos).toHaveLength(1);
+    expect(state.todos[0]).toMatchObject({ text: "Call the dermatologist", due: got.due });
+    expect(blob.files.has("haven/phone-todos.json")).toBe(false);
+  });
+  it("migrates open items from the old file once, drops done ones, and removes the file", async () => {
+    const blob = memoryBlob();
+    const old = [
+      { id: "aaa111", text: "Renew the passport", addedAt: new Date(NOW - 1000).toISOString(), source: "phone", done: false },
+      { id: "bbb222", text: "Old thing", addedAt: new Date(NOW - 2000).toISOString(), source: "phone", done: true },
+    ];
+    await blob.put("haven/phone-todos.json", JSON.stringify(old), { contentType: "application/json", addRandomSuffix: false });
+    const todos = new PhoneTodos(blob);
+    expect(await todos.openCount(NOW)).toBe(1);
+    expect(blob.files.has("haven/phone-todos.json")).toBe(false);
+    await todos.addTodo("buy stamps", NOW);
+    expect(await todos.openCount(NOW)).toBe(2);
+    const state = keepState(JSON.parse(new TextDecoder().decode(blob.files.get(TODO_STORE_PATH))), NOW);
+    expect(state.todos.map((t) => t.text).sort()).toEqual(["Buy stamps", "Renew the passport"]);
   });
 });
 

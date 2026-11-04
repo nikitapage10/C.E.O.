@@ -1,48 +1,91 @@
 /**
- * Where "Hey Skippy" puts a to-do (#627): "remind me to call the dermatologist tomorrow".
+ * Where "Hey Skippy" puts a to-do (#627): "remind me to call the dermatologist tomorrow". It lands in Today's own
+ * to-do store (#622, api/_today/store.ts), so it shows under "Held for you" with the same snooze, remind and done, and
+ * a time it names ("tomorrow", "Friday at 3") is read with Today's own rules (api/_today/parse.ts).
  *
- * TODO(#622): Today's own voice to-dos (#622, "Today: your own to-dos by voice") are being built beside this, and
- * hadn't merged when this shipped. Until they do, phone to-dos wait here, in their own file
- * (`haven/phone-todos.json`, private blob store, a name #622's store doesn't use), behind this one small interface.
- * When #622 lands, swap `PhoneTodos` for its store (keep `addTodo`'s shape) and move anything still open in this file
- * across once. The Desk shows only the count meanwhile.
+ * Phone to-dos used to wait in `haven/phone-todos.json`. The first read or add carries anything still open in that file
+ * across (once, by id) and deletes it; nothing writes to it any more.
  *
  * Underscore folder: Vercel never serves it as a function.
  */
 
-import { randomBytes } from "node:crypto";
 import type { BlobBackend } from "../_blob.js";
-import { readJson, updateJson } from "./json.js";
+import { readCapture } from "../_today/parse.js";
+import { BlobTodoStore, type TodoStore } from "../_today/store.js";
+import { isOpen, type Todo } from "../_today/todos.js";
+import { readJson } from "./json.js";
 
-export const TODOS_PATH = "haven/phone-todos.json";
-export const TODO_MAX = 200;
-export const TODO_TEXT_MAX = 300;
+/** The old adapter's file, read once to migrate and then removed. */
+export const LEGACY_PATH = "haven/phone-todos.json";
 
-export interface PhoneTodo {
-  id: string;
+/** A to-do as capture needs it back: its words and, when it named one, its due time (ISO). */
+export interface AddedTodo {
   text: string;
-  addedAt: string;
-  source: "phone";
-  done: boolean;
+  due?: string;
 }
 
 /** The one thing capture needs from a to-do store. */
 export interface TodoSink {
-  addTodo(text: string, now: number): Promise<PhoneTodo>;
-  openCount(): Promise<number>;
+  addTodo(text: string, now: number): Promise<AddedTodo>;
+  openCount(now?: number): Promise<number>;
 }
 
-const clean = (raw: unknown): PhoneTodo[] =>
-  (Array.isArray(raw) ? raw : []).filter((t): t is PhoneTodo => !!t && typeof t === "object" && typeof (t as PhoneTodo).id === "string" && typeof (t as PhoneTodo).text === "string").slice(-TODO_MAX);
+interface Legacy {
+  id: string;
+  text: string;
+  addedAt?: string;
+  done?: boolean;
+}
 
-/** The adapter's own store (see the TODO above). */
+const legacyOf = (raw: unknown): Legacy[] =>
+  (Array.isArray(raw) ? raw : []).filter((t): t is Legacy => !!t && typeof t === "object" && typeof (t as Legacy).id === "string" && /^[a-z0-9]{4,30}$/.test((t as Legacy).id) && typeof (t as Legacy).text === "string");
+
+/** Today's own words for a line: its text and due time. */
+function read(text: string, now: number): { text: string; due?: number } {
+  const got = readCapture(text, now);
+  if (got && got.kind === "add") return { text: got.text, ...(got.due !== undefined && { due: got.due }) };
+  return { text: text.replace(/\s+/g, " ").trim() };
+}
+
+/** Phone to-dos in Today's store. */
 export class PhoneTodos implements TodoSink {
-  constructor(private readonly blob: BlobBackend) {}
-  async addTodo(text: string, now: number): Promise<PhoneTodo> {
-    const todo: PhoneTodo = { id: randomBytes(6).toString("hex"), text: text.replace(/\s+/g, " ").trim().slice(0, TODO_TEXT_MAX), addedAt: new Date(now).toISOString(), source: "phone", done: false };
-    return updateJson(this.blob, TODOS_PATH, [] as unknown, (raw) => ({ next: [...clean(raw), todo].slice(-TODO_MAX), result: todo }));
+  private readonly store: TodoStore;
+  constructor(private readonly blob: BlobBackend, store?: TodoStore) {
+    this.store = store ?? new BlobTodoStore(blob);
   }
-  async openCount(): Promise<number> {
-    return clean(await readJson(this.blob, TODOS_PATH, [])).filter((t) => !t.done).length;
+
+  /** Moves the old file's open items into Today's store, then deletes it. Safe to run twice: ids carry across. */
+  private async migrate(now: number): Promise<void> {
+    if (!(await this.blob.etag(LEGACY_PATH))) return;
+    const open = legacyOf(await readJson(this.blob, LEGACY_PATH, [])).filter((t) => !t.done);
+    if (open.length) {
+      await this.store.change(now, (state) => {
+        const have = new Set(state.todos.map((t) => t.id));
+        const moved: Todo[] = open
+          .filter((t) => !have.has(`phone-${t.id}`))
+          .map((t) => {
+            const said = read(t.text, now);
+            const at = Number.isFinite(Date.parse(t.addedAt ?? "")) ? new Date(Date.parse(t.addedAt ?? "")).toISOString() : new Date(now).toISOString();
+            return { id: `phone-${t.id}`, text: said.text, at, updated: at, ...(said.due !== undefined && { due: new Date(said.due).toISOString() }) };
+          });
+        return moved.length ? { state: { ...state, todos: [...state.todos, ...moved] }, out: undefined } : { state: null, out: undefined };
+      });
+    }
+    await this.blob.del(LEGACY_PATH);
+  }
+
+  async addTodo(text: string, now: number): Promise<AddedTodo> {
+    await this.migrate(now).catch(() => undefined);
+    const said = read(text, now);
+    const at = new Date(now).toISOString();
+    const id = `phone-${now.toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    const todo: Todo = { id, text: said.text, at, updated: at, ...(said.due !== undefined && { due: new Date(said.due).toISOString() }) };
+    await this.store.change(now, (state) => ({ state: { ...state, todos: [...state.todos, todo] }, out: undefined }));
+    return { text: todo.text, ...(todo.due && { due: todo.due }) };
+  }
+
+  async openCount(now = Date.now()): Promise<number> {
+    await this.migrate(now).catch(() => undefined);
+    return (await this.store.load(now)).todos.filter((t) => isOpen(t, now)).length;
   }
 }

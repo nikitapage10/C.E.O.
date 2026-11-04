@@ -13,6 +13,8 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
+import { whenLabel } from "../_today/parse.js";
+
 export type Capture = { kind: "shopping"; items: string[] } | { kind: "todo"; text: string } | { kind: "skippy"; text: string };
 
 /** The most items one capture adds, and the longest one. */
@@ -101,9 +103,10 @@ export function sayAdded(added: string[], already: string[]): string {
 }
 
 /** What the shortcut says after keeping a to-do. */
-export function sayTodo(text: string): string {
+export function sayTodo(text: string, due?: string, now = 0): string {
   const t = text.replace(/[.!?…]+$/, "");
-  return `On your to-dos: ${t.length > 120 ? `${t.slice(0, 117).trimEnd()}…` : t}.`;
+  const when = due ? `, ${whenLabel(Date.parse(due), now)}` : "";
+  return `On your to-dos: ${t.length > 120 ? `${t.slice(0, 117).trimEnd()}…` : t}${when}.`;
 }
 
 /** The longest a spoken answer may be (two short sentences). */

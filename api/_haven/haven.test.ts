@@ -13,6 +13,7 @@ import { classify, sayAdded, sayTodo, spokenOf } from "./classify.ts";
 import { KitchenList, addTo, sameKey } from "./list.ts";
 import { KEY_SHAPE, PHONE_RATE, PhoneKeys, keyHash } from "./phones.ts";
 import { PhoneTodos } from "./todos.ts";
+import type { Home } from "./devices/home.ts";
 import { keepState, TODO_STORE_PATH } from "../_today/todos.ts";
 import { CONVO_IDLE_MS, CONVO_TURNS, PhoneConvo, convoPath } from "./convo.ts";
 import { capture, captureAudio, havenGet, havenPost, type HavenDeps } from "./route.ts";
@@ -216,12 +217,12 @@ describe("what the shortcut says (#627)", () => {
   it("answers a capture with { say } in each lane", async () => {
     const { blob, key } = await withPhone();
     const deps = havenDeps(blob);
-    expect(await (await capture(post(key, { text: "garlic and lemons" }), deps)).json()).toEqual({ say: "Added garlic and lemons to the list." });
-    expect(await (await capture(post(key, { text: "add Garlic" }), deps)).json()).toEqual({ say: "Garlic is already on the list." });
+    expect(await (await capture(post(key, { text: "garlic and lemons" }), deps)).json()).toEqual({ say: "Added garlic and lemons to the list.", quiet: true });
+    expect(await (await capture(post(key, { text: "add Garlic" }), deps)).json()).toEqual({ say: "Garlic is already on the list.", quiet: true });
     const said = (await (await capture(post(key, { text: "remind me to call the dermatologist tomorrow" }), deps)).json()) as { say: string };
     expect(said.say).toMatch(/^On your to-dos: Call the dermatologist, tomorrow 9:00 am\.$/);
     expect(await new PhoneTodos(blob).openCount(NOW)).toBe(1);
-    expect(await (await capture(post(key, { text: "how is Ilyr" }), deps)).json()).toEqual({ say: "Ilyr is fine. Go to bed, monkey." });
+    expect(await (await capture(post(key, { text: "how is Ilyr" }), deps)).json()).toEqual({ say: "Ilyr is fine. Go to bed, monkey.", quiet: false });
   });
 });
 
@@ -296,8 +297,9 @@ describe("Skippy's voice on the phone (#627)", () => {
     const { blob, key } = await withPhone();
     const ledger = new MemoryStoryStore();
     const deps = havenDeps(blob, { voice: { eleven, ledger, deskKey: DESK, fetcher } });
-    const body = (await (await capture(post(key, { text: "garlic and lemons", voice: true }), deps)).json()) as { say: string; audio: string };
-    expect(body.say).toBe("Added garlic and lemons to the list.");
+    const body = (await (await capture(post(key, { text: "how is Ilyr", voice: true }), deps)).json()) as { say: string; quiet: boolean; audio: string };
+    expect(body.say).toBe("Ilyr is fine. Go to bed, monkey.");
+    expect(body.quiet).toBe(false);
     expect(body.audio).toMatch(/^https:\/\/ceo\.test\/api\/capture\?a=pa1\./);
     expect(body.audio).not.toContain(key.slice(4));
     expect((await ledger.loadSpend())["2026-11"]?.elevenChars).toBe(body.say.length);
@@ -317,9 +319,49 @@ describe("Skippy's voice on the phone (#627)", () => {
     const ledger = new MemoryStoryStore();
     ledger.spend = addStorySpend({}, NOW, { elevenUsd: 10 });
     const deps = havenDeps(blob, { voice: { eleven, ledger, deskKey: DESK, fetcher } });
-    const res = await capture(post(key, { text: "garlic and lemons", voice: true }), deps);
-    expect(await res.json()).toEqual({ say: "Added garlic and lemons to the list." });
+    const res = await capture(post(key, { text: "how is Ilyr", voice: true }), deps);
+    expect(await res.json()).toEqual({ say: "Ilyr is fine. Go to bed, monkey.", quiet: false });
     expect(await speakForPhone("hi", { blob, eleven: null, ledger, deskKey: DESK }, NOW)).toBeNull();
+  });
+
+  it("keeps a finished action quiet: a notification line, no audio link, no ElevenLabs call (#652)", async () => {
+    const { blob, key } = await withPhone();
+    const ledger = new MemoryStoryStore();
+    const spoken = vi.fn(async () => new Response(pcm, { status: 200, headers: { "Content-Type": "audio/pcm" } })) as unknown as typeof fetch;
+    const done = { ok: true, say: "The vacuum is cleaning the kitchen." };
+    const home = (act: (req: unknown) => Promise<unknown>) => (() => ({ act }) as unknown as Home) as HavenDeps["devices"];
+    const deps = havenDeps(blob, { voice: { eleven, ledger, deskKey: DESK, fetcher: spoken }, devices: home(async () => done) });
+    const ask = async (text: string, d = deps) => (await (await capture(post(key, { text, voice: true }), d)).json()) as Record<string, unknown>;
+    expect(await ask("add oat milk")).toEqual({ say: "Added oat milk to the list.", quiet: true });
+    expect(await ask("remind me to water the ferns tomorrow")).toMatchObject({ quiet: true });
+    expect(await ask("vacuum, go clean the kitchen")).toEqual({ say: done.say, quiet: true });
+    expect(spoken).not.toHaveBeenCalled();
+    expect((await ledger.loadSpend())["2026-11"]).toBeUndefined();
+  });
+
+  it("speaks a question, a refusal, a failure and a warning (#652)", async () => {
+    const { blob, key } = await withPhone();
+    const ledger = new MemoryStoryStore();
+    const home = (r: unknown) => (() => ({ act: async () => r }) as unknown as Home) as HavenDeps["devices"];
+    const ask = async (text: string, devices: HavenDeps["devices"]) => {
+      const deps = havenDeps(blob, { voice: { eleven, ledger, deskKey: DESK, fetcher }, devices });
+      return (await (await capture(post(key, { text, voice: true }), deps)).json()) as { quiet: boolean; audio?: string };
+    };
+    const question = await ask("how is Ilyr", home({ ok: true, say: "x" }));
+    expect(question.quiet).toBe(false);
+    expect(question.audio).toBeTruthy();
+    const refused = await ask("feed the cat a portion", home({ ok: false, code: "cap", say: "That's the lot for today." }));
+    expect(refused).toMatchObject({ quiet: false });
+    expect(refused.audio).toBeTruthy();
+    const warned = await ask("give the cat wet food", home({ ok: true, warned: true, say: "The wet food feeder's lid is open. Heads up: the bowl in front is wet." }));
+    expect(warned).toMatchObject({ quiet: false });
+    expect(warned.audio).toBeTruthy();
+    const tray = await ask("what's in the wet food feeder", home({ ok: true, say: "Bowl 2 is in front." }));
+    expect(tray.quiet).toBe(false);
+    const down = await ask("clean the litter box", (() => null) as HavenDeps["devices"]);
+    expect(down.quiet).toBe(false);
+    const broke = await ask("feed the cat", (() => { throw new Error("boom"); }) as HavenDeps["devices"]);
+    expect(broke.audio).toBeUndefined();
   });
 });
 
@@ -394,8 +436,8 @@ describe("a short memory per phone (#627)", () => {
     const { blob, key, phone } = await withPhone();
     const seen: { who: string; text: string }[][] = [];
     const deps = havenDeps(blob, { skippy: async (_t, _id, history) => (seen.push(history), { reply: "Godwin sits, monkey.", handedOff: false }) });
-    expect(await (await capture(post(key, { text: "garlic and lemons" }), deps)).json()).toEqual({ say: "Added garlic and lemons to the list." });
-    expect(await (await capture(post(key, { text: "and milk too" }), deps)).json()).toEqual({ say: "Added milk to the list." });
+    expect(await (await capture(post(key, { text: "garlic and lemons" }), deps)).json()).toEqual({ say: "Added garlic and lemons to the list.", quiet: true });
+    expect(await (await capture(post(key, { text: "and milk too" }), deps)).json()).toEqual({ say: "Added milk to the list.", quiet: true });
     await capture(post(key, { text: "what about Godwin?" }), deps);
     expect(seen[0]).toEqual([
       { who: "nikita", text: "garlic and lemons" },

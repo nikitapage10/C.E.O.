@@ -152,7 +152,7 @@ describe("the wet tray remembers the schedule", () => {
     const closed = stub([reading({ kind: "wet-feeder", state: "closed", plate: 1, meals })], ["wet.rotate", "wet.open", "wet.status"]);
     const { home, blob } = homeWith([closed]);
     const turned = await home.act({ action: "wet.rotate", plate: 3, via: "phone", said: "switch the wet feeder to bowl 3" });
-    expect(turned).toEqual({ ok: true, say: "Bowl 3 is turning to the front of the wet food feeder. Heads up: bowl 3 is in front, but the next scheduled meal at 6pm is set for bowl 2." });
+    expect(turned).toEqual({ ok: true, say: "Bowl 3 is turning to the front of the wet food feeder. Heads up: bowl 3 is in front, but the next scheduled meal at 6pm is set for bowl 2.", warned: true });
     expect(closed.ran[0]).toEqual({ action: "wet.rotate", args: { steps: 2 } });
     expect((await new TrayLog(blob).read(NOW)).front).toBe(3);
     // A turn serves nothing (the lid is shut), so the cap is untouched.

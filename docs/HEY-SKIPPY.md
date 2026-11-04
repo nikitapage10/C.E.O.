@@ -44,19 +44,38 @@ Then put it on the button: **Settings → Action Button**, swipe to **Shortcut**
 The same shortcut, with two changes:
 
 - In step 2, add a second JSON field: a **Boolean** named `voice`, set to **True**.
-- Replace steps 3 and 4 with:
-  1. **Get Dictionary Value**: get the value for `audio` in **Contents of URL**.
-  2. **If** the Dictionary Value **has any value**:
-     - **Get Contents of URL**: the **Dictionary Value** (method GET),
-     - **Play Sound**: the Contents of URL from that step.
-  3. **Otherwise**:
-     - **Get Dictionary Value**: get the value for `say` in the **first** Contents of URL (the answer from step 2),
-     - **Speak Text**: that Dictionary Value.
-  4. **End If**.
+- Replace steps 3 and 4 with the steps below. They keep the quick things quiet (#652): a finished action (a Kitchen list
+  add, a to-do, a home device that did what you asked) comes back with `quiet` set to true and a short `say`, and the
+  phone shows it as a notification instead of reading it out. A question, an answer, a refusal, a failure or a warning
+  comes back with `quiet` false and is spoken, as before.
 
-The answer always has `say`; `audio` is there only when ElevenLabs could read it (it is left out once the month's
-voice cap is spent, and the phone speaks `say` instead). The audio link works once and for five minutes, and carries
-nothing secret.
+  3. Tap **+** (Add Action), search **Get Dictionary Value**, and tap it. Tap **Dictionary** and choose **Contents of
+     URL**. Tap **Key** and type `quiet`. (The action now reads "Get Value for `quiet` in Contents of URL".)
+  4. Tap **+**, search **If**, tap it. Tap the grey **Input** and choose **Dictionary Value** (the one from step 3).
+     Tap **Condition**, choose **is**, then tap the value and choose **Yes**. (If your iPhone shows **1** instead of
+     **Yes**, use **is** `1`.)
+  5. Inside the If, tap **+** under it, search **Get Dictionary Value**, tap it, choose **Contents of URL** (the answer
+     from step 2) and type the key `say`.
+  6. Tap **+** under that, search **Show Notification**, tap it. Tap its text and choose **Dictionary Value** (the one
+     from step 5, `say`). Tap the arrow to open the options and turn **Play Sound** off.
+  7. Tap **Otherwise** (the grey line in the If block). Under it, tap **+**, search **Get Dictionary Value**, choose
+     **Contents of URL** (from step 2) and type the key `audio`.
+  8. Tap **+**, search **If**, tap it. Tap **Input**, choose **Dictionary Value** (the `audio` one from step 7), tap
+     **Condition** and choose **has any value**.
+  9. Inside that second If, tap **+**, search **Get Contents of URL**, tap it, tap **URL** and choose **Dictionary
+     Value** (`audio`). Leave the method as **GET**. Then tap **+**, search **Play Sound**, tap it, and leave it on
+     **Contents of URL** (from the step just above).
+  10. Tap **Otherwise** of that second If. Under it, tap **+**, search **Get Dictionary Value**, choose **Contents of
+      URL** (from step 2) and type the key `say`. Then tap **+**, search **Speak Text**, tap it, and choose
+      **Dictionary Value** (that `say`).
+  11. The two **End If** lines are already there; leave them.
+
+In words: get `quiet`; if it is true, show `say` as a notification; otherwise run the audio branch (play `audio` if
+there is one, else speak `say`).
+
+The answer always has `say` and `quiet`; `audio` is there only when `quiet` is false and ElevenLabs could read it (it
+is left out once the month's voice cap is spent, and the phone speaks `say` instead). A quiet answer makes no
+ElevenLabs call at all. The audio link works once and for five minutes, and carries nothing secret.
 
 ## What the phone gets back
 
@@ -64,7 +83,8 @@ nothing secret.
 
 | Answer | When |
 | --- | --- |
-| `200 { "say": "Added garlic and lemons to the list." }` | Done; `audio` is added when `voice` was true and ElevenLabs read it |
+| `200 { "say": "Added garlic and lemons to the list.", "quiet": true }` | A finished action (list add, to-do, device action that worked): show `say`, no `audio` |
+| `200 { "say": "…", "quiet": false }` | A question, answer, refusal, failure or warning: speak it; `audio` is added when `voice` was true and ElevenLabs read it |
 | `401 { "error": "unauthorized" }` | No key, a wrong key, or a revoked one. Nothing else is said |
 | `429 { "say": … }` | More than 30 in an hour from this phone; it says when to try again (`Retry-After`) |
 | `400 { "say": … }` | Nothing heard, or more than 300 characters |

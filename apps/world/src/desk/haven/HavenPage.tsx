@@ -9,6 +9,7 @@ import { GymTab } from "./GymTab.tsx";
 import { ClimatePop } from "./ClimatePop.tsx";
 import { Plinth } from "./Plinth.tsx";
 import { gaugesOf, type GaugeId } from "./plinth.ts";
+import { moodOf, useClimateQueue } from "./climateQueue.ts";
 import type { House, ThreadState } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/cormorant-garamond/500-italic.css";
@@ -138,8 +139,12 @@ export function Haven() {
   const lit = useMemo(() => (thePlan ? litRooms(thePlan, { devices, kitchenOpen, climate, gym: hasGym, now: Date.now() }) : {}), [thePlan, devices, kitchenOpen, climate, hasGym]);
   // The thermostat control (#671): from the plinth's Climate dial or the Nest's marker, passkey only.
   const thermo = signedIn ? (devices?.find((d) => d.kind === "thermostat") ?? null) : null;
-  const [climateOpen, setClimateOpen] = useState(false);
-  const closeClimate = useCallback(() => setClimateOpen(false), []);
+  // The strip's open pop-up (#718): Climate's control, or a device's controls.
+  const [pop, setPop] = useState<GaugeId | null>(null);
+  const closePop = useCallback(() => setPop(null), []);
+  // The gauges in the order their threads land on screen (house.ts), so none cross.
+  const [order, setOrder] = useState<GaugeId[] | null>(null);
+  const held = useClimateQueue((s) => s.pending);
   const vendors: Record<Vendor, VendorState> = useMemo(() => (signedIn ? home?.vendors : pub?.vendors) ?? { roborock: "waiting", petlibro: "waiting", whisker: "waiting", nest: "waiting" }, [signedIn, home, pub]);
 
   /* ── the 3D house, only with a plan ── */
@@ -170,7 +175,7 @@ export function Haven() {
           if (!b.width || x < s.left + 4 || x > s.right - 4) return null;
           return [x - h.left, b.top + b.height / 2 - h.top];
         };
-        house.current = new House(host, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, keepClear, lampAt, onSpot: (spot) => spot === "thermostat" && setClimateOpen(true) });
+        house.current = new House(host, labelHost.current, thePlan, { reduce: reduce(), onPick, onAway: setAway, clearTop, keepClear, lampAt, onOrder: setOrder, onSpot: (spot) => spot === "thermostat" && setPop("climate") });
         setGl("on");
       } catch {
         setGl("none");
@@ -227,8 +232,9 @@ export function Haven() {
   );
   useEffect(() => {
     const busy = (id: GaugeId, n: number | null) => (n === null ? 0 : Math.min(1, 0.15 + n / 8));
+    const mood = moodOf(thermo, held && thermo && held.device === thermo.id ? held.f : null);
     const level: Record<GaugeId, number> = {
-      climate: climate.state === "live" && climate.running ? 0.8 : 0.3,
+      climate: mood === "heat" || mood === "cool" ? 0.85 : 0.3,
       roborock: devices?.some((d) => d.kind === "vacuum" && /clean/i.test(d.state)) ? 0.9 : 0.4,
       petlibro: 0.4,
       whisker: 0.4,
@@ -236,9 +242,11 @@ export function Haven() {
       gym: counts?.gym ? Math.min(1, 0.2 + counts.gym.doneThisWeek / Math.max(1, counts.gym.perWeek)) : 0,
       todos: busy("todos", todoCount),
     };
-    const list: ThreadState[] = gauges.map((g) => ({ id: g.id, tone: g.tone, level: level[g.id] }));
+    // The climate's thread runs ember-orange while it heats and ice-blue while it cools (#718).
+    const climateRgb = mood === "heat" ? "255,140,64" : mood === "cool" ? "110,180,255" : undefined;
+    const list: ThreadState[] = gauges.map((g) => ({ id: g.id, tone: g.tone, level: level[g.id], ...(g.id === "climate" && climateRgb && { rgb: climateRgb }) }));
     house.current?.setThreads(list);
-  }, [gauges, climate, devices, kitchenOpen, counts, todoCount, gl]);
+  }, [gauges, climate, devices, kitchenOpen, counts, todoCount, gl, thermo, held]);
   // The strip's size changes with its readings and the page's width: fit the house round it again.
   useEffect(() => {
     const el = strip.current;
@@ -252,7 +260,10 @@ export function Haven() {
     return () => ro.disconnect();
   }, [gl]);
   const lamp = useCallback((id: GaugeId) => (el: HTMLElement | null) => void (lamps.current[id] = el), []);
-  const toggleClimate = useCallback(() => setClimateOpen((v) => !v), []);
+  const togglePop = useCallback((id: GaugeId) => setPop((v) => (v === id ? null : id)), []);
+  const canPop = useCallback((id: GaugeId) => id === "climate" && !!thermo, [thermo]);
+  // The pop-up sits above its gauge: when the order changes, the threads move with it.
+  useEffect(() => house.current?.touch(), [order]);
   const openGauge = useCallback((id: GaugeId) => (id === "kitchen" || id === "gym") && setOpen({ tab: id }), []);
   const canOpen = useCallback((id: GaugeId) => signedIn && (id === "kitchen" || id === "gym"), [signedIn]);
   const touch = useCallback(() => house.current?.touch(), []);
@@ -320,8 +331,8 @@ export function Haven() {
               )}
             </div>
           )}
-          <Plinth gauges={gauges} thermo={thermo} climateOpen={climateOpen} onClimate={toggleClimate} onOpen={openGauge} canOpen={canOpen} lamp={lamp} onScroll={touch} stripRef={strip}>
-            {climateOpen && thermo && !open && <ClimatePop d={thermo} onClose={closeClimate} />}
+          <Plinth gauges={gauges} order={order} thermo={thermo} pop={pop} onPop={togglePop} canPop={canPop} onOpen={openGauge} canOpen={canOpen} lamp={lamp} onScroll={touch} stripRef={strip}>
+            {!open && pop === "climate" && thermo ? <ClimatePop d={thermo} onClose={closePop} /> : null}
           </Plinth>
         </div>
 

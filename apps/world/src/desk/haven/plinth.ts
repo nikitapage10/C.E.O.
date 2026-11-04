@@ -102,6 +102,20 @@ export function gaugesOf(i: GaugeInput): Gauge[] {
   ];
 }
 
+/**
+ * The strip's gauges in the order their threads land, left to right on screen (#718): each thread then runs up to its
+ * room beside its neighbours and none cross. A gauge with no place on screen keeps its own place among the rest.
+ */
+export function orderGauges(gauges: Gauge[], order: GaugeId[] | null): Gauge[] {
+  if (!order?.length) return gauges;
+  const at = new Map(order.map((id, i) => [id, i]));
+  const placed = gauges.filter((g) => at.has(g.id)).sort((a, b) => at.get(a.id)! - at.get(b.id)!);
+  const out: Gauge[] = [];
+  let k = 0;
+  for (const g of gauges) out.push(at.has(g.id) ? placed[k++]! : g);
+  return out;
+}
+
 /* ── the Climate dial ── */
 
 /** The dial's sweep: 270°, from the lower left (60 °F) round the top to the lower right (80 °F). Angles in radians, 0 at 3 o'clock, clockwise (screen). */

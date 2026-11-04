@@ -5,7 +5,7 @@ import { signedInCookie } from "../../_desk/testing.ts";
 import type { Fetch } from "../devices/http.ts";
 import { HomeVault, homeKey } from "../devices/vault.ts";
 import { KitchenList } from "../list.ts";
-import { authUrl, CART_SCOPE, CART_URL, forgetKrogerTokens, imageOf, krogerClientFrom, krogerImage, readProduct, readStoredProduct, readStore, redirectFor, termOf, type KrogerClient } from "./api.ts";
+import { authUrl, CART_SCOPE, findStores, CART_URL, forgetKrogerTokens, imageOf, krogerClientFrom, krogerImage, readProduct, readStoredProduct, readStore, redirectFor, termOf, type KrogerClient } from "./api.ts";
 import { krogerCallback, krogerGet, krogerPost, linkState, STATE_COOKIE, viewOf, type KrogerDeps } from "./route.ts";
 
 type Got = ReturnType<typeof viewOf> & { ok?: boolean; error?: string; items?: number; url?: string };
@@ -196,6 +196,7 @@ describe("Send to King Soopers (#664)", () => {
     expect(found.body.found.map((s) => s.id)).toEqual(["62000001", "62000002"]);
     const loc = new URL(f.calls.find((c) => c.url.includes("/locations"))!.url);
     expect(loc.searchParams.get("filter.zipCode.near")).toBe(ZIP);
+    expect(loc.searchParams.get("filter.chain")).toBe("KINGSOOPERS");
     expect((f.calls[0]!.init.headers as Record<string, string>).Authorization).toBe(`Basic ${Buffer.from("test-kroger-app-0001:test-kroger-secret").toString("base64")}`);
     expect(new URLSearchParams(String(f.calls[0]!.init.body)).get("scope")).toBe("product.compact");
 
@@ -284,5 +285,15 @@ describe("Send to King Soopers (#664)", () => {
     expect(moved.lines[0]?.pick).toBeNull();
     const kept = await call({ action: "disconnect" });
     expect(kept).toMatchObject({ connected: false, refused: false });
+  });
+});
+
+describe("Only King Soopers in the store picker", () => {
+  it("asks for the KINGSOOPERS chain and drops any other banner Kroger sends back", async () => {
+    const row = (id: string, chain: string, name: string) => ({ locationId: id, chain, name, address: { addressLine1: "1 Test Ave", city: "Testville", state: "CO", zipCode: "80000" } });
+    const f = fakeFetch([[/^GET https:\/\/api\.kroger\.com\/v1\/locations$/, () => ({ data: [row("62000001", "KINGSOOPERS", "King Soopers - A"), row("70100001", "SMITHS", "Smith's - B"), row("62000003", "King Soopers", "King Soopers - C"), row("70400001", "FREDMEYER", "Fred Meyer - D"), { locationId: "62000009", name: "No chain" }] })]]);
+    const rows = await findStores(f, "test-token", "80000");
+    expect(new URL(f.calls[0]!.url).searchParams.get("filter.chain")).toBe("KINGSOOPERS");
+    expect(rows.map((r) => r.id)).toEqual(["62000001", "62000003"]);
   });
 });

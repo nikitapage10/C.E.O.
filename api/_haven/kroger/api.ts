@@ -167,6 +167,12 @@ export interface StoreRow {
   zip: string;
 }
 
+/** Kroger's chain code for King Soopers (the Locations API's `filter.chain`). */
+export const KING_SOOPERS_CHAIN = "KINGSOOPERS";
+
+/** True when a Locations row belongs to King Soopers (other Kroger banners are dropped). */
+export const isKingSoopers = (v: unknown): boolean => String(o(v).chain ?? "").replace(/[^a-z]/gi, "").toUpperCase() === KING_SOOPERS_CHAIN;
+
 export function readStore(v: unknown): StoreRow | null {
   const s = o(v);
   const a = o(s.address);
@@ -265,11 +271,11 @@ const get = async (fetchFn: Fetch, path: string, token: string) => {
   return Array.isArray(body.data) ? (body.data as unknown[]) : [];
 };
 
-/** The stores near a ZIP, nearest first, as Kroger lists them. */
+/** The King Soopers stores near a ZIP, nearest first, as Kroger lists them. */
 export async function findStores(fetchFn: Fetch, token: string, zip: string): Promise<StoreRow[]> {
-  const q = new URLSearchParams({ "filter.zipCode.near": zip, "filter.radiusInMiles": String(STORE_RADIUS_MI), "filter.limit": String(STORE_LIMIT) });
+  const q = new URLSearchParams({ "filter.zipCode.near": zip, "filter.radiusInMiles": String(STORE_RADIUS_MI), "filter.limit": String(STORE_LIMIT), "filter.chain": KING_SOOPERS_CHAIN });
   const rows = await get(fetchFn, `/locations?${q.toString()}`, token);
-  return rows.map(readStore).filter((s): s is StoreRow => s !== null).slice(0, STORE_LIMIT);
+  return rows.filter(isKingSoopers).map(readStore).filter((s): s is StoreRow => s !== null).slice(0, STORE_LIMIT);
 }
 
 /** The search term Kroger takes for a list item: 3 characters at least, 8 words at most; "" when there's none. */

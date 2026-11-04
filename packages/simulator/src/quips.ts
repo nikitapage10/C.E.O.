@@ -117,6 +117,7 @@ export const ROOM_QUIPS: Record<RoomId, string[]> = {
     "Ping. Pong. Ping. This is my Kubernetes.",
     "If the pumpkins are out, it's Halloween night. The Veil opens itself. I only bring the sheet.",
     "Myshka used to walk in chest-first like the Normandy docking. Someone patched his posture. Head up now.",
+    "Myshka's in the Haven's glass house again. Found every door on his own. The feeders, first, obviously.",
   ],
 };
 

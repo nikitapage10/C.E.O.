@@ -210,6 +210,14 @@ export function Haven() {
     h.setLit(lit, facts, tags);
   }, [lit, devices, thePlan, gl, climate]);
 
+  // Myshka in the house (#729): a feed (the dry feeder's last meal, or the wet tray opened from here) and the
+  // Litter-Robot's cycle, nothing else; the house decides where he walks.
+  useEffect(() => {
+    const dry = devices?.find((d) => d.kind === "dry-feeder"), wet = devices?.find((d) => d.kind === "wet-feeder"), box = devices?.find((d) => d.kind === "litter");
+    const times = [dry?.lastFed, wet?.closesAt].map((v) => (v ? Date.parse(v) : NaN)).filter(Number.isFinite);
+    house.current?.setCat({ fedAt: times.length ? Math.max(...times) : null, litterCycling: Boolean(box?.online && /cycl/i.test(box.state)) });
+  }, [devices, gl]);
+
   // Opening a room flies the camera in and lays the house behind the content; closing flies back out.
   const roomId = open && "room" in open ? open.room : open && "tab" in open && thePlan ? (thePlan.rooms.find((r) => tabOf(thePlan, r) === open.tab)?.id ?? null) : null;
   useEffect(() => {

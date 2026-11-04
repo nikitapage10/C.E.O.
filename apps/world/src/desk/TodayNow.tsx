@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { whenLabel } from "../../../../api/_today/parse.ts";
 import { CREW, type Change, type Crate } from "../foundry.ts";
 import { useWorldClock, clockState } from "../worldClock.ts";
 import { DESK_ROOMS, type DeskAction, type DeskRoom, type OwedReply } from "./deskData.ts";
@@ -13,6 +14,8 @@ import { Icon, type TodayIcon } from "./todayIcons.tsx";
 import { age, DecisionAct, IdeasAct, QuestionAct, ReplyAct } from "./TodayActs.tsx";
 import { useNow } from "./motion.tsx";
 import { mtTime, roman, until, upcoming } from "./todaySchedule.ts";
+import { TalkBack, TodoCapture, TodoCard, useTodosOn } from "./todos/TodoBits.tsx";
+import { awayRefs, openTodos, useTodos, type Target } from "./todos/todos.ts";
 
 /**
  * Right now (#363, Nikita 2026-10-24: "the focus is what do I need to know right now?"), "Held for you" in the top right
@@ -22,6 +25,10 @@ import { mtTime, roman, until, upcoming } from "./todaySchedule.ts";
  * then one line of what landed while he was away. Each row has its icon in its room's colour; a row that takes an
  * answer opens its card in place, a row about a room walks into it. When nothing needs him, it says so, and what runs
  * next. Real data only.
+ *
+ * Nikita's own to-dos sit in the same list (#622), added from the capture line under the heading, and every row can be
+ * talked back to: its mic, or a held Space on it, then a few words ("snooze till tomorrow", "remind me Friday",
+ * "note: …", "done", "make it a to-do"). A reminder that has come due rises to the top.
  */
 
 type Tier = "fire" | "ask" | "fyi";
@@ -30,7 +37,7 @@ interface Row {
   key: string;
   tier: Tier;
   icon: TodayIcon;
-  room: DeskRoom;
+  room: DeskRoom | "today";
   /** Small capitals above the line: who or what. */
   label: string;
   title: ReactNode;
@@ -40,7 +47,16 @@ interface Row {
   href?: string;
   /** The card that answers it, opened in place. */
   card?: () => ReactNode;
+  /** The row in plain words, for a to-do made from it (#622). */
+  plain?: string;
+  /** What a talk-back to it changes: one of Nikita's to-dos, or the held row by its key. */
+  talk?: Target;
+  /** A reminder on it has come due: it rises to the top. */
+  due?: boolean;
 }
+
+/** Held this long, Space starts listening; a quick tap is still a tap. */
+const HOLD_MS = 280;
 
 const personal = (room: DeskRoom) => room === "relay" || room === "spire" || room === "exchange" || room === "boiler";
 const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
@@ -80,9 +96,15 @@ export function TodayNow(p: NowInput) {
   const reading = useWorldClock((s) => s.reading);
   const status = useWorldClock((s) => s.status);
   const [open, setOpen] = useState<string | null>(null);
+  const todoState = useTodos((s) => s.state);
+  const talkOn = useTodosOn();
+  const [talk, setTalk] = useState<{ key: string; listen: boolean; holding?: boolean } | null>(null);
+  const hold = useRef<{ key: string; timer: number; held: boolean } | null>(null);
+  const away = awayRefs(todoState, now);
+  const marks = new Map(todoState.marks.map((m) => [m.ref, m]));
 
-  const rows: Row[] = [
-    ...fires(p.pulses, clockState(reading, status, now)).map<Row>((f) => ({ ...f, tier: "fire", icon: "alert", label: `${DESK_ROOMS[f.room].name}, needs a look` })),
+  const held: Row[] = [
+    ...fires(p.pulses, clockState(reading, status, now)).map<Row>((f) => ({ ...f, tier: "fire", icon: "alert", label: `${DESK_ROOMS[f.room].name}, needs a look`, plain: f.title })),
     ...p.questions.map<Row>((c) => ({
       key: `q${c.number}`,
       tier: "ask",
@@ -91,6 +113,7 @@ export function TodayNow(p: NowInput) {
       label: "Rivet asks",
       title: `“${c.question}”`,
       sub: `About ${ideaTitle(c.title)}`,
+      plain: `Answer Rivet: ${c.question}`,
       at: c.updatedAt,
       card: () => <QuestionAct crate={c} setup={p.setup} now={now} />,
     })),
@@ -102,6 +125,7 @@ export function TodayNow(p: NowInput) {
       label: `${DESK_ROOMS[a.room].name}, a decision`,
       title: personal(a.room) ? <Private>{a.title}</Private> : a.title,
       sub: `${a.agent} suggests “${a.choices[0] ?? "a look"}”`,
+      plain: a.title,
       card: () => <DecisionAct a={a} />,
     })),
     ...p.replies.map<Row>((o) => ({
@@ -116,11 +140,12 @@ export function TodayNow(p: NowInput) {
         </>
       ),
       sub: o.draft ? "Blasto has a draft ready" : undefined,
+      plain: `Reply to ${o.name}`,
       at: o.since,
       card: () => <ReplyAct o={o} now={now} />,
     })),
     ...(p.emailNeeds
-      ? [{ key: "email", tier: "ask", icon: "mail", room: "relay", label: "Email, sorted by Dialtone", title: `${n(p.emailNeeds, "email needs", "emails need")} you`, sub: "Subjects stay in the Relay.", card: () => <EmailAct count={p.emailNeeds} /> } satisfies Row]
+      ? [{ key: "email", tier: "ask", icon: "mail", room: "relay", label: "Email, sorted by Dialtone", title: `${n(p.emailNeeds, "email needs", "emails need")} you`, sub: "Subjects stay in the Relay.", plain: "Go through the email that needs me", card: () => <EmailAct count={p.emailNeeds} /> } satisfies Row]
       : []),
     ...(p.toPick.length
       ? [
@@ -131,6 +156,7 @@ export function TodayNow(p: NowInput) {
             room: "foundry",
             label: "The Foundry, ideas",
             title: `${cap(words(p.toPick.length))} ${p.toPick.length === 1 ? "idea waits" : "ideas wait"} for your pick`,
+            plain: "Pick the Foundry's ideas",
             sub: p.toPick
               .slice(0, 2)
               .map((c) => ideaTitle(c.title))
@@ -149,6 +175,7 @@ export function TodayNow(p: NowInput) {
             label: "Setup, only you can do",
             title: `${n(p.setupLeft, "setup step")} left`,
             sub: `${p.setupTotal - p.setupLeft} of ${p.setupTotal} done`,
+            plain: "Finish the Desk's setup steps",
             card: () => <SetupAct status={p.setupStatus} />,
           } satisfies Row,
         ]
@@ -173,6 +200,50 @@ export function TodayNow(p: NowInput) {
       : []),
   ];
 
+  // What Nikita said back to the held rows (#622): put away for now, a note, a reminder.
+  const system = held
+    .filter((r) => !away.has(r.key))
+    .map<Row>((r) => {
+      const m = marks.get(r.key);
+      if (!m || r.tier === "fyi") return { ...r, talk: r.tier === "fyi" ? undefined : { type: "held", ref: r.key, text: r.plain ?? "" } };
+      const remind = m.remind ? Date.parse(m.remind) : NaN;
+      const note = m.notes?.at(-1);
+      return {
+        ...r,
+        talk: { type: "held", ref: r.key, text: r.plain ?? "" },
+        due: remind <= now,
+        icon: remind <= now ? "bell" : r.icon,
+        label: remind <= now ? `Reminder · ${r.label}` : Number.isFinite(remind) ? `${r.label} · reminder ${whenLabel(remind, now)}` : r.label,
+        sub: note ? <Private>Note: {note}</Private> : r.sub,
+      };
+    });
+  const mine = openTodos(todoState, now).map<Row>((t) => {
+    const due = t.due ? Date.parse(t.due) : NaN;
+    const isDue = due <= now;
+    const note = t.notes?.at(-1);
+    return {
+      key: `todo:${t.id}`,
+      tier: "ask",
+      icon: isDue ? "bell" : "todo",
+      room: "today",
+      label: isDue ? `Your to-do · due ${whenLabel(due, now)}` : Number.isFinite(due) ? `Your to-do · ${whenLabel(due, now)}` : "Your to-do",
+      title: <Private>{t.text}</Private>,
+      sub: note ? <Private>Note: {note}</Private> : undefined,
+      at: Date.parse(t.at),
+      card: () => <TodoCard todo={t} />,
+      talk: { type: "todo", id: t.id },
+      due: isDue,
+    };
+  });
+  // Due reminders first, then what's on fire, then what needs an answer (Nikita's own after the rooms'), then the FYI.
+  const rows: Row[] = [
+    ...[...system, ...mine].filter((r) => r.due),
+    ...system.filter((r) => !r.due && r.tier === "fire"),
+    ...system.filter((r) => !r.due && r.tier === "ask"),
+    ...mine.filter((r) => !r.due),
+    ...system.filter((r) => r.tier === "fyi"),
+  ];
+
   const fire = rows.filter((r) => r.tier === "fire").length;
   const ask = rows.filter((r) => r.tier === "ask").length;
   const head =
@@ -185,6 +256,33 @@ export function TodayNow(p: NowInput) {
           : "Nothing needs you right now.";
   const busy = p.pulses.filter((x) => x.state === "busy").map((x) => x.name);
 
+  // A held Space on a row (#622): listening while it is held, the words go when it is let go. A quick tap is a tap.
+  const spaceDown = (r: Row, e: ReactKeyboardEvent<HTMLElement>) => {
+    if (e.key !== " " || !talkOn || !r.talk) return;
+    e.preventDefault();
+    if (e.repeat || hold.current) return;
+    const key = r.key;
+    hold.current = {
+      key,
+      held: false,
+      timer: window.setTimeout(() => {
+        if (hold.current?.key !== key) return;
+        hold.current.held = true;
+        setTalk({ key, listen: true, holding: true });
+      }, HOLD_MS),
+    };
+  };
+  const spaceUp = (r: Row, e: ReactKeyboardEvent<HTMLElement>) => {
+    if (e.key !== " " || !hold.current || hold.current.key !== r.key) return;
+    e.preventDefault();
+    const h = hold.current;
+    hold.current = null;
+    window.clearTimeout(h.timer);
+    if (h.held) setTalk((t) => (t && t.key === r.key ? { ...t, holding: false } : t));
+    else if (r.card) setOpen(open === r.key ? null : r.key);
+    else (e.currentTarget as HTMLElement).click();
+  };
+
   return (
     <section className={`td-now${fire ? " has-fire" : ask ? " has-ask" : " is-clear"}`} aria-labelledby="td-now-h" data-in>
       <header className="td-now-head">
@@ -196,6 +294,7 @@ export function TodayNow(p: NowInput) {
         <h2 id="td-now-h" className="td-h2">
           {head}
         </h2>
+        <TodoCapture />
       </header>
       {fire + ask === 0 && (
         <div className="td-clear" role="status">
@@ -242,21 +341,36 @@ export function TodayNow(p: NowInput) {
             return (
               <li
                 key={r.key}
-                className={`td-ni is-${r.tier}${isOpen ? " is-open" : ""}`}
+                className={`td-ni is-${r.tier}${isOpen ? " is-open" : ""}${r.due ? " is-due" : ""}${r.room === "today" ? " is-mine" : ""}`}
                 data-room={r.room}
                 style={{ "--i": i } as React.CSSProperties}
-                onPointerEnter={() => p.onHot?.(r.room)}
+                onPointerEnter={() => p.onHot?.(r.room === "today" ? null : r.room)}
                 onPointerLeave={() => p.onHot?.(null)}
               >
-                {r.card ? (
-                  <button type="button" className="td-ni-row" aria-expanded={isOpen} aria-controls={`td-ni-${r.key}`} onClick={() => setOpen(isOpen ? null : r.key)}>
-                    {inner}
-                  </button>
-                ) : (
-                  <a className="td-ni-row" href={r.href} onClick={roomLink(r.href ?? "/")}>
-                    {inner}
-                  </a>
-                )}
+                <div className="td-ni-line">
+                  {r.card ? (
+                    <button type="button" className="td-ni-row" aria-expanded={isOpen} aria-controls={`td-ni-${r.key}`} onClick={() => setOpen(isOpen ? null : r.key)} onKeyDown={(e) => spaceDown(r, e)} onKeyUp={(e) => spaceUp(r, e)}>
+                      {inner}
+                    </button>
+                  ) : (
+                    <a className="td-ni-row" href={r.href} onClick={roomLink(r.href ?? "/")} onKeyDown={(e) => spaceDown(r, e)} onKeyUp={(e) => spaceUp(r, e)}>
+                      {inner}
+                    </a>
+                  )}
+                  {talkOn && r.talk && (
+                    <button
+                      type="button"
+                      className={`td-ni-talk${talk?.key === r.key ? " is-on" : ""}`}
+                      aria-label="Talk back to this: snooze, remind, note, done or to-do"
+                      title="Talk back: snooze, remind, note, done (or hold Space on the row)"
+                      aria-expanded={talk?.key === r.key}
+                      onClick={() => setTalk(talk?.key === r.key ? null : { key: r.key, listen: true })}
+                    >
+                      <Icon name="mic" />
+                    </button>
+                  )}
+                </div>
+                {talk?.key === r.key && r.talk && <TalkBack key={r.key} target={r.talk} listen={talk.listen} holding={talk.holding} onClose={() => setTalk(null)} />}
                 {r.card && (
                   <div id={`td-ni-${r.key}`} className="td-ni-card" hidden={!isOpen}>
                     {isOpen && r.card()}

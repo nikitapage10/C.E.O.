@@ -37,6 +37,7 @@ import * as securityfeed from "../../api/security-feed.js";
 import * as sitelogin from "../../api/_site/login.js";
 import * as sitepassword from "../../api/_site/control.js";
 import * as skippy from "../../api/skippy.js";
+import * as todaytodos from "../../api/_today/route.js";
 import * as skippyvoice from "../../api/skippy-voice.js";
 import * as skippytools from "../../api/_skippy/toolroute.js";
 import * as kernelroute from "../../api/_skippy/kernelroute.js";
@@ -147,6 +148,8 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // run itself, called by the Function App on its own address when a hand-off is kept. SUBMIND_FEED_TOKEN only.
   ["kernel-brief", kernelroute.brief],
   ["kernel-agent", kernelroute.agent],
+  // Today's own to-dos and talk-back (#622): ?view=status is three public counts; the rest is the passkey session.
+  ["today-todos", todaytodos],
   ["visual-qa-feed", visualqafeed],
   // Called on the Function App's own URL (no proxy cut), so the step waits for its day and week stories.
   ["world-step", worldstep, { settleMs: Infinity }],

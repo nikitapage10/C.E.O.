@@ -105,7 +105,35 @@ export interface LitInput {
   /** The Kitchen list's open items, or null when it couldn't be read. */
   kitchenOpen: number | null;
   climate: Climate;
+  /** The Gym's plan is there (#660): its room is lit while it is. */
+  gym?: boolean;
   now: number;
+}
+
+/** A room lit because what's in it is connected and answering (#671): a steady glow, brighter when something runs. */
+const ALIVE: Lit = { level: 0.3, needs: false, why: [] };
+/** A room smaller than this (plan units², about 2 m²) is a passage or a nook: what stands there serves the room next to it. */
+const NOOK = 20_000;
+
+const areaOf = (r: PlanRoom) => r.parts.reduce((a, [, , w, h]) => a + w * h, 0);
+function gapTo(r: PlanRoom, x: number, y: number) {
+  let best = Infinity;
+  for (const [px, py, pw, ph] of r.parts) best = Math.min(best, Math.hypot(Math.max(px - x, 0, x - (px + pw)), Math.max(py - y, 0, y - (py + ph))));
+  return best;
+}
+
+/**
+ * The rooms a device lights: the one the plan says (`lights`, the climate's living room), else the one it stands in;
+ * and when that is a passage or a nook, also the room it stands nearest to (the litter box in the passage by the
+ * Studio lights the Studio).
+ */
+export function roomsLitBy(plan: HavenPlan, spot: { x: number; y: number; lights: string | null }): string[] {
+  if (spot.lights) return [spot.lights];
+  const here = roomAt(plan, spot.x, spot.y);
+  if (!here) return [];
+  if (areaOf(here) >= NOOK) return [here.id];
+  const next = plan.rooms.filter((r) => r.id !== here.id && areaOf(r) >= NOOK).sort((a, b) => gapTo(a, spot.x, spot.y) - gapTo(b, spot.x, spot.y))[0];
+  return next ? [here.id, next.id] : [here.id];
 }
 
 const HOUR = 3_600_000;
@@ -170,32 +198,40 @@ function merge(into: Record<string, Lit>, id: string, lit: Lit) {
   into[id] = { level: Math.max(was.level, lit.level), needs: was.needs || lit.needs, why: [...new Set([...was.why, ...lit.why])].slice(0, 3) };
 }
 
-/** Which rooms light up, and why. A room with nothing going on is left out (it stays dim). */
+/**
+ * Which rooms light up, and why (#671): every room holding something connected and answering glows (a device online,
+ * the climate reading, the Kitchen list, the Gym's plan), and what is running or wants Nikita burns brighter. A room
+ * with nothing connected is left out (it stays dim). All from the plan's own placings, no room named here.
+ */
 export function litRooms(plan: HavenPlan, input: LitInput): Record<string, Lit> {
   const out: Record<string, Lit> = {};
   for (const spot of plan.devices) {
-    const room = spot.lights ?? roomAt(plan, spot.x, spot.y)?.id;
-    if (!room) continue;
-    if (spot.kind === "thermostat") {
-      const c = input.climate;
-      if (c.state === "live" && c.running && c.mode !== "off") merge(out, room, { level: 0.75, needs: false, why: [c.mode === "cool" ? "cooling" : "heating"] });
-      continue;
+    const rooms = roomsLitBy(plan, spot);
+    for (const room of rooms) {
+      if (spot.kind === "thermostat") {
+        const c = input.climate;
+        if (c.state !== "live") continue;
+        merge(out, room, ALIVE);
+        if (c.running && c.mode !== "off" && c.mode !== "eco") merge(out, room, { level: 0.75, needs: false, why: [c.mode === "cool" ? "cooling" : "heating"] });
+        continue;
+      }
+      const kind = KIND_OF[spot.kind];
+      const reading = input.devices?.find((d) => d.kind === kind);
+      if (!reading) continue;
+      if (reading.online) merge(out, room, ALIVE);
+      merge(out, room, deviceLit(reading, input.now));
     }
-    const kind = KIND_OF[spot.kind];
-    const reading = input.devices?.find((d) => d.kind === kind);
-    if (reading) merge(out, room, deviceLit(reading, input.now));
   }
-  if (input.kitchenOpen) {
-    const kitchen = plan.rooms.find((r) => r.tab === "kitchen");
-    if (kitchen) merge(out, kitchen.id, { level: 0.55, needs: false, why: [`${input.kitchenOpen} to get`] });
-  }
+  const byTab = (tab: Tab) => plan.rooms.filter((r) => r.tab === tab);
+  if (input.kitchenOpen !== null) for (const r of byTab("kitchen")) merge(out, r.id, input.kitchenOpen ? { level: 0.55, needs: false, why: [`${input.kitchenOpen} to get`] } : ALIVE);
+  if (input.gym) for (const r of byTab("gym")) merge(out, r.id, ALIVE);
   return out;
 }
 
 /** The plain line under the Haven's title: what needs Nikita, or that the house is quiet. */
 export function summaryOf(lit: Record<string, Lit>, plan: HavenPlan | null): string {
   const needs = Object.entries(lit).filter(([, l]) => l.needs);
-  const busy = Object.entries(lit).filter(([, l]) => !l.needs && l.level > 0);
+  const busy = Object.entries(lit).filter(([, l]) => !l.needs && l.level > 0 && l.why[0]);
   const name = (id: string) => plan?.rooms.find((r) => r.id === id)?.name ?? id;
   if (needs.length) return `${needs.map(([id, l]) => `${name(id)}: ${l.why[0] ?? "needs a look"}`).join(" · ")}`;
   if (busy.length) return `${busy.map(([id, l]) => `${name(id)}: ${l.why[0]}`).join(" · ")}`;

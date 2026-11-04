@@ -250,3 +250,32 @@ test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and 
     },
   ]);
 });
+
+test("signed in, the Kitchen removes an item with ×, with five seconds to Undo (#673)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  const posts: Record<string, unknown>[] = [];
+  await page.route(/\/api\/haven(\?.*)?$/, (r) => {
+    if (r.request().method() === "POST") {
+      posts.push(r.request().postDataJSON() as Record<string, unknown>);
+      return r.fulfill({ json: { ok: true } });
+    }
+    const view = new URL(r.request().url()).searchParams.get("view");
+    if (view === "status") return r.fulfill({ json: { kitchen: { open: 2, done: 0 }, todos: 0, ready: true } });
+    const items = ["Lemons", "Garlic"].map((name, i) => ({ id: `k${i}`, name, addedAt: new Date().toISOString(), source: "phone", done: false }));
+    // After an Undo the list is read again: Garlic is back.
+    return r.fulfill({ json: { items } });
+  });
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  const list = sheet.getByRole("list", { name: "Kitchen list" });
+  await expect(list.getByRole("checkbox")).toHaveCount(2);
+  await list.getByRole("button", { name: "Remove Garlic" }).click();
+  await expect(list.getByRole("checkbox")).toHaveCount(1);
+  await expect(sheet.getByText("2 things on the list.")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Undo" }).click();
+  await expect(list.getByRole("checkbox")).toHaveCount(2);
+  expect(posts).toEqual([
+    { action: "remove", id: "k1" },
+    { action: "undo-remove", id: "k1" },
+  ]);
+});

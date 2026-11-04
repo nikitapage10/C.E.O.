@@ -616,6 +616,10 @@
   list-style: none;
 }
 [data-room="haven"] .hv-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 7px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   font-size: 15px;
@@ -891,4 +895,42 @@
 [data-room="haven"] .hv-gTotal b {
   margin-left: auto;
   font-size: 18px;
+}
+
+/* Remove with Undo on the Kitchen page (#673), as on Today's Kitchen chip (#657). */
+[data-room="haven"] .hv-x {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-faint);
+  font: 400 20px/1 var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-x:hover,
+[data-room="haven"] .hv-x:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-gRow .hv-gSwap {
+  margin-left: auto;
+}
+[data-room="haven"] .hv-undo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-undo button {
+  padding: 4px 12px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 13px var(--hv-text);
+  cursor: pointer;
 }

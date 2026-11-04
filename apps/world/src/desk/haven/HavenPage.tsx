@@ -234,6 +234,9 @@ export function Haven() {
     setItems((cur) => cur?.map((i) => (i.id === item.id ? { ...i, done } : i)) ?? cur);
     void tickItem(item.id, done).then((r) => !r.ok && loadKitchen().then((l) => l.state === "ready" && setItems(l.view.items)));
   };
+  // Remove with Undo (#673): the Kitchen tab hides the item at once and keeps Undo; these keep the list in step.
+  const drop = (item: KitchenItem) => setItems((cur) => cur?.filter((i) => i.id !== item.id) ?? cur);
+  const reread = () => void loadKitchen().then((l) => l.state === "ready" && setItems(l.view.items));
 
   const summary = thePlan ? summaryOf(lit, thePlan) : signedIn ? "The house, the pets and the kitchen, from what's connected." : "Counts and states only. Sign in to see the house.";
   const util = (id: string) => (el: HTMLElement | null) => void (utilRefs.current[id] = el);
@@ -371,7 +374,7 @@ export function Haven() {
             <p className="hv-eyb">Haven · {sheetTitle}</p>
             <h2 className="hv-h2">{sheetTitle}</h2>
             {openTab === "kitchen" ? (
-              <KitchenTab items={items} onTick={tick} />
+              <KitchenTab items={items} onTick={tick} onDrop={drop} onReread={reread} />
             ) : openTab === "hall" ? (
               <HallTab devices={devices} connected={vendors.roborock !== "waiting"} room={openRoom} />
             ) : openTab === "pets" ? (

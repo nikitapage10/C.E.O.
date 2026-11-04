@@ -303,6 +303,16 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   edit; a night shows its own photo once the library says `ready`, its meal's photo (or a placeholder) until then.
 - **Seeding.** `PUT /api/haven-meals { meals, replace? }` with the feed key (counts back), or the Kitchen's "Load a
   planner file" when nothing is loaded. Without `replace` it never overwrites a planner that's there.
+- **Cook mode (#705).** "Cook mode" in a night's drawer (not on a HelloFresh night) opens the dinner full screen, one
+  step at a time in big type ([`CookMode.tsx`](../apps/world/src/desk/haven/CookMode.tsx), built by `cookOf` in
+  [`cook.ts`](../apps/world/src/desk/haven/cook.ts) from `slotDish`, so it is the night as customized). A step that
+  names a swapped part names the new one, marked in gold; a step for a part left out (No carb, No side) says to skip
+  it. Beside it (a panel behind "Ingredients" on a phone): the parts tonight, how many portions go in the pan
+  (`portionsOf`: for two, a lunch left over), the heat, and the amounts for all of them. Next and Back are wide
+  buttons at the bottom; the arrow and Page keys, Home and End, a sideways swipe or the step marks move too, and
+  Escape or Close leaves (the Kitchen stays open). The screen is kept awake with the browser's Wake Lock while it's
+  open ("Screen stays on"), taken again when the tab comes back; where the browser lacks it or refuses, the note just
+  isn't there. Screen code only: nothing new is read, sent or stored.
 - **Talking to it (#698).** Nikita edits the week by talking to Skippy: his chat on the Desk, a room's mic (the Haven's
   Steward, or Skippy on Today) or Hands-free. The Haven's tools (rooms/haven/tools.ts, run in
   `api/_skippy/agent/tools.ts`) make the same edits, each through `readEdit` first, so a tool can only make an edit the

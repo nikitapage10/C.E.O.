@@ -168,7 +168,7 @@
   -webkit-user-select: none;
 }
 [data-room="haven"] .ck-step {
-  max-width: 22em;
+  width: 100%;
   animation: ck-fwd 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 [data-room="haven"] .ck-step.is-back {
@@ -215,10 +215,11 @@
 }
 [data-room="haven"] .ck-text {
   margin: 0;
-  font-size: clamp(30px, 3.6vw, 52px);
+  font-size: clamp(32px, 3.6vw, 52px);
   font-weight: 450;
   line-height: 1.22;
   letter-spacing: -0.01em;
+  max-width: 16em;
   text-wrap: pretty;
 }
 [data-room="haven"] .ck-text mark {
@@ -377,7 +378,8 @@
     align-items: flex-start;
     padding-top: 14px;
   }
-  [data-room="haven"] .ck-awake {
+  [data-room="haven"] .ck-awake,
+  [data-room="haven"] .ck-min {
     display: none;
   }
   [data-room="haven"] .ck-head h2 {

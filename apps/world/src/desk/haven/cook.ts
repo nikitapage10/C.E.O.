@@ -45,7 +45,7 @@ export interface Cook {
   portions: number;
   /** The night's portion size (1, 1.25, …). */
   portion: number;
-  /** Why it's more than one: "for two", "Tuesday's lunch". */
+  /** Why it's more than one: "for two", "makes Tuesday's lunch". */
   why: string[];
   spice: Spice;
   /** The heat as the recipe wrote it, when tonight's is different. */
@@ -120,7 +120,7 @@ export function cookOf(f: MealsFile, s: Slot): Cook | null {
   const why: string[] = [];
   if (s.forTwo) why.push("for two");
   f.week.slots.forEach((o, j) => {
-    if (o.lunch.leftoverOf === i) why.push(`${DAY_NAME[DAYS[j]!]}'s lunch`);
+    if (o.lunch.leftoverOf === i) why.push(`makes ${DAY_NAME[DAYS[j]!]}'s lunch`);
   });
   const swaps: Swap[] = [];
   for (const p of d.parts) {

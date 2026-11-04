@@ -131,7 +131,8 @@ export function CookMode({ cook, onClose }: { cook: Cook; onClose: () => void })
         <header className="ck-head">
           <div className="ck-title">
             <p className="ck-eyb">
-              {cook.dayName} · {cook.cuisine} · {cook.minutes} min
+              {cook.dayName} · {cook.cuisine}
+              <span className="ck-min"> · {cook.minutes} min</span>
             </p>
             <h2>{cook.name}</h2>
           </div>
@@ -196,9 +197,9 @@ export function CookMode({ cook, onClose }: { cook: Cook; onClose: () => void })
                 </li>
               ))}
               <li>
-                <span className="ck-k">Portion</span>
-                <b>{PORTION[cook.portion] ?? cook.portion}</b>
-                {cook.portions > 1 ? <small>× {cook.portions}{cook.why.length ? `: ${cook.why.join(", ")}` : ""}</small> : null}
+                <span className="ck-k">Cooking</span>
+                <b>{cook.portions === 1 ? "1 portion" : `${cook.portions} portions`}</b>
+                {cook.portion !== 1 || cook.why.length ? <small>{[cook.portion !== 1 ? `each ${PORTION[cook.portion] ?? cook.portion} size` : "", ...cook.why].filter(Boolean).join(" · ")}</small> : null}
               </li>
               <li>
                 <span className="ck-k">Heat</span>

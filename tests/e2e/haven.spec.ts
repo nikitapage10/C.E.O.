@@ -413,6 +413,116 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
   }
 });
 
+test("signed in, the Kitchen's cook mode: a night as customized, one step at a time, keys, swipe and the wake lock (#705)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: null });
+  // A stand-in for the browser's Wake Lock, so the run can see it taken, let go, and refused.
+  await page.addInitScript(() => {
+    const w = window as unknown as { wake: { asked: number; held: number; refuse: boolean } };
+    w.wake = { asked: 0, held: 0, refuse: false };
+    Object.defineProperty(navigator, "wakeLock", {
+      configurable: true,
+      value: {
+        request: async () => {
+          w.wake.asked++;
+          if (w.wake.refuse) throw new DOMException("No.", "NotAllowedError");
+          w.wake.held++;
+          const t = new EventTarget() as EventTarget & { released: boolean; release: () => Promise<void> };
+          t.released = false;
+          t.release = async () => {
+            if (t.released) return;
+            t.released = true;
+            w.wake.held--;
+            t.dispatchEvent(new Event("release"));
+          };
+          return t;
+        },
+      },
+    });
+  });
+  let file: MealsFile = fakeMeals();
+  await page.route(`${BASE}/api/haven-meals`, (r) => {
+    if (r.request().method() !== "POST") return r.fulfill({ json: { meals: file, components: allComponents(file) } });
+    const edit = readEdit((r.request().postDataJSON() as { edit?: unknown }).edit);
+    const got = edit ? applyEdit(file, edit, Date.now()) : null;
+    if (!got?.ok) return r.fulfill({ status: 409, json: { error: "bad-request" } });
+    file = got.file;
+    return r.fulfill({ json: { ok: true, changes: got.changes, meals: file } });
+  });
+  await page.route(/\/api\/haven-photos(\?.*)?$/, (r) => r.fulfill({ status: 404, json: { error: "not-found" } }));
+  const wake = () => page.evaluate(() => (window as unknown as { wake: { asked: number; held: number } }).wake);
+
+  await page.goto(`${BASE}/haven?open=kitchen`);
+  const sheet = page.getByRole("dialog", { name: "Kitchen" });
+  await sheet.getByRole("list", { name: "This week's dinners" }).getByRole("button", { name: /^Wednesday: sausage pasta/ }).click();
+  const drawer = sheet.getByRole("region", { name: "Wednesday's dinner" });
+  await drawer.getByRole("group", { name: "Carb for Wednesday" }).getByRole("button", { name: /^Protein pasta/ }).click();
+  await expect(drawer.getByText("Protein pasta for rigatoni")).toBeVisible();
+
+  await drawer.getByRole("button", { name: /^Cook mode/ }).click();
+  const cook = page.getByRole("dialog", { name: "Cook mode: sausage pasta" });
+  const text = cook.locator(".ck-text");
+  await expect(text).toHaveText("Bring a big pot of well-salted water to a boil.");
+  await expect(cook.getByText("of 5")).toBeVisible();
+  await expect(cook.getByText("Screen stays on")).toBeVisible();
+  expect(await wake()).toEqual({ asked: 1, held: 1, refuse: false });
+  await expect(cook.getByRole("button", { name: "Back" })).toBeDisabled();
+  // The parts and amounts as customized: protein pasta for rigatoni, cooked for two (Thursday's lunch).
+  const side = cook.getByRole("complementary", { name: "Tonight's parts and amounts" });
+  await expect(side.getByText("for rigatoni")).toBeVisible();
+  await expect(side.getByText("Amounts for 2")).toBeVisible();
+
+  await page.keyboard.press("ArrowRight");
+  await expect(text).toHaveText(/^Brown the Italian sausage/);
+  await cook.getByRole("button", { name: "Next step" }).click();
+  await expect(text).toHaveText("Cook the protein pasta two minutes short of the box, then save a cup of the water.");
+  await expect(text.locator("mark")).toHaveText("protein pasta");
+  if (SHOTS) await page.waitForTimeout(500).then(() => page.screenshot({ path: `${SHOTS}/haven-705-cook.png` }));
+  await cook.getByRole("button", { name: "Back" }).click();
+  await expect(text).toHaveText(/^Brown the Italian sausage/);
+  // A swipe left on the step is Next.
+  const stage = cook.locator(".ck-stage");
+  await stage.dispatchEvent("pointerdown", { pointerType: "touch", pointerId: 7, isPrimary: true, clientX: 700, clientY: 400 });
+  await stage.dispatchEvent("pointerup", { pointerType: "touch", pointerId: 7, isPrimary: true, clientX: 520, clientY: 410 });
+  await expect(text).toHaveText(/^Cook the protein pasta/);
+  await page.keyboard.press("End");
+  await expect(text).toHaveText(/^Off the heat/);
+  await expect(cook.getByRole("button", { name: "Done" })).toBeVisible();
+
+  // Escape leaves cook mode only: the Kitchen stays open, and the screen is let go.
+  await page.keyboard.press("Escape");
+  await expect(cook).toHaveCount(0);
+  await expect(sheet).toBeVisible();
+  expect((await wake()).held).toBe(0);
+
+  // Where the browser says no, cook mode works the same, just without the note.
+  await page.evaluate(() => ((window as unknown as { wake: { refuse: boolean } }).wake.refuse = true));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await drawer.getByRole("button", { name: /^Cook mode/ }).click();
+  await expect(text).toHaveText(/^Bring a big pot/);
+  await expect(cook.getByText("Screen stays on")).toHaveCount(0);
+  await cook.getByRole("button", { name: "Next step" }).click();
+  await cook.getByRole("button", { name: "Next step" }).click();
+  await expect(text).toHaveText(/^Cook the protein pasta/);
+  if (SHOTS) await page.waitForTimeout(500).then(() => page.screenshot({ path: `${SHOTS}/haven-705-cook-phone.png` }));
+  // On a phone the parts and amounts are a panel over the step.
+  await expect(side).toBeHidden();
+  await cook.getByRole("button", { name: "Ingredients" }).click();
+  await expect(side.locator(".ck-parts b", { hasText: "Protein pasta" })).toBeVisible();
+  if (SHOTS) await page.waitForTimeout(400).then(() => page.screenshot({ path: `${SHOTS}/haven-705-cook-phone-side.png` }));
+  await cook.getByRole("button", { name: "Back to the step" }).click();
+  await cook.getByRole("button", { name: "Close cook mode" }).click();
+  await expect(cook).toHaveCount(0);
+  if (SHOTS) {
+    await drawer.getByRole("button", { name: /^Cook mode/ }).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/haven-705-drawer-phone.png` });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await sheet.evaluate((el) => el.scrollTo(0, 300));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/haven-705-drawer.png` });
+  }
+});
+
 test("signed in, the Kitchen follows what Skippy changes: a swap said in his chat shows on the week at once (#698)", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   // The made-up planner file again; Skippy's turn changes it server side, as his meal tools do.

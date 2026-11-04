@@ -20,7 +20,7 @@ describe("cook mode (#705)", () => {
     expect(c.steps.every((s) => s.skip === null && s.runs.every((r) => !r.swap))).toBe(true);
     // Wednesday's dinner makes Thursday's lunch too.
     expect(c.portions).toBe(2);
-    expect(c.why).toEqual(["Thursday's lunch"]);
+    expect(c.why).toEqual(["makes Thursday's lunch"]);
     expect(c.parts).toEqual([
       { role: "protein", name: "Italian sausage", was: null },
       { role: "carb", name: "Rigatoni", was: null },

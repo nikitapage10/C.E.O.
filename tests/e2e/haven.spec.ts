@@ -252,6 +252,37 @@ test("signed in: the plinth's Climate dial opens the control and turns the set p
   expect(sent.length).toBe(1);
 });
 
+test("signed in: the wet tray says when it closes itself, and Close shuts it now (#713)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: FAKE_PLAN });
+  const now = Date.now();
+  // A made-up opening from the Desk: 01:15 UTC is 6:15pm in Denver (MST, as in November).
+  const closesAt = "2026-11-05T01:15:00.000Z";
+  const sent: Record<string, unknown>[] = [];
+  await page.route(/\/api\/haven\/devices(\?.*)?$/, (r) => {
+    const all = devices(now).map((d) => (d.kind === "wet-feeder" ? { ...d, state: "lid open", manualToday: 1, closesAt } : d));
+    if (new URL(r.request().url()).searchParams.get("view") === "status") return r.fulfill({ json: { vendors: VENDORS, devices: all.map((d) => ({ kind: d.kind, state: d.state, online: d.online })) } });
+    return r.fulfill({ json: { vendors: VENDORS, devices: all, feedCap: 2, roborockConnected: true } });
+  });
+  await page.route(/\/api\/haven\/devices\/action$/, (r) => {
+    sent.push(r.request().postDataJSON() as Record<string, unknown>);
+    return r.fulfill({ json: { ok: true, say: "The wet food feeder's lid is closing." } });
+  });
+  await page.goto(`${BASE}/haven`);
+  await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Pets" }).click();
+  const sheet = page.getByRole("dialog", { name: "Pets" });
+  await expect(sheet.getByTestId("wet-state")).toHaveText("Open, closes at 6:15pm");
+  await expect(sheet.getByRole("button", { name: "Two more hours" })).toBeEnabled();
+  const close = sheet.getByRole("button", { name: "Close", exact: true });
+  await close.scrollIntoViewIfNeeded();
+  await shoot(page, "wet-tray-713");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await close.scrollIntoViewIfNeeded();
+  await shoot(page, "wet-tray-713-phone");
+  await close.click();
+  await expect.poll(() => sent.length, { timeout: 5000 }).toBe(1);
+  expect(sent[0]).toMatchObject({ action: "wet.close", device: "a00000000005" });
+});
+
 test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and total, and sends exactly the shown picks", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });
   const posts: Record<string, unknown>[] = [];

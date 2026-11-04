@@ -239,12 +239,17 @@ app.timer("email_tick", {
 
 // Google Tasks quick-add (#637, docs/HOME-DEVICES.md): every five minutes, the chosen Tasks list's open items onto
 // the Kitchen list, then marked completed in Tasks. Does nothing until Connect Google Tasks; logs counts only.
+// The same beat closes the wet food tray two hours after an opening from here (#713): one private-store read when
+// nothing is due, and the close times are rounded to this beat so the time the Desk shows is the time it shuts.
 app.timer("haven_tasks", {
   schedule: "0 */5 * * * *",
   runOnStartup: false,
   useMonitor: false,
   handler: async (_timer, context) => {
     await keysFresh();
+    const closed = await homedevices.runWetClose().catch(() => "failed");
+    if (closed === "closed") context.log("haven wet tray: closed");
+    else if (closed === "failed" || closed === "retry") context.warn(`haven wet tray: ${closed}`);
     const result = await havengoogle.runTasksTick().catch(() => "failed" as const);
     if (result === "failed" || result === "refused") context.warn(`haven tasks: ${result}`);
   },

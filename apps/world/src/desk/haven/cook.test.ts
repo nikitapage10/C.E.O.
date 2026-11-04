@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fakeMeals } from "../../../../../api/_haven/meals.fixture.ts";
 import { applyEdit, type MealEdit, type MealsFile } from "./meals.ts";
-import { cookOf } from "./cook.ts";
+import { cookLunchOf, cookOf } from "./cook.ts";
 
 const edited = (f: MealsFile, ...edits: MealEdit[]) => edits.reduce((x, e) => {
   const got = applyEdit(x, e, 0);
@@ -54,5 +54,15 @@ describe("cook mode (#705)", () => {
   it("has nothing to cook on a HelloFresh night", () => {
     const f = edited(fakeMeals(), { op: "night", day: "wed", helloFresh: true });
     expect(cookOf(f, f.week!.slots[2]!)).toBeNull();
+  });
+
+  it("cooks a quick lunch for one, and has nothing to cook for leftovers (#719)", () => {
+    const f = fakeMeals();
+    const c = cookLunchOf(f, f.week!.slots[0]!)!;
+    expect(c).toMatchObject({ course: "lunch", name: "chicken salad", dayName: "Monday", portions: 1, why: [] });
+    expect(c.steps).toHaveLength(2);
+    expect(c.lines).toContainEqual({ item: "Chicken breast", amount: "¾ lb", pantry: false });
+    expect(cookLunchOf(f, f.week!.slots[1]!)).toBeNull();
+    expect(cookOf(f, f.week!.slots[0]!)!.course).toBe("dinner");
   });
 });

@@ -19,6 +19,10 @@
  *   PUT  /api/haven-meals { meals, replace? }   the feed key (SUBMIND_FEED_TOKEN, write-only) alone, no query: the
  *                                                       same load, so the Builder can seed the planner with no tap.
  *                                                       It answers counts only, never the plan.
+ *   PUT  /api/haven-meals { meals, merge: "lunches" }   the feed key: only the seed's lunches added to the planner
+ *                                                       that's there (`addLunches`: new quick lunches, the lunch days,
+ *                                                       a lunch plan for a week that has none), never a replace. Undo
+ *                                                       puts it back. Counts back.
  *
  * Every body is untrusted data: closed sets, clamped numbers, plain capped strings.
  *
@@ -31,7 +35,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { roomKeyOf } from "../_site/roomkeys.js";
 import { readJson, updateJson } from "./json.js";
 import { KitchenList } from "./list.js";
-import { allComponents, applyEdit, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
+import { addLunches, allComponents, applyEdit, mealCounts, photoJobs, readEdit, readMeals, shopLine, shoppingList, type EditResult, type MealCounts, type MealEdit, type MealsFile } from "./mealShape.js";
 
 export * from "./mealShape.js";
 
@@ -61,6 +65,16 @@ export class MealsStore {
   /** A whole file. Without `replace`, only when there is none yet. False when one was already there. */
   async seed(file: MealsFile, replace: boolean): Promise<boolean> {
     return updateJson<unknown, boolean>(this.blob, MEALS_PATH, null, (raw) => (readMeals(raw) && !replace ? { next: null, result: false } : { next: file, result: true }));
+  }
+
+  /** The seed's lunches added to the file that's there (#719). Null when nothing is loaded yet. */
+  async mergeLunches(seed: MealsFile, now: number): Promise<{ added: number; days: number } | null> {
+    return updateJson<unknown, { added: number; days: number } | null>(this.blob, MEALS_PATH, null, (raw) => {
+      const file = readMeals(raw);
+      if (!file) return { next: null, result: null };
+      const got = addLunches(file, seed, now);
+      return { next: got.added || got.days ? got.file : null, result: { added: got.added, days: got.days } };
+    });
   }
 
   /** Marks the week sent (no Undo: the list keeps its own). */
@@ -192,6 +206,13 @@ export async function mealsPut(request: Request, deps: MealsDeps): Promise<Respo
   try {
     const meals = readMeals(body.meals);
     if (!meals) return json({ error: "bad-meals" }, 400);
+    if (body.merge !== undefined) {
+      if (body.merge !== "lunches" || body.replace !== undefined) return json({ error: "bad-request" }, 400);
+      const got = await new MealsStore(deps.blob).mergeLunches(meals, Date.now());
+      if (!got) return json({ error: "not-seeded" }, 404);
+      deps.log(`haven: lunches were added to the meal planner with the feed key (${got.added} new, ${got.days} days)`);
+      return json({ ok: true, added: got.added, days: got.days });
+    }
     const ok = await new MealsStore(deps.blob).seed(meals, body.replace === true);
     if (!ok) return json({ error: "already" }, 409);
     deps.log(`haven: the meal planner was loaded with the feed key (${meals.catalog.length} meals)`);

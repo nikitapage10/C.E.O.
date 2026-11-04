@@ -20,7 +20,8 @@
  *                                                 `plate` it carries is ignored by the device). To reach a bowl it is
  *                                                 called (target - realInfo.platePosition) mod 3 times, 2 s apart, as
  *                                                 the integration's set_plate_position does.
- *   POST /device/wetFeedingPlan/stopFeedNow       closes the lid of a manual opening ({ deviceSn, feedId: manualFeedId })
+ *   POST /device/wetFeedingPlan/stopFeedNow       closes the lid of a manual opening ({ deviceSn, feedId: manualFeedId });
+ *                                                 the Home's auto-close calls it two hours after an opening (#713)
  *
  * The wet plan (wetListV3's `plan`: each meal's `plate` and `executionStartTime`) is read into the reading as `meals`,
  * so the rails can tell when a manual turn or opening may throw off the next scheduled meal (rails.ts, the wet tray).
@@ -243,6 +244,13 @@ export interface PetlibroDeps {
 
 /** The gap between two turns of the wet tray, so the device finishes the first. */
 export const ROTATE_GAP_MS = 2_000;
+
+/** A wet feeder opening's id as Petlibro gives it: a finite number or a short word; undefined otherwise. */
+export function feedIdOf(v: unknown): number | string | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && /^[\w-]{1,40}$/.test(v)) return v;
+  return undefined;
+}
 
 export interface PetlibroRef {
   serial: string;
@@ -467,8 +475,7 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
         if (at >= 1 && at <= 3) reading.plate = at;
         const meals = wetMeals(extra.wet, now);
         if (meals.length) reading.meals = meals;
-        const id = obj(extra.wet).manualFeedId;
-        if ((typeof id === "number" && Number.isFinite(id)) || (typeof id === "string" && /^[\w-]{1,40}$/.test(id))) feedId = id;
+        feedId = feedIdOf(obj(extra.wet).manualFeedId);
       }
       out.push({ reading, ref: { serial, plate, ...(feedId !== undefined && { feedId }) } });
     }
@@ -503,8 +510,10 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
         return { ok: true };
       }
       if (action === "wet.close" && found.reading.kind === "wet-feeder") {
-        if (found.ref.feedId === undefined) return { ok: true, say: "The wet food feeder's lid is already closed." };
-        await this.post("/device/wetFeedingPlan/stopFeedNow", { deviceSn: found.ref.serial, feedId: found.ref.feedId });
+        // The opening the feeder reports now; else the one kept from wet.open (#713).
+        const feedId = found.ref.feedId ?? feedIdOf(args.feedId);
+        if (feedId === undefined) return { ok: true, say: "The wet food feeder's lid is already closed." };
+        await this.post("/device/wetFeedingPlan/stopFeedNow", { deviceSn: found.ref.serial, feedId });
         return { ok: true };
       }
       if (action === "wet.rotate" && found.reading.kind === "wet-feeder") {
@@ -517,8 +526,12 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
         return { ok: true };
       }
       if (action === "wet.open" && found.reading.kind === "wet-feeder") {
-        await this.post("/device/wetFeedingPlan/manualFeedNow", { deviceSn: found.ref.serial, plate: found.ref.plate });
-        return { ok: true };
+        const answer = await this.post("/device/wetFeedingPlan/manualFeedNow", { deviceSn: found.ref.serial, plate: found.ref.plate });
+        // The opening's id, which stopFeedNow closes (#713): the plan's manualFeedId once it shows, else whatever id the
+        // open call answered with. Kept by the Home for the auto-close; neither is ever logged.
+        const plan = await this.post("/device/wetFeedingPlan/wetListV3", { id: found.ref.serial, deviceSn: found.ref.serial }).catch(() => null);
+        const feedId = feedIdOf(obj(plan).manualFeedId) ?? feedIdOf(answer) ?? feedIdOf(obj(answer).manualFeedId) ?? feedIdOf(obj(answer).feedId);
+        return { ok: true, ...(feedId !== undefined && { feedId }) };
       }
       return { ok: false, code: "unsupported" };
     } catch (e) {

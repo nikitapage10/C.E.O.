@@ -61,6 +61,8 @@ export interface DeviceReading {
   manualCap?: number;
   /** The wet feeder's bowl in front (1 to 3). */
   plate?: number;
+  /** The wet feeder (#713): when an opening from here closes itself (ISO), while it is open. */
+  closesAt?: string;
   water?: number | null;
   filter?: number | null;
   /** The Petlibro day (#685): the fountain's days to the filter change and the clean (below 0 overdue), mL drunk,
@@ -108,6 +110,13 @@ export interface PetMeal {
 }
 
 const HHMM = /^\d{2}:\d{2}$/;
+/** When the wet tray closes (#713), on Nikita's clock in Denver: "6:15pm". */
+export function closeClock(iso: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit", hour12: true }).formatToParts(new Date(iso));
+  const v = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${v("hour")}:${v("minute")}${v("dayPeriod").toLowerCase()}`;
+}
+
 /** Today's plan, checked: at most 12 meals, each with a time; anything else dropped. */
 export function mealsOf(v: unknown): PetMeal[] | undefined {
   if (!Array.isArray(v)) return undefined;
@@ -233,6 +242,7 @@ export function readDevice(v: unknown): DeviceReading | null {
     manualToday: num(d.manualToday) ?? undefined,
     manualCap: num(d.manualCap) ?? undefined,
     plate: num(d.plate) ?? undefined,
+    ...(d.kind === "wet-feeder" && typeof d.closesAt === "string" && Number.isFinite(Date.parse(d.closesAt)) && { closesAt: d.closesAt }),
     water: num(d.water),
     filter: num(d.filter),
     drawer: num(d.drawer),

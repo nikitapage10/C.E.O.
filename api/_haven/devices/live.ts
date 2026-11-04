@@ -77,6 +77,13 @@ export function devicesDeps(env: Env = process.env): DevicesDeps {
   };
 }
 
+/** The wet tray's auto-close (#713), from the haven_tasks timer: closes an opening from here once its two hours are up. */
+export async function runWetClose(env: Env = process.env): Promise<string> {
+  const home = homeFromEnv(env);
+  if (!home) return "idle";
+  return home.closeDue().catch(() => "failed");
+}
+
 /* ── The handlers Azure registers ── */
 
 export const devicesRoute = { GET: (request: Request) => devicesGet(request, devicesDeps()) };

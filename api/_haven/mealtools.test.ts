@@ -63,11 +63,11 @@ const slot = (f: MealsFile | null, day: number) => f!.week!.slots[day]!;
 describe("Skippy's meal tools reach the planner (#698)", () => {
   it("reads the week without the budget, and says so when nothing is loaded", async () => {
     const raw = JSON.parse(JSON.stringify(fakeMeals()));
-    raw.profile.budget = { min: 111, max: 222 };
+    raw.profile.budget = { min: 9871, max: 9872 };
     const f = readMeals(raw)!;
     const got = await callTool("meals_week", {}, mealsHost(f), desk);
     expect(got).toMatchObject({ ok: true, text: expect.stringContaining("Monday: beef bowl") });
-    expect(JSON.stringify(got)).not.toMatch(/111|222|budget/i);
+    expect(JSON.stringify(got)).not.toMatch(/9871|9872|budget/i);
     expect(await callTool("meals_week", {}, mealsHost(null), desk)).toMatchObject({ ok: true, text: "The meal planner isn't loaded yet." });
     expect(await callTool("meals_week", {}, { ...mealsHost(), meals: null }, desk)).toMatchObject({ ok: false });
   });
@@ -89,6 +89,20 @@ describe("Skippy's meal tools reach the planner (#698)", () => {
     expect(await callTool("meals_swap", { day: "wed" }, h, desk)).toMatchObject({ ok: false, text: "Name the meal, or say not for me." });
     // A passed-on meal can't go back on a night until it's brought back.
     expect(await callTool("meals_swap", { day: "wed", meal: "chicken plate" }, h, desk)).toMatchObject({ ok: false, text: expect.stringContaining("passed on") });
+  });
+
+  it("swaps a day's lunch by name, or back to leftovers (#719)", async () => {
+    const h = mealsHost();
+    const got = await callTool("meals_swap", { day: "wed", meal: "steak salad", lunch: true }, h, desk);
+    expect(got).toMatchObject({ ok: true, did: expect.stringContaining("Wednesday's lunch: steak salad instead of") });
+    expect(slot(h.file(), 2).lunch.meal).toBe("steak-salad");
+    expect(slot(h.file(), 2).meal).toBe("sausage-pasta");
+    expect(await callTool("meals_swap", { day: "wed", meal: "leftovers", lunch: true }, h, desk)).toMatchObject({ ok: true });
+    expect(slot(h.file(), 2).lunch.leftoverOf).toBe(1);
+    expect(await callTool("meals_swap", { day: "mon", meal: "leftovers", lunch: true }, h, desk)).toMatchObject({ ok: false, text: expect.stringContaining("Monday") });
+    // A dinner isn't a lunch, and a lunch isn't a dinner.
+    expect(await callTool("meals_swap", { day: "wed", meal: "beef bowl", lunch: true }, h, desk)).toMatchObject({ ok: false, text: expect.stringContaining("no lunch called") });
+    expect(await callTool("meals_swap", { day: "wed", meal: "steak salad" }, h, desk)).toMatchObject({ ok: false, text: expect.stringContaining("no meal called") });
   });
 
   it("customizes a part by name alone, with or without a role, and the portion and spice", async () => {

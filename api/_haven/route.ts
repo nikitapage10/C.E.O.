@@ -192,8 +192,9 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
       if (home) {
         const done = await home.act({ action: sorted.action, rooms: sorted.rooms, portions: sorted.portions, plate: sorted.plate, suction: sorted.suction, water: sorted.water, via: "phone", said: text });
         say = done.say;
-        // Only a plain success: a refusal, a warning or a "what's in the tray" question is spoken.
-        quiet = done.ok && !done.warned && sorted.action !== "wet.status";
+        // Only a plain success: a refusal, a warning, a "what's in the tray" question or an opening (when it closes,
+        // #713) is spoken.
+        quiet = done.ok && !done.warned && sorted.action !== "wet.status" && sorted.action !== "wet.open";
       } else say = "The home devices aren't set up here yet.";
     } else if (sorted.kind === "todo") {
       const todo = await deps.todos(deps.blob).addTodo(sorted.text, now);

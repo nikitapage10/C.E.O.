@@ -39,7 +39,7 @@ const fixture = fakeMeals;
 describe("readMeals", () => {
   it("reads a good file, with no budget unless the store has one", () => {
     const f = fixture();
-    expect(f.catalog).toHaveLength(10);
+    expect(f.catalog).toHaveLength(13);
     expect(f.week?.slots.map((s) => s.day)).toEqual([...DAYS]);
     expect(f.profile.budget).toBeNull();
     expect(f.profile.proteinGoal).toBe(200);
@@ -88,7 +88,7 @@ describe("the swap model", () => {
   it("counts the day's protein: dinner, lunch and the top-up, or HelloFresh's", () => {
     const f = fixture();
     const s = f.week!.slots[0]!;
-    expect(dayProtein(f, s)).toEqual({ dinner: 80, lunch: 50, topUp: 75, total: 205 });
+    expect(dayProtein(f, s)).toEqual({ dinner: 80, lunch: 82, topUp: 75, total: 237 });
     expect(dayProtein(f, { ...s, helloFresh: true }).dinner).toBe(45);
   });
 });
@@ -237,7 +237,7 @@ describe("/api/haven-meals", () => {
     for (const key of [undefined, LOG, "wrong-key-wrong-key-wrong-key-wrong-key"]) expect((await mealsPut(put({ meals: fixture() }, key), d)).status).toBe(401);
     const seeded = await mealsPut(put({ meals: fixture() }, FEED), d);
     const text = await seeded.text();
-    expect(JSON.parse(text)).toEqual({ ok: true, meals: 10, nights: 7 });
+    expect(JSON.parse(text)).toEqual({ ok: true, meals: 13, nights: 7 });
     expect(text).not.toContain("beef");
     expect((await mealsPut(put({ meals: fixture() }, FEED), d)).status).toBe(409);
     expect(d.blob.files.has(MEALS_PATH)).toBe(true);

@@ -20,7 +20,9 @@ Lattice map, Green and the Boiler Room build on this kit, so the Desk reads as o
 
 ## Using it
 
-Import from `desk/flow/index.ts` in a page that is itself lazy (it brings the fonts and `flow.css` with it).
+Import from `desk/flow/index.ts` in a page that is itself lazy (it brings the fonts and `flow.css` with it). The kit's
+core (the field, paths, rising words, tempo and `flow.css`) lives in the engine at `@ceo/engine/sigils/` since #617
+step 2; `index.ts`, `useFlow` and `useTempo` stay here until step 3.
 
 ```tsx
 import { fan, useFlow, RC, type FlowLayoutFn } from "../flow/index.ts";
@@ -84,7 +86,7 @@ hairline), `fl-cv`, `fl-below`, `fl-eyb`, `fl-h1` (with `em`), `fl-h2`, `fl-say`
 
 ## What the kit takes care of
 
-One canvas, drawn by the Desk's one shared loop (`wvCanvas.ts`, about 40 fps): paused when the tab is hidden, skipped
+One canvas, drawn by the Desk's one shared loop (`@ceo/engine/sigils/wvCanvas.ts`, about 40 fps): paused when the tab is hidden, skipped
 off screen, gone on unmount, devicePixelRatio capped at 2, one still frame under reduced motion (and no pulses,
 bursts or rising words). No layout reads and no React in a frame. The lines' beds (and the ground) are a cached layer,
 redrawn only on layout or focus. Counts: at most 240 particles a line and 2400 a field, fewer on a phone.

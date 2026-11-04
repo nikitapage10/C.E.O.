@@ -1,7 +1,7 @@
 import "@fontsource-variable/bodoni-moda/opsz.css";
 import "@fontsource-variable/bodoni-moda/opsz-italic.css";
 import "@fontsource-variable/jost/wght.css";
-import "./flow.css";
+import "@ceo/engine/sigils/flow.css";
 
 /**
  * The flow kit (#428): one particle-line language for every Desk page, taken from Today (Confluence). Import it from a

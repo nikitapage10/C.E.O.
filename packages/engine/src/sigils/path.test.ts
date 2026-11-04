@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Poly } from "../wvCanvas.ts";
+import { Poly } from "./wvCanvas.ts";
 import { capCounts, converge, fan, FIELD_MAX, flowCount, LINE_MAX, nearestLine, passes, polyOf, pulseU, samplePath, type Pt } from "./path.ts";
 
 const ends = (xs: number[], ys: number[]) => [xs[0], ys[0], xs.at(-1), ys.at(-1)];

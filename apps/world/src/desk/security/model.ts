@@ -131,6 +131,15 @@ export const BOUNDARIES: Boundary[] = [
     from: "vercel",
     to: "public",
   },
+  {
+    id: "TB11",
+    name: "Functions to the Haven's Google and Instacart connections",
+    crosses: "What the Desk or the phone asks of Nikita's Nest thermostat (a set point, a mode) and the thermostat's readings back; a Google Tasks list's open items in and a completed mark out; the Kitchen list's open item names out to Instacart and a shopping list link back",
+    controls:
+      "An Azure function calls Google's Smart Device Management and Tasks APIs and the Instacart Developer Platform over TLS (`api/_haven/google/`, `api/_haven/instacart.ts`, #637); the Google OAuth client, the Device Access project id and the Instacart key are Key Vault secrets set once from Cloud Shell, never settable from the site (`haven-` in `NEVER_SETTABLE`, `api/_keys/allowlist.ts`); Connect Nest and Connect Google Tasks run only in a passkey session that refuses any bearer or phone key, with a signed, ten-minute, `__Host-` state cookie naming the grant and the passkey, checked in constant time at the callback, and each grant is kept only when Google granted exactly its own scope (`sdm.service` or `tasks`); the two refresh tokens are sealed with AES-256-GCM under a key derived from `HOME_TOKEN_KEY` in the private store and never reach the browser; the thermostat is one more device behind TB10's routes and rails: set points only from 60 to 80 °F in whole degrees, the cool point at least 3 °F above the heat point, only the modes the thermostat offers, nothing while it is off or in eco (`thermostatPlan` in `api/_haven/devices/rails.ts`), checked on the server before Google is called, and every change, done or refused, logged to the Council; its reading carries an opaque id, never the SDM device name or its Home app name; the Tasks import treats each task title as data (one plain line, 60 characters, deduplicated against the open list) and logs counts only; Send to Instacart sends only the open items' names, only in a passkey session, and opens only a link on Instacart's own hosts; the public `GET /api/haven/google?view=status` and the devices' `links` give each connection's state only, never a temperature, a list title, an item or a link",
+    from: "vercel",
+    to: "public",
+  },
 ];
 
 /**

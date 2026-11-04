@@ -251,6 +251,15 @@ describe("phone to-dos land in Today's store (#627, #622)", () => {
     const state = keepState(JSON.parse(new TextDecoder().decode(blob.files.get(TODO_STORE_PATH))), NOW);
     expect(state.todos.map((t) => t.text).sort()).toEqual(["Buy stamps", "Renew the passport"]);
   });
+  it("takes back the latest phone to-do for \"not as a task\" (#641), only a recent one", async () => {
+    const blob = memoryBlob();
+    const todos = new PhoneTodos(blob);
+    await todos.addTodo("Garlic", NOW - 20 * 60_000);
+    await todos.addTodo("Oat milk", NOW - 60_000);
+    expect(await todos.takeBackLast(NOW)).toBe("Oat milk");
+    expect(await todos.takeBackLast(NOW)).toBeNull();
+    expect(await todos.openCount(NOW)).toBe(1);
+  });
 });
 
 describe("Skippy from the phone (#627): the Desk's own chat, marked phone", () => {

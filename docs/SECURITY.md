@@ -301,6 +301,24 @@ Litter-Robot 5 Pro (Whisker) straight from their clouds ([HOME-DEVICES.md](HOME-
 - **Logs.** Each action goes to the Council (the Kernel's room log); log lines hold the action and its result only,
   never a credential, token, code, email, serial or device name.
 
+## The Haven's connections
+
+Since #637 the Function App also reaches Nikita's Google Nest thermostat, a Google Tasks list and the Instacart
+Developer Platform ([HOME-DEVICES.md](HOME-DEVICES.md), "Nest, Google Tasks and Instacart"; TB11 in [THREAT-MODEL.md](THREAT-MODEL.md)). Azure
+only (`api/_haven/google/`, `api/_haven/instacart.ts`).
+
+- **Keys.** The Google OAuth client (`haven-google-client-id`, `haven-google-client-secret`), the Device Access
+  project id (`haven-nest-project-id`) and the Instacart key (`haven-instacart-key`) are Key Vault secrets set from
+  Cloud Shell, never settable from the Desk's Keys form (`haven-` is on `NEVER_SETTABLE`).
+- **Grants.** Connect Nest and Connect Google Tasks run only in a passkey session (a phone key or bearer is refused)
+  with Connect Gmail's state check; each grant is kept only for exactly its own scope (`sdm.service`, `tasks`), and
+  both refresh tokens are sealed with `HOME_TOKEN_KEY` in the private store. Disconnect revokes and forgets one.
+- **Rails.** The thermostat takes set points only from 60 to 80 °F, only its own modes, nothing while off or in eco,
+  checked on the server before Google is called; every change is logged to the Council.
+- **Privacy.** The public status gives each connection's state only. Task titles and Kitchen items are data, kept
+  only in the private store; Instacart gets only the open items' names, on Nikita's tap. Logs carry counts and
+  results only.
+
 ## Setup asks
 
 When a submind's thread needs something set up only Nikita can allow (#324; [SKIPPY.md](SKIPPY.md), "Setup asks"):

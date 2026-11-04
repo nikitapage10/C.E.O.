@@ -458,7 +458,8 @@ describe("the Petlibro feeders and fountain", () => {
     expect(await c.run("feeder.feed", found[0]!)).toEqual({ ok: true });
     expect(JSON.parse(String(f.calls.at(-1)!.init.body))).toMatchObject({ deviceSn: "AF0400TESTDRY01", grainNum: 1 });
     expect(await c.run("wet.open", found[1]!)).toEqual({ ok: true });
-    expect(JSON.parse(String(f.calls.at(-1)!.init.body))).toEqual({ deviceSn: "PLAF7TESTWET01", plate: 2 });
+    const opening = f.calls.filter((x) => /manualFeedNow$/.test(x.url)).at(-1)!;
+    expect(JSON.parse(String(opening.init.body))).toEqual({ deviceSn: "PLAF7TESTWET01", plate: 2 });
     expect(await c.run("feeder.feed", found[2]!)).toEqual({ ok: false, code: "unsupported" });
   });
 
@@ -628,7 +629,7 @@ describe("the safety rails", () => {
     expect(third.say).toContain("No more until tomorrow");
     expect(client.ran).toEqual(["feeder.feed", "feeder.feed"]);
     // The wet feeder has its own two.
-    expect((await home.act({ action: "wet.open", via: "desk" })).say).toBe("The wet food feeder's lid is open. That's 1 of 2 today.");
+    expect((await home.act({ action: "wet.open", via: "desk" })).say).toBe("The wet food feeder's lid is open. It closes at 1pm. That's 1 of 2 today.");
     // Every ask is in the Council, refused or not, the phone's in its own words.
     const turns = await council.list("kernel", NOW);
     expect(turns).toHaveLength(4);

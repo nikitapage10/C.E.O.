@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Private } from "../Private.tsx";
-import { useHome, type DeviceReading } from "../homeDevices.ts";
+import { closeClock, useHome, type DeviceReading } from "../homeDevices.ts";
 import { removeItem, undoRemoveItem, type KitchenItem } from "../haven.ts";
 import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 import { Groceries } from "./Groceries.tsx";
@@ -264,15 +264,28 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
               {wet && (
                 <div className="hv-feed">
                   <p className="hv-row">
-                    <b>Wet feeder</b> <span>{wet.online ? wet.state : "offline"}</span>
+                    <b>Wet feeder</b> <span data-testid="wet-state">{!wet.online ? "offline" : wet.closesAt ? `Open, closes at ${closeClock(wet.closesAt)}` : wet.state}</span>
                   </p>
                   <p className="hv-note">
                     Last opened {ago(wet.lastFed)} · {wet.manualToday ?? 0} of {wet.manualCap ?? 2} today
                   </p>
                   <WetDay d={wet} />
-                  <button type="button" className="hv-btn" disabled={!wet.online || busy !== null || (wet.manualToday ?? 0) >= (wet.manualCap ?? 2)} onClick={() => void act("wet.open", wet.id)}>
-                    Open the tray
-                  </button>
+                  {/* An opening from here closes itself after two hours (#713): Open again restarts them, Close shuts it now. */}
+                  <div className="hv-btns">
+                    <button
+                      type="button"
+                      className="hv-btn"
+                      disabled={!wet.online || busy !== null || (wet.closesAt ? false : wet.state === "lid open" || (wet.manualToday ?? 0) >= (wet.manualCap ?? 2))}
+                      onClick={() => void act("wet.open", wet.id)}
+                    >
+                      {wet.closesAt ? "Two more hours" : "Open for 2 hours"}
+                    </button>
+                    {wet.state === "lid open" && (
+                      <button type="button" className="hv-btn" disabled={!wet.online || busy !== null} onClick={() => void act("wet.close", wet.id)}>
+                        Close
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </>

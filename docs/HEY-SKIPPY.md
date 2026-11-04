@@ -13,7 +13,7 @@ Skippy on the iPhone's Action Button (#627): press it, say something, and Skippy
 
 ## First, a key for the phone
 
-On the Desk, signed in: **Boiler Room → Security → Phones → Add a phone**. Name it (say "iPhone 17") and press **Add a
+On the Desk, signed in: **Boiler Room → Controls → Phones → Add a phone**. Name it (say "iPhone 17") and press **Add a
 phone**. The key shows **once**. Press **Copy** and paste it straight into the shortcut (step 2 below). The Desk keeps
 only a hash of it, so it can't show it again. If you lose it, revoke that phone and add it again.
 

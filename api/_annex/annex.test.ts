@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { decide, type GateContext } from "../_site/gate.ts";
 import { siteKeys, stateOf } from "../_site/state.ts";
 import { MemoryAuthStore } from "../_desk/store.ts";
-import { electionBoard, forgetElections, freshness, FRESH_MS, fullUrl, normaliseRace, normaliseSearch, partyKey, raceUrl, readElections, searchUrl, STALE_MS, tallyOf, type Fetcher } from "./elections.ts";
+import { detailsSettled, electionBoard, forgetElections, freshness, FRESH_MS, fullUrl, normaliseRace, normaliseSearch, partyKey, raceUrl, readElections, searchUrl, STALE_MS, tallyOf, type Fetcher } from "./elections.ts";
 import { forgetAnnex, getAnnex, getElections, postAnnex, type AnnexDeps } from "./route.ts";
 import { MemoryAnnexStore, readState } from "./state.ts";
 
@@ -136,6 +136,10 @@ describe("the shared copy", () => {
 
   it("puts civicAPI's own update time on the Senate and governor races, and reports the lag", async () => {
     const c = civic();
+    const first = await electionBoard({ fetcher: c.fetcher, now: () => T0 });
+    // The numbers come first; the records follow without holding them up.
+    expect(first.races.find((r) => r.id === 87087)!.updated).toBeUndefined();
+    await detailsSettled();
     const board = await electionBoard({ fetcher: c.fetcher, now: () => T0 });
     const ga = board.races.find((r) => r.id === 87087)!;
     expect(ga.updated).toBe("2026-11-04T01:59:00.000Z");
@@ -160,7 +164,8 @@ describe("the shared copy", () => {
     const stale = await electionBoard(deps);
     expect(stale.source.state).toBe("stale");
     expect(stale.source.note).toMatch(/not answering/);
-    expect(stale.races).toEqual(good.races);
+    const numbers = (rs: typeof good.races) => rs.map((r) => [r.id, r.reporting, r.candidates.map((x) => [x.name, x.votes, x.winner])]);
+    expect(numbers(stale.races)).toEqual(numbers(good.races));
     expect(stale.at).toBe(good.at);
     expect(freshness(now).failed).toBe(1);
     // Long past its time, the old copy is no longer shown at all.
@@ -184,6 +189,22 @@ describe("the shared copy", () => {
     c.state.general = { error: "rate limited" };
     await readElections({ fetcher: c.fetcher, now: () => T0 });
     expect(freshness(T0).lastRead).toMatchObject({ ok: false, note: "bad-shape" });
+  });
+
+  it("reads the numbers again while a slow round of race records is still out", async () => {
+    const c = civic();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: Fetcher = async (url, init) => (/\/race\/\d+$/.test(url) ? (await gate, c.fetcher(url, init)) : c.fetcher(url, init));
+    let now = T0;
+    const deps = { fetcher: slow, now: () => now };
+    await electionBoard(deps);
+    now += FRESH_MS + 1;
+    const again = await electionBoard(deps);
+    expect(again.at).toBe(new Date(now).toISOString());
+    expect(c.calls.filter((u) => u.includes("/search"))).toHaveLength(2);
+    release();
+    await detailsSettled();
   });
 
   it("notes when a race's numbers last moved", async () => {

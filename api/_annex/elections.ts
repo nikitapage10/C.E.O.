@@ -246,6 +246,7 @@ interface Kept {
   detail: Map<number, { at: number; updated?: string; pollsClose?: string; incumbents: string[]; sinceUpdateS?: number }>;
   detailAt: number;
   inflight: Promise<void> | null;
+  detailInflight: Promise<void> | null;
   lastTry: number;
   reads: number;
   failed: number;
@@ -253,8 +254,11 @@ interface Kept {
   details: number;
 }
 
-const blank = (): Kept => ({ board: null, moved: new Map(), detail: new Map(), detailAt: 0, inflight: null, lastTry: 0, reads: 0, failed: 0, lastRead: null, details: 0 });
+const blank = (): Kept => ({ board: null, moved: new Map(), detail: new Map(), detailAt: 0, inflight: null, detailInflight: null, lastTry: 0, reads: 0, failed: 0, lastRead: null, details: 0 });
 let kept: Kept = blank();
+
+/** For tests: the round of race records in flight, if any, to wait on. */
+export const detailsSettled = (): Promise<void> => kept.detailInflight ?? Promise.resolve();
 
 /** For tests: forget everything this instance read. */
 export function forgetElections(): void {
@@ -365,11 +369,20 @@ export async function readElections(deps: ElectionDeps): Promise<void> {
     // The numbers go out at once; the races' own records (slower, one call each) fill in their update times after.
     kept.board = build();
     kept.lastRead = { at, ms: deps.now() - started, ok: true };
-    if (deps.now() - kept.detailAt >= DETAIL_MS) {
-      await readDetails(races, deps);
-      kept.board = build();
-    }
     await deps.save?.(kept.board).catch(() => {});
+    // The races' own records are read on their own, never holding up the next read of the numbers (on the night a
+    // round of them took minutes while the numbers wait for nothing); when they are in, the board in hand takes them.
+    if (!kept.detailInflight && deps.now() - kept.detailAt >= DETAIL_MS) {
+      kept.detailAt = deps.now();
+      kept.detailInflight = readDetails(races, deps)
+        .then(() => {
+          if (kept.board) kept.board = { ...kept.board, races: kept.board.races.map(withDetail) };
+        })
+        .catch(() => {})
+        .finally(() => {
+          kept.detailInflight = null;
+        });
+    }
   } catch (e) {
     kept.failed += 1;
     kept.lastRead = { at: new Date(deps.now()).toISOString(), ms: deps.now() - started, ok: false, note: e instanceof Error ? e.message.slice(0, 60) : "error" };

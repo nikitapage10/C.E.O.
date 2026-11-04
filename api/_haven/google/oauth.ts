@@ -119,11 +119,24 @@ export async function exchangeCode(fetchFn: Fetch, grant: Grant, client: HavenCl
 /** Access tokens kept in this instance, by grant (a refresh token's last few characters guard a reconnect). */
 const kept = new Map<string, { token: string; until: number }>();
 
+/** Refreshes under way, by the same slot: calls at once share one trade with Google instead of racing their own. */
+const inflight = new Map<string, Promise<string>>();
+
 /** A short-lived access token for a grant, cached until a minute before it ends. */
 export async function accessToken(fetchFn: Fetch, client: Pick<HavenClient, "clientId" | "clientSecret">, grant: Grant, refresh: string, now: number): Promise<string> {
   const slot = `${grant}:${refresh.slice(-12)}`;
   const hit = kept.get(slot);
   if (hit && hit.until > now) return hit.token;
+  const going = inflight.get(slot);
+  if (going) return going;
+  const trade = refreshToken(fetchFn, client, slot, refresh, now).finally(() => inflight.delete(slot));
+  inflight.set(slot, trade);
+  return trade;
+}
+
+/** One trade of the refresh token for an access token. Only Google's own invalid_grant (or a client it no longer
+ * knows) is a refusal; anything else (a 5xx, a timeout, a 429) is a hiccup and the grant stands. */
+async function refreshToken(fetchFn: Fetch, client: Pick<HavenClient, "clientId" | "clientSecret">, slot: string, refresh: string, now: number): Promise<string> {
   const { status, body } = await postForm(fetchFn, TOKEN_URL, { client_id: client.clientId, client_secret: client.clientSecret, refresh_token: refresh, grant_type: "refresh_token" });
   if ((status === 400 || status === 401) && (body.error === "invalid_grant" || body.error === "unauthorized_client")) {
     kept.delete(slot);
@@ -138,6 +151,7 @@ export async function accessToken(fetchFn: Fetch, client: Pick<HavenClient, "cli
 /** Forgets every cached access token (tests, and a disconnect). */
 export function forgetTokens(): void {
   kept.clear();
+  inflight.clear();
 }
 
 /** Asks Google to forget a grant (Disconnect). Best effort. */

@@ -89,19 +89,20 @@ function sdmDevice(over: { mode?: string; eco?: string; heat?: number; cool?: nu
   };
 }
 
-async function nestSetup(device = sdmDevice(), opts: { tokenStatus?: number; command?: (init: RequestInit) => Response | unknown; grant?: boolean } = {}) {
+async function nestSetup(device = sdmDevice(), opts: { tokenStatus?: number; command?: (init: RequestInit) => Response | unknown; grant?: boolean; list?: () => Response | unknown; now?: () => number } = {}) {
   forgetTokens();
   const blob = memoryBlob();
   const vault = new HomeVault(blob, SEAL);
   const f = fakeFetch([
     [/POST https:\/\/oauth2\.googleapis\.com\/token$/, () => (opts.tokenStatus ? jsonRes({ error: "invalid_grant" }, opts.tokenStatus) : { access_token: "test-access", expires_in: 3599 })],
-    [/GET https:\/\/smartdevicemanagement\.googleapis\.com\/v1\/enterprises\/[^/]+\/devices$/, () => ({ devices: [device, { name: `enterprises/${PROJECT}/devices/cam1`, type: "sdm.devices.types.CAMERA", traits: {} }] })],
+    [/GET https:\/\/smartdevicemanagement\.googleapis\.com\/v1\/enterprises\/[^/]+\/devices$/, () => opts.list?.() ?? { devices: [device, { name: `enterprises/${PROJECT}/devices/cam1`, type: "sdm.devices.types.CAMERA", traits: {} }] }],
     [/POST https:\/\/smartdevicemanagement\.googleapis\.com\/v1\/enterprises\/.+:executeCommand$/, (_u, init) => (opts.command ? opts.command(init) : {})],
   ]);
-  const nest = new NestClient({ fetch: f, vault, idKey: ID_KEY, client: CLIENT, project: PROJECT, now: () => NOW });
+  const now = opts.now ?? (() => NOW);
+  const nest = new NestClient({ fetch: f, vault, idKey: ID_KEY, client: CLIENT, project: PROJECT, now });
   const council = new MemoryRoomLog();
   const lines: string[] = [];
-  const home = new Home({ blob, clients: [nest], feedCap: 2, council, log: (l) => lines.push(l), now: () => NOW });
+  const home = new Home({ blob, clients: [nest], feedCap: 2, council, log: (l) => lines.push(l), now });
   if (opts.grant !== false) await vault.write("google-nest", { refresh: "test-refresh-nest", connectedAt: NOW });
   return { blob, vault, f, nest, council, home, lines };
 }
@@ -171,6 +172,57 @@ describe("the Nest thermostat (#637)", () => {
     expect((await gone.home.status(true)).vendors.nest).toBe("down");
     expect(await gone.vault.read("google-nest")).toMatchObject({ refused: true });
     expect((await gone.home.status(true)).vendors.nest).toBe("waiting");
+  });
+
+  it("stays up after a set point change while Google rate-limits the reads (Nikita, 2026-11-04)", async () => {
+    // Google's SDM API keeps a per-user quota of reads a minute and answers 429 RESOURCE_EXHAUSTED past it. A change
+    // costs a read for the rails and the command, and the Desk reads again straight after: that read must not knock
+    // the thermostat down.
+    let clock = NOW;
+    let limited = false;
+    const lists = () => n.f.calls.filter((c) => /\/devices$/.test(c.url)).length;
+    const n = await nestSetup(sdmDevice(), { now: () => clock, list: () => (limited ? jsonRes({ error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "Rate limited." } }, 429) : undefined) });
+    expect((await n.home.status(true)).vendors.nest).toBe("live");
+    clock += 5_000;
+    expect(await n.home.act({ action: "thermostat.set", tempF: 70, via: "desk" })).toMatchObject({ ok: true });
+    limited = true;
+    const before = lists();
+    // Straight after: the new set point, without asking Google again.
+    clock += 1_000;
+    const after = await n.home.status();
+    expect(after.vendors.nest).toBe("live");
+    expect(after.devices[0]).toMatchObject({ kind: "thermostat", heatF: 70, online: true });
+    expect(lists()).toBe(before);
+    // A minute on, Google still says slow down: the last good reading stays, marked stale, not down.
+    clock += 60_000;
+    const later = await n.home.status(true);
+    expect(later.vendors.nest).toBe("live");
+    expect(later.problems.nest).toBeUndefined();
+    expect(later.devices[0]).toMatchObject({ kind: "thermostat", heatF: 70, stale: true });
+    expect(Home.publicOf(later).devices).toEqual([{ kind: "thermostat", state: "heating", online: true }]);
+    expect(await n.vault.read("google-nest")).not.toMatchObject({ refused: true });
+    // Long past any rate limit, it reads down.
+    clock += 60 * 60_000;
+    expect((await n.home.status(true)).vendors.nest).toBe("down");
+    // Two changes in a row: the second uses the reading the first left, so it costs Google one command and no read.
+    limited = false;
+    clock += 1_000;
+    expect((await n.home.status(true)).vendors.nest).toBe("live");
+    const cmds = commands(n.f).length;
+    const reads = lists();
+    expect(await n.home.act({ action: "thermostat.set", tempF: 71, via: "desk" })).toMatchObject({ ok: true });
+    expect(await n.home.act({ action: "thermostat.set", tempF: 72, via: "desk" })).toMatchObject({ ok: true });
+    expect(commands(n.f).length).toBe(cmds + 2);
+    expect(lists()).toBe(reads + 1);
+  });
+
+  it("shares one token refresh between calls at once, and never marks the grant refused for a hiccup", async () => {
+    const n = await nestSetup();
+    await Promise.all([n.nest.status(), n.nest.status(), n.nest.status()]);
+    expect(n.f.calls.filter((c) => c.url.endsWith("/token")).length).toBe(1);
+    const flaky = await nestSetup(sdmDevice(), { tokenStatus: 503 });
+    expect((await flaky.home.status(true)).vendors.nest).toBe("down");
+    expect(await flaky.vault.read("google-nest")).not.toMatchObject({ refused: true });
   });
 
   it("waits until the client, the project and the grant are all there, and keeps the grant sealed", async () => {

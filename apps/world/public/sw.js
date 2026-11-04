@@ -63,8 +63,8 @@ self.addEventListener("push", (event) => {
       // One ping on the screen at a time: a new one replaces the last instead of stacking up.
       tag: "ceo-desk",
       renotify: true,
-      icon: "/desk/icon-192.png",
-      badge: "/desk/badge-96.png",
+      icon: "/desk/icon-192.png?v=648",
+      badge: "/desk/badge-96.png?v=648",
       data: { url: ping.url },
     }),
   );

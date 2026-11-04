@@ -16,6 +16,9 @@ const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebK
 const ANDROID = "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36";
 const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
 
+/** Every icon URL carries the logo's version: bump it with the logo (scripts/desk-icons.mjs). */
+const ICON_VERSION = /^\/desk\/[\w.-]+\.(png|svg)\?v=\d+$/;
+
 describe("the Desk as a home-screen app", () => {
   const manifest = JSON.parse(readFileSync(resolve(PUBLIC, "manifest.webmanifest"), "utf8")) as {
     start_url: string;
@@ -37,7 +40,9 @@ describe("the Desk as a home-screen app", () => {
 
   it("has the icons it names, at the sizes it says, with a maskable one", async () => {
     for (const icon of manifest.icons) {
-      const file = resolve(PUBLIC, `.${icon.src}`);
+      // Versioned (#668), so an installed app fetches the icon again when the logo changes.
+      expect(icon.src, icon.src).toMatch(ICON_VERSION);
+      const file = resolve(PUBLIC, `.${icon.src.split("?")[0]}`);
       expect(existsSync(file), icon.src).toBe(true);
       const meta = await sharp(file).metadata();
       expect(`${meta.width}x${meta.height}`, icon.src).toBe(icon.sizes);
@@ -50,7 +55,8 @@ describe("the Desk as a home-screen app", () => {
   it("the page links the manifest and the iPhone icon", async () => {
     const html = readFileSync(resolve(PUBLIC, "../index.html"), "utf8");
     expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
-    expect(html).toContain('<link rel="apple-touch-icon" href="/desk/apple-touch-icon.png" />');
+    expect(html).toMatch(/<link rel="apple-touch-icon" href="\/desk\/apple-touch-icon\.png\?v=\d+" \/>/);
+    for (const m of html.matchAll(/<link rel="(?:apple-touch-icon|icon)" href="([^"]+)"/g)) expect(m[1], m[1]).toMatch(ICON_VERSION);
     expect((await sharp(resolve(PUBLIC, "desk/apple-touch-icon.png")).metadata()).width).toBe(180);
     expect(existsSync(resolve(PUBLIC, "desk/badge-96.png"))).toBe(true);
   });

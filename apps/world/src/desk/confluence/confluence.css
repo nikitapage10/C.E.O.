@@ -200,6 +200,12 @@
 .desk .kl-list label{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--wv-ink);cursor:pointer}
 .desk .kl-list input{width:18px;height:18px;accent-color:var(--wv-hot)}
 .desk .kl-list .is-done label{color:var(--wv-faint);text-decoration:line-through}
+.desk .kl-list li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.desk .kl-list li label{flex:1;min-width:0;min-height:36px}
+.desk .kl-x{font:inherit;font-size:20px;line-height:1;width:36px;height:36px;flex:none;border-radius:999px;border:0;background:transparent;color:var(--wv-faint);cursor:pointer}
+.desk .kl-x:hover,.desk .kl-x:focus-visible{color:var(--wv-ink);background:var(--wv-line2)}
+.desk .kl-undo{display:flex;align-items:center;gap:10px;margin:10px 0 0;font-size:13px;color:var(--wv-mute)}
+.desk .kl-undo button{font:inherit;font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft);cursor:pointer}
 .desk .kl-empty{margin:0;font-size:14px;color:var(--wv-mute)}
 .desk .kl-cart{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 0;font-size:13px;color:var(--wv-mute)}
 .desk .kl-cart button{font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft);cursor:pointer}

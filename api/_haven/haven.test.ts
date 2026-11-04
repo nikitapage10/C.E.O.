@@ -9,7 +9,7 @@ import { MemoryStoryStore, addStorySpend } from "../_world/story.ts";
 import { phoneAnswer, type Ask, type ChatDeps } from "../skippy.ts";
 import { decide, type GateContext } from "../_site/gate.ts";
 import { audioIdOf, signAudio, speakForPhone } from "./audio.ts";
-import { classify, sayAdded, sayTodo, spokenOf } from "./classify.ts";
+import { classify, sayAdded, sayRemoved, sayTodo, spokenOf } from "./classify.ts";
 import { KitchenList, addTo, sameKey } from "./list.ts";
 import { KEY_SHAPE, PHONE_RATE, PhoneKeys, keyHash } from "./phones.ts";
 import { PhoneTodos } from "./todos.ts";
@@ -468,5 +468,88 @@ describe("a short memory per phone (#627)", () => {
     await new PhoneKeys(blob, PEPPER).revoke(phone.id, NOW);
     await new PhoneConvo(blob).forget(phone.id);
     expect(blob.files.has(convoPath(phone.id))).toBe(false);
+  });
+});
+
+describe("removing from the Kitchen list (#657)", () => {
+  it("hears 'remove garlic', 'take milk off the list', 'cross off eggs' as removals", () => {
+    expect(classify("remove garlic")).toEqual({ kind: "remove", items: ["garlic"] });
+    expect(classify("Remove garlic from the list.")).toEqual({ kind: "remove", items: ["garlic"] });
+    expect(classify("take milk off the list")).toEqual({ kind: "remove", items: ["milk"] });
+    expect(classify("take milk and bread off my shopping list")).toEqual({ kind: "remove", items: ["milk", "bread"] });
+    expect(classify("cross off eggs")).toEqual({ kind: "remove", items: ["eggs"] });
+    expect(classify("cross eggs off the grocery list")).toEqual({ kind: "remove", items: ["eggs"] });
+    expect(classify("delete oat milk from my list")).toEqual({ kind: "remove", items: ["oat milk"] });
+    expect(classify("please get rid of lemons")).toEqual({ kind: "remove", items: ["lemons"] });
+  });
+
+  it("leaves adds, to-dos and questions alone", () => {
+    expect(classify("add garlic to the list").kind).toBe("shopping");
+    expect(classify("remind me to remove the paint tomorrow").kind).toBe("todo");
+    expect(classify("how do I remove a wine stain").kind).toBe("skippy");
+  });
+
+  it("removes an item, hides it at once, and Undo brings it back for ten minutes", async () => {
+    const list = new KitchenList(memoryBlob());
+    await list.add(["garlic", "lemons"], NOW);
+    const [g] = await list.items(NOW);
+    expect(await list.remove(g!.id, NOW)).toBe(true);
+    expect((await list.items(NOW)).map((i) => i.name)).toEqual(["lemons"]);
+    expect(await list.counts(NOW)).toEqual({ open: 1, done: 0 });
+    // A removed name can be added again at once.
+    expect(await list.add(["garlic"], NOW)).toEqual({ added: ["garlic"], already: [] });
+    expect(await list.remove("nope", NOW)).toBe(false);
+    const other = new KitchenList(memoryBlob());
+    await other.add(["milk"], NOW);
+    const [m] = await other.items(NOW);
+    await other.remove(m!.id, NOW);
+    expect(await other.restore(m!.id, NOW + 60_000)).toBe(true);
+    expect((await other.items(NOW + 60_000)).map((i) => i.name)).toEqual(["milk"]);
+    await other.remove(m!.id, NOW);
+    expect(await other.restore(m!.id, NOW + 11 * 60_000)).toBe(false);
+    expect(await other.items(NOW + 11 * 60_000)).toEqual([]);
+  });
+
+  it("matches by name: exact, then the one item with those words, else missing or ambiguous", async () => {
+    const list = new KitchenList(memoryBlob());
+    await list.add(["milk", "oat milk", "garlic", "red onions", "red peppers"], NOW);
+    expect(await list.removeByName(["Milk"], NOW)).toEqual({ removed: ["milk"], missing: [], ambiguous: [] });
+    expect(await list.removeByName(["onion", "bread"], NOW)).toEqual({ removed: ["red onions"], missing: ["bread"], ambiguous: [] });
+    await list.add(["red onions"], NOW);
+    expect(await list.removeByName(["red"], NOW)).toEqual({ removed: [], missing: [], ambiguous: [{ said: "red", could: ["red peppers", "red onions"] }] });
+    expect((await list.items(NOW)).map((i) => i.name)).toEqual(["oat milk", "garlic", "red peppers", "red onions"]);
+  });
+
+  it("says what happened, and answers quiet only when everything went", async () => {
+    expect(sayRemoved({ removed: ["milk"], missing: [], ambiguous: [] })).toBe("Took milk off the list.");
+    expect(sayRemoved({ removed: [], missing: ["bread"], ambiguous: [] })).toBe("I couldn't find bread on the list.");
+    expect(sayRemoved({ removed: [], missing: [], ambiguous: [{ said: "milk", could: ["oat milk", "whole milk"] }] })).toBe("Which milk: oat milk and whole milk?");
+    const { blob, key } = await withPhone();
+    const deps = havenDeps(blob);
+    await capture(post(key, { text: "whole milk, eggs and oat milk" }), deps);
+    const quietly = await (await capture(post(key, { text: "cross off eggs" }), deps)).json();
+    expect(quietly).toEqual({ say: "Took eggs off the list.", quiet: true });
+    const gone = await (await capture(post(key, { text: "remove bread" }), deps)).json();
+    expect(gone).toEqual({ say: "I couldn't find bread on the list.", quiet: false });
+    const which = await (await capture(post(key, { text: "take milk off the list" }), deps)).json() as { quiet: boolean };
+    expect(which.quiet).toBe(false);
+    expect((await new KitchenList(blob).items(NOW)).map((i) => i.name)).toEqual(["whole milk", "oat milk"]);
+  });
+
+  it("removes and undoes over the Desk route, passkey session only", async () => {
+    const blob = memoryBlob();
+    const store = new MemoryAuthStore();
+    const deps = havenDeps(blob, {}, store);
+    const cookie = await signedInCookie(DESK, NOW, store);
+    const send = (body: unknown, c = cookie) => havenPost(new Request(`${ORIGIN}/api/haven`, { method: "POST", headers: { "Content-Type": "application/json", ...(c && { Cookie: c }) }, body: JSON.stringify(body) }), deps);
+    await new KitchenList(blob).add(["garlic"], NOW);
+    const [g] = await new KitchenList(blob).items(NOW);
+    expect((await send({ action: "remove", id: g!.id }, "")).status).toBe(401);
+    expect((await send({ action: "remove", id: g!.id })).status).toBe(200);
+    expect(await new KitchenList(blob).counts(NOW)).toEqual({ open: 0, done: 0 });
+    expect((await send({ action: "remove", id: g!.id })).status).toBe(404);
+    expect((await send({ action: "undo-remove", id: g!.id })).status).toBe(200);
+    expect(await new KitchenList(blob).counts(NOW)).toEqual({ open: 1, done: 0 });
+    expect((await send({ action: "undo-remove", id: "nope" })).status).toBe(404);
   });
 });

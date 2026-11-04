@@ -1,0 +1,1072 @@
+/*
+ * The Kitchen's meal planner (#678, MealPlanner.tsx): the week as a strip of photo cards with protein rings, the open
+ * night in a drawer below, the list and King Soopers as a rail beside it. The Haven's lamplight gold and night glass;
+ * motion that says what changed (cards rise in, the drawer slides open, the ring fills), all of it off for reduced
+ * motion. Every rule is scoped to the room.
+ */
+[data-room="haven"] .mp {
+  --mp-gold: rgb(var(--hv-gold));
+  --mp-ok: var(--hv-ok);
+  --mp-low: var(--hv-warn);
+}
+
+/* ── the head: the week, its numbers, the actions ── */
+[data-room="haven"] .mp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin-bottom: 16px;
+}
+[data-room="haven"] .mp-eyb {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-eyb .is-draft {
+  color: var(--mp-gold);
+}
+[data-room="haven"] .mp-eyb .is-ok {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .mp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .mp-stats b {
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--hv-ink);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+[data-room="haven"] .mp-stats b.is-ok {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .mp-stats b.is-low {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .mp-stats small {
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+[data-room="haven"] .mp-ghost {
+  padding: 8px 14px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: rgba(14, 13, 18, 0.6);
+  color: var(--hv-soft);
+  font: 500 13px var(--hv-text);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+[data-room="haven"] .mp-ghost:hover:not(:disabled) {
+  border-color: rgba(var(--hv-gold), 0.6);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-confirm {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 10px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #f3dcae;
+  color: #1a140c;
+  font: 600 14px var(--hv-text);
+  cursor: pointer;
+  box-shadow: 0 0 0 0 rgba(var(--hv-gold), 0.5);
+  animation: mp-call 2.8s ease-in-out infinite;
+}
+[data-room="haven"] .mp-confirm.is-done {
+  background: rgba(134, 212, 180, 0.14);
+  color: var(--hv-ok);
+  animation: none;
+  cursor: default;
+}
+[data-room="haven"] .mp-confirm:disabled:not(.is-done) {
+  opacity: 0.6;
+}
+@keyframes mp-call {
+  50% {
+    box-shadow: 0 0 0 8px rgba(var(--hv-gold), 0);
+  }
+}
+/* The sigil: three motes turning around the button's mark. */
+[data-room="haven"] .mp-sigil {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  animation: mp-turn 6s linear infinite;
+}
+[data-room="haven"] .mp-sigil i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px;
+  border-radius: 50%;
+  background: currentColor;
+  transform: rotate(calc(var(--n, 0) * 120deg)) translateY(-8px);
+}
+[data-room="haven"] .mp-sigil i:nth-child(2) {
+  --n: 1;
+}
+[data-room="haven"] .mp-sigil i:nth-child(3) {
+  --n: 2;
+}
+@keyframes mp-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── the week strip ── */
+[data-room="haven"] .mp-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .mp-day {
+  animation: mp-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes mp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+[data-room="haven"] .mp-day > button {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--hv-line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--hv-glass);
+  color: var(--hv-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+[data-room="haven"] .mp-day > button:hover {
+  transform: translateY(-3px);
+}
+[data-room="haven"] .mp-day.is-open > button {
+  border-color: rgba(var(--hv-gold), 0.75);
+  box-shadow: 0 10px 30px -12px rgba(var(--hv-gold), 0.45);
+  transform: translateY(-3px);
+}
+[data-room="haven"] .mp-day > button:focus-visible {
+  outline: 2px solid rgb(var(--hv-gold));
+  outline-offset: 2px;
+}
+[data-room="haven"] .mp-day .mp-photo {
+  aspect-ratio: 4 / 5;
+}
+[data-room="haven"] .mp-day.is-hf .mp-photo {
+  filter: saturate(0.4) brightness(0.7);
+}
+[data-room="haven"] .mp-dayTags {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+[data-room="haven"] .mp-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(10, 9, 12, 0.72);
+  color: var(--hv-soft);
+  font-size: 11px;
+  font-weight: 500;
+}
+[data-room="haven"] .mp-tag.is-hf {
+  color: #b9e58f;
+}
+[data-room="haven"] .mp-tag.is-cu {
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-dayFoot {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 28px 8px 8px 10px;
+  background: linear-gradient(180deg, transparent, rgba(8, 8, 11, 0.92) 55%);
+}
+[data-room="haven"] .mp-dayTxt {
+  flex: 1;
+  min-width: 0;
+}
+[data-room="haven"] .mp-dayTxt small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-dayTxt b {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+/* ── the protein ring ── */
+[data-room="haven"] .mp-ring {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+}
+[data-room="haven"] .mp-ring svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+[data-room="haven"] .mp-ringBg {
+  fill: rgba(8, 8, 11, 0.55);
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 4;
+}
+[data-room="haven"] .mp-ringFg {
+  fill: none;
+  stroke: var(--hv-warn);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), stroke 0.3s ease;
+}
+[data-room="haven"] .mp-ring.is-met .mp-ringFg {
+  stroke: var(--hv-ok);
+}
+[data-room="haven"] .mp-ring b {
+  position: relative;
+  font: 600 12px "Geist Mono Variable", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── photos and their placeholder ── */
+[data-room="haven"] .mp-photo {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: hsl(var(--mp-hue, 30) 25% 14%);
+}
+[data-room="haven"] .mp-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+[data-room="haven"] .mp-ph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(60% 50% at 30% 25%, hsl(var(--mp-hue, 30) 55% 42% / 0.55), transparent 70%),
+    radial-gradient(70% 60% at 75% 80%, hsl(calc(var(--mp-hue, 30) + 40) 45% 30% / 0.6), transparent 70%),
+    hsl(var(--mp-hue, 30) 25% 12%);
+}
+[data-room="haven"] .mp-ph i {
+  position: absolute;
+  width: 46%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 248, 236, 0.18);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 6px rgba(255, 248, 236, 0.04);
+}
+[data-room="haven"] .mp-ph em {
+  position: relative;
+  max-width: 80%;
+  font-family: var(--hv-disp);
+  font-size: 15px;
+  text-align: center;
+  color: rgba(255, 248, 236, 0.55);
+}
+[data-room="haven"] .mp-pend {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(10, 9, 12, 0.72);
+  color: rgb(var(--hv-gold));
+  font-size: 11px;
+}
+[data-room="haven"] .mp-day .mp-pend {
+  top: 36px;
+  bottom: auto;
+}
+[data-room="haven"] .mp-photo.is-big {
+  width: 220px;
+  aspect-ratio: 4 / 5;
+  flex: none;
+  border-radius: 14px;
+}
+[data-room="haven"] .mp-photo.is-mini {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 10px;
+}
+[data-room="haven"] .mp-photo.is-mini em,
+[data-room="haven"] .mp-photo.is-thumb em {
+  display: none;
+}
+[data-room="haven"] .mp-photo.is-thumb {
+  width: 52px;
+  height: 36px;
+  border-radius: 6px;
+}
+
+/* ── the layout: the open night beside the rail ── */
+[data-room="haven"] .mp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 14px;
+  align-items: start;
+  margin-top: 14px;
+}
+[data-room="haven"] .mp-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+[data-room="haven"] .mp-rail {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  position: sticky;
+  top: 12px;
+}
+[data-room="haven"] .mp-railOnly {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 14px;
+  align-items: start;
+}
+
+/* ── the drawer: the open night ── */
+[data-room="haven"] .mp-drawer {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--hv-line);
+  border-radius: 20px;
+  background: var(--hv-glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  animation: mp-open 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes mp-open {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    clip-path: inset(0 0 60% 0 round 20px);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 20px);
+  }
+}
+[data-room="haven"] .mp-dHead {
+  display: flex;
+  gap: 18px;
+}
+[data-room="haven"] .mp-dTxt {
+  flex: 1;
+  min-width: 0;
+}
+[data-room="haven"] .mp-dTxt h3 {
+  margin: 4px 0 6px;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 34px;
+  line-height: 1.05;
+}
+[data-room="haven"] .mp-blurb {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .mp-changes {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-macros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-macros b {
+  font: 600 16px "Geist Mono Variable", ui-monospace, monospace;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-macros .is-p b {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .mp-dayLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hv-line);
+  font-size: 13px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-dayLine b {
+  flex: none;
+  font: 600 14px "Geist Mono Variable", ui-monospace, monospace;
+}
+[data-room="haven"] .mp-dayLine .is-ok {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .mp-dayLine .is-low {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .mp-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+[data-room="haven"] .mp-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 13px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .mp-toggle i {
+  position: relative;
+  width: 26px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.2s ease;
+}
+[data-room="haven"] .mp-toggle i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--hv-soft);
+  transition: transform 0.2s ease;
+}
+[data-room="haven"] .mp-toggle[aria-checked="true"] {
+  color: var(--hv-ink);
+  border-color: rgba(var(--hv-gold), 0.55);
+}
+[data-room="haven"] .mp-toggle[aria-checked="true"] i {
+  background: rgba(var(--hv-gold), 0.8);
+}
+[data-room="haven"] .mp-toggle[aria-checked="true"] i::after {
+  transform: translateX(10px);
+  background: #1a140c;
+}
+[data-room="haven"] .mp-toggle:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── customize: a row of chips per part ── */
+[data-room="haven"] .mp-custom {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .mp-part {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+[data-room="haven"] .mp-part.is-row {
+  grid-template-columns: 74px auto 50px minmax(0, 1fr) auto;
+  align-items: center;
+}
+[data-room="haven"] .mp-k {
+  display: block;
+  padding-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-part.is-row .mp-k {
+  padding-top: 0;
+}
+[data-room="haven"] .mp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+[data-room="haven"] .mp-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 13px var(--hv-text);
+  text-transform: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+[data-room="haven"] .mp-chip:hover {
+  border-color: rgba(var(--hv-gold), 0.5);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-chip[aria-pressed="true"] {
+  border-color: rgba(var(--hv-gold), 0.75);
+  background: rgba(var(--hv-gold), 0.18);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-chip small {
+  font: 500 11px "Geist Mono Variable", ui-monospace, monospace;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-chip small.is-up {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .mp-chip small.is-down {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .mp-link {
+  justify-self: start;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: rgb(var(--hv-gold));
+  font: 500 13px var(--hv-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+[data-room="haven"] .mp-link.is-quiet {
+  color: var(--hv-mute);
+}
+
+/* ── backups, Not for me, new picks ── */
+[data-room="haven"] .mp-swap {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 8px;
+  margin: 16px 0 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .mp-backs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+[data-room="haven"] .mp-back {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 14px 5px 5px;
+  border: 1px solid var(--hv-line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--hv-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+[data-room="haven"] .mp-back:hover {
+  border-color: rgba(var(--hv-gold), 0.6);
+  transform: translateY(-1px);
+}
+[data-room="haven"] .mp-back b {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+}
+[data-room="haven"] .mp-back small {
+  display: block;
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-nope {
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--hv-mute);
+  font: 500 13px var(--hv-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+[data-room="haven"] .mp-nope:hover {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .mp-new {
+  padding: 14px 18px;
+  border: 1px dashed rgba(var(--hv-gold), 0.35);
+  border-radius: 18px;
+}
+[data-room="haven"] .mp-new .mp-k {
+  padding: 0 0 8px;
+}
+[data-room="haven"] .mp-recipe {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--hv-soft);
+  animation: mp-rise 0.3s ease both;
+}
+[data-room="haven"] .mp-recipe ol {
+  margin: 0;
+  padding-left: 20px;
+}
+[data-room="haven"] .mp-recipe ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .mp-recipe ul li {
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+[data-room="haven"] .mp-recipe .is-pantry {
+  color: var(--hv-mute);
+}
+
+/* ── notes ── */
+[data-room="haven"] .mp-note {
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-note.is-warn {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .mp-said {
+  margin: 12px 0 0;
+  padding: 8px 14px;
+  border-left: 2px solid rgba(var(--hv-gold), 0.7);
+  font-size: 14px;
+  color: var(--hv-soft);
+  animation: mp-rise 0.3s ease both;
+}
+
+/* ── the rail: the week's shopping, the list, King Soopers ── */
+[data-room="haven"] .mp-rail .hv-card {
+  padding: 14px 16px 16px;
+}
+[data-room="haven"] .mp-rail .hv-card h3 {
+  font-size: 24px;
+}
+[data-room="haven"] .mp-shop {
+  padding: 12px 16px;
+  border: 1px solid var(--hv-line);
+  border-radius: 20px;
+  background: var(--hv-glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+[data-room="haven"] .mp-shopHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hv-ink);
+  font: 500 24px var(--hv-disp);
+  text-align: left;
+  cursor: pointer;
+}
+[data-room="haven"] .mp-shopHead b {
+  font: 600 14px "Geist Mono Variable", ui-monospace, monospace;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-shopHead i {
+  margin-left: auto;
+  font-style: normal;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-shop ul {
+  max-height: 280px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 13px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .mp-shop li {
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ── the drawers over it: catalog, taste ── */
+[data-room="haven"] .mp-over {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+}
+[data-room="haven"] .mp-overBg {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(4, 4, 6, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  cursor: default;
+  animation: mp-fade 0.25s ease both;
+}
+[data-room="haven"] .mp-overIn {
+  position: relative;
+  width: min(760px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px 40px;
+  border-left: 1px solid var(--hv-line);
+  background: rgba(16, 15, 20, 0.96);
+  animation: mp-slide 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes mp-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes mp-slide {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+[data-room="haven"] .mp-overIn > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+[data-room="haven"] .mp-overIn h3 {
+  margin: 0;
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 40px;
+}
+[data-room="haven"] .mp-cat table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+[data-room="haven"] .mp-cat th,
+[data-room="haven"] .mp-cat td {
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: left;
+  vertical-align: middle;
+}
+[data-room="haven"] .mp-cat th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-cat td b {
+  display: block;
+  font-weight: 500;
+}
+[data-room="haven"] .mp-cat td small {
+  color: var(--hv-mute);
+  font-size: 12px;
+}
+[data-room="haven"] .mp-cat tr.is-passed,
+[data-room="haven"] .mp-cat tr.is-avoid {
+  opacity: 0.55;
+}
+[data-room="haven"] .mp-num {
+  font: 500 13px "Geist Mono Variable", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+[data-room="haven"] .mp-acts {
+  white-space: nowrap;
+}
+[data-room="haven"] .mp-acts .mp-link + .mp-link {
+  margin-left: 10px;
+}
+[data-room="haven"] .mp-st {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--hv-soft);
+}
+[data-room="haven"] .mp-st.is-week {
+  background: rgba(var(--hv-gold), 0.18);
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-st.is-new {
+  background: rgba(134, 212, 180, 0.14);
+  color: var(--hv-ok);
+}
+[data-room="haven"] .mp-st.is-passed,
+[data-room="haven"] .mp-st.is-avoid {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .mp-taste {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+[data-room="haven"] .mp-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+}
+[data-room="haven"] .mp-step button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--hv-ink);
+  font-size: 18px;
+  cursor: pointer;
+}
+[data-room="haven"] .mp-step output {
+  min-width: 110px;
+  text-align: center;
+  font-family: var(--hv-disp);
+  font-size: 28px;
+}
+[data-room="haven"] .mp-step small {
+  font-family: var(--hv-text);
+  font-size: 13px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-avoid,
+[data-room="haven"] .mp-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .mp-avoid li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid rgba(255, 154, 106, 0.4);
+  border-radius: 999px;
+}
+[data-room="haven"] .mp-avoid li.is-none {
+  padding: 4px 0;
+  border: 0;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-avoid small {
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-words li {
+  padding: 4px 12px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .mp-addAvoid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+[data-room="haven"] .mp-addAvoid input {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--hv-line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--hv-ink);
+  font: 14px var(--hv-text);
+}
+[data-room="haven"] .mp-addAvoid .hv-btn {
+  margin-top: 0;
+}
+[data-room="haven"] .mp-empty {
+  padding: 18px 20px;
+  border: 1px solid var(--hv-line);
+  border-radius: 20px;
+  background: var(--hv-glass);
+}
+
+/* ── narrower screens: the strip scrolls, the rail drops below ── */
+@media (max-width: 1000px) {
+  [data-room="haven"] .mp-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .mp-rail {
+    position: static;
+  }
+}
+@media (max-width: 860px) {
+  [data-room="haven"] .mp-week {
+    display: flex;
+    gap: 10px;
+    margin: 0 -16px;
+    padding: 4px 16px 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 16px;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  [data-room="haven"] .mp-week::-webkit-scrollbar {
+    display: none;
+  }
+  [data-room="haven"] .mp-day {
+    flex: 0 0 40%;
+    scroll-snap-align: start;
+  }
+  [data-room="haven"] .mp-railOnly {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .mp-dHead {
+    flex-direction: column;
+  }
+  [data-room="haven"] .mp-photo.is-big {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+  [data-room="haven"] .mp-recipe {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .mp-part,
+  [data-room="haven"] .mp-swap {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  [data-room="haven"] .mp-part.is-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .mp-cat .is-x {
+    display: none;
+  }
+  [data-room="haven"] .mp-overIn {
+    padding: 16px 16px 32px;
+  }
+  [data-room="haven"] .mp-head {
+    align-items: stretch;
+  }
+}
+@media (max-width: 440px) {
+  [data-room="haven"] .mp-day {
+    flex-basis: 46%;
+  }
+  [data-room="haven"] .mp-drawer {
+    padding: 14px 14px 16px;
+  }
+  [data-room="haven"] .mp-dTxt h3 {
+    font-size: 28px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .mp-day,
+  [data-room="haven"] .mp-drawer,
+  [data-room="haven"] .mp-said,
+  [data-room="haven"] .mp-recipe,
+  [data-room="haven"] .mp-overBg,
+  [data-room="haven"] .mp-overIn,
+  [data-room="haven"] .mp-confirm,
+  [data-room="haven"] .mp-sigil {
+    animation: none;
+  }
+  [data-room="haven"] .mp-ringFg,
+  [data-room="haven"] .mp-day > button {
+    transition: none;
+  }
+}
+
+/* Each part's options on one line that scrolls sideways (the chosen one is scrolled into view), so the drawer stays short. */
+[data-room="haven"] .mp-part:not(.is-row) .mp-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 2px 24px 4px 2px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+}
+[data-room="haven"] .mp-part:not(.is-row) .mp-chips::-webkit-scrollbar {
+  display: none;
+}
+[data-room="haven"] .mp-part:not(.is-row) .mp-chip {
+  flex: none;
+  white-space: nowrap;
+}

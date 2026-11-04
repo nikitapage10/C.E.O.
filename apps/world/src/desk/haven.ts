@@ -8,7 +8,7 @@ export interface KitchenItem {
   id: string;
   name: string;
   addedAt: string;
-  source: "phone" | "tasks";
+  source: "phone" | "tasks" | "meals";
   done: boolean;
 }
 
@@ -17,6 +17,8 @@ export interface HavenCounts {
   todos: number;
   /** The Gym's plan (#660): sessions a week and done this week, never an exercise. Absent on an older server. */
   gym?: { perWeek: number; doneThisWeek: number } | null;
+  /** The meal planner (#678): nights planned, cooking, HelloFresh, and whether the week is confirmed. Never a meal. */
+  meals?: { planned: number; cooking: number; helloFresh: number; confirmed: boolean } | null;
   ready: boolean;
 }
 

@@ -28,6 +28,7 @@ import { plainLine } from "../../foundry.js";
 import type { ReadName } from "../voicereads.js";
 import { REFUSAL_SAY, isMemoryId, memoryRefusal, readOne, search, type MemoryStore } from "./memory.js";
 import type { PendingStore } from "./pending.js";
+import { allComponents, DAYS, findMeal, weekWords, type Day, type EditResult, type MealEdit, type MealsFile, type Role, type Spice } from "../../_haven/mealShape.js";
 
 /** Every room's tools, in one fixed order (the prompt cache needs the same bytes every time). */
 export const ALL_TOOLS: readonly RoomTool[] = [...TODAY, ...FOUNDRY, ...RELAY, ...GREEN, ...EXCHANGE, ...BOILER, ...HAVEN];
@@ -40,6 +41,12 @@ export interface ToolHost {
   read: (name: ReadName) => Promise<string>;
   memory: MemoryStore | null;
   kitchenAdd: ((items: string[]) => Promise<{ added: string[]; already: string[] }>) | null;
+  /** The Kitchen's meal planner (#678, api/_haven/meals.ts): the same store and edits as the Kitchen's buttons. */
+  meals?: {
+    read: () => Promise<MealsFile | null>;
+    edit: (edit: MealEdit) => Promise<EditResult | { ok: false; error: "not-seeded" }>;
+    send: () => Promise<{ added: number; already: number } | null>;
+  } | null;
   homeAct: ((req: { action: string; rooms?: string[]; portions?: number }) => Promise<{ ok: boolean; say: string }>) | null;
   /** Files an issue labelled foundry and foundry:chat; its number, or null. */
   fileIssue: ((title: string, body: string) => Promise<number | null>) | null;
@@ -106,6 +113,26 @@ export function implementIssue(title: string, pitch: string, size: string): { ti
     ].join("\n"),
   };
 }
+
+/** What Skippy hears when a meal edit couldn't happen. */
+const MEAL_NO: Record<string, string> = {
+  "not-seeded": "The meal planner isn't loaded yet.",
+  "no-week": "There's no week planned yet. Plan one first.",
+  "not-found": "That isn't in the plan.",
+  "no-backup": "Nothing else fits that night. Pick a meal by name.",
+  "no-undo": "There's nothing to undo.",
+  "bad-meal": "That meal or part doesn't fit there.",
+  short: "The catalog is too small to plan a whole week.",
+};
+
+/** One meal edit through the planner's store, in words. */
+const mealEdit = async (host: ToolHost, edit: MealEdit | string): Promise<Ran> => {
+  if (!host.meals) return { ok: false, text: "The meal planner isn't set up on this copy." };
+  if (typeof edit === "string") return { ok: false, text: edit };
+  const got = await host.meals.edit(edit);
+  return got.ok ? { ok: true, text: `${got.changes.join(" ")} Undo is on the Kitchen page.`, did: plainLine(got.changes[got.changes.length - 1] ?? "Changed the meal plan", 40) } : { ok: false, text: MEAL_NO[got.error] ?? "That didn't work." };
+};
+const dayOf = (v: unknown): Day => (DAYS as readonly unknown[]).includes(v) ? (v as Day) : "mon";
 
 const EXECUTORS: Record<string, Executor> = {
   memory_lookup: {
@@ -185,6 +212,67 @@ const EXECUTORS: Record<string, Executor> = {
       return { ok: true, text, ...(added.length && { did: `Added ${added.length === 1 ? added[0] : `${added.length} things`} to the Kitchen list` }) };
     },
   },
+  meals_week: {
+    run: async (_i, host) => {
+      if (!host.meals) return { ok: false, text: "The meal planner isn't set up on this copy." };
+      const f = await host.meals.read();
+      return { ok: true, text: f ? weekWords(f) : "The meal planner isn't loaded yet." };
+    },
+  },
+  meals_swap: {
+    run: async (i, host) => {
+      const day = dayOf(i.day);
+      if (i.not_for_me === true) return mealEdit(host, { op: "nope", day });
+      const f = host.meals ? await host.meals.read() : null;
+      const meal = f ? findMeal(f, str(i.meal)) : undefined;
+      return mealEdit(host, meal ? { op: "swap", day, meal: meal.id } : i.meal ? "There's no meal by that name in the catalog." : "Name the meal, or say not for me.");
+    },
+  },
+  meals_customize: {
+    run: async (i, host) => {
+      const day = dayOf(i.day);
+      if (i.reset === true) return mealEdit(host, { op: "customize", day, reset: true });
+      const portion = typeof i.portion === "string" ? Number(i.portion) : undefined;
+      const spice = typeof i.spice === "string" ? (i.spice as Spice) : undefined;
+      let part: { index: number; option: string } | undefined;
+      if (i.role || i.option) {
+        const f = host.meals ? await host.meals.read() : null;
+        const slot = f?.week?.slots[DAYS.indexOf(day)];
+        const meal = f && slot ? f.catalog.find((m) => m.id === slot.meal) : undefined;
+        const said = str(i.option).toLowerCase();
+        const comp = f ? allComponents(f).find((c) => (c.id === said || c.name.toLowerCase() === said || c.name.toLowerCase().includes(said)) && (!i.role || c.role === (i.role as Role))) : undefined;
+        const index = meal && comp ? meal.parts.findIndex((p) => p.role === comp.role) : -1;
+        if (!comp || index < 0) return mealEdit(host, f?.week ? "That part or option isn't one the planner knows." : "There's no week planned yet.");
+        part = { index, option: comp.id };
+      }
+      if (!part && portion === undefined && !spice) return { ok: false, text: "Say what to change: a part, the portion or the spice." };
+      return mealEdit(host, { op: "customize", day, ...(part && { part }), ...(portion !== undefined && { portion }), ...(spice && { spice }) });
+    },
+  },
+  meals_night: {
+    run: async (i, host) => {
+      const e = { op: "night" as const, day: dayOf(i.day), ...(typeof i.hellofresh === "boolean" && { helloFresh: i.hellofresh }), ...(typeof i.for_two === "boolean" && { forTwo: i.for_two }), ...(typeof i.in_cart === "boolean" && { inCart: i.in_cart }) };
+      return mealEdit(host, Object.keys(e).length > 2 ? e : "Say what to change about the night.");
+    },
+  },
+  meals_avoid: {
+    run: async (i, host) => {
+      const term = plainLine(str(i.ingredient), 40).toLowerCase();
+      if (!term || privateParts(term).length) return { ok: false, text: "Name the ingredient plainly." };
+      if (i.allow === true) return mealEdit(host, { op: "unavoid", term });
+      const unless = plainLine(str(i.unless), 40).toLowerCase();
+      return mealEdit(host, { op: "avoid", term, ...(unless && { unless }) });
+    },
+  },
+  meals_send: {
+    run: async (_i, host) => {
+      if (!host.meals) return { ok: false, text: "The meal planner isn't set up on this copy." };
+      const got = await host.meals.send();
+      if (!got) return { ok: false, text: "There's no week to send, or nothing in it to buy." };
+      return { ok: true, text: `Put ${got.added} thing${got.added === 1 ? "" : "s"} on the Kitchen list${got.already ? ` (${got.already} already there)` : ""}. The King Soopers picks are on the Kitchen page.`, did: "Sent the week to the Kitchen list" };
+    },
+  },
+  meals_next_week: { run: async (_i, host) => mealEdit(host, { op: "next-week" }) },
   home_device: {
     prepare: async (i) => ({ ok: true, label: "Do it", summary: `${homeLine(i)} (the Haven's rails still apply)` }),
     run: async (i, host) => {

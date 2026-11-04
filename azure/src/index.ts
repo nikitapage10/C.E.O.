@@ -32,6 +32,7 @@ import * as homedevices from "../../api/_haven/devices/live.js";
 import * as havengoogle from "../../api/_haven/google/live.js";
 import * as havenkroger from "../../api/_haven/kroger/live.js";
 import * as havenplan from "../../api/_haven/plan.js";
+import * as havenmeals from "../../api/_haven/meals.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
 import * as greenanalysis from "../../api/_green/analysis.js";
@@ -112,6 +113,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // The Haven's floor plan (#616): the home's shape for the Desk's 3D house, kept only in the private store and served
   // only to a passkey session (api/_haven/plan.ts). Signed out, the Haven shows counts and states, never a map.
   ["haven-plan", havenplan.planRoute],
+  // The Kitchen's meal planner (#678): profile, catalog and week, read and changed only by a passkey session;
+  // the feed key may PUT a seed (api/_haven/meals.ts). Signed out, /api/haven?view=status has its counts.
+  ["haven-meals", havenmeals.mealsRoute],
   ["day-story", daystory],
   ["desk-auth", deskauth],
   ["desk-pings", deskpings],

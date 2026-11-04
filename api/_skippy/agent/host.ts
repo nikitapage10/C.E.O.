@@ -33,6 +33,13 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
           return new KitchenList(blob).add(items, Date.now());
         }
       : null,
+    meals: blob
+      ? {
+          read: async () => new (await import("../../_haven/meals.js")).MealsStore(blob).read(),
+          edit: async (edit) => new (await import("../../_haven/meals.js")).MealsStore(blob).edit(edit, Date.now()),
+          send: async () => (await import("../../_haven/meals.js")).sendWeek(blob, Date.now()),
+        }
+      : null,
     homeAct: async (req) => {
       const { homeFromEnv } = await import("../../_haven/devices/live.js");
       const home = homeFromEnv(env);

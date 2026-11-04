@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { LINEAGE_IDS, ROOM_IDS, type RoomId } from "@ceo/core";
 import { LIVE_ROOMS } from "@ceo/simulator";
 import { DESK_SUBMINDS } from "../../simulator/src/subminds.ts";
+import { roomMicOf, voiceTargetOf } from "./voice.ts";
 import { PATHS, ROOM_ROUTES } from "../../../apps/world/src/route.ts";
 import { ENGINE_ENDPOINTS, ENGINE_KEYS, KERNEL_LEAD, RoomManifestSchema, type RoomManifest } from "./manifest.ts";
 import { AGENT_QUIPS, HOUSES, LORE, ROOM_QUIPS, SAMPLE_AGENTS, SKIPPY_LORE, SKIPPY_QUIPS, SUBMINDS, defaultCast } from "./lore.ts";
@@ -149,6 +150,19 @@ describe("the room contract, room by room", () => {
         const sub = SUBMINDS.find((s) => s.id === m.submind);
         expect(sub, m.submind).toBeDefined();
         expect(sub!.room).toBe(m.id);
+      });
+
+      check(`${m.id}: its page's mic and hands-free reach its own lead (#638), and Today keeps Skippy himself`, () => {
+        if (m.submind === KERNEL_LEAD) {
+          expect(roomMicOf(m.id)).toBeNull();
+          return expect(voiceTargetOf(m.id)?.submind).toBe(KERNEL_LEAD);
+        }
+        expect(roomMicOf(m.id)?.submind).toBe(m.submind);
+        expect(voiceTargetOf(m.id)?.submind).toBe(m.submind);
+      });
+
+      check(`${m.id}: a voice intent handler, if it has one, is a lazy loader (#638)`, () => {
+        if (m.voice) expect(typeof m.voice).toBe("function");
       });
 
       check(`${m.id}: its submind is active exactly when the room is live`, () => {

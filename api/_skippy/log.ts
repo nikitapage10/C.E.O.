@@ -33,7 +33,7 @@ import { BlobPreconditionError, type BlobBackend } from "../_blob.js";
  * the Magnificent's own thread: builds, look-ups across rooms and anything that needs real work, always handed to
  * "skippy", whose thread answers it (scripts/submind-watch.sh kernel).
  */
-export const LOG_ROOMS = ["green", "exchange", "boiler", "foundry", "relay", "kernel", "none"] as const;
+export const LOG_ROOMS = ["green", "exchange", "boiler", "foundry", "relay", "haven", "kernel", "none"] as const;
 export type LogRoom = (typeof LOG_ROOMS)[number];
 
 /** Kept per room: the last 200 turns, none older than 30 days. */
@@ -49,7 +49,8 @@ const MODEL_MAX = 40;
 
 /**
  * Each room's submind, who a hand-off for that room goes to (packages/simulator/src/subminds.ts, the one list; a test
- * holds this copy to it, since the functions don't bundle the simulator). Only an active one has a thread to take it;
+ * holds this copy to it, since the functions don't bundle the simulator; the Haven's Steward is a Desk-only one,
+ * DESK_SUBMINDS, #638). Only an active one has a thread to take it;
  * a hand-off for a room whose submind isn't active goes to Skippy.
  */
 export const ROOM_SUBMINDS = {
@@ -58,6 +59,7 @@ export const ROOM_SUBMINDS = {
   boiler: { id: "soot", name: "The Pessimist", active: true },
   foundry: { id: "ember", name: "The Builder", active: true },
   relay: { id: "static", name: "The Messenger", active: true },
+  haven: { id: "hearth", name: "The Steward", active: true },
 } as const satisfies Record<Exclude<LogRoom, "none" | "kernel">, { id: string; name: string; active: boolean }>;
 
 /** Who a turn can be handed to: Skippy's own thread, or a room's submind by its id. */
@@ -178,8 +180,10 @@ export interface LoggedTurn {
    * Said on a Talk call (#479): a submind took the mic and this is its exchange, the question in short and the
    * answer's gist (api/_skippy/voicecouncil.ts). Desk-only: the read key never lists these.
    * "phone" (#627): asked from the iPhone's "Skippy" shortcut (api/_haven/route.ts), otherwise a turn like the Desk's.
+   * "room" (#638): said to a room's submind with the mic on its Desk page (api/_skippy/roomroute.ts), `by` the
+   * submind who answered; otherwise a turn like the Desk's.
    */
-  via?: "voice" | "phone";
+  via?: "voice" | "phone" | "room";
   /** Who answered on the call: the submind's id. */
   by?: Needs;
 }
@@ -221,7 +225,7 @@ export function cleanTurn(v: unknown): LoggedTurn | null {
     model: model || "unknown",
     ...(isNeeds(t.needs) && { needs: t.needs }),
     ...(followUp && { followUp }),
-    ...((t.via === "voice" || t.via === "phone") && { via: t.via }),
+    ...((t.via === "voice" || t.via === "phone" || t.via === "room") && { via: t.via }),
     ...(isNeeds(t.by) && { by: t.by }),
   };
 }

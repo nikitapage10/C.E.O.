@@ -42,13 +42,18 @@ export const SUBMINDS: readonly Submind[] = [
 export interface DeskSubmind {
   id: string;
   name: string;
-  room: "annex";
+  /** Its Desk room: the Annex (#618), or the Haven (#616, the home's room; its page is built in its own job). */
+  room: "annex" | "haven";
   colour: string;
   job: string;
   active: boolean;
 }
 
-export const DESK_SUBMINDS: readonly DeskSubmind[] = [{ id: "stagehand", name: "The Stagehand", room: "annex", colour: "#f2dd5c", job: "Stagehand", active: true }];
+export const DESK_SUBMINDS: readonly DeskSubmind[] = [
+  { id: "stagehand", name: "The Stagehand", room: "annex", colour: "#f2dd5c", job: "Stagehand", active: true },
+  // The Haven (#616, #638): active from the start, since it reads real APIs (the Kitchen list and the home devices).
+  { id: "hearth", name: "The Steward", room: "haven", colour: "#f2a65a", job: "Steward", active: true },
+];
 
 export const SUBMIND_IDS: ReadonlySet<string> = new Set(SUBMINDS.map((m) => m.id));
 export const isSubmind = (id: string) => SUBMIND_IDS.has(id);

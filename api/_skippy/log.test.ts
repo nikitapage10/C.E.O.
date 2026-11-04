@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { KEY_LOG_ROOMS } from "../_site/roomkeys.ts";
 import { BlobRoomLog, LOG_KEEP, LOG_SHOW, MemoryRoomLog, ROOM_SUBMINDS, cardText, cleanCard, cleanFollowUp, cleanTurn, handoffTo, keepTurns, readRoom, turnId, type LoggedTurn } from "./log.ts";
-import { SUBMINDS } from "../../packages/simulator/src/subminds.ts";
+import { DESK_SUBMINDS, SUBMINDS } from "../../packages/simulator/src/subminds.ts";
 import { pickBlob } from "../_blob.ts";
 
 vi.mock("@vercel/blob", async () => (await import("../_desk/fakeBlob.ts")).fakeBlob);
@@ -68,7 +68,8 @@ describe("hand-offs in the room log (#312)", () => {
 
   it("keeps its copy of the subminds in step with the one list", () => {
     for (const [room, m] of Object.entries(ROOM_SUBMINDS)) {
-      const real = SUBMINDS.find((s) => s.room === room)!;
+      // The Haven's Steward is Desk-only (#638): DESK_SUBMINDS.
+      const real = [...SUBMINDS, ...DESK_SUBMINDS].find((s) => s.room === room)!;
       expect(m, room).toEqual({ id: real.id, name: real.name, active: real.active });
     }
   });

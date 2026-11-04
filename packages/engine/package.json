@@ -7,7 +7,8 @@
   "exports": {
     "./manifest": "./src/manifest.ts",
     "./lore": "./src/lore.ts",
-    "./testing": "./src/testing.ts"
+    "./testing": "./src/testing.ts",
+    "./voice": "./src/voice.ts"
   },
   "dependencies": {
     "@ceo/core": "0.1.0",

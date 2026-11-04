@@ -17,6 +17,7 @@ import { systemsTitle } from "./SystemsNav.tsx";
 import { useSkippy } from "./skippy/index.ts";
 import { loadTodayMore, Today } from "./Today.tsx";
 import { HologramCall } from "./hologram/HologramCall.tsx";
+import { VoiceDock } from "./roomvoice/RoomMic.tsx";
 import "./desk.css";
 import "./chronicle.css";
 import "./weave.css";
@@ -178,6 +179,9 @@ export function Desk({ route }: { route: DeskTab }) {
 
       {/* Talk's hologram (#481): Skippy projected while a call is on; nothing of it loads before the tap. */}
       <HologramCall route={route} />
+
+      {/* The rooms' voice (#638): Ask Skippy bottom right, and the room mic to the room's submind on every room's page. */}
+      <VoiceDock route={route} />
 
       <footer className="desk__foot">
         <span>Command Everything, Obviously</span>

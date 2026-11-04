@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { ponderLine } from "../../../../../api/_skippy/ponder.ts";
-import type { RoomIntent, RoomIntentAction, RoomMic, RoomUtterance } from "../../../../../packages/engine/src/voice.ts";
+import type { RoomIntent, RoomIntentAction, RoomMic, RoomUtterance } from "@ceo/engine/voice";
 
 /**
  * The room mic, browser side (#638): one tap (or hold Space) on a Desk room's page and Nikita talks straight to the room's

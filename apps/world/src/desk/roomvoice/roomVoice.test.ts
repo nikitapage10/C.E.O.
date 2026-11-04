@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RoomIntent } from "../../../../../packages/engine/src/voice.ts";
-import { SKIPPY_VOICE, voiceTargetOf } from "../../../../../packages/engine/src/voice.ts";
+import type { RoomIntent } from "@ceo/engine/voice";
+import { SKIPPY_VOICE, voiceTargetOf } from "@ceo/engine/voice";
 import {
   HF_IDLE_MS,
   HF_QUIET_MS,

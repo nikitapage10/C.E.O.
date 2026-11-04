@@ -7,8 +7,26 @@ folder and is free to work however it needs inside it. The room contract below w
 tests and lint enforce it. The site keeps one address and one deploy.
 
 The rooms are moving in over 14 steps (the plan is on #617). Step 1 added the engine's skeleton, a manifest for each of
-the ten rooms, the contract test and the lint boundaries; nothing imports the manifests yet. Until a room's own step
-lands, its code stays where it is in `apps/world/src/desk` and `api/`.
+the ten rooms, the contract test and the lint boundaries; nothing imports the manifests yet. Step 2 moved the shared
+kits into the engine (below). Until a room's own step lands, its code stays where it is in `apps/world/src/desk` and
+`api/`.
+
+## What the engine holds
+
+| Subpath | What | Moved from (step 2) |
+| --- | --- | --- |
+| `@ceo/engine/manifest` | `defineRoom()` and the manifest schema | |
+| `@ceo/engine/lore` | The lore a room reaches (re-exports only) | |
+| `@ceo/engine/testing` | Test helpers | |
+| `@ceo/engine/voice` | The room voice's contract (#638): who a page's mic and hands-free reach (`roomMicOf`, `voiceTargetOf`) and a room's intent handler (`RoomIntent`, `RoomUtterance`, `RoomIntentReply`). Its UI (the dock, the bar's Hands-free) is in `desk/roomvoice/` until Skippy's chat moves in | |
+| `@ceo/engine/sigils/*` | The particle layer: `wvCanvas.ts` (the Desk's one shared loop and canvas helpers), `motion.tsx`, the flow kit's core (`field.ts`, `draw.ts`, `path.ts`, `rise.ts`, `motes.ts`, `tempo.ts`, `flow.css`) and the glyph engine (`sigils.ts`, `sigils.css`, #615) | `desk/wvCanvas.ts`, `desk/motion.tsx`, `desk/flow/`, `desk/relay/sigils.ts` |
+| `@ceo/engine/web/*` | The sign-in shell: `signin.ts`, `SignIn.tsx`, `SitePassword.tsx`, the Hide veil (`hide.ts`, `Private.tsx`) and the device pings (`pings.ts`, `PingSwitch.tsx`) | the same names in `desk/` |
+
+Import a file by its subpath and name, e.g. `@ceo/engine/sigils/wvCanvas.ts`: the files carry their own CSS and fonts,
+so there is no barrel that would pull them all in. The old Desk paths re-export the engine's files unchanged (same
+names, same behaviour) until step 14, so existing imports keep working. `desk/flow/index.ts` (with `useFlow`) and
+`desk/flow/useTempo.ts` stay in the Desk until step 3, because the tempo still reads room data. The engine imports no
+Desk routes: the Desk hands its router to the pings with `setPingOpener` (in `desk/pings.ts`).
 
 ## The contract
 
@@ -79,7 +97,7 @@ rooms/green/
   tests/         unit tests and an e2e smoke test
 ```
 
-At step 1 each room has only its `room.ts`.
+So far each room has only its `room.ts`.
 
 ### The manifest
 

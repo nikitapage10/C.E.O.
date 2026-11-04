@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { roomMicOf, voiceTargetOf } from "../../../../../packages/engine/src/voice.ts";
-import { Private } from "../Private.tsx";
-import { useDeskAuth } from "../signin.ts";
+import { roomMicOf, voiceTargetOf } from "@ceo/engine/voice";
+import { Private } from "@ceo/engine/web/Private.tsx";
+import { useDeskAuth } from "@ceo/engine/web/signin.ts";
 import { useSkippy } from "../skippy/chat.ts";
 import { useTalk } from "../skippy/talk.ts";
 import {

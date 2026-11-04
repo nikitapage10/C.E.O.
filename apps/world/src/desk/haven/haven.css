@@ -627,11 +627,12 @@
 
 @media (max-width: 860px) {
   [data-room="haven"] .hv-houseWrap {
-    min-height: min(92svh, 760px);
+    min-height: min(80svh, 720px);
   }
   /* On a phone the plinth runs under the house, full width, and scrolls sideways. */
   [data-room="haven"] .hv-plinth {
     left: 0;
+    bottom: 0;
     max-width: none;
   }
   [data-room="haven"] .hv-hintRow {
@@ -1033,9 +1034,10 @@
 [data-room="haven"] .hv-plinth {
   position: absolute;
   right: 0;
-  bottom: 0;
+  /* Clear of the Desk's Ask Skippy bar in the corner. */
+  bottom: 64px;
   z-index: 3;
-  max-width: min(100%, 780px);
+  max-width: min(100%, 940px);
 }
 [data-room="haven"] .hv-plate {
   display: flex;
@@ -1066,8 +1068,8 @@
   justify-items: center;
   align-content: start;
   gap: 2px;
-  min-width: 82px;
-  padding: 6px 12px 8px;
+  min-width: 74px;
+  padding: 4px 11px 6px;
   border: 0;
   border-radius: 8px;
   background: none;
@@ -1120,7 +1122,7 @@
 [data-room="haven"] .hv-gV {
   font-family: var(--hv-disp);
   font-weight: 500;
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1;
   white-space: nowrap;
   font-variant-numeric: lining-nums tabular-nums;
@@ -1250,5 +1252,21 @@
     right: 0;
     bottom: calc(100% + 10px);
     width: auto;
+  }
+}
+@media (max-width: 600px) {
+  [data-room="haven"] .hv-dialFace {
+    width: 72px;
+    height: 72px;
+  }
+  [data-room="haven"] .hv-dialV {
+    font-size: 30px;
+  }
+  [data-room="haven"] .hv-gV {
+    font-size: 24px;
+  }
+  [data-room="haven"] .hv-gauge {
+    min-width: 68px;
+    padding: 2px 9px 4px;
   }
 }

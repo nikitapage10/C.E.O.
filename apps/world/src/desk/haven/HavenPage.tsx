@@ -136,7 +136,7 @@ export function Haven() {
   const thePlan = plan.state === "ready" ? plan.plan : null;
   const hasGym = !!counts?.gym;
   const lit = useMemo(() => (thePlan ? litRooms(thePlan, { devices, kitchenOpen, climate, gym: hasGym, now: Date.now() }) : {}), [thePlan, devices, kitchenOpen, climate, hasGym]);
-  // The thermostat control (#671): from the Climate card or the Nest's marker, passkey only.
+  // The thermostat control (#671): from the plinth's Climate dial or the Nest's marker, passkey only.
   const thermo = signedIn ? (devices?.find((d) => d.kind === "thermostat") ?? null) : null;
   const [climateOpen, setClimateOpen] = useState(false);
   const closeClimate = useCallback(() => setClimateOpen(false), []);

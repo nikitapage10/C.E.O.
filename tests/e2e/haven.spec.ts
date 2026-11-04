@@ -158,7 +158,7 @@ test("signed out: the Gym is a count, never an exercise (#660)", async ({ page }
   const util = page.getByRole("complementary", { name: "House-wide" });
   await expect(util.getByText("Gym", { exact: true })).toBeVisible();
   await expect(util.getByText("1 of 2", { exact: true })).toBeVisible();
-  await expect(util.getByText("sessions this week · 2 a week")).toBeVisible();
+  await expect(util.getByText("this week", { exact: true })).toBeVisible();
   await expect(page.getByText(/dead bugs|pallof|plank/i)).toHaveCount(0);
 });
 
@@ -204,6 +204,41 @@ for (const [label, size] of [
     await expect(sheet.getByText("3 × 45 s")).toBeVisible();
   });
 }
+
+test("signed in: the plinth's Climate dial opens the control and turns the set point (#680)", async ({ page }) => {
+  await stub(page, { signedIn: true, plan: FAKE_PLAN });
+  const now = Date.now();
+  const thermo = { id: "a00000000009", vendor: "nest", kind: "thermostat", model: "Test thermostat", place: "", online: true, state: "heating", alerts: [], tempF: 68, humidity: 41, mode: "heat", modes: ["heat", "cool", "heatcool", "off"], eco: false, hvac: "heating", heatF: 70, coolF: null };
+  const vendors = { ...VENDORS, petlibro: "down", nest: "live" };
+  const sent: Record<string, unknown>[] = [];
+  await page.route(/\/api\/haven\/devices(\?.*)?$/, (r) => {
+    const all = [...devices(now), thermo];
+    if (new URL(r.request().url()).searchParams.get("view") === "status") return r.fulfill({ json: { vendors, devices: all.map((d) => ({ kind: d.kind, state: d.state, online: d.online })) } });
+    return r.fulfill({ json: { vendors, devices: all, feedCap: 2, roborockConnected: true } });
+  });
+  await page.route(/\/api\/haven\/devices\/action$/, (r) => {
+    sent.push(r.request().postDataJSON() as Record<string, unknown>);
+    return r.fulfill({ json: { ok: true, say: "Set." } });
+  });
+  await page.goto(`${BASE}/haven`);
+  const strip = page.getByRole("complementary", { name: "House-wide" });
+  // A down device lights its lamp ember.
+  await expect(strip.locator('[data-gauge="petlibro"]')).toHaveAttribute("data-tone", "down");
+  await expect(strip.locator('[data-gauge="petlibro"]').getByText("Down", { exact: true })).toBeVisible();
+  const dial = strip.getByRole("button", { name: /^Climate: 68°/ });
+  await expect(dial).toBeVisible();
+  await dial.click();
+  await expect(page.getByRole("dialog", { name: "Climate" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Climate" })).toHaveCount(0);
+  // The arrow keys turn it a degree at a time, and it sends once, through the control's own action.
+  await dial.focus();
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await expect(dial).toHaveAccessibleName(/set to 72°F/);
+  await expect.poll(() => sent.length, { timeout: 5000 }).toBe(1);
+  expect(sent[0]).toMatchObject({ action: "thermostat.set", device: "a00000000009", tempF: 72 });
+});
 
 test("signed in, ?open=kitchen: King Soopers shows the store, picks, prices and total, and sends exactly the shown picks", async ({ page }) => {
   await stub(page, { signedIn: true, plan: null });

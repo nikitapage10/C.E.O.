@@ -60,6 +60,10 @@ param kernelAgentBudgetUsd string = '10'
 @description('Manual feeds a day per Petlibro feeder (HOME_FEED_CAP, #632; Nikita: 2).')
 param homeFeedCap string = '2'
 
+@description('Which Instacart Developer Platform environment Send to Instacart uses (INSTACART_ENV, #637): development until a production key exists.')
+@allowed(['development', 'production'])
+param instacartEnv string = 'development'
+
 @description('Which PayPal the Spire\'s invoices use (PAYPAL_ENV, #279): sandbox until Nikita switches to live. Set it to live on the paste once the Live keys are in.')
 @allowed(['sandbox', 'live'])
 param paypalEnv string = 'sandbox'
@@ -95,6 +99,7 @@ module resources 'resources.bicep' = {
     kernelAgentEnabled: kernelAgentEnabled
     kernelAgentBudgetUsd: kernelAgentBudgetUsd
     homeFeedCap: homeFeedCap
+    instacartEnv: instacartEnv
     paypalEnv: paypalEnv
     siteOnCustomDomain: siteOnCustomDomain
     tags: tags

@@ -62,6 +62,12 @@ export const SECRET_SETTINGS = [
   "PETLIBRO_LOGIN_DIGEST",
   "WHISKER_EMAIL",
   "WHISKER_SRP_DIGEST",
+  // The Haven's connections (#637, docs/HOME-DEVICES.md): the Google OAuth client and Device Access project for
+  // the Nest thermostat and Google Tasks, and the Instacart Developer Platform key. Never settable from the Desk.
+  "HAVEN_GOOGLE_CLIENT_ID",
+  "HAVEN_GOOGLE_CLIENT_SECRET",
+  "HAVEN_NEST_PROJECT_ID",
+  "INSTACART_API_KEY",
 ] as const;
 
 /** Whether a setting's value is an unresolved Key Vault reference (the platform's own spelling, in any case). */

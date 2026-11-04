@@ -6,6 +6,8 @@
  *   Petlibro dry and wet feeders,    api/_haven/devices/petlibro.ts   REST with a login token
  *     and the water fountain
  *   Whisker Litter-Robot 5 Pro       api/_haven/devices/whisker.ts    Cognito (SRP) login, then the LR5 REST API
+ *   Google Nest thermostat           api/_haven/google/nest.ts        Google OAuth (Connect Nest), then the Smart
+ *                                                                     Device Management API (#637)
  *
  * A client hands back readings (what the Desk shows) and refs (what it needs to act: a serial, a duid, a local key).
  * Refs never leave the server: a reading carries an opaque id made from the serial with a keyed hash, never the serial.
@@ -13,14 +15,14 @@
  * Underscore folder: Vercel never serves it as a function.
  */
 
-export const VENDORS = ["roborock", "petlibro", "whisker"] as const;
+export const VENDORS = ["roborock", "petlibro", "whisker", "nest"] as const;
 export type Vendor = (typeof VENDORS)[number];
 export const isVendor = (v: unknown): v is Vendor => typeof v === "string" && (VENDORS as readonly string[]).includes(v);
 
-export type DeviceKind = "vacuum" | "dry-feeder" | "wet-feeder" | "fountain" | "litter";
+export type DeviceKind = "vacuum" | "dry-feeder" | "wet-feeder" | "fountain" | "litter" | "thermostat";
 
 /** Every action there is. Each client lists the ones its devices take. */
-export const ACTIONS = ["vacuum.start", "vacuum.pause", "vacuum.dock", "vacuum.rooms", "feeder.feed", "wet.open", "litter.clean"] as const;
+export const ACTIONS = ["vacuum.start", "vacuum.pause", "vacuum.dock", "vacuum.rooms", "feeder.feed", "wet.open", "wet.rotate", "wet.close", "wet.status", "litter.clean", "thermostat.set", "thermostat.mode"] as const;
 export type ActionId = (typeof ACTIONS)[number];
 export const isAction = (v: unknown): v is ActionId => typeof v === "string" && (ACTIONS as readonly string[]).includes(v);
 
@@ -32,8 +34,18 @@ export const ACTION_KIND: Record<ActionId, DeviceKind> = {
   "vacuum.rooms": "vacuum",
   "feeder.feed": "dry-feeder",
   "wet.open": "wet-feeder",
+  "wet.rotate": "wet-feeder",
+  "wet.close": "wet-feeder",
+  "wet.status": "wet-feeder",
   "litter.clean": "litter",
+  "thermostat.set": "thermostat",
+  "thermostat.mode": "thermostat",
 };
+
+/** The thermostat's modes, as the Desk and the rails name them (Nest's HEAT, COOL, HEATCOOL, OFF). */
+export const THERMO_MODES = ["heat", "cool", "heatcool", "off"] as const;
+export type ThermoMode = (typeof THERMO_MODES)[number];
+export const isThermoMode = (v: unknown): v is ThermoMode => typeof v === "string" && (THERMO_MODES as readonly string[]).includes(v);
 
 /** One device as the signed-in Desk sees it. Plain values only; no serial, no account detail. */
 export interface DeviceReading {
@@ -60,6 +72,10 @@ export interface DeviceReading {
   /** Manual portions (dry) or openings (wet) given from here today, and the day's cap. */
   manualToday?: number;
   manualCap?: number;
+  /** Wet feeder: which bowl of the tray's three is in front (1 to 3), when Petlibro says. */
+  plate?: number;
+  /** Wet feeder: its schedule from the Petlibro app, each meal's Mountain time ("18:00") and bowl when the plan says. */
+  meals?: WetMeal[];
   /** Fountain: water level and filter life, in percent. */
   water?: number | null;
   filter?: number | null;
@@ -68,6 +84,16 @@ export interface DeviceReading {
   litter?: number | null;
   lastUse?: string | null;
   catInside?: boolean;
+  /** Thermostat (#637): the room's temperature (°F, whole), humidity (%), mode, the modes it offers, eco, what the
+   * HVAC is doing now, and the set points (°F, whole; heat in heat mode, cool in cool mode, both in heatcool). */
+  tempF?: number | null;
+  humidity?: number | null;
+  mode?: ThermoMode;
+  modes?: ThermoMode[];
+  eco?: boolean;
+  hvac?: "heating" | "cooling" | "off";
+  heatF?: number | null;
+  coolF?: number | null;
 }
 
 /** A device found by a client: the reading and what the client keeps to act on it (never sent anywhere). */
@@ -78,11 +104,37 @@ export interface Found<R = unknown> {
 
 /** What a vendor call came to. `say` is Skippy's line when it worked. */
 export type RunResult = { ok: true; say?: string } | { ok: false; code: RunError };
-export type RunError = "vendor" | "offline" | "not-connected" | "unknown-room" | "unsupported";
+export type RunError = "vendor" | "offline" | "not-connected" | "unknown-room" | "unsupported" | "eco";
 
 export interface RunArgs {
   /** For vacuum.rooms: the room names asked for, as said or tapped. */
   rooms?: string[];
+  /** For thermostat.set (#637): the set points in °F, already through the rails (60 to 80). */
+  heatF?: number;
+  coolF?: number;
+  /** For thermostat.mode: the mode asked for, one the thermostat offers. */
+  mode?: ThermoMode;
+  /** For feeder.feed: how many portions, already through the feed cap (1 when not given). */
+  portions?: number;
+  /** For wet.rotate: how many bowls to turn the tray on (1 or 2: a Polar tray holds three). */
+  steps?: number;
+  /** For vacuum.start and vacuum.rooms: an optional suction and mop choice; without one the vacuum keeps its own. */
+  suction?: Suction;
+  water?: Water;
+}
+
+/** The vacuum's optional mode words (#637 scope): "quiet" or "max" suction; "vacuum only" (mop off) or "mop too". */
+export const SUCTIONS = ["quiet", "max"] as const;
+export type Suction = (typeof SUCTIONS)[number];
+export const WATERS = ["off", "on"] as const;
+export type Water = (typeof WATERS)[number];
+export const isSuction = (v: unknown): v is Suction => typeof v === "string" && (SUCTIONS as readonly string[]).includes(v);
+export const isWater = (v: unknown): v is Water => typeof v === "string" && (WATERS as readonly string[]).includes(v);
+
+/** One scheduled wet meal: its time of day ("HH:MM", Mountain) and the bowl the plan gives it, when it says. */
+export interface WetMeal {
+  time: string;
+  plate?: number;
 }
 
 /** One vendor's client behind the common interface. */
@@ -109,6 +161,7 @@ export const PLACES: Record<DeviceKind, string> = {
   "wet-feeder": "Kitchen",
   fountain: "Kitchen",
   litter: "Corridor",
+  thermostat: "Home",
 };
 
 /** What a device is called when Skippy speaks about it: never its own name from the app. */
@@ -118,6 +171,7 @@ export const SPOKEN: Record<DeviceKind, string> = {
   "wet-feeder": "the wet food feeder",
   fountain: "the fountain",
   litter: "the Litter-Robot",
+  thermostat: "the thermostat",
 };
 
 /** A whole number from 0 to 100, or null. */

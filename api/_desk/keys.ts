@@ -19,8 +19,9 @@ import { createHash, createHmac, scrypt, timingSafeEqual } from "node:crypto";
  * "gmail": the Connect Gmail state cookie (api/_email/route.ts, #263).
  * "relay": Relay's send unlock cookie (api/_relay/route.ts, #535).
  * "phone": the pepper the phones' capture keys are hashed with (api/_haven/phones.ts, #627).
+ * "haven-google": the Connect Nest and Connect Google Tasks state cookie (api/_haven/google/route.ts, #637).
  */
-export type KeyPurpose = "session" | "challenge" | "picture" | "client" | "site" | "gmail" | "relay" | "phone";
+export type KeyPurpose = "session" | "challenge" | "picture" | "client" | "site" | "gmail" | "relay" | "phone" | "haven-google";
 
 const SALT = "ceo.desk.v1";
 /** scrypt's cost: N = 2^15, r = 8, p = 1 (32 MB, roughly 0.1 s on a function), the usual interactive setting. */

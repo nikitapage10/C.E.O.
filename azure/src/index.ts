@@ -28,6 +28,7 @@ import * as talktiming from "../../api/_boot/talkTiming.js";
 import * as desktiming from "../../api/_boot/deskTiming.js";
 import * as haven from "../../api/_haven/route.js";
 import * as homedevices from "../../api/_haven/devices/live.js";
+import * as havengoogle from "../../api/_haven/google/live.js";
 import * as havenplan from "../../api/_haven/plan.js";
 import * as keys from "../../api/_keys/route.js";
 import { registerKeyWriter } from "../../api/_keys/vault.js";
@@ -41,6 +42,7 @@ import * as sitepassword from "../../api/_site/control.js";
 import * as skippy from "../../api/skippy.js";
 import * as todaytodos from "../../api/_today/route.js";
 import * as skippyvoice from "../../api/skippy-voice.js";
+import * as skippyroom from "../../api/_skippy/roomroute.js";
 import * as skippytools from "../../api/_skippy/toolroute.js";
 import * as kernelroute from "../../api/_skippy/kernelroute.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
@@ -90,6 +92,11 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["haven/devices", homedevices.devicesRoute],
   ["haven/devices/action", homedevices.actionRoute, { settleMs: 2_500 }],
   ["haven/devices/connect", homedevices.connectRoute],
+  // The Haven's connections (#637, docs/HOME-DEVICES.md): Connect Nest and Connect Google Tasks (passkey session
+  // only; ?view=status is the public states), and where Google sends the browser back. The thermostat itself reads and
+  // acts through haven/devices; Send to Instacart is POST /api/haven { action: "instacart" }.
+  ["haven/google", havengoogle.googleRoute],
+  ["haven/google-callback", havengoogle.googleCallbackRoute],
   // The Haven's floor plan (#616): the home's shape for the Desk's 3D house, kept only in the private store and served
   // only to a passkey session (api/_haven/plan.ts). Signed out, the Haven shows counts and states, never a map.
   ["haven-plan", havenplan.planRoute],
@@ -149,6 +156,9 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["skippy-log", skippy],
   // A hand-off's answer coming back from Skippy's or a submind's thread (#312): SUBMIND_FEED_TOKEN only.
   ["skippy-answer", skippy],
+  // The mic on each Desk room's page (#638): Nikita's words to the room's submind, the answer in Skippy's voice.
+  // Passkey session only; the chat's own pace and caps, and ElevenLabs' one cap (api/_skippy/roomroute.ts).
+  ["skippy-room", skippyroom.route, { settleMs: 2_500 }],
   // Talk to Skippy (#434): a live voice call on ElevenLabs Agents. Desk session only; mints one-session tokens under
   // the talk's share of ElevenLabs' $10 cap (api/_skippy/voice.ts). The key never leaves this Function App.
   ["skippy-voice", skippyvoice],
@@ -203,6 +213,19 @@ app.timer("email_tick", {
     await keysFresh();
     const result = await runEmailTick().catch(() => "error" as const);
     if (result === "error") context.warn("email tick: error");
+  },
+});
+
+// Google Tasks quick-add (#637, docs/HOME-DEVICES.md): every five minutes, the chosen Tasks list's open items onto
+// the Kitchen list, then marked completed in Tasks. Does nothing until Connect Google Tasks; logs counts only.
+app.timer("haven_tasks", {
+  schedule: "0 */5 * * * *",
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    await keysFresh();
+    const result = await havengoogle.runTasksTick().catch(() => "failed" as const);
+    if (result === "failed" || result === "refused") context.warn(`haven tasks: ${result}`);
   },
 });
 

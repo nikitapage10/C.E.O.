@@ -551,7 +551,7 @@ describe("the safety rails", () => {
   it("calls a vendor waiting until it is connected", async () => {
     const off: DeviceClient = { ...stubClient("whisker", [], ["litter.clean"]), connected: async () => false };
     const { home } = homeWith([off]);
-    expect((await home.status()).vendors).toEqual({ roborock: "waiting", petlibro: "waiting", whisker: "waiting" });
+    expect((await home.status()).vendors).toEqual({ roborock: "waiting", petlibro: "waiting", whisker: "waiting", nest: "waiting" });
     expect(await home.act({ action: "litter.clean", via: "phone" })).toMatchObject({ ok: false, code: "not-connected" });
   });
 });
@@ -624,7 +624,7 @@ describe("the devices API", () => {
     const { deps } = await routeDeps();
     const res = await devicesGet(get("/api/haven/devices?view=status"), deps);
     const body = await res.text();
-    expect(JSON.parse(body)).toEqual({ ready: true, vendors: { roborock: "waiting", petlibro: "live", whisker: "waiting" }, devices: [{ kind: "dry-feeder", state: "idle", online: true }, { kind: "wet-feeder", state: "closed", online: true }, { kind: "fountain", state: "running", online: true }] });
+    expect(JSON.parse(body)).toEqual({ ready: true, links: { tasks: "waiting", instacart: "waiting" }, vendors: { roborock: "waiting", petlibro: "live", whisker: "waiting", nest: "waiting" }, devices: [{ kind: "dry-feeder", state: "idle", online: true }, { kind: "wet-feeder", state: "closed", online: true }, { kind: "fountain", state: "running", online: true }] });
     for (const leak of ["Granary", "Kitchen", "model", "place", '"id"', ...SERIALS]) expect(body).not.toContain(leak);
   });
 

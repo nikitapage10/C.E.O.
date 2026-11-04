@@ -6,7 +6,7 @@ import { Private } from "../Private.tsx";
 import { startHome, useHome, VENDOR_NAME, VENDORS, type Vendor, type VendorState } from "../homeDevices.ts";
 import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "../haven.ts";
 import { openTodos, useTodos } from "../todos/todos.ts";
-import { litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type Climate, type PlanLoad, type Spot, type Tab } from "./data.ts";
+import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type Spot, type Tab } from "./data.ts";
 import { GymTab, HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import type { House } from "./house.ts";
 import "@fontsource/cormorant-garamond/500.css";
@@ -26,8 +26,6 @@ import "./haven.css";
 
 const ACCENT = "240,201,135";
 const TABS: Tab[] = ["kitchen", "hall", "pets", "gym"];
-/** The Nest isn't connected yet (its endpoint is being built apart); until it lands the climate says it's waiting. */
-const CLIMATE: Climate = { state: "waiting" };
 
 const reduce = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const dayWord = (d = new Date()) => `${d.toLocaleDateString("en-US", { weekday: "long" })} ${d.getHours() < 12 ? "morning" : d.getHours() < 17 ? "afternoon" : "evening"}`;
@@ -119,12 +117,14 @@ export function Haven() {
   }, [auth, signedIn]);
 
   const devices = signedIn ? (home?.devices ?? null) : null;
+  // The Nest (#637): live from the thermostat's reading once it's connected; waiting before, and always signed out.
+  const climate = useMemo(() => climateOf(devices), [devices]);
   const kitchenOpen = signedIn ? (items ? items.filter((i) => !i.done).length : null) : (counts?.kitchen ?? null);
   const openList = useMemo(() => (signedIn ? openTodos(todos, Date.now()) : []), [todos, signedIn]);
   const todoCount = signedIn ? openList.length : (counts?.todos ?? null);
   const thePlan = plan.state === "ready" ? plan.plan : null;
-  const lit = useMemo(() => (thePlan ? litRooms(thePlan, { devices, kitchenOpen, climate: CLIMATE, now: Date.now() }) : {}), [thePlan, devices, kitchenOpen]);
-  const vendors: Record<Vendor, VendorState> = useMemo(() => (signedIn ? home?.vendors : pub?.vendors) ?? { roborock: "waiting", petlibro: "waiting", whisker: "waiting" }, [signedIn, home, pub]);
+  const lit = useMemo(() => (thePlan ? litRooms(thePlan, { devices, kitchenOpen, climate, now: Date.now() }) : {}), [thePlan, devices, kitchenOpen, climate]);
+  const vendors: Record<Vendor, VendorState> = useMemo(() => (signedIn ? home?.vendors : pub?.vendors) ?? { roborock: "waiting", petlibro: "waiting", whisker: "waiting", nest: "waiting" }, [signedIn, home, pub]);
 
   /* ── the 3D house, only with a plan ── */
   const onPick = useCallback((id: string | null) => {
@@ -164,9 +164,9 @@ export function Haven() {
       else if (d.kind === "fountain") tags[spot] = typeof d.water === "number" ? `${d.water}%` : d.state;
       else if (d.kind === "dry-feeder" && d.foodLow) tags[spot] = "food low";
     }
-    tags.thermostat = "Climate: waiting";
+    tags.thermostat = climate.state === "live" ? `${climate.inside}°F${climate.target !== null ? ` → ${climate.target}°F` : ""}` : "Climate: waiting";
     h.setLit(lit, facts, tags);
-  }, [lit, devices, thePlan, gl]);
+  }, [lit, devices, thePlan, gl, climate]);
 
   // Opening a room flies the camera in and lays the house behind the content; closing flies back out.
   const roomId = open && "room" in open ? open.room : open && "tab" in open && thePlan ? (thePlan.rooms.find((r) => tabOf(thePlan, r) === open.tab)?.id ?? null) : null;
@@ -190,14 +190,14 @@ export function Haven() {
   const sources = useMemo(() => {
     const vend = (v: Vendor): { waiting: boolean; density: number; rgb?: string } => (vendors[v] === "live" ? { waiting: false, density: 0.55 } : vendors[v] === "down" ? { waiting: false, density: 0.15, rgb: BAD } : { waiting: true, density: 0 });
     return [
-      { id: "climate", waiting: true, density: 0 },
+      { id: "climate", waiting: climate.state !== "live", density: climate.state === "live" ? (climate.running ? 0.55 : 0.2) : 0 },
       { id: "devices-roborock", ...vend("roborock") },
       { id: "devices-petlibro", ...vend("petlibro") },
       { id: "devices-whisker", ...vend("whisker") },
       { id: "kitchen", waiting: kitchenOpen === null, density: kitchenOpen ? Math.min(1, 0.2 + kitchenOpen / 10) : 0.08, rgb: OK },
       { id: "todos", waiting: todoCount === null, density: todoCount ? Math.min(1, 0.2 + todoCount / 10) : 0.08, rgb: WHITE },
     ];
-  }, [vendors, kitchenOpen, todoCount]);
+  }, [vendors, kitchenOpen, todoCount, climate]);
   const layout = useCallback<FlowLayoutFn>(
     ({ W, H, phone, rel }) => {
       const stage = houseHost.current ? rel(houseHost.current) : { x: 0, y: 0, w: W, h: H };
@@ -275,10 +275,19 @@ export function Haven() {
           <h2 className="hv-utilH">House-wide</h2>
           <div className="hv-u" ref={util("climate")}>
             <span className="hv-uk">Climate</span>
-            <b className="hv-uv is-wait">Waiting</b>
-            <span className="hv-un">The Nest isn't connected yet. When it is, the climate lights the living room.</span>
+            {climate.state === "live" ? (
+              <>
+                <b className="hv-uv is-live">{climate.inside}°F</b>
+                <span className="hv-un">{climate.mode === "off" ? "Off" : climate.mode === "eco" ? "Eco" : `${climate.running ? (climate.mode === "cool" ? "Cooling" : "Heating") : "Holding"}${climate.target !== null ? ` to ${climate.target}°F` : ""}`}</span>
+              </>
+            ) : (
+              <>
+                <b className={`hv-uv is-${vendors.nest === "waiting" ? "wait" : vendors.nest}`}>{vendors.nest === "live" ? "Live" : vendors.nest === "down" ? "Down" : "Waiting"}</b>
+                <span className="hv-un">{vendors.nest === "waiting" ? "The Nest isn't connected yet (Today's Home chip). Then the climate lights the living room." : signedIn ? "The thermostat" : "The thermostat; the temperature shows signed in."}</span>
+              </>
+            )}
           </div>
-          {VENDORS.map((v) => (
+          {VENDORS.filter((v) => v !== "nest").map((v) => (
             <div className="hv-u" key={v} ref={util(`devices-${v}`)}>
               <span className="hv-uk">{VENDOR_NAME[v]}</span>
               <b className={`hv-uv is-${vendors[v]}`}>{homeLoad === "idle" ? "…" : stateWord[vendors[v]]}</b>

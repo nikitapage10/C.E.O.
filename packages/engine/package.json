@@ -8,6 +8,7 @@
     "./manifest": "./src/manifest.ts",
     "./lore": "./src/lore.ts",
     "./testing": "./src/testing.ts",
+    "./voice": "./src/voice.ts",
     "./sigils/*": "./src/sigils/*",
     "./web/*": "./src/web/*"
   },

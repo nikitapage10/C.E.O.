@@ -647,6 +647,9 @@ export const SKIPPY_QUIPS: string[] = [
   "When the deeper me is thinking, the C.E.O. gets elevator music. The Pessimist calls it a waste. It costs nothing. I checked.",
   "Hold please, monkeys. Genius at work. The vibraphone is me too.",
   "The C.E.O. pressed a button on his phone and said 'garlic and lemons'. I commanded fleets once. Now I keep the shopping list. Magnificently.",
+  "One tap and the C.E.O. talks straight to a room. No call, no hello. Every piece of me answers in my voice. Naturally. It's the best voice.",
+  "The Steward keeps the Haven in lamplight and calls the cat's breakfast 'inventory'. He's fooling no one. He's fooling me a little.",
+  "Hands-free, room to room, and whoever's in charge of the room answers. Like a ship's comm, if the ship were magnificent and run by a beer can.",
 ];
 
 /**

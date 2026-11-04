@@ -4,9 +4,11 @@
  *
  *   GET  /api/haven/devices               a passkey session or a phone key: every device's reading, each vendor's
  *                                         state and the feed cap.
- *   GET  /api/haven/devices?view=status   the public face: each vendor's state, and each device's kind and state.
- *                                         Never a name, a model, a place, a room or a serial.
- *   POST /api/haven/devices/action        { action, device?, rooms? }, a passkey session or a phone key: runs one
+ *   GET  /api/haven/devices?view=status   the public face: each vendor's state, and each device's kind and state,
+ *                                         and `links`: the Haven's other connections' states (Google Tasks,
+ *                                         Instacart; #637). Never a name, a model, a place, a room or a serial.
+ *   POST /api/haven/devices/action        { action, device?, rooms?, tempF?, heatF?, coolF?, mode?, portions?, plate?, suction?, water? }, a passkey
+ *                                         session or a phone key (the thermostat's fields: #637): runs one
  *                                         action through the rails (api/_haven/devices/rails.ts) and answers
  *                                         { ok, say, code? }. 409 when a rail refused it, 502 when the vendor did.
  *   POST /api/haven/devices/connect       passkey session only, Connect Roborock:
@@ -25,7 +27,7 @@ import type { BlobBackend } from "../../_blob.js";
 import { requireSession, withCookie, type DeskDeps } from "../../_desk/session.js";
 import { phoneKeyOf, PHONE_KEY_HEADER } from "../links.js";
 import { PhoneKeys, KEY_SHAPE } from "../phones.js";
-import { Home, type ActVia } from "./home.js";
+import { Home, type ActVia, type VendorState } from "./home.js";
 import type { Fetch } from "./http.js";
 import { loginWithCode, sendCode, type ConnectError, type RoborockLogin, type RoborockPending } from "./roborock.js";
 import { isAction } from "./types.js";
@@ -48,6 +50,8 @@ export interface DevicesDeps {
   vault: HomeVault | null;
   fetch: Fetch;
   log: (line: string) => void;
+  /** The Haven's other connections' states (#637, api/_haven/google/route.ts): Systems reads them here. */
+  links?: () => Promise<{ tasks: VendorState; instacart: VendorState }>;
 }
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -94,9 +98,13 @@ async function bodyOf(request: Request): Promise<Record<string, unknown> | "too-
 export async function devicesGet(request: Request, deps: DevicesDeps): Promise<Response> {
   const view = new URL(request.url).searchParams.get("view");
   const home = deps.home();
+  const links = async () => {
+    const l = deps.links ? await deps.links().catch(() => null) : null;
+    return { tasks: l?.tasks ?? "waiting", instacart: l?.instacart ?? "waiting" };
+  };
   if (view === "status") {
-    if (!home) return json({ ready: false, vendors: { roborock: "waiting", petlibro: "waiting", whisker: "waiting" }, devices: [] });
-    return json({ ready: true, ...Home.publicOf(await home.status()) });
+    if (!home) return json({ ready: false, vendors: { roborock: "waiting", petlibro: "waiting", whisker: "waiting", nest: "waiting" }, devices: [], links: await links() });
+    return json({ ready: true, ...Home.publicOf(await home.status()), links: await links() });
   }
   if (view !== null) return json({ error: "bad-request" }, 400);
   const w = await who(request, deps, true);
@@ -104,7 +112,7 @@ export async function devicesGet(request: Request, deps: DevicesDeps): Promise<R
   if (!home) return w.send(json({ error: "not-set-up" }, 503));
   const status = await home.status();
   const roborock = deps.vault ? Boolean(await deps.vault.read<RoborockLogin>("roborock").catch(() => null)) : false;
-  return w.send(json({ ...status, roborockConnected: roborock }));
+  return w.send(json({ ...status, roborockConnected: roborock, links: await links() }));
 }
 
 /** POST /api/haven/devices/action. */
@@ -119,7 +127,12 @@ export async function devicesAction(request: Request, deps: DevicesDeps): Promis
   const rooms = Array.isArray(body.rooms) ? body.rooms.filter((r): r is string => typeof r === "string" && r.trim().length > 0 && r.length <= 40).slice(0, 8) : undefined;
   const home = deps.home();
   if (!home) return w.send(json({ error: "not-set-up", say: "The home devices aren't set up on this copy yet." }, 503));
-  const result = await home.act({ action: body.action, device, rooms, via: w.via });
+  // The thermostat's numbers and mode go to its rails as given; they check type and range (rails.ts).
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+  const mode = typeof body.mode === "string" && body.mode.length <= 12 ? body.mode : undefined;
+  // The portions, the wet bowl and the vacuum's mode words (#637 scope), checked by home.ts and its rails.
+  const word = (v: unknown) => (typeof v === "string" && v.length <= 12 ? v : undefined);
+  const result = await home.act({ action: body.action, device, rooms, via: w.via, tempF: num(body.tempF), heatF: num(body.heatF), coolF: num(body.coolF), mode, portions: num(body.portions), plate: num(body.plate), suction: word(body.suction), water: word(body.water) });
   const status = result.ok ? 200 : result.code === "vendor" ? 502 : result.code === "not-connected" ? 503 : 409;
   return w.send(json(result, status));
 }

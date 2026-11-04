@@ -27,6 +27,10 @@
  *   POST /api/haven { action: "revoke-phone", id }       passkey session: that phone's key opens nothing from now on.
  *   POST /api/haven { action: "make-greetings" }         passkey session: (re)make the greeting clips, under
  *                                                        ElevenLabs' cap.
+ *   POST /api/haven { action: "instacart" }              passkey session: Send to Instacart (#637,
+ *                                                        api/_haven/instacart.ts): the open items become an Instacart
+ *                                                        shopping list page → { url, items }. 503 without the key,
+ *                                                        409 when nothing is open, 502 when Instacart said no.
  *   GET  /api/hey-skippy (and /hey-skippy/hello.mp3)    one of the greeting clips at random (MP3), public by design.
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -39,7 +43,7 @@ import { pickAuthStore } from "../_desk/store.js";
 import { phoneAnswer, type PhoneTurn } from "../skippy.js";
 import { elevenFromEnv, pickStoryStore } from "../_world/story.js";
 import { audioIdOf, greetClip, greetState, makeGreetings, speakForPhone, takeAudio, type VoiceDeps } from "./audio.js";
-import { classify, sayAdded, sayTodo, spokenOf } from "./classify.js";
+import { classify, itemsOf, sayAdded, sayTodo, spokenOf } from "./classify.js";
 import { PhoneConvo, type ConvoTurn } from "./convo.js";
 import { privateParts } from "../_privacy.js";
 import { KitchenList } from "./list.js";
@@ -48,6 +52,8 @@ import { phoneKeyOf } from "./links.js";
 import { PhoneTodos, type TodoSink } from "./todos.js";
 import type { Home } from "./devices/home.js";
 import { homeFromEnv } from "./devices/live.js";
+import { instacartFrom, sendToInstacart, type InstacartConfig } from "./instacart.js";
+import type { Fetch } from "./devices/http.js";
 
 type Env = Record<string, string | undefined>;
 
@@ -69,6 +75,9 @@ export interface HavenDeps {
   random: () => number;
   /** The home devices (#632, api/_haven/devices/home.ts), or null when they aren't set up here. */
   devices?: () => Home | null;
+  /** Send to Instacart (#637): the IDP key and environment, or null until the key is in the Key Vault. */
+  instacart?: InstacartConfig | null;
+  fetch?: Fetch;
 }
 
 export function liveDeps(env: Env = process.env): HavenDeps {
@@ -84,6 +93,8 @@ export function liveDeps(env: Env = process.env): HavenDeps {
     log: (line) => console.log(line),
     random: Math.random,
     devices: () => homeFromEnv(env),
+    instacart: instacartFrom(env),
+    fetch: (url, init) => fetch(url, init),
   };
 }
 
@@ -141,12 +152,23 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
   let say: string;
   try {
     if (sorted.kind === "shopping") {
-      const { added, already } = await new KitchenList(deps.blob).add(sorted.items, now);
-      say = sayAdded(added, already);
+      // "Not as a task" right after a to-do (#641): that to-do moves onto the list.
+      let items = sorted.items;
+      if (sorted.fromLastTodo) {
+        const moved = (await deps.todos(deps.blob).takeBackLast?.(now)) ?? null;
+        items = moved ? itemsOf(moved.replace(/^(?:add|buy|get|pick up|grab)\s+/i, "")).filter((i) => i.length <= 60).slice(0, 12) : [];
+      }
+      if (sorted.fromLastTodo && !items.length) say = "Tell me what to put on the list, and I'll add it.";
+      else {
+        const { added, already } = await new KitchenList(deps.blob).add(items, now);
+        say = sayAdded(added, already);
+      }
     } else if (sorted.kind === "device") {
       // The home devices (#632): the same rails as the Desk's buttons, and the Council keeps the words as said.
       const home = deps.devices?.() ?? null;
-      say = home ? (await home.act({ action: sorted.action, rooms: sorted.rooms, via: "phone", said: text })).say : "The home devices aren't set up here yet.";
+      say = home
+        ? (await home.act({ action: sorted.action, rooms: sorted.rooms, portions: sorted.portions, plate: sorted.plate, suction: sorted.suction, water: sorted.water, via: "phone", said: text })).say
+        : "The home devices aren't set up here yet.";
     } else if (sorted.kind === "todo") {
       const todo = await deps.todos(deps.blob).addTodo(sorted.text, now);
       say = sayTodo(todo.text, todo.due, now);
@@ -220,6 +242,11 @@ export async function havenPost(request: Request, deps: HavenDeps): Promise<Resp
     if (typeof body.done !== "boolean") return reply({ error: "bad-request" }, 400);
     const ok = await new KitchenList(deps.blob).tick(body.id, body.done, now);
     return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
+  }
+  if (body.action === "instacart") {
+    const sent = await sendToInstacart({ fetch: deps.fetch ?? fetch, config: deps.instacart ?? null, blob: deps.blob, now, log: deps.log }, await new KitchenList(deps.blob).items(now));
+    if (sent.ok) return reply({ ok: true, url: sent.url, items: sent.items });
+    return reply({ error: sent.error }, sent.error === "not-set-up" ? 503 : sent.error === "empty" ? 409 : 502);
   }
   const phones = new PhoneKeys(deps.blob, await deps.pepper());
   if (body.action === "add-phone") {

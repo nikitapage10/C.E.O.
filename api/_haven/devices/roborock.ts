@@ -12,7 +12,9 @@
  *     GET  {iot}/api/v1/getHomeDetail            the home's id
  *     GET  {rriot.r.a}/v3/user/homes/{id}        devices (duid, local key), products, the app's room names (Hawk-signed)
  *   Commands, over the cloud MQTT broker (rriot.r.m), one short session each:
- *     get_status, get_room_mapping, app_start, app_pause, app_charge, app_segment_clean
+ *     get_status, get_room_mapping, app_start, app_pause, app_charge, app_segment_clean, and (#637 scope) before a
+ *     start or a rooms clean, only when a mode word was asked: set_custom_mode (101 quiet, 104 max) and
+ *     set_water_box_custom_mode (200 off for vacuum only, 202 medium for mop too). Without a word nothing is changed.
  *
  * A V1 message is "1.0", seq, random, timestamp, protocol (101 request, 102 response) and the payload, AES-128-ECB
  * under md5(scrambled timestamp + the device's local key + a fixed salt), closed with a CRC32. The local key, the rriot
@@ -26,7 +28,7 @@ import type { Duplex } from "node:stream";
 import { callJson, VendorError, withQuery, type Fetch } from "./http.js";
 import { MqttError, requestOnce } from "./mqtt.js";
 import { matchRooms, namedRooms, segmentPairs, type MapRoom } from "./rooms.js";
-import { obj, PLACES, str, type DeviceClient, type DeviceReading, type Found, type RunResult } from "./types.js";
+import { obj, PLACES, str, type DeviceClient, type DeviceReading, type Found, type RunArgs, type RunResult, type Suction, type Water } from "./types.js";
 import { deviceId, type HomeVault } from "./vault.js";
 
 export const BASE_URLS = ["https://usiot.roborock.com", "https://euiot.roborock.com", "https://cniot.roborock.com", "https://ruiot.roborock.com"];
@@ -477,7 +479,7 @@ export class RoborockClient implements DeviceClient<RoborockRef> {
     return out;
   }
 
-  async run(action: string, found: Found<RoborockRef>, args: { rooms?: string[] }): Promise<RunResult> {
+  async run(action: string, found: Found<RoborockRef>, args: RunArgs): Promise<RunResult> {
     const login = await this.login();
     if (!login) return { ok: false, code: "not-connected" };
     const { duid, localKey } = found.ref;
@@ -485,8 +487,15 @@ export class RoborockClient implements DeviceClient<RoborockRef> {
       await this.rpc(login, duid, localKey, method, params);
     };
     try {
-      if (action === "vacuum.start") await send("app_start");
-      else if (action === "vacuum.pause") await send("app_pause");
+      // An optional mode word is set just before the clean starts (app_segment_clean takes only segments and repeat).
+      const setMode = async () => {
+        for (const [method, params] of modeCalls(args)) await send(method, params);
+      };
+      if (action === "vacuum.start") {
+        await setMode();
+        await send("app_start");
+        if (args.suction || args.water) return { ok: true, say: `The vacuum is off from the Hall to clean the whole place${modeWords(args)}.` };
+      } else if (action === "vacuum.pause") await send("app_pause");
       else if (action === "vacuum.dock") await send("app_charge");
       else if (action === "vacuum.rooms") {
         // The map may have changed since it was read: read it again when a name isn't found.
@@ -500,14 +509,33 @@ export class RoborockClient implements DeviceClient<RoborockRef> {
           match = matchRooms(args.rooms ?? [], fresh);
         }
         if (match.unknown.length || !match.rooms.length) return { ok: false, code: "unknown-room" };
+        await setMode();
         await send("app_segment_clean", [{ segments: match.rooms.map((r) => r.segment), repeat: 1 }]);
-        return { ok: true, say: `The vacuum is off to clean the ${joinRooms(match.rooms.map((r) => r.name))}.` };
+        return { ok: true, say: `The vacuum is off to clean the ${joinRooms(match.rooms.map((r) => r.name))}${modeWords(args)}.` };
       } else return { ok: false, code: "unsupported" };
     } catch {
       return { ok: false, code: found.reading.online ? "vendor" : "offline" };
     }
     return { ok: true };
   }
+}
+
+/** Roborock's codes for the mode words (miio): fan power and the water box. */
+export const SUCTION_CODE: Record<Suction, number> = { quiet: 101, max: 104 };
+export const WATER_CODE: Record<Water, number> = { off: 200, on: 202 };
+
+/** The calls a mode word takes, in order, before the clean starts: none without a word. */
+export function modeCalls(args: Pick<RunArgs, "suction" | "water">): [string, number[]][] {
+  const out: [string, number[]][] = [];
+  if (args.suction) out.push(["set_custom_mode", [SUCTION_CODE[args.suction]]]);
+  if (args.water) out.push(["set_water_box_custom_mode", [WATER_CODE[args.water]]]);
+  return out;
+}
+
+/** ", quietly, vacuum only" for Skippy's line, or "". */
+export function modeWords(args: Pick<RunArgs, "suction" | "water">): string {
+  const w = [args.suction === "quiet" ? "quietly" : args.suction === "max" ? "on max" : "", args.water === "off" ? "vacuum only" : args.water === "on" ? "mopping too" : ""].filter(Boolean);
+  return w.length ? `, ${w.join(", ")}` : "";
 }
 
 /** "kitchen", "kitchen and hall", "kitchen, hall and dining", in lower case for a spoken line. */

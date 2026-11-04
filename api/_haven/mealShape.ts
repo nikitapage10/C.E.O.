@@ -11,6 +11,9 @@
  *     library), its macros as built, a photo id, how often it was had, and whether Nikita passed on it;
  *   - the week: seven slots, each a meal with two backups, lunch, for two, HelloFresh, in the cart, and how it was
  *     customized (`custom`: a part swapped for another component, the portion, the spice);
+ *   - lunches (#719): a catalog meal with `course: "lunch"` is a quick lunch (a salad, a cook-yourself lunch). A day's
+ *     lunch is last night's leftovers (`leftoverOf`: that dinner is cooked one portion bigger) or one of those, with
+ *     its own two backups. A file from before lunches (every meal a dinner, lunches as plain text) reads as it was;
  *   - one Undo.
  *
  * The swap model (Nikita, 07:57Z, "change out the grains or the carbs... really customizable"): a meal's protein, carb
@@ -66,6 +69,8 @@ export interface Part {
 }
 
 export type MealSource = "seed" | "desk" | "skippy";
+export const COURSES = ["dinner", "lunch"] as const;
+export type Course = (typeof COURSES)[number];
 
 export interface Meal {
   id: string;
@@ -86,6 +91,8 @@ export interface Meal {
   lastHad: string | null;
   passed: boolean;
   source: MealSource;
+  /** A dinner (the default, and every meal in a file from before #719) or a quick lunch. */
+  course: Course;
 }
 
 export interface Custom {
@@ -97,11 +104,16 @@ export interface Custom {
 
 export interface Lunch {
   text: string;
+  /** What it counts when nothing better is known (a plain-text lunch, leftovers from a HelloFresh night). */
   protein: number;
   /** The day index whose dinner it's left over from: that dinner is cooked one portion bigger. */
   leftoverOf: number | null;
   /** What it needs from the store beyond the leftovers, for the one lunch. */
   shop: Ingredient[];
+  /** A quick lunch from the catalog (`course: "lunch"`), or null: leftovers or a plain-text lunch (#719). */
+  meal: string | null;
+  /** Two other quick lunches to swap in. */
+  backups: string[];
 }
 
 export interface Slot {
@@ -130,8 +142,10 @@ export interface Profile {
   topUp: { text: string; protein: number; shop: Ingredient[] };
   /** What a HelloFresh night counts for, protein-wise. */
   helloFreshProtein: number;
-  /** Monday's lunch, and any lunch that isn't a leftover. */
+  /** Monday's lunch, and any lunch that isn't a leftover, when the catalog has no quick lunches. */
   salad: Lunch;
+  /** The days that get a quick lunch when a week is planned (Monday always does: Sunday's leftovers are last week's). */
+  lunchDays: Day[];
   /** The nights cooked for two by default when a week is planned. */
   forTwo: Day[];
   avoid: Avoid[];
@@ -276,13 +290,23 @@ function mealOf(v: unknown): Meal | null {
     lastHad: iso(x.lastHad),
     passed: x.passed === true,
     source: oneOf(["seed", "desk", "skippy"] as const, x.source, "desk"),
+    course: oneOf(COURSES, x.course, "dinner"),
   };
 }
 
 function lunchOf(v: unknown): Lunch {
   const x = o(v);
   const lo = x.leftoverOf;
-  return { text: plain(x.text, 80) || "Lunch", protein: int(x.protein, 0, 200, 0), leftoverOf: typeof lo === "number" && Number.isInteger(lo) && lo >= 0 && lo < 7 ? lo : null, shop: ingredientsOf(x.shop).slice(0, 8) };
+  const leftoverOf = typeof lo === "number" && Number.isInteger(lo) && lo >= 0 && lo < 7 ? lo : null;
+  return {
+    text: plain(x.text, 80) || "Lunch",
+    protein: int(x.protein, 0, 200, 0),
+    leftoverOf,
+    shop: ingredientsOf(x.shop).slice(0, 8),
+    // Leftovers or a quick lunch, never both.
+    meal: leftoverOf === null && isId(x.meal) ? x.meal : null,
+    backups: arr(x.backups).filter(isId).slice(0, 3),
+  };
 }
 
 function customOf(v: unknown): Custom {
@@ -334,7 +358,8 @@ export const DEFAULT_PROFILE: Profile = {
   budget: null,
   topUp: { text: "A protein shake", protein: 50, shop: [] },
   helloFreshProtein: 45,
-  salad: { text: "A quick salad with chicken", protein: 50, leftoverOf: null, shop: [] },
+  salad: { text: "A quick salad with chicken", protein: 50, leftoverOf: null, shop: [], meal: null, backups: [] },
+  lunchDays: ["mon", "thu"],
   forTwo: [],
   avoid: [],
   likes: [],
@@ -353,7 +378,8 @@ function profileOf(v: unknown): Profile {
     budget: min !== null && max !== null ? { min, max: Math.max(min, max) } : null,
     topUp: { text: plain(t.text, 80) || DEFAULT_PROFILE.topUp.text, protein: int(t.protein, 0, 200, DEFAULT_PROFILE.topUp.protein), shop: ingredientsOf(t.shop).slice(0, 8) },
     helloFreshProtein: int(x.helloFreshProtein, 0, 200, DEFAULT_PROFILE.helloFreshProtein),
-    salad: x.salad ? { ...lunchOf(x.salad), leftoverOf: null } : DEFAULT_PROFILE.salad,
+    salad: x.salad ? { ...lunchOf(x.salad), leftoverOf: null, meal: null, backups: [] } : DEFAULT_PROFILE.salad,
+    lunchDays: Array.isArray(x.lunchDays) ? DAYS.filter((d) => (x.lunchDays as unknown[]).includes(d)) : DEFAULT_PROFILE.lunchDays,
     forTwo: arr(x.forTwo).filter((d): d is Day => (DAYS as readonly unknown[]).includes(d)),
     avoid: arr(x.avoid)
       .map((a) => o(a))
@@ -373,10 +399,19 @@ function stateOf(x: Record<string, unknown>): MealsState {
     .map(mealOf)
     .filter((meal): meal is Meal => meal !== null && !seen.has(meal.id) && Boolean(seen.add(meal.id)))
     .slice(0, CATALOG_MAX);
-  const ids = new Set(catalog.map((meal) => meal.id));
   const week = weekOf(x.week);
   // A week naming a meal the catalog doesn't have is dropped: the planner never shows a night it can't explain.
-  const okWeek = week && week.slots.every((s) => ids.has(s.meal)) ? { ...week, slots: week.slots.map((s) => ({ ...s, backups: s.backups.filter((b) => ids.has(b) && b !== s.meal) })), picks: week.picks.filter((p) => ids.has(p)) } : null;
+  const course = new Map(catalog.map((meal) => [meal.id, meal.course]));
+  const lunchFix = (l: Lunch): Lunch => ({
+    ...l,
+    // A lunch naming a meal the catalog doesn't have (or a dinner) falls back to its own text.
+    meal: l.meal && course.get(l.meal) === "lunch" ? l.meal : null,
+    backups: l.backups.filter((b) => course.get(b) === "lunch" && b !== l.meal).slice(0, 2),
+  });
+  const okWeek =
+    week && week.slots.every((s) => course.get(s.meal) === "dinner")
+      ? { ...week, slots: week.slots.map((s) => ({ ...s, backups: s.backups.filter((b) => course.get(b) === "dinner" && b !== s.meal), lunch: lunchFix(s.lunch) })), picks: week.picks.filter((p) => course.get(p) === "dinner") }
+      : null;
   return {
     profile: profileOf(x.profile),
     catalog,
@@ -446,10 +481,44 @@ export const slotDish = (f: MealsState, s: Slot): Dish | null => {
   return meal ? dishOf(f, meal, s.custom) : null;
 };
 
+/** A day's quick lunch from the catalog, as written, or null (leftovers or a plain-text lunch). */
+export const lunchDish = (f: MealsState, s: Slot): Dish | null => {
+  const meal = s.lunch.meal ? mealNamed(f, s.lunch.meal) : undefined;
+  return meal ? dishOf(f, meal) : null;
+};
+
+/** The night a day's lunch is left over from, or null. */
+export const leftoverSlot = (f: MealsState, s: Slot): Slot | null => (s.lunch.leftoverOf === null ? null : (f.week?.slots[s.lunch.leftoverOf] ?? null));
+
+export interface LunchView {
+  kind: "quick" | "leftovers" | "text";
+  /** "Steak and snow pea salad", "Leftover chicken katsu", or the lunch's own text. */
+  name: string;
+  /** The night it's left over from. */
+  from: Day | null;
+  protein: number;
+  dish: Dish | null;
+}
+
+/**
+ * A day's lunch as the planner shows and counts it: a quick lunch's own macros, leftovers counted as one more
+ * portion of that night's dinner as it'll be cooked (so a swap or a part changed follows at once), else the text.
+ */
+export function lunchView(f: MealsState, s: Slot): LunchView {
+  const dish = lunchDish(f, s);
+  if (dish) return { kind: "quick", name: dish.meal.name, from: null, protein: dish.macros.protein, dish };
+  const from = leftoverSlot(f, s);
+  if (from) {
+    const d = from.helloFresh ? null : slotDish(f, from);
+    return { kind: "leftovers", name: d ? `Leftover ${d.meal.name}` : `Leftover ${DAY_NAME[from.day]} dinner`, from: from.day, protein: d ? d.macros.protein : s.lunch.protein, dish: null };
+  }
+  return { kind: "text", name: s.lunch.text, from: null, protein: s.lunch.protein, dish: null };
+}
+
 /** The day's protein: dinner (or HelloFresh's), lunch and the top-up. */
 export function dayProtein(f: MealsState, s: Slot): { dinner: number; lunch: number; topUp: number; total: number } {
   const dinner = s.helloFresh ? f.profile.helloFreshProtein : (slotDish(f, s)?.macros.protein ?? 0);
-  const lunch = s.lunch.protein;
+  const lunch = lunchView(f, s).protein;
   const topUp = f.profile.topUp.protein;
   return { dinner, lunch, topUp, total: dinner + lunch + topUp };
 }
@@ -466,18 +535,18 @@ export type MealStatus = "week" | "backup" | "new" | "had" | "passed" | "avoid";
 
 export function statusOf(f: MealsState, meal: Meal): MealStatus {
   if (meal.passed) return "passed";
-  if (f.week?.slots.some((s) => s.meal === meal.id)) return "week";
+  if (f.week?.slots.some((s) => s.meal === meal.id || s.lunch.meal === meal.id)) return "week";
   if (dishBreaks(f, meal)) return "avoid";
-  if (f.week?.slots.some((s) => s.backups.includes(meal.id))) return "backup";
+  if (f.week?.slots.some((s) => s.backups.includes(meal.id) || s.lunch.backups.includes(meal.id))) return "backup";
   return meal.timesHad > 0 ? "had" : "new";
 }
 
-/** Meals the planner may pick: not passed, nothing avoided, not in `exclude`; least had and longest ago first. */
-export function candidates(f: MealsState, exclude: Iterable<string> = []): Meal[] {
+/** Meals the planner may pick for a course: not passed, nothing avoided, not in `exclude`; least had and longest ago first. */
+export function candidates(f: MealsState, exclude: Iterable<string> = [], course: Course = "dinner"): Meal[] {
   const no = new Set(exclude);
   const liked = (meal: Meal) => (likesOf(f, meal) ? 0 : 1);
   return f.catalog
-    .filter((meal) => !meal.passed && !no.has(meal.id) && !dishBreaks(f, meal))
+    .filter((meal) => meal.course === course && !meal.passed && !no.has(meal.id) && !dishBreaks(f, meal))
     .sort((a, b) => a.timesHad - b.timesHad || liked(a) - liked(b) || (a.lastHad ?? "").localeCompare(b.lastHad ?? "") || b.macros.protein - a.macros.protein || a.id.localeCompare(b.id));
 }
 
@@ -501,6 +570,44 @@ function backupsFor(f: MealsState, main: Meal, keep: string[], used: Set<string>
   return out;
 }
 
+/** Two backup lunches: whatever's freshest, never the day's own. Lunches may repeat across the week. */
+function lunchBackupsFor(f: MealsState, main: string | null, keep: string[]): string[] {
+  const ok = candidates(f, main ? [main] : [], "lunch");
+  const out = keep.filter((id) => ok.some((x) => x.id === id)).slice(0, 2);
+  for (const meal of ok) {
+    if (out.length >= 2) break;
+    if (!out.includes(meal.id)) out.push(meal.id);
+  }
+  return out;
+}
+
+const leftovers = (i: number): Lunch => ({ text: `Leftover ${DAY_NAME[DAYS[i - 1]!]} dinner`, protein: 0, leftoverOf: i - 1, shop: [], meal: null, backups: [] });
+
+/**
+ * The week's lunches (#719): last night's leftovers most days, a quick lunch from the catalog on the profile's lunch
+ * days and on Monday (no leftovers yet), each with two backups. With no quick lunches in the catalog, those days
+ * get the profile's plain-text salad, as before lunches were planned.
+ */
+export function planLunches(f: MealsState, slots: Slot[]): void {
+  const used = new Set<string>();
+  slots.forEach((s, i) => {
+    if (i > 0 && !f.profile.lunchDays.includes(s.day)) {
+      const l = leftovers(i);
+      l.protein = slotDish(f, slots[i - 1]!)?.macros.protein ?? 0;
+      s.lunch = { ...l, backups: lunchBackupsFor(f, null, []) };
+      return;
+    }
+    const pool = candidates(f, [], "lunch");
+    const pick = pool.find((x) => !used.has(x.id)) ?? pool[0];
+    if (!pick) {
+      s.lunch = { ...f.profile.salad, meal: null, backups: [] };
+      return;
+    }
+    used.add(pick.id);
+    s.lunch = { text: pick.name, protein: pick.macros.protein, leftoverOf: null, shop: [], meal: pick.id, backups: lunchBackupsFor(f, pick.id, []) };
+  });
+}
+
 const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** A fresh week from the catalog: seven mains (no cuisine twice running), backups, lunches, picks. */
@@ -521,7 +628,7 @@ export function planWeek(f: MealsState, start: string, prev: Week | null = null)
     day: DAYS[i]!,
     meal: meal.id,
     backups: [],
-    lunch: i === 0 ? { ...f.profile.salad } : { text: `Leftover ${DAY_NAME[DAYS[i - 1]!]} dinner`, protein: Math.round((mains[i - 1]!.macros.protein * 3) / 4), leftoverOf: i - 1, shop: [] },
+    lunch: { ...f.profile.salad },
     forTwo: f.profile.forTwo.includes(DAYS[i]!),
     helloFresh: false,
     inCart: true,
@@ -532,6 +639,7 @@ export function planWeek(f: MealsState, start: string, prev: Week | null = null)
     s.backups = backupsFor(f, mealNamed(f, s.meal)!, [], used);
     s.backups.forEach((b) => used.add(b));
   }
+  planLunches(f, slots);
   const picks = candidates(f, used)
     .filter((x) => x.timesHad === 0)
     .slice(0, 3)
@@ -554,6 +662,8 @@ export type MealEdit =
   | { op: "heat"; spice: Spice | null }
   | { op: "goal"; protein: number }
   | { op: "pass"; meal: string; passed: boolean }
+  /** A day's lunch (#719): a quick lunch from the catalog (`meal`), or last night's leftovers (`leftovers`). */
+  | { op: "lunch"; day: Day; meal?: string; leftovers?: true }
   | { op: "next-week" }
   | { op: "confirm" }
   | { op: "undo" }
@@ -605,6 +715,9 @@ export function readEdit(v: unknown): MealEdit | null {
       return typeof x.protein === "number" && x.protein >= 40 && x.protein <= 400 ? { op: "goal", protein: Math.round(x.protein) } : null;
     case "pass":
       return isId(x.meal) && typeof x.passed === "boolean" ? { op: "pass", meal: x.meal, passed: x.passed } : null;
+    case "lunch":
+      if (!isDay(x.day) || (x.leftovers === true) === isId(x.meal)) return null;
+      return x.leftovers === true ? { op: "lunch", day: x.day, leftovers: true } : { op: "lunch", day: x.day, meal: x.meal as string };
     case "next-week":
     case "confirm":
     case "undo":
@@ -655,10 +768,38 @@ function replaceMain(f: MealsState, day: Day): string | null {
   return `${DAY_NAME[day]}: ${nameOf(f, next)} instead of ${nameOf(f, old)}.`;
 }
 
+/** Puts a quick lunch on a day (`meal`), or last night's leftovers (null); what was there becomes a backup. */
+function putLunch(f: MealsState, day: Day, meal: string | null): string | null {
+  const i = DAYS.indexOf(day);
+  const s = f.week!.slots[i]!;
+  const was = lunchView(f, s);
+  if (meal === null) {
+    if (i === 0 || s.lunch.leftoverOf !== null) return null;
+    s.lunch = { ...leftovers(i), protein: slotDish(f, f.week!.slots[i - 1]!)?.macros.protein ?? 0, backups: lunchBackupsFor(f, null, [s.lunch.meal ?? "", ...s.lunch.backups]) };
+  } else {
+    if (s.lunch.meal === meal) return null;
+    const m = mealNamed(f, meal)!;
+    s.lunch = { text: m.name, protein: m.macros.protein, leftoverOf: null, shop: [], meal, backups: lunchBackupsFor(f, meal, [s.lunch.meal ?? "", ...s.lunch.backups]) };
+  }
+  return `${DAY_NAME[day]}'s lunch: ${lunchView(f, s).name} instead of ${was.name.toLowerCase()}.`;
+}
+
+/** A day's quick lunch that no longer fits (passed on, avoided): its first usable backup, else leftovers, else the salad. */
+function replaceLunch(f: MealsState, s: Slot): string {
+  const ok = candidates(f, [], "lunch");
+  const next = s.lunch.backups.find((b) => ok.some((x) => x.id === b)) ?? ok.find((x) => x.id !== s.lunch.meal)?.id;
+  const i = DAYS.indexOf(s.day);
+  const said = next ? putLunch(f, s.day, next) : i > 0 ? putLunch(f, s.day, null) : null;
+  if (said) return said;
+  s.lunch = { ...f.profile.salad, meal: null, backups: [] };
+  return `${DAY_NAME[s.day]}'s lunch: ${s.lunch.text}.`;
+}
+
 /** Drops backups that no longer fit (passed on, or avoided) and tops each night back up to two. */
 function refill(f: MealsState) {
   const w = f.week!;
   const ok = new Set(candidates(f).map((x) => x.id));
+  for (const s of w.slots) s.lunch.backups = lunchBackupsFor(f, s.lunch.meal, s.lunch.backups);
   for (const s of w.slots) {
     s.backups = s.backups.filter((b) => ok.has(b));
     if (s.backups.length >= 2) continue;
@@ -698,7 +839,7 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
     case "swap": {
       if (!needWeek()) return { ok: false, error: "no-week" };
       const meal = mealNamed(f, edit.meal);
-      if (!meal || meal.passed) return { ok: false, error: "bad-meal" };
+      if (!meal || meal.passed || meal.course !== "dinner") return { ok: false, error: "bad-meal" };
       const said = putOn(f, edit.day, meal.id);
       if (said) changes.push(said);
       label = `${DAY_NAME[edit.day]} swapped`;
@@ -713,6 +854,18 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
       if (!said) return { ok: false, error: "no-backup" };
       changes.push(`Passed on ${meal.name}.`, said);
       label = `Not for me: ${meal.name}`;
+      break;
+    }
+    case "lunch": {
+      if (!needWeek()) return { ok: false, error: "no-week" };
+      let meal: Meal | undefined;
+      if (edit.meal) {
+        meal = mealNamed(f, edit.meal);
+        if (!meal || meal.passed || meal.course !== "lunch") return { ok: false, error: "bad-meal" };
+      } else if (edit.day === "mon") return { ok: false, error: "bad-meal" };
+      const said = putLunch(f, edit.day, meal?.id ?? null);
+      if (said) changes.push(said);
+      label = `${DAY_NAME[edit.day]}'s lunch`;
       break;
     }
     case "night": {
@@ -772,9 +925,13 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
         const said = replaceMain(f, s.day);
         changes.push(said ?? `${DAY_NAME[s.day]}: ${meal.name} has ${rule.term}, and nothing else fits. Swap it by hand.`);
       }
+      for (const s of f.week?.slots ?? []) {
+        const lunch = s.lunch.meal ? mealNamed(f, s.lunch.meal) : undefined;
+        if (lunch && dishBreaks(f, lunch)) changes.push(replaceLunch(f, s));
+      }
       if (f.week) refill(f);
       if (breaks([rule], [f.profile.topUp.text, ...f.profile.topUp.shop.map((i) => i.item)])) changes.push(`The daily top-up has ${rule.term} in it; change it in the taste profile.`);
-      if (f.week?.slots.some((s) => breaks([rule], [s.lunch.text, ...s.lunch.shop.map((i) => i.item)]))) changes.push(`A lunch has ${rule.term} in it.`);
+      if (f.week?.slots.some((s) => !s.lunch.meal && breaks([rule], [s.lunch.text, ...s.lunch.shop.map((i) => i.item)]))) changes.push(`A lunch has ${rule.term} in it.`);
       label = `No ${rule.term}`;
       break;
     }
@@ -813,6 +970,7 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
       meal.passed = edit.passed;
       changes.push(edit.passed ? `Passed on ${meal.name}.` : `${meal.name} is back in the catalog.`);
       if (edit.passed) for (const s of f.week?.slots ?? []) if (s.meal === meal.id) changes.push(replaceMain(f, s.day) ?? "");
+      if (edit.passed) for (const s of f.week?.slots ?? []) if (s.lunch.meal === meal.id) changes.push(replaceLunch(f, s));
       if (f.week) refill(f);
       label = edit.passed ? `Passed on ${meal.name}` : `${meal.name} back`;
       break;
@@ -820,6 +978,11 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
     case "next-week": {
       const prev = f.week;
       for (const s of prev?.slots ?? []) {
+        const lunch = s.lunch.meal ? mealNamed(f, s.lunch.meal) : undefined;
+        if (lunch) {
+          lunch.timesHad += 1;
+          lunch.lastHad = stamp;
+        }
         if (s.helloFresh || !s.inCart) continue;
         const meal = mealNamed(f, s.meal)!;
         meal.timesHad += 1;
@@ -851,6 +1014,53 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
     f.week.photoQueue = [];
   }
   return { ok: true, file: { v: 1, ...f, undo: { label, at: stamp, state: before } }, changes: changes.filter(Boolean) };
+}
+
+/* ── Adding lunches to a planner that's already there (#719) ── */
+
+export interface LunchMerge {
+  file: MealsFile;
+  /** Quick lunches new to the catalog. */
+  added: number;
+  /** Days of the week whose lunch changed. */
+  days: number;
+}
+
+/**
+ * Lunches from a seed, added to the file that's in the store without touching anything else in it: the seed's quick
+ * lunches (and any components they need) join the catalog when their id is new, the seed's lunch days come along,
+ * and when the week has no quick lunch yet it gets the seed's lunch plan (the same week) or a planned one. Dinners,
+ * the taste profile's rules and every edit since stay as they are. Undo puts it back; a second run changes nothing.
+ */
+export function addLunches(file: MealsFile, seed: MealsFile, now: number): LunchMerge {
+  const before: MealsState = clone({ profile: file.profile, catalog: file.catalog, components: file.components, week: file.week });
+  const f: MealsState = clone(before);
+  const have = new Set(f.catalog.map((x) => x.id));
+  const fresh = seed.catalog.filter((x) => x.course === "lunch" && !have.has(x.id)).slice(0, Math.max(0, CATALOG_MAX - f.catalog.length));
+  f.catalog.push(...clone(fresh));
+  const parts = new Set(fresh.flatMap((x) => x.parts.map((p) => p.option)));
+  const comps = new Set(f.components.map((x) => x.id));
+  f.components.push(...seed.components.filter((x) => parts.has(x.id) && !comps.has(x.id)).slice(0, Math.max(0, COMPONENTS_MAX - f.components.length)));
+  f.profile.lunchDays = [...seed.profile.lunchDays];
+  const w = f.week;
+  if (w && !w.slots.some((s) => s.lunch.meal)) {
+    const lunches = new Set(f.catalog.filter((x) => x.course === "lunch").map((x) => x.id));
+    if (seed.week?.start === w.start && seed.week.slots.some((s) => s.lunch.meal && lunches.has(s.lunch.meal))) {
+      w.slots.forEach((s, i) => {
+        const l = clone(seed.week!.slots[i]!.lunch);
+        s.lunch = { ...l, meal: l.meal && lunches.has(l.meal) ? l.meal : null, backups: l.backups.filter((b) => lunches.has(b)) };
+      });
+    } else planLunches(f, w.slots);
+    // The lunches' backups only: the dinners' stay exactly as they were.
+    for (const s of w.slots) s.lunch.backups = lunchBackupsFor(f, s.lunch.meal, s.lunch.backups);
+  }
+  const days = w ? w.slots.filter((s, i) => JSON.stringify(s.lunch) !== JSON.stringify(before.week!.slots[i]!.lunch)).length : 0;
+  if (!fresh.length && !days) return { file, added: 0, days: 0 };
+  if (w && days) {
+    w.confirmedAt = null;
+    w.photoQueue = [];
+  }
+  return { file: { v: 1, ...f, undo: { label: "Lunches added", at: new Date(now).toISOString(), state: before } }, added: fresh.length, days };
 }
 
 /* ── The shopping list ── */
@@ -901,9 +1111,11 @@ export function shoppingList(f: MealsState): Ingredient[] {
       const d = slotDish(f, s);
       for (const x of d?.ingredients ?? []) put(x, portions[i]! * (d?.portion ?? 1));
     }
-    // A lunch's own extras come along unless it's left over from a night that isn't cooked.
+    // A quick lunch is bought for one (#719); a lunch's own extras come along unless it's left over from a night that isn't cooked.
+    const quick = lunchDish(f, s);
+    if (quick) for (const x of quick.ingredients) put(x, 1);
     const from = s.lunch.leftoverOf === null ? null : w.slots[s.lunch.leftoverOf]!;
-    if (!from || (!from.helloFresh && from.inCart)) for (const x of s.lunch.shop) put(x, 1);
+    if (!quick && (!from || (!from.helloFresh && from.inCart))) for (const x of s.lunch.shop) put(x, 1);
   });
   for (const x of f.profile.topUp.shop) put(x, 1);
   return [...sum.values()];
@@ -958,7 +1170,9 @@ export function weekWords(f: MealsState): string {
     const p = dayProtein(f, s);
     const what = s.helloFresh ? "HelloFresh" : `${d?.meal.name ?? s.meal}${d?.customized ? ` (${d.changes.join(", ").toLowerCase()})` : ""}`;
     const extra = [s.forTwo && "for two", !s.inCart && !s.helloFresh && "left out of the cart"].filter(Boolean).join(", ");
-    return `${DAY_NAME[s.day]}: ${what}${extra ? `, ${extra}` : ""}; ${p.total} g protein for the day; backups ${s.backups.map((b) => nameOf(f, b)).join(" or ") || "none"}.`;
+    const l = lunchView(f, s);
+    const lunch = `lunch ${l.name}${l.kind === "quick" && s.lunch.backups.length ? ` (or ${s.lunch.backups.map((b) => nameOf(f, b)).join(" or ")})` : ""}`;
+    return `${DAY_NAME[s.day]}: ${what}${extra ? `, ${extra}` : ""}; ${lunch}; ${p.total} g protein for the day; backups ${s.backups.map((b) => nameOf(f, b)).join(" or ") || "none"}.`;
   });
   const avoid = f.profile.avoid.map((a) => (a.unless ? `${a.term} (unless ${a.unless})` : a.term)).join(", ");
   const likes = f.profile.likes.join(", ");
@@ -972,10 +1186,11 @@ export function weekWords(f: MealsState): string {
     .join("\n");
 }
 
-/** A meal by its id or (loosely) its name, for Skippy's tools. */
-export function findMeal(f: MealsState, said: string): Meal | undefined {
+/** A meal by its id or (loosely) its name, for Skippy's tools; `course` narrows it to dinners or lunches. */
+export function findMeal(f: MealsState, said: string, course?: Course): Meal | undefined {
   const k = said.toLowerCase().trim();
-  return f.catalog.find((x) => x.id === k) ?? f.catalog.find((x) => x.name.toLowerCase() === k) ?? f.catalog.find((x) => x.name.toLowerCase().includes(k) && k.length >= 3);
+  const all = course ? f.catalog.filter((x) => x.course === course) : f.catalog;
+  return all.find((x) => x.id === k) ?? all.find((x) => x.name.toLowerCase() === k) ?? all.find((x) => x.name.toLowerCase().includes(k) && k.length >= 3);
 }
 
 const norm = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();

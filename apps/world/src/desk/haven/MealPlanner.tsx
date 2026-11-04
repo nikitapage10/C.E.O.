@@ -8,7 +8,9 @@ import {
   SPICES,
   allComponents,
   dayProtein,
+  candidates,
   loadMeals,
+  lunchView,
   mealNamed,
   mealsAction,
   MEALS_NOTE,
@@ -26,11 +28,12 @@ import {
   type MealsAction,
   type MealsFile,
   type Role,
+  type Course,
   type Slot,
 } from "./meals.ts";
 import { confirmPhotos, PHOTO_WORD, photoStates, photoUrl, shootOf, type PhotoState } from "./mealPhotos.ts";
 import { onWrote, touchesList, touchesMeals } from "../skippy/wrote.ts";
-import { cookOf } from "./cook.ts";
+import { cookLunchOf, cookOf } from "./cook.ts";
 import { CookMode } from "./CookMode.tsx";
 import "./meals.css";
 
@@ -136,9 +139,10 @@ function DayCard({ f, s, i, open, onOpen }: { f: MealsFile; s: Slot; i: number; 
   const p = dayProtein(f, s);
   if (!d) return null;
   const pending = d.customized && !s.photo && !s.helloFresh;
+  const l = lunchView(f, s);
   return (
     <li className={`mp-day${open ? " is-open" : ""}${s.helloFresh ? " is-hf" : ""}`} style={{ ["--i" as string]: i } as CSSProperties}>
-      <button type="button" aria-pressed={open} aria-label={`${DAY_NAME[s.day]}: ${s.helloFresh ? "HelloFresh" : d.meal.name}, ${p.total} g protein`} onClick={onOpen}>
+      <button type="button" aria-pressed={open} aria-label={`${DAY_NAME[s.day]}: ${s.helloFresh ? "HelloFresh" : d.meal.name}, lunch ${l.kind === "leftovers" ? "leftovers" : l.name}, ${p.total} g protein`} onClick={onOpen}>
         <Photo meal={d.meal} photo={s.photo} pending={pending} />
         <span className="mp-dayTags">
           {s.helloFresh ? <span className="mp-tag is-hf">HelloFresh</span> : null}
@@ -151,6 +155,9 @@ function DayCard({ f, s, i, open, onOpen }: { f: MealsFile; s: Slot; i: number; 
               {SHORT[s.day]} · {dateOf(f.week!.start, i).getUTCDate()}
             </small>
             <b>{s.helloFresh ? "HelloFresh night" : d.meal.name}</b>
+            <span className={`mp-dayLunch is-${l.kind}`}>
+              <i aria-hidden="true">Lunch</i> {l.kind === "leftovers" ? "leftovers" : l.name}
+            </span>
           </span>
           <Ring value={p.total} goal={f.profile.proteinGoal} />
         </span>
@@ -212,7 +219,7 @@ function Drawer({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => 
           <Macros d={d} />
           <div className="mp-dayLine">
             <span>
-              Dinner {p.dinner} g{s.helloFresh ? " (HelloFresh)" : ""} · {s.lunch.text} {p.lunch} g · {f.profile.topUp.text} {p.topUp} g
+              Dinner {p.dinner} g{s.helloFresh ? " (HelloFresh)" : ""} · Lunch {p.lunch} g · {f.profile.topUp.text} {p.topUp} g
             </span>
             <b className={p.total >= f.profile.proteinGoal ? "is-ok" : "is-low"}>
               {p.total} / {f.profile.proteinGoal} g
@@ -301,6 +308,8 @@ function Drawer({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => 
         </div>
       )}
 
+      <LunchPanel f={f} s={s} edit={edit} />
+
       <div className="mp-swap">
         <span className="mp-k">Backups</span>
         <div className="mp-backs">
@@ -348,6 +357,90 @@ function Drawer({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => 
   );
 }
 
+/**
+ * The day's lunch (#719): last night's leftovers (that dinner is cooked one portion bigger) or a quick lunch from the
+ * catalog, with its macros, recipe and cook mode, and the other lunches to swap in, its backups first.
+ */
+function LunchPanel({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => void }) {
+  const l = lunchView(f, s);
+  const day = s.day;
+  const [recipe, setRecipe] = useState(false);
+  const [cooking, setCooking] = useState(false);
+  const cook = cooking ? cookLunchOf(f, s) : null;
+  const from = l.from ? f.week!.slots[DAYS.indexOf(l.from)]! : null;
+  const fromDish = from && !from.helloFresh ? slotDish(f, from) : null;
+  const pool = candidates(f, [s.lunch.meal ?? ""], "lunch");
+  const others = [...s.lunch.backups.map((id) => pool.find((m) => m.id === id)).filter((m): m is Meal => !!m), ...pool.filter((m) => !s.lunch.backups.includes(m.id))].slice(0, 4);
+  const shown = l.dish?.meal ?? fromDish?.meal ?? null;
+  return (
+    <section className="mp-lunch" aria-label={`${DAY_NAME[day]}'s lunch`}>
+      <div className="mp-lunchHead">
+        {shown ? <Photo meal={shown} photo={l.kind === "leftovers" ? from?.photo : null} className="is-mini" /> : <span className="mp-lunchDot" aria-hidden="true" />}
+        <div className="mp-lunchTxt">
+          <span className="mp-k">Lunch</span>
+          <b>{l.name}</b>
+          <small>
+            {l.kind === "quick"
+              ? `${l.dish!.meal.cuisine} · ${l.dish!.meal.minutes} min · ${l.protein} g protein · ${l.dish!.macros.kcal} kcal`
+              : l.kind === "leftovers"
+                ? `From ${DAY_NAME[l.from!]}'s dinner, cooked one portion bigger · ${l.protein} g protein`
+                : `${l.protein} g protein`}
+          </small>
+        </div>
+        {l.kind === "quick" ? (
+          <div className="mp-lunchActs">
+            <button type="button" className="mp-link" aria-expanded={recipe} onClick={() => setRecipe((v) => !v)}>
+              {recipe ? "Hide the recipe" : "Recipe"}
+            </button>
+            <button type="button" className="mp-cook is-small" onClick={() => setCooking(true)}>
+              Cook lunch
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {cook ? <CookMode cook={cook} onClose={() => setCooking(false)} /> : null}
+      {recipe && l.dish ? (
+        <div className="mp-recipe">
+          <ol>
+            {l.dish.meal.steps.map((st, i) => (
+              <li key={i}>{st}</li>
+            ))}
+          </ol>
+          <ul aria-label="Lunch ingredients, one portion">
+            {l.dish.ingredients.map((x, i) => (
+              <li key={i} className={x.pantry ? "is-pantry" : ""}>
+                {shopLine(x)}
+                {x.pantry ? <small> pantry</small> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <div className="mp-backs" role="group" aria-label={`Other lunches for ${DAY_NAME[day]}`}>
+        {day !== "mon" && l.kind !== "leftovers" ? (
+          <button type="button" className="mp-back is-left" onClick={() => edit({ op: "lunch", day, leftovers: true })}>
+            <span>
+              <b>Leftovers</b>
+              <small>{DAY_NAME[DAYS[DAYS.indexOf(day) - 1]!]}'s dinner, one portion more</small>
+            </span>
+          </button>
+        ) : null}
+        {others.map((m) => (
+          <button key={m.id} type="button" className="mp-back" onClick={() => edit({ op: "lunch", day, meal: m.id })}>
+            <Photo meal={m} className="is-mini" />
+            <span>
+              <b>{m.name}</b>
+              <small>
+                {m.minutes} min · {m.macros.protein} g protein
+              </small>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** A drawer over the planner: the catalog or the taste profile. */
 function Over({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
@@ -385,11 +478,23 @@ function Over({ title, onClose, children }: { title: string; onClose: () => void
 const ORDER: MealStatus[] = ["week", "backup", "new", "had", "avoid", "passed"];
 
 function Catalog({ f, day, edit }: { f: MealsFile; day: Day; edit: (e: MealEdit) => void }) {
-  const rows = [...f.catalog].map((m) => ({ m, st: statusOf(f, m) })).sort((a, b) => ORDER.indexOf(a.st) - ORDER.indexOf(b.st) || a.m.name.localeCompare(b.m.name));
+  const [course, setCourse] = useState<Course>("dinner");
+  const of = f.catalog.filter((m) => m.course === course);
+  const rows = of.map((m) => ({ m, st: statusOf(f, m) })).sort((a, b) => ORDER.indexOf(a.st) - ORDER.indexOf(b.st) || a.m.name.localeCompare(b.m.name));
+  const lunches = f.catalog.filter((m) => m.course === "lunch").length;
   return (
     <div className="mp-cat">
+      <div className="mp-chips" role="group" aria-label="Dinners or lunches">
+        <button type="button" className="mp-chip" aria-pressed={course === "dinner"} onClick={() => setCourse("dinner")}>
+          Dinners <small>{f.catalog.length - lunches}</small>
+        </button>
+        <button type="button" className="mp-chip" aria-pressed={course === "lunch"} onClick={() => setCourse("lunch")}>
+          Lunches <small>{lunches}</small>
+        </button>
+      </div>
       <p className="mp-note">
-        {f.catalog.length} meals. Macros are estimates for one portion. "Put on" swaps it in for {DAY_NAME[day]}.
+        {of.length} {course === "lunch" ? "quick lunches" : "dinners"}. Macros are estimates for one portion. "Put on" swaps it in for {DAY_NAME[day]}
+        {course === "lunch" ? "'s lunch" : ""}.
       </p>
       <table>
         <thead>
@@ -426,8 +531,8 @@ function Catalog({ f, day, edit }: { f: MealsFile; day: Day; edit: (e: MealEdit)
                 <span className={`mp-st is-${st}`}>{STATUS_NAME[st]}</span>
               </td>
               <td className="mp-acts">
-                {st !== "passed" && st !== "avoid" && st !== "week" ? (
-                  <button type="button" className="mp-link" onClick={() => edit({ op: "swap", day, meal: m.id })}>
+                {st !== "passed" && st !== "avoid" && (st !== "week" || (m.course === "lunch" && f.week?.slots[DAYS.indexOf(day)]?.lunch.meal !== m.id)) ? (
+                  <button type="button" className="mp-link" onClick={() => edit(m.course === "lunch" ? { op: "lunch", day, meal: m.id } : { op: "swap", day, meal: m.id })}>
                     Put on {SHORT[day]}
                   </button>
                 ) : null}
@@ -464,7 +569,7 @@ function Taste({ f, edit }: { f: MealsFile; edit: (e: MealEdit) => void }) {
           </button>
         </div>
         <p className="mp-note">
-          Each day counts dinner, lunch and the top-up ({f.profile.topUp.text}, {f.profile.topUp.protein} g). A HelloFresh night counts {f.profile.helloFreshProtein} g.
+          Each day counts dinner, lunch (leftovers count as one more portion of that dinner) and the top-up ({f.profile.topUp.text}, {f.profile.topUp.protein} g). A HelloFresh night counts {f.profile.helloFreshProtein} g.
         </p>
       </div>
       <span className="mp-k">Avoid</span>

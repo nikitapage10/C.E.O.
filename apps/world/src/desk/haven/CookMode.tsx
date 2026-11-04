@@ -131,7 +131,7 @@ export function CookMode({ cook, onClose }: { cook: Cook; onClose: () => void })
         <header className="ck-head">
           <div className="ck-title">
             <p className="ck-eyb">
-              {cook.dayName} · {cook.cuisine}
+              {cook.course === "lunch" ? `${cook.dayName}'s lunch` : cook.dayName} · {cook.cuisine}
               <span className="ck-min"> · {cook.minutes} min</span>
             </p>
             <h2>{cook.name}</h2>
@@ -186,8 +186,8 @@ export function CookMode({ cook, onClose }: { cook: Cook; onClose: () => void })
             </div>
           </section>
 
-          <aside id="ck-side" className="ck-side" aria-label="Tonight's parts and amounts">
-            <h3>Tonight</h3>
+          <aside id="ck-side" className="ck-side" aria-label={cook.course === "lunch" ? "Lunch's parts and amounts" : "Tonight's parts and amounts"}>
+            <h3>{cook.course === "lunch" ? "Lunch" : "Tonight"}</h3>
             <ul className="ck-parts">
               {cook.parts.map((p, k) => (
                 <li key={k}>

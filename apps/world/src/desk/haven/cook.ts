@@ -6,7 +6,7 @@
  * Nothing new is read or stored.
  */
 
-import { DAY_NAME, DAYS, portionsOf, shopLine, slotDish, type Component, type Day, type Ingredient, type MealsFile, type Role, type Slot, type Spice } from "./meals.ts";
+import { DAY_NAME, DAYS, lunchDish, portionsOf, shopLine, slotDish, type Component, type Day, type Dish, type Ingredient, type MealsFile, type Role, type Slot, type Spice } from "./meals.ts";
 
 /** A run of a step's words; `swap` marks the new part's name where the recipe named the old one. */
 export interface Run {
@@ -35,6 +35,8 @@ export interface CookLine {
 
 export interface Cook {
   day: Day;
+  /** Tonight's dinner, or the day's quick lunch (#719). */
+  course: "dinner" | "lunch";
   dayName: string;
   name: string;
   cuisine: string;
@@ -122,6 +124,16 @@ export function cookOf(f: MealsFile, s: Slot): Cook | null {
   f.week.slots.forEach((o, j) => {
     if (o.lunch.leftoverOf === i) why.push(`makes ${DAY_NAME[DAYS[j]!]}'s lunch`);
   });
+  return cookDish(d, s.day, "dinner", portions, why);
+}
+
+/** The day's quick lunch for cook mode (#719), for one; null when the lunch is leftovers or plain text. */
+export function cookLunchOf(f: MealsFile, s: Slot): Cook | null {
+  const d = lunchDish(f, s);
+  return d ? cookDish(d, s.day, "lunch", 1, []) : null;
+}
+
+function cookDish(d: Dish, day: Day, course: Cook["course"], portions: number, why: string[]): Cook {
   const swaps: Swap[] = [];
   for (const p of d.parts) {
     if (!p.base || !p.now || p.base.id === p.now.id) continue;
@@ -135,8 +147,9 @@ export function cookOf(f: MealsFile, s: Slot): Cook | null {
   }
   const steps = d.meal.steps.map((t) => stepOf(t, swaps));
   return {
-    day: s.day,
-    dayName: DAY_NAME[s.day],
+    day,
+    course,
+    dayName: DAY_NAME[day],
     name: d.meal.name,
     cuisine: d.meal.cuisine,
     minutes: d.meal.minutes,

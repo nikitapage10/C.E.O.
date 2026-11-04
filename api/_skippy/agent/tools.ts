@@ -135,6 +135,7 @@ const MEAL_NO: Record<string, string> = {
 /** The same errors, said for the edit that hit them. */
 const MEAL_NO_FOR: Partial<Record<MealEdit["op"], Record<string, string>>> = {
   unavoid: { "not-found": "That wasn't on the avoid list." },
+  lunch: { "bad-meal": "That lunch doesn't fit there: it's passed on, or Monday, which has no leftovers yet." },
   like: { "not-found": "That wasn't on the likes." },
   swap: { "bad-meal": "That meal is passed on. Bring it back from the catalog first, or pick another." },
 };
@@ -253,11 +254,19 @@ const EXECUTORS: Record<string, Executor> = {
   meals_swap: {
     run: async (i, host) => {
       const day = dayOf(i.day);
+      if (i.lunch === true) {
+        if (/^\s*(?:the )?left ?overs?\b/i.test(str(i.meal))) return mealEdit(host, { op: "lunch", day, leftovers: true });
+        if (!str(i.meal).trim()) return { ok: false, text: "Name the lunch, or say leftovers." };
+        const f = host.meals ? await host.meals.read() : null;
+        if (host.meals && !f) return { ok: false, text: MEAL_NO["not-seeded"]! };
+        const lunch = f ? findMeal(f, str(i.meal), "lunch") : undefined;
+        return mealEdit(host, lunch ? { op: "lunch", day, meal: lunch.id } : `There's no lunch called "${plainLine(str(i.meal), 40)}" in the catalog. Read the week for the lunches, or say leftovers.`);
+      }
       if (i.not_for_me === true) return mealEdit(host, { op: "nope", day });
       if (!str(i.meal).trim()) return { ok: false, text: "Name the meal, or say not for me." };
       const f = host.meals ? await host.meals.read() : null;
       if (host.meals && !f) return { ok: false, text: MEAL_NO["not-seeded"]! };
-      const meal = f ? findMeal(f, str(i.meal)) : undefined;
+      const meal = f ? findMeal(f, str(i.meal), "dinner") : undefined;
       return mealEdit(host, meal ? { op: "swap", day, meal: meal.id } : `There's no meal called "${plainLine(str(i.meal), 40)}" in the catalog. Read the week for the backups, or name another.`);
     },
   },

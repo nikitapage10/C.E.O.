@@ -182,3 +182,7 @@
 .desk .sx-page .sx-phone-new input{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;width:100%}
 .desk .sx-page .sx-phone-greet{align-items:center;justify-content:space-between}
 .desk .sx-page .sx-phone-greet p{margin:0;flex:1 1 280px}
+
+/* Keys and Phones moved to Controls (#647): the old spot links across. */
+.desk .sx-page .sx-moved a{color:var(--fl-hi);text-decoration:none}
+.desk .sx-page .sx-moved a:hover{text-decoration:underline}

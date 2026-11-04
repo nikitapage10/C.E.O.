@@ -6,22 +6,20 @@ import { MAX_IMAGES, isImage, uploadImage } from "./ideaImages.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { ensureSignedIn, useDeskAuth } from "./signin.ts";
 import { assignCrew, ideaCounts, openIdeas, CREW, CREW_ORDER, CREW_RANK, DOCK_CREW, crewFor, expectChange, MODEL, modelOf, pendingIdea, recentWork, REPO, rustyHands, sparesAwake, useFoundry, waitingTurn, withTrails, type Approval, type Change, type Crate, type CrateKind, type CrateState, type CrewId, type Origin } from "../foundry.ts";
-import { useSystems, type LinkState } from "../systems.ts";
+import type { LinkState } from "../systems.ts";
 import { FOUNDRY_THREAD, formatWait } from "./deskData.ts";
 import { useDictation } from "./dictate.ts";
 import { ago } from "./foundryGraph.ts";
-import { CLAUDE_USAGE_URL, codeTokensByModel, formatSpan, formatTokens, formatUsd, foundryJobs, MODELS, monthSpend, PERIODS, SPEND_CAP_USD, useUsage, windowSpend, workByModel, type Period } from "../usage.ts";
-import { useHide, useMasked } from "./hide.ts";
-import { Private } from "./Private.tsx";
+import { useUsage } from "../usage.ts";
 import { ChangePictures } from "./ChangePictures.tsx";
 import { Avatar } from "./ui.tsx";
-import { remarksByIssue, useWorldFeed, type ChronicleStatus, type Remark, type WorldFeed } from "../chronicle.ts";
-import { link } from "./nav.ts";
+import { remarksByIssue, useWorldFeed, type Remark } from "../chronicle.ts";
+import { navigateTo } from "../route.ts";
 import { PORTRAITS } from "./portraits.ts";
 import { SetupAsks } from "./skippy/SetupAsks.tsx";
 import { RC } from "./flow/index.ts";
 import { ForgeStage } from "./foundry/ForgeStage.tsx";
-import { BenchCard, CrewStations, RunsLine, UsageLine, VqaLine } from "./foundry/ForgeParts.tsx";
+import { BenchCard, CrewStations, RunsLine, VqaLine } from "./foundry/ForgeParts.tsx";
 import { forgeLanes, queueOf } from "./foundry/forge.ts";
 import { progressMap, progressWords, stepWords, type Progress } from "./foundry/progress.ts";
 import "./foundry/foundry.css";
@@ -47,10 +45,7 @@ const CREW_RUNG: Record<CrewId, string> = {
 };
 /** The colour each of Rusty's hands wears on the Desk: the dock crew in their paint. */
 const DOCK_COLOUR = new Map<string, string>(DOCK_CREW.map((d) => [d.name, d.colour]));
-const CHECKS_LABEL: Record<LinkState, string> = { off: "No run yet", ok: "Green", slow: "Running", down: "Red" };
 const HOUR = 3_600_000;
-/** Each model in the colour its bench light shows in the Foundry room. */
-const MODEL_COLOUR = Object.fromEntries(Object.values(MODEL).map((m) => [m.name, m.colour])) as Record<"Haiku" | "Sonnet" | "Opus", string>;
 
 /** The morning ideas come at 9:00 Mountain time. */
 export function nextIdeas(now: number): number {
@@ -175,24 +170,15 @@ export function FoundryPage({ now }: { now: number }) {
         </section>
         <div className="fo-flow2-r">
           <RunsLine now={now} />
-          <UsageLine usage={usage.feed} world={world.feed} now={now}>
-            <details className="fo-more-d">
-              <summary>
-                By time span and model{" "}
-                <a className="fo-link" href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-                  Claude plan limits ↗
-                </a>
-              </summary>
-              <div className="fy-usage">
-                <Usage now={now} setup={setup} world={world} usage={usage} />
-              </div>
-            </details>
-          </UsageLine>
+          {/* Usage, budgets and the connections live in the Boiler Room now (#647): one link, no copy. */}
+          <a className="fo-usage-go" href="/boiler/controls" onClick={toControls}>
+            <span className="fl-k">
+              <span>Usage</span>
+            </span>
+            <b>Usage → Boiler Room</b>
+            <small>Meters, caps, switches, connections and keys</small>
+          </a>
           <VqaLine />
-          <details className="fo-more-d fo-conn">
-            <summary>Connections</summary>
-            <Connections setup={setup} />
-          </details>
         </div>
       </div>
 
@@ -201,6 +187,13 @@ export function FoundryPage({ now }: { now: number }) {
       </div>
     </div>
   );
+}
+
+/** The Foundry's one usage link (#647): usage, budgets and connections are on Boiler Room > Controls. */
+function toControls(e: React.MouseEvent) {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  navigateTo("/boiler/controls" + window.location.search);
 }
 
 /**
@@ -663,317 +656,6 @@ function RecentLine({ items, now }: { items: ReturnType<typeof recentWork>; now:
         <span className="fy-recent__none">Nothing shipped yet</span>
       )}
     </p>
-  );
-}
-
-const PERIOD_KEY = "ceo.usagePeriod";
-
-/** The tab last chosen on the Usage panel; the last 5 hours when nothing is remembered or storage is blocked. */
-function savedPeriod(): Period {
-  try {
-    const v = localStorage.getItem(PERIOD_KEY);
-    return PERIODS.some((p) => p.id === v) ? (v as Period) : "5h";
-  } catch {
-    return "5h";
-  }
-}
-
-/**
- * What the Foundry uses, over a tab's window (last 5 hours, today, this week, all time): the Claude API spend on quick
- * shaping (with this month's total against the cap), and the crew's work by model with the Claude Code tokens each
- * model used, all counted from the issue trails (usage.ts). The plan's own session and weekly limits are on Claude's
- * usage page, which the Desk can't read, so it links there.
- */
-function Usage({ now, setup, world, usage }: { now: number; setup: Setup; world: { status: ChronicleStatus; feed: WorldFeed | null }; usage: ReturnType<typeof useUsage> }) {
-  const { feed, failed } = usage;
-  const mask = useMasked();
-  const hidden = useHide((h) => h.on);
-  // The cap is shared with the living Lattice's hourly steps (docs/WORLD.md), so the meter counts both.
-  // The day's story scripts (Claude Haiku) count against the same cap, with the world's hours.
-  const worldUsd = (world.feed?.spend.usd ?? 0) + (world.feed?.story?.scriptUsd ?? 0);
-  const [period, setPeriodState] = useState<Period>(savedPeriod);
-  const setPeriod = (p: Period) => {
-    setPeriodState(p);
-    try {
-      localStorage.setItem(PERIOD_KEY, p);
-    } catch {
-      /* storage blocked: the tab just isn't remembered */
-    }
-  };
-  const label = PERIODS.find((p) => p.id === period)!.label;
-  const waiting = failed ? "Can't reach GitHub right now; trying again every minute." : "Waiting for the issue trails from GitHub…";
-  const month = feed ? monthSpend(feed.trails, now) : null;
-  const spend = feed ? windowSpend(feed.trails, period, now) : null;
-  const work = feed ? workByModel(foundryJobs(feed.issues, feed.trails), period, now) : null;
-  const code = feed ? codeTokensByModel(feed.trails, period, now) : null;
-  const capUsed = month ? month.usd + worldUsd : 0;
-  const share = month ? Math.min(1, capUsed / SPEND_CAP_USD) : 0;
-  const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
-  const most = work ? Math.max(1, ...MODELS.map((m) => work[m].ms)) : 1;
-  const hasWork = work ? MODELS.some((m) => work[m].jobs > 0 || code?.[m] != null) : false;
-  const onKey = (e: React.KeyboardEvent) => {
-    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (!step) return;
-    e.preventDefault();
-    const next = PERIODS[(PERIODS.findIndex((p) => p.id === period) + step + PERIODS.length) % PERIODS.length]!.id;
-    setPeriod(next);
-    requestAnimationFrame(() => document.getElementById(`fy-tab-${next}`)?.focus());
-  };
-  return (
-    <>
-      <div className="fy-tabs" role="tablist" aria-label="Usage time span" onKeyDown={onKey}>
-        {PERIODS.map((p) => (
-          <button key={p.id} id={`fy-tab-${p.id}`} type="button" role="tab" aria-selected={period === p.id} tabIndex={period === p.id ? 0 : -1} className="fy-tabs__tab" onClick={() => setPeriod(p.id)}>
-            {p.label}
-          </button>
-        ))}
-        {period === "5h" && <span className="fy-tabs__note">Foundry work only — your plan's own meter is on Claude's usage page</span>}
-      </div>
-      <div className="fy-usage__grid" role="tabpanel" aria-label={`Usage: ${label}`}>
-        <section className="fy-spend" aria-label={`Claude API spend on idea shaping, ${label.toLowerCase()}`}>
-          <h3 className="fy-usage__head">Idea shaping · Claude API</h3>
-          {!spend || !month ? (
-            <p className="quiet">{waiting}</p>
-          ) : (
-            <>
-              <p className="fy-spend__figure">
-                <b>
-                  <Private>{formatUsd(spend.usd)}</Private>
-                </b>
-                <span>{label.toLowerCase()}</span>
-              </p>
-              <p className="fy-spend__calls">
-                {spend.calls
-                  ? `${spend.calls} ${spend.calls === 1 ? "call" : "calls"} on Claude Haiku · ${spend.tokensIn.toLocaleString()} tokens in · ${spend.tokensOut.toLocaleString()} out`
-                  : setup?.shape === false
-                    ? "Quick shaping isn't connected yet (claude-api-key in the Key Vault), so nothing is spent."
-                    : "No shaping calls in this span."}
-              </p>
-              <div
-                className={`fy-meter fy-meter--${tone}`}
-                role="meter"
-                aria-valuemin={0}
-                aria-valuemax={SPEND_CAP_USD}
-                aria-valuenow={hidden ? undefined : Number(capUsed.toFixed(4))}
-                aria-label={`${mask(formatUsd(capUsed))} of the $${SPEND_CAP_USD} monthly cap`}
-                title={`${(share * 100).toFixed(share < 0.01 ? 2 : 0)}% of the $${SPEND_CAP_USD} cap`}
-              >
-                <i style={{ width: `${capUsed > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
-              </div>
-              <p className="fy-spend__calls">
-                <Private>{formatUsd(capUsed)}</Private> of ${SPEND_CAP_USD} cap · {month.month}
-                {worldUsd > 0 && (
-                  <>
-                    {" · shaping "}
-                    <Private>{formatUsd(month.usd)}</Private>, the living Lattice <Private>{formatUsd(worldUsd)}</Private>
-                  </>
-                )}
-              </p>
-              <p className="quiet fy-usage__note">Counted from each call's own token use, written on its idea's trail.</p>
-            </>
-          )}
-        </section>
-
-        <section className="fy-work" aria-label="Foundry work by model">
-          <h3 className="fy-usage__head">Foundry work by model · Claude Code</h3>
-          {!work || !code ? (
-            <p className="quiet">{waiting}</p>
-          ) : !hasWork ? (
-            <p className="quiet">No jobs in this span. They count from the Builder's Assigned and Shipped steps.</p>
-          ) : (
-            <table className="fy-work__table">
-              <thead>
-                <tr>
-                  <th scope="col">Model</th>
-                  <th scope="col">{label}</th>
-                  <th scope="col">Claude Code</th>
-                </tr>
-              </thead>
-              <tbody>
-                {MODELS.map((m) => {
-                  const row = work[m];
-                  const live = row.running ? ` · ${row.running} running` : "";
-                  return (
-                    <tr key={m} style={{ "--c": MODEL_COLOUR[m] } as React.CSSProperties}>
-                      <th scope="row">
-                        <i className="fy-work__swatch" aria-hidden="true" />
-                        {m}
-                      </th>
-                      <td title={`${m}, ${label.toLowerCase()}: ${row.jobs} ${row.jobs === 1 ? "job" : "jobs"}, ${formatSpan(row.ms)} of work${live}`}>
-                        <b>{row.jobs}</b> {row.jobs === 1 ? "job" : "jobs"} <span>{formatSpan(row.ms)}{live}</span>
-                        <span className="fy-work__bar" aria-hidden="true">
-                          <i style={{ width: `${row.ms > 0 ? Math.max(2, (row.ms / most) * 100) : 0}%` }} />
-                        </span>
-                      </td>
-                      <td className="fy-work__tokens" title={code[m] === null ? `No Claude Code tokens recorded on ${m} in this span` : `${m}: ${code[m]!.toLocaleString()} tokens`}>
-                        <b>{formatTokens(code[m])}</b>
-                        {code[m] !== null && <span> tokens</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-          <p className="quiet fy-usage__note">Foundry crew only: the Builder thread's own use and your other Claude sessions aren't counted.</p>
-          <p className="quiet fy-usage__note">
-            Time runs from when the Builder assigns a job to when it ships; tokens come from its Shipped step. Your plan's session and weekly limits are on{" "}
-            <a href={CLAUDE_USAGE_URL} target="_blank" rel="noreferrer">
-              Claude's usage page
-            </a>
-            , which the Desk can't read.
-          </p>
-        </section>
-
-        <WorldSpend now={now} world={world} />
-        <StorySpend world={world} />
-      </div>
-    </>
-  );
-}
-
-/**
- * The living Lattice's hourly steps (docs/WORLD.md): this month's Claude API spend on writing the world, how many hours
- * Claude wrote and how many came from the scripted lines, and the guard that keeps it inside the shared cap.
- */
-function WorldSpend({ now, world }: { now: number; world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
-  const f = world.feed;
-  const month = f ? new Date(`${f.spend.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
-  return (
-    <section className="fy-world" aria-label="Claude API spend on the living Lattice, this month">
-      <h3 className="fy-usage__head">The living Lattice · Claude API · this month</h3>
-      {!f ? (
-        <p className="quiet">
-          {world.status === "off" ? "The hourly world step isn't saving yet." : world.status === "failed" ? "Can't reach the world right now." : "Reading the world…"}
-        </p>
-      ) : (
-        <>
-          <div className="fy-world__row">
-            <p className="fy-spend__figure">
-              <b>
-                <Private>{formatUsd(f.spend.usd)}</Private>
-              </b>
-              <span>{month}</span>
-            </p>
-            <p className="fy-spend__calls">
-              {f.spend.calls} {f.spend.calls === 1 ? "hour" : "hours"} written by Claude Haiku · {f.spend.scripted} scripted · {f.spend.tokensIn.toLocaleString()} tokens in · {f.spend.tokensOut.toLocaleString()} out
-            </p>
-          </div>
-          <p className="fy-world__line">
-            {!f.claude
-              ? "No Claude key is set, so every hour comes from the agents' scripted lines, for free."
-              : `Guard: the world stops calling Claude at ${formatUsd(f.spend.budget)} a month and writes from scripted lines until the month turns.`}{" "}
-            {f.at ? `Last step ${formatSpan(now - Date.parse(f.at))} ago.` : "No step yet."}{" "}
-            <a href="/archive" onClick={link("archive")}>
-              Read it in the Archive →
-            </a>
-          </p>
-        </>
-      )}
-    </section>
-  );
-}
-
-/**
- * Today in Ilyr (issue #95, #365, docs/WORLD.md): Skippy writes it (Claude Haiku, on the shared Claude cap) and
- * presents it, read by ElevenLabs alone (#472) under its own cap (ELEVENLABS_BUDGET_USD). This month's voice spend
- * against that cap; without a key, or past it, it says the audio waits on ElevenLabs.
- */
-function StorySpend({ world }: { world: { status: ChronicleStatus; feed: WorldFeed | null } }) {
-  const s = world.feed?.story;
-  const mask = useMasked();
-  const hidden = useHide((h) => h.on);
-  const month = s ? new Date(`${s.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
-  const usd = s ? (s.elevenUsd ?? 0) : 0;
-  const budget = s?.elevenBudget ?? 0;
-  const share = budget > 0 ? Math.min(1, usd / budget) : 0;
-  const tone: LinkState = share >= 0.9 ? "down" : share >= 0.6 ? "slow" : "ok";
-  return (
-    <section className="fy-world" aria-label="Voice spend on Today in Ilyr, this month">
-      <h3 className="fy-usage__head">Today in Ilyr · Skippy's voice · this month</h3>
-      {!s ? (
-        <p className="quiet">{world.status === "off" ? "The world isn't saving yet, so there are no stories." : world.status === "failed" ? "Can't reach the world right now." : "Reading the ledger…"}</p>
-      ) : (
-        <>
-          <div className="fy-world__row">
-            <p className="fy-spend__figure">
-              <b>
-                <Private>{formatUsd(usd)}</Private>
-              </b>
-              <span>{month}</span>
-            </p>
-            <p className="fy-spend__calls">
-              {s.stories} {s.stories === 1 ? "edition" : "editions"} read aloud · ElevenLabs <Private>{formatUsd(s.elevenUsd ?? 0)}</Private> · scripts on Claude Haiku <Private>{formatUsd(s.scriptUsd)}</Private>
-            </p>
-          </div>
-          <div
-            className={`fy-meter fy-meter--${tone}`}
-            role="meter"
-            aria-valuemin={0}
-            aria-valuemax={budget}
-            aria-valuenow={hidden ? undefined : Number(usd.toFixed(4))}
-            aria-label={`${mask(formatUsd(usd))} of ElevenLabs' $${budget} monthly cap`}
-          >
-            <i style={{ width: `${usd > 0 ? Math.max(0.6, share * 100) : 0}%` }} />
-          </div>
-          <p className="fy-world__line">
-            {!s.eleven
-              ? "No ElevenLabs key (elevenlabs in the Key Vault), so Skippy writes Today and its audio waits on ElevenLabs."
-              : "Skippy reads with ElevenLabs, the only voice, in the same voice as his live calls. Guard: it stops once one more edition could pass the cap, and the audio waits on ElevenLabs until the month turns."}{" "}
-            <a href="/archive" onClick={link("archive")}>
-              Hear it in the Archive →
-            </a>
-          </p>
-        </>
-      )}
-    </section>
-  );
-}
-
-function Connections({ setup }: { setup: Setup }) {
-  const connected = useFoundry((s) => s.connected);
-  const checks = useSystems((s) => s.links.find((l) => l.id === "checks")?.state ?? "off");
-  const rows: { name: string; what: string; state: LinkState; label: string }[] = [
-    { name: "GitHub", what: "The Desk reads the crew's work from the repo", state: connected ? "ok" : "off", label: connected ? "Reading" : "Not reached" },
-    { name: "Checks", what: "Types, lint, tests and build on every push", state: checks, label: CHECKS_LABEL[checks] },
-    {
-      name: "Idea buttons",
-      what: "Build, Revise and Not this one change GitHub at once",
-      state: setup === null ? "off" : setup.buttons ? "ok" : "slow",
-      label: setup === null ? "Checking…" : setup.buttons ? "Ready" : "Needs setup",
-    },
-    {
-      name: "Pictures on ideas",
-      what: setup?.images ? "Paste, attach or drop pictures on an idea" : "Needs the private Azure Blob store (ceo-state), which the Azure template creates (docs/AZURE.md)",
-      state: setup === null ? "off" : setup.images ? "ok" : "slow",
-      label: setup === null ? "Checking…" : setup.images ? "Ready" : "Needs setup",
-    },
-    {
-      name: "Quick shaping",
-      what: setup?.shape ? "Your idea goes up at once and Rivet shapes it in a second or two" : "Add claude-api-key to the Key Vault so Rivet shapes ideas on the spot",
-      state: setup === null ? "off" : setup.shape ? "ok" : "slow",
-      label: setup === null ? "Checking…" : setup.shape ? "Ready" : "Needs setup",
-    },
-    {
-      name: "Queue check",
-      what: "The Foundry thread picks up approved builds and red checks within a minute or two; a check every 15 minutes backs it up",
-      state: setup === null ? "off" : "ok",
-      label: setup === null ? "Checking…" : "About a minute",
-    },
-  ];
-  return (
-    <ul className="fy-links">
-      {rows.map((r) => (
-        <li key={r.name}>
-          <span className="fy-links__name">{r.name}</span>
-          <span className="fy-links__what">{r.what}</span>
-          <span className={`pill pill--${r.state}`}>
-            <i aria-hidden="true" />
-            {r.label}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }
 

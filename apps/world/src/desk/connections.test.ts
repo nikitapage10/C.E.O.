@@ -50,7 +50,7 @@ describe("each system's How it works", () => {
     expect(connectionsAt("exchange").map((c) => c.id)).toEqual(["polymarket", "polymarket-us"]);
     expect(connectionsAt("green").map((c) => c.id)).toEqual(["sleeper", "fantasypros"]);
     expect(connectionsAt("spire").map((c) => c.id)).toEqual(["paypal"]);
-    expect(connectionsAt("home").map((c) => c.id)).toEqual(["roborock", "petlibro", "whisker"]);
+    expect(connectionsAt("home").map((c) => c.id)).toEqual(["roborock", "petlibro", "whisker", "nest", "google-tasks", "instacart"]);
     for (const c of CONNECTIONS.filter((c) => c.room === "relay")) expect(c.at.every((p) => p.system === "relay"), c.id).toBe(true);
   });
 

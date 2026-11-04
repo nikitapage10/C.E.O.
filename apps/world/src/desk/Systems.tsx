@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { linkOf as homeLinkOf, startHome, useHome, VENDORS as HOME_VENDORS } from "./homeDevices.ts";
+import { linkOf as homeLinkOf, LINKS as HAVEN_LINKS, startHome, useHome, VENDORS as HOME_VENDORS } from "./homeDevices.ts";
 import { useWorldFeed } from "../chronicle.ts";
 import { CREW, crewOf, useFoundry } from "../foundry.ts";
 import { useSystems, type LinkState } from "../systems.ts";
@@ -182,11 +182,14 @@ export function Systems({ now }: { now: number }) {
   // The home devices (#632): their vendors' states, merged here only so the 3D Boiler Room grows no new pipes.
   useEffect(() => startHome(), []);
   const homeVendors = useHome((s) => s.pub?.vendors ?? null);
+  // And the Haven's other connections (#637): Google Tasks and Instacart, by state only.
+  const havenLinks = useHome((s) => s.pub?.links ?? null);
   const links = useMemo(() => {
     const m = Object.fromEntries(linkList.map((l) => [l.id, l.state])) as Record<string, LinkState>;
     for (const v of HOME_VENDORS) m[v] = homeLinkOf(homeVendors?.[v]);
+    for (const v of HAVEN_LINKS) m[v] = homeLinkOf(havenLinks?.[v]);
     return m;
-  }, [linkList, homeVendors]);
+  }, [linkList, homeVendors, havenLinks]);
   const connected = useFoundry((s) => s.connected);
   const data = useFoundry((s) => s.data);
   const setup = useSetup();

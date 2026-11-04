@@ -10,8 +10,16 @@
  *   POST /device/data/grainStatus                 today's feeds (dry feeders)
  *   POST /device/workRecord/list                  the last successful dispense (dry feeders)
  *   POST /device/wetFeedingPlan/wetListV3         the wet feeder's plan and whether a manual feed is open
- *   POST /device/device/manualFeeding             one portion from a dry feeder (grainNum 1)
+ *   POST /device/device/manualFeeding             portions from a dry feeder (grainNum: how many, already capped)
  *   POST /device/wetFeedingPlan/manualFeedNow     opens the wet feeder's lid on the bowl in front (plate)
+ *   POST /device/wetFeedingPlan/platePositionChange   turns the wet tray one bowl counter-clockwise (#637 scope; the
+ *                                                 `plate` it carries is ignored by the device). To reach a bowl it is
+ *                                                 called (target - realInfo.platePosition) mod 3 times, 2 s apart, as
+ *                                                 the integration's set_plate_position does.
+ *   POST /device/wetFeedingPlan/stopFeedNow       closes the lid of a manual opening ({ deviceSn, feedId: manualFeedId })
+ *
+ * The wet plan (wetListV3's `plan`: each meal's `plate` and `executionStartTime`) is read into the reading as `meals`,
+ * so the rails can tell when a manual turn or opening may throw off the next scheduled meal (rails.ts, the wet tray).
  *
  * Every request carries the app's own headers and, once signed in, `token`. Code 1009 means the token lapsed: sign in
  * again once. The email and the login digest come from the Key Vault only: Petlibro's app sends the MD5 hex of the
@@ -23,7 +31,7 @@
 
 import { randomUUID } from "node:crypto";
 import { callJson, VendorError, type Fetch } from "./http.js";
-import { isoOf, obj, pct, PLACES, str, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunResult } from "./types.js";
+import { isoOf, obj, pct, PLACES, str, type DeviceClient, type DeviceKind, type DeviceReading, type Found, type RunArgs, type RunResult, type WetMeal } from "./types.js";
 import { deviceId, type HomeVault } from "./vault.js";
 
 export const PETLIBRO_API = "https://api.us.petlibro.com";
@@ -91,11 +99,46 @@ export interface PetlibroDeps {
   /** The MD5 hex Petlibro's login takes (PETLIBRO_LOGIN_DIGEST), made at setup. */
   loginDigest: string;
   now: () => number;
+  /** Waits between two turns of the wet tray (tests pass one that doesn't wait). */
+  pause?: (ms: number) => Promise<void>;
 }
+
+/** The gap between two turns of the wet tray, so the device finishes the first. */
+export const ROTATE_GAP_MS = 2_000;
 
 export interface PetlibroRef {
   serial: string;
   plate: number;
+  /** The wet feeder's open manual feed, which stopFeedNow closes. */
+  feedId?: number | string;
+}
+
+/** A plan time as "HH:MM" in Denver: "18:00", "6:00", or epoch seconds or milliseconds. Null when it isn't one. */
+export function planTime(v: unknown): string | null {
+  if (typeof v === "string") {
+    const m = /^(\d{1,2}):(\d{2})/.exec(v.trim());
+    if (m && Number(m[1]) < 24 && Number(m[2]) < 60) return `${m[1]!.padStart(2, "0")}:${m[2]}`;
+    if (!/^\d{9,13}$/.test(v.trim())) return null;
+    v = Number(v);
+  }
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null;
+  const ms = v < 1e12 ? v * 1000 : v;
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "America/Denver", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ms));
+}
+
+/** The wet plan's meals, by time, from wetListV3 (`plan`, each with `plate` and `executionStartTime`). Pure. */
+export function wetMeals(wet: unknown): WetMeal[] {
+  const plan = obj(wet).plan;
+  const out: WetMeal[] = [];
+  for (const p of Array.isArray(plan) ? plan.slice(0, 12) : []) {
+    const o = obj(p);
+    if (o.enable === false) continue;
+    const time = planTime(o.executionStartTime);
+    if (!time) continue;
+    const plate = Number(o.plate);
+    out.push({ time, ...(Number.isInteger(plate) && plate >= 1 && plate <= 3 && { plate }) });
+  }
+  return out.sort((a, b) => a.time.localeCompare(b.time));
 }
 
 type Answer = { code?: unknown; data?: unknown };
@@ -105,7 +148,7 @@ export const LOGIN_DIGEST = /^[0-9a-f]{32}$/;
 
 export class PetlibroClient implements DeviceClient<PetlibroRef> {
   readonly vendor = "petlibro" as const;
-  readonly actions = ["feeder.feed", "wet.open"] as const;
+  readonly actions = ["feeder.feed", "wet.open", "wet.rotate", "wet.close", "wet.status"] as const;
   constructor(private readonly deps: PetlibroDeps) {}
 
   async connected(): Promise<boolean> {
@@ -162,16 +205,42 @@ export class PetlibroClient implements DeviceClient<PetlibroRef> {
       } else if (kind === "wet-feeder") {
         extra.wet = await read("/device/wetFeedingPlan/wetListV3");
       }
-      const plate = Number(obj(real).platePosition) || 1;
-      out.push({ reading: petlibroReading(deviceId(idKey, "petlibro", serial), kind, item, real, extra), ref: { serial, plate } });
+      const at = Number(obj(real).platePosition);
+      const plate = at >= 1 && at <= 3 ? at : 1;
+      const reading = petlibroReading(deviceId(idKey, "petlibro", serial), kind, item, real, extra);
+      let feedId: number | string | undefined;
+      if (kind === "wet-feeder") {
+        if (at >= 1 && at <= 3) reading.plate = at;
+        const meals = wetMeals(extra.wet);
+        if (meals.length) reading.meals = meals;
+        const id = obj(extra.wet).manualFeedId;
+        if ((typeof id === "number" && Number.isFinite(id)) || (typeof id === "string" && /^[\w-]{1,40}$/.test(id))) feedId = id;
+      }
+      out.push({ reading, ref: { serial, plate, ...(feedId !== undefined && { feedId }) } });
     }
     return out;
   }
 
-  async run(action: string, found: Found<PetlibroRef>): Promise<RunResult> {
+  async run(action: string, found: Found<PetlibroRef>, args: RunArgs = {}): Promise<RunResult> {
     try {
       if (action === "feeder.feed" && found.reading.kind === "dry-feeder") {
-        await this.post("/device/device/manualFeeding", { deviceSn: found.ref.serial, grainNum: 1, requestId: randomUUID().replace(/-/g, "") });
+        // The rails have already counted these against the cap (home.ts); 1 to 6, 1 when not given.
+        const grainNum = Number.isInteger(args.portions) && args.portions! >= 1 && args.portions! <= 6 ? args.portions! : 1;
+        await this.post("/device/device/manualFeeding", { deviceSn: found.ref.serial, grainNum, requestId: randomUUID().replace(/-/g, "") });
+        return { ok: true };
+      }
+      if (action === "wet.close" && found.reading.kind === "wet-feeder") {
+        if (found.ref.feedId === undefined) return { ok: true, say: "The wet food feeder's lid is already closed." };
+        await this.post("/device/wetFeedingPlan/stopFeedNow", { deviceSn: found.ref.serial, feedId: found.ref.feedId });
+        return { ok: true };
+      }
+      if (action === "wet.rotate" && found.reading.kind === "wet-feeder") {
+        const steps = args.steps === 2 ? 2 : 1;
+        const pause = this.deps.pause ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+        for (let i = 0; i < steps; i++) {
+          if (i) await pause(ROTATE_GAP_MS);
+          await this.post("/device/wetFeedingPlan/platePositionChange", { deviceSn: found.ref.serial, plate: 1 });
+        }
         return { ok: true };
       }
       if (action === "wet.open" && found.reading.kind === "wet-feeder") {

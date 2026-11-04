@@ -11,6 +11,13 @@
  *   skippy    anything else (a question, small talk, a bare single word): Desk Skippy's own chat answers it, under its
  *             own caps (api/skippy.ts, phoneAnswer).
  *
+ * Since #637 a device ask also carries its numbers and words: "feed the cat 2 portions" (portions), "next bowl" or
+ * "switch the wet feeder to tray 2" (wet.rotate, plate), "clean the kitchen quietly, vacuum only" (suction, water).
+ *
+ * Corrections (#641): a leading "no", "I meant", "actually", "like", "can you just"… is dropped before the rules run,
+ * and "add garlic to my grocery list", "as an item for my groceries" or "not as a task" is always shopping. Right
+ * after a to-do, a bare "not as a task, on the list" moves that to-do onto the Kitchen list (`fromLastTodo`).
+ *
  * And `sayAdded` / `sayTodo`: the short line the shortcut speaks back.
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -19,13 +26,13 @@
 import { whenLabel } from "../_today/parse.js";
 
 export type Capture =
-  | { kind: "shopping"; items: string[] }
+  | { kind: "shopping"; items: string[]; fromLastTodo?: boolean }
   | { kind: "todo"; text: string }
-  | { kind: "device"; action: DeviceAction; rooms?: string[] }
+  | { kind: "device"; action: DeviceAction; rooms?: string[]; portions?: number; plate?: number; suction?: "quiet" | "max"; water?: "off" | "on" }
   | { kind: "skippy"; text: string };
 
 /** The home devices' actions a capture can ask for (#632; api/_haven/devices/types.ts names the same ones). */
-export type DeviceAction = "vacuum.start" | "vacuum.pause" | "vacuum.dock" | "vacuum.rooms" | "feeder.feed" | "wet.open" | "litter.clean";
+export type DeviceAction = "vacuum.start" | "vacuum.pause" | "vacuum.dock" | "vacuum.rooms" | "feeder.feed" | "wet.open" | "wet.rotate" | "wet.close" | "wet.status" | "litter.clean";
 
 /** The most items one capture adds, and the longest one. */
 export const ITEMS_MAX = 12;
@@ -39,6 +46,33 @@ const LIST_TAIL = /\s+(?:to|on|onto) (?:the |my |our )?(?:kitchen |shopping |gro
 const NOT_A_LIST = /^(?:what|who|whom|whose|how|why|when|where|which|is|are|am|was|were|can|could|should|would|will|shall|do|does|did|have|has|had|tell|show|explain|hi|hello|hey|yo|thanks|thank|ok|okay|yes|no|nope|yeah|good|great|please|sorry|i|i'm|im|it|it's|that|this|let's|lets)\b/i;
 const FILLER = /^(?:hey |ok |okay )?skippy[,.]?\s+/i;
 const ARTICLE = /^(?:a|an|some|the|more|a few|few|a couple of|a bag of|a bottle of|a box of|a pack of|a carton of)\s+/i;
+
+/** A leading correction or filler (#641): "no", "I meant", "actually", "like", "can you just", any run of them. */
+const CORRECTION = /^(?:(?:no|nope|nah|wait|sorry|oops|actually|i meant|i mean|meant|what i meant was|like|so|um|uh|er|okay|ok|well|just|can you(?: just)?|could you(?: just)?|would you(?: just)?|please)\b[,.!:;-]*\s+)+/i;
+
+/** The words with any leading correction dropped; the words as they were when nothing else is left. */
+export function uncorrected(text: string): string {
+  const t = text.replace(CORRECTION, "").trim();
+  return t || text;
+}
+
+/** "add garlic to my grocery list", "put eggs on the shopping list", "add milk as an item for my groceries". */
+const LIST_ADD = /\b(?:add|put|buy|get|grab|stick)\s+(.+?)\s+(?:(?:to|on|onto|in|into)\s+(?:the|my|our)\s+(?:kitchen |shopping |grocery |groceries )?(?:list|groceries|grocery)|as an? (?:item|grocery|groceries|shopping item)|for (?:the|my|our) (?:grocery|groceries|shopping))\b/i;
+/** "not as a task", "don't add that as a to-do", "not a reminder". */
+const NOT_A_TASK = /\b(?:not|don'?t (?:add|make|put) (?:that|it|this)?\s*(?:as )?)\s*(?:as )?an? (?:task|to-?do|reminder)\b|\bnot (?:as )?an? (?:task|to-?do|reminder)\b/i;
+/** Says it belongs on the shopping list. */
+const SHOP_WORDS = /\b(?:grocery|groceries|shopping list|kitchen list|as an? item|on the list|to the list)\b/i;
+
+/** A correction that is clearly shopping (#641): the items, or the last to-do to move; null when it isn't one. */
+export function listCorrection(text: string, last: Capture["kind"] | null): Extract<Capture, { kind: "shopping" }> | null {
+  const m = LIST_ADD.exec(text);
+  if (m?.[1]) {
+    const items = itemsOf(m[1].replace(/^(?:it|that|this)$/i, ""));
+    if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return { kind: "shopping", items };
+  }
+  if (NOT_A_TASK.test(text) && SHOP_WORDS.test(text) && last === "todo") return { kind: "shopping", items: [], fromLastTodo: true };
+  return null;
+}
 
 /** The words as said: one line, no wake word, no trailing punctuation. */
 export function tidy(text: string): string {
@@ -69,26 +103,68 @@ const LITTER = /\blitter(?:[ -]?(?:box|robot))?\b/i;
 const ROOM_WORDS = /^(?:the\s+)?(?:kitchen|hall|hallway|entry|entryway|foyer|living room|lounge|dining room|dining area|dining|bedroom|master bedroom|bathroom|office|studio|corridor|den|family room|guest room|kids'? room)(?:\s*(?:,|and|&)\s*(?:the\s+)?(?:kitchen|hall|hallway|entry|entryway|foyer|living room|lounge|dining room|dining area|dining|bedroom|master bedroom|bathroom|office|studio|corridor|den|family room|guest room|kids'? room))*$/i;
 const EVERYWHERE = /^(?:the\s+)?(?:house|whole house|home|whole place|place|apartment|flat|everywhere|floors?|all(?: the)? rooms)$/i;
 
+const NUMBER_WORD: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, "a couple of": 2, "a couple": 2, couple: 2 };
+const numberOf = (w: string): number | undefined => (/^\d+$/.test(w) ? Number(w) : NUMBER_WORD[w.toLowerCase()]);
+
+/** "2 portions", "three scoops", "a couple of portions": how many dry portions were asked for. */
+const PORTIONS = /\b(\d{1,2}|an?|one|two|three|four|five|six|seven|eight|nine|ten|a couple(?: of)?|couple)\s+(?:more\s+)?(?:portions?|scoops?|servings?|helpings?)\b/i;
+/** The wet tray: "next bowl", "rotate the tray", "switch the wet feeder to tray 2". */
+const ROTATE = /\b(?:next|another|fresh|new|second|third) (?:bowl|tray|plate)\b|\b(?:rotate|turn|switch|spin|move|advance)\b.*\b(?:bowls?|trays?|plates?)\b/i;
+const PLATE = /\b(?:bowl|tray|plate)\s*(?:number\s*)?(\d|one|two|three)\b/i;
+
+/** The vacuum's optional mode words, and the words with them taken out. */
+export function vacuumMode(t: string): { rest: string; suction?: "quiet" | "max"; water?: "off" | "on" } {
+  let rest = t;
+  let suction: "quiet" | "max" | undefined;
+  let water: "off" | "on" | undefined;
+  const take = (re: RegExp, by = " ") => {
+    const hit = re.test(rest);
+    if (hit) rest = rest.replace(re, by);
+    return hit;
+  };
+  if (take(/,?\s*\b(?:on )?(?:quiet(?:ly)?|silent(?:ly)?|quiet mode)\b/gi)) suction = "quiet";
+  else if (take(/,?\s*\b(?:on |at )?(?:max(?:imum)?|turbo|full)(?: power| suction| mode)?\b/gi)) suction = "max";
+  if (take(/,?\s*\b(?:(?:and |but )?vacuum only|(?:and |but )?(?:with )?no mop(?:ping)?|without (?:the )?mop(?:ping)?|(?:and |but )?don'?t mop)\b/gi)) water = "off";
+  else if (take(/\bvacuum and mop\b/gi, "vacuum")) water = "on";
+  else if (take(/,?\s*\b(?:and mop(?:ping)?(?: too| as well)?|mop(?:ping)? too|mop(?:ping)? as well|with (?:the )?mop(?:ping)?)\b/gi)) water = "on";
+  rest = rest.replace(/\s+/g, " ").replace(/\s+([,.!?])/g, "$1").replace(/[,\s]+$/, "").trim();
+  return { rest, ...(suction && { suction }), ...(water && { water }) };
+}
+
 /** A home-device ask, or null. Never calls anything. */
 export function deviceAsk(text: string): Extract<Capture, { kind: "device" }> | null {
-  const t = text.replace(/^(?:please\s+|can you\s+|could you\s+)/i, "").trim();
+  const t0 = text.replace(/^(?:please\s+|can you\s+|could you\s+)/i, "").trim();
   // The litter box first: "clean the litter box" is never a vacuum job.
-  if (LITTER.test(t) && /\b(?:clean|cycle|run|empty|scoop|start)\b/i.test(t)) return { kind: "device", action: "litter.clean" };
-  if (/\b(?:feed|give)\b.*\b(?:cat|cats|kitty|kitten|kitties)\b|\bfeed (?:a|one) portion\b/i.test(t) || /^(?:dispense|drop) (?:a |one )?portion\b/i.test(t)) {
-    return { kind: "device", action: /\bwet\b|\bcan\b|\bpate\b|\bpâté\b|\btray\b|\bbowl\b|\blid\b/i.test(t) ? "wet.open" : "feeder.feed" };
+  if (LITTER.test(t0) && /\b(?:clean|cycle|run|empty|scoop|start)\b/i.test(t0)) return { kind: "device", action: "litter.clean" };
+  // The wet feeder's questions and its lid.
+  if (/\bwhat'?s (?:in|on) (?:the )?wet (?:food )?feeder\b|\bwet (?:food )?feeder(?:'s)? (?:status|schedule|plan)\b|\bwhich bowl\b/i.test(t0)) return { kind: "device", action: "wet.status" };
+  if (/\bclose (?:the )?(?:wet (?:food )?feeder|wet feeder'?s lid|lid on the wet (?:food )?feeder|feeder'?s lid)\b/i.test(t0)) return { kind: "device", action: "wet.close" };
+  // The wet tray's turn first: "give the cat the next bowl" is a turn, not an opening.
+  if (ROTATE.test(t0) && (/\b(?:wet|feeder|cat|cats|kitty|bowl|tray)\b/i.test(t0) || /^next (?:bowl|tray)/i.test(t0))) {
+    const p = PLATE.exec(t0);
+    const plate = p?.[1] ? numberOf(p[1]) : /\bsecond (?:bowl|tray)\b/i.test(t0) ? 2 : /\bthird (?:bowl|tray)\b/i.test(t0) ? 3 : undefined;
+    return { kind: "device", action: "wet.rotate", ...(plate && { plate }) };
   }
+  if (/\b(?:feed|give)\b.*\b(?:cat|cats|kitty|kitten|kitties)\b|\bfeed (?:a|one|\d{1,2}|two|three|four|five|six) (?:more )?portions?\b/i.test(t0) || /^(?:dispense|drop) (?:a |one |\d{1,2} |two |three |four |five |six )?portions?\b/i.test(t0)) {
+    if (/\bwet\b|\bcan\b|\bpate\b|\bpâté\b|\btray\b|\bbowl\b|\blid\b/i.test(t0)) return { kind: "device", action: "wet.open" };
+    const n = PORTIONS.exec(t0);
+    const portions = n?.[1] ? numberOf(n[1]) : undefined;
+    return { kind: "device", action: "feeder.feed", ...(portions && portions > 1 && { portions }) };
+  }
+  // The vacuum's mode words come out before the rooms are read: "clean the kitchen on max" is the kitchen.
+  const { rest: t, ...mode } = vacuumMode(t0);
   if (/\bopen (?:the )?wet (?:food )?feeder\b/i.test(t)) return { kind: "device", action: "wet.open" };
   const vac = VACUUM.test(t);
   if (vac && /\b(?:pause|stop|hold on|wait)\b/i.test(t)) return { kind: "device", action: "vacuum.pause" };
   if (vac && /\b(?:home|dock|base|charger|charge|back)\b/i.test(t) && !/\bclean\b.*\bhome\b/i.test(t)) return { kind: "device", action: "vacuum.dock" };
-  const m = /\b(?:clean|vacuum|hoover|do)\s+(.+)$/i.exec(t.replace(/^(?:hey\s+)?(?:vacuum|robot)[,:]?\s+(?:go\s+)?/i, ""));
+  const m = /\b(?:clean|vacuum|hoover|do)\s+(.+)$/i.exec(t.replace(/^(?:hey\s+)?(?:vacuum|robot)(?:[,:]\s*|\s+(?=go\b))(?:go\s+)?/i, ""));
   const where = m?.[1]?.replace(/[.!?]+$/, "").trim() ?? "";
   if (where && (vac || ROOM_WORDS.test(where) || EVERYWHERE.test(where))) {
-    if (EVERYWHERE.test(where)) return { kind: "device", action: "vacuum.start" };
+    if (EVERYWHERE.test(where)) return { kind: "device", action: "vacuum.start", ...mode };
     const rooms = where.replace(/^(?:up\s+)?(?:the\s+)?/i, "").split(/\s*(?:,|&|\band\b)\s*/i).map((r) => r.replace(/^the\s+/i, "").trim()).filter(Boolean);
-    if (rooms.length) return { kind: "device", action: "vacuum.rooms", rooms: rooms.slice(0, 8) };
+    if (rooms.length) return { kind: "device", action: "vacuum.rooms", rooms: rooms.slice(0, 8), ...mode };
   }
-  if (vac && /\b(?:start|go|run|clean|vacuum)\b/i.test(t)) return { kind: "device", action: "vacuum.start" };
+  if (vac && /\b(?:start|go|run|clean|vacuum)\b/i.test(t)) return { kind: "device", action: "vacuum.start", ...mode };
   return null;
 }
 
@@ -101,8 +177,11 @@ const FOLLOW_END = /,?\s+(?:too|as well|also)$/i;
  * ten minutes (api/_haven/convo.ts): after shopping, "and milk too" is more shopping.
  */
 export function classify(raw: string, last: Capture["kind"] | null = null): Capture {
-  const text = tidy(raw);
+  const text = uncorrected(tidy(raw));
   if (!text) return { kind: "skippy", text };
+  // A correction that clearly says "on the list" (#641) is shopping, whatever else it says.
+  const fixed = listCorrection(text, last);
+  if (fixed) return fixed;
   if (last === "shopping" && (FOLLOW_START.test(text) || FOLLOW_END.test(text))) {
     const items = itemsOf(text.replace(FOLLOW_START, "").replace(FOLLOW_END, ""));
     if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return { kind: "shopping", items };

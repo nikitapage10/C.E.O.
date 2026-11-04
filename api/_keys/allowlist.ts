@@ -62,6 +62,8 @@ export const NEVER_SETTABLE: readonly (string | RegExp)[] = [
   /^home-/,
   /^petlibro-/,
   /^whisker-/,
+  // The Haven's connections (#637): the Google client that reaches the thermostat, and the Instacart key.
+  /^haven-/,
 ];
 
 const blocked = (name: string) => NEVER_SETTABLE.some((n) => (typeof n === "string" ? n === name : n.test(name)));

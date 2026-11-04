@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { TOOLS } from "./tools.ts";
 
 /**
  * The Haven: home and health (#616). A Desk-only room for now (its Lattice room comes later), led by the Steward
@@ -21,6 +22,7 @@ export default defineRoom({
   usesClaude: false,
   threat: ["TB1", "TB10"],
   budgetKb: 120,
+  tools: [...TOOLS],
   purpose: {
     goal: "Runs Nikita's home through its own agents: the vacuum, the cat's feeders and fountain and the Litter-Robot, the Kitchen list Hey Skippy fills, shown on a 3D house that lights where they work.",
     agents: [

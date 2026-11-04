@@ -17,7 +17,8 @@
  *             caching, plus the last three days of turns (Desk chat, Talk exchanges, earlier answers) as trimmed pairs.
  *   Log       every answer is kept on the turn with from "kernel-agent", through the same path as POST
  *             /api/skippy-answer; Skippy, the Magnificent can correct it with a follow-up of his own.
- *   Budget    its own ledger (desk/skippy/kernel-agent-spend.json) and a $10 month hard stop checked before each run
+ *   Budget    its own ledger (desk/skippy/kernel-agent-spend.json), counted with the chat's inside Skippy's one $60 month
+ *             (#646, SKIPPY_BUDGET_USD), a hard stop checked before each run
  *             at the run's most; KERNEL_AGENT_ENABLED=off turns it off. Over the cap or off, it does nothing and the
  *             watcher takes the hand-off.
  *   Privacy   the Desk rules: what it reads already passed the privacy check, what it writes goes through it again
@@ -30,7 +31,7 @@
 import { ADVISE_MODEL, PRICES, SORT_MODEL, costFor, type EmailModel, type Usage } from "../_email/budget.js";
 import { privateParts } from "../_privacy.js";
 import { plainLine } from "../foundry.js";
-import { CLAUDE_CAP_USD, SEARCH_USD, chatMonth, type ChatLedger } from "./budget.js";
+import { KERNEL_LEDGER_PATH as LEDGER_PATH, SEARCH_USD, SKIPPY_BUDGET_USD, chatMonth, skippyBudget, type ChatLedger } from "./budget.js";
 import { LOG_ROOMS, type LoggedTurn, type RoomLog } from "./log.js";
 
 /* ── Switches and budget ── */
@@ -41,16 +42,19 @@ export function kernelAgentOn(env: Record<string, string | undefined>): boolean 
   return !/^(?:off|false|0|no|disabled)$/i.test((env[ENABLED_SETTING] ?? "").trim());
 }
 
-/** Its own month's cap: Nikita's $10 (2026-10-27). KERNEL_AGENT_BUDGET_USD can only lower it. */
+/**
+ * Its month counts inside Skippy's one cap (#646: $60, SKIPPY_BUDGET_USD) with the chat's. KERNEL_AGENT_BUDGET_USD can
+ * hold the responder to a smaller share of it, never more.
+ */
 export const BUDGET_SETTING = "KERNEL_AGENT_BUDGET_USD";
-export const KERNEL_BUDGET_USD = 10;
-export function kernelBudget(raw: string | undefined): number {
+export const KERNEL_BUDGET_USD = SKIPPY_BUDGET_USD;
+export function kernelBudget(raw: string | undefined, cap = KERNEL_BUDGET_USD): number {
   const n = Number(raw);
-  return raw !== undefined && raw.trim() !== "" && Number.isFinite(n) && n >= 0 ? Math.min(n, KERNEL_BUDGET_USD) : KERNEL_BUDGET_USD;
+  return raw !== undefined && raw.trim() !== "" && Number.isFinite(n) && n >= 0 ? Math.min(n, cap) : cap;
 }
 
 /** Where its month ledger lives, beside the chat's (`desk/skippy/spend.json`): its own key. */
-export const KERNEL_LEDGER_PATH = "desk/skippy/kernel-agent-spend.json";
+export const KERNEL_LEDGER_PATH = LEDGER_PATH;
 
 /** Haiku first; KERNEL_AGENT_MODEL=sonnet moves it to Sonnet 5.5 if Haiku's tool use proves weak. */
 export const MODEL_SETTING = "KERNEL_AGENT_MODEL";
@@ -64,8 +68,8 @@ export const RUN_LIMITS = { inputTokens: 40_000, maxTokens: 1_200, rounds: 5, se
 export const ceilingUsd = (model: EmailModel): number =>
   RUN_LIMITS.rounds * costFor(model, { input_tokens: RUN_LIMITS.inputTokens, output_tokens: RUN_LIMITS.maxTokens }) + RUN_LIMITS.searches * SEARCH_USD;
 
-/** Whether one more run fits this month's spend and the cap. */
-export const canRun = (spent: number, model: EmailModel, budget: number): boolean => spent + ceilingUsd(model) <= Math.min(budget, CLAUDE_CAP_USD);
+/** Whether one more run fits this month's spend and the cap (the responder's own share, or Skippy's whole month with the chat's spend in `others`). */
+export const canRun = (spent: number, model: EmailModel, budget: number, others = 0): boolean => others + spent + ceilingUsd(model) <= budget;
 
 /** What a run cost: its calls' tokens at the model's price plus its searches. */
 export const runCost = (model: EmailModel, usage: Usage, searches: number): number => costFor(model, usage) + searches * SEARCH_USD;
@@ -240,6 +244,8 @@ export interface AgentRun {
 export interface AgentDeps {
   log: RoomLog;
   ledger: ChatLedger;
+  /** The Desk chat's ledger (#646): its month counts against the same cap. Left out, only the responder's own. */
+  chatLedger?: ChatLedger;
   env: Record<string, string | undefined>;
   now: number;
   /** Runs the model; null without a Claude key. */
@@ -323,14 +329,18 @@ export async function respond(id: string, deps: AgentDeps): Promise<Outcome> {
 
     if (!deps.run) return idle("no-key");
     const model = kernelModel(deps.env[MODEL_SETTING]);
-    const budget = kernelBudget(deps.env[BUDGET_SETTING]);
+    const cap = skippyBudget(deps.env.SKIPPY_BUDGET_USD);
+    const budget = kernelBudget(deps.env[BUDGET_SETTING], cap);
     let spent: number;
+    let chat: number;
     try {
       spent = chatMonth(await deps.ledger.load(), deps.now).usd;
+      // The chat's month (#646): the responder and the chat share Skippy's one cap.
+      chat = deps.chatLedger ? chatMonth(await deps.chatLedger.load(), deps.now).usd : 0;
     } catch {
       return idle("capped"); // an unreadable ledger fails closed
     }
-    if (!canRun(spent, model, budget)) return idle("capped");
+    if (!canRun(spent, model, budget) || !canRun(spent, model, cap, chat)) return idle("capped");
 
     const [brief, state, recent] = await Promise.all([
       deps.brief().catch(() => ""),

@@ -45,6 +45,29 @@ export interface Turn {
   handed?: string;
   /** A text card (#536): its key in the compose store (texts/compose.ts). */
   compose?: string;
+  /** What the agent read for this answer (#646): its "looked at" chips. */
+  looked?: string[];
+  /** What it changed (#646): its "did" chips. */
+  did?: string[];
+  /** Calls waiting for Nikita's Yes tap (#646), each with how the tap went. */
+  confirm?: Confirm[];
+}
+
+/** A tool call waiting for the tap (#646, POST /api/skippy-act): its id, the Yes button's words and exactly what happens. */
+export interface Confirm {
+  id: string;
+  label: string;
+  summary: string;
+  /** Set once tapped: running, done (with its chip or its answer), declined, or failed (with why). */
+  state?: "busy" | "done" | "declined" | "failed";
+  result?: string;
+}
+
+/** Skippy's month against his cap (#646), as the chat's answer carries it. */
+export interface Spend {
+  usd: number;
+  cap: number;
+  warn: number;
 }
 
 /** What Nikita may send at once, and how many turns go with it: the function's own caps (api/_skippy/prompt.ts). */
@@ -92,6 +115,46 @@ export function readActions(raw: unknown): SkippyAction[] {
   return out;
 }
 
+/** The agent's chips (#646), checked again: plain short lines, at most `max`. */
+export function readChips(raw: unknown, max: number): string[] {
+  return (Array.isArray(raw) ? raw : []).map((c) => clip(c, 60)).filter(Boolean).slice(0, max);
+}
+
+/** The Yes buttons (#646), checked again: a 20-hex id, a label and a summary, at most three. */
+export function readConfirms(raw: unknown): Confirm[] {
+  const out: Confirm[] = [];
+  for (const c of Array.isArray(raw) ? raw : []) {
+    const r = (c && typeof c === "object" ? c : {}) as Record<string, unknown>;
+    const label = clip(r.label, 40);
+    const summary = clip(r.summary, 300);
+    if (typeof r.id === "string" && /^[0-9a-f]{20}$/.test(r.id) && label && summary) out.push({ id: r.id, label, summary });
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+/** Skippy's month (#646), checked again; null when it isn't there or doesn't add up. */
+export function readSpend(raw: unknown): Spend | null {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
+  const usd = n(r.usd);
+  const cap = n(r.cap);
+  const warn = n(r.warn);
+  return usd !== null && cap !== null && warn !== null ? { usd, cap, warn } : null;
+}
+
+/** Nikita's tap on a waiting call (#646): Yes runs it once, No drops it. */
+export async function tapConfirm(id: string, yes: boolean, doFetch: typeof fetch = fetch): Promise<{ ok: boolean; text: string; did?: string }> {
+  try {
+    const res = await doFetch("/api/skippy-act", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: id, yes }), credentials: "same-origin" });
+    const body = (await res.json().catch(() => ({}))) as { ok?: unknown; text?: unknown; did?: unknown };
+    if (res.status === 401) return { ok: false, text: ASK_ERROR["signed-out"] };
+    return { ok: res.ok && body.ok === true, text: clip(body.text, 300) || (res.ok ? "Done." : "That didn't work."), ...(typeof body.did === "string" && { did: clip(body.did, 60) }) };
+  } catch {
+    return { ok: false, text: "That didn't work." };
+  }
+}
+
 /** Where an "open" or "lattice" button goes. */
 export function actionPath(a: SkippyAction): string | null {
   if (a.kind === "open") return PAGES[a.page];
@@ -117,7 +180,7 @@ export function speakable(text: string): string {
 }
 
 export type Asked =
-  | { ok: true; reply: string; actions: SkippyAction[]; capped: boolean; room?: string; needs?: string; turn?: string }
+  | { ok: true; reply: string; actions: SkippyAction[]; capped: boolean; room?: string; needs?: string; turn?: string; looked: string[]; did: string[]; confirm: Confirm[]; spend?: Spend }
   | { ok: false; error: "signed-out" | "held" | "slow" | "off" | "failed"; message: string };
 
 /** What the Desk says for each way a message can fail. */
@@ -138,7 +201,7 @@ export async function askSkippy(message: string, history: { who: Turn["who"]; te
       body: JSON.stringify({ message: message.slice(0, MESSAGE_MAX), history, ...(page && { page }) }),
       credentials: "same-origin",
     });
-    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown };
+    const body = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown; capped?: unknown; held?: unknown; wait?: unknown; room?: unknown; needs?: unknown; turn?: unknown; looked?: unknown; did?: unknown; confirm?: unknown; spend?: unknown };
     if (res.status === 401) return { ok: false, error: "signed-out", message: ASK_ERROR["signed-out"] };
     if (res.status === 422) {
       const kinds = Array.isArray(body.held) ? body.held.filter((k): k is string => typeof k === "string" && k.length < 60) : [];
@@ -152,7 +215,18 @@ export async function askSkippy(message: string, history: { who: Turn["who"]; te
     const reply = clip(body.reply, 700);
     if (!res.ok || !reply) return { ok: false, error: "failed", message: ASK_ERROR.failed };
     const handed = typeof body.turn === "string" && /^[0-9a-f]{16}$/.test(body.turn) && typeof body.needs === "string" && /^[a-z]{2,12}$/.test(body.needs) && typeof body.room === "string";
-    return { ok: true, reply, actions: readActions(body.actions), capped: body.capped === true, ...(handed && { room: body.room as string, needs: body.needs as string, turn: body.turn as string }) };
+    const spend = readSpend(body.spend);
+    return {
+      ok: true,
+      reply,
+      actions: readActions(body.actions),
+      capped: body.capped === true,
+      looked: readChips(body.looked, 6),
+      did: readChips(body.did, 4),
+      confirm: readConfirms(body.confirm),
+      ...(spend && { spend }),
+      ...(handed && { room: body.room as string, needs: body.needs as string, turn: body.turn as string }),
+    };
   } catch {
     return { ok: false, error: "failed", message: ASK_ERROR.failed };
   }
@@ -186,6 +260,10 @@ interface SkippyStore {
   unread: boolean;
   /** Read replies aloud with the browser's own voice (remembered in this browser only). */
   voice: boolean;
+  /** Skippy's month against his cap (#646), from the last answer; null until one comes. */
+  spend: Spend | null;
+  /** Taps Yes or No on a waiting call in a turn (#646). */
+  tap: (turn: number, id: string, yes: boolean, doFetch?: typeof fetch) => Promise<void>;
   setOpen: (open: boolean) => void;
   setVoice: (on: boolean) => void;
   /** Sends a message; resolves with the reply turn, or null when it failed (a note says why). */
@@ -212,6 +290,7 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
   open: false,
   unread: false,
   voice: readVoice(),
+  spend: null,
   setOpen: (open) => {
     if (open) void loadRoundTrip().catch(() => null);
     set(open ? { open, unread: false } : { open });
@@ -235,11 +314,22 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     // A text to draft (#536): its card starts at once (drafting can't send anything) and sits under the reply.
     const asked = got.ok ? got.actions.find((a) => a.kind === "text") : undefined;
     const compose = asked?.kind === "text" ? await import("../texts/compose.ts").then((m) => m.useCompose.getState().start(asked.who, asked.text, "chat")).catch(() => undefined) : undefined;
-    const turn: Turn = got.ok ? { id: nextId++, who: "skippy", text: got.reply, actions: got.actions.filter((a) => a.kind !== "text"), ...(compose && { compose }) } : { id: nextId++, who: "skippy", text: got.message, note: true };
+    const turn: Turn = got.ok
+      ? {
+          id: nextId++,
+          who: "skippy",
+          text: got.reply,
+          actions: got.actions.filter((a) => a.kind !== "text"),
+          ...(compose && { compose }),
+          ...(got.looked.length && { looked: got.looked }),
+          ...(got.did.length && { did: got.did }),
+          ...(got.confirm.length && { confirm: got.confirm }),
+        }
+      : { id: nextId++, who: "skippy", text: got.message, note: true };
     // A hand-off (#341): Skippy's quick take stays, and a pending bubble waits for the room's answer under it.
     const waits = rt && got.ok && got.turn && got.needs && (rt.WAIT_ROOMS as readonly string[]).includes(got.room ?? "");
     const pending: Turn | null = rt && waits ? { id: nextId++, who: "skippy", text: rt.pendingText(got.needs!, got.turn), pending: { turn: got.turn!, room: got.room as AskedRoom, needs: got.needs!, since: Date.now() } } : null;
-    set((s) => ({ busy: false, turns: [...s.turns, turn, ...(pending ? [pending] : [])].slice(-KEEP_TURNS) }));
+    set((s) => ({ busy: false, turns: [...s.turns, turn, ...(pending ? [pending] : [])].slice(-KEEP_TURNS), ...(got.ok && got.spend && { spend: got.spend }) }));
     if (got.ok && get().voice) speak(got.reply);
     if (rt && pending) rt.watchHandoffs(doFetch);
     return got.ok ? turn : null;
@@ -258,6 +348,14 @@ export const useSkippy = create<SkippyStore>((set, get) => ({
     return id;
   },
   mark: (id, index, state) => set((s) => ({ turns: s.turns.map((t) => (t.id === id ? { ...t, done: { ...t.done, [index]: state } } : t)) })),
+  tap: async (turnId, id, yes, doFetch) => {
+    const patch = (c: Partial<Confirm>) => set((s) => ({ turns: s.turns.map((t) => (t.id === turnId ? { ...t, confirm: t.confirm?.map((x) => (x.id === id ? { ...x, ...c } : x)) } : t)) }));
+    const cur = get().turns.find((t) => t.id === turnId)?.confirm?.find((x) => x.id === id);
+    if (!cur || cur.state) return;
+    patch({ state: "busy" });
+    const got = await tapConfirm(id, yes, doFetch);
+    patch(got.ok ? { state: yes ? "done" : "declined", result: got.did ?? got.text } : { state: "failed", result: got.text });
+  },
   addCard: (key) => set((s) => ({ turns: [...s.turns, { id: nextId++, who: "skippy" as const, text: "", compose: key }].slice(-KEEP_TURNS) })),
   clear: () => {
     stopSpeaking();

@@ -24,12 +24,10 @@ import { deskKeyFor } from "../_desk/keys.js";
 import { requireSession, withCookie, type DeskDeps } from "../_desk/session.js";
 import { pickAuthStore } from "../_desk/store.js";
 import { PRIVATE_LABEL, privateParts } from "../_privacy.js";
-import { BlobChatLedger, canChat, chatMonth, skippyBudget, type ChatLedger } from "../_skippy/budget.js";
+import { BlobChatLedger, KERNEL_LEDGER_PATH, canChat, chatMonth, skippyBudget, type ChatLedger } from "../_skippy/budget.js";
 import { chatTag, chatWait, countChat } from "../_skippy/limits.js";
 import { costOf, type Usage } from "../foundry.js";
-import { monthTotals, worldBudget } from "../_world/budget.js";
 import { claudeKey } from "../_world/claude.js";
-import { pickStore } from "../_world/store.js";
 import { readModelIntent, MODEL_KINDS, type Intent } from "./parse.js";
 import { BlobTodoStore, type TodoStore } from "./store.js";
 import { mergeState, publicCounts } from "./todos.js";
@@ -66,8 +64,8 @@ export interface TodoDeps {
   store: TodoStore | null;
   ledger: ChatLedger | null;
   parse: ParseCall | null;
-  /** The world's Claude spend this month, in dollars (it shares the cap). */
-  worldUsd: () => Promise<number>;
+  /** The rest of Skippy's month in dollars (#646: the Kernel responder's, which shares his one cap). */
+  othersUsd: () => Promise<number>;
   now: number;
 }
 
@@ -105,9 +103,9 @@ const live = (): TodoDeps => {
     store: blob ? new BlobTodoStore(blob) : null,
     ledger: blob ? new BlobChatLedger(blob) : null,
     parse: liveParse(claudeKey(env)),
-    worldUsd: async () => {
-      const world = await pickStore(env)?.loadState().catch(() => null);
-      return monthTotals(world ?? { spend: {} }, Date.now()).usd;
+    othersUsd: async () => {
+      if (!blob) return 0;
+      return chatMonth(await new BlobChatLedger(blob, KERNEL_LEDGER_PATH).load(), Date.now()).usd;
     },
     now: Date.now(),
   };
@@ -191,10 +189,11 @@ export async function parseWithClaude(text: string, mode: "capture" | "item", de
     await deps.desk.store.saveLimits(countChat(limits, tag, deps.now));
     // Skippy's month: the same ledger and cap as the chat. Unreadable means no call.
     const spent = chatMonth(await deps.ledger.load(), deps.now).usd;
-    const world = await deps.worldUsd();
-    if (!canChat(spent, world, skippyBudget(deps.env.SKIPPY_BUDGET_USD, worldBudget(deps.env.WORLD_BUDGET_USD)))) return { intent: null, capped: true };
+    const others = await deps.othersUsd();
+    if (!canChat(spent + others, skippyBudget(deps.env.SKIPPY_BUDGET_USD))) return { intent: null, capped: true };
     const got = await deps.parse(PARSE_SYSTEM, parseInput(text, mode));
-    await deps.ledger.add(deps.now, got.usage, costOf(got.usage, HAIKU_PRICE)).catch(() => undefined);
+    const usd = costOf(got.usage, HAIKU_PRICE);
+    await deps.ledger.add(deps.now, got.usage, usd, { triage: usd }).catch(() => undefined);
     return { intent: readModelIntent(got.answer, mode, deps.now) };
   } catch {
     return { intent: null };

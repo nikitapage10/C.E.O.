@@ -32,7 +32,7 @@ param logDailyCapGb string
 @description('The Azure copy\'s monthly Claude budget for the world, in USD (WORLD_BUDGET_USD), as a string.')
 param worldBudgetUsd string
 
-@description('The Azure copy\'s monthly Claude budget for Skippy\'s chat, in USD (SKIPPY_BUDGET_USD), as a string.')
+@description('Skippy\'s one monthly Claude cap, in USD (SKIPPY_BUDGET_USD, #646), as a string.')
 param skippyBudgetUsd string
 
 @description('The email agent\'s own monthly Claude cap, in USD (EMAIL_BUDGET_USD), as a string.')

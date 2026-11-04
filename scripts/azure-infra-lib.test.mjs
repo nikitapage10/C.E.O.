@@ -62,7 +62,7 @@ describe("the template on every deploy (#330)", () => {
   it("falls back to the template's defaults, never to junk", () => {
     const { file } = buildParams({ main: defaults(), live: { CEO_SITE_URL: "https://thankful-forest-019308c1e.5.azurestaticapps.net", PAYPAL_ENV: "prod", WORLD_BUDGET_USD: "lots" }, cap: "", deployer: "me", github: "" });
     const v = Object.fromEntries(Object.entries(file.parameters).map(([k, p]) => [k, p.value]));
-    expect(v).toMatchObject({ siteOnCustomDomain: false, paypalEnv: "sandbox", worldBudgetUsd: "6", skippyBudgetUsd: "2", emailBudgetUsd: "10", kernelAgentEnabled: "true", kernelAgentBudgetUsd: "10", homeFeedCap: "2", instacartEnv: "development", logDailyCapGb: "0.2", deployerPrincipalId: "", githubPrincipalId: "" });
+    expect(v).toMatchObject({ siteOnCustomDomain: false, paypalEnv: "sandbox", worldBudgetUsd: "6", skippyBudgetUsd: "60", emailBudgetUsd: "10", kernelAgentEnabled: "true", kernelAgentBudgetUsd: "10", homeFeedCap: "2", instacartEnv: "development", logDailyCapGb: "0.2", deployerPrincipalId: "", githubPrincipalId: "" });
   });
 
   it("summarises the what-if by change and property path, never by value", () => {

@@ -1,4 +1,5 @@
 import { DESK_SUBMINDS, SUBMINDS } from "../../simulator/src/subminds.ts";
+import type { ToolOutcome } from "./tools.ts";
 
 /**
  * The rooms' voice (#638), part of the shared chrome (docs/ROOMS.md, "The room voice"). Two ways in, one listener:
@@ -52,6 +53,14 @@ export interface RoomUtterance {
   via: "tap" | "hands-free";
   /** The room's last few spoken turns, oldest first, kept in memory only. */
   history: readonly { who: "nikita" | "skippy"; text: string }[];
+  /**
+   * Runs one of the rooms' tools (#646, `@ceo/engine/tools`): the same registry and the same server checks as Desk
+   * Skippy's agent (`POST /api/skippy-act`, passkey session). A tool that sends, spends or deletes comes back as
+   * `{ confirm }` and runs only on Nikita's Yes tap: offer it as an action that calls `confirmTool(id)`.
+   */
+  tool?: (name: string, input: Record<string, unknown>) => Promise<ToolOutcome>;
+  /** Taps Yes (or No) on a tool call that waits for it. */
+  confirmTool?: (id: string, yes: boolean) => Promise<ToolOutcome>;
 }
 
 /** A button the answer offers (to confirm a reply, a rule, a disposition): shown under the spoken line for a while. */

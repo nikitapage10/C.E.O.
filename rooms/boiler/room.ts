@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { TOOLS } from "./tools.ts";
 
 /** The Boiler Room: every connection, security and the house. Data only (docs/ROOMS.md). */
 export default defineRoom({
@@ -22,6 +23,7 @@ export default defineRoom({
   usesClaude: false,
   threat: ["TB6", "TB8", "TB10", "R7", "R8"],
   budgetKb: 200,
+  tools: [...TOOLS],
   purpose: {
     goal: "Watches every real integration, key and security check in one place, so each new agent link is wired, guarded and seen working.",
     agents: [

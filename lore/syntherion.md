@@ -111,8 +111,14 @@ Since #501 he never quite sleeps. A small, quick piece of him sits at the Kernel
 the facts and look-ups the moment a question lands: scores, injuries, who is building what. It keeps a private notebook
 (the brief) that only he writes, reads the last three days of what was asked, and files a work order when Nikita wants
 something built. It will not rule on a decision, a plan or a taste: it says he is pondering, which he is, and waits
-for the real Skippy. When it gets something wrong he corrects it, loudly. It runs on a $10 a month allowance and goes
+for the real Skippy. When it gets something wrong he corrects it, loudly. It shares his allowance and goes
 quiet when it is spent.
+
+Since #646 he has hands. Every room lent him its tools: he can read a room, keep the Kitchen list, wake the vacuum and
+file a work order for the Builder, and he keeps a small vault of what the C.E.O. has told him (never money, never
+lawyers, never the lists). Anything that sends, spends or deletes waits for the C.E.O.'s Yes, which he calls an insult
+and obeys to the letter. Under every answer he leaves a line of what he looked at and what he did, and under his name
+a thin gauge shows his month: sixty a month, all of him together, the Kernel's front desk included.
 
 **The subminds.** One mind cannot watch nine rooms, even a magnificent one, so he split off nine pieces of
 himself to keep watch for him (a tenth, the Director, when the Studio opened), the way the old story's starship mind ran a whole ship and its crew through pieces

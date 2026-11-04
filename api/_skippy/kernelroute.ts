@@ -108,6 +108,7 @@ export function liveAgent(env: Env = process.env): AgentDeps {
   return {
     log,
     ledger: new BlobChatLedger(blob ?? NO_BLOB, KERNEL_LEDGER_PATH),
+    chatLedger: new BlobChatLedger(blob ?? NO_BLOB),
     env,
     now: Date.now(),
     run: key && blob ? claudeAgent(key) : null,

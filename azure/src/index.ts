@@ -45,6 +45,7 @@ import * as skippyvoice from "../../api/skippy-voice.js";
 import * as skippyroom from "../../api/_skippy/roomroute.js";
 import * as skippytools from "../../api/_skippy/toolroute.js";
 import * as kernelroute from "../../api/_skippy/kernelroute.js";
+import * as skippyagent from "../../api/_skippy/agent/routes.js";
 import * as visualqafeed from "../../api/visual-qa-feed.js";
 import * as worldstep from "../../api/world-step.js";
 import * as world from "../../api/world.js";
@@ -165,6 +166,11 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   // A Talk call's live lookups (#479): ElevenLabs calls them mid-call with the call's own tool token only (signed,
   // unexpired, kept with the call; api/_skippy/voicetoken.ts). Azure only; money leaves only to that call.
   ["skippy-tools", skippytools, { settleMs: 2_500 }],
+  // Desk Skippy's agent (#646, api/_skippy/agent): Nikita's Yes tap on a tool call that waits for it (and a room's voice
+  // hook running one of the rooms' tools), his private memory of Nikita, and the month's spend meter. Passkey session only.
+  ["skippy-act", skippyagent.actRoute],
+  ["skippy-memory", skippyagent.memoryRoute],
+  ["skippy-spend", skippyagent.spendRoute],
   // The always-on Kernel responder (#501, docs/AZURE.md, "The Kernel responder"): the private brief it reads, and the
   // run itself, called by the Function App on its own address when a hand-off is kept. SUBMIND_FEED_TOKEN only.
   ["kernel-brief", kernelroute.brief],

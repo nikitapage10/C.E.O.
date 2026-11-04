@@ -9,6 +9,7 @@
     "./lore": "./src/lore.ts",
     "./testing": "./src/testing.ts",
     "./voice": "./src/voice.ts",
+    "./tools": "./src/tools.ts",
     "./sigils/*": "./src/sigils/*",
     "./web/*": "./src/web/*"
   },

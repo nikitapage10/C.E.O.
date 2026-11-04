@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LINEAGE_IDS, ROOM_IDS } from "@ceo/core";
 import type { RoomVoiceModule } from "./voice.ts";
+import { isRoomTool, type RoomTool } from "./tools.ts";
 
 /**
  * The room manifest (#617, docs/ROOMS.md): what every room under `rooms/<id>/room.ts` declares about itself, so the
@@ -113,6 +114,12 @@ export const RoomManifestSchema = z.strictObject({
    * answer. Optional: without one, the submind answers everything.
    */
   voice: voiceLoader.optional(),
+  /**
+   * The things Skippy can do in this room (#646, `@ceo/engine/tools`): data only, declared in `rooms/<id>/tools.ts`.
+   * One registry for Desk Skippy's agent and the room's voice hook; the server holds each one's executor and runs it,
+   * and anything that sends, spends or deletes waits for Nikita's Yes tap.
+   */
+  tools: z.array(z.custom<RoomTool>((v) => isRoomTool(v), "a well-formed room tool")).optional(),
   purpose: PurposeSchema,
   lore: RoomLoreSchema,
 });
@@ -158,6 +165,10 @@ export const ENGINE_ENDPOINTS: readonly string[] = [
   "skippy-voice",
   "skippy-room",
   "skippy-tools",
+  // Desk Skippy's agent (#646): a room tool's run or a Yes tap, his private memory, and the month's spend meter.
+  "skippy-act",
+  "skippy-memory",
+  "skippy-spend",
   "kernel-brief",
   "kernel-agent",
   "capture",

@@ -650,6 +650,9 @@ export const SKIPPY_QUIPS: string[] = [
   "One tap and the C.E.O. talks straight to a room. No call, no hello. Every piece of me answers in my voice. Naturally. It's the best voice.",
   "The Steward keeps the Haven in lamplight and calls the cat's breakfast 'inventory'. He's fooling no one. He's fooling me a little.",
   "Hands-free, room to room, and whoever's in charge of the room answers. Like a ship's comm, if the ship were magnificent and run by a beer can.",
+  "I have tools now, monkeys. Every room's. The good ones wait for the C.E.O.'s Yes. I find this insulting and correct.",
+  "A vault of what the C.E.O. told me. No money, no lawyers, no lists. I asked. The answer was no. Magnificently no.",
+  "Sixty a month. That's my whole allowance. Warp drives cost more. So does the Pessimist's therapy.",
 ];
 
 /**

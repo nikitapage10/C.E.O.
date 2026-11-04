@@ -103,7 +103,7 @@ async function setup(over: Partial<TodoDeps> = {}) {
     asked.push(user);
     return { answer: { kind: "snooze", text: "", when: "tomorrow morning" }, usage: { input_tokens: 300, output_tokens: 20 } };
   };
-  const deps: TodoDeps = { env: { FOUNDRY_DESK_KEY: DESK }, desk: { deskKey: DESK, store: auth, now: NOW }, store, ledger, parse, worldUsd: async () => 0, now: NOW, ...over };
+  const deps: TodoDeps = { env: { FOUNDRY_DESK_KEY: DESK }, desk: { deskKey: DESK, store: auth, now: NOW }, store, ledger, parse, othersUsd: async () => 0, now: NOW, ...over };
   const cookie = await signedInCookie(DESK, NOW, auth);
   const post = (body: unknown, withCookie = true) =>
     handlePost(new Request(`${ORIGIN}/api/today-todos`, { method: "POST", headers: { "Content-Type": "application/json", ...(withCookie && { Cookie: cookie }) }, body: JSON.stringify(body) }), deps);
@@ -149,7 +149,7 @@ describe("the endpoint", () => {
   });
 
   it("past Skippy's month budget it makes no call", async () => {
-    const { post, asked } = await setup({ worldUsd: async () => 10 });
+    const { post, asked } = await setup({ othersUsd: async () => 60 });
     const res = (await (await post({ action: "parse", text: "eh, whenever", mode: "item" })).json()) as { intent: unknown; capped?: boolean };
     expect(res).toEqual({ intent: null, capped: true });
     expect(asked).toEqual([]);

@@ -92,13 +92,15 @@ describe("the switches and the budget (#501)", () => {
     for (const off of ["false", "off", "0", "no", " FALSE ", "disabled"]) expect(kernelAgentOn({ [ENABLED_SETTING]: off }), off).toBe(false);
   });
 
-  it("has its own cap of $10 that a setting can only lower", () => {
-    expect(kernelBudget(undefined)).toBe(10);
-    expect(kernelBudget("")).toBe(10);
+  it("lives inside Skippy's one $60 month (#646), and a setting can only hold it to less", () => {
+    expect(kernelBudget(undefined)).toBe(60);
+    expect(kernelBudget("")).toBe(60);
     expect(kernelBudget("4")).toBe(4);
-    expect(kernelBudget("25")).toBe(10);
-    expect(kernelBudget("-3")).toBe(10);
-    expect(kernelBudget("lots")).toBe(10);
+    expect(kernelBudget("25")).toBe(25);
+    expect(kernelBudget("75")).toBe(60);
+    expect(kernelBudget("25", 20)).toBe(20);
+    expect(kernelBudget("-3")).toBe(60);
+    expect(kernelBudget("lots")).toBe(60);
   });
 
   it("starts on Haiku and moves to Sonnet only when told to", () => {
@@ -115,6 +117,8 @@ describe("the switches and the budget (#501)", () => {
     expect(canRun(10 - ceiling + 0.001, SORT_MODEL, 10)).toBe(false);
     expect(canRun(10, SORT_MODEL, 10)).toBe(false);
     expect(canRun(0, SORT_MODEL, 0)).toBe(false);
+    // The chat's month counts against the same cap (#646).
+    expect(canRun(0, SORT_MODEL, 10, 10 - ceiling + 0.001)).toBe(false);
     expect(ceilingUsd(ADVISE_MODEL)).toBeGreaterThan(ceiling);
   });
 
@@ -193,9 +197,17 @@ describe("one answer", () => {
 
   it("does nothing over the cap, off, or without a key, and leaves the hand-off open for the watcher", async () => {
     const a = await setup();
-    const capped = deps(a.log, async () => reply("never"));
+    const capped = deps(a.log, async () => reply("never"), { env: { ...ENV, KERNEL_AGENT_BUDGET_USD: "10" } });
     await capped.ledger.add(NOW, { input_tokens: 1, output_tokens: 1 }, 9.99);
     expect((await respond(a.id, capped.d)).state).toBe("capped");
+    // Skippy's whole month (#646): the chat's spend leaves the responder nothing past the cap.
+    forgetTaken();
+    const shared = await setup();
+    const chatLedger = new MemoryChatLedger();
+    await chatLedger.add(NOW, { input_tokens: 1, output_tokens: 1 }, 59.99);
+    const full = deps(shared.log, async () => reply("never"), { chatLedger });
+    expect((await respond(shared.id, full.d)).state).toBe("capped");
+    expect(full.spy.runs).toHaveLength(0);
     expect(capped.spy.runs).toHaveLength(0);
     expect(capped.spy.kept).toHaveLength(0);
 

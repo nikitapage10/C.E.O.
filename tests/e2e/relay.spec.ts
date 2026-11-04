@@ -43,6 +43,8 @@ const FAKE_SPEECH = () => {
     onresult: ((e: unknown) => void) | null = null;
     onend: (() => void) | null = null;
     onerror: ((e: unknown) => void) | null = null;
+    /** Whether this recogniser already heard a line: hands-free starts a fresh one for the next. */
+    used = false;
     start() {
       (window as unknown as { __rec: Fake | null }).__rec = this;
     }
@@ -58,6 +60,7 @@ const FAKE_SPEECH = () => {
   (window as unknown as { __say: (t: string) => boolean }).__say = (t: string) => {
     const r = (window as unknown as { __rec: Fake | null }).__rec;
     if (!r?.onresult) return false;
+    r.used = true;
     const result = Object.assign([{ transcript: t }], { isFinal: true });
     r.onresult({ resultIndex: 0, results: [result] });
     return true;
@@ -147,7 +150,14 @@ async function stub(page: Page, opts: { signedIn?: boolean; canSend?: boolean } 
   return posts;
 }
 
-const say = (page: Page, words: string) => page.evaluate((w) => (window as unknown as { __say: (t: string) => boolean }).__say(w), words);
+/**
+ * Says words to the Desk's room mic in hands-free (#638, the one listener): waits until it is listening again, then
+ * hears them. On /relay they reach the Thread through the room's `voice` hook (rooms/relay/voice.ts).
+ */
+const say = async (page: Page, words: string) => {
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __rec: { used: boolean } | null }).__rec?.used === false), { timeout: 15_000 }).toBe(true);
+  return page.evaluate((w) => (window as unknown as { __say: (t: string) => boolean }).__say(w), words);
+};
 const sends = (posts: Record<string, unknown>[]) => posts.filter((p) => p.action === "send");
 const focused = (page: Page) => page.locator(".cx-entry[data-focus]");
 const undoLine = (page: Page) => page.locator(".cx-undo");
@@ -179,7 +189,7 @@ for (const width of [1440, 400]) {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-focus-${width}.png` });
 
     // Listening is opt-in. With no draft on screen, "yes" is not a send, and Jordan's draft (not in focus) never goes.
-    await page.getByRole("button", { name: "Talk" }).click();
+    await page.getByRole("button", { name: "Hands-free" }).first().click();
     expect(await say(page, "yes")).toBe(true);
     await expect(undoLine(page)).toContainText("Nothing to send yet.");
     await page.keyboard.press("y");
@@ -293,7 +303,7 @@ test("email without the send grant: Open in Gmail, Copy and a quiet reconnect; f
   await expect(more.getByRole("menuitem", { name: "Block this sender" })).toBeVisible();
   await more.locator("summary").click();
   await page.keyboard.press("y");
-  await page.getByRole("button", { name: "Talk" }).click();
+  await page.getByRole("button", { name: "Hands-free" }).first().click();
   await say(page, "yes");
   expect(sends(posts)).toEqual([]);
 
@@ -354,7 +364,7 @@ test("Done, skip and \"already did it\" leave at once, Undo brings one back, and
   await page.waitForTimeout(5_500);
   expect(posts.filter((p) => p.action === "done")).toEqual([]);
   // "already did it" closes it with no draft and no question: one done after the window, and no model call.
-  await page.getByRole("button", { name: "Talk" }).click();
+  await page.getByRole("button", { name: "Hands-free" }).first().click();
   await scrollTo(page, "Sam Test");
   await expect(focused(page)).toContainText("Sam Test");
   await say(page, "already did it");

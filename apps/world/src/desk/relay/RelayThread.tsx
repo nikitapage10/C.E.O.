@@ -13,8 +13,7 @@ import { setRelayHandler } from "./bridge.ts";
 import { ghost, ghosted, INK, quill, rise, SigilStage, sink } from "./sigils.ts";
 import { agoShort, askLine, codexOf, initialOf, lastRequest, weekSent, type Exchange } from "./thread.ts";
 import { errorText, useThread, type Notice } from "./useThread.ts";
-import { useVoice } from "./voice.ts";
-import { setOwnVoice } from "../roomvoice/roomVoice.ts";
+import { useRoomMic } from "../roomvoice/roomVoice.ts";
 import "./thread.css";
 
 /**
@@ -29,13 +28,12 @@ import "./thread.css";
  * then Email and Texts, oldest first; everything else sits behind Settings.
  *
  * This file only draws: the queue, the state machine and the gate live in ./useThread.ts and ./thread.ts, the glyph
- * engine in ./sigils.ts, listening in ./voice.ts. Every word of mail or text is wrapped in <Private> for Hide mode, and
+ * engine in ./sigils.ts; listening is the Desk's room mic (#638), which hands what is said to rooms/relay/voice.ts and
+ * from there to this Thread (./bridge.ts). Every word of mail or text is wrapped in <Private> for Hide mode, and
  * only the signed-in passkey session ever has any; signed out, the page shows counts and states.
  */
 
 const PARTS = ".cx-init, .cx-msg, .cx-adv, .cx-draft";
-/** How long what you said stays at the spine's foot after you stop speaking. */
-const HEARD_MS = 2_500;
 const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 const rnd = Math.random;
 const first = (who: string) => who.trim().split(/\s+/)[0] || who;
@@ -381,28 +379,14 @@ export function RelayThread({ now }: { now: number }) {
   const { ex, phase, hidden } = t;
   const tRef = useRef(t);
   tRef.current = t;
-  const voice = useVoice((l) => void t.line(l));
-  // One listener (#638): the Thread keeps Space for its own hold-to-talk, and while its hands-free is on the Desk's
-  // waits. Its intent layer moves onto the room's `voice` hook (@ceo/engine/voice) in its own round.
-  useEffect(() => {
-    setOwnVoice({ space: voice.supported, listening: voice.mode !== "off" });
-    return () => setOwnVoice(null);
-  }, [voice.supported, voice.mode]);
+  // One listener (#638, #642): the Desk's room mic and hands-free hear Nikita; the Thread only lights its ear.
+  const micPhase = useRoomMic((s) => (s.room === "relay" ? s.phase : "idle"));
   const [typed, setTyped] = useState("");
   const [hints, setHints] = useState(false);
   const [back] = useState(() => takeGmailReturn());
   const run = useRef(0);
-  fx.current.listening = voice.listening;
-  fx.current.loud = voice.tail ? 1 : 0;
-
-  // What you said shows while you speak, then fades (#642).
-  const [heardOn, setHeardOn] = useState(false);
-  useEffect(() => {
-    if (!voice.heard) return;
-    setHeardOn(true);
-    const id = window.setTimeout(() => setHeardOn(false), HEARD_MS);
-    return () => window.clearTimeout(id);
-  }, [voice.heard]);
+  fx.current.listening = micPhase === "listening";
+  fx.current.loud = micPhase === "listening" ? 1 : 0;
 
   // One listener (#638): the room voice hands what's said on /relay to this Thread (rooms/relay/voice.ts).
   useEffect(
@@ -625,7 +609,7 @@ export function RelayThread({ now }: { now: number }) {
     [pick],
   );
 
-  // Keys: Y send, N no, R draft it, D done, L later, S skip, Z undo; J and K move; hold Space to talk; ? the list.
+  // Keys: Y send, N no, R draft it, D done, L later, S skip, Z undo; J and K move; ? the list. Space is the room mic's.
   // Never while typing.
   useEffect(() => {
     const typing = (e: KeyboardEvent) => {
@@ -634,12 +618,6 @@ export function RelayThread({ now }: { now: number }) {
     };
     const down = (e: KeyboardEvent) => {
       if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.code === "Space") {
-        if (!voice.supported) return;
-        e.preventDefault();
-        if (!e.repeat) voice.hold(true);
-        return;
-      }
       if (e.key === "?") {
         setHints((h) => !h);
         e.preventDefault();
@@ -659,16 +637,9 @@ export function RelayThread({ now }: { now: number }) {
       }
       if (!e.repeat && t.key(e.key)) e.preventDefault();
     };
-    const up = (e: KeyboardEvent) => {
-      if (e.code === "Space" && voice.supported && !typing(e)) voice.hold(false);
-    };
     window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, [t, voice, ex?.key, goTo]);
+    return () => window.removeEventListener("keydown", down);
+  }, [t, ex?.key, goTo]);
 
   const submit = (raw: string) => {
     const r = t.line(raw);
@@ -676,7 +647,6 @@ export function RelayThread({ now }: { now: number }) {
   };
 
   const waiting = t.metrics.waiting;
-  const speaking = !!voice.tail;
 
   return (
     <div className="cx" data-phase={phase} data-still={engine?.reduced || undefined}>
@@ -698,19 +668,8 @@ export function RelayThread({ now }: { now: number }) {
 
         <div className="cx-dock">
           <div className="cx-dl">
-            {voice.supported && (
-              <button type="button" className="cx-mic" aria-pressed={voice.mode === "on"} data-on={voice.listening || undefined} onClick={() => voice.turn(voice.mode !== "on")} title={voice.mode === "on" ? "Stop listening" : "Listen hands-free (or hold Space)"}>
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                  <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  <path d="M6 11a6 6 0 0 0 12 0M12 17v4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-                <span>{voice.mode === "on" ? "Listening" : voice.mode === "hold" ? "Listening" : "Talk"}</span>
-              </button>
-            )}
-            <span className="cx-heard" data-private="" data-on={speaking || heardOn || undefined} data-loud={speaking || undefined} aria-live="off">
-              {voice.tail || voice.heard}
-            </span>
-            {voice.error && <span className="cx-warn">{voice.error}</span>}
+            {/* The mic is the Desk's room mic (#638): one listener for every room. What's said here reaches the Thread. */}
+            <span className="cx-lab">{micPhase === "listening" ? "Listening" : micPhase === "thinking" ? "Reading that…" : "Talk with the mic, or type"}</span>
           </div>
           <div className="cx-dr">
             <UndoLine n={t.notice} now={now} sg={engine} />
@@ -739,16 +698,12 @@ export function RelayThread({ now }: { now: number }) {
             {hints && (
               <p className="cx-keys" id="cx-keys">
                 <b>Y</b> send · <b>N</b> no · <b>R</b> draft it · <b>D</b> done · <b>L</b> later · <b>S</b> skip · <b>Z</b> undo · <b>J K</b> move
-                {voice.supported ? (
-                  <>
-                    {" "}
-                    · hold <b>Space</b> to talk
-                  </>
-                ) : null}
+                {" "}
+                · hold <b>Space</b> to talk
               </p>
             )}
           </div>
-          <span className="cx-ear" ref={earRef} data-on={voice.listening || undefined} aria-hidden="true" />
+          <span className="cx-ear" ref={earRef} data-on={micPhase === "listening" || undefined} aria-hidden="true" />
         </div>
       </section>
 

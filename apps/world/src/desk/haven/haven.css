@@ -934,3 +934,138 @@
   font: 500 13px var(--hv-text);
   cursor: pointer;
 }
+
+/* ── the thermostat control (#671): a floating card from the Climate card or the Nest's marker ── */
+[data-room="haven"] .hv-dev.is-tap {
+  pointer-events: auto;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-dev.is-tap i {
+  width: 12px;
+  height: 12px;
+}
+[data-room="haven"] .hv-th {
+  position: fixed;
+  z-index: 45;
+  top: 140px;
+  right: max(24px, calc((100vw - 1280px) / 2 + 340px));
+  width: 300px;
+  box-sizing: border-box;
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  border: 1px solid rgba(var(--hv-gold), 0.28);
+  border-radius: 16px;
+  background: rgba(14, 13, 18, 0.88);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  outline: none;
+}
+[data-room="haven"] .hv-th-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+[data-room="haven"] .hv-th-x {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--hv-line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--hv-soft);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-th-now {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+}
+[data-room="haven"] .hv-th-now b {
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 46px;
+  line-height: 1;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-th-now span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-th-step {
+  display: grid;
+  grid-template-columns: 1fr 40px 64px 40px;
+  align-items: center;
+  gap: 6px;
+}
+[data-room="haven"] .hv-th-k {
+  font-size: 12px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-th-step b {
+  text-align: center;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 28px;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-th-step button,
+[data-room="haven"] .hv-th-modes button {
+  border: 1px solid var(--hv-line);
+  background: var(--hv-glass2);
+  color: var(--hv-ink);
+  font: inherit;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-th-step button {
+  height: 40px;
+  border-radius: 50%;
+  font-size: 18px;
+}
+[data-room="haven"] .hv-th-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+[data-room="haven"] .hv-th-modes button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+[data-room="haven"] .hv-th-modes button[aria-pressed="true"] {
+  border-color: rgba(var(--hv-gold), 0.6);
+  background: rgba(var(--hv-gold), 0.16);
+  color: rgb(var(--hv-gold));
+  cursor: default;
+  opacity: 1;
+}
+[data-room="haven"] .hv-th button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+[data-room="haven"] .hv-th-step button:hover:not(:disabled),
+[data-room="haven"] .hv-th-modes button:hover:not(:disabled),
+[data-room="haven"] .hv-th button:focus-visible {
+  border-color: rgba(var(--hv-gold), 0.5);
+  outline: none;
+}
+[data-room="haven"] .hv-th-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--hv-mute);
+}
+@media (max-width: 860px) {
+  [data-room="haven"] .hv-th {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 96px;
+    width: auto;
+  }
+}

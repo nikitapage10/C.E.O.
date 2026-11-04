@@ -497,6 +497,14 @@ test("signed in, the Kitchen's meal planner: the week list, a night customized l
   await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toBeVisible();
   await plan.getByRole("switch", { name: "HelloFresh" }).click();
   await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toHaveCount(0);
+  // Lunch opens in full like dinner (#729): its heading, the Leftovers switch and the lunches to swap in.
+  await week.getByRole("button", { name: /^Tuesday's lunch/ }).click();
+  const lunch = sheet.getByRole("region", { name: "Tuesday's lunch" });
+  await expect(lunch.getByRole("heading", { level: 3 })).toBeVisible();
+  await expect(lunch.getByRole("switch", { name: /^Leftovers/ })).toBeVisible();
+  await expect(lunch.getByRole("group", { name: "Other lunches for Tuesday" })).toBeVisible();
+  if (SHOTS) await page.waitForTimeout(600).then(() => page.screenshot({ path: `${SHOTS}/haven-729-lunch.png` }));
+  await week.getByRole("button", { name: "Wednesday's dinner: sausage pasta" }).click();
   if (SHOTS) {
     await sheet.evaluate((el) => el.scrollTo(0, 300));
     await page.waitForTimeout(400);

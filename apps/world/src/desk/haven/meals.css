@@ -619,12 +619,8 @@
 }
 
 /* ── the day's lunch (#719) ── */
-[data-room="haven"] .mp-lunch {
-  display: grid;
-  gap: 10px;
-  margin: 16px 0 6px;
-  padding-top: 14px;
-  border-top: 1px solid var(--hv-line);
+[data-room="haven"] .mp-lunch .mp-lunchActs {
+  margin-top: 14px;
 }
 [data-room="haven"] .mp-lunchHead {
   display: flex;
@@ -1262,89 +1258,129 @@
   background: rgb(var(--hv-gold));
   color: #1a140c;
 }
+/* Plan (#729): the week as a grid of seven day cards, dinner and lunch as photo tiles, the open meal in full under it. */
 [data-room="haven"] .mp-plan {
   display: grid;
-  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
   gap: 14px;
-  align-items: start;
 }
 [data-room="haven"] .mp-list {
   display: grid;
+  grid-template-columns: repeat(7, minmax(128px, 1fr));
   gap: 8px;
   margin: 0;
-  padding: 0;
+  padding: 0 0 2px;
   list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
 }
 [data-room="haven"] .mp-row {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-rows: auto auto auto;
+  gap: 6px;
+  min-width: 0;
   padding: 8px;
   border: 1px solid var(--hv-line);
   border-radius: 16px;
   background: var(--hv-glass);
+  scroll-snap-align: start;
   animation: mp-open 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   animation-delay: calc(var(--i, 0) * 30ms);
 }
-[data-room="haven"] .mp-rowDay {
-  display: grid;
-  justify-items: center;
-  align-content: start;
-  gap: 2px;
-  padding-top: 4px;
+[data-room="haven"] .mp-row.is-today {
+  border-color: rgba(var(--hv-gold), 0.45);
+  box-shadow: inset 0 0 0 1px rgba(var(--hv-gold), 0.12);
 }
-[data-room="haven"] .mp-rowDay b {
+[data-room="haven"] .mp-rowDay {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 2px;
+}
+[data-room="haven"] .mp-rowDate {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+[data-room="haven"] .mp-rowDate b {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-[data-room="haven"] .mp-rowDay small {
+[data-room="haven"] .mp-row.is-today .mp-rowDate b {
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .mp-rowDate small {
   font-size: 12px;
   color: var(--hv-mute);
 }
-[data-room="haven"] .mp-rowMeals {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
 [data-room="haven"] .mp-rowMeal {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  gap: 6px;
   min-width: 0;
-  padding: 4px 8px 4px 4px;
+  padding: 0 0 6px;
+  overflow: hidden;
   border: 1px solid transparent;
   border-radius: 12px;
-  background: none;
+  background: rgba(255, 255, 255, 0.02);
   color: var(--hv-ink);
   text-align: left;
   cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 [data-room="haven"] .mp-rowMeal:hover {
   border-color: var(--hv-line);
 }
+[data-room="haven"] .mp-rowMeal:focus-visible {
+  outline: 2px solid rgba(var(--hv-gold), 0.7);
+  outline-offset: 1px;
+}
 [data-room="haven"] .mp-rowMeal[aria-pressed="true"] {
-  border-color: rgba(var(--hv-gold), 0.7);
+  border-color: rgba(var(--hv-gold), 0.75);
   background: rgba(var(--hv-gold), 0.08);
 }
 [data-room="haven"] .mp-rowMeal > span:last-child {
+  display: grid;
+  gap: 1px;
   min-width: 0;
+  padding: 0 8px;
 }
 [data-room="haven"] .mp-rowMeal small {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--hv-mute);
 }
 [data-room="haven"] .mp-rowMeal b {
-  display: block;
+  display: -webkit-box;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 15px;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 14px;
   font-weight: 500;
+  line-height: 1.25;
+}
+[data-room="haven"] .mp-rowMeal em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .mp-photo.is-tile {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 11px 11px 4px 4px;
+}
+[data-room="haven"] .mp-photo.is-tile em {
+  font-size: 12px;
+}
+[data-room="haven"] .mp-rowMeal.is-lunch .mp-photo.is-tile,
+[data-room="haven"] .mp-rowMeal.is-lunch .mp-lunchDot {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 7;
+  border-radius: 11px 11px 4px 4px;
 }
 [data-room="haven"] .mp-rowMeal.is-lunch b {
   font-size: 13px;
@@ -1353,24 +1389,29 @@
 [data-room="haven"] .mp-rowMeal.is-lunch.is-quick b {
   color: rgb(var(--hv-gold));
 }
-[data-room="haven"] .mp-rowMeal.is-lunch .mp-photo.is-mini,
-[data-room="haven"] .mp-rowMeal.is-lunch .mp-lunchDot {
-  width: 32px;
-  height: 32px;
-  margin: 0 6px;
+[data-room="haven"] .mp-rowMeal.is-leftovers .mp-photo {
+  filter: saturate(0.7) brightness(0.85);
 }
-[data-room="haven"] .mp-row.is-hf .mp-rowMeal:first-child b {
+[data-room="haven"] .mp-row.is-hf .mp-rowMeal.is-dinner b {
   color: #b9e58f;
+}
+[data-room="haven"] .mp-row.is-hf .mp-rowMeal.is-dinner .mp-photo {
+  filter: saturate(0.5) brightness(0.7);
 }
 [data-room="haven"] .mp-detail {
   min-width: 0;
-  position: sticky;
-  top: 12px;
+  scroll-margin-top: 80px;
 }
-[data-room="haven"] .mp-detail > .mp-drawer > .mp-lunch:first-child {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
+[data-room="haven"] .mp-lunch .mp-lunchDot {
+  border: 1px dashed var(--hv-line);
+  background: none;
+}
+[data-room="haven"] .mp-chips.is-static .mp-chip {
+  cursor: default;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .mp-chips.is-static .mp-chip:hover {
+  border-color: var(--hv-line);
 }
 [data-room="haven"] .mp-overview h3 {
   margin: 0 0 6px;
@@ -1452,12 +1493,8 @@
   font-size: 17px;
 }
 @media (max-width: 1000px) {
-  [data-room="haven"] .mp-plan,
   [data-room="haven"] .mp-shopStep {
     grid-template-columns: minmax(0, 1fr);
-  }
-  [data-room="haven"] .mp-detail {
-    position: static;
   }
 }
 @media (max-width: 640px) {
@@ -1483,7 +1520,10 @@
     animation: none;
   }
 }
-/* A thumbnail in the list is too small for the photo's word; the open meal says it. */
+/* A tile is small for the photo's word: a quiet tag in its corner; the open meal says it in full. */
 [data-room="haven"] .mp-rowMeal .mp-pend {
-  display: none;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
 }

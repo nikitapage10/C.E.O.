@@ -151,7 +151,8 @@ test("Talk projects Skippy as a hologram, and nothing of it loads before the tap
   await page.goto(BASE + "/");
   await expect(page.locator(".today .desk__title")).toBeVisible();
   await page.waitForTimeout(1500);
-  expect(asked.filter((u) => /holoScene|HologramStage|Skippy\.[\w]+\.glb/.test(u))).toEqual([]);
+  // The Council of Skippies on Today loads his model since #666 (council/councilScene.ts), but never the hologram itself.
+  expect(asked.filter((u) => /holoScene|HologramStage/.test(u))).toEqual([]);
 
   await page.locator(".desk__skippy").click();
   const chat = page.getByRole("dialog", { name: "Skippy, the Magnificent" });

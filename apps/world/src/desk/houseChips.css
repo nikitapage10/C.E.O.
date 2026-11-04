@@ -1,0 +1,52 @@
+/* The house chips (#627, #632): the Kitchen list and the home devices, a pill each that opens a pop-over. On Today until
+   the Iris (#666); on the Haven since, beside the house-wide readings. Kept from confluence.css. */
+.desk .cf-cu{position:relative}
+.desk .cf-cu-btn{display:inline-flex;align-items:center;gap:10px;height:42px;padding:0 18px;border-radius:999px;border:1px solid var(--wv-line2);background:rgba(10,11,15,.8);color:var(--wv-soft);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap;transition:border-color .3s,color .3s}
+.desk .cf-cu-btn b{font-weight:500;color:var(--wv-hot)}
+.desk .cf-cu-k{font-family:var(--td-sans);font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--wv-faint)}
+.desk .cf-cu-btn:hover,.desk .cf-cu-btn[aria-expanded="true"]{border-color:var(--wv-hot-line);color:var(--wv-ink)}
+.desk .cf-cu-pop{position:absolute;z-index:20;left:0;top:calc(100% + 10px);width:min(460px,calc(100vw - 32px));padding:18px 20px 14px;border-radius:18px;background:rgba(9,10,14,.97);border:1px solid var(--wv-line2);box-shadow:0 30px 60px -20px #000}
+.desk .kl-btn{cursor:default}
+.desk button.kl-btn{cursor:pointer}
+.desk .kl-list{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.desk .kl-list label{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--wv-ink);cursor:pointer}
+.desk .kl-list input{width:18px;height:18px;accent-color:var(--wv-hot)}
+.desk .kl-list .is-done label{color:var(--wv-faint);text-decoration:line-through}
+.desk .kl-list li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.desk .kl-list li label{flex:1;min-width:0;min-height:36px}
+.desk .kl-x{font:inherit;font-size:20px;line-height:1;width:36px;height:36px;flex:none;border-radius:999px;border:0;background:transparent;color:var(--wv-faint);cursor:pointer}
+.desk .kl-x:hover,.desk .kl-x:focus-visible{color:var(--wv-ink);background:var(--wv-line2)}
+.desk .kl-undo{display:flex;align-items:center;gap:10px;margin:10px 0 0;font-size:13px;color:var(--wv-mute)}
+.desk .kl-undo button{font:inherit;font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft);cursor:pointer}
+.desk .kl-empty{margin:0;font-size:14px;color:var(--wv-mute)}
+.desk .kl-cart{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 0;font-size:13px;color:var(--wv-mute)}
+.desk .kl-cart button{font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft);cursor:pointer}
+.desk .kl-cart button:disabled{opacity:.45;cursor:default}
+.desk .kl-cart small{flex-basis:100%}
+.desk .kl-cart a{color:var(--wv-soft)}
+
+.desk .hd-btn{cursor:default}
+.desk button.hd-btn{cursor:pointer}
+.desk .hd-pop{min-width:min(340px,calc(100vw - 32px))}
+.desk .hd-list{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.desk .hd-head{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-size:15px;color:var(--wv-ink)}
+.desk .hd-head b{font-weight:500}
+.desk .hd-head small{font-size:12px;color:var(--wv-faint)}
+.desk .hd-state{font-size:13px;color:var(--wv-hot)}
+.desk .hd-state.is-off{color:var(--wv-faint)}
+.desk .hd-facts,.desk .hd-note,.desk .hd-said{margin:4px 0 0;font-size:13px;color:var(--wv-mute)}
+.desk .hd-alerts{margin:4px 0 0;font-size:13px;color:var(--wv-hot)}
+.desk .hd-said{color:var(--wv-ink)}
+.desk .hd-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.desk .hd-acts button,.desk .hd-connect button,.desk .hd-room select,.desk .hd-connect input{font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft)}
+.desk .hd-acts button:not(:disabled),.desk .hd-connect button:not(:disabled){cursor:pointer}
+.desk .hd-acts button:disabled,.desk .hd-connect button:disabled{opacity:.45}
+.desk .hd-room{display:inline-flex;gap:6px}
+.desk .hd-connect{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:12px 0 0;font-size:13px;color:var(--wv-mute)}
+.desk .hd-connect input{border-radius:8px;min-width:0;flex:1 1 160px}
+.desk .hd-connect small{flex-basis:100%}
+.desk .hd-connect>p,.desk .hd-connect>form{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0;flex-basis:100%}
+.desk .hd-acts select{font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--wv-line2);background:transparent;color:var(--wv-soft)}
+.desk .hd-pop{max-height:min(72vh,640px);overflow-y:auto;overscroll-behavior:contain}
+.desk .hv-chips{position:relative;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:14px 0 0;pointer-events:auto}
+.desk .hv-chips .cf-cu-btn{font-family:var(--td-sans,inherit)}

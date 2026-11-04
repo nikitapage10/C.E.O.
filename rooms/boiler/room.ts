@@ -5,7 +5,6 @@ export default defineRoom({
   id: "boiler",
   name: "Boiler Room",
   path: "/boiler",
-  navKey: "0",
   accent: "--room-boiler",
   submind: "soot",
   live: true,

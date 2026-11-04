@@ -7,6 +7,8 @@ import { startHome, useHome, VENDOR_NAME, VENDORS, type Vendor, type VendorState
 import { loadCounts, loadKitchen, tickItem, type KitchenItem } from "../haven.ts";
 import { openTodos, useTodos } from "../todos/todos.ts";
 import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, type PlanLoad, type Spot, type Tab } from "./data.ts";
+import { KitchenList } from "../KitchenList.tsx";
+import { HomeDevices } from "../HomeDevices.tsx";
 import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import type { House } from "./house.ts";
@@ -253,6 +255,11 @@ export function Haven() {
             </p>
             <h1 className="hv-h1">The Haven</h1>
             <p className="hv-sum">{summary}</p>
+            {/* The Kitchen list and the home devices' chips, moved here from Today (#666). */}
+            <div className="hv-chips">
+              <KitchenList />
+              <HomeDevices />
+            </div>
           </header>
           {!signedIn && (
             <div className="hv-out">

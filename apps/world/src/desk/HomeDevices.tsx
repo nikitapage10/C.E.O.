@@ -1,3 +1,4 @@
+import "./houseChips.css";
 import { useEffect, useRef, useState } from "react";
 import { useDeskAuth } from "./signin.ts";
 import { Private } from "./Private.tsx";
@@ -164,7 +165,7 @@ function toSetup(e: React.MouseEvent) {
 }
 
 /** Google sends a connect back to Today (`/?haven=…`); the setup lives on Controls now, so the result goes on there. */
-function forwardHavenResult() {
+export function forwardHavenResult() {
   try {
     const q = new URLSearchParams(window.location.search);
     const r = q.get("haven");

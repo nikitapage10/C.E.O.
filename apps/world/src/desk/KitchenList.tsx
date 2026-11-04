@@ -1,10 +1,11 @@
+import "./houseChips.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDeskAuth } from "./signin.ts";
 import { Private } from "./Private.tsx";
 import { INSTACART_NOTE, isInstacartLink, loadCounts, loadKitchen, removeItem, sendInstacart, tickItem, undoRemoveItem, type KitchenItem } from "./haven.ts";
 
 /**
- * The Kitchen list on Today (#627), until the Haven room ships: what "Hey Skippy" put on it from the iPhone. A chip in
+ * The Kitchen list chip (#627; on Today until the Iris, #666, on the Haven since): what "Hey Skippy" put on it from the iPhone. A chip in
  * Today's helm with how many things are still to get; signed in, it opens the list, and each item ticks off (and back
  * on, for a day) or is removed with the ×, with five seconds to Undo (#657). Signed out, the count only. Hidden where there's no haven route (the Vercel copy). Send to Instacart
  * (#637) turns the open items into an Instacart shopping list page and opens it, to pick the store and check out there.

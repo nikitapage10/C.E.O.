@@ -87,10 +87,10 @@ and no greeting. Three pieces, one listener (shared chrome, `apps/world/src/desk
   his chat, and Talk from there.
 - **The room mic**, beside it on every room's page but Today, in the submind's colour: press it (or hold Space) and it
   listens at once; release, or tap and pause, and the words go.
-- **Hands-free**, in the bar by the account button (02:05Z: "when I go from room to room, it actually will be always
+- **Hands-free**, switched in the Boiler Room's Settings (/boiler/controls, since #666; it was in the bar) (02:05Z: "when I go from room to room, it actually will be always
   listening for that room by the submind"): one tap and it keeps listening, page to page; each thing said (a pause
-  ends it) goes to the lead of the page Nikita is on, Skippy himself on Today. The bar and the dock say
-  "listening · <who>" in that lead's colour. It waits while Skippy's chat or a call is open, steps aside while the mic
+  ends it) goes to the lead of the page Nikita is on, Skippy himself on Today. While it is on, the bar and the dock say
+  "listening · <who>" in that lead's colour, and a tap on the bar's stops it. It waits while Skippy's chat or a call is open, steps aside while the mic
   or an answer has the floor (so Skippy never hears himself), and turns off on a tap, after ten quiet minutes, or if
   the browser blocks the microphone. Browser speech recognition only (Chrome, Edge, Safari); elsewhere it doesn't show.
   Relay's Thread has no listener of its own since #642: its intent layer is the room's `voice` hook

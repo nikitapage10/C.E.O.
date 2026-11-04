@@ -650,6 +650,8 @@ export const SKIPPY_QUIPS: string[] = [
   "One tap and the C.E.O. talks straight to a room. No call, no hello. Every piece of me answers in my voice. Naturally. It's the best voice.",
   "The Steward keeps the Haven in lamplight and calls the cat's breakfast 'inventory'. He's fooling no one. He's fooling me a little.",
   "Hands-free, room to room, and whoever's in charge of the room answers. Like a ship's comm, if the ship were magnificent and run by a beer can.",
+  "The Council sits in the round now, me in the middle, the eye drawn in nanites round us. Secret society? Please. We publish minutes.",
+  "Ten of me in a ring, each in a different mood. The Pessimist sighs, the Party spins, and I preside. Somebody has to keep their hat on.",
 ];
 
 /**

@@ -5,7 +5,7 @@ export default defineRoom({
   id: "relay",
   name: "Relay",
   path: "/relay",
-  navKey: "3",
+  navKey: "4",
   accent: "--room-relay",
   submind: "static",
   live: true,

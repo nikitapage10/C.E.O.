@@ -97,7 +97,7 @@ test("signed in: add a phone shows its key once, with Copy; Revoke stops one", a
   ]);
 });
 
-test("signed in, Today's Kitchen list chip opens the list and ticks things off", async ({ page }) => {
+test("signed in, the Haven's Kitchen list chip (on Today until #666) opens the list and ticks things off", async ({ page }) => {
   await stub(page, true);
   const ticks: Record<string, unknown>[] = [];
   await page.route(/\/api\/haven(\?.*)?$/, async (r) => {
@@ -109,8 +109,8 @@ test("signed in, Today's Kitchen list chip opens the list and ticks things off",
     if (view === "list") return r.fulfill({ json: { items: [{ id: "i1", name: "garlic", addedAt: new Date().toISOString(), source: "phone", done: false }, { id: "i2", name: "lemons", addedAt: new Date().toISOString(), source: "phone", done: false }] } });
     return r.fulfill({ json: { kitchen: { open: 2, done: 0 }, todos: 0, ready: true } });
   });
-  await page.goto(`${BASE}/`);
-  const chip = page.getByRole("button", { name: /Kitchen list/ });
+  await page.goto(`${BASE}/haven`);
+  const chip = page.locator(".hv-chips").getByRole("button", { name: /Kitchen list/ });
   await expect(chip).toContainText("2 to get");
   await chip.click();
   await page.getByRole("checkbox", { name: "garlic" }).check();

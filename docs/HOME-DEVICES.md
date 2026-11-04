@@ -24,9 +24,9 @@ new npm packages (the MQTT client is a few dozen lines over `node:tls`, [`mqtt.t
 | --- | --- | --- |
 | Thermostat (Nest) | inside temperature, humidity, mode, set point(s), eco, heating or cooling | **±1°**, **mode** (only the modes it offers) |
 | Vacuum | state (docked, cleaning, returning, paused, charging…), battery, alerts (bin missing, dock bin problems, clean water tank empty or low, dirty water tank full, "needs a look" for any other error code), its map's room names | Start, Pause, Dock, **clean named rooms** (`app_segment_clean` with the map's segment ids, matched to the room names from the Roborock app); an optional mode word for a start or rooms clean: quiet or max suction, vacuum only or mop too |
-| Dry food feeder | online, food low, last feed, manual portions today and the cap | **Feed N portions** (`portions`, 1 to 6; every portion counts against the cap) |
-| Wet food feeder | online, lid open or closed, which bowl is in front, its schedule from the Petlibro app, openings today and the cap | **Open the tray** (opens the bowl in front), **Next bowl** / **bowl N** (`wet.rotate`), **Close the lid** (`wet.close`), **What's in it** (`wet.status`) |
-| Fountain | online, water level, filter life left, alerts (water low, filter due, needs a clean) | none |
+| Dry food feeder | online, food low, last feed, manual portions today and the cap; today's amount (in the app's unit; a portion is 1/12 cup) and feedings, and today's schedule (time, portions, on or off, served / skipped / next) (#685) | **Feed N portions** (`portions`, 1 to 6; every portion counts against the cap) |
+| Wet food feeder | online, lid open or closed, which bowl is in front, its schedule from the Petlibro app (each bowl's window, completed / feeding now / next by the clock), openings today and the cap; today's eating visits and eating time when the feeder reports them (#685) | **Open the tray** (opens the bowl in front), **Next bowl** / **bowl N** (`wet.rotate`), **Close the lid** (`wet.close`), **What's in it** (`wet.status`) |
+| Fountain | online, water level, filter life left, alerts (water low, filter due, needs a clean); today's intake (mL, shown in oz), visits and average visit, and the days until the filter change and the clean (overdue in ember) (#685) | none |
 | Litter-Robot 5 Pro | state (ready, cycling, cat inside, drawer full, paused, offline…), waste drawer %, litter level %, last visit, alerts (drawer full, drawer out, bonnet off, sensors need a wipe, litter low) | **Clean now** (a clean cycle) |
 
 ## The API
@@ -268,6 +268,11 @@ before King Soopers replaced MealMe.
   (`pv 1.0`) is spoken, which the Qrevo line uses; the email code is the only sign-in (no password is ever stored).
 - **Petlibro.** The US region only (`api.us.petlibro.com`). One session per account (see above). The wet feeder opens
   the current plate's lid; it can't choose a tray or a portion size.
+- **Petlibro's day (#685).** Read only, from the endpoints the community integration uses: `todayDrinkData` (the
+  fountain), `grainStatus` (feeders), `feedingPlan/list` and `feedingPlan/todayNew` (the dry schedule), and the wet
+  plan's windows. Each field is taken only when it has the expected shape and hidden otherwise; a side read Petlibro
+  refuses leaves only its part out. The app's optional daily water goal has no known field in the API and isn't
+  shown. These are private readings: the public face stays each device's kind and state.
 - **Whisker.** The Litter-Robot 5 and 5 Pro are supported through pylitterbot's LR5 REST path; a Litter-Robot 4 (a
   different, GraphQL API) is not implemented. Night light, sleep mode and cycle delay are not exposed.
 - **Petlibro's wet tray.** `platePositionChange` and `stopFeedNow` come from the community integration, not a

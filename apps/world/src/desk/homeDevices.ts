@@ -62,6 +62,21 @@ export interface DeviceReading {
   plate?: number;
   water?: number | null;
   filter?: number | null;
+  /** The Petlibro day (#685): the fountain's days to the filter change and the clean (below 0 overdue), mL drunk,
+   * visits and their total and average seconds (the fountain's drinks, the wet feeder's eating visits), the dry
+   * feeder's portions and dispenses today and the app's unit, and today's plans. Each only when Petlibro said. */
+  filterDays?: number;
+  cleanDays?: number;
+  drankMl?: number;
+  visits?: number;
+  visitSec?: number;
+  avgSec?: number;
+  fedPortions?: number;
+  feeds?: number;
+  feedUnit?: FeedUnit;
+  /** The wet feeder's bowls for today, and the dry feeder's schedule for today. */
+  meals?: PetMeal[];
+  plan?: PetMeal[];
   drawer?: number | null;
   litter?: number | null;
   lastUse?: string | null;
@@ -74,6 +89,51 @@ export interface DeviceReading {
   hvac?: string;
   heatF?: number | null;
   coolF?: number | null;
+}
+
+/** Where a meal on today's plan stands (#685; api/_haven/devices/types.ts, MealStatus). */
+export type MealStatus = "done" | "now" | "next" | "later" | "skipped" | "skip";
+const MEAL_STATUSES: readonly MealStatus[] = ["done", "now", "next", "later", "skipped", "skip"];
+export type FeedUnit = "cup" | "oz" | "g" | "ml";
+const FEED_UNITS: readonly FeedUnit[] = ["cup", "oz", "g", "ml"];
+/** One meal of today's plan: its time ("HH:MM", Mountain), the wet window's end and bowl, the dry portions and switch. */
+export interface PetMeal {
+  time: string;
+  end?: string;
+  plate?: number;
+  portions?: number;
+  on?: boolean;
+  status?: MealStatus;
+}
+
+const HHMM = /^\d{2}:\d{2}$/;
+/** Today's plan, checked: at most 12 meals, each with a time; anything else dropped. */
+export function mealsOf(v: unknown): PetMeal[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: PetMeal[] = [];
+  for (const m of v.slice(0, 12).map(o)) {
+    if (typeof m.time !== "string" || !HHMM.test(m.time)) continue;
+    const plate = whole(m.plate, 3);
+    const portions = whole(m.portions, 48);
+    out.push({
+      time: m.time,
+      ...(typeof m.end === "string" && HHMM.test(m.end) && { end: m.end }),
+      ...(plate && { plate }),
+      ...(portions !== undefined && { portions }),
+      ...(typeof m.on === "boolean" && { on: m.on }),
+      ...(MEAL_STATUSES.includes(m.status as MealStatus) && { status: m.status as MealStatus }),
+    });
+  }
+  return out;
+}
+
+/** A whole number from 0 to max, or undefined. */
+function whole(v: unknown, max: number): number | undefined {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max ? v : undefined;
+}
+/** Days either way within ten years, or undefined. */
+function days(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isInteger(v) && Math.abs(v) <= 3650 ? v : undefined;
 }
 
 /** Why a vendor reads "down" (#672; api/_haven/devices/types.ts, VendorProblem), signed in only. */
@@ -178,6 +238,7 @@ export function readDevice(v: unknown): DeviceReading | null {
     litter: num(d.litter),
     lastUse: typeof d.lastUse === "string" ? d.lastUse : null,
     catInside: d.catInside === true,
+    ...(d.vendor === "petlibro" && petDayOf(d)),
     ...(d.kind === "thermostat" && {
       tempF: num(d.tempF),
       humidity: num(d.humidity),
@@ -189,6 +250,26 @@ export function readDevice(v: unknown): DeviceReading | null {
       coolF: num(d.coolF),
     }),
   };
+}
+
+/** The Petlibro day's fields (#685), each kept only when it has its shape. */
+function petDayOf(d: Record<string, unknown>): Partial<DeviceReading> {
+  const out: Partial<DeviceReading> = {};
+  const set = <K extends keyof DeviceReading>(k: K, v: DeviceReading[K] | undefined) => {
+    if (v !== undefined) out[k] = v;
+  };
+  set("filterDays", days(d.filterDays));
+  set("cleanDays", days(d.cleanDays));
+  set("drankMl", whole(d.drankMl, 50_000));
+  set("visits", whole(d.visits, 2_000));
+  set("visitSec", whole(d.visitSec, 86_400));
+  set("avgSec", whole(d.avgSec, 86_400));
+  set("fedPortions", whole(d.fedPortions, 1_000));
+  set("feeds", whole(d.feeds, 200));
+  if (FEED_UNITS.includes(d.feedUnit as FeedUnit)) out.feedUnit = d.feedUnit as FeedUnit;
+  set("meals", mealsOf(d.meals));
+  set("plan", mealsOf(d.plan));
+  return out;
 }
 
 export function readPrivate(v: unknown): HomePrivate | null {

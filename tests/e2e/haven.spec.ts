@@ -32,8 +32,10 @@ function devices(now: number) {
   const ago = (min: number) => new Date(now - min * 60_000).toISOString();
   return [
     { id: "a00000000001", vendor: "roborock", kind: "vacuum", model: "Test vacuum", place: "", online: true, state: "cleaning", battery: 81, alerts: [], rooms: ["Hall", "Kitchen", "Living room", "Bedroom"] },
-    { id: "a00000000002", vendor: "petlibro", kind: "dry-feeder", model: "Test feeder", place: "", online: true, state: "ok", alerts: [], foodLow: true, lastFed: ago(20), manualToday: 0, manualCap: 2 },
-    { id: "a00000000003", vendor: "petlibro", kind: "fountain", model: "Test fountain", place: "", online: true, state: "flowing", alerts: [], water: 72, filter: 40 },
+    // The Petlibro day (#685): made-up numbers and plans, not anyone's real schedule.
+    { id: "a00000000002", vendor: "petlibro", kind: "dry-feeder", model: "Test feeder", place: "", online: true, state: "ok", alerts: [], foodLow: true, lastFed: ago(20), manualToday: 0, manualCap: 2, fedPortions: 3, feeds: 1, feedUnit: "cup", plan: [{ time: "06:30", portions: 3, on: true, status: "done" }, { time: "13:00", portions: 1, on: false }, { time: "19:30", portions: 3, on: true, status: "next" }] },
+    { id: "a00000000005", vendor: "petlibro", kind: "wet-feeder", model: "Test wet feeder", place: "", online: true, state: "closed", alerts: [], foodLow: false, lastFed: null, manualToday: 0, manualCap: 2, plate: 2, visits: 4, visitSec: 151, meals: [{ time: "07:15", end: "09:15", plate: 1, status: "done" }, { time: "11:45", end: "13:45", plate: 2, status: "now" }, { time: "18:30", end: "20:30", plate: 3, status: "next" }] },
+    { id: "a00000000003", vendor: "petlibro", kind: "fountain", model: "Test fountain", place: "", online: true, state: "flowing", alerts: ["filter due"], water: 58, filter: 0, filterDays: -3, cleanDays: 5, drankMl: 210, visits: 9, avgSec: 17 },
     { id: "a00000000004", vendor: "whisker", kind: "litter", model: "Test litter box", place: "", online: true, state: "ready", alerts: [], drawer: 30, litter: 80, lastUse: ago(95) },
   ];
 }
@@ -132,9 +134,16 @@ for (const [label, size] of [
     await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Pets" }).click();
     const sheet = page.getByRole("dialog", { name: "Pets" });
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByText("Dry food is low.")).toBeVisible();
+    await expect(sheet.getByText(/^Dry food is low/)).toBeVisible();
+    // The Petlibro day (#685): the fountain's overdue filter in ember, the wet bowls, the dry schedule's next meal.
+    await expect(sheet.getByText("3 days overdue")).toBeVisible();
+    await expect(sheet.getByText("Today's bowls")).toBeVisible();
+    await expect(sheet.getByText("Feeding now")).toBeVisible();
+    await expect(sheet.getByText("next 7:30 PM")).toBeVisible();
     await page.waitForTimeout(600);
     await shoot(page, `room-${label}`);
+    await sheet.getByText("Today's bowls").scrollIntoViewIfNeeded();
+    await shoot(page, `pets-day-${label}`);
 
     await sheet.getByRole("button", { name: "Kitchen" }).click();
     await expect(page.getByRole("dialog", { name: "Kitchen" }).getByText("Lemons")).toBeVisible();

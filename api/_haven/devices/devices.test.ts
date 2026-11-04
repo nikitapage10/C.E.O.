@@ -419,6 +419,10 @@ function petlibroFetch() {
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/device\/realInfo$/, (_u, init) => real[JSON.parse(String(init.body)).deviceSn]],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/workRecord\/list$/, () => petWorkFixture],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/wetFeedingPlan\/wetListV3$/, () => ({ code: 0, data: { templateName: "Test plan", plan: [] } })],
+    [/POST https:\/\/api\.us\.petlibro\.com\/device\/data\/grainStatus$/, (_u, init) => (JSON.parse(String(init.body)).deviceSn === "AF0400TESTDRY01" ? { code: 0, data: { todayFeedingQuantity: 4, todayFeedingTimes: 2 } } : { code: 0, data: { todayEatingTimes: 3, petEatingTime: 95 } })],
+    [/POST https:\/\/api\.us\.petlibro\.com\/device\/feedingPlan\/list$/, () => ({ code: 0, data: [{ id: 1, executionTime: "05:00", grainNum: 2, enable: true, repeatDay: "[1,2,3,4,5,6,7]" }, { id: 2, executionTime: "21:00", grainNum: 2, enable: true, repeatDay: "[1,2,3,4,5,6,7]" }] })],
+    [/POST https:\/\/api\.us\.petlibro\.com\/device\/feedingPlan\/todayNew$/, () => ({ code: 999, msg: "unsupported" })],
+    [/POST https:\/\/api\.us\.petlibro\.com\/data\/deviceDrinkWater\/todayDrinkData$/, () => ({ code: 0, data: { todayTotalMl: 180, todayTotalTimes: 6, avgDrinkDuration: 18 } })],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/device\/manualFeeding$/, () => ({ code: 0, data: 1 })],
     [/POST https:\/\/api\.us\.petlibro\.com\/device\/wetFeedingPlan\/manualFeedNow$/, () => ({ code: 0, data: null })],
   ]);
@@ -444,6 +448,11 @@ describe("the Petlibro feeders and fountain", () => {
     expect(found[0]!.reading).toMatchObject({ model: "Granary Smart Feeder", foodLow: false, lastFed: new Date(1762272000000).toISOString(), place: "Kitchen" });
     expect(found[1]!.reading).toMatchObject({ model: "Polar Wet Food Feeder", foodLow: true, state: "closed", alerts: ["food low"] });
     expect(found[2]!.reading).toMatchObject({ water: 64, filter: 40, state: "running" });
+    // The day's numbers (#685); a side read Petlibro refuses (todayNew here) only leaves its part out.
+    expect(found[0]!.reading).toMatchObject({ fedPortions: 4, feeds: 2, plan: [{ time: "05:00", portions: 2, on: true }, { time: "21:00", portions: 2, on: true, status: "next" }] });
+    expect(found[1]!.reading).toMatchObject({ visits: 3, visitSec: 95 });
+    expect(found[2]!.reading).toMatchObject({ filterDays: 12, cleanDays: 4, drankMl: 180, visits: 6, avgSec: 18 });
+    expect(c.problem()).toBeNull();
     expect((await vault.read<{ token: string }>("petlibro"))!.token).toBe("pl-token-1");
     // One portion from the dry feeder; the wet feeder opens on the bowl in front.
     expect(await c.run("feeder.feed", found[0]!)).toEqual({ ok: true });

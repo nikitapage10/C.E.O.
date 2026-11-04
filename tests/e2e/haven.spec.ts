@@ -332,7 +332,11 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
   await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toBeVisible();
   await drawer.getByRole("switch", { name: "HelloFresh" }).click();
   await expect(week.getByRole("listitem").nth(2).getByText("HelloFresh night")).toHaveCount(0);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-678-planner.png`, fullPage: false });
+  if (SHOTS) {
+    await sheet.evaluate((el) => el.scrollTo(0, 300));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/haven-678-planner.png` });
+  }
 
   await sheet.getByRole("button", { name: "Confirm week" }).click();
   await expect(sheet.getByText(/Confirmed\. 12 things went on the Kitchen list \(1 already there\)/)).toBeVisible();
@@ -343,15 +347,19 @@ test("signed in, the Kitchen's meal planner: the week strip, a night customized 
   await sheet.getByRole("button", { name: "Catalog" }).click();
   const cat = page.getByRole("dialog", { name: "Meal catalog" });
   await expect(cat.getByRole("row")).toHaveCount(11);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/haven-678-catalog.png` });
+  await expect(cat.getByRole("heading", { name: "Meal catalog" })).toBeVisible();
+  if (SHOTS) await page.waitForTimeout(500).then(() => page.screenshot({ path: `${SHOTS}/haven-678-catalog.png` }));
   await cat.getByRole("button", { name: "Close" }).last().click();
   await expect(cat).toHaveCount(0);
 
   if (SHOTS) {
     await page.setViewportSize({ width: 390, height: 844 });
     await week.getByRole("button", { name: /^Monday:/ }).click();
+    await sheet.evaluate((el) => el.scrollTo(0, 250));
+    await page.waitForTimeout(400);
     await page.screenshot({ path: `${SHOTS}/haven-678-planner-phone.png` });
     await sheet.evaluate((el) => el.scrollBy(0, 700));
+    await page.waitForTimeout(400);
     await page.screenshot({ path: `${SHOTS}/haven-678-planner-phone-2.png` });
   }
 });

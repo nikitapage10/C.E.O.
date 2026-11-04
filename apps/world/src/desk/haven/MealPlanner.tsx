@@ -190,6 +190,8 @@ function Drawer({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => 
               <div className="mp-chips" role="group" aria-label={`${ROLE_NAME[part.role]} for ${DAY_NAME[day]}`}>
                 {comps
                   .filter((c) => c.role === part.role)
+                  // What's on the plate first, then the recipe's own, then the rest: no hunting along the row.
+                  .sort((x, y) => Number(y.id === part.now?.id) - Number(x.id === part.now?.id) || Number(y.id === part.base?.id) - Number(x.id === part.base?.id))
                   .map((c) => {
                     const delta = c.macros.protein - (part.now?.macros.protein ?? 0);
                     return (

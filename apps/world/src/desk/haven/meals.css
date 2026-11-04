@@ -1053,3 +1053,20 @@
     transition: none;
   }
 }
+
+/* Each part's options on one line that scrolls sideways (the chosen one is scrolled into view), so the drawer stays short. */
+[data-room="haven"] .mp-part:not(.is-row) .mp-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 2px 24px 4px 2px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+}
+[data-room="haven"] .mp-part:not(.is-row) .mp-chips::-webkit-scrollbar {
+  display: none;
+}
+[data-room="haven"] .mp-part:not(.is-row) .mp-chip {
+  flex: none;
+  white-space: nowrap;
+}

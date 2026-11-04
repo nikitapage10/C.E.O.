@@ -52,10 +52,9 @@ export function SettingsPanel() {
           <p className="ct-sub">Ilyr's clock</p>
           <IlyrReadout now={now} />
         </section>
-        <div>
-          <p className="ct-sub">Coming up</p>
+        <section aria-label="Coming up">
           <Ephemeris runs={runs.slice(0, 5)} now={tick} hotRun={hotRun} onHotRun={setHotRun} />
-        </div>
+        </section>
       </div>
     </div>
   );

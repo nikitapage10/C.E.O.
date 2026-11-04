@@ -10,7 +10,7 @@ import { fires, TodayNow } from "./TodayNow.tsx";
 import { DAY_STRIP_MS, usePulses } from "./usePulses.ts";
 import { skippyLine } from "./roomPulse.ts";
 import { Iris } from "./council/Iris.tsx";
-import { forwardHavenResult } from "./HomeDevices.tsx";
+import { forwardHavenResult } from "./homeDevices.ts";
 import { clockState, useWorldClock } from "../worldClock.ts";
 import { useTodoSync } from "./todos/TodoBits.tsx";
 import { awayRefs, useTodos } from "./todos/todos.ts";

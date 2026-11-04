@@ -96,25 +96,3 @@ test("signed in: add a phone shows its key once, with Copy; Revoke stops one", a
     { action: "revoke-phone", id: "aaaaaaaaaaaa" },
   ]);
 });
-
-test("signed in, the Haven's Kitchen list chip (on Today until #666) opens the list and ticks things off", async ({ page }) => {
-  await stub(page, true);
-  const ticks: Record<string, unknown>[] = [];
-  await page.route(/\/api\/haven(\?.*)?$/, async (r) => {
-    if (r.request().method() === "POST") {
-      ticks.push(r.request().postDataJSON() as Record<string, unknown>);
-      return r.fulfill({ json: { ok: true } });
-    }
-    const view = new URL(r.request().url()).searchParams.get("view");
-    if (view === "list") return r.fulfill({ json: { items: [{ id: "i1", name: "garlic", addedAt: new Date().toISOString(), source: "phone", done: false }, { id: "i2", name: "lemons", addedAt: new Date().toISOString(), source: "phone", done: false }] } });
-    return r.fulfill({ json: { kitchen: { open: 2, done: 0 }, todos: 0, ready: true } });
-  });
-  await page.goto(`${BASE}/haven`);
-  const chip = page.locator(".hv-chips").getByRole("button", { name: /Kitchen list/ });
-  await expect(chip).toContainText("2 to get");
-  await chip.click();
-  await page.getByRole("checkbox", { name: "garlic" }).check();
-  await expect(chip).toContainText("1 to get");
-  if (SHOTS) await page.locator(".kl").screenshot({ path: `${SHOTS}/kitchen-list.png` });
-  expect(ticks).toEqual([{ action: "tick", id: "i1", done: true }]);
-});

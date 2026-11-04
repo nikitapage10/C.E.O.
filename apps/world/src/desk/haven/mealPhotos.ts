@@ -21,20 +21,32 @@ export function shootOf(f: MealsFile, day: Day): MealToShoot | null {
   const s = f.week?.slots[DAYS.indexOf(day)];
   const d = s ? slotDish(f, s) : null;
   if (!d) return null;
-  const components = d.parts.map((p) => p.now).filter((c) => c && c.ingredients.length).map((c) => c!.name).slice(0, 8);
+  const components = d.parts
+    .map((p) => p.now)
+    .filter((c) => c && c.ingredients.length)
+    .map((c) => c!.name)
+    .slice(0, 8);
   return { meal: d.meal.id, name: d.meal.name, description: [d.meal.blurb, d.changes.join(", ")].filter(Boolean).join(" ").slice(0, 300), components, style: "plate" };
 }
 
 function budgetOf(v: unknown): PhotoBudget | null {
   const b = o(v);
-  return typeof b.reached === "boolean" ? { month: String(b.month ?? "").slice(0, 7), images: Number(b.images) || 0, usd: Number(b.usd) || 0, capUsd: Number(b.capUsd) || 0, left: Number(b.left) || 0, reached: b.reached } : null;
+  return typeof b.reached === "boolean"
+    ? { month: String(b.month ?? "").slice(0, 7), images: Number(b.images) || 0, usd: Number(b.usd) || 0, capUsd: Number(b.capUsd) || 0, left: Number(b.left) || 0, reached: b.reached }
+    : null;
 }
 
 /** The confirm-week hook: the library's ticket for each meal (same meal and components, same photo), or null. */
 export async function confirmPhotos(meals: MealToShoot[], f: typeof fetch = fetch): Promise<{ photos: PhotoTicket[]; budget: PhotoBudget | null } | null> {
   if (!meals.length) return { photos: [], budget: null };
   try {
-    const res = await f(PATH, { method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ action: "confirm", meals }) });
+    const res = await f(PATH, {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ action: "confirm", meals }),
+    });
     if (!res.ok) return null;
     const got = o(await res.json().catch(() => null));
     const photos = (Array.isArray(got.photos) ? got.photos : [])

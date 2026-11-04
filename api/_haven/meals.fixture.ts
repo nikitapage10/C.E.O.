@@ -24,16 +24,54 @@ const lunch = (leftoverOf: number | null) => ({ text: leftoverOf === null ? "Sal
 /** Ten made-up meals and a week of seven, a fresh copy each call. */
 export function fakeMeals(): MealsFile {
   const catalog = [
-    meal("beef-bowl", "Korean", 80, [["protein", "ground-beef"], ["carb", "jasmine-rice"], ["side", "kimchi"]]),
-    meal("steak-bowl", "Korean", 78, [["protein", "sirloin"], ["carb", "jasmine-rice"]]),
-    meal("chicken-plate", "Greek", 85, [["protein", "chicken-thigh"], ["carb", "pita"]]),
-    meal("kofta", "Greek", 70, [["protein", "ground-beef"], ["carb", "pita"]]),
-    meal("sausage-pasta", "Italian", 62, [["protein", "italian-sausage"], ["carb", "rigatoni"]], { ingredients: [ing("Greek yogurt", 0.25, "cup")] }),
-    meal("tacos", "Mexican", 84, [["protein", "skirt-steak"], ["carb", "corn-tortillas"], ["side", "chips-guac"]]),
-    meal("katsu", "Japanese", 80, [["protein", "chicken-breast"], ["carb", "jasmine-rice"]]),
-    meal("surf-turf", "Steakhouse", 90, [["protein", "ribeye"], ["carb", "no-carb"]]),
-    meal("scampi", "Italian", 58, [["protein", "shrimp"], ["carb", "linguine"]]),
-    meal("new-thing", "Thai", 75, [["protein", "ground-beef"], ["carb", "jasmine-rice"]]),
+    meal("beef-bowl", "Korean", 80, [
+      ["protein", "ground-beef"],
+      ["carb", "jasmine-rice"],
+      ["side", "kimchi"],
+    ]),
+    meal("steak-bowl", "Korean", 78, [
+      ["protein", "sirloin"],
+      ["carb", "jasmine-rice"],
+    ]),
+    meal("chicken-plate", "Greek", 85, [
+      ["protein", "chicken-thigh"],
+      ["carb", "pita"],
+    ]),
+    meal("kofta", "Greek", 70, [
+      ["protein", "ground-beef"],
+      ["carb", "pita"],
+    ]),
+    meal(
+      "sausage-pasta",
+      "Italian",
+      62,
+      [
+        ["protein", "italian-sausage"],
+        ["carb", "rigatoni"],
+      ],
+      { ingredients: [ing("Greek yogurt", 0.25, "cup")] },
+    ),
+    meal("tacos", "Mexican", 84, [
+      ["protein", "skirt-steak"],
+      ["carb", "corn-tortillas"],
+      ["side", "chips-guac"],
+    ]),
+    meal("katsu", "Japanese", 80, [
+      ["protein", "chicken-breast"],
+      ["carb", "jasmine-rice"],
+    ]),
+    meal("surf-turf", "Steakhouse", 90, [
+      ["protein", "ribeye"],
+      ["carb", "no-carb"],
+    ]),
+    meal("scampi", "Italian", 58, [
+      ["protein", "shrimp"],
+      ["carb", "linguine"],
+    ]),
+    meal("new-thing", "Thai", 75, [
+      ["protein", "ground-beef"],
+      ["carb", "jasmine-rice"],
+    ]),
   ];
   const mains = ["beef-bowl", "chicken-plate", "sausage-pasta", "tacos", "katsu", "surf-turf", "scampi"];
   const backups: Record<string, string[]> = { "beef-bowl": ["steak-bowl"], "chicken-plate": ["kofta"], "sausage-pasta": ["scampi"] };

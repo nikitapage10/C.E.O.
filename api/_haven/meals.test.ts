@@ -127,7 +127,16 @@ describe("applyEdit", () => {
     if (!again.ok) throw new Error(again.error);
     expect(again.file.week!.photoQueue).toEqual(["wed"]);
     const jobs = photoJobs(again.file);
-    expect(jobs).toEqual([{ day: "wed", meal: "sausage-pasta", name: "sausage pasta", changes: ["Roast potatoes for rigatoni"], ingredients: expect.arrayContaining(["Yukon gold potatoes", "Italian sausage"]), basePhoto: "sausage-pasta" }]);
+    expect(jobs).toEqual([
+      {
+        day: "wed",
+        meal: "sausage-pasta",
+        name: "sausage pasta",
+        changes: ["Roast potatoes for rigatoni"],
+        ingredients: expect.arrayContaining(["Yukon gold potatoes", "Italian sausage"]),
+        basePhoto: "sausage-pasta",
+      },
+    ]);
     // The photo step writes its id back; the night leaves the queue and the week stays confirmed.
     const ph = applyEdit(again.file, { op: "photo", day: "wed", photo: "wed-custom-1" }, NOW);
     if (!ph.ok) throw new Error(ph.error);
@@ -215,8 +224,10 @@ function deps(blob = memoryBlob()): MealsDeps & { lines: string[]; blob: ReturnT
   const store = new MemoryAuthStore();
   return { desk: { deskKey: DESK, store, now: NOW }, blob, env: { [LOG_TOKEN]: LOG, [FEED_TOKEN]: FEED }, log: (l) => lines.push(l), lines, store };
 }
-const post = (body: unknown, cookie = "") => new Request(`${ORIGIN}/api/haven-meals`, { method: "POST", headers: { "Content-Type": "application/json", ...(cookie && { Cookie: cookie }) }, body: JSON.stringify(body) });
-const put = (body: unknown, key?: string) => new Request(`${ORIGIN}/api/haven-meals`, { method: "PUT", headers: { "Content-Type": "application/json", ...(key && { Authorization: `Bearer ${key}` }) }, body: JSON.stringify(body) });
+const post = (body: unknown, cookie = "") =>
+  new Request(`${ORIGIN}/api/haven-meals`, { method: "POST", headers: { "Content-Type": "application/json", ...(cookie && { Cookie: cookie }) }, body: JSON.stringify(body) });
+const put = (body: unknown, key?: string) =>
+  new Request(`${ORIGIN}/api/haven-meals`, { method: "PUT", headers: { "Content-Type": "application/json", ...(key && { Authorization: `Bearer ${key}` }) }, body: JSON.stringify(body) });
 
 describe("/api/haven-meals", () => {
   it("is passkey-only to read and change; the feed key may only seed, and gets counts back", async () => {

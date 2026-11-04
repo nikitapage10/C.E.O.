@@ -44,10 +44,30 @@ const count = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v
 
 export async function mealsAction(body: MealsAction, f: typeof fetch = fetch): Promise<MealsAnswer> {
   try {
-    const res = await f(PATH, { method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body) });
+    const res = await f(PATH, {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
     const got = ((await res.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
-    const changes = Array.isArray(got.changes) ? got.changes.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 200)).slice(0, 12) : [];
-    return { ok: res.ok, status: res.status, error: res.ok ? null : typeof got.error === "string" ? got.error.slice(0, 20) : "failed", file: got.meals ? readMeals(got.meals) : null, changes, added: count(got.added), already: count(got.already), photos: count(got.photos) };
+    const changes = Array.isArray(got.changes)
+      ? got.changes
+          .filter((x): x is string => typeof x === "string")
+          .map((x) => x.slice(0, 200))
+          .slice(0, 12)
+      : [];
+    return {
+      ok: res.ok,
+      status: res.status,
+      error: res.ok ? null : typeof got.error === "string" ? got.error.slice(0, 20) : "failed",
+      file: got.meals ? readMeals(got.meals) : null,
+      changes,
+      added: count(got.added),
+      already: count(got.already),
+      photos: count(got.photos),
+    };
   } catch {
     return { ok: false, status: 0, error: "failed", file: null, changes: [], added: 0, already: 0, photos: 0 };
   }

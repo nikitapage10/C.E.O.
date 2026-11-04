@@ -34,6 +34,8 @@ export interface HouseOpts {
   keepClear?: () => { x: number; y: number; w: number; h: number } | null;
   /** Where a gauge's lamp is (px, in the house's own frame), for its thread; null when it's out of sight. */
   lampAt?: (id: GaugeId) => [number, number] | null;
+  /** The gauges in the order their threads land, left to right in the fitted view (#718), so the strip can follow it. */
+  onOrder?: (ids: GaugeId[]) => void;
 }
 
 /** A gauge's thread (#680): its lamp's tone and how busy its nanites are (0 to 1). */
@@ -41,6 +43,8 @@ export interface ThreadState {
   id: GaugeId;
   tone: Tone;
   level: number;
+  /** Its own colour ("r,g,b"), for a thread whose reading has one: the climate's heat or cool (#718). */
+  rgb?: string;
 }
 
 export interface RoomFacts {
@@ -837,6 +841,36 @@ export class House {
     this.fitR = best.home.r;
     this.pan = best.pan;
     this.home = best.home;
+    this.sendOrder(best);
+  }
+
+  private orderKey = "";
+  /** Where each thread lands across the fitted view, left to right (#718): the strip lines its gauges up the same way. */
+  private sendOrder(view: { home: Cam; pan: [number, number] }) {
+    if (!this.opts.onOrder || !this.ends.size) return;
+    const ids = [...this.ends.keys()];
+    const xs = this.screenAt(view, ids.map((id) => this.ends.get(id)!));
+    const order = ids.map((id, i) => ({ id, x: xs[i]![0] })).sort((a, b) => a.x - b.x).map((o) => o.id);
+    const key = order.join(",");
+    if (key === this.orderKey) return;
+    this.orderKey = key;
+    this.opts.onOrder(order);
+  }
+
+  /** World points as screen px from a given view, leaving the camera as it was. */
+  private screenAt(view: { home: Cam; pan: [number, number] }, pts: THREE.Vector3[]): [number, number][] {
+    const c = view.home, sp = Math.sin(c.ph), cp = Math.cos(c.ph);
+    const cam = this.camera.clone();
+    cam.aspect = this.W / this.H;
+    cam.position.set(c.tx + c.r * sp * Math.sin(c.th), c.r * cp, c.tz + c.r * sp * Math.cos(c.th));
+    cam.lookAt(c.tx, 0, c.tz);
+    cam.setViewOffset(this.W, this.H, view.pan[0], view.pan[1], this.W, this.H);
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
+    return pts.map((p) => {
+      this.v.copy(p).project(cam);
+      return [((this.v.x + 1) / 2) * this.W, ((1 - this.v.y) / 2) * this.H];
+    });
   }
 
   /** Would the rooms, seen from this view, run under the box (px)? Their outline's corners and edges against it. */
@@ -1196,7 +1230,7 @@ export class House {
         const v = 1 - u;
         return [v * v * v * a[0] + 3 * v * v * u * c1[0] + 3 * v * u * u * c2[0] + u * u * u * b[0], v * v * v * a[1] + 3 * v * v * u * c1[1] + 3 * v * u * u * c2[1] + u * u * u * b[1]];
       };
-      const rgb = th.tone === "down" ? "255,154,106" : "240,201,135";
+      const rgb = th.tone === "down" ? "255,154,106" : (th.rgb ?? "240,201,135");
       x.globalCompositeOperation = "source-over";
       x.strokeStyle = `rgba(${rgb},${th.tone === "wait" ? 0.1 : 0.2})`;
       x.lineWidth = 1;

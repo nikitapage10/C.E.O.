@@ -1025,12 +1025,16 @@
   height: 100%;
   pointer-events: none;
 }
+/* Docked along the foot of the house, centred (#718): the gauges stand in the order their rooms do on screen, so
+   each thread rises from its lamp to its room beside its neighbours and none cross. */
 [data-room="haven"] .hv-plinth {
   position: absolute;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   /* Clear of the Desk's Ask Skippy bar in the corner. */
   bottom: 64px;
   z-index: 3;
+  width: max-content;
   max-width: min(100%, 940px);
 }
 [data-room="haven"] .hv-plate {
@@ -1232,28 +1236,296 @@
   text-transform: uppercase;
   color: var(--hv-mute);
 }
-/* The Climate control opens over the dial, at the strip's left end. */
-[data-room="haven"] .hv-plinth .hv-th {
+/* A gauge's pop-up (the Climate control, a device's controls) opens over its gauge, kept inside the strip. */
+[data-room="haven"] .hv-popAt {
   position: absolute;
+  bottom: calc(100% + 12px);
+  left: clamp(0px, calc(var(--at, 160px) - 160px), calc(100% - 320px));
+  width: 320px;
+  z-index: 4;
+}
+[data-room="haven"] .hv-plinth .hv-th {
+  position: relative;
   top: auto;
   right: auto;
-  left: 0;
-  bottom: calc(100% + 12px);
-}
-@media (max-width: 860px) {
-  [data-room="haven"] .hv-plinth .hv-th {
-    left: 0;
-    right: 0;
-    bottom: calc(100% + 10px);
-    width: auto;
-  }
+  left: auto;
+  bottom: auto;
+  width: 100%;
 }
 @media (max-width: 860px) {
   /* On a phone the plinth runs under the house, full width, and scrolls sideways. */
   [data-room="haven"] .hv-plinth {
     left: 0;
+    right: 0;
     bottom: 0;
+    transform: none;
+    width: auto;
     max-width: none;
+  }
+  [data-room="haven"] .hv-popAt {
+    left: 0;
+    right: 0;
+    width: auto;
+    bottom: calc(100% + 10px);
+  }
+}
+
+/* ── the Climate's weather (#718): embers rising while it heats, frost falling while it cools, a slow breath holding ── */
+[data-room="haven"] .hv-wxGlow {
+  fill: none;
+  stroke-width: 10;
+  opacity: 0.5;
+  filter: blur(4px);
+  transform-origin: 50px 50px;
+  animation: hv-wx-breathe 5s ease-in-out infinite;
+}
+[data-room="haven"] .hv-wx[data-mood="heat"] .hv-wxGlow {
+  stroke: #ff7a2e;
+  opacity: 0.7;
+  animation-duration: 2.2s;
+}
+[data-room="haven"] .hv-wx[data-mood="cool"] .hv-wxGlow {
+  stroke: #5fb2ff;
+  opacity: 0.7;
+  animation-duration: 2.6s;
+}
+[data-room="haven"] .hv-wx[data-mood="hold"] .hv-wxGlow {
+  stroke: rgb(var(--hv-gold));
+  opacity: 0.18;
+}
+[data-room="haven"] .hv-wxMote {
+  opacity: 0;
+  animation: hv-wx-rise 2.6s linear infinite;
+}
+[data-room="haven"] .hv-wx[data-mood="heat"] .hv-wxMote {
+  fill: #ffb06a;
+}
+[data-room="haven"] .hv-wx[data-mood="cool"] .hv-wxMote {
+  fill: #bfe3ff;
+  animation-name: hv-wx-fall;
+  animation-duration: 3.2s;
+}
+[data-room="haven"] .hv-dialFace[data-mood="heat"] .hv-dialRim {
+  stroke: rgba(255, 140, 64, 0.85);
+}
+[data-room="haven"] .hv-dialFace[data-mood="cool"] .hv-dialRim {
+  stroke: rgba(110, 180, 255, 0.85);
+}
+[data-room="haven"] .hv-dialFace[data-mood="cool"] .hv-dialTicks line.is-lit {
+  stroke: #7cc2ff;
+}
+@keyframes hv-wx-breathe {
+  0%,
+  100% {
+    transform: scale(0.97);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+@keyframes hv-wx-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  15% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0px), -68px);
+  }
+}
+@keyframes hv-wx-fall {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0px), 66px);
+  }
+}
+/* The Climate control's own weather, behind its readings. */
+[data-room="haven"] .hv-th {
+  overflow: hidden;
+  transition:
+    border-color 0.4s,
+    box-shadow 0.4s;
+}
+[data-room="haven"] .hv-th > :not(.hv-th-wx) {
+  position: relative;
+}
+[data-room="haven"] .hv-th-wx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+[data-room="haven"] .hv-th[data-mood="heat"] {
+  border-color: rgba(255, 140, 64, 0.55);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 0 46px rgba(255, 110, 40, 0.22);
+}
+[data-room="haven"] .hv-th[data-mood="cool"] {
+  border-color: rgba(110, 180, 255, 0.55);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 0 46px rgba(80, 160, 255, 0.22);
+}
+[data-room="haven"] .hv-th[data-mood="heat"] .hv-th-wx {
+  opacity: 1;
+  background: radial-gradient(120% 70% at 50% 110%, rgba(255, 110, 40, 0.28), transparent 70%);
+}
+[data-room="haven"] .hv-th[data-mood="cool"] .hv-th-wx {
+  opacity: 1;
+  background: radial-gradient(120% 70% at 50% -10%, rgba(80, 160, 255, 0.26), transparent 70%);
+}
+[data-room="haven"] .hv-th[data-mood="hold"] .hv-th-wx {
+  opacity: 1;
+  background: radial-gradient(90% 60% at 50% 50%, rgba(var(--hv-gold), 0.06), transparent 70%);
+  animation: hv-wx-calm 6s ease-in-out infinite;
+}
+[data-room="haven"] .hv-th-wx i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  opacity: 0;
+}
+[data-room="haven"] .hv-th[data-mood="heat"] .hv-th-wx i {
+  bottom: -6px;
+  background: #ffa25a;
+  box-shadow: 0 0 8px 2px rgba(255, 120, 40, 0.6);
+  animation: hv-th-rise 3.4s linear infinite;
+}
+[data-room="haven"] .hv-th[data-mood="cool"] .hv-th-wx i {
+  top: -6px;
+  background: #d4ecff;
+  box-shadow: 0 0 8px 2px rgba(110, 180, 255, 0.55);
+  animation: hv-th-fall 4.2s linear infinite;
+}
+@keyframes hv-th-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  12% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-320px);
+  }
+}
+@keyframes hv-th-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  12% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(320px);
+  }
+}
+@keyframes hv-wx-calm {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* The held change (#718): what goes to the thermostat, a ring counting down the three seconds, Cancel and Send now. */
+[data-room="haven"] .hv-held,
+[data-room="haven"] .hv-th-held {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-held {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid rgba(var(--hv-gold), 0.35);
+  border-radius: 999px;
+  background: rgba(14, 13, 18, 0.9);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+[data-room="haven"] .hv-plinth:has(.hv-popAt .hv-th) .hv-held {
+  display: none;
+}
+[data-room="haven"] .hv-held button,
+[data-room="haven"] .hv-th-held button {
+  padding: 5px 10px;
+  border: 1px solid rgba(var(--hv-gold), 0.35);
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-ink);
+  font: inherit;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-held button.is-pri,
+[data-room="haven"] .hv-th-held button.is-pri {
+  background: rgba(var(--hv-gold), 0.18);
+}
+[data-room="haven"] .hv-held button:hover,
+[data-room="haven"] .hv-th-held button:hover,
+[data-room="haven"] .hv-held button:focus-visible,
+[data-room="haven"] .hv-th-held button:focus-visible {
+  border-color: rgb(var(--hv-gold));
+  outline: none;
+}
+[data-room="haven"] .hv-heldRing {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--hv-gold), 0.25);
+  border-top-color: rgb(var(--hv-gold));
+  animation: hv-held-spin 1s linear infinite;
+}
+@keyframes hv-held-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .hv-wxGlow,
+  [data-room="haven"] .hv-wxMote,
+  [data-room="haven"] .hv-th-wx,
+  [data-room="haven"] .hv-th-wx i,
+  [data-room="haven"] .hv-heldRing {
+    animation: none;
+  }
+  [data-room="haven"] .hv-wxMote {
+    display: none;
+  }
+}
+@media (max-width: 860px) {
+  [data-room="haven"] .hv-held {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    justify-content: center;
   }
 }
 @media (max-width: 600px) {

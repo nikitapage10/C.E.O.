@@ -96,6 +96,6 @@ test("signed in, King Soopers is set up on Controls: ZIP, store picker, Connect 
   await expect(house.getByRole("button", { name: "Home store" })).toBeVisible();
   await expect(house.getByText("Home store: King Soopers - Test Town", { exact: false })).toBeVisible();
   await house.getByRole("button", { name: "Connect King Soopers" }).click();
-  await expect(page).toHaveURL(/api\.kroger\.com\/v1\/connect\/oauth2\/authorize/);
+  await expect(page).toHaveURL("https://api.kroger.com/v1/connect/oauth2/authorize?scope=cart.basic%3Awrite&state=x");
   expect(posts).toEqual([{ action: "set-zip", zip: "12345" }, { action: "find-stores" }, { action: "pick-store", id: "62000001" }, { action: "connect" }]);
 });

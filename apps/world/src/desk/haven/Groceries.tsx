@@ -11,6 +11,7 @@ import { costOf, goes, groceryAction, GROCERY_NOTE, isCartLink, loadGroceries, m
  */
 
 const SETUP = "/boiler/controls#ct-house";
+const WAITING = "King Soopers: waiting for the Kroger app's keys in the Key Vault (docs/HOME-DEVICES.md).";
 
 const stamp = (iso: string) => {
   const t = Date.parse(iso);
@@ -134,7 +135,9 @@ export function Groceries({ listOpen }: { listOpen: number }) {
 
   if (load === "off") return null;
   if (!view) return <p className="hv-note">{load === "failed" ? "King Soopers didn't load. It'll try again when you come back." : "Reading King Soopers…"}</p>;
-  if (!view.ready) return <p className="hv-note">King Soopers: waiting for the Kroger app's keys in the Key Vault (docs/HOME-DEVICES.md).</p>;
+  if (!view.ready) {
+    return <p className="hv-note">{WAITING}</p>;
+  }
 
   const going = view.lines.filter(goes);
   const unmatched = view.lines.filter((l) => !l.pick).length;

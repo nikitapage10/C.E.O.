@@ -158,6 +158,8 @@ export function ConnectRoborock({ connected }: { connected: boolean }) {
  * King Soopers' setup (#664, api/_haven/kroger/route.ts): the ZIP the store picker searches near (kept in the private
  * store), the home store, and Connect King Soopers for the cart. Kroger sends the browser back here (?kroger=…).
  */
+const KROGER_WAITING = "King Soopers: waiting for the Kroger app's keys in the Key Vault (docs/HOME-DEVICES.md).";
+
 export function KrogerSetup() {
   const [v, setV] = useState<Groceries | null>(null);
   const [read, setRead] = useState<"idle" | "off" | "failed" | "ready">("idle");
@@ -181,7 +183,9 @@ export function KrogerSetup() {
   }, []);
   if (read === "off") return <p className="hd-note">King Soopers connects on the Azure copy of the Desk.</p>;
   if (!v) return <p className="hd-note">{read === "failed" ? "King Soopers didn't answer here." : "Reading King Soopers…"}</p>;
-  if (!v.ready) return <p className="hd-note">King Soopers: waiting for the Kroger app's keys in the Key Vault (docs/HOME-DEVICES.md).</p>;
+  if (!v.ready) {
+    return <p className="hd-note">{KROGER_WAITING}</p>;
+  }
   const run = async (body: GAction, done?: string) => {
     setBusy(true);
     setNote(null);

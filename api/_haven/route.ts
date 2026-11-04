@@ -10,7 +10,7 @@
  *                        - text over 300 characters: 400 { say };
  *                        - otherwise 200 { say, audio? }: rules sort the words first (api/_haven/classify.ts):
  *                          shopping items go on the Kitchen list (api/_haven/list.ts), a to-do into the to-dos
- *                          (api/_haven/todos.ts), and anything else to Desk Skippy's own chat (`phoneAnswer` in
+ *                          (api/_haven/todos.ts, into Today's store), and anything else to Desk Skippy's own chat (`phoneAnswer` in
  *                          api/skippy.ts: the same prompt, router, caps and hand-offs, marked "phone"). With
  *                          `voice: true`, `audio` is a five-minute, single-use link to `say` in Skippy's voice
  *                          (api/_haven/audio.ts), left out when ElevenLabs' cap is spent or it doesn't answer.
@@ -138,7 +138,7 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
       say = sayAdded(added, already);
     } else if (sorted.kind === "todo") {
       const todo = await deps.todos(deps.blob).addTodo(sorted.text, now);
-      say = sayTodo(todo.text);
+      say = sayTodo(todo.text, todo.due, now);
     } else {
       // A turn that looks private is left out of what Skippy is shown again, so it can't hold up the next ask.
       const history = (before?.turns ?? []).filter((t) => privateParts(t.text).length === 0);
@@ -174,7 +174,7 @@ export async function havenGet(request: Request, deps: HavenDeps): Promise<Respo
   const now = deps.desk.now;
   if (view === "status") {
     if (!deps.blob) return json({ kitchen: { open: 0, done: 0 }, todos: 0, ready: false });
-    const [kitchen, todos] = await Promise.all([new KitchenList(deps.blob).counts(now).catch(() => ({ open: 0, done: 0 })), deps.todos(deps.blob).openCount().catch(() => 0)]);
+    const [kitchen, todos] = await Promise.all([new KitchenList(deps.blob).counts(now).catch(() => ({ open: 0, done: 0 })), deps.todos(deps.blob).openCount(now).catch(() => 0)]);
     return json({ kitchen, todos, ready: true });
   }
   if (view !== "list" && view !== "phones") return json({ error: "bad-request" }, 400);

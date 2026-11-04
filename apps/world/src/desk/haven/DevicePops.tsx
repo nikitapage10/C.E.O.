@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useHome, type ActExtra, type DeviceReading, type VendorState } from "../homeDevices.ts";
+import { closeClock, useHome, type ActExtra, type DeviceReading, type VendorState } from "../homeDevices.ts";
 import type { HavenPlan } from "./data.ts";
 import { DryFeederArt, FountainArt, LitterArt, VacuumArt, WetFeederArt } from "./DeviceArt.tsx";
 import { RoomMap, vacuumName } from "./RoomMap.tsx";
@@ -213,14 +213,15 @@ export function WetFeederControls({ d }: { d: DeviceReading }) {
       <WetFeederArt plate={d.plate} open={open} turning={turning} />
       <div>
         <p className="hv-dp-name">
-          Wet food <span>{d.online ? d.state : "offline"}</span>
+          Wet food <span>{!d.online ? "offline" : d.closesAt ? `Open, closes at ${closeClock(d.closesAt)}` : d.state}</span>
         </p>
         <p className="hv-dp-note">
           {d.plate ? `Bowl ${d.plate} in front` : "Bowl in front unknown"} · {d.manualToday ?? 0} of {d.manualCap ?? 2} opened today
         </p>
         <div className="hv-dp-btns is-row">
-          <button type="button" className="hv-btn is-pri" disabled={off || open || left === 0} onClick={() => void act("wet.open", d.id)}>
-            Open the tray
+          {/* An opening from here closes itself after two hours (#713): opening again restarts them. */}
+          <button type="button" className="hv-btn is-pri" disabled={off || (d.closesAt ? false : open || left === 0)} onClick={() => void act("wet.open", d.id)}>
+            {d.closesAt ? "Two more hours" : "Open for 2 hours"}
           </button>
           <button type="button" className="hv-btn" disabled={off || open} onClick={() => void act("wet.rotate", d.id).then((ok) => ok && flash())}>
             Next bowl

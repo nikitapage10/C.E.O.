@@ -8,8 +8,11 @@ import {
   SPICES,
   allComponents,
   dayProtein,
+  AHEAD_MAX,
+  allWeeks,
   candidates,
   loadMeals,
+  lunchDish,
   lunchView,
   mealNamed,
   mealsAction,
@@ -29,21 +32,22 @@ import {
   type MealsFile,
   type Role,
   type Course,
+  viewOf,
   type Slot,
 } from "./meals.ts";
 import { confirmPhotos, PHOTO_WORD, photoStates, photoUrl, shootOf, type PhotoState } from "./mealPhotos.ts";
 import { onWrote, touchesList, touchesMeals } from "../skippy/wrote.ts";
-import { cookLunchOf, cookOf } from "./cook.ts";
+import { cookLunchOf, cookOf, type Cook } from "./cook.ts";
 import { CookMode } from "./CookMode.tsx";
 import "./meals.css";
 
 /**
- * The Kitchen's meal planner (#678): the week as a strip of seven day cards (the dinner's photo, its protein ring
- * against the goal), a drawer for the night that's open (the recipe, swaps for each part, portion and spice, the
- * night's switches, the backups, Not for me), the week's shopping recomputed as it changes, and Confirm week, which
- * puts the shopping on the Kitchen list for the King Soopers rail beside it. The catalog and the taste profile open
- * as drawers over it. Every change is one edit of the closed set the server runs (api/_haven/mealShape.ts), shown at
- * once and replaced by the server's answer; Skippy makes the same edits when Nikita talks to him (#698), and the page reads itself again when he does.
+ * The Kitchen's meal planner (#678), in four steps (#721): Plan (the week as a list of days, dinner and lunch, on the
+ * left; the meal picked opens on the right with its swaps, and Finalize), Customize (the picked dinner's parts, portion
+ * and spice), Shop (the week's shopping, the Kitchen list and King Soopers) and Cook (the recipes and cook mode). A
+ * week picker holds this week and up to three planned ahead. Every change is one edit of the closed set the server
+ * runs (api/_haven/mealShape.ts), shown at once and replaced by the server's answer, aimed at the week shown; Skippy
+ * makes the same edits when Nikita talks to him (#698), and the page reads itself again when he does.
  */
 
 const ROLE_NAME: Record<Role, string> = {
@@ -134,35 +138,274 @@ function Photo({ meal, photo, pending, className }: { meal: Meal; photo?: string
   );
 }
 
-function DayCard({ f, s, i, open, onOpen }: { f: MealsFile; s: Slot; i: number; open: boolean; onOpen: () => void }) {
-  const d = slotDish(f, s);
-  const p = dayProtein(f, s);
-  if (!d) return null;
-  const pending = d.customized && !s.photo && !s.helloFresh;
-  const l = lunchView(f, s);
+/** Which meal is open: a day's dinner or its lunch. */
+type Pick = { i: number; course: Course } | null;
+
+/** The week as a list (#721): each day's dinner and lunch, a row each, the day's protein ring beside them. */
+function DayList({ f, pick, onPick }: { f: MealsFile; pick: Pick; onPick: (p: Pick) => void }) {
+  const w = f.week!;
   return (
-    <li className={`mp-day${open ? " is-open" : ""}${s.helloFresh ? " is-hf" : ""}`} style={{ ["--i" as string]: i } as CSSProperties}>
-      <button type="button" aria-pressed={open} aria-label={`${DAY_NAME[s.day]}: ${s.helloFresh ? "HelloFresh" : d.meal.name}, lunch ${l.kind === "leftovers" ? "leftovers" : l.name}, ${p.total} g protein`} onClick={onOpen}>
-        <Photo meal={d.meal} photo={s.photo} pending={pending} />
-        <span className="mp-dayTags">
-          {s.helloFresh ? <span className="mp-tag is-hf">HelloFresh</span> : null}
-          {s.forTwo ? <span className="mp-tag">for two</span> : null}
-          {d.customized && !s.helloFresh ? <span className="mp-tag is-cu">custom</span> : null}
-        </span>
-        <span className="mp-dayFoot">
-          <span className="mp-dayTxt">
-            <small>
-              {SHORT[s.day]} · {dateOf(f.week!.start, i).getUTCDate()}
-            </small>
-            <b>{s.helloFresh ? "HelloFresh night" : d.meal.name}</b>
-            <span className={`mp-dayLunch is-${l.kind}`}>
-              <i aria-hidden="true">Lunch</i> {l.kind === "leftovers" ? "leftovers" : l.name}
-            </span>
+    <ol className="mp-list" aria-label="This week's meals">
+      {w.slots.map((s, i) => {
+        const d = slotDish(f, s);
+        const p = dayProtein(f, s);
+        const l = lunchView(f, s);
+        if (!d) return null;
+        const on = (c: Course) => pick?.i === i && pick.course === c;
+        return (
+          <li key={s.day} className={`mp-row${s.helloFresh ? " is-hf" : ""}`} style={{ ["--i" as string]: i } as CSSProperties}>
+            <div className="mp-rowDay">
+              <b>{SHORT[s.day]}</b>
+              <small>{dateOf(w.start, i).getUTCDate()}</small>
+              <Ring value={p.total} goal={f.profile.proteinGoal} size={38} />
+            </div>
+            <div className="mp-rowMeals">
+              <button type="button" className="mp-rowMeal" aria-pressed={on("dinner")} aria-label={`${DAY_NAME[s.day]}'s dinner: ${s.helloFresh ? "HelloFresh" : d.meal.name}`} onClick={() => onPick(on("dinner") ? null : { i, course: "dinner" })}>
+                <Photo meal={d.meal} photo={s.photo} pending={d.customized && !s.photo && !s.helloFresh} className="is-mini" />
+                <span>
+                  <small>
+                    Dinner
+                    {s.forTwo ? " · for two" : ""}
+                    {d.customized && !s.helloFresh ? " · custom" : ""}
+                  </small>
+                  <b>{s.helloFresh ? "HelloFresh night" : d.meal.name}</b>
+                </span>
+              </button>
+              <button type="button" className={`mp-rowMeal is-lunch is-${l.kind}`} aria-pressed={on("lunch")} aria-label={`${DAY_NAME[s.day]}'s lunch: ${l.name}`} onClick={() => onPick(on("lunch") ? null : { i, course: "lunch" })}>
+                {l.dish ? <Photo meal={l.dish.meal} className="is-mini" /> : <span className="mp-lunchDot" aria-hidden="true" />}
+                <span>
+                  <small>Lunch</small>
+                  <b>{l.kind === "leftovers" ? "Leftovers" : l.name}</b>
+                </span>
+              </button>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** The open dinner's head: photo, name, blurb, macros and the day's protein. */
+function DinnerHead({ f, s, d }: { f: MealsFile; s: Slot; d: Dish }) {
+  const p = dayProtein(f, s);
+  return (
+    <div className="mp-dHead">
+      <Photo meal={d.meal} photo={s.photo} pending={d.customized && !s.photo && !s.helloFresh} className="is-big" />
+      <div className="mp-dTxt">
+        <p className="mp-eyb">
+          {DAY_NAME[s.day]} · {d.meal.cuisine} · {d.meal.minutes} min
+        </p>
+        <h3>{s.helloFresh ? "HelloFresh night" : d.meal.name}</h3>
+        <p className="mp-blurb">{s.helloFresh ? `HelloFresh covers ${DAY_NAME[s.day]}: nothing to cook or buy. ${d.meal.name} stays here for a cook-yourself week.` : d.meal.blurb}</p>
+        {d.customized ? <p className="mp-changes">{d.changes.join(" · ")}</p> : null}
+        <Macros d={d} />
+        <div className="mp-dayLine">
+          <span>
+            Dinner {p.dinner} g{s.helloFresh ? " (HelloFresh)" : ""} · Lunch {p.lunch} g · {f.profile.topUp.text} {p.topUp} g
           </span>
-          <Ring value={p.total} goal={f.profile.proteinGoal} />
-        </span>
+          <b className={p.total >= f.profile.proteinGoal ? "is-ok" : "is-low"}>
+            {p.total} / {f.profile.proteinGoal} g
+          </b>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Plan (#721): the open dinner's swaps. Its backups, Not for me, something new, and the night's switches. */
+function DinnerPlan({ f, s, edit, onCustomize }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => void; onCustomize: () => void }) {
+  const d = slotDish(f, s)!;
+  const day = s.day;
+  const picks = f.week!.picks.map((id) => mealNamed(f, id)).filter((m): m is Meal => !!m);
+  return (
+    <section className="mp-drawer" key={`${day}-${d.meal.id}`} aria-label={`${DAY_NAME[day]}'s dinner`}>
+      <DinnerHead f={f} s={s} d={d} />
+      <div className="mp-toggles">
+        <Toggle on={s.helloFresh} label="HelloFresh" onChange={(v) => edit({ op: "night", day, helloFresh: v })} />
+        <Toggle on={s.forTwo} label="For two" onChange={(v) => edit({ op: "night", day, forTwo: v })} />
+        <Toggle on={s.inCart} label="In the cart" disabled={s.helloFresh} onChange={(v) => edit({ op: "night", day, inCart: v })} />
+      </div>
+      <div className="mp-swap">
+        <span className="mp-k">Swap for</span>
+        <div className="mp-backs">
+          {s.backups.map((id) => {
+            const m = mealNamed(f, id);
+            return m ? (
+              <button key={id} type="button" className="mp-back" onClick={() => edit({ op: "swap", day, meal: id })}>
+                <Photo meal={m} className="is-mini" />
+                <span>
+                  <b>{m.name}</b>
+                  <small>
+                    {m.cuisine} · {m.macros.protein} g protein
+                  </small>
+                </span>
+              </button>
+            ) : null;
+          })}
+          <button type="button" className="mp-nope" onClick={() => edit({ op: "nope", day })}>
+            Not for me
+          </button>
+        </div>
+      </div>
+      {picks.length ? (
+        <div className="mp-swap">
+          <span className="mp-k">Something new</span>
+          <div className="mp-backs">
+            {picks.map((m) => (
+              <button key={m.id} type="button" className="mp-back" onClick={() => edit({ op: "swap", day, meal: m.id })}>
+                <Photo meal={m} className="is-mini" />
+                <span>
+                  <b>{m.name}</b>
+                  <small>
+                    {m.cuisine} · {m.macros.protein} g · put on {SHORT[day]}
+                  </small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {s.helloFresh ? null : (
+        <button type="button" className="mp-next" onClick={onCustomize}>
+          Customize this meal <span aria-hidden="true">→</span>
+          <small>parts, portion, heat</small>
+        </button>
+      )}
+    </section>
+  );
+}
+
+/** Customize (#721): the open dinner's parts, portion and spice, its recipe and cook mode. */
+function DinnerCustom({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => void }) {
+  const d = slotDish(f, s)!;
+  const day = s.day;
+  const comps = allComponents(f);
+  const portions = portionsOf(f.week!)[DAYS.indexOf(day)]!;
+  const [recipe, setRecipe] = useState(false);
+  if (s.helloFresh)
+    return (
+      <section className="mp-drawer" aria-label={`${DAY_NAME[day]}'s dinner`}>
+        <DinnerHead f={f} s={s} d={d} />
+        <p className="mp-note">A HelloFresh night has nothing to customize here. Turn HelloFresh off in Plan to cook it yourself.</p>
+      </section>
+    );
+  return (
+    <section className="mp-drawer" key={`${day}-${d.meal.id}`} aria-label={`Customize ${DAY_NAME[day]}'s dinner`}>
+      <DinnerHead f={f} s={s} d={d} />
+      <div className="mp-custom">
+        {d.parts.map((part) => (
+          <div key={part.index} className="mp-part">
+            <span className="mp-k">{ROLE_NAME[part.role]}</span>
+            <div className="mp-chips" role="group" aria-label={`${ROLE_NAME[part.role]} for ${DAY_NAME[day]}`}>
+              {comps
+                .filter((c) => c.role === part.role)
+                // What's on the plate first, then the recipe's own, then the rest: no hunting along the row.
+                .sort((x, y) => Number(y.id === part.now?.id) - Number(x.id === part.now?.id) || Number(y.id === part.base?.id) - Number(x.id === part.base?.id))
+                .map((c) => {
+                  const delta = c.macros.protein - (part.now?.macros.protein ?? 0);
+                  return (
+                    <button key={c.id} type="button" className="mp-chip" aria-pressed={part.now?.id === c.id} onClick={() => edit({ op: "customize", day, part: { index: part.index, option: c.id } })}>
+                      {c.name}
+                      {part.now?.id !== c.id && delta !== 0 ? <small className={delta > 0 ? "is-up" : "is-down"}>{delta > 0 ? `+${delta}` : delta} g</small> : null}
+                      {part.base?.id === c.id && part.now?.id !== c.id ? <small>as written</small> : null}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        ))}
+        <div className="mp-part is-row">
+          <span className="mp-k">Portion</span>
+          <div className="mp-chips" role="group" aria-label={`Portion for ${DAY_NAME[day]}`}>
+            {PORTIONS.map((n) => (
+              <button key={n} type="button" className="mp-chip" aria-pressed={d.portion === n} onClick={() => edit({ op: "customize", day, portion: n })}>
+                {PORTION_NAME[n]}
+              </button>
+            ))}
+          </div>
+          <span className="mp-k">Spice</span>
+          <div className="mp-chips" role="group" aria-label={`Spice for ${DAY_NAME[day]}`}>
+            {SPICES.map((sp) => (
+              <button key={sp} type="button" className="mp-chip" aria-pressed={d.spice === sp} onClick={() => edit({ op: "customize", day, spice: sp })}>
+                {sp}
+              </button>
+            ))}
+          </div>
+          {d.customized ? (
+            <button type="button" className="mp-link" onClick={() => edit({ op: "customize", day, reset: true })}>
+              As written
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <button type="button" className="mp-link" aria-expanded={recipe} onClick={() => setRecipe((v) => !v)}>
+        {recipe ? "Hide the recipe" : `Recipe and ingredients (cooked for ${portions})`}
       </button>
-    </li>
+      {recipe ? <Recipe steps={d.meal.steps} d={d} /> : null}
+    </section>
+  );
+}
+
+function Recipe({ steps, d }: { steps: string[]; d: Dish }) {
+  return (
+    <div className="mp-recipe">
+      <ol>
+        {steps.map((st, i) => (
+          <li key={i}>{st}</li>
+        ))}
+      </ol>
+      <ul aria-label="Ingredients, one portion">
+        {d.ingredients.map((x, i) => (
+          <li key={i} className={x.pantry ? "is-pantry" : ""}>
+            {shopLine({ ...x, qty: x.qty * d.portion })}
+            {x.pantry ? <small> pantry</small> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Cook (#721): the week's recipes once the food's in, each with cook mode. Dinners cooked here and quick lunches. */
+function CookList({ f }: { f: MealsFile }) {
+  const [cooking, setCooking] = useState<Cook | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const rows = f.week!.slots.flatMap((s) => {
+    const out: Array<{ key: string; s: Slot; d: Dish; lunch: boolean }> = [];
+    const l = lunchDish(f, s);
+    if (l) out.push({ key: `${s.day}-lunch`, s, d: l, lunch: true });
+    const d = slotDish(f, s);
+    if (d && !s.helloFresh && s.inCart) out.push({ key: `${s.day}-dinner`, s, d, lunch: false });
+    return out;
+  });
+  return (
+    <section className="mp-cookList" aria-label="Recipes this week">
+      <p className="mp-note">{f.week!.confirmedAt ? "The week's recipes, in order. Cook mode keeps the screen on, one step at a time." : "The week isn't finalized yet; these are the recipes as planned."}</p>
+      <ul>
+        {rows.map(({ key, s, d, lunch }) => (
+          <li key={key} className="mp-cookRow">
+            <Photo meal={d.meal} photo={lunch ? null : s.photo} className="is-mini" />
+            <span className="mp-cookTxt">
+              <small>
+                {DAY_NAME[s.day]} · {lunch ? "lunch" : "dinner"} · {d.meal.minutes} min
+              </small>
+              <b>{d.meal.name}</b>
+              {d.customized ? <small>{d.changes.join(" · ")}</small> : null}
+            </span>
+            <button type="button" className="mp-link" aria-expanded={open === key} onClick={() => setOpen((v) => (v === key ? null : key))}>
+              {open === key ? "Hide" : "Recipe"}
+            </button>
+            <button type="button" className="mp-cook is-small" onClick={() => setCooking(lunch ? cookLunchOf(f, s) : cookOf(f, s))}>
+              Cook mode
+            </button>
+            {open === key ? <Recipe steps={d.meal.steps} d={d} /> : null}
+          </li>
+        ))}
+      </ul>
+      {rows.length ? null : <p className="mp-note">Nothing to cook this week: every night is HelloFresh or left out.</p>}
+      {cooking ? <CookMode cook={cooking} onClose={() => setCooking(null)} /> : null}
+    </section>
   );
 }
 
@@ -191,169 +434,6 @@ function Toggle({ on, label, onChange, disabled }: { on: boolean; label: string;
       <i aria-hidden="true" />
       {label}
     </button>
-  );
-}
-
-/** The open night: the recipe as cooked, its parts to swap, portion and spice, the night's switches and the backups. */
-function Drawer({ f, s, edit }: { f: MealsFile; s: Slot; edit: (e: MealEdit) => void }) {
-  const d = slotDish(f, s)!;
-  const p = dayProtein(f, s);
-  const day = s.day;
-  const comps = allComponents(f);
-  const portions = portionsOf(f.week!)[DAYS.indexOf(day)]!;
-  const [recipe, setRecipe] = useState(false);
-  const [cooking, setCooking] = useState(false);
-  // Built from the night as it stands, so a change Skippy makes while it's open shows in cook mode too.
-  const cook = cooking ? cookOf(f, s) : null;
-  return (
-    <section className="mp-drawer" key={`${day}-${d.meal.id}`} aria-label={`${DAY_NAME[day]}'s dinner`}>
-      <div className="mp-dHead">
-        <Photo meal={d.meal} photo={s.photo} pending={d.customized && !s.photo && !s.helloFresh} className="is-big" />
-        <div className="mp-dTxt">
-          <p className="mp-eyb">
-            {DAY_NAME[day]} · {d.meal.cuisine} · {d.meal.minutes} min
-          </p>
-          <h3>{d.meal.name}</h3>
-          <p className="mp-blurb">{d.meal.blurb}</p>
-          {d.customized ? <p className="mp-changes">{d.changes.join(" · ")}</p> : null}
-          <Macros d={d} />
-          <div className="mp-dayLine">
-            <span>
-              Dinner {p.dinner} g{s.helloFresh ? " (HelloFresh)" : ""} · Lunch {p.lunch} g · {f.profile.topUp.text} {p.topUp} g
-            </span>
-            <b className={p.total >= f.profile.proteinGoal ? "is-ok" : "is-low"}>
-              {p.total} / {f.profile.proteinGoal} g
-            </b>
-          </div>
-          <div className="mp-toggles">
-            <Toggle on={s.helloFresh} label="HelloFresh" onChange={(v) => edit({ op: "night", day, helloFresh: v })} />
-            <Toggle on={s.forTwo} label="For two" onChange={(v) => edit({ op: "night", day, forTwo: v })} />
-            <Toggle on={s.inCart} label="In the cart" disabled={s.helloFresh} onChange={(v) => edit({ op: "night", day, inCart: v })} />
-          </div>
-          {s.helloFresh ? null : (
-            <button type="button" className="mp-cook" onClick={() => setCooking(true)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 11h14v3a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5v-3zM17 12.5h4M8 4.5c-.6.8-.6 1.7 0 2.5M12 4.5c-.6.8-.6 1.7 0 2.5" />
-              </svg>
-              Cook mode
-              <small>step by step</small>
-            </button>
-          )}
-          {cook ? <CookMode cook={cook} onClose={() => setCooking(false)} /> : null}
-        </div>
-      </div>
-
-      {s.helloFresh ? (
-        <p className="mp-note">
-          HelloFresh covers {DAY_NAME[day]}: nothing to cook or buy. The plan keeps {d.meal.name} here for a cook-yourself week.
-        </p>
-      ) : (
-        <div className="mp-custom">
-          {d.parts.map((part) => (
-            <div key={part.index} className="mp-part">
-              <span className="mp-k">{ROLE_NAME[part.role]}</span>
-              <div className="mp-chips" role="group" aria-label={`${ROLE_NAME[part.role]} for ${DAY_NAME[day]}`}>
-                {comps
-                  .filter((c) => c.role === part.role)
-                  // What's on the plate first, then the recipe's own, then the rest: no hunting along the row.
-                  .sort((x, y) => Number(y.id === part.now?.id) - Number(x.id === part.now?.id) || Number(y.id === part.base?.id) - Number(x.id === part.base?.id))
-                  .map((c) => {
-                    const delta = c.macros.protein - (part.now?.macros.protein ?? 0);
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className="mp-chip"
-                        aria-pressed={part.now?.id === c.id}
-                        onClick={() =>
-                          edit({
-                            op: "customize",
-                            day,
-                            part: { index: part.index, option: c.id },
-                          })
-                        }
-                      >
-                        {c.name}
-                        {part.now?.id !== c.id && delta !== 0 ? <small className={delta > 0 ? "is-up" : "is-down"}>{delta > 0 ? `+${delta}` : delta} g</small> : null}
-                        {part.base?.id === c.id && part.now?.id !== c.id ? <small>as written</small> : null}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          ))}
-          <div className="mp-part is-row">
-            <span className="mp-k">Portion</span>
-            <div className="mp-chips" role="group" aria-label={`Portion for ${DAY_NAME[day]}`}>
-              {PORTIONS.map((n) => (
-                <button key={n} type="button" className="mp-chip" aria-pressed={d.portion === n} onClick={() => edit({ op: "customize", day, portion: n })}>
-                  {PORTION_NAME[n]}
-                </button>
-              ))}
-            </div>
-            <span className="mp-k">Spice</span>
-            <div className="mp-chips" role="group" aria-label={`Spice for ${DAY_NAME[day]}`}>
-              {SPICES.map((sp) => (
-                <button key={sp} type="button" className="mp-chip" aria-pressed={d.spice === sp} onClick={() => edit({ op: "customize", day, spice: sp })}>
-                  {sp}
-                </button>
-              ))}
-            </div>
-            {d.customized ? (
-              <button type="button" className="mp-link" onClick={() => edit({ op: "customize", day, reset: true })}>
-                As written
-              </button>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      <LunchPanel f={f} s={s} edit={edit} />
-
-      <div className="mp-swap">
-        <span className="mp-k">Backups</span>
-        <div className="mp-backs">
-          {s.backups.map((id) => {
-            const m = mealNamed(f, id);
-            return m ? (
-              <button key={id} type="button" className="mp-back" onClick={() => edit({ op: "swap", day, meal: id })}>
-                <Photo meal={m} className="is-mini" />
-                <span>
-                  <b>{m.name}</b>
-                  <small>
-                    {m.cuisine} · {m.macros.protein} g protein
-                  </small>
-                </span>
-              </button>
-            ) : null;
-          })}
-          <button type="button" className="mp-nope" onClick={() => edit({ op: "nope", day })}>
-            Not for me
-          </button>
-        </div>
-      </div>
-
-      <button type="button" className="mp-link" aria-expanded={recipe} onClick={() => setRecipe((v) => !v)}>
-        {recipe ? "Hide the recipe" : `Recipe and ingredients (cooked for ${portions})`}
-      </button>
-      {recipe ? (
-        <div className="mp-recipe">
-          <ol>
-            {d.meal.steps.map((st, i) => (
-              <li key={i}>{st}</li>
-            ))}
-          </ol>
-          <ul aria-label="Ingredients, one portion">
-            {d.ingredients.map((x, i) => (
-              <li key={i} className={x.pantry ? "is-pantry" : ""}>
-                {shopLine({ ...x, qty: x.qty * d.portion })}
-                {x.pantry ? <small> pantry</small> : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </section>
   );
 }
 
@@ -631,9 +711,9 @@ function Taste({ f, edit }: { f: MealsFile; edit: (e: MealEdit) => void }) {
 }
 
 /** The week's shopping as it stands, recomputed with every change. Confirm week puts it on the Kitchen list. */
-export function WeekShopping({ f }: { f: MealsFile }) {
+export function WeekShopping({ f, open: start = false }: { f: MealsFile; open?: boolean }) {
   const lines = useMemo(() => shoppingList(f).map(shopLine), [f]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(start);
   return (
     <div className="mp-shop">
       <button type="button" className="mp-shopHead" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
@@ -649,7 +729,7 @@ export function WeekShopping({ f }: { f: MealsFile }) {
         </ul>
       ) : null}
       <p className="mp-note">
-        {f.week?.sentAt ? "On the Kitchen list since the week was confirmed; changes since then aren't." : "Goes on the Kitchen list when you confirm the week. Staples stay out."}
+        {f.week?.sentAt ? "On the Kitchen list since the week was finalized; changes since then aren't." : "Goes on the Kitchen list when you finalize the week. Staples stay out."}
       </p>
     </div>
   );
@@ -688,14 +768,25 @@ function Seed({ onSeeded }: { onSeeded: (f: MealsFile) => void }) {
   );
 }
 
+const PHASES = [
+  { id: "plan", name: "Plan", hint: "Set the meals" },
+  { id: "customize", name: "Customize", hint: "Switch them up" },
+  { id: "shop", name: "Shop", hint: "Cart and send" },
+  { id: "cook", name: "Cook", hint: "Recipes" },
+] as const;
+type Phase = (typeof PHASES)[number]["id"];
+
 /**
- * The planner. `onListChanged` rereads the Kitchen list after Confirm week puts the shopping on it; `rail` is the
- * Kitchen list and King Soopers, laid beside the open night.
+ * The planner (#678; the phases and weeks ahead, #721). `onListChanged` rereads the Kitchen list after Finalize puts
+ * the shopping on it; `rail` is the Kitchen list and King Soopers, shown in the Shop step.
  */
 export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void; rail: ReactNode }) {
   const [load, setLoad] = useState<"idle" | "off" | "failed" | "ready">("idle");
   const [file, setFile] = useState<MealsFile | null>(null);
-  const [sel, setSel] = useState<number>(() => (new Date().getDay() + 6) % 7);
+  /** The week shown: null for the current one, else a week ahead by its Monday. */
+  const [start, setStart] = useState<string | null>(null);
+  const [phase, setPhase] = useState<Phase | null>(null);
+  const [pick, setPick] = useState<Pick>(null);
   const [over, setOver] = useState<"catalog" | "taste" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -703,9 +794,22 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
   const [skippy, setSkippy] = useState<string | null>(null);
   const [photos, setPhotos] = useState<ReadonlyMap<string, PhotoState>>(new Map());
   const seq = useRef(0);
+  const detail = useRef<HTMLDivElement>(null);
 
-  // The nights' own photos: read their states once, then every ten seconds while any is queued or being made.
-  const own = useMemo(() => (file?.week?.slots.map((s) => s.photo).filter((p): p is string => !!p) ?? []).join(","), [file]);
+  // On a narrow screen the open meal sits under the list: bring it into view when one is picked.
+  useEffect(() => {
+    if (pick && window.matchMedia?.("(max-width: 1000px)").matches) detail.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [pick]);
+
+  // The nights' own photos, every planned week: read their states once, then every ten seconds while any is being made.
+  const own = useMemo(
+    () =>
+      (file ? allWeeks(file) : [])
+        .flatMap((w) => w.slots.map((s) => s.photo))
+        .filter((p): p is string => !!p)
+        .join(","),
+    [file],
+  );
   const waiting = own.split(",").some((id) => id && (photos.get(id) ?? "queued") !== "ready" && photos.get(id) !== "failed" && photos.get(id) !== "budget");
   useEffect(() => {
     if (!own) return;
@@ -733,7 +837,7 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
   }, []);
 
   // Skippy changed the plan (#698: the Desk's chat, a Yes tap, a room's mic): read it again the way the page loads, and
-  // say what changed. The night he changed opens; an edit of Nikita's still in flight gives way to the newer file.
+  // say what changed. The day he changed opens on this week; an edit of Nikita's still in flight gives way to the newer file.
   useEffect(
     () =>
       onWrote((w) => {
@@ -751,7 +855,10 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
           const line = w.did.join(" ").trim();
           setSkippy(line ? `Skippy changed it: ${line}` : "Skippy changed the plan.");
           const day = DAYS.findIndex((d) => line.startsWith(DAY_NAME[d]));
-          if (day >= 0) setSel(day);
+          if (day >= 0) {
+            setStart(null);
+            setPick({ i: day, course: /^\w+'s lunch/.test(line) ? "lunch" : "dinner" });
+          }
         });
       }),
     [onListChanged],
@@ -772,18 +879,29 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
     return r;
   }, []);
 
-  const edit = useCallback((e: MealEdit) => file && void send({ action: "edit", edit: e }, preview(file, e), file), [file, send]);
+  // A week that's gone (moved on, or Undo took it back) falls back to the current one.
+  const at = file && start && file.ahead.some((w) => w.start === start) ? start : null;
+  const aim = useCallback((e: MealEdit): MealEdit => (at && e.op !== "undo" && e.op !== "next-week" && e.op !== "plan-ahead" ? { ...e, week: at } : e), [at]);
+  const edit = useCallback(
+    (e: MealEdit) => {
+      if (!file) return;
+      const x = aim(e);
+      void send({ action: "edit", edit: x }, preview(file, x), file);
+    },
+    [file, send, aim],
+  );
 
   const confirm = async () => {
-    const r = await send({ action: "confirm" }, null, null);
+    const r = await send({ action: "confirm", ...(at && { week: at }) }, null, null);
     if (!r.ok || !r.file?.week) return;
     onListChanged();
     const list = r.added
-      ? `${r.added} thing${r.added === 1 ? "" : "s"} went on the Kitchen list${r.already ? ` (${r.already} already there)` : ""}. Match and send them to King Soopers in the rail.`
+      ? `${r.added} thing${r.added === 1 ? "" : "s"} went on the Kitchen list${r.already ? ` (${r.already} already there)` : ""}. Match and send them to King Soopers here.`
       : "The Kitchen list already had everything.";
     // The customized nights go to the photo library (#687); each night keeps the id it answers.
-    const queue = r.file.week.photoQueue;
-    const shots = queue.map((day) => ({ day, shot: shootOf(r.file!, day) })).filter((x) => x.shot);
+    const v = viewOf(r.file, at);
+    const queue = v.week!.photoQueue;
+    const shots = queue.map((day) => ({ day, shot: shootOf(v, day) })).filter((x) => x.shot);
     const got = shots.length ? await confirmPhotos(shots.map((x) => x.shot!)) : null;
     let made = "";
     if (shots.length && !got) made = " The photo library didn't answer; the customized nights keep their meal's photo.";
@@ -793,10 +911,7 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
       for (const t of got.photos) {
         const day = shots.find((x) => x.shot!.meal === t.meal)?.day;
         if (!day) continue;
-        const e = await mealsAction({
-          action: "edit",
-          edit: { op: "photo", day, photo: t.id },
-        });
+        const e = await mealsAction({ action: "edit", edit: { op: "photo", day, photo: t.id, ...(at && { week: at }) } });
         if (e.ok && e.file) f = e.file;
       }
       setFile(f);
@@ -804,7 +919,8 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
         ? " The month's photo cap is reached, so the customized nights keep their meal's photo for now."
         : ` ${got.photos.length} customized meal${got.photos.length === 1 ? "" : "s"} ${got.photos.length === 1 ? "is" : "are"} getting ${got.photos.length === 1 ? "its" : "their"} own photo.`;
     }
-    setNote(`Confirmed. ${list}${made}`);
+    setNote(`Finalized. ${list}${made}`);
+    setPhase("shop");
   };
 
   if (load !== "ready")
@@ -824,8 +940,7 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
       </div>
     );
   }
-  const w = file.week;
-  if (!w) {
+  if (!file.week) {
     return (
       <div className="mp-layout">
         <div className="mp-main">
@@ -843,33 +958,75 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
     );
   }
 
-  const totals = w.slots.map((s) => dayProtein(file, s).total);
+  const view = viewOf(file, at);
+  const w = view.week!;
+  // The step to open on: Plan while the week's a draft, Shop once it's finalized.
+  const step: Phase = phase ?? (w.confirmedAt ? "shop" : "plan");
+  const totals = w.slots.map((s) => dayProtein(view, s).total);
   const avg = Math.round(totals.reduce((a, b) => a + b, 0) / 7);
-  const met = totals.filter((t) => t >= file.profile.proteinGoal).length;
+  const met = totals.filter((t) => t >= view.profile.proteinGoal).length;
   const cooking = w.slots.filter((s) => !s.helloFresh).length;
-  const pending = w.slots.filter((s) => !s.helloFresh && !s.photo && slotDish(file, s)?.customized).length;
-  const day = DAYS[sel]!;
-  const slot = w.slots[sel]!;
-  const picks = w.picks.map((id) => mealNamed(file, id)).filter((m): m is Meal => !!m);
+  const quick = w.slots.filter((s) => s.lunch.meal).length;
+  const pending = w.slots.filter((s) => !s.helloFresh && !s.photo && slotDish(view, s)?.customized).length;
+  const slot = pick ? w.slots[pick.i] : undefined;
+  const weeks = allWeeks(file);
+  const finalize = (
+    <button type="button" className={`mp-confirm${w.confirmedAt ? " is-done" : ""}`} disabled={busy || !!w.confirmedAt} onClick={() => void confirm()}>
+      <span className="mp-sigil" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+      {w.confirmedAt ? "Week finalized" : "Finalize the week"}
+    </button>
+  );
 
   return (
     <PhotoStates.Provider value={photos}>
       <div className="mp">
+        <nav className="mp-weeks" aria-label="Weeks">
+          {weeks.map((x, k) => (
+            <button
+              key={x.start}
+              type="button"
+              className="mp-weekBtn"
+              aria-pressed={x.start === w.start}
+              onClick={() => {
+                setStart(k === 0 ? null : x.start);
+                setPick(null);
+                setPhase(null);
+              }}
+            >
+              <small>{k === 0 ? "This week" : k === 1 ? "Next week" : `In ${k} weeks`}</small>
+              <b>{weekLabel(x.start)}</b>
+              <i className={x.confirmedAt ? "is-ok" : "is-draft"}>{x.confirmedAt ? "finalized" : "draft"}</i>
+            </button>
+          ))}
+          {file.ahead.length < AHEAD_MAX ? (
+            <button type="button" className="mp-weekBtn is-add" disabled={busy} onClick={() => edit({ op: "plan-ahead" })}>
+              <small>Plan ahead</small>
+              <b>+ a week</b>
+              <i>up to a month</i>
+            </button>
+          ) : null}
+        </nav>
+
         <header className="mp-head">
           <div className="mp-title">
             <p className="mp-eyb">
-              Week of {weekLabel(w.start)} · <span className={w.confirmedAt ? "is-ok" : "is-draft"}>{w.confirmedAt ? "confirmed" : "draft"}</span>
+              Week of {weekLabel(w.start)} · <span className={w.confirmedAt ? "is-ok" : "is-draft"}>{w.confirmedAt ? "finalized" : "draft"}</span>
             </p>
             <div className="mp-stats">
               <span>
-                <b className={avg >= file.profile.proteinGoal ? "is-ok" : "is-low"}>{avg}</b> g protein a day <small>goal ≥ {file.profile.proteinGoal}</small>
+                <b className={avg >= view.profile.proteinGoal ? "is-ok" : "is-low"}>{avg}</b> g protein a day <small>goal ≥ {view.profile.proteinGoal}</small>
               </span>
               <span>
                 <b>{met}</b>/7 days at goal
               </span>
               <span>
-                <b>{cooking}</b> to cook
+                <b>{cooking}</b> dinners to cook
                 {w.slots.length - cooking ? ` · ${w.slots.length - cooking} HelloFresh` : ""}
+                {quick ? ` · ${quick} quick lunch${quick === 1 ? "" : "es"}` : ""}
               </span>
             </div>
           </div>
@@ -885,25 +1042,26 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
                 Undo
               </button>
             ) : null}
-            {w.confirmedAt ? (
+            {!at && w.confirmedAt ? (
               <button type="button" className="mp-ghost" disabled={busy} onClick={() => edit({ op: "next-week" })}>
-                Plan next week
+                {file.ahead.length ? "On to next week" : "Plan next week"}
               </button>
             ) : null}
-            <button type="button" className={`mp-confirm${w.confirmedAt ? " is-done" : ""}`} disabled={busy || !!w.confirmedAt} onClick={() => void confirm()}>
-              <span className="mp-sigil" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-              {w.confirmedAt ? "Week confirmed" : "Confirm week"}
-            </button>
+            {finalize}
           </div>
         </header>
 
-        <ol className="mp-week" aria-label="This week's dinners">
-          {w.slots.map((s, i) => (
-            <DayCard key={s.day} f={file} s={s} i={i} open={i === sel} onOpen={() => setSel(i)} />
+        <ol className="mp-steps" aria-label="Steps">
+          {PHASES.map((p, k) => (
+            <li key={p.id}>
+              <button type="button" aria-current={step === p.id ? "step" : undefined} className={PHASES.findIndex((x) => x.id === step) > k ? "is-past" : ""} onClick={() => setPhase(p.id)}>
+                <i>{k + 1}</i>
+                <span>
+                  <b>{p.name}</b>
+                  <small>{p.hint}</small>
+                </span>
+              </button>
+            </li>
           ))}
         </ol>
 
@@ -916,47 +1074,70 @@ export function MealPlanner({ onListChanged, rail }: { onListChanged: () => void
             {skippy}
           </p>
         ) : null}
-        {pending && !w.confirmedAt ? (
-          <p className="mp-note">
-            {pending} customized night{pending === 1 ? "" : "s"}: photo pending until the week is confirmed.
-          </p>
-        ) : null}
 
-        <div className="mp-layout">
-          <div className="mp-main">
-            <Drawer f={file} s={slot} edit={edit} key={day} />
-            {picks.length ? (
-              <section className="mp-new" aria-label="Try something new">
-                <span className="mp-k">Try something new?</span>
-                <div className="mp-backs">
-                  {picks.map((m) => (
-                    <button key={m.id} type="button" className="mp-back" onClick={() => edit({ op: "swap", day, meal: m.id })}>
-                      <Photo meal={m} className="is-mini" />
-                      <span>
-                        <b>{m.name}</b>
-                        <small>
-                          {m.cuisine} · {m.macros.protein} g · put on {SHORT[day]}
-                        </small>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ) : null}
+        {step === "plan" || step === "customize" ? (
+          <div className="mp-plan">
+            <DayList f={view} pick={pick} onPick={setPick} />
+            <div className="mp-detail" ref={detail}>
+              {!slot ? (
+                step === "plan" ? (
+                  <section className="mp-drawer mp-overview" aria-label="Finalize the week">
+                    <h3>Set the week's meals</h3>
+                    <p className="mp-note">Pick a dinner or a lunch on the left to swap it, pass on it, or try something new. When the week looks right, Finalize the week: its shopping goes on the Kitchen list for King Soopers.</p>
+                    {pending && !w.confirmedAt ? (
+                      <p className="mp-note">
+                        {pending} customized night{pending === 1 ? "" : "s"}: photo pending until the week is finalized.
+                      </p>
+                    ) : null}
+                    <div className="mp-overActs">
+                      <button type="button" className="mp-ghost" onClick={() => setPhase("customize")}>
+                        Customize first
+                      </button>
+                      <button type="button" className="mp-ghost" onClick={() => setPhase("shop")}>
+                        See the shopping
+                      </button>
+                    </div>
+                  </section>
+                ) : (
+                  <section className="mp-drawer mp-overview" aria-label="Customize">
+                    <h3>Switch it up</h3>
+                    <p className="mp-note">Pick a dinner on the left to change its protein, carb or side, the portion and the heat. Protein and the shopping follow at once.</p>
+                  </section>
+                )
+              ) : pick!.course === "lunch" ? (
+                <section className="mp-drawer" aria-label={`${DAY_NAME[slot.day]}'s lunch`}>
+                  <LunchPanel f={view} s={slot} edit={edit} key={`${w.start}-${slot.day}`} />
+                </section>
+              ) : step === "plan" ? (
+                <DinnerPlan f={view} s={slot} edit={edit} onCustomize={() => setPhase("customize")} key={`${w.start}-${slot.day}`} />
+              ) : (
+                <DinnerCustom f={view} s={slot} edit={edit} key={`${w.start}-${slot.day}`} />
+              )}
+            </div>
           </div>
-          <aside className="mp-rail">
-            <WeekShopping f={file} />
-            {rail}
-          </aside>
-        </div>
+        ) : step === "shop" ? (
+          <div className="mp-shopStep">
+            <div className="mp-main">
+              <WeekShopping f={view} open />
+              {w.confirmedAt ? null : (
+                <section className="mp-drawer mp-overview" aria-label="Finalize the week">
+                  <p className="mp-note">Finalize the week (above) to put its shopping on the Kitchen list, then match each item at King Soopers, swap any pick, and send it to the cart.</p>
+                </section>
+              )}
+            </div>
+            <div className="mp-railIn">{rail}</div>
+          </div>
+        ) : (
+          <CookList f={view} />
+        )}
 
         {over === "catalog" ? (
           <Over title="Meal catalog" onClose={() => setOver(null)}>
-            <Catalog f={file} day={day} edit={edit} />
+            <Catalog f={view} day={DAYS[pick?.i ?? (new Date().getDay() + 6) % 7]!} edit={edit} />
           </Over>
         ) : over === "taste" ? (
           <Over title="Taste profile" onClose={() => setOver(null)}>
-            <Taste f={file} edit={edit} />
+            <Taste f={view} edit={edit} />
           </Over>
         ) : null}
       </div>

@@ -25,11 +25,12 @@ export const LIVE_SETTINGS = {
 };
 
 /**
- * Settings the template doesn't list but may be dropped by a run: the throwaway refresh switch, set again after, and
+ * Settings the template doesn't list but may be dropped by a run: the throwaway refresh switches (KEYVAULT_REFRESH, and
+ * CONFIG_REFRESH, which an old paste left behind and no code reads), set again after when needed, and
  * Gemini's speech key and cap, retired when ElevenLabs became the only voice (#472; Visual QA keeps its own key as a
  * GitHub Actions secret), and Send to Instacart's key and environment, retired when King Soopers replaced it (#664).
  */
-export const DROPPABLE = ["KEYVAULT_REFRESH", "GEMINI_API_KEY", "GEMINI_BUDGET_USD", "INSTACART_API_KEY", "INSTACART_ENV"];
+export const DROPPABLE = ["KEYVAULT_REFRESH", "CONFIG_REFRESH", "GEMINI_API_KEY", "GEMINI_BUDGET_USD", "INSTACART_API_KEY", "INSTACART_ENV"];
 
 /** The custom home address (docs/DOMAIN.md); any other CEO_SITE_URL means the azurestaticapps.net one. */
 export const CUSTOM_HOME = "https://ceo.nikita.page";

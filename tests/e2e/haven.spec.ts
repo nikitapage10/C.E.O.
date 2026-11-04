@@ -119,7 +119,7 @@ for (const [label, size] of [
     const house = page.locator(".hv-house");
     await expect(house).not.toHaveAttribute("data-gl", "idle", { timeout: 20_000 });
     const gl = await house.getAttribute("data-gl");
-    if (gl === "on") await expect(house.locator("canvas")).toHaveCount(1);
+    if (gl === "on") await expect(house.locator("canvas.hv-gl")).toHaveCount(1);
     // The lit rooms come from the readings: the vacuum is running in the Hall and the dry food is low by the feeders.
     await expect(page.locator(".hv-sum")).toContainText("food low");
     await page.waitForTimeout(1200);

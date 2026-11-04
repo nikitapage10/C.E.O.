@@ -65,6 +65,7 @@ import {
   type PhotoCatalog,
   type PhotoEntry,
   type PhotoSource,
+  type PhotoStyle,
   type PhotoTicket,
 } from "./photoShape.js";
 
@@ -270,7 +271,7 @@ export interface Upload {
   id?: string;
   name: string;
   components: string[];
-  style: "plate" | "prep";
+  style: PhotoStyle;
   source: PhotoSource;
   bytes: Uint8Array;
 }

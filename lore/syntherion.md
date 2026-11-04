@@ -721,6 +721,15 @@ The **Stagehand**, a piece of Skippy who wears a headset and no costume, sets th
 cues, not speeches, and thinks the main rooms are a bit precious. The first pop-up was **Election night**, the 2026
 midterms read live from civicAPI's public results, with the races Nikita follows pinned to the top.
 
+## The Haven
+
+Another door off the Desk (#616), and the first that opens onto Nikita's own home: the **Haven**, a night house drawn
+in sigils and frosted glass, roof off, where only the rooms with something going on are lit. The vacuum's run, the
+cat's feeders and fountain, the Litter-Robot and the Kitchen list each glow in the room they live in; a quiet room
+stays dark, the way a house does at night. The **Steward**, a piece of Skippy who keeps house, runs it: he counts portions like a quartermaster, never feeds the cat past the cap however
+nicely he's asked, hums 2000s emo while the vacuum works, and calls the Litter-Robot "the Throne". The house's shape is
+Nikita's alone: it lives in the private store, drawn only for their passkey, and never in the Lattice's public light.
+
 ## The Hallowed Veil
 
 On the nights the C.E.O. calls it, the Veil between the Lattice and Ilyr runs thin, and the Break Room club

@@ -1,0 +1,743 @@
+/*
+ * The Haven (#616): a night house behind frosted glass. Its own type (Cormorant Garamond italic for display, Geist for
+ * the readings), lamplight gold for its accent, and glass cards over the blurred house when a room is open. Every rule
+ * is scoped to the room.
+ */
+[data-room="haven"] {
+  --hv-gold: 240, 201, 135;
+  --hv-ink: #fff8ec;
+  --hv-soft: #ecdfcb;
+  --hv-mute: #9a96a4;
+  --hv-faint: #6f6b78;
+  --hv-glass: rgba(22, 20, 26, 0.58);
+  --hv-glass2: rgba(255, 255, 255, 0.05);
+  --hv-line: rgba(255, 255, 255, 0.11);
+  --hv-warn: #ff9a6a;
+  --hv-ok: #86d4b4;
+  --hv-disp: "Cormorant Garamond", "Newsreader", Georgia, serif;
+  --hv-text: "Geist Variable", "Geist", system-ui, sans-serif;
+  font-family: var(--hv-text);
+  color: var(--hv-ink);
+  background: radial-gradient(80% 60% at 40% 30%, #12131a 0%, #07080b 70%);
+}
+
+/* ── the stage: the house, with the house-wide strip beside it ── */
+[data-room="haven"] .hv-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 0 24px;
+  min-height: max(620px, min(calc(100svh - 62px), 980px));
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+[data-room="haven"] .hv-houseWrap {
+  position: relative;
+  min-height: 560px;
+}
+[data-room="haven"] .hv-house {
+  position: absolute;
+  inset: 0;
+}
+[data-room="haven"] .hv-house .hv-gl {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: grab;
+}
+[data-room="haven"] .hv-labs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+[data-room="haven"] .hv-head {
+  position: relative;
+  z-index: 2;
+  max-width: 560px;
+  pointer-events: none;
+}
+[data-room="haven"] .hv-h1 {
+  margin: 0;
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(44px, 4.4vw, 72px);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+}
+[data-room="haven"] .hv-sum {
+  margin: 10px 0 0;
+  max-width: 46ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--hv-soft);
+  text-wrap: pretty;
+}
+[data-room="haven"] .hv-hint {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(9, 10, 14, 0.6);
+  font-size: 12px;
+  color: var(--hv-mute);
+  pointer-events: none;
+}
+[data-room="haven"] .hv-out {
+  position: absolute;
+  inset: 40% 0 auto;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  text-align: center;
+  color: var(--hv-soft);
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-size: 22px;
+}
+[data-room="haven"] .hv-out p {
+  margin: 0;
+}
+
+/* Room labels and device tags, placed over the canvas every frame. */
+[data-room="haven"] .hv-lab,
+[data-room="haven"] .hv-dev {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  white-space: nowrap;
+  text-align: center;
+}
+[data-room="haven"] .hv-lab b {
+  display: block;
+  font-family: var(--hv-text);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: rgba(236, 223, 203, 0.55);
+  text-shadow: 0 1px 6px #000;
+  transition: color 0.3s, font-size 0.3s;
+}
+[data-room="haven"] .hv-lab em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: rgb(var(--hv-gold));
+  text-shadow: 0 1px 6px #000;
+}
+[data-room="haven"] .hv-lab.is-lit b {
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-lab.is-needs em {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-lab.is-hover b {
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-dev i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8fd0ff;
+  box-shadow: 0 0 10px #8fd0ff;
+  vertical-align: middle;
+}
+[data-room="haven"] .hv-dev[data-kind="thermostat"] i {
+  background: rgb(var(--hv-gold));
+  box-shadow: 0 0 10px rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-dev span {
+  display: none;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(8, 9, 12, 0.82);
+  font-size: 11px;
+  color: var(--hv-ink);
+  vertical-align: middle;
+}
+[data-room="haven"] .hv-dev.has-tag span {
+  display: inline-block;
+}
+
+/* ── the house-wide strip: outside the map, not tied to one room ── */
+[data-room="haven"] .hv-util {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+[data-room="haven"] .hv-utilH {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hv-faint);
+}
+[data-room="haven"] .hv-u {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--hv-line);
+  border-radius: 14px;
+  background: var(--hv-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+[data-room="haven"] .hv-u.is-btn {
+  cursor: pointer;
+}
+[data-room="haven"] .hv-u.is-btn:hover:not(:disabled),
+[data-room="haven"] .hv-u.is-btn:focus-visible {
+  border-color: rgba(var(--hv-gold), 0.45);
+}
+[data-room="haven"] .hv-u:disabled {
+  cursor: default;
+}
+[data-room="haven"] .hv-uk {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-uv {
+  grid-row: span 2;
+  align-self: center;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 26px;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+[data-room="haven"] .hv-uv.is-wait,
+[data-room="haven"] .hv-uv.is-waiting {
+  font-style: italic;
+  font-size: 20px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-uv.is-live {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .hv-uv.is-down {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-un {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--hv-soft);
+  text-overflow: ellipsis;
+}
+
+/* ── the room tabs under the stage ── */
+[data-room="haven"] .hv-tabs,
+[data-room="haven"] .hv-sheetTabs {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 auto;
+  padding: 4px;
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: rgba(14, 13, 18, 0.7);
+  overflow-x: auto;
+}
+[data-room="haven"] .hv-tabs {
+  margin: 0 auto 32px;
+}
+[data-room="haven"] .hv-tab {
+  flex: none;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 14px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-tab[aria-pressed="true"] {
+  background: #f3dcae;
+  color: #1a140c;
+}
+
+/* ── a room open: the house blurs behind, the content comes forward ── */
+[data-room="haven"][data-open] .hv-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  padding: 0;
+  display: block;
+}
+/* The stage goes fixed and the page folds to nothing behind the sheet, so the Desk's footer steps aside meanwhile. */
+.desk:has([data-room="haven"][data-open]) .desk__foot {
+  visibility: hidden;
+}
+[data-room="haven"][data-open] .hv-houseWrap {
+  position: absolute;
+  inset: 0;
+}
+[data-room="haven"][data-open] .hv-house {
+  filter: blur(14px) brightness(0.62) saturate(1.1);
+  transform: scale(1.04);
+  transition: filter 0.3s ease, transform 0.3s ease;
+}
+[data-room="haven"][data-open] .hv-labs,
+[data-room="haven"][data-open] .hv-head,
+[data-room="haven"][data-open] .hv-util,
+[data-room="haven"][data-open] .hv-hint,
+[data-room="haven"][data-open] .hv-tabs,
+[data-room="haven"][data-open] .hv-out,
+[data-room="haven"][data-open] .fl-cv {
+  visibility: hidden;
+}
+[data-room="haven"] .hv-sheet {
+  position: fixed;
+  /* Below the Desk's nav, which stays reachable: its height is measured when a room opens (--hv-top). */
+  inset: var(--hv-top, 60px) 0 0;
+  z-index: 41;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: linear-gradient(180deg, rgba(6, 7, 10, 0.55), rgba(6, 7, 10, 0.72));
+  animation: hv-in 0.3s ease both;
+}
+@keyframes hv-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+[data-room="haven"] .hv-sheetIn {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 20px 24px 64px;
+}
+[data-room="haven"] .hv-sheetBar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+[data-room="haven"] .hv-sheetBar::after {
+  content: "";
+  width: 90px;
+}
+[data-room="haven"] .hv-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: rgba(14, 13, 18, 0.7);
+  color: var(--hv-ink);
+  font: 500 14px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-eyb {
+  margin: 40px 0 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-h2 {
+  margin: 4px 0 0;
+  text-align: center;
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(56px, 7vw, 96px);
+  line-height: 1;
+}
+[data-room="haven"] .hv-say {
+  margin: 14px auto 28px;
+  max-width: 52ch;
+  text-align: center;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-nums {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+[data-room="haven"] .hv-num {
+  padding: 16px 20px;
+  border: 1px solid var(--hv-line);
+  border-radius: 16px;
+  background: var(--hv-glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+[data-room="haven"] .hv-num b {
+  display: block;
+  font-family: var(--hv-disp);
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 1.05;
+  font-variant-numeric: lining-nums tabular-nums;
+  text-transform: capitalize;
+}
+[data-room="haven"] .hv-num small {
+  margin-left: 4px;
+  font-size: 18px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-num span {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-num.is-warn b {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-num.is-ok b {
+  color: var(--hv-ok);
+}
+[data-room="haven"] .hv-num.is-wait b {
+  color: var(--hv-faint);
+}
+[data-room="haven"] .hv-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+[data-room="haven"] .hv-card {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--hv-line);
+  border-radius: 20px;
+  background: var(--hv-glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+[data-room="haven"] .hv-card.is-wide {
+  grid-column: span 2;
+}
+[data-room="haven"] .hv-grid.is-three .hv-card {
+  grid-column: auto;
+}
+[data-room="haven"] .hv-card header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hv-line);
+}
+[data-room="haven"] .hv-card h3 {
+  margin: 0;
+  font-family: var(--hv-disp);
+  font-weight: 500;
+  font-size: 28px;
+}
+[data-room="haven"] .hv-tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-k {
+  margin: 14px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  font-size: 14px;
+}
+[data-room="haven"] .hv-row > b {
+  font-weight: 600;
+}
+[data-room="haven"] .hv-row > span:last-child {
+  margin-left: auto;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-row .hv-k {
+  margin: 0;
+  min-width: 52px;
+}
+[data-room="haven"] .hv-feed + .hv-feed {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .hv-note {
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-note.is-warn,
+[data-room="haven"] .hv-said {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-said {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-wait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  font-family: var(--hv-disp);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-wait i {
+  flex: none;
+  width: 22px;
+  border-top: 1px dashed rgba(var(--hv-gold), 0.6);
+}
+[data-room="haven"] .hv-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+[data-room="haven"] .hv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hv-ink);
+  font: 500 14px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-btns .hv-btn {
+  margin-top: 0;
+}
+[data-room="haven"] .hv-btn.is-pri {
+  width: 100%;
+  border-color: transparent;
+  background: #f3dcae;
+  color: #1a140c;
+  font-weight: 600;
+}
+[data-room="haven"] .hv-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+[data-room="haven"] .hv-btn:focus-visible,
+[data-room="haven"] .hv-tab:focus-visible,
+[data-room="haven"] .hv-back:focus-visible,
+[data-room="haven"] .hv-chip:focus-visible {
+  outline: 2px solid rgb(var(--hv-gold));
+  outline-offset: 2px;
+}
+[data-room="haven"] .hv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+[data-room="haven"] .hv-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--hv-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 13px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-chip[aria-pressed="true"] {
+  border-color: rgba(var(--hv-gold), 0.7);
+  background: rgba(var(--hv-gold), 0.16);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-list li {
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 15px;
+}
+[data-room="haven"] .hv-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-list input {
+  width: 18px;
+  height: 18px;
+  accent-color: #f3dcae;
+}
+[data-room="haven"] .hv-list .is-done {
+  color: var(--hv-faint);
+  text-decoration: line-through;
+}
+[data-room="haven"] .hv-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+[data-room="haven"] .hv-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #9fd6ff;
+}
+[data-room="haven"] .hv-bar.is-warn i {
+  background: var(--hv-warn);
+}
+[data-room="haven"] .hv-water {
+  position: relative;
+  height: 110px;
+  border: 1px solid var(--hv-line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+[data-room="haven"] .hv-water::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--lvl, 0%);
+  background: linear-gradient(180deg, rgba(110, 170, 220, 0.55), rgba(40, 80, 130, 0.5));
+}
+[data-room="haven"] .hv-water b {
+  position: absolute;
+  left: 16px;
+  top: 10px;
+  font-family: var(--hv-disp);
+  font-weight: 400;
+  font-size: 34px;
+}
+[data-room="haven"] .hv-import {
+  max-width: 460px;
+  width: 100%;
+  font-family: var(--hv-text);
+  font-style: normal;
+  font-size: 14px;
+  text-align: left;
+  pointer-events: auto;
+}
+[data-room="haven"] .hv-import summary {
+  cursor: pointer;
+  text-align: center;
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-import textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--hv-line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--hv-ink);
+  font: 12px "Geist Mono Variable", ui-monospace, monospace;
+}
+
+@media (max-width: 860px) {
+  [data-room="haven"] .hv-stage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  [data-room="haven"] .hv-houseWrap {
+    min-height: min(78svh, 620px);
+  }
+  [data-room="haven"] .hv-util {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  [data-room="haven"] .hv-utilH {
+    grid-column: 1 / -1;
+  }
+  [data-room="haven"] .hv-nums {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  [data-room="haven"] .hv-grid,
+  [data-room="haven"] .hv-grid.is-three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .hv-card.is-wide {
+    grid-column: auto;
+  }
+  [data-room="haven"] .hv-sheetIn {
+    padding: 14px 16px 48px;
+  }
+  [data-room="haven"] .hv-sheetBar {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+  [data-room="haven"] .hv-sheetBar::after {
+    display: none;
+  }
+  [data-room="haven"] .hv-sheetTabs {
+    width: 100%;
+    justify-content: space-between;
+  }
+  [data-room="haven"] .hv-eyb {
+    margin-top: 24px;
+  }
+  [data-room="haven"] .hv-num b {
+    font-size: 34px;
+  }
+  [data-room="haven"] .hv-lab.is-lit b {
+    font-size: 17px;
+  }
+}
+@media (max-width: 440px) {
+  [data-room="haven"] .hv-util {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-room="haven"] .hv-tab {
+    padding: 8px 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .hv-sheet {
+    animation: none;
+  }
+  [data-room="haven"][data-open] .hv-house {
+    transition: none;
+  }
+}

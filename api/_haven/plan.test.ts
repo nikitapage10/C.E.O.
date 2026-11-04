@@ -1,0 +1,107 @@
+import { describe, expect, it } from "vitest";
+import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
+import { MemoryAuthStore } from "../_desk/store.ts";
+import { signedInCookie } from "../_desk/testing.ts";
+import { FAKE_PLAN } from "./plan.fixture.ts";
+import { PLAN_BODY_MAX, PLAN_PATH, planGet, planPost, readPlan, type PlanDeps } from "./plan.ts";
+
+/** The Haven's floor plan (#616): the shape it takes, and the passkey-only store. The plan here is made up. */
+
+const DESK = "a test desk key, not a real one";
+const ORIGIN = "https://ceo.test";
+const NOW = Date.parse("2026-11-04T18:00:00Z");
+
+function memoryBlob(): BlobBackend & { files: Map<string, Uint8Array> } {
+  const files = new Map<string, Uint8Array>();
+  return {
+    kind: "azureblob",
+    files,
+    get: async (path) => (files.has(path) ? { stream: new Response(files.get(path)!.slice()).body!, etag: "1", contentType: "application/json" } : null),
+    etag: async (path) => (files.has(path) ? "1" : null),
+    put: async (path, body, opts) => {
+      if (opts.ifMatch) throw new BlobPreconditionError("unused");
+      files.set(path, typeof body === "string" ? new TextEncoder().encode(body) : body instanceof Uint8Array ? body : new Uint8Array(body));
+      return { pathname: path };
+    },
+    del: async (path) => void files.delete(path),
+  };
+}
+
+function deps(blob = memoryBlob(), store = new MemoryAuthStore()): PlanDeps & { lines: string[]; blob: ReturnType<typeof memoryBlob>; store: MemoryAuthStore } {
+  const lines: string[] = [];
+  return { desk: { deskKey: DESK, store, now: NOW }, blob, log: (l) => lines.push(l), lines, store };
+}
+
+const post = (body: unknown, cookie = "") =>
+  new Request(`${ORIGIN}/api/haven-plan`, { method: "POST", headers: { "Content-Type": "application/json", ...(cookie && { Cookie: cookie }) }, body: typeof body === "string" ? body : JSON.stringify(body) });
+
+describe("readPlan", () => {
+  it("keeps a good plan as it is", () => {
+    expect(readPlan(JSON.parse(JSON.stringify(FAKE_PLAN)))).toEqual(FAKE_PLAN);
+  });
+
+  it("refuses anything that isn't a plan", () => {
+    for (const v of [null, 1, "plan", [], {}, { v: 2, w: 100, h: 100, rooms: [] }, { ...FAKE_PLAN, rooms: [] }]) expect(readPlan(v)).toBeNull();
+  });
+
+  it("strips markup from names, drops bad ids, clamps numbers and closes the sets", () => {
+    const got = readPlan({
+      ...FAKE_PLAN,
+      rooms: [
+        { id: "ok", name: '<img src=x onerror="1">Den', parts: [[0, 0, 9e9, 50]], floor: "lava", tab: "attic" },
+        { id: "Bad ID", name: "x", parts: [[0, 0, 10, 10]] },
+        { id: "ok", name: "twice", parts: [[0, 0, 10, 10]] },
+        { id: "noparts", name: "x", parts: [[0, 0, -1, 4]] },
+      ],
+      items: [{ k: "rocket", x: 1, y: 2, w: 3 }, { k: "sofa", x: "1" }],
+      devices: [{ kind: "camera", x: 1, y: 1 }, { kind: "thermostat", x: 5, y: 5, lights: "nowhere" }],
+      doors: [[0, 0, 10, 10], [0, 0, 10, 0]],
+    });
+    expect(got?.rooms).toEqual([{ id: "ok", name: "img src=x onerror=1Den", parts: [[0, 0, 5000, 50]], floor: "wood", tab: null, vacuum: null, detached: false }]);
+    expect(got?.items).toEqual([{ k: "box", x: 1, y: 2, w: 3, h: 3, round: false }]);
+    expect(got?.devices).toEqual([{ kind: "thermostat", x: 5, y: 5, lift: 0, lights: null }]);
+    expect(got?.doors).toEqual([[0, 0, 10, 0]]);
+  });
+
+  it("caps the lists", () => {
+    const many = Array.from({ length: 900 }, (_, i) => ({ k: "box", x: i, y: i, w: 5, h: 5 }));
+    expect(readPlan({ ...FAKE_PLAN, items: many })?.items).toHaveLength(400);
+  });
+});
+
+describe("/api/haven-plan", () => {
+  it("answers nobody without a passkey session", async () => {
+    const d = deps();
+    expect((await planGet(new Request(`${ORIGIN}/api/haven-plan`), d)).status).toBe(401);
+    expect((await planPost(post({ action: "save", plan: FAKE_PLAN }), d)).status).toBe(401);
+    expect(d.blob.files.size).toBe(0);
+  });
+
+  it("is null until a plan is saved, then serves it back, and forgets it on clear", async () => {
+    const d = deps();
+    const cookie = await signedInCookie(DESK, NOW, d.store);
+    const read = async () => (await (await planGet(new Request(`${ORIGIN}/api/haven-plan`, { headers: { Cookie: cookie } }), d)).json()) as { plan: unknown };
+    expect((await read()).plan).toBeNull();
+    const saved = await planPost(post({ action: "save", plan: FAKE_PLAN }, cookie), d);
+    expect(saved.status).toBe(200);
+    expect(d.blob.files.has(PLAN_PATH)).toBe(true);
+    expect((await read()).plan).toEqual(FAKE_PLAN);
+    // The log line holds counts, never a room's name.
+    expect(d.lines.join("\n")).not.toMatch(/Kitchen|Hall|Gym/);
+    expect((await planPost(post({ action: "clear" }, cookie), d)).status).toBe(200);
+    expect((await read()).plan).toBeNull();
+  });
+
+  it("refuses a bad plan, a bad action, a non-JSON body and an outsized one", async () => {
+    const d = deps();
+    const cookie = await signedInCookie(DESK, NOW, d.store);
+    expect((await planPost(post({ action: "save", plan: { v: 1 } }, cookie), d)).status).toBe(400);
+    expect((await planPost(post({ action: "drop" }, cookie), d)).status).toBe(400);
+    expect((await planPost(post("{nope", cookie), d)).status).toBe(400);
+    const big = new Request(`${ORIGIN}/api/haven-plan`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify({ action: "save", pad: "x".repeat(PLAN_BODY_MAX) }) });
+    expect((await planPost(big, d)).status).toBe(413);
+    const form = new Request(`${ORIGIN}/api/haven-plan`, { method: "POST", headers: { "Content-Type": "text/plain", Cookie: cookie }, body: "{}" });
+    expect((await planPost(form, d)).status).toBe(415);
+    expect(d.blob.files.size).toBe(0);
+  });
+});

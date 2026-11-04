@@ -63,7 +63,7 @@ function havenDeps(blob: BlobBackend, over: Partial<HavenDeps> = {}, store = new
 }
 
 const post = (key: string | null, body: unknown, extra: Record<string, string> = {}) =>
-  new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { "Content-Type": "application/json", ...(key !== null && { Authorization: `Bearer ${key}` }), ...extra }, body: typeof body === "string" ? body : JSON.stringify(body) });
+  new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { "Content-Type": "application/json", ...(key !== null && { "x-ceo-phone-key": key }), ...extra }, body: typeof body === "string" ? body : JSON.stringify(body) });
 
 async function withPhone() {
   const blob = memoryBlob();
@@ -93,7 +93,9 @@ describe("phone keys (#627)", () => {
       expect(res.status, String(k)).toBe(401);
       expect(await res.json()).toEqual({ error: "unauthorized" });
     }
-    // Basic auth or the key in the body doesn't count either.
+    // A bearer works too (the Function App's own address; the Static Web App replaces Authorization on the site's).
+    expect((await capture(new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: JSON.stringify({ text: "add salt" }) }), deps)).status).toBe(200);
+    // Basic auth or the key in the body doesn't count.
     expect((await capture(new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { Authorization: `Basic ${key}` }, body: JSON.stringify({ text: "milk and eggs", key }) }), deps)).status).toBe(401);
     expect((await capture(post(key, { text: "garlic and lemons" }), deps)).status).toBe(200);
     expect(await phones.revoke(phone.id, NOW)).toBe(true);
@@ -101,7 +103,7 @@ describe("phone keys (#627)", () => {
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "unauthorized" });
     // Nothing was added by a refused capture.
-    expect((await new KitchenList(blob).items(NOW)).map((i) => i.name)).toEqual(["garlic", "lemons"]);
+    expect((await new KitchenList(blob).items(NOW)).map((i) => i.name)).toEqual(["salt", "garlic", "lemons"]);
   });
 
   it("marks a key used, and the Desk sees label and times only", async () => {
@@ -287,6 +289,8 @@ describe("the site gate lets the phone through only with a key-shaped bearer or 
   it("passes POST /api/capture with a phone-shaped key, and nothing else there", () => {
     const key = `skp_${"b".repeat(43)}`;
     expect(allow(new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { Authorization: `Bearer ${key}` } }))).toBe(true);
+    expect(allow(new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { "x-ceo-phone-key": key } }))).toBe(true);
+    expect(allow(new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { "x-ceo-phone-key": "short" } }))).toBe(false);
     expect(allow(new Request(`${ORIGIN}/api/capture`, { method: "POST" }))).toBe(false);
     expect(allow(new Request(`${ORIGIN}/api/capture`, { method: "POST", headers: { Authorization: "Bearer short" } }))).toBe(false);
     expect(allow(new Request(`${ORIGIN}/api/capture?x=1`, { method: "POST", headers: { Authorization: `Bearer ${key}` } }))).toBe(false);

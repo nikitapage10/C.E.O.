@@ -2,7 +2,8 @@
  * Hey Skippy from the iPhone (#627, docs/HEY-SKIPPY.md). Azure only: azure/src/index.ts registers these behind the
  * same site gate as every function.
  *
- *   POST /api/capture  { text, voice? } with `Authorization: Bearer <phone key>` (api/_haven/phones.ts). The iPhone's
+ *   POST /api/capture  { text, voice? } with `x-ceo-phone-key: <phone key>` (or `Authorization: Bearer <phone key>` on
+ *                      the Function App's own address: the Static Web App replaces Authorization; api/_haven/phones.ts). The iPhone's
  *                      "Skippy" shortcut dictates, posts the words here and speaks back `say`.
  *                        - a missing, malformed, unknown or revoked key: 401 { error: "unauthorized" }, nothing more;
  *                        - past the key's 30 an hour: 429 { say } with Retry-After;
@@ -41,6 +42,7 @@ import { PhoneConvo, type ConvoTurn } from "./convo.js";
 import { privateParts } from "../_privacy.js";
 import { KitchenList } from "./list.js";
 import { PhoneKeys, KEY_SHAPE } from "./phones.js";
+import { phoneKeyOf } from "./links.js";
 import { PhoneTodos, type TodoSink } from "./todos.js";
 
 type Env = Record<string, string | undefined>;
@@ -82,13 +84,8 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "private, no-store", ...headers } });
 }
 
-const unauthorized = () => json({ error: "unauthorized" }, 401, { "WWW-Authenticate": "Bearer" });
+const unauthorized = () => json({ error: "unauthorized" }, 401);
 
-/** The bearer token from the header, or null. */
-function bearer(request: Request): string | null {
-  const auth = request.headers.get("authorization") ?? "";
-  return auth.startsWith("Bearer ") ? auth.slice(7).trim() : null;
-}
 
 /** What Skippy says when his chat couldn't answer from the phone. */
 const SKIPPY_SAYS: Record<NonNullable<PhoneTurn["error"]>, string> = {
@@ -101,7 +98,7 @@ const SKIPPY_SAYS: Record<NonNullable<PhoneTurn["error"]>, string> = {
 
 /** POST /api/capture. */
 export async function capture(request: Request, deps: HavenDeps): Promise<Response> {
-  const key = bearer(request);
+  const key = phoneKeyOf(request);
   if (!key || !KEY_SHAPE.test(key)) return unauthorized();
   if (!deps.blob || !deps.desk.deskKey) return unauthorized();
   const phones = new PhoneKeys(deps.blob, await deps.pepper());

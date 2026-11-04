@@ -254,9 +254,11 @@ Since #627 the iPhone's Action Button runs a "Skippy" shortcut that posts what N
   scrypt-stretched and split by purpose: no new secret), with the phone's label, when it was added, when it was last
   used and, once revoked, when. **Revoke** stops a key at once; changing `foundry-desk-key` in the vault revokes every
   phone. At most five live phones. Keys are never logged, written to an issue or kept in a file.
-- **The endpoint.** `Authorization: Bearer <key>` only. A missing, malformed, unknown or revoked key gets `401
-  { error: "unauthorized" }` and nothing else (the same answer for each). The site gate lets a key-shaped bearer
-  through to the handler, which checks it against every stored hash in constant time. Each key is paced at 30
+- **The endpoint.** The key in its own header, `x-ceo-phone-key` (the Static Web App replaces `Authorization` on its
+  way to the Function App, so `Authorization: Bearer <key>` works only on the Function App's own address). A missing,
+  malformed, unknown or revoked key gets `401 { error: "unauthorized" }` and nothing else (the same answer for each).
+  The site gate lets a key-shaped key through to the handler, which checks it against every stored hash in constant
+  time. Each key is paced at 30
   captures an hour (429 with `Retry-After`); text is capped at 300 characters and the body at 4 KB.
 - **What it does.** Rules sort the words first, with no model call (`api/_haven/classify.ts`): shopping items go on
   the private Kitchen list (`haven/kitchen.json`, deduped case-insensitively against open items), a reminder into the

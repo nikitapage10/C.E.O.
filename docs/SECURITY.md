@@ -264,7 +264,7 @@ Since #627 the iPhone's Action Button runs a "Skippy" shortcut that posts what N
   time. Each key is paced at 30
   captures an hour (429 with `Retry-After`); text is capped at 300 characters and the body at 4 KB.
 - **What it does.** Rules sort the words first, with no model call (`api/_haven/classify.ts`): shopping items go on
-  the private Kitchen list (`haven/kitchen.json`, deduped case-insensitively against open items), a reminder into the
+  the private Kitchen list (`haven/kitchen.json`, deduped case-insensitively against open items; or the Things to buy list, `haven/lists/buy.json`, #735, with the same rules), a reminder into the
   phone to-dos (Today's own store, `desk/today/todos.json`). Anything else is a turn of Desk Skippy's own
   chat (`phoneAnswer` in `api/skippy.ts`): the same privacy check before Claude, the same prompt (plus a short rule to
   answer in one or two spoken sentences), the same model router, monthly share (`SKIPPY_BUDGET_USD`) and pace, the room

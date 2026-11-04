@@ -12,7 +12,7 @@ export const TOOLS: readonly RoomTool[] = [
     name: "kitchen_add",
     room: "haven",
     title: "Add to the Kitchen list",
-    description: "Put groceries or household things on the Kitchen list, one item per entry, in plain words (\"garlic\", \"oat milk\").",
+    description: "Put groceries and kitchen things on the Kitchen list, one item per entry, in plain words (\"garlic\", \"oat milk\", \"dish soap\"). Anything that isn't groceries, or that he says is for Amazon, goes on buy_add instead.",
     input: { type: "object", properties: { items: { type: "array", items: { type: "string", maxLength: 60 }, maxItems: 12 } }, required: ["items"], additionalProperties: false },
     effect: "write",
   },

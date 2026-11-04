@@ -24,6 +24,12 @@
  * and "add garlic to my grocery list", "as an item for my groceries" or "not as a task" is always shopping. Right
  * after a to-do, a bare "not as a task, on the list" moves that to-do onto the Kitchen list (`fromLastTodo`).
  *
+ * Things to buy (#735): shopping that names the Amazon list or the things-to-buy list ("add a phone charger to my
+ * Amazon list", "put batteries on things to buy", "I need to buy a phone charger"), or whose every item is plainly not
+ * groceries ("buy a phone charger", "we need light bulbs"), carries `list: "buy"` and goes on the Things to buy list
+ * (api/_haven/list.ts, `LISTS`). Anything in doubt stays groceries: "add salt", "we need batteries and milk", "I need to
+ * buy eggs" all go on the Kitchen list, and a grocery word ("grocery list", "kitchen list") always wins.
+ *
  * And `sayAdded` / `sayTodo`: the short line the shortcut speaks back.
  *
  * Underscore folder: Vercel never serves it as a function.
@@ -32,8 +38,8 @@
 import { whenLabel } from "../_today/parse.js";
 
 export type Capture =
-  | { kind: "shopping"; items: string[]; fromLastTodo?: boolean }
-  | { kind: "remove"; items: string[] }
+  | { kind: "shopping"; items: string[]; fromLastTodo?: boolean; list?: "buy" }
+  | { kind: "remove"; items: string[]; list?: "buy" }
   | { kind: "workout"; session?: string }
   | { kind: "todo"; text: string }
   | { kind: "device"; action: DeviceAction; rooms?: string[]; portions?: number; plate?: number; suction?: "quiet" | "max"; water?: "off" | "on" }
@@ -177,6 +183,63 @@ export function deviceAsk(text: string): Extract<Capture, { kind: "device" }> | 
   return null;
 }
 
+/* ── Things to buy (#735) ── */
+
+/** The things-to-buy list's names: "my Amazon list", "the Amazon cart", "things to buy", "my to-buy list". */
+const BUY_NAME = "(?:amazon(?: shopping)?(?: list| cart| wish ?list)?|(?:list of )?(?:things|stuff|items) (?:to buy|to order|(?:that )?i need(?: to buy)?|to get online)(?: list)?|(?:to-?buy|buy|buying|things-to-buy|online shopping|amazon shopping) list)";
+/** "… to my Amazon list", "… on things to buy", "… from Amazon" at the end. */
+const BUY_TAIL = new RegExp(`\\s+(?:to|on|onto|in|into|for|from|off|of|at)\\s+(?:the |my |our )?${BUY_NAME}$`, "i");
+/** "add a charger to the Amazon list" style: the verb in front, dropped. */
+const BUY_VERB = /^(?:please\s+)?(?:add|put|stick|buy|get|grab|order|i need|we need|need|i want|pick up)\s+/i;
+/** "I need to buy a phone charger", "we have to order batteries", "gotta buy a lamp". */
+const NEED_TO_BUY = /^(?:(?:i|we)\s+)?(?:really\s+)?(?:need|have|got|gotta|'?ve got|should|must|want)\s+(?:to\s+)?(?:buy|order)\s+(.+)$/i;
+/** Says groceries, so the Kitchen list wins whatever else is said. */
+const GROCERY_WORDS = /\b(?:grocery|groceries|kitchen list|shopping list|king soopers)\b/i;
+
+/** Plainly not groceries: things bought online or at a hardware store. Conservative: "dish soap" stays groceries. */
+const NON_FOOD =
+  /\b(?:chargers?|charging (?:cable|pad|stand)|cables?|cords?|adapters?|batter(?:y|ies)|light ?bulbs?|bulbs?|headphones|earbuds|airpods|phone case|laptop (?:case|sleeve|stand)|screen protector|hdmi|usb|keyboard|mouse pad|monitor|webcam|router|speakers?|power strip|surge protector|lamp|shel(?:f|ves)|bookshelf|hangers?|pillows?|pillowcases?|duvet|blanket|bed ?sheets|bath towels?|bath mat|rug|curtains?|picture frames?|books?|notebooks?|pens|pencils?|markers?|printer paper|printer ink|ink cartridges?|toner|packing tape|duct tape|glue|screws?|nails|drill(?: bits?)?|hammer|screwdriver|tool ?kit|socks|shoes|sneakers|t-?shirts?|hoodie|jacket|backpack|suitcase|wallet|umbrella|water bottle|yoga mat|dumbbells?|resistance bands?|kettlebell|toothbrush heads?|razor blades?|air filter|smoke detector|fire extinguisher|plant pot|planter|vacuum bags?|litter mat|cat (?:toys?|tree|bed|carrier|brush)|scratching post|gift wrap|wrapping paper|candles?|storage (?:bins?|boxes))\b/i;
+/** Food and kitchen staples: with these said, "I need to buy …" is still groceries. */
+const FOOD =
+  /\b(?:food|milk|eggs?|bread|butter|cheese|yogh?urt|cream|coffee|tea|juice|soda|beer|wine|fruit|apples?|bananas?|oranges?|lemons?|limes?|berries|strawberries|blueberries|grapes|avocados?|tomato(?:es)?|potato(?:es)?|onions?|garlic|carrots?|lettuce|spinach|kale|broccoli|peppers?|cucumbers?|celery|mushrooms?|herbs?|basil|cilantro|parsley|rice|pasta|noodles|quinoa|oats|oatmeal|cereal|flour|sugar|salt|spices?|cumin|olive oil|vinegar|sauce|salsa|ketchup|mustard|mayo|honey|jam|peanut butter|nuts|almonds|chicken|beef|pork|turkey|bacon|sausages?|ham|fish|salmon|tuna|shrimp|tofu|beans|lentils|chickpeas|soup|broth|snacks?|chips|crackers|cookies|chocolate|ice cream|frozen|protein|meat|veg(?:gies|etables)?|produce|tortillas?|bagels?|muffins?|cake|pizza|dish soap|paper towels|toilet paper)\b/i;
+
+/** Whether an item is plainly not groceries. */
+export const nonFood = (item: string): boolean => NON_FOOD.test(item) && !FOOD.test(item);
+
+/** The list shopping goes on: Things to buy only when every item is plainly not groceries, otherwise the Kitchen list. */
+export function listFor(items: string[], text = ""): "buy" | undefined {
+  if (GROCERY_WORDS.test(text)) return undefined;
+  return items.length && items.every(nonFood) ? "buy" : undefined;
+}
+
+/** Shopping, with `list: "buy"` when it belongs on Things to buy. */
+const shopping = (items: string[], list?: "buy"): Extract<Capture, { kind: "shopping" }> => ({ kind: "shopping", items, ...(list && { list }) });
+
+/** Shopping for the Things to buy list said in so many words, or null. Never calls anything. */
+export function buyAsk(text: string): Extract<Capture, { kind: "shopping" }> | null {
+  if (GROCERY_WORDS.test(text)) return null;
+  const ok = (items: string[]) => items.length > 0 && items.length <= ITEMS_MAX && items.every(looksLikeItem);
+  // "add a phone charger to my Amazon list", "batteries on things to buy", "order a lamp from Amazon".
+  const tail = BUY_TAIL.exec(text);
+  if (tail) {
+    const items = itemsOf(text.slice(0, tail.index).replace(BUY_VERB, ""));
+    if (ok(items)) return shopping(items, "buy");
+  }
+  // "I need to buy a phone charger": Things to buy, unless it's food ("I need to buy eggs" is groceries).
+  const need = NEED_TO_BUY.exec(text);
+  if (need?.[1]) {
+    const items = itemsOf(need[1].replace(/\s+(?:today|tonight|tomorrow|this week|soon|online)$/i, ""));
+    if (ok(items)) return shopping(items, items.some((i) => FOOD.test(i)) ? undefined : "buy");
+  }
+  return null;
+}
+
+/** "remove the charger from my Amazon list": the buy list's name taken off, and which list it was. */
+function buyRemoval(text: string): { text: string; list?: "buy" } {
+  const tail = BUY_TAIL.exec(text);
+  return tail && !GROCERY_WORDS.test(text) ? { text: text.slice(0, tail.index), list: "buy" } : { text };
+}
+
 /* ── Taking things off the Kitchen list (#657) ── */
 
 const ON_LIST = "(?:on |from |off |in |of )?(?:the |my |our )?(?:kitchen |shopping |grocery |groceries )?(?:list|groceries)";
@@ -187,12 +250,14 @@ const REMOVE_B = new RegExp(`^(?:take|cross|scratch|strike|knock|get)\\s+(.+?)\\
 
 /** Items to take off the Kitchen list, or null when the words aren't that. */
 export function removeAsk(text: string): Extract<Capture, { kind: "remove" }> | null {
-  const t = text.replace(/^(?:please\s+|can you\s+|could you\s+)/i, "").trim();
-  const m = REMOVE_B.exec(t) ?? REMOVE_A.exec(t);
+  // "… from my Amazon list" (#735): that list, with its name taken off first.
+  const { text: rest, list } = buyRemoval(text.replace(/^(?:please\s+|can you\s+|could you\s+)/i, "").trim());
+  const t = rest.trim();
+  const m = REMOVE_B.exec(t) ?? REMOVE_A.exec(t) ?? (list ? /^(?:take|cross|scratch|strike|knock|get)\s+(.+?)(?:\s+off)?$/i.exec(t) : null);
   if (!m?.[1]) return null;
   const items = itemsOf(m[1].replace(/\s+(?:please|now)$/i, ""));
   if (!items.length || items.length > ITEMS_MAX || !items.every(looksLikeItem)) return null;
-  return { kind: "remove", items };
+  return { kind: "remove", items, ...(list && { list }) };
 }
 
 /**
@@ -240,12 +305,15 @@ export function workoutAsk(raw: string, text: string): Extract<Capture, { kind: 
 export function classify(raw: string, last: Capture["kind"] | null = null): Capture {
   const text = uncorrected(tidy(raw));
   if (!text) return { kind: "skippy", text };
+  // The Things to buy list said in so many words (#735), before "I need to…" reads as a to-do. Never "remove …".
+  const buy = /^(?:remove|delete|cross|scratch|strike|take|get rid of|drop|clear|knock)\b/i.test(text) ? null : buyAsk(text);
+  if (buy) return buy;
   // A correction that clearly says "on the list" (#641) is shopping, whatever else it says.
   const fixed = listCorrection(text, last);
-  if (fixed) return fixed;
+  if (fixed) return fixed.fromLastTodo ? fixed : shopping(fixed.items, listFor(fixed.items, text));
   if (last === "shopping" && (FOLLOW_START.test(text) || FOLLOW_END.test(text))) {
     const items = itemsOf(text.replace(FOLLOW_START, "").replace(FOLLOW_END, ""));
-    if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return { kind: "shopping", items };
+    if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return shopping(items, listFor(items));
   }
   // Taking things off the list comes before everything else ("get rid of …" would read as a buy).
   const gone = removeAsk(text);
@@ -268,13 +336,13 @@ export function classify(raw: string, last: Capture["kind"] | null = null): Capt
   if (shop || LIST_TAIL.test(text)) {
     const rest = text.slice(shop ? shop[0].length : 0).replace(LIST_TAIL, "").trim();
     const items = itemsOf(rest);
-    if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return { kind: "shopping", items };
+    if (items.length && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return shopping(items, listFor(items, text));
   }
   if (TIME.test(text) && !NOT_A_LIST.test(text)) return { kind: "todo", text: todoText(text) };
   // A bare list of two or more nouns, nothing else ("garlic and lemons").
   if (!NOT_A_LIST.test(text)) {
     const items = itemsOf(text);
-    if (items.length >= 2 && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return { kind: "shopping", items };
+    if (items.length >= 2 && items.length <= ITEMS_MAX && items.every(looksLikeItem)) return shopping(items, listFor(items));
   }
   return { kind: "skippy", text };
 }
@@ -287,20 +355,25 @@ export function joinNames(names: string[]): string {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** What the shortcut says after adding to the Kitchen list. Short and spoken. */
-export function sayAdded(added: string[], already: string[]): string {
+/** How a list is said: the Kitchen list is "the list" (as it always was), Things to buy by name (#735). */
+export const listWords = (list?: "buy"): string => (list === "buy" ? "Things to buy" : "the list");
+
+/** What the shortcut says after adding to a list (the Kitchen list unless `list` says otherwise). Short and spoken. */
+export function sayAdded(added: string[], already: string[], list?: "buy"): string {
+  const where = listWords(list);
   if (!added.length && !already.length) return "I didn't catch anything to add.";
-  if (!added.length) return `${cap(joinNames(already))} ${already.length === 1 ? "is" : "are"} already on the list.`;
-  const first = `Added ${joinNames(added)} to the list.`;
+  if (!added.length) return `${cap(joinNames(already))} ${already.length === 1 ? "is" : "are"} already on ${where}.`;
+  const first = `Added ${joinNames(added)} to ${where}.`;
   if (!already.length) return first;
   return `${first} ${cap(joinNames(already))} ${already.length === 1 ? "was" : "were"} already on it.`;
 }
 
 /** What the shortcut says after taking items off the list (#657). Quiet only when everything asked for went. */
-export function sayRemoved(r: { removed: string[]; missing: string[]; ambiguous: Array<{ said: string; could: string[] }> }): string {
+export function sayRemoved(r: { removed: string[]; missing: string[]; ambiguous: Array<{ said: string; could: string[] }> }, list?: "buy"): string {
+  const where = listWords(list);
   const parts: string[] = [];
-  if (r.removed.length) parts.push(`Took ${joinNames(r.removed)} off the list.`);
-  if (r.missing.length) parts.push(`I couldn't find ${joinNames(r.missing)} on the list.`);
+  if (r.removed.length) parts.push(`Took ${joinNames(r.removed)} off ${where}.`);
+  if (r.missing.length) parts.push(`I couldn't find ${joinNames(r.missing)} on ${where}.`);
   for (const a of r.ambiguous) parts.push(`Which ${a.said}: ${joinNames(a.could.slice(0, 4))}?`);
   return parts.join(" ") || "I didn't catch what to take off.";
 }

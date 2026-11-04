@@ -53,3 +53,5 @@ export function onWrote(fn: (w: Wrote) => void): () => void {
 export const touchesMeals = (w: Wrote): boolean => w.tools.some((t) => t.startsWith("meals_"));
 /** Whether any of them changed the Kitchen list. */
 export const touchesList = (w: Wrote): boolean => w.tools.some((t) => t === "kitchen_add" || t === "meals_send" || t === "meals_cart");
+/** Whether any of them changed one of the lists (#735): the Kitchen list or Things to buy. */
+export const touchesLists = (w: Wrote): boolean => touchesList(w) || w.tools.includes("buy_add");

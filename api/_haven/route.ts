@@ -9,7 +9,7 @@
  *                        - past the key's 30 an hour: 429 { say } with Retry-After;
  *                        - text over 300 characters: 400 { say };
  *                        - otherwise 200 { say, quiet, audio? }: rules sort the words first (api/_haven/classify.ts):
- *                          shopping items go on the Kitchen list (api/_haven/list.ts), a home-device ask ("feed the
+ *                          shopping items go on the Kitchen list (api/_haven/list.ts), or on Things to buy when the words say so (#735), a home-device ask ("feed the
  *                          cat", "clean the kitchen", "clean the litter box") through api/_haven/devices/home.ts and
  *                          its rails (#632), a to-do into the to-dos
  *                          (api/_haven/todos.ts, into Today's store), and anything else to Desk Skippy's own chat (`phoneAnswer` in
@@ -25,6 +25,10 @@
  *   GET  /api/haven?view=status          the counts only (the Kitchen list's open and ticked items, open phone to-dos,
  *                                        the meal planner's nights, #678).
  *   GET  /api/haven?view=list            passkey session: the Kitchen list's items.
+ *   GET  /api/haven?view=lists           passkey session: every list (#735, `LISTS`: Groceries, Things to buy) with
+ *                                        its items. The status view carries each list's counts only.
+ *   POST /api/haven { action: "list-add", list, text }   passkey session: the Desk's quick add onto a list.
+ *   POST /api/haven { action: "clear-done", list }       passkey session: clear a list's ticked items.
  *   GET  /api/haven?view=gym             passkey session: the Gym's plan, this week's log and the last weeks' counts
  *                                        (#660, api/_haven/gym.ts). The status view carries its counts only.
  *   POST /api/haven { action: "gym-log", session? }      passkey session: log a session done now (the named letter,
@@ -34,7 +38,8 @@
  *                                                        put-session, remove-session, reset).
  *   GET  /api/haven?view=phones          passkey session: the phones (label, added, last used, revoked) and the
  *                                        greeting clips' state. Never a key or a hash.
- *   POST /api/haven { action: "tick", id, done }         passkey session: tick an item off, or back on.
+ *   POST /api/haven { action: "tick", id, done }         passkey session: tick an item off, or back on. Each list
+ *                                                        action takes `list` ("kitchen" when left out, or "buy").
  *   POST /api/haven { action: "remove", id }            passkey session: take an item off the list (hidden at once, kept
  *                                                        ten minutes, #657). 404 when there is no such item.
  *   POST /api/haven { action: "undo-remove", id }        passkey session: bring a removed item back. 404 when it is gone.
@@ -58,7 +63,7 @@ import { GYM_BODY_MAX, gymCounts, gymView, editGymPlan, logGymSession, readGymEd
 import { classify, itemsOf, sayAdded, sayRemoved, sayTodo, spokenOf } from "./classify.js";
 import { PhoneConvo, type ConvoTurn } from "./convo.js";
 import { privateParts } from "../_privacy.js";
-import { KitchenList } from "./list.js";
+import { allLists, isListId, KitchenList, listCounts, listOf, type ListId } from "./list.js";
 import { mealCountsOf } from "./meals.js";
 import { PhoneKeys, KEY_SHAPE } from "./phones.js";
 import { phoneKeyOf } from "./links.js";
@@ -170,14 +175,15 @@ export async function capture(request: Request, deps: HavenDeps): Promise<Respon
       }
       if (sorted.fromLastTodo && !items.length) say = "Tell me what to put on the list, and I'll add it.";
       else {
-        const { added, already } = await new KitchenList(deps.blob).add(items, now);
-        say = sayAdded(added, already);
+        // Things to buy (#735) when the words said so; the Kitchen list otherwise.
+        const { added, already } = await listOf(deps.blob, sorted.list ?? "kitchen").add(items, now);
+        say = sayAdded(added, already, sorted.list);
         quiet = added.length > 0 || already.length > 0;
       }
     } else if (sorted.kind === "remove") {
       // Off the Kitchen list (#657): quiet when everything asked for went; spoken when one is missing or could be two.
-      const out = await new KitchenList(deps.blob).removeByName(sorted.items, now);
-      say = sayRemoved(out);
+      const out = await listOf(deps.blob, sorted.list ?? "kitchen").removeByName(sorted.items, now);
+      say = sayRemoved(out, sorted.list);
       quiet = out.removed.length > 0 && !out.missing.length && !out.ambiguous.length;
     } else if (sorted.kind === "workout") {
       // The Gym's plan (#660): a session logged is a finished action, so quiet; a day not in the plan is said aloud.
@@ -236,22 +242,25 @@ export async function havenGet(request: Request, deps: HavenDeps): Promise<Respo
   const view = new URL(request.url).searchParams.get("view");
   const now = deps.desk.now;
   if (view === "status") {
-    if (!deps.blob) return json({ kitchen: { open: 0, done: 0 }, todos: 0, gym: null, meals: null, ready: false });
-    const [kitchen, todos, gym, meals] = await Promise.all([
+    if (!deps.blob) return json({ kitchen: { open: 0, done: 0 }, todos: 0, gym: null, meals: null, lists: [], ready: false });
+    const [kitchen, todos, gym, meals, lists] = await Promise.all([
       new KitchenList(deps.blob).counts(now).catch(() => ({ open: 0, done: 0 })),
       deps.todos(deps.blob).openCount(now).catch(() => 0),
       // The Gym (#660): sessions a week and done this week, never an exercise.
       gymCounts(deps.blob, now).catch(() => null),
       // The meal planner (#678): nights planned, cooking and HelloFresh, never a meal or a taste.
       mealCountsOf(deps.blob).catch(() => null),
+      // Every list's counts (#735): its name and how many, never an item.
+      listCounts(deps.blob, now).catch(() => []),
     ]);
-    return json({ kitchen, todos, gym, meals, ready: true });
+    return json({ kitchen, todos, gym, meals, lists, ready: true });
   }
-  if (view !== "list" && view !== "phones" && view !== "gym") return json({ error: "bad-request" }, 400);
+  if (view !== "list" && view !== "lists" && view !== "phones" && view !== "gym") return json({ error: "bad-request" }, 400);
   const signed = await requireSession(request, deps.desk);
   if (!signed.ok) return signed.response;
   if (!deps.blob) return withCookie(json({ error: "not-set-up" }, 503), signed);
   if (view === "list") return withCookie(json({ items: await new KitchenList(deps.blob).items(now) }), signed);
+  if (view === "lists") return withCookie(json({ lists: await allLists(deps.blob, now) }), signed);
   if (view === "gym") return withCookie(json(await gymView(deps.blob, now)), signed);
   const phones = new PhoneKeys(deps.blob, await deps.pepper());
   const [list, greet] = await Promise.all([phones.list(), greetState(deps.blob).catch(() => ({ made: null, clips: 0 }))]);
@@ -276,13 +285,27 @@ export async function havenPost(request: Request, deps: HavenDeps): Promise<Resp
     return reply({ error: "bad-request" }, 400);
   }
   const now = deps.desk.now;
+  // Which list (#735): the Kitchen list when none is named, as it always was.
+  if (body.list !== undefined && !isListId(body.list)) return reply({ error: "bad-request" }, 400);
+  const which: ListId = isListId(body.list) ? body.list : "kitchen";
   if (body.action === "tick") {
     if (typeof body.done !== "boolean") return reply({ error: "bad-request" }, 400);
-    const ok = await new KitchenList(deps.blob).tick(body.id, body.done, now);
+    const ok = await listOf(deps.blob, which).tick(body.id, body.done, now);
     return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
   }
+  if (body.action === "list-add") {
+    // The Desk's quick add: one line, split on commas ("a phone charger, batteries").
+    const names = typeof body.text === "string" ? body.text.split(/\s*[,;\n]\s*/).filter(Boolean).slice(0, 12) : [];
+    if (!names.length) return reply({ error: "bad-request" }, 400);
+    const got = await listOf(deps.blob, which).add(names, now, "desk");
+    return reply({ ok: true, ...got, items: await listOf(deps.blob, which).items(now) });
+  }
+  if (body.action === "clear-done") {
+    const cleared = await listOf(deps.blob, which).clearDone(now);
+    return reply({ ok: true, cleared });
+  }
   if (body.action === "remove" || body.action === "undo-remove") {
-    const list = new KitchenList(deps.blob);
+    const list = listOf(deps.blob, which);
     const ok = body.action === "remove" ? await list.remove(body.id, now) : await list.restore(body.id, now);
     return ok ? reply({ ok: true }) : reply({ error: "not-found" }, 404);
   }

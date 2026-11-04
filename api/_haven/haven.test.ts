@@ -400,7 +400,7 @@ describe("the Desk's haven routes (#627)", () => {
     await capture(post(key, { text: "garlic and lemons" }), deps);
     const status = await havenGet(new Request(`${ORIGIN}/api/haven?view=status`), deps);
     const text = await status.text();
-    expect(JSON.parse(text)).toEqual({ kitchen: { open: 2, done: 0 }, todos: 0, gym: { perWeek: 2, doneThisWeek: 0 }, meals: null, ready: true });
+    expect(JSON.parse(text)).toEqual({ kitchen: { open: 2, done: 0 }, todos: 0, gym: { perWeek: 2, doneThisWeek: 0 }, meals: null, lists: [{ id: "kitchen", name: "Groceries", open: 2, done: 0 }, { id: "buy", name: "Things to buy", open: 0, done: 0 }], ready: true });
     expect(text).not.toContain("garlic");
     expect((await havenGet(new Request(`${ORIGIN}/api/haven?view=list`), deps)).status).toBe(401);
     expect((await havenGet(new Request(`${ORIGIN}/api/haven?view=phones`), deps)).status).toBe(401);

@@ -86,3 +86,41 @@ describe("the climate from the Nest (#637)", () => {
     expect(climateOf([dev({ kind: "thermostat", vendor: "nest", tempF: 70, mode: "heat", eco: true, hvac: "off" })])).toMatchObject({ mode: "eco", running: false });
   });
 });
+
+describe("the default view (#658)", () => {
+  it("fits the plan's box inside the frame's margins, whatever its shape, and fills it", async () => {
+    const THREE = await import("three");
+    const { fitView, HOME_TH, HOME_PH } = await import("./house.ts");
+    const m = { l: 40, r: 50, t: 60, b: 50 };
+    for (const [box, W, H] of [
+      [{ x0: -5, x1: 5, z0: -6.5, z1: 6.5, h: 0.9 }, 1100, 860],
+      [{ x0: -12, x1: 12, z0: -2, z1: 2, h: 0.9 }, 1100, 860],
+      [{ x0: -5, x1: 5, z0: -6.5, z1: 6.5, h: 0.9 }, 390, 620],
+    ] as const) {
+      const { r, pan } = fitView(box, HOME_TH, HOME_PH, W, H, m);
+      const cam = new THREE.PerspectiveCamera(30, W / H, 0.05, 400);
+      cam.position.set(r * Math.sin(HOME_PH) * Math.sin(HOME_TH), r * Math.cos(HOME_PH), r * Math.sin(HOME_PH) * Math.cos(HOME_TH));
+      cam.lookAt(0, 0, 0);
+      cam.setViewOffset(W, H, pan[0], pan[1], W, H);
+      cam.updateMatrixWorld();
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const x of [box.x0, box.x1]) for (const z of [box.z0, box.z1]) for (const y of [0, box.h]) {
+        const v = new THREE.Vector3(x, y, z).project(cam);
+        const px = ((v.x + 1) / 2) * W, py = ((1 - v.y) / 2) * H;
+        x0 = Math.min(x0, px);
+        x1 = Math.max(x1, px);
+        y0 = Math.min(y0, py);
+        y1 = Math.max(y1, py);
+      }
+      expect(x0).toBeGreaterThanOrEqual(m.l - 1);
+      expect(x1).toBeLessThanOrEqual(W - m.r + 1);
+      expect(y0).toBeGreaterThanOrEqual(m.t - 1);
+      expect(y1).toBeLessThanOrEqual(H - m.b + 1);
+      // It fills one way or the other, and sits centred in the box the other way.
+      const fillW = (x1 - x0) / (W - m.l - m.r), fillH = (y1 - y0) / (H - m.t - m.b);
+      expect(Math.max(fillW, fillH)).toBeGreaterThan(0.98);
+      expect(Math.abs((x0 + x1) / 2 - (m.l + (W - m.r)) / 2)).toBeLessThan(1);
+      expect(Math.abs((y0 + y1) / 2 - (m.t + (H - m.b)) / 2)).toBeLessThan(1);
+    }
+  });
+});

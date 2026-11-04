@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { SIGILS } from "../relay/sigils.ts";
 import { centreOf, roomAt, type HavenPlan, type Lit, type PlanRoom, type Seg, type Spot } from "./data.ts";
+import { Sky } from "./sky.ts";
 import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
 
 /**
@@ -10,15 +11,23 @@ import { FLOOR_PAINT, KIND_STYLE, LIGHT } from "./style.ts";
  * ones stay dim. Sigil nanites (the code-and-rune glyphs Ilyr is built from, relay/sigils.ts) hang in the glass of the
  * lit rooms, drift up in their light, rise off the devices that are working and swarm the ones that need Nikita.
  *
- * Starts top-down with a slight tilt; drag to orbit, pinch or scroll to zoom, tap a room to fly in (300 ms). Reduced
- * motion: every move is instant and the frame is still (drawn only when something changes). Loaded lazily, with three
- * from the Lattice's own chunk, and only for a passkey session with a plan.
+ * Starts on a three-quarter view fitted to the plan (#658: about 37° up, turned so the plan's far end runs up and to the
+ * right), under a Denver night sky drawn on its own canvas (sky.ts) that turns with it; drag to orbit, pinch or scroll
+ * to zoom, tap a room to fly in (300 ms), and `resetView` comes back to the fitted view. Reduced motion: every move is
+ * instant and the frame is still (drawn only when something changes). Loaded lazily, with three from the Lattice's own
+ * chunk, and only for a passkey session with a plan.
  */
 
 export interface HouseOpts {
   reduce: boolean;
   onPick: (room: string | null) => void;
   onHover?: (room: string | null) => void;
+  /** The sky's canvas, under the house (#658). */
+  sky?: HTMLCanvasElement;
+  /** The camera has left the default view (a drag or a zoom), or come back to it. */
+  onAway?: (away: boolean) => void;
+  /** Pixels at the top of the house's box to keep clear on a narrow screen (the page's heading sits there). */
+  clearTop?: () => number;
 }
 
 export interface RoomFacts {
@@ -33,6 +42,55 @@ const FLY_MS = 300;
 const GLYPHS = SIGILS.slice(0, 64);
 
 type Cam = { tx: number; tz: number; th: number; ph: number; r: number };
+
+/** The default view (#658): turned about 43° and tilted about 37° above the floor. */
+export const HOME_TH = 0.75;
+export const HOME_PH = 0.93;
+const FOV = 30;
+type V3 = [number, number, number];
+
+/**
+ * Fit a box (the plan's rooms, floor to wall tops, in world units round the orbit target) into a W×H frame at a given
+ * orbit angle: the camera distance that makes its projection fill the inner box (the frame less its margins, in px),
+ * and the view offset (px) that centres the projection there. Perspective makes the near end bigger, so the box's
+ * picture is off-centre round the target; the offset puts it back without moving the orbit's pivot.
+ */
+export function fitView(box: { x0: number; x1: number; z0: number; z1: number; h: number }, th: number, ph: number, W: number, H: number, m: { l: number; r: number; t: number; b: number }) {
+  const tan = Math.tan((FOV * Math.PI) / 360);
+  const d: V3 = [Math.sin(ph) * Math.sin(th), Math.cos(ph), Math.sin(ph) * Math.cos(th)];
+  const f: V3 = [-d[0], -d[1], -d[2]];
+  // right = f × (0,1,0), up = right × f
+  const rl = Math.hypot(f[2], f[0]) || 1;
+  const rt: V3 = [-f[2] / rl, 0, f[0] / rl];
+  const up: V3 = [rt[1] * f[2] - rt[2] * f[1], rt[2] * f[0] - rt[0] * f[2], rt[0] * f[1] - rt[1] * f[0]];
+  const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const pts: V3[] = [];
+  for (const x of [box.x0, box.x1]) for (const z of [box.z0, box.z1]) for (const y of [0, box.h]) pts.push([x, y, z]);
+  const project = (r: number) => {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of pts) {
+      const q: V3 = [p[0] - d[0] * r, p[1] - d[1] * r, p[2] - d[2] * r];
+      const k = (H / 2) / (dot(q, f) * tan);
+      const X = dot(q, rt) * k, Y = dot(q, up) * k;
+      x0 = Math.min(x0, X);
+      x1 = Math.max(x1, X);
+      y0 = Math.min(y0, Y);
+      y1 = Math.max(y1, Y);
+    }
+    return { x0, x1, y0, y1 };
+  };
+  const aw = Math.max(40, W - m.l - m.r), ah = Math.max(40, H - m.t - m.b);
+  const reach = Math.hypot(box.x1 - box.x0, box.z1 - box.z0, box.h);
+  let lo = reach * 0.55, hi = reach * 40;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2, b = project(mid);
+    if (b.x1 - b.x0 <= aw && b.y1 - b.y0 <= ah) hi = mid;
+    else lo = mid;
+  }
+  const b = project(hi);
+  const icx = m.l + aw / 2, icy = m.t + ah / 2;
+  return { r: hi, pan: [W / 2 + (b.x0 + b.x1) / 2 - icx, H / 2 - (b.y0 + b.y1) / 2 - icy] as [number, number] };
+}
 
 /** The walls: every room part's edges, merged where they run together, with the doors cut out. Generic. */
 export function wallsOf(plan: HavenPlan): Seg[] {
@@ -120,12 +178,15 @@ const ease = (x: number) => 1 - Math.pow(1 - x, 3);
 
 export class House {
   private renderer: THREE.WebGLRenderer;
-  private camera = new THREE.PerspectiveCamera(30, 1, 0.05, 400);
+  private camera = new THREE.PerspectiveCamera(FOV, 1, 0.05, 400);
   private scene = new THREE.Scene();
   private world = new THREE.Group();
   private cam: Cam = { tx: 0, tz: 0, th: 0, ph: 0.3, r: 12 };
   private home: Cam = { tx: 0, tz: 0, th: 0, ph: 0.3, r: 12 };
   private fitR = 12;
+  private pan: [number, number] = [0, 0];
+  private away = false;
+  private sky: Sky | null = null;
   private tween: { from: Cam; to: Cam; t0: number; ms: number } | null = null;
   private W = 1;
   private H = 1;
@@ -197,6 +258,7 @@ export class House {
       this.seeds[i] = s / 2147483647;
     }
     this.walls = wallsOf(plan);
+    if (opts.sky) this.sky = new Sky(opts.sky, opts.reduce);
     this.build();
     this.bind();
     this.resize();
@@ -673,11 +735,31 @@ export class House {
 
   /* ── camera ── */
   private frameHome() {
-    const fov = (this.camera.fov * Math.PI) / 180, aspect = this.W / this.H;
-    const pw = (this.plan.w / U) * 1.06, pd = (this.plan.h / U) * 1.06;
-    const rv = pd / 2 / Math.tan(fov / 2), rh = pw / 2 / (Math.tan(fov / 2) * aspect);
-    this.fitR = Math.max(rv, rh) * 1.04;
-    this.home = { tx: 0, tz: 0.15, th: 0, ph: 0.3, r: this.fitR };
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const r of this.plan.rooms)
+      for (const [px, py, pw, ph] of r.parts) {
+        x0 = Math.min(x0, px);
+        y0 = Math.min(y0, py);
+        x1 = Math.max(x1, px + pw);
+        y1 = Math.max(y1, py + ph);
+      }
+    if (!Number.isFinite(x0)) [x0, y0, x1, y1] = [0, 0, this.plan.w, this.plan.h];
+    // The orbit turns round the middle of the rooms; the box is measured from there.
+    const tx = this.wx((x0 + x1) / 2), tz = this.wz((y0 + y1) / 2);
+    const hw = (x1 - x0) / U / 2, hd = (y1 - y0) / U / 2;
+    const narrow = this.W < 600;
+    const top = narrow ? Math.max(this.H * 0.05, (this.opts.clearTop?.() ?? 0) + 8) : this.H * 0.07;
+    const m = narrow ? { l: this.W * 0.03, r: this.W * 0.03, t: top, b: this.H * 0.06 } : { l: this.W * 0.03, r: this.W * 0.04, t: top, b: this.H * 0.07 };
+    const fit = fitView({ x0: -hw, x1: hw, z0: -hd, z1: hd, h: WH }, HOME_TH, HOME_PH, this.W, this.H, m);
+    this.fitR = fit.r;
+    this.pan = fit.pan;
+    this.home = { tx, tz, th: HOME_TH, ph: HOME_PH, r: fit.r };
+  }
+
+  private setAway(on: boolean) {
+    if (on === this.away) return;
+    this.away = on;
+    this.opts.onAway?.(on);
   }
 
   private apply() {
@@ -686,7 +768,10 @@ export class House {
     const sp = Math.sin(c.ph), cp = Math.cos(c.ph);
     this.camera.position.set(c.tx + c.r * sp * Math.sin(c.th), c.r * cp, c.tz + c.r * sp * Math.cos(c.th));
     this.camera.lookAt(c.tx, 0, c.tz);
+    // The fitted view's offset, so the house sits in its box whatever the perspective does to it.
+    this.camera.setViewOffset(this.W, this.H, this.pan[0], this.pan[1], this.W, this.H);
     this.camera.updateProjectionMatrix();
+    this.sky?.view(Math.atan2(Math.sin(c.th - HOME_TH), Math.cos(c.th - HOME_TH)), Math.PI / 2 - c.ph);
     this.nMat.uniforms.uScale!.value = this.renderer.domElement.height / (2 * Math.tan((this.camera.fov * Math.PI) / 360));
     this.dirty = true;
   }
@@ -714,7 +799,8 @@ export class House {
     const fov = (this.camera.fov * Math.PI) / 180, asp = this.W / this.H;
     const w = (x1 - x0) / U, d = (y1 - y0) / U;
     const r0 = Math.max((d * 1.9) / 2 / Math.tan(fov / 2), (w * 1.8) / 2 / (Math.tan(fov / 2) * asp)) + 0.8;
-    return { tx: this.wx((x0 + x1) / 2), tz: this.wz((y0 + y1) / 2) + 0.1, th: this.cam.th * 0.5, ph: 0.55, r: Math.max(3.4, r0) };
+    const turn = Math.atan2(Math.sin(this.cam.th - HOME_TH), Math.cos(this.cam.th - HOME_TH));
+    return { tx: this.wx((x0 + x1) / 2), tz: this.wz((y0 + y1) / 2) + 0.1, th: HOME_TH + turn * 0.5, ph: 0.55, r: Math.max(3.4, r0) };
   }
 
   private clampR = (r: number) => Math.max(this.fitR * 0.2, Math.min(this.fitR * 1.6, r));
@@ -726,7 +812,10 @@ export class House {
     this.H = H;
     this.renderer.setSize(W, H, false);
     this.frameHome();
-    if (!this.focusId && !this.tween) this.cam = { ...this.home };
+    if (!this.focusId && !this.tween) {
+      this.cam = { ...this.home };
+      this.setAway(false);
+    }
     else if (this.focusId) this.cam = this.roomView(this.focusId) ?? this.cam;
     this.apply();
   }
@@ -783,6 +872,7 @@ export class House {
         const [a, b] = [...ptrs.values()] as [[number, number], [number, number]];
         this.cam.r = this.clampR((pinch.r * pinch.d) / Math.max(20, Math.hypot(a[0] - b[0], a[1] - b[1])));
         this.apply();
+        if (!this.focusId) this.setAway(true);
         return;
       }
       if (down) {
@@ -791,6 +881,7 @@ export class House {
           this.cam.th -= dx * 0.0055;
           this.cam.ph = Math.max(0.03, Math.min(1.2, this.cam.ph - dy * 0.0045));
           this.apply();
+          if (!this.focusId) this.setAway(true);
           cv.style.cursor = "grabbing";
         }
       }
@@ -821,6 +912,7 @@ export class House {
         this.tween = null;
         this.cam.r = this.clampR(this.cam.r * Math.exp(e.deltaY * 0.0012));
         this.apply();
+        if (!this.focusId) this.setAway(true);
       },
       { passive: false },
     );
@@ -850,9 +942,19 @@ export class House {
 
   /** Fly to a room (null: back to the whole house). */
   focus(id: string | null) {
+    if (id === this.focusId) return;
     this.focusId = id;
     const to = id ? this.roomView(id) : this.home;
+    if (!id) this.setAway(false);
     if (to) this.go(to);
+  }
+
+  /** Back to the fitted default view. */
+  resetView() {
+    this.focusId = null;
+    this.lastUser = performance.now();
+    this.setAway(false);
+    this.go(this.home, 450);
   }
 
   /** While the room's content is open over the house: no input, and a slow drift. */
@@ -866,6 +968,7 @@ export class House {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     if (!this.visible || document.visibilityState === "hidden") return;
+    if (!this.backdrop) this.sky?.frame(now);
     if (this.tween) {
       const f = Math.min(1, (now - this.tween.t0) / this.tween.ms), e = ease(f);
       const { from, to } = this.tween;
@@ -917,6 +1020,7 @@ export class House {
   dispose() {
     cancelAnimationFrame(this.raf);
     for (const d of this.disposers.splice(0)) d();
+    this.sky?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labelHost.replaceChildren();

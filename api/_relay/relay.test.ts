@@ -9,6 +9,7 @@ import { COMPOSE_SYSTEM, composeRequest, DRAFT_MODEL, draftRequest, readComposeI
 import { askRuled, cleanWho, maskHandle, matchContacts } from "./compose.ts";
 import { GET, HUB_PATH, MAX_COMPOSING, PAIR_PATH, POST, RELAY_PATH, UNLOCK_COOKIE, makeCompose, makeRequest, shownState, unlockedUntil, type RelayRouteDeps } from "./route.ts";
 import { BlobPreconditionError, type BlobBackend } from "../_blob.ts";
+import { cleanPng, emailPhotoHash, macPhotoKey, normalHandle, photoEmailKey, photoIdOf, PHOTO_MAX_BYTES, readPhotoList } from "./photos.ts";
 import { BlobRelayStore, MemoryRelayStore, PRIVATE_PATH, readPrivate, relaySealKey } from "./store.ts";
 import { readTextCard, readTextRequest, readTextsView, type TextCard, type TextItem, type TextRequest, type TextsView } from "./texts.ts";
 import { decide, type GateContext } from "../_site/gate.ts";
@@ -761,5 +762,115 @@ describe("the site gate lets the hub through on its token alone", () => {
       ["/api/relay-pair", "GET", undefined],
     ];
     for (const [path, method, t] of shut) expect(decide(at(path, method, t), c).allow, `${method} ${path}`).toBe(false);
+  });
+});
+
+/* ── contact photos from the Mac (#642) ── */
+
+
+/** A tiny made-up PNG: the signature, IHDR, optional extra chunks (text, EXIF), one IDAT and IEND. CRCs are zero. */
+function png(w = 96, h = 96, extra: [string, Uint8Array][] = []): Uint8Array {
+  const chunk = (type: string, data: Uint8Array) => {
+    const out = new Uint8Array(12 + data.length);
+    new DataView(out.buffer).setUint32(0, data.length);
+    out.set(new TextEncoder().encode(type), 4);
+    out.set(data, 8);
+    return out;
+  };
+  const ihdr = new Uint8Array(13);
+  new DataView(ihdr.buffer).setUint32(0, w);
+  new DataView(ihdr.buffer).setUint32(4, h);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const parts = [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), ...extra.map(([t, d]) => chunk(t, d)), chunk("IDAT", new Uint8Array(40).fill(7)), chunk("IEND", new Uint8Array(0))];
+  const all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    all.set(p, o);
+    o += p.length;
+  }
+  return all;
+}
+const has = (b: Uint8Array, s: string) => Buffer.from(b).includes(Buffer.from(s));
+const PHOTO_A = "a".repeat(32);
+const PHOTO_B = "b".repeat(32);
+
+class PhotoDesk extends Desk {
+  override deps(): RelayRouteDeps {
+    return { ...super.deps(), photoKey: photoEmailKey("s".repeat(43)) };
+  }
+}
+
+describe("contact photos from the Mac", () => {
+  it("keeps only the image chunks: no EXIF, no text, no colour profile; refuses big or odd files", () => {
+    const dirty = png(96, 96, [
+      ["tEXt", new TextEncoder().encode("Comment\0Made-up Person, +1 555 010 0000")],
+      ["eXIf", new TextEncoder().encode("GPS made-up")],
+      ["iCCP", new Uint8Array(30)],
+    ]);
+    const clean = cleanPng(dirty)!;
+    expect(clean).not.toBeNull();
+    expect(has(clean, "Made-up")).toBe(false);
+    expect(has(clean, "GPS")).toBe(false);
+    expect(has(clean, "iCCP")).toBe(false);
+    expect(has(clean, "IDAT")).toBe(true);
+    expect(cleanPng(png(400, 400))).toBeNull();
+    expect(cleanPng(new TextEncoder().encode("<svg/>".padEnd(80, " ")))).toBeNull();
+    expect(cleanPng(png().subarray(0, 60))).toBeNull();
+    expect(cleanPng(png(96, 96, [["IDAT", new Uint8Array(PHOTO_MAX_BYTES)]]))).toBeNull();
+  });
+
+  it("names a photo by an HMAC under the Mac's key, never by the number; emails by the site's own key", () => {
+    const mac = macPhotoKey("a made-up local key");
+    const id = photoIdOf(mac, ["+1 (555) 010-1234"]);
+    expect(id).toMatch(/^[0-9a-f]{32}$/);
+    expect(id).toBe(photoIdOf(mac, ["5550101234"]));
+    expect(id).not.toContain("5550101234");
+    expect(photoIdOf(macPhotoKey("another key"), ["5550101234"])).not.toBe(id);
+    expect(photoIdOf(mac, [])).toBe("");
+    expect(normalHandle(" Sam@Example.Org ")).toBe("sam@example.org");
+    const site = photoEmailKey("s".repeat(43))!;
+    expect(emailPhotoHash(site, "Sam@Example.org ")).toBe(emailPhotoHash(site, "sam@example.org"));
+    expect(emailPhotoHash(site, "sam@example.org")).not.toBe(photoIdOf(site, ["sam@example.org"]));
+    expect(emailPhotoHash(site, "not an address")).toBe("");
+    expect(photoEmailKey("short")).toBeNull();
+  });
+
+  it("reads the hub's list whole, or not at all", () => {
+    expect(readPhotoList({ keep: [PHOTO_A], emails: [[PHOTO_B, PHOTO_A]] })).toEqual({ keep: [PHOTO_A], emails: [[PHOTO_B, PHOTO_A]] });
+    expect(readPhotoList({ keep: [PHOTO_A], emails: [], name: "Sam" })).toBeNull();
+    expect(readPhotoList({ keep: ["5550101234"], emails: [] })).toBeNull();
+    expect(readPhotoList({ keep: [], emails: [["sam@example.org", PHOTO_A]] })).toBeNull();
+  });
+
+  it("takes photos only from the paired hub, serves them only to the passkey Desk, and drops them on unpair", async () => {
+    const d = new PhotoDesk();
+    await d.paired();
+    // The email key, for the hub's email map: only with the hub's token.
+    const key = await d.hub("GET", "?view=photo-key");
+    expect(key.status).toBe(200);
+    expect(((await key.json()) as { key: string }).key).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect((await d.hub("GET", "?view=photo-key", undefined, "not-a-token")).status).toBe(401);
+    // A photo: cleaned again here; a name or a number in the body is refused.
+    const b64 = Buffer.from(png(96, 96, [["tEXt", new TextEncoder().encode("Comment\0Made-up")]])).toString("base64");
+    expect((await d.hub("POST", "?view=photo", { id: PHOTO_A, png: b64 })).status).toBe(200);
+    expect((await d.hub("POST", "?view=photo", { id: PHOTO_B, png: b64, name: "Sam" })).status).toBe(422);
+    expect((await d.hub("POST", "?view=photo", { id: "5550101234", png: b64 })).status).toBe(422);
+    expect(has(d.relay.photos.get(PHOTO_A) ?? new Uint8Array(), "Made-up")).toBe(false);
+    // The list: what the Mac no longer has is deleted.
+    expect((await d.hub("POST", "?view=photo", { id: PHOTO_B, png: b64 })).status).toBe(200);
+    const listed = await d.hub("POST", "?view=photos", { keep: [PHOTO_A], emails: [["c".repeat(32), PHOTO_A]] });
+    expect(((await listed.json()) as { have: string[] }).have).toEqual([PHOTO_A]);
+    expect(d.relay.photos.has(PHOTO_B)).toBe(false);
+    // The Desk reads it with the passkey session only.
+    const anon = await GET(new Request(`${ORIGIN}${RELAY_PATH}?photo=${PHOTO_A}`), d.deps());
+    expect(anon.status).toBe(401);
+    const got = await GET(new Request(`${ORIGIN}${RELAY_PATH}?photo=${PHOTO_A}`, { headers: d.headers() }), d.deps());
+    expect(got.status).toBe(200);
+    expect(got.headers.get("content-type")).toBe("image/png");
+    expect(got.headers.get("x-content-type-options")).toBe("nosniff");
+    expect((await GET(new Request(`${ORIGIN}${RELAY_PATH}?photo=${PHOTO_B}`, { headers: d.headers() }), d.deps())).status).toBe(404);
+    // Unpair forgets every photo.
+    await d.post({ action: "unpair" });
+    expect(d.relay.photos.size).toBe(0);
   });
 });

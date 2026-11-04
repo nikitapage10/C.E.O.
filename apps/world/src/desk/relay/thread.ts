@@ -124,7 +124,8 @@ export function commandOf(raw: string, phase: Phase = "incoming"): Command | nul
   if (!w) return null;
   // A question is never a command ("send it?", "did you send it?"), and neither is a line that redirects one.
   if (/\?/.test(raw)) return "words";
-  if (phase !== "ask" && skipOf(raw)) return "skip";
+  // "nah" and "nope" answer "Send to X?" (no) while a draft asks; every other skip word skips in any phase.
+  if (skipOf(raw) && !(phase === "ask" && /^(?:nah|nope)$/.test(w))) return "skip";
   for (const [c, re] of COMMANDS) if (re.test(w)) return c;
   if (closingOf(raw)) return "done";
   if (draftAsk(raw)) return "draft";

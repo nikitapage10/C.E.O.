@@ -871,6 +871,8 @@
   .cx-menu {
     left: auto;
     right: 0;
+    top: auto;
+    bottom: calc(100% + 8px);
   }
   .cx-opt kbd {
     display: none;

@@ -23,7 +23,7 @@ export const normWords = (w: string): string =>
     .trim();
 
 const TAIL = "(?: (?:already|now|then|thanks|thank you|mate|man|dude|ok|okay))*";
-const LEAD = "(?:(?:oh|ah|yeah|yep|nah|no|ok|okay|it's fine|all good)(?: |$))*";
+const LEAD = "(?:(?:oh|ah|yeah|yep|nah|no worries|no problem|no|ok|okay|it's fine|all good)(?: |$))*";
 
 /** Lines that say the thing is already handled. Each whole line, so "done with the old draft, now say…" isn't one. */
 const CLOSING = new RegExp(

@@ -192,3 +192,12 @@
   .desk .cf-hero::before,.desk .cf-ledger::before,.desk .cf-pn{animation:none}
   .desk .cf-fig,.desk .cf-held,.desk .cf-fig small,.desk .cf-cu-btn{transition:none}
 }
+
+/* The Kitchen list chip (#627, KitchenList.tsx): what Hey Skippy put on it from the phone; ticks off when signed in. */
+.desk .kl-btn{cursor:default}
+.desk button.kl-btn{cursor:pointer}
+.desk .kl-list{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.desk .kl-list label{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--wv-ink);cursor:pointer}
+.desk .kl-list input{width:18px;height:18px;accent-color:var(--wv-hot)}
+.desk .kl-list .is-done label{color:var(--wv-faint);text-decoration:line-through}
+.desk .kl-empty{margin:0;font-size:14px;color:var(--wv-mute)}

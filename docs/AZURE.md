@@ -257,6 +257,11 @@ is off, #313), but only Azure serves it.
   second opinion on split start/sit decisions; without it that part is skipped. Every analysis ends with its Sources.
   On Vercel the same path is rewritten to `/api/world?green=analysis`, but FantasyPros waits there, so the Azure copy
   is the one to read.
+- **Hey Skippy (#627) is Azure only.** `azure/src/index.ts` registers `/api/capture` (the iPhone shortcut's POST with a
+  phone key, and its one-time audio links), `/api/haven` (the Desk's Phones panel and Kitchen list) and
+  `/api/hey-skippy` (the greeting clips; the Static Web App also rewrites `/hey-skippy/hello.mp3` to it), all behind
+  the same gate. No new setting: phone keys are hashed under a pepper derived from the Desk key, and the voice uses
+  the ElevenLabs key and cap already here. [HEY-SKIPPY.md](HEY-SKIPPY.md).
 - **Passkeys are per domain.** The Desk's passkeys are tied to the address they were made on, so signing in to the
   Desk on the Azure address needs its own passkey, enrolled there with the Desk key as on Vercel. Azure's store
   starts empty: Vercel's passkeys don't carry over, and neither do the world, the stories or the pictures until

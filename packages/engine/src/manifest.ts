@@ -150,6 +150,9 @@ export const ENGINE_ENDPOINTS: readonly string[] = [
   "skippy-tools",
   "kernel-brief",
   "kernel-agent",
+  "capture",
+  "haven",
+  "hey-skippy",
   "world",
   "world-step",
 ];

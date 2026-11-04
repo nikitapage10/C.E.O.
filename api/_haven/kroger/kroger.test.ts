@@ -296,4 +296,13 @@ describe("Only King Soopers in the store picker", () => {
     expect(new URL(f.calls[0]!.url).searchParams.get("filter.chain")).toBe("KINGSOOPERS");
     expect(rows.map((r) => r.id)).toEqual(["62000001", "62000003"]);
   });
+
+  it("falls back to every nearby store when the chain filter leaves none", async () => {
+    const row = (id: string, chain: string) => ({ locationId: id, chain, name: `Store ${id}`, address: { addressLine1: "1 Test Ave", city: "Testville", state: "CO", zipCode: "80000" } });
+    const f = fakeFetch([[/^GET https:\/\/api\.kroger\.com\/v1\/locations$/, (u: URL) => ({ data: u.searchParams.has("filter.chain") ? [] : [row("62000001", "KSOOP")] })]]);
+    const rows = await findStores(f, "test-token", "80000");
+    expect(f.calls).toHaveLength(2);
+    expect(new URL(f.calls[1]!.url).searchParams.has("filter.chain")).toBe(false);
+    expect(rows.map((r) => r.id)).toEqual(["62000001"]);
+  });
 });

@@ -2,11 +2,11 @@ import { useEffect, useRef } from "react";
 import { THERMO_MAX_F, THERMO_MIN_F, useHome, type DeviceReading, type ThermoMode } from "../homeDevices.ts";
 
 /**
- * The Haven's thermostat control (#671): opened from the Climate card or the Nest's marker in the house, passkey only.
+ * The Haven's thermostat control (#671): opened from the plinth's Climate dial (#680) or the Nest's marker, passkey only.
  * The set point a degree at a time (both ends in heat-and-cool), the mode, and eco shown as it is. Every change goes
  * through the same action as Today's Home chip (thermostat.set / thermostat.mode), so the server's rails (60 to 80 °F,
  * a 3 °F gap, nothing while eco is on or the mode is off) and its Council log apply. A floating card, so the
- * House-wide column can change round it.
+ * plinth (#680) can open it over its dial.
  */
 
 /** The heat-and-cool gap the rails keep (api/_haven/devices/rails.ts, THERMO_GAP_F). */

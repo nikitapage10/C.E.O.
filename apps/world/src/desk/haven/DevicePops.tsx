@@ -66,8 +66,8 @@ function Waiting({ vendor, state }: { vendor: string; state: VendorState }) {
 
 /* ── Roborock: a device sheet (#729) ── */
 
-type Suction = "" | "quiet" | "max";
-type Water = "" | "off" | "on";
+export type Suction = "" | "quiet" | "max";
+export type Water = "" | "off" | "on";
 
 const SUCTION: { v: Suction; name: string }[] = [
   { v: "quiet", name: "Quiet" },
@@ -125,6 +125,22 @@ function Segmented<T extends string>({ label, list, value, onPick }: { label: st
   );
 }
 
+/** The vacuum's mode words for a clean, as two segmented controls (#729): suction and the mop. The Hall uses them too. */
+export function VacuumModes({ suction, water, onSuction, onWater }: { suction: Suction; water: Water; onSuction: (s: Suction) => void; onWater: (w: Water) => void }) {
+  return (
+    <div className="hv-vs-modes">
+      <Segmented label="Suction" list={SUCTION} value={suction} onPick={onSuction} />
+      <Segmented label="Mop" list={WATER} value={water} onPick={onWater} />
+    </div>
+  );
+}
+
+/** With the plan, the rooms it draws are picked on the map; the names the vacuum has and the plan doesn't stay chips. */
+export function chipsBeside(names: string[], plan: HavenPlan | null): { onPlan: Set<string>; chips: string[] } {
+  const onPlan = new Set(plan ? plan.rooms.filter((r) => !r.detached).map((r) => vacuumName(names, r)).filter((n): n is string => !!n) : []);
+  return { onPlan, chips: names.filter((n) => !onPlan.has(n)) };
+}
+
 export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceReading[] | null; plan: HavenPlan | null; state: VendorState; onClose: () => void }) {
   const act = useHome((s) => s.act);
   const busy = useHome((s) => s.busy);
@@ -142,9 +158,7 @@ export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceRe
   const names = v.rooms ?? [];
   const toggle = (r: string) => setPick((p) => (p.includes(r) ? p.filter((x) => x !== r) : [...p, r]));
   const mode: ActExtra = { ...(suction && { suction }), ...(water && { water }) };
-  // With the plan, its rooms are picked on the map; chips only for the names the map has and the plan doesn't.
-  const onPlan = new Set(plan ? plan.rooms.filter((r) => !r.detached).map((r) => vacuumName(names, r)).filter((n): n is string => !!n) : []);
-  const chips = names.filter((n) => !onPlan.has(n));
+  const { onPlan, chips } = chipsBeside(names, plan);
   const where = whereVacuum(v.state, v.online);
   const cleaning = where.word === "Cleaning";
   const docked = where.word.startsWith("Docked");
@@ -203,10 +217,7 @@ export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceRe
           )}
         </section>
       )}
-      <div className="hv-vs-modes">
-        <Segmented label="Suction" list={SUCTION} value={suction} onPick={setSuction} />
-        <Segmented label="Mop" list={WATER} value={water} onPick={setWater} />
-      </div>
+      <VacuumModes suction={suction} water={water} onSuction={setSuction} onWater={setWater} />
       <button type="button" className="hv-vs-go" disabled={off} onClick={primary.run}>
         {primary.name}
       </button>
@@ -232,7 +243,7 @@ export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceRe
 /* ── Petlibro: the dry feeder, the wet feeder and the fountain ── */
 
 /** A moment of motion after an action lands: the kibble falls, the tray turns, the lid lifts. */
-function useFlash(ms: number): [boolean, () => void] {
+export function useFlash(ms: number): [boolean, () => void] {
   const [on, setOn] = useState(false);
   const t = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(t.current), []);

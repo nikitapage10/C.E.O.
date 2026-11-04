@@ -6,6 +6,9 @@ import type { HavenPlan, Lit, PlanRoom, Tab } from "./data.ts";
 import { Groceries } from "./Groceries.tsx";
 import { DryDay, FountainDay, WetDay } from "./PetDay.tsx";
 import { MealPlanner } from "./MealPlanner.tsx";
+import { DryFeederArt, FountainArt, LitterArt, VacuumArt, WetFeederArt } from "./DeviceArt.tsx";
+import { chipsBeside, useFlash, VacuumModes, type Suction, type Water } from "./DevicePops.tsx";
+import { RoomMap, vacuumName } from "./RoomMap.tsx";
 
 /**
  * The Haven's room content (#616), shown over the blurred house in the backdrop layout Nikita picked: Kitchen, Hall,
@@ -154,11 +157,17 @@ export function KitchenTab({ items, onTick, onDrop, onReread }: { items: Kitchen
 
 /* ── Hall: the vacuum ── */
 
-export function HallTab({ devices, connected, room }: { devices: DeviceReading[] | null; connected: boolean; room?: PlanRoom }) {
+export function HallTab({ devices, connected, room, plan }: { devices: DeviceReading[] | null; connected: boolean; room?: PlanRoom; plan?: HavenPlan | null }) {
   const act = useHome((s) => s.act);
   const busy = useHome((s) => s.busy);
   const v = find(devices, "vacuum");
-  const [pick, setPick] = useState<string[]>([]);
+  // Opened from a room of its own, that room starts picked (#718).
+  const [pick, setPick] = useState<string[]>(() => {
+    const own = v && room ? vacuumName(v.rooms ?? [], room) : null;
+    return own ? [own] : [];
+  });
+  const [suction, setSuction] = useState<Suction>("");
+  const [water, setWater] = useState<Water>("");
   if (!v)
     return (
       <>
@@ -171,6 +180,9 @@ export function HallTab({ devices, connected, room }: { devices: DeviceReading[]
   const off = !v.online || busy !== null;
   const rooms = v.rooms ?? [];
   const toggle = (r: string) => setPick((p) => (p.includes(r) ? p.filter((x) => x !== r) : [...p, r]));
+  const { chips } = chipsBeside(rooms, plan ?? null);
+  const mode = { ...(suction && { suction }), ...(water && { water }) };
+  const cleaning = v.online && /clean|vacuum|mop|segment|room|zone|spot/i.test(v.state) && !/return|dock|charg/i.test(v.state);
   return (
     <>
       <p className="hv-say">
@@ -183,11 +195,37 @@ export function HallTab({ devices, connected, room }: { devices: DeviceReading[]
         <Num v={v.alerts.length} k={v.alerts.length ? v.alerts.join(", ") : "alerts"} tone={v.alerts.length ? "warn" : "ok"} />
         <Num v={rooms.length} k="rooms on its map" />
       </div>
-      <div className="hv-grid">
-        <Card title="Vacuum" tag={<Private>{v.model || "Roborock"}</Private>} wide>
+      <div className="hv-grid is-hall">
+        <Card title="Where to send it" tag={pick.length ? `${pick.length} picked` : "tap rooms"} wide>
+          {rooms.length ? (
+            <>
+              {plan ? <RoomMap plan={plan} names={rooms} picked={pick} onToggle={toggle} cleaning={cleaning} disabled={off} /> : null}
+              {chips.length > 0 && (
+                <div className="hv-chips" role="group" aria-label={plan ? "More rooms on the vacuum's map" : "Rooms on the vacuum's map"}>
+                  {chips.map((r) => (
+                    <button key={r} type="button" className="hv-chip" aria-pressed={pick.includes(r)} onClick={() => toggle(r)}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <VacuumModes suction={suction} water={water} onSuction={setSuction} onWater={setWater} />
+              <button type="button" className="hv-btn is-pri" disabled={off || !pick.length} onClick={() => void act("vacuum.rooms", v.id, pick, mode).then((ok) => ok && setPick([]))}>
+                {pick.length ? `Clean ${pick.join(", ")}` : "Pick rooms to clean"}
+              </button>
+            </>
+          ) : (
+            <Waiting>The vacuum hasn't sent its map's room names yet.</Waiting>
+          )}
+          <Said />
+        </Card>
+        <Card title="Vacuum" tag={<Private>{v.model || "Roborock"}</Private>}>
+          <div className="hv-art is-vac">
+            <VacuumArt state={v.online ? v.state : ""} battery={v.battery} />
+          </div>
           <div className="hv-btns">
-            <button type="button" className="hv-btn" disabled={off} onClick={() => void act("vacuum.start", v.id)}>
-              Start
+            <button type="button" className="hv-btn" disabled={off} onClick={() => void act("vacuum.start", v.id, undefined, mode)}>
+              Clean everywhere
             </button>
             <button type="button" className="hv-btn" disabled={off} onClick={() => void act("vacuum.pause", v.id)}>
               Pause
@@ -196,24 +234,6 @@ export function HallTab({ devices, connected, room }: { devices: DeviceReading[]
               Dock
             </button>
           </div>
-          <h4 className="hv-k">Clean by room</h4>
-          {rooms.length ? (
-            <>
-              <div className="hv-chips" role="group" aria-label="Rooms on the vacuum's map">
-                {rooms.map((r) => (
-                  <button key={r} type="button" className="hv-chip" aria-pressed={pick.includes(r) || room?.vacuum === r} onClick={() => toggle(r)}>
-                    {r}
-                  </button>
-                ))}
-              </div>
-              <button type="button" className="hv-btn is-pri" disabled={off || !pick.length} onClick={() => void act("vacuum.rooms", v.id, pick).then((ok) => ok && setPick([]))}>
-                {pick.length ? `Clean ${pick.join(", ")}` : "Pick rooms to clean"}
-              </button>
-            </>
-          ) : (
-            <Waiting>The vacuum hasn't sent its map's room names yet.</Waiting>
-          )}
-          <Said />
         </Card>
       </div>
     </>
@@ -226,6 +246,9 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
   const act = useHome((s) => s.act);
   const busy = useHome((s) => s.busy);
   const dry = find(devices, "dry-feeder"), wet = find(devices, "wet-feeder"), water = find(devices, "fountain"), litter = find(devices, "litter");
+  // A moment of motion when an action lands (#718): the kibble falls, the globe turns.
+  const [fed, flashFed] = useFlash(4000);
+  const [cycled, flashCycled] = useFlash(9000);
   // The due list says when the filter and the clean are due (#685), so their alerts aren't said twice.
   const waterAlerts = water?.alerts.filter((a) => !(a === "filter due" && water.filterDays !== undefined) && !(a === "needs a clean" && water.cleanDays !== undefined)) ?? [];
   const say = [
@@ -249,6 +272,9 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
             <>
               {dry && (
                 <div className="hv-feed">
+                  <div className="hv-art is-feeder">
+                    <DryFeederArt feeding={fed} low={dry.foodLow} />
+                  </div>
                   <p className="hv-row">
                     <b>Dry feeder</b> <span>{dry.online ? (dry.foodLow ? "food low" : "food ok") : "offline"}</span>
                   </p>
@@ -256,13 +282,16 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
                     Last fed {ago(dry.lastFed)} · {dry.manualToday ?? 0} of {dry.manualCap ?? 2} extra portions today
                   </p>
                   <DryDay d={dry} />
-                  <button type="button" className="hv-btn" disabled={!dry.online || busy !== null || (dry.manualToday ?? 0) >= (dry.manualCap ?? 2)} onClick={() => void act("feeder.feed", dry.id)}>
+                  <button type="button" className="hv-btn" disabled={!dry.online || busy !== null || (dry.manualToday ?? 0) >= (dry.manualCap ?? 2)} onClick={() => void act("feeder.feed", dry.id).then((ok) => ok && flashFed())}>
                     Feed 1 portion
                   </button>
                 </div>
               )}
               {wet && (
                 <div className="hv-feed">
+                  <div className="hv-art is-feeder">
+                    <WetFeederArt plate={wet.plate} open={wet.state === "lid open"} />
+                  </div>
                   <p className="hv-row">
                     <b>Wet feeder</b> <span data-testid="wet-state">{!wet.online ? "offline" : wet.closesAt ? `Open, closes at ${closeClock(wet.closesAt)}` : wet.state}</span>
                   </p>
@@ -296,7 +325,8 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
         <Card title="Water fountain" tag={water ? (water.online ? "flowing" : "offline") : "waiting"}>
           {water ? (
             <>
-              <div className="hv-water" style={{ ["--lvl" as string]: `${water.water ?? 0}%` }}>
+              <div className="hv-art is-fountain">
+                <FountainArt level={water.water} flowing={water.online && !/off|stop|pause|dry|empty/i.test(water.state)} />
                 <b>{pct(water.water)}%</b>
               </div>
               {water.filterDays === undefined && (
@@ -314,6 +344,9 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
         <Card title="Litter-Robot" tag={litter ? litter.state : whisker}>
           {litter ? (
             <>
+              <div className="hv-art is-litter">
+                <LitterArt cycling={cycled || /cycl|clean/i.test(litter.state)} drawer={litter.drawer} litter={litter.litter} catInside={litter.catInside} />
+              </div>
               <p className="hv-row">
                 <span className="hv-k">Drawer</span> <Bar v={litter.drawer} warn={(litter.drawer ?? 0) >= 85} /> <span>{pct(litter.drawer)}%</span>
               </p>
@@ -322,7 +355,7 @@ export function PetsTab({ devices, petlibro, whisker }: { devices: DeviceReading
               </p>
               <p className="hv-note">Last visit {ago(litter.lastUse)}</p>
               {litter.alerts.length > 0 && <p className="hv-note is-warn">{litter.alerts.join(", ")}</p>}
-              <button type="button" className="hv-btn" disabled={!litter.online || busy !== null || litter.state !== "ready"} onClick={() => void act("litter.clean", litter.id)}>
+              <button type="button" className="hv-btn" disabled={!litter.online || busy !== null || litter.state !== "ready"} onClick={() => void act("litter.clean", litter.id).then((ok) => ok && flashCycled())}>
                 Clean now
               </button>
             </>

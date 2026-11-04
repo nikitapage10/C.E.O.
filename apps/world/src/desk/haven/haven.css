@@ -629,12 +629,6 @@
   [data-room="haven"] .hv-houseWrap {
     min-height: min(80svh, 720px);
   }
-  /* On a phone the plinth runs under the house, full width, and scrolls sideways. */
-  [data-room="haven"] .hv-plinth {
-    left: 0;
-    bottom: 0;
-    max-width: none;
-  }
   [data-room="haven"] .hv-hintRow {
     bottom: calc(var(--hv-ph, 0px) + 10px);
   }
@@ -1252,6 +1246,14 @@
     right: 0;
     bottom: calc(100% + 10px);
     width: auto;
+  }
+}
+@media (max-width: 860px) {
+  /* On a phone the plinth runs under the house, full width, and scrolls sideways. */
+  [data-room="haven"] .hv-plinth {
+    left: 0;
+    bottom: 0;
+    max-width: none;
   }
 }
 @media (max-width: 600px) {

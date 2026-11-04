@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { ponderLine } from "../../../../../api/_skippy/ponder.ts";
 import type { ToolOutcome } from "@ceo/engine/tools";
 import type { RoomIntent, RoomIntentAction, RoomMic, RoomUtterance } from "@ceo/engine/voice";
+import { announceWrote, readWrote } from "../skippy/wrote.ts";
 
 /**
  * The room mic, browser side (#638): one tap (or hold Space) on a Desk room's page and Nikita talks straight to the room's
@@ -80,7 +81,10 @@ export async function askRoom(
       say?: unknown;
       kind?: unknown;
       audio?: unknown;
+      wrote?: unknown;
+      did?: unknown;
     };
+    if (res.ok) announceWrote(readWrote(body));
     const say = typeof body.say === "string" ? body.say.replace(/\s+/g, " ").trim().slice(0, 400) : "";
     const kind = typeof body.kind === "string" ? body.kind : "skippy";
     if (!res.ok)
@@ -155,6 +159,8 @@ async function postAct(body: Record<string, unknown>, doFetch: typeof fetch): Pr
     const res = await doFetch("/api/skippy-act", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" });
     const got = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     const c = got?.confirm as Record<string, unknown> | undefined;
+    // A tool that changed something (#698): the page showing it reads itself again.
+    if (res.ok && got?.ok === true) announceWrote(readWrote(got));
     if (got?.ok === true && c && typeof c.id === "string" && typeof c.label === "string" && typeof c.summary === "string") return { ok: true, confirm: { id: c.id, label: c.label, summary: c.summary } };
     if (got?.ok === true && typeof got.text === "string") return { ok: true, text: got.text, ...(typeof got.did === "string" && { did: got.did }) };
     return { ok: false, text: typeof got?.text === "string" ? got.text : "That didn't go through." };

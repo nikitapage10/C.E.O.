@@ -111,7 +111,7 @@ export type Ask = (
   system: string,
   input: string,
   ctx?: AgentCtx,
-) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction }>;
+) => Promise<{ answer: unknown; usage: Usage | null; usd?: number; model?: string; parts?: Record<string, number>; looked?: string[]; did?: string[]; wrote?: string[]; confirm?: PendingConfirm[]; textAction?: TextAction }>;
 
 /** The live answer (#646): the agent loop when the turn brings its tools, else the one-shot chat. */
 export function agentChat(key: string): Ask {
@@ -522,6 +522,8 @@ async function skippyTurn(said: NonNullable<ReturnType<typeof readChat>>, deps: 
   const extra = {
     ...(got.looked?.length && { looked: got.looked.slice(0, 6) }),
     ...(got.did?.length && { did: got.did.slice(0, 4) }),
+    // Which tools changed something (#698): the Kitchen's planner reads itself again when a meal tool did.
+    ...(got.wrote?.length && { wrote: got.wrote.slice(0, 8) }),
     ...(got.confirm?.length && { confirm: got.confirm.slice(0, 3) }),
     spend: meter(spent + (got.usd ?? 0)),
   };
@@ -569,6 +571,9 @@ export interface PhoneTurn {
   capped?: boolean;
   /** Why there is no reply: the privacy check held it, the pace, or the chat isn't working here. */
   error?: "private" | "slow-down" | "not-set-up" | "model" | "text";
+  /** The tools that changed something, and what they did (#698), for the page to read itself again. */
+  wrote?: string[];
+  did?: string[];
 }
 
 /**
@@ -601,12 +606,14 @@ export async function roomAnswer(message: string, history: { who: "nikita" | "sk
 
 /** A turn's answer as the phone and a room's voice read it. */
 async function turnOf(res: Response): Promise<PhoneTurn> {
-  const body = (await res.json().catch(() => ({}))) as { reply?: unknown; needs?: unknown; capped?: unknown; error?: unknown; actions?: { kind?: unknown }[] };
+  const body = (await res.json().catch(() => ({}))) as { reply?: unknown; needs?: unknown; capped?: unknown; error?: unknown; actions?: { kind?: unknown }[]; wrote?: unknown; did?: unknown };
   if (res.status === 422) return { reply: "", handedOff: false, error: "private" };
   if (res.status === 429) return { reply: "", handedOff: false, error: "slow-down" };
   if (res.status === 503) return { reply: "", handedOff: false, error: "not-set-up" };
   if (!res.ok || typeof body.reply !== "string") return { reply: "", handedOff: false, error: "model" };
   // A text to draft needs the Desk's card to show it before anything goes; a voice can't show one.
   if (Array.isArray(body.actions) && body.actions.some((a) => a?.kind === "text")) return { reply: body.reply, handedOff: false, error: "text" };
-  return { reply: body.reply, handedOff: typeof body.needs === "string", ...(body.capped === true && { capped: true }) };
+  const words = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 8) : []);
+  const wrote = words(body.wrote);
+  return { reply: body.reply, handedOff: typeof body.needs === "string", ...(body.capped === true && { capped: true }), ...(wrote.length && { wrote, did: words(body.did) }) };
 }

@@ -217,7 +217,8 @@ Kernel (#501), signed-in only:
   room voice hook (`RoomUtterance.tool`, through `POST /api/skippy-act`). Today has the memory (`memory_lookup`,
   `memory_read`, `remember`, `forget`); the Foundry has `foundry_board` and `implement_it`; Relay has its counts and
   `draft_text` (the existing Send/Edit/Cancel card); the Green, the Exchange and the Boiler Room have their reads; the
-  Haven has `kitchen_add` and `home_device`. Every input is checked against its schema on the server.
+  Haven has `kitchen_add`, `home_device` and the meal planner's tools (`meals_*`, docs/HOME-DEVICES.md, "The meal
+  planner"). Every input is checked against its schema on the server.
 - **The tap.** Anything that sends, spends or deletes (and anything marked `confirm`, like `remember` and the home
   devices) never runs from the model: the call is kept for 15 minutes, once only (`desk/skippy/pending.json`), and the
   chat shows exactly what will happen with a Yes and a No. `POST /api/skippy-act { confirm, yes }` runs it with the
@@ -227,6 +228,10 @@ Kernel (#501), signed-in only:
   the Builder, after the tap. Skippy never writes code through the API.
 - **Chips.** Under each reply: "looked" chips (what he read: a room, a memory page, a web search) in ice and "did" chips
   (what changed) in gold. Words only, never the data.
+- **The page follows.** Every answer that ran a tool which changed something names those tools in `wrote` (the chat's
+  `/api/skippy`, a tap or a voice hook's `/api/skippy-act`, a room mic's `/api/skippy-room`), and the Desk passes it to
+  the page as one window event (`apps/world/src/desk/skippy/wrote.ts`). A page showing that data reads itself again
+  through its own load path: the Kitchen's meal planner on any `meals_` tool, with a "Skippy changed it: …" line (#698).
 
 **Memory.** Private, in the store behind the passkey (`api/_skippy/agent/memory.ts`, `desk/skippy/memory/`): a core
 card (at most 1,500 characters, read every turn), facts (at most 300 characters each, with a topic), KB pages (title,

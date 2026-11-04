@@ -176,6 +176,73 @@ export async function krogerGet(request: Request, deps: KrogerDeps): Promise<Res
 const noteCall = (blob: BlobBackend, ok: boolean, now: number) =>
   changeKroger(blob, (cur) => ({ next: { ...cur, last: { at: new Date(now).toISOString(), ok } }, result: undefined })).catch(() => undefined);
 
+export type SendResult = { result: "sent"; items: number } | { result: "not-set-up" | "not-connected" | "empty" | "too-many" | "changed" | "refused" | "vendor" };
+
+/**
+ * Adds exactly these picks to the King Soopers cart: each still on the list, still the current pick, in stock and not
+ * left out, or nothing goes ("changed"). The Kitchen's Send button and Skippy's meals_cart (after Nikita's Yes tap) both
+ * come here.
+ */
+export async function sendPicks(deps: Pick<KrogerDeps, "blob" | "vault" | "client" | "fetch" | "now" | "log">, asked: { key: string; productId: string }[]): Promise<SendResult> {
+  const { blob, vault, client, now } = deps;
+  if (!blob || !vault || !client) return { result: "not-set-up" };
+  const grant = await grantOf(deps);
+  if (!grant || grant.refused) return { result: "not-connected" };
+  if (!asked.length) return { result: "empty" };
+  if (asked.length > SEND_MAX) return { result: "too-many" };
+  const stamp = new Date(now).toISOString();
+  const [cur, items] = await Promise.all([readKroger(blob), new KitchenList(blob).items(now)]);
+  const open = new Set(openLines(items).map((i) => sameKey(i.name)));
+  // Exactly what the Desk showed: each one still on the list, still the current pick, in stock, not left out.
+  const upcs: string[] = [];
+  for (const a of asked) {
+    const p = cur.picks[a.key];
+    if (!open.has(a.key) || !counts(p) || p.product.productId !== a.productId) return { result: "changed" };
+    if (!upcs.includes(p.product.upc)) upcs.push(p.product.upc);
+  }
+  const add = async (refresh: string) => {
+    const t = await cartToken(deps.fetch, client, refresh, now);
+    if (t.refresh !== refresh) await vault.write("kroger", { ...grant, refresh: t.refresh } satisfies StoredKroger);
+    await addToCart(deps.fetch, t.token, upcs.map((upc) => ({ upc, quantity: 1 })));
+    return t.refresh;
+  };
+  let result: "sent" | "refused" | "vendor" = "vendor";
+  try {
+    try {
+      await add(grant.refresh);
+    } catch (e) {
+      // A cached access token Kroger no longer takes: once more with a fresh one before calling the grant gone.
+      if (!(e instanceof KrogerRefusedError)) throw e;
+      forgetKrogerTokens();
+      const again = (await grantOf(deps)) ?? grant;
+      await add(again.refresh);
+    }
+    result = "sent";
+  } catch (e) {
+    if (e instanceof KrogerRefusedError) {
+      result = "refused";
+      await vault.write("kroger", { ...grant, refused: true } satisfies StoredKroger).catch(() => undefined);
+      forgetKrogerTokens();
+    }
+  }
+  await changeKroger(blob, (c) => ({ next: { ...c, sent: { at: stamp, items: upcs.length, ok: result === "sent" }, last: { at: stamp, ok: result === "sent" } }, result: undefined })).catch(() => undefined);
+  deps.log(`kroger: send ${result === "vendor" ? "failed" : result} (${upcs.length} items)`);
+  return result === "sent" ? { result, items: upcs.length } : { result };
+}
+
+/** What a send would add right now, as the Kitchen shows it: the matched, in-stock picks not left out, and the open items still unmatched. */
+export async function cartNow(deps: Pick<KrogerDeps, "blob" | "vault" | "client" | "now">): Promise<{ picks: { key: string; productId: string }[]; unmatched: number; connected: boolean; store: boolean } | null> {
+  if (!deps.blob || !deps.client) return null;
+  const [state, grant, items] = await Promise.all([readKroger(deps.blob), grantOf(deps), new KitchenList(deps.blob).items(deps.now)]);
+  const lines = openLines(items).map((i) => ({ key: sameKey(i.name), pick: state.picks[sameKey(i.name)] }));
+  return {
+    picks: lines.filter((l) => counts(l.pick)).map((l) => ({ key: l.key, productId: l.pick!.product!.productId })),
+    unmatched: lines.filter((l) => !l.pick?.product && !l.pick?.skip).length,
+    connected: Boolean(grant && !grant.refused),
+    store: Boolean(state.store),
+  };
+}
+
 /** POST /api/haven/kroger: passkey session only. */
 export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Response> {
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "bad-request" }, 415);
@@ -339,53 +406,17 @@ export async function krogerPost(request: Request, deps: KrogerDeps): Promise<Re
   }
 
   if (body.action === "send") {
-    if (!deps.vault) return reply({ error: "not-set-up" }, 503);
-    const grant = await grantOf(deps);
-    if (!grant || grant.refused) return reply({ error: "not-connected" }, 409);
     const asked = (Array.isArray(body.picks) ? body.picks : []).slice(0, SEND_MAX + 1).map((p) => {
       const o = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
       return { key: line(o.key, 60), productId: typeof o.productId === "string" ? o.productId : "" };
     });
-    if (!asked.length) return reply({ error: "empty" }, 409);
-    if (asked.length > SEND_MAX) return reply({ error: "too-many" }, 400);
-    const [cur, items] = await Promise.all([readKroger(blob), new KitchenList(blob).items(now)]);
-    const open = new Set(openLines(items).map((i) => sameKey(i.name)));
-    // Exactly what the Desk showed: each one still on the list, still the current pick, in stock, not left out.
-    const upcs: string[] = [];
-    for (const a of asked) {
-      const p = cur.picks[a.key];
-      if (!open.has(a.key) || !counts(p) || p.product.productId !== a.productId) return reply({ error: "changed", ...viewOf(cur, items, client, grant) }, 409);
-      if (!upcs.includes(p.product.upc)) upcs.push(p.product.upc);
-    }
-    const add = async (refresh: string) => {
-      const t = await cartToken(deps.fetch, client, refresh, now);
-      if (t.refresh !== refresh) await deps.vault!.write("kroger", { ...grant, refresh: t.refresh } satisfies StoredKroger);
-      await addToCart(deps.fetch, t.token, upcs.map((upc) => ({ upc, quantity: 1 })));
-      return t.refresh;
-    };
-    let result: "sent" | "refused" | "failed" = "failed";
-    try {
-      try {
-        await add(grant.refresh);
-      } catch (e) {
-        // A cached access token Kroger no longer takes: once more with a fresh one before calling the grant gone.
-        if (!(e instanceof KrogerRefusedError)) throw e;
-        forgetKrogerTokens();
-        const again = (await grantOf(deps)) ?? grant;
-        await add(again.refresh);
-      }
-      result = "sent";
-    } catch (e) {
-      if (e instanceof KrogerRefusedError) {
-        result = "refused";
-        await deps.vault.write("kroger", { ...grant, refused: true } satisfies StoredKroger).catch(() => undefined);
-        forgetKrogerTokens();
-      }
-    }
-    await changeKroger(blob, (c) => ({ next: { ...c, sent: { at: stamp, items: upcs.length, ok: result === "sent" }, last: { at: stamp, ok: result === "sent" } }, result: undefined })).catch(() => undefined);
-    deps.log(`kroger: send ${result} (${upcs.length} items)`);
-    if (result === "sent") return reply({ ok: true, items: upcs.length, url: CART_URL, ...(await view()) });
-    return reply({ error: result === "refused" ? "refused" : "vendor", ...(await view()) }, result === "refused" ? 409 : 502);
+    const got = await sendPicks(deps, asked);
+    if (got.result === "sent") return reply({ ok: true, items: got.items, url: CART_URL, ...(await view()) });
+    if (got.result === "not-set-up") return reply({ error: "not-set-up" }, 503);
+    if (got.result === "not-connected" || got.result === "empty") return reply({ error: got.result }, 409);
+    if (got.result === "too-many") return reply({ error: "too-many" }, 400);
+    if (got.result === "changed") return reply({ error: "changed", ...(await view()) }, 409);
+    return reply({ error: got.result, ...(await view()) }, got.result === "refused" ? 409 : 502);
   }
 
   return reply({ error: "bad-request" }, 400);

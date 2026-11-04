@@ -135,8 +135,11 @@ export interface Profile {
   /** The nights cooked for two by default when a week is planned. */
   forTwo: Day[];
   avoid: Avoid[];
+  /** What Nikita said he likes ("spicy food", "salmon"): a meal that has one is planned first among equals. */
   likes: string[];
   rules: string[];
+  /** The house heat: how hot every night is cooked unless the night says otherwise. Null: as each meal is written. */
+  spice: Spice | null;
 }
 
 export interface Week {
@@ -336,6 +339,7 @@ export const DEFAULT_PROFILE: Profile = {
   avoid: [],
   likes: [],
   rules: [],
+  spice: null,
 };
 
 function profileOf(v: unknown): Profile {
@@ -359,6 +363,7 @@ function profileOf(v: unknown): Profile {
       .slice(0, 40),
     likes: words(x.likes, 80),
     rules: words(x.rules, 120),
+    spice: (SPICES as readonly unknown[]).includes(x.spice) ? (x.spice as Spice) : null,
   };
 }
 
@@ -412,7 +417,7 @@ export interface Dish {
 const add = (a: Macros, b: Macros, k = 1): Macros => ({ protein: a.protein + b.protein * k, carbs: a.carbs + b.carbs * k, fat: a.fat + b.fat * k, kcal: a.kcal + b.kcal * k });
 const round = (x: Macros, k = 1): Macros => ({ protein: Math.max(0, Math.round(x.protein * k)), carbs: Math.max(0, Math.round(x.carbs * k)), fat: Math.max(0, Math.round(x.fat * k)), kcal: Math.max(0, Math.round(x.kcal * k)) });
 
-export function dishOf(f: Pick<MealsState, "components">, meal: Meal, custom: Custom = {}): Dish {
+export function dishOf(f: Pick<MealsState, "components"> & { profile?: Pick<Profile, "spice"> }, meal: Meal, custom: Custom = {}): Dish {
   let macros = meal.macros;
   const ingredients: Ingredient[] = [...meal.ingredients];
   const changes: string[] = [];
@@ -430,8 +435,9 @@ export function dishOf(f: Pick<MealsState, "components">, meal: Meal, custom: Cu
   });
   const portion = custom.portion ?? 1;
   if (portion !== 1) changes.push(`${portion} portions`);
-  const spice = custom.spice ?? meal.spice;
-  if (spice !== meal.spice) changes.push(spice === "mild" ? "Mild" : spice === "hot" ? "Hot" : "Medium heat");
+  // The house heat (the taste profile's) isn't a change to the night: only a night's own spice is.
+  const spice = custom.spice ?? f.profile?.spice ?? meal.spice;
+  if (custom.spice && custom.spice !== meal.spice) changes.push(spice === "mild" ? "Mild" : spice === "hot" ? "Hot" : "Medium heat");
   return { meal, parts, ingredients, macros: round(macros, portion), portion, spice, changes, customized: changes.length > 0 };
 }
 
@@ -469,9 +475,17 @@ export function statusOf(f: MealsState, meal: Meal): MealStatus {
 /** Meals the planner may pick: not passed, nothing avoided, not in `exclude`; least had and longest ago first. */
 export function candidates(f: MealsState, exclude: Iterable<string> = []): Meal[] {
   const no = new Set(exclude);
+  const liked = (meal: Meal) => (likesOf(f, meal) ? 0 : 1);
   return f.catalog
     .filter((meal) => !meal.passed && !no.has(meal.id) && !dishBreaks(f, meal))
-    .sort((a, b) => a.timesHad - b.timesHad || (a.lastHad ?? "").localeCompare(b.lastHad ?? "") || b.macros.protein - a.macros.protein || a.id.localeCompare(b.id));
+    .sort((a, b) => a.timesHad - b.timesHad || liked(a) - liked(b) || (a.lastHad ?? "").localeCompare(b.lastHad ?? "") || b.macros.protein - a.macros.protein || a.id.localeCompare(b.id));
+}
+
+/** The first of Nikita's likes a meal has (by its name, cuisine or ingredients, whole words), or null. */
+export function likesOf(f: Pick<MealsState, "profile" | "components">, meal: Meal): string | null {
+  if (!f.profile.likes.length) return null;
+  const names = [meal.name, meal.cuisine, ...dishOf(f, meal).ingredients.map((i) => i.item)];
+  return f.profile.likes.find((like) => breaks([{ term: like.toLowerCase() }], names)) ?? null;
 }
 
 const inWeek = (w: Week) => new Set(w.slots.flatMap((s) => [s.meal, ...s.backups]));
@@ -534,6 +548,10 @@ export type MealEdit =
   | { op: "customize"; day: Day; part?: { index: number; option: string }; portion?: number; spice?: Spice; reset?: boolean }
   | { op: "avoid"; term: string; unless?: string }
   | { op: "unavoid"; term: string }
+  /** A like for the taste profile ("salmon", "spicy food"), or taken back off. */
+  | { op: "like"; term: string; liked: boolean }
+  /** The house heat for every night (null: as each meal is written); a night's own spice still wins. */
+  | { op: "heat"; spice: Spice | null }
   | { op: "goal"; protein: number }
   | { op: "pass"; meal: string; passed: boolean }
   | { op: "next-week" }
@@ -577,6 +595,12 @@ export function readEdit(v: unknown): MealEdit | null {
       const term = plain(x.term, 40).toLowerCase();
       return term ? { op: "unavoid", term } : null;
     }
+    case "like": {
+      const term = plain(x.term, 40).toLowerCase();
+      return term.length >= 2 && typeof x.liked === "boolean" ? { op: "like", term, liked: x.liked } : null;
+    }
+    case "heat":
+      return x.spice === null || (SPICES as readonly unknown[]).includes(x.spice) ? { op: "heat", spice: (x.spice as Spice | null) ?? null } : null;
     case "goal":
       return typeof x.protein === "number" && x.protein >= 40 && x.protein <= 400 ? { op: "goal", protein: Math.round(x.protein) } : null;
     case "pass":
@@ -730,7 +754,7 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
       }
       if (edit.spice) {
         s.custom = { ...s.custom, spice: edit.spice };
-        if (edit.spice === meal.spice) delete s.custom.spice;
+        if (edit.spice === (f.profile.spice ?? meal.spice)) delete s.custom.spice;
       }
       s.photo = null;
       const d = dishOf(f, meal, s.custom);
@@ -760,6 +784,22 @@ export function applyEdit(file: MealsFile, edit: MealEdit, now: number): EditRes
       if (f.profile.avoid.length === had) return { ok: false, error: "not-found" };
       changes.push(`${edit.term[0]!.toUpperCase()}${edit.term.slice(1)} is back on the table.`);
       label = `${edit.term} allowed`;
+      break;
+    }
+    case "like": {
+      const had = f.profile.likes.some((l) => l.toLowerCase() === edit.term);
+      if (!edit.liked && !had) return { ok: false, error: "not-found" };
+      f.profile.likes = edit.liked ? [...f.profile.likes.filter((l) => l.toLowerCase() !== edit.term), edit.term].slice(-20) : f.profile.likes.filter((l) => l.toLowerCase() !== edit.term);
+      changes.push(edit.liked ? `Noted: you like ${edit.term}. Meals with it come first when a week is planned.` : `Took ${edit.term} off your likes.`);
+      label = edit.liked ? `Likes ${edit.term}` : `${edit.term} off the likes`;
+      break;
+    }
+    case "heat": {
+      f.profile.spice = edit.spice;
+      // A night set to what is now the house heat no longer needs its own.
+      for (const s of f.week?.slots ?? []) if (s.custom.spice && s.custom.spice === edit.spice) delete s.custom.spice;
+      changes.push(edit.spice ? `Every night is cooked ${edit.spice === "medium" ? "at medium heat" : edit.spice} now, unless a night says otherwise.` : "Every night is back to the heat its recipe says.");
+      label = edit.spice ? `Heat: ${edit.spice}` : "Heat as written";
       break;
     }
     case "goal":
@@ -921,11 +961,42 @@ export function weekWords(f: MealsState): string {
     return `${DAY_NAME[s.day]}: ${what}${extra ? `, ${extra}` : ""}; ${p.total} g protein for the day; backups ${s.backups.map((b) => nameOf(f, b)).join(" or ") || "none"}.`;
   });
   const avoid = f.profile.avoid.map((a) => (a.unless ? `${a.term} (unless ${a.unless})` : a.term)).join(", ");
-  return [`Week of ${w.start}${w.confirmedAt ? ", confirmed" : ", a draft"}. Goal ${f.profile.proteinGoal} g protein a day.`, ...lines, avoid ? `Avoiding: ${avoid}.` : ""].filter(Boolean).join("\n");
+  const likes = f.profile.likes.join(", ");
+  return [
+    `Week of ${w.start}${w.confirmedAt ? ", confirmed" : ", a draft"}. Goal ${f.profile.proteinGoal} g protein a day.${f.profile.spice ? ` House heat: ${f.profile.spice}.` : ""}`,
+    ...lines,
+    avoid ? `Avoiding: ${avoid}.` : "",
+    likes ? `Likes: ${likes}.` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** A meal by its id or (loosely) its name, for Skippy's tools. */
 export function findMeal(f: MealsState, said: string): Meal | undefined {
   const k = said.toLowerCase().trim();
   return f.catalog.find((x) => x.id === k) ?? f.catalog.find((x) => x.name.toLowerCase() === k) ?? f.catalog.find((x) => x.name.toLowerCase().includes(k) && k.length >= 3);
+}
+
+const norm = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * A component by what Nikita said ("quinoa", "brown rice", "no rice", "chicken"), for Skippy's tools: the id or the
+ * name exactly, then "no …" / "without …" as the role's no-part, then a loose match either way. `role` narrows it
+ * (the part being changed); without it, "no rice" finds its role from what follows the "no".
+ */
+export function componentFor(f: Pick<MealsState, "components">, said: string, role?: Role): Component | undefined {
+  const all = allComponents(f).filter((x) => !role || x.role === role);
+  const k = norm(said);
+  if (!k) return undefined;
+  const exact = all.find((x) => x.id === k.replace(/ /g, "-") || norm(x.name) === k);
+  if (exact) return exact;
+  const none = /^(?:no|none|without|skip(?: the)?|hold(?: the)?)(?: (.+))?$/.exec(k);
+  if (none) {
+    const of = none[1] ? componentFor(f, none[1], role) : undefined;
+    const r = role ?? of?.role;
+    return r ? all.find((x) => x.role === r && x.ingredients.length === 0) ?? allComponents(f).find((x) => x.role === r && x.ingredients.length === 0) : undefined;
+  }
+  if (k.length < 3) return undefined;
+  return all.find((x) => norm(x.name).startsWith(k)) ?? all.find((x) => norm(x.name).includes(k)) ?? all.find((x) => k.includes(norm(x.name)));
 }

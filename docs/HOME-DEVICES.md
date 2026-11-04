@@ -288,6 +288,8 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   | `{ op: "customize", day, part?: { index, option }, portion?: 0.75 \| 1 \| 1.25 \| 1.5, spice?: "mild" \| "medium" \| "hot", reset? }` | changes a part, the portion or the spice; `reset` puts it back as written |
   | `{ op: "night", day, helloFresh?, forTwo?, inCart? }` | the night's switches |
   | `{ op: "avoid", term, unless? }` / `{ op: "unavoid", term }` | a taste rule; every night that breaks it is swapped for a backup without it |
+  | `{ op: "like", term, liked }` | a like in the taste profile (or taken off); a meal with it is planned first among equals |
+  | `{ op: "heat", spice \| null }` | the house heat: every night cooked mild, medium or hot unless the night says otherwise (null: as written). It isn't a customization, so it never asks for a photo |
   | `{ op: "goal", protein }`, `{ op: "pass", meal, passed }` | the protein goal; pass on (or bring back) a catalog meal |
   | `{ op: "next-week" }` | counts the cooked nights as had and plans the next week from the catalog |
   | `{ op: "confirm" }`, `{ op: "photo", day \| meal, photo }`, `{ op: "undo" }` | see below; the photo library's id; Undo |
@@ -301,8 +303,29 @@ the server, the Desk and Skippy's tools: [`api/_haven/mealShape.ts`](../api/_hav
   edit; a night shows its own photo once the library says `ready`, its meal's photo (or a placeholder) until then.
 - **Seeding.** `PUT /api/haven-meals { meals, replace? }` with the feed key (counts back), or the Kitchen's "Load a
   planner file" when nothing is loaded. Without `replace` it never overwrites a planner that's there.
-- **Skippy.** The Haven's tools (`meals_week`, `meals_swap`, `meals_customize`, `meals_night`, `meals_avoid`,
-  `meals_send`, `meals_next_week`, rooms/haven/tools.ts) make the same edits, for Talk to edit.
+- **Talking to it (#698).** Nikita edits the week by talking to Skippy: his chat on the Desk, a room's mic (the Haven's
+  Steward, or Skippy on Today) or Hands-free. The Haven's tools (rooms/haven/tools.ts, run in
+  `api/_skippy/agent/tools.ts`) make the same edits, each through `readEdit` first, so a tool can only make an edit the
+  closed set allows:
+
+  | Said | Tool | Edit |
+  | --- | --- | --- |
+  | "what's for dinner this week?" | `meals_week` | reads the week (never the budget) |
+  | "swap Tuesday for the kofta", "not for me" | `meals_swap` | `swap` by the meal's name, or `nope` |
+  | "quinoa instead of rice on Monday", "no carb Friday", "a bigger portion Thursday", "make Wednesday hot" | `meals_customize` | `customize`: a part by name (`componentFor`), portion, that night's spice, reset |
+  | "Friday's a HelloFresh night", "Saturday for two" | `meals_night` | `night` |
+  | "I don't like mushrooms", "mushrooms are fine again" | `meals_avoid` | `avoid` / `unavoid` |
+  | "I love salmon", "more spicy", "protein goal 210" | `meals_taste` | `like`, `heat`, `goal` |
+  | "undo that" | `meals_undo` | `undo` |
+  | "put the week on the list" | `meals_send` | the week's shopping onto the Kitchen list |
+  | "send it to King Soopers" | `meals_cart` | waits for Nikita's Yes tap in the Desk's chat (it sends), then adds the matched picks the Kitchen shows to the cart (`sendPicks`, the Send button's own path); never on a mic or a call |
+  | "plan next week" | `meals_next_week` | `next-week` |
+
+  In the Haven, meal talk always goes to Skippy, never the to-do or shopping rules (`mealTalk` in
+  api/_haven/classify.ts: "swap Tuesday for tacos" is a swap, not a to-do). The Kitchen page follows at once: each
+  answer names the tools that changed something (`wrote`, docs/SKIPPY.md), and the planner reads itself again, opens
+  the night that changed and says "Skippy changed it: …". Confirm week stays a tap on the Kitchen page (it starts the
+  customized nights' photos).
 
 ## The meal photo library
 

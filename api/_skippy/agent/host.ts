@@ -40,6 +40,16 @@ export function liveHost(env: Env = process.env, now = Date.now()): ToolHost {
           send: async () => (await import("../../_haven/meals.js")).sendWeek(blob, Date.now()),
         }
       : null,
+    cart: {
+      now: async () => {
+        const [{ cartNow }, { krogerDeps }] = await Promise.all([import("../../_haven/kroger/route.js"), import("../../_haven/kroger/live.js")]);
+        return cartNow(krogerDeps(env));
+      },
+      send: async (picks) => {
+        const [{ sendPicks }, { krogerDeps }] = await Promise.all([import("../../_haven/kroger/route.js"), import("../../_haven/kroger/live.js")]);
+        return sendPicks(krogerDeps(env), picks);
+      },
+    },
     homeAct: async (req) => {
       const { homeFromEnv } = await import("../../_haven/devices/live.js");
       const home = homeFromEnv(env);

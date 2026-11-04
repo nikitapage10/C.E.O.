@@ -200,6 +200,9 @@
 .desk .td-later-ics i{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--wv-hot);color:#1a1712;font-style:normal;font-family:var(--td-sans);font-size:9.5px;line-height:16px;text-align:center}
 .desk .td-later-chev{width:14px;height:14px;flex:none;color:var(--wv-mute);transition:transform .45s var(--wv-ease)}
 .desk .td-later.is-open .td-later-chev{transform:rotate(180deg)}
+/* Ask Skippy floats bottom right on every page (#638, roomvoice/roommic.css); on Today the dock is only that pill
+   (about 150px, 18px in), so the bar keeps its icons and chevron clear of it. The phone layout wraps them left. */
+@media (min-width:641px){.desk .td-later-bar{padding-right:192px}}
 .desk .td-later .wv-tmore-in>.wv-acts--later{margin-top:28px}
 
 /* ---------- the type, set precisely ---------- */

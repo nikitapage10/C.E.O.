@@ -35,6 +35,7 @@ const loaders = {
   workshop: () => import("./rooms/Workshop.tsx"),
   studio: () => import("./rooms/Studio.tsx"),
   annex: () => import("./rooms/Annex.tsx"),
+  haven: () => import("./rooms/Haven.tsx"),
   // Not pages, but kept out of the first load the same way: Skippy's open dialogue and the rest of Today.
   skippy: () => import("./skippy/SkippyDialog.tsx"),
   more: loadTodayMore,
@@ -49,6 +50,7 @@ const Green = lazy(() => loaders.green().then((m) => ({ default: m.Green })));
 const Workshop = lazy(() => loaders.workshop().then((m) => ({ default: m.Workshop })));
 const Studio = lazy(() => loaders.studio().then((m) => ({ default: m.Studio })));
 const Annex = lazy(() => loaders.annex().then((m) => ({ default: m.Annex })));
+const Haven = lazy(() => loaders.haven().then((m) => ({ default: m.Haven })));
 const SkippyChat = lazy(() => loaders.skippy().then((m) => ({ default: m.SkippyChat })));
 
 /** Fetch the other pages once the browser is idle after first paint. Failures are ignored: opening the page retries. */
@@ -73,7 +75,7 @@ function TabLoading() {
 
 type DeskTab = Exclude<Route, "lattice">;
 
-const TITLES: Partial<Record<DeskTab, string>> = { relay: "Relay", foundry: "Foundry", archive: "Archive", spire: "Spire", exchange: "Exchange", green: "Green", workshop: "Workshop", studio: "Studio", annex: "Annex" };
+const TITLES: Partial<Record<DeskTab, string>> = { relay: "Relay", foundry: "Foundry", archive: "Archive", spire: "Spire", exchange: "Exchange", green: "Green", workshop: "Workshop", studio: "Studio", annex: "Annex", haven: "Haven" };
 
 export function Desk({ route }: { route: DeskTab }) {
   const awaySince = useAwaySince();
@@ -162,6 +164,8 @@ export function Desk({ route }: { route: DeskTab }) {
             <Studio />
           ) : route === "annex" ? (
             <Annex />
+          ) : route === "haven" ? (
+            <Haven />
           ) : (
             <Today data={data} now={now} connected={connected} awaySince={awaySince} />
           )}

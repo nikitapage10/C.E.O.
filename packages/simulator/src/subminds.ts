@@ -42,13 +42,17 @@ export const SUBMINDS: readonly Submind[] = [
 export interface DeskSubmind {
   id: string;
   name: string;
-  room: "annex";
+  room: "annex" | "haven";
   colour: string;
   job: string;
   active: boolean;
 }
 
-export const DESK_SUBMINDS: readonly DeskSubmind[] = [{ id: "stagehand", name: "The Stagehand", room: "annex", colour: "#f2dd5c", job: "Stagehand", active: true }];
+export const DESK_SUBMINDS: readonly DeskSubmind[] = [
+  { id: "stagehand", name: "The Stagehand", room: "annex", colour: "#f2dd5c", job: "Stagehand", active: true },
+  // The Haven (#616): live on the home devices' own clouds (Roborock, Petlibro, Whisker, #632).
+  { id: "hearth", name: "The Steward", room: "haven", colour: "#f0c987", job: "Steward", active: true },
+];
 
 export const SUBMIND_IDS: ReadonlySet<string> = new Set(SUBMINDS.map((m) => m.id));
 export const isSubmind = (id: string) => SUBMIND_IDS.has(id);

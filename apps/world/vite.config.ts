@@ -125,7 +125,7 @@ export default defineConfig({
     // Fonts are always files, never inlined as data: URIs: the site's CSP allows fonts from 'self' only, and Manrope's
     // smallest subsets fall under Vite's 4 kB inline limit.
     assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         // Two library chunks that change rarely, so returning visitors keep them cached between deploys:
         // `vendor` is what the Desk needs (React, zustand), `three` is three.js and everything the Lattice adds.
@@ -139,7 +139,7 @@ export default defineConfig({
         // each module only when it's first needed, puts the helpers in a `rolldown-runtime` chunk of their own and
         // keeps any cycle between chunks harmless. checkChunks() fails the build if `vendor` ever imports app code.
         strictExecutionOrder: true,
-        advancedChunks: {
+        codeSplitting: {
           includeDependenciesRecursively: false,
           groups: [
             { name: "vendor", test: /node_modules[\\/](react|react-dom|scheduler|zustand|use-sync-external-store|zod|@fontsource|@fontsource-variable)[\\/]/ },

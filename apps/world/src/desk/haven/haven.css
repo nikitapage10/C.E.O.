@@ -1807,6 +1807,733 @@
   }
 }
 
+/* ── the side rail (#729): on a wide screen the gauges stand in a column of glass down the right of the house, each
+   lamp on the rail's inner edge so its thread leaves sideways into the room it reads ── */
+@media (min-width: 861px) {
+  [data-room="haven"] .hv-plinth[data-rail="side"] {
+    left: auto;
+    right: 18px;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    width: 236px;
+    max-width: none;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-plate {
+    flex-direction: column;
+    max-height: min(640px, calc(100svh - 220px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(28, 26, 34, 0.62), rgba(12, 11, 16, 0.72));
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 24px 60px rgba(0, 0, 0, 0.5),
+      0 0 50px rgba(var(--hv-gold), 0.05);
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge {
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "lamp name value"
+      "lamp state value";
+    justify-items: start;
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 0;
+    min-width: 0;
+    padding: 9px 12px 9px 4px;
+    border-radius: 12px;
+    text-align: left;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge + .hv-gauge::before {
+    left: 26px;
+    right: 10px;
+    top: 0;
+    bottom: auto;
+    width: auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--hv-gold), 0.18), transparent);
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge > .hv-lamp {
+    grid-area: lamp;
+    margin: 0 0 0 3px;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge > .hv-gV {
+    grid-area: value;
+    justify-self: end;
+    font-size: 26px;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge > .hv-gName {
+    grid-area: name;
+    margin: 0;
+    font-size: 13px;
+    color: var(--hv-soft);
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge > .hv-gState {
+    grid-area: state;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gTxt {
+    min-width: 0;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gTxt .hv-gName {
+    font-size: 13px;
+    color: var(--hv-soft);
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge[data-tone="wait"] .hv-gV {
+    font-size: 18px;
+  }
+  /* Climate: the dial with its readings beside it, its lamp on the rail's inner edge like the rest. */
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge.is-dial {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: none;
+    grid-auto-flow: row;
+    column-gap: 12px;
+    padding: 10px 10px 10px 14px;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gauge.is-dial .hv-dialWrap .hv-lamp {
+    position: absolute;
+    left: -9px;
+    top: 50%;
+    margin: -3.5px 0 0;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-dialFace {
+    width: 76px;
+    height: 76px;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-dp.is-sheet {
+    max-height: min(84svh, 760px);
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gTxt .hv-gState,
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-gHint {
+    white-space: normal;
+  }
+  /* A gauge's pop-up opens to the rail's left, centred on the house. */
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-popAt {
+    left: auto;
+    right: calc(100% + 14px);
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    width: 380px;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-popAt[data-pop="roborock"] {
+    width: 460px;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-popAt[data-pop="climate"] {
+    width: 400px;
+  }
+  [data-room="haven"] .hv-plinth[data-rail="side"] .hv-held {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+}
+
+/* ── the Roborock sheet (#729): status up top, the floor plan as the hero, two segmented controls, one action ── */
+[data-room="haven"] .hv-dp.is-sheet {
+  gap: 14px;
+  padding: 16px 18px 16px;
+  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 60% at 0% 0%, rgba(var(--hv-gold), 0.08), transparent 60%),
+    linear-gradient(180deg, rgba(26, 24, 32, 0.96), rgba(12, 11, 16, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 70px rgba(0, 0, 0, 0.55);
+}
+[data-room="haven"] .hv-vs-head {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+[data-room="haven"] .hv-vs-art {
+  display: block;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+[data-room="haven"] .hv-vs-now {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+[data-room="haven"] .hv-vs-now b {
+  font: 500 26px/1.05 var(--hv-disp);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-vs-head[data-tone="busy"] .hv-vs-now b {
+  color: #9fe8c4;
+}
+[data-room="haven"] .hv-vs-head[data-tone="warn"] .hv-vs-now b {
+  color: var(--hv-warn);
+}
+[data-room="haven"] .hv-vs-now span {
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-vs-batt {
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  place-items: center;
+  place-content: center;
+  width: 56px;
+  height: 56px;
+}
+[data-room="haven"] .hv-vs-batt svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+[data-room="haven"] .hv-vs-battBg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 3.5;
+}
+[data-room="haven"] .hv-vs-battFg {
+  fill: none;
+  stroke: #86d4b4;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+[data-room="haven"] .hv-vs-batt.is-low .hv-vs-battFg {
+  stroke: var(--hv-warn);
+}
+[data-room="haven"] .hv-vs-batt b {
+  position: relative;
+  font: 600 15px "Geist Mono Variable", ui-monospace, monospace;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-vs-batt small {
+  position: relative;
+  font-size: 10px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-vs-alerts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-room="haven"] .hv-vs-alerts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px 5px 9px;
+  border: 1px solid rgba(255, 154, 106, 0.4);
+  border-radius: 999px;
+  background: rgba(255, 154, 106, 0.1);
+  color: #ffc3a5;
+  font-size: 12px;
+}
+[data-room="haven"] .hv-vs-alerts li i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hv-warn);
+}
+[data-room="haven"] .hv-vs-alerts li[data-kind="water"] {
+  border-color: rgba(110, 180, 255, 0.45);
+  background: rgba(110, 180, 255, 0.1);
+  color: #cfe6ff;
+}
+[data-room="haven"] .hv-vs-alerts li[data-kind="water"] i {
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #6eb4ff;
+}
+[data-room="haven"] .hv-vs-map {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.28);
+}
+[data-room="haven"] .hv-vs-map .hv-rmap svg {
+  max-height: 230px;
+}
+[data-room="haven"] .hv-vs-mapTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+[data-room="haven"] .hv-vs-k {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(var(--hv-gold), 0.8);
+}
+[data-room="haven"] .hv-vs-count {
+  flex: 1;
+  font-size: 12px;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-vs-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(var(--hv-gold));
+  font: 500 12px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-vs-link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+[data-room="haven"] .hv-vs-modes {
+  display: grid;
+  gap: 10px;
+}
+[data-room="haven"] .hv-vs-seg {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+[data-room="haven"] .hv-vs-seg [role="group"] {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+/* The thumb slides under the pressed segment. */
+[data-room="haven"] .hv-vs-seg [role="group"] > i {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--n));
+  transform: translateX(calc(var(--i) * 100%));
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(var(--hv-gold), 0.32), rgba(var(--hv-gold), 0.2));
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+[data-room="haven"] .hv-vs-seg button {
+  position: relative;
+  padding: 8px 6px;
+  border: 0;
+  background: none;
+  color: var(--hv-mute);
+  font: 500 13px var(--hv-text);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+[data-room="haven"] .hv-vs-seg button[aria-pressed="true"] {
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-vs-seg button:focus-visible {
+  outline: 2px solid rgba(var(--hv-gold), 0.6);
+  outline-offset: -2px;
+  border-radius: 9px;
+}
+[data-room="haven"] .hv-vs-go {
+  padding: 14px 18px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f5d59c, #e2b56e);
+  color: #1c150b;
+  font: 600 15px var(--hv-text);
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(var(--hv-gold), 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+[data-room="haven"] .hv-vs-go:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(var(--hv-gold), 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+[data-room="haven"] .hv-vs-go:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+[data-room="haven"] .hv-vs-more {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: -6px;
+}
+[data-room="haven"] .hv-vs-more button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hv-soft);
+  font: 500 13px var(--hv-text);
+  cursor: pointer;
+}
+[data-room="haven"] .hv-vs-more button:hover:not(:disabled),
+[data-room="haven"] .hv-vs-more button:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+[data-room="haven"] .hv-vs-more button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .hv-vs-seg [role="group"] > i,
+  [data-room="haven"] .hv-vs-go {
+    transition: none;
+  }
+}
+
+/* ── the Climate control as one big dial (#729): blue to orange, the room a marker, the set point a knob ── */
+[data-room="haven"] .hv-th.is-big {
+  gap: 12px;
+  padding: 16px 18px 16px;
+  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(24, 22, 30, 0.95), rgba(12, 11, 16, 0.95));
+}
+/* The mode tints the card even while it holds: faint orange for heat, faint blue for cool. */
+[data-room="haven"] .hv-th.is-big[data-mode="heat"] {
+  border-color: rgba(255, 140, 64, 0.32);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(255, 110, 40, 0.1);
+}
+[data-room="haven"] .hv-th.is-big[data-mode="cool"] {
+  border-color: rgba(110, 180, 255, 0.32);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(80, 160, 255, 0.1);
+}
+[data-room="haven"] .hv-th.is-big[data-mode="heatcool"] {
+  border-color: rgba(200, 180, 255, 0.28);
+}
+[data-room="haven"] .hv-th.is-big[data-mode="heat"] .hv-th-wx {
+  opacity: 1;
+  background: radial-gradient(110% 55% at 50% 110%, rgba(255, 110, 40, 0.12), transparent 70%);
+}
+[data-room="haven"] .hv-th.is-big[data-mode="cool"] .hv-th-wx {
+  opacity: 1;
+  background: radial-gradient(110% 55% at 50% -10%, rgba(80, 160, 255, 0.12), transparent 70%);
+}
+/* Working: the glow deepens and the embers or frost move (the earlier rules, .hv-th[data-mood]). */
+[data-room="haven"] .hv-th.is-big[data-mood="heat"] .hv-th-wx {
+  background: radial-gradient(120% 70% at 50% 110%, rgba(255, 110, 40, 0.3), transparent 70%);
+}
+[data-room="haven"] .hv-th.is-big[data-mood="cool"] .hv-th-wx {
+  background: radial-gradient(120% 70% at 50% -10%, rgba(80, 160, 255, 0.28), transparent 70%);
+}
+[data-room="haven"] .hv-th.is-big .hv-th-top {
+  gap: 10px;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-top .hv-uk {
+  flex: 1;
+}
+[data-room="haven"] .hv-th-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--hv-soft);
+  font-size: 12px;
+}
+[data-room="haven"] .hv-th-run i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--hv-mute);
+}
+[data-room="haven"] .hv-th-run[data-run="heating"] {
+  background: rgba(255, 130, 50, 0.16);
+  color: #ffc49a;
+}
+[data-room="haven"] .hv-th-run[data-run="heating"] i {
+  background: #ff8a3a;
+  box-shadow: 0 0 8px #ff8a3a;
+}
+[data-room="haven"] .hv-th-run[data-run="cooling"] {
+  background: rgba(95, 170, 255, 0.16);
+  color: #cfe6ff;
+}
+[data-room="haven"] .hv-th-run[data-run="cooling"] i {
+  background: #5faaff;
+  box-shadow: 0 0 8px #5faaff;
+}
+[data-room="haven"] .hv-th-run[data-run="holding"] i {
+  background: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-th-dial {
+  position: relative;
+  width: min(100%, 300px);
+  margin: 0 auto;
+  aspect-ratio: 1;
+}
+[data-room="haven"] .hv-cd {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+  overflow: visible;
+}
+[data-room="haven"] .hv-cd[data-locked] {
+  cursor: default;
+}
+[data-room="haven"] .hv-cd-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 18;
+  stroke-linecap: round;
+}
+[data-room="haven"] .hv-cd-arc {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+[data-room="haven"] .hv-th.is-big[data-mode="off"] .hv-cd-arc {
+  opacity: 0.18;
+}
+[data-room="haven"] .hv-cd-span {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 2 5;
+}
+[data-room="haven"] .hv-cd-span[data-dir="heat"] {
+  stroke: #ffb27a;
+}
+[data-room="haven"] .hv-cd-span[data-dir="cool"] {
+  stroke: #a9d2ff;
+}
+[data-room="haven"] .hv-cd-ticks line {
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+[data-room="haven"] .hv-cd-ticks line.is-big {
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1.6;
+}
+[data-room="haven"] .hv-cd-tickV {
+  fill: var(--hv-faint);
+  font: 500 11px var(--hv-text);
+  text-anchor: middle;
+}
+[data-room="haven"] .hv-cd-inside {
+  stroke: var(--hv-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+[data-room="haven"] .hv-cd-knob circle:first-child {
+  stroke: #0e0d12;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+[data-room="haven"] .hv-cd-knobIn {
+  fill: #0e0d12;
+}
+[data-room="haven"] .hv-cd-count {
+  fill: none;
+  stroke: rgb(var(--hv-gold));
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 100 100;
+  transform: rotate(-90deg);
+  transform-origin: 120px 120px;
+  transition: stroke-dashoffset 0.25s linear;
+}
+[data-room="haven"] .hv-th.is-big[data-mood="heat"] .hv-cd-count,
+[data-room="haven"] .hv-th.is-big[data-mode="heat"] .hv-cd-count {
+  stroke: #ff9a50;
+}
+[data-room="haven"] .hv-th.is-big[data-mood="cool"] .hv-cd-count,
+[data-room="haven"] .hv-th.is-big[data-mode="cool"] .hv-cd-count {
+  stroke: #7cbcff;
+}
+[data-room="haven"] .hv-th-mid {
+  position: absolute;
+  inset: 26% 20%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  pointer-events: none;
+  text-align: center;
+}
+[data-room="haven"] .hv-th-big {
+  font: 500 64px/0.95 var(--hv-disp);
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-th-big.is-pair {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 44px;
+}
+[data-room="haven"] .hv-th-big.is-pair i {
+  font-style: normal;
+  font-size: 24px;
+  color: var(--hv-faint);
+}
+[data-room="haven"] .hv-th-big.is-off {
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-th-mid .hv-th-k {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hv-mute);
+}
+[data-room="haven"] .hv-th.is-big[data-held] .hv-th-mid .hv-th-k {
+  color: rgb(var(--hv-gold));
+}
+[data-room="haven"] .hv-th-in {
+  font-size: 12px;
+  color: var(--hv-soft);
+}
+[data-room="haven"] .hv-th-nudge {
+  position: absolute;
+  bottom: 2%;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hv-ink);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+[data-room="haven"] .hv-th-nudge.is-dn {
+  left: 22%;
+  border-color: rgba(95, 170, 255, 0.45);
+}
+[data-room="haven"] .hv-th-nudge.is-up {
+  right: 22%;
+  border-color: rgba(255, 138, 58, 0.45);
+}
+[data-room="haven"] .hv-th-nudge:hover:not(:disabled),
+[data-room="haven"] .hv-th-nudge:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+[data-room="haven"] .hv-th-nudge:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+[data-room="haven"] .hv-th-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+[data-room="haven"] .hv-th-pair .hv-th-step[data-side="heat"] b {
+  color: #ffb27a;
+}
+[data-room="haven"] .hv-th-pair .hv-th-step[data-side="cool"] b {
+  color: #a9d2ff;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-held {
+  justify-content: space-between;
+  padding: 10px 10px 10px 14px;
+  border: 1px solid rgba(var(--hv-gold), 0.45);
+  border-radius: 14px;
+  background: rgba(var(--hv-gold), 0.1);
+  font-size: 13px;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-heldTxt {
+  flex: 1;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-held button.is-pri {
+  background: rgb(var(--hv-gold));
+  border-color: rgb(var(--hv-gold));
+  color: #1c150b;
+  font-weight: 600;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 6px;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--hv-soft);
+  font: 500 12px var(--hv-text);
+  white-space: nowrap;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hv-faint);
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[data-m="heat"] i {
+  background: #ff8a3a;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[data-m="cool"] i {
+  background: #5faaff;
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[data-m="heatcool"] i {
+  background: linear-gradient(90deg, #5faaff 50%, #ff8a3a 50%);
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[data-m="heat"][aria-pressed="true"] {
+  border-color: rgba(255, 138, 58, 0.7);
+  background: rgba(255, 138, 58, 0.16);
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[data-m="cool"][aria-pressed="true"] {
+  border-color: rgba(95, 170, 255, 0.7);
+  background: rgba(95, 170, 255, 0.16);
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[data-m="heatcool"][aria-pressed="true"] {
+  border-color: rgba(200, 180, 255, 0.6);
+  background: linear-gradient(90deg, rgba(95, 170, 255, 0.14), rgba(255, 138, 58, 0.14));
+}
+[data-room="haven"] .hv-th.is-big .hv-th-modes button[data-m="off"][aria-pressed="true"] {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-room="haven"] .hv-cd-count {
+    transition: none;
+  }
+}
+
+/* The rail's dial wears the same blue-to-orange arc (#729), under its ticks. */
+[data-room="haven"] .hv-dialArc {
+  fill: none;
+  stroke-width: 9;
+  stroke-linecap: round;
+  opacity: 0.32;
+}
+[data-room="haven"] .hv-dialFace[data-mood="heat"] .hv-dialArc,
+[data-room="haven"] .hv-dialFace[data-mood="cool"] .hv-dialArc {
+  opacity: 0.55;
+}
+
 /* ── the devices drawn on the Pets and Hall pages (#718, DeviceArt.tsx) ── */
 [data-room="haven"] .hv-art {
   position: relative;
@@ -1855,4 +2582,7 @@
   [data-room="haven"] .hv-grid.is-hall {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+[data-room="haven"] .hv-grid.is-hall .hv-vs-modes {
+  margin: 12px 0 0;
 }

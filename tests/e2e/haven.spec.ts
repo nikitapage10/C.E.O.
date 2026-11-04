@@ -33,7 +33,7 @@ const VENDORS = { roborock: "live", petlibro: "live", whisker: "live" };
 function devices(now: number) {
   const ago = (min: number) => new Date(now - min * 60_000).toISOString();
   return [
-    { id: "a00000000001", vendor: "roborock", kind: "vacuum", model: "Test vacuum", place: "", online: true, state: "cleaning", battery: 81, alerts: [], rooms: ["Hall", "Kitchen", "Living room", "Bedroom"] },
+    { id: "a00000000001", vendor: "roborock", kind: "vacuum", model: "Test vacuum", place: "", online: true, state: "cleaning", battery: 81, alerts: ["clean water tank empty"], rooms: ["Hall", "Kitchen", "Living room", "Bedroom"] },
     // The Petlibro day (#685): made-up numbers and plans, not anyone's real schedule.
     { id: "a00000000002", vendor: "petlibro", kind: "dry-feeder", model: "Test feeder", place: "", online: true, state: "ok", alerts: [], foodLow: true, lastFed: ago(20), manualToday: 0, manualCap: 2, fedPortions: 3, feeds: 1, feedUnit: "cup", plan: [{ time: "06:30", portions: 3, on: true, status: "done" }, { time: "13:00", portions: 1, on: false }, { time: "19:30", portions: 3, on: true, status: "next" }] },
     { id: "a00000000005", vendor: "petlibro", kind: "wet-feeder", model: "Test wet feeder", place: "", online: true, state: "closed", alerts: [], foodLow: false, lastFed: null, manualToday: 0, manualCap: 2, plate: 2, visits: 4, visitSec: 151, meals: [{ time: "07:15", end: "09:15", plate: 1, status: "done" }, { time: "11:45", end: "13:45", plate: 2, status: "now" }, { time: "18:30", end: "20:30", plate: 3, status: "next" }] },
@@ -241,7 +241,13 @@ test("signed in: the plinth's Climate dial opens the control and turns the set p
   const dial = strip.getByRole("button", { name: /^Climate: 68°/ });
   await expect(dial).toBeVisible();
   await dial.click();
-  await expect(page.getByRole("dialog", { name: "Climate" })).toBeVisible();
+  const climate = page.getByRole("dialog", { name: "Climate" });
+  await expect(climate).toBeVisible();
+  // The big dial (#729): a nudge holds the change, counted down in the card with Cancel and Send now.
+  await climate.getByRole("button", { name: "Heat to: one degree warmer" }).click();
+  await expect(climate.getByRole("status")).toContainText("Sending 71°");
+  await climate.getByRole("button", { name: "Cancel" }).click();
+  await expect(climate.getByRole("status")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Climate" })).toHaveCount(0);
   // The arrow keys turn it a degree at a time, and it sends once, through the control's own action.
@@ -310,6 +316,10 @@ test("signed in: each device gauge opens its controls, and they send the existin
   await vac.getByRole("checkbox", { name: "Clean Kitchen" }).click();
   await vac.getByRole("checkbox", { name: "Clean Bedroom" }).click();
   await vac.getByRole("button", { name: "Quiet" }).click();
+  // The sheet (#729): its status up top, the tank alert, and one primary action.
+  await expect(vac.getByRole("list", { name: "Needs attention" })).toContainText("Clean water tank empty");
+  await expect(vac.getByRole("img", { name: "Battery 81%" })).toBeVisible();
+  if (SHOTS) await page.waitForTimeout(400).then(() => page.screenshot({ path: `${SHOTS}/haven-729-roborock.png` }));
   await vac.getByRole("button", { name: "Clean Kitchen, Bedroom" }).click();
   await expect.poll(() => sent.length).toBe(1);
   expect(sent[0]).toMatchObject({ action: "vacuum.rooms", device: "a00000000001", rooms: ["Kitchen", "Bedroom"], suction: "quiet" });

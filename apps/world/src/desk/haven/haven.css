@@ -1806,3 +1806,53 @@
     animation: none;
   }
 }
+
+/* ── the devices drawn on the Pets and Hall pages (#718, DeviceArt.tsx) ── */
+[data-room="haven"] .hv-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: 2px 0 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: radial-gradient(70% 70% at 50% 45%, rgba(var(--hv-gold), 0.07), transparent 75%);
+}
+[data-room="haven"] .hv-art .da {
+  max-width: 150px;
+}
+[data-room="haven"] .hv-art.is-fountain .da {
+  max-width: 190px;
+}
+[data-room="haven"] .hv-art.is-fountain b {
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  font: 500 30px/1 var(--hv-disp);
+  color: var(--hv-ink);
+}
+[data-room="haven"] .hv-art.is-vac .da {
+  max-width: 260px;
+}
+[data-room="haven"] .hv-feed + .hv-feed {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hv-line);
+}
+[data-room="haven"] .hv-grid.is-hall {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+}
+[data-room="haven"] .hv-grid.is-hall .hv-card.is-wide {
+  grid-column: auto;
+}
+[data-room="haven"] .hv-grid.is-hall .hv-rmap svg {
+  max-height: 420px;
+}
+[data-room="haven"] .hv-grid.is-hall .hv-dp-modes {
+  margin: 12px 0 0;
+}
+@media (max-width: 860px) {
+  [data-room="haven"] .hv-grid.is-hall {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

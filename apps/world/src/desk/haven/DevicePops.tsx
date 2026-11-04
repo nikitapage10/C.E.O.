@@ -66,8 +66,36 @@ function Waiting({ vendor, state }: { vendor: string; state: VendorState }) {
 
 /* ── Roborock ── */
 
-type Suction = "" | "quiet" | "max";
-type Water = "" | "off" | "on";
+export type Suction = "" | "quiet" | "max";
+export type Water = "" | "off" | "on";
+
+/** The vacuum's mode words for a clean: suction (standard, quiet, max) and the mop (as set, vacuum only, mop too). */
+export function VacuumModes({ suction, water, onSuction, onWater }: { suction: Suction; water: Water; onSuction: (s: Suction) => void; onWater: (w: Water) => void }) {
+  return (
+    <div className="hv-dp-modes">
+      <div role="group" aria-label="Suction">
+        {(["", "quiet", "max"] as Suction[]).map((s) => (
+          <button key={s || "std"} type="button" aria-pressed={suction === s} onClick={() => onSuction(s)}>
+            {s === "" ? "Standard" : s === "quiet" ? "Quiet" : "Max"}
+          </button>
+        ))}
+      </div>
+      <div role="group" aria-label="Mop">
+        {(["", "off", "on"] as Water[]).map((w) => (
+          <button key={w || "std"} type="button" aria-pressed={water === w} onClick={() => onWater(w)}>
+            {w === "" ? "As set" : w === "off" ? "Vacuum only" : "Mop too"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** With the plan, the rooms it draws are picked on the map; the names the vacuum has and the plan doesn't stay chips. */
+export function chipsBeside(names: string[], plan: HavenPlan | null): { onPlan: Set<string>; chips: string[] } {
+  const onPlan = new Set(plan ? plan.rooms.filter((r) => !r.detached).map((r) => vacuumName(names, r)).filter((n): n is string => !!n) : []);
+  return { onPlan, chips: names.filter((n) => !onPlan.has(n)) };
+}
 
 export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceReading[] | null; plan: HavenPlan | null; state: VendorState; onClose: () => void }) {
   const act = useHome((s) => s.act);
@@ -86,9 +114,7 @@ export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceRe
   const names = v.rooms ?? [];
   const toggle = (r: string) => setPick((p) => (p.includes(r) ? p.filter((x) => x !== r) : [...p, r]));
   const mode: ActExtra = { ...(suction && { suction }), ...(water && { water }) };
-  // With the plan, its rooms are picked on the map; chips only for the names the map has and the plan doesn't.
-  const onPlan = new Set(plan ? plan.rooms.filter((r) => !r.detached).map((r) => vacuumName(names, r)).filter((n): n is string => !!n) : []);
-  const chips = names.filter((n) => !onPlan.has(n));
+  const { onPlan, chips } = chipsBeside(names, plan);
   const cleaning = /clean|vacuum|mop|segment|room|zone|spot/i.test(v.state) && !/return|dock|charg/i.test(v.state);
   return (
     <Pop title="Roborock" tag={v.online ? v.state : "offline"} onClose={onClose}>
@@ -115,22 +141,7 @@ export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceRe
           )}
         </>
       )}
-      <div className="hv-dp-modes">
-        <div role="group" aria-label="Suction">
-          {(["", "quiet", "max"] as Suction[]).map((s) => (
-            <button key={s || "std"} type="button" aria-pressed={suction === s} onClick={() => setSuction(s)}>
-              {s === "" ? "Standard" : s === "quiet" ? "Quiet" : "Max"}
-            </button>
-          ))}
-        </div>
-        <div role="group" aria-label="Mop">
-          {(["", "off", "on"] as Water[]).map((w) => (
-            <button key={w || "std"} type="button" aria-pressed={water === w} onClick={() => setWater(w)}>
-              {w === "" ? "As set" : w === "off" ? "Vacuum only" : "Mop too"}
-            </button>
-          ))}
-        </div>
-      </div>
+      <VacuumModes suction={suction} water={water} onSuction={setSuction} onWater={setWater} />
       <div className="hv-dp-btns">
         <button type="button" className="hv-btn is-pri" disabled={off || !pick.length} onClick={() => void act("vacuum.rooms", v.id, pick, mode).then((ok) => ok && setPick([]))}>
           {pick.length ? `Clean ${pick.join(", ")}` : "Pick rooms to clean"}
@@ -152,7 +163,7 @@ export function VacuumPop({ devices, plan, state, onClose }: { devices: DeviceRe
 /* ── Petlibro: the dry feeder, the wet feeder and the fountain ── */
 
 /** A moment of motion after an action lands: the kibble falls, the tray turns, the lid lifts. */
-function useFlash(ms: number): [boolean, () => void] {
+export function useFlash(ms: number): [boolean, () => void] {
   const [on, setOn] = useState(false);
   const t = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(t.current), []);

@@ -4,7 +4,7 @@ import { MemoryRoomLog, cleanCard } from "./_skippy/log.ts";
 import { PONDER_LINES, UNSPOKEN } from "./_skippy/ponder.ts";
 import { PAGE_LINES, PAGE_MAX, readPage, saysHandedOff } from "./_skippy/prompt.ts";
 import { SESSION_COOKIE } from "./_desk/session.ts";
-import { CHAT_CEILING_USD, CLAUDE_CAP_USD, MemoryChatLedger, SHAPING_RESERVE_USD, addChatSpend, canChat, chatMonth, skippyBudget } from "./_skippy/budget.ts";
+import { AGENT_CEILING_USD, CHAT_CEILING_USD, MemoryChatLedger, SKIPPY_BUDGET_MAX, addChatSpend, canChat, chatMonth, skippyBudget, skippySpend, skippyWarn } from "./_skippy/budget.ts";
 import { contextLines, deskContext, line, type ContextIssue } from "./_skippy/context.ts";
 import { CHAT_RULES, chatTag, chatWait, countChat } from "./_skippy/limits.ts";
 import { ACTIONS_MAX, HISTORY_TURNS, MESSAGE_MAX, readChat, readReply } from "./_skippy/prompt.ts";
@@ -55,19 +55,37 @@ describe("the Desk as Skippy sees it", () => {
   });
 });
 
-describe("the chat's budget", () => {
-  it("takes its share from SKIPPY_BUDGET_USD, never past what the world and the shaping reserve leave", () => {
-    expect(skippyBudget(undefined, 6)).toBe(2);
-    expect(skippyBudget("1.5", 6)).toBe(1.5);
-    expect(skippyBudget("50", 6)).toBe(CLAUDE_CAP_USD - SHAPING_RESERVE_USD - 6);
-    expect(skippyBudget("5", 9)).toBe(0);
-    expect(skippyBudget("-1", 6)).toBe(2);
+describe("Skippy's month (#646)", () => {
+  it("is SKIPPY_BUDGET_USD, $60 unless it says otherwise, never below 0 or past the seatbelt", () => {
+    expect(skippyBudget(undefined)).toBe(60);
+    expect(skippyBudget("")).toBe(60);
+    expect(skippyBudget("45")).toBe(45);
+    expect(skippyBudget("-1")).toBe(60);
+    expect(skippyBudget("lots")).toBe(60);
+    expect(skippyBudget("100000")).toBe(SKIPPY_BUDGET_MAX);
   });
-  it("lets a call through only while it fits the share and the whole cap", () => {
-    expect(canChat(0, 0, 1)).toBe(true);
-    expect(canChat(1 - CHAT_CEILING_USD / 2, 0, 1)).toBe(false);
-    expect(canChat(0.1, CLAUDE_CAP_USD - SHAPING_RESERVE_USD - 0.1, 1)).toBe(false);
-    expect(canChat(0, 0, 0)).toBe(false);
+  it("warns at $50 of $60", () => {
+    expect(skippyWarn(60)).toBe(50);
+  });
+  it("lets a call through only while the month plus one call at its most fits the cap", () => {
+    expect(canChat(0, 1)).toBe(true);
+    expect(canChat(1 - CHAT_CEILING_USD / 2, 1)).toBe(false);
+    expect(canChat(60 - AGENT_CEILING_USD, 60, AGENT_CEILING_USD)).toBe(true);
+    expect(canChat(60 - AGENT_CEILING_USD + 0.001, 60, AGENT_CEILING_USD)).toBe(false);
+    expect(canChat(0, 0)).toBe(false);
+    expect(AGENT_CEILING_USD).toBeLessThan(1.5);
+  });
+  it("sums every part for the spend meter, the Kernel responder's included", async () => {
+    const now = Date.parse("2026-11-04T00:00:00Z");
+    const chat = new MemoryChatLedger();
+    const kernel = new MemoryChatLedger();
+    await chat.add(now, { input_tokens: 1000, output_tokens: 100 }, 30, { talk: 20, research: 9, triage: 1 });
+    await kernel.add(now, { input_tokens: 1000, output_tokens: 100 }, 22);
+    const s = await skippySpend({ chat, kernel }, 60, now);
+    expect(s).toMatchObject({ month: "2026-11", capUsd: 60, warnUsd: 50, spentUsd: 52, leftUsd: 8, state: "warn", calls: 2 });
+    expect(s.parts).toEqual({ triage: 1, talk: 20, research: 9, web: 0, kernel: 22, agents: 0 });
+    await kernel.add(now, { input_tokens: 1, output_tokens: 1 }, 7.9);
+    expect((await skippySpend({ chat, kernel }, 60, now)).state).toBe("capped");
   });
   it("adds each call to its month from its own token use", () => {
     const now = Date.parse("2026-10-22T00:00:00Z");
@@ -198,7 +216,7 @@ describe("POST /api/skippy, with Claude stubbed", () => {
     const { post, calls, ledger } = await setup();
     const res = await post({ message: "What's building?", history: [{ who: "nikita", text: "hi" }, { who: "skippy", text: "Hello, monkey." }] });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ reply: "Bask in it, monkey.", actions: [{ kind: "open", label: "Open the Foundry", page: "foundry" }], room: "none" });
+    expect(await res.json()).toEqual({ reply: "Bask in it, monkey.", actions: [{ kind: "open", label: "Open the Foundry", page: "foundry" }], room: "none", spend: { usd: 0, cap: 60, warn: 50 } });
     expect(res.headers.get("set-cookie")).toContain("__Host-ceo-desk=");
     expect(calls).toHaveLength(1);
     expect(chatMonth(ledger.spend, NOW).calls).toBe(1);
@@ -235,7 +253,7 @@ describe("POST /api/skippy, with Claude stubbed", () => {
 
   it("answers from a script, for free, once the month's share is spent", async () => {
     const ledger = new MemoryChatLedger();
-    ledger.spend = { "2026-10": { usd: 2, calls: 2000, tokensIn: 0, tokensOut: 0 } };
+    ledger.spend = { "2026-10": { usd: 60, calls: 2000, tokensIn: 0, tokensOut: 0 } };
     const { post, calls } = await setup({ ledger });
     const body = (await (await post({ message: "hi" })).json()) as { capped?: boolean; actions: unknown[] };
     expect(body.capped).toBe(true);

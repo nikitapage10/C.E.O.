@@ -1,10 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { runAction } from "./actions.ts";
 import { AnswerCard } from "./AnswerCard.tsx";
 import { ComposeCard } from "../texts/ComposeCard.tsx";
 import { handedName } from "./asked.ts";
-import { canSpeak, stopSpeaking, useSkippy, type ActionState, type SkippyAction, type Turn } from "./chat.ts";
+import { canSpeak, stopSpeaking, useSkippy, type ActionState, type Confirm, type SkippyAction, type Turn } from "./chat.ts";
 import { useHide } from "../hide.ts";
 import { Private } from "../Private.tsx";
 import { SkippyComposer } from "./SkippyChat.tsx";
@@ -59,6 +59,93 @@ function ActionChips({ turn }: { turn: Turn }) {
   );
 }
 
+/**
+ * What the agent read and changed for an answer (#646): "looked at" chips in the Kernel's ice, "did" chips in the
+ * admiral's gold, as one quiet line of instrument readouts under the reply. Words only, never the data itself.
+ */
+function TraceChips({ turn }: { turn: Turn }) {
+  if (!turn.looked?.length && !turn.did?.length) return null;
+  return (
+    <ul className="skp-trace" aria-label="What Skippy looked at and did">
+      {turn.looked?.map((l) => (
+        <li key={`l${l}`} className="skp-trace__chip skp-trace__chip--looked">
+          <span className="skp-trace__k" aria-hidden="true">
+            looked
+          </span>
+          <Private>{l}</Private>
+        </li>
+      ))}
+      {turn.did?.map((d) => (
+        <li key={`d${d}`} className="skp-trace__chip skp-trace__chip--did">
+          <span className="skp-trace__k" aria-hidden="true">
+            did
+          </span>
+          <Private>{d}</Private>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const CONFIRM_STATE: Record<NonNullable<Confirm["state"]>, string> = { busy: "Doing it…", done: "Done", declined: "Left alone", failed: "Didn't work" };
+
+/** The calls waiting for Nikita's Yes (#646): exactly what will happen, and the two buttons. Nothing runs without the tap. */
+function ConfirmCards({ turn }: { turn: Turn }) {
+  const tap = useSkippy((s) => s.tap);
+  if (!turn.confirm?.length) return null;
+  return (
+    <div className="skp-confirms">
+      {turn.confirm.map((c) => (
+        <div key={c.id} className={`skp-confirm${c.state ? ` skp-confirm--${c.state}` : ""}`} role="group" aria-label={`Waiting for your tap: ${c.label}`}>
+          <p className="skp-confirm__what">
+            <Private>{c.summary}</Private>
+          </p>
+          {c.state && c.state !== "busy" ? (
+            <p className="skp-confirm__done">
+              <em>{CONFIRM_STATE[c.state]}</em> {c.result && <Private>{c.result}</Private>}
+            </p>
+          ) : (
+            <div className="skp-confirm__btns">
+              <button type="button" className="btn btn--go btn--sm" disabled={c.state === "busy"} onClick={() => void tap(turn.id, c.id, true)}>
+                {c.state === "busy" ? CONFIRM_STATE.busy : c.label}
+              </button>
+              <button type="button" className="btn btn--sm" disabled={c.state === "busy"} onClick={() => void tap(turn.id, c.id, false)}>
+                No
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const usd = (n: number, digits = 2) => `$${n.toFixed(digits)}`;
+
+/** Skippy's month against his cap (#646): a thin gauge under his name; amber past the warning, red at the stop. */
+function SpendGauge() {
+  const spend = useSkippy((s) => s.spend);
+  if (!spend || spend.cap <= 0) return null;
+  const share = Math.min(1, spend.usd / spend.cap);
+  const state = spend.usd + 0.01 >= spend.cap ? "stop" : spend.usd >= spend.warn ? "warn" : "ok";
+  return (
+    <p className={`skp-gauge skp-gauge--${state}`} title={`Skippy's month: ${usd(spend.usd)} of his ${usd(spend.cap, 0)} cap (warns at ${usd(spend.warn, 0)})`}>
+      <span className="skp-gauge__bar" aria-hidden="true">
+        <i style={{ width: `${(share * 100).toFixed(1)}%` }} />
+        <b style={{ left: `${((spend.warn / spend.cap) * 100).toFixed(1)}%` }} />
+      </span>
+      <Private>
+        <span className="skp-gauge__n">
+          {usd(spend.usd)} <span>of {usd(spend.cap, 0)}</span>
+        </span>
+      </Private>
+    </p>
+  );
+}
+
+/** What Skippy keeps of Nikita (#646), its own download: opened from the header. */
+const MemoryPanel = lazy(() => import("./MemoryPanel.tsx"));
+
 export interface SkippyChatProps {
   /** Where it sits: "dock" floats over the page's corner (a sheet at phone width), "inline" fills its container. */
   placement?: "dock" | "inline";
@@ -82,6 +169,7 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
   const clear = useSkippy((s) => s.clear);
   const list = useRef<HTMLOListElement>(null);
   const titleId = useId();
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const shown = placement === "inline" || open;
   const talking = useTalk((s) => s.phase !== "idle");
   const signedIn = useDeskAuth((s) => s.auth.status === "in");
@@ -118,7 +206,15 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
         <div className="skp-chat__who">
           <h2 id={titleId}>Skippy, the Magnificent</h2>
           <p>{talking ? "On the line, magnificently" : busy ? "Thinking, magnificently…" : "Runs C.E.O. Routes anything you ask."}</p>
+          {signedIn && <SpendGauge />}
         </div>
+        {signedIn && (
+          <button type="button" className={`skp-chat__icon${memoryOpen ? " on" : ""}`} aria-pressed={memoryOpen} onClick={() => setMemoryOpen(!memoryOpen)} title="What Skippy remembers about you" aria-label="What Skippy remembers">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M12 3l7 4v10l-7 4-7-4V7z M12 3v18 M5 7l7 4 7-4" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
         {canSpeak() && (
           <button type="button" className={`skp-chat__icon${voice ? " on" : ""}`} aria-pressed={voice} onClick={() => setVoice(!voice)} title={voice ? "Stop reading replies aloud" : "Read replies aloud"} aria-label="Read replies aloud">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -142,6 +238,11 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
           </button>
         )}
       </header>
+      {memoryOpen && signedIn && (
+        <Suspense fallback={<p className="skp-mem skp-mem--loading">Opening the vault…</p>}>
+          <MemoryPanel onClose={() => setMemoryOpen(false)} />
+        </Suspense>
+      )}
       <ol className="skp-chat__list" ref={list} aria-live="polite" aria-relevant="additions" tabIndex={0} aria-label="Conversation">
         {turns.length === 0 && (
           <li className="skp-turn skp-turn--skippy skp-turn--hello">
@@ -163,7 +264,9 @@ export function SkippyChat({ placement = "dock", className = "", returnFocus }: 
                 <AnswerCard card={t.card} />
               </Private>
             )}
+            {t.who === "skippy" && !t.pending && <ConfirmCards turn={t} />}
             {t.who === "skippy" && !t.pending && <ActionChips turn={t} />}
+            {t.who === "skippy" && !t.pending && <TraceChips turn={t} />}
           </li>
         ))}
         {busy && (

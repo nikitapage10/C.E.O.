@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { ponderLine } from "../../../../../api/_skippy/ponder.ts";
+import type { ToolOutcome } from "@ceo/engine/tools";
 import type { RoomIntent, RoomIntentAction, RoomMic, RoomUtterance } from "@ceo/engine/voice";
 
 /**
@@ -148,6 +149,20 @@ export function intentFor(
 }
 export const forgetIntents = () => intents.clear();
 
+/** One call to the rooms' tool registry (#646), the same server and checks as Desk Skippy's agent. */
+async function postAct(body: Record<string, unknown>, doFetch: typeof fetch): Promise<ToolOutcome> {
+  try {
+    const res = await doFetch("/api/skippy-act", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" });
+    const got = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    const c = got?.confirm as Record<string, unknown> | undefined;
+    if (got?.ok === true && c && typeof c.id === "string" && typeof c.label === "string" && typeof c.summary === "string") return { ok: true, confirm: { id: c.id, label: c.label, summary: c.summary } };
+    if (got?.ok === true && typeof got.text === "string") return { ok: true, text: got.text, ...(typeof got.did === "string" && { did: got.did }) };
+    return { ok: false, text: typeof got?.text === "string" ? got.text : "That didn't go through." };
+  } catch {
+    return { ok: false, text: "That didn't go through." };
+  }
+}
+
 /**
  * Words to a room: its own intent handler first, if it has one and takes them; else its submind (the function). A room's
  * own answer is read aloud through the same voice.
@@ -162,7 +177,9 @@ export async function answerWords(
   intent: Promise<RoomIntent | null> = intentFor(room),
 ): Promise<RoomAnswer> {
   const handler = await intent;
-  const mine = handler ? await handler({ text, room, via, history }).catch(() => null) : null;
+  const tool = (name: string, input: Record<string, unknown>) => postAct({ tool: name, input }, doFetch);
+  const confirmTool = (id: string, yes: boolean) => postAct({ confirm: id, yes }, doFetch);
+  const mine = handler ? await handler({ text, room, via, history, tool, confirmTool }).catch(() => null) : null;
   const say = mine?.say.replace(/\s+/g, " ").trim().slice(0, TEXT_MAX);
   if (say) {
     const audio = await speakLine(room, say, doFetch);

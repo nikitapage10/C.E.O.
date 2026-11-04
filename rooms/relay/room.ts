@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { TOOLS } from "./tools.ts";
 
 /** Relay: email and texts (docs/GMAIL.md, docs/RELAY-PRIVACY.md). Data only (docs/ROOMS.md). */
 export default defineRoom({
@@ -20,6 +21,7 @@ export default defineRoom({
   usesClaude: true,
   threat: ["TB7", "R5"],
   budgetKb: 64,
+  tools: [...TOOLS],
   purpose: {
     goal: "Hands Nikita's email and texts to Claude agents that sort, summarise and draft, with nothing sent without their tap and nothing private leaving the hub.",
     agents: [

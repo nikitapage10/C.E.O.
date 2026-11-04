@@ -1,4 +1,5 @@
 import { defineRoom } from "@ceo/engine/manifest";
+import { TOOLS } from "./tools.ts";
 
 /** Today: the Desk's front page, run by Skippy from the Kernel (docs/SKIPPY.md). Data only (docs/ROOMS.md). */
 export default defineRoom({
@@ -14,6 +15,7 @@ export default defineRoom({
   usesClaude: true,
   threat: ["TB1", "TB2"],
   budgetKb: 16,
+  tools: [...TOOLS],
   purpose: {
     goal: "Puts every room's live agents, their submind reports and Skippy's hand-offs on one page, so Nikita can steer the whole agent system from one place.",
     agents: [

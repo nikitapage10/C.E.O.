@@ -108,7 +108,7 @@ export function buildParams({ main, live = {}, cap = "", deployer = "", github =
     skippyBudgetUsd: pick("skippyBudgetUsd", live.SKIPPY_BUDGET_USD, (v) => MONEY.test(v)),
     emailBudgetUsd: pick("emailBudgetUsd", live.EMAIL_BUDGET_USD, (v) => MONEY.test(v)),
     kernelAgentEnabled: pick("kernelAgentEnabled", live.KERNEL_AGENT_ENABLED, (v) => v === "true" || v === "false"),
-    kernelAgentBudgetUsd: pick("kernelAgentBudgetUsd", live.KERNEL_AGENT_BUDGET_USD, (v) => MONEY.test(v) && Number(v) <= 10),
+    kernelAgentBudgetUsd: pick("kernelAgentBudgetUsd", live.KERNEL_AGENT_BUDGET_USD, (v) => MONEY.test(v) && Number(v) <= 60),
     homeFeedCap: pick("homeFeedCap", live.HOME_FEED_CAP, (v) => /^[0-6]$/.test(v)),
     instacartEnv: pick("instacartEnv", live.INSTACART_ENV, (v) => v === "development" || v === "production"),
     paypalEnv: pick("paypalEnv", live.PAYPAL_ENV, (v) => v === "sandbox" || v === "live"),

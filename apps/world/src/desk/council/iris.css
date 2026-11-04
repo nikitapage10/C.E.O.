@@ -1,0 +1,112 @@
+/*
+ * Today as the Iris (#666): the priority list alone on the left, the Council of Skippies on the right in a dim chamber
+ * under moonlight, cool silver and violet. The nanite eye's canvas runs under both; the list sits over it. Every motion
+ * stops under prefers-reduced-motion. Phones: the ring stacks under the list.
+ */
+
+/* Edge to edge: the Desk's centred column steps aside for the eye (as the Confluence did). */
+.desk .wv-page.ti-page,.desk .desk__main>.wv-page.ti-page{max-width:none;margin:0;padding:0 0 64px}
+.desk .ti-page{--ti-ink:#ecebf7;--ti-soft:#b9b6cf;--ti-mute:#8b88a4;--ti-faint:#6d6a86;--ti-line:rgba(196,190,255,.14);--ti-violet:178,164,244}
+.desk .ti{position:relative;display:grid;grid-template-columns:minmax(320px,36%) minmax(0,1fr);min-height:max(640px,calc(100svh - 120px));isolation:isolate}
+/* The chamber: a well of moonlight from above the Council, the rest falling off to dark. */
+.desk .ti::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 34% 60% at 68% -6%,rgba(206,200,255,.075),transparent 70%),radial-gradient(circle at 68% 52%,rgba(110,98,190,.09),transparent 46%),linear-gradient(90deg,rgba(6,6,10,.55),transparent 42%)}
+.desk .ti-eye{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+
+/* ---------- the list ---------- */
+.desk .ti-list{position:relative;z-index:2;align-self:center;max-width:470px;padding:56px 12px 56px clamp(20px,4.2vw,72px)}
+.desk .td-now.is-iris .td-now-head{margin:0 0 30px}
+.desk .ti-date{margin:0 0 8px;font-family:var(--td-disp);font-size:clamp(22px,1.9vw,28px);font-weight:400;color:#a9a3c9;letter-spacing:.005em}
+.desk .ti-h1.desk__title{margin:0;font-family:var(--td-disp);font-weight:500;font-size:clamp(40px,3.6vw,56px);line-height:1.04;letter-spacing:-.012em;color:var(--ti-ink);text-wrap:balance}
+.desk .td-now.is-iris .td-now-l{gap:0;--ln:0px}
+.desk .td-now.is-iris .td-now-l::before,.desk .td-now.is-iris .td-now-l::after{display:none}
+.desk .td-now.is-iris .td-ni{border-bottom:1px solid var(--ti-line)}
+.desk .td-now.is-iris .td-ni-row{grid-template-columns:48px minmax(0,1fr);gap:0 10px;padding:16px 8px 16px 0;border-radius:6px}
+.desk .td-now.is-iris .td-ni-ic{display:none}
+.desk .td-now.is-iris .td-ni-n{grid-row:1/3;align-self:start;text-align:left;font-family:var(--td-disp);font-style:normal;font-weight:400;font-size:44px;line-height:.9;color:rgb(var(--ti-violet))}
+.desk .td-now.is-iris .td-ni.is-fire .td-ni-n{color:var(--wv-bad)}
+.desk .td-now.is-iris .td-ni-t b{font-family:var(--td-sans);font-weight:400;font-size:17.5px;line-height:1.35}
+.desk .td-now.is-iris .td-ni-t em{order:2;font-size:10px;letter-spacing:.16em;color:var(--ti-mute)}
+.desk .td-now.is-iris .td-ni-t>span{order:3;font-size:13px;color:var(--ti-faint)}
+.desk .td-now.is-iris .td-ni-end{grid-column:2;margin-top:10px}
+.desk .td-now.is-iris .td-ni-talk{opacity:.55}
+.desk .td-now.is-iris .td-ni-talk:hover,.desk .td-now.is-iris .td-ni-talk:focus-visible{opacity:1}
+.desk .ti-clear{margin:0 0 8px;font-size:15px;line-height:1.55;color:var(--ti-soft)}
+/* still left: a hairline each side of the words. */
+.desk .ti-left-k{display:flex;align-items:center;gap:14px;margin:28px 0 6px;font-family:var(--td-sans);font-size:12px;letter-spacing:.08em;color:var(--ti-faint)}
+.desk .ti-left-k::before,.desk .ti-left-k::after{content:"";flex:1;height:1px;background:var(--ti-line)}
+.desk .td-now.is-iris .ti-left .td-ni{border-bottom:0}
+.desk .td-now.is-iris .ti-left .td-ni-row{grid-template-columns:34px minmax(0,1fr);padding:9px 8px 9px 0}
+.desk .td-now.is-iris .ti-left .td-ni-n{grid-row:1/3;font-family:var(--td-sans);font-size:0;line-height:1;align-self:center}
+.desk .td-now.is-iris .ti-left .td-ni-n::before{content:"";display:block;width:15px;height:15px;border-radius:50%;border:1.4px solid var(--ti-soft)}
+.desk .td-now.is-iris .ti-left .td-ni.is-due .td-ni-n::before{border-color:var(--wv-hot)}
+.desk .td-now.is-iris .ti-left .td-ni-t b{font-size:16.5px}
+.desk .td-now.is-iris .ti-left .td-ni-end{margin-top:4px}
+.desk .td-now.is-iris .ti-left .td-ni-go{height:24px;font-size:9px}
+.desk .td-now.is-iris .td-cap-wrap{margin-top:14px}
+.desk .td-now.is-iris .td-cap{border-radius:0;border:0;border-bottom:1px solid var(--ti-line);background:transparent;padding-left:0}
+
+/* ---------- the Council ---------- */
+.desk .ti-council{position:static;min-width:0}
+.desk .ti-stage{position:relative;z-index:1;height:100%;min-height:max(620px,calc(100svh - 140px))}
+.desk .ti-gl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity 1.2s ease}
+.desk .ti-council[data-gl="on"] .ti-gl{opacity:1}
+
+.desk .ti-seat{position:absolute;z-index:2;transform:translate(-50%,-50%);padding:0;margin:0;border:0;border-radius:42%;background:none;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.desk .ti-seat:focus-visible{outline:1px solid rgba(var(--c,var(--ti-violet)),.7);outline-offset:4px}
+.desk .ti-name{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;font-family:var(--td-sans);font-size:11px;font-weight:500;letter-spacing:.26em;text-transform:uppercase;white-space:nowrap;color:#d8d5ea;text-shadow:0 0 12px rgba(0,0,0,.9);transition:color .3s,opacity .3s}
+.desk .ti-seat.is-lit .ti-name{color:#fff}
+.desk .ti-seat.is-still .ti-name{opacity:.42}
+.desk .ti-seat.is-held .ti-name::after{content:"";display:inline-block;width:5px;height:5px;margin:0 0 2px 8px;border-radius:50%;background:var(--wv-hot);box-shadow:0 0 8px var(--wv-hot);vertical-align:middle}
+.desk .ti-name.is-kernel{display:grid;justify-items:center;gap:2px;margin-top:2px}
+.desk .ti-name.is-kernel b{font-weight:500;font-size:13px;letter-spacing:.34em;color:var(--ti-ink)}
+.desk .ti-name.is-kernel i{font-family:var(--td-disp);font-style:italic;font-size:17px;letter-spacing:0;text-transform:none;color:#b7b0dc}
+
+/* The light from above on the one pointed at: a visible cone and a pool where it lands. */
+.desk .ti-cone{position:absolute;top:0;z-index:1;width:var(--w);transform:translateX(-50%);pointer-events:none;clip-path:polygon(43% 0,57% 0,100% 100%,0 100%);background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(236,234,255,.09) 35%,rgba(var(--c),.13) 100%);mix-blend-mode:screen;animation:ti-light .45s ease-out both}
+.desk .ti-cone::after{content:"";position:absolute;left:8%;right:8%;bottom:-8px;height:22px;border-radius:50%;background:radial-gradient(closest-side,rgba(255,255,255,.28),rgba(var(--c),.12) 60%,transparent)}
+@keyframes ti-light{from{opacity:.4;transform:translateX(-50%) scaleX(.6)}to{opacity:1;transform:translateX(-50%)}}
+
+.desk .ti-tip{position:absolute;z-index:4;margin:0;max-width:260px;transform:translate(14%,-100%);padding:9px 12px;border-radius:8px;background:rgba(10,10,16,.88);border:1px solid rgba(var(--c),.4);font-family:var(--td-sans);font-size:12.5px;line-height:1.4;color:var(--ti-soft);pointer-events:none}
+.desk .ti-tip.is-left{transform:translate(-114%,-100%)}
+.desk .ti-tip b{font-weight:500;letter-spacing:.14em;text-transform:uppercase;font-size:11px;color:rgb(var(--c))}
+
+.desk .ti-card{position:absolute;z-index:5;width:min(340px,calc(100% - 16px));display:grid;gap:12px;padding:18px 18px 16px;border-radius:14px;background:rgba(10,10,16,.95);border:1px solid rgba(var(--c),.36);box-shadow:0 30px 60px -30px #000,0 0 40px -20px rgba(var(--c),.5);outline:none;animation:ti-card .3s ease-out both}
+@keyframes ti-card{from{transform:translateY(6px)}to{transform:none}}
+.desk .ti-card header{display:flex;gap:12px;align-items:flex-start}
+.desk .ti-card h2{margin:0;font-family:var(--td-disp);font-weight:500;font-size:26px;line-height:1.05;color:var(--ti-ink)}
+.desk .ti-card header p{margin:6px 0 0;font-family:var(--td-sans);font-size:10.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:rgb(var(--c))}
+.desk .ti-card-x{margin-left:auto;flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--ti-line);background:none;color:var(--ti-soft);cursor:pointer}
+.desk .ti-card-x svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5}
+.desk .ti-card-x:hover{color:var(--ti-ink)}
+.desk .ti-card-say{margin:0;font-family:var(--td-disp);font-style:italic;font-size:18px;line-height:1.4;color:var(--ti-ink)}
+.desk .ti-card-k{margin:0;font-size:13px;color:var(--ti-mute)}
+.desk .ti-card-l{margin:0;display:grid;gap:8px}
+.desk .ti-card-l>div{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:baseline}
+.desk .ti-card-l dt{font-family:var(--td-sans);font-size:9.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--ti-faint)}
+.desk .ti-card-l dd{margin:0;font-size:14px;line-height:1.45;color:var(--ti-soft);text-wrap:pretty}
+.desk .ti-card-l time{color:rgb(var(--c));font-variant-numeric:tabular-nums;margin-right:4px}
+.desk .ti-card .td-talks{margin:0}
+.desk .ti-card .td-talks-l{max-height:220px;overflow:auto}
+.desk .ti-card-acts{display:flex;align-items:center;gap:10px}
+.desk .ti-card-job{margin-left:auto;font-family:var(--td-disp);font-style:italic;font-size:15px;color:rgb(var(--c))}
+.desk .ti-btn{display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:999px;border:1px solid rgba(var(--c),.5);background:rgba(var(--c),.08);color:var(--ti-ink);font:inherit;font-size:13px;text-decoration:none;cursor:pointer}
+.desk .ti-btn:hover{background:rgba(var(--c),.16)}
+
+/* ---------- phones: the ring under the list ---------- */
+@media (max-width:760px){
+  .desk .wv-page.ti-page,.desk .desk__main>.wv-page.ti-page{padding:0 0 48px}
+  .desk .ti{display:block;min-height:0}
+  .desk .ti::before{background:radial-gradient(ellipse 70% 30% at 50% 58%,rgba(110,98,190,.1),transparent 70%)}
+  .desk .ti-list{max-width:none;padding:28px 16px 8px}
+  .desk .ti-stage{height:min(112vw,560px);min-height:0}
+  .desk .ti-name{font-size:8.5px;letter-spacing:.16em;margin-top:2px}
+  .desk .ti-name.is-kernel b{font-size:10px}
+  .desk .ti-name.is-kernel i{font-size:13px}
+  .desk .ti-card{left:8px;right:8px;bottom:8px;width:auto;scroll-margin-bottom:96px}
+  .desk .ti-tip{display:none}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .desk .ti-cone,.desk .ti-tip,.desk .ti-card{animation:none}
+  .desk .ti-gl{transition:none}
+}

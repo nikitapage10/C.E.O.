@@ -1,21 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { loadLattice, ROOM_ROUTES, type Route, type RoomRoute } from "../route.ts";
+import { loadLattice, NAV_ORDER, type Route, type RoomRoute } from "../route.ts";
 import { mountainHour, PART } from "./ilyrTime.ts";
-import { HideButton } from "./Private.tsx";
 import { link } from "./nav.ts";
 import { DeskSignIn } from "./SignIn.tsx";
 import { useDeskAuth } from "./signin.ts";
 import { useHide } from "./hide.ts";
-import { HandsFree } from "./roomvoice/RoomMic.tsx";
+import { HandsFreeLive } from "./roomvoice/RoomMic.tsx";
 
 /**
  * The Desk's bar, in the Weave's own language (Nikita, 2026-10-22): the Lattice C and the wordmark (#640), then every page as a plain word
  * with a thread under the one you're on: Today, the Foundry, Relay and each room, all in the bar, no menu (Nikita,
  * 05:15Z). On a phone the words scroll sideways. On the right, Ilyr's hour on a small ring, Hands-free (#638), the way into
  * the Lattice, and the account button: sign in, sign out, this device's list and the Site lock (Nikita, 05:30Z).
- * Keys 1 to 9 open them in order, 0 the tenth. The Boiler Room comes last of the rooms (Nikita, 05:35Z); the Annex, the staging room off to the side (#618), follows it as the eleventh page, with no number key, so every other key stays as it was. Beside the account button, Hide: an eye
- * that veils every personal value for showing the Desk to someone (Nikita, 05:36Z; hide.ts). Ask Skippy moved to the
- * bottom right of every page (#638, roomvoice/RoomMic.tsx).
+ * Keys 1 to 9 open them in order, 0 the tenth. The order is route.ts NAV_ORDER, by what actually works (Nikita,
+ * 2026-11-04 07:06Z), the Boiler Room last, far right. Ask Skippy moved to the bottom right of every page (#638,
+ * roomvoice/RoomMic.tsx). Since the Iris (#666) the bar keeps only the pages, the account button and the way into the
+ * Lattice: Ilyr's clock, Hide and Hands-free moved to the Boiler Room's Settings (/boiler/controls), and while
+ * Hands-free is on the bar shows who it is listening for, with a tap to stop it.
  */
 
 export const MAIN_TABS: { id: Exclude<Route, "lattice" | RoomRoute>; label: string }[] = [
@@ -36,8 +37,9 @@ export const ROOM_TABS: Record<RoomRoute, { label: string; line: string }> = {
   haven: { label: "Haven", line: "Home and health: the house, the pets, the kitchen" },
 };
 
-/** Every page in key order: 1 Today, 2 Foundry, 3 Relay, then the rooms. */
-export const KEY_ORDER: Exclude<Route, "lattice">[] = [...MAIN_TABS.map((t) => t.id), ...ROOM_ROUTES];
+/** Every page in the bar's order (route.ts NAV_ORDER): keys 1 to 9, then 0, open the first ten. */
+export const KEY_ORDER: Exclude<Route, "lattice">[] = [...NAV_ORDER];
+const labelOf = (id: Exclude<Route, "lattice">) => MAIN_TABS.find((t) => t.id === id)?.label ?? ROOM_TABS[id as RoomRoute].label;
 
 export const pathOf = (id: Exclude<Route, "lattice">) => (id === "today" ? "/" : `/${id}`);
 
@@ -85,7 +87,7 @@ export function LatticeMark() {
   );
 }
 
-function IlyrClock({ now }: { now: number }) {
+export function IlyrClock({ now }: { now: number }) {
   const h = mountainHour(now);
   const hour = Math.floor(h) || 24;
   const C = 2 * Math.PI * 12;
@@ -156,9 +158,9 @@ function AccountMenu() {
   );
 }
 
-export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">; owed: number; now: number }) {
+export function DeskNav({ route, owed }: { route: Exclude<Route, "lattice">; owed: number; now?: number }) {
   const tabs = useRef<HTMLElement>(null);
-  const pages: { id: Exclude<Route, "lattice">; label: string }[] = [...MAIN_TABS, ...ROOM_ROUTES.map((id) => ({ id, label: ROOM_TABS[id].label }))];
+  const pages: { id: Exclude<Route, "lattice">; label: string }[] = KEY_ORDER.map((id) => ({ id, label: labelOf(id) }));
 
   // On a phone the row scrolls: keep the page you're on in view. Asked in the next frame, once the new page has mounted,
   // and only when the row overflows (#417): scrollIntoView lays the whole page out on the spot, and in the commit it
@@ -181,7 +183,7 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
       </a>
       <nav className="wv-tabs desk__tabs" aria-label="Desk" ref={tabs}>
         {pages.map((t, i) => (
-          <a key={t.id} className="wv-tab" href={pathOf(t.id)} aria-current={route === t.id ? "page" : undefined} onClick={link(t.id)} title={t.id in ROOM_TABS ? `${ROOM_TABS[t.id as RoomRoute].line} (${i + 1})` : `${t.label} (${i + 1})`} data-room={t.id === "today" ? undefined : t.id}>
+          <a key={t.id} className="wv-tab" href={pathOf(t.id)} aria-current={route === t.id ? "page" : undefined} onClick={link(t.id)} title={`${t.id in ROOM_TABS ? ROOM_TABS[t.id as RoomRoute].line : t.label}${i < 10 ? ` (${(i + 1) % 10})` : ""}`} data-room={t.id === "today" ? undefined : t.id}>
             {t.label}
             {t.id === "today" && owed > 0 && (
               <b className="wv-tab-n" title="Things that need you">
@@ -192,9 +194,7 @@ export function DeskNav({ route, owed, now }: { route: Exclude<Route, "lattice">
         ))}
       </nav>
       <div className="wv-navr">
-        <IlyrClock now={now} />
-        <HideButton />
-        <HandsFree />
+        <HandsFreeLive />
         <AccountMenu />
         <a className="wv-navbtn wv-navlat" href="/lattice" onClick={link("lattice")} onMouseEnter={() => void loadLattice()} onFocus={() => void loadLattice()} title="Enter the Lattice">
           <span>Lattice</span>

@@ -158,6 +158,24 @@ const say = async (page: Page, words: string) => {
   await expect.poll(() => page.evaluate(() => (window as unknown as { __rec: { used: boolean } | null }).__rec?.used === false), { timeout: 15_000 }).toBe(true);
   return page.evaluate((w) => (window as unknown as { __say: (t: string) => boolean }).__say(w), words);
 };
+/**
+ * Hands-free is switched in the Boiler Room's Settings since the Iris (#666): turn it on there, then walk into Relay
+ * from the bar (the switch holds page to page, and the bar shows it while it listens).
+ */
+const relayHandsFree = async (page: Page) => {
+  await page.goto(`${BASE}/boiler/controls`);
+  await page.locator("#ct-settings").getByRole("button", { name: "Hands-free" }).click();
+  await expect(page.locator(".wv-navr").getByRole("button", { name: /Listening|Hands-free/ })).toBeVisible();
+  await page.getByRole("navigation", { name: "Desk" }).getByRole("link", { name: "Relay" }).click();
+  await expect(page.getByRole("region", { name: "Relay at a glance" })).toBeVisible();
+};
+/** Hands-free on from Settings, then back in Relay with `name` in focus (the walk round reorders who arrives first). */
+const handsFreeOn = async (page: Page, name: string) => {
+  await relayHandsFree(page);
+  await expect(page.locator(".cx-entry", { hasText: name })).toHaveCount(1);
+  await scrollTo(page, name);
+  await expect(page.locator(".cx-entry[data-focus]")).toContainText(name);
+};
 const sends = (posts: Record<string, unknown>[]) => posts.filter((p) => p.action === "send");
 const focused = (page: Page) => page.locator(".cx-entry[data-focus]");
 const undoLine = (page: Page) => page.locator(".cx-undo");
@@ -188,8 +206,9 @@ for (const width of [1440, 400]) {
     if (SHOTS) await page.waitForTimeout(3_000);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/615-focus-${width}.png` });
 
-    // Listening is opt-in. With no draft on screen, "yes" is not a send, and Jordan's draft (not in focus) never goes.
-    await page.getByRole("button", { name: "Hands-free" }).first().click();
+    // Listening is opt-in, switched in the Boiler Room's Settings (#666). With no draft on screen, "yes" is not a
+    // send, and Jordan's draft (not in focus) never goes.
+    await handsFreeOn(page, "Sam Test");
     expect(await say(page, "yes")).toBe(true);
     await expect(undoLine(page)).toContainText("Nothing to send yet.");
     await page.keyboard.press("y");
@@ -286,7 +305,7 @@ test("email sends from the codex once Gmail grants send: after the undo, the dra
 test("email without the send grant: Open in Gmail, Copy and a quiet reconnect; filter and block come with Undo", async ({ page }) => {
   await page.addInitScript(FAKE_SPEECH);
   const posts = await stub(page);
-  await page.goto(`${BASE}/relay`);
+  await relayHandsFree(page);
   await page.locator(".cx-rows button", { hasText: "Priya Madeup" }).click();
   await expect(focused(page)).toContainText("which trail is kinder");
   await page.keyboard.press("r");
@@ -303,7 +322,6 @@ test("email without the send grant: Open in Gmail, Copy and a quiet reconnect; f
   await expect(more.getByRole("menuitem", { name: "Block this sender" })).toBeVisible();
   await more.locator("summary").click();
   await page.keyboard.press("y");
-  await page.getByRole("button", { name: "Hands-free" }).first().click();
   await say(page, "yes");
   expect(sends(posts)).toEqual([]);
 
@@ -364,7 +382,7 @@ test("Done, skip and \"already did it\" leave at once, Undo brings one back, and
   await page.waitForTimeout(5_500);
   expect(posts.filter((p) => p.action === "done")).toEqual([]);
   // "already did it" closes it with no draft and no question: one done after the window, and no model call.
-  await page.getByRole("button", { name: "Hands-free" }).first().click();
+  await handsFreeOn(page, "Sam Test");
   await scrollTo(page, "Sam Test");
   await expect(focused(page)).toContainText("Sam Test");
   await say(page, "already did it");

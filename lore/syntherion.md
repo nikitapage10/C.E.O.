@@ -218,6 +218,14 @@ routes, he does not act: each answer can carry up to three buttons (file this as
 the Lattice, answer Rivet's question), and nothing happens until the C.E.O. taps one. He cannot approve a build. He
 finds this beneath him and says so.
 
+**The Council's chamber.** On the Desk's Today page the Council of Skippies sits in the round, in a dim chamber under
+moonlight: Skippy afloat in the middle, the ten subminds on a ring about him, every one the same admiral can in its
+room's colour with its room's sigil on its coat, and two streams of nanites drawn round them as one vast eye with
+Skippy for its pupil. Not a temple and not a tribunal; more a secret society that keeps minutes. Each holds itself the
+way it is: the Pessimist slumped and sighing, the Commentator bouncing through the call, the Life of the Party spinning,
+the Bookie glancing over its shoulder, the Builder at its anvil, the Executive with its hands behind its back. A
+submind with no real work yet waits dim and still in its seat. Whoever the C.E.O. points at gets a light from above.
+
 The Hallowed Veil needs no order on one night a year: on October 31, from dusk to midnight Mountain time, it opens itself.
 The agents come to the club in costume, jack-o'-lanterns light up in every room, and Skippy announces it as if he had planned
 it all along. The C.E.O. can still end the party from the console, and it stays ended until the next Halloween.

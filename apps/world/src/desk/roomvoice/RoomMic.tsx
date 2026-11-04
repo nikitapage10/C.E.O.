@@ -201,6 +201,15 @@ const MicGlyph = () => (
  * that when I go from room to room, it actually will be always listening for that room by the submind"). One tap on,
  * one tap off; off by itself after ten quiet minutes. Signed in, and only where the browser hears words itself.
  */
+/**
+ * The bar's Hands-free since the Iris (#666): the switch lives in the Boiler Room's Settings, and the bar shows it only
+ * while it is on, saying who it is listening for, so listening is never on out of sight. A tap stops it.
+ */
+export function HandsFreeLive() {
+  const on = useRoomMic((s) => s.hf === "on");
+  return on ? <HandsFree /> : null;
+}
+
 export function HandsFree() {
   const auth = useDeskAuth((s) => s.auth.status);
   const hf = useRoomMic((s) => s.hf);

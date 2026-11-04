@@ -237,3 +237,18 @@
 .desk .ct-page .ct-house .hd-connect button:hover:not(:disabled){border-color:var(--ct-amber);color:var(--ct-amber)}
 .desk .ct-page .ct-house .hd-connect button:disabled{opacity:.45;cursor:default}
 .desk .ct-page .ct-house .hd-connect input{flex:1 1 180px;min-width:0;padding:7px 10px;border:1px solid var(--ct-line);border-radius:2px;background:#07080b;font-family:var(--ct-mono);font-size:12px;color:var(--wv-ink)}
+
+/* F. Settings (#666): the bar's switches and Today's clock and schedule, moved here. */
+.desk .ct-page .ct-set{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:1px;background:var(--ct-seam);border:1px solid var(--ct-seam)}
+.desk .ct-page .ct-set-l{list-style:none;margin:0;padding:0;display:grid;gap:1px;background:var(--ct-seam)}
+.desk .ct-page .ct-set-l>li{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px;background:#0b0c10;background-image:var(--ct-plate)}
+.desk .ct-page .ct-set-l b{font-family:var(--ct-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--wv-ink)}
+.desk .ct-page .ct-set-l p{margin:6px 0 0;font-size:13px;line-height:1.55;color:var(--wv-soft);max-width:52ch}
+.desk .ct-page .ct-set-l .ct-note{margin:0;white-space:nowrap}
+.desk .ct-page .ct-set-l .wv-navbtn{flex:none}
+.desk .ct-page .ct-set-side{display:grid;gap:18px;align-content:start;padding:16px 18px;background:#0b0c10;background-image:var(--ct-plate)}
+.desk .ct-page .ct-set-side .ct-sub{margin:0 0 10px}
+@media (max-width:760px){
+  .desk .ct-page .ct-set{grid-template-columns:1fr}
+  .desk .ct-page .ct-set-l>li{flex-wrap:wrap}
+}

@@ -24,22 +24,25 @@ import { mtTime } from "../todaySchedule.ts";
 import { startHome, useHome } from "../homeDevices.ts";
 import { GoogleLinks, HAVEN_RESULT, KrogerSetup, PetSetup, RoborockSetup } from "./HouseSetup.tsx";
 import { ACCENT } from "./Rack.tsx";
+import { SettingsPanel } from "./SettingsPanel.tsx";
 import { actionOf, actionWord, costumeState, houseRows, meterTone, monthClock, pipeOf, projectMonth, quietState, shareWidths, SKIPPY_AGENT_CAP_USD, SKIPPY_AGENT_WARN_USD, TONE_WORD, type MeterTone, type Share } from "./controls.ts";
 import "./controls.css";
 
 /**
  * Boiler Room > Controls (#647): every meter, switch, link and key in one panel board. The circuits run down one bus,
- * A to E: the meters (the Claude Code plan, the Claude API against its $10, Skippy as an agent against $60, voice,
+ * A to F: the meters (the Claude Code plan, the Claude API against its $10, Skippy as an agent against $60, voice,
  * and Relay), the breakers (pings, quiet hours, the site lock, the wake word, auto-approval, the costume party), every
- * connection with its lamp, then the Keys form and the Phones (moved here from Security). Real data only: a meter with
+ * connection with its lamp, the Settings (Hide, Hands-free, Ilyr's clock and what runs next, moved here from the bar
+ * and Today in #666), then the Keys form and the Phones (moved here from Security). Real data only: a meter with
  * nothing to read says it's waiting. Signed out, it shows states and counts only: no money, no keys, no contacts.
  */
 
-const LETTERS = ["A", "B", "C", "D", "E"] as const;
+const LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 const CIRCUITS: { id: string; label: string }[] = [
   { id: "ct-meters", label: "Meters" },
   { id: "ct-breakers", label: "Breakers" },
   { id: "ct-links", label: "Connections" },
+  { id: "ct-settings", label: "Settings" },
   { id: "ct-keys", label: "Keys" },
   { id: "ct-phones", label: "Phones" },
 ];
@@ -673,10 +676,13 @@ export function ControlsPage({ now }: { now: number }) {
           {signedIn ? <HouseSetup /> : null}
           <Connections now={now} signedIn={signedIn} />
         </Circuit>
-        <Circuit n={3} id="ct-keys" title="Keys" aside={<p className="ct-sub">write-only · each one asks for your passkey</p>}>
+        <Circuit n={3} id="ct-settings" title="Settings" aside={<p className="ct-sub">from the bar and Today · Hide, Hands-free, the clock, what's next</p>}>
+          <SettingsPanel />
+        </Circuit>
+        <Circuit n={4} id="ct-keys" title="Keys" aside={<p className="ct-sub">write-only · each one asks for your passkey</p>}>
           {signedIn ? <KeysPanel now={now} /> : <p className="ct-note">Signed in only. Keys are set here and never shown.</p>}
         </Circuit>
-        <Circuit n={4} id="ct-phones" title="Phones" aside={<p className="ct-sub">Hey Skippy from the iPhone</p>}>
+        <Circuit n={5} id="ct-phones" title="Phones" aside={<p className="ct-sub">Hey Skippy from the iPhone</p>}>
           {signedIn ? <PhonesPanel now={now} /> : <p className="ct-note">Signed in only.</p>}
         </Circuit>
       </div>

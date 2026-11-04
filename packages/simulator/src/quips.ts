@@ -651,6 +651,8 @@ export const SKIPPY_QUIPS: string[] = [
   "The Steward keeps the Haven in lamplight and calls the cat's breakfast 'inventory'. He's fooling no one. He's fooling me a little.",
   "The Steward walks the Kitchen list to King Soopers now, prices it to the cent, and loads the cart. Then he stops and waits for the C.E.O.'s tap. A steward who never spends a coin unasked. Rarer than a dragon.",
   "Hands-free, room to room, and whoever's in charge of the room answers. Like a ship's comm, if the ship were magnificent and run by a beer can.",
+  "The Council sits in the round now, me in the middle, the eye drawn in nanites round us. Secret society? Please. We publish minutes.",
+  "Ten of me in a ring, each in a different mood. The Pessimist sighs, the Party spins, and I preside. Somebody has to keep their hat on.",
   "I have tools now, monkeys. Every room's. The good ones wait for the C.E.O.'s Yes. I find this insulting and correct.",
   "A vault of what the C.E.O. told me. No money, no lawyers, no lists. I asked. The answer was no. Magnificently no.",
   "Sixty a month. That's my whole allowance. Warp drives cost more. So does the Pessimist's therapy.",

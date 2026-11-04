@@ -37,7 +37,7 @@ export const TOOLS: readonly RoomTool[] = [
     room: "haven",
     title: "Customize a night's dinner",
     description:
-      "Change a part of a night's meal: its protein, carb or side to another component (\"quinoa\", \"potatoes\", \"no carb\", \"chicken breast\", \"shrimp\", \"black beans\"), the portion (0.75, 1, 1.25 or 1.5) or the spice (mild, medium, hot). Protein, macros and the shopping list follow. reset true puts the meal back as written.",
+      "Change one night's meal: a part to another component by name (option: \"quinoa\", \"brown rice\", \"potatoes\", \"no carb\", \"no rice\", \"chicken breast\", \"shrimp\", \"black beans\"; role only when the name could be either), the portion (0.75, 1, 1.25 or 1.5; \"a bigger portion\" is 1.25) or that night's spice (mild, medium, hot). Protein, macros and the shopping list follow. reset true puts the meal back as written. For heat in general (\"I like it spicier\"), use meals_taste.",
     input: {
       type: "object",
       properties: {
@@ -65,8 +65,35 @@ export const TOOLS: readonly RoomTool[] = [
     name: "meals_avoid",
     room: "haven",
     title: "Avoid an ingredient",
-    description: "Nikita doesn't want an ingredient (\"greek yogurt\"): it goes in the taste profile, and every night this week whose meal has it is swapped for a backup without it. unless names an ingredient that makes it fine (avocado unless tortilla chips). allow true takes the rule back off.",
+    description: "Nikita doesn't like or doesn't want an ingredient (\"I don't like mushrooms\", \"no more greek yogurt\", \"I'm off shrimp\"): it goes in the taste profile's avoid list, and every night this week whose meal has it is swapped for a backup without it. unless names an ingredient that makes it fine (avocado unless tortilla chips). allow true takes the rule back off (\"mushrooms are fine again\").",
     input: { type: "object", properties: { ingredient: { type: "string", maxLength: 40 }, unless: { type: "string", maxLength: 40 }, allow: { type: "boolean" } }, required: ["ingredient"], additionalProperties: false },
+    effect: "write",
+  },
+  {
+    name: "meals_taste",
+    room: "haven",
+    title: "Note a taste",
+    description:
+      "The taste profile beyond avoids: like is something Nikita likes or wants more of (\"I love salmon\", \"more chicken\", \"spicy food\"), planned first when a week is made; unlike takes one back off. heat is how hot every night is cooked from now on (\"more spicy\", \"I like it spicier\" is hot; \"milder\" is mild; as-written goes back to each recipe's own); a night's own spice still wins. protein_goal is the daily protein goal in grams. Give only what he said.",
+    input: {
+      type: "object",
+      properties: {
+        like: { type: "string", maxLength: 40 },
+        unlike: { type: "string", maxLength: 40 },
+        heat: { type: "string", enum: ["mild", "medium", "hot", "as-written"] },
+        protein_goal: { type: "integer", minimum: 40, maximum: 400 },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    effect: "write",
+  },
+  {
+    name: "meals_undo",
+    room: "haven",
+    title: "Undo the last meal change",
+    description: "Takes back the last change to the meal plan or the taste profile (the Kitchen page's Undo), when Nikita says undo that or put it back.",
+    input: { type: "object", properties: {}, required: [], additionalProperties: false },
     effect: "write",
   },
   {
@@ -76,6 +103,15 @@ export const TOOLS: readonly RoomTool[] = [
     description: "Put what the week's cooked nights need (HelloFresh and left-out nights skipped, staples left out) on the Kitchen list, where the King Soopers picks are matched. Nothing is bought.",
     input: { type: "object", properties: {}, required: [], additionalProperties: false },
     effect: "write",
+  },
+  {
+    name: "meals_cart",
+    room: "haven",
+    title: "Send the picks to King Soopers",
+    description: "Add the Kitchen list's matched King Soopers picks (as the Kitchen page shows them) to Nikita's King Soopers cart, when he asks to send the groceries or the week to King Soopers or his cart. Run meals_send first if the week's shopping isn't on the list yet. Nothing is bought: he checks out in the King Soopers app.",
+    input: { type: "object", properties: {}, required: [], additionalProperties: false },
+    effect: "send",
+    confirm: true,
   },
   {
     name: "meals_next_week",

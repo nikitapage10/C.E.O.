@@ -49,6 +49,7 @@
     { "source": "/workshop", "destination": "/index.html" },
     { "source": "/studio", "destination": "/index.html" },
     { "source": "/annex", "destination": "/index.html" },
+    { "source": "/haven", "destination": "/index.html" },
     { "source": "/lattice", "destination": "/index.html" },
     { "source": "/api/site-login", "destination": "/api/desk-auth?site=login" },
     { "source": "/api/site-password", "destination": "/api/desk-auth?site=password" },

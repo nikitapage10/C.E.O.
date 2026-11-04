@@ -38,6 +38,8 @@
   --room-boiler: #a8aebc;
   /* The Annex (#618): a Desk-only staging room, the Stagehand's highlighter yellow. */
   --room-annex: #f2dd5c;
+  /* The Haven (#616): home and health, lamplight on a night house. */
+  --room-haven: #f0c987;
   --room-breakroom: #e28fb6;
   --tone: var(--ice);
   /* Type, blended from the Lattice (#336, Nikita 2026-10-23: "I like the fonts on the Lattice more"): Cormorant

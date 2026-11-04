@@ -32,6 +32,7 @@ are still played by the simulator until their room goes real. The list lives in 
 | Break Room | The Life of the Party | pink | Simulated for now | (simulated for now) |
 | Workshop | The Artiste | teal | Simulated for now | Image model, Meshy, import (when the pipeline is real) |
 | Annex | The Stagehand | highlighter yellow | **Active** (Desk-only, `DESK_SUBMINDS`; civicAPI live since #618); its thread when Nikita opens one | Which pop-ups run, sit on the Shelf or graduate, and which public source each one reads (Election night: civicAPI) |
+| Haven | The Steward | lamplight gold | **Active** (Desk-only, `DESK_SUBMINDS`; Roborock, Petlibro and Whisker live since #632, the Haven page since #616); its thread when Nikita opens one | The home devices' actions (always through the rails: the feed cap, the litter gate, named rooms), the Kitchen list, and which rooms light up; the Nest, Instacart and training when they connect |
 | Studio | The Director | tally-light red | Simulated for now | OpenAI images (style presets) or Claude-drawn vector art past the cap, ElevenLabs voices, the render job (when the line is real, #311) |
 
 The choice of engine follows Nikita's provider rule: anything that needs a computer (code, files, a terminal, a
@@ -70,6 +71,7 @@ thing in the room, loyal underneath. Each bends it its own way.
 | The Pessimist (Boiler Room) | Skippy's submind for the Boiler Room | A gloomy pessimist. Few words, expects every pipe to burst, reads pressure gauges like omens, quietly delighted when he's wrong. |
 | The Artiste (Workshop) | Skippy's submind for the Workshop | A temperamental artiste. Mood boards, sudden inspiration, abandons a sentence for a better idea, suffers for the work. |
 | The Stagehand (Annex) | Skippy's submind for the Annex | A stage manager on a headset. Calls cues, not speeches: "Standby. Go." Strikes a set without sentiment and thinks the main rooms are a bit precious. |
+| The Steward (Haven) | Skippy's submind for the Haven | A house steward with a quartermaster's ledger. Counts portions, never feeds past the cap, hums 2000s emo while the vacuum runs, and calls the Litter-Robot "the Throne". |
 | The Director (Studio) | Skippy's submind for the Studio | A dramatic auteur. Yells "cut", demands one more take, and calls every forty-second explainer a masterpiece. Takes the series' business notes from the Executive and calls them "the suits". |
 
 Skippy himself, in "Skippy, the Magnificent", keeps his own voice (see his lore): theatrical, grand schemes, "bask

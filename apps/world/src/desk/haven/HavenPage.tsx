@@ -7,6 +7,7 @@ import { climateOf, litRooms, loadPlan, PLAN_NOTE, savePlan, summaryOf, tabOf, t
 import { HallTab, KitchenTab, PetsTab, RoomTab, TAB_NAME } from "./panels.tsx";
 import { GymTab } from "./GymTab.tsx";
 import { ClimatePop } from "./ClimatePop.tsx";
+import { PetlibroPop, VacuumPop, WhiskerPop } from "./DevicePops.tsx";
 import { Plinth } from "./Plinth.tsx";
 import { gaugesOf, type GaugeId } from "./plinth.ts";
 import { moodOf, useClimateQueue } from "./climateQueue.ts";
@@ -261,7 +262,7 @@ export function Haven() {
   }, [gl]);
   const lamp = useCallback((id: GaugeId) => (el: HTMLElement | null) => void (lamps.current[id] = el), []);
   const togglePop = useCallback((id: GaugeId) => setPop((v) => (v === id ? null : id)), []);
-  const canPop = useCallback((id: GaugeId) => id === "climate" && !!thermo, [thermo]);
+  const canPop = useCallback((id: GaugeId) => (id === "climate" ? !!thermo : signedIn && (id === "roborock" || id === "petlibro" || id === "whisker")), [thermo, signedIn]);
   // The pop-up sits above its gauge: when the order changes, the threads move with it.
   useEffect(() => house.current?.touch(), [order]);
   const openGauge = useCallback((id: GaugeId) => (id === "kitchen" || id === "gym") && setOpen({ tab: id }), []);
@@ -332,7 +333,15 @@ export function Haven() {
             </div>
           )}
           <Plinth gauges={gauges} order={order} thermo={thermo} pop={pop} onPop={togglePop} canPop={canPop} onOpen={openGauge} canOpen={canOpen} lamp={lamp} onScroll={touch} stripRef={strip}>
-            {!open && pop === "climate" && thermo ? <ClimatePop d={thermo} onClose={closePop} /> : null}
+            {open || !signedIn ? null : pop === "climate" && thermo ? (
+              <ClimatePop d={thermo} onClose={closePop} />
+            ) : pop === "roborock" ? (
+              <VacuumPop devices={devices} plan={thePlan} state={vendors.roborock} onClose={closePop} />
+            ) : pop === "petlibro" ? (
+              <PetlibroPop devices={devices} state={vendors.petlibro} onClose={closePop} />
+            ) : pop === "whisker" ? (
+              <WhiskerPop devices={devices} state={vendors.whisker} onClose={closePop} />
+            ) : null}
           </Plinth>
         </div>
 

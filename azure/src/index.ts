@@ -27,6 +27,7 @@ import * as latticetiming from "../../api/_boot/timing.js";
 import * as talktiming from "../../api/_boot/talkTiming.js";
 import * as desktiming from "../../api/_boot/deskTiming.js";
 import * as haven from "../../api/_haven/route.js";
+import * as havenphotos from "../../api/_haven/photos.js";
 import * as homedevices from "../../api/_haven/devices/live.js";
 import * as havengoogle from "../../api/_haven/google/live.js";
 import * as havenkroger from "../../api/_haven/kroger/live.js";
@@ -88,6 +89,10 @@ export const ENDPOINTS: Array<[name: string, module: Module, opts?: AdaptOptions
   ["capture", haven.captureRoute, { settleMs: 2_500 }],
   ["haven", haven.havenRoute],
   ["hey-skippy", haven.greetRoute],
+  // The Kitchen's meal photo library (#687, docs/HOME-DEVICES.md): photos in the private `haven-meals` container, served
+  // and made only for a passkey session (confirm-week queues the customized meals' photos, made after the answer on
+  // OpenAI under the $10 a month images cap); the feed key may PUT one upload, answered with counts only.
+  ["haven-photos", havenphotos.photosRoute, { settleMs: 2_500 }],
   // Nikita's home devices (#632, docs/HOME-DEVICES.md): the Roborock vacuum, the Petlibro feeders and fountain and the
   // Litter-Robot, read and run from here with their logins in this Key Vault (or sealed in the private store). A
   // passkey session or a phone key; ?view=status is the public counts and states; connect is Connect Roborock, Desk only.
@@ -238,6 +243,19 @@ app.timer("haven_tasks", {
     await keysFresh();
     const result = await havengoogle.runTasksTick().catch(() => "failed" as const);
     if (result === "failed" || result === "refused") context.warn(`haven tasks: ${result}`);
+  },
+});
+
+// The meal photo library's generator (#687): every ten minutes, a run when a photo waits (a confirm's own run may have
+// been cut short). One blob read when nothing waits; one run at a time under the catalog's lease; logs counts only.
+app.timer("haven_photos", {
+  schedule: "0 */10 * * * *",
+  runOnStartup: false,
+  useMonitor: false,
+  handler: async (_timer, context) => {
+    await keysFresh();
+    const result = await havenphotos.drainPhotos().catch(() => "failed" as const);
+    if (result === "failed") context.warn("haven photos: failed");
   },
 });
 

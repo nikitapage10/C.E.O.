@@ -13,7 +13,9 @@
  *                        /api/skippy-answer, a hand-off's answer (#312; its own check in gate.ts and api/skippy.ts,
  *                        bearer only), and PUT /api/haven-plan, the Haven's floor plan (#655; api/_haven/plan.ts,
  *                        saved so the Builder can load it with no tap; GET of it stays passkey-only, neither key
- *                        reads it). It reads nothing: each answer says only that the write was kept (the plan's, counts).
+ *                        reads it), and PUT /api/haven-photos, one meal photo into the Kitchen's library (#687, the
+ *                        same way: an id and a byte count back, passkey-only reads). It reads nothing: each answer
+ *                        says only that the write was kept (the plan's, counts).
  *
  * Neither key can change a setting (no other POST, and the Desk's own writes still need a passkey session), trade
  * (positions are read through the allow-listed GETs in api/_exchange/positions.ts), send anything (no email, invoice
@@ -184,15 +186,19 @@ export const KERNEL_BRIEF_PATH = "/api/kernel-brief";
 export const KERNEL_AGENT_PATH = "/api/kernel-agent";
 /** The Haven's floor plan (#655, api/_haven/plan.ts): the feed key may PUT it; nothing but a passkey session reads it. */
 export const HAVEN_PLAN_PATH = "/api/haven-plan";
+/** The Kitchen's meal photo library (#687, api/_haven/photos.ts): the feed key may PUT one photo; only a passkey session reads them. */
+export const HAVEN_PHOTOS_PATH = "/api/haven-photos";
+/** The paths the feed key may PUT to, with no query. */
+const FEED_PUTS: readonly string[] = [KERNEL_BRIEF_PATH, HAVEN_PLAN_PATH, HAVEN_PHOTOS_PATH];
 
 /**
  * Whether a request is one of the writes the feed key opens: POST /api/room-feed or /api/setup-asks, PUT
- * /api/kernel-brief or /api/haven-plan, or POST /api/kernel-agent (#501), with no query.
+ * /api/kernel-brief, /api/haven-plan or /api/haven-photos (#687), or POST /api/kernel-agent (#501), with no query.
  */
 export function isFeedWrite(request: Request): boolean {
   const url = new URL(request.url);
   if (url.search !== "") return false;
-  if (request.method === "PUT") return url.pathname === KERNEL_BRIEF_PATH || url.pathname === HAVEN_PLAN_PATH;
+  if (request.method === "PUT") return FEED_PUTS.includes(url.pathname);
   return request.method === "POST" && (FEED_WRITES.includes(url.pathname) || url.pathname === KERNEL_AGENT_PATH);
 }
 

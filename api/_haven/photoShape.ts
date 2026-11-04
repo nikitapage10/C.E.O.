@@ -179,8 +179,8 @@ export function promptFor(m: MealToShoot): string {
 export interface PhotoCatalog {
   v: 1;
   photos: PhotoEntry[];
-  /** The generator's lease: one run at a time, until this ISO time. */
-  worker: { until: string } | null;
+  /** The generator's lease: one run at a time (`by`, a random run id), until this ISO time. */
+  worker: { until: string; by: string } | null;
 }
 
 export const EMPTY_CATALOG: PhotoCatalog = { v: 1, photos: [], worker: null };
@@ -226,5 +226,6 @@ export function readCatalog(v: unknown): PhotoCatalog {
     });
   }
   const w = x.worker && typeof x.worker === "object" ? (x.worker as Record<string, unknown>) : null;
-  return { v: 1, photos, worker: w && typeof w.until === "string" && !Number.isNaN(Date.parse(w.until)) ? { until: w.until } : null };
+  const leased = w && typeof w.until === "string" && !Number.isNaN(Date.parse(w.until)) && typeof w.by === "string";
+  return { v: 1, photos, worker: leased ? { until: w.until as string, by: String(w.by).slice(0, 40) } : null };
 }

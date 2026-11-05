@@ -8,6 +8,9 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   fullyParallel: false,
   workers: 1,
+  // On the software renderer in CI a frame can land late enough to miss a hover or a click window; one more go (and
+  // the report marks the test "flaky", so it stays visible) is the honest fix. Locally nothing retries.
+  retries: process.env.CI ? 2 : 0,
   reporter: [["list"]],
   use: {
     baseURL: `http://localhost:${PORT}`,

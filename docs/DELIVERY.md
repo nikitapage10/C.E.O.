@@ -151,7 +151,7 @@ Keep a pull request under about 400 changed lines, not counting the lockfile and
 | Check | Workflow | Runs on | Required on `main` |
 | --- | --- | --- | --- |
 | `checks`: typecheck, lint, unit tests, build | `checks.yml` | Every PR, every push to `main`, nightly, on demand | Yes, from the gated ruleset (below) |
-| `e2e`: the Desk and the Lattice in headless Chromium, as two parallel suites (a PR that touches only the Desk, APIs or docs skips the Lattice suite) | `e2e.yml` | Nightly on `main`, on demand, and on a PR labelled `e2e` | After two green weeks it runs on every PR and becomes required |
+| `e2e`: the Desk and the Lattice in headless Chromium, as parallel jobs: every Desk spec in two shards, and the Lattice (a PR that touches only the Desk, APIs or docs skips the Lattice job) | `e2e.yml` | Nightly on `main`, on demand, and on a PR labelled `e2e` | After two green weeks it runs on every PR and becomes required |
 | Live watch: the live site opens in Chromium (#181) | `live-watch.yml` | Hourly, on demand | No: it watches production, not a change |
 | Boot check: the PR's build loads in Chromium | `checks.yml` (`scripts/boot-check.mjs`) | Every PR and push to `main` | Yes, as part of `checks`. There are no preview sites since Vercel's retirement (#313) |
 | Supply chain: pinned actions, dependency and code scanning | Issue #64 | | Joins once #64 lands |

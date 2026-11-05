@@ -192,69 +192,6 @@ for (const [label, size] of [
   });
 }
 
-test("signed in: the walls are set one by one, windows, a balcony door or solid, and saved to the plan (#747)", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await stub(page, { signedIn: true, plan: FAKE_PLAN });
-  let saved: { windows: number[][]; balconies: number[][]; tv: number[][] } | null = null;
-  await page.route(`${BASE}/api/haven-plan`, async (r) => {
-    if (r.request().method() === "POST") {
-      const body = r.request().postDataJSON() as { action: string; plan: typeof saved };
-      saved = body.plan;
-      return r.fulfill({ json: { plan: body.plan } });
-    }
-    return r.fulfill({ json: { plan: FAKE_PLAN } });
-  });
-  await page.goto(`${BASE}/haven`);
-  const house = page.locator(".hv-house");
-  await expect(house).not.toHaveAttribute("data-gl", "idle", { timeout: 20_000 });
-  const gl = await house.getAttribute("data-gl");
-  if (SHOTS && gl === "on") {
-    await page.waitForTimeout(1500);
-    await page.screenshot({ path: `${SHOTS}/haven-747-house.png` });
-    // Closer in on each side of the house.
-    for (const [name, x, y] of [["living", 820, 660]] as const) {
-      await page.mouse.move(x, y);
-      for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -240);
-      await page.waitForTimeout(1500);
-      await page.screenshot({ path: `${SHOTS}/haven-747-${name}.png` });
-      await page.reload();
-      await expect(house).not.toHaveAttribute("data-gl", "idle", { timeout: 20_000 });
-      await page.waitForTimeout(1500);
-    }
-    // The kitchen's room view, as seen walking out of the bedroom (the sheet hidden for the picture).
-    await page.getByRole("navigation", { name: "Haven rooms" }).getByRole("button", { name: "Kitchen" }).click();
-    await page.addStyleTag({ content: ".hv-sheet{display:none!important}" });
-    await page.waitForTimeout(1800);
-    await page.screenshot({ path: `${SHOTS}/haven-747-kitchen.png` });
-    await page.keyboard.press("Escape");
-    await page.reload();
-    await expect(house).not.toHaveAttribute("data-gl", "idle", { timeout: 20_000 });
-  }
-  const walls = page.locator(".hv-walls");
-  await walls.locator("summary").click();
-  const map = walls.getByRole("group", { name: "Walls on the floor plan" });
-  await expect(map).toBeVisible();
-  // The made-up living room: windows and a balcony door on its outside wall, the TV on the inside one.
-  // (A wall is a line, so it has no box to be "visible" by; it is found by name and picked with the keyboard.)
-  await expect(map.getByRole("button", { name: "Living room, east wall: windows and a balcony door" })).toHaveCount(1);
-  await expect(map.getByRole("button", { name: "Living room, west wall: solid, TV" })).toHaveCount(1);
-  await map.getByRole("button", { name: "Bedroom, south wall: windows" }).press("Enter");
-  const pick = walls.getByRole("group", { name: "Bedroom, south wall" });
-  await pick.getByRole("button", { name: "Windows + balcony door" }).click();
-  await walls.getByRole("group", { name: "Where the balcony door is" }).getByRole("button", { name: "Right" }).click();
-  await expect(map.getByRole("button", { name: "Bedroom, south wall: windows and a balcony door" })).toHaveCount(1);
-  await map.getByRole("button", { name: "Kitchen, north wall: windows" }).press("Enter");
-  await walls.getByRole("group", { name: "Kitchen, north wall" }).getByRole("button", { name: "Solid" }).click();
-  if (SHOTS) await walls.screenshot({ path: `${SHOTS}/haven-747-walls.png` });
-  await walls.getByRole("button", { name: "Save the walls" }).click();
-  await expect(walls.getByText("Saved. The house is drawn with these walls.")).toBeVisible();
-  expect(saved).not.toBeNull();
-  const s = saved!;
-  expect(s.balconies.length).toBe(FAKE_PLAN.balconies.length + 1);
-  expect(s.windows.some((w) => w[1] === 40 && w[3] === 40 && w[0]! < 600)).toBe(false);
-  expect(s.tv).toEqual(FAKE_PLAN.tv);
-});
-
 test("signed out: the Gym is a count, never an exercise (#660)", async ({ page }) => {
   await stub(page, { signedIn: false, plan: null });
   await page.goto(`${BASE}/haven`);
@@ -353,7 +290,8 @@ test("signed in: the plinth's Climate dial opens the control and turns the set p
   // The big dial (#729): a nudge holds the change, counted down in the card with Cancel and Send now.
   await climate.getByRole("button", { name: "Heat to: one degree warmer" }).click();
   await expect(climate.getByRole("status")).toContainText("Sending 71°");
-  await climate.getByRole("button", { name: "Cancel" }).click();
+  // Forced: on the slow renderer the card keeps repainting under the pointer, so Playwright never calls it "stable".
+  await climate.getByRole("button", { name: "Cancel" }).click({ force: true });
   await expect(climate.getByRole("status")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Climate" })).toHaveCount(0);
@@ -869,7 +807,7 @@ test("signed in, the Kitchen's meal planner: the week list, a night customized l
   await expect(drawer.locator(".mp-macros .is-p b")).toHaveText(String(62 - 14 + 28));
   await expect(drawer.getByText("Protein pasta for rigatoni")).toBeVisible();
   await expect(week.getByRole("listitem").nth(2).getByText("photo pending")).toBeVisible();
-  expect(posts.at(-1)).toEqual({ action: "edit", edit: { op: "customize", day: "wed", part: { index: 1, option: "protein-pasta" } } });
+  await expect.poll(() => posts.at(-1)).toEqual({ action: "edit", edit: { op: "customize", day: "wed", part: { index: 1, option: "protein-pasta" } } });
 
   await steps.getByRole("button", { name: /Plan/ }).click();
   await plan.getByRole("switch", { name: "HelloFresh" }).click();

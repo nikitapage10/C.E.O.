@@ -443,6 +443,9 @@ test("signed out: counts only, never a name", async ({ page }) => {
 
 test("the queue on the wave (#803): what comes next left of the line, a tap jumps there, and the order toggle", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  // The rows drift on the wave all the time, so Playwright never sees one "stable" enough to click: with reduced
+  // motion they sit still (one frame per change), which is the same queue and the same taps.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await stub(page);
   await page.goto(`${BASE}/relay`);
   const wave = page.getByRole("navigation", { name: "Up next" });

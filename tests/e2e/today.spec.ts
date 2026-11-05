@@ -234,6 +234,7 @@ test("Settings in the Boiler Room has Hide, Ilyr's clock and Coming up", async (
   await page.goto(BASE + "/boiler/controls");
   const settings = page.locator("#ct-settings");
   await expect(settings.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await settings.locator(".bx-fold").click();
   const hide = settings.getByRole("button", { name: "Hide" });
   await hide.click();
   await expect(settings.getByRole("button", { name: "Hidden" })).toHaveAttribute("aria-pressed", "true");

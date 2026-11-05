@@ -164,6 +164,7 @@ const say = async (page: Page, words: string) => {
  */
 const relayHandsFree = async (page: Page) => {
   await page.goto(`${BASE}/boiler/controls`);
+  await page.locator("#ct-settings .bx-fold").click();
   await page.locator("#ct-settings").getByRole("button", { name: "Hands-free" }).click();
   await expect(page.locator(".wv-navr").getByRole("button", { name: /Listening|Hands-free/ })).toBeVisible();
   await page.getByRole("navigation", { name: "Desk" }).getByRole("link", { name: "Relay" }).click();

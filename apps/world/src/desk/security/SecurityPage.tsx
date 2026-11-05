@@ -4,13 +4,17 @@ import { SystemsNav } from "../SystemsNav.tsx";
 import { useSecurityFeed, type FeedState, type SecurityFeed } from "./feed.ts";
 import { BOUNDARIES, EVAL_AREAS, EVALS, OWASP_LLM, ROADMAP, ZONES, isShipped, partsOf, refsOf } from "./model.ts";
 import { alertState, scanState, scoreState, switchState, type CheckState } from "./checks.ts";
-import { ACCENT, CheckRack, Key, type Check, type Group } from "./Checks.tsx";
+import { ACCENT, type Check, type Group } from "./Checks.tsx";
 import { ALERT_EXPLAIN, EVAL_EXPLAIN, ROADMAP_EXPLAIN, SCAN_EXPLAIN, STAT_EXPLAIN, featureExplain, scorecardExplain, type ScanId } from "./explain.ts";
 import { Chips, DOC_URL, Facts, Out, REPO_URL, Rich } from "./parts.tsx";
-import { navigateTo } from "../../route.ts";
+import { BoilerFrame, Panel, Ring, RunStrip, useOpen } from "../boiler/frame.tsx";
+import { scanTrend, securityNeeds, severityTotals } from "../boiler/pages.ts";
+import { CheckList, TrustMap } from "./CheckList.tsx";
 
 /**
- * Boiler Room > Security (#82; on Today's flow kit since #445): every check as a particle line. On the stage, the
+ * Boiler Room > Security (#82; one screen since #746, the S3 concept: the trust map first, the scans' last twenty runs, the
+ * open alerts by severity, and every check one folded line away, with failing scans and critical alerts in "Needs you").
+ * Before #746: every check as a particle line. On the stage, the
  * headline and ledger read the scans in plain words, and under them each check is one line in the Pessimist's steel:
  * the five scans, the Scorecard, the two alert counts and the injection eval suite, area by area. It flows when it
  * passes, lies dashed while it waits to be reported, and stops dead at a red knot when it fails. Under the stage, in
@@ -286,75 +290,151 @@ export function SecurityPage({ now }: { now: number }) {
       </>
     );
 
-  const header = (
-    <>
-      <SystemsNav />
-      <header className="sx-top">
-        <p className="fl-eyb">
-          <span>Boiler Room</span>
-          <i />
-          Security · threat model and scans
-        </p>
-        <h1 className="fl-h1 desk__title">{headline}</h1>
-        <p className="fl-say">
-          Every check is a line: it flows while it passes and stops at a knot when it fails. Counts only here; the details of anything open stay with the crew. <FeedLine state={state} now={now} />
-        </p>
-        <dl className="fl-ledger sx-ledger">
-          <div className={failing.length ? "is-fail is-hot" : reported.length ? "is-pass" : "is-wait"}>
-            <dt>Scans</dt>
-            <dd>{reported.length ? `${reported.length - failing.length}/${reported.length}` : "–"}</dd>
-          </div>
-          <div className={`is-${scoreState(card)}`}>
-            <dt>Scorecard</dt>
-            <dd>{card ? card.score.toFixed(1) : "–"}</dd>
-          </div>
-          <div className={!alertsKnown ? "is-wait" : alerts ? "is-part" : "is-pass"}>
-            <dt>Open alerts</dt>
-            <dd>{alertsKnown ? `${alerts}${alertsMore ? "+" : ""}` : "–"}</dd>
-          </div>
-          <div className={EVALS.passing + EVALS.expectedFail === EVALS.total ? "is-pass" : "is-fail is-hot"}>
-            <dt>Evals</dt>
-            <dd>
-              {EVALS.passing}
-              <small>/{EVALS.total}</small>
-            </dd>
-          </div>
-          <div className="is-wait">
-            <dt>To ship</dt>
-            <dd>
-              {todo}
-              <small>/{ROADMAP.length}</small>
-            </dd>
-          </div>
-        </dl>
-      </header>
-      <Key />
-    </>
-  );
+  const needs = securityNeeds(feed);
+  const [open, toggle] = useOpen();
+  const sev = severityTotals(feed?.alerts);
+  const sevMax = sev ? Math.max(1, ...Object.values(sev)) : 1;
 
   return (
     <div className="sx-page wv-page fl-page" data-room="boiler" style={{ "--fl-accent": ACCENT } as CSSProperties}>
-      <CheckRack groups={top} header={header} label="Security: every check as a line" />
-      {/* The Keys form (#330) and Phones (#627) live on Controls now (#647). */}
-      <p className="fl-below sx-note sx-moved">
-        Keys and Phones moved to{" "}
-        <a href="/boiler/controls#ct-keys" onClick={toControls}>
-          Controls →
-        </a>
-      </p>
-      <div className="fl-below">
-        <CheckRack groups={more} stage={false} label="The switches, the trust boundaries and the roadmap" />
-      </div>
+      <BoilerFrame
+        page="security"
+        tabs={<SystemsNav className="bx-tabs" />}
+        title={headline}
+        say={
+          <>
+            Counts only here; the details of anything open stay with the crew. <FeedLine state={state} now={now} />
+          </>
+        }
+        needs={needs}
+        now={now}
+        onGo={() => undefined}
+      >
+        <div className="bx-sec">
+          <section className="bx-panel" aria-labelledby="sx-trust-h">
+            <header className="bx-ph">
+              <h2 id="sx-trust-h">Trust map</h2>
+              <span className="bx-psub">{more[1]!.note}</span>
+              <span className="bx-psub" style={{ marginLeft: "auto" }}>
+                <Out href={DOC_URL}>Threat model</Out>
+              </span>
+            </header>
+            <TrustMap
+              caption={(b) =>
+                b ? (
+                  <>
+                    <b>
+                      {b.id} {b.name} · {b.planned ? "waits on the Mac" : "guarded"}
+                    </b>
+                    <p>
+                      {ZONES[b.from].name} to {ZONES[b.to].name}. What crosses: {b.crosses}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <b>{BOUNDARIES.length} boundaries between seven zones</b>
+                    <p>Point at a line, or tab to it, for what crosses it and whether it's guarded. Dashed lines wait on hardware that isn't set up yet.</p>
+                  </>
+                )
+              }
+            />
+            <div className="bx-grid bx-folds">
+              <Panel id="sx-score" title="Scorecard" sub={card ? `${card.score.toFixed(1)} of 10, OpenSSF` : feed ? "not reported" : "waiting"} tone={scoreState(card)} open={open.has("sx-score")} onToggle={() => toggle("sx-score")}>
+                <ScorecardDetail card={card} feed={feed} now={now} />
+              </Panel>
+              <Panel id="sx-guards" title="The repo's switches" sub={more[0]!.note} open={open.has("sx-guards")} onToggle={() => toggle("sx-guards")}>
+                <CheckList checks={guards} label="The repo's switches" />
+                {more[0]!.foot}
+              </Panel>
+              <Panel id="sx-road" title="Roadmap" sub={`${ROADMAP.length - todo} of ${ROADMAP.length} shipped`} tone={todo ? "wait" : "pass"} open={open.has("sx-road")} onToggle={() => toggle("sx-road")}>
+                <CheckList checks={road} label="Open risks and the roadmap" />
+              </Panel>
+              <Panel id="sx-bounds" title="Every boundary" sub="what crosses, and its controls" open={open.has("sx-bounds")} onToggle={() => toggle("sx-bounds")}>
+                <CheckList checks={trust} label="Trust boundaries" />
+              </Panel>
+            </div>
+          </section>
+          <div className="bx-side">
+            <Panel
+              id="sx-scans"
+              title="Scans"
+              sub={reported.length ? `${reported.length - failing.length} of ${reported.length} passing · last 20 runs` : "waiting for GitHub"}
+              tone={failing.length ? "fail" : reported.length ? "pass" : "wait"}
+              open={open.has("sx-scans")}
+              onToggle={() => toggle("sx-scans")}
+              chart={
+                <ul className="bx-rows" aria-label="Each scan's last runs">
+                  {SCAN_IDS.map((id) => {
+                    const w = feed?.workflows.find((x) => x.id === id);
+                    const trend = scanTrend(w);
+                    const st = scanState(feed, w);
+                    return (
+                      <li key={id} className={`is-${st}`}>
+                        <i className="bx-dot" aria-hidden="true" />
+                        <b>{SCAN_NAME[id]}</b>
+                        <span className="bx-chart">{trend ? <RunStrip marks={trend} /> : <span className="bx-note">trend on the next read</span>}</span>
+                        <span className="bx-word">{trend ? `${trend.filter((m) => m.state === "pass").length}/${trend.length}` : scans.find((c) => c.id === `scan-${id}`)!.sub}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              }
+            >
+              <CheckList checks={scans} label="Scans" />
+            </Panel>
+            <Panel
+              id="sx-alerts"
+              title="Alerts"
+              sub={alertsKnown ? `${alerts}${alertsMore ? "+" : ""} open · counts only` : "not reported"}
+              tone={!alertsKnown ? "wait" : alerts ? "part" : "pass"}
+              open={open.has("sx-alerts")}
+              onToggle={() => toggle("sx-alerts")}
+              chart={
+                sev ? (
+                  <div className="bx-sev" aria-label={`Open alerts by severity: ${sev.critical} critical, ${sev.high} high, ${sev.medium} medium, ${sev.low} low`}>
+                    {(["critical", "high", "medium", "low"] as const).map((k) => (
+                      <div key={k} className={`is-${k}`}>
+                        <b>{sev[k]}</b>
+                        <i style={{ "--h": sev[k] / sevMax } as CSSProperties} aria-hidden="true" />
+                        <small>{k}</small>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="bx-note">{alertsKnown ? "The split by severity comes with the feed's next read." : "Waiting for GitHub's alert counts."}</p>
+                )
+              }
+            >
+              <CheckList checks={top[1]!.checks.slice(1)} label="Alerts" />
+            </Panel>
+            <Panel
+              id="sx-evals"
+              title="Injection evals"
+              sub={`${EVALS.passing} of ${EVALS.total} pass in ${EVALS.areas.length} areas`}
+              tone={EVALS.passing + EVALS.expectedFail === EVALS.total ? "pass" : "fail"}
+              open={open.has("sx-evals")}
+              onToggle={() => toggle("sx-evals")}
+              chart={
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <Ring v={EVALS.total ? EVALS.passing / EVALS.total : 0} tone={EVALS.passing + EVALS.expectedFail === EVALS.total ? "pass" : "fail"} text={String(EVALS.passing)} size={52} />
+                  <ul className="bx-legend" aria-label="Cases per area">
+                    {EVALS.areas.map((a) => (
+                      <li key={a.id} className={a.passing + a.expectedFail < a.cases ? "is-fail" : "is-pass"}>
+                        <i className="bx-dot" aria-hidden="true" />
+                        {EVAL_AREAS.find((x) => x.id === a.id)?.area ?? a.id} <b>{a.cases}</b>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              }
+            >
+              <CheckList checks={evals} label="Eval areas" />
+            </Panel>
+          </div>
+        </div>
+      </BoilerFrame>
     </div>
   );
-}
-
-/** Keys and Phones moved to Controls (#647): the old spot links across. */
-function toControls(e: React.MouseEvent) {
-  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-  e.preventDefault();
-  navigateTo("/boiler/controls" + window.location.search);
-  requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("ct-keys")?.scrollIntoView({ block: "start" })));
 }
 
 function FeedLine({ state, now }: { state: FeedState; now: number }) {
